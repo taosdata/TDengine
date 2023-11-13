@@ -1,5 +1,5 @@
-use std::str::FromStr;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use taos::Dsn;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -29,13 +29,11 @@ impl OpcType {
             "opcua" => Ok(Self::OPCUA),
             "opcda" => Ok(Self::OPCDA),
             "fake" => Ok(Self::FAKE),
-            "opc" => {
-                match protocol.as_deref() {
-                    Some("ua") => Ok(Self::OPCUA),
-                    Some("da") => Ok(Self::OPCDA),
-                    _ => anyhow::bail!("unknown opc protocol"),
-                }
-            }
+            "opc" => match protocol.as_deref() {
+                Some("ua") => Ok(Self::OPCUA),
+                Some("da") => Ok(Self::OPCDA),
+                _ => anyhow::bail!("unknown opc protocol"),
+            },
             _ => anyhow::bail!("invalid opc type"),
         }
     }
@@ -56,8 +54,8 @@ impl FromStr for OpcType {
 
 #[cfg(test)]
 mod tests {
-    use taos::Dsn;
     use super::*;
+    use taos::Dsn;
 
     #[test]
     fn test_from_dsn() {

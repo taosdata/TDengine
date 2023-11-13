@@ -11,6 +11,7 @@ use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
 use crate::runners::influxdb::influxdb_datasets;
+use crate::runners::opc::config::OpcTableConfig;
 use crate::utils::mask_dsn;
 use crate::Transferred;
 pub use runners::mqtt::mqtt_to_taos;
@@ -27,7 +28,6 @@ pub use runners::{
 pub use sink::IpcStreamWorker;
 pub use taosx_ipc::types::*;
 pub use transform::Parser;
-use crate::runners::opc::config::OpcTableConfig;
 
 use self::sink::IpcHandler;
 

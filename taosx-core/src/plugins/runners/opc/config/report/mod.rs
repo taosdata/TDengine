@@ -20,41 +20,47 @@ impl ReportConfig {
     }
 
     fn parse_concurrent(dsn: &Dsn) -> anyhow::Result<Option<i64>> {
-        Ok(dsn.params
+        Ok(dsn
+            .params
             .get("concurrent")
-            .map(|v| v.parse::<i64>().map_err(|err| {
-                anyhow::anyhow!("parse concurrent failed, cause: {}", err.to_string())
-            }))
-            .transpose()?
-        )
+            .map(|v| {
+                v.parse::<i64>().map_err(|err| {
+                    anyhow::anyhow!("parse concurrent failed, cause: {}", err.to_string())
+                })
+            })
+            .transpose()?)
     }
 
     fn parse_batch_size(dsn: &Dsn) -> anyhow::Result<Option<i64>> {
-        Ok(dsn.params
+        Ok(dsn
+            .params
             .get("batch_size")
-            .map(|v| v.parse::<i64>().map_err(|err| {
-                anyhow::anyhow!("parse batch_size failed, cause: {}", err.to_string())
-            }))
-            .transpose()?
-        )
+            .map(|v| {
+                v.parse::<i64>().map_err(|err| {
+                    anyhow::anyhow!("parse batch_size failed, cause: {}", err.to_string())
+                })
+            })
+            .transpose()?)
     }
 
     fn parse_batch_timeout(dsn: &Dsn) -> anyhow::Result<Option<i64>> {
-        Ok(dsn.params
+        Ok(dsn
+            .params
             .get("batch_timeout")
-            .map(|v| v.parse::<i64>().map_err(|err| {
-                anyhow::anyhow!("parse batch_timeout failed, cause: {}", err.to_string())
-            }))
-            .transpose()?
-        )
+            .map(|v| {
+                v.parse::<i64>().map_err(|err| {
+                    anyhow::anyhow!("parse batch_timeout failed, cause: {}", err.to_string())
+                })
+            })
+            .transpose()?)
     }
 }
 
 #[cfg(test)]
 mod report_config_tests {
+    use super::*;
     use std::str::FromStr;
     use taos::Dsn;
-    use super::*;
 
     #[test]
     fn test_from_dsn() {

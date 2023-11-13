@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
-use taos::Dsn;
 use crate::runners::opc::config::connect::da::DaConnectConfig;
 use crate::runners::opc::config::connect::ua::UaConnectConfig;
 use crate::runners::opc::opc_type::OpcType;
+use serde::{Deserialize, Serialize};
+use taos::Dsn;
 
 mod da;
 mod ua;
@@ -25,10 +25,7 @@ impl ConnectConfig {
                 ua: None,
                 da: Some(DaConnectConfig::from_dsn(&dsn)?),
             },
-            OpcType::FAKE => Self {
-                ua: None,
-                da: None,
-            }
+            OpcType::FAKE => Self { ua: None, da: None },
         };
         Ok(connect_config)
     }
@@ -36,8 +33,8 @@ impl ConnectConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use super::*;
+    use std::str::FromStr;
     use taos::Dsn;
 
     #[test]
@@ -52,6 +49,9 @@ mod tests {
         assert_eq!(None, connect.ua);
         let da = connect.da.unwrap();
         assert_eq!("subject", da.server);
-        assert_eq!(vec!["192.168.1.10", "192.168.1.11", "192.168.1.12"], da.nodes);
+        assert_eq!(
+            vec!["192.168.1.10", "192.168.1.11", "192.168.1.12"],
+            da.nodes
+        );
     }
 }

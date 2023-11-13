@@ -2,8 +2,8 @@ use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, Write};
 use std::str::FromStr;
 
-use base64::Engine;
 use base64::engine::general_purpose;
+use base64::Engine;
 use csv_lib::ReaderBuilder;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -20,11 +20,11 @@ use crate::runners::opc::config::table::{ColumnConfig, TableConfig, TagConfig};
 use crate::runners::opc::generate_tbname_from_pattern;
 use crate::runners::opc::opc_type::OpcType;
 
-mod connect;
 mod collect;
+mod connect;
+pub mod points;
 mod report;
 pub mod table;
-pub mod points;
 
 #[derive(Debug, Serialize)]
 pub struct OPCConfig {
@@ -42,7 +42,11 @@ pub struct OPCConfig {
 }
 
 impl OPCConfig {
-    pub async fn from_dsn_collect_mode(dsn: &Dsn, ipc_port: u16, taos: &Taos) -> anyhow::Result<Self> {
+    pub async fn from_dsn_collect_mode(
+        dsn: &Dsn,
+        ipc_port: u16,
+        taos: &Taos,
+    ) -> anyhow::Result<Self> {
         if dsn.driver != "opc" && dsn.driver != "opcua" && dsn.driver != "opcda" {
             anyhow::bail!("invalid opc driver");
         }
@@ -60,15 +64,13 @@ impl OPCConfig {
 
         let csv_config_file = Self::parse_csv_config_file(dsn);
         if csv_config_file.is_some() {
-            let table_to_drop = generate_config_from_csv(
-                "opcua",
-                csv_config_file.clone().unwrap().as_str(),
-            )
-                .await
-                .map(|(_a, _b, c)| c)
-                .map_err(|err| {
-                    anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
-                })?;
+            let table_to_drop =
+                generate_config_from_csv("opcua", csv_config_file.clone().unwrap().as_str())
+                    .await
+                    .map(|(_a, _b, c)| c)
+                    .map_err(|err| {
+                        anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
+                    })?;
 
             for child_table_name in table_to_drop.iter() {
                 let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
@@ -99,192 +101,9 @@ impl OPCConfig {
         })
     }
 
-    /*
-        pub(crate) async fn new(mut dsn: Dsn, ipc_port: u16, config_mode: OPCConfigMode, taos: Option<&Taos>) -> anyhow::Result<Self> {
-            if dsn.driver != "opc" && dsn.driver != "opcua" && dsn.driver != "opcda" {
-                anyhow::bail!("invalid opc driver");
-            }
-
-            let collect;
-            let mut param_mapping = HashMap::new();
-
-            // let csv_config_file = dsn.remove("csv_config_file");
-            let csv_config_file = Self::parse_csv_config_file(&dsn);
-
-            let mut opc_table_config = None;
-
-            let select_all_points = Self::parse_select_all_points(&dsn);
-
-            match dsn.protocol.as_deref() {
-                Some("ua") => {
-                    let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
-                        vec![]
-                    } else if csv_config_file.is_some() {
-                        let res = generate_opcconfig_from_csv(
-                            "opcua",
-                            csv_config_file.clone().unwrap().as_str(),
-                        ).await.map_err(|err| anyhow::anyhow!("csv_config_file config error: {}", err.to_string()))?;
-                        opc_table_config = Some(res.0);
-                        for child_table_name in res.2.iter() {
-                            let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
-                            tracing::info!("drop sql: {drop_sql}");
-                            taos.unwrap().exec(drop_sql).await.map_err(|err| {
-                                anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
-                            })?;
-                        }
-                        res.1
-                    } else if select_all_points {
-                        // TODO: all points returns empty.
-                        // warn!("select_all_points is not implemented");
-                        Vec::new()
-                    } else {
-                        get_string_vec_from_param_or_file_for_opc(&mut dsn, "ua.nodes")
-                            .map_err(|s| anyhow::anyhow!("file parse error: {}", s))?
-                    };
-
-                    let mut ua_node_config_vec = Vec::new();
-                    for i in 0..node_vec.len() {
-                        let pair = node_vec[i].split("::").collect_vec();
-                        if pair.len() != 2 {
-                            let pair = pair.join("::");
-                            anyhow::bail!("node config error node config: {} split result len is not 2", pair);
-                        }
-                        let id = String::from(pair[0]);
-                        let code = String::from(pair[1]);
-                        let ua_node_config = UANodeConfig { id: id.clone() };
-                        if csv_config_file.is_none() {
-                            param_mapping.insert(
-                                id,
-                                PointConfig {
-                                    code,
-                                    stable: None,
-                                    tag_values: None,
-                                    value_type: None,
-                                },
-                            );
-                        }
-                        ua_node_config_vec.push(ua_node_config);
-                    }
-
-                    let collect_mode = dsn.remove("collect_mode").unwrap_or("observe".to_string());
-                    let collect_ua_config = UaCollectConfig {
-                        collect_mode: collect_mode
-                            .parse::<CollectMode>()
-                            .map_err(|err|
-                                anyhow::anyhow!("collect_mode config error: {}", err.to_string())
-                            )?,
-                        nodes: ua_node_config_vec,
-                    };
-                    collect = CollectConfig {
-                        interval,
-                        limit,
-                        ua: Some(collect_ua_config),
-                        da: None,
-                        dump: dump_config,
-                    };
-                }
-                Some("da") => {
-                    let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
-                        vec![]
-                    } else if csv_config_file.is_some() {
-                        let res = generate_opcconfig_from_csv(
-                            "opcda",
-                            csv_config_file.clone().unwrap().as_str(),
-                        )
-                            .await
-                            .map_err(|err|
-                                anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
-                            )?;
-                        opc_table_config = Some(res.0);
-                        for child_table_name in res.2.iter() {
-                            let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
-                            tracing::info!("drop sql: {drop_sql}");
-                            taos.unwrap().exec(drop_sql).await.map_err(|err| {
-                                anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
-                            })?;
-                        }
-                        res.1
-                    } else {
-                        get_string_vec_from_param_or_file_for_opc(&mut dsn, "da.tags")
-                            .map_err(|s|
-                                anyhow::anyhow!("file parse error: {}", s)
-                            )?
-                    };
-
-                    let mut da_nodes_vec = Vec::new();
-                    for i in 0..node_vec.len() {
-                        let pair = node_vec[i].split("::").collect_vec();
-                        if pair.len() != 2 {
-                            let pair = pair.join("::");
-                            anyhow::bail!("node config error node config: {} split result len is not 2", pair);
-                        }
-                        let tag = String::from(pair[0]);
-                        let code = String::from(pair[1]);
-                        da_nodes_vec.push(DaNodeConfig { tag: tag.clone() });
-                        if csv_config_file.is_none() {
-                            param_mapping.insert(
-                                tag,
-                                PointConfig {
-                                    code,
-                                    stable: None,
-                                    tag_values: None,
-                                    value_type: None,
-                                },
-                            );
-                        }
-                    }
-                    collect = CollectConfig {
-                        interval,
-                        limit,
-                        ua: None,
-                        da: Some(DaCollectConfig { tags: da_nodes_vec }),
-                        dump: dump_config,
-                    }
-                }
-                _ => {
-                    panic!()
-                    // bail!("opc config has wrong protocol");
-                }
-            }
-
-            let table_config: Option<TableConfig>;
-            if matches!(config_mode, OPCConfigMode::Points) {
-                table_config = None;
-            } else {
-                if opc_table_config.is_none() {
-                    if select_all_points {
-                        table_config = None;
-                    } else {
-                        let config = dsn.remove("opc_table_config");
-                        if config.is_none() {
-                            anyhow::bail!("opc_table_config config error: should config opc_table_config or use csv config file");
-                        }
-                        table_config =
-                            Some(serde_json::from_str(config.unwrap().as_str()).map_err(|v| {
-                                anyhow::anyhow!("Parse param error from {} while parsing parameter opc_table_config", v.to_string())
-                            })?);
-                    }
-                } else {
-                    let opc_table_config = opc_table_config.unwrap();
-                    table_config = Some(opc_table_config.table_config.clone());
-                    param_mapping = opc_table_config.id_code_map.clone();
-                }
-            }
-
-            Ok(OPCConfig {
-                opc_type: OpcType::from_dsn(&dsn)?,
-                debug: Self::parse_debug(&dsn)?,
-                points: None,
-                connect: ConnectConfig::from_dsn(&dsn)?,
-                collect,
-                report: ReportConfig::from_dsn(&dsn, ipc_port)?,
-                param_mapping,
-                opc_table_config: table_config,
-            })
-        }
-    */
     fn parse_debug(dsn: &Dsn) -> anyhow::Result<bool> {
-        Ok(dsn.params
+        Ok(dsn
+            .params
             .get("debug")
             .map(|v| {
                 v.parse::<bool>().map_err(|err| {
@@ -292,14 +111,11 @@ impl OPCConfig {
                 })
             })
             .transpose()?
-            .unwrap_or(false)
-        )
+            .unwrap_or(false))
     }
 
     fn parse_csv_config_file(dsn: &Dsn) -> Option<String> {
-        dsn.params
-            .get("csv_config_file")
-            .map(|v| v.to_string())
+        dsn.params.get("csv_config_file").map(|v| v.to_string())
     }
     async fn build_param_mapping(dsn: &Dsn) -> anyhow::Result<HashMap<String, PointConfig>> {
         let mut param_mapping = HashMap::new();
@@ -309,26 +125,23 @@ impl OPCConfig {
         match opc_type {
             OpcType::OPCUA => {
                 let ua_nodes = match csv_config_file {
-                    Some(csv) => {
-                        generate_config_from_csv("opcua", csv.as_str())
-                            .await
-                            .map(|(_a, b, _c)| b)
-                            .map_err(|err| {
-                                anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
-                            })?
-                    }
-                    None => {
-                        get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "ua.nodes")
-                            .map_err(|s| {
-                                anyhow::anyhow!("file parse error: {}", s)
-                            })?
-                    }
+                    Some(csv) => generate_config_from_csv("opcua", csv.as_str())
+                        .await
+                        .map(|(_a, b, _c)| b)
+                        .map_err(|err| {
+                            anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
+                        })?,
+                    None => get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "ua.nodes")
+                        .map_err(|s| anyhow::anyhow!("file parse error: {}", s))?,
                 };
                 for i in 0..ua_nodes.len() {
                     let pair = ua_nodes[i].split("::").collect_vec();
                     if pair.len() != 2 {
                         let pair = pair.join("::");
-                        anyhow::bail!("failed to parse node: {}, cause: split result len is not 2", pair);
+                        anyhow::bail!(
+                            "failed to parse node: {}, cause: split result len is not 2",
+                            pair
+                        );
                     }
                     let tag = String::from(pair[0]);
                     let code = String::from(pair[1]);
@@ -345,26 +158,23 @@ impl OPCConfig {
             }
             OpcType::OPCDA => {
                 let node_vec = match csv_config_file {
-                    Some(csv) => {
-                        generate_config_from_csv("opcda", csv.as_str())
-                            .await
-                            .map(|(_a, b, _c)| b)
-                            .map_err(|err|
-                                anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
-                            )?
-                    }
-                    None => {
-                        get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "da.tags")
-                            .map_err(|s|
-                                anyhow::anyhow!("file parse error: {}", s)
-                            )?
-                    }
+                    Some(csv) => generate_config_from_csv("opcda", csv.as_str())
+                        .await
+                        .map(|(_a, b, _c)| b)
+                        .map_err(|err| {
+                            anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
+                        })?,
+                    None => get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "da.tags")
+                        .map_err(|s| anyhow::anyhow!("file parse error: {}", s))?,
                 };
                 for i in 0..node_vec.len() {
                     let pair = node_vec[i].split("::").collect_vec();
                     if pair.len() != 2 {
                         let pair = pair.join("::");
-                        anyhow::bail!("node config error node config: {} split result len is not 2", pair);
+                        anyhow::bail!(
+                            "node config error node config: {} split result len is not 2",
+                            pair
+                        );
                     }
                     let tag = String::from(pair[0]);
                     let code = String::from(pair[1]);
@@ -406,7 +216,6 @@ impl OPCConfig {
     }
 }
 
-
 #[derive(Debug, Serialize, Deserialize, Default, PartialEq)]
 enum AuthMethod {
     Anonymous,
@@ -435,7 +244,10 @@ pub struct PointConfig {
 const CSV_CONFIG_COLUMNS: [&str; 2] = ["point_id", "tbname"];
 
 /// return opctableconfig, node_config, tables_to_drop
-pub async fn generate_config_from_csv(ty: &str, csv_config_file: &str) -> anyhow::Result<(OpcTableConfig, Vec<String>, Vec<String>)> {
+pub async fn generate_config_from_csv(
+    ty: &str,
+    csv_config_file: &str,
+) -> anyhow::Result<(OpcTableConfig, Vec<String>, Vec<String>)> {
     let files_or_strings = csv_config_file
         .split(",")
         .map(|s| s.trim())
@@ -450,7 +262,10 @@ pub async fn generate_config_from_csv(ty: &str, csv_config_file: &str) -> anyhow
     let mut current_tag_names = Vec::new();
     let mut stable_prefix = None;
     for mut file in files_or_strings {
-        tracing::info!("current log: {}",std::env::current_dir().unwrap().to_str().unwrap());
+        tracing::info!(
+            "current log: {}",
+            std::env::current_dir().unwrap().to_str().unwrap()
+        );
 
         let mut rdr;
         if !file.starts_with("@") {
@@ -685,7 +500,11 @@ pub async fn generate_config_from_csv(ty: &str, csv_config_file: &str) -> anyhow
     ));
 }
 
-fn check_duplicated(current_tags: &Vec<String>, current_columns: Option<&Vec<String>>, column_name: &String) -> anyhow::Result<()> {
+fn check_duplicated(
+    current_tags: &Vec<String>,
+    current_columns: Option<&Vec<String>>,
+    column_name: &String,
+) -> anyhow::Result<()> {
     if current_tags.contains(column_name) {
         anyhow::bail!("duplicated column or tag: {column_name}")
     }
@@ -695,7 +514,10 @@ fn check_duplicated(current_tags: &Vec<String>, current_columns: Option<&Vec<Str
     Ok(())
 }
 
-pub fn get_string_vec_from_param_or_file_for_opc(dsn: &mut Dsn, key: &str) -> Result<Vec<String>, String> {
+pub fn get_string_vec_from_param_or_file_for_opc(
+    dsn: &mut Dsn,
+    key: &str,
+) -> Result<Vec<String>, String> {
     if let Some(nodes) = dsn.remove(key) {
         let mut rdr = ReaderBuilder::new()
             .delimiter(b',')
@@ -742,158 +564,8 @@ pub fn get_string_vec_from_param_or_file_for_opc(dsn: &mut Dsn, key: &str) -> Re
             tracing::warn!("node config is empty");
             // return Err(format!("node config set but is empty: {nodes}"));
         }
-        return Result::Ok(node_config);
+        return Ok(node_config);
     }
     // tracing::warn!("node config is empty");
     return Err("Nodes not set".to_string());
-}
-
-#[cfg(test)]
-mod tests {
-    /*
-        #[tokio::test]
-        async fn test_opc_config_to_toml() {
-            let mut map = HashMap::new();
-            map.insert(
-                String::from("123"),
-                PointConfig {
-                    code: "567".to_string(),
-                    stable: None,
-                    tag_values: None,
-                    value_type: None,
-                },
-            );
-            let mut column_configs = Vec::new();
-            let column_config = ColumnConfig {
-                column_name: String::from("received_time"),
-                column_type: Some(Ty::Timestamp),
-                column_alias: Some("ts".to_string()),
-                is_primary_key: true,
-            };
-            column_configs.push(column_config);
-            let column_config = ColumnConfig {
-                column_name: String::from("original_time"),
-                column_type: Some(Ty::Timestamp),
-                column_alias: None,
-                is_primary_key: false,
-            };
-            column_configs.push(column_config);
-            let column_config = ColumnConfig {
-                column_name: String::from("value"),
-                column_type: Some(Ty::Timestamp),
-                column_alias: None,
-                is_primary_key: true,
-            };
-            column_configs.push(column_config);
-            let opc_table_config = TableConfig {
-                stable_prefix: Some("meters".to_string()),
-                column_configs,
-                tag_configs: None,
-            };
-            let config = OPCConfig {
-                opc_type: OpcType::OPCUA,
-                debug: true,
-                points: Some(PointsConfig {
-                    limit: 32,
-                    regex: Some(String::from("123")),
-                }),
-                // use_received_time: true,
-                connect: ConnectConfig {
-                    ua: Some(UaConnectConfig {
-                        endpoint: String::from("endpoint.123"),
-                        connect_timeout: 10,
-                        request_timeout: 20,
-                        security_policy: String::from("None"),
-                        security_mode: String::from("None"),
-                        certificate: None,
-                        private_key: None,
-                        auth_method: AuthMethod::Anonymous,
-                        username: None,
-                        password: None,
-                    }),
-                    da: Some(DaConnectConfig {
-                        server: String::from("server.server"),
-                        nodes: vec![String::from("localhost")],
-                    }),
-                },
-                collect: CollectConfig {
-                    interval: Some(10),
-                    limit: Some(10),
-                    ua: Some(UaCollectConfig {
-                        collect_mode: CollectMode::OBSERVE,
-                        nodes: vec![UANodeConfig {
-                            id: String::from("1"),
-                            // value_type: String::from("DOUBLE"),
-                        }],
-                    }),
-                    da: Some(DaCollectConfig {
-                        tags: vec![DaNodeConfig {
-                            tag: String::from("123"),
-                            // value_type: String::from("VARCHAR"),
-                        }],
-                    }),
-                    dump: Some(DumpConfig {
-                        enable: true,
-                        path: Some("/usr/loacl/taosx/".to_string()),
-                        keep: Some(10 as usize),
-                    }),
-                },
-                report: ReportConfig {
-                    remote: String::from("remote.remote"),
-                    concurrent: Some(10),
-                    batch_size: None,
-                    batch_timeout: Some(100),
-                },
-                param_mapping: map,
-                // table_info: HashMap::new(),
-                opc_table_config: Some(opc_table_config),
-            };
-            let toml = toml::to_string(&config).unwrap();
-            assert_eq!(
-                r#"opc_type = "opcua"
-    debug = true
-    
-    [connect.ua]
-    endpoint = "endpoint.123"
-    connect_timeout = 10
-    request_timeout = 20
-    security_policy = "None"
-    security_mode = "None"
-    auth_method = "Anonymous"
-    
-    [connect.da]
-    server = "server.server"
-    nodes = ["localhost"]
-    
-    [points]
-    limit = 32
-    regex = "123"
-    
-    [collect]
-    interval = 10
-    limit = 10
-    
-    [collect.ua]
-    collect_mode = "observe"
-    
-    [[collect.ua.nodes]]
-    id = "1"
-    
-    [[collect.da.tags]]
-    tag = "123"
-    
-    [collect.dump]
-    enable = true
-    path = "/usr/loacl/taosx/"
-    keep = 10
-    
-    [report]
-    remote = "remote.remote"
-    concurrent = 10
-    batch_timeout = 100
-    "#,
-                toml
-            );
-        }
-    */
 }

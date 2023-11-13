@@ -6,9 +6,10 @@ use std::{
     net::SocketAddr,
     str::FromStr,
     sync::{
-        Arc,
         atomic::{AtomicU32, AtomicUsize, Ordering},
-    }, time::Duration,
+        Arc,
+    },
+    time::Duration,
 };
 
 use anyhow::{bail, Context};
@@ -20,11 +21,11 @@ use futures::TryStreamExt;
 use futures_util::StreamExt;
 use metrics::*;
 use serde_json::json;
-use taos::{
-    AsyncBindable,
-    AsyncQueryable, Dsn, Itertools, RawBlock, Stmt, Taos, taos_query::{common::Describe, Manager}, TaosPool, Ty, Value,
-};
 use taos::RawResult;
+use taos::{
+    taos_query::{common::Describe, Manager},
+    AsyncBindable, AsyncQueryable, Dsn, Itertools, RawBlock, Stmt, Taos, TaosPool, Ty, Value,
+};
 use tokio::sync::{Mutex, Notify, OnceCell};
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
@@ -35,19 +36,19 @@ use taosx_ipc::{
     stream::{flat::FlatMessage, point::PointMessage},
 };
 
+use crate::plugins::runners::opc::config::table::ColumnConfig;
+use crate::plugins::runners::opc::config::OpcTableConfig;
+use crate::runners::opc::config::OPCConfig;
 use crate::{
-    ConnectorLicense,
-    Parser, Transferred, utils::{
+    utils::{
         breakpoints::breakpoints_set,
         trace::{
             create_data_trace_id, create_query_id, create_stream_trace_id, get_data_trace_id_str,
             set_data_trace_id_for_current_span,
         },
     },
+    ConnectorLicense, Parser, Transferred,
 };
-use crate::plugins::runners::opc::config::table::ColumnConfig;
-use crate::plugins::runners::opc::config::OpcTableConfig;
-use crate::runners::opc::config::OPCConfig;
 
 use super::*;
 

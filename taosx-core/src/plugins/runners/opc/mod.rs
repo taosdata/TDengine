@@ -1,10 +1,4 @@
-use std::{
-    fs,
-    io::prelude::*,
-    path::PathBuf,
-    str::FromStr,
-    sync::Arc,
-};
+use std::{fs, io::prelude::*, path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -17,16 +11,16 @@ use tracing::{instrument, Span};
 
 use taosx_ipc::types::OptionSet;
 
-use crate::{
-    Action, build_ipc, DataSet, DataSetsReq, get_log_keep_days, Transferred,
-    utils::port_pool::PortPool,
-};
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
-use crate::runners::opc::config::OPCConfig;
-use crate::runners::opc::config::table::{ColumnConfig, TableConfig};
 use crate::runners::opc::config::points::PointsConfig;
+use crate::runners::opc::config::table::{ColumnConfig, TableConfig};
+use crate::runners::opc::config::OPCConfig;
 use crate::runners::opc::opc_type::OpcType;
+use crate::{
+    build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
+    Transferred,
+};
 
 pub mod config;
 mod opc_type;
@@ -74,7 +68,10 @@ pub async fn opc_to_taos(
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     if to.subject.is_none() {
-        anyhow::bail!("Database name is required in OPC dsn: {}", to.clone().to_string());
+        anyhow::bail!(
+            "Database name is required in OPC dsn: {}",
+            to.clone().to_string()
+        );
     }
     let ipc_port = port_pool
         .get()
@@ -122,7 +119,7 @@ pub async fn opc_to_taos(
         None,
         notify,
     )
-        .await?;
+    .await?;
 
     let port_pool = port_pool.clone();
     let mut command = tokio::process::Command::new(exe_path()?);
@@ -224,12 +221,14 @@ pub async fn opc_to_taos(
 
 #[instrument(skip(dsn))]
 async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
-    let child_table_expression = dsn.params
+    let child_table_expression = dsn
+        .params
         .get("child_table_expression")
         .ok_or(anyhow::anyhow!("child_table_expression is required"))?
         .clone();
 
-    let table_primary_key = dsn.params
+    let table_primary_key = dsn
+        .params
         .get("table_primary_key")
         .ok_or(anyhow::anyhow!("table_primary_key is required"))?
         .clone();
@@ -374,7 +373,8 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     };
     let mut config = OPCConfig::from_dsn_point_mode(&from).await?;
     config.points = Some(points_config);
-    let toml = toml::to_string(&config).with_context(|| format!("toml to_string error encountered"))?;
+    let toml =
+        toml::to_string(&config).with_context(|| format!("toml to_string error encountered"))?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
@@ -410,7 +410,8 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
             "Get OPC datasets error:\n{}",
             error
         );
-        let pattern = regex::Regex::new(r#"level=PANIC msg="(?P<msg>.*)" error="(?<error>.*)"#).unwrap();
+        let pattern =
+            regex::Regex::new(r#"level=PANIC msg="(?P<msg>.*)" error="(?<error>.*)"#).unwrap();
         let matches = pattern.captures(&error);
         if let Some(matches) = matches {
             anyhow::bail!("{}: {}", &matches["msg"], &matches["error"]);
@@ -448,10 +449,10 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
             .filter(|set| {
                 regex.is_match(&set.id)
                     || set
-                    .name
-                    .as_deref()
-                    .map(|s| regex.is_match(s))
-                    .unwrap_or(false)
+                        .name
+                        .as_deref()
+                        .map(|s| regex.is_match(s))
+                        .unwrap_or(false)
             })
             .map(|mut set| {
                 set.category = Some(req.categories[0].clone());

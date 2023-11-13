@@ -1,6 +1,6 @@
+use crate::runners::opc::config::AuthMethod;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
-use crate::runners::opc::config::AuthMethod;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct UaConnectConfig {
@@ -23,8 +23,14 @@ impl UaConnectConfig {
         let request_timeout = Self::parse_request_timeout(dsn)?;
         let security_policy = Self::parse_security_policy(dsn);
         let security_mode = Self::parse_security_mode(dsn);
-        let certificate = dsn.params.get("certificate").map(|v| v.trim_start_matches('@').to_string());
-        let private_key = dsn.params.get("private_key").map(|v| v.trim_start_matches('@').to_string());
+        let certificate = dsn
+            .params
+            .get("certificate")
+            .map(|v| v.trim_start_matches('@').to_string());
+        let private_key = dsn
+            .params
+            .get("private_key")
+            .map(|v| v.trim_start_matches('@').to_string());
         let username = dsn.username.clone();
         let password = dsn.password.clone();
         let auth_method = if username.is_some() || password.is_some() {
@@ -53,31 +59,48 @@ impl UaConnectConfig {
     }
 
     fn parse_endpoint(dsn: &Dsn) -> anyhow::Result<String> {
-        let addr = dsn.addresses.first()
+        let addr = dsn
+            .addresses
+            .first()
             .ok_or_else(|| anyhow::anyhow!("endpoint is required"))?;
-        let host = addr.host.clone().ok_or(anyhow::anyhow!("host is required"))?;
-        let port = addr.port.clone().ok_or(anyhow::anyhow!("port is required"))?;
+        let host = addr
+            .host
+            .clone()
+            .ok_or(anyhow::anyhow!("host is required"))?;
+        let port = addr
+            .port
+            .clone()
+            .ok_or(anyhow::anyhow!("port is required"))?;
         let subject = dsn.subject.clone().unwrap_or("".to_string());
         let endpoint = format!("opc.tcp://{}:{}/{}", host, port, subject);
         Ok(endpoint)
     }
 
     fn parse_connect_timeout(dsn: &Dsn) -> anyhow::Result<i64> {
-        Ok(dsn.params
+        Ok(dsn
+            .params
             .get("connect_timeout")
-            .map(|v| v.parse::<i64>().map_err(|err| {
-                anyhow::anyhow!("parse connection_timeout failed, cause: {}", err.to_string())
-            }))
+            .map(|v| {
+                v.parse::<i64>().map_err(|err| {
+                    anyhow::anyhow!(
+                        "parse connection_timeout failed, cause: {}",
+                        err.to_string()
+                    )
+                })
+            })
             .transpose()?
             .unwrap_or(10))
     }
 
     fn parse_request_timeout(dsn: &Dsn) -> anyhow::Result<i64> {
-        Ok(dsn.params
+        Ok(dsn
+            .params
             .get("request_timeout")
-            .map(|v| v.parse::<i64>().map_err(|err| {
-                anyhow::anyhow!("parse request_timeout failed, cause: {}", err.to_string())
-            }))
+            .map(|v| {
+                v.parse::<i64>().map_err(|err| {
+                    anyhow::anyhow!("parse request_timeout failed, cause: {}", err.to_string())
+                })
+            })
             .transpose()?
             .unwrap_or(10))
     }
@@ -99,10 +122,10 @@ impl UaConnectConfig {
 
 #[cfg(test)]
 mod ua_connect_config_tests {
+    use super::*;
+    use crate::runners::opc::config::AuthMethod;
     use std::str::FromStr;
     use taos::Dsn;
-    use crate::runners::opc::config::AuthMethod;
-    use super::*;
 
     #[test]
     fn test_from_dsn() {
@@ -172,7 +195,10 @@ mod ua_connect_config_tests {
         let dsn = Dsn::from_str("opc://?connect_timeout=abc").unwrap();
         let timeout = UaConnectConfig::parse_connect_timeout(&dsn);
         assert!(timeout.is_err());
-        assert_eq!("parse connection_timeout failed, cause: invalid digit found in string", timeout.unwrap_err().to_string());
+        assert_eq!(
+            "parse connection_timeout failed, cause: invalid digit found in string",
+            timeout.unwrap_err().to_string()
+        );
     }
 
     #[test]
@@ -188,7 +214,10 @@ mod ua_connect_config_tests {
         let dsn = Dsn::from_str("opc://?request_timeout=abc").unwrap();
         let timeout = UaConnectConfig::parse_request_timeout(&dsn);
         assert!(timeout.is_err());
-        assert_eq!("parse request_timeout failed, cause: invalid digit found in string", timeout.unwrap_err().to_string());
+        assert_eq!(
+            "parse request_timeout failed, cause: invalid digit found in string",
+            timeout.unwrap_err().to_string()
+        );
     }
 
     #[test]

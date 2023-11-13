@@ -1,9 +1,9 @@
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 
-use file_rotate::{ContentLimit, FileRotate, TimeFrequency};
 use file_rotate::compression::Compression;
 use file_rotate::suffix::{AppendTimestamp, DateFrom, FileLimit};
+use file_rotate::{ContentLimit, FileRotate, TimeFrequency};
 use itertools::Itertools;
 use taos::Dsn;
 

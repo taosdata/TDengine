@@ -8,9 +8,9 @@ use crate::runners::opc::config::collect::dump::DumpConfig;
 use crate::runners::opc::config::collect::ua::UaCollectConfig;
 use crate::runners::opc::config::OpcType;
 
+mod da;
 pub mod dump;
 mod ua;
-mod da;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -63,29 +63,33 @@ impl CollectConfig {
                 ua: None,
                 da: None,
                 dump: None,
-            }
+            },
         };
         Ok(collect_config)
     }
 
     fn parse_interval(dsn: &Dsn) -> anyhow::Result<Option<i64>> {
-        Ok(dsn.params
+        Ok(dsn
+            .params
             .get("interval")
-            .map(|v| v.parse::<i64>().map_err(|err| {
-                anyhow::anyhow!("parse interval failed, cause: {}", err.to_string())
-            }))
-            .transpose()?
-        )
+            .map(|v| {
+                v.parse::<i64>().map_err(|err| {
+                    anyhow::anyhow!("parse interval failed, cause: {}", err.to_string())
+                })
+            })
+            .transpose()?)
     }
 
     fn parse_limit(dsn: &Dsn) -> anyhow::Result<Option<i64>> {
-        Ok(dsn.params
+        Ok(dsn
+            .params
             .get("limit")
-            .map(|v| v.parse::<i64>().map_err(|err| {
-                anyhow::anyhow!("parse limit failed, cause: {}", err.to_string())
-            }))
-            .transpose()?
-        )
+            .map(|v| {
+                v.parse::<i64>().map_err(|err| {
+                    anyhow::anyhow!("parse limit failed, cause: {}", err.to_string())
+                })
+            })
+            .transpose()?)
     }
 }
 
@@ -106,6 +110,9 @@ mod tests {
         let dsn = Dsn::from_str("opc://?interval=abc").unwrap();
         let interval = CollectConfig::parse_interval(&dsn);
         assert!(interval.is_err());
-        assert_eq!("parse interval failed, cause:", interval.unwrap_err().to_string());
+        assert_eq!(
+            "parse interval failed, cause:",
+            interval.unwrap_err().to_string()
+        );
     }
 }
