@@ -1495,18 +1495,12 @@ async fn sync_specified_tables_with_workers(
     tables: &[LegacyTableItem],
     _target_opts: TargetOpts,
     workers: usize,
-    metrics: Arc<LegacyMetrics>,
+    _metrics: Arc<LegacyMetrics>,
     _source_is_v3: bool,
     _target_is_v3: bool,
 ) -> anyhow::Result<()> {
     tracing::info!("Synchronize table data with {} workers", workers);
     let mut count = 0;
-    let mut dot = tables.len() / 100;
-    if dot == 0 {
-        dot = 1;
-    }
-    let total_tables = tables.len();
-
     let mut readers = Vec::new();
     for item in tables {
         let stable = &item.stable;
@@ -1525,8 +1519,6 @@ async fn sync_specified_tables_with_workers(
     let mut fails = 0;
     for reader in readers {
         count += 1;
-        counter!(METRICS_LEGACY_TABLES, 1);
-        metrics.tables.fetch_add(1, Ordering::SeqCst);
         match reader.await? {
             Ok(_) => {}
             Err(err) => {
@@ -1537,25 +1529,6 @@ async fn sync_specified_tables_with_workers(
                 }
             }
         }
-
-        if count % dot == 0 {
-            if fails == 0 {
-                tracing::info!(
-                    "Synchronized {:.2}% of tables ({} of {}).",
-                    count as f64 * 100.0 / total_tables as f64,
-                    count,
-                    total_tables,
-                )
-            } else {
-                tracing::info!(
-                    "Synchronized {:.2}% of tables ({} of {}), {} failed.",
-                    count as f64 * 100.0 / total_tables as f64,
-                    count,
-                    total_tables,
-                    fails,
-                );
-            }
-        }
     }
     if fails > 0 {
         tracing::info!(
@@ -1564,7 +1537,6 @@ async fn sync_specified_tables_with_workers(
     } else {
         tracing::info!("Synchronizing {count} tables with {workers} workers finished");
     }
-
     Ok(())
 }
 
