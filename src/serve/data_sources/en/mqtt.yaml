@@ -113,13 +113,15 @@ groups:
           type: str
         placeholder: topic1::0,topic2::1
 
-  - name: Others
+  - name: Advanced Options
     display_order: 2
-    description: Other configurations.
+    description: |
+      Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave 
+      these options as default to use the recommended settings.
     params:
       - name: log_level
         display: Log Level
-        description: Log Level
+        description: Adjust the log level of the data source as required. This parameter does not always take effect.
         value: info
         hint:
           type: str
