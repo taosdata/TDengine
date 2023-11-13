@@ -1561,7 +1561,11 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   code = mndCreateUser(pMnode, pOperUser->acct, &createReq, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  auditRecord(pReq, pMnode->clusterId, "createUser", "", createReq.user, createReq.sql, createReq.sqlLen);
+  char detail[1000] = {0};
+  sprintf(detail, "enable:%d, superUser:%d, sysInfo:%d, password:xxx",
+          createReq.enable, createReq.superUser, createReq.sysInfo);
+
+  auditRecord(pReq, pMnode->clusterId, "createUser", "", createReq.user, detail, strlen(detail));
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

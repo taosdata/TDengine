@@ -21,6 +21,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/partition_interval.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/pause_resume_test.py
 
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname_vgroup.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 3
@@ -1182,6 +1183,7 @@ e
 ,,y,script,./test.sh -f tsim/sma/sma_leak.sim
 ,,y,script,./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
+,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQueryDelete.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
 ,,y,script,./test.sh -f tsim/sync/vnodesnapshot-rsma-test.sim
 ,,n,script,./test.sh -f tsim/valgrind/checkError1.sim
@@ -1297,6 +1299,8 @@ e
 ,,y,script,./test.sh -f tsim/tagindex/add_index.sim
 ,,n,script,./test.sh -f tsim/tagindex/sma_and_tag_index.sim
 ,,y,script,./test.sh -f tsim/view/view.sim
+,,y,script,./test.sh -f tsim/query/cache_last.sim 
+,,y,script,./test.sh -f tsim/query/const.sim 
 
 
 #develop test

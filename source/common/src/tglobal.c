@@ -249,7 +249,7 @@ int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
 int32_t tsStreamCheckpointInterval = 60;
 float   tsSinkDataRate = 2.0;
-int32_t tsStreamNodeCheckInterval = 30;
+int32_t tsStreamNodeCheckInterval = 15;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushIntervalSec = 10;
 int32_t tsTrimVDbIntervalSec = 60 * 60;  // interval of trimming db in all vgroups
@@ -529,7 +529,8 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "avx", tsAVXEnable, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "avx2", tsAVX2Enable, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "fma", tsFMAEnable, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
-  if (cfgAddBool(pCfg, "simdEnable", tsSIMDBuiltins, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddBool(pCfg, "avx512", tsAVX512Enable, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddBool(pCfg, "simdEnable", tsSIMDEnable, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "tagFilterCache", tsTagFilterCache, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
 
   if (cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
@@ -609,7 +610,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
       0)
     return -1;
 
-  tsNumOfVnodeRsmaThreads = tsNumOfCores / 2;
+  tsNumOfVnodeRsmaThreads = tsNumOfCores / 4;
   tsNumOfVnodeRsmaThreads = TMAX(tsNumOfVnodeRsmaThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeRsmaThreads", tsNumOfVnodeRsmaThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
     return -1;
@@ -1101,7 +1102,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfSnodeWriteThreads = cfgGetItem(pCfg, "numOfSnodeUniqueThreads")->i32;
   tsRpcQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64;
 
-  tsSIMDBuiltins = (bool)cfgGetItem(pCfg, "simdEnable")->bval;
+  tsSIMDEnable = (bool)cfgGetItem(pCfg, "simdEnable")->bval;
   tsTagFilterCache = (bool)cfgGetItem(pCfg, "tagFilterCache")->bval;
 
   tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;

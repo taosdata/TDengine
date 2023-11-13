@@ -338,7 +338,7 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
     // 2, retrieve pgs from s3
     uint8_t *pBlock = NULL;
     int64_t  retrieve_offset = PAGE_OFFSET(pgno, pFD->szPage);
-    int64_t  pgnoEnd = pgno - 1 + (size - n + szPgCont - 1) / szPgCont;
+    int64_t  pgnoEnd = pgno - 1 + (bOffset + size - n + szPgCont - 1) / szPgCont;
     int64_t  retrieve_size = (pgnoEnd - pgno + 1) * pFD->szPage;
     code = s3GetObjectBlock(pFD->objName, retrieve_offset, retrieve_size, 1, &pBlock);
     if (code != TSDB_CODE_SUCCESS) {

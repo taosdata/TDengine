@@ -2121,6 +2121,7 @@ _end:
 char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
   char* pBuf = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);
   if (!pBuf) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   int32_t code = buildCtbNameByGroupIdImpl(stbFullName, groupId, pBuf);
@@ -2133,6 +2134,7 @@ char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
 
 int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, char* cname) {
   if (stbFullName[0] == 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return TSDB_CODE_FAILED;
   }
 
@@ -2142,6 +2144,7 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, cha
   }
 
   if (cname == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
     taosArrayDestroy(tags);
     return TSDB_CODE_FAILED;
   }
