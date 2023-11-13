@@ -54,6 +54,19 @@ static int32_t      removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColM
 
 #define SCAN_ROW_TYPE(_t) ((_t) ? CACHESCAN_RETRIEVE_LAST : CACHESCAN_RETRIEVE_LAST_ROW)
 
+static void setColIdForCacheReadBlock(SSDataBlock* pBlock, SNodeList* pTargets) {
+  SNode*  pNode;
+  int32_t idx = 0;
+  FOREACH(pNode, pTargets) {
+    if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+      SColumnNode* pCol = (SColumnNode*)pNode;
+      SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, idx);
+      pColInfo->info.colId = pCol->colId;
+    }
+    idx++;
+  }
+}
+
 SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandle* readHandle,
                                            STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo) {
   int32_t             code = TSDB_CODE_SUCCESS;
@@ -114,10 +127,12 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
     capacity = TMIN(totalTables, 4096);
 
     pInfo->pBufferredRes = createOneDataBlock(pInfo->pRes, false);
+    setColIdForCacheReadBlock(pInfo->pBufferredRes, pScanNode->pTargets);
     blockDataEnsureCapacity(pInfo->pBufferredRes, capacity);
   } else {  // by tags
     pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_SINGLE | SCAN_ROW_TYPE(pScanNode->ignoreNull);
     capacity = 1;  // only one row output
+    setColIdForCacheReadBlock(pInfo->pRes, pScanNode->pTargets);
   }
 
   initResultSizeInfo(&pOperator->resultInfo, capacity);
@@ -191,9 +206,9 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
     SSDataBlock* pRes = pInfo->pRes;
 
     if (pInfo->indexOfBufferedRes < pInfo->pBufferredRes->info.rows) {
-      for (int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); ++i) {
-        SColMatchItem* pMatchInfo = taosArrayGet(pInfo->matchInfo.pList, i);
-        int32_t        slotId = pMatchInfo->dstSlotId;
+      for (int32_t i = 0; i < taosArrayGetSize(pInfo->pBufferredRes->pDataBlock); ++i) {
+        SColumnInfoData* pCol = taosArrayGet(pRes->pDataBlock, i);
+        int32_t        slotId = pCol->info.slotId;
 
         SColumnInfoData* pSrc = taosArrayGet(pInfo->pBufferredRes->pDataBlock, slotId);
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, slotId);
@@ -201,8 +216,10 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
         if (colDataIsNull_s(pSrc, pInfo->indexOfBufferedRes)) {
           colDataSetNULL(pDst, 0);
         } else {
-          char* p = colDataGetData(pSrc, pInfo->indexOfBufferedRes);
-          colDataSetVal(pDst, 0, p, false);
+          if (pSrc->pData) {
+            char* p = colDataGetData(pSrc, pInfo->indexOfBufferedRes);
+            colDataSetVal(pDst, 0, p, false);
+          }
         }
       }
 

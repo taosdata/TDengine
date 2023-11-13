@@ -1285,6 +1285,7 @@ void nodesDestroyNode(SNode* pNode) {
       SLastRowScanPhysiNode* pPhyNode = (SLastRowScanPhysiNode*)pNode;
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       nodesDestroyList(pPhyNode->pGroupTags);
+      nodesDestroyList(pPhyNode->pTargets);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
@@ -1570,6 +1571,19 @@ int32_t nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc) {
   }
   return code;
 }
+
+
+int32_t nodesListMakeStrictAppendList(SNodeList** pTarget, SNodeList* pSrc) {
+  if (NULL == *pTarget) {
+    *pTarget = nodesMakeList();
+    if (NULL == *pTarget) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return nodesListStrictAppendList(*pTarget, pSrc);
+}
+
 
 int32_t nodesListPushFront(SNodeList* pList, SNode* pNode) {
   if (NULL == pList || NULL == pNode) {

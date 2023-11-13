@@ -3774,6 +3774,7 @@ typedef struct {
   int64_t suid;
   SArray* deleteReqs;  // SArray<SSingleDeleteReq>
   int64_t ctimeMs;     // fill by vnode
+  int8_t  level;       // 0 tsdb(default), 1 rsma1 , 2 rsma2
 } SBatchDeleteReq;
 
 int32_t tEncodeSBatchDeleteReq(SEncoder* pCoder, const SBatchDeleteReq* pReq);

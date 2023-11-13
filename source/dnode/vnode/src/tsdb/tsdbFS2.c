@@ -22,7 +22,7 @@
 
 extern int  vnodeScheduleTask(int (*execute)(void *), void *arg);
 extern int  vnodeScheduleTaskEx(int tpid, int (*execute)(void *), void *arg);
-extern void remove_file(const char *fname);
+extern void remove_file(const char *fname, bool last_level);
 
 #define TSDB_FS_EDIT_MIN TSDB_FEDIT_COMMIT
 #define TSDB_FS_EDIT_MAX (TSDB_FEDIT_MERGE + 1)
@@ -532,7 +532,8 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
       if (taosIsDir(file->aname)) continue;
 
       if (tsdbFSGetFileObjHashEntry(&fobjHash, file->aname) == NULL) {
-        remove_file(file->aname);
+        int32_t nlevel = tfsGetLevel(fs->tsdb->pVnode->pTfs);
+        remove_file(file->aname, nlevel > 1 && file->did.level == nlevel - 1);
       }
     }
 

@@ -8337,6 +8337,7 @@ int32_t tEncodeSBatchDeleteReq(SEncoder *pEncoder, const SBatchDeleteReq *pReq) 
     if (tEncodeSSingleDeleteReq(pEncoder, pOneReq) < 0) return -1;
   }
   if (tEncodeI64(pEncoder, pReq->ctimeMs) < 0) return -1;
+  if (tEncodeI8(pEncoder, pReq->level) < 0) return -1;
   return 0;
 }
 
@@ -8360,6 +8361,9 @@ int32_t tDecodeSBatchDeleteReq(SDecoder *pDecoder, SBatchDeleteReq *pReq) {
   pReq->ctimeMs = 0;
   if (!tDecodeIsEnd(pDecoder)) {
     if (tDecodeI64(pDecoder, &pReq->ctimeMs) < 0) return -1;
+  }
+  if (!tDecodeIsEnd(pDecoder)) {
+    if (tDecodeI8(pDecoder, &pReq->level) < 0) return -1;
   }
   return 0;
 }

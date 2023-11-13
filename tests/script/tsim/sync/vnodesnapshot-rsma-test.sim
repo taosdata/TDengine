@@ -114,7 +114,7 @@ endi
 
 vg_ready:
 print ====>  create stable/child table
-sql create table stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int) rollup(sum) watermark 3s,3s max_delay 3s,3s
+sql create table stb (ts timestamp, c1 float, c2 float, c3 double) tags (t1 int) rollup(sum) watermark 3s,3s max_delay 3s,3s
 
 sql show stables
 if $rows != 1 then 
@@ -167,9 +167,6 @@ system sh/exec.sh -n dnode4 -s start
 
 sleep 3000
 
-
-
-
 print =============== query data of level 1
 sql connect
 sql use db
@@ -181,12 +178,21 @@ if $rows != 100 then
   return -1
 endi
 
+print =============== sleep 5s to wait the result
+sleep 5000
+
 print =============== query data of level 2
 sql select * from ct1 where ts > now - 10d
-print rows of level 2: $rows
 print $data00 $data01 $data02
+print $data10 $data11 $data12
+if $rows != 100 then
+  print rows of level 2: $rows
+endi
 
 print =============== query data of level 3
 sql select * from ct1
-print rows of level 3: $rows
 print $data00 $data01 $data02
+print $data10 $data11 $data12
+if $rows != 100 then
+  print rows of level 3: $rows
+endi

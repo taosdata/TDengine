@@ -299,9 +299,12 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
       continue;
     }
 
-    ASSERT(p->chkInfo.checkpointId < p->checkpointingId && p->checkpointingId == checkpointId);
+    ASSERT(p->chkInfo.checkpointId < p->checkpointingId && p->checkpointingId == checkpointId &&
+           p->chkInfo.checkpointVer <= p->chkInfo.processedVer);
 
     p->chkInfo.checkpointId = p->checkpointingId;
+    p->chkInfo.checkpointVer = p->chkInfo.processedVer;
+
     streamTaskClearCheckInfo(p);
 
     char* str = NULL;

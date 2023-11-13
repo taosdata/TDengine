@@ -304,6 +304,7 @@ typedef struct SCheckpointInfo {
   int64_t startTs;
   int64_t checkpointId;
   int64_t checkpointVer;      // latest checkpointId version
+  int64_t processedVer;        // already processed ver, that has generated results version.
   int64_t nextProcessVer;     // current offset in WAL, not serialize it
   int64_t failedId;           // record the latest failed checkpoint id
 } SCheckpointInfo;
@@ -460,7 +461,7 @@ typedef struct STaskStartInfo {
   int32_t   taskStarting;          // restart flag, sentinel to guard the restart procedure.
   SHashObj* pReadyTaskSet;         // tasks that are all ready for running stream processing
   SHashObj* pFailedTaskSet;        // tasks that are done the check downstream process, may be successful or failed
-  int32_t   elapsedTime;
+  int64_t   elapsedTime;
 } STaskStartInfo;
 
 typedef struct STaskUpdateInfo {
@@ -826,6 +827,7 @@ void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
 int32_t      streamMetaReopen(SStreamMeta* pMeta);
 int32_t      streamMetaCommit(SStreamMeta* pMeta);
 int32_t      streamMetaLoadAllTasks(SStreamMeta* pMeta);
+int64_t      streamMetaGetLatestCheckpointId(SStreamMeta* pMeta);
 void         streamMetaNotifyClose(SStreamMeta* pMeta);
 void         streamMetaStartHb(SStreamMeta* pMeta);
 bool         streamMetaTaskInTimer(SStreamMeta* pMeta);
@@ -839,6 +841,7 @@ void         streamMetaResetStartInfo(STaskStartInfo* pMeta);
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
 int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask);
+int32_t streamTaskBuildCheckpoint(SStreamTask* pTask);
 void    streamTaskClearCheckInfo(SStreamTask* pTask);
 int32_t streamAlignTransferState(SStreamTask* pTask);
 int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId);

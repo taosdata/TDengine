@@ -44,7 +44,7 @@ typedef struct {
   int64_t                            defaultCfInit;
 } SBackendWrapper;
 
-void*      streamBackendInit(const char* path, int64_t chkpId);
+void*      streamBackendInit(const char* path, int64_t chkpId, int32_t vgId);
 void       streamBackendCleanup(void* arg);
 void       streamBackendHandleCleanup(void* arg);
 int32_t    streamBackendLoadCheckpointInfo(void* pMeta);
