@@ -45,7 +45,7 @@ use crate::{
         },
     },
 };
-use crate::plugins::runners::opc::config::ColumnConfig;
+use crate::plugins::runners::opc::config::table::ColumnConfig;
 use crate::plugins::runners::opc::config::OpcTableConfig;
 use crate::runners::opc::config::OPCConfig;
 

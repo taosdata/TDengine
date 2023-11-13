@@ -1,11 +1,6 @@
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
-use file_rotate::{
-    compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
-};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::{Map, Value};
@@ -13,15 +8,15 @@ use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
 
+use crate::{
+    Action, build_ipc,
+    DataSet,
+    DataSetsReq,
+    get_log_keep_days, plugins::service::spawn_rest_service, Transferred, utils::{port_pool::PortPool, stop_thread},
+};
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::pi::config::PiConfig;
-use crate::{
-    build_ipc, get_log_keep_days,
-    plugins::service::spawn_rest_service,
-    utils::{port_pool::PortPool, stop_thread},
-    Action, DataSet, DataSetsReq, Transferred,
-};
 
 mod config;
 
@@ -651,9 +646,11 @@ async fn validate_pi_backfill(config: PiConfig) -> anyhow::Result<DataSourceVali
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::str::FromStr;
+
     use taos::Dsn;
+
+    use super::*;
 
     #[ignore]
     #[tokio::test]

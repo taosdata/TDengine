@@ -1,17 +1,17 @@
 use itertools::Itertools;
-use serde::Serialize;
-use taos::{AsyncQueryable, Dsn};
+use serde::{Deserialize, Serialize};
+use taos::Dsn;
 
-use crate::runners::opc::config::{generate_opcconfig_from_csv, get_string_vec_from_param_or_file_for_opc, OPCConfig};
+use crate::runners::opc::config::{generate_config_from_csv, get_string_vec_from_param_or_file_for_opc, OPCConfig};
 use crate::runners::opc::config::collect::CollectMode;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UaCollectConfig {
     collect_mode: CollectMode,
     nodes: Vec<UANodeConfig>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UANodeConfig {
     id: String,
     // value_type: String,
@@ -21,7 +21,7 @@ impl UaCollectConfig {
     pub async fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
         Ok(Self {
             collect_mode: Self::parse_collect_mode(dsn)?,
-            nodes: Self::parse_nodes(dsn)?,
+            nodes: Self::parse_nodes(dsn).await?,
         })
     }
 
@@ -43,9 +43,9 @@ impl UaCollectConfig {
 
         let node_vec = match csv_config_file {
             Some(csv) => {
-                generate_opcconfig_from_csv("opcua", csv.as_str())
+                generate_config_from_csv("opcua", csv.as_str())
                     .await
-                    .map(|(a, b, c)| b)
+                    .map(|(_a, b, _c)| b)
                     .map_err(|err| {
                         anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
                     })?
@@ -63,7 +63,7 @@ impl UaCollectConfig {
             let pair = node_vec[i].split("::").collect_vec();
             if pair.len() != 2 {
                 let pair = pair.join("::");
-                anyhow::bail!("node config error node config: {} split result len is not 2", pair);
+                anyhow::bail!("failed to parse node: {}, cause: split result len is not 2", pair);
             }
             let id = String::from(pair[0]);
             ua_node_config_vec.push(UANodeConfig {
@@ -80,6 +80,27 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
+
+    #[tokio::test]
+    async fn test_parse_nodes() {
+        let dsn = Dsn::from_str("opcua://?ua.nodes=ns=3;i=1002::d1dfao123,ns=3;i=1007::dns31007double").unwrap();
+        let nodes = UaCollectConfig::parse_nodes(&dsn).await.unwrap();
+        assert_eq!(nodes.len(), 2);
+        assert_eq!(nodes[0].id, "ns=3;i=1002");
+        assert_eq!(nodes[1].id, "ns=3;i=1007");
+
+        let dsn = Dsn::from_str("opcua://?ua.nodes=@../tests/opc/ua.nodes").unwrap();
+        let nodes = UaCollectConfig::parse_nodes(&dsn).await.unwrap();
+        assert_eq!(nodes.len(), 2);
+        assert_eq!(nodes[0].id, "ns=3;i=1002");
+        assert_eq!(nodes[1].id, "ns=3;i=1007");
+
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opc_point_config_simple.csv").unwrap();
+        let nodes = UaCollectConfig::parse_nodes(&dsn).await.unwrap();
+        assert_eq!(nodes.len(), 29);
+        assert_eq!("ns=3;i=1008", nodes[0].id);
+        assert_eq!("ns=3;i=1012", nodes[4].id);
+    }
 
     #[test]
     fn test_parse_collect_mode() {

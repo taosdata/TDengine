@@ -12,11 +12,22 @@ pub mod dump;
 mod ua;
 mod da;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 enum CollectMode {
     OBSERVE,
     SUBSCRIBE,
+}
+
+impl FromStr for CollectMode {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "observe" => Ok(Self::OBSERVE),
+            "subscribe" => Ok(Self::SUBSCRIBE),
+            _ => Err(s.to_string()),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -26,18 +37,6 @@ pub struct CollectConfig {
     pub ua: Option<UaCollectConfig>,
     pub da: Option<DaCollectConfig>,
     pub dump: Option<DumpConfig>,
-}
-
-impl FromStr for CollectMode {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "observe" => Ok(Self::OBSERVE),
-            "subscribe" => Ok(Self::SUBSCRIBE),
-            _ => Err(s.to_string()),
-        }
-    }
 }
 
 impl CollectConfig {
@@ -55,7 +54,7 @@ impl CollectConfig {
                 interval: Self::parse_interval(dsn)?,
                 limit: Self::parse_limit(dsn)?,
                 ua: None,
-                da: Some(DaCollectConfig::from_dsn(dsn)?),
+                da: Some(DaCollectConfig::from_dsn(dsn).await?),
                 dump: DumpConfig::from_dsn(dsn)?,
             },
             OpcType::FAKE => Self {

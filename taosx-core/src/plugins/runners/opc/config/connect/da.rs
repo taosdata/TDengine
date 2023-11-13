@@ -3,7 +3,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct DaConnectConfig {
     pub server: String,
     pub nodes: Vec<String>,
@@ -18,6 +18,7 @@ impl DaConnectConfig {
         }
         let nodes = nodes
             .into_iter()
+            .filter(|addr| addr.host.is_some())
             .map(|addr| addr.host.unwrap().clone())
             .collect_vec();
         Ok(Self {

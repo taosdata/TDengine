@@ -41,7 +41,17 @@ mod tests {
     use taos::Dsn;
 
     #[test]
-    fn test_connect_config_from_dsn() {
-        let dsn = Dsn::from_str("opc+ua://").unwrap();
+    fn test_from_dsn() {
+        let dsn = Dsn::from_str("opcua://root:taosdata@localhost:1234").unwrap();
+        let connect = ConnectConfig::from_dsn(&dsn).unwrap();
+        assert_eq!("opc.tcp://localhost:1234/", connect.ua.unwrap().endpoint);
+        assert_eq!(None, connect.da);
+
+        let dsn = Dsn::from_str("opcda://192.168.1.10,192.168.1.11,192.168.1.12/subject").unwrap();
+        let connect = ConnectConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(None, connect.ua);
+        let da = connect.da.unwrap();
+        assert_eq!("subject", da.server);
+        assert_eq!(vec!["192.168.1.10", "192.168.1.11", "192.168.1.12"], da.nodes);
     }
 }

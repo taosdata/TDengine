@@ -2,18 +2,18 @@ use serde::{Deserialize, Serialize};
 use taos::Dsn;
 use crate::runners::opc::config::AuthMethod;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct UaConnectConfig {
     pub endpoint: String,
     pub connect_timeout: i64,
     pub request_timeout: i64,
     pub security_policy: String,
     pub security_mode: String,
-    pub certificate: Option<String>,
-    pub private_key: Option<String>,
+    pub auth_method: AuthMethod,
     pub username: Option<String>,
     pub password: Option<String>,
-    pub auth_method: AuthMethod,
+    pub certificate: Option<String>,
+    pub private_key: Option<String>,
 }
 
 impl UaConnectConfig {
