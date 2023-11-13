@@ -1316,8 +1316,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
     if (code < 0) return code;
 
-    if (flag > 1024 * 1024 || (flag > -1 && flag < 4) || flag < -1) {
-      mError("dnode:%d, failed to config s3blocksize since value:%d. Valid range: -1 or [4, 1024 * 1024]",
+    if (flag > 1024 * 1024 || (flag > -1 && flag < 1024) || flag < -1) {
+      mError("dnode:%d, failed to config s3blocksize since value:%d. Valid range: -1 or [1024, 1024 * 1024]",
              cfgReq.dnodeId, flag);
       terrno = TSDB_CODE_INVALID_CFG;
       tFreeSMCfgDnodeReq(&cfgReq);
