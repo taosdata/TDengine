@@ -3409,25 +3409,58 @@ int32_t compareHashTable(SHashObj* p1, SHashObj* p2, SArray* add, SArray* del) {
   return code;
 }
 
-void hashTableToDebug(SHashObj* pTbl) {
+void hashTableToDebug(SHashObj* pTbl, char** buf) {
   size_t  sz = taosHashGetSize(pTbl);
   int32_t total = 0;
-  char*   buf = taosMemoryCalloc(1, sz * 16);
+  char*   p = taosMemoryCalloc(1, sz * 16);
   void*   pIter = taosHashIterate(pTbl, NULL);
   while (pIter) {
     size_t len = 0;
     char*  name = taosHashGetKey(pIter, &len);
     char*  tname = taosMemoryCalloc(1, len + 1);
     memcpy(tname, name, len);
-    total += sprintf(buf + total, "%s,", tname);
+    total += sprintf(p + total, "%s,", tname);
 
     pIter = taosHashIterate(pTbl, pIter);
     taosMemoryFree(tname);
   }
-  buf[total - 1] = 0;
+  p[total - 1] = 0;
+  *buf = p;
+}
+void strArrayDebugInfo(SArray* pArr, char** buf) {
+  int32_t sz = taosArrayGetSize(pArr);
+  if (sz <= 0) return;
 
-  stTrace("curr file list:[%s]", buf);
-  taosMemoryFree(buf);
+  char*   p = (char*)taosMemoryCalloc(1, 64 + sz * 64);
+  int32_t total = 0;
+
+  for (int i = 0; i < sz; i++) {
+    char* name = taosArrayGetP(pArr, i);
+    total += sprintf(p + total, "%s,", name);
+  }
+  p[total - 1] = 0;
+
+  *buf = p;
+}
+void dbChkpDebugInfo(SDbChkp* pDb) {
+  // stTrace("chkp get file list: curr");
+  char* p[4] = {NULL};
+
+  hashTableToDebug(pDb->pSstTbl[pDb->idx], &p[0]);
+  stTrace("chkp previous file: [%s]", p[0]);
+
+  hashTableToDebug(pDb->pSstTbl[1 - pDb->idx], &p[1]);
+  stTrace("chkp curr file: [%s]", p[1]);
+
+  strArrayDebugInfo(pDb->pAdd, &p[2]);
+  stTrace("chkp newly addded file: [%s]", p[2]);
+
+  strArrayDebugInfo(pDb->pDel, &p[3]);
+  stTrace("chkp newly deleted file: [%s]", p[3]);
+
+  for (int i = 0; i < 4; i++) {
+    taosMemoryFree(p[i]);
+  }
 }
 int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
   taosThreadRwlockWrlock(&p->rwLock);
@@ -3476,12 +3509,6 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
   }
   taosCloseDir(&pDir);
 
-  stTrace("chkp get file list: 1-1");
-  hashTableToDebug(p->pSstTbl[1 - p->idx]);
-
-  stTrace("chkp get file list: 1-2");
-  hashTableToDebug(p->pSstTbl[p->idx]);
-
   if (p->init == 0) {
     void* pIter = taosHashIterate(p->pSstTbl[1 - p->idx], NULL);
     while (pIter) {
@@ -3517,6 +3544,9 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
     p->preCkptId = p->curChkpId;
     p->curChkpId = chkpId;
   }
+
+  dbChkpDebugInfo(p);
+
   p->idx = 1 - p->idx;
 
   taosThreadRwlockUnlock(&p->rwLock);
