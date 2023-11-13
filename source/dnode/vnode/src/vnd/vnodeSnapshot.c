@@ -29,7 +29,7 @@ struct SVSnapReader {
   SMetaSnapReader *pMetaReader;
   // tsdb
   int8_t           tsdbDone;
-  TSnapRangeArray *pRanges;
+  TFileSetRangeArray *pRanges;
   STsdbSnapReader *pTsdbReader;
   // tq
   int8_t              tqHandleDone;
@@ -45,11 +45,11 @@ struct SVSnapReader {
   SStreamStateReader *pStreamStateReader;
   // rsma
   int8_t           rsmaDone;
-  TSnapRangeArray *pRsmaRanges[TSDB_RETENTION_L2];
+  TFileSetRangeArray *pRsmaRanges[TSDB_RETENTION_L2];
   SRSmaSnapReader *pRsmaReader;
 };
 
-static int32_t vnodeExtractSnapInfoDiff(void *buf, int32_t bufLen, TSnapRangeArray **ppRanges) {
+static int32_t vnodeExtractSnapInfoDiff(void *buf, int32_t bufLen, TFileSetRangeArray **ppRanges) {
   int32_t            code = -1;
   STsdbSnapPartList *pList = tsdbSnapPartListCreate();
   if (pList == NULL) {
@@ -69,7 +69,7 @@ _out:
   return code;
 }
 
-static TSnapRangeArray **vnodeSnapReaderGetTsdbRanges(SVSnapReader *pReader, int32_t tsdbTyp) {
+static TFileSetRangeArray **vnodeSnapReaderGetTsdbRanges(SVSnapReader *pReader, int32_t tsdbTyp) {
   ASSERTS(sizeof(pReader->pRsmaRanges) / sizeof(pReader->pRsmaRanges[0]) == 2, "Unexpected array size");
   switch (tsdbTyp) {
     case SNAP_DATA_TSDB:
@@ -94,7 +94,7 @@ static int32_t vnodeSnapReaderDoSnapInfo(SVSnapReader *pReader, SSnapshotParam *
       goto _out;
     }
 
-    TSnapRangeArray **ppRanges = NULL;
+    TFileSetRangeArray **ppRanges = NULL;
     int32_t           offset = 0;
 
     while (offset + sizeof(SSyncTLV) < datHead->len) {
@@ -152,9 +152,9 @@ _err:
 static void vnodeSnapReaderDestroyTsdbRanges(SVSnapReader *pReader) {
   int32_t tsdbTyps[TSDB_RETENTION_MAX] = {SNAP_DATA_TSDB, SNAP_DATA_RSMA1, SNAP_DATA_RSMA2};
   for (int32_t j = 0; j < TSDB_RETENTION_MAX; ++j) {
-    TSnapRangeArray **ppRanges = vnodeSnapReaderGetTsdbRanges(pReader, tsdbTyps[j]);
+    TFileSetRangeArray **ppRanges = vnodeSnapReaderGetTsdbRanges(pReader, tsdbTyps[j]);
     if (ppRanges == NULL) continue;
-    tsdbSnapRangeArrayDestroy(ppRanges);
+    tsdbFileSetRangeArrayDestroy(ppRanges);
   }
 }
 
@@ -455,7 +455,7 @@ struct SVSnapWriter {
   // meta
   SMetaSnapWriter *pMetaSnapWriter;
   // tsdb
-  TSnapRangeArray *pRanges;
+  TFileSetRangeArray *pRanges;
   STsdbSnapWriter *pTsdbSnapWriter;
   // tq
   STqSnapWriter      *pTqSnapWriter;
@@ -465,11 +465,11 @@ struct SVSnapWriter {
   SStreamTaskWriter  *pStreamTaskWriter;
   SStreamStateWriter *pStreamStateWriter;
   // rsma
-  TSnapRangeArray *pRsmaRanges[TSDB_RETENTION_L2];
+  TFileSetRangeArray *pRsmaRanges[TSDB_RETENTION_L2];
   SRSmaSnapWriter *pRsmaSnapWriter;
 };
 
-TSnapRangeArray **vnodeSnapWriterGetTsdbRanges(SVSnapWriter *pWriter, int32_t tsdbTyp) {
+TFileSetRangeArray **vnodeSnapWriterGetTsdbRanges(SVSnapWriter *pWriter, int32_t tsdbTyp) {
   ASSERTS(sizeof(pWriter->pRsmaRanges) / sizeof(pWriter->pRsmaRanges[0]) == 2, "Unexpected array size");
   switch (tsdbTyp) {
     case SNAP_DATA_TSDB:
@@ -494,7 +494,7 @@ static int32_t vnodeSnapWriterDoSnapInfo(SVSnapWriter *pWriter, SSnapshotParam *
       goto _out;
     }
 
-    TSnapRangeArray **ppRanges = NULL;
+    TFileSetRangeArray **ppRanges = NULL;
     int32_t           offset = 0;
 
     while (offset + sizeof(SSyncTLV) < datHead->len) {
@@ -576,9 +576,9 @@ _err:
 static void vnodeSnapWriterDestroyTsdbRanges(SVSnapWriter *pWriter) {
   int32_t tsdbTyps[TSDB_RETENTION_MAX] = {SNAP_DATA_TSDB, SNAP_DATA_RSMA1, SNAP_DATA_RSMA2};
   for (int32_t j = 0; j < TSDB_RETENTION_MAX; ++j) {
-    TSnapRangeArray **ppRanges = vnodeSnapWriterGetTsdbRanges(pWriter, tsdbTyps[j]);
+    TFileSetRangeArray **ppRanges = vnodeSnapWriterGetTsdbRanges(pWriter, tsdbTyps[j]);
     if (ppRanges == NULL) continue;
-    tsdbSnapRangeArrayDestroy(ppRanges);
+    tsdbFileSetRangeArrayDestroy(ppRanges);
   }
 }
 

@@ -681,14 +681,14 @@ struct SDelFWriter {
 typedef struct STFileSet STFileSet;
 typedef TARRAY2(STFileSet *) TFileSetArray;
 
-typedef struct STSnapRange STSnapRange;
-typedef TARRAY2(STSnapRange *) TSnapRangeArray;  // disjoint snap ranges
+typedef struct STFileSetRange STFileSetRange;
+typedef TARRAY2(STFileSetRange *) TFileSetRangeArray;  // disjoint ranges
 
 // util
-int32_t   tSerializeSnapRangeArray(void *buf, int32_t bufLen, TSnapRangeArray *pSnapR);
-int32_t   tDeserializeSnapRangeArray(void *buf, int32_t bufLen, TSnapRangeArray *pSnapR);
-void      tsdbSnapRangeArrayDestroy(TSnapRangeArray **ppSnap);
-SHashObj *tsdbGetSnapRangeHash(TSnapRangeArray *pRanges);
+int32_t   tSerializeSnapRangeArray(void *buf, int32_t bufLen, TFileSetRangeArray *pSnapR);
+int32_t   tDeserializeSnapRangeArray(void *buf, int32_t bufLen, TFileSetRangeArray *pSnapR);
+void      tsdbFileSetRangeArrayDestroy(TFileSetRangeArray **ppSnap);
+SHashObj *tsdbGetSnapRangeHash(TFileSetRangeArray *pRanges);
 
 // snap partition list
 typedef TARRAY2(SVersionRange) SVerRangeList;
@@ -699,7 +699,7 @@ STsdbSnapPartList *tsdbSnapPartListCreate();
 void               tsdbSnapPartListDestroy(STsdbSnapPartList **ppList);
 int32_t            tSerializeTsdbSnapPartList(void *buf, int32_t bufLen, STsdbSnapPartList *pList);
 int32_t            tDeserializeTsdbSnapPartList(void *buf, int32_t bufLen, STsdbSnapPartList *pList);
-int32_t            tsdbSnapPartListToRangeDiff(STsdbSnapPartList *pList, TSnapRangeArray **ppRanges);
+int32_t            tsdbSnapPartListToRangeDiff(STsdbSnapPartList *pList, TFileSetRangeArray **ppRanges);
 
 enum {
   TSDB_SNAP_RANGE_TYP_HEAD = 0,
