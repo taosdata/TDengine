@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"reflect"
 	"regexp"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -82,22 +83,14 @@ func newReader(config common.Config) (*reader, error) {
 		debug:       config.Debug,
 	}
 
-	ctx := context.Background()
-	allTags, err := r.getAllTags(ctx)
-	if err != nil {
-		return &r, fmt.Errorf("get all da node error %v", err)
-	}
-	tagName := make(map[string]string, len(allTags))
-	for _, tag := range allTags {
-		tagName[tag.ID] = tag.Name
-	}
-
 	tags := make(map[string]*daTag, len(config.Collect.Da.Tags))
 	for _, tag := range config.Collect.Da.Tags {
-		tags[tag.Tag] = &daTag{tag: tag.Tag, name: tagName[tag.Tag]}
+		parts := strings.Split(tag.Tag, ".")
+		lastPart := parts[len(parts)-1]
+		tags[tag.Tag] = &daTag{tag: tag.Tag, name: lastPart}
 	}
 	r.tags = tags
-	if err = config.Collect.Dump.Validate(); err != nil {
+	if err := config.Collect.Dump.Validate(); err != nil {
 		return &r, fmt.Errorf("invalid dump config: %w", err)
 	}
 	if config.Collect.Dump.Enable {
