@@ -435,7 +435,7 @@ int32_t tsDecompressStringImp(const char *const input, int32_t compressedSize, c
 // TODO: Take care here, we assumes little endian encoding.
 int32_t tsCompressTimestampImp(const char *const input, const int32_t nelements, char *const output) {
   int32_t _pos = 1;
-  int32_t longBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  int32_t longBytes = LONG_BYTES;
 
   ASSERTS(nelements >= 0, "nelements is negative");
 
@@ -532,7 +532,7 @@ _exit_over:
 }
 
 int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelements, char *const output) {
-  int64_t longBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  int64_t longBytes = LONG_BYTES;
 
   ASSERTS(nelements >= 0, "nelements is negative");
   if (nelements == 0) return 0;
@@ -605,7 +605,7 @@ int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelement
 
 /* --------------------------------------------Double Compression ---------------------------------------------- */
 void encodeDoubleValue(uint64_t diff, uint8_t flag, char *const output, int32_t *const pos) {
-  int32_t longBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  int32_t longBytes = LONG_BYTES;
 
   uint8_t nbytes = (flag & INT8MASK(3)) + 1;
   int32_t nshift = (longBytes * BITS_PER_BYTE - nbytes * BITS_PER_BYTE) * (flag >> 3);
@@ -703,7 +703,7 @@ int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, ch
 }
 
 FORCE_INLINE uint64_t decodeDoubleValue(const char *const input, int32_t *const ipos, uint8_t flag) {
-  int32_t longBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  int32_t longBytes = LONG_BYTES;
 
   uint64_t diff = 0ul;
   int32_t  nbytes = (flag & 0x7) + 1;
