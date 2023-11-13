@@ -2788,7 +2788,8 @@ static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg, 
   SNode* pNode = nodesListGetNode(pNew->node.pChildren, 0);
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-    nodesDestroyList(pScan->pScanCols);
+    SNodeList* pOldScanCols = NULL;
+    TSWAP(pScan->pScanCols, pOldScanCols);
     nodesDestroyList(pScan->pScanPseudoCols);
     nodesDestroyList(pScan->node.pTargets);
     FOREACH(pNode, pFunc) {
@@ -2797,6 +2798,22 @@ static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg, 
         return code;
       }
     }
+    bool found = false;
+    FOREACH(pNode, pScan->pScanCols) {
+      if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      FOREACH(pNode, pOldScanCols) {
+        if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
+          nodesListStrictAppend(pScan->pScanCols, nodesCloneNode(pNode));
+          break;
+        }
+      }
+    }
+    nodesDestroyList(pOldScanCols);
     code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
