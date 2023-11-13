@@ -2784,11 +2784,24 @@ static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg, 
   pNew->hasGroup = pAgg->hasGroup;
   pNew->node.pChildren = nodesCloneList(pAgg->node.pChildren);
 
-  SNode* pNode = NULL;
-  FOREACH(pNode, pNew->node.pChildren) {
-    if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
-      OPTIMIZE_FLAG_CLEAR_MASK(((SScanLogicNode*)pNode)->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
+  int32_t code = 0;
+  SNode* pNode = nodesListGetNode(pNew->node.pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    nodesDestroyList(pScan->pScanCols);
+    nodesDestroyList(pScan->pScanPseudoCols);
+    nodesDestroyList(pScan->node.pTargets);
+    FOREACH(pNode, pFunc) {
+      code = nodesCollectColumnsFromNode(pNode, NULL, COLLECT_COL_TYPE_COL, &pScan->pScanCols);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
     }
+    code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    OPTIMIZE_FLAG_CLEAR_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
   }
 
   *pNewAgg = pNew;
