@@ -3,9 +3,9 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-sql select 'a;b' as x
-if $rows != 1 then
-  return -1
-endi
+system taos -P7100 -s 'select "a;b" as x\G' | grep -v 'Query OK'  | grep -v 'Client Version'  > /tmp/separator.result
+system echo ----------------------diff start-----------------------
+system git diff --exit-code --color tsim/query/r/separator.result /tmp/separator.result
+system echo ----------------------diff succeed-----------------------
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
