@@ -112,12 +112,14 @@ groups:
           type: str
         placeholder: topic1::0,topic2::1
 
-  - name: 其他
+  - name: 高级选项
     display_order: 2
+    description: |
+      对数据源性能、日志等其他参数进行调整，可修改以下选项。
     params:
       - name: log_level
         display: 日志级别
-        description: 选择日志级别。默认为： `info` 。
+        description: 根据需要调整数据源的日志级别，此参数不总是生效。
         value: info
         hint:
           type: str
