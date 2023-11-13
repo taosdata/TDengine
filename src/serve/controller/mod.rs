@@ -510,6 +510,8 @@ impl TaskController {
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
+        self.validate_enterprise_license(&from, &to).await?;
+
         match from.driver.as_str() {
             "opcua" | "opcda" | "pi" => {
                 self.validate_connector_license(&from, &to).await?;
@@ -655,6 +657,63 @@ impl TaskController {
         Ok(())
     }
 
+    pub async fn validate_enterprise_license(&self, from: &Dsn, to: &Dsn) -> anyhow::Result<()>{
+        // Check if enterprise available
+        #[cfg(not(feature = "disable-enterprise-only-validation"))]
+        match (from.driver.as_str(), to.driver.as_str()) {
+            ("tmq" | "taos", "tmq" | "taos") => {
+                let mut from = from.clone();
+                from.subject.take();
+                let from = TaosBuilder::from_dsn(from)?;
+                let _ = from.build().await?;
+                let mut to = to.clone();
+                to.subject.take();
+                let to = TaosBuilder::from_dsn(to)?;
+                let _ = to.build().await?;
+
+                if !from
+                    .is_enterprise_edition()
+                    .await
+                    .context("Failed to check source edition")?
+                    && !to
+                    .is_enterprise_edition()
+                    .await
+                    .context("Failed to check target edition")?
+                {
+                    anyhow::bail!("Both the source and destination databases are not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
+                }
+            }
+            ("tmq" | "taos", _) => {
+                let mut from = from.clone();
+                from.subject.take();
+                let builder = TaosBuilder::from_dsn(from)?;
+                let _ = builder.build().await.context("Source connection error")?;
+                if !builder
+                    .is_enterprise_edition()
+                    .await
+                    .context("Failed to check source edition")?
+                {
+                    anyhow::bail!("The source database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
+                }
+            }
+            (_, "tmq" | "taos") => {
+                let mut to = to.clone();
+                to.subject.take();
+                let builder = TaosBuilder::from_dsn(to)?;
+                let _ = builder.build().await.context("Target connection error")?;
+                if !builder
+                    .is_enterprise_edition()
+                    .await
+                    .context("Failed to check target edition")?
+                {
+                    anyhow::bail!("The destination database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
+                }
+            }
+            _ => (),
+        };
+        Ok(())
+    }
+
     #[instrument(skip_all, name = "task::create")]
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
         let not_start = task.not_start;
@@ -668,6 +727,8 @@ impl TaskController {
             .to
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
+
+        self.validate_enterprise_license(&from, &to).await?;
 
         match from.driver.as_str() {
             "opcua" | "opcda" | "pi" => {
