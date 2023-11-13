@@ -32,7 +32,7 @@ goto :eof
 
 if "%verType%" == "cluster" (
 	set work_dir=%internal_dir%
-	set packagServerName_x64=%cusName%-enterprise-server-%version%-Windows-x64
+	set packagServerName_x64=%cusName%-enterprise-%version%-Windows-x64
 	@REM set packagServerName_x86=%cusName%-enterprise-server-%version%-Windows-x86
 	set packagClientName_x64=%cusName%-enterprise-client-%version%-Windows-x64
 	set packagClientName_x86=%cusName%-enterprise-client-%version%-Windows-x86
@@ -93,6 +93,16 @@ md %install_dir%\include
 xcopy %internal_dir%\community\include\util\tdef.h %install_dir%\include
 
 if "%verType%" == "cluster" (
+	echo "==== build taosx ====="
+	cd %internal_dir%\enterprise\src\plugins\taosx\packaging
+	python release.py -ob -vn %version%
+	set taosx_release_dir="C:\Program Files\taosX"
+	xcopy /S %taosx_release_dir%\plugins\* %install_dir%\plugins\*
+	xcopy /S %taosx_release_dir%\bin\*.exe %install_dir%\*
+	xcopy /S %taosx_release_dir%\append %install_dir%\append\*
+	xcopy /S %taosx_release_dir%\config\* %install_dir%\cfg\
+	echo "==== build taosx done ====="
+
 	md  %install_dir%\connector
 	git clone --depth 1 https://github.com/taosdata/driver-go %install_dir%/connector/go
 	rm -rf %install_dir%/connector/go/.git*
@@ -119,12 +129,16 @@ if "%verType%" == "cluster" (
     xcopy /S %examples_dir%\C#  %install_dir%\examples\C#\*
     md %install_dir%\examples\taosbenchmark-json
     xcopy /S %internal_dir%\community\tools\taos-tools\example %install_dir%\examples\taosbenchmark-json\*
-    install_bin
 )
 cd %package_dir%
 if "%cusName%" == "TDengine" (
-	call :writeTDengineServerInstallFile
-	iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
+	if "%verType%" == "cluster" (
+		call :writeTDengineServerInstallFile
+		iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\enterprise\packaging\windows\tdengine.iss /O..\release
+	) else (
+		call :writeTDengineServerInstallFile
+		iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
+	)
 ) else (
 	call :writeServerInstallFile
 	iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
@@ -132,8 +146,16 @@ if "%cusName%" == "TDengine" (
 )
 if not %errorlevel% == 0  ( call :RUNFAILED package %packagServerName_x64% failed & exit /b 1)
 if "%cusName%" == "TDengine" (
-	call :writeTDengineClientInstallFile
-	iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="taosd.exe" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
+	if "%verType%" == "cluster" (
+		call :writeTDengineClientInstallFile
+		iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="taosd.exe, taosadapter.exe, \plugins\, taosx*, taos-*, explorer.toml, agent.toml, \append\" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
+		cd %internal_dir%\enterprise\release
+		scp *client* root@taosdata.com:/data/www/assets-download/3.0/
+		scp *client* ubuntu@tdengine.com:/data/www/assets-download/3.0/
+	) else (
+		call :writeTDengineClientInstallFile
+		iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="taosd.exe, taosadapter.exe" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
+	)
 ) else (
 	call :writeClientInstallFile
 	iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="taosd.exe" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release

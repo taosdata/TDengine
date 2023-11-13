@@ -15,6 +15,7 @@ set -e
 #             -n [2.0.0.3]
 #             -m [2.0.0.0]
 #             -H [ false | true]
+#             -s [ 0 | 1 ]
 
 # set parameters by default value
 verMode=edge    # [cluster, edge, cloud]
@@ -28,8 +29,9 @@ allocator=glibc # [glibc | jemalloc]
 verNumber=""
 verNumberComp="3.0.0.0"
 httpdBuild=false
+skip=0
 
-while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:G:" arg; do
+while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:G:S:" arg; do
   case $arg in
   v)
     #echo "verMode=$OPTARG"
@@ -90,6 +92,9 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:G:" arg; do
   G)
     grantValue=$(echo $OPTARG)
     ;;
+  S)
+    skip=$(echo $OPTARG)
+    ;;
   h)
     echo "Usage: $(basename $0) -v [cluster | edge] "
     echo "                  -c [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64 ...] "
@@ -105,7 +110,8 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:G:" arg; do
     echo "                  -N <custom name>"
     echo "                  -P <custom prompt>"
     echo "                  -M <custom email>"
-    echo "                     -G <grant days>"
+    echo "                  -G <grant days>"
+    echo "                  -S [ 0 | 1 ]"
     exit 0
     ;;
   ?) #unknow option
@@ -117,7 +123,7 @@ done
 
 osType=$(uname)
 
-echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} dbName=${dbName} allocator=${allocator} verNumber=${verNumber} verNumberComp=${verNumberComp} httpdBuild=${httpdBuild} cusPrompt=${cusPrompt} cusName=${cusName} cusEmail=${cusEmail}"
+echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} dbName=${dbName} allocator=${allocator} verNumber=${verNumber} verNumberComp=${verNumberComp} httpdBuild=${httpdBuild} cusPrompt=${cusPrompt} cusName=${cusName} cusEmail=${cusEmail} skip=${skip}"
 
 curr_dir=$(pwd)
 
@@ -257,8 +263,8 @@ if [[ -z "${cusName}" ]] && [[  -z "${cusPrompt}" ]] && [[ -z "${cusEmail}" ]]; 
   BUILD_TAOSX=false
   BUILD_EXPLORER=false  
 else
-  BUILD_TAOSX=true
-  BUILD_EXPLORER=true
+  BUILD_TAOSX=false
+  BUILD_EXPLORER=false
 fi
   
 
@@ -283,9 +289,12 @@ fi
 ostype=`uname`
 if [ "${ostype}" == "Darwin" ]; then
     CORES=$(sysctl -n hw.ncpu)
+elif [ "${ostype}" == "Linux" ] && [ "${cpuType}" == "aarch64" ]; then
+    CORES=1
 else
     CORES=$(grep -c ^processor /proc/cpuinfo)
 fi
+
 
 if [[ "$allocator" == "jemalloc" ]]; then
   # jemalloc need compile first, so disable parallel build
@@ -348,6 +357,16 @@ if [ "$osType" != "Darwin" ]; then
       fi
     else
       echo "==========rpmbuild command not exist, so not release rpm package!!!"
+    fi
+  fi
+
+  if [[ "$verMode" == "cluster" && "$skip" == 0 ]]; then
+    echo "==== generate taosx package ===="
+    cd ${top_dir}/enterprise/src/plugins/taosx/packaging
+    if [[ "$cusName" == "TDengine" && "${cusPrompt}" == "taos" && "${cusEmail}" == "support@taosdata.com" ]];then
+      python3 release.py -ob -vn ${verNumber}
+    else
+      python3 release.py -ob -vn ${verNumber} -cn ${cusName} -cp ${cusPrompt} -ce ${cusEmail}
     fi
   fi
 
