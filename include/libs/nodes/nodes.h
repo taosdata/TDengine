@@ -101,6 +101,7 @@ typedef struct SNodeList {
 
 typedef struct SNodeAllocator SNodeAllocator;
 
+void    initNodeName();
 int32_t nodesInitAllocatorSet();
 void    nodesDestroyAllocatorSet();
 int32_t nodesCreateAllocator(int64_t queryId, int32_t chunkSize, int64_t* pAllocatorId);

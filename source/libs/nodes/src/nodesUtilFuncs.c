@@ -131,6 +131,7 @@ static void destroyNodeAllocator(void* p) {
 }
 
 int32_t nodesInitAllocatorSet() {
+  initNodeName();
   if (g_allocatorReqRefPool >= 0) {
     nodesWarn("nodes already initialized");
     return TSDB_CODE_SUCCESS;
