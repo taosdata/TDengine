@@ -9,9 +9,10 @@ branchName=$3
 verType=$4
 cpuType=$5
 grantValue=$6
-cusName=$7
-cusPrompt=$8
-cusEmail=$9
+skip=$7
+cusName=$8
+cusPrompt=$9
+cusEmail=${10}
 
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
@@ -68,15 +69,15 @@ rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
 
-
+echo "./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail} -G ${grantValue} -S ${skip}"
 if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
-    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail} -G ${grantValue} 
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail} -G ${grantValue} -S ${skip}
 elif [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ]; then
-    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -G ${grantValue} 
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -G ${grantValue} -S ${skip}
 elif [ ! -z "${cusName}" ]; then
-    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -G ${grantValue} 
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -G ${grantValue} -S ${skip}
 else
-    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -G ${grantValue} 
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -G ${grantValue} -S ${skip}
 fi
 
 # if [ ! -d  "$archiveDir/v$version" ]; then
@@ -99,7 +100,7 @@ fi
 # modify tar.gz to append taoskeeper
 cd $communityDir/release
 
-server_tar=$(ls *-enterprise-server-*.tar.gz)
+server_tar=$(ls *-enterprise-*.tar.gz | grep -v client)
 [ "$server_tar" == "" ] && exit # build taoskeeper only with server
 
 echo "build taoskeeper"
@@ -119,15 +120,13 @@ taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeperinternal
 
 set -e
 # unpack server package and repack with taoskeeper binary and service file.
-prefix=$(echo $server_tar |grep -Eo ".*-enterprise-server-[^\-]+")
+prefix=$(echo $server_tar |grep -Eo ".*-enterprise-[^\-]+")
 tar xf $server_tar
 [ -d "$prefix/taos" ] || mkdir $prefix/taos
 tar xf $prefix/package.tar.gz -C $prefix/taos/
 cp -f $taoskeeper_binary $prefix/taos/bin/
 cp -f $(dirname $taoskeeper_binary)/taoskeeper.service $prefix/taos/cfg/
 cp -f $(dirname $taoskeeper_binary)/config/taoskeeper.toml $prefix/taos/cfg/
-cat $scriptDir/remove_taoskeeper.sh >> $prefix/taos/bin/remove.sh
-cat $scriptDir/install_taoskeeper.sh >> $prefix/install.sh
 cd $prefix/taos && tar acf ../package.tar.gz ./ && cd ../../
 rm -rf $prefix/taos
 tar acf $server_tar $prefix
@@ -135,12 +134,23 @@ echo "append taoskeeper to enterprise server package"
 rm -rf $prefix/
 rm -rf build-taoskeeper
 
-# copy to nas [optional]
-if [ -d $archiveDir ]; then
+# copy TDengine package to nas [optional]
+if [ -d $archiveDir ] && [ -z "${cusName}" ]; then
     cd $archiveDir
     cp -f $communityDir/release/* ./
+
+    if [ $skip == 0 ]; then
+      scp *client* root@taosdata.com:/data/www/assets-download/3.0/
+      if [ $? > 0 ]; then
+        echo "copy client package to taosdata server failed"
+      fi
+      scp *client* ubuntu@tdengine.com:/data/www/assets-download/3.0/
+      if [ $? > 0 ]; then
+        echo "copy client package to TDengine server failed"
+      fi
+    fi
 else
-    echo "Cannot found $archiveDir on this machine"
+    echo "Cannot find $archiveDir on this machine"
 fi
 
 echo " packaging release done! "
