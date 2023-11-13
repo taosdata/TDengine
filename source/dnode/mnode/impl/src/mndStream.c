@@ -33,7 +33,13 @@
 #define MND_STREAM_VER_NUMBER      4
 #define MND_STREAM_RESERVE_SIZE    64
 #define MND_STREAM_MAX_NUM         60
-#define MND_STREAM_CHECKPOINT_NAME "stream-checkpoint"
+
+#define MND_STREAM_CHECKPOINT_NAME  "stream-checkpoint"
+#define MND_STREAM_PAUSE_NAME       "stream-pause"
+#define MND_STREAM_RESUME_NAME      "stream-resume"
+#define MND_STREAM_DROP_NAME        "stream-drop"
+#define MND_STREAM_TASK_RESET_NAME  "stream-task-reset"
+#define MND_STREAM_TASK_UPDATE_NAME "stream-task-update"
 
 typedef struct SNodeEntry {
   int32_t nodeId;
@@ -42,22 +48,13 @@ typedef struct SNodeEntry {
   int64_t hbTimestamp;   // second
 } SNodeEntry;
 
-typedef struct SStreamExecInfo {
-  SArray       *pNodeList;
-  int64_t       ts;                // snapshot ts
-  int64_t       activeCheckpoint;  // active check point id
-  SHashObj *    pTaskMap;
-  SArray *      pTaskList;
-  TdThreadMutex lock;
-} SStreamExecInfo;
-
 typedef struct SVgroupChangeInfo {
   SHashObj *pDBMap;
   SArray *  pUpdateNodeList;  // SArray<SNodeUpdateInfo>
 } SVgroupChangeInfo;
 
-static int32_t         mndNodeCheckSentinel = 0;
-static SStreamExecInfo execInfo;
+static int32_t  mndNodeCheckSentinel = 0;
+SStreamExecInfo execInfo;
 
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
@@ -82,16 +79,19 @@ static SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady);
 
 static SVgroupChangeInfo mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pPrevNodeList, const SArray *pNodeList);
 
-static STrans *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, const char *name);
+static STrans *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, const char *name, const char* pMsg);
 static int32_t mndPersistTransLog(SStreamObj *pStream, STrans *pTrans);
 static void initTransAction(STransAction *pAction, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset,
                             int32_t retryCode);
 static int32_t createStreamUpdateTrans(SStreamObj *pStream, SVgroupChangeInfo *pInfo, STrans *pTrans);
 static void    removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
-static void    keepStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
+static void    saveStreamTasksInfo(SStreamObj *pStream, SStreamExecInfo *pExecNode);
 static int32_t removeExpirednodeEntryAndTask(SArray *pNodeSnapshot);
-static int32_t doKillActiveCheckpointTrans(SMnode *pMnode);
+static int32_t killActiveCheckpointTrans(SMnode *pMnode, const char* pDbName);
 static int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList);
+
+static SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
+static SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
 
 int32_t mndInitStream(SMnode *pMnode) {
   SSdbTable table = {
@@ -334,7 +334,7 @@ static int32_t mndStreamGetPlanString(const char *ast, int8_t triggerType, int64
         .pAstRoot = pAst,
         .topicQuery = false,
         .streamQuery = true,
-        .triggerType = triggerType == STREAM_TRIGGER_MAX_DELAY ? STREAM_TRIGGER_WINDOW_CLOSE : triggerType,
+        .triggerType = (triggerType == STREAM_TRIGGER_MAX_DELAY) ? STREAM_TRIGGER_WINDOW_CLOSE : triggerType,
         .watermark = watermark,
     };
     code = qCreateQueryPlan(&cxt, &pPlan, NULL);
@@ -714,6 +714,52 @@ int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) 
   return 0;
 }
 
+static bool checkDbPrecision(SMnode* pMnode, SStreamObj* pStreamObj) {
+  if (pStreamObj->sourceDbUid != pStreamObj->targetDbUid) {
+    SDbObj *pSrcDb = mndAcquireDb(pMnode, pStreamObj->sourceDb);
+    SDbObj *pDstDb = mndAcquireDb(pMnode, pStreamObj->targetDb);
+
+    bool isIdentical = (pSrcDb->cfg.precision != pDstDb->cfg.precision);
+    mndReleaseDb(pMnode, pSrcDb);
+    mndReleaseDb(pMnode, pDstDb);
+
+    if (!isIdentical) {
+      mError("stream:%s failed to create since target/source db precision not identical", pStreamObj->name);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static int32_t checkForNumOfStreams(SMnode *pMnode, SStreamObj *pStreamObj) {  // check for number of existed tasks
+  int32_t     numOfStream = 0;
+  SStreamObj *pStream = NULL;
+  void       *pIter = NULL;
+
+  while ((pIter = sdbFetch(pMnode->pSdb, SDB_STREAM, pIter, (void **)&pStream)) != NULL) {
+    if (pStream->sourceDbUid == pStreamObj->sourceDbUid) {
+      ++numOfStream;
+    }
+
+    sdbRelease(pMnode->pSdb, pStream);
+
+    if (numOfStream > MND_STREAM_MAX_NUM) {
+      mError("too many streams, no more than %d for each database", MND_STREAM_MAX_NUM);
+      sdbCancelFetch(pMnode->pSdb, pIter);
+      return TSDB_CODE_MND_TOO_MANY_STREAMS;
+    }
+
+    if (pStream->targetStbUid == pStreamObj->targetStbUid) {
+      mError("Cannot write the same stable as other stream:%s", pStream->name);
+      sdbCancelFetch(pMnode->pSdb, pIter);
+      return TSDB_CODE_MND_INVALID_TARGET_TABLE;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   SMnode *           pMnode = pReq->info.node;
   int32_t            code = -1;
@@ -726,6 +772,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
+
 #ifdef WINDOWS
   terrno = TSDB_CODE_MND_INVALID_PLATFORM;
   goto _OVER;
@@ -757,42 +804,15 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  {
-    int32_t numOfStream = 0;
+  // check if the time precision for source&target DB is identical.
+  bool isIdentical = checkDbPrecision(pMnode, &streamObj);
+  if (!isIdentical) {
+    goto _OVER;
+  }
 
-    SStreamObj *pStream = NULL;
-    void *      pIter = NULL;
-
-    while (1) {
-      pIter = sdbFetch(pMnode->pSdb, SDB_STREAM, pIter, (void **)&pStream);
-      if (pIter == NULL) {
-        if (numOfStream > MND_STREAM_MAX_NUM) {
-          mError("too many streams, no more than %d for each database", MND_STREAM_MAX_NUM);
-          terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
-          goto _OVER;
-        }
-        break;
-      }
-
-      if (pStream->sourceDbUid == streamObj.sourceDbUid) {
-        ++numOfStream;
-      }
-
-      sdbRelease(pMnode->pSdb, pStream);
-      if (numOfStream > MND_STREAM_MAX_NUM) {
-        mError("too many streams, no more than %d for each database", MND_STREAM_MAX_NUM);
-        terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
-        sdbCancelFetch(pMnode->pSdb, pIter);
-        goto _OVER;
-      }
-
-      if (pStream->targetStbUid == streamObj.targetStbUid) {
-        mError("Cannot write the same stable as other stream:%s", pStream->name);
-        terrno = TSDB_CODE_MND_INVALID_TARGET_TABLE;
-        sdbCancelFetch(pMnode->pSdb, pIter);
-        goto _OVER;
-      }
-    }
+  code = checkForNumOfStreams(pMnode, &streamObj);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _OVER;
   }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stream");
@@ -851,7 +871,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   taosThreadMutexLock(&execInfo.lock);
   mDebug("stream tasks register into node list");
-  keepStreamTasksInBuf(&streamObj, &execInfo);
+  saveStreamTasksInfo(&streamObj, &execInfo);
   taosThreadMutexUnlock(&execInfo.lock);
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -1224,7 +1244,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   SMStreamDoCheckpointMsg *pMsg = (SMStreamDoCheckpointMsg *)pReq->pCont;
   int64_t                  checkpointId = pMsg->checkpointId;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, NULL, MND_STREAM_CHECKPOINT_NAME);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, NULL, MND_STREAM_CHECKPOINT_NAME);
   if (pTrans == NULL) {
     mError("failed to trigger checkpoint, reason: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     return -1;
@@ -1233,7 +1253,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   mDebug("start to trigger checkpoint, checkpointId: %" PRId64, checkpointId);
 
   const char *pDb = mndGetStreamDB(pMnode);
-  mndTransSetDbName(pTrans, pDb, "checkpoint");
+  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
   taosMemoryFree((void *)pDb);
 
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
@@ -1300,7 +1320,14 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "drop-stream");
+  // check if it is conflict with other trans in both sourceDb and targetDb.
+  bool conflict = streamTransConflictOtherTrans(pMnode, pStream->sourceDb, pStream->targetDb);
+  if (!conflict) {
+    sdbRelease(pMnode->pSdb, pStream);
+    return -1;
+  }
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, MND_STREAM_DROP_NAME);
   if (pTrans == NULL) {
     mError("stream:%s, failed to drop since %s", dropReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
@@ -1308,7 +1335,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  mInfo("trans:%d, used to drop stream:%s", pTrans->id, dropReq.name);
+  mInfo("trans:%d used to drop stream:%s", pTrans->id, dropReq.name);
 
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
@@ -1317,6 +1344,8 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     tFreeSMDropStreamReq(&dropReq);
     return -1;
   }
+
+  int32_t code = mndStreamRegisterTrans(pTrans, MND_STREAM_DROP_NAME, pStream->sourceDb, pStream->targetDb);
 
   // drop all tasks
   if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
@@ -1347,7 +1376,6 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   SName name = {0};
   tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-  // reuse this function for stream
 
   auditRecord(pReq, pMnode->clusterId, "dropStream", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen);
 
@@ -1751,9 +1779,16 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
+  // check if it is conflict with other trans in both sourceDb and targetDb.
+  bool conflict = streamTransConflictOtherTrans(pMnode, pStream->sourceDb, pStream->targetDb);
+  if (!conflict) {
+    sdbRelease(pMnode->pSdb, pStream);
+    return -1;
+  }
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "pause-stream");
   if (pTrans == NULL) {
-    mError("stream:%s, failed to pause stream since %s", pauseReq.name, terrstr());
+    mError("stream:%s failed to pause stream since %s", pauseReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     return -1;
   }
@@ -1766,6 +1801,8 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
     mndTransDrop(pTrans);
     return -1;
   }
+
+  int32_t code = mndStreamRegisterTrans(pTrans, MND_STREAM_PAUSE_NAME, pStream->sourceDb, pStream->targetDb);
 
   // pause all tasks
   if (mndPauseAllStreamTasks(pTrans, pStream) < 0) {
@@ -1868,13 +1905,21 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "pause-stream");
-  if (pTrans == NULL) {
-    mError("stream:%s, failed to pause stream since %s", pauseReq.name, terrstr());
+  // check if it is conflict with other trans in both sourceDb and targetDb.
+  bool conflict = streamTransConflictOtherTrans(pMnode, pStream->sourceDb, pStream->targetDb);
+  if (!conflict) {
     sdbRelease(pMnode->pSdb, pStream);
     return -1;
   }
-  mInfo("trans:%d, used to pause stream:%s", pTrans->id, pauseReq.name);
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, MND_STREAM_RESUME_NAME);
+  if (pTrans == NULL) {
+    mError("stream:%s, failed to resume stream since %s", pauseReq.name, terrstr());
+    sdbRelease(pMnode->pSdb, pStream);
+    return -1;
+  }
+
+  mInfo("trans:%d used to resume stream:%s", pTrans->id, pauseReq.name);
 
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
@@ -1882,6 +1927,8 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
     mndTransDrop(pTrans);
     return -1;
   }
+
+  int32_t code = mndStreamRegisterTrans(pTrans, MND_STREAM_RESUME_NAME, pStream->sourceDb, pStream->targetDb);
 
   // resume all tasks
   if (mndResumeAllStreamTasks(pTrans, pStream, pauseReq.igUntreated) < 0) {
@@ -2147,7 +2194,7 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
 
     // here create only one trans
     if (pTrans == NULL) {
-      pTrans = doCreateTrans(pMnode, pStream, "stream-task-update");
+      pTrans = doCreateTrans(pMnode, pStream, NULL, MND_STREAM_TASK_UPDATE_NAME, "update task epsets");
       if (pTrans == NULL) {
         sdbRelease(pSdb, pStream);
         sdbCancelFetch(pSdb, pIter);
@@ -2257,7 +2304,7 @@ static void doExtractTasksFromStream(SMnode *pMnode) {
       break;
     }
 
-    keepStreamTasksInBuf(pStream, &execInfo);
+    saveStreamTasksInfo(pStream, &execInfo);
     sdbRelease(pSdb, pStream);
   }
 }
@@ -2341,6 +2388,14 @@ int32_t removeExpirednodeEntryAndTask(SArray *pNodeSnapshot) {
   return 0;
 }
 
+static void killAllCheckpointTrans(SMnode* pMnode, SVgroupChangeInfo* pChangeInfo) {
+  void* pIter = NULL;
+  while((pIter = taosHashIterate(pChangeInfo->pDBMap, pIter)) != NULL) {
+    char* pDb = (char*) pIter;
+    killActiveCheckpointTrans(pMnode, pDb);
+  }
+}
+
 // this function runs by only one thread, so it is not multi-thread safe
 static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
   int32_t code = 0;
@@ -2382,7 +2437,8 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
   SVgroupChangeInfo changeInfo = mndFindChangedNodeInfo(pMnode, execInfo.pNodeList, pNodeSnapshot);
   if (taosArrayGetSize(changeInfo.pUpdateNodeList) > 0) {
     // kill current active checkpoint transaction, since the transaction is vnode wide.
-    doKillActiveCheckpointTrans(pMnode);
+    killAllCheckpointTrans(pMnode, &changeInfo);
+
     code = mndProcessVgroupChange(pMnode, &changeInfo);
 
     // keep the new vnode snapshot
@@ -2428,7 +2484,7 @@ static int32_t mndProcessNodeCheck(SRpcMsg *pReq) {
   return 0;
 }
 
-void keepStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
+void saveStreamTasksInfo(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
   int32_t level = taosArrayGetSize(pStream->tasks);
 
   for (int32_t i = 0; i < level; i++) {
@@ -2471,8 +2527,9 @@ void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
           STaskId *pId = taosArrayGet(pExecNode->pTaskList, k);
           if (pId->taskId == id.taskId && pId->streamId == id.streamId) {
             taosArrayRemove(pExecNode->pTaskList, k);
-            mInfo("s-task:0x%x removed from buffer, remain:%d", (int32_t)id.taskId,
-                  (int32_t)taosArrayGetSize(pExecNode->pTaskList));
+
+            int32_t num = taosArrayGetSize(pExecNode->pTaskList);
+            mInfo("s-task:0x%x removed from buffer, remain:%d", (int32_t)id.taskId, num);
             break;
           }
         }
@@ -2483,15 +2540,15 @@ void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
   ASSERT(taosHashGetSize(pExecNode->pTaskMap) == taosArrayGetSize(pExecNode->pTaskList));
 }
 
-STrans *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, const char *name) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, NULL, name);
+STrans *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, const char *name, const char* pMsg) {
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, name);
   if (pTrans == NULL) {
     mError("failed to build trans:%s, reason: %s", name, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  mDebug("start to build stream:0x%" PRIx64 " task DAG update", pStream->uid);
+  mDebug("s-task:0x%"PRIx64" start to build trans %s", pStream->uid, pMsg);
 
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
@@ -2506,7 +2563,7 @@ STrans *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, const char *name) {
 }
 
 int32_t createStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
-  STrans *pTrans = doCreateTrans(pMnode, pStream, "stream-task-reset");
+  STrans *pTrans = doCreateTrans(pMnode, pStream, NULL, MND_STREAM_TASK_RESET_NAME, " reset from failed checkpoint");
   if (pTrans == NULL) {
     return terrno;
   }
@@ -2566,43 +2623,36 @@ int32_t createStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
-int32_t doKillActiveCheckpointTrans(SMnode *pMnode) {
-  int32_t transId = 0;
-  SSdb *  pSdb = pMnode->pSdb;
-  STrans *pTrans = NULL;
-  void *  pIter = NULL;
-
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_TRANS, pIter, (void **)&pTrans);
-    if (pIter == NULL) {
-      break;
-    }
-
-    if (strncmp(pTrans->opername, MND_STREAM_CHECKPOINT_NAME, tListLen(pTrans->opername) - 1) == 0) {
-      transId = pTrans->id;
-      sdbRelease(pSdb, pTrans);
-      sdbCancelFetch(pSdb, pIter);
-      break;
-    }
-
-    sdbRelease(pSdb, pTrans);
-  }
-
-  if (transId == 0) {
-    mDebug("failed to find the checkpoint trans, reset not executed");
+int32_t killActiveCheckpointTrans(SMnode *pMnode, const char* pDBName) {
+  // data in the hash table will be removed automatically, no need to remove it here.
+  SStreamTransInfo* pTransInfo = taosHashGet(execInfo.transMgmt.pDBTrans, pDBName, strlen(pDBName));
+  if (pTransInfo == NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
-  pTrans = mndAcquireTrans(pMnode, transId);
-  mInfo("kill checkpoint trans:%d", transId);
+  // not checkpoint trans, ignore
+  if (strcmp(pTransInfo->name, MND_STREAM_CHECKPOINT_NAME) != 0) {
+    mDebug("not checkpoint trans, not kill it, name:%s, transId:%d", pTransInfo->name, pTransInfo->transId);
+    return TSDB_CODE_SUCCESS;
+  }
 
-  mndKillTrans(pMnode, pTrans);
-  mndReleaseTrans(pMnode, pTrans);
+  STrans* pTrans = mndAcquireTrans(pMnode, pTransInfo->transId);
+  if (pTrans != NULL) {
+    mInfo("kill checkpoint transId:%d in Db:%s", pTransInfo->transId, pDBName);
+    mndKillTrans(pMnode, pTrans);
+    mndReleaseTrans(pMnode, pTrans);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mndResetFromCheckpoint(SMnode *pMnode) {
-  doKillActiveCheckpointTrans(pMnode);
+int32_t mndResetStatusFromCheckpoint(SMnode *pMnode, int32_t transId) {
+  STrans* pTrans = mndAcquireTrans(pMnode, transId);
+  if (pTrans != NULL) {
+    mInfo("kill checkpoint transId:%d to reset task status", transId);
+    mndKillTrans(pMnode, pTrans);
+    mndReleaseTrans(pMnode, pTrans);
+  }
 
   // set all tasks status to be normal, refactor later to be stream level, instead of vnode level.
   SSdb *      pSdb = pMnode->pSdb;
@@ -2614,7 +2664,13 @@ int32_t mndResetFromCheckpoint(SMnode *pMnode) {
       break;
     }
 
-    // todo this transaction should exist be only one
+    bool conflict = streamTransConflictOtherTrans(pMnode, pStream->sourceDb, pStream->targetDb);
+    if (conflict) {
+      mError("stream:%s other trans exists in DB:%s & %s failed to start reset-status trans",
+             pStream->name, pStream->sourceDb, pStream->targetDb);
+      continue;
+    }
+
     mDebug("stream:%s (0x%" PRIx64 ") reset checkpoint procedure, create reset trans", pStream->name, pStream->uid);
     int32_t code = createStreamResetStatusTrans(pMnode, pStream);
     if (code != TSDB_CODE_SUCCESS) {
@@ -2741,7 +2797,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       // if the execInfo.activeCheckpoint == 0, the checkpoint is restoring from wal
       mInfo("checkpointId:%" PRId64 " failed, issue task-reset trans to reset all tasks status",
             execInfo.activeCheckpoint);
-      mndResetFromCheckpoint(pMnode);
+      mndResetStatusFromCheckpoint(pMnode, activeCheckpointId);
     } else {
       mInfo("not all vgroups are ready, wait for next HB from stream tasks");
     }
