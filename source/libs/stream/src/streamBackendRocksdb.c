@@ -3654,6 +3654,8 @@ void bkdMgtDestroy(SBkdMgt* bm) {
   }
 
   taosThreadRwlockDestroy(&bm->rwLock);
+  taosMemoryFree(bm->path);
+  taosHashCleanup(bm->pDbChkpTbl);
 
   taosMemoryFree(bm);
 }

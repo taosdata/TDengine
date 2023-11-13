@@ -500,6 +500,8 @@ void streamMetaCloseImpl(void* arg) {
   taosThreadMutexDestroy(&pMeta->backendMutex);
 
   taosCleanUpScheduler(pMeta->qHandle);
+  taosMemoryFree(pMeta->qHandle);
+
   bkdMgtDestroy(pMeta->bkdChkptMgt);
 
   pMeta->role = NODE_ROLE_UNINIT;
