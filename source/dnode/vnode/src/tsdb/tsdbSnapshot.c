@@ -32,12 +32,12 @@ struct STsdbSnapReader {
   uint8_t* aBuf[5];
   SSkmInfo skmTb[1];
 
-  TSnapRangeArray* fsrArr;
+  TFileSetRangeArray* fsrArr;
 
   // context
   struct {
     int32_t      fsrArrIdx;
-    STSnapRange* fsr;
+    STFileSetRange* fsr;
     bool         isDataDone;
     bool         isTombDone;
   } ctx[1];
@@ -425,14 +425,14 @@ int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type,
   reader[0]->ever = ever;
   reader[0]->type = type;
 
-  code = tsdbFSCreateRefRangedSnapshot(tsdb->pFS, sver, ever, (TSnapRangeArray*)pRanges, &reader[0]->fsrArr);
+  code = tsdbFSCreateRefRangedSnapshot(tsdb->pFS, sver, ever, (TFileSetRangeArray*)pRanges, &reader[0]->fsrArr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s, sver:%" PRId64 " ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode),
               __func__, lino, tstrerror(code), sver, ever, type);
-    tsdbSnapRangeArrayDestroy(&reader[0]->fsrArr);
+    tsdbFileSetRangeArrayDestroy(&reader[0]->fsrArr);
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
   } else {
@@ -460,7 +460,7 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** reader) {
   TARRAY2_DESTROY(reader[0]->sttReaderArr, tsdbSttFileReaderClose);
   tsdbDataFileReaderClose(&reader[0]->dataReader);
 
-  tsdbSnapRangeArrayDestroy(&reader[0]->fsrArr);
+  tsdbFileSetRangeArrayDestroy(&reader[0]->fsrArr);
   tDestroyTSchema(reader[0]->skmTb->pTSchema);
 
   for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->aBuf); ++i) {
@@ -1052,7 +1052,7 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, void* pRang
   writer[0]->compactVersion = INT64_MAX;
   writer[0]->now = taosGetTimestampMs();
 
-  code = tsdbFSCreateCopyRangedSnapshot(pTsdb->pFS, (TSnapRangeArray*)pRanges, &writer[0]->fsetArr, writer[0]->fopArr);
+  code = tsdbFSCreateCopyRangedSnapshot(pTsdb->pFS, (TFileSetRangeArray*)pRanges, &writer[0]->fsetArr, writer[0]->fopArr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -1160,7 +1160,7 @@ _exit:
   return code;
 }
 
-// snap part
+// STsdbSnapPartition =====================================
 static int32_t tsdbSnapPartCmprFn(STsdbSnapPartition* x, STsdbSnapPartition* y) {
   if (x->fid < y->fid) return -1;
   if (x->fid > y->fid) return 1;
@@ -1175,7 +1175,7 @@ static int32_t tVersionRangeCmprFn(SVersionRange* x, SVersionRange* y) {
   return 0;
 }
 
-static int32_t tsdbSnapRangeCmprFn(STSnapRange* x, STSnapRange* y) {
+static int32_t tsdbFileSetRangeCmprFn(STFileSetRange* x, STFileSetRange* y) {
   if (x->fid < y->fid) return -1;
   if (x->fid > y->fid) return 1;
   return 0;
@@ -1454,8 +1454,8 @@ _err:
   return -1;
 }
 
-int32_t tsdbSnapPartListToRangeDiff(STsdbSnapPartList* pList, TSnapRangeArray** ppRanges) {
-  TSnapRangeArray* pDiff = taosMemoryCalloc(1, sizeof(TSnapRangeArray));
+int32_t tsdbSnapPartListToRangeDiff(STsdbSnapPartList* pList, TFileSetRangeArray** ppRanges) {
+  TFileSetRangeArray* pDiff = taosMemoryCalloc(1, sizeof(TFileSetRangeArray));
   if (pDiff == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -1464,7 +1464,7 @@ int32_t tsdbSnapPartListToRangeDiff(STsdbSnapPartList* pList, TSnapRangeArray** 
 
   STsdbSnapPartition* part;
   TARRAY2_FOREACH(pList, part) {
-    STSnapRange* r = taosMemoryCalloc(1, sizeof(STSnapRange));
+    STFileSetRange* r = taosMemoryCalloc(1, sizeof(STFileSetRange));
     if (r == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
@@ -1485,7 +1485,7 @@ int32_t tsdbSnapPartListToRangeDiff(STsdbSnapPartList* pList, TSnapRangeArray** 
     r->sver = maxVerValid + 1;
     r->ever = VERSION_MAX;
     tsdbDebug("range diff fid:%" PRId64 ", sver:%" PRId64 ", ever:%" PRId64, part->fid, r->sver, r->ever);
-    int32_t code = TARRAY2_SORT_INSERT(pDiff, r, tsdbSnapRangeCmprFn);
+    int32_t code = TARRAY2_SORT_INSERT(pDiff, r, tsdbFileSetRangeCmprFn);
     ASSERT(code == 0);
   }
   ppRanges[0] = pDiff;
@@ -1495,12 +1495,12 @@ int32_t tsdbSnapPartListToRangeDiff(STsdbSnapPartList* pList, TSnapRangeArray** 
 
 _err:
   if (pDiff) {
-    tsdbSnapRangeArrayDestroy(&pDiff);
+    tsdbFileSetRangeArrayDestroy(&pDiff);
   }
   return -1;
 }
 
-void tsdbSnapRangeArrayDestroy(TSnapRangeArray** ppSnap) {
+void tsdbFileSetRangeArrayDestroy(TFileSetRangeArray** ppSnap) {
   if (ppSnap && ppSnap[0]) {
     TARRAY2_DESTROY(ppSnap[0], tsdbTSnapRangeClear);
     taosMemoryFree(ppSnap[0]);
