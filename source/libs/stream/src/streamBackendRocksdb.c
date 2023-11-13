@@ -1521,7 +1521,7 @@ void taskDbInitOpt(STaskDbWrapper* pTaskDb) {
 }
 void taskDbInitChkpOpt(STaskDbWrapper* pTaskDb) {
   pTaskDb->chkpId = -1;
-  pTaskDb->chkpCap = 2;
+  pTaskDb->chkpCap = 4;
   pTaskDb->chkpSaved = taosArrayInit(4, sizeof(int64_t));
   pTaskDb->chkpInUse = taosArrayInit(4, sizeof(int64_t));
 
