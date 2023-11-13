@@ -380,7 +380,7 @@ static int32_t vnodePreProcessDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   SEncoder  *pCoder = &(SEncoder){0};
   SDeleteRes res = {0};
 
-  SReadHandle handle = {.vnode = pVnode, .pMsgCb = &pVnode->msgCb};
+  SReadHandle handle = {.vnode = pVnode, .pMsgCb = &pVnode->msgCb, .skipRollup = 1};
   initStorageAPI(&handle.api);
 
   code = qWorkerProcessDeleteMsg(&handle, pVnode->pQuery, pMsg, &res);
@@ -1674,7 +1674,7 @@ _exit:
   atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
   if (code == 0) {
     atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
-    code = tdProcessRSmaSubmit(pVnode->pSma, ver, pSubmitReq, pReq, len, STREAM_INPUT__DATA_SUBMIT);
+    code = tdProcessRSmaSubmit(pVnode->pSma, ver, pSubmitReq, pReq, len);
   }
 
   // clear
@@ -1891,6 +1891,11 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
 
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, pVnode->pMeta, META_READER_NOLOCK);
+  STsdb *pTsdb = pVnode->pTsdb;
+
+  if (deleteReq.level) {
+    pTsdb = deleteReq.level == 1 ? VND_RSMA1(pVnode) : VND_RSMA2(pVnode);
+  }
 
   int32_t sz = taosArrayGetSize(deleteReq.deleteReqs);
   for (int32_t i = 0; i < sz; i++) {
@@ -1903,21 +1908,22 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
 
     int64_t uid = mr.me.uid;
 
-    int32_t code = tsdbDeleteTableData(pVnode->pTsdb, ver, deleteReq.suid, uid, pOneReq->startTs, pOneReq->endTs);
+    int32_t code = tsdbDeleteTableData(pTsdb, ver, deleteReq.suid, uid, pOneReq->startTs, pOneReq->endTs);
     if (code < 0) {
       terrno = code;
       vError("vgId:%d, delete error since %s, suid:%" PRId64 ", uid:%" PRId64 ", start ts:%" PRId64 ", end ts:%" PRId64,
              TD_VID(pVnode), terrstr(), deleteReq.suid, uid, pOneReq->startTs, pOneReq->endTs);
     }
 
-    code = metaUpdateChangeTimeWithLock(pVnode->pMeta, uid, deleteReq.ctimeMs);
-    if (code < 0) {
-      terrno = code;
-      vError("vgId:%d, update change time error since %s, suid:%" PRId64 ", uid:%" PRId64 ", start ts:%" PRId64
-             ", end ts:%" PRId64,
-             TD_VID(pVnode), terrstr(), deleteReq.suid, uid, pOneReq->startTs, pOneReq->endTs);
+    if (deleteReq.level == 0) {
+      code = metaUpdateChangeTimeWithLock(pVnode->pMeta, uid, deleteReq.ctimeMs);
+      if (code < 0) {
+        terrno = code;
+        vError("vgId:%d, update change time error since %s, suid:%" PRId64 ", uid:%" PRId64 ", start ts:%" PRId64
+               ", end ts:%" PRId64,
+               TD_VID(pVnode), terrstr(), deleteReq.suid, uid, pOneReq->startTs, pOneReq->endTs);
+      }
     }
-
     tDecoderClear(&mr.coder);
   }
   metaReaderClear(&mr);
@@ -1951,6 +1957,8 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
     code = metaUpdateChangeTimeWithLock(pVnode->pMeta, uid, pRes->ctimeMs);
     if (code) goto _err;
   }
+
+  code = tdProcessRSmaDelete(pVnode->pSma, ver, pRes, pReq, len);
 
   tDecoderClear(pCoder);
   taosArrayDestroy(pRes->uidList);
