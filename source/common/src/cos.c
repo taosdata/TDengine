@@ -467,7 +467,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
   // data.infileFD = NULL;
   // data.noStatus = noStatus;
 
-  uError("ERROR: %s stat file %s: ", __func__, file);
+  // uError("ERROR: %s stat file %s: ", __func__, file);
   if (taosStatFile(file, &contentLength, NULL, NULL) < 0) {
     uError("ERROR: %s Failed to stat file %s: ", __func__, file);
     code = TAOS_SYSTEM_ERROR(errno);

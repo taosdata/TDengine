@@ -77,6 +77,7 @@ typedef struct {
   SArray*        chkpInUse;
   int32_t        chkpCap;
   TdThreadRwlock chkpDirLock;
+  int64_t        dataWritten; 
 
 } STaskDbWrapper;
 

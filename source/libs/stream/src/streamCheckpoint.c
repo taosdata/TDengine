@@ -457,7 +457,7 @@ static int uploadCheckpointToS3(char* id, char* path) {
       return -1;
     }
     stDebug("[s3] upload checkpoint:%s", filename);
-    break;
+    // break;
   }
   taosCloseDir(&pDir);
 
