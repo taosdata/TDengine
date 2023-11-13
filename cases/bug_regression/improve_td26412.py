@@ -17,11 +17,7 @@ from taostest.util.common import TDCom
 from datetime import datetime
 import os
 from taostest.util.remote import Remote
-import psutil
-# from taostest.performance.result_reduction import Perf_Base_func
 from taostest.components import PrometheusServer
-
-
 class TestTd26412(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
