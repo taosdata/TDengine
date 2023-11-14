@@ -377,6 +377,7 @@ int32_t doUploadChkp(void* param) {
   int32_t          code = 0;
   SArray*          list = taosArrayInit(4, sizeof(void*));
 
+  
   if ((code = taskDbGenChkpUploadData(arg->pTask->pBackend, arg->pTask->pMeta->bkdChkptMgt, arg->chkpId,
                                       (int8_t)(arg->type), &path, list)) != 0) {
     stError("s-task:%s failed to gen upload checkpoint:%" PRId64 "", arg->pTask->id.idStr, arg->chkpId);
