@@ -113,24 +113,95 @@ groups:
           type: str
         placeholder: topic1::0,topic2::1
 
-  - name: Advanced Options
-    display_order: 2
-    description: |
-      Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave 
-      these options as default to use the recommended settings.
-    params:
-      - name: log_level
-        display: Log Level
-        description: Adjust the log level of the data source as required. This parameter does not always take effect.
-        value: info
-        hint:
-          type: str
-          choices:
-            - error
-            - warn
-            - info
-            - debug
-            - trace
+advanced:
+  name: Advanced Options
+  collapsible: true
+  collapsed: true
+  description: |
+    Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave
+    these options as default to use the recommended settings.
+  params:
+    - name: log_level
+      display: Log Level
+      description: Adjust the log level of the data source as required. This parameter does not always take effect.
+      value: info
+      hint:
+        type: str
+        choices:
+          - error
+          - warn
+          - info
+          - debug
+          - trace
+
+    - name: read_concurrency
+      hidden: true
+      display: Read Concurrency
+      description: |
+        The number of concurrent read requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.
+      value: 0
+      hint:
+        type: integer
+        min: 0
+        max: 1000
+    - name: write_concurrency
+      hidden: true
+      display: Write Concurrency
+      description: |
+        The number of concurrent write requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.
+      value: 0
+      hint:
+        type: integer
+        min: 0
+        max: 1000
+    - name: batch_size
+      hidden: true
+      display: Batch Size
+      description: |
+        The number of data points to be written in a single request. The default value is 1000. If the data source is slow to respond, you can reduce this value appropriately.
+      value: 1000
+      hint:
+        type: integer
+        min: 1
+        max: 10000
+    - name: batch_timeout
+      hidden: true
+      display: Batch Timeout
+      description: |
+        The maximum time(in milliseconds) to wait before sending a batch of data points. The default value is 1000ms. If the data source is slow to respond, you can increase this value appropriately.
+      value: 1000
+      hint:
+        type: integer
+        min: 1
+        max: 10000
+    - name: keep_raw_data
+      hidden: true
+      display: Keep Raw Data
+      description: |
+        Whether to keep the raw data. If enabled, the raw data will be stored.
+      hint:
+        type: bool
+    - name: keep_raw_data_days
+      hidden: true
+      display: Max Keep Days
+      description: |
+        The number of days to keep the raw data. The default value is 1 day.
+      value: 1
+      requires: keep_raw_data
+      hint:
+        type: integer
+        min: 1
+        max: 365
+
+    - name: keep_raw_data_dir
+      hidden: true
+      display: Raw Data Directory
+      description: |
+        The directory to store the raw data. The default value is `$DATA_DIR/tasks/:id/rawdata/`.
+      requires: keep_raw_data
+      placeholder: $DATA_DIR/tasks/:id/rawdata/
+      hint:
+        type: str
 
 parser:
   display: MQTT Payload Parser

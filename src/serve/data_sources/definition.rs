@@ -118,7 +118,12 @@ pub struct Param {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
-
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hidden: Option<bool>,
+    /// Requires a boolean param to be true, otherwise hide.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub requires: Option<String>,
     /// Condition for a parameter, eg. "if: protocol.ws"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r#if: Option<String>,
@@ -449,6 +454,11 @@ pub struct DataSourceDefinition {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     #[serde(default)]
     pub groups: Vec<GroupedParams>,
+
+    /// Advanced parameters.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub advanced: Option<GroupedParams>,
 
     /// Ungrouped parameters.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -786,6 +796,67 @@ impl DataSourceDefinition {
             }
         }
 
+        if let Some(group) = &mut self.advanced {
+            match (&group.short_description, &group.description) {
+                (None, Some(desc)) => {
+                    group.short_description = desc
+                        .split_terminator("\n")
+                        .into_iter()
+                        .next()
+                        .map(ToString::to_string);
+                }
+                _ => (),
+            }
+            if group.collapsible {
+                if group.collapsed.is_none() {
+                    group.collapsed.replace(false);
+                }
+            }
+            for param in &mut group.params {
+                match (&param.short_description, &param.description) {
+                    (None, Some(desc)) => {
+                        param.short_description = desc
+                            .split_terminator("\n")
+                            .into_iter()
+                            .next()
+                            .map(ToString::to_string);
+                    }
+                    _ => (),
+                }
+                if let Some(v) = dsn.remove(&param.name) {
+                    if group.collapsible {
+                        group.collapsed.replace(true);
+                    }
+                    if !v.is_empty() {
+                        // for hint type recognition.
+                        if let Some(hint) = &mut param.hint {
+                            match hint {
+                                Hint::Named(_) => (),
+                                Hint::Flat { .. } => (),
+                                Hint::OneOf(items) => {
+                                    let has_selected = false;
+                                    for item in items {
+                                        if has_selected {
+                                            // if has selected item, then unselect all.
+                                            item.selected = false;
+                                        }
+                                        if item.r#type.parse_value(&v) {
+                                            // if value is valid, then select it.
+                                            item.selected = true;
+                                        } else {
+                                            item.selected = false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        param.value.replace(v);
+                    }
+                }
+            }
+        }
+
         for (name, value) in dsn.params {
             self.params.push(Param {
                 name,
@@ -799,6 +870,8 @@ impl DataSourceDefinition {
                 placeholder: None,
                 value: Some(value),
                 display: None,
+                requires: None,
+                hidden: None,
                 r#if: None,
                 alternatives: None,
                 params: None,
@@ -826,21 +899,6 @@ fn test() {
     dbg!(tmq, new);
 }
 #[test]
-fn opc() {
-    use std::str::FromStr;
-    let json = include_str!("cn/opc.yaml");
-    let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
-    let json2 = serde_yaml::to_string(&def).unwrap();
-    dbg!(&json2);
-    let toml = toml::to_string_pretty(&def).unwrap();
-    println!("{}", &toml);
-
-    let dsn = "opc+ua://localhost:123/opcua/server1?ua.nodes=a::b::c::d";
-    let dsn = Dsn::from_str(&dsn).unwrap();
-    let dsn = def.values_from(dsn);
-    dbg!(&dsn);
-}
-#[test]
 fn influxdb() {
     use std::str::FromStr;
     let json = include_str!("cn/influxdb.yaml");
@@ -858,7 +916,7 @@ fn influxdb() {
 #[test]
 fn test_mqtt() {
     use std::str::FromStr;
-    let json = include_str!("cn/mqtt.yaml");
+    let json = include_str!("en/mqtt.yaml");
     let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
     let json2 = serde_yaml::to_string(&def).unwrap();
     dbg!(&json2);
@@ -871,6 +929,8 @@ fn test_mqtt() {
     let ds = def.values_from(dsn);
     assert_eq!(ds.groups[0].collapsed, Some(true));
     dbg!(&ds);
+
+    dbg!(&ds.advanced);
 }
 #[test]
 fn test_csv() {
