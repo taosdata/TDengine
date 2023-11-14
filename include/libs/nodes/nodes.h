@@ -101,7 +101,7 @@ typedef struct SNodeList {
 
 typedef struct SNodeAllocator SNodeAllocator;
 
-void    initNodeName();
+void    nodesInit();
 int32_t nodesInitAllocatorSet();
 void    nodesDestroyAllocatorSet();
 int32_t nodesCreateAllocator(int64_t queryId, int32_t chunkSize, int64_t* pAllocatorId);
@@ -111,6 +111,7 @@ int64_t nodesMakeAllocatorWeakRef(int64_t allocatorId);
 int64_t nodesReleaseAllocatorWeakRef(int64_t allocatorId);
 void    nodesDestroyAllocator(int64_t allocatorId);
 
+int32_t getNodeSize(ENodeType type);
 SNode* nodesMakeNode(ENodeType type);
 void   nodesDestroyNode(SNode* pNode);
 void   nodesFree(void* p);

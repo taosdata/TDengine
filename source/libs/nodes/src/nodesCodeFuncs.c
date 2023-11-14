@@ -28,204 +28,67 @@ static int32_t jsonToNodeObject(const SJson* pJson, const char* pName, SNode** p
 static int32_t makeNodeByJson(const SJson* pJson, SNode** pNode);
 
 
-typedef const char* taoscstr;
-taoscstr nodeNames[QUERY_NODE_END] = {};
+typedef int32_t (*FExecNodeToJson)(const void* pObj, SJson* pJson);
+typedef int32_t (*FExecJsonToNode)(const SJson* pJson, void* pObj);
+typedef void (*FExecDestoryNode)(SNode* pNode);
 
-#define TAOS_DEFINE_NODE_NAME(type, msg) nodeNames[type] = msg;
+/**
+ * @brief Node operation to binding function set 
+ */
+typedef struct SBuiltinNodeDefinition {
+  const char* name;
+  int32_t     nodeSize;
+  FExecNodeToJson   toJsonFunc;
+  FExecJsonToNode   toNodeFunc;
+  FExecDestoryNode  destoryFunc;
+} SBuiltinNodeDefinition;
 
-void initNodeName() {
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_COLUMN, "Column")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_VALUE, "Value")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_OPERATOR, "Operator")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_CONDITION, "LogicCondition")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_FUNCTION, "Function")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_REAL_TABLE, "RealTable")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_TEMP_TABLE, "TempTable")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_JOIN_TABLE, "JoinTable")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_GROUPING_SET, "GroupingSet")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_ORDER_BY_EXPR, "OrderByExpr")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LIMIT, "Limit")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_STATE_WINDOW, "StateWindow")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SESSION_WINDOW, "SessionWinow")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_INTERVAL_WINDOW, "IntervalWindow")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_NODE_LIST, "NodeList")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_FILL, "Fill")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_RAW_EXPR, "RawExpr")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_TARGET, "Target")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DATABLOCK_DESC, "DataBlockDesc")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SLOT_DESC, "SlotDesc")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_COLUMN_DEF, "ColumnDef")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DOWNSTREAM_SOURCE, "DownstreamSource")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DATABASE_OPTIONS, "DatabaseOptions")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_TABLE_OPTIONS, "TableOptions")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_INDEX_OPTIONS, "IndexOptions")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_EXPLAIN_OPTIONS, "ExplainOptions")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_STREAM_OPTIONS, "StreamOptions")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LEFT_VALUE, "LeftValue")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_WHEN_THEN, "WhenThen")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_CASE_WHEN, "CaseWhen")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_EVENT_WINDOW, "EventWindow")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SET_OPERATOR, "SetOperator")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SELECT_STMT, "SelectStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_VNODE_MODIFY_STMT, "VnodeModifStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_CREATE_DATABASE_STMT, "CreateDatabaseStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DROP_DATABASE_STMT, "DropDatabaseStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_ALTER_DATABASE_STMT, "AlterDatabaseStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_FLUSH_DATABASE_STMT, "FlushDatabaseStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_TRIM_DATABASE_STMT, "TrimDatabaseStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_CREATE_TABLE_STMT, "CreateTableStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_CREATE_SUBTABLE_CLAUSE, "CreateSubtableClause")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_CREATE_MULTI_TABLES_STMT, "CreateMultiTableStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DROP_TABLE_CLAUSE, "DropTableClause")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DROP_TABLE_STMT, "DropTableStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DROP_SUPER_TABLE_STMT, "DropSuperTableStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_ALTER_TABLE_STMT, "AlterTableStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_ALTER_SUPER_TABLE_STMT, "AlterSuperTableStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_CREATE_USER_STMT, "CreateUserStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_ALTER_USER_STMT, "AlterUserStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DROP_USER_STMT, "DropUserStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_USE_DATABASE_STMT, "UseDatabaseStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_CREATE_DNODE_STMT, "CreateDnodeStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DROP_DNODE_STMT, "DropDnodeStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_ALTER_DNODE_STMT, "AlterDnodeStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_CREATE_INDEX_STMT, "CreateIndexStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DROP_INDEX_STMT, "DropIndexStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_CREATE_QNODE_STMT, "CreateQnodeStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DROP_QNODE_STMT, "DropQnodeStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_CREATE_SNODE_STMT, "CreateSnodeStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DROP_SNODE_STMT, "DropSnodeStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_CREATE_MNODE_STMT, "CreateMnodeStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DROP_MNODE_STMT, "DropMnodeStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_CREATE_TOPIC_STMT, "CreateTopicStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DROP_TOPIC_STMT, "DropTopicStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DROP_CGROUP_STMT, "DropConsumerGroupStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_ALTER_LOCAL_STMT, "AlterLocalStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_EXPLAIN_STMT, "ExplainStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DESCRIBE_STMT, "DescribeStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_COMPACT_DATABASE_STMT, "CompactDatabaseStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_CREATE_STREAM_STMT, "CreateStreamStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DROP_STREAM_STMT, "DropStreamStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PAUSE_STREAM_STMT, "PauseStreamStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_RESUME_STREAM_STMT, "ResumeStreamStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_BALANCE_VGROUP_STMT, "BalanceVgroupStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_BALANCE_VGROUP_LEADER_STMT, "BalanceVgroupLeaderStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_MERGE_VGROUP_STMT, "MergeVgroupStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_DB_ALIVE_STMT, "ShowDbAliveStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT, "ShowClusterAliveStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_REDISTRIBUTE_VGROUP_STMT, "RedistributeVgroupStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SPLIT_VGROUP_STMT, "SplitVgroupStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_GRANT_STMT, "GrantStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_REVOKE_STMT, "RevokeStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_DNODES_STMT, "ShowDnodesStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_MNODES_STMT, "ShowMnodesStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_MODULES_STMT, "ShowModulesStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_QNODES_STMT, "ShowQnodesStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_SNODES_STMT, "ShowSnodesStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_BNODES_STMT, "ShowBnodesStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_CLUSTER_STMT, "ShowClusterStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_DATABASES_STMT, "ShowDatabaseStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_FUNCTIONS_STMT, "ShowFunctionsStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_INDEXES_STMT, "ShowIndexesStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_STABLES_STMT, "ShowStablesStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_STREAMS_STMT, "ShowStreamsStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_TABLES_STMT, "ShowTablesStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_TAGS_STMT, "ShowTagsStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_USERS_STMT, "ShowUsersStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_LICENCES_STMT, "ShowGrantsStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_VGROUPS_STMT, "ShowVgroupsStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_TOPICS_STMT, "ShowTopicsStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_CONSUMERS_STMT, "ShowConsumersStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_QUERIES_STMT, "ShowQueriesStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_VARIABLES_STMT, "ShowVariablesStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_DNODE_VARIABLES_STMT, "ShowDnodeVariablesStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_TRANSACTIONS_STMT, "ShowTransactionsStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT, "ShowSubscriptionsStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_VNODES_STMT, "ShowVnodeStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_USER_PRIVILEGES_STMT, "ShowUserPrivilegesStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_CREATE_DATABASE_STMT, "ShowCreateDatabasesStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_CREATE_TABLE_STMT, "ShowCreateTablesStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_CREATE_STABLE_STMT, "ShowCreateStablesStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_CREATE_VIEW_STMT, "ShowCreateViewStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT, "ShowTableDistributedStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT, "ShowLocalVariablesStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_SHOW_TABLE_TAGS_STMT, "ShowTableTagsStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DELETE_STMT, "DeleteStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_INSERT_STMT, "InsertStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_RESTORE_DNODE_STMT, "RestoreDnodeStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_RESTORE_QNODE_STMT, "RestoreQnodeStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_RESTORE_MNODE_STMT, "RestoreMnodeStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_RESTORE_VNODE_STMT, "RestoreVnodeStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_CREATE_VIEW_STMT, "CreateViewStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_DROP_VIEW_STMT, "DropViewStmt")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_PLAN_SCAN, "LogicScan")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_PLAN_JOIN, "LogicJoin")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_PLAN_AGG, "LogicAgg")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_PLAN_PROJECT, "LogicProject")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY, "LogicVnodeModify")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_PLAN_EXCHANGE, "LogicExchange")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_PLAN_MERGE, "LogicMerge")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_PLAN_WINDOW, "LogicWindow")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_PLAN_FILL, "LogicFill")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_PLAN_SORT, "LogicSort")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_PLAN_PARTITION, "LogicPartition")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC, "LogicIndefRowsFunc")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_PLAN_INTERP_FUNC, "LogicInterpFunc")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_PLAN_GROUP_CACHE, "LogicGroupCache")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL, "LogicDynamicQueryCtrl")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_SUBPLAN, "LogicSubplan")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_LOGIC_PLAN, "LogicPlan")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN, "PhysiTagScan")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, "PhysiTableScan")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN, "PhysiTableSeqScan")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN, "PhysiTableMergeScan")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, "PhysiSreamScan")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, "PhysiSystemTableScan")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN, "PhysiBlockDistScan")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN, "PhysiLastRowScan")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN, "PhysiTableCountScan")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT, "PhysiMergeEventWindow")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT, "PhysiStreamEventWindow")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_PROJECT, "PhysiProject")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN, "PhysiMergeJoin")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN, "PhysiHashJoin")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_HASH_AGG, "PhysiAgg")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, "PhysiExchange")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_MERGE, "PhysiMerge")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_SORT, "PhysiSort")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT, "PhysiGroupSort")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL, "PhysiHashInterval")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL, "PhysiMergeAlignedInterval")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL, "PhysiStreamInterval")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL, "PhysiStreamFinalInterval")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL, "PhysiStreamSemiInterval")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_FILL, "PhysiFill")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL, "PhysiFill")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION, "PhysiSessionWindow")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION, "PhysiStreamSessionWindow")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION, "PhysiStreamSemiSessionWindow")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION, "PhysiStreamFinalSessionWindow")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, "PhysiStateWindow")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE, "PhysiStreamStateWindow")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_PARTITION, "PhysiPartition")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION, "PhysiStreamPartition")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC, "PhysiIndefRowsFunc")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, "PhysiInterpFunc")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_DISPATCH, "PhysiDispatch")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_INSERT, "PhysiInsert")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT, "PhysiQueryInsert")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_DELETE, "PhysiDelete")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE, "PhysiGroupCache")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL, "PhysiDynamicQueryCtrl")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_SUBPLAN, "PhysiSubplan")
-  TAOS_DEFINE_NODE_NAME(QUERY_NODE_PHYSICAL_PLAN, "PhysiPlan")
+SBuiltinNodeDefinition funcNodes[QUERY_NODE_END] = {};
+
+static TdThreadOnce    functionNodeInit = PTHREAD_ONCE_INIT;
+static int32_t         initNodeCode = -1;
+
+static void setFunc(const char* name, int32_t type, int32_t nodeSize, FExecNodeToJson toJsonFunc,
+                    FExecJsonToNode toNodeFunc, FExecDestoryNode destoryFunc) {
+  funcNodes[type].name = name;
+  funcNodes[type].nodeSize = nodeSize;
+  funcNodes[type].toJsonFunc = toJsonFunc;
+  funcNodes[type].toNodeFunc = toNodeFunc;
+  funcNodes[type].destoryFunc = destoryFunc;
+}
+
+static void doInitNodeFuncArray();
+
+void nodesInit() {
+  taosThreadOnce(&functionNodeInit, doInitNodeFuncArray);
+}
+
+bool funcArrayCheck(int32_t type) {
+  if (type < 0 || QUERY_NODE_END < (type+1)) {
+    nodesError("funcArrayCheck unknown type = %d", type);
+    return false;
+  }
+  if (initNodeCode != 0) {
+    nodesInit();
+  }
+  if (!funcNodes[type].name) {
+    return false;
+  }
+  return true;
+}
+
+int32_t getNodeSize(ENodeType type) {
+  if (!funcArrayCheck(type)) {
+    return 0;
+  }
+  return funcNodes[type].nodeSize;
 }
 
 const char* nodesNodeName(ENodeType type) {
-  if (nodeNames[type])
-    return nodeNames[type];
-
-  nodesWarn("nodesNodeName unknown node = %d", type);
-  return "UnknownNode";
+  if (!funcArrayCheck(type)) {
+    return NULL;
+  }
+  return funcNodes[type].name;
 }
 
 static int32_t nodeListToJson(SJson* pJson, const char* pName, const SNodeList* pList) {
@@ -6628,657 +6491,31 @@ static int32_t jsonToInsertStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
-static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
-  switch (nodeType(pObj)) {
-    case QUERY_NODE_COLUMN:
-      return columnNodeToJson(pObj, pJson);
-    case QUERY_NODE_VALUE:
-      return valueNodeToJson(pObj, pJson);
-    case QUERY_NODE_OPERATOR:
-      return operatorNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_CONDITION:
-      return logicConditionNodeToJson(pObj, pJson);
-    case QUERY_NODE_FUNCTION:
-      return functionNodeToJson(pObj, pJson);
-    case QUERY_NODE_REAL_TABLE:
-      return realTableNodeToJson(pObj, pJson);
-    case QUERY_NODE_TEMP_TABLE:
-      return tempTableNodeToJson(pObj, pJson);
-    case QUERY_NODE_JOIN_TABLE:
-      return joinTableNodeToJson(pObj, pJson);
-    case QUERY_NODE_GROUPING_SET:
-      return groupingSetNodeToJson(pObj, pJson);
-    case QUERY_NODE_ORDER_BY_EXPR:
-      return orderByExprNodeToJson(pObj, pJson);
-    case QUERY_NODE_LIMIT:
-      return limitNodeToJson(pObj, pJson);
-    case QUERY_NODE_STATE_WINDOW:
-      return stateWindowNodeToJson(pObj, pJson);
-    case QUERY_NODE_SESSION_WINDOW:
-      return sessionWindowNodeToJson(pObj, pJson);
-    case QUERY_NODE_INTERVAL_WINDOW:
-      return intervalWindowNodeToJson(pObj, pJson);
-    case QUERY_NODE_NODE_LIST:
-      return nodeListNodeToJson(pObj, pJson);
-    case QUERY_NODE_FILL:
-      return fillNodeToJson(pObj, pJson);
-    case QUERY_NODE_RAW_EXPR:
-      break;
-    case QUERY_NODE_TARGET:
-      return targetNodeToJson(pObj, pJson);
-    case QUERY_NODE_DATABLOCK_DESC:
-      return dataBlockDescNodeToJson(pObj, pJson);
-    case QUERY_NODE_SLOT_DESC:
-      return slotDescNodeToJson(pObj, pJson);
-    case QUERY_NODE_COLUMN_DEF:
-      return columnDefNodeToJson(pObj, pJson);
-    case QUERY_NODE_DOWNSTREAM_SOURCE:
-      return downstreamSourceNodeToJson(pObj, pJson);
-    case QUERY_NODE_DATABASE_OPTIONS:
-      return databaseOptionsToJson(pObj, pJson);
-    case QUERY_NODE_TABLE_OPTIONS:
-      return tableOptionsToJson(pObj, pJson);
-    case QUERY_NODE_INDEX_OPTIONS:
-      return indexOptionsToJson(pObj, pJson);
-    case QUERY_NODE_EXPLAIN_OPTIONS:
-      return explainOptionsToJson(pObj, pJson);
-    case QUERY_NODE_STREAM_OPTIONS:
-      return streamOptionsToJson(pObj, pJson);
-    case QUERY_NODE_LEFT_VALUE:
-      return TSDB_CODE_SUCCESS;  // SLeftValueNode has no fields to serialize.
-    case QUERY_NODE_WHEN_THEN:
-      return whenThenNodeToJson(pObj, pJson);
-    case QUERY_NODE_CASE_WHEN:
-      return caseWhenNodeToJson(pObj, pJson);
-    case QUERY_NODE_EVENT_WINDOW:
-      return eventWindowNodeToJson(pObj, pJson);
-    case QUERY_NODE_SET_OPERATOR:
-      return setOperatorToJson(pObj, pJson);
-    case QUERY_NODE_SELECT_STMT:
-      return selectStmtToJson(pObj, pJson);
-    case QUERY_NODE_VNODE_MODIFY_STMT:
-      return vnodeModifyStmtToJson(pObj, pJson);
-    case QUERY_NODE_CREATE_DATABASE_STMT:
-      return createDatabaseStmtToJson(pObj, pJson);
-    case QUERY_NODE_ALTER_DATABASE_STMT:
-      return alterDatabaseStmtToJson(pObj, pJson);
-    case QUERY_NODE_TRIM_DATABASE_STMT:
-      return trimDatabaseStmtToJson(pObj, pJson);
-    case QUERY_NODE_CREATE_TABLE_STMT:
-      return createTableStmtToJson(pObj, pJson);
-    case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
-      return createSubTableClauseToJson(pObj, pJson);
-    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
-      return createMultiTablesStmtToJson(pObj, pJson);
-    case QUERY_NODE_DROP_TABLE_CLAUSE:
-      return dropTableClauseToJson(pObj, pJson);
-    case QUERY_NODE_DROP_TABLE_STMT:
-      return dropTableStmtToJson(pObj, pJson);
-    case QUERY_NODE_DROP_SUPER_TABLE_STMT:
-      return dropStableStmtToJson(pObj, pJson);
-    case QUERY_NODE_ALTER_TABLE_STMT:
-      return alterTableStmtToJson(pObj, pJson);
-    case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
-      return alterStableStmtToJson(pObj, pJson);
-    case QUERY_NODE_CREATE_USER_STMT:
-      return createUserStmtToJson(pObj, pJson);
-    case QUERY_NODE_ALTER_USER_STMT:
-      return alterUserStmtToJson(pObj, pJson);
-    case QUERY_NODE_DROP_USER_STMT:
-      return dropUserStmtToJson(pObj, pJson);
-    case QUERY_NODE_USE_DATABASE_STMT:
-      return useDatabaseStmtToJson(pObj, pJson);
-    case QUERY_NODE_CREATE_DNODE_STMT:
-      return createDnodeStmtToJson(pObj, pJson);
-    case QUERY_NODE_DROP_DNODE_STMT:
-      return dropDnodeStmtToJson(pObj, pJson);
-    case QUERY_NODE_ALTER_DNODE_STMT:
-      return alterDnodeStmtToJson(pObj, pJson);
-    case QUERY_NODE_CREATE_INDEX_STMT:
-      return createIndexStmtToJson(pObj, pJson);
-    case QUERY_NODE_DROP_INDEX_STMT:
-      return dropIndexStmtToJson(pObj, pJson);
-    case QUERY_NODE_CREATE_QNODE_STMT:
-      return createQnodeStmtToJson(pObj, pJson);
-    case QUERY_NODE_DROP_QNODE_STMT:
-      return dropQnodeStmtToJson(pObj, pJson);
-    case QUERY_NODE_CREATE_SNODE_STMT:
-      return createSnodeStmtToJson(pObj, pJson);
-    case QUERY_NODE_DROP_SNODE_STMT:
-      return dropSnodeStmtToJson(pObj, pJson);
-    case QUERY_NODE_CREATE_MNODE_STMT:
-      return createMnodeStmtToJson(pObj, pJson);
-    case QUERY_NODE_DROP_MNODE_STMT:
-      return dropMnodeStmtToJson(pObj, pJson);
-    case QUERY_NODE_CREATE_TOPIC_STMT:
-      return createTopicStmtToJson(pObj, pJson);
-    case QUERY_NODE_DROP_TOPIC_STMT:
-      return dropTopicStmtToJson(pObj, pJson);
-    case QUERY_NODE_DROP_CGROUP_STMT:
-      return dropConsumerGroupStmtToJson(pObj, pJson);
-    case QUERY_NODE_ALTER_LOCAL_STMT:
-      return alterLocalStmtToJson(pObj, pJson);
-    case QUERY_NODE_EXPLAIN_STMT:
-      return explainStmtToJson(pObj, pJson);
-    case QUERY_NODE_DESCRIBE_STMT:
-      return describeStmtToJson(pObj, pJson);
-    case QUERY_NODE_COMPACT_DATABASE_STMT:
-      return compactDatabaseStmtToJson(pObj, pJson);
-    case QUERY_NODE_CREATE_STREAM_STMT:
-      return createStreamStmtToJson(pObj, pJson);
-    case QUERY_NODE_DROP_STREAM_STMT:
-      return dropStreamStmtToJson(pObj, pJson);
-    case QUERY_NODE_BALANCE_VGROUP_STMT:
-      return TSDB_CODE_SUCCESS;  // SBalanceVgroupStmt has no fields to serialize.
-    case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
-      return TSDB_CODE_SUCCESS;  // SBalanceVgroupLeaderStmt has no fields to serialize.
-    case QUERY_NODE_MERGE_VGROUP_STMT:
-      return mergeVgroupStmtToJson(pObj, pJson);
-    case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
-      return redistributeVgroupStmtToJson(pObj, pJson);
-    case QUERY_NODE_SPLIT_VGROUP_STMT:
-      return splitVgroupStmtToJson(pObj, pJson);
-    case QUERY_NODE_GRANT_STMT:
-      return grantStmtToJson(pObj, pJson);
-    case QUERY_NODE_REVOKE_STMT:
-      return revokeStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_DNODES_STMT:
-      return showDnodesStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_MNODES_STMT:
-      return showMnodesStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_QNODES_STMT:
-      return showQnodesStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_CLUSTER_STMT:
-      return showClusterStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_DATABASES_STMT:
-      return showDatabasesStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_FUNCTIONS_STMT:
-      return showFunctionsStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_INDEXES_STMT:
-      return showIndexesStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_STABLES_STMT:
-      return showStablesStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_STREAMS_STMT:
-      return showStreamsStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_TABLES_STMT:
-      return showTablesStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_TAGS_STMT:
-      return showTagsStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_USERS_STMT:
-      return showUsersStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_VGROUPS_STMT:
-      return showVgroupsStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_CONSUMERS_STMT:
-      return showConsumersStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_VARIABLES_STMT:
-      return showVariablesStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
-      return showDnodeVariablesStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
-      return showTransactionsStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
-      return showSubscriptionsStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_VNODES_STMT:
-      return showVnodesStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
-      return showUserPrivilegesStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
-      return showCreateDatabaseStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
-      return showCreateTableStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
-      return showCreateStableStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
-      return showCreateViewStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
-      return showTableDistributedStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
-      return showLocalVariablesStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
-      return showTableTagsStmtToJson(pObj, pJson);
-    case QUERY_NODE_DELETE_STMT:
-      return deleteStmtToJson(pObj, pJson);
-    case QUERY_NODE_INSERT_STMT:
-      return insertStmtToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN_SCAN:
-      return logicScanNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN_JOIN:
-      return logicJoinNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN_AGG:
-      return logicAggNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN_PROJECT:
-      return logicProjectNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY:
-      return logicVnodeModifyNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
-      return logicExchangeNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN_MERGE:
-      return logicMergeNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN_WINDOW:
-      return logicWindowNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN_FILL:
-      return logicFillNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN_SORT:
-      return logicSortNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN_PARTITION:
-      return logicPartitionNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
-      return logicIndefRowsFuncNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
-      return logicInterpFuncNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
-      return logicGroupCacheNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
-      return logicDynQueryCtrlNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_SUBPLAN:
-      return logicSubplanToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN:
-      return logicPlanToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
-      return physiTagScanNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
-      return physiScanNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
-      return physiLastRowScanNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
-      return physiTableScanNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
-      return physiSysTableScanNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
-      return physiProjectNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
-      return physiMergeJoinNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN:
-      return physiHashJoinNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
-      return physiAggNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
-      return physiExchangeNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE:
-      return physiMergeNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_SORT:
-    case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT:
-      return physiSortNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
-      return physiIntervalNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_FILL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
-      return physiFillNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
-      return physiSessionWindowNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
-      return physiStateWindowNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
-      return physiEventWindowNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
-      return physiPartitionNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
-      return physiStreamPartitionNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
-      return physiIndefRowsFuncNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
-      return physiInterpFuncNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
-      return physiDispatchNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_INSERT:
-      break;
-    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
-      return physiQueryInsertNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_DELETE:
-      return physiDeleteNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE:
-      return physiGroupCacheNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
-      return physiDynQueryCtrlNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_SUBPLAN:
-      return subplanToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN:
-      return planToJson(pObj, pJson);
-    default:
-      break;
+int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
+  ENodeType type = nodeType(pObj);
+  if (!funcArrayCheck(type)) {
+    return TSDB_CODE_SUCCESS;
   }
-  nodesWarn("specificNodeToJson unknown node = %s", nodesNodeName(nodeType(pObj)));
+
+  if (funcNodes[type].toJsonFunc) {
+    return funcNodes[type].toJsonFunc(pObj, pJson);
+  }
+
+  nodesWarn("specificNodeToJson unknown node type = %d", type);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
-  switch (nodeType(pObj)) {
-    case QUERY_NODE_COLUMN:
-      return jsonToColumnNode(pJson, pObj);
-    case QUERY_NODE_VALUE:
-      return jsonToValueNode(pJson, pObj);
-    case QUERY_NODE_OPERATOR:
-      return jsonToOperatorNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_CONDITION:
-      return jsonToLogicConditionNode(pJson, pObj);
-    case QUERY_NODE_FUNCTION:
-      return jsonToFunctionNode(pJson, pObj);
-    case QUERY_NODE_REAL_TABLE:
-      return jsonToRealTableNode(pJson, pObj);
-    case QUERY_NODE_TEMP_TABLE:
-      return jsonToTempTableNode(pJson, pObj);
-    case QUERY_NODE_JOIN_TABLE:
-      return jsonToJoinTableNode(pJson, pObj);
-    case QUERY_NODE_GROUPING_SET:
-      return jsonToGroupingSetNode(pJson, pObj);
-    case QUERY_NODE_ORDER_BY_EXPR:
-      return jsonToOrderByExprNode(pJson, pObj);
-    case QUERY_NODE_LIMIT:
-      return jsonToLimitNode(pJson, pObj);
-    case QUERY_NODE_STATE_WINDOW:
-      return jsonToStateWindowNode(pJson, pObj);
-    case QUERY_NODE_SESSION_WINDOW:
-      return jsonToSessionWindowNode(pJson, pObj);
-    case QUERY_NODE_INTERVAL_WINDOW:
-      return jsonToIntervalWindowNode(pJson, pObj);
-    case QUERY_NODE_NODE_LIST:
-      return jsonToNodeListNode(pJson, pObj);
-    case QUERY_NODE_FILL:
-      return jsonToFillNode(pJson, pObj);
-    case QUERY_NODE_TARGET:
-      return jsonToTargetNode(pJson, pObj);
-    case QUERY_NODE_DATABLOCK_DESC:
-      return jsonToDataBlockDescNode(pJson, pObj);
-    case QUERY_NODE_SLOT_DESC:
-      return jsonToSlotDescNode(pJson, pObj);
-    case QUERY_NODE_COLUMN_DEF:
-      return jsonToColumnDefNode(pJson, pObj);
-    case QUERY_NODE_DOWNSTREAM_SOURCE:
-      return jsonToDownstreamSourceNode(pJson, pObj);
-    case QUERY_NODE_DATABASE_OPTIONS:
-      return jsonToDatabaseOptions(pJson, pObj);
-    case QUERY_NODE_TABLE_OPTIONS:
-      return jsonToTableOptions(pJson, pObj);
-    case QUERY_NODE_INDEX_OPTIONS:
-      return jsonToIndexOptions(pJson, pObj);
-    case QUERY_NODE_EXPLAIN_OPTIONS:
-      return jsonToExplainOptions(pJson, pObj);
-    case QUERY_NODE_STREAM_OPTIONS:
-      return jsonToStreamOptions(pJson, pObj);
-    case QUERY_NODE_LEFT_VALUE:
-      return TSDB_CODE_SUCCESS;  // SLeftValueNode has no fields to deserialize.
-    case QUERY_NODE_WHEN_THEN:
-      return jsonToWhenThenNode(pJson, pObj);
-    case QUERY_NODE_CASE_WHEN:
-      return jsonToCaseWhenNode(pJson, pObj);
-    case QUERY_NODE_EVENT_WINDOW:
-      return jsonToEventWindowNode(pJson, pObj);
-    case QUERY_NODE_SET_OPERATOR:
-      return jsonToSetOperator(pJson, pObj);
-    case QUERY_NODE_SELECT_STMT:
-      return jsonToSelectStmt(pJson, pObj);
-    case QUERY_NODE_VNODE_MODIFY_STMT:
-      return jsonToVnodeModifyStmt(pJson, pObj);
-    case QUERY_NODE_CREATE_DATABASE_STMT:
-      return jsonToCreateDatabaseStmt(pJson, pObj);
-    case QUERY_NODE_ALTER_DATABASE_STMT:
-      return jsonToAlterDatabaseStmt(pJson, pObj);
-    case QUERY_NODE_TRIM_DATABASE_STMT:
-      return jsonToTrimDatabaseStmt(pJson, pObj);
-    case QUERY_NODE_CREATE_TABLE_STMT:
-      return jsonToCreateTableStmt(pJson, pObj);
-    case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
-      return jsonToCreateSubTableClause(pJson, pObj);
-    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
-      return jsonToCreateMultiTablesStmt(pJson, pObj);
-    case QUERY_NODE_DROP_TABLE_CLAUSE:
-      return jsonToDropTableClause(pJson, pObj);
-    case QUERY_NODE_DROP_TABLE_STMT:
-      return jsonToDropTableStmt(pJson, pObj);
-    case QUERY_NODE_DROP_SUPER_TABLE_STMT:
-      return jsonToDropStableStmt(pJson, pObj);
-    case QUERY_NODE_ALTER_TABLE_STMT:
-      return jsonToAlterTableStmt(pJson, pObj);
-    case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
-      return jsonToAlterStableStmt(pJson, pObj);
-    case QUERY_NODE_CREATE_USER_STMT:
-      return jsonToCreateUserStmt(pJson, pObj);
-    case QUERY_NODE_ALTER_USER_STMT:
-      return jsonToAlterUserStmt(pJson, pObj);
-    case QUERY_NODE_DROP_USER_STMT:
-      return jsonToDropUserStmt(pJson, pObj);
-    case QUERY_NODE_USE_DATABASE_STMT:
-      return jsonToUseDatabaseStmt(pJson, pObj);
-    case QUERY_NODE_CREATE_DNODE_STMT:
-      return jsonToCreateDnodeStmt(pJson, pObj);
-    case QUERY_NODE_DROP_DNODE_STMT:
-      return jsonToDropDnodeStmt(pJson, pObj);
-    case QUERY_NODE_ALTER_DNODE_STMT:
-      return jsonToAlterDnodeStmt(pJson, pObj);
-    case QUERY_NODE_CREATE_INDEX_STMT:
-      return jsonToCreateIndexStmt(pJson, pObj);
-    case QUERY_NODE_DROP_INDEX_STMT:
-      return jsonToDropIndexStmt(pJson, pObj);
-    case QUERY_NODE_CREATE_QNODE_STMT:
-      return jsonToCreateQnodeStmt(pJson, pObj);
-    case QUERY_NODE_DROP_QNODE_STMT:
-      return jsonToDropQnodeStmt(pJson, pObj);
-    case QUERY_NODE_CREATE_SNODE_STMT:
-      return jsonToCreateSnodeStmt(pJson, pObj);
-    case QUERY_NODE_DROP_SNODE_STMT:
-      return jsonToDropSnodeStmt(pJson, pObj);
-    case QUERY_NODE_CREATE_MNODE_STMT:
-      return jsonToCreateMnodeStmt(pJson, pObj);
-    case QUERY_NODE_DROP_MNODE_STMT:
-      return jsonToDropMnodeStmt(pJson, pObj);
-    case QUERY_NODE_CREATE_TOPIC_STMT:
-      return jsonToCreateTopicStmt(pJson, pObj);
-    case QUERY_NODE_DROP_TOPIC_STMT:
-      return jsonToDropTopicStmt(pJson, pObj);
-    case QUERY_NODE_DROP_CGROUP_STMT:
-      return jsonToDropConsumerGroupStmt(pJson, pObj);
-    case QUERY_NODE_ALTER_LOCAL_STMT:
-      return jsonToAlterLocalStmt(pJson, pObj);
-    case QUERY_NODE_EXPLAIN_STMT:
-      return jsonToExplainStmt(pJson, pObj);
-    case QUERY_NODE_DESCRIBE_STMT:
-      return jsonToDescribeStmt(pJson, pObj);
-    case QUERY_NODE_COMPACT_DATABASE_STMT:
-      return jsonToCompactDatabaseStmt(pJson, pObj);
-    case QUERY_NODE_CREATE_STREAM_STMT:
-      return jsonToCreateStreamStmt(pJson, pObj);
-    case QUERY_NODE_DROP_STREAM_STMT:
-      return jsonToDropStreamStmt(pJson, pObj);
-    case QUERY_NODE_BALANCE_VGROUP_STMT:
-      return TSDB_CODE_SUCCESS;  // SBalanceVgroupStmt has no fields to deserialize.
-    case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
-      return TSDB_CODE_SUCCESS;  // SBalanceVgroupLeaderStmt has no fields to deserialize.
-    case QUERY_NODE_MERGE_VGROUP_STMT:
-      return jsonToMergeVgroupStmt(pJson, pObj);
-    case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
-      return jsonToRedistributeVgroupStmt(pJson, pObj);
-    case QUERY_NODE_SPLIT_VGROUP_STMT:
-      return jsonToSplitVgroupStmt(pJson, pObj);
-    case QUERY_NODE_GRANT_STMT:
-      return jsonToGrantStmt(pJson, pObj);
-    case QUERY_NODE_REVOKE_STMT:
-      return jsonToRevokeStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_DNODES_STMT:
-      return jsonToShowDnodesStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_MNODES_STMT:
-      return jsonToShowMnodesStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_QNODES_STMT:
-      return jsonToShowQnodesStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_CLUSTER_STMT:
-      return jsonToShowClusterStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_DATABASES_STMT:
-      return jsonToShowDatabasesStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_FUNCTIONS_STMT:
-      return jsonToShowFunctionsStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_INDEXES_STMT:
-      return jsonToShowIndexesStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_STABLES_STMT:
-      return jsonToShowStablesStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_STREAMS_STMT:
-      return jsonToShowStreamsStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_TABLES_STMT:
-      return jsonToShowTablesStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_TAGS_STMT:
-      return jsonToShowTagsStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_USERS_STMT:
-      return jsonToShowUsersStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_VGROUPS_STMT:
-      return jsonToShowVgroupsStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_CONSUMERS_STMT:
-      return jsonToShowConsumersStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_VARIABLES_STMT:
-      return jsonToShowVariablesStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
-      return jsonToShowDnodeVariablesStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
-      return jsonToShowTransactionsStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
-      return jsonToShowSubscriptionsStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_VNODES_STMT:
-      return jsonToShowVnodesStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
-      return jsonToShowUserPrivilegesStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
-      return jsonToShowCreateDatabaseStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
-      return jsonToShowCreateTableStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
-      return jsonToShowCreateStableStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
-      return jsonToShowCreateViewStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
-      return jsonToShowTableDistributedStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
-      return jsonToShowLocalVariablesStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
-      return jsonToShowTableTagsStmt(pJson, pObj);
-    case QUERY_NODE_DELETE_STMT:
-      return jsonToDeleteStmt(pJson, pObj);
-    case QUERY_NODE_INSERT_STMT:
-      return jsonToInsertStmt(pJson, pObj);
-    case QUERY_NODE_RESTORE_DNODE_STMT:
-      return jsonToRestoreDnodeStmt(pJson, pObj);
-    case QUERY_NODE_RESTORE_QNODE_STMT:
-      return jsonToRestoreQnodeStmt(pJson, pObj);
-    case QUERY_NODE_RESTORE_MNODE_STMT:
-      return jsonToRestoreMnodeStmt(pJson, pObj);
-    case QUERY_NODE_RESTORE_VNODE_STMT:  
-      return jsonToRestoreVnodeStmt(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN_SCAN:
-      return jsonToLogicScanNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN_JOIN:
-      return jsonToLogicJoinNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN_AGG:
-      return jsonToLogicAggNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN_PROJECT:
-      return jsonToLogicProjectNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY:
-      return jsonToLogicVnodeModifyNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
-      return jsonToLogicExchangeNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN_MERGE:
-      return jsonToLogicMergeNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN_WINDOW:
-      return jsonToLogicWindowNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN_FILL:
-      return jsonToLogicFillNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN_SORT:
-      return jsonToLogicSortNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN_PARTITION:
-      return jsonToLogicPartitionNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
-      return jsonToLogicIndefRowsFuncNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
-      return jsonToLogicInterpFuncNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
-      return jsonToLogicGroupCacheNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
-      return jsonToLogicDynQueryCtrlNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_SUBPLAN:
-      return jsonToLogicSubplan(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN:
-      return jsonToLogicPlan(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
-      return jsonToPhysiTagScanNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
-      return jsonToPhysiScanNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
-      return jsonToPhysiLastRowScanNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
-      return jsonToPhysiTableScanNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
-      return jsonToPhysiSysTableScanNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
-      return jsonToPhysiProjectNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
-      return jsonToPhysiMergeJoinNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN:
-      return jsonToPhysiHashJoinNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
-      return jsonToPhysiAggNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
-      return jsonToPhysiExchangeNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE:
-      return jsonToPhysiMergeNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_SORT:
-    case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT:
-      return jsonToPhysiSortNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
-      return jsonToPhysiIntervalNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_FILL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
-      return jsonToPhysiFillNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
-      return jsonToPhysiSessionWindowNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
-      return jsonToPhysiStateWindowNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
-      return jsonToPhysiEventWindowNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
-      return jsonToPhysiPartitionNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
-      return jsonToPhysiStreamPartitionNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
-      return jsonToPhysiIndefRowsFuncNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
-      return jsonToPhysiInterpFuncNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
-      return jsonToPhysiDispatchNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
-      return jsonToPhysiQueryInsertNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_DELETE:
-      return jsonToPhysiDeleteNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE:
-      return jsonToPhysiGroupCacheNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
-      return jsonToPhysiDynQueryCtrlNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_SUBPLAN:
-      return jsonToSubplan(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN:
-      return jsonToPlan(pJson, pObj);
-    default:
-      break;
+int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
+  ENodeType type = nodeType(pObj);
+  if (!funcArrayCheck(type)) {
+    return TSDB_CODE_SUCCESS;
   }
-  nodesWarn("jsonToSpecificNode unknown node = %s", nodesNodeName(nodeType(pObj)));
+
+  if (funcNodes[type].toNodeFunc) {
+    return funcNodes[type].toNodeFunc(pJson, pObj);
+  }
+
+  nodesWarn("jsonToSpecificNode unknown node type = %d", type);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -7436,3 +6673,2180 @@ int32_t nodesStringToList(const char* pStr, SNodeList** pList) {
   }
   return TSDB_CODE_SUCCESS;
 }
+
+static int32_t emptyNodeToJson(const void* pObj, SJson* pJson) {
+    return TSDB_CODE_SUCCESS;
+}
+
+static int32_t emptyJsonToNode(const  SJson* pJson, void* pObj) {
+    return TSDB_CODE_SUCCESS;
+}
+
+static void destroyVgDataBlockArray(SArray* pArray) {
+  size_t size = taosArrayGetSize(pArray);
+  for (size_t i = 0; i < size; ++i) {
+    SVgDataBlocks* pVg = taosArrayGetP(pArray, i);
+    taosMemoryFreeClear(pVg->pData);
+    taosMemoryFreeClear(pVg);
+  }
+  taosArrayDestroy(pArray);
+}
+
+static void destroyLogicNode(SLogicNode* pNode) {
+  nodesDestroyList(pNode->pTargets);
+  nodesDestroyNode(pNode->pConditions);
+  nodesDestroyList(pNode->pChildren);
+  nodesDestroyNode(pNode->pLimit);
+  nodesDestroyNode(pNode->pSlimit);
+  nodesDestroyList(pNode->pHint);
+}
+
+void destroyPhysiNode(SNode* pInput) {
+  SPhysiNode* pNode = (SPhysiNode*)pInput;
+  nodesDestroyList(pNode->pChildren);
+  nodesDestroyNode(pNode->pConditions);
+  nodesDestroyNode((SNode*)pNode->pOutputDataBlockDesc);
+  nodesDestroyNode(pNode->pLimit);
+  nodesDestroyNode(pNode->pSlimit);
+}
+
+void destroyExprNode(SNode* pNode) {
+  SExprNode* pExpr = (SExprNode*)pNode;
+  taosArrayDestroy(pExpr->pAssociation); 
+}
+
+void destroyDataInSmaIndex(void* pIndex) {
+  taosMemoryFree(((STableIndexInfo*)pIndex)->expr); 
+}
+
+void destoryXNode(SNode* pNode) {}
+
+void destroyColumnNode(SNode* pNode) { 
+  destroyExprNode(pNode); 
+}
+
+void destroyValueNode(SNode* pNode) {
+  SValueNode* pValue = (SValueNode*)pNode;
+  destroyExprNode(pNode);
+  taosMemoryFreeClear(pValue->literal);
+  if (IS_VAR_DATA_TYPE(pValue->node.resType.type)) {
+    taosMemoryFreeClear(pValue->datum.p);
+  }
+}
+
+void destroyOperatorNode(SNode* pNode) {
+  SOperatorNode* pOp = (SOperatorNode*)pNode;
+  destroyExprNode(pNode);
+  nodesDestroyNode(pOp->pLeft);
+  nodesDestroyNode(pOp->pRight);
+}
+
+void destoryLogicConditionNode(SNode* pNode) {
+  destroyExprNode(pNode);
+  nodesDestroyList(((SLogicConditionNode*)pNode)->pParameterList);
+}
+
+void destoryFunctionNode(SNode* pNode) {
+  destroyExprNode(pNode);
+  nodesDestroyList(((SFunctionNode*)pNode)->pParameterList);
+}
+
+void destoryRealTableNode(SNode* pNode) {
+  SRealTableNode* pReal = (SRealTableNode*)pNode;
+  taosMemoryFreeClear(pReal->pMeta);
+  taosMemoryFreeClear(pReal->pVgroupList);
+  taosArrayDestroyEx(pReal->pSmaIndexes, destroyDataInSmaIndex);
+}
+
+void destoryTempTableNode(SNode* pNode) { nodesDestroyNode(((STempTableNode*)pNode)->pSubquery); }
+
+void destoryJoinTableNode(SNode* pNode) {
+  SJoinTableNode* pJoin = (SJoinTableNode*)pNode;
+  nodesDestroyNode(pJoin->pLeft);
+  nodesDestroyNode(pJoin->pRight);
+  nodesDestroyNode(pJoin->pOnCond);
+}
+
+void destoryGroupingSetNode(SNode* pNode) { nodesDestroyList(((SGroupingSetNode*)pNode)->pParameterList); }
+
+void destoryOrderByExprNode(SNode* pNode) { nodesDestroyNode(((SOrderByExprNode*)pNode)->pExpr); }
+
+void destoryStateWindowNode(SNode* pNode) {
+  SStateWindowNode* pState = (SStateWindowNode*)pNode;
+  nodesDestroyNode(pState->pCol);
+  nodesDestroyNode(pState->pExpr);
+}
+
+void destorySessionWindowNode(SNode* pNode) {
+  SSessionWindowNode* pSession = (SSessionWindowNode*)pNode;
+  nodesDestroyNode((SNode*)pSession->pCol);
+  nodesDestroyNode((SNode*)pSession->pGap);
+}
+
+void destoryIntervalWindowNode(SNode* pNode) {
+  SIntervalWindowNode* pJoin = (SIntervalWindowNode*)pNode;
+  nodesDestroyNode(pJoin->pCol);
+  nodesDestroyNode(pJoin->pInterval);
+  nodesDestroyNode(pJoin->pOffset);
+  nodesDestroyNode(pJoin->pSliding);
+  nodesDestroyNode(pJoin->pFill);
+}
+
+void destoryNodeListNode(SNode* pNode) { nodesDestroyList(((SNodeListNode*)pNode)->pNodeList); }
+
+void destoryFillNode(SNode* pNode) {
+  SFillNode* pFill = (SFillNode*)pNode;
+  nodesDestroyNode(pFill->pValues);
+  nodesDestroyNode(pFill->pWStartTs);
+}
+
+void destoryRawExprNode(SNode* pNode) { nodesDestroyNode(((SRawExprNode*)pNode)->pNode); }
+
+void destoryTargetNode(SNode* pNode) { nodesDestroyNode(((STargetNode*)pNode)->pExpr); }
+
+void destoryDataBlockDescNode(SNode* pNode) { nodesDestroyList(((SDataBlockDescNode*)pNode)->pSlots); }
+
+void destoryDatabaseOptions(SNode* pNode) {
+  SDatabaseOptions* pOptions = (SDatabaseOptions*)pNode;
+  nodesDestroyNode((SNode*)pOptions->pDaysPerFile);
+  nodesDestroyList(pOptions->pKeep);
+  nodesDestroyList(pOptions->pRetentions);
+}
+
+void destoryTableOptions(SNode* pNode) {
+  STableOptions* pOptions = (STableOptions*)pNode;
+  nodesDestroyList(pOptions->pMaxDelay);
+  nodesDestroyList(pOptions->pWatermark);
+  nodesDestroyList(pOptions->pRollupFuncs);
+  nodesDestroyList(pOptions->pSma);
+  nodesDestroyList(pOptions->pDeleteMark);
+}
+
+void destoryIndexOptions(SNode* pNode) {
+  SIndexOptions* pOptions = (SIndexOptions*)pNode;
+  nodesDestroyList(pOptions->pFuncs);
+  nodesDestroyNode(pOptions->pInterval);
+  nodesDestroyNode(pOptions->pOffset);
+  nodesDestroyNode(pOptions->pSliding);
+  nodesDestroyNode(pOptions->pStreamOptions);
+}
+
+void destoryStreamOptions(SNode* pNode) {
+  SStreamOptions* pOptions = (SStreamOptions*)pNode;
+  nodesDestroyNode(pOptions->pDelay);
+  nodesDestroyNode(pOptions->pWatermark);
+  nodesDestroyNode(pOptions->pDeleteMark);
+}
+
+void destoryWhenThenNode(SNode* pNode) {
+  SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
+  nodesDestroyNode(pWhenThen->pWhen);
+  nodesDestroyNode(pWhenThen->pThen);
+}
+
+void destoryCaseWhenNode(SNode* pNode) {
+  SCaseWhenNode* pCaseWhen = (SCaseWhenNode*)pNode;
+  nodesDestroyNode(pCaseWhen->pCase);
+  nodesDestroyNode(pCaseWhen->pElse);
+  nodesDestroyList(pCaseWhen->pWhenThenList);
+}
+
+void destoryEventWindowNode(SNode* pNode) {
+  SEventWindowNode* pEvent = (SEventWindowNode*)pNode;
+  nodesDestroyNode(pEvent->pCol);
+  nodesDestroyNode(pEvent->pStartCond);
+  nodesDestroyNode(pEvent->pEndCond);
+}
+
+void destoryHintNode(SNode* pNode) {
+  SHintNode* pHint = (SHintNode*)pNode;
+  taosMemoryFree(pHint->value);
+}
+
+void destoryViewNode(SNode* pNode) {
+  SViewNode* pView = (SViewNode*)pNode;
+  taosMemoryFreeClear(pView->pMeta);
+  taosMemoryFreeClear(pView->pVgroupList);
+  taosArrayDestroyEx(pView->pSmaIndexes, destroyDataInSmaIndex);
+}
+
+void destorySetOperator(SNode* pNode) {
+  SSetOperator* pStmt = (SSetOperator*)pNode;
+  nodesDestroyList(pStmt->pProjectionList);
+  nodesDestroyNode(pStmt->pLeft);
+  nodesDestroyNode(pStmt->pRight);
+  nodesDestroyList(pStmt->pOrderByList);
+  nodesDestroyNode(pStmt->pLimit);
+}
+
+void destorySelectStmt(SNode* pNode) {
+  SSelectStmt* pStmt = (SSelectStmt*)pNode;
+  nodesDestroyList(pStmt->pProjectionList);
+  nodesDestroyNode(pStmt->pFromTable);
+  nodesDestroyNode(pStmt->pWhere);
+  nodesDestroyList(pStmt->pPartitionByList);
+  nodesDestroyList(pStmt->pTags);
+  nodesDestroyNode(pStmt->pSubtable);
+  nodesDestroyNode(pStmt->pWindow);
+  nodesDestroyList(pStmt->pGroupByList);
+  nodesDestroyNode(pStmt->pHaving);
+  nodesDestroyNode(pStmt->pRange);
+  nodesDestroyNode(pStmt->pEvery);
+  nodesDestroyNode(pStmt->pFill);
+  nodesDestroyList(pStmt->pOrderByList);
+  nodesDestroyNode((SNode*)pStmt->pLimit);
+  nodesDestroyNode((SNode*)pStmt->pSlimit);
+  nodesDestroyList(pStmt->pHint);
+}
+
+void destoryVnodeModifyOpStmt(SNode* pNode) {
+  SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pNode;
+  destroyVgDataBlockArray(pStmt->pDataBlocks);
+  taosMemoryFreeClear(pStmt->pTableMeta);
+  nodesDestroyNode(pStmt->pTagCond);
+  taosArrayDestroy(pStmt->pTableTag);
+  taosHashCleanup(pStmt->pVgroupsHashObj);
+  taosHashCleanup(pStmt->pSubTableHashObj);
+  taosHashCleanup(pStmt->pTableNameHashObj);
+  taosHashCleanup(pStmt->pDbFNameHashObj);
+  if (pStmt->freeHashFunc) {
+    pStmt->freeHashFunc(pStmt->pTableBlockHashObj);
+  }
+  if (pStmt->freeArrayFunc) {
+    pStmt->freeArrayFunc(pStmt->pVgDataBlocks);
+  }
+  tdDestroySVCreateTbReq(pStmt->pCreateTblReq);
+  taosMemoryFreeClear(pStmt->pCreateTblReq);
+  if (pStmt->freeStbRowsCxtFunc) {
+    pStmt->freeStbRowsCxtFunc(pStmt->pStbRowsCxt);
+  }
+  taosMemoryFreeClear(pStmt->pStbRowsCxt);
+  taosCloseFile(&pStmt->fp);
+}
+
+void destoryCreateDatabaseStmt(SNode* pNode) { nodesDestroyNode((SNode*)((SCreateDatabaseStmt*)pNode)->pOptions); }
+
+void destoryAlterDatabaseStmt(SNode* pNode) { nodesDestroyNode((SNode*)((SAlterDatabaseStmt*)pNode)->pOptions); }
+
+void destoryCreateTableStmt(SNode* pNode) {
+  SCreateTableStmt* pStmt = (SCreateTableStmt*)pNode;
+  nodesDestroyList(pStmt->pCols);
+  nodesDestroyList(pStmt->pTags);
+  nodesDestroyNode((SNode*)pStmt->pOptions);
+}
+
+void destoryCreateSubTableClause(SNode* pNode) {
+  SCreateSubTableClause* pStmt = (SCreateSubTableClause*)pNode;
+  nodesDestroyList(pStmt->pSpecificTags);
+  nodesDestroyList(pStmt->pValsOfTags);
+  nodesDestroyNode((SNode*)pStmt->pOptions);
+}
+
+void destoryCreateMultiTablesStmt(SNode* pNode) { 
+  nodesDestroyList(((SCreateMultiTablesStmt*)pNode)->pSubTables); 
+}
+
+void destoryDropTableStmt(SNode* pNode) { 
+  nodesDestroyList(((SDropTableStmt*)pNode)->pTables); 
+}
+
+void destoryAlterTableStmt(SNode* pNode) {
+  SAlterTableStmt* pStmt = (SAlterTableStmt*)pNode;
+  nodesDestroyNode((SNode*)pStmt->pOptions);
+  nodesDestroyNode((SNode*)pStmt->pVal);
+}
+
+void destoryCreateUserStmt(SNode* pNode) {
+  SCreateUserStmt* pStmt = (SCreateUserStmt*)pNode;
+  taosMemoryFree(pStmt->pIpRanges);
+  nodesDestroyList(pStmt->pNodeListIpRanges);
+}
+
+void destoryAlterUserStmt(SNode* pNode) {
+  SAlterUserStmt* pStmt = (SAlterUserStmt*)pNode;
+  taosMemoryFree(pStmt->pIpRanges);
+  nodesDestroyList(pStmt->pNodeListIpRanges);
+}
+
+void destoryCreateIndexStmt(SNode* pNode) {
+  SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pNode;
+  nodesDestroyNode((SNode*)pStmt->pOptions);
+  nodesDestroyList(pStmt->pCols);
+  if (pStmt->pReq) {
+    tFreeSMCreateSmaReq(pStmt->pReq);
+    taosMemoryFreeClear(pStmt->pReq);
+  }
+}
+
+void destoryCreateTopicStmt(SNode* pNode) {
+  nodesDestroyNode(((SCreateTopicStmt*)pNode)->pQuery);
+  nodesDestroyNode(((SCreateTopicStmt*)pNode)->pWhere);
+}
+
+void destoryExplainStmt(SNode* pNode) {
+  SExplainStmt* pStmt = (SExplainStmt*)pNode;
+  nodesDestroyNode((SNode*)pStmt->pOptions);
+  nodesDestroyNode(pStmt->pQuery);
+}
+
+void destoryDescribeStmt(SNode* pNode) { 
+  taosMemoryFree(((SDescribeStmt*)pNode)->pMeta); 
+}
+
+void destoryCompactDatabaseStmt(SNode* pNode) {
+  SCompactDatabaseStmt* pStmt = (SCompactDatabaseStmt*)pNode;
+  nodesDestroyNode(pStmt->pStart);
+  nodesDestroyNode(pStmt->pEnd);
+}
+
+void destoryCreateStreamStmt(SNode* pNode) {
+  SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pNode;
+  nodesDestroyNode((SNode*)pStmt->pOptions);
+  nodesDestroyNode(pStmt->pQuery);
+  nodesDestroyList(pStmt->pTags);
+  nodesDestroyNode(pStmt->pSubtable);
+  tFreeSCMCreateStreamReq(pStmt->pReq);
+  taosMemoryFreeClear(pStmt->pReq);
+}
+
+void destoryRedistributeVgroupStmt(SNode* pNode) { 
+  nodesDestroyList(((SRedistributeVgroupStmt*)pNode)->pDnodes);
+}
+
+void destoryGrantStmt(SNode* pNode) { 
+  nodesDestroyNode(((SGrantStmt*)pNode)->pTagCond); 
+}
+
+void destoryRevokeStmt(SNode* pNode) { 
+  nodesDestroyNode(((SRevokeStmt*)pNode)->pTagCond); 
+}
+
+void destoryShowStmt(SNode* pNode) {
+  SShowStmt* pStmt = (SShowStmt*)pNode;
+  nodesDestroyNode(pStmt->pDbName);
+  nodesDestroyNode(pStmt->pTbName);
+}
+
+void destoryShowTableTagsStmt(SNode* pNode) {
+  SShowTableTagsStmt* pStmt = (SShowTableTagsStmt*)pNode;
+  nodesDestroyNode(pStmt->pDbName);
+  nodesDestroyNode(pStmt->pTbName);
+  nodesDestroyList(pStmt->pTags);
+}
+
+void destoryShowDnodeVariablesStmt(SNode* pNode) {
+  nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pDnodeId);
+  nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pLikePattern);
+}
+
+void destoryShowCreateDatabaseStmt(SNode* pNode) { 
+  taosMemoryFreeClear(((SShowCreateDatabaseStmt*)pNode)->pCfg); 
+}
+
+void destoryShowCreateTableStmt(SNode* pNode) {
+  STableCfg* pCfg = (STableCfg*)(((SShowCreateTableStmt*)pNode)->pTableCfg);
+  taosMemoryFreeClear(pCfg);
+  if (NULL == pCfg) {
+    return;
+  }
+  taosArrayDestroy(pCfg->pFuncs);
+  taosMemoryFree(pCfg->pComment);
+  taosMemoryFree(pCfg->pSchemas);
+  taosMemoryFree(pCfg->pTags);
+  taosMemoryFree(pCfg);
+}
+
+void destoryDeleteStmt(SNode* pNode) {
+  SDeleteStmt* pStmt = (SDeleteStmt*)pNode;
+  nodesDestroyNode(pStmt->pFromTable);
+  nodesDestroyNode(pStmt->pWhere);
+  nodesDestroyNode(pStmt->pCountFunc);
+  nodesDestroyNode(pStmt->pFirstFunc);
+  nodesDestroyNode(pStmt->pLastFunc);
+  nodesDestroyNode(pStmt->pTagCond);
+}
+
+void destoryInsertStmt(SNode* pNode) {
+  SInsertStmt* pStmt = (SInsertStmt*)pNode;
+  nodesDestroyNode(pStmt->pTable);
+  nodesDestroyList(pStmt->pCols);
+  nodesDestroyNode(pStmt->pQuery);
+}
+
+void destoryQueryNode(SNode* pNode) {
+  SQuery* pQuery = (SQuery*)pNode;
+  nodesDestroyNode(pQuery->pPrevRoot);
+  nodesDestroyNode(pQuery->pRoot);
+  nodesDestroyNode(pQuery->pPostRoot);
+  taosMemoryFreeClear(pQuery->pResSchema);
+  if (NULL != pQuery->pCmdMsg) {
+    taosMemoryFreeClear(pQuery->pCmdMsg->pMsg);
+    taosMemoryFreeClear(pQuery->pCmdMsg);
+  }
+  taosArrayDestroy(pQuery->pDbList);
+  taosArrayDestroy(pQuery->pTableList);
+  taosArrayDestroy(pQuery->pTargetTableList);
+  taosArrayDestroy(pQuery->pPlaceholderValues);
+  nodesDestroyNode(pQuery->pPrepareRoot);
+}
+
+void destoryCreateViewStmt(SNode* pNode) {
+  SCreateViewStmt* pStmt = (SCreateViewStmt*)pNode;
+  taosMemoryFree(pStmt->pQuerySql);
+  tFreeSCMCreateViewReq(&pStmt->createReq);
+  nodesDestroyNode(pStmt->pQuery);
+}
+
+void destoryScanLogicNode(SNode* pNode) {
+  SScanLogicNode* pLogicNode = (SScanLogicNode*)pNode;
+  destroyLogicNode((SLogicNode*)pLogicNode);
+  nodesDestroyList(pLogicNode->pScanCols);
+  nodesDestroyList(pLogicNode->pScanPseudoCols);
+  taosMemoryFreeClear(pLogicNode->pVgroupList);
+  nodesDestroyList(pLogicNode->pDynamicScanFuncs);
+  nodesDestroyNode(pLogicNode->pTagCond);
+  nodesDestroyNode(pLogicNode->pTagIndexCond);
+  taosArrayDestroyEx(pLogicNode->pSmaIndexes, destroyDataInSmaIndex);
+  nodesDestroyList(pLogicNode->pGroupTags);
+  nodesDestroyList(pLogicNode->pTags);
+  nodesDestroyNode(pLogicNode->pSubtable);
+}
+
+void destoryJoinLogicNode(SNode* pNode) {
+  SJoinLogicNode* pLogicNode = (SJoinLogicNode*)pNode;
+  destroyLogicNode((SLogicNode*)pLogicNode);
+  nodesDestroyNode(pLogicNode->pPrimKeyEqCond);
+  nodesDestroyNode(pLogicNode->pOtherOnCond);
+  nodesDestroyNode(pLogicNode->pColEqCond);
+}
+
+void destoryAggLogicNode(SNode* pNode) {
+  SAggLogicNode* pLogicNode = (SAggLogicNode*)pNode;
+  destroyLogicNode((SLogicNode*)pLogicNode);
+  nodesDestroyList(pLogicNode->pAggFuncs);
+  nodesDestroyList(pLogicNode->pGroupKeys);
+}
+
+void destoryProjectLogicNode(SNode* pNode) {
+  SProjectLogicNode* pLogicNode = (SProjectLogicNode*)pNode;
+  destroyLogicNode((SLogicNode*)pLogicNode);
+  nodesDestroyList(pLogicNode->pProjections);
+}
+
+void destoryVnodeModifyLogicNode(SNode* pNode) {
+  SVnodeModifyLogicNode* pLogicNode = (SVnodeModifyLogicNode*)pNode;
+  destroyLogicNode((SLogicNode*)pLogicNode);
+  destroyVgDataBlockArray(pLogicNode->pDataBlocks);
+  // pVgDataBlocks is weak reference
+  nodesDestroyNode(pLogicNode->pAffectedRows);
+  nodesDestroyNode(pLogicNode->pStartTs);
+  nodesDestroyNode(pLogicNode->pEndTs);
+  taosMemoryFreeClear(pLogicNode->pVgroupList);
+  nodesDestroyList(pLogicNode->pInsertCols);
+}
+
+void destoryExchangeLogicNode(SNode* pNode) { 
+  destroyLogicNode((SLogicNode*)pNode); 
+}
+
+void destoryMergeLogicNode(SNode* pNode) {
+  SMergeLogicNode* pLogicNode = (SMergeLogicNode*)pNode;
+  destroyLogicNode((SLogicNode*)pLogicNode);
+  nodesDestroyList(pLogicNode->pMergeKeys);
+  nodesDestroyList(pLogicNode->pInputs);
+}
+
+void destoryWindowLogicNode(SNode* pNode) {
+  SWindowLogicNode* pLogicNode = (SWindowLogicNode*)pNode;
+  destroyLogicNode((SLogicNode*)pLogicNode);
+  nodesDestroyList(pLogicNode->pFuncs);
+  nodesDestroyNode(pLogicNode->pTspk);
+  nodesDestroyNode(pLogicNode->pTsEnd);
+  nodesDestroyNode(pLogicNode->pStateExpr);
+  nodesDestroyNode(pLogicNode->pStartCond);
+  nodesDestroyNode(pLogicNode->pEndCond);
+}
+
+void destoryFillLogicNode(SNode* pNode) {
+  SFillLogicNode* pLogicNode = (SFillLogicNode*)pNode;
+  destroyLogicNode((SLogicNode*)pLogicNode);
+  nodesDestroyNode(pLogicNode->pWStartTs);
+  nodesDestroyNode(pLogicNode->pValues);
+  nodesDestroyList(pLogicNode->pFillExprs);
+  nodesDestroyList(pLogicNode->pNotFillExprs);
+}
+
+void destorySortLogicNode(SNode* pNode) {
+  SSortLogicNode* pLogicNode = (SSortLogicNode*)pNode;
+  destroyLogicNode((SLogicNode*)pLogicNode);
+  nodesDestroyList(pLogicNode->pSortKeys);
+}
+
+void destoryPartitionLogicNode(SNode* pNode) {
+  SPartitionLogicNode* pLogicNode = (SPartitionLogicNode*)pNode;
+  destroyLogicNode((SLogicNode*)pLogicNode);
+  nodesDestroyList(pLogicNode->pPartitionKeys);
+  nodesDestroyList(pLogicNode->pTags);
+  nodesDestroyNode(pLogicNode->pSubtable);
+  nodesDestroyList(pLogicNode->pAggFuncs);
+}
+
+void destoryIndefRowsFuncLogicNode(SNode* pNode) {
+  SIndefRowsFuncLogicNode* pLogicNode = (SIndefRowsFuncLogicNode*)pNode;
+  destroyLogicNode((SLogicNode*)pLogicNode);
+  nodesDestroyList(pLogicNode->pFuncs);
+}
+
+void destoryInterpFuncLogicNode(SNode* pNode) {
+  SInterpFuncLogicNode* pLogicNode = (SInterpFuncLogicNode*)pNode;
+  destroyLogicNode((SLogicNode*)pLogicNode);
+  nodesDestroyList(pLogicNode->pFuncs);
+  nodesDestroyNode(pLogicNode->pFillValues);
+  nodesDestroyNode(pLogicNode->pTimeSeries);
+}
+
+void destoryGroupCacheLogicNode(SNode* pNode) {
+  SGroupCacheLogicNode* pLogicNode = (SGroupCacheLogicNode*)pNode;
+  destroyLogicNode((SLogicNode*)pLogicNode);
+  nodesDestroyList(pLogicNode->pGroupCols);
+}
+
+void destoryDynQueryCtrlLogicNode(SNode* pNode) {
+  destroyLogicNode((SLogicNode*)pNode);
+}
+
+void destoryLogicSubplan(SNode* pNode) {
+  SLogicSubplan* pSubplan = (SLogicSubplan*)pNode;
+  nodesDestroyList(pSubplan->pChildren);
+  nodesDestroyNode((SNode*)pSubplan->pNode);
+  nodesClearList(pSubplan->pParents);
+  taosMemoryFreeClear(pSubplan->pVgroupList);
+}
+
+void destoryQueryLogicPlan(SNode* pNode) {
+  nodesDestroyList(((SQueryLogicPlan*)pNode)->pTopSubplans); 
+}
+
+void destroyScanPhysiNode(SNode* pInput) { 
+  SScanPhysiNode* pNode = (SScanPhysiNode*)pInput;
+  destroyPhysiNode(pInput);
+  nodesDestroyList(pNode->pScanCols);
+  nodesDestroyList(pNode->pScanPseudoCols);
+}
+
+void destoryLastRowScanPhysiNode(SNode* pNode) {
+  SLastRowScanPhysiNode* pPhyNode = (SLastRowScanPhysiNode*)pNode;
+  destroyScanPhysiNode(pNode);
+  nodesDestroyList(pPhyNode->pGroupTags);
+  nodesDestroyList(pPhyNode->pTargets);
+}
+
+void destoryTableScanPhysiNode(SNode* pNode) {
+  STableScanPhysiNode* pPhyNode = (STableScanPhysiNode*)pNode;
+  destroyScanPhysiNode(pNode);
+  nodesDestroyList(pPhyNode->pDynamicScanFuncs);
+  nodesDestroyList(pPhyNode->pGroupTags);
+  nodesDestroyList(pPhyNode->pTags);
+  nodesDestroyNode(pPhyNode->pSubtable);
+}
+
+void destoryProjectPhysiNode(SNode* pNode) {
+  SProjectPhysiNode* pPhyNode = (SProjectPhysiNode*)pNode;
+  destroyPhysiNode(pNode);
+  nodesDestroyList(pPhyNode->pProjections);
+}
+
+void destorySortMergeJoinPhysiNode(SNode* pNode) {
+  SSortMergeJoinPhysiNode* pPhyNode = (SSortMergeJoinPhysiNode*)pNode;
+  destroyPhysiNode(pNode);
+  nodesDestroyNode(pPhyNode->pPrimKeyCond);
+  nodesDestroyNode(pPhyNode->pOtherOnCond);
+  nodesDestroyList(pPhyNode->pTargets);
+  nodesDestroyNode(pPhyNode->pColEqCond);
+}
+
+void destoryHashJoinPhysiNode(SNode* pNode) {
+  SHashJoinPhysiNode* pPhyNode = (SHashJoinPhysiNode*)pNode;
+  destroyPhysiNode(pNode);
+  nodesDestroyList(pPhyNode->pOnLeft);
+  nodesDestroyList(pPhyNode->pOnRight);
+  nodesDestroyNode(pPhyNode->pFilterConditions);
+  nodesDestroyList(pPhyNode->pTargets);
+
+  nodesDestroyNode(pPhyNode->pPrimKeyCond);
+  nodesDestroyNode(pPhyNode->pColEqCond);
+  nodesDestroyNode(pPhyNode->pTagEqCond);
+}
+
+void destoryAggPhysiNode(SNode* pNode) {
+  SAggPhysiNode* pPhyNode = (SAggPhysiNode*)pNode;
+  destroyPhysiNode(pNode);
+  nodesDestroyList(pPhyNode->pExprs);
+  nodesDestroyList(pPhyNode->pAggFuncs);
+  nodesDestroyList(pPhyNode->pGroupKeys);
+}
+
+void destoryExchangePhysiNode(SNode* pNode) {
+  SExchangePhysiNode* pPhyNode = (SExchangePhysiNode*)pNode;
+  destroyPhysiNode(pNode);
+  nodesDestroyList(pPhyNode->pSrcEndPoints);
+}
+
+void destoryMergePhysiNode(SNode* pNode) {
+  SMergePhysiNode* pPhyNode = (SMergePhysiNode*)pNode;
+  destroyPhysiNode(pNode);
+  nodesDestroyList(pPhyNode->pMergeKeys);
+  nodesDestroyList(pPhyNode->pTargets);
+}
+
+void destorySortPhysiNode(SNode* pNode) {
+  SSortPhysiNode* pPhyNode = (SSortPhysiNode*)pNode;
+  destroyPhysiNode(pNode);
+  nodesDestroyList(pPhyNode->pExprs);
+  nodesDestroyList(pPhyNode->pSortKeys);
+  nodesDestroyList(pPhyNode->pTargets);
+}
+
+void destroyWindowPhysiNode(SNode* pInput) {
+  SWindowPhysiNode* pNode = (SWindowPhysiNode*)pInput;
+  destroyPhysiNode(pInput);
+  nodesDestroyList(pNode->pExprs);
+  nodesDestroyList(pNode->pFuncs);
+  nodesDestroyNode(pNode->pTspk);
+  nodesDestroyNode(pNode->pTsEnd);
+}
+
+void destoryFillPhysiNode(SNode* pNode) {
+  SFillPhysiNode* pPhyNode = (SFillPhysiNode*)pNode;
+  destroyPhysiNode(pNode);
+  nodesDestroyList(pPhyNode->pFillExprs);
+  nodesDestroyList(pPhyNode->pNotFillExprs);
+  nodesDestroyNode(pPhyNode->pWStartTs);
+  nodesDestroyNode(pPhyNode->pValues);
+}
+
+void destoryStateWindowPhysiNode(SNode* pNode) {
+  SStateWinodwPhysiNode* pPhyNode = (SStateWinodwPhysiNode*)pNode;
+  destroyWindowPhysiNode(pNode);
+  nodesDestroyNode(pPhyNode->pStateKey);
+}
+
+void destoryEventWindowPhysiNode(SNode* pNode) {
+  SEventWinodwPhysiNode* pPhyNode = (SEventWinodwPhysiNode*)pNode;
+  destroyWindowPhysiNode(pNode);
+  nodesDestroyNode(pPhyNode->pStartCond);
+  nodesDestroyNode(pPhyNode->pEndCond);
+}
+
+void destroyPartitionPhysiNode(SNode* pNode) {
+  SPartitionPhysiNode* pPartitionNode = (SPartitionPhysiNode*)pNode;
+  destroyPhysiNode(pNode);
+  nodesDestroyList(pPartitionNode->pExprs);
+  nodesDestroyList(pPartitionNode->pPartitionKeys);
+  nodesDestroyList(pPartitionNode->pTargets);
+}
+
+void destoryStreamPartitionPhysiNode(SNode* pNode) {
+  SStreamPartitionPhysiNode* pPhyNode = (SStreamPartitionPhysiNode*)pNode;
+  destroyPartitionPhysiNode(pNode);
+  nodesDestroyList(pPhyNode->pTags);
+  nodesDestroyNode(pPhyNode->pSubtable);
+}
+
+void destoryIndefRowsFuncPhysiNode(SNode* pNode) {
+  SIndefRowsFuncPhysiNode* pPhyNode = (SIndefRowsFuncPhysiNode*)pNode;
+  destroyPhysiNode(pNode);
+  nodesDestroyList(pPhyNode->pExprs);
+  nodesDestroyList(pPhyNode->pFuncs);
+}
+
+void destoryInterpFuncPhysiNode(SNode* pNode) {
+  SInterpFuncPhysiNode* pPhyNode = (SInterpFuncPhysiNode*)pNode;
+  destroyPhysiNode(pNode);
+  nodesDestroyList(pPhyNode->pExprs);
+  nodesDestroyList(pPhyNode->pFuncs);
+  nodesDestroyNode(pPhyNode->pFillValues);
+  nodesDestroyNode(pPhyNode->pTimeSeries);
+}
+
+void destroyDataSinkNode(SNode* pNode) {
+  SDataSinkNode* pDataNode = (SDataSinkNode*)pNode;
+  nodesDestroyNode((SNode*)pDataNode->pInputDataBlockDesc);
+}
+
+void destoryDataInserterNode(SNode* pNode) {
+  SDataInserterNode* pSink = (SDataInserterNode*)pNode;
+  destroyDataSinkNode(pNode);
+  taosMemoryFreeClear(pSink->pData);
+}
+
+void destoryQueryInserterNode(SNode* pNode) {
+  SQueryInserterNode* pSink = (SQueryInserterNode*)pNode;
+  destroyDataSinkNode(pNode);
+  nodesDestroyList(pSink->pCols);
+}
+
+void destoryDataDeleterNode(SNode* pNode) {
+  SDataDeleterNode* pSink = (SDataDeleterNode*)pNode;
+  destroyDataSinkNode(pNode);
+  nodesDestroyNode(pSink->pAffectedRows);
+  nodesDestroyNode(pSink->pStartTs);
+  nodesDestroyNode(pSink->pEndTs);
+}
+
+void destoryGroupCachePhysiNode(SNode* pNode) {
+  SGroupCachePhysiNode* pPhyNode = (SGroupCachePhysiNode*)pNode;
+  destroyPhysiNode(pNode);
+  nodesDestroyList(pPhyNode->pGroupCols);
+}
+
+void destoryDynQueryCtrlPhysiNode(SNode* pNode) {
+  destroyPhysiNode(pNode);
+}
+
+void destorySubplanNode(SNode* pNode) {
+  SSubplan* pSubplan = (SSubplan*)pNode;
+  nodesClearList(pSubplan->pChildren);
+  nodesDestroyNode((SNode*)pSubplan->pNode);
+  nodesDestroyNode((SNode*)pSubplan->pDataSink);
+  nodesDestroyNode((SNode*)pSubplan->pTagCond);
+  nodesDestroyNode((SNode*)pSubplan->pTagIndexCond);
+  nodesClearList(pSubplan->pParents);
+}
+
+void destoryPlanNode(SNode* pNode) {
+  nodesDestroyList(((SQueryPlan*)pNode)->pSubplans); 
+}
+
+void nodesDestroyNode(SNode* pNode) {
+  if (NULL == pNode) {
+    return;
+  }
+
+  int32_t index = nodeType(pNode);
+  if (!funcArrayCheck(index)) {
+    return;
+  }
+  if (funcNodes[index].destoryFunc) {
+    funcNodes[index].destoryFunc(pNode);
+    nodesFree(pNode);
+    return;
+  }
+  nodesError("nodesDestroyNode unknown node type = %d", nodeType(pNode));
+  nodesFree(pNode);
+  return;
+}
+
+// clang-format off
+static void doInitNodeFuncArray() {
+ setFunc("Column",
+      QUERY_NODE_COLUMN,
+      sizeof(SColumnNode),
+      columnNodeToJson, 
+      jsonToColumnNode, 
+      destroyColumnNode
+    );
+ setFunc("Value",
+     QUERY_NODE_VALUE,
+     sizeof(SValueNode),
+     valueNodeToJson,
+     jsonToValueNode,
+     destroyValueNode
+   );
+ setFunc("Operator",
+     QUERY_NODE_OPERATOR,
+     sizeof(SOperatorNode),
+     operatorNodeToJson,
+     jsonToOperatorNode,
+     destroyOperatorNode
+   );
+ setFunc("LogicCondition",
+     QUERY_NODE_LOGIC_CONDITION,
+     sizeof(SLogicConditionNode),
+     logicConditionNodeToJson,
+     jsonToLogicConditionNode,
+     destoryLogicConditionNode
+   );
+ setFunc("Function",
+     QUERY_NODE_FUNCTION,
+     sizeof(SFunctionNode),
+     functionNodeToJson,
+     jsonToFunctionNode,
+     destoryFunctionNode
+   );
+ setFunc("RealTable",
+     QUERY_NODE_REAL_TABLE,
+     sizeof(SRealTableNode),
+     realTableNodeToJson,
+     jsonToRealTableNode,
+     destoryRealTableNode
+   );
+ setFunc("TempTable",
+     QUERY_NODE_TEMP_TABLE,
+     sizeof(STempTableNode),
+     tempTableNodeToJson,
+     jsonToTempTableNode,
+     destoryTempTableNode
+   );
+ setFunc("JoinTable",
+     QUERY_NODE_JOIN_TABLE,
+     sizeof(SJoinTableNode),
+     joinTableNodeToJson,
+     jsonToJoinTableNode,
+     destoryJoinTableNode
+   );
+ setFunc("GroupingSet",
+     QUERY_NODE_GROUPING_SET,
+     sizeof(SGroupingSetNode),
+     groupingSetNodeToJson,
+     jsonToGroupingSetNode,
+     destoryGroupingSetNode
+   );
+ setFunc("OrderByExpr",
+     QUERY_NODE_ORDER_BY_EXPR,
+     sizeof(SOrderByExprNode),
+     orderByExprNodeToJson,
+     jsonToOrderByExprNode,
+     destoryOrderByExprNode
+   );
+ setFunc("Limit",
+     QUERY_NODE_LIMIT,
+     sizeof(SLimitNode),
+     limitNodeToJson,
+     jsonToLimitNode,
+     destoryXNode
+   );
+ setFunc("StateWindow",
+     QUERY_NODE_STATE_WINDOW,
+     sizeof(SStateWindowNode),
+     stateWindowNodeToJson,
+     jsonToStateWindowNode,
+     destoryStateWindowNode
+   );
+ setFunc("SessionWinow",
+     QUERY_NODE_SESSION_WINDOW,
+     sizeof(SSessionWindowNode),
+     sessionWindowNodeToJson,
+     jsonToSessionWindowNode,
+     destorySessionWindowNode
+   );
+ setFunc("IntervalWindow",
+     QUERY_NODE_INTERVAL_WINDOW,
+     sizeof(SIntervalWindowNode),
+     intervalWindowNodeToJson,
+     jsonToIntervalWindowNode,
+     destoryIntervalWindowNode
+   );
+ setFunc("NodeList",
+     QUERY_NODE_NODE_LIST,
+     sizeof(SNodeListNode),
+     nodeListNodeToJson,
+     jsonToNodeListNode,
+     destoryNodeListNode
+   );
+ setFunc("Fill",
+     QUERY_NODE_FILL,
+     sizeof(SFillNode),
+     fillNodeToJson,
+     jsonToFillNode,
+     destoryFillNode
+   );
+ setFunc("RawExpr",
+     QUERY_NODE_RAW_EXPR,
+     sizeof(SRawExprNode),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryRawExprNode
+   );
+ setFunc("Target",
+     QUERY_NODE_TARGET,
+     sizeof(STargetNode),
+     targetNodeToJson,
+     jsonToTargetNode,
+     destoryTargetNode
+   );
+ setFunc("DataBlockDesc",
+     QUERY_NODE_DATABLOCK_DESC,
+     sizeof(SDataBlockDescNode),
+     dataBlockDescNodeToJson,
+     jsonToDataBlockDescNode,
+     destoryDataBlockDescNode
+   );
+ setFunc("SlotDesc",
+     QUERY_NODE_SLOT_DESC,
+     sizeof(SSlotDescNode),
+     slotDescNodeToJson,
+     jsonToSlotDescNode,
+     destoryXNode
+   );
+ setFunc("ColumnDef",
+     QUERY_NODE_COLUMN_DEF,
+     sizeof(SColumnDefNode),
+     columnDefNodeToJson,
+     jsonToColumnDefNode,
+     destoryXNode
+   );
+ setFunc("DownstreamSource",
+     QUERY_NODE_DOWNSTREAM_SOURCE,
+     sizeof(SDownstreamSourceNode),
+     downstreamSourceNodeToJson,
+     jsonToDownstreamSourceNode,
+     destoryXNode
+   );
+ setFunc("DatabaseOptions",
+     QUERY_NODE_DATABASE_OPTIONS,
+     sizeof(SDatabaseOptions),
+     databaseOptionsToJson,
+     jsonToDatabaseOptions,
+     destoryDatabaseOptions
+   );
+ setFunc("TableOptions",
+     QUERY_NODE_TABLE_OPTIONS,
+     sizeof(STableOptions),
+     tableOptionsToJson,
+     jsonToTableOptions,
+     destoryTableOptions
+   );
+ setFunc("IndexOptions",
+     QUERY_NODE_INDEX_OPTIONS,
+     sizeof(SIndexOptions),
+     indexOptionsToJson,
+     jsonToIndexOptions,
+     destoryIndexOptions
+   );
+ setFunc("ExplainOptions",
+     QUERY_NODE_EXPLAIN_OPTIONS,
+     sizeof(SExplainOptions),
+     explainOptionsToJson,
+     jsonToExplainOptions,
+     destoryXNode
+   );
+ setFunc("StreamOptions",
+     QUERY_NODE_STREAM_OPTIONS,
+     sizeof(SStreamOptions),
+     streamOptionsToJson,
+     jsonToStreamOptions,
+     destoryStreamOptions
+   );
+ setFunc("LeftValue",
+     QUERY_NODE_LEFT_VALUE,
+     sizeof(SLeftValueNode),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("ColumnRef",
+     QUERY_NODE_COLUMN_REF,
+     sizeof(SColumnDefNode),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("WhenThen",
+     QUERY_NODE_WHEN_THEN,
+     sizeof(SWhenThenNode),
+     whenThenNodeToJson,
+     jsonToWhenThenNode,
+     destoryWhenThenNode
+   );
+ setFunc("CaseWhen",
+     QUERY_NODE_CASE_WHEN,
+     sizeof(SCaseWhenNode),
+     caseWhenNodeToJson,
+     jsonToCaseWhenNode,
+     destoryCaseWhenNode
+   );
+ setFunc("EventWindow",
+     QUERY_NODE_EVENT_WINDOW,
+     sizeof(SEventWindowNode),
+     eventWindowNodeToJson,
+     jsonToEventWindowNode,
+     destoryEventWindowNode
+   );
+ setFunc("HintNode",
+     QUERY_NODE_HINT,
+     sizeof(SHintNode),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryHintNode
+   );
+ setFunc("ViewNode",
+     QUERY_NODE_VIEW,
+     sizeof(SViewNode),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryViewNode
+   );
+ setFunc("SetOperator",
+     QUERY_NODE_SET_OPERATOR,
+     sizeof(SSetOperator),
+     setOperatorToJson,
+     jsonToSetOperator,
+     destorySetOperator
+   );
+ setFunc("SelectStmt",
+     QUERY_NODE_SELECT_STMT,
+     sizeof(SSelectStmt),
+     selectStmtToJson,
+     jsonToSelectStmt,
+     destorySelectStmt
+   );
+ setFunc("VnodeModifyStmt",
+     QUERY_NODE_VNODE_MODIFY_STMT,
+     sizeof(SVnodeModifyOpStmt),
+     vnodeModifyStmtToJson,
+     jsonToVnodeModifyStmt,
+     destoryVnodeModifyOpStmt
+   );
+ setFunc("CreateDatabaseStmt",
+     QUERY_NODE_CREATE_DATABASE_STMT,
+     sizeof(SCreateDatabaseStmt),
+     createDatabaseStmtToJson,
+     jsonToCreateDatabaseStmt,
+     destoryCreateDatabaseStmt
+   );
+ setFunc("DropDatabaseStmt",
+     QUERY_NODE_DROP_DATABASE_STMT,
+     sizeof(SDropDatabaseStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("AlterDatabaseStmt",
+     QUERY_NODE_ALTER_DATABASE_STMT,
+     sizeof(SAlterDatabaseStmt),
+     alterDatabaseStmtToJson,
+     jsonToAlterDatabaseStmt,
+     destoryAlterDatabaseStmt
+   );
+ setFunc("FlushDatabaseStmt",
+     QUERY_NODE_FLUSH_DATABASE_STMT,
+     sizeof(SFlushDatabaseStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("TrimDatabaseStmt",
+     QUERY_NODE_TRIM_DATABASE_STMT,
+     sizeof(STrimDatabaseStmt),
+     trimDatabaseStmtToJson,
+     jsonToTrimDatabaseStmt,
+     destoryXNode
+   );
+ setFunc("CreateTableStmt",
+     QUERY_NODE_CREATE_TABLE_STMT,
+     sizeof(SCreateTableStmt),
+     createTableStmtToJson,
+     jsonToCreateTableStmt,
+     destoryCreateTableStmt
+   );
+ setFunc("CreateSubtableClause",
+     QUERY_NODE_CREATE_SUBTABLE_CLAUSE,
+     sizeof(SCreateSubTableClause),
+     createSubTableClauseToJson,
+     jsonToCreateSubTableClause,
+     destoryCreateSubTableClause
+   );
+ setFunc("CreateMultiTableStmt",
+     QUERY_NODE_CREATE_MULTI_TABLES_STMT,
+     sizeof(SCreateMultiTablesStmt),
+     createMultiTablesStmtToJson,
+     jsonToCreateMultiTablesStmt,
+     destoryCreateMultiTablesStmt
+   );
+ setFunc("DropTableClause",
+     QUERY_NODE_DROP_TABLE_CLAUSE,
+     sizeof(SDropTableClause),
+     dropTableClauseToJson,
+     jsonToDropTableClause,
+     destoryXNode
+   );
+ setFunc("DropTableStmt",
+     QUERY_NODE_DROP_TABLE_STMT,
+     sizeof(SDropTableStmt),
+     dropTableStmtToJson,
+     jsonToDropTableStmt,
+     destoryDropTableStmt
+   );
+ setFunc("DropSuperTableStmt",
+     QUERY_NODE_DROP_SUPER_TABLE_STMT,
+     sizeof(SDropSuperTableStmt),
+     dropStableStmtToJson,
+     jsonToDropStableStmt,
+     destoryXNode
+   );
+ setFunc("AlterTableStmt",
+     QUERY_NODE_ALTER_TABLE_STMT,
+     sizeof(SAlterTableStmt),
+     alterTableStmtToJson,
+     jsonToAlterTableStmt,
+     destoryAlterTableStmt
+   );
+ setFunc("AlterSuperTableStmt",
+     QUERY_NODE_ALTER_SUPER_TABLE_STMT,
+     sizeof(SAlterTableStmt),
+     alterStableStmtToJson,
+     jsonToAlterStableStmt,
+     destoryAlterTableStmt
+   );
+ setFunc("CreateUserStmt",
+     QUERY_NODE_CREATE_USER_STMT,
+     sizeof(SCreateUserStmt),
+     createUserStmtToJson,
+     jsonToCreateUserStmt,
+     destoryCreateUserStmt
+   );
+ setFunc("AlterUserStmt",
+     QUERY_NODE_ALTER_USER_STMT,
+     sizeof(SAlterUserStmt),
+     alterUserStmtToJson,
+     jsonToAlterUserStmt,
+     destoryAlterUserStmt
+   );
+ setFunc("DropUserStmt",
+     QUERY_NODE_DROP_USER_STMT,
+     sizeof(SDropUserStmt),
+     dropUserStmtToJson,
+     jsonToDropUserStmt,
+     destoryXNode
+   );
+ setFunc("UseDatabaseStmt",
+     QUERY_NODE_USE_DATABASE_STMT,
+     sizeof(SUseDatabaseStmt),
+     useDatabaseStmtToJson,
+     jsonToUseDatabaseStmt,
+     destoryXNode
+   );
+ setFunc("CreateDnodeStmt",
+     QUERY_NODE_CREATE_DNODE_STMT,
+     sizeof(SCreateDnodeStmt),
+     createDnodeStmtToJson,
+     jsonToCreateDnodeStmt,
+     destoryXNode
+   );
+ setFunc("DropDnodeStmt",
+     QUERY_NODE_DROP_DNODE_STMT,
+     sizeof(SDropDnodeStmt),
+     dropDnodeStmtToJson,
+     jsonToDropDnodeStmt,
+     destoryXNode
+   );
+ setFunc("AlterDnodeStmt",
+     QUERY_NODE_ALTER_DNODE_STMT,
+     sizeof(SAlterDnodeStmt),
+     alterDnodeStmtToJson,
+     jsonToAlterDnodeStmt,
+     destoryXNode
+   );
+ setFunc("CreateIndexStmt",
+     QUERY_NODE_CREATE_INDEX_STMT,
+     sizeof(SCreateIndexStmt),
+     createIndexStmtToJson,
+     jsonToCreateIndexStmt,
+     destoryCreateIndexStmt
+   );
+ setFunc("DropIndexStmt",
+     QUERY_NODE_DROP_INDEX_STMT,
+     sizeof(SDropIndexStmt),
+     dropIndexStmtToJson,
+     jsonToDropIndexStmt,
+     destoryXNode
+   );
+ setFunc("CreateQnodeStmt",
+     QUERY_NODE_CREATE_QNODE_STMT,
+     sizeof(SCreateComponentNodeStmt),
+     createQnodeStmtToJson,
+     jsonToCreateQnodeStmt,
+     destoryXNode
+   );
+ setFunc("DropQnodeStmt",
+     QUERY_NODE_DROP_QNODE_STMT,
+     sizeof(SDropComponentNodeStmt),
+     dropQnodeStmtToJson,
+     jsonToDropQnodeStmt,
+     destoryXNode
+   );
+ setFunc("CreateBnodeStmt",
+     QUERY_NODE_CREATE_BNODE_STMT,
+     sizeof(SCreateComponentNodeStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("DropBnodeStmt",
+     QUERY_NODE_DROP_BNODE_STMT,
+     sizeof(SDropComponentNodeStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("CreateSnodeStmt",
+     QUERY_NODE_CREATE_SNODE_STMT,
+     sizeof(SCreateComponentNodeStmt),
+     createSnodeStmtToJson,
+     jsonToCreateSnodeStmt,
+     destoryXNode
+   );
+ setFunc("DropSnodeStmt",
+     QUERY_NODE_DROP_SNODE_STMT,
+     sizeof(SDropComponentNodeStmt),
+     dropSnodeStmtToJson,
+     jsonToDropSnodeStmt,
+     destoryXNode
+   );
+ setFunc("CreateMnodeStmt",
+     QUERY_NODE_CREATE_MNODE_STMT,
+     sizeof(SCreateComponentNodeStmt),
+     createMnodeStmtToJson,
+     jsonToCreateMnodeStmt,
+     destoryXNode
+   );
+ setFunc("DropMnodeStmt",
+     QUERY_NODE_DROP_MNODE_STMT,
+     sizeof(SDropComponentNodeStmt),
+     dropMnodeStmtToJson,
+     jsonToDropMnodeStmt,
+     destoryXNode
+   );
+ setFunc("CreateTopicStmt",
+     QUERY_NODE_CREATE_TOPIC_STMT,
+     sizeof(SCreateTopicStmt),
+     createTopicStmtToJson,
+     jsonToCreateTopicStmt,
+     destoryCreateTopicStmt
+   );
+ setFunc("DropTopicStmt",
+     QUERY_NODE_DROP_TOPIC_STMT,
+     sizeof(SDropTopicStmt),
+     dropTopicStmtToJson,
+     jsonToDropTopicStmt,
+     destoryXNode
+   );
+ setFunc("DropConsumerGroupStmt",
+     QUERY_NODE_DROP_CGROUP_STMT,
+     sizeof(SDropCGroupStmt),
+     dropConsumerGroupStmtToJson,
+     jsonToDropConsumerGroupStmt,
+     destoryXNode
+   );
+ setFunc("AlterLocalStmt",
+     QUERY_NODE_ALTER_LOCAL_STMT,
+     sizeof(SAlterLocalStmt),
+     alterLocalStmtToJson,
+     jsonToAlterLocalStmt,
+     destoryXNode
+   );
+ setFunc("ExplainStmt",
+     QUERY_NODE_EXPLAIN_STMT,
+     sizeof(SExplainStmt),
+     explainStmtToJson,
+     jsonToExplainStmt,
+     destoryExplainStmt
+   );
+ setFunc("DescribeStmt",
+     QUERY_NODE_DESCRIBE_STMT,
+     sizeof(SDescribeStmt),
+     describeStmtToJson,
+     jsonToDescribeStmt,
+     destoryDescribeStmt
+   );
+ setFunc("QueryCacheStmt",
+     QUERY_NODE_RESET_QUERY_CACHE_STMT,
+     sizeof(SNode),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("CompactDatabaseStmt",
+     QUERY_NODE_COMPACT_DATABASE_STMT,
+     sizeof(SCompactDatabaseStmt),
+     compactDatabaseStmtToJson,
+     jsonToCompactDatabaseStmt,
+     destoryCompactDatabaseStmt
+   );
+ setFunc("CreateFunctionStmt",
+     QUERY_NODE_CREATE_FUNCTION_STMT,
+     sizeof(SCreateFunctionStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("DropFunctionStmt",
+     QUERY_NODE_DROP_FUNCTION_STMT,
+     sizeof(SDropFunctionStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("CreateStreamStmt",
+     QUERY_NODE_CREATE_STREAM_STMT,
+     sizeof(SCreateStreamStmt),
+     createStreamStmtToJson,
+     jsonToCreateStreamStmt,
+     destoryCreateStreamStmt
+   );
+ setFunc("DropStreamStmt",
+     QUERY_NODE_DROP_STREAM_STMT,
+     sizeof(SDropStreamStmt),
+     dropStreamStmtToJson,
+     jsonToDropStreamStmt,
+     destoryXNode
+   );
+ setFunc("PauseStreamStmt",
+     QUERY_NODE_PAUSE_STREAM_STMT,
+     sizeof(SPauseStreamStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("ResumeStreamStmt",
+     QUERY_NODE_RESUME_STREAM_STMT,
+     sizeof(SResumeStreamStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("BalanceVgroupStmt",
+     QUERY_NODE_BALANCE_VGROUP_STMT,
+     sizeof(SBalanceVgroupStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("BalanceVgroupLeaderStmt",
+     QUERY_NODE_BALANCE_VGROUP_LEADER_STMT,
+     sizeof(SBalanceVgroupLeaderStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("MergeVgroupStmt",
+     QUERY_NODE_MERGE_VGROUP_STMT,
+     sizeof(SMergeVgroupStmt),
+     mergeVgroupStmtToJson,
+     jsonToMergeVgroupStmt,
+     destoryXNode
+   );
+ setFunc("RedistributeVgroupStmt",
+     QUERY_NODE_REDISTRIBUTE_VGROUP_STMT,
+     sizeof(SRedistributeVgroupStmt),
+     redistributeVgroupStmtToJson,
+     jsonToRedistributeVgroupStmt,
+     destoryRedistributeVgroupStmt
+   );
+ setFunc("SplitVgroupStmt",
+     QUERY_NODE_SPLIT_VGROUP_STMT,
+     sizeof(SSplitVgroupStmt),
+     splitVgroupStmtToJson,
+     jsonToSplitVgroupStmt,
+     destoryXNode
+   );
+ setFunc("SyncDBStmt",
+     QUERY_NODE_SYNCDB_STMT,
+     0,
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("GrantStmt",
+     QUERY_NODE_GRANT_STMT,
+     sizeof(SGrantStmt),
+     grantStmtToJson,
+     jsonToGrantStmt,
+     destoryGrantStmt
+   );
+ setFunc("RevokeStmt",
+     QUERY_NODE_REVOKE_STMT,
+     sizeof(SRevokeStmt),
+     revokeStmtToJson,
+     jsonToRevokeStmt,
+     destoryRevokeStmt
+   );
+ setFunc("ShowDnodesStmt",
+     QUERY_NODE_SHOW_DNODES_STMT,
+     sizeof(SShowStmt),
+     showDnodesStmtToJson,
+     jsonToShowDnodesStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowMnodesStmt",
+     QUERY_NODE_SHOW_MNODES_STMT,
+     sizeof(SShowStmt),
+     showMnodesStmtToJson,
+     jsonToShowMnodesStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowModulesStmt",
+     QUERY_NODE_SHOW_MODULES_STMT,
+     sizeof(SShowStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryShowStmt
+   );
+ setFunc("ShowQnodesStmt",
+     QUERY_NODE_SHOW_QNODES_STMT,
+     sizeof(SShowStmt),
+     showQnodesStmtToJson,
+     jsonToShowQnodesStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowSnodesStmt",
+     QUERY_NODE_SHOW_SNODES_STMT,
+     sizeof(SShowStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryShowStmt
+   );
+ setFunc("ShowBnodesStmt",
+     QUERY_NODE_SHOW_BNODES_STMT,
+     sizeof(SShowStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryShowStmt
+   );
+ setFunc("ShowClusterStmt",
+     QUERY_NODE_SHOW_CLUSTER_STMT,
+     sizeof(SShowStmt),
+     showClusterStmtToJson,
+     jsonToShowClusterStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowDatabaseStmt",
+     QUERY_NODE_SHOW_DATABASES_STMT,
+     sizeof(SShowStmt),
+     showDatabasesStmtToJson,
+     jsonToShowDatabasesStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowFunctionsStmt",
+     QUERY_NODE_SHOW_FUNCTIONS_STMT,
+     sizeof(SShowStmt),
+     showFunctionsStmtToJson,
+     jsonToShowFunctionsStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowIndexesStmt",
+     QUERY_NODE_SHOW_INDEXES_STMT,
+     sizeof(SShowStmt),
+     showIndexesStmtToJson,
+     jsonToShowIndexesStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowStablesStmt",
+     QUERY_NODE_SHOW_STABLES_STMT,
+     sizeof(SShowStmt),
+     showStablesStmtToJson,
+     jsonToShowStablesStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowStreamsStmt",
+     QUERY_NODE_SHOW_STREAMS_STMT,
+     sizeof(SShowStmt),
+     showStreamsStmtToJson,
+     jsonToShowStreamsStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowTablesStmt",
+     QUERY_NODE_SHOW_TABLES_STMT,
+     sizeof(SShowStmt),
+     showTablesStmtToJson,
+     jsonToShowTablesStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowTagsStmt",
+     QUERY_NODE_SHOW_TAGS_STMT,
+     sizeof(SShowStmt),
+     showTagsStmtToJson,
+     jsonToShowTagsStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowUsersStmt",
+     QUERY_NODE_SHOW_USERS_STMT,
+     sizeof(SShowStmt),
+     showUsersStmtToJson,
+     jsonToShowUsersStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowLicencesStmt",
+     QUERY_NODE_SHOW_LICENCES_STMT,
+     sizeof(SShowStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryShowStmt
+   );
+ setFunc("ShowVgroupsStmt",
+     QUERY_NODE_SHOW_VGROUPS_STMT,
+     sizeof(SShowStmt),
+     showVgroupsStmtToJson,
+     jsonToShowVgroupsStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowTopicsStmt",
+     QUERY_NODE_SHOW_TOPICS_STMT,
+     sizeof(SShowStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryShowStmt
+   );
+ setFunc("ShowConsumersStmt",
+     QUERY_NODE_SHOW_CONSUMERS_STMT,
+     sizeof(SShowStmt),
+     showConsumersStmtToJson,
+     jsonToShowConsumersStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowQueriesStmt",
+     QUERY_NODE_SHOW_QUERIES_STMT,
+     sizeof(SShowStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryShowStmt
+   );
+ setFunc("ShowConnectionsStmt",
+     QUERY_NODE_SHOW_CONNECTIONS_STMT,
+     sizeof(SShowStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryShowStmt
+   );
+ setFunc("ShowAppsStmt",
+     QUERY_NODE_SHOW_APPS_STMT,
+     sizeof(SShowStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryShowStmt
+   );
+ setFunc("ShowVariablesStmt",
+     QUERY_NODE_SHOW_VARIABLES_STMT,
+     sizeof(SShowStmt),
+     showVariablesStmtToJson,
+     jsonToShowVariablesStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowDnodeVariablesStmt",
+     QUERY_NODE_SHOW_DNODE_VARIABLES_STMT,
+     sizeof(SShowDnodeVariablesStmt),
+     showDnodeVariablesStmtToJson,
+     jsonToShowDnodeVariablesStmt,
+     destoryShowDnodeVariablesStmt
+   );
+ setFunc("ShowTransactionsStmt",
+     QUERY_NODE_SHOW_TRANSACTIONS_STMT,
+     sizeof(SShowStmt),
+     showTransactionsStmtToJson,
+     jsonToShowTransactionsStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowSubscriptionsStmt",
+     QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT,
+     sizeof(SShowStmt),
+     showSubscriptionsStmtToJson,
+     jsonToShowSubscriptionsStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowVnodeStmt",
+     QUERY_NODE_SHOW_VNODES_STMT,
+     sizeof(SShowStmt),
+     showVnodesStmtToJson,
+     jsonToShowVnodesStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowUserPrivilegesStmt",
+     QUERY_NODE_SHOW_USER_PRIVILEGES_STMT,
+     sizeof(SShowStmt),
+     showUserPrivilegesStmtToJson,
+     jsonToShowUserPrivilegesStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowViewsStmt",
+     QUERY_NODE_SHOW_VIEWS_STMT,
+     sizeof(SShowStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryShowStmt
+   );
+ setFunc("ShowCreateViewStmt",
+     QUERY_NODE_SHOW_CREATE_VIEW_STMT,
+     sizeof(SShowCreateViewStmt),
+     showCreateViewStmtToJson,
+     jsonToShowCreateViewStmt,
+     destoryXNode
+   );
+ setFunc("ShowCreateDatabasesStmt",
+     QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
+     sizeof(SShowCreateDatabaseStmt),
+     showCreateDatabaseStmtToJson,
+     jsonToShowCreateDatabaseStmt,
+     destoryShowCreateDatabaseStmt
+   );
+ setFunc("ShowCreateTablesStmt",
+     QUERY_NODE_SHOW_CREATE_TABLE_STMT,
+     sizeof(SShowCreateTableStmt),
+     showCreateTableStmtToJson,
+     jsonToShowCreateTableStmt,
+     destoryShowCreateTableStmt
+   );
+ setFunc("ShowCreateStablesStmt",
+     QUERY_NODE_SHOW_CREATE_STABLE_STMT,
+     sizeof(SShowCreateTableStmt),
+     showCreateStableStmtToJson,
+     jsonToShowCreateStableStmt,
+     destoryShowCreateTableStmt
+   );
+ setFunc("ShowTableDistributedStmt",
+     QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT,
+     sizeof(SShowTableDistributedStmt),
+     showTableDistributedStmtToJson,
+     jsonToShowTableDistributedStmt,
+     destoryXNode
+   );
+ setFunc("ShowLocalVariablesStmt",
+     QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT,
+     sizeof(SShowStmt),
+     showLocalVariablesStmtToJson,
+     jsonToShowLocalVariablesStmt,
+     destoryShowStmt
+   );
+ setFunc("ShowScoresStmt",
+     QUERY_NODE_SHOW_SCORES_STMT,
+     sizeof(SShowStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryShowStmt
+   );
+ setFunc("ShowTableTagsStmt",
+     QUERY_NODE_SHOW_TABLE_TAGS_STMT,
+     sizeof(SShowTableTagsStmt),
+     showTableTagsStmtToJson,
+     jsonToShowTableTagsStmt,
+     destoryShowTableTagsStmt
+   );
+ setFunc("KillConnectionStmt",
+     QUERY_NODE_KILL_CONNECTION_STMT,
+     sizeof(SKillStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("KillQueryStmt",
+     QUERY_NODE_KILL_QUERY_STMT,
+     sizeof(SKillQueryStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("KillTransactionStmt",
+     QUERY_NODE_KILL_TRANSACTION_STMT,
+     sizeof(SKillStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("DeleteStmt",
+     QUERY_NODE_DELETE_STMT,
+     sizeof(SDeleteStmt),
+     deleteStmtToJson,
+     jsonToDeleteStmt,
+     destoryDeleteStmt
+   );
+ setFunc("InsertStmt",
+     QUERY_NODE_INSERT_STMT,
+     sizeof(SInsertStmt),
+     insertStmtToJson,
+     jsonToInsertStmt,
+     destoryInsertStmt
+   );
+ setFunc("QueryNode",
+     QUERY_NODE_QUERY,
+     sizeof(SQuery),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryQueryNode
+   );
+ setFunc("ShowDbAliveStmt",
+     QUERY_NODE_SHOW_DB_ALIVE_STMT,
+     sizeof(SShowAliveStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("ShowClusterAliveStmt",
+     QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT,
+     sizeof(SShowAliveStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("RestoreDnodeStmt",
+     QUERY_NODE_RESTORE_DNODE_STMT,
+     sizeof(SRestoreComponentNodeStmt),
+     emptyNodeToJson,
+     jsonToRestoreDnodeStmt,
+     destoryXNode
+   );
+ setFunc("RestoreQnodeStmt",
+     QUERY_NODE_RESTORE_QNODE_STMT,
+     sizeof(SRestoreComponentNodeStmt),
+     emptyNodeToJson,
+     jsonToRestoreQnodeStmt,
+     destoryXNode
+   );
+ setFunc("RestoreMnodeStmt",
+     QUERY_NODE_RESTORE_MNODE_STMT,
+     sizeof(SRestoreComponentNodeStmt),
+     emptyNodeToJson,
+     jsonToRestoreMnodeStmt,
+     destoryXNode
+   );
+ setFunc("RestoreVnodeStmt",
+     QUERY_NODE_RESTORE_VNODE_STMT,
+     sizeof(SRestoreComponentNodeStmt),
+     emptyNodeToJson,
+     jsonToRestoreVnodeStmt,
+     destoryXNode
+   );
+ setFunc("CreateViewStmt",
+     QUERY_NODE_CREATE_VIEW_STMT,
+     sizeof(SCreateViewStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryCreateViewStmt
+   );
+ setFunc("DropViewStmt",
+     QUERY_NODE_DROP_VIEW_STMT,
+     sizeof(SDropViewStmt),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryXNode
+   );
+ setFunc("LogicScan",
+     QUERY_NODE_LOGIC_PLAN_SCAN,
+     sizeof(SScanLogicNode),
+     logicScanNodeToJson,
+     jsonToLogicScanNode,
+     destoryScanLogicNode
+   );
+ setFunc("LogicJoin",
+     QUERY_NODE_LOGIC_PLAN_JOIN,
+     sizeof(SJoinLogicNode),
+     logicJoinNodeToJson,
+     jsonToLogicJoinNode,
+     destoryJoinLogicNode
+   );
+ setFunc("LogicAgg",
+     QUERY_NODE_LOGIC_PLAN_AGG,
+     sizeof(SAggLogicNode),
+     logicAggNodeToJson,
+     jsonToLogicAggNode,
+     destoryAggLogicNode
+   );
+ setFunc("LogicProject",
+     QUERY_NODE_LOGIC_PLAN_PROJECT,
+     sizeof(SProjectLogicNode),
+     logicProjectNodeToJson,
+     jsonToLogicProjectNode,
+     destoryProjectLogicNode
+   );
+ setFunc("LogicVnodeModify",
+     QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY,
+     sizeof(SVnodeModifyLogicNode),
+     logicVnodeModifyNodeToJson,
+     jsonToLogicVnodeModifyNode,
+     destoryVnodeModifyLogicNode
+   );
+ setFunc("LogicExchange",
+     QUERY_NODE_LOGIC_PLAN_EXCHANGE,
+     sizeof(SExchangeLogicNode),
+     logicExchangeNodeToJson,
+     jsonToLogicExchangeNode,
+     destoryExchangeLogicNode
+   );
+ setFunc("LogicMerge",
+     QUERY_NODE_LOGIC_PLAN_MERGE,
+     sizeof(SMergeLogicNode),
+     logicMergeNodeToJson,
+     jsonToLogicMergeNode,
+     destoryMergeLogicNode
+   );
+ setFunc("LogicWindow",
+     QUERY_NODE_LOGIC_PLAN_WINDOW,
+     sizeof(SWindowLogicNode),
+     logicWindowNodeToJson,
+     jsonToLogicWindowNode,
+     destoryWindowLogicNode
+   );
+ setFunc("LogicFill",
+     QUERY_NODE_LOGIC_PLAN_FILL,
+     sizeof(SFillLogicNode),
+     logicFillNodeToJson,
+     jsonToLogicFillNode,
+     destoryFillLogicNode
+   );
+ setFunc("LogicSort",
+     QUERY_NODE_LOGIC_PLAN_SORT,
+     sizeof(SSortLogicNode),
+     logicSortNodeToJson,
+     jsonToLogicSortNode,
+     destorySortLogicNode
+   );
+ setFunc("LogicPartition",
+     QUERY_NODE_LOGIC_PLAN_PARTITION,
+     sizeof(SPartitionLogicNode),
+     logicPartitionNodeToJson,
+     jsonToLogicPartitionNode,
+     destoryPartitionLogicNode
+   );
+ setFunc("LogicIndefRowsFunc",
+     QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC,
+     sizeof(SIndefRowsFuncLogicNode),
+     logicIndefRowsFuncNodeToJson,
+     jsonToLogicIndefRowsFuncNode,
+     destoryIndefRowsFuncLogicNode
+   );
+ setFunc("LogicInterpFunc",
+     QUERY_NODE_LOGIC_PLAN_INTERP_FUNC,
+     sizeof(SInterpFuncLogicNode),
+     logicInterpFuncNodeToJson,
+     jsonToLogicInterpFuncNode,
+     destoryInterpFuncLogicNode
+   );
+ setFunc("LogicGroupCache",
+     QUERY_NODE_LOGIC_PLAN_GROUP_CACHE,
+     sizeof(SGroupCacheLogicNode),
+     logicGroupCacheNodeToJson,
+     jsonToLogicGroupCacheNode,
+     destoryGroupCacheLogicNode
+   );
+ setFunc("LogicDynamicQueryCtrl",
+     QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL,
+     sizeof(SDynQueryCtrlLogicNode),
+     logicDynQueryCtrlNodeToJson,
+     jsonToLogicDynQueryCtrlNode,
+     destoryDynQueryCtrlLogicNode
+   );
+ setFunc("LogicSubplan",
+     QUERY_NODE_LOGIC_SUBPLAN,
+     sizeof(SLogicSubplan),
+     logicSubplanToJson,
+     jsonToLogicSubplan,
+     destoryLogicSubplan
+   );
+ setFunc("LogicPlan",
+     QUERY_NODE_LOGIC_PLAN,
+     sizeof(SQueryLogicPlan),
+     logicPlanToJson,
+     jsonToLogicPlan,
+     destoryQueryLogicPlan
+   );
+ setFunc("PhysiTagScan",
+     QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN,
+     sizeof(STagScanPhysiNode),
+     physiTagScanNodeToJson,
+     jsonToPhysiTagScanNode,
+     destroyScanPhysiNode
+   );
+ setFunc("PhysiTableScan",
+     QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
+     sizeof(STableScanPhysiNode),
+     physiTableScanNodeToJson,
+     jsonToPhysiTableScanNode,
+     destoryTableScanPhysiNode
+   );
+ setFunc("PhysiTableSeqScan",
+     QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN,
+     sizeof(STableSeqScanPhysiNode),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryTableScanPhysiNode
+   );
+ setFunc("PhysiTableMergeScan",
+     QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN,
+     sizeof(STableMergeScanPhysiNode),
+     physiTableScanNodeToJson,
+     jsonToPhysiTableScanNode,
+     destoryTableScanPhysiNode
+   );
+ setFunc("PhysiSreamScan",
+     QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN,
+     sizeof(SStreamScanPhysiNode),
+     physiTableScanNodeToJson,
+     jsonToPhysiTableScanNode,
+     destoryTableScanPhysiNode
+   );
+ setFunc("PhysiSystemTableScan",
+     QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN,
+     sizeof(SSystemTableScanPhysiNode),
+     physiSysTableScanNodeToJson,
+     jsonToPhysiSysTableScanNode,
+     destroyScanPhysiNode
+   );
+ setFunc("PhysiBlockDistScan",
+     QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN,
+     sizeof(SBlockDistScanPhysiNode),
+     physiScanNodeToJson,
+     jsonToPhysiScanNode,
+     destroyScanPhysiNode
+   );
+ setFunc("PhysiLastRowScan",
+     QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN,
+     sizeof(SLastRowScanPhysiNode),
+     physiLastRowScanNodeToJson,
+     jsonToPhysiLastRowScanNode,
+     destoryLastRowScanPhysiNode
+   );
+ setFunc("PhysiProject",
+     QUERY_NODE_PHYSICAL_PLAN_PROJECT,
+     sizeof(SProjectPhysiNode),
+     physiProjectNodeToJson,
+     jsonToPhysiProjectNode,
+     destoryProjectPhysiNode
+   );
+ setFunc("PhysiMergeJoin",
+     QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN,
+     sizeof(SSortMergeJoinPhysiNode),
+     physiMergeJoinNodeToJson,
+     jsonToPhysiMergeJoinNode,
+     destorySortMergeJoinPhysiNode
+   );
+ setFunc("PhysiAgg",
+     QUERY_NODE_PHYSICAL_PLAN_HASH_AGG,
+     sizeof(SAggPhysiNode),
+     physiAggNodeToJson,
+     jsonToPhysiAggNode,
+     destoryAggPhysiNode
+   );
+ setFunc("PhysiExchange",
+     QUERY_NODE_PHYSICAL_PLAN_EXCHANGE,
+     sizeof(SExchangePhysiNode),
+     physiExchangeNodeToJson,
+     jsonToPhysiExchangeNode,
+     destoryExchangePhysiNode
+   );
+ setFunc("PhysiMerge",
+     QUERY_NODE_PHYSICAL_PLAN_MERGE,
+     sizeof(SMergePhysiNode),
+     physiMergeNodeToJson,
+     jsonToPhysiMergeNode,
+     destoryMergePhysiNode
+   );
+ setFunc("PhysiSort",
+     QUERY_NODE_PHYSICAL_PLAN_SORT,
+     sizeof(SSortPhysiNode),
+     physiSortNodeToJson,
+     jsonToPhysiSortNode,
+     destorySortPhysiNode
+   );
+ setFunc("PhysiGroupSort",
+     QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT,
+     sizeof(SGroupSortPhysiNode),
+     physiSortNodeToJson,
+     jsonToPhysiSortNode,
+     destorySortPhysiNode
+   );
+ setFunc("PhysiHashInterval",
+     QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL,
+     sizeof(SIntervalPhysiNode),
+     physiIntervalNodeToJson,
+     jsonToPhysiIntervalNode,
+     destroyWindowPhysiNode
+   );
+ setFunc("PhysiMergeAlignedInterval",
+     QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL,
+     sizeof(SMergeAlignedIntervalPhysiNode),
+     physiIntervalNodeToJson,
+     jsonToPhysiIntervalNode,
+     destroyWindowPhysiNode
+   );
+ setFunc("PhysiStreamInterval",
+     QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL,
+     sizeof(SStreamIntervalPhysiNode),
+     physiIntervalNodeToJson,
+     jsonToPhysiIntervalNode,
+     destroyWindowPhysiNode
+   );
+ setFunc("PhysiStreamFinalInterval",
+     QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL,
+     sizeof(SStreamFinalIntervalPhysiNode),
+     physiIntervalNodeToJson,
+     jsonToPhysiIntervalNode,
+     destroyWindowPhysiNode
+   );
+ setFunc("PhysiStreamSemiInterval",
+     QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL,
+     sizeof(SStreamSemiIntervalPhysiNode),
+     physiIntervalNodeToJson,
+     jsonToPhysiIntervalNode,
+     destroyWindowPhysiNode
+   );
+ setFunc("PhysiFill",
+     QUERY_NODE_PHYSICAL_PLAN_FILL,
+     sizeof(SFillPhysiNode),
+     physiFillNodeToJson,
+     jsonToPhysiFillNode,
+     destoryFillPhysiNode
+   );
+ setFunc("PhysiStreamFill",
+     QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL,
+     sizeof(SFillPhysiNode),
+     physiFillNodeToJson,
+     jsonToPhysiFillNode,
+     destoryFillPhysiNode
+   );
+ setFunc("PhysiSessionWindow",
+     QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION,
+     sizeof(SSessionWinodwPhysiNode),
+     physiSessionWindowNodeToJson,
+     jsonToPhysiSessionWindowNode,
+     destroyWindowPhysiNode
+   );
+ setFunc("PhysiStreamSessionWindow",
+     QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION,
+     sizeof(SStreamSessionWinodwPhysiNode),
+     physiSessionWindowNodeToJson,
+     jsonToPhysiSessionWindowNode,
+     destroyWindowPhysiNode
+   );
+ setFunc("PhysiStreamSemiSessionWindow",
+     QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION,
+     sizeof(SStreamSemiSessionWinodwPhysiNode),
+     physiSessionWindowNodeToJson,
+     jsonToPhysiSessionWindowNode,
+     destroyWindowPhysiNode
+   );
+ setFunc("PhysiStreamFinalSessionWindow",
+     QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION,
+     sizeof(SStreamFinalSessionWinodwPhysiNode),
+     physiSessionWindowNodeToJson,
+     jsonToPhysiSessionWindowNode,
+     destroyWindowPhysiNode
+   );
+ setFunc("PhysiStateWindow",
+     QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE,
+     sizeof(SStateWinodwPhysiNode),
+     physiStateWindowNodeToJson,
+     jsonToPhysiStateWindowNode,
+     destoryStateWindowPhysiNode
+   );
+ setFunc("PhysiStreamStateWindow",
+     QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE,
+     sizeof(SStreamStateWinodwPhysiNode),
+     physiStateWindowNodeToJson,
+     jsonToPhysiStateWindowNode,
+     destoryStateWindowPhysiNode
+   );
+ setFunc("PhysiPartition",
+     QUERY_NODE_PHYSICAL_PLAN_PARTITION,
+     sizeof(SPartitionPhysiNode),
+     physiPartitionNodeToJson,
+     jsonToPhysiPartitionNode,
+     destroyPartitionPhysiNode
+   );
+ setFunc("PhysiStreamPartition",
+     QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION,
+     sizeof(SStreamPartitionPhysiNode),
+     physiStreamPartitionNodeToJson,
+     jsonToPhysiStreamPartitionNode,
+     destoryStreamPartitionPhysiNode
+   );
+ setFunc("PhysiIndefRowsFunc",
+     QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC,
+     sizeof(SIndefRowsFuncPhysiNode),
+     physiIndefRowsFuncNodeToJson,
+     jsonToPhysiIndefRowsFuncNode,
+     destoryIndefRowsFuncPhysiNode
+   );
+ setFunc("PhysiInterpFunc",
+     QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC,
+     sizeof(SInterpFuncLogicNode),
+     physiInterpFuncNodeToJson,
+     jsonToPhysiInterpFuncNode,
+     destoryInterpFuncPhysiNode
+   );
+ setFunc("PhysiDispatch",
+     QUERY_NODE_PHYSICAL_PLAN_DISPATCH,
+     sizeof(SDataDispatcherNode),
+     physiDispatchNodeToJson,
+     jsonToPhysiDispatchNode,
+     destroyDataSinkNode
+   );
+ setFunc("PhysiInsert",
+     QUERY_NODE_PHYSICAL_PLAN_INSERT,
+     sizeof(SDataInserterNode),
+     emptyNodeToJson,
+     emptyJsonToNode,
+     destoryDataInserterNode
+   );
+ setFunc("PhysiQueryInsert",
+     QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT,
+     sizeof(SQueryInserterNode),
+     physiQueryInsertNodeToJson,
+     jsonToPhysiQueryInsertNode,
+     destoryQueryInserterNode
+   );
+ setFunc("PhysiDelete",
+     QUERY_NODE_PHYSICAL_PLAN_DELETE,
+     sizeof(SDataDeleterNode),
+     physiDeleteNodeToJson,
+     jsonToPhysiDeleteNode,
+     destoryDataDeleterNode
+   );
+ setFunc("PhysiGroupCache",
+     QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE,
+     sizeof(SGroupCachePhysiNode),
+     physiGroupCacheNodeToJson,
+     jsonToPhysiGroupCacheNode,
+     destoryGroupCachePhysiNode
+   );
+ setFunc("PhysiDynamicQueryCtrl",
+     QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL,
+     sizeof(SDynQueryCtrlPhysiNode),
+     physiDynQueryCtrlNodeToJson,
+     jsonToPhysiDynQueryCtrlNode,
+     destoryDynQueryCtrlPhysiNode
+   );
+ setFunc("PhysiSubplan",
+     QUERY_NODE_PHYSICAL_SUBPLAN,
+     sizeof(SSubplan),
+     subplanToJson,
+     jsonToSubplan,
+     destorySubplanNode
+   );
+ setFunc("PhysiPlan",
+     QUERY_NODE_PHYSICAL_PLAN,
+     sizeof(SQueryPlan),
+     planToJson,
+     jsonToPlan,
+     destoryPlanNode
+   );
+ setFunc("PhysiTableCountScan",
+     QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN,
+     sizeof(STableCountScanPhysiNode),
+     physiLastRowScanNodeToJson,
+     jsonToPhysiScanNode,
+     destoryLastRowScanPhysiNode
+   );
+ setFunc("PhysiMergeEventWindow",
+     QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT,
+     sizeof(SEventWinodwPhysiNode),
+     physiEventWindowNodeToJson,
+     jsonToPhysiEventWindowNode,
+     destoryEventWindowPhysiNode
+   );
+ setFunc("PhysiStreamEventWindow",
+     QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT,
+     sizeof(SStreamEventWinodwPhysiNode),
+     physiEventWindowNodeToJson,
+     jsonToPhysiEventWindowNode,
+     destoryEventWindowPhysiNode
+   );
+ setFunc("PhysiHashJoin",
+     QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN,
+     sizeof(SHashJoinPhysiNode),
+     physiHashJoinNodeToJson,
+     jsonToPhysiHashJoinNode,
+     destoryHashJoinPhysiNode
+   );
+  initNodeCode = 0;
+}
+
+// clang-format on

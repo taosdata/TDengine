@@ -17,6 +17,7 @@
 #include "dmMgmt.h"
 #include "audit.h"
 #include "libs/function/tudf.h"
+#include "nodes.h"
 
 #define DM_INIT_AUDIT()              \
   do {                               \
@@ -155,6 +156,7 @@ extern void    s3End();
 
 int32_t dmInit() {
   dInfo("start to init dnode env");
+  nodesInit();
   if (dmDiskInit() != 0) return -1;
   if (!dmCheckDataDirVersion()) return -1;
   if (!dmCheckDiskSpace()) return -1;
