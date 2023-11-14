@@ -446,17 +446,22 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
 #define GRANT_CONN_ITEM_LEN_MIN (46)  // {"type":"a","number":1,"speed":0,"expire":"0"}
 #define GRANT_CONN_ITEM_LEN_MAX (256)
 static bool shellConvertGrantCols(const char *in, int32_t iLen, char *out, int32_t *oLen) {
-  char *expireStart = strstr(in, "\"expire\":\"");
-  if (expireStart) {
-    expireStart += 10;  //"expire":"
+  char *expireStart;
+  if ((expireStart = strstr(in, "{\"type\":\"")) && (expireStart = strstr(expireStart, "\"number\":")) &&
+      (expireStart = strstr(expireStart, "\"speed\":")) && (expireStart = strstr(expireStart, "\"expire\":\""))) {
+    expireStart += 10;  // "expire":"
     char *expireEnd = strchr(expireStart, '"');
     if (expireEnd) {
       int32_t expireStartLen = POINTER_DISTANCE(expireStart, in);
       int32_t expireVLen = POINTER_DISTANCE(expireEnd, expireStart);
       int32_t finalLen = iLen - expireVLen + 19;  // yyyy-MM-dd hh:mm:ss
       if (expireVLen > 0 && finalLen < GRANT_CONN_ITEM_LEN_MAX) {
+        int32_t expireVal = strtol(expireStart, NULL, 10);
+        if (expireVal < 0 || expireVal > 65535) {
+          return false;
+        }
         char      ts[20];
-        time_t    sec = atol(expireStart) * 86400;
+        time_t    sec = expireVal * 86400;
         struct tm ptm;
         if (taosLocalTime(&sec, &ptm, NULL) != NULL) {
           strftime(ts, 20, "%Y-%m-%d %H:%M:%S", &ptm);
@@ -809,7 +814,7 @@ void shellVerticalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
 
       if (dump_info->cmdType == 1 && (dump_info->fields + i)->bytes >= GRANT_CONN_ITEM_LEN_MIN &&
           shellConvertGrantCols(row[i], length[i], buf, &bufLen)) {
-        shellPrintField(buf, dump_info->fields + i, dump_info->width[i], bufLen, dump_info->precision);
+        shellPrintField(buf, field, 0, bufLen, dump_info->precision);
       } else {
         shellPrintField((const char *)row[i], field, 0, length[i], dump_info->precision);
       }
@@ -1030,7 +1035,7 @@ int64_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool ver
   int8_t  cmd_type = 0;
 
   if (shellRegexMatch(sql, "^\\s*show\\s+grants\\s*.*", REG_EXTENDED | REG_ICASE) ||
-      shellRegexMatch(sql, "^\\s*select\\s*.*from.*(\\.|\\s+)ins_grants\\s*.*", REG_EXTENDED | REG_ICASE)) {
+      shellRegexMatch(sql, "^\\s*select\\s+.*from\\s*.*(\\.|\\s+)ins_grants\\s*.*", REG_EXTENDED | REG_ICASE)) {
     cmd_type = 1;
   }
 
