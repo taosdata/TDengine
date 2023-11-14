@@ -224,7 +224,7 @@ impl OPCConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, PartialEq)]
-enum AuthMethod {
+pub enum AuthMethod {
     Anonymous,
     UserName,
     #[default]
