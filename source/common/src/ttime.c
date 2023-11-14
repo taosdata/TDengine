@@ -196,6 +196,10 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
 }
 
 int32_t offsetOfTimezone(char* tzStr, int64_t* offset) {
+  if (tzStr && (tzStr[0] == 'z' || tzStr[0] == 'Z')) {
+    *offset = 0;
+    return 0;
+  }
   return parseTimezone(tzStr, offset);
 }
 
