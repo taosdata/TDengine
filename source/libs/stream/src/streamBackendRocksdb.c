@@ -899,6 +899,7 @@ _EXIT:
   taosMemoryFree(pChkpDir);
   taosMemoryFree(pChkpIdDir);
   taosReleaseRef(taskDbWrapperId, refId);
+  taosMemoryFree(ppCf);
   return code;
 }
 int32_t streamBackendDoCheckpoint(void* arg, int64_t chkpId) { return taskDbDoCheckpoint(arg, chkpId); }
@@ -3594,6 +3595,7 @@ void dbChkpDestroy(SDbChkp* pChkp) {
 
   taosMemoryFree(pChkp->pCurrent);
   taosMemoryFree(pChkp->pManifest);
+  taosMemoryFree(pChkp);
 }
 
 int32_t dbChkpInit(SDbChkp* p) {
