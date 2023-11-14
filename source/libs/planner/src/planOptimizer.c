@@ -2791,7 +2791,9 @@ static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg, 
     SNodeList* pOldScanCols = NULL;
     TSWAP(pScan->pScanCols, pOldScanCols);
     nodesDestroyList(pScan->pScanPseudoCols);
+    pScan->pScanPseudoCols = NULL;
     nodesDestroyList(pScan->node.pTargets);
+    pScan->node.pTargets = NULL;
     SNodeListNode* list = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
     list->pNodeList = pFunc;
     code = nodesCollectColumnsFromNode((SNode*)list, NULL, COLLECT_COL_TYPE_COL, &pScan->pScanCols);
@@ -2809,7 +2811,7 @@ static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg, 
     if (!found) {
       FOREACH(pNode, pOldScanCols) {
         if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
-          nodesListStrictAppend(pScan->pScanCols, nodesCloneNode(pNode));
+          nodesListMakeStrictAppend(&pScan->pScanCols, nodesCloneNode(pNode));
           break;
         }
       }
