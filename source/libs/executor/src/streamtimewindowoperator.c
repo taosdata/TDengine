@@ -279,7 +279,12 @@ static int32_t getAllIntervalWindow(SSHashObj* pHashMap, SSHashObj* resWins) {
     SWinKey* pKey = tSimpleHashGetKey(pIte, NULL);
     uint64_t groupId = pKey->groupId;
     TSKEY    ts = pKey->ts;
-    int32_t  code = saveWinResultInfo(ts, groupId, *(SRowBuffPos**)pIte, resWins);
+    SRowBuffPos* pPos = *(SRowBuffPos**)pIte;
+    if (!pPos->beUpdated) {
+      continue;
+    }
+    pPos->beUpdated = false;
+    int32_t  code = saveWinResultInfo(ts, groupId, pPos, resWins);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -866,6 +871,7 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDat
     }
 
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
+      pResPos->beUpdated = true;
       tSimpleHashPut(pInfo->aggSup.pResultRowHashTable, &key, sizeof(SWinKey), &pResPos, POINTER_BYTES);
     }
 
