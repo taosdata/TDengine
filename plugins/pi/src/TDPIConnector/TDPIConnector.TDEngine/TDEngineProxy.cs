@@ -361,7 +361,7 @@ namespace TDPIConnector.TDEngine
             return;
         }
 
-        public bool isBusy()
+        public bool IsBusy()
         {
             lock (taosxClientsLock)
             {
@@ -401,6 +401,12 @@ namespace TDPIConnector.TDEngine
         public static string GetFullTableName(string tableName)
         {
             return $"{tablesPrefix}{tableName}";
+        }
+        public void StopAll() {
+            foreach (var taosxClient in taosxClients)
+            {
+                taosxClient.Value.Stop();
+            }
         }
     }
 }
