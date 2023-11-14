@@ -7,6 +7,12 @@ from util.cases import *
 from util.dnodes import *
 from util.common import *
 
+from util.cluster import *
+sys.path.append("./6-cluster")
+from clusterCommonCreate import *
+from clusterCommonCheck import clusterComCheck
+
+
 PRIMARY_COL = "ts"
 
 INT_COL = "c_int"
@@ -161,53 +167,7 @@ class TDTestCase:
         ]
 
     @property
-    def create_stable_sql_current(self):
-        return [
-            f"create stable stb1 ({PRIMARY_COL} timestamp, {FLOAT_COL} float) tags (tag1 int) rollup(avg)",
-            f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) watermark 5s max_delay 1m",
-            f"create stable stb3 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(max) watermark 5s max_delay 1m",
-            f"create stable stb4 ({PRIMARY_COL} timestamp, {DOUBLE_COL} double) tags (tag1 int) rollup(sum) watermark 5s max_delay 1m",
-            f"create stable stb5 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(last) watermark 5s max_delay 1m",
-            f"create stable stb6 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) watermark 5s max_delay 1m",
-            f"create stable stb7 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) watermark 5s max_delay 1m sma({INT_COL})",
-        ]
-
-    def test_create_stb(self, db=DB2):
-        tdSql.execute(f"use {db}")
-        for err_sql in self.create_stable_sql_err:
-            tdSql.error(err_sql)
-        for cur_sql in self.create_stable_sql_current:
-            tdSql.execute(cur_sql)
-        tdSql.query("show stables")
-        # assert "rollup" in tdSql.description
-        tdSql.checkRows(len(self.create_stable_sql_current))
-
-        tdSql.execute("use db")  # because db is a noraml database, not a rollup database, should not be able to create a rollup stable
-        tdSql.error(f"create stable db.nor_db_rollup_stb ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) watermark 5s max_delay 1m")
-
-
-    def test_create_databases(self):
-        for err_sql in self.create_databases_sql_err:
-            tdSql.error(err_sql)
-        index = 0
-        for cur_sql in self.create_databases_sql_current:
-            tdSql.execute(cur_sql)
-            if(index == 0):
-                tdSql.query(f"show create database {DB1}")
-            else:
-                tdSql.query(f"show create database {DB2}")
-            tdSql.checkEqual(len(tdSql.queryResult),1)
-            tdLog.info("%s" % (tdSql.queryResult[0][1]))
-            tdSql.checkEqual(tdSql.queryResult[0][1].find("RETENTIONS -:") > 0, True)
-            index += 1
-        for alter_sql in self.alter_database_sql:
-            tdSql.error(alter_sql)
-
-    def all_test(self):
-        self.test_create_databases()
-        self.test_create_stb()
-
-    def __create_tb(self, stb=STBNAME, ctb_num=20, ntbnum=1, rsma=False, dbname=DBNAME, rsma_type="sum"):
+    def create_tb(self, stb=STBNAME, ctb_num=20, ntbnum=1, rsma=False, dbname=DBNAME, rsma_type="sum"):
         tdLog.printNoPrefix("==========step: create table")
         if rsma:
             if rsma_type.lower().strip() in ("last", "first"):
@@ -256,145 +216,83 @@ class TDTestCase:
         for i in range(ctb_num):
             tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.{stb} tags ( {i+1} )')
 
-    def __insert_data(self, rows, ctb_num=20, dbname=DBNAME, rsma=False, rsma_type="sum"):
-        tdLog.printNoPrefix("==========step: start insert data into tables now.....")
-        # from ...pytest.util.common import DataSet
-        data = DataSet()
-        data.get_order_set(rows)
+    def create_ctable(self,tsql=None, dbName='dbx',stbName='stb',ctbPrefix='ctb',ctbNum=1):
+        tsql.execute("use %s" %dbName)
+        pre_create = "create table"
+        sql = pre_create
+        #tdLog.debug("doing create one  stable %s and %d  child table in %s  ..." %(stbname, count ,dbname))
+        for i in range(ctbNum):
+            tagValue = 'beijing'
+            if (i % 2 == 0):
+                tagValue = 'shanghai'
+            sql += " %s%d using %s tags(%d, '%s')"%(ctbPrefix,i,stbName,i+1, tagValue)
+            if (i > 0) and (i%100 == 0):
+                tsql.execute(sql)
+                sql = pre_create
+        if sql != pre_create:
+            tsql.execute(sql)
 
-        for i in range(rows):
-            if rsma:
-                if rsma_type.lower().strip() in ("last", "first"):
-                    row_data = f'''
-                        {data.int_data[i]}, {data.bint_data[i]}, {data.sint_data[i]}, {data.tint_data[i]}, {data.float_data[i]}, {data.double_data[i]},
-                        {data.utint_data[i]}, {data.usint_data[i]}, {data.uint_data[i]}, {data.ubint_data[i]}, '{data.vchar_data[i]}'
-                    '''
-                elif rsma_type.lower().strip() in ("sum", "avg"):
-                    row_data = f'''
-                        {data.int_data[i]}, {data.bint_data[i]}, {data.sint_data[i]}, {data.tint_data[i]}, {data.float_data[i]}, {data.double_data[i]},
-                        {data.utint_data[i]}, {data.usint_data[i]}, {data.uint_data[i]}, {data.ubint_data[i]}
-                    '''
-                else:
-                    row_data = f'''
-                        {data.double_data[i]}, {data.double_data[i]}, {data.double_data[i]}, {data.double_data[i]}, {data.float_data[i]}, {data.double_data[i]},
-                        {data.float_data[i]}, {data.float_data[i]}, {data.float_data[i]}, {data.double_data[i]}
-                    '''
-            else:
-                row_data = f'''
-                    {data.int_data[i]}, {data.bint_data[i]}, {data.sint_data[i]}, {data.tint_data[i]}, {data.float_data[i]}, {data.double_data[i]},
-                    {data.bool_data[i]}, '{data.vchar_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {data.utint_data[i]},
-                    {data.usint_data[i]}, {data.uint_data[i]}, {data.ubint_data[i]}
-                '''
-                tdSql.execute( f"insert into {dbname}.{NTBNAME} values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )" )
+        tdLog.debug("complete to create %d child tables in %s.%s" %(ctbNum, dbName, stbName))
+        return
 
+    def getPath(self, tool="taosBenchmark"):
+        if (platform.system().lower() == 'windows'):
+            tool = tool + ".exe"
+        selfPath = os.path.dirname(os.path.realpath(__file__))
 
-            for j in range(ctb_num):
-                tdSql.execute( f"insert into {dbname}.ct{j+1} values ( {NOW - i * TIME_STEP}, {row_data} )" )
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
 
+        paths = []
+        for root, dirs, files in os.walk(projPath):
+            if ((tool) in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    paths.append(os.path.join(root, tool))
+                    break
+        if (len(paths) == 0):
+            tdLog.exit("taosBenchmark not found!")
+            return
+        else:
+            tdLog.info("taosBenchmark found in %s" % paths[0])
+            return paths[0]    
+        
 
     def run(self):
+        binPath = self.getPath()
+
         self.rows = 10
-        tdSql.prepare(dbname=DBNAME)
-
         tdLog.printNoPrefix("==========step0:all check")
-        self.all_test()
-
-        tdLog.printNoPrefix("==========step1:create table in normal database")
-        tdSql.prepare()
-        self.__create_tb()
-        self.__insert_data(rows=self.rows)
-
-        tdLog.printNoPrefix("==========step2:create table in rollup database")
-        tdLog.printNoPrefix("==========step2.1 : rolluo func is not last/first")
-        tdSql.prepare(dbname=DB3, **{"retentions": "-:1d, 3s:3d, 5s:5d"})
-
-        db3_ctb_num = 10
-        self.__create_tb(rsma=True, dbname=DB3, ctb_num=db3_ctb_num, stb=STBNAME)
-        self.__insert_data(rows=self.rows, rsma=True, dbname=DB3, ctb_num=db3_ctb_num)
-        time.sleep(6)
-        tdSql.query(f"select count(*) from {DB3}.{STBNAME} where ts > now()-5m")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, self.rows * db3_ctb_num)
-        tdSql.execute(f"flush database {DB3}")
-        tdSql.query(f"select count(*) from {DB3}.{STBNAME} where ts > now()-5m")
-        tdSql.checkData(0, 0, self.rows * db3_ctb_num)
-        tdSql.checkRows(1)
-        tdSql.query(f"select {FLOAT_COL} from {DB3}.{CTBNAME} where ts > now()-4d")
-        # not stable
-        #tdSql.checkData(0, 0, self.rows-1)
-        tdSql.query(f"select {DOUBLE_COL} from {DB3}.{CTBNAME} where ts > now()-6d")
-        # not stable
-        # tdSql.checkData(0, 0, self.rows-1)
-
-        # from ...pytest.util.sql import tdSql
-
-        tdLog.printNoPrefix("==========step2.1.1 : alter stb schemaL drop column")
-        tdSql.query(f"select {FLOAT_COL} from {DB3}.{STBNAME}")
-        #tdSql.execute(f"alter stable {DB3}.stb1 drop column {BINT_COL}")
-        # not support alter stable schema anymore
-        tdSql.error(f"alter stable {DB3}.stb1 drop column {BINT_COL}")
-        #tdSql.error(f"select {BINT_COL} from {DB3}.{STBNAME}")
-
-
-        tdLog.printNoPrefix("==========step2.1.2 : alter stb schemaL add num_column")
-        # not support alter stable schema anymore
-        tdSql.error(f"alter stable {DB3}.stb1 add column {INT_COL}_1 int")
-        tdSql.error(f"select {INT_COL}_1 from {DB3}.{STBNAME}")
-        #tdSql.execute(f"alter stable {DB3}.stb1 add column {INT_COL}_1 int")
-        #tdSql.query(f"select count({INT_COL}_1) from {DB3}.{STBNAME} where _c0 > now-5m")
-        #tdSql.checkData(0, 0, 0)
-        #tdSql.execute(f"insert into {DB3}.{CTBNAME} ({PRIMARY_COL}, {INT_COL}, {INT_COL}_1) values({NOW}+20s, 111, 112)")
-        #time.sleep(7)
-        #tdSql.query(f"select _rowts, {INT_COL}, {INT_COL}_1 from {DB3}.{CTBNAME} where _c0 > now()-1h and _c0>{NOW}")
-        #tdSql.checkRows(1)
-        #tdSql.checkData(0, 1, 111)
-        #tdSql.checkData(0, 2, 112)
-#
-        #tdSql.query(f"select _rowts, {INT_COL}, {INT_COL}_1 from {DB3}.{CTBNAME} where _c0 > now()-2d and _c0>{NOW}")
-        #tdSql.checkRows(1)
-        #tdSql.checkData(0, 1, 111)
-        #tdSql.checkData(0, 2, 112)
-        #tdSql.query(f"select _rowts, {INT_COL}, {INT_COL}_1 from {DB3}.{CTBNAME} where _c0 > now()-7d and _c0>{NOW}")
-        #tdSql.checkRows(1)
-        #tdSql.checkData(0, 1, 111)
-        #tdSql.checkData(0, 2, 112)
-        tdLog.printNoPrefix("==========step2.1.3 : drop child-table")
-        tdSql.execute(f"drop table {DB3}.{CTBNAME} ")
-
-
-        tdLog.printNoPrefix("==========step2.2 : rolluo func is  last/first")
-        tdSql.prepare(dbname=DB4, **{"retentions": "-:1d, 2m:3d, 3m:5d"})
-
-        db4_ctb_num = 10
-        tdSql.execute(f"use {DB4}")
-        self.__create_tb(rsma=True, dbname=DB4, ctb_num=db4_ctb_num, rsma_type="last")
-        self.__insert_data(rows=self.rows, rsma=True, dbname=DB4, ctb_num=db4_ctb_num, rsma_type="last")
-        time.sleep(7)
-        tdSql.query(f"select count(*) from {DB4}.stb1 where ts > now()-5m")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, self.rows * db4_ctb_num)
-        tdSql.execute(f"flush database {DB4}")
-        tdSql.query(f"select count(*) from {DB4}.stb1 where ts > now()-5m")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, self.rows * db4_ctb_num)
-        tdSql.query(f"select {INT_COL} from {DB4}.ct1 where ts > now()-4d")
-        tdSql.checkRows_range([1,2])
-        # tdSql.checkData(0, 0, self.rows-1)
-        tdSql.query(f"select {INT_COL} from {DB4}.ct1 where ts > now()-6d")
-        tdSql.checkRows_range([1,2])
-        # tdSql.checkData(0, 0, self.rows-1)
-        # return
-
-        tdSql.execute(f"drop database if exists {DB1} ")
-        tdSql.execute(f"drop database if exists {DB2} ")
-        # self.all_test()
-
-        # tdDnodes.stop(1)
-        # tdDnodes.start(1)
-        tdSql.execute(f"flush database {DBNAME}")
-
+        dbname='d0'
+        tdSql.execute(f"create database {dbname} retentions -:363d,1m:364d,1h:365d  STT_TRIGGER 2  vgroups 6;")
+        tdSql.execute(f"create stable if not exists {dbname}.st_min (ts timestamp, c1 int) tags (proid int,city binary(20)) rollup(min) watermark 0s,1s max_delay 1m,180s;;")
+        tdSql.execute(f"create stable if not exists {dbname}.st_avg (ts timestamp, c1 double) tags (city binary(20),district binary(20)) rollup(min) watermark 0s,1s max_delay 1m,180s;;")
+        self.create_ctable(tdSql, dbname, 'st_min', 'ct_min', 1000)
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
-        self.all_test()
+        datetime1 = datetime.now()
+        print(datetime1)
+        tdSql.execute(f"INSERT INTO  {dbname}.ct_min7 VALUES ('2023-11-07 10:01:00.001',797029643) ('2023-11-07 10:01:00.001',797029643);")
+        tdSql.query(f"select * from {dbname}.st_min where ts>now-363d;")
+        tdSql.checkData(0, 0, '2023-11-07 10:01:00.001')
+        sleep(6)
+        tdSql.query(f"select * from {dbname}.st_min where ts>now-364d;")
+        tdSql.checkData(0, 0, '2023-11-07 10:01:00.000')
+        tdSql.query(f"select * from {dbname}.st_min where ts>now-365d;")
+        tdSql.checkData(0, 0, '2023-11-07 10:00:00.000')
+
+        #bug
+        # os.system(f"{binPath} -f ./1-insert/benchmark-tbl-rsma-alter.json")
+        # tdSql.execute(f"alter database db_replica replica 3;")
+        # clusterComCheck.check_vgroups_status(vgroup_numbers=1,db_replica=3,db_name="db_replica",count_number=240)        
+        # tdSql.execute(f"alter database db_replica replica 1;")
+
+        #bug
+        # os.system(f"{binPath} -f ./1-insert/benchmark-tbl-rsma.json")
+        # tdSql.query(f" select count(*) from db_update.stb1;")
+        # tdSql.checkData(0, 0, 360000)
+
 
     def stop(self):
         tdSql.close()
