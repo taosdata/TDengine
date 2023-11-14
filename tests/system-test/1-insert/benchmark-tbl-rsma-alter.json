@@ -22,7 +22,7 @@
         "drop": "yes",
         "replica": 1,
         "duration": 10,
-        "vgroups": 1,
+        "vgroups": 2,
         "precision": "ms",
         "keep": 3650,
         "minRows": 100,
