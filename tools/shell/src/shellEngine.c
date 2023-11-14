@@ -199,22 +199,17 @@ void shellRunSingleCommandImp(char *command) {
   bool    printMode = false;
 
   if ((sptr = strstr(command, ">>")) != NULL) {
-    cptr = strstr(command, ";");
-    if (cptr != NULL) {
-      *cptr = '\0';
-    }
-
     fname = sptr + 2;
     while (*fname == ' ') fname++;
     *sptr = '\0';
-  }
 
-  if ((sptr = strstr(command, "\\G")) != NULL) {
-    cptr = strstr(command, ";");
+    cptr = strstr(fname, ";");
     if (cptr != NULL) {
       *cptr = '\0';
     }
+  }
 
+  if ((sptr = strstr(command, "\\G")) != NULL) {
     *sptr = '\0';
     printMode = true;  // When output to a file, the switch does not work.
   }
