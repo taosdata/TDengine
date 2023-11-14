@@ -218,7 +218,10 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
-  taosCfgDynamicOptions(cfgReq.config, cfgReq.value);
+
+  SConfig *pCfg = taosGetCfg();
+  cfgSetItem(pCfg, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_CMD);
+  taosCfgDynamicOptions(pCfg, cfgReq.config, true);
   return 0;
 }
 

@@ -217,13 +217,13 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
                     bool tsc);
 void    taosCleanupCfg();
-void    taosCfgDynamicOptions(const char *option, const char *value);
+
+int32_t taosCfgDynamicOptions(SConfig *pCfg, char *name, bool forServer);
 
 struct SConfig *taosGetCfg();
 
 void    taosSetAllDebugFlag(int32_t flag, bool rewrite);
 void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal, bool rewrite);
-int32_t taosApplyLocalCfg(SConfig *pCfg, char *name);
 void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
 int8_t  taosGranted();
 
