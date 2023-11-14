@@ -2792,12 +2792,13 @@ static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg, 
     TSWAP(pScan->pScanCols, pOldScanCols);
     nodesDestroyList(pScan->pScanPseudoCols);
     nodesDestroyList(pScan->node.pTargets);
-    FOREACH(pNode, pFunc) {
-      code = nodesCollectColumnsFromNode(pNode, NULL, COLLECT_COL_TYPE_COL, &pScan->pScanCols);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
+    SNodeListNode* list = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
+    list->pNodeList = pFunc;
+    code = nodesCollectColumnsFromNode((SNode*)list, NULL, COLLECT_COL_TYPE_COL, &pScan->pScanCols);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
     }
+    nodesFree(list);
     bool found = false;
     FOREACH(pNode, pScan->pScanCols) {
       if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
