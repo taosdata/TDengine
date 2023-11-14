@@ -25,7 +25,7 @@
 #define GRANT_VALUE_INT        atoi(GRANT_VALUE)
 #define GRANT_DEFAULT        (GRANT_VALUE_INT*86400)
 #else
-#define GRANT_DEFAULT        60*86400
+#define GRANT_DEFAULT        10*86400
 #endif
 
 #define GRANT_CONN_NUM_DEFAULT     1
