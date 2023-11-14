@@ -508,8 +508,8 @@ int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres, int8_t cmdType)
   taosFprintfFile(pFile, "\r\n");
 
   int64_t numOfRows = 0;
-  char    buf[GRANT_CONN_ITEM_LEN_MAX];
   int32_t bufLen;
+  char    buf[GRANT_CONN_ITEM_LEN_MAX];
   do {
     int32_t *length = taos_fetch_lengths(tres);
     for (int32_t i = 0; i < num_fields; i++) {
@@ -798,8 +798,8 @@ void shellVerticalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
 
   int64_t numOfPintRows = dump_info->numOfAllRows;
   int     numOfPrintRowsThisOne = 0;
-  char    buf[GRANT_CONN_ITEM_LEN_MAX];
   int32_t bufLen;
+  char    buf[GRANT_CONN_ITEM_LEN_MAX];
 
   while (row != NULL) {
     printf("*************************** %" PRId64 ".row ***************************\r\n", numOfPintRows + 1);
@@ -952,8 +952,8 @@ void shellHorizontalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
   if (numOfPintRows == 0) {
     shellPrintHeader(dump_info->fields, dump_info->width, dump_info->numFields);
   }
-  char    buf[GRANT_CONN_ITEM_LEN_MAX];
   int32_t bufLen;
+  char    buf[GRANT_CONN_ITEM_LEN_MAX];
   while (row != NULL) {
     int32_t *length = taos_fetch_lengths(tres);
     for (int32_t i = 0; i < dump_info->numFields; i++) {
