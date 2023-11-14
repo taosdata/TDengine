@@ -25,8 +25,9 @@ use crate::{
         split_table_into_time_range_chunks, sync_single_table_partial, sync_super_table_schema,
         transform_sql_with_remap,
     },
-    utils::breakpoints,
-    Action, LegacyMetrics, QueryOpts, TargetOpts, TimeRange, METRICS_LEGACY_CREATED_TABLES, METRICS_LEGACY_TABLES,
+    utils::{breakpoints, metrics_db::MetricsDb},
+    Action, LegacyMetrics, QueryOpts, TargetOpts, TimeRange, METRICS_LEGACY_CREATED_TABLES,
+    METRICS_LEGACY_TABLES,
 };
 
 use super::{sync_normal_table_schema, sync_super_table_schema_with_subs};
@@ -84,6 +85,7 @@ async fn worker(
     query: Arc<QueryOpts>,
     opts: Arc<TargetOpts>,
     metrics: Arc<LegacyMetrics>,
+    metrics_db: Option<Arc<MetricsDb>>,
     actions: Vec<Action>,
     source_is_v3: bool,
     target_is_v3: bool,
@@ -357,6 +359,7 @@ async fn worker(
                             query.time_range = chunk;
                             let table_inner = table.clone();
                             loop {
+                                let partial_metrics = Arc::new(LegacyMetrics::default());
                                 match sync_single_table_partial(
                                     source.clone(),
                                     target.clone(),
@@ -369,7 +372,7 @@ async fn worker(
                                     remap.as_ref(),
                                     &opts,
                                     target_is_v3,
-                                    metrics.clone(),
+                                    partial_metrics.clone(),
                                 )
                                 .await
                                 {
@@ -388,6 +391,32 @@ async fn worker(
                                                 });
                                             }
                                         }
+                                        // metrics
+                                        log::debug!(
+                                            "sync table {table} time_range {time_range} partial metrics: {partial_metrics:#}",
+                                            table = table.as_str(),
+                                            time_range = query.time_range,
+                                            partial_metrics = &partial_metrics,
+                                        );
+
+                                        let _ = metrics.merge(&partial_metrics);
+
+                                        log::debug!(
+                                            "sync table {table} time_range {time_range} total metrics: {metrics:#}",
+                                            table = table.as_str(),
+                                            time_range = query.time_range,
+                                            metrics = metrics,
+                                        );
+
+                                        if let Some(metrics_db) = metrics_db.as_ref() {
+                                            let str_metrics = metrics.to_json();
+                                            log::debug!("str_metrics: {str_metrics}");
+                                            let r = metrics_db.set(&str_metrics);
+                                            if let Err(err) = r {
+                                                log::error!("metrics_db::metrics_set error: {err}");
+                                            }
+                                        }
+
                                         break;
                                     }
                                     Err(err) => {
@@ -456,7 +485,6 @@ async fn worker(
                             }
                             None => {
                                 counter!(METRICS_LEGACY_TABLES, 1);
-                                metrics.tables.fetch_add(1, Ordering::SeqCst);
                                 if let Some(sender) = sender {
                                     let _ = sender.send(Ok(()));
                                 } 
@@ -532,6 +560,7 @@ impl Scheduler {
         workers: u32,
         actions: &Vec<Action>,
         metrics: Arc<LegacyMetrics>,
+        metrics_db: Option<Arc<MetricsDb>>,
         source_is_v3: bool,
         target_is_v3: bool,
         task_id: Option<String>,
@@ -550,6 +579,7 @@ impl Scheduler {
                         query.clone(),
                         opts.clone(),
                         metrics.clone(),
+                        metrics_db.clone(),
                         actions.clone(),
                         source_is_v3,
                         target_is_v3,

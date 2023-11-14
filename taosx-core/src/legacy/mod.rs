@@ -24,7 +24,7 @@ use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument, warn};
 
-use crate::{legacy::scheduler::Todo, Action};
+use crate::{legacy::scheduler::Todo, Action, utils::metrics_db::MetricsDb};
 
 use self::scheduler::Scheduler;
 
@@ -100,7 +100,7 @@ pub const METRICS_LEGACY_BLOCKS: &str = "metrics.legacy.blocks";
 pub const METRICS_LEGACY_RECORDS: &str = "metrics.legacy.records";
 pub const METRICS_LEGACY_POINTS: &str = "metrics.legacy.points";
 
-#[derive(Debug)]
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct LegacyMetrics {
     pub workers: AtomicU16,
     pub stables: AtomicU32,
@@ -111,6 +111,10 @@ pub struct LegacyMetrics {
     pub blocks: AtomicU64,
     pub records: AtomicU64,
     pub points: AtomicU64,
+    // last_time_cost in seconds
+    pub last_time_cost: AtomicU64,
+    #[serde(skip)]
+    #[serde(default = "Instant::now")]
     pub time_cost: Instant,
 }
 
@@ -126,6 +130,7 @@ impl Default for LegacyMetrics {
             updated_tags: Default::default(),
             updated_tables: Default::default(),
             created_tables: Default::default(),
+            last_time_cost: Default::default(),
             time_cost: Instant::now(),
         }
     }
@@ -135,7 +140,7 @@ impl Display for LegacyMetrics {
         use std::sync::atomic::Ordering::SeqCst;
         let records = self.records.load(SeqCst);
         let points = self.points.load(SeqCst);
-        let cost = self.time_cost.elapsed();
+        let cost = self.time_cost.elapsed() + Duration::from_secs(self.last_time_cost.load(SeqCst));
         let mut cons_as_secs = cost.as_secs();
         if cons_as_secs == 0 {
             cons_as_secs = 1;
@@ -163,9 +168,45 @@ impl Display for LegacyMetrics {
             records / cons_as_secs,
             points,
             points / cons_as_secs,
-            self.time_cost.elapsed()
+            cost
         )?;
         Ok(())
+    }
+}
+
+impl LegacyMetrics {
+    pub fn merge(&self, other: &Self) -> anyhow::Result<()> {
+        self.blocks
+            .fetch_add(other.blocks.load(Ordering::SeqCst), Ordering::SeqCst);
+        self.records
+            .fetch_add(other.records.load(Ordering::SeqCst), Ordering::SeqCst);
+        self.points
+            .fetch_add(other.points.load(Ordering::SeqCst), Ordering::SeqCst);
+        Ok(())
+    }
+
+    pub fn to_json(&self) -> String {
+        let metrics = Self {
+            workers: AtomicU16::from(self.workers.load(Ordering::SeqCst)),
+            stables: AtomicU32::from(self.stables.load(Ordering::SeqCst)),
+            tables: AtomicU32::from(self.tables.load(Ordering::SeqCst)),
+            blocks: AtomicU64::from(self.blocks.load(Ordering::SeqCst)),
+            records: AtomicU64::from(self.records.load(Ordering::SeqCst)),
+            points: AtomicU64::from(self.points.load(Ordering::SeqCst)),
+            updated_tags: AtomicU32::from(self.updated_tags.load(Ordering::SeqCst)),
+            updated_tables: AtomicU32::from(self.updated_tables.load(Ordering::SeqCst)),
+            created_tables: AtomicU32::from(self.created_tables.load(Ordering::SeqCst)),
+            last_time_cost: AtomicU64::from(
+                self.last_time_cost.load(Ordering::SeqCst) + self.time_cost.elapsed().as_secs(),
+            ),
+            time_cost: Instant::now(),
+        };
+        serde_json::to_string(&metrics).unwrap()
+    }
+
+    pub fn from_json(json: &str) -> anyhow::Result<Self> {
+        let metrics: Self = serde_json::from_str(json)?;
+        Ok(metrics)
     }
 }
 /// A paging expression.
@@ -2346,7 +2387,19 @@ pub async fn legacy_to_taos(
             .map(|v| v.get())
             .unwrap_or(20)
     };
-    let metrics = Arc::new(LegacyMetrics::default());
+
+    let mut metrics_db: Option<Arc<MetricsDb>> = None;
+    let mut metrics = Arc::new(LegacyMetrics::default());
+    if let Some(task_id) = &task_id {
+        let metrics_db_inner = MetricsDb::new(task_id)?;
+        let metrics_json = metrics_db_inner.get()?;
+        info!("metrics from db: {:?}", metrics_json);
+        if let Some(metrics_json) = metrics_json {
+            metrics = Arc::new(LegacyMetrics::from_json(&metrics_json).unwrap());
+        }
+        metrics_db = Some(Arc::new(metrics_db_inner));
+    }
+
     let from_database = from.subject.clone().unwrap();
     let mut source_opts = SourceOpts::from_params(&mut from)?;
     if source_opts.workers == 0 {
@@ -2475,6 +2528,10 @@ pub async fn legacy_to_taos(
     let todo = Arc::new(todo);
 
     metrics
+        .tables
+        .store(todo.tables.len() as _, Ordering::SeqCst);
+
+    metrics
         .stables
         .store(todo.stables.len() as _, Ordering::SeqCst);
     counter!(METRICS_LEGACY_STABLES, todo.stables.len() as u64);
@@ -2490,6 +2547,7 @@ pub async fn legacy_to_taos(
         source_opts.workers as _,
         &actions,
         metrics.clone(),
+        metrics_db.clone(),
         source_is_v3,
         target_is_v3,
         task_id,
