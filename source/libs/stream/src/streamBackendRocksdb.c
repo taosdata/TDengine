@@ -1719,7 +1719,8 @@ int32_t taskDbGenChkpUploadData__rsync(STaskDbWrapper* pDb, int64_t chkpId, char
   return code;
 }
 
-int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64_t chkpId, char** path) {
+int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64_t chkpId, char** path, SArray* list) {
+  int32_t  code = 0;
   SBkdMgt* p = (SBkdMgt*)bkdChkpMgt;
 
   char* temp = taosMemoryCalloc(1, strlen(pDb->path));
@@ -1731,20 +1732,20 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
   } else {
     taosMkDir(temp);
   }
-  bkdMgtGetDelta(p, pDb->idstr, chkpId, NULL, temp);
+  code = bkdMgtGetDelta(p, pDb->idstr, chkpId, list, temp);
 
   *path = temp;
 
-  return 0;
+  return code;
 }
-int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path) {
+int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path, SArray* list) {
   STaskDbWrapper* pDb = arg;
   UPLOAD_TYPE     utype = type;
 
   if (utype == UPLOAD_RSYNC) {
     return taskDbGenChkpUploadData__rsync(pDb, chkpId, path);
   } else if (utype == UPLOAD_S3) {
-    return taskDbGenChkpUploadData__s3(pDb, mgt, chkpId, path);
+    return taskDbGenChkpUploadData__s3(pDb, mgt, chkpId, path, list);
   }
   return -1;
 }
@@ -3559,7 +3560,7 @@ SDbChkp* dbChkpCreate(char* path, int64_t initChkpId) {
   p->curChkpId = initChkpId;
   p->preCkptId = -1;
   p->pSST = taosArrayInit(64, sizeof(void*));
-  p->path = taosStrdup(path);
+  p->path = path;
   p->len = strlen(path) + 128;
   p->buf = taosMemoryCalloc(1, p->len);
 
@@ -3597,9 +3598,9 @@ int32_t dbChkpInit(SDbChkp* p) {
   if (p == NULL) return 0;
   return 0;
 }
-int32_t dbChkpDumpTo(SDbChkp* p, char* dname) {
+int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
   taosThreadRwlockRdlock(&p->rwLock);
-  int32_t code = 0;
+  int32_t code = -1;
   int32_t len = p->len + 128;
 
   char* srcBuf = taosMemoryCalloc(1, len);
@@ -3613,25 +3614,8 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname) {
 
   if (!taosDirExist(srcDir)) {
     stError("failed to dump srcDir %s, reason: not exist such dir", srcDir);
-    code = -1;
     goto _ERROR;
   }
-
-  // code = taosMkDir(dstDir);
-  // if (code != 0) {
-  //   terrno = TAOS_SYSTEM_ERROR(errno);
-  //   stError("failed to mkdir srcDir %s, reason: %s", dstDir, terrstr());
-  //   goto _ERROR;
-  // }
-
-  // clear current file
-  memset(dstBuf, 0, len);
-  sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, p->pCurrent);
-  taosRemoveFile(dstBuf);
-
-  memset(dstBuf, 0, len);
-  sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, p->pManifest);
-  taosRemoveFile(dstBuf);
 
   // add file to $name dir
   for (int i = 0; i < taosArrayGetSize(p->pAdd); i++) {
@@ -3644,39 +3628,59 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname) {
 
     if (taosCopyFile(srcBuf, dstBuf) < 0) {
       stError("failed to copy file from %s to %s", srcBuf, dstBuf);
+      goto _ERROR;
     }
   }
   // del file in $name
   for (int i = 0; i < taosArrayGetSize(p->pDel); i++) {
-    memset(dstBuf, 0, len);
-    memset(srcBuf, 0, len);
-
     char* filename = taosArrayGetP(p->pDel, i);
-    sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, filename);
-    taosRemoveFile(dstBuf);
+    char* p = taosStrdup(filename);
+    taosArrayPush(list, &p);
   }
 
   // copy current file to dst dir
   memset(srcBuf, 0, len);
   memset(dstBuf, 0, len);
   sprintf(srcBuf, "%s%s%s", srcDir, TD_DIRSEP, p->pCurrent);
-  sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, p->pCurrent);
+  sprintf(dstBuf, "%s%s%s_%" PRId64 "", dstDir, TD_DIRSEP, p->pCurrent, p->curChkpId);
   if (taosCopyFile(srcBuf, dstBuf) < 0) {
     stError("failed to copy file from %s to %s", srcBuf, dstBuf);
+    goto _ERROR;
   }
 
   // copy manifest file to dst dir
   memset(srcBuf, 0, len);
   memset(dstBuf, 0, len);
   sprintf(srcBuf, "%s%s%s", srcDir, TD_DIRSEP, p->pManifest);
-  sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, p->pManifest);
+  sprintf(dstBuf, "%s%s%s_%" PRId64 "", dstDir, TD_DIRSEP, p->pManifest, p->curChkpId);
   if (taosCopyFile(srcBuf, dstBuf) < 0) {
     stError("failed to copy file from %s to %s", srcBuf, dstBuf);
+    goto _ERROR;
   }
+
+  static char* chkpMeta = "META";
+  memset(dstBuf, 0, len);
+  sprintf(dstDir, "%s%s%s", dstDir, TD_DIRSEP, chkpMeta);
+
+  TdFilePtr pFile = taosOpenFile(dstDir, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) {
+    stError("chkp failed to create meta file: %s", dstDir);
+    goto _ERROR;
+  }
+  char content[128] = {0};
+  snprintf(content, sizeof(content), "%s_%" PRId64 "\n%s_%" PRId64 "", p->pCurrent, p->curChkpId, p->pManifest,
+           p->curChkpId);
+  if (taosWriteFile(pFile, content, strlen(content)) <= 0) {
+    stError("chkp failed to write meta file: %s", dstDir);
+    taosCloseFile(&pFile);
+    goto _ERROR;
+  }
+  taosCloseFile(&pFile);
 
   // clear delta data buf
   taosArrayClearP(p->pAdd, taosMemoryFree);
   taosArrayClearP(p->pDel, taosMemoryFree);
+  code = 0;
 
 _ERROR:
   taosThreadRwlockUnlock(&p->rwLock);
@@ -3718,22 +3722,22 @@ int32_t bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list, 
   SDbChkp*  pChkp = ppChkp != NULL ? *ppChkp : NULL;
 
   if (pChkp == NULL) {
-    char* taskPath = taosMemoryCalloc(1, strlen(bm->path) + 64);
-    sprintf(taskPath, "%s%s%s", bm->path, TD_DIRSEP, taskId);
+    char* path = taosMemoryCalloc(1, strlen(bm->path) + 64);
+    sprintf(path, "%s%s%s", bm->path, TD_DIRSEP, taskId);
 
-    SDbChkp* p = dbChkpCreate(taskPath, chkpId);
+    SDbChkp* p = dbChkpCreate(path, chkpId);
     taosHashPut(bm->pDbChkpTbl, taskId, strlen(taskId), &p, sizeof(void*));
 
-    taosMemoryFree(taskPath);
     pChkp = p;
 
-    code = dbChkpDumpTo(pChkp, dname);
+    code = dbChkpDumpTo(pChkp, dname, list);
     taosThreadRwlockUnlock(&bm->rwLock);
     return code;
   }
 
-  code = dbChkpGetDelta(pChkp, chkpId, list);
-  code = dbChkpDumpTo(pChkp, dname);
+  code = dbChkpGetDelta(pChkp, chkpId, NULL);
+  code = dbChkpDumpTo(pChkp, dname, list);
+
   taosThreadRwlockUnlock(&bm->rwLock);
   return code;
 }
@@ -3763,7 +3767,7 @@ int32_t bkdMgtDumpTo(SBkdMgt* bm, char* taskId, char* dname) {
   taosThreadRwlockRdlock(&bm->rwLock);
 
   SDbChkp* p = taosHashGet(bm->pDbChkpTbl, taskId, strlen(taskId));
-  code = dbChkpDumpTo(p, dname);
+  code = dbChkpDumpTo(p, dname, NULL);
 
   taosThreadRwlockUnlock(&bm->rwLock);
   return code;

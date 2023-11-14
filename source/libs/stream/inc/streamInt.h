@@ -163,6 +163,7 @@ int         uploadCheckpoint(char* id, char* path);
 int         downloadCheckpoint(char* id, char* path);
 int         deleteCheckpoint(char* id);
 int         deleteCheckpointFile(char* id, char* name);
+int         downloadCheckpointByName(char* id, char* fname, char* dstName);
 
 int32_t onNormalTaskReady(SStreamTask* pTask);
 int32_t onScanhistoryTaskReady(SStreamTask* pTask);

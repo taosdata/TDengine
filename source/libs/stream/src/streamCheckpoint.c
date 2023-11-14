@@ -338,18 +338,72 @@ void streamTaskSetFailedId(SStreamTask* pTask) {
   pTask->chkInfo.checkpointId = pTask->chkInfo.checkpointingId;
 }
 
+int32_t getChkpMeta(char* id, char* path, SArray* list) {
+  char* file = taosMemoryCalloc(1, strlen(path) + 32);
+  sprintf(file, "%s%s%s", path, TD_DIRSEP, "META_TMP");
+  int32_t code = downloadCheckpointByName(id, "META", file);
+  if (code != 0) {
+    stDebug("chkp failed to download meta file:%s", file);
+    taosMemoryFree(file);
+    return code;
+  }
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
+  char      buf[128] = {0};
+  if (taosReadFile(pFile, buf, sizeof(buf)) <= 0) {
+    stError("chkp failed to read meta file:%s", file);
+    code = -1;
+  } else {
+    int32_t len = strlen(buf);
+    for (int i = 0; i < len; i++) {
+      if (buf[i] == '\n') {
+        char* item = taosMemoryCalloc(1, i + 1);
+        memcpy(item, buf, i);
+        taosArrayPush(list, &item);
+
+        item = taosMemoryCalloc(1, len - i);
+        memcpy(item, buf + i + 1, len - i - 1);
+        taosArrayPush(list, &item);
+      }
+    }
+  }
+  taosCloseFile(&pFile);
+  taosRemoveFile(file);
+  taosMemoryFree(file);
+  return code;
+}
 int32_t doUploadChkp(void* param) {
   SAsyncUploadArg* arg = param;
   char*            path = NULL;
   int32_t          code = 0;
+  SArray*          list = taosArrayInit(4, sizeof(void*));
 
   if ((code = taskDbGenChkpUploadData(arg->pTask->pBackend, arg->pTask->pMeta->bkdChkptMgt, arg->chkpId,
-                                      (int8_t)(arg->type), &path)) != 0) {
+                                      (int8_t)(arg->type), &path, list)) != 0) {
     stError("s-task:%s failed to gen upload checkpoint:%" PRId64 "", arg->pTask->id.idStr, arg->chkpId);
   }
-  if (code == 0 && uploadCheckpoint(arg->taskId, path) != 0) {
+
+  code = getChkpMeta(arg->taskId, path, list);
+  if (code != 0) {
+    code = 0;
+  }
+
+  if (code == 0 && (code = uploadCheckpoint(arg->taskId, path)) != 0) {
     stError("s-task:%s failed to upload checkpoint:%" PRId64, arg->pTask->id.idStr, arg->chkpId);
   }
+
+  if (code == 0) {
+    for (int i = 0; i < taosArrayGetSize(list); i++) {
+      char* p = taosArrayGetP(list, i);
+      code = deleteCheckpointFile(arg->taskId, p);
+      stDebug("try to del file: %s", p);
+      if (code != 0) {
+        break;
+      }
+    }
+  }
+
+  taosArrayDestroyP(list, taosMemoryFree);
+
   taosRemoveDir(path);
   taosMemoryFree(path);
   taosMemoryFree(arg->taskId);
@@ -464,6 +518,17 @@ static int uploadCheckpointToS3(char* id, char* path) {
   return 0;
 }
 
+static int downloadCheckpointByNameS3(char* id, char* fname, char* dstName) {
+  int   code = 0;
+  char* buf = taosMemoryCalloc(1, strlen(id) + strlen(dstName) + 4);
+  sprintf(buf, "%s/%s", id, fname);
+  if (s3GetObjectToFile(buf, dstName) != 0) {
+    code = -1;
+  }
+  taosMemoryFree(buf);
+  return code;
+}
+
 UPLOAD_TYPE getUploadType() {
   if (strlen(tsSnodeAddress) != 0) {
     return UPLOAD_RSYNC;
@@ -483,6 +548,20 @@ int uploadCheckpoint(char* id, char* path) {
     return uploadRsync(id, path);
   } else if (tsS3StreamEnabled) {
     return uploadCheckpointToS3(id, path);
+  }
+  return 0;
+}
+
+// fileName:  CURRENT
+int downloadCheckpointByName(char* id, char* fname, char* dstName) {
+  if (id == NULL || fname == NULL || strlen(id) == 0 || strlen(fname) == 0 || strlen(fname) >= PATH_MAX) {
+    stError("uploadCheckpointByName parameters invalid");
+    return -1;
+  }
+  if (strlen(tsSnodeAddress) != 0) {
+    return 0;
+  } else if (tsS3StreamEnabled) {
+    return downloadCheckpointByNameS3(id, fname, dstName);
   }
   return 0;
 }
