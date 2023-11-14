@@ -169,10 +169,15 @@ int32_t streamStateSnapWriterClose(SStreamStateWriter* pWriter, int8_t rollback)
 }
 int32_t streamStateRebuildFromSnap(SStreamStateWriter* pWriter, int64_t chkpId) {
   tqDebug("vgId:%d, vnode %s  start to rebuild stream-state", TD_VID(pWriter->pTq->pVnode), STREAM_STATE_TRANSFER);
+
+  streamMetaWLock(pWriter->pTq->pStreamMeta);
   int32_t code = streamMetaReopen(pWriter->pTq->pStreamMeta);
   if (code == 0) {
+    streamMetaInitBackend(pWriter->pTq->pStreamMeta);
     code = streamStateLoadTasks(pWriter);
   }
+
+  streamMetaWUnLock(pWriter->pTq->pStreamMeta);
   tqDebug("vgId:%d, vnode %s  succ to rebuild stream-state", TD_VID(pWriter->pTq->pVnode), STREAM_STATE_TRANSFER);
   taosMemoryFree(pWriter);
   return code;
