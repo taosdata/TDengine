@@ -516,8 +516,8 @@ fn main() -> Result<()> {
     set_env_log_home_dir(args.global.logs_home.clone());
     set_env_log_keep_days(args.global.log_keep_days.clone());
 
-    let mut log_path = get_log_dir("server");
-    log_path.push("server.log");
+    let mut log_path = get_log_dir("");
+    log_path.push("taosx.log");
     println!("log path: {:?}", log_path);
     let log_keep_days = get_log_keep_days();
     println!("log keep days: {}", &log_keep_days);

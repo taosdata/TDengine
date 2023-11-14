@@ -43,7 +43,7 @@ fn pi_backfill_exe_path() -> anyhow::Result<PathBuf> {
 const LOG_FILE: &str = "pi.log";
 
 fn log_path() -> PathBuf {
-    super::get_log_dir("pi")
+    super::get_log_dir("")
 }
 
 /// PI DSN example: "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&points=@<file>"

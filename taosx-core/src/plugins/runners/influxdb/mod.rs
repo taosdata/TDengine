@@ -380,7 +380,7 @@ async fn validate_source_influxdb(
 }
 
 fn log_path() -> PathBuf {
-    super::get_log_dir("influxdb")
+    super::get_log_dir("")
 }
 
 fn influxdb_jar_path() -> anyhow::Result<PathBuf> {
