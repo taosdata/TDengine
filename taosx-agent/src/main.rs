@@ -297,7 +297,7 @@ fn main() -> anyhow::Result<()> {
             DateFrom::DateYesterday,
         ),
         ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
+        Compression::OnRotate(2),
         #[cfg(unix)]
         None,
     );
