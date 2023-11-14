@@ -1,45 +1,43 @@
-taosx_sys_cpus: 描述占位符测试
-taosx_sys_total_memory: 描述占位符测试
-taosx_sys_used_memory: 描述占位符测试
-taosx_sys_free_memory: 描述占位符测试
-taosx_sys_available_memory: 描述占位符测试
-taosx_sys_uptime_in_seconds: 描述占位符测试
-taosx_process_cpu_percent: 描述占位符测试
-taosx_process_mem_percent: 描述占位符测试
-taosx_process_io_read_bytes: 描述占位符测试
-taosx_process_io_written_bytes: 描述占位符测试
-taosx_process_tasks: 描述占位符测试
-metrics.legacy.workers: 描述占位符测试
-metrics.legacy.stables: 描述占位符测试
-metrics.legacy.updated_tags: 描述占位符测试
-metrics.legacy.updated_tables: 描述占位符测试
-metrics.legacy.created_tables: 描述占位符测试
-metrics.legacy.tables: 描述占位符测试
-metrics.legacy.blocks: 描述占位符测试
-metrics.legacy.records: 描述占位符测试
-metrics.legacy.points: 描述占位符测试
-metrics.time_started_timestamp: 描述占位符测试
-metrics.time_started_date: 描述占位符测试
-metrics.time_cost: 描述占位符测试
-metrics.records_per_second: 描述占位符测试
-ipc.stream.record_batches: 描述占位符测试
-ipc.stream.batch_records: 描述占位符测试
-ipc.stream.insert_sqls: 描述占位符测试
-ipc.stream.insert_sql_fails: 描述占位符测试
-ipc.stream.stable_created: 描述占位符测试
-ipc.stream.child_table_created: 描述占位符测试
-ipc.stream.records: 描述占位符测试
-ipc.stream.record_fails: 描述占位符测试
-ipc.stream.points: 描述占位符测试
-ipc.stream.point_fails: 描述占位符测试
-ipc.stream.write_raw_blocks: 描述占位符测试
-ipc.stream.write_raw_blocks_fails: 描述占位符测试
-metrics.tmq.topics: 描述占位符测试
-metrics.tmq.workers: 描述占位符测试
-metrics.tmq.messages: 描述占位符测试
-metrics.tmq.messages_of_meta: 描述占位符测试
-metrics.tmq.write_meta_fails: 描述占位符测试
-metrics.tmq.messages_of_data: 描述占位符测试
-metrics.tmq.blocks: 描述占位符测试
-metrics.tmq.records: 描述占位符测试
-metrics.tmq.points: 描述占位符测试
+taosx_sys_cpus: 系统 CPU 核数
+taosx_sys_total_memory: 系统总内存，单位：字节
+taosx_sys_used_memory: 系统已用内存，单位：字节
+taosx_sys_available_memory: 系统可用内存, 单位：字节
+taosx_sys_uptime_in_seconds: 系统启动时长，单位：秒
+taosx_process_cpu_percent: taosX 进程占用 CPU 百分比
+taosx_process_mem_percent: taosX 进程占用内存百分比
+taosx_process_io_read_bytes: 从上次更新到现在 taosX IO 读字节数
+taosx_process_io_written_bytes: 从上次更新到现在 taosX IO 写字节数
+taosx_process_tasks: taosx 进程的线程数
+metrics.legacy.workers: 并发读取数据源的数据 worker 数
+metrics.legacy.stables: 完成数据迁移的超级表数据
+metrics.legacy.updated_tags: 更新 tag 数
+metrics.legacy.updated_tables: 更新子表数
+metrics.legacy.created_tables: 创建子表数
+metrics.legacy.tables: 完成数据迁移的子表数
+metrics.legacy.blocks: 写入成功的数据块数
+metrics.legacy.records: 写入成功的行数
+metrics.legacy.points: 写入成功的测点数
+metrics.time_started_timestamp: 任务启动时的 UTC 时间对应的毫秒数
+metrics.time_cost: 任务已经运行秒数
+metrics.records_per_second: 平均每秒写入行数
+ipc.stream.record_batches: taosX 通过 IPC Stream 收到的数据总批数
+ipc.stream.batch_records: taosX 通过 IPC Stream 收到的数据总行数
+ipc.stream.insert_sqls: taosX 执行的 INSERT SQL 总条数
+ipc.stream.insert_sql_fails: taosX 执行失败的 INSERT SQL 总条数
+ipc.stream.stable_created: 尝试创建超级表数（可能大于实际值）
+ipc.stream.child_table_created: 尝试创建子表数(可能大于实际值)
+ipc.stream.records: 成功写入 TDengine 的总行数（包括重复记录）
+ipc.stream.record_fails: 写入失败的行数
+ipc.stream.points: 写入成功的点数, 即写入成功的函数乘以列数（包括重复记录）
+ipc.stream.point_fails: 写入失败的点数
+ipc.stream.write_raw_blocks: 写人成功的 raw block 数
+ipc.stream.write_raw_blocks_fails: 写入失败的 raw block 数
+metrics.tmq.topics: 通过 TMQ 订阅的主题数
+metrics.tmq.workers: TMQ 消费者数
+metrics.tmq.messages: 通过 TMQ 收到的消息总数
+metrics.tmq.messages_of_meta: 通过 TMQ 收到的 Meta 类型的消息总数
+metrics.tmq.write_meta_fails: 写入 Raw Meta 失败次数
+metrics.tmq.messages_of_data: 通过 TMQ 收到的 Data 和 MetaData 类型的消息总数
+metrics.tmq.blocks: 写入成功的数据块数
+metrics.tmq.records: 写入成功的行数（等于数据块包含的行数）
+metrics.tmq.points: 写入成功点数(等于数据块包含的行数乘以数据块包含的列数)
