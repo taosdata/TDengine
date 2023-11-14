@@ -603,7 +603,8 @@ export default {
           component: Metrics,
           params: {
             data: array,
-            metricsDesc
+            metricsDesc,
+            taskId: data.id
           },
           config: {
             title: this.$t("dataIn.metrics"),
