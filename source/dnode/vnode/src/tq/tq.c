@@ -1985,6 +1985,8 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
         return -1;
       }
 
+      streamMetaInitBackend(pMeta);
+
       if (streamMetaLoadAllTasks(pTq->pStreamMeta) < 0) {
         tqError("vgId:%d failed to load stream tasks", vgId);
         streamMetaWUnLock(pMeta);

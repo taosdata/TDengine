@@ -120,6 +120,10 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py -Q 4
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3 -i False
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3 -i False

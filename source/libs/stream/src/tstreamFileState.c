@@ -428,6 +428,7 @@ SRowBuffPos* getNewRowPosForWrite(SStreamFileState* pFileState) {
   newPos->beUsed = true;
   newPos->beFlushed = false;
   newPos->needFree = false;
+  newPos->beUpdated = true;
   return newPos;
 }
 

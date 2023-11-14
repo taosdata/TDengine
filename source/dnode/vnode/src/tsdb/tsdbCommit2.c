@@ -409,7 +409,6 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
   extern int32_t tsS3UploadDelaySec;
   long           s3Size(const char *object_name);
   int32_t        nlevel = tfsGetLevel(committer->tsdb->pVnode->pTfs);
-  committer->ctx->skipTsRow = false;
   if (tsS3Enabled && nlevel > 1 && committer->ctx->fset) {
     STFileObj *fobj = committer->ctx->fset->farr[TSDB_FTYPE_DATA];
     if (fobj && fobj->f->did.level == nlevel - 1) {

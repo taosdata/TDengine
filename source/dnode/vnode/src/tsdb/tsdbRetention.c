@@ -74,6 +74,8 @@ static int32_t tsdbDoCopyFile(SRTNer *rtner, const STFileObj *from, const STFile
   if (fdFrom == NULL) code = terrno;
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  tsdbInfo("vgId: %d, open tofile: %s size: %" PRId64, TD_VID(rtner->tsdb->pVnode), fname, from->f->size);
+
   fdTo = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
   if (fdTo == NULL) code = terrno;
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -101,7 +103,7 @@ static int32_t tsdbCopyFileS3(SRTNer *rtner, const STFileObj *from, const STFile
 
   char      fname[TSDB_FILENAME_LEN];
   TdFilePtr fdFrom = NULL;
-  TdFilePtr fdTo = NULL;
+  // TdFilePtr fdTo = NULL;
 
   tsdbTFileName(rtner->tsdb, to, fname);
 
@@ -333,6 +335,7 @@ static int32_t tsdbDoRetentionOnFileSet(SRTNer *rtner, STFileSet *fset) {
           int32_t mtime = 0;
           taosStatFile(fobj->fname, NULL, &mtime, NULL);
           if (mtime < rtner->now - tsS3UploadDelaySec) {
+            tsdbInfo("file:%s size: %" PRId64 " do migrate s3", fobj->fname, fobj->f->size);
             code = tsdbMigrateDataFileS3(rtner, fobj, &did);
             TSDB_CHECK_CODE(code, lino, _exit);
           }
@@ -356,6 +359,9 @@ static int32_t tsdbDoRetentionOnFileSet(SRTNer *rtner, STFileSet *fset) {
         s3EvictCache(fobj->fname, fsize * 2);
       }
       */
+      tsdbInfo("file:%s size: %" PRId64 " do migrate from %d to %d", fobj->fname, fobj->f->size, fobj->f->did.level,
+               did.level);
+
       code = tsdbDoMigrateFileObj(rtner, fobj, &did);
       TSDB_CHECK_CODE(code, lino, _exit);
       //}
@@ -375,14 +381,6 @@ static int32_t tsdbDoRetentionOnFileSet(SRTNer *rtner, STFileSet *fset) {
 
 _exit:
   if (code) {
-    if (TARRAY2_DATA(rtner->fopArr)) {
-      TARRAY2_DESTROY(rtner->fopArr, NULL);
-    }
-    TFileSetArray **fsetArr = &rtner->fsetArr;
-    if (fsetArr[0]) {
-      tsdbFSDestroyCopySnapshot(&rtner->fsetArr);
-    }
-
     TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
   }
   return code;
@@ -437,12 +435,18 @@ static int32_t tsdbDoRetentionAsync(void *arg) {
 
 _exit:
   if (code) {
+    if (TARRAY2_DATA(rtner->fopArr)) {
+      TARRAY2_DESTROY(rtner->fopArr, NULL);
+    }
+    TFileSetArray **fsetArr = &rtner->fsetArr;
+    if (fsetArr[0]) {
+      tsdbFSDestroyCopySnapshot(&rtner->fsetArr);
+    }
+
     TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
   }
   return code;
 }
-
-
 
 int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync) {
   int32_t code = 0;

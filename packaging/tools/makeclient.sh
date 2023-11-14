@@ -24,10 +24,12 @@ clientName2="${12}"
 productName="TDengine"
 clientName="taos"
 benchmarkName="taosBenchmark"
+dumpName="taosdump"
 configFile="taos.cfg"
 tarName="package.tar.gz"
 
 benchmarkName2="${clientName2}Benchmark"
+dumpName2="${clientName2}dump"
 
 if [ "$osType" != "Darwin" ]; then
   script_dir="$(dirname $(readlink -f $0))"
@@ -71,6 +73,7 @@ if [ "$osType" != "Darwin" ]; then
   else
     bin_files="${build_dir}/bin/${clientName} \
         ${build_dir}/bin/${benchmarkName} \
+        ${build_dir}/bin/${dumpName} \
         ${script_dir}/remove_client.sh \
         ${script_dir}/set_core.sh \
         ${script_dir}/get_client.sh"
