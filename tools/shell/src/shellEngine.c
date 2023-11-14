@@ -456,7 +456,7 @@ static bool shellConvertGrantCols(const char *in, int32_t iLen, char *out, int32
       int32_t expireVLen = POINTER_DISTANCE(expireEnd, expireStart);
       int32_t finalLen = iLen - expireVLen + 19;  // yyyy-MM-dd hh:mm:ss
       if (expireVLen > 0 && finalLen < GRANT_CONN_ITEM_LEN_MAX) {
-        int32_t expireVal = strtol(expireStart, NULL, 10);
+        int32_t expireVal = taosStr2Int32(expireStart, NULL, 10);
         if (expireVal < 0 || expireVal > 65535) {
           return false;
         }
@@ -938,16 +938,6 @@ void shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields) {
   }
   putchar('\r');
   putchar('\n');
-}
-
-static char *grantSecondsToString(uint32_t seconds) {
-  char     *ts = taosMemoryCalloc(64, 1);
-  time_t    sec = seconds;
-  struct tm ptm;
-  if (taosLocalTime(&sec, &ptm, ts) != NULL) {
-    strftime(ts, 64, "%Y-%m-%d %H:%M:%S", &ptm);
-  }
-  return ts;
 }
 
 void shellHorizontalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
