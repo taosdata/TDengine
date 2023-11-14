@@ -105,7 +105,7 @@ groups:
         value: 10
 
   - name: Collect
-    display_order: 3
+    display_order: 2
     description: Configurations for collecting data from OPC
     params:
       - name: interval
@@ -119,7 +119,7 @@ groups:
         value: 1
 
   - name: Original Data Save
-    display_order: 2
+    display_order: 3
     description: Original Data Collected By OPC Connector Save Config
     params:
       - name: enable
@@ -146,39 +146,47 @@ groups:
         placeholder: 10
         value: 10
 
-  - name: Others
-    display_order: 3
-    description: Other configurations.
+  - name: Advanced Options
+    display_order: 4
+    description: |
+      Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave 
+      these options as default to use the recommended settings.
     params:
       - name: concurrent
         display: Write Concurrency
-        description: Number of concurrency while writing to database
+        description: Number of concurrency while connecting with server or agent.
+        value: 1
         hint:
           type: integer
           min: 1
           max: 100
-        value: 1
       - name: batch_size
-        display: Write Batch Size
+        display: Batch Size
+        description: Maximum(but soft) number of records for a batch to write up upstream.
+        placeholder: 100
+        value: 1000
         hint:
           type: integer
           min: 1
           max: 10000
-        description: Maximum number of records for a batch when writing to database
-        placeholder: 100
-        value: 1000
       - name: batch_timeout
-        display: Write Batch Timeout
+        display: Batch Timeout
+        description: Timeout for writing a batch to upstream in seconds
+        placeholder: 20
+        value: 1
         hint:
           type: integer
           min: 1
           max: 60
-        description: Timeout for writing a batch to database in seconds
-        placeholder: 20
-        value: 1
-
-      - name: debug
-        display: Enable Debug Log
+      - name: log_level
+        display: Log Level
+        description: Adjust the log level of the data source as required. This parameter does not always take effect.
+        value: info
         hint:
-          type: bool
-        description: Set true to enable Debug log
+          type: str
+          choices:
+            - error
+            - warn
+            - info
+            - debug
+            - trace

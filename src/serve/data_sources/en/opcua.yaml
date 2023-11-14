@@ -47,11 +47,11 @@ authentication:
         description: OPC server password.
         placeholder: password
         required: true
+
     - name: certificates
       display: Certificates
       description: Use certificate file and private key.
       params:
-
         - name: security_mode
           display: Security Mode
           description: |
@@ -87,6 +87,7 @@ authentication:
           # description: Path to private key.pem. Required when security mode or policy isn't "None"
           hint:
             type: file
+
 datasets:
   name: Data Sets
   description: Data points in OPC server to collect.
@@ -139,7 +140,7 @@ datasets:
 
 groups:
   - name: Connection
-    display_order: 2
+    display_order: 1
     description: Configuration used in OPC connection
     params:
       - name: connect_timeout
@@ -152,41 +153,42 @@ groups:
           type: integer
           min: 1
           max: 60
+
       - name: request_timeout
         display: Request Timeout
+        description: Timeout for a request to endpoint in seconds
+        placeholder: 10
+        value: 1
         hint:
           type: integer
           min: 1
           max: 60
-        description: Timeout for a request to endpoint in seconds
-        placeholder: 10
-        value: 1
 
   - name: Collect
-    display_order: 3
+    display_order: 2
     description: Configurations for collecting data from OPC
     params:
       - name: interval
         display: Collect interval
         description: |-
           Collect data interval in second
+        value: 10
         hint:
           type: integer
           min: 1
           max: 60
-        value: 10
 
       - name: collect_mode
         display: Collect Mode
         description: |-
           observe or subscribe. default is subscribe
         placeholder: subscribe
+        value: subscribe
         hint:
           type: str
           choices:
             - observe
             - subscribe
-        value: subscribe
 
   - name: Original Data Save
     display_order: 3
@@ -202,53 +204,64 @@ groups:
 
       - name: path
         display: Path to Save
-        hint:
-          type: str
         description: Data save path, should config if enable save data.
         placeholder: /data/
+        hint:
+          type: str
 
       - name: keep
         display: Data Keep Days
-        hint:
-          type: integer
-          min: 1
         description: Original Data Keep Days, should config if enable save data.
         placeholder: 10
         value: 10
+        hint:
+          type: integer
+          min: 1
 
-  - name: Others
-    display_order: 5
-    description: Other configurations.
+  - name: Advanced Options
+    display_order: 4
+    description: |
+      Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave 
+      these options as default to use the recommended settings.
     params:
       - name: concurrent
         display: Write Concurrency
-        description: Number of concurrency while writing to database
+        description: Number of concurrency while connecting with server or agent.
+        value: 1
         hint:
           type: integer
           min: 1
           max: 100
-        value: 1
+
       - name: batch_size
-        display: Write Batch Size
+        display: Batch Size
+        description: Maximum(but soft) number of records for a batch to write up upstream.
+        placeholder: 100
+        value: 1000
         hint:
           type: integer
           min: 1
           max: 10000
-        description: Maximum number of records for a batch when writing to database
-        placeholder: 100
-        value: 1000
+
       - name: batch_timeout
-        display: Write Batch Timeout
+        display: Batch Timeout
+        description: Timeout for writing a batch to upstream in seconds
+        placeholder: 20
+        value: 1
         hint:
           type: integer
           min: 1
           max: 60
-        description: Timeout for writing a batch to database in seconds
-        placeholder: 20
-        value: 1
 
-      - name: debug
-        display: Enable Debug Log
+      - name: log_level
+        display: Log Level
+        description: Adjust the log level of the data source as required. This parameter does not always take effect.
+        value: info
         hint:
-          type: bool
-        description: Set true to enable Debug log
+          type: str
+          choices:
+            - error
+            - warn
+            - info
+            - debug
+            - trace

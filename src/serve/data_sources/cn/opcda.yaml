@@ -74,7 +74,6 @@ datasets:
           type: str
         required: true
 
-
 groups:
   - name: 连接配置
     display_order: 1
@@ -115,7 +114,7 @@ groups:
         value: 1
 
   - name: 原始数据保存
-    display_order: 2
+    display_order: 3
     description: OPC 连接器采集到的原始数据保存配置。
     params:
       - name: enable
@@ -142,41 +141,47 @@ groups:
         placeholder: 10
         value: 10
 
-  - name: 其他
-    display_order: 3
-    description: 其他配置项。
+  - name: 高级选项
+    display_order: 4
+    description: 对数据源性能、日志等其他参数进行调整，可修改以下选项。
     params:
       - name: concurrent
-        display: 上报并行度
-        description: 采集的数据写入数据库的并行度
+        display: 最大写入并发数
+        description: 写入 taosX 的最大并发数限制，当默认参数性能不足时，可增大此参数。
+        value: 1
         hint:
           type: integer
           min: 1
           max: 100
-        value: 1
       - name: batch_size
-        display: 上报批次大小
+        display: 批次大小
+        description: 单次发送的最大消息数或行数。
+        placeholder: 100
+        value: 1000
         hint:
           type: integer
           min: 1
           max: 10000
-        description: 每次采集数据写入数据库的最大记录条数
-        placeholder: 100
-        value: 1000
       - name: batch_timeout
-        display: 上报超时
+        display: 批次延时
+        description: 单次读取最大延时，当超时结束时，只要有数据，即使不满足 Batch Size，也立即发送。
+        placeholder: 20
+        value: 1
         hint:
           type: integer
           min: 1
           max: 60
-        description: 每批次采集数据上报的超时时间间隔，单位为：秒 (s)
-        placeholder: 20
-        value: 1
-
-      - name: debug
-        display: 开启 Debug 日志
+      - name: log_level
+        display: 日志级别
+        description: 根据需要调整数据源的日志级别，此参数不总是生效。
+        value: info
         hint:
-          type: bool
-        description: 是否开启 opc 连接器的 debug 日志
+          type: str
+          choices:
+            - error
+            - warn
+            - info
+            - debug
+            - trace
 
 
