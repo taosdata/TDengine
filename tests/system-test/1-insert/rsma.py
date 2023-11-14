@@ -55,167 +55,6 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), True)
 
-    @property
-    def create_databases_sql_err(self):
-        return [
-            # check grammar
-            "create database db1 retentions",
-            "create database db1 retentions 1s:1d",
-            "create database db1 retentions 1s:1d,2s:2d",
-            "create database db1 retentions 1s:1d,2s:2d,3s:3d",
-            "create database db1 retentions 1s:1d,2s:2d,3s:3d,4s:4d",
-            "create database db1 retentions -:1d,2s:2d,3s:3d,4s:4d",
-            "create database db1 retentions --:1d",
-            "create database db1 retentions -:-:1d",
-            "create database db1 retentions 1d:-",
-            "create database db1 retentions -:-",
-            "create database db1 retentions +:1d",
-            "create database db1 retentions :1d",
-            "create database db1 retentions -:1d,-:2d",
-            "create database db1 retentions -:1d,-:2d,-:3d",
-            "create database db1 retentions -:1d,1s:-",
-            "create database db1 retentions -:1d,15s:2d,-:3d",
-
-            # check unit
-            "create database db1 retentions -:1d,1b:1d",
-            "create database db1 retentions -:1d,1u:1d",
-            "create database db1 retentions -:1d,1a:1d",
-            "create database db1 retentions -:1d,1n:1d",
-            "create database db1 retentions -:1d,1y:1d",
-            "create database db1 retentions -:1d,1s:86400s",
-            "create database db1 retentions -:1d,1s:86400000a",
-            "create database db1 retentions -:1d,1s:86400000000u",
-            "create database db1 retentions -:1d,1s:86400000000000b",
-            "create database db1 retentions -:1s,1s:2s",
-            "create database db1 retentions -:1d,1s:1w",
-            "create database db1 retentions -:1d,1s:1n",
-            "create database db1 retentions -:1d,1s:1y",
-            
-            # check value range
-            "create database db3 retentions -:-1d",
-            "create database db3 retentions -:0d",
-            "create database db3 retentions -:1439m",
-            "create database db3 retentions -:365001d",
-            "create database db3 retentions -:8760001h",
-            "create database db3 retentions -:525600001m",
-            "create database db3 retentions -:106581d precision 'ns'",
-            "create database db3 retentions -:2557921h precision 'ns'",
-            "create database db3 retentions -:153475201m precision 'ns'",
-            # check relationships
-            "create database db5 retentions -:1440m,1441m:1440m,2d:3d",
-            "create database db5 retentions -:1d,2m:1d,1s:2d",
-            "create database db5 retentions -:1440m,1s:2880m,2s:2879m",
-            "create database db5 retentions -:1d,2s:2d,2s:3d",
-            "create database db5 retentions -:1d,3s:2d,2s:3d",
-            "create database db1 retentions -:1d,2s:3d,3s:2d",
-            "create database db1 retentions -:1d,2s:3d,1s:2d",
-
-        ]
-
-    @property
-    def create_databases_sql_current(self):
-        return [
-            f"create database {DB1} retentions -:1d",
-            f"create database {DB2} retentions -:1d,2m:2d,3h:3d",
-        ]
-
-    @property
-    def alter_database_sql(self):
-        return [
-            "alter database db1 retentions -:99d",
-            "alter database db2 retentions -:97d,98h:98d,99h:99d,",
-        ]
-
-    @property
-    def create_stable_sql_err(self, dbname=DB2):
-        return [
-            f"create stable {dbname}.stb11 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(ceil) watermark 1s max_delay 1m",
-            f"create stable {dbname}.stb12 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(count) watermark  1min",
-            f"create stable {dbname}.stb13 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) max_delay -1s",
-            f"create stable {dbname}.stb14 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) watermark -1m",
-            f"create stable {dbname}.stb15 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) watermark 1m ",
-            f"create stable {dbname}.stb16 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) max_delay 1m ",
-            f"create stable {dbname}.stb21 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} binary(16)) tags (tag1 int) rollup(avg) watermark 1s",
-            f"create stable {dbname}.stb22 ({PRIMARY_COL} timestamp, {INT_COL} int, {NCHAR_COL} nchar(16)) tags (tag1 int) rollup(avg) max_delay 1m",
-            f"create table  {dbname}.ntb_1 ({PRIMARY_COL} timestamp, {INT_COL} int, {NCHAR_COL} nchar(16)) rollup(avg) watermark 1s max_delay 1s",
-            f"create table  {dbname}.ntb_2 ({PRIMARY_COL} timestamp, {INT_COL} int) " ,
-            f"create stable {dbname}.stb23 ({PRIMARY_COL} timestamp, {INT_COL} int, {NCHAR_COL} nchar(16)) tags (tag1 int) " ,
-            f"create stable {dbname}.stb24 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) " ,
-            f"create stable {dbname}.stb25 ({PRIMARY_COL} timestamp, {INT_COL} int) " ,
-            f"create stable {dbname}.stb26 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} nchar(16)) " ,
-            # only float/double allowd for avg/sum
-            f"create stable {dbname}.stb11 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(avg)",
-            f"create stable {dbname}.stb11 ({PRIMARY_COL} timestamp, {BINT_COL} bigint) tags (tag1 int) rollup(avg)",
-            f"create stable {dbname}.stb11 ({PRIMARY_COL} timestamp, {BOOL_COL} bool) tags (tag1 int) rollup(avg)",
-            f"create stable {dbname}.stb11 ({PRIMARY_COL} timestamp, {BINARY_COL} binary(10)) tags (tag1 int) rollup(avg)",
-            f"create stable {dbname}.stb11 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(sum)",
-            f"create stable {dbname}.stb11 ({PRIMARY_COL} timestamp, {BINT_COL} bigint) tags (tag1 int) rollup(sum)",
-            f"create stable {dbname}.stb11 ({PRIMARY_COL} timestamp, {BOOL_COL} bool) tags (tag1 int) rollup(sum)",
-            f"create stable {dbname}.stb11 ({PRIMARY_COL} timestamp, {BINARY_COL} binary(10)) tags (tag1 int) rollup(sum)",
-
-
-            # watermark, max_delay: [0, 900000], [ms, s, m, ?]
-            f"create stable stb17 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) max_delay 1u",
-            f"create stable stb18 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) watermark 1b",
-            f"create stable stb19 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) watermark 900001ms",
-            f"create stable stb20 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) max_delay 16m",
-            f"create stable stb27 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) max_delay 901s",
-            f"create stable stb28 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) max_delay 1h",
-            f"create stable stb29 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) max_delay 0.2h",
-            f"create stable stb30 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) watermark 0.002d",
-
-        ]
-
-    @property
-    def create_tb(self, stb=STBNAME, ctb_num=20, ntbnum=1, rsma=False, dbname=DBNAME, rsma_type="sum"):
-        tdLog.printNoPrefix("==========step: create table")
-        if rsma:
-            if rsma_type.lower().strip() in ("last", "first"):
-                create_stb_sql = f'''create table {dbname}.{stb}(
-                        ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
-                        {FLOAT_COL} float, {DOUBLE_COL} double, {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
-                        {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned, {BINARY_COL} binary(16)
-                    ) tags ({INT_TAG} int) rollup({rsma_type}) watermark 5s,5s max_delay 5s,5s
-                    '''
-            elif rsma_type.lower().strip() in ("sum", "avg"):
-                create_stb_sql = f'''create table {dbname}.{stb}(
-                        ts timestamp, {DOUBLE_COL} double, {DOUBLE_COL}_1 double, {DOUBLE_COL}_2 double, {DOUBLE_COL}_3 double, 
-                        {FLOAT_COL} float, {DOUBLE_COL}_4 double, {FLOAT_COL}_1 float, {FLOAT_COL}_2 float, {FLOAT_COL}_3 float, 
-                        {DOUBLE_COL}_5 double) tags ({INT_TAG} int) rollup({rsma_type}) watermark 5s,5s max_delay 5s,5s
-                    '''
-            else:
-                create_stb_sql = f'''create table {dbname}.{stb}(
-                        ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
-                        {FLOAT_COL} float, {DOUBLE_COL} double, {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
-                        {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
-                    ) tags ({INT_TAG} int) rollup({rsma_type}) watermark 5s,5s max_delay 5s,5s
-                    '''
-            tdSql.execute(create_stb_sql)
-        else:
-            create_stb_sql = f'''create table {dbname}.{stb}(
-                    ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
-                    {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
-                    {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
-                    {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
-                    {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
-                ) tags ({INT_TAG} int)
-                '''
-            tdSql.execute(create_stb_sql)
-
-            for i in range(ntbnum):
-                create_ntb_sql = f'''create table {dbname}.nt{i+1}(
-                        ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
-                        {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
-                        {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
-                        {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
-                        {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
-                    )
-                    '''
-                tdSql.execute(create_ntb_sql)
-
-        for i in range(ctb_num):
-            tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.{stb} tags ( {i+1} )')
-
     def create_ctable(self,tsql=None, dbName='dbx',stbName='stb',ctbPrefix='ctb',ctbNum=1):
         tsql.execute("use %s" %dbName)
         pre_create = "create table"
@@ -283,10 +122,15 @@ class TDTestCase:
         tdSql.checkData(0, 0, '2023-11-07 10:00:00.000')
 
         #bug
-        # os.system(f"{binPath} -f ./1-insert/benchmark-tbl-rsma-alter.json")
-        # tdSql.execute(f"alter database db_replica replica 3;")
-        # clusterComCheck.check_vgroups_status(vgroup_numbers=1,db_replica=3,db_name="db_replica",count_number=240)        
-        # tdSql.execute(f"alter database db_replica replica 1;")
+        os.system(f"{binPath} -f ./1-insert/benchmark-tbl-rsma-alter.json")
+        tdSql.execute(f"alter database db_replica replica 3;")
+        clusterComCheck.check_vgroups_status(vgroup_numbers=2,db_replica=3,db_name="db_replica",count_number=240)        
+        tdSql.execute(f"alter database db_replica replica 1;")
+        clusterComCheck.check_vgroups_status(vgroup_numbers=2,db_replica=1,db_name="db_replica",count_number=240)     
+        tdSql.execute(f"alter database db_replica replica 3;")
+        clusterComCheck.check_vgroups_status(vgroup_numbers=2,db_replica=3,db_name="db_replica",count_number=240)        
+        tdSql.execute(f"alter database db_replica replica 1;")
+        clusterComCheck.check_vgroups_status(vgroup_numbers=2,db_replica=1,db_name="db_replica",count_number=240)   
 
         #bug
         # os.system(f"{binPath} -f ./1-insert/benchmark-tbl-rsma.json")
