@@ -28,11 +28,11 @@ static void    shellRecordCommandToHistory(char *command);
 static int32_t shellRunCommand(char *command, bool recordHistory);
 static void    shellRunSingleCommandImp(char *command);
 static char   *shellFormatTimestamp(char *buf, int64_t val, int32_t precision);
-static int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres);
+static int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres, int8_t cmdType);
 static void    shellPrintNChar(const char *str, int32_t length, int32_t width);
 static void    shellPrintGeometry(const unsigned char *str, int32_t length, int32_t width);
-static int64_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql);
-static int64_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql);
+static int64_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql, int8_t cmdType);
+static int64_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql, int8_t cmdType);
 static int64_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical, const char *sql);
 static void    shellReadHistory();
 static void    shellWriteHistory();
@@ -425,7 +425,42 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
   }
 }
 
-int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
+#define GRANT_CONN_ITEM_LEN_MIN (46)  // {"type":"a","number":1,"speed":0,"expire":"0"}
+#define GRANT_CONN_ITEM_LEN_MAX (256)
+static bool shellConvertGrantCols(const char *in, int32_t iLen, char *out, int32_t *oLen) {
+  char *expireStart;
+  if ((expireStart = strstr(in, "{\"type\":\"")) && (expireStart = strstr(expireStart, "\"number\":")) &&
+      (expireStart = strstr(expireStart, "\"speed\":")) && (expireStart = strstr(expireStart, "\"expire\":\""))) {
+    expireStart += 10;  // "expire":"
+    char *expireEnd = strchr(expireStart, '"');
+    if (expireEnd) {
+      int32_t expireStartLen = POINTER_DISTANCE(expireStart, in);
+      int32_t expireVLen = POINTER_DISTANCE(expireEnd, expireStart);
+      int32_t finalLen = iLen - expireVLen + 19;  // yyyy-MM-dd hh:mm:ss
+      if (expireVLen > 0 && finalLen < GRANT_CONN_ITEM_LEN_MAX) {
+        int32_t expireVal = taosStr2Int32(expireStart, NULL, 10);
+        if (expireVal < 0 || expireVal > 65535) {
+          return false;
+        }
+        char      ts[20];
+        time_t    sec = expireVal * 86400;
+        struct tm ptm;
+        if (taosLocalTime(&sec, &ptm, NULL) != NULL) {
+          strftime(ts, 20, "%Y-%m-%d %H:%M:%S", &ptm);
+          strncpy(out, in, expireStartLen);
+          strncpy(out + expireStartLen, ts, 19);
+          strncpy(out + expireStartLen + 19, expireEnd, iLen - expireStartLen - expireVLen);
+          out[finalLen] = 0;
+          if (oLen) *oLen = finalLen;
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres, int8_t cmdType) {
   char fullname[PATH_MAX] = {0};
   if (taosExpandDir(fname, fullname, PATH_MAX) != 0) {
     tstrncpy(fullname, fname, PATH_MAX);
@@ -455,13 +490,20 @@ int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
   taosFprintfFile(pFile, "\r\n");
 
   int64_t numOfRows = 0;
+  char    buf[GRANT_CONN_ITEM_LEN_MAX];
+  int32_t bufLen;
   do {
     int32_t *length = taos_fetch_lengths(tres);
     for (int32_t i = 0; i < num_fields; i++) {
       if (i > 0) {
         taosFprintfFile(pFile, ",");
       }
-      shellDumpFieldToFile(pFile, (const char *)row[i], fields + i, length[i], precision);
+      if (cmdType == 1 && (fields + i)->bytes >= GRANT_CONN_ITEM_LEN_MIN &&
+          shellConvertGrantCols(row[i], length[i], buf, &bufLen)) {
+        shellDumpFieldToFile(pFile, buf, fields + i, bufLen, precision);
+      } else {
+        shellDumpFieldToFile(pFile, (const char *)row[i], fields + i, length[i], precision);
+      }
     }
     taosFprintfFile(pFile, "\r\n");
 
@@ -697,7 +739,7 @@ bool shellIsShowQuery(const char *sql) {
   return false;
 }
 
-int64_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
+int64_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql, int8_t cmdType) {
   TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
     return 0;
@@ -723,6 +765,8 @@ int64_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
 
   int64_t numOfRows = 0;
   int32_t showMore = 1;
+  char    buf[GRANT_CONN_ITEM_LEN_MAX];
+  int32_t bufLen;
   do {
     if (numOfRows < resShowMaxNum) {
       printf("*************************** %"PRId64".row ***************************\r\n", numOfRows + 1);
@@ -735,7 +779,12 @@ int64_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
         int32_t padding = (int32_t)(maxColNameLen - strlen(field->name));
         printf("%*.s%s: ", padding, " ", field->name);
 
-        shellPrintField((const char *)row[i], field, 0, length[i], precision);
+        if (cmdType == 1 && field->bytes >= GRANT_CONN_ITEM_LEN_MIN &&
+            shellConvertGrantCols(row[i], length[i], buf, &bufLen)) {
+          shellPrintField(buf, field, 0, bufLen, precision);
+        } else {
+          shellPrintField((const char *)row[i], field, 0, length[i], precision);
+        }
         putchar('\r');
         putchar('\n');
       }
@@ -851,7 +900,7 @@ void shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields) {
   putchar('\n');
 }
 
-int64_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
+int64_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql, int8_t cmdType) {
   TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
     return 0;
@@ -876,13 +925,19 @@ int64_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
 
   int64_t numOfRows = 0;
   int32_t showMore = 1;
-
+  char    buf[GRANT_CONN_ITEM_LEN_MAX];
+  int32_t bufLen;
   do {
     int32_t *length = taos_fetch_lengths(tres);
     if (numOfRows < resShowMaxNum) {
       for (int32_t i = 0; i < num_fields; i++) {
         putchar(' ');
-        shellPrintField((const char *)row[i], fields + i, width[i], length[i], precision);
+        if (cmdType == 1 && (fields + i)->bytes >= GRANT_CONN_ITEM_LEN_MIN &&
+            shellConvertGrantCols(row[i], length[i], buf, &bufLen)) {
+          shellPrintField(buf, fields + i, width[i], bufLen, precision);
+        } else {
+          shellPrintField((const char *)row[i], fields + i, width[i], length[i], precision);
+        }
         putchar(' ');
         putchar('|');
       }
@@ -912,12 +967,19 @@ int64_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
 
 int64_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical, const char *sql) {
   int64_t numOfRows = 0;
+  int8_t  cmdType = 0;
+
+  if (shellRegexMatch(sql, "^\\s*show\\s+grants\\s*.*", REG_EXTENDED | REG_ICASE) ||
+      shellRegexMatch(sql, "^\\s*select\\s+.*from\\s*.*(\\.|\\s+)ins_grants\\s*.*", REG_EXTENDED | REG_ICASE)) {
+    cmdType = 1;
+  }
+
   if (fname != NULL) {
-    numOfRows = shellDumpResultToFile(fname, tres);
+    numOfRows = shellDumpResultToFile(fname, tres, cmdType);
   } else if (vertical) {
-    numOfRows = shellVerticalPrintResult(tres, sql);
+    numOfRows = shellVerticalPrintResult(tres, sql, cmdType);
   } else {
-    numOfRows = shellHorizontalPrintResult(tres, sql);
+    numOfRows = shellHorizontalPrintResult(tres, sql, cmdType);
   }
 
   *error_no = taos_errno(tres);
