@@ -191,6 +191,10 @@ export default {
     connected: '已连接',
     disconnected: '已断开',
   },
+  systemUpdate: '系统更新',
+  ignore: '忽略',
+  update: '更新',
+  updateContent: '发现新版本，点击"更新"获取,请在刷新前注意保存当前页面数据',
   plan: {
     pricePlan: "价格方案",
     selectPlan: "选择方案",

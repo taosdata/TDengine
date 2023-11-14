@@ -205,6 +205,10 @@ export default {
     connected: 'Connected',
     disconnected: 'Disconnected',
   },
+  systemUpdate: 'System update',
+  ignore: 'Ignore',
+  update: 'Update',
+  updateContent: 'Find the new version, click "Update" to obtain, please pay attention to save the current page data before refreshing',
   plan: {
     pricePlan: "Price Plan",
     planTitle: "TDengine  Price Plan",
