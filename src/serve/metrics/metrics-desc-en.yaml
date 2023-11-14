@@ -1,45 +1,43 @@
-taosx_sys_cpus: xxxxxxxxxxxxxxxxxxxxx
-taosx_sys_total_memory: xxxxxxxxxxxxxxxxxxxxx
-taosx_sys_used_memory: xxxxxxxxxxxxxxxxxxxxx
-taosx_sys_free_memory: xxxxxxxxxxxxxxxxxxxxx
-taosx_sys_available_memory: xxxxxxxxxxxxxxxxxxxxx
-taosx_sys_uptime_in_seconds: xxxxxxxxxxxxxxxxxxxxx
-taosx_process_cpu_percent: xxxxxxxxxxxxxxxxxxxxx
-taosx_process_mem_percent: xxxxxxxxxxxxxxxxxxxxx
-taosx_process_io_read_bytes: xxxxxxxxxxxxxxxxxxxxx
-taosx_process_io_written_bytes: xxxxxxxxxxxxxxxxxxxxx
-taosx_process_tasks: xxxxxxxxxxxxxxxxxxxxx
-metrics.legacy.workers: xxxxxxxxxxxxxxxxxxxxx
-metrics.legacy.stables: xxxxxxxxxxxxxxxxxxxxx
-metrics.legacy.updated_tags: xxxxxxxxxxxxxxxxxxxxx
-metrics.legacy.updated_tables: xxxxxxxxxxxxxxxxxxxxx
-metrics.legacy.created_tables: xxxxxxxxxxxxxxxxxxxxx
-metrics.legacy.tables: xxxxxxxxxxxxxxxxxxxxx
-metrics.legacy.blocks: xxxxxxxxxxxxxxxxxxxxx
-metrics.legacy.records: xxxxxxxxxxxxxxxxxxxxx
-metrics.legacy.points: xxxxxxxxxxxxxxxxxxxxx
-metrics.time_started_timestamp: xxxxxxxxxxxxxxxxxxxxx
-metrics.time_started_date: xxxxxxxxxxxxxxxxxxxxx
-metrics.time_cost: xxxxxxxxxxxxxxxxxxxxx
-metrics.records_per_second: xxxxxxxxxxxxxxxxxxxxx
-ipc.stream.record_batches: xxxxxxxxxxxxxxxxxxxxx
-ipc.stream.batch_records: xxxxxxxxxxxxxxxxxxxxx
-ipc.stream.insert_sqls: xxxxxxxxxxxxxxxxxxxxx
-ipc.stream.insert_sql_fails: xxxxxxxxxxxxxxxxxxxxx
-ipc.stream.stable_created: xxxxxxxxxxxxxxxxxxxxx
-ipc.stream.child_table_created: xxxxxxxxxxxxxxxxxxxxx
-ipc.stream.records: xxxxxxxxxxxxxxxxxxxxx
-ipc.stream.record_fails: xxxxxxxxxxxxxxxxxxxxx
-ipc.stream.points: xxxxxxxxxxxxxxxxxxxxx
-ipc.stream.point_fails: xxxxxxxxxxxxxxxxxxxxx
-ipc.stream.write_raw_blocks: xxxxxxxxxxxxxxxxxxxxx
-ipc.stream.write_raw_blocks_fails: xxxxxxxxxxxxxxxxxxxxx
-metrics.tmq.topics: xxxxxxxxxxxxxxxxxxxxx
-metrics.tmq.workers: xxxxxxxxxxxxxxxxxxxxx
-metrics.tmq.messages: xxxxxxxxxxxxxxxxxxxxx
-metrics.tmq.messages_of_meta: xxxxxxxxxxxxxxxxxxxxx
-metrics.tmq.write_meta_fails: xxxxxxxxxxxxxxxxxxxxx
-metrics.tmq.messages_of_data: xxxxxxxxxxxxxxxxxxxxx
-metrics.tmq.blocks: xxxxxxxxxxxxxxxxxxxxx
-metrics.tmq.records: xxxxxxxxxxxxxxxxxxxxx
-metrics.tmq.points: xxxxxxxxxxxxxxxxxxxxx
+taosx_sys_cpus: System CPU cores
+taosx_sys_total_memory: Ttotal system memory in bytes
+taosx_sys_used_memory: "System used memory, unit: bytes"
+taosx_sys_available_memory: "System available memory, unit: bytes"
+taosx_sys_uptime_in_seconds: system start-up duration, in seconds
+taosx_process_cpu_percent: "% CPU usage of taosx process"
+taosx_process_mem_percent: "% of memory occupied by taosx processes"
+taosx_process_io_read_bytes:  Number of read bytes since the last refresh
+taosx_process_io_written_bytes: Number of written bytes since the last refresh
+taosx_process_tasks: Number of threads run by this process
+metrics.legacy.workers: The number of workers concurrently reading data sources
+metrics.legacy.stables: Number of super tables successfully migrated
+metrics.legacy.updated_tags: Updated tag count
+metrics.legacy.updated_tables: Updated subtables count
+metrics.legacy.created_tables: Number of child tables created
+metrics.legacy.tables: Number of sub-tables successfully migrated
+metrics.legacy.blocks: Number of data blocks successfully written
+metrics.legacy.records: Number of rows written successfully
+metrics.legacy.points: Number of points written successfully
+metrics.time_started_timestamp: The number of milliseconds corresponding to the time when the task is started
+metrics.time_cost: The number of seconds the task has been running
+metrics.records_per_second: Average lines written per second
+ipc.stream.record_batches: Number of data batches received by taosx via IPC stream
+ipc.stream.batch_records: Number of data rows received by taosx via IPC stream
+ipc.stream.insert_sqls: Number of INSERT SQLs execute by taosx
+ipc.stream.insert_sql_fails: Number of INSERT SQLs failed to execute
+ipc.stream.stable_created: Number of suber tables that taosX try to created.(may greater than successfully created super tables)
+ipc.stream.child_table_created: Number of child tables that taosX try to created
+ipc.stream.records: Number of rows written successfully, including duplicated rows
+ipc.stream.record_fails: Number of rows failed to write
+ipc.stream.points: Number of points written successfully.(equals number of rows multiply number of columns)
+ipc.stream.point_fails: Number of points failed to write
+ipc.stream.write_raw_blocks: Number of raw blocks written sucessfully
+ipc.stream.write_raw_blocks_fails: Number of raw blocks failed to write
+metrics.tmq.topics: Number of topics that taosX will try to subscribe to
+metrics.tmq.workers: Number of consumbers that taosX created to cosume topics
+metrics.tmq.messages: Number of messages that taosX received
+metrics.tmq.messages_of_meta: Number of messages with type "Meta" that taosX received
+metrics.tmq.write_meta_fails: Number of "Meta" messages that taosX failed to deal with
+metrics.tmq.messages_of_data: Number of messages with type "Data" that taosX received
+metrics.tmq.blocks: Number of data blocks successfully written
+metrics.tmq.records: Number of rows successfully written
+metrics.tmq.points: Number of points successfully written

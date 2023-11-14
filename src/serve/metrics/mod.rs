@@ -17,7 +17,6 @@ pub struct Metrics {
 pub const METRIC_SYS_CPUS: &str = "taosx_sys_cpus";
 pub const METRIC_SYS_TOTAL_MEMORY: &str = "taosx_sys_total_memory";
 pub const METRIC_SYS_USED_MEMORY: &str = "taosx_sys_used_memory";
-pub const METRIC_SYS_FREE_MEMORY: &str = "taosx_sys_free_memory";
 pub const METRIC_SYS_AVAILABLE_MEMORY: &str = "taosx_sys_available_memory";
 pub const METRIC_SYS_UPTIME_IN_SECONDS: &str = "taosx_sys_uptime_in_seconds";
 pub const METRIC_PROCESS_CPU_PERCENT: &str = "taosx_process_cpu_percent";
@@ -54,7 +53,6 @@ pub fn process_metrics(sys: &mut sysinfo::System) -> anyhow::Result<()> {
     gauge!(METRIC_SYS_CPUS, sys.cpus().len() as f64);
     gauge!(METRIC_SYS_TOTAL_MEMORY, sys.total_memory() as f64);
     gauge!(METRIC_SYS_USED_MEMORY, sys.used_memory() as f64);
-    gauge!(METRIC_SYS_FREE_MEMORY, sys.free_memory() as f64);
     gauge!(METRIC_SYS_AVAILABLE_MEMORY, sys.available_memory() as f64);
     gauge!(METRIC_SYS_UPTIME_IN_SECONDS, sys.uptime() as f64);
 

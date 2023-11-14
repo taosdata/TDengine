@@ -1378,9 +1378,7 @@ async fn consume_flat_record(
                         if records.records.num_rows() == 0 {
                             continue;
                         }
-                        counter!(METRIC_BATCH_RECORDS, 1);
-                        // dbg!(&records);
-
+                        counter!(METRIC_BATCH_RECORDS,  records.records.num_rows() as u64);
                         if records.records.column(0).null_count() > 0 {
                             bail!("Timestamp field contains null or invalid values");
                         }
