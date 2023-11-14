@@ -490,8 +490,8 @@ int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres, int8_t cmdType)
   taosFprintfFile(pFile, "\r\n");
 
   int64_t numOfRows = 0;
-  char    buf[GRANT_CONN_ITEM_LEN_MAX];
   int32_t bufLen;
+  char    buf[GRANT_CONN_ITEM_LEN_MAX];
   do {
     int32_t *length = taos_fetch_lengths(tres);
     for (int32_t i = 0; i < num_fields; i++) {
@@ -765,8 +765,8 @@ int64_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql, int8_t cmdType
 
   int64_t numOfRows = 0;
   int32_t showMore = 1;
-  char    buf[GRANT_CONN_ITEM_LEN_MAX];
   int32_t bufLen;
+  char    buf[GRANT_CONN_ITEM_LEN_MAX];
   do {
     if (numOfRows < resShowMaxNum) {
       printf("*************************** %"PRId64".row ***************************\r\n", numOfRows + 1);
@@ -925,8 +925,8 @@ int64_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql, int8_t cmdTy
 
   int64_t numOfRows = 0;
   int32_t showMore = 1;
-  char    buf[GRANT_CONN_ITEM_LEN_MAX];
   int32_t bufLen;
+  char    buf[GRANT_CONN_ITEM_LEN_MAX];
   do {
     int32_t *length = taos_fetch_lengths(tres);
     if (numOfRows < resShowMaxNum) {
