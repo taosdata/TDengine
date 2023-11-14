@@ -345,7 +345,7 @@ fn create_rotating_log_writer(log_path: &Path, log_keep_days: i64) -> FileRotate
             DateFrom::DateYesterday,
         ),
         ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
+        Compression::OnRotate(2),
         #[cfg(unix)]
         None,
     )
