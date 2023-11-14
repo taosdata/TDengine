@@ -1723,7 +1723,7 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
   int32_t  code = 0;
   SBkdMgt* p = (SBkdMgt*)bkdChkpMgt;
 
-  char* temp = taosMemoryCalloc(1, strlen(pDb->path));
+  char* temp = taosMemoryCalloc(1, strlen(pDb->path) + 32);
   sprintf(temp, "%s%s%s%" PRId64 "", pDb->path, TD_DIRSEP, "tmp", chkpId);
 
   if (taosDirExist(temp)) {
@@ -3413,7 +3413,7 @@ int32_t compareHashTable(SHashObj* p1, SHashObj* p2, SArray* add, SArray* del) {
 void hashTableToDebug(SHashObj* pTbl, char** buf) {
   size_t  sz = taosHashGetSize(pTbl);
   int32_t total = 0;
-  char*   p = taosMemoryCalloc(1, sz * 16);
+  char*   p = taosMemoryCalloc(1, sz * 16 + 4);
   void*   pIter = taosHashIterate(pTbl, NULL);
   while (pIter) {
     size_t len = 0;
@@ -3425,7 +3425,9 @@ void hashTableToDebug(SHashObj* pTbl, char** buf) {
     pIter = taosHashIterate(pTbl, pIter);
     taosMemoryFree(tname);
   }
-  p[total - 1] = 0;
+  if (total > 0) {
+    p[total - 1] = 0;
+  }
   *buf = p;
 }
 void strArrayDebugInfo(SArray* pArr, char** buf) {
