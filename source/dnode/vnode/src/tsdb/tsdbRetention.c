@@ -103,7 +103,7 @@ static int32_t tsdbCopyFileS3(SRTNer *rtner, const STFileObj *from, const STFile
 
   char      fname[TSDB_FILENAME_LEN];
   TdFilePtr fdFrom = NULL;
-  TdFilePtr fdTo = NULL;
+  // TdFilePtr fdTo = NULL;
 
   tsdbTFileName(rtner->tsdb, to, fname);
 
@@ -359,7 +359,8 @@ static int32_t tsdbDoRetentionOnFileSet(SRTNer *rtner, STFileSet *fset) {
         s3EvictCache(fobj->fname, fsize * 2);
       }
       */
-      tsdbInfo("file:%s size: %" PRId64 " do migrate", fobj->fname, fobj->f->size);
+      tsdbInfo("file:%s size: %" PRId64 " do migrate from %d to %d", fobj->fname, fobj->f->size, fobj->f->did.level,
+               did.level);
 
       code = tsdbDoMigrateFileObj(rtner, fobj, &did);
       TSDB_CHECK_CODE(code, lino, _exit);
