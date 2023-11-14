@@ -99,11 +99,13 @@ func (c *UaConnector) Collect(ctx context.Context) (<-chan *common.NodeValue, er
 	for _, r := range c.readers {
 		c.wait.Add(1)
 		go func(r *reader) {
-			defer c.wait.Done()
 			if err := c.collect(ctx, r); err != nil {
 				logger.Error("## collect error", "error", err)
+				c.wait.Done()
+				c.Stop(ctx)
 				panic(err)
 			}
+			c.wait.Done()
 		}(r)
 	}
 

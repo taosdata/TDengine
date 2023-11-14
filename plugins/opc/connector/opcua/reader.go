@@ -425,18 +425,28 @@ func (r *reader) subscribeNodes(ctx context.Context) (sub *opcua.Subscription, c
 		return nil, nil, fmt.Errorf("subscribe failed: %w", err)
 	}
 
-	var wait sync.WaitGroup
+	reqs := make([]*ua.MonitoredItemCreateRequest, 0, len(r.nodes))
+
 	for i, node := range r.nodes {
-		wait.Add(1)
-		go func(idx int, n *uaNode, w *sync.WaitGroup) {
-			defer w.Done()
-			if _, err := sub.Monitor(ctx, ua.TimestampsToReturnBoth,
-				opcua.NewMonitoredItemCreateRequestWithDefaults(n.nodeID, ua.AttributeIDValue, uint32(idx))); err != nil {
-				logger.Error("## subscribe monitor for node failed", "node", n.nodeID.String(), "error", err)
-			}
-		}(i, node, &wait)
+		reqs = append(reqs, opcua.NewMonitoredItemCreateRequestWithDefaults(node.nodeID, ua.AttributeIDValue, uint32(i)))
 	}
-	wait.Wait()
+
+	resp, err := sub.Monitor(ctx, ua.TimestampsToReturnBoth, reqs...)
+	if err != nil {
+		logger.Error("## subscribe monitor for node failed", "error", err)
+		return nil, nil, fmt.Errorf("subscribe monitor for node failed: %w", err)
+	}
+	var errs []error
+	for i, result := range resp.Results {
+		if status := result.StatusCode; status != ua.StatusOK {
+			logger.Error("## subscribe monitor for node failed", "error", status, r.nodes[i].nodeID.String())
+			errs = append(errs, fmt.Errorf("subscribe monitor for node %s failed: %w", r.nodes[i].nodeID.String(), status))
+		}
+	}
+	if len(errs) != 0 {
+		err = errors.Join(errs...)
+		return nil, nil, err
+	}
 
 	return
 }
