@@ -29,7 +29,7 @@
 
 #define IS_FINAL_INTERVAL_OP(op)           ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL)
 #define IS_FINAL_SESSION_OP(op)            ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION)
-#define DEAULT_DELETE_MARK                 (1000LL * 60LL * 60LL * 24LL * 365LL * 10LL);
+#define DEAULT_DELETE_MARK                 INT64_MAX
 #define STREAM_INTERVAL_OP_STATE_NAME      "StreamIntervalHistoryState"
 #define STREAM_SESSION_OP_STATE_NAME       "StreamSessionHistoryState"
 #define STREAM_STATE_OP_STATE_NAME         "StreamStateHistoryState"
