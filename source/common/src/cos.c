@@ -267,8 +267,6 @@ typedef struct list_parts_callback_data {
 } list_parts_callback_data;
 
 typedef struct MultipartPartData {
-  char                     err_msg[512];
-  S3Status                 status;
   put_object_callback_data put_object_data;
   int                      seq;
   UploadManager           *manager;
@@ -276,11 +274,12 @@ typedef struct MultipartPartData {
 
 static int putObjectDataCallback(int bufferSize, char *buffer, void *callbackData) {
   put_object_callback_data *data = (put_object_callback_data *)callbackData;
+  /*
   if (data->infileFD == 0) {
     MultipartPartData *mpd = (MultipartPartData *)callbackData;
     data = &mpd->put_object_data;
   }
-
+  */
   int ret = 0;
 
   if (data->contentLength) {
@@ -458,13 +457,13 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
   int                      metaPropertiesCount = 0;
   S3NameValue              metaProperties[S3_MAX_METADATA_COUNT];
   char                     useServerSideEncryption = 0;
-  int                      noStatus = 0;
-  put_object_callback_data data;
+  put_object_callback_data data = {0};
+  // int                      noStatus = 0;
 
   // data.infile = 0;
-  data.infileFD = NULL;
-  data.gb = 0;
-  data.noStatus = noStatus;
+  // data.gb = 0;
+  // data.infileFD = NULL;
+  // data.noStatus = noStatus;
 
   if (taosStatFile(file, &contentLength, NULL, NULL) < 0) {
     uError("ERROR: %s Failed to stat file %s: ", __func__, file);
@@ -581,9 +580,9 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
       do {
         S3_upload_part(&bucketContext, key, &putProperties, &putObjectHandler, seq, manager.upload_id,
                        partContentLength, 0, timeoutMsG, &partData);
-      } while (S3_status_is_retryable(partData.status) && should_retry());
-      if (partData.status != S3StatusOK) {
-        s3PrintError(__func__, partData.status, partData.err_msg);
+      } while (S3_status_is_retryable(partData.put_object_data.status) && should_retry());
+      if (partData.put_object_data.status != S3StatusOK) {
+        s3PrintError(__func__, partData.put_object_data.status, partData.put_object_data.err_msg);
         code = TAOS_SYSTEM_ERROR(EIO);
         goto clean;
       }
