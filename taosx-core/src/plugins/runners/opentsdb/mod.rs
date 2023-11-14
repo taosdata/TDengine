@@ -32,7 +32,7 @@ fn opentsdb_jar_path() -> anyhow::Result<PathBuf> {
 const LOG_FILE: &str = "opentsdb.log";
 
 fn log_path() -> PathBuf {
-    super::get_log_dir("opentsdb")
+    super::get_log_dir("")
 }
 
 pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
