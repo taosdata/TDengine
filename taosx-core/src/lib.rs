@@ -407,6 +407,14 @@ impl TaskOpts {
                     tmq_to_kafka(from, to.clone(), cancel.clone()).await?;
                 }
                 ("kafka", "taos") => {
+                    let mut dsn = from.clone();
+                    if !dsn.params.contains_key("group") {
+                        let group_id = task_id
+                            .clone()
+                            .ok_or(anyhow::anyhow!("group id is required for kafka to taos"))?;
+                        dsn.params.insert("group".to_string(), group_id);
+                    }
+
                     kafka_to_taos(
                         from.clone(),
                         parser.clone(),
