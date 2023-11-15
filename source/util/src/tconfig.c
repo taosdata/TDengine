@@ -22,6 +22,7 @@
 #include "tjson.h"
 #include "tlog.h"
 #include "tutil.h"
+#include "tunit.h"
 
 #define CFG_NAME_PRINT_LEN 24
 #define CFG_SRC_PRINT_LEN  12
@@ -173,7 +174,7 @@ static int32_t cfgSetBool(SConfigItem *pItem, const char *value, ECfgSrcType sty
 }
 
 static int32_t cfgSetInt32(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  int32_t ival = (int32_t)atoi(value);
+  int32_t ival = taosStrHumanToInt32(value);
   if (ival < pItem->imin || ival > pItem->imax) {
     uError("cfg:%s, type:%s src:%s value:%d out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
            cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), ival, pItem->imin, pItem->imax);
@@ -187,7 +188,7 @@ static int32_t cfgSetInt32(SConfigItem *pItem, const char *value, ECfgSrcType st
 }
 
 static int32_t cfgSetInt64(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  int64_t ival = (int64_t)atoll(value);
+  int64_t ival = taosStrHumanToInt64(value);
   if (ival < pItem->imin || ival > pItem->imax) {
     uError("cfg:%s, type:%s src:%s value:%" PRId64 " out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
            cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), ival, pItem->imin, pItem->imax);
@@ -379,7 +380,7 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
       }
     } break;
     case CFG_DTYPE_INT32: {
-      int32_t ival = (int32_t)atoi(pVal);
+      int32_t ival = (int32_t)taosStrHumanToInt32(pVal);
       if (ival < pItem->imin || ival > pItem->imax) {
         uError("cfg:%s, type:%s value:%d out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
                cfgDtypeStr(pItem->dtype), ival, pItem->imin, pItem->imax);
@@ -388,7 +389,7 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
       }
     } break;
     case CFG_DTYPE_INT64: {
-      int64_t ival = (int64_t)atoll(pVal);
+      int64_t ival = (int64_t)taosStrHumanToInt64(pVal);
       if (ival < pItem->imin || ival > pItem->imax) {
         uError("cfg:%s, type:%s value:%" PRId64 " out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
                cfgDtypeStr(pItem->dtype), ival, pItem->imin, pItem->imax);

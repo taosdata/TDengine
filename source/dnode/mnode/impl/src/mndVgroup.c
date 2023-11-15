@@ -2176,7 +2176,7 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
     code = mndRedistributeVgroup(pMnode, pReq, pDb, pVgroup, pNew1, pOld1, pNew2, pOld2, pNew3, pOld3);
 
   } else {
-    terrno = TSDB_CODE_MND_INVALID_REPLICA;
+    terrno = TSDB_CODE_MND_REQ_REJECTED;
     goto _OVER;
   }
 

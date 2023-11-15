@@ -262,18 +262,33 @@ int32_t streamMetaReopen(SStreamMeta* pMeta) {
     }
   }
 
-  // todo: not wait in a critical region
-  while ((pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId, pMeta->vgId)) == NULL) {
-    stInfo("vgId:%d failed to init stream backend, retry in 100ms", pMeta->vgId);
-    taosMsleep(100);
+  taosMemoryFree(defaultPath);
+  taosMemoryFree(newPath);
+
+  return 0;
+}
+
+// todo refactor: the lock shoud be restricted in one function
+void streamMetaInitBackend(SStreamMeta* pMeta) {
+  pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId, pMeta->vgId);
+  if (pMeta->streamBackend == NULL) {
+    streamMetaWUnLock(pMeta);
+
+    while (1) {
+      streamMetaWLock(pMeta);
+      pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId, pMeta->vgId);
+      if (pMeta->streamBackend != NULL) {
+        break;
+      }
+
+      streamMetaWUnLock(pMeta);
+      stInfo("vgId:%d failed to init stream backend, retry in 100ms", pMeta->vgId);
+      taosMsleep(100);
+    }
   }
 
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
   streamBackendLoadCheckpointInfo(pMeta);
-
-  taosMemoryFree(defaultPath);
-  taosMemoryFree(newPath);
-  return 0;
 }
 
 void streamMetaClear(SStreamMeta* pMeta) {

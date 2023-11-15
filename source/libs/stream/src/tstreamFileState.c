@@ -321,6 +321,10 @@ void popUsedBuffs(SStreamFileState* pFileState, SStreamSnapshot* pFlushList, uin
   while ((pNode = tdListNext(&iter)) != NULL && i < max) {
     SRowBuffPos* pPos = *(SRowBuffPos**)pNode->data;
     if (pPos->beUsed == used) {
+      if (used && !pPos->pRowBuff) {
+        ASSERT(pPos->needFree == true);
+        continue;
+      }
       tdListAppend(pFlushList, &pPos);
       pFileState->flushMark = TMAX(pFileState->flushMark, pFileState->getTs(pPos->pKey));
       pFileState->stateBuffRemoveByPosFn(pFileState, pPos);
@@ -428,6 +432,7 @@ SRowBuffPos* getNewRowPosForWrite(SStreamFileState* pFileState) {
   newPos->beUsed = true;
   newPos->beFlushed = false;
   newPos->needFree = false;
+  newPos->beUpdated = true;
   return newPos;
 }
 
