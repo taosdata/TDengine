@@ -20,34 +20,6 @@
 
 #include "shellInt.h"
 
-bool shellRegexMatch(const char *s, const char *reg, int32_t cflags) {
-  regex_t regex = {0};
-  char    msgbuf[100] = {0};
-
-  /* Compile regular expression */
-  if (regcomp(&regex, reg, cflags) != 0) {
-    fprintf(stderr, "Fail to compile regex");
-    shellExit();
-  }
-
-  /* Execute regular expression */
-  int32_t reti = regexec(&regex, s, 0, NULL, 0);
-  if (!reti) {
-    regfree(&regex);
-    return true;
-  } else if (reti == REG_NOMATCH) {
-    regfree(&regex);
-    return false;
-  } else {
-    regerror(reti, &regex, msgbuf, sizeof(msgbuf));
-    fprintf(stderr, "Regex match failed: %s\r\n", msgbuf);
-    regfree(&regex);
-    shellExit();
-  }
-
-  return false;
-}
-
 bool shellRegexMatchGet(const char *s, const char *reg, int32_t cflags, int32_t nmatch, regmatch_t *pmatch) {
   regex_t regex = {0};
   char    msgbuf[100] = {0};
