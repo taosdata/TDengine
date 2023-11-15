@@ -1262,6 +1262,8 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   mndTransSetDbName(pTrans, pDb, pDb);
   taosMemoryFree((void *)pDb);
 
+  mndStreamRegisterTrans(pTrans, MND_STREAM_CHECKPOINT_NAME, pDb, pDb);
+
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     mError("failed to trigger checkpoint, checkpointId: %" PRId64 ", reason:%s", checkpointId,
            tstrerror(TSDB_CODE_MND_TRANS_CONFLICT));
@@ -1815,7 +1817,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
 
   int32_t code = mndStreamRegisterTrans(pTrans, MND_STREAM_PAUSE_NAME, pStream->sourceDb, pStream->targetDb);
 
-  // pause all tasks
+  // if nodeUpdate happened, not send pause trans
   if (mndPauseAllStreamTasks(pMnode, pTrans, pStream) < 0) {
     mError("stream:%s, failed to pause task since %s", pauseReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
