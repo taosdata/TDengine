@@ -209,6 +209,9 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 func (r *reader) readAndSend(ch chan *common.NodeValue) {
 	values := r.readItems(r.tags)
 	go func(items []*common.NodeValue) {
+		defer func() {
+			recover()
+		}()
 		for _, item := range items {
 			ch <- item
 		}
