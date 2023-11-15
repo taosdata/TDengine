@@ -144,7 +144,6 @@ int32_t tqRestartStreamTasks(STQ* pTq) {
   }
 
   streamMetaWLock(pMeta);
-
   code = streamMetaReopen(pMeta);
   if (code != TSDB_CODE_SUCCESS) {
     tqError("vgId:%d failed to reopen stream meta", vgId);
@@ -153,6 +152,7 @@ int32_t tqRestartStreamTasks(STQ* pTq) {
     return code;
   }
 
+  streamMetaInitBackend(pMeta);
   int64_t el = taosGetTimestampMs() - st;
 
   tqInfo("vgId:%d close&reload state elapsed time:%.3fms", vgId, el/1000.);

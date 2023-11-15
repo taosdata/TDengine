@@ -825,6 +825,7 @@ int32_t      streamMetaGetNumOfTasks(SStreamMeta* pMeta);
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
 int32_t      streamMetaReopen(SStreamMeta* pMeta);
+void         streamMetaInitBackend(SStreamMeta* pMeta);
 int32_t      streamMetaCommit(SStreamMeta* pMeta);
 int32_t      streamMetaLoadAllTasks(SStreamMeta* pMeta);
 int64_t      streamMetaGetLatestCheckpointId(SStreamMeta* pMeta);

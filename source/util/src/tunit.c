@@ -35,27 +35,27 @@ int64_t taosStrHumanToInt64(const char* str) {
     strNoUnit = taosMemoryCalloc(sLen, 1);
     memcpy(strNoUnit, str, sLen - 1);
 
-    val = atoll(strNoUnit) * UNIT_ONE_PEBIBYTE;
+    val = atof(strNoUnit) * UNIT_ONE_PEBIBYTE;
   } else if ((unit == 'T') || (unit == 't')) {
     strNoUnit = taosMemoryCalloc(sLen, 1);
     memcpy(strNoUnit, str, sLen - 1);
 
-    val = atoll(strNoUnit) * UNIT_ONE_TEBIBYTE;
+    val = atof(strNoUnit) * UNIT_ONE_TEBIBYTE;
   } else if ((unit == 'G') || (unit == 'g')) {
     strNoUnit = taosMemoryCalloc(sLen, 1);
     memcpy(strNoUnit, str, sLen - 1);
 
-    val = atoll(strNoUnit) * UNIT_ONE_GIBIBYTE;
+    val = atof(strNoUnit) * UNIT_ONE_GIBIBYTE;
   } else if ((unit == 'M') || (unit == 'm')) {
     strNoUnit = taosMemoryCalloc(sLen, 1);
     memcpy(strNoUnit, str, sLen - 1);
 
-    val = atoll(strNoUnit) * UNIT_ONE_MEBIBYTE;
+    val = atof(strNoUnit) * UNIT_ONE_MEBIBYTE;
   } else if ((unit == 'K') || (unit == 'k')) {
     strNoUnit = taosMemoryCalloc(sLen, 1);
     memcpy(strNoUnit, str, sLen - 1);
 
-    val = atoll(strNoUnit) * UNIT_ONE_KIBIBYTE;
+    val = atof(strNoUnit) * UNIT_ONE_KIBIBYTE;
   } else {
     val = atoll(str);
   }
@@ -93,17 +93,17 @@ int32_t taosStrHumanToInt32(const char* str) {
     strNoUnit = taosMemoryCalloc(sLen, 1);
     memcpy(strNoUnit, str, sLen - 1);
 
-    val = atoll(strNoUnit) * UNIT_ONE_GIBIBYTE;
+    val = atof(strNoUnit) * UNIT_ONE_GIBIBYTE;
   } else if ((unit == 'M') || (unit == 'm')) {
     strNoUnit = taosMemoryCalloc(sLen, 1);
     memcpy(strNoUnit, str, sLen - 1);
 
-    val = atoll(strNoUnit) * UNIT_ONE_MEBIBYTE;
+    val = atof(strNoUnit) * UNIT_ONE_MEBIBYTE;
   } else if ((unit == 'K') || (unit == 'k')) {
     strNoUnit = taosMemoryCalloc(sLen, 1);
     memcpy(strNoUnit, str, sLen - 1);
 
-    val = atoll(strNoUnit) * UNIT_ONE_KIBIBYTE;
+    val = atof(strNoUnit) * UNIT_ONE_KIBIBYTE;
   } else {
     val = atoll(str);
   }

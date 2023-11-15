@@ -34,7 +34,6 @@ extern "C" {
 // Bytes for each type.
 extern const int32_t TYPE_BYTES[21];
 
-// TODO: replace and remove code below
 #define CHAR_BYTES      sizeof(char)
 #define SHORT_BYTES     sizeof(int16_t)
 #define INT_BYTES       sizeof(int32_t)

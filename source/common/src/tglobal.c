@@ -1478,6 +1478,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
     return -1;
   }
 
+  bool matched = false;
+
   int32_t len = strlen(name);
   char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
   strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
@@ -1486,6 +1488,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
       if (strcasecmp("debugFlag", name) == 0) {
         int32_t flag = pItem->i32;
         taosSetAllDebugFlag(flag, true);
+        matched = true;
       }
       break;
     }
@@ -1494,6 +1497,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         bool enableCore = pItem->bval;
         taosSetCoreDump(enableCore);
         uInfo("%s set to %d", name, enableCore);
+        matched = true;
       }
       break;
     }
@@ -1512,6 +1516,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
         cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
+        matched = true;
       } else if (strcasecmp("firstEp", name) == 0) {
         tstrncpy(tsLocalFqdn, cfgGetItem(pCfg, "fqdn")->str, TSDB_FQDN_LEN);
         tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
@@ -1526,6 +1531,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
         cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
+        matched = true;
       }
       break;
     }
@@ -1536,10 +1542,12 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         taosSetSystemLocale(locale, charset);
         osSetSystemLocale(locale, charset);
         uInfo("locale set to '%s', charset set to '%s'", locale, charset);
+        matched = true;
       } else if (strcasecmp("logDir", name) == 0) {
         uInfo("%s set from '%s' to '%s'", name, tsLogDir, pItem->str);
         tstrncpy(tsLogDir, pItem->str, PATH_MAX);
         taosExpandDir(tsLogDir, tsLogDir, PATH_MAX);
+        matched = true;
       }
       break;
     }
@@ -1547,15 +1555,19 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
       if (strcasecmp("metaCacheMaxSize", name) == 0) {
         atomic_store_32(&tsMetaCacheMaxSize, pItem->i32);
         uInfo("%s set to %d", name, atomic_load_32(&tsMetaCacheMaxSize));
+        matched = true;
       } else if (strcasecmp("minimalTmpDirGB", name) == 0) {
         tsTempSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
         uInfo("%s set to %"PRId64, name, tsTempSpace.reserved);
+        matched = true;
       } else if (strcasecmp("minimalDataDirGB", name) == 0) {
         tsDataSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
         uInfo("%s set to %"PRId64, name, tsDataSpace.reserved);
+        matched = true;
       } else if (strcasecmp("minimalLogDirGB", name) == 0) {
         tsLogSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
         uInfo("%s set to %"PRId64, name, tsLogSpace.reserved);
+        matched = true;
       }
       break;
     }
@@ -1566,18 +1578,23 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port);
         cfgSetItem(pCfg, "secondEp", tsSecond, pItem->stype);
         uInfo("%s set to %s", name, tsSecond);
+        matched = true;
       } else if (strcasecmp("smlChildTableName", name) == 0) {
         uInfo("%s set from %s to %s", name, tsSmlChildTableName, pItem->str);
         tstrncpy(tsSmlChildTableName, pItem->str, TSDB_TABLE_NAME_LEN);
+        matched = true;
       } else if (strcasecmp("smlAutoChildTableNameDelimiter", name) == 0) {
         uInfo("%s set from %s to %s", name, tsSmlAutoChildTableNameDelimiter, pItem->str);
         tstrncpy(tsSmlAutoChildTableNameDelimiter, pItem->str, TSDB_TABLE_NAME_LEN);
+        matched = true;
       } else if (strcasecmp("smlTagName", name) == 0) {
         uInfo("%s set from %s to %s", name, tsSmlTagName, pItem->str);
         tstrncpy(tsSmlTagName, pItem->str, TSDB_COL_NAME_LEN);
+        matched = true;
       } else if (strcasecmp("smlTsDefaultName", name) == 0) {
         uInfo("%s set from %s to %s", name, tsSmlTsDefaultName, pItem->str);
         tstrncpy(tsSmlTsDefaultName, pItem->str, TSDB_COL_NAME_LEN);
+        matched = true;
       } else if (strcasecmp("serverPort", name) == 0) {
         tstrncpy(tsLocalFqdn, cfgGetItem(pCfg, "fqdn")->str, TSDB_FQDN_LEN);
         tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
@@ -1592,11 +1609,13 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
         cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
+        matched = true;
       } else if (strcasecmp("slowLogScope", name) == 0) {
         if (taosSetSlowLogScope(pItem->str)) {
           return -1;
         }
         uInfo("%s set to %s", name, pItem->str);
+        matched = true;
       }
       break;
     }
@@ -1605,6 +1624,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         osSetTimezone(pItem->str);
         uInfo("%s set from %s to %s", name, tsTimezoneStr, pItem->str);
         cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype);
+        matched = true;
       } else if (strcasecmp("tempDir", name) == 0) {
         uInfo("%s set from %s to %s", name, tsTempDir, pItem->str);
         tstrncpy(tsTempDir, pItem->str, PATH_MAX);
@@ -1613,9 +1633,11 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
           uError("failed to create tempDir:%s since %s", tsTempDir, terrstr());
           return -1;
         }
+        matched = true;
       } else if (strcasecmp("telemetryServer", name) == 0) {
         uInfo("%s set from %s to %s", name, pItem->str, tsTelemServer);
         tstrncpy(tsTelemServer, pItem->str, TSDB_FQDN_LEN);
+        matched = true;
       }
       break;
     }
@@ -1623,6 +1645,8 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
       terrno = TSDB_CODE_CFG_NOT_FOUND;
       break;
   }
+
+  if (matched) goto _out;
 
   {  //  'bool/int32_t/int64_t/float/double' variables with general modification function
     static OptionNameAndVar debugOptions[] = {
@@ -1664,6 +1688,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
     }
   }
 
+_out:
   return terrno == TSDB_CODE_SUCCESS ? 0 : -1;
 }
 
