@@ -53,7 +53,7 @@ tokio = { version = "1", features = [
 ] }
 tokio-util = { version = "0.7", features = ["full"] }
 tokio-stream = "0.1.14"
-tokio-process-terminate = { version = "0.2" }
+tokio-process-terminate = { version = "0.3" }
 toml = "0.8.5"
 zstd = "0.13.0"
 either = "1.8"
