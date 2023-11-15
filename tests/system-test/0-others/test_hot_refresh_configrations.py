@@ -191,9 +191,8 @@ class TDTestCase:
                 dnode = random.choice(p_list)
                 tdSql.execute(f'alter {dnode} "{name} {v}";')
                 value = self.get_param_value_with_gdb(alias, "taosd")
-                if value:
-                    tdLog.debug(f"value: {value}")
-                    assert(value == str(bool(v)).lower() if is_bool else str(v))
+                tdLog.debug(f"value: {value}")
+                assert(value == str(bool(v)).lower() if is_bool else str(v))
         else:
             for v in values:
                 dnode = random.choice(p_list)
