@@ -910,7 +910,9 @@ impl TaskController {
                 })*
             };
         }
-        add_bind_sql!(name stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser trigger);
+        add_bind_sql!(name stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force parser trigger);
+
+        sql.push("`via` = ?");
 
         if sql.len() == 0 {
             let task = self.get(id).await?.unwrap();
@@ -928,7 +930,8 @@ impl TaskController {
                 })*
             };
         }
-        bind_fields!(name stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser trigger);
+        bind_fields!(name stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force parser trigger);
+        query = query.bind(&task.via);
 
         let res = query.execute(&self.pool).await?;
 
