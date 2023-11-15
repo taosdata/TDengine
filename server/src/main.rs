@@ -12,6 +12,7 @@ use actix_embed::Embed;
 use actix_web::{
     error::{self, JsonPayloadError, PayloadError},
     http::header::{ContentType, AUTHORIZATION},
+    middleware::{Compress, Logger},
     post,
     web::{self},
     App, HttpRequest, HttpResponse, HttpServer, Responder, ResponseError,
@@ -115,6 +116,8 @@ async fn main() -> anyhow::Result<()> {
         App::new()
             .wrap(TracingLogger::default())
             .wrap(cors)
+            .wrap(Logger::default())
+            .wrap(Compress::default())
             .app_data(web::Data::new(reqwest::Client::new()))
             .app_data(args.clone())
             // .route("/", web::get().to(index))
