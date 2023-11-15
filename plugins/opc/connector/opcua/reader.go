@@ -245,14 +245,13 @@ func (r *reader) readAndSend(ctx context.Context, ch chan *common.NodeValue, wai
 		logger.Error("## observe metric error", "error", err)
 		return
 	}
-	go func() {
-		defer func() {
-			recover()
-		}()
-		for _, value := range values {
-			ch <- value
-		}
+	defer func() {
+		// maybe channel closed
+		recover()
 	}()
+	for _, value := range values {
+		ch <- value
+	}
 }
 
 func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*ua.ReadValueID) (values []*common.NodeValue, err error) {
@@ -263,7 +262,6 @@ func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*
 	}
 	spent := time.Since(start).Milliseconds()
 
-	now := time.Now()
 	values = make([]*common.NodeValue, 0, len(res.Results))
 	for i, item := range res.Results {
 		node := nodes[i]
@@ -301,7 +299,7 @@ func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*
 			Identifier: identifier,
 			Name:       name,
 			Timestamp:  ts,
-			Now:        now,
+			Now:        start,
 			Value:      item.Value.Value(),
 			ValueType:  valueType,
 			Status:     int64(item.Status),
@@ -433,12 +431,29 @@ func (r *reader) subscribeNodes(ctx context.Context) (sub *opcua.Subscription, c
 
 	for i, node := range r.nodes {
 		reqs = append(reqs, opcua.NewMonitoredItemCreateRequestWithDefaults(node.nodeID, ua.AttributeIDValue, uint32(i)))
+		if len(reqs) == 1000 {
+			err = r.doSub(ctx, sub, reqs)
+			if err != nil {
+				return
+			}
+			reqs = reqs[:0]
+		}
+	}
+	if len(reqs) > 0 {
+		err = r.doSub(ctx, sub, reqs)
+		if err != nil {
+			return
+		}
 	}
 
+	return
+}
+
+func (r *reader) doSub(ctx context.Context, sub *opcua.Subscription, reqs []*ua.MonitoredItemCreateRequest) error {
 	resp, err := sub.Monitor(ctx, ua.TimestampsToReturnBoth, reqs...)
 	if err != nil {
 		logger.Error("## subscribe monitor for node failed", "error", err)
-		return nil, nil, fmt.Errorf("subscribe monitor for node failed: %w", err)
+		return fmt.Errorf("subscribe monitor for node failed: %w", err)
 	}
 	var errs []error
 	for i, result := range resp.Results {
@@ -449,10 +464,9 @@ func (r *reader) subscribeNodes(ctx context.Context) (sub *opcua.Subscription, c
 	}
 	if len(errs) != 0 {
 		err = errors.Join(errs...)
-		return nil, nil, err
+		return err
 	}
-
-	return
+	return nil
 }
 
 func (r *reader) OpcConnected() bool {
