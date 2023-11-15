@@ -7003,7 +7003,7 @@ int32_t tDeserializeSMDropStreamReq(void *buf, int32_t bufLen, SMDropStreamReq *
   return 0;
 }
 
-void tFreeSMDropStreamReq(SMDropStreamReq *pReq) {
+void tFreeMDropStreamReq(SMDropStreamReq *pReq) {
   FREESQL();
 }
 
