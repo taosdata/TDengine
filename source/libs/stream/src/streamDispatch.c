@@ -1125,7 +1125,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
         { // send checkpoint failure msg to mnode directly
           pTask->chkInfo.failedId = pTask->checkpointingId;   // record the latest failed checkpoint id
           pTask->checkpointingId = pTask->checkpointingId;
-          streamTaskSendCheckpointReadyMsg(pTask);
+          streamTaskSendCheckpointSourceRsp(pTask);
         }
       } else {
         stError("s-task:%s downstream task:0x%x(vgId:%d) refused the dispatch msg, treat it as success", id,
