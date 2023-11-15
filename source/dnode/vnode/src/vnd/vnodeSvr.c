@@ -14,22 +14,22 @@
  */
 
 #include "audit.h"
+#include "cos.h"
 #include "tencode.h"
 #include "tmsg.h"
 #include "tstrbuild.h"
 #include "vnd.h"
-#include "cos.h"
 #include "vnode.h"
 #include "vnodeInt.h"
 
 static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
-static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp, 
-                                        SRpcMsg *pOriginRpc);
+static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
+                                       SRpcMsg *pOriginRpc);
 static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
-static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp, 
-                                      SRpcMsg *pOriginRpc);
+static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
+                                     SRpcMsg *pOriginRpc);
 static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -880,8 +880,8 @@ _err:
   return -1;
 }
 
-static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp, 
-                                        SRpcMsg *pOriginRpc) {
+static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
+                                       SRpcMsg *pOriginRpc) {
   SDecoder           decoder = {0};
   SEncoder           encoder = {0};
   int32_t            rcode = 0;
@@ -931,8 +931,8 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       goto _exit;
     }
 
-    if(tsEnableAudit && tsEnableAuditCreateTable){
-      char* str = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
+    if (tsEnableAudit && tsEnableAuditCreateTable) {
+      char *str = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
       if (str == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         rcode = -1;
@@ -986,17 +986,17 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
   tEncoderInit(&encoder, pRsp->pCont, pRsp->contLen);
   tEncodeSVCreateTbBatchRsp(&encoder, &rsp);
 
-  if(tsEnableAudit && tsEnableAuditCreateTable){
+  if (tsEnableAudit && tsEnableAuditCreateTable) {
     int64_t clusterId = pVnode->config.syncCfg.nodeInfo[0].clusterId;
 
     SName name = {0};
     tNameFromString(&name, pVnode->config.dbname, T_NAME_ACCT | T_NAME_DB);
 
     SStringBuilder sb = {0};
-    for(int32_t i = 0; i < tbNames->size; i++){
-      char** key = (char**)taosArrayGet(tbNames, i);
+    for (int32_t i = 0; i < tbNames->size; i++) {
+      char **key = (char **)taosArrayGet(tbNames, i);
       taosStringBuilderAppendStringLen(&sb, *key, strlen(*key));
-      if(i < tbNames->size - 1){
+      if (i < tbNames->size - 1) {
         taosStringBuilderAppendChar(&sb, ',');
       }
       taosMemoryFreeClear(*key);
@@ -1148,7 +1148,7 @@ _exit:
 }
 
 static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
-                                    SRpcMsg *pOriginRpc) {
+                                     SRpcMsg *pOriginRpc) {
   SVDropTbBatchReq req = {0};
   SVDropTbBatchRsp rsp = {0};
   SDecoder         decoder = {0};
@@ -2033,6 +2033,11 @@ static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t ver, void *pR
     return 0;
   }
   return vnodeProcessCompactVnodeReqImpl(pVnode, ver, pReq, len, pRsp);
+}
+
+static int32_t vnodeProcessStopCompactReq(SVnode *pVnode) {
+  // TODO
+  return 0;
 }
 
 static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {

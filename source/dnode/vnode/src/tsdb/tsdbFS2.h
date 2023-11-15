@@ -58,6 +58,7 @@ int32_t tsdbFSEditAbort(STFileSystem *fs);
 // background task
 int32_t tsdbFSScheduleBgTask(STFileSystem *fs, int32_t fid, EFSBgTaskT type, int32_t (*run)(void *),
                              void (*destroy)(void *), void *arg, int64_t *taskid);
+bool    tsdbFSStopBgTask(STFileSystem *fs, int32_t fid, int64_t taskId);
 int32_t tsdbFSDisableBgTask(STFileSystem *fs);
 int32_t tsdbFSEnableBgTask(STFileSystem *fs);
 // other

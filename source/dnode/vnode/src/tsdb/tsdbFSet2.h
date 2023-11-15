@@ -28,8 +28,7 @@ typedef struct SSttLvl   SSttLvl;
 typedef TARRAY2(STFileObj *) TFileObjArray;
 typedef TARRAY2(SSttLvl *) TSttLvlArray;
 typedef TARRAY2(STFileOp) TFileOpArray;
-typedef struct STFileSystem STFileSystem;
-typedef struct STFSBgTask   STFSBgTask;
+typedef struct STFSBgTask STFSBgTask;
 
 typedef enum {
   TSDB_FOP_NONE = 0,

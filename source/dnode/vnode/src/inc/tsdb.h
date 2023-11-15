@@ -74,6 +74,7 @@ typedef struct SDiskDataBuilder SDiskDataBuilder;
 typedef struct SBlkInfo         SBlkInfo;
 typedef struct STsdbDataIter2   STsdbDataIter2;
 typedef struct STsdbFilterInfo  STsdbFilterInfo;
+typedef struct STFileSystem     STFileSystem;
 
 #define TSDBROW_ROW_FMT ((int8_t)0x0)
 #define TSDBROW_COL_FMT ((int8_t)0x1)
@@ -368,24 +369,26 @@ typedef struct {
 } SCacheFlushState;
 
 struct STsdb {
-  char                *path;
-  SVnode              *pVnode;
-  STsdbKeepCfg         keepCfg;
-  TdThreadMutex        mutex;
-  SMemTable           *mem;
-  SMemTable           *imem;
-  STsdbFS              fs;  // old
-  SLRUCache           *lruCache;
-  SCacheFlushState     flushState;
-  TdThreadMutex        lruMutex;
-  SLRUCache           *biCache;
-  TdThreadMutex        biMutex;
-  SLRUCache           *bCache;
-  TdThreadMutex        bMutex;
-  SLRUCache           *pgCache;
-  TdThreadMutex        pgMutex;
-  struct STFileSystem *pFS;  // new
-  SRocksCache          rCache;
+  char            *path;
+  SVnode          *pVnode;
+  STsdbKeepCfg     keepCfg;
+  TdThreadMutex    mutex;
+  SMemTable       *mem;
+  SMemTable       *imem;
+  STsdbFS          fs;  // old
+  SLRUCache       *lruCache;
+  SCacheFlushState flushState;
+  TdThreadMutex    lruMutex;
+  SLRUCache       *biCache;
+  TdThreadMutex    biMutex;
+  SLRUCache       *bCache;
+  TdThreadMutex    bMutex;
+  SLRUCache       *pgCache;
+  TdThreadMutex    pgMutex;
+  STFileSystem    *pFS;  // new
+  SRocksCache      rCache;
+  // compact monitor
+  struct SCompMonitor *pCompMonitor;
 };
 
 struct TSDBKEY {

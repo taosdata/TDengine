@@ -1257,6 +1257,31 @@ int32_t tsdbFSScheduleBgTask(STFileSystem *fs, int32_t fid, EFSBgTaskT type, int
   return 0;
 }
 
+/* Try stop the bg task. If task is `stoped`, return true, else `false`
+ * The caller must hold the fs->tsdb->mutex
+ */
+bool tsdbFSStopBgTask(STFileSystem *fs, int32_t fid, int64_t taskId) {
+  STFileSet *fset = NULL;
+  tsdbFSGetFSet(fs, fid, &fset);
+  ASSERT(fset);
+
+  if (fset->bgTaskRunning->taskid == taskId) {
+    return false;
+  } else {
+    for (STFSBgTask *task = fset->bgTaskQueue->next; task != fset->bgTaskQueue; task = task->next) {
+      if (task->taskid == taskId) {
+        // stop and remove current task
+        task->next->prev = task->prev;
+        task->prev->next = task->next;
+        fset->bgTaskNum--;
+        tsdbDoDoneBgTask(fs, task);
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
 int32_t tsdbFSDisableBgTask(STFileSystem *fs) {
   taosThreadMutexLock(&fs->tsdb->mutex);
   for (;;) {
