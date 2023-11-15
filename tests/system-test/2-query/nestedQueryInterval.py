@@ -1449,9 +1449,9 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1);
         
         #test csv
-        sql1 = "select tbname,ts,q_int,q_binary from nested.stable_1 group by tbname>>'/stable_1.csv';"
-        sql2 = "select tbname,ts,q_int,q_binary from nested.stable_null_data >>/stable_null_data.csv;"
-        sql3 = "select tbname,ts,q_int,q_binary from nested.stable_null_childtable >>/stable_null_childtable.csv;"
+        sql1 = "select tbname,ts,q_int,q_binary from nested.stable_1 group by tbname>>'/home/TDinternal/community/tests/system-test/2-query/stable_1.csv';"
+        sql2 = "select tbname,ts,q_int,q_binary from nested.stable_null_data >>/home/TDinternal/community/tests/system-test/2-query/stable_null_data.csv;"
+        sql3 = "select tbname,ts,q_int,q_binary from nested.stable_null_childtable >>/home/TDinternal/community/tests/system-test/2-query/stable_null_childtable.csv;"
         
         os.system("taos -s '%s'" %sql1)       
         os.system("taos -s '%s'" %sql2)
@@ -1460,9 +1460,9 @@ class TDTestCase:
         tdSql.query(f"delete from nested.stable_1;")
         tdSql.query(f"delete from nested.stable_null_data;")
         tdSql.query(f"delete from nested.stable_null_childtable;")
-        tdSql.query(f"insert into nested.stable_1(tbname,ts,q_int,q_binary) file '/stable_1.csv'\
-                      nested.stable_null_data(tbname,ts,q_int,q_binary) file '/stable_null_data.csv'\
-                      nested.stable_null_childtable(tbname,ts,q_int,q_binary) file '/stable_null_childtable.csv';")
+        tdSql.query(f"insert into nested.stable_1(tbname,ts,q_int,q_binary) file '/home/TDinternal/community/tests/system-test/2-query/stable_1.csv'\
+                      nested.stable_null_data(tbname,ts,q_int,q_binary) file '/home/TDinternal/community/tests/system-test/2-query/stable_null_data.csv'\
+                      nested.stable_null_childtable(tbname,ts,q_int,q_binary) file '/home/TDinternal/community/tests/system-test/2-query/stable_null_childtable.csv';")
         
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(3)
@@ -1496,9 +1496,9 @@ class TDTestCase:
         tdSql.query(f"delete from nested.stable_1;")
         tdSql.query(f"delete from nested.stable_null_data;")
         tdSql.query(f"delete from nested.stable_null_childtable;")
-        tdSql.query(f"insert into nested.stable_1(tbname,ts,q_int,q_binary) file '/stable_1.csv';")
-        tdSql.query(f"insert into nested.stable_null_data(tbname,ts,q_int,q_binary) file '/stable_null_data.csv';")
-        tdSql.query(f"insert into nested.stable_null_childtable(tbname,ts,q_int,q_binary) file '/stable_null_childtable.csv';")
+        tdSql.query(f"insert into nested.stable_1(tbname,ts,q_int,q_binary) file '/home/TDinternal/community/tests/system-test/2-queryle_1.csv';")
+        tdSql.query(f"insert into nested.stable_null_data(tbname,ts,q_int,q_binary) file '/home/TDinternal/community/tests/system-test/2-queryle_null_data.csv';")
+        tdSql.query(f"insert into nested.stable_null_childtable(tbname,ts,q_int,q_binary) file '/home/TDinternal/community/tests/system-test/2-queryle_null_childtable.csv';")
         
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(3)
