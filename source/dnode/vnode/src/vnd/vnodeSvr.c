@@ -21,6 +21,8 @@
 #include "cos.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+#include "audit.h"
+#include "tstrbuild.h"
 
 static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -1002,8 +1004,8 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       taosMemoryFreeClear(*key);
     }
 
-    size_t len = 0;
-    char  *keyJoined = taosStringBuilderGetResult(&sb, &len);
+    size_t    len = 0;
+    char*     keyJoined = taosStringBuilderGetResult(&sb, &len);
 
     auditRecord(pOriginRpc, clusterId, "createTable", name.dbname, "", keyJoined, len);
 
@@ -1015,7 +1017,7 @@ _exit:
     pCreateReq = req.pReqs + iReq;
     taosMemoryFree(pCreateReq->sql);
     taosMemoryFree(pCreateReq->comment);
-    taosArrayDestroy(pCreateReq->ctb.tagName);
+    taosArrayDestroy(pCreateReq->ctb.tagName);    
   }
   taosArrayDestroyEx(rsp.pArray, tFreeSVCreateTbRsp);
   taosArrayDestroy(tbUids);
@@ -1231,7 +1233,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
     taosStringBuilderDestroy(&sb);
   }
-
+  
 _exit:
   taosArrayDestroy(tbUids);
   tdUidStoreFree(pStore);

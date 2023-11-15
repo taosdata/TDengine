@@ -95,8 +95,8 @@ int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 
 // audit
-bool tsEnableAudit = true;
-bool tsEnableAuditCreateTable = true;
+bool     tsEnableAudit = true;
+bool     tsEnableAuditCreateTable = true;
 
 // telem
 #ifdef TD_ENTERPRISE
@@ -507,8 +507,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 2;
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
-  if (tsNumOfTaskQueueThreads >= 10) {
-    tsNumOfTaskQueueThreads = 10;
+  if (tsNumOfTaskQueueThreads >= 50) {
+    tsNumOfTaskQueueThreads = 50;
   }
   if (cfgAddInt32(pCfg, "numOfTaskQueueThreads", tsNumOfTaskQueueThreads, 4, 1024, CFG_SCOPE_CLIENT, CFG_DYN_NONE) != 0)
     return -1;

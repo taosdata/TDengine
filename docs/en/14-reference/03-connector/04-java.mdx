@@ -36,6 +36,7 @@ REST connection supports all platforms that can run Java.
 
 | taos-jdbcdriver version |                                                                   major changes                                                                    | TDengine version |
 | :---------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------: |
+|          3.2.7          |  Support VARBINARY and GEOMETRY types, and add time zone support for native connections. Support websocket auto reconnection                       | 3.2.0.0 or later |
 |          3.2.5          |                                                Subscription add committed() and assignment() method                                                | 3.1.0.3 or later |
 |          3.2.4          |                     Subscription add the enable.auto.commit parameter and the unsubscribe() method in the WebSocket connection                     |        -         |
 |          3.2.3          |                                                 Fixed resultSet data parsing failure in some cases                                                 |        -         |
@@ -178,7 +179,7 @@ Add following dependency in the `pom.xml` file of your Maven project:
 <dependency>
  <groupId>com.taosdata.jdbc</groupId>
  <artifactId>taos-jdbcdriver</artifactId>
- <version>3.2.2</version>
+ <version>3.2.7</version>
 </dependency>
 ```
 
