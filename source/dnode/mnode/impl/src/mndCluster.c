@@ -19,7 +19,7 @@
 #include "mndTrans.h"
 
 #define CLUSTER_VER_NUMBE    1
-#define CLUSTER_RESERVE_SIZE 60
+#define CLUSTER_RESERVE_SIZE 44
 int64_t tsExpireTime = 0;
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster);
@@ -112,6 +112,19 @@ int64_t mndGetClusterCreateTime(SMnode *pMnode) {
   return createTime;
 }
 
+int32_t mndGetClusterGrantedInfo(SMnode *pMnode, SGrantedInfo *pInfo) {
+  void        *pIter = NULL;
+  SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
+  if (pCluster != NULL) {
+    pInfo->grantedTime = pCluster->grantedTime;
+    pInfo->connGrantedTime = pCluster->connGrantedTime;
+    mndReleaseCluster(pMnode, pCluster, pIter);
+    return 0;
+  }
+
+  return -1;
+}
+
 static int32_t mndGetClusterUpTimeImp(SClusterObj *pCluster) {
 #if 0
   int32_t upTime = taosGetTimestampSec() - pCluster->updateTime / 1000;
@@ -146,6 +159,8 @@ static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {
   SDB_SET_INT64(pRaw, dataPos, pCluster->updateTime, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pCluster->upTime, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pCluster->grantedTime, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pCluster->connGrantedTime, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, CLUSTER_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -186,6 +201,8 @@ static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pCluster->updateTime, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pCluster->upTime, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pCluster->grantedTime, _OVER);
+  SDB_GET_INT64(pRaw, dataPos, &pCluster->connGrantedTime, _OVER);
   SDB_GET_RESERVE(pRaw, dataPos, CLUSTER_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -218,6 +235,7 @@ static int32_t mndClusterActionUpdate(SSdb *pSdb, SClusterObj *pOld, SClusterObj
   mTrace("cluster:%" PRId64 ", perform update action, old row:%p new row:%p, uptime from %d to %d", pOld->id, pOld,
          pNew, pOld->upTime, pNew->upTime);
   pOld->upTime = pNew->upTime;
+  pOld->grantedTime = pNew->grantedTime;
   pOld->updateTime = taosGetTimestampMs();
   return 0;
 }
@@ -340,6 +358,47 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
 
   mInfo("update cluster uptime to %d", clusterObj.upTime);
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-uptime");
+  if (pTrans == NULL) return -1;
+
+  SSdbRaw *pCommitRaw = mndClusterActionEncode(&clusterObj);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
+}
+
+int32_t mndProcessGrantedTime(SMnode *pMnode, int64_t grantedTime) {
+  SClusterObj  clusterObj = {0};
+  void        *pIter = NULL;
+  SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
+  if (pCluster != NULL) {
+    if (pCluster->grantedTime >= grantedTime) {
+      mndReleaseCluster(pMnode, pCluster, pIter);
+      return 0;
+    }
+    memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
+    clusterObj.grantedTime = grantedTime;
+    mndReleaseCluster(pMnode, pCluster, pIter);
+  }
+
+  if (clusterObj.id <= 0) {
+    mError("can't get cluster info while update uptime");
+    return -1;
+  }
+
+  mInfo("update cluster granted time to %" PRIi64, clusterObj.grantedTime);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, NULL, "granted-time");
   if (pTrans == NULL) return -1;
 
   SSdbRaw *pCommitRaw = mndClusterActionEncode(&clusterObj);
