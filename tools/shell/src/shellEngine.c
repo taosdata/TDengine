@@ -808,7 +808,7 @@ void shellVerticalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
   int64_t numOfPintRows = dump_info->numOfAllRows;
   int     numOfPrintRowsThisOne = 0;
   int32_t bufLen = 0;
-  char   buf[GRANT_CONN_ITEM_LEN_MAX];
+  char    buf[GRANT_CONN_ITEM_LEN_MAX];
 
   while (row != NULL) {
     printf("*************************** %" PRId64 ".row ***************************\r\n", numOfPintRows + 1);
