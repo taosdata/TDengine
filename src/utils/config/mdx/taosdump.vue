@@ -148,8 +148,8 @@ export default {
   data() {
     return {
       version:localStorage.getItem('agent_version'),
-      linuxcode:`tar -xzf taosTools-2.5.3-Linux-x64-comp3.tar.gz
-cd taosTools-2.5.3-Linux-x64-comp3
+      linuxcode:`tar -xzf taosTools-${localStorage.getItem('agent_version')}-Linux-x64-comp3.tar.gz
+cd taosTools-${localStorage.getItem('agent_version')}-Linux-x64-comp3
 sudo ./install-taostools.sh`
     };
   },
@@ -162,19 +162,19 @@ sudo ./install-taostools.sh`
     },
     installUrlLinux() {
       const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-3.2.0.1-Linux-x64.tar.gz`;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-${this.version}-Linux-x64.tar.gz`;
     },
     installUrlMac() {
       const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-client-3.2.0.1-macOS-x64.pkg`;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-client-${this.version}-macOS-x64.pkg`;
     },
     installURLArm(){
       const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-client-3.2.0.1-macOS-arm64.pkg`;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-client-${this.version}-macOS-arm64.pkg`;
     },
     installUrlWindows() {
       const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-3.2.0.1-Windows-x64.exe`;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-${this.version}-Windows-x64.exe`;
     },
   },
 };

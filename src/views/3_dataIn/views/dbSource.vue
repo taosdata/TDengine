@@ -24,6 +24,7 @@
 import DataSource from "./dataSource.vue";
 import DbSourceUI from "./dbSourceUI.vue";
 import OpcUI from "./opcUI.vue";
+import Historian from "./historian.vue"
 
 import { getUIData, getTask } from "@/api/explorer/datain";
 import constparser from "./mqttparser.json";
@@ -36,6 +37,7 @@ export default {
     dbsource: DataSource,
     ui: DbSourceUI,
     opcui: OpcUI,
+    historian: Historian
   },
   data() {
     return {
@@ -211,6 +213,9 @@ export default {
             this.currentName = "opcui";
             this.tagName = "kafka";
             break;
+          case "historian":
+            this.currentName = 'historian';
+            this.tagName = 'historian';
         }
       } else {
         switch (id) {
@@ -284,6 +289,10 @@ export default {
               }
             );
 
+            break;
+            case "historian":
+              this.currentName = 'historian';
+              this.tagName = 'historian';
             break;
         }
 

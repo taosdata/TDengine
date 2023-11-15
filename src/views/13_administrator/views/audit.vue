@@ -230,13 +230,21 @@ export default {
           this.conditions ? "where" + this.conditions : ""
         }`
       );
-      return res.data.map((data) => {
+      if (res.data && res.data.length > 0) {
+        return res.data.map((data) => {
+          return Object.fromEntries(
+            res.column_meta.map((item, index) => {
+              return [item[0], data[index]];
+            })
+          );
+        });
+      } else {
         return Object.fromEntries(
           res.column_meta.map((item, index) => {
-            return [item[0], data[index]];
+            return [item[0], ''];
           })
-        );
-      });
+        )
+      }
 
     },
     async exportFile() {

@@ -1,6 +1,6 @@
 import { sendSQLReq, getFavorites, getSharedFavorites } from "@/api/gateway/console";
-import { compHeadAndData } from "@/utils";
 import { Message } from "element-ui";
+import { compHeadAndData } from "@/utils";
 const state = {
   sqlStr: "",
   history: [],
@@ -23,10 +23,14 @@ const state = {
   currentOutput: {},
   shellData: [],
   fields:[],
-  previewBtn: true
+  previewBtn: true,
+  repeatResult:[]
 };
 
 const mutations = {
+  SET_REPEATRESULT:(state,data)=>{
+    state.repeatResult=data
+  },
   SET_SQLSTR: (state, sqlStr) => {
     state.sqlStr = sqlStr;
   },
@@ -129,7 +133,8 @@ function handleSuccess(res, state, commit, rootState, sql, startTime) {
   // 切换到output panel显示执行结果
   commit("SET_ACTIVE_TAB", "grid");
   state.shellData = [head.map(item => item)].concat(data);
-  state.result = Object.freeze(compHeadAndData(res.column_meta, data));
+  state.result =  Object.freeze(compHeadAndData(res.column_meta, data));
+  commit('SET_REPEATRESULT',data)
   state.head = Object.freeze(head);
 }
 function handleFail(res, state, commit, rootState, sql, startTime) {

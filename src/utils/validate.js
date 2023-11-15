@@ -86,12 +86,22 @@ export function isArray(arg) {
 }
 
 /**
- * 只允许数字、字母、下划线
+ * 只允许数字、字母、下划线、`
  * @param {*} str 
  * @returns {Boolean}
  */
 export function validDatabaseName(str) {
-  const reg = /^[a-zA-Z_]\w*$/;
+  const reg = /^[`a-zA-Z_]`|\w*$/;
+  return reg.test(str);
+}
+
+/**
+ * 只允许数字、字母、下划线
+ * @param {*} str 
+ * @returns {Boolean}
+ */
+ export function validName(str) {
+  const reg = /^[a-zA-Z_]|\w*$/;
   return reg.test(str);
 }
 
@@ -128,4 +138,14 @@ export function validPath(arg) {
     return /^(\/|\\)[A-Za-z0-9_\(/|\\)]*$/g.test(arg)
   }
   
+}
+
+// 获取数据类型
+export function getType(data) {
+  return Object.prototype.toString.call(data).slice(8, -1).toLowerCase();
+}
+
+// 是否为对象
+export function isObject(arg) {
+  return getType(arg) === 'object';
 }

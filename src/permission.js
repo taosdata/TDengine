@@ -10,9 +10,9 @@ router.beforeEach(async (to, from, next) => {
   try {
     if (to.name != "Login") {
       let result = await getUrls();
-      if(result.version){
-        localStorage.setItem('agent_version',result.version)
-      }
+      // if(result.version){
+      //   localStorage.setItem('agent_version',result.version)
+      // }
       if (
         result?.cluster != localStorage.getItem("base_url") &&
         to.name != "Login"

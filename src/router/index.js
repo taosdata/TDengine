@@ -28,6 +28,11 @@ const layoutCommonChildren = [
         props: true,
         component: () => import("@/views/docs/index.vue"),
       },
+      {
+        path: 'add',
+        props: true,
+        component: () => import("@/views/3_dataIn/views/dbSourceUI.vue")
+      },
     ],
   },
   {

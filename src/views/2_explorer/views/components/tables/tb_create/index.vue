@@ -467,6 +467,7 @@ export default {
           this.handleData();
           this.$store.dispatch("tables/submitTableForm").then(() => {
             this.$message.success(this.$t("createSucc"));
+            this.$store.commit("console/CANCEL_DETAIL");
           })
           .catch((err) => {
             console.log('sssserr',err);
