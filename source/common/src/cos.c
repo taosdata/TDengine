@@ -497,12 +497,6 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
       S3_put_object(&bucketContext, key, contentLength, &putProperties, 0, 0, &putObjectHandler, &data);
     } while (S3_status_is_retryable(data.status) && should_retry());
 
-    if (data.infileFD) {
-      taosCloseFile(&data.infileFD);
-    } else if (data.gb) {
-      growbuffer_destroy(data.gb);
-    }
-
     if (data.status != S3StatusOK) {
       s3PrintError(__func__, data.status, data.err_msg);
       code = TAOS_SYSTEM_ERROR(EIO);
@@ -519,9 +513,14 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
     manager.gb = 0;
 
     // div round up
-    int      seq;
-    uint64_t chunk_size = MULTIPART_CHUNK_SIZE >> 7;
-    int      totalSeq = ((contentLength + chunk_size - 1) / chunk_size);
+    int       seq;
+    uint64_t  chunk_size = MULTIPART_CHUNK_SIZE >> 7;
+    int       totalSeq = (contentLength + chunk_size - 1) / chunk_size;
+    const int max_part_num = 1000;
+    if (totalSeq > max_part_num) {
+      chunk_size = (contentLength + max_part_num - contentLength % max_part_num) / max_part_num;
+      totalSeq = (contentLength + chunk_size - 1) / chunk_size;
+    }
 
     MultipartPartData partData;
     memset(&partData, 0, sizeof(MultipartPartData));
@@ -622,6 +621,12 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
     for (i = 0; i < manager.next_etags_pos; i++) {
       taosMemoryFree(manager.etags[i]);
     }
+    if (data.infileFD) {
+      taosCloseFile(&data.infileFD);
+    } else if (data.gb) {
+      growbuffer_destroy(data.gb);
+    }
+
     growbuffer_destroy(manager.gb);
     taosMemoryFree(manager.etags);
   }
@@ -717,9 +722,10 @@ static SArray *getListByPrefix(const char *prefix) {
       return data.objectArray;
     }
   } else {
-    taosArrayDestroyEx(data.objectArray, s3FreeObjectKey);
     s3PrintError(__func__, data.status, data.err_msg);
   }
+
+  taosArrayDestroyEx(data.objectArray, s3FreeObjectKey);
   return NULL;
 }
 
