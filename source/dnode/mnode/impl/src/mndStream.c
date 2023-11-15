@@ -873,14 +873,21 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
+  SName dbname = {0};
+  tNameFromString(&dbname, createStreamReq.sourceDB, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
   SName name = {0};
   tNameFromString(&name, createStreamReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
   // reuse this function for stream
 
-  // TODO
   if (createStreamReq.sql != NULL) {
-    auditRecord(pReq, pMnode->clusterId, "createStream", name.dbname, name.tname, createStreamReq.sql,
+    auditRecord(pReq, pMnode->clusterId, "createStream", dbname.dbname, name.dbname, createStreamReq.sql,
                 strlen(createStreamReq.sql));
+  }
+  else{
+    char detail[1000] = {0};
+    sprintf(detail, "dbname:%s, stream name:%s", dbname.dbname, name.dbname);
+    auditRecord(pReq, pMnode->clusterId, "createStream", dbname.dbname, name.dbname, detail, strlen(detail));
   }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
