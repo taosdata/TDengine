@@ -32,12 +32,12 @@ pub use transform::Parser;
 use self::sink::IpcHandler;
 
 mod config;
+mod expr;
 pub mod runners;
 mod service;
 pub mod sink;
 mod source;
 mod transform;
-mod expr;
 
 /// ipc stream metrics
 /// be careful to modify, in case other crate use string value. for now POINTS value used in taosx-ipc.

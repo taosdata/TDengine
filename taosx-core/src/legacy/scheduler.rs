@@ -26,7 +26,8 @@ use crate::{
         transform_sql_with_remap,
     },
     utils::breakpoints,
-    Action, LegacyMetrics, QueryOpts, TargetOpts, TimeRange, METRICS_LEGACY_CREATED_TABLES, METRICS_LEGACY_TABLES,
+    Action, LegacyMetrics, QueryOpts, TargetOpts, TimeRange, METRICS_LEGACY_CREATED_TABLES,
+    METRICS_LEGACY_TABLES,
 };
 
 use super::{sync_normal_table_schema, sync_super_table_schema_with_subs};
@@ -451,7 +452,9 @@ async fn worker(
                         match chunk_err {
                             Some(err) => {
                                 if let Some(sender) = sender {
-                                    let _ = sender.send(Err(anyhow::format_err!("Syncing table failed: {err}",)));
+                                    let _ = sender.send(Err(anyhow::format_err!(
+                                        "Syncing table failed: {err}",
+                                    )));
                                 }
                             }
                             None => {
@@ -459,7 +462,7 @@ async fn worker(
                                 metrics.tables.fetch_add(1, Ordering::SeqCst);
                                 if let Some(sender) = sender {
                                     let _ = sender.send(Ok(()));
-                                } 
+                                }
                             }
                         }
                     }

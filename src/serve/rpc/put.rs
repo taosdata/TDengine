@@ -212,15 +212,20 @@ impl PutStream {
                         tracing::debug!(columns = ?record.columns(), num.rows = record.num_rows(), num.columns = record.num_columns(),
                                 "Start writing records");
                         if let Err(err) = worker
-                            .process_record(&mut stmt, record.clone(), parser.as_ref(), trace_id)
+                            .process_record(
+                                &mut stmt,
+                                record.clone(),
+                                parser.as_ref(),
+                                trace_id,
+                                &trace_id_str,
+                            )
                             .await
                         {
                             tracing::warn!(
-                                agent.id = agent_id,
-                                task.id = task.id,
-                                error.message = format!("{err:#}"),
-                                error.root_cause = err.root_cause(),
-                                backtrace = format!("{}", err.backtrace())
+                                "Can't write batch {} to database, err: {:#}, backtrace: {}",
+                                trace_id_str,
+                                err,
+                                err.backtrace()
                             );
                             let _ = notify_sender.send(
                                 crate::serve::scheduler::agent::AgentNotify::TaskActivity(
@@ -240,11 +245,6 @@ impl PutStream {
                                 )?;
                                 bail!("{err:#}");
                             }
-                            tracing::warn!(
-                                "Can't write batch {} to database, err: {}",
-                                trace_id,
-                                err
-                            );
                             tx.send_async((record, trace_id)).await?;
                         }
                     }

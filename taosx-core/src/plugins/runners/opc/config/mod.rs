@@ -110,12 +110,10 @@ impl OPCConfig {
         Ok(dsn
             .params
             .get("log_level")
-            .map(|v| {
-                match v.as_str() {
-                    "error" | "warn" | "info" => Ok(false),
-                    "debug" | "trace" => Ok(true),
-                    _ => Err(anyhow::anyhow!("invalid log_level: {}", v.to_string())),
-                }
+            .map(|v| match v.as_str() {
+                "error" | "warn" | "info" => Ok(false),
+                "debug" | "trace" => Ok(true),
+                _ => Err(anyhow::anyhow!("invalid log_level: {}", v.to_string())),
             })
             .transpose()?
             .unwrap_or(false))
