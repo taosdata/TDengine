@@ -77,7 +77,7 @@ export default {
       const proto = location.protocol.startsWith("https") ? "wss" : "ws";
       console.log('location',location);
       let host = location.host;
-      const wsUri = `${proto}://${host}/metrics/task/${this.taskId}`;
+      const wsUri = `${proto}://${host}/api/x/metrics/task/${this.taskId}`;
 
       // const x_api = process.env.VUE_APP_X_API
       // const proto = x_api.startsWith('https') ? 'wss' : 'ws'
