@@ -78,7 +78,7 @@ groups:
       - name: beginDateTime
         display: Begin Time
         description: The start time of the task is in rfc3339 format.
-        required: false
+        required: true
         placeholder: e.g., 2023-01-01T00:00:00.000Z
         hint:
           type: time

@@ -78,7 +78,7 @@ groups:
         display: 任务开始时间
         description: >
           任务的开始时间，rfc3339格式的日期时间。
-        required: false
+        required: true
         placeholder: 如：2023-01-01T00:00:00+08:00
         hint:
           type: time
