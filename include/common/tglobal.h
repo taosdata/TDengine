@@ -44,10 +44,6 @@ extern int32_t  tsNumOfSupportVnodes;
 extern int32_t tsMaxShellConns;
 extern int32_t tsShellActivityTimer;
 extern int32_t tsCompressMsgSize;
-extern int32_t tsCompressColData;
-extern int32_t tsMaxNumOfDistinctResults;
-extern int32_t tsCompatibleModel;
-extern bool    tsPrintAuth;
 extern int64_t tsTickPerMin[3];
 extern int64_t tsTickPerHour[3];
 extern int32_t tsCountAlwaysReturnValue;
@@ -79,8 +75,12 @@ extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
 extern int32_t tsHeartbeatTimeout;
 
-// vnode
-extern int64_t tsVndCommitMaxIntervalMs;
+// snode
+extern int32_t tsRsyncPort;
+extern char tsCheckpointBackupDir[];
+
+// vnode checkpoint
+extern char tsSnodeAddress[];       //127.0.0.1:873
 
 // mnode
 extern int64_t tsMndSdbWriteDelta;
@@ -105,8 +105,6 @@ extern bool     tsMonitorComp;
 
 // audit
 extern bool     tsEnableAudit;
-extern char     tsAuditFqdn[];
-extern uint16_t tsAuditPort;
 extern bool     tsEnableAuditCreateTable;
 
 // telem
@@ -180,6 +178,7 @@ extern char tsUdfdLdLibPath[];
 
 // schemaless
 extern char tsSmlChildTableName[];
+extern char tsSmlAutoChildTableNameDelimiter[];
 extern char tsSmlTagName[];
 extern bool tsSmlDot2Underline;
 extern char tsSmlTsDefaultName[];
@@ -218,13 +217,13 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
                     bool tsc);
 void    taosCleanupCfg();
-void    taosCfgDynamicOptions(const char *option, const char *value);
+
+int32_t taosCfgDynamicOptions(SConfig *pCfg, char *name, bool forServer);
 
 struct SConfig *taosGetCfg();
 
 void    taosSetAllDebugFlag(int32_t flag, bool rewrite);
 void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal, bool rewrite);
-int32_t taosApplyLocalCfg(SConfig *pCfg, char *name);
 void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
 int8_t  taosGranted();
 

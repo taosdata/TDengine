@@ -1543,6 +1543,15 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
     return DEAL_RES_IGNORE_CHILD;
   }
 
+  if (QUERY_NODE_VALUE == nType && ((SValueNode*)pNode)->node.resType.type == TSDB_DATA_TYPE_BOOL) {
+    if (((SValueNode*)pNode)->datum.b) {
+      FILTER_SET_FLAG(ctx->info->status, FI_STATUS_ALL);
+    } else {
+      FILTER_SET_FLAG(ctx->info->status, FI_STATUS_EMPTY);
+    }
+    return DEAL_RES_END;
+  }
+  
   fltError("invalid node type for filter, type:%d", nodeType(pNode));
 
   code = TSDB_CODE_QRY_INVALID_INPUT;
@@ -3450,7 +3459,9 @@ int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
   return code;
 
 _return:
-  qInfo("init from node failed, code:%d", code);
+  if (code) {
+    qInfo("init from node failed, code:%d", code);
+  }
   return code;
 }
 

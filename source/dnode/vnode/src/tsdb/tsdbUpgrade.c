@@ -16,24 +16,15 @@
 #include "tsdbUpgrade.h"
 
 // old
-extern void    tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t);
-extern int32_t tsdbReadDataBlockEx(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData *pBlockData);
+#include "tsdb.h"
+// extern void    tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t);
 
 // new
-extern int32_t save_fs(const TFileSetArray *arr, const char *fname);
-extern int32_t current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype);
-extern int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAlg, int64_t *fileSize,
-                                      TBrinBlkArray *brinBlkArray, uint8_t **bufArr);
-extern int32_t tsdbFileWriteBrinBlk(STsdbFD *fd, TBrinBlkArray *brinBlkArray, SFDataPtr *ptr, int64_t *fileSize);
-extern int32_t tsdbFileWriteHeadFooter(STsdbFD *fd, int64_t *fileSize, const SHeadFooter *footer);
-extern int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl);
-extern int32_t tsdbSttLvlClear(SSttLvl **lvl);
-extern int32_t tsdbFileWriteSttBlk(STsdbFD *fd, const TSttBlkArray *sttBlkArray, SFDataPtr *ptr, int64_t *fileSize);
-extern int32_t tsdbFileWriteSttFooter(STsdbFD *fd, const SSttFooter *footer, int64_t *fileSize);
-extern int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAlg, int64_t *fileSize,
-                                      TTombBlkArray *tombBlkArray, uint8_t **bufArr);
-extern int32_t tsdbFileWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFDataPtr *ptr, int64_t *fileSize);
-extern int32_t tsdbFileWriteTombFooter(STsdbFD *fd, const STombFooter *footer, int64_t *fileSize);
+#include "tsdbDataFileRW.h"
+#include "tsdbFS2.h"
+#include "tsdbSttFileRW.h"
+// extern int32_t save_fs(const TFileSetArray *arr, const char *fname);
+// extern int32_t current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype);
 
 static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *reader, STFileSet *fset) {
   int32_t code = 0;
@@ -78,6 +69,8 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
         .fid = fset->fid,
         .cid = pDFileSet->pHeadF->commitID,
         .size = pDFileSet->pHeadF->size,
+        .minVer = VERSION_MAX,
+        .maxVer = VERSION_MIN,
     };
 
     code = tsdbTFileObjInit(tsdb, &file, &fset->farr[TSDB_FTYPE_HEAD]);
@@ -127,16 +120,18 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
         TSDB_CHECK_CODE(code, lino, _exit);
 
         if (BRIN_BLOCK_SIZE(ctx->brinBlock) >= ctx->maxRow) {
+          SVersionRange range = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
           code = tsdbFileWriteBrinBlock(ctx->fd, ctx->brinBlock, ctx->cmprAlg, &fset->farr[TSDB_FTYPE_HEAD]->f->size,
-                                        ctx->brinBlkArray, ctx->bufArr);
+                                        ctx->brinBlkArray, ctx->bufArr, &range);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
       }
     }
 
     if (BRIN_BLOCK_SIZE(ctx->brinBlock) > 0) {
+      SVersionRange range = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
       code = tsdbFileWriteBrinBlock(ctx->fd, ctx->brinBlock, ctx->cmprAlg, &fset->farr[TSDB_FTYPE_HEAD]->f->size,
-                                    ctx->brinBlkArray, ctx->bufArr);
+                                    ctx->brinBlkArray, ctx->bufArr, &range);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -182,6 +177,8 @@ static int32_t tsdbUpgradeData(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
       .fid = fset->fid,
       .cid = pDFileSet->pDataF->commitID,
       .size = pDFileSet->pDataF->size,
+      .minVer = VERSION_MAX,
+      .maxVer = VERSION_MIN,
   };
 
   code = tsdbTFileObjInit(tsdb, &file, &fset->farr[TSDB_FTYPE_DATA]);
@@ -208,6 +205,8 @@ static int32_t tsdbUpgradeSma(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *r
       .fid = fset->fid,
       .cid = pDFileSet->pSmaF->commitID,
       .size = pDFileSet->pSmaF->size,
+      .minVer = VERSION_MAX,
+      .maxVer = VERSION_MIN,
   };
 
   code = tsdbTFileObjInit(tsdb, &file, &fset->farr[TSDB_FTYPE_SMA]);
@@ -253,6 +252,8 @@ static int32_t tsdbUpgradeSttFile(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReade
         .fid = fset->fid,
         .cid = pSttF->commitID,
         .size = pSttF->size,
+        .minVer = VERSION_MAX,
+        .maxVer = VERSION_MIN,
     };
     code = tsdbTFileObjInit(tsdb, &file, &fobj);
     TSDB_CHECK_CODE(code, lino, _exit1);
@@ -382,6 +383,8 @@ static int32_t tsdbUpgradeOpenTombFile(STsdb *tsdb, STFileSet *fset, STsdbFD **f
         .fid = fset->fid,
         .cid = 0,
         .size = 0,
+        .minVer = VERSION_MAX,
+        .maxVer = VERSION_MIN,
     };
 
     code = tsdbTFileObjInit(tsdb, &file, fobj);
@@ -398,6 +401,8 @@ static int32_t tsdbUpgradeOpenTombFile(STsdb *tsdb, STFileSet *fset, STsdbFD **f
         .fid = fset->fid,
         .cid = 0,
         .size = 0,
+        .minVer = VERSION_MAX,
+        .maxVer = VERSION_MIN,
     };
 
     code = tsdbTFileObjInit(tsdb, &file, fobj);
@@ -481,8 +486,9 @@ static int32_t tsdbDumpTombDataToFSet(STsdb *tsdb, SDelFReader *reader, SArray *
           code = tsdbUpgradeOpenTombFile(tsdb, fset, &ctx->fd, &ctx->fobj, &ctx->toStt);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
+        SVersionRange tombRange = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
         code = tsdbFileWriteTombBlock(ctx->fd, ctx->tombBlock, ctx->cmprAlg, &ctx->fobj->f->size, ctx->tombBlkArray,
-                                      ctx->bufArr);
+                                      ctx->bufArr, &tombRange);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
@@ -493,8 +499,9 @@ static int32_t tsdbDumpTombDataToFSet(STsdb *tsdb, SDelFReader *reader, SArray *
       code = tsdbUpgradeOpenTombFile(tsdb, fset, &ctx->fd, &ctx->fobj, &ctx->toStt);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
+    SVersionRange tombRange = {.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
     code = tsdbFileWriteTombBlock(ctx->fd, ctx->tombBlock, ctx->cmprAlg, &ctx->fobj->f->size, ctx->tombBlkArray,
-                                  ctx->bufArr);
+                                  ctx->bufArr, &tombRange);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

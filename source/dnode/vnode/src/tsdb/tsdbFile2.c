@@ -14,6 +14,7 @@
  */
 
 #include "tsdbFile2.h"
+#include "cos.h"
 
 // to_json
 static int32_t head_to_json(const STFile *file, cJSON *json);
@@ -41,10 +42,21 @@ static const struct {
     [TSDB_FTYPE_STT] = {"stt", stt_to_json, stt_from_json},
 };
 
-void remove_file(const char *fname) {
+void remove_file(const char *fname, bool last_level) {
   int32_t code = taosRemoveFile(fname);
   if (code) {
-    tsdbError("file:%s remove failed", fname);
+    if (tsS3Enabled && last_level) {
+      const char *object_name = taosDirEntryBaseName((char *)fname);
+      long        s3_size = tsS3Enabled ? s3Size(object_name) : 0;
+      if (!strncmp(fname + strlen(fname) - 5, ".data", 5) && s3_size > 0) {
+        s3DeleteObjects(&object_name, 1);
+        tsdbInfo("file:%s is removed from s3", fname);
+      } else {
+        tsdbError("file:%s remove failed", fname);
+      }
+    } else {
+      tsdbError("file:%s remove failed", fname);
+    }
   } else {
     tsdbInfo("file:%s is removed", fname);
   }
@@ -76,6 +88,17 @@ static int32_t tfile_to_json(const STFile *file, cJSON *json) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  if (file->minVer <= file->maxVer) {
+    /* minVer */
+    if (cJSON_AddNumberToObject(json, "minVer", file->minVer) == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    /* maxVer */
+    if (cJSON_AddNumberToObject(json, "maxVer", file->maxVer) == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
   return 0;
 }
 
@@ -122,6 +145,19 @@ static int32_t tfile_from_json(const cJSON *json, STFile *file) {
     return TSDB_CODE_FILE_CORRUPTED;
   }
 
+  /* minVer */
+  file->minVer = VERSION_MAX;
+  item = cJSON_GetObjectItem(json, "minVer");
+  if (cJSON_IsNumber(item)) {
+    file->minVer = item->valuedouble;
+  }
+
+  /* maxVer */
+  file->maxVer = VERSION_MIN;
+  item = cJSON_GetObjectItem(json, "maxVer");
+  if (cJSON_IsNumber(item)) {
+    file->maxVer = item->valuedouble;
+  }
   return 0;
 }
 
@@ -200,6 +236,7 @@ int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
   fobj[0]->state = TSDB_FSTATE_LIVE;
   fobj[0]->ref = 1;
   tsdbTFileName(pTsdb, f, fobj[0]->fname);
+  fobj[0]->nlevel = tfsGetLevel(pTsdb->pVnode->pTfs);
   return 0;
 }
 
@@ -221,7 +258,7 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
   tsdbTrace("unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     if (fobj->state == TSDB_FSTATE_DEAD) {
-      remove_file(fobj->fname);
+      remove_file(fobj->fname, fobj->nlevel > 1 && fobj->f->did.level == fobj->nlevel - 1);
     }
     taosMemoryFree(fobj);
   }
@@ -237,7 +274,7 @@ int32_t tsdbTFileObjRemove(STFileObj *fobj) {
   taosThreadMutexUnlock(&fobj->mutex);
   tsdbTrace("remove unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
-    remove_file(fobj->fname);
+    remove_file(fobj->fname, fobj->nlevel > 1 && fobj->f->did.level == fobj->nlevel - 1);
     taosMemoryFree(fobj);
   }
   return 0;
@@ -279,6 +316,7 @@ bool tsdbIsSameTFile(const STFile *f1, const STFile *f2) {
   if (f1->did.id != f2->did.id) return false;
   if (f1->fid != f2->fid) return false;
   if (f1->cid != f2->cid) return false;
+  if (f1->s3flag != f2->s3flag) return false;
   return true;
 }
 

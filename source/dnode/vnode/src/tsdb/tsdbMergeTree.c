@@ -181,7 +181,7 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
             pInfo->blockData[1].sttBlockIndex, pIter->iRow, idStr);
   return &pInfo->blockData[pInfo->currentLoadBlockIndex].data;
 
-_exit:
+  _exit:
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
   }
@@ -699,7 +699,7 @@ bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
   pIter->rInfo.uid = pBlockData->uid;
   pIter->rInfo.row = tsdbRowFromBlockData(pBlockData, pIter->iRow);
 
-_exit:
+  _exit:
   return (terrno == TSDB_CODE_SUCCESS) && (pIter->pSttBlk != NULL) && (pBlockData != NULL);
 }
 
@@ -817,7 +817,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
       if (code != TSDB_CODE_SUCCESS) {
         goto _end;
       }
-      
+
       bool hasVal = tLDataIterNextRow(pIter, pMTree->idStr);
       if (hasVal) {
         tMergeTreeAddIter(pMTree, pIter);
@@ -831,7 +831,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
 
   return code;
 
-_end:
+  _end:
   tMergeTreeClose(pMTree);
   return code;
 }

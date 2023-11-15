@@ -182,7 +182,7 @@ static char* buildAlterSTableJson(void* alterData, int32_t alterDataLen) {
   }
   string = cJSON_PrintUnformatted(json);
 
-end:
+  end:
   cJSON_Delete(json);
   tFreeSMAltertbReq(&req);
   return string;
@@ -315,7 +315,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
     cJSON_AddItemToArray(tags, tag);
   }
 
-end:
+  end:
   cJSON_AddItemToObject(json, "tags", tags);
   taosArrayDestroy(pTagVals);
 }
@@ -812,9 +812,9 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
     goto end;
   }
   SRequestConnInfo conn = {.pTrans = pRequest->pTscObj->pAppInfo->pTransporter,
-                           .requestId = pRequest->requestId,
-                           .requestObjRefId = pRequest->self,
-                           .mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp)};
+      .requestId = pRequest->requestId,
+      .requestObjRefId = pRequest->self,
+      .mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp)};
   SName            pName = {0};
   toName(pRequest->pTscObj->acctId, pRequest->pDb, req.name, &pName);
   STableMeta* pTableMeta = NULL;
@@ -939,9 +939,9 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
   taosHashSetFreeFp(pVgroupHashmap, destroyCreateTbReqBatch);
 
   SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
-                           .requestId = pRequest->requestId,
-                           .requestObjRefId = pRequest->self,
-                           .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+      .requestId = pRequest->requestId,
+      .requestObjRefId = pRequest->self,
+      .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
 
   pRequest->tableList = taosArrayInit(req.nReqs, sizeof(SName));
   // loop to create table
@@ -1018,7 +1018,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
 
   launchQueryImpl(pRequest, pQuery, true, NULL);
   if (pRequest->code == TSDB_CODE_SUCCESS) {
-    removeMeta(pTscObj, pRequest->tableList);
+    removeMeta(pTscObj, pRequest->tableList, false);
   }
 
   code = pRequest->code;
@@ -1102,9 +1102,9 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
   taosHashSetFreeFp(pVgroupHashmap, destroyDropTbReqBatch);
 
   SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
-                           .requestId = pRequest->requestId,
-                           .requestObjRefId = pRequest->self,
-                           .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+      .requestId = pRequest->requestId,
+      .requestObjRefId = pRequest->self,
+      .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
   pRequest->tableList = taosArrayInit(req.nReqs, sizeof(SName));
   // loop to create table
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
@@ -1171,7 +1171,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
 
   launchQueryImpl(pRequest, pQuery, true, NULL);
   if (pRequest->code == TSDB_CODE_SUCCESS) {
-    removeMeta(pTscObj, pRequest->tableList);
+    removeMeta(pTscObj, pRequest->tableList, false);
   }
   code = pRequest->code;
 
@@ -1303,9 +1303,9 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   }
 
   SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
-                           .requestId = pRequest->requestId,
-                           .requestObjRefId = pRequest->self,
-                           .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+      .requestId = pRequest->requestId,
+      .requestObjRefId = pRequest->self,
+      .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
 
   SVgroupInfo pInfo = {0};
   SName       pName = {0};
@@ -1382,6 +1382,11 @@ end:
 
 int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const char* tbname, TAOS_FIELD* fields,
                                      int numFields) {
+  return taos_write_raw_block_with_fields_with_reqid(taos, rows, pData, tbname, fields, numFields, 0);
+}
+
+int taos_write_raw_block_with_fields_with_reqid(TAOS *taos, int rows, char *pData, const char *tbname,
+    TAOS_FIELD *fields, int numFields, int64_t reqid){
   if (!taos || !pData || !tbname) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -1391,7 +1396,7 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
   SQuery*     pQuery = NULL;
   SHashObj*   pVgHash = NULL;
 
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
+  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, reqid);
   if (!pRequest) {
     return terrno;
   }
@@ -1465,6 +1470,10 @@ end:
 }
 
 int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) {
+  return taos_write_raw_block_with_reqid(taos, rows, pData, tbname, 0);
+}
+
+int taos_write_raw_block_with_reqid(TAOS* taos, int rows, char* pData, const char* tbname, int64_t reqid) {
   if (!taos || !pData || !tbname) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -1474,7 +1483,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
   SQuery*     pQuery = NULL;
   SHashObj*   pVgHash = NULL;
 
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
+  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, reqid);
   if (!pRequest) {
     return terrno;
   }

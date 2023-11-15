@@ -41,6 +41,7 @@ int32_t   mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int3
                                   int32_t *pRspLen);
 int32_t   mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, char *db);
 int32_t   mndUserRemoveStb(SMnode *pMnode, STrans *pTrans, char *stb);
+int32_t   mndUserRemoveView(SMnode *pMnode, STrans *pTrans, char *view);
 int32_t   mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic);
 
 int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew);

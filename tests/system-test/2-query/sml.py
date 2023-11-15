@@ -9,7 +9,7 @@ from util.dnodes import *
 from util.common import *
 
 class TDTestCase:
-    updatecfgDict = {'clientCfg': {'smlChildTableName': 'dataModelName', 'fqdn': 'localhost', 'smlDot2Underline': 0}, 'fqdn': 'localhost'}
+    updatecfgDict = {'clientCfg': {'smlChildTableName': 'dataModelName', 'smlAutoChildTableNameDelimiter': '', 'fqdn': 'localhost', 'smlDot2Underline': 0}, 'fqdn': 'localhost'}
     print("===================: ", updatecfgDict)
 
     def init(self, conn, logSql, replicaVar=1):

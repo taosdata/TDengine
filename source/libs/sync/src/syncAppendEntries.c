@@ -155,6 +155,13 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
          pMsg->vgId, pMsg->prevLogIndex + 1, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex,
          pEntry->term);
 
+  if (ths->fsmState == SYNC_FSM_STATE_INCOMPLETE) {
+    pReply->fsmState = ths->fsmState;
+    sWarn("vgId:%d, unable to accept, due to incomplete fsm state. index:%" PRId64, ths->vgId, pEntry->index);
+    syncEntryDestroy(pEntry);
+    goto _SEND_RESPONSE;
+  }
+
   // accept
   if (syncLogBufferAccept(ths->pLogBuf, ths, pEntry, pMsg->prevLogTerm) < 0) {
     goto _SEND_RESPONSE;
@@ -175,7 +182,7 @@ _SEND_RESPONSE:
   (void)syncNodeSendMsgById(&pReply->destId, ths, &rpcRsp);
 
   // commit index, i.e. leader notice me
-  if (syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
+  if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE && syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
     sError("vgId:%d, failed to commit raft fsm log since %s.", ths->vgId, terrstr());
   }
 
