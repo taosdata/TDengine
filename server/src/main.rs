@@ -1,27 +1,21 @@
 use actix_cors::Cors;
-use actix_session::{storage::CookieSessionStore, Session, SessionMiddleware};
-use awc::error::JsonPayloadError;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use http_auth_basic::Credentials;
 use log::LevelFilter;
 use std::{fmt::Display, fs::File, io::Read, path::PathBuf, time::Duration};
 use taos::*;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{info, instrument, Level};
 use tracing_actix_web::TracingLogger;
-use tracing_awc::Tracing;
-use tracing_subscriber::fmt::format::FmtSpan;
 
 use actix_embed::Embed;
 use actix_web::{
-    cookie::Key,
-    error::{self, PayloadError},
+    error::{self, JsonPayloadError, PayloadError},
     http::header::{ContentType, AUTHORIZATION},
-    middleware::{self, Logger},
     post,
     web::{self},
-    App, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder,
+    App, HttpRequest, HttpResponse, HttpServer, Responder, ResponseError,
 };
-use awc::Client;
 
 use clap::Parser;
 use rust_embed::RustEmbed;
@@ -36,10 +30,6 @@ fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
         LevelFilter::Debug => Some(Level::DEBUG),
         LevelFilter::Trace => Some(Level::TRACE),
     }
-}
-
-fn get_secret_key() -> Key {
-    Key::generate()
 }
 
 #[actix_web::main]
@@ -72,17 +62,14 @@ async fn main() -> anyhow::Result<()> {
     let log_level = args
         .log_level
         .or(args.verbose.as_ref().map(|v| v.log_level_filter()))
-        .unwrap_or(log::LevelFilter::Info);
+        .unwrap_or(LevelFilter::Info);
 
-    let mut subscriber = tracing_subscriber::fmt()
+    let subscriber = tracing_subscriber::fmt()
         .with_level(true)
         .with_thread_ids(true)
         .with_thread_names(true)
         .with_max_level(log_level_to_tracing_level(log_level))
         .compact();
-    if log_level > log::LevelFilter::Info {
-        subscriber = subscriber.with_span_events(FmtSpan::ACTIVE);
-    }
     if atty::is(atty::Stream::Stdout) {
         subscriber.pretty().init();
     } else {
@@ -105,7 +92,6 @@ async fn main() -> anyhow::Result<()> {
     let cors = args.cors.unwrap_or_default();
 
     info!("Explorer service at http://0.0.0.0:{port}");
-    let secret_key = get_secret_key();
 
     HttpServer::new(move || {
         let cors = if cors {
@@ -128,14 +114,8 @@ async fn main() -> anyhow::Result<()> {
         };
         App::new()
             .wrap(TracingLogger::default())
-            .wrap(Logger::default())
-            .wrap(middleware::Compress::default())
-            .wrap(SessionMiddleware::new(
-                CookieSessionStore::default(),
-                secret_key.clone(),
-            ))
             .wrap(cors)
-            .app_data(web::Data::new(Client::new()))
+            .app_data(web::Data::new(reqwest::Client::new()))
             .app_data(args.clone())
             // .route("/", web::get().to(index))
             .route("/rest/{path:.*}", web::to(rest_proxy))
@@ -183,21 +163,17 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn profile(args: web::Data<Args>) -> impl Responder {
+async fn profile(args: web::Data<Args>, client: web::Data<reqwest::Client>) -> impl Responder {
     if args.profile.x_api.is_none() {
         return HttpResponse::Ok().json(&args.profile);
     }
     let mut profile = args.profile.clone();
     let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/profile");
-    let client = awc::Client::builder()
-        .disable_timeout()
-        .wrap(Tracing)
-        .finish();
     let client = client.get(url);
     let client = client.timeout(Duration::from_secs(10));
 
-    if let Ok(mut resp) = client.send().await {
+    if let Ok(resp) = client.send().await {
         if let Ok(json) = resp.json::<serde_json::Value>().await {
             if let Some(version) = json.get("version") {
                 profile
@@ -260,59 +236,125 @@ async fn renew_license(
     }
 }
 
-// #[post("/rest/{path:.*}")]
-async fn rest_proxy(
-    session: Session,
-    args: web::Data<Args>,
-    client: web::Data<Client>,
-    path: web::Path<(String,)>,
+async fn proxy(
     req: HttpRequest,
-    body: web::Payload,
+    payload: web::Payload,
+    client: web::Data<reqwest::Client>,
+    url: &str,
+) -> Result<HttpResponse, actix_web::Error> {
+    if req.headers().contains_key("upgrade") {
+        // Websocket proxy.
+
+        // Forward the request.
+        let mut builder = reqwest::ClientBuilder::new().build().unwrap().get(url);
+        let info = req.connection_info();
+        if let Some(addr) = info.realip_remote_addr().or(info.peer_addr()) {
+            builder = builder
+                .header("X-Forward-For", addr)
+                .header("X-Real-IP", addr);
+        }
+        for (key, value) in req.headers() {
+            builder = builder.header(key, value);
+        }
+        let target_response = builder.send().await.unwrap();
+
+        // Make sure the server is willing to accept the websocket.
+        let status = target_response.status().as_u16();
+        if status != 101 {
+            return Err(actix_web::error::ErrorBadRequest(format!(
+                "Unexpected status code from target: {}",
+                status
+            )));
+        }
+
+        // Copy headers from the target back to the client.
+        let mut client_response = HttpResponse::SwitchingProtocols();
+        client_response.upgrade("websocket");
+        for (header, value) in target_response.headers() {
+            client_response.insert_header((header.to_owned(), value.to_owned()));
+        }
+
+        let target_upgrade = target_response
+            .upgrade()
+            .await
+            .map_err(error::ErrorInternalServerError)?;
+        let (target_rx, mut target_tx) = tokio::io::split(target_upgrade);
+
+        // Copy byte stream from the client to the target.
+        tokio::task::spawn_local(async move {
+            let mut client_stream = payload.map(|result| {
+                result.map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))
+            });
+            let mut client_read = tokio_util::io::StreamReader::new(&mut client_stream);
+            let result = tokio::io::copy(&mut client_read, &mut target_tx).await;
+            if let Err(err) = result {
+                tracing::error!("Error proxying websocket client bytes to target: {err}")
+            }
+            tracing::info!("Websocket client closed");
+        });
+
+        // Copy byte stream from the target back to the client.
+        let target_stream = tokio_util::io::ReaderStream::new(target_rx);
+        Ok(client_response.streaming(target_stream))
+    } else {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+        tokio::task::spawn_local(async move {
+            let mut payload = payload;
+            while let Some(chunk) = payload.next().await {
+                if let Err(err) = tx.send(chunk) {
+                    tracing::warn!("Error sending payload chunk: {err}");
+                }
+            }
+        });
+        let mut builder = client
+            .request(req.method().clone(), url)
+            .timeout(Duration::from_secs(std::u64::MAX))
+            .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
+        let info = req.connection_info();
+        if let Some(addr) = info.realip_remote_addr().or(info.peer_addr()) {
+            builder = builder
+                .header("X-Forward-For", addr)
+                .header("X-Real-IP", addr);
+        }
+        for (k, v) in req.headers() {
+            builder = builder.header(k, v);
+        }
+        let res = builder
+            .send()
+            .await
+            .map_err(error::ErrorInternalServerError)?;
+        let mut client_resp = HttpResponse::build(res.status());
+        for (header_name, header_value) in res.headers().iter().filter(|(h, _)| *h != "connection")
+        {
+            client_resp.insert_header((header_name.clone(), header_value.clone()));
+        }
+        Ok(client_resp.streaming(res.bytes_stream()))
+    }
+}
+
+async fn rest_proxy(
+    args: web::Data<Args>,
+    client: web::Data<reqwest::Client>,
+    path: web::Path<String>,
+    req: HttpRequest,
+    payload: web::Payload,
 ) -> impl Responder {
-    const TOKEN_KEY: &str = "token";
-    let token = session.get::<String>(TOKEN_KEY).unwrap_or_default();
-    let (url,) = path.into_inner();
     let x = args.profile.cluster.as_deref().unwrap();
-    let method = req.method();
     let query = req.query_string();
     let url = if query.is_empty() {
-        format!("{x}/rest/{url}")
+        format!("{x}/rest/{path}")
     } else {
-        format!("{x}/rest/{url}?{query}")
+        format!("{x}/rest/{path}?{query}")
     };
-    let builder = client.request(method.clone(), url);
-    let mut builder = builder.timeout(Duration::from_secs(std::u64::MAX));
-    *builder.headers_mut() = req.headers().clone();
-    let mut auth = builder.headers().get(AUTHORIZATION);
-    if auth.is_none() && token.is_some() {
-        builder = builder.insert_header(("Authorization", token.as_deref().unwrap()));
-        auth = builder.headers().get(AUTHORIZATION);
-    }
-    let auth = auth.map(Clone::clone);
-    match builder.send_stream(body).await {
-        Ok(mut ok) => match ok.body().limit(1024 * 1024 * 1024).await {
-            Ok(ok) => {
-                if let Some(auth) = auth {
-                    let _ = session.insert(TOKEN_KEY, auth.as_ref());
-                }
-                HttpResponse::Ok().body(ok)
-            }
-            Err(err) => HttpResponse::InternalServerError().json(RestErrResponse {
-                code: Code::Failed,
-                desc: err.to_string(),
-            }),
-        },
-        Err(err) => HttpResponse::InternalServerError().json(RestErrResponse {
-            code: Code::Failed,
-            desc: err.to_string(),
-        }),
-    }
+
+    proxy(req, payload, client, &url)
+        .await
+        .map_err(RestErrResponse::new)
 }
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
-    #[error(transparent)]
-    XApi(#[from] awc::error::SendRequestError),
     #[error(transparent)]
     Payload(#[from] PayloadError),
     #[error(transparent)]
@@ -323,65 +365,69 @@ enum Error {
 
 impl error::ResponseError for Error {}
 
-#[instrument(skip(req, body))]
+#[instrument(skip_all)]
 async fn x_api(
-    req: HttpRequest,
-    // req_id: RequestId,
-    api: web::Path<String>,
     args: web::Data<Args>,
-    body: web::Payload,
-) -> Result<HttpResponse, Error> {
+    client: web::Data<reqwest::Client>,
+    api: web::Path<String>,
+    req: HttpRequest,
+    payload: web::Payload,
+) -> impl Responder {
     if args.profile.x_api.is_none() {
         return Ok(HttpResponse::NotFound().finish());
     }
     let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/{api}?{}", req.query_string());
-    let client = awc::Client::builder()
-        .disable_timeout()
-        .wrap(Tracing)
-        .finish();
-    let method = req.method();
-    let client = client.request(method.clone(), url);
-    let mut client = client.timeout(Duration::from_secs(std::u64::MAX));
-    *client.headers_mut() = req.headers().clone();
-    let info = req.connection_info();
-    if let Some(addr) = info.realip_remote_addr().or(info.peer_addr()) {
-        client = client
-            .insert_header(("X-Forward-For", addr))
-            .insert_header(("X-Real-IP", addr));
-    }
 
-    let resp = client.send_stream(body).await?;
-    let status = resp.status();
-    let mut builder = HttpResponse::build(status);
-
-    for e in resp.headers() {
-        builder.insert_header(e);
-    }
-    Ok(builder.content_type(resp.content_type()).streaming(resp))
+    proxy(req, payload, client, &url)
+        .await
+        .map_err(RestErrResponse::new)
 }
 
 async fn x_api_doc(
     req: HttpRequest,
+    client: web::Data<reqwest::Client>,
     args: web::Data<Args>,
-    mut body: web::Payload,
-) -> Result<HttpResponse, Error> {
+    payload: web::Payload,
+) -> Result<HttpResponse, RestErrResponse> {
     if args.profile.x_api.is_none() {
         return Ok(HttpResponse::NotFound().finish());
     }
-    let mut bytes = web::BytesMut::new();
-    while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item?);
-    }
     let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/api-doc/openapi.json");
-    let client = awc::Client::new();
-    let method = req.method();
-    let client = client
-        .request(method.clone(), url)
-        .timeout(Duration::from_secs(std::u64::MAX));
-    let mut resp = client.send_body(bytes).await?;
-    let mut api: serde_json::Value = resp.json().await?;
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+    tokio::task::spawn_local(async move {
+        let mut payload = payload;
+        while let Some(chunk) = payload.next().await {
+            if let Err(err) = tx.send(chunk) {
+                tracing::warn!("Error sending payload chunk: {err}");
+            }
+        }
+    });
+    let mut builder = client
+        .request(req.method().clone(), url)
+        .timeout(Duration::from_secs(std::u64::MAX))
+        .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
+    let info = req.connection_info();
+    if let Some(addr) = info.realip_remote_addr().or(info.peer_addr()) {
+        builder = builder
+            .header("X-Forward-For", addr)
+            .header("X-Real-IP", addr);
+    }
+    for (k, v) in req.headers() {
+        builder = builder.header(k, v);
+    }
+    let res = builder
+        .send()
+        .await
+        .map_err(error::ErrorInternalServerError)?;
+    let mut client_resp = HttpResponse::build(res.status());
+    for (header_name, header_value) in res.headers().iter().filter(|(h, _)| *h != "connection") {
+        client_resp.insert_header((header_name.clone(), header_value.clone()));
+    }
+    // client_resp.
+    let mut api: serde_json::Value = res.json().await.map_err(error::ErrorInternalServerError)?;
     if let Some(paths) = api.get_mut("paths") {
         assert!(paths.is_object());
         if let serde_json::Value::Object(paths) = paths {
@@ -391,7 +437,7 @@ async fn x_api_doc(
                 .collect();
         }
     }
-    Ok(HttpResponse::Ok().body(serde_json::to_string(&api)?))
+    Ok(client_resp.body(serde_json::to_string(&api)?))
 }
 
 #[derive(RustEmbed)]
@@ -534,7 +580,7 @@ impl Args {
             .collect_vec();
         log::info!("SQL result: {data:?}");
         Ok(RestOkResponse {
-            code: Code::Success,
+            code: Code::SUCCESS,
             column_meta,
             rows: data.len() as _,
             data,
@@ -548,7 +594,7 @@ impl Args {
     ) -> Result<RestOkResponse, RestErrResponse> {
         if license.active_code.is_none() && license.c_active_code.is_none() {
             return Err(RestErrResponse {
-                code: Code::Failed,
+                code: Code::FAILED,
                 desc: "active code or connector active code must exist at lease one".into(),
             });
         }
@@ -566,60 +612,28 @@ impl Args {
         dsn.password = Some(credentials.password);
         let conn = TaosBuilder::from_dsn(dsn)?.build().await?;
 
-        let mut active_code_empty = true;
-        let mut c_active_code_empty = true;
-
         if let Some(active_code) = license.active_code.as_ref() {
             if active_code.len() > 0 {
-                active_code_empty = false;
                 let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
-                conn.exec(&sql)
-                    .await
-                    .map_err(|err| RestErrResponse::new(format!("Invalid cluster activation code: {err:#}")))?;
+                conn.exec(&sql).await.map_err(|err| {
+                    RestErrResponse::new(format!("Invalid cluster activation code: {err:#}"))
+                })?;
             }
         }
         if let Some(c_active_code) = license.c_active_code.as_ref() {
             if c_active_code.len() > 0 {
-                c_active_code_empty = false;
                 let sql = format!("alter all dnodes 'cActiveCode' '{c_active_code}'");
-                conn.exec(&sql)
-                    .await
-                    .map_err(|err| RestErrResponse::new(format!("Invalid connector activation code: {err:#}")))?;
+                conn.exec(&sql).await.map_err(|err| {
+                    RestErrResponse::new(format!("Invalid connector activation code: {err:#}"))
+                })?;
             }
         }
         Ok(RestOkResponse {
-            code: Code::Success,
+            code: Code::SUCCESS,
             column_meta: Default::default(),
             rows: 0,
             data: Default::default(),
         })
-
-        /*let renewed = conn
-            .query("show dnodes")
-            .await?
-            .deserialize::<RenewLicense>()
-            .all(|l| async move {
-                l.map(|l| {
-                    (l.active_code == license.active_code || active_code_empty)
-                        && (l.c_active_code == license.c_active_code || c_active_code_empty)
-                })
-                .unwrap_or_default()
-            })
-            .await;
-
-        if renewed {
-            Ok(RestOkResponse {
-                code: Code::Success,
-                column_meta: Default::default(),
-                rows: 0,
-                data: Default::default(),
-            })
-        } else {
-            Err(RestErrResponse {
-                code: Code::Failed,
-                desc: "Alter all dnodes success, but the `show dnodes` result is not consist with new license".to_string(),
-            })
-        }*/
     }
 }
 #[derive(Debug, serde::Serialize)]
@@ -637,11 +651,41 @@ struct RestErrResponse {
 impl RestErrResponse {
     pub fn new(err: impl Display) -> Self {
         Self {
-            code: Code::Failed,
+            code: Code::FAILED,
             desc: err.to_string(),
         }
     }
 }
+
+impl Display for RestErrResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}] {:#}", self.code, self.desc)
+    }
+}
+
+impl ResponseError for RestErrResponse {
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::InternalServerError().json(self)
+    }
+}
+
+impl From<actix_web::Error> for RestErrResponse {
+    fn from(err: actix_web::Error) -> Self {
+        Self {
+            code: Code::FAILED,
+            desc: format!("{:#}", err),
+        }
+    }
+}
+impl From<serde_json::Error> for RestErrResponse {
+    fn from(err: serde_json::Error) -> Self {
+        Self {
+            code: Code::FAILED,
+            desc: format!("{:#}", err),
+        }
+    }
+}
+
 impl From<taos::Error> for RestErrResponse {
     fn from(err: taos::Error) -> Self {
         let err_str = err.to_string();
@@ -657,7 +701,7 @@ impl From<taos::Error> for RestErrResponse {
             }
         } else {
             RestErrResponse {
-                code: Code::Failed,
+                code: Code::FAILED,
                 desc: err_str,
             }
         }
