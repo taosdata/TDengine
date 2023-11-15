@@ -2021,6 +2021,9 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
     target_1: 'Operand 1',
     target_2: 'Operand 2',
     user: 'User',
+    clientAddress: 'Client IP',
+    db: 'Database',
+    resource: 'Resource'
   },
   taosagents: {
     step1:'Install',

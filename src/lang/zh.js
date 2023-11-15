@@ -1829,6 +1829,9 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
     target_1: '操作对象 1',
     target_2: '操作对象 2',
     user: '用户',
+    clientAddress: '客户端 IP',
+    db: '数据库',
+    resource: '资源'
   },
   taosagents:{
     step1:'安装',
