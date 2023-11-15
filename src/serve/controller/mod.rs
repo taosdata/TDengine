@@ -1070,6 +1070,9 @@ impl TaskController {
         let task_id = id.to_string();
         taosx_core::utils::breakpoints::breakpoints_clear(&task_id)?;
 
+        // metrics_clear
+        let _ = taosx_core::utils::metrics_db::MetricsDb::clear(&task_id);
+
         Ok(Some(task.into()))
     }
 

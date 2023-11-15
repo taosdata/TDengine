@@ -35,7 +35,7 @@ impl MetricsDb {
         }
     }
 
-    pub fn clear(&self, task_id: &str) -> anyhow::Result<()> {
+    pub fn clear(task_id: &str) -> anyhow::Result<()> {
         let path = Self::db_dir(task_id);
         // delete db file
         info!("delete metrics db file: {}", path.display());
