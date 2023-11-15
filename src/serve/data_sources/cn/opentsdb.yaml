@@ -66,6 +66,15 @@ groups:
           min: 1
           max: 6000
         value: 60
+      - name: delay
+        display: 延迟（秒）
+        description: 为了消除乱序数据的影响，TDengine 总是等待这里指定的时长，然后才读取数据。
+        placeholder: 请输入延迟时长
+        hint:
+          type: integer
+          min: 1
+          max: 30
+        value: 10
 advanced:
   name: 高级选项
   collapsible: true

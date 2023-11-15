@@ -145,6 +145,15 @@ groups:
           min: 1
           max: 6000
         value: 60
+      - name: delay
+        display: Delay in seconds
+        description: To migrate the out of order data, TDengine connector always waits for time specified here before reading them.
+        placeholder: Please input the delay
+        hint:
+          type: integer
+          min: 1
+          max: 30
+        value: 10
 advanced:
   name: Advanced Options
   collapsible: true
