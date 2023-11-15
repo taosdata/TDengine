@@ -89,15 +89,6 @@ groups:
         placeholder: 如：2023-01-01T00:00:00+08:00
         hint:
           type: time
-      - name: retrieveInterval
-        display: 实时同步的间隔
-        description: >
-          实时数据同步时，每次查询的时间间隔。
-        required: false
-        placeholder: 1 day
-        value: 1 day
-        hint:
-          type: str
       - name: timeWindow
         display: 查询的时间窗口
         description: >
@@ -105,6 +96,15 @@ groups:
         required: false
         placeholder: 1 hour
         value: 1 hour
+        hint:
+          type: str
+      - name: retrieveInterval
+        display: 实时同步的间隔
+        description: >
+          实时数据同步时，每次查询的时间间隔。
+        required: false
+        placeholder: 1 day
+        value: 1 day
         hint:
           type: str
       - name: tolerance
