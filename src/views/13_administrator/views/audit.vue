@@ -65,6 +65,13 @@
         <span slot-scope="scope">{{ parsinginZone(scope.row.ts) }}</span>
       </el-table-column>
       <el-table-column
+        :label="$t('taosuser.clientAddress')"
+        prop="client_address"
+        :show-overflow-tooltip="true"
+        width="180"
+      >
+      </el-table-column>
+      <el-table-column
         :label="$t('taosuser.user')"
         prop="user_name"
         show-overflow-tooltip
@@ -77,36 +84,12 @@
       >
       </el-table-column>
       <el-table-column
-        :label="$t('taosuser.db')"
-        prop="db"
-        show-overflow-tooltip
-      >
-      </el-table-column>
-      <el-table-column
-        :label="$t('taosuser.resource')"
-        prop="resource"
-        show-overflow-tooltip
-      >
-      </el-table-column>
-      <el-table-column
         :label="$t('taosuser.details')"
         prop="details"
-        min-width="280"
+        min-width="260"
         :show-overflow-tooltip="true"
       >
       </el-table-column>
-      <el-table-column
-        :label="$t('taosuser.clientAddress')"
-        prop="client_address"
-        :show-overflow-tooltip="true"
-      >
-      </el-table-column>
-      <!-- <el-table-column
-        :label="$t('taosuser.target_2')"
-        prop="target_2"
-        :show-overflow-tooltip="true"
-      >
-      </el-table-column> -->
     </el-table>
     <el-pagination
       class="pagination"
