@@ -48,6 +48,34 @@ bool shellRegexMatch(const char *s, const char *reg, int32_t cflags) {
   return false;
 }
 
+bool shellRegexMatchGet(const char *s, const char *reg, int32_t cflags, int32_t nmatch, regmatch_t *pmatch) {
+  regex_t regex = {0};
+  char    msgbuf[100] = {0};
+
+  /* Compile regular expression */
+  if (regcomp(&regex, reg, cflags) != 0) {
+    fprintf(stderr, "Fail to compile regex");
+    shellExit();
+  }
+
+  /* Execute regular expression */
+  int32_t reti = regexec(&regex, s, nmatch, pmatch, 0);
+  if (!reti) {
+    regfree(&regex);
+    return true;
+  } else if (reti == REG_NOMATCH) {
+    regfree(&regex);
+    return false;
+  } else {
+    regerror(reti, &regex, msgbuf, sizeof(msgbuf));
+    fprintf(stderr, "Regex match failed: %s\r\n", msgbuf);
+    regfree(&regex);
+    shellExit();
+  }
+
+  return false;
+}
+
 int32_t shellCheckIntSize() {
   if (sizeof(int8_t) != 1) {
     printf("int8 size is %d(!= 1)", (int)sizeof(int8_t));

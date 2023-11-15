@@ -445,33 +445,39 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
 
 #define GRANT_CONN_ITEM_LEN_MIN (46)  // {"type":"a","number":1,"speed":0,"expire":"0"}
 #define GRANT_CONN_ITEM_LEN_MAX (256)
-static bool shellConvertGrantCols(const char *in, int32_t iLen, char *out, int32_t *oLen) {
-  char *expireStart;
-  if ((expireStart = strstr(in, "{\"type\":\"")) && (expireStart = strstr(expireStart, "\"number\":")) &&
-      (expireStart = strstr(expireStart, "\"speed\":")) && (expireStart = strstr(expireStart, "\"expire\":\""))) {
-    expireStart += 10;  // "expire":"
-    char *expireEnd = strchr(expireStart, '"');
-    if (expireEnd) {
-      int32_t expireStartLen = POINTER_DISTANCE(expireStart, in);
-      int32_t expireVLen = POINTER_DISTANCE(expireEnd, expireStart);
-      int32_t finalLen = iLen - expireVLen + 19;  // yyyy-MM-dd hh:mm:ss
-      if (expireVLen > 0 && finalLen < GRANT_CONN_ITEM_LEN_MAX) {
-        int32_t expireVal = taosStr2Int32(expireStart, NULL, 10);
-        if (expireVal < 0 || expireVal > 65535) {
-          return false;
+static bool shellConvertGrantCols(const char *in, int32_t iLen, char **out, int32_t *oLen) {
+  regmatch_t match[2] = {0};
+  if (!shellRegexMatchGet(in, "^\\{\"type\":\"\\S+\",\"number\":\\S+,\"speed\":\\S+,\"expire\":\"([0-9]+)\".*\\}$",
+                          REG_EXTENDED, 2, match)) {
+    return false;
+  }
+  int32_t expireStartOffset = match[1].rm_so;
+  int32_t expireEndOffset = match[1].rm_eo;
+  int32_t expireVLen = expireEndOffset - expireStartOffset;
+  if (expireVLen > 0) {
+    int32_t finalLen = iLen - expireVLen + 19;  // yyyy-MM-dd hh:mm:ss
+    if (finalLen < GRANT_CONN_ITEM_LEN_MAX) {
+      const char *expireStart = POINTER_SHIFT(in, expireStartOffset);
+      const char *expireEnd = POINTER_SHIFT(in, expireEndOffset);
+      int32_t     expireVal = taosStr2Int32(expireStart, NULL, 10);
+      if (expireVal < 0 || expireVal > 65535) {
+        return false;
+      }
+      char      ts[20];
+      time_t    sec = expireVal * 86400;
+      struct tm ptm;
+      if (taosLocalTime(&sec, &ptm, NULL) != NULL) {
+        strftime(ts, 20, "%Y-%m-%d %H:%M:%S", &ptm);
+        if (!(*out)) {
+          *out = taosMemoryMalloc(GRANT_CONN_ITEM_LEN_MAX);
+          if (!(*out)) return false;
         }
-        char      ts[20];
-        time_t    sec = expireVal * 86400;
-        struct tm ptm;
-        if (taosLocalTime(&sec, &ptm, NULL) != NULL) {
-          strftime(ts, 20, "%Y-%m-%d %H:%M:%S", &ptm);
-          strncpy(out, in, expireStartLen);
-          strncpy(out + expireStartLen, ts, 19);
-          strncpy(out + expireStartLen + 19, expireEnd, iLen - expireStartLen - expireVLen);
-          out[finalLen] = 0;
-          if (oLen) *oLen = finalLen;
-          return true;
-        }
+        strncpy(*out, in, expireStartOffset);
+        strncpy(*out + expireStartOffset, ts, 19);
+        strncpy(*out + expireStartOffset + 19, expireEnd, iLen - expireEndOffset);
+        (*out)[finalLen] = 0;
+        if (oLen) *oLen = finalLen;
+        return true;
       }
     }
   }
@@ -508,8 +514,8 @@ int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres, int8_t cmdType)
   taosFprintfFile(pFile, "\r\n");
 
   int64_t numOfRows = 0;
-  int32_t bufLen;
-  char    buf[GRANT_CONN_ITEM_LEN_MAX];
+  int32_t bufLen = 0;
+  char   *buf = NULL;
   do {
     int32_t *length = taos_fetch_lengths(tres);
     for (int32_t i = 0; i < num_fields; i++) {
@@ -517,7 +523,7 @@ int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres, int8_t cmdType)
         taosFprintfFile(pFile, ",");
       }
       if (cmdType == 1 && (fields + i)->bytes >= GRANT_CONN_ITEM_LEN_MIN &&
-          shellConvertGrantCols(row[i], length[i], buf, &bufLen)) {
+          shellConvertGrantCols(row[i], length[i], &buf, &bufLen)) {
         shellDumpFieldToFile(pFile, buf, fields + i, bufLen, precision);
       } else {
         shellDumpFieldToFile(pFile, (const char *)row[i], fields + i, length[i], precision);
@@ -530,6 +536,7 @@ int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres, int8_t cmdType)
   } while (row != NULL);
 
   taosCloseFile(&pFile);
+  taosMemoryFreeClear(buf);
 
   return numOfRows;
 }
@@ -798,8 +805,8 @@ void shellVerticalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
 
   int64_t numOfPintRows = dump_info->numOfAllRows;
   int     numOfPrintRowsThisOne = 0;
-  int32_t bufLen;
-  char    buf[GRANT_CONN_ITEM_LEN_MAX];
+  int32_t bufLen = 0;
+  char   *buf = NULL;
 
   while (row != NULL) {
     printf("*************************** %" PRId64 ".row ***************************\r\n", numOfPintRows + 1);
@@ -813,7 +820,7 @@ void shellVerticalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
       printf("%*.s%s: ", padding, " ", field->name);
 
       if (dump_info->cmdType == 1 && (dump_info->fields + i)->bytes >= GRANT_CONN_ITEM_LEN_MIN &&
-          shellConvertGrantCols(row[i], length[i], buf, &bufLen)) {
+          shellConvertGrantCols(row[i], length[i], &buf, &bufLen)) {
         shellPrintField(buf, field, 0, bufLen, dump_info->precision);
       } else {
         shellPrintField((const char *)row[i], field, 0, length[i], dump_info->precision);
@@ -838,11 +845,13 @@ void shellVerticalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
     }
 
     if (numOfPrintRowsThisOne == dump_info->numOfRows) {
+      taosMemoryFreeClear(buf);
       return;
     }
 
     row = taos_fetch_row(tres);
   }
+  taosMemoryFreeClear(buf);
   return;
 }
 
@@ -952,14 +961,14 @@ void shellHorizontalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
   if (numOfPintRows == 0) {
     shellPrintHeader(dump_info->fields, dump_info->width, dump_info->numFields);
   }
-  int32_t bufLen;
-  char    buf[GRANT_CONN_ITEM_LEN_MAX];
+  int32_t bufLen = 0;
+  char   *buf = NULL;
   while (row != NULL) {
     int32_t *length = taos_fetch_lengths(tres);
     for (int32_t i = 0; i < dump_info->numFields; i++) {
       putchar(' ');
       if (dump_info->cmdType == 1 && (dump_info->fields + i)->bytes >= GRANT_CONN_ITEM_LEN_MIN &&
-          shellConvertGrantCols(row[i], length[i], buf, &bufLen)) {
+          shellConvertGrantCols(row[i], length[i], &buf, &bufLen)) {
         shellPrintField(buf, dump_info->fields + i, dump_info->width[i], bufLen, dump_info->precision);
       } else {
         shellPrintField((const char *)row[i], dump_info->fields + i, dump_info->width[i], length[i],

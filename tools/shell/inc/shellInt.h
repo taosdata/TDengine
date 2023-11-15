@@ -139,6 +139,7 @@ void    shellGenerateAuth();
 void    shellDumpConfig();
 void    shellCheckServerStatus();
 bool    shellRegexMatch(const char* s, const char* reg, int32_t cflags);
+bool    shellRegexMatchGet(const char *s, const char *reg, int32_t cflags, int32_t nmatch, regmatch_t *pmatch);
 void    shellExit();
 
 // shellNettest.c
