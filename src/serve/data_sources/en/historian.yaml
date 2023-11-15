@@ -18,6 +18,7 @@ options:
     description: AVEVA™ Historian SQL Server port
     placeholder: "1433"
     required: false
+
 authentication:
   display: Authentication
   description: Use username and password of AVEVA™ Historian SQL Server
@@ -34,12 +35,25 @@ authentication:
         display: Password
         placeholder: password
         required: true
+
 groups:
-  - name: Task
+  - name: Collect
     display_order: 1
     description: Configure Data Collection Task
     required: false
     params:
+      - name: mode
+        display: Collection Mode
+        description: >
+          Collection mode. The optional values are `synchronize` and `migrate`.
+        required: true
+        placeholder: synchronize
+        value: synchronize
+        hint:
+          type: str
+          choices:
+            - synchronize
+            - migrate
       - name: table
         display: Table
         description: >
@@ -65,14 +79,14 @@ groups:
         display: Begin Time
         description: The start time of the task is in rfc3339 format.
         required: false
-        placeholder: e.g., 1970-01-01T00:00:00.000Z
+        placeholder: e.g., 2023-01-01T00:00:00.000Z
         hint:
           type: time
       - name: endDateTime
         display: End Time
         description: The end time of the task is in rfc3339 format.
         required: false
-        placeholder: e.g., 1970-01-01T00:00:00.000Z
+        placeholder: e.g., 2023-01-01T00:00:00.000Z
         hint:
           type: time
       - name: retrieveInterval
@@ -99,3 +113,75 @@ groups:
         value: 0 ms
         hint:
           type: str
+
+parser:
+  display: Data Mapping
+  description: |
+    Historian source, when synchronizing/migrating the Runtime.dbo.History table, uploads the following fields:<br>
+    
+    - **DateTime**: The timestamp of the returned value.<br>
+    - **TagName**: The unique name of the tag.<br>
+    - **Value**: The value of the tag at the timestamp. The value is always NULL for string tags.<br>
+    - **vValue**: The value of the analog, discrete, or string tag stored as a sql_variant.<br>
+    - **Quality**: The basic data quality indicator associated with the data value.<br>
+    - **QualityDetail**: An internal representation of data quality.<br>
+    - **wwTagKey**: The unique numerical identifier of a tag.<br>
+    - **wwResolution**: The sampling rate, in milliseconds, for retrieving the data in cyclic mode.<br>
+    - **StartDateTime**: Start time of the retrieval cycle for which this row is returned.<br>
+    - **SourceTag**: The name of the source tag for a replicated tag at the time this point was stored.<br>
+    - **SourceServer**: The name of the server for this replicated tag at the time this point was stored.<br>
+    
+    when synchronizing/migrating the Runtime.dbo.Live table, uploads the following fields:<br>
+    
+    - **DateTime**: The timestamp of the returned value.<br>
+    - **TagName**: The unique name of the tag.<br>
+    - **Value**: The value of the tag at the timestamp. The value is always NULL for string tags.<br>
+    - **vValue**: The value of the analog, discrete, or string tag stored as a sql_variant.<br>
+    - **Quality**: The basic data quality indicator associated with the data value.<br>
+    - **QualityDetail**: An internal representation of data quality.<br>
+    - **OPCQuality**: The quality value received from the data source.<br>
+    - **wwTagKey**: The unique numerical identifier of a tag.<br>
+    - **SourceTag**: The name of the source tag for a replicated tag at the time this point was stored.<br>
+    - **SourceServer**: The name of the server for this replicated tag at the time this point was stored.<br>
+    
+    taosX could let users to specify the data model in the database, for example, the table name pattern <br>
+    and stable name pattern, field names as tags or field names as columns.
+
+  fields:
+    - name: DateTime
+      description: The timestamp of the returned value.
+      type: timestamp
+    - name: TagName
+      description: The unique name of the tag.
+      type: varchar
+    - name: Value
+      description: The value of the tag at the timestamp. The value is always NULL for string tags.
+      type: double
+    - name: vValue
+      description: The value of the analog, discrete, or string tag stored as a sql_variant.
+      type: varchar
+    - name: Quality
+      description: The basic data quality indicator associated with the data value.
+      type: int
+    - name: QualityDetail
+      description: An internal representation of data quality.
+      type: int
+    - name: OPCQuality
+      description: The quality value received from the data source.
+      type: int
+    - name: wwTagKey
+      description: The unique numerical identifier of a tag.
+      type: int
+    - name: wwResolution
+      description: The sampling rate, in milliseconds, for retrieving the data in cyclic mode.
+      type: int
+    - name: StartDateTime
+      description: Start time of the retrieval cycle for which this row is returned.
+      type: timestamp
+    - name: SourceTag
+      description: The name of the source tag for a replicated tag at the time this point was stored.
+      type: varchar
+    - name: SourceServer
+      description: The name of the server for this replicated tag at the time this point was stored.
+      type: varchar
+  required: true

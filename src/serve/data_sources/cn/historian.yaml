@@ -17,6 +17,7 @@ options:
     description: AVEVA™ Historian SQL Server 的端口
     placeholder: "1433"
     required: false
+
 authentication:
   display: 认证
   description: 使用用户名和密码访问 AVEVA™ Historian SQL Server
@@ -33,12 +34,25 @@ authentication:
         display: 密码
         placeholder: password
         required: true
+
 groups:
-  - name: Task
+  - name: 采集配置
     display_order: 1
-    description: 配置数据采集任务
-    required: false
+    description: 数据采集相关配置项。
+    required: true
     params:
+      - name: mode
+        display: 采集模式
+        description: >
+          采集模式，可选值为 `synchronize` 和 `migrate`。
+        required: true
+        placeholder: synchronize
+        value: synchronize
+        hint:
+          type: str
+          choices:
+            - synchronize
+            - migrate
       - name: table
         display: 表
         description: >
@@ -54,7 +68,7 @@ groups:
       - name: tags
         display: 标签
         description: >
-          需要迁移/同步的tag，*代表同步除了Sys开头的全部tag。
+          需要迁移/同步的tag，`*`代表除了Sys开头以外的全部tag。
         required: false
         placeholder: "*"
         value: "*"
@@ -65,7 +79,7 @@ groups:
         description: >
           任务的开始时间，rfc3339格式的日期时间。
         required: false
-        placeholder: 如：1970-01-01T00:00:00+08:00
+        placeholder: 如：2023-01-01T00:00:00+08:00
         hint:
           type: time
       - name: endDateTime
@@ -73,7 +87,7 @@ groups:
         description: >
           任务的结束时间，rfc3339格式的日期时间。
         required: false
-        placeholder: 如：1970-01-01T00:00:00+08:00
+        placeholder: 如：2023-01-01T00:00:00+08:00
         hint:
           type: time
       - name: retrieveInterval
@@ -103,3 +117,73 @@ groups:
         value: 0 ms
         hint:
           type: str
+
+parser:
+  display: 数据映射
+  description: |
+    Historian 数据源，同步/迁移 Runtime.dbo.History表时，上传以下字段：<br>
+    
+    - **DateTime**: 值对应的时间戳。<br>
+    - **TagName**: 测点名称。<br>
+    - **Value**: 标记在时间戳处的值。对于字符串tag，该值始终为NULL。<br>
+    - **vValue**: 字符串形式的值，在查询中使用此列允许您使用混合数据类型的值。<br>
+    - **Quality**: 与数据值相关联的基本数据质量指标。<br>
+    - **QualityDetail**: 数据质量的内部表示。<br>
+    - **wwTagKey**: 单个AVEVA历史记录中tag的唯一数字标识符。<br>
+    - **wwResolution**: 在循环模式下检索数据的采样率，以毫秒为单位。<br>
+    - **StartDateTime**: 返回该行的检索周期的开始时间。<br>
+    - **SourceTag**: 在存储该点时复制标记的源标记的名称。<br>
+    - **SourceServer**: 在存储该点时复制标记的服务器的名称。<br>
+    
+    同步/迁移 Runtime.dbo.Live表时，上传以下字段：<br>
+    
+    - **DateTime**: 值对应的时间戳。<br>
+    - **TagName**: 测点名称。<br>
+    - **Value**: 标记在时间戳处的值。对于字符串tag，该值始终为NULL。<br>
+    - **vValue**: 字符串形式的值，在查询中使用此列允许您使用混合数据类型的值。<br>
+    - **Quality**: 与数据值相关联的基本数据质量指标。<br>
+    - **QualityDetail**: 数据质量的内部表示。<br>
+    - **OPCQuality**: 从数据源接收到的质量值。<br>
+    - **wwTagKey**: 单个AVEVA历史记录中tag的唯一数字标识符。<br>
+    - **SourceTag**: 在存储该点时复制标记的源标记的名称。<br>
+    - **SourceServer**: 在存储该点时复制标记的服务器的名称。<br>
+    
+    taosX 允许用户在数据库中指定数据模型，包括：指定表名称和超级表名，设置普通列会标签列等
+  fields:
+    - name: DateTime
+      description: 值对应的时间戳。
+      type: timestamp
+    - name: TagName
+      description: 测点名称。
+      type: varchar
+    - name: Value
+      description: 标记在时间戳处的值。对于字符串tag，该值始终为NULL。
+      type: double
+    - name: vValue
+      description: 字符串形式的值，在查询中使用此列允许您使用混合数据类型的值。
+      type: varchar
+    - name: Quality
+      description: 与数据值相关联的基本数据质量指标。
+      type: int
+    - name: QualityDetail
+      description: 数据质量的内部表示。
+      type: int
+    - name: OPCQuality
+      description: 从数据源接收到的质量值。
+      type: int
+    - name: wwTagKey
+      description: 单个AVEVA历史记录中tag的唯一数字标识符。
+      type: int
+    - name: wwResolution
+      description: 在循环模式下检索数据的采样率，以毫秒为单位。
+      type: int
+    - name: StartDateTime
+      description: 返回该行的检索周期的开始时间。
+      type: timestamp
+    - name: SourceTag
+      description: 在存储该点时复制标记的源标记的名称。
+      type: varchar
+    - name: SourceServer
+      description: 在存储该点时复制标记的服务器的名称。
+      type: varchar
+  required: true
