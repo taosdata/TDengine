@@ -717,6 +717,7 @@ static SArray *getListByPrefix(const char *prefix) {
       return data.objectArray;
     }
   } else {
+    taosArrayDestroyEx(data.objectArray, s3FreeObjectKey);
     s3PrintError(__func__, data.status, data.err_msg);
   }
   return NULL;
