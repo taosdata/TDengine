@@ -23,9 +23,9 @@ let timerFuncion = async () => {
         console.log(err)
         return clearTimer() // 访问失败就完全关闭轮询
     })
-    // console.log("存储的version:" + version)
-    // console.log("获取到version:" + res)
-    // console.log("比较结果:", res == version)
+    console.log("存储的version:" + version)
+    console.log("获取到version:" + res)
+    console.log("比较结果:", res == version)
  
     // 首次加载网页的时候 存储第一份version
     if (!version) {
@@ -50,11 +50,11 @@ let moveFunction = () => {
     time = 0
     // 长时间挂机后 不在轮询的网页 在鼠标活跃于窗口的时候重新检测
     if (!timer) {
-        timer = setInterval(timerFuncion, 1000)
+        timer = setInterval(timerFuncion, 10000)
     }
 }
 // 当被main.js 引用的时候 开始轮询于监听鼠标移动事件
-let timer = setInterval(timerFuncion, 5000)
+let timer = setInterval(timerFuncion, 10000)
 window.addEventListener("mousemove", moveFunction)
 // 完全清除轮询 不轮询 不监听鼠标事件
 let clearTimer = () => {
