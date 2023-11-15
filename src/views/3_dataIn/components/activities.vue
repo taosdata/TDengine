@@ -3,7 +3,6 @@
     :data="agentActivities"
     size="mini"
     class="activity-table"
-    max-height="160"
     v-loading="loading"
   >
     <el-table-column
