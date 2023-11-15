@@ -2,6 +2,8 @@ module collector
 
 go 1.20
 
+replace github.com/go-ole/go-ole => github.com/go-ole/go-ole v1.3.1-0.20231030194427-12e70eba63a1
+
 require (
 	github.com/BurntSushi/toml v1.3.2
 	github.com/apache/arrow/go/v13 v13.0.0-20230822001908-9ecd0f2a5fb7
