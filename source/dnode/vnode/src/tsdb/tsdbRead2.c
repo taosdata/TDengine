@@ -572,7 +572,12 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
 
     if (isEmptyQueryTimeWindow(&w)) {
       k += 1;
-      continue;
+
+      if (k >= numOfTables) {
+        break;
+      } else {
+        continue;
+      }
     }
 
     // 1. time range check
