@@ -58,9 +58,8 @@ groups:
         display: Table
         description: >
           Retrieves database tables in historian, with historical data in Runtime.dbo.History and real-time data in Runtime.dbo.Live.
-        required: false
+        required: true
         placeholder: Runtime.dbo.History
-        value: Runtime.dbo.History
         hint:
           type: str
           choices:

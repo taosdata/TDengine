@@ -57,9 +57,8 @@ groups:
         display: 表
         description: >
           检索 historian 中的数据库表，历史数据在 Runtime.dbo.History 中，实时数据在 Runtime.dbo.Live 中。
-        required: false
+        required: true
         placeholder: Runtime.dbo.History
-        value: Runtime.dbo.History
         hint:
           type: str
           choices:
