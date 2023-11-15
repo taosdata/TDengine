@@ -94,17 +94,17 @@ groups:
         description: >
           历史数据迁移时，每次查询的时间窗口。
         required: false
-        placeholder: 1 hour
-        value: 1 hour
+        placeholder: 1 day
+        value: 1 day
         hint:
           type: str
       - name: retrieveInterval
-        display: 实时同步的间隔
+        display: 实时同步的时间间隔
         description: >
           实时数据同步时，每次查询的时间间隔。
         required: false
-        placeholder: 1 day
-        value: 1 day
+        placeholder: 10s
+        value: 10s
         hint:
           type: str
       - name: tolerance

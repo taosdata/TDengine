@@ -92,16 +92,16 @@ groups:
         display: Time Window
         description: Time window for historical data migration.
         required: false
-        placeholder: 1 hour
-        value: 1 hour
+        placeholder: 1 day
+        value: 1 day
         hint:
           type: str
       - name: retrieveInterval
         display: Retrieve Interval
         description: Pull interval for real-time data synchronization.
         required: false
-        placeholder: 1 day
-        value: 1 day
+        placeholder: 10s
+        value: 10s
         hint:
           type: str
       - name: tolerance
