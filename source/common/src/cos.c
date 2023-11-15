@@ -513,9 +513,14 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
     manager.gb = 0;
 
     // div round up
-    int      seq;
-    uint64_t chunk_size = MULTIPART_CHUNK_SIZE >> 7;
-    int      totalSeq = ((contentLength + chunk_size - 1) / chunk_size);
+    int       seq;
+    uint64_t  chunk_size = MULTIPART_CHUNK_SIZE >> 7;
+    int       totalSeq = (contentLength + chunk_size - 1) / chunk_size;
+    const int max_part_num = 1000;
+    if (totalSeq > max_part_num) {
+      chunk_size = (contentLength + max_part_num - contentLength % max_part_num) / max_part_num;
+      totalSeq = (contentLength + chunk_size - 1) / chunk_size;
+    }
 
     MultipartPartData partData;
     memset(&partData, 0, sizeof(MultipartPartData));
