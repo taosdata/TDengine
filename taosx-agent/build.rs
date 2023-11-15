@@ -35,7 +35,7 @@ fn shadow_build() {
             .expect(&format!("{}", service_template.display()))
             .replace(DEFAULT_CUS_PROMPT, &cus_prompt)
             .replace(DEFAULT_CUS_NAME, &cus_name);
-        std::fs::write(&target_dir.join(format!("taosx-agent.service")), service).unwrap();
+        std::fs::write(&target_dir.join(format!("{cus_prompt}x-agent.service")), service).unwrap();
 
         writeln!(file, r#"pub const CUS_NAME: &str = "{}";"#, cus_name)?;
         writeln!(file, r#"pub const CUS_PROMPT: &str = "{}";"#, cus_prompt)?;
