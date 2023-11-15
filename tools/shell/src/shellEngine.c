@@ -63,6 +63,8 @@ static void  shellCleanup(void *arg);
 static void *shellCancelHandler(void *arg);
 static void *shellThreadLoop(void *arg);
 
+static bool shellCmdkilled = false;
+
 bool shellIsEmptyCommand(const char *cmd) {
   for (char c = *cmd++; c != 0; c = *cmd++) {
     if (c != ' ' && c != '\t' && c != ';') {
@@ -73,6 +75,8 @@ bool shellIsEmptyCommand(const char *cmd) {
 }
 
 int32_t shellRunSingleCommand(char *command) {
+  shellCmdkilled = false;
+  
   if (shellIsEmptyCommand(command)) {
     return 0;
   }
@@ -258,7 +262,8 @@ void shellRunSingleCommandImp(char *command) {
     if (error_no == 0) {
       printf("Query OK, %"PRId64 " row(s) in set (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
     } else {
-      printf("Query interrupted (%s), %"PRId64 " row(s) in set (%.6fs)\r\n", taos_errstr(pSql), numOfRows, (et - st) / 1E6);
+      terrno = error_no;
+      printf("Query interrupted (%s), %"PRId64 " row(s) in set (%.6fs)\r\n", taos_errstr(NULL), numOfRows, (et - st) / 1E6);
     }
     taos_free_result(pSql);
   } else {
@@ -1015,7 +1020,11 @@ void shellDumpResultCallback(void *param, TAOS_RES *tres, int num_of_rows) {
       }
     }
     dump_info->numOfAllRows += num_of_rows;
-    taos_fetch_rows_a(tres, shellDumpResultCallback, param);
+    if (!shellCmdkilled) {
+      taos_fetch_rows_a(tres, shellDumpResultCallback, param);
+    } else {
+      tsem_post(&dump_info->sem);
+    }
   } else {
     if (num_of_rows < 0) {
       printf("\033[31masync retrieve failed, code: %d\033[0m\n", num_of_rows);
@@ -1037,13 +1046,15 @@ int64_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool ver
     num_of_rows = shellDumpResultToFile(fname, tres, cmd_type);
   } else {
     tsDumpInfo dump_info;
-    init_dump_info(&dump_info, tres, sql, vertical, cmd_type);
-    taos_fetch_rows_a(tres, shellDumpResultCallback, &dump_info);
-    tsem_wait(&dump_info.sem);
-    num_of_rows = dump_info.numOfAllRows;
+    if (!shellCmdkilled) {
+      init_dump_info(&dump_info, tres, sql, vertical, cmd_type);
+      taos_fetch_rows_a(tres, shellDumpResultCallback, &dump_info);
+      tsem_wait(&dump_info.sem);
+      num_of_rows = dump_info.numOfAllRows;
+    }
   }
 
-  *error_no = taos_errno(tres);
+  *error_no = shellCmdkilled ? TSDB_CODE_TSC_QUERY_KILLED : taos_errno(tres);
   return num_of_rows;
 }
 
@@ -1267,6 +1278,7 @@ void *shellCancelHandler(void *arg) {
     } else {
 #endif
       if (shell.conn) {
+        shellCmdkilled = true;
         taos_kill_query(shell.conn);
       }
 #ifdef WEBSOCKET

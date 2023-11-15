@@ -359,6 +359,9 @@ static int32_t tsdbDoRetentionOnFileSet(SRTNer *rtner, STFileSet *fset) {
         s3EvictCache(fobj->fname, fsize * 2);
       }
       */
+      if (fobj->f->did.level > did.level) {
+        continue;
+      }
       tsdbInfo("file:%s size: %" PRId64 " do migrate from %d to %d", fobj->fname, fobj->f->size, fobj->f->did.level,
                did.level);
 

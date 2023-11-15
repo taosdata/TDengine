@@ -1083,6 +1083,15 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       memmove(fraction, fraction + TSDB_TIME_PRECISION_SEC_DIGITS, TSDB_TIME_PRECISION_SEC_DIGITS);
     }
 
+    // trans current timezone's unix ts to dest timezone
+    // offset = delta from dest timezone to zero
+    // delta from zero to current timezone = 3600 * (cur)tsTimezone
+    int64_t offset = 0;
+    if (0 != offsetOfTimezone(tz, &offset)) {
+      goto _end;
+    }
+    timeVal -= offset + 3600 * ((int64_t)tsTimezone);
+
     struct tm tmInfo;
     int32_t len = 0;
 
