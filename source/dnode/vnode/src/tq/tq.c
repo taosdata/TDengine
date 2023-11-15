@@ -15,16 +15,11 @@
 
 #include "tq.h"
 #include "vnd.h"
+#include "stream.h"
 
 typedef struct {
   int8_t inited;
 } STqMgmt;
-
-typedef struct STaskUpdateEntry {
-  int64_t streamId;
-  int32_t taskId;
-  int32_t transId;
-} STaskUpdateEntry;
 
 static STqMgmt tqMgmt = {0};
 

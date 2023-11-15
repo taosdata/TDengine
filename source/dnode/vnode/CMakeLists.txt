@@ -138,6 +138,11 @@ else()
     endif()
 endif()
 
+target_include_directories(
+        vnode
+        PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
+)
+
 target_link_libraries(
     vnode
     PUBLIC os

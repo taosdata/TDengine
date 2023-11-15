@@ -15,6 +15,7 @@
 
 #include "tq.h"
 #include "vnd.h"
+#include "stream.h"
 
 #define MAX_REPEAT_SCAN_THRESHOLD  3
 #define SCAN_WAL_IDLE_DURATION     100
