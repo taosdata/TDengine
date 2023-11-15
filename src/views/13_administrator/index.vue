@@ -2,7 +2,7 @@
   <div class="page-wrapper">
     <MainContentHeader :title="$t('route.admin')"></MainContentHeader>
     <div class="content">
-      <el-tabs value="user">
+      <el-tabs v-model="activeName">
         <el-tab-pane name="user" :label="$t('taosuser.users')">
           <MgUser></MgUser>
         </el-tab-pane>
@@ -19,7 +19,7 @@
           <License></License>
         </el-tab-pane>
         <el-tab-pane name="audit" :label="$t('topic.audit')" lazy>
-          <Audit></Audit>
+          <Audit :activeName="activeName"></Audit>
         </el-tab-pane>
       </el-tabs>
     </div>
@@ -41,7 +41,8 @@ export default {
   data() {
     return {
       message: "这是Admin页面",
-      taosxDisabled:false
+      taosxDisabled:false,
+      activeName: 'user'
     };
   }
 };

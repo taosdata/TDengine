@@ -128,6 +128,12 @@ export default {
       exportAuditList: [],
     };
   },
+  props: {
+    activeName: {
+      type: String,
+      default: ''
+    }
+  },
   computed: {
     pickerOptions() {
       return {
@@ -243,6 +249,14 @@ export default {
       });
       FileSaver.saveAs(blob, FileName);
     },
+  },
+  watch: {
+    activeName(val) {
+      if (val == 'audit') {
+        this.getDatabases();
+        this.getAuditData();
+      }
+    }
   },
   created() {
     this.getDatabases();
