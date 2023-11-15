@@ -23,9 +23,9 @@ let timerFuncion = async () => {
         console.log(err)
         return clearTimer() // 访问失败就完全关闭轮询
     })
-    console.log("存储的version:" + version)
-    console.log("获取到version:" + res)
-    console.log("比较结果:", res == version)
+    // console.log("存储的version:" + version)
+    // console.log("获取到version:" + res)
+    // console.log("比较结果:", res == version)
  
     // 首次加载网页的时候 存储第一份version
     if (!version) {
