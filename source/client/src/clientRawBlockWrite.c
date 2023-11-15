@@ -203,7 +203,7 @@ static char* processCreateStb(SMqMetaRsp* metaRsp) {
     goto _err;
   }
   string = buildCreateTableJson(&req.schemaRow, &req.schemaTag, req.name, req.suid, TSDB_SUPER_TABLE);
-  _err:
+_err:
   uDebug("create stable return, sql json:%s", string);
   tDecoderClear(&coder);
   return string;
@@ -224,7 +224,7 @@ static char* processAlterStb(SMqMetaRsp* metaRsp) {
     goto _err;
   }
   string = buildAlterSTableJson(req.alterOriData, req.alterOriDataLen);
-  _err:
+_err:
   uDebug("alter stable return, sql json:%s", string);
   tDecoderClear(&coder);
   return string;
@@ -375,7 +375,7 @@ static char* processCreateTable(SMqMetaRsp* metaRsp) {
     }
   }
 
-  _exit:
+_exit:
   uDebug("create table return, sql json:%s", string);
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
@@ -416,7 +416,7 @@ static char* processAutoCreateTable(STaosxRsp* rsp) {
     }
   }
   string = buildCreateCTableJson(pCreateReq, rsp->createTableNum);
-  _exit:
+_exit:
   uDebug("auto created table return, sql json:%s", string);
   for (int i = 0; i < rsp->createTableNum; i++) {
     tDecoderClear(&decoder[i]);
@@ -549,7 +549,7 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
   }
   string = cJSON_PrintUnformatted(json);
 
-  _exit:
+_exit:
   uDebug("alter table return, sql json:%s", string);
   cJSON_Delete(json);
   tDecoderClear(&decoder);
@@ -585,7 +585,7 @@ static char* processDropSTable(SMqMetaRsp* metaRsp) {
   cJSON_AddItemToObject(json, "tableName", tableName);
 
   string = cJSON_PrintUnformatted(json);
-  _exit:
+_exit:
   uDebug("processDropSTable return, sql json:%s", string);
   cJSON_Delete(json);
   tDecoderClear(&decoder);
@@ -624,7 +624,7 @@ static char* processDeleteTable(SMqMetaRsp* metaRsp) {
   cJSON_AddItemToObject(json, "sql", sqlJson);
 
   string = cJSON_PrintUnformatted(json);
-  _exit:
+_exit:
   uDebug("processDeleteTable return, sql json:%s", string);
   cJSON_Delete(json);
   tDecoderClear(&coder);
@@ -669,7 +669,7 @@ static char* processDropTable(SMqMetaRsp* metaRsp) {
   cJSON_AddItemToObject(json, "tableNameList", tableNameList);
 
   string = cJSON_PrintUnformatted(json);
-  _exit:
+_exit:
   uDebug("processDropTable return, json sql:%s", string);
   cJSON_Delete(json);
   tDecoderClear(&decoder);
@@ -765,7 +765,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
   code = pRequest->code;
   taosMemoryFree(pCmdMsg.pMsg);
 
-  end:
+end:
   uDebug(LOG_ID_TAG" create stable return, msg:%s", LOG_ID_VALUE, tstrerror(code));
   destroyRequest(pRequest);
   tFreeSMCreateStbReq(&pReq);
@@ -869,7 +869,7 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
   code = pRequest->code;
   taosMemoryFree(pCmdMsg.pMsg);
 
-  end:
+end:
   uDebug(LOG_ID_TAG" drop stable return, msg:%s", LOG_ID_VALUE, tstrerror(code));
   destroyRequest(pRequest);
   tDecoderClear(&coder);
@@ -1023,7 +1023,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
 
   code = pRequest->code;
 
-  end:
+end:
   uDebug(LOG_ID_TAG" create table return, msg:%s", LOG_ID_VALUE, tstrerror(code));
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
@@ -1175,7 +1175,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
   }
   code = pRequest->code;
 
-  end:
+end:
   uDebug(LOG_ID_TAG" drop table return, msg:%s", LOG_ID_VALUE, tstrerror(code));
   taosHashCleanup(pVgroupHashmap);
   destroyRequest(pRequest);
@@ -1250,7 +1250,7 @@ static int32_t taosDeleteData(TAOS* taos, void* meta, int32_t metaLen) {
   }
   taos_free_result(res);
 
-  end:
+end:
   uDebug("connId:0x%"PRIx64" delete data sql:%s, code:%s", *(int64_t*)taos, sql, tstrerror(code));
   tDecoderClear(&coder);
   terrno = code;
@@ -1368,7 +1368,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
       code = handleAlterTbExecRes(pRes->res, pCatalog);
     }
   }
-  end:
+end:
   uDebug(LOG_ID_TAG " alter table return, meta:%p, len:%d, msg:%s", LOG_ID_VALUE, meta, metaLen, tstrerror(code));
   taosArrayDestroy(pArray);
   if (pVgData) taosMemoryFreeClear(pVgData->pData);
@@ -1459,7 +1459,7 @@ int taos_write_raw_block_with_fields_with_reqid(TAOS *taos, int rows, char *pDat
   launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
 
-  end:
+end:
   uDebug(LOG_ID_TAG " write raw block with field return, msg:%s", LOG_ID_VALUE, tstrerror(code));
   taosMemoryFreeClear(pTableMeta);
   qDestroyQuery(pQuery);
@@ -1543,7 +1543,7 @@ int taos_write_raw_block_with_reqid(TAOS* taos, int rows, char* pData, const cha
   launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
 
-  end:
+end:
   uDebug(LOG_ID_TAG " write raw block return, msg:%s", LOG_ID_VALUE, tstrerror(code));
   taosMemoryFreeClear(pTableMeta);
   qDestroyQuery(pQuery);
@@ -1669,7 +1669,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
 
-  end:
+end:
   uDebug(LOG_ID_TAG " write raw data return, msg:%s", LOG_ID_VALUE, tstrerror(code));
   tDeleteMqDataRsp(&rspObj.rsp);
   tDecoderClear(&decoder);
@@ -1841,7 +1841,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   launchQueryImpl(pRequest, pQuery, true, NULL);
   code = pRequest->code;
 
-  end:
+end:
   uDebug(LOG_ID_TAG " write raw metadata return, msg:%s", LOG_ID_VALUE, tstrerror(code));
   tDeleteSTaosxRsp(&rspObj.rsp);
   tDecoderClear(&decoder);
@@ -1984,7 +1984,7 @@ int32_t tmq_write_raw(TAOS* taos, tmq_raw_data raw) {
     return tmqWriteRawMetaDataImpl(taos, raw.raw, raw.raw_len);
   }
 
-  end:
+end:
   terrno = TSDB_CODE_INVALID_PARA;
   return terrno;
 }
