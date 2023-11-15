@@ -154,39 +154,89 @@ groups:
           min: 1
           max: 30
         value: 10
-      - name: maxThread
-        display: 读库线程数量上限
-        description: 性能相关参数，程序使用多线程读取 InfluxDB 数据，请根据服务器性能合理填写读库线程数量上限。
-        placeholder: 请输入读库线程数量上限
-        hint:
-          type: integer
-          min: 1
-          max: 150
-        value: 50
-      - name: queueSizeT
-        display: 线程缓存数量上限
-        description: 性能相关参数，读库线程先缓存到内存队列，再由调度线程依次启动，请根据服务器性能合理填写线程缓存数量上限。
-        placeholder: 请输入线程缓存数量上限
-        hint:
-          type: integer
-          min: 10
-          max: 2000
-        value: 1000
-      - name: queueSizeD
-        display: 数据缓存数量上限
-        description: 性能相关参数，读取 InfluxDB 数据先缓存到内存队列，再由推送线程向下游传输，请根据服务器性能合理填写数据缓存数量上限。
-        placeholder: 请输入数据缓存数量上限
-        hint:
-          type: integer
-          min: 10000
-          max: 500000
-        value: 200000
-      - name: limitSpeed
-        display: 传输速度上限
-        description: 性能相关参数，数据向下游传输，为避免下游压力过大，需要限制传输速度，请根据服务器性能合理填写速度上限。
-        placeholder: 请输入传输速度上限
-        hint:
-          type: integer
-          min: 5000
-          max: 500000
-        value: 100000
+advanced:
+  name: 高级选项
+  collapsible: true
+  collapsed: true
+  description: |
+    对数据源性能、日志等其他参数进行调整，可修改以下选项。
+  params:
+    - name: log_level
+      display: 日志级别
+      description: 根据需要调整数据源的日志级别，此参数不总是生效。
+      value: info
+      hint:
+        type: str
+        choices:
+          - error
+          - warn
+          - info
+          - debug
+          - trace
+    - name: read_concurrency
+      hidden: true
+      display: 最大读取并发数
+      description: |
+        数据源连接数或读取线程数限制，当默认参数不满足需要或需要调整资源使用量时修改此参数。
+      value: 0
+      hint:
+        type: integer
+        min: 0
+        max: 1000
+    - name: write_concurrency
+      hidden: true
+      display: 最大写入并发数
+      description: |
+        写入 taosX 的最大并发数限制，当默认参数性能不足时，可增大此参数。
+      value: 0
+      hint:
+        type: integer
+        min: 0
+        max: 1000
+    - name: batch_size
+      hidden: true
+      display: 批次大小
+      description: |
+        单次发送的最大消息数或行数。
+      value: 1000
+      hint:
+        type: integer
+        min: 1
+        max: 10000
+    - name: batch_timeout
+      hidden: true
+      display: 批次延时
+      description: |
+        单次读取最大延时（单位为毫秒），当超时结束时，只要有数据，即使不满足 Batch Size，也立即发送。
+      value: 1000
+      hint:
+        type: integer
+        min: 1
+        max: 10000
+    - name: keep_raw_data
+      hidden: true
+      display: 保存原始数据
+      description: |
+        是否保存原始数据？
+      hint:
+        type: bool
+    - name: keep_raw_data_days
+      hidden: true
+      display: 最大保留天数
+      description: |
+        原始数据最大保存天数，默认 1 天。
+      value: 1
+      requires: keep_raw_data
+      hint:
+        type: integer
+        min: 1
+        max: 365
+    - name: keep_raw_data_dir
+      hidden: true
+      display: 原始数据存储目录
+      description: |
+        自定义原始数据存储目录，默认存储到系统数据目录下。
+      requires: keep_raw_data
+      placeholder: $DATA_DIR/tasks/:id/rawdata/
+      hint:
+        type: str
