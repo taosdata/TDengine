@@ -16,6 +16,11 @@ from util.cluster import *
 sys.path.append("./7-tmq")
 from tmqCommon import *
 
+sys.path.append("./6-cluster")
+from clusterCommonCreate import *
+from clusterCommonCheck import clusterComCheck
+
+
 class TDTestCase:
     def __init__(self):
         self.vgroups    = 1
@@ -193,6 +198,9 @@ class TDTestCase:
         time.sleep(2)
         for i in range(len(topicNameList)):
             tdSql.query("drop topic %s"%topicNameList[i])
+        
+        if deleteWal == True:
+            clusterComCheck.check_vgroups_status(vgroup_numbers=2,db_replica=self.replicaVar,db_name="dbt",count_number=240)   
 
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
