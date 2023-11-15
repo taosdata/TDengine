@@ -48,7 +48,7 @@ mod tests {
     fn test_filter_by_expression() {
         let record_batch = init_record_batch();
 
-        let filter = ExprRecordFilter::new(String::from("!a & b == 1 & c > 1"));
+        let filter = ExprRecordFilter::new(String::from("!a && b == 1 && c > 1"));
 
         let new_batch = filter.filter_records(&record_batch).unwrap();
         dbg!(&new_batch);

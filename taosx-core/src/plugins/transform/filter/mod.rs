@@ -359,7 +359,7 @@ mod tests {
     fn test_filter_by_expression() {
         let record_batch = init_record_batch_simple();
 
-        let filter = r#"[ {}, "!a & b == 1 & c > 1" ]"#;
+        let filter = r#"[ {}, "!a && b == 1 && c > 1" ]"#;
         let filter: Filter = serde_json::from_str(filter).unwrap();
 
         let new_batch = filter.transform_record_batch(&record_batch).unwrap();
