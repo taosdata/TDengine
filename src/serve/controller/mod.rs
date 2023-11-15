@@ -32,7 +32,9 @@ use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::utils::breakpoints::breakpoints_get_all;
-use taosx_core::{get_data_dir, validate_dsn, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
+use taosx_core::{
+    get_data_dir, validate_dsn, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts,
+};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -630,7 +632,9 @@ impl TaskController {
             ))
             .await
             .context("Cannot retrieve license")?
-            .ok_or_else(|| anyhow!("The current connector {connector} is not supported by license."))
+            .ok_or_else(|| {
+                anyhow!("The current connector {connector} is not supported by license.")
+            })
             .and_then(|s| {
                 serde_json::from_str(&s)
                     .with_context(|| format!("Cannot parse license from str: {s}"))
@@ -657,7 +661,7 @@ impl TaskController {
         Ok(())
     }
 
-    pub async fn validate_enterprise_license(&self, from: &Dsn, to: &Dsn) -> anyhow::Result<()>{
+    pub async fn validate_enterprise_license(&self, from: &Dsn, to: &Dsn) -> anyhow::Result<()> {
         // Check if enterprise available
         #[cfg(not(feature = "disable-enterprise-only-validation"))]
         match (from.driver.as_str(), to.driver.as_str()) {
@@ -671,11 +675,13 @@ impl TaskController {
                 let to = TaosBuilder::from_dsn(to)?;
                 let _ = to.build().await?;
 
-                let from_edition = from.get_edition()
+                let from_edition = from
+                    .get_edition()
                     .await
                     .context("Failed to check source edition")?
                     .assert_enterprise_edition();
-                let to_edition = to.get_edition()
+                let to_edition = to
+                    .get_edition()
                     .await
                     .context("Failed to check destination edition")?
                     .assert_enterprise_edition();
@@ -691,13 +697,14 @@ impl TaskController {
                 from.subject.take();
                 let builder = TaosBuilder::from_dsn(from)?;
                 let _ = builder.build().await.context("Source connection error")?;
-                let edition = builder.get_edition()
+                let edition = builder
+                    .get_edition()
                     .await
                     .context("Failed to check source edition")?
                     .assert_enterprise_edition();
 
                 if edition.is_err() {
-                    let err= edition.unwrap_err().to_string();
+                    let err = edition.unwrap_err().to_string();
                     bail!("The source is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.");
                 }
             }
@@ -706,7 +713,8 @@ impl TaskController {
                 to.subject.take();
                 let builder = TaosBuilder::from_dsn(to)?;
                 let _ = builder.build().await.context("Target connection error")?;
-                let edition = builder.get_edition()
+                let edition = builder
+                    .get_edition()
                     .await
                     .context("Failed to check destination edition")?
                     .assert_enterprise_edition();
