@@ -1102,6 +1102,13 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   int32_t     vgId = pTask->pMeta->vgId;
   int32_t msgId = pTask->execInfo.dispatch;
 
+#if 0
+  // for test purpose, build  the failure case
+  if (pTask->msgInfo.dispatchMsgType == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+    pRsp->inputStatus = TASK_INPUT_STATUS__REFUSED;
+  }
+#endif
+
   // follower not handle the dispatch rsp
   if ((pTask->pMeta->role == NODE_ROLE_FOLLOWER) || (pTask->status.downstreamReady != 1)) {
     stError("s-task:%s vgId:%d is follower or task just re-launched, not handle the dispatch rsp, discard it", id, vgId);
