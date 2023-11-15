@@ -13,7 +13,7 @@ metrics.legacy.stables: 完成数据迁移的超级表数据
 metrics.legacy.updated_tags: 更新 tag 数
 metrics.legacy.updated_tables: 更新子表数
 metrics.legacy.created_tables: 创建子表数
-metrics.legacy.tables: 完成数据迁移的子表数
+metrics.legacy.tables: 完成数据迁移的子表数(任务中断重启可能大于实际值)
 metrics.legacy.blocks: 写入成功的数据块数
 metrics.legacy.records: 写入成功的行数
 metrics.legacy.points: 写入成功的测点数
