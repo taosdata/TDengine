@@ -428,32 +428,36 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
 #define GRANT_CONN_ITEM_LEN_MIN (46)  // {"type":"a","number":1,"speed":0,"expire":"0"}
 #define GRANT_CONN_ITEM_LEN_MAX (256)
 static bool shellConvertGrantCols(const char *in, int32_t iLen, char *out, int32_t *oLen) {
-  char *expireStart;
-  if ((expireStart = strstr(in, "{\"type\":\"")) && (expireStart = strstr(expireStart, "\"number\":")) &&
-      (expireStart = strstr(expireStart, "\"speed\":")) && (expireStart = strstr(expireStart, "\"expire\":\""))) {
-    expireStart += 10;  // "expire":"
-    char *expireEnd = strchr(expireStart, '"');
-    if (expireEnd) {
-      int32_t expireStartLen = POINTER_DISTANCE(expireStart, in);
-      int32_t expireVLen = POINTER_DISTANCE(expireEnd, expireStart);
-      int32_t finalLen = iLen - expireVLen + 19;  // yyyy-MM-dd hh:mm:ss
-      if (expireVLen > 0 && finalLen < GRANT_CONN_ITEM_LEN_MAX) {
-        int32_t expireVal = taosStr2Int32(expireStart, NULL, 10);
-        if (expireVal < 0 || expireVal > 65535) {
-          return false;
-        }
-        char      ts[20];
-        time_t    sec = expireVal * 86400;
-        struct tm ptm;
-        if (taosLocalTime(&sec, &ptm, NULL) != NULL) {
-          strftime(ts, 20, "%Y-%m-%d %H:%M:%S", &ptm);
-          strncpy(out, in, expireStartLen);
-          strncpy(out + expireStartLen, ts, 19);
-          strncpy(out + expireStartLen + 19, expireEnd, iLen - expireStartLen - expireVLen);
-          out[finalLen] = 0;
-          if (oLen) *oLen = finalLen;
-          return true;
-        }
+  regmatch_t match[2] = {0};
+  if (!shellRegexMatchGet(in, "^\\{\"type\":\"\\S+\",\"number\":\\S+,\"speed\":\\S+,\"expire\":\"([0-9]+)\".*\\}$",
+                          REG_EXTENDED, 2, match)) {
+    return false;
+  }
+
+  int32_t expireStartOffset = match[1].rm_so;
+  int32_t expireEndOffset = match[1].rm_eo;
+  int32_t expireVLen = expireEndOffset - expireStartOffset;
+  if (expireVLen > 0) {
+    int32_t finalLen = iLen - expireVLen + 19;  // yyyy-MM-dd hh:mm:ss
+    if (finalLen < GRANT_CONN_ITEM_LEN_MAX) {
+      const char *expireStart = POINTER_SHIFT(in, expireStartOffset);
+      const char *expireEnd = POINTER_SHIFT(in, expireEndOffset);
+      int32_t     expireVal = taosStr2Int32(expireStart, NULL, 10);
+      if (expireVal < 0 || expireVal > 65535) {
+        return false;
+      }
+
+      time_t    sec = expireVal * 86400;
+      char      ts[20];
+      struct tm ptm;
+      if (taosLocalTime(&sec, &ptm, NULL) != NULL) {
+        strftime(ts, 20, "%Y-%m-%d %H:%M:%S", &ptm);
+        strncpy(out, in, expireStartOffset);
+        strncpy(out + expireStartOffset, ts, 19);
+        strncpy(out + expireStartOffset + 19, expireEnd, iLen - expireEndOffset);
+        out[finalLen] = 0;
+        if (oLen) *oLen = finalLen;
+        return true;
       }
     }
   }

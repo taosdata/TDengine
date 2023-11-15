@@ -20,7 +20,7 @@
 
 #include "shellInt.h"
 
-bool shellRegexMatch(const char *s, const char *reg, int32_t cflags) {
+bool shellRegexMatchGet(const char *s, const char *reg, int32_t cflags, int32_t nmatch, regmatch_t *pmatch) {
   regex_t regex = {0};
   char    msgbuf[100] = {0};
 
@@ -31,7 +31,7 @@ bool shellRegexMatch(const char *s, const char *reg, int32_t cflags) {
   }
 
   /* Execute regular expression */
-  int32_t reti = regexec(&regex, s, 0, NULL, 0);
+  int32_t reti = regexec(&regex, s, nmatch, pmatch, 0);
   if (!reti) {
     regfree(&regex);
     return true;
