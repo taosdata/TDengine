@@ -64,18 +64,19 @@ class TDTestQuery(TDCase):
         show_local_sql = "show local variables;"
         self.tdSql.query(show_local_sql)  
         rows = self.tdSql.query_row
-        #self.tdCreateData.data_check(rows,73)
         
         list_both = ['firstEp','secondEp','tempDir','minimalTmpDirGB','shellActivityTimer','compressMsgSize','compressColData',
                      'maxRetryWaitTime','numOfRpcThreads','numOfRpcSessions','timeToGetAvailableConn','configDir','scriptDir','logDir',
                      'minimalLogDirGB','numOfLogLines','asyncLog','logKeepDays','debugFlag','simDebugFlag','tmrDebugFlag','uDebugFlag',
                      'rpcDebugFlag','timezone','qDebugFlag','locale','charset','assert','enableCoreFile','numOfCores','SSE42','AVX','AVX2',
                      'FMA','SIMD-builtins','tagFilterCache','openMax','streamMax','pageSizeKB','totalMemoryKB','os sysname',
-                     'os nodename','os release','os version','os machine','version','compatible_version','gitinfo','buildinfo','keepAliveIdle','','','','',''];
+                     'os nodename','os release','os version','os machine','version','compatible_version','gitinfo','buildinfo','keepAliveIdle','ssd42','avx','avx2',
+                     'fma','avx512','simdEnable','','','','','','','',''];
         
         list_client = ['queryPolicy','enableQueryHb','enableScience','querySmaOptimize','queryPlannerTrace','queryNodeChunkSize','queryUseNodeAllocator',
                        'keepColumnName','smlChildTableName','smlTagName','maxInsertBatchRows','useAdapter','queryMaxConcurrentTables','metaCacheMaxSize',
-                       'slowLogThreshold','slowLogScope','numOfTaskQueueThreads','cDebugFlag','jniDebugFlag','smlTsDefaultName','smlDot2Underline','','',''];
+                       'slowLogThreshold','slowLogScope','numOfTaskQueueThreads','cDebugFlag','jniDebugFlag','smlTsDefaultName','smlDot2Underline','smlAutoChildTableNameDelimiter',
+                       'maxShellConns','smlAutoChildTableNameDelimiter','','','','','','','',''];
         
         list_server = ['fqdn','serverPort','crashReporting','','','','','','','','','','','','','','','','','','','','','','','']
         
@@ -104,12 +105,13 @@ class TDTestQuery(TDCase):
                         'os nodename','os release','os version','os machine','version','compatible_version','gitinfo','buildinfo',
                         'countAlwaysReturnValue','numOfRpcThreads','numOfRpcSessions','timeToGetAvailableConn','rpcQueueMemoryAllowed',
                         'crashReporting','telemetryReporting','telemetryInterval','telemetryServer','telemetryPort','configDir','scriptDir',
-                        'logDir','minimalLogDirGB','numOfLogLines','asyncLog','logKeepDays','debugFlag','sDebugFlag','keepAliveIdle',''];
+                        'logDir','minimalLogDirGB','numOfLogLines','asyncLog','logKeepDays','debugFlag','sDebugFlag','keepAliveIdle','rsyncPort',
+                        'ssd42','avx','avx2','fma','avx512','simdEnable','','','','','','','','','',''];
     
         list_client = ['queryPolicy','enableQueryHb','enableScience','querySmaOptimize','queryPlannerTrace','queryNodeChunkSize','queryUseNodeAllocator',
                         'keepColumnName','smlChildTableName','smlTagName','maxInsertBatchRows','useAdapter','queryMaxConcurrentTables','metaCacheMaxSize',
                         'slowLogThreshold','slowLogScope','numOfTaskQueueThreads','cDebugFlag','jniDebugFlag','minSlidingTime','minIntervalTime',
-                        'smlTsDefaultName','smlDot2Underline','','','','','','','','','','','','','','','',''];
+                        'smlTsDefaultName','smlDot2Underline','smlAutoChildTableNameDelimiter','maxShellConns','','','','','','','','','','','','','',''];
     
         list_server = ['fqdn','serverPort','crashReporting','dataDir','minimalDataDirGB','supportVnodes','maxShellConns','statusInterval',
                         'maxNumOfDistinctRes','queryBufferSize','printAuth','queryRspPolicy','numOfCommitThreads','numOfMnodeReadThreads',
@@ -123,7 +125,9 @@ class TDTestQuery(TDCase):
                         'tsdbDebugFlag','tqDebugFlag','fsDebugFlag','udfDebugFlag','smaDebugFlag','idxDebugFlag','tdbDebugFlag','metaDebugFlag','grantMode',
                         'audit','auditFqdn','auditPort','ttlBatchDropNum','ttlFlushThreshold','trimVDbIntervalSec','resolveFQDNRetryTime','s3Accesskey',
                         's3Endpoint','s3BucketName','minDiskFreeSize','enableWhiteList','timeseriesThreshold','LossyColumns','FPrecision','DPrecision',
-                        'MaxRange','CurRange','IfAdtFse','Compressor','s3BlockSize','s3BlockCacheSize','','','','','','','','','','','','','','','','','','','']
+                        'MaxRange','CurRange','IfAdtFse','Compressor','s3BlockSize','s3BlockCacheSize','auditCreateTable','snodeAddress','checkpointBackupDir',
+                        'streamSinkDataRate','lossyColumns','fPrecision','dPrecision','maxRange','curRange','ifAdtFse','compressor','s3PageCacheSize',
+                        's3UploadDelaySec','sDebugFlag','stDebugFlag','','','','','','','','','','','','','','','','']
         
         
         dnodes_list = []
@@ -282,7 +286,7 @@ class TDTestQuery(TDCase):
         show_create_sql = "show create table information_schema.ins_stream_tasks;"
         self.tdSql.query(show_create_sql)          
         self.tdCreateData.data_check(self.tdSql.getData(0,0),'ins_stream_tasks')
-        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_stream_tasks` (`stream_name` VARCHAR(64), `task_id` VARCHAR(30), `node_type` VARCHAR(64), `node_id` INT, `level` VARCHAR(20), `status` VARCHAR(20)) COMMENT ''")
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_stream_tasks` (`stream_name` VARCHAR(64), `task_id` VARCHAR(16), `node_type` VARCHAR(10), `node_id` INT, `level` VARCHAR(10), `status` VARCHAR(15), `stage` INT, `in_queue` VARCHAR(18), `info` VARCHAR(23)) COMMENT ''")
         
         show_create_sql = "show create table information_schema.ins_vnodes;"
         self.tdSql.query(show_create_sql)          
@@ -292,7 +296,7 @@ class TDTestQuery(TDCase):
         show_create_sql = "show create table information_schema.ins_user_privileges;"
         self.tdSql.query(show_create_sql)          
         self.tdCreateData.data_check(self.tdSql.getData(0,0),'ins_user_privileges')
-        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_user_privileges` (`user_name` VARCHAR(24), `privilege` VARCHAR(10), `db_name` VARCHAR(65), `table_name` VARCHAR(193), `condition` VARCHAR(49152)) COMMENT ''")
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_user_privileges` (`user_name` VARCHAR(24), `privilege` VARCHAR(10), `db_name` VARCHAR(65), `table_name` VARCHAR(193), `condition` VARCHAR(49152), `notes` VARCHAR(64)) COMMENT ''")
         
         show_indexes_sql = "show indexes from ins_dnodes from information_schema;" 
         self.tdSql.query(show_indexes_sql)          
@@ -700,7 +704,7 @@ class TDTestQuery(TDCase):
         self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `perf_connections` (`conn_id` INT UNSIGNED, `user` VARCHAR(24), `app` VARCHAR(24), `pid` INT UNSIGNED, `end_point` VARCHAR(134), `login_time` TIMESTAMP, `last_access` TIMESTAMP) COMMENT ''")
         show_sql = "show connections;"
         select_sql = "select * from performance_schema.perf_connections;"
-        self.sql_check(show_sql,select_sql)
+        self.sql_check(show_sql,select_sql,check_tag = "N")
         
         show_create_sql = "show create table performance_schema.perf_queries;"
         self.tdSql.query(show_create_sql)          
@@ -919,7 +923,7 @@ class TDTestQuery(TDCase):
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
          
         self.show_local_variables() 
-        for i in range(3):
+        for i in range(10):
             self.show_local_variables() 
             self.show_dnode_variables()
             
