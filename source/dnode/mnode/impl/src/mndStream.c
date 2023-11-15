@@ -1211,6 +1211,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   bool updated = taskNodeIsUpdated(pMnode);
   if (updated) {
     mWarn("checkpoint ignore, stream task nodes update detected");
+    return -1;
   }
 
   {  // check if all tasks are in TASK_STATUS__READY status
