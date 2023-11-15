@@ -497,12 +497,6 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
       S3_put_object(&bucketContext, key, contentLength, &putProperties, 0, 0, &putObjectHandler, &data);
     } while (S3_status_is_retryable(data.status) && should_retry());
 
-    if (data.infileFD) {
-      taosCloseFile(&data.infileFD);
-    } else if (data.gb) {
-      growbuffer_destroy(data.gb);
-    }
-
     if (data.status != S3StatusOK) {
       s3PrintError(__func__, data.status, data.err_msg);
       code = TAOS_SYSTEM_ERROR(EIO);
@@ -622,6 +616,12 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
     for (i = 0; i < manager.next_etags_pos; i++) {
       taosMemoryFree(manager.etags[i]);
     }
+    if (data.infileFD) {
+      taosCloseFile(&data.infileFD);
+    } else if (data.gb) {
+      growbuffer_destroy(data.gb);
+    }
+
     growbuffer_destroy(manager.gb);
     taosMemoryFree(manager.etags);
   }
