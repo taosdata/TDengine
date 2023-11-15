@@ -38,7 +38,7 @@ def release(release_info,build_info):
         if info.Name =='taosx-agent':
             build_and_install_taosx_agent_on_linux(release_info, info.VersionMode)
         if info.Name =='taos-explorer' and release_info.UploadAgent == False:
-            install_taos_explorer_on_linux(info.VersionMode)
+            install_taos_explorer_on_linux(release_info, info.VersionMode)
 
     chmodReleaseDir(release_info)
     if release_info.UploadAgent:
@@ -180,10 +180,10 @@ def build_and_install_taosx_on_linux(release_info, mode='release'):
     shutil.copy(binary_file,dst_dir)
     logging.info("taox copied to {release_dir}".format(release_dir=dst_dir))
 
-    shutil.copy(os.path.join(top_dir,"target","taosx.service"), systemd_path)
+    shutil.copy(os.path.join(top_dir,"target",f"{release_info.CustomPrompt}x.service"), systemd_path)
 
 
-def install_taos_explorer_on_linux(mode='release'):
+def install_taos_explorer_on_linux(release_info, mode='release'):
     logging.info("install taosx-explore under linux...")
     platform = "linux"
     arch = "amd64"
@@ -196,7 +196,7 @@ def install_taos_explorer_on_linux(mode='release'):
     shutil.copy(binary_file, dst_dir)
     logging.info("taox-agent copied to {release_dir}".format(release_dir=dst_dir))
 
-    shutil.copy2(os.path.join(explore_dir, "target","taos-explorer.service"), systemd_path)
+    shutil.copy2(os.path.join(explore_dir, "target",f"{release_info.CustomPrompt}-explorer.service"), systemd_path)
 
     cfg_path = os.path.join(release_dir,"etc", "taos")
     check_directory(cfg_path)
@@ -222,7 +222,7 @@ def build_and_install_taosx_agent_on_linux(release_info, mode='release'):
     shutil.copy(binary_file,dst_dir)
     logging.info("taox-agent copied to {release_dir}".format(release_dir=dst_dir))
 
-    shutil.copy2(os.path.join(top_dir,"target","taosx-agent.service"), systemd_path)
+    shutil.copy2(os.path.join(top_dir,"target",f"{release_info.CustomPrompt}x-agent.service"), systemd_path)
 
     cfg_path = os.path.join(release_dir,"etc", "taos")
     check_directory(cfg_path)
@@ -300,7 +300,7 @@ def test_handle(release_info, process):
         build_and_install_taosx_agent_on_linux(release_info, "Debug")
     elif process == "explorer":
         print("Calling taos-explorer function...")
-        install_taos_explorer_on_linux("Release")
+        install_taos_explorer_on_linux(release_info, "Release")
     elif process == "influxdb":
         print("Calling influxDB function...")
         build_and_install_influxdb_on_linux("Debug")
