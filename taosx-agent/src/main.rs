@@ -281,7 +281,7 @@ fn main() -> anyhow::Result<()> {
     set_env_log_home_dir(args.logs_home.clone());
     set_env_log_keep_days(args.log_keep_days.clone());
 
-    let mut log_path = get_log_dir("agent");
+    let mut log_path = get_log_dir("");
 
     log_path.push(LOG_FILE);
 
@@ -297,7 +297,7 @@ fn main() -> anyhow::Result<()> {
             DateFrom::DateYesterday,
         ),
         ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
+        Compression::OnRotate(2),
         #[cfg(unix)]
         None,
     );

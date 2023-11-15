@@ -136,12 +136,12 @@ datasets:
             - original_ts
       - name: child_table_expression
         display: 表名称
-        value: Meter_{ns}_{id}
         description: |
           支持 <child table prefix>_{ns}_{id} 格式，如果 NodeId 中不存在 ns 或 id 将置为空
+        required: true
+        value: Meter_{ns}_{id}
         hint:
           type: str
-        required: true
 
 groups:
   - name: 连接配置
@@ -208,52 +208,59 @@ groups:
 
       - name: path
         display: 保存路径
-        hint:
-          type: str
         description: 原始数据的保存路径，若启用保存原始数据需配置。
         placeholder: /data/
+        hint:
+          type: str
 
       - name: keep
         display: 保留天数
+        description: 原始数据的保留天数，若启用保存原始数据需配置。
+        value: 10
         hint:
           type: integer
           min: 1
-        description: 原始数据的保留天数，若启用保存原始数据需配置。
-        value: 10
 
-  - name: 其他
+  - name: 高级选项
     display_order: 4
-    description: 其他配置项。
+    description: 对数据源性能、日志等其他参数进行调整，可修改以下选项。
     params:
       - name: concurrent
-        display: 上报并行度
-        description: 采集的数据写入数据库的并行度
+        display: 最大写入并发数
+        description: 写入 taosX 的最大并发数限制，当默认参数性能不足时，可增大此参数。
+        value: 1
         hint:
           type: integer
           min: 1
           max: 100
-        value: 1
       - name: batch_size
-        display: 上报批次大小
+        display: 批次大小
+        description: 单次发送的最大消息数或行数。
+        placeholder: 100
+        value: 1000
         hint:
           type: integer
           min: 1
           max: 10000
-        description: 每次采集数据写入数据库的最大记录条数
-        placeholder: 100
-        value: 1000
       - name: batch_timeout
-        display: 上报等待时长
+        display: 批次延时
+        description: 单次读取最大延时，当超时结束时，只要有数据，即使不满足 Batch Size，也立即发送。
+        placeholder: 20
+        value: 1
         hint:
           type: integer
           min: 1
           max: 60
-        description: 每批次采集数据上报的等待时间间隔，单位为：秒 (s)
-        placeholder: 20
-        value: 1
-      - name: debug
-        display: 开启 Debug 日志
+      - name: log_level
+        display: 日志级别
+        description: 根据需要调整数据源的日志级别，此参数不总是生效。
+        value: info
         hint:
-          type: bool
-        description: 是否开启 opc 连接器 debug 日志
+          type: str
+          choices:
+            - error
+            - warn
+            - info
+            - debug
+            - trace
 

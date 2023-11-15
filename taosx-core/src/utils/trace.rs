@@ -15,8 +15,8 @@ use tracing_subscriber::{layer, Registry};
 
 const TRACE_STR: &str = "TRACE";
 const DEBUG_STR: &str = "DEBUG";
-const INFO_STR: &str = " INFO";
-const WARN_STR: &str = " WARN";
+const INFO_STR: &str = "";
+const WARN_STR: &str = "WARN";
 const ERROR_STR: &str = "ERROR";
 
 /// Hex string representation of Trace ID stored in its [extensions]
@@ -142,16 +142,13 @@ where
             // Part 2: level
             let metadata = event.metadata();
             let level = Self::fmt_level(metadata.level());
-            buf.push_str(level);
-            buf.push(' ');
-            // Part 3: thread name
-            let current_thread = std::thread::current();
-            if let Some(name) = current_thread.name() {
-                buf.push('[');
-                buf.push_str(name);
-                buf.push(']');
+            if !level.is_empty() {
+                buf.push_str(level);
+                buf.push(' ');
             }
-            // Part 4 and Part 5:  span and TID or QID
+            // Part 3: mod name(target)
+            Self::fmt_mod(&mut buf, metadata.target(), metadata.line());
+            // Part 4 and Part 5:  span and TID or DTID
             if let Some(scope) = ctx.event_scope(event) {
                 Self::fmt_span_and_trace_id(&mut buf, scope);
             }
@@ -233,6 +230,26 @@ where
         }
         buf.push(' ');
         buf.push_str(span_buf.as_str());
+    }
+
+    #[inline]
+    fn fmt_mod(buf: &mut String, long_mod: &str, line_opt: Option<u32>) {
+        buf.push('[');
+        let i_opt = long_mod.rfind(":");
+        match i_opt {
+            Some(i) => {
+                let (_, short_mod) = long_mod.split_at(i + 1);
+                buf.push_str(short_mod);
+            }
+            None => {
+                buf.push_str(long_mod);
+            }
+        }
+        if let Some(line) = line_opt {
+            buf.push(':');
+            buf.push_str(line.to_string().as_str());
+        }
+        buf.push(']');
     }
 }
 

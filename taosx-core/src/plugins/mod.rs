@@ -32,6 +32,7 @@ pub use transform::Parser;
 use self::sink::IpcHandler;
 
 mod config;
+mod expr;
 pub mod runners;
 mod service;
 pub mod sink;

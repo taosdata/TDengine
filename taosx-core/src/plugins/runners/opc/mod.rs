@@ -124,7 +124,7 @@ pub async fn opc_to_taos(
     let port_pool = port_pool.clone();
     let mut command = tokio::process::Command::new(exe_path()?);
 
-    let mut log_path = super::get_log_dir("opc");
+    let mut log_path = super::get_log_dir("");
     fs::create_dir_all(&log_path)?;
 
     tracing::info!("log path created: {}", &log_path.display());
@@ -392,7 +392,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         .output()
         .await
         .with_context(|| "Start OPC collector error")?;
-    let mut log_path = super::get_log_dir("opc");
+    let mut log_path = super::get_log_dir("");
     log_path.push(LOG_FILE);
 
     let mut log_rotation = log_rotation(&log_path, 700);

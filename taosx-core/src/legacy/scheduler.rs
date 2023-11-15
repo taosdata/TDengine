@@ -480,14 +480,16 @@ async fn worker(
                         match chunk_err {
                             Some(err) => {
                                 if let Some(sender) = sender {
-                                    let _ = sender.send(Err(anyhow::format_err!("Syncing table failed: {err}",)));
+                                    let _ = sender.send(Err(anyhow::format_err!(
+                                        "Syncing table failed: {err}",
+                                    )));
                                 }
                             }
                             None => {
                                 counter!(METRICS_LEGACY_TABLES, 1);
                                 if let Some(sender) = sender {
                                     let _ = sender.send(Ok(()));
-                                } 
+                                }
                             }
                         }
                     }

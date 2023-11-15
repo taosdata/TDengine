@@ -322,7 +322,7 @@ struct LushMessageTagModify {
 }
 
 // #[instrument(skip(taos, record, names, marks))]
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(trace.id=trace_id_str))]
 async fn consume_lush_record(
     pool: &TaosPool,
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
@@ -336,6 +336,7 @@ async fn consume_lush_record(
     transferred: Option<&Transferred>,
     task: Option<i64>,
     data_trace_id: u64,
+    trace_id_str: &str,
 ) -> anyhow::Result<()> {
     counter!(METRIC_RECORD_BATCHES, 1);
     match record {
@@ -664,7 +665,7 @@ struct ModifyStructForPointMessage {
     value_cloumn_length: usize,
 }
 
-#[instrument(skip_all, fields(target_precision = ?target_precision))]
+#[instrument(skip_all, fields(target_precision = ?target_precision, trace.id=trace_id_str))]
 async fn consume_point_record(
     pool: &TaosPool,
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
@@ -674,6 +675,7 @@ async fn consume_point_record(
     config: &OpcTableConfig,
     target_precision: taos::Precision,
     data_trace_id: u64,
+    trace_id_str: &str,
 ) -> anyhow::Result<usize> {
     let mut points = 0;
     metrics::counter!(METRIC_RECORD_BATCHES, 1);
@@ -1337,7 +1339,7 @@ fn get_real_column_name(column_config: &ColumnConfig) -> &String {
 
 const DEFAULT_MAX_RETRIES_FOR_CONNECTION: u32 = 10;
 
-#[instrument(skip_all, fields(writer.count = count))]
+#[instrument(skip_all, fields(writer.count = count, trace.id=trace_id_str))]
 async fn consume_flat_record(
     pool: &TaosPool,
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
@@ -1348,6 +1350,7 @@ async fn consume_flat_record(
     transferred: Option<&Transferred>,
     target_precision: taos::Precision,
     data_trace_id: u64,
+    trace_id_str: &str,
 ) -> anyhow::Result<()> {
     if let Some((_license, transferred)) = license.zip(transferred) {
         let _used = transferred.records.load(Ordering::SeqCst);
@@ -1378,9 +1381,7 @@ async fn consume_flat_record(
                         if records.records.num_rows() == 0 {
                             continue;
                         }
-                        counter!(METRIC_BATCH_RECORDS, 1);
-                        // dbg!(&records);
-
+                        counter!(METRIC_BATCH_RECORDS, records.records.num_rows() as u64);
                         if records.records.column(0).null_count() > 0 {
                             bail!("Timestamp field contains null or invalid values");
                         }
@@ -1887,11 +1888,8 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     while let Some(record) = stream.try_next().await.context("next item error")? {
         batches += 1;
         let data_trace_id = create_data_trace_id(stream_trace_id, batches);
-        let trace_id_for_batch: String = get_data_trace_id_str(data_trace_id);
-        info!(
-            "Start consuming lush record batch with tid:{}",
-            trace_id_for_batch
-        );
+        let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
+        info!("Start consuming lush record batch {}", data_trace_id_str);
         let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
@@ -1910,11 +1908,11 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             transferred,
             task_id,
             data_trace_id,
+            &data_trace_id_str,
         )
-        .in_current_span()
         .await
         {
-            tracing::error!("write batch {batches} error: {err:#}");
+            tracing::error!("write batch {data_trace_id_str} error: {err:#}");
             let written = count - last;
 
             if ipc_error_strategy.will_stop() {
@@ -1933,7 +1931,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             });
 
             if let Err(_) = notifier.send(crate::TaskNotify::Error(format!("{:#}", err))) {
-                bail!("write batch error: {err:#}");
+                bail!("write batch {data_trace_id_str} error: {err:#}");
             }
         } else {
             tracing::info!("ack");
@@ -1984,6 +1982,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
         context: WriterContext,
         record: Result<Box<dyn IpcMessage>, arrow::error::ArrowError>,
         data_trace_id: u64,
+        trace_id_str: &str,
     ) -> anyhow::Result<usize> {
         let record = record?;
         let pool = &context.pool;
@@ -2004,6 +2003,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             context.config.as_ref().unwrap(),
             context.target_precision,
             data_trace_id,
+            trace_id_str,
         )
         .await?;
         Ok(n)
@@ -2028,7 +2028,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
             info!("Start writing batch {}", data_trace_id_str);
             async move {
-                let n = parse(context, record, data_trace_id).await;
+                let n = parse(context, record, data_trace_id, &data_trace_id_str).await;
                 match n {
                     Ok(n) => {
                         let _ = ipc_ack_writer.lock().await.write_ok();
@@ -2094,6 +2094,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
             transferred,
             target_precision,
             data_trace_id,
+            &data_trace_id_str,
         )
         .await
         {
@@ -2479,13 +2480,14 @@ impl IpcStreamWorker {
         self
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(trace.id=trace_id_str))]
     pub async fn process_record(
         &self,
         stmt: &mut Stmt,
         record: RecordBatch,
         parser: Option<&Parser>,
         data_trace_id: u64,
+        trace_id_str: &str,
     ) -> anyhow::Result<usize> {
         let taos = self.pool.get().await?;
         let target_precision = get_current_precision(&taos).await?;
@@ -2534,6 +2536,7 @@ impl IpcStreamWorker {
                     self.transferred.as_ref(),
                     target_precision,
                     data_trace_id,
+                    trace_id_str,
                 )
                 .await?;
                 Ok(count)
@@ -2572,6 +2575,7 @@ impl IpcStreamWorker {
                     self.transferred.as_ref(),
                     task,
                     data_trace_id,
+                    trace_id_str,
                 )
                 .await?;
                 Ok(count)
@@ -2608,6 +2612,7 @@ impl IpcStreamWorker {
                         .ok_or_else(|| anyhow::format_err!("OPC table config not found"))?,
                     target_precision,
                     data_trace_id,
+                    trace_id_str,
                 )
                 .await?;
                 if let Some(transferred) = &self.transferred {

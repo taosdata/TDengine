@@ -161,7 +161,6 @@ impl Drop for TaskOpts {
 }
 
 pub const METRICS_TIME_START: &str = "metrics.time_started_timestamp";
-pub const METRICS_TIME_START_DATE: &str = "metrics.time_started_date";
 pub const METRICS_TIME_COST: &str = "metrics.time_cost";
 pub const METRICS_TIME_RECORDS_PER_SECOND: &str = "metrics.records_per_second";
 
@@ -407,6 +406,14 @@ impl TaskOpts {
                     tmq_to_kafka(from, to.clone(), cancel.clone()).await?;
                 }
                 ("kafka", "taos") => {
+                    let mut dsn = from.clone();
+                    if !dsn.params.contains_key("group") {
+                        let group_id = task_id
+                            .clone()
+                            .ok_or(anyhow::anyhow!("group id is required for kafka to taos"))?;
+                        dsn.params.insert("group".to_string(), group_id);
+                    }
+
                     kafka_to_taos(
                         from.clone(),
                         parser.clone(),

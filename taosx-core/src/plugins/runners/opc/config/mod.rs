@@ -102,13 +102,18 @@ impl OPCConfig {
     }
 
     fn parse_debug(dsn: &Dsn) -> anyhow::Result<bool> {
+        let debug = dsn.params.get("debug");
+        if debug.is_some() {
+            return Ok(debug.unwrap().parse::<bool>().unwrap_or(false));
+        }
+
         Ok(dsn
             .params
-            .get("debug")
-            .map(|v| {
-                v.parse::<bool>().map_err(|err| {
-                    anyhow::anyhow!("parse debug failed, cause: {}", err.to_string())
-                })
+            .get("log_level")
+            .map(|v| match v.as_str() {
+                "error" | "warn" | "info" => Ok(false),
+                "debug" | "trace" => Ok(true),
+                _ => Err(anyhow::anyhow!("invalid log_level: {}", v.to_string())),
             })
             .transpose()?
             .unwrap_or(false))
@@ -217,7 +222,7 @@ impl OPCConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, PartialEq)]
-enum AuthMethod {
+pub enum AuthMethod {
     Anonymous,
     UserName,
     #[default]

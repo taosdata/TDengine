@@ -331,8 +331,12 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         internal void Stop()
         {
-            send();
-            stopTaosxSend = true;
+            if (stopTaosxSend) {
+                stopTaosxSend = true;
+                send();
+            }
+            stream.Close();
+            client.Close();
             return;
         }
     }

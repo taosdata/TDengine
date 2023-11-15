@@ -220,12 +220,13 @@ namespace TDBackfill
                     return;
                 }
 
-                while (tdEngineProxy.isBusy()) {
+                while (tdEngineProxy.IsBusy()) {
                     Console.WriteLine("Backfill wait for the end of data sending.");
                     Thread.Sleep(1000);
                 }
                 // Make sure the taosx has received.
                 Thread.Sleep(AppSettings.BackfillQuitWait * 1000);
+                tdEngineProxy.StopAll();
 
                 Console.WriteLine("Backfill finished, exit.");
             }
