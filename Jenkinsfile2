@@ -151,14 +151,6 @@ def pre_test(){
         cd ${WKC}
         git submodule update --init --recursive
     '''
-    sh '''
-        cd ${WKPY}
-        git reset --hard
-        git pull
-        git log -5
-        echo "python connector log: `git log -5`" >>${WKDIR}/jenkins.log
-        echo >>${WKDIR}/jenkins.log
-    '''
     return 1
 }
 def pre_test_build_mac() {
