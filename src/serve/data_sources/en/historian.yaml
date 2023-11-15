@@ -88,20 +88,20 @@ groups:
         placeholder: e.g., 2023-01-01T00:00:00.000Z
         hint:
           type: time
-      - name: retrieveInterval
-        display: Retrieve Interval
-        description: Pull interval for real-time data synchronization.
+      - name: timeWindow
+        display: Time Window
+        description: Time window for historical data migration.
         required: false
         placeholder: 1 day
         value: 1 day
         hint:
           type: str
-      - name: timeWindow
-        display: Time Window
-        description: Time window for historical data synchronization.
+      - name: retrieveInterval
+        display: Retrieve Interval
+        description: Pull interval for real-time data synchronization.
         required: false
-        placeholder: 1 hour
-        value: 1 hour
+        placeholder: 10s
+        value: 10s
         hint:
           type: str
       - name: tolerance
