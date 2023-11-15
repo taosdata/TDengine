@@ -336,7 +336,7 @@ async fn consume_lush_record(
     transferred: Option<&Transferred>,
     task: Option<i64>,
     data_trace_id: u64,
-    trace_id_str: &str
+    trace_id_str: &str,
 ) -> anyhow::Result<()> {
     counter!(METRIC_RECORD_BATCHES, 1);
     match record {
@@ -1350,7 +1350,7 @@ async fn consume_flat_record(
     transferred: Option<&Transferred>,
     target_precision: taos::Precision,
     data_trace_id: u64,
-    trace_id_str: &str
+    trace_id_str: &str,
 ) -> anyhow::Result<()> {
     if let Some((_license, transferred)) = license.zip(transferred) {
         let _used = transferred.records.load(Ordering::SeqCst);
@@ -1889,10 +1889,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         batches += 1;
         let data_trace_id = create_data_trace_id(stream_trace_id, batches);
         let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
-        info!(
-            "Start consuming lush record batch {}",
-            data_trace_id_str
-        );
+        info!("Start consuming lush record batch {}", data_trace_id_str);
         let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
@@ -1985,7 +1982,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
         context: WriterContext,
         record: Result<Box<dyn IpcMessage>, arrow::error::ArrowError>,
         data_trace_id: u64,
-        trace_id_str: &str
+        trace_id_str: &str,
     ) -> anyhow::Result<usize> {
         let record = record?;
         let pool = &context.pool;

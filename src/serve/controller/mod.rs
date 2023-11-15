@@ -675,15 +675,21 @@ impl TaskController {
                 let to = TaosBuilder::from_dsn(to)?;
                 let _ = to.build().await?;
 
-                let from_edition = from.get_edition()
+                let from_edition = from
+                    .get_edition()
                     .await
                     .context("Failed to check source edition")?
-                    && !to
-                        .is_enterprise_edition()
-                        .await
-                        .context("Failed to check target edition")?
-                {
-                    anyhow::bail!("Both the source and destination databases are not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
+                    .assert_enterprise_edition();
+                let to_edition = to
+                    .get_edition()
+                    .await
+                    .context("Failed to check destination edition")?
+                    .assert_enterprise_edition();
+
+                if from_edition.is_err() && to_edition.is_err() {
+                    let from_err = from_edition.unwrap_err().to_string();
+                    let to_err = to_edition.unwrap_err().to_string();
+                    bail!("Neither source nor destination is a valid TDengine enterprise edition, cause: source error: {from_err}, destination error: {to_err}, please contact the TDengine customer success team for further assistance.");
                 }
             }
             ("tmq" | "taos", _) => {
@@ -691,13 +697,14 @@ impl TaskController {
                 from.subject.take();
                 let builder = TaosBuilder::from_dsn(from)?;
                 let _ = builder.build().await.context("Source connection error")?;
-                let edition = builder.get_edition()
+                let edition = builder
+                    .get_edition()
                     .await
                     .context("Failed to check source edition")?
                     .assert_enterprise_edition();
 
                 if edition.is_err() {
-                    let err= edition.unwrap_err().to_string();
+                    let err = edition.unwrap_err().to_string();
                     bail!("The source is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.");
                 }
             }
@@ -706,7 +713,8 @@ impl TaskController {
                 to.subject.take();
                 let builder = TaosBuilder::from_dsn(to)?;
                 let _ = builder.build().await.context("Target connection error")?;
-                let edition = builder.get_edition()
+                let edition = builder
+                    .get_edition()
                     .await
                     .context("Failed to check destination edition")?
                     .assert_enterprise_edition();

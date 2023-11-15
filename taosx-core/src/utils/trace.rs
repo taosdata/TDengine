@@ -252,7 +252,7 @@ where
         buf.push(']');
     }
 }
- 
+
 /// Explicitly set a trace ID for current span.
 pub fn set_trace_id_for_current_span(tid: &str) {
     tracing::dispatcher::get_default(|dispatch| {
