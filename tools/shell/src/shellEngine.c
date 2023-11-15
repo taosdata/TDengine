@@ -442,7 +442,7 @@ static bool shellConvertGrantCols(const char *in, int32_t iLen, char *out, int32
     if (finalLen < GRANT_CONN_ITEM_LEN_MAX) {
       const char *expireStart = POINTER_SHIFT(in, expireStartOffset);
       const char *expireEnd = POINTER_SHIFT(in, expireEndOffset);
-      int32_t     expireVal = taosStr2Int32(expireStart, NULL, 10);
+      int64_t     expireVal = taosStr2Int64(expireStart, NULL, 10);
       if (expireVal < 0 || expireVal > 65535) {
         return false;
       }
