@@ -245,10 +245,14 @@ func (r *reader) readAndSend(ctx context.Context, ch chan *common.NodeValue, wai
 		logger.Error("## observe metric error", "error", err)
 		return
 	}
-
-	for _, value := range values {
-		ch <- value
-	}
+	go func() {
+		defer func() {
+			recover()
+		}()
+		for _, value := range values {
+			ch <- value
+		}
+	}()
 }
 
 func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*ua.ReadValueID) (values []*common.NodeValue, err error) {
