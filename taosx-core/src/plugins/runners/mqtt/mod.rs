@@ -18,6 +18,7 @@ use crate::{
     build_ipc, get_log_keep_days, plugins::runners::get_plugin_dir, utils::port_pool::PortPool,
     Parser, Transferred,
 };
+use super::get_data_dir;
 
 mod config;
 
@@ -67,6 +68,7 @@ pub async fn mqtt_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let ipc_port = port_pool
@@ -85,6 +87,23 @@ pub async fn mqtt_to_taos(
         config_path.display(),
         toml
     );
+    // save the temporary file to task dir
+    match task_id {
+        Some(task_id) => {
+            let path = get_data_dir().join("tasks").join(task_id.to_string());
+            std::fs::create_dir_all(&path).unwrap();
+            let path = path.join(format!(
+                "{}-{}-{}.{}",
+                task_id,
+                "mqtt",
+                chrono::Local::now().format("%Y%m%d%H%M"),
+                "toml"
+            ));
+            let _ = fs::copy(&config_path, path);
+        }
+        None => {}
+    }
+    // create socket channel
     let mut ipc_handler = build_ipc(
         &config.remote,
         parser,

@@ -16,6 +16,7 @@ use crate::{
     build_ipc, get_log_keep_days, plugins::service::spawn_rest_service, utils::port_pool::PortPool,
     Action, DataSet, DataSetsReq, Transferred,
 };
+use super::get_data_dir;
 
 mod config;
 
@@ -57,6 +58,7 @@ pub async fn pi_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: {}", from.driver);
@@ -84,8 +86,23 @@ pub async fn pi_to_taos(
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
-
     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
+    // save the temporary file to task dir
+    match task_id {
+        Some(task_id) => {
+            let path = get_data_dir().join("tasks").join(task_id.to_string());
+            std::fs::create_dir_all(&path).unwrap();
+            let path = path.join(format!(
+                "{}-{}-{}.{}",
+                task_id,
+                "pi",
+                chrono::Local::now().format("%Y%m%d%H%M"),
+                "toml"
+            ));
+            let _ = fs::copy(&config_path, path);
+        }
+        None => {}
+    }
 
     #[derive(Deserialize, Debug, Default)]
     struct IsValid {
