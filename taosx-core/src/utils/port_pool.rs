@@ -3,7 +3,7 @@ use tokio::sync::Mutex;
 // use port_selector::Port;
 use std::{
     fmt::{Debug, Formatter},
-    net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6, TcpListener, ToSocketAddrs},
+    net::{Ipv4Addr, SocketAddrV4, TcpListener, ToSocketAddrs},
     ops::Range,
     sync::Arc,
 };
@@ -61,9 +61,7 @@ impl PortPool {
 
 fn is_free_tcp(port: u16) -> bool {
     let ipv4 = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
-    let ipv6 = SocketAddrV6::new(Ipv6Addr::LOCALHOST, port, 0, 0);
-
-    test_bind_tcp(ipv6).is_some() && test_bind_tcp(ipv4).is_some()
+    test_bind_tcp(ipv4).is_some()
 }
 
 // Try to bind to a socket using TCP
