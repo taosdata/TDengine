@@ -88,6 +88,9 @@ void tqDestroyTqHandle(void* data) {
     taosMemoryFree(pData->msg);
     pData->msg = NULL;
   }
+  if (pData->block != NULL){
+    blockDataDestroy(pData->block);
+  }
 }
 
 static bool tqOffsetEqual(const STqOffset* pLeft, const STqOffset* pRight) {

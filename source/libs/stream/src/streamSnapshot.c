@@ -51,7 +51,7 @@ struct SStreamSnapHandle {
   int8_t         filetype;
   SArray*        pFileList;
   int32_t        currFileIdx;
-  int8_t         delFlag;
+  int8_t         delFlag;  // 0 : not del, 1: del
 };
 struct SStreamSnapBlockHdr {
   int8_t  type;
@@ -195,7 +195,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
     }
   }
   if (qDebugFlag & DEBUG_TRACE) {
-    char* buf = taosMemoryCalloc(1, 128 + taosArrayGetSize(pFile->pSst) * 16);
+    char* buf = taosMemoryCalloc(1, 128 + taosArrayGetSize(pFile->pSst) * 64);
     sprintf(buf, "[current: %s,", pFile->pCurrent);
     sprintf(buf + strlen(buf), "MANIFEST: %s,", pFile->pMainfest);
     sprintf(buf + strlen(buf), "options: %s,", pFile->pOptions);
@@ -424,6 +424,7 @@ int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, char* path
   pHandle->pFileList = list;
   pHandle->currFileIdx = 0;
   pHandle->offset = 0;
+  pHandle->delFlag = 0;
 
   *ppWriter = pWriter;
   return 0;
@@ -482,7 +483,7 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
 int32_t streamSnapWriterClose(SStreamSnapWriter* pWriter, int8_t rollback) {
   SStreamSnapHandle* handle = &pWriter->handle;
   if (qDebugFlag & DEBUG_TRACE) {
-    char* buf = (char*)taosMemoryMalloc(128 + taosArrayGetSize(handle->pFileList) * 16);
+    char* buf = (char*)taosMemoryMalloc(128 + taosArrayGetSize(handle->pFileList) * 64);
     int   n = sprintf(buf, "[");
     for (int i = 0; i < taosArrayGetSize(handle->pFileList); i++) {
       SBackendFileItem* item = taosArrayGet(handle->pFileList, i);

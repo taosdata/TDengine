@@ -225,6 +225,9 @@ class MockCatalogServiceImpl {
     if (TSDB_CODE_SUCCESS == code) {
       code = getAllTableCfg(pCatalogReq->pTableCfg, &pMetaData->pTableCfg);
     }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = getAllViewMeta(pCatalogReq->pView, &pMetaData->pView);
+    }
     return code;
   }
 
@@ -590,7 +593,7 @@ class MockCatalogServiceImpl {
       for (int32_t i = 0; i < num; ++i) {
         SMetaRes res = {0};
         res.pRes = taosMemoryCalloc(1, sizeof(SUserAuthRes));
-        ((SUserAuthRes*)res.pRes)->pass = true;
+        ((SUserAuthRes*)res.pRes)->pass[0] = true;
         taosArrayPush(*pUserAuthData, &res);
       }
     }
@@ -633,6 +636,20 @@ class MockCatalogServiceImpl {
         res.pRes = taosMemoryCalloc(1, sizeof(STableCfg));
         res.code = TSDB_CODE_SUCCESS;
         taosArrayPush(*pTableCfgData, &res);
+      }
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t getAllViewMeta(SArray* pViewMetaReq, SArray** pViewMetaData) const {
+    if (NULL != pViewMetaReq) {
+      int32_t nviews = taosArrayGetSize(pViewMetaReq);
+      *pViewMetaData = taosArrayInit(nviews, sizeof(SMetaRes));
+      for (int32_t i = 0; i < nviews; ++i) {
+        SMetaRes res = {0};
+        res.pRes = NULL;
+        res.code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+        taosArrayPush(*pViewMetaData, &res);
       }
     }
     return TSDB_CODE_SUCCESS;

@@ -56,6 +56,7 @@ typedef struct {
   int32_t       vgVersion;
   int32_t       refCount;
   int8_t        dropped;
+  int8_t        failed;
   int8_t        disable;
   int32_t       diskPrimary;
   int32_t       toVgId;

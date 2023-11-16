@@ -1902,8 +1902,51 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   return 0;
 }
 
-static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp,
-                                 int32_t *smaVer) {
+static int32_t mndValidateStbVersion(SMnode *pMnode, SSTableVersion* pStbVer, bool* schema, bool* sma) {
+  char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+  snprintf(tbFName, sizeof(tbFName), "%s.%s", pStbVer->dbFName, pStbVer->stbName);
+
+  SDbObj *pDb = mndAcquireDb(pMnode, pStbVer->dbFName);
+  if (pDb == NULL) {
+    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
+    return -1;
+  }
+
+  if (pDb->uid != pStbVer->dbId) {
+    mndReleaseDb(pMnode, pDb);
+    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
+    return -1;
+  }
+
+  SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
+  if (pStb == NULL) {
+    mndReleaseDb(pMnode, pDb);
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    return -1;
+  }
+
+  taosRLockLatch(&pStb->lock);
+
+  if (pStbVer->sversion != pStb->colVer || pStbVer->tversion != pStb->tagVer) {
+    *schema = true;
+  } else {
+    *schema = false;
+  }
+  
+  if (pStbVer->smaVer && pStbVer->smaVer != pStb->smaVer) {
+    *sma = true;
+  } else {
+    *sma = false;
+  }
+
+  taosRUnLockLatch(&pStb->lock);
+
+  mndReleaseDb(pMnode, pDb);
+  mndReleaseStb(pMnode, pStb);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp) {
   char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
   snprintf(tbFName, sizeof(tbFName), "%s.%s", dbFName, tbName);
 
@@ -1918,10 +1961,6 @@ static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char
     mndReleaseDb(pMnode, pDb);
     terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
-  }
-
-  if (smaVer) {
-    *smaVer = pStb->smaVer;
   }
 
   int32_t code = mndBuildStbSchemaImp(pDb, pStb, tbName, pRsp);
@@ -2562,7 +2601,7 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
     }
   } else {
     mInfo("stb:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName);
-    if (mndBuildStbSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp, NULL) != 0) {
+    if (mndBuildStbSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp) != 0) {
       goto _OVER;
     }
   }
@@ -2673,14 +2712,15 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
   for (int32_t i = 0; i < numOfStbs; ++i) {
     SSTableVersion *pStbVersion = &pStbVersions[i];
     pStbVersion->suid = be64toh(pStbVersion->suid);
-    pStbVersion->sversion = ntohs(pStbVersion->sversion);
-    pStbVersion->tversion = ntohs(pStbVersion->tversion);
+    pStbVersion->sversion = ntohl(pStbVersion->sversion);
+    pStbVersion->tversion = ntohl(pStbVersion->tversion);
     pStbVersion->smaVer = ntohl(pStbVersion->smaVer);
 
-    STableMetaRsp metaRsp = {0};
-    int32_t       smaVer = 0;
-    mInfo("stb:%s.%s, start to retrieve meta", pStbVersion->dbFName, pStbVersion->stbName);
-    if (mndBuildStbSchema(pMnode, pStbVersion->dbFName, pStbVersion->stbName, &metaRsp, &smaVer) != 0) {
+    bool schema = false;
+    bool sma = false;
+    int32_t code = mndValidateStbVersion(pMnode, pStbVersion, &schema, &sma);
+    if (TSDB_CODE_SUCCESS != code) {
+      STableMetaRsp metaRsp = {0};
       metaRsp.numOfColumns = -1;
       metaRsp.suid = pStbVersion->suid;
       tstrncpy(metaRsp.dbFName, pStbVersion->dbFName, sizeof(metaRsp.dbFName));
@@ -2690,13 +2730,23 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
       continue;
     }
 
-    if (pStbVersion->sversion != metaRsp.sversion || pStbVersion->tversion != metaRsp.tversion) {
+    if (schema) {
+      STableMetaRsp metaRsp = {0};
+      mInfo("stb:%s.%s, start to retrieve meta", pStbVersion->dbFName, pStbVersion->stbName);
+      if (mndBuildStbSchema(pMnode, pStbVersion->dbFName, pStbVersion->stbName, &metaRsp) != 0) {
+        metaRsp.numOfColumns = -1;
+        metaRsp.suid = pStbVersion->suid;
+        tstrncpy(metaRsp.dbFName, pStbVersion->dbFName, sizeof(metaRsp.dbFName));
+        tstrncpy(metaRsp.tbName, pStbVersion->stbName, sizeof(metaRsp.tbName));
+        tstrncpy(metaRsp.stbName, pStbVersion->stbName, sizeof(metaRsp.stbName));
+        taosArrayPush(hbRsp.pMetaRsp, &metaRsp);
+        continue;
+      }
+
       taosArrayPush(hbRsp.pMetaRsp, &metaRsp);
-    } else {
-      tFreeSTableMetaRsp(&metaRsp);
     }
 
-    if (pStbVersion->smaVer && pStbVersion->smaVer != smaVer) {
+    if (sma) {
       bool           exist = false;
       char           tbFName[TSDB_TABLE_FNAME_LEN];
       STableIndexRsp indexRsp = {0};

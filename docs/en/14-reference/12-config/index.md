@@ -652,6 +652,15 @@ The charset that takes effect is UTF-8.
 | Type          | String                                     |
 | Default Value | None                                       |
 
+### smlAutoChildTableNameDelimiter
+
+| Attribute     | Description                                |
+| ------------- | ------------------------------------------ |
+| Applicable    | Client only                                |
+| Meaning       | Delimiter between tags as table name|
+| Type          | String                                     |
+| Default Value | None                                       |
+
 ### smlTagName
 
 | Attribute     | Description                                                   |

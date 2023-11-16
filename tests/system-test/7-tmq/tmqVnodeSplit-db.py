@@ -58,7 +58,7 @@ class TDTestCase:
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
 
-        tdCom.drop_all_db();
+        tdCom.drop_all_db()
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], wal_retention_period=36000,vgroups=paraDict["vgroups"],replica=self.replicaVar)
         tdLog.info("create stb")
@@ -112,7 +112,7 @@ class TDTestCase:
                     'tagPrefix':  't',
                     'colSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1},{'type': 'TIMESTAMP', 'count':1}],
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
-                    'ctbPrefix':  'ctb',
+                    'ctbPrefix':  'ctb1',
                     'ctbStartIdx': 0,
                     'ctbNum':     10,
                     'rowsPerTbl': 10000,
@@ -131,8 +131,8 @@ class TDTestCase:
         # expectRowsList = []
         tmqCom.initConsumerTable()
 
-        tdLog.info("create topics from stb with filter")
-        queryString = "select * from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
+        tdLog.info("create topics from db")
+        queryString = "database %s"%(paraDict['dbName'])
         # sqlString = "create topic %s as stable %s" %(topicNameList[0], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
@@ -157,7 +157,15 @@ class TDTestCase:
         tdLog.info("create ctb1")
         tmqCom.create_ctable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict['ctbPrefix'],
                              ctbNum=paraDict["ctbNum"],ctbStartIdx=paraDict['ctbStartIdx'])
-        tdLog.info("insert data")
+        
+        tdLog.info("create ctb2")
+        paraDict2 = paraDict.copy()
+
+        paraDict2['ctbPrefix'] = "ctb2"
+        tmqCom.create_ctable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict2['ctbPrefix'],
+                             ctbNum=paraDict["ctbNum"],ctbStartIdx=paraDict['ctbStartIdx'])
+        
+        tdLog.info("insert ctb1 data")
         pInsertThread = tmqCom.asyncInsertDataByInterlace(paraDict)
 
         tmqCom.getStartConsumeNotifyFromTmqsim()
@@ -169,12 +177,9 @@ class TDTestCase:
         # split vgroup
         self.splitVgroups()
 
-        tdLog.info("create ctb2")
-        paraDict['ctbPrefix'] = "ctbn"
-        tmqCom.create_ctable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict['ctbPrefix'],
-                             ctbNum=paraDict["ctbNum"],ctbStartIdx=paraDict['ctbStartIdx'])
-        tdLog.info("insert data")
-        pInsertThread1 = tmqCom.asyncInsertDataByInterlace(paraDict)
+
+        tdLog.info("insert ctb2 data")
+        pInsertThread1 = tmqCom.asyncInsertDataByInterlace(paraDict2)
         pInsertThread.join()
         pInsertThread1.join()
 
@@ -194,7 +199,6 @@ class TDTestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def run(self):
-        tdSql.prepare()
         self.prepareTestEnv()
         self.tmqCase1(True)
         self.prepareTestEnv()

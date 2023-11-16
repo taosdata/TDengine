@@ -28,7 +28,6 @@ int32_t streamBackendId = 0;
 int32_t streamBackendCfWrapperId = 0;
 int32_t streamMetaId = 0;
 
-static int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta);
 static void    metaHbToMnode(void* param, void* tmrId);
 static void    streamMetaClear(SStreamMeta* pMeta);
 static int32_t streamMetaBegin(SStreamMeta* pMeta);
@@ -191,11 +190,11 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   pMeta->chkpSaved = taosArrayInit(4, sizeof(int64_t));
   pMeta->chkpInUse = taosArrayInit(4, sizeof(int64_t));
-  pMeta->chkpCap = 8;
+  pMeta->chkpCap = 2;
   taosInitRWLatch(&pMeta->chkpDirLock);
 
-  pMeta->chkpId = streamGetLatestCheckpointId(pMeta);
-  pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId, vgId);
+  pMeta->chkpId = streamMetaGetLatestCheckpointId(pMeta);
+  pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId, pMeta->vgId);
   while (pMeta->streamBackend == NULL) {
     taosMsleep(100);
     pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId, vgId);
@@ -618,7 +617,7 @@ int32_t streamMetaCommit(SStreamMeta* pMeta) {
   return 0;
 }
 
-int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta) {
+int64_t streamMetaGetLatestCheckpointId(SStreamMeta* pMeta) {
   int64_t chkpId = 0;
 
   TBC* pCur = NULL;

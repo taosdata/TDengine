@@ -160,7 +160,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
-  rpcSendRecv(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp);
+  rpcSendRecvWithTimeout(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp, 5000);
   if (rpcRsp.code != 0) {
     dmRotateMnodeEpSet(pMgmt->pData);
     char tbuf[256];
@@ -218,7 +218,10 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
-  taosCfgDynamicOptions(cfgReq.config, cfgReq.value);
+
+  SConfig *pCfg = taosGetCfg();
+  cfgSetItem(pCfg, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_CMD);
+  taosCfgDynamicOptions(pCfg, cfgReq.config, true);
   return 0;
 }
 

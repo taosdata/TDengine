@@ -997,3 +997,15 @@ void taosCacheDestroyIter(SCacheIter *pIter) {
   taosMemoryFreeClear(pIter->pCurrent);
   taosMemoryFreeClear(pIter);
 }
+
+void taosCacheTryExtendLifeSpan(SCacheObj *pCacheObj, void **data) {
+  if (!pCacheObj || !(*data)) return;
+
+  SCacheNode *pNode = (SCacheNode *)((char *)(*data) - sizeof(SCacheNode));
+  if (pNode->signature != pNode) return;
+
+  if (!pNode->inTrashcan) {
+    atomic_store_64(&pNode->expireTime, pNode->lifespan + taosGetTimestampMs());
+    uDebug("cache:%s, data:%p extend expire time: %" PRId64, pCacheObj->name, pNode->data, pNode->expireTime);
+  }
+}
