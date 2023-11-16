@@ -327,6 +327,7 @@ mod tests {
 
         let dsn = Dsn::from_str("mqtt://192.168.1.42:1883?version=3.0").unwrap();
         let dsv = is_valid(&dsn).await;
+        dbg!(&dsv);
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("mqtt", dsv.data_source);

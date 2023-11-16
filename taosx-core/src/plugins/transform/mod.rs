@@ -35,6 +35,7 @@ use thiserror::Error;
 use tinytemplate::TinyTemplate;
 
 // mod json;
+pub mod constants;
 
 mod parse;
 
@@ -48,10 +49,129 @@ mod mutate;
 use crate::plugins::transform::parse::ArrayForTaos;
 
 use self::{
-    modeler::Modeler,
+    modeler::{ModeledRecordBatch, Modeler},
     mutate::Mutate,
     parse::{FieldParser, ParserImpl},
 };
+
+use super::expr;
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Pipeline {
+    parse: ParserImpl,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    mutate: Vec<Mutate>,
+    model: Option<Modeler>,
+}
+
+impl Pipeline {
+    pub fn transform(&self, records: &RecordBatch) -> Result<Vec<ModeledRecordBatch>, Error> {
+        let batch = self.parse.transform_record_batch(&records)?;
+        let batch = self.mutate.iter().fold(Ok(batch), |batch, mutate| {
+            batch.and_then(|batch| mutate.transform_record_batch(&batch))
+        })?;
+        if let Some(model) = self.model.as_ref() {
+            model.apply(&batch)
+        } else {
+            Ok(vec![ModeledRecordBatch::new(batch)])
+        }
+    }
+}
+
+#[cfg(test)]
+mod pipeline_tests {
+    use std::{ops::Sub, time::Duration};
+
+    use arrow::array::ArrayRef;
+
+    use super::*;
+
+    #[test]
+    fn test_pipeline() {
+        let records = demo_mqtt_records();
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["value::double", "id::int"] } }
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser and mutate
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["value::double", "id::int"] } },
+            "mutate": [{ "filter": "value > 1.2" }]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser, mutate and model
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["value::double", "id::int"] } },
+            "mutate": [{ "filter": "value > 1.2" }],
+            "model": [{
+                "name": "d{id}",
+                "using": "meters",
+                "tags": ["id"],
+                "columns": ["ts", "value"]
+            }]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+    }
+
+    fn demo_mqtt_records() -> RecordBatch {
+        let fields = vec![
+            Field::new(
+                "ts",
+                DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None),
+                false,
+            ),
+            Field::new("payload", DataType::Utf8, true),
+        ];
+        let schema = Arc::new(Schema::new(fields));
+        let now = chrono::Utc::now()
+            .sub(Duration::from_secs(60 * 60 * 24))
+            .timestamp_millis();
+        let columns = vec![
+            Arc::new(arrow::array::TimestampMillisecondArray::from(vec![
+                now,
+                now + 1000,
+                now + 2000,
+                now + 3000,
+                now + 4000,
+                now + 5000,
+            ])) as ArrayRef,
+            Arc::new(arrow::array::StringArray::from(vec![
+                r#"{"value":1.1, "id": 1}"#,
+                r#"{"value":1.2, "id": 2}"#,
+                r#"{"value":1.3, "id": 1}"#,
+                r#"{"value":1.4, "id": 2}"#,
+                r#"{"value":1.5, "id": 1}"#,
+                r#"{"value":1.6, "id": 2}"#,
+            ])) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).unwrap()
+    }
+}
 
 /// Field parser composer.
 ///
@@ -727,6 +847,10 @@ pub trait TransformExt {
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error(transparent)]
+    EvalError(#[from] expr::EvalError),
+    #[error("Template {0:?} error: {1:#}")]
+    TemplateError(String, rhai::EvalAltResult),
     #[error("Parse error for field `{field}`: {error}")]
     FieldParserError {
         field: String,
@@ -754,7 +878,7 @@ pub enum Error {
     ArrowError(#[from] ArrowError),
     #[error(transparent)]
     MapValueError(#[from] map::ValueBuilderError),
-    #[error("Unknown error: {0}")]
+    #[error("{0:#}")]
     Other(#[from] anyhow::Error),
 }
 

@@ -1,5 +1,5 @@
-use std::collections::BTreeMap;
 use std::time::Duration;
+use std::{collections::BTreeMap, sync::Arc};
 
 use actix_files::NamedFile;
 use actix_web::{
@@ -10,6 +10,7 @@ use actix_web::{
     HttpRequest, HttpResponse, Responder,
 };
 use itertools::Itertools;
+use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 use taos::{Code, IntoDsn};
 use tokio::time::timeout;
@@ -176,6 +177,95 @@ pub(super) async fn data_sources_in_one(
                 message: "Data source not found".into(),
             }),
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct DsField {
+    name: String,
+    scope: String,
+    r#type: String,
+}
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct DsSampleOut {
+    fields: Vec<DsField>,
+    columns: Vec<Vec<serde_json::Value>>,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct DsSampleIn {
+    parse: taosx_core::Pipeline,
+    input: Vec<serde_json::Value>,
+}
+
+/// Flat stream transform sample data simulation.
+#[utoipa::path(
+    tag = "transform",
+    request_body = Pipeline,
+    responses(
+        (status = 200, description = "Data source definition of some", body = DsSampleOut),
+    ),
+    params(
+        LangQuery,
+    ),
+)]
+#[post("/transform/sample/flat")]
+pub(super) async fn data_source_sample(data: Json<DsSampleIn>) -> impl Responder {
+    let sample_in = data.into_inner();
+
+    if sample_in.input.is_empty() {
+        return HttpResponse::BadRequest().json(Failed {
+            code: Code::new(-1),
+            message: "Input is empty".into(),
+        });
+    }
+
+    let json = sample_in
+        .input
+        .iter()
+        .map(|value| serde_json::to_vec(value).unwrap())
+        .flatten()
+        .collect_vec();
+
+    let schema =
+        arrow::json::reader::infer_json_schema_from_iterator(sample_in.input.iter().map(Ok))
+            .unwrap();
+    let mut reader = arrow::json::reader::ReaderBuilder::new(Arc::new(schema))
+        .build(json.as_slice())
+        .unwrap();
+    let batch = reader.next().unwrap().unwrap();
+
+    let output = sample_in.parse.transform(&batch).unwrap();
+
+    let output = output
+        .iter()
+        .map(|batch| batch.into_modeled_json())
+        .collect_vec();
+    // let schema = Arc::new(arrow::datatypes::Schema::new(
+    //     sample_in.input[0]
+    //         .iter()
+    //         .map(|(name, value)| {
+    //             let dt = match value {
+    //                 serde_json::Value::Null
+    //                 | serde_json::Value::String(_)
+    //                 | serde_json::Value::Object(_)
+    //                 | serde_json::Value::Array(_) => DataType::Utf8,
+    //                 serde_json::Value::Bool(_) => DataType::Boolean,
+    //                 serde_json::Value::Number(num) => {
+    //                     if num.is_u64() {
+    //                         DataType::UInt64
+    //                     } else if num.is_f64() {
+    //                         DataType::Float64
+    //                     } else {
+    //                         DataType::Int64
+    //                     }
+    //                 }
+    //             };
+    //             Field::new(name, dt, true)
+    //         })
+    //         .collect_vec(),
+    // ));
+
+    HttpResponse::Ok().json(&output)
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]

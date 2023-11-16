@@ -11,6 +11,7 @@ clap = { version = "4.4.7", features = ["default", "derive"] }
 regex = { version = "1.9" }
 arrow = { version = "48.0.0", features = ["chrono-tz"] }
 arrow-flight = { version = "48.0.0" }
+arrow-schema = { version = "48.0.0", features = ["serde"] }
 parquet = "48.0.0"
 
 tonic = "0.10"

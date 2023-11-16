@@ -139,6 +139,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(data_sources_in)
             .service(data_sources_in_one)
             .service(data_source_collection)
+            .service(data_source_sample)
             .service(download_all_data_set_file)
             .service(create_agent)
             .service(update_agent)
@@ -272,6 +273,8 @@ impl Cli {
                     Activity,
                     LevelFilter,
                     ActivityOrder,
+                    DsSampleIn,
+                    DsSampleOut,
                 ),
                 responses(
                 )
@@ -300,6 +303,7 @@ impl Cli {
                 data_sources_in,
                 data_sources_in_one,
                 data_source_collection,
+                data_source_sample,
                 download_all_data_set_file,
 
                 agent::create_agent,
@@ -314,6 +318,7 @@ impl Cli {
             tags(
                 (name = "tasks", description = "Task management endpoints"),
                 (name = "data sources", description = "Data in/out"),
+                (name = "transform", description = "Transform simulation"),
                 (name = "agents", description = "Agents Management"),
                 (name = "cluster", description = "Cluster Information"),
             ),

@@ -12,6 +12,7 @@ chrono = { workspace = true }
 chrono-tz = { workspace = true }
 
 arrow = { workspace = true }
+arrow-schema = { workspace = true, features = ["serde"] }
 arrow-flight = { workspace = true }
 parquet = { workspace = true }
 tonic = { workspace = true }

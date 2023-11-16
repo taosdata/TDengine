@@ -17,6 +17,7 @@ use crate::runners::historian::historian_to_taos;
 use crate::runners::influxdb::influxdb_to_taos;
 use crate::runners::kafka::kafka_to_taos;
 use crate::tmq_to_kafka::clean_task;
+use crate::plugins::transform::*;
 pub use crate::tmq_to_kafka::tmq_to_kafka;
 pub use csv::*;
 pub use legacy::*;
@@ -39,7 +40,7 @@ mod tmq_to_local;
 mod tmq_to_td;
 pub mod types;
 
-mod transform;
+pub mod transform;
 pub mod utils;
 
 mod plugins;
