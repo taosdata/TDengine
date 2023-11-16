@@ -1,4 +1,4 @@
-use crate::serve::task::get_task_metrics_by_id;
+use crate::serve::task::{get_task_metrics_from_db, get_task_metrics_from_snapshot};
 
 use actix_web::{
     rt,
@@ -114,21 +114,27 @@ async fn send_task_metrics_ws(task_id: i64, req: HttpRequest, mut session: Sessi
     let task_store = req.app_data::<Data<TaskControllerRef>>().unwrap();
     let snapshotter = req.app_data::<Data<Snapshotter>>().unwrap();
     loop {
-        match get_task_metrics_by_id(snapshotter, task_store, task_id).await {
-            Ok(metrics) => {
+        match get_task_metrics_from_snapshot(snapshotter, task_store, task_id).await {
+            Some(metrics) => {
                 if let Err(Closed) = session.text(metrics).await {
                     tracing::info!("ws session closed");
                     break;
                 }
             }
-            Err(err) => {
-                tracing::error!("{:#?}", err);
-                let resson = Some(CloseReason {
-                    code: CloseCode::Abnormal,
-                    description: Some(format!("get task metrics error: {:?}", err)),
-                });
-                let _ = session.close(resson).await;
-                break;
+            None => {
+                if let Some(metrics) = get_task_metrics_from_db(task_id) {
+                    if let Err(Closed) = session.text(metrics).await {
+                        tracing::info!("ws session closed");
+                        break;
+                    }
+                } else {
+                    let resson = Some(CloseReason {
+                        code: CloseCode::Abnormal,
+                        description: Some("no metrics found".to_string()),
+                    });
+                    let _ = session.close(resson).await;
+                    break;
+                }
             }
         };
         sleep(SEND_METRICS_INTERVAL).await;

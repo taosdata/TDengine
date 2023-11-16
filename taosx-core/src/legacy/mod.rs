@@ -24,7 +24,7 @@ use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument, warn};
 
-use crate::{legacy::scheduler::Todo, utils::metrics_db::MetricsDb, Action};
+use crate::{legacy::scheduler::Todo, utils::metrics_db::MetricsDb, Action, METRICS_TIME_COST};
 
 use self::scheduler::Scheduler;
 use metrics::absolute_counter;
@@ -159,8 +159,7 @@ impl Display for LegacyMetrics {
             points: {} ({} p/s)\n\
             time cost: {:?}",
             self.workers.load(SeqCst),
-            self.created_tables
-                .load(SeqCst),
+            self.created_tables.load(SeqCst),
             self.updated_tags.load(SeqCst),
             self.stables.load(SeqCst),
             self.tables.load(SeqCst),
@@ -208,6 +207,30 @@ impl LegacyMetrics {
     pub fn from_json(json: &str) -> anyhow::Result<Self> {
         let metrics: Self = serde_json::from_str(json)?;
         Ok(metrics)
+    }
+
+    pub fn to_task_metrics_json(&self) -> String {
+        let mut map: BTreeMap<&str, u64> = BTreeMap::new();
+        map.insert(METRICS_LEGACY_WORKERS, self.workers.load(SeqCst) as u64);
+        map.insert(METRICS_LEGACY_STABLES, self.stables.load(SeqCst) as u64);
+        map.insert(
+            METRICS_LEGACY_UPDATED_TAGS,
+            self.updated_tags.load(SeqCst) as u64,
+        );
+        map.insert(
+            METRICS_LEGACY_UPDATED_TABLES,
+            self.updated_tables.load(SeqCst) as u64,
+        );
+        map.insert(
+            METRICS_LEGACY_CREATED_TABLES,
+            self.created_tables.load(SeqCst) as u64,
+        );
+        map.insert(METRICS_LEGACY_TABLES, self.tables.load(SeqCst) as u64);
+        map.insert(METRICS_LEGACY_BLOCKS, self.blocks.load(SeqCst) as u64);
+        map.insert(METRICS_LEGACY_RECORDS, self.records.load(SeqCst) as u64);
+        map.insert(METRICS_LEGACY_POINTS, self.points.load(SeqCst) as u64);
+        map.insert(METRICS_TIME_COST, self.last_time_cost.load(SeqCst) as u64);
+        serde_json::to_string(&map).unwrap()
     }
 }
 /// A paging expression.
@@ -2372,9 +2395,18 @@ async fn realtime(
 fn reset_tracing_metrics(metrics: Arc<LegacyMetrics>) {
     absolute_counter!(METRICS_LEGACY_WORKERS, metrics.workers.load(SeqCst) as u64);
     absolute_counter!(METRICS_LEGACY_STABLES, metrics.stables.load(SeqCst) as u64);
-    absolute_counter!(METRICS_LEGACY_UPDATED_TAGS, metrics.updated_tags.load(SeqCst) as u64);
-    absolute_counter!(METRICS_LEGACY_UPDATED_TABLES, metrics.updated_tables.load(SeqCst) as u64);
-    absolute_counter!(METRICS_LEGACY_CREATED_TABLES, metrics.created_tables.load(SeqCst) as u64);
+    absolute_counter!(
+        METRICS_LEGACY_UPDATED_TAGS,
+        metrics.updated_tags.load(SeqCst) as u64
+    );
+    absolute_counter!(
+        METRICS_LEGACY_UPDATED_TABLES,
+        metrics.updated_tables.load(SeqCst) as u64
+    );
+    absolute_counter!(
+        METRICS_LEGACY_CREATED_TABLES,
+        metrics.created_tables.load(SeqCst) as u64
+    );
     absolute_counter!(METRICS_LEGACY_TABLES, metrics.tables.load(SeqCst) as u64);
     absolute_counter!(METRICS_LEGACY_BLOCKS, metrics.blocks.load(SeqCst) as u64);
     absolute_counter!(METRICS_LEGACY_RECORDS, metrics.records.load(SeqCst) as u64);
