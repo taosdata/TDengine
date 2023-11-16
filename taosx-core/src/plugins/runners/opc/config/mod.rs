@@ -574,3 +574,28 @@ pub fn get_string_vec_from_param_or_file_for_opc(
     // tracing::warn!("node config is empty");
     return Err("Nodes not set".to_string());
 }
+
+#[cfg(test)]
+mod tests {
+    use taos::{AsyncTBuilder, TaosBuilder};
+
+    use super::*;
+
+    /// https://jira.taosdata.com:18080/browse/TD-27363
+    #[tokio::test]
+    async fn test_csv_config_file() {
+        let dsn = "opcua://192.168.2.16:53530/OPCUA/SimulationServer?connect_timeout=10&request_timeout=10&interval=10&collect_mode=subscribe&enable=false&keep=10&concurrent=1&batch_size=1000&batch_timeout=1&log_level=info&csv_config_file=@./tests/opc_table_10.csv";
+        let taos = <TaosBuilder as taos::AsyncTBuilder>::from_dsn("taos:///").unwrap();
+        let taos = taos.build().await.unwrap();
+        let config = OPCConfig::from_dsn_collect_mode(&dsn.parse().unwrap(), 0, &taos)
+            .await
+            .unwrap();
+        dbg!(&config);
+        assert!(config.param_mapping.len() == 20);
+        assert!(
+            config.param_mapping["ns=3;i=1008"].stable.is_some(),
+            "stable parse error"
+        );
+        assert!(config.param_mapping["ns=3;i=1008"].stable.as_ref().unwrap() == "stb_int");
+    }
+}
