@@ -1223,7 +1223,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     streamMetaReleaseTask(pMeta, pStreamTask);
   } else {
     STimeWindow* pWindow = &pTask->dataRange.window;
-    ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask));
+    ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask) || streamTaskShouldStop(pTask));
 
     // Not update the fill-history time window until the state transfer is completed.
     tqDebug("s-task:%s scan-history in stream time window completed, start to handle data from WAL, startVer:%" PRId64
