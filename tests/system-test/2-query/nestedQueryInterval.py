@@ -1449,7 +1449,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1);
         
         #test csv
-        sql1 = "select tbname,ts,q_int,q_binary from nested.stable_1 group by tbname>>'%s/stable_1.csv';" %self.testcasePath
+        sql1 = "select tbname,ts,q_int,q_binary from nested.stable_1 >>'%s/stable_1.csv';" %self.testcasePath
         sql2 = "select tbname,ts,q_int,q_binary from nested.stable_null_data >>%s/stable_null_data.csv;" %self.testcasePath
         sql3 = "select tbname,ts,q_int,q_binary from nested.stable_null_childtable >>%s/stable_null_childtable.csv;" %self.testcasePath
         
