@@ -31,7 +31,6 @@ int32_t mndGetClusterGrantedInfo(SMnode *pMnode, SGrantedInfo *pInfo);
 int32_t mndSetClusterGrantedInfo(SMnode *pMnode, SGrantedInfo *pInfo);
 int64_t mndGetClusterUpTime(SMnode *pMnode);
 
-
 #ifdef __cplusplus
 }
 #endif
