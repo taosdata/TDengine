@@ -15,7 +15,7 @@ IF (TD_WEBSOCKET)
             BUILD_IN_SOURCE     1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
             PATCH_COMMAND
-            COMMAND     git clean -f -d
+            COMMAND     git clean -f
             BUILD_COMMAND
             COMMAND cargo update
             COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release -p taos-ws-sys --features native-tls
@@ -34,7 +34,7 @@ IF (TD_WEBSOCKET)
             BUILD_IN_SOURCE     1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
             PATCH_COMMAND
-            COMMAND     git clean -f -d
+            COMMAND     git clean -f
             BUILD_COMMAND
             COMMAND cargo update
             COMMAND cargo build --release -p taos-ws-sys --features native-tls-vendored
@@ -54,7 +54,7 @@ IF (TD_WEBSOCKET)
             BUILD_IN_SOURCE     1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
             PATCH_COMMAND
-            COMMAND     git clean -f -d
+            COMMAND     git clean -f
             BUILD_COMMAND
             COMMAND cargo update
             COMMAND cargo build --release -p taos-ws-sys --features native-tls-vendored
@@ -136,7 +136,7 @@ ELSE ()
             BUILD_IN_SOURCE     1
             CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
             PATCH_COMMAND
-            COMMAND     git clean -f -d
+            COMMAND     git clean -f
             BUILD_COMMAND
             COMMAND set CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client
             COMMAND set CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib
@@ -165,7 +165,7 @@ ELSE ()
                 BUILD_IN_SOURCE     1
                 CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
                 PATCH_COMMAND
-                COMMAND     git clean -f -d
+                COMMAND     git clean -f
                 BUILD_COMMAND
                 COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -ldflags "-s -w -X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_DATE}'"
                 COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -o taosadapter-debug -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_DATE}'"
@@ -190,7 +190,7 @@ ELSE ()
             BUILD_IN_SOURCE     1
             CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
             PATCH_COMMAND
-            COMMAND     git clean -f -d
+            COMMAND     git clean -f
             BUILD_COMMAND
             COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -ldflags "-s -w -X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_DATE}'"
             COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -o taosadapter-debug -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_DATE}'"
