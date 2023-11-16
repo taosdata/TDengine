@@ -308,6 +308,16 @@ int32_t rebuildDirFromChkp2(const char* path, char* key, int64_t chkpId, char** 
   return 0;
 }
 
+bool streamBackendDataIsExist(const char* path, int64_t chkpId, int32_t vgId) {
+  bool exist = true; 
+  char* state = taosMemoryCalloc(1, strlen(path) + 32);
+  sprintf(state, "%s%s%s", path, TD_DIRSEP, "state");
+  if (!taosDirExist(state)) {
+    exist = false;
+  }
+  taosMemoryFree(state);
+  return exist;
+}
 void* streamBackendInit(const char* streamPath, int64_t chkpId, int32_t vgId) {
   char*   backendPath = NULL;
   int32_t code = rebuildDirFromCheckpoint(streamPath, chkpId, &backendPath);

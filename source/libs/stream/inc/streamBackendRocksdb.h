@@ -128,6 +128,7 @@ typedef struct {
   TdThreadRwlock rwLock;
 } SBkdMgt;
 
+bool       streamBackendDataIsExist(const char* path, int64_t chkpId, int32_t vgId);
 void*      streamBackendInit(const char* path, int64_t chkpId, int32_t vgId);
 void       streamBackendCleanup(void* arg);
 void       streamBackendHandleCleanup(void* arg);

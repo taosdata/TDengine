@@ -188,8 +188,13 @@ int32_t streamMetaCheckBackendCompatible(SStreamMeta* pMeta) {
 }
 
 int32_t streamMetaCvtDbFormat(SStreamMeta* pMeta) {
-  int32_t          code = 0;
-  int64_t          chkpId = streamMetaGetLatestCheckpointId(pMeta);
+  int32_t code = 0;
+  int64_t chkpId = streamMetaGetLatestCheckpointId(pMeta);
+
+  bool exist = streamBackendDataIsExist(pMeta->path, chkpId, pMeta->vgId);
+  if (exist == false) {
+    return code;
+  }
   SBackendWrapper* pBackend = streamBackendInit(pMeta->path, chkpId, pMeta->vgId);
 
   void* pIter = taosHashIterate(pBackend->cfInst, NULL);
@@ -206,6 +211,14 @@ int32_t streamMetaCvtDbFormat(SStreamMeta* pMeta) {
 
 _EXIT:
   streamBackendCleanup((void*)pBackend);
+
+  if (code == 0) {
+    char* state = taosMemoryCalloc(1, strlen(pMeta->path) + 32);
+    sprintf(state, "%s%s%s", pMeta->path, TD_DIRSEP, "state");
+    taosRemoveDir(state);
+    taosMemoryFree(state);
+  }
+
   return code;
 }
 int32_t streamMetaMayCvtDbFormat(SStreamMeta* pMeta) {
