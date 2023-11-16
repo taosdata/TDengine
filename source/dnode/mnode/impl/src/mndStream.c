@@ -1245,7 +1245,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   while (1) {
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
-    code = mndProcessStreamCheckpointTrans(pMnode, pStream, pStream->checkpointId + 1);
+    code = mndProcessStreamCheckpointTrans(pMnode, pStream, pMsg->checkpointId);
     sdbRelease(pSdb, pStream);
     if (code == -1) {
       break;
