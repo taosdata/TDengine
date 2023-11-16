@@ -59,7 +59,7 @@ typedef struct SStreamTask   SStreamTask;
 typedef struct SStreamQueue  SStreamQueue;
 typedef struct SStreamTaskSM SStreamTaskSM;
 
-#define SSTREAM_TASK_VER              3
+#define SSTREAM_TASK_VER              2
 #define SSTREAM_TASK_INCOMPATIBLE_VER 1
 #define SSTREAM_TASK_NEED_CONVERT_VER 2
 

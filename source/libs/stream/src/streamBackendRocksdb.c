@@ -1759,7 +1759,7 @@ int32_t taskDbOpenCfByKey(STaskDbWrapper* pDb, const char* key) {
 
   rocksdb_column_family_handle_t* cf =
       rocksdb_create_column_family(pDb->db, pDb->pCfOpts[idx], ginitDict[idx].key, &err);
-  if (err != NULL) {
+  if (idx != 0 && err != NULL) {
     stError("failed to open cf, key:%s, reason: %s", key, err);
     taosMemoryFree(err);
     code = -1;
