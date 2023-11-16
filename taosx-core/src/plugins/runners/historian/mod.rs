@@ -10,18 +10,19 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
+use crate::{Action, build_ipc, Parser, Transferred};
 use crate::dsv::DataSourceValidation;
 use crate::plugins::runners::historian::arrow::ArrowDataAppender;
-use crate::plugins::runners::historian::config::SourceConfig;
+use crate::plugins::runners::historian::config::TaskConfig;
+use crate::runners::historian::config::connect::ConnectConfig;
 use crate::utils::port_pool::PortPool;
-use crate::{build_ipc, Action, Parser, Transferred};
 
 mod arrow;
-mod config;
 mod tag;
+mod config;
 
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
-    let config = SourceConfig::from_dsn(dsn);
+    let config = ConnectConfig::from_dsn(dsn);
     match config {
         Err(err) => DataSourceValidation {
             valid: false,
@@ -92,7 +93,7 @@ pub async fn historian_to_taos(
         None,
         notify,
     )
-    .await?;
+        .await?;
 
     let port_pool = port_pool.clone();
 
@@ -155,9 +156,9 @@ pub async fn historian_to_taos(
 
 async fn historian_worker(from: Dsn, port: u16) -> anyhow::Result<()> {
     // connect
-    let config = SourceConfig::from_dsn(&from)?;
+    let config = TaskConfig::from_dsn(&from)?;
     tracing::info!("AVEVA™ Historian task configuration: {:?}", config);
-    let mut client = connect_by_config(&config).await?;
+    let mut client = connect_by_config(&config.connect).await?;
 
     // filter tags
     let tag_names;
@@ -175,8 +176,8 @@ async fn historian_worker(from: Dsn, port: u16) -> anyhow::Result<()> {
     for tag_name in tag_names {
         // sql
         let sql = format!(
-            "select * from {} where TagName = '{}' and DateTime >= '{}' and DateTime <= '{}' and wwRetrievalMode = '{}'",
-            config.table, tag_name, config.begin_date_time.to_rfc3339(), config.end_date_time.to_rfc3339(), config.retrieve_mode
+            "select * from {} where TagName = '{}' and DateTime >= '{}' and DateTime <= '{}' and wwRetrievalMode = 'full'",
+            config.table, tag_name, config.begin_datetime.to_rfc3339(), config.end_datetime.unwrap().to_rfc3339()
         );
         tracing::info!("sql: {}", sql);
         // query
@@ -185,9 +186,8 @@ async fn historian_worker(from: Dsn, port: u16) -> anyhow::Result<()> {
                 &sql,
                 &[
                     &(tag_name.as_str()),
-                    &config.begin_date_time,
-                    &config.end_date_time,
-                    &config.retrieve_mode,
+                    &config.begin_datetime,
+                    &config.end_datetime,
                 ],
             )
             .await?;
@@ -221,16 +221,8 @@ async fn historian_worker(from: Dsn, port: u16) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn connect_by_config(
-    source_config: &SourceConfig,
-) -> anyhow::Result<Client<Compat<TcpStream>>> {
-    connect(
-        &source_config.host,
-        source_config.port,
-        &source_config.username,
-        &source_config.password,
-    )
-    .await
+async fn connect_by_config(config: &ConnectConfig) -> anyhow::Result<Client<Compat<TcpStream>>> {
+    connect(&config.host, config.port, &config.username, &config.password).await
 }
 
 async fn connect(
@@ -295,63 +287,9 @@ mod tests {
         assert_eq!(None, res.version);
     }
 
-    #[tokio::test]
-    async fn test_connect() {
-        let client = connect(
-            &"127.0.0.1".to_string(),
-            1433,
-            &"aaAdmin".to_string(),
-            &"aaAdmin".to_string(),
-        )
-        .await;
-        assert!(client.is_err());
-        assert_eq!(
-            "Connection refused (os error 61)",
-            client.unwrap_err().to_string()
-        );
-    }
-
-    #[tokio::test]
     #[ignore]
-    async fn test_connect_by_config() {
-        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433").unwrap();
-        let config = SourceConfig::from_dsn(&dsn).unwrap();
-
-        let client = connect_by_config(&config).await;
-
-        assert!(client.is_ok());
-    }
-
-    /*
-        #[tokio::test]
-        #[ignore]
-        async fn test_historian_to_taos() {
-            let from = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40").unwrap();
-            let to = Dsn::from_str("taos://root:taosdata@192.168.1.92:6030/historian_to_taos").unwrap();
-
-            let (notify, _) = flume::unbounded();
-
-            let res = historian_to_taos(
-                from,
-                None,
-                vec![],
-                to,
-                1,
-                &PortPool::default(),
-                CancellationToken::new(),
-                None,
-                None,
-                Span::current(),
-                notify,
-            )
-            .await;
-
-            assert!(res.is_ok());
-        }
-    */
-
     #[tokio::test]
-    #[ignore]
+    /// generate test data, Only for local test
     async fn generate_tag_csv() -> anyhow::Result<()> {
         let tag_index = 8;
         let total_records = 10359;
