@@ -8732,6 +8732,28 @@ static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pS
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extractCompactDbResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = COMPACT_DB_RESULT_COLS;
+  *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
+  if (NULL == (*pSchema)) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[0].bytes = COMPACT_DB_RESULT_FIELD1_LEN;
+  strcpy((*pSchema)[0].name, "name");
+
+  (*pSchema)[1].type = TSDB_DATA_TYPE_BIGINT;
+  (*pSchema)[1].bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  strcpy((*pSchema)[1].name, "id");
+
+  (*pSchema)[2].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[2].bytes = COMPACT_DB_RESULT_FIELD3_LEN;
+  strcpy((*pSchema)[2].name, "scope");
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
   if (NULL == pRoot) {
     return TSDB_CODE_SUCCESS;
@@ -8758,6 +8780,8 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_VARIABLES_STMT:
       return extractShowVariablesResultSchema(numOfCols, pSchema);
+    case QUERY_NODE_COMPACT_DATABASE_STMT:
+      return extractCompactDbResultSchema(numOfCols, pSchema);  
     default:
       break;
   }
@@ -10406,6 +10430,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
       break;
     case QUERY_NODE_SHOW_VARIABLES_STMT:
+    case QUERY_NODE_COMPACT_DATABASE_STMT:
       pQuery->haveResultSet = true;
       pQuery->execMode = QUERY_EXEC_MODE_RPC;
       if (NULL != pCxt->pCmdMsg) {
