@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use taos::{AsyncFetchable, AsyncQueryable, Code, TaosPool};
+use tokio_util::sync::CancellationToken;
 
 struct RestBuilder {
     taos: TaosPool,
@@ -78,7 +79,11 @@ impl RestBuilder {
     }
 }
 
-pub fn spawn_rest_service(pool: TaosPool, port: u16) -> anyhow::Result<()> {
+pub fn spawn_rest_service(
+    pool: TaosPool,
+    port: u16,
+    cancellation: CancellationToken,
+) -> anyhow::Result<()> {
     use actix_web::*;
     let builder = RestBuilder { taos: pool };
 
@@ -115,7 +120,16 @@ pub fn spawn_rest_service(pool: TaosPool, port: u16) -> anyhow::Result<()> {
     })
     .bind(&format!("127.0.0.1:{port}"))?
     .run();
-    let _ = runtime.block_on(async move { server.await })?;
+    let _ = runtime.block_on(async move {
+        tokio::select! {
+            _ = server => {
+                tracing::info!("Server stopped");
+            },
+            _ = cancellation.cancelled() => {
+                tracing::info!("Server cancelled");
+            }
+        }
+    });
     Ok(())
 }
 
@@ -126,10 +140,14 @@ async fn service() -> anyhow::Result<()> {
         .expect("connect")
         .pool()?;
 
-    // std::env::set_var("RUST_LOG", "trace");
-    // pretty_env_logger::init();
-    let thread = std::thread::spawn(move || spawn_rest_service(taos, 6055));
+    let cancellation = CancellationToken::new();
+    let cancellation2 = cancellation.clone();
+    let thread = std::thread::spawn(move || spawn_rest_service(taos, 6055, cancellation2));
 
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        cancellation.cancelled().await;
+    });
     thread.join().unwrap()?;
     Ok(())
 }

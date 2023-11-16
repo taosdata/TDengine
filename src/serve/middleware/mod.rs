@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use actix_web::body::MessageBody;
 use actix_web::dev::{ServiceRequest, ServiceResponse};
-use actix_web::http::{Method, Version};
+use actix_web::http::Version;
 use actix_web::Error;
 use tracing::Span;
 use tracing_actix_web::RootSpanBuilder;
@@ -10,31 +10,6 @@ use tracing_actix_web::RootSpanBuilder;
 use taosx_core::utils::trace::set_trace_id_for_current_span;
 
 pub struct TaosXRootSpanBuilder;
-
-#[inline]
-pub fn http_method_str(method: &Method) -> Cow<'static, str> {
-    match method {
-        &Method::OPTIONS => "OPTIONS".into(),
-        &Method::GET => "GET".into(),
-        &Method::POST => "POST".into(),
-        &Method::PUT => "PUT".into(),
-        &Method::DELETE => "DELETE".into(),
-        &Method::HEAD => "HEAD".into(),
-        &Method::TRACE => "TRACE".into(),
-        &Method::CONNECT => "CONNECT".into(),
-        &Method::PATCH => "PATCH".into(),
-        other => other.to_string().into(),
-    }
-}
-
-#[inline]
-pub fn http_scheme(scheme: &str) -> Cow<'static, str> {
-    match scheme {
-        "http" => "HTTP".into(),
-        "https" => "HTTPS".into(),
-        other => other.to_string().into(),
-    }
-}
 
 #[inline]
 pub fn http_flavor(version: Version) -> Cow<'static, str> {
@@ -65,7 +40,7 @@ impl RootSpanBuilder for TaosXRootSpanBuilder {
                 set_trace_id_for_current_span(trace_id);
             }
             let connection_info = request.connection_info();
-            let schema = http_scheme(connection_info.scheme());
+            let schema = connection_info.scheme();
             let flavor = http_flavor(request.version());
             let user_agent = request
                 .headers()
@@ -73,7 +48,7 @@ impl RootSpanBuilder for TaosXRootSpanBuilder {
                 .map(|h| h.to_str().unwrap_or(""))
                 .unwrap_or("");
             let client_ip = connection_info.realip_remote_addr().unwrap_or("");
-            let method = http_method_str(request.method());
+            let method = request.method().as_str();
             let target = request
                 .uri()
                 .path_and_query()
@@ -91,7 +66,7 @@ impl RootSpanBuilder for TaosXRootSpanBuilder {
                     let code = response.response().status().as_u16();
                     let size = response.response().body().size();
                     let request = response.request();
-                    let method = http_method_str(request.method());
+                    let method = request.method().as_str();
                     let target = request
                         .uri()
                         .path_and_query()

@@ -10,6 +10,7 @@ use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
 
@@ -17,9 +18,7 @@ use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::pi::config::PiConfig;
 use crate::{
-    build_ipc, get_log_keep_days,
-    plugins::service::spawn_rest_service,
-    utils::{port_pool::PortPool, stop_thread},
+    build_ipc, get_log_keep_days, plugins::service::spawn_rest_service, utils::port_pool::PortPool,
     Action, DataSet, DataSetsReq, Transferred,
 };
 
@@ -179,7 +178,11 @@ pub async fn pi_to_taos(
         }
     }
 
-    let server = std::thread::spawn(move || spawn_rest_service(target_pool, sql_port));
+    let server_cancellation_token = CancellationToken::new();
+    let server_cancellation_token_cloned = server_cancellation_token.clone();
+    let server = std::thread::spawn(move || {
+        spawn_rest_service(target_pool, sql_port, server_cancellation_token_cloned)
+    });
 
     let mut ipc = build_ipc(
         &config.ipc_stream,
@@ -284,11 +287,44 @@ pub async fn pi_to_taos(
         macro_rules! safe_exit {
             () => {
                 tokio::spawn(async move {
-                    let _ = ipc.close().await;
+                    let _ = child_command
+                        .terminate_timeout(Duration::from_secs(2))
+                        .await;
+                    tokio::spawn(async move {
+                        tracing::info!("Wait for IPC handlers finished");
+                        let _ = ipc.close().await;
+                        tracing::info!("All IPC handlers have been finished");
+                    });
                     temp_path.close().unwrap();
                     port_pool.put(ipc_port).await;
-                    stop_thread(server);
+                    tokio::spawn(async move {
+                        tracing::info!("Wait for rest api server finished");
+                        server_cancellation_token.cancel();
+                        let _ = server.join();
+                        tracing::info!("REST api server has been finished");
+                    });
                     port_pool.put(sql_port).await;
+                });
+            };
+            (wait) => {
+                tokio::spawn(async move {
+                    let _ = child_command
+                        .terminate_timeout(Duration::from_secs(2))
+                        .await;
+                    tokio::spawn(async move {
+                        tracing::info!("Wait for IPC handlers finished");
+                        let _ = ipc.close().await;
+                        tracing::info!("All IPC handlers have been finished");
+                    });
+                    temp_path.close().unwrap();
+                    tokio::spawn(async move {
+                        tracing::info!("Wait for rest api server finished");
+                        port_pool.put(ipc_port).await;
+                        server_cancellation_token.cancel();
+                        let _ = server.join();
+                        tracing::info!("REST api server has been finished");
+                        port_pool.put(sql_port).await;
+                    });
                 });
             };
         }
@@ -304,36 +340,20 @@ pub async fn pi_to_taos(
             err = ipc.recv_error() => {
                 if let Some(err) = err {
                     tracing::warn!("PI writer error occurred: {err}");
-                    safe_exit!();
+                    safe_exit!(wait);
                     anyhow::bail!("PI writer error: {err}");
                 }
             },
             _ = cancel.cancelled() => {
                 tracing::info!("pi task cancelled");
-                safe_exit!();
+                safe_exit!(wait);
             }
         }
-        terminate_child_process(pid)?;
         tracing::info!("pi task Done");
         Ok(())
     })
     .await??;
-    // stop_thread(ipc);
-    // let _ = ipc.send(());
-    // stop_thread(server);
-    // tracing::info!("pi task Done");
-    // temp_path.close().unwrap();
 
-    Ok(())
-}
-
-fn terminate_child_process(id: u32) -> anyhow::Result<()> {
-    let mut kill_command = std::process::Command::new("TASKKILL");
-    kill_command
-        .arg("/F")
-        .arg("/PID")
-        .arg(id.to_string())
-        .spawn()?;
     Ok(())
 }
 

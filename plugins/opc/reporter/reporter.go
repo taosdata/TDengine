@@ -75,7 +75,7 @@ func (r *DataReporter) getWriters(ctx context.Context, id string, valueType comm
 		return nil, err
 	}
 
-	return writers[int(common.Hash(id))%len(writers)], nil
+	return writers[common.Hash(id)%uint32(len(writers))], nil
 }
 
 func (r *DataReporter) getOrCreateWriters(ctx context.Context, valueType common.ValueType) ([]writer, error) {

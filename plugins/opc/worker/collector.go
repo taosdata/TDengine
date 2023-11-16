@@ -31,28 +31,23 @@ func NewCollector(_ context.Context, config common.Config) (*OpcCollector, error
 	}
 	var c connector.Connector
 	var err error
-	if config.OpcType == common.OpcTypeUA {
+	switch config.OpcType {
+	case common.OpcTypeUA:
 		c, err = opcua.NewConnector(config)
-	}
-	if config.OpcType == common.OpcTypeDA {
+	case common.OpcTypeDA:
 		c, err = opcda.NewConnector(config)
-	}
-	if config.OpcType == common.OpcTypeFake {
+	case common.OpcTypeFake:
 		c = connector.NewFakeConnector(config.Collect)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("create connector for worker error %v", err)
-	}
-	if c == nil {
+	default:
 		return nil, fmt.Errorf("unknown opc type %s", config.OpcType)
 	}
-
 	if err != nil {
 		logger.Error("## create connector for worker error ", "error", err)
 		return nil, fmt.Errorf("create connector for worker error %v", err)
 	}
 	r, err := reporter.NewDataReporter(config)
 	if err != nil {
+		c.Stop(context.Background())
 		logger.Error("## create reporter for worker error ", "error", err)
 		return nil, fmt.Errorf("create reporter for worker error %v", err)
 	}
