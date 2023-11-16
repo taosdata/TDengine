@@ -1,0 +1,66 @@
+settings:
+  - name: taosd
+    fqdn: [u1-55]
+    spec:
+      version: 3.1.1.8  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: u1-55:6030
+      dnodes:
+        - endpoint: u1-55:6030
+          config_dir: /etc/taos
+          code_dir: /root/TDengine
+          update_branch: main
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 131
+            supportVnodes: 1024
+            asynclog: 0
+  - name: taospy
+    fqdn: [u1-55]
+    spec:
+      version: 3.1.1.8
+      client_version: 3.1.1.8
+      config:
+        firstEP: u1-55:6030
+        logDir: /var/log/taos
+        debugFlag: 131
+        asyncLog: 0
+        maxQueryTimeRange: 3
+
+  - name: taosBenchmark
+    fqdn: [u1-58]
+    spec:
+      version: 3.0.1.8
+      taos_version: 3.0.1.8
+      config_dir: /etc/taos
+      taos_config:
+        firstEP: u1-55:6030
+        logDir: /var/log/taos
+        debugFlag: 131
+
+  - name: prometheus
+    fqdn: [u1-53]
+    spec:
+      server:
+        run_dir: /opt/prometheus
+        config:
+          global:
+            evaluation_interval: 10s
+            scrape_interval: 15s
+            scrape_timeout: 15s
+          scrape_configs:
+            job_name: prometheus
+            targets: [192.168.1.53:9090]
+      node_exporter:
+        fqdn: [u1-58, u1-55]
+        run_dir: /opt/node_exporter
+      process_exporter:
+        fqdn: [u1-58, u1-55]
+        run_dir: /opt/process_exporter
+        config:
+          common_process: [taosd, taosBenchmark]
+          custom_process:
+            u1-58: [taosBenchmark]
+            u1-55: [taosd]
+
