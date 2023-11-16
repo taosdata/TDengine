@@ -463,9 +463,13 @@ impl TaskScheduler {
         Ok(())
     }
 
-    pub async fn safe_to_delete(&self, task_id: i64) -> bool {
-        if let Some(task) = self.tasks.read().await.get_by_task_id(&task_id) {
+    pub async fn stop_if_safe_to_delete(&self, task_id: i64) -> bool {
+        let mut guard = self.tasks.write().await;
+        if let Some(task) = guard.get_by_task_id(&task_id) {
             if task.safe_to_delete().await {
+                if let Err(err) = guard.try_stop(task_id).await {
+                    tracing::error!(task.id = task_id, error = %err, "stop task error");
+                }
                 true
             } else {
                 false

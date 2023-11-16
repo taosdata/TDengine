@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     net::SocketAddr,
     path::PathBuf,
     pin::Pin,
@@ -73,11 +73,15 @@ impl AgentRpcChannel {
         }
     }
 }
+
+type ConnectionId = u64;
+
 #[derive(Clone)]
 pub(super) struct FlightServiceImpl {
     controller: TaskControllerRef,
     notify_sender: AgentNotifySender,
     activity_receiver: Arc<AgentActionsReceiver>,
+    agent_connections: Arc<RwLock<HashMap<AgentId, ConnectionId>>>,
     request_id: Arc<AtomicU64>,
     datasets_senders: Arc<RwLock<LinkedHashMap<u64, AgentDataSetsSender>>>,
     dsv_senders: Arc<RwLock<LinkedHashMap<u64, DsvSender>>>,
@@ -518,7 +522,7 @@ impl FlightService for FlightServiceImpl {
         req: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoExchangeStream>, Status> {
         let remote = req.remote_addr();
-        let (meta, extension, req) = req.into_parts();
+        let (mut meta, extension, req) = req.into_parts();
 
         let token = meta
             .get("x-token")
@@ -536,9 +540,21 @@ impl FlightService for FlightServiceImpl {
 
         let (tx, rx) = self.subscribe_agent_action_flight(agent_id);
 
-        self.notify_sender
-            .send(AgentNotify::AgentConnected(agent_id))
-            .map_err(|err| Status::internal(format!("Scheduler is not ready: {err:#}")))?;
+        let connection_id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos() as u64;
+        meta.append("x-cid", connection_id.to_string().parse().unwrap());
+        {
+            // Update agent connection id to ensure only one connection per agent.
+            self.agent_connections
+                .write()
+                .await
+                .insert(agent_id, connection_id);
+            self.notify_sender
+                .send(AgentNotify::AgentConnected(agent_id))
+                .map_err(|err| Status::internal(format!("Scheduler is not ready: {err:#}")))?;
+        }
 
         // dbg!(&agent);
         // let agent: Agent = serde_json::from_str(r#"
@@ -555,6 +571,7 @@ impl FlightService for FlightServiceImpl {
         let notify_sender = self.notify_sender.clone();
         let datasets_sender = self.datasets_senders.clone();
         let dsv_senders = self.dsv_senders.clone();
+        let agent_connections = self.agent_connections.clone();
         tokio::spawn(async move {
             let span = tracing::trace_span!("agent_rpc", agent = agent_id);
             let _enter = span.enter();
@@ -689,12 +706,12 @@ impl FlightService for FlightServiceImpl {
                                                 )
                                             })
                                             .unwrap();
-                                        // dbg!(&activity);
-                                        // let _ =
-                                        //     controller_runner.push_task_activity(&activity).await;
-                                        info!(?activity, "task activity");
-                                        let _ = notify_sender
-                                            .send(AgentNotify::TaskActivity(agent_id, activity));
+                                        let notify_sender = notify_sender.clone();
+                                        tokio::spawn(async move {
+                                            info!(?activity, "task activity");
+                                            let _ = notify_sender
+                                                .send(AgentNotify::TaskActivity(agent_id, activity));
+                                        });
                                     }
                                     "heartbeat-ok" => {
                                         let resp: HeartbeatResponse =
@@ -761,24 +778,42 @@ impl FlightService for FlightServiceImpl {
                     Ok(())
                 })
                 .await;
-            tracing::info!(agent = agent_id, "Agent RPC stopped with ");
-            let context = result
-                .err()
-                .map(|err| json!({"code": 0xFFFFi32, "message": err.to_string()}).to_string());
-            let activity = Activity::new::<String>(
-                agent_id,
-                Utc::now(),
-                LevelFilter::Warn,
-                "Disconnected.",
-                "disconnected",
-                context,
+            tracing::info!(
+                agent.id = agent_id,
+                agent.cid = connection_id,
+                "Agent RPC stopped"
             );
-            if let Err(err) = notify_sender.send(AgentNotify::AgentDisconnected(agent_id)) {
-                tracing::error!(agent = agent_id, "Agent disconnected: {err:#}");
-            }
-            let _ = controller_runner.push_agent_activity(activity).await?;
 
-            tracing::info!(agent = agent_id, "Agent RPC stopped");
+            let mut guard = agent_connections.write().await;
+            if let Some(cid) = guard.get(&agent_id) {
+                if *cid == connection_id {
+                    guard.remove(&agent_id);
+
+                    let context = result.err().map(|err| {
+                        json!({"code": 0xFFFFi32, "message": err.to_string()}).to_string()
+                    });
+                    let activity = Activity::new::<String>(
+                        agent_id,
+                        Utc::now(),
+                        LevelFilter::Warn,
+                        "Disconnected.",
+                        "disconnected",
+                        context,
+                    );
+                    if let Err(err) = notify_sender.send(AgentNotify::AgentDisconnected(agent_id)) {
+                        tracing::error!(agent = agent_id, "Agent disconnected: {err:#}");
+                    }
+                    let _ = controller_runner.push_agent_activity(activity).await?;
+
+                    tracing::info!(agent = agent_id, "Agent RPC stopped");
+                } else {
+                    tracing::warn!(
+                        agent.id = agent_id,
+                        agent.cid = connection_id,
+                        "Agent RPC stopped but current connection id({cid}) is not matched, do nothing."
+                    );
+                }
+            }
             Ok::<_, anyhow::Error>(())
         });
         let stream: Self::DoExchangeStream = Box::pin({
@@ -941,6 +976,7 @@ impl RpcConfig {
             datasets_senders: Arc::new(RwLock::new(LinkedHashMap::new())),
             dsv_senders: Arc::new(RwLock::new(LinkedHashMap::new())),
             request_id: Arc::new(AtomicU64::new(0)),
+            agent_connections: Arc::new(RwLock::new(HashMap::new())),
         };
         let flight_service = FlightServiceServer::new(service);
         let flight_service = flight_service
