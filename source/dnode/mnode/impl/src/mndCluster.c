@@ -379,7 +379,7 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
   return 0;
 }
 
-int32_t mndProcessGrantedInfo(SMnode *pMnode, SGrantedInfo *pInfo) {
+int32_t mndSetClusterGrantedInfo(SMnode *pMnode, SGrantedInfo *pInfo) {
   SClusterObj  clusterObj = {0};
   void        *pIter = NULL;
   SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
@@ -399,7 +399,6 @@ int32_t mndProcessGrantedInfo(SMnode *pMnode, SGrantedInfo *pInfo) {
     return -1;
   }
 
-  mInfo("update cluster granted info to %" PRIi64 ",%" PRIi64, clusterObj.grantedTime, clusterObj.connGrantedTime);
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, NULL, "granted-info");
   if (pTrans == NULL) return -1;
 
