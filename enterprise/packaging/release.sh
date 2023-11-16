@@ -191,7 +191,7 @@ fi
 
 echo "=======================new version number: ${verNumber}, compatible version: ${verNumberComp}======================================"
 
-build_time=$(date +"%F %R")
+build_time=$(date +"%F %T %z")
 
 # get TDinternal git commit id
 if [[ "$verMode" == "cluster" ]] || [[ "$verMode" == "cloud" ]]; then
@@ -295,7 +295,6 @@ else
     CORES=$(grep -c ^processor /proc/cpuinfo)
 fi
 
-  
 if [[ "$allocator" == "jemalloc" ]]; then
   # jemalloc need compile first, so disable parallel build
   make -j ${CORES} && ${csudo}make install
@@ -368,7 +367,7 @@ if [ "$osType" != "Darwin" ]; then
     else
       python3 release.py -ob -vn ${verNumber} -cn ${cusName} -cp ${cusPrompt} -ce ${cusEmail}
     fi
-  fi 
+  fi
 
   echo "====do tar.gz package for all systems===="
   cd ${top_dir}/community/packaging/tools

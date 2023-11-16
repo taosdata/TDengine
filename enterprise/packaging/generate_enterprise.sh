@@ -12,7 +12,7 @@ grantValue=$6
 skip=$7
 cusName=$8
 cusPrompt=$9
-cusEmail=$10
+cusEmail=${10}
 
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
@@ -134,8 +134,8 @@ echo "append taoskeeper to enterprise server package"
 rm -rf $prefix/
 rm -rf build-taoskeeper
 
-# copy to nas [optional]
-if [ -d $archiveDir ]; then
+# copy TDengine package to nas [optional]
+if [ -d $archiveDir ] && [ -z "${cusName}" ]; then
     cd $archiveDir
     cp -f $communityDir/release/* ./
 
@@ -150,7 +150,7 @@ if [ -d $archiveDir ]; then
       fi
     fi
 else
-    echo "Cannot found $archiveDir on this machine"
+    echo "Cannot find $archiveDir on this machine"
 fi
 
 echo " packaging release done! "

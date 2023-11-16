@@ -142,4 +142,8 @@ if [[ ! -z "${cusName}" || ! -z "${cusPrompt}" || ! -z "${cusEmail}" ]];then
     echo "custom name: ${cusName}, custom prompt: ${cusPrompt}, custom email: ${cusEmail}"
     echo "communityDir: ${communityDir}, enterpriseDir: ${enterpriseDir}"
     python3 ./repack-release.py -n ${cusName} -p ${cusPrompt} -e ${cusEmail} -d ../../community/release -v ${version}
+    # copy oem package to nas
+    archiveDir=/nas/$cusName/v$version/
+    mkdir -p $archiveDir
+    cp -f $communityDir/release/* $archiveDir
 fi
