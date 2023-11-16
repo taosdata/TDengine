@@ -621,14 +621,14 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
     for (i = 0; i < manager.next_etags_pos; i++) {
       taosMemoryFree(manager.etags[i]);
     }
-    if (data.infileFD) {
-      taosCloseFile(&data.infileFD);
-    } else if (data.gb) {
-      growbuffer_destroy(data.gb);
-    }
-
     growbuffer_destroy(manager.gb);
     taosMemoryFree(manager.etags);
+  }
+
+  if (data.infileFD) {
+    taosCloseFile(&data.infileFD);
+  } else if (data.gb) {
+    growbuffer_destroy(data.gb);
   }
 
   return code;
