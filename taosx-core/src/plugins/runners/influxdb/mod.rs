@@ -89,7 +89,7 @@ pub async fn influxdb_to_taos(
                 chrono::Local::now().format("%Y%m%d%H%M"),
                 "toml"
             ));
-            fs::copy(config_path, path);
+            let _ = fs::copy(&config_path, path);
         }
         None => {}
     }
