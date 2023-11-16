@@ -384,7 +384,7 @@ int32_t mndProcessGrantedInfo(SMnode *pMnode, SGrantedInfo *pInfo) {
   void        *pIter = NULL;
   SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
   if (pCluster != NULL) {
-    if (pCluster->grantedTime >= pInfo->grantedTime && pCluster->connGrantedTime > pInfo->connGrantedTime) {
+    if (pCluster->grantedTime >= pInfo->grantedTime && pCluster->connGrantedTime >= pInfo->connGrantedTime) {
       mndReleaseCluster(pMnode, pCluster, pIter);
       return 0;
     }
@@ -395,12 +395,12 @@ int32_t mndProcessGrantedInfo(SMnode *pMnode, SGrantedInfo *pInfo) {
   }
 
   if (clusterObj.id <= 0) {
-    mError("can't get cluster info while update uptime");
+    mError("can't get cluster info while update granted info");
     return -1;
   }
 
-  mInfo("update cluster granted time to %" PRIi64, clusterObj.grantedTime);
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, NULL, "granted-time");
+  mInfo("update cluster granted info to %" PRIi64 ",%" PRIi64, clusterObj.grantedTime, clusterObj.connGrantedTime);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, NULL, "granted-info");
   if (pTrans == NULL) return -1;
 
   SSdbRaw *pCommitRaw = mndClusterActionEncode(&clusterObj);
