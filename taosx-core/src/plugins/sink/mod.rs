@@ -2078,7 +2078,6 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
         let data_trace_id = create_data_trace_id(stream_trace_id, batches);
         let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
         info!("Start writing batch {}", data_trace_id_str);
-        counter!("ipc.stream.batches", batches as u64);
         let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
