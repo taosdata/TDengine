@@ -95,8 +95,8 @@ int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 
 // audit
-bool     tsEnableAudit = true;
-bool     tsEnableAuditCreateTable = true;
+bool tsEnableAudit = true;
+bool tsEnableAuditCreateTable = true;
 
 // telem
 #ifdef TD_ENTERPRISE
@@ -278,7 +278,7 @@ char   tsS3Hostname[TSDB_FQDN_LEN] = "<hostname>";
 int32_t tsS3BlockSize = -1;        // number of tsdb pages (4096)
 int32_t tsS3BlockCacheSize = 16;   // number of blocks
 int32_t tsS3PageCacheSize = 4096;  // number of pages
-int32_t tsS3UploadDelaySec = 60 * 60;
+int32_t tsS3UploadDelaySec = 60 * 60 * 24;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -1558,15 +1558,15 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         matched = true;
       } else if (strcasecmp("minimalTmpDirGB", name) == 0) {
         tsTempSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
-        uInfo("%s set to %"PRId64, name, tsTempSpace.reserved);
+        uInfo("%s set to %" PRId64, name, tsTempSpace.reserved);
         matched = true;
       } else if (strcasecmp("minimalDataDirGB", name) == 0) {
         tsDataSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
-        uInfo("%s set to %"PRId64, name, tsDataSpace.reserved);
+        uInfo("%s set to %" PRId64, name, tsDataSpace.reserved);
         matched = true;
       } else if (strcasecmp("minimalLogDirGB", name) == 0) {
         tsLogSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
-        uInfo("%s set to %"PRId64, name, tsLogSpace.reserved);
+        uInfo("%s set to %" PRId64, name, tsLogSpace.reserved);
         matched = true;
       }
       break;
