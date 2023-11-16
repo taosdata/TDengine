@@ -166,10 +166,24 @@ IF(TD_BULID_TAOSX)
                 CONFIGURE_COMMAND
                 COMMAND git status
                 BUILD_COMMAND                
-                COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} cargo build --release
+                COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} VER_NUMBER=${VER_NUMBER} cargo build --release
                 INSTALL_COMMAND
                 COMMAND cmake -E copy target/release/taosx ${CMAKE_BINARY_DIR}/build/bin
                 COMMAND cmake -E copy target/${TAOSX_NAME}.service ${OUTPUT_SERVICE_DIR}
+            )
+            ExternalProject_Add(taosx-agent
+                PREFIX              taosx
+                SOURCE_DIR          ${CMAKE_CURRENT_SOURCE_DIR}/taosx/taosx-agent
+                BUILD_ALWAYS        off
+                DEPENDS             taos
+                BUILD_IN_SOURCE     1
+                CONFIGURE_COMMAND
+                COMMAND git status
+                BUILD_COMMAND
+                COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} VER_NUMBER=${VER_NUMBER} cargo build --release
+                INSTALL_COMMAND
+                COMMAND cmake -E copy target/release/taosx-agent ${CMAKE_BINARY_DIR}/build/bin
+                COMMAND cmake -E copy target/${TAOSX_NAME}-agent.service ${OUTPUT_SERVICE_DIR}
             )
         ELSE()
             ExternalProject_Add(taosx
@@ -185,7 +199,21 @@ IF(TD_BULID_TAOSX)
                INSTALL_COMMAND
                COMMAND cmake -E copy ${TAOSX_BINARY} ${CMAKE_BINARY_DIR}/build/bin
                COMMAND cmake -E copy target/${TAOSX_NAME}.service ${OUTPUT_SERVICE_DIR}
-               )
+            )
+            ExternalProject_Add(taosx-agent
+                PREFIX              taosx
+                SOURCE_DIR          ${CMAKE_CURRENT_SOURCE_DIR}/taosx/taosx-agent
+                BUILD_ALWAYS        off
+                DEPENDS             taos
+                BUILD_IN_SOURCE     1
+                CONFIGURE_COMMAND
+                COMMAND git status
+                BUILD_COMMAND
+                COMMAND CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} ${TAOSX_BULID_COMMAND}
+                INSTALL_COMMAND
+                COMMAND cmake -E copy ${TAOSX_BINARY}-agent ${CMAKE_BINARY_DIR}/build/bin
+                COMMAND cmake -E copy target/${TAOSX_NAME}-agent.service ${OUTPUT_SERVICE_DIR}
+            )
         ENDIF()
     ELSEIF (TD_WINDOWS)
         ExternalProject_Add(taosx
@@ -197,9 +225,22 @@ IF(TD_BULID_TAOSX)
             CONFIGURE_COMMAND
             COMMAND git status
             BUILD_COMMAND            
-            COMMAND set LIBPATH=$ENV{LIBRARY_PATH} && set LIB=$ENV{LIBRARY_PATH} && set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} && cargo build --release
+            COMMAND set LIBPATH=$ENV{LIBRARY_PATH} && set LIB=$ENV{LIBRARY_PATH} && set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} &&  set VER_NUMBER=${VER_NUMBER} && cargo build --release
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taosx.exe ${CMAKE_BINARY_DIR}/build/bin
+        )
+        ExternalProject_Add(taosx-agent
+            PREFIX              taosx
+            SOURCE_DIR          ${CMAKE_CURRENT_SOURCE_DIR}/taosx/taosx-agent
+            BUILD_ALWAYS        off
+            DEPENDS             taos
+            BUILD_IN_SOURCE     1
+            CONFIGURE_COMMAND
+            COMMAND git status
+            BUILD_COMMAND
+            COMMAND set LIBPATH=$ENV{LIBRARY_PATH} && set LIB=$ENV{LIBRARY_PATH} && set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} &&  set VER_NUMBER=${VER_NUMBER} && cargo build --release
+            INSTALL_COMMAND
+            COMMAND cmake -E copy target/release/taosx-agent.exe ${CMAKE_BINARY_DIR}/build/bin
         )
     ENDIF ()
 ENDIF ()
@@ -238,7 +279,7 @@ IF(TD_BULID_EXPLORER)
             COMMAND git status
             BUILD_COMMAND
             COMMAND yarn --version || npm install -g yarn
-            COMMAND set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} && set CUS_CONFIG=${CUS_CONFIG} && yarn && yarn build && cargo build --release
+            COMMAND set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} && set CUS_CONFIG=${CUS_CONFIG} && set VER_NUMBER=${VER_NUMBER} && yarn && yarn build && cargo build --release
             COMMAND git checkout .
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taos-explorer.exe ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer.exe
@@ -255,7 +296,7 @@ IF(TD_BULID_EXPLORER)
             COMMAND git status
             BUILD_COMMAND
             COMMAND yarn --version || npm install -g yarn
-            COMMAND yarn && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} CUS_CONFIG=${CUS_CONFIG} yarn build && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} cargo build --release
+            COMMAND yarn && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} CUS_CONFIG=${CUS_CONFIG} yarn build && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} VER_NUMBER=${VER_NUMBER} cargo build --release
             COMMAND git checkout .
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taos-explorer ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer
