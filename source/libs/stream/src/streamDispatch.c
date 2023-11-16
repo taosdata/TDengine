@@ -1050,7 +1050,7 @@ static void dispatchDataInFuture(void* param, void* tmrId) {
   ETaskStatus status = streamTaskGetStatus(pTask, NULL);
   if (status == TASK_STATUS__CK) {
     stDebug("s-task:%s in checkpoint status, wait for 500ms to dispatch data downstream", pTask->id.idStr);
-    taosTmrReset(doRetryDispatchData, 500, pTask, streamEnv.timer, &pTask->msgInfo.pTimer);
+    taosTmrReset(dispatchDataInFuture, 500, pTask, streamEnv.timer, &pTask->msgInfo.pTimer);
   } else {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug("s-task:%s start to dispatch data, jump out of timer, ref:%d", pTask->id.idStr, ref);
