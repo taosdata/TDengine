@@ -259,6 +259,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowLocalVariablesStmt";
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
       return "ShowTableTagsStmt";
+    case QUERY_NODE_SHOW_COMPACTS_STMT:
+      return "ShowCompactsStmt";
     case QUERY_NODE_DELETE_STMT:
       return "DeleteStmt";
     case QUERY_NODE_INSERT_STMT:

@@ -1783,6 +1783,13 @@ SNode* createShowTableTagsStmt(SAstCreateContext* pCxt, SNode* pTbName, SNode* p
   return (SNode*)pStmt;
 }
 
+SNode* createShowCompactsStmt(SAstCreateContext* pCxt, SNode* pCompactId) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowCompactsStmt* pStmt = (SShowCompactsStmt*)nodesMakeNode(QUERY_NODE_SHOW_COMPACTS_STMT);
+  pStmt->pCompactId = pCompactId;
+  return (SNode*)pStmt;
+}
+
 static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange) {
   int32_t code = TSDB_CODE_SUCCESS;
   char*   ipCopy = taosStrdup(ipRange);

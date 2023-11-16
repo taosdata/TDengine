@@ -335,6 +335,11 @@ typedef struct SShowTableTagsStmt {
   SNodeList* pTags;
 } SShowTableTagsStmt;
 
+typedef struct SShowCompactsStmt {
+  ENodeType type;
+  SNode* pCompactId;
+} SShowCompactsStmt;
+
 typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT, INDEX_TYPE_NORMAL } EIndexType;
 
 typedef struct SIndexOptions {

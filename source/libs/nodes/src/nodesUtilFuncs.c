@@ -456,6 +456,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SShowCreateViewStmt));
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       return makeNode(type, sizeof(SShowTableDistributedStmt));
+    case QUERY_NODE_SHOW_COMPACTS_STMT:
+      return makeNode(type, sizeof(SShowCompactsStmt));
     case QUERY_NODE_KILL_QUERY_STMT:
       return makeNode(type, sizeof(SKillQueryStmt));
     case QUERY_NODE_KILL_TRANSACTION_STMT:
