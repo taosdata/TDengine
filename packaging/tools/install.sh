@@ -621,8 +621,7 @@ function install_share_etc() {
   ${csudo} cp ${script_dir}/share/srv/* ${service_config_dir} ||:
 }
 
-function install_log() {
-  ${csudo}rm -rf ${log_dir} || :
+function install_log() {  
   ${csudo}mkdir -p ${log_dir} && ${csudo}chmod 777 ${log_dir}
 
   ${csudo}ln -sf ${log_dir} ${install_main_dir}/log
@@ -935,7 +934,9 @@ function updateProduct() {
     install_adapter_service    
     install_adapter_config
     install_keeper_service
-    install_keeper_config
+    if [ "${verMode}" != "cloud" ]; then
+      install_keeper_config
+    fi
 
     openresty_work=false
 
@@ -1036,8 +1037,9 @@ function installProduct() {
     install_adapter_service
     install_adapter_config
     install_keeper_service
-    install_keeper_config
-
+    if [ "${verMode}" != "cloud" ]; then
+      install_keeper_config
+    fi
     openresty_work=false
 
 
