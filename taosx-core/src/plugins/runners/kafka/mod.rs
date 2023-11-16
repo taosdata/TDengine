@@ -217,23 +217,23 @@ fn kafka_worker(mut from: Dsn, port: u16, aborted: Arc<AtomicBool>) -> anyhow::R
                 key.append_value(m.key);
                 value.append_value(m.value);
             }
-
-            let batch = RecordBatch::try_new(
-                Arc::new(schema.clone()),
-                vec![
-                    Arc::new(timestamp.finish()),
-                    Arc::new(topic.finish()),
-                    Arc::new(partition.finish()),
-                    Arc::new(offset.finish()),
-                    Arc::new(key.finish()),
-                    Arc::new(value.finish()),
-                ],
-            )?;
-            writer.write(&batch)?;
             consumer.consume_messageset(ms)?;
         }
 
+        let batch = RecordBatch::try_new(
+            Arc::new(schema.clone()),
+            vec![
+                Arc::new(timestamp.finish()),
+                Arc::new(topic.finish()),
+                Arc::new(partition.finish()),
+                Arc::new(offset.finish()),
+                Arc::new(key.finish()),
+                Arc::new(value.finish()),
+            ],
+        )?;
+        writer.write(&batch)?;
         consumer.commit_consumed()?;
+
         start = chrono::Utc::now().timestamp_millis();
     }
     Ok(())
