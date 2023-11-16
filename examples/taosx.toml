@@ -9,4 +9,3 @@
 [serve]
 #listen = "0.0.0.0:6050"
 #database_url = "sqlite:taosx.db"
-#secret_prefix = "XaNeGt"
