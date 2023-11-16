@@ -879,13 +879,11 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
         continue;
       }
 
+      bool    skipMerge = false;
       int32_t numFile = TARRAY2_SIZE(lvl->fobjArr);
       if (numFile >= sttTrigger) {
         // launch merge
-        bool skipMerge = false;
         {
-          int32_t now = taosGetTimestampSec();
-
           extern int8_t  tsS3Enabled;
           extern int32_t tsS3UploadDelaySec;
           long           s3Size(const char *object_name);
@@ -897,6 +895,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
               const char *object_name = taosDirEntryBaseName((char *)fobj->fname);
 
               if (taosCheckExistFile(fobj->fname)) {
+                int32_t now = taosGetTimestampSec();
                 int32_t mtime = 0;
                 taosStatFile(fobj->fname, NULL, &mtime, NULL);
                 if (mtime < now - tsS3UploadDelaySec) {
@@ -916,7 +915,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
         }
       }
 
-      if (numFile >= sttTrigger * BLOCK_COMMIT_FACTOR) {
+      if (numFile >= sttTrigger * BLOCK_COMMIT_FACTOR && !skipMerge) {
         tsdbFSSetBlockCommit(fset, true);
       } else {
         tsdbFSSetBlockCommit(fset, false);
