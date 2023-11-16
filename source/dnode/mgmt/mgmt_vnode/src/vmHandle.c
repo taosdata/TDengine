@@ -292,10 +292,11 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
 
   if (vnodeCreate(path, &vnodeCfg, diskPrimary, pMgmt->pTfs) < 0) {
-    tFreeSCreateVnodeReq(&req);
     dError("vgId:%d, failed to create vnode since %s", req.vgId, terrstr());
+    vmReleaseVnode(pMgmt, pVnode);
+    tFreeSCreateVnodeReq(&req);
     code = terrno;
-    goto _OVER;
+    return code;
   }
 
   SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb);
