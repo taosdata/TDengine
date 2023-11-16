@@ -3439,6 +3439,58 @@ void tFreeSCompactDbReq(SCompactDbReq *pReq) {
   FREESQL();
 }
 
+int32_t tSerializeSCompactDbRsp(void *buf, int32_t bufLen, SCompactDbRsp *pRsp) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI64(&encoder, pRsp->compactId) < 0) return -1;
+  if (tEncodeI8(&encoder, pRsp->bAccepted) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSCompactDbRsp(void *buf, int32_t bufLen, SCompactDbRsp *pRsp) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI64(&decoder, &pRsp->compactId) < 0) return -1;
+  if (tDecodeI8(&decoder, &pRsp->bAccepted) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSKillCompactReq(void *buf, int32_t bufLen, SKillCompactReq *pRsp) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI64(&encoder, pRsp->compactId) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSKillCompactReq(void *buf, int32_t bufLen, SKillCompactReq *pRsp) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI64(&decoder, &pRsp->compactId) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
 int32_t tSerializeSUseDbRspImp(SEncoder *pEncoder, const SUseDbRsp *pRsp) {
   if (tEncodeCStr(pEncoder, pRsp->db) < 0) return -1;
   if (tEncodeI64(pEncoder, pRsp->uid) < 0) return -1;
@@ -4274,6 +4326,7 @@ int32_t tSerializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableReq
   if (tEncodeCStr(&encoder, pReq->tb) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->filterTb) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->compactId) <0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -4291,6 +4344,7 @@ int32_t tDeserializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableR
   if (tDecodeCStrTo(&decoder, pReq->tb) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->filterTb) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->compactId) <0) return -1;
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);

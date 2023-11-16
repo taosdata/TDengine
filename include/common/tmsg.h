@@ -335,6 +335,7 @@ typedef enum ENodeType {
   QUERY_NODE_KILL_CONNECTION_STMT,
   QUERY_NODE_KILL_QUERY_STMT,
   QUERY_NODE_KILL_TRANSACTION_STMT,
+  QUERY_NODE_KILL_COMPACT_STMT,
   QUERY_NODE_DELETE_STMT,
   QUERY_NODE_INSERT_STMT,
   QUERY_NODE_QUERY,
@@ -1381,6 +1382,21 @@ int32_t tDeserializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq
 void    tFreeSCompactDbReq(SCompactDbReq *pReq);
 
 typedef struct {
+  int64_t compactId;
+  int8_t bAccepted;
+} SCompactDbRsp;
+
+int32_t tSerializeSCompactDbRsp(void* buf, int32_t bufLen, SCompactDbRsp* pRsp);
+int32_t tDeserializeSCompactDbRsp(void* buf, int32_t bufLen, SCompactDbRsp* pRsp);
+
+typedef struct {
+  int64_t compactId;
+} SKillCompactReq;
+
+int32_t tSerializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
+int32_t tDeserializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReqp);
+
+typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
   int8_t  igExists;
   int8_t  funcType;
@@ -1886,8 +1902,9 @@ typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   char    tb[TSDB_TABLE_NAME_LEN];
   char    user[TSDB_USER_LEN];
-  char    filterTb[TSDB_TABLE_NAME_LEN];
+  char    filterTb[TSDB_TABLE_NAME_LEN]; // for ins_columns
   int64_t showId;
+  int64_t compactId; // for compact
 } SRetrieveTableReq;
 
 typedef struct SSysTableSchema {
