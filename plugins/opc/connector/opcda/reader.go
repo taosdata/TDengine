@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"reflect"
 	"regexp"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -82,22 +83,14 @@ func newReader(config common.Config) (*reader, error) {
 		debug:       config.Debug,
 	}
 
-	ctx := context.Background()
-	allTags, err := r.getAllTags(ctx)
-	if err != nil {
-		return &r, fmt.Errorf("get all da node error %v", err)
-	}
-	tagName := make(map[string]string, len(allTags))
-	for _, tag := range allTags {
-		tagName[tag.ID] = tag.Name
-	}
-
 	tags := make(map[string]*daTag, len(config.Collect.Da.Tags))
 	for _, tag := range config.Collect.Da.Tags {
-		tags[tag.Tag] = &daTag{tag: tag.Tag, name: tagName[tag.Tag]}
+		parts := strings.Split(tag.Tag, ".")
+		lastPart := parts[len(parts)-1]
+		tags[tag.Tag] = &daTag{tag: tag.Tag, name: lastPart}
 	}
 	r.tags = tags
-	if err = config.Collect.Dump.Validate(); err != nil {
+	if err := config.Collect.Dump.Validate(); err != nil {
 		return &r, fmt.Errorf("invalid dump config: %w", err)
 	}
 	if config.Collect.Dump.Enable {
@@ -205,7 +198,9 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 			case <-notifyCtx.Done():
 				return
 			case <-ticker.C:
-				r.readAndSend(ch)
+				go func() {
+					r.readAndSend(ch)
+				}()
 			}
 		}
 	}()
@@ -215,11 +210,12 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 
 func (r *reader) readAndSend(ch chan *common.NodeValue) {
 	values := r.readItems(r.tags)
-	go func(items []*common.NodeValue) {
-		for _, item := range items {
-			ch <- item
-		}
-	}(values)
+	defer func() {
+		recover()
+	}()
+	for _, item := range values {
+		ch <- item
+	}
 }
 
 func (r *reader) readItems(tags map[string]*daTag) (values []*common.NodeValue) {
@@ -227,7 +223,6 @@ func (r *reader) readItems(tags map[string]*daTag) (values []*common.NodeValue) 
 	items := r.client.Read()
 	spent := time.Since(start).Milliseconds()
 
-	now := time.Now()
 	values = make([]*common.NodeValue, 0, len(items))
 	for id, item := range items {
 		if !item.Good() && !r.containsBad {
@@ -258,7 +253,7 @@ func (r *reader) readItems(tags map[string]*daTag) (values []*common.NodeValue) 
 			Identifier: id,
 			Name:       tags[id].name,
 			Timestamp:  item.Timestamp,
-			Now:        now,
+			Now:        start,
 			Value:      value,
 			ValueType:  valueType,
 			Status:     int64(uint32(item.Quality)),
