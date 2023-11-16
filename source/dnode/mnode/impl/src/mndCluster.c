@@ -236,6 +236,7 @@ static int32_t mndClusterActionUpdate(SSdb *pSdb, SClusterObj *pOld, SClusterObj
          pNew, pOld->upTime, pNew->upTime);
   pOld->upTime = pNew->upTime;
   pOld->grantedTime = pNew->grantedTime;
+  pOld->connGrantedTime = pNew->connGrantedTime;
   pOld->updateTime = taosGetTimestampMs();
   return 0;
 }
@@ -378,17 +379,18 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
   return 0;
 }
 
-int32_t mndProcessGrantedTime(SMnode *pMnode, int64_t grantedTime) {
+int32_t mndProcessGrantedInfo(SMnode *pMnode, SGrantedInfo *pInfo) {
   SClusterObj  clusterObj = {0};
   void        *pIter = NULL;
   SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
   if (pCluster != NULL) {
-    if (pCluster->grantedTime >= grantedTime) {
+    if (pCluster->grantedTime >= pInfo->grantedTime && pCluster->connGrantedTime > pInfo->connGrantedTime) {
       mndReleaseCluster(pMnode, pCluster, pIter);
       return 0;
     }
     memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
-    clusterObj.grantedTime = grantedTime;
+    if (pCluster->grantedTime < pInfo->grantedTime) clusterObj.grantedTime = pInfo->grantedTime;
+    if (pCluster->connGrantedTime < pInfo->connGrantedTime) clusterObj.connGrantedTime = pInfo->connGrantedTime;
     mndReleaseCluster(pMnode, pCluster, pIter);
   }
 

@@ -29,7 +29,7 @@ int64_t mndGetClusterId(SMnode *pMnode);
 int64_t mndGetClusterCreateTime(SMnode *pMnode);
 int32_t mndGetClusterGrantedInfo(SMnode *pMnode, SGrantedInfo *pInfo);
 int64_t mndGetClusterUpTime(SMnode *pMnode);
-int32_t mndProcessGrantedTime(SMnode *pMnode, int64_t grantedTime);
+int32_t mndProcessGrantedInfo(SMnode *pMnode, SGrantedInfo *pInfo);
 
 #ifdef __cplusplus
 }
