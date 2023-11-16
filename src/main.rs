@@ -256,7 +256,10 @@ impl Args {
         let matches = Args::command().get_matches();
 
         match &mut args.commands {
-            Some(Commands::Run(_)) => {}
+            Some(Commands::Run(cli)) => {
+                // verbose in subCommand
+                args.opt_args.verbose.clone_from(&cli.verbose);
+            }
             Some(Commands::Serve(cli)) => {
                 let mut serve = configurable_opts.serve.unwrap_or_default();
 
@@ -278,6 +281,8 @@ impl Args {
                     tak_or_not!(do_not_resume);
                 }
                 cli.merge_from(serve);
+                // verbose in subCommand
+                args.opt_args.verbose.clone_from(&cli.verbose);
             }
             _ => {}
         }

@@ -5,6 +5,7 @@ use actix_multipart::form::MultipartFormConfig;
 use anyhow::Result;
 
 use clap::Parser;
+use clap_verbosity_flag::{InfoLevel, Verbosity};
 
 use actix_web::web;
 use actix_web::{
@@ -95,6 +96,10 @@ pub(super) struct Cli {
 
     #[clap(long)]
     pub do_not_resume: Option<bool>,
+
+    #[clap(flatten)]
+    #[serde(skip)]
+    pub verbose: Option<Verbosity<InfoLevel>>,
 }
 
 impl Cli {
