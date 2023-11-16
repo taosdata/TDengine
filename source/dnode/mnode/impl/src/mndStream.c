@@ -26,6 +26,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "osMemory.h"
 #include "parser.h"
 #include "tmisce.h"
 #include "tname.h"
@@ -756,6 +757,15 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  char* sql = NULL;
+  int32_t sqlLen = 0;
+  if(createStreamReq.sql != NULL){
+    sqlLen = strlen(createStreamReq.sql);
+    sql = taosMemoryMalloc(sqlLen + 1);
+    memset(sql, 0, sqlLen + 1);
+    memcpy(sql, createStreamReq.sql, sqlLen);
+  }
+
   // build stream obj from request
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
@@ -868,9 +878,9 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   tNameFromString(&name, createStreamReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
   // reuse this function for stream
 
-  if (createStreamReq.sql != NULL) {
-    auditRecord(pReq, pMnode->clusterId, "createStream", dbname.dbname, name.dbname, createStreamReq.sql,
-                strlen(createStreamReq.sql));
+  if (sql != NULL && sqlLen > 0) {
+    auditRecord(pReq, pMnode->clusterId, "createStream", dbname.dbname, name.dbname, sql,
+                sqlLen);
   }
   else{
     char detail[1000] = {0};
@@ -886,6 +896,9 @@ _OVER:
 
   tFreeSCMCreateStreamReq(&createStreamReq);
   tFreeStreamObj(&streamObj);
+  if(sql != NULL){
+    taosMemoryFreeClear(sql);
+  }
   return code;
 }
 
