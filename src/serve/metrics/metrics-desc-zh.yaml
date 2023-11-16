@@ -9,11 +9,12 @@ taosx_process_io_read_bytes: 从上次更新到现在 taosX IO 读字节数
 taosx_process_io_written_bytes: 从上次更新到现在 taosX IO 写字节数
 taosx_process_tasks: taosx 进程的线程数
 metrics.legacy.workers: 并发读取数据源的数据 worker 数
-metrics.legacy.stables: 完成数据迁移的超级表数据
+metrics.legacy.total_stables: 需要迁移的超级表数据数量
 metrics.legacy.updated_tags: 更新 tag 数
 metrics.legacy.updated_tables: 更新子表数
 metrics.legacy.created_tables: 创建子表数
-metrics.legacy.tables: 完成数据迁移的子表数
+metrics.legacy.total_tables: 需要迁移的子表数量
+metrics.legacy.tables: 完成数据迁移的子表数(任务中断重启可能大于实际值)
 metrics.legacy.blocks: 写入成功的数据块数
 metrics.legacy.records: 写入成功的行数
 metrics.legacy.points: 写入成功的测点数
