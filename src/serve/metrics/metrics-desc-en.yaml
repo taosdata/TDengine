@@ -9,10 +9,11 @@ taosx_process_io_read_bytes:  Number of read bytes since the last refresh
 taosx_process_io_written_bytes: Number of written bytes since the last refresh
 taosx_process_tasks: Number of threads run by this process
 metrics.legacy.workers: The number of workers concurrently reading data sources
-metrics.legacy.stables: Number of super tables successfully migrated
+metrics.legacy.total_stables: Total super tables to migrate
 metrics.legacy.updated_tags: Updated tag count
 metrics.legacy.updated_tables: Updated subtables count
 metrics.legacy.created_tables: Number of child tables created
+metrics.legacy.total_tables: Total talbes to migratie
 metrics.legacy.tables: Number of sub-tables successfully migrated.(may greater than the acutal value if task was resumed from break point)
 metrics.legacy.blocks: Number of data blocks successfully written
 metrics.legacy.records: Number of rows written successfully

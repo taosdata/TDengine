@@ -93,10 +93,11 @@ impl TableOpts {
 
 // legacy metrics
 pub const METRICS_LEGACY_WORKERS: &str = "metrics.legacy.workers";
-pub const METRICS_LEGACY_STABLES: &str = "metrics.legacy.stables";
+pub const METRICS_LEGACY_TOTAL_STABLES: &str = "metrics.legacy.total_stables";
 pub const METRICS_LEGACY_UPDATED_TAGS: &str = "metrics.legacy.updated_tags";
 pub const METRICS_LEGACY_UPDATED_TABLES: &str = "metrics.legacy.updated_tables";
 pub const METRICS_LEGACY_CREATED_TABLES: &str = "metrics.legacy.created_tables";
+pub const METRICS_LEGACY_TOTAL_TABLES: &str = "metrics.legacy.total_tables";
 pub const METRICS_LEGACY_TABLES: &str = "metrics.legacy.tables";
 pub const METRICS_LEGACY_BLOCKS: &str = "metrics.legacy.blocks";
 pub const METRICS_LEGACY_RECORDS: &str = "metrics.legacy.records";
@@ -105,14 +106,15 @@ pub const METRICS_LEGACY_POINTS: &str = "metrics.legacy.points";
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct LegacyMetrics {
     pub workers: AtomicU16,
-    pub stables: AtomicU32,
-    pub updated_tags: AtomicU32,
-    pub updated_tables: AtomicU32,
-    pub created_tables: AtomicU32,
+    pub total_stables: AtomicU32,
+    pub total_tables: AtomicU32,
     pub tables: AtomicU32,
     pub blocks: AtomicU64,
     pub records: AtomicU64,
     pub points: AtomicU64,
+    pub updated_tags: AtomicU32,
+    pub updated_tables: AtomicU32,
+    pub created_tables: AtomicU32,
     // last_time_cost in seconds
     pub last_time_cost: AtomicU64,
     #[serde(skip)]
@@ -124,7 +126,8 @@ impl Default for LegacyMetrics {
     fn default() -> Self {
         Self {
             workers: Default::default(),
-            stables: Default::default(),
+            total_stables: Default::default(),
+            total_tables: Default::default(),
             tables: Default::default(),
             blocks: Default::default(),
             records: Default::default(),
@@ -161,7 +164,7 @@ impl Display for LegacyMetrics {
             self.workers.load(SeqCst),
             self.created_tables.load(SeqCst),
             self.updated_tags.load(SeqCst),
-            self.stables.load(SeqCst),
+            self.total_stables.load(SeqCst),
             self.tables.load(SeqCst),
             self.blocks.load(SeqCst),
             records,
@@ -188,7 +191,8 @@ impl LegacyMetrics {
     pub fn to_json(&self) -> String {
         let metrics = Self {
             workers: AtomicU16::from(self.workers.load(Ordering::SeqCst)),
-            stables: AtomicU32::from(self.stables.load(Ordering::SeqCst)),
+            total_stables: AtomicU32::from(self.total_stables.load(Ordering::SeqCst)),
+            total_tables: AtomicU32::from(self.total_tables.load(Ordering::SeqCst)),
             tables: AtomicU32::from(self.tables.load(Ordering::SeqCst)),
             blocks: AtomicU64::from(self.blocks.load(Ordering::SeqCst)),
             records: AtomicU64::from(self.records.load(Ordering::SeqCst)),
@@ -212,7 +216,10 @@ impl LegacyMetrics {
     pub fn to_task_metrics_json(&self) -> String {
         let mut map: BTreeMap<&str, u64> = BTreeMap::new();
         map.insert(METRICS_LEGACY_WORKERS, self.workers.load(SeqCst) as u64);
-        map.insert(METRICS_LEGACY_STABLES, self.stables.load(SeqCst) as u64);
+        map.insert(
+            METRICS_LEGACY_TOTAL_STABLES,
+            self.total_stables.load(SeqCst) as u64,
+        );
         map.insert(
             METRICS_LEGACY_UPDATED_TAGS,
             self.updated_tags.load(SeqCst) as u64,
@@ -224,6 +231,10 @@ impl LegacyMetrics {
         map.insert(
             METRICS_LEGACY_CREATED_TABLES,
             self.created_tables.load(SeqCst) as u64,
+        );
+        map.insert(
+            METRICS_LEGACY_TOTAL_TABLES,
+            self.total_tables.load(SeqCst) as u64,
         );
         map.insert(METRICS_LEGACY_TABLES, self.tables.load(SeqCst) as u64);
         map.insert(METRICS_LEGACY_BLOCKS, self.blocks.load(SeqCst) as u64);
@@ -2394,7 +2405,10 @@ async fn realtime(
 /// tracing metrics and legacy metrics should keep the same at any time
 fn reset_tracing_metrics(metrics: Arc<LegacyMetrics>) {
     absolute_counter!(METRICS_LEGACY_WORKERS, metrics.workers.load(SeqCst) as u64);
-    absolute_counter!(METRICS_LEGACY_STABLES, metrics.stables.load(SeqCst) as u64);
+    absolute_counter!(
+        METRICS_LEGACY_TOTAL_STABLES,
+        metrics.total_stables.load(SeqCst) as u64
+    );
     absolute_counter!(
         METRICS_LEGACY_UPDATED_TAGS,
         metrics.updated_tags.load(SeqCst) as u64
@@ -2406,6 +2420,10 @@ fn reset_tracing_metrics(metrics: Arc<LegacyMetrics>) {
     absolute_counter!(
         METRICS_LEGACY_CREATED_TABLES,
         metrics.created_tables.load(SeqCst) as u64
+    );
+    absolute_counter!(
+        METRICS_LEGACY_TOTAL_TABLES,
+        metrics.total_tables.load(SeqCst) as u64
     );
     absolute_counter!(METRICS_LEGACY_TABLES, metrics.tables.load(SeqCst) as u64);
     absolute_counter!(METRICS_LEGACY_BLOCKS, metrics.blocks.load(SeqCst) as u64);
@@ -2576,13 +2594,14 @@ pub async fn legacy_to_taos(
     let todo = Arc::new(todo);
 
     metrics
-        .tables
+        .total_tables
         .store(todo.tables.len() as _, Ordering::SeqCst);
 
     metrics
-        .stables
+        .total_stables
         .store(todo.stables.len() as _, Ordering::SeqCst);
-    counter!(METRICS_LEGACY_STABLES, todo.stables.len() as u64);
+    counter!(METRICS_LEGACY_TOTAL_STABLES, todo.stables.len() as _);
+    counter!(METRICS_LEGACY_TOTAL_TABLES, todo.tables.len() as _);
     let metrics_inner = metrics.clone();
     let todo_inner = todo.clone();
 
