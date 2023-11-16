@@ -9,8 +9,8 @@ use actix_web::{
     web::{self, Data, Json, Query},
     HttpRequest, HttpResponse, Responder,
 };
+use anyhow::Context;
 use itertools::Itertools;
-use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 use taos::{Code, IntoDsn};
 use tokio::time::timeout;
@@ -191,55 +191,87 @@ pub struct DsSampleOut {
     columns: Vec<Vec<serde_json::Value>>,
 }
 
+/// Sample data input with transform pipeline.
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+#[schema(example = r#"
+{
+  "parser": {
+    "parse": { "payload": { "json": ["value::double", "id::int"] } },
+    "mutate": [{ "filter": "value > 1.2" }],
+    "model": [
+      {
+        "name": "d{id}",
+        "using": "meters",
+        "tags": ["id"],
+        "columns": ["ts", "value"]
+      }
+    ]
+  },
+  "input": [
+    { "ts": "2023-11-16T00:00:00Z", "payload": "{\"value\":1.4, \"id\": 1}" },
+    { "ts": "2023-11-16T00:00:01Z", "payload": "{\"value\":1.4, \"id\": 2}" }
+  ]
+}
+"#)]
 pub struct DsSampleIn {
-    parse: taosx_core::Pipeline,
+    /// Transform pipeline definition.
+    parser: taosx_core::Pipeline,
+    /// Sample data input, an array of object.
     input: Vec<serde_json::Value>,
+}
+
+impl DsSampleIn {
+    pub fn transform(&self) -> anyhow::Result<impl Serialize> {
+        if self.input.is_empty() {
+            anyhow::bail!("Input is empty");
+        }
+
+        let json = self
+            .input
+            .iter()
+            .map(|value| serde_json::to_vec(value).unwrap())
+            .flatten()
+            .collect_vec();
+
+        let schema =
+            arrow::json::reader::infer_json_schema_from_iterator(self.input.iter().map(Ok))
+                .context("Could not infer schema from json input")?;
+        let mut reader = arrow::json::reader::ReaderBuilder::new(Arc::new(schema))
+            .build(json.as_slice())
+            .context("Could not build record reader from json stream")?;
+        let batch = reader.next().unwrap()?;
+
+        let output = self.parser.transform(&batch)?;
+
+        let output = output
+            .iter()
+            .map(|batch| batch.into_modeled_json())
+            .collect_vec();
+        Ok(output)
+    }
 }
 
 /// Flat stream transform sample data simulation.
 #[utoipa::path(
     tag = "transform",
-    request_body = Pipeline,
+    request_body = DsSampleIn,
     responses(
-        (status = 200, description = "Data source definition of some", body = DsSampleOut),
-    ),
-    params(
-        LangQuery,
-    ),
+        (status = 200, description = "Sample data output", body = Vec<DsSampleOut>),
+    )
 )]
 #[post("/transform/sample/flat")]
 pub(super) async fn data_source_sample(data: Json<DsSampleIn>) -> impl Responder {
     let sample_in = data.into_inner();
 
-    if sample_in.input.is_empty() {
-        return HttpResponse::BadRequest().json(Failed {
-            code: Code::new(-1),
-            message: "Input is empty".into(),
-        });
+    match sample_in.transform() {
+        Ok(output) => Ok(HttpResponse::Ok()
+            .content_type(ContentType::json())
+            .json(output)),
+        Err(err) => Err(Failed {
+            code: Code::FAILED,
+            message: format!("{:#}", err),
+        }),
     }
-
-    let json = sample_in
-        .input
-        .iter()
-        .map(|value| serde_json::to_vec(value).unwrap())
-        .flatten()
-        .collect_vec();
-
-    let schema =
-        arrow::json::reader::infer_json_schema_from_iterator(sample_in.input.iter().map(Ok))
-            .unwrap();
-    let mut reader = arrow::json::reader::ReaderBuilder::new(Arc::new(schema))
-        .build(json.as_slice())
-        .unwrap();
-    let batch = reader.next().unwrap().unwrap();
-
-    let output = sample_in.parse.transform(&batch).unwrap();
-
-    let output = output
-        .iter()
-        .map(|batch| batch.into_modeled_json())
-        .collect_vec();
     // let schema = Arc::new(arrow::datatypes::Schema::new(
     //     sample_in.input[0]
     //         .iter()
@@ -264,8 +296,6 @@ pub(super) async fn data_source_sample(data: Json<DsSampleIn>) -> impl Responder
     //         })
     //         .collect_vec(),
     // ));
-
-    HttpResponse::Ok().json(&output)
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
