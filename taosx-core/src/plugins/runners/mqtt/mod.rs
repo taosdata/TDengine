@@ -80,20 +80,29 @@ pub async fn mqtt_to_taos(
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
+    let config_path = config_file.path().to_path_buf();
+    let temp_path = config_file.into_temp_path();
+    tracing::info!(
+        "Using mqtt config file {} \n{}",
+        config_path.display(),
+        toml
+    );
     // save the temporary file to task dir
-    let path = get_data_dir()
-        .join("tasks")
-        .join(task_id.unwrap().to_string());
-    std::fs::create_dir_all(&path).unwrap();
-    let path = path.join(format!(
-        "{}-{}-{}.{}",
-        task_id.unwrap(),
-        "mqtt",
-        chrono::Local::now().format("%Y%m%d%H%M"),
-        "toml"
-    ));
-    let _ = config_file.persist(path.clone());
-    tracing::info!("Using config file {}", path.display());
+    match task_id {
+        Some(task_id) => {
+            let path = get_data_dir().join("tasks").join(task_id.to_string());
+            std::fs::create_dir_all(&path).unwrap();
+            let path = path.join(format!(
+                "{}-{}-{}.{}",
+                task_id,
+                "mqtt",
+                chrono::Local::now().format("%Y%m%d%H%M"),
+                "toml"
+            ));
+            fs::copy(config_path, path);
+        }
+        None => {}
+    }
     // create socket channel
     let mut ipc_handler = build_ipc(
         &config.remote,
@@ -124,7 +133,7 @@ pub async fn mqtt_to_taos(
     let mut log_rotation = log_rotation(&log_path, log_keep_days);
     let child = command
         .arg("-c")
-        .arg(&path)
+        .arg(&config_path)
         .kill_on_drop(true)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
@@ -167,6 +176,7 @@ pub async fn mqtt_to_taos(
     macro_rules! safe_exit {
         () => {
             let _ = ipc_handler.close().await;
+            let _ = temp_path.close();
             port_pool.put(ipc_port).await;
         };
     }

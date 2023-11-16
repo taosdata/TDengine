@@ -75,20 +75,26 @@ pub async fn opentsdb_to_taos(
     // write to a temporary file
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
+    // get the path of the temporary file
+    let config_path = config_file.path().to_path_buf();
+    let temp_path = config_file.into_temp_path();
+    tracing::info!("Using config file {}", config_path.display());
     // save the temporary file to task dir
-    let path = get_data_dir()
-        .join("tasks")
-        .join(task_id.unwrap().to_string());
-    std::fs::create_dir_all(&path).unwrap();
-    let path = path.join(format!(
-        "{}-{}-{}.{}",
-        task_id.unwrap(),
-        "opentsdb",
-        chrono::Local::now().format("%Y%m%d%H%M"),
-        "toml"
-    ));
-    let _ = config_file.persist(path.clone());
-    tracing::info!("Using config file {}", path.display());
+    match task_id {
+        Some(task_id) => {
+            let path = get_data_dir().join("tasks").join(task_id.to_string());
+            std::fs::create_dir_all(&path).unwrap();
+            let path = path.join(format!(
+                "{}-{}-{}.{}",
+                task_id,
+                "opentsdb",
+                chrono::Local::now().format("%Y%m%d%H%M"),
+                "toml"
+            ));
+            fs::copy(config_path, path);
+        }
+        None => {}
+    }
 
     let exec_span = tracing::info_span!("extern plugin exec", plugin.name = "opentsdb");
     exec_span.follows_from(&span);
@@ -142,7 +148,7 @@ pub async fn opentsdb_to_taos(
         child = command
             .arg("-jar")
             .arg(&connector_path)
-            .arg(&path)
+            .arg(&config_path)
             .stdout(std::process::Stdio::inherit())
             .stderr(std::process::Stdio::piped());
     } else {
@@ -150,7 +156,7 @@ pub async fn opentsdb_to_taos(
             .arg("--add-opens=java.base/java.nio=ALL-UNNAMED")
             .arg("-jar")
             .arg(&connector_path)
-            .arg(&path)
+            .arg(&config_path)
             .kill_on_drop(true)
             .stdout(std::process::Stdio::inherit())
             .stderr(std::process::Stdio::piped());
@@ -192,6 +198,7 @@ pub async fn opentsdb_to_taos(
                     // kill child pid before raising error
                     let _ = child.terminate_timeout(Duration::from_secs(2)).await;
                     let _ = ipc_handler.close().await;
+                    temp_path.close().unwrap();
                     port_pool.put(ipc_port).await;
                 };
             }
