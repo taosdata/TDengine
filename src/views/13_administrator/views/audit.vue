@@ -84,6 +84,18 @@
       >
       </el-table-column>
       <el-table-column
+        :label="$t('taosuser.db')"
+        prop="db"
+        show-overflow-tooltip
+      >
+      </el-table-column>
+      <el-table-column
+        :label="$t('taosuser.resource')"
+        prop="resource"
+        show-overflow-tooltip
+      >
+      </el-table-column>
+      <el-table-column
         :label="$t('taosuser.details')"
         prop="details"
         min-width="260"
