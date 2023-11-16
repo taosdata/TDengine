@@ -143,50 +143,6 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer
   return 0;
 }
 
-SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
-  SSnode *pSnode = taosMemoryCalloc(1, sizeof(SSnode));
-  if (pSnode == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-  pSnode->path = taosStrdup(path);
-  if (pSnode->path == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto FAIL;
-  }
-
-  pSnode->msgCb = pOption->msgCb;
-  pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskExpand *)sndExpandTask, SNODE_HANDLE, taosGetTimestampMs());
-  if (pSnode->pMeta == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto FAIL;
-  }
-
-  if (streamMetaLoadAllTasks(pSnode->pMeta) < 0) {
-    goto FAIL;
-  }
-
-  stopRsync();
-  startRsync();
-
-  return pSnode;
-
-FAIL:
-  taosMemoryFree(pSnode->path);
-  taosMemoryFree(pSnode);
-  return NULL;
-}
-
-void sndClose(SSnode *pSnode) {
-  streamMetaNotifyClose(pSnode->pMeta);
-  streamMetaCommit(pSnode->pMeta);
-  streamMetaClose(pSnode->pMeta);
-  taosMemoryFree(pSnode->path);
-  taosMemoryFree(pSnode);
-}
-
-int32_t sndGetLoad(SSnode *pSnode, SSnodeLoad *pLoad) { return 0; }
-
 int32_t sndStartStreamTasks(SSnode* pSnode) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      vgId = SNODE_HANDLE;
@@ -223,7 +179,7 @@ int32_t sndStartStreamTasks(SSnode* pSnode) {
     if (pTask->status.downstreamReady == 1) {
       if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
         sndDebug("s-task:%s downstream ready, no need to check downstream, check only related fill-history task",
-                pTask->id.idStr);
+                 pTask->id.idStr);
         streamLaunchFillHistoryTask(pTask);
       }
 
@@ -284,7 +240,7 @@ int32_t sndRestartStreamTasks(SSnode* pSnode) {
 
   terrno = 0;
   sndInfo("vgId:%d tasks are all updated and stopped, restart all tasks, triggered by transId:%d", vgId,
-         pMeta->updateInfo.transId);
+          pMeta->updateInfo.transId);
 
   while (streamMetaTaskInTimer(pMeta)) {
     sndDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
@@ -301,11 +257,12 @@ int32_t sndRestartStreamTasks(SSnode* pSnode) {
     return code;
   }
 
+  streamMetaInitBackend(pMeta);
   int64_t el = taosGetTimestampMs() - st;
 
-  sndInfo("vgId:%d close&reload state elapsed time:%.3fms", vgId, el/1000.);
+  sndInfo("vgId:%d close&reload state elapsed time:%.3fs", vgId, el/1000.);
 
-  code = streamMetaLoadAllTasks(pSnode->pMeta);
+  code = streamMetaLoadAllTasks(pMeta);
   if (code != TSDB_CODE_SUCCESS) {
     sndError("vgId:%d failed to load stream tasks, code:%s", vgId, tstrerror(terrno));
     streamMetaWUnLock(pMeta);
@@ -314,12 +271,63 @@ int32_t sndRestartStreamTasks(SSnode* pSnode) {
   }
   sndInfo("vgId:%d restart all stream tasks after all tasks being updated", vgId);
   sndResetStreamTaskStatus(pSnode);
-  sndStartStreamTasks(pSnode);
 
   streamMetaWUnLock(pMeta);
+  sndStartStreamTasks(pSnode);
+
   code = terrno;
   return code;
 }
+
+SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
+  SSnode *pSnode = taosMemoryCalloc(1, sizeof(SSnode));
+  if (pSnode == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  pSnode->path = taosStrdup(path);
+  if (pSnode->path == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto FAIL;
+  }
+
+  pSnode->msgCb = pOption->msgCb;
+  pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskExpand *)sndExpandTask, SNODE_HANDLE, taosGetTimestampMs());
+  if (pSnode->pMeta == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto FAIL;
+  }
+
+  if (streamMetaLoadAllTasks(pSnode->pMeta) < 0) {
+    goto FAIL;
+  }
+
+  stopRsync();
+  startRsync();
+
+  return pSnode;
+
+FAIL:
+  taosMemoryFree(pSnode->path);
+  taosMemoryFree(pSnode);
+  return NULL;
+}
+
+int32_t sndInit(SSnode * pSnode) {
+  sndResetStreamTaskStatus(pSnode);
+  sndStartStreamTasks(pSnode);
+  return 0;
+}
+
+void sndClose(SSnode *pSnode) {
+  streamMetaNotifyClose(pSnode->pMeta);
+  streamMetaCommit(pSnode->pMeta);
+  streamMetaClose(pSnode->pMeta);
+  taosMemoryFree(pSnode->path);
+  taosMemoryFree(pSnode);
+}
+
+int32_t sndGetLoad(SSnode *pSnode, SSnodeLoad *pLoad) { return 0; }
 
 int32_t sndStartStreamTaskAsync(SSnode* pSnode, bool restart) {
   SStreamMeta* pMeta = pSnode->pMeta;
@@ -622,7 +630,7 @@ int32_t sndProcessStreamTaskCheckReq(SSnode *pSnode, SRpcMsg *pMsg) {
   SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, req.streamId, taskId);
 
   if (pTask != NULL) {
-    rsp.status = streamTaskCheckStatus(pTask, req.upstreamTaskId, req.upstreamNodeId, req.stage);
+    rsp.status = streamTaskCheckStatus(pTask, req.upstreamTaskId, req.upstreamNodeId, req.stage, &rsp.oldStage);
     streamMetaReleaseTask(pSnode->pMeta, pTask);
     char* p = NULL;
     streamTaskGetStatus(pTask, &p);

@@ -592,7 +592,7 @@ typedef struct {
   int32_t downstreamNodeId;
   int32_t downstreamTaskId;
   int32_t childId;
-  int32_t oldStage;
+  int64_t oldStage;
   int8_t  status;
 } SStreamTaskCheckRsp;
 
@@ -760,7 +760,7 @@ void    initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen)
 // recover and fill history
 void    streamTaskCheckDownstream(SStreamTask* pTask);
 
-int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage);
+int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage, int64_t* oldStage);
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
 void    streamTaskResetUpstreamStageInfo(SStreamTask* pTask);
 bool    streamTaskAllUpstreamClosed(SStreamTask* pTask);

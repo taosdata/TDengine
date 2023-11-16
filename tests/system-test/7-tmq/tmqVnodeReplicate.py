@@ -105,7 +105,6 @@ class TDTestCase:
 
         topicNameList = ['topic1']
         # expectRowsList = []
-        tmqCom.initConsumerTable("cdb", self.replicaVar)
 
         tdLog.info("create topics from stb with filter")
         queryString = "select * from %s.%s"%(paraDict['dbName'], paraDict['stbName'])

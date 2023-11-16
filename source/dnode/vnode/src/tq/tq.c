@@ -923,12 +923,12 @@ int32_t tqProcessTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
   } else {
     SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, taskId);
     if (pTask != NULL) {
-      rsp.status = streamTaskCheckStatus(pTask, req.upstreamTaskId, req.upstreamNodeId, req.stage);
+      rsp.status = streamTaskCheckStatus(pTask, req.upstreamTaskId, req.upstreamNodeId, req.stage, &rsp.oldStage);
       streamMetaReleaseTask(pMeta, pTask);
 
       char* p = NULL;
       streamTaskGetStatus(pTask, &p);
-      tqDebug("s-task:%s status:%s, stage:%d recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), check_status:%d",
+      tqDebug("s-task:%s status:%s, stage:%"PRId64" recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), check_status:%d",
               pTask->id.idStr, p, rsp.oldStage, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
     } else {
       rsp.status = TASK_DOWNSTREAM_NOT_READY;
