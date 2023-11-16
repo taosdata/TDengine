@@ -202,7 +202,8 @@ STREAM_ENCODE_OVER:
     return NULL;
   }
 
-  mTrace("stream:%s, encode to raw:%p, row:%p", pStream->name, pRaw, pStream);
+  mTrace("stream:%s, encode to raw:%p, row:%p, checkpoint:%" PRId64 "", pStream->name, pRaw, pStream,
+         pStream->checkpointId);
   return pRaw;
 }
 
@@ -255,7 +256,8 @@ STREAM_DECODE_OVER:
     return NULL;
   }
 
-  mTrace("stream:%s, decode from raw:%p, row:%p", pStream->name, pRaw, pStream);
+  mTrace("stream:%s, decode from raw:%p, row:%p, checkpoint:%" PRId64 "", pStream->name, pRaw, pStream,
+         pStream->checkpointId);
   return pRow;
 }
 
@@ -908,8 +910,11 @@ int64_t mndStreamGenChkpId(SMnode *pMnode) {
     if (pIter == NULL) break;
 
     maxChkpId = TMAX(maxChkpId, pStream->checkpointId);
+    mError("stream %p checkpoint %" PRId64 "", pStream, pStream->checkpointId);
     sdbRelease(pSdb, pStream);
   }
+
+  mError("generated checkpoint %" PRId64 "", maxChkpId + 1);
   return maxChkpId + 1;
 }
 
