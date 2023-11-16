@@ -6878,11 +6878,6 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   if (tEncodeI8(&encoder, pReq->igUpdate) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->lastTs) < 0) return -1;
 
-  if (pReq->createSQLLen > 0 && pReq->sql != NULL){                  
-    if (tEncodeI32(&encoder, pReq->createSQLLen) < 0) return -1;     
-    if (tEncodeBinary(&encoder, pReq->createSQL, pReq->createSQLLen) < 0) return -1;       
-  } 
-
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -6969,13 +6964,6 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
   if (tDecodeI8(&decoder, &pReq->igUpdate) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->lastTs) < 0) return -1;
 
-  if(!tDecodeIsEnd(&decoder)){                                 
-    if(tDecodeI32(&decoder, &pReq->createSQLLen) < 0) return -1;    
-    if(pReq->createSQLLen > 0){                                     
-      if (tDecodeBinaryAlloc(&decoder, (void **)&pReq->createSQL, NULL) < 0) return -1;  
-    }                                                         
-  } 
-
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -7056,11 +7044,6 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosMemoryFreeClear(pReq->sql);
   taosMemoryFreeClear(pReq->ast);
   taosArrayDestroy(pReq->fillNullCols);
-
-  if(pReq->createSQL != NULL){            
-    taosMemoryFree(pReq->createSQL);      
-  }                                 
-  pReq->createSQL = NULL; 
 }
 
 int32_t tEncodeSRSmaParam(SEncoder *pCoder, const SRSmaParam *pRSmaParam) {

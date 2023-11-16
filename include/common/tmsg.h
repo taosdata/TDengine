@@ -2355,8 +2355,6 @@ typedef struct {
   int64_t  deleteMark;
   int8_t   igUpdate;
   int64_t  lastTs;
-  char*    createSQL;
-  int32_t  createSQLLen;
 } SCMCreateStreamReq;
 
 typedef struct {
