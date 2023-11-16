@@ -17,6 +17,7 @@ use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
 };
 
+use super::get_data_dir;
 use super::get_plugin_dir;
 
 mod config;
@@ -76,6 +77,22 @@ pub async fn influxdb_to_taos(
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
     tracing::info!("Using config file {}", config_path.display());
+    // save the temporary file to task dir
+    match task_id {
+        Some(task_id) => {
+            let path = get_data_dir().join("tasks").join(task_id.to_string());
+            std::fs::create_dir_all(&path).unwrap();
+            let path = path.join(format!(
+                "{}-{}-{}.{}",
+                task_id,
+                "influxdb",
+                chrono::Local::now().format("%Y%m%d%H%M"),
+                "toml"
+            ));
+            let _ = fs::copy(&config_path, path);
+        }
+        None => {}
+    }
     // create socket channel
     let mut ipc = build_ipc(
         format!("127.0.0.1:{ipc_port}").as_str(),

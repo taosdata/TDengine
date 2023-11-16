@@ -165,7 +165,12 @@ impl Cli {
 
         if !self.do_not_resume.unwrap_or(false) {
             info!("resume all tasks");
-            controller.start_all_with_schedule().await?;
+            let controller = controller.clone();
+            tokio::spawn(async move {
+                if let Err(err) = controller.start_all_with_schedule().await {
+                    tracing::error!("resume all tasks error: {}", err);
+                }
+            });
         }
         Ok(controller)
     }
@@ -380,7 +385,7 @@ impl Cli {
             }
         };
         store_cloned.shutdown().await?;
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
         drop(store_cloned);
         span.exit();
         Ok(())

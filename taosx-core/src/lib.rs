@@ -318,6 +318,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
                     .await?;
@@ -333,6 +334,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
                     .await?;
@@ -348,6 +350,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
                     .await?;

@@ -146,7 +146,7 @@ async fn service() -> anyhow::Result<()> {
     let thread = std::thread::spawn(move || spawn_rest_service(taos, 6055, cancellation2));
 
     tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_secs(5)).await;
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
         cancellation.cancelled().await;
     });
     thread.join().unwrap()?;

@@ -487,6 +487,7 @@ async fn worker(
                             }
                             None => {
                                 counter!(METRICS_LEGACY_TABLES, 1);
+                                metrics.tables.fetch_add(1, Ordering::SeqCst);
                                 if let Some(sender) = sender {
                                     let _ = sender.send(Ok(()));
                                 }

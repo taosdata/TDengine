@@ -1,3 +1,4 @@
+
 use std::fmt::{Debug, Display, Formatter};
 use std::fs;
 
@@ -19,9 +20,9 @@ use itertools::Itertools;
 use metrics_util::debugging::Snapshotter;
 use serde::{Deserialize, Serialize};
 use taos::Code;
+use taosx_core::utils::metrics_db::MetricsDb;
 use taosx_core::{
-    get_data_dir, get_file_upload_home_dir, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND,
-    METRICS_TIME_START,
+    get_data_dir, get_file_upload_home_dir, LegacyMetrics, METRICS_TIME_COST, METRICS_TIME_START,
 };
 use utoipa::*;
 
@@ -492,15 +493,40 @@ pub(super) async fn get_task_metrics(
     task_store: Data<TaskControllerRef>,
     id: Path<i64>,
 ) -> impl Responder {
-    let id = id.into_inner();
-    get_task_metrics_by_id(&snapshotter, &task_store, id).await
+    let task_id = id.into_inner();
+    if let Some(data) = get_task_metrics_from_snapshot(&snapshotter, &task_store, task_id).await {
+        Ok(data)
+    } else if let Some(data) = get_task_metrics_from_db(task_id) {
+        Ok(data)
+    } else {
+        Err(Failed {
+            code: Code::FAILED,
+            message: "Not found".to_string(),
+        })
+    }
 }
 
-pub(crate) async fn get_task_metrics_by_id(
+pub(crate) fn get_task_metrics_from_db(task_id: i64) -> Option<String> {
+    tracing::info!("get task metrics from MetricsDb");
+    let new_db_result = MetricsDb::new(task_id.to_string().as_str());
+    match new_db_result {
+        Ok(metrics_db) => {
+            let metrics_json = metrics_db.get().unwrap().unwrap();
+            let metrics = LegacyMetrics::from_json(&metrics_json).unwrap();
+            Some(metrics.to_task_metrics_json())
+        }
+        Err(err) => {
+            tracing::warn!("{:?}", err);
+            None
+        }
+    }
+}
+
+pub(crate) async fn get_task_metrics_from_snapshot(
     snapshotter: &Data<Snapshotter>,
     task_store: &Data<TaskControllerRef>,
-    id: i64,
-) -> serde_json::Result<String> {
+    task_id: i64,
+) -> Option<String> {
     let snapshot = snapshotter.snapshot().into_hashmap();
     // dbg!(&snapshot);
     let mut map = snapshot
@@ -508,7 +534,7 @@ pub(crate) async fn get_task_metrics_by_id(
         .filter(|(k, _)| {
             k.key()
                 .labels()
-                .find(|label| label.key() == "task.id" && label.value() == id.to_string())
+                .find(|label| label.key() == "task.id" && label.value() == task_id.to_string())
                 .is_some()
         })
         .map(|(k, v)| {
@@ -525,10 +551,13 @@ pub(crate) async fn get_task_metrics_by_id(
             )
         })
         .collect::<std::collections::BTreeMap<_, _>>();
+    if map.is_empty() {
+        return None;
+    }
     let task_started_timestamp = map.get(METRICS_TIME_START);
     if task_started_timestamp.is_some() {
         let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
-        let task = task_store.get(id).await.unwrap().unwrap();
+        let task = task_store.get(task_id).await.unwrap().unwrap();
         let time_elapsed_in_seconds = if matches!(task.status(), Status::Running) {
             let time_elasped = (Utc::now().timestamp_millis()
                 - task_started_timestamp.as_f64().unwrap() as i64)
@@ -557,24 +586,25 @@ pub(crate) async fn get_task_metrics_by_id(
                 METRICS_TIME_COST.to_string(),
                 Some((time_elapsed_in_seconds.unwrap()).into()),
             );
-            let records_vec = map
-                .iter()
-                .filter(|(k, _v)| k.contains("records"))
-                .map(|(_k, v)| v)
-                .collect_vec();
-            let records = records_vec.get(0);
-            if let Some(Some(records)) = records {
-                map.insert(
-                    METRICS_TIME_RECORDS_PER_SECOND.to_string(),
-                    Some(
-                        (records.as_i64().unwrap_or_default() / time_elapsed_in_seconds.unwrap())
-                            .into(),
-                    ),
-                );
-            }
+            // let records_vec = map
+            //     .iter()
+            //     .filter(|(k, _v)| k.contains("records"))
+            //     .map(|(_k, v)| v)
+            //     .collect_vec();
+            // let records = records_vec.get(0);
+            // Hide this metric temporarily
+            // if let Some(Some(records)) = records {
+            //     map.insert(
+            //         METRICS_TIME_RECORDS_PER_SECOND.to_string(),
+            //         Some(
+            //             (records.as_i64().unwrap_or_default() / time_elapsed_in_seconds.unwrap())
+            //                 .into(),
+            //         ),
+            //     );
+            // }
         }
     }
-    serde_json::to_string(&map)
+    Some(serde_json::to_string(&map).unwrap())
 }
 
 #[derive(Debug, MultipartForm, ToSchema)]
