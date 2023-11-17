@@ -293,6 +293,9 @@ typedef struct STableMergeScanInfo {
   int32_t         readIdx;
   SSDataBlock*    pResBlock;
   SSampleExecInfo sample;  // sample execution info
+  SSHashObj*       mTableNumRows; // uid->num of table rows
+  SHashObj*        mSkipTables;
+  int64_t          mergeLimit;
   SSortExecInfo   sortExecInfo;
 } STableMergeScanInfo;
 
