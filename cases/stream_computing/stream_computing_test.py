@@ -145,6 +145,7 @@ class StreamComputingTest(TDCase):
         self.tag_count = len(self.tag_filter_des_select_elm.split(","))
 
         self.state_window_range = list()
+        self.checkpoint_time = 180
 
     def update_delete_history_data(self):
         self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.record_history_ts)
@@ -2806,10 +2807,12 @@ class StreamComputingTest(TDCase):
                         self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=ts_cast_delete_value)
                         self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
                 count += 1
-            # check result
+        # check result
+        self.tdCom.stream_timeout = self.checkpoint_time
         self.tdCom.check_query_data(f'select {self.stb_filter_des_select_elm} from {self.stb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.stb_name} where {self.stb_data_filter_sql} partition by tbname;')
         self.tdCom.check_query_data(f'select {self.tb_filter_des_select_elm} from {self.ctb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.ctb_name} where {self.stb_data_filter_sql};')
         self.tdCom.check_query_data(f'select {self.tb_filter_des_select_elm} from {self.tb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.tb_name} where {self.tb_data_filter_sql};')
+        self.tdCom.stream_timeout = 12
 
     def insert_after_recreate_source_table(self):
         count = self.data_filter(True)
@@ -3006,10 +3009,8 @@ class StreamComputingTest(TDCase):
             self.create_none_source_tb_tag_stream()
             self.create_none_source_tb_col_stream()
             self.create_error_source_sql_stream()
-            ## ! rep3 TD-20280
-            if int(os.environ["DATABASE_REPLICAS"]) == 1:
-                self.insert_after_restart()
-            # self.insert_after_restart(delete=True, fill_history_value=1)
+            self.insert_after_restart()
+            self.insert_after_restart(delete=True, fill_history_value=1)
             ## ! TD-18123
             # # self.insert_after_recreate_source_table()
             self.query_after_drop_stream_db()
