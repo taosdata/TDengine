@@ -233,7 +233,7 @@ typedef struct put_object_callback_data {
 
 #define MULTIPART_CHUNK_SIZE (768 << 20)  // multipart is 768M
 
-typedef struct UploadManager {
+typedef struct {
   char     err_msg[512];
   S3Status status;
   uint64_t content_length;
@@ -308,6 +308,7 @@ static int putObjectDataCallback(int bufferSize, char *buffer, void *callbackDat
 S3Status initial_multipart_callback(const char *upload_id, void *callbackData) {
   UploadManager *manager = (UploadManager *)callbackData;
   manager->upload_id = strdup(upload_id);
+  manager->status = S3StatusOK;
   return S3StatusOK;
 }
 
@@ -509,15 +510,15 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
   } else {
     uint64_t      totalContentLength = contentLength;
     uint64_t      todoContentLength = contentLength;
-    UploadManager manager;
-    manager.upload_id = 0;
-    manager.gb = 0;
+    UploadManager manager = {0};
+    // manager.upload_id = 0;
+    // manager.gb = 0;
 
     // div round up
     int       seq;
     uint64_t  chunk_size = MULTIPART_CHUNK_SIZE >> 7;
     int       totalSeq = (contentLength + chunk_size - 1) / chunk_size;
-    const int max_part_num = 1000;
+    const int max_part_num = 10000;
     if (totalSeq > max_part_num) {
       chunk_size = (contentLength + max_part_num - contentLength % max_part_num) / max_part_num;
       totalSeq = (contentLength + chunk_size - 1) / chunk_size;
