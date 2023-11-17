@@ -14,10 +14,15 @@
  */
 #include "mndCompact.h"
 #include "mndTrans.h"
+#include "mndShow.h"
+#include "mndDb.h"
 
 #define MND_COMPACT_VER_NUMBER 1
 
 int32_t mndInitCompact(SMnode *pMnode) {
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_COMPACT, mndRetrieveCompact);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_COMPACT_DETAIL, mndRetrieveCompactDetail);
+
   SSdbTable table = {
       .sdbType = SDB_COMPACT,
       .keyType = SDB_KEY_BINARY,
@@ -271,4 +276,120 @@ int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* p
   taosArrayPush(pCompact->compactDetail, &compactDetail);
 
   return 0;
+}
+
+int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows){
+  SMnode     *pMnode = pReq->info.node;
+  SSdb       *pSdb = pMnode->pSdb;
+  int32_t     numOfRows = 0;
+  SCompactObj   *pCompact = NULL;
+  char       *sep = NULL;
+  SDbObj     *pDb = NULL;
+  
+  if (strlen(pShow->db) > 0) {
+    sep = strchr(pShow->db, '.');
+    if (sep && ((0 == strcmp(sep + 1, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcmp(sep + 1, TSDB_PERFORMANCE_SCHEMA_DB))))) {
+      sep++;
+    } else {
+      pDb = mndAcquireDb(pMnode, pShow->db);
+      if (pDb == NULL) return terrno;
+    }
+  }
+
+  while (numOfRows < rows) {
+    pShow->pIter = sdbFetch(pSdb, SDB_COMPACT, pShow->pIter, (void **)&pCompact);
+    if (pShow->pIter == NULL) break;
+
+    SColumnInfoData *pColInfo;
+    SName            n;
+    int32_t          cols = 0;
+
+    char tmpBuf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pCompact->compactId, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (pDb != NULL || !IS_SYS_DBNAME(pCompact->dbname)) {
+      SName name = {0};
+      tNameFromString(&name, pCompact->dbname, T_NAME_ACCT | T_NAME_DB);
+      tNameGetDbName(&name, varDataVal(tmpBuf));
+    } else {
+      strncpy(varDataVal(tmpBuf), pCompact->dbname, strlen(pCompact->dbname) + 1);
+    }
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pCompact->startTime, false);
+
+    numOfRows++;
+    sdbRelease(pSdb, pCompact);
+  }
+
+  pShow->numOfRows += numOfRows;
+  mndReleaseDb(pMnode, pDb);
+  return numOfRows;
+}
+
+int32_t mndRetrieveCompactDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows){
+  SMnode     *pMnode = pReq->info.node;
+  SSdb       *pSdb = pMnode->pSdb;
+  int32_t     numOfRows = 0;
+  SCompactObj   *pCompact = NULL;
+  SCompactDetailObj   *pCompactDetail = NULL;
+  char       *sep = NULL;
+  SDbObj     *pDb = NULL;
+  
+  if (strlen(pShow->db) > 0) {
+    sep = strchr(pShow->db, '.');
+    if (sep && ((0 == strcmp(sep + 1, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcmp(sep + 1, TSDB_PERFORMANCE_SCHEMA_DB))))) {
+      sep++;
+    } else {
+      pDb = mndAcquireDb(pMnode, pShow->db);
+      if (pDb == NULL) return terrno;
+    }
+  }
+
+  while (numOfRows < rows) {
+    pShow->pIter = sdbFetch(pSdb, SDB_COMPACT, pShow->pIter, (void **)&pCompact);
+    if (pShow->pIter == NULL) break;
+
+    while(numOfRows < rows){
+      pShow->pIter = sdbFetch(pSdb, SDB_COMPACT, pShow->pIter, (void **)&pCompact);
+      if (pShow->pIter == NULL) break;
+
+      SColumnInfoData *pColInfo;
+      SName            n;
+      int32_t          cols = 0;
+
+      char tmpBuf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pCompact->compactId, false);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      if (pDb != NULL || !IS_SYS_DBNAME(pCompact->dbname)) {
+        SName name = {0};
+        tNameFromString(&name, pCompact->dbname, T_NAME_ACCT | T_NAME_DB);
+        tNameGetDbName(&name, varDataVal(tmpBuf));
+      } else {
+        strncpy(varDataVal(tmpBuf), pCompact->dbname, strlen(pCompact->dbname) + 1);
+      }
+      varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+      colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pCompact->startTime, false);
+
+      numOfRows++;
+      sdbRelease(pSdb, pCompact);
+    }
+    
+    sdbRelease(pSdb, pCompact);
+  }
+
+  pShow->numOfRows += numOfRows;
+  mndReleaseDb(pMnode, pDb);
+  return numOfRows;
 }

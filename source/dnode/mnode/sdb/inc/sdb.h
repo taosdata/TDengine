@@ -150,7 +150,8 @@ typedef enum {
   SDB_IDX = 21,
   SDB_VIEW = 22,
   SDB_COMPACT = 23,
-  SDB_MAX = 24
+  SDB_COMPACT_DETAIL = 24,
+  SDB_MAX = 25
 } ESdbType;
 
 typedef struct SSdbRaw {
