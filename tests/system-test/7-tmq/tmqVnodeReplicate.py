@@ -132,14 +132,15 @@ class TDTestCase:
         tmqCom.getStartConsumeNotifyFromTmqsim()
         tmqCom.getStartCommitNotifyFromTmqsim()
 
-        tdSql.query("select * from information_schema.ins_vnodes")
-        # tdLog.debug(tdSql.queryResult)
-        tdDnodes = cluster.dnodes
-        for result in tdSql.queryResult:
-            if result[2] == 'dbt' and result[3] == 'leader':
-                tdLog.debug("leader is %d"%(result[0] - 1))
-                tdDnodes[result[0] - 1].stoptaosd()
-                break
+        tdSql.query("balance vgroup leader")
+        # tdSql.query("select * from information_schema.ins_vnodes")
+        # # tdLog.debug(tdSql.queryResult)
+        # tdDnodes = cluster.dnodes
+        # for result in tdSql.queryResult:
+        #     if result[2] == 'dbt' and result[3] == 'leader':
+        #         tdLog.debug("leader is %d"%(result[0] - 1))
+        #         tdDnodes[result[0] - 1].stoptaosd()
+        #         break
 
         pInsertThread.join()
         expectRows = 1
@@ -158,7 +159,6 @@ class TDTestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def run(self):
-        tdSql.prepare()
         self.prepareTestEnv()
         self.tmqCase1()
 
