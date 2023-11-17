@@ -2784,11 +2784,44 @@ static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg, 
   pNew->hasGroup = pAgg->hasGroup;
   pNew->node.pChildren = nodesCloneList(pAgg->node.pChildren);
 
-  SNode* pNode = NULL;
-  FOREACH(pNode, pNew->node.pChildren) {
-    if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
-      OPTIMIZE_FLAG_CLEAR_MASK(((SScanLogicNode*)pNode)->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
+  int32_t code = 0;
+  SNode* pNode = nodesListGetNode(pNew->node.pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    SNodeList* pOldScanCols = NULL;
+    TSWAP(pScan->pScanCols, pOldScanCols);
+    nodesDestroyList(pScan->pScanPseudoCols);
+    pScan->pScanPseudoCols = NULL;
+    nodesDestroyList(pScan->node.pTargets);
+    pScan->node.pTargets = NULL;
+    SNodeListNode* list = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
+    list->pNodeList = pFunc;
+    code = nodesCollectColumnsFromNode((SNode*)list, NULL, COLLECT_COL_TYPE_COL, &pScan->pScanCols);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
     }
+    nodesFree(list);
+    bool found = false;
+    FOREACH(pNode, pScan->pScanCols) {
+      if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      FOREACH(pNode, pOldScanCols) {
+        if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
+          nodesListMakeStrictAppend(&pScan->pScanCols, nodesCloneNode(pNode));
+          break;
+        }
+      }
+    }
+    nodesDestroyList(pOldScanCols);
+    code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    OPTIMIZE_FLAG_CLEAR_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
   }
 
   *pNewAgg = pNew;

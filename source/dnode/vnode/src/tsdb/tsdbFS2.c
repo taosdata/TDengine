@@ -879,14 +879,43 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
         continue;
       }
 
+      bool    skipMerge = false;
       int32_t numFile = TARRAY2_SIZE(lvl->fobjArr);
       if (numFile >= sttTrigger) {
         // launch merge
-        code = tsdbSchedMerge(fs->tsdb, fset->fid);
-        TSDB_CHECK_CODE(code, lino, _exit);
+        {
+          extern int8_t  tsS3Enabled;
+          extern int32_t tsS3UploadDelaySec;
+          long           s3Size(const char *object_name);
+          int32_t        nlevel = tfsGetLevel(fs->tsdb->pVnode->pTfs);
+          if (tsS3Enabled && nlevel > 1) {
+            STFileObj *fobj = fset->farr[TSDB_FTYPE_DATA];
+            if (fobj && fobj->f->did.level == nlevel - 1) {
+              // if exists on s3 or local mtime < committer->ctx->now - tsS3UploadDelay
+              const char *object_name = taosDirEntryBaseName((char *)fobj->fname);
+
+              if (taosCheckExistFile(fobj->fname)) {
+                int32_t now = taosGetTimestampSec();
+                int32_t mtime = 0;
+                taosStatFile(fobj->fname, NULL, &mtime, NULL);
+                if (mtime < now - tsS3UploadDelaySec) {
+                  skipMerge = true;
+                }
+              } else if (s3Size(object_name) > 0) {
+                skipMerge = true;
+              }
+            }
+            // new fset can be written with ts data
+          }
+        }
+
+        if (!skipMerge) {
+          code = tsdbSchedMerge(fs->tsdb, fset->fid);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
       }
 
-      if (numFile >= sttTrigger * BLOCK_COMMIT_FACTOR) {
+      if (numFile >= sttTrigger * BLOCK_COMMIT_FACTOR && !skipMerge) {
         tsdbFSSetBlockCommit(fset, true);
       } else {
         tsdbFSSetBlockCommit(fset, false);

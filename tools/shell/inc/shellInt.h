@@ -80,6 +80,7 @@ typedef struct {
 #ifdef WEBSOCKET
   bool        restful;
   bool        cloud;
+  bool        local;
   char*       dsn;
   int32_t     timeout;
 #endif
