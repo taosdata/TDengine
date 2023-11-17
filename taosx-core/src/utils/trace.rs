@@ -330,6 +330,23 @@ pub fn get_data_trace_id_str(data_trace_id: u64) -> String {
 }
 
 #[inline]
-pub fn create_query_id(data_trace_id: u64) -> u64 {
-    data_trace_id + (random::<u64>() >> 48)
+pub fn get_stream_id_u64(stream_id: &str) -> u64 {
+    u64::from_str_radix(stream_id, 16).unwrap()
+}
+
+pub struct RequestID {
+    inner: u64,
+}
+
+impl RequestID {
+    pub fn new(inital_value: u64) -> Self {
+        RequestID {
+            inner: inital_value,
+        }
+    }
+
+    pub fn next(&mut self) -> u64 {
+        self.inner += 1;
+        self.inner
+    }
 }

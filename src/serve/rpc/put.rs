@@ -9,7 +9,7 @@ use parquet::data_type::AsBytes;
 use taos::{AsyncBindable, AsyncQueryable, AsyncTBuilder, Dsn, Stmt, TaosBuilder};
 use taosx_core::{
     sink::IpcErrorStrategy,
-    utils::trace::{get_data_trace_id_str, set_data_trace_id_for_current_span},
+    utils::trace::{get_data_trace_id_str, get_stream_id_u64, set_data_trace_id_for_current_span},
     ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START,
 };
 use tonic::{Status, Streaming};
@@ -180,12 +180,15 @@ impl PutStream {
             span: tracing::Span,
             abort_message_tx: flume::Sender<Result<PutResult, Status>>,
             ipc_error_strategy: IpcErrorStrategy,
+            stream_trace_id_u64: u64,
         ) -> anyhow::Result<()> {
             // dbg!(&task);
             metrics::gauge!(METRICS_TIME_START, Utc::now().timestamp_millis() as f64);
             let from = task.from.parse().unwrap();
             let taos = pool.get().await?;
-            let mut stmt = Stmt::init(&taos).await.context("Initialize STMT")?;
+            let mut stmt = Stmt::init_with_req_id(&taos, stream_trace_id_u64)
+                .await
+                .context("Initialize STMT")?;
             let _ = span.clone().entered();
 
             let worker = IpcStreamWorker::new(
@@ -258,6 +261,7 @@ impl PutStream {
         let notify_sender = self.notify_sender.clone();
         tokio::spawn(
             async move {
+                let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id.as_str());
                 if let Err(err) = ipc_stream_writer(
                     notify_sender,
                     agent_id,
@@ -273,6 +277,7 @@ impl PutStream {
                     Span::current(),
                     abort_message_tx,
                     ipc_error_strategy,
+                    stream_trace_id_u64,
                 )
                 .in_current_span()
                 .await

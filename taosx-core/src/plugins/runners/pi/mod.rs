@@ -9,6 +9,7 @@ use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
 
+use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::pi::config::PiConfig;
@@ -16,7 +17,6 @@ use crate::{
     build_ipc, get_log_keep_days, plugins::service::spawn_rest_service, utils::port_pool::PortPool,
     Action, DataSet, DataSetsReq, Transferred,
 };
-use super::get_data_dir;
 
 mod config;
 

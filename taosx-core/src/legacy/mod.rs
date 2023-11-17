@@ -24,7 +24,10 @@ use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument, warn};
 
-use crate::{legacy::scheduler::Todo, utils::metrics_db::MetricsDb, Action, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND};
+use crate::{
+    legacy::scheduler::Todo, utils::metrics_db::MetricsDb, Action, METRICS_TIME_COST,
+    METRICS_TIME_RECORDS_PER_SECOND,
+};
 
 use self::scheduler::Scheduler;
 use metrics::absolute_counter;
