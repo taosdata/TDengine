@@ -231,7 +231,7 @@ typedef struct put_object_callback_data {
   int         noStatus;
 } put_object_callback_data;
 
-#define MULTIPART_CHUNK_SIZE (768 << 20)  // multipart is 768M
+#define MULTIPART_CHUNK_SIZE (64 << 20)  // multipart is 768M
 
 typedef struct {
   char     err_msg[512];
@@ -516,7 +516,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
 
     // div round up
     int       seq;
-    uint64_t  chunk_size = MULTIPART_CHUNK_SIZE >> 7;
+    uint64_t  chunk_size = MULTIPART_CHUNK_SIZE >> 3;
     int       totalSeq = (contentLength + chunk_size - 1) / chunk_size;
     const int max_part_num = 10000;
     if (totalSeq > max_part_num) {
