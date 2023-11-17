@@ -771,7 +771,9 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
           if (cfgAll) {  // alter all dnodes:
             if (!failRecord) failRecord = taosArrayInit(1, sizeof(int32_t));
             if (failRecord) taosArrayPush(failRecord, &pDnode->id);
-            if (0 == cfgAllErr) cfgAllErr = terrno;  // output 1st terrno.
+            if (0 == cfgAllErr || cfgAllErr == TSDB_CODE_GRANT_PAR_IVLD_ACTIVE) {
+              cfgAllErr = terrno;  // output 1st or more specific error
+            }
           }
         } else {
           terrno = 0;  // no action for dup active code
@@ -787,7 +789,9 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
           if (cfgAll) {
             if (!failRecord) failRecord = taosArrayInit(1, sizeof(int32_t));
             if (failRecord) taosArrayPush(failRecord, &pDnode->id);
-            if (0 == cfgAllErr) cfgAllErr = terrno;
+            if (0 == cfgAllErr || cfgAllErr == TSDB_CODE_GRANT_PAR_IVLD_ACTIVE) {
+              cfgAllErr = terrno;  // output 1st or more specific error
+            }
           }
         } else {
           terrno = 0;
@@ -1311,7 +1315,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
     strcpy(dcfgReq.config, "supportvnodes");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
-  } else if (strncasecmp(cfgReq.config, "activeCode", 10) == 0 || strncasecmp(cfgReq.config, "cActiveCode", 11) == 0) {
+  } else if (strncasecmp(cfgReq.config, GRANT_ACTIVE_CODE, 10) == 0 ||
+             strncasecmp(cfgReq.config, GRANT_C_ACTIVE_CODE, 11) == 0) {
     if (cfgReq.dnodeId != -1) {
       terrno = TSDB_CODE_INVALID_CFG;
       tFreeSMCfgDnodeReq(&cfgReq);
@@ -1336,7 +1341,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       return -1;
     }
 
-    strcpy(dcfgReq.config, opt == DND_ACTIVE_CODE ? "activeCode" : "cActiveCode");
+    strcpy(dcfgReq.config, opt == DND_ACTIVE_CODE ? GRANT_ACTIVE_CODE : GRANT_C_ACTIVE_CODE);
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%s", cfgReq.value);
 
     if ((terrno = mndConfigDnode(pMnode, pReq, &cfgReq, opt)) != 0) {
