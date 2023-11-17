@@ -100,7 +100,8 @@ int32_t tqStartStreamTasks(STQ* pTq) {
         streamLaunchFillHistoryTask(pTask);
       }
 
-      streamMetaUpdateTaskDownstreamStatus(pTask, pTask->execInfo.init, pTask->execInfo.start, true);
+      streamMetaUpdateTaskDownstreamStatus(pMeta, pTask->id.streamId, pTask->id.taskId, pTask->execInfo.init,
+                                           pTask->execInfo.start, true);
       streamMetaReleaseTask(pMeta, pTask);
       continue;
     }
