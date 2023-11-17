@@ -400,6 +400,7 @@ export default {
     response: "响应",
   },
   data: {
+    delRunningTaskBb: "数据库 '{dbName}' 已被数据源 '{taskName}' 使用，请先停止该任务",
     appendEditor: "追加到编辑器",
     viewData: "查看200行数据",
     changeDBPrivilegeTip: "你想从 {dbName} 数据库{type}{listType}权限吗?",
