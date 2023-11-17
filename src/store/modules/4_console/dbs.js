@@ -14,11 +14,15 @@ const state = {
   db_form: {},
   formStatus: "create",
   curComp: 'explorer',
-  dialogDbVisible: false
+  dialogDbVisible: false,
+  currentdbName:''
 };
 // 修改数据库前的值
 let dbConfigTemp = {};
 const mutations = {
+  SET_CURRENT_DBNAME:(state,data)=>{
+    state.currentdbName=data
+  },
   SET_DBLIST: (state, dbList) => {
     state.dbList = dbList;
   },
@@ -89,34 +93,39 @@ const actions = {
     });
   },
   createDatabase({ state, commit }) {
-    let execFn = createDB;
-    let params = state.db_form;
-    let name = state.db_form.name;
-    if (state.formStatus == "update") {
-      execFn = updateDB;
-      params = {};
-      for (let k in state.db_form) {
-        if (state.db_form[k] != dbConfigTemp[k]) {
-          params[k] = state.db_form[k];
+    return new Promise((resolve) => {
+      let execFn = createDB;
+      let params = state.db_form;
+      let name = state.db_form.name;
+      if (state.formStatus == "update") {
+        execFn = updateDB;
+        params = {};
+        for (let k in state.db_form) {
+          if (state.db_form[k] != dbConfigTemp[k]) {
+            params[k] = state.db_form[k];
+          }
         }
+      } else {
+        params.buffer = 32;
       }
-    } else {
-      params.buffer = 32;
-    }
-    if (JSON.stringify(params) === '{}') return
-    return execFn(params, name)
-      .then(() => {
-        if (state.formStatus == "create") {
-          commit("HANDLE_ADD_DB");
-        }
-        dbConfigTemp = { ...state.db_form };
-      })
-      .then(() => {
-        commit("console/CHANGE_TREE_KEY", null, { root: true });
-      })
-      .catch(err => {
-        return Promise.reject(err);
-      });
+      if (JSON.stringify(params) === '{}') return resolve();
+      return execFn(params, name)
+        .then(() => {
+          commit('SET_CURRENT_DBNAME',name)
+          if (state.formStatus == "create") {
+            commit("HANDLE_ADD_DB");
+          }
+          dbConfigTemp = { ...state.db_form };
+        })
+        .then(() => {
+          commit("console/CHANGE_TREE_KEY", null, { root: true });
+          resolve()
+        })
+        .catch(err => {
+          return Promise.reject(err);
+        });
+
+    })
   },
   editDatabase() {
   },

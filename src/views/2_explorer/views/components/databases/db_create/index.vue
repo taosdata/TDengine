@@ -680,7 +680,7 @@ export default {
       this.$refs["dbForm1"].validate((valid) => {
         if (valid) {
           this.requestIng = true;
-          this.$store
+           this.$store
             .dispatch("dbs/createDatabase", true)
             .then(() => {
               this.isEdit
@@ -693,8 +693,8 @@ export default {
                     message: this.$t("createSucc"),
                   });
 
-              this.$store.commit("app/SET_CURRENT_DBNAME", this.db_form.name);
-              console.log(this.isEdit, this.$store.state.dbs.db_form, "创建");
+              
+              console.log(this.isEdit, this.$store.state.dbs.db_form, "创建",this.db_form,this.$store.state.dbs.currentdbName);
               this.cancel();
             })
             .catch((err) => {
@@ -734,10 +734,10 @@ export default {
     this.$store.commit("dbs/SET_DIALOG_DB_VISABLE", false);
   },
   watch: {
-    db_form: {
+    '$store.state.dbs.currentdbName': {
       deep: true,
       handler(val, old) {
-        console.log(val, old, "创建数据库");
+        this.$store.commit("app/SET_CURRENT_DBNAME", val);
       },
     },
   },
