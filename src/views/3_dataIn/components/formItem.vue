@@ -14,6 +14,7 @@
       :label="labelText"
       :label-width="labelWidth"
       :required="required()"
+      :class="classMark"
       :rules="timeFormats.includes(field) ? [...timeRules,...rules] : rules"
       :prop="parent + field"
     >
@@ -47,6 +48,7 @@
           :key="item.value"
           v-bind="item"
           :title="item.description"
+          :disabled="item.disabled"
         ></el-option>
       </el-select>
       <el-switch
@@ -87,6 +89,13 @@
         :data="data"
         :parentConfigList="parentConfigList"
       /> -->
+      <Mode
+        v-if="config.type == 'mode'"
+        ref="mode"
+        :config="config"
+        :data="data"
+        :parentConfigList="parentConfigList"
+      />
       <div
         v-if="config.info"
         slot="label"
@@ -138,7 +147,7 @@
 <script>
 import { hasOwn, marked } from '@/utils/util';
 import { parsinginZone } from "@/utils/index";
-import { TimeFormats, getGroupsObj } from '../utils'
+import { TimeFormats, getGroupsObj, getFieldClassMarkName } from '../utils'
 
 export default {
   props: {
@@ -158,10 +167,6 @@ export default {
       type: Array,
       default: () => []
     },
-    isSubmit: {
-      type: Boolean,
-      default: true
-    }
   },
   name: 'FormItem',
   inject: ['sourceParent'],
@@ -174,6 +179,7 @@ export default {
     TimezoneDatePicker: () => import('@/components/date-picker'),
     // PibackfillTime: () => import('./pibackfillTime.vue'),
     // Bucket: () => import('./bucket.vue')
+    Mode: () => import('./mode.vue')
   },
   data() {
     this.inputType = ['input', 'textarea', 'password'];
@@ -215,7 +221,7 @@ export default {
       };
     },
     rules() {
-      if (typeof this.config.required === 'function') return this.config.required(this.isSubmit) ? [{ required: true, message: this.$t('required', [this.config.label ?? this.config.field]) }] : [];
+      if (typeof this.config.required === 'function') return this.config.required() ? [{ required: true, message: this.$t('required', [this.config.label ?? this.config.field]) }] : [];
       return this.config.required ? [{ required: true, message: this.$t('required', [this.config.label ?? this.config.field]) }] : [];
     },
     timeRules() {
@@ -230,6 +236,9 @@ export default {
     },
     timeFormats() {
       return TimeFormats
+    },
+    classMark() {
+      return getFieldClassMarkName(this.parent + this.field);
     }
   },
   watch: {},
@@ -245,7 +254,7 @@ export default {
       return marked.parse(desc);
     },
     required() {
-      if (typeof this.config.required === 'function') return this.config.required(this.isSubmit);
+      if (typeof this.config.required === 'function') return this.config.required();
       return this.config.required;
     },
     changeSwith() {
