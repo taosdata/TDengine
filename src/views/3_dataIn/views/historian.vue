@@ -122,11 +122,6 @@ export default {
       loading: false,
       btnLoading: false,
       isShowEditBtn: false,
-      checkLoading: false,
-      percentage: 0,
-      checkResult: {
-      },
-      activeCollapse: "",
       sourceForm: {
         data: {},
       },
@@ -211,32 +206,12 @@ export default {
       }
     },
 
-    clickCheckBtn() {
-      this.checkResult = this.$options.data().checkResult;
-      this.validateForm(false);
-    },
-    // 数据源可用性和版本检查
-    async getValidateResult(dns) {
-      try {
-        this.checkLoading = true;
-        let result = await validateTask(dns, this.agentId);
-        console.log("result", result);
-        this.checkResult = result;
-        this.checkLoading = false; // 检测的 loading 效果
-        this.activeCollapse = "one";
-      } catch (error) {
-        this.checkLoading = false;
-        console.log("err");
-      }
-    },
-
-    validateForm(isSubmit) {
+    validateForm() {
       this.$refs.form.validate(async (valid) => {
         if (valid) {
           const dsn = getDsnData(
             this.sourceForm.data,
             this.currentDefinition,
-            isSubmit
           );
           const type = this.tagName;
           let id = localStorage.getItem("local_clusterID");
@@ -258,26 +233,22 @@ export default {
           if (this.agentId) {
             params["via"] = this.agentId;
           }
-          if (isSubmit) {
-            if (this.isEditable && this.editId && !this.isCopyable) {
-              let result = await EditSource(params, this.editId);
-              if (result.message) {
-                Message.error(result.message);
-                return;
-              }
-              this.$parent.changeEditable(false);
-              this.$parent.toggleComponent("tmqtable");
-            } else {
-              let result = await AddSource(params);
-              if (result.message) {
-                Message.error(result.message);
-                return;
-              }
-              this.$parent.changeEditable(false);
-              this.$parent.toggleComponent("tmqtable");
+          if (this.isEditable && this.editId && !this.isCopyable) {
+            let result = await EditSource(params, this.editId);
+            if (result.message) {
+              Message.error(result.message);
+              return;
             }
+            this.$parent.changeEditable(false);
+            this.$parent.toggleComponent("tmqtable");
           } else {
-            this.getValidateResult(params.from);
+            let result = await AddSource(params);
+            if (result.message) {
+              Message.error(result.message);
+              return;
+            }
+            this.$parent.changeEditable(false);
+            this.$parent.toggleComponent("tmqtable");
           }
         } else {
           console.log("error submit!!");
@@ -286,18 +257,16 @@ export default {
       });
     },
     
-    async submit(isSubmit) {
+    async submit() {
       let sourceTop = this.$refs.sourceTop;
-      isSubmit && sourceTop.$refs.ruleForm.validate(async valid => {
+      sourceTop.$refs.ruleForm.validate(async valid => {
         if (valid) {
-          this.validateForm(isSubmit)
+          this.validateForm()
         } else {
           return false
         }
       });
     },
-    
-
     cancel() {
       this.$parent.currentName = "dbsource";
     },

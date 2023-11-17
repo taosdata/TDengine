@@ -622,11 +622,7 @@ function handleGroups(groups, paramsConfig) {
         if: collapsible ? data => data[valueField] : true,
         placeholder,
         defaultValue: value,
-        // required
-        required: isSubmit => {
-          if (isSubmit) required
-          return false
-        }
+        required
       };
       handleHintType(paramConfig, hint, value);
       if (isArray(conflicts_with)) {
@@ -641,6 +637,10 @@ function handleGroups(groups, paramsConfig) {
       // 特殊处理 influxdb 的 bucket
       if (currentType == 'influxdb' && paramConfig.field == 'bucket') {
         paramConfig.type = 'bucket';
+      }
+      // 特殊处理 historian 的 mode
+      if (currentType == 'historian' && paramConfig.field == 'mode') {
+        paramConfig.type = 'mode';
       }
       if (paramConfig.type == 'select') {
         paramConfig.meta = {
@@ -807,13 +807,13 @@ export const NoNeedAgentType = ['tmq', 'taos'];
 // tmq和taos需要再协议前面加上+
 export const ProtocolPrefix = NoNeedAgentType.concat(['influxdb']);
 
-export function getDsnData(data, definition,isSubmit) {
+export function getDsnData(data, definition) {
   let dsn = handleProtocolData(data[optionsField].protocol, definition);
   let queryArr = [];
   dsn += getAuthentications(data[authenticationField], queryArr);
   dsn += getOptionData(data[optionsField], queryArr, definition);
-  isSubmit && getGroupsQuery(data[groupsField], queryArr);
-  isSubmit && getDatasetsQuery(data[datasetsField], data, queryArr);
+  getGroupsQuery(data[groupsField], queryArr);
+  getDatasetsQuery(data[datasetsField], data, queryArr);
   if (queryArr.length) {
     if (dsn.includes('?')) {
       if (!dsn.endsWith('?')) {
@@ -1013,4 +1013,8 @@ export function getGroupsObj(data) {
       }
     }
   }
+}
+
+export function getFieldClassMarkName(field) {
+  return field.replace(/[^\w-]/g, '-');
 }
