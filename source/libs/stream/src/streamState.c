@@ -710,6 +710,14 @@ int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void
 #endif
 }
 
+int32_t streamStateSessionAllocWinBuffByNextPosition(SStreamState* pState, SStreamStateCur* pCur, const SSessionKey* pKey, void** pVal, int32_t* pVLen) {
+#ifdef USE_ROCKSDB
+  return allocSessioncWinBuffByNextPosition(pState->pFileState, pCur, pKey, pVal, pVLen);
+#else
+  return TSDB_CODE_FAILED;
+#endif
+}
+
 int32_t streamStateSessionGet(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
   return getSessionFlushedBuff(pState->pFileState, key, pVal, pVLen);

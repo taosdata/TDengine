@@ -146,8 +146,6 @@ typedef enum EStreamTaskEvent {
   TASK_EVENT_RESUME = 0x9,
   TASK_EVENT_HALT = 0xA,
   TASK_EVENT_DROPPING = 0xB,
-  TASK_EVENT_SCAN_TSDB = 0xC,
-  TASK_EVENT_SCAN_WAL = 0xD,
 } EStreamTaskEvent;
 
 typedef struct {
