@@ -23,7 +23,7 @@ By subscribing to a topic, a consumer can obtain the latest data in that topic i
 
 To implement these features, TDengine indexes its write-ahead log (WAL) file for fast random access and provides configurable methods for replacing and retaining this file. You can define a retention period and size for this file. For information, see the CREATE DATABASE statement. In this way, the WAL file is transformed into a persistent storage engine that remembers the order in which events occur. However, note that configuring an overly long retention period for your WAL files makes database compression inefficient. TDengine then uses the WAL file instead of the time-series database as its storage engine for queries in the form of topics. TDengine reads the data from the WAL file; uses a unified query engine instance to perform filtering, transformations, and other operations; and finally pushes the data to consumers.
 
-The following are some explanations about data subscription, which require some understanding of the architecture of TDengine and the use of various language linker interfaces.
+The following are some explanations about data subscription, which require some understanding of the architecture of TDengine and the use of various language linker interfaces（you can learn it when you need it）.
 - A consumption group consumes all data under the same topic, and different consumption groups are independent of each other;
 - A consumption group consumes all vgroups of the same topic, which can be composed of multiple consumers, but a vgroup is only consumed by one consumer. If the number of consumers exceeds the number of vgroups, the excess consumers do not consume data;
 - On the server side, only one offset is saved for each vgroup, and the offsets for each vgroup are monotonically increasing, but not necessarily continuous. There is no correlation between the offsets of various vgroups;
@@ -45,12 +45,13 @@ The following are some explanations about data subscription, which require some 
 
 This document does not provide any further introduction to the knowledge of message queues themselves. If you need to know more, please search for it yourself.
 
+Note:
 Starting from version 3.2.0.0, data subscription supports vnode migration and splitting.
 Due to the dependence of data subscription on wal files, wal does not synchronize during vnode migration and splitting. Therefore, after migration or splitting, wal data that has not been consumed before cannot be consumed. So please ensure that all data has been consumed before proceeding with vnode migration or splitting, otherwise data loss may occur during consumption.
 
 ## Data Schema and API
 
-The related schemas and APIs in various languages are described as follows:
+The related schemas and APIs in various languages are described as follows(Note that the consumer structure is not thread safe. When using a consumer on one thread, do not close the consumer on another thread):
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="c" label="C">
