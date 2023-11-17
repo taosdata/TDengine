@@ -80,6 +80,7 @@ impl ResponseError for Failed {
     )
 )]
 #[get("/tasks")]
+#[instrument(skip_all)]
 pub(super) async fn get_tasks(
     task_store: Data<TaskControllerRef>,
     filter: Query<TaskFilter>,
@@ -118,6 +119,7 @@ pub(super) async fn get_tasks(
     )
 )]
 #[get("/tasks/count")]
+#[instrument(skip_all)]
 pub(super) async fn get_tasks_count(
     task_store: Data<TaskControllerRef>,
     filter: Query<TaskFilter>,
@@ -153,6 +155,7 @@ pub(super) async fn get_tasks_count(
     )
 )]
 #[post("/tasks")]
+#[instrument(skip_all)]
 pub(super) async fn create_task(
     task: actix_web::web::Json<NewTask>,
     task_store: Data<TaskControllerRef>,
@@ -256,6 +259,7 @@ pub(super) struct NewReplicate {
     ),
 )]
 #[patch("/tasks/{id}")]
+#[instrument(skip_all)]
 pub(super) async fn update_task(
     id: Path<i64>,
     task: actix_web::web::Json<UpdateTask>,
@@ -304,6 +308,7 @@ pub(super) async fn update_task(
     ),
 )]
 #[delete("/tasks/{id}")]
+#[instrument(skip_all)]
 pub(super) async fn delete_task(
     id: Path<i64>,
     task_store: Data<TaskControllerRef>,
@@ -336,6 +341,7 @@ pub(super) async fn delete_task(
     ),
 )]
 #[get("/tasks/{id}")]
+#[instrument(skip_all)]
 pub(super) async fn get_task_by_id(
     id: Path<i64>,
     task_store: Data<TaskControllerRef>,
@@ -367,6 +373,7 @@ pub(super) async fn get_task_by_id(
     ),
 )]
 #[post("/tasks/{id}/start")]
+#[instrument(skip_all)]
 pub(super) async fn start_task(
     id: Path<i64>,
     task_store: Data<TaskControllerRef>,
@@ -401,6 +408,7 @@ pub(super) async fn start_task(
     ),
 )]
 #[post("/tasks/{id}/stop")]
+#[instrument(skip_all)]
 pub(super) async fn stop_task(
     id: Path<i64>,
     task_store: Data<TaskControllerRef>,
@@ -433,6 +441,7 @@ pub(super) async fn stop_task(
     ),
 )]
 #[get("/tasks/{id}/offsets")]
+#[instrument(skip_all)]
 pub(super) async fn get_task_offsets_by_id(
     id: Path<i64>,
     task_store: Data<TaskControllerRef>,
@@ -488,6 +497,7 @@ pub(super) async fn get_task_activities_by_id(
     ),
 )]
 #[get("/tasks/{id}/metrics")]
+#[instrument(skip_all)]
 pub(super) async fn get_task_metrics(
     snapshotter: Data<Snapshotter>,
     task_store: Data<TaskControllerRef>,
@@ -622,6 +632,7 @@ pub struct UploadForm {
     ),
 )]
 #[post("/upload")]
+#[instrument(skip_all)]
 pub async fn upload_files(MultipartForm(form): MultipartForm<UploadForm>) -> impl Responder {
     match save_files(MultipartForm(form)).await {
         Ok(file_saved) => Ok(HttpResponse::Created().json(file_saved)),
@@ -695,6 +706,7 @@ pub struct FileMetaHeader {
     )
 )]
 #[get("/filemeta")]
+#[instrument(skip_all)]
 pub async fn filemeta(filemeta_request: Query<FileMetaRequest>) -> impl Responder {
     match get_filemeta(filemeta_request.into_inner()).await {
         Ok(filemeta) => Ok(HttpResponse::Ok().json(filemeta)),
@@ -766,6 +778,7 @@ pub struct DownloadParams {
     )
 )]
 #[get("/download")]
+#[instrument(skip_all)]
 pub async fn download_files(params: Query<DownloadParams>, req: HttpRequest) -> impl Responder {
     match download(params).await {
         Ok(named_file) => Ok(named_file.into_response(&req)),
