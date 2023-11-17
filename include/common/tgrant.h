@@ -31,6 +31,8 @@ extern "C" {
 #endif
 
 #define GRANT_HEART_BEAT_MIN 2
+#define GRANT_ACTIVE_CODE    "activeCode"
+#define GRANT_C_ACTIVE_CODE  "cActiveCode"
 
 typedef enum {
   TSDB_GRANT_ALL,
