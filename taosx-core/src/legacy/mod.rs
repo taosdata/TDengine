@@ -24,7 +24,7 @@ use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument, warn};
 
-use crate::{legacy::scheduler::Todo, utils::metrics_db::MetricsDb, Action, METRICS_TIME_COST};
+use crate::{legacy::scheduler::Todo, utils::metrics_db::MetricsDb, Action, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND};
 
 use self::scheduler::Scheduler;
 use metrics::absolute_counter;
@@ -241,6 +241,8 @@ impl LegacyMetrics {
         map.insert(METRICS_LEGACY_RECORDS, self.records.load(SeqCst) as u64);
         map.insert(METRICS_LEGACY_POINTS, self.points.load(SeqCst) as u64);
         map.insert(METRICS_TIME_COST, self.last_time_cost.load(SeqCst) as u64);
+        let speed = self.records.load(SeqCst) as u64 / self.last_time_cost.load(SeqCst) as u64;
+        map.insert(METRICS_TIME_RECORDS_PER_SECOND, speed);
         serde_json::to_string(&map).unwrap()
     }
 }
