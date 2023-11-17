@@ -3397,7 +3397,7 @@ int32_t stopGroupTableMergeScan(SOperatorInfo* pOperator) {
 
   resetLimitInfoForNextGroup(&pInfo->limitInfo);
   taosHashCleanup(pInfo->mSkipTables);
-  pInfo->pSortHandle = NULL;
+  pInfo->mSkipTables = NULL;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3509,7 +3509,7 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   tSimpleHashCleanup(pTableScanInfo->mTableNumRows);
   pTableScanInfo->mTableNumRows = NULL;
   taosHashCleanup(pTableScanInfo->mSkipTables);
-  pTableScanInfo->pSortHandle = NULL;
+  pTableScanInfo->mSkipTables = NULL;
   destroyTableScanBase(&pTableScanInfo->base, &pTableScanInfo->base.readerAPI);
 
   pTableScanInfo->pResBlock = blockDataDestroy(pTableScanInfo->pResBlock);
