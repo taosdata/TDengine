@@ -321,8 +321,9 @@ int32_t rebuildFromRemoteChkp(char* key, char* chkpPath, int64_t chkpId, char* d
 
   int32_t len = strlen(defaultPath) + 32;
   char*   tmp = taosMemoryCalloc(1, len);
-  sprintf(tmp, "%s%s%s", defaultPath, TD_DIRSEP, "_tmp");
+  sprintf(tmp, "%s%s", defaultPath, "_tmp");
   if (taosIsDir(tmp)) taosRemoveDir(tmp);
+  if (taosIsDir(defaultPath)) taosRenameFile(defaultPath, tmp);
 
   SArray* list = taosArrayInit(2, sizeof(void*));
   code = remoteChkp_readMetaData(chkpPath, list);
@@ -332,9 +333,6 @@ int32_t rebuildFromRemoteChkp(char* key, char* chkpPath, int64_t chkpId, char* d
   taosArrayDestroyP(list, taosMemoryFree);
 
   if (code == 0) {
-    if (taosIsDir(defaultPath)) {
-      taosRenameFile(defaultPath, tmp);
-    }
     taosMkDir(defaultPath);
     code = copyFiles(chkpPath, defaultPath);
   }
@@ -342,7 +340,11 @@ int32_t rebuildFromRemoteChkp(char* key, char* chkpPath, int64_t chkpId, char* d
   if (code != 0) {
     if (taosIsDir(defaultPath)) taosRemoveDir(defaultPath);
     if (taosIsDir(tmp)) taosRenameFile(tmp, defaultPath);
+  } else {
+    taosRemoveDir(tmp);
   }
+
+  taosMemoryFree(tmp);
   return code;
 }
 
@@ -350,14 +352,14 @@ int32_t rebuildFromLocalChkp(char* key, char* chkpPath, int64_t chkpId, char* de
   int32_t code = -1;
   int32_t len = strlen(defaultPath) + 32;
   char*   tmp = taosMemoryCalloc(1, len);
-  sprintf(tmp, "%s%s%s", defaultPath, TD_DIRSEP, "_tmp");
+  sprintf(tmp, "%s%s", defaultPath, "_tmp");
+
+  if (taosIsDir(tmp)) taosRemoveDir(tmp);
+  if (taosIsDir(defaultPath)) taosRenameFile(defaultPath, tmp);
 
   if (taosIsDir(chkpPath) && isValidCheckpoint(chkpPath)) {
     if (taosIsDir(tmp)) {
       taosRemoveDir(tmp);
-    }
-    if (taosIsDir(defaultPath)) {
-      taosRenameFile(defaultPath, tmp);
     }
     taosMkDir(defaultPath);
     code = copyFiles(chkpPath, defaultPath);
@@ -370,6 +372,8 @@ int32_t rebuildFromLocalChkp(char* key, char* chkpPath, int64_t chkpId, char* de
   if (code != 0) {
     if (taosIsDir(defaultPath)) taosRemoveDir(defaultPath);
     if (taosIsDir(tmp)) taosRenameFile(tmp, defaultPath);
+  } else {
+    taosRemoveDir(tmp);
   }
 
   taosMemoryFree(tmp);
