@@ -882,7 +882,6 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   if (mndAcquireGlobalIdx(pMnode, fullIdxName, SDB_IDX, &idx) == 0 && idx.pIdx != NULL) {
     terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
     mndReleaseIdx(pMnode, idx.pIdx);
-
     goto _OVER;
   }
 
@@ -1179,8 +1178,16 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   SName name = {0};
   tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, createReq.sql, createReq.sqlLen);
+  if(createReq.sql == NULL && createReq.sqlLen == 0){
+    char detail[1000] = {0};
 
+    sprintf(detail, "dbname:%s, stable name:%s", name.dbname, name.tname);
+
+    auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, detail, strlen(detail));
+  }
+  else{
+    auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, createReq.sql, createReq.sqlLen);
+  }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stb:%s, failed to create since %s", createReq.name, terrstr());

@@ -3925,6 +3925,267 @@ static int32_t translatePartitionBy(STranslateContext* pCxt, SSelectStmt* pSelec
   return code;
 }
 
+typedef struct SEqCondTbNameTableInfo {
+  SRealTableNode* pRealTable;
+  SArray* aTbnames;
+} SEqCondTbNameTableInfo;
+
+//[tableAlias.]tbname = tbNamVal
+static bool isOperatorEqTbnameCond(STranslateContext* pCxt, SOperatorNode* pOperator, char** ppTableAlias, SArray** ppTabNames) {
+  if (pOperator->opType != OP_TYPE_EQUAL) return false;
+  SFunctionNode* pTbnameFunc = NULL;
+  SValueNode* pValueNode = NULL;
+  if (nodeType(pOperator->pLeft) == QUERY_NODE_FUNCTION &&
+      ((SFunctionNode*)(pOperator->pLeft))->funcType == FUNCTION_TYPE_TBNAME &&
+      nodeType(pOperator->pRight) == QUERY_NODE_VALUE) {
+    pTbnameFunc = (SFunctionNode*)pOperator->pLeft;
+    pValueNode = (SValueNode*)pOperator->pRight;
+  } else if (nodeType(pOperator->pRight) == QUERY_NODE_FUNCTION &&
+             ((SFunctionNode*)(pOperator->pRight))->funcType == FUNCTION_TYPE_TBNAME &&
+             nodeType(pOperator->pLeft) == QUERY_NODE_VALUE) {
+    pTbnameFunc = (SFunctionNode*)pOperator->pRight;
+    pValueNode = (SValueNode*)pOperator->pLeft;
+  } else {
+    return false;
+  }
+
+  if (LIST_LENGTH(pTbnameFunc->pParameterList) == 0) {
+    *ppTableAlias = NULL;
+  } else if (LIST_LENGTH(pTbnameFunc->pParameterList) == 1) {
+    SNode* pQualNode = nodesListGetNode(pTbnameFunc->pParameterList, 0);
+    if (nodeType(pQualNode) != QUERY_NODE_VALUE) return false;
+    SValueNode* pQualValNode = (SValueNode*)pQualNode;
+    *ppTableAlias = pQualValNode->literal;
+  } else {
+    return false;
+  }
+  *ppTabNames = taosArrayInit(1, sizeof(void*));
+  taosArrayPush(*ppTabNames, &(pValueNode->literal));
+  return true;
+}
+
+//[tableAlias.]tbname in (value1, value2, ...)
+static bool isOperatorTbnameInCond(STranslateContext* pCxt, SOperatorNode* pOperator, char** ppTableAlias, SArray** ppTbNames) {
+  if (pOperator->opType != OP_TYPE_IN) return false;
+  if (nodeType(pOperator->pLeft) != QUERY_NODE_FUNCTION ||
+      ((SFunctionNode*)(pOperator->pLeft))->funcType != FUNCTION_TYPE_TBNAME ||
+      nodeType(pOperator->pRight) != QUERY_NODE_NODE_LIST) {
+    return false;
+  }
+
+  SFunctionNode* pTbnameFunc = (SFunctionNode*)pOperator->pLeft;
+  if (LIST_LENGTH(pTbnameFunc->pParameterList) == 0) {
+    *ppTableAlias = NULL;
+  } else if (LIST_LENGTH(pTbnameFunc->pParameterList) == 1) {
+    SNode* pQualNode = nodesListGetNode(pTbnameFunc->pParameterList, 0);
+    if (nodeType(pQualNode) != QUERY_NODE_VALUE) return false;
+    SValueNode* pQualValNode = (SValueNode*)pQualNode;
+    *ppTableAlias = pQualValNode->literal;
+  } else {
+    return false;
+  }
+  *ppTbNames = taosArrayInit(1, sizeof(void*));
+  SNodeListNode* pValueListNode = (SNodeListNode*)pOperator->pRight;
+  SNodeList* pValueNodeList = pValueListNode->pNodeList;
+  SNode* pValNode = NULL;
+  FOREACH(pValNode, pValueNodeList) {
+    if (nodeType(pValNode) != QUERY_NODE_VALUE) {
+      return false;
+    }
+    taosArrayPush(*ppTbNames, &((SValueNode*)pValNode)->literal);
+  }
+  return true;
+
+}
+
+static bool findEqCondTbNameInOperatorNode(STranslateContext* pCxt, SNode* pWhere, SEqCondTbNameTableInfo* pInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  char* pTableAlias = NULL;
+  char* pTbNameVal = NULL;
+  if (isOperatorEqTbnameCond(pCxt, (SOperatorNode*)pWhere, &pTableAlias, &pInfo->aTbnames) ||
+      isOperatorTbnameInCond(pCxt, (SOperatorNode*)pWhere, &pTableAlias, &pInfo->aTbnames)) {
+    STableNode* pTable;
+    if (pTableAlias == NULL) {
+      pTable = (STableNode*)((SSelectStmt*)(pCxt->pCurrStmt))->pFromTable;
+    } else {
+      code = findTable(pCxt, pTableAlias, &pTable);
+    }
+    if (code == TSDB_CODE_SUCCESS && nodeType(pTable) == QUERY_NODE_REAL_TABLE && 
+      ((SRealTableNode*)pTable)->pMeta && ((SRealTableNode*)pTable)->pMeta->tableType == TSDB_SUPER_TABLE) {
+      pInfo->pRealTable = (SRealTableNode*)pTable;
+      return true;
+    }
+    taosArrayDestroy(pInfo->aTbnames);
+    pInfo->aTbnames = NULL;
+  }
+  return false;
+}
+
+static bool isTableExistInTableTbnames(SArray* aTableTbNames, SRealTableNode* pTable) {
+  for (int i = 0; i < taosArrayGetSize(aTableTbNames); ++i) {
+    SEqCondTbNameTableInfo* info = taosArrayGet(aTableTbNames, i);
+    if (info->pRealTable == pTable) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static void findEqualCondTbnameInLogicCondAnd(STranslateContext* pCxt, SNode* pWhere, SArray* aTableTbnames) {
+  SNode* pTmpNode = NULL;
+  FOREACH(pTmpNode, ((SLogicConditionNode*)pWhere)->pParameterList) {
+    if (nodeType(pTmpNode) == QUERY_NODE_OPERATOR) {
+      SEqCondTbNameTableInfo info = {0};
+      bool bIsEqTbnameCond = findEqCondTbNameInOperatorNode(pCxt, pTmpNode, &info);
+      if (bIsEqTbnameCond) {
+        if (!isTableExistInTableTbnames(aTableTbnames, info.pRealTable)) {
+          //TODO: intersect tbNames of same table? speed
+          taosArrayPush(aTableTbnames, &info);
+        } else {
+          taosArrayDestroy(info.aTbnames);
+        }
+      }
+    }
+    //TODO: logic cond 
+  }
+}
+
+static void unionEqualCondTbnamesOfSameTable(SArray* aTableTbnames, SEqCondTbNameTableInfo* pInfo) {
+  bool bFoundTable = false;
+  for (int i = 0; i < taosArrayGetSize(aTableTbnames); ++i) {
+    SEqCondTbNameTableInfo* info = taosArrayGet(aTableTbnames, i);
+    if (info->pRealTable == pInfo->pRealTable) {
+      taosArrayAddAll(info->aTbnames, pInfo->aTbnames);
+      taosArrayDestroy(pInfo->aTbnames);
+      pInfo->aTbnames = NULL;
+      bFoundTable = true;
+      break;
+    }
+  }
+  if (!bFoundTable) {
+    taosArrayPush(aTableTbnames, pInfo);
+  }
+}
+
+static void findEqualCondTbnameInLogicCondOr(STranslateContext* pCxt, SNode* pWhere, SArray* aTableTbnames) {
+  bool   bAllTbName = true;
+  SNode* pTmpNode = NULL;
+  FOREACH(pTmpNode, ((SLogicConditionNode*)pWhere)->pParameterList) {
+    //TODO: logic cond
+    if (nodeType(pTmpNode) == QUERY_NODE_OPERATOR) {
+      SEqCondTbNameTableInfo info = {0};
+      bool  bIsEqTbnameCond = findEqCondTbNameInOperatorNode(pCxt, pTmpNode, &info);
+      if (!bIsEqTbnameCond) {
+        bAllTbName = false;
+        break;
+      } else {
+        unionEqualCondTbnamesOfSameTable(aTableTbnames, &info);
+      }
+    } else {
+      bAllTbName = false;
+      break;
+    }
+  }
+  if (!bAllTbName) {
+    for (int i = 0; i < taosArrayGetSize(aTableTbnames); ++i) {
+      SEqCondTbNameTableInfo* pInfo = taosArrayGet(aTableTbnames, i);
+      taosArrayDestroy(pInfo->aTbnames);
+      pInfo->aTbnames = NULL;
+    }
+    taosArrayClear(aTableTbnames);
+  }
+}
+
+static int32_t findEqualCondTbname(STranslateContext* pCxt, SNode* pWhere, SArray* aTableTbnames) {
+  //TODO: optimize nested and/or condition. now only the fist level is processed.
+  if (nodeType(pWhere) == QUERY_NODE_OPERATOR) {
+    SEqCondTbNameTableInfo info = {0};
+    bool bIsEqTbnameCond = findEqCondTbNameInOperatorNode(pCxt, pWhere, &info);
+    if (bIsEqTbnameCond) {
+      taosArrayPush(aTableTbnames, &info);
+    }
+  } else if (nodeType(pWhere) == QUERY_NODE_LOGIC_CONDITION) {
+    if (((SLogicConditionNode*)pWhere)->condType == LOGIC_COND_TYPE_AND) {
+      findEqualCondTbnameInLogicCondAnd(pCxt, pWhere, aTableTbnames);
+    } else if (((SLogicConditionNode*)pWhere)->condType == LOGIC_COND_TYPE_OR) {
+      findEqualCondTbnameInLogicCondOr(pCxt, pWhere, aTableTbnames);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t findVgroupsFromEqualTbname(STranslateContext* pCxt, SEqCondTbNameTableInfo* pInfo, SVgroupsInfo* vgsInfo) {
+  int32_t nVgroups = 0;
+  int32_t nTbls = taosArrayGetSize(pInfo->aTbnames);
+
+  if (nTbls >= pInfo->pRealTable->pVgroupList->numOfVgroups) {
+    vgsInfo->numOfVgroups = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int j = 0; j < nTbls; ++j) {
+    char* dbName = pInfo->pRealTable->table.dbName;
+    SName snameTb;
+    char* tbName = taosArrayGetP(pInfo->aTbnames, j);
+    toName(pCxt->pParseCxt->acctId, dbName, tbName, &snameTb);
+    SVgroupInfo vgInfo;
+    bool        bExists;
+    int32_t     code = catalogGetCachedTableHashVgroup(pCxt->pParseCxt->pCatalog, &snameTb, &vgInfo, &bExists);
+    if (code == TSDB_CODE_SUCCESS && bExists) {
+      bool bFoundVg = false;
+      for (int32_t k = 0; k < nVgroups; ++k) {
+        if (vgsInfo->vgroups[k].vgId == vgInfo.vgId) {
+          bFoundVg = true;
+          break;
+        }
+      }
+      if (!bFoundVg) {
+        vgsInfo->vgroups[nVgroups] = vgInfo;
+        ++nVgroups;
+        vgsInfo->numOfVgroups = nVgroups;
+      }
+    } else {
+      vgsInfo->numOfVgroups = 0;
+      break;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* pSelect, SArray* aTables) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int i = 0; i < taosArrayGetSize(aTables); ++i) {
+    SEqCondTbNameTableInfo* pInfo = taosArrayGet(aTables, i);
+    int32_t nTbls = taosArrayGetSize(pInfo->aTbnames);
+
+    SVgroupsInfo* vgsInfo = taosMemoryMalloc(sizeof(SVgroupsInfo) + nTbls * sizeof(SVgroupInfo));
+    int32_t nVgroups = 0;
+    findVgroupsFromEqualTbname(pCxt, pInfo, vgsInfo);
+    if (vgsInfo->numOfVgroups != 0) {
+      taosMemoryFree(pInfo->pRealTable->pVgroupList);
+      pInfo->pRealTable->pVgroupList = vgsInfo;
+    } else {
+      taosMemoryFree(vgsInfo);
+    }    
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setTableVgroupsFromEqualTbnameCond(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* aTables = taosArrayInit(1, sizeof(SEqCondTbNameTableInfo));
+  code = findEqualCondTbname(pCxt, pSelect->pWhere, aTables);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = setEqualTbnameTableVgroups(pCxt, pSelect, aTables);
+  }
+  for (int i = 0; i < taosArrayGetSize(aTables); ++i) {
+    SEqCondTbNameTableInfo* pInfo = taosArrayGet(aTables, i);
+    taosArrayDestroy(pInfo->aTbnames);
+  }
+  taosArrayDestroy(aTables);
+  return code;
+}
+
 static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_WHERE;
   int32_t code = translateExpr(pCxt, &pSelect->pWhere);
@@ -3933,6 +4194,9 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   }
   if (TSDB_CODE_SUCCESS == code && pSelect->timeRange.skey > pSelect->timeRange.ekey) {
     pSelect->isEmptyResult = true;
+  }
+  if (pSelect->pWhere != NULL) {
+    setTableVgroupsFromEqualTbnameCond(pCxt, pSelect);
   }
   return code;
 }
@@ -7099,7 +7363,7 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
   SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
   if (TSDB_DATA_TYPE_TIMESTAMP != ((SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0))->resType.type ||
       !isTimeLineQuery(pStmt->pQuery) || crossTableWithoutAggOper(pSelect) || NULL != pSelect->pOrderByList ||
-      crossTableWithUdaf(pSelect) || isEventWindowQuery(pSelect) || hasJsonTypeProjection(pSelect)) {
+      crossTableWithUdaf(pSelect) || hasJsonTypeProjection(pSelect)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
   }
   if (NULL != pSelect->pSubtable && TSDB_DATA_TYPE_VARCHAR != ((SExprNode*)pSelect->pSubtable)->resType.type) {

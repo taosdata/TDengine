@@ -50,6 +50,7 @@ void remove_file(const char *fname, bool last_level) {
       long        s3_size = tsS3Enabled ? s3Size(object_name) : 0;
       if (!strncmp(fname + strlen(fname) - 5, ".data", 5) && s3_size > 0) {
         s3DeleteObjects(&object_name, 1);
+        tsdbInfo("file:%s is removed from s3", fname);
       } else {
         tsdbError("file:%s remove failed", fname);
       }

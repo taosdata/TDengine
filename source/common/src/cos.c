@@ -267,8 +267,6 @@ typedef struct list_parts_callback_data {
 } list_parts_callback_data;
 
 typedef struct MultipartPartData {
-  char                     err_msg[512];
-  S3Status                 status;
   put_object_callback_data put_object_data;
   int                      seq;
   UploadManager           *manager;
@@ -276,11 +274,12 @@ typedef struct MultipartPartData {
 
 static int putObjectDataCallback(int bufferSize, char *buffer, void *callbackData) {
   put_object_callback_data *data = (put_object_callback_data *)callbackData;
+  /*
   if (data->infileFD == 0) {
     MultipartPartData *mpd = (MultipartPartData *)callbackData;
     data = &mpd->put_object_data;
   }
-
+  */
   int ret = 0;
 
   if (data->contentLength) {
@@ -458,13 +457,13 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
   int                      metaPropertiesCount = 0;
   S3NameValue              metaProperties[S3_MAX_METADATA_COUNT];
   char                     useServerSideEncryption = 0;
-  int                      noStatus = 0;
-  put_object_callback_data data;
+  put_object_callback_data data = {0};
+  // int                      noStatus = 0;
 
   // data.infile = 0;
-  data.infileFD = NULL;
-  data.gb = 0;
-  data.noStatus = noStatus;
+  // data.gb = 0;
+  // data.infileFD = NULL;
+  // data.noStatus = noStatus;
 
   if (taosStatFile(file, &contentLength, NULL, NULL) < 0) {
     uError("ERROR: %s Failed to stat file %s: ", __func__, file);
@@ -498,12 +497,6 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
       S3_put_object(&bucketContext, key, contentLength, &putProperties, 0, 0, &putObjectHandler, &data);
     } while (S3_status_is_retryable(data.status) && should_retry());
 
-    if (data.infileFD) {
-      taosCloseFile(&data.infileFD);
-    } else if (data.gb) {
-      growbuffer_destroy(data.gb);
-    }
-
     if (data.status != S3StatusOK) {
       s3PrintError(__func__, data.status, data.err_msg);
       code = TAOS_SYSTEM_ERROR(EIO);
@@ -520,9 +513,14 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
     manager.gb = 0;
 
     // div round up
-    int      seq;
-    uint64_t chunk_size = MULTIPART_CHUNK_SIZE >> 8;
-    int      totalSeq = ((contentLength + chunk_size - 1) / chunk_size);
+    int       seq;
+    uint64_t  chunk_size = MULTIPART_CHUNK_SIZE >> 7;
+    int       totalSeq = (contentLength + chunk_size - 1) / chunk_size;
+    const int max_part_num = 1000;
+    if (totalSeq > max_part_num) {
+      chunk_size = (contentLength + max_part_num - contentLength % max_part_num) / max_part_num;
+      totalSeq = (contentLength + chunk_size - 1) / chunk_size;
+    }
 
     MultipartPartData partData;
     memset(&partData, 0, sizeof(MultipartPartData));
@@ -581,9 +579,9 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
       do {
         S3_upload_part(&bucketContext, key, &putProperties, &putObjectHandler, seq, manager.upload_id,
                        partContentLength, 0, timeoutMsG, &partData);
-      } while (S3_status_is_retryable(partData.status) && should_retry());
-      if (partData.status != S3StatusOK) {
-        s3PrintError(__func__, partData.status, partData.err_msg);
+      } while (S3_status_is_retryable(partData.put_object_data.status) && should_retry());
+      if (partData.put_object_data.status != S3StatusOK) {
+        s3PrintError(__func__, partData.put_object_data.status, partData.put_object_data.err_msg);
         code = TAOS_SYSTEM_ERROR(EIO);
         goto clean;
       }
@@ -625,6 +623,12 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
     }
     growbuffer_destroy(manager.gb);
     taosMemoryFree(manager.etags);
+  }
+
+  if (data.infileFD) {
+    taosCloseFile(&data.infileFD);
+  } else if (data.gb) {
+    growbuffer_destroy(data.gb);
   }
 
   return code;
@@ -720,6 +724,8 @@ static SArray *getListByPrefix(const char *prefix) {
   } else {
     s3PrintError(__func__, data.status, data.err_msg);
   }
+
+  taosArrayDestroyEx(data.objectArray, s3FreeObjectKey);
   return NULL;
 }
 
