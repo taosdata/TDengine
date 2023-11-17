@@ -245,7 +245,7 @@ static void doCleanupInfoForNextFileset(STableBlockScanInfo* pScanInfo) {
   pScanInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
 }
 
-void cleanupInfoFoxNextFileset(SSHashObj* pTableMap) {
+void cleanupInfoForNextFileset(SSHashObj* pTableMap) {
   STableBlockScanInfo** p = NULL;
 
   int32_t iter = 0;

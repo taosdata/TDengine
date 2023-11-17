@@ -134,7 +134,7 @@ int32_t streamReExecScanHistoryFuture(SStreamTask* pTask, int32_t idleDuration) 
   pTask->schedHistoryInfo.numOfTicks = numOfTicks;
 
   int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
-  stDebug("s-task:%s scan-history start in %.2fs, ref:%d", pTask->id.idStr, numOfTicks*0.1, ref);
+  stDebug("s-task:%s scan-history resumed in %.2fs, ref:%d", pTask->id.idStr, numOfTicks*0.1, ref);
 
   if (pTask->schedHistoryInfo.pTimer == NULL) {
     pTask->schedHistoryInfo.pTimer = taosTmrStart(doReExecScanhistory, SCANHISTORY_IDLE_TIME_SLICE, pTask, streamEnv.timer);
