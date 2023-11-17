@@ -395,6 +395,10 @@ impl TaskScheduler {
         Ok(())
     }
 
+    pub async fn exists(&self, id: i64) -> bool {
+        self.tasks.read().await.get_by_task_id(&id).is_some()
+    }
+
     pub async fn push_task(&self, task: Task) -> anyhow::Result<()> {
         self.global_state.ensure_alive()?;
         let task_id = task.id;
