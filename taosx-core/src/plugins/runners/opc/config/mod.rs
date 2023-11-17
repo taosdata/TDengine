@@ -94,7 +94,7 @@ impl OPCConfig {
             debug: Self::parse_debug(dsn)?,
             connect: ConnectConfig::from_dsn(dsn)?,
             points: None,
-            collect: CollectConfig::from_dsn(dsn).await?,
+            collect: CollectConfig::new_empty().await?,
             report: ReportConfig::from_dsn(dsn, 0)?,
             param_mapping: HashMap::new(),
             opc_table_config: None,
