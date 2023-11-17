@@ -2,6 +2,7 @@ use actix_web::{get, web::Query, HttpResponse, Responder};
 use metrics::{describe_gauge, gauge, register_gauge};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, PrometheusRecorder};
 use std::{collections::BTreeMap, time::Duration};
+use tracing::instrument;
 
 use crate::serve::data_sources::LangQuery;
 
