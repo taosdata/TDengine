@@ -66,11 +66,12 @@ static int should_retry() {
   return 0;
 }
 
-static void s3PrintError(const char *func, S3Status status, char error_details[]) {
+static void s3PrintError(const char *filename, int lineno, const char *funcname, S3Status status,
+                         char error_details[]) {
   if (status < S3StatusErrorAccessDenied) {
-    uError("%s: %s", __func__, S3_get_status_name(status));
+    uError("%s/%s:%d-%s: %s", filename, lineno, __func__, funcname, S3_get_status_name(status));
   } else {
-    uError("%s: %s, %s", __func__, S3_get_status_name(status), error_details);
+    uError("%s/%s:%d-%s: %s, %s", filename, lineno, __func__, funcname, S3_get_status_name(status), error_details);
   }
 }
 
@@ -437,7 +438,7 @@ static int try_get_parts_info(const char *bucketName, const char *key, UploadMan
       // printListMultipartHeader(data.allDetails);
     }
   } else {
-    s3PrintError(__func__, data.status, data.err_msg);
+    s3PrintError(__FILE__, __LINE__, __func__, data.status, data.err_msg);
     return -1;
   }
 
@@ -498,7 +499,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
     } while (S3_status_is_retryable(data.status) && should_retry());
 
     if (data.status != S3StatusOK) {
-      s3PrintError(__func__, data.status, data.err_msg);
+      s3PrintError(__FILE__, __LINE__, __func__, data.status, data.err_msg);
       code = TAOS_SYSTEM_ERROR(EIO);
     } else if (data.contentLength) {
       uError("ERROR: %s Failed to read remaining %llu bytes from input", __func__,
@@ -556,7 +557,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
     } while (S3_status_is_retryable(manager.status) && should_retry());
 
     if (manager.upload_id == 0 || manager.status != S3StatusOK) {
-      s3PrintError(__func__, manager.status, manager.err_msg);
+      s3PrintError(__FILE__, __LINE__, __func__, manager.status, manager.err_msg);
       code = TAOS_SYSTEM_ERROR(EIO);
       goto clean;
     }
@@ -581,7 +582,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
                        partContentLength, 0, timeoutMsG, &partData);
       } while (S3_status_is_retryable(partData.put_object_data.status) && should_retry());
       if (partData.put_object_data.status != S3StatusOK) {
-        s3PrintError(__func__, partData.put_object_data.status, partData.put_object_data.err_msg);
+        s3PrintError(__FILE__, __LINE__, __func__, partData.put_object_data.status, partData.put_object_data.err_msg);
         code = TAOS_SYSTEM_ERROR(EIO);
         goto clean;
       }
@@ -609,7 +610,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
                                    timeoutMsG, &manager);
     } while (S3_status_is_retryable(manager.status) && should_retry());
     if (manager.status != S3StatusOK) {
-      s3PrintError(__func__, manager.status, manager.err_msg);
+      s3PrintError(__FILE__, __LINE__, __func__, manager.status, manager.err_msg);
       code = TAOS_SYSTEM_ERROR(EIO);
       goto clean;
     }
@@ -722,7 +723,7 @@ static SArray *getListByPrefix(const char *prefix) {
       return data.objectArray;
     }
   } else {
-    s3PrintError(__func__, data.status, data.err_msg);
+    s3PrintError(__FILE__, __LINE__, __func__, data.status, data.err_msg);
   }
 
   taosArrayDestroyEx(data.objectArray, s3FreeObjectKey);
@@ -741,7 +742,7 @@ void s3DeleteObjects(const char *object_name[], int nobject) {
     } while (S3_status_is_retryable(cbd.status) && should_retry());
 
     if ((cbd.status != S3StatusOK) && (cbd.status != S3StatusErrorPreconditionFailed)) {
-      s3PrintError(__func__, cbd.status, cbd.err_msg);
+      s3PrintError(__FILE__, __LINE__, __func__, cbd.status, cbd.err_msg);
     }
   }
 }
