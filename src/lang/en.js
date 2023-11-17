@@ -425,6 +425,7 @@ export default {
     latencyDesc: "The latency which ranks at {per}% from low to high in all requests",
   },
   data: {
+    delRunningTaskBb: "Database '{dbName}' has been used by data source '{taskName}', please stop the task first",
     appendEditor: "Append Editor",
     viewData: "view 200 rows of data",
     changeDBPrivilegeTip: "Do you want to {type} the {listType} permissions from the {dbName} DB ?",

@@ -10,6 +10,15 @@ export function getTask(id,type){
     });
 }
 
+export function getRunningTask(){
+    let id = localStorage.getItem("local_clusterID")
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url: `/tasks?lang=${i18n.locale}&detail=true&labels=type::datain,cluster-id::${id}&in_scheduler=true`,
+        method: "get"
+    });
+}
+
 
 export function getUIData(){
     return request({
