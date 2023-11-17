@@ -5,7 +5,9 @@ description: 写入数据的详细语法
 ---
 
 ## 写入语法
+写入记录支持两种语法, 正常语法和超级表语法. 正常语法下, 紧跟INSERT INTO后名的表名是子表名或者普通表名. 超级表语法下, 紧跟INSERT INTO后名的表名是超级表名
 
+### 正常语法
 ```sql
 INSERT INTO
     tb_name
@@ -20,6 +22,15 @@ INSERT INTO
 
 INSERT INTO tb_name [(field1_name, ...)] subquery
 ```
+### 超级表语法
+```sql
+INSERT INTO
+    stb1_name [(field1_name, ...)]       
+        VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
+    [stb2_name [(field1_name, ...)]  
+        VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
+    ...];
+```
 
 **关于时间戳**
 
@@ -32,26 +43,34 @@ INSERT INTO tb_name [(field1_name, ...)] subquery
 
 **语法说明**
 
-1. USING 子句是自动建表语法。如果用户在写数据时并不确定某个表是否存在，此时可以在写入数据时使用自动建表语法来创建不存在的表，若该表已存在则不会建立新表。自动建表时，要求必须以超级表为模板，并写明数据表的 TAGS 取值。可以只是指定部分 TAGS 列的取值，未被指定的 TAGS 列将置为 NULL。
+1. 可以指定要插入值的列，对于未指定的列数据库将自动填充为 NULL。
 
-2. 可以指定要插入值的列，对于为指定的列数据库将自动填充为 NULL。
+2. VALUES 语法表示了要插入的一行或多行数据。
 
-3. VALUES 语法表示了要插入的一行或多行数据。
+3. FILE 语法表示数据来自于 CSV 文件（英文逗号分隔、英文单引号括住每个值），CSV 文件无需表头。
 
-4. FILE 语法表示数据来自于 CSV 文件（英文逗号分隔、英文单引号括住每个值），CSV 文件无需表头。
+4. `INSERT ... VALUES` 语句和 `INSERT ... FILE` 语句均可以在一条 INSERT 语句中同时向多个表插入数据。
 
-5. `INSERT ... VALUES` 语句和 `INSERT ... FILE` 语句均可以在一条 INSERT 语句中同时向多个表插入数据。
-
-6. INSERT 语句是完整解析后再执行的，对如下语句，不会再出现数据错误但建表成功的情况：
+5. INSERT 语句是完整解析后再执行的，对如下语句，不会再出现数据错误但建表成功的情况：
 
    ```sql
    INSERT INTO d1001 USING meters TAGS('Beijing.Chaoyang', 2) VALUES('a');
    ```
+6. 对于向多个子表插入数据的情况，依然会有部分数据写入失败，部分数据写入成功的情况。这是因为多个子表可能分布在不同的 VNODE 上，客户端将 INSERT 语句完整解析后，将数据发往各个涉及的 VNODE 上，每个 VNODE 独立进行写入操作。如果某个 VNODE 因为某些原因（比如网络问题或磁盘故障）导致写入失败，并不会影响其他 VNODE 节点的写入。
 
-7. 对于向多个子表插入数据的情况，依然会有部分数据写入失败，部分数据写入成功的情况。这是因为多个子表可能分布在不同的 VNODE 上，客户端将 INSERT 语句完整解析后，将数据发往各个涉及的 VNODE 上，每个 VNODE 独立进行写入操作。如果某个 VNODE 因为某些原因（比如网络问题或磁盘故障）导致写入失败，并不会影响其他 VNODE 节点的写入。
+**正常语法说明**
 
-8. 可以使用 `INSERT ... subquery` 语句将 TDengine 中的数据插入到指定表中。subquery 可以是任意的查询语句。此语法只能用于子表和普通表，且不支持自动建表。
+1. USING 子句是自动建表语法。如果用户在写数据时并不确定某个表是否存在，此时可以在写入数据时使用自动建表语法来创建不存在的表，若该表已存在则不会建立新表。自动建表时，要求必须以超级表为模板，并写明数据表的 TAGS 取值。可以只是指定部分 TAGS 列的取值，未被指定的 TAGS 列将置为 NULL。
 
+2. 可以使用 `INSERT ... subquery` 语句将 TDengine 中的数据插入到指定表中。subquery 可以是任意的查询语句。此语法只能用于子表和普通表，且不支持自动建表。
+
+**超级表语法说明**
+
+1. 在 field_name 列表中必须指定 tbname 列，否则报错. tbname列是子表名, 类型是字符串. 其中字符不用转义, 不能包含点‘.‘
+
+2. 在 field_name 列表中支持标签列，当子表已经存在时，指定标签值并不会触发标签值的修改；当子表不存在时会使用所指定的标签值建立子表. 如果没有指定任何标签列，则把所有标签列的值设置为NULL
+
+3. 不支持参数绑定写入
 ## 插入一条记录
 
 指定已经创建好的数据子表的表名，并通过 VALUES 关键字提供一行或多行数据，即可向数据库写入这些数据。例如，执行如下语句可以写入一行记录：
@@ -133,4 +152,13 @@ INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/c
 ```sql
 INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile_21001.csv'
             d21002 USING meters (groupId) TAGS (2) FILE '/tmp/csvfile_21002.csv';
+```
+## 超级表语法
+
+自动建表, 表名通过tbname列指定
+```sql
+INSERT INTO meters(tbname, location, groupId, ts, current, phase) 
+                values('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:34.630', 10.2, 219, 0.32) 
+                values('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:35.779', 10.15, 217, 0.33)
+                values('d31002', NULL, 2, '2021-07-13 14:06:34.255', 10.15, 217, 0.33)        
 ```
