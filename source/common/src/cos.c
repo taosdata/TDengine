@@ -69,9 +69,9 @@ static int should_retry() {
 static void s3PrintError(const char *filename, int lineno, const char *funcname, S3Status status,
                          char error_details[]) {
   if (status < S3StatusErrorAccessDenied) {
-    uError("%s/%s:%d-%s: %s", filename, lineno, __func__, funcname, S3_get_status_name(status));
+    uError("%s/%s:%d-%s: %s", __func__, filename, lineno, funcname, S3_get_status_name(status));
   } else {
-    uError("%s/%s:%d-%s: %s, %s", filename, lineno, __func__, funcname, S3_get_status_name(status), error_details);
+    uError("%s/%s:%d-%s: %s, %s", __func__, filename, lineno, funcname, S3_get_status_name(status), error_details);
   }
 }
 
@@ -885,7 +885,7 @@ long s3Size(const char *object_name) {
   } while (S3_status_is_retryable(cbd.status) && should_retry());
 
   if ((cbd.status != S3StatusOK) && (cbd.status != S3StatusErrorPreconditionFailed)) {
-    uError("%s: %d(%s)", __func__, cbd.status, cbd.err_msg);
+    s3PrintError(__FILE__, __LINE__, __func__, cbd.status, cbd.err_msg);
   }
 
   size = cbd.content_length;
