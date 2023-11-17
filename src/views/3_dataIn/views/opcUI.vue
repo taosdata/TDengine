@@ -856,6 +856,9 @@
           @handleDbBtn="handleDbBtn"
         ></CsvData>
       </section>
+      <section v-if="dbsource[0].advanced">
+        <AdvanceOptions :options="dbsource[0].advanced" @sendAdvanceParams="getAdvanceParams"></AdvanceOptions>
+      </section>
       <section class="bottom">
         <el-button
           v-if="isShowEditBtn"
@@ -905,6 +908,7 @@ import MqttConnector from "../components/newMqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
 import DialogCreateDb from "../components/addDbDialog.vue";
 import Result from "../components/result.vue";
+import AdvanceOptions from '../components/advancedOptions.vue'
 export default {
   name: "DbSourceUI",
   components: {
@@ -915,6 +919,7 @@ export default {
     DialogCreateDb,
     DataTarget,
     Result,
+    AdvanceOptions
   },
   props: {
     echoData: {
@@ -970,6 +975,7 @@ export default {
   },
   data() {
     return {
+      advanceParams:'',
       allnodesloading: false,
       disableallnodeclick: true,
       opcinusefile: "",
@@ -1192,6 +1198,9 @@ export default {
     },
   },
   methods: {
+    getAdvanceParams(data){
+      this.advanceParams=data
+    },
     async downloadopcAllponits() {
       try {
         if (!this.dbsource[0].options.endpoint.value) {
@@ -1869,15 +1878,15 @@ export default {
 
           // }
         }
-        let piParams = {
-          from:
-            (this.tagName == "mqtt"
+        let originDsn=(this.tagName == "mqtt"
               ? "mqtt"
               : this.tagName == "csv"
               ? "csv"
               : this.tagName == "kafka"
               ? "kafka"
-              : "opc" + this.protocol) + dns,
+              : "opc" + this.protocol) + dns //没有advanced options的dsn
+        let piParams = {
+          from:originDsn+ this.advanceParams,
           name: this.sourceName,
           to:
             "taos+" +
@@ -1981,7 +1990,6 @@ export default {
               ? `&header=${this.$refs.csvdata.$refs.param.ruleForm.customcol}`
               : "");
         }
-        console.log(this.isEditable, this.editId, "编辑-opc");
         if (isSubmit) {
           if (this.isEditable && this.editId && !this.isCopyable) {
             let result = await EditSource(piParams, this.editId);
@@ -2004,7 +2012,7 @@ export default {
             }
           }
         } else {
-          this.getValidateResult(piParams.from);
+          this.getValidateResult(originDsn);
         }
       } catch (err) {
         err.response &&
@@ -2279,7 +2287,7 @@ export default {
       border-radius: 12px;
       padding: 15px;
     }
-    .block-title {
+    ::v-deep .block-title {
       margin-bottom: 10px;
       span {
         font-size: 16px;
@@ -2425,7 +2433,7 @@ export default {
       }
     }
   }
-  .description {
+  ::v-deep .description {
     display: initial !important;
     color: #acaab2;
     margin-bottom: 0px !important;
