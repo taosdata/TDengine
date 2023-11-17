@@ -510,9 +510,9 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
         Err(err) => DataSourceValidation::invalid(
             "opc".to_string(),
             format!(
-                "invalid opc dsn: {}, cause: {}",
+                "invalid opc dsn: {}, cause: {:?}",
                 dsn.to_string(),
-                err.to_string()
+                err
             ),
         ),
         Ok(c) => {
