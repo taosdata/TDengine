@@ -230,13 +230,13 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
 
   return 0;
 }
-int32_t readMetaData(char* path, SArray* list) {
-  char  buf[128] = {0};
+int32_t remoteChkp_readMetaData(char* path, SArray* list) {
   char* metaPath = taosMemoryCalloc(1, strlen(path));
   sprintf(metaPath, "%s%s%s", path, TD_DIRSEP, "META");
 
   TdFilePtr pFile = taosOpenFile(path, TD_FILE_READ);
 
+  char buf[128] = {0};
   if (taosReadFile(pFile, buf, sizeof(buf)) <= 0) {
     taosMemoryFree(metaPath);
     taosCloseFile(&pFile);
@@ -259,7 +259,7 @@ int32_t readMetaData(char* path, SArray* list) {
   taosMemoryFree(metaPath);
   return 0;
 }
-int32_t validAndCvtMeta(char* path, SArray* list, int64_t chkpId) {
+int32_t remoteChkp_validAndCvtMeta(char* path, SArray* list, int64_t chkpId) {
   int32_t complete = 1;
   int32_t len = strlen(path) + 32;
   char*   src = taosMemoryCalloc(1, len);
@@ -283,6 +283,7 @@ int32_t validAndCvtMeta(char* path, SArray* list, int64_t chkpId) {
         break;
       }
     }
+    if (complete == 0) break;
 
     sprintf(dst, "%s%s%s", path, TD_DIRSEP, temp);
     taosRenameFile(src, dst);
@@ -293,6 +294,7 @@ int32_t validAndCvtMeta(char* path, SArray* list, int64_t chkpId) {
 
   taosMemoryFree(src);
   taosMemoryFree(dst);
+
   return complete == 1 ? 0 : -1;
 }
 
@@ -303,9 +305,9 @@ int32_t rebuildFromRemoteChkp(char* key, char* chkpPath, int64_t chkpId, char* d
   }
 
   SArray* list = taosArrayInit(2, sizeof(void*));
-  code = readMetaData(chkpPath, list);
+  code = remoteChkp_readMetaData(chkpPath, list);
   if (code == 0) {
-    code = validAndCvtMeta(chkpPath, list, chkpId);
+    code = remoteChkp_validAndCvtMeta(chkpPath, list, chkpId);
   }
   taosArrayDestroyP(list, taosMemoryFree);
 
