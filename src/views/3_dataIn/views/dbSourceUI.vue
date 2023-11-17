@@ -739,6 +739,9 @@
           </template>
         </section>
       </template>
+      <section v-if="dbsource[0].advanced">
+        <AdvanceOptions :options="dbsource[0].advanced" @sendAdvanceParams="getAdvanceParams"></AdvanceOptions>
+      </section>
       <section class="bottom">
         <el-button
           v-if="isShowEditBtn"
@@ -784,9 +787,10 @@ import marked from "marked";
 import { debounce, parsinginZone, decrypt } from "@/utils/index";
 import DialogCreateDb from "../components/addDbDialog.vue";
 import Result from "../components/result.vue";
+import AdvanceOptions from '../components/advancedOptions.vue'
 export default {
   name: "DbSourceUI",
-  components: { DatePicker, DialogCreateDb, DataTarget, Result },
+  components: { DatePicker, DialogCreateDb, DataTarget, Result ,AdvanceOptions},
   props: {
     dbsource: {
       type: Array,
@@ -820,8 +824,8 @@ export default {
       });
       let end = endLsit.filter((item) => item.length > 0)[0];
 
-      if (end[0].value) {
-        return time.getTime() > new Date(end[0].value).getTime();
+      if (end[0]?.value) {
+        return time.getTime() > new Date(end[0]?.value).getTime();
       } else {
         return false;
       }
@@ -867,6 +871,7 @@ export default {
       }
     };
     return {
+      advanceParams:'',
       language: localStorage.getItem("local_language"),
       startOption: {
         disabledDate: (time) => startTimeOption(time),
@@ -996,6 +1001,10 @@ export default {
     },
   },
   methods: {
+    getAdvanceParams(data){
+      this.advanceParams=data
+    
+    },
     handleEditData() {
       this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
         group.params.map((p) => {
@@ -1542,16 +1551,15 @@ export default {
         dns += querystr
           ? (dns.includes("?") ? "&" : "?") + querystr.replace(/&$/g, "")
           : "";
-
-        let apiParams = {
-          from:
-            (this.tagName === "datasource" ? "tmq" : "taos") +
+          let originDsn=(this.tagName === "datasource" ? "tmq" : "taos") +
             (data.protocol
               ? Object.is(data.protocol.value, "--") || !data.protocol.value
                 ? ""
                 : "+"
               : "") +
-            dns,
+            dns //没有advanced options的dsn
+        let apiParams = {
+          from:originDsn+this.advanceParams,
           name: this.sourceName,
           to:
             "taos+" +
@@ -1587,12 +1595,10 @@ export default {
               this.$parent.toggleComponent("tmqtable");
             }
           } else {
-            this.getValidateResult(apiParams.from);
+            this.getValidateResult(originDsn);
           }
         } else {
-          let piParams = {
-            from:
-              this.tagName == "influxdb"
+         let originPiDsn=this.tagName == "influxdb"
                 ? "influxdb" +
                   (data.protocol
                     ? Object.is(data.protocol.value, "--")
@@ -1602,7 +1608,9 @@ export default {
                   dns
                 : this.tagName == "opentsdb"
                 ? this.tagName + (data.protocol?.value ? "+" : "") + dns
-                : this.tagName + dns,
+                : this.tagName + dns
+          let piParams = {
+            from:originPiDsn+this.advanceParams,
             name: this.sourceName,
             //   + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
             // name: localStorage.getItem("datainName"),
@@ -1620,7 +1628,6 @@ export default {
           if (this.agentId) {
             piParams["via"] = this.agentId;
           }
-          console.log(this.isEditable, this.editId, "编辑");
           if (isSubmit) {
             if (this.isEditable && this.editId && !this.isCopyable) {
               let result = await EditSource(piParams, this.editId);
@@ -1642,16 +1649,8 @@ export default {
                 Message.success("Operation Successfully!");
               }
             }
-            // if (this.isEditable && this.editId && !this.isCopyable) {
-            //   let result = await EditSource(piParams, this.editId);
-            //   if (result.message) {
-            //     Message.error(result.message);
-            //     return;
-            //   }
-            // }
           } else {
-            console.log("ss", piParams);
-            this.getValidateResult(piParams.from);
+            this.getValidateResult(originPiDsn);
           }
         }
       } catch (err) {
@@ -2211,7 +2210,7 @@ export default {
       padding: 15px;
       // border-bottom: 1px solid #ececef;
     }
-    .block-title {
+   ::v-deep .block-title {
       margin-bottom: 10px;
       span {
         font-size: 16px;
@@ -2392,7 +2391,7 @@ export default {
       }
     }
   }
-  .description {
+  ::v-deep .description {
     display: initial !important;
     color: #acaab2;
     margin-bottom: 8px !important;

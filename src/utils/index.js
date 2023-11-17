@@ -177,7 +177,6 @@ export function download(url, filename) {
 }
 
 function handler(text) {
-  console.log(text,'pppp')
   clipboard.writeText(text).then(
     () => { console.log("success!",'写入成功,text'); },
     () => { console.log("error!"); }
