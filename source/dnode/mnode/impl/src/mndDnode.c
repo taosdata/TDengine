@@ -1218,7 +1218,10 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     int32_t optLen = strlen("keeptimeoffset");
     int32_t flag = -1;
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
-    if (code < 0) return code;
+    if (code < 0) {
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return code;
+    }
 
     if (flag < 0 || flag > 23) {
       mError("dnode:%d, failed to config keepTimeOffset since value:%d. Valid range: [0, 23]", cfgReq.dnodeId, flag);
@@ -1233,7 +1236,10 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     int32_t optLen = strlen("ttlpushinterval");
     int32_t flag = -1;
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
-    if (code < 0) return code;
+    if (code < 0) {
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return code;
+    }
 
     if (flag < 0 || flag > 100000) {
       mError("dnode:%d, failed to config ttlPushInterval since value:%d. Valid range: [0, 100000]", cfgReq.dnodeId,
@@ -1249,7 +1255,10 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     int32_t optLen = strlen("ttlbatchdropnum");
     int32_t flag = -1;
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
-    if (code < 0) return code;
+    if (code < 0) {
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return code;
+    }
 
     if (flag < 0) {
       mError("dnode:%d, failed to config ttlBatchDropNum since value:%d. Valid range: [0, %d]", cfgReq.dnodeId,
@@ -1265,7 +1274,10 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     int32_t optLen = strlen("asynclog");
     int32_t flag = -1;
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
-    if (code < 0) return code;
+    if (code < 0) {
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return code;
+    }
 
     if (flag < 0 || flag > 1) {
       mError("dnode:%d, failed to config asynclog since value:%d. Valid range: [0, 1]", cfgReq.dnodeId, flag);
@@ -1281,7 +1293,10 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     int32_t optLen = strlen("supportvnodes");
     int32_t flag = -1;
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
-    if (code < 0) return code;
+    if (code < 0) {
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return code;
+    }
 
     if (flag < 0 || flag > 4096) {
       mError("dnode:%d, failed to config supportVnodes since value:%d. Valid range: [0, 4096]", cfgReq.dnodeId, flag);
@@ -1299,6 +1314,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   } else if (strncasecmp(cfgReq.config, "activeCode", 10) == 0 || strncasecmp(cfgReq.config, "cActiveCode", 11) == 0) {
     if (cfgReq.dnodeId != -1) {
       terrno = TSDB_CODE_INVALID_CFG;
+      tFreeSMCfgDnodeReq(&cfgReq);
       return -1;
     }
     int8_t opt = strncasecmp(cfgReq.config, "a", 1) == 0 ? DND_ACTIVE_CODE : DND_CONN_ACTIVE_CODE;
