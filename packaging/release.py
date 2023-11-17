@@ -376,8 +376,15 @@ def build_and_install_mqtt(mode):
         print('buildAndInstallMQTT not supported on operating system:', release_info.OS)
         sys.exit()
 
+def copy_taosx_service_file(taosx_install_path):
+    taosx_path = os.path.join(taosx_dir, "bin")
+    for filename in os.listdir(taosx_path):
+        if filename.startswith("taosx-srv"):
+            filepath = os.path.join(taosx_path, filename)
+            if os.path.isfile(filepath):
+                shutil.copy2(filepath, taosx_install_path)
 
-def copy_taos_agent_service_file(taosx_install_path):
+def copy_taosx_agent_service_file(taosx_install_path):
     taosx_agent_path = os.path.join(taosx_dir, "taosx-agent", "bin")
     for filename in os.listdir(taosx_agent_path):
         if filename.startswith("taosx-agent-srv"):
@@ -385,8 +392,15 @@ def copy_taos_agent_service_file(taosx_install_path):
             if os.path.isfile(filepath):
                 shutil.copy2(filepath, taosx_install_path)
 
+def copy_taosx_cfg(taos_cfg_path):
+    taosx_cfg = os.path.join(taosx_dir, "examples", "taosx.toml")
+    try:
+        shutil.copy2(taosx_cfg, taos_cfg_path)
+    except FileNotFoundError as e:
+        print("Copy taosx cfg from {} to {} failed: {}".format(taosx_cfg, taos_cfg_path, e.strerror))
+        sys.exit()
 
-def copy_taos_agent_cfg(taos_cfg_path):
+def copy_taosx_agent_cfg(taos_cfg_path):
     taosx_agent_cfg = os.path.join(taosx_dir, "taosx-agent", "examples", "agent.toml")
     try:
         shutil.copy2(taosx_agent_cfg, taos_cfg_path)
@@ -401,18 +415,18 @@ def build_and_install_taosx(mode):
         os.system(f'set VER_NUMBER={release_info.TdengineVersion} & set CUS_PROMPT={release_info.CustomPrompt} & set CUS_NAME={release_info.CustomName} & set CUS_EMAIL={release_info.CustomEmail} & cargo build --release')
     else:
         os.system(f'set VER_NUMBER={release_info.TdengineVersion} & set CUS_PROMPT={release_info.CustomPrompt} & set CUS_NAME={release_info.CustomName} & set CUS_EMAIL={release_info.CustomEmail} & cargo build')
-    taox_install_path = os.path.join(release_info.InstallPath, "bin")
-    check_directory(taox_install_path)
+    taosx_install_path = os.path.join(release_info.InstallPath, "bin")
+    check_directory(taosx_install_path)
     taosx_path = os.path.join(taosx_dir, "target", mode.lower(), get_taosx_output_name())
-    taosx_server_path = os.path.join(taosx_dir, "bin", "taosx-srv.exe")
-    taosx_server_xml_path = os.path.join(taosx_dir, "bin", "taosx-srv.xml")
     try:
-        shutil.copy2(taosx_path, taox_install_path)
-        shutil.copy2(taosx_server_path, taox_install_path)
-        shutil.copy2(taosx_server_xml_path, taox_install_path)
+        shutil.copy2(taosx_path, taosx_install_path)
     except FileNotFoundError as e:
         print("Copy TaosX to {} failed: {}".format(taosx_path,  e.strerror))
         sys.exit()
+    copy_taosx_service_file(taosx_install_path)
+    taos_cfg_path = os.path.join(release_info.InstallPath, "config")
+    check_directory(taos_cfg_path)
+    copy_taosx_cfg(taos_cfg_path)
 
 def build_and_install_taosx_agent(mode):
     print("buildAndInstallTaosX Agent start...")
@@ -422,19 +436,19 @@ def build_and_install_taosx_agent(mode):
     else:
         os.system(f'set VER_NUMBER={release_info.TdengineVersion} & set CUS_PROMPT={release_info.CustomPrompt} & set CUS_NAME={release_info.CustomName} & set CUS_EMAIL={release_info.CustomEmail} & cargo build --package taosx-agent')
 
-    taox_install_path = os.path.join(release_info.InstallPath, "bin")
-    check_directory(taox_install_path)
+    taosx_install_path = os.path.join(release_info.InstallPath, "bin")
+    check_directory(taosx_install_path)
     taosx_agent_path = os.path.join(taosx_dir, "target", mode.lower(), get_taosx_agent_output_name())
     try:
-        shutil.copy2(taosx_agent_path, taox_install_path)
+        shutil.copy2(taosx_agent_path, taosx_install_path)
     except FileNotFoundError as e:
         print("Copy TaosX to {} failed: {}".format(taosx_agent_path, e.strerror))
         sys.exit()
 
-    copy_taos_agent_service_file(taox_install_path)
+    copy_taosx_agent_service_file(taosx_install_path)
     taos_cfg_path = os.path.join(release_info.InstallPath, "config")
     check_directory(taos_cfg_path)
-    copy_taos_agent_cfg(taos_cfg_path)
+    copy_taosx_agent_cfg(taos_cfg_path)
 
     if release_info.UploadAgent:
         shutil.copy2(taosx_agent_path, release_info.PackageName)

@@ -1,0 +1,10 @@
+// pub const META_FIELD_NAME: &str = "name";
+pub const META_FIELD_SCOPE: &str = "scope";
+pub const META_FIELD_TYPE: &str = "type";
+pub const FIELD_NAME_TBNAME: &str = "__tbname__";
+pub const FIELD_NAME_USING: &str = "__using__";
+pub const SCOPE_TABLE_NAME: &str = "TableName";
+pub const SCOPE_S_TABLE_NAME: &str = "STableName";
+pub const SCOPE_PRIMARY_KEY: &str = "PrimaryKey";
+pub const SCOPE_COLUMN: &str = "Column";
+pub const SCOPE_TAG: &str = "Tag";

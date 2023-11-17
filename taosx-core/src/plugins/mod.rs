@@ -27,7 +27,7 @@ pub use runners::{
 };
 pub use sink::IpcStreamWorker;
 pub use taosx_ipc::types::*;
-pub use transform::Parser;
+pub use transform::{Parser, Pipeline};
 
 use self::sink::IpcHandler;
 
@@ -37,7 +37,7 @@ pub mod runners;
 mod service;
 pub mod sink;
 mod source;
-mod transform;
+pub mod transform;
 
 /// ipc stream metrics
 /// be careful to modify, in case other crate use string value. for now POINTS value used in taosx-ipc.

@@ -27,6 +27,13 @@ impl BooleanExpr {
             .map(|v| v)
             .collect())
     }
+
+    pub fn filter(&self, records: &RecordBatch) -> Result<RecordBatch, EvalError> {
+        let values = self.0.eval_as(records, DataType::Boolean)?;
+        let predicate = values.as_any().downcast_ref::<BooleanArray>().unwrap();
+        Ok(arrow::compute::filter_record_batch(records, predicate)?)
+    }
+
     pub fn try_new(expr: String) -> Result<Self, EvalAltResult> {
         Expr::try_new(expr, true).map(BooleanExpr)
     }
@@ -107,6 +114,12 @@ impl Expr {
         if rows == 0 {
             return Ok(vec![]);
         }
+
+        // fn parse_variables_from_expr(expr: &rhai::AST) -> Vec<String> {
+        //     let mut variables = vec![];
+        //     expr.walk();
+        //     variables
+        // }
 
         let mut values = Vec::with_capacity(rows);
         for rix in 0..rows {
@@ -209,7 +222,9 @@ impl Expr {
                         scope.set_value(name, value.to_string());
                     }
                     dt => {
-                        return Err(EvalError::ScopeTypeNotSupported(dt.clone()));
+                        let _ = dt; // TODO: support more types
+
+                        // return Err(EvalError::ScopeTypeNotSupported(dt.clone()));
                     }
                 }
             }

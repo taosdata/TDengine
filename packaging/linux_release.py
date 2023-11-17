@@ -78,16 +78,16 @@ def build_and_install_opc_on_linux(release_info,mode='release'):
                   f"\"-s -w -X 'collector/version.BuildAt={release_info.BuildTime}' "
                   f"-X 'collector/version.CommitID={release_info.Commit}'\" "
                   f"-o {binary_file}")
-        logging.info("taox-opc built successfully")
+        logging.info("taosx-opc built successfully")
     else:
         os.system(f"go build -ldflags "
                   f"\"-s -w -X 'collector/version.BuildAt={release_info.BuildTime}' "
                   f"-X 'collector/version.CommitID={release_info.Commit}'\" "
                   f"-o {binary_file}")
-        logging.info("taox-opc built successfully")
+        logging.info("taosx-opc built successfully")
 
     shutil.copy2(binary_file, dst_dir)
-    logging.info("taox-opc copied to {release_dir}".format(release_dir=release_dir))
+    logging.info("taosx-opc copied to {release_dir}".format(release_dir=release_dir))
 
     os.chdir(script_dir)
 
@@ -112,10 +112,10 @@ def build_and_install_mqtt_on_linux(release_info,mode='release'):
 
     logging.info(f"build_command: {build_command}")
     os.system(build_command)
-    logging.info("taox-mqtt built successfully")
+    logging.info("taosx-mqtt built successfully")
 
     shutil.copy2(binary_file, dst_dir)
-    logging.info("taox-mqtt copied to {release_dir}".format(release_dir=dst_dir))
+    logging.info("taosx-mqtt copied to {release_dir}".format(release_dir=dst_dir))
 
 
 def build_and_install_influxdb_on_linux(mode='release'):
@@ -134,10 +134,10 @@ def build_and_install_influxdb_on_linux(mode='release'):
         build_command = "mvn clean package"
     logging.info(f"build_command: {build_command}")
     os.system(build_command)
-    logging.info("taox-influxdb built successfully")
+    logging.info("taosx-influxdb built successfully")
 
     shutil.copyfile(binary_file,os.path.join(release_dir,"plugins","influxdb","taosx-influxdb.jar"))
-    logging.info("taox-influxdb copied to {release_dir}".format(release_dir=dst_dir))
+    logging.info("taosx-influxdb copied to {release_dir}".format(release_dir=dst_dir))
 
 def build_and_install_opentsdb_on_linux(mode='release'):
     logging.info("build_and_install taosx-opentsdb on linux")
@@ -155,10 +155,10 @@ def build_and_install_opentsdb_on_linux(mode='release'):
         build_command = "mvn clean package"
     logging.info(f"build_command: {build_command}")
     os.system(build_command)
-    logging.info("taox-opentsdb built successfully")
+    logging.info("taosx-opentsdb built successfully")
 
     shutil.copyfile(binary_file,os.path.join(release_dir,"plugins","opentsdb","taosx-opentsdb.jar"))
-    logging.info("taox-opentsdb copied to {release_dir}".format(release_dir=dst_dir))
+    logging.info("taosx-opentsdb copied to {release_dir}".format(release_dir=dst_dir))
 
 
 def build_and_install_taosx_on_linux(release_info, mode='release'):
@@ -175,13 +175,16 @@ def build_and_install_taosx_on_linux(release_info, mode='release'):
         os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} cargo build --release --features jemallocator')
     else:
         os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} cargo build --features jemallocator')
-    logging.info("taox built successfully")
+    logging.info("taosx built successfully")
 
     shutil.copy(binary_file,dst_dir)
-    logging.info("taox copied to {release_dir}".format(release_dir=dst_dir))
+    logging.info("taosx copied to {release_dir}".format(release_dir=dst_dir))
 
     shutil.copy(os.path.join(top_dir,"target",f"{release_info.CustomPrompt}x.service"), systemd_path)
 
+    cfg_path = os.path.join(release_dir, "etc", "taos")
+    check_directory(cfg_path)
+    shutil.copy2(os.path.join(top_dir,"examples","taosx.toml"), cfg_path)
 
 def install_taos_explorer_on_linux(release_info, mode='release'):
     logging.info("install taosx-explore under linux...")
@@ -190,11 +193,10 @@ def install_taos_explorer_on_linux(release_info, mode='release'):
     dst_dir = os.path.join(release_dir,"bin")
     binary_file = os.path.join(explore_dir,"target",mode.lower(),"taos-explorer")
     check_directory(dst_dir)
-
     os.chdir(explore_dir)
 
     shutil.copy(binary_file, dst_dir)
-    logging.info("taox-agent copied to {release_dir}".format(release_dir=dst_dir))
+    logging.info("taosx-agent copied to {release_dir}".format(release_dir=dst_dir))
 
     shutil.copy2(os.path.join(explore_dir, "target",f"{release_info.CustomPrompt}-explorer.service"), systemd_path)
 
@@ -217,10 +219,10 @@ def build_and_install_taosx_agent_on_linux(release_info, mode='release'):
     else:
         os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} cargo build --package taosx-agent')
 
-    logging.info("taox-agent built successfully")
+    logging.info("taosx-agent built successfully")
 
     shutil.copy(binary_file,dst_dir)
-    logging.info("taox-agent copied to {release_dir}".format(release_dir=dst_dir))
+    logging.info("taosx-agent copied to {release_dir}".format(release_dir=dst_dir))
 
     shutil.copy2(os.path.join(top_dir,"target",f"{release_info.CustomPrompt}x-agent.service"), systemd_path)
 

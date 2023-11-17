@@ -575,6 +575,18 @@ impl TaskController {
             filter.filter_task_labels(&mut tasks);
         }
 
+        let mut tasks = if let Some(in_scheduler) = filter.in_scheduler {
+            let mut filtered = Vec::with_capacity(tasks.len());
+            for task in tasks.into_iter() {
+                if self.scheduler.exists(task.id).await == in_scheduler {
+                    filtered.push(task);
+                }
+            }
+            filtered
+        } else {
+            tasks
+        };
+
         let span = tracing::trace_span!("request_tasks", "url" = "GET /tasks");
         let _guard = span.enter();
         counter!("tasks", tasks.len() as u64);
@@ -2684,6 +2696,7 @@ pub struct TaskFilter {
     any_labels: Option<String>,
     without_labels: Option<String>,
     via: Option<i64>,
+    in_scheduler: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, IntoParams)]

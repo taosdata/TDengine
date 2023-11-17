@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use taos::Code;
 use taosx_core::utils::metrics_db::MetricsDb;
 use taosx_core::{
-    get_data_dir, get_file_upload_home_dir, LegacyMetrics, METRICS_TIME_COST, METRICS_TIME_START,
+    get_data_dir, get_file_upload_home_dir, LegacyMetrics, METRICS_TIME_COST, METRICS_TIME_START, METRICS_TIME_RECORDS_PER_SECOND,
 };
 use utoipa::*;
 
@@ -586,22 +586,21 @@ pub(crate) async fn get_task_metrics_from_snapshot(
                 METRICS_TIME_COST.to_string(),
                 Some((time_elapsed_in_seconds.unwrap()).into()),
             );
-            // let records_vec = map
-            //     .iter()
-            //     .filter(|(k, _v)| k.contains("records"))
-            //     .map(|(_k, v)| v)
-            //     .collect_vec();
-            // let records = records_vec.get(0);
-            // Hide this metric temporarily
-            // if let Some(Some(records)) = records {
-            //     map.insert(
-            //         METRICS_TIME_RECORDS_PER_SECOND.to_string(),
-            //         Some(
-            //             (records.as_i64().unwrap_or_default() / time_elapsed_in_seconds.unwrap())
-            //                 .into(),
-            //         ),
-            //     );
-            // }
+            let records_vec = map
+                .iter()
+                .filter(|(k, _v)| k.contains("records"))
+                .map(|(_k, v)| v)
+                .collect_vec();
+            let records = records_vec.get(0);
+            if let Some(Some(records)) = records {
+                map.insert(
+                    METRICS_TIME_RECORDS_PER_SECOND.to_string(),
+                    Some(
+                        (records.as_i64().unwrap_or_default() / time_elapsed_in_seconds.unwrap())
+                            .into(),
+                    ),
+                );
+            }
         }
     }
     Some(serde_json::to_string(&map).unwrap())
