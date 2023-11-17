@@ -519,6 +519,8 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
     pOptr = createStatewindowOperatorInfo(ops[0], pStateNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE == type) {
     pOptr = createStreamStateAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT == type) {
+    pOptr = createStreamEventAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type) {
     pOptr = createMergeJoinOperatorInfo(ops, size, (SSortMergeJoinPhysiNode*)pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == type) {

@@ -66,11 +66,12 @@ static int should_retry() {
   return 0;
 }
 
-static void s3PrintError(const char *func, S3Status status, char error_details[]) {
+static void s3PrintError(const char *filename, int lineno, const char *funcname, S3Status status,
+                         char error_details[]) {
   if (status < S3StatusErrorAccessDenied) {
-    uError("%s: %s", __func__, S3_get_status_name(status));
+    uError("%s/%s:%d-%s: %s", __func__, filename, lineno, funcname, S3_get_status_name(status));
   } else {
-    uError("%s: %s, %s", __func__, S3_get_status_name(status), error_details);
+    uError("%s/%s:%d-%s: %s, %s", __func__, filename, lineno, funcname, S3_get_status_name(status), error_details);
   }
 }
 
@@ -230,9 +231,9 @@ typedef struct put_object_callback_data {
   int         noStatus;
 } put_object_callback_data;
 
-#define MULTIPART_CHUNK_SIZE (768 << 20)  // multipart is 768M
+#define MULTIPART_CHUNK_SIZE (64 << 20)  // multipart is 768M
 
-typedef struct UploadManager {
+typedef struct {
   char     err_msg[512];
   S3Status status;
   uint64_t content_length;
@@ -307,6 +308,7 @@ static int putObjectDataCallback(int bufferSize, char *buffer, void *callbackDat
 S3Status initial_multipart_callback(const char *upload_id, void *callbackData) {
   UploadManager *manager = (UploadManager *)callbackData;
   manager->upload_id = strdup(upload_id);
+  manager->status = S3StatusOK;
   return S3StatusOK;
 }
 
@@ -437,7 +439,7 @@ static int try_get_parts_info(const char *bucketName, const char *key, UploadMan
       // printListMultipartHeader(data.allDetails);
     }
   } else {
-    s3PrintError(__func__, data.status, data.err_msg);
+    s3PrintError(__FILE__, __LINE__, __func__, data.status, data.err_msg);
     return -1;
   }
 
@@ -497,14 +499,8 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
       S3_put_object(&bucketContext, key, contentLength, &putProperties, 0, 0, &putObjectHandler, &data);
     } while (S3_status_is_retryable(data.status) && should_retry());
 
-    if (data.infileFD) {
-      taosCloseFile(&data.infileFD);
-    } else if (data.gb) {
-      growbuffer_destroy(data.gb);
-    }
-
     if (data.status != S3StatusOK) {
-      s3PrintError(__func__, data.status, data.err_msg);
+      s3PrintError(__FILE__, __LINE__, __func__, data.status, data.err_msg);
       code = TAOS_SYSTEM_ERROR(EIO);
     } else if (data.contentLength) {
       uError("ERROR: %s Failed to read remaining %llu bytes from input", __func__,
@@ -514,14 +510,19 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
   } else {
     uint64_t      totalContentLength = contentLength;
     uint64_t      todoContentLength = contentLength;
-    UploadManager manager;
-    manager.upload_id = 0;
-    manager.gb = 0;
+    UploadManager manager = {0};
+    // manager.upload_id = 0;
+    // manager.gb = 0;
 
     // div round up
-    int      seq;
-    uint64_t chunk_size = MULTIPART_CHUNK_SIZE >> 8;
-    int      totalSeq = ((contentLength + chunk_size - 1) / chunk_size);
+    int       seq;
+    uint64_t  chunk_size = MULTIPART_CHUNK_SIZE >> 3;
+    int       totalSeq = (contentLength + chunk_size - 1) / chunk_size;
+    const int max_part_num = 10000;
+    if (totalSeq > max_part_num) {
+      chunk_size = (contentLength + max_part_num - contentLength % max_part_num) / max_part_num;
+      totalSeq = (contentLength + chunk_size - 1) / chunk_size;
+    }
 
     MultipartPartData partData;
     memset(&partData, 0, sizeof(MultipartPartData));
@@ -557,7 +558,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
     } while (S3_status_is_retryable(manager.status) && should_retry());
 
     if (manager.upload_id == 0 || manager.status != S3StatusOK) {
-      s3PrintError(__func__, manager.status, manager.err_msg);
+      s3PrintError(__FILE__, __LINE__, __func__, manager.status, manager.err_msg);
       code = TAOS_SYSTEM_ERROR(EIO);
       goto clean;
     }
@@ -582,7 +583,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
                        partContentLength, 0, timeoutMsG, &partData);
       } while (S3_status_is_retryable(partData.put_object_data.status) && should_retry());
       if (partData.put_object_data.status != S3StatusOK) {
-        s3PrintError(__func__, partData.put_object_data.status, partData.put_object_data.err_msg);
+        s3PrintError(__FILE__, __LINE__, __func__, partData.put_object_data.status, partData.put_object_data.err_msg);
         code = TAOS_SYSTEM_ERROR(EIO);
         goto clean;
       }
@@ -610,7 +611,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
                                    timeoutMsG, &manager);
     } while (S3_status_is_retryable(manager.status) && should_retry());
     if (manager.status != S3StatusOK) {
-      s3PrintError(__func__, manager.status, manager.err_msg);
+      s3PrintError(__FILE__, __LINE__, __func__, manager.status, manager.err_msg);
       code = TAOS_SYSTEM_ERROR(EIO);
       goto clean;
     }
@@ -624,6 +625,12 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
     }
     growbuffer_destroy(manager.gb);
     taosMemoryFree(manager.etags);
+  }
+
+  if (data.infileFD) {
+    taosCloseFile(&data.infileFD);
+  } else if (data.gb) {
+    growbuffer_destroy(data.gb);
   }
 
   return code;
@@ -717,8 +724,10 @@ static SArray *getListByPrefix(const char *prefix) {
       return data.objectArray;
     }
   } else {
-    s3PrintError(__func__, data.status, data.err_msg);
+    s3PrintError(__FILE__, __LINE__, __func__, data.status, data.err_msg);
   }
+
+  taosArrayDestroyEx(data.objectArray, s3FreeObjectKey);
   return NULL;
 }
 
@@ -734,7 +743,7 @@ void s3DeleteObjects(const char *object_name[], int nobject) {
     } while (S3_status_is_retryable(cbd.status) && should_retry());
 
     if ((cbd.status != S3StatusOK) && (cbd.status != S3StatusErrorPreconditionFailed)) {
-      s3PrintError(__func__, cbd.status, cbd.err_msg);
+      s3PrintError(__FILE__, __LINE__, __func__, cbd.status, cbd.err_msg);
     }
   }
 }
@@ -877,7 +886,7 @@ long s3Size(const char *object_name) {
   } while (S3_status_is_retryable(cbd.status) && should_retry());
 
   if ((cbd.status != S3StatusOK) && (cbd.status != S3StatusErrorPreconditionFailed)) {
-    uError("%s: %d(%s)", __func__, cbd.status, cbd.err_msg);
+    s3PrintError(__FILE__, __LINE__, __func__, cbd.status, cbd.err_msg);
   }
 
   size = cbd.content_length;

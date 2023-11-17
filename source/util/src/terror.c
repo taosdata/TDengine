@@ -504,6 +504,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SCH_STATUS_ERROR,             "scheduler status erro
 TAOS_DEFINE_ERROR(TSDB_CODE_SCH_INTERNAL_ERROR,           "scheduler internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_SCH_TIMEOUT_ERROR,            "Task timeout")
 TAOS_DEFINE_ERROR(TSDB_CODE_SCH_JOB_IS_DROPPING,          "Job is dropping")
+TAOS_DEFINE_ERROR(TSDB_CODE_SCH_JOB_NOT_EXISTS,           "Job no longer exist")
 
 // parser
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SYNTAX_ERROR,              "syntax error near")
