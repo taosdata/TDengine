@@ -519,6 +519,7 @@ void* streamBackendInit(const char* streamPath, int64_t chkpId, int32_t vgId) {
     if (err != NULL) {
       stError("failed to open rocksdb, path:%s, reason:%s", backendPath, err);
       taosMemoryFreeClear(err);
+      rocksdb_list_column_families_destroy(cfs, nCf);
       goto _EXIT;
     }
   } else {

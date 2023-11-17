@@ -62,9 +62,13 @@ void sndEnqueueStreamDispatch(SSnode *pSnode, SRpcMsg *pMsg) {
   if (pTask) {
     SRpcMsg rsp = { .info = pMsg->info, .code = 0 };
     streamProcessDispatchMsg(pTask, &req, &rsp);
+    tDeleteStreamDispatchReq(&req);
     streamMetaReleaseTask(pSnode->pMeta, pTask);
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
+    return;
+  } else {
+    tDeleteStreamDispatchReq(&req);
     return;
   }
 
@@ -450,14 +454,17 @@ int32_t sndProcessTaskDispatchReq(SSnode *pSnode, SRpcMsg *pMsg, bool exec) {
   SDecoder           decoder;
   tDecoderInit(&decoder, (uint8_t *)msgBody, msgLen);
   tDecodeStreamDispatchReq(&decoder, &req);
+  tDecoderClear(&decoder);
 
   SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, req.streamId, req.taskId);
   if (pTask) {
     SRpcMsg rsp = {.info = pMsg->info, .code = 0};
     streamProcessDispatchMsg(pTask, &req, &rsp);
+    tDeleteStreamDispatchReq(&req);
     streamMetaReleaseTask(pSnode->pMeta, pTask);
     return 0;
   } else {
+    tDeleteStreamDispatchReq(&req);
     return -1;
   }
 }
