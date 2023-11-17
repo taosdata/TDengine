@@ -1072,7 +1072,11 @@ export default {
   },
   mounted() {
     if (this.tagName == "mqtt" || this.tagName == "kafka") {
-      this.constmqttCols = this.dbsource[0].parser.fields;
+      this.constmqttCols = this.dbsource[0].parser.fields.map(item=>{
+        return Object.assign(item,{
+          alias:item.name
+        })
+      });
       let caitem = this.$store.state.app.mqttcafile[0];
       let certitem = this.$store.state.app.mqttcertfile[0];
       let certkeyitem = this.$store.state.app.mqttcertkeyfile[0];
@@ -1417,6 +1421,7 @@ export default {
     },
 
     async submit(isSubmit) {
+      console.log(this.constMqttparser,'constMqttparser')
       // debugger
       let dns = "";
       let id = localStorage.getItem("local_clusterID");

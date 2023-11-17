@@ -3,20 +3,20 @@
     :class="[
       'mqtt-column',
       isEditable &&
-      (this.nonEditableCols.includes(colData['name']) ||
-        colData['name'] == currentKey.primary)
+      (this.nonEditableCols.includes(colData['alias']) ||
+        colData['alias'] == currentKey.primary)
         ? 'edit'
         : '',
     ]"
   >
     <li class="primary">
       <el-checkbox
-        :value="colData['name'] == currentKey.primary"
-        @change="changePrimary(colData['name'])"
+        :value="colData['alias'] == currentKey.primary"
+        @change="changePrimary(colData['alias'])"
         :disabled="
-          ['topic', 'qos'].includes(colData['name']) ||
-          !colData['name'] ||
-          (!colData['cast'] && colData['name'] != 'ts') ||
+          ['topic', 'qos'].includes(colData['alias']) ||
+          !colData['alias'] ||
+          (!colData['cast'] && colData['alias'] != 'ts') ||
           (colData['cast'] &&
             !colData['cast'].toLowerCase().includes('timestamp')) ||
           isEditable
@@ -45,7 +45,7 @@
       </el-checkbox>
     </li>
     <li>
-      <template v-if="constcols.includes(colData['name'])">
+      <template v-if="constcols.includes(colData['alias'])">
         <span class="forbidden">{{ colData["name"] }}</span>
       </template>
       <el-input
@@ -56,7 +56,7 @@
       ></el-input>
     </li>
     <li>
-      <template v-if="constcols.includes(colData['name'])">
+      <template v-if="constcols.includes(colData['alias'])">
         <span class="forbidden">
           <i class="el-icon-close"></i>
         </span>
@@ -71,7 +71,7 @@
         max-width: 135px;
       "
     >
-      <template v-if="constcols.includes(colData['name'])">
+      <template v-if="constcols.includes(colData['alias'])">
         <span class="forbidden">
           <i class="el-icon-close"></i>
         </span>
@@ -117,7 +117,7 @@
       </template>
     </li>
     <li
-      :class="['icon-col', !constcols.includes(colData['name']) ? 'show' : '']"
+      :class="['icon-col', !constcols.includes(colData['alias']) ? 'show' : '']"
     >
       <span class="icon-container" @click="deleteRow">
         <i class="el-icon-delete"></i>
@@ -226,7 +226,7 @@ export default {
         }
         if (this.columnChecked) {
           if (!columns.includes(val)) {
-            if (this.colData.name == this.currentKey.primary) {
+            if (this.colData.alias == this.currentKey.primary) {
               columns.unshift(val);
             } else {
               columns.push(val);
@@ -240,17 +240,17 @@ export default {
     },
     setColumnChecked() {
       this.tagChecked = false;
-      this.getPreveiousParser(this.colData["name"], "column");
+      this.getPreveiousParser(this.colData["alias"], "column");
     },
     setTagChecked() {
       this.columnChecked = false;
-      this.getPreveiousParser(this.colData["name"], "tag");
+      this.getPreveiousParser(this.colData["alias"], "tag");
     },
     changeType(val) {
       this.colData["cast"] = val;
       if (
         !this.colData["cast"].toLowerCase().includes("timestamp") &&
-        this.colData["name"] == this.currentKey.primary
+        this.colData["alias"] == this.currentKey.primary
       ) {
         this.changePrimary("ts");
       }
@@ -287,10 +287,10 @@ export default {
       let oldparser = this.$store.state.app.mqttParser;
       let columns = oldparser.model.columns;
       let tags = oldparser.model.tags;
-      if (columns.includes(this.colData.name)) {
+      if (columns.includes(this.colData.alias)) {
         this.columnChecked = true;
       }
-      if (tags.includes(this.colData.name)) {
+      if (tags.includes(this.colData.alias)) {
         this.tagChecked = true;
       }
     },
@@ -298,7 +298,7 @@ export default {
   mounted() {
     if (
       this.currentKey.primary &&
-      this.currentKey.primary == this.colData.name
+      this.currentKey.primary == this.colData.alias
     ) {
       this.columnChecked = true;
     }
@@ -321,14 +321,14 @@ export default {
         let oldparser = this.$store.state.app.mqttParser;
         let columns = oldparser.model.columns;
         if (oldVal) {
-          if (this.colData.name == oldVal) {
+          if (this.colData.alias == oldVal) {
             this.columnChecked = false;
           }
           if (columns.includes(oldVal)) {
             columns.splice(columns.indexOf(oldVal), 1);
           }
         }
-        if (val == this.colData.name) {
+        if (val == this.colData.alias) {
           this.columnChecked = true;
         }
       },
@@ -336,12 +336,12 @@ export default {
     "$store.state.app.mqttParser": {
       deep: true,
       handler(val) {
-        if (val.model.columns.includes(this.colData.name)) {
+        if (val.model.columns.includes(this.colData.alias)) {
           this.columnChecked = true;
         } else {
           this.columnChecked = false;
         }
-        if (val.model.tags.includes(this.colData.name)) {
+        if (val.model.tags.includes(this.colData.alias)) {
           this.tagChecked = true;
         } else {
           this.tagChecked = false;
