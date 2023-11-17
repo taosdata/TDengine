@@ -425,6 +425,7 @@ int32_t rebuildDirFromChkp2(const char* path, char* key, int64_t chkpId, char** 
       code = taosMkDir(defaultPath);
     }
   }
+  taosMemoryFree(chkpPath);
 
   *dbPath = defaultPath;
   *dbPrefixPath = prefixPath;

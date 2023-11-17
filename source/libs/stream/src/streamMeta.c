@@ -243,7 +243,7 @@ int32_t streamMetaMayCvtDbFormat(SStreamMeta* pMeta) {
 int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg, char* key) {
   SStreamTask* pTask = arg;
 
-  int64_t chkpId = pTask->chkInfo.checkpointingId;
+  int64_t chkpId = pTask->chkInfo.checkpointId;
 
   taosThreadMutexLock(&pMeta->backendMutex);
   void** ppBackend = taosHashGet(pMeta->pTaskDbUnique, key, strlen(key));
