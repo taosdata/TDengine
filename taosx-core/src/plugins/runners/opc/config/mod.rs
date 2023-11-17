@@ -127,18 +127,15 @@ impl OPCConfig {
 
         let opc_type = OpcType::from_dsn(dsn)?;
         let csv_config_file = Self::parse_csv_config_file(dsn);
+        if let Some(csv) = csv_config_file {
+            let (opc_table_config, _, _) = generate_config_from_csv("opcua", csv.as_str()).await?;
+            return Ok(opc_table_config.id_code_map.clone());
+        }
         match opc_type {
             OpcType::OPCUA => {
-                let ua_nodes = match csv_config_file {
-                    Some(csv) => generate_config_from_csv("opcua", csv.as_str())
-                        .await
-                        .map(|(_a, b, _c)| b)
-                        .map_err(|err| {
-                            anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
-                        })?,
-                    None => get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "ua.nodes")
-                        .map_err(|s| anyhow::anyhow!("file parse error: {}", s))?,
-                };
+                let ua_nodes =
+                    get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "ua.nodes")
+                        .map_err(|s| anyhow::anyhow!("file parse error: {}", s))?;
                 for i in 0..ua_nodes.len() {
                     let pair = ua_nodes[i].split("::").collect_vec();
                     if pair.len() != 2 {
@@ -162,16 +159,9 @@ impl OPCConfig {
                 }
             }
             OpcType::OPCDA => {
-                let node_vec = match csv_config_file {
-                    Some(csv) => generate_config_from_csv("opcda", csv.as_str())
-                        .await
-                        .map(|(_a, b, _c)| b)
-                        .map_err(|err| {
-                            anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
-                        })?,
-                    None => get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "da.tags")
-                        .map_err(|s| anyhow::anyhow!("file parse error: {}", s))?,
-                };
+                let node_vec =
+                    get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "da.tags")
+                        .map_err(|s| anyhow::anyhow!("file parse error: {}", s))?;
                 for i in 0..node_vec.len() {
                     let pair = node_vec[i].split("::").collect_vec();
                     if pair.len() != 2 {
