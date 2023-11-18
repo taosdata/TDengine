@@ -16,6 +16,7 @@ settings:
             debugFlag: 131
             supportVnodes: 1024
             asynclog: 0
+            numOfCommitThreads: 8
   - name: taospy
     fqdn: [u1-55]
     spec:

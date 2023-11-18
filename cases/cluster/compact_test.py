@@ -44,7 +44,6 @@ class CompactTest(TDCase):
         self.duration = "1d"
         self.stt_trigger = 8
         self.today_zero_ts = self.tdCom.genTodayZeroTs()
-        print(self.today_zero_ts)
         self.today_zero_dt = self.tdCom.genTs(ts=self.today_zero_ts/1000)[1]
         self.stage_1_timestamp = self.today_zero_ts - self.tdCom.trans_time_to_s(self.keep) * 1000 + 86400 * 1000
         self.stage_1_dt = self.tdCom.genTs(ts=self.stage_1_timestamp/1000)[1]
@@ -55,9 +54,7 @@ class CompactTest(TDCase):
         self.stage_rows = 20000
         self.insert_rows = 1000000
         self.compact_interval = 180
-        # self.compact_interval = 60
         self.compact_wait = 180
-        # self.compact_wait = 60
 
         self.wal_retention_period = 1
         self.stbname = "stb"
@@ -86,7 +83,7 @@ class CompactTest(TDCase):
         self.stream_sql2 = f"select ts,max(c1) from {self.dbname2}.{self.stbname} where c1>0 partition by tbname interval(1s) sliding(1s)"
 
         self.use_stream = False
-        self.use_tmq = True
+        self.use_tmq = False
         self.topic_name = "tp_name"
         self.tmq_status = 0
         self.offset_value = "earliest"
@@ -130,6 +127,7 @@ class CompactTest(TDCase):
         self.disorder_schedular_interval = 300
         self.restart_dnode_interval = 300
         self.standard_record_time = 180
+        # self.standard_record_time = 60
 
         self.compacting = False
         self.compact_end = False
@@ -207,10 +205,10 @@ class CompactTest(TDCase):
 
     def continue_insert(self):
         self._remote._logger.info(f'------------ schedular will compact database {self.dbname1} start with "{self.stage_1_dt}" end with "{self.today_zero_dt}" ------------')
-        self._remote._logger.info(f'------------ new insert start with "{self.today_zero_dt}" ------------')
+        self._remote._logger.info(f'------------ new insert start with "{self.stage_2_dt}" ------------')
         json_filename_list = [self.json_file_name2]
         dbinfo = self.tdCom.setDBinfo(name=self.dbname1, replica=self.replica, vgroups=self.vgroups, drop=self.db_drop, wal_retention_period=self.wal_retention_period, stt_trigger=self.stt_trigger, keep=self.keep, duration=self.duration)
-        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.insert_rows, start_timestamp=self.today_zero_ts, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows)]
+        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.insert_rows, start_timestamp=self.stage_2_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows)]
         # stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.insert_rows, start_timestamp=self.today_zero_ts, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows, disorder_ratio=self.disorder_ratio, update_ratio=self.update_ratio, delete_ratio=self.delete_ratio, disorder_fill_interval=self.disorder_fill_interval, update_fill_interval=self.update_fill_interval, generate_row_rule=self.generate_row_rule)]
         database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
         host = self.get_fqdn("taosd")[0]
@@ -396,7 +394,10 @@ class CompactTest(TDCase):
                 self._remote._logger.info(f"------------ actual   end: {self.pat_log_info} ------------")
                 if pat_log_info == self.pat_log_info:
                     self._remote._logger.info(f"------------ compact already finished ------------")
-                self.compact_end_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+                    print(f"================{pat_log_info}")
+                    pat_info_list = pat_log_info.split()
+                    pat_info_list[0] = str(datetime.now().year) + "-" + pat_info_list[0].replace("/", "-")
+                    self.compact_end_timestamp = " ".join(pat_info_list[0:2])
             else:
                 self._remote._logger.error(f"------------ confirm compact end timeout after {self.compact_confirm_timeout}s ------------")
                 self._remote._logger.error(f"------------ expected end: {pat_log_info} ------------")
