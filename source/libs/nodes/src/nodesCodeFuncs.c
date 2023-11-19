@@ -43,7 +43,7 @@ typedef struct SBuiltinNodeDefinition {
   FExecDestoryNode  destoryFunc;
 } SBuiltinNodeDefinition;
 
-SBuiltinNodeDefinition funcNodes[QUERY_NODE_END] = {};
+SBuiltinNodeDefinition funcNodes[QUERY_NODE_END] = {NULL};
 
 static TdThreadOnce    functionNodeInit = PTHREAD_ONCE_INIT;
 static int32_t         initNodeCode = -1;
@@ -7439,1407 +7439,1407 @@ void nodesDestroyNode(SNode* pNode) {
 
 // clang-format off
 static void doInitNodeFuncArray() {
- setFunc("Column",
+  setFunc("Column",
       QUERY_NODE_COLUMN,
       sizeof(SColumnNode),
       columnNodeToJson, 
       jsonToColumnNode, 
       destroyColumnNode
     );
- setFunc("Value",
+  setFunc("Value",
      QUERY_NODE_VALUE,
      sizeof(SValueNode),
      valueNodeToJson,
      jsonToValueNode,
      destroyValueNode
    );
- setFunc("Operator",
+  setFunc("Operator",
      QUERY_NODE_OPERATOR,
      sizeof(SOperatorNode),
      operatorNodeToJson,
      jsonToOperatorNode,
      destroyOperatorNode
    );
- setFunc("LogicCondition",
+  setFunc("LogicCondition",
      QUERY_NODE_LOGIC_CONDITION,
      sizeof(SLogicConditionNode),
      logicConditionNodeToJson,
      jsonToLogicConditionNode,
      destoryLogicConditionNode
    );
- setFunc("Function",
+  setFunc("Function",
      QUERY_NODE_FUNCTION,
      sizeof(SFunctionNode),
      functionNodeToJson,
      jsonToFunctionNode,
      destoryFunctionNode
    );
- setFunc("RealTable",
+  setFunc("RealTable",
      QUERY_NODE_REAL_TABLE,
      sizeof(SRealTableNode),
      realTableNodeToJson,
      jsonToRealTableNode,
      destoryRealTableNode
    );
- setFunc("TempTable",
+  setFunc("TempTable",
      QUERY_NODE_TEMP_TABLE,
      sizeof(STempTableNode),
      tempTableNodeToJson,
      jsonToTempTableNode,
      destoryTempTableNode
    );
- setFunc("JoinTable",
+  setFunc("JoinTable",
      QUERY_NODE_JOIN_TABLE,
      sizeof(SJoinTableNode),
      joinTableNodeToJson,
      jsonToJoinTableNode,
      destoryJoinTableNode
    );
- setFunc("GroupingSet",
+  setFunc("GroupingSet",
      QUERY_NODE_GROUPING_SET,
      sizeof(SGroupingSetNode),
      groupingSetNodeToJson,
      jsonToGroupingSetNode,
      destoryGroupingSetNode
    );
- setFunc("OrderByExpr",
+  setFunc("OrderByExpr",
      QUERY_NODE_ORDER_BY_EXPR,
      sizeof(SOrderByExprNode),
      orderByExprNodeToJson,
      jsonToOrderByExprNode,
      destoryOrderByExprNode
    );
- setFunc("Limit",
+  setFunc("Limit",
      QUERY_NODE_LIMIT,
      sizeof(SLimitNode),
      limitNodeToJson,
      jsonToLimitNode,
      destoryXNode
    );
- setFunc("StateWindow",
+  setFunc("StateWindow",
      QUERY_NODE_STATE_WINDOW,
      sizeof(SStateWindowNode),
      stateWindowNodeToJson,
      jsonToStateWindowNode,
      destoryStateWindowNode
    );
- setFunc("SessionWinow",
+  setFunc("SessionWinow",
      QUERY_NODE_SESSION_WINDOW,
      sizeof(SSessionWindowNode),
      sessionWindowNodeToJson,
      jsonToSessionWindowNode,
      destorySessionWindowNode
    );
- setFunc("IntervalWindow",
+  setFunc("IntervalWindow",
      QUERY_NODE_INTERVAL_WINDOW,
      sizeof(SIntervalWindowNode),
      intervalWindowNodeToJson,
      jsonToIntervalWindowNode,
      destoryIntervalWindowNode
    );
- setFunc("NodeList",
+  setFunc("NodeList",
      QUERY_NODE_NODE_LIST,
      sizeof(SNodeListNode),
      nodeListNodeToJson,
      jsonToNodeListNode,
      destoryNodeListNode
    );
- setFunc("Fill",
+  setFunc("Fill",
      QUERY_NODE_FILL,
      sizeof(SFillNode),
      fillNodeToJson,
      jsonToFillNode,
      destoryFillNode
    );
- setFunc("RawExpr",
+  setFunc("RawExpr",
      QUERY_NODE_RAW_EXPR,
      sizeof(SRawExprNode),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryRawExprNode
    );
- setFunc("Target",
+  setFunc("Target",
      QUERY_NODE_TARGET,
      sizeof(STargetNode),
      targetNodeToJson,
      jsonToTargetNode,
      destoryTargetNode
    );
- setFunc("DataBlockDesc",
+  setFunc("DataBlockDesc",
      QUERY_NODE_DATABLOCK_DESC,
      sizeof(SDataBlockDescNode),
      dataBlockDescNodeToJson,
      jsonToDataBlockDescNode,
      destoryDataBlockDescNode
    );
- setFunc("SlotDesc",
+  setFunc("SlotDesc",
      QUERY_NODE_SLOT_DESC,
      sizeof(SSlotDescNode),
      slotDescNodeToJson,
      jsonToSlotDescNode,
      destoryXNode
    );
- setFunc("ColumnDef",
+  setFunc("ColumnDef",
      QUERY_NODE_COLUMN_DEF,
      sizeof(SColumnDefNode),
      columnDefNodeToJson,
      jsonToColumnDefNode,
      destoryXNode
    );
- setFunc("DownstreamSource",
+  setFunc("DownstreamSource",
      QUERY_NODE_DOWNSTREAM_SOURCE,
      sizeof(SDownstreamSourceNode),
      downstreamSourceNodeToJson,
      jsonToDownstreamSourceNode,
      destoryXNode
    );
- setFunc("DatabaseOptions",
+  setFunc("DatabaseOptions",
      QUERY_NODE_DATABASE_OPTIONS,
      sizeof(SDatabaseOptions),
      databaseOptionsToJson,
      jsonToDatabaseOptions,
      destoryDatabaseOptions
    );
- setFunc("TableOptions",
+  setFunc("TableOptions",
      QUERY_NODE_TABLE_OPTIONS,
      sizeof(STableOptions),
      tableOptionsToJson,
      jsonToTableOptions,
      destoryTableOptions
    );
- setFunc("IndexOptions",
+  setFunc("IndexOptions",
      QUERY_NODE_INDEX_OPTIONS,
      sizeof(SIndexOptions),
      indexOptionsToJson,
      jsonToIndexOptions,
      destoryIndexOptions
    );
- setFunc("ExplainOptions",
+  setFunc("ExplainOptions",
      QUERY_NODE_EXPLAIN_OPTIONS,
      sizeof(SExplainOptions),
      explainOptionsToJson,
      jsonToExplainOptions,
      destoryXNode
    );
- setFunc("StreamOptions",
+  setFunc("StreamOptions",
      QUERY_NODE_STREAM_OPTIONS,
      sizeof(SStreamOptions),
      streamOptionsToJson,
      jsonToStreamOptions,
      destoryStreamOptions
    );
- setFunc("LeftValue",
+  setFunc("LeftValue",
      QUERY_NODE_LEFT_VALUE,
      sizeof(SLeftValueNode),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("ColumnRef",
+  setFunc("ColumnRef",
      QUERY_NODE_COLUMN_REF,
      sizeof(SColumnDefNode),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("WhenThen",
+  setFunc("WhenThen",
      QUERY_NODE_WHEN_THEN,
      sizeof(SWhenThenNode),
      whenThenNodeToJson,
      jsonToWhenThenNode,
      destoryWhenThenNode
    );
- setFunc("CaseWhen",
+  setFunc("CaseWhen",
      QUERY_NODE_CASE_WHEN,
      sizeof(SCaseWhenNode),
      caseWhenNodeToJson,
      jsonToCaseWhenNode,
      destoryCaseWhenNode
    );
- setFunc("EventWindow",
+  setFunc("EventWindow",
      QUERY_NODE_EVENT_WINDOW,
      sizeof(SEventWindowNode),
      eventWindowNodeToJson,
      jsonToEventWindowNode,
      destoryEventWindowNode
    );
- setFunc("HintNode",
+  setFunc("HintNode",
      QUERY_NODE_HINT,
      sizeof(SHintNode),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryHintNode
    );
- setFunc("ViewNode",
+  setFunc("ViewNode",
      QUERY_NODE_VIEW,
      sizeof(SViewNode),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryViewNode
    );
- setFunc("SetOperator",
+  setFunc("SetOperator",
      QUERY_NODE_SET_OPERATOR,
      sizeof(SSetOperator),
      setOperatorToJson,
      jsonToSetOperator,
      destorySetOperator
    );
- setFunc("SelectStmt",
+  setFunc("SelectStmt",
      QUERY_NODE_SELECT_STMT,
      sizeof(SSelectStmt),
      selectStmtToJson,
      jsonToSelectStmt,
      destorySelectStmt
    );
- setFunc("VnodeModifyStmt",
+  setFunc("VnodeModifyStmt",
      QUERY_NODE_VNODE_MODIFY_STMT,
      sizeof(SVnodeModifyOpStmt),
      vnodeModifyStmtToJson,
      jsonToVnodeModifyStmt,
      destoryVnodeModifyOpStmt
    );
- setFunc("CreateDatabaseStmt",
+  setFunc("CreateDatabaseStmt",
      QUERY_NODE_CREATE_DATABASE_STMT,
      sizeof(SCreateDatabaseStmt),
      createDatabaseStmtToJson,
      jsonToCreateDatabaseStmt,
      destoryCreateDatabaseStmt
    );
- setFunc("DropDatabaseStmt",
+  setFunc("DropDatabaseStmt",
      QUERY_NODE_DROP_DATABASE_STMT,
      sizeof(SDropDatabaseStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("AlterDatabaseStmt",
+  setFunc("AlterDatabaseStmt",
      QUERY_NODE_ALTER_DATABASE_STMT,
      sizeof(SAlterDatabaseStmt),
      alterDatabaseStmtToJson,
      jsonToAlterDatabaseStmt,
      destoryAlterDatabaseStmt
    );
- setFunc("FlushDatabaseStmt",
+  setFunc("FlushDatabaseStmt",
      QUERY_NODE_FLUSH_DATABASE_STMT,
      sizeof(SFlushDatabaseStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("TrimDatabaseStmt",
+  setFunc("TrimDatabaseStmt",
      QUERY_NODE_TRIM_DATABASE_STMT,
      sizeof(STrimDatabaseStmt),
      trimDatabaseStmtToJson,
      jsonToTrimDatabaseStmt,
      destoryXNode
    );
- setFunc("CreateTableStmt",
+  setFunc("CreateTableStmt",
      QUERY_NODE_CREATE_TABLE_STMT,
      sizeof(SCreateTableStmt),
      createTableStmtToJson,
      jsonToCreateTableStmt,
      destoryCreateTableStmt
    );
- setFunc("CreateSubtableClause",
+  setFunc("CreateSubtableClause",
      QUERY_NODE_CREATE_SUBTABLE_CLAUSE,
      sizeof(SCreateSubTableClause),
      createSubTableClauseToJson,
      jsonToCreateSubTableClause,
      destoryCreateSubTableClause
    );
- setFunc("CreateMultiTableStmt",
+  setFunc("CreateMultiTableStmt",
      QUERY_NODE_CREATE_MULTI_TABLES_STMT,
      sizeof(SCreateMultiTablesStmt),
      createMultiTablesStmtToJson,
      jsonToCreateMultiTablesStmt,
      destoryCreateMultiTablesStmt
    );
- setFunc("DropTableClause",
+  setFunc("DropTableClause",
      QUERY_NODE_DROP_TABLE_CLAUSE,
      sizeof(SDropTableClause),
      dropTableClauseToJson,
      jsonToDropTableClause,
      destoryXNode
    );
- setFunc("DropTableStmt",
+  setFunc("DropTableStmt",
      QUERY_NODE_DROP_TABLE_STMT,
      sizeof(SDropTableStmt),
      dropTableStmtToJson,
      jsonToDropTableStmt,
      destoryDropTableStmt
    );
- setFunc("DropSuperTableStmt",
+  setFunc("DropSuperTableStmt",
      QUERY_NODE_DROP_SUPER_TABLE_STMT,
      sizeof(SDropSuperTableStmt),
      dropStableStmtToJson,
      jsonToDropStableStmt,
      destoryXNode
    );
- setFunc("AlterTableStmt",
+  setFunc("AlterTableStmt",
      QUERY_NODE_ALTER_TABLE_STMT,
      sizeof(SAlterTableStmt),
      alterTableStmtToJson,
      jsonToAlterTableStmt,
      destoryAlterTableStmt
    );
- setFunc("AlterSuperTableStmt",
+  setFunc("AlterSuperTableStmt",
      QUERY_NODE_ALTER_SUPER_TABLE_STMT,
      sizeof(SAlterTableStmt),
      alterStableStmtToJson,
      jsonToAlterStableStmt,
      destoryAlterTableStmt
    );
- setFunc("CreateUserStmt",
+  setFunc("CreateUserStmt",
      QUERY_NODE_CREATE_USER_STMT,
      sizeof(SCreateUserStmt),
      createUserStmtToJson,
      jsonToCreateUserStmt,
      destoryCreateUserStmt
    );
- setFunc("AlterUserStmt",
+  setFunc("AlterUserStmt",
      QUERY_NODE_ALTER_USER_STMT,
      sizeof(SAlterUserStmt),
      alterUserStmtToJson,
      jsonToAlterUserStmt,
      destoryAlterUserStmt
    );
- setFunc("DropUserStmt",
+  setFunc("DropUserStmt",
      QUERY_NODE_DROP_USER_STMT,
      sizeof(SDropUserStmt),
      dropUserStmtToJson,
      jsonToDropUserStmt,
      destoryXNode
    );
- setFunc("UseDatabaseStmt",
+  setFunc("UseDatabaseStmt",
      QUERY_NODE_USE_DATABASE_STMT,
      sizeof(SUseDatabaseStmt),
      useDatabaseStmtToJson,
      jsonToUseDatabaseStmt,
      destoryXNode
    );
- setFunc("CreateDnodeStmt",
+  setFunc("CreateDnodeStmt",
      QUERY_NODE_CREATE_DNODE_STMT,
      sizeof(SCreateDnodeStmt),
      createDnodeStmtToJson,
      jsonToCreateDnodeStmt,
      destoryXNode
    );
- setFunc("DropDnodeStmt",
+  setFunc("DropDnodeStmt",
      QUERY_NODE_DROP_DNODE_STMT,
      sizeof(SDropDnodeStmt),
      dropDnodeStmtToJson,
      jsonToDropDnodeStmt,
      destoryXNode
    );
- setFunc("AlterDnodeStmt",
+  setFunc("AlterDnodeStmt",
      QUERY_NODE_ALTER_DNODE_STMT,
      sizeof(SAlterDnodeStmt),
      alterDnodeStmtToJson,
      jsonToAlterDnodeStmt,
      destoryXNode
    );
- setFunc("CreateIndexStmt",
+  setFunc("CreateIndexStmt",
      QUERY_NODE_CREATE_INDEX_STMT,
      sizeof(SCreateIndexStmt),
      createIndexStmtToJson,
      jsonToCreateIndexStmt,
      destoryCreateIndexStmt
    );
- setFunc("DropIndexStmt",
+  setFunc("DropIndexStmt",
      QUERY_NODE_DROP_INDEX_STMT,
      sizeof(SDropIndexStmt),
      dropIndexStmtToJson,
      jsonToDropIndexStmt,
      destoryXNode
    );
- setFunc("CreateQnodeStmt",
+  setFunc("CreateQnodeStmt",
      QUERY_NODE_CREATE_QNODE_STMT,
      sizeof(SCreateComponentNodeStmt),
      createQnodeStmtToJson,
      jsonToCreateQnodeStmt,
      destoryXNode
    );
- setFunc("DropQnodeStmt",
+  setFunc("DropQnodeStmt",
      QUERY_NODE_DROP_QNODE_STMT,
      sizeof(SDropComponentNodeStmt),
      dropQnodeStmtToJson,
      jsonToDropQnodeStmt,
      destoryXNode
    );
- setFunc("CreateBnodeStmt",
+  setFunc("CreateBnodeStmt",
      QUERY_NODE_CREATE_BNODE_STMT,
      sizeof(SCreateComponentNodeStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("DropBnodeStmt",
+  setFunc("DropBnodeStmt",
      QUERY_NODE_DROP_BNODE_STMT,
      sizeof(SDropComponentNodeStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("CreateSnodeStmt",
+  setFunc("CreateSnodeStmt",
      QUERY_NODE_CREATE_SNODE_STMT,
      sizeof(SCreateComponentNodeStmt),
      createSnodeStmtToJson,
      jsonToCreateSnodeStmt,
      destoryXNode
    );
- setFunc("DropSnodeStmt",
+  setFunc("DropSnodeStmt",
      QUERY_NODE_DROP_SNODE_STMT,
      sizeof(SDropComponentNodeStmt),
      dropSnodeStmtToJson,
      jsonToDropSnodeStmt,
      destoryXNode
    );
- setFunc("CreateMnodeStmt",
+  setFunc("CreateMnodeStmt",
      QUERY_NODE_CREATE_MNODE_STMT,
      sizeof(SCreateComponentNodeStmt),
      createMnodeStmtToJson,
      jsonToCreateMnodeStmt,
      destoryXNode
    );
- setFunc("DropMnodeStmt",
+  setFunc("DropMnodeStmt",
      QUERY_NODE_DROP_MNODE_STMT,
      sizeof(SDropComponentNodeStmt),
      dropMnodeStmtToJson,
      jsonToDropMnodeStmt,
      destoryXNode
    );
- setFunc("CreateTopicStmt",
+  setFunc("CreateTopicStmt",
      QUERY_NODE_CREATE_TOPIC_STMT,
      sizeof(SCreateTopicStmt),
      createTopicStmtToJson,
      jsonToCreateTopicStmt,
      destoryCreateTopicStmt
    );
- setFunc("DropTopicStmt",
+  setFunc("DropTopicStmt",
      QUERY_NODE_DROP_TOPIC_STMT,
      sizeof(SDropTopicStmt),
      dropTopicStmtToJson,
      jsonToDropTopicStmt,
      destoryXNode
    );
- setFunc("DropConsumerGroupStmt",
+  setFunc("DropConsumerGroupStmt",
      QUERY_NODE_DROP_CGROUP_STMT,
      sizeof(SDropCGroupStmt),
      dropConsumerGroupStmtToJson,
      jsonToDropConsumerGroupStmt,
      destoryXNode
    );
- setFunc("AlterLocalStmt",
+  setFunc("AlterLocalStmt",
      QUERY_NODE_ALTER_LOCAL_STMT,
      sizeof(SAlterLocalStmt),
      alterLocalStmtToJson,
      jsonToAlterLocalStmt,
      destoryXNode
    );
- setFunc("ExplainStmt",
+  setFunc("ExplainStmt",
      QUERY_NODE_EXPLAIN_STMT,
      sizeof(SExplainStmt),
      explainStmtToJson,
      jsonToExplainStmt,
      destoryExplainStmt
    );
- setFunc("DescribeStmt",
+  setFunc("DescribeStmt",
      QUERY_NODE_DESCRIBE_STMT,
      sizeof(SDescribeStmt),
      describeStmtToJson,
      jsonToDescribeStmt,
      destoryDescribeStmt
    );
- setFunc("QueryCacheStmt",
+  setFunc("QueryCacheStmt",
      QUERY_NODE_RESET_QUERY_CACHE_STMT,
      sizeof(SNode),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("CompactDatabaseStmt",
+  setFunc("CompactDatabaseStmt",
      QUERY_NODE_COMPACT_DATABASE_STMT,
      sizeof(SCompactDatabaseStmt),
      compactDatabaseStmtToJson,
      jsonToCompactDatabaseStmt,
      destoryCompactDatabaseStmt
    );
- setFunc("CreateFunctionStmt",
+  setFunc("CreateFunctionStmt",
      QUERY_NODE_CREATE_FUNCTION_STMT,
      sizeof(SCreateFunctionStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("DropFunctionStmt",
+  setFunc("DropFunctionStmt",
      QUERY_NODE_DROP_FUNCTION_STMT,
      sizeof(SDropFunctionStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("CreateStreamStmt",
+  setFunc("CreateStreamStmt",
      QUERY_NODE_CREATE_STREAM_STMT,
      sizeof(SCreateStreamStmt),
      createStreamStmtToJson,
      jsonToCreateStreamStmt,
      destoryCreateStreamStmt
    );
- setFunc("DropStreamStmt",
+  setFunc("DropStreamStmt",
      QUERY_NODE_DROP_STREAM_STMT,
      sizeof(SDropStreamStmt),
      dropStreamStmtToJson,
      jsonToDropStreamStmt,
      destoryXNode
    );
- setFunc("PauseStreamStmt",
+  setFunc("PauseStreamStmt",
      QUERY_NODE_PAUSE_STREAM_STMT,
      sizeof(SPauseStreamStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("ResumeStreamStmt",
+  setFunc("ResumeStreamStmt",
      QUERY_NODE_RESUME_STREAM_STMT,
      sizeof(SResumeStreamStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("BalanceVgroupStmt",
+  setFunc("BalanceVgroupStmt",
      QUERY_NODE_BALANCE_VGROUP_STMT,
      sizeof(SBalanceVgroupStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("BalanceVgroupLeaderStmt",
+  setFunc("BalanceVgroupLeaderStmt",
      QUERY_NODE_BALANCE_VGROUP_LEADER_STMT,
      sizeof(SBalanceVgroupLeaderStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("MergeVgroupStmt",
+  setFunc("MergeVgroupStmt",
      QUERY_NODE_MERGE_VGROUP_STMT,
      sizeof(SMergeVgroupStmt),
      mergeVgroupStmtToJson,
      jsonToMergeVgroupStmt,
      destoryXNode
    );
- setFunc("RedistributeVgroupStmt",
+  setFunc("RedistributeVgroupStmt",
      QUERY_NODE_REDISTRIBUTE_VGROUP_STMT,
      sizeof(SRedistributeVgroupStmt),
      redistributeVgroupStmtToJson,
      jsonToRedistributeVgroupStmt,
      destoryRedistributeVgroupStmt
    );
- setFunc("SplitVgroupStmt",
+  setFunc("SplitVgroupStmt",
      QUERY_NODE_SPLIT_VGROUP_STMT,
      sizeof(SSplitVgroupStmt),
      splitVgroupStmtToJson,
      jsonToSplitVgroupStmt,
      destoryXNode
    );
- setFunc("SyncDBStmt",
+  setFunc("SyncDBStmt",
      QUERY_NODE_SYNCDB_STMT,
      0,
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("GrantStmt",
+  setFunc("GrantStmt",
      QUERY_NODE_GRANT_STMT,
      sizeof(SGrantStmt),
      grantStmtToJson,
      jsonToGrantStmt,
      destoryGrantStmt
    );
- setFunc("RevokeStmt",
+  setFunc("RevokeStmt",
      QUERY_NODE_REVOKE_STMT,
      sizeof(SRevokeStmt),
      revokeStmtToJson,
      jsonToRevokeStmt,
      destoryRevokeStmt
    );
- setFunc("ShowDnodesStmt",
+  setFunc("ShowDnodesStmt",
      QUERY_NODE_SHOW_DNODES_STMT,
      sizeof(SShowStmt),
      showDnodesStmtToJson,
      jsonToShowDnodesStmt,
      destoryShowStmt
    );
- setFunc("ShowMnodesStmt",
+  setFunc("ShowMnodesStmt",
      QUERY_NODE_SHOW_MNODES_STMT,
      sizeof(SShowStmt),
      showMnodesStmtToJson,
      jsonToShowMnodesStmt,
      destoryShowStmt
    );
- setFunc("ShowModulesStmt",
+  setFunc("ShowModulesStmt",
      QUERY_NODE_SHOW_MODULES_STMT,
      sizeof(SShowStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryShowStmt
    );
- setFunc("ShowQnodesStmt",
+  setFunc("ShowQnodesStmt",
      QUERY_NODE_SHOW_QNODES_STMT,
      sizeof(SShowStmt),
      showQnodesStmtToJson,
      jsonToShowQnodesStmt,
      destoryShowStmt
    );
- setFunc("ShowSnodesStmt",
+  setFunc("ShowSnodesStmt",
      QUERY_NODE_SHOW_SNODES_STMT,
      sizeof(SShowStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryShowStmt
    );
- setFunc("ShowBnodesStmt",
+  setFunc("ShowBnodesStmt",
      QUERY_NODE_SHOW_BNODES_STMT,
      sizeof(SShowStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryShowStmt
    );
- setFunc("ShowClusterStmt",
+  setFunc("ShowClusterStmt",
      QUERY_NODE_SHOW_CLUSTER_STMT,
      sizeof(SShowStmt),
      showClusterStmtToJson,
      jsonToShowClusterStmt,
      destoryShowStmt
    );
- setFunc("ShowDatabaseStmt",
+  setFunc("ShowDatabaseStmt",
      QUERY_NODE_SHOW_DATABASES_STMT,
      sizeof(SShowStmt),
      showDatabasesStmtToJson,
      jsonToShowDatabasesStmt,
      destoryShowStmt
    );
- setFunc("ShowFunctionsStmt",
+  setFunc("ShowFunctionsStmt",
      QUERY_NODE_SHOW_FUNCTIONS_STMT,
      sizeof(SShowStmt),
      showFunctionsStmtToJson,
      jsonToShowFunctionsStmt,
      destoryShowStmt
    );
- setFunc("ShowIndexesStmt",
+  setFunc("ShowIndexesStmt",
      QUERY_NODE_SHOW_INDEXES_STMT,
      sizeof(SShowStmt),
      showIndexesStmtToJson,
      jsonToShowIndexesStmt,
      destoryShowStmt
    );
- setFunc("ShowStablesStmt",
+  setFunc("ShowStablesStmt",
      QUERY_NODE_SHOW_STABLES_STMT,
      sizeof(SShowStmt),
      showStablesStmtToJson,
      jsonToShowStablesStmt,
      destoryShowStmt
    );
- setFunc("ShowStreamsStmt",
+  setFunc("ShowStreamsStmt",
      QUERY_NODE_SHOW_STREAMS_STMT,
      sizeof(SShowStmt),
      showStreamsStmtToJson,
      jsonToShowStreamsStmt,
      destoryShowStmt
    );
- setFunc("ShowTablesStmt",
+  setFunc("ShowTablesStmt",
      QUERY_NODE_SHOW_TABLES_STMT,
      sizeof(SShowStmt),
      showTablesStmtToJson,
      jsonToShowTablesStmt,
      destoryShowStmt
    );
- setFunc("ShowTagsStmt",
+  setFunc("ShowTagsStmt",
      QUERY_NODE_SHOW_TAGS_STMT,
      sizeof(SShowStmt),
      showTagsStmtToJson,
      jsonToShowTagsStmt,
      destoryShowStmt
    );
- setFunc("ShowUsersStmt",
+  setFunc("ShowUsersStmt",
      QUERY_NODE_SHOW_USERS_STMT,
      sizeof(SShowStmt),
      showUsersStmtToJson,
      jsonToShowUsersStmt,
      destoryShowStmt
    );
- setFunc("ShowLicencesStmt",
+  setFunc("ShowLicencesStmt",
      QUERY_NODE_SHOW_LICENCES_STMT,
      sizeof(SShowStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryShowStmt
    );
- setFunc("ShowVgroupsStmt",
+  setFunc("ShowVgroupsStmt",
      QUERY_NODE_SHOW_VGROUPS_STMT,
      sizeof(SShowStmt),
      showVgroupsStmtToJson,
      jsonToShowVgroupsStmt,
      destoryShowStmt
    );
- setFunc("ShowTopicsStmt",
+  setFunc("ShowTopicsStmt",
      QUERY_NODE_SHOW_TOPICS_STMT,
      sizeof(SShowStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryShowStmt
    );
- setFunc("ShowConsumersStmt",
+  setFunc("ShowConsumersStmt",
      QUERY_NODE_SHOW_CONSUMERS_STMT,
      sizeof(SShowStmt),
      showConsumersStmtToJson,
      jsonToShowConsumersStmt,
      destoryShowStmt
    );
- setFunc("ShowQueriesStmt",
+  setFunc("ShowQueriesStmt",
      QUERY_NODE_SHOW_QUERIES_STMT,
      sizeof(SShowStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryShowStmt
    );
- setFunc("ShowConnectionsStmt",
+  setFunc("ShowConnectionsStmt",
      QUERY_NODE_SHOW_CONNECTIONS_STMT,
      sizeof(SShowStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryShowStmt
    );
- setFunc("ShowAppsStmt",
+  setFunc("ShowAppsStmt",
      QUERY_NODE_SHOW_APPS_STMT,
      sizeof(SShowStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryShowStmt
    );
- setFunc("ShowVariablesStmt",
+  setFunc("ShowVariablesStmt",
      QUERY_NODE_SHOW_VARIABLES_STMT,
      sizeof(SShowStmt),
      showVariablesStmtToJson,
      jsonToShowVariablesStmt,
      destoryShowStmt
    );
- setFunc("ShowDnodeVariablesStmt",
+  setFunc("ShowDnodeVariablesStmt",
      QUERY_NODE_SHOW_DNODE_VARIABLES_STMT,
      sizeof(SShowDnodeVariablesStmt),
      showDnodeVariablesStmtToJson,
      jsonToShowDnodeVariablesStmt,
      destoryShowDnodeVariablesStmt
    );
- setFunc("ShowTransactionsStmt",
+  setFunc("ShowTransactionsStmt",
      QUERY_NODE_SHOW_TRANSACTIONS_STMT,
      sizeof(SShowStmt),
      showTransactionsStmtToJson,
      jsonToShowTransactionsStmt,
      destoryShowStmt
    );
- setFunc("ShowSubscriptionsStmt",
+  setFunc("ShowSubscriptionsStmt",
      QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT,
      sizeof(SShowStmt),
      showSubscriptionsStmtToJson,
      jsonToShowSubscriptionsStmt,
      destoryShowStmt
    );
- setFunc("ShowVnodeStmt",
+  setFunc("ShowVnodeStmt",
      QUERY_NODE_SHOW_VNODES_STMT,
      sizeof(SShowStmt),
      showVnodesStmtToJson,
      jsonToShowVnodesStmt,
      destoryShowStmt
    );
- setFunc("ShowUserPrivilegesStmt",
+  setFunc("ShowUserPrivilegesStmt",
      QUERY_NODE_SHOW_USER_PRIVILEGES_STMT,
      sizeof(SShowStmt),
      showUserPrivilegesStmtToJson,
      jsonToShowUserPrivilegesStmt,
      destoryShowStmt
    );
- setFunc("ShowViewsStmt",
+  setFunc("ShowViewsStmt",
      QUERY_NODE_SHOW_VIEWS_STMT,
      sizeof(SShowStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryShowStmt
    );
- setFunc("ShowCreateViewStmt",
+  setFunc("ShowCreateViewStmt",
      QUERY_NODE_SHOW_CREATE_VIEW_STMT,
      sizeof(SShowCreateViewStmt),
      showCreateViewStmtToJson,
      jsonToShowCreateViewStmt,
      destoryXNode
    );
- setFunc("ShowCreateDatabasesStmt",
+  setFunc("ShowCreateDatabasesStmt",
      QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
      sizeof(SShowCreateDatabaseStmt),
      showCreateDatabaseStmtToJson,
      jsonToShowCreateDatabaseStmt,
      destoryShowCreateDatabaseStmt
    );
- setFunc("ShowCreateTablesStmt",
+  setFunc("ShowCreateTablesStmt",
      QUERY_NODE_SHOW_CREATE_TABLE_STMT,
      sizeof(SShowCreateTableStmt),
      showCreateTableStmtToJson,
      jsonToShowCreateTableStmt,
      destoryShowCreateTableStmt
    );
- setFunc("ShowCreateStablesStmt",
+  setFunc("ShowCreateStablesStmt",
      QUERY_NODE_SHOW_CREATE_STABLE_STMT,
      sizeof(SShowCreateTableStmt),
      showCreateStableStmtToJson,
      jsonToShowCreateStableStmt,
      destoryShowCreateTableStmt
    );
- setFunc("ShowTableDistributedStmt",
+  setFunc("ShowTableDistributedStmt",
      QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT,
      sizeof(SShowTableDistributedStmt),
      showTableDistributedStmtToJson,
      jsonToShowTableDistributedStmt,
      destoryXNode
    );
- setFunc("ShowLocalVariablesStmt",
+  setFunc("ShowLocalVariablesStmt",
      QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT,
      sizeof(SShowStmt),
      showLocalVariablesStmtToJson,
      jsonToShowLocalVariablesStmt,
      destoryShowStmt
    );
- setFunc("ShowScoresStmt",
+  setFunc("ShowScoresStmt",
      QUERY_NODE_SHOW_SCORES_STMT,
      sizeof(SShowStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryShowStmt
    );
- setFunc("ShowTableTagsStmt",
+  setFunc("ShowTableTagsStmt",
      QUERY_NODE_SHOW_TABLE_TAGS_STMT,
      sizeof(SShowTableTagsStmt),
      showTableTagsStmtToJson,
      jsonToShowTableTagsStmt,
      destoryShowTableTagsStmt
    );
- setFunc("KillConnectionStmt",
+  setFunc("KillConnectionStmt",
      QUERY_NODE_KILL_CONNECTION_STMT,
      sizeof(SKillStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("KillQueryStmt",
+  setFunc("KillQueryStmt",
      QUERY_NODE_KILL_QUERY_STMT,
      sizeof(SKillQueryStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("KillTransactionStmt",
+  setFunc("KillTransactionStmt",
      QUERY_NODE_KILL_TRANSACTION_STMT,
      sizeof(SKillStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("DeleteStmt",
+  setFunc("DeleteStmt",
      QUERY_NODE_DELETE_STMT,
      sizeof(SDeleteStmt),
      deleteStmtToJson,
      jsonToDeleteStmt,
      destoryDeleteStmt
    );
- setFunc("InsertStmt",
+  setFunc("InsertStmt",
      QUERY_NODE_INSERT_STMT,
      sizeof(SInsertStmt),
      insertStmtToJson,
      jsonToInsertStmt,
      destoryInsertStmt
    );
- setFunc("QueryNode",
+  setFunc("QueryNode",
      QUERY_NODE_QUERY,
      sizeof(SQuery),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryQueryNode
    );
- setFunc("ShowDbAliveStmt",
+  setFunc("ShowDbAliveStmt",
      QUERY_NODE_SHOW_DB_ALIVE_STMT,
      sizeof(SShowAliveStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("ShowClusterAliveStmt",
+  setFunc("ShowClusterAliveStmt",
      QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT,
      sizeof(SShowAliveStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("RestoreDnodeStmt",
+  setFunc("RestoreDnodeStmt",
      QUERY_NODE_RESTORE_DNODE_STMT,
      sizeof(SRestoreComponentNodeStmt),
      emptyNodeToJson,
      jsonToRestoreDnodeStmt,
      destoryXNode
    );
- setFunc("RestoreQnodeStmt",
+  setFunc("RestoreQnodeStmt",
      QUERY_NODE_RESTORE_QNODE_STMT,
      sizeof(SRestoreComponentNodeStmt),
      emptyNodeToJson,
      jsonToRestoreQnodeStmt,
      destoryXNode
    );
- setFunc("RestoreMnodeStmt",
+  setFunc("RestoreMnodeStmt",
      QUERY_NODE_RESTORE_MNODE_STMT,
      sizeof(SRestoreComponentNodeStmt),
      emptyNodeToJson,
      jsonToRestoreMnodeStmt,
      destoryXNode
    );
- setFunc("RestoreVnodeStmt",
+  setFunc("RestoreVnodeStmt",
      QUERY_NODE_RESTORE_VNODE_STMT,
      sizeof(SRestoreComponentNodeStmt),
      emptyNodeToJson,
      jsonToRestoreVnodeStmt,
      destoryXNode
    );
- setFunc("CreateViewStmt",
+  setFunc("CreateViewStmt",
      QUERY_NODE_CREATE_VIEW_STMT,
      sizeof(SCreateViewStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryCreateViewStmt
    );
- setFunc("DropViewStmt",
+  setFunc("DropViewStmt",
      QUERY_NODE_DROP_VIEW_STMT,
      sizeof(SDropViewStmt),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryXNode
    );
- setFunc("LogicScan",
+  setFunc("LogicScan",
      QUERY_NODE_LOGIC_PLAN_SCAN,
      sizeof(SScanLogicNode),
      logicScanNodeToJson,
      jsonToLogicScanNode,
      destoryScanLogicNode
    );
- setFunc("LogicJoin",
+  setFunc("LogicJoin",
      QUERY_NODE_LOGIC_PLAN_JOIN,
      sizeof(SJoinLogicNode),
      logicJoinNodeToJson,
      jsonToLogicJoinNode,
      destoryJoinLogicNode
    );
- setFunc("LogicAgg",
+  setFunc("LogicAgg",
      QUERY_NODE_LOGIC_PLAN_AGG,
      sizeof(SAggLogicNode),
      logicAggNodeToJson,
      jsonToLogicAggNode,
      destoryAggLogicNode
    );
- setFunc("LogicProject",
+  setFunc("LogicProject",
      QUERY_NODE_LOGIC_PLAN_PROJECT,
      sizeof(SProjectLogicNode),
      logicProjectNodeToJson,
      jsonToLogicProjectNode,
      destoryProjectLogicNode
    );
- setFunc("LogicVnodeModify",
+  setFunc("LogicVnodeModify",
      QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY,
      sizeof(SVnodeModifyLogicNode),
      logicVnodeModifyNodeToJson,
      jsonToLogicVnodeModifyNode,
      destoryVnodeModifyLogicNode
    );
- setFunc("LogicExchange",
+  setFunc("LogicExchange",
      QUERY_NODE_LOGIC_PLAN_EXCHANGE,
      sizeof(SExchangeLogicNode),
      logicExchangeNodeToJson,
      jsonToLogicExchangeNode,
      destoryExchangeLogicNode
    );
- setFunc("LogicMerge",
+  setFunc("LogicMerge",
      QUERY_NODE_LOGIC_PLAN_MERGE,
      sizeof(SMergeLogicNode),
      logicMergeNodeToJson,
      jsonToLogicMergeNode,
      destoryMergeLogicNode
    );
- setFunc("LogicWindow",
+  setFunc("LogicWindow",
      QUERY_NODE_LOGIC_PLAN_WINDOW,
      sizeof(SWindowLogicNode),
      logicWindowNodeToJson,
      jsonToLogicWindowNode,
      destoryWindowLogicNode
    );
- setFunc("LogicFill",
+  setFunc("LogicFill",
      QUERY_NODE_LOGIC_PLAN_FILL,
      sizeof(SFillLogicNode),
      logicFillNodeToJson,
      jsonToLogicFillNode,
      destoryFillLogicNode
    );
- setFunc("LogicSort",
+  setFunc("LogicSort",
      QUERY_NODE_LOGIC_PLAN_SORT,
      sizeof(SSortLogicNode),
      logicSortNodeToJson,
      jsonToLogicSortNode,
      destorySortLogicNode
    );
- setFunc("LogicPartition",
+  setFunc("LogicPartition",
      QUERY_NODE_LOGIC_PLAN_PARTITION,
      sizeof(SPartitionLogicNode),
      logicPartitionNodeToJson,
      jsonToLogicPartitionNode,
      destoryPartitionLogicNode
    );
- setFunc("LogicIndefRowsFunc",
+  setFunc("LogicIndefRowsFunc",
      QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC,
      sizeof(SIndefRowsFuncLogicNode),
      logicIndefRowsFuncNodeToJson,
      jsonToLogicIndefRowsFuncNode,
      destoryIndefRowsFuncLogicNode
    );
- setFunc("LogicInterpFunc",
+  setFunc("LogicInterpFunc",
      QUERY_NODE_LOGIC_PLAN_INTERP_FUNC,
      sizeof(SInterpFuncLogicNode),
      logicInterpFuncNodeToJson,
      jsonToLogicInterpFuncNode,
      destoryInterpFuncLogicNode
    );
- setFunc("LogicGroupCache",
+  setFunc("LogicGroupCache",
      QUERY_NODE_LOGIC_PLAN_GROUP_CACHE,
      sizeof(SGroupCacheLogicNode),
      logicGroupCacheNodeToJson,
      jsonToLogicGroupCacheNode,
      destoryGroupCacheLogicNode
    );
- setFunc("LogicDynamicQueryCtrl",
+  setFunc("LogicDynamicQueryCtrl",
      QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL,
      sizeof(SDynQueryCtrlLogicNode),
      logicDynQueryCtrlNodeToJson,
      jsonToLogicDynQueryCtrlNode,
      destoryDynQueryCtrlLogicNode
    );
- setFunc("LogicSubplan",
+  setFunc("LogicSubplan",
      QUERY_NODE_LOGIC_SUBPLAN,
      sizeof(SLogicSubplan),
      logicSubplanToJson,
      jsonToLogicSubplan,
      destoryLogicSubplan
    );
- setFunc("LogicPlan",
+  setFunc("LogicPlan",
      QUERY_NODE_LOGIC_PLAN,
      sizeof(SQueryLogicPlan),
      logicPlanToJson,
      jsonToLogicPlan,
      destoryQueryLogicPlan
    );
- setFunc("PhysiTagScan",
+  setFunc("PhysiTagScan",
      QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN,
      sizeof(STagScanPhysiNode),
      physiTagScanNodeToJson,
      jsonToPhysiTagScanNode,
      destroyScanPhysiNode
    );
- setFunc("PhysiTableScan",
+  setFunc("PhysiTableScan",
      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
      sizeof(STableScanPhysiNode),
      physiTableScanNodeToJson,
      jsonToPhysiTableScanNode,
      destoryTableScanPhysiNode
    );
- setFunc("PhysiTableSeqScan",
+  setFunc("PhysiTableSeqScan",
      QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN,
      sizeof(STableSeqScanPhysiNode),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryTableScanPhysiNode
    );
- setFunc("PhysiTableMergeScan",
+  setFunc("PhysiTableMergeScan",
      QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN,
      sizeof(STableMergeScanPhysiNode),
      physiTableScanNodeToJson,
      jsonToPhysiTableScanNode,
      destoryTableScanPhysiNode
    );
- setFunc("PhysiSreamScan",
+  setFunc("PhysiSreamScan",
      QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN,
      sizeof(SStreamScanPhysiNode),
      physiTableScanNodeToJson,
      jsonToPhysiTableScanNode,
      destoryTableScanPhysiNode
    );
- setFunc("PhysiSystemTableScan",
+  setFunc("PhysiSystemTableScan",
      QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN,
      sizeof(SSystemTableScanPhysiNode),
      physiSysTableScanNodeToJson,
      jsonToPhysiSysTableScanNode,
      destroyScanPhysiNode
    );
- setFunc("PhysiBlockDistScan",
+  setFunc("PhysiBlockDistScan",
      QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN,
      sizeof(SBlockDistScanPhysiNode),
      physiScanNodeToJson,
      jsonToPhysiScanNode,
      destroyScanPhysiNode
    );
- setFunc("PhysiLastRowScan",
+  setFunc("PhysiLastRowScan",
      QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN,
      sizeof(SLastRowScanPhysiNode),
      physiLastRowScanNodeToJson,
      jsonToPhysiLastRowScanNode,
      destoryLastRowScanPhysiNode
    );
- setFunc("PhysiProject",
+  setFunc("PhysiProject",
      QUERY_NODE_PHYSICAL_PLAN_PROJECT,
      sizeof(SProjectPhysiNode),
      physiProjectNodeToJson,
      jsonToPhysiProjectNode,
      destoryProjectPhysiNode
    );
- setFunc("PhysiMergeJoin",
+  setFunc("PhysiMergeJoin",
      QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN,
      sizeof(SSortMergeJoinPhysiNode),
      physiMergeJoinNodeToJson,
      jsonToPhysiMergeJoinNode,
      destorySortMergeJoinPhysiNode
    );
- setFunc("PhysiAgg",
+  setFunc("PhysiAgg",
      QUERY_NODE_PHYSICAL_PLAN_HASH_AGG,
      sizeof(SAggPhysiNode),
      physiAggNodeToJson,
      jsonToPhysiAggNode,
      destoryAggPhysiNode
    );
- setFunc("PhysiExchange",
+  setFunc("PhysiExchange",
      QUERY_NODE_PHYSICAL_PLAN_EXCHANGE,
      sizeof(SExchangePhysiNode),
      physiExchangeNodeToJson,
      jsonToPhysiExchangeNode,
      destoryExchangePhysiNode
    );
- setFunc("PhysiMerge",
+  setFunc("PhysiMerge",
      QUERY_NODE_PHYSICAL_PLAN_MERGE,
      sizeof(SMergePhysiNode),
      physiMergeNodeToJson,
      jsonToPhysiMergeNode,
      destoryMergePhysiNode
    );
- setFunc("PhysiSort",
+  setFunc("PhysiSort",
      QUERY_NODE_PHYSICAL_PLAN_SORT,
      sizeof(SSortPhysiNode),
      physiSortNodeToJson,
      jsonToPhysiSortNode,
      destorySortPhysiNode
    );
- setFunc("PhysiGroupSort",
+  setFunc("PhysiGroupSort",
      QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT,
      sizeof(SGroupSortPhysiNode),
      physiSortNodeToJson,
      jsonToPhysiSortNode,
      destorySortPhysiNode
    );
- setFunc("PhysiHashInterval",
+  setFunc("PhysiHashInterval",
      QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL,
      sizeof(SIntervalPhysiNode),
      physiIntervalNodeToJson,
      jsonToPhysiIntervalNode,
      destroyWindowPhysiNode
    );
- setFunc("PhysiMergeAlignedInterval",
+  setFunc("PhysiMergeAlignedInterval",
      QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL,
      sizeof(SMergeAlignedIntervalPhysiNode),
      physiIntervalNodeToJson,
      jsonToPhysiIntervalNode,
      destroyWindowPhysiNode
    );
- setFunc("PhysiStreamInterval",
+  setFunc("PhysiStreamInterval",
      QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL,
      sizeof(SStreamIntervalPhysiNode),
      physiIntervalNodeToJson,
      jsonToPhysiIntervalNode,
      destroyWindowPhysiNode
    );
- setFunc("PhysiStreamFinalInterval",
+  setFunc("PhysiStreamFinalInterval",
      QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL,
      sizeof(SStreamFinalIntervalPhysiNode),
      physiIntervalNodeToJson,
      jsonToPhysiIntervalNode,
      destroyWindowPhysiNode
    );
- setFunc("PhysiStreamSemiInterval",
+  setFunc("PhysiStreamSemiInterval",
      QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL,
      sizeof(SStreamSemiIntervalPhysiNode),
      physiIntervalNodeToJson,
      jsonToPhysiIntervalNode,
      destroyWindowPhysiNode
    );
- setFunc("PhysiFill",
+  setFunc("PhysiFill",
      QUERY_NODE_PHYSICAL_PLAN_FILL,
      sizeof(SFillPhysiNode),
      physiFillNodeToJson,
      jsonToPhysiFillNode,
      destoryFillPhysiNode
    );
- setFunc("PhysiStreamFill",
+  setFunc("PhysiStreamFill",
      QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL,
      sizeof(SFillPhysiNode),
      physiFillNodeToJson,
      jsonToPhysiFillNode,
      destoryFillPhysiNode
    );
- setFunc("PhysiSessionWindow",
+  setFunc("PhysiSessionWindow",
      QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION,
      sizeof(SSessionWinodwPhysiNode),
      physiSessionWindowNodeToJson,
      jsonToPhysiSessionWindowNode,
      destroyWindowPhysiNode
    );
- setFunc("PhysiStreamSessionWindow",
+  setFunc("PhysiStreamSessionWindow",
      QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION,
      sizeof(SStreamSessionWinodwPhysiNode),
      physiSessionWindowNodeToJson,
      jsonToPhysiSessionWindowNode,
      destroyWindowPhysiNode
    );
- setFunc("PhysiStreamSemiSessionWindow",
+  setFunc("PhysiStreamSemiSessionWindow",
      QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION,
      sizeof(SStreamSemiSessionWinodwPhysiNode),
      physiSessionWindowNodeToJson,
      jsonToPhysiSessionWindowNode,
      destroyWindowPhysiNode
    );
- setFunc("PhysiStreamFinalSessionWindow",
+  setFunc("PhysiStreamFinalSessionWindow",
      QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION,
      sizeof(SStreamFinalSessionWinodwPhysiNode),
      physiSessionWindowNodeToJson,
      jsonToPhysiSessionWindowNode,
      destroyWindowPhysiNode
    );
- setFunc("PhysiStateWindow",
+  setFunc("PhysiStateWindow",
      QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE,
      sizeof(SStateWinodwPhysiNode),
      physiStateWindowNodeToJson,
      jsonToPhysiStateWindowNode,
      destoryStateWindowPhysiNode
    );
- setFunc("PhysiStreamStateWindow",
+  setFunc("PhysiStreamStateWindow",
      QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE,
      sizeof(SStreamStateWinodwPhysiNode),
      physiStateWindowNodeToJson,
      jsonToPhysiStateWindowNode,
      destoryStateWindowPhysiNode
    );
- setFunc("PhysiPartition",
+  setFunc("PhysiPartition",
      QUERY_NODE_PHYSICAL_PLAN_PARTITION,
      sizeof(SPartitionPhysiNode),
      physiPartitionNodeToJson,
      jsonToPhysiPartitionNode,
      destroyPartitionPhysiNode
    );
- setFunc("PhysiStreamPartition",
+  setFunc("PhysiStreamPartition",
      QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION,
      sizeof(SStreamPartitionPhysiNode),
      physiStreamPartitionNodeToJson,
      jsonToPhysiStreamPartitionNode,
      destoryStreamPartitionPhysiNode
    );
- setFunc("PhysiIndefRowsFunc",
+  setFunc("PhysiIndefRowsFunc",
      QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC,
      sizeof(SIndefRowsFuncPhysiNode),
      physiIndefRowsFuncNodeToJson,
      jsonToPhysiIndefRowsFuncNode,
      destoryIndefRowsFuncPhysiNode
    );
- setFunc("PhysiInterpFunc",
+  setFunc("PhysiInterpFunc",
      QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC,
      sizeof(SInterpFuncLogicNode),
      physiInterpFuncNodeToJson,
      jsonToPhysiInterpFuncNode,
      destoryInterpFuncPhysiNode
    );
- setFunc("PhysiDispatch",
+  setFunc("PhysiDispatch",
      QUERY_NODE_PHYSICAL_PLAN_DISPATCH,
      sizeof(SDataDispatcherNode),
      physiDispatchNodeToJson,
      jsonToPhysiDispatchNode,
      destroyDataSinkNode
    );
- setFunc("PhysiInsert",
+  setFunc("PhysiInsert",
      QUERY_NODE_PHYSICAL_PLAN_INSERT,
      sizeof(SDataInserterNode),
      emptyNodeToJson,
      emptyJsonToNode,
      destoryDataInserterNode
    );
- setFunc("PhysiQueryInsert",
+  setFunc("PhysiQueryInsert",
      QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT,
      sizeof(SQueryInserterNode),
      physiQueryInsertNodeToJson,
      jsonToPhysiQueryInsertNode,
      destoryQueryInserterNode
    );
- setFunc("PhysiDelete",
+  setFunc("PhysiDelete",
      QUERY_NODE_PHYSICAL_PLAN_DELETE,
      sizeof(SDataDeleterNode),
      physiDeleteNodeToJson,
      jsonToPhysiDeleteNode,
      destoryDataDeleterNode
    );
- setFunc("PhysiGroupCache",
+  setFunc("PhysiGroupCache",
      QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE,
      sizeof(SGroupCachePhysiNode),
      physiGroupCacheNodeToJson,
      jsonToPhysiGroupCacheNode,
      destoryGroupCachePhysiNode
    );
- setFunc("PhysiDynamicQueryCtrl",
+  setFunc("PhysiDynamicQueryCtrl",
      QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL,
      sizeof(SDynQueryCtrlPhysiNode),
      physiDynQueryCtrlNodeToJson,
      jsonToPhysiDynQueryCtrlNode,
      destoryDynQueryCtrlPhysiNode
    );
- setFunc("PhysiSubplan",
+  setFunc("PhysiSubplan",
      QUERY_NODE_PHYSICAL_SUBPLAN,
      sizeof(SSubplan),
      subplanToJson,
      jsonToSubplan,
      destorySubplanNode
    );
- setFunc("PhysiPlan",
+  setFunc("PhysiPlan",
      QUERY_NODE_PHYSICAL_PLAN,
      sizeof(SQueryPlan),
      planToJson,
      jsonToPlan,
      destoryPlanNode
    );
- setFunc("PhysiTableCountScan",
+  setFunc("PhysiTableCountScan",
      QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN,
      sizeof(STableCountScanPhysiNode),
      physiLastRowScanNodeToJson,
      jsonToPhysiScanNode,
      destoryLastRowScanPhysiNode
    );
- setFunc("PhysiMergeEventWindow",
+  setFunc("PhysiMergeEventWindow",
      QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT,
      sizeof(SEventWinodwPhysiNode),
      physiEventWindowNodeToJson,
      jsonToPhysiEventWindowNode,
      destoryEventWindowPhysiNode
    );
- setFunc("PhysiStreamEventWindow",
+  setFunc("PhysiStreamEventWindow",
      QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT,
      sizeof(SStreamEventWinodwPhysiNode),
      physiEventWindowNodeToJson,
      jsonToPhysiEventWindowNode,
      destoryEventWindowPhysiNode
    );
- setFunc("PhysiHashJoin",
+  setFunc("PhysiHashJoin",
      QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN,
      sizeof(SHashJoinPhysiNode),
      physiHashJoinNodeToJson,
