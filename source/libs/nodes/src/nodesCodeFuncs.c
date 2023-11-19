@@ -7045,7 +7045,7 @@ void destoryShowCreateDatabaseStmt(SNode* pNode) {
 
 void destoryShowCreateTableStmt(SNode* pNode) {
   STableCfg* pCfg = (STableCfg*)(((SShowCreateTableStmt*)pNode)->pTableCfg);
-  taosMemoryFreeClear(pCfg);
+  taosMemoryFreeClear(((SShowCreateTableStmt*)pNode)->pDbCfg);
   if (NULL == pCfg) {
     return;
   }
