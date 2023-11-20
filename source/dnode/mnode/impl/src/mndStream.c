@@ -1394,7 +1394,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
   // reuse this function for stream
 
-  auditRecord(pReq, pMnode->clusterId, "dropStream", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen);
+  auditRecord(pReq, pMnode->clusterId, "dropStream", "", name.dbname, dropReq.sql, dropReq.sqlLen);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
