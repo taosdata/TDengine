@@ -113,6 +113,37 @@ groups:
         hint:
           type: str
 
+advanced:
+  name: Advanced Options
+  collapsible: true
+  collapsed: true
+  description: |
+    Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave
+    these options as default to use the recommended settings.
+  params:
+    - name: concurrency
+      hidden: true
+      display: Read Concurrency
+      description: |
+        The number of concurrent queries when reading data from the data source.
+      value: 1
+      hint:
+        type: integer
+        min: 1
+        max: 1000
+    - name: log_level
+      display: Log Level
+      description: Adjust the log level of the data source as required. This parameter does not always take effect.
+      value: info
+      hint:
+        type: str
+        choices:
+          - error
+          - warn
+          - info
+          - debug
+          - trace
+
 parser:
   display: Data Mapping
   description: |
