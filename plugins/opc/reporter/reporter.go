@@ -223,7 +223,7 @@ func getSchema(valueType common.ValueType) (*arrow.Schema, error) {
 			{Name: "name", Type: arrow.BinaryTypes.String},
 			{Name: "ts", Type: &arrow.TimestampType{Unit: arrow.Millisecond}},       // server timestamp
 			{Name: "received", Type: &arrow.TimestampType{Unit: arrow.Millisecond}}, // client timestamp
-			{Name: "value", Type: dataType},
+			{Name: "value", Type: dataType, Nullable: true},
 			{Name: "status", Type: arrow.PrimitiveTypes.Int64},
 		},
 		&meta,
