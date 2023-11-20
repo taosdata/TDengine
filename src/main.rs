@@ -511,26 +511,51 @@ fn level_upgrade(level: LevelFilter, num: i8) -> LevelFilter {
     };
     return level_upgrade(level, num - 1);
 }
+
+fn get_log_path() -> PathBuf {
+    let mut log_path = get_log_dir("");
+    log_path.push("taosx.log");
+    log_path
+}
+/// Gether all effective enviroment variables and options, and join them with \n .
+/// This method can only be called after all env variables and options were determined.
+#[rustfmt::skip]
+fn get_effective_settings(level_filter: &LevelFilter, args: &Args) -> String {
+    fn var(key: &str) -> String {
+        match std::env::var(key) {
+            Ok(value) => value,
+            Err(_) => "None".to_string(),
+        }
+    }
+    let mut s = String::new();
+    s += "\n                           global config\n";
+    s += "===================================================================\n";
+    s += format!("{:<20}{:<20}{}\n", ' ', "PLUGINS_HOME", var("PLUGINS_HOME")).as_str();
+    s += format!("{:<20}{:<20}{}\n",' ',"TAOSX_DATA_DIR", var("TAOSX_DATA_DIR")).as_str();
+    s += format!("{:<20}{:<20}{}\n", ' ', "LOGS_HOME", var("LOGS_HOME")).as_str();
+    s += format!("{:<20}{:<20}{}\n", ' ', "LOG_KEEP_DAYS", var("LOG_KEEP_DAYS")) .as_str();
+    s += format!("{:<20}{:<20}{}\n", ' ', "log_path", get_log_path().display()) .as_str();
+    s += format!( "{:<20}{:<20}{}\n", ' ', "log_keep_days", get_log_keep_days()) .as_str();
+    s += format!("{:<20}{:<20}{}\n", ' ', "log_level", level_filter).as_str();
+    s += format!("{:<20}{:<20}{}\n", ' ', "debug", args.global.debug).as_str();
+    s += format!("{:<20}{:<20}{}\n", ' ', "jobs", args.global.jobs).as_str();
+    s += "===================================================================\n";
+    s
+}
+
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
     let version = build::PKG_VERSION;
     let commit_id = build::COMMIT_HASH;
     let build_time = build::BUILD_TIME;
-    tracing::info!("taosx version: {version}");
-    tracing::info!("commit id: {commit_id}");
-    tracing::info!("build time: {build_time}");
+    println!("taosx version: {version}");
+    println!("commit id: {commit_id}");
+    println!("build time: {build_time}");
     let args = Args::init()?;
     set_env_plugins_home_dir(args.global.plugins_home.clone());
     set_env_data_dir(args.global.data_dir.clone());
     set_env_log_home_dir(args.global.logs_home.clone());
     set_env_log_keep_days(args.global.log_keep_days.clone());
-
-    let mut log_path = get_log_dir("");
-    log_path.push("taosx.log");
-    println!("log path: {:?}", log_path);
-    let log_keep_days = get_log_keep_days();
-    println!("log keep days: {}", &log_keep_days);
-    println!("configs: {:?}", args);
 
     // Initialize tracing layers
     let mut level_filter = args.global.log_level.clone().unwrap_or(LevelFilter::Info);
@@ -539,11 +564,12 @@ fn main() -> Result<()> {
         let level_num = matches.get_count("verbose") as i8 - matches.get_count("quiet") as i8;
         level_filter = level_upgrade(level_filter, level_num);
     }
-    println!("log level: {:?}", &level_filter);
+
     let span_events = args.opt_args.tracing_events.clone();
     let worker_threads = args.global.jobs.clone();
     let runtime = build_runtime(worker_threads)?;
-    let log_rotation = create_rotating_log_writer(&mut log_path, log_keep_days);
+    let log_path = get_log_path();
+    let log_rotation = create_rotating_log_writer(&log_path, get_log_keep_days());
     let (non_blocking, _guard) = tracing_appender::non_blocking(log_rotation);
     runtime.block_on(init_tracing_layers(
         &args,
@@ -551,10 +577,10 @@ fn main() -> Result<()> {
         level_filter,
         non_blocking,
     ))?;
-    // Print build info in log file.
-    tracing::info!("version: {version}");
+    tracing::info!("taosx version: {version}");
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
+    tracing::info!("{}", get_effective_settings(&level_filter, &args));
 
     match args.commands.unwrap_or(Commands::Serve(Default::default())) {
         Commands::Run(cli) => {
