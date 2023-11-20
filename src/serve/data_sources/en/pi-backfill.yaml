@@ -80,29 +80,32 @@ groups:
             when: auto
         placeholder: "YYYY-MM-DD HH:mm:ss"
 
-  - name: Data Queue
-    display_order: 4
-    description: Batch and auto-backfill configurations.
-    params:
-      - name: MaxWaitLen
-        display: Update Batch Size(count)
-        description: |-
-          Max number of updates (rows) to batch before sending data to TDengine.
-        hint:
-          type: integer
-          min: 1
-          max: 10000
-        value: 1000
-      - name: UpdateInterval
-        display: Update Interval (in ms)
-        hint:
-          type: integer
-          min: 100
-          max: 60000
-        description: Max time to wait before sending batch updates to TDengine (in miliseconds).
-        placeholder: 10000
-        value: 1000
-
+advanced:
+  name: Advanced Options
+  collapsible: true
+  collapsed: true
+  description: |
+    Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave
+    these options as default to use the recommended settings.
+  params:
+    - name: batch_size
+      display: Batch Size
+      description: |
+        The number of data points to be written in a single request. The default value is 1000. If the data source is slow to respond, you can reduce this value appropriately.
+      value: 1000
+      hint:
+        type: integer
+        min: 1
+        max: 10000
+    - name: batch_timeout
+      display: Batch Timeout
+      description: |
+        The maximum time(in seconds) to wait before sending a batch of data points. The default value is 1s. If the data source is slow to respond, you can increase this value appropriately.
+      value: 1
+      hint:
+        type: integer
+        min: 1
+        max: 60
 datasets:
   name: Data Sets
   display: Data Sets
