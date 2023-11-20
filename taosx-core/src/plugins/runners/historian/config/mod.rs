@@ -51,26 +51,25 @@ impl TaskConfig {
     fn parse_mode(dsn: &Dsn) -> anyhow::Result<TaskMode> {
         dsn.params
             .get("mode")
-            .map(|s| {
-                match s.as_str() {
-                    "synchronize" => Ok(TaskMode::Synchronize),
-                    "migrate" => Ok(TaskMode::Migrate),
-                    _ => Err(anyhow::anyhow!("mode must be synchronize or migrate"))
-                }
+            .map(|s| match s.as_str() {
+                "synchronize" => Ok(TaskMode::Synchronize),
+                "migrate" => Ok(TaskMode::Migrate),
+                _ => Err(anyhow::anyhow!("mode must be synchronize or migrate")),
             })
             .transpose()?
             .ok_or(anyhow::anyhow!("mode is required"))
     }
 
     fn parse_table(dsn: &Dsn) -> anyhow::Result<String> {
-        let table = dsn.params
+        let table = dsn
+            .params
             .get("table")
-            .map(|s| {
-                match s.as_str() {
-                    "Runtime.dbo.History" => Ok("Runtime.dbo.History".to_string()),
-                    "Runtime.dbo.Live" => Ok("Runtime.dbo.Live".to_string()),
-                    _ => Err(anyhow::anyhow!("table must be Runtime.dbo.History or Runtime.dbo.Live"))
-                }
+            .map(|s| match s.as_str() {
+                "Runtime.dbo.History" => Ok("Runtime.dbo.History".to_string()),
+                "Runtime.dbo.Live" => Ok("Runtime.dbo.Live".to_string()),
+                _ => Err(anyhow::anyhow!(
+                    "table must be Runtime.dbo.History or Runtime.dbo.Live"
+                )),
             })
             .transpose()?
             .ok_or(anyhow::anyhow!("table is required"))?;
@@ -85,9 +84,7 @@ impl TaskConfig {
     fn parse_tags(dsn: &Dsn) -> Vec<String> {
         dsn.params
             .get("tags")
-            .map(|s| {
-                s.split(",").map(|s| s.to_string()).collect::<Vec<String>>()
-            })
+            .map(|s| s.split(",").map(|s| s.to_string()).collect::<Vec<String>>())
             .unwrap_or(vec!["*".to_string()])
     }
 
@@ -97,7 +94,11 @@ impl TaskConfig {
             .map(|s| {
                 let date_time = DateTime::parse_from_rfc3339(s)
                     .map_err(|e| {
-                        anyhow::anyhow!("failed to parse beginDateTime: {}, cause: {}", s.to_string(),e.to_string())
+                        anyhow::anyhow!(
+                            "failed to parse beginDateTime: {}, cause: {}",
+                            s.to_string(),
+                            e.to_string()
+                        )
                     })?
                     .into();
                 anyhow::Ok(date_time)
@@ -112,14 +113,20 @@ impl TaskConfig {
             return Ok(None);
         }
 
-        let end_date_time = dsn.params
+        let end_date_time = dsn
+            .params
             .get("endDateTime")
             .map(|s| {
-                anyhow::Ok(DateTime::parse_from_rfc3339(s)
-                    .map_err(|e| {
-                        anyhow::anyhow!("failed to parse endDateTime: {}, cause: {}",s.to_string(), e.to_string())
-                    })?
-                    .into()
+                anyhow::Ok(
+                    DateTime::parse_from_rfc3339(s)
+                        .map_err(|e| {
+                            anyhow::anyhow!(
+                                "failed to parse endDateTime: {}, cause: {}",
+                                s.to_string(),
+                                e.to_string()
+                            )
+                        })?
+                        .into(),
                 )
             })
             .transpose()?;
@@ -131,20 +138,28 @@ impl TaskConfig {
     }
 
     fn parse_time_window(dsn: &Dsn) -> anyhow::Result<Duration> {
-        Ok(dsn.params
+        Ok(dsn
+            .params
             .get("timeWindow")
             .map(|s| {
-                let duration = parse_duration::parse(s)
-                    .map_err(|err| {
-                        anyhow::anyhow!("failed to parse timeWindow: {}, cause: {}", s.to_string(), err.to_string())
-                    })?;
+                let duration = parse_duration::parse(s).map_err(|err| {
+                    anyhow::anyhow!(
+                        "failed to parse timeWindow: {}, cause: {}",
+                        s.to_string(),
+                        err.to_string()
+                    )
+                })?;
 
                 if duration.as_secs() < 60 * 60 {
                     anyhow::bail!("timeWindow must be greater than 1h");
                 }
 
                 let duration = Duration::from_std(duration).map_err(|err| {
-                    anyhow::anyhow!("failed parse timeWindow: {}, cause: {}", s.to_string(), err.to_string())
+                    anyhow::anyhow!(
+                        "failed parse timeWindow: {}, cause: {}",
+                        s.to_string(),
+                        err.to_string()
+                    )
                 })?;
 
                 Ok(duration)
@@ -154,22 +169,29 @@ impl TaskConfig {
     }
 
     fn parse_retrieve_interval(dsn: &Dsn) -> anyhow::Result<Duration> {
-        Ok(dsn.params
+        Ok(dsn
+            .params
             .get("retrieveInterval")
             .map(|s| {
-                let duration = parse_duration::parse(s)
-                    .map_err(|err| {
-                        anyhow::anyhow!("failed to parse retrieveInterval: {}, cause: {}", s.to_string(), err.to_string())
-                    })?;
+                let duration = parse_duration::parse(s).map_err(|err| {
+                    anyhow::anyhow!(
+                        "failed to parse retrieveInterval: {}, cause: {}",
+                        s.to_string(),
+                        err.to_string()
+                    )
+                })?;
 
                 if duration.as_secs() < 1 {
                     anyhow::bail!("retrieveInterval must be greater than 1s");
                 }
 
-                let duration = Duration::from_std(duration)
-                    .map_err(|err| {
-                        anyhow::anyhow!("failed to parse retrieveInterval: {}, cause: {}", s.to_string(), err.to_string())
-                    })?;
+                let duration = Duration::from_std(duration).map_err(|err| {
+                    anyhow::anyhow!(
+                        "failed to parse retrieveInterval: {}, cause: {}",
+                        s.to_string(),
+                        err.to_string()
+                    )
+                })?;
 
                 Ok(duration)
             })
@@ -178,22 +200,29 @@ impl TaskConfig {
     }
 
     fn parse_tolerance(dsn: &Dsn) -> anyhow::Result<Duration> {
-        Ok(dsn.params
+        Ok(dsn
+            .params
             .get("tolerance")
             .map(|s| {
-                let duration = parse_duration::parse(s)
-                    .map_err(|err| {
-                        anyhow::anyhow!("failed to parse tolerance: {}, cause: {}", s.to_string(), err.to_string())
-                    })?;
+                let duration = parse_duration::parse(s).map_err(|err| {
+                    anyhow::anyhow!(
+                        "failed to parse tolerance: {}, cause: {}",
+                        s.to_string(),
+                        err.to_string()
+                    )
+                })?;
 
                 if duration.as_millis() < 1 {
                     anyhow::bail!("tolerance must be greater than 1ms");
                 }
 
-                let duration = Duration::from_std(duration)
-                    .map_err(|err| {
-                        anyhow::anyhow!("failed to parse tolerance: {}, cause: {}", s.to_string(), err.to_string())
-                    })?;
+                let duration = Duration::from_std(duration).map_err(|err| {
+                    anyhow::anyhow!(
+                        "failed to parse tolerance: {}, cause: {}",
+                        s.to_string(),
+                        err.to_string()
+                    )
+                })?;
 
                 Ok(duration)
             })
@@ -202,13 +231,17 @@ impl TaskConfig {
     }
 
     fn parse_concurrency(dsn: &Dsn) -> anyhow::Result<usize> {
-        Ok(dsn.params
+        Ok(dsn
+            .params
             .get("concurrency")
             .map(|s| {
-                let concurrency = s.parse::<usize>()
-                    .map_err(|err| {
-                        anyhow::anyhow!("failed to parse concurrency: {}, cause: {}", s.to_string(), err.to_string())
-                    })?;
+                let concurrency = s.parse::<usize>().map_err(|err| {
+                    anyhow::anyhow!(
+                        "failed to parse concurrency: {}, cause: {}",
+                        s.to_string(),
+                        err.to_string()
+                    )
+                })?;
 
                 if concurrency < 1 {
                     bail!("concurrency must be greater than 1");
@@ -221,17 +254,16 @@ impl TaskConfig {
     }
 
     fn parse_log_level(dsn: &Dsn) -> anyhow::Result<String> {
-        Ok(dsn.params
+        Ok(dsn
+            .params
             .get("log_level")
             .map(|s| {
                 let log_level = s.to_string();
                 match log_level.as_str() {
-                    "trace" | "debug" | "info" | "warn" | "error" => {
-                        Ok(log_level)
-                    }
-                    _ => {
-                        Err(anyhow::anyhow!("log_level must be trace, debug, info, warn or error"))
-                    }
+                    "trace" | "debug" | "info" | "warn" | "error" => Ok(log_level),
+                    _ => Err(anyhow::anyhow!(
+                        "log_level must be trace, debug, info, warn or error"
+                    )),
                 }
             })
             .transpose()?
@@ -263,7 +295,10 @@ mod tests {
         let dsn = Dsn::from_str("historian://?mode=xxx").unwrap();
         let config = TaskConfig::parse_mode(&dsn);
         assert!(config.is_err());
-        assert_eq!("mode must be synchronize or migrate", config.unwrap_err().to_string());
+        assert_eq!(
+            "mode must be synchronize or migrate",
+            config.unwrap_err().to_string()
+        );
     }
 
     #[test]
@@ -273,7 +308,8 @@ mod tests {
         assert!(config.is_err());
         assert_eq!("table is required", config.unwrap_err().to_string());
 
-        let dsn = Dsn::from_str("historian://?mode=synchronize&&table=Runtime.dbo.History").unwrap();
+        let dsn =
+            Dsn::from_str("historian://?mode=synchronize&&table=Runtime.dbo.History").unwrap();
         let config = TaskConfig::parse_table(&dsn).unwrap();
         assert_eq!("Runtime.dbo.History", config);
 
@@ -284,7 +320,10 @@ mod tests {
         let dsn = Dsn::from_str("historian://?mode=synchronize&&table=xxx").unwrap();
         let config = TaskConfig::parse_table(&dsn);
         assert!(config.is_err());
-        assert_eq!("table must be Runtime.dbo.History or Runtime.dbo.Live", config.unwrap_err().to_string());
+        assert_eq!(
+            "table must be Runtime.dbo.History or Runtime.dbo.Live",
+            config.unwrap_err().to_string()
+        );
 
         let dsn = Dsn::from_str("historian://?mode=migrate&table=Runtime.dbo.History").unwrap();
         let config = TaskConfig::parse_table(&dsn).unwrap();
@@ -293,7 +332,10 @@ mod tests {
         let dsn = Dsn::from_str("historian://?mode=migrate&table=Runtime.dbo.Live").unwrap();
         let config = TaskConfig::parse_table(&dsn);
         assert!(config.is_err());
-        assert_eq!("table must be Runtime.dbo.History when mode is migrate", config.unwrap_err().to_string());
+        assert_eq!(
+            "table must be Runtime.dbo.History when mode is migrate",
+            config.unwrap_err().to_string()
+        );
     }
 
     #[test]
@@ -325,7 +367,10 @@ mod tests {
         let dsn = Dsn::from_str("historian://?beginDateTime=xxx").unwrap();
         let config = TaskConfig::parse_begin_datetime(&dsn);
         assert!(config.is_err());
-        assert_eq!("failed to parse beginDateTime: xxx, cause: premature end of input", config.unwrap_err().to_string());
+        assert_eq!(
+            "failed to parse beginDateTime: xxx, cause: premature end of input",
+            config.unwrap_err().to_string()
+        );
     }
 
     #[test]
@@ -337,16 +382,23 @@ mod tests {
         let dsn = Dsn::from_str("historian://?mode=migrate").unwrap();
         let config = TaskConfig::parse_end_datetime(&dsn);
         assert!(config.is_err());
-        assert_eq!("endDateTime is required when mode is migrate", config.unwrap_err().to_string());
+        assert_eq!(
+            "endDateTime is required when mode is migrate",
+            config.unwrap_err().to_string()
+        );
 
-        let dsn = Dsn::from_str("historian://?mode=migrate&endDateTime=2021-01-01T00:00:00Z").unwrap();
+        let dsn =
+            Dsn::from_str("historian://?mode=migrate&endDateTime=2021-01-01T00:00:00Z").unwrap();
         let config = TaskConfig::parse_end_datetime(&dsn).unwrap();
         assert_eq!("2021-01-01T00:00:00+00:00", config.unwrap().to_rfc3339());
 
         let dsn = Dsn::from_str("historian://?mode=migrate&endDateTime=xxx").unwrap();
         let config = TaskConfig::parse_end_datetime(&dsn);
         assert!(config.is_err());
-        assert_eq!("failed to parse endDateTime: xxx, cause: premature end of input", config.unwrap_err().to_string());
+        assert_eq!(
+            "failed to parse endDateTime: xxx, cause: premature end of input",
+            config.unwrap_err().to_string()
+        );
     }
 
     #[test]
@@ -410,7 +462,10 @@ mod tests {
         let dsn = Dsn::from_str("historian://?concurrency=xxx").unwrap();
         let config = TaskConfig::parse_concurrency(&dsn);
         assert!(config.is_err());
-        assert_eq!("failed to parse concurrency: xxx, cause: invalid digit found in string", config.unwrap_err().to_string());
+        assert_eq!(
+            "failed to parse concurrency: xxx, cause: invalid digit found in string",
+            config.unwrap_err().to_string()
+        );
     }
 
     #[test]
@@ -426,6 +481,9 @@ mod tests {
         let dsn = Dsn::from_str("historian://?log_level=xxx").unwrap();
         let config = TaskConfig::parse_log_level(&dsn);
         assert!(config.is_err());
-        assert_eq!("log_level must be trace, debug, info, warn or error", config.unwrap_err().to_string());
+        assert_eq!(
+            "log_level must be trace, debug, info, warn or error",
+            config.unwrap_err().to_string()
+        );
     }
 }

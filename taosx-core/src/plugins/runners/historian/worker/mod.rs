@@ -24,10 +24,7 @@ pub async fn migrate_history(config: TaskConfig, port_pool: &PortPool) -> anyhow
         let port_pool = port_pool.clone();
 
         let c = tokio::spawn(async move {
-            let mut consumer = Consumer::new(
-                HistorianQuery::new(connect_config).await?,
-                port_pool,
-            );
+            let mut consumer = Consumer::new(HistorianQuery::new(connect_config).await?, port_pool);
             consumer.consume(receiver).await
         });
         consumers.push(c);
@@ -51,9 +48,7 @@ pub async fn sync_history(task_config: TaskConfig, port_pool: &PortPool) -> anyh
     migrate_task_config.end_datetime = Some(now);
 
     let p = port_pool.clone();
-    let _ = tokio::spawn(async move {
-        migrate_history(migrate_task_config, &p).await
-    });
+    let _ = tokio::spawn(async move { migrate_history(migrate_task_config, &p).await });
 
     let port = port_pool
         .get()
@@ -71,11 +66,9 @@ pub async fn sync_history(task_config: TaskConfig, port_pool: &PortPool) -> anyh
         let window_start = now;
         let window_end = Utc::now();
 
-        let mut rows = query.query_history(
-            task_config.tags.clone(),
-            window_start,
-            window_end,
-        ).await?;
+        let mut rows = query
+            .query_history(task_config.tags.clone(), window_start, window_end)
+            .await?;
 
         while let Some(row) = rows.try_next().await? {
             match row {
@@ -131,5 +124,3 @@ pub async fn sync_live(task_config: TaskConfig, port_pool: &PortPool) -> anyhow:
         tokio::time::sleep(task_config.retrieve_interval.to_std().unwrap()).await;
     }
 }
-
-

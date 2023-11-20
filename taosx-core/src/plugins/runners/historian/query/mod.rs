@@ -18,12 +18,17 @@ const LIVE_COLUMNS: &str = "DateTime,TagName,Value,vValue,Quality,QualityDetail,
 
 impl HistorianQuery {
     pub async fn new(config: ConnectConfig) -> anyhow::Result<Self> {
-        let client = Self::connect(&config.host, config.port, &config.username, &config.password)
-            .await
-            .map_err(|err| anyhow::anyhow!("failed to connect to historian, cause: {}", err.to_string()))?;
-        Ok(Self {
-            client
-        })
+        let client = Self::connect(
+            &config.host,
+            config.port,
+            &config.username,
+            &config.password,
+        )
+        .await
+        .map_err(|err| {
+            anyhow::anyhow!("failed to connect to historian, cause: {}", err.to_string())
+        })?;
+        Ok(Self { client })
     }
 
     pub async fn get_tags(&mut self) -> anyhow::Result<Vec<TagMeta>> {
@@ -46,9 +51,16 @@ impl HistorianQuery {
     pub async fn query_live(&mut self, tags: Vec<String>) -> anyhow::Result<QueryStream> {
         let sql;
         if tags.len() == 1 && tags.first().unwrap().as_str() == "*" {
-            sql = format!("select {} from Runtime.dbo.Live where TagName not like 'Sys%'", LIVE_COLUMNS);
+            sql = format!(
+                "select {} from Runtime.dbo.Live where TagName not like 'Sys%'",
+                LIVE_COLUMNS
+            );
         } else {
-            sql = format!("select {} from Runtime.dbo.Live where TagName in ({})", LIVE_COLUMNS, tags.join(","));
+            sql = format!(
+                "select {} from Runtime.dbo.Live where TagName in ({})",
+                LIVE_COLUMNS,
+                tags.join(",")
+            );
         }
 
         Ok(self.client.query(sql.as_str(), &[]).await?)
@@ -81,7 +93,12 @@ impl HistorianQuery {
         Ok(self.client.query(sql.as_str(), &[]).await?)
     }
 
-    async fn connect(host: &String, port: u16, username: &String, password: &String) -> anyhow::Result<Client<Compat<TcpStream>>> {
+    async fn connect(
+        host: &String,
+        port: u16,
+        username: &String,
+        password: &String,
+    ) -> anyhow::Result<Client<Compat<TcpStream>>> {
         let mut config = Config::new();
         config.host(host);
         config.port(port);
@@ -98,10 +115,10 @@ impl HistorianQuery {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::runners::historian::config::connect::ConnectConfig;
     use std::str::FromStr;
     use taos::Dsn;
-    use crate::runners::historian::config::connect::ConnectConfig;
-    use super::*;
 
     #[tokio::test]
     #[ignore]

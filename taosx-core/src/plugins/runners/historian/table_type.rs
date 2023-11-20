@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-pub enum HistorianTable{
+pub enum HistorianTable {
     Live,
     History,
 }
