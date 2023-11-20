@@ -51,6 +51,10 @@ struct SVSnapReader {
   int8_t           tsdbDone;
   TFileSetRangeArray *pRanges;
   STsdbSnapReader *pTsdbReader;
+  // tsdb raw
+  int8_t              tsdbRawDone;
+  STsdbSnapRAWReader *pTsdbRawReader;
+
   // tq
   int8_t              tqHandleDone;
   STqSnapReader      *pTqSnapReader;
@@ -467,6 +471,8 @@ struct SVSnapWriter {
   // tsdb
   TFileSetRangeArray *pRanges;
   STsdbSnapWriter *pTsdbSnapWriter;
+  // tsdb raw
+  STsdbSnapRAWWriter *pTsdbSnapRAWWriter;
   // tq
   STqSnapWriter      *pTqSnapWriter;
   STqOffsetWriter    *pTqOffsetWriter;
@@ -770,6 +776,17 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       }
 
       code = tsdbSnapWrite(pWriter->pTsdbSnapWriter, pHdr);
+      if (code) goto _err;
+    } break;
+    case SNAP_DATA_RAW: {
+      // tsdb
+      if (pWriter->pTsdbSnapRAWWriter == NULL) {
+        ASSERT(pWriter->sver == 0);
+        code = tsdbSnapRAWWriterOpen(pVnode->pTsdb, pWriter->ever, &pWriter->pTsdbSnapRAWWriter);
+        if (code) goto _err;
+      }
+
+      code = tsdbSnapRAWWrite(pWriter->pTsdbSnapRAWWriter, pHdr);
       if (code) goto _err;
     } break;
     case SNAP_DATA_TQ_HANDLE: {
