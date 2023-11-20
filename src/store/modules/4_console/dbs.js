@@ -92,8 +92,8 @@ const actions = {
       commit("console/CHANGE_TREE_KEY", null, { root: true });
     });
   },
-  createDatabase({ state, commit }) {
-    return new Promise((resolve) => {
+   createDatabase({ state, commit }) {
+    return new Promise((resolve, reject) => {
       let execFn = createDB;
       let params = state.db_form;
       let name = state.db_form.name;
@@ -109,20 +109,18 @@ const actions = {
         params.buffer = 32;
       }
       if (JSON.stringify(params) === '{}') return resolve();
-      return execFn(params, name)
+      execFn(params, name)
         .then(() => {
           commit('SET_CURRENT_DBNAME',name)
           if (state.formStatus == "create") {
             commit("HANDLE_ADD_DB");
           }
           dbConfigTemp = { ...state.db_form };
-        })
-        .then(() => {
           commit("console/CHANGE_TREE_KEY", null, { root: true });
           resolve()
         })
         .catch(err => {
-          return Promise.reject(err);
+          reject(err)
         });
 
     })

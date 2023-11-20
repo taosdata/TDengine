@@ -675,12 +675,12 @@ export default {
     },
   },
   methods: {
-    handleCreateDb() {
+     handleCreateDb() {
       if (this.requestIng) return;
       this.$refs["dbForm1"].validate((valid) => {
         if (valid) {
           this.requestIng = true;
-           this.$store
+            this.$store
             .dispatch("dbs/createDatabase", true)
             .then(() => {
               this.isEdit
@@ -693,8 +693,6 @@ export default {
                     message: this.$t("createSucc"),
                   });
 
-              
-              console.log(this.isEdit, this.$store.state.dbs.db_form, "创建",this.db_form,this.$store.state.dbs.currentdbName);
               this.cancel();
             })
             .catch((err) => {
