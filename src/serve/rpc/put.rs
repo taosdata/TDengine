@@ -8,8 +8,10 @@ use futures_util::StreamExt;
 use parquet::data_type::AsBytes;
 use taos::{AsyncBindable, AsyncQueryable, AsyncTBuilder, Dsn, Stmt, TaosBuilder};
 use taosx_core::{
-    sink::IpcErrorStrategy,
-    utils::trace::{get_data_trace_id_str, get_stream_id_u64, set_data_trace_id_for_current_span},
+    sink::{handle_lush_message_init, IpcErrorStrategy},
+    utils::trace::{
+        get_data_trace_id_str, get_stream_id_u64, set_data_trace_id_for_current_span, RequestID,
+    },
     ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START,
 };
 use tonic::{Status, Streaming};
@@ -190,7 +192,6 @@ impl PutStream {
                 .await
                 .context("Initialize STMT")?;
             let _ = span.clone().entered();
-
             let worker = IpcStreamWorker::new(
                 pool.clone(),
                 from,
@@ -206,6 +207,12 @@ impl PutStream {
                 .parser
                 .as_ref()
                 .map(|v| serde_json::from_value(v.clone()).unwrap());
+            let matadata = worker.parser.metadata();
+            if let Some(sql) = matadata.init_sql_string() {
+                let init = matadata.init().unwrap();
+                let mut req_id = RequestID::new(stream_trace_id_u64);
+                handle_lush_message_init(init, &taos, &sql, &mut req_id).await?;
+            }
             tracing::info!("Start IPC stream writer");
             loop {
                 match rx.recv_async().await {

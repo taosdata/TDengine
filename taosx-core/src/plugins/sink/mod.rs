@@ -35,9 +35,9 @@ use taosx_ipc::{
     stream::{flat::FlatMessage, point::PointMessage},
 };
 
-use crate::plugins::runners::opc::config::table::ColumnConfig;
 use crate::plugins::runners::opc::config::OpcTableConfig;
 use crate::runners::opc::config::OPCConfig;
+use crate::{plugins::runners::opc::config::table::ColumnConfig, utils::trace::get_stream_id_u64};
 use crate::{
     utils::{
         breakpoints::breakpoints_set,
@@ -2330,15 +2330,13 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     };
 
     let ipc_error_strategy = IpcErrorStrategy::from_connector(connector.unwrap_or("taos"));
-
     let metadata = ipc_reader.metadata();
     let stream_type = *metadata.stream_type();
-    let stream_trace_id_u64 = u64::from_str_radix(stream_trace_id.as_str(), 16).unwrap();
-    if let Some(sql) = ipc_reader.metadata().init_sql_string() {
-        // let guard = lock.lock().await;
+    let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id.as_str());
+    if let Some(sql) = metadata.init_sql_string() {
         let init = metadata.init().unwrap();
-        handle_lush_message_init(init, &taos, &sql).await?;
-        // drop(guard)
+        let mut req_id = RequestID::new(stream_trace_id_u64);
+        handle_lush_message_init(init, &taos, &sql, &mut req_id).await?;
     }
     info!(?stream_type, "Processing stream");
     match stream_type {
@@ -2391,10 +2389,12 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     Ok(())
 }
 
-async fn handle_lush_message_init(
+#[instrument(skip_all, fields(trace.id=req_id.trace_id_str()))]
+pub async fn handle_lush_message_init(
     init: &LushMessageInit,
     taos: &Taos,
     sql: &str,
+    req_id: &mut RequestID,
 ) -> anyhow::Result<()> {
     let max_retries = 10;
     let mut i = 0;
@@ -2414,7 +2414,7 @@ async fn handle_lush_message_init(
                 if sql.is_some() {
                     for sql in sql.unwrap() {
                         tracing::info!("alter table sql: {}", sql.clone());
-                        taos.exec(sql).await?;
+                        taos.exec_with_req_id(sql, req_id.next()).await?;
                     }
                 }
                 let sql =
@@ -2422,7 +2422,7 @@ async fn handle_lush_message_init(
                 if sql.is_some() {
                     for sql in sql.unwrap() {
                         tracing::info!("alter table sql: {}", sql.clone());
-                        taos.exec(sql).await?;
+                        taos.exec_with_req_id(sql, req_id.next()).await?;
                     }
                 }
                 break;
@@ -2431,7 +2431,8 @@ async fn handle_lush_message_init(
                 tracing::warn!("describe failed: {}", err.to_string());
                 // create table
                 info!("create sql: {sql}");
-                let res: Result<usize, taos::Error> = taos.exec(&sql).await;
+                let res: Result<usize, taos::Error> =
+                    taos.exec_with_req_id(&sql, req_id.next()).await;
                 if let Err(err) = res {
                     tracing::error!("Query error with {sql}: {err:?}");
                     i += 1;
@@ -2451,7 +2452,7 @@ async fn handle_lush_message_init(
 #[allow(dead_code)]
 pub struct IpcStreamWorker {
     pool: TaosPool,
-    parser: IpcParser,
+    pub parser: IpcParser,
     lock: Arc<Mutex<()>>,
     task: Option<i64>,
     from: Dsn,
@@ -2514,28 +2515,6 @@ impl IpcStreamWorker {
     ) -> anyhow::Result<usize> {
         let taos = self.pool.get().await?;
         let target_precision = get_current_precision(&taos).await?;
-
-        if let Some(sql) = self.parser.metadata().init_sql_string() {
-            let guard = self.lock.lock().await;
-            let init = self.parser.metadata.init().unwrap();
-            handle_lush_message_init(init, &taos, &sql).await?;
-            // let max_retries = 10;
-            // let mut i = 0;
-            // loop {
-            //     info!("metadata sql: {sql}");
-            //     let res = self.taos.exec(&sql).await;
-            //     if let Err(err) = res {
-            //         tracing::error!("Query error with {sql}: {err:?}");
-            //         i += 1;
-            //         if i > max_retries {
-            //             break;
-            //         }
-            //     } else {
-            //         break;
-            //     }
-            // }
-            drop(guard);
-        }
         // let stmt = unsafe { &mut *self.stmt.get() };
         match self.parser.metadata().stream_type() {
             StreamType::Line => {
