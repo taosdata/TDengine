@@ -1543,6 +1543,21 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&trigger, false);
 
+    char sinkQuota[20 + VARSTR_HEADER_SIZE] = {0};
+    sinkQuota[0] = '0';
+    char dstStr[20] = {0};
+    STR_TO_VARSTR(dstStr, sinkQuota)
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char*) dstStr, false);
+
+    char scanHistoryIdle[20 + VARSTR_HEADER_SIZE] = {0};
+    strcpy(scanHistoryIdle, "100a");
+
+    memset(dstStr, 0, tListLen(dstStr));
+    STR_TO_VARSTR(dstStr, scanHistoryIdle)
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char*) dstStr, false);
+
     numOfRows++;
     sdbRelease(pSdb, pStream);
   }
