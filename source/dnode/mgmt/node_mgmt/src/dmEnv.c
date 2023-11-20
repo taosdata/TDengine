@@ -17,7 +17,6 @@
 #include "dmMgmt.h"
 #include "audit.h"
 #include "libs/function/tudf.h"
-#include "nodes.h"
 
 #define DM_INIT_AUDIT()              \
   do {                               \
