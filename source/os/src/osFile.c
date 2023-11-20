@@ -315,23 +315,28 @@ HANDLE taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
   DWORD openMode = 0;
   DWORD access = 0;
   DWORD fileFlag = FILE_ATTRIBUTE_NORMAL;
+  DWORD shareMode = FILE_SHARE_READ;
 
   openMode = OPEN_EXISTING;
   if (tdFileOptions & TD_FILE_CREATE) {
     openMode = OPEN_ALWAYS;
-  } else if ((tdFileOptions & TD_FILE_EXCL)) {
+  } else if (tdFileOptions & TD_FILE_EXCL) {
     openMode = CREATE_NEW;
-  }
-  if ((tdFileOptions & TD_FILE_APPEND)) {
-    access = FILE_APPEND_DATA;
   } else if ((tdFileOptions & TD_FILE_TRUNC)) {
-    access = GENERIC_WRITE;
-  } else if (tdFileOptions & TD_FILE_WRITE) {
-    access = GENERIC_WRITE;
+    openMode = TRUNCATE_EXISTING;
+    access |= GENERIC_WRITE;
   }
-  if (tdFileOptions & TD_FILE_READ) {
-    access |= GENERIC_READ;
+  if (tdFileOptions & TD_FILE_APPEND) {
+    access |= FILE_APPEND_DATA;
   }
+  if (tdFileOptions & TD_FILE_WRITE) {
+    access |= GENERIC_WRITE;
+  }
+  if (access == 0) {
+    shareMode |= FILE_SHARE_WRITE;
+  }
+  access |= GENERIC_READ;
+
   if (tdFileOptions & TD_FILE_AUTO_DEL) {
     fileFlag |= FILE_ATTRIBUTE_TEMPORARY;
   }
@@ -339,7 +344,11 @@ HANDLE taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
     fileFlag |= FILE_FLAG_WRITE_THROUGH;
   }
 
-  return CreateFile(path, access, FILE_SHARE_READ, NULL, openMode, fileFlag, NULL);
+  HANDLE h = CreateFile(path, access, shareMode, NULL, openMode, fileFlag, NULL);
+  if (h != INVALID_HANDLE_VALUE && (tdFileOptions & TD_FILE_APPEND) && (tdFileOptions & TD_FILE_WRITE)) {
+    SetFilePointer(h, 0, NULL, FILE_END);
+  }
+  return h;
 }
 
 int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
@@ -1079,7 +1088,9 @@ int32_t taosCloseFile(TdFilePtr *ppFile) {
 #ifdef WINDOWS
   if ((*ppFile)->hFile != NULL) {
     // FlushFileBuffers((*ppFile)->hFile);
-    CloseHandle((*ppFile)->hFile);
+    if (!CloseHandle((*ppFile)->hFile)) {
+      code = -1;
+    }
     (*ppFile)->hFile = NULL;
 #else
   if ((*ppFile)->fd >= 0) {
