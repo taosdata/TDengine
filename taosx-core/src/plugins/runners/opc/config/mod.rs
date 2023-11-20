@@ -46,6 +46,7 @@ impl OPCConfig {
         dsn: &Dsn,
         ipc_port: u16,
         taos: &Taos,
+        id: Option<i64>,
     ) -> anyhow::Result<Self> {
         if dsn.driver != "opc" && dsn.driver != "opcua" && dsn.driver != "opcda" {
             anyhow::bail!("invalid opc driver");
@@ -56,7 +57,7 @@ impl OPCConfig {
             debug: Self::parse_debug(dsn)?,
             connect: ConnectConfig::from_dsn(dsn)?,
             points: None,
-            collect: CollectConfig::from_dsn(dsn).await?,
+            collect: CollectConfig::from_dsn(dsn, id).await?,
             report: ReportConfig::from_dsn(dsn, ipc_port)?,
             param_mapping: Self::build_param_mapping(dsn).await?,
             opc_table_config: TableConfig::from_dsn(dsn).await?,
@@ -577,7 +578,7 @@ mod tests {
         let dsn = "opcua://192.168.2.16:53530/OPCUA/SimulationServer?connect_timeout=10&request_timeout=10&interval=10&collect_mode=subscribe&enable=false&keep=10&concurrent=1&batch_size=1000&batch_timeout=1&log_level=info&csv_config_file=@./tests/opc_table_10.csv";
         let taos = <TaosBuilder as taos::AsyncTBuilder>::from_dsn("taos:///").unwrap();
         let taos = taos.build().await.unwrap();
-        let config = OPCConfig::from_dsn_collect_mode(&dsn.parse().unwrap(), 0, &taos)
+        let config = OPCConfig::from_dsn_collect_mode(&dsn.parse().unwrap(), 0, &taos, Some(1))
             .await
             .unwrap();
         dbg!(&config);

@@ -11,6 +11,7 @@ use tracing::{instrument, Span};
 
 use taosx_ipc::types::OptionSet;
 
+use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::opc::config::points::PointsConfig;
@@ -21,7 +22,6 @@ use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
     Transferred,
 };
-use super::get_data_dir;
 
 pub mod config;
 mod opc_type;
@@ -88,7 +88,7 @@ pub async fn opc_to_taos(
         handle_select_all_points(&mut from).await?;
     }
 
-    let config = OPCConfig::from_dsn_collect_mode(&from, ipc_port, &taos).await?;
+    let config = OPCConfig::from_dsn_collect_mode(&from, ipc_port, &taos, task_id).await?;
     if config.opc_table_config.is_none() {
         anyhow::bail!("should config opc table config");
     }
@@ -509,11 +509,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match config {
         Err(err) => DataSourceValidation::invalid(
             "opc".to_string(),
-            format!(
-                "invalid opc dsn: {}, cause: {:?}",
-                dsn.to_string(),
-                err
-            ),
+            format!("invalid opc dsn: {}, cause: {:?}", dsn.to_string(), err),
         ),
         Ok(c) => {
             let valid = validate_opc(c).await;

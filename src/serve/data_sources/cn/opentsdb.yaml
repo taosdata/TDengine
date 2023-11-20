@@ -128,7 +128,7 @@ advanced:
       hidden: true
       display: 批次延时
       description: |
-        单次读取最大延时（单位为毫秒），当超时结束时，只要有数据，即使不满足 Batch Size，也立即发送。
+        单次读取最大延时（单位为秒），当超时结束时，只要有数据，即使不满足 Batch Size，也立即发送。
       value: 1000
       hint:
         type: integer

@@ -194,73 +194,93 @@ groups:
             - subscribe
         value: subscribe
 
-  - name: 原始数据保存
-    display_order: 3
-    description: OPC 连接器采集到的原始数据保存配置。
-    params:
-      - name: enable
-        display: 启用保存
-        description: |-
-          是否启用原始数据保存，默认为 false，即不保存原始数据。
-        value: false
-        hint:
-          type: bool
 
-      - name: path
-        display: 保存路径
-        description: 原始数据的保存路径，若启用保存原始数据需配置。
-        placeholder: /data/
-        hint:
-          type: str
+advanced:
+  name: 高级选项
+  collapsible: true
+  collapsed: true
+  description: |
+    Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave
+    these options as default to use the recommended settings.
+  params:
+    - name: log_level
+      display: 日志级别
+      description: 根据需要调整数据源的日志级别，此参数不总是生效。
+      value: info
+      hint:
+        type: str
+        choices:
+          - error
+          - warn
+          - info
+          - debug
+          - trace
 
-      - name: keep
-        display: 保留天数
-        description: 原始数据的保留天数，若启用保存原始数据需配置。
-        value: 10
-        hint:
-          type: integer
-          min: 1
+    - name: read_concurrency
+      hidden: true
+      display: 最大读取并发数
+      description: |
+        数据源连接数或读取线程数限制，当默认参数不满足需要或需要调整资源使用量时修改此参数。
+      value: 0
+      hint:
+        type: integer
+        min: 0
+        max: 1000
+    - name: write_concurrency
+      hidden: true
+      display: 最大写入并发数
+      description: |
+        写入 taosX 的最大并发数限制，当默认参数性能不足时，可增大此参数。
+      value: 0
+      hint:
+        type: integer
+        min: 0
+        max: 1000
+    - name: batch_size
+      hidden: true
+      display: 批次大小
+      description: |
+        单次发送的最大消息数或行数。
+      value: 1000
+      hint:
+        type: integer
+        min: 1
+        max: 10000
+    - name: batch_timeout
+      hidden: true
+      display: 批次延时
+      description: |
+        单次读取最大延时（单位为毫秒），当超时结束时，只要有数据，即使不满足 Batch Size，也立即发送。
+      value: 1
+      hint:
+        type: integer
+        min: 1
+        max: 60
+    - name: keep_raw_data
+      hidden: true
+      display: 保存原始数据
+      description: |
+        是否保存原始数据？
+      hint:
+        type: bool
+    - name: keep_raw_data_days
+      hidden: true
+      display: 最大保留天数
+      description: |
+        原始数据最大保存天数，默认 1 天。
+      value: 1
+      requires: keep_raw_data
+      hint:
+        type: integer
+        min: 1
+        max: 365
 
-  - name: 高级选项
-    display_order: 4
-    description: 对数据源性能、日志等其他参数进行调整，可修改以下选项。
-    params:
-      - name: concurrent
-        display: 最大写入并发数
-        description: 写入 taosX 的最大并发数限制，当默认参数性能不足时，可增大此参数。
-        value: 1
-        hint:
-          type: integer
-          min: 1
-          max: 100
-      - name: batch_size
-        display: 批次大小
-        description: 单次发送的最大消息数或行数。
-        placeholder: 100
-        value: 1000
-        hint:
-          type: integer
-          min: 1
-          max: 10000
-      - name: batch_timeout
-        display: 批次延时
-        description: 单次读取最大延时，当超时结束时，只要有数据，即使不满足 Batch Size，也立即发送。
-        placeholder: 20
-        value: 1
-        hint:
-          type: integer
-          min: 1
-          max: 60
-      - name: log_level
-        display: 日志级别
-        description: 根据需要调整数据源的日志级别，此参数不总是生效。
-        value: info
-        hint:
-          type: str
-          choices:
-            - error
-            - warn
-            - info
-            - debug
-            - trace
-
+    - name: keep_raw_data_dir
+      hidden: true
+      display: 原始数据存储目录
+      description: |
+        自定义原始数据存储目录，默认存储到系统数据目录下。
+      requires: keep_raw_data
+      placeholder: $DATA_DIR/tasks/:id/rawdata/
+      hint:
+        type: str

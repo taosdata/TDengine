@@ -154,26 +154,16 @@ advanced:
         type: integer
         min: 0
         max: 1000
-    - name: batch_size
-      hidden: true
-      display: Batch Size
-      description: |
-        The number of data points to be written in a single request. The default value is 1000. If the data source is slow to respond, you can reduce this value appropriately.
-      value: 1000
-      hint:
-        type: integer
-        min: 1
-        max: 10000
     - name: batch_timeout
       hidden: true
       display: Batch Timeout
       description: |
-        The maximum time(in milliseconds) to wait before sending a batch of data points. The default value is 1000ms. If the data source is slow to respond, you can increase this value appropriately.
-      value: 1000
+        The maximum time(in seconds) to wait before sending a batch of data points. The default value is 1s. If the data source is slow to respond, you can increase this value appropriately.
+      value: 1
       hint:
         type: integer
         min: 1
-        max: 10000
+        max: 60
     - name: keep_raw_data
       hidden: true
       display: Keep Raw Data
