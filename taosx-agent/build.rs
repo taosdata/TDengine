@@ -43,9 +43,9 @@ fn shadow_build() {
             file,
             r#"
 pub const VERBOSE_VERSION: &str = if GIT_CLEAN {{
-    ::const_format::concatcp!("version: ",TD_VERSION,"\ngit: ",BRANCH,"-",COMMIT_HASH,"\nbuild: core-",PKG_VERSION," ",BUILD_OS," ",BUILD_TIME)
+    ::const_format::concatcp!("version: ",TD_VERSION,"\ngit: ",COMMIT_HASH,"\nbuild: core-",PKG_VERSION," ",BUILD_OS," ",BUILD_TIME)
 }} else {{
-    ::const_format::concatcp!("version: ",TD_VERSION,"\ngit: ",BRANCH,"-",COMMIT_HASH,"\nbuild: core-dirty-",PKG_VERSION," ",BUILD_OS," ",BUILD_TIME)
+    ::const_format::concatcp!("version: ",TD_VERSION,"\ngit: ",COMMIT_HASH,"\nbuild: core-dirty-",PKG_VERSION," ",BUILD_OS," ",BUILD_TIME)
 }};
 "#
         )?;
