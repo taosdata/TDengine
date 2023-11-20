@@ -10353,6 +10353,141 @@ static int32_t translateShowCreateView(STranslateContext* pCxt, SShowCreateViewS
 #endif
 }
 
+static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, char** pAst, int32_t* pLen, char** pExpr,
+                            int32_t* pExprLen) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SSampleAstInfo info = {0};
+  info.createSmaIndex = true;
+  info.pDbName = pStmt->dbName;
+  info.pTableName = pStmt->tableName;
+  info.pFuncs = nodesCloneList(pStmt->pOptions->pFuncs);
+  info.pInterval = nodesCloneNode(pStmt->pOptions->pInterval);
+  if (!info.pFuncs || !info.pInterval) code = TSDB_CODE_OUT_OF_MEMORY;
+  if (code == TSDB_CODE_SUCCESS) {
+    code = buildSampleAst(pCxt, &info, pAst, pLen, pExpr, pExprLen);
+  }
+  clearSampleAstInfo(&info);
+  return code;
+}
+
+static char* defaultTSMAFuncs[4] = {"MAX", "MIN", "SUM", "COUNT"};
+
+static int32_t
+translateTSMAFuncs(STranslateContext * pCxt, SCreateTSMAStmt* pStmt, STableMeta* pTableMeta) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (!pStmt->pOptions->pFuncs) {
+    // add default funcs for TSMA
+    for (int32_t i = 0; i < sizeof(defaultTSMAFuncs) / sizeof(char*); ++i) {
+      SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+      if (!pFunc || TSDB_CODE_SUCCESS != nodesListMakeAppend(&pStmt->pOptions->pFuncs, (SNode*)pFunc)) {
+        nodesDestroyNode((SNode*)pFunc);
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        break;
+      }
+      strcpy(pFunc->functionName, defaultTSMAFuncs[i]);
+    }
+    // add all numeric cols
+    if (TSDB_CODE_SUCCESS == code) {
+      for (int32_t i = 0; i < pTableMeta->tableInfo.numOfColumns; ++i) {
+        const SSchema* schema = &pTableMeta->schema[i];
+        if (!IS_NUMERIC_TYPE(schema->type)) continue;
+        SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+        if (!pCol || TSDB_CODE_SUCCESS != nodesListMakeAppend(&pStmt->pOptions->pCols, (SNode*)pCol)) {
+          nodesDestroyNode((SNode*)pCol);
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          break;
+        }
+        strcpy(pCol->colName, schema->name);
+      }
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    // assemble funcs with columns
+    SNode *pNode1, *pNode2;
+    SNodeList* pTSMAFuncs = nodesMakeList();
+    if (!pTSMAFuncs) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      return code;
+    }
+    FOREACH(pNode1, pStmt->pOptions->pFuncs) {
+      FOREACH(pNode2, pStmt->pOptions->pCols) {
+        SFunctionNode* pFunc = (SFunctionNode*)nodesCloneNode(pNode1);
+        SColumnNode*   pCol = (SColumnNode*)nodesCloneNode(pNode2);
+        if (!pFunc || !pCol ||
+            (TSDB_CODE_SUCCESS != nodesListMakeAppend(&pFunc->pParameterList, (SNode*)pCol) || (pCol = NULL)) ||
+            TSDB_CODE_SUCCESS != nodesListAppend(pTSMAFuncs, (SNode*)pFunc)) {
+          nodesDestroyNode((SNode*)pFunc);
+          nodesDestroyNode((SNode*)pCol);
+          nodesDestroyList(pTSMAFuncs);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }
+    }
+    nodesDestroyList(pStmt->pOptions->pFuncs);
+    pStmt->pOptions->pFuncs = pTSMAFuncs;
+  }
+  return code;
+}
+
+static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMCreateSmaReq* pReq) {
+  SName name;
+  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tsmaName, &name), pReq->name);
+  memset(&name, 0, sizeof(SName));
+  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name), pReq->stb);
+  pReq->igExists = pStmt->ignoreExists;
+  pReq->interval = ((SValueNode*)pStmt->pOptions->pInterval)->datum.i;
+  pReq->intervalUnit = ((SValueNode*)pStmt->pOptions->pInterval)->unit;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  STableMeta* pTableMeta = NULL;
+  code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getSmaIndexDstVgId(pCxt, pStmt->dbName, pStmt->tableName, &pReq->dstVgId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getSmaIndexSql(pCxt, &pReq->sql, &pReq->sqlLen);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateTSMAFuncs(pCxt, pStmt, pTableMeta);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildTSMAAst(pCxt, pStmt, &pReq->ast, &pReq->astLen, &pReq->expr, &pReq->exprLen);
+  }
+  /*
+  if (TSDB_CODE_SUCCESS == code) {
+    STableMeta* pMetaCache = NULL;
+    code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pMetaCache);
+    if (TSDB_CODE_SUCCESS == code) {
+      pStmt->pOptions->tsPrecision = pMetaCache->tableInfo.precision;
+      code = createLastTsSelectStmt(pStmt->dbName, pStmt->tableName, pMetaCache, &pStmt->pPrevQuery);
+    }
+    taosMemoryFreeClear(pMetaCache);
+  }
+  */
+
+  taosMemoryFreeClear(pTableMeta);
+
+  return code;
+}
+
+static int32_t translateCreateTSMA(STranslateContext* pCxt, SCreateTSMAStmt* pStmt) {
+  int32_t code = doTranslateValue(pCxt, (SValueNode*)pStmt->pOptions->pInterval);
+
+  pStmt->pReq = taosMemoryCalloc(1, sizeof(SMCreateSmaReq));
+  if (pStmt->pReq == NULL) code = TSDB_CODE_OUT_OF_MEMORY;
+  if (code == TSDB_CODE_SUCCESS) {
+    code = buildCreateTSMAReq(pCxt, pStmt, pStmt->pReq);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_SMA, (FSerializeFunc)tSerializeSMCreateSmaReq, pStmt->pReq);
+  }
+  tFreeSMCreateSmaReq(pStmt->pReq);
+  return code;
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -10534,6 +10669,12 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_DROP_VIEW_STMT:
       code = translateDropView(pCxt, (SDropViewStmt*)pNode);
+      break;
+    case QUERY_NODE_CREATE_TSMA_STMT:
+      code = translateCreateTSMA(pCxt, (SCreateTSMAStmt*)pNode);
+      break;
+    case QUERY_NODE_SHOW_CREATE_TSMA_STMT:
+    case QUERY_NODE_DROP_TSMA_STMT:
       break;
 
     default:

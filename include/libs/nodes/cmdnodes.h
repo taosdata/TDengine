@@ -590,6 +590,37 @@ typedef struct SSplitVgroupStmt {
   int32_t   vgId;
 } SSplitVgroupStmt;
 
+typedef struct STSMAOptions {
+  ENodeType  type;
+  SNodeList* pFuncs;
+  SNodeList* pCols;
+  SNode*     pInterval;
+  uint8_t     tsPrecision;
+} STSMAOptions;
+
+typedef struct SCreateTSMAStmt {
+  ENodeType       type;
+  bool            ignoreExists;
+  char            tsmaName[TSDB_INDEX_NAME_LEN];
+  char            dbName[TSDB_DB_NAME_LEN];
+  char            tableName[TSDB_TABLE_NAME_LEN];
+  STSMAOptions*   pOptions;
+  SMCreateSmaReq* pReq;
+} SCreateTSMAStmt;
+
+typedef struct SShowCreateTSMAStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tsmaName[TSDB_INDEX_NAME_LEN];
+}SShowCreateTSMAStmt;
+
+typedef struct SDropTSMAStmt {
+  ENodeType type;
+  bool      ignoreNotExists;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tsmaName[TSDB_INDEX_NAME_LEN];
+} SDropTSMAStmt;
+
 #ifdef __cplusplus
 }
 #endif
