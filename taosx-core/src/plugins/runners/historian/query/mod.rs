@@ -44,7 +44,7 @@ impl HistorianQuery {
     }
 
     pub async fn query_live(&mut self, tags: Vec<String>) -> anyhow::Result<QueryStream> {
-        let mut sql = String::new();
+        let sql;
         if tags.len() == 1 && tags.first().unwrap().as_str() == "*" {
             sql = format!("select {} from Runtime.dbo.Live where TagName not like 'Sys%'", LIVE_COLUMNS);
         } else {
@@ -54,8 +54,13 @@ impl HistorianQuery {
         Ok(self.client.query(sql.as_str(), &[]).await?)
     }
 
-    pub async fn query_history(&mut self, tags: Vec<String>, begin: DateTime<Utc>, end: DateTime<Utc>) -> anyhow::Result<QueryStream> {
-        let mut sql = String::new();
+    pub async fn query_history(
+        &mut self,
+        tags: Vec<String>,
+        begin: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> anyhow::Result<QueryStream> {
+        let sql;
         if tags.len() == 1 && tags.first().unwrap().as_str() == "*" {
             sql = format!(
                 "select {} from Runtime.dbo.History where TagName not like 'Sys%' and DateTime >= '{}' and DateTime < '{}'",

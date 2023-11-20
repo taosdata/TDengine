@@ -1,4 +1,3 @@
-use std::time::Duration;
 use itertools::Itertools;
 use taos::{AsyncFetchable, AsyncQueryable, Code, TaosPool};
 use tokio_util::sync::CancellationToken;

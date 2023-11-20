@@ -1,11 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::{DateTime, Utc};
-use futures_util::TryStreamExt;
-use itertools::Itertools;
 use taos::Dsn;
-use tokio_util::compat::TokioAsyncWriteCompatExt;
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
