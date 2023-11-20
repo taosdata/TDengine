@@ -135,8 +135,7 @@ advanced:
   collapsible: true
   collapsed: true
   description: |
-    Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave
-    these options as default to use the recommended settings.
+    对数据源性能、日志等其他参数进行调整，可修改以下选项。
   params:
     - name: log_level
       display: 日志级别

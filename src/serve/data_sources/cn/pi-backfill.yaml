@@ -73,34 +73,36 @@ groups:
         description: |
           导入历史数据以该时间结束，默认是当前时间。
         placeholder: "YYYY-MM-DD HH:mm:ss"
-
         conflicts_with:
           - name: BackfillStartTime
             value: auto
             when: auto
 
-  - name: 数据队列
-    display_order: 2
-    description: 其他配置
-    params:
-      - name: MaxWaitLen
-        display: 消息队列缓存数
-        description: |-
-          将数据发送到 TDengine 之前要批处理的最大更新数（行）。
-        hint:
-          type: integer
-          min: 1
-          max: 10000
-        value: 1000
-      - name: UpdateInterval
-        display: 采集间隔（单位：毫秒）
-        hint:
-          type: integer
-          min: 100
-          max: 60000
-        description: 将批量更新发送到 TDengine 之前等待的最长时间（以毫秒为单位）。
-        placeholder: 10000
-        value: 1000
+advanced:
+  name: 高级选项
+  collapsible: true
+  collapsed: true
+  description: |
+    对数据源性能、日志等其他参数进行调整，可修改以下选项。
+  params:
+    - name: batch_size
+      display: 批次大小
+      description: |
+        单次发送的最大消息数或行数。
+      value: 1000
+      hint:
+        type: integer
+        min: 1
+        max: 10000
+    - name: batch_timeout
+      display: 批次延时
+      description: |
+        单次读取最大延时（单位为毫秒），当超时结束时，只要有数据，即使不满足 Batch Size，也立即发送。
+      value: 1
+      hint:
+        type: integer
+        min: 1
+        max: 60
 
 datasets:
   name: Data Sets
@@ -131,7 +133,7 @@ datasets:
       hint:
         type: file
     - name: template_for_af_element_file
-      display:  AF 模式模板列表
+      display: AF 模式模板列表
       description: |
         单列模板名称列表文件。
 
@@ -141,4 +143,3 @@ datasets:
         | MeterTemplate1 |
       hint:
         type: file
-
