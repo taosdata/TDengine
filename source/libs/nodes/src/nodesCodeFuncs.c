@@ -46,7 +46,7 @@ typedef struct SBuiltinNodeDefinition {
 SBuiltinNodeDefinition funcNodes[QUERY_NODE_END] = {NULL};
 
 static TdThreadOnce    functionNodeInit = PTHREAD_ONCE_INIT;
-static int32_t         initNodeCode = -1;
+volatile int32_t       initNodeCode = -1;
 
 static void setFunc(const char* name, int32_t type, int32_t nodeSize, FExecNodeToJson toJsonFunc,
                     FExecJsonToNode toNodeFunc, FExecDestoryNode destoryFunc) {
@@ -59,19 +59,16 @@ static void setFunc(const char* name, int32_t type, int32_t nodeSize, FExecNodeT
 
 static void doInitNodeFuncArray();
 
-void nodesInit() {
-  taosThreadOnce(&functionNodeInit, doInitNodeFuncArray);
-}
-
 bool funcArrayCheck(int32_t type) {
-  if (type < 0 || QUERY_NODE_END < (type+1)) {
-    nodesError("funcArrayCheck unknown type = %d", type);
+  if (type < 0 || QUERY_NODE_END <= type) {
+    nodesError("funcArrayCheck out of range type = %d", type);
     return false;
   }
   if (initNodeCode != 0) {
-    nodesInit();
+    taosThreadOnce(&functionNodeInit, doInitNodeFuncArray);
   }
   if (!funcNodes[type].name) {
+    nodesError("funcArrayCheck unsupported type = %d", type);
     return false;
   }
   return true;
@@ -6494,7 +6491,7 @@ static int32_t jsonToInsertStmt(const SJson* pJson, void* pObj) {
 int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
   ENodeType type = nodeType(pObj);
   if (!funcArrayCheck(type)) {
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_NOT_FOUND;
   }
 
   if (funcNodes[type].toJsonFunc) {
@@ -6508,7 +6505,7 @@ int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
 int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
   ENodeType type = nodeType(pObj);
   if (!funcArrayCheck(type)) {
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_NOT_FOUND;
   }
 
   if (funcNodes[type].toNodeFunc) {
@@ -7423,16 +7420,16 @@ void nodesDestroyNode(SNode* pNode) {
     return;
   }
 
-  int32_t index = nodeType(pNode);
-  if (!funcArrayCheck(index)) {
+  int32_t type = nodeType(pNode);
+  if (!funcArrayCheck(type)) {
     return;
   }
-  if (funcNodes[index].destoryFunc) {
-    funcNodes[index].destoryFunc(pNode);
+  if (funcNodes[type].destoryFunc) {
+    funcNodes[type].destoryFunc(pNode);
     nodesFree(pNode);
     return;
   }
-  nodesError("nodesDestroyNode unknown node type = %d", nodeType(pNode));
+  nodesWarn("nodesDestroyNode unknown type = %d", type);
   nodesFree(pNode);
   return;
 }
