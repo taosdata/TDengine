@@ -266,6 +266,15 @@ SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pVie
 SNode* createDropViewStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pView);
 SNode* createShowCompactDetailsStmt(SAstCreateContext* pCxt, SNode* pCompactIdNode);
 SNode* createShowCompactsStmt(SAstCreateContext* pCxt, ENodeType type);
+
+SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,
+                            SNode* pRealTable, SNode* pInterval);
+SNode* createTSMAOptions(SAstCreateContext* pCxt, SNodeList* pFuncs, SNodeList* pCols);
+SNode* createDefaultTSMAOptions(SAstCreateContext* pCxt);
+SNode* createDropTSMAStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable);
+SNode* createShowCreateTSMAStmt(SAstCreateContext* pCxt, SNode* pRealTable);
+SNode* createShowTSMASStmt(SAstCreateContext* pCxt, SNode* dbName);
+
 #ifdef __cplusplus
 }
 #endif

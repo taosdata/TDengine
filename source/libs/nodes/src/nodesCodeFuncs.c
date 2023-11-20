@@ -7021,6 +7021,131 @@ static int32_t jsonToInsertStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkTSMAOptionFuncs = "Funcs";
+static const char* jkTSMAOptionCols = "Cols";
+static const char* jkTSMAOptionInterval = "Interval";
+static const char* jkTSMAOptionTsPrecision = "Precision";
+
+static int32_t tsmaOptionToJson(const void* pObj, SJson* pJson) {
+  const STSMAOptions* pNode = (const STSMAOptions*)pObj;
+  int32_t code = nodeListToJson(pJson, jkTSMAOptionFuncs, pNode->pFuncs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkTSMAOptionCols, pNode->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkTSMAOptionInterval, nodeToJson, pNode->pInterval);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTSMAOptionTsPrecision, pNode->tsPrecision);
+  }
+  return code;
+}
+
+static int32_t jsonToTSMAOption(const SJson* pJson, void* pObj) {
+  STSMAOptions* pNode = (STSMAOptions*)pObj;
+  int32_t code = jsonToNodeList(pJson, jkTSMAOptionFuncs, &pNode->pFuncs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkTSMAOptionCols, &pNode->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkTSMAOptionInterval, &pNode->pInterval);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetUTinyIntValue(pJson, jkTSMAOptionTsPrecision, &pNode->tsPrecision);
+  }
+  return code;
+}
+
+static const char* jkCreateTSMAStmtIgnoreExists = "IgnoreExists";
+static const char* jkCreateTSMAStmtTsmaName = "TSMAName";
+static const char* jkCreateTSMAStmtDbName = "DbName";
+static const char* jkCreateTSMAStmtTableName = "TableName";
+static const char* jkCreateTSMAStmtpOptions = "Options";
+
+static int32_t createTSMAStmtToJson(const void* pObj, SJson* pJson) {
+  const SCreateTSMAStmt* pNode = (const SCreateTSMAStmt*)pObj;
+  int32_t code = tjsonAddBoolToObject(pJson, jkCreateTSMAStmtIgnoreExists, pNode->ignoreExists);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkCreateTSMAStmtTsmaName, pNode->tsmaName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkCreateTSMAStmtDbName, pNode->dbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkCreateTSMAStmtTableName, pNode->tableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkCreateTSMAStmtpOptions, nodeToJson, pNode->pOptions);
+  }
+}
+
+static int32_t jsonToCreateTSMAStmt(const SJson* pJson, void* pObj) {
+  SCreateTSMAStmt* pNode = (SCreateTSMAStmt*)pObj;
+  int32_t code = tjsonGetBoolValue(pJson, jkCreateTSMAStmtIgnoreExists, &pNode->ignoreExists);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkCreateTSMAStmtTsmaName, pNode->tsmaName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkCreateTSMAStmtDbName, pNode->dbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkCreateTSMAStmtTableName, pNode->tableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkCreateTSMAStmtpOptions, &pNode->pOptions);
+  }
+  return code;
+}
+
+static const char* jkDropTSMAStmtIgnoreNotExists = "IgnoreNotExists";
+static const char* jkDropTSMAStmtDbName = "DbName";
+static const char* jkDropTSMAStmtTsmaName = "TSMAName";
+
+static int32_t dropTSMAStmtToJson(const void* pObj, SJson* pJson) {
+  const SDropTSMAStmt* pNode = (const SDropTSMAStmt*)pObj;
+  int32_t code = tjsonAddBoolToObject(pJson, jkDropTSMAStmtIgnoreNotExists, pNode->ignoreNotExists);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkDropTSMAStmtDbName, pNode->dbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkDropTSMAStmtTsmaName, pNode->tsmaName);
+  }
+  return code;
+}
+
+static int32_t jsonToDropTSMAStmt(const SJson* pJson, void* pObj) {
+  SDropTSMAStmt* pNode = (SDropTSMAStmt*)pObj;
+  int32_t code = tjsonGetBoolValue(pJson, jkDropTSMAStmtIgnoreNotExists, &pNode->ignoreNotExists);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkDropTSMAStmtDbName, pNode->dbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkDropTSMAStmtTsmaName, pNode->tsmaName);
+  }
+  return code;
+}
+
+static const char* jkShowCreateTSMAStmtDbName = "DbName";
+static const char* jkShowCreateTSMAStmtTsmaName = "TSMAName";
+
+static int32_t showCreateTSMAStmtToJson(const void* pObj, SJson* pJson) {
+  const SShowCreateTSMAStmt* pNode = (const SShowCreateTSMAStmt*)pObj;
+  int32_t code = tjsonAddStringToObject(pJson, jkShowCreateTSMAStmtDbName, pNode->dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkShowCreateTSMAStmtTsmaName, pNode->tsmaName);
+  }
+  return code;
+}
+
+static int32_t jsonToShowCreateTSMAStmt(const SJson* pJson, void* pObj) {
+  SShowCreateTSMAStmt* pNode = (SShowCreateTSMAStmt*)pObj;
+  int32_t code = tjsonGetStringValue(pJson, jkShowCreateTSMAStmtDbName, pNode->dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkShowCreateTSMAStmtTsmaName, pNode->tsmaName);
+  }
+  return code;
+}
+
 static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
   switch (nodeType(pObj)) {
     case QUERY_NODE_COLUMN:
