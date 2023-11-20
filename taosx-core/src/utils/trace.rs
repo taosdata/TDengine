@@ -320,7 +320,7 @@ pub fn create_stream_trace_id() -> String {
 
 #[inline]
 pub fn create_data_trace_id(stream_trace_id: u64, batch_number: u32) -> u64 {
-    (stream_trace_id << 48) + (u64::from(batch_number) << 16)
+    stream_trace_id + (u64::from(batch_number) << 16)
 }
 
 pub fn get_data_trace_id_str(data_trace_id: u64) -> String {
@@ -330,6 +330,28 @@ pub fn get_data_trace_id_str(data_trace_id: u64) -> String {
 }
 
 #[inline]
-pub fn create_query_id(data_trace_id: u64) -> u64 {
-    data_trace_id + (random::<u64>() >> 48)
+pub fn get_stream_id_u64(stream_id: &str) -> u64 {
+    let id = u64::from_str_radix(stream_id, 16).unwrap();
+    id << 48
+}
+
+pub struct RequestID {
+    inner: u64,
+}
+
+impl RequestID {
+    pub fn new(inital_value: u64) -> Self {
+        RequestID {
+            inner: inital_value,
+        }
+    }
+
+    pub fn trace_id_str(&self) -> String {
+        get_data_trace_id_str(self.inner)
+    }
+
+    pub fn next(&mut self) -> u64 {
+        self.inner += 1;
+        self.inner
+    }
 }

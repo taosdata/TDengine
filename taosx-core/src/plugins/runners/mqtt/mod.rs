@@ -11,6 +11,7 @@ use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
+use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::mqtt::config::{MqttConfig, MqttConnectConfig};
@@ -18,7 +19,6 @@ use crate::{
     build_ipc, get_log_keep_days, plugins::runners::get_plugin_dir, utils::port_pool::PortPool,
     Parser, Transferred,
 };
-use super::get_data_dir;
 
 mod config;
 

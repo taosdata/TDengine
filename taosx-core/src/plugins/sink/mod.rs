@@ -21,7 +21,6 @@ use futures::TryStreamExt;
 use futures_util::StreamExt;
 use metrics::*;
 use serde_json::json;
-use taos::RawResult;
 use taos::{
     taos_query::{common::Describe, Manager},
     AsyncBindable, AsyncQueryable, Dsn, Itertools, RawBlock, Stmt, Taos, TaosPool, Ty, Value,
@@ -36,15 +35,15 @@ use taosx_ipc::{
     stream::{flat::FlatMessage, point::PointMessage},
 };
 
-use crate::plugins::runners::opc::config::table::ColumnConfig;
 use crate::plugins::runners::opc::config::OpcTableConfig;
 use crate::runners::opc::config::OPCConfig;
+use crate::{plugins::runners::opc::config::table::ColumnConfig, utils::trace::get_stream_id_u64};
 use crate::{
     utils::{
         breakpoints::breakpoints_set,
         trace::{
-            create_data_trace_id, create_query_id, create_stream_trace_id, get_data_trace_id_str,
-            set_data_trace_id_for_current_span,
+            create_data_trace_id, create_stream_trace_id, get_data_trace_id_str,
+            set_data_trace_id_for_current_span, RequestID,
         },
     },
     ConnectorLicense, Parser, Transferred,
@@ -339,6 +338,7 @@ async fn consume_lush_record(
     trace_id_str: &str,
 ) -> anyhow::Result<()> {
     counter!(METRIC_RECORD_BATCHES, 1);
+    let mut req_id = RequestID::new(data_trace_id);
     match record {
         LushMessage::Tables(tables) => {
             let taos: &deadpool::managed::Object<Manager<TaosBuilder>> = taos.as_ref().unwrap();
@@ -380,7 +380,9 @@ async fn consume_lush_record(
                                     expect.to_sql_value()
                                 );
                                 tracing::info!("alter_set_sql: {alter_set_sql}");
-                                if let Err(err) = taos.exec(alter_set_sql).await {
+                                if let Err(err) =
+                                    taos.exec_with_req_id(alter_set_sql, req_id.next()).await
+                                {
                                     tracing::info!("Try to alter table {table_name} tag `{tagname}` error: {err:#}");
                                 }
                             }
@@ -444,7 +446,7 @@ async fn consume_lush_record(
             for (stable_name, message_modify) in create_sql_map {
                 for sql in message_modify.sqls {
                     info!("Tables: {}", sql.0);
-                    match exec(taos, &sql.0, data_trace_id).await {
+                    match taos.exec_with_req_id(&sql.0, req_id.next()).await {
                         Ok(_) => {
                             counter!(METRIC_CHILD_TABLE_CREATED, sql.2 as u64);
                         }
@@ -480,8 +482,7 @@ async fn consume_lush_record(
                                 if alter_sqls.is_some() {
                                     for alter_sql in alter_sqls.unwrap() {
                                         info!("lush table alter sql: {alter_sql}");
-                                        exec(taos, alter_sql, data_trace_id).await?;
-                                        // taos.exec(alter_sql).await?;
+                                        taos.exec_with_req_id(alter_sql, req_id.next()).await?;
                                     }
                                 }
                             } else {
@@ -542,7 +543,12 @@ async fn consume_lush_record(
                         let mut count = 0;
                         let mut break_err = Ok(());
                         loop {
-                            match exec(taos.as_ref().unwrap(), &sql, data_trace_id).await {
+                            match taos
+                                .as_ref()
+                                .unwrap()
+                                .exec_with_req_id(&sql, req_id.next())
+                                .await
+                            {
                                 Ok(num) => {
                                     count = count + num;
                                     counter!(METRIC_INSERT_SQLS, 1);
@@ -587,12 +593,11 @@ async fn consume_lush_record(
                                             let alter_sqls = alter_sqls.unwrap();
                                             for alter_sql in alter_sqls {
                                                 tracing::info!("alter sql: {alter_sql}");
-                                                if let Err(err) = exec(
-                                                    taos.as_ref().unwrap(),
-                                                    alter_sql,
-                                                    data_trace_id,
-                                                )
-                                                .await
+                                                if let Err(err) = taos
+                                                    .as_ref()
+                                                    .unwrap()
+                                                    .exec_with_req_id(alter_sql, req_id.next())
+                                                    .await
                                                 {
                                                     tracing::info!("alter sql error: {err:#}");
                                                 }
@@ -678,6 +683,7 @@ async fn consume_point_record(
     trace_id_str: &str,
 ) -> anyhow::Result<usize> {
     let mut points = 0;
+    let mut req_id = RequestID::new(data_trace_id);
     metrics::counter!(METRIC_RECORD_BATCHES, 1);
     for message in record.records() {
         let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(
@@ -998,8 +1004,11 @@ async fn consume_point_record(
                         }
                         break;
                     }
-                    let sql_res = exec(taos.as_ref().unwrap(), &insert_sql, data_trace_id).await;
-                    // let sql_res = taos.as_ref().unwrap().exec(&insert_sql).await;
+                    let sql_res = taos
+                        .as_ref()
+                        .unwrap()
+                        .exec_with_req_id(&insert_sql, req_id.next())
+                        .await;
                     match sql_res {
                         Ok(n) => {
                             *count += n;
@@ -1036,7 +1045,11 @@ async fn consume_point_record(
                                     stable_name, temp_conlumns, tags
                                 );
                                 tracing::info!("create stable sql: {}", &stable_sql);
-                                match exec(taos.as_ref().unwrap(), &stable_sql, data_trace_id).await
+                                match taos
+                                    .as_ref()
+                                    .unwrap()
+                                    .exec_with_req_id(&stable_sql, req_id.next())
+                                    .await
                                 {
                                     Ok(_n) => {
                                         counter!(METRIC_STABLE_CREATED, 1);
@@ -1083,12 +1096,11 @@ async fn consume_point_record(
                                     zip(child_table_create_sqls, child_table_counts_vec)
                                 {
                                     tracing::info!("create child sql: {create_child_sql}");
-                                    match exec(
-                                        taos.as_ref().unwrap(),
-                                        &create_child_sql,
-                                        data_trace_id,
-                                    )
-                                    .await
+                                    match taos
+                                        .as_ref()
+                                        .unwrap()
+                                        .exec_with_req_id(&create_child_sql, req_id.next())
+                                        .await
                                     {
                                         // match taos.as_ref().unwrap().exec(&create_child_sql).await {
                                         Ok(_n) => {
@@ -1162,8 +1174,11 @@ async fn consume_point_record(
                                             column_config.column_type.unwrap()
                                         );
                                         tracing::info!("add_column_sql:{}", add_column_sql);
-                                        let res =
-                                            taos.as_ref().unwrap().exec(&add_column_sql).await;
+                                        let res = taos
+                                            .as_ref()
+                                            .unwrap()
+                                            .exec_with_req_id(&add_column_sql, req_id.next())
+                                            .await;
                                         if let Err(err) = res {
                                             tracing::warn!("describe error: {err:#}");
                                             let code: i32 = err.code().into();
@@ -1213,12 +1228,11 @@ async fn consume_point_record(
                                         let sqls = sqls.unwrap();
                                         for alter_sql in sqls {
                                             tracing::info!("alter table sql: {alter_sql}");
-                                            match exec(
-                                                taos.as_ref().unwrap(),
-                                                alter_sql,
-                                                data_trace_id,
-                                            )
-                                            .await
+                                            match taos
+                                                .as_ref()
+                                                .unwrap()
+                                                .exec_with_req_id(alter_sql, req_id.next())
+                                                .await
                                             {
                                                 // match taos.as_ref().unwrap().exec(alter_sql).await {
                                                 Ok(_) => (),
@@ -1279,13 +1293,9 @@ async fn consume_point_record(
                                 if sqls.is_some() {
                                     let sqls = sqls.unwrap();
                                     for sql in sqls {
-                                        // tracing::info!("add execute sql: {}", &sql);
-                                        // taos.as_ref()
-                                        //     .unwrap()
-                                        //     .exec(sql)
-                                        //     .await
-                                        //     .context("Writing point stream error")?;
-                                        exec(taos.as_ref().unwrap(), sql, data_trace_id)
+                                        taos.as_ref()
+                                            .unwrap()
+                                            .exec_with_req_id(sql, req_id.next())
                                             .await
                                             .context("Writing point stream error")?;
                                     }
@@ -1306,7 +1316,7 @@ async fn consume_point_record(
                                         // taos.as_ref().unwrap().exec(sql).await.context(
                                         //     "Modify column length error while writing point stream",
                                         // )?;
-                                        exec(taos.as_ref().unwrap(), &sql, data_trace_id)
+                                        taos.as_ref().unwrap().exec_with_req_id(&sql, req_id.next())
                                             .await
                                             .context(
                                             "Modify column length error while writing point stream",
@@ -1365,7 +1375,7 @@ async fn consume_flat_record(
     }
     // let stmt = Stmt::init(taos.as_ref().unwrap())?;
     let mut max_lengths = HashMap::new();
-
+    let mut req_id = RequestID::new(data_trace_id);
     for message in record.records() {
         tokio::task::yield_now().await;
         counter!(METRIC_RECORD_BATCHES, 1);
@@ -1435,13 +1445,10 @@ async fn consume_flat_record(
                                                         ty,
                                                         length
                                                         );
-                                                        exec(
-                                                            taos.as_ref().unwrap(),
-                                                            &sql,
-                                                            data_trace_id,
-                                                        )
-                                                        .await?;
-                                                        // taos.as_ref().unwrap().exec(&sql).await?;
+                                                        taos.as_ref()
+                                                            .unwrap()
+                                                            .exec_with_req_id(&sql, req_id.next())
+                                                            .await?;
                                                         max_lengths
                                                             .insert(name.to_string(), length);
                                                         continue;
@@ -1471,12 +1478,11 @@ async fn consume_flat_record(
                                                             .stables
                                                             .fetch_add(1, Ordering::SeqCst);
                                                     }
-                                                    match exec(
-                                                        taos.as_ref().unwrap(),
-                                                        &sql,
-                                                        data_trace_id,
-                                                    )
-                                                    .await
+                                                    match taos
+                                                        .as_ref()
+                                                        .unwrap()
+                                                        .exec_with_req_id(&sql, req_id.next())
+                                                        .await
                                                     {
                                                         Ok(_) => {
                                                             counter!(METRIC_STABLE_CREATED, 1);
@@ -1492,12 +1498,11 @@ async fn consume_flat_record(
                                                     let sql = records.table_sql();
 
                                                     loop {
-                                                        match exec(
-                                                            taos.as_ref().unwrap(),
-                                                            &sql,
-                                                            data_trace_id,
-                                                        )
-                                                        .await
+                                                        match taos
+                                                            .as_ref()
+                                                            .unwrap()
+                                                            .exec_with_req_id(&sql, req_id.next())
+                                                            .await
                                                         {
                                                             Ok(_n) => {
                                                                 counter!(
@@ -1534,12 +1539,14 @@ async fn consume_flat_record(
                                                                             f.ty(),
                                                                             f.length() * 2
                                                                         );
-                                                                        let _ = exec(
-                                                                            taos.as_ref().unwrap(),
-                                                                            &sql,
-                                                                            data_trace_id,
-                                                                        )
-                                                                        .await;
+                                                                        let _ = taos
+                                                                            .as_ref()
+                                                                            .unwrap()
+                                                                            .exec_with_req_id(
+                                                                                &sql,
+                                                                                req_id.next(),
+                                                                            )
+                                                                            .await;
                                                                         continue;
                                                                     }
                                                                 } else if err
@@ -1584,14 +1591,14 @@ async fn consume_flat_record(
                                                                                 parser.get_ipcdatatype_from_parser(tag_meta.field()).unwrap().sql_repr()
                                                                                 );
                                                                             tracing::info!("table {table} add tag sql: {add_tag_sql}");
-                                                                            exec(
-                                                                                taos.as_ref()
-                                                                                    .unwrap(),
-                                                                                add_tag_sql,
-                                                                                data_trace_id,
-                                                                            )
-                                                                            .await
-                                                                            .unwrap();
+                                                                            taos.as_ref()
+                                                                                .unwrap()
+                                                                                .exec_with_req_id(
+                                                                                    add_tag_sql,
+                                                                                    req_id.next(),
+                                                                                )
+                                                                                .await
+                                                                                .unwrap();
                                                                         }
                                                                     }
                                                                 } else {
@@ -1610,12 +1617,11 @@ async fn consume_flat_record(
                                                             .tables
                                                             .fetch_add(1, Ordering::SeqCst);
                                                     }
-                                                    match exec(
-                                                        taos.as_ref().unwrap(),
-                                                        &sql,
-                                                        data_trace_id,
-                                                    )
-                                                    .await
+                                                    match taos
+                                                        .as_ref()
+                                                        .unwrap()
+                                                        .exec_with_req_id(&sql, req_id.next())
+                                                        .await
                                                     {
                                                         Ok(_) => {
                                                             counter!(METRIC_CHILD_TABLE_CREATED, 1);
@@ -1638,7 +1644,12 @@ async fn consume_flat_record(
                                     }
                                 }
                             }
-                            if let Err(err) = taos.as_ref().unwrap().write_raw_block(&raw).await {
+                            if let Err(err) = taos
+                                .as_ref()
+                                .unwrap()
+                                .write_raw_block_with_req_id(&raw, req_id.next())
+                                .await
+                            {
                                 let code = err.code();
                                 let errno: i32 = code.into();
                                 let err_str = err.to_string();
@@ -1657,7 +1668,10 @@ async fn consume_flat_record(
                                 if err_str.contains("[0x2603]") || err_str.contains("[0x0618]") {
                                     if let Some(sql) = records.stable_sql() {
                                         // dbg!(&sql);
-                                        match exec(taos.as_ref().unwrap(), &sql, data_trace_id)
+                                        match taos
+                                            .as_ref()
+                                            .unwrap()
+                                            .exec_with_req_id(&sql, req_id.next())
                                             .await
                                         {
                                             Ok(_n) => {
@@ -1684,7 +1698,10 @@ async fn consume_flat_record(
                                         let sql = records.table_sql();
 
                                         loop {
-                                            match exec(taos.as_ref().unwrap(), &sql, data_trace_id)
+                                            match taos
+                                                .as_ref()
+                                                .unwrap()
+                                                .exec_with_req_id(&sql, req_id.next())
                                                 .await
                                             {
                                                 Ok(_n) => {
@@ -1732,7 +1749,10 @@ async fn consume_flat_record(
                                         if let Some(transferred) = transferred {
                                             transferred.tables.fetch_add(1, Ordering::SeqCst);
                                         }
-                                        match exec(taos.as_ref().unwrap(), &sql, data_trace_id)
+                                        match taos
+                                            .as_ref()
+                                            .unwrap()
+                                            .exec_with_req_id(&sql, req_id.next())
                                             .await
                                         {
                                             Ok(_n) => {
@@ -1758,7 +1778,10 @@ async fn consume_flat_record(
                                             f.ty(),
                                             f.length() * 2
                                         );
-                                        exec(taos.as_ref().unwrap(), &sql, data_trace_id).await?;
+                                        taos.as_ref()
+                                            .unwrap()
+                                            .exec_with_req_id(&sql, req_id.next())
+                                            .await?;
                                     }
                                 } else if err_str.contains("[0x0118]") {
                                     // Code([0x0118] Unknown or common error)
@@ -1792,7 +1815,9 @@ async fn consume_flat_record(
                                                 ipc_data_type.unwrap(),
                                             );
                                             tracing::info!("alter table column sql: {}", sql);
-                                            exec(taos.as_ref().unwrap(), &sql, data_trace_id)
+                                            taos.as_ref()
+                                                .unwrap()
+                                                .exec_with_req_id(&sql, req_id.next())
                                                 .await?;
                                         }
                                         index += 1;
@@ -1856,7 +1881,6 @@ async fn consume_flat_record(
     Ok(())
 }
 
-// #[instrument(skip_all)]
 #[instrument(skip_all)]
 async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     pool: &TaosPool,
@@ -1877,7 +1901,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         .collect_vec();
     let names = columns.iter().map(|n| format!("`{n}`")).join(",");
     let marks = std::iter::repeat('?').take(columns.len()).join(",");
-    let mut stmt = Stmt::init(&taos).await?;
+    let mut stmt = Stmt::init_with_req_id(&taos, stream_trace_id).await?;
 
     let mut count = 0;
     let mut stream = ipc_reader.into_stream();
@@ -1988,7 +2012,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
         let pool = &context.pool;
         let taos = context.pool.get().await?;
         let mut count = 0;
-        let mut stmt = Stmt::init(&taos).await?;
+        let mut stmt = Stmt::init_with_req_id(&taos, data_trace_id).await?;
         let mut taos = Some(taos);
         let record = *Box::<dyn Any>::downcast::<PointMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
@@ -2306,15 +2330,13 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     };
 
     let ipc_error_strategy = IpcErrorStrategy::from_connector(connector.unwrap_or("taos"));
-
     let metadata = ipc_reader.metadata();
     let stream_type = *metadata.stream_type();
-    let stream_trace_id_u64 = u64::from_str_radix(stream_trace_id.as_str(), 16).unwrap();
-    if let Some(sql) = ipc_reader.metadata().init_sql_string() {
-        // let guard = lock.lock().await;
+    let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id.as_str());
+    if let Some(sql) = metadata.init_sql_string() {
         let init = metadata.init().unwrap();
-        handle_lush_message_init(init, &taos, &sql).await?;
-        // drop(guard)
+        let mut req_id = RequestID::new(stream_trace_id_u64);
+        handle_lush_message_init(init, &taos, &sql, &mut req_id).await?;
     }
     info!(?stream_type, "Processing stream");
     match stream_type {
@@ -2367,10 +2389,12 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     Ok(())
 }
 
-async fn handle_lush_message_init(
+#[instrument(skip_all, fields(trace.id=req_id.trace_id_str()))]
+pub async fn handle_lush_message_init(
     init: &LushMessageInit,
     taos: &Taos,
     sql: &str,
+    req_id: &mut RequestID,
 ) -> anyhow::Result<()> {
     let max_retries = 10;
     let mut i = 0;
@@ -2390,7 +2414,7 @@ async fn handle_lush_message_init(
                 if sql.is_some() {
                     for sql in sql.unwrap() {
                         tracing::info!("alter table sql: {}", sql.clone());
-                        taos.exec(sql).await?;
+                        taos.exec_with_req_id(sql, req_id.next()).await?;
                     }
                 }
                 let sql =
@@ -2398,7 +2422,7 @@ async fn handle_lush_message_init(
                 if sql.is_some() {
                     for sql in sql.unwrap() {
                         tracing::info!("alter table sql: {}", sql.clone());
-                        taos.exec(sql).await?;
+                        taos.exec_with_req_id(sql, req_id.next()).await?;
                     }
                 }
                 break;
@@ -2407,7 +2431,8 @@ async fn handle_lush_message_init(
                 tracing::warn!("describe failed: {}", err.to_string());
                 // create table
                 info!("create sql: {sql}");
-                let res: Result<usize, taos::Error> = taos.exec(&sql).await;
+                let res: Result<usize, taos::Error> =
+                    taos.exec_with_req_id(&sql, req_id.next()).await;
                 if let Err(err) = res {
                     tracing::error!("Query error with {sql}: {err:?}");
                     i += 1;
@@ -2427,7 +2452,7 @@ async fn handle_lush_message_init(
 #[allow(dead_code)]
 pub struct IpcStreamWorker {
     pool: TaosPool,
-    parser: IpcParser,
+    pub parser: IpcParser,
     lock: Arc<Mutex<()>>,
     task: Option<i64>,
     from: Dsn,
@@ -2490,28 +2515,6 @@ impl IpcStreamWorker {
     ) -> anyhow::Result<usize> {
         let taos = self.pool.get().await?;
         let target_precision = get_current_precision(&taos).await?;
-
-        if let Some(sql) = self.parser.metadata().init_sql_string() {
-            let guard = self.lock.lock().await;
-            let init = self.parser.metadata.init().unwrap();
-            handle_lush_message_init(init, &taos, &sql).await?;
-            // let max_retries = 10;
-            // let mut i = 0;
-            // loop {
-            //     info!("metadata sql: {sql}");
-            //     let res = self.taos.exec(&sql).await;
-            //     if let Err(err) = res {
-            //         tracing::error!("Query error with {sql}: {err:?}");
-            //         i += 1;
-            //         if i > max_retries {
-            //             break;
-            //         }
-            //     } else {
-            //         break;
-            //     }
-            // }
-            drop(guard);
-        }
         // let stmt = unsafe { &mut *self.stmt.get() };
         match self.parser.metadata().stream_type() {
             StreamType::Line => {
@@ -2922,27 +2925,6 @@ pub async fn listen_tcp_socket(
     );
     Ok(IpcHandler::new(notify, handle, error_receiver))
 }
-
-async fn exec<T: AsRef<str> + Send + Sync>(
-    taos: &deadpool::managed::Object<Manager<TaosBuilder>>,
-    sql: T,
-    data_trace_id: u64,
-) -> RawResult<usize> {
-    let req_id = create_query_id(data_trace_id);
-    taos.query_with_req_id(sql, req_id)
-        .await
-        .map(|res| res.affected_rows() as _)
-}
-
-// use taos::ResultSet;
-// async fn query<T: AsRef<str> + Send + Sync>(
-//     taos: &deadpool::managed::Object<Manager<TaosBuilder>>,
-//     sql: T,
-//     data_trace_id: u64,
-// ) -> RawResult<ResultSet> {
-//     let req_id = create_query_id(data_trace_id);
-//     taos.query_with_req_id(sql, req_id).await
-// }
 
 #[test]
 fn test_get_ts_from_sql() {

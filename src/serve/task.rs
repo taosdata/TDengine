@@ -1,4 +1,3 @@
-
 use std::fmt::{Debug, Display, Formatter};
 use std::fs;
 
@@ -22,7 +21,8 @@ use serde::{Deserialize, Serialize};
 use taos::Code;
 use taosx_core::utils::metrics_db::MetricsDb;
 use taosx_core::{
-    get_data_dir, get_file_upload_home_dir, LegacyMetrics, METRICS_TIME_COST, METRICS_TIME_START, METRICS_TIME_RECORDS_PER_SECOND,
+    get_data_dir, get_file_upload_home_dir, LegacyMetrics, METRICS_TIME_COST,
+    METRICS_TIME_RECORDS_PER_SECOND, METRICS_TIME_START,
 };
 use tracing::instrument;
 use utoipa::*;
