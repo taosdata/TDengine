@@ -1310,7 +1310,11 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   }
 
   int access = O_BINARY | O_WRONLY | O_TRUNC | O_CREAT;
+#ifdef WINDOWS
+  int32_t pmode = _S_IREAD | _S_IWRITE;
+#else
   int32_t pmode = S_IRWXU | S_IRWXG | S_IRWXO;
+#endif
   int fd = open(destFileName, access, pmode);
   if (fd < 0) {
     ret = -2;
