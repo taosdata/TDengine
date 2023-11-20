@@ -652,6 +652,10 @@ static int32_t parseTagValue(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStm
 }
 
 static int32_t buildCreateTbReq(SVnodeModifyOpStmt* pStmt, STag* pTag, SArray* pTagName) {
+  if (pStmt->pCreateTblReq) {
+    tdDestroySVCreateTbReq(pStmt->pCreateTblReq);
+    taosMemoryFreeClear(pStmt->pCreateTblReq);
+  }
   pStmt->pCreateTblReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
   if (NULL == pStmt->pCreateTblReq) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -1236,8 +1240,19 @@ static int32_t preParseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModif
 
 static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, STableDataCxt** pTableCxt) {
   if (pCxt->pComCxt->async) {
-    return insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid),
+    int32_t code = insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid),
                               pStmt->pTableMeta, &pStmt->pCreateTblReq, pTableCxt, false, false);
+    // record pTableCxt for one commit of current request
+    if (TSDB_CODE_SUCCESS == code && pTableCxt) {
+      if (NULL == pStmt->pTableCxtHashObj) {
+        pStmt->pTableCxtHashObj =
+            taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+      }
+      void* pData = *pTableCxt;
+      taosHashPut(pStmt->pTableCxtHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid), &pData,
+                  POINTER_BYTES);
+    }
+    return code;
   }
 
   char tbFName[TSDB_TABLE_FNAME_LEN];
@@ -1992,7 +2007,7 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
       (*pNumOfRows)++;
     }
 
-    if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) > tsMaxInsertBatchRows) {
+    if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) >= tsMaxInsertBatchRows) {
       pStmt->fileProcessing = true;
       break;
     }
@@ -2003,7 +2018,7 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
 
   parserDebug("0x%" PRIx64 " %d rows have been parsed", pCxt->pComCxt->requestId, *pNumOfRows);
 
-  if (TSDB_CODE_SUCCESS == code && 0 == (*pNumOfRows) &&
+  if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) == 0 && pStmt->totalRowsNum == 0 &&
       (!TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_STMT_INSERT)) && !pStmt->fileProcessing) {
     code = buildSyntaxErrMsg(&pCxt->msg, "no any data points", NULL);
   }
@@ -2275,8 +2290,14 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
     return setStmtInfo(pCxt, pStmt);
   }
 
+  // release old array alloced by merge
+  pStmt->freeArrayFunc(pStmt->pVgDataBlocks);
   // merge according to vgId
-  int32_t code = insMergeTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pVgDataBlocks);
+  int32_t code = insMergeTableDataCxt(pCxt->pComCxt->async ? pStmt->pTableCxtHashObj : pStmt->pTableBlockHashObj,
+                                      &pStmt->pVgDataBlocks, pStmt->fileProcessing);
+  // clear tmp hashobj only
+  taosHashClear(pStmt->pTableCxtHashObj);
+
   if (TSDB_CODE_SUCCESS == code) {
     code = insBuildVgDataBlocks(pStmt->pVgroupsHashObj, pStmt->pVgDataBlocks, &pStmt->pDataBlocks);
   }
@@ -2325,7 +2346,7 @@ static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, S
   pStmt->freeHashFunc = insDestroyTableDataCxtHashMap;
   pStmt->freeArrayFunc = insDestroyVgroupDataCxtList;
   pStmt->freeStbRowsCxtFunc = destroyStbRowsDataContext;
-  
+
   if (!reentry) {
     pStmt->pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
     pStmt->pTableBlockHashObj =
@@ -2599,6 +2620,7 @@ static int32_t parseInsertSqlFromCsv(SInsertParseContext* pCxt, SVnodeModifyOpSt
   } else {
     rowsDataCxt.pStbRowsCxt = pStmt->pStbRowsCxt;
   }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = parseDataFromFileImpl(pCxt, pStmt, rowsDataCxt);
   }
