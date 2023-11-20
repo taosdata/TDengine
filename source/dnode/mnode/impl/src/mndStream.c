@@ -1461,7 +1461,6 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     if (pShow->pIter == NULL) break;
 
     SColumnInfoData *pColInfo;
-    SName            n;
     int32_t          cols = 0;
 
     char streamName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
