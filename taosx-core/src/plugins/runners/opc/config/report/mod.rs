@@ -23,6 +23,7 @@ impl ReportConfig {
         Ok(dsn
             .params
             .get("concurrent")
+            .or(dsn.get("write_concurrency"))
             .map(|v| {
                 v.parse::<i64>().map_err(|err| {
                     anyhow::anyhow!("parse concurrent failed, cause: {}", err.to_string())
