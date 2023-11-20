@@ -294,7 +294,6 @@ int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId) {
   p->chkInfo.checkpointVer = p->chkInfo.processedVer;
 
   streamTaskClearCheckInfo(p);
-
   char* str = NULL;
   streamTaskGetStatus(p, &str);
 
