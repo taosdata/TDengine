@@ -20,7 +20,7 @@
         style="margin-top: 20px"
         :data="topicList"
         size="mini"
-        max-height="250"
+        :max-height="maxHeight"
         row-key="taskid"
         :expand-row-keys="expandRowKeys"
         @expand-change="expandChange"
@@ -65,6 +65,7 @@
                 <el-table-column
                   prop="activity"
                   :label="$t('dataIn.activity')"
+                  show-overflow-tooltip
                 ></el-table-column>
                 <el-table-column
                   prop="context"
@@ -89,12 +90,12 @@
             <i
               :class="['el-circle','err-circle']"
               style="background-color: #fe6c6c"
-              v-if="scope.row.taskActivities && scope.row.taskActivities[0].level == 'error'"
+              v-else-if="scope.row.taskActivities && scope.row.taskActivities[0].level == 'error'"
             ></i>
             <i
               class="el-circle"
               style="background-color: #67c23a"
-              v-if="scope.row.taskActivities && scope.row.taskActivities[0].level == 'info'"
+              v-else
             ></i>
           </span>
           <span style="padding-left:5px">{{ scope.row.taskid }}</span>
@@ -378,6 +379,7 @@ export default {
       taskActivities: [],
       expandRowKeys: [],
       metricDisable: false,
+      maxHeight: 250,
       // 不允许 start/stop 的状态 sopping, suspending
       permitStartStatus: ['created','failed','stopped','suspended','completed'],
       permitStopStatus: ['queued','running','interrupted','waiting','resumed'],
@@ -739,14 +741,11 @@ export default {
       this.$refs.agents.add();
     },
     async expandChange(row, expandedRows) {
-      if (row.taskid == this.expandRowKeys[0]) {
-        this.expandRowKeys = [];
-        return;
-      }
+      this.maxHeight = expandedRows.length == 0 ? 250 : 570;
       let activitList = await this.getCurrentActivities(row.taskid)
       this.topicList = this.topicList.map(item => {
-        if (item.id == this.expandRowKeys[0]) {
-          item.taskActivities = activitList
+        if (item.id == row.taskid) {
+          item.taskActivities = deepClone(activitList) 
         }
         return item
       })
@@ -791,8 +790,8 @@ export default {
       return activitList
     },
     handleTaskActivities() {
-      this.topicList = this.topicList.map(task => {
-        getTaskActivities(task.id).then(res => {
+      this.topicList.map(async (task,index) => {
+          let res = await getTaskActivities(task.id)
           let activitList = res.map((item) => {
             if (item.status == "failed") {
               item.context = item.context?.message;
@@ -802,9 +801,7 @@ export default {
             }
             return item;
           });
-          task.taskActivities = activitList
-        })
-        return task
+          this.$set(this.topicList,index,{...task, taskActivities: activitList}) 
       })
     },
     handleDSStatus(value) {
