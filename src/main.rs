@@ -362,34 +362,39 @@ async fn init_tracing_layers(
     non_blocking: NonBlocking,
 ) -> Result<(), anyhow::Error> {
     let mut layers = Vec::new();
-    use tracing_subscriber::filter::LevelFilter;
-    let level_filter = match level_filter {
-        clap_verbosity_flag::LevelFilter::Off => LevelFilter::OFF,
-        clap_verbosity_flag::LevelFilter::Error => LevelFilter::ERROR,
-        clap_verbosity_flag::LevelFilter::Warn => LevelFilter::WARN,
-        clap_verbosity_flag::LevelFilter::Info => LevelFilter::INFO,
-        clap_verbosity_flag::LevelFilter::Debug => LevelFilter::DEBUG,
-        clap_verbosity_flag::LevelFilter::Trace => LevelFilter::TRACE,
+    use tracing_subscriber::filter::LevelFilter as TracingLevelFilter;
+    let tracing_level_filter = match level_filter {
+        log::LevelFilter::Off => TracingLevelFilter::OFF,
+        log::LevelFilter::Error => TracingLevelFilter::ERROR,
+        log::LevelFilter::Warn => TracingLevelFilter::WARN,
+        log::LevelFilter::Info => TracingLevelFilter::INFO,
+        log::LevelFilter::Debug => TracingLevelFilter::DEBUG,
+        log::LevelFilter::Trace => TracingLevelFilter::TRACE,
     };
     // Add layer for rotating logs
     layers.push(
         TaosXLayer::new()
             .with_writer(non_blocking)
-            .with_filter(level_filter)
+            .with_filter(tracing_level_filter)
             .boxed(),
     );
     let event_filter = EnvFilter::builder()
-        .with_default_directive(level_filter.into())
+        .with_default_directive(tracing_level_filter.into())
         .with_regex(true)
-        .from_env_lossy()
-        .add_directive("tungstenite=warn".parse()?)
-        .add_directive("tokio=warn".parse()?)
-        .add_directive("runtime=warn".parse()?)
-        .add_directive("actix_server=info".parse()?)
-        .add_directive("actix_http=info".parse()?)
-        .add_directive("tokio_tungstenite=info".parse()?)
-        .add_directive("mio=info".parse()?)
-        .add_directive("h2=info".parse()?);
+        .from_env_lossy();
+    let event_filter = if level_filter > log::LevelFilter::Info {
+        event_filter
+            .add_directive("tungstenite=warn".parse()?)
+            .add_directive("tokio=warn".parse()?)
+            .add_directive("runtime=warn".parse()?)
+            .add_directive("actix_server=info".parse()?)
+            .add_directive("actix_http=info".parse()?)
+            .add_directive("tokio_tungstenite=info".parse()?)
+            .add_directive("mio=info".parse()?)
+            .add_directive("h2=info".parse()?)
+    } else {
+        event_filter
+    };
 
     let chrono_local = Local::now();
     let timezone_offset = (chrono_local.offset().local_minus_utc()
@@ -462,7 +467,7 @@ async fn init_tracing_layers(
             .with_tracer(tracer)
             .with_filter(
                 EnvFilter::builder()
-                    .with_default_directive(level_filter.into())
+                    .with_default_directive(tracing_level_filter.into())
                     .with_regex(true)
                     .from_env_lossy()
                     .add_directive("tungstenite=warn".parse()?)
@@ -529,16 +534,9 @@ fn main() -> Result<()> {
 
     // Initialize tracing layers
     let mut level_filter = args.global.log_level.clone().unwrap_or(LevelFilter::Info);
-    if let Some(verbosity) = args.opt_args.verbose.as_ref() {
-        let level_num = verbosity.log_level_filter();
-        let level_num: i8 = match level_num {
-            LevelFilter::Off => -3,
-            LevelFilter::Error => -2,
-            LevelFilter::Warn => -1,
-            LevelFilter::Info => 0,
-            LevelFilter::Debug => 1,
-            LevelFilter::Trace => 2,
-        };
+    if let Some(_) = args.opt_args.verbose.as_ref() {
+        let matches = Args::command().get_matches();
+        let level_num = matches.get_count("verbose") as i8 - matches.get_count("quiet") as i8;
         level_filter = level_upgrade(level_filter, level_num);
     }
     println!("log level: {:?}", &level_filter);
