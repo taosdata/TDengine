@@ -1250,7 +1250,6 @@ static int32_t mndCheckNodeStatus(SMnode *pMnode) {
   if (taosArrayGetSize(execInfo.pNodeList) == 0) {
     mDebug("stream task node change checking done, no vgroups exist, do nothing");
     execInfo.ts = ts;
-    // goto _EXIT;
   }
   for (int32_t i = 0; i < taosArrayGetSize(execInfo.pTaskList); ++i) {
     STaskId *         p = taosArrayGet(execInfo.pTaskList, i);

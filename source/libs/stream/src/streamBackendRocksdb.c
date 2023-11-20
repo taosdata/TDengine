@@ -1740,9 +1740,10 @@ STaskDbWrapper* taskDbOpenImpl(char* key, char* statePath, char* dbPath) {
       rocksdb_list_column_families_destroy(cfNames, nCf);
     }
     taosMemoryFree(err);
+    err = NULL;
 
     cfNames = rocksdb_list_column_families(pTaskDb->dbOpt, dbPath, &nCf, &err);
-    ASSERT(err != NULL);
+    ASSERT(err == NULL);
   }
 
   if (taskDbOpenCfs(pTaskDb, dbPath, cfNames, nCf) != 0) {
@@ -1751,10 +1752,11 @@ STaskDbWrapper* taskDbOpenImpl(char* key, char* statePath, char* dbPath) {
 
   if (cfNames != NULL) {
     rocksdb_list_column_families_destroy(cfNames, nCf);
+    cfNames = NULL;
   }
 
   qDebug("succ to init stream backend at %s, backend:%p", dbPath, pTaskDb);
-
+  return pTaskDb;
 _EXIT:
 
   taskDbDestroy(pTaskDb);
@@ -1769,10 +1771,10 @@ STaskDbWrapper* taskDbOpen(char* path, char* key, int64_t chkpId) {
   if (rebuildDirFromChkp2(path, key, chkpId, &statePath, &dbPath) != 0) {
     return NULL;
   }
-  // taosMemoryFree(statePath);
 
   STaskDbWrapper* pTaskDb = taskDbOpenImpl(key, statePath, dbPath);
   taosMemoryFree(dbPath);
+  taosMemoryFree(statePath);
   return pTaskDb;
 }
 
