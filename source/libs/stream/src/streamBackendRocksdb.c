@@ -321,7 +321,25 @@ int32_t remoteChkp_validAndCvtMeta(char* path, SArray* list, int64_t chkpId) {
   return complete == 1 ? 0 : -1;
 }
 
-int32_t rebuildFromRemoteChkp(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
+int32_t rebuildFromRemoteChkp_rsync(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
+  // impl later
+  int32_t code = 0;
+  if (taosIsDir(chkpPath)) {
+    taosRemoveDir(chkpPath);
+  }
+  if (taosIsDir(defaultPath)) {
+    taosRemoveDir(defaultPath);
+  }
+
+  code = downloadCheckpoint(key, chkpPath);
+  if (code != 0) {
+    return code;
+  }
+  code = copyFiles(chkpPath, defaultPath);
+
+  return code;
+}
+int32_t rebuildFromRemoteChkp_s3(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
   int32_t code = downloadCheckpoint(key, chkpPath);
   if (code != 0) {
     return code;
@@ -354,6 +372,15 @@ int32_t rebuildFromRemoteChkp(char* key, char* chkpPath, int64_t chkpId, char* d
 
   taosMemoryFree(tmp);
   return code;
+}
+int32_t rebuildFromRemoteChkp(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
+  UPLOAD_TYPE type = getUploadType();
+  if (type == UPLOAD_S3) {
+    return rebuildFromRemoteChkp_s3(key, chkpPath, chkpId, defaultPath);
+  } else if (type == UPLOAD_RSYNC) {
+    return rebuildFromRemoteChkp_rsync(key, chkpPath, chkpId, defaultPath);
+  }
+  return -1;
 }
 
 int32_t rebuildFromLocalChkp(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
@@ -944,7 +971,7 @@ int32_t chkpPreBuildDir(char* path, int64_t chkpId, char** chkpDir, char** chkpI
   sprintf(pChkpIdDir, "%s%s%s%" PRId64, pChkpDir, TD_DIRSEP, "checkpoint", chkpId);
   if (taosIsDir(pChkpIdDir)) {
     stInfo("stream rm exist checkpoint%s", pChkpIdDir);
-    taosRemoveFile(pChkpIdDir);
+    taosRemoveDir(pChkpIdDir);
   }
   *chkpDir = pChkpDir;
   *chkpIdDir = pChkpIdDir;
@@ -1848,22 +1875,17 @@ int32_t taskDbGenChkpUploadData__rsync(STaskDbWrapper* pDb, int64_t chkpId, char
   if (taosAcquireRef(taskDbWrapperId, refId) == NULL) {
     return -1;
   }
-  char* pChkpDir = NULL;
-  char* pChkpIdDir = NULL;
-  if (chkpPreBuildDir(pDb->path, chkpId, &pChkpDir, &pChkpIdDir) != 0) {
-    code = -1;
-  }
 
-  if (taosIsDir(pChkpIdDir) && isValidCheckpoint(pChkpIdDir)) {
+  char* buf = taosMemoryCalloc(1, strlen(pDb->path) + 128);
+  sprintf(buf, "%s%s%s%s%s%" PRId64 "", pDb->path, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint", chkpId);
+  if (taosIsDir(buf)) {
     code = 0;
-    *path = pChkpIdDir;
-    pChkpIdDir = NULL;
+    *path = buf;
+  } else {
+    taosMemoryFree(buf);
   }
 
-  taosMemoryFree(pChkpDir);
-  taosMemoryFree(pChkpIdDir);
   taosReleaseRef(taskDbWrapperId, refId);
-
   return code;
 }
 

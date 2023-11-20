@@ -375,17 +375,16 @@ int32_t doUploadChkp(void* param) {
   SAsyncUploadArg* arg = param;
   char*            path = NULL;
   int32_t          code = 0;
-  SArray*          list = taosArrayInit(4, sizeof(void*));
+  SArray*          toDelFiles = taosArrayInit(4, sizeof(void*));
 
-  
   if ((code = taskDbGenChkpUploadData(arg->pTask->pBackend, arg->pTask->pMeta->bkdChkptMgt, arg->chkpId,
-                                      (int8_t)(arg->type), &path, list)) != 0) {
+                                      (int8_t)(arg->type), &path, toDelFiles)) != 0) {
     stError("s-task:%s failed to gen upload checkpoint:%" PRId64 "", arg->pTask->id.idStr, arg->chkpId);
   }
-
-  code = getChkpMeta(arg->taskId, path, list);
-  if (code != 0) {
-    code = 0;
+  if (arg->type == UPLOAD_S3) {
+    if (code == 0 && (code = getChkpMeta(arg->taskId, path, toDelFiles)) != 0) {
+      stError("s-task:%s failed to get  checkpoint:%" PRId64 " meta", arg->pTask->id.idStr, arg->chkpId);
+    }
   }
 
   if (code == 0 && (code = uploadCheckpoint(arg->taskId, path)) != 0) {
@@ -393,23 +392,24 @@ int32_t doUploadChkp(void* param) {
   }
 
   if (code == 0) {
-    for (int i = 0; i < taosArrayGetSize(list); i++) {
-      char* p = taosArrayGetP(list, i);
+    for (int i = 0; i < taosArrayGetSize(toDelFiles); i++) {
+      char* p = taosArrayGetP(toDelFiles, i);
       code = deleteCheckpointFile(arg->taskId, p);
-      stDebug("try to del file: %s", p);
+      stDebug("s-task:%s try to del file: %s", arg->pTask->id.idStr, p);
       if (code != 0) {
         break;
       }
     }
   }
 
-  taosArrayDestroyP(list, taosMemoryFree);
+  taosArrayDestroyP(toDelFiles, taosMemoryFree);
 
   taosRemoveDir(path);
   taosMemoryFree(path);
+
   taosMemoryFree(arg->taskId);
   taosMemoryFree(arg);
-  return 0;
+  return code;
 }
 int32_t streamTaskUploadChkp(SStreamTask* pTask, int64_t chkpId, char* taskId) {
   // async upload
