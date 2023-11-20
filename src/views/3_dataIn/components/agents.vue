@@ -23,7 +23,7 @@
       :data="agentList"
       size="mini"
       row-key="id"
-      max-height="250"
+      :max-height="maxHeight"
       :expand-row-keys="expandRowKeys"
       @expand-change="expandChange"
     >
@@ -322,6 +322,7 @@ export default {
       parsinginZone,
       agentActivities: [],
       expandRowKeys: [],
+      maxHeight: 250
     };
   },
   computed: {
@@ -543,6 +544,7 @@ export default {
       }
     },
     async expandChange(row, expandedRows) {
+      this.maxHeight = expandedRows.length == 0 ? 250 : 570;
       if (row.id == this.expandRowKeys[0]) {
         this.expandRowKeys = [];
         return;
