@@ -2,8 +2,8 @@
   <div class="text">
     <i :class="content.icon"></i>
     <div class="flexWrap">
-      <span :class="[lang]">{{ content.contentText  }}</span>
-      <span :class="['error', lang]">{{content.messageText}}</span>
+      <span :class="[lang]" v-if="content.contentText">{{ content.contentText  }}</span>
+      <span :class="['error', lang]" v-if="content.messageText">{{content.messageText}}</span>
     </div>
   </div>
 </template>
@@ -86,12 +86,12 @@ export default {
 
 .el-icon-error {
   color: #ff2e4d;
-  font-size: 20px;
+  font-size: 18px;
   margin-right: 10px;
 }
 .el-icon-success{
   color: #33b169;
-  font-size: 20px;
+  font-size: 18px;
   margin-right: 10px;
 }
 .flexWrap {
