@@ -75,7 +75,8 @@ struct STokenBucket {
   double  quotaCapacity;  // available capacity for maximum input size, KiloBytes per Second
   double  quotaRemain;    // not consumed bytes per second
   double  quotaRate;      // number of token per second
-  int64_t fillTimestamp;  // fill timestamp
+  int64_t tokenFillTimestamp;  // fill timestamp
+  int64_t quotaFillTimestamp;  // fill timestamp
 };
 
 struct SStreamQueue {
