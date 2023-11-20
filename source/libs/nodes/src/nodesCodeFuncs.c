@@ -48,6 +48,7 @@ SBuiltinNodeDefinition funcNodes[QUERY_NODE_END] = {NULL};
 static TdThreadOnce    functionNodeInit = PTHREAD_ONCE_INIT;
 volatile int32_t       initNodeCode = -1;
 
+
 static void setFunc(const char* name, int32_t type, int32_t nodeSize, FExecNodeToJson toJsonFunc,
                     FExecJsonToNode toNodeFunc, FExecDestoryNode destoryFunc) {
   funcNodes[type].name = name;
@@ -64,9 +65,9 @@ bool funcArrayCheck(int32_t type) {
     nodesError("funcArrayCheck out of range type = %d", type);
     return false;
   }
-  if (initNodeCode != 0) {
-    taosThreadOnce(&functionNodeInit, doInitNodeFuncArray);
-  }
+  // only init once, do nothing when initNodeCode == 0
+  taosThreadOnce(&functionNodeInit, doInitNodeFuncArray);
+  
   if (!funcNodes[type].name) {
     nodesError("funcArrayCheck unsupported type = %d", type);
     return false;
@@ -7436,6 +7437,10 @@ void nodesDestroyNode(SNode* pNode) {
 
 // clang-format off
 static void doInitNodeFuncArray() {
+  if (initNodeCode == 0) {
+    return;
+  }
+
   setFunc("Column",
       QUERY_NODE_COLUMN,
       sizeof(SColumnNode),
