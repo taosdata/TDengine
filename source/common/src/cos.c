@@ -537,7 +537,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
     S3MultipartCommitHandler commit_handler = {
         {&responsePropertiesCallbackNull, &responseCompleteCallback}, &multipartPutXmlCallback, 0};
 
-    manager.etags = (char **)taosMemoryMalloc(sizeof(char *) * totalSeq);
+    manager.etags = (char **)taosMemoryCalloc(totalSeq, sizeof(char *));
     manager.next_etags_pos = 0;
     /*
     if (uploadId) {
@@ -597,6 +597,10 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
     char buf[256];
     int  n;
     for (i = 0; i < totalSeq; i++) {
+      if (!manager.etags[i]) {
+        code = TAOS_SYSTEM_ERROR(EIO);
+        goto clean;
+      }
       n = snprintf(buf, sizeof(buf),
                    "<Part><PartNumber>%d</PartNumber>"
                    "<ETag>%s</ETag></Part>",
