@@ -256,6 +256,8 @@ static SKeyword keywordTable[] = {
     {"TRIM",                 TK_TRIM},
     {"TSDB_PAGESIZE",        TK_TSDB_PAGESIZE},
     {"TSERIES",              TK_TSERIES},
+    {"TSMA",                 TK_TSMA},
+    {"TSMAS",                TK_TSMAS},
     {"TTL",                  TK_TTL},
     {"UNION",                TK_UNION},
     {"UNSAFE",               TK_UNSAFE},

@@ -2711,3 +2711,109 @@ SNode* createInsertStmt(SAstCreateContext* pCxt, SNode* pTable, SNodeList* pCols
   }
   return (SNode*)pStmt;
 }
+
+SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,
+                            SNode* pRealTable, SNode* pInterval) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkIndexName(pCxt, tsmaName)) return NULL;
+
+  SCreateTSMAStmt* pStmt = (SCreateTSMAStmt*)nodesMakeNode(QUERY_NODE_CREATE_TSMA_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->pOptions = (STSMAOptions*)pOptions;
+  pStmt->pOptions->pInterval = pInterval;
+  COPY_STRING_FORM_STR_TOKEN(pStmt->tsmaName, tsmaName);
+
+  SRealTableNode* pTable = (SRealTableNode*)pRealTable;
+  memcpy(pStmt->dbName, pTable->table.dbName, TSDB_DB_NAME_LEN);
+  memcpy(pStmt->tableName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
+  nodesDestroyNode(pRealTable);
+
+  return (SNode*)pStmt;
+}
+
+SNode* createTSMAOptions(SAstCreateContext* pCxt, SNodeList* pFuncs, SNodeList* pCols) {
+  CHECK_PARSER_STATUS(pCxt);
+  /*
+  SNode *pNode1, *pNode2;
+  SNodeList* pTSMAFuncs = nodesMakeList();
+  CHECK_OUT_OF_MEM(pTSMAFuncs);
+  FOREACH(pNode1, pFuncs) {
+    FOREACH(pNode2, pCols) {
+      SFunctionNode* pFunc = (SFunctionNode*)nodesCloneNode(pNode1);
+      SColumnNode*   pCol = (SColumnNode*)nodesCloneNode(pNode2);
+      if (!pFunc || !pCol ||
+          (TSDB_CODE_SUCCESS != nodesListMakeAppend(&pFunc->pParameterList, (SNode*)pCol) || (pCol = NULL)) ||
+          TSDB_CODE_SUCCESS != nodesListAppend(pTSMAFuncs, (SNode*)pFunc)) {
+        nodesDestroyNode((SNode*)pFunc);
+        nodesDestroyNode((SNode*)pCol);
+        nodesDestroyList(pTSMAFuncs);
+        pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+        snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
+        return NULL;
+      }
+    }
+  }
+  */
+  STSMAOptions* pOptions = (STSMAOptions*)nodesMakeNode(QUERY_NODE_TSMA_OPTIONS);
+  if (!pOptions) {
+    //nodesDestroyList(pTSMAFuncs);
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
+    return NULL;
+  }
+  pOptions->pFuncs = pFuncs;
+  pOptions->pCols = pCols;
+
+  //nodesDestroyList(pFuncs);
+  //nodesDestroyList(pCols);
+
+  return (SNode*)pOptions;
+}
+
+SNode* createDefaultTSMAOptions(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  STSMAOptions* pOptions = (STSMAOptions*)nodesMakeNode(QUERY_NODE_TSMA_OPTIONS);
+  CHECK_OUT_OF_MEM(pOptions);
+  return (SNode*)pOptions;
+}
+
+SNode* createDropTSMAStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDropTSMAStmt* pStmt = (SDropTSMAStmt*)nodesMakeNode(QUERY_NODE_DROP_TSMA_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+
+  pStmt->ignoreNotExists = ignoreNotExists;
+  SRealTableNode* pTableNode = (SRealTableNode*)pRealTable;
+
+  memcpy(pStmt->tsmaName, pTableNode->table.tableName, TSDB_TABLE_NAME_LEN);
+  memcpy(pStmt->dbName, pTableNode->table.dbName, TSDB_DB_NAME_LEN);
+
+  nodesDestroyNode(pRealTable);
+  return (SNode*)pStmt;
+}
+
+SNode* createShowCreateTSMAStmt(SAstCreateContext* pCxt, SNode* pRealTable) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowCreateTSMAStmt* pStmt = (SShowCreateTSMAStmt*)nodesMakeNode(QUERY_NODE_SHOW_CREATE_TSMA_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+
+  SRealTableNode* pTableNode = (SRealTableNode*)pRealTable;
+
+  memcpy(pStmt->tsmaName, pTableNode->table.tableName, TSDB_TABLE_NAME_LEN);
+  memcpy(pStmt->dbName, pTableNode->table.dbName, TSDB_DB_NAME_LEN);
+
+  nodesDestroyNode(pRealTable);
+  return (SNode*)pStmt;
+}
+
+SNode* createShowTSMASStmt(SAstCreateContext* pCxt, SNode* dbName) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  SShowStmt* pStmt = (SShowStmt*)nodesMakeNode(QUERY_NODE_SHOW_TSMAS_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+
+  pStmt->pDbName = dbName;
+  return (SNode*)pStmt;
+}
