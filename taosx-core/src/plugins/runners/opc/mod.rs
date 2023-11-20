@@ -55,6 +55,18 @@ pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
     ))
 }
 
+pub fn parse_bool_param_from_dsn(dsn: &mut Dsn, key: &str) -> anyhow::Result<Option<bool>> {
+    if let Some(key) = dsn.remove(key) {
+        match key.as_str() {
+            "false" => Ok(Some(false)),
+            "" | "true" => Ok(Some(true)),
+            _ => anyhow::bail!("should config true or false"),
+        }
+    } else {
+        Ok(None)
+    }
+}
+
 #[instrument(skip_all, fields(task.id = with_agent.as_ref().map(| v | v.0)))]
 pub async fn opc_to_taos(
     mut from: Dsn,
@@ -83,7 +95,10 @@ pub async fn opc_to_taos(
     let builder: TaosBuilder = TaosBuilder::from_dsn(&to)?;
     let taos = builder.build().await?;
 
-    let select_all_points = OPCConfig::parse_select_all_points(&from);
+    let select_all_points = parse_bool_param_from_dsn(&mut from, "select_all_points")
+        .map_err(|err| anyhow::anyhow!("select_all_points config error: {}", err.to_string()))?
+        .unwrap_or(false);
+
     if select_all_points {
         handle_select_all_points(&mut from).await?;
     }
@@ -238,18 +253,16 @@ pub async fn opc_to_taos(
 
 #[instrument(skip(dsn))]
 async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
-    let child_table_expression = dsn
-        .params
-        .get("child_table_expression")
-        .ok_or(anyhow::anyhow!("child_table_expression is required"))?
-        .clone();
-
-    let table_primary_key = dsn
-        .params
-        .get("table_primary_key")
-        .ok_or(anyhow::anyhow!("table_primary_key is required"))?
-        .clone();
-
+    let child_table_expression = dsn.remove("child_table_expression");
+    if child_table_expression.is_none() {
+        anyhow::bail!("should config child_table_expression");
+    }
+    let child_table_expression = child_table_expression.unwrap();
+    let table_primary_key = dsn.remove("table_primary_key");
+    if table_primary_key.is_none() {
+        anyhow::bail!("should config table_primary_key");
+    }
+    let table_primary_key = table_primary_key.unwrap();
     let data = DataSetsReq {
         from: dsn.to_string(),
         categories: vec![String::from("nodes")],
@@ -259,7 +272,6 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
         limit: usize::MAX / 2 - 1,
         lang: None,
     };
-
     let all_points = opc_datasets(&data).await?;
     let point_config = all_points
         .iter()
