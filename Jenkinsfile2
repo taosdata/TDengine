@@ -401,7 +401,7 @@ pipeline {
                     }
                 }
                 stage('linux test') {
-                    agent{label "slave1_50"}
+                    agent{label "slave1_59"}
                     options { skipDefaultCheckout() } 
                     when {
                         changeRequest()
