@@ -1,3 +1,4 @@
+use anyhow::bail;
 use chrono::{DateTime, Duration, Utc};
 use taos::Dsn;
 
@@ -5,11 +6,18 @@ use crate::runners::historian::config::connect::ConnectConfig;
 
 pub mod connect;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum TaskMode {
+    Synchronize,
+    Migrate,
+}
+
+#[derive(Debug, Clone)]
 pub struct TaskConfig {
     pub connect: ConnectConfig,
 
-    pub mode: String,
+    // collect
+    pub mode: TaskMode,
     pub table: String,
     pub tags: Vec<String>,
     pub begin_datetime: DateTime<Utc>,
@@ -17,6 +25,10 @@ pub struct TaskConfig {
     pub time_window: Duration,
     pub retrieve_interval: Duration,
     pub tolerance: Duration,
+
+    // advanced options
+    pub concurrency: usize,
+    pub log_level: String,
 }
 
 impl TaskConfig {
@@ -31,16 +43,18 @@ impl TaskConfig {
             time_window: Self::parse_time_window(dsn)?,
             retrieve_interval: Self::parse_retrieve_interval(dsn)?,
             tolerance: Self::parse_tolerance(dsn)?,
+            concurrency: Self::parse_concurrency(dsn)?,
+            log_level: Self::parse_log_level(dsn)?,
         })
     }
 
-    fn parse_mode(dsn: &Dsn) -> anyhow::Result<String> {
+    fn parse_mode(dsn: &Dsn) -> anyhow::Result<TaskMode> {
         dsn.params
             .get("mode")
             .map(|s| {
                 match s.as_str() {
-                    "synchronize" => Ok("synchronize".to_string()),
-                    "migrate" => Ok("migrate".to_string()),
+                    "synchronize" => Ok(TaskMode::Synchronize),
+                    "migrate" => Ok(TaskMode::Migrate),
                     _ => Err(anyhow::anyhow!("mode must be synchronize or migrate"))
                 }
             })
@@ -49,7 +63,7 @@ impl TaskConfig {
     }
 
     fn parse_table(dsn: &Dsn) -> anyhow::Result<String> {
-        dsn.params
+        let table = dsn.params
             .get("table")
             .map(|s| {
                 match s.as_str() {
@@ -59,7 +73,13 @@ impl TaskConfig {
                 }
             })
             .transpose()?
-            .ok_or(anyhow::anyhow!("table is required"))
+            .ok_or(anyhow::anyhow!("table is required"))?;
+
+        let mode = Self::parse_mode(dsn)?;
+        if mode == TaskMode::Migrate && table.as_str() == "Runtime.dbo.Live" {
+            bail!("table must be Runtime.dbo.History when mode is migrate");
+        }
+        Ok(table)
     }
 
     fn parse_tags(dsn: &Dsn) -> Vec<String> {
@@ -88,7 +108,7 @@ impl TaskConfig {
 
     fn parse_end_datetime(dsn: &Dsn) -> anyhow::Result<Option<DateTime<Utc>>> {
         let mode = Self::parse_mode(dsn)?;
-        if mode.as_str() == "synchronize" {
+        if mode == TaskMode::Synchronize {
             return Ok(None);
         }
 
@@ -104,8 +124,8 @@ impl TaskConfig {
             })
             .transpose()?;
 
-        if mode.as_str() == "migrate" && end_date_time.is_none() {
-            anyhow::bail!("endDateTime is required when mode is migrate");
+        if mode == TaskMode::Migrate && end_date_time.is_none() {
+            bail!("endDateTime is required when mode is migrate");
         }
         Ok(end_date_time)
     }
@@ -180,6 +200,43 @@ impl TaskConfig {
             .transpose()?
             .unwrap_or(Duration::milliseconds(0)))
     }
+
+    fn parse_concurrency(dsn: &Dsn) -> anyhow::Result<usize> {
+        Ok(dsn.params
+            .get("concurrency")
+            .map(|s| {
+                let concurrency = s.parse::<usize>()
+                    .map_err(|err| {
+                        anyhow::anyhow!("failed to parse concurrency: {}, cause: {}", s.to_string(), err.to_string())
+                    })?;
+
+                if concurrency < 1 {
+                    bail!("concurrency must be greater than 1");
+                }
+
+                Ok(concurrency)
+            })
+            .transpose()?
+            .unwrap_or(1))
+    }
+
+    fn parse_log_level(dsn: &Dsn) -> anyhow::Result<String> {
+        Ok(dsn.params
+            .get("log_level")
+            .map(|s| {
+                let log_level = s.to_string();
+                match log_level.as_str() {
+                    "trace" | "debug" | "info" | "warn" | "error" => {
+                        Ok(log_level)
+                    }
+                    _ => {
+                        Err(anyhow::anyhow!("log_level must be trace, debug, info, warn or error"))
+                    }
+                }
+            })
+            .transpose()?
+            .unwrap_or("info".to_string()))
+    }
 }
 
 #[cfg(test)]
@@ -197,11 +254,11 @@ mod tests {
 
         let dsn = Dsn::from_str("historian://?mode=synchronize").unwrap();
         let config = TaskConfig::parse_mode(&dsn).unwrap();
-        assert_eq!("synchronize", config);
+        assert_eq!(TaskMode::Synchronize, config);
 
         let dsn = Dsn::from_str("historian://?mode=migrate").unwrap();
         let config = TaskConfig::parse_mode(&dsn).unwrap();
-        assert_eq!("migrate", config);
+        assert_eq!(TaskMode::Migrate, config);
 
         let dsn = Dsn::from_str("historian://?mode=xxx").unwrap();
         let config = TaskConfig::parse_mode(&dsn);
@@ -216,18 +273,27 @@ mod tests {
         assert!(config.is_err());
         assert_eq!("table is required", config.unwrap_err().to_string());
 
-        let dsn = Dsn::from_str("historian://?table=Runtime.dbo.History").unwrap();
+        let dsn = Dsn::from_str("historian://?mode=synchronize&&table=Runtime.dbo.History").unwrap();
         let config = TaskConfig::parse_table(&dsn).unwrap();
         assert_eq!("Runtime.dbo.History", config);
 
-        let dsn = Dsn::from_str("historian://?table=Runtime.dbo.Live").unwrap();
+        let dsn = Dsn::from_str("historian://?mode=synchronize&&table=Runtime.dbo.Live").unwrap();
         let config = TaskConfig::parse_table(&dsn).unwrap();
         assert_eq!("Runtime.dbo.Live", config);
 
-        let dsn = Dsn::from_str("historian://?table=xxx").unwrap();
+        let dsn = Dsn::from_str("historian://?mode=synchronize&&table=xxx").unwrap();
         let config = TaskConfig::parse_table(&dsn);
         assert!(config.is_err());
         assert_eq!("table must be Runtime.dbo.History or Runtime.dbo.Live", config.unwrap_err().to_string());
+
+        let dsn = Dsn::from_str("historian://?mode=migrate&table=Runtime.dbo.History").unwrap();
+        let config = TaskConfig::parse_table(&dsn).unwrap();
+        assert_eq!("Runtime.dbo.History", config);
+
+        let dsn = Dsn::from_str("historian://?mode=migrate&table=Runtime.dbo.Live").unwrap();
+        let config = TaskConfig::parse_table(&dsn);
+        assert!(config.is_err());
+        assert_eq!("table must be Runtime.dbo.History when mode is migrate", config.unwrap_err().to_string());
     }
 
     #[test]
@@ -284,7 +350,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_time_window(){
+    fn test_parse_time_window() {
         let dsn = Dsn::from_str("historian://?").unwrap();
         let config = TaskConfig::parse_time_window(&dsn).unwrap();
         assert_eq!(Duration::days(1), config);
@@ -300,7 +366,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_retrieve_interval(){
+    fn test_parse_retrieve_interval() {
         let dsn = Dsn::from_str("historian://?").unwrap();
         let config = TaskConfig::parse_retrieve_interval(&dsn).unwrap();
         assert_eq!(Duration::seconds(10), config);
@@ -316,7 +382,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_tolerance(){
+    fn test_parse_tolerance() {
         let dsn = Dsn::from_str("historian://?").unwrap();
         let config = TaskConfig::parse_tolerance(&dsn).unwrap();
         assert_eq!(Duration::milliseconds(0), config);
@@ -329,5 +395,37 @@ mod tests {
         let config = TaskConfig::parse_tolerance(&dsn);
         assert!(config.is_err());
         assert_eq!("failed to parse tolerance: xxx, cause: NoValueFoundError: no value found in the string \"xxx\"", config.unwrap_err().to_string());
+    }
+
+    #[test]
+    fn test_parse_concurrency() {
+        let dsn = Dsn::from_str("historian://?").unwrap();
+        let config = TaskConfig::parse_concurrency(&dsn).unwrap();
+        assert_eq!(1, config);
+
+        let dsn = Dsn::from_str("historian://?concurrency=10").unwrap();
+        let config = TaskConfig::parse_concurrency(&dsn).unwrap();
+        assert_eq!(10, config);
+
+        let dsn = Dsn::from_str("historian://?concurrency=xxx").unwrap();
+        let config = TaskConfig::parse_concurrency(&dsn);
+        assert!(config.is_err());
+        assert_eq!("failed to parse concurrency: xxx, cause: invalid digit found in string", config.unwrap_err().to_string());
+    }
+
+    #[test]
+    fn test_parse_log_level() {
+        let dsn = Dsn::from_str("historian://?").unwrap();
+        let config = TaskConfig::parse_log_level(&dsn).unwrap();
+        assert_eq!("info", config);
+
+        let dsn = Dsn::from_str("historian://?log_level=debug").unwrap();
+        let config = TaskConfig::parse_log_level(&dsn).unwrap();
+        assert_eq!("debug", config);
+
+        let dsn = Dsn::from_str("historian://?log_level=xxx").unwrap();
+        let config = TaskConfig::parse_log_level(&dsn);
+        assert!(config.is_err());
+        assert_eq!("log_level must be trace, debug, info, warn or error", config.unwrap_err().to_string());
     }
 }

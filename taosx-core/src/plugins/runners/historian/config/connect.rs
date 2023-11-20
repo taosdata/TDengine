@@ -1,6 +1,6 @@
 use taos::Dsn;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ConnectConfig {
     // connection
     pub host: String,

@@ -1,25 +1,27 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use ::arrow::ipc::writer::StreamWriter;
+use chrono::{DateTime, Utc};
 use futures_util::TryStreamExt;
+use itertools::Itertools;
 use taos::Dsn;
-use tiberius::{AuthMethod, Client, Config, QueryItem};
-use tokio::net::TcpStream;
-use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
+use tokio_util::compat::TokioAsyncWriteCompatExt;
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
 use crate::{Action, build_ipc, Parser, Transferred};
 use crate::dsv::DataSourceValidation;
-use crate::plugins::runners::historian::arrow::ArrowDataAppender;
-use crate::plugins::runners::historian::config::TaskConfig;
+use crate::runners::historian::config::{TaskConfig, TaskMode};
 use crate::runners::historian::config::connect::ConnectConfig;
+use crate::runners::historian::query::HistorianQuery;
+use crate::runners::historian::worker::{migrate_history, sync_history, sync_live};
 use crate::utils::port_pool::PortPool;
 
 mod arrow;
-mod tag;
 mod config;
+mod query;
+mod worker;
+mod table_type;
 
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = ConnectConfig::from_dsn(dsn);
@@ -36,7 +38,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             )),
         },
         Ok(c) => {
-            let client = connect(&c.host, c.port, &c.username, &c.password).await;
+            let client = HistorianQuery::new(c).await;
             match client {
                 Err(err) => DataSourceValidation {
                     valid: false,
@@ -74,6 +76,9 @@ pub async fn historian_to_taos(
     span: Span,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
+    let config = TaskConfig::from_dsn(&from)?;
+    tracing::info!("AVEVA™ Historian task configuration: {:?}", config);
+
     let port = port_pool
         .get()
         .await
@@ -92,13 +97,12 @@ pub async fn historian_to_taos(
         span,
         None,
         notify,
-    )
-        .await?;
+    ).await?;
 
     let port_pool = port_pool.clone();
 
     // create worker
-    let worker = tokio::spawn(historian_worker(from, port));
+    let worker = tokio::spawn(exec_task(config, port_pool.clone()));
 
     let abort_handle = worker.abort_handle();
     tokio::spawn(async move {
@@ -154,94 +158,21 @@ pub async fn historian_to_taos(
     Ok(())
 }
 
-async fn historian_worker(from: Dsn, port: u16) -> anyhow::Result<()> {
-    // connect
-    let config = TaskConfig::from_dsn(&from)?;
-    tracing::info!("AVEVA™ Historian task configuration: {:?}", config);
-    let mut client = connect_by_config(&config.connect).await?;
-
-    // filter tags
-    let tag_names;
-    if config.tags.len() == 1 && config.tags[0] == "*" {
-        tag_names = tag::query_tags(&mut client)
-            .await?
-            .iter()
-            .map(|tag| tag.name.clone())
-            .collect();
-    } else {
-        tag_names = config.tags;
-    }
-
-    // query and write
-    for tag_name in tag_names {
-        // sql
-        let sql = format!(
-            "select * from {} where TagName = '{}' and DateTime >= '{}' and DateTime <= '{}' and wwRetrievalMode = 'full'",
-            config.table, tag_name, config.begin_datetime.to_rfc3339(), config.end_datetime.unwrap().to_rfc3339()
-        );
-        tracing::info!("sql: {}", sql);
-        // query
-        let mut rows = client
-            .query(
-                &sql,
-                &[
-                    &(tag_name.as_str()),
-                    &config.begin_datetime,
-                    &config.end_datetime,
-                ],
-            )
-            .await?;
-        // metadata
-        let columns = rows
-            .columns()
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("No columns returned"))?;
-        let mut appender = ArrowDataAppender::new(columns);
-        let socket = format!("127.0.0.1:{}", port);
-        let stream = std::net::TcpStream::connect(socket)?;
-        let mut writer = StreamWriter::try_new(&stream, appender.schema())?;
-
-        while let Some(row) = rows.try_next().await? {
-            match row {
-                QueryItem::Row(row) => {
-                    appender.append_row(row)?;
-                }
-                QueryItem::Metadata(_) => {
-                    continue;
-                }
-            }
+async fn exec_task(config: TaskConfig, port_pool: PortPool) -> anyhow::Result<()> {
+    match (config.mode, config.table.as_str()) {
+        (TaskMode::Synchronize, "Runtime.dbo.History") => {
+            sync_history(config.clone(), &port_pool).await?;
         }
-        // write batch
-        let batch = appender.finish()?;
-        writer.write(&batch)?;
-        writer.finish()?;
-        tokio::task::yield_now().await;
+        (TaskMode::Migrate, "Runtime.dbo.History") => {
+            migrate_history(config.clone(), &port_pool).await?;
+        }
+        (TaskMode::Synchronize, "Runtime.dbo.Live") => {
+            sync_live(config.clone(), &port_pool).await?;
+        }
+        _ => {}
     }
 
     Ok(())
-}
-
-async fn connect_by_config(config: &ConnectConfig) -> anyhow::Result<Client<Compat<TcpStream>>> {
-    connect(&config.host, config.port, &config.username, &config.password).await
-}
-
-async fn connect(
-    host: &String,
-    port: u16,
-    username: &String,
-    password: &String,
-) -> anyhow::Result<Client<Compat<TcpStream>>> {
-    let mut config = Config::new();
-    config.host(host);
-    config.port(port);
-    config.authentication(AuthMethod::sql_server(username, password));
-    config.trust_cert();
-
-    let tcp = TcpStream::connect(config.get_addr()).await?;
-    tcp.set_nodelay(true)?;
-    let client: Client<Compat<TcpStream>> = Client::connect(config, tcp.compat_write()).await?;
-
-    Ok(client)
 }
 
 #[cfg(test)]
@@ -257,7 +188,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_invalid() {
+    async fn test_is_valid() {
         let dsn = Dsn::from_str("historian://localhost").unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(false, res.valid);
