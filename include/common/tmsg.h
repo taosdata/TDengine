@@ -3905,6 +3905,7 @@ void    tDestroySSubmitRsp2(SSubmitRsp2* pRsp, int32_t flag);
 #define TSDB_MSG_FLG_ENCODE 0x1
 #define TSDB_MSG_FLG_DECODE 0x2
 #define TSDB_MSG_FLG_CMPT   0x3
+#define TSDB_MSG_FLG_VNODE  0x4
 
 typedef struct {
   union {

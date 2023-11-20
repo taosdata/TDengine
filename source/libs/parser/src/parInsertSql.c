@@ -619,6 +619,10 @@ static int32_t parseTagValue(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStm
 }
 
 static int32_t buildCreateTbReq(SVnodeModifyOpStmt* pStmt, STag* pTag, SArray* pTagName) {
+  if (pStmt->pCreateTblReq) {
+    tdDestroySVCreateTbReq(pStmt->pCreateTblReq);
+    taosMemoryFreeClear(pStmt->pCreateTblReq);
+  }
   pStmt->pCreateTblReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
   if (NULL == pStmt->pCreateTblReq) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -1204,6 +1208,7 @@ static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   if (pStmt->usingTableProcessing) {
     pStmt->pTableMeta->uid = 0;
   }
+
   return insGetTableDataCxt(pStmt->pTableBlockHashObj, tbFName, strlen(tbFName), pStmt->pTableMeta,
                             &pStmt->pCreateTblReq, pTableCxt, NULL != pCxt->pComCxt->pStmtCb);
 }
@@ -1675,7 +1680,7 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
       (*pNumOfRows)++;
     }
 
-    if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) > tsMaxInsertBatchRows) {
+    if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) >= tsMaxInsertBatchRows) {
       pStmt->fileProcessing = true;
       break;
     }
@@ -1686,7 +1691,7 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
 
   parserDebug("0x%" PRIx64 " %d rows have been parsed", pCxt->pComCxt->requestId, *pNumOfRows);
 
-  if (TSDB_CODE_SUCCESS == code && 0 == (*pNumOfRows) &&
+  if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) == 0 && pStmt->totalRowsNum == 0 &&
       (!TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_STMT_INSERT)) && !pStmt->fileProcessing) {
     code = buildSyntaxErrMsg(&pCxt->msg, "no any data points", NULL);
   }
@@ -1856,8 +1861,10 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
     return setStmtInfo(pCxt, pStmt);
   }
 
+  // release old array alloced in insMergeTableDataCxt
+  pStmt->freeArrayFunc(pStmt->pVgDataBlocks);
   // merge according to vgId
-  int32_t code = insMergeTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pVgDataBlocks);
+  int32_t code = insMergeTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pVgDataBlocks, true);
   if (TSDB_CODE_SUCCESS == code) {
     code = insBuildVgDataBlocks(pStmt->pVgroupsHashObj, pStmt->pVgDataBlocks, &pStmt->pDataBlocks);
   }
@@ -1903,8 +1910,8 @@ static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, S
   }
   pStmt->pSql = pCxt->pComCxt->pSql;
   pStmt->freeHashFunc = insDestroyTableDataCxtHashMap;
-  pStmt->freeArrayFunc = insDestroyVgroupDataCxtList;
-
+  pStmt->freeArrayFunc = insDestroyVgroupDataCxtListModify;
+  
   if (!reentry) {
     pStmt->pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
     pStmt->pTableBlockHashObj =

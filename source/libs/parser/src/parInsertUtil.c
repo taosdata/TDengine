@@ -272,7 +272,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
   return code;
 }
 
-static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
+static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst, bool isShare) {
   int32_t code = TSDB_CODE_SUCCESS;
   SSubmitTbData* pTmp = taosMemoryCalloc(1, sizeof(SSubmitTbData));
   if (NULL == pTmp) {
@@ -282,7 +282,15 @@ static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
     pTmp->suid = pSrc->suid;
     pTmp->uid = pSrc->uid;
     pTmp->sver = pSrc->sver;
-    pTmp->pCreateTbReq = NULL;
+    if (isShare) {
+      pTmp->pCreateTbReq = pSrc->pCreateTbReq;
+      if (pTmp->flags & SUBMIT_REQ_AUTO_CREATE_TABLE && !pTmp->pCreateTbReq) {
+        pTmp->flags &= ~SUBMIT_REQ_AUTO_CREATE_TABLE;
+      }
+    } else {
+      pTmp->pCreateTbReq = NULL;
+    }
+
     if (pTmp->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       pTmp->aCol = taosArrayInit(128, sizeof(SColData));
       if (NULL == pTmp->aCol) {
@@ -378,6 +386,31 @@ void insDestroyVgroupDataCxtList(SArray* pVgCxtList) {
   taosArrayDestroy(pVgCxtList);
 }
 
+
+void insDestroyVgroupDataCxtModify(SVgroupDataCxt* pVgCxt) {
+  if (NULL == pVgCxt) {
+    return;
+  }
+
+  tDestroySubmitReq(pVgCxt->pData, TSDB_MSG_FLG_VNODE);
+  taosMemoryFree(pVgCxt->pData);
+  taosMemoryFree(pVgCxt);
+}
+
+void insDestroyVgroupDataCxtListModify(SArray* pVgCxtList) {
+  if (NULL == pVgCxtList) {
+    return;
+  }
+
+  size_t size = taosArrayGetSize(pVgCxtList);
+  for (int32_t i = 0; i < size; i++) {
+    void* p = taosArrayGetP(pVgCxtList, i);
+    insDestroyVgroupDataCxtModify(p);
+  }
+
+  taosArrayDestroy(pVgCxtList);
+}
+
 void insDestroyVgroupDataCxtHashMap(SHashObj* pVgCxtHash) {
   if (NULL == pVgCxtHash) {
     return;
@@ -408,15 +441,17 @@ void insDestroyTableDataCxtHashMap(SHashObj* pTableCxtHash) {
   taosHashCleanup(pTableCxtHash);
 }
 
-static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCxt) {
+static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCxt, bool isShare) {
   if (NULL == pVgCxt->pData->aSubmitTbData) {
     pVgCxt->pData->aSubmitTbData = taosArrayInit(128, sizeof(SSubmitTbData));
     if (NULL == pVgCxt->pData->aSubmitTbData) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
+
+  // push data to submit, rebuild empty data for next submit
   taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData);
-  rebuildTableData(pTableCxt->pData, &pTableCxt->pData);
+  rebuildTableData(pTableCxt->pData, &pTableCxt->pData, isShare);
 
   qDebug("add tableDataCxt uid:%" PRId64 " to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
 
@@ -459,7 +494,7 @@ int insColDataComp(const void* lp, const void* rp) {
   return 0;
 }
 
-int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
+int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool isShare) {
   SHashObj* pVgroupHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
   SArray*   pVgroupList = taosArrayInit(8, POINTER_BYTES);
   if (NULL == pVgroupHash || NULL == pVgroupList) {
@@ -494,6 +529,11 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
 
       tColDataSortMerge(pTableCxt->pData->aCol);
     } else {
+      // the processed table has no data to insert and must be skipped
+      if (0 == taosArrayGetSize(pTableCxt->pData->aRowP)) {
+        p = taosHashIterate(pTableHash, p);
+        continue;
+      }
       if (!pTableCxt->ordered) {
         code = tRowSort(pTableCxt->pData->aRowP);
       }
@@ -512,7 +552,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
         pVgCxt = *(SVgroupDataCxt**)pp;
       }
       if (TSDB_CODE_SUCCESS == code) {
-        code = fillVgroupDataCxt(pTableCxt, pVgCxt);
+        code = fillVgroupDataCxt(pTableCxt, pVgCxt, isShare);
       }
     }
     if (TSDB_CODE_SUCCESS == code) {
