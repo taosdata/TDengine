@@ -2,6 +2,7 @@ use actix_web::{get, web::Query, HttpResponse, Responder};
 use metrics::{describe_gauge, gauge, register_gauge};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, PrometheusRecorder};
 use std::{collections::BTreeMap, time::Duration};
+use tracing::instrument;
 
 use crate::serve::data_sources::LangQuery;
 
@@ -137,6 +138,7 @@ async fn metrics_exporter(handle: actix_web::web::Data<PrometheusHandle>) -> imp
     )
 )]
 #[get("/metrics/description")]
+#[instrument(skip_all)]
 async fn metrics_desc(lang: Query<LangQuery>) -> impl Responder {
     if lang.is_cn() {
         HttpResponse::Ok().json(&(*METRICS_DESC_ZH))
@@ -169,6 +171,7 @@ lazy_static::lazy_static! {
     )
 )]
 #[get("/profile")]
+#[instrument(skip_all)]
 async fn profile() -> HttpResponse {
     HttpResponse::Ok().json(get_profile())
 }
