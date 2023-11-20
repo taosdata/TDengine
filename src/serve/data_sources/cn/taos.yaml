@@ -122,7 +122,7 @@ groups:
         display: 查询单元
         hint:
           type: duration
-        value: 1s
+        value: 1d
         description: |-
           查询数据的基本单元，长时间范围的查询会以此为依据切割为多次查询。<br>
           支持使用数字加单位缩写，如"1ms"表示1毫秒，"1s"表示1秒，"1m"表示1分钟，"1h"表示1小时，"1d"表示1天，"1w"表示1周。<br>
@@ -152,7 +152,7 @@ groups:
           轮询查询的时间间隔。<br>
           支持使用数字加单位缩写，如"1ms"表示1毫秒，"1s"表示1秒，"1m"表示1分钟，"1h"表示1小时，"1d"表示1天，"1w"表示1周。<br>
           单独使用数字则默认认为是秒。<br>
-        placeholder:
+        placeholder: "示例：1s"
       - name: excursion
         display: 乱序
         hint:
