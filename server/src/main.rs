@@ -1,4 +1,5 @@
 use actix_cors::Cors;
+use anyhow::Context;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use http_auth_basic::Credentials;
 use log::LevelFilter;
@@ -88,12 +89,10 @@ async fn main() -> anyhow::Result<()> {
     args.profile.grpc.get_or_insert(EXPLORER_GRPC.to_string());
 
     let port = args.port.unwrap();
-    let args = web::Data::new(args);
-    let cors = args.cors.unwrap_or_default();
+    let app_args = web::Data::new(args.clone());
+    let cors = app_args.cors.unwrap_or_default();
 
-    info!("Explorer service at http://0.0.0.0:{port}");
-
-    HttpServer::new(move || {
+    let server = HttpServer::new(move || {
         let cors = if cors {
             Cors::default()
                 .allow_any_origin()
@@ -116,7 +115,7 @@ async fn main() -> anyhow::Result<()> {
             .wrap(TracingLogger::default())
             .wrap(cors)
             .app_data(web::Data::new(reqwest::Client::new()))
-            .app_data(args.clone())
+            .app_data(app_args.clone())
             // .route("/", web::get().to(index))
             .route("/rest/{path:.*}", web::to(rest_proxy))
             .route("/api/x/{api:.*}", web::to(x_api))
@@ -155,11 +154,25 @@ async fn main() -> anyhow::Result<()> {
                             .body(embed.data)
                     }),
             )
-    })
-    .bind(("0.0.0.0", port))?
-    .bind(("::1", port))?
-    .run()
-    .await?;
+    });
+
+    let addr = args.addr.as_deref().unwrap_or("0.0.0.0");
+
+    info!("Starting server at {addr}:{port}");
+
+    let server = server
+        .bind((addr, port))
+        .with_context(|| format!("Bind address {addr}:{port} error"))?;
+
+    let server = if let Some(ipv6) = args.ipv6.as_deref() {
+        server
+            .bind((ipv6, port))
+            .with_context(|| format!("Bind IPv6 address [{ipv6}]:{port} error"))?
+    } else {
+        server
+    };
+
+    server.run().await?;
     Ok(())
 }
 
@@ -514,6 +527,12 @@ struct Args {
     #[clap(short, long, global = true, env = "EXPLORER_PORT")]
     #[serde(default)]
     port: Option<u16>,
+
+    #[clap(long, global = true, env = "EXPLORER_ADDR")]
+    addr: Option<String>,
+
+    #[clap(long, global = true, env = "EXPLORER_IPV6")]
+    ipv6: Option<String>,
 
     /// Allow all origins or not.
     #[clap(skip)]

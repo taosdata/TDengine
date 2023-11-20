@@ -2,11 +2,21 @@
 #
 # Here is a full list of available options.
 
-# Explorer server port to listen on.Default is 6060.
+# Explorer server port to listen on.
+# Default is 6060.
 #
 port = 6060
 
-# Explorer server log level, default is "info"
+# IPv4 listen address.
+# Default is 0.0.0.0
+addr = "0.0.0.0"
+
+# IPv6 listen address.
+
+# ipv6 = "::1"
+
+# Explorer server log level.
+# Default is "info"
 #
 log_level = "info"
 
