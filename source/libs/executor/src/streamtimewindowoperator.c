@@ -3482,6 +3482,7 @@ void doStreamStateSaveCheckpoint(SOperatorInfo* pOperator) {
   len = doStreamStateEncodeOpState(&pBuf, len, pOperator, true);
   pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_STATE_OP_CHECKPOINT_NAME,
                                                      strlen(STREAM_STATE_OP_CHECKPOINT_NAME), buf, len);
+  taosMemoryFree(pBuf);
 }
 
 static SSDataBlock* buildStateResult(SOperatorInfo* pOperator) {
