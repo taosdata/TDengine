@@ -476,13 +476,11 @@ struct ConfigPath {
 
 shadow_rs::shadow!(build);
 
-const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN && const_str::equal!("main", build::BRANCH) {
+const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     const_format::concatcp!(
         "version: ",
         build::TD_VERSION,
         "\ngit: ",
-        build::BRANCH,
-        "-",
         build::COMMIT_HASH,
         "\nbuild: core-",
         build::PKG_VERSION,
@@ -496,8 +494,6 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN && const_str::equal!("main"
         "version: ",
         build::TD_VERSION,
         "\ngit: ",
-        build::BRANCH,
-        "-",
         build::COMMIT_HASH,
         "\nbuild: core-dirty-",
         build::PKG_VERSION,
