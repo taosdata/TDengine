@@ -576,7 +576,10 @@ static int32_t tsdbMerge(void *arg) {
     }
   }
 
-  if (skipMerge) return 0;
+  if (skipMerge) {
+    code = 0;
+    goto _exit;
+  }
 
   // do merge
   tsdbDebug("vgId:%d merge begin, fid:%d", TD_VID(tsdb->pVnode), merger->fid);
