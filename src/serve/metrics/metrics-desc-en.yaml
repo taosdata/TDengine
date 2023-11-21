@@ -21,7 +21,8 @@ metrics.legacy.points: Number of points written successfully
 metrics.time_started_timestamp: The number of milliseconds corresponding to the time when the task is started
 metrics.time_cost: The number of seconds the task has been running
 metrics.records_per_second: Average lines written per second
-ipc.stream.record_batches: Number of data batches received by taosx via IPC stream
+ipc.stream.record_batches: Number of data batches processed by taosx
+ipc.stream.received_batches: Number of data batched received by taosx. (only task with agent has this metric)
 ipc.stream.batch_records: Number of data rows received by taosx via IPC stream
 ipc.stream.insert_sqls: Number of INSERT SQLs execute by taosx
 ipc.stream.insert_sql_fails: Number of INSERT SQLs failed to execute
