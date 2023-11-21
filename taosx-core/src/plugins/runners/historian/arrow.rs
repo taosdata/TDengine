@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use arrow::array;
 use arrow::array::{ArrayBuilder, ArrayRef};
-use arrow::datatypes::{Field, Schema};
 use arrow::datatypes::TimeUnit::Nanosecond;
+use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
 use chrono::NaiveDateTime;
 use itertools::Itertools;
@@ -24,9 +24,7 @@ pub struct ArrowDataAppender {
 impl ArrowDataAppender {
     pub fn new(task_config: &TaskConfig) -> anyhow::Result<Self> {
         let table = HistorianTable::from_str(&task_config.table)
-            .map_err(|err| {
-                anyhow::anyhow!("invalid table: {}", err.to_string())
-            })?;
+            .map_err(|err| anyhow::anyhow!("invalid table: {}", err.to_string()))?;
         // fields
         let fields = match table {
             HistorianTable::Live => Self::live_fields(),
@@ -36,9 +34,7 @@ impl ArrowDataAppender {
         // data builders
         let data_builders = fields
             .iter()
-            .map(|f| {
-                array::make_builder(f.data_type(), 10)
-            })
+            .map(|f| array::make_builder(f.data_type(), 10))
             .collect_vec();
 
         // schema
@@ -56,7 +52,11 @@ impl ArrowDataAppender {
     fn live_fields() -> Vec<Field> {
         let mut fields = Vec::new();
 
-        fields.push(Field::new("DateTime", ArrowDataType::Timestamp(Nanosecond, None), true));
+        fields.push(Field::new(
+            "DateTime",
+            ArrowDataType::Timestamp(Nanosecond, None),
+            true,
+        ));
         fields.push(Field::new("TagName", ArrowDataType::Utf8, true));
         fields.push(Field::new("Value", ArrowDataType::Float64, true));
         fields.push(Field::new("vValue", ArrowDataType::Utf8, true));
@@ -73,7 +73,11 @@ impl ArrowDataAppender {
     fn history_fields() -> Vec<Field> {
         let mut fields = Vec::new();
 
-        fields.push(Field::new("DateTime", ArrowDataType::Timestamp(Nanosecond, None), true));
+        fields.push(Field::new(
+            "DateTime",
+            ArrowDataType::Timestamp(Nanosecond, None),
+            true,
+        ));
         fields.push(Field::new("TagName", ArrowDataType::Utf8, true));
         fields.push(Field::new("Value", ArrowDataType::Float64, true));
         fields.push(Field::new("vValue", ArrowDataType::Utf8, true));
@@ -81,7 +85,11 @@ impl ArrowDataAppender {
         fields.push(Field::new("QualityDetail", ArrowDataType::Int32, true));
         fields.push(Field::new("wwTagKey", ArrowDataType::Int32, true));
         fields.push(Field::new("wwResolution", ArrowDataType::Int32, true));
-        fields.push(Field::new("StartDateTime", ArrowDataType::Timestamp(Nanosecond, None), true));
+        fields.push(Field::new(
+            "StartDateTime",
+            ArrowDataType::Timestamp(Nanosecond, None),
+            true,
+        ));
         fields.push(Field::new("SourceTag", ArrowDataType::Utf8, true));
         fields.push(Field::new("SourceServer", ArrowDataType::Utf8, true));
 
@@ -119,7 +127,12 @@ impl ArrowDataAppender {
         Ok(())
     }
 
-    fn append_timestamp(&mut self, row: &Row, column_name: &str, index: usize) -> anyhow::Result<()> {
+    fn append_timestamp(
+        &mut self,
+        row: &Row,
+        column_name: &str,
+        index: usize,
+    ) -> anyhow::Result<()> {
         let val = row.try_get::<NaiveDateTime, _>(column_name)?;
         match val {
             None => {
@@ -134,7 +147,9 @@ impl ArrowDataAppender {
                     .as_any_mut()
                     .downcast_mut::<array::TimestampNanosecondBuilder>()
                     .unwrap()
-                    .append_value(val.timestamp_nanos_opt().expect("value can not be represented in a timestamp with nanosecond precision."));
+                    .append_value(val.timestamp_nanos_opt().expect(
+                        "value can not be represented in a timestamp with nanosecond precision.",
+                    ));
             }
         }
         Ok(())

@@ -24,7 +24,11 @@ impl ConnectConfig {
         dsn.addresses
             .first()
             .map(|addr| {
-                anyhow::Ok(addr.host.clone().ok_or(anyhow::anyhow!("host is required"))?)
+                anyhow::Ok(
+                    addr.host
+                        .clone()
+                        .ok_or(anyhow::anyhow!("host is required"))?,
+                )
             })
             .transpose()?
             .ok_or_else(|| anyhow::anyhow!("host is required"))
@@ -33,9 +37,7 @@ impl ConnectConfig {
     fn parse_port(dsn: &Dsn) -> u16 {
         dsn.addresses
             .first()
-            .map(|addr| {
-                addr.port.unwrap_or(1433)
-            })
+            .map(|addr| addr.port.unwrap_or(1433))
             .unwrap_or(1433)
     }
 

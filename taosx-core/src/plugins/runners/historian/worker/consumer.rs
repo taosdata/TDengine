@@ -15,16 +15,13 @@ pub struct Consumer {
 
 impl Consumer {
     pub fn new(query: HistorianQuery, port_pool: PortPool) -> Self {
-        Consumer {
-            port_pool,
-            query,
-        }
+        Consumer { port_pool, query }
     }
 
     pub async fn consume(&mut self, receiver: Receiver<TaskConfig>) -> anyhow::Result<()> {
         for task in receiver.iter() {
-
-            let port = self.port_pool
+            let port = self
+                .port_pool
                 .get()
                 .await
                 .ok_or_else(|| anyhow::format_err!("No available port for Historian source"))?;
@@ -34,7 +31,8 @@ impl Consumer {
             let mut writer = StreamWriter::try_new(&stream, appender.schema())?;
 
             let start = task.begin_datetime;
-            let end = task.end_datetime
+            let end = task
+                .end_datetime
                 .ok_or(anyhow::anyhow!("endDateTime cannot be None"))?;
             tracing::debug!("execute migrate query, from: {}, to: {}", start, end);
 

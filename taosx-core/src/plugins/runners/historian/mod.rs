@@ -5,19 +5,19 @@ use taos::Dsn;
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
-use crate::{Action, build_ipc, Parser, Transferred};
 use crate::dsv::DataSourceValidation;
-use crate::runners::historian::config::{TaskConfig, TaskMode};
 use crate::runners::historian::config::connect::ConnectConfig;
+use crate::runners::historian::config::{TaskConfig, TaskMode};
 use crate::runners::historian::query::HistorianQuery;
 use crate::runners::historian::worker::{migrate_history, sync_history, sync_live};
 use crate::utils::port_pool::PortPool;
+use crate::{build_ipc, Action, Parser, Transferred};
 
 mod arrow;
 mod config;
 mod query;
-mod worker;
 mod table_type;
+mod worker;
 
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = ConnectConfig::from_dsn(dsn);
@@ -93,7 +93,8 @@ pub async fn historian_to_taos(
         span,
         None,
         notify,
-    ).await?;
+    )
+    .await?;
 
     let port_pool = port_pool.clone();
 

@@ -157,8 +157,8 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
 }
 
 impl Cli {
-    pub(super) async fn controller(&self, scheduler: TaskScheduler) -> Result<TaskControllerRef> {
-        let database_url = if let Some(path) = self.database_url.as_deref() {
+    pub fn get_database_url(&self) -> String {
+        if let Some(path) = self.database_url.as_deref() {
             path.to_string()
         } else if let Ok(url) = std::env::var("DATABASE_URL") {
             url
@@ -166,7 +166,19 @@ impl Cli {
             format!("sqlite:{}/taosx.db", root)
         } else {
             "sqlite:taosx.db".to_string()
-        };
+        }
+    }
+
+    #[inline]
+    pub fn get_listen_address(&self) -> String {
+        match self.listen.as_ref() {
+            Some(addr) => addr.clone(),
+            None => "0.0.0.0:6050".to_string(),
+        }
+    }
+
+    pub(super) async fn controller(&self, scheduler: TaskScheduler) -> Result<TaskControllerRef> {
+        let database_url = self.get_database_url();
         let controller = TaskControllerRef::from_sqlite(&database_url, scheduler).await?;
 
         if !self.do_not_resume.unwrap_or(false) {
@@ -350,7 +362,8 @@ impl Cli {
         ::metrics::set_boxed_recorder(Box::new(fanout))?;
 
         let recorder = Data::new(handle);
-        let addr = self.listen.as_deref().unwrap_or("0.0.0.0:6050");
+        let addr = self.get_listen_address();
+        let addr = addr.as_str();
         let server = HttpServer::new(move || {
             let cors = Cors::default()
                 .allow_any_origin()
