@@ -339,6 +339,7 @@ static const SSysDbTableSchema userCompactsSchema[] = {
 };
 
 static const SSysDbTableSchema userCompactsDetailSchema[] = {
+    {.name = "compact_id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "number_fileset", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
@@ -374,7 +375,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_USER_PRIVILEGES, userUserPrivilegesSchema, tListLen(userUserPrivilegesSchema), true},
     {TSDB_INS_TABLE_VIEWS, userViewsSchema, tListLen(userViewsSchema), false},
     {TSDB_INS_TABLE_COMPACTS, userCompactsSchema, tListLen(userCompactsSchema), false},
-    {TSDB_INS_TABLE_COMPACTS_DETAIL, userCompactsDetailSchema, tListLen(userCompactsDetailSchema), false},
+    {TSDB_INS_TABLE_COMPACT_DETAILS, userCompactsDetailSchema, tListLen(userCompactsDetailSchema), false},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {

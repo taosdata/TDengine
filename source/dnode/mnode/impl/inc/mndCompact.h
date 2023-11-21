@@ -25,8 +25,6 @@ extern "C" {
 int32_t mndInitCompact(SMnode *pMnode);
 void    mndCleanupCompact(SMnode *pMnode);
 
-int32_t mndProcessCreateCompactReq(SRpcMsg *pReq);
-
 void    tFreeCompactObj(SCompactObj *pCompact);
 int32_t tSerializeSCompactObj(void *buf, int32_t bufLen, const SCompactObj *pObj);
 int32_t tDeserializeSCompactObj(void *buf, int32_t bufLen, SCompactObj *pObj);
@@ -39,8 +37,6 @@ int32_t mndCompactActionDelete(SSdb *pSdb, SCompactObj *pCompact);
 int32_t mndCompactActionUpdate(SSdb *pSdb, SCompactObj *pOldCompact, SCompactObj *pNewCompact);
 
 int32_t mndAddCompactToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* pCompact, SDbObj *pDb);
-
-int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj *pCompact, SVgObj *pVgroup);
 
 int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 
