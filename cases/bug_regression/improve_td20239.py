@@ -43,9 +43,9 @@ class TestTd20239(TDCase):
         self.stream_stbname2 = "sumvalueH5"
         self.stream_name1 = "sumstream"
         self.stream_name2 = "sumstreamh5"
-        self.trigger_mode = "window_close"
+        self.trigger_mode = "at_once"
         self.stream_sql1 = f'SELECT SUM(val) FROM {self.dbname}.{self.stbname} PARTITION BY tbname INTERVAL(1m);'
-        self.stream_sql2 = f'SELECT SUM(val) FROM {self.dbname}.{self.stbname} where col1=5 PARTITION BY tbname INTERVAL(1m);'
+        self.stream_sql2 = f'SELECT SUM(val) FROM {self.dbname}.{self.stbname} where col1>=5 PARTITION BY tbname INTERVAL(1m);'
         self.child_table_exists = "no"
         self.db_drop = "yes"
         self.wal_retention_period = 3600
@@ -102,6 +102,14 @@ class TestTd20239(TDCase):
     def run(self):
         self.pre_insert()
         self.insert_data()
+        self.tdSql.query(f'select count(*) from ({self.stream_sql1})')
+        expected_res1 = self.tdSql.query_data[0][0]
+        self.tdSql.query(f'select count(*) from ({self.stream_stbname1})')
+        self.tdSql.checkEqual(expected_res1, self.tdSql.query_data[0][0])
+        self.tdSql.query(f'select count(*) from ({self.stream_sql2})')
+        expected_res2 = self.tdSql.query_data[0][0]
+        self.tdSql.query(f'select count(*) from ({self.stream_stbname2})')
+        self.tdSql.checkEqual(expected_res2, self.tdSql.query_data[0][0])
 
     def cleanup(self):
         pass
