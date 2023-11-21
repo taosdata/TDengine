@@ -38,7 +38,7 @@ class MndTestTrans1 : public ::testing::Test {
 
     test.ServerStop();
 
-    pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
     int32_t writeLen = taosWriteFile(pFile, buffer, readLen);
     if (writeLen < 0 || writeLen == readLen) {
       ASSERT(1);
