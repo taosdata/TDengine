@@ -283,7 +283,6 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
     tmsgSendRsp(pRsp);
   }
 
-  tDeleteStreamDispatchReq(pReq);
   streamSchedExec(pTask);
 
   return 0;
