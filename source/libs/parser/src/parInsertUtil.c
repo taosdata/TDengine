@@ -290,7 +290,11 @@ static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
     pTmp->sver = pSrc->sver;
     pTmp->pCreateTbReq = NULL;
     if (pTmp->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
-      pTmp->flags -= SUBMIT_REQ_AUTO_CREATE_TABLE;
+      if (pSrc->pCreateTbReq) {
+        cloneSVreateTbReq(pSrc->pCreateTbReq, &pTmp->pCreateTbReq);
+      } else {
+        pTmp->flags -= SUBMIT_REQ_AUTO_CREATE_TABLE;
+      }
     }
     if (pTmp->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       pTmp->aCol = taosArrayInit(128, sizeof(SColData));
