@@ -263,10 +263,12 @@ int32_t mndCompactDetailActionUpdate(SSdb *pSdb, SCompactDetailObj *pOldCompact,
   return 0;
 }
 
-int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* pCompact, SVgObj *pVgroup){
+int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* pCompact, SVgObj *pVgroup, 
+                                  SVnodeGid *pVgid){
   SCompactDetailObj compactDetail = {0};
   compactDetail.compactId = pCompact->compactId;
   compactDetail.vgId = pVgroup->vgId;
+  compactDetail.dnodeId = pVgid->dnodeId;
   compactDetail.startTime = taosGetTimestampMs();
 
   SSdbRaw *pVgRaw = mndCompactDetailActionEncode(&compactDetail);

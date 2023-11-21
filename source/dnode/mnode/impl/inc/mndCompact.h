@@ -36,7 +36,7 @@ int32_t mndCompactActionInsert(SSdb *pSdb, SCompactObj *pCompact);
 int32_t mndCompactActionDelete(SSdb *pSdb, SCompactObj *pCompact);
 int32_t mndCompactActionUpdate(SSdb *pSdb, SCompactObj *pOldCompact, SCompactObj *pNewCompact);
 
-int32_t mndAddCompactToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* pCompact, SDbObj *pDb);
+int32_t mndAddCompactToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* pCompact, SDbObj *pDb, SCompactDbRsp *rsp);
 
 int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 

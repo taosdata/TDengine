@@ -211,7 +211,7 @@ int32_t mndCompactActionUpdate(SSdb *pSdb, SCompactObj *pOldCompact, SCompactObj
   return 0;
 }
 
-int32_t mndAddCompactToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* pCompact, SDbObj *pDb){
+int32_t mndAddCompactToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* pCompact, SDbObj *pDb, SCompactDbRsp *rsp){
   char uuid[40];
   int32_t code = taosGetSystemUUID(uuid, 40);
   if (code != 0) {
@@ -233,6 +233,8 @@ int32_t mndAddCompactToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* pCompac
     return -1;
   }
   (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+
+  rsp->compactId = pCompact->compactId;
 
   return 0;
 }
