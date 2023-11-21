@@ -31,6 +31,8 @@ extern "C" {
 #endif
 
 #define GRANT_HEART_BEAT_MIN 2
+#define GRANT_ACTIVE_CODE    "activeCode"
+#define GRANT_C_ACTIVE_CODE  "cActiveCode"
 
 typedef enum {
   TSDB_GRANT_ALL,
@@ -49,6 +51,11 @@ typedef enum {
   TSDB_GRANT_STABLE,
   TSDB_GRANT_TABLE,
 } EGrantType;
+
+typedef struct {
+  int64_t grantedTime;
+  int64_t connGrantedTime;
+} SGrantedInfo;
 
 int32_t grantCheck(EGrantType grant);
 int32_t grantAlterActiveCode(int32_t did, const char* old, const char* newer, char* out, int8_t type);
