@@ -2438,6 +2438,29 @@ fn reset_tracing_metrics(metrics: Arc<LegacyMetrics>) {
 
 // #[instrument(skip_all)]
 pub async fn legacy_to_taos(
+    from: Dsn,
+    actions: Vec<Action>,
+    to: Dsn,
+    concurrency: usize,
+    cancel: CancellationToken,
+    task_id: Option<String>,
+) -> anyhow::Result<()> {
+    let cancellation = cancel.clone();
+    let task = task_id.clone();
+    tokio::select! {
+        res = legacy_to_taos_impl(from, actions, to, concurrency, cancel, task_id) => {
+            res?;
+            Ok(())
+        }
+        _ = cancellation.cancelled() => {
+            tracing::warn!(task.id = task, "legacy task was cancelled");
+            Ok(())
+        }
+    }
+}
+
+#[instrument(skip_all)]
+async fn legacy_to_taos_impl(
     mut from: Dsn,
     actions: Vec<Action>,
     mut to: Dsn,
