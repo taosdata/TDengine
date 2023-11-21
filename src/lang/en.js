@@ -1256,6 +1256,7 @@ export default {
     rename: 'Column(Target)',
     coltype: 'Data Type',
     primarykey:'Primary Key',
+    usageType: 'Usage Type',
     name: 'Child Table Naming Rule',
     normalname:'Normal Table Naming Rule',
     using: 'SuperTable Name',

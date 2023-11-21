@@ -56,6 +56,7 @@ import {
   AddSource,
   EditSource,
   validateTask,
+  refreshTask as getDataSourceDetail
 } from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";
 import { Message } from "element-ui";
@@ -129,10 +130,12 @@ export default {
       currentDefinition: null,
       parent: "data.",
       level: "1",
+      editSourceConfig: null
     };
   },
   created() {
     if (this.isEditable) {
+      this.getDataSourceDetail()
       this.isShowEditBtn = this.isCopyable ? false : true;
     } 
     this.getDataSource();
@@ -152,7 +155,7 @@ export default {
     //   return this.$store.state.app.currentResume || "";
     // }
     defaultSourceConfig() {
-      return getFormConfigByDataSource(this.dbsource);
+      return this.isEditable ? this.editSourceConfig : getFormConfigByDataSource(this.dbsource);
     },
   },
   watch: {
@@ -168,6 +171,7 @@ export default {
         this.$forceUpdate();
         this.getDataSource();
       },
+      immediate: true
     },
     tagName: {
       deep: true,
@@ -175,11 +179,28 @@ export default {
         this.$forceUpdate();
       },
     },
+    editSourceConfig: {
+      handler(val) {
+        if (val) {
+          this.getDataSource();
+        }
+      },
+      immediate: true
+    },
   },
   methods: {
+    async getDataSourceDetail() {
+      await getDataSourceDetail(this.editId)
+        .then(data => {
+          this.editSourceConfig = getFormConfigByDataSource([data.from_detail], data.parser);
+        })
+        .finally(() => {
+          this.requestIng = false;
+        });
+    },
     getDataSource() {
       this.currentDefinition = this.defaultSourceConfig?.historian;
-      console.log("sgsgsg", this.currentDefinition);
+      console.log("currentDefinition", this.currentDefinition);
       if (!this.currentDefinition) return;
       this.sourceForm.data = generateFormInitData(
         this.currentDefinition?.config
@@ -232,6 +253,9 @@ export default {
           };
           if (this.agentId) {
             params["via"] = this.agentId;
+          }
+          if (this.sourceForm.data.parser) {
+            params.parser = this.sourceForm.data.parser;
           }
           if (this.isEditable && this.editId && !this.isCopyable) {
             let result = await EditSource(params, this.editId);
