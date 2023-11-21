@@ -232,6 +232,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskDropHTask(STQ* pTq, SRpcMsg* pMsg);
 
 int32_t tqStartStreamTaskAsync(STQ* pTq, bool restart);
 int32_t tqRestartStreamTasks(STQ* pTq);

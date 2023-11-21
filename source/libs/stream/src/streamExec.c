@@ -401,7 +401,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   // 5. save to disk
   pStreamTask->status.taskStatus = streamTaskGetStatus(pStreamTask, NULL);
 
-  // 6. pause allowed.
+  // 6. add empty delete block
   if ((pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) && taosQueueEmpty(pStreamTask->inputq.queue->pQueue)) {
     SStreamRefDataBlock* pItem = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
 

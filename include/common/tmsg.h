@@ -3271,7 +3271,7 @@ typedef struct {
   SMsgHead head;
   int64_t  streamId;
   int32_t  taskId;
-} SVPauseStreamTaskReq, SVResetStreamTaskReq;
+} SVPauseStreamTaskReq, SVResetStreamTaskReq, SVDropHTaskReq;
 
 typedef struct {
   int8_t reserved;
