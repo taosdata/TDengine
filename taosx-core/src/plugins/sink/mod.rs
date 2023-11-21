@@ -1041,7 +1041,7 @@ async fn consume_point_record(
                                         .as_str(),
                                 );
                                 let stable_sql = format!(
-                                    "create stable if not exists `{}` ({}) tags ({})",
+                                    "create stable `{}` ({}) tags ({})",
                                     stable_name, temp_conlumns, tags
                                 );
                                 tracing::info!("create stable sql: {}", &stable_sql);
@@ -1051,24 +1051,28 @@ async fn consume_point_record(
                                     .exec_with_req_id(&stable_sql, req_id.next())
                                     .await
                                 {
-                                    Ok(_n) => {
+                                    Ok(_) => {
                                         counter!(METRIC_STABLE_CREATED, 1);
                                     }
                                     Err(err) => {
-                                        tracing::warn!(
-                                            "create stable {stable_name} error: {err:#}"
-                                        );
-                                        let err_str = err.to_string();
-                                        if err_str.contains("0x032C") {
-                                            // Object is creating, maybe should ignore
-                                            tracing::warn!("create stable sql encounter 0x032C");
-                                        } else if err_str.contains("0xE00") {
-                                            taos.replace(pool.get().await?);
-                                            retry += 1;
-                                            break_err = Err(err);
-                                            continue;
-                                        } else {
-                                            tracing::error!("create stable sql error: {err:#}");
+                                        let code: i32 = err.code().into();
+                                        // STable already exists
+                                        if code != 0x0360 {
+                                            tracing::warn!(
+                                                "create stable {stable_name} error: {err:#}"
+                                            );
+                                            let err_str = err.to_string();
+                                            if err_str.contains("0x032C") {
+                                                // Object is creating, maybe should ignore
+                                                tracing::warn!("create stable sql encounter 0x032C");
+                                            } else if err_str.contains("0xE00") {
+                                                taos.replace(pool.get().await?);
+                                                retry += 1;
+                                                break_err = Err(err);
+                                                continue;
+                                            } else {
+                                                tracing::error!("create stable sql error: {err:#}");
+                                            }
                                         }
                                     }
                                 }
