@@ -24,7 +24,7 @@ int32_t mndInitCompactDetail(SMnode *pMnode) {
 
   SSdbTable table = {
       .sdbType = SDB_COMPACT_DETAIL,
-      .keyType = SDB_KEY_BINARY,
+      .keyType = SDB_KEY_INT32,
       .encodeFp = (SdbEncodeFp)mndCompactDetailActionEncode,
       .decodeFp = (SdbDecodeFp)mndCompactDetailActionDecode,
       .insertFp = (SdbInsertFp)mndCompactDetailActionInsert,
@@ -103,7 +103,7 @@ int32_t tSerializeSCompactDetailObj(void *buf, int32_t bufLen, const SCompactDet
 
   if (tStartEncode(&encoder) < 0) return -1;
 
-  if (tEncodeI64(&encoder, pObj->compactId) < 0) return -1;
+  if (tEncodeI32(&encoder, pObj->compactId) < 0) return -1;
   if (tEncodeI32(&encoder, pObj->vgId) < 0) return -1;
   if (tEncodeI32(&encoder, pObj->dnodeId) < 0) return -1;
   if (tEncodeI32(&encoder, pObj->numberFileset) < 0) return -1;
@@ -124,7 +124,7 @@ int32_t tDeserializeSCompactDetailObj(void *buf, int32_t bufLen, SCompactDetailO
 
   if (tStartDecode(&decoder) < 0) return -1;
   
-  if (tDecodeI64(&decoder, &pObj->compactId) < 0) return -1;
+  if (tDecodeI32(&decoder, &pObj->compactId) < 0) return -1;
   if (tDecodeI32(&decoder, &pObj->vgId) < 0) return -1;
   if (tDecodeI32(&decoder, &pObj->dnodeId) < 0) return -1;
   if (tDecodeI32(&decoder, &pObj->numberFileset) < 0) return -1;
@@ -177,12 +177,12 @@ SSdbRaw *mndCompactDetailActionEncode(SCompactDetailObj *pCompact) {
 OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("compact detail:%" PRId64 ", failed to encode to raw:%p since %s", pCompact->compactId, pRaw, terrstr());
+    mError("compact detail:%" PRId32 ", failed to encode to raw:%p since %s", pCompact->compactId, pRaw, terrstr());
     sdbFreeRaw(pRaw);
     return NULL;
   }
 
-  mTrace("compact detail:%" PRId64 ", encode to raw:%p, row:%p", pCompact->compactId, pRaw, pCompact);
+  mTrace("compact detail:%" PRId32 ", encode to raw:%p, row:%p", pCompact->compactId, pRaw, pCompact);
   return pRaw;
 }
 
@@ -235,28 +235,28 @@ SSdbRow *mndCompactDetailActionDecode(SSdbRaw *pRaw) {
 OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("compact detail:%" PRId64 ", failed to decode from raw:%p since %s", pCompact->compactId, pRaw, terrstr());
+    mError("compact detail:%" PRId32 ", failed to decode from raw:%p since %s", pCompact->compactId, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
 
-  mTrace("compact detail:%" PRId64 ", decode from raw:%p, row:%p", pCompact->compactId, pRaw, pCompact);
+  mTrace("compact detail:%" PRId32 ", decode from raw:%p, row:%p", pCompact->compactId, pRaw, pCompact);
   return pRow;
 }
 
 int32_t mndCompactDetailActionInsert(SSdb *pSdb, SCompactDetailObj *pCompact) {
-  mTrace("compact detail:%" PRId64 ", perform insert action", pCompact->compactId);
+  mTrace("compact detail:%" PRId32 ", perform insert action", pCompact->compactId);
   return 0;
 }
 
 int32_t mndCompactDetailActionDelete(SSdb *pSdb, SCompactDetailObj *pCompact) {
-  mTrace("compact detail:%" PRId64 ", perform insert action", pCompact->compactId);
+  mTrace("compact detail:%" PRId32 ", perform insert action", pCompact->compactId);
   tFreeCompactDetailObj(pCompact);
   return 0;
 }
 
 int32_t mndCompactDetailActionUpdate(SSdb *pSdb, SCompactDetailObj *pOldCompact, SCompactDetailObj *pNewCompact) {
-  mTrace("compact detail:%" PRId64 ", perform update action, old row:%p new row:%p", 
+  mTrace("compact detail:%" PRId32 ", perform update action, old row:%p new row:%p", 
           pOldCompact->compactId, pOldCompact, pNewCompact);
 
 

@@ -40,6 +40,8 @@ int32_t mndAddCompactToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* pCompac
 
 int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 
+int32_t mndProcessKillCompactReq(SRpcMsg *pReq);
+
 #ifdef __cplusplus
 }
 #endif

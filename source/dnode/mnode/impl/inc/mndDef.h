@@ -738,7 +738,7 @@ int32_t tDecodeSViewObj(SDecoder* pDecoder, SViewObj* pObj, int32_t sver);
 void    tFreeSViewObj(SViewObj* pObj);
 
 typedef struct {
-  int64_t compactId;
+  int32_t compactId;
   int32_t vgId;
   int32_t dnodeId;
   int32_t numberFileset;
@@ -747,7 +747,7 @@ typedef struct {
 }SCompactDetailObj;
 
 typedef struct {
-  int64_t compactId;
+  int32_t compactId;
   char    dbname[TSDB_TABLE_FNAME_LEN];
   int64_t startTime;
   SArray* compactDetail;

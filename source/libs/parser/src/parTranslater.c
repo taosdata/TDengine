@@ -8743,8 +8743,8 @@ static int32_t extractCompactDbResultSchema(int32_t* numOfCols, SSchema** pSchem
   (*pSchema)[0].bytes = COMPACT_DB_RESULT_FIELD1_LEN;
   strcpy((*pSchema)[0].name, "name");
 
-  (*pSchema)[1].type = TSDB_DATA_TYPE_BIGINT;
-  (*pSchema)[1].bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  (*pSchema)[1].type = TSDB_DATA_TYPE_INT;
+  (*pSchema)[1].bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
   strcpy((*pSchema)[1].name, "id");
 
   (*pSchema)[2].type = TSDB_DATA_TYPE_BINARY;

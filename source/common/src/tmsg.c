@@ -3444,7 +3444,7 @@ int32_t tSerializeSCompactDbRsp(void *buf, int32_t bufLen, SCompactDbRsp *pRsp) 
   tEncoderInit(&encoder, buf, bufLen);
 
   if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeI64(&encoder, pRsp->compactId) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->compactId) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->bAccepted) < 0) return -1;
   tEndEncode(&encoder);
 
@@ -3458,7 +3458,7 @@ int32_t tDeserializeSCompactDbRsp(void *buf, int32_t bufLen, SCompactDbRsp *pRsp
   tDecoderInit(&decoder, buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI64(&decoder, &pRsp->compactId) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->compactId) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->bAccepted) < 0) return -1;
   tEndDecode(&decoder);
 
@@ -3471,7 +3471,7 @@ int32_t tSerializeSKillCompactReq(void *buf, int32_t bufLen, SKillCompactReq *pR
   tEncoderInit(&encoder, buf, bufLen);
 
   if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeI64(&encoder, pRsp->compactId) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->compactId) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -3484,7 +3484,7 @@ int32_t tDeserializeSKillCompactReq(void *buf, int32_t bufLen, SKillCompactReq *
   tDecoderInit(&decoder, buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI64(&decoder, &pRsp->compactId) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->compactId) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
