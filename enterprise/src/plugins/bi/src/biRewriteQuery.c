@@ -154,3 +154,17 @@ int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+EDealRes biRewriteToTbnameFuncAndTranslate(STranslateContext* pCxt, SColumnNode** ppCol) {
+  SFunctionNode* tbnameFuncNode = NULL;
+  tbnameFuncNode = (SFunctionNode*)biMakeTbnameProjectAstNode(NULL, ((*ppCol)->tableAlias[0]!='\0') ? (*ppCol)->tableAlias : NULL);
+  tbnameFuncNode->node.resType = (*ppCol)->node.resType;
+  strcpy(tbnameFuncNode->node.aliasName, (*ppCol)->node.aliasName);
+  strcpy(tbnameFuncNode->node.userAlias, (*ppCol)->node.userAlias);
+
+  nodesDestroyNode(*(SNode**)ppCol);
+  *(SNode**)ppCol = (SNode*)tbnameFuncNode;
+
+  EDealRes res = translateFunction(pCxt, &tbnameFuncNode);
+  return res;
+}
