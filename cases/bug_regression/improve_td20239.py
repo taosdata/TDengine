@@ -34,6 +34,7 @@ class TestTd20239(TDCase):
         self.insert_rows = 100000
         self.stbname = "mtstb"
         self.dbname = "mtdb"
+        self.stream_dbname = "mtdb1"
         self.childtable_limit = 10
         self.childtable_offset = 10
         self.batch_create_tbl_num = 20000
@@ -44,8 +45,8 @@ class TestTd20239(TDCase):
         self.stream_name1 = "sumstream"
         self.stream_name2 = "sumstreamh5"
         self.trigger_mode = "at_once"
-        self.stream_sql1 = f'SELECT SUM(val) FROM {self.dbname}.{self.stbname} PARTITION BY tbname INTERVAL(1m);'
-        self.stream_sql2 = f'SELECT SUM(val) FROM {self.dbname}.{self.stbname} where col1>=5 PARTITION BY tbname INTERVAL(1m);'
+        self.stream_sql1 = f'SELECT SUM(val) FROM {self.dbname}.{self.stbname} PARTITION BY tbname INTERVAL(1m)'
+        self.stream_sql2 = f'SELECT SUM(val) FROM {self.dbname}.{self.stbname} where col1>=5 PARTITION BY tbname INTERVAL(1m)'
         self.child_table_exists = "no"
         self.db_drop = "yes"
         self.wal_retention_period = 3600
@@ -87,7 +88,7 @@ class TestTd20239(TDCase):
         self.start_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
         stream_db_info = self.tdCom.setStreamDBinfo(name=self.dbname, vgroups=self.vgroups, drop=self.db_drop)
         stream_info = self.tdCom.setStreams(stream_name=self.stream_name1, stream_stb=f'{self.dbname}.{self.stream_stbname1}', trigger_mode=self.trigger_mode, drop=self.stream_drop, source_sql=self.stream_sql1)
-        stream_info2 = self.tdCom.setStreams(stream_name=self.stream_name2, stream_stb=f'{self.dbname}.{self.stream_stbname2}', trigger_mode=self.trigger_mode, drop=self.stream_drop, source_sql=self.stream_sql2)
+        stream_info2 = self.tdCom.setStreams(stream_name=self.stream_name2, stream_stb=f'{self.stream_dbname}.{self.stream_stbname2}', trigger_mode=self.trigger_mode, drop=self.stream_drop, source_sql=self.stream_sql2)
         dbinfo = self.tdCom.setDBinfo(name=self.dbname, replica=self.replica, vgroups=self.vgroups, drop=self.db_drop, wal_retention_period=self.wal_retention_period)
         stb_into = [self.tdCom.setStbinfo(name=self.stbname, columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.insert_rows, start_timestamp=self.start_timestamp, child_table_exists=self.child_table_exists, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows, insert_mode=self.insert_mode, line_protocol=self.line_protocol, childtable_limit=self.childtable_limit, childtable_offset=self.childtable_offset, batch_create_tbl_num=self.batch_create_tbl_num)]
         database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
@@ -100,15 +101,16 @@ class TestTd20239(TDCase):
         self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
 
     def run(self):
+        self.tdSql.execute(f'create database {self.stream_dbname} vgroups {self.vgroups}')
         self.pre_insert()
         self.insert_data()
         self.tdSql.query(f'select count(*) from ({self.stream_sql1})')
         expected_res1 = self.tdSql.query_data[0][0]
-        self.tdSql.query(f'select count(*) from ({self.stream_stbname1})')
+        self.tdSql.query(f'select count(*) from {self.dbname}.{self.stream_stbname1}')
         self.tdSql.checkEqual(expected_res1, self.tdSql.query_data[0][0])
         self.tdSql.query(f'select count(*) from ({self.stream_sql2})')
         expected_res2 = self.tdSql.query_data[0][0]
-        self.tdSql.query(f'select count(*) from ({self.stream_stbname2})')
+        self.tdSql.query(f'select count(*) from {self.stream_dbname}.{self.stream_stbname2}')
         self.tdSql.checkEqual(expected_res2, self.tdSql.query_data[0][0])
 
     def cleanup(self):
