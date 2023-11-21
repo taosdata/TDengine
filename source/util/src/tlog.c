@@ -154,7 +154,7 @@ int32_t taosInitSlowLog() {
 
   if (strlen(tsLogDir) != 0) {
     char lastC = tsLogDir[strlen(tsLogDir) - 1];
-    if (lastC == '\\' || lastC == '\/') {
+    if (lastC == '\\' || lastC == '/') {
       snprintf(fullName, PATH_MAX, "%s" "%s", tsLogDir, logFileName);
     } else {
       snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logFileName);
@@ -183,7 +183,7 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles) {
   char fullName[PATH_MAX] = {0};
   if (strlen(tsLogDir) != 0) {
     char lastC = tsLogDir[strlen(tsLogDir) - 1];
-    if (lastC == '\\' || lastC == '\/') {
+    if (lastC == '\\' || lastC == '/') {
       snprintf(fullName, PATH_MAX, "%s" "%s", tsLogDir, logName);
     } else {
       snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logName);
