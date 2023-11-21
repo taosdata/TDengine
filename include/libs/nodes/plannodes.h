@@ -40,6 +40,13 @@ typedef enum EGroupAction {
   GROUP_ACTION_CLEAR
 } EGroupAction;
 
+typedef enum EMergeType {
+  MERGE_TYPE_SORT = 1,
+  MERGE_TYPE_NON_SORT,
+  MERGE_TYPE_COLUMNS,
+  MERGE_TYPE_MAX_VALUE
+} EMergeType;
+
 typedef struct SLogicNode {
   ENodeType          type;
   bool               dynamicOp;
@@ -138,6 +145,7 @@ typedef struct SAggLogicNode {
   bool       hasGroupKeyOptimized;
   bool       isGroupTb;
   bool       isPartTb;  // true if partition keys has tbname
+  bool       hasGroup;
 } SAggLogicNode;
 
 typedef struct SProjectLogicNode {
@@ -221,6 +229,8 @@ typedef struct SMergeLogicNode {
   SNodeList* pInputs;
   int32_t    numOfChannels;
   int32_t    srcGroupId;
+  bool       colsMerge;
+  bool       needSort;
   bool       groupSort;
   bool       ignoreGroupId;
   bool       inputWithGroupId;
@@ -388,6 +398,7 @@ typedef struct SLastRowScanPhysiNode {
   SNodeList*     pGroupTags;
   bool           groupSort;
   bool           ignoreNull;
+  SNodeList*     pTargets;
 } SLastRowScanPhysiNode;
 
 typedef SLastRowScanPhysiNode STableCountScanPhysiNode;
@@ -531,6 +542,7 @@ typedef struct SExchangePhysiNode {
 
 typedef struct SMergePhysiNode {
   SPhysiNode node;
+  EMergeType type;
   SNodeList* pMergeKeys;
   SNodeList* pTargets;
   int32_t    numOfChannels;

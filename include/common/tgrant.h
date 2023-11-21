@@ -51,11 +51,7 @@ typedef enum {
 } EGrantType;
 
 int32_t grantCheck(EGrantType grant);
-#ifndef TD_GRANT_OPTIMIZE
-int32_t grantAlterActiveCode(const char* old, const char* new, char* out, int8_t type);
-#else
-int32_t grantAlterActiveCode(int32_t did, const char* old, const char* new, char* out, int8_t type);
-#endif
+int32_t grantAlterActiveCode(int32_t did, const char* old, const char* newer, char* out, int8_t type);
 
 #ifndef GRANTS_CFG
 #ifdef TD_ENTERPRISE

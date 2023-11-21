@@ -266,7 +266,7 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
 
   if (NULL == pScanCols) {
     if (NULL == pScanPseudoCols) {
-      return SCAN_TYPE_TABLE;
+      return (!tagScan) ? SCAN_TYPE_TABLE : SCAN_TYPE_TAG;
     }
     return FUNCTION_TYPE_BLOCK_DIST_INFO == ((SFunctionNode*)nodesListGetNode(pScanPseudoCols, 0))->funcType
                ? SCAN_TYPE_BLOCK_INFO
@@ -568,6 +568,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     if (TSDB_CODE_SUCCESS == code && NULL != pColList) {
       code = createColumnByRewriteExprs(pColList, &pJoin->node.pTargets);
     }
+    nodesDestroyList(pColList);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -587,6 +588,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     if (TSDB_CODE_SUCCESS == code && NULL != pColList) {
       code = createColumnByRewriteExprs(pColList, &pJoin->node.pTargets);
     }
+    nodesDestroyList(pColList);
   }
 
   if (NULL == pJoin->node.pTargets && NULL != pLeft) {
@@ -745,7 +747,8 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
 
   pAgg->isGroupTb = pAgg->pGroupKeys ? keysHasTbname(pAgg->pGroupKeys) : 0;
   pAgg->isPartTb = pSelect->pPartitionByList ? keysHasTbname(pSelect->pPartitionByList) : 0;
-
+  pAgg->hasGroup = pAgg->pGroupKeys || pSelect->pPartitionByList;
+  
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pAgg;
   } else {

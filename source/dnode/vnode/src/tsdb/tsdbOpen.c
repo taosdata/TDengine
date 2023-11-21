@@ -35,7 +35,7 @@ int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
  * @param dir
  * @return int
  */
-int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKeepCfg, int8_t rollback) {
+int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKeepCfg, int8_t rollback, bool force) {
   STsdb *pTsdb = NULL;
   int    slen = 0;
 
@@ -53,7 +53,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   snprintf(pTsdb->path, TD_PATH_MAX, "%s%s%s", pVnode->path, TD_DIRSEP, dir);
   // taosRealPath(pTsdb->path, NULL, slen);
   pTsdb->pVnode = pVnode;
-  taosThreadRwlockInit(&pTsdb->rwLock, NULL);
+  taosThreadMutexInit(&pTsdb->mutex, NULL);
   if (!pKeepCfg) {
     tsdbSetKeepCfg(pTsdb, &pVnode->config.tsdbCfg);
   } else {
@@ -72,6 +72,11 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
     goto _err;
   }
 
+  if (pTsdb->pFS->fsstate == TSDB_FS_STATE_INCOMPLETE && force == false) {
+    terrno = TSDB_CODE_NEED_RETRY;
+    goto _err;
+  }
+
   if (tsdbOpenCache(pTsdb) < 0) {
     goto _err;
   }
@@ -84,6 +89,8 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   return 0;
 
 _err:
+  tsdbCloseFS(&pTsdb->pFS);
+  taosThreadMutexDestroy(&pTsdb->mutex);
   taosMemoryFree(pTsdb);
   return -1;
 }
@@ -94,15 +101,14 @@ int tsdbClose(STsdb **pTsdb) {
     tsdbDebug("vgId:%d, tsdb is close at %s, days:%d, keep:%d,%d,%d, keepTimeOffset:%d", TD_VID(pdb->pVnode), pdb->path,
               pdb->keepCfg.days, pdb->keepCfg.keep0, pdb->keepCfg.keep1, pdb->keepCfg.keep2,
               pdb->keepCfg.keepTimeOffset);
-    taosThreadRwlockWrlock(&(*pTsdb)->rwLock);
+    taosThreadMutexLock(&(*pTsdb)->mutex);
     tsdbMemTableDestroy((*pTsdb)->mem, true);
     (*pTsdb)->mem = NULL;
-    taosThreadRwlockUnlock(&(*pTsdb)->rwLock);
-
-    taosThreadRwlockDestroy(&(*pTsdb)->rwLock);
+    taosThreadMutexUnlock(&(*pTsdb)->mutex);
 
     tsdbCloseFS(&(*pTsdb)->pFS);
     tsdbCloseCache(*pTsdb);
+    taosThreadMutexDestroy(&(*pTsdb)->mutex);
     taosMemoryFreeClear(*pTsdb);
   }
   return 0;

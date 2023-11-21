@@ -1097,7 +1097,7 @@ TaosConsumer consumer = new TaosConsumer<>(config);
 - messageWaitTimeout: 数据传输超时参数，单位 ms，默认为 10000 ms。仅在 WebSocket 连接下有效。
 - httpPoolSize: 同一个连接下最大并行请求数。仅在 WebSocket 连接下有效。
   其他参数请参考：[Consumer 参数列表](../../develop/tmq#创建-consumer-以及consumer-group)， 注意TDengine服务端自3.2.0.0版本开始消息订阅中的auto.offset.reset默认值发生变化。
-
+  
 #### 订阅消费数据
 
 ```java

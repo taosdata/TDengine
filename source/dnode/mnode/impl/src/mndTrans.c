@@ -428,6 +428,8 @@ static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
   mInfo("trans:%d, perform insert action, row:%p stage:%s, callfunc:1, startFunc:%d", pTrans->id, pTrans,
         mndTransStr(pTrans->stage), pTrans->startFunc);
 
+  taosThreadMutexInit(&pTrans->mutex, NULL);
+
   if (pTrans->startFunc > 0) {
     TransCbFp fp = mndTransGetCbFp(pTrans->startFunc);
     if (fp) {
@@ -543,10 +545,6 @@ STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
   STrans *pTrans = sdbAcquire(pMnode->pSdb, SDB_TRANS, &transId);
   if (pTrans == NULL) {
     terrno = TSDB_CODE_MND_TRANS_NOT_EXIST;
-  } else {
-    #ifdef WINDOWS
-    taosThreadMutexInit(&pTrans->mutex, NULL);
-    #endif
   }
   return pTrans;
 }
@@ -722,7 +720,7 @@ int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, c
 
 void mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname) {
   if (dbname != NULL) {
-    tstrncpy(pTrans->dbname, dbname, TSDB_TABLE_FNAME_LEN);
+    tstrncpy(pTrans->dbname, dbname, TSDB_DB_FNAME_LEN);
   }
   if (stbname != NULL) {
     tstrncpy(pTrans->stbname, stbname, TSDB_TABLE_FNAME_LEN);
@@ -1115,7 +1113,7 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
 }
 
 static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
-  if (pAction->msgSent) return 0;
+  if (pAction->msgSent) return 0; 
   if (mndCannotExecuteTransAction(pMnode)) return -1;
 
   int64_t signature = pTrans->id;
@@ -1231,6 +1229,21 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
     }
   } else {
     mInfo("trans:%d, %d of %d actions executed", pTrans->id, numOfExecuted, numOfActions);
+
+    for (int32_t action = 0; action < numOfActions; ++action) {
+      STransAction *pAction = taosArrayGet(pArray, action);
+      mDebug("trans:%d, %s:%d Sent:%d, Received:%d, errCode:0x%x, acceptableCode:0x%x, retryCode:0x%x", 
+              pTrans->id, mndTransStr(pAction->stage), pAction->id, pAction->msgSent, pAction->msgReceived,
+              pAction->errCode, pAction->acceptableCode, pAction->retryCode);
+      if (pAction->msgSent) {
+        if (pAction->msgReceived) {
+          if (pAction->errCode != 0 && pAction->errCode != pAction->acceptableCode) {
+            mndTransResetAction(pMnode, pTrans, pAction);
+            mInfo("trans:%d, %s:%d reset", pTrans->id, mndTransStr(pAction->stage), pAction->id);
+          }
+        } 
+      }
+    }
     return TSDB_CODE_ACTION_IN_PROGRESS;
   }
 }

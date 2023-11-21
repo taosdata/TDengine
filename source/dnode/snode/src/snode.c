@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "rsync.h"
 #include "executor.h"
 #include "sndInt.h"
 #include "tstream.h"
@@ -121,6 +122,9 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto FAIL;
   }
+
+  stopRsync();
+  startRsync();
 
   // todo fix it: send msg to mnode to rollback to an existed checkpoint
   streamMetaInitForSnode(pSnode->pMeta);
