@@ -54,94 +54,130 @@ impl ValueBuilder for ConstantValueBuilder {
                 Arc::new(Field::new(_name, DataType::Utf8, false)),
                 Arc::new(StringArray::from(vec![value.as_str(); len])),
             )),
-            JsonValue::Array(_) => todo!(),
-            JsonValue::Object(_) => todo!(),
+            JsonValue::Array(_) => Err(ValueBuilderError::InvalidValueBuilder),
+            JsonValue::Object(value) => {
+                let value = serde_json::to_string(value)
+                    .map_err(|_| ValueBuilderError::InvalidValueBuilder)?;
+                Ok((
+                    Arc::new(Field::new(_name, DataType::Utf8, false)),
+                    Arc::new(StringArray::from(vec![value.as_str(); len])),
+                ))
+            }
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use arrow::array::Array;
+
     use super::*;
+
+    fn init_record_batch() -> RecordBatch {
+        RecordBatch::try_from_iter([(
+            "f1",
+            Arc::new(StringArray::from(vec!["a", "b", "c"])) as ArrayRef,
+        )]).unwrap()
+    }
 
     #[test]
     fn test_null() {
-        let builder = ConstantValueBuilder {
-            value: JsonValue::Null,
-        };
-        let record = builder
-            .build_field(
-                "n1",
-                &RecordBatch::try_from_iter([(
-                    "f1",
-                    Arc::new(StringArray::from(vec!["a", "b", "c"])) as ArrayRef,
-                )])
-                .unwrap(),
-                None,
-            )
-            .unwrap();
-        assert_eq!(record.0.name(), "n1");
-        assert_eq!(*record.0.data_type(), DataType::Utf8);
-        assert_eq!(record.1.len(), 3);
+        let builder: ConstantValueBuilder = serde_json::from_str(r#"{"value": null}"#).unwrap();
+        let batch = init_record_batch();
+
+        let (field, value) = builder.build_field("n1", &batch, None).unwrap();
+
+        assert_eq!(field.name(), "n1");
+        assert_eq!(*field.data_type(), DataType::Utf8);
+        assert_eq!(value.len(), 3);
+        assert_eq!(value.as_any().downcast_ref::<StringArray>().unwrap().is_null(0), true);
     }
+
+    #[test]
+    fn test_bool() {
+        let builder: ConstantValueBuilder = serde_json::from_str(r#"{"value": true}"#).unwrap();
+        let batch = init_record_batch();
+
+        let (field, value) = builder.build_field("n1", &batch, None).unwrap();
+
+        assert_eq!(field.name(), "n1");
+        assert_eq!(*field.data_type(), DataType::Boolean);
+        assert_eq!(value.len(), 3);
+        assert_eq!(value.as_any().downcast_ref::<BooleanArray>().unwrap().value(0), true);
+    }
+
     #[test]
     fn test_int() {
-        let builder = ConstantValueBuilder {
-            value: JsonValue::Number(1.into()),
-        };
-        let record = builder
-            .build_field(
-                "n1",
-                &RecordBatch::try_from_iter([(
-                    "f1",
-                    Arc::new(StringArray::from(vec!["a", "b", "c"])) as ArrayRef,
-                )])
-                .unwrap(),
-                None,
-            )
-            .unwrap();
-        assert_eq!(record.0.name(), "n1");
-        assert_eq!(*record.0.data_type(), DataType::Int64);
-        assert_eq!(record.1.len(), 3);
+        let builder: ConstantValueBuilder = serde_json::from_str(r#"{"value": 1}"#).unwrap();
+        let batch = init_record_batch();
+
+        let (field, value) = builder.build_field("n1", &batch, None).unwrap();
+        assert_eq!(field.name(), "n1");
+        assert_eq!(*field.data_type(), DataType::Int64);
+        assert_eq!(value.len(), 3);
+        assert_eq!(value.as_any().downcast_ref::<Int64Array>().unwrap().value(0), 1);
     }
+
     #[test]
     fn test_float() {
-        let builder = ConstantValueBuilder {
-            value: JsonValue::Number(serde_json::Number::from_f64(1.0).unwrap().into()),
-        };
-        let record = builder
-            .build_field(
-                "n1",
-                &RecordBatch::try_from_iter([(
-                    "f1",
-                    Arc::new(StringArray::from(vec!["a", "b", "c"])) as ArrayRef,
-                )])
-                .unwrap(),
-                None,
-            )
-            .unwrap();
-        assert_eq!(record.0.name(), "n1");
-        assert_eq!(*record.0.data_type(), DataType::Float64);
-        assert_eq!(record.1.len(), 3);
+        let builder: ConstantValueBuilder = serde_json::from_str(r#"{"value": 1.1}"#).unwrap();
+        let batch = init_record_batch();
+
+        let (field, value) = builder.build_field("n1", &batch, None).unwrap();
+
+        assert_eq!(field.name(), "n1");
+        assert_eq!(*field.data_type(), DataType::Float64);
+        assert_eq!(value.len(), 3);
+        assert_eq!(value.as_any().downcast_ref::<Float64Array>().unwrap().value(0), 1.1);
     }
+
     #[test]
     fn test_u64() {
-        let builder = ConstantValueBuilder {
-            value: JsonValue::Number(u64::MAX.into()),
-        };
-        let record = builder
-            .build_field(
-                "n1",
-                &RecordBatch::try_from_iter([(
-                    "f1",
-                    Arc::new(StringArray::from(vec!["a", "b", "c"])) as ArrayRef,
-                )])
-                .unwrap(),
-                None,
-            )
-            .unwrap();
-        assert_eq!(record.0.name(), "n1");
-        assert_eq!(*record.0.data_type(), DataType::UInt64);
-        assert_eq!(record.1.len(), 3);
+        let builder: ConstantValueBuilder = serde_json::from_str(r#"{"value": 18446744073709551615}"#).unwrap();
+        let batch = init_record_batch();
+
+        let (field, value) = builder.build_field("n1", &batch, None).unwrap();
+
+        assert_eq!(field.name(), "n1");
+        assert_eq!(*field.data_type(), DataType::UInt64);
+        assert_eq!(value.len(), 3);
+        assert_eq!(value.as_any().downcast_ref::<UInt64Array>().unwrap().value(0), 18446744073709551615);
+    }
+
+    #[test]
+    fn test_string() {
+        let builder: ConstantValueBuilder = serde_json::from_str(r#"{"value": "hello"}"#).unwrap();
+        let batch = init_record_batch();
+
+        let (field, value) = builder.build_field("n1", &batch, None).unwrap();
+
+        assert_eq!(field.name(), "n1");
+        assert_eq!(*field.data_type(), DataType::Utf8);
+        assert_eq!(value.len(), 3);
+        assert_eq!(value.as_any().downcast_ref::<StringArray>().unwrap().value(0), "hello");
+    }
+
+    #[test]
+    fn test_array() {
+        let builder: ConstantValueBuilder = serde_json::from_str(r#"{"value": [1,2,3]}"#).unwrap();
+        let batch = init_record_batch();
+
+        let record = builder.build_field("n1", &batch, None);
+
+        assert!(record.is_err());
+        assert_eq!(record.unwrap_err().to_string(), "invalid value builder");
+    }
+
+    #[test]
+    fn test_object() {
+        let builder: ConstantValueBuilder = serde_json::from_str(r#"{"value": {"a": 1}}"#).unwrap();
+        let batch = init_record_batch();
+
+        let (field, value) = builder.build_field("n1", &batch, None).unwrap();
+
+        assert_eq!(field.name(), "n1");
+        assert_eq!(*field.data_type(), DataType::Utf8);
+        assert_eq!(value.len(), 3);
+        assert_eq!(value.as_any().downcast_ref::<StringArray>().unwrap().value(0), r#"{"a":1}"#);
     }
 }
