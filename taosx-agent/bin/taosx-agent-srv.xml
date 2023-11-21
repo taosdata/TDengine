@@ -4,5 +4,5 @@
     <description>taosX Agent service powered by WinSW</description>
     <logpath>C:\TDengine\log\agent</logpath>
     <logmode>roll</logmode>
-    <executable>C:\TDengine\taosx-agent.exe</executable>
+    <executable>C:\TDengine\bin\taosx-agent.exe</executable>
 </service>
