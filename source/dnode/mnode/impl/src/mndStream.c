@@ -284,6 +284,8 @@ static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStream
 
   pOldStream->status = pNewStream->status;
   pOldStream->updateTime = pNewStream->updateTime;
+  pOldStream->checkpointId = pNewStream->checkpointId;
+  pOldStream->checkpointFreq = pNewStream->checkpointFreq;
 
   taosWUnLockLatch(&pOldStream->lock);
   return 0;
@@ -1518,7 +1520,7 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     char dstStr[20] = {0};
     STR_TO_VARSTR(dstStr, sinkQuota)
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char*) dstStr, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)dstStr, false);
 
     char scanHistoryIdle[20 + VARSTR_HEADER_SIZE] = {0};
     strcpy(scanHistoryIdle, "100a");
@@ -1526,7 +1528,7 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     memset(dstStr, 0, tListLen(dstStr));
     STR_TO_VARSTR(dstStr, scanHistoryIdle)
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char*) dstStr, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)dstStr, false);
 
     numOfRows++;
     sdbRelease(pSdb, pStream);
