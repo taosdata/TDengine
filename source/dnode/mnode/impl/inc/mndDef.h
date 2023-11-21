@@ -189,6 +189,8 @@ typedef struct {
   int64_t createdTime;
   int64_t updateTime;
   int32_t upTime;
+  int64_t grantedTime;
+  int64_t connGrantedTime;
 } SClusterObj;
 
 typedef struct {
