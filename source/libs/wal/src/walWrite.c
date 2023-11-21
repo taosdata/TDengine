@@ -133,7 +133,8 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   }
 
   walBuildIdxName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
-  TdFilePtr pIdxFile = pWal->pIdxFile;
+  taosCloseFile(&pWal->pIdxFile);
+  TdFilePtr pIdxFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
 
   if (pIdxFile == NULL) {
     taosThreadMutexUnlock(&pWal->mutex);
@@ -153,7 +154,8 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   }
 
   walBuildLogName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
-  TdFilePtr pLogFile = pWal->pLogFile;
+  taosCloseFile(&pWal->pLogFile);
+  TdFilePtr pLogFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
   wDebug("vgId:%d, wal truncate file %s", pWal->cfg.vgId, fnameStr);
   if (pLogFile == NULL) {
     // TODO
@@ -204,6 +206,9 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   pWal->vers.lastVer = ver - 1;
   ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->lastVer = ver - 1;
   ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->fileSize = entry.offset;
+
+  taosCloseFile(&pIdxFile);
+  taosCloseFile(&pLogFile);
 
   code = walSaveMeta(pWal);
   if (code < 0) {
