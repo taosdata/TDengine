@@ -1061,6 +1061,7 @@ export default {
     rename:'列(目标)',
     coltype:'数据类型',
     primarykey:'主键',
+    usageType: '使用类型',
     usingtip:'请输入超级表名称',
     name:'子表命名规则',
     normalname:'普通表命名规则',

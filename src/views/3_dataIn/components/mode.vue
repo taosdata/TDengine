@@ -61,7 +61,7 @@ export default {
   created() {},
   mounted() {
     if (this.isEdit) {
-      this.change()
+      this.change('isEditInit')
     }
   },
   methods: {
@@ -78,7 +78,9 @@ export default {
           disabled: item.value === 'Runtime.dbo.Live' && this.data[this.field] === 'migrate'
         }
       })
-      this.data.table = ''
+      if (val !== 'isEditInit') {
+        this.data.table = ''
+      }
       this.tableConfig.options = tableList
       this.endDateTimeConfig.required = this.data[this.field] === 'migrate'
     }

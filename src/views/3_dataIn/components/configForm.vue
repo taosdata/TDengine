@@ -28,12 +28,12 @@
             :parent="parent"
             v-bind="item"
           /> -->
-          <!-- <ParserComp
+          <ParserComp
             v-if="item.type == 'parser'"
             :data="data[item.field]"
             :parent="parent"
             v-bind="item"
-          /> -->
+          />
           <ConnectivityCheck
             v-if="item.type == 'collapse'"
             :data="data[item.field]"
@@ -96,7 +96,7 @@
 <script>
 import FormItem from './formItem.vue';
 import DocsContent from '@/views/support/components/editorContentDisplay.vue';
-// import ParserComp from './parserComp.vue';
+import ParserComp from '../components/parserComp.vue';
 // import OpcTable from './opcTable.vue';
 import BlockHeader from './blockHeader.vue';
 import ConnectivityCheck from '../components/connectivityCheck.vue'
@@ -124,7 +124,7 @@ export default {
   },
   name: 'ConfigForm',
   inject: ['sourceParent'],
-  components: { FormItem, DocsContent, BlockHeader, ConnectivityCheck },
+  components: { FormItem, DocsContent, BlockHeader, ConnectivityCheck, ParserComp },
   data() {
     this.mb10Type = ['opcTable', 'parser', 'tabs'];
     return {};
@@ -140,7 +140,6 @@ export default {
       return isFn ? child.disabled(this.data[parent.field], this.sourceParent.sourceForm.data) : child.disabled;
     },
     tabContentShow(child, parent) {
-      console.log('child',child,parent);
       if (!hasOwn(parent, 'multiple') || parent.multiple) return true;
       return child.name === this.data[parent.field][parent.valueField];
     }

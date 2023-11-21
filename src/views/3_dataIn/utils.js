@@ -100,7 +100,7 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
     handleConnectivityCheck(connectivityCheck,paramsConfig)
     // handleDatasets(datasets, paramsConfig);
     handleGroups(groups, paramsConfig);
-    // handleParser(parser, paramsConfig, parserValue);
+    handleParser(parser, paramsConfig, parserValue);
     // 先处理protocol
     formConfig[id] = config;
     return formConfig;
@@ -359,19 +359,19 @@ function handleOptions(options, paramsConfig) {
 }
  */
 
-// function handleParser(parser, paramsConfig, value = cloneDeep(DefaultParserValue)) {
-//   if (!parser) return;
-//   const { display, description, fields } = parser;
-//   paramsConfig.push({
-//     label: display,
-//     description,
-//     field: 'parser',
-//     type: 'parser',
-//     fields: fields.filter(item => item.name != 'payload'),
-//     defaultValue: value,
-//     children: []
-//   });
-// }
+function handleParser(parser, paramsConfig, value = cloneDeep(DefaultParserValue)) {
+  if (!parser) return;
+  const { display, description, fields } = parser;
+  paramsConfig.push({
+    label: display,
+    description,
+    field: 'parser',
+    type: 'parser',
+    fields: fields.filter(item => item.name != 'payload'),
+    defaultValue: value,
+    children: []
+  });
+}
 
 /**
  * parser data
