@@ -623,8 +623,8 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
 }
 
 void initLogFile() {
-  char f1[256] = {0};
-  char f2[256] = {0};
+  char f1[1024] = {0};
+  char f2[1024] = {0};
 
   if (g_conf.snapShot) {
     sprintf(f1, "%s/../log/tmq_taosx_tmp_snapshot.source", g_conf.dir);
