@@ -212,7 +212,8 @@ export default {
     },
 
     save() {
-      if (this.isEditable && !this.isCopyable) {
+      let status = this.$parent.currentTaskStatus
+      if (this.isEditable && !this.isCopyable && !['stopped','completed'].includes(status)) {
         this.$confirm(this.$t("dataIn.saveTip"), this.$t("warning"), {
           confirmButtonText: this.$t("confirm"),
           cancelButtonText: this.$t("cancel"),
