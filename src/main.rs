@@ -557,9 +557,6 @@ fn main() -> Result<()> {
     let version = build::PKG_VERSION;
     let commit_id = build::COMMIT_HASH;
     let build_time = build::BUILD_TIME;
-    println!("taosx version: {version}");
-    println!("commit id: {commit_id}");
-    println!("build time: {build_time}");
     let args = Args::init()?;
     set_env_plugins_home_dir(args.global.plugins_home.clone());
     set_env_data_dir(args.global.data_dir.clone());
