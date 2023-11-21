@@ -1091,6 +1091,22 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
   return DEAL_RES_CONTINUE;
 }
 
+#ifndef TD_ENTERPRISE
+EDealRes biRewriteToTbnameFuncAndTranslate(STranslateContext* pCxt, SColumnNode** ppCol) {
+  SFunctionNode* tbnameFuncNode = NULL;
+  // tbnameFuncNode = biMakeTbnameProjectAstNode(NULL, ((*ppCol)->tableAlias[0]!='\0') ? (*ppCol)->tableAlias : NULL);
+  tbnameFuncNode->node.resType = (*ppCol)->node.resType;
+  strcpy(tbnameFuncNode->node.aliasName, (*ppCol)->node.aliasName);
+  strcpy(tbnameFuncNode->node.userAlias, (*ppCol)->node.userAlias);
+
+  nodesDestroyNode(*(SNode**)ppCol);
+  *(SNode**)ppCol = (SNode*)tbnameFuncNode;
+
+  EDealRes res = translateFunction(pCxt, &tbnameFuncNode);
+  return res;
+}
+#endif
+
 static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
   if (NULL == pCxt->pCurrStmt ||
       (isSelectStmt(pCxt->pCurrStmt) && NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
@@ -1100,6 +1116,13 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
   // count(*)/first(*)/last(*) and so on
   if (0 == strcmp((*pCol)->colName, "*")) {
     return DEAL_RES_CONTINUE;
+  }
+
+  if (pCxt->pParseCxt->biMode && (strcasecmp((*pCol)->colName, "tbname") == 0) &&
+      ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable &&
+      QUERY_NODE_REAL_TABLE == nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
+    EDealRes res = biRewriteToTbnameFuncAndTranslate(pCxt, pCol);
+    return res;
   }
 
   EDealRes res = DEAL_RES_CONTINUE;
@@ -2204,7 +2227,7 @@ static int32_t translateFunctionImpl(STranslateContext* pCxt, SFunctionNode** pF
   return translateNormalFunction(pCxt, (SNode**)pFunc);
 }
 
-static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
+EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
   SNode* pParam = NULL;
   FOREACH(pParam, (*pFunc)->pParameterList) {
     if (isMultiResFunc(pParam)) {
