@@ -30,7 +30,7 @@ typedef struct {
   int  meta;
   int  srcVgroups;
   int  dstVgroups;
-  char dir[64];
+  char dir[256];
 } Config;
 
 Config g_conf = {0};
@@ -409,6 +409,30 @@ int buildStable(TAOS* pConn, TAOS_RES* pRes) {
   }
   taos_free_result(pRes);
 
+#ifdef WINDOWS
+  pRes = taos_query(pConn,
+                    "CREATE STABLE `meters_summary` (`_wstart` TIMESTAMP, `current` FLOAT, `groupid` INT, `location` VARCHAR(16)) TAGS (`group_id` BIGINT UNSIGNED)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create super table meters_summary, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn,
+                    "  CREATE TABLE `t_d2a450ee819dcf7576f0282d9ac22dbc` USING `meters_summary` (`group_id`) TAGS (13135550082773579308)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create super table meters_summary, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "insert into t_d2a450ee819dcf7576f0282d9ac22dbc values (now, 120, 1, 'San Francisco')");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to insert into table d0, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+#else
   pRes = taos_query(pConn,
                     "create stream meters_summary_s trigger at_once IGNORE EXPIRED 0 into meters_summary as select _wstart, max(current) as current, "
                     "groupid, location from meters partition by groupid, location interval(10m)");
@@ -417,6 +441,7 @@ int buildStable(TAOS* pConn, TAOS_RES* pRes) {
     return -1;
   }
   taos_free_result(pRes);
+#endif
 
   pRes = taos_query(pConn, "insert into d0 (ts, current) values (now, 120)");
   if (taos_errno(pRes) != 0) {
