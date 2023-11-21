@@ -1093,17 +1093,7 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
 
 #ifndef TD_ENTERPRISE
 EDealRes biRewriteToTbnameFuncAndTranslate(STranslateContext* pCxt, SColumnNode** ppCol) {
-  SFunctionNode* tbnameFuncNode = NULL;
-  // tbnameFuncNode = biMakeTbnameProjectAstNode(NULL, ((*ppCol)->tableAlias[0]!='\0') ? (*ppCol)->tableAlias : NULL);
-  tbnameFuncNode->node.resType = (*ppCol)->node.resType;
-  strcpy(tbnameFuncNode->node.aliasName, (*ppCol)->node.aliasName);
-  strcpy(tbnameFuncNode->node.userAlias, (*ppCol)->node.userAlias);
-
-  nodesDestroyNode(*(SNode**)ppCol);
-  *(SNode**)ppCol = (SNode*)tbnameFuncNode;
-
-  EDealRes res = translateFunction(pCxt, &tbnameFuncNode);
-  return res;
+  return DEAL_RES_CONTINUE;
 }
 #endif
 
@@ -1118,11 +1108,13 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
     return DEAL_RES_CONTINUE;
   }
 
-  if (pCxt->pParseCxt->biMode && (strcasecmp((*pCol)->colName, "tbname") == 0) &&
+  if (pCxt->pParseCxt->biMode) {
+    if ((strcasecmp((*pCol)->colName, "tbname") == 0) &&
       ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable &&
       QUERY_NODE_REAL_TABLE == nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
-    EDealRes res = biRewriteToTbnameFuncAndTranslate(pCxt, pCol);
-    return res;
+      EDealRes res = biRewriteToTbnameFuncAndTranslate(pCxt, pCol);
+      return res;
+    }
   }
 
   EDealRes res = DEAL_RES_CONTINUE;
