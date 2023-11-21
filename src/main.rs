@@ -445,7 +445,7 @@ async fn init_tracing_layers(
     }
 
     // Enable opentelemetry layer
-    if args.global.otel.unwrap_or(false) {
+    if otel_enabled(args) {
         let tracer = opentelemetry_otlp::new_pipeline()
             .tracing()
             .with_exporter(opentelemetry_otlp::new_exporter().tonic())
@@ -517,6 +517,12 @@ fn get_log_path() -> PathBuf {
     log_path.push("taosx.log");
     log_path
 }
+
+#[inline]
+fn otel_enabled(args: &Args) -> bool {
+    args.global.otel.unwrap_or(false)
+}
+
 /// Gether all effective enviroment variables and options, and join them with \n .
 /// This method can only be called after all env variables and options were determined.
 #[rustfmt::skip]
@@ -530,15 +536,18 @@ fn get_effective_settings(level_filter: &LevelFilter, args: &Args) -> String {
     let mut s = String::new();
     s += "\n                           global config\n";
     s += "===================================================================\n";
-    s += format!("{:<20}{:<20}{}\n", ' ', "PLUGINS_HOME", var("PLUGINS_HOME")).as_str();
-    s += format!("{:<20}{:<20}{}\n",' ',"TAOSX_DATA_DIR", var("TAOSX_DATA_DIR")).as_str();
-    s += format!("{:<20}{:<20}{}\n", ' ', "LOGS_HOME", var("LOGS_HOME")).as_str();
-    s += format!("{:<20}{:<20}{}\n", ' ', "LOG_KEEP_DAYS", var("LOG_KEEP_DAYS")) .as_str();
+    s += format!("{:<20}{:<20}{}\n", ' ', "plugins_home", var("PLUGINS_HOME")).as_str();
+    s += format!("{:<20}{:<20}{}\n",' ',"data_dir", var("TAOSX_DATA_DIR")).as_str();
+    s += format!("{:<20}{:<20}{}\n", ' ', "logs_home", var("LOGS_HOME")).as_str();
     s += format!("{:<20}{:<20}{}\n", ' ', "log_path", get_log_path().display()) .as_str();
-    s += format!( "{:<20}{:<20}{}\n", ' ', "log_keep_days", get_log_keep_days()) .as_str();
     s += format!("{:<20}{:<20}{}\n", ' ', "log_level", level_filter).as_str();
-    s += format!("{:<20}{:<20}{}\n", ' ', "debug", args.global.debug).as_str();
+    s += format!( "{:<20}{:<20}{}\n", ' ', "log_keep_days", get_log_keep_days()) .as_str();
     s += format!("{:<20}{:<20}{}\n", ' ', "jobs", args.global.jobs).as_str();
+    s += format!("{:<20}{:<20}{}\n", ' ', "otel", otel_enabled(args)).as_str();
+    if let Commands::Serve(cli) = args.commands.as_ref().unwrap_or(&Commands::Serve(Default::default()))  {
+        s += format!("{:<20}{:<20}{}\n", ' ', "server.listen", cli.get_listen_address()).as_str();
+        s += format!("{:<20}{:<20}{}\n", ' ', "server.database_url", cli.get_database_url()).as_str();
+    }
     s += "===================================================================\n";
     s
 }
