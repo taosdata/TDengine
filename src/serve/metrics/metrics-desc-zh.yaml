@@ -21,7 +21,8 @@ metrics.legacy.points: 写入成功的测点数
 metrics.time_started_timestamp: 任务启动时的 UTC 时间对应的毫秒数
 metrics.time_cost: 任务已经运行秒数
 metrics.records_per_second: 平均每秒写入行数
-ipc.stream.record_batches: taosX 通过 IPC Stream 收到的数据总批数
+ipc.stream.record_batches: taosX 已经处理的数据总批数
+ipc.stream.received_batches: taosX 收到的数据总批数，只有在使用 Agent 的场景有此指标
 ipc.stream.batch_records: taosX 通过 IPC Stream 收到的数据总行数
 ipc.stream.insert_sqls: taosX 执行的 INSERT SQL 总条数
 ipc.stream.insert_sql_fails: taosX 执行失败的 INSERT SQL 总条数
