@@ -1383,7 +1383,7 @@ int32_t tDeserializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq
 void    tFreeSCompactDbReq(SCompactDbReq *pReq);
 
 typedef struct {
-  int64_t compactId;
+  int32_t compactId;
   int8_t bAccepted;
 } SCompactDbRsp;
 
@@ -1391,7 +1391,7 @@ int32_t tSerializeSCompactDbRsp(void* buf, int32_t bufLen, SCompactDbRsp* pRsp);
 int32_t tDeserializeSCompactDbRsp(void* buf, int32_t bufLen, SCompactDbRsp* pRsp);
 
 typedef struct {
-  int64_t compactId;
+  int32_t compactId;
 } SKillCompactReq;
 
 int32_t tSerializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
