@@ -133,8 +133,11 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAM_TASKS, mndCancelGetNextStreamTask);
 
   taosThreadMutexInit(&execInfo.lock, NULL);
-  execInfo.pTaskMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
+  _hash_fn_t fn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR);
+
   execInfo.pTaskList = taosArrayInit(4, sizeof(STaskId));
+  execInfo.pTaskMap = taosHashInit(64, fn, true, HASH_NO_LOCK);
+  execInfo.transMgmt.pDBTrans = taosHashInit(32, fn, true, HASH_NO_LOCK);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -720,24 +723,6 @@ int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) 
   return 0;
 }
 
-static bool checkDbPrecision(SMnode* pMnode, SStreamObj* pStreamObj) {
-  if (pStreamObj->sourceDbUid != pStreamObj->targetDbUid) {
-    SDbObj *pSrcDb = mndAcquireDb(pMnode, pStreamObj->sourceDb);
-    SDbObj *pDstDb = mndAcquireDb(pMnode, pStreamObj->targetDb);
-
-    bool isIdentical = (pSrcDb->cfg.precision != pDstDb->cfg.precision);
-    mndReleaseDb(pMnode, pSrcDb);
-    mndReleaseDb(pMnode, pDstDb);
-
-    if (!isIdentical) {
-      mError("stream:%s failed to create since target/source db precision not identical", pStreamObj->name);
-      return false;
-    }
-  }
-
-  return true;
-}
-
 static int32_t checkForNumOfStreams(SMnode *pMnode, SStreamObj *pStreamObj) {  // check for number of existed tasks
   int32_t     numOfStream = 0;
   SStreamObj *pStream = NULL;
@@ -816,12 +801,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   // build stream obj from request
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
-    goto _OVER;
-  }
-
-  // check if the time precision for source&target DB is identical.
-  bool isIdentical = checkDbPrecision(pMnode, &streamObj);
-  if (!isIdentical) {
     goto _OVER;
   }
 
@@ -913,7 +892,6 @@ _OVER:
   }
 
   mndReleaseStream(pMnode, pStream);
-
   tFreeSCMCreateStreamReq(&createStreamReq);
   tFreeStreamObj(&streamObj);
   if(sql != NULL){
@@ -1298,9 +1276,8 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
 
   const char *pDb = mndGetStreamDB(pMnode);
   mndTransSetDbName(pTrans, pDb, pDb);
-  taosMemoryFree((void *)pDb);
-
   mndStreamRegisterTrans(pTrans, MND_STREAM_CHECKPOINT_NAME, pDb, pDb);
+  taosMemoryFree((void *)pDb);
 
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     mError("failed to trigger checkpoint, checkpointId: %" PRId64 ", reason:%s", checkpointId,
@@ -1351,26 +1328,27 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     if (dropReq.igNotExists) {
       mInfo("stream:%s not exist, ignore not exist is set", dropReq.name);
       sdbRelease(pMnode->pSdb, pStream);
-      tFreeSMDropStreamReq(&dropReq);
+      tFreeMDropStreamReq(&dropReq);
       return 0;
     } else {
       terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
       mError("stream:%s not exist failed to drop", dropReq.name);
-      tFreeSMDropStreamReq(&dropReq);
+      tFreeMDropStreamReq(&dropReq);
       return -1;
     }
   }
 
   if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb) != 0) {
     sdbRelease(pMnode->pSdb, pStream);
-    tFreeSMDropStreamReq(&dropReq);
+    tFreeMDropStreamReq(&dropReq);
     return -1;
   }
 
   // check if it is conflict with other trans in both sourceDb and targetDb.
   bool conflict = streamTransConflictOtherTrans(pMnode, pStream->sourceDb, pStream->targetDb);
-  if (!conflict) {
+  if (conflict) {
     sdbRelease(pMnode->pSdb, pStream);
+    tFreeMDropStreamReq(&dropReq);
     return -1;
   }
 
@@ -1378,7 +1356,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   if (pTrans == NULL) {
     mError("stream:%s, failed to drop since %s", dropReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
-    tFreeSMDropStreamReq(&dropReq);
+    tFreeMDropStreamReq(&dropReq);
     return -1;
   }
 
@@ -1388,7 +1366,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
-    tFreeSMDropStreamReq(&dropReq);
+    tFreeMDropStreamReq(&dropReq);
     return -1;
   }
 
@@ -1399,7 +1377,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     mError("stream:%s, failed to drop task since %s", dropReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
-    tFreeSMDropStreamReq(&dropReq);
+    tFreeMDropStreamReq(&dropReq);
     return -1;
   }
 
@@ -1407,7 +1385,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
-    tFreeSMDropStreamReq(&dropReq);
+    tFreeMDropStreamReq(&dropReq);
     return -1;
   }
 
@@ -1415,7 +1393,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     mError("trans:%d, failed to prepare drop stream trans since %s", pTrans->id, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
-    tFreeSMDropStreamReq(&dropReq);
+    tFreeMDropStreamReq(&dropReq);
     return -1;
   }
 
@@ -1428,7 +1406,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
-  tFreeSMDropStreamReq(&dropReq);
+  tFreeMDropStreamReq(&dropReq);
 
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
@@ -1846,7 +1824,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
 
   // check if it is conflict with other trans in both sourceDb and targetDb.
   bool conflict = streamTransConflictOtherTrans(pMnode, pStream->sourceDb, pStream->targetDb);
-  if (!conflict) {
+  if (conflict) {
     sdbRelease(pMnode->pSdb, pStream);
     return -1;
   }
@@ -1981,7 +1959,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
 
   // check if it is conflict with other trans in both sourceDb and targetDb.
   bool conflict = streamTransConflictOtherTrans(pMnode, pStream->sourceDb, pStream->targetDb);
-  if (!conflict) {
+  if (conflict) {
     sdbRelease(pMnode->pSdb, pStream);
     return -1;
   }
