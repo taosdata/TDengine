@@ -168,6 +168,8 @@ void mndCleanupStream(SMnode *pMnode) {
   taosArrayDestroy(execInfo.pTaskList);
   taosHashCleanup(execInfo.pTaskMap);
   taosThreadMutexDestroy(&execInfo.lock);
+  taosHashCleanup(execInfo.transMgmt.pDBTrans);
+  taosHashCleanup(execInfo.transMgmt.pWaitingList);
   mDebug("mnd stream exec info cleanup");
 }
 
