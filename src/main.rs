@@ -27,7 +27,11 @@ use tracing_subscriber::{
 };
 use twelf::{config, Layer};
 
-use taosx_core::utils::trace::TaosXLayer;
+use taosx_core::{
+    get_data_dir,
+    runners::{get_logs_home_dir, get_plugins_home_dir},
+    utils::trace::TaosXLayer,
+};
 use taosx_core::{
     get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
     set_env_plugins_home_dir,
@@ -526,30 +530,26 @@ fn otel_enabled(args: &Args) -> bool {
 /// Gether all effective enviroment variables and options, and join them with \n .
 /// This method can only be called after all env variables and options were determined.
 #[rustfmt::skip]
-fn get_effective_settings(level_filter: &LevelFilter, args: &Args) -> String {
-    fn var(key: &str) -> String {
-        match std::env::var(key) {
-            Ok(value) => value,
-            Err(_) => "None".to_string(),
-        }
-    }
+fn pirnt_effective_config(level_filter: &LevelFilter, args: &Args) {
+    let w = 18;
+    let w2 = 22;
     let mut s = String::new();
-    s += "\n                           global config\n";
-    s += "===================================================================\n";
-    s += format!("{:<20}{:<20}{}\n", ' ', "plugins_home", var("PLUGINS_HOME")).as_str();
-    s += format!("{:<20}{:<20}{}\n",' ',"data_dir", var("TAOSX_DATA_DIR")).as_str();
-    s += format!("{:<20}{:<20}{}\n", ' ', "logs_home", var("LOGS_HOME")).as_str();
-    s += format!("{:<20}{:<20}{}\n", ' ', "log_path", get_log_path().display()) .as_str();
-    s += format!("{:<20}{:<20}{}\n", ' ', "log_level", level_filter).as_str();
-    s += format!( "{:<20}{:<20}{}\n", ' ', "log_keep_days", get_log_keep_days()) .as_str();
-    s += format!("{:<20}{:<20}{}\n", ' ', "jobs", args.global.jobs).as_str();
-    s += format!("{:<20}{:<20}{}\n", ' ', "otel", otel_enabled(args)).as_str();
-    if let Commands::Serve(cli) = args.commands.as_ref().unwrap_or(&Commands::Serve(Default::default()))  {
-        s += format!("{:<20}{:<20}{}\n", ' ', "server.listen", cli.get_listen_address()).as_str();
-        s += format!("{:<20}{:<20}{}\n", ' ', "server.database_url", cli.get_database_url()).as_str();
+    s += "       global config\n";
+    s += "===================================================================================\n";
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "plugins_home", get_plugins_home_dir().display()).as_str();
+    s += format!("{:<w$}{:<w2$}{}\n",' ',"data_dir", get_data_dir().display()).as_str();
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "logs_home",get_logs_home_dir().display()).as_str();
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "log_path", get_log_path().display()).as_str();
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "log_level", level_filter).as_str();
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "log_keep_days", get_log_keep_days()).as_str();
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "jobs", args.global.jobs).as_str();
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "otel", otel_enabled(args)).as_str();
+    if let Commands::Serve(cli) = args.commands.as_ref().unwrap_or(&Commands::Serve(Default::default())) {
+        s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.listen", cli.get_listen_address()).as_str();
+        s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.database_url", cli.get_database_url()).as_str();
     }
-    s += "===================================================================\n";
-    s
+    s += "===================================================================================";
+    tracing::info!("{}", s);
 }
 
 fn main() -> Result<()> {
@@ -586,7 +586,7 @@ fn main() -> Result<()> {
     tracing::info!("taosx version: {version}");
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
-    tracing::info!("{}", get_effective_settings(&level_filter, &args));
+    pirnt_effective_config(&level_filter, &args);
 
     match args.commands.unwrap_or(Commands::Serve(Default::default())) {
         Commands::Run(cli) => {
