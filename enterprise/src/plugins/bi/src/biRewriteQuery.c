@@ -154,3 +154,22 @@ int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+bool biRewriteToTbnameFunc(STranslateContext* pCxt, SNode** ppNode) {
+  SColumnNode* pCol = (SColumnNode*)(*ppNode);
+  if ((strcasecmp(pCol->colName, "tbname") == 0) &&
+        ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable &&
+        QUERY_NODE_REAL_TABLE == nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
+    SFunctionNode* tbnameFuncNode = NULL;
+    tbnameFuncNode = (SFunctionNode*)biMakeTbnameProjectAstNode(NULL, (pCol->tableAlias[0]!='\0') ? pCol->tableAlias : NULL);
+    tbnameFuncNode->node.resType = pCol->node.resType;
+    strcpy(tbnameFuncNode->node.aliasName, pCol->node.aliasName);
+    strcpy(tbnameFuncNode->node.userAlias, pCol->node.userAlias);
+
+    nodesDestroyNode(*ppNode);
+    *ppNode = (SNode*)tbnameFuncNode;        
+    return true;
+  }
+  
+  return false;
+}
