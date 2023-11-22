@@ -44,20 +44,19 @@ For more details on features, please read through the entire documentation.
 
 ## Competitive Advantages
 
-By making full use of [characteristics of time series data](https://tdengine.com/tsdb/characteristics-of-time-series-data/), TDengine differentiates itself from other [time series databases](https://tdengine.com/tsdb/), with the following advantages.
+By making full use of [characteristics of time series data](https://tdengine.com/characteristics-of-time-series-data/), TDengine differentiates itself from other time series databases with the following advantages.
 
-- **[High-Performance](https://tdengine.com/tdengine/high-performance-time-series-database/)**: TDengine is the only time-series database to solve the high cardinality issue to support billions of data collection points while out performing other time-series databases for data ingestion, querying and data compression.
+- **[High-Performance](https://tdengine.com/high-performance/)**: TDengine is the only time-series database to solve the high cardinality issue to support billions of data collection points while out performing other time-series databases for data ingestion, querying and data compression.
 
-- **[Simplified Solution](https://tdengine.com/tdengine/simplified-time-series-data-solution/)**: Through built-in caching, stream processing and data subscription features, TDengine provides a simplified solution for time-series data processing. It reduces system design complexity and operation costs significantly.
+- **[Simplified Solution](https://tdengine.com/comprehensive-industrial-data-solution/)**: Through built-in caching, stream processing and data subscription features, TDengine provides a simplified solution for time-series data processing. It reduces system design complexity and operation costs significantly.
 
-- **[Cloud Native](https://tdengine.com/tdengine/cloud-native-time-series-database/)**: Through native distributed design, sharding and partitioning, separation of compute and storage, RAFT, support for Kubernetes deployment and full observability, TDengine is a cloud native Time-series Database and can be deployed on public, private or hybrid clouds.
+- **[Cloud Native](https://tdengine.com/cloud-native/)**: Through native distributed design, sharding and partitioning, separation of compute and storage, RAFT, support for Kubernetes deployment and full observability, TDengine is a cloud native Time-series Database and can be deployed on public, private or hybrid clouds.
 
-- **[Ease of Use](https://tdengine.com/tdengine/easy-time-series-data-platform/)**: For administrators, TDengine significantly reduces the effort to[
-  ](https://tdengine.com/tdengine/easy-time-series-data-platform/) deploy and maintain. For developers, it provides a simple interface, simplified solution and seamless integrations for third party tools. For data users, it gives easy data access.
+- **[Ease of Use](https://tdengine.com/easy-to-use/)**: For administrators, TDengine significantly reduces the effort to deploy and maintain. For developers, it provides a simple interface, simplified solution and seamless integrations for third party tools. For data users, it gives easy data access.
 
-- **[Easy Data Analytics](https://tdengine.com/tdengine/time-series-data-analytics-made-easy/)**: Through super tables, storage and compute separation, data partitioning by time interval, pre-computation and other means, TDengine makes it easy to explore, format, and get access to data in a highly efficient way.
+- **[Easy Data Analytics](https://tdengine.com/simplifying-time-series-analysis-for-data-scientists/)**: Through super tables, storage and compute separation, data partitioning by time interval, pre-computation and other means, TDengine makes it easy to explore, format, and get access to data in a highly efficient way.
 
-- **[Open Source](https://tdengine.com/tdengine/open-source-time-series-database/)**: TDengine's core modules, including cluster feature, are all available under open source licenses. It has gathered over 19k stars on GitHub. There is an active developer community, and over 140k running instances worldwide.
+- **[Open Source](https://tdengine.com/open-source/)**: TDengine's core modules, including cluster feature, are all available under open source licenses. It has gathered over 22k stars on GitHub. There is an active developer community, and over 400k running instances worldwide.
 
 With TDengine, the total cost of ownership of your time-series data platform can be greatly reduced.
 
@@ -125,16 +124,9 @@ As a high-performance, scalable and SQL supported time-series database, TDengine
 
 - [TDengine vs. InfluxDB](https://tdengine.com/tsdb-comparison-influxdb-vs-tdengine/)
 - [TDengine vs. TimescaleDB](https://tdengine.com/tsdb-comparison-timescaledb-vs-tdengine/)
-- [TDengine vs. OpenTSDB](https://tdengine.com/performance-tdengine-vs-opentsdb/)
-- [TDengine vs. Cassandra](https://tdengine.com/performance-tdengine-vs-cassandra/)
-
-## More readings
-- [Introduction to Time-Series Database](https://tdengine.com/tsdb/)
-- [Introduction to TDengine competitive advantages](https://tdengine.com/tdengine/)
-
 
 ## Products
 
-There are two products offered by TDengine: TDengine Enterprise and TDengine Cloud, for details please refer to 
-- [TDengine Enterprise](https://www.taosdata.com/tdengine-pro)
-- [TDengine Cloud](https://cloud.taosdata.com/?utm_source=menu&utm_medium=webcn)
+For information about our paid offerings, see: 
+- [TDengine Enterprise](https://tdengine.com/enterprise/)
+- [TDengine Cloud](https://cloud.tdengine.com)
