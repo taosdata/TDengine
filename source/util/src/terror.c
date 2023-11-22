@@ -322,7 +322,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_STREAMS,         "Too many streams")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TARGET_TABLE,     "Cannot write the same stable as other stream")
 
 // mnode-sma
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "index already exists in db")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists in db")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_NOT_EXIST,            "index not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SMA_OPTION,       "Invalid sma index option")
 
