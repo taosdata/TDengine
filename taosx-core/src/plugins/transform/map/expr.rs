@@ -1,21 +1,125 @@
+use std::sync::Arc;
+
+use arrow::array::Array;
 use arrow::{array::ArrayRef, datatypes::FieldRef, record_batch::RecordBatch};
+use arrow_schema::Field;
 use serde::{Deserialize, Serialize};
+
 use taosx_ipc::prelude::IpcDataType;
+
+use crate::plugins::expr::Expr;
 
 use super::{ValueBuilder, ValueBuilderError};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExprValueBuilder {
-    expr: String,
-}
+pub struct ExprValueBuilder(Expr);
 
 impl ValueBuilder for ExprValueBuilder {
     fn build_field(
         &self,
-        _name: &str,
-        _record: &RecordBatch,
+        name: &str,
+        record: &RecordBatch,
         _as: Option<IpcDataType>,
     ) -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
-        todo!()
+        let values = self
+            .0
+            .eval(record, _as.map(|data_type| data_type.arrow_data_type()))
+            .map_err(|err| {
+                let err_msg = format!("failed to eval expression, cause: {}", err.to_string());
+                ValueBuilderError::ExprError(err_msg)
+            })?;
+
+        Ok((
+            Arc::new(Field::new(name, values.data_type().clone(), true)),
+            values,
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use arrow::array::{BooleanArray, Int64Array};
+    use arrow_schema::DataType;
+
+    use super::*;
+
+    #[test]
+    fn test_eval_failed() {
+        let builder: ExprValueBuilder = serde_json::from_str(r#"{ "expr": "a + b"}"#).unwrap();
+        let batch = RecordBatch::try_from_iter([(
+            "a",
+            Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef,
+        )])
+        .unwrap();
+
+        let record = builder.build_field("c", &batch, None);
+        assert!(record.is_err());
+        assert_eq!(
+            record.unwrap_err().to_string(),
+            "expr error, cause: failed to eval expression, cause: invalid result"
+        );
+    }
+
+    #[test]
+    fn test_eval_success() {
+        let builder: ExprValueBuilder = serde_json::from_str(r#"{ "expr": "a + b"}"#).unwrap();
+        let batch = RecordBatch::try_from_iter([
+            ("a", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
+            ("b", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
+        ])
+        .unwrap();
+
+        let (field, value) = builder.build_field("c", &batch, None).unwrap();
+
+        assert_eq!(field.name(), "c");
+        assert_eq!(*field.data_type(), DataType::Int64);
+        assert_eq!(value.len(), 3);
+        let arr = value.as_any().downcast_ref::<Int64Array>().unwrap();
+        assert_eq!(arr.value(0), 2);
+        assert_eq!(arr.value(1), 4);
+        assert_eq!(arr.value(2), 6);
+    }
+
+    #[test]
+    fn test_eval_as_failed() {
+        let builder: ExprValueBuilder =
+            serde_json::from_str(r#"{"expr": "a - b", "null_if_error": false}"#).unwrap();
+        let batch = RecordBatch::try_from_iter([(
+            "a",
+            Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef,
+        )])
+        .unwrap();
+
+        let result = builder.build_field("c", &batch, Some(IpcDataType::Bool));
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "expr error, cause: failed to eval expression, cause: Eval `a - b` error: Variable not found: b (line 1, position 5)"
+        );
+    }
+
+    #[test]
+    fn test_eval_as_success() {
+        let builder: ExprValueBuilder = serde_json::from_str(r#"{ "expr": "a - b"}"#).unwrap();
+        let batch = RecordBatch::try_from_iter([
+            ("a", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
+            ("b", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
+        ])
+        .unwrap();
+
+        let (field, value) = builder
+            .build_field("c", &batch, Some(IpcDataType::Bool))
+            .unwrap();
+
+        assert_eq!(field.name(), "c");
+        assert_eq!(*field.data_type(), DataType::Boolean);
+        assert_eq!(value.len(), 3);
+        let arr = value.as_any().downcast_ref::<BooleanArray>().unwrap();
+        assert_eq!(arr.value(0), false);
+        assert_eq!(arr.value(1), false);
+        assert_eq!(arr.value(2), false);
     }
 }

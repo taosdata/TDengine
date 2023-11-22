@@ -18,48 +18,52 @@ pub struct ConstantValueBuilder {
 impl ValueBuilder for ConstantValueBuilder {
     fn build_field(
         &self,
-        _name: &str,
-        _record: &RecordBatch,
+        name: &str,
+        record: &RecordBatch,
         _as: Option<IpcDataType>,
     ) -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
-        let len = _record.num_rows();
+        let len = record.num_rows();
         match &self.value {
             JsonValue::Null => Ok((
-                Arc::new(Field::new(_name, DataType::Utf8, true)),
+                Arc::new(Field::new(name, DataType::Utf8, true)),
                 Arc::new(StringArray::new_null(len)),
             )),
             JsonValue::Bool(value) => Ok((
-                Arc::new(Field::new(_name, DataType::Boolean, false)),
+                Arc::new(Field::new(name, DataType::Boolean, false)),
                 Arc::new(BooleanArray::from(vec![*value; len])),
             )),
             JsonValue::Number(value) => {
                 if value.is_f64() {
                     Ok((
-                        Arc::new(Field::new(_name, DataType::Float64, false)),
+                        Arc::new(Field::new(name, DataType::Float64, false)),
                         Arc::new(Float64Array::from(vec![value.as_f64().unwrap(); len])),
                     ))
                 } else if value.is_i64() {
                     Ok((
-                        Arc::new(Field::new(_name, DataType::Int64, false)),
+                        Arc::new(Field::new(name, DataType::Int64, false)),
                         Arc::new(Int64Array::from(vec![value.as_i64().unwrap(); len])),
                     ))
                 } else {
                     Ok((
-                        Arc::new(Field::new(_name, DataType::UInt64, false)),
+                        Arc::new(Field::new(name, DataType::UInt64, false)),
                         Arc::new(UInt64Array::from(vec![value.as_u64().unwrap(); len])),
                     ))
                 }
             }
             JsonValue::String(value) => Ok((
-                Arc::new(Field::new(_name, DataType::Utf8, false)),
+                Arc::new(Field::new(name, DataType::Utf8, false)),
                 Arc::new(StringArray::from(vec![value.as_str(); len])),
             )),
-            JsonValue::Array(_) => Err(ValueBuilderError::InvalidValueBuilder),
+            JsonValue::Array(_) => Err(ValueBuilderError::ConstantError(format!(
+                "array value is not supported"
+            ))),
             JsonValue::Object(value) => {
-                let value = serde_json::to_string(value)
-                    .map_err(|_| ValueBuilderError::InvalidValueBuilder)?;
+                let value = serde_json::to_string(value).map_err(|err| {
+                    let err_msg = format!("failed to serialize object, cause: {}", err.to_string());
+                    ValueBuilderError::ConstantError(err_msg)
+                })?;
                 Ok((
-                    Arc::new(Field::new(_name, DataType::Utf8, false)),
+                    Arc::new(Field::new(name, DataType::Utf8, false)),
                     Arc::new(StringArray::from(vec![value.as_str(); len])),
                 ))
             }
@@ -77,7 +81,8 @@ mod tests {
         RecordBatch::try_from_iter([(
             "f1",
             Arc::new(StringArray::from(vec!["a", "b", "c"])) as ArrayRef,
-        )]).unwrap()
+        )])
+        .unwrap()
     }
 
     #[test]
@@ -90,7 +95,14 @@ mod tests {
         assert_eq!(field.name(), "n1");
         assert_eq!(*field.data_type(), DataType::Utf8);
         assert_eq!(value.len(), 3);
-        assert_eq!(value.as_any().downcast_ref::<StringArray>().unwrap().is_null(0), true);
+        assert_eq!(
+            value
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap()
+                .is_null(0),
+            true
+        );
     }
 
     #[test]
@@ -103,7 +115,14 @@ mod tests {
         assert_eq!(field.name(), "n1");
         assert_eq!(*field.data_type(), DataType::Boolean);
         assert_eq!(value.len(), 3);
-        assert_eq!(value.as_any().downcast_ref::<BooleanArray>().unwrap().value(0), true);
+        assert_eq!(
+            value
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .unwrap()
+                .value(0),
+            true
+        );
     }
 
     #[test]
@@ -115,7 +134,14 @@ mod tests {
         assert_eq!(field.name(), "n1");
         assert_eq!(*field.data_type(), DataType::Int64);
         assert_eq!(value.len(), 3);
-        assert_eq!(value.as_any().downcast_ref::<Int64Array>().unwrap().value(0), 1);
+        assert_eq!(
+            value
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .unwrap()
+                .value(0),
+            1
+        );
     }
 
     #[test]
@@ -128,12 +154,20 @@ mod tests {
         assert_eq!(field.name(), "n1");
         assert_eq!(*field.data_type(), DataType::Float64);
         assert_eq!(value.len(), 3);
-        assert_eq!(value.as_any().downcast_ref::<Float64Array>().unwrap().value(0), 1.1);
+        assert_eq!(
+            value
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .unwrap()
+                .value(0),
+            1.1
+        );
     }
 
     #[test]
     fn test_u64() {
-        let builder: ConstantValueBuilder = serde_json::from_str(r#"{"value": 18446744073709551615}"#).unwrap();
+        let builder: ConstantValueBuilder =
+            serde_json::from_str(r#"{"value": 18446744073709551615}"#).unwrap();
         let batch = init_record_batch();
 
         let (field, value) = builder.build_field("n1", &batch, None).unwrap();
@@ -141,7 +175,14 @@ mod tests {
         assert_eq!(field.name(), "n1");
         assert_eq!(*field.data_type(), DataType::UInt64);
         assert_eq!(value.len(), 3);
-        assert_eq!(value.as_any().downcast_ref::<UInt64Array>().unwrap().value(0), 18446744073709551615);
+        assert_eq!(
+            value
+                .as_any()
+                .downcast_ref::<UInt64Array>()
+                .unwrap()
+                .value(0),
+            18446744073709551615
+        );
     }
 
     #[test]
@@ -154,7 +195,14 @@ mod tests {
         assert_eq!(field.name(), "n1");
         assert_eq!(*field.data_type(), DataType::Utf8);
         assert_eq!(value.len(), 3);
-        assert_eq!(value.as_any().downcast_ref::<StringArray>().unwrap().value(0), "hello");
+        assert_eq!(
+            value
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap()
+                .value(0),
+            "hello"
+        );
     }
 
     #[test]
@@ -178,6 +226,13 @@ mod tests {
         assert_eq!(field.name(), "n1");
         assert_eq!(*field.data_type(), DataType::Utf8);
         assert_eq!(value.len(), 3);
-        assert_eq!(value.as_any().downcast_ref::<StringArray>().unwrap().value(0), r#"{"a":1}"#);
+        assert_eq!(
+            value
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap()
+                .value(0),
+            r#"{"a":1}"#
+        );
     }
 }

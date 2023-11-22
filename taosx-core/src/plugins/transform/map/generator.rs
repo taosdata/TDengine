@@ -32,7 +32,10 @@ impl ValueBuilder for GeneratorValueBuilder {
                     Arc::new(TimestampNanosecondArray::from(vec![now; len]).with_timezone_utc()),
                 ))
             }
-            _ => Err(ValueBuilderError::InvalidValueBuilder),
+            _ => {
+                let msg = format!("generator does not support: {}", self.generator);
+                Err(ValueBuilderError::GeneratorError(msg))
+            }
         }
     }
 }
