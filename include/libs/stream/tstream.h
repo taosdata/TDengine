@@ -787,7 +787,6 @@ int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 int32_t     streamRestoreParam(SStreamTask* pTask);
 void        streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta);
 void        streamTaskResume(SStreamTask* pTask);
-void        streamTaskEnablePause(SStreamTask* pTask);
 int32_t     streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask);
 void        streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
 void        streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
