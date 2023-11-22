@@ -253,8 +253,6 @@ bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(STqReader *pReader, SSDataBlock **pRes, const char *idstr);
 int32_t tqRetrieveTaosxBlock(STqReader *pReader, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet);
 
-int32_t vnodeEnqueueStreamMsg(SVnode *pVnode, SRpcMsg *pMsg);
-
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
 

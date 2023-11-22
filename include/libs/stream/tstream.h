@@ -51,6 +51,10 @@ extern "C" {
     (_t)->hTaskInfo.id.streamId = 0;       \
   } while (0)
 
+#define STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID (-1)
+#define STREAM_EXEC_START_ALL_TASKS_ID     (-2)
+#define STREAM_EXEC_RESTART_ALL_TASKS_ID   (-3)
+
 typedef struct SStreamTask   SStreamTask;
 typedef struct SStreamQueue  SStreamQueue;
 typedef struct SStreamTaskSM SStreamTaskSM;
@@ -848,6 +852,23 @@ int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHa
                                         int8_t isSucceed);
 int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SRpcMsg* pMsg,
                                  int8_t isSucceed);
+
+// message process
+int32_t streamTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, bool restart);
+int32_t streamTaskProcesUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored);
+int32_t streamTaskProcessDispatchReq(SStreamMeta* pMeta, SRpcMsg* pMsg);
+int32_t streamTaskProcessDispatchRsp(SStreamMeta* pMeta, SRpcMsg* pMsg);
+int32_t streamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg);
+int32_t streamTaskProcessScanHistoryFinishReq(SStreamMeta* pMeta, SRpcMsg* pMsg);
+int32_t streamTaskProcessScanHistoryFinishRsp(SStreamMeta* pMeta, SRpcMsg* pMsg);
+int32_t streamTaskProcessCheckReq(SStreamMeta* pMeta, SRpcMsg* pMsg);
+int32_t streamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLeader);
+int32_t streamTaskProcessCheckpointReadyMsg(SStreamMeta* pMeta, SRpcMsg* pMsg);
+int32_t streamTaskProcessDeployReq(SStreamMeta* pMeta, int64_t sversion, char* msg, int32_t msgLen, bool isLeader, bool restored);
+int32_t streamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen);
+int32_t streamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLeader);
+int32_t startStreamTasks(SStreamMeta* pMeta);
+int32_t resetStreamTaskStatus(SStreamMeta* pMeta);
 
 #ifdef __cplusplus
 }

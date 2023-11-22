@@ -463,7 +463,6 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       break;
   }
 
-_exit:
   if (code) {
     vError("vgId:%d, failed to preprocess write request since %s, msg type:%s", TD_VID(pVnode), tstrerror(code),
            TMSG_INFO(pMsg->msgType));
@@ -762,7 +761,7 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
     case TDMT_STREAM_TASK_RUN:
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH:
-      return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, true);
+      return tqProcessTaskDispatchReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH_RSP:
       return tqProcessTaskDispatchRsp(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_TASK_CHECK:
