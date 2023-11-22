@@ -15,11 +15,11 @@ parquet = "48.0.0"
 
 tonic = "0.10"
 
-taos = { version = "0.10.20", default-features = false, features = [
+taos = { version = "0.10.21", default-features = false, features = [
   "ws",
   "deadpool",
 ] }
-taos-query = { version = "0.10.20", default-features = false, features = [
+taos-query = { version = "0.10.21", default-features = false, features = [
   "deadpool",
 ] }
 
