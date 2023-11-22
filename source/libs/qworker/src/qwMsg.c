@@ -451,28 +451,6 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
 }
 
 int32_t qWorkerProcessQueryCompactMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts){
-  qError("qWorkerProcessQueryCompactMsg failed, contLen:%d", pMsg->contLen);
-
-  SQueryCompactProgressRsp progress = {0};
-  progress.numberFileset = 5;
-  progress.finished = 3;
-
-  SRpcMsg rspMsg = {.info = pMsg->info};
-  int32_t rspLen = tSerializeSQueryCompactProgressRsp(NULL, 0, &progress);
-  if (rspLen < 0) {
-    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  void *pRsp = rpcMallocCont(rspLen);
-  if (pRsp == NULL) {
-    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  tSerializeSQueryCompactProgressRsp(pRsp, rspLen, &progress);
-  pMsg->info.rsp = pRsp;
-  pMsg->info.rspLen = rspLen;
 
   return 0;
 }

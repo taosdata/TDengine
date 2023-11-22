@@ -42,6 +42,7 @@ static int32_t vnodeProcessCreateIndexReq(SVnode *pVnode, int64_t ver, void *pRe
 static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessQueryCompactProgressReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 static int32_t vnodePreprocessCreateTableReq(SVnode *pVnode, SDecoder *pCoder, int64_t btime, int64_t *pUid) {
   int32_t code = 0;
@@ -620,6 +621,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_COMPACT:
       vnodeProcessCompactVnodeReq(pVnode, ver, pReq, len, pRsp);
       goto _exit;
+    case TDMT_VND_QUERY_COMPACT_PROGRESS:
+      vnodeProcessQueryCompactProgressReq(pVnode, ver, pReq, len, pRsp);
+      break;
     case TDMT_SYNC_CONFIG_CHANGE:
       vnodeProcessConfigChangeReq(pVnode, ver, pReq, len, pRsp);
       break;
@@ -697,8 +701,6 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_CONSUME_PUSH:
       return tqProcessPollPush(pVnode->pTq, pMsg);
-    case TDMT_VND_QUERY_COMPACT_PROGRESS:
-      return qWorkerProcessQueryCompactMsg(&handle, pVnode->pQuery, pMsg, 0);
     default:
       vError("unknown msg type:%d in query queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
@@ -2039,6 +2041,50 @@ static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t ver, void *pR
     return 0;
   }
   return vnodeProcessCompactVnodeReqImpl(pVnode, ver, pReq, len, pRsp);
+}
+
+static int32_t vnodeProcessQueryCompactProgressReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  vInfo("vnodeProcessQueryCompactProgressReq, len:%d", len);
+
+  SQueryCompactProgressReq req = {0};
+
+  if (tDeserializeSQueryCompactProgressReq(pReq, len, &req)) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  vInfo("compactId:%d, vgId:%d, dnodeId:%d", req.compactId, req.vgId, req.dnodeId);
+
+  pRsp->msgType = TDMT_VND_QUERY_COMPACT_PROGRESS_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+
+  SQueryCompactProgressRsp progress = {0};
+  progress.compactId = req.compactId;
+  progress.vgId = req.vgId;
+  progress.dnodeId = req.dnodeId;
+  progress.numberFileset = 5;
+  progress.finished = 3;
+
+  int32_t rspLen = tSerializeSQueryCompactProgressRsp(NULL, 0, &progress);
+  if (rspLen < 0) {
+    pRsp->code = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  vInfo("tSerializeSQueryCompactProgressRsp len:%d", rspLen);
+
+  void *buf = rpcMallocCont(rspLen);
+  if (buf == NULL) {
+    pRsp->code = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSQueryCompactProgressRsp(buf, rspLen, &progress);
+
+  pRsp->pCont = buf;
+  pRsp->contLen = rspLen;
+
+  return 0;
 }
 
 static int32_t vnodeProcessStopCompactReq(SVnode *pVnode) {

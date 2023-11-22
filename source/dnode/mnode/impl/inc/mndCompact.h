@@ -42,6 +42,8 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
 
 int32_t mndProcessKillCompactReq(SRpcMsg *pReq);
 
+int32_t mndProcessQueryCompactRsp(SRpcMsg *pReq);
+
 SCompactObj *mndAcquireCompact(SMnode *pMnode, int64_t compactId);
 void mndReleaseCompact(SMnode *pMnode, SCompactObj *pCompact);
 

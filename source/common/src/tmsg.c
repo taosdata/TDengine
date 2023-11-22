@@ -5155,9 +5155,37 @@ int32_t tDeserializeSQueryCompactProgressReq(void* buf, int32_t bufLen, SQueryCo
 }
 
 int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq){
-  return 0;
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  if (tEncodeI32(&encoder, pReq->compactId) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->vgId) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->dnodeId) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->numberFileset) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->finished) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
 }
 int32_t tDeserializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq){
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  if (tDecodeI32(&decoder, &pReq->compactId) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->vgId) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->numberFileset) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->finished) < 0) return -1;
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
   return 0;
 }
 

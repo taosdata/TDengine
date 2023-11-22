@@ -18,12 +18,14 @@
 #include "mndDb.h"
 #include "mndCompactDetail.h"
 #include "mndVgroup.h"
+#include "tmsgcb.h"
 
 #define MND_COMPACT_VER_NUMBER 1
 
 int32_t mndInitCompact(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_COMPACT, mndRetrieveCompact);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_COMPACT, mndProcessKillCompactReq);
+  mndSetMsgHandle(pMnode, TDMT_VND_QUERY_COMPACT_PROGRESS_RSP, mndProcessQueryCompactRsp);
 
   SSdbTable table = {
       .sdbType = SDB_COMPACT,
@@ -394,6 +396,18 @@ _OVER:
   return code;
 }
 
+int32_t mndProcessQueryCompactRsp(SRpcMsg *pReq){
+  SQueryCompactProgressRsp req = {0};
+  if (tDeserializeSQueryCompactProgressRsp(pReq->pCont, pReq->contLen, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  mInfo("numberFileset:%d, finished:%d", req.numberFileset, req.finished);
+
+  return 0;
+}
+
 void mndCompactUpdate(SMnode *pMnode, SCompactObj *pCompact){
   void   *pIter = NULL;
 
@@ -412,7 +426,9 @@ void mndCompactUpdate(SMnode *pMnode, SCompactObj *pCompact){
       }
 
       SQueryCompactProgressReq req;
+      req.compactId = pDetail->compactId;
       req.vgId = pDetail->vgId;
+      req.dnodeId = pDetail->dnodeId;
 
       int32_t contLen = tSerializeSQueryCompactProgressReq(NULL, 0, &req);
       if (contLen < 0) {
@@ -420,15 +436,51 @@ void mndCompactUpdate(SMnode *pMnode, SCompactObj *pCompact){
         continue;
       }
 
-      void *pReq = taosMemoryMalloc(contLen);
-      if (pReq == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+      mInfo("tSerializeSQueryCompactProgressReq contLen:%d", contLen);
+
+      contLen += sizeof(SMsgHead);
+
+      SMsgHead *pHead = rpcMallocCont(contLen);
+      if (pHead == NULL) {
+        sdbCancelFetch(pMnode->pSdb, pDetail);
+        sdbRelease(pMnode->pSdb, pDetail);
         continue;
+      } 
+
+      pHead->contLen = htonl(contLen);
+      pHead->vgId = htonl(pDetail->vgId);
+
+      tSerializeSQueryCompactProgressReq((char *)pHead + sizeof(SMsgHead), contLen - sizeof(SMsgHead), &req);
+
+      //only send
+      SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_COMPACT_PROGRESS, 
+                        .contLen = contLen};
+      
+      rpcMsg.pCont = rpcMallocCont(contLen);
+      if (rpcMsg.pCont == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        //return -1;
+      }
+      //rpcMsg.info.traceId.rootId = pTrans->mTraceId;
+
+      memcpy(rpcMsg.pCont, pHead, contLen);
+
+      char    detail[1024] = {0};
+      int32_t len = snprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d", TMSG_INFO(TDMT_VND_QUERY_COMPACT_PROGRESS),
+                            epSet.numOfEps, epSet.inUse);
+      for (int32_t i = 0; i < epSet.numOfEps; ++i) {
+        len += snprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, epSet.eps[i].fqdn,
+                        epSet.eps[i].port);
       }
 
-      tSerializeSQueryCompactProgressReq(pReq, contLen, &req);
+      mInfo("%s", detail);
 
-      //send
+      int32_t code = tmsgSendReq(&epSet, &rpcMsg);
+
+      mInfo("tmsgSendReq");
+
+      //send and receive
+      /*
       SRpcMsg rpcMsg = {.pCont = pReq,
                     .contLen = contLen,
                     .msgType = TDMT_VND_QUERY_COMPACT_PROGRESS,
@@ -436,7 +488,7 @@ void mndCompactUpdate(SMnode *pMnode, SCompactObj *pCompact){
                     .info.refId = 0,
                     .info.noResp = 0};
       SRpcMsg rpcRsp = {0};
-      
+
       rpcSendRecvWithTimeout(pMnode->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp, 5000);
       if (rpcRsp.code != 0) {
         SQueryCompactProgressRsp rsp;
@@ -444,6 +496,7 @@ void mndCompactUpdate(SMnode *pMnode, SCompactObj *pCompact){
           terrno = TSDB_CODE_INVALID_MSG;
         }
       }
+      */
     }
 
     sdbRelease(pMnode->pSdb, pDetail);
