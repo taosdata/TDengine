@@ -10482,7 +10482,8 @@ static int32_t translateCreateTSMA(STranslateContext* pCxt, SCreateTSMAStmt* pSt
     code = buildCreateTSMAReq(pCxt, pStmt, pStmt->pReq);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_SMA, (FSerializeFunc)tSerializeSMCreateSmaReq, pStmt->pReq);
+    // TODO replace with tsma serialization func
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_TSMA, (FSerializeFunc)tSerializeSMCreateSmaReq, pStmt->pReq);
   }
   tFreeSMCreateSmaReq(pStmt->pReq);
   return code;

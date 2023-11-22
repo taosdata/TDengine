@@ -2848,7 +2848,7 @@ SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* 
   pStmt->ignoreExists = ignoreExists;
   pStmt->pOptions = (STSMAOptions*)pOptions;
   pStmt->pOptions->pInterval = pInterval;
-  COPY_STRING_FORM_STR_TOKEN(pStmt->tsmaName, tsmaName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->tsmaName, tsmaName);
 
   SRealTableNode* pTable = (SRealTableNode*)pRealTable;
   memcpy(pStmt->dbName, pTable->table.dbName, TSDB_DB_NAME_LEN);
