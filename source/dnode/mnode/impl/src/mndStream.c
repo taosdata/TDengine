@@ -1435,7 +1435,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   SName name = {0};
   tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  auditRecord(pReq, pMnode->clusterId, "dropStream", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen);
+  auditRecord(pReq, pMnode->clusterId, "dropStream", "", name.dbname, dropReq.sql, dropReq.sqlLen);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
@@ -2204,7 +2204,8 @@ static SVgroupChangeInfo mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pP
           epsetAssign(&updateInfo.prevEp, &pPrevEntry->epset);
           epsetAssign(&updateInfo.newEp, &pCurrent->epset);
           taosArrayPush(info.pUpdateNodeList, &updateInfo);
-
+        }
+        if (pCurrent->nodeId != SNODE_HANDLE) {
           SVgObj *pVgroup = mndAcquireVgroup(pMnode, pCurrent->nodeId);
           taosHashPut(info.pDBMap, pVgroup->dbName, strlen(pVgroup->dbName), NULL, 0);
           mndReleaseVgroup(pMnode, pVgroup);
@@ -2258,6 +2259,24 @@ static SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
     mDebug("take node snapshot, nodeId:%d %s", entry.nodeId, buf);
     taosArrayPush(pVgroupListSnapshot, &entry);
     sdbRelease(pSdb, pVgroup);
+  }
+
+  SSnodeObj *pObj = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_SNODE, pIter, (void **)&pObj);
+    if (pIter == NULL) {
+      break;
+    }
+
+    SNodeEntry entry = {0};
+    addEpIntoEpSet(&entry.epset, pObj->pDnode->fqdn, pObj->pDnode->port);
+    entry.nodeId = SNODE_HANDLE;
+
+    char buf[256] = {0};
+    EPSET_TO_STR(&entry.epset, buf);
+    mDebug("take snode snapshot, nodeId:%d %s", entry.nodeId, buf);
+    taosArrayPush(pVgroupListSnapshot, &entry);
+    sdbRelease(pSdb, pObj);
   }
 
   return pVgroupListSnapshot;
@@ -2435,6 +2454,8 @@ int32_t removeExpirednodeEntryAndTask(SArray *pNodeSnapshot) {
   for (int32_t i = 0; i < numOfTask; ++i) {
     STaskId *         pId = taosArrayGet(execInfo.pTaskList, i);
     STaskStatusEntry *pEntry = taosHashGet(execInfo.pTaskMap, pId, sizeof(*pId));
+
+    if (pEntry->nodeId == SNODE_HANDLE) continue;
 
     bool existed = taskNodeExists(pNodeSnapshot, pEntry->nodeId);
     if (!existed) {
@@ -2797,13 +2818,13 @@ int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void updateStageInfo(STaskStatusEntry *pTaskEntry, int32_t stage) {
+static void updateStageInfo(STaskStatusEntry *pTaskEntry, int64_t stage) {
   int32_t numOfNodes = taosArrayGetSize(execInfo.pNodeList);
   for (int32_t j = 0; j < numOfNodes; ++j) {
     SNodeEntry *pNodeEntry = taosArrayGet(execInfo.pNodeList, j);
     if (pNodeEntry->nodeId == pTaskEntry->nodeId) {
-      mInfo("vgId:%d stage updated from %d to %d, nodeUpdate trigger by s-task:0x%" PRIx64, pTaskEntry->nodeId,
-            pTaskEntry->stage, stage, pTaskEntry->id.taskId);
+      mInfo("vgId:%d stage updated from %" PRId64 " to %" PRId64 ", nodeUpdate trigger by s-task:0x%" PRIx64,
+            pTaskEntry->nodeId, pTaskEntry->stage, stage, pTaskEntry->id.taskId);
 
       pNodeEntry->stageUpdated = true;
       pTaskEntry->stage = stage;
@@ -2847,6 +2868,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     setNodeEpsetExpiredFlag(req.pUpdateNodes);
   }
 
+  bool snodeChanged = false;
   for (int32_t i = 0; i < req.numOfTasks; ++i) {
     STaskStatusEntry *p = taosArrayGet(req.pTaskStatus, i);
     STaskStatusEntry *pTaskEntry = taosHashGet(execInfo.pTaskMap, &p->id, sizeof(p->id));
@@ -2857,6 +2879,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
     if (pTaskEntry->stage != p->stage && pTaskEntry->stage != -1) {
       updateStageInfo(pTaskEntry, p->stage);
+      if (pTaskEntry->nodeId == SNODE_HANDLE) snodeChanged = true;
     } else {
       streamTaskStatusCopy(pTaskEntry, p);
       if (p->activeCheckpointId != 0) {
@@ -2885,7 +2908,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     SArray *p = mndTakeVgroupSnapshot(pMnode, &allReady);
     taosArrayDestroy(p);
 
-    if (allReady) {
+    if (allReady || snodeChanged) {
       // if the execInfo.activeCheckpoint == 0, the checkpoint is restoring from wal
       mInfo("checkpointId:%" PRId64 " failed, issue task-reset trans to reset all tasks status",
             execInfo.activeCheckpoint);

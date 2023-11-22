@@ -289,10 +289,11 @@ static void recheckDownstreamTasks(void* param, void* tmrId) {
   stDebug("s-task:%s complete send check in timer, ref:%d", pTask->id.idStr, ref);
 }
 
-int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage) {
+int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage, int64_t* oldStage) {
   SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId);
   ASSERT(pInfo != NULL);
 
+  *oldStage = pInfo->stage;
   const char* id = pTask->id.idStr;
   if (stage == -1) {
     stDebug("s-task:%s receive check msg from upstream task:0x%x(vgId:%d), invalid stageId:%" PRId64 ", not ready", id,
@@ -457,9 +458,9 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
     if (pRsp->status == TASK_UPSTREAM_NEW_STAGE || pRsp->status == TASK_DOWNSTREAM_NOT_LEADER) {
       if (pRsp->status == TASK_UPSTREAM_NEW_STAGE) {
         stError(
-            "s-task:%s vgId:%d self vnode-transfer/leader-change/restart detected, old stage:%d, current stage:%d, "
+            "s-task:%s vgId:%d self vnode-transfer/leader-change/restart detected, old stage:%"PRId64", current stage:%"PRId64", "
             "not check wait for downstream task nodeUpdate, and all tasks restart",
-            id, pRsp->upstreamNodeId, pRsp->oldStage, (int32_t)pTask->pMeta->stage);
+            id, pRsp->upstreamNodeId, pRsp->oldStage, pTask->pMeta->stage);
       } else {
         stError(
             "s-task:%s downstream taskId:0x%x (vgId:%d) not leader, self dispatch epset needs to be updated, not check "
@@ -474,7 +475,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
       STaskRecheckInfo* pInfo = createRecheckInfo(pTask, pRsp);
 
       int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
-      stDebug("s-task:%s downstream taskId:0x%x (vgId:%d) not ready, stage:%d, retry in 100ms, ref:%d ", id,
+      stDebug("s-task:%s downstream taskId:0x%x (vgId:%d) not ready, stage:%"PRId64", retry in 100ms, ref:%d ", id,
               pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->oldStage, ref);
       pInfo->checkTimer = taosTmrStart(recheckDownstreamTasks, CHECK_DOWNSTREAM_INTERVAL, pInfo, streamEnv.timer);
     }
@@ -921,7 +922,7 @@ int32_t tEncodeStreamTaskCheckRsp(SEncoder* pEncoder, const SStreamTaskCheckRsp*
   if (tEncodeI32(pEncoder, pRsp->downstreamNodeId) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->downstreamTaskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->childId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pRsp->oldStage) < 0) return -1;
+  if (tEncodeI64(pEncoder, pRsp->oldStage) < 0) return -1;
   if (tEncodeI8(pEncoder, pRsp->status) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -936,7 +937,7 @@ int32_t tDecodeStreamTaskCheckRsp(SDecoder* pDecoder, SStreamTaskCheckRsp* pRsp)
   if (tDecodeI32(pDecoder, &pRsp->downstreamNodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pRsp->downstreamTaskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pRsp->childId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pRsp->oldStage) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pRsp->oldStage) < 0) return -1;
   if (tDecodeI8(pDecoder, &pRsp->status) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
