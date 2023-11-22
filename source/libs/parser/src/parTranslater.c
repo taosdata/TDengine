@@ -263,6 +263,7 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
 static int32_t  translateSubquery(STranslateContext* pCxt, SNode* pNode);
 static int32_t  translateQuery(STranslateContext* pCxt, SNode* pNode);
 static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal);
+static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc);
 static int32_t  createSimpleSelectStmtFromProjList(const char* pDb, const char* pTable, SNodeList* pProjectionList,
                                                    SSelectStmt** pStmt);
 static int32_t  createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta, SNode** pQuery);
@@ -1092,8 +1093,8 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
 }
 
 #ifndef TD_ENTERPRISE
-EDealRes biRewriteToTbnameFuncAndTranslate(STranslateContext* pCxt, SColumnNode** ppCol) {
-  return DEAL_RES_CONTINUE;
+bool biRewriteToTbnameFunc(STranslateContext* pCxt, SNode** ppNode) {
+  return false;
 }
 #endif
 
@@ -1109,11 +1110,9 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
   }
 
   if (pCxt->pParseCxt->biMode) {
-    if ((strcasecmp((*pCol)->colName, "tbname") == 0) &&
-      ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable &&
-      QUERY_NODE_REAL_TABLE == nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
-      EDealRes res = biRewriteToTbnameFuncAndTranslate(pCxt, pCol);
-      return res;
+    SNode** ppNode = (SNode**)pCol;
+    if (biRewriteToTbnameFunc(pCxt, ppNode)) {
+      translateFunction(pCxt, (SFunctionNode**)ppNode);
     }
   }
 
@@ -2219,7 +2218,7 @@ static int32_t translateFunctionImpl(STranslateContext* pCxt, SFunctionNode** pF
   return translateNormalFunction(pCxt, (SNode**)pFunc);
 }
 
-EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
+static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
   SNode* pParam = NULL;
   FOREACH(pParam, (*pFunc)->pParameterList) {
     if (isMultiResFunc(pParam)) {
