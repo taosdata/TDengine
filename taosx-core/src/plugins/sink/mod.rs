@@ -98,10 +98,10 @@ async fn ipc_tcp_forward(
     let schema: Arc<Schema> = Arc::new(schema);
 
     info!(client, remote, "reading batches");
-    let stream_id_u64 = u64::from_str_radix(stream_trace_id, 16).unwrap();
+    let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id);
     let ipc_stream = ipc_reader.into_raw_stream_qos_0(ipc_ack_writer);
     'start: loop {
-        let stream_id_u64 = stream_id_u64;
+        let stream_trace_id_u64 = stream_trace_id_u64;
         let cur_span = Span::current();
         let data_stream = ipc_stream.clone();
         let data = FlightDataEncoderBuilder::new()
@@ -117,7 +117,7 @@ async fn ipc_tcp_forward(
             .enumerate()
             .map(move |(i, v)| {
                 let batch_number = i as u32 + 1;
-                let data_trace_id = create_data_trace_id(stream_id_u64, batch_number);
+                let data_trace_id = create_data_trace_id(stream_trace_id_u64, batch_number);
                 let data_trace_id_str = get_data_trace_id_str(data_trace_id);
                 cur_span.in_scope(|| {
                     info!("send batch {}", data_trace_id_str);
