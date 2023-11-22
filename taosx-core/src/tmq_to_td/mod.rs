@@ -24,7 +24,7 @@ async fn write_data(
     metrics: &TmqMetrics,
 ) -> Result<u64> {
     tracing::debug!("[{id}] start writing data");
-    counter!(METRICS_TMQ_MESSAGES_OF_DATA, 1);
+    counter!(METRIC_TMQ_MESSAGES_OF_DATA, 1);
     metrics
         .messages_of_data
         .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -201,15 +201,15 @@ async fn write_data(
                 .await
                 .context("Write with stmt execute error")?;
         }
-        counter!(METRICS_TMQ_BLOCKS, 1);
+        counter!(METRIC_TMQ_BLOCKS, 1);
         metrics
             .blocks
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        counter!(METRICS_TMQ_RECORDS, raw.nrows() as u64);
+        counter!(METRIC_TMQ_RECORDS, raw.nrows() as u64);
         metrics
             .records
             .fetch_add(raw.nrows() as _, std::sync::atomic::Ordering::SeqCst);
-        counter!(METRICS_TMQ_POINTS, raw.nrows() as u64 * raw.ncols() as u64);
+        counter!(METRIC_TMQ_POINTS, raw.nrows() as u64 * raw.ncols() as u64);
         metrics.points.fetch_add(
             raw.nrows() as u64 * raw.ncols() as u64,
             std::sync::atomic::Ordering::SeqCst,
@@ -228,10 +228,10 @@ async fn write_data(
                         || errstr.contains("[0x0603]")
                         || errstr.contains("[0x03C7]")
                     {
-                        counter!(METRICS_TMQ_WRITE_META_FAILS, 1);
+                        counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
                         tracing::warn!("[{id}] {errstr}");
                     } else {
-                        counter!(METRICS_TMQ_WRITE_META_FAILS, 1);
+                        counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
                         bail!("write raw data error: {err}");
                     }
                 }
@@ -261,7 +261,7 @@ async fn write_meta(
     target_is_v3: bool,
     metrics: &TmqMetrics,
 ) -> Result<()> {
-    counter!(METRICS_TMQ_MESSAGES_OF_META, 1);
+    counter!(METRIC_TMQ_MESSAGES_OF_META, 1);
     let cur = metrics
         .messages_of_meta
         .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -372,9 +372,9 @@ async fn write_meta(
                 || errstr.contains("[0x03C7]")
             {
                 tracing::warn!("{errstr}");
-                counter!(METRICS_TMQ_WRITE_META_FAILS, 1);
+                counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
             } else {
-                counter!(METRICS_TMQ_WRITE_META_FAILS, 1);
+                counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
                 bail!("[{id}] write raw meta error: {err}");
             }
         }
@@ -414,7 +414,7 @@ async fn sync(
             next = stream.try_next() => {
 
                 if let Some((offset, message)) = next.with_context(|| format!("[{id}] polling next message error"))? {
-                    counter!(METRICS_TMQ_MESSAGES, 1);
+                    counter!(METRIC_TMQ_MESSAGES, 1);
                     metrics.messages.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     let total = metrics.messages.load(std::sync::atomic::Ordering::SeqCst);
                     messages += 1;
@@ -490,7 +490,7 @@ pub async fn tmq_to_td(
         topics: topics.len(),
         ..Default::default()
     });
-    counter!(METRICS_TMQ_TOPICS, topics.len() as u64);
+    counter!(METRIC_TMQ_TOPICS, topics.len() as u64);
 
     let mut handles = Vec::new();
     let mut task_id = 0;
@@ -528,7 +528,7 @@ pub async fn tmq_to_td(
         } else {
             jobs
         };
-        counter!(METRICS_TMQ_WORKERS, jobs as u64);
+        counter!(METRIC_TMQ_WORKERS, jobs as u64);
         metrics
             .workers
             .fetch_add(jobs as _, std::sync::atomic::Ordering::SeqCst);
