@@ -714,8 +714,15 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   int32_t           iRow = 0;
   TSDBROW           lRow;
 
+  if (nRow < 1) {
+    return code;
+  }
   // backward put first data
   tRow.pTSRow = aRow[iRow++];
+  if (!tRow.pTSRow) {
+    code = TSDB_CODE_FAILED;
+    goto _exit;
+  }
   key.ts = tRow.pTSRow->ts;
   tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_BACKWARD);
   code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 0);

@@ -652,6 +652,10 @@ static int32_t parseTagValue(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStm
 }
 
 static int32_t buildCreateTbReq(SVnodeModifyOpStmt* pStmt, STag* pTag, SArray* pTagName) {
+  if (pStmt->pCreateTblReq) {
+    tdDestroySVCreateTbReq(pStmt->pCreateTblReq);
+    taosMemoryFreeClear(pStmt->pCreateTblReq);
+  }
   pStmt->pCreateTblReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
   if (NULL == pStmt->pCreateTblReq) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -1235,6 +1239,12 @@ static int32_t preParseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModif
 }
 
 static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, STableDataCxt** pTableCxt) {
+  // clean up expired data to avoid uploading again
+  if (taosArrayGetSize(pStmt->pVgDataBlocks)) {
+    pStmt->freeArrayFunc(pStmt->pVgDataBlocks);
+    pStmt->pVgDataBlocks = NULL;
+  }
+
   if (pCxt->pComCxt->async) {
     return insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid),
                               pStmt->pTableMeta, &pStmt->pCreateTblReq, pTableCxt, false, false);
@@ -1245,6 +1255,7 @@ static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   if (pStmt->usingTableProcessing) {
     pStmt->pTableMeta->uid = 0;
   }
+
   return insGetTableDataCxt(pStmt->pTableBlockHashObj, tbFName, strlen(tbFName), pStmt->pTableMeta,
                             &pStmt->pCreateTblReq, pTableCxt, NULL != pCxt->pComCxt->pStmtCb, false);
 }
@@ -2003,7 +2014,7 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
 
   parserDebug("0x%" PRIx64 " %d rows have been parsed", pCxt->pComCxt->requestId, *pNumOfRows);
 
-  if (TSDB_CODE_SUCCESS == code && 0 == (*pNumOfRows) && pStmt->totalRowsNum == 0 &&
+  if (TSDB_CODE_SUCCESS == code && pStmt->totalRowsNum == 0 &&
       (!TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_STMT_INSERT)) && !pStmt->fileProcessing) {
     code = buildSyntaxErrMsg(&pCxt->msg, "no any data points", NULL);
   }
@@ -2323,7 +2334,7 @@ static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, S
   pStmt->pSql = pCxt->pComCxt->pSql;
 
   pStmt->freeHashFunc = insDestroyTableDataCxtHashMap;
-  pStmt->freeArrayFunc = insDestroyVgroupDataCxtList;
+  pStmt->freeArrayFunc = insDestroyVgroupDataCxtListModify;
   pStmt->freeStbRowsCxtFunc = destroyStbRowsDataContext;
   
   if (!reentry) {

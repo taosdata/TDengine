@@ -288,13 +288,9 @@ static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
     pTmp->suid = pSrc->suid;
     pTmp->uid = pSrc->uid;
     pTmp->sver = pSrc->sver;
-    pTmp->pCreateTbReq = NULL;
-    if (pTmp->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
-      if (pSrc->pCreateTbReq) {
-        cloneSVreateTbReq(pSrc->pCreateTbReq, &pTmp->pCreateTbReq);
-      } else {
-        pTmp->flags &= ~SUBMIT_REQ_AUTO_CREATE_TABLE;
-      }
+    pTmp->pCreateTbReq = pSrc->pCreateTbReq;
+    if (pTmp->flags & SUBMIT_REQ_AUTO_CREATE_TABLE && !pTmp->pCreateTbReq) {
+      pTmp->flags &= ~SUBMIT_REQ_AUTO_CREATE_TABLE;
     }
     if (pTmp->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       pTmp->aCol = taosArrayInit(128, sizeof(SColData));
@@ -393,6 +389,31 @@ void insDestroyVgroupDataCxtList(SArray* pVgCxtList) {
   taosArrayDestroy(pVgCxtList);
 }
 
+
+void insDestroyVgroupDataCxtModify(SVgroupDataCxt* pVgCxt) {
+  if (NULL == pVgCxt) {
+    return;
+  }
+
+  tDestroySubmitReq(pVgCxt->pData, TSDB_MSG_FLG_VNODE);
+  taosMemoryFree(pVgCxt->pData);
+  taosMemoryFree(pVgCxt);
+}
+
+void insDestroyVgroupDataCxtListModify(SArray* pVgCxtList) {
+  if (NULL == pVgCxtList) {
+    return;
+  }
+
+  size_t size = taosArrayGetSize(pVgCxtList);
+  for (int32_t i = 0; i < size; i++) {
+    void* p = taosArrayGetP(pVgCxtList, i);
+    insDestroyVgroupDataCxtModify(p);
+  }
+
+  taosArrayDestroy(pVgCxtList);
+}
+
 void insDestroyVgroupDataCxtHashMap(SHashObj* pVgCxtHash) {
   if (NULL == pVgCxtHash) {
     return;
@@ -416,7 +437,6 @@ void insDestroyTableDataCxtHashMap(SHashObj* pTableCxtHash) {
   void** p = taosHashIterate(pTableCxtHash, NULL);
   while (p) {
     insDestroyTableDataCxt(*(STableDataCxt**)p);
-
     p = taosHashIterate(pTableCxtHash, p);
   }
 
@@ -431,7 +451,7 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
     }
   }
 
-  // push data to submit, rebuild new for next submit
+  // push data to submit, rebuild empty data for next submit
   taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData);
   rebuildTableData(pTableCxt->pData, &pTableCxt->pData);
 
@@ -511,6 +531,11 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
 
       tColDataSortMerge(pTableCxt->pData->aCol);
     } else {
+      // the processed table has no data to insert and must be skipped
+      if (0 == taosArrayGetSize(pTableCxt->pData->aRowP)) {
+        p = taosHashIterate(pTableHash, p);
+        continue;
+      }
       if (!pTableCxt->ordered) {
         code = tRowSort(pTableCxt->pData->aRowP);
       }

@@ -55,6 +55,7 @@ int32_t insBuildVgDataBlocks(SHashObj *pVgroupsHashObj, SArray *pVgDataBlocks, S
 void    insDestroyTableDataCxtHashMap(SHashObj *pTableCxtHash);
 void    insDestroyVgroupDataCxt(SVgroupDataCxt *pVgCxt);
 void    insDestroyVgroupDataCxtList(SArray *pVgCxtList);
+void    insDestroyVgroupDataCxtListModify(SArray* pVgCxtList);
 void    insDestroyVgroupDataCxtHashMap(SHashObj *pVgCxtHash);
 void    insDestroyTableDataCxt(STableDataCxt *pTableCxt);
 void    insDestroyBoundColInfo(SBoundColInfo *pInfo);
