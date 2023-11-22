@@ -976,6 +976,23 @@ export default {
   },
 
   datasource: {
+    transformer:{
+      identified:'识别的列',
+      extract:'从列中提取或拆分',
+      filter:'过滤',
+      superconfig:'超级表配置',
+      target:'目标超级表',
+      mapping:'映射',
+      createstb:'创建超级表',
+      payload:'负载格式',
+      upload:'上传样本数据',
+      col_select:'请选择列',
+      filter_type:'请选择筛选方式',
+      expre_input:'请输入表达式',
+      filter_input:'请输入筛选表达式',
+      st_input:'请输入超级表名称',
+      create_st:'创建超级表'
+    },
     opcurl:'请输入OPC服务地址',
     selecttargetdb:'请选择目标数据源',
     metrics:'当前指标',

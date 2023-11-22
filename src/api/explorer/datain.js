@@ -143,3 +143,12 @@ export function downlaodAllNodes(data,agentid){
         responseType: 'blob',
     })
 }
+
+export function getParser(data){
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url:`/transform/sample/flat`,
+        method:'post',
+        data
+    })
+}

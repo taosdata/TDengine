@@ -435,37 +435,7 @@
                   v-html="transforHtml(p.description)"
                 ></div>
                 <div class="target">
-                  <!-- <span
-                    :class="['no-label', p.target.required ? 'required' : '']"
-                  ></span> -->
-                  <!-- <template v-if="p.target.multiple">
-                    <el-select
-                      v-model="p.target.value"
-                      :multiple="p.target.multiple"
-                      :allow-create="p.target.editable"
-                      placeholder=""
-                      filterable
-                      default-first-option
-                    >
-                      <el-option
-                        v-for="(t, tind) in p.target.value"
-                        :key="tind"
-                        :value="tind"
-                        disabled
-                      >
-                        {{ t }}
-                      </el-option>
-                    </el-select>
-                  </template>
-                  <template v-else>
-                    <el-input v-model="p.target.value"></el-input>
-                  </template> -->
-                  <!-- <el-button
-                    size="medium"
-                    @click="handleSelBtn"
-                    style="height: 42px"
-                    >{{ $t("datasource.select") }}</el-button
-                  > -->
+                
                 </div>
                 <div class="configuration" v-if="isShowConfiguration">
                   <el-input
@@ -840,12 +810,13 @@
         </div>
 
         <div class="parser-config">
-          <MqttConnector
+          <!-- <MqttConnector
             :connectorData="constMqttparser"
             :fields="constmqttCols"
             ref="mqtt"
             :isEditable="isEditable"
-          ></MqttConnector>
+          ></MqttConnector> -->
+          <CommonTransformer :parserColumns="constmqttCols"></CommonTransformer>
         </div>
       </section>
       <section v-if="tagName == 'csv'">
@@ -909,6 +880,7 @@ import opcConnector from "../components/opcConnector.vue";
 import DialogCreateDb from "../components/addDbDialog.vue";
 import Result from "../components/result.vue";
 import AdvanceOptions from '../components/advancedOptions.vue'
+import CommonTransformer from '../components/commonTransformer.vue'
 export default {
   name: "DbSourceUI",
   components: {
@@ -919,7 +891,8 @@ export default {
     DialogCreateDb,
     DataTarget,
     Result,
-    AdvanceOptions
+    AdvanceOptions,
+    CommonTransformer
   },
   props: {
     echoData: {
