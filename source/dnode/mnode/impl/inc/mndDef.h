@@ -649,8 +649,7 @@ typedef struct SStreamConf {
 } SStreamConf;
 
 typedef struct {
-  char name[TSDB_STREAM_FNAME_LEN];
-  // ctl
+  char     name[TSDB_STREAM_FNAME_LEN];
   SRWLatch lock;
 
   // create info

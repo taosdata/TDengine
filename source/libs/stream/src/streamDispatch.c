@@ -1102,6 +1102,13 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   int32_t     vgId = pTask->pMeta->vgId;
   int32_t msgId = pTask->execInfo.dispatch;
 
+#if 0
+  // for test purpose, build  the failure case
+  if (pTask->msgInfo.dispatchMsgType == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+    pRsp->inputStatus = TASK_INPUT_STATUS__REFUSED;
+  }
+#endif
+
   // follower not handle the dispatch rsp
   if ((pTask->pMeta->role == NODE_ROLE_FOLLOWER) || (pTask->status.downstreamReady != 1)) {
     stError("s-task:%s vgId:%d is follower or task just re-launched, not handle the dispatch rsp, discard it", id, vgId);
@@ -1143,8 +1150,21 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
       stWarn("s-task:%s inputQ of downstream task:0x%x(vgId:%d) is full, wait for %dms and retry dispatch", id,
              pRsp->downstreamTaskId, pRsp->downstreamNodeId, DISPATCH_RETRY_INTERVAL_MS);
     } else if (pRsp->inputStatus == TASK_INPUT_STATUS__REFUSED) {
-      stError("s-task:%s downstream task:0x%x(vgId:%d) refused the dispatch msg, treat it as success", id,
-              pRsp->downstreamTaskId, pRsp->downstreamNodeId);
+      // todo handle the agg task failure, add test case
+      if (pTask->msgInfo.dispatchMsgType == STREAM_INPUT__CHECKPOINT_TRIGGER &&
+          pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+        stError("s-task:%s failed to dispatch checkpoint-trigger msg, checkpointId:%" PRId64
+                ", set the current checkpoint failed, and send rsp to mnode",
+                id, pTask->chkInfo.checkpointingId);
+        { // send checkpoint failure msg to mnode directly
+          pTask->chkInfo.failedId = pTask->chkInfo.checkpointingId;   // record the latest failed checkpoint id
+          pTask->chkInfo.checkpointingId = pTask->chkInfo.checkpointingId;
+          streamTaskSendCheckpointSourceRsp(pTask);
+        }
+      } else {
+        stError("s-task:%s downstream task:0x%x(vgId:%d) refused the dispatch msg, treat it as success", id,
+                pRsp->downstreamTaskId, pRsp->downstreamNodeId);
+      }
     }
   }
 

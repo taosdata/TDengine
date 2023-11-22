@@ -22,23 +22,49 @@
 extern "C" {
 #endif
 
-int32_t mndInitStream(SMnode *pMnode);
-void    mndCleanupStream(SMnode *pMnode);
+typedef struct SStreamTransInfo {
+  int64_t     startTime;
+  int32_t     transId;
+  const char *name;
+} SStreamTransInfo;
 
+// time to generated the checkpoint, if now() - checkpointTs >= tsCheckpointInterval, this checkpoint will be discard
+// to avoid too many checkpoints for a taskk in the waiting list
+typedef struct SCheckpointCandEntry {
+  char*   pName;
+  int64_t streamId;
+  int64_t checkpointTs;
+  int64_t checkpointId;
+} SCheckpointCandEntry;
+
+typedef struct SStreamTransMgmt {
+  SHashObj *pDBTrans;
+  SHashObj *pWaitingList;  // stream id list, of which timed checkpoint failed to be issued due to the trans conflict.
+} SStreamTransMgmt;
+
+typedef struct SStreamExecInfo {
+  SArray       *pNodeList;
+  int64_t       ts;                // snapshot ts
+  SStreamTransMgmt  transMgmt;
+  int64_t       activeCheckpoint;  // active check point id
+  SHashObj *    pTaskMap;
+  SArray *      pTaskList;
+  TdThreadMutex lock;
+} SStreamExecInfo;
+
+extern SStreamExecInfo execInfo;
+
+int32_t     mndInitStream(SMnode *pMnode);
+void        mndCleanupStream(SMnode *pMnode);
 SStreamObj *mndAcquireStream(SMnode *pMnode, char *streamName);
 void        mndReleaseStream(SMnode *pMnode, SStreamObj *pStream);
+int32_t     mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
+int32_t     mndPersistStream(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 
-SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
-SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
+int32_t mndStreamRegisterTrans(STrans* pTrans, const char* pName, const char* pSrcDb, const char* pDstDb);
+bool    mndStreamTransConflictOtherTrans(SMnode *pMnode, const char *pSrcDb, const char *pDstDb);
+int32_t mndAddtoCheckpointWaitingList(SStreamObj* pStream, int64_t checkpointId);
 
-int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
-int32_t mndPersistStream(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
-
-SSdbRaw *      mndStreamSeqActionEncode(SStreamObj *pStream);
-SSdbRow *      mndStreamSeqActionDecode(SSdbRaw *pRaw);
-static int32_t mndStreamSeqActionInsert(SSdb *pSdb, SStreamSeq *pStream);
-static int32_t mndStreamSeqActionDelete(SSdb *pSdb, SStreamSeq *pStream);
-static int32_t mndStreamSeqActionUpdate(SSdb *pSdb, SStreamSeq *pOldStream, SStreamSeq *pNewStream);
 // for sma
 // TODO refactor
 int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
