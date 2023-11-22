@@ -431,6 +431,7 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "tdbDebugFlag", tdbDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "metaDebugFlag", metaDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "stDebugFlag", stDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "sndDebugFlag", sndDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
   return 0;
 }
 
@@ -951,6 +952,7 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
   tdbDebugFlag = cfgGetItem(pCfg, "tdbDebugFlag")->i32;
   metaDebugFlag = cfgGetItem(pCfg, "metaDebugFlag")->i32;
   stDebugFlag = cfgGetItem(pCfg, "stDebugFlag")->i32;
+  sndDebugFlag = cfgGetItem(pCfg, "sndDebugFlag")->i32;
 }
 
 static int32_t taosSetSlowLogScope(char *pScope) {
@@ -1424,7 +1426,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
         {"smaDebugFlag", &smaDebugFlag}, {"idxDebugFlag", &idxDebugFlag}, {"tdbDebugFlag", &tdbDebugFlag},
         {"tmrDebugFlag", &tmrDebugFlag}, {"uDebugFlag", &uDebugFlag},     {"smaDebugFlag", &smaDebugFlag},
         {"rpcDebugFlag", &rpcDebugFlag}, {"qDebugFlag", &qDebugFlag},     {"metaDebugFlag", &metaDebugFlag},
-        {"jniDebugFlag", &jniDebugFlag}, {"stDebugFlag", &stDebugFlag},
+        {"jniDebugFlag", &jniDebugFlag}, {"stDebugFlag", &stDebugFlag},   {"sndDebugFlag", &sndDebugFlag},
     };
 
     static OptionNameAndVar options[] = {
@@ -1732,6 +1734,7 @@ void taosSetAllDebugFlag(int32_t flag, bool rewrite) {
   taosSetDebugFlag(&tdbDebugFlag, "tdbDebugFlag", flag, rewrite);
   taosSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag, rewrite);
   taosSetDebugFlag(&stDebugFlag, "stDebugFlag", flag, rewrite);
+  taosSetDebugFlag(&sndDebugFlag, "sndDebugFlag", flag, rewrite);
   uInfo("all debug flag are set to %d", flag);
 }
 
