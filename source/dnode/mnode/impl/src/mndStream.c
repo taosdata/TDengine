@@ -147,6 +147,8 @@ void mndCleanupStream(SMnode *pMnode) {
   taosHashCleanup(execInfo.pTaskMap);
   taosHashCleanup(execInfo.transMgmt.pDBTrans);
   taosThreadMutexDestroy(&execInfo.lock);
+  taosHashCleanup(execInfo.transMgmt.pDBTrans);
+  taosHashCleanup(execInfo.transMgmt.pWaitingList);
   mDebug("mnd stream exec info cleanup");
 }
 
