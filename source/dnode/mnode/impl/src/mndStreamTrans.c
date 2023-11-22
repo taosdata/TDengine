@@ -86,12 +86,14 @@ bool mndStreamTransConflictOtherTrans(SMnode* pMnode, const char* pSrcDb, const 
   SStreamTransInfo *pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, pSrcDb, strlen(pSrcDb));
   if (pEntry != NULL) {
     taosThreadMutexUnlock(&execInfo.lock);
+    mWarn("conflict with other transId:%d in Db:%s, trans:%s", pEntry->transId, pSrcDb, pEntry->name);
     return true;
   }
 
   pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, pDstDb, strlen(pDstDb));
   if (pEntry != NULL) {
     taosThreadMutexUnlock(&execInfo.lock);
+    mWarn("conflict with other transId:%d in Db:%s, trans:%s", pEntry->transId, pSrcDb, pEntry->name);
     return true;
   }
 
