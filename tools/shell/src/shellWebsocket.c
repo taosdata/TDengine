@@ -59,7 +59,17 @@ int shell_conn_ws_server(bool first) {
     fprintf(stdout, "successfully connected to %s\n\n",
         shell.args.dsn);
   } else if (first && shell.args.cloud) {
-    fprintf(stdout, "successfully connected to cloud service\n");
+    if(shell.args.local) {
+      const char* host = strstr(shell.args.dsn, "@");
+      if(host) {
+        host += 1;
+      } else {
+        host = shell.args.dsn;
+      }
+      fprintf(stdout, "successfully connected to %s\n", host);
+    } else {
+      fprintf(stdout, "successfully connected to cloud service\n");
+    }
   }
   fflush(stdout);
 
@@ -236,22 +246,17 @@ void shellRunSingleCommandWebsocketImp(char *command) {
   bool    printMode = false;
 
   if ((sptr = strstr(command, ">>")) != NULL) {
-    cptr = strstr(command, ";");
-    if (cptr != NULL) {
-      *cptr = '\0';
-    }
-
     fname = sptr + 2;
     while (*fname == ' ') fname++;
     *sptr = '\0';
-  }
 
-  if ((sptr = strstr(command, "\\G")) != NULL) {
-    cptr = strstr(command, ";");
+    cptr = strstr(fname, ";");
     if (cptr != NULL) {
       *cptr = '\0';
     }
+  }
 
+  if ((sptr = strstr(command, "\\G")) != NULL) {
     *sptr = '\0';
     printMode = true;  // When output to a file, the switch does not work.
   }

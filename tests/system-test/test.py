@@ -398,7 +398,7 @@ if __name__ == "__main__":
             tdDnodes.setValgrind(valgrind)
             tdDnodes.stopAll()
             for dnode in tdDnodes.dnodes:
-                tdDnodes.deploy(dnode.index,{})
+                tdDnodes.deploy(dnode.index, updateCfgDict)
             for dnode in tdDnodes.dnodes:
                 tdDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
@@ -582,7 +582,7 @@ if __name__ == "__main__":
             tdDnodes.setAsan(asan)
             tdDnodes.stopAll()
             for dnode in tdDnodes.dnodes:
-                tdDnodes.deploy(dnode.index,{})
+                tdDnodes.deploy(dnode.index,updateCfgDict)
             for dnode in tdDnodes.dnodes:
                 tdDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)

@@ -54,53 +54,70 @@ class TDTestCase:
         return [
             # check grammar
             "create database db1 retentions",
+            "create database db1 retentions 1s:1d",
+            "create database db1 retentions 1s:1d,2s:2d",
+            "create database db1 retentions 1s:1d,2s:2d,3s:3d",
             "create database db1 retentions 1s:1d,2s:2d,3s:3d,4s:4d",
+            "create database db1 retentions -:1d,2s:2d,3s:3d,4s:4d",
+            "create database db1 retentions --:1d",
+            "create database db1 retentions -:-:1d",
+            "create database db1 retentions 1d:-",
+            "create database db1 retentions -:-",
+            "create database db1 retentions +:1d",
+            "create database db1 retentions :1d",
+            "create database db1 retentions -:1d,-:2d",
+            "create database db1 retentions -:1d,-:2d,-:3d",
+            "create database db1 retentions -:1d,1s:-",
+            "create database db1 retentions -:1d,15s:2d,-:3d",
+
             # check unit
-            "create database db1 retentions 1b:1d",
-            "create database db1 retentions 1u:1d",
-            "create database db1 retentions 1a:1d",
-            "create database db1 retentions 1n:1d",
-            "create database db1 retentions 1y:1d",
-            "create database db1 retentions 1s:86400s",
-            "create database db1 retentions 1s:86400000a",
-            "create database db1 retentions 1s:86400000000u",
-            "create database db1 retentions 1s:86400000000000b",
-            "create database db1 retentions 1s:1w",
-            "create database db1 retentions 1s:1n",
-            "create database db1 retentions 1s:1y",
+            "create database db1 retentions -:1d,1b:1d",
+            "create database db1 retentions -:1d,1u:1d",
+            "create database db1 retentions -:1d,1a:1d",
+            "create database db1 retentions -:1d,1n:1d",
+            "create database db1 retentions -:1d,1y:1d",
+            "create database db1 retentions -:1d,1s:86400s",
+            "create database db1 retentions -:1d,1s:86400000a",
+            "create database db1 retentions -:1d,1s:86400000000u",
+            "create database db1 retentions -:1d,1s:86400000000000b",
+            "create database db1 retentions -:1s,1s:2s",
+            "create database db1 retentions -:1d,1s:1w",
+            "create database db1 retentions -:1d,1s:1n",
+            "create database db1 retentions -:1d,1s:1y",
+            
             # check value range
-            "create database db1 retentions -1s:1d",
-            "create database db1 retentions 0s:1d",
-            "create database db3 retentions 1s:-1d",
-            "create database db3 retentions 1s:0d",
-            "create database db3 retentions 1s:1439m",
-            "create database db3 retentions 1s:365001d",
-            "create database db3 retentions 1s:8760001h",
-            "create database db3 retentions 1s:525600001m",
-            "create database db3 retentions 1s:106581d precision 'ns'",
-            "create database db3 retentions 1s:2557921h precision 'ns'",
-            "create database db3 retentions 1s:153475201m precision 'ns'",
+            "create database db3 retentions -:-1d",
+            "create database db3 retentions -:0d",
+            "create database db3 retentions -:1439m",
+            "create database db3 retentions -:365001d",
+            "create database db3 retentions -:8760001h",
+            "create database db3 retentions -:525600001m",
+            "create database db3 retentions -:106581d precision 'ns'",
+            "create database db3 retentions -:2557921h precision 'ns'",
+            "create database db3 retentions -:153475201m precision 'ns'",
             # check relationships
-            "create database db5 retentions 1441m:1440m,2d:3d",
-            "create database db5 retentions 2m:1d,1s:2d",
-            "create database db5 retentions 1s:2880m,2s:2879m",
-            "create database db5 retentions 1s:1d,2s:2d,2s:3d",
-            "create database db5 retentions 1s:1d,3s:2d,2s:3d",
-            "create database db1 retentions 1s:1d,2s:3d,3s:2d",
+            "create database db5 retentions -:1440m,1441m:1440m,2d:3d",
+            "create database db5 retentions -:1d,2m:1d,1s:2d",
+            "create database db5 retentions -:1440m,1s:2880m,2s:2879m",
+            "create database db5 retentions -:1d,2s:2d,2s:3d",
+            "create database db5 retentions -:1d,3s:2d,2s:3d",
+            "create database db1 retentions -:1d,2s:3d,3s:2d",
+            "create database db1 retentions -:1d,2s:3d,1s:2d",
+
         ]
 
     @property
     def create_databases_sql_current(self):
         return [
-            f"create database {DB1} retentions 1s:1d",
-            f"create database {DB2} retentions 1s:1d,2m:2d,3h:3d",
+            f"create database {DB1} retentions -:1d",
+            f"create database {DB2} retentions -:1d,2m:2d,3h:3d",
         ]
 
     @property
     def alter_database_sql(self):
         return [
-            "alter database db1 retentions 99h:99d",
-            "alter database db2 retentions 97h:97d,98h:98d,99h:99d,",
+            "alter database db1 retentions -:99d",
+            "alter database db2 retentions -:97d,98h:98d,99h:99d,",
         ]
 
     @property
@@ -172,9 +189,17 @@ class TDTestCase:
     def test_create_databases(self):
         for err_sql in self.create_databases_sql_err:
             tdSql.error(err_sql)
+        index = 0
         for cur_sql in self.create_databases_sql_current:
             tdSql.execute(cur_sql)
-            # tdSql.query("select * from information_schema.ins_databases")
+            if(index == 0):
+                tdSql.query(f"show create database {DB1}")
+            else:
+                tdSql.query(f"show create database {DB2}")
+            tdSql.checkEqual(len(tdSql.queryResult),1)
+            tdLog.info("%s" % (tdSql.queryResult[0][1]))
+            tdSql.checkEqual(tdSql.queryResult[0][1].find("RETENTIONS -:") > 0, True)
+            index += 1
         for alter_sql in self.alter_database_sql:
             tdSql.error(alter_sql)
 
@@ -281,7 +306,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:create table in rollup database")
         tdLog.printNoPrefix("==========step2.1 : rolluo func is not last/first")
-        tdSql.prepare(dbname=DB3, **{"retentions": "1s:1d, 3s:3d, 5s:5d"})
+        tdSql.prepare(dbname=DB3, **{"retentions": "-:1d, 3s:3d, 5s:5d"})
 
         db3_ctb_num = 10
         self.__create_tb(rsma=True, dbname=DB3, ctb_num=db3_ctb_num, stb=STBNAME)
@@ -338,7 +363,7 @@ class TDTestCase:
 
 
         tdLog.printNoPrefix("==========step2.2 : rolluo func is  last/first")
-        tdSql.prepare(dbname=DB4, **{"retentions": "1s:1d, 2m:3d, 3m:5d"})
+        tdSql.prepare(dbname=DB4, **{"retentions": "-:1d, 2m:3d, 3m:5d"})
 
         db4_ctb_num = 10
         tdSql.execute(f"use {DB4}")

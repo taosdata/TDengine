@@ -1989,7 +1989,7 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   }
   if (para2Bytes <= 0 || para2Bytes > 4096) {  // cast dst var type length limits to 4096 bytes
     return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "CAST function converted length should be in range [0, 4096] bytes");
+                           "CAST function converted length should be in range (0, 4096] bytes");
   }
 
   // add database precision as param
@@ -2772,7 +2772,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_cache_last",
     .type = FUNCTION_TYPE_CACHE_LAST,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateFirstLast,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -3313,26 +3313,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "to_timestamp",
-    .type = FUNCTION_TYPE_TO_TIMESTAMP,
-    .classification = FUNC_MGT_SCALAR_FUNC,
-    .translateFunc = translateToTimestamp,
-    .getEnvFunc = NULL,
-    .initFunc = NULL,
-    .sprocessFunc = toTimestampFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "to_char",
-    .type = FUNCTION_TYPE_TO_CHAR,
-    .classification = FUNC_MGT_SCALAR_FUNC,
-    .translateFunc = translateToChar,
-    .getEnvFunc = NULL,
-    .initFunc = NULL,
-    .sprocessFunc = toCharFunction,
-    .finalizeFunc = NULL
-  },
-  {
     .name = "to_iso8601",
     .type = FUNCTION_TYPE_TO_ISO8601,
     .classification = FUNC_MGT_SCALAR_FUNC,
@@ -3707,6 +3687,26 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = qVgIdFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "to_timestamp",
+    .type = FUNCTION_TYPE_TO_TIMESTAMP,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
+    .translateFunc = translateToTimestamp,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = toTimestampFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "to_char",
+    .type = FUNCTION_TYPE_TO_CHAR,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateToChar,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = toCharFunction,
     .finalizeFunc = NULL
   },
   

@@ -13,6 +13,6 @@ ExternalProject_Add(xml2
         BUILD_IN_SOURCE TRUE
         CONFIGURE_COMMAND ./configure --prefix=$ENV{HOME}/.cos-local.2 --enable-shared=no --enable-static=yes --without-python --without-lzma
         BUILD_COMMAND make -j
-        INSTALL_COMMAND make install && ln -s $ENV{HOME}/.cos-local.2/include/libxml2/libxml $ENV{HOME}/.cos-local.2/include/libxml
+        INSTALL_COMMAND make install && ln -sf $ENV{HOME}/.cos-local.2/include/libxml2/libxml $ENV{HOME}/.cos-local.2/include/libxml
         TEST_COMMAND ""
         )

@@ -194,6 +194,14 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
   return 0;
 }
 
+int32_t offsetOfTimezone(char* tzStr, int64_t* offset) {
+  if (tzStr && (tzStr[0] == 'z' || tzStr[0] == 'Z')) {
+    *offset = 0;
+    return 0;
+  }
+  return parseTimezone(tzStr, offset);
+}
+
 /*
  * rfc3339 format:
  * 2013-04-12T15:52:01+08:00
@@ -1320,7 +1328,7 @@ static void tm2char(const SArray* formats, const struct STm* tm, char* s, int32_
         s += 4;
         break;
       case TSFKW_DDD:
-        sprintf(s, "%d", tm->tm.tm_yday);
+        sprintf(s, "%03d", tm->tm.tm_yday + 1);
         s += strlen(s);
         break;
       case TSFKW_DD:
@@ -1580,6 +1588,7 @@ static bool needMoreDigits(SArray* formats, int32_t curIdx) {
 /// @retval 0 for success
 /// @retval -1 for format and s mismatch error
 /// @retval -2 if datetime err, like 2023-13-32 25:61:69
+/// @retval -3 if not supported
 static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t precision, const char** sErrPos,
                        int32_t* fErrIdx) {
   int32_t size = taosArrayGetSize(formats);
@@ -1589,6 +1598,7 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   int32_t hour = 0, min = 0, sec = 0, us = 0, ms = 0, ns = 0;
   int32_t tzSign = 1, tz = tsTimezone;
   int32_t err = 0;
+  bool    withYD = false, withMD = false;
 
   for (int32_t i = 0; i < size && *s != '\0'; ++i) {
     while (isspace(*s) && *s != '\0') {
@@ -1782,6 +1792,7 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
         } else {
           s = newPos;
         }
+        withYD = true;
       } break;
       case TSFKW_DD: {
         const char* newPos = tsFormatStr2Int32(&md, s, 2, needMoreDigits(formats, i));
@@ -1790,6 +1801,7 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
         } else {
           s = newPos;
         }
+        withMD = true;
       } break;
       case TSFKW_D: {
         const char* newPos = tsFormatStr2Int32(&wd, s, 1, needMoreDigits(formats, i));
@@ -1843,6 +1855,10 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
       return err;
     }
   }
+  if (!withMD) {
+    // yyyy-mm-DDD, currently, the c api can't convert to correct timestamp, return not supported
+    if (withYD) return -3;
+  }
   struct STm tm = {0};
   tm.tm.tm_year = year - 1900;
   tm.tm.tm_mon = mon;
@@ -1892,8 +1908,13 @@ int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int
     TSFormatNode* fNode = (taosArrayGet(*formats, fErrIdx));
     snprintf(errMsg, errMsgLen, "mismatch format for: %s and %s", sErrPos,
              fErrIdx < taosArrayGetSize(*formats) ? ((TSFormatNode*)taosArrayGet(*formats, fErrIdx))->key->name : "");
+    code = TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_FORMAT_ERR;
   } else if (code == -2) {
     snprintf(errMsg, errMsgLen, "timestamp format error: %s -> %s", tsStr, format);
+    code = TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_TS_ERR;
+  } else if (code == -3) {
+    snprintf(errMsg, errMsgLen, "timestamp format not supported");
+    code = TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_NOT_SUPPORTED;
   }
   return code;
 }

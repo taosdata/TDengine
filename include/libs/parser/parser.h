@@ -22,9 +22,7 @@ extern "C" {
 
 #include "query.h"
 #include "querynodes.h"
-
-struct SCatalogReq;
-struct SMetaData;
+#include "catalog.h"
 
 typedef struct SStmtCallback {
   TAOS_STMT* pStmt;
@@ -32,6 +30,33 @@ typedef struct SStmtCallback {
   int32_t (*setInfoFn)(TAOS_STMT*, STableMeta*, void*, SName*, bool, SHashObj*, SHashObj*, const char*);
   int32_t (*getExecInfoFn)(TAOS_STMT*, SHashObj**, SHashObj**);
 } SStmtCallback;
+
+typedef enum {
+  PARSE_SQL_RES_QUERY = 1,
+  PARSE_SQL_RES_SCHEMA,
+} SParseResType;
+
+typedef struct SParseSchemaRes {
+  int8_t        precision;
+  int32_t       numOfCols;
+  SSchema*      pSchema;
+} SParseSchemaRes;
+
+typedef struct SParseQueryRes {
+  SNode*              pQuery;
+  SCatalogReq*        pCatalogReq;
+  SMetaData           meta;
+} SParseQueryRes;
+
+typedef struct SParseSqlRes {
+  SParseResType resType;
+  union {
+    SParseSchemaRes schemaRes;
+    SParseQueryRes  queryRes;
+  };
+} SParseSqlRes;
+
+typedef int32_t (*parseSqlFn)(void*, const char*, const char*, bool, const char*, SParseSqlRes*);
 
 typedef struct SParseCsvCxt {
   TdFilePtr   fp;           // last parsed file
@@ -55,6 +80,8 @@ typedef struct SParseContext {
   struct SCatalog* pCatalog;
   SStmtCallback*   pStmtCb;
   const char*      pUser;
+  const char*      pEffectiveUser;
+  bool             parseOnly;
   bool             isSuperUser;
   bool             enableSysInfo;
   bool             async;
@@ -64,7 +91,10 @@ typedef struct SParseContext {
   SArray*          pTableMetaPos;    // sql table pos => catalog data pos
   SArray*          pTableVgroupPos;  // sql table pos => catalog data pos
   int64_t          allocatorId;
+  parseSqlFn       parseSqlFp;
+  void*            parseSqlParam;
   int8_t           biMode;
+  SArray*          pSubMetaList;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
@@ -125,6 +155,8 @@ int     rawBlockBindData(SQuery *query, STableMeta* pTableMeta, void* data, SVCr
 int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);
 SArray* serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap);
 SArray* serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap);
+void    destoryCatalogReq(SCatalogReq *pCatalogReq);
+
 #ifdef __cplusplus
 }
 #endif

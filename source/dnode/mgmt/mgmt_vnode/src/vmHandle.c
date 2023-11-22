@@ -137,7 +137,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
     SRetention *pRetention = &pCfg->tsdbCfg.retentions[i];
     memcpy(pRetention, taosArrayGet(pCreate->pRetensions, i), sizeof(SRetention));
     if (i == 0) {
-      if ((pRetention->freq > 0 && pRetention->keep > 0)) pCfg->isRsma = 1;
+      if ((pRetention->freq >= 0 && pRetention->keep > 0)) pCfg->isRsma = 1;
     }
   }
 
@@ -299,10 +299,11 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
 
   if (vnodeCreate(path, &vnodeCfg, diskPrimary, pMgmt->pTfs) < 0) {
-    tFreeSCreateVnodeReq(&req);
     dError("vgId:%d, failed to create vnode since %s", req.vgId, terrstr());
+    vmReleaseVnode(pMgmt, pVnode);
+    tFreeSCreateVnodeReq(&req);
     code = terrno;
-    goto _OVER;
+    return code;
   }
 
   SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb, true);

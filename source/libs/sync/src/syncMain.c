@@ -818,7 +818,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
 
   if (!taosCheckExistFile(pSyncNode->configPath)) {
     // create a new raft config file
-    sInfo("vgId:%d, create a new raft config file", pSyncNode->vgId);
+    sInfo("vgId:%d, create a new raft config file", pSyncInfo->vgId);
+    pSyncNode->vgId = pSyncInfo->vgId;
     pSyncNode->raftCfg.isStandBy = pSyncInfo->isStandBy;
     pSyncNode->raftCfg.snapshotStrategy = pSyncInfo->snapshotStrategy;
     pSyncNode->raftCfg.lastConfigIndex = pSyncInfo->syncCfg.lastIndex;

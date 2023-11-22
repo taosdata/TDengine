@@ -343,7 +343,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
       void*   pBody = POINTER_SHIFT(pCont->body, sizeof(SMsgHead));
       int32_t len = pCont->bodyLen - sizeof(SMsgHead);
 
-      code = extractDelDataBlock(pBody, len, ver, (SStreamRefDataBlock**)pItem);
+      code = extractDelDataBlock(pBody, len, ver, (void**)pItem, 0);
       if (code == TSDB_CODE_SUCCESS) {
         if (*pItem == NULL) {
           tqDebug("s-task:%s empty delete msg, discard it, len:%d, ver:%" PRId64, id, len, ver);
@@ -1111,7 +1111,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   taosWUnLockLatch(&pTq->lock);
 
   // update the table list handle for each stream scanner/wal reader
-  taosWLockLatch(&pTq->pStreamMeta->lock);
+  streamMetaWLock(pTq->pStreamMeta);
   while (1) {
     pIter = taosHashIterate(pTq->pStreamMeta->pTasksMap, pIter);
     if (pIter == NULL) {
@@ -1128,6 +1128,6 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     }
   }
 
-  taosWUnLockLatch(&pTq->pStreamMeta->lock);
+  streamMetaWUnLock(pTq->pStreamMeta);
   return 0;
 }

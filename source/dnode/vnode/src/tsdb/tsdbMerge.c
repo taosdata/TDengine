@@ -483,11 +483,12 @@ _exit:
 }
 
 static int32_t tsdbDoMerge(SMerger *merger) {
-  int32_t  code = 0;
-  int32_t  lino = 0;
-  SSttLvl *lvl = TARRAY2_FIRST(merger->fset->lvlArr);
+  int32_t code = 0;
+  int32_t lino = 0;
 
   if (TARRAY2_SIZE(merger->fset->lvlArr) == 0) return 0;
+
+  SSttLvl *lvl = TARRAY2_FIRST(merger->fset->lvlArr);
   if (lvl->level != 0 || TARRAY2_SIZE(lvl->fobjArr) < merger->sttTrigger) return 0;
 
   code = tsdbMergerOpen(merger);
@@ -546,6 +547,39 @@ static int32_t tsdbMerge(void *arg) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (merger->fset == NULL) return 0;
+
+  bool skipMerge = false;
+  {
+    extern int8_t  tsS3Enabled;
+    extern int32_t tsS3UploadDelaySec;
+    long           s3Size(const char *object_name);
+    int32_t        nlevel = tfsGetLevel(merger->tsdb->pVnode->pTfs);
+    if (tsS3Enabled && nlevel > 1) {
+      STFileObj *fobj = merger->fset->farr[TSDB_FTYPE_DATA];
+      if (fobj && fobj->f->did.level == nlevel - 1) {
+        // if exists on s3 or local mtime < committer->ctx->now - tsS3UploadDelay
+        const char *object_name = taosDirEntryBaseName((char *)fobj->fname);
+
+        if (taosCheckExistFile(fobj->fname)) {
+          int32_t now = taosGetTimestampSec();
+          int32_t mtime = 0;
+
+          taosStatFile(fobj->fname, NULL, &mtime, NULL);
+          if (mtime < now - tsS3UploadDelaySec) {
+            skipMerge = true;
+          }
+        } else if (s3Size(object_name) > 0) {
+          skipMerge = true;
+        }
+      }
+      // new fset can be written with ts data
+    }
+  }
+
+  if (skipMerge) {
+    code = 0;
+    goto _exit;
+  }
 
   // do merge
   tsdbDebug("vgId:%d merge begin, fid:%d", TD_VID(tsdb->pVnode), merger->fid);

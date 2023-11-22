@@ -101,6 +101,9 @@ struct STaosQall {
   STaosQnode *current;
   STaosQnode *start;
   int32_t     numOfItems;
+  int64_t     memOfItems;
+  int32_t     unAccessedNumOfItems;
+  int64_t     unAccessMemOfItems;
 };
 
 STaosQueue *taosOpenQueue();
@@ -123,6 +126,9 @@ int32_t    taosReadAllQitems(STaosQueue *queue, STaosQall *qall);
 int32_t    taosGetQitem(STaosQall *qall, void **ppItem);
 void       taosResetQitems(STaosQall *qall);
 int32_t    taosQallItemSize(STaosQall *qall);
+int64_t    taosQallMemSize(STaosQall *qll);
+int64_t    taosQallUnAccessedItemSize(STaosQall *qall);
+int64_t    taosQallUnAccessedMemSize(STaosQall *qall);
 
 STaosQset *taosOpenQset();
 void       taosCloseQset(STaosQset *qset);
@@ -134,8 +140,6 @@ int32_t    taosGetQueueNumber(STaosQset *qset);
 int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, SQueueInfo *qinfo);
 int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *qinfo);
 void    taosResetQsetThread(STaosQset *qset, void *pItem);
-
-extern int64_t tsRpcQueueMemoryAllowed;
 
 #ifdef __cplusplus
 }

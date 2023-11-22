@@ -447,6 +447,7 @@ void doDestroyRequest(void *p) {
   qDestroyQuery(pRequest->pQuery);
   nodesDestroyAllocator(pRequest->allocatorRefId);
 
+  taosMemoryFreeClear(pRequest->effectiveUser);
   taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFree(pRequest);
   tscTrace("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
@@ -775,7 +776,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
   } else {
     tscInfo("set cfg:%s to %s", pItem->name, str);
     if (TSDB_OPTION_SHELL_ACTIVITY_TIMER == option || TSDB_OPTION_USE_ADAPTER == option) {
-      code = taosApplyLocalCfg(pCfg, pItem->name);
+      code = taosCfgDynamicOptions(pCfg, pItem->name, false);
     }
   }
 

@@ -521,9 +521,9 @@ int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) 
 }
 
 static int32_t userAuthToString(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
-                                char* pStr) {
-  return sprintf(pStr, "%s*%d*%s*%s*%d", pUser, acctId, pDb, (NULL == pTable || '\0' == pTable[0]) ? "``" : pTable,
-                 type);
+                                char* pStr, bool isView) {
+  return sprintf(pStr, "%s*%d*%s*%s*%d*%d", pUser, acctId, pDb, (NULL == pTable || '\0' == pTable[0]) ? "``" : pTable,
+                 type, isView);
 }
 
 static int32_t getIntegerFromAuthStr(const char* pStart, char** pNext) {
@@ -565,6 +565,7 @@ static void stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pUser
     pUserAuth->tbName.type = TSDB_DB_NAME_T;
   }
   pUserAuth->type = getIntegerFromAuthStr(p, &p);
+  pUserAuth->isView = getIntegerFromAuthStr(p, &p);
 }
 
 static int32_t buildTableReq(SHashObj* pTablesHash, SArray** pTables) {
@@ -693,6 +694,11 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   if (TSDB_CODE_SUCCESS == code) {
     code = buildTableReq(pMetaCache->pTableCfg, &pCatalogReq->pTableCfg);
   }
+#ifdef TD_ENTERPRISE
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildTableReqFromDb(pMetaCache->pTableMeta, &pCatalogReq->pView);
+  }  
+#endif  
   pCatalogReq->dNodeRequired = pMetaCache->dnodeRequired;
   return code;
 }
@@ -716,7 +722,7 @@ SNode* createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* 
 
 static int32_t putMetaDataToHash(const char* pKey, int32_t len, const SArray* pData, int32_t index, SHashObj** pHash) {
   if (NULL == *pHash) {
-    *pHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    *pHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
     if (NULL == *pHash) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -725,7 +731,7 @@ static int32_t putMetaDataToHash(const char* pKey, int32_t len, const SArray* pD
   return taosHashPut(*pHash, pKey, len, &pRes, POINTER_BYTES);
 }
 
-static int32_t getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHash, void** pOutput) {
+int32_t getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHash, void** pOutput) {
   SMetaRes** pRes = taosHashGet(pHash, pKey, len);
   if (NULL == pRes || NULL == *pRes) {
     return TSDB_CODE_PAR_INTERNAL_ERROR;
@@ -783,7 +789,7 @@ static int32_t putUserAuthToCache(const SArray* pUserAuthReq, const SArray* pUse
     SUserAuthInfo* pUser = taosArrayGet(pUserAuthReq, i);
     char           key[USER_AUTH_KEY_MAX_LEN] = {0};
     int32_t        len = userAuthToString(pUser->tbName.acctId, pUser->user, pUser->tbName.dbname, pUser->tbName.tname,
-                                          pUser->type, key);
+                                          pUser->type, key, pUser->isView);
     if (TSDB_CODE_SUCCESS != putMetaDataToHash(key, len, pUserAuthData, i, pUserAuth)) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -828,6 +834,11 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMet
   if (TSDB_CODE_SUCCESS == code) {
     code = putTableDataToCache(pCatalogReq->pTableCfg, pMetaData->pTableCfg, &pMetaCache->pTableCfg);
   }
+#ifdef TD_ENTERPRISE
+  if (TSDB_CODE_SUCCESS == code) {
+    code = putDbTableDataToCache(pCatalogReq->pView, pMetaData->pView, &pMetaCache->pViews);
+  }
+#endif  
   pMetaCache->pDnodes = pMetaData->pDnodeList;
   return code;
 }
@@ -895,6 +906,38 @@ int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, S
   }
   return code;
 }
+
+int32_t buildTableMetaFromViewMeta(STableMeta** pMeta, SViewMeta* pViewMeta) {
+  *pMeta = taosMemoryCalloc(1, sizeof(STableMeta) + pViewMeta->numOfCols * sizeof(SSchema));
+  if (NULL == *pMeta) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  (*pMeta)->uid = pViewMeta->viewId;
+  (*pMeta)->vgId = MNODE_HANDLE;
+  (*pMeta)->tableType = TSDB_VIEW_TABLE;
+  (*pMeta)->sversion = pViewMeta->version;
+  (*pMeta)->tversion = pViewMeta->version;
+  (*pMeta)->tableInfo.precision = pViewMeta->precision;
+  (*pMeta)->tableInfo.numOfColumns = pViewMeta->numOfCols;
+  memcpy((*pMeta)->schema, pViewMeta->pSchema, sizeof(SSchema) * pViewMeta->numOfCols);
+  
+  for (int32_t i = 0; i < pViewMeta->numOfCols; ++i) {
+    (*pMeta)->tableInfo.rowSize += (*pMeta)->schema[i].bytes;
+  }    
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t getViewMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta) {
+  char fullName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(pName, fullName);
+  SViewMeta* pViewMeta = NULL;
+  int32_t     code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pViews, (void**)&pViewMeta);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildTableMetaFromViewMeta(pMeta, pViewMeta);
+  }
+  return code;
+}
+
 
 static int32_t reserveDbReqInCache(int32_t acctId, const char* pDb, SHashObj** pDbs) {
   if (NULL == *pDbs) {
@@ -987,14 +1030,23 @@ static int32_t reserveUserAuthInCacheImpl(const char* pKey, int32_t len, SParseM
 int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
                                SParseMetaCache* pMetaCache) {
   char    key[USER_AUTH_KEY_MAX_LEN] = {0};
-  int32_t len = userAuthToString(acctId, pUser, pDb, pTable, type, key);
+  int32_t len = userAuthToString(acctId, pUser, pDb, pTable, type, key, false);
   return reserveUserAuthInCacheImpl(key, len, pMetaCache);
 }
+
+int32_t reserveViewUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
+                              SParseMetaCache* pMetaCache) {
+ char    key[USER_AUTH_KEY_MAX_LEN] = {0};
+ int32_t len = userAuthToString(acctId, pUser, pDb, pTable, type, key, true);
+ return reserveUserAuthInCacheImpl(key, len, pMetaCache);
+}
+
+
 
 int32_t getUserAuthFromCache(SParseMetaCache* pMetaCache, SUserAuthInfo* pAuthReq, SUserAuthRes* pAuthRes) {
   char          key[USER_AUTH_KEY_MAX_LEN] = {0};
   int32_t       len = userAuthToString(pAuthReq->tbName.acctId, pAuthReq->user, pAuthReq->tbName.dbname,
-                                       pAuthReq->tbName.tname, pAuthReq->type, key);
+                                       pAuthReq->tbName.tname, pAuthReq->type, key, pAuthReq->isView);
   SUserAuthRes* pAuth = NULL;
   int32_t       code = getMetaDataFromHash(key, len, pMetaCache->pUserAuth, (void**)&pAuth);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1137,9 +1189,11 @@ void destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
   if (request) {
     destoryParseTablesMetaReqHash(pMetaCache->pTableMeta);
     destoryParseTablesMetaReqHash(pMetaCache->pTableVgroup);
+    destoryParseTablesMetaReqHash(pMetaCache->pViews);
   } else {
     taosHashCleanup(pMetaCache->pTableMeta);
     taosHashCleanup(pMetaCache->pTableVgroup);
+    taosHashCleanup(pMetaCache->pViews);
   }
   taosHashCleanup(pMetaCache->pDbVgroup);
   taosHashCleanup(pMetaCache->pDbCfg);

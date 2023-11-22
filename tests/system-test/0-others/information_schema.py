@@ -57,7 +57,7 @@ class TDTestCase:
         self.nchar_str = '涛思数据'
         self.ins_list = ['ins_dnodes','ins_mnodes','ins_qnodes','ins_snodes','ins_cluster','ins_databases','ins_functions',\
             'ins_indexes','ins_stables','ins_tables','ins_tags','ins_columns','ins_users','ins_grants','ins_vgroups','ins_configs','ins_dnode_variables',\
-                'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges']
+                'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges','ins_views']
         self.perf_list = ['perf_connections','perf_queries','perf_consumers','perf_trans','perf_apps']
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
@@ -217,7 +217,7 @@ class TDTestCase:
             tdSql.checkEqual(20470,len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
-        tdSql.checkEqual(198, len(tdSql.queryResult))
+        tdSql.checkEqual(210, len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
         tdSql.checkEqual(54, len(tdSql.queryResult))
@@ -247,7 +247,10 @@ class TDTestCase:
         tdSql.error('alter all dnodes "activeCode" "' + self.str510 + '"')
         tdSql.query(f'select * from information_schema.ins_dnodes')
         tdSql.checkEqual(tdSql.queryResult[0][8],"")
-        tdSql.execute('alter dnode 1 "activeCode" ""')
+        tdSql.error('alter dnode 1 "activeCode" ""')
+        tdSql.error('alter dnode 1 "activeCode"')
+        tdSql.execute('alter all dnodes "activeCode" ""')
+        tdSql.execute('alter all dnodes "activeCode"')
         tdSql.query(f'select active_code,c_active_code from information_schema.ins_dnodes')
         tdSql.checkEqual(tdSql.queryResult[0][0],"")
         tdSql.checkEqual(tdSql.queryResult[0][1],'')
@@ -259,6 +262,10 @@ class TDTestCase:
         tdSql.error('alter all dnodes "cActiveCode" "' + self.str257 + '"')
         tdSql.error('alter all dnodes "cActiveCode" "' + self.str254 + '"')
         tdSql.error('alter dnode 1 "cActiveCode" "' + self.str510 + '"')
+        tdSql.error('alter dnode 1 "cActiveCode" ""')
+        tdSql.error('alter dnode 1 "cActiveCode"')
+        tdSql.execute('alter all dnodes "cActiveCode" ""')
+        tdSql.execute('alter all dnodes "cActiveCode"')
         tdSql.query(f'select active_code,c_active_code from information_schema.ins_dnodes')
         tdSql.checkEqual(tdSql.queryResult[0][0],"")
         tdSql.checkEqual(tdSql.queryResult[0][1],"")
