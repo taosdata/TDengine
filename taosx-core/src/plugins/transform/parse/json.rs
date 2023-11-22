@@ -135,9 +135,12 @@ impl Parse for Json {
         }
         let mut schema =
             arrow::json::reader::infer_json_schema_from_iterator(json_data.into_iter())?;
+
+        dbg!(&schema);
         if let Some(select) = self.json.as_ref() {
             schema = select.schema(&schema);
         }
+        dbg!(&schema);
         let json_values: Vec<_> = (0..num_rows)
             .enumerate()
             .flat_map(|(n, i)| {
@@ -188,7 +191,7 @@ impl Parse for Json {
         let mut arrays = Vec::new();
 
         let fields = schema.fields().clone();
-        // dbg!(&fields);
+        dbg!(&fields);
         if self.keep {
             arrays.push((field.name(), array.clone()));
             let len = schema.fields().len();
@@ -430,10 +433,12 @@ impl Parse for Json {
                     arrays.push((f.name(), array));
                 }
                 DataType::Boolean => {
+                    dbg!(&json_values);
+                    dbg!(name);
                     let values = json_values
                         .iter()
                         .map(|(_n, v)| {
-                            if let Some(v) = v.as_ref().and_then(|v| v.get(name)) {
+                            if let Some(v) = v.as_ref().and_then(getter) {
                                 v.as_bool()
                             } else {
                                 None
@@ -491,10 +496,113 @@ mod tests {
         assert_eq!(indices, Some(vec![0, 0, 1]));
     }
     #[test]
+    fn json_nested() {
+        let extract: Json = serde_json::from_str(
+            r#"{
+                "json": ["$.nested.a1=a1::nchar(100)", "$.nested.b1=b1::f32", "$.nested.d1=d1::bool"],
+                "flatten": true
+            }"#,
+        )
+        .unwrap();
+        dbg!(&extract);
+
+        let field = Field::new("a", DataType::Utf8, false);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![
+            r#"[{"nested":{"a1": "a1", "b1": 1}}, {"nested":{"a1": "a1", "b1": "none"}}]"#,
+            r#"{"nested": {"a1": "a2", "c1": 1, "d1": true}}"#,
+        ]));
+
+        // let records = RecordBatch::try_from_iter(vec![("a", b.clone()), ("b", b)]).unwrap();
+
+        let (records, indices) = extract.parse_array(&field, &array).unwrap();
+
+        dbg!(&records);
+        dbg!(&indices);
+        assert_eq!(records.num_columns(), 3);
+        assert_eq!(records.num_rows(), 3);
+        assert_eq!(indices, Some(vec![0, 0, 1]));
+        let strings = records
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap()
+            .into_iter()
+            .collect_vec();
+        assert_eq!(strings, vec![Some("a1"), Some("a1"), Some("a2")]);
+        let floats = records
+            .column(1)
+            .as_any()
+            .downcast_ref::<Float32Array>()
+            .unwrap()
+            .into_iter()
+            .collect_vec();
+        assert_eq!(floats, vec![Some(1.0f32), None, None]);
+        let booleans = records
+            .column(2)
+            .as_any()
+            .downcast_ref::<BooleanArray>()
+            .unwrap()
+            .into_iter()
+            .collect_vec();
+        assert_eq!(booleans, vec![None, None, Some(true)]);
+    }
+
+    #[test]
+    fn json_nested_array_index() {
+        let extract: Json = serde_json::from_str(
+            r#"{
+                "json": ["$.nested.a1[0]=a1::nchar(100)", "$.nested.b1[1]=b1::f32", "$.nested.d1[0]=d1::bool"],
+                "flatten": true
+            }"#,
+        )
+        .unwrap();
+        dbg!(&extract);
+
+        let field = Field::new("a", DataType::Utf8, false);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![
+            r#"[{"nested":{"a1": ["a1"], "b1": [1,2]}}, {"nested":{"a1": ["a1"], "b1": ["none"]}}]"#,
+            r#"{"nested": {"a1": ["a2"], "c1": 1, "d1": [true]}}"#,
+        ]));
+
+        // let records = RecordBatch::try_from_iter(vec![("a", b.clone()), ("b", b)]).unwrap();
+
+        let (records, indices) = extract.parse_array(&field, &array).unwrap();
+
+        dbg!(&records);
+        dbg!(&indices);
+        assert_eq!(records.num_columns(), 3);
+        assert_eq!(records.num_rows(), 3);
+        assert_eq!(indices, Some(vec![0, 0, 1]));
+        let strings = records
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap()
+            .into_iter()
+            .collect_vec();
+        assert_eq!(strings, vec![Some("a1"), Some("a1"), Some("a2")]);
+        let floats = records
+            .column(1)
+            .as_any()
+            .downcast_ref::<Float32Array>()
+            .unwrap()
+            .into_iter()
+            .collect_vec();
+        assert_eq!(floats, vec![Some(2.0f32), None, None]);
+        let booleans = records
+            .column(2)
+            .as_any()
+            .downcast_ref::<BooleanArray>()
+            .unwrap()
+            .into_iter()
+            .collect_vec();
+        assert_eq!(booleans, vec![None, None, Some(true)]);
+    }
+    #[test]
     fn json_de() {
         let extract: Json = serde_json::from_str(
             r#"{
-                "json": ["a1=a::nchar(100)", "b1::f32"],
+                "json": ["a1=a::nchar(100)", "b1::f32", "d1::bool"],
                 "flatten": true
             }"#,
         )
@@ -504,7 +612,7 @@ mod tests {
         let field = Field::new("a", DataType::Utf8, false);
         let array: ArrayRef = Arc::new(StringArray::from(vec![
             r#"[{"a1": "a1", "b1": 1}, {"a1": "a1", "b1": "none"}]"#,
-            r#"{"a1": "a2", "c1": 1}"#,
+            r#"{"a1": "a2", "c1": 1, "d1": true}"#,
         ]));
 
         // let records = RecordBatch::try_from_iter(vec![("a", b.clone()), ("b", b)]).unwrap();
@@ -513,7 +621,7 @@ mod tests {
 
         dbg!(&records);
         dbg!(&indices);
-        assert_eq!(records.num_columns(), 2);
+        assert_eq!(records.num_columns(), 3);
         assert_eq!(records.num_rows(), 3);
         assert_eq!(indices, Some(vec![0, 0, 1]));
     }
@@ -542,7 +650,7 @@ mod tests {
 
         dbg!(&records);
         dbg!(&indices);
-        assert_eq!(records.num_columns(), 1);
+        assert_eq!(records.num_columns(), 2);
         assert_eq!(records.num_rows(), 1);
         assert_eq!(indices, Some(vec![1]));
     }
