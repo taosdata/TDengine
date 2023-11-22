@@ -902,8 +902,8 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
 }
 
 static int32_t storeChildTableMeta(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  // pStmt->pTableMeta->suid = pStmt->pTableMeta->uid;
-  // pStmt->pTableMeta->uid = pStmt->totalTbNum;
+  pStmt->pTableMeta->suid = pStmt->pTableMeta->uid;
+  pStmt->pTableMeta->uid = pStmt->totalTbNum;
   pStmt->pTableMeta->tableType = TSDB_CHILD_TABLE;
 
   STableMeta* pBackup = NULL;
