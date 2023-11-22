@@ -305,6 +305,7 @@ typedef struct SCheckpointInfo {
   int64_t processedVer;        // already processed ver, that has generated results version.
   int64_t nextProcessVer;     // current offset in WAL, not serialize it
   int64_t failedId;           // record the latest failed checkpoint id
+  bool    dispatchCheckpointTrigger;
 } SCheckpointInfo;
 
 typedef struct SStreamStatus {
