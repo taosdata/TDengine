@@ -30,7 +30,7 @@ ipc.stream.stable_created: 尝试创建超级表数（可能大于实际值）
 ipc.stream.child_table_created: 尝试创建子表数(可能大于实际值)
 ipc.stream.records: 成功写入 TDengine 的总行数（包括重复记录）
 ipc.stream.record_fails: 写入失败的行数
-ipc.stream.points: 写入成功的点数, 即写入成功的函数乘以列数（包括重复记录）
+ipc.stream.points: 写入成功的点数, 即写入成功的行数乘以列数（包括重复记录）
 ipc.stream.point_fails: 写入失败的点数
 ipc.stream.write_raw_blocks: 写人成功的 raw block 数
 ipc.stream.write_raw_blocks_fails: 写入失败的 raw block 数
