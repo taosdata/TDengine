@@ -19,10 +19,11 @@ function replaceMoreSnt(str) {
 
 // 去除字符串尾部的分号, 和去除分号后的空格
 function removeComma(str) {
-  if (str && str.charAt(str.length - 1) == ";") {
-    str = trim(str.substring(0, str.length - 1));
+  if (str && /\s*;\s*/.test(str)) {
+    return str.split(/\s*;\s*/)[0];
+  } else {
+    return str;
   }
-  return str;
 }
 
 // 检查该语句是不是select语句 且没有limit，如果是返回true
@@ -43,7 +44,7 @@ export async function proprocess_sql(sqlStr) {
   sqlStr = trim(sqlStr);
   // 然后将语句中间的连续多个空格，换行和制表符都替换成一个空格
   sqlStr = replaceMoreSnt(sqlStr);
-  // 最后去掉语句最后的分号
+  // 有多条语句时，通过分号取第一条
   sqlStr = removeComma(sqlStr);
   // 如果是select，加上 limit 1000
   sqlStr = addLimit(sqlStr)
