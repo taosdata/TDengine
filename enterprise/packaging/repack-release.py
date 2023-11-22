@@ -5,13 +5,21 @@ import sys
 import shutil
 
 def rename_files(dir, args):
-    for root, dirs, files in os.walk(dir):
+    for root, subdirs, files in os.walk(dir, topdown=False):
         for file in files:
-            if file.startswith("taos") and (not file.endswith(".h")): 
+            if (file.startswith("taos") and (not file.endswith(".h"))) or (file.endswith("install_taosx.sh")): 
                 file_path = os.path.join(root, file)
                 new_file = file.replace("taos", args.prompt)
                 new_file_path = os.path.join(root, new_file)
                 os.rename(file_path, new_file_path)
+        for subdir in subdirs:
+            if subdir.endswith("taosx") or subdir.endswith("taos"):
+                dir_path = os.path.join(root, subdir)
+                print(f"dir_path is {dir_path}")
+                new_dir = subdir.replace("taos", "prodb")
+                new_dir_path = os.path.join(root, new_dir)
+                print(f"new_dir_path is {new_dir_path}")
+                shutil.move(dir_path, new_dir_path)
 
 def replace_contents(dir, args):
     for root, dirs, files in os.walk(dir):
@@ -98,6 +106,7 @@ def replace_contents(dir, args):
                 content = content.replace("taosadapter", args.prompt+"adapter")
                 content = content.replace("usr/local/taos", "usr/local/"+args.prompt)
                 content = content.replace("rmtaos", "rm"+args.prompt)
+                content = content.replace("taosx", args.prompt+"x")
                 fin.close()
 
                 fout = open(file_path, "w")
@@ -148,6 +157,19 @@ def replace_contents(dir, args):
                 content = content.replace("rmtaos", "rm"+args.prompt)
                 content = content.replace("taosd", args.prompt+"d")
                 content = content.replace("usr/local/taos", "usr/local/"+args.prompt)
+                content = content.replace("uninstall_taosx", "uninstall_"+args.prompt)
+                fin.close()
+
+                fout = open(file_path, "w")
+                fout.write(content)
+                fout.close()
+            
+            if file.endswith("-all.sh") or file.endswith("install_taosx.sh") or file.endswith("uninstall.sh") or file.endswith("README.md"):
+                file_path = os.path.join(root, file)
+                fin = open(file_path, "r")
+                content = fin.read()
+                content = content.replace("taos", args.prompt)
+                content = content.replace("TDengine", args.name)
                 fin.close()
 
                 fout = open(file_path, "w")
@@ -191,7 +213,11 @@ def repack_tar_tools(args, output_dir):
 
 
 def repack_tar(args, pkg, output_dir):
-    targz_file =  output_dir + args.name + "-enterprise-" + pkg + "-" + args.version + "-Linux-x64.tar.gz"
+    if pkg == "server":
+        targz_file =  output_dir + args.name + "-enterprise-" + args.version + "-Linux-x64.tar.gz"
+    elif pkg == "client":
+        targz_file =  output_dir + args.name + "-enterprise-" + pkg + "-" + args.version + "-Linux-x64.tar.gz"
+        
     if not os.path.exists(targz_file):
         print("ERROR: " + targz_file + "not found ")
         return
@@ -199,7 +225,11 @@ def repack_tar(args, pkg, output_dir):
     tar.extractall(output_dir)
     tar.close()
 
-    extract_dir = output_dir + args.name + "-enterprise-" + pkg + "-" + args.version
+    if pkg == "server":
+        extract_dir = output_dir + args.name + "-enterprise-" + args.version
+    elif pkg == "client":
+        extract_dir = output_dir + args.name + "-enterprise-" + pkg + "-" + args.version
+        
     examples_dir =  extract_dir + "/examples"
     if os.path.exists(examples_dir):
         shutil.rmtree(examples_dir)
@@ -214,9 +244,12 @@ def repack_tar(args, pkg, output_dir):
     package_tar.close()
 
     replace_contents(extract_dir, args)
-
+    rename_files(extract_dir, args)
+    
     packagetar_dir = extract_dir + "/tmp"
     rename_files(packagetar_dir, args)
+    
+    
 
     current_dir = os.getcwd()
     os.chdir(packagetar_dir)
@@ -240,6 +273,7 @@ if __name__ == "__main__":
     parse.add_argument('-p', '--prompt', type=str, required=True)
     parse.add_argument('-e', '--email', type=str, required=True)
     parse.add_argument('-v', '--version', type=str, required=True)
+    
     args = parse.parse_args()
     print(args.name, args.prompt, args.email, args.dir, args.version)
 
