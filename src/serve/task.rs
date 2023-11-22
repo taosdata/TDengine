@@ -506,14 +506,11 @@ pub(super) async fn get_task_metrics(
 ) -> impl Responder {
     let task_id = id.into_inner();
     if let Some(data) = get_task_metrics_from_snapshot(&snapshotter, &task_store, task_id).await {
-        Ok(data)
+        data
     } else if let Some(data) = get_task_metrics_from_db(task_id) {
-        Ok(data)
+        data
     } else {
-        Err(Failed {
-            code: Code::FAILED,
-            message: "Not found".to_string(),
-        })
+        "{}".to_string()
     }
 }
 
@@ -522,9 +519,20 @@ pub(crate) fn get_task_metrics_from_db(task_id: i64) -> Option<String> {
     let new_db_result = MetricsDb::new(task_id.to_string().as_str());
     match new_db_result {
         Ok(metrics_db) => {
-            let metrics_json = metrics_db.get().unwrap().unwrap();
-            let metrics = LegacyMetrics::from_json(&metrics_json).unwrap();
-            Some(metrics.to_task_metrics_json())
+            let get_result = metrics_db.get();
+            match get_result {
+                Ok(result) => match result {
+                    Some(metrics_json) => {
+                        let metrics = LegacyMetrics::from_json(&metrics_json).unwrap();
+                        Some(metrics.to_task_metrics_json())
+                    }
+                    None => None,
+                },
+                Err(err) => {
+                    tracing::error!("Get metrics from db error: {}", err);
+                    None
+                }
+            }
         }
         Err(err) => {
             tracing::warn!("{:?}", err);

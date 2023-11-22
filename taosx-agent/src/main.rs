@@ -18,7 +18,11 @@ use tracing_subscriber::{
 };
 use twelf::{config, Layer};
 
-use taosx_core::utils::trace::TaosXLayer;
+use taosx_core::{
+    get_data_dir,
+    runners::{get_logs_home_dir, get_plugins_home_dir},
+    utils::trace::TaosXLayer,
+};
 use taosx_core::{
     get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
     set_env_plugins_home_dir, Activity, RespAction,
@@ -270,25 +274,33 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[rustfmt::skip]
+fn print_effictive_config(log_level: Level, log_path: PathBuf, log_keep_days: i64, args: &Args) {
+    let w = 18;
+    let w2 = 20;
+    tracing::info!("                           global config");
+    tracing::info!("================================================================");
+    tracing::info!("{:<w$}{:<w2$}{}", ' ', "endpoint",  args.endpoint);
+    tracing::info!("{:<w$}{:<w2$}{}", ' ', "plugins_home",  get_plugins_home_dir().display());
+    tracing::info!("{:<w$}{:<w2$}{}", ' ', "data_dir",  get_data_dir().display());
+    tracing::info!("{:<w$}{:<w2$}{}", ' ', "log_home",  get_logs_home_dir().display());
+    tracing::info!("{:<w$}{:<w2$}{}", ' ', "log_path",  log_path.display());
+    tracing::info!("{:<w$}{:<w2$}{}", ' ', "log_level",  log_level);
+    tracing::info!("{:<w$}{:<w2$}{}", ' ', "log_keep_days",  log_keep_days);
+    tracing::info!("================================================================");
+}
+
 fn main() -> anyhow::Result<()> {
     let args = Args::init()?;
-    println!(
-        "Serve agent with endpoint: {} via token ******",
-        args.endpoint
-    );
     set_env_plugins_home_dir(args.plugins_home.clone());
     set_env_data_dir(args.data_dir.clone());
     set_env_log_home_dir(args.logs_home.clone());
     set_env_log_keep_days(args.log_keep_days.clone());
 
     let mut log_path = get_log_dir("");
-
     log_path.push(LOG_FILE);
 
     let log_keep_days = get_log_keep_days();
-
-    println!("log keep days: {}", &log_keep_days);
-
     let log_rotation = FileRotate::new(
         &log_path,
         AppendTimestamp::with_format(
@@ -319,11 +331,9 @@ fn main() -> anyhow::Result<()> {
         format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
     );
 
-    let level_filter =
-        tracing_subscriber::filter::LevelFilter::from_level(args.log_level.unwrap_or(Level::INFO));
-
+    let log_level = args.log_level.unwrap_or(Level::INFO);
+    let level_filter = tracing_subscriber::filter::LevelFilter::from_level(log_level);
     let mut layers = Vec::new();
-
     // Add layer for rotating logs
     layers.push(
         TaosXLayer::new()
@@ -359,9 +369,7 @@ fn main() -> anyhow::Result<()> {
     tracing::info!("version: {version}");
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
-
-    tracing::info!("log keep days: {}", &log_keep_days);
-
+    print_effictive_config(log_level, log_path, log_keep_days, &args);
     tracing::info!("Start");
 
     // todo: arrow flight rpc client.

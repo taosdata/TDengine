@@ -98,10 +98,10 @@ async fn ipc_tcp_forward(
     let schema: Arc<Schema> = Arc::new(schema);
 
     info!(client, remote, "reading batches");
-    let stream_id_u64 = u64::from_str_radix(stream_trace_id, 16).unwrap();
+    let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id);
     let ipc_stream = ipc_reader.into_raw_stream_qos_0(ipc_ack_writer);
     'start: loop {
-        let stream_id_u64 = stream_id_u64;
+        let stream_trace_id_u64 = stream_trace_id_u64;
         let cur_span = Span::current();
         let data_stream = ipc_stream.clone();
         let data = FlightDataEncoderBuilder::new()
@@ -117,10 +117,10 @@ async fn ipc_tcp_forward(
             .enumerate()
             .map(move |(i, v)| {
                 let batch_number = i as u32 + 1;
-                let data_trace_id = create_data_trace_id(stream_id_u64, batch_number);
+                let data_trace_id = create_data_trace_id(stream_trace_id_u64, batch_number);
                 let data_trace_id_str = get_data_trace_id_str(data_trace_id);
                 cur_span.in_scope(|| {
-                    info!("send batch {}", data_trace_id_str);
+                    info!("Send batch {}", data_trace_id_str);
                 });
                 v.map(|message| {
                     message.with_app_metadata(
@@ -1041,7 +1041,7 @@ async fn consume_point_record(
                                         .as_str(),
                                 );
                                 let stable_sql = format!(
-                                    "create stable if not exists `{}` ({}) tags ({})",
+                                    "create stable `{}` ({}) tags ({})",
                                     stable_name, temp_conlumns, tags
                                 );
                                 tracing::info!("create stable sql: {}", &stable_sql);
@@ -1051,24 +1051,28 @@ async fn consume_point_record(
                                     .exec_with_req_id(&stable_sql, req_id.next())
                                     .await
                                 {
-                                    Ok(_n) => {
+                                    Ok(_) => {
                                         counter!(METRIC_STABLE_CREATED, 1);
                                     }
                                     Err(err) => {
-                                        tracing::warn!(
-                                            "create stable {stable_name} error: {err:#}"
-                                        );
-                                        let err_str = err.to_string();
-                                        if err_str.contains("0x032C") {
-                                            // Object is creating, maybe should ignore
-                                            tracing::warn!("create stable sql encounter 0x032C");
-                                        } else if err_str.contains("0xE00") {
-                                            taos.replace(pool.get().await?);
-                                            retry += 1;
-                                            break_err = Err(err);
-                                            continue;
-                                        } else {
-                                            tracing::error!("create stable sql error: {err:#}");
+                                        let code: i32 = err.code().into();
+                                        // STable already exists
+                                        if code != 0x0360 {
+                                            tracing::warn!(
+                                                "create stable {stable_name} error: {err:#}"
+                                            );
+                                            let err_str = err.to_string();
+                                            if err_str.contains("0x032C") {
+                                                // Object is creating, maybe should ignore
+                                                tracing::warn!("create stable sql encounter 0x032C");
+                                            } else if err_str.contains("0xE00") {
+                                                taos.replace(pool.get().await?);
+                                                retry += 1;
+                                                break_err = Err(err);
+                                                continue;
+                                            } else {
+                                                tracing::error!("create stable sql error: {err:#}");
+                                            }
                                         }
                                     }
                                 }
@@ -2101,7 +2105,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
         batches += 1;
         let data_trace_id = create_data_trace_id(stream_trace_id, batches);
         let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
-        info!("Start writing batch {}", data_trace_id_str);
+        info!("Writing batch {}", data_trace_id_str);
         let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
@@ -2504,7 +2508,6 @@ impl IpcStreamWorker {
         self
     }
 
-    #[instrument(skip_all, fields(trace.id=trace_id_str))]
     pub async fn process_record(
         &self,
         stmt: &mut Stmt,
@@ -2515,7 +2518,6 @@ impl IpcStreamWorker {
     ) -> anyhow::Result<usize> {
         let taos = self.pool.get().await?;
         let target_precision = get_current_precision(&taos).await?;
-        // let stmt = unsafe { &mut *self.stmt.get() };
         match self.parser.metadata().stream_type() {
             StreamType::Line => {
                 todo!()
@@ -2559,11 +2561,9 @@ impl IpcStreamWorker {
                 let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
-                .map_err(|_| anyhow::format_err!("Unable to read lush message"))?;
+                .map_err(|_| anyhow::format_err!("Unable to read lush message, trace.id={}", trace_id_str))?;
                 let mut taos = Some(self.pool.get().await?);
-                // let stmt = unsafe { &mut *self.stmt.get() };
                 let task = self.task;
-                tracing::debug!("consume lush record task: {task:?}");
                 consume_lush_record(
                     &self.pool,
                     &mut taos,
@@ -2611,7 +2611,7 @@ impl IpcStreamWorker {
                     &mut count,
                     self.opc_table_config
                         .get()
-                        .ok_or_else(|| anyhow::format_err!("OPC table config not found"))?,
+                        .ok_or_else(|| anyhow::format_err!("OPC table config not found, trace.id={}", trace_id_str))?,
                     target_precision,
                     data_trace_id,
                     trace_id_str,

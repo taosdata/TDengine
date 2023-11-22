@@ -311,7 +311,7 @@ pub fn set_data_trace_id_for_current_span(trace_id: &str) {
 /// Stream Trace ID is 16 bits random number in hex format.
 pub fn create_stream_trace_id() -> String {
     let id = random::<u16>();
-    let mut hex_str = format!("{:#04x}", id);
+    let mut hex_str = format!("{:#06x}", id);
     // remove heading "0x"
     hex_str.remove(0);
     hex_str.remove(0);
@@ -324,11 +324,12 @@ pub fn create_data_trace_id(stream_trace_id: u64, batch_number: u32) -> u64 {
 }
 
 pub fn get_data_trace_id_str(data_trace_id: u64) -> String {
-    let mut s = format!("{:#016x}", data_trace_id);
+    let mut s = format!("{:#018x}", data_trace_id);
     s.truncate(14);
     s
 }
 
+/// Convert hex format stream id to u64 stream id
 #[inline]
 pub fn get_stream_id_u64(stream_id: &str) -> u64 {
     let id = u64::from_str_radix(stream_id, 16).unwrap();

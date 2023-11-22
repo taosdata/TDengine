@@ -42,6 +42,7 @@ pub mod transform;
 /// ipc stream metrics
 /// be careful to modify, in case other crate use string value. for now POINTS value used in taosx-ipc.
 pub const METRIC_RECORD_BATCHES: &str = "ipc.stream.record_batches";
+pub const METRIC_RECEIVED_BATCHES: &str = "ipc.stream.received_batches";
 pub const METRIC_BATCH_RECORDS: &str = "ipc.stream.batch_records";
 pub const METRIC_INSERT_SQLS: &str = "ipc.stream.insert_sqls";
 pub const METRIC_INSERT_SQL_FAILS: &str = "ipc.stream.insert_sql_fails";

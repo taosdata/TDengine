@@ -482,7 +482,7 @@ impl FlightService for FlightServiceImpl {
         let task_id: i64 = task_id.to_str().unwrap().parse().unwrap();
         let stream_trace_id = match meta.get("x-trace-id") {
             Some(stream_trace_id) => stream_trace_id.to_str().unwrap(),
-            None => "0",
+            None => "0000",
         };
 
         // let message = req.try_next().await?;

@@ -5,6 +5,7 @@ use arrow_flight::{error::FlightError, FlightData, PutResult};
 use chrono::Utc;
 use futures::{Stream, TryStreamExt};
 use futures_util::StreamExt;
+use metrics::counter;
 use parquet::data_type::AsBytes;
 use taos::{AsyncBindable, AsyncQueryable, AsyncTBuilder, Dsn, Stmt, TaosBuilder};
 use taosx_core::{
@@ -12,7 +13,7 @@ use taosx_core::{
     utils::trace::{
         get_data_trace_id_str, get_stream_id_u64, set_data_trace_id_for_current_span, RequestID,
     },
-    ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START,
+    ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START, METRIC_RECEIVED_BATCHES,
 };
 use tonic::{Status, Streaming};
 use tracing::{debug, instrument, Instrument, Span};
@@ -218,9 +219,8 @@ impl PutStream {
                 match rx.recv_async().await {
                     Ok((record, trace_id)) => {
                         let trace_id_str = get_data_trace_id_str(trace_id);
-                        tracing::info!("receive batch {trace_id_str}");
-                        tracing::debug!(columns = ?record.columns(), num.rows = record.num_rows(), num.columns = record.num_columns(),
-                                "Start writing records");
+                        tracing::info!("Writing batch {trace_id_str}");
+                        tracing::debug!(columns = ?record.columns(), num.rows = record.num_rows(), num.columns = record.num_columns());
                         if let Err(err) = worker
                             .process_record(
                                 &mut stmt,
@@ -229,6 +229,7 @@ impl PutStream {
                                 trace_id,
                                 &trace_id_str,
                             )
+                            .in_current_span()
                             .await
                         {
                             tracing::warn!(
@@ -294,13 +295,17 @@ impl PutStream {
             }
             .in_current_span(),
         );
-
+        let cur_span = Span::current();
         let stream = stream
             .zip(futures::stream::repeat(tx))
-            .map(|(message, tx)| {
+            .map(move |(message, tx)| {
                 let message = message?;
                 let app_metadata = message.app_metadata();
                 let trace_id: u64 = get_trace_id_from_app_meta(&app_metadata);
+                cur_span.in_scope(|| {
+                    counter!(METRIC_RECEIVED_BATCHES, 1);
+                    tracing::debug!("Receive batch {}", get_data_trace_id_str(trace_id));
+                });
                 Ok(match message.payload {
                     arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
                         if let Err(err) = tx.send((batch, trace_id)) {
