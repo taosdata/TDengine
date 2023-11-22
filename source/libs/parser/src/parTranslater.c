@@ -1112,7 +1112,7 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
   if (pCxt->pParseCxt->biMode) {
     SNode** ppNode = (SNode**)pCol;
     if (biRewriteToTbnameFunc(pCxt, ppNode)) {
-      translateFunction(pCxt, (SFunctionNode**)ppNode);
+      return translateFunction(pCxt, (SFunctionNode**)ppNode);
     }
   }
 
