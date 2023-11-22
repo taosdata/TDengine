@@ -41,7 +41,7 @@ async fn write_data(
             let code = *err.code().deref();
             match code {
                 // Table not exist error codes or invalid input.
-                0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 => {
+                0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 => {
                     // fallback to block-by-block method.
                 }
                 _ => {
@@ -143,14 +143,17 @@ async fn write_data(
             if let Err(err) = taos.write_raw_block(&raw).await {
                 let code = *err.code().deref();
                 match code {
-                    0x0218 | 0x2603 | 0x036D | 0x0618 => {
+                    0x0218 | 0x2603 | 0x2662 | 0x036D | 0x0618 => {
                         let from = source.get().await?;
                         let database = from
                             .query_one::<_, String>("select database()")
                             .await?
                             .unwrap();
                         if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
-                            sync_super_table_schema_with_subs(&from, &stable, &[source_table_name], taos, None, &Default::default(), true, &[], &Default::default()).await?;
+                            let from = source.get().await?;
+                            let target_opts = Default::default();
+                            sync_super_table_schema(&from, &stable, taos, None, &target_opts, actions).await.context("Create sub table error")?;
+                            sync_super_table_schema_with_subs(&from, &stable, &[source_table_name], taos, None, &target_opts, true,actions, &Default::default()).await.context("Create sub table error")?;
                             taos.write_raw_block(&raw)
                                 .await
                                 .context("Write raw block into target error")?;
