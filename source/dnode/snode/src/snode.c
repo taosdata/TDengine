@@ -172,6 +172,8 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       return streamTaskProcessDispatchRsp(pSnode->pMeta, pMsg);
     case TDMT_STREAM_RETRIEVE:
       return streamTaskProcessRetrieveReq(pSnode->pMeta, pMsg);
+    case TDMT_STREAM_RETRIEVE_RSP:  // 1036
+      break;
     case TDMT_VND_STREAM_SCAN_HISTORY_FINISH:
       return streamTaskProcessScanHistoryFinishReq(pSnode->pMeta, pMsg);
     case TDMT_VND_STREAM_SCAN_HISTORY_FINISH_RSP:
@@ -183,6 +185,7 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
     case TDMT_STREAM_TASK_CHECKPOINT_READY:
       return streamTaskProcessCheckpointReadyMsg(pSnode->pMeta, pMsg);
     default:
+      sndError("invalid snode msg:%d", pMsg->msgType);
       ASSERT(0);
   }
   return 0;
