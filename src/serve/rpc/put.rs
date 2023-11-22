@@ -229,6 +229,7 @@ impl PutStream {
                                 trace_id,
                                 &trace_id_str,
                             )
+                            .in_current_span()
                             .await
                         {
                             tracing::warn!(

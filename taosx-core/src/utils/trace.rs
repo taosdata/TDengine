@@ -329,6 +329,7 @@ pub fn get_data_trace_id_str(data_trace_id: u64) -> String {
     s
 }
 
+/// Convert hex format stream id to u64 stream id
 #[inline]
 pub fn get_stream_id_u64(stream_id: &str) -> u64 {
     let id = u64::from_str_radix(stream_id, 16).unwrap();
