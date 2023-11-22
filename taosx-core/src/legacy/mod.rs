@@ -996,13 +996,13 @@ async fn sync_single_table_partial(
     Ok(())
 }
 
-async fn sync_super_table_schema(
+pub async fn sync_super_table_schema(
     from: &Taos,
     name: &str,
     to: &Taos,
     remap: Option<&Arc<HashMap<String, String>>>,
     target_opts: &TargetOpts,
-    actions: &Vec<Action>,
+    actions: &[Action],
 ) -> anyhow::Result<()> {
     debug_assert!(!name.is_empty());
     let (_, sql): ((), String) = from
@@ -1126,7 +1126,7 @@ async fn sync_super_table_schema(
     Ok(())
 }
 
-async fn sync_super_table_schema_with_subs(
+pub async fn sync_super_table_schema_with_subs(
     from: &Taos,
     name: &str,
     subs: &[impl AsRef<str>],
@@ -1134,7 +1134,7 @@ async fn sync_super_table_schema_with_subs(
     remap: Option<&Arc<HashMap<String, String>>>,
     target_opts: &TargetOpts,
     is_v3: bool,
-    actions: &Vec<Action>,
+    actions: &[Action],
     metrics: &Arc<LegacyMetrics>,
 ) -> anyhow::Result<()> {
     debug_assert!(!name.is_empty());
@@ -1281,7 +1281,7 @@ async fn query_sub_tables_from_source(
 fn transform_sql_with_actions(
     sql: String,
     table_name: &str,
-    actions: &Vec<Action>,
+    actions: &[Action],
     is_stable: bool,
     remap: Option<&Arc<HashMap<String, String>>>,
 ) -> anyhow::Result<String> {
@@ -1365,7 +1365,7 @@ fn transform_sql_with_remap(
 
 fn transform_tbname_with_actions<'a>(
     table_name: &'a str,
-    actions: &Vec<Action>,
+    actions: &[Action],
     is_stable: bool,
 ) -> anyhow::Result<Cow<'a, str>> {
     tracing::debug!("table name transform before: {table_name}");
