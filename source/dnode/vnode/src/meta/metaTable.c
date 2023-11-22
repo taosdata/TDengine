@@ -250,6 +250,7 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
 
   ++pMeta->pVnode->config.vndStats.numOfSTables;
 
+  pMeta->changed = true;
   metaDebug("vgId:%d, stb:%s is created, suid:%" PRId64, TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
 
   return 0;
@@ -323,6 +324,8 @@ _drop_super_table:
   metaULock(pMeta);
 
   metaUpdTimeSeriesNum(pMeta);
+
+  pMeta->changed = true;
 
 _exit:
   tdbFree(pKey);
@@ -422,6 +425,8 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     pMeta->pVnode->config.vndStats.numOfTimeSeries += (ctbNum * deltaCol);
     metaTimeSeriesNotifyCheck(pMeta);
   }
+
+  pMeta->changed = true;
 
 _exit:
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
@@ -845,6 +850,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
     }
   }
 
+  pMeta->changed = true;
   metaDebug("vgId:%d, table:%s uid %" PRId64 " is created, type:%" PRId8, TD_VID(pMeta->pVnode), pReq->name, pReq->uid,
             pReq->type);
   return 0;
@@ -893,6 +899,7 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUi
     *tbUid = uid;
   }
 
+  pMeta->changed = true;
 _exit:
   tdbFree(pData);
   return rc;
@@ -936,6 +943,8 @@ void metaDropTables(SMeta *pMeta, SArray *tbUids) {
     }
   }
   tSimpleHashCleanup(suidHash);
+
+  pMeta->changed = true;
 }
 
 static int32_t metaFilterTableByHash(SMeta *pMeta, SArray *uidList) {
@@ -1969,6 +1978,7 @@ _err:
 }
 
 int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pMetaRsp) {
+  pMeta->changed = true;
   switch (pReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
     case TSDB_ALTER_TABLE_DROP_COLUMN:
