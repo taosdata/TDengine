@@ -20,7 +20,6 @@ mod generator;
 mod join;
 mod sum;
 
-/// TODO(@Zhiyu Yang): implement map transform.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Map(LinkedHashMap<String, FieldValue>);
 
@@ -51,10 +50,19 @@ impl TransformExt for Map {
 }
 
 #[derive(Error, Debug)]
-#[allow(dead_code)] // TODO: remove this
 pub enum ValueBuilderError {
-    #[error("invalid value builder")]
-    InvalidValueBuilder,
+    #[error("constant error, cause: {0}")]
+    ConstantError(String),
+    #[error("expr error, cause: {0}")]
+    ExprError(String),
+    #[error("format error, cause: {0}")]
+    FormatError(String),
+    #[error("generator error, cause: {0}")]
+    GeneratorError(String),
+    #[error("join error, cause: {0}")]
+    JoinError(String),
+    #[error("sum error, cause: {0}")]
+    SumError(String),
 }
 
 /// ValueBuilder is used to build a new column from a record batch.

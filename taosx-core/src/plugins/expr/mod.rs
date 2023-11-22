@@ -89,6 +89,8 @@ pub enum EvalError {
     ValueTypeNotSupported(DataType),
     #[error("Eval error: value type not match: expect {0} but got {1}")]
     ValueTypeNotMatch(DataType, &'static str),
+    #[error("invalid result")]
+    InvalidResult,
 }
 
 impl Expr {
@@ -254,6 +256,20 @@ impl Expr {
         }
         let array = array.unwrap();
         arrow::compute::cast(&array, &r#as).map_err(Into::into)
+    }
+
+    pub fn eval(
+        &self,
+        records: &RecordBatch,
+        _as: Option<DataType>,
+    ) -> Result<ArrayRef, EvalError> {
+        match _as {
+            None => {
+                let values = self.eval_inner(records)?;
+                array_from_rhai_dynamics(values).ok_or(EvalError::InvalidResult)
+            }
+            Some(as_type) => self.eval_as(records, as_type),
+        }
     }
 }
 
