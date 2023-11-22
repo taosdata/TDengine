@@ -242,6 +242,7 @@ enum { // WARN: new msg should be appended to segment tail
   TD_DEF_MSG_TYPE(TDMT_VND_CREATE_INDEX, "vnode-create-index", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_DROP_INDEX, "vnode-drop-index", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_DISABLE_WRITE, "vnode-disable-write", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_QUERY_COMPACT_PROGRESS, "vnode-query-compact-progress", NULL, NULL)               // no longer used
   TD_DEF_MSG_TYPE(TDMT_VND_MAX_MSG, "vnd-max", NULL, NULL)
 
   TD_NEW_MSG_SEG(TDMT_SCH_MSG)

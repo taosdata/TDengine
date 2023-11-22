@@ -17,6 +17,7 @@
 #include "mndShow.h"
 #include "mndDb.h"
 #include "mndCompactDetail.h"
+#include "mndVgroup.h"
 
 #define MND_COMPACT_VER_NUMBER 1
 
@@ -304,6 +305,11 @@ SCompactObj *mndAcquireCompact(SMnode *pMnode, int64_t compactId) {
   return pCompact;
 }
 
+void mndReleaseCompact(SMnode *pMnode, SCompactObj *pCompact) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbRelease(pSdb, pCompact);
+}
+
 static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompact) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "kill-compact");
   if (pTrans == NULL) {
@@ -386,4 +392,60 @@ _OVER:
   sdbRelease(pMnode->pSdb, pCompact);
 
   return code;
+}
+
+void mndCompactUpdate(SMnode *pMnode, SCompactObj *pCompact){
+  void   *pIter = NULL;
+
+  while (1) {
+    SCompactDetailObj *pDetail = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
+    if (pIter == NULL) break;
+
+    if (pDetail->compactId == pCompact->compactId) {
+      SEpSet epSet = {0};
+
+      SVgObj *pVgroup = mndAcquireVgroup(pMnode, pDetail->vgId);
+      if(pVgroup){
+        epSet = mndGetVgroupEpset(pMnode, pVgroup);
+        mndReleaseVgroup(pMnode, pVgroup);
+      }
+
+      SQueryCompactProgressReq req;
+      req.vgId = pDetail->vgId;
+
+      int32_t contLen = tSerializeSQueryCompactProgressReq(NULL, 0, &req);
+      if (contLen < 0) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        continue;
+      }
+
+      void *pReq = taosMemoryMalloc(contLen);
+      if (pReq == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        continue;
+      }
+
+      tSerializeSQueryCompactProgressReq(pReq, contLen, &req);
+
+      //send
+      SRpcMsg rpcMsg = {.pCont = pReq,
+                    .contLen = contLen,
+                    .msgType = TDMT_VND_QUERY_COMPACT_PROGRESS,
+                    .info.ahandle = (void *)0x9527,
+                    .info.refId = 0,
+                    .info.noResp = 0};
+      SRpcMsg rpcRsp = {0};
+      
+      rpcSendRecvWithTimeout(pMnode->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp, 5000);
+      if (rpcRsp.code != 0) {
+        SQueryCompactProgressRsp rsp;
+        if (tDeserializeSQueryCompactProgressRsp(rpcRsp.pCont, rpcRsp.contLen, &rsp) != 0) {
+          terrno = TSDB_CODE_INVALID_MSG;
+        }
+      }
+    }
+
+    sdbRelease(pMnode->pSdb, pDetail);
+  }
 }

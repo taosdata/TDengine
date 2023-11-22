@@ -1678,6 +1678,26 @@ int32_t tDeserializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* 
 int32_t tFreeSCreateVnodeReq(SCreateVnodeReq* pReq);
 
 typedef struct {
+  int32_t compactId;
+  int32_t vgId;
+  int32_t dnodeId;
+} SQueryCompactProgressReq;
+
+int32_t tSerializeSQueryCompactProgressReq(void* buf, int32_t bufLen, SQueryCompactProgressReq* pReq);
+int32_t tDeserializeSQueryCompactProgressReq(void* buf, int32_t bufLen, SQueryCompactProgressReq* pReq);
+
+typedef struct {
+  int32_t compactId;
+  int32_t vgId;
+  int32_t dnodeId;
+  int32_t numberFileset;
+  int32_t finished; 
+} SQueryCompactProgressRsp;
+
+int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
+int32_t tDeserializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
+
+typedef struct {
   int32_t vgId;
   int32_t dnodeId;
   int64_t dbUid;

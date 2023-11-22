@@ -697,6 +697,8 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_CONSUME_PUSH:
       return tqProcessPollPush(pVnode->pTq, pMsg);
+    case TDMT_VND_QUERY_COMPACT_PROGRESS:
+      return qWorkerProcessQueryCompactMsg(&handle, pVnode->pQuery, pMsg, 0);
     default:
       vError("unknown msg type:%d in query queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
