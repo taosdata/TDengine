@@ -48,6 +48,7 @@ static int32_t doOutputResultBlockImpl(SStreamTask* pTask, SStreamDataBlock* pBl
       return code;
     }
 
+    // checkpoint trigger will be checked
     streamDispatchStreamBlock(pTask);
   }
 
