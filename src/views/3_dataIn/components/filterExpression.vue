@@ -54,6 +54,23 @@ export default {
     };
   },
   methods: {
+    async getParserData(data) {
+      try {
+        let result = await getParser(data);
+        this.tableColumns = result[0].fields.map((item) => item.scope);
+        this.tableData = result[0].columns.map((data) => {
+          return Object.fromEntries(
+            result[0].fields.map((item, index) => {
+              return [item.scope, data[index]];
+            })
+          );
+        });
+
+        console.log(result, this.tableData, "jieguo---结果--filter");
+      } catch (error) {
+        console.log(error);
+      }
+    },
     //删除filter
     deleteFilter() {
       this.$emit("deleteFilter", this.index);
@@ -62,6 +79,7 @@ export default {
     submitFilter() {
         console.log(this.ruleForm.filter_name,'filter的参数---9999')
     },
+
   },
 };
 </script>

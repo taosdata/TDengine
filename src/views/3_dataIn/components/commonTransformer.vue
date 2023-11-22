@@ -108,13 +108,29 @@
               >Create STable</el-button
             >
           </div>
-          <div class="table-detail">
+          <div class="table-detail" v-if="tableData.length > 0">
             <el-table :data="tableData" border style="width: 100%">
-              <el-table-column prop="date" label="日期" width="180">
-              </el-table-column>
-              <el-table-column prop="name" label="姓名" width="180">
-              </el-table-column>
-              <el-table-column prop="address" label="地址"> </el-table-column>
+              <template v-for="(item, index) in st_columnLists">
+                <el-table-column
+                  v-if="item === 'Expression'"
+                  :key="index"
+                  :prop="item"
+                  show-overflow-tooltip
+                  :label="item"
+                >
+                  <template slot-scope="scope">
+                    <el-input v-model="scope.row.Expression" size="small"></el-input>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  v-else
+                  :key="index"
+                  :prop="item"
+                  show-overflow-tooltip
+                  :label="item"
+                >
+                </el-table-column>
+              </template>
             </el-table>
           </div>
         </div>
@@ -163,15 +179,15 @@ export default {
   },
   data() {
     return {
-        params_columns:[],
-        params_tags:[],
-        st_columnLists:[
-            '',
-            'Type',
-            'Expression',
-            'Sample Output1',
-            'Sample Output2'
-        ],
+      params_columns: [],
+      params_tags: [],
+      st_columnLists: [
+        "Name",
+        "Type",
+        "Expression",
+        "Sample Output1",
+        "Sample Output2",
+      ],
       dialogForm: {
         st_name: "",
       },
@@ -220,28 +236,7 @@ export default {
         },
       ],
       columnsArr: [],
-      tableData: [
-        {
-          date: "2016-05-02",
-          name: "王小虎",
-          address: "上海市普陀区金沙江路 1518 弄",
-        },
-        {
-          date: "2016-05-04",
-          name: "王小虎",
-          address: "上海市普陀区金沙江路 1517 弄",
-        },
-        {
-          date: "2016-05-01",
-          name: "王小虎",
-          address: "上海市普陀区金沙江路 1519 弄",
-        },
-        {
-          date: "2016-05-03",
-          name: "王小虎",
-          address: "上海市普陀区金沙江路 1516 弄",
-        },
-      ],
+      tableData: [],
       extractArr: [
         {
           columns: [],
@@ -315,22 +310,31 @@ export default {
           Message.error(res.desc);
           return;
         }
-        let result=res.data.map((val,index)=>{
-            if(!val[3]&&index>0){
-                this.params_columns.push(val[0]) //存储非逐渐列
-            }
-            
-            return {
-                '':val[0],
-                'Type':val[1],
-                'Expression':'',
-                'Smaple Output1':'',
-                'Smaple Output2':''
-            }
-           
-        })
-        this.params_columns.unshift(res.data[0])
-        console.log(res,result,this.params_columns, "获取超级表---999");
+        this.params_columns.splice(0, this.params_columns.length - 1);
+        this.params_tags.splice(0, this.params_tags.length - 1);
+        this.tableData = res.data.map((val, index) => {
+          if (!val[3] && index > 0) {
+            this.params_columns.push(val[0]); //存储非逐渐列
+          }
+          if (val.includes("TAG")) {
+            this.params_tags.push(val[0]);
+          }
+          return {
+            Name: val[0],
+            Type: val[1],
+            Expression: "",
+            "Smaple Output1": "",
+            "Smaple Output2": "",
+          };
+        });
+        this.params_columns.unshift(res.data[0][0]);
+        console.log(
+          res,
+          this.tableData,
+          this.params_columns,
+          this.params_tags,
+          "获取超级表---999"
+        );
       } catch (error) {
         console.log(error);
       }
