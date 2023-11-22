@@ -91,6 +91,7 @@ if not %errorlevel% == 0  ( call :RUNFAILED build x64 failed & exit /b 1)
 
 md %install_dir%\include
 xcopy %internal_dir%\community\include\util\tdef.h %install_dir%\include
+xcopy /S %internal_dir%\community\tools\taos-tools\packaging\win\* %install_dir%\*
 
 if "%verType%" == "cluster" (
 	echo "==== build taosx ====="
