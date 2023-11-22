@@ -19,7 +19,15 @@ const request = axios.create({
 
 let msg = "";
 let setTokenTimer = null;
-
+function blobToJson(blob) {
+  const reader = new FileReader();
+  reader.readAsText(blob);
+  reader.onload = () => {
+    const text = reader.result;
+    const json = JSON.parse(text);
+    Message.error(json?.message)
+  };
+}
 request.interceptors.request.use(
   (config) => {
     const hasToken = getToken();
@@ -86,6 +94,12 @@ request.interceptors.response.use(
     }
   },
   (error) => {
+    if(error?.response?.data?.constructor===Blob){
+      blobToJson(error.response.data)
+      Message.closeAll();
+      return
+    }
+   
     const hasToken = getToken();
     if (hasToken) {
       Message.closeAll();

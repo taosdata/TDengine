@@ -26,7 +26,7 @@ module.exports = {
   publicPath: "/",
   outputDir: "dist",
   assetsDir: "static",
-  productionSourceMap: true,
+  productionSourceMap: arg.mode=='dev'?true:false,
   configureWebpack: {
     resolve: {
       alias: {

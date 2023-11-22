@@ -65,6 +65,13 @@
         <span slot-scope="scope">{{ parsinginZone(scope.row.ts) }}</span>
       </el-table-column>
       <el-table-column
+        :label="$t('taosuser.clientAddress')"
+        prop="client_address"
+        :show-overflow-tooltip="true"
+        width="180"
+      >
+      </el-table-column>
+      <el-table-column
         :label="$t('taosuser.user')"
         prop="user_name"
         show-overflow-tooltip
@@ -77,21 +84,21 @@
       >
       </el-table-column>
       <el-table-column
+        :label="$t('taosuser.db')"
+        prop="db"
+        show-overflow-tooltip
+      >
+      </el-table-column>
+      <el-table-column
+        :label="$t('taosuser.resource')"
+        prop="resource"
+        show-overflow-tooltip
+      >
+      </el-table-column>
+      <el-table-column
         :label="$t('taosuser.details')"
         prop="details"
-        min-width="280"
-        :show-overflow-tooltip="true"
-      >
-      </el-table-column>
-      <el-table-column
-        :label="$t('taosuser.target_1')"
-        prop="target_1"
-        :show-overflow-tooltip="true"
-      >
-      </el-table-column>
-      <el-table-column
-        :label="$t('taosuser.target_2')"
-        prop="target_2"
+        min-width="260"
         :show-overflow-tooltip="true"
       >
       </el-table-column>
@@ -132,6 +139,12 @@ export default {
       date: [],
       exportAuditList: [],
     };
+  },
+  props: {
+    activeName: {
+      type: String,
+      default: ''
+    }
   },
   computed: {
     pickerOptions() {
@@ -219,14 +232,14 @@ export default {
     },
     async getAllAuditData() {
       let countRes = await sendSQLReq(
-        `select count(*) from audit.operations ${
+        `select count(*) from audit.operations_v2 ${
           this.conditions ? "where" + this.conditions : ""
         }`
       );
       let pageSize = countRes?.code == 0 ? countRes.data[0][0] : 0;
       
       let res = await sendSQLReq(
-        `select * from audit.operations ${
+        `select * from audit.operations_v2 ${
           this.conditions ? "where" + this.conditions : ""
         }`
       );
@@ -256,6 +269,14 @@ export default {
       });
       FileSaver.saveAs(blob, FileName);
     },
+  },
+  watch: {
+    activeName(val) {
+      if (val == 'audit') {
+        this.getDatabases();
+        this.getAuditData();
+      }
+    }
   },
   created() {
     this.getDatabases();

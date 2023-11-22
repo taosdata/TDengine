@@ -15,8 +15,8 @@
       <el-form-item :label="$t('console.xAxis')" required prop="label">
         <el-select v-model="chartForm.label">
           <el-option
-            v-for="(item,index) in field"
-            :key="index"
+            v-for="(item, index) in field"
+            :key="item + index"
             :label="item"
             :value="index"
           >
@@ -31,8 +31,8 @@
           multiple
         >
           <el-option
-            v-for="(item,index) in field"
-            :key="index"
+            v-for="(item, index) in field"
+            :key="item + index"
             :label="item"
             :value="index"
             :disabled="item === chartForm.label"

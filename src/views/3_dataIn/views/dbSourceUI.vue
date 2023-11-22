@@ -231,8 +231,10 @@
                         <el-input
                           size="small"
                           style="margin-bottom: 8px"
-                          :placeholder="dbsource[0]?.authentication?.alternatives[0]?.username
-                              .placeholder"
+                          :placeholder="
+                            dbsource[0]?.authentication?.alternatives[0]
+                              ?.username.placeholder
+                          "
                           v-model="
                             dbsource[0].authentication.alternatives[0].username
                               .value
@@ -260,8 +262,10 @@
                           size="small"
                           type="password"
                           style="margin-bottom: 8px"
-                          :placeholder="dbsource[0]?.authentication?.alternatives[0]?.password
-                              .placeholder"
+                          :placeholder="
+                            dbsource[0]?.authentication?.alternatives[0]
+                              ?.password.placeholder
+                          "
                           v-model="
                             dbsource[0].authentication.alternatives[0].password
                               .value
@@ -344,7 +348,7 @@
       </section>
       <section>
         <el-collapse v-model="activeCollapse" accordion>
-          <el-collapse-item name='one'>
+          <el-collapse-item name="one">
             <template slot="title">
               <el-button
                 :loading="checkLoading"
@@ -357,7 +361,7 @@
             <Result
               v-show="JSON.stringify(checkResult) !== '{}'"
               :result="checkResult"
-            /> 
+            />
           </el-collapse-item>
         </el-collapse>
       </section>
@@ -638,7 +642,11 @@
                       >{{ $t("datasource.getschema") }}</el-button
                     >
                   </div>
-                  <el-input v-else v-model="p.value" :placeholder="p.placeholder"></el-input>
+                  <el-input
+                    v-else
+                    v-model="p.value"
+                    :placeholder="p.placeholder"
+                  ></el-input>
                 </template>
                 <template v-if="p.hint === 'bool' || p.hint.type === 'bool'">
                   <el-checkbox
@@ -731,6 +739,9 @@
           </template>
         </section>
       </template>
+      <section v-if="dbsource[0].advanced">
+        <AdvanceOptions :options="dbsource[0].advanced" @sendAdvanceParams="getAdvanceParams"></AdvanceOptions>
+      </section>
       <section class="bottom">
         <el-button
           v-if="isShowEditBtn"
@@ -740,13 +751,9 @@
           size="small"
           >{{ $t("edit") }}</el-button
         >
-        <el-button
-          v-else
-          type="primary"
-          @click="save"
-          size="small"
-          >{{ isEditable && !isCopyable ? $t("save") : $t("add") }}</el-button
-        >
+        <el-button v-else type="primary" @click="save" size="small">{{
+          isEditable && !isCopyable ? $t("save") : $t("add")
+        }}</el-button>
         <el-button @click="cancel" class="cancel-btn" size="small">{{
           $t("cancel")
         }}</el-button>
@@ -780,9 +787,10 @@ import marked from "marked";
 import { debounce, parsinginZone, decrypt } from "@/utils/index";
 import DialogCreateDb from "../components/addDbDialog.vue";
 import Result from "../components/result.vue";
+import AdvanceOptions from '../components/advancedOptions.vue'
 export default {
   name: "DbSourceUI",
-  components: { DatePicker, DialogCreateDb, DataTarget, Result },
+  components: { DatePicker, DialogCreateDb, DataTarget, Result ,AdvanceOptions},
   props: {
     dbsource: {
       type: Array,
@@ -816,8 +824,8 @@ export default {
       });
       let end = endLsit.filter((item) => item.length > 0)[0];
 
-      if (end[0].value) {
-        return time.getTime() > new Date(end[0].value).getTime();
+      if (end[0]?.value) {
+        return time.getTime() > new Date(end[0]?.value).getTime();
       } else {
         return false;
       }
@@ -863,6 +871,7 @@ export default {
       }
     };
     return {
+      advanceParams:'',
       language: localStorage.getItem("local_language"),
       startOption: {
         disabledDate: (time) => startTimeOption(time),
@@ -919,7 +928,7 @@ export default {
         // data_source: "",
         // version: "", // 返回数据源版本，不能获得版本则不返回该字段。
       },
-      activeCollapse: ''
+      activeCollapse: "",
     };
   },
   created() {
@@ -930,7 +939,7 @@ export default {
         (this.dbsource[0]?.params && this.dbsource[0]?.params[0]?.value) ||
         this.piSystemConfiguration;
       this.changeSystemConfiguration(defaultVal);
-      if (this.tagName == 'influxdb' || this.tagName == 'opentsdb') {
+      if (this.tagName == "influxdb" || this.tagName == "opentsdb") {
         this.getSchema(false);
       }
       this.isShowEditBtn = this.isCopyable ? false : true;
@@ -992,6 +1001,10 @@ export default {
     },
   },
   methods: {
+    getAdvanceParams(data){
+      this.advanceParams=data
+    
+    },
     handleEditData() {
       this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
         group.params.map((p) => {
@@ -1219,13 +1232,23 @@ export default {
         console.log("result", result);
         this.checkResult = result;
         this.checkLoading = false; // 检测的 loading 效果
-        this.activeCollapse = 'one'
+        this.activeCollapse = "one";
       } catch (error) {
         this.checkLoading = false;
         console.log("err");
       }
     },
-
+    //验证influxdb的auth
+    validInfluxdbAuth(arr) {
+      let requiredArr = arr.filter((item) => item.required);
+      for (let i = 0; i < requiredArr.length; i++) {
+        if (!requiredArr[i].value&&requiredArr[i].required) {
+          Message.warning(requiredArr[i].placeholder);
+          return false;
+        }
+      }
+      return true;
+    },
     async submit(isSubmit) {
       // debugger
       let dns = "";
@@ -1251,14 +1274,6 @@ export default {
             });
             return;
           }
-        }
-        if (!this.sourceName && isSubmit) {
-          Message.warning(`${enterTip} ${this.$t("name")}`);
-          return;
-        }
-        if (!this.targetDatabase && isSubmit) {
-          Message.warning(`${enterTip} ${this.$t("stream.targetDB")}`);
-          return;
         }
         if (this.tagName === "taos") {
           if (data.authentication.value == "plain") {
@@ -1298,31 +1313,49 @@ export default {
           //     data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
           // }
           let url = data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
-          if (url.includes('://')) {
+          if (url.includes("://")) {
             let parsed_url = new URL(url);
             let scheme = null;
-            if (parsed_url.protocol == 'http:') {
-              scheme = '+ws'
-            } else if (parsed_url.protocol == 'https:') {
-              scheme = '+wss'
+            if (parsed_url.protocol == "http:") {
+              scheme = "+ws";
+            } else if (parsed_url.protocol == "https:") {
+              scheme = "+wss";
             } else {
-              scheme = '+' + parsed_url.protocol.replace(':', '')
+              scheme = "+" + parsed_url.protocol.replace(":", "");
             }
 
             let host = parsed_url.host;
-            let user =  parsed_url.username || localStorage.getItem('username') || '';
-            let decrypted = encodeURI(decrypt(localStorage.getItem('pwd')));
-            let pass = parsed_url.password || decrypted || '';
-            dns = scheme + '://' + user + ':' + pass + '@' + host + parsed_url.pathname + parsed_url.search;
+            let user =
+              parsed_url.username || localStorage.getItem("username") || "";
+            let decrypted = encodeURI(decrypt(localStorage.getItem("pwd")));
+            let pass = parsed_url.password || decrypted || "";
+            dns =
+              scheme +
+              "://" +
+              user +
+              ":" +
+              pass +
+              "@" +
+              host +
+              parsed_url.pathname +
+              parsed_url.search;
           } else {
             let host = url;
-            let user = localStorage.getItem('username') || '';
-            let decrypted = encodeURI(decrypt(localStorage.getItem('pwd')));
-            let pass = decrypted || '';
-            dns = '+ws://' + host;
+            let user = localStorage.getItem("username") || "";
+            let decrypted = encodeURI(decrypt(localStorage.getItem("pwd")));
+            let pass = decrypted || "";
+            dns = "+ws://" + host;
           }
         } else {
           if (this.tagName == "influxdb") {
+            let flag=this.validInfluxdbAuth(
+              data.authentication.alternatives.filter(
+                (item) => item.name === data.authentication?.value
+              )[0].params
+            );
+            if(!flag){
+              return
+            }
             this.changeHost(data.options.host.value);
             if (data.options.host.value && !this.isIP) {
               Message.warning(this.$t("datasource.iptip"));
@@ -1330,6 +1363,14 @@ export default {
             }
           }
           dns += `://${data.options.host.value ? data.options.host.value : ""}`;
+        }
+        if (!this.sourceName && isSubmit) {
+          Message.warning(`${enterTip} ${this.$t("name")}`);
+          return;
+        }
+        if (!this.targetDatabase && isSubmit) {
+          Message.warning(`${enterTip} ${this.$t("stream.targetDB")}`);
+          return;
         }
 
         if (data.options.port) {
@@ -1511,16 +1552,15 @@ export default {
         dns += querystr
           ? (dns.includes("?") ? "&" : "?") + querystr.replace(/&$/g, "")
           : "";
-
-        let apiParams = {
-          from:
-            (this.tagName === "datasource" ? "tmq" : "taos") +
+          let originDsn=(this.tagName === "datasource" ? "tmq" : "taos") +
             (data.protocol
               ? Object.is(data.protocol.value, "--") || !data.protocol.value
                 ? ""
                 : "+"
               : "") +
-            dns,
+            dns //没有advanced options的dsn
+        let apiParams = {
+          from:originDsn+this.advanceParams,
           name: this.sourceName,
           to:
             "taos+" +
@@ -1556,12 +1596,10 @@ export default {
               this.$parent.toggleComponent("tmqtable");
             }
           } else {
-            this.getValidateResult(apiParams.from);
+            this.getValidateResult(originDsn);
           }
         } else {
-          let piParams = {
-            from:
-              this.tagName == "influxdb"
+         let originPiDsn=this.tagName == "influxdb"
                 ? "influxdb" +
                   (data.protocol
                     ? Object.is(data.protocol.value, "--")
@@ -1571,7 +1609,9 @@ export default {
                   dns
                 : this.tagName == "opentsdb"
                 ? this.tagName + (data.protocol?.value ? "+" : "") + dns
-                : this.tagName + dns,
+                : this.tagName + dns
+          let piParams = {
+            from:originPiDsn+this.advanceParams,
             name: this.sourceName,
             //   + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
             // name: localStorage.getItem("datainName"),
@@ -1589,9 +1629,8 @@ export default {
           if (this.agentId) {
             piParams["via"] = this.agentId;
           }
-          console.log(this.isEditable, this.editId, "编辑");
           if (isSubmit) {
-            if (this.isEditable && this.editId&& !this.isCopyable) {
+            if (this.isEditable && this.editId && !this.isCopyable) {
               let result = await EditSource(piParams, this.editId);
               if (result.message) {
                 Message.error(result.message);
@@ -1611,16 +1650,8 @@ export default {
                 Message.success("Operation Successfully!");
               }
             }
-            // if (this.isEditable && this.editId && !this.isCopyable) {
-            //   let result = await EditSource(piParams, this.editId);
-            //   if (result.message) {
-            //     Message.error(result.message);
-            //     return;
-            //   }
-            // }
           } else {
-            console.log("ss", piParams);
-            this.getValidateResult(piParams.from);
+            this.getValidateResult(originPiDsn);
           }
         }
       } catch (err) {
@@ -2113,7 +2144,7 @@ export default {
   // padding-left: 20px;
   justify-content: space-between;
   //   padding-right: 300px;
-  overflow-x:auto;
+  overflow-x: auto;
   display: flex;
   :deep {
     .el-input__inner {
@@ -2145,7 +2176,7 @@ export default {
 
   .left-ui {
     flex-shrink: 0;
-    width:800px;
+    width: 800px;
     .description {
       max-width: 568px;
       overflow: auto;
@@ -2180,7 +2211,7 @@ export default {
       padding: 15px;
       // border-bottom: 1px solid #ececef;
     }
-    .block-title {
+   ::v-deep .block-title {
       margin-bottom: 10px;
       span {
         font-size: 16px;
@@ -2361,7 +2392,7 @@ export default {
       }
     }
   }
-  .description {
+  ::v-deep .description {
     display: initial !important;
     color: #acaab2;
     margin-bottom: 8px !important;

@@ -150,14 +150,6 @@ export function downlaodAllNodes(data,agentid){
         url:`/ds/in/download/all_data_sets?from=${data}`+(agentid?`&via=${agentid}`:''),
         method:'get',
         responseType: 'blob',
-        // data,
-        // data: {
-        //     "from": "opcua://192.168.0.34:53530/OPCUA/SimulationServer",
-        //     "categories": ["nodes"],
-        //     "pattern": ".*",
-        //     "offset": 1,
-        //     "limit": 100
-        //   }
     })
 }
 export function getMetricsDesc(data){

@@ -234,6 +234,10 @@ export default {
         let res=await sendSQLReq(
           `select server_version(), version, (expire_time < now) as valid from information_schema.ins_cluster;`
         )
+        if(res?.desc){
+          Message.error(res.desc)
+          return
+        }
         if(res&&res.data){
           let result = res.data.map((data) => {
               return Object.fromEntries(
@@ -261,7 +265,8 @@ export default {
           Message.error(this.$t("login.servTaosdTip"));
           return;
         }
-        Message.error(this.$t("login.versiontip"));
+        console.log(err,'登陆错误提示')
+        Message.error(err?.desc);
       }
     },
   },

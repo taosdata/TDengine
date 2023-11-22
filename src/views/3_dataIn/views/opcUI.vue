@@ -11,7 +11,6 @@
         <DataTarget></DataTarget>
       </section>
 
-      
       <section class="basics" v-if="tagName !== 'csv'">
         <div class="block-title">
           <span>{{ $t("dataIn.connectionConfiguration") }}</span>
@@ -262,9 +261,9 @@
           </el-tabs>
         </div>
       </section>
-      <section v-if="tagName !=='csv'">
+      <section v-if="tagName !== 'csv'">
         <el-collapse v-model="activeCollapse" accordion>
-          <el-collapse-item name='one'>
+          <el-collapse-item name="one">
             <template slot="title">
               <el-button
                 :loading="checkLoading"
@@ -277,7 +276,7 @@
             <Result
               v-show="JSON.stringify(checkResult) !== '{}'"
               :result="checkResult"
-            /> 
+            />
           </el-collapse-item>
         </el-collapse>
       </section>
@@ -638,7 +637,11 @@
                   </template>
                   <template v-if="p.hint && p.hint.type === 'str'">
                     <template v-if="p.hint.choices">
-                      <el-select v-model="p.value" :placeholder="p?.placeholder" size="small">
+                      <el-select
+                        v-model="p.value"
+                        :placeholder="p?.placeholder"
+                        size="small"
+                      >
                         <el-option
                           v-for="c in p.hint.choices"
                           :key="c"
@@ -731,7 +734,7 @@
                         style="margin-right: 20px"
                         >{{ $t("datasource.selectfile") }}</el-button
                       >
-                     
+
                       <template v-if="language.includes('zh')">
                         <a href="/template-zh.csv" download>下载模板</a>
                       </template>
@@ -782,7 +785,6 @@
                       </el-radio>
                     </el-radio-group>
                     <template v-else>
-
                       <el-switch
                         v-model="p.value"
                         :active-value="'true'"
@@ -854,6 +856,9 @@
           @handleDbBtn="handleDbBtn"
         ></CsvData>
       </section>
+      <section v-if="dbsource[0].advanced">
+        <AdvanceOptions :options="dbsource[0].advanced" @sendAdvanceParams="getAdvanceParams"></AdvanceOptions>
+      </section>
       <section class="bottom">
         <el-button
           v-if="isShowEditBtn"
@@ -863,13 +868,9 @@
           size="small"
           >{{ $t("edit") }}</el-button
         >
-        <el-button
-          v-else
-          type="primary"
-          @click="save"
-          size="small"
-          >{{ isEditable && !isCopyable ? $t("save") : $t("add") }}</el-button
-        >
+        <el-button v-else type="primary" @click="save" size="small">{{
+          isEditable && !isCopyable ? $t("save") : $t("add")
+        }}</el-button>
         <el-button @click="cancel" class="cancel-btn" size="small">{{
           $t("cancel")
         }}</el-button>
@@ -907,6 +908,7 @@ import MqttConnector from "../components/newMqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
 import DialogCreateDb from "../components/addDbDialog.vue";
 import Result from "../components/result.vue";
+import AdvanceOptions from '../components/advancedOptions.vue'
 export default {
   name: "DbSourceUI",
   components: {
@@ -916,7 +918,8 @@ export default {
     CsvData,
     DialogCreateDb,
     DataTarget,
-    Result
+    Result,
+    AdvanceOptions
   },
   props: {
     echoData: {
@@ -972,11 +975,12 @@ export default {
   },
   data() {
     return {
+      advanceParams:'',
       allnodesloading: false,
       disableallnodeclick: true,
       opcinusefile: "",
       downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
-      language: localStorage.getItem('local_language'),
+      language: localStorage.getItem("local_language"),
       limit: 1,
       opcPointavalible: true,
       mqttcafile: [],
@@ -1036,7 +1040,7 @@ export default {
         // data_source: '',
         // version: '', // 返回数据源版本，不能获得版本则不返回该字段。
       },
-      activeCollapse: ''
+      activeCollapse: "",
     };
   },
   created() {
@@ -1065,12 +1069,14 @@ export default {
       }
       this.isShowEditBtn = this.isCopyable ? false : true;
     }
-    console.log('dddd',this.checkResult,!this.checkResult.valid && !this.checkResult.support);
-
   },
   mounted() {
     if (this.tagName == "mqtt" || this.tagName == "kafka") {
-      this.constmqttCols = this.dbsource[0].parser.fields;
+      this.constmqttCols = this.dbsource[0].parser.fields.map(item=>{
+        return Object.assign(item,{
+          alias:item.name
+        })
+      });
       let caitem = this.$store.state.app.mqttcafile[0];
       let certitem = this.$store.state.app.mqttcertfile[0];
       let certkeyitem = this.$store.state.app.mqttcertkeyfile[0];
@@ -1163,21 +1169,21 @@ export default {
       return this.$store.state.app.currentAgentID || "";
     },
     sourceName() {
-      return this.$store.state.app.currentDSName || ""
+      return this.$store.state.app.currentDSName || "";
     },
     targetDatabase() {
-      return this.$store.state.app.currentDBName || ""
+      return this.$store.state.app.currentDBName || "";
     },
     // resume() {
     //   return this.$store.state.app.currentResume || "";
     // }
   },
   watch: {
-    "$i18n.locale":{
-      deep:true,
-      handler(val){
-        this.language=val
-      }
+    "$i18n.locale": {
+      deep: true,
+      handler(val) {
+        this.language = val;
+      },
     },
     "$store.state.app.currentDBName": {
       immediate: true,
@@ -1196,26 +1202,24 @@ export default {
     },
   },
   methods: {
+    getAdvanceParams(data){
+      this.advanceParams=data
+    },
     async downloadopcAllponits() {
       try {
-        this.allnodesloading = true;
-        this.disableallnodeclick = false;
         if (!this.dbsource[0].options.endpoint.value) {
-          Message.error(this.$t("taoscluster.endpointRequired"));
+          Message.error(this.$t("datasource.opcurl"));
           return;
         }
+        this.disableallnodeclick = false;
+        this.allnodesloading = true;
         let params = `${this.$store.state.app.currentDBType}://${this.dbsource[0].options.endpoint.value}&categories=nodes`;
-        let result = await downlaodAllNodes(
-          params,
-          this.agentId
-        );
+        let result = await downlaodAllNodes(params, this.agentId);
         this.allnodesloading = false;
         this.disableallnodeclick = true;
-        if (result && result.message) {
-          Message.error(result.message);
+        if (!result) {
           return;
         }
-
         let blob = new Blob([result], { type: "text/csv,charset=UTF-8" });
         let link = document.createElement("a");
         link.download = "list_of_all_nodes.csv";
@@ -1226,9 +1230,8 @@ export default {
         URL.revokeObjectURL(link.href);
         document.body.removeChild(link);
       } catch (error) {
-        this.this.allnodesloading = false;
+        this.allnodesloading = false;
         this.disableallnodeclick = true;
-        console.log(error);
       }
     },
     handleopcSuccess(response, file, fileList) {
@@ -1291,22 +1294,22 @@ export default {
     //   }
     // },
     handleCertSuccess(response, file, fileList) {
-      this.certfileList = [].concat(file)
+      this.certfileList = [].concat(file);
     },
     handlePrivateSuccess(response, file, fileList) {
-      this.privatefileList = [].concat(file)
+      this.privatefileList = [].concat(file);
     },
     handleSuccess(response, file, fileList) {
-      this.fileList = [].concat(file)
+      this.fileList = [].concat(file);
     },
     handleMqttCaSuccess(response, file, fileList) {
-      this.mqttcafile = [].concat(file)
+      this.mqttcafile = [].concat(file);
     },
     handleMqttCertSuccess(response, file, fileList) {
-      this.mqttcertfile = [].concat(file)
+      this.mqttcertfile = [].concat(file);
     },
     handleMqttCertKeySuccess(response, file, fileList) {
-      this.mqttcertkeyfile = [].concat(file)
+      this.mqttcertkeyfile = [].concat(file);
     },
 
     //opc需要存入库的字段
@@ -1397,28 +1400,29 @@ export default {
         this.submit(true);
       }
     },
-   
+
     clickCheckBtn() {
       // csv 不做检测
-      this.checkResult = this.$options.data().checkResult
-      this.submit(false)
+      this.checkResult = this.$options.data().checkResult;
+      this.submit(false);
     },
     // 数据源可用性和版本检查
     async getValidateResult(dns) {
       try {
-        this.checkLoading = true
-        let result = await validateTask(dns,this.agentId)
-        console.log('result',result);
-        this.checkResult = result
-        this.checkLoading = false // 检测的 loading 效果
-        this.activeCollapse = 'one'
+        this.checkLoading = true;
+        let result = await validateTask(dns, this.agentId);
+        console.log("result", result);
+        this.checkResult = result;
+        this.checkLoading = false; // 检测的 loading 效果
+        this.activeCollapse = "one";
       } catch (error) {
-        this.checkLoading = false
-        console.log('err');
+        this.checkLoading = false;
+        console.log("err");
       }
     },
 
     async submit(isSubmit) {
+      console.log(this.constMqttparser,'constMqttparser')
       // debugger
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
@@ -1449,12 +1453,12 @@ export default {
           }
         }
         if (!this.sourceName && isSubmit) {
-          console.log('this.sourceName',this.sourceName);
-          Message.warning(`${enterTip} ${this.$t('name')}`);
+          console.log("this.sourceName", this.sourceName);
+          Message.warning(`${enterTip} ${this.$t("name")}`);
           return;
         }
         if (!this.targetDatabase && isSubmit) {
-          Message.warning(`${enterTip} ${this.$t('stream.targetDB')}`);
+          Message.warning(`${enterTip} ${this.$t("stream.targetDB")}`);
           return;
         }
 
@@ -1574,8 +1578,12 @@ export default {
                     }
                   }
                 } else {
-                  if (this.handleEmptyValue(data.groups[index].params[g].value)) {
-                    if (data.groups[index].params[g].name === "use_received_time") {
+                  if (
+                    this.handleEmptyValue(data.groups[index].params[g].value)
+                  ) {
+                    if (
+                      data.groups[index].params[g].name === "use_received_time"
+                    ) {
                       if (data.groups[index].params[g].value !== 0) {
                         let value = data.groups[index].params[g].value === 1;
                         querystr +=
@@ -1611,11 +1619,13 @@ export default {
                         }
                       } else {
                         if (
-                          data.groups[index].params[g].name != "opc_table_config"
+                          data.groups[index].params[g].name !=
+                          "opc_table_config"
                         ) {
                           if (
                             // data.groups[index].params[g].name == "debug" ||
-                            data.groups[index].params[g].name == "use_csv_config"
+                            data.groups[index].params[g].name ==
+                            "use_csv_config"
                             // data.groups[index].params[g].name == "enable"
                           ) {
                             querystr +=
@@ -1630,7 +1640,7 @@ export default {
                               "&";
                           }
                         }
-    
+
                         // }
                       }
                     }
@@ -1874,22 +1884,20 @@ export default {
 
           // }
         }
-        let piParams = {
-          from:
-            (this.tagName == "mqtt"
+        let originDsn=(this.tagName == "mqtt"
               ? "mqtt"
               : this.tagName == "csv"
               ? "csv"
               : this.tagName == "kafka"
               ? "kafka"
-              : "opc" + this.protocol) + dns,
+              : "opc" + this.protocol) + dns //没有advanced options的dsn
+        let piParams = {
+          from:originDsn+ this.advanceParams,
           name: this.sourceName,
           to:
             "taos+" +
             localStorage.getItem("base_url") +
-            (this.targetDatabase
-              ? "/" + this.targetDatabase
-              : ""),
+            (this.targetDatabase ? "/" + this.targetDatabase : ""),
           labels: [
             "type::datain",
             `cluster-id::${id}`,
@@ -1988,7 +1996,6 @@ export default {
               ? `&header=${this.$refs.csvdata.$refs.param.ruleForm.customcol}`
               : "");
         }
-        console.log(this.isEditable, this.editId, "编辑-opc");
         if (isSubmit) {
           if (this.isEditable && this.editId && !this.isCopyable) {
             let result = await EditSource(piParams, this.editId);
@@ -2011,7 +2018,7 @@ export default {
             }
           }
         } else {
-          this.getValidateResult(piParams.from)
+          this.getValidateResult(originDsn);
         }
       } catch (err) {
         err.response &&
@@ -2223,7 +2230,7 @@ export default {
 .source-ui {
   justify-content: space-between;
   display: flex;
-  overflow-x:auto;
+  overflow-x: auto;
   :deep {
     .el-input__inner {
       border: none !important;
@@ -2261,7 +2268,7 @@ export default {
   .left-ui {
     position: relative;
     overflow: auto;
-    width:800px;
+    width: 800px;
     flex-shrink: 0;
     .description {
       max-width: 568px;
@@ -2286,7 +2293,7 @@ export default {
       border-radius: 12px;
       padding: 15px;
     }
-    .block-title {
+    ::v-deep .block-title {
       margin-bottom: 10px;
       span {
         font-size: 16px;
@@ -2432,7 +2439,7 @@ export default {
       }
     }
   }
-  .description {
+  ::v-deep .description {
     display: initial !important;
     color: #acaab2;
     margin-bottom: 0px !important;
@@ -2581,12 +2588,12 @@ export default {
   display: flex;
   align-items: baseline;
 }
-::v-deep {x
-  .el-upload-list__item {
+::v-deep {
+  x .el-upload-list__item {
     margin-top: 1px !important;
   }
-  .el-upload-list__item-name{
-    max-width:120px;
+  .el-upload-list__item-name {
+    max-width: 120px;
   }
 }
 </style>

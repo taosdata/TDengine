@@ -126,16 +126,16 @@ export function validTopicSql(sql) {
 }
 
 export function validDir(arg) {
-  return /^[A-Za-z0-9_\/]*$/g.test(arg)
+  return /^[(\s\S)\/]*$/g.test(arg)
 }
 
 //linux文件路径校验
 export function validPath(arg) {
   if((String.raw`${arg}`).includes('\\')){//windows路径
     arg=(String.raw`${arg}`).replace(/\\/g,'\\\\')
-    return /^[a-zA-Z]:(\/|\\)[A-Za-z0-9_]*/g.test(arg)
+    return /^[a-zA-Z]:(\/|\\)(\s\S)*/g.test(arg)
   }else{
-    return /^(\/|\\)[A-Za-z0-9_\(/|\\)]*$/g.test(arg)
+    return /^(\/|\\)[(\s\S)\(/|\\)]*$/g.test(arg)
   }
   
 }
