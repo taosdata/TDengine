@@ -120,7 +120,7 @@ async fn ipc_tcp_forward(
                 let data_trace_id = create_data_trace_id(stream_trace_id_u64, batch_number);
                 let data_trace_id_str = get_data_trace_id_str(data_trace_id);
                 cur_span.in_scope(|| {
-                    info!("send batch {}", data_trace_id_str);
+                    info!("Send batch {}", data_trace_id_str);
                 });
                 v.map(|message| {
                     message.with_app_metadata(
@@ -2508,7 +2508,6 @@ impl IpcStreamWorker {
         self
     }
 
-    #[instrument(skip_all, fields(trace.id=trace_id_str))]
     pub async fn process_record(
         &self,
         stmt: &mut Stmt,
@@ -2519,7 +2518,6 @@ impl IpcStreamWorker {
     ) -> anyhow::Result<usize> {
         let taos = self.pool.get().await?;
         let target_precision = get_current_precision(&taos).await?;
-        // let stmt = unsafe { &mut *self.stmt.get() };
         match self.parser.metadata().stream_type() {
             StreamType::Line => {
                 todo!()
@@ -2563,11 +2561,9 @@ impl IpcStreamWorker {
                 let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
-                .map_err(|_| anyhow::format_err!("Unable to read lush message"))?;
+                .map_err(|_| anyhow::format_err!("Unable to read lush message, trace.id={}", trace_id_str))?;
                 let mut taos = Some(self.pool.get().await?);
-                // let stmt = unsafe { &mut *self.stmt.get() };
                 let task = self.task;
-                tracing::debug!("consume lush record task: {task:?}");
                 consume_lush_record(
                     &self.pool,
                     &mut taos,
@@ -2615,7 +2611,7 @@ impl IpcStreamWorker {
                     &mut count,
                     self.opc_table_config
                         .get()
-                        .ok_or_else(|| anyhow::format_err!("OPC table config not found"))?,
+                        .ok_or_else(|| anyhow::format_err!("OPC table config not found, trace.id={}", trace_id_str))?,
                     target_precision,
                     data_trace_id,
                     trace_id_str,
