@@ -26,7 +26,7 @@ void initLogEnv() {
   const char *  defaultLogFileNamePrefix = "taoslog";
   const int32_t maxLogFileNum = 10000;
   tsAsyncLog = 0;
-  // idxDebugFlag = 143;
+  // rpcDebugflag = 143;
   strcpy(tsLogDir, (char *)logDir);
   taosRemoveDir(tsLogDir);
   taosMkDir(tsLogDir);
@@ -48,12 +48,12 @@ void *proces(void *arg) {
     memset(msg, 1, len);
     int32_t code = taosSendHttpReport(monitor, "/crash", 6050, msg, 10, HTTP_FLAT);
     taosMemoryFree(msg);
-    taosUsleep(100 * 10);
+    taosUsleep(10);
   }
 }
 int main(int argc, char *argv[]) {
   initLogEnv();
-  int32_t  numOfThreads = 16;
+  int32_t  numOfThreads = 3;
   TThread *thread = taosMemoryCalloc(1, sizeof(TThread) * numOfThreads);
 
   for (int i = 0; i < numOfThreads; i++) {
