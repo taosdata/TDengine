@@ -1307,7 +1307,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
     rowLen = 0;
   }
 
-  int32_t  iCol = 0;
+  int32_t  iCol = 0, jCol = 0;
   SSchema *qColumn = NULL;
   for (;;) {
     qColumn = NULL;
@@ -1317,6 +1317,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
     if (!pColumn && (strcmp(qColumn->name, pAlterTbReq->colName) == 0)) {
       pColumn = qColumn;
+      jCol = iCol;
       if (rowLen < 0) break;
     }
     rowLen += qColumn->bytes;
@@ -1367,7 +1368,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         goto _err;
       }
       pSchema->version++;
-      tlen = (pSchema->nCols - iCol - 1) * sizeof(SSchema);
+      tlen = (pSchema->nCols - jCol - 1) * sizeof(SSchema);
       if (tlen) {
         memmove(pColumn, pColumn + 1, tlen);
       }
