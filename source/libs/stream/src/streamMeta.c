@@ -174,6 +174,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->ahandle = ahandle;
   pMeta->expandFunc = expandFunc;
   pMeta->stage = stage;
+  pMeta->role = (vgId == SNODE_HANDLE) ? NODE_ROLE_LEADER : NODE_ROLE_UNINIT;
 
   // send heartbeat every 5sec.
   pMeta->rid = taosAddRef(streamMetaId, pMeta);
@@ -204,7 +205,6 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   }
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
 
-  pMeta->role = NODE_ROLE_UNINIT;
   code = streamBackendLoadCheckpointInfo(pMeta);
 
   taosInitRWLatch(&pMeta->lock);
@@ -784,7 +784,7 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeI64(pEncoder, ps->id.streamId) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->id.taskId) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->status) < 0) return -1;
-    if (tEncodeI32(pEncoder, ps->stage) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->stage) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->nodeId) < 0) return -1;
     if (tEncodeDouble(pEncoder, ps->inputQUsed) < 0) return -1;
     if (tEncodeDouble(pEncoder, ps->inputRate) < 0) return -1;
@@ -822,7 +822,7 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     if (tDecodeI64(pDecoder, &entry.id.streamId) < 0) return -1;
     if (tDecodeI32(pDecoder, &taskId) < 0) return -1;
     if (tDecodeI32(pDecoder, &entry.status) < 0) return -1;
-    if (tDecodeI32(pDecoder, &entry.stage) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.stage) < 0) return -1;
     if (tDecodeI32(pDecoder, &entry.nodeId) < 0) return -1;
     if (tDecodeDouble(pDecoder, &entry.inputQUsed) < 0) return -1;
     if (tDecodeDouble(pDecoder, &entry.inputRate) < 0) return -1;
@@ -938,7 +938,7 @@ void metaHbToMnode(void* param, void* tmrId) {
   SStreamHbMsg hbMsg = {0};
   SEpSet       epset = {0};
   bool         hasMnodeEpset = false;
-  int32_t      stage = 0;
+  int64_t      stage = 0;
 
   streamMetaRLock(pMeta);
 
@@ -1115,11 +1115,6 @@ void streamMetaStartHb(SStreamMeta* pMeta) {
   metaRefMgtAdd(pMeta->vgId, pRid);
   *pRid = pMeta->rid;
   metaHbToMnode(pRid, NULL);
-}
-
-void streamMetaInitForSnode(SStreamMeta* pMeta) {
-  pMeta->stage = 0;
-  pMeta->role = NODE_ROLE_LEADER;
 }
 
 void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {

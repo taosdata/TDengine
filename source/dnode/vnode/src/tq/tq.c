@@ -15,16 +15,11 @@
 
 #include "tq.h"
 #include "vnd.h"
+#include "stream.h"
 
 typedef struct {
   int8_t inited;
 } STqMgmt;
-
-typedef struct STaskUpdateEntry {
-  int64_t streamId;
-  int32_t taskId;
-  int32_t transId;
-} STaskUpdateEntry;
 
 static STqMgmt tqMgmt = {0};
 
@@ -928,12 +923,12 @@ int32_t tqProcessTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
   } else {
     SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, taskId);
     if (pTask != NULL) {
-      rsp.status = streamTaskCheckStatus(pTask, req.upstreamTaskId, req.upstreamNodeId, req.stage);
+      rsp.status = streamTaskCheckStatus(pTask, req.upstreamTaskId, req.upstreamNodeId, req.stage, &rsp.oldStage);
       streamMetaReleaseTask(pMeta, pTask);
 
       char* p = NULL;
       streamTaskGetStatus(pTask, &p);
-      tqDebug("s-task:%s status:%s, stage:%d recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), check_status:%d",
+      tqDebug("s-task:%s status:%s, stage:%"PRId64" recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), check_status:%d",
               pTask->id.idStr, p, rsp.oldStage, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
     } else {
       rsp.status = TASK_DOWNSTREAM_NOT_READY;
@@ -1136,16 +1131,10 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
   // let's decide which step should be executed now
   if (pTask->execInfo.step1Start == 0) {
-    ASSERT(pTask->status.pauseAllowed == false);
     int64_t ts = taosGetTimestampMs();
 
     pTask->execInfo.step1Start = ts;
     tqDebug("s-task:%s start scan-history stage(step 1), status:%s, step1 startTs:%" PRId64, id, pStatus, ts);
-
-    // NOTE: in case of stream task, scan-history data in wal is not allowed to pause
-    if (pTask->info.fillHistory == 1) {
-      streamTaskEnablePause(pTask);
-    }
   } else {
     if (pTask->execInfo.step2Start == 0) {
       tqDebug("s-task:%s continue exec scan-history(step1), original step1 startTs:%" PRId64 ", already elapsed:%.2fs",
@@ -1367,6 +1356,7 @@ int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec) {
   if (pTask) {
     SRpcMsg rsp = {.info = pMsg->info, .code = 0};
     streamProcessDispatchMsg(pTask, &req, &rsp);
+    tDeleteStreamDispatchReq(&req);
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return 0;
   } else {
@@ -1605,6 +1595,7 @@ int32_t vnodeEnqueueStreamMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   if (pTask != NULL) {
     SRpcMsg rsp = {.info = pMsg->info, .code = 0};
     streamProcessDispatchMsg(pTask, &req, &rsp);
+    tDeleteStreamDispatchReq(&req);
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
