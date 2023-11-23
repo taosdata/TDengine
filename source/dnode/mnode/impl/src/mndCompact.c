@@ -489,7 +489,7 @@ int32_t mndProcessQueryCompactRsp(SRpcMsg *pReq){
     return -1;
   }
 
-  mInfo("compact:%d, receive query response, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", 
+  mDebug("compact:%d, receive query response, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", 
         req.compactId, req.vgId, req.dnodeId, req.numberFileset, req.finished);
 
   SMnode        *pMnode = pReq->info.node;
@@ -543,16 +543,13 @@ void mndCompactUpdate(SMnode *pMnode, SCompactObj *pCompact){
 
       tSerializeSQueryCompactProgressReq((char *)pHead + sizeof(SMsgHead), contLen - sizeof(SMsgHead), &req);
 
-      //only send
       SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_COMPACT_PROGRESS, 
                         .contLen = contLen};
       
       rpcMsg.pCont = rpcMallocCont(contLen);
       if (rpcMsg.pCont == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        //return -1;
+        return;
       }
-      //rpcMsg.info.traceId.rootId = pTrans->mTraceId;
 
       memcpy(rpcMsg.pCont, pHead, contLen);
 
@@ -564,28 +561,9 @@ void mndCompactUpdate(SMnode *pMnode, SCompactObj *pCompact){
                         epSet.eps[i].port);
       }
 
-      mInfo("%s", detail);
+      mDebug("compact:%d, send update progress msg to %s", pDetail->compactId, detail);
 
-      int32_t code = tmsgSendReq(&epSet, &rpcMsg);
-
-      //send and receive
-      /*
-      SRpcMsg rpcMsg = {.pCont = pReq,
-                    .contLen = contLen,
-                    .msgType = TDMT_VND_QUERY_COMPACT_PROGRESS,
-                    .info.ahandle = (void *)0x9527,
-                    .info.refId = 0,
-                    .info.noResp = 0};
-      SRpcMsg rpcRsp = {0};
-
-      rpcSendRecvWithTimeout(pMnode->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp, 5000);
-      if (rpcRsp.code != 0) {
-        SQueryCompactProgressRsp rsp;
-        if (tDeserializeSQueryCompactProgressRsp(rpcRsp.pCont, rpcRsp.contLen, &rsp) != 0) {
-          terrno = TSDB_CODE_INVALID_MSG;
-        }
-      }
-      */
+      tmsgSendReq(&epSet, &rpcMsg);
     }
 
     sdbRelease(pMnode->pSdb, pDetail);
@@ -600,6 +578,11 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
     pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
     if (pIter == NULL) break;
 
+    mDebug("compact:%d, check save progress, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d, "
+            "newNumberFileset:%d, newFinished:%d", 
+            pDetail->compactId, pDetail->vgId, pDetail->dnodeId, pDetail->numberFileset, pDetail->finished,
+            pDetail->newNumberFileset, pDetail->newFinished);
+
     if (pDetail->compactId == compactId) {
       if(pDetail->numberFileset < pDetail->newNumberFileset || pDetail->finished < pDetail->newFinished)
         needSave = true;
@@ -608,7 +591,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
     sdbRelease(pMnode->pSdb, pDetail);
   }
   if(!needSave) {
-    mInfo("compact:%" PRId32 ", no need to save" , compactId);
+    mDebug("compact:%" PRId32 ", no need to save" , compactId);
     return 0;
   }
 
