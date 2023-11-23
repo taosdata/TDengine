@@ -1094,6 +1094,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT: {
       SShowCompactDetailsStmt* pStmt = (SShowCompactDetailsStmt*)pNode;
       nodesDestroyNode(pStmt->pCompactId);
+      break;
     }
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       taosMemoryFreeClear(((SShowCreateDatabaseStmt*)pNode)->pCfg);

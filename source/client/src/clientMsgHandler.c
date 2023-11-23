@@ -553,8 +553,8 @@ static int32_t buildCompactDbBlock(SCompactDbRsp* pRsp, SSDataBlock** block) {
   infoData.info.bytes = COMPACT_DB_RESULT_FIELD1_LEN;
   taosArrayPush(pBlock->pDataBlock, &infoData);
 
-  infoData.info.type = TSDB_DATA_TYPE_BIGINT;
-  infoData.info.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  infoData.info.type = TSDB_DATA_TYPE_INT;
+  infoData.info.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
   taosArrayPush(pBlock->pDataBlock, &infoData);
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;

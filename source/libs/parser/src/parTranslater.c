@@ -8761,7 +8761,7 @@ static int32_t extractCompactDbResultSchema(int32_t* numOfCols, SSchema** pSchem
 
   (*pSchema)[2].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[2].bytes = COMPACT_DB_RESULT_FIELD3_LEN;
-  strcpy((*pSchema)[2].name, "scope");
+  strcpy((*pSchema)[2].name, "reason");
 
   return TSDB_CODE_SUCCESS;
 }
