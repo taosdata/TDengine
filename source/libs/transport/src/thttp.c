@@ -198,7 +198,7 @@ static void httpAsyncCb(uv_async_t* handle) {
   queue wq;
   QUEUE_INIT(&wq);
 
-  static int32_t BACTHSIZE = 20;
+  static int32_t BACTHSIZE = 5;
   int32_t        count = 0;
 
   taosThreadMutexLock(&item->mtx);
@@ -372,13 +372,14 @@ static bool httpFailFastShoudIgnoreMsg(SHashObj* pTable, char* server, int16_t p
   char buf[256] = {0};
   sprintf(buf, "%s:%d", server, port);
 
-  int64_t* failedTime = (int64_t*)taosHashGet(pTable, buf, strlen(buf));
+  int32_t* failedTime = (int32_t*)taosHashGet(pTable, buf, strlen(buf));
   if (failedTime == NULL) {
     return false;
   }
+  int32_t now = taosGetTimestampSec();
 
-  int64_t now = taosGetTimestampSec();
-  if (now - *failedTime < 60) {
+  tError("failed timestamp %d, curr timestamp:%d", *failedTime, now);
+  if (*failedTime > now - 60) {
     tError("http-report succ to ignore msg,reason:connection timed out, dst:%s", buf);
     return true;
   } else {
@@ -392,7 +393,7 @@ static void httpFailFastMayUpdate(SHashObj* pTable, char* server, int16_t port, 
   if (succ) {
     taosHashRemove(pTable, buf, strlen(buf));
   } else {
-    int64_t st = taosGetTimestampSec();
+    int32_t st = taosGetTimestampSec();
     taosHashPut(pTable, buf, strlen(buf), &st, sizeof(st));
   }
   return;
@@ -452,11 +453,11 @@ static void httpHandleReq(SHttpMsg* msg) {
   uv_tcp_init(http->loop, &cli->tcp);
 
   // set up timeout to avoid stuck;
-  int32_t fd = taosCreateSocketWithTimeout(5);
+  int32_t fd = taosCreateSocketWithTimeout(3000);
   if (fd < 0) {
     tError("http-report failed to open socket, dst:%s:%d", cli->addr, cli->port);
-    taosReleaseRef(httpRefMgt, httpRef);
     destroyHttpClient(cli);
+    taosReleaseRef(httpRefMgt, httpRef);
     return;
   }
   int ret = uv_tcp_open((uv_tcp_t*)&cli->tcp, fd);
