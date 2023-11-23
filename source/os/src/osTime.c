@@ -477,47 +477,38 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf) {
     return res;
   }
 #ifdef WINDOWS
-  if (*timep < 0) {
-    if (*timep < -2208988800LL) {
-      if (buf != NULL) {
-        sprintf(buf, "NaN");
-      }
-      return NULL;
+  if (*timep < -2208988800LL) {
+    if (buf != NULL) {
+      sprintf(buf, "NaN");
     }
-
-    SYSTEMTIME    s;
-    FILETIME      f;
-    LARGE_INTEGER offset;
-    struct tm     tm1;
-    time_t        tt = 0;
-    if (localtime_s(&tm1, &tt) != 0 ) {
-      if (buf != NULL) {
-        sprintf(buf, "NaN");
-      }
-      return NULL;
-    }
-    offset.QuadPart = TIMEEPOCH1900;
-    offset.QuadPart += *timep * 10000000;
-    f.dwLowDateTime = offset.QuadPart & 0xffffffff;
-    f.dwHighDateTime = (offset.QuadPart >> 32) & 0xffffffff;
-    FileTimeToSystemTime(&f, &s);
-    result->tm_sec = s.wSecond;
-    result->tm_min = s.wMinute;
-    result->tm_hour = s.wHour;
-    result->tm_mday = s.wDay;
-    result->tm_mon = s.wMonth - 1;
-    result->tm_year = s.wYear - 1900;
-    result->tm_wday = s.wDayOfWeek;
-    result->tm_yday = 0;
-    result->tm_isdst = 0;
-  } else {
-    if (localtime_s(result, timep) != 0) {
-      if (buf != NULL) {
-        sprintf(buf, "NaN");
-      }
-      return NULL;
-    }
+    return NULL;
   }
+
+  SYSTEMTIME    s;
+  FILETIME      f;
+  LARGE_INTEGER offset;
+  struct tm     tm1;
+  time_t        tt = 0;
+  if (localtime_s(&tm1, &tt) != 0) {
+    if (buf != NULL) {
+      sprintf(buf, "NaN");
+    }
+    return NULL;
+  }
+  offset.QuadPart = TIMEEPOCH1900;
+  offset.QuadPart += *timep * 10000000;
+  f.dwLowDateTime = offset.QuadPart & 0xffffffff;
+  f.dwHighDateTime = (offset.QuadPart >> 32) & 0xffffffff;
+  FileTimeToSystemTime(&f, &s);
+  result->tm_sec = s.wSecond;
+  result->tm_min = s.wMinute;
+  result->tm_hour = s.wHour;
+  result->tm_mday = s.wDay;
+  result->tm_mon = s.wMonth - 1;
+  result->tm_year = s.wYear - 1900;
+  result->tm_wday = s.wDayOfWeek;
+  result->tm_yday = 0;
+  result->tm_isdst = 0;
 #else
   res = localtime_r(timep, result);
   if (res == NULL && buf != NULL) {

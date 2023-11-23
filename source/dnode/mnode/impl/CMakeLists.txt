@@ -7,6 +7,13 @@ IF (TD_ENTERPRISE)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/mnode/src/mndDb.c)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/mnode/src/mndVgroup.c)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/mnode/src/mndDnode.c)
+  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/view/src/mndView.c)
+
+  IF(${BUILD_WITH_S3})
+    add_definitions(-DUSE_S3)
+  ELSEIF(${BUILD_WITH_COS})
+    add_definitions(-DUSE_COS)
+  ENDIF()
 ENDIF ()
 
 add_library(mnode STATIC ${MNODE_SRC})

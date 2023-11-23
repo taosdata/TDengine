@@ -88,6 +88,9 @@ void tqDestroyTqHandle(void* data) {
     taosMemoryFree(pData->msg);
     pData->msg = NULL;
   }
+  if (pData->block != NULL){
+    blockDataDestroy(pData->block);
+  }
 }
 
 static bool tqOffsetEqual(const STqOffset* pLeft, const STqOffset* pRight) {
@@ -944,9 +947,10 @@ int32_t tqProcessTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
 }
 
 int32_t tqProcessTaskCheckRsp(STQ* pTq, SRpcMsg* pMsg) {
-  char*   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-  int32_t len = pMsg->contLen - sizeof(SMsgHead);
-  int32_t vgId = pTq->pStreamMeta->vgId;
+  char*        pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t      len = pMsg->contLen - sizeof(SMsgHead);
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+  int32_t      vgId = pMeta->vgId;
 
   int32_t             code;
   SStreamTaskCheckRsp rsp;
@@ -966,21 +970,23 @@ int32_t tqProcessTaskCheckRsp(STQ* pTq, SRpcMsg* pMsg) {
           rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.reqId, rsp.downstreamTaskId, rsp.downstreamNodeId, rsp.status);
 
   if (!vnodeIsRoleLeader(pTq->pVnode)) {
+    streamMetaUpdateTaskDownstreamStatus(pMeta, rsp.streamId, rsp.upstreamTaskId, 0, taosGetTimestampMs(), false);
     tqError("vgId:%d not leader, task:0x%x not handle the check rsp, downstream:0x%x (vgId:%d)", vgId,
             rsp.upstreamTaskId, rsp.downstreamTaskId, rsp.downstreamNodeId);
     return code;
   }
 
-  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, rsp.streamId, rsp.upstreamTaskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, rsp.streamId, rsp.upstreamTaskId);
   if (pTask == NULL) {
+    streamMetaUpdateTaskDownstreamStatus(pMeta, rsp.streamId, rsp.upstreamTaskId, 0, taosGetTimestampMs(), false);
     tqError("tq failed to locate the stream task:0x%" PRIx64 "-0x%x (vgId:%d), it may have been destroyed or stopped",
-            rsp.streamId, rsp.upstreamTaskId, pTq->pStreamMeta->vgId);
+            rsp.streamId, rsp.upstreamTaskId, pMeta->vgId);
     terrno = TSDB_CODE_STREAM_TASK_NOT_EXIST;
     return -1;
   }
 
   code = streamProcessCheckRsp(pTask, &rsp);
-  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+  streamMetaReleaseTask(pMeta, pTask);
   return code;
 }
 

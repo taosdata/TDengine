@@ -78,7 +78,7 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
   STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, tbName, strlen(tbName));
   if (NULL == pMeta) {
     mError("invalid information schema table name:%s", tbName);
-    terrno = TSDB_CODE_MND_INVALID_SYS_TABLENAME;
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
 
@@ -111,7 +111,7 @@ int32_t mndBuildInsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbN
   STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, tbName, strlen(tbName));
   if (NULL == pMeta) {
     mError("invalid information schema table name:%s", tbName);
-    terrno = TSDB_CODE_MND_INVALID_SYS_TABLENAME;
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
 

@@ -191,7 +191,7 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
 
   pMemTable->nDel++;
   pMemTable->minVer = TMIN(pMemTable->minVer, version);
-  pMemTable->maxVer = TMIN(pMemTable->maxVer, version);
+  pMemTable->maxVer = TMAX(pMemTable->maxVer, version);
   /*
   if (TSDB_CACHE_LAST_ROW(pMemTable->pTsdb->pVnode->config) && tsdbKeyCmprFn(&lastKey, &pTbData->maxKey) >= 0) {
     tsdbCacheDeleteLastrow(pTsdb->lruCache, pTbData->uid, eKey);

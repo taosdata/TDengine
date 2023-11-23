@@ -2859,9 +2859,12 @@ void* streamDefaultIterCreate_rocksdb(SStreamState* pState) {
   pCur->number = pState->number;
   return pCur;
 }
-int32_t streamDefaultIterValid_rocksdb(void* iter) {
+bool streamDefaultIterValid_rocksdb(void* iter) {
+  if (iter) {
+    return false;
+  }
   SStreamStateCur* pCur = iter;
-  return rocksdb_iter_valid(pCur->iter) ? 1 : 0;
+  return (rocksdb_iter_valid(pCur->iter) && !iterValueIsStale(pCur->iter)) ? true : false;
 }
 void streamDefaultIterSeek_rocksdb(void* iter, const char* key) {
   SStreamStateCur* pCur = iter;

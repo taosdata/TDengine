@@ -1035,7 +1035,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   }
 
   initLimitInfo(pScanNode->node.pLimit, pScanNode->node.pSlimit, &pInfo->base.limitInfo);
-  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode);
+  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, readHandle);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -1127,7 +1127,8 @@ static bool isSessionWindow(SStreamScanInfo* pInfo) {
 }
 
 static bool isStateWindow(SStreamScanInfo* pInfo) {
-  return pInfo->windowSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE;
+  return pInfo->windowSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE ||
+         pInfo->windowSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT;
 }
 
 static bool isIntervalWindow(SStreamScanInfo* pInfo) {
@@ -1863,6 +1864,9 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       // curVersion move to next
       tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pWalReader->curVersion);
 
+      // use ts to pass time when replay, because ts not used if type is log
+      pTaskInfo->streamInfo.currentOffset.ts = pAPI->tqReaderFn.tqGetResultBlockTime(pInfo->tqReader);
+
       if (hasResult) {
         qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, pRes->info.rows,
                pTaskInfo->streamInfo.currentOffset.version);
@@ -2240,6 +2244,7 @@ FETCH_NEXT_BLOCK:
       blockDataCleanup(pSup->pScanBlock);
       prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
       pInfo->pUpdateRes->info.type = STREAM_DELETE_DATA;
+      printSpecDataBlock(pInfo->pUpdateRes, getStreamOpName(pOperator->operatorType), "rebuild", GET_TASKID(pTaskInfo));
       return pInfo->pUpdateRes;
     }
 
@@ -3530,7 +3535,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
     goto _error;
   }
 
-  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode);
+  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, readHandle);
   if (code != TSDB_CODE_SUCCESS) {
     taosArrayDestroy(pInfo->base.matchInfo.pList);
     goto _error;

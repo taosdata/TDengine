@@ -23,7 +23,7 @@ import CDemo from "./_sub_c.mdx";
 
 为了实现上述功能，TDengine 会为 WAL (Write-Ahead-Log) 文件自动创建索引以支持快速随机访问，并提供了灵活可配置的文件切换与保留机制：用户可以按需指定 WAL 文件保留的时间以及大小（详见 create database 语句）。通过以上方式将 WAL 改造成了一个保留事件到达顺序的、可持久化的存储引擎（但由于 TSDB 具有远比 WAL 更高的压缩率，我们不推荐保留太长时间，一般来说，不超过几天）。 对于以 topic 形式创建的查询，TDengine 将对接 WAL 而不是 TSDB 作为其存储引擎。在消费时，TDengine 根据当前消费进度从 WAL 直接读取数据，并使用统一的查询引擎实现过滤、变换等操作，将数据推送给消费者。
 
-下面为关于数据订阅的一些说明，需要对TDengine的架构有一些了解，结合各个语言链接器的接口使用。
+下面为关于数据订阅的一些说明，需要对TDengine的架构有一些了解，结合各个语言链接器的接口使用。(可使用时再了解)
 - 一个消费组消费同一个topic下的所有数据，不同消费组之间相互独立；
 - 一个消费组消费同一个topic所有的vgroup，消费组可由多个消费者组成，但一个vgroup仅被一个消费者消费，如果消费者数量超过了vgroup数量，多余的消费者不消费数据；
 - 在服务端每个vgroup仅保存一个offset，每个vgroup的offset是单调递增的，但不一定连续。各个vgroup的offset之间没有关联；
@@ -45,12 +45,13 @@ import CDemo from "./_sub_c.mdx";
 
 本文档不对消息队列本身的知识做更多的介绍，如果需要了解，请自行搜索。
 
+说明：
 从3.2.0.0版本开始，数据订阅支持vnode迁移和分裂。
 由于数据订阅依赖wal文件，而在vnode迁移和分裂的过程中，wal并不会同步过去，所以迁移或分裂后，之前没消费完的wal数据后消费不到。所以请保证之前把数据全部消费完后，再进行vnode迁移或分裂，否则，消费会丢失数据。
 
 ## 主要数据结构和 API
 
-不同语言下， TMQ 订阅相关的 API 及数据结构如下：
+不同语言下， TMQ 订阅相关的 API 及数据结构如下（注意consumer结构不是线程安全的，在一个线程使用consumer时，不要在另一个线程close这个consumer）：
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="c" label="C">
@@ -355,6 +356,7 @@ CREATE TOPIC topic_name [with meta] AS DATABASE db_name;
 |      `enable.auto.commit`      | boolean | 是否启用消费位点自动提交，true: 自动提交，客户端应用无需commit；false：客户端应用需要自行commit     | 默认值为 true                   |
 |   `auto.commit.interval.ms`    | integer | 消费记录自动提交消费位点时间间隔，单位为毫秒           | 默认值为 5000                                |
 |     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）（从3.2.0.0版本该参数废弃，恒为true）               |默认关闭 |
+|     `enable.replay`            | boolean | 是否开启数据回放功能               |默认关闭 |
 
 对于不同编程语言，其设置方式如下：
 
@@ -526,6 +528,24 @@ var consumer = new ConsumerBuilder(cfg).Build();
 </Tabs>
 
 上述配置中包括 consumer group ID，如果多个 consumer 指定的 consumer group ID 一样，则自动形成一个 consumer group，共享消费进度。
+
+数据回放功能说明：
+- 订阅增加 replay 功能，按照数据写入的时间回放。
+  比如，如下时间写入三条数据
+  ```sql
+    2023/09/22 00:00:00.000
+    2023/09/22 00:00:05.000
+    2023/09/22 00:00:08.000
+    ```
+  则订阅出第一条数据 5s 后返回第二条数据，获取第二条数据 3s 后返回第三条数据。
+- 仅列订阅支持数据回放
+  - 回放需要保证独立时间线
+  - 如果是子表订阅或者普通表订阅，只有一个vnode上有数据，保证是一个时间线
+  - 如果超级表订阅，则需保证该 DB 只有一个vnode，否则报错（因为多个vnode上订阅出的数据不在一个时间线上）
+- 超级表和库订阅不支持回放
+- 增加 enable.replay 参数，true表示开启订阅回放功能，false表示不开启订阅回放功能，默认不开启。
+- 回放不支持进度保存，所以回放参数 enable.replay = true 时，auto commit 自动关闭
+- 因为数据回放本身需要处理时间，所以回放的精度存在几十ms的误差
 
 ## 订阅 *topics*
 
