@@ -855,7 +855,7 @@ int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInf
 
 // message process
 int32_t streamTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, bool restart);
-int32_t streamTaskProcesUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored);
+int32_t streamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored);
 int32_t streamTaskProcessDispatchReq(SStreamMeta* pMeta, SRpcMsg* pMsg);
 int32_t streamTaskProcessDispatchRsp(SStreamMeta* pMeta, SRpcMsg* pMsg);
 int32_t streamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg);

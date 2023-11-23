@@ -807,7 +807,7 @@ int32_t streamTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, bool restart) {
   return 0;
 }
 
-int32_t streamTaskProcesUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored) {
+int32_t streamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored) {
   int32_t      vgId = pMeta->vgId;
   char*        msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t      len = pMsg->contLen - sizeof(SMsgHead);
