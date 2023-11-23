@@ -322,7 +322,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
       if (blockCol && blockCol->flag == HAS_VALUE) {
         offset = blockCol->offset;
 
-        SColData *colDataEnd = tBlockDataGetColDataByIdx(bData, bData->nColData);
+        SColData *colDataEnd = tBlockDataGetColDataByIdx(bData, bData->nColData - 1);
         while (blockCol && blockCol->cid < colDataEnd->cid) {
           if (size < hdr->szBlkCol) {
             size += tGetBlockCol(reader->config->bufArr[0] + size, blockCol);
