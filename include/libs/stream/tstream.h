@@ -37,11 +37,6 @@ extern "C" {
 #define TASK_DOWNSTREAM_READY      0x0
 #define TASK_DOWNSTREAM_NOT_READY  0x1
 #define TASK_DOWNSTREAM_NOT_LEADER 0x2
-#define TASK_SELF_NEW_STAGE        0x3
-
-#define TASK_DOWNSTREAM_READY      0x0
-#define TASK_DOWNSTREAM_NOT_READY  0x1
-#define TASK_DOWNSTREAM_NOT_LEADER 0x2
 #define TASK_UPSTREAM_NEW_STAGE    0x3
 
 #define NODE_ROLE_UNINIT   0x1
@@ -315,6 +310,7 @@ typedef struct SCheckpointInfo {
   int64_t checkpointingId;
   int32_t downstreamAlignNum;
   int32_t checkpointNotReadyTasks;
+  bool    dispatchCheckpointTrigger;
   int64_t msgVer;
 } SCheckpointInfo;
 
@@ -463,10 +459,9 @@ struct SStreamTask {
 };
 
 typedef struct STaskStartInfo {
-  int64_t startTs;
-  int64_t readyTs;
-  int32_t tasksWillRestart;
-
+  int64_t   startTs;
+  int64_t   readyTs;
+  int32_t   tasksWillRestart;
   int32_t   taskStarting;    // restart flag, sentinel to guard the restart procedure.
   SHashObj* pReadyTaskSet;   // tasks that are all ready for running stream processing
   SHashObj* pFailedTaskSet;  // tasks that are done the check downstream process, may be successful or failed
@@ -774,7 +769,8 @@ void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen);
 // recover and fill history
 void streamTaskCheckDownstream(SStreamTask* pTask);
 
-int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage, int64_t* oldStage);
+int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage,
+                              int64_t* oldStage);
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
 void    streamTaskResetUpstreamStageInfo(SStreamTask* pTask);
 bool    streamTaskAllUpstreamClosed(SStreamTask* pTask);
@@ -803,7 +799,6 @@ int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 int32_t streamRestoreParam(SStreamTask* pTask);
 void    streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta);
 void    streamTaskResume(SStreamTask* pTask);
-void    streamTaskEnablePause(SStreamTask* pTask);
 int32_t streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask);
 void    streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
 void    streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
@@ -859,7 +854,7 @@ void         streamMetaResetStartInfo(STaskStartInfo* pMeta);
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
 int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask);
 int32_t streamTaskBuildCheckpoint(SStreamTask* pTask);
-void    streamTaskClearCheckInfo(SStreamTask* pTask);
+void    streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg);
 int32_t streamAlignTransferState(SStreamTask* pTask);
 int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId);
 int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask,

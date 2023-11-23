@@ -75,12 +75,12 @@ typedef struct {
   char*   dbPrefixPath;
 } SStreamTaskSnap;
 struct STokenBucket {
-  int32_t numCapacity;    // total capacity, available token per second
-  int32_t numOfToken;     // total available tokens
-  int32_t numRate;        // number of token per second
-  double  quotaCapacity;  // available capacity for maximum input size, KiloBytes per Second
-  double  quotaRemain;    // not consumed bytes per second
-  double  quotaRate;      // number of token per second
+  int32_t numCapacity;         // total capacity, available token per second
+  int32_t numOfToken;          // total available tokens
+  int32_t numRate;             // number of token per second
+  double  quotaCapacity;       // available capacity for maximum input size, KiloBytes per Second
+  double  quotaRemain;         // not consumed bytes per second
+  double  quotaRate;           // number of token per second
   int64_t tokenFillTimestamp;  // fill timestamp
   int64_t quotaFillTimestamp;  // fill timestamp
 };
@@ -137,6 +137,8 @@ int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo,
 int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
 int32_t streamTaskFillHistoryFinished(SStreamTask* pTask);
 int32_t streamTransferStateToStreamTask(SStreamTask* pTask);
+
+void streamClearChkptReadyMsg(SStreamTask* pTask);
 
 int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate, const char*);
 STaskId streamTaskExtractKey(const SStreamTask* pTask);

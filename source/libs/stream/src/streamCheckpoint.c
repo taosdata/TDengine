@@ -165,6 +165,7 @@ static int32_t continueDispatchCheckpointBlock(SStreamDataBlock* pBlock, SStream
 
   int32_t code = taosWriteQitem(pTask->outputq.queue->pQueue, pBlock);
   if (code == 0) {
+    ASSERT(pTask->chkInfo.dispatchCheckpointTrigger == false);
     streamDispatchStreamBlock(pTask);
   } else {
     stError("s-task:%s failed to put checkpoint into outputQ, code:%s", pTask->id.idStr, tstrerror(code));
@@ -267,13 +268,17 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask) {
   return 0;
 }
 
-void streamTaskClearCheckInfo(SStreamTask* pTask) {
+void streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg) {
   pTask->chkInfo.checkpointingId = 0;  // clear the checkpoint id
   pTask->chkInfo.failedId = 0;
   pTask->chkInfo.startTs = 0;  // clear the recorded start time
-  pTask->chkInfo.downstreamAlignNum = 0;
   pTask->chkInfo.checkpointNotReadyTasks = 0;
+  // pTask->chkInfo.checkpointAlignCnt = 0;
+  pTask->chkInfo.dispatchCheckpointTrigger = false;
   streamTaskOpenAllUpstreamInput(pTask);  // open inputQ for all upstream tasks
+  if (clearChkpReadyMsg) {
+    streamClearChkptReadyMsg(pTask);
+  }
 }
 
 int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId) {
@@ -293,7 +298,7 @@ int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId) {
   p->chkInfo.checkpointId = p->chkInfo.checkpointingId;
   p->chkInfo.checkpointVer = p->chkInfo.processedVer;
 
-  streamTaskClearCheckInfo(p);
+  streamTaskClearCheckInfo(p, false);
   char* str = NULL;
   streamTaskGetStatus(p, &str);
 
@@ -469,7 +474,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
 
   if (code != TSDB_CODE_SUCCESS) {  // clear the checkpoint info if failed
     taosThreadMutexLock(&pTask->lock);
-    streamTaskClearCheckInfo(pTask);
+    streamTaskClearCheckInfo(pTask, false);
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
     taosThreadMutexUnlock(&pTask->lock);
 

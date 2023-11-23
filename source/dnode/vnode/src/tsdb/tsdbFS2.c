@@ -85,7 +85,7 @@ static int32_t save_json(const cJSON *json, const char *fname) {
   char *data = cJSON_PrintUnformatted(json);
   if (data == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-  TdFilePtr fp = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  TdFilePtr fp = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (fp == NULL) {
     code = TAOS_SYSTEM_ERROR(code);
     goto _exit;
@@ -1186,11 +1186,6 @@ const char *gFSBgTaskName[] = {NULL, "MERGE", "RETENTION", "COMPACT"};
 static int32_t tsdbFSRunBgTask(void *arg) {
   STFSBgTask   *task = (STFSBgTask *)arg;
   STFileSystem *fs = task->fs;
-  STFileSet    *fset;
-
-  tsdbFSGetFSet(fs, task->fid, &fset);
-
-  ASSERT(fset != NULL && fset->bgTaskRunning == task);
 
   task->launchTime = taosGetTimestampMs();
   task->run(task->arg);
@@ -1202,6 +1197,10 @@ static int32_t tsdbFSRunBgTask(void *arg) {
             task->finishTime);
 
   taosThreadMutexLock(&fs->tsdb->mutex);
+
+  STFileSet *fset = NULL;
+  tsdbFSGetFSet(fs, task->fid, &fset);
+  ASSERT(fset != NULL && fset->bgTaskRunning == task);
 
   // free last
   tsdbDoDoneBgTask(fs, task);

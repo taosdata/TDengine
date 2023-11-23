@@ -325,6 +325,7 @@ int32_t sndInit(SSnode *pSnode) {
 }
 
 void sndClose(SSnode *pSnode) {
+  stopRsync();
   streamMetaNotifyClose(pSnode->pMeta);
   streamMetaCommit(pSnode->pMeta);
   streamMetaClose(pSnode->pMeta);

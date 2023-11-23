@@ -15,11 +15,11 @@
 
 #include "executor.h"
 #include "streamInt.h"
+#include "streamsm.h"
 #include "tmisce.h"
 #include "tstream.h"
 #include "ttimer.h"
 #include "wal.h"
-#include "streamsm.h"
 
 static void streamTaskDestroyUpstreamInfo(SUpstreamInfo* pUpstreamInfo);
 
@@ -357,7 +357,9 @@ void tFreeStreamTask(SStreamTask* pTask) {
     walCloseReader(pTask->exec.pWalReader);
   }
 
+  streamClearChkptReadyMsg(pTask);
   pTask->pReadyMsgList = taosArrayDestroy(pTask->pReadyMsgList);
+
   if (pTask->msgInfo.pData != NULL) {
     destroyDispatchMsg(pTask->msgInfo.pData, getNumOfDispatchBranch(pTask));
     pTask->msgInfo.pData = NULL;
@@ -423,7 +425,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   pTask->status.pSM = streamCreateStateMachine(pTask);
   if (pTask->status.pSM == NULL) {
     stError("s-task:%s failed create state-machine for stream task, initialization failed, code:%s", pTask->id.idStr,
-        tstrerror(terrno));
+            tstrerror(terrno));
     return terrno;
   }
 
@@ -435,7 +437,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   pTask->chkInfo.checkpointVer = ver - 1;  // only update when generating checkpoint
   pTask->chkInfo.processedVer = ver - 1;   // already processed version
 
-  pTask->chkInfo.nextProcessVer = ver;   // next processed version
+  pTask->chkInfo.nextProcessVer = ver;  // next processed version
   pTask->dataRange.range.maxVer = ver;
   pTask->dataRange.range.minVer = ver;
   pTask->pMsgCb = pMsgCb;
@@ -645,7 +647,7 @@ int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList) {
   p->latestUpdateTs = taosGetTimestampMs();
   p->updateCount += 1;
   stDebug("s-task:0x%x update task nodeEp epset, updatedNodes:%d, updateCount:%d, prevTs:%" PRId64, pTask->id.taskId,
-         numOfNodes, p->updateCount, prevTs);
+          numOfNodes, p->updateCount, prevTs);
 
   for (int32_t i = 0; i < taosArrayGetSize(pNodeList); ++i) {
     SNodeUpdateInfo* pInfo = taosArrayGet(pNodeList, i);
@@ -716,7 +718,7 @@ int32_t streamTaskClearHTaskAttr(SStreamTask* pTask) {
     return TSDB_CODE_SUCCESS;
   }
 
-  STaskId sTaskId = {.streamId = pTask->streamTaskId.streamId, .taskId = pTask->streamTaskId.taskId};
+  STaskId       sTaskId = {.streamId = pTask->streamTaskId.streamId, .taskId = pTask->streamTaskId.taskId};
   SStreamTask** ppStreamTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &sTaskId, sizeof(sTaskId));
 
   if (ppStreamTask != NULL) {
