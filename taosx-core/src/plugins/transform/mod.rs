@@ -87,6 +87,57 @@ mod pipeline_tests {
     use super::*;
 
     #[test]
+    fn test_pipeline_empty_input() {
+        let records = demo_mqtt_records();
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["value::double", "id::int"] } }
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser and mutate
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["value::double", "id::int"] } },
+            "mutate": [{ "filter": "value > 1.2" }]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser, mutate and model
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["value::double", "id::int"] } },
+            "mutate": [{ "filter": "value > 1.2" }],
+            "model": [{
+                "name": "d{id}",
+                "using": "meters",
+                "tags": ["id"],
+                "columns": ["ts", "value"]
+            }]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+    }
+    #[test]
     fn test_pipeline() {
         let records = demo_mqtt_records();
 

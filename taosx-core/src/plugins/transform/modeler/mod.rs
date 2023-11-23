@@ -75,8 +75,8 @@ pub struct ModeledJsonOutput {
 
 impl From<&RecordBatch> for ModeledJsonOutput {
     fn from(value: &RecordBatch) -> Self {
-        let fields = value
-            .schema()
+        let schema = value.schema();
+        let fields = schema
             .fields()
             .iter()
             .map(|field| {
@@ -101,7 +101,13 @@ impl From<&RecordBatch> for ModeledJsonOutput {
             columns: arrow::json::writer::record_batches_to_json_rows(&[value])
                 .unwrap()
                 .into_iter()
-                .map(|value| value.into_iter().map(|(_, v)| v).collect_vec())
+                .map(|value| {
+                    value
+                        .into_iter()
+                        .sorted_by_key(|n| schema.fields().find(&n.0).unwrap())
+                        .map(|(_, v)| v)
+                        .collect_vec()
+                })
                 .collect_vec(),
         }
     }

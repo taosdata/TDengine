@@ -136,11 +136,11 @@ impl Parse for Json {
         let mut schema =
             arrow::json::reader::infer_json_schema_from_iterator(json_data.into_iter())?;
 
-        dbg!(&schema);
+        // dbg!(&schema);
         if let Some(select) = self.json.as_ref() {
             schema = select.schema(&schema);
         }
-        dbg!(&schema);
+        // dbg!(&schema);
         let json_values: Vec<_> = (0..num_rows)
             .enumerate()
             .flat_map(|(n, i)| {
@@ -191,7 +191,7 @@ impl Parse for Json {
         let mut arrays = Vec::new();
 
         let fields = schema.fields().clone();
-        dbg!(&fields);
+        // dbg!(&fields);
         if self.keep {
             arrays.push((field.name(), array.clone()));
             let len = schema.fields().len();
