@@ -1233,6 +1233,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
   if (pAlterTbReq->colName == NULL) {
     terrno = TSDB_CODE_INVALID_MSG;
+    metaError("meta/table: null pAlterTbReq->colName");
     return -1;
   }
 
@@ -1300,20 +1301,26 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   SMetaEntry oldEntry = {.type = TSDB_NORMAL_TABLE, .uid = entry.uid};
   oldEntry.ntbEntry.schemaRow.nCols = pSchema->nCols;
 
-  int32_t iCol = 0;
+  int32_t rowLen = -1;
+  if (pAlterTbReq->action == TSDB_ALTER_TABLE_ADD_COLUMN ||
+      pAlterTbReq->action == TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES) {
+    rowLen = 0;
+  }
+
+  int32_t  iCol = 0;
+  SSchema *qColumn = NULL;
   for (;;) {
-    pColumn = NULL;
+    qColumn = NULL;
 
     if (iCol >= pSchema->nCols) break;
-    pColumn = &pSchema->pSchema[iCol];
+    qColumn = &pSchema->pSchema[iCol];
 
-    if (NULL == pAlterTbReq->colName) {
-      metaError("meta/table: null pAlterTbReq->colName");
-      return -1;
+    if (!pColumn && (strcmp(qColumn->name, pAlterTbReq->colName) == 0)) {
+      pColumn = qColumn;
+      if (rowLen < 0) break;
     }
-
-    if (strcmp(pColumn->name, pAlterTbReq->colName) == 0) break;
-    iCol++;
+    rowLen += qColumn->bytes;
+    ++iCol;
   }
 
   entry.version = version;
@@ -1326,6 +1333,10 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         goto _err;
       }
       if ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) < 0) {
+        goto _err;
+      }
+      if (rowLen + pAlterTbReq->bytes > TSDB_MAX_BYTES_PER_ROW) {
+        terrno = TSDB_CODE_PAR_INVALID_ROW_LENGTH;
         goto _err;
       }
       pSchema->version++;
@@ -1371,6 +1382,10 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
       }
       if (!IS_VAR_DATA_TYPE(pColumn->type) || pColumn->bytes > pAlterTbReq->colModBytes) {
         terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+        goto _err;
+      }
+      if (rowLen + pAlterTbReq->colModBytes - pColumn->bytes > TSDB_MAX_BYTES_PER_ROW) {
+        terrno = TSDB_CODE_PAR_INVALID_ROW_LENGTH;
         goto _err;
       }
       if (tqCheckColModifiable(pMeta->pVnode->pTq, uid, pColumn->colId) != 0) {

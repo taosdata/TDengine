@@ -246,8 +246,8 @@ static void checkAlterNtbModifyColumn(TAOS *taos, const char *host, char *qstr) 
       sprintf(qstr, "alter table %s_%d modify column c_%d NCHAR(%d);", NTB, i, c, 455);
       queryDB(taos, qstr, true);
     }
-    sprintf(qstr, "desc %s_%d;", NTB, i);
-    queryDB(taos, qstr, false);
+    // sprintf(qstr, "desc %s_%d;", NTB, i);
+    // queryDB(taos, qstr, false);
   }
 
   // check
@@ -308,10 +308,10 @@ int main(int argc, char *argv[]) {
     case CHECK_ALTER_STABLE_MODIFY_TAG:  // reproduced in 3.0.7.1
       checkAlterStbModifyColumn(taos, argv[1], qstr, CHECK_ALTER_STABLE_MODIFY_TAG);
       break;
-    case CHECK_ALTER_NTABLE_ADD_COL:  // not reproduced in 3.0.7.1
+    case CHECK_ALTER_NTABLE_ADD_COL:  // reproduced in 3.0.7.1
       checkAlterNtbAddColumn(taos, argv[1], qstr);
       break;
-    case CHECK_ALTER_NTABLE_MODIFY_COL:  // not reproduced in 3.0.7.1
+    case CHECK_ALTER_NTABLE_MODIFY_COL:  // not reproduced in 3.0.7.1(should reproduced)
       checkAlterNtbModifyColumn(taos, argv[1], qstr);
       break;
     default:
