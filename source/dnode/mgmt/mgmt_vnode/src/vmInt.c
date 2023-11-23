@@ -650,7 +650,7 @@ static void *vmRestoreVnodeInThread(void *param) {
   for (int32_t v = 0; v < pThread->vnodeNum; ++v) {
     SVnodeObj *pVnode = pThread->ppVnodes[v];
     if (pVnode->failed) {
-      dError("vgId:%d, skip restoring vnode in failure mode.", pVnode->vgId);
+      dError("vgId:%d, cannot restore a vnode in failed mode.", pVnode->vgId);
       continue;
     }
 
