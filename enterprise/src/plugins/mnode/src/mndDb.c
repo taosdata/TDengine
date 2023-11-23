@@ -14,10 +14,13 @@
  */
 
 #include "mndDb.h"
+#include "mndDef.h"
 #include "mndPrivilege.h"
 #include "mndTrans.h"
 #include "mndVgroup.h"
 #include "audit.h"
+#include "mndCompact.h"
+#include "mndCompactDetail.h"
 
 static int32_t mndSetCompactDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t compactTs) {
   SDbObj dbObj = {0};
@@ -36,9 +39,14 @@ static int32_t mndSetCompactDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj 
 }
 
 static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t compactTs,
-                                          STimeWindow tw) {
+                                          STimeWindow tw, SCompactDbRsp* pCompactRsp) {
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
+
+  SCompactObj compact;
+  if(mndAddCompactToTran(pMnode, pTrans, &compact, pDb, pCompactRsp) != 0){
+    return -1;
+  }
 
   while (1) {
     SVgObj *pVgroup = NULL;
@@ -51,11 +59,43 @@ static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
         sdbRelease(pSdb, pVgroup);
         return -1;
       }
+
+      for(int32_t i = 0; i < pVgroup->replica; i++){
+        SVnodeGid* gid = &pVgroup->vnodeGid[i];
+        if(mndAddCompactDetailToTran(pMnode, pTrans, &compact, pVgroup, gid, i) != 0) {
+          sdbCancelFetch(pSdb, pIter);
+          sdbRelease(pSdb, pVgroup);
+          return -1;
+        }
+      }
+
     }
 
     sdbRelease(pSdb, pVgroup);
   }
 
+  //tFreeCompactObj(&compact);
+
+  return 0;
+}
+
+static int32_t mndBuildCompactDbRsp(SCompactDbRsp* pCompactRsp, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc) {
+  int32_t rspLen = tSerializeSCompactDbRsp(NULL, 0, pCompactRsp);
+  void   *pRsp = NULL;
+  if (useRpcMalloc) {
+    pRsp = rpcMallocCont(rspLen);
+  } else {
+    pRsp = taosMemoryMalloc(rspLen);
+  }
+
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSCompactDbRsp(pRsp, rspLen, pCompactRsp);
+  *pRspLen = rspLen;
+  *ppRsp = pRsp;
   return 0;
 }
 
@@ -65,11 +105,49 @@ static int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWin
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "compact-db");
   if (pTrans == NULL) goto _OVER;
 
+  SCompactDbRsp compactRsp = {0};
+
   mInfo("trans:%d, used to compact db:%s", pTrans->id, pDb->name);
   mndTransSetDbName(pTrans, pDb->name, NULL);
   if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+
+  bool isExist = false;
+  void *pIter = NULL;
+  while (1) {
+    SCompactObj *pCompact = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT, pIter, (void **)&pCompact);
+    if (pIter == NULL) break;
+
+    if(strcmp(pCompact->dbname, pDb->name) == 0){
+      isExist = true;
+    }
+    sdbRelease(pMnode->pSdb, pCompact);
+  }
+  if(isExist) {
+    mInfo("trans:%d, compact db:%s already exist", pTrans->id, pDb->name);
+    
+    int32_t rspLen = 0;
+    void   *pRsp = NULL;
+    compactRsp.compactId = 0;
+    compactRsp.bAccepted = false;
+    if (mndBuildCompactDbRsp(&compactRsp, &rspLen, &pRsp, true) < 0) goto _OVER;
+    
+    pReq->info.rsp = pRsp;
+    pReq->info.rspLen = rspLen;
+
+    code = -1;
+    goto _OVER;
+  }
+
   if (mndSetCompactDbCommitLogs(pMnode, pTrans, pDb, compactTs) != 0) goto _OVER;
-  if (mndSetCompactDbRedoActions(pMnode, pTrans, pDb, compactTs, tw) != 0) goto _OVER;
+  if (mndSetCompactDbRedoActions(pMnode, pTrans, pDb, compactTs, tw, &compactRsp) != 0) goto _OVER;
+
+  int32_t rspLen = 0;
+  void   *pRsp = NULL;
+  compactRsp.bAccepted = true;
+  if (mndBuildCompactDbRsp(&compactRsp, &rspLen, &pRsp, false) < 0) goto _OVER;
+  mndTransSetRpcRsp(pTrans, pRsp, rspLen);
+
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
 
