@@ -3,6 +3,7 @@ use std::sync::Arc;
 use self::cast::Cast;
 use self::json::Json;
 use self::regex::Regex;
+use self::split::Split;
 
 use super::TransformExt;
 
@@ -26,6 +27,7 @@ use thiserror::Error;
 mod cast;
 mod json;
 mod regex;
+mod split;
 
 #[derive(Debug, Error)]
 pub enum ParseError {
@@ -35,6 +37,8 @@ pub enum ParseError {
     ArrowError(#[from] ArrowError),
     #[error(transparent)]
     RegexError(#[from] regex::RegexError),
+    #[error(transparent)]
+    SplitError(#[from] split::SplitError)
 }
 
 /// Parse will be applied to one filed of data with [ArrayRef].
@@ -93,6 +97,7 @@ pub(super) enum FieldParser {
     Cast(Cast),
     Alias { alias: String },
     Json(Json),
+    Split(Split)
 }
 
 impl Parse for FieldParser {
@@ -125,7 +130,8 @@ impl Parse for FieldParser {
             FieldParser::Alias { alias } => {
                 let batch = RecordBatch::try_from_iter([(alias, array.clone())])?;
                 Ok((batch, None))
-            }
+            },
+            FieldParser::Split(split) => split.parse_array(field, array)
         }
     }
 }
