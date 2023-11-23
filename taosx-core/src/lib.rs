@@ -419,7 +419,7 @@ impl TaskOpts {
                     }
 
                     kafka_to_taos(
-                        from.clone(),
+                        dsn,
                         parser.clone(),
                         transform.clone(),
                         to.clone(),

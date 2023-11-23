@@ -41,8 +41,9 @@ groups:
       - name: timeout
         display: Timeout
         description: >
-          Specifies the timeout of the Kafka Source. When no data is consumed from Kafka, the data migration task will exit after timeout.
-          The default value is 500 ms. When use `timeout=never`, taosx will wait for a usable message forever and never stop the subscription until any error caused.
+          Specifies the timeout of the Kafka Source. When no data is consumed from Kafka, the data migration task will exit after timeout. The default value is 500 ms. 
+          
+          When use `timeout=never`, taosx will wait for a usable message forever and never stop the subscription until any error caused.
         placeholder: 500
         required: false
         hint:
@@ -51,11 +52,9 @@ groups:
       - name: topics
         display: Topics
         description: >
-          Specifies one topic or several topics to consume.
-          All of the available partitions of the identified topic will be consumed unless override when the topic_partitions is specified. e.g. topics=tp1,tp2
-          At least one of "Topics" and "Topic Partitions" must be specified to assign topic to the consumer.
+          Specifies one topic or several topics to consume. e.g. topics=tp1,tp2
         placeholder: "tp1,tp2"
-        required: false
+        required: true
         hint:
           type: str
 
