@@ -376,7 +376,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
 
           code = tsdbReadFile(reader->fd[TSDB_FTYPE_DATA],
                               record->blockOffset + record->blockKeySize + hdr->szBlkCol + blockCol->offset,
-                              reader->config->bufArr[1], size1, szHint);
+                              reader->config->bufArr[1], size1, i > 0 ? 0 : szHint);
           TSDB_CHECK_CODE(code, lino, _exit);
 
           code = tsdbDecmprColData(reader->config->bufArr[1], blockCol, hdr->cmprAlg, hdr->nRow, colData,
