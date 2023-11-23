@@ -24,7 +24,7 @@
  * Usage Example: check add column for stable
  *  step 1) Open terminal 1, execute: "./alterTableTest localhost 1 0" to prepare db/stables.
  *  step 2) Open terminal 2 and 3, execute: "./alterTableTest localhost 0 0" to add columns simultaneously.
- * 
+ *
  *  Check Result: If reproduced, "Invalid value in client" error appears during checking "desc tables ..."
  */
 
@@ -97,11 +97,11 @@ static int32_t queryDB(TAOS *taos, char *command, bool skipError) {
   taos_free_result(pSql);
 }
 
-static void createDatabaseAlterStbAddColumn(TAOS *taos, const char *host, char *qstr, int32_t type) {
+static void checkAlterStbAddColumn(TAOS *taos, const char *host, char *qstr, int32_t type) {
   // create stb
   if (isDropDb) {
     for (int i = 0; i < STB_NUM; ++i) {
-      sprintf(qstr, "CREATE table if not exists %s_%d (ts timestamp, %s_%d NCHAR(32)) tags(t0 nchar(16));", STB, i, COL,
+      sprintf(qstr, "CREATE table if not exists %s_%d (ts timestamp, %s_%d NCHAR(32)) tags(t0 nchar(32));", STB, i, COL,
               0);
       queryDB(taos, qstr, false);
       // create ctb
@@ -113,7 +113,7 @@ static void createDatabaseAlterStbAddColumn(TAOS *taos, const char *host, char *
   }
 
   if (isDropDb) {
-    printf("sleep 86400s to wait another terminals (at least 2 terminals) executing ... \n");
+    printf("sleep 86400s to wait another terminals (at least 2 terminals) to execute \n");
     sleep(86400);
   }
 
@@ -122,7 +122,7 @@ static void createDatabaseAlterStbAddColumn(TAOS *taos, const char *host, char *
 
   // alter stb cols
   for (int i = 0; i < STB_NUM; ++i) {
-    for (int c = 1; c < COL_NUM; ++c) {
+    for (int c = 1; c < colNum; ++c) {
       sprintf(qstr, "alter table %s_%d add %s c_%d NCHAR(%d);", STB, i, colName, c, COL_NCHAR_LEN);
       queryDB(taos, qstr, true);
     }
@@ -137,7 +137,7 @@ static void createDatabaseAlterStbAddColumn(TAOS *taos, const char *host, char *
   }
 }
 
-static void createDatabaseAlterStbModifyColumn(TAOS *taos, const char *host, char *qstr, int32_t type) {
+static void checkAlterStbModifyColumn(TAOS *taos, const char *host, char *qstr, int32_t type) {
   // create stb
   if (isDropDb) {
     for (int i = 0; i < STB_NUM_MODIFY; ++i) {
@@ -161,7 +161,7 @@ static void createDatabaseAlterStbModifyColumn(TAOS *taos, const char *host, cha
   }
 
   if (isDropDb) {
-    printf("sleep 86400s to wait another terminals (at least 2 terminals) executing ... \n");
+    printf("sleep 86400s to wait another terminals (at least 2 terminals) to execute \n");
     sleep(86400);
   }
 
@@ -186,7 +186,7 @@ static void createDatabaseAlterStbModifyColumn(TAOS *taos, const char *host, cha
   }
 }
 
-static void createDatabaseAlterNtbAddColumn(TAOS *taos, const char *host, char *qstr) {
+static void checkAlterNtbAddColumn(TAOS *taos, const char *host, char *qstr) {
   // create ntb
   if (isDropDb) {
     for (int i = 0; i < NTB_NUM; ++i) {
@@ -196,7 +196,7 @@ static void createDatabaseAlterNtbAddColumn(TAOS *taos, const char *host, char *
   }
 
   if (isDropDb) {
-    printf("sleep 86400s to wait another terminals (at least 2 terminals) executing ... \n");
+    printf("sleep 86400s to wait another terminals (at least 2 terminals) to execute \n");
     sleep(86400);
   }
 
@@ -217,8 +217,8 @@ static void createDatabaseAlterNtbAddColumn(TAOS *taos, const char *host, char *
   }
 }
 
-static void createDatabaseAlterNtbModifyColumn(TAOS *taos, const char *host, char *qstr) {
-  // create stb
+static void checkAlterNtbModifyColumn(TAOS *taos, const char *host, char *qstr) {
+  // create ntb
   if (isDropDb) {
     for (int i = 0; i < NTB_NUM_MODIFY; ++i) {
       sprintf(
@@ -236,7 +236,7 @@ static void createDatabaseAlterNtbModifyColumn(TAOS *taos, const char *host, cha
   }
 
   if (isDropDb) {
-    printf("sleep 86400s to wait another terminals (at least 2 terminals) executing ... \n");
+    printf("sleep 86400s to wait another terminals (at least 2 terminals) to execute \n");
     sleep(86400);
   }
 
@@ -245,7 +245,6 @@ static void createDatabaseAlterNtbModifyColumn(TAOS *taos, const char *host, cha
     for (int c = 0; c < 36; ++c) {
       sprintf(qstr, "alter table %s_%d modify column c_%d NCHAR(%d);", NTB, i, c, 455);
       queryDB(taos, qstr, true);
-      //   usleep(1000);
     }
     sprintf(qstr, "desc %s_%d;", NTB, i);
     queryDB(taos, qstr, false);
@@ -298,22 +297,22 @@ int main(int argc, char *argv[]) {
 
   switch (checkType) {
     case CHECK_ALTER_STABLE_ADD_COL:  // reproduced in 3.0.7.1
-      createDatabaseAlterStbAddColumn(taos, argv[1], qstr, CHECK_ALTER_STABLE_ADD_COL);
+      checkAlterStbAddColumn(taos, argv[1], qstr, CHECK_ALTER_STABLE_ADD_COL);
       break;
     case CHECK_ALTER_STABLE_ADD_TAG:  // reproduced in 3.0.7.1
-      createDatabaseAlterStbAddColumn(taos, argv[1], qstr, CHECK_ALTER_STABLE_ADD_TAG);
+      checkAlterStbAddColumn(taos, argv[1], qstr, CHECK_ALTER_STABLE_ADD_TAG);
       break;
     case CHECK_ALTER_STABLE_MODIFY_COL:  // not reproduced in 3.0.7.1 since already checked in mnode
-      createDatabaseAlterStbModifyColumn(taos, argv[1], qstr, CHECK_ALTER_STABLE_MODIFY_COL);
+      checkAlterStbModifyColumn(taos, argv[1], qstr, CHECK_ALTER_STABLE_MODIFY_COL);
       break;
     case CHECK_ALTER_STABLE_MODIFY_TAG:  // reproduced in 3.0.7.1
-      createDatabaseAlterStbModifyColumn(taos, argv[1], qstr, CHECK_ALTER_STABLE_MODIFY_TAG);
+      checkAlterStbModifyColumn(taos, argv[1], qstr, CHECK_ALTER_STABLE_MODIFY_TAG);
       break;
     case CHECK_ALTER_NTABLE_ADD_COL:  // not reproduced in 3.0.7.1
-      createDatabaseAlterNtbAddColumn(taos, argv[1], qstr);
+      checkAlterNtbAddColumn(taos, argv[1], qstr);
       break;
     case CHECK_ALTER_NTABLE_MODIFY_COL:  // not reproduced in 3.0.7.1
-      createDatabaseAlterNtbModifyColumn(taos, argv[1], qstr);
+      checkAlterNtbModifyColumn(taos, argv[1], qstr);
       break;
     default:
       printf("unkown check type:%d\n", checkType);
