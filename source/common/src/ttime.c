@@ -170,8 +170,12 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
     hour = strnatoi(&str[i], len);
     i += len + 1;
   } else {
-    hour = strnatoi(&str[i], 2);
+    hour = strnatoi(&str[i], strlen(&str[i]));
     i += 2;
+  }
+
+  if (hour > 12 || hour < 0) {
+    return -1;
   }
 
   // return error if there're illegal charaters after min(2 Digits)
