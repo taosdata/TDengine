@@ -213,8 +213,10 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
 
+  bool alreadyRestored = pTq->pVnode->restored;
+
   // do not launch the stream tasks, if it is a follower or not restored vnode.
-  if (!(vnodeIsRoleLeader(pTq->pVnode) && pTq->pVnode->restored)) {
+  if (!(vnodeIsRoleLeader(pTq->pVnode) && alreadyRestored)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -256,7 +258,9 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
     return -1;
   }
 
-  tqDebug("vgId:%d create msg to start wal scan to launch stream tasks, numOfTasks:%d", vgId, numOfTasks);
+  tqDebug("vgId:%d create msg to start wal scan to launch stream tasks, numOfTasks:%d, restored:%d", vgId, numOfTasks,
+          alreadyRestored);
+
   pRunReq->head.vgId = vgId;
   pRunReq->streamId = 0;
   pRunReq->taskId = STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID;

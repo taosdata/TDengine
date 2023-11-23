@@ -354,11 +354,16 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
   char cfgFile[PATH_MAX + 100] = {0};
 
   taosExpandDir(inputCfgDir, cfgDir, PATH_MAX);
+  char lastC = cfgDir[strlen(cfgDir) - 1];
+  char *tdDirsep = TD_DIRSEP;
+  if (lastC == '\\' || lastC == '/') {
+    tdDirsep = "";
+  }
   if (taosIsDir(cfgDir)) {
 #ifdef CUS_PROMPT
-    snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "%s.cfg", cfgDir, CUS_PROMPT);
+    snprintf(cfgFile, sizeof(cfgFile), "%s" "%s" "%s.cfg", cfgDir, tdDirsep, CUS_PROMPT);
 #else
-    snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "taos.cfg", cfgDir);
+    snprintf(cfgFile, sizeof(cfgFile), "%s" "%s" "taos.cfg", cfgDir, tdDirsep);
 #endif
   } else {
     tstrncpy(cfgFile, cfgDir, sizeof(cfgDir));
@@ -508,6 +513,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 2;
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
+
   if (tsNumOfTaskQueueThreads >= 50) {
     tsNumOfTaskQueueThreads = 50;
   }

@@ -304,6 +304,7 @@ typedef struct SCheckpointInfo {
   int64_t processedVer;    // already processed ver, that has generated results version.
   int64_t nextProcessVer;  // current offset in WAL, not serialize it
   int64_t failedId;        // record the latest failed checkpoint id
+  bool    dispatchCheckpointTrigger;
 } SCheckpointInfo;
 
 typedef struct SStreamStatus {
@@ -757,7 +758,8 @@ void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen);
 // recover and fill history
 void streamTaskCheckDownstream(SStreamTask* pTask);
 
-int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage, int64_t* oldStage);
+int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage,
+                              int64_t* oldStage);
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
 void    streamTaskResetUpstreamStageInfo(SStreamTask* pTask);
 bool    streamTaskAllUpstreamClosed(SStreamTask* pTask);
@@ -786,7 +788,6 @@ int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 int32_t streamRestoreParam(SStreamTask* pTask);
 void    streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta);
 void    streamTaskResume(SStreamTask* pTask);
-void    streamTaskEnablePause(SStreamTask* pTask);
 int32_t streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask);
 void    streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
 void    streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);

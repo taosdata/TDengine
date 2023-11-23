@@ -162,7 +162,7 @@ class TDTestCase:
         assert('TIMESTAMP' in data_type_list and 'INT' in data_type_list and 'INT UNSIGNED' in data_type_list and 'BIGINT' in data_type_list and 'BIGINT UNSIGNED' in data_type_list and 'FLOAT' in data_type_list and 'DOUBLE' in data_type_list and 'VARCHAR' in data_type_list and 'SMALLINT' in data_type_list and 'SMALLINT UNSIGNED' in data_type_list and 'TINYINT' in data_type_list and 'TINYINT UNSIGNED' in data_type_list and 'BOOL' in data_type_list and 'VARCHAR' in data_type_list and 'NCHAR' in data_type_list and 'GEOMETRY' in data_type_list and 'VARBINARY' in data_type_list)
         tdSql.execute("create view v2 as select * from tb where c1 >5 and c7 like '%ab%';")
         self.check_view_num(2)
-        tdSql.error("create view v3 as select * from tb where c1 like '%ab%';", expectErrInfo='Invalid value type')
+        tdSql.error("create view v3 as select * from tb where c1 like '%ab%';", expectErrInfo='Invalid operation')
         tdSql.execute("create view v3 as select first(ts), sum(c1) from tb group by c2 having avg(c4) > 0;")
         tdSql.execute("create view v4 as select _wstart,sum(c6) from tb interval(10s);")
         tdSql.execute("create view v5 as select * from tb join v2 on tb.ts = v2.ts;")
