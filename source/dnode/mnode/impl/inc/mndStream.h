@@ -22,17 +22,37 @@
 extern "C" {
 #endif
 
-int32_t mndInitStream(SMnode *pMnode);
-void    mndCleanupStream(SMnode *pMnode);
+typedef struct SStreamTransInfo {
+  int64_t     startTime;
+  int32_t     transId;
+  const char *name;
+} SStreamTransInfo;
 
+typedef struct SStreamTransMgmt {
+  SHashObj *pDBTrans;
+} SStreamTransMgmt;
+
+typedef struct SStreamExecInfo {
+  SArray       *pNodeList;
+  int64_t       ts;                // snapshot ts
+  SStreamTransMgmt  transMgmt;
+  int64_t       activeCheckpoint;  // active check point id
+  SHashObj *    pTaskMap;
+  SArray *      pTaskList;
+  TdThreadMutex lock;
+} SStreamExecInfo;
+
+extern SStreamExecInfo execInfo;
+
+int32_t     mndInitStream(SMnode *pMnode);
+void        mndCleanupStream(SMnode *pMnode);
 SStreamObj *mndAcquireStream(SMnode *pMnode, char *streamName);
 void        mndReleaseStream(SMnode *pMnode, SStreamObj *pStream);
+int32_t     mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
+int32_t     mndPersistStream(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 
-SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
-SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
-
-int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
-int32_t mndPersistStream(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
+int32_t mndStreamRegisterTrans(STrans* pTrans, const char* pName, const char* pSrcDb, const char* pDstDb);
+bool    streamTransConflictOtherTrans(SMnode *pMnode, const char *pSrcDb, const char *pDstDb);
 
 // for sma
 // TODO refactor
