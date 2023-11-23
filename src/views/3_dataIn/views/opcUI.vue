@@ -1044,7 +1044,6 @@ export default {
     }
   },
   mounted() {
-    console.log(this.dbsource,'mqtt---kafka')
     if (this.tagName == "mqtt" || this.tagName == "kafka") {
       this.constmqttCols =this.dbsource[0].parser.fields ;
       let caitem = this.$store.state.app.mqttcafile[0];

@@ -1,6 +1,7 @@
 <template>
   <div class="common-transformer">
     <template>
+      <el-button type="danger" @click="getTransformerParams">点击</el-button>
       <section>
         <div class="block-title">
           <span>{{ $t("datasource.transformer.msgbody") }}</span>
@@ -24,21 +25,18 @@
         <template v-for="(item, index) in extractArr">
           <ExtractSplit
             :key="index"
-            :data="item"
+            :itemData="item"
             :index="index"
             :payload="msgbody"
-            :extractColumns="columnsArr"
+            :extractColumns="item.columns"
             @deleteExtract="deleteExtract"
             @selectColumn="changeColumnStatus"
           ></ExtractSplit>
         </template>
 
-        <el-button
-          type="primary"
-          size="small"
-          @click="addNewExtract"
-          >{{ $t("add") }}</el-button
-        >
+        <el-button type="primary" size="small" @click="addNewExtract">{{
+          $t("add")
+        }}</el-button>
       </section>
       <section class="filter">
         <div class="block-title">
@@ -48,12 +46,13 @@
           <FilterExpression
             :key="index"
             :index="index"
+            :itemData="item"
             :payload="msgbody"
             :inputparamsColumns="columnsArr"
             @deleteFilter="deleteFilter"
           ></FilterExpression>
         </template>
-        <el-button type="primary" size="small" @click="addNewFilter" >{{
+        <el-button type="primary" size="small" @click="addNewFilter">{{
           $t("add")
         }}</el-button>
       </section>
@@ -95,7 +94,12 @@
             <div class="mapping">
               {{ $t("datasource.transformer.mapping") }}
             </div>
-            <el-table :data="tableData" border style="width: 100%">
+            <el-table
+              :data="tableData"
+              border
+              style="width: 100%"
+              :key="tablekey"
+            >
               <template v-for="(item, index) in st_columnLists">
                 <el-table-column
                   v-if="item === 'Expression'"
@@ -190,11 +194,12 @@ export default {
   },
   data() {
     return {
+      tablekey: 1,
       msgbody: "",
       params_columns: [],
       params_tags: [],
       mapType: "value",
-      extractAddStatus:false,
+      extractAddStatus: false,
       mappingTypes: ["value", "generator", "join", "format", "sum", "expr"],
       st_columnLists: [
         "Name",
@@ -252,18 +257,14 @@ export default {
       ],
       columnsArr: [],
       tableData: [],
-      extractArr: [
-        {
-            columns:{},
-            type:'',
-            expression:''
-        }
-      ],
+      extractArr: [],
       filterArr: [
         {
           expression: "",
+          index: 1,
         },
       ],
+      currentCol: "",
     };
   },
   mounted() {
@@ -277,11 +278,12 @@ export default {
         };
       })
     );
-    this.$set(this.extractArr,0,{
-        columns:this.columnsArr,
-        type:'',
-        expression:''
-    })
+    this.$set(this.extractArr, 0, {
+      columns: this.columnsArr,
+      type: "",
+      expression: "",
+      columnname: "",
+    });
     console.log(
       this.parserColumns,
       this.$store.state.app.currentDBName,
@@ -292,37 +294,85 @@ export default {
     this.getInitStables();
   },
   methods: {
-    changeColumnStatus(index){//选中的列不能再选中
-        this.$set(this.columnsArr[index],'show',false)
-        this.extractAddStatus=this.columnsArr.every(item=>!item.show)
-        this.$set(this.extractArr,'columns',this.columnsArr)
-        console.log(this.extractArr,'修改后的', this.extractAddStatus)
+    //获取transformer的所有参数
+    getTransformerParams() {
+      console.log(
+        this.extractArr,
+        this.filterArr,
+        this.tableData,
+        "所有的参数"
+      );
+    },
+    changeColumnStatus(index, name) {
+      //选中的列不能再选中
+      let ind = this.columnsArr.findIndex((item) => item.name == name);
+      this.$set(this.columnsArr[ind], "show", false);
+      this.extractAddStatus = this.columnsArr.every((item) => !item.show);
+      this.$set(this.extractArr[index], "columnname", name);
+      console.log(this.extractArr, "修改后的", this.extractAddStatus);
     },
     async getParserData(data) {
+      console.log("接口调用");
       try {
         let result = await getParser(data);
-        this.tableColumns = result[0].fields.map((item) => item.name);
-        this.tableData = result[0].columns.map((data) => {
+        if (result.message) {
+          Message.error(result.message);
+          return;
+        }
+        let outputColumns = result[0].fields.map((item) => item.name);
+        let outputTBData = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
               return [item.name, data[index]];
             })
           );
         });
-
-        console.log(result, this.tableData, "mappingde 结果");
+        let currentindex = this.tableData.findIndex(
+          (item) => item["Name"] == this.currentCol
+        );
+        outputTBData.splice(0, 2).map((item, index) => {
+          this.$set(
+            this.tableData[currentindex],
+            "Sample Output" + `${index + 1}`,
+            item[this.currentCol]
+          );
+        });
+        this.tablekey = Math.random();
+        // this.$set(this,'tablekey',Math.random())
+        console.log(
+          outputColumns,
+          outputTBData,
+          this.tableData,
+          "mappingde 结果"
+        );
       } catch (error) {
         console.log(error);
       }
     },
     submitSuper(data) {
+      console.log(this.tableData[0], "判断s-----name");
       if (!this.msgbody) {
         Message.error(this.$t("datasource.transformer.msgbodytip"));
         return;
       }
+      if (!this.tableData[0]["Expression"]) {
+        Message.error(this.$t("datasource.transformer.tablenametip"));
+        return;
+      }
+      this.currentCol = data["Name"];
       let parser = {
         parser: {
           parse: {},
+          model: {
+            name: this.tableData[0]["Expression"],
+            using: this.sruleForm.s_name,
+            tags: this.params_tags.includes(data["Name"])
+              ? [].concat(data["Name"])
+              : [],
+            columns: this.params_columns.includes(data["Name"])
+              ? [].concat(data["Name"])
+              : [],
+          },
           mutate: [
             {
               map: {
@@ -370,7 +420,6 @@ export default {
         }
         Message.success(this.$t("operateSucc"));
         this.getInitStables();
-        console.log(result, "创建超级表");
         this.closeDialog();
       } catch (error) {
         error.desc ? Message.error(error.desc) : "";
@@ -380,12 +429,11 @@ export default {
     //获取初始化的stables
     async getInitStables() {
       try {
-        if(!this.$store.state.app.currentDBName)return
+        if (!this.$store.state.app.currentDBName) return;
         let result = await sendSQLReq(
           `show  \`${this.$store.state.app.currentDBName}\`.stables `
         );
         this.$set(this, "stableLists", Array.from(result.data).flat(1));
-        console.log(result.data, this.stableLists, "初始化查询所有超级表");
       } catch (error) {
         console.log(error);
       }
@@ -419,18 +467,19 @@ export default {
             Type: val[1],
             maptype: "value",
             Expression: "",
-            "Smaple Output1": "",
-            "Smaple Output2": "",
+            "Sample Output1": "",
+            "Sample Output2": "",
           };
         });
+        this.tableData.unshift({
+          Name: this.sruleForm.s_name,
+          Type: "Tablename",
+          maptype: "string",
+          Expression: "",
+          "Sample Output1": "",
+          "Sample Output2": "",
+        });
         this.params_columns.unshift(res.data[0][0]);
-        console.log(
-          res,
-          this.tableData,
-          this.params_columns,
-          this.params_tags,
-          "获取超级表---999"
-        );
       } catch (error) {
         console.log(error);
       }
@@ -440,31 +489,44 @@ export default {
     addNewExtract() {
       this.extractArr.push({
         columns: this.columnsArr,
-        filters: [],
+        columnname: "",
+        expression: "",
+        type: "",
       });
     },
     //新增filter
     addNewFilter() {
       this.filterArr.push({
         expression: "",
+        index: this.filterArr.length+1,
       });
+      console.log(this.filterArr, "增加");
     },
     //删除filter
     deleteFilter(index) {
-      this.filterArr.splice(index, 1);
+      let ind = this.filterArr.findIndex((val) => val.index == index);
+      this.filterArr.splice(ind, 1);
+      console.log(this.filterArr, "删除");
     },
     deleteExtract(index, name) {
-      this.extractArr.splice(index, 1);
-      console.log(this.params_columns,this.extractArr,this.columnsArr, "this.params_columns", name);
-      //   this.columnsArr.push(this.params_columns.filter(val=>val.name==name)[0])
+      if (name) {
+        let ind = this.extractArr.findIndex((item) => item.columnname == name);
+        this.extractArr.splice(ind, 1);
+        let restoreIndex = this.columnsArr.findIndex(
+          (item) => item.name == name
+        );
+        this.$set(this.columnsArr[restoreIndex], "show", true);
+      } else {
+        this.extractArr.splice(index, 1);
+      }
     },
   },
   watch: {
-    '$store.state.app.currentDBName':{
-        deep:true,
-        handler(val){
-            this.getInitStables()
-        }
+    "$store.state.app.currentDBName": {
+      deep: true,
+      handler(val) {
+        this.getInitStables();
+      },
     },
     parserColumns: {
       deep: true,
@@ -479,11 +541,12 @@ export default {
             };
           })
         );
-        this.$set(this.extractArr,0,{
-        columns:this.columnsArr,
-        type:'',
-        expression:''
-    })
+        this.$set(this.extractArr, 0, {
+          columns: this.columnsArr,
+          type: "",
+          expression: "",
+          columnname: "",
+        });
       },
     },
   },
@@ -552,6 +615,13 @@ export default {
 }
 .table-detail {
   margin-top: 20px;
+  .el-table {
+    thead tr th:first-child {
+      div {
+        visibility: hidden;
+      }
+    }
+  }
 }
 .payload-upload {
   .el-select {

@@ -23,7 +23,7 @@
             size="small"
             :placeholder="$t('datasource.transformer.filter_type')"
             v-model="ruleForm.filter_name"
-           
+            @change="changeExtractType"
           >
             <el-option
               v-for="item in extractTypes"
@@ -34,7 +34,11 @@
           </el-select>
         </el-form-item>
         <el-form-item prop="filter_expres">
-          <el-popover trigger="click" placement="right-end" :content="$t('datasource.transformer.mutiple')">
+          <el-popover
+            trigger="click"
+            placement="right-end"
+            :content="$t('datasource.transformer.mutiple')"
+          >
             <el-input
               size="small"
               slot="reference"
@@ -69,6 +73,12 @@ import { Message } from "element-ui";
 export default {
   name: "ExtractSplit",
   props: {
+    itemData: {
+      type: Object,
+      default: () => {
+        return null;
+      },
+    },
     payload: {
       type: String,
       default: "",
@@ -121,30 +131,48 @@ export default {
     };
   },
   methods: {
-    selectCol(data){
-        let ind =this.$parent.columnsArr.findIndex(item=>item.name==this.ruleForm.col_name)
-        // this.$emit('selectColumn',ind,this.ruleForm.col_name)
-        
-        console.log(data,'选择列',this.ruleForm.col_name,this.$parent.columnsArr,this.index)
+    initData(val) {
+      this.ruleForm.col_name = val.columnname;
+      this.ruleForm.filter_expres = val.expression;
+      this.ruleForm.filter_name = val.type;
     },
-    submit(){
-        if(!this.$parent.msgbody){
-            Message.error(this.$t('datasource.transformer.msgbodytip'))
-            return
+    selectCol(data) {
+      this.$emit("selectColumn", this.index, this.ruleForm.col_name);
+
+      console.log(
+        data,
+        "选择列",
+        this.ruleForm.col_name,
+        this.$parent.columnsArr,
+        this.index
+      );
+    },
+    changeExtractType(){
+        let index = this.$parent.extractArr.findIndex(item=>item.columnname==this.ruleForm.col_name)
+        this.$set(this.$parent.extractArr[index],'type',this.ruleForm.filter_name)
+    },
+    submit() {
+      if (!this.$parent.msgbody) {
+        Message.error(this.$t("datasource.transformer.msgbodytip"));
+        return;
+      }
+      this.$refs.extractForm.validate((valid) => {
+        if (valid) {
+          this.submitExtract();
+          return true;
+        } else {
+          return false;
         }
-        this.$refs.extractForm.validate(valid=>{
-            if(valid){
-                this.submitExtract()
-                return true
-            }else{
-                return false
-            }
-        })
+      });
     },
     async getParserData(data) {
       try {
         let result = await getParser(data);
         this.tableColumns = result[0].fields.map((item) => item.name);
+        if(result.message){
+            Message.error(result.message)
+            return
+        }
         this.tableData = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
@@ -160,49 +188,57 @@ export default {
     },
     //提交单个
     submitExtract() {
-        let extractExpres=this.ruleForm.filter_expres.split(';')
+      let extractExpres = this.ruleForm.filter_expres.split(";");
       let parser = {
         parser: {
           parse: {
             [`${this.ruleForm.col_name}`]: {
-              [`${this.ruleForm.filter_name}`]:extractExpres,
+              [`${this.ruleForm.filter_name}`]: extractExpres,
             },
           },
         },
-        input: this.extractColumns.map(item=>{
-                let obj={}
-                if(this.$store.state.app.currentDBType=='mqtt'){//mqtt
-                    if(item.name=='payload'){
-                        obj['payload']=this.payload
-                    }else{
-                        obj[item.name]=item.name
-                    }
-                }else if(this.$store.state.app.currentDBType=='kafka'){
-                    if(item.name=='value'){
-                        obj['value']=this.payload
-                    }else{
-                        obj[item.name]=item.name
-                    }
-                }
-                return obj
-            })
+        input: this.extractColumns.map((item) => {
+          let obj = {};
+          if (this.$store.state.app.currentDBType == "mqtt") {
+            //mqtt
+            if (item.name == "payload") {
+              obj["payload"] = this.payload;
+            } else {
+              obj[item.name] = item.name;
+            }
+          } else if (this.$store.state.app.currentDBType == "kafka") {
+            if (item.name == "value") {
+              obj["value"] = this.payload;
+            } else {
+              obj[item.name] = item.name;
+            }
+          }
+          return obj;
+        }),
       };
       this.getParserData(parser);
       console.log(parser, "提交单个");
     },
     deleteExtract() {
-        console.log(this.extractColumns,'删除',this.ruleForm.col_name,this.index)
-      this.$emit("deleteExtract", this.index,this.ruleForm.col_name);
+      this.$emit("deleteExtract", this.index, this.ruleForm.col_name);
     },
   },
   mounted() {
-    console.log(this.extractColumns,this.$store.state.app.currentDBType, "extractColumnsextractColumns");
+    if (this.itemData) {
+      this.initData(this.itemData);
+    }
+
+    console.log(
+      this.extractColumns,
+      this.$store.state.app.currentDBType,
+      "extractColumnsextractColumns"
+    );
   },
   watch: {
-    extractColumns: {
+    itemData: {
       deep: true,
       handler(val) {
-        // console.log(val, this.$store.state.app.currentDBType, "舰艇");
+        this.initData(val);
       },
     },
   },

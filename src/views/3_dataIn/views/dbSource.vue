@@ -133,13 +133,9 @@ export default {
     async toggleComponent(type, id, editid, dbname) {
       if (type && !this.isEditable) {
         //新增
-        // if(type=='mqtt'||type=='kafka'){
-        //   await this.getData()
-        // }
 
         
         let data = this.sourceList.filter((item) => item.id === type);
-        console.log('新增数据源',type,this.sourceList,data,this.staticParser)
         if (type == "mqtt" || type == "kafka") {
           this.$set(this.uidata, 0, this.deepClone(data)[0]);
           this.parserobj = deepClone(this.staticParser);

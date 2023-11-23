@@ -996,7 +996,8 @@ export default {
       mutiple:'多添件查询以分号分隔',
       msgbody:'消息体',
       msgbodytip:'请先输入消息体',
-      searchSResult:'输入完后按enter键查询'
+      searchSResult:'输入完后按enter键查询',
+      tablenametip:'请先输入表名表达式'
     },
     opcurl:'请输入OPC服务地址',
     selecttargetdb:'请选择目标数据源',
