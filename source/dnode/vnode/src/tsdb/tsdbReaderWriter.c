@@ -58,6 +58,7 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
       // pFD->szFile = s3_size;
 #endif
     } else {
+      tsdbInfo("no file: %s", path);
       code = TAOS_SYSTEM_ERROR(errsv);
       // taosMemoryFree(pFD);
       goto _exit;
