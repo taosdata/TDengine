@@ -281,8 +281,8 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   vmGenerateWrapperCfg(pMgmt, &req, &wrapperCfg);
 
-  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
-  if (pVnode != NULL) {
+  SVnodeObj *pVnode = vmAcquireVnodeImpl(pMgmt, req.vgId, false);
+  if (pVnode != NULL && (req.replica == 1 || !pVnode->failed)) {
     dError("vgId:%d, already exist", req.vgId);
     tFreeSCreateVnodeReq(&req);
     vmReleaseVnode(pMgmt, pVnode);
