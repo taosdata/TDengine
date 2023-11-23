@@ -144,6 +144,8 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_STREAM_TASKS,
   TSDB_MGMT_TABLE_PRIVILEGES,
   TSDB_MGMT_TABLE_VIEWS,
+  TSDB_MGMT_TABLE_COMPACT,
+  TSDB_MGMT_TABLE_COMPACT_DETAIL,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -1676,6 +1678,26 @@ int32_t tDeserializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* 
 int32_t tFreeSCreateVnodeReq(SCreateVnodeReq* pReq);
 
 typedef struct {
+  int32_t compactId;
+  int32_t vgId;
+  int32_t dnodeId;
+} SQueryCompactProgressReq;
+
+int32_t tSerializeSQueryCompactProgressReq(void* buf, int32_t bufLen, SQueryCompactProgressReq* pReq);
+int32_t tDeserializeSQueryCompactProgressReq(void* buf, int32_t bufLen, SQueryCompactProgressReq* pReq);
+
+typedef struct {
+  int32_t compactId;
+  int32_t vgId;
+  int32_t dnodeId;
+  int32_t numberFileset;
+  int32_t finished; 
+} SQueryCompactProgressRsp;
+
+int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
+int32_t tDeserializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
+
+typedef struct {
   int32_t vgId;
   int32_t dnodeId;
   int64_t dbUid;
@@ -1702,10 +1724,20 @@ typedef struct {
   char        db[TSDB_DB_FNAME_LEN];
   int64_t     compactStartTime;
   STimeWindow tw;
+  int32_t     compactId;
 } SCompactVnodeReq;
 
 int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
 int32_t tDeserializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
+
+typedef struct {
+  int32_t     compactId;
+  int32_t     vgId;
+  int32_t     dnodeId;
+} SVKillCompactReq;
+
+int32_t tSerializeSVKillCompactReq(void* buf, int32_t bufLen, SVKillCompactReq* pReq);
+int32_t tDeserializeSVKillCompactReq(void* buf, int32_t bufLen, SVKillCompactReq* pReq);
 
 typedef struct {
   int32_t vgVersion;
