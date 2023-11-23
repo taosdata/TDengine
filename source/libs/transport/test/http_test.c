@@ -24,7 +24,7 @@
 void initLogEnv() {
   const char *  logDir = "/tmp/trans_cli";
   const char *  defaultLogFileNamePrefix = "taoslog";
-  const int32_t maxLogFileNum = 10000;
+  const int32_t maxLogFileNum = 1000000;
   tsAsyncLog = 0;
   // rpcDebugflag = 143;
   strcpy(tsLogDir, (char *)logDir);
@@ -53,7 +53,7 @@ void *proces(void *arg) {
 }
 int main(int argc, char *argv[]) {
   initLogEnv();
-  int32_t  numOfThreads = 3;
+  int32_t  numOfThreads = 10;
   TThread *thread = taosMemoryCalloc(1, sizeof(TThread) * numOfThreads);
 
   for (int i = 0; i < numOfThreads; i++) {

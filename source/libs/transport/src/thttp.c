@@ -28,6 +28,7 @@
 
 static int32_t httpRefMgt = 0;
 static int64_t httpRef = -1;
+static int32_t FAST_FAILURE_LIMIT = 120;
 typedef struct SHttpModule {
   uv_loop_t*  loop;
   SAsyncPool* asyncPool;
@@ -198,11 +199,12 @@ static void httpAsyncCb(uv_async_t* handle) {
   queue wq;
   QUEUE_INIT(&wq);
 
-  static int32_t BACTHSIZE = 5;
+  static int32_t BATCH_SIZE = 5;
   int32_t        count = 0;
 
   taosThreadMutexLock(&item->mtx);
-  while (!QUEUE_IS_EMPTY(&item->qmsg) && count++ < BACTHSIZE) {
+
+  while (!QUEUE_IS_EMPTY(&item->qmsg) && count++ < BATCH_SIZE) {
     queue* h = QUEUE_HEAD(&item->qmsg);
     QUEUE_REMOVE(h);
     QUEUE_PUSH(&wq, h);
@@ -376,11 +378,10 @@ static bool httpFailFastShoudIgnoreMsg(SHashObj* pTable, char* server, int16_t p
   if (failedTime == NULL) {
     return false;
   }
-  int32_t now = taosGetTimestampSec();
 
-  tError("failed timestamp %d, curr timestamp:%d", *failedTime, now);
-  if (*failedTime > now - 60) {
-    tError("http-report succ to ignore msg,reason:connection timed out, dst:%s", buf);
+  int32_t now = taosGetTimestampSec();
+  if (*failedTime > now - FAST_FAILURE_LIMIT) {
+    tDebug("http-report succ to ignore msg,reason:connection timed out, dst:%s", buf);
     return true;
   } else {
     return false;
@@ -453,7 +454,7 @@ static void httpHandleReq(SHttpMsg* msg) {
   uv_tcp_init(http->loop, &cli->tcp);
 
   // set up timeout to avoid stuck;
-  int32_t fd = taosCreateSocketWithTimeout(3000);
+  int32_t fd = taosCreateSocketWithTimeout(5000);
   if (fd < 0) {
     tError("http-report failed to open socket, dst:%s:%d", cli->addr, cli->port);
     destroyHttpClient(cli);
