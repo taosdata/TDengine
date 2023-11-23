@@ -16,6 +16,7 @@ exe:
 	gcc $(CFLAGS) ./dbTableRoute.c  -o $(ROOT)dbTableRoute $(LFLAGS)
 	gcc $(CFLAGS) ./insertSameTs.c  -o $(ROOT)insertSameTs $(LFLAGS)
 	gcc $(CFLAGS) ./passwdTest.c  -o $(ROOT)passwdTest $(LFLAGS)
+	gcc $(CFLAGS) ./alterTableTest.c  -o $(ROOT)alterTableTest $(LFLAGS)
 	gcc $(CFLAGS) ./stmtQuery.c  -o $(ROOT)stmtQuery $(LFLAGS)
 
 clean:
@@ -24,4 +25,5 @@ clean:
 	rm $(ROOT)dbTableRoute
 	rm $(ROOT)insertSameTs
 	rm $(ROOT)passwdTest
+	rm $(ROOT)alterTableTest
 	rm $(ROOT)stmtQuery
