@@ -88,7 +88,7 @@ impl Drop for TaskScheduler {
 
 #[derive(Debug, Error)]
 pub enum StopError {
-    #[error("Task {0} not found")]
+    #[error("Task {0} is not in scheduler")]
     NotFound(i64),
     #[error("Task {0} already stopped")]
     AlreadyStopped(i64),
