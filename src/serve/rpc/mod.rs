@@ -610,8 +610,6 @@ impl FlightService for FlightServiceImpl {
                                 .unwrap();
 
                             const ORDER: Ordering = Ordering::Relaxed;
-                            let last = last_heart_ms.load(ORDER);
-                            let now = Utc::now();
 
                             for _ in 0..rows {
                                 let (ts, action, context, _req_id) = (

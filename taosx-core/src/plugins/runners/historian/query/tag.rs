@@ -7,6 +7,7 @@ pub struct TagMeta {
 }
 
 impl TagMeta {
+    #[allow(dead_code)]
     pub fn from_row(row: &Row) -> anyhow::Result<Self> {
         let tag_name = (row.try_get("TagName")? as Option<&str>)
             .ok_or(anyhow::anyhow!("TagName not exists in the row"))?

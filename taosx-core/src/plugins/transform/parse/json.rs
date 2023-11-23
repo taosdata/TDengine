@@ -217,7 +217,9 @@ impl Parse for Json {
                         .iter()
                         .map(|(_, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
-                                v.as_u64().map(|v| v as u8)
+                                v.as_u64()
+                                    .map(|v| v as u8)
+                                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
                             }
@@ -233,7 +235,9 @@ impl Parse for Json {
                         .iter()
                         .map(|(_, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
-                                v.as_u64().map(|v| v as u16)
+                                v.as_u64()
+                                    .map(|v| v as u16)
+                                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
                             }
@@ -249,7 +253,9 @@ impl Parse for Json {
                         .iter()
                         .map(|(_, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
-                                v.as_u64().map(|v| v as u32)
+                                v.as_u64()
+                                    .map(|v| v as u32)
+                                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
                             }
@@ -266,6 +272,7 @@ impl Parse for Json {
                         .map(|(_, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
                                 v.as_u64()
+                                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
                             }
@@ -281,7 +288,9 @@ impl Parse for Json {
                         .iter()
                         .map(|(_, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
-                                v.as_i64().map(|v| v as i8)
+                                v.as_i64()
+                                    .map(|v| v as i8)
+                                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
                             }
@@ -297,7 +306,9 @@ impl Parse for Json {
                         .iter()
                         .map(|(_, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
-                                v.as_i64().map(|v| v as i16)
+                                v.as_i64()
+                                    .map(|v| v as i16)
+                                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
                             }
@@ -313,7 +324,9 @@ impl Parse for Json {
                         .iter()
                         .map(|(_, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
-                                v.as_i64().map(|v| v as i32)
+                                v.as_i64()
+                                    .map(|v| v as i32)
+                                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
                             }
@@ -330,6 +343,7 @@ impl Parse for Json {
                         .map(|(_, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
                                 v.as_i64()
+                                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
                             }
@@ -345,15 +359,9 @@ impl Parse for Json {
                         .iter()
                         .map(|(_, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
-                                // v.as_f64().map(|f| f as f32) // This was the old code, not handling numbers in quotes
-                                v.as_f64() // let's try a better way, success here it is a number
-                                    .or_else(|| v.as_str().and_then(|s| s.parse().ok())) // but if not, let's treat as a string
-                                    .map(|f| f as f32) // then then finally convert to f32
-                                                       // The following are additional handlings to make the code even more robust.
-                                                       // Ref: https://users.rust-lang.org/t/deserialize-a-number-that-may-be-inside-a-string-serde-json/27318/2
-                                                       // .ok_or_else(|| D.Error::custom("not-a-float-number"))?
-                                                       // .try_into()
-                                                       // .map_err(|_| D::Error::custom("overflow"))?;
+                                v.as_f64()
+                                    .map(|f| f as f32)
+                                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
                             }
@@ -370,6 +378,7 @@ impl Parse for Json {
                         .map(|(_, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
                                 v.as_f64()
+                                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
                             }
@@ -412,7 +421,22 @@ impl Parse for Json {
                         .iter()
                         .map(|(_, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
-                                v.as_i64()
+                                if v.is_string() {
+                                    v.as_str().and_then(|s| {
+                                        chrono::DateTime::parse_from_rfc3339(s).ok().map(|dt| {
+                                            match time_unit {
+                                                TimeUnit::Second => dt.timestamp(),
+                                                TimeUnit::Millisecond => dt.timestamp_millis(),
+                                                TimeUnit::Microsecond => dt.timestamp_micros(),
+                                                TimeUnit::Nanosecond => {
+                                                    dt.timestamp_nanos_opt().unwrap_or(i64::MAX)
+                                                }
+                                            }
+                                        })
+                                    })
+                                } else {
+                                    v.as_i64()
+                                }
                             } else {
                                 None
                             }
@@ -433,13 +457,12 @@ impl Parse for Json {
                     arrays.push((f.name(), array));
                 }
                 DataType::Boolean => {
-                    dbg!(&json_values);
-                    dbg!(name);
                     let values = json_values
                         .iter()
                         .map(|(_n, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
                                 v.as_bool()
+                                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
                             }
@@ -448,7 +471,9 @@ impl Parse for Json {
                     let array: ArrayRef = Arc::new(BooleanArray::from_iter(values));
                     arrays.push((f.name(), array));
                 }
-                _ => todo!(),
+                _ => {
+                    return Err(super::ParseError::UnsupportedDataType(dt.clone()));
+                }
             }
         }
 

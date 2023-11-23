@@ -38,7 +38,9 @@ pub enum ParseError {
     #[error(transparent)]
     RegexError(#[from] regex::RegexError),
     #[error(transparent)]
-    SplitError(#[from] split::SplitError)
+    SplitError(#[from] split::SplitError),
+    #[error("Unsupported data type: {0:?}")]
+    UnsupportedDataType(arrow::datatypes::DataType),
 }
 
 /// Parse will be applied to one filed of data with [ArrayRef].
