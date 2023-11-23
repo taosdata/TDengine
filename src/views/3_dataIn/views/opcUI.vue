@@ -1539,8 +1539,7 @@ export default {
                       }
                     }
                     if (
-                      data.groups[index].params[g].name == "topics" &&
-                      this.tagName == "mqtt"
+                      data.groups[index].params[g].name == "topics"
                     ) {
                       Message({
                         type: "warning",
