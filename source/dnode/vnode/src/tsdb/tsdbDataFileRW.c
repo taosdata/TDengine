@@ -300,6 +300,42 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
+    int64_t szHint = 0;
+    if (bData->nColData > 3) {
+      int64_t    offset = 0;
+      SBlockCol  bc = {.cid = 0};
+      SBlockCol *blockCol = &bc;
+
+      size = 0;
+      SColData *colData = tBlockDataGetColDataByIdx(bData, 0);
+      while (blockCol && blockCol->cid < colData->cid) {
+        if (size < hdr->szBlkCol) {
+          size += tGetBlockCol(reader->config->bufArr[0] + size, blockCol);
+        } else {
+          ASSERT(size == hdr->szBlkCol);
+          blockCol = NULL;
+        }
+      }
+
+      if (blockCol && blockCol->flag == HAS_VALUE) {
+        offset = blockCol->offset;
+
+        SColData *colDataEnd = tBlockDataGetColDataByIdx(bData, bData->nColData);
+        while (blockCol && blockCol->cid < colDataEnd->cid) {
+          if (size < hdr->szBlkCol) {
+            size += tGetBlockCol(reader->config->bufArr[0] + size, blockCol);
+          } else {
+            ASSERT(size == hdr->szBlkCol);
+            blockCol = NULL;
+          }
+        }
+
+        if (blockCol && blockCol->flag == HAS_VALUE) {
+          szHint = blockCol->offset + blockCol->szBitmap + blockCol->szOffset + blockCol->szValue - offset;
+        }
+      }
+    }
+
     SBlockCol  bc[1] = {{.cid = 0}};
     SBlockCol *blockCol = bc;
 
