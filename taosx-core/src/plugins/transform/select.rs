@@ -323,7 +323,10 @@ impl Select {
                             .unwrap_or_else(|| {
                                 let mut m = HashMap::new();
                                 m.insert("query".to_string(), item.name().to_string());
-                                m.insert("name".to_string(), item.name().to_string());
+                                m.insert(
+                                    "name".to_string(),
+                                    item.alias().unwrap_or(item.name()).to_string(),
+                                );
                                 let dt = item
                                     .cast()
                                     .map(|cast| {
@@ -346,7 +349,8 @@ impl Select {
                                         cast.arrow_data_type()
                                     })
                                     .unwrap_or(DataType::Null);
-                                Field::new(item.name(), dt, true).with_metadata(m)
+                                Field::new(item.alias().unwrap_or(item.name()), dt, true)
+                                    .with_metadata(m)
                             })
                     })
                     .collect_vec();
