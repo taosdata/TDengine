@@ -207,11 +207,15 @@ parser:
   fields:
     - name: ts
       description: Timestamp.
+      type: timestamp
     - name: topic
       description: Topic name.
+      type: varchar
     - name: qos
       description: QoS, one of 0/1/2.
+      type: int
     - name: payload
       description: Payload
+      type: varchar
 
   required: true
