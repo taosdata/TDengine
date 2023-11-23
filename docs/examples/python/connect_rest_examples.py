@@ -33,6 +33,8 @@ data = cursor.fetchall()
 print(column_names)
 for row in data:
     print(row)
+# close cursor
+cursor.close()
 
 # output:
 # inserted row count: 8

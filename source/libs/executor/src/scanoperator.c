@@ -3200,6 +3200,27 @@ _error:
   return NULL;
 }
 
+static int32_t tableMergeScanDoSkipTable(STableMergeScanInfo* pInfo, SSDataBlock* pBlock) {
+  int64_t nRows = 0;
+  void*   pNum = tSimpleHashGet(pInfo->mTableNumRows, &pBlock->info.id.uid, sizeof(pBlock->info.id.uid));
+  if (pNum == NULL) {
+    nRows = pBlock->info.rows;
+    tSimpleHashPut(pInfo->mTableNumRows, &pBlock->info.id.uid, sizeof(pBlock->info.id.uid), &nRows, sizeof(nRows));
+  } else {
+    *(int64_t*)pNum = *(int64_t*)pNum + pBlock->info.rows;
+  }
+
+  if (nRows >= pInfo->mergeLimit) {
+    if (pInfo->mSkipTables == NULL) {
+      pInfo->mSkipTables = taosHashInit(pInfo->tableEndIndex - pInfo->tableStartIndex + 1,
+                                        taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
+    }
+    int bSkip = 1;
+    taosHashPut(pInfo->mSkipTables, &pBlock->info.id.uid, sizeof(pBlock->info.id.uid), &bSkip, sizeof(bSkip));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static SSDataBlock* getBlockForTableMergeScan(void* param) {
   STableMergeScanSortSourceParam* source = param;
   SOperatorInfo*                  pOperator = source->pOperator;
@@ -3256,6 +3277,10 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
     }
 
     pBlock->info.id.groupId = tableListGetTableGroupId(pInfo->base.pTableListInfo, pBlock->info.id.uid);
+
+    if (pInfo->mergeLimit != -1) {
+      tableMergeScanDoSkipTable(pInfo, pBlock);
+    }
 
     pOperator->resultInfo.totalRows += pBlock->info.rows;
     pInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
@@ -3316,22 +3341,20 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   int32_t tableStartIdx = pInfo->tableStartIndex;
   int32_t tableEndIdx = pInfo->tableEndIndex;
 
-  bool hasLimit = pInfo->limitInfo.limit.limit != -1 || pInfo->limitInfo.limit.offset != -1;
-  int64_t mergeLimit = -1;
-  if (hasLimit) {
-      mergeLimit = pInfo->limitInfo.limit.limit + pInfo->limitInfo.limit.offset;
-  }
+  tSimpleHashClear(pInfo->mTableNumRows);
+
   size_t szRow = blockDataGetRowSize(pInfo->pResBlock);   
-  if (hasLimit) {
-    pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1,
-                                              NULL, pTaskInfo->id.str, mergeLimit, szRow+8, tsPQSortMemThreshold * 1024* 1024);
-  } else {
+//  if (pInfo->mergeLimit != -1) {
+//    pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1,
+//                                              NULL, pTaskInfo->id.str, pInfo->mergeLimit, szRow+8, tsPQSortMemThreshold * 1024* 1024);
+//  } else
+  {
     pInfo->sortBufSize = 2048 * pInfo->bufPageSize;
     int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
     pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
                                               pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
 
-    tsortSetMergeLimit(pInfo->pSortHandle, mergeLimit);
+    tsortSetMergeLimit(pInfo->pSortHandle, pInfo->mergeLimit);
     tsortSetAbortCheckFn(pInfo->pSortHandle, isTaskKilled, pOperator->pTaskInfo);
   }
 
@@ -3343,7 +3366,8 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   STableMergeScanSortSourceParam *param = taosMemoryCalloc(1, sizeof(STableMergeScanSortSourceParam));
   param->pOperator = pOperator;
   STableKeyInfo* startKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, tableStartIdx);
-  pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInfo->base.cond, startKeyInfo, numOfTable, pInfo->pReaderBlock, (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), false, NULL);
+  pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInfo->base.cond, startKeyInfo, numOfTable, pInfo->pReaderBlock,
+                                (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), false, &pInfo->mSkipTables);
 
   SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
   ps->param = param;
@@ -3385,6 +3409,8 @@ int32_t stopGroupTableMergeScan(SOperatorInfo* pOperator) {
   pInfo->pSortHandle = NULL;
 
   resetLimitInfoForNextGroup(&pInfo->limitInfo);
+  taosHashCleanup(pInfo->mSkipTables);
+  pInfo->mSkipTables = NULL;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3493,7 +3519,10 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   taosArrayDestroy(pTableScanInfo->sortSourceParams);
   tsortDestroySortHandle(pTableScanInfo->pSortHandle);
   pTableScanInfo->pSortHandle = NULL;
-
+  tSimpleHashCleanup(pTableScanInfo->mTableNumRows);
+  pTableScanInfo->mTableNumRows = NULL;
+  taosHashCleanup(pTableScanInfo->mSkipTables);
+  pTableScanInfo->mSkipTables = NULL;
   destroyTableScanBase(&pTableScanInfo->base, &pTableScanInfo->base.readerAPI);
 
   pTableScanInfo->pResBlock = blockDataDestroy(pTableScanInfo->pResBlock);
@@ -3583,7 +3612,14 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   pInfo->pSortInfo = generateSortByTsInfo(pInfo->base.matchInfo.pList, pInfo->base.cond.order);
   pInfo->pSortInputBlock = createOneDataBlock(pInfo->pResBlock, false);
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
-
+  pInfo->mTableNumRows = tSimpleHashInit(1024,
+                                         taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
+  pInfo->mergeLimit = -1;
+  bool hasLimit = pInfo->limitInfo.limit.limit != -1 || pInfo->limitInfo.limit.offset != -1;
+  if (hasLimit) {
+    pInfo->mergeLimit = pInfo->limitInfo.limit.limit + pInfo->limitInfo.limit.offset;
+    pInfo->mSkipTables = NULL;
+  }
   pInfo->pReaderBlock = createOneDataBlock(pInfo->pResBlock, false);
 
   int32_t  rowSize = pInfo->pResBlock->info.rowSize;

@@ -54,15 +54,16 @@ extern "C" {
 
 typedef struct TdFile *TdFilePtr;
 
-#define TD_FILE_CREATE   0x0001
-#define TD_FILE_WRITE    0x0002
-#define TD_FILE_READ     0x0004
-#define TD_FILE_TRUNC    0x0008
-#define TD_FILE_APPEND   0x0010
-#define TD_FILE_TEXT     0x0020
-#define TD_FILE_AUTO_DEL 0x0040
-#define TD_FILE_EXCL     0x0080
-#define TD_FILE_STREAM   0x0100  // Only support taosFprintfFile, taosGetLineFile, taosEOFFile
+#define TD_FILE_CREATE        0x0001
+#define TD_FILE_WRITE         0x0002
+#define TD_FILE_READ          0x0004
+#define TD_FILE_TRUNC         0x0008
+#define TD_FILE_APPEND        0x0010
+#define TD_FILE_TEXT          0x0020
+#define TD_FILE_AUTO_DEL      0x0040
+#define TD_FILE_EXCL          0x0080
+#define TD_FILE_STREAM        0x0100  // Only support taosFprintfFile, taosGetLineFile, taosEOFFile
+#define TD_FILE_WRITE_THROUGH 0x0200
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions);
 TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions);
 
