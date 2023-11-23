@@ -19,6 +19,8 @@
 #include "mndCompactDetail.h"
 #include "mndVgroup.h"
 #include "tmsgcb.h"
+#include "mndDnode.h"
+#include "tmisce.h"
 
 #define MND_COMPACT_VER_NUMBER 1
 
@@ -345,9 +347,13 @@ static void *mndBuildKillCompactReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *pC
   return pReq;
 }
 
-static int32_t mndAddKillCompactAction(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup, int32_t compactId) {
+static int32_t mndAddKillCompactAction(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup, int32_t compactId, int32_t dnodeid) {
   STransAction action = {0};
-  action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+
+  SDnodeObj *pDnode = mndAcquireDnode(pMnode, dnodeid);
+  if (pDnode == NULL) return -1;
+  action.epSet = mndGetDnodeEpset(pDnode);
+  mndReleaseDnode(pMnode, pDnode);
 
   int32_t contLen = 0;
   void   *pReq = mndBuildKillCompactReq(pMnode, pVgroup, &contLen, compactId);
@@ -395,7 +401,7 @@ static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompa
         return -1;
       }
 
-      if(mndAddKillCompactAction(pMnode, pTrans, pVgroup, pCompact->compactId) != 0){
+      if(mndAddKillCompactAction(pMnode, pTrans, pVgroup, pCompact->compactId, pDetail->dnodeId) != 0){
         mError("trans:%d, failed to append redo action since %s", pTrans->id, terrstr());
         mndTransDrop(pTrans);
         return -1;
@@ -512,11 +518,10 @@ void mndCompactUpdate(SMnode *pMnode, SCompactObj *pCompact){
     if (pDetail->compactId == pCompact->compactId) {
       SEpSet epSet = {0};
 
-      SVgObj *pVgroup = mndAcquireVgroup(pMnode, pDetail->vgId);
-      if(pVgroup){
-        epSet = mndGetVgroupEpset(pMnode, pVgroup);
-        mndReleaseVgroup(pMnode, pVgroup);
-      }
+      SDnodeObj       *pDnode = mndAcquireDnode(pMnode, pDetail->dnodeId);
+      if(pDnode == NULL) break;
+      addEpIntoEpSet(&epSet, pDnode->fqdn, pDnode->port);
+      mndReleaseDnode(pMnode, pDnode);
 
       SQueryCompactProgressReq req;
       req.compactId = pDetail->compactId;
