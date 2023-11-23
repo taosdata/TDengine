@@ -44,6 +44,7 @@
               slot="reference"
               :placeholder="$t('datasource.transformer.expre_input')"
               v-model="ruleForm.filter_expres"
+              @input="changeExtractExpr"
             ></el-input>
           </el-popover>
         </el-form-item>
@@ -131,6 +132,9 @@ export default {
     };
   },
   methods: {
+    changeExtractExpr(val){
+      this.$emit('changeExtractExpr',this.ruleForm.col_name,val)
+    },
     initData(val) {
       this.ruleForm.col_name = val.columnname;
       this.ruleForm.filter_expres = val.expression;

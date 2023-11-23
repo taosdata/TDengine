@@ -85,6 +85,7 @@ export default {
   },
   methods: {
     changeFilterCont(val){
+      this.$emit('changeFilter',this.itemData.key,val)
         console.log(val,'输入筛选条件')
     },
     initData(val) {
@@ -130,7 +131,7 @@ export default {
     },
     //删除filter
     deleteFilter() {
-      this.$emit("deleteFilter", this.itemData.index);
+      this.$emit("deleteFilter", this.itemData.key);
     },
     //提交
     submitFilter() {

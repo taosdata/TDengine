@@ -31,6 +31,7 @@
             :extractColumns="item.columns"
             @deleteExtract="deleteExtract"
             @selectColumn="changeColumnStatus"
+            @changeExtractExpr='changeExtractExpr'
           ></ExtractSplit>
         </template>
 
@@ -50,6 +51,7 @@
             :payload="msgbody"
             :inputparamsColumns="columnsArr"
             @deleteFilter="deleteFilter"
+            @changeFilter='changeFilter'
           ></FilterExpression>
         </template>
         <el-button type="primary" size="small" @click="addNewFilter">{{
@@ -261,7 +263,7 @@ export default {
       filterArr: [
         {
           expression: "",
-          index: 1,
+          key: Math.random(),
         },
       ],
       currentCol: "",
@@ -294,6 +296,16 @@ export default {
     this.getInitStables();
   },
   methods: {
+    //给filter赋值
+    changeFilter(key,value){
+      let index=this.filterArr.findIndex(val=>val.key==key)
+      this.$set(this.filterArr[index],'expression',value)
+    },
+    //extract的expression赋值
+    changeExtractExpr(colname,value){
+      let index = this.extractArr.findIndex(item=>item.columnname==colname)
+      this.$set(this.extractArr[index],'expression',value)
+    },
     //获取transformer的所有参数
     getTransformerParams() {
       console.log(
@@ -498,13 +510,13 @@ export default {
     addNewFilter() {
       this.filterArr.push({
         expression: "",
-        index: this.filterArr.length+1,
+        key: Math.random(),
       });
       console.log(this.filterArr, "增加");
     },
     //删除filter
-    deleteFilter(index) {
-      let ind = this.filterArr.findIndex((val) => val.index == index);
+    deleteFilter(key) {
+      let ind = this.filterArr.findIndex((val) => val.key == key);
       this.filterArr.splice(ind, 1);
       console.log(this.filterArr, "删除");
     },
