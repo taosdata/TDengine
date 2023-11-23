@@ -647,6 +647,8 @@ int taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
   access |= (tdFileOptions & TD_FILE_APPEND) ? O_APPEND : 0;
   access |= (tdFileOptions & TD_FILE_TEXT) ? O_TEXT : 0;
   access |= (tdFileOptions & TD_FILE_EXCL) ? O_EXCL : 0;
+  access |= (tdFileOptions & TD_FILE_CLOEXEC) ? O_CLOEXEC : 0;
+
   int fd = open(path, access, S_IRWXU | S_IRWXG | S_IRWXO);
   return fd;
 }

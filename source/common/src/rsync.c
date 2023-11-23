@@ -151,6 +151,8 @@ void startRsync(){
   uDebug("[rsync] start server successful");
 }
 
+}
+
 int uploadRsync(char* id, char* path){
 #ifdef WINDOWS
   char pathTransform[PATH_MAX] = {0};
