@@ -31,4 +31,6 @@ if $data10 != @tba2@ then
   return -1
 endi
 
+sql_error create table stc(ts timestamp, `tbname` binary(200));
+sql_error create table std(ts timestamp, f1 int) tags(`tbname` binary(200));
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

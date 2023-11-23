@@ -5726,6 +5726,12 @@ static int32_t checkTableDeleteMarkOption(STranslateContext* pCxt, STableOptions
   return code;
 }
 
+#ifndef TD_ENTERPRISE
+int32_t biCheckCreateTableTbnameCol(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
+  return TSDB_CODE_SUCCESS;
+}
+#endif
+
 static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt, bool createStable) {
   if (NULL != strchr(pStmt->tableName, '.')) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
@@ -5764,7 +5770,9 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
                                      "configured with the 'TTL' option");
     }
   }
-
+  if (pCxt->pParseCxt->biMode != 0 && TSDB_CODE_SUCCESS == code) {
+    code = biCheckCreateTableTbnameCol(pCxt, pStmt);
+  }
   return code;
 }
 
