@@ -196,11 +196,19 @@ static void httpAsyncCb(uv_async_t* handle) {
   SHttpMsg *msg = NULL, *quitMsg = NULL;
 
   queue wq;
+  QUEUE_INIT(&wq);
+
+  static int32_t BACTHSIZE = 20;
+  int32_t        count = 0;
+
   taosThreadMutexLock(&item->mtx);
-  QUEUE_MOVE(&item->qmsg, &wq);
+  while (!QUEUE_IS_EMPTY(&item->qmsg) && count++ < BACTHSIZE) {
+    queue* h = QUEUE_HEAD(&item->qmsg);
+    QUEUE_REMOVE(h);
+    QUEUE_PUSH(&wq, h);
+  }
   taosThreadMutexUnlock(&item->mtx);
 
-  int count = 0;
   while (!QUEUE_IS_EMPTY(&wq)) {
     queue* h = QUEUE_HEAD(&wq);
     QUEUE_REMOVE(h);
@@ -370,7 +378,7 @@ static bool httpFailFastShoudIgnoreMsg(SHashObj* pTable, char* server, int16_t p
   }
 
   int64_t now = taosGetTimestampSec();
-  if (now - *failedTime < 10) {
+  if (now - *failedTime < 60) {
     tError("http-report succ to ignore msg,reason:connection timed out, dst:%s", buf);
     return true;
   } else {
