@@ -1186,7 +1186,12 @@ export default {
       expre_input:'Please enter the expression',
       filter_input:'Please enter the filter expression',
       st_input:'Please enter the super table name',
-      create_st:'Create STable'
+      create_st:'Create STable',
+      targetSt:'Target Super Table',
+      mutiple:'Multiple addition queries separated by semicolons',
+      msgbody:'Message Body',
+      msgbodytip:'Please enter the message body first',
+      searchSResult:'Press the enter key to query after completion',
     },
     opcurl:'Please enter the OPC url',
     selecttargetdb:'Please select the target database',

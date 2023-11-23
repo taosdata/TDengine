@@ -1,38 +1,12 @@
 <template>
   <div class="common-transformer">
-    <!-- <section class="payload-upload">
-      <el-form :model="ruleForm" label-width="200px">
-        <el-form-item
-          :label="$t('datasource.transformer.payload')"
-          size="small"
-        >
-          <el-select v-model="ruleForm.payload">
-            <el-option
-              v-for="item in payloads"
-              :key="item"
-              :label="item"
-              :value="item"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="$t('datasource.transformer.upload')">
-          <el-upload
-            class="upload-demo"
-            ref="upload"
-            :data="uploadData"
-            :action="uploadUrl"
-            :on-success="handleSuccess"
-            :file-list="fileList"
-            :auto-upload="true"
-          >
-            <el-button slot="trigger" size="small" type="primary">{{
-              $t("datasource.selectfile")
-            }}</el-button>
-          </el-upload>
-        </el-form-item>
-      </el-form>
-    </section> -->
-    <template v-if="columnsArr.length > 0">
+    <template>
+      <section>
+        <div class="block-title">
+          <span>{{ $t("datasource.transformer.msgbody") }}</span>
+        </div>
+        <el-input v-model="msgbody" size="small"></el-input>
+      </section>
       <section>
         <div class="block-title">
           <span>{{ $t("datasource.transformer.identified") }}</span>
@@ -52,13 +26,18 @@
             :key="index"
             :data="item"
             :index="index"
+            :payload="msgbody"
             :extractColumns="columnsArr"
             @deleteExtract="deleteExtract"
+            @selectColumn="changeColumnStatus"
           ></ExtractSplit>
         </template>
 
-        <el-button type="primary" size="small" @click="addNewExtract"
-          >Add</el-button
+        <el-button
+          type="primary"
+          size="small"
+          @click="addNewExtract"
+          >{{ $t("add") }}</el-button
         >
       </section>
       <section class="filter">
@@ -69,12 +48,14 @@
           <FilterExpression
             :key="index"
             :index="index"
+            :payload="msgbody"
+            :inputparamsColumns="columnsArr"
             @deleteFilter="deleteFilter"
           ></FilterExpression>
         </template>
-        <el-button type="primary" size="small" @click="addNewFilter"
-          >Add</el-button
-        >
+        <el-button type="primary" size="small" @click="addNewFilter" >{{
+          $t("add")
+        }}</el-button>
       </section>
       <section>
         <div class="block-title">
@@ -83,7 +64,9 @@
         <div class="table-content">
           <div class="table-title">
             <div class="title">
-              <span style="color: #4259ce">Target Super Table:</span>
+              <span style="color: #4259ce">{{
+                $t("datasource.transformer.targetSt")
+              }}</span>
               <el-form :model="sruleForm">
                 <el-form-item prop="s_name">
                   <el-select
@@ -104,11 +87,14 @@
                 </el-form-item>
               </el-form>
             </div>
-            <el-button type="primary" size="small" @click="createStable"
-              >Create STable</el-button
-            >
+            <el-button type="primary" size="small" @click="createStable">{{
+              $t("datasource.transformer.createstb")
+            }}</el-button>
           </div>
           <div class="table-detail" v-if="tableData.length > 0">
+            <div class="mapping">
+              {{ $t("datasource.transformer.mapping") }}
+            </div>
             <el-table :data="tableData" border style="width: 100%">
               <template v-for="(item, index) in st_columnLists">
                 <el-table-column
@@ -117,9 +103,34 @@
                   :prop="item"
                   show-overflow-tooltip
                   :label="item"
+                  width="320px"
                 >
                   <template slot-scope="scope">
-                    <el-input v-model="scope.row.Expression" size="small"></el-input>
+                    <el-select
+                      v-model="scope.row.maptype"
+                      size="small"
+                      style="width: 100px; margin-right: 10px"
+                    >
+                      <el-option
+                        v-for="val in mappingTypes"
+                        :key="val"
+                        :label="val"
+                        :value="val"
+                      ></el-option>
+                    </el-select>
+                    <el-popover
+                      trigger="click"
+                      placement="right-end"
+                      :content="$t('datasource.transformer.searchSResult')"
+                    >
+                      <el-input
+                        slot="reference"
+                        style="width: 180px"
+                        v-model="scope.row.Expression"
+                        size="small"
+                        @keyup.enter.native="submitSuper(scope.row)"
+                      ></el-input>
+                    </el-popover>
                   </template>
                 </el-table-column>
                 <el-table-column
@@ -163,7 +174,7 @@
 <script>
 import ExtractSplit from "./extractSplit.vue";
 import FilterExpression from "./filterExpression.vue";
-import { getCSVColumns } from "@/api/explorer/datain";
+import { getParser } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 export default {
@@ -179,8 +190,12 @@ export default {
   },
   data() {
     return {
+      msgbody: "",
       params_columns: [],
       params_tags: [],
+      mapType: "value",
+      extractAddStatus:false,
+      mappingTypes: ["value", "generator", "join", "format", "sum", "expr"],
       st_columnLists: [
         "Name",
         "Type",
@@ -239,9 +254,10 @@ export default {
       tableData: [],
       extractArr: [
         {
-          columns: [],
-          filters: [],
-        },
+            columns:{},
+            type:'',
+            expression:''
+        }
       ],
       filterArr: [
         {
@@ -251,14 +267,93 @@ export default {
     };
   },
   mounted() {
+    this.$set(
+      this,
+      "columnsArr",
+      this.parserColumns.map((item) => {
+        return {
+          ...item,
+          show: true,
+        };
+      })
+    );
+    this.$set(this.extractArr,0,{
+        columns:this.columnsArr,
+        type:'',
+        expression:''
+    })
     console.log(
       this.parserColumns,
       this.$store.state.app.currentDBName,
+      this.columnsArr,
+      this.extractArr,
       "parserparserparser"
     );
     this.getInitStables();
   },
   methods: {
+    changeColumnStatus(index){//选中的列不能再选中
+        this.$set(this.columnsArr[index],'show',false)
+        this.extractAddStatus=this.columnsArr.every(item=>!item.show)
+        this.$set(this.extractArr,'columns',this.columnsArr)
+        console.log(this.extractArr,'修改后的', this.extractAddStatus)
+    },
+    async getParserData(data) {
+      try {
+        let result = await getParser(data);
+        this.tableColumns = result[0].fields.map((item) => item.name);
+        this.tableData = result[0].columns.map((data) => {
+          return Object.fromEntries(
+            result[0].fields.map((item, index) => {
+              return [item.name, data[index]];
+            })
+          );
+        });
+
+        console.log(result, this.tableData, "mappingde 结果");
+      } catch (error) {
+        console.log(error);
+      }
+    },
+    submitSuper(data) {
+      if (!this.msgbody) {
+        Message.error(this.$t("datasource.transformer.msgbodytip"));
+        return;
+      }
+      let parser = {
+        parser: {
+          parse: {},
+          mutate: [
+            {
+              map: {
+                [`${data["Name"]}`]: {
+                  [`${data.maptype}`]: data["Expression"].split(";").toString(),
+                },
+              },
+            },
+          ],
+        },
+        input: this.columnsArr.map((item) => {
+          let obj = {};
+          if (this.$store.state.app.currentDBType == "mqtt") {
+            //mqtt
+            if (item.name == "payload") {
+              obj["payload"] = this.msgbody;
+            } else {
+              obj[item.name] = item.name;
+            }
+          } else if (this.$store.state.app.currentDBType == "kafka") {
+            if (item.name == "value") {
+              obj["value"] = this.msgbody;
+            } else {
+              obj[item.name] = item.name;
+            }
+          }
+          return obj;
+        }),
+      };
+      this.getParserData(parser);
+    },
     closeDialog() {
       this.dialogForm.st_name = "";
       this.showCreateDIalog = false;
@@ -285,6 +380,7 @@ export default {
     //获取初始化的stables
     async getInitStables() {
       try {
+        if(!this.$store.state.app.currentDBName)return
         let result = await sendSQLReq(
           `show  \`${this.$store.state.app.currentDBName}\`.stables `
         );
@@ -299,12 +395,11 @@ export default {
     },
     async getSTbaleList() {
       try {
+        if (!this.$store.state.app.currentDBName) {
+          Message.error(this.$t("datasource.selecttargetdb"));
+        }
         let res = await sendSQLReq(
           `desc \`${this.$store.state.app.currentDBName}\`.\`${this.sruleForm.s_name}\``
-          //     {
-          //   selected_db: this.$store.state.app.currentDBName,
-          //   stableName: this.sruleForm.s_name,
-          // }
         );
         if (res.desc) {
           Message.error(res.desc);
@@ -322,6 +417,7 @@ export default {
           return {
             Name: val[0],
             Type: val[1],
+            maptype: "value",
             Expression: "",
             "Smaple Output1": "",
             "Smaple Output2": "",
@@ -339,25 +435,11 @@ export default {
         console.log(error);
       }
     },
-    handleSuccess(response, file, fileList) {
-      console.log(response, file, fileList, "kkkkkkkkkkkkkk");
-      this.getFileColumns(response[0], "csv", false);
-    },
-    async getFileColumns(path, type, hasHeader) {
-      try {
-        let result = await getCSVColumns(path, type, hasHeader);
-        if (result?.file_header?.column_names) {
-          this.$set(this, "columnsArr", result.file_header.column_names);
-        }
-        console.log(result, this.columnsArr, "查询结果");
-      } catch (error) {
-        console.log(error);
-      }
-    },
+
     //新增extract
     addNewExtract() {
       this.extractArr.push({
-        columns: [],
+        columns: this.columnsArr,
         filters: [],
       });
     },
@@ -371,22 +453,49 @@ export default {
     deleteFilter(index) {
       this.filterArr.splice(index, 1);
     },
-    deleteExtract(index) {
+    deleteExtract(index, name) {
       this.extractArr.splice(index, 1);
+      console.log(this.params_columns,this.extractArr,this.columnsArr, "this.params_columns", name);
+      //   this.columnsArr.push(this.params_columns.filter(val=>val.name==name)[0])
     },
   },
   watch: {
+    '$store.state.app.currentDBName':{
+        deep:true,
+        handler(val){
+            this.getInitStables()
+        }
+    },
     parserColumns: {
       deep: true,
       handler(val) {
-        this.$set(this, "columnsArr", val);
-        console.log(val, "000");
+        this.$set(
+          this,
+          "columnsArr",
+          val.map((item) => {
+            return {
+              show: true,
+              ...item,
+            };
+          })
+        );
+        this.$set(this.extractArr,0,{
+        columns:this.columnsArr,
+        type:'',
+        expression:''
+    })
       },
     },
   },
 };
 </script>
 <style lang="scss" scoped>
+.mapping {
+  font-size: 16px;
+  font-weight: 600;
+  color: #4259ce;
+  margin-bottom: 15px;
+}
 .block-title {
   margin-top: 25px;
   margin-bottom: 15px !important;

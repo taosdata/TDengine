@@ -1044,8 +1044,9 @@ export default {
     }
   },
   mounted() {
+    console.log(this.dbsource,'mqtt---kafka')
     if (this.tagName == "mqtt" || this.tagName == "kafka") {
-      this.constmqttCols = this.dbsource[0].parser.fields;
+      this.constmqttCols =this.dbsource[0].parser.fields ;
       let caitem = this.$store.state.app.mqttcafile[0];
       let certitem = this.$store.state.app.mqttcertfile[0];
       let certkeyitem = this.$store.state.app.mqttcertkeyfile[0];
@@ -1162,6 +1163,14 @@ export default {
         }
       },
     },
+    "$store.state.app.currentDBType": {
+      immediate: true,
+      handler(val) {
+        if (val == "kafka"||val=='mqtt') {
+          this.constmqttCols=this.$parent.uidata[0].parser.fields
+        }
+      },
+    },
     "$store.state.dbs.dialogDbVisible": {
       handler(val) {
         if (!val) {
@@ -1173,6 +1182,7 @@ export default {
   methods: {
     getAdvanceParams(data){
       this.advanceParams=data
+      console.log(this.advanceParams,'this.advanceParams')
     },
     async downloadopcAllponits() {
       try {

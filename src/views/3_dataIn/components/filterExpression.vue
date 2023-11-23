@@ -1,9 +1,11 @@
 <template>
   <div class="filter-expression">
     <div class="filter-input">
-      <el-form :model="ruleForm" :rules="rules">
-        <el-form-item prop="filter_name">
-          <el-input size="small" v-model="ruleForm.filter_name"></el-input>
+      <el-form :model="ruleForm" :rules="rules" @submit.native.prevent ref="filterForm">
+        <el-form-item prop="filter_name" >
+            <el-popover trigger="click" placement="right-end" :content="$t('datasource.transformer.mutiple')">
+          <el-input size="small" v-model="ruleForm.filter_name" :placeholder="$t('datasource.transformer.filter_input')" slot="reference"></el-input>
+          </el-popover>
         </el-form-item>
       </el-form>
 
@@ -13,28 +15,39 @@
       </div>
     </div>
 
-    <div class="table">
+    <div class="table" v-if="tableData.length>0">
       <el-table :data="tableData" border style="width: 100%">
-        <!-- <el-table-column
+        <el-table-column
           v-for="(item, index) in tableColumns"
           :key="index"
           :label="tableColumns[index]"
           :prop="tableColumns[index]"
           show-overflow-tooltip
-        ></el-table-column> -->
+        ></el-table-column>
       </el-table>
     </div>
   </div>
 </template>
 <script>
 import { getParser } from "@/api/explorer/datain";
+import { Message } from "element-ui";
 export default {
   name: "FilterExpression",
   props: {
+    payload:{
+        type:String,
+        default:''
+    },
     index: {
       type: Number,
       default: 0,
     },
+    inputparamsColumns:{
+        type: Array,
+      default: () => {
+        return [];
+      },
+    }
   },
   data() {
     return {
@@ -54,14 +67,29 @@ export default {
     };
   },
   methods: {
+    submit(){
+        if(!this.$parent.msgbody){
+            Message.error(this.$t('datasource.transformer.msgbodytip'))
+            return
+        }
+        this.$refs.filterForm.validate(valid=>{
+            if(valid){
+                this.submitFilter()
+                return true
+            }else{
+                return false
+            }
+        })
+    },
     async getParserData(data) {
       try {
         let result = await getParser(data);
-        this.tableColumns = result[0].fields.map((item) => item.scope);
+        console.log(result,'获取filter')
+        this.tableColumns = result[0].fields.map((item) => item.name);
         this.tableData = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
-              return [item.scope, data[index]];
+              return [item.name, data[index]];
             })
           );
         });
@@ -77,7 +105,37 @@ export default {
     },
     //提交
     submitFilter() {
-        console.log(this.ruleForm.filter_name,'filter的参数---9999')
+        let filterExpres=this.ruleForm.filter_name.split(';')
+        console.log(filterExpres,'拆分得filter')
+        let parser={
+            parser:{
+                parse:{},
+                mutate:filterExpres.map(val=>{
+                    return {
+                        filter:val
+                    }
+                })
+            },
+            input:this.inputparamsColumns.map(item=>{
+                let obj={}
+                if(this.$store.state.app.currentDBType=='mqtt'){//mqtt
+                    if(item.name=='payload'){
+                        obj['payload']=this.payload
+                    }else{
+                        obj[item.name]=item.name
+                    }
+                }else if(this.$store.state.app.currentDBType=='kafka'){
+                    if(item.name=='value'){
+                        obj['value']=this.payload
+                    }else{
+                        obj[item.name]=item.name
+                    }
+                }
+                return obj
+            })
+        }
+        console.log(parser,'这是要穿的参数')
+        this.getParserData(parser)
     },
 
   },

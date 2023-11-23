@@ -991,7 +991,12 @@ export default {
       expre_input:'请输入表达式',
       filter_input:'请输入筛选表达式',
       st_input:'请输入超级表名称',
-      create_st:'创建超级表'
+      create_st:'创建超级表',
+      targetSt:'目标超级表',
+      mutiple:'多添件查询以分号分隔',
+      msgbody:'消息体',
+      msgbodytip:'请先输入消息体',
+      searchSResult:'输入完后按enter键查询'
     },
     opcurl:'请输入OPC服务地址',
     selecttargetdb:'请选择目标数据源',

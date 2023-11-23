@@ -1,18 +1,20 @@
 <template>
   <div class="extract-split">
     <div class="extract-item">
-      <el-form :model="ruleForm" :rules="rules" size="small">
+      <el-form :model="ruleForm" :rules="rules" size="small" ref="extractForm">
         <el-form-item prop="col_name">
           <el-select
             size="small"
             :placeholder="$t('datasource.transformer.col_select')"
             v-model="ruleForm.col_name"
+            @change="selectCol"
           >
             <el-option
               v-for="(item, index) in extractColumns"
               :key="index"
               :label="item.name"
               :value="item.name"
+              :disabled="!item.show"
             ></el-option>
           </el-select>
         </el-form-item>
@@ -21,6 +23,7 @@
             size="small"
             :placeholder="$t('datasource.transformer.filter_type')"
             v-model="ruleForm.filter_name"
+           
           >
             <el-option
               v-for="item in extractTypes"
@@ -31,17 +34,20 @@
           </el-select>
         </el-form-item>
         <el-form-item prop="filter_expres">
-          <el-input
-            size="small"
-            :placeholder="$t('datasource.transformer.expre_input')"
-            v-model="ruleForm.filter_expres"
-          ></el-input>
+          <el-popover trigger="click" placement="right-end" :content="$t('datasource.transformer.mutiple')">
+            <el-input
+              size="small"
+              slot="reference"
+              :placeholder="$t('datasource.transformer.expre_input')"
+              v-model="ruleForm.filter_expres"
+            ></el-input>
+          </el-popover>
         </el-form-item>
       </el-form>
 
       <div class="btns">
         <el-button icon="el-icon-delete" @click="deleteExtract"></el-button>
-        <el-button icon="el-icon-check" @click="submitExtract"></el-button>
+        <el-button icon="el-icon-check" @click="submit"></el-button>
       </div>
     </div>
     <div class="table" v-if="tableData.length > 0">
@@ -59,9 +65,14 @@
 </template>
 <script>
 import { getParser } from "@/api/explorer/datain";
+import { Message } from "element-ui";
 export default {
   name: "ExtractSplit",
   props: {
+    payload: {
+      type: String,
+      default: "",
+    },
     index: {
       type: Number,
       default: 0,
@@ -110,14 +121,34 @@ export default {
     };
   },
   methods: {
+    selectCol(data){
+        let ind =this.$parent.columnsArr.findIndex(item=>item.name==this.ruleForm.col_name)
+        // this.$emit('selectColumn',ind,this.ruleForm.col_name)
+        
+        console.log(data,'选择列',this.ruleForm.col_name,this.$parent.columnsArr,this.index)
+    },
+    submit(){
+        if(!this.$parent.msgbody){
+            Message.error(this.$t('datasource.transformer.msgbodytip'))
+            return
+        }
+        this.$refs.extractForm.validate(valid=>{
+            if(valid){
+                this.submitExtract()
+                return true
+            }else{
+                return false
+            }
+        })
+    },
     async getParserData(data) {
       try {
         let result = await getParser(data);
-        this.tableColumns = result[0].fields.map((item) => item.scope);
+        this.tableColumns = result[0].fields.map((item) => item.name);
         this.tableData = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
-              return [item.scope, data[index]];
+              return [item.name, data[index]];
             })
           );
         });
@@ -129,38 +160,49 @@ export default {
     },
     //提交单个
     submitExtract() {
+        let extractExpres=this.ruleForm.filter_expres.split(';')
       let parser = {
         parser: {
           parse: {
             [`${this.ruleForm.col_name}`]: {
-              [`${this.ruleForm.filter_name}`]: [
-                `${this.ruleForm.filter_expres}`,
-              ],
+              [`${this.ruleForm.filter_name}`]:extractExpres,
             },
           },
         },
-        input: [
-          {
-            [`${this.ruleForm.col_name}`]: "",
-            payload: "{" + `${this.ruleForm.filter_expres}` + "}",
-          },
-        ],
+        input: this.extractColumns.map(item=>{
+                let obj={}
+                if(this.$store.state.app.currentDBType=='mqtt'){//mqtt
+                    if(item.name=='payload'){
+                        obj['payload']=this.payload
+                    }else{
+                        obj[item.name]=item.name
+                    }
+                }else if(this.$store.state.app.currentDBType=='kafka'){
+                    if(item.name=='value'){
+                        obj['value']=this.payload
+                    }else{
+                        obj[item.name]=item.name
+                    }
+                }
+                return obj
+            })
       };
       this.getParserData(parser);
       console.log(parser, "提交单个");
     },
     deleteExtract() {
-      this.$emit("deleteExtract", this.index);
+        console.log(this.extractColumns,'删除',this.ruleForm.col_name,this.index)
+      this.$emit("deleteExtract", this.index,this.ruleForm.col_name);
     },
   },
   mounted() {
-    console.log(this.extractColumns, "extractColumnsextractColumns");
+    console.log(this.extractColumns,this.$store.state.app.currentDBType, "extractColumnsextractColumns");
   },
   watch: {
     extractColumns: {
       deep: true,
       handler(val) {
-        console.log(val, "舰艇");
+        // console.log(val, this.$store.state.app.currentDBType, "舰艇");
       },
     },
   },
