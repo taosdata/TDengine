@@ -1318,9 +1318,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
       pColumn = qColumn;
       if (rowLen < 0) break;
     }
-
     rowLen += qColumn->bytes;
-
     ++iCol;
   }
 
@@ -1336,12 +1334,10 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
       if ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) < 0) {
         goto _err;
       }
-
       if (rowLen + pAlterTbReq->bytes > TSDB_MAX_BYTES_PER_ROW) {
         terrno = TSDB_CODE_PAR_INVALID_ROW_LENGTH;
         goto _err;
       }
-
       pSchema->version++;
       pSchema->nCols++;
       pNewSchema = taosMemoryMalloc(sizeof(SSchema) * pSchema->nCols);
@@ -1387,12 +1383,10 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
         goto _err;
       }
-
       if (rowLen + pAlterTbReq->colModBytes - pColumn->bytes > TSDB_MAX_BYTES_PER_ROW) {
         terrno = TSDB_CODE_PAR_INVALID_ROW_LENGTH;
         goto _err;
       }
-
       if (tqCheckColModifiable(pMeta->pVnode->pTq, uid, pColumn->colId) != 0) {
         terrno = TSDB_CODE_VND_COL_SUBSCRIBED;
         goto _err;
