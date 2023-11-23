@@ -31,6 +31,7 @@ impl HistorianQuery {
         Ok(Self { client })
     }
 
+    #[allow(dead_code)]
     pub async fn get_tags(&mut self) -> anyhow::Result<Vec<TagMeta>> {
         let tags_query = "select * from Runtime.dbo.Tag where TagName NOT like 'Sys%'".to_string();
         let mut response = self.client.query(tags_query, &[]).await?;

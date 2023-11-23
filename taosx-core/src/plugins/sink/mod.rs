@@ -1064,7 +1064,9 @@ async fn consume_point_record(
                                             let err_str = err.to_string();
                                             if err_str.contains("0x032C") {
                                                 // Object is creating, maybe should ignore
-                                                tracing::warn!("create stable sql encounter 0x032C");
+                                                tracing::warn!(
+                                                    "create stable sql encounter 0x032C"
+                                                );
                                             } else if err_str.contains("0xE00") {
                                                 taos.replace(pool.get().await?);
                                                 retry += 1;
