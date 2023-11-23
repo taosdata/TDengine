@@ -158,6 +158,7 @@ static int32_t continueDispatchCheckpointBlock(SStreamDataBlock* pBlock, SStream
 
   int32_t code = taosWriteQitem(pTask->outputq.queue->pQueue, pBlock);
   if (code == 0) {
+    ASSERT(pTask->chkInfo.dispatchCheckpointTrigger == false);
     streamDispatchStreamBlock(pTask);
   } else {
     stError("s-task:%s failed to put checkpoint into outputQ, code:%s", pTask->id.idStr, tstrerror(code));
@@ -278,6 +279,7 @@ void streamTaskClearCheckInfo(SStreamTask* pTask) {
   pTask->chkInfo.startTs = 0;  // clear the recorded start time
   pTask->checkpointNotReadyTasks = 0;
   pTask->checkpointAlignCnt = 0;
+  pTask->chkInfo.dispatchCheckpointTrigger = false;
   streamTaskOpenAllUpstreamInput(pTask);   // open inputQ for all upstream tasks
 }
 
