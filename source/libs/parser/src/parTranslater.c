@@ -2212,7 +2212,8 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
   SNode* pParam = NULL;
   FOREACH(pParam, (*pFunc)->pParameterList) {
     if (isMultiResFunc(pParam)) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)pParam)->aliasName);
+      pCxt->errCode = TSDB_CODE_FUNC_FUNTION_PARA_NUM;
+      return DEAL_RES_ERROR;
     }
   }
 
