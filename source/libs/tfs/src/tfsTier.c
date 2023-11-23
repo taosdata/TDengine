@@ -112,7 +112,7 @@ int32_t tfsAllocDiskOnTier(STfsTier *pTier) {
   int32_t retId = -1;
   int64_t avail = 0;
   for (int32_t id = 0; id < TFS_MAX_DISKS_PER_TIER; ++id) {
-#if 0  // round-robin
+#if 1  // round-robin
     int32_t   diskId = (pTier->nextid + id) % pTier->ndisk;
     STfsDisk *pDisk = pTier->disks[diskId];
 
