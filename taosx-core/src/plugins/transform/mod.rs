@@ -87,6 +87,57 @@ mod pipeline_tests {
     use super::*;
 
     #[test]
+    fn test_pipeline_json_array() {
+        let records = demo_mqtt_records();
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double", "value", "$.id=id::int"] } }
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser and mutate
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int"] } },
+            "mutate": [{ "filter": "value > 1.2" }]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser, mutate and model
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int"] } },
+            "mutate": [{ "filter": "value > 1.2" }],
+            "model": [{
+                "name": "d{id}",
+                "using": "meters",
+                "tags": ["id"],
+                "columns": ["ts", "value", "price"]
+            }]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+    }
+    #[test]
     fn test_pipeline_empty_input() {
         let records = demo_mqtt_records();
 
@@ -212,12 +263,12 @@ mod pipeline_tests {
                 now + 5000,
             ])) as ArrayRef,
             Arc::new(arrow::array::StringArray::from(vec![
-                r#"{"value":1.1, "id": 1}"#,
-                r#"{"value":1.2, "id": 2}"#,
-                r#"{"value":1.3, "id": 1}"#,
-                r#"{"value":1.4, "id": 2}"#,
-                r#"{"value":1.5, "id": 1}"#,
-                r#"{"value":1.6, "id": 2}"#,
+                r#"{"value":1.1, "id": 1, "events":[{"price": "1.1"}]}"#,
+                r#"{"value":1.2, "id": 2, "events":[{"price": "1.1"}]}"#,
+                r#"{"value":1.3, "id": 1, "events":[{"price": "1.1"}]}"#,
+                r#"{"value":1.4, "id": 2, "events":[{"price": "1.1"}]}"#,
+                r#"{"value":1.5, "id": 1, "events":[{"price": "1.1"}]}"#,
+                r#"{"value":1.6, "id": 2, "events":[{"price": "1.1"}]}"#,
             ])) as ArrayRef,
         ];
         RecordBatch::try_new(schema, columns).unwrap()

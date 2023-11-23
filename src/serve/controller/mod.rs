@@ -347,6 +347,17 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
                 .execute(pool)
                 .await?;
         }
+        "running" => {
+            // warn/error
+            if !matches!(activity.level, LevelFilter::Warn | LevelFilter::Error) {
+                sqlx::query("UPDATE tasks SET status = ?, reason = ? WHERE id = ?")
+                    .bind(activity.status.as_str())
+                    .bind(activity.activity.as_str())
+                    .bind(activity.id)
+                    .execute(pool)
+                    .await?;
+            }
+        }
         _ => {
             sqlx::query("UPDATE tasks SET status = ?, reason = NULL WHERE id = ?")
                 .bind(activity.status.as_str())
@@ -1160,7 +1171,15 @@ impl TaskController {
         tracing::info!("Stop task by id {id}");
         if let Err(err) = self.scheduler.try_stop(id).await {
             match err {
-                crate::serve::scheduler::StopError::NotFound(_) => return Ok(None::<()>),
+                crate::serve::scheduler::StopError::NotFound(_) => {
+                    tracing::info!("Task {id} not scheduler");
+                    sqlx::query("UPDATE tasks SET status = ? WHERE id = ?")
+                        .bind(Status::Stopped)
+                        .bind(id)
+                        .execute(&self.pool)
+                        .await?;
+                    return Ok(Some(()));
+                }
                 err => Err(err)?,
             }
         }
