@@ -70,7 +70,7 @@
           viewportMargin: 2,
           autofocus: false,
           showCursorWhenSelecting: true,
-          extraKeys: { Tab: "autocomplete", "Shift-Enter": () => this.handleSendSQL(), "Shift-Return": () => this.handleSendSQL() },
+          extraKeys: { Tab: "autocomplete", "Shift-Enter": () => this.handleSendSQL(), "Shift-Return": () => this.handleSendSQL(), 'Ctrl-/': this.toggleComment,'Cmd-/': this.toggleComment, },
           gutters: [
             "CodeMirror-lint-markers", //代码错误检测
             "CodeMirror-linenumbers",
@@ -138,6 +138,18 @@
       });
     },
     methods: {
+      toggleComment(cm) {
+        const { line, ch } = cm.getCursor(); // 获取当前光标位置
+        const lineContent = cm.getLine(line); // 获取当前行的内容
+
+        if (lineContent.startsWith('--')) {
+          // 如果已经是注释，取消注释
+          cm.replaceRange('', { line, ch: 0 }, { line, ch: 2 });
+        } else {
+          // 否则添加注释
+          cm.replaceRange(`--`, { line, ch: 0 }, { line, ch: 0 });
+        }
+      },
       onReady(ins) {
         this.comIns = ins;
       },
@@ -147,7 +159,7 @@
       async handleSendSQL() {
         if (this.requestIng) return;
         this.requestIng = true;
-        let sqlStr = this.comIns.getSelection() || this.sqlStr;
+        let sqlStr = this.comIns.getSelection() || this.getSqlWithoutComments();
         let { isSendSQL, updated_sqlStr } = await proprocess_sql(sqlStr); // 预处理要执行的sql语句
 
         
@@ -155,6 +167,17 @@
           await this.$store.dispatch("console/sendConsoleSQL", updated_sqlStr);
         }
         this.requestIng = false;
+      },
+      getSqlWithoutComments() {
+        const doc = this.$refs.sqlStr.codemirror.getDoc();
+        let sql = "";
+        for (let i = 0; i < doc.lineCount(); i++) {
+          const line = doc.getLine(i);
+          if (!/^-+/.test(line)) { // 判断是否为注释行
+            sql += line + " "; // 拼接非注释行
+          }
+        }
+        return sql.trim();
       },
       addSqlVal(val) {
         this.comIns.replaceRange(val, {
