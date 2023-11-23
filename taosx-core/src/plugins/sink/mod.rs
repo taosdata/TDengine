@@ -1692,9 +1692,8 @@ async fn consume_flat_record(
                                                     continue;
                                                 } else if code != 0x0360 {
                                                     anyhow::bail!(
-                                                        "create stable sql err: {}, sql: {}",
-                                                        err_str,
-                                                        &sqlus
+                                                        "create stable sql err: {}",
+                                                        err_str
                                                     );
                                                 }
                                             }
