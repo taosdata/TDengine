@@ -2713,7 +2713,7 @@ int32_t killActiveCheckpointTrans(SMnode *pMnode, const char* pDBName, size_t le
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mndResetStatusFromCheckpoint(SMnode *pMnode, int64_t transId) {
+static int32_t mndResetStatusFromCheckpoint(SMnode *pMnode, int32_t transId) {
   STrans* pTrans = mndAcquireTrans(pMnode, transId);
   if (pTrans != NULL) {
     mInfo("kill checkpoint transId:%d to reset task status", transId);
