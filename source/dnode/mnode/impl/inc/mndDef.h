@@ -738,12 +738,15 @@ int32_t tDecodeSViewObj(SDecoder* pDecoder, SViewObj* pObj, int32_t sver);
 void    tFreeSViewObj(SViewObj* pObj);
 
 typedef struct {
+  int32_t compactDetailId;
   int32_t compactId;
   int32_t vgId;
   int32_t dnodeId;
   int32_t numberFileset;
   int32_t finished;
   int64_t startTime;
+  int32_t newNumberFileset;
+  int32_t newFinished;
 }SCompactDetailObj;
 
 typedef struct {

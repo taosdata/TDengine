@@ -88,7 +88,6 @@ static int32_t mndTrancCheckConflict(SMnode *pMnode, STrans *pTrans) {
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 int32_t mndTransProcessRsp(SRpcMsg *pRsp);
 void    mndTransPullup(SMnode *pMnode);
-void mndCompactPullup(SMnode *pMnode);
 int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans);
 void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
 void    mndTransRefresh(SMnode *pMnode, STrans *pTrans);

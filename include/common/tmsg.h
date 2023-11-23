@@ -1724,10 +1724,20 @@ typedef struct {
   char        db[TSDB_DB_FNAME_LEN];
   int64_t     compactStartTime;
   STimeWindow tw;
+  int32_t     compactId;
 } SCompactVnodeReq;
 
 int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
 int32_t tDeserializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
+
+typedef struct {
+  int32_t     compactId;
+  int32_t     vgId;
+  int32_t     dnodeId;
+} SVKillCompactReq;
+
+int32_t tSerializeSVKillCompactReq(void* buf, int32_t bufLen, SVKillCompactReq* pReq);
+int32_t tDeserializeSVKillCompactReq(void* buf, int32_t bufLen, SVKillCompactReq* pReq);
 
 typedef struct {
   int32_t vgVersion;

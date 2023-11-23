@@ -114,6 +114,16 @@ static void mndPullupTrans(SMnode *pMnode) {
   }
 }
 
+static void mndPullupCompacts(SMnode *pMnode) {
+  mTrace("pullup compact timer msg");
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_COMPACT_TIMER, .pCont = pReq, .contLen = contLen};
+    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  }
+}
+
 static void mndPullupTtl(SMnode *pMnode) {
   mTrace("pullup ttl");
   int32_t contLen = 0;
@@ -278,6 +288,10 @@ static void *mndThreadFp(void *param) {
 
     if (sec % tsTransPullupInterval == 0) {
       mndPullupTrans(pMnode);
+    }
+
+    if (sec % tsCompactPullupInterval == 0) {
+      mndPullupCompacts(pMnode);
     }
 
     if (sec % tsMqRebalanceInterval == 0) {
@@ -684,7 +698,8 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
 _OVER:
   if (pMsg->msgType == TDMT_MND_TMQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
       pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER ||
-      pMsg->msgType == TDMT_MND_TRIM_DB_TIMER || pMsg->msgType == TDMT_MND_UPTIME_TIMER) {
+      pMsg->msgType == TDMT_MND_TRIM_DB_TIMER || pMsg->msgType == TDMT_MND_UPTIME_TIMER ||
+      pMsg->msgType == TDMT_MND_COMPACT_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
            pMnode->stopped, state.restored, syncStr(state.state));
     return -1;

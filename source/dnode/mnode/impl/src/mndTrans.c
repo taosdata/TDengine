@@ -22,7 +22,6 @@
 #include "mndStb.h"
 #include "mndSync.h"
 #include "mndUser.h"
-#include "mndCompact.h"
 
 #define TRANS_VER1_NUMBER  1
 #define TRANS_VER2_NUMBER  2
@@ -1604,7 +1603,6 @@ void mndTransRefresh(SMnode *pMnode, STrans *pTrans) {
 static int32_t mndProcessTransTimer(SRpcMsg *pReq) {
   mTrace("start to process trans timer");
   mndTransPullup(pReq->info.node);
-  mndCompactPullup(pReq->info.node);
   return 0;
 }
 
@@ -1689,33 +1687,6 @@ void mndTransPullup(SMnode *pMnode) {
       mndTransExecute(pMnode, pTrans);
     }
     mndReleaseTrans(pMnode, pTrans);
-  }
-  taosArrayDestroy(pArray);
-}
-
-void mndCompactPullup(SMnode *pMnode) {
-  SSdb   *pSdb = pMnode->pSdb;
-  SArray *pArray = taosArrayInit(sdbGetSize(pSdb, SDB_COMPACT), sizeof(int32_t));
-  if (pArray == NULL) return;
-
-  void *pIter = NULL;
-  while (1) {
-    SCompactObj *pCompact = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT, pIter, (void **)&pCompact);
-    if (pIter == NULL) break;
-    taosArrayPush(pArray, &pCompact->compactId);
-    sdbRelease(pSdb, pCompact);
-  }
-
-  //taosArraySort(pArray, (__compar_fn_t)mndCompareTransId);
-
-  for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
-    int32_t *pCompactId = taosArrayGet(pArray, i);
-    SCompactObj  *pCompact = mndAcquireCompact(pMnode, *pCompactId);
-    if (pCompact != NULL) {
-      mndCompactUpdate(pMnode, pCompact);
-    }
-    mndReleaseCompact(pMnode, pCompact);
   }
   taosArrayDestroy(pArray);
 }

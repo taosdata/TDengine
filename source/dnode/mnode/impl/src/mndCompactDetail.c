@@ -103,6 +103,7 @@ int32_t tSerializeSCompactDetailObj(void *buf, int32_t bufLen, const SCompactDet
 
   if (tStartEncode(&encoder) < 0) return -1;
 
+  if (tEncodeI32(&encoder, pObj->compactDetailId) < 0) return -1;
   if (tEncodeI32(&encoder, pObj->compactId) < 0) return -1;
   if (tEncodeI32(&encoder, pObj->vgId) < 0) return -1;
   if (tEncodeI32(&encoder, pObj->dnodeId) < 0) return -1;
@@ -124,6 +125,7 @@ int32_t tDeserializeSCompactDetailObj(void *buf, int32_t bufLen, SCompactDetailO
 
   if (tStartDecode(&decoder) < 0) return -1;
   
+  if (tDecodeI32(&decoder, &pObj->compactDetailId) < 0) return -1;
   if (tDecodeI32(&decoder, &pObj->compactId) < 0) return -1;
   if (tDecodeI32(&decoder, &pObj->vgId) < 0) return -1;
   if (tDecodeI32(&decoder, &pObj->dnodeId) < 0) return -1;
@@ -260,12 +262,16 @@ int32_t mndCompactDetailActionUpdate(SSdb *pSdb, SCompactDetailObj *pOldCompact,
           pOldCompact->compactId, pOldCompact, pNewCompact);
 
 
+  pOldCompact->numberFileset = pNewCompact->numberFileset;
+  pOldCompact->finished = pNewCompact->finished;
+
   return 0;
 }
 
 int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* pCompact, SVgObj *pVgroup, 
-                                  SVnodeGid *pVgid){
+                                  SVnodeGid *pVgid, int32_t index){
   SCompactDetailObj compactDetail = {0};
+  compactDetail.compactDetailId = index;
   compactDetail.compactId = pCompact->compactId;
   compactDetail.vgId = pVgroup->vgId;
   compactDetail.dnodeId = pVgid->dnodeId;

@@ -450,11 +450,6 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerProcessQueryCompactMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts){
-
-  return 0;
-}
-
 int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
   int32_t            code = 0;
   int8_t             status = 0;

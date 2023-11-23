@@ -2063,7 +2063,7 @@ static int32_t vnodeProcessQueryCompactProgressReq(SVnode *pVnode, int64_t ver, 
   progress.vgId = req.vgId;
   progress.dnodeId = req.dnodeId;
   progress.numberFileset = 5;
-  progress.finished = 3;
+  progress.finished = req.dnodeId;
 
   int32_t rspLen = tSerializeSQueryCompactProgressRsp(NULL, 0, &progress);
   if (rspLen < 0) {
