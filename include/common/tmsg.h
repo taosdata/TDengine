@@ -1395,10 +1395,13 @@ int32_t tDeserializeSCompactDbRsp(void* buf, int32_t bufLen, SCompactDbRsp* pRsp
 
 typedef struct {
   int32_t compactId;
+  int32_t sqlLen;
+  char*   sql;
 } SKillCompactReq;
 
 int32_t tSerializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
-int32_t tDeserializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReqp);
+int32_t tDeserializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
+void    tFreeSKillCompactReq(SKillCompactReq *pReq);
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];

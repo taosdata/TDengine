@@ -21,6 +21,8 @@
 #include "tmsgcb.h"
 #include "mndDnode.h"
 #include "tmisce.h"
+#include "audit.h"
+#include "mndPrivilege.h"
 
 #define MND_COMPACT_VER_NUMBER 1
 
@@ -421,8 +423,6 @@ static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompa
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
-  //mndUserRemoveView(pMnode, pTrans, pView->fullname);
-
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
@@ -463,12 +463,14 @@ int32_t mndProcessKillCompactReq(SRpcMsg *pReq){
   SMnode        *pMnode = pReq->info.node;
   int32_t       code = -1;
   SCompactObj   *pCompact = mndAcquireCompact(pMnode, killCompactReq.compactId);
+  if(pCompact == NULL){
+    tFreeSKillCompactReq(&killCompactReq);
+    return -1;
+  }
 
-  /*
-  if (0 != mndCheckViewPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_VIEW, killCompactReq.compactId)) {
+  if (0 != mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_COMPACT_DB)) {
     goto _OVER;
   }
-  */
 
   if (mndKillCompact(pMnode, pReq, pCompact) < 0) {
     goto _OVER;
@@ -476,13 +478,17 @@ int32_t mndProcessKillCompactReq(SRpcMsg *pReq){
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  //mndLogDropViewAudit(pReq, pMnode, killCompactReq);
+  char obj[10] = {0};
+  sprintf(obj, "%d", pCompact->compactId);
+
+  auditRecord(pReq, pMnode->clusterId, "killCompact", pCompact->dbname, obj, killCompactReq.sql, killCompactReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("failed to kill compact %" PRId32 " since %s", killCompactReq.compactId, terrstr());
   }
-
+  
+  tFreeSKillCompactReq(&killCompactReq);
   sdbRelease(pMnode->pSdb, pCompact);
 
   return code;

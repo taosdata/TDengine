@@ -3466,12 +3466,15 @@ int32_t tDeserializeSCompactDbRsp(void *buf, int32_t bufLen, SCompactDbRsp *pRsp
   return 0;
 }
 
-int32_t tSerializeSKillCompactReq(void *buf, int32_t bufLen, SKillCompactReq *pRsp) {
+int32_t tSerializeSKillCompactReq(void *buf, int32_t bufLen, SKillCompactReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
 
   if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeI32(&encoder, pRsp->compactId) < 0) return -1;
+
+  if (tEncodeI32(&encoder, pReq->compactId) < 0) return -1;
+  ENCODESQL();
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -3479,16 +3482,23 @@ int32_t tSerializeSKillCompactReq(void *buf, int32_t bufLen, SKillCompactReq *pR
   return tlen;
 }
 
-int32_t tDeserializeSKillCompactReq(void *buf, int32_t bufLen, SKillCompactReq *pRsp) {
+int32_t tDeserializeSKillCompactReq(void *buf, int32_t bufLen, SKillCompactReq *pReq) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pRsp->compactId) < 0) return -1;
+
+  if (tDecodeI32(&decoder, &pReq->compactId) < 0) return -1;
+  DECODESQL();
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
   return 0;
+}
+
+void tFreeSKillCompactReq(SKillCompactReq *pReq) {
+  FREESQL();
 }
 
 int32_t tSerializeSUseDbRspImp(SEncoder *pEncoder, const SUseDbRsp *pRsp) {
