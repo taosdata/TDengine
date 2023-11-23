@@ -52,10 +52,8 @@ groups:
         display: Topics
         description: >
           指定要消费的 Topic。可以配置多个 Topic，Topic 之间使用逗号分隔，例如：`tp1,tp2`。
-
-          "Topics" 参数不是必需的，当配置了 “Topics Partitions” 参数时，可以不配置该参数。
         placeholder: "tp1,tp2"
-        required: false
+        required: true
         hint:
           type: str
 
