@@ -749,7 +749,7 @@ int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
+  SVnodeObj *pVnode = vmAcquireVnodeImpl(pMgmt, vgId, false);
   if (pVnode == NULL) {
     dInfo("vgId:%d, failed to drop since %s", vgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
