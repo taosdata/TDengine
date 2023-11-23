@@ -72,11 +72,11 @@ pub async fn kafka_to_taos(
     span: Span,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
-    println!(
-        "{} kafka_to_taos started, from: {}, to: {}",
-        chrono::Utc::now().to_string(),
-        from.to_string(),
-        to.to_string()
+    tracing::info!(
+        "kafka_to_taos start, from: {}, parser: {}, to: {}",
+        from,
+        serde_json::to_string(&parser)?,
+        to
     );
     let port = port_pool
         .get()
