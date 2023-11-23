@@ -399,7 +399,7 @@ static void httpHandleReq(SHttpMsg* msg) {
   uv_tcp_init(http->loop, &cli->tcp);
 
   // set up timeout to avoid stuck;
-  int32_t fd = taosCreateSocketWithTimeout(5);
+  int32_t fd = taosCreateSocketWithTimeout(5 * 1000);
   if (fd < 0) {
     tError("http-report failed to open socket, dst:%s:%d", cli->addr, cli->port);
     taosReleaseRef(httpRefMgt, httpRef);
