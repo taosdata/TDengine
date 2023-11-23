@@ -2798,8 +2798,11 @@ static bool needDropRelatedFillhistoryTask(STaskStatusEntry *pTaskEntry, SStream
         if (pTaskEntry->id.streamId == pId->streamId) {
           numOfTotal++;
 
-          if (pTaskEntry->id.taskId != pId->taskId && pTaskEntry->status == TASK_STATUS__READY) {
-            numOfReady++;
+          if (pTaskEntry->id.taskId != pId->taskId) {
+            STaskStatusEntry *pEntry = taosHashGet(execInfo.pTaskMap, pId, sizeof(*pId));
+            if (pEntry->status == TASK_STATUS__READY) {
+              numOfReady++;
+            }
           }
         }
       }
