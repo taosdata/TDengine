@@ -458,6 +458,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SShowTableDistributedStmt));
     case QUERY_NODE_SHOW_COMPACTS_STMT:
       return makeNode(type, sizeof(SShowCompactsStmt));
+    case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
+      return makeNode(type, sizeof(SShowCompactDetailsStmt));
     case QUERY_NODE_KILL_QUERY_STMT:
       return makeNode(type, sizeof(SKillQueryStmt));
     case QUERY_NODE_KILL_TRANSACTION_STMT:
@@ -1087,6 +1089,12 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pDnodeId);
       nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pLikePattern);
       break;
+    case QUERY_NODE_SHOW_COMPACTS_STMT:
+      break;
+    case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT: {
+      SShowCompactDetailsStmt* pStmt = (SShowCompactDetailsStmt*)pNode;
+      nodesDestroyNode(pStmt->pCompactId);
+    }
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       taosMemoryFreeClear(((SShowCreateDatabaseStmt*)pNode)->pCfg);
       break;

@@ -6499,12 +6499,12 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 287: /* cmd ::= SHOW COMPACTS */
 #line 514 "sql.y"
-{ pCxt->pRootNode = createShowCompactsStmt(pCxt, NULL); }
+{ pCxt->pRootNode = createShowCompactsStmt(pCxt, QUERY_NODE_SHOW_COMPACTS_STMT); }
 #line 6503 "sql.c"
         break;
       case 288: /* cmd ::= SHOW COMPACT NK_INTEGER */
 #line 515 "sql.y"
-{ pCxt->pRootNode = createShowCompactsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &yymsp[0].minor.yy0)); }
+{ pCxt->pRootNode = createShowCompactDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &yymsp[0].minor.yy0)); }
 #line 6508 "sql.c"
         break;
       case 289: /* table_kind_db_name_cond_opt ::= */
