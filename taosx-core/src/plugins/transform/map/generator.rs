@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use arrow::{array::ArrayRef, datatypes::FieldRef, record_batch::RecordBatch};
 use arrow::array::TimestampNanosecondArray;
+use arrow::{array::ArrayRef, datatypes::FieldRef, record_batch::RecordBatch};
 use arrow_schema::{DataType, Field, TimeUnit};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -28,7 +28,11 @@ impl ValueBuilder for GeneratorValueBuilder {
             "now" => {
                 let now = Utc::now().timestamp_nanos_opt().unwrap();
                 Ok((
-                    Arc::new(Field::new(name, DataType::Timestamp(TimeUnit::Nanosecond, None), false)),
+                    Arc::new(Field::new(
+                        name,
+                        DataType::Timestamp(TimeUnit::Nanosecond, Some("+00:00".into())),
+                        false,
+                    )),
                     Arc::new(TimestampNanosecondArray::from(vec![now; len]).with_timezone_utc()),
                 ))
             }
@@ -50,21 +54,30 @@ mod tests {
 
     #[test]
     fn test_now() {
-        let builder: GeneratorValueBuilder = serde_json::from_str(r#"{ "generator": "now"}"#).unwrap();
+        let builder: GeneratorValueBuilder =
+            serde_json::from_str(r#"{ "generator": "now"}"#).unwrap();
         let batch = init_record_batch();
 
         let (field, value) = builder.build_field("ts", &batch, None).unwrap();
 
         assert_eq!(field.name(), "ts");
-        assert_eq!(*field.data_type(), DataType::Timestamp(TimeUnit::Nanosecond, None));
+        assert_eq!(
+            *field.data_type(),
+            DataType::Timestamp(TimeUnit::Nanosecond, Some("+00:00".into()))
+        );
         assert_eq!(value.len(), 3);
-        let ts = value.as_any().downcast_ref::<TimestampNanosecondArray>().unwrap().value(0);
+        let ts = value
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap()
+            .value(0);
         dbg!(ts);
     }
 
     #[test]
     fn test_invalid() {
-        let builder: GeneratorValueBuilder = serde_json::from_str(r#"{ "generator": "invalid"}"#).unwrap();
+        let builder: GeneratorValueBuilder =
+            serde_json::from_str(r#"{ "generator": "invalid"}"#).unwrap();
         let batch = init_record_batch();
 
         let result = builder.build_field("ts", &batch, None);
@@ -76,6 +89,7 @@ mod tests {
         RecordBatch::try_from_iter([(
             "f1",
             Arc::new(StringArray::from(vec!["a", "b", "c"])) as ArrayRef,
-        )]).unwrap()
+        )])
+        .unwrap()
     }
 }
