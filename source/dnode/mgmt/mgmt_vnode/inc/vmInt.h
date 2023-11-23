@@ -84,6 +84,7 @@ typedef struct {
 } SVnodeThread;
 
 // vmInt.c
+int32_t    vmGetPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId);
 int32_t    vmAllocPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId);
 SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId);
 void       vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode);
