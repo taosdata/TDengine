@@ -1692,8 +1692,9 @@ async fn consume_flat_record(
                                                     continue;
                                                 } else if code != 0x0360 {
                                                     anyhow::bail!(
-                                                        "create stable sql err: {}",
-                                                        err_str
+                                                        "create stable sql err: {}, sql: {}",
+                                                        err_str,
+                                                        &sqlus
                                                     );
                                                 }
                                             }
@@ -2561,7 +2562,9 @@ impl IpcStreamWorker {
                 let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
-                .map_err(|_| anyhow::format_err!("Unable to read lush message, trace.id={}", trace_id_str))?;
+                .map_err(|_| {
+                    anyhow::format_err!("Unable to read lush message, trace.id={}", trace_id_str)
+                })?;
                 let mut taos = Some(self.pool.get().await?);
                 let task = self.task;
                 consume_lush_record(
@@ -2609,9 +2612,9 @@ impl IpcStreamWorker {
                     stmt,
                     &record,
                     &mut count,
-                    self.opc_table_config
-                        .get()
-                        .ok_or_else(|| anyhow::format_err!("OPC table config not found, trace.id={}", trace_id_str))?,
+                    self.opc_table_config.get().ok_or_else(|| {
+                        anyhow::format_err!("OPC table config not found, trace.id={}", trace_id_str)
+                    })?,
                     target_precision,
                     data_trace_id,
                     trace_id_str,

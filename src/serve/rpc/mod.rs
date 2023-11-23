@@ -612,14 +612,7 @@ impl FlightService for FlightServiceImpl {
                             const ORDER: Ordering = Ordering::Relaxed;
                             let last = last_heart_ms.load(ORDER);
                             let now = Utc::now();
-                            if last > 0 {
-                                if std::time::Duration::from_millis(
-                                    now.timestamp_millis() as u64 - last,
-                                ) > std::time::Duration::from_secs(120)
-                                {
-                                    // tracing::error!(agent = agent_id, "Agent {agent_id} is no ok",)
-                                }
-                            }
+
                             for _ in 0..rows {
                                 let (ts, action, context, _req_id) = (
                                     ts.value_as_datetime_with_tz(
