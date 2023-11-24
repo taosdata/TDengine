@@ -409,13 +409,21 @@ pub struct Target {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
+pub struct ParserFixedField {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r#type: Option<String>,
+}
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
 pub struct ParserDefinition {
     pub display: String,
     pub required: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub fields: Option<Vec<Param>>,
+    pub fields: Option<Vec<ParserFixedField>>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode)]

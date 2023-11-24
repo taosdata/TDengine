@@ -215,11 +215,15 @@ parser:
   fields:
     - name: ts
       description: 时间戳
+      type: timestamp
     - name: topic
       description: 主题
+      type: varchar
     - name: qos
       description: 质量
+      type: int
     - name: payload
       description: 负载
+      type: varchar
 
   required: true

@@ -106,7 +106,7 @@ parser:
       type: timestamp
     - name: topic
       description: 主题名。
-      type: nchar
+      type: varchar
     - name: partition
       description: 分区 ID。
       type: int
@@ -115,8 +115,8 @@ parser:
       type: bigint
     - name: key
       description: 消息 Key。
-      type: binary
+      type: varchar
     - name: value
       description: 消息体。
-      type: binary
+      type: varchar
   required: true
