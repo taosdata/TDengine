@@ -2,9 +2,11 @@ use std::sync::Arc;
 
 use arrow::{
     array::ArrayRef,
-    datatypes::{FieldRef, Fields, Schema},
+    datatypes::{FieldRef, Schema},
     record_batch::RecordBatch,
 };
+use arrow_schema::ArrowError;
+use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -39,11 +41,30 @@ impl TransformExt for Map {
             .into_iter()
             .unzip();
         let old_schema = records.schema();
-        let schema = old_schema.fields().iter().cloned().chain(fields);
-        let columns = records.columns().into_iter().cloned().chain(columns);
-
-        let schema = Schema::new(Fields::from_iter(schema));
-        let columns = columns.collect::<Vec<_>>();
+        let (fields, columns): (Vec<_>, Vec<_>) = old_schema
+            .fields()
+            .iter()
+            .map(|f| f.name().clone())
+            .chain(fields.iter().map(|f| f.name().clone()))
+            .unique()
+            .map(|name| {
+                if let Some((idx, field)) =
+                    fields.iter().find_position(|field| name == *field.name())
+                {
+                    (field.clone(), columns[idx].clone())
+                } else {
+                    (
+                        old_schema
+                            .fields()
+                            .find(&name)
+                            .map(|(_, f)| f.clone())
+                            .unwrap(),
+                        records.column_by_name(&name).unwrap().clone(),
+                    )
+                }
+            })
+            .unzip();
+        let schema = Schema::new(fields);
         let records = RecordBatch::try_new(Arc::new(schema), columns)?;
         Ok(records.clone())
     }
@@ -63,6 +84,8 @@ pub enum ValueBuilderError {
     JoinError(String),
     #[error("sum error, cause: {0}")]
     SumError(String),
+    #[error("datatype cast error, cause: {0}")]
+    CastError(ArrowError),
 }
 
 /// ValueBuilder is used to build a new column from a record batch.

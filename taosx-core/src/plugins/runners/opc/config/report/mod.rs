@@ -41,7 +41,8 @@ impl ReportConfig {
                     anyhow::anyhow!("parse batch_size failed, cause: {}", err.to_string())
                 })
             })
-            .transpose()?)
+            .transpose()?
+            .or(Some(1000)))
     }
 
     fn parse_batch_timeout(dsn: &Dsn) -> anyhow::Result<Option<i64>> {
@@ -53,7 +54,8 @@ impl ReportConfig {
                     anyhow::anyhow!("parse batch_timeout failed, cause: {}", err.to_string())
                 })
             })
-            .transpose()?)
+            .transpose()?
+            .or(Some(1)))
     }
 }
 

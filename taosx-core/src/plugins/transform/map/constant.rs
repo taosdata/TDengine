@@ -20,39 +20,40 @@ impl ValueBuilder for ConstantValueBuilder {
         &self,
         name: &str,
         record: &RecordBatch,
-        _as: Option<IpcDataType>,
+        r#as: Option<IpcDataType>,
     ) -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
         let len = record.num_rows();
-        match &self.value {
+        let v = match &self.value {
             JsonValue::Null => Ok((
                 Arc::new(Field::new(name, DataType::Utf8, true)),
-                Arc::new(StringArray::new_null(len)),
+                Arc::new(StringArray::new_null(len)) as ArrayRef,
             )),
             JsonValue::Bool(value) => Ok((
                 Arc::new(Field::new(name, DataType::Boolean, false)),
-                Arc::new(BooleanArray::from(vec![*value; len])),
+                Arc::new(BooleanArray::from(vec![*value; len])) as ArrayRef,
             )),
             JsonValue::Number(value) => {
                 if value.is_f64() {
                     Ok((
                         Arc::new(Field::new(name, DataType::Float64, false)),
-                        Arc::new(Float64Array::from(vec![value.as_f64().unwrap(); len])),
+                        Arc::new(Float64Array::from(vec![value.as_f64().unwrap(); len]))
+                            as ArrayRef,
                     ))
                 } else if value.is_i64() {
                     Ok((
                         Arc::new(Field::new(name, DataType::Int64, false)),
-                        Arc::new(Int64Array::from(vec![value.as_i64().unwrap(); len])),
+                        Arc::new(Int64Array::from(vec![value.as_i64().unwrap(); len])) as ArrayRef,
                     ))
                 } else {
                     Ok((
                         Arc::new(Field::new(name, DataType::UInt64, false)),
-                        Arc::new(UInt64Array::from(vec![value.as_u64().unwrap(); len])),
+                        Arc::new(UInt64Array::from(vec![value.as_u64().unwrap(); len])) as ArrayRef,
                     ))
                 }
             }
             JsonValue::String(value) => Ok((
                 Arc::new(Field::new(name, DataType::Utf8, false)),
-                Arc::new(StringArray::from(vec![value.as_str(); len])),
+                Arc::new(StringArray::from(vec![value.as_str(); len])) as ArrayRef,
             )),
             JsonValue::Array(_) => Err(ValueBuilderError::ConstantError(format!(
                 "array value is not supported"
@@ -64,9 +65,18 @@ impl ValueBuilder for ConstantValueBuilder {
                 })?;
                 Ok((
                     Arc::new(Field::new(name, DataType::Utf8, false)),
-                    Arc::new(StringArray::from(vec![value.as_str(); len])),
+                    Arc::new(StringArray::from(vec![value.as_str(); len])) as ArrayRef,
                 ))
             }
+        }? as (FieldRef, ArrayRef);
+
+        if let Some(ty) = r#as {
+            let (field, array) = v;
+            let ty = ty.arrow_data_type();
+            let array = arrow::compute::cast(&array, &ty).map_err(ValueBuilderError::CastError)?;
+            Ok((Arc::new(field.as_ref().clone().with_data_type(ty)), array))
+        } else {
+            Ok(v)
         }
     }
 }
