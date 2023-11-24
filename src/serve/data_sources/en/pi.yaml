@@ -59,7 +59,6 @@ groups:
 advanced:
   name: Advanced Options
   collapsible: true
-  collapsed: true
   description: |
     Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave
     these options as default to use the recommended settings.

@@ -299,6 +299,8 @@ pub struct GroupedParams {
     pub description: Option<String>,
     #[serde(default)]
     pub collapsible: bool,
+
+    /// Dropdown collapsed or not.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     pub collapsed: Option<bool>,

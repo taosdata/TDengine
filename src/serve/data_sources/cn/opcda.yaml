@@ -116,7 +116,6 @@ groups:
 advanced:
   name: 高级选项
   collapsible: true
-  collapsed: true
   description: |
     对数据源性能、日志等其他参数进行调整，可修改以下选项。
   params:
