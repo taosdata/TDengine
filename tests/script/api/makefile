@@ -16,7 +16,6 @@ exe:
 	gcc $(CFLAGS) ./dbTableRoute.c  -o $(ROOT)dbTableRoute $(LFLAGS)
 	gcc $(CFLAGS) ./insertSameTs.c  -o $(ROOT)insertSameTs $(LFLAGS)
 	gcc $(CFLAGS) ./passwdTest.c  -o $(ROOT)passwdTest $(LFLAGS)
-	gcc $(CFLAGS) ./alterTableTest.c  -o $(ROOT)alterTableTest $(LFLAGS)
 	gcc $(CFLAGS) ./whiteListTest.c  -o $(ROOT)whiteListTest $(LFLAGS)
 	gcc $(CFLAGS) ./insert_stb.c  -o $(ROOT)insert_stb $(LFLAGS)
 	gcc $(CFLAGS) ./tmqViewTest.c  -o $(ROOT)tmqViewTest $(LFLAGS)
@@ -28,7 +27,6 @@ clean:
 	rm $(ROOT)dbTableRoute
 	rm $(ROOT)insertSameTs
 	rm $(ROOT)passwdTest
-	rm $(ROOT)alterTableTest
 	rm $(ROOT)whiteListTest
 	rm $(ROOT)insert_stb
 	rm $(ROOT)tmqViewTest
