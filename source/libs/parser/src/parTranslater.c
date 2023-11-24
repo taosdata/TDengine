@@ -9328,9 +9328,10 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       code = translateCreateTSMA(pCxt, (SCreateTSMAStmt*)pNode);
       break;
     case QUERY_NODE_SHOW_CREATE_TSMA_STMT:
-    case QUERY_NODE_DROP_TSMA_STMT:
       break;
-
+    case QUERY_NODE_DROP_TSMA_STMT:
+      code =translateDropTSMA(pCxt, (SDropTSMAStmt*)pNode);
+      break;
     default:
       break;
   }

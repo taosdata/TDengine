@@ -112,7 +112,7 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_STREAM_DROP, mndProcessDropStreamReqFromMNode);
   mndSetMsgHandle(pMnode, TDMT_STREAM_DROP_RSP, mndTransProcessRsp);
 
-  mndSetMsgHandle(pMnode, TDMT_VND_STREAM_CHECK_POINT_SOURCE, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_STREAM_CHECK_POINT_SOURCE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_TIMER, mndProcessStreamCheckpointTmr);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_BEGIN_CHECKPOINT, mndProcessStreamDoCheckpoint);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_REQ_CHKPT, mndProcessStreamReqCheckpoint);
@@ -2248,7 +2248,7 @@ static int32_t mndProcessCreateStreamReqFromMNode(SRpcMsg *pReq) {
 
 static int32_t mndProcessDropStreamReqFromMNode(SRpcMsg *pReq) {
   int32_t code = mndProcessDropStreamReq(pReq);
-  if (code != 0) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     pReq->info.rsp = rpcMallocCont(1);
     pReq->info.rspLen = 1;
     pReq->info.noResp = false;
