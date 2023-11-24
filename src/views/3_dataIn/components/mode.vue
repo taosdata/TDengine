@@ -53,11 +53,21 @@ export default {
     endDateTimeConfig() {
       return  this.parentConfigList.find(item => item.field === 'endDateTime') ?? {};
     },
+    beginDateTimeConfig() {
+      return  this.parentConfigList.find(item => item.field === 'beginDateTime') ?? {};
+    },
     isEdit() {
       return this.sourceParent.isEditable;
     }
   },
-  watch: {},
+  watch: {
+    data: {
+      handler(val) {
+        this.beginDateTimeConfig.required = this.data?.table == 'Runtime.dbo.History'
+      },
+      deep: true
+    }
+  },
   created() {},
   mounted() {
     if (this.isEdit) {
