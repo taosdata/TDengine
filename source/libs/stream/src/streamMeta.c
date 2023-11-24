@@ -57,7 +57,7 @@ int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid);
 static void streamMetaEnvInit() {
   streamBackendId = taosOpenRef(64, streamBackendCleanup);
   streamBackendCfWrapperId = taosOpenRef(64, streamBackendHandleCleanup);
-  taskDbWrapperId = taosOpenRef(64, taskDbDestroy);
+  taskDbWrapperId = taosOpenRef(64, taskDbDestroy2);
 
   streamMetaId = taosOpenRef(64, streamMetaCloseImpl);
 
@@ -1239,8 +1239,8 @@ bool streamMetaTaskInTimer(SStreamMeta* pMeta) {
 void streamMetaNotifyClose(SStreamMeta* pMeta) {
   int32_t vgId = pMeta->vgId;
 
-  stDebug("vgId:%d notify all stream tasks that the vnode is closing. isLeader:%d startHb:%" PRId64 ", totalHb:%d", vgId,
-          (pMeta->role == NODE_ROLE_LEADER), pMeta->pHbInfo->hbStart, pMeta->pHbInfo->hbCount);
+  stDebug("vgId:%d notify all stream tasks that the vnode is closing. isLeader:%d startHb:%" PRId64 ", totalHb:%d",
+          vgId, (pMeta->role == NODE_ROLE_LEADER), pMeta->pHbInfo->hbStart, pMeta->pHbInfo->hbCount);
 
   streamMetaWLock(pMeta);
 

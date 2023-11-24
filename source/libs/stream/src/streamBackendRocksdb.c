@@ -190,12 +190,12 @@ int32_t getCfIdx(const char* cfName) {
 }
 
 bool isValidCheckpoint(const char* dir) {
-  // return true;
+  return true;
   STaskDbWrapper* pDb = taskDbOpenImpl(NULL, NULL, (char*)dir);
   if (pDb == NULL) {
-    return true;
+    return false;
   }
-  taskDbDestroy(pDb);
+  taskDbDestroy(pDb, false);
   return true;
 }
 
@@ -1788,7 +1788,7 @@ STaskDbWrapper* taskDbOpenImpl(char* key, char* statePath, char* dbPath) {
   return pTaskDb;
 _EXIT:
 
-  taskDbDestroy(pTaskDb);
+  taskDbDestroy(pTaskDb, false);
   if (err) taosMemoryFree(err);
   if (cfNames) rocksdb_list_column_families_destroy(cfNames, nCf);
   return NULL;
@@ -1807,7 +1807,7 @@ STaskDbWrapper* taskDbOpen(char* path, char* key, int64_t chkpId) {
   return pTaskDb;
 }
 
-void taskDbDestroy(void* pDb) {
+void taskDbDestroy(void* pDb, bool flush) {
   STaskDbWrapper* wrapper = pDb;
   qDebug("succ to destroy stream backend:%p", wrapper);
 
@@ -1815,24 +1815,33 @@ void taskDbDestroy(void* pDb) {
 
   if (wrapper == NULL) return;
 
-  if (wrapper->db && wrapper->pCf) {
-    rocksdb_flushoptions_t* flushOpt = rocksdb_flushoptions_create();
-    rocksdb_flushoptions_set_wait(flushOpt, 1);
+  if (flush) {
+    if (wrapper->db && wrapper->pCf) {
+      rocksdb_flushoptions_t* flushOpt = rocksdb_flushoptions_create();
+      rocksdb_flushoptions_set_wait(flushOpt, 1);
 
-    char* err = NULL;
-    for (int i = 0; i < nCf; i++) {
-      if (wrapper->pCf[i] != NULL) rocksdb_flush_cf(wrapper->db, flushOpt, wrapper->pCf[i], &err);
-      if (err != NULL) {
-        stError("failed to flush cf:%s, reason:%s", ginitDict[i].key, err);
-        taosMemoryFreeClear(err);
+      char*                            err = NULL;
+      rocksdb_column_family_handle_t** cfs = taosMemoryCalloc(1, sizeof(rocksdb_column_family_handle_t*) * nCf);
+      int                              numOfFlushCf = 0;
+      for (int i = 0; i < nCf; i++) {
+        if (wrapper->pCf[i] != NULL) {
+          cfs[numOfFlushCf++] = wrapper->pCf[i];
+        }
       }
+      if (numOfFlushCf != 0) {
+        rocksdb_flush_cfs(wrapper->db, flushOpt, cfs, numOfFlushCf, &err);
+        if (err != NULL) {
+          stError("failed to flush all cfs, reason:%s", err);
+          taosMemoryFreeClear(err);
+        }
+      }
+      taosMemoryFree(cfs);
+      rocksdb_flushoptions_destroy(flushOpt);
     }
-    rocksdb_flushoptions_destroy(flushOpt);
-
-    for (int i = 0; i < nCf; i++) {
-      if (wrapper->pCf[i] != NULL) {
-        rocksdb_column_family_handle_destroy(wrapper->pCf[i]);
-      }
+  }
+  for (int i = 0; i < nCf; i++) {
+    if (wrapper->pCf[i] != NULL) {
+      rocksdb_column_family_handle_destroy(wrapper->pCf[i]);
     }
   }
   rocksdb_options_destroy(wrapper->dbOpt);
@@ -1868,6 +1877,8 @@ void taskDbDestroy(void* pDb) {
 
   return;
 }
+
+void taskDbDestroy2(void* pDb) { taskDbDestroy(pDb, true); }
 
 int32_t taskDbGenChkpUploadData__rsync(STaskDbWrapper* pDb, int64_t chkpId, char** path) {
   int64_t st = taosGetTimestampMs();
@@ -2007,7 +2018,7 @@ int32_t streamStateCvtDataFormat(char* path, char* key, void* pCfInst) {
   }
 
 _EXIT:
-  taskDbDestroy(pTaskDb);
+  taskDbDestroy(pTaskDb, true);
 
   return code;
 }

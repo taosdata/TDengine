@@ -139,7 +139,8 @@ void       streamBackendDelCompare(void* backend, void* arg);
 int32_t    streamStateCvtDataFormat(char* path, char* key, void* cfInst);
 
 STaskDbWrapper* taskDbOpen(char* path, char* key, int64_t chkpId);
-void            taskDbDestroy(void* pBackend);
+void            taskDbDestroy(void* pBackend, bool flush);
+void            taskDbDestroy2(void* pBackend);
 int32_t         taskDbDoCheckpoint(void* arg, int64_t chkpId);
 
 void taskDbUpdateChkpId(void* pTaskDb, int64_t chkpId);
@@ -217,7 +218,7 @@ int32_t streamDefaultGet_rocksdb(SStreamState* pState, const void* key, void** p
 int32_t streamDefaultDel_rocksdb(SStreamState* pState, const void* key);
 int32_t streamDefaultIterGet_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result);
 void*   streamDefaultIterCreate_rocksdb(SStreamState* pState);
-bool streamDefaultIterValid_rocksdb(void* iter);
+bool    streamDefaultIterValid_rocksdb(void* iter);
 void    streamDefaultIterSeek_rocksdb(void* iter, const char* key);
 void    streamDefaultIterNext_rocksdb(void* iter);
 char*   streamDefaultIterKey_rocksdb(void* iter, int32_t* len);
@@ -245,8 +246,8 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap);
 
 // int32_t streamDefaultIter_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result);
 
-STaskDbWrapper* taskDbOpen(char* path, char* key, int64_t chkpId);
-void            taskDbDestroy(void* pDb);
+// STaskDbWrapper* taskDbOpen(char* path, char* key, int64_t chkpId);
+// void            taskDbDestroy(void* pDb, bool flush);
 
 int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId);
 
