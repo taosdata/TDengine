@@ -30,8 +30,8 @@ struct SVSnapReader {
   int8_t           tsdbDone;
   STsdbSnapReader *pTsdbReader;
   // tsdb raw
-  int8_t              tsdbRawDone;
-  STsdbSnapRAWReader *pTsdbRawReader;
+  int8_t              tsdbRAWDone;
+  STsdbSnapRAWReader *pTsdbRAWReader;
 
   // tq
   int8_t           tqHandleDone;
@@ -179,6 +179,28 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       } else {
         pReader->tsdbDone = 1;
         code = tsdbSnapReaderClose(&pReader->pTsdbReader);
+        if (code) goto _err;
+      }
+    }
+  }
+
+  if (!pReader->tsdbRAWDone) {
+    // open if not
+    if (pReader->pTsdbRAWReader == NULL) {
+      ASSERT(pReader->sver == 0);
+      code = tsdbSnapRAWReaderOpen(pReader->pVnode->pTsdb, pReader->ever, SNAP_DATA_RAW, &pReader->pTsdbRAWReader);
+      if (code) goto _err;
+    }
+
+    code = tsdbSnapRAWRead(pReader->pTsdbRAWReader, ppData);
+    if (code) {
+      goto _err;
+    } else {
+      if (*ppData) {
+        goto _exit;
+      } else {
+        pReader->tsdbRAWDone = 1;
+        code = tsdbSnapRAWReaderClose(&pReader->pTsdbRAWReader);
         if (code) goto _err;
       }
     }
