@@ -53,11 +53,8 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
   int64_t     prevValue = 0;
 
 #if __AVX2__
-  while (1) {
-    if (_pos == nelements) break;
-
-    uint64_t w = 0;
-    memcpy(&w, ip, LONG_BYTES);
+  while (_pos < nelements) {
+    uint64_t w = *(uint64_t*) ip;
 
     char    selector = (char)(w & INT64MASK(4));       // selector = 4
     char    bit = bit_per_integer[(int32_t)selector];  // bit = 3
@@ -261,17 +258,20 @@ int32_t tsDecompressTimestampAvx2(const char* const input, const int32_t nelemen
   int64_t  deltaOfDelta = 0;
   int32_t  longBytes = LONG_BYTES;
 
+  // _mm_maskz_loadu_epi8
 #if __AVX2__
 
-  int32_t batch = nelements >> 2;
-  int32_t remainder = nelements & 0x1;
+  // _mm_blendv_epi8
+  int32_t batch = nelements >> 4;
+  int32_t remainder = nelements & 0x03;
 
-  while (1) {
+  for(int32_t i = 0; i < batch; ++i) {
     uint8_t flags = input[ipos++];
 
     // Decode dd1
     uint64_t dd1 = 0;
-    nbytes = flags & INT8MASK(4);
+    nbytes = flags & INT8MASK(4);  // range of nbytes starts from 0 to 7
+    // __m128i mask = {};//[0], []
 
     if (nbytes == 0) {
       deltaOfDelta = 0;
@@ -288,10 +288,6 @@ int32_t tsDecompressTimestampAvx2(const char* const input, const int32_t nelemen
     prevDelta += deltaOfDelta;
     prevValue += prevDelta;
     ostream[opos++] = prevValue;
-
-    if (opos == nelements) {
-      return nelements * longBytes;
-    }
 
     // Decode dd2
     uint64_t dd2 = 0;
@@ -317,6 +313,11 @@ int32_t tsDecompressTimestampAvx2(const char* const input, const int32_t nelemen
       return nelements * longBytes;
     }
   }
+
+  if (remainder > 0) {
+
+  }
+
 #endif
   return 0;
 }
