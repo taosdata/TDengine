@@ -425,7 +425,7 @@ SQuery* smlInitHandle() {
 int32_t smlBuildOutput(SQuery* handle, SHashObj* pVgHash) {
   SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)(handle)->pRoot;
   // merge according to vgId
-  int32_t code = insMergeTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pVgDataBlocks, false);
+  int32_t code = insMergeTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pVgDataBlocks, true);
   if (code != TSDB_CODE_SUCCESS) {
     uError("insMergeTableDataCxt failed");
     return code;

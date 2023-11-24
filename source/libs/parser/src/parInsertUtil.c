@@ -429,7 +429,7 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
   if (isRebuild) {
     rebuildTableData(pTableCxt->pData, &pTableCxt->pData);
   } else {
-    pTableCxt->pData = NULL;
+    taosMemoryFreeClear(pTableCxt->pData);
   }
 
   qDebug("add tableDataCxt uid:%" PRId64 " to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
@@ -508,11 +508,6 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
 
       tColDataSortMerge(pTableCxt->pData->aCol);
     } else {
-      // the processed table has no data to insert and must be skipped
-      if (0 == taosArrayGetSize(pTableCxt->pData->aRowP)) {
-        p = taosHashIterate(pTableHash, p);
-        continue;
-      }
       if (!pTableCxt->ordered) {
         code = tRowSort(pTableCxt->pData->aRowP);
       }

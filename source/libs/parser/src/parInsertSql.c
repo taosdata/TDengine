@@ -1863,10 +1863,11 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
   // release old array alloced by merge
   pStmt->freeArrayFunc(pStmt->pVgDataBlocks);
   // merge according to vgId
-  int32_t code = insMergeTableDataCxt(pStmt->fileProcessing ? pStmt->pTableCxtHashObj : pStmt->pTableBlockHashObj,
-                                      &pStmt->pVgDataBlocks, pStmt->fileProcessing);
-  // release tmp hashobj only
-  taosHashCleanup(pStmt->pTableCxtHashObj);
+  bool type_file = TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_FILE_INSERT);
+  int32_t code = insMergeTableDataCxt(type_file ? pStmt->pTableCxtHashObj : pStmt->pTableBlockHashObj,
+                                      &pStmt->pVgDataBlocks, type_file);
+  // clear tmp hashobj only
+  taosHashClear(pStmt->pTableCxtHashObj);
   pStmt->pTableCxtHashObj = NULL;
 
   if (TSDB_CODE_SUCCESS == code) {
