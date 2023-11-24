@@ -314,6 +314,6 @@ TEST(osTest, osFilePerformance) {
   printf("Test OpenForRead & Close file %d times, cost: %" PRId64 "us\n", TESTTIMES, OpenForReadCloseFileCost);
 }
 
-#endif OSFILE_PERFORMANCE_TEST
+#endif // OSFILE_PERFORMANCE_TEST
 
 #pragma GCC diagnostic pop
