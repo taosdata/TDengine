@@ -60,27 +60,21 @@ int32_t tsdbDataFileRAWReaderClose(SDataFileRAWReader **reader) {
   return 0;
 }
 
-int32_t tsdbDataFileRAWReadBlockData(SDataFileRAWReader *reader, STsdbDataRAWBlockHeader *bHdr) {
+int32_t tsdbDataFileRAWReadBlockData(SDataFileRAWReader *reader, STsdbDataRAWBlockHeader *pBlock) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  bHdr->file.type = reader->config->file.type;
-  bHdr->file.fid = reader->config->file.fid;
-  bHdr->file.cid = reader->config->file.cid;
-  bHdr->file.size = reader->config->file.size;
-  bHdr->file.minVer = reader->config->file.minVer;
-  bHdr->file.maxVer = reader->config->file.maxVer;
-  bHdr->file.stt->level = reader->config->file.stt->level;
+  pBlock->file.type = reader->config->file.type;
+  pBlock->file.fid = reader->config->file.fid;
+  pBlock->file.cid = reader->config->file.cid;
+  pBlock->file.size = reader->config->file.size;
+  pBlock->file.minVer = reader->config->file.minVer;
+  pBlock->file.maxVer = reader->config->file.maxVer;
+  pBlock->file.stt->level = reader->config->file.stt->level;
 
-  int64_t size = TMIN(bHdr->dataLength, reader->config->file.size - reader->ctx->offset);
-  ASSERT(size > 0);
-  bHdr->dataLength = 0;
-  bHdr->offset = reader->ctx->offset;
-
-  code = tsdbReadFile(reader->fd, bHdr->offset, bHdr->data, size);
+  code = tsdbReadFile(reader->fd, pBlock->offset, pBlock->data, pBlock->dataLength);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  bHdr->dataLength = size;
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);

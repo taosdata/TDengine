@@ -183,52 +183,54 @@ static int32_t tsdbSnapRAWReadFileSetCloseIter(STsdbSnapRAWReader* reader) {
   return 0;
 }
 
-static int32_t tsdbSnapRAWReadNext(STsdbSnapRAWReader* reader, STsdbDataRAWBlockHeader* bHdr) {
+static int64_t tsdbSnapRAWReadPeek(SDataFileRAWReader* reader) {
+  int64_t size = TMIN(reader->config->file.size - reader->ctx->offset, TSDB_SNAP_RAW_PAYLOAD_SIZE);
+  return size;
+}
+
+static int32_t tsdbSnapRAWReadNext(STsdbSnapRAWReader* reader, SSnapDataHdr** ppData) {
   int32_t code = 0;
   int32_t lino = 0;
+  ppData[0] = NULL;
 
   ASSERT(reader->dataIter->offset <= reader->dataIter->size);
   ASSERT(reader->dataIter->idx <= reader->dataIter->count);
 
+  // dataReader
   if (reader->dataIter->offset == reader->dataIter->size && reader->dataIter->idx < reader->dataIter->count) {
     reader->dataIter->idx++;
   }
   if (reader->dataIter->idx == reader->dataIter->count) {
     return 0;
   }
-
+  int8_t              type = reader->type;
   SDataFileRAWReader* dataReader = TARRAY2_GET(reader->dataReaderArr, reader->dataIter->idx);
-  code = tsdbDataFileRAWReadBlockData(dataReader, bHdr);
-  TSDB_CHECK_CODE(code, lino, _exit);
 
-  reader->dataIter->offset += bHdr->dataLength;
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
-  }
-  return code;
-}
+  // prepare
+  int64_t dataLength = tsdbSnapRAWReadPeek(dataReader);
+  ASSERT(dataLength > 0);
 
-static int32_t tsdbSnapRAWReadData(STsdbSnapRAWReader* reader, SSnapDataHdr** data) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  void* pBuf = taosMemoryCalloc(1, sizeof(SSnapDataHdr) + sizeof(STsdbDataRAWBlockHeader) + TSDB_SNAP_RAW_PAYLOAD_SIZE);
+  void* pBuf = taosMemoryCalloc(1, sizeof(SSnapDataHdr) + sizeof(STsdbDataRAWBlockHeader) + dataLength);
   if (pBuf == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-
   SSnapDataHdr* pHdr = pBuf;
-  pHdr->type = reader->type;
-  STsdbDataRAWBlockHeader* pData = (void*)pHdr->data;
-  pData->dataLength = TSDB_SNAP_RAW_PAYLOAD_SIZE;
+  pHdr->type = type;
+  pHdr->size = sizeof(STsdbDataRAWBlockHeader) + dataLength;
 
-  code = tsdbSnapRAWReadNext(reader, pData);
+  STsdbDataRAWBlockHeader* pBlock = (void*)pHdr->data;
+  pBlock->offset = dataReader->ctx->offset;
+  pBlock->dataLength = dataLength;
+
+  // read
+  code = tsdbDataFileRAWReadBlockData(dataReader, pBlock);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  ASSERT(pData->dataLength > 0 && pData->dataLength <= TSDB_SNAP_RAW_PAYLOAD_SIZE);
-  pHdr->size = sizeof(STsdbDataRAWBlockHeader) + pData->dataLength;
+  // finish
+  reader->dataIter->offset += pBlock->dataLength;
+  ppData[0] = pBuf;
+  ASSERT(reader->dataIter->offset <= reader->dataIter->size);
 
 _exit:
   if (code) {
@@ -236,7 +238,20 @@ _exit:
     pBuf = NULL;
     TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
   }
-  data[0] = pBuf;
+  return code;
+}
+
+static int32_t tsdbSnapRAWReadData(STsdbSnapRAWReader* reader, uint8_t** ppData) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  code = tsdbSnapRAWReadNext(reader, (SSnapDataHdr**)ppData);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
+  }
   return code;
 }
 
@@ -288,7 +303,7 @@ int32_t tsdbSnapRAWRead(STsdbSnapRAWReader* reader, uint8_t** data) {
     }
 
     if (!reader->ctx->isDataDone) {
-      code = tsdbSnapRAWReadData(reader, (SSnapDataHdr**)data);
+      code = tsdbSnapRAWReadData(reader, data);
       TSDB_CHECK_CODE(code, lino, _exit);
       if (data[0]) {
         goto _exit;
