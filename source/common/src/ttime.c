@@ -170,7 +170,7 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
     hour = strnatoi(&str[i], len);
     i += len + 1;
   } else {
-    hour = strnatoi(&str[i], strlen(&str[i]));
+    hour = strnatoi(&str[i], 2);
     i += 2;
   }
 
@@ -185,7 +185,7 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
   }
 
   int64_t minute = strnatoi(&str[i], 2);
-  if (minute > 59) {
+  if (minute > 59 || (hour == 12 && minute > 0)) {
     return -1;
   }
 
