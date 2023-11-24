@@ -1904,7 +1904,12 @@ export default {
           ],
           // trigger: { "resume": this.resume }
         };
-        if ((this.tagName == "kafka" || this.tagName == "mqtt") && isSubmit) {
+        if (this.tagName == "mqtt" && isSubmit) {
+          let parser = this.$store.state.app.mqttParser
+          parser.parse.ts = {as : `timestamp(${this.dbprecision})`}
+          piParams["parser"] = parser
+        }
+        if (this.tagName == "kafka" && isSubmit) {
           let value = this.$store.state.app.mqttParser.parse.payload;
           piParams["parser"] = {
             ...this.$store.state.app.mqttParser,
