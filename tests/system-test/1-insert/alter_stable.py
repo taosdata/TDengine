@@ -209,7 +209,16 @@ class TDTestCase:
     def alterTableTask(self, i):
         os.system(f'taos -f {self.fname}.{i};')
 
-    def alterTableCheck(self, opt):
+    def executeAlterTable(self, opt):
+        threads = []
+        for i in range(self.threadnum):
+            thread = threading.Thread(target=self.alterTableTask, args=(i,))
+            threads.append(thread)
+            thread.start()
+        for i in range(self.threadnum):
+            threads[i].join()
+
+    def checkAlterTable(self, opt):
         if opt in ["stb_add_col", "stb_add_tag"]:
             for i in range(self.stbnum):
                 tdSql.execute(f'desc {self.stbname}_{i}')
@@ -220,23 +229,13 @@ class TDTestCase:
             for i in range(self.ntbnum):
                 tdSql.execute(f'desc {self.ntbname}_{i}')
 
-    def executeAlterTableAndCheck(self, opt):
-        threads = []
-        for i in range(self.threadnum):
-            thread = threading.Thread(target=self.alterTableTask, args=(i,))
-            threads.append(thread)
-            thread.start()            
-        for i in range(self.threadnum):
-            threads[i].join()
-        self.alterTableCheck(opt)
-
-    def destroyAlterTableEnv(self):
+    def destroyAlterTable(self):
         for i in range(self.threadnum):
             if os.path.isfile(f'{self.fname}.{i}'):
                 os.remove(f'{self.fname}.{i}')
     
-    def prepareAlterTableEnv(self, opt):
-        self.destroyAlterTableEnv()
+    def prepareAlterTable(self, opt):
+        self.destroyAlterTable()
         lines = [f'use {self.dbname};\n']
         if opt in ["stb_add_col", "stb_add_tag"]:
             for i in range(self.stbnum):
@@ -297,9 +296,10 @@ class TDTestCase:
 
         for opt in alter_table_check_type:
             self.prepareAlterEnv()
-            self.prepareAlterTableEnv(opt)
-            self.executeAlterTableAndCheck(opt)
-            self.destroyAlterTableEnv()
+            self.prepareAlterTable(opt)
+            self.executeAlterTable(opt)
+            self.checkAlterTable(opt)
+            self.destroyAlterTable()
         self.destroyAlterEnv()
 
     def run(self):
