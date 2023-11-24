@@ -20,7 +20,6 @@ from util.sql import *
 from util.sqlset import *
 from util import constant
 from util.common import *
-
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -201,7 +200,7 @@ class TDTestCase:
 
     def prepareAlterEnv(self):
         tdSql.execute(f'drop database if exists {self.dbname}')
-        tdSql.execute(f'create database if not exists {self.dbname} vgroups 2 buffer 64')
+        tdSql.execute(f'create database if not exists {self.dbname} vgroups 2')
         tdSql.execute(f'use {self.dbname}')
 
     def destroyAlterEnv(self):
@@ -295,7 +294,7 @@ class TDTestCase:
         self.executeAlterTableCheck(opt)
 
     def alter_stable_multi_client_check(self):
-        """Check alter stable/ntable variable column/tag(PI-23)
+        """Check alter stable/ntable var type column/tag(PI-23)
         """
         alter_table_check_type = ["stb_add_col", "stb_add_tag", "stb_modify_col", "stb_modify_tag", "ntb_add_col", "ntb_modify_col"]
 
@@ -304,7 +303,6 @@ class TDTestCase:
             self.prepareAlterTableEnvAndCheck(check)
             self.destroyAlterTableEnv()
         self.destroyAlterEnv()
-
 
     def run(self):
         self.alter_stable_check()
