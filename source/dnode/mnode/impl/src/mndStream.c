@@ -2767,7 +2767,7 @@ static SStreamTask* mndGetStreamTask(STaskId* pId, SStreamObj* pStream) {
 
 static bool needDropRelatedFillhistoryTask(STaskStatusEntry *pTaskEntry, SStreamExecInfo *pExecNode) {
   if (pTaskEntry->status == TASK_STATUS__STREAM_SCAN_HISTORY && pTaskEntry->statusLastDuration >= 10) {
-    if (fabs(pTaskEntry->inputQUsed) <= DBL_EPSILON) {
+    if (!pTaskEntry->inputQChanging && pTaskEntry->inputQUnchangeCounter > 10) {
       int32_t numOfReady = 0;
       int32_t numOfTotal = 0;
       for (int32_t k = 0; k < taosArrayGetSize(pExecNode->pTaskList); ++k) {
@@ -2909,6 +2909,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   for (int32_t i = 0; i < req.numOfTasks; ++i) {
     STaskStatusEntry *p = taosArrayGet(req.pTaskStatus, i);
+
     STaskStatusEntry *pTaskEntry = taosHashGet(execInfo.pTaskMap, &p->id, sizeof(p->id));
     if (pTaskEntry == NULL) {
       mError("s-task:0x%" PRIx64 " not found in mnode task list", p->id.taskId);
@@ -2917,7 +2918,22 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
     if (pTaskEntry->stage != p->stage && pTaskEntry->stage != -1) {
       updateStageInfo(pTaskEntry, p->stage);
+      if(pTaskEntry->nodeId == SNODE_HANDLE)  {
+        snodeChanged = true;
+      }
     } else {
+      // task is idle for more than 50 sec.
+      if (fabs(pTaskEntry->inputQUsed - p->inputQUsed) <= DBL_EPSILON) {
+        if (!pTaskEntry->inputQChanging) {
+          pTaskEntry->inputQUnchangeCounter++;
+        } else {
+          pTaskEntry->inputQChanging = false;
+        }
+      } else {
+        pTaskEntry->inputQChanging = true;
+        pTaskEntry->inputQUnchangeCounter = 0;
+      }
+
       streamTaskStatusCopy(pTaskEntry, p);
       if (p->activeCheckpointId != 0) {
         if (activeCheckpointId != 0) {
