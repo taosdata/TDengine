@@ -259,7 +259,7 @@ int32_t tsDecompressTimestampAvx2(const char* const input, const int32_t nelemen
   int32_t  longBytes = LONG_BYTES;
 
   // _mm_maskz_loadu_epi8
-#if __AVX2__
+#if __AVX512F__
 
   // _mm_blendv_epi8
   int32_t batch = nelements >> 4;
