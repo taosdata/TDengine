@@ -277,6 +277,8 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   }
 
   // TSDB ==============
+  pReader->tsdbDone = true;
+
   if (!pReader->tsdbDone) {
     // open if not
     if (pReader->pTsdbReader == NULL) {
@@ -641,6 +643,10 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     tsdbSnapWriterPrepareClose(pWriter->pTsdbSnapWriter);
   }
 
+  if (pWriter->pTsdbSnapRAWWriter) {
+    tsdbSnapRAWWriterPrepareClose(pWriter->pTsdbSnapRAWWriter);
+  }
+
   if (pWriter->pRsmaSnapWriter) {
     rsmaSnapWriterPrepareClose(pWriter->pRsmaSnapWriter);
   }
@@ -674,6 +680,11 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
 
   if (pWriter->pTsdbSnapWriter) {
     code = tsdbSnapWriterClose(&pWriter->pTsdbSnapWriter, rollback);
+    if (code) goto _exit;
+  }
+
+  if (pWriter->pTsdbSnapRAWWriter) {
+    code = tsdbSnapRAWWriterClose(&pWriter->pTsdbSnapRAWWriter, rollback);
     if (code) goto _exit;
   }
 
