@@ -62,6 +62,8 @@ static int32_t  mndAlterStbAndUpdateTagIdxImp(SMnode *pMnode, SRpcMsg *pReq, SDb
 static int32_t mndProcessCreateIndexReq(SRpcMsg *pReq);
 static int32_t mndProcessDropIndexReq(SRpcMsg *pReq);
 
+static int32_t mndProcessDropStbReqFromMNode(SRpcMsg *pReq);
+
 int32_t mndInitStb(SMnode *pMnode) {
   SSdbTable table = {
       .sdbType = SDB_STB,
@@ -87,6 +89,8 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_S3MIGRATE_RSP, mndProcessS3MigrateDbRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_S3MIGRATE_DB_TIMER, mndProcessS3MigrateDbTimer);
   mndSetMsgHandle(pMnode, TDMT_MND_TABLE_CFG, mndProcessTableCfgReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_STB_DROP, mndProcessDropStbReqFromMNode);
+  mndSetMsgHandle(pMnode, TDMT_MND_STB_DROP_RSP, mndTransProcessRsp);
   //  mndSetMsgHandle(pMnode, TDMT_MND_SYSTABLE_RETRIEVE, mndProcessRetrieveStbReq);
 
   // mndSetMsgHandle(pMnode, TDMT_MND_CREATE_INDEX, mndProcessCreateIndexReq);
@@ -3693,3 +3697,14 @@ static int32_t mndProcessDropIndexReq(SRpcMsg *pReq) {
 _OVER:
   return code;
 }*/
+
+static int32_t mndProcessDropStbReqFromMNode(SRpcMsg *pReq) {
+  int32_t code = mndProcessDropStbReq(pReq);
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    pReq->info.rsp = rpcMallocCont(1);
+    pReq->info.rspLen = 1;
+    pReq->info.noResp = false;
+    pReq->code = code;
+  }
+  return code;
+}
