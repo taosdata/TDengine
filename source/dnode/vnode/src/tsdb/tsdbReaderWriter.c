@@ -341,7 +341,7 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
     memcpy(pBuf + n, pFD->pBuf + bOffset, nRead);
 
     n += nRead;
-    pgno++;
+    ++pgno;
     bOffset = 0;
   }
 
@@ -367,6 +367,7 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
       tsdbCacheSetPageS3(pFD->pTsdb->pgCache, pFD, pgno, pBlock + i * pFD->szPage);
 
       if (szHint > 0 && n >= size) {
+        ++pgno;
         continue;
       }
       memcpy(pFD->pBuf, pBlock + i * pFD->szPage, pFD->szPage);
@@ -383,7 +384,7 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
       memcpy(pBuf + n, pFD->pBuf + bOffset, nRead);
 
       n += nRead;
-      pgno++;
+      ++pgno;
       bOffset = 0;
     }
 
