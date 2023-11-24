@@ -15,6 +15,7 @@ use thiserror::Error;
 
 use super::TransformExt;
 
+mod cast;
 mod constant;
 mod expr;
 mod format;
@@ -111,6 +112,7 @@ pub struct FieldValue {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum FieldValueBuilder {
+    Cast(cast::CastValueBuilder),
     Value(constant::ConstantValueBuilder),
     Expr(expr::ExprValueBuilder),
     Format(format::FormatValueBuilder),
@@ -127,6 +129,7 @@ impl ValueBuilder for FieldValueBuilder {
         r#as: Option<IpcDataType>,
     ) -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
         match self {
+            FieldValueBuilder::Cast(builder) => builder.build_field(name, record, r#as),
             FieldValueBuilder::Value(builder) => builder.build_field(name, record, r#as),
             FieldValueBuilder::Expr(builder) => builder.build_field(name, record, r#as),
             FieldValueBuilder::Format(builder) => builder.build_field(name, record, r#as),
