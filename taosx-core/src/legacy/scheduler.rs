@@ -18,6 +18,7 @@ use tokio::{
     sync::oneshot,
     task::{JoinError, JoinHandle},
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
 use crate::{
@@ -567,30 +568,40 @@ impl Scheduler {
         source_is_v3: bool,
         target_is_v3: bool,
         task_id: Option<String>,
+        cancellation: CancellationToken,
     ) -> Self {
         let workers = std::cmp::max(1, workers);
         let (sender, receiver) = flume::bounded((workers * 4) as usize);
         let file_mutex = Arc::new(std::sync::Mutex::new(()));
         let handles = (0..workers)
             .map(|i| {
-                tokio::spawn(
-                    worker(
-                        i,
-                        source.clone(),
-                        target.clone(),
-                        receiver.clone(),
-                        query.clone(),
-                        opts.clone(),
-                        metrics.clone(),
-                        metrics_db.clone(),
-                        actions.clone(),
-                        source_is_v3,
-                        target_is_v3,
-                        task_id.clone(),
-                        file_mutex.clone(),
-                    )
-                    .in_current_span(),
+                let cancellation = cancellation.clone();
+                let future = worker(
+                    i,
+                    source.clone(),
+                    target.clone(),
+                    receiver.clone(),
+                    query.clone(),
+                    opts.clone(),
+                    metrics.clone(),
+                    metrics_db.clone(),
+                    actions.clone(),
+                    source_is_v3,
+                    target_is_v3,
+                    task_id.clone(),
+                    file_mutex.clone(),
                 )
+                .in_current_span();
+                tokio::spawn(async move {
+                    tokio::select! {
+                        _ = future => {
+                            Ok(())
+                        }
+                        _ = cancellation.cancelled() => {
+                            Ok(())
+                        }
+                    }
+                })
             })
             .collect_vec();
 

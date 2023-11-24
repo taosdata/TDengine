@@ -2646,6 +2646,7 @@ async fn legacy_to_taos_impl(
         source_is_v3,
         target_is_v3,
         task_id,
+        cancel.clone(),
     )
     // .instrument(tracing::info_span!("scheduler"))
     .await;
