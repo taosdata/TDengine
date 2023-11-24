@@ -100,9 +100,9 @@ export default {
       this.showOptions = val;
     },
     generateParams(val) {
+      this.paramStr = "";
       if (val.collapsed) {
         //展开时候才会传参数
-        this.paramStr = "";
         let realArr = val.params.filter((val) => !val.hidden);
         realArr.forEach((item, index) => {
           if (item?.requires != "keep_raw_data") {
@@ -120,8 +120,8 @@ export default {
             }
           }
         });
-        this.$emit("sendAdvanceParams", this.paramStr);
       }
+      this.$emit("sendAdvanceParams", this.paramStr);
     },
   },
   watch: {
