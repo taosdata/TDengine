@@ -6186,6 +6186,7 @@ typedef struct SSampleAstInfo {
   SNodeList*  pPartitionByList;
   STableMeta* pRollupTableMeta;
   bool        createSmaIndex;
+  SNodeList*  pTags;
 } SSampleAstInfo;
 
 static int32_t buildTableForSampleAst(SSampleAstInfo* pInfo, SNode** pOutput) {
@@ -6282,6 +6283,7 @@ static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, ch
     code = buildProjectsForSampleAst(pInfo, &pSelect->pProjectionList);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    TSWAP(pInfo->pTags, pSelect->pTags);
     TSWAP(pSelect->pPartitionByList, pInfo->pPartitionByList);
     code = buildIntervalForSampleAst(pInfo, &pSelect->pWindow);
   }
@@ -8960,8 +8962,17 @@ static int32_t translateShowCreateView(STranslateContext* pCxt, SShowCreateViewS
 #endif
 }
 
-static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, char** pAst, int32_t* pLen, char** pExpr,
-                            int32_t* pExprLen) {
+SNode* createColumnNodeWithName(const char* name) {
+  SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+  if (!pCol) return NULL;
+  tstrncpy(pCol->colName, name, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->node.aliasName, name, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->node.userAlias, name, TSDB_COL_NAME_LEN);
+  return (SNode*)pCol;
+}
+
+static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMCreateSmaReq* pReq,
+                            STableMeta* pTableMeta) {
   int32_t        code = TSDB_CODE_SUCCESS;
   SSampleAstInfo info = {0};
   info.createSmaIndex = true;
@@ -8970,8 +8981,32 @@ static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, cha
   info.pFuncs = nodesCloneList(pStmt->pOptions->pFuncs);
   info.pInterval = nodesCloneNode(pStmt->pOptions->pInterval);
   if (!info.pFuncs || !info.pInterval) code = TSDB_CODE_OUT_OF_MEMORY;
+
+  if (TSDB_CODE_SUCCESS == code) {
+    // append partition by tbname
+    SNode* pTbnameFunc = createTbnameFunction();
+    if (pTbnameFunc) {
+      nodesListMakeAppend(&info.pPartitionByList, pTbnameFunc);
+    } else {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    // append partition by tags
+    int32_t numOfCols = pTableMeta->tableInfo.numOfColumns, numOfTags = pTableMeta->tableInfo.numOfTags;
+    for (int32_t idx = numOfCols; idx < numOfCols + numOfTags; ++idx) {
+      SNode* pTagCol = createColumnNodeWithName(pTableMeta->schema[idx].name);
+      if (!pTagCol) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        break;
+      }
+      nodesListAppend(info.pPartitionByList, pTagCol);
+      nodesListMakeAppend(&info.pTags, nodesCloneNode(pTagCol));
+    }
+  }
+
   if (code == TSDB_CODE_SUCCESS) {
-    code = buildSampleAst(pCxt, &info, pAst, pLen, pExpr, pExprLen);
+    code = buildSampleAst(pCxt, &info, &pReq->ast, &pReq->astLen, &pReq->expr, &pReq->exprLen);
   }
   clearSampleAstInfo(&info);
   return code;
@@ -9061,7 +9096,7 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
     code = translateTSMAFuncs(pCxt, pStmt, pTableMeta);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildTSMAAst(pCxt, pStmt, &pReq->ast, &pReq->astLen, &pReq->expr, &pReq->exprLen);
+    code = buildTSMAAst(pCxt, pStmt, pReq, pTableMeta);
   }
   /*
   if (TSDB_CODE_SUCCESS == code) {
@@ -9093,6 +9128,20 @@ static int32_t translateCreateTSMA(STranslateContext* pCxt, SCreateTSMAStmt* pSt
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_TSMA, (FSerializeFunc)tSerializeSMCreateSmaReq, pStmt->pReq);
   }
   tFreeSMCreateSmaReq(pStmt->pReq);
+  return code;
+}
+
+static int32_t translateDropTSMA(STranslateContext* pCxt, SDropTSMAStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  pStmt->pReq = taosMemoryCalloc(1, sizeof(SMDropSmaReq));
+  if (!pStmt->pReq) code = TSDB_CODE_OUT_OF_MEMORY;
+  if (code == TSDB_CODE_SUCCESS) {
+    SName name;
+    tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tsmaName, &name), pStmt->pReq->name);
+    pStmt->pReq->igNotExists = pStmt->ignoreNotExists;
+  }
+  if (TSDB_CODE_SUCCESS == code)
+    code = buildCmdMsg(pCxt, TDMT_MND_DROP_TSMA, (FSerializeFunc)tSerializeSMDropSmaReq, pStmt->pReq);
   return code;
 }
 
