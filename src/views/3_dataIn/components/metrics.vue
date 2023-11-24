@@ -66,6 +66,8 @@ export default {
     handleValue(data) {
       if (/timestamp/i.test(data.name) && !isNaN(Number(data.value))) {
         return parseTime(data.value, "YYYY-MM-DD HH:mm:ss");
+      } else if (['metrics.records_per_second'].includes(data.name)) {
+        return Number(data.value).toFixed(2)
       } else {
         return data.value;
       }
