@@ -52,7 +52,7 @@ int32_t     mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 int32_t     mndPersistStream(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 
 int32_t mndStreamRegisterTrans(STrans* pTrans, const char* pName, const char* pSrcDb, const char* pDstDb);
-bool    streamTransConflictOtherTrans(SMnode *pMnode, const char *pSrcDb, const char *pDstDb);
+bool    streamTransConflictOtherTrans(SMnode *pMnode, const char *pSrcDb, const char *pDstDb, bool lock);
 
 // for sma
 // TODO refactor
