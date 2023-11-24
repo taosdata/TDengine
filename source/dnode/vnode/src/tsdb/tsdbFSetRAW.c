@@ -74,6 +74,7 @@ static int32_t tsdbFSetRAWWriteFileDataBegin(SFSetRAWWriter *writer, STsdbDataRA
   SDataFileRAWWriterConfig config = {
       .tsdb = writer->config->tsdb,
       .szPage = writer->config->szPage,
+      .fid = bHdr->file.fid,
       .did = writer->config->did,
       .cid = writer->config->cid,
       .level = writer->config->level,
@@ -81,6 +82,7 @@ static int32_t tsdbFSetRAWWriteFileDataBegin(SFSetRAWWriter *writer, STsdbDataRA
       .file =
           {
               .type = bHdr->file.type,
+              .fid = bHdr->file.fid,
               .did = writer->config->did,
               .cid = writer->config->cid,
               .size = bHdr->file.size,
@@ -91,6 +93,9 @@ static int32_t tsdbFSetRAWWriteFileDataBegin(SFSetRAWWriter *writer, STsdbDataRA
               }},
           },
   };
+
+  writer->ctx->offset = 0;
+  writer->ctx->file = config.file;
 
   code = tsdbDataFileRAWWriterOpen(&config, &writer->dataWriter);
   TSDB_CHECK_CODE(code, lino, _exit);

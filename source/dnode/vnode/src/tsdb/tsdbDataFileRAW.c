@@ -83,12 +83,26 @@ _exit:
 }
 
 // SDataFileRAWWriter =============================================
-int32_t tsdbDataFileRAWWriterOpen(const SDataFileRAWWriterConfig *config, SDataFileRAWWriter **writer) {
-  writer[0] = taosMemoryCalloc(1, sizeof(*writer[0]));
-  if (!writer[0]) return TSDB_CODE_OUT_OF_MEMORY;
+int32_t tsdbDataFileRAWWriterOpen(const SDataFileRAWWriterConfig *config, SDataFileRAWWriter **ppWriter) {
+  int32_t code = 0;
+  int32_t lino = 0;
 
-  writer[0]->config[0] = config[0];
-  return 0;
+  SDataFileRAWWriter *writer = taosMemoryCalloc(1, sizeof(SDataFileRAWWriter));
+  if (!writer) return TSDB_CODE_OUT_OF_MEMORY;
+
+  writer->config[0] = config[0];
+
+  code = tsdbDataFileRAWWriterDoOpen(writer);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    taosMemoryFree(writer);
+    writer = NULL;
+    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+  }
+  ppWriter[0] = writer;
+  return code;
 }
 
 static int32_t tsdbDataFileRAWWriterCloseAbort(SDataFileRAWWriter *writer) {
@@ -98,28 +112,13 @@ static int32_t tsdbDataFileRAWWriterCloseAbort(SDataFileRAWWriter *writer) {
 
 static int32_t tsdbDataFileRAWWriterDoClose(SDataFileRAWWriter *writer) { return 0; }
 
-int32_t tsdbDataFileRAWWriterDoOpen(SDataFileRAWWriter *writer) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  writer->file = writer->config->file;
-  writer->ctx->offset = 0;
-
-  writer->ctx->opened = true;
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
-  }
-  return code;
-}
-
 static int32_t tsdbDataFileRAWWriterCloseCommit(SDataFileRAWWriter *writer, TFileOpArray *opArr) {
   int32_t  code = 0;
   int32_t  lino = 0;
-  STFileOp op;
+  ASSERT(writer->ctx->offset == writer->file.size);
+  ASSERT(writer->config->fid == writer->file.fid);
 
-  op = (STFileOp){
+  STFileOp op = (STFileOp){
       .optype = TSDB_FOP_CREATE,
       .fid = writer->config->fid,
       .nf = writer->file,
@@ -147,7 +146,7 @@ static int32_t tsdbDataFileRAWWriterOpenDataFD(SDataFileRAWWriter *writer) {
   char    fname[TSDB_FILENAME_LEN];
   int32_t flag = TD_FILE_READ | TD_FILE_WRITE;
 
-  if (writer->file.size == 0) {
+  if (writer->ctx->offset == 0) {
     flag |= (TD_FILE_CREATE | TD_FILE_TRUNC);
   }
 
@@ -155,6 +154,24 @@ static int32_t tsdbDataFileRAWWriterOpenDataFD(SDataFileRAWWriter *writer) {
   code = tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
+int32_t tsdbDataFileRAWWriterDoOpen(SDataFileRAWWriter *writer) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  writer->file = writer->config->file;
+  writer->ctx->offset = 0;
+
+  code = tsdbDataFileRAWWriterOpenDataFD(writer);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  writer->ctx->opened = true;
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
@@ -195,7 +212,6 @@ int32_t tsdbDataFileRAWWriteBlockData(SDataFileRAWWriter *writer, const STsdbDat
   code = tsdbWriteFile(writer->fd, writer->ctx->offset, (const uint8_t *)pDataBlock->data, pDataBlock->dataLength);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  writer->file.size += pDataBlock->dataLength;
   writer->ctx->offset += pDataBlock->dataLength;
 
 _exit:
