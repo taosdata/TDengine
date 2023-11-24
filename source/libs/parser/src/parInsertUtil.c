@@ -283,6 +283,14 @@ static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
     pTmp->uid = pSrc->uid;
     pTmp->sver = pSrc->sver;
     pTmp->pCreateTbReq = NULL;
+    if (pTmp->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+      if (pSrc->pCreateTbReq) {
+        cloneSVreateTbReq(pSrc->pCreateTbReq, &pTmp->pCreateTbReq);
+      } else {
+        pTmp->flags &= ~SUBMIT_REQ_AUTO_CREATE_TABLE;
+      }
+    }
+
     if (pTmp->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       pTmp->aCol = taosArrayInit(128, sizeof(SColData));
       if (NULL == pTmp->aCol) {
@@ -408,15 +416,21 @@ void insDestroyTableDataCxtHashMap(SHashObj* pTableCxtHash) {
   taosHashCleanup(pTableCxtHash);
 }
 
-static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCxt) {
+static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCxt, bool isRebuild) {
   if (NULL == pVgCxt->pData->aSubmitTbData) {
     pVgCxt->pData->aSubmitTbData = taosArrayInit(128, sizeof(SSubmitTbData));
     if (NULL == pVgCxt->pData->aSubmitTbData) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
+
+  // push data to submit, rebuild empty data for next submit
   taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData);
-  rebuildTableData(pTableCxt->pData, &pTableCxt->pData);
+  if (isRebuild) {
+    rebuildTableData(pTableCxt->pData, &pTableCxt->pData);
+  } else {
+    taosMemoryFreeClear(pTableCxt->pData);
+  }
 
   qDebug("add tableDataCxt uid:%" PRId64 " to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
 
@@ -459,7 +473,7 @@ int insColDataComp(const void* lp, const void* rp) {
   return 0;
 }
 
-int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
+int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool isRebuild) {
   SHashObj* pVgroupHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
   SArray*   pVgroupList = taosArrayInit(8, POINTER_BYTES);
   if (NULL == pVgroupHash || NULL == pVgroupList) {
@@ -512,7 +526,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
         pVgCxt = *(SVgroupDataCxt**)pp;
       }
       if (TSDB_CODE_SUCCESS == code) {
-        code = fillVgroupDataCxt(pTableCxt, pVgCxt);
+        code = fillVgroupDataCxt(pTableCxt, pVgCxt, isRebuild);
       }
     }
     if (TSDB_CODE_SUCCESS == code) {

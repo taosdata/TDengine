@@ -49,7 +49,7 @@ void    insCheckTableDataOrder(STableDataCxt *pTableCxt, TSKEY tsKey);
 int32_t insGetTableDataCxt(SHashObj *pHash, void *id, int32_t idLen, STableMeta *pTableMeta,
                            SVCreateTbReq **pCreateTbReq, STableDataCxt **pTableCxt, bool colMode);
 int32_t initTableColSubmitData(STableDataCxt *pTableCxt);
-int32_t insMergeTableDataCxt(SHashObj *pTableHash, SArray **pVgDataBlocks);
+int32_t insMergeTableDataCxt(SHashObj *pTableHash, SArray **pVgDataBlocks, bool isRebuild);
 int32_t insBuildVgDataBlocks(SHashObj *pVgroupsHashObj, SArray *pVgDataBlocks, SArray **pDataBlocks);
 void    insDestroyTableDataCxtHashMap(SHashObj *pTableCxtHash);
 void    insDestroyVgroupDataCxt(SVgroupDataCxt *pVgCxt);

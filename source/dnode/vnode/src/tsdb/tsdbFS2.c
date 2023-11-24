@@ -1012,11 +1012,6 @@ const char *gFSBgTaskName[] = {NULL, "MERGE", "RETENTION", "COMPACT"};
 static int32_t tsdbFSRunBgTask(void *arg) {
   STFSBgTask   *task = (STFSBgTask *)arg;
   STFileSystem *fs = task->fs;
-  STFileSet    *fset;
-
-  tsdbFSGetFSet(fs, task->fid, &fset);
-
-  ASSERT(fset != NULL && fset->bgTaskRunning == task);
 
   task->launchTime = taosGetTimestampMs();
   task->run(task->arg);
@@ -1028,6 +1023,10 @@ static int32_t tsdbFSRunBgTask(void *arg) {
             task->finishTime);
 
   taosThreadMutexLock(&fs->tsdb->mutex);
+
+  STFileSet *fset = NULL;
+  tsdbFSGetFSet(fs, task->fid, &fset);
+  ASSERT(fset != NULL && fset->bgTaskRunning == task);
 
   // free last
   tsdbDoDoneBgTask(fs, task);
