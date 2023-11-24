@@ -116,7 +116,6 @@ groups:
 advanced:
   name: Advanced Options
   collapsible: true
-  collapsed: true
   description: |
     Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave
     these options as default to use the recommended settings.
@@ -148,7 +147,7 @@ parser:
   display: Data Mapping
   description: |
     Historian source, when synchronizing/migrating the Runtime.dbo.History table, uploads the following fields:<br>
-    
+
     - **DateTime**: The timestamp of the returned value.<br>
     - **TagName**: The unique name of the tag.<br>
     - **Value**: The value of the tag at the timestamp. The value is always NULL for string tags.<br>
@@ -160,9 +159,9 @@ parser:
     - **StartDateTime**: Start time of the retrieval cycle for which this row is returned.<br>
     - **SourceTag**: The name of the source tag for a replicated tag at the time this point was stored.<br>
     - **SourceServer**: The name of the server for this replicated tag at the time this point was stored.<br>
-    
+
     when synchronizing/migrating the Runtime.dbo.Live table, uploads the following fields:<br>
-    
+
     - **DateTime**: The timestamp of the returned value.<br>
     - **TagName**: The unique name of the tag.<br>
     - **Value**: The value of the tag at the timestamp. The value is always NULL for string tags.<br>
@@ -173,7 +172,7 @@ parser:
     - **wwTagKey**: The unique numerical identifier of a tag.<br>
     - **SourceTag**: The name of the source tag for a replicated tag at the time this point was stored.<br>
     - **SourceServer**: The name of the server for this replicated tag at the time this point was stored.<br>
-    
+
     taosX could let users to specify the data model in the database, for example, the table name pattern <br>
     and stable name pattern, field names as tags or field names as columns.
 
