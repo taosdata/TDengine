@@ -280,8 +280,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
 #endif
 }
 
-/* ----------------------------------------------Bool Compression
- * ---------------------------------------------- */
+/* ----------------------------------------------Bool Compression ---------------------------------------------- */
 // TODO: You can also implement it using RLE method.
 int32_t tsCompressBoolImp(const char *const input, const int32_t nelements, char *const output) {
   int32_t pos = -1;
@@ -387,8 +386,7 @@ int32_t tsDecompressBoolRLEImp(const char *const input, const int32_t nelements,
 }
 #endif
 
-/* ----------------------------------------------String Compression
- * ---------------------------------------------- */
+/* ----------------------------------------------String Compression ---------------------------------------------- */
 // Note: the size of the output must be larger than input_size + 1 and
 // LZ4_compressBound(size) + 1;
 // >= max(input_size, LZ4_compressBound(input_size)) + 1;
@@ -430,8 +428,7 @@ int32_t tsDecompressStringImp(const char *const input, int32_t compressedSize, c
   }
 }
 
-/* --------------------------------------------Timestamp Compression
- * ---------------------------------------------- */
+/* --------------------------------------------Timestamp Compression ---------------------------------------------- */
 // TODO: Take care here, we assumes little endian encoding.
 int32_t tsCompressTimestampImp(const char *const input, const int32_t nelements, char *const output) {
   int32_t _pos = 1;
@@ -751,8 +748,7 @@ int32_t tsDecompressDoubleImp(const char *const input, const int32_t nelements, 
   return nelements * DOUBLE_BYTES;
 }
 
-/* --------------------------------------------Float Compression
- * ---------------------------------------------- */
+/* --------------------------------------------Float Compression ---------------------------------------------- */
 void encodeFloatValue(uint32_t diff, uint8_t flag, char *const output, int32_t *const pos) {
   uint8_t nbytes = (flag & INT8MASK(3)) + 1;
   int32_t nshift = (FLOAT_BYTES * BITS_PER_BYTE - nbytes * BITS_PER_BYTE) * (flag >> 3);

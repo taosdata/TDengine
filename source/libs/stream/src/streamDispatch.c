@@ -958,7 +958,9 @@ int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamTaskId, 
 }
 
 void streamClearChkptReadyMsg(SStreamTask* pTask) {
-  if (pTask->pReadyMsgList == NULL) return;
+  if (pTask->pReadyMsgList == NULL) {
+    return;
+  }
 
   for (int i = 0; i < taosArrayGetSize(pTask->pReadyMsgList); i++) {
     SStreamChkptReadyInfo* pInfo = taosArrayGet(pTask->pReadyMsgList, i);
