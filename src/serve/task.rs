@@ -600,11 +600,8 @@ pub(crate) async fn get_task_metrics_from_snapshot(
                 None
             }
         };
-        if time_elapsed_in_seconds.is_some() {
-            map.insert(
-                METRICS_TIME_COST.to_string(),
-                Some((time_elapsed_in_seconds.unwrap()).into()),
-            );
+        if let Some(elapsed_seconds) = time_elapsed_in_seconds {
+            map.insert(METRICS_TIME_COST.to_string(), Some(elapsed_seconds.into()));
             let records_vec = map
                 .iter()
                 .filter(|(k, _v)| k.contains("records"))
@@ -612,12 +609,10 @@ pub(crate) async fn get_task_metrics_from_snapshot(
                 .collect_vec();
             let records = records_vec.get(0);
             if let Some(Some(records)) = records {
+                let speed: f64 = records.as_f64().unwrap_or_default() / elapsed_seconds as f64;
                 map.insert(
                     METRICS_TIME_RECORDS_PER_SECOND.to_string(),
-                    Some(
-                        (records.as_i64().unwrap_or_default() / time_elapsed_in_seconds.unwrap())
-                            .into(),
-                    ),
+                    serde_json::Number::from_f64(speed),
                 );
             }
         }
