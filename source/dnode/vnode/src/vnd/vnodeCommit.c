@@ -13,9 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "meta.h"
+#include "sync.h"
 #include "vnd.h"
 #include "vnodeInt.h"
-#include "sync.h"
 
 extern int32_t tsdbPreCommit(STsdb *pTsdb);
 extern int32_t tsdbCommitBegin(STsdb *pTsdb, SCommitInfo *pInfo);
@@ -155,7 +156,8 @@ int vnodeShouldCommit(SVnode *pVnode, bool atExit) {
 
   taosThreadMutexLock(&pVnode->mutex);
   if (pVnode->inUse && diskAvail) {
-    needCommit = (pVnode->inUse->size > pVnode->inUse->node.size) || (pVnode->inUse->size > 0 && atExit);
+    needCommit = (pVnode->inUse->size > pVnode->inUse->node.size) ||
+                 (atExit && (pVnode->inUse->size > 0 || pVnode->pMeta->changed));
   }
   taosThreadMutexUnlock(&pVnode->mutex);
   return needCommit;
