@@ -220,7 +220,7 @@ class TDTestCase:
             for i in range(self.ntbnum):
                 tdSql.execute(f'desc {self.ntbname}_{i}')
 
-    def executeAlterTableCheck(self, opt):
+    def executeAlterTableAndCheck(self, opt):
         threads = []
         for i in range(self.threadnum):
             thread = threading.Thread(target=self.alterTableTask, args=(opt,i))
@@ -235,7 +235,7 @@ class TDTestCase:
             if os.path.isfile(f'{self.fname}.{i}'):
                 os.remove(f'{self.fname}.{i}')
     
-    def prepareAlterTableEnvAndCheck(self, opt):
+    def prepareAlterTableEnv(self, opt):
         self.destroyAlterTableEnv()
         lines = [f'use {self.dbname};\n']
         if opt in ["stb_add_col", "stb_add_tag"]:
@@ -283,24 +283,22 @@ class TDTestCase:
             for i in range(self.ntbnum):
                 for c in range(self.colnum_modify):
                     lines.append(f'alter table {self.ntbname}_{i} modify column c_{c} NCHAR({self.collen_new_modify});\n')
-
         # generate sql file
         with open(f'{self.fname}.0', "a") as f:
             f.writelines(lines)
         # clone sql file in case of race condition
         for i in range(1, self.threadnum):
             shutil.copy(f'{self.fname}.0', f'{self.fname}.{i}')
-        # execute and check
-        self.executeAlterTableCheck(opt)
 
     def alter_stable_multi_client_check(self):
         """Check alter stable/ntable var type column/tag(PI-23)
         """
         alter_table_check_type = ["stb_add_col", "stb_add_tag", "stb_modify_col", "stb_modify_tag", "ntb_add_col", "ntb_modify_col"]
 
-        for check in alter_table_check_type:
+        for opt in alter_table_check_type:
             self.prepareAlterEnv()
-            self.prepareAlterTableEnvAndCheck(check)
+            self.prepareAlterTableEnv(opt)
+            self.executeAlterTableAndCheck(opt)
             self.destroyAlterTableEnv()
         self.destroyAlterEnv()
 
