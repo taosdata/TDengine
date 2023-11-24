@@ -59,7 +59,7 @@ use super::*;
 //     Records(Vec<(String, Vec<ColumnView>)>),
 // }
 
-#[instrument(skip(stream, cancel, token, config, remote, client))]
+#[instrument(skip_all, fields(task.id=task_id))]
 async fn ipc_tcp_forward(
     client: String,
     stream: std::net::TcpStream, // socket2::Socket,
