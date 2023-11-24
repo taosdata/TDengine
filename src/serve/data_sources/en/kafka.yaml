@@ -41,8 +41,8 @@ groups:
       - name: timeout
         display: Timeout
         description: >
-          Specifies the timeout of the Kafka Source. When no data is consumed from Kafka, the data migration task will exit after timeout. The default value is 500 ms. 
-          
+          Specifies the timeout of the Kafka Source. When no data is consumed from Kafka, the data migration task will exit after timeout. The default value is 500 ms.
+
           When use `timeout=never`, taosx will wait for a usable message forever and never stop the subscription until any error caused.
         placeholder: 500
         required: false
@@ -82,7 +82,7 @@ groups:
         display: Maximum time to wait for data
         description: >
           Sets the maximum time in milliseconds to wait for insufficient data to become available when fetching messages.(e.g. fetch_max_wait_time=500ms)
-          
+
           default is 100ms.
         required: false
         placeholder: 100ms
@@ -110,7 +110,7 @@ parser:
       type: timestamp
     - name: topic
       description: Topic name.
-      type: binary
+      type: varchar
     - name: partition
       description: Topic partition.
       type: int
@@ -119,8 +119,8 @@ parser:
       type: bigint
     - name: key
       description: Message key.
-      type: binary
+      type: varchar
     - name: value
       description: Value
-      type: binary
+      type: varchar
   required: true

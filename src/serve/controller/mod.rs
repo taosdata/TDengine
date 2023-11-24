@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
+use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -561,6 +562,13 @@ impl TaskController {
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
+        match (from.driver.as_str(), to.driver.as_str()) {
+            (_, "taos") => {
+                TaosBuilder::from_dsn(&to)?.build().await?;
+            }
+            _ => (),
+        }
+
         self.validate_enterprise_license(&from, &to).await?;
 
         match from.driver.as_str() {
@@ -731,17 +739,24 @@ impl TaskController {
                 from.subject.take();
                 let from = TaosBuilder::from_dsn(from)?;
                 let _ = from.build().await?;
-                let mut to = to.clone();
-                to.subject.take();
-                let to = TaosBuilder::from_dsn(to)?;
-                let _ = to.build().await?;
+                // to.subject.take();
+                let to_builder = TaosBuilder::from_dsn(to)?;
+                let mut conn = to_builder.build().await?;
+                if let Err(err) = to_builder.ping(&mut conn).await {
+                    if *err.code().deref() == 0x0388 {
+                        let subject = to.subject.as_deref().unwrap_or("unknown");
+                        Err(err.context(format!("Target database {subject}")))?
+                    } else {
+                        bail!("Failed to connect target server: {err}");
+                    }
+                };
 
                 let from_edition = from
                     .get_edition()
                     .await
                     .context("Failed to check source edition")?
                     .assert_enterprise_edition();
-                let to_edition = to
+                let to_edition = to_builder
                     .get_edition()
                     .await
                     .context("Failed to check destination edition")?
@@ -770,10 +785,18 @@ impl TaskController {
                 }
             }
             (_, "tmq" | "taos") => {
-                let mut to = to.clone();
-                to.subject.take();
-                let builder = TaosBuilder::from_dsn(to)?;
-                let _ = builder.build().await.context("Target connection error")?;
+                let to = to.clone();
+                // to.subject.take();
+                let builder = TaosBuilder::from_dsn(&to)?;
+                let mut conn = builder.build().await.context("Target connection error")?;
+                if let Err(err) = builder.ping(&mut conn).await {
+                    if *err.code().deref() == 0x0388 {
+                        let subject = to.subject.as_deref().unwrap_or("unknown");
+                        Err(err.context(format!("Target database {subject}")))?
+                    } else {
+                        bail!("Failed to connect target server: {err}");
+                    }
+                };
                 let edition = builder
                     .get_edition()
                     .await

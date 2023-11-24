@@ -10,7 +10,9 @@ use actix_web::{
     HttpRequest, HttpResponse, Responder,
 };
 use anyhow::Context;
+use arrow::datatypes::{DataType, Field};
 use itertools::Itertools;
+use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 use taos::{Code, IntoDsn};
 use tokio::time::timeout;
@@ -217,13 +219,13 @@ pub struct DsSampleIn {
     /// Transform pipeline definition.
     parser: taosx_core::Pipeline,
     /// Sample data input, an array of object.
-    input: Vec<serde_json::Value>,
+    input: Vec<LinkedHashMap<String, serde_json::Value>>,
 }
 
 impl DsSampleIn {
     pub fn transform(&self) -> anyhow::Result<impl Serialize> {
         if self.input.is_empty() {
-            anyhow::bail!("Input is empty");
+            anyhow::bail!("Input should not be empty");
         }
 
         let json = self
@@ -233,9 +235,31 @@ impl DsSampleIn {
             .flatten()
             .collect_vec();
 
-        let schema =
-            arrow::json::reader::infer_json_schema_from_iterator(self.input.iter().map(Ok))
-                .context("Could not infer schema from json input")?;
+        let schema = arrow::datatypes::Schema::new(
+            self.input[0]
+                .iter()
+                .map(|(name, value)| {
+                    let dt = match value {
+                        serde_json::Value::Null
+                        | serde_json::Value::String(_)
+                        | serde_json::Value::Object(_)
+                        | serde_json::Value::Array(_) // array/object is not supported actually
+                         => DataType::Utf8,
+                        serde_json::Value::Bool(_) => DataType::Boolean,
+                        serde_json::Value::Number(num) => {
+                            if num.is_u64() {
+                                DataType::UInt64
+                            } else if num.is_f64() {
+                                DataType::Float64
+                            } else {
+                                DataType::Int64
+                            }
+                        }
+                    };
+                    Field::new(name, dt, true)
+                })
+                .collect_vec(),
+        );
         let mut reader = arrow::json::reader::ReaderBuilder::new(Arc::new(schema))
             .build(json.as_slice())
             .context("Could not build record reader from json stream")?;

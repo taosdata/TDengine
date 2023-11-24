@@ -86,6 +86,78 @@ mod pipeline_tests {
 
     use super::*;
 
+
+    #[test]
+    fn test_pipeline_map() {
+        let records = demo_mqtt_records();
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double", "value", "$.id=id::int"] } }
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser and mutate
+        let mutate: &str = r#""mutate": [{"map": {
+                "c1": { "value": 2, "as": "int" },
+                "g1": { "generator": "now" },
+                "f1": { "format": "format-${value}-suffix", "as": "varchar" },
+                "e1": { "expr": "if value > 1 { true } else { false }" },
+                "e2": { "expr": "value + 2" }
+            }}]"#;
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int"] } },
+            "mutate": [{"map": {
+                "c1": { "value": 2, "as": "int" },
+                "g1": { "generator": "now" },
+                "f1": { "format": "format-${value}-suffix", "as": "varchar" },
+                "e1": { "expr": "if value > 1 { true } else { false }" },
+                "e2": { "expr": "value + 2" }
+            }}]
+        }"#
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser, mutate and model
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int"] } },
+            "mutate": [{"map": {
+                "c1": { "value": 2, "as": "int" },
+                "g1": { "generator": "now" },
+                "f1": { "format": "format-${value}-suffix", "as": "varchar" },
+                "e1": { "expr": "if value > 1 { true } else { false }" },
+                "e2": { "expr": "value + 2" }
+            }}],
+            "model": [{
+                "name": "d{id}",
+                "using": "meters",
+                "tags": ["id"],
+                "columns": ["ts", "value", "price", "c1", "g1", "f1", "e1", "e2"]
+            }]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+    }
+
     #[test]
     fn test_pipeline_json_array() {
         let records = demo_mqtt_records();
