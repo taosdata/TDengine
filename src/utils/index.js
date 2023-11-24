@@ -2,13 +2,13 @@ import { viewFile } from "@/api/gateway/support";
 import axios from "axios";
 import { marked } from "marked";
 import moment from "moment";
-import momentTimezone from 'moment-timezone';
+import momentTimezone from "moment-timezone";
 import { Message } from "element-ui";
 import { $bus } from "@/const";
 import CryptoJS from "crypto-js";
 import i18n from "@/lang";
-import _ from "lodash";
-import * as clipboard from 'clipboard-polyfill'
+import _, { pad } from "lodash";
+import * as clipboard from "clipboard-polyfill";
 let path = require("path");
 export function debounce(func, wait, immediate) {
   let timeout, args, context, timestamp, result;
@@ -52,7 +52,7 @@ export function deepClone(source) {
     throw new Error("error arguments", "deepClone");
   }
   const targetObj = source?.constructor === Array ? [] : {};
-  Object.keys(source).forEach(keys => {
+  Object.keys(source).forEach((keys) => {
     if (source[keys] && typeof source[keys] === "object") {
       targetObj[keys] = deepClone(source[keys]);
     } else {
@@ -68,20 +68,22 @@ export function parseTime(time, cFormat) {
 
 // 针对TDengine的restful接口中返回的head和data，返回一个适合table组件的对象
 export function compHeadAndData(head, data) {
-  return data.map(item => Object.fromEntries(head.map((a, b) => [a[0], item[b] || ""])));
+  return data.map((item) =>
+    Object.fromEntries(head.map((a, b) => [a[0], item[b] || ""]))
+  );
 }
 /**
  * 将table数据转成csv数据
  * @param {Array<Record<string, any>>} data 表格数据
  * @param {Array<string>} head 表头数据
- * @returns 
+ * @returns
  */
 export function convertToCsvData(data, head) {
-  let csv = head.join(',') + '\n'
-  data.forEach(item => {
-    csv+=item.join(',')+'\n'
-  })
-  return csv
+  let csv = head.join(",") + "\n";
+  data.forEach((item) => {
+    csv += item.join(",") + "\n";
+  });
+  return csv;
 }
 export function customizeTimeout(callback, time, once = 1) {
   let timer = null;
@@ -116,7 +118,7 @@ export function toLine(name) {
 export function objToHump(target) {
   if (typeof target != "object") return {};
   let obj = {};
-  Object.keys(target).forEach(item => {
+  Object.keys(target).forEach((item) => {
     obj[toHump(item)] = target[item];
   });
   return obj;
@@ -126,7 +128,7 @@ export function objToHump(target) {
 export function objToLine(target) {
   if (typeof target != "object") return {};
   let obj = {};
-  Object.keys(target).forEach(item => {
+  Object.keys(target).forEach((item) => {
     obj[toLine(item)] = target[item];
   });
   return obj;
@@ -178,15 +180,22 @@ export function download(url, filename) {
 
 function handler(text) {
   clipboard.writeText(text).then(
-    () => { console.log("success!",'写入成功,text'); },
-    () => { console.log("error!"); }
+    () => {
+      console.log("success!", "写入成功,text");
+    },
+    () => {
+      console.log("error!");
+    }
   );
 }
-export function copy(text, success = () => Message.success(i18n.t("copySucc"))) {
+export function copy(
+  text,
+  success = () => Message.success(i18n.t("copySucc"))
+) {
   const button = document.body.appendChild(document.createElement("button"));
-      button.textContent = text;
-      button.addEventListener('click',handler(text))
-      success()
+  button.textContent = text;
+  button.addEventListener("click", handler(text));
+  success();
   // let polyfillFn = () => {
 
   //   // window.addEventListener('DOMContentLoaded',function(){
@@ -230,21 +239,27 @@ export function copy(text, success = () => Message.success(i18n.t("copySucc"))) 
 export function getDocsContent(url, params) {
   return axios
     .get(url)
-    .then(res => {
+    .then((res) => {
       // 去掉不属于md的语法
       res.data = res.data.replace(/---[^-]*---/gm, "");
       let result = marked.parse(
-        res.data.replace(/```bash\n(((((?!```).)?)+([<.*>]))\n?)+```/gm, str => {
-          return str.replace(/<(.*)>/gm, (_, key) => {
-            return params[key] || "";
-          });
-        })
+        res.data.replace(
+          /```bash\n(((((?!```).)?)+([<.*>]))\n?)+```/gm,
+          (str) => {
+            return str.replace(/<(.*)>/gm, (_, key) => {
+              return params[key] || "";
+            });
+          }
+        )
       );
       // 处理图片地址
       let imgRootUrl = url.split("/").slice(0, -1).join("/");
-      result = result.replace(/<img [^>]*src=['"]([^'"]+)[^>]*>/gm, (str, u) => {
-        return str.replace(u, path.join(imgRootUrl, u));
-      });
+      result = result.replace(
+        /<img [^>]*src=['"]([^'"]+)[^>]*>/gm,
+        (str, u) => {
+          return str.replace(u, path.join(imgRootUrl, u));
+        }
+      );
       return result;
     })
     .catch(() => "");
@@ -290,7 +305,6 @@ export function HtmlToText(html) {
     .replace(/>/g, " ");
 }
 
-
 export function BusOnAndAutoOff(name, fn) {
   $bus.on(name, fn);
   this.$once("hook:beforeDestroy", () => {
@@ -329,76 +343,112 @@ export function deleteCookieItem() {
 
 //加密
 export function encrypt(data) {
-  let encryptedData = CryptoJS.AES.encrypt(data, `-----BEGIN PUBLIC KEY-----
+  let encryptedData = CryptoJS.AES.encrypt(
+    data,
+    `-----BEGIN PUBLIC KEY-----
   MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC//nB6rRTnxCU2bMBGatp1N1Q0
   kuSEZl3Ot2EQMlNwINYTm7izxjTyA1pgmBmotAXVZuZNviJNUZUMBn73bIjso1l2
   qhwe/FcewPjP2ubbdf89yWPnen/wRGo+Q0QRmt1q7eDeVTJMC4LVdetuv6QABnUJ
   +siG1ILDsJ2BsYMBMwIDAQAB
-  -----END PUBLIC KEY-----`).toString(); // 使用AES算法加密数据
+  -----END PUBLIC KEY-----`
+  ).toString(); // 使用AES算法加密数据
   return encryptedData;
 }
 //解密
 export function decrypt(encryptedData) {
-  let decryptedMessage = CryptoJS.AES.decrypt(encryptedData, `-----BEGIN PUBLIC KEY-----
+  let decryptedMessage = CryptoJS.AES.decrypt(
+    encryptedData,
+    `-----BEGIN PUBLIC KEY-----
   MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC//nB6rRTnxCU2bMBGatp1N1Q0
   kuSEZl3Ot2EQMlNwINYTm7izxjTyA1pgmBmotAXVZuZNviJNUZUMBn73bIjso1l2
   qhwe/FcewPjP2ubbdf89yWPnen/wRGo+Q0QRmt1q7eDeVTJMC4LVdetuv6QABnUJ
   +siG1ILDsJ2BsYMBMwIDAQAB
-  -----END PUBLIC KEY-----`).toString(CryptoJS.enc.Utf8); // 使用AES算法解密数据
+  -----END PUBLIC KEY-----`
+  ).toString(CryptoJS.enc.Utf8); // 使用AES算法解密数据
 
   return decryptedMessage;
 }
 
 // 获取当前集群DSN
 export function getDSN(driver = "tmq", subject = null) {
-  let url = localStorage.getItem('base_url');
-  if (url.includes('://')) {
+  let url = localStorage.getItem("base_url");
+  if (url.includes("://")) {
     let parsed_url = new URL(url);
     let scheme = null;
-    if (parsed_url.protocol == 'http:') {
-      scheme = '+ws'
-    } else if (parsed_url.protocol == 'https:') {
-      scheme = '+wss'
+    if (parsed_url.protocol == "http:") {
+      scheme = "+ws";
+    } else if (parsed_url.protocol == "https:") {
+      scheme = "+wss";
     } else {
-      scheme = '+' + parsed_url.protocol.replace(':', '')
+      scheme = "+" + parsed_url.protocol.replace(":", "");
     }
 
     let host = parsed_url.host;
-    let user = localStorage.getItem('username') || '';
-    let decrypted = encodeURI(decrypt(localStorage.getItem('pwd')));
-    let pass = decrypted || '';
-    let subjectStr = subject ? '/' + subject : '';
-    return driver + scheme + '://' + user + ':' + pass + '@' + host + subjectStr + parsed_url.search;
+    let user = localStorage.getItem("username") || "";
+    let decrypted = encodeURI(decrypt(localStorage.getItem("pwd")));
+    let pass = decrypted || "";
+    let subjectStr = subject ? "/" + subject : "";
+    return (
+      driver +
+      scheme +
+      "://" +
+      user +
+      ":" +
+      pass +
+      "@" +
+      host +
+      subjectStr +
+      parsed_url.search
+    );
   } else {
     let host = url;
-    let user = localStorage.getItem('username') || '';
-    let decrypted = encodeURI(decrypt(localStorage.getItem('pwd')));
-    let pass = decrypted || '';
-    let subjectStr = subject ? '/' + subject : '';
-    return driver + '://' + user + ':' + pass + '@' + host + subjectStr;
+    let user = localStorage.getItem("username") || "";
+    let decrypted = encodeURI(decrypt(localStorage.getItem("pwd")));
+    let pass = decrypted || "";
+    let subjectStr = subject ? "/" + subject : "";
+    return driver + "://" + user + ":" + pass + "@" + host + subjectStr;
   }
 }
 
-
 // 获取时区
 export function getLocalTimezone() {
-  return localStorage.getItem('timezone') || 'Greenwich'
+  return localStorage.getItem("timezone") || "Greenwich";
 }
 
 // format time
 export function parsinginZone(value, format) {
-  let timezone = getLocalTimezone()
-  return momentTimezone(value).tz(timezone).format(format)
+  let timezone = getLocalTimezone();
+  return momentTimezone(value).tz(timezone).format(format);
 }
 
 export function getBrowserLang() {
-  return i18n.locale.includes('zh')?'zh':'en';
+  return i18n.locale.includes("zh") ? "zh" : "en";
 }
 
 // 根据图表轴的数据判断轴的类型
 export function getAxisType(data) {
-  if (!data) return 'category';
-  if (!isNaN(data)) return 'value';
-  if (new Date(data).toString() != 'Invalid Date') return 'time';
-  return 'category';
+  if (!data) return "category";
+  if (!isNaN(data)) return "value";
+  if (new Date(data).toString() != "Invalid Date") return "time";
+  return "category";
+}
+function pad1(n) {
+  return n < 10 ? "0" + n : n;
+}
+export function getRFC3339Time() {
+  let d = new Date();
+  return (
+    d.getUTCFullYear() +
+    "-" +
+    pad1(d.getUTCMonth() + 1) +
+    "-" +
+    pad1(d.getUTCDate()) +
+    "T" +
+    pad1(d.getUTCHours()) +
+    ":" +
+    pad1(d.getUTCMinutes()) +
+    ":" +
+    pad1(d.getUTCSeconds()) +
+    "Z"
+  );
 }

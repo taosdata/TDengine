@@ -94,6 +94,12 @@ export default {
         return [];
       },
     },
+    indentifiedColumns:{
+        type: Array,
+      default: () => {
+        return [];
+      },
+    }
   },
   data() {
     return {
@@ -132,8 +138,8 @@ export default {
     };
   },
   methods: {
-    changeExtractExpr(val){
-      this.$emit('changeExtractExpr',this.ruleForm.col_name,val)
+    changeExtractExpr(val) {
+      this.$emit("changeExtractExpr", this.ruleForm.col_name, val);
     },
     initData(val) {
       this.ruleForm.col_name = val.columnname;
@@ -142,18 +148,16 @@ export default {
     },
     selectCol(data) {
       this.$emit("selectColumn", this.index, this.ruleForm.col_name);
-
-      console.log(
-        data,
-        "选择列",
-        this.ruleForm.col_name,
-        this.$parent.columnsArr,
-        this.index
-      );
     },
-    changeExtractType(){
-        let index = this.$parent.extractArr.findIndex(item=>item.columnname==this.ruleForm.col_name)
-        this.$set(this.$parent.extractArr[index],'type',this.ruleForm.filter_name)
+    changeExtractType() {
+      let index = this.$parent.extractArr.findIndex(
+        (item) => item.columnname == this.ruleForm.col_name
+      );
+      this.$set(
+        this.$parent.extractArr[index],
+        "type",
+        this.ruleForm.filter_name
+      );
     },
     submit() {
       if (!this.$parent.msgbody) {
@@ -173,9 +177,9 @@ export default {
       try {
         let result = await getParser(data);
         this.tableColumns = result[0].fields.map((item) => item.name);
-        if(result.message){
-            Message.error(result.message)
-            return
+        if (result.message) {
+          Message.error(result.message);
+          return;
         }
         this.tableData = result[0].columns.map((data) => {
           return Object.fromEntries(
@@ -193,35 +197,41 @@ export default {
     //提交单个
     submitExtract() {
       let extractExpres = this.ruleForm.filter_expres.split(";");
+      let inputobj = {};
+      this.indentifiedColumns.forEach((item) => {
+        if (this.$store.state.app.currentDBType == "mqtt") {
+          if (item.name == "payload") {
+            inputobj["payload"] = this.payload;
+          } else {
+            inputobj[item.name] = item.type == "timestamp" ? "now" : item.name;
+          }
+        } else if (this.$store.state.app.currentDBType == "kafka") {
+          if (item.name == "value") {
+            inputobj["value"] = this.payload;
+          } else {
+            inputobj[item.name] = item.type == "timestamp" ? "now" : item.name;
+          }
+        }
+      });
+      let parseData={}
+      this.$parent.extractArr.map((item) => {
+                return {
+                    [`${item.columnname}`]:{
+                        [`${item.type}`]:item.expression.split(';')
+                    }
+                }
+            }).forEach(val=>{
+                Object.assign(parseData,val)
+            })
+            console.log(parseData,'parseData')
       let parser = {
         parser: {
-          parse: {
-            [`${this.ruleForm.col_name}`]: {
-              [`${this.ruleForm.filter_name}`]: extractExpres,
-            },
-          },
+          parse: parseData
         },
-        input: this.extractColumns.map((item) => {
-          let obj = {};
-          if (this.$store.state.app.currentDBType == "mqtt") {
-            //mqtt
-            if (item.name == "payload") {
-              obj["payload"] = this.payload;
-            } else {
-              obj[item.name] = item.name;
-            }
-          } else if (this.$store.state.app.currentDBType == "kafka") {
-            if (item.name == "value") {
-              obj["value"] = this.payload;
-            } else {
-              obj[item.name] = item.name;
-            }
-          }
-          return obj;
-        }),
+        input: [].concat(inputobj),
       };
       this.getParserData(parser);
-      console.log(parser, "提交单个");
+      console.log(parser, inputobj, this.$parent.extractArr, "提交单个");
     },
     deleteExtract() {
       this.$emit("deleteExtract", this.index, this.ruleForm.col_name);

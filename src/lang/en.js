@@ -11,6 +11,8 @@ const DocsUrl=window.location.origin+(localStorage.getItem('local_language')?.in
 export default {
   //通用部分
 
+  expression:'Expression',
+  mapping:'Mapping',
   execute:'Execute',
 
   copyDsn: 'Copy DSN',

@@ -1752,24 +1752,24 @@ export default {
           dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
         }
         if ((this.tagName == "mqtt" || this.tagName == "kafka") && isSubmit) {
-          if (this.$refs.mqtt) {
-            this.$refs.mqtt.submit();
-            if (this.$refs.mqtt.showSuperTip) {
-              Message({
-                type: "warning",
-                message: this.$t("datasource.bothtagsuper"),
-              });
-              return;
-            }
-            let datasource = this.tagName == "mqtt" ? 'MQTT' : 'Kafka'
-            if (this.$refs.mqtt.disable || this.$refs.mqtt.nameisnull) {
-              Message({
-                type: "warning",
-                message: this.$t("datasource.mqttparsertip").replace('{datasource}',datasource),
-              });
-              return;
-            }
-          }
+          // if (this.$refs.mqtt) {
+          //   this.$refs.mqtt.submit();
+          //   if (this.$refs.mqtt.showSuperTip) {
+          //     Message({
+          //       type: "warning",
+          //       message: this.$t("datasource.bothtagsuper"),
+          //     });
+          //     return;
+          //   }
+          //   let datasource = this.tagName == "mqtt" ? 'MQTT' : 'Kafka'
+          //   if (this.$refs.mqtt.disable || this.$refs.mqtt.nameisnull) {
+          //     Message({
+          //       type: "warning",
+          //       message: this.$t("datasource.mqttparsertip").replace('{datasource}',datasource),
+          //     });
+          //     return;
+          //   }
+          // }
           let oldparser = this.$store.state.app.mqttParser;
           let columns = oldparser.model.columns;
           if (columns.includes(this.$refs.mqtt.defaultSelect)) {

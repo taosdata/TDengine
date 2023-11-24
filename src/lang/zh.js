@@ -10,7 +10,8 @@ let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_v
 const DocsUrl=window.location.origin+(localStorage.getItem('local_language')?.includes('zh')?'/docs':'/docs-en')
 export default {
   //通用部分
-
+  expression:'表达式',
+  mapping:'映射',
   execute:'执行',
 
   copyDsn: '复制 DSN',

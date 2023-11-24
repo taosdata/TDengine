@@ -76,7 +76,8 @@ const state = {
   currentDSName:'',
   currentResume: 'always',
   currentEditID:'',
-  agentDialog:false
+  agentDialog:false,
+  transformerMapCloumns:null
 };
 const saveKey = encodeURIComponent("appId");
 const waitTime = 15 * 60 * 1000;
@@ -103,6 +104,9 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_TRANSFORMER_MAPCOLUMNS:(state,data)=>{
+    state.transformerMapCloumns=data
+  },
   SET_AGENT_DIALOG:(state,data)=>{
     state.agentDialog=data
   },

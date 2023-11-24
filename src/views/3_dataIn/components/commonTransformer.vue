@@ -13,7 +13,7 @@
           <span>{{ $t("datasource.transformer.identified") }}</span>
         </div>
         <ul class="col-list">
-          <li v-for="(item, index) in columnsArr" :key="index">
+          <li v-for="(item, index) in indentifiedColumns" :key="index">
             <span>{{ item.name }}</span>
           </li>
         </ul>
@@ -29,9 +29,10 @@
             :index="index"
             :payload="msgbody"
             :extractColumns="item.columns"
+            :indentifiedColumns="indentifiedColumns"
             @deleteExtract="deleteExtract"
             @selectColumn="changeColumnStatus"
-            @changeExtractExpr='changeExtractExpr'
+            @changeExtractExpr="changeExtractExpr"
           ></ExtractSplit>
         </template>
 
@@ -50,8 +51,9 @@
             :itemData="item"
             :payload="msgbody"
             :inputparamsColumns="columnsArr"
+            :indentifiedColumns="indentifiedColumns"
             @deleteFilter="deleteFilter"
-            @changeFilter='changeFilter'
+            @changeFilter="changeFilter"
           ></FilterExpression>
         </template>
         <el-button type="primary" size="small" @click="addNewFilter">{{
@@ -95,6 +97,9 @@
           <div class="table-detail" v-if="tableData.length > 0">
             <div class="mapping">
               {{ $t("datasource.transformer.mapping") }}
+              <el-button type="primary" @click="caculateMappingResult"
+                >计算结果</el-button
+              >
             </div>
             <el-table
               :data="tableData"
@@ -112,10 +117,14 @@
                   width="320px"
                 >
                   <template slot-scope="scope">
-                    <el-select
+                    <!-- <el-select
                       v-model="scope.row.maptype"
                       size="small"
                       style="width: 100px; margin-right: 10px"
+                      v-if="
+                        scope.row['Type'] != 'Tablename' &&
+                        scope.row['Type'] != 'TIMESTAMP'
+                      "
                     >
                       <el-option
                         v-for="val in mappingTypes"
@@ -123,7 +132,16 @@
                         :label="val"
                         :value="val"
                       ></el-option>
-                    </el-select>
+                    </el-select> -->
+                    <el-cascader
+                      size="small"
+                      style="width: 100px; margin-right: 10px"
+                      :show-all-levels="false"
+                      v-model="scope.row.maptype[1]"
+                      v-if="scope.row['Type'] != 'Tablename'"
+                      @change="changeMapColumn(scope)"
+                      :options="options"
+                    ></el-cascader>
                     <el-popover
                       trigger="click"
                       placement="right-end"
@@ -134,11 +152,18 @@
                         style="width: 180px"
                         v-model="scope.row.Expression"
                         size="small"
-                        @keyup.enter.native="submitSuper(scope.row)"
+                        :disabled="
+                          scope.row['Type'] == 'TIMESTAMP' && !enable
+                            ? true
+                            : false
+                        "
                       ></el-input>
+
+                      <!-- @keyup.enter.native="submitSuper(scope.row)" -->
                     </el-popover>
                   </template>
                 </el-table-column>
+
                 <el-table-column
                   v-else
                   :key="index"
@@ -183,6 +208,7 @@ import FilterExpression from "./filterExpression.vue";
 import { getParser } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
+import {getRFC3339Time} from '@/utils/index'
 export default {
   name: "CommonTransformer",
   components: { ExtractSplit, FilterExpression },
@@ -196,6 +222,9 @@ export default {
   },
   data() {
     return {
+      enable: true, //只针对ts的expression的input
+      timestampExpr: "",
+      options: [],
       tablekey: 1,
       msgbody: "",
       params_columns: [],
@@ -257,6 +286,7 @@ export default {
           ],
         },
       ],
+      indentifiedColumns: [],
       columnsArr: [],
       tableData: [],
       extractArr: [],
@@ -267,18 +297,31 @@ export default {
         },
       ],
       currentCol: "",
+      mappingParser:{}
     };
   },
   mounted() {
     this.$set(
       this,
-      "columnsArr",
+      "indentifiedColumns",
       this.parserColumns.map((item) => {
         return {
           ...item,
           show: true,
         };
       })
+    );
+    this.$set(
+      this,
+      "columnsArr",
+      this.parserColumns
+        .filter((val) => ["varchar", "nchar"].includes(val.type))
+        .map((item) => {
+          return {
+            ...item,
+            show: true,
+          };
+        })
     );
     this.$set(this.extractArr, 0, {
       columns: this.columnsArr,
@@ -296,23 +339,131 @@ export default {
     this.getInitStables();
   },
   methods: {
+    //计算mapping的结果
+    caculateMappingResult() {
+      if (!this.msgbody) {
+        Message.error(this.$t("datasource.transformer.msgbodytip"));
+        return;
+      }
+      if (!this.tableData[0]["Expression"]) {
+        Message.error(this.$t("datasource.transformer.tablenametip"));
+        return;
+      }
+      let tags=[]
+      let columns=[]
+      let mutates=[]
+      let mutateMap={}
+      let primarykey=''
+      this.tableData.forEach(item=>{
+        if(item['Expression']){
+            if(this.params_columns.includes(item['Name'])&&item['Type']!='TIMESTAMP'){
+                columns.push(item['Name'])
+            }
+            if(item['Type']=='TIMESTAMP'){
+                primarykey=item['Name']
+            }
+            if(this.params_tags.includes(item["Name"])){
+                tags.push(item['Name'])
+            }
+            let key=Array.isArray(item.maptype[1])?(item.maptype[1][0]=='mapping'?'cast': item.maptype[1][1]):item.maptype[1]
+            if(item.maptype[1]!='string'){//排除第一行的tablename
+                console.log(item.maptype[1],'item.maptype[1]')
+                mutates.push({[`${item["Name"]}`]:{
+               [`${key}`]:item['Expression']
+            }})
+            }
+            
+        }
+      })
+      mutates.forEach(item=>{
+        Object.assign(mutateMap,item)
+      })
+      console.log(this.tableData,'this.tableData',primarykey,mutates,mutateMap)
+      columns.unshift(primarykey)
+      let parser = {
+        parser: {
+          parse: {},
+          model: {
+            name: this.tableData[0]["Expression"],
+            using: this.sruleForm.s_name,
+            tags: tags,
+            columns: columns,
+          },
+          mutate: [].concat({
+            map:mutateMap
+          }),
+        },
+        input: [].concat(this.generateInput()),
+      };
+      this.mappingParser=parser
+      this.getParserData(parser);
+      console.log(parser,'计算结果')
+      
+    },
+    changeMapColumn(scope) {
+        console.log(scope,scope.row.maptype,this.tableData,'kkkk=======----切换类型')
+      if (scope.row.maptype[1][0] == "mapping") {
+        this.enable = false;
+        this.$set(this.tableData[scope.$index],'Expression',scope.row.maptype[1][1])
+      } else {
+        this.enable = true;
+      }
+      
+    },
     //给filter赋值
-    changeFilter(key,value){
-      let index=this.filterArr.findIndex(val=>val.key==key)
-      this.$set(this.filterArr[index],'expression',value)
+    changeFilter(key, value) {
+      let index = this.filterArr.findIndex((val) => val.key == key);
+      this.$set(this.filterArr[index], "expression", value);
     },
     //extract的expression赋值
-    changeExtractExpr(colname,value){
-      let index = this.extractArr.findIndex(item=>item.columnname==colname)
-      this.$set(this.extractArr[index],'expression',value)
+    changeExtractExpr(colname, value) {
+      let index = this.extractArr.findIndex(
+        (item) => item.columnname == colname
+      );
+      this.$set(this.extractArr[index], "expression", value);
     },
     //获取transformer的所有参数
     getTransformerParams() {
+      let extractObj = {};
+      let caculateRows = this.tableData.filter((item) => item["Expression"]);
+      let mutate = this.filterArr
+        .map((item) => {
+          return {
+            filter: item.expression.split(";").toString(),
+          };
+        })
+        .concat(
+          caculateRows.map((val) => {
+            return { [`${val["maptype"]}`]: val["Expression"] };
+          })
+        );
+
+      console.log(caculateRows, mutate, "参与计算的行");
+      let parser = {
+        parser: {
+          parse: Object.assign(
+            {},
+            this.extractArr.map((item) => {
+              return ([item.columnname] = {
+                [`${item.type}`]: item.expression.split(";"),
+              });
+            })
+          ),
+          mutate: this.filterArr.map(item=>{
+            return {
+                filter:item.expression.split(';')
+            }
+          }).concat(this.mappingParser.parser.mutate),
+        },
+        input: [].concat(this.generateInput()),
+      };
       console.log(
+        parser,
         this.extractArr,
         this.filterArr,
         this.tableData,
-        "所有的参数"
+        "所有的参数",
+        extractObj
       );
     },
     changeColumnStatus(index, name) {
@@ -339,19 +490,33 @@ export default {
             })
           );
         });
-        let currentindex = this.tableData.findIndex(
-          (item) => item["Name"] == this.currentCol
-        );
-        outputTBData.splice(0, 2).map((item, index) => {
-          this.$set(
-            this.tableData[currentindex],
-            "Sample Output" + `${index + 1}`,
-            item[this.currentCol]
-          );
-        });
+        let overlapColumns=[]
+        this.tableData.map(val=>val['Name']).forEach(item=>{
+            if(outputColumns.includes(item)){
+                overlapColumns.push(item)
+            }
+        })
+        this.tableData.map(item=>{
+            if(overlapColumns.includes(item['Name'])){
+                outputTBData.map((val,index)=>{
+                    item[`Sample Output`+(index+1)]=val[item['Name']]
+                })
+            }
+        })
+        // let currentindex = this.tableData.findIndex(
+        //   (item) => item["Name"] == this.currentCol
+        // );
+        // outputTBData.splice(0, 2).map((item, index) => {
+        //   this.$set(
+        //     this.tableData[currentindex],
+        //     "Sample Output" + `${index + 1}`,
+        //     item[this.currentCol]
+        //   );
+        // });
         this.tablekey = Math.random();
         // this.$set(this,'tablekey',Math.random())
         console.log(
+            overlapColumns,
           outputColumns,
           outputTBData,
           this.tableData,
@@ -360,6 +525,26 @@ export default {
       } catch (error) {
         console.log(error);
       }
+    },
+    //输出input结果
+    generateInput() {
+      let inputobj = {};
+      this.indentifiedColumns.forEach((item) => {
+        if (this.$store.state.app.currentDBType == "mqtt") {
+          if (item.name == "payload") {
+            inputobj["payload"] = this.msgbody;
+          } else {
+            inputobj[item.name] = item.type == "timestamp" ? getRFC3339Time() : item.name;
+          }
+        } else if (this.$store.state.app.currentDBType == "kafka") {
+          if (item.name == "value") {
+            inputobj["value"] = this.msgbody;
+          } else {
+            inputobj[item.name] = item.type == "timestamp" ? getRFC3339Time() : item.name;
+          }
+        }
+      });
+      return inputobj;
     },
     submitSuper(data) {
       console.log(this.tableData[0], "判断s-----name");
@@ -372,6 +557,7 @@ export default {
         return;
       }
       this.currentCol = data["Name"];
+
       let parser = {
         parser: {
           parse: {},
@@ -395,24 +581,7 @@ export default {
             },
           ],
         },
-        input: this.columnsArr.map((item) => {
-          let obj = {};
-          if (this.$store.state.app.currentDBType == "mqtt") {
-            //mqtt
-            if (item.name == "payload") {
-              obj["payload"] = this.msgbody;
-            } else {
-              obj[item.name] = item.name;
-            }
-          } else if (this.$store.state.app.currentDBType == "kafka") {
-            if (item.name == "value") {
-              obj["value"] = this.msgbody;
-            } else {
-              obj[item.name] = item.name;
-            }
-          }
-          return obj;
-        }),
+        input: [].concat(this.generateInput()),
       };
       this.getParserData(parser);
     },
@@ -477,7 +646,7 @@ export default {
           return {
             Name: val[0],
             Type: val[1],
-            maptype: "value",
+            maptype: ['expression','value'],
             Expression: "",
             "Sample Output1": "",
             "Sample Output2": "",
@@ -486,11 +655,12 @@ export default {
         this.tableData.unshift({
           Name: this.sruleForm.s_name,
           Type: "Tablename",
-          maptype: "string",
+          maptype: ['expression','string'],
           Expression: "",
           "Sample Output1": "",
           "Sample Output2": "",
         });
+        console.log(this.tableData, "this.tableData**********");
         this.params_columns.unshift(res.data[0][0]);
       } catch (error) {
         console.log(error);
@@ -534,6 +704,12 @@ export default {
     },
   },
   watch: {
+    "$store.state.app.transformerMapCloumns": {
+      deep: true,
+      handler(val) {
+        this.$set(this, "options", val);
+      },
+    },
     "$store.state.app.currentDBName": {
       deep: true,
       handler(val) {
@@ -545,14 +721,27 @@ export default {
       handler(val) {
         this.$set(
           this,
-          "columnsArr",
-          val.map((item) => {
+          "indentifiedColumns",
+          this.parserColumns.map((item) => {
             return {
-              show: true,
               ...item,
+              show: true,
             };
           })
         );
+        this.$set(
+          this,
+          "columnsArr",
+          val
+            .filter((val) => ["varchar", "nchar"].includes(val.type))
+            .map((item) => {
+              return {
+                show: true,
+                ...item,
+              };
+            })
+        );
+
         this.$set(this.extractArr, 0, {
           columns: this.columnsArr,
           type: "",

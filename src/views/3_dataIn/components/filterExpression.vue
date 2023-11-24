@@ -26,7 +26,7 @@
 
       <div class="btns">
         <el-button icon="el-icon-delete" @click="deleteFilter"></el-button>
-        <el-button icon="el-icon-check" @click="submitFilter"></el-button>
+        <el-button icon="el-icon-check" @click="submitFilter" ></el-button>
       </div>
     </div>
 
@@ -65,9 +65,18 @@ export default {
         return [];
       },
     },
+    indentifiedColumns:{
+        type: Array,
+      default: () => {
+        return [];
+      },
+    }
   },
   data() {
     return {
+     maptypes:[
+        'value','generator','join','format','sum','expr'
+     ],
       ruleForm: {
         filter_name: "",
       },
@@ -86,7 +95,6 @@ export default {
   methods: {
     changeFilterCont(val){
       this.$emit('changeFilter',this.itemData.key,val)
-        console.log(val,'输入筛选条件')
     },
     initData(val) {
       if (val) {
@@ -110,7 +118,6 @@ export default {
     async getParserData(data) {
       try {
         let result = await getParser(data);
-        console.log(result, "获取filter");
         this.tableColumns = result[0].fields.map((item) => item.name);
         if(result.message){
             Message.error(result.message)
@@ -123,8 +130,30 @@ export default {
             })
           );
         });
-
-        console.log(result, this.tableData, "jieguo---结果--filter");
+        let transformerColumns=[
+            {
+                value:'expression',
+                label:this.$t('expression'),
+                children:this.maptypes.map(item=>{
+                    return {
+                        value:item,
+                        label:item
+                    }
+                })
+            },
+            {
+                value:'mapping',
+                label:this.$t('mapping'),
+                children:result[0].fields.map(item=>{
+                    return {
+                        value:item.name,
+                        label:item.name
+                    }
+                })
+            }
+        ]
+        console.log(transformerColumns,'transformerColumns')
+        this.$store.commit('app/SET_TRANSFORMER_MAPCOLUMNS',transformerColumns)
       } catch (error) {
         console.log(error);
       }
@@ -136,7 +165,22 @@ export default {
     //提交
     submitFilter() {
       let filterExpres = this.ruleForm.filter_name.split(";");
-      console.log(filterExpres, "拆分得filter");
+      let inputobj = {};
+      this.indentifiedColumns.forEach((item) => {
+        if (this.$store.state.app.currentDBType == "mqtt") {
+          if (item.name == "payload") {
+            inputobj["payload"] = this.payload;
+          } else {
+            inputobj[item.name] = item.type == "timestamp" ? "now" : item.name;
+          }
+        } else if (this.$store.state.app.currentDBType == "kafka") {
+          if (item.name == "value") {
+            inputobj["value"] = this.payload;
+          } else {
+            inputobj[item.name] = item.type == "timestamp" ? "now" : item.name;
+          }
+        }
+      });
       let parser = {
         parser: {
           parse: {},
@@ -146,26 +190,8 @@ export default {
             };
           }),
         },
-        input: this.inputparamsColumns.map((item) => {
-          let obj = {};
-          if (this.$store.state.app.currentDBType == "mqtt") {
-            //mqtt
-            if (item.name == "payload") {
-              obj["payload"] = this.payload;
-            } else {
-              obj[item.name] = item.name;
-            }
-          } else if (this.$store.state.app.currentDBType == "kafka") {
-            if (item.name == "value") {
-              obj["value"] = this.payload;
-            } else {
-              obj[item.name] = item.name;
-            }
-          }
-          return obj;
-        }),
+        input: [].concat(inputobj),
       };
-      console.log(parser, "这是要穿的参数");
       this.getParserData(parser);
     },
   },
