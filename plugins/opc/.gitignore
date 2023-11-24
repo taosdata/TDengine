@@ -1,3 +1,7 @@
 .idea
 vendor
 dist
+*.exe
+*.zip
+taosx-opc
+collector
