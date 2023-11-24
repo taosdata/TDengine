@@ -18,6 +18,7 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
+#include "mndSnode.h"
 #include "mndPrivilege.h"
 #include "mndScheduler.h"
 #include "mndShow.h"
@@ -695,9 +696,15 @@ static int32_t mndPersistTaskDropReq(SMnode* pMnode, STrans *pTrans, SStreamTask
   pReq->streamId = pTask->id.streamId;
 
   STransAction action = {0};
-  SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->info.nodeId);
-  SEpSet  epset = mndGetVgroupEpset(pMnode, pVgObj);
-  mndReleaseVgroup(pMnode, pVgObj);
+  SEpSet  epset = {0};
+  if(pTask->info.nodeId == SNODE_HANDLE){
+    SSnodeObj* pObj = mndAcquireSnode(pMnode, pTask->info.nodeId);
+    addEpIntoEpSet(&epset, pObj->pDnode->fqdn, pObj->pDnode->port);
+  }else{
+    SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->info.nodeId);
+    epset = mndGetVgroupEpset(pMnode, pVgObj);
+    mndReleaseVgroup(pMnode, pVgObj);
+  }
 
   // The epset of nodeId of this task may have been expired now, let's use the newest epset from mnode.
   initTransAction(&action, pReq, sizeof(SVDropStreamTaskReq), TDMT_STREAM_TASK_DROP, &epset, 0);
