@@ -190,7 +190,7 @@ int32_t getCfIdx(const char* cfName) {
 }
 
 bool isValidCheckpoint(const char* dir) {
-  return true;
+  // return true;
   STaskDbWrapper* pDb = taskDbOpenImpl(NULL, NULL, (char*)dir);
   if (pDb == NULL) {
     return true;
