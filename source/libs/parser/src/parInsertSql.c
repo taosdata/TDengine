@@ -1199,8 +1199,19 @@ static int32_t preParseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModif
 
 static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, STableDataCxt** pTableCxt) {
   if (pCxt->pComCxt->async) {
-    return insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid),
+    int32_t code = insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid),
                               pStmt->pTableMeta, &pStmt->pCreateTblReq, pTableCxt, false);
+    // record pTableCxt for one commit of current request
+    if (TSDB_CODE_SUCCESS == code && pTableCxt) {
+      if (NULL == pStmt->pTableCxtHashObj) {
+        pStmt->pTableCxtHashObj =
+            taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+      }
+      void* pData = *pTableCxt;
+      taosHashPut(pStmt->pTableCxtHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid), &pData,
+                  POINTER_BYTES);
+    }
+    return code;
   }
 
   char tbFName[TSDB_TABLE_FNAME_LEN];
@@ -1863,9 +1874,8 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
   // release old array alloced by merge
   pStmt->freeArrayFunc(pStmt->pVgDataBlocks);
   // merge according to vgId
-  bool type_file = TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_FILE_INSERT);
   int32_t code = insMergeTableDataCxt(false ? pStmt->pTableCxtHashObj : pStmt->pTableBlockHashObj,
-                                      &pStmt->pVgDataBlocks, type_file);
+                                      &pStmt->pVgDataBlocks, pStmt->fileProcessing);
   // clear tmp hashobj only
   taosHashClear(pStmt->pTableCxtHashObj);
 
@@ -2173,15 +2183,6 @@ static int32_t parseInsertSqlFromStart(SInsertParseContext* pCxt, SVnodeModifyOp
 static int32_t parseInsertSqlFromCsv(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   STableDataCxt* pTableCxt = NULL;
   int32_t        code = getTableDataCxt(pCxt, pStmt, &pTableCxt);
-  // record pTableCxt for file process
-  if (TSDB_CODE_SUCCESS == code && pTableCxt) {
-    if (NULL == pStmt->pTableCxtHashObj) {
-      pStmt->pTableCxtHashObj =
-          taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-    }
-    void* pData = pTableCxt;
-    taosHashPut(pStmt->pTableCxtHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid), &pData, POINTER_BYTES);
-  }
   if (TSDB_CODE_SUCCESS == code) {
     code = parseDataFromFileImpl(pCxt, pStmt, pTableCxt);
   }
