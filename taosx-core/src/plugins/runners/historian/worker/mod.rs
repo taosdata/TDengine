@@ -4,27 +4,31 @@ use futures_util::TryStreamExt;
 use tiberius::QueryItem;
 
 use crate::runners::historian::arrow::ArrowDataAppender;
-use crate::runners::historian::config::TaskConfig;
+use crate::runners::historian::config::{HistorianTable, TaskConfig};
 use crate::runners::historian::query::HistorianQuery;
 use crate::runners::historian::worker::consumer::Consumer;
 use crate::runners::historian::worker::producer::Producer;
-use crate::utils::port_pool::PortPool;
 
 mod consumer;
 mod producer;
 
-pub async fn migrate_history(config: TaskConfig, port_pool: &PortPool) -> anyhow::Result<()> {
-    tracing::debug!("create history migrate task with config: {:?}", config);
+pub async fn migrate_history(config: TaskConfig) -> anyhow::Result<()> {
+    tracing::info!("create history migrate task with config: {:?}", config);
     let (tx, rx) = flume::bounded(config.concurrency);
 
     let mut consumers = Vec::new();
     for _ in 0..config.concurrency {
         let receiver = rx.clone();
+
         let connect_config = config.connect.clone();
-        let port_pool = port_pool.clone();
+        let query = HistorianQuery::new(connect_config).await?;
+
+        let ipc_port = config
+            .ipc_port
+            .ok_or(anyhow::anyhow!("ipc_port cannot be None"))?;
 
         let c = tokio::spawn(async move {
-            let mut consumer = Consumer::new(HistorianQuery::new(connect_config).await?, port_pool);
+            let mut consumer = Consumer::new(query, ipc_port);
             consumer.consume(receiver).await
         });
         consumers.push(c);
@@ -40,23 +44,21 @@ pub async fn migrate_history(config: TaskConfig, port_pool: &PortPool) -> anyhow
     Ok(())
 }
 
-pub async fn sync_history(task_config: TaskConfig, port_pool: &PortPool) -> anyhow::Result<()> {
-    tracing::debug!("create history sync task with config: {:?}", task_config);
+pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
+    tracing::info!("create history sync task with config: {:?}", task_config);
 
     let mut now = Utc::now();
     let mut migrate_task_config = task_config.clone();
     migrate_task_config.end_datetime = Some(now);
 
-    let p = port_pool.clone();
-    let _ = tokio::spawn(async move { migrate_history(migrate_task_config, &p).await });
+    let _ = tokio::spawn(async move { migrate_history(migrate_task_config).await });
 
-    let port = port_pool
-        .get()
-        .await
-        .ok_or_else(|| anyhow::format_err!("No available port for Historian source"))?;
+    let port = task_config
+        .ipc_port
+        .ok_or(anyhow::anyhow!("ipc_port cannot be None"))?;
     let socket = format!("127.0.0.1:{}", port);
     let stream = std::net::TcpStream::connect(socket)?;
-    let mut appender = ArrowDataAppender::new(&task_config)?;
+    let mut appender = ArrowDataAppender::try_new(HistorianTable::History)?;
     let mut writer = StreamWriter::try_new(&stream, appender.schema())?;
 
     let mut query = HistorianQuery::new(task_config.clone().connect).await?;
@@ -89,16 +91,15 @@ pub async fn sync_history(task_config: TaskConfig, port_pool: &PortPool) -> anyh
     }
 }
 
-pub async fn sync_live(task_config: TaskConfig, port_pool: &PortPool) -> anyhow::Result<()> {
+pub async fn sync_live(task_config: TaskConfig) -> anyhow::Result<()> {
     tracing::debug!("create live sync task with config: {:?}", task_config);
 
-    let port = port_pool
-        .get()
-        .await
-        .ok_or_else(|| anyhow::format_err!("No available port for Historian source"))?;
+    let port = task_config
+        .ipc_port
+        .ok_or(anyhow::anyhow!("ipc_port can not be None"))?;
     let socket = format!("127.0.0.1:{}", port);
     let stream = std::net::TcpStream::connect(socket)?;
-    let mut appender = ArrowDataAppender::new(&task_config)?;
+    let mut appender = ArrowDataAppender::try_new(HistorianTable::Live)?;
     let mut writer = StreamWriter::try_new(&stream, appender.schema())?;
 
     let mut query = HistorianQuery::new(task_config.clone().connect).await?;

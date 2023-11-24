@@ -1,11 +1,10 @@
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use arrow::array;
 use arrow::array::{ArrayBuilder, ArrayRef};
-use arrow::datatypes::TimeUnit::Nanosecond;
 use arrow::datatypes::{Field, Schema};
+use arrow::datatypes::TimeUnit::Nanosecond;
 use arrow::record_batch::RecordBatch;
 use chrono::NaiveDateTime;
 use itertools::Itertools;
@@ -13,8 +12,7 @@ use tiberius::Row;
 
 use taosx_ipc::prelude::ArrowDataType;
 
-use crate::runners::historian::config::TaskConfig;
-use crate::runners::historian::table_type::HistorianTable;
+use crate::runners::historian::config::HistorianTable;
 
 pub struct ArrowDataAppender {
     schema: Schema,
@@ -22,9 +20,7 @@ pub struct ArrowDataAppender {
 }
 
 impl ArrowDataAppender {
-    pub fn new(task_config: &TaskConfig) -> anyhow::Result<Self> {
-        let table = HistorianTable::from_str(&task_config.table)
-            .map_err(|err| anyhow::anyhow!("invalid table: {}", err.to_string()))?;
+    pub fn try_new(table: HistorianTable) -> anyhow::Result<Self> {
         // fields
         let fields = match table {
             HistorianTable::Live => Self::live_fields(),

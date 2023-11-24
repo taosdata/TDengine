@@ -7,7 +7,7 @@ use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
 use crate::runners::historian::config::connect::ConnectConfig;
-use crate::runners::historian::config::{TaskConfig, TaskMode};
+use crate::runners::historian::config::{HistorianTable, TaskConfig, TaskMode};
 use crate::runners::historian::query::HistorianQuery;
 use crate::runners::historian::worker::{migrate_history, sync_history, sync_live};
 use crate::utils::port_pool::PortPool;
@@ -16,7 +16,6 @@ use crate::{build_ipc, Action, Parser, Transferred};
 mod arrow;
 mod config;
 mod query;
-mod table_type;
 mod worker;
 
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
@@ -72,7 +71,7 @@ pub async fn historian_to_taos(
     span: Span,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
-    let config = TaskConfig::from_dsn(&from)?;
+    let mut config = TaskConfig::from_dsn(&from)?;
     tracing::info!("AVEVA™ Historian task configuration: {:?}", config);
 
     let port = port_pool
@@ -95,12 +94,12 @@ pub async fn historian_to_taos(
         notify,
     )
     .await?;
-
-    let port_pool = port_pool.clone();
+    config.ipc_port = Some(port);
 
     // create worker
-    let worker = tokio::spawn(exec_task(config, port_pool.clone()));
+    let worker = tokio::spawn(exec_task(config));
 
+    let port_pool = port_pool.clone();
     let abort_handle = worker.abort_handle();
     tokio::spawn(async move {
         tokio::select! {
@@ -155,16 +154,16 @@ pub async fn historian_to_taos(
     Ok(())
 }
 
-async fn exec_task(config: TaskConfig, port_pool: PortPool) -> anyhow::Result<()> {
-    match (config.mode, config.table.as_str()) {
-        (TaskMode::Synchronize, "Runtime.dbo.History") => {
-            sync_history(config.clone(), &port_pool).await?;
+async fn exec_task(config: TaskConfig) -> anyhow::Result<()> {
+    match (config.mode, config.table) {
+        (TaskMode::Migrate, HistorianTable::History) => {
+            migrate_history(config.clone()).await?;
         }
-        (TaskMode::Migrate, "Runtime.dbo.History") => {
-            migrate_history(config.clone(), &port_pool).await?;
+        (TaskMode::Synchronize, HistorianTable::History) => {
+            sync_history(config.clone()).await?;
         }
-        (TaskMode::Synchronize, "Runtime.dbo.Live") => {
-            sync_live(config.clone(), &port_pool).await?;
+        (TaskMode::Synchronize, HistorianTable::Live) => {
+            sync_live(config.clone()).await?;
         }
         _ => {}
     }

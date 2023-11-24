@@ -4,33 +4,29 @@ use futures_util::TryStreamExt;
 use tiberius::QueryItem;
 
 use crate::runners::historian::arrow::ArrowDataAppender;
-use crate::runners::historian::config::TaskConfig;
+use crate::runners::historian::config::{HistorianTable, TaskConfig};
 use crate::runners::historian::query::HistorianQuery;
-use crate::utils::port_pool::PortPool;
 
 pub struct Consumer {
-    port_pool: PortPool,
     query: HistorianQuery,
+    port: u16,
 }
 
 impl Consumer {
-    pub fn new(query: HistorianQuery, port_pool: PortPool) -> Self {
-        Consumer { port_pool, query }
+    pub fn new(query: HistorianQuery, port: u16) -> Self {
+        Self { query, port }
     }
 
     pub async fn consume(&mut self, receiver: Receiver<TaskConfig>) -> anyhow::Result<()> {
-        for task in receiver.iter() {
-            let port = self
-                .port_pool
-                .get()
-                .await
-                .ok_or_else(|| anyhow::format_err!("No available port for Historian source"))?;
-            let socket = format!("127.0.0.1:{}", port);
-            let stream = std::net::TcpStream::connect(socket)?;
-            let mut appender = ArrowDataAppender::new(&task)?;
-            let mut writer = StreamWriter::try_new(&stream, appender.schema())?;
+        let socket = format!("127.0.0.1:{}", self.port);
+        let stream = std::net::TcpStream::connect(socket)?;
+        let mut appender = ArrowDataAppender::try_new(HistorianTable::History)?;
+        let mut writer = StreamWriter::try_new(&stream, appender.schema())?;
 
-            let start = task.begin_datetime;
+        while let Ok(task) = receiver.recv_async().await {
+            let start = task
+                .begin_datetime
+                .ok_or(anyhow::anyhow!("beginDateTime cannot be None"))?;
             let end = task
                 .end_datetime
                 .ok_or(anyhow::anyhow!("endDateTime cannot be None"))?;
@@ -52,11 +48,9 @@ impl Consumer {
             // write batch
             let batch = appender.finish()?;
             writer.write(&batch)?;
-            writer.finish()?;
-
-            self.port_pool.put(port).await;
         }
 
+        writer.finish()?;
         Ok(())
     }
 }
