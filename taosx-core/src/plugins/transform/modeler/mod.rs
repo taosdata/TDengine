@@ -181,6 +181,9 @@ impl Table {
     pub fn apply(&self, records: &RecordBatch) -> Result<ModeledRecordBatch, super::Error> {
         // Check if the table has at least two column.
         assert!(records.num_columns() >= 2);
+        if self.name.is_empty() {
+            return Err(super::Error::EmptyTableName);
+        }
         fn template_to_expr(template: &str) -> Result<Expr, super::Error> {
             if template.starts_with("`") {
                 Expr::try_new(template, false)
@@ -228,6 +231,9 @@ impl Table {
         let schema = records.schema();
 
         if let Some(names) = self.columns.as_deref() {
+            if names.is_empty() {
+                return Err(super::Error::EmptyTableColumns(self.name.clone()));
+            }
             let primary = names[0].as_str();
             let timestamp = DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None);
             let primary_array = arrow::compute::cast(

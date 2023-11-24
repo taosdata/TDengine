@@ -19,11 +19,11 @@ impl ValueBuilder for ExprValueBuilder {
         &self,
         name: &str,
         record: &RecordBatch,
-        _as: Option<IpcDataType>,
+        r#as: Option<IpcDataType>,
     ) -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
         let values = self
             .0
-            .eval(record, _as.map(|data_type| data_type.arrow_data_type()))
+            .eval(record, r#as.map(|data_type| data_type.arrow_data_type()))
             .map_err(|err| {
                 let err_msg = format!("failed to eval expression, cause: {}", err.to_string());
                 ValueBuilderError::ExprError(err_msg)

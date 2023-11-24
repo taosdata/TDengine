@@ -18,7 +18,7 @@ impl ValueBuilder for FormatValueBuilder {
         &self,
         name: &str,
         record: &RecordBatch,
-        _as: Option<IpcDataType>,
+        r#as: Option<IpcDataType>,
     ) -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
         let expr = Expr::try_new(format!("`{}`", self.format), true).map_err(|err| {
             let err_msg = format!("failed build format expression, cause: {}", err.to_string());
@@ -26,7 +26,7 @@ impl ValueBuilder for FormatValueBuilder {
         })?;
 
         let values = expr
-            .eval(record, _as.map(|data_type| data_type.arrow_data_type()))
+            .eval(record, r#as.map(|data_type| data_type.arrow_data_type()))
             .map_err(|err| {
                 let err_msg = format!("failed to format, cause: {}", err.to_string());
                 ValueBuilderError::FormatError(err_msg)
