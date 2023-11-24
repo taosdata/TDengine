@@ -23,8 +23,6 @@
 typedef struct SDataFileRAWReaderIter {
   int32_t count;
   int32_t idx;
-  int64_t offset;
-  int64_t size;
 } SDataFileRAWReaderIter;
 
 typedef struct STsdbSnapRAWReader {
@@ -164,9 +162,7 @@ static int32_t tsdbSnapRAWReadFileSetOpenIter(STsdbSnapRAWReader* reader) {
   int32_t lino = 0;
 
   reader->dataIter->count = TARRAY2_SIZE(reader->dataReaderArr);
-  reader->dataIter->idx = -1;
-  reader->dataIter->offset = 0;
-  reader->dataIter->size = 0;
+  reader->dataIter->idx = 0;
 
 _exit:
   if (code) {
@@ -178,8 +174,6 @@ _exit:
 static int32_t tsdbSnapRAWReadFileSetCloseIter(STsdbSnapRAWReader* reader) {
   reader->dataIter->count = 0;
   reader->dataIter->idx = 0;
-  reader->dataIter->offset = 0;
-  reader->dataIter->size = 0;
   return 0;
 }
 
@@ -188,23 +182,30 @@ static int64_t tsdbSnapRAWReadPeek(SDataFileRAWReader* reader) {
   return size;
 }
 
+static SDataFileRAWReader* tsdbSnapRAWReaderIterNext(STsdbSnapRAWReader* reader) {
+  ASSERT(reader->dataIter->idx <= reader->dataIter->count);
+
+  while (reader->dataIter->idx < reader->dataIter->count) {
+    SDataFileRAWReader* dataReader = TARRAY2_GET(reader->dataReaderArr, reader->dataIter->idx);
+    ASSERT(dataReader);
+    if (dataReader->ctx->offset < dataReader->config->file.size) {
+      return dataReader;
+    }
+    reader->dataIter->idx++;
+  }
+  return NULL;
+}
+
 static int32_t tsdbSnapRAWReadNext(STsdbSnapRAWReader* reader, SSnapDataHdr** ppData) {
   int32_t code = 0;
   int32_t lino = 0;
+  int8_t  type = reader->type;
   ppData[0] = NULL;
 
-  ASSERT(reader->dataIter->offset <= reader->dataIter->size);
-  ASSERT(reader->dataIter->idx <= reader->dataIter->count);
-
-  // dataReader
-  if (reader->dataIter->offset == reader->dataIter->size && reader->dataIter->idx < reader->dataIter->count) {
-    reader->dataIter->idx++;
-  }
-  if (reader->dataIter->idx == reader->dataIter->count) {
+  SDataFileRAWReader* dataReader = tsdbSnapRAWReaderIterNext(reader);
+  if (dataReader == NULL) {
     return 0;
   }
-  int8_t              type = reader->type;
-  SDataFileRAWReader* dataReader = TARRAY2_GET(reader->dataReaderArr, reader->dataIter->idx);
 
   // prepare
   int64_t dataLength = tsdbSnapRAWReadPeek(dataReader);
@@ -219,18 +220,18 @@ static int32_t tsdbSnapRAWReadNext(STsdbSnapRAWReader* reader, SSnapDataHdr** pp
   pHdr->type = type;
   pHdr->size = sizeof(STsdbDataRAWBlockHeader) + dataLength;
 
+  // read
   STsdbDataRAWBlockHeader* pBlock = (void*)pHdr->data;
   pBlock->offset = dataReader->ctx->offset;
   pBlock->dataLength = dataLength;
 
-  // read
   code = tsdbDataFileRAWReadBlockData(dataReader, pBlock);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // finish
-  reader->dataIter->offset += pBlock->dataLength;
+  dataReader->ctx->offset += pBlock->dataLength;
+  ASSERT(dataReader->ctx->offset <= dataReader->config->file.size);
   ppData[0] = pBuf;
-  ASSERT(reader->dataIter->offset <= reader->dataIter->size);
 
 _exit:
   if (code) {
