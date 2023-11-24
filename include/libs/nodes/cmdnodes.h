@@ -615,10 +615,11 @@ typedef struct SShowCreateTSMAStmt {
 }SShowCreateTSMAStmt;
 
 typedef struct SDropTSMAStmt {
-  ENodeType type;
-  bool      ignoreNotExists;
-  char      dbName[TSDB_DB_NAME_LEN];
-  char      tsmaName[TSDB_INDEX_NAME_LEN];
+  ENodeType     type;
+  bool          ignoreNotExists;
+  char          dbName[TSDB_DB_NAME_LEN];
+  char          tsmaName[TSDB_INDEX_NAME_LEN];
+  SMDropSmaReq* pReq;
 } SDropTSMAStmt;
 
 #ifdef __cplusplus
