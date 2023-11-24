@@ -568,7 +568,7 @@ static int32_t tsdbMerge(void *arg) {
           if (mtime < now - tsS3UploadDelaySec) {
             skipMerge = true;
           }
-        } else if (s3Size(object_name) > 0) {
+        } else /* if (s3Size(object_name) > 0) */ {
           skipMerge = true;
         }
       }
