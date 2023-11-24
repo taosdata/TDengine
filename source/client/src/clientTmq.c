@@ -1529,6 +1529,9 @@ static bool doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
 
   int32_t topicNumGet = taosArrayGetSize(pRsp->topics);
   if (epoch <= tmq->epoch) {
+    if(atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__RECOVER){
+      atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__READY);
+    }
     return false;
   }
 
