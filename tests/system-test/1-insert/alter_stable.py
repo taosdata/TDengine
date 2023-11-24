@@ -206,7 +206,7 @@ class TDTestCase:
     def destroyAlterEnv(self):
         tdSql.execute(f'drop database if exists {self.dbname}')
 
-    def alterTableTask(self, opt, i):
+    def alterTableTask(self, i):
         os.system(f'taos -f {self.fname}.{i};')
 
     def alterTableCheck(self, opt):
@@ -223,7 +223,7 @@ class TDTestCase:
     def executeAlterTableAndCheck(self, opt):
         threads = []
         for i in range(self.threadnum):
-            thread = threading.Thread(target=self.alterTableTask, args=(opt,i))
+            thread = threading.Thread(target=self.alterTableTask, args=(i,))
             threads.append(thread)
             thread.start()            
         for i in range(self.threadnum):
