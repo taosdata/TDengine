@@ -103,12 +103,11 @@ export default {
       if (val.collapsed) {
         //展开时候才会传参数
         this.paramStr = "";
-        this.paramStr += "&collapsed=true&";
         let realArr = val.params.filter((val) => !val.hidden);
         realArr.forEach((item, index) => {
           if (item?.requires != "keep_raw_data") {
             this.paramStr +=
-              `${item.name}=${
+              `&${item.name}=${
                 item.name == "keep_raw_data" && Object.is(item.value, undefined)
                   ? false
                   : item.value
