@@ -58,7 +58,7 @@ int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash
 
   // merge according to vgId
   if (taosHashGetSize(pBlockHash) > 0) {
-    code = insMergeTableDataCxt(pBlockHash, &pVgDataBlocks, false);
+    code = insMergeTableDataCxt(pBlockHash, &pVgDataBlocks, true);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = insBuildVgDataBlocks(pVgHash, pVgDataBlocks, &pStmt->pDataBlocks);

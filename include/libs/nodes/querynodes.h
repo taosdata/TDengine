@@ -423,6 +423,7 @@ typedef struct SVnodeModifyOpStmt {
   SHashObj*             pSubTableHashObj;
   SHashObj*             pTableNameHashObj;
   SHashObj*             pDbFNameHashObj;
+  SHashObj*             pTableCxtHashObj;    // temp SHashObj<tuid, STableDataCxt*> for single request
   SArray*               pVgDataBlocks;  // SArray<SVgroupDataCxt*>
   SVCreateTbReq*        pCreateTblReq;
   TdFilePtr             fp;

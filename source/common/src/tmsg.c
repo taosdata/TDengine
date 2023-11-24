@@ -8181,8 +8181,8 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
     return;
   }
 
-  if (flag == TSDB_MSG_FLG_ENCODE || flag == TSDB_MSG_FLG_CMPT || flag == TSDB_MSG_FLG_VNODE) {
-    if (pTbData->pCreateTbReq && flag != TSDB_MSG_FLG_VNODE) {
+  if (flag == TSDB_MSG_FLG_ENCODE || flag == TSDB_MSG_FLG_CMPT) {
+    if (pTbData->pCreateTbReq) {
       if (flag == TSDB_MSG_FLG_ENCODE) {
         tdDestroySVCreateTbReq(pTbData->pCreateTbReq);
       } else {
