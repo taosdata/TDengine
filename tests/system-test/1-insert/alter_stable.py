@@ -20,8 +20,6 @@ from util.sql import *
 from util.sqlset import *
 from util import constant
 from util.common import *
-from util.dnodes import *
-from util.cluster import *
 
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
@@ -29,9 +27,8 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
         self.setsql = TDSetSql()
-        self.curpath = os.path.dirname(os.path.abspath(__file__))
-        self.fname = os.path.join(self.curpath, f'alter_stable.py.tmp.sql')
-        self.dbname = 'd1'
+        self.fname = __file__ + '.tmp.sql'
+        self.dbname = 'db1'
         self.ntbname = 'ntb'
         self.stbname = 'stb'
         self.stbnum = 10
@@ -175,12 +172,39 @@ class TDTestCase:
                     for i in range(self.tbnum):
                         tdSql.error(f'alter stable {self.stbname}_{i} modify column {key} {v}')
     
-    def prepareAlterDBEnv(self):
+    def alter_stable_column_varchar_39001(self):
+        """Check alter stable column varchar 39001 from 39000(TS-3841)
+        """
+        stbname = "st1"
+        column_dict = {
+            'ts'  : 'timestamp',
+            'col1': 'varchar(39000)',
+            'col2': 'tinyint',
+            'col3': 'timestamp',
+            'col4': 'tinyint',
+            'col5': 'timestamp',
+            'col6': 'varchar(18)',
+            'col7': 'varchar(17)'
+        }
+        tag_dict = {
+            'id': 'int'
+        }
+
+        tdSql.execute(self.setsql.set_create_stable_sql(stbname, column_dict, tag_dict))
+        res = tdSql.getResult(f'desc {stbname}')
+        tdLog.info(res)
+        assert(res[1][2] == 39000)
+        tdSql.execute(f'alter stable {stbname} modify column col1 varchar(39001)')
+        res = tdSql.getResult(f'desc {stbname}')
+        tdLog.info(res)
+        assert(res[1][2] == 39001)
+
+    def prepareAlterEnv(self):
         tdSql.execute(f'drop database if exists {self.dbname}')
         tdSql.execute(f'create database if not exists {self.dbname} vgroups 2 buffer 64')
         tdSql.execute(f'use {self.dbname}')
 
-    def destroyAlterDBEnv(self):
+    def destroyAlterEnv(self):
         tdSql.execute(f'drop database if exists {self.dbname}')
 
     def alterTableTask(self, opt, i):
@@ -206,8 +230,13 @@ class TDTestCase:
         for i in range(self.threadnum):
             threads[i].join()
         self.alterTableCheck(opt)
+
+    def destroyAlterTableEnv(self):
+        for i in range(self.threadnum):
+            if os.path.isfile(f'{self.fname}.{i}'):
+                os.remove(f'{self.fname}.{i}')
     
-    def prepareAlterTableAndCheck(self, opt):
+    def prepareAlterTableEnvAndCheck(self, opt):
         self.destroyAlterTableEnv()
         lines = [f'use {self.dbname};\n']
         if opt in ["stb_add_col", "stb_add_tag"]:
@@ -256,19 +285,14 @@ class TDTestCase:
                 for c in range(self.colnum_modify):
                     lines.append(f'alter table {self.ntbname}_{i} modify column c_{c} NCHAR({self.collen_new_modify});\n')
 
-        # prepare sql file
+        # generate sql file
         with open(f'{self.fname}.0', "a") as f:
             f.writelines(lines)
-        # dup sql file in case of race condition
+        # clone sql file in case of race condition
         for i in range(1, self.threadnum):
             shutil.copy(f'{self.fname}.0', f'{self.fname}.{i}')
-        # alter and check
+        # execute and check
         self.executeAlterTableCheck(opt)
-
-    def destroyAlterTableEnv(self):
-        for i in range(self.threadnum):
-            if os.path.isfile(f'{self.fname}.{i}'):
-                os.remove(f'{self.fname}.{i}')
 
     def alter_stable_multi_client_check(self):
         """Check alter stable/ntable variable column/tag(PI-23)
@@ -276,37 +300,11 @@ class TDTestCase:
         alter_table_check_type = ["stb_add_col", "stb_add_tag", "stb_modify_col", "stb_modify_tag", "ntb_add_col", "ntb_modify_col"]
 
         for check in alter_table_check_type:
-            self.prepareAlterDBEnv()
-            self.prepareAlterTableAndCheck(check)
+            self.prepareAlterEnv()
+            self.prepareAlterTableEnvAndCheck(check)
             self.destroyAlterTableEnv()
-        self.destroyAlterDBEnv()
+        self.destroyAlterEnv()
 
-    def alter_stable_column_varchar_39001(self):
-        """Check alter stable column varchar 39001 from 39000(TS-3841)
-        """
-        stbname = "st1"
-        column_dict = {
-            'ts'  : 'timestamp',
-            'col1': 'varchar(39000)',
-            'col2': 'tinyint',
-            'col3': 'timestamp',
-            'col4': 'tinyint',
-            'col5': 'timestamp',
-            'col6': 'varchar(18)',
-            'col7': 'varchar(17)'
-        }
-        tag_dict = {
-            'id': 'int'
-        }
-
-        tdSql.execute(self.setsql.set_create_stable_sql(stbname, column_dict, tag_dict))
-        res = tdSql.getResult(f'desc {stbname}')
-        tdLog.info(res)
-        assert(res[1][2] == 39000)
-        tdSql.execute(f'alter stable {stbname} modify column col1 varchar(39001)')
-        res = tdSql.getResult(f'desc {stbname}')
-        tdLog.info(res)
-        assert(res[1][2] == 39001)
 
     def run(self):
         self.alter_stable_check()
