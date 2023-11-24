@@ -169,7 +169,6 @@ int32_t streamTaskStartScanHistory(SStreamTask* pTask) {
   } else if (level == TASK_LEVEL__AGG) {
     if (pTask->info.fillHistory) {
       streamSetParamForScanHistory(pTask);
-      streamTaskEnablePause(pTask);
     }
   } else if (level == TASK_LEVEL__SINK) {
     stDebug("s-task:%s sink task do nothing to handle scan-history", pTask->id.idStr);
@@ -346,7 +345,6 @@ int32_t onNormalTaskReady(SStreamTask* pTask) {
     stDebug("s-task:%s level:%d status:%s sched-status:%d", id, pTask->info.taskLevel, p, pTask->status.schedStatus);
   }
 
-  streamTaskEnablePause(pTask);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -658,9 +656,6 @@ int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
   streamMetaSaveTask(pMeta, pTask);
   streamMetaCommit(pMeta);
   streamMetaWUnLock(pMeta);
-
-  // history data scan in the stream time window finished, now let's enable the pause
-  streamTaskEnablePause(pTask);
 
   // for source tasks, let's continue execute.
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
@@ -1038,11 +1033,6 @@ void streamTaskResume(SStreamTask* pTask) {
   } else {
     stDebug("s-task:%s status:%s not in pause/halt status, no need to resume", pTask->id.idStr, p);
   }
-}
-
-void streamTaskEnablePause(SStreamTask* pTask) {
-  stDebug("s-task:%s enable task pause", pTask->id.idStr);
-  pTask->status.pauseAllowed = 1;
 }
 
 static void displayStatusInfo(SStreamMeta* pMeta, SHashObj* pTaskSet, bool succ) {

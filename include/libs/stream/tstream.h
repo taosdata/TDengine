@@ -314,7 +314,6 @@ typedef struct SStreamStatus {
   int8_t         schedStatus;
   int8_t         keepTaskStatus;
   bool           appendTranstateBlock;  // has append the transfer state data block already, todo: remove it
-  int8_t         pauseAllowed;          // allowed task status to be set to be paused
   int32_t        timerActive;           // timer is active
   int32_t        inScanHistorySentinel;
 } SStreamStatus;
@@ -787,7 +786,6 @@ int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 int32_t     streamRestoreParam(SStreamTask* pTask);
 void        streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta);
 void        streamTaskResume(SStreamTask* pTask);
-void        streamTaskEnablePause(SStreamTask* pTask);
 int32_t     streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask);
 void        streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
 void        streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
