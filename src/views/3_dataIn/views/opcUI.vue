@@ -1188,7 +1188,7 @@ export default {
     "$store.state.app.currentDBName": {
       immediate: true,
       handler() {
-        if (this.tagName == "kafka") {
+        if (this.tagName == "kafka" || this.tagName == "mqtt") {
           this.getdbprecision();
         }
       },
@@ -1904,10 +1904,7 @@ export default {
           ],
           // trigger: { "resume": this.resume }
         };
-        if (this.tagName == "mqtt" && isSubmit) {
-          piParams["parser"] = this.$store.state.app.mqttParser;
-        }
-        if (this.tagName == "kafka" && isSubmit) {
+        if ((this.tagName == "kafka" || this.tagName == "mqtt") && isSubmit) {
           let value = this.$store.state.app.mqttParser.parse.payload;
           piParams["parser"] = {
             ...this.$store.state.app.mqttParser,
