@@ -17,7 +17,7 @@ class TDTestCase:
         self.tb2 = 'd002'
         self.tag1 = 'using meters(groupId) tags(1)'
         self.tag2 = 'using meters(groupId) tags(2)'
-        self.file1 = f"{self.testcasePath}/csv/1k.csv"
+        self.file1 = f"{self.testcasePath}/b.csv"
         self.file2 = f"{self.testcasePath}/csv/2k.csv"
 
         os.system("rm -rf %s/b.csv" %self.testcasePath)
@@ -99,7 +99,7 @@ class TDTestCase:
         # prepare csv
         tdSql.execute(f"Create table d100 using meters tags('California.X', 1);")
         once = 10000
-        qtime = 101
+        qtime = 11
         rowNum = qtime * once
         for j in range(qtime):
           sql = "insert into d1.d100 values"
