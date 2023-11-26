@@ -139,6 +139,7 @@ int32_t getWordLength(char type);
 int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements, char *const output, const char type);
 int32_t tsDecompressFloatImplAvx512(const char *const input, const int32_t nelements, char *const output);
 int32_t tsDecompressFloatImplAvx2(const char *const input, const int32_t nelements, char *const output);
+int32_t tsDecompressTimestampAvx512(const char* const input, const int32_t nelements, char *const output, bool bigEndian);
 
 /*************************************************************************
  *                  STREAM COMPRESSION
