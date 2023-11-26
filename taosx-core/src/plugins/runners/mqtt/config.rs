@@ -43,7 +43,8 @@ impl MqttConfig {
             log_level: dsn
                 .params
                 .get("log_level")
-                .ok_or(anyhow::anyhow!("log_level is required"))?
+                .map(Clone::clone)
+                .unwrap_or("info".to_string())
                 .to_string(),
             remote: format!("127.0.0.1:{}", ipc_port.unwrap_or(0)),
             mqtt: connect_config,
@@ -165,9 +166,8 @@ mod tests {
         assert_eq!("version is required", config.err().unwrap().to_string());
 
         let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0").unwrap();
-        let config = MqttConnectConfig::from_dsn(&dsn);
-        assert!(config.is_err());
-        assert_eq!("keep_alive is required", config.err().unwrap().to_string());
+        let config = MqttConnectConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.version, "3.0");
 
         let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60").unwrap();
         let config = MqttConnectConfig::from_dsn(&dsn);
