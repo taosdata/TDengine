@@ -90,6 +90,7 @@ export default {
   },
   mounted() {
     this.showOptions = this.options.collapsed;
+    this.generateParams(this.options)
   },
   methods: {
     switchChange(val, data) {
@@ -98,36 +99,37 @@ export default {
     switchOption(val) {
       this.showOptions = val;
     },
+    generateParams(val) {
+      this.paramStr = "";
+      if (val.collapsed) {
+        //展开时候才会传参数
+        let realArr = val.params.filter((val) => !val.hidden);
+        realArr.forEach((item, index) => {
+          if (item?.requires != "keep_raw_data") {
+            this.paramStr +=
+              `&${item.name}=${
+                item.name == "keep_raw_data" && Object.is(item.value, undefined)
+                  ? false
+                  : item.value
+              }` + (index < realArr.length - 3 ? "&" : "");
+          } else {
+            if (this.showRawdata) {
+              this.paramStr +=
+                `&${item.name}=${item.value}` +
+                (index < val.params.length - 1 ? "&" : "");
+            }
+          }
+        });
+      }
+      this.$emit("sendAdvanceParams", this.paramStr);
+    },
   },
   watch: {
     options: {
       deep: true,
       handler(val) {
         //拼接参数到dns上
-        if (val.collapsed) {
-          //展开时候才会传参数
-          this.paramStr = "";
-          this.paramStr += "&collapsed=true&";
-          let realArr=val.params.filter(val=>!val.hidden)
-          realArr.forEach((item, index) => {
-            if (item?.requires != "keep_raw_data") {
-              this.paramStr +=
-                `${item.name}=${
-                  item.name == "keep_raw_data" &&
-                  Object.is(item.value, undefined)
-                    ? false
-                    : item.value
-                }` + (index < realArr.length - 3 ? "&" : "");
-            } else {
-              if (this.showRawdata) {
-                this.paramStr +=
-                  `&${item.name}=${item.value}` +
-                  (index < val.params.length - 1 ? "&" : "");
-              }
-            }
-          });
-          this.$emit("sendAdvanceParams", this.paramStr);
-        }
+        this.generateParams(val)
       },
     },
   },

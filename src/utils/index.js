@@ -188,14 +188,18 @@ function handler(text) {
     }
   );
 }
-export function copy(
-  text,
-  success = () => Message.success(i18n.t("copySucc"))
-) {
-  const button = document.body.appendChild(document.createElement("button"));
-  button.textContent = text;
-  button.addEventListener("click", handler(text));
-  success();
+export function copy(text, success = () => Message.success(i18n.t("copySucc"))) {
+    const copyButton = document.getElementById('copyButton');
+    if (copyButton) {
+      document.body.removeChild(copyButton)
+    }
+    const button = document.body.appendChild(document.createElement("button"));
+    button.textContent = text;
+    button.id = 'copyButton'
+    button.addEventListener('click',handler(text))
+    button.style.display = 'none';
+  
+      success()
   // let polyfillFn = () => {
 
   //   // window.addEventListener('DOMContentLoaded',function(){

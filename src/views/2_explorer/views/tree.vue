@@ -269,6 +269,7 @@ import {
   GeneralOperator,
   RegularOperator,
 } from "@/const";
+import { getRunningTask } from "@/api/explorer/datain";
 const clickNoChange = ["sql", "xterm"];
 const getGeneralFn = (type) => {
   return GeneralOperator.filter((item) => !type.includes(item.label)).map(
@@ -672,31 +673,50 @@ export default {
       await this.handleVar(data, node);
       switch (data.typeName) {
         case "database":
-          this.$confirm(
-            this.$t("data.delDatabase") + ":" + data.name + "?",
-            this.$t("tips"),
-            {
-              confirmButtonText: this.$t("confirm"),
-              cancelButtonText: this.$t("cancel"),
-              type: "warning",
-            }
-          ).then(async () => {
-            this.requesting = true;
-            await this.$store
-              .dispatch("dbs/deleteDB", data.name)
-              .then(() => {
-                this.$message.success(this.$t("delSucc"));
-              })
-              .catch((err) => {
-                err.desc && Message.error(err.desc);
-              })
-              .finally(() => {
-                this.requesting = false;
-              })
-              .catch((res) => {
-                this.$message.error(res?.desc);
-              });
-          });
+          this.requesting = true;
+          let result = await getRunningTask()
+          let task = []
+          task = result.filter(item => item.to_expand?.subject == data.name)
+          if (task.length > 0) {
+            this.$alert(
+              this.$t("data.delRunningTaskBb").replace('{dbName}',data.name).replace('{taskName}',task[0]?.name),
+              this.$t("tips"),
+              {
+                confirmButtonText: this.$t("confirm"),
+                type: "warning",
+              }
+            ).then(() => {
+              this.requesting = false
+            })
+          } else {
+            this.$confirm(
+              this.$t("data.delDatabase") + ":" + data.name + "?",
+              this.$t("tips"),
+              {
+                confirmButtonText: this.$t("confirm"),
+                cancelButtonText: this.$t("cancel"),
+                type: "warning",
+              }
+            ).then(async () => {
+              this.requesting = true;
+              await this.$store
+                .dispatch("dbs/deleteDB", data.name)
+                .then(() => {
+                  this.$message.success(this.$t("delSucc"));
+                })
+                .catch((err) => {
+                  err.desc && Message.error(err.desc);
+                })
+                .finally(() => {
+                  this.requesting = false;
+                })
+                .catch((res) => {
+                  this.$message.error(res?.desc);
+                });
+            }).catch(() => {
+              this.requesting = false;
+            })
+          }
           break;
         case "stable":
           this.$confirm(

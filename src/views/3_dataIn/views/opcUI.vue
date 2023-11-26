@@ -1041,7 +1041,6 @@ export default {
   mounted() {
     if (this.tagName == "mqtt" || this.tagName == "kafka") {
       this.$set(this,'constmqttCols',this.dbsource[0].parser.fields)
-      console.log(this.constmqttCols,'识别的----kkkkkkk')
       let caitem = this.$store.state.app.mqttcafile[0];
       let certitem = this.$store.state.app.mqttcertfile[0];
       let certkeyitem = this.$store.state.app.mqttcertkeyfile[0];
@@ -1153,7 +1152,7 @@ export default {
     "$store.state.app.currentDBName": {
       immediate: true,
       handler() {
-        if (this.tagName == "kafka") {
+        if (this.tagName == "kafka" || this.tagName == "mqtt") {
           this.getdbprecision();
         }
       },
@@ -1359,7 +1358,8 @@ export default {
     },
 
     save() {
-      if (this.isEditable && !this.isCopyable) {
+      let status = this.$parent.currentTaskStatus
+      if (this.isEditable && !this.isCopyable && !['stopped','completed'].includes(status)) {
         this.$confirm(this.$t("dataIn.saveTip"), this.$t("warning"), {
           confirmButtonText: this.$t("confirm"),
           cancelButtonText: this.$t("cancel"),
@@ -1399,6 +1399,7 @@ export default {
     },
 
     async submit(isSubmit) {
+      console.log(this.constMqttparser,'constMqttparser')
       // debugger
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
@@ -1515,8 +1516,7 @@ export default {
                       }
                     }
                     if (
-                      data.groups[index].params[g].name == "topics" &&
-                      this.tagName == "mqtt"
+                      data.groups[index].params[g].name == "topics"
                     ) {
                       Message({
                         type: "warning",
