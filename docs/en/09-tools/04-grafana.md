@@ -1,6 +1,7 @@
 ---
 sidebar_label: Grafana
 title: Grafana for TDengine Cloud
+description: This document describes how to integrate TDengine Cloud with Grafana for data visualization.
 ---
 
 TDengine can be quickly integrated with the open-source data visualization system [Grafana](https://www.grafana.com/) to build a data monitoring and alerting system. The whole process does not require any code development. And you can visualize the contents of the data tables in TDengine on a dashboard.

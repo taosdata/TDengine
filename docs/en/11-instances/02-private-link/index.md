@@ -1,8 +1,9 @@
 ---
 title: PrivateLink
 sidebar_label: PrivateLink
-description: This document describes how to connect your VPC to TDengine service with PrivateLink as if they were in one VPC
+description: This document describes how to connect your VPC to TDengine Cloud with PrivateLink.
 ---
+
 <!-- markdownlint-disable MD033 -->
 ## Introduction
 

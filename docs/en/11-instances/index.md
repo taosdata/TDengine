@@ -1,7 +1,7 @@
 ---
 sidebar_label: Instances
 title: Instances
-description: Instances list
+description: This document describes how to view and configure your instances in TDengine Cloud.
 ---
 
 This chapter introduces the instances list and their related resources, such as private links and operation logs.

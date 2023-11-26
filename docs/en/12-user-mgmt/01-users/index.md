@@ -1,7 +1,7 @@
 ---
 sidebar_label: Users
 title: Users
-description: 'Users includes add new users, delete the user and assign the user with specific role and resources'
+description: This document describes how to add and delete users in TDengine Cloud and how to assign roles and resources to them.
 ---
 
 In the **Users** tab, TDengine Cloud list all users in the current organization. You can add new users, disable the specific user and delete him. Also you can assign or unassign any role of the organization to the user on the resources including organization, instances or databases. If you assign the organization level role **Instance Admin** to some user, the user will be administrator of all your instances.

@@ -1,8 +1,9 @@
 ---
 sidebar_label: PI Backfill
 title: PI Backfill Data Source
-description: This document describes how to establish a connection with your PI System deployment and extract history data from PI System into TDengine Cloud instance.
+description: This document describes how to establish a connection with your PI System deployment and extract historical data from PI System into a TDengine Cloud instance.
 ---
+
 You can extract history data from PI System into TDengine Cloud with the **Data Sources** feature. This integration uses the AF SDK to stream buffered data and query historical data from the PI Data Archive, set up PI and AF data pipes for streaming data, and connect to PI AF to query the AF structure. It also creates the corresponding tables and writes this data to TDengine Cloud over a secure RESTful API.
 
 For more information about this solution, see [TDengine for PI System](https://tdengine.com/pi-system/).

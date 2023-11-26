@@ -1,7 +1,7 @@
 ---
 sidebar_label: Profile
 title: Profile
-description: 'set personal information, password or MFA'
+description: This document describes how to set your personal information, password, and MFA configuration in TDengine Cloud.
 ---
 
 Click the **Setting** in the popped menu of the user avatar, you can enter the personal setting page.

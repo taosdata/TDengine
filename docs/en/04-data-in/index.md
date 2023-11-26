@@ -1,7 +1,7 @@
 ---
 sidebar_label: Data In
 title: Data In for TDengine Cloud Instance
-description: Many methods to do data in for TDengine Cloud instance
+description: This document describes the methods by which you can get data in to TDengine Cloud.
 ---
 
 TDengine Cloud provides three types of data writing methods to write external data into TDengine Cloud instances.

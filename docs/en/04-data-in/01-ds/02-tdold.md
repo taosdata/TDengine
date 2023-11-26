@@ -1,8 +1,9 @@
 ---
 sidebar_label: Legacy TDengine
 title: Legacy TDengine Data Source
-description:  This document describes how to extract data from legacy TDengine to the TDengine Cloud instance.
+description: This document describes how to extract data from a legacy TDengine instance to a TDengine Cloud instance.
 ---
+
 Legacy TDengine type of data source is to extract data from the edge side TDengine Cloud to the currently selected TDengine Cloud instance through query.
 
 ## Prerequisites

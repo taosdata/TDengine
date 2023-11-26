@@ -1,7 +1,7 @@
 ---
 sidebar_label: Programming
 title: Programming
-description: The most fundamental knowledge about programming with TDengine.
+description: This document describes how to use the various components of TDengine Cloud from a developer's perspective.
 ---
 
 To develop an application to process time-series data using TDengine, we recommend taking the following steps:

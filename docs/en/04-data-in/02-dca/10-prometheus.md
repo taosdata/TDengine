@@ -1,7 +1,7 @@
 ---
 sidebar_label: Prometheus
 title: Prometheus for TDengine Cloud
-description: Write data into TDengine from Prometheus.
+description: This document describes how to write data into TDengine Cloud from Prometheus.
 ---
 
 Prometheus is a widespread open-source monitoring and alerting system. Prometheus joined the Cloud Native Computing Foundation (CNCF) in 2016 as the second incubated project after Kubernetes, which has a very active developer and user community.

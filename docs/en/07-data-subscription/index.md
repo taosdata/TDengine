@@ -1,7 +1,7 @@
 ---
 sidebar_label: Data Subscription
 title: Data Subscription
-description: Using topics to do data subscription and share to others from TDengine Cloud.
+description: This document describes how you can use topics to perform data subscription and share your data in TDengine Cloud.
 ---
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";

@@ -1,7 +1,7 @@
 ---
 sidebar_label: Data Replication
 title: Data Replication
-description: Do the data replication between different TDengine Cloud instances.
+description: This document describes how to replicate data between different TDengine Cloud instances.
 ---
 
 TDengine Cloud provides full support for data replication. You can replicate data from the current instance of TDengine Cloud to another instance, both instances can be in the same regio or in different regions.

@@ -1,7 +1,7 @@
 ---
 sidebar_label: Instance List
 title: Instance List
-description: List all instances of the current organization in TDengine Cloud.
+description: This document describes the instance list of your organization in TDengine Cloud.
 ---
 
 This section lists all instances created by the current organization of TDengine Cloud. Each instance shows its alias, region, token, URL, price plan, basic status and other information.

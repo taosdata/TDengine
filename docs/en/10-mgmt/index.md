@@ -1,7 +1,7 @@
 ---
 sidebar_label: Management
 title: Management
-description: Used to manage the resources of the TDengine Cloud instance.
+description: This document describes how to manage the resources of your TDengine Cloud instance.
 ---
 
 This chapter introduces the management of resources within a TDengine instance provided by TDengine Cloud, mainly including users and user groups, backup tasks, replication tasks, IP whitelisting  and operation logs resources.

@@ -1,7 +1,7 @@
 ---
 sidebar_label: User Groups
 title: User Groups
-description: 'User Groups includes add a new user group, delete the user group and assign it with specific role and resources'
+description: This document describes how to add and delete user groups in TDengine Cloud and how to assign roles and resources to them.
 ---
 
 In the **User Groups** tab, TDengine Cloud list all user groups in the current organization. You can add new user groups, disable the specific user group and delete it. Also you can assign or unassign any role of the organization to the user group on the resources including organization, instances or databases. If you assign the organization level role **Instance Admin** to the specified user group, the all users in the user group will be administrator of all your instances.

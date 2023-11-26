@@ -1,6 +1,7 @@
 ---
 sidebar_label: Google Data Studio
 title: Use Google Data Studio
+description: This document describes how to integrate TDengine Cloud with Google Data Studio for data visualization.
 ---
 
 Using its [partner connector](https://datastudio.google.com/data?search=TDengine), Google Data Studio can quickly access TDengine and create interactive reports and dashboards using its web-based reporting features.The whole process does not require any code development. Share your reports and dashboards with individuals, teams, or the world. Collaborate in real time. And embbed your report on any web page.

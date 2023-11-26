@@ -2,7 +2,7 @@
 title: taosBenchmark
 sidebar_label: taosBenchmark
 toc_max_heading_level: 4
-description: "taosBenchmark (once called taosdemo ) is a tool for testing the performance of TDengine."
+description: This document describes how to use taosBenchmark, a tool for testing the performance of TDengine Cloud.
 ---
 
 ## Introduction

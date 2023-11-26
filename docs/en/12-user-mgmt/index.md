@@ -1,7 +1,7 @@
 ---
 sidebar_label: Users
 title: Users
-description: TDengine Cloud uses the users management for organizations, users, user groups, roles, instances and databases.
+description: This document describes how to manage organizations, users, user groups, and roles in TDengine Cloud.
 ---
 
 TDengine Cloud provides a simple and convinent user management including users, user groups, roles, permissions and resources. TDengine Cloud provides the eight default roles and four level privileges, which includes organization level, instance level, database level and grant privilege level. The default roles are Database Admin, Finance, Data Writer, Data Reader, Developer, Instance Admin, Super Admin and Organization Owner.  You can also create customized roles with TDengine Cloud defined privileges.

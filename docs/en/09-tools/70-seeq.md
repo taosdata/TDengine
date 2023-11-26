@@ -1,7 +1,7 @@
 ---
 sidebar_label: Seeq
 title: Seeq
-description: How to use Seeq and TDengine to perform time series data analysis
+description: This document describes how to use Seeq and TDengine to perform time series data analysis.
 ---
 
 # How to use Seeq and TDengine to perform time series data analysis

@@ -2,6 +2,7 @@
 toc_max_heading_level: 4
 sidebar_label: R
 title: TDengine R Language Connector
+description: This document describes how to connect to TDengine Cloud using the R connector.
 ---
 
 ## Configuration

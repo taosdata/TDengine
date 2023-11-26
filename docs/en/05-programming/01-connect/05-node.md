@@ -1,7 +1,7 @@
 ---
 sidebar_label: Node.js
 title: Connect with Node.js Connector
-description: Connect to TDengine cloud service using Node.JS connector
+description: This document describes how to connect to TDengine Cloud using the Node.js connector.
 ---
 <!-- exclude -->
 import Tabs from '@theme/Tabs';
