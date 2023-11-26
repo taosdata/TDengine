@@ -421,6 +421,7 @@ export default {
       });
     },
     edit(data, status, iscopy) {
+      console.log(data,status,iscopy,'编辑000099---pppp')
       this.$parent.sourceName = data.name;
       this.$parent.currentTaskStatus = status;
       this.$parent.agentID = data?.via;
@@ -434,6 +435,10 @@ export default {
         this.$store.commit("app/SET_CURRENT_AGENT", data?.via);
         this.$store.commit("app/SET_CURRENT_DSNAME", data.name);
         let editDdata = deepClone([].concat(data.from_detail));
+        if(data.from_detail.id=='mqtt'||data.from_expand.id == "kafka"){
+          this.$store.commit('app/SET_TRANSFORM_PARSERDATA',data.parser)
+          console.log(this.$store.state.app.transformerParserData,'mqtt编辑回西安')
+        }
         if (data.from_expand && data.from_expand.id == "mqtt") {
           let dnsarr = data.from.split("?")[1].split("&");
           let caindex = dnsarr.findIndex((item) => item.includes("ca="));
@@ -456,17 +461,17 @@ export default {
           this.$store.commit("app/SET_MQTT_PARSER", data.parser);
           this.$parent.parserobj = deepClone(data.parser);
         }
-        if (data.from_expand && data.from_expand.id == "kafka") {
-          let payload = deepClone(data.parser.parse.value);
-          let parser = {
-            ...data.parser,
-            parse: {
-              payload,
-            },
-          };
-          this.$store.commit("app/SET_MQTT_PARSER", parser);
-          this.$parent.parserobj = deepClone(parser);
-        }
+        // if (data.from_expand && data.from_expand.id == "kafka") {
+        //   let payload = deepClone(data.parser.parse.value);
+        //   let parser = {
+        //     ...data.parser,
+        //     parse: {
+        //       payload,
+        //     },
+        //   };
+        //   this.$store.commit("app/SET_MQTT_PARSER", parser);
+        //   this.$parent.parserobj = deepClone(parser);
+        // }
         if (
           data.from_expand &&
           (data.from_expand.id == "opcua" || data.from_expand.id == "opcda")

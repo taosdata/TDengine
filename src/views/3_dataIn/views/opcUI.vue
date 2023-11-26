@@ -816,7 +816,7 @@
             ref="mqtt"
             :isEditable="isEditable"
           ></MqttConnector> -->
-          <CommonTransformer :parserColumns="constmqttCols"></CommonTransformer>
+          <CommonTransformer :parserColumns="constmqttCols" @getTransformerParams='getTransformerParams' ref="transformer"></CommonTransformer>
         </div>
       </section>
       <section v-if="tagName == 'csv'">
@@ -902,12 +902,6 @@ export default {
       },
     },
     opcConfig: {
-      type: Object,
-      default: () => {
-        return null;
-      },
-    },
-    constMqttparser: {
       type: Object,
       default: () => {
         return null;
@@ -1014,6 +1008,7 @@ export default {
         // version: '', // 返回数据源版本，不能获得版本则不返回该字段。
       },
       activeCollapse: "",
+      transformerParser:null
     };
   },
   created() {
@@ -1045,7 +1040,8 @@ export default {
   },
   mounted() {
     if (this.tagName == "mqtt" || this.tagName == "kafka") {
-      this.constmqttCols =this.dbsource[0].parser.fields ;
+      this.$set(this,'constmqttCols',this.dbsource[0].parser.fields)
+      console.log(this.constmqttCols,'识别的----kkkkkkk')
       let caitem = this.$store.state.app.mqttcafile[0];
       let certitem = this.$store.state.app.mqttcertfile[0];
       let certkeyitem = this.$store.state.app.mqttcertkeyfile[0];
@@ -1166,7 +1162,7 @@ export default {
       immediate: true,
       handler(val) {
         if (val == "kafka"||val=='mqtt') {
-          this.constmqttCols=this.$parent.uidata[0].parser.fields
+          this.$set(this,'constmqttCols',this.$parent.uidata[0].parser.fields)
         }
       },
     },
@@ -1382,6 +1378,10 @@ export default {
       // csv 不做检测
       this.checkResult = this.$options.data().checkResult;
       this.submit(false);
+    },
+    //获取transformer的参数
+    getTransformerParams(data){
+      this.transformerParser=data
     },
     // 数据源可用性和版本检查
     async getValidateResult(dns) {
@@ -1752,6 +1752,9 @@ export default {
           dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
         }
         if ((this.tagName == "mqtt" || this.tagName == "kafka") && isSubmit) {
+          this.$refs.transformer.getTransformerParams()
+
+          console.log(this.transformerParser,'这是transforme的parser')
           // if (this.$refs.mqtt) {
           //   this.$refs.mqtt.submit();
           //   if (this.$refs.mqtt.showSuperTip) {
@@ -1770,16 +1773,16 @@ export default {
           //     return;
           //   }
           // }
-          let oldparser = this.$store.state.app.mqttParser;
-          let columns = oldparser.model.columns;
-          if (columns.includes(this.$refs.mqtt.defaultSelect)) {
-            columns.map((item, ind) => {
-              if (item == this.$refs.mqtt.defaultSelect) {
-                columns.unshift(columns.splice(ind, 1)[0]);
-              }
-            });
-          }
-          this.$store.commit("app/SET_MQTT_PARSER", this.constMqttparser);
+          // let oldparser = this.$store.state.app.mqttParser;
+          // let columns = oldparser.model.columns;
+          // if (columns.includes(this.$refs.mqtt.defaultSelect)) {
+          //   columns.map((item, ind) => {
+          //     if (item == this.$refs.mqtt.defaultSelect) {
+          //       columns.unshift(columns.splice(ind, 1)[0]);
+          //     }
+          //   });
+          // }
+          // this.$store.commit("app/SET_MQTT_PARSER", this.constMqttparser);
         }
 
         if (this.tagName.includes("opc") && isSubmit) {
@@ -1881,24 +1884,25 @@ export default {
           ],
           // trigger: { "resume": this.resume }
         };
-        if (this.tagName == "mqtt" && isSubmit) {
-          piParams["parser"] = this.$store.state.app.mqttParser;
+        if ((this.tagName == "mqtt" ||this.tagName == "kafka") && isSubmit) {
+          // piParams["parser"] = this.$store.state.app.mqttParser;
+          piParams["parser"]=this.transformerParser
         }
-        if (this.tagName == "kafka" && isSubmit) {
-          let value = this.$store.state.app.mqttParser.parse.payload;
-          piParams["parser"] = {
-            ...this.$store.state.app.mqttParser,
-            parse: {
-              value: {
-                ...value,
-                keep: false,
-              },
-              ts: {
-                as: `timestamp(${this.dbprecision})`,
-              },
-            },
-          };
-        }
+        // if (this.tagName == "kafka" && isSubmit) {
+        //   let value = this.$store.state.app.mqttParser.parse.payload;
+        //   piParams["parser"] = {
+        //     ...this.$store.state.app.mqttParser,
+        //     parse: {
+        //       value: {
+        //         ...value,
+        //         keep: false,
+        //       },
+        //       ts: {
+        //         as: `timestamp(${this.dbprecision})`,
+        //       },
+        //     },
+        //   };
+        // }
         if (this.agentId) {
           piParams["via"] = this.agentId;
         }

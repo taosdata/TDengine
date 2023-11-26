@@ -36,7 +36,7 @@
         <el-form-item prop="filter_expres">
           <el-popover
             trigger="click"
-            placement="right-end"
+            placement="top-start"
             :content="$t('datasource.transformer.mutiple')"
           >
             <el-input
@@ -138,6 +138,10 @@ export default {
     };
   },
   methods: {
+    //提交验证
+    validateExtreact(){
+
+    },
     changeExtractExpr(val) {
       this.$emit("changeExtractExpr", this.ruleForm.col_name, val);
     },
@@ -160,8 +164,8 @@ export default {
       );
     },
     submit() {
-      if (!this.$parent.msgbody) {
-        Message.error(this.$t("datasource.transformer.msgbodytip"));
+      this.$parent.validateMsgBody()
+      if (!this.$parent.msgForm.msgbody) {
         return;
       }
       this.$refs.extractForm.validate((valid) => {
@@ -189,7 +193,6 @@ export default {
           );
         });
 
-        console.log(result, this.tableData, "jieguo---结果");
       } catch (error) {
         console.log(error);
       }
@@ -217,13 +220,12 @@ export default {
       this.$parent.extractArr.map((item) => {
                 return {
                     [`${item.columnname}`]:{
-                        [`${item.type}`]:item.expression.split(';')
+                        [`${item.type}`]:item.type=='regex'?item.expression:item.expression.split(';')
                     }
                 }
             }).forEach(val=>{
                 Object.assign(parseData,val)
             })
-            console.log(parseData,'parseData')
       let parser = {
         parser: {
           parse: parseData
@@ -231,7 +233,6 @@ export default {
         input: [].concat(inputobj),
       };
       this.getParserData(parser);
-      console.log(parser, inputobj, this.$parent.extractArr, "提交单个");
     },
     deleteExtract() {
       this.$emit("deleteExtract", this.index, this.ruleForm.col_name);
@@ -241,12 +242,6 @@ export default {
     if (this.itemData) {
       this.initData(this.itemData);
     }
-
-    console.log(
-      this.extractColumns,
-      this.$store.state.app.currentDBType,
-      "extractColumnsextractColumns"
-    );
   },
   watch: {
     itemData: {

@@ -1194,7 +1194,9 @@ export default {
       msgbody:'Message Body',
       msgbodytip:'Please enter the message body first',
       searchSResult:'Press the enter key to query after completion',
-      tablenametip:'Please enter the table name expression first'
+      tablenametip:'Please enter the table name expression first',
+      mapcaculate:'Please caculate mapping first',
+      caculate:'Caculate'
     },
     opcurl:'Please enter the OPC url',
     selecttargetdb:'Please select the target database',

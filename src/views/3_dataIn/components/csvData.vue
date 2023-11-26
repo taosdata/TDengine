@@ -41,8 +41,8 @@
               class="nextbtn"
               >{{ $t("datasource.csvNext") }}</el-button
             >
-            <CommonTransformer :parserColumns="csvColumns" v-if="csvColumns.length>0"></CommonTransformer>
-            <!-- <div class="csv-config" v-if="showConfig">
+            <!-- <CommonTransformer :parserColumns="csvColumns" v-if="csvColumns.length>0"></CommonTransformer> -->
+            <div class="csv-config" v-if="showConfig">
               <ul class="csv-tableheader">
                 <li>{{ $t("datasource.csvcol") }}</li>
                 <li>{{ $t("datasource.dbcol") }}</li>
@@ -85,7 +85,7 @@
                   ></CsvColumn>
                 </li>
               </ul>
-            </div> -->
+            </div>
           </template>
         </CsvParameter>
       </el-tabs>
