@@ -1,7 +1,7 @@
 ---
 sidebar_label: REST API
 title: REST API
-description: Connect to TDengine Cloud Service through RESTful API
+description: This document describes how to connect to TDengine Cloud using the REST API.
 ---
 
 <!-- exclude -->

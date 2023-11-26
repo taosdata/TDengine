@@ -1,8 +1,9 @@
 ---
 sidebar_label: Kafka
 title: Kafka Data Source
-description: This document describes how to extract data from Kafka into TDengine Cloud instance.
+description: This document describes how to extract data from Kafka into a TDengine Cloud instance.
 ---
+
 MQTT data source is the process of writing data from the Kafka server to the currently selected TDengine Cloud instance via a connection agent.
 
 ## Prerequisites

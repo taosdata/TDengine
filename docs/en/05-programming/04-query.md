@@ -1,7 +1,7 @@
 ---
 sidebar_label: Query
 title: Query Data Using SQL
-description: Programming Guide for Querying Data using basic SQL.
+description: This document describes how to query data in TDengine Cloud and how to perform synchronous and asynchronous queries using connectors.
 ---
 
 import Tabs from '@theme/Tabs';

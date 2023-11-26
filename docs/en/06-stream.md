@@ -1,6 +1,6 @@
 ---
 sidebar_label: Stream Processing
-description: "The TDengine stream processing engine combines data inserts, preprocessing, analytics, real-time computation, and alerting into a single component."
+description: This document describes the stream processing component of TDengine Cloud.
 title: Stream Processing
 ---
 

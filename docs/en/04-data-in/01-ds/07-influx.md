@@ -1,8 +1,9 @@
 ---
 sidebar_label: InfluxDB
 title: InfluxDB Data Source
-description: This document describes how to extract data from InfluxDB into TDengine Cloud instance.
+description: This document describes how to extract data from InfluxDB into a TDengine Cloud instance.
 ---
+
 InfluxDB data source is the process of writing data from the InfluxDB server to the currently selected TDengine Cloud instance via a connection agent.
 
 ## Prerequisites

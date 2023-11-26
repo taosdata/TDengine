@@ -1,7 +1,7 @@
 ---
 sidebar_label: Insert
 title: Insert Data Using SQL
-description: Programming Guide for Inserting data using TDengine SQL
+description: This document describes how to insert data into TDengine using SQL.
 ---
 
 

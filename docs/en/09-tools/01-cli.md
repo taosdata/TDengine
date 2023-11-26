@@ -1,7 +1,7 @@
 ---
 title: TDengine Command Line (CLI)
 sidebar_label: TDengine CLI
-description: Instructions and tips for using the TDengine CLI to connect TDengine Cloud
+description: This document describes how to use the TDengine CLI to connect to TDengine Cloud.
 ---
 
 <!-- exclude -->

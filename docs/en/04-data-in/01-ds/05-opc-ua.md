@@ -1,8 +1,9 @@
 ---
 sidebar_label: OPC UA
 title: OPC UA Data Source
-description: This document describes how to establish a connection with your OPC UA server and extract history data from OPC UA server into TDengine Cloud instance.
+description: This document describes how to establish a connection with your OPC UA server and extract data from OPC into a TDengine Cloud instance.
 ---
+
 OPC UA data source is the process of writing data from the OPC UA server to the currently selected TDengine Cloud instance via a connection agent.
 
 :::note IMPORTANT

@@ -1,7 +1,7 @@
 ---
 sidebar_label: C#
 title: Connect with C# Connector
-description: Connect to TDengine cloud service using C# connector
+description: This document describes how to connect to TDengine Cloud using the C# connector.
 ---
 <!-- exclude -->
 import Tabs from '@theme/Tabs';

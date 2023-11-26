@@ -1,7 +1,7 @@
 ---
 sidebar_label: DBeaver
 title: DBeaver
-description: You can use DBeaver to access your data stored in TDengine and TDengine Cloud.
+description: This document describes how to use DBeaver to access your data stored in TDengine Cloud.
 ---
 
 [DBeaver](https://dbeaver.io/) is a popular cross-platform database management tool that facilitates data management for developers, database administrators, data analysts, and other users. Starting from version 23.1.1, DBeaver natively supports TDengine and can be used to manage TDengine Cloud as well as TDengine clusters deployed on-premises.

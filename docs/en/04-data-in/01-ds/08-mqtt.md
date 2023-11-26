@@ -1,8 +1,9 @@
 ---
 sidebar_label: MQTT
 title: MQTT Data Source
-description: This document describes how to extract data from MQTT into TDengine Cloud instance.
+description: This document describes how to extract data from MQTT into a TDengine Cloud instance.
 ---
+
 MQTT data source is the process of writing data from the MQTT server to the currently selected TDengine Cloud instance via a connection agent.
 
 ## Prerequisites

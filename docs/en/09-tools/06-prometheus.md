@@ -1,7 +1,7 @@
 ---
 sidebar_label: Prometheus
 title: Prometheus remote read
-description: Prometheus remote_read from TDengine cloud server
+description: This document describes how to configure Prometheus to read data from TDengine Cloud.
 ---
 
 Prometheus is a widespread open-source monitoring and alerting system. Prometheus joined the Cloud Native Computing Foundation (CNCF) in 2016 as the second incubated project after Kubernetes, which has a very active developer and user community.

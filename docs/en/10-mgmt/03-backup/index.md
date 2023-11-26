@@ -1,7 +1,7 @@
 ---
 sidebar_label: Backup
 title: Backup
-description: Do the backup or recovery for the specified TDengine Cloud instance.
+description: This document describes how to perform backup and recovery for your TDengine Cloud instance.
 ---
 
 TDengine Cloud provides full support for data backup. Customers can backup data from a database of the current TDengine Cloud instance, or restore data from backup files already stored in TDengine Cloud to the database of the current TDengine Cloud instance.

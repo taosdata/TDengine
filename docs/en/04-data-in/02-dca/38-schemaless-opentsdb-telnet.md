@@ -1,7 +1,7 @@
 ---
 sidebar_label: OpenTSDB Telnet Protocol
 title: Schemaless - OpenTSDB Telnet Protocol
-description: Insert data in OpenTSDB Telnet Protocol
+description: This document describes how to insert schemaless data with the OpenTSDB telnet protocol.
 ---
 
 <!-- exclude -->

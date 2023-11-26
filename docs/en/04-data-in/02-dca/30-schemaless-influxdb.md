@@ -1,7 +1,7 @@
 ---
 sidebar_label: InfluxDB Line Protocol
 title: Schemaless - InfluxDB Line Protocol
-description: Insert data in Schemaless Line Protocol
+description: This document describes how to insert schemaless data with the InfluxDB line protocol.
 ---
 
 <!-- exclude -->

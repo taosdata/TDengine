@@ -1,7 +1,7 @@
 ---
 sidebar_label: Node.JS
 title: TDengine Node.JS Connector
-description: Detailed guide for Node.JS Connector
+description: This document describes the TDengine Node.js connector.
 ---
 
  `@tdengine/rest` are the official Node.js language connectors for TDengine. Node.js developers can develop applications to access TDengine instance data. `@tdengine/rest` is a **REST connector** that connects to TDengine instances via the REST API.

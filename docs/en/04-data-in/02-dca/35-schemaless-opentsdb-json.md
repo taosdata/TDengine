@@ -1,7 +1,7 @@
 ---
 sidebar_label: OpenTSDB JSON Protocol
 title: Schemaless - OpenTSDB JSON Protocol
-description: Insert data in OpenTSDB JSON Protocol
+description: This document describes how to insert schemaless data with the OpenTSDB JSON protocol.
 ---
 
 <!-- exclude -->

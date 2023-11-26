@@ -1,8 +1,9 @@
 ---
 sidebar_label: CSV
 title: CSV Data Source
-description: This document describes how to extract data from CSV files to the TDengine Cloud instance.
+description: This document describes how to extract data from CSV files into a TDengine Cloud instance.
 ---
+
 CSV data source, which is written to the currently selected TDengine Cloud instance by uploading a CSV file to it.
 
 ## Prerequisites

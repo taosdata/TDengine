@@ -1,7 +1,7 @@
 ---
 toc_max_heading_level: 4
 sidebar_label: R
-title: R Language Connector
+description: This document describes the TDengine R connector.
 ---
 
 By using the RJDBC library in R, you can enable R programs to access TDengine data. Here are the installation process, configuration steps, and an example code in R.

@@ -1,8 +1,9 @@
 ---
 sidebar_label: OPC DA
 title: OPC DA Data Source
-description: This document describes how to establish a connection with your OPC DA server and extract data from OPC UA server into TDengine Cloud instance.
+description: This document describes how to establish a connection with your OPC DA server and extract data from OPC into a TDengine Cloud instance.
 ---
+
 OPC DA data source is the process of writing data from the OPC UA server to the currently selected TDengine Cloud instance via a connection agent.
 
 :::note IMPORTANT

@@ -1,7 +1,7 @@
 ---
 sidebar_label: Python
 title: Connect with Python Connector
-description: Connect to TDengine cloud service using Python connector
+description: This document describes how to connect to TDengine Cloud using the Python connector.
 ---
 
 <!-- exclude -->

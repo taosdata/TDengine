@@ -1,7 +1,7 @@
 ---
 sidebar_label: Releases
 title: Releases
-description: TDengine Cloud all releases
+description: This document describes all TDengine Cloud releases.
 ---
 
 The TDengine Cloud all releases are here.

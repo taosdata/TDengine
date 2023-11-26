@@ -1,7 +1,7 @@
 ---
 sidebar_label: Roles
 title: Roles
-description: TDengine Cloud 提供了对当前组织的角色的管理
+description: This document describes how to manage roles in TDengine Cloud.
 ---
 
 On the **Roles** tab page, TDengine Cloud lists all the roles in the current organization, including eight default roles, such as Database Admin, Finance, Data Writer, Data Reader, Developer, Instance Admin, Super Admin, and Organization Owner. There are also so four levels of privileges, such as organization level, instance level, database level, and grant privilege level.

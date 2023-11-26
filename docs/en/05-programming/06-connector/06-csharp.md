@@ -1,7 +1,7 @@
 ---
 sidebar_label: C#
 title: TDengine C# Connector
-description: Detailed guide for C# Connector
+description: This document describes the TDengine C# connector.
 ---
 
  `TDengine.Connector` is the official C# connector for TDengine. C# developers can develop applications to access TDengine instance data.
