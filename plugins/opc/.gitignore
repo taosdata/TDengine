@@ -5,3 +5,4 @@ dist
 *.zip
 taosx-opc
 collector
+/tmp/

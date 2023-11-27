@@ -65,7 +65,7 @@ func NewUAClient(ctx context.Context, connectConfig config.UaConnectConfig, coll
 		}
 	}
 	interval := collectConfig.Interval
-	opcLogger := logger.WithField("index", index).WithField("endpoint", connectConfig.Endpoint)
+	opcLogger := logger.WithField("id", index).WithField("endpoint", connectConfig.Endpoint)
 	var dataDumper *log.DataDump
 	if collectConfig.Dump.Enable {
 		opcLogger.Info("dump is enabled")

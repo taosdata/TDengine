@@ -76,7 +76,7 @@ func (r *ArrowReporter) startReceiveMessage() {
 				r.logger.Info("arrow reporter exit")
 				return
 			case list := <-r.messageList.C:
-				r.logger.Debugf("receive message list count %d", len(list))
+				r.logger.Debugf("receive message list data count %d", len(list))
 				err := r.upload(list)
 				if err != nil {
 					r.logger.Errorf("upload error %s", err)
@@ -87,7 +87,7 @@ func (r *ArrowReporter) startReceiveMessage() {
 }
 
 func (r *ArrowReporter) upload(list []*common.NodeValue) error {
-	r.logger.Debugf("upload %#v", list)
+	r.logger.Debugf("upload data count %d", len(list))
 	recordBuilder := array.NewRecordBuilder(r.allocator, r.schema)
 	defer recordBuilder.Release()
 	idField := recordBuilder.Field(0).(*array.StringBuilder) // id
@@ -120,7 +120,7 @@ func (r *ArrowReporter) upload(list []*common.NodeValue) error {
 	}
 	record := recordBuilder.NewRecord()
 	defer record.Release()
-	r.logger.Debugf("reported data: %#v", list)
+	r.logger.Debugf("reported data count: %d", len(list))
 	err := r.writer.Write(record)
 	if err != nil {
 		return err
@@ -135,7 +135,7 @@ func (r *ArrowReporter) upload(list []*common.NodeValue) error {
 	responseRecord := r.reader.Record()
 	defer responseRecord.Release()
 	respTime := time.Since(start)
-	r.logger.Debugf("read response time %s", respTime)
+	r.logger.Debugf("read response time %dms", respTime.Milliseconds())
 	if respTime > r.batchTimeout {
 		r.logger.WithField("responseTime", respTime).WithField("batchTimeout", r.batchTimeout).Warn("read response time too long")
 	}
@@ -159,7 +159,7 @@ func (r *ArrowReporter) upload(list []*common.NodeValue) error {
 }
 
 func (r *ArrowReporter) Report(list []*common.NodeValue) {
-	r.logger.Debug("report")
+	r.logger.Debug("report to message list")
 	r.messageList.Add(list)
 }
 

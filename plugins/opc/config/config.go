@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"slices"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -152,7 +151,7 @@ var policies = []string{"None", "Basic128Rsa15", "Basic256", "Basic256Sha256", "
 	"Aes256_Sha256_RsaPss"}
 
 func (c *UaConnectConfig) validateSecurityPolicy() error {
-	if !slices.Contains(policies, c.SecurityPolicy) {
+	if !Contains(policies, c.SecurityPolicy) {
 		return fmt.Errorf("invalid security policy %q", c.SecurityPolicy)
 	}
 	if c.SecurityPolicy != "None" && (len(c.Certificate) == 0 || len(c.PrivateKey) == 0) {
@@ -164,7 +163,7 @@ func (c *UaConnectConfig) validateSecurityPolicy() error {
 var modes = []string{"None", "Sign", "SignAndEncrypt"}
 
 func (c *UaConnectConfig) validateSecurityMode() error {
-	if !slices.Contains(modes, c.SecurityMode) {
+	if !Contains(modes, c.SecurityMode) {
 		return fmt.Errorf("invalid security type %q", c.SecurityMode)
 	}
 	if c.SecurityMode != "None" && (len(c.Certificate) == 0 || len(c.PrivateKey) == 0) {
@@ -176,7 +175,7 @@ func (c *UaConnectConfig) validateSecurityMode() error {
 var authMethods = []string{"certificate", "username", "anonymous"}
 
 func (c *UaConnectConfig) validateAuthMethod() error {
-	if !slices.Contains(authMethods, strings.ToLower(c.AuthMethod)) {
+	if !Contains(authMethods, strings.ToLower(c.AuthMethod)) {
 		return fmt.Errorf("invalid auth method %q", c.AuthMethod)
 	}
 	if strings.ToLower(c.AuthMethod) == "username" && (len(c.Username) == 0 || len(c.Password) == 0) {

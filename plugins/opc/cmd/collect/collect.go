@@ -9,6 +9,9 @@ import (
 	"collector/log"
 	"collector/reporter"
 	"context"
+	"net"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -45,6 +48,7 @@ func collect() {
 	}
 	if conf.Debug {
 		log.SetLevel("debug")
+		enablePprof()
 	}
 
 	var opcClient client.OPCClient
@@ -98,6 +102,23 @@ func handleMessage(manager *reporter.Manager) client.OnMessage {
 			r.Report(v)
 		}
 	}
+}
+
+func enablePprof() {
+	listenAddr := ":0"
+
+	server := &http.Server{
+		Addr:    listenAddr,
+		Handler: http.DefaultServeMux,
+	}
+	ln, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		logger.WithError(err).Panic("enable pprof error")
+	}
+	addr := ln.Addr()
+	logger.Infof("pprof server listening on %s", addr.String())
+	server.Close()
+	go server.Serve(ln)
 }
 
 func init() {

@@ -4,6 +4,8 @@ go 1.20
 
 replace github.com/go-ole/go-ole => github.com/go-ole/go-ole v1.3.1-0.20231030194427-12e70eba63a1
 
+replace github.com/konimarti/opc => github.com/huskar-t/opc v0.0.0-20231127065929-38c765f25edb
+
 require (
 	github.com/BurntSushi/toml v1.3.2
 	github.com/apache/arrow/go/v14 v14.0.1
