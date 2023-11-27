@@ -52,12 +52,6 @@ extern "C" {
 #define stTrace(...) do { if (stDebugFlag & DEBUG_TRACE) { taosPrintLog("STM ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
-typedef struct STaskUpdateEntry {
-  int64_t streamId;
-  int32_t taskId;
-  int32_t transId;
-} STaskUpdateEntry;
-
 typedef struct {
   int8_t       type;
   SSDataBlock* pBlock;

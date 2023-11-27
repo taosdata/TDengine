@@ -16,7 +16,7 @@
 #include "rsync.h"
 #include "executor.h"
 #include "sndInt.h"
-#include "tstream.h"
+#include "tqCommon.h"
 #include "tuuid.h"
 
 #define sndError(...)                                                     \
@@ -165,25 +165,25 @@ void sndClose(SSnode *pSnode) {
 int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   switch (pMsg->msgType) {
     case TDMT_STREAM_TASK_RUN:
-      return streamTaskProcessRunReq(pSnode->pMeta, pMsg, true);
+      return tqStreamTaskProcessRunReq(pSnode->pMeta, pMsg, true);
     case TDMT_STREAM_TASK_DISPATCH:
-      return streamTaskProcessDispatchReq(pSnode->pMeta, pMsg);
+      return tqStreamTaskProcessDispatchReq(pSnode->pMeta, pMsg);
     case TDMT_STREAM_TASK_DISPATCH_RSP:
-      return streamTaskProcessDispatchRsp(pSnode->pMeta, pMsg);
+      return tqStreamTaskProcessDispatchRsp(pSnode->pMeta, pMsg);
     case TDMT_STREAM_RETRIEVE:
-      return streamTaskProcessRetrieveReq(pSnode->pMeta, pMsg);
+      return tqStreamTaskProcessRetrieveReq(pSnode->pMeta, pMsg);
     case TDMT_STREAM_RETRIEVE_RSP:  // 1036
       break;
     case TDMT_VND_STREAM_SCAN_HISTORY_FINISH:
-      return streamTaskProcessScanHistoryFinishReq(pSnode->pMeta, pMsg);
+      return tqStreamTaskProcessScanHistoryFinishReq(pSnode->pMeta, pMsg);
     case TDMT_VND_STREAM_SCAN_HISTORY_FINISH_RSP:
-      return streamTaskProcessScanHistoryFinishRsp(pSnode->pMeta, pMsg);
+      return tqStreamTaskProcessScanHistoryFinishRsp(pSnode->pMeta, pMsg);
     case TDMT_VND_STREAM_TASK_CHECK:
-      return streamTaskProcessCheckReq(pSnode->pMeta, pMsg);
+      return tqStreamTaskProcessCheckReq(pSnode->pMeta, pMsg);
     case TDMT_VND_STREAM_TASK_CHECK_RSP:
-      return streamTaskProcessCheckRsp(pSnode->pMeta, pMsg, true);
+      return tqStreamTaskProcessCheckRsp(pSnode->pMeta, pMsg, true);
     case TDMT_STREAM_TASK_CHECKPOINT_READY:
-      return streamTaskProcessCheckpointReadyMsg(pSnode->pMeta, pMsg);
+      return tqStreamTaskProcessCheckpointReadyMsg(pSnode->pMeta, pMsg);
     default:
       sndError("invalid snode msg:%d", pMsg->msgType);
       ASSERT(0);
@@ -196,13 +196,13 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
     case TDMT_STREAM_TASK_DEPLOY: {
       void   *pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
       int32_t len = pMsg->contLen - sizeof(SMsgHead);
-      return streamTaskProcessDeployReq(pSnode->pMeta, -1, pReq, len, true, true);
+      return tqStreamTaskProcessDeployReq(pSnode->pMeta, -1, pReq, len, true, true);
     }
 
     case TDMT_STREAM_TASK_DROP:
-      return streamTaskProcessDropReq(pSnode->pMeta, pMsg->pCont, pMsg->contLen);
+      return tqStreamTaskProcessDropReq(pSnode->pMeta, pMsg->pCont, pMsg->contLen);
     case TDMT_VND_STREAM_TASK_UPDATE:
-      return streamTaskProcessUpdateReq(pSnode->pMeta, &pSnode->msgCb, pMsg, true);
+      return tqStreamTaskProcessUpdateReq(pSnode->pMeta, &pSnode->msgCb, pMsg, true);
     default:
       ASSERT(0);
   }

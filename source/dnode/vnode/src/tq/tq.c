@@ -15,6 +15,7 @@
 
 #include "tq.h"
 #include "vnd.h"
+#include "tqCommon.h"
 
 typedef struct {
   int8_t inited;
@@ -890,15 +891,15 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
 }
 
 int32_t tqProcessTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
-  return streamTaskProcessCheckReq(pTq->pStreamMeta, pMsg);
+  return tqStreamTaskProcessCheckReq(pTq->pStreamMeta, pMsg);
 }
 
 int32_t tqProcessTaskCheckRsp(STQ* pTq, SRpcMsg* pMsg) {
-  return streamTaskProcessCheckRsp(pTq->pStreamMeta, pMsg, vnodeIsRoleLeader(pTq->pVnode));
+  return tqStreamTaskProcessCheckRsp(pTq->pStreamMeta, pMsg, vnodeIsRoleLeader(pTq->pVnode));
 }
 
 int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-  return streamTaskProcessDeployReq(pTq->pStreamMeta, sversion, msg, msgLen, vnodeIsRoleLeader(pTq->pVnode), pTq->pVnode->restored);
+  return tqStreamTaskProcessDeployReq(pTq->pStreamMeta, sversion, msg, msgLen, vnodeIsRoleLeader(pTq->pVnode), pTq->pVnode->restored);
 }
 
 static void doStartFillhistoryStep2(SStreamTask* pTask, SStreamTask* pStreamTask, STQ* pTq) {
@@ -1080,11 +1081,11 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
 // only the agg tasks and the sink tasks will receive this message from upstream tasks
 int32_t tqProcessTaskScanHistoryFinishReq(STQ* pTq, SRpcMsg* pMsg) {
-  return streamTaskProcessScanHistoryFinishReq(pTq->pStreamMeta, pMsg);
+  return tqStreamTaskProcessScanHistoryFinishReq(pTq->pStreamMeta, pMsg);
 }
 
 int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg) {
-  return streamTaskProcessScanHistoryFinishRsp(pTq->pStreamMeta, pMsg);
+  return tqStreamTaskProcessScanHistoryFinishRsp(pTq->pStreamMeta, pMsg);
 }
 
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
@@ -1096,7 +1097,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
     tqScanWal(pTq);
     return 0;
   }
-  int32_t code = streamTaskProcessRunReq(pTq->pStreamMeta, pMsg, vnodeIsRoleLeader(pTq->pVnode));
+  int32_t code = tqStreamTaskProcessRunReq(pTq->pStreamMeta, pMsg, vnodeIsRoleLeader(pTq->pVnode));
   if(code == 0 && taskId > 0){
     tqScanWalAsync(pTq, false);
   }
@@ -1104,15 +1105,15 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
 }
 
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg) {
-    return streamTaskProcessDispatchReq(pTq->pStreamMeta, pMsg);
+    return tqStreamTaskProcessDispatchReq(pTq->pStreamMeta, pMsg);
 }
 
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
-  return streamTaskProcessDispatchRsp(pTq->pStreamMeta, pMsg);
+  return tqStreamTaskProcessDispatchRsp(pTq->pStreamMeta, pMsg);
 }
 
 int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen) {
-  return streamTaskProcessDropReq(pTq->pStreamMeta, msg, msgLen);
+  return tqStreamTaskProcessDropReq(pTq->pStreamMeta, msg, msgLen);
 }
 
 int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
@@ -1221,7 +1222,7 @@ int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 }
 
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg) {
-  return streamTaskProcessRetrieveReq(pTq->pStreamMeta, pMsg);
+  return tqStreamTaskProcessRetrieveReq(pTq->pStreamMeta, pMsg);
 }
 
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg) {
@@ -1358,11 +1359,11 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 
 // downstream task has complete the stream task checkpoint procedure, let's start the handle the rsp by execute task
 int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg) {
-  return streamTaskProcessCheckpointReadyMsg(pTq->pStreamMeta, pMsg);
+  return tqStreamTaskProcessCheckpointReadyMsg(pTq->pStreamMeta, pMsg);
 }
 
 int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
-  return streamTaskProcessUpdateReq(pTq->pStreamMeta, &pTq->pVnode->msgCb, pMsg, pTq->pVnode->restored);
+  return tqStreamTaskProcessUpdateReq(pTq->pStreamMeta, &pTq->pVnode->msgCb, pMsg, pTq->pVnode->restored);
 }
 
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg) {
