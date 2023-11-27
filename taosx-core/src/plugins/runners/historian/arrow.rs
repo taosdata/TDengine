@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use arrow::array;
@@ -13,8 +12,7 @@ use tiberius::Row;
 
 use taosx_ipc::prelude::ArrowDataType;
 
-use crate::runners::historian::config::TaskConfig;
-use crate::runners::historian::table_type::HistorianTable;
+use crate::runners::historian::config::HistorianTable;
 
 pub struct ArrowDataAppender {
     schema: Schema,
@@ -22,13 +20,11 @@ pub struct ArrowDataAppender {
 }
 
 impl ArrowDataAppender {
-    pub fn new(task_config: &TaskConfig) -> anyhow::Result<Self> {
-        let table = HistorianTable::from_str(&task_config.table)
-            .map_err(|err| anyhow::anyhow!("invalid table: {}", err.to_string()))?;
+    pub fn try_new(table: HistorianTable) -> anyhow::Result<Self> {
         // fields
         let fields = match table {
-            HistorianTable::Live => Self::live_fields(),
             HistorianTable::History => Self::history_fields(),
+            HistorianTable::Live => Self::live_fields(),
         };
 
         // data builders
@@ -49,47 +45,47 @@ impl ArrowDataAppender {
         })
     }
 
-    fn live_fields() -> Vec<Field> {
-        let mut fields = Vec::new();
-
-        fields.push(Field::new(
-            "DateTime",
-            ArrowDataType::Timestamp(Nanosecond, None),
-            true,
-        ));
-        fields.push(Field::new("TagName", ArrowDataType::Utf8, true));
-        fields.push(Field::new("Value", ArrowDataType::Float64, true));
-        fields.push(Field::new("vValue", ArrowDataType::Utf8, true));
-        fields.push(Field::new("Quality", ArrowDataType::Int32, true));
-        fields.push(Field::new("QualityDetail", ArrowDataType::Int32, true));
-        fields.push(Field::new("OPCQuality", ArrowDataType::Int32, true));
-        fields.push(Field::new("wwTagKey", ArrowDataType::Int32, true));
-        fields.push(Field::new("SourceTag", ArrowDataType::Utf8, true));
-        fields.push(Field::new("SourceServer", ArrowDataType::Utf8, true));
-
-        fields
-    }
-
     fn history_fields() -> Vec<Field> {
         let mut fields = Vec::new();
 
         fields.push(Field::new(
             "DateTime",
             ArrowDataType::Timestamp(Nanosecond, None),
-            true,
+            false,
         ));
-        fields.push(Field::new("TagName", ArrowDataType::Utf8, true));
+        fields.push(Field::new("TagName", ArrowDataType::Utf8, false));
         fields.push(Field::new("Value", ArrowDataType::Float64, true));
         fields.push(Field::new("vValue", ArrowDataType::Utf8, true));
-        fields.push(Field::new("Quality", ArrowDataType::Int32, true));
+        fields.push(Field::new("Quality", ArrowDataType::UInt8, false));
         fields.push(Field::new("QualityDetail", ArrowDataType::Int32, true));
-        fields.push(Field::new("wwTagKey", ArrowDataType::Int32, true));
+        fields.push(Field::new("wwTagKey", ArrowDataType::Int32, false));
         fields.push(Field::new("wwResolution", ArrowDataType::Int32, true));
         fields.push(Field::new(
             "StartDateTime",
             ArrowDataType::Timestamp(Nanosecond, None),
-            true,
+            false,
         ));
+        fields.push(Field::new("SourceTag", ArrowDataType::Utf8, true));
+        fields.push(Field::new("SourceServer", ArrowDataType::Utf8, true));
+
+        fields
+    }
+
+    fn live_fields() -> Vec<Field> {
+        let mut fields = Vec::new();
+
+        fields.push(Field::new(
+            "DateTime",
+            ArrowDataType::Timestamp(Nanosecond, None),
+            false,
+        ));
+        fields.push(Field::new("TagName", ArrowDataType::Utf8, false));
+        fields.push(Field::new("Value", ArrowDataType::Float64, true));
+        fields.push(Field::new("vValue", ArrowDataType::Utf8, true));
+        fields.push(Field::new("Quality", ArrowDataType::UInt8, false));
+        fields.push(Field::new("QualityDetail", ArrowDataType::Int32, true));
+        fields.push(Field::new("OPCQuality", ArrowDataType::Int32, true));
+        fields.push(Field::new("wwTagKey", ArrowDataType::Int32, false));
         fields.push(Field::new("SourceTag", ArrowDataType::Utf8, true));
         fields.push(Field::new("SourceServer", ArrowDataType::Utf8, true));
 
@@ -101,7 +97,7 @@ impl ArrowDataAppender {
         self.append_string(&row, "TagName", 1)?;
         self.append_float64(&row, "Value", 2)?;
         self.append_string(&row, "vValue", 3)?;
-        self.append_int32(&row, "Quality", 4)?;
+        self.append_uint8(&row, "Quality", 4)?;
         self.append_int32(&row, "QualityDetail", 5)?;
         self.append_int32(&row, "wwTagKey", 6)?;
         self.append_int32(&row, "wwResolution", 7)?;
@@ -117,7 +113,7 @@ impl ArrowDataAppender {
         self.append_string(&row, "TagName", 1)?;
         self.append_float64(&row, "Value", 2)?;
         self.append_string(&row, "vValue", 3)?;
-        self.append_int32(&row, "Quality", 4)?;
+        self.append_uint8(&row, "Quality", 4)?;
         self.append_int32(&row, "QualityDetail", 5)?;
         self.append_int32(&row, "OPCQuality", 6)?;
         self.append_int32(&row, "wwTagKey", 7)?;
@@ -211,6 +207,27 @@ impl ArrowDataAppender {
                 self.data_builders[index]
                     .as_any_mut()
                     .downcast_mut::<array::Int32Builder>()
+                    .unwrap()
+                    .append_value(val);
+            }
+        }
+        Ok(())
+    }
+
+    fn append_uint8(&mut self, row: &Row, column_name: &str, index: usize) -> anyhow::Result<()> {
+        let val = row.try_get::<u8, _>(column_name)?;
+        match val {
+            None => {
+                self.data_builders[index]
+                    .as_any_mut()
+                    .downcast_mut::<array::UInt8Builder>()
+                    .unwrap()
+                    .append_null();
+            }
+            Some(val) => {
+                self.data_builders[index]
+                    .as_any_mut()
+                    .downcast_mut::<array::UInt8Builder>()
                     .unwrap()
                     .append_value(val);
             }

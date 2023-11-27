@@ -16,7 +16,10 @@ impl Producer {
     }
 
     pub async fn produce(&self, tx: Sender<TaskConfig>) -> anyhow::Result<()> {
-        let mut window_start = self.config.begin_datetime;
+        let mut window_start = self
+            .config
+            .begin_datetime
+            .ok_or(anyhow::anyhow!("beginDateTime cannot be None"))?;
         let end = self
             .config
             .end_datetime
@@ -32,11 +35,11 @@ impl Producer {
             );
 
             let mut task = self.config.clone();
-            task.begin_datetime = window_start;
+            task.begin_datetime = Some(window_start);
             task.end_datetime = Some(window_end);
-            tx.send(task).unwrap();
+            tx.send_async(task).await.unwrap();
 
-            window_start = window_start + time_window;
+            window_start = window_end;
         }
 
         Ok(())
@@ -78,25 +81,25 @@ mod tests {
 
         assert_eq!(4, tasks.len());
         let t = tasks.get(0).unwrap();
-        assert_eq!("2021-08-01T00:00:00+00:00", t.begin_datetime.to_rfc3339());
+        assert_eq!("2021-08-01T00:00:00+00:00", t.begin_datetime.unwrap().to_rfc3339());
         assert_eq!(
             "2021-08-02T00:00:00+00:00",
             t.end_datetime.unwrap().to_rfc3339()
         );
         let t = tasks.get(1).unwrap();
-        assert_eq!("2021-08-02T00:00:00+00:00", t.begin_datetime.to_rfc3339());
+        assert_eq!("2021-08-02T00:00:00+00:00", t.begin_datetime.unwrap().to_rfc3339());
         assert_eq!(
             "2021-08-03T00:00:00+00:00",
             t.end_datetime.unwrap().to_rfc3339()
         );
         let t = tasks.get(2).unwrap();
-        assert_eq!("2021-08-03T00:00:00+00:00", t.begin_datetime.to_rfc3339());
+        assert_eq!("2021-08-03T00:00:00+00:00", t.begin_datetime.unwrap().to_rfc3339());
         assert_eq!(
             "2021-08-04T00:00:00+00:00",
             t.end_datetime.unwrap().to_rfc3339()
         );
         let t = tasks.get(3).unwrap();
-        assert_eq!("2021-08-04T00:00:00+00:00", t.begin_datetime.to_rfc3339());
+        assert_eq!("2021-08-04T00:00:00+00:00", t.begin_datetime.unwrap().to_rfc3339());
         assert_eq!(
             "2021-08-04T12:00:00+00:00",
             t.end_datetime.unwrap().to_rfc3339()
