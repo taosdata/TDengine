@@ -540,6 +540,8 @@ int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelement
   } else if (input[0] == 1) {  // Decompress
     if (tsSIMDEnable && tsAVX512Enable) {
       tsDecompressTimestampAvx512(input, nelements, output, false);
+    } else if (tsSIMDEnable && tsAVX2Enable) {
+      tsDecompressTimestampAvx2(input, nelements, output, false);
     } else {
       int64_t *ostream = (int64_t *)output;
 
@@ -599,6 +601,8 @@ int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelement
       }
     }
   }
+
+  return nelements * longBytes;
 }
 
 /* --------------------------------------------Double Compression ---------------------------------------------- */

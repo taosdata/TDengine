@@ -76,7 +76,7 @@ TEST(utilTest, decompress_perf_test) {
   }
 
   int64_t el1 = taosGetTimestampUs() - st;
-  std::cout << "decompress elapsed time:" << el1 << " us" << std::endl;
+  std::cout << "soft decompress elapsed time:" << el1 << " us" << std::endl;
 
   memset(pOutput, 0, num * sizeof(int64_t));
   st = taosGetTimestampUs();
