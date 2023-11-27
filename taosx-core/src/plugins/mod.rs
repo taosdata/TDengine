@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use futures::TryStreamExt;
+use serde::{Deserialize, Serialize};
 use taos::Dsn;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
@@ -27,7 +28,28 @@ pub use runners::{
 };
 pub use sink::IpcStreamWorker;
 pub use taosx_ipc::types::*;
-pub use transform::{Parser, Pipeline};
+pub use transform::Pipeline;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Parser {
+    Inner(transform::Parser),
+    WithSample {
+        parser: transform::Parser,
+        input: Option<Vec<serde_json::Value>>,
+    },
+}
+
+impl std::ops::Deref for Parser {
+    type Target = transform::Parser;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Parser::Inner(parser) => parser,
+            Parser::WithSample { parser, .. } => parser,
+        }
+    }
+}
 
 use self::sink::IpcHandler;
 
