@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "mndTrans.h"
 #include "mndStream.h"
+#include "mndTrans.h"
 
 typedef struct SKeyInfo {
   void*   pKey;
@@ -42,8 +42,8 @@ int32_t clearFinishedTrans(SMnode* pMnode) {
 
   void* pIter = NULL;
   while ((pIter = taosHashIterate(execInfo.transMgmt.pDBTrans, pIter)) != NULL) {
-    SStreamTransInfo *pEntry = (SStreamTransInfo *)pIter;
-    STrans* pTrans = mndAcquireTrans(pMnode, pEntry->transId);
+    SStreamTransInfo* pEntry = (SStreamTransInfo*)pIter;
+    STrans*           pTrans = mndAcquireTrans(pMnode, pEntry->transId);
 
     // let's clear the finished trans
     if (pTrans == NULL) {
@@ -60,12 +60,12 @@ int32_t clearFinishedTrans(SMnode* pMnode) {
   }
 
   size_t num = taosArrayGetSize(pList);
-  for(int32_t i = 0; i < num; ++i) {
+  for (int32_t i = 0; i < num; ++i) {
     SKeyInfo* pKey = taosArrayGet(pList, i);
     taosHashRemove(execInfo.transMgmt.pDBTrans, pKey->pKey, pKey->keyLen);
   }
 
-  mDebug("clear %d finished stream-trans, remained:%d", (int32_t) num, taosHashGetSize(execInfo.transMgmt.pDBTrans));
+  mDebug("clear %d finished stream-trans, remained:%d", (int32_t)num, taosHashGetSize(execInfo.transMgmt.pDBTrans));
   taosThreadMutexUnlock(&execInfo.lock);
 
   terrno = TSDB_CODE_SUCCESS;
@@ -83,7 +83,7 @@ bool mndStreamTransConflictOtherTrans(SMnode* pMnode, const char* pSrcDb, const 
     return false;
   }
 
-  SStreamTransInfo *pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, pSrcDb, strlen(pSrcDb));
+  SStreamTransInfo* pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, pSrcDb, strlen(pSrcDb));
   if (pEntry != NULL) {
     taosThreadMutexUnlock(&execInfo.lock);
     mWarn("conflict with other transId:%d in Db:%s, trans:%s", pEntry->transId, pSrcDb, pEntry->name);
@@ -112,14 +112,13 @@ int32_t mndAddtoCheckpointWaitingList(SStreamObj* pStream, int64_t checkpointId)
     taosHashPut(execInfo.transMgmt.pWaitingList, &pStream->uid, sizeof(pStream->uid), &entry, sizeof(entry));
     int32_t size = taosHashGetSize(execInfo.transMgmt.pWaitingList);
 
-    mDebug("stream:%" PRIx64 " add into waiting list due to conflict, ts:%" PRId64 ", total in waitingList:%d",
-           pStream->uid, entry.checkpointTs, size);
+    mDebug("stream:%" PRIx64 " add into waiting list due to conflict, ts:%" PRId64 " , checkpointId: %" PRId64
+           ", total in waitingList:%d",
+           pStream->uid, entry.checkpointTs, checkpointId, size);
   } else {
-    mDebug("stream:%" PRIx64 " ts:%" PRId64 "already in waiting list, no need to add into", pStream->uid,
-           pEntry->checkpointTs);
+    mDebug("stream:%" PRIx64 " ts:%" PRId64 ", checkpointId:%" PRId64 " already in waiting list, no need to add into",
+           pStream->uid, pEntry->checkpointTs, checkpointId);
   }
 
   return TSDB_CODE_SUCCESS;
 }
-
-

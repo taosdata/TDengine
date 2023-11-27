@@ -1340,7 +1340,8 @@ static int32_t mndProcessStreamCheckpointInCandid(SRpcMsg *pReq) {
 
   for (int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
     int64_t *pId = taosArrayGet(pList, i);
-    taosHashRemove(execInfo.transMgmt.pWaitingList, &pId, sizeof(*pId));
+
+    taosHashRemove(execInfo.transMgmt.pWaitingList, pId, sizeof(*pId));
   }
 
   int32_t remain = taosHashGetSize(execInfo.transMgmt.pWaitingList);
