@@ -77,6 +77,7 @@ const state = {
   currentResume: 'always',
   currentEditID:'',
   agentDialog:false,
+  transformExtractParseData:null,
   transformerMapCloumns:null,
   transformerParserData:null,
   transformColumnIdentify:[],
@@ -108,6 +109,9 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_EXTRACT_PARSE_DATA:(state,data)=>{
+    state.transformExtractParseData=data
+  },
   SET_ECHO_MAP_DATA:(state,data)=>{
     state.transformEchoMapData=data
   },
