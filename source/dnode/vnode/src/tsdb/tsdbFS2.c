@@ -901,7 +901,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
                 if (mtime < now - tsS3UploadDelaySec) {
                   skipMerge = true;
                 }
-              } else if (s3Size(object_name) > 0) {
+              } else /* if (s3Size(object_name) > 0) */ {
                 skipMerge = true;
               }
             }
