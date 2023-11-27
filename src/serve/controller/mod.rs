@@ -319,14 +319,14 @@ pub(super) enum Schedule {
 }
 
 async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::Result<()> {
-    if sqlx::query_scalar!("select id from tasks where id = ?", activity.id)
+    let exists = sqlx::query!("select id, status from tasks where id = ?", activity.id)
         .fetch_optional(pool)
-        .await?
-        .is_none()
-    {
+        .await?;
+    if exists.is_none() {
         tracing::warn!("task {id} not found", id = activity.id);
         return Ok(());
     }
+    let record = exists.unwrap();
     if activity.status == "completed" {
         let _ = sqlx::query!(
             "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ? AND status != ?",
@@ -349,15 +349,20 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
                 .await?;
         }
         "running" => {
-            // warn/error
-            if !matches!(activity.level, LevelFilter::Warn | LevelFilter::Error) {
-                sqlx::query("UPDATE tasks SET status = ?, reason = ? WHERE id = ?")
-                    .bind(activity.status.as_str())
-                    .bind(activity.activity.as_str())
-                    .bind(activity.id)
-                    .execute(pool)
-                    .await?;
+            if matches!(record.status.as_str(), "stopped" | "stopping") {
+                tracing::warn!(
+                    "Task {} is already stopped or suspended, ignore {}",
+                    activity.id,
+                    activity.activity,
+                );
+                return Ok(());
             }
+            sqlx::query("UPDATE tasks SET status = ?, reason = ? WHERE id = ?")
+                .bind(activity.status.as_str())
+                .bind(activity.activity.as_str())
+                .bind(activity.id)
+                .execute(pool)
+                .await?;
         }
         _ => {
             sqlx::query("UPDATE tasks SET status = ?, reason = NULL WHERE id = ?")
