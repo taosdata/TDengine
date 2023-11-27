@@ -108,6 +108,7 @@ typedef enum {
   TASK_LEVEL__SOURCE = 1,
   TASK_LEVEL__AGG,
   TASK_LEVEL__SINK,
+  TASK_LEVEL_SMA,
 } ETASK_LEVEL;
 
 enum {
@@ -666,19 +667,19 @@ int32_t tDecodeStreamCheckpointReadyMsg(SDecoder* pDecoder, SStreamCheckpointRea
 typedef struct STaskStatusEntry {
   STaskId id;
   int32_t status;
-  int32_t statusLastDuration; // to record the last duration of current status
+  int32_t statusLastDuration;  // to record the last duration of current status
   int64_t stage;
   int32_t nodeId;
-  int64_t verStart;         // start version in WAL, only valid for source task
-  int64_t verEnd;           // end version in WAL, only valid for source task
-  int64_t processedVer;     // only valid for source task
-  int32_t relatedHTask;     // has related fill-history task
-  int64_t activeCheckpointId;     // current active checkpoint id
-  bool    checkpointFailed; // denote if the checkpoint is failed or not
-  double  inputQUsed;       // in MiB
+  int64_t verStart;            // start version in WAL, only valid for source task
+  int64_t verEnd;              // end version in WAL, only valid for source task
+  int64_t processedVer;        // only valid for source task
+  int32_t relatedHTask;        // has related fill-history task
+  int64_t activeCheckpointId;  // current active checkpoint id
+  bool    checkpointFailed;    // denote if the checkpoint is failed or not
+  double  inputQUsed;          // in MiB
   double  inputRate;
-  double  sinkQuota;        // existed quota size for sink task
-  double  sinkDataSize;     // sink to dst data size
+  double  sinkQuota;     // existed quota size for sink task
+  double  sinkDataSize;  // sink to dst data size
 } STaskStatusEntry;
 
 typedef struct SStreamHbMsg {
@@ -864,6 +865,8 @@ int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHa
 int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SRpcMsg* pMsg,
                                  int8_t isSucceed);
 
+SStreamTaskSM* streamCreateStateMachine(SStreamTask* pTask);
+void*          streamDestroyStateMachine(SStreamTaskSM* pSM);
 #ifdef __cplusplus
 }
 #endif

@@ -248,7 +248,7 @@ int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
 // internal
 int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
-int32_t tsStreamCheckpointInterval = 40;
+int32_t tsStreamCheckpointInterval = 10;
 float   tsSinkDataRate = 2.0;
 int32_t tsStreamNodeCheckInterval = 15;
 int32_t tsTtlUnit = 86400;

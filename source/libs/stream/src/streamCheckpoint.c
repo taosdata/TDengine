@@ -291,6 +291,10 @@ int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId) {
     return code;
   }
 
+  if (p->info.taskLevel > TASK_LEVEL__SINK) {
+    return code;
+  }
+
   taosThreadMutexLock(&p->lock);
 
   ASSERT(p->chkInfo.checkpointId <= p->chkInfo.checkpointingId && p->chkInfo.checkpointingId == checkpointId &&

@@ -297,6 +297,8 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     sprintf(pStreamTask->exec.qmsg, "%s", RSMA_EXEC_TASK_FLAG);
     pStreamTask->chkInfo.checkpointId = streamMetaGetLatestCheckpointId(pStreamTask->pMeta);
     tdRSmaTaskInit(pStreamTask->pMeta, pItem, &pStreamTask->id);
+    pStreamTask->status.pSM = streamCreateStateMachine(pStreamTask);
+
     pStreamState = streamStateOpen(taskInfDir, pStreamTask, true, -1, -1);
     if (!pStreamState) {
       terrno = TSDB_CODE_RSMA_STREAM_STATE_OPEN;
@@ -1282,10 +1284,11 @@ _checkpoint:
         if (pItem && pItem->pStreamTask) {
           SStreamTask *pTask = pItem->pStreamTask;
           // atomic_store_32(&pTask->pMeta->chkptNotReadyTasks, 1);
-          // pTask->checkpointingId = checkpointId;
+          pTask->chkInfo.checkpointingId = checkpointId;
           pTask->chkInfo.checkpointId = checkpointId;  // 1pTask->checkpointingId;
           pTask->chkInfo.checkpointVer = pItem->submitReqVer;
           pTask->info.triggerParam = pItem->fetchResultVer;
+          pTask->info.taskLevel = TASK_LEVEL_SMA;
 
           if (!checkpointBuilt) {
             // the stream states share one checkpoint
