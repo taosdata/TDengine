@@ -184,7 +184,7 @@ int32_t tsMaxNumOfDistinctResults = 1000 * 10000;
 int32_t tsMinIntervalTime = 1;
 
 // maximum batch rows numbers imported from a single csv load
-int32_t tsMaxInsertBatchRows = 100000;
+int32_t tsMaxInsertBatchRows = 1000000;
 
 float   tsSelectivityRatio = 1.0;
 int32_t tsTagFilterResCacheSize = 1024 * 10;
