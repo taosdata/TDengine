@@ -795,7 +795,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if(createStreamReq.sql != NULL){
+  if (createStreamReq.sql != NULL) {
     sqlLen = strlen(createStreamReq.sql);
     sql = taosMemoryMalloc(sqlLen + 1);
     memset(sql, 0, sqlLen + 1);
