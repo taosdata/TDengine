@@ -271,7 +271,6 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
     if (nbytes1 == 0) {
       data1 = _mm_setzero_si128();
     } else {
-//      _mm_shuffle_epi8()
       memcpy(&data1, (const void*) (input + ipos), nbytes1);
     }
 
@@ -400,15 +399,14 @@ int32_t tsDecompressTimestampAvx512(const char* const input, const int32_t nelem
   __m128i  prevVal = _mm_setzero_si128();
   __m128i  prevDelta = _mm_setzero_si128();
 
-  // _mm_maskz_loadu_epi8
 #if __AVX512VL__
 
-  int32_t batch = nelements >> 1;
-  int32_t remainder = nelements & 0x01;
+  int32_t   numOfBatch = nelements >> 1;
+  int32_t   remainder = nelements & 0x01;
   __mmask16 mask2[16] = {0, 0x0001, 0x0003, 0x0007, 0x000f, 0x001f, 0x003f, 0x007f, 0x00ff};
 
   int32_t i = 0;
-  if (batch > 1) {
+  if (numOfBatch > 1) {
     // first loop
     uint8_t flags = input[ipos++];
 
@@ -446,7 +444,7 @@ int32_t tsDecompressTimestampAvx512(const char* const input, const int32_t nelem
   }
 
   // the remain
-  for(; i < batch; ++i) {
+  for(; i < numOfBatch; ++i) {
     uint8_t flags = input[ipos++];
 
     int8_t nbytes1 = flags & INT8MASK(4);  // range of nbytes starts from 0 to 7
