@@ -1681,6 +1681,7 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
 
     if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) > tsMaxInsertBatchRows) {
       pStmt->fileProcessing = true;
+      (*pNumOfRows)--;
       break;
     }
 
@@ -1882,7 +1883,7 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
   bool fileOnly = (pStmt->insertType == TSDB_QUERY_TYPE_FILE_INSERT) &&
                   0 < taosHashGetSize(pStmt->pTableCxtHashObj);
   int32_t code = insMergeTableDataCxt(fileOnly ? pStmt->pTableCxtHashObj : pStmt->pTableBlockHashObj,
-                                      &pStmt->pVgDataBlocks, pStmt->fileProcessing);
+                                      &pStmt->pVgDataBlocks, pStmt->fileProcessing, pStmt->fileProcessing);
   // clear tmp hashobj only
   taosHashClear(pStmt->pTableCxtHashObj);
 
