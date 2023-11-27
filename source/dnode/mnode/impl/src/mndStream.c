@@ -700,8 +700,17 @@ static int32_t mndPersistTaskDropReq(SMnode* pMnode, STrans *pTrans, SStreamTask
   STransAction action = {0};
   SEpSet  epset = {0};
   if(pTask->info.nodeId == SNODE_HANDLE){
-    SSnodeObj* pObj = mndAcquireSnode(pMnode, pTask->info.nodeId);
-    addEpIntoEpSet(&epset, pObj->pDnode->fqdn, pObj->pDnode->port);
+    SSnodeObj *pObj = NULL;
+    void  *pIter = NULL;
+    while (1) {
+      pIter = sdbFetch(pMnode->pSdb, SDB_SNODE, pIter, (void **)&pObj);
+      if (pIter == NULL) {
+        break;
+      }
+
+      addEpIntoEpSet(&epset, pObj->pDnode->fqdn, pObj->pDnode->port);
+      sdbRelease(pMnode->pSdb, pObj);
+    }
   }else{
     SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->info.nodeId);
     epset = mndGetVgroupEpset(pMnode, pVgObj);
