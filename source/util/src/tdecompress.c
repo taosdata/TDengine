@@ -111,7 +111,7 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
               __m256i signmask = _mm256_and_si256(_mm256_set1_epi64x(1), zigzagVal);
               signmask = _mm256_sub_epi64(_mm256_setzero_si256(), signmask);
 
-              // get the four zigzag values here
+              // get four zigzag values here
               __m256i delta = _mm256_xor_si256(_mm256_srli_epi64(zigzagVal, 1), signmask);
 
               // calculate the cumulative sum (prefix sum) for each number
@@ -254,10 +254,11 @@ int32_t tsDecompressTimestampAvx512(const char* const input, const int32_t nelem
   __m128i  prevDelta = _mm_setzero_si128();
 
   // _mm_maskz_loadu_epi8
-#if __AVX512F__
+#if __AVX512VL__
 
   int32_t batch = nelements >> 1;
   int32_t remainder = nelements & 0x01;
+  __mmask16 mask2[16] = {0, 0x0001, 0x0003, 0x0007, 0x000f, 0x001f, 0x003f, 0x007f, 0x00ff};
 
   int32_t i = 0;
   if (batch > 1) {
@@ -267,7 +268,6 @@ int32_t tsDecompressTimestampAvx512(const char* const input, const int32_t nelem
     int8_t nbytes1 = flags & INT8MASK(4);  // range of nbytes starts from 0 to 7
     int8_t nbytes2 = (flags >> 4) & INT8MASK(4);
 
-    __mmask16 mask2[16] = {0, 0x0001, 0x0003, 0x0007, 0x000f, 0x001f, 0x003f, 0x007f, 0x00ff};
     __m128i data1 = _mm_maskz_loadu_epi8(mask2[nbytes1], (const void*)(input + ipos));
     __m128i data2 = _mm_maskz_loadu_epi8(mask2[nbytes2], (const void*)(input + ipos + nbytes1));
     data2 = _mm_broadcastq_epi64(data2);
@@ -305,7 +305,6 @@ int32_t tsDecompressTimestampAvx512(const char* const input, const int32_t nelem
     int8_t nbytes1 = flags & INT8MASK(4);  // range of nbytes starts from 0 to 7
     int8_t nbytes2 = (flags >> 4) & INT8MASK(4);
 
-    __mmask16 mask2[16] = {0, 0x0001, 0x0003, 0x0007, 0x000f, 0x001f, 0x003f, 0x007f, 0x00ff};
     __m128i data1 = _mm_maskz_loadu_epi8(mask2[nbytes1], (const void*)(input + ipos));
     __m128i data2 = _mm_maskz_loadu_epi8(mask2[nbytes2], (const void*)(input + ipos + nbytes1));
     data2 = _mm_broadcastq_epi64(data2);
@@ -357,10 +356,8 @@ int32_t tsDecompressTimestampAvx512(const char* const input, const int32_t nelem
     if (opos == 0) {
       ostream[opos++] = deltaOfDelta;
     } else {
-      int64_t prevV = prevVal[1];
-
       int64_t prevDeltaX = deltaOfDelta + prevDelta[1];
-      ostream[opos++] = prevV + prevDeltaX;
+      ostream[opos++] = prevVal[1] + prevDeltaX;
     }
   }
 
