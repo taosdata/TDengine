@@ -53,7 +53,6 @@ typedef struct SInsertParseContext {
   SBoundColInfo  tags;  // for stmt
   bool           missCache;
   bool           usingDuplicateTable;
-  bool           fileOnly;          // whether or not insert data from file only
   bool           forceUpdate;
   bool           needTableTagVal;
 } SInsertParseContext;
@@ -1710,6 +1709,9 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
     } else {
       parserDebug("0x%" PRIx64 " insert from csv. File is too large, do it in batches.", pCxt->pComCxt->requestId);
     }
+    if (pStmt->insertType != TSDB_QUERY_TYPE_FILE_INSERT) {
+      return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is exclusive", NULL);
+    }
   }
   // just record pTableCxt whose data come from file
   if (numOfRows > 0) {
@@ -1759,7 +1761,9 @@ static int32_t parseDataClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   NEXT_TOKEN(pStmt->pSql, token);
   switch (token.type) {
     case TK_VALUES:
-      pCxt->fileOnly = false;
+      if (TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_FILE_INSERT)) {
+        return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is exclusive", token.z);
+      }
       return parseValuesClause(pCxt, pStmt, pTableCxt, &token);
     case TK_FILE:
       return parseFileClause(pCxt, pStmt, pTableCxt, &token);
@@ -1875,7 +1879,7 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
   // release old array alloced by merge
   pStmt->freeArrayFunc(pStmt->pVgDataBlocks);
   // merge according to vgId
-  bool fileOnly = pCxt->fileOnly && TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_FILE_INSERT) &&
+  bool fileOnly = (pStmt->insertType == TSDB_QUERY_TYPE_FILE_INSERT) &&
                   0 < taosHashGetSize(pStmt->pTableCxtHashObj);
   int32_t code = insMergeTableDataCxt(fileOnly ? pStmt->pTableCxtHashObj : pStmt->pTableBlockHashObj,
                                       &pStmt->pVgDataBlocks, pStmt->fileProcessing);
@@ -1923,7 +1927,6 @@ static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, S
   }
 
   if (pCxt->pComCxt->pStmtCb) {
-    pCxt->fileOnly = false;
     TSDB_QUERY_SET_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_STMT_INSERT);
   }
   pStmt->pSql = pCxt->pComCxt->pSql;
@@ -2305,7 +2308,6 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
   SInsertParseContext context = {.pComCxt = pCxt,
                                  .msg = {.buf = pCxt->pMsg, .len = pCxt->msgLen},
                                  .missCache = false,
-                                 .fileOnly = true,
                                  .usingDuplicateTable = false,
                                  .forceUpdate = (NULL != pCatalogReq ? pCatalogReq->forceUpdate : false)};
 
