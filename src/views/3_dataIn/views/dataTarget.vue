@@ -7,7 +7,7 @@
       :rules="rules"
       class="reqired-change"
     >
-      <el-form-item :label="$t('name')" prop="name">
+      <el-form-item :label="$t('name')" prop="name" style="margin-bottom:10px;">
         <el-input
           size="small"
           v-model="ruleForm.name"

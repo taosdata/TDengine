@@ -11,6 +11,8 @@ const DocsUrl=window.location.origin+(localStorage.getItem('local_language')?.in
 export default {
   //通用部分
 
+  expression:'Expression',
+  mapping:'Mapping',
   execute:'Execute',
 
   copyDsn: 'Copy DSN',
@@ -1198,6 +1200,31 @@ export default {
     // opc_filed:'Filed',
     // opc_alias:'Alias',
     // opc_type:'Type',
+    transformer:{
+      identified:'Column Identified',
+      extract:'Extract or Split From A column',
+      filter:'Filter',
+      superconfig:'Super Table Config',
+      target:'Target Super Table',
+      mapping:'Mapping',
+      createstb:'Create STbale',
+      payload:'Payload Format',
+      upload:'Upload Sample Data',
+      col_select:'Please select the column',
+      filter_type:'Please select the filter type',
+      expre_input:'Please enter the expression',
+      filter_input:'Please enter the filter expression',
+      st_input:'Please enter the super table name',
+      create_st:'Create STable',
+      targetSt:'Target Super Table',
+      mutiple:'Multiple addition queries separated by semicolons',
+      msgbody:'Message Body',
+      msgbodytip:'Please enter the message body first',
+      searchSResult:'Press the enter key to query after completion',
+      tablenametip:'Please enter the table name expression first',
+      mapcaculate:'Please caculate mapping first',
+      caculate:'Caculate'
+    },
     opcurl:'Please enter the OPC url',
     selecttargetdb:'Please select the target database',
     metrics:'Metrics',

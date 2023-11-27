@@ -103,7 +103,7 @@ request.interceptors.response.use(
     const hasToken = getToken();
     if (hasToken) {
       Message.closeAll();
-      if (error.response.data.code) {
+      if (error.response?.data?.code) {
         return Promise.resolve(error.response.data);
       }
       let msg =

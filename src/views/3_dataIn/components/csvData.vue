@@ -32,13 +32,8 @@
             <el-input size="small" v-model="fileurl"></el-input>
           </div>
         </el-tab-pane>
-        <CsvParameter
-          ref="param"
-          :echoData="echoData"
-          :isEditable="isEditable"
-        >
+        <CsvParameter ref="param" :echoData="echoData" :isEditable="isEditable">
           <template v-slot:next>
-            <!-- <span style="color:red;font-size:24px;">这是个插槽</span> -->
             <el-button
               type="primary"
               @click="getCsvColumnsData"
@@ -46,6 +41,7 @@
               class="nextbtn"
               >{{ $t("datasource.csvNext") }}</el-button
             >
+            <!-- <CommonTransformer :parserColumns="csvColumns" v-if="csvColumns.length>0"></CommonTransformer> -->
             <div class="csv-config" v-if="showConfig">
               <ul class="csv-tableheader">
                 <li>{{ $t("datasource.csvcol") }}</li>
@@ -103,9 +99,10 @@ import { deepClone } from "@/utils";
 import { sendSQLReq } from "@/api/gateway/console";
 import { getCSVColumns } from "@/api/explorer/datain";
 import { Message } from "element-ui";
+import CommonTransformer from "./commonTransformer.vue";
 export default {
   name: "CsvData",
-  components: { CsvParameter, CsvColumn },
+  components: { CsvParameter, CsvColumn, CommonTransformer },
   props: {
     isEditable: {
       type: Boolean,
@@ -116,7 +113,7 @@ export default {
       default: () => {
         return [];
       },
-    }
+    },
   },
   provide() {
     return {
@@ -126,7 +123,7 @@ export default {
   filter: {},
   data() {
     return {
-      language:  localStorage.getItem('local_language'),
+      language: localStorage.getItem("local_language"),
       showConfig: false,
       csvParserConf: {},
       uploadData: {
@@ -174,7 +171,14 @@ export default {
         "csv",
         this.$refs.param.ruleForm.hasHeader
       );
-      this.csvColumns = result.file_header.column_names;
+      this.csvColumns = result.file_header.column_names.map((item) => {
+        return {
+          description: "",
+          name: item,
+          value: "",
+          show: true,
+        };
+      });
       this.echoEditData();
     }
   },
@@ -291,7 +295,14 @@ export default {
                 Message.error(result.message);
                 return;
               }
-              this.csvColumns = result.file_header.column_names;
+              this.csvColumns = result.file_header.column_names.map((item) => {
+                return {
+                  description: "",
+                  name: item,
+                  value: "",
+                  show: true,
+                };
+              });
             } else {
               //无header需要自定义header
               if (result && result.message) {
@@ -299,7 +310,15 @@ export default {
                 return;
               }
               this.csvColumns = this.$refs.param.ruleForm.customcol
-                .split(",");
+                .split(",")
+                .map((item) => {
+                  return {
+                    description: "",
+                    name: item,
+                    value: "",
+                    show: true,
+                  };
+                });
             }
           }
         } else {
@@ -367,8 +386,8 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
-.upload-demo{
-  display:flex;
+.upload-demo {
+  display: flex;
   align-items: baseline;
 }
 .csv-data {
@@ -387,9 +406,9 @@ export default {
       font-size: 14px;
       text-align: left;
       position: relative;
-      
+
       &.required {
-        padding-left:10px;
+        padding-left: 10px;
         &::before {
           content: "*";
           color: red;

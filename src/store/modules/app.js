@@ -76,7 +76,12 @@ const state = {
   currentDSName:'',
   currentResume: 'always',
   currentEditID:'',
-  agentDialog:false
+  agentDialog:false,
+  transformerMapCloumns:null,
+  transformerParserData:null,
+  transformColumnIdentify:[],
+  transformEchoMapData:null,
+  
 };
 const saveKey = encodeURIComponent("appId");
 const waitTime = 15 * 60 * 1000;
@@ -103,6 +108,18 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_ECHO_MAP_DATA:(state,data)=>{
+    state.transformEchoMapData=data
+  },
+  SET_TRANSFORM_COL_IDENTIFIED:(state,data)=>{
+    state.transformColumnIdentify=data
+  },
+  SET_TRANSFORM_PARSERDATA:(state,data)=>{
+    state.transformerParserData=data
+  },
+  SET_TRANSFORMER_MAPCOLUMNS:(state,data)=>{
+    state.transformerMapCloumns=data
+  },
   SET_AGENT_DIALOG:(state,data)=>{
     state.agentDialog=data
   },

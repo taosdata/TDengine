@@ -10,7 +10,8 @@ let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_v
 const DocsUrl=window.location.origin+(localStorage.getItem('local_language')?.includes('zh')?'/docs':'/docs-en')
 export default {
   //通用部分
-
+  expression:'表达式',
+  mapping:'映射',
   execute:'执行',
 
   copyDsn: '复制 DSN',
@@ -1003,6 +1004,31 @@ export default {
   },
 
   datasource: {
+    transformer:{
+      identified:'识别的列',
+      extract:'从列中提取或拆分',
+      filter:'过滤',
+      superconfig:'超级表配置',
+      target:'目标超级表',
+      mapping:'映射',
+      createstb:'创建超级表',
+      payload:'负载格式',
+      upload:'上传样本数据',
+      col_select:'请选择列',
+      filter_type:'请选择筛选方式',
+      expre_input:'请输入表达式',
+      filter_input:'请输入筛选表达式',
+      st_input:'请输入超级表名称',
+      create_st:'创建超级表',
+      targetSt:'目标超级表',
+      mutiple:'多添件查询以分号分隔',
+      msgbody:'消息体',
+      msgbodytip:'请先输入消息体',
+      searchSResult:'输入完后按enter键查询',
+      tablenametip:'请先输入表名表达式',
+      mapcaculate:'请先计算mapping值',
+      caculate:'计算'
+    },
     opcurl:'请输入OPC服务地址',
     selecttargetdb:'请选择目标数据源',
     metrics:'当前指标',

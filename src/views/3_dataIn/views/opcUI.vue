@@ -435,37 +435,7 @@
                   v-html="transforHtml(p.description)"
                 ></div>
                 <div class="target">
-                  <!-- <span
-                    :class="['no-label', p.target.required ? 'required' : '']"
-                  ></span> -->
-                  <!-- <template v-if="p.target.multiple">
-                    <el-select
-                      v-model="p.target.value"
-                      :multiple="p.target.multiple"
-                      :allow-create="p.target.editable"
-                      placeholder=""
-                      filterable
-                      default-first-option
-                    >
-                      <el-option
-                        v-for="(t, tind) in p.target.value"
-                        :key="tind"
-                        :value="tind"
-                        disabled
-                      >
-                        {{ t }}
-                      </el-option>
-                    </el-select>
-                  </template>
-                  <template v-else>
-                    <el-input v-model="p.target.value"></el-input>
-                  </template> -->
-                  <!-- <el-button
-                    size="medium"
-                    @click="handleSelBtn"
-                    style="height: 42px"
-                    >{{ $t("datasource.select") }}</el-button
-                  > -->
+                
                 </div>
                 <div class="configuration" v-if="isShowConfiguration">
                   <el-input
@@ -840,12 +810,13 @@
         </div>
 
         <div class="parser-config">
-          <MqttConnector
+          <!-- <MqttConnector
             :connectorData="constMqttparser"
             :fields="constmqttCols"
             ref="mqtt"
             :isEditable="isEditable"
-          ></MqttConnector>
+          ></MqttConnector> -->
+          <CommonTransformer :parserColumns="constmqttCols" @getTransformerParams='getTransformerParams' ref="transformer"></CommonTransformer>
         </div>
       </section>
       <section v-if="tagName == 'csv'">
@@ -909,6 +880,7 @@ import opcConnector from "../components/opcConnector.vue";
 import DialogCreateDb from "../components/addDbDialog.vue";
 import Result from "../components/result.vue";
 import AdvanceOptions from '../components/advancedOptions.vue'
+import CommonTransformer from '../components/commonTransformer.vue'
 export default {
   name: "DbSourceUI",
   components: {
@@ -919,7 +891,8 @@ export default {
     DialogCreateDb,
     DataTarget,
     Result,
-    AdvanceOptions
+    AdvanceOptions,
+    CommonTransformer
   },
   props: {
     echoData: {
@@ -929,12 +902,6 @@ export default {
       },
     },
     opcConfig: {
-      type: Object,
-      default: () => {
-        return null;
-      },
-    },
-    constMqttparser: {
       type: Object,
       default: () => {
         return null;
@@ -1041,6 +1008,7 @@ export default {
         // version: '', // 返回数据源版本，不能获得版本则不返回该字段。
       },
       activeCollapse: "",
+      transformerParser:null
     };
   },
   created() {
@@ -1072,11 +1040,7 @@ export default {
   },
   mounted() {
     if (this.tagName == "mqtt" || this.tagName == "kafka") {
-      this.constmqttCols = this.dbsource[0].parser.fields.map(item=>{
-        return Object.assign(item,{
-          alias:item.name
-        })
-      });
+      this.$set(this,'constmqttCols',this.dbsource[0].parser.fields)
       let caitem = this.$store.state.app.mqttcafile[0];
       let certitem = this.$store.state.app.mqttcertfile[0];
       let certkeyitem = this.$store.state.app.mqttcertkeyfile[0];
@@ -1193,6 +1157,14 @@ export default {
         }
       },
     },
+    "$store.state.app.currentDBType": {
+      immediate: true,
+      handler(val) {
+        if (val == "kafka"||val=='mqtt') {
+          this.$set(this,'constmqttCols',this.$parent.uidata[0].parser.fields)
+        }
+      },
+    },
     "$store.state.dbs.dialogDbVisible": {
       handler(val) {
         if (!val) {
@@ -1204,6 +1176,7 @@ export default {
   methods: {
     getAdvanceParams(data){
       this.advanceParams=data
+      console.log(this.advanceParams,'this.advanceParams')
     },
     async downloadopcAllponits() {
       try {
@@ -1405,6 +1378,10 @@ export default {
       // csv 不做检测
       this.checkResult = this.$options.data().checkResult;
       this.submit(false);
+    },
+    //获取transformer的参数
+    getTransformerParams(data){
+      this.transformerParser=data
     },
     // 数据源可用性和版本检查
     async getValidateResult(dns) {
@@ -1775,34 +1752,37 @@ export default {
           dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
         }
         if ((this.tagName == "mqtt" || this.tagName == "kafka") && isSubmit) {
-          if (this.$refs.mqtt) {
-            this.$refs.mqtt.submit();
-            if (this.$refs.mqtt.showSuperTip) {
-              Message({
-                type: "warning",
-                message: this.$t("datasource.bothtagsuper"),
-              });
-              return;
-            }
-            let datasource = this.tagName == "mqtt" ? 'MQTT' : 'Kafka'
-            if (this.$refs.mqtt.disable || this.$refs.mqtt.nameisnull) {
-              Message({
-                type: "warning",
-                message: this.$t("datasource.mqttparsertip").replace('{datasource}',datasource),
-              });
-              return;
-            }
-          }
-          let oldparser = this.$store.state.app.mqttParser;
-          let columns = oldparser.model.columns;
-          if (columns.includes(this.$refs.mqtt.defaultSelect)) {
-            columns.map((item, ind) => {
-              if (item == this.$refs.mqtt.defaultSelect) {
-                columns.unshift(columns.splice(ind, 1)[0]);
-              }
-            });
-          }
-          this.$store.commit("app/SET_MQTT_PARSER", this.constMqttparser);
+          this.$refs.transformer.getTransformerParams()
+
+          console.log(this.transformerParser,'这是transforme的parser')
+          // if (this.$refs.mqtt) {
+          //   this.$refs.mqtt.submit();
+          //   if (this.$refs.mqtt.showSuperTip) {
+          //     Message({
+          //       type: "warning",
+          //       message: this.$t("datasource.bothtagsuper"),
+          //     });
+          //     return;
+          //   }
+          //   let datasource = this.tagName == "mqtt" ? 'MQTT' : 'Kafka'
+          //   if (this.$refs.mqtt.disable || this.$refs.mqtt.nameisnull) {
+          //     Message({
+          //       type: "warning",
+          //       message: this.$t("datasource.mqttparsertip").replace('{datasource}',datasource),
+          //     });
+          //     return;
+          //   }
+          // }
+          // let oldparser = this.$store.state.app.mqttParser;
+          // let columns = oldparser.model.columns;
+          // if (columns.includes(this.$refs.mqtt.defaultSelect)) {
+          //   columns.map((item, ind) => {
+          //     if (item == this.$refs.mqtt.defaultSelect) {
+          //       columns.unshift(columns.splice(ind, 1)[0]);
+          //     }
+          //   });
+          // }
+          // this.$store.commit("app/SET_MQTT_PARSER", this.constMqttparser);
         }
 
         if (this.tagName.includes("opc") && isSubmit) {
@@ -1904,26 +1884,25 @@ export default {
           ],
           // trigger: { "resume": this.resume }
         };
-        if (this.tagName == "mqtt" && isSubmit) {
-          let parser = this.$store.state.app.mqttParser
-          parser.parse.ts = {as : `timestamp(${this.dbprecision})`}
-          piParams["parser"] = parser
+        if ((this.tagName == "mqtt" ||this.tagName == "kafka") && isSubmit) {
+          // piParams["parser"] = this.$store.state.app.mqttParser;
+          piParams["parser"]=this.transformerParser
         }
-        if (this.tagName == "kafka" && isSubmit) {
-          let value = this.$store.state.app.mqttParser.parse.payload;
-          piParams["parser"] = {
-            ...this.$store.state.app.mqttParser,
-            parse: {
-              value: {
-                ...value,
-                keep: false,
-              },
-              ts: {
-                as: `timestamp(${this.dbprecision})`,
-              },
-            },
-          };
-        }
+        // if (this.tagName == "kafka" && isSubmit) {
+        //   let value = this.$store.state.app.mqttParser.parse.payload;
+        //   piParams["parser"] = {
+        //     ...this.$store.state.app.mqttParser,
+        //     parse: {
+        //       value: {
+        //         ...value,
+        //         keep: false,
+        //       },
+        //       ts: {
+        //         as: `timestamp(${this.dbprecision})`,
+        //       },
+        //     },
+        //   };
+        // }
         if (this.agentId) {
           piParams["via"] = this.agentId;
         }
