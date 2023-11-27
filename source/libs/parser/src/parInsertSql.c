@@ -2007,8 +2007,9 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
       (*pNumOfRows)++;
     }
 
-    if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) >= tsMaxInsertBatchRows) {
+    if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) > tsMaxInsertBatchRows) {
       pStmt->fileProcessing = true;
+      (*pNumOfRows)--;
       break;
     }
 
@@ -2037,6 +2038,19 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
     } else {
       parserDebug("0x%" PRIx64 " insert from csv. File is too large, do it in batches.", pCxt->pComCxt->requestId);
     }
+    if (pStmt->insertType != TSDB_QUERY_TYPE_FILE_INSERT) {
+      return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is exclusive", NULL);
+    }
+  }
+  // just record pTableCxt whose data come from file
+  if (numOfRows > 0) {
+    if (NULL == pStmt->pTableCxtHashObj) {
+      pStmt->pTableCxtHashObj =
+          taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    }
+    void* pData = rowsDataCxt.pTableDataCxt;
+    taosHashPut(pStmt->pTableCxtHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid), &pData,
+                POINTER_BYTES);
   }
   return code;
 }
@@ -2076,6 +2090,9 @@ static int32_t parseDataClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   NEXT_TOKEN(pStmt->pSql, token);
   switch (token.type) {
     case TK_VALUES:
+      if (TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_FILE_INSERT)) {
+        return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is exclusive", token.z);
+      }
       return parseValuesClause(pCxt, pStmt, rowsDataCxt, &token);
     case TK_FILE:
       return parseFileClause(pCxt, pStmt, rowsDataCxt, &token);
@@ -2293,12 +2310,18 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
   // release old array alloced by merge
   pStmt->freeArrayFunc(pStmt->pVgDataBlocks);
   // merge according to vgId
-  int32_t code = insMergeTableDataCxt(false ? pStmt->pTableCxtHashObj : pStmt->pTableBlockHashObj,
-                                      &pStmt->pVgDataBlocks, pStmt->fileProcessing);
+  bool fileOnly = (pStmt->insertType == TSDB_QUERY_TYPE_FILE_INSERT) &&
+                  0 < taosHashGetSize(pStmt->pTableCxtHashObj);
+  int32_t code = insMergeTableDataCxt(fileOnly ? pStmt->pTableCxtHashObj : pStmt->pTableBlockHashObj,
+                                      &pStmt->pVgDataBlocks, pStmt->fileProcessing, pStmt->fileProcessing);
   // clear tmp hashobj only
   taosHashClear(pStmt->pTableCxtHashObj);
 
   if (TSDB_CODE_SUCCESS == code) {
+    // none data, return 
+    if ( 0 == taosArrayGetSize(pStmt->pVgDataBlocks)) {
+      return code;
+    }
     code = insBuildVgDataBlocks(pStmt->pVgroupsHashObj, pStmt->pVgDataBlocks, &pStmt->pDataBlocks);
   }
 

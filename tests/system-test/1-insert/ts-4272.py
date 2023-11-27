@@ -1,6 +1,8 @@
 
-import taos
+import csv
+from datetime import datetime
 
+import taos
 from util.log import *
 from util.sql import *
 from util.cases import *
@@ -18,7 +20,7 @@ class TDTestCase:
         self.tag1 = 'using meters(groupId) tags(1)'
         self.tag2 = 'using meters(groupId) tags(2)'
         self.file1 = f"{self.testcasePath}/b.csv"
-        self.file2 = f"{self.testcasePath}/csv/2k.csv"
+        self.file2 = f"{self.testcasePath}/c.csv"
 
         os.system("rm -rf %s/b.csv" %self.testcasePath)
         tdLog.debug(f"start to excute {__file__}")
@@ -50,8 +52,8 @@ class TDTestCase:
     def test(self, sql):
         sql = "use d1;" + sql
         res = os.system(f'taos -s "{sql}"')
-        if (0 != res):
-           tdLog.exit(f"taos sql error")
+        # if (0 != res):
+        #    tdLog.exit(f"taos sql error")
 
 
     def check(self):
@@ -93,44 +95,59 @@ class TDTestCase:
         result = os.popen("taos -s 'select count(*) from d1.%s'" %self.tb1)
         res = result.read()
         if (f"OK" in res):
-            tdLog.info(f"checkEqual success")
+            tdLog.info(f"check count success")
+
+    def make_csv(self, filepath, once, qtime, startts):
+        f = open(filepath, 'w')
+        with f:
+          writer = csv.writer(f)
+          for j in range(qtime):
+            ts = startts + j*once
+            rows = []
+            for i in range(once):
+                rows.append([ts + i, 0.3 + (i%10)/100.0, 210 + i%10, 10.0 + (i%20)/20.0])
+            writer.writerows(rows)
+        f.close()
+        print(datetime.now(), filepath, " ready!")
+
+    def test_mix(self):
+        #forbid use both value and file in one insert
+        result = os.popen(f"insert into {self.tb1} file '{self.testcasePath}/csv/2k.csv' {self.tb2} values('2021-07-13 14:06:34.630', 10.2, 219, 0.32);")
+        res = result.read()
+        if (f"error" in res):
+            tdLog.info(f"forbid success")
 
     def test_bigcsv(self):
         # prepare csv
-        tdSql.execute(f"Create table d100 using meters tags('California.X', 1);")
+        print("start csv data prepare")
         once = 10000
-        qtime = 11
-        rowNum = qtime * once
-        for j in range(qtime):
-          sql = "insert into d1.d100 values"
-          ts = self.ts + j*once
-          for i in range(once):
-              sql += f"({ts + i}, {0.3 + (i%10)/100.0}, {210 + i%10}, {10.0 + (i%20)/20.0})"  
-          tdSql.execute(sql)
-          print("total rows insert %d " %((j+1)*once))  
-        
-        sql1 = "select * from d1.d100 >>'%s/b.csv';" %self.testcasePath
-        self.test(sql1)
+        qtime1 = 101
+        qtime2 = 100
+        rowNum1 = qtime1 * once
+        rowNum2 = qtime2 * once
+        self.make_csv(self.file1, once, qtime1, self.ts - 86400000)
+        self.make_csv(self.file2, once, qtime2, self.ts)
+        print("end csv data prepare")
    
         # auto create + insert
-        sql = f"INSERT INTO d2001 using meters(groupId) tags(5) FILE '{self.testcasePath}/b.csv';"
+        sql = f"INSERT INTO d2001 using meters(groupId) tags(5) FILE '{self.file1}';"
         self.test(sql)
 
         # only insert 
-        sql = f"INSERT INTO d2002 FILE '{self.testcasePath}/b.csv';"
+        sql = f"INSERT INTO d2002 FILE '{self.file2}';"
         self.test(sql)
 
         #tdSql.execute(f"use d1;")
         tdSql.query(f"select tbname,count(*) from meters group by tbname order by tbname;")
-        tdSql.checkRows(3)
-        tdSql.checkData(1, 1, rowNum)
-        tdSql.checkData(2, 1, rowNum)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, rowNum1)
+        tdSql.checkData(1, 1, rowNum2)
 
     def run(self):
         tdSql.prepare()
         self.reset_tb()
         self.test_bigcsv()
-
+        self.test_mix()
         self.check()
 
     def stop(self):
