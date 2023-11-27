@@ -24,6 +24,7 @@ export const PayConnectorList = ['pi', 'opcua', 'opcda', 'pibackfill'];
 const valueField = uuid();
 const optionsField = uuid();
 const groupsField = uuid();
+const advancedField = uuid();
 const piOptionShowValue = 'PI Data Archive and Asset Framework (AF) Server';
 const authenticationField = uuid();
 const connectivityCheckField = uuid();
@@ -75,7 +76,7 @@ export const DefaultOpcTableValue = {
 // 根据返回的数据源参数定义生成对应的表单配置
 export function getFormConfigByDataSource(dataSource, parserValue) {
   return dataSource.reduce((formConfig, item) => {
-    const { id, name, type, strict, description, protocol, authentication, groups, options, datasets, parser, params } = item;
+    const { id, name, type, strict, description, protocol, authentication, groups, options, datasets, parser, params, advanced } = item;
     const paramsConfig = [
       {
         label: i18n.t('dataIn.connectionConfiguration'),
@@ -101,6 +102,7 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
     // handleDatasets(datasets, paramsConfig);
     handleGroups(groups, paramsConfig);
     handleParser(parser, paramsConfig, parserValue);
+    handleAdvanced(advanced, paramsConfig)
     // 先处理protocol
     formConfig[id] = config;
     return formConfig;
@@ -721,6 +723,76 @@ function handleGroups(groups, paramsConfig) {
 //   });
 // }
 
+/*
+"advanced": {
+    "name": "Advanced Options",
+    "description": "Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave\nthese options as default to use the recommended settings.\n",
+    "collapsible": true,
+    "params": [
+      {
+        "name": "concurrency",
+        "display": "Read Concurrency",
+        "hint": {
+            "type": "integer",
+            "min": 1,
+            "max": 1000
+        },
+        "description": "The number of concurrent queries when reading data from the data source.\n",
+        "value": "1",
+        "hidden": true
+      },
+      {
+          "name": "log_level",
+          "display": "Log Level",
+          "hint": {
+            "type": "str",
+            "choices": [
+                "error",
+                "warn",
+                "info",
+                "debug",
+                "trace"
+            ]
+          },
+          "description": "Adjust the log level of the data source as required. This parameter does not always take effect.",
+          "value": "info"
+      }
+    ]
+  }
+*/ 
+function handleAdvanced(advanced, paramsConfig) {
+  if (!advanced) return;
+  const { params, collapsible, collapsed = true, name, description } = advanced
+  const children = [];
+  const config = {
+    label: name,
+    field: advancedField,
+    description,
+    type: 'advanced',
+    defaultValue: collapsible,
+    collapsible: collapsible ? 'one' : '',
+    children
+  }
+ 
+  paramsConfig.push(config);
+  
+  params.forEach(group => {
+    const { name, value, display, hint, required = false, placeholder, description: d1, short_description: d2 } = group;
+    const paramChildren = [];
+    const config = { 
+      label: display, 
+      field: handleField(name), 
+      description: d2 ?? d1, 
+      defaultValue: value,
+      if: true,
+      placeholder,
+      required,
+    };
+    handleHintType(config, hint, value);
+    children.push(config);
+  });
+}
+
 //根据hint判断表单项类型
 export function handleHintType(config, hint) {
   let type = hint;
@@ -814,6 +886,7 @@ export function getDsnData(data, definition) {
   dsn += getOptionData(data[optionsField], queryArr, definition);
   getGroupsQuery(data[groupsField], queryArr);
   getDatasetsQuery(data[datasetsField], data, queryArr);
+  getAdvancedQuery(data[advancedField],queryArr)
   if (queryArr.length) {
     if (dsn.includes('?')) {
       if (!dsn.endsWith('?')) {
@@ -870,6 +943,19 @@ function getGroupsQuery(groups, query) {
           query.push(field + '=' + getQueryParamValue(groups[key][k]));
         }
       }
+    }
+  }
+}
+
+function getAdvancedQuery(advanced, query) {
+  if (!advanced) return query;
+  for (let key in advanced) {
+    if (!checkValue(advanced[key])) continue;
+    if (key == valueField) {
+      continue;
+    } else {
+      const field = getOriginField(key);
+      query.push(field + '=' + getQueryParamValue(advanced[key]));
     }
   }
 }

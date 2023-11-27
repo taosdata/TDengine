@@ -8,7 +8,9 @@
           :class="{ 'block-wrapper': level }"
           :key="item.label"
         >
-          <div :class="{ mb10: !mb10Type.includes(item.type) && !item.hasValue }">
+          <div 
+            :class="{ mb10: !mb10Type.includes(item.type) && !item.hasValue }" 
+            v-if="item.type !='advanced'">
             <BlockHeader :title="item.label"> </BlockHeader>
             <FormItem
               v-if="item.hasValue"
@@ -35,12 +37,12 @@
             v-bind="item"
           />
           <ConnectivityCheck
-            v-if="item.type == 'collapse'"
+            v-else-if="item.type == 'collapse'"
             :data="data[item.field]"
             :parent="parent"
             v-bind="item"
           ></ConnectivityCheck>
-          <template v-if="item.type == 'tabs'">
+          <template v-else-if="item.type == 'tabs'">
             <el-tabs
               class="form-tabs"
               :value="item.valueField ? data[item.field][item.valueField] : '0'"
@@ -61,6 +63,33 @@
                 />
               </el-tab-pane>
             </el-tabs>
+          </template>
+          <template v-else-if="item.type == 'advanced'">
+            <el-collapse 
+              class='advanced'
+              v-model="item.collapsed" 
+              accordion>
+              <el-collapse-item name='one'>
+                <template slot="title">
+                  <div class="mb10">
+                    <BlockHeader :title="item.label"> </BlockHeader>
+                    <DocsContent
+                      v-if="item.description"
+                      class="docs-content"
+                      :content="item.description"
+                    />
+                  </div>
+                </template>
+                <FormItem
+                  v-for="(child, index) in item.children"
+                  :key="child.label + '-' + index"
+                  :config="child"
+                  :data="data[item.field]"
+                  :parentConfigList="item.children"
+                  :parent="parent + item.field + '.'"
+                />
+              </el-collapse-item>
+            </el-collapse>
           </template>
           <template v-else>
             <FormItem
@@ -126,7 +155,7 @@ export default {
   inject: ['sourceParent'],
   components: { FormItem, DocsContent, BlockHeader, ConnectivityCheck, ParserComp },
   data() {
-    this.mb10Type = ['opcTable', 'parser', 'tabs'];
+    this.mb10Type = ['opcTable', 'parser', 'tabs', 'advanced'];
     return {};
   },
   computed: {},
@@ -179,6 +208,12 @@ export default {
   }
   .mb10 {
     margin-bottom: 10px;
+  }
+  .advanced {
+    :deep(.el-collapse-item__header) {
+      min-height: 80px;
+    }
+    border-top: 0;
   }
 }
 </style>
