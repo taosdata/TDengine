@@ -51,7 +51,6 @@ func TestGetValueType(t *testing.T) {
 		{float32(42.0), Float},
 		{float64(42.0), DOUBLE},
 		{"hello", STRING},
-		{[]byte("world"), STRING},
 		{[]int{11, 2, 3}, -1},
 	}
 

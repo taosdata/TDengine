@@ -80,8 +80,6 @@ func GetValueType(value interface{}) ValueType {
 		return DOUBLE
 	case string:
 		return STRING
-	case []byte:
-		return STRING
 	default:
 		return -1
 	}

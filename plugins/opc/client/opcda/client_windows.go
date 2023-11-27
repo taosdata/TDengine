@@ -55,7 +55,7 @@ func NewDAClient(ctx context.Context, connectConfig config.DaConnectConfig, coll
 	for _, tag := range collectConfig.Da.Tags {
 		tags = append(tags, tag.Tag)
 	}
-	opcLogger := logger.WithField("opcType", "da").WithField("server", connectConfig.Server).WithField("id", index)
+	opcLogger := logger.WithField("opcType", "da").WithField("id", index)
 	var dataDumper *log.DataDump
 	var err error
 	if collectConfig.Dump.Enable {
