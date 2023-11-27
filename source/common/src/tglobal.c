@@ -248,7 +248,7 @@ int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
 // internal
 int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
-int32_t tsStreamCheckpointInterval = 10;
+int32_t tsStreamCheckpointInterval = 40;
 float   tsSinkDataRate = 2.0;
 int32_t tsStreamNodeCheckInterval = 15;
 int32_t tsTtlUnit = 86400;
@@ -354,16 +354,24 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
   char cfgFile[PATH_MAX + 100] = {0};
 
   taosExpandDir(inputCfgDir, cfgDir, PATH_MAX);
-  char lastC = cfgDir[strlen(cfgDir) - 1];
+  char  lastC = cfgDir[strlen(cfgDir) - 1];
   char *tdDirsep = TD_DIRSEP;
   if (lastC == '\\' || lastC == '/') {
     tdDirsep = "";
   }
   if (taosIsDir(cfgDir)) {
 #ifdef CUS_PROMPT
-    snprintf(cfgFile, sizeof(cfgFile), "%s" "%s" "%s.cfg", cfgDir, tdDirsep, CUS_PROMPT);
+    snprintf(cfgFile, sizeof(cfgFile),
+             "%s"
+             "%s"
+             "%s.cfg",
+             cfgDir, tdDirsep, CUS_PROMPT);
 #else
-    snprintf(cfgFile, sizeof(cfgFile), "%s" "%s" "taos.cfg", cfgDir, tdDirsep);
+    snprintf(cfgFile, sizeof(cfgFile),
+             "%s"
+             "%s"
+             "taos.cfg",
+             cfgDir, tdDirsep);
 #endif
   } else {
     tstrncpy(cfgFile, cfgDir, sizeof(cfgDir));
