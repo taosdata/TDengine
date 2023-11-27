@@ -793,7 +793,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if(createStreamReq.sql != NULL){
+  if (createStreamReq.sql != NULL) {
     sqlLen = strlen(createStreamReq.sql);
     sql = taosMemoryMalloc(sqlLen + 1);
     memset(sql, 0, sqlLen + 1);
@@ -880,14 +880,13 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   // reuse this function for stream
 
   if (sql != NULL && sqlLen > 0) {
-    auditRecord(pReq, pMnode->clusterId, "createStream", dbname.dbname, name.dbname, sql,
-                sqlLen);
-  }
-  else{
+    auditRecord(pReq, pMnode->clusterId, "createStream", dbname.dbname, name.dbname, sql, sqlLen);
+  } else {
     char detail[1000] = {0};
     sprintf(detail, "dbname:%s, stream name:%s", dbname.dbname, name.dbname);
     auditRecord(pReq, pMnode->clusterId, "createStream", dbname.dbname, name.dbname, detail, strlen(detail));
   }
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
@@ -896,7 +895,7 @@ _OVER:
   mndReleaseStream(pMnode, pStream);
   tFreeSCMCreateStreamReq(&createStreamReq);
   tFreeStreamObj(&streamObj);
-  if(sql != NULL){
+  if (sql != NULL) {
     taosMemoryFreeClear(sql);
   }
   return code;
