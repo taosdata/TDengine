@@ -53,7 +53,7 @@ TEST(utilTest, decompress_test) {
 }
 
 TEST(utilTest, decompress_perf_test) {
-  int32_t num = 100000;
+  int32_t num = 10000;
 
   int64_t* pList = static_cast<int64_t*>(taosMemoryCalloc(num, sizeof(int64_t)));
   int64_t iniVal = 1700000000;
@@ -71,7 +71,7 @@ TEST(utilTest, decompress_perf_test) {
   char* pOutput = static_cast<char*>(taosMemoryMalloc(num * sizeof(int64_t)));
 
   int64_t st = taosGetTimestampUs();
-  for(int32_t k = 0; k < 10; ++k) {
+  for(int32_t k = 0; k < 10000; ++k) {
     tsDecompressTimestamp(px, len, num, pOutput, sizeof(int64_t) * num, ONE_STAGE_COMP, NULL, 0);
   }
 
@@ -80,7 +80,7 @@ TEST(utilTest, decompress_perf_test) {
 
   memset(pOutput, 0, num * sizeof(int64_t));
   st = taosGetTimestampUs();
-  for(int32_t k = 0; k < 10; ++k) {
+  for(int32_t k = 0; k < 10000; ++k) {
     tsDecompressTimestampAvx512(px, num, pOutput, false);
   }
 
