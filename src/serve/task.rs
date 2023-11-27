@@ -682,6 +682,8 @@ pub struct FileMeta {
     filepath: Option<String>,
     filesize: Option<u64>,
     file_header: Option<FileMetaHeader>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sample_values: Option<Vec<Vec<String>>>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, IntoParams, ToSchema)]
@@ -690,6 +692,7 @@ pub struct FileMetaRequest {
     file_path: String,
     file_type: String,
     has_header: bool,
+    sample: Option<usize>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -722,10 +725,11 @@ pub async fn filemeta(filemeta_request: Query<FileMetaRequest>) -> impl Responde
 }
 
 async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileMeta> {
-    let (filepath_or_filedir, file_type, has_header) = (
+    let (filepath_or_filedir, file_type, has_header, sample) = (
         filemeta_request.file_path,
         filemeta_request.file_type,
         filemeta_request.has_header,
+        filemeta_request.sample.unwrap_or(5),
     );
 
     let data_dir = get_data_dir();
@@ -737,7 +741,8 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
                 .into_iter()
                 .map(|path| data_dir.join(path).display().to_string())
                 .collect_vec();
-            let csv_header = taosx_core::csv_header(filepath_or_filedir, has_header).await?;
+            let csv_header =
+                taosx_core::csv_header(filepath_or_filedir, has_header, sample).await?;
             if csv_header.columns == 0 {
                 anyhow::bail!("CSV file headers are empty");
             }
@@ -758,6 +763,11 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
                     columns_length: csv_header.columns,
                     column_names,
                 }),
+                sample_values: if csv_header.values.is_empty() {
+                    None
+                } else {
+                    Some(csv_header.values)
+                },
             })
         }
         _ => {
