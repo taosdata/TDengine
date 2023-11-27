@@ -1887,6 +1887,10 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
   taosHashClear(pStmt->pTableCxtHashObj);
 
   if (TSDB_CODE_SUCCESS == code) {
+    // none data, return 
+    if ( 0 == taosArrayGetSize(pStmt->pVgDataBlocks)) {
+      return code;
+    }
     code = insBuildVgDataBlocks(pStmt->pVgroupsHashObj, pStmt->pVgDataBlocks, &pStmt->pDataBlocks);
   }
 
