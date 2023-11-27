@@ -958,7 +958,7 @@ static void cliSendCb(uv_write_t* req, int status) {
   if (pMsg != NULL) {
     int64_t cost = taosGetTimestampUs() - pMsg->st;
     if (cost > 1000 * 50) {
-      tWarn("%s conn %p send cost:%dus ", CONN_GET_INST_LABEL(pConn), pConn, (int)cost);
+      tTrace("%s conn %p send cost:%dus ", CONN_GET_INST_LABEL(pConn), pConn, (int)cost);
     }
   }
 
