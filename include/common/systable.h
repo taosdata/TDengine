@@ -56,6 +56,7 @@ extern "C" {
 #define TSDB_INS_TABLE_GRANTS_FULL       "ins_grants_full"
 #define TSDB_INS_TABLE_GRANTS_LOGS       "ins_grants_logs"
 #define TSDB_INS_TABLE_MACHINES          "ins_machines"
+#define TSDB_INS_TABLE_TSMAS             "ins_tsmas"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB   "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS        "perf_smas"
