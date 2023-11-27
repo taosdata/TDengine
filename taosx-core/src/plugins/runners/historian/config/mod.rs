@@ -15,8 +15,8 @@ pub enum TaskMode {
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum HistorianTable {
-    Live,
     History,
+    Live,
 }
 
 impl FromStr for HistorianTable {

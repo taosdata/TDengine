@@ -15,7 +15,7 @@ mod producer;
 pub async fn migrate_history(config: TaskConfig) -> anyhow::Result<()> {
     tracing::info!("create history migrate task with config: {:?}", config);
     let (tx, rx) = flume::bounded(config.concurrency);
-
+    // consume task
     let mut consumers = Vec::new();
     for _ in 0..config.concurrency {
         let receiver = rx.clone();
@@ -33,14 +33,15 @@ pub async fn migrate_history(config: TaskConfig) -> anyhow::Result<()> {
         });
         consumers.push(c);
     }
-
+    // produce task
     let producer = Producer::new(&config);
     producer.produce(tx).await?;
-
+    // consumer join
     for c in consumers {
         c.await??;
     }
 
+    tracing::info!("migrate history task finished");
     Ok(())
 }
 

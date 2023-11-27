@@ -3,6 +3,8 @@ use flume::Receiver;
 use futures_util::TryStreamExt;
 use tiberius::QueryItem;
 
+use taosx_ipc::ack::AckReaderBuilder;
+
 use crate::runners::historian::arrow::ArrowDataAppender;
 use crate::runners::historian::config::{HistorianTable, TaskConfig};
 use crate::runners::historian::query::HistorianQuery;
@@ -23,6 +25,23 @@ impl Consumer {
         let mut appender = ArrowDataAppender::try_new(HistorianTable::History)?;
         let mut writer = StreamWriter::try_new(&stream, appender.schema())?;
 
+        // create ack stream
+        let ack_stream = stream.try_clone()?;
+        let ack = tokio::task::spawn_blocking(move || {
+            let ack_reader =
+                AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
+            for ack in ack_reader {
+                if !ack.success() {
+                    tracing::warn!("write records error: {ack:?}",);
+                    if let Some(message) = ack.message() {
+                        anyhow::bail!("IPC writer error: {message}")
+                    }
+                }
+            }
+            tracing::info!("ACK reader finished");
+            Ok(())
+        });
+
         while let Ok(task) = receiver.recv_async().await {
             let start = task
                 .begin_datetime
@@ -37,7 +56,11 @@ impl Consumer {
             while let Some(row) = rows.try_next().await? {
                 match row {
                     QueryItem::Row(row) => {
-                        appender.append_history_row(row)?;
+                        appender.append_history_row(row).map_err(|err| {
+                            let err_msg = format!("append history row error: {}", err.to_string());
+                            tracing::error!(err_msg);
+                            anyhow::anyhow!(err_msg)
+                        })?;
                     }
                     QueryItem::Metadata(_) => {
                         continue;
@@ -48,15 +71,11 @@ impl Consumer {
             // write batch
             let batch = appender.finish()?;
             writer.write(&batch)?;
+            tracing::debug!("historian source write batch to ipc: {}", batch.num_rows());
         }
-
         writer.finish()?;
+
+        ack.await??;
         Ok(())
     }
-}
-
-#[cfg(test)]
-mod tests {
-    #[tokio::test]
-    async fn test_consume() {}
 }
