@@ -299,10 +299,10 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
     _mm_storeu_si128((__m128i *)&ostream[opos], val);
 
     // keep the previous value
-    prevVal = _mm_set1_epi64x(val[1]);
+    prevVal = _mm_shuffle_epi32 (val, 0xEE);
 
     // keep the previous delta of delta, for the first item
-    prevDelta = _mm_set1_epi64x(deltaOfDelta[1]);
+    prevDelta = _mm_shuffle_epi32(deltaOfDelta, 0xEE);
 
     opos += 2;
     ipos += nbytes1 + nbytes2;
@@ -354,11 +354,11 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
     _mm_storeu_si128((__m128i *)&ostream[opos], val);
 
     // keep the previous value
-    prevVal = _mm_set1_epi64x(val[1]);
+    prevVal = _mm_shuffle_epi32 (val, 0xEE);
 
     // keep the previous delta of delta
     __m128i delta = _mm_add_epi64(_mm_slli_si128(deltaOfDelta, 8), deltaOfDelta);
-    prevDelta = _mm_set1_epi64x(_mm_add_epi64(delta, prevDelta)[1]);
+    prevDelta = _mm_shuffle_epi32(_mm_add_epi64(delta, prevDelta), 0xEE);
 
     opos += 2;
     ipos += nbytes1 + nbytes2;
