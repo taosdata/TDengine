@@ -44,6 +44,27 @@ typedef struct SNodeAllocator {
 static threadlocal SNodeAllocator* g_pNodeAllocator;
 static int32_t                     g_allocatorReqRefPool = -1;
 
+char* getJoinTypeString(EJoinType type) {
+  static char* joinType[] = {"", "INNER", "LEFT", "RIGHT", "FULL"};
+  return joinType[type];
+}
+
+char* getJoinSTypeString(EJoinSubType type) {
+  static char* joinSType[] = {"", "", "OUTER", "SEMI", "ANTI", "ANY", "ASOF", "WINDOW"};
+  return joinSType[type];
+}
+
+char* getFullJoinTypeString(EJoinType type, EJoinSubType stype) {
+  static char* joinFullType[][8] = {
+    {}, 
+    {"INNER", "INNER", "INNER", "INNER", "INNER", "INNER ANY", "INNER", "INNER"},
+    {"LEFT", "LEFT", "LEFT OUTER", "LEFT SEMI", "LEFT ANTI", "LEFT ANY", "LEFT ASOF", "LEFT WINDOW"},
+    {"RIGHT", "RIGHT", "RIGHT OUTER", "RIGHT SEMI", "RIGHT ANTI", "RIGHT ANY", "RIGHT ASOF", "RIGHT WINDOW"},
+    {"FULL", "FULL", "FULL OUTER", "FULL", "FULL", "FULL ANY", "FULL", "FULL"}
+  };  
+  return joinFullType[type][stype];
+}
+
 static SNodeMemChunk* callocNodeChunk(SNodeAllocator* pAllocator) {
   SNodeMemChunk* pNewChunk = taosMemoryCalloc(1, sizeof(SNodeMemChunk) + pAllocator->chunkSize);
   if (NULL == pNewChunk) {
@@ -306,6 +327,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SHintNode));
     case QUERY_NODE_VIEW:
       return makeNode(type, sizeof(SViewNode));
+    case QUERY_NODE_WINDOW_OFFSET:
+      return makeNode(type, sizeof(SWindowOffsetNode));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -848,6 +871,12 @@ void nodesDestroyNode(SNode* pNode) {
       taosArrayDestroyEx(pView->pSmaIndexes, destroySmaIndex);
       break;
     }
+    case QUERY_NODE_WINDOW_OFFSET: {
+      SWindowOffsetNode* pWin = (SWindowOffsetNode*)pNode;
+      nodesDestroyNode(pWin->pStartOffset);
+      nodesDestroyNode(pWin->pEndOffset);
+      break;
+    }    
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pStmt = (SSetOperator*)pNode;
       nodesDestroyList(pStmt->pProjectionList);

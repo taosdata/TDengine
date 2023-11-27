@@ -1047,7 +1047,7 @@ from_clause_opt(A) ::= .                                                        
 from_clause_opt(A) ::= FROM table_reference_list(B).                              { A = B; }
 
 table_reference_list(A) ::= table_reference(B).                                   { A = B; }
-table_reference_list(A) ::= table_reference_list(B) NK_COMMA table_reference(C).  { A = createJoinTableNode(pCxt, JOIN_TYPE_INNER, B, C, NULL); }
+table_reference_list(A) ::= table_reference_list(B) NK_COMMA table_reference(C).  { A = createJoinTableNode(pCxt, JOIN_TYPE_INNER, JOIN_STYPE_NONE, B, C, NULL); }
 
 /************************************************ table_reference *****************************************************/
 table_reference(A) ::= table_primary(B).                                          { A = B; }
@@ -1069,12 +1069,40 @@ parenthesized_joined_table(A) ::= NK_LP parenthesized_joined_table(B) NK_RP.    
 
 /************************************************ joined_table ********************************************************/
 joined_table(A) ::=
-  table_reference(B) join_type(C) JOIN table_reference(D) ON search_condition(E). { A = createJoinTableNode(pCxt, C, B, D, E); }
+  table_reference(B) join_type(C) join_subtype(D) JOIN table_reference(E) ON search_condition(F) 
+  window_offset_clause_opt(G) jlimit_clause_opt(H).                               { 
+                                                                                    A = createJoinTableNode(pCxt, C, D, B, E, F); 
+                                                                                    A = addWindowOffsetClause(pCxt, A, G);
+                                                                                    A = addJLimitClause(pCxt, A, H);
+                                                                                  }
 
 %type join_type                                                                   { EJoinType }
 %destructor join_type                                                             { }
 join_type(A) ::= .                                                                { A = JOIN_TYPE_INNER; }
 join_type(A) ::= INNER.                                                           { A = JOIN_TYPE_INNER; }
+join_type(A) ::= LEFT.                                                            { A = JOIN_TYPE_LEFT; }
+join_type(A) ::= RIGHT.                                                           { A = JOIN_TYPE_RIGHT; }
+join_type(A) ::= FULL.                                                            { A = JOIN_TYPE_FULL; }
+
+%type join_subtype                                                                { EJoinSubType }
+%destructor join_subtype                                                          { }
+join_subtype(A) ::= .                                                             { A = JOIN_STYPE_NONE; }
+join_subtype(A) ::= OUTER.                                                        { A = JOIN_STYPE_OUTER; }
+join_subtype(A) ::= SEMI.                                                         { A = JOIN_STYPE_SEMI; }
+join_subtype(A) ::= ANTI.                                                         { A = JOIN_STYPE_ANTI; }
+join_subtype(A) ::= ANY.                                                          { A = JOIN_STYPE_ANY; }
+join_subtype(A) ::= ASOF.                                                         { A = JOIN_STYPE_ASOF; }
+join_subtype(A) ::= WINDOW.                                                       { A = JOIN_STYPE_WIN; }
+
+window_offset_clause_opt(A) ::= .                                                 { A = NULL; }
+window_offset_clause_opt(A) ::= WINDOW_OFFSET NK_LP window_offset_literal(B) 
+  NK_COMMA window_offset_literal(C) NK_RP.                                           { A = createWindowOffsetNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
+
+window_offset_literal(A) ::= NK_VARIABLE(B).                                      { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
+window_offset_literal(A) ::= NK_INTEGER(B).                                       { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
+
+jlimit_clause_opt(A) ::= .                                                        { A = NULL; }
+jlimit_clause_opt(A) ::= JLIMIT NK_INTEGER(B).                                    { A = createLimitNode(pCxt, &B, NULL); }
 
 /************************************************ query_specification *************************************************/
 query_specification(A) ::=

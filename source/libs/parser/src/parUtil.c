@@ -216,6 +216,15 @@ int32_t buildInvalidOperationMsg(SMsgBuf* pBuf, const char* msg) {
   return TSDB_CODE_TSC_INVALID_OPERATION;
 }
 
+int32_t buildInvalidOperationMsgExt(SMsgBuf* pBuf, const char* pFormat, ...) {
+  va_list vArgList;
+  va_start(vArgList, pFormat);
+  vsnprintf(pBuf->buf, pBuf->len, pFormat, vArgList);
+  va_end(vArgList);
+  return TSDB_CODE_TSC_INVALID_OPERATION;
+}
+
+
 int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char* sourceStr) {
   if (pBuf == NULL) return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
   const char* msgFormat1 = "syntax error near \'%s\'";

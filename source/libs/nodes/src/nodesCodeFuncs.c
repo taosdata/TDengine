@@ -91,6 +91,8 @@ const char* nodesNodeName(ENodeType type) {
       return "CaseWhen";
     case QUERY_NODE_EVENT_WINDOW:
       return "EventWindow";
+    case QUERY_NODE_WINDOW_OFFSET:
+      return "WindowOffset";
     case QUERY_NODE_SET_OPERATOR:
       return "SetOperator";
     case QUERY_NODE_SELECT_STMT:
@@ -4125,6 +4127,7 @@ static int32_t jsonToTempTableNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkJoinTableJoinType = "JoinType";
+static const char* jkJoinTableSubType = "SubType";
 static const char* jkJoinTableLeft = "Left";
 static const char* jkJoinTableRight = "Right";
 static const char* jkJoinTableOnCond = "OnCond";
@@ -4135,6 +4138,9 @@ static int32_t joinTableNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = tableNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkJoinTableJoinType, pNode->joinType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkJoinTableSubType, pNode->subType);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkJoinTableLeft, nodeToJson, pNode->pLeft);
@@ -4155,6 +4161,9 @@ static int32_t jsonToJoinTableNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToTableNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     tjsonGetNumberValue(pJson, jkJoinTableJoinType, pNode->joinType, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkJoinTableSubType, pNode->subType, code);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkJoinTableLeft, &pNode->pLeft);
@@ -4607,6 +4616,29 @@ static int32_t jsonToDownstreamSourceNode(const SJson* pJson, void* pObj) {
 
   return code;
 }
+
+static const char* jkWindowOffsetStartOffset = "StartOffset";
+static const char* jkWindowOffsetEndOffset = "EndOffset";
+static int32_t windowOffsetNodeToJson(const void* pObj, SJson* pJson) {
+  const SWindowOffsetNode* pNode = (const SWindowOffsetNode*)pObj;
+
+  int32_t code = tjsonAddObject(pJson, jkWindowOffsetStartOffset, nodeToJson, pNode->pStartOffset);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkWindowOffsetEndOffset, nodeToJson, pNode->pEndOffset);
+  }
+  return code;
+}
+
+static int32_t jsonToWindowOffsetNode(const SJson* pJson, void* pObj) {
+  SWindowOffsetNode* pNode = (SWindowOffsetNode*)pObj;
+
+  int32_t code = jsonToNodeObject(pJson, jkWindowOffsetStartOffset, &pNode->pStartOffset);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkWindowOffsetEndOffset, &pNode->pEndOffset);
+  }
+  return code;
+}
+
 
 static const char* jkDatabaseOptionsBuffer = "Buffer";
 static const char* jkDatabaseOptionsCacheModel = "CacheModel";
@@ -6867,6 +6899,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return caseWhenNodeToJson(pObj, pJson);
     case QUERY_NODE_EVENT_WINDOW:
       return eventWindowNodeToJson(pObj, pJson);
+    case QUERY_NODE_WINDOW_OFFSET:
+      return windowOffsetNodeToJson(pObj, pJson);
     case QUERY_NODE_SET_OPERATOR:
       return setOperatorToJson(pObj, pJson);
     case QUERY_NODE_SELECT_STMT:
@@ -7190,6 +7224,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToCaseWhenNode(pJson, pObj);
     case QUERY_NODE_EVENT_WINDOW:
       return jsonToEventWindowNode(pJson, pObj);
+    case QUERY_NODE_WINDOW_OFFSET:
+      return jsonToWindowOffsetNode(pJson, pObj);
     case QUERY_NODE_SET_OPERATOR:
       return jsonToSetOperator(pJson, pObj);
     case QUERY_NODE_SELECT_STMT:

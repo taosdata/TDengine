@@ -2913,6 +2913,41 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
+  EJoinType type = pJoinTable->joinType;
+  EJoinSubType* pSType = &pJoinTable->subType;
+
+  switch (type) {
+    case JOIN_TYPE_INNER:
+      if (*pSType == JOIN_STYPE_OUTER || *pSType == JOIN_STYPE_SEMI || *pSType == JOIN_STYPE_ANTI || *pSType == JOIN_STYPE_ASOF || *pSType == JOIN_STYPE_WIN) {
+        return buildInvalidOperationMsg(&pCxt->msgBuf, "not supported join type");
+      }
+      break;
+    case JOIN_TYPE_FULL:
+      if (*pSType == JOIN_STYPE_SEMI || *pSType == JOIN_STYPE_ANTI || *pSType == JOIN_STYPE_ASOF || *pSType == JOIN_STYPE_WIN) {
+        return buildInvalidOperationMsg(&pCxt->msgBuf, "not supported join type");
+      }
+    //fall down
+    default:
+      if (*pSType == JOIN_STYPE_NONE) {
+        *pSType = JOIN_STYPE_OUTER;
+      }
+      break;
+  }
+
+  if (NULL != pJoinTable->pWindowOffset && *pSType != JOIN_STYPE_WIN) {
+    return buildInvalidOperationMsg(&pCxt->msgBuf, "WINDOW_OFFSET only supported for WINDOW join");
+  }
+  if (NULL == pJoinTable->pWindowOffset && *pSType == JOIN_STYPE_WIN) {
+    return buildInvalidOperationMsg(&pCxt->msgBuf, "WINDOW_OFFSET required for WINDOW join");
+  }
+  if (NULL != pJoinTable->pJLimit && *pSType != JOIN_STYPE_ASOF && *pSType != JOIN_STYPE_WIN) {
+    return buildInvalidOperationMsgExt(&pCxt->msgBuf, "JLIMIT not supported for %s join", getFullJoinTypeString(type, *pSType));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t translateTable(STranslateContext* pCxt, SNode** pTable) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(*pTable)) {
@@ -2973,7 +3008,10 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable) {
     }
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoinTable = (SJoinTableNode*)*pTable;
-      code = translateTable(pCxt, &pJoinTable->pLeft);
+      code = translateJoinTable(pCxt, pJoinTable);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = translateTable(pCxt, &pJoinTable->pLeft);
+      }
       if (TSDB_CODE_SUCCESS == code) {
         code = translateTable(pCxt, &pJoinTable->pRight);
       }

@@ -77,6 +77,7 @@ typedef struct SParseMetaCache {
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);
 int32_t generateSyntaxErrMsgExt(SMsgBuf* pBuf, int32_t errCode, const char* pFormat, ...);
 int32_t buildInvalidOperationMsg(SMsgBuf* pMsgBuf, const char* msg);
+int32_t buildInvalidOperationMsgExt(SMsgBuf* pBuf, const char* pFormat, ...);
 int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char* sourceStr);
 
 SSchema*      getTableColumnSchema(const STableMeta* pTableMeta);

@@ -771,11 +771,12 @@ SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, const STok
   return (SNode*)tempTable;
 }
 
-SNode* createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, SNode* pLeft, SNode* pRight, SNode* pJoinCond) {
+SNode* createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, EJoinSubType stype, SNode* pLeft, SNode* pRight, SNode* pJoinCond) {
   CHECK_PARSER_STATUS(pCxt);
   SJoinTableNode* joinTable = (SJoinTableNode*)nodesMakeNode(QUERY_NODE_JOIN_TABLE);
   CHECK_OUT_OF_MEM(joinTable);
   joinTable->joinType = type;
+  joinTable->subType = stype;
   joinTable->pLeft = pLeft;
   joinTable->pRight = pRight;
   joinTable->pOnCond = pJoinCond;
@@ -874,6 +875,15 @@ SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode
   interval->pSliding = pSliding;
   interval->pFill = pFill;
   return (SNode*)interval;
+}
+
+SNode* createWindowOffsetNode(SAstCreateContext* pCxt, SNode* pStartOffset, SNode* pEndOffset) {
+  CHECK_PARSER_STATUS(pCxt);
+  SWindowOffsetNode* winOffset = (SWindowOffsetNode*)nodesMakeNode(QUERY_NODE_WINDOW_OFFSET);
+  CHECK_OUT_OF_MEM(winOffset);
+  winOffset->pStartOffset = pStartOffset;
+  winOffset->pEndOffset = pEndOffset;
+  return (SNode*)winOffset;
 }
 
 SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues) {
@@ -1046,6 +1056,31 @@ SNode* addFillClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pFill) {
   }
   return pStmt;
 }
+
+
+SNode* addJLimitClause(SAstCreateContext* pCxt, SNode* pJoin, SNode* pJLimit) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pJLimit) {
+    return pJoin;
+  }
+  SJoinTableNode* pJoinNode = (SJoinTableNode*)pJoin;
+  pJoinNode->pJLimit = pJLimit;
+  
+  return pJoin;
+}
+
+
+SNode* addWindowOffsetClause(SAstCreateContext* pCxt, SNode* pJoin, SNode* pWinOffset) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pWinOffset) {
+    return pJoin;
+  }
+  SJoinTableNode* pJoinNode = (SJoinTableNode*)pJoin;
+  pJoinNode->pWindowOffset = pWinOffset;
+  
+  return pJoin;
+}
+
 
 SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable,
                         SNodeList* pHint) {

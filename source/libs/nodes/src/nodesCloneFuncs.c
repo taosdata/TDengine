@@ -259,6 +259,7 @@ static int32_t tempTableNodeCopy(const STempTableNode* pSrc, STempTableNode* pDs
 static int32_t joinTableNodeCopy(const SJoinTableNode* pSrc, SJoinTableNode* pDst) {
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
   COPY_SCALAR_FIELD(joinType);
+  COPY_SCALAR_FIELD(subType);
   COPY_SCALAR_FIELD(hasSubQuery);
   COPY_SCALAR_FIELD(isLowLevelJoin);
   CLONE_NODE_FIELD(pLeft);
@@ -367,6 +368,14 @@ static int32_t hintNodeCopy(const SHintNode* pSrc, SHintNode* pDst) {
   COPY_SCALAR_FIELD(option);
   return copyHintValue(pSrc, pDst);
 }
+
+static int32_t windowOffsetCopy(const SWindowOffsetNode* pSrc, SWindowOffsetNode* pDst) {
+  COPY_SCALAR_FIELD(type);
+  CLONE_NODE_FIELD(pStartOffset);
+  CLONE_NODE_FIELD(pEndOffset);
+  return TSDB_CODE_SUCCESS;
+}
+
 
 static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pTargets);
@@ -850,6 +859,9 @@ SNode* nodesCloneNode(const SNode* pNode) {
       break;
     case QUERY_NODE_HINT:
       code = hintNodeCopy((const SHintNode*)pNode, (SHintNode*)pDst);
+      break;
+    case QUERY_NODE_WINDOW_OFFSET:
+      code = windowOffsetCopy((const SWindowOffsetNode*)pNode, (SWindowOffsetNode*)pDst);
       break;
     case QUERY_NODE_SET_OPERATOR:
       code = setOperatorCopy((const SSetOperator*)pNode, (SSetOperator*)pDst);

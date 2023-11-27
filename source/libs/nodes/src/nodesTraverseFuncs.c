@@ -366,6 +366,14 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       }
       break;
     }
+    case QUERY_NODE_WINDOW_OFFSET: {
+      SWindowOffsetNode* pWin = (SWindowOffsetNode*)pNode;
+      res = rewriteExpr(&pWin->pStartOffset, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pWin->pEndOffset, order, rewriter, pContext);
+      }
+      break;
+    }
     default:
       break;
   }

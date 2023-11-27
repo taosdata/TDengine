@@ -201,7 +201,18 @@ typedef enum EJoinType {
   JOIN_TYPE_INNER = 1,
   JOIN_TYPE_LEFT,
   JOIN_TYPE_RIGHT,
+  JOIN_TYPE_FULL,
 } EJoinType;
+
+typedef enum EJoinSubType {
+  JOIN_STYPE_NONE = 1,
+  JOIN_STYPE_OUTER,
+  JOIN_STYPE_SEMI,
+  JOIN_STYPE_ANTI,
+  JOIN_STYPE_ANY,
+  JOIN_STYPE_ASOF,
+  JOIN_STYPE_WIN,
+} EJoinSubType;
 
 typedef enum EJoinAlgorithm { 
   JOIN_ALGO_UNKNOWN = 0,
@@ -214,13 +225,16 @@ typedef enum EDynQueryType {
 } EDynQueryType;
 
 typedef struct SJoinTableNode {
-  STableNode table;  // QUERY_NODE_JOIN_TABLE
-  EJoinType  joinType;
-  bool       hasSubQuery;
-  bool       isLowLevelJoin;
-  SNode*     pLeft;
-  SNode*     pRight;
-  SNode*     pOnCond;
+  STableNode   table;  // QUERY_NODE_JOIN_TABLE
+  EJoinType    joinType;
+  EJoinSubType subType;
+  SNode*       pWindowOffset;
+  SNode*       pJLimit;
+  bool         hasSubQuery;
+  bool         isLowLevelJoin;
+  SNode*       pLeft;
+  SNode*       pRight;
+  SNode*       pOnCond;
 } SJoinTableNode;
 
 typedef enum EGroupingSetType { GP_TYPE_NORMAL = 1 } EGroupingSetType;
@@ -321,6 +335,13 @@ typedef struct SCaseWhenNode {
   SNode*     pElse;
   SNodeList* pWhenThenList;
 } SCaseWhenNode;
+
+typedef struct SWindowOffsetNode {
+  ENodeType type;          // QUERY_NODE_WINDOW_OFFSET
+  SNode*    pStartOffset;  // SValueNode
+  SNode*    pEndOffset;    // SValueNode
+} SWindowOffsetNode;
+
 
 typedef struct SSelectStmt {
   ENodeType     type;  // QUERY_NODE_SELECT_STMT
@@ -559,6 +580,11 @@ const char* logicConditionTypeStr(ELogicConditionType type);
 
 bool nodesIsStar(SNode* pNode);
 bool nodesIsTableStar(SNode* pNode);
+
+char* getJoinTypeString(EJoinType type);
+char* getJoinSTypeString(EJoinSubType type);
+char* getFullJoinTypeString(EJoinType type, EJoinSubType stype);
+
 
 #ifdef __cplusplus
 }
