@@ -305,6 +305,10 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
   { .showType = QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_MACHINES,
+  },    
+  { .showType = QUERY_NODE_SHOW_TSMAS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_TSMAS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
@@ -12491,6 +12495,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
+    case QUERY_NODE_SHOW_TSMAS_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_VGROUPS_STMT:

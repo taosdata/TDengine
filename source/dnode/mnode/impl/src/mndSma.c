@@ -31,6 +31,7 @@
 #include "mndVgroup.h"
 #include "parser.h"
 #include "tname.h"
+#include "functionMgt.h"
 
 #define TSDB_SMA_VER_NUMBER   1
 #define TSDB_SMA_RESERVE_SIZE 64
@@ -54,6 +55,9 @@ static int32_t mndProcessDropTSMAReq(SRpcMsg* pReq);
 static int32_t mndProcessDropIdxReq(SRpcMsg *pReq);
 static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelRetrieveIdx(SMnode *pMnode, void *pIter);
+
+static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static void    mndCancelRetrieveTSMA(SMnode *pMnode, void *pIter);
 
 typedef struct SCreateTSMACxt {
   SMnode *              pMnode;
@@ -95,6 +99,8 @@ int32_t mndInitSma(SMnode *pMnode) {
   
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_TSMA, mndProcessCreateTSMAReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_TSMA, mndProcessDropTSMAReq);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TSMAS, mndRetrieveTSMA);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TSMAS, mndCancelRetrieveTSMA);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -1784,4 +1790,112 @@ _OVER:
   mndReleaseSma(pMnode, pSma);
   mndReleaseDb(pMnode, pDb);
   return code;
+}
+
+static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SDbObj *         pDb = NULL;
+  int32_t          numOfRows = 0;
+  SSmaObj *        pSma = NULL;
+  SMnode *         pMnode = pReq->info.node;
+  SColumnInfoData *pColInfo;
+  if (pShow->db[0]) {
+    pDb = mndAcquireDb(pMnode, pShow->db);
+  }
+  if (pShow->pIter == NULL) {
+    pShow->pIter = taosMemoryCalloc(1, sizeof(SSmaAndTagIter));
+  }
+  SSmaAndTagIter *pIter = pShow->pIter;
+  while (numOfRows < rows) {
+    pIter->pSmaIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter->pSmaIter, (void **)&pSma);
+    if (pIter->pSmaIter == NULL) break;
+
+    if (pDb && pSma->dbUid != pDb->uid) {
+      sdbRelease(pMnode->pSdb, pSma);
+      continue;
+    }
+
+    int32_t cols = 0;
+    SName   n = {0};
+
+    tNameFromString(&n, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    char smaName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(smaName, (char *)tNameGetTableName(&n));
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)smaName, false);
+
+    char db[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(db, (char *)mndGetDbStr(pSma->db));
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char*)db, false);
+
+    tNameFromString(&n, pSma->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    char srcTb[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(srcTb, (char *)tNameGetTableName(&n));
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char*)srcTb, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char*)db, false);
+
+    tNameFromString(&n, pSma->dstTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    char targetTb[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(targetTb, (char*)tNameGetTableName(&n));
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char*)targetTb, false);
+
+    // stream name
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char*)smaName, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char*)(&pSma->createdTime), false);
+
+    // interval
+    // TODO replace 64
+    char interval[64 + VARSTR_HEADER_SIZE] = {0};
+    SDbObj* pSrcDb = mndAcquireDb(pMnode, pSma->db);
+    int32_t len = snprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval,
+                           getPrecisionUnit(pSrcDb->cfg.precision));
+    varDataSetLen(interval, len);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, interval, false);
+
+    // create sql
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    char buf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
+    len = snprintf(buf + 2, TSDB_SHOW_SQL_LEN, "%s", pSma->sql);
+    varDataSetLen(buf, len);
+    colDataSetVal(pColInfo, numOfRows, buf, false);
+
+    // func list
+    len = 0;
+    char * start = buf + VARSTR_HEADER_SIZE;
+    SNode *pNode = NULL, *pFunc = NULL;
+    nodesStringToNode(pSma->ast, &pNode);
+    if (pNode) {
+      FOREACH(pFunc, ((SSelectStmt *)pNode)->pProjectionList) {
+        if (nodeType(pFunc) == QUERY_NODE_FUNCTION) {
+          SFunctionNode *pFuncNode = (SFunctionNode *)pFunc;
+          if (!fmIsAggFunc(pFuncNode->funcId)) continue;
+          len += snprintf(start, TSDB_SHOW_SQL_LEN - len, "%s%s", start != buf + VARSTR_HEADER_SIZE ? "," : "",
+                          ((SExprNode *)pFunc)->userAlias);
+          start = buf + VARSTR_HEADER_SIZE + len;
+        }
+      }
+    }
+    varDataSetLen(buf, len);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, buf, false);
+
+    numOfRows++;
+    mndReleaseSma(pMnode, pSma);
+    mndReleaseDb(pMnode, pSrcDb);
+  }
+  mndReleaseDb(pMnode, pDb);
+  pShow->numOfRows += numOfRows;
+  if (numOfRows < rows) pShow->pIter = NULL;
+  return numOfRows;
+}
+
+static void    mndCancelRetrieveTSMA(SMnode *pMnode, void *pIter) {
 }
