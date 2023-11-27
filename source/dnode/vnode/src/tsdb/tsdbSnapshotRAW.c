@@ -62,14 +62,13 @@ int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, STsdbSnapR
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s, sver:%" PRId64 " ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode),
-              __func__, lino, tstrerror(code), 0, ever, type);
+    tsdbError("vgId:%d %s failed at line %d since %s, sver:0, ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode), __func__,
+              lino, tstrerror(code), ever, type);
     tsdbFSDestroyRefSnapshot(&reader[0]->fsetArr);
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
   } else {
-    tsdbInfo("vgId:%d tsdb snapshot reader opened. sver:%" PRId64 " ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode), 0,
-             ever, type);
+    tsdbInfo("vgId:%d tsdb snapshot reader opened. sver:0, ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode), ever, type);
   }
   return code;
 }
@@ -387,7 +386,7 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
-    tsdbInfo("vgId:%d %s done, sver:%" PRId64 " ever:%" PRId64, TD_VID(pTsdb->pVnode), __func__, 0, ever);
+    tsdbInfo("vgId:%d %s done, sver:0, ever:%" PRId64, TD_VID(pTsdb->pVnode), __func__, ever);
   }
   return code;
 }
