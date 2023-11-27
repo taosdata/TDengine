@@ -94,15 +94,17 @@ export default {
         return [];
       },
     },
-    indentifiedColumns:{
-        type: Array,
+    indentifiedColumns: {
+      type: Array,
       default: () => {
         return [];
       },
-    }
+    },
   },
   data() {
     return {
+      extractParseData: {},
+      maptypes: ["value", "generator", "join", "format", "sum", "expr"],
       tableColumns: [],
       extractTypes: ["json", "split", "regex"],
       ruleForm: {
@@ -139,9 +141,7 @@ export default {
   },
   methods: {
     //提交验证
-    validateExtreact(){
-
-    },
+    validateExtreact() {},
     changeExtractExpr(val) {
       this.$emit("changeExtractExpr", this.ruleForm.col_name, val);
     },
@@ -164,7 +164,7 @@ export default {
       );
     },
     submit() {
-      this.$parent.validateMsgBody()
+      this.$parent.validateMsgBody();
       if (!this.$parent.msgForm.msgbody) {
         return;
       }
@@ -192,46 +192,91 @@ export default {
             })
           );
         });
-
+        let transformerColumns = [
+          {
+            value: "expression",
+            label: this.$t("expression"),
+            children: this.maptypes.map((item) => {
+              return {
+                value: item,
+                label: item,
+              };
+            }),
+          },
+          {
+            value: "mapping",
+            label: this.$t("mapping"),
+            children: result[0].fields.map((item) => {
+              return {
+                value: item.name,
+                label: item.name,
+              };
+            }),
+          },
+        ];
+        this.$store.commit(
+          "app/SET_TRANSFORMER_MAPCOLUMNS",
+          transformerColumns
+        );
       } catch (error) {
         console.log(error);
+      }
+    },
+    //编辑回显调用接口
+    echoExtract() {
+      if (this.$store.state.app.transformExtractParseData) {
+        this.getParserData(this.$store.state.app.transformExtractParseData);
       }
     },
     //提交单个
     submitExtract() {
       let extractExpres = this.ruleForm.filter_expres.split(";");
-      let inputobj = {};
-      this.indentifiedColumns.forEach((item) => {
-        if (this.$store.state.app.currentDBType == "mqtt") {
-          if (item.name == "payload") {
-            inputobj["payload"] = this.payload;
-          } else {
-            inputobj[item.name] = item.type == "timestamp" ? "now" : item.name;
+      let inputList=[]
+      inputList=this.$parent.msgForm.msgbody.split(";").map((msg) => {
+        let inputobj = {};
+        this.indentifiedColumns.forEach((item) => {
+          if (this.$store.state.app.currentDBType == "mqtt") {
+            if (item.name == "payload") {
+              inputobj["payload"] = msg;
+            } else {
+              inputobj[item.name] =
+                item.type == "timestamp" ? "now" : item.name;
+            }
+          } else if (this.$store.state.app.currentDBType == "kafka") {
+            if (item.name == "value") {
+              inputobj["value"] = msg;
+            } else {
+              inputobj[item.name] =
+                item.type == "timestamp" ? "now" : item.name;
+            }
           }
-        } else if (this.$store.state.app.currentDBType == "kafka") {
-          if (item.name == "value") {
-            inputobj["value"] = this.payload;
-          } else {
-            inputobj[item.name] = item.type == "timestamp" ? "now" : item.name;
-          }
-        }
+        });
+        return inputobj
       });
-      let parseData={}
-      this.$parent.extractArr.map((item) => {
-                return {
-                    [`${item.columnname}`]:{
-                        [`${item.type}`]:item.type=='regex'?item.expression:item.expression.split(';')
-                    }
-                }
-            }).forEach(val=>{
-                Object.assign(parseData,val)
-            })
+      this.extractParseData = {};
+      this.$parent.extractArr
+        .map((item) => {
+          return {
+            [`${item.columnname}`]: {
+              [`${item.type}`]:
+                item.type == "regex"
+                  ? item.expression
+                  : item.expression.split(";"),
+            },
+          };
+        })
+        .forEach((val) => {
+          Object.assign(this.extractParseData, val);
+        });
       let parser = {
         parser: {
-          parse: parseData
+          parse: {},
         },
-        input: [].concat(inputobj),
+        input: inputList,
       };
+      parser.parser.parse = this.extractParseData;
+      this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);
+
       this.getParserData(parser);
     },
     deleteExtract() {
@@ -258,6 +303,7 @@ export default {
   margin-top: 20px;
   .extract-item {
     display: flex;
+    flex-wrap: nowrap;
     .el-form {
       display: grid;
       column-gap: 15px;
@@ -268,6 +314,7 @@ export default {
     }
     .btns {
       display: flex;
+      flex-wrap: nowrap;
       .el-button {
         display: flex;
         align-items: center;
