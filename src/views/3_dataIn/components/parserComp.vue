@@ -92,10 +92,15 @@ export default {
       return this.data.parse?.[this.jsonParentField]?.json ?? [];
     },
     filedNameArr() {
-      return this.fields.map(item => item.name);
+      return this.fields.map(item => {
+        return {
+          name: item.name,
+          cast: item.type
+        }
+      });
     },
     targetDB() {
-      return this.sourceParent.sourceForm.targetDB;
+      return this.$store.state.app.currentDBName;
     },
     collectTable() {
       return getGroupsObj(this.sourceParent.sourceForm.data)?.table;
@@ -111,7 +116,7 @@ export default {
     },
     targetDB: {
       handler(val) {
-        if (!this.isKafka) return;
+        // if (!this.isKafka) return;
         if (dbPrecisionMap[val]) {
           this.dbPrecision = dbPrecisionMap[val];
         } else {
@@ -122,15 +127,19 @@ export default {
     },
     dbPrecision: {
       handler(val) {
-        if (!this.isKafka) return;
-        this.data.parse.ts = { as: `timestamp(${val})` };
+        // if (!this.isKafka) return;
+        // this.data.parse.ts = { as: `timestamp(${val})` };
+        this.data.parse.DateTime = { as: `timestamp(${val})` };
+        if (this.data.parse.StartDateTime) {
+          this.data.parse.StartDateTime = { as: `timestamp(${val})` };
+        }
       },
       immediate: true
     },
     collectTable: {
       handler(val) {
         let arr = val === 'Runtime.dbo.Live' ? ['wwResolution', 'StartDateTime'] : ['OPCQuality']
-        this.displayfiledNameArr = this.filedNameArr.filter(item => !arr.includes(item))
+        this.displayfiledNameArr = this.filedNameArr.filter(item => !arr.includes(item.name))
         this.generateTableData();
       },
       immediate: true
@@ -146,9 +155,10 @@ export default {
       
       const result = this.displayfiledNameArr.map(item => {
         const config = {
-          usageType: 0,
-          field: item,
-          type: 'system'
+          usageType: item.name == 'TagName' ? 2 : 1,
+          field: item.name,
+          type: 'system',
+          cast: item.cast
         };
         if (columns.includes(item)) {
           config.usageType = 1;
@@ -185,17 +195,29 @@ export default {
       });
     },
     generateJsonArray(data) {
-      if (!data.length) return (this.data.parse[this.jsonParentField].json = []);
-      this.data.parse[this.jsonParentField].json = data
-        .filter(item => item.type == 'custome' && item.field && item.targetField)
+      // if (!data.length) return (this.data.parse[this.jsonParentField].json = []);
+      // this.data.parse[this.jsonParentField].json = data
+      //   .filter(item => item.type == 'custome' && item.field && item.targetField)
+      //   .map(item => {
+      //     const config = {
+      //       name: item.field,
+      //       alias: item.targetField,
+      //       cast: item.dataType
+      //     };
+      //     return config;
+      //   });
+      if (!data.length) return this.data.parse = {}
+      let config = {}
+       data
+        .filter(item => item.type == 'system' && item.field)
         .map(item => {
-          const config = {
-            name: item.field,
-            alias: item.targetField,
-            cast: item.dataType
-          };
-          return config;
+          if (item.cast == 'timestamp') {
+            config[item.field] = { as: `${item.cast}(${this.dbPrecision})`}
+          } else {
+            config[item.field] = { as: item.cast}
+          }
         });
+        this.data.parse = config
     },
     setColumnAndTag(data) {
       const columns = data.filter(item => item.usageType == 1).map(item => item.field);
