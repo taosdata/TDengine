@@ -221,7 +221,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
         *pInput = qItem;
       } else {
         // merge current block failed, let's handle the already merged blocks.
-        void* newRet = streamMergeQueueItem(*pInput, qItem);
+        void* newRet = streamQueueMergeQueueItem(*pInput, qItem);
         if (newRet == NULL) {
           if (terrno != 0) {
             stError("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d, code:%s", id, *numOfBlocks,

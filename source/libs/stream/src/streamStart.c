@@ -323,7 +323,7 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
   }
 }
 
-int32_t onNormalTaskReady(SStreamTask* pTask) {
+int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
 
   streamTaskSetReady(pTask);
@@ -348,7 +348,7 @@ int32_t onNormalTaskReady(SStreamTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t onScanhistoryTaskReady(SStreamTask* pTask) {
+int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
 
   // set the state to be ready

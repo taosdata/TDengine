@@ -891,6 +891,8 @@ long s3Size(const char *object_name) {
 
   if ((cbd.status != S3StatusOK) && (cbd.status != S3StatusErrorPreconditionFailed)) {
     s3PrintError(__FILE__, __LINE__, __func__, cbd.status, cbd.err_msg);
+
+    return -1;
   }
 
   size = cbd.content_length;

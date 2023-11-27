@@ -50,7 +50,7 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
   const char *ip = input + 1;
   int32_t     count = 0;
   int32_t     _pos = 0;
-  int64_t     prev_value = 0;
+  int64_t     prevValue = 0;
 
 #if __AVX2__
   while (1) {
@@ -80,13 +80,13 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
         if (selector == 0 || selector == 1) {
           if (tsSIMDEnable && tsAVX2Enable) {
             for (int32_t i = 0; i < batch; ++i) {
-              __m256i prev = _mm256_set1_epi64x(prev_value);
+              __m256i prev = _mm256_set1_epi64x(prevValue);
               _mm256_storeu_si256((__m256i *)&p[_pos], prev);
               _pos += 4;
             }
 
             for (int32_t i = 0; i < remain; ++i) {
-              p[_pos++] = prev_value;
+              p[_pos++] = prevValue;
             }
           } else if (tsSIMDEnable && tsAVX512Enable) {
 #if __AVX512F__
@@ -94,7 +94,7 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
 #endif
           } else { // alternative implementation without SIMD instructions.
             for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
-              p[_pos++] = prev_value;
+              p[_pos++] = prevValue;
               v += bit;
             }
           }
@@ -118,16 +118,16 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
               __m256i delta = _mm256_xor_si256(_mm256_srli_epi64(zigzagVal, 1), signmask);
 
               // calculate the cumulative sum (prefix sum) for each number
-              // decode[0] = prev_value + final[0]
-              // decode[1] = decode[0] + final[1]   -----> prev_value + final[0] + final[1]
-              // decode[2] = decode[1] + final[2]   -----> prev_value + final[0] + final[1] + final[2]
-              // decode[3] = decode[2] + final[3]   -----> prev_value + final[0] + final[1] + final[2] + final[3]
+              // decode[0] = prevValue + final[0]
+              // decode[1] = decode[0] + final[1]   -----> prevValue + final[0] + final[1]
+              // decode[2] = decode[1] + final[2]   -----> prevValue + final[0] + final[1] + final[2]
+              // decode[3] = decode[2] + final[3]   -----> prevValue + final[0] + final[1] + final[2] + final[3]
 
               //  1, 2, 3, 4
               //+ 0, 1, 0, 3
               //  1, 3, 3, 7
               // shift and add for the first round
-              __m128i prev = _mm_set1_epi64x(prev_value);
+              __m128i prev = _mm_set1_epi64x(prevValue);
               __m256i x = _mm256_slli_si256(delta, 8);
 
               delta = _mm256_add_epi64(delta, x);
@@ -148,16 +148,16 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
               _mm_storeu_si128((__m128i *)&p[_pos + 2], secPart);
 
               shiftBits = _mm256_add_epi64(shiftBits, inc);
-              prev_value = p[_pos + 3];
+              prevValue = p[_pos + 3];
               _pos += 4;
             }
 
             // handle the remain value
             for (int32_t i = 0; i < remain; i++) {
               zigzag_value = ((w >> (v + (batch * bit * 4))) & mask);
-              prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
+              prevValue += ZIGZAG_DECODE(int64_t, zigzag_value);
 
-              p[_pos++] = prev_value;
+              p[_pos++] = prevValue;
               v += bit;
             }
           } else if (tsSIMDEnable && tsAVX512Enable) {
@@ -167,9 +167,9 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
           } else {  // alternative implementation without SIMD instructions.
             for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
               zigzag_value = ((w >> v) & mask);
-              prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
+              prevValue += ZIGZAG_DECODE(int64_t, zigzag_value);
 
-              p[_pos++] = prev_value;
+              p[_pos++] = prevValue;
               v += bit;
             }
           }
@@ -180,14 +180,14 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
 
         if (selector == 0 || selector == 1) {
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
-            p[_pos++] = (int32_t)prev_value;
+            p[_pos++] = (int32_t)prevValue;
           }
         } else {
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
             zigzag_value = ((w >> v) & mask);
-            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
+            prevValue += ZIGZAG_DECODE(int64_t, zigzag_value);
 
-            p[_pos++] = (int32_t)prev_value;
+            p[_pos++] = (int32_t)prevValue;
             v += bit;
           }
         }
@@ -197,14 +197,14 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
 
         if (selector == 0 || selector == 1) {
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
-            p[_pos++] = (int16_t)prev_value;
+            p[_pos++] = (int16_t)prevValue;
           }
         } else {
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
             zigzag_value = ((w >> v) & mask);
-            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
+            prevValue += ZIGZAG_DECODE(int64_t, zigzag_value);
 
-            p[_pos++] = (int16_t)prev_value;
+            p[_pos++] = (int16_t)prevValue;
             v += bit;
           }
         }
@@ -215,14 +215,14 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
 
         if (selector == 0 || selector == 1) {
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
-            p[_pos++] = (int8_t)prev_value;
+            p[_pos++] = (int8_t)prevValue;
           }
         } else {
           for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
             zigzag_value = ((w >> v) & mask);
-            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
+            prevValue += ZIGZAG_DECODE(int64_t, zigzag_value);
 
-            p[_pos++] = (int8_t)prev_value;
+            p[_pos++] = (int8_t)prevValue;
             v += bit;
           }
         }
@@ -246,6 +246,77 @@ int32_t tsDecompressFloatImplAvx512(const char *const input, const int32_t nelem
 // todo add later
 int32_t tsDecompressFloatImplAvx2(const char *const input, const int32_t nelements, char *const output) {
 #if __AVX2__
+#endif
+  return 0;
+}
+
+int32_t tsDecompressTimestampAvx2(const char* const input, const int32_t nelements, char *const output, bool bigEndian) {
+  int64_t *ostream = (int64_t *)output;
+  int32_t  ipos = 1, opos = 0;
+  int8_t   nbytes = 0;
+
+  int64_t  prevValue = 0;
+  int64_t  prevDelta = 0;
+
+  int64_t  deltaOfDelta = 0;
+  int32_t  longBytes = LONG_BYTES;
+
+#if __AVX2__
+
+  int32_t batch = nelements >> 2;
+  int32_t remainder = nelements & 0x1;
+
+  while (1) {
+    uint8_t flags = input[ipos++];
+
+    // Decode dd1
+    uint64_t dd1 = 0;
+    nbytes = flags & INT8MASK(4);
+
+    if (nbytes == 0) {
+      deltaOfDelta = 0;
+    } else {
+      if (bigEndian) {
+        memcpy(((char *)(&dd1)) + longBytes - nbytes, input + ipos, nbytes);
+      } else {
+        memcpy(&dd1, input + ipos, nbytes);
+      }
+      deltaOfDelta = ZIGZAG_DECODE(int64_t, dd1);
+    }
+
+    ipos += nbytes;
+    prevDelta += deltaOfDelta;
+    prevValue += prevDelta;
+    ostream[opos++] = prevValue;
+
+    if (opos == nelements) {
+      return nelements * longBytes;
+    }
+
+    // Decode dd2
+    uint64_t dd2 = 0;
+    nbytes = (flags >> 4) & INT8MASK(4);
+    if (nbytes == 0) {
+      deltaOfDelta = 0;
+    } else {
+      if (bigEndian) {
+        memcpy(((char *)(&dd2)) + longBytes - nbytes, input + ipos, nbytes);
+      } else {
+        memcpy(&dd2, input + ipos, nbytes);
+      }
+      // zigzag_decoding
+      deltaOfDelta = ZIGZAG_DECODE(int64_t, dd2);
+    }
+
+    ipos += nbytes;
+    prevDelta += deltaOfDelta;
+    prevValue += prevDelta;
+    ostream[opos++] = prevValue;
+
+    if (opos == nelements) {
+      return nelements * longBytes;
+    }
+  }
 #endif
   return 0;
 }
