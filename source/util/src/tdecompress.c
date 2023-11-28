@@ -398,10 +398,11 @@ int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelem
                                     bool UNUSED_PARAM(bigEndian)) {
   int64_t *ostream = (int64_t *)output;
   int32_t  ipos = 1, opos = 0;
-  __m128i  prevVal = _mm_setzero_si128();
-  __m128i  prevDelta = _mm_setzero_si128();
 
 #if __AVX512VL__
+
+  __m128i  prevVal = _mm_setzero_si128();
+  __m128i  prevDelta = _mm_setzero_si128();
 
   int32_t   numOfBatch = nelements >> 1;
   int32_t   remainder = nelements & 0x01;
