@@ -96,6 +96,12 @@ pub enum EvalError {
 impl Expr {
     pub fn try_new(expr: impl Into<String>, null_if_error: bool) -> Result<Self, EvalAltResult> {
         let expr = expr.into();
+        if expr.is_empty() {
+            return Err(rhai::EvalAltResult::ErrorParsing(
+                rhai::ParseErrorType::ExprExpected("non empty".to_string()),
+                rhai::Position::START,
+            ));
+        }
         // let mut engine = Engine::new();
         // engine.register_fn("starts_with", functions::starts_with);
         let engine = Engine::new();
@@ -115,6 +121,10 @@ impl Expr {
         let columns = records.columns();
         if rows == 0 {
             return Ok(vec![]);
+        }
+
+        if self.expr.is_empty() {
+            return Ok(vec![Dynamic::UNIT; rows]);
         }
 
         // fn parse_variables_from_expr(expr: &rhai::AST) -> Vec<String> {
@@ -346,6 +356,16 @@ mod tests {
 
         let values = expr.eval(&batch).unwrap();
         assert_eq!(values, [false, false, false, true, true]);
+    }
+
+    #[test]
+    fn test_bool_with_empty_expr() {
+        let expr = BooleanExpr::try_new("".to_string());
+        assert!(expr.is_err());
+        assert_eq!(
+            expr.unwrap_err().to_string(),
+            "Syntax error: Expecting non empty expression (line 1, position 0)"
+        );
     }
 
     #[test]
