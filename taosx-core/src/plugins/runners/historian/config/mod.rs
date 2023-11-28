@@ -40,6 +40,7 @@ pub struct TaskConfig {
     pub mode: TaskMode,
     pub table: HistorianTable,
     pub tags: Vec<String>,
+    pub tag_list_size: usize,
     pub begin_datetime: Option<DateTime<Utc>>,
     pub end_datetime: Option<DateTime<Utc>>,
     pub time_window: Duration,
@@ -59,6 +60,7 @@ impl TaskConfig {
             mode: Self::parse_mode(dsn)?,
             table: Self::parse_table(dsn)?,
             tags: Self::parse_tags(dsn),
+            tag_list_size: Self::parse_tag_list_size(dsn)?,
             begin_datetime: Self::parse_begin_datetime(dsn)?,
             end_datetime: Self::parse_end_datetime(dsn)?,
             time_window: Self::parse_time_window(dsn)?,
@@ -109,6 +111,27 @@ impl TaskConfig {
             .unwrap_or(vec!["*".to_string()])
     }
 
+    fn parse_tag_list_size(dsn: &Dsn) -> anyhow::Result<usize> {
+        Ok(dsn
+            .params
+            .get("tagListSize")
+            .map(|s| {
+                let tag_list_size = s.parse::<usize>().map_err(|err| {
+                    anyhow::anyhow!(
+                        "failed to parse tagListSize: {}, cause: {}",
+                        s.to_string(),
+                        err.to_string()
+                    )
+                })?;
+                if tag_list_size < 1 {
+                    bail!("tagListSize must be greater than 1");
+                }
+                Ok(tag_list_size)
+            })
+            .transpose()?
+            .unwrap_or(10))
+    }
+
     fn parse_begin_datetime(dsn: &Dsn) -> anyhow::Result<Option<DateTime<Utc>>> {
         let begin_datetime = dsn
             .params
@@ -127,8 +150,8 @@ impl TaskConfig {
             })
             .transpose()?;
 
-        let table = Self::parse_table(dsn)?;
-        if begin_datetime.is_none() && table == HistorianTable::History {
+        let table = Self::parse_table(dsn);
+        if table.is_ok() && begin_datetime.is_none() && table.unwrap() == HistorianTable::History {
             bail!("beginDateTime is required when table is Runtime.dbo.History");
         }
 
@@ -154,9 +177,15 @@ impl TaskConfig {
             })
             .transpose()?;
 
-        let mode = Self::parse_mode(dsn)?;
-        let table = Self::parse_table(dsn)?;
-        if end_date_time.is_none() && mode == TaskMode::Migrate && table == HistorianTable::History
+        let mode = Self::parse_mode(dsn);
+        let table = Self::parse_table(dsn);
+        if mode.is_err() || table.is_err() {
+            return Ok(end_date_time);
+        }
+
+        if end_date_time.is_none()
+            && mode.unwrap() == TaskMode::Migrate
+            && table.unwrap() == HistorianTable::History
         {
             bail!("endDateTime is required when mode is migrate and table is Runtime.dbo.History");
         }
@@ -373,11 +402,29 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_tag_list_size() {
+        let dsn = Dsn::from_str("historian://?").unwrap();
+        let config = TaskConfig::parse_tag_list_size(&dsn).unwrap();
+        assert_eq!(10, config);
+
+        let dsn = Dsn::from_str("historian://?tagListSize=1").unwrap();
+        let config = TaskConfig::parse_tag_list_size(&dsn).unwrap();
+        assert_eq!(1, config);
+
+        let dsn = Dsn::from_str("historian://?tagListSize=xxx").unwrap();
+        let config = TaskConfig::parse_tag_list_size(&dsn);
+        assert!(config.is_err());
+        assert_eq!(
+            "failed to parse tagListSize: xxx, cause: invalid digit found in string",
+            config.unwrap_err().to_string()
+        );
+    }
+
+    #[test]
     fn test_parse_begin_datetime() {
         let dsn = Dsn::from_str("historian://?").unwrap();
-        let config = TaskConfig::parse_begin_datetime(&dsn);
-        assert!(config.is_err());
-        assert_eq!("beginDateTime is required", config.unwrap_err().to_string());
+        let config = TaskConfig::parse_begin_datetime(&dsn).unwrap();
+        assert!(config.is_none());
 
         let dsn = Dsn::from_str("historian://?beginDateTime=2021-01-01T00:00:00Z").unwrap();
         let config = TaskConfig::parse_begin_datetime(&dsn).unwrap();
@@ -394,22 +441,30 @@ mod tests {
 
     #[test]
     fn test_parse_end_datetime() {
+        let dsn = Dsn::from_str("historian://").unwrap();
+        let config = TaskConfig::parse_end_datetime(&dsn).unwrap();
+        assert!(config.is_none());
+
         let dsn = Dsn::from_str("historian://?mode=synchronize").unwrap();
         let config = TaskConfig::parse_end_datetime(&dsn).unwrap();
         assert!(config.is_none());
 
         let dsn = Dsn::from_str("historian://?mode=migrate").unwrap();
-        let config = TaskConfig::parse_end_datetime(&dsn);
-        assert!(config.is_err());
-        assert_eq!(
-            "endDateTime is required when mode is migrate",
-            config.unwrap_err().to_string()
-        );
+        let config = TaskConfig::parse_end_datetime(&dsn).unwrap();
+        assert!(config.is_none());
 
         let dsn =
             Dsn::from_str("historian://?mode=migrate&endDateTime=2021-01-01T00:00:00Z").unwrap();
         let config = TaskConfig::parse_end_datetime(&dsn).unwrap();
         assert_eq!("2021-01-01T00:00:00+00:00", config.unwrap().to_rfc3339());
+
+        let dsn = Dsn::from_str("historian://?mode=migrate&table=Runtime.dbo.History").unwrap();
+        let config = TaskConfig::parse_end_datetime(&dsn);
+        assert!(config.is_err());
+        assert_eq!(
+            "endDateTime is required when mode is migrate and table is Runtime.dbo.History",
+            config.unwrap_err().to_string()
+        );
 
         let dsn = Dsn::from_str("historian://?mode=migrate&endDateTime=xxx").unwrap();
         let config = TaskConfig::parse_end_datetime(&dsn);

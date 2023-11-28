@@ -1,8 +1,10 @@
 use std::cmp::min;
 
 use flume::Sender;
+use itertools::Itertools;
 
 use crate::runners::historian::config::TaskConfig;
+use crate::runners::historian::query::HistorianQuery;
 
 pub struct Producer {
     config: TaskConfig,
@@ -26,6 +28,19 @@ impl Producer {
             .ok_or(anyhow::anyhow!("endDateTime cannot be None"))?;
         let time_window = self.config.time_window;
 
+        let mut tags = self.config.tags.clone();
+        if !tags.is_empty() && tags.len() == 1 && tags.get(0).unwrap() == "*" {
+            let mut client = HistorianQuery::try_new(self.config.connect.clone()).await?;
+            let tag_meta = client.get_tags().await?;
+            tags = tag_meta
+                .iter()
+                .map(|meta| meta.name.clone())
+                .collect::<Vec<_>>();
+        }
+        if tags.is_empty() {
+            anyhow::bail!("tags cannot be empty");
+        }
+
         while window_start < end {
             let window_end = min(window_start + time_window, end);
             tracing::debug!(
@@ -34,10 +49,23 @@ impl Producer {
                 window_end
             );
 
-            let mut task = self.config.clone();
-            task.begin_datetime = Some(window_start);
-            task.end_datetime = Some(window_end);
-            tx.send_async(task).await.unwrap();
+            let tasks = tags
+                .iter()
+                .chunks(self.config.tag_list_size)
+                .into_iter()
+                .map(|list| {
+                    let mut task = self.config.clone();
+                    task.begin_datetime = Some(window_start);
+                    task.end_datetime = Some(window_end);
+                    task.tags = list.map(|s| s.to_string()).collect::<Vec<_>>();
+
+                    task
+                })
+                .collect_vec();
+
+            for task in tasks {
+                tx.send_async(task).await.unwrap();
+            }
 
             window_start = window_end;
         }
@@ -52,12 +80,14 @@ mod tests {
 
     use super::*;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_produce() {
         let dsn = format!(
-            "historian://aaAdmin:aaAdmin@localhost:1433/?mode={}&table={}&beginDateTime={}&endDateTime={}&timeWindow={}",
+            "historian://aaAdmin:aaAdmin@192.168.3.40:1433/?mode={}&table={}&tags={}&tagListSize={}&beginDateTime={}&endDateTime={}&timeWindow={}",
             "migrate",
             "Runtime.dbo.History",
+            "*",
+            "3",
             "2021-08-01T00:00:00Z",
             "2021-08-04T12:00:00Z",
             "1d"
@@ -79,30 +109,19 @@ mod tests {
 
         let tasks = consumer.await.unwrap();
 
-        assert_eq!(4, tasks.len());
+        assert_eq!(16, tasks.len());
         let t = tasks.get(0).unwrap();
-        assert_eq!("2021-08-01T00:00:00+00:00", t.begin_datetime.unwrap().to_rfc3339());
+        assert_eq!(
+            "2021-08-01T00:00:00+00:00",
+            t.begin_datetime.unwrap().to_rfc3339()
+        );
         assert_eq!(
             "2021-08-02T00:00:00+00:00",
             t.end_datetime.unwrap().to_rfc3339()
         );
-        let t = tasks.get(1).unwrap();
-        assert_eq!("2021-08-02T00:00:00+00:00", t.begin_datetime.unwrap().to_rfc3339());
-        assert_eq!(
-            "2021-08-03T00:00:00+00:00",
-            t.end_datetime.unwrap().to_rfc3339()
-        );
-        let t = tasks.get(2).unwrap();
-        assert_eq!("2021-08-03T00:00:00+00:00", t.begin_datetime.unwrap().to_rfc3339());
-        assert_eq!(
-            "2021-08-04T00:00:00+00:00",
-            t.end_datetime.unwrap().to_rfc3339()
-        );
-        let t = tasks.get(3).unwrap();
-        assert_eq!("2021-08-04T00:00:00+00:00", t.begin_datetime.unwrap().to_rfc3339());
-        assert_eq!(
-            "2021-08-04T12:00:00+00:00",
-            t.end_datetime.unwrap().to_rfc3339()
-        );
+        assert_eq!(3, t.tags.len());
+        assert_eq!("tag0", t.tags.get(0).unwrap());
+        assert_eq!("tag1", t.tags.get(1).unwrap());
+        assert_eq!("tag2", t.tags.get(2).unwrap());
     }
 }

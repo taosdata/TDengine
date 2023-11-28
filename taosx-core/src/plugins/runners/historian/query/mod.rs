@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use itertools::Itertools;
 use tiberius::{AuthMethod, Client, Config, QueryItem, QueryStream};
 use tokio::net::TcpStream;
 use tokio_stream::StreamExt;
@@ -17,7 +18,7 @@ const HISTORY_COLUMNS: &str = "DateTime,TagName,Value,vValue,Quality,QualityDeta
 const LIVE_COLUMNS: &str = "DateTime,TagName,Value,vValue,Quality,QualityDetail,OPCQuality,wwTagKey,SourceTag,SourceServer";
 
 impl HistorianQuery {
-    pub async fn new(config: ConnectConfig) -> anyhow::Result<Self> {
+    pub async fn try_new(config: ConnectConfig) -> anyhow::Result<Self> {
         let client = Self::connect(
             &config.host,
             config.port,
@@ -51,18 +52,11 @@ impl HistorianQuery {
 
     pub async fn query_live(&mut self, tags: Vec<String>) -> anyhow::Result<QueryStream> {
         let sql;
-        if tags.len() == 1 && tags.first().unwrap().as_str() == "*" {
-            sql = format!(
-                "select {} from Runtime.dbo.Live where TagName not like 'Sys%'",
-                LIVE_COLUMNS
-            );
-        } else {
-            sql = format!(
-                "select {} from Runtime.dbo.Live where TagName in ({})",
-                LIVE_COLUMNS,
-                tags.join(",")
-            );
-        }
+        sql = format!(
+            "select {} from Runtime.dbo.Live where TagName in ({})",
+            LIVE_COLUMNS,
+            tags.iter().map(|t| { format!("'{}'", t) }).join(",")
+        );
 
         Ok(self.client.query(sql.as_str(), &[]).await?)
     }
@@ -74,23 +68,18 @@ impl HistorianQuery {
         end: DateTime<Utc>,
     ) -> anyhow::Result<QueryStream> {
         let sql;
-        if tags.len() == 1 && tags.first().unwrap().as_str() == "*" {
-            sql = format!(
-                "select {} from Runtime.dbo.History where TagName not like 'Sys%' and DateTime >= '{}' and DateTime < '{}'",
-                HISTORY_COLUMNS,
-                begin.to_rfc3339(),
-                end.to_rfc3339()
-            );
-        } else {
-            sql = format!(
-                "select {} from Runtime.dbo.History where TagName in ({}) and DateTime >= '{}' and DateTime < '{}'",
-                HISTORY_COLUMNS,
-                tags.join(","),
-                begin.to_rfc3339(),
-                end.to_rfc3339()
-            );
-        }
 
+        sql = format!(
+                "select {} from Runtime.dbo.History where TagName in ({}) and DateTime >= '{}' and DateTime < '{}' and wwRetrievalMode = 'full'",
+                HISTORY_COLUMNS,
+                tags.iter().map(|t| {
+                    format!("'{}'", t)
+                }).join(","),
+                begin.to_rfc3339(),
+                end.to_rfc3339()
+            );
+
+        tracing::debug!("sql: {}", sql);
         Ok(self.client.query(sql.as_str(), &[]).await?)
     }
 
@@ -127,9 +116,53 @@ mod tests {
         let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
 
-        let mut client = HistorianQuery::new(config).await.unwrap();
+        let mut client = HistorianQuery::try_new(config).await.unwrap();
         let tag_meta = client.get_tags().await.unwrap();
+        dbg!(tag_meta);
+    }
 
-        println!("tag_meta: {:?}", tag_meta);
+    #[tokio::test]
+    #[ignore]
+    async fn test_query_history() {
+        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        let mut client = HistorianQuery::try_new(config).await.unwrap();
+
+        let tags = vec!["tag0".to_string(), "tag1".to_string()];
+        let end = Utc::now();
+        let begin = end - chrono::Duration::days(7);
+
+        let mut rows = client.query_history(tags, begin, end).await.unwrap();
+        while let Some(row) = rows.try_next().await.unwrap() {
+            match row {
+                QueryItem::Row(row) => {
+                    dbg!(row);
+                }
+                QueryItem::Metadata(_) => {
+                    continue;
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_query_live() {
+        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+        let mut client = HistorianQuery::try_new(config).await.unwrap();
+
+        let tags = vec!["tag0".to_string(), "tag1".to_string()];
+        let mut rows = client.query_live(tags).await.unwrap();
+        while let Some(row) = rows.try_next().await.unwrap() {
+            match row {
+                QueryItem::Row(row) => {
+                    dbg!(row);
+                }
+                QueryItem::Metadata(_) => {
+                    continue;
+                }
+            }
+        }
     }
 }
