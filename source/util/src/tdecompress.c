@@ -249,6 +249,7 @@ int32_t tsDecompressFloatImplAvx2(const char *const input, const int32_t nelemen
 
 int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output,
                                   bool bigEndian) {
+#if 0
   int64_t *ostream = (int64_t *)output;
   int32_t  ipos = 1, opos = 0;
   __m128i  prevVal = _mm_setzero_si128();
@@ -389,11 +390,12 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
     }
   }
 #endif
-
+#endif
   return 0;
 }
 
-int32_t tsDecompressTimestampAvx512(const char* const input, const int32_t nelements, char *const output, bool bigEndian) {
+int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output,
+                                    bool UNUSED_PARAM(bigEndian)) {
   int64_t *ostream = (int64_t *)output;
   int32_t  ipos = 1, opos = 0;
   __m128i  prevVal = _mm_setzero_si128();
@@ -489,11 +491,7 @@ int32_t tsDecompressTimestampAvx512(const char* const input, const int32_t nelem
     if (nbytes == 0) {
       deltaOfDelta = 0;
     } else {
-      //      if (is_bigendian()) {
-      //        memcpy(((char *)(&dd1)) + longBytes - nbytes, input + ipos, nbytes);
-      //      } else {
       memcpy(&dd, input + ipos, nbytes);
-      //      }
       deltaOfDelta = ZIGZAG_DECODE(int64_t, dd);
     }
 
