@@ -2033,7 +2033,7 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
   }
 
   // just record pTableCxt whose data come from file
-  if (numOfRows > 0) {
+  if (!pStmt->stbSyntax && numOfRows > 0) {
     if (NULL == pStmt->pTableCxtHashObj) {
       pStmt->pTableCxtHashObj =
           taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
@@ -2302,7 +2302,7 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
   pStmt->freeArrayFunc(pStmt->pVgDataBlocks);
   pStmt->pVgDataBlocks = NULL;
 
-  bool fileOnly = (pStmt->insertType == TSDB_QUERY_TYPE_FILE_INSERT);
+  bool fileOnly = (!pStmt->stbSyntax && pStmt->insertType == TSDB_QUERY_TYPE_FILE_INSERT);
   if (fileOnly) {
     // none data, skip merge & buildvgdata 
     if (0 == taosHashGetSize(pStmt->pTableCxtHashObj)) {
