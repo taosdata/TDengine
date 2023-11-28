@@ -130,8 +130,8 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   int32_t numOfWriteStbs = taosHashGetSize(pUser->writeTbs);
   int32_t numOfTopics = taosHashGetSize(pUser->topics);
   int32_t numOfUseDbs = taosHashGetSize(pUser->useDbs);
-  int32_t size = sizeof(SUserObj) + USER_RESERVE_SIZE +
-                 (numOfReadDbs + numOfWriteDbs + numOfUseDbs) * TSDB_DB_FNAME_LEN + numOfTopics * TSDB_TOPIC_FNAME_LEN;
+  int32_t size = sizeof(SUserObj) + USER_RESERVE_SIZE + (numOfReadDbs + numOfWriteDbs) * TSDB_DB_FNAME_LEN +
+                 numOfTopics * TSDB_TOPIC_FNAME_LEN;
 
   char *stb = taosHashIterate(pUser->readTbs, NULL);
   while (stb != NULL) {
@@ -141,7 +141,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     size += keyLen;
 
     size_t valueLen = 0;
-    valueLen = strlen(stb);
+    valueLen = strlen(stb) + 1;
     size += sizeof(int32_t);
     size += valueLen;
     stb = taosHashIterate(pUser->readTbs, stb);
@@ -155,10 +155,20 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     size += keyLen;
 
     size_t valueLen = 0;
-    valueLen = strlen(stb);
+    valueLen = strlen(stb) + 1;
     size += sizeof(int32_t);
     size += valueLen;
     stb = taosHashIterate(pUser->writeTbs, stb);
+  }
+
+  int32_t *useDb = taosHashIterate(pUser->useDbs, NULL);
+  while (useDb != NULL) {
+    size_t keyLen = 0;
+    void  *key = taosHashGetKey(useDb, &keyLen);
+    size += sizeof(int32_t);
+    size += keyLen;
+    size += sizeof(int32_t);
+    useDb = taosHashIterate(pUser->useDbs, useDb);
   }
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, USER_VER_NUMBER, size);
@@ -230,7 +240,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     stb = taosHashIterate(pUser->writeTbs, stb);
   }
 
-  int32_t *useDb = taosHashIterate(pUser->useDbs, NULL);
+  useDb = taosHashIterate(pUser->useDbs, NULL);
   while (useDb != NULL) {
     size_t keyLen = 0;
     void  *key = taosHashGetKey(useDb, &keyLen);
