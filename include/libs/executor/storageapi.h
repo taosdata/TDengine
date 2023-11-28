@@ -166,7 +166,7 @@ typedef struct {
 // clang-format off
 /*-------------------------------------------------new api format---------------------------------------------------*/
 typedef enum {
-  TSD_READER_NOTIFY_DURATION
+  TSD_READER_NOTIFY_DURATION_START
 } ETsdReaderNotifyType;
 
 typedef union {

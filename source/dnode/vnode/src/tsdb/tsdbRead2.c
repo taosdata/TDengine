@@ -4369,8 +4369,9 @@ static int32_t doTsdbNextDataBlockDurationOrder(STsdbReader* pReader) {
         if (pReader->notifyFn) {
           STsdReaderNotifyInfo info = {0};
           info.duration.fileSetId = fid;
-          pReader->notifyFn(TSD_READER_NOTIFY_DURATION, &info, pReader->notifyParam);
+          pReader->notifyFn(TSD_READER_NOTIFY_DURATION_START, &info, pReader->notifyParam);
         }
+        resetTableListIndex(pStatus);
       }
     }
 
