@@ -428,13 +428,16 @@ struct SVnode {
   SVBufPool*    recycleTail;
   SVBufPool*    onRecycle;
 
+  // commit variables
+  int64_t commitChannel;
+  int64_t commitTask;
+
   SMeta*        pMeta;
   SSma*         pSma;
   STsdb*        pTsdb;
   SWal*         pWal;
   STQ*          pTq;
   SSink*        pSink;
-  tsem_t        canCommit;
   int64_t       sync;
   TdThreadMutex lock;
   bool          blocked;

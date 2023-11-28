@@ -341,13 +341,14 @@ struct SVSnapWriter {
   SRSmaSnapWriter *pRsmaSnapWriter;
 };
 
-int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter) {
+extern int32_t tsdbCancelAllBgTask(STsdb *tsdb);
+int32_t        vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter) {
   int32_t       code = 0;
   SVSnapWriter *pWriter = NULL;
 
   // commit memory data
-  vnodeAsyncCommit(pVnode);
-  tsem_wait(&pVnode->canCommit);
+  vnodeSyncCommit(pVnode);
+  tsdbCancelAllBgTask(pVnode->pTsdb);
 
   // alloc
   pWriter = (SVSnapWriter *)taosMemoryCalloc(1, sizeof(*pWriter));
@@ -363,7 +364,7 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
   pWriter->commitID = ++pVnode->state.commitID;
 
   vInfo("vgId:%d, vnode snapshot writer opened, sver:%" PRId64 " ever:%" PRId64 " commit id:%" PRId64, TD_VID(pVnode),
-        sver, ever, pWriter->commitID);
+               sver, ever, pWriter->commitID);
   *ppWriter = pWriter;
   return code;
 
@@ -439,7 +440,6 @@ _exit:
     vInfo("vgId:%d, vnode snapshot writer closed, rollback:%d", TD_VID(pVnode), rollback);
     taosMemoryFree(pWriter);
   }
-  tsem_post(&pVnode->canCommit);
   return code;
 }
 
