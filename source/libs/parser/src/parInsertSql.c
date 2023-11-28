@@ -55,6 +55,7 @@ typedef struct SInsertParseContext {
   bool           usingDuplicateTable;
   bool           forceUpdate;
   bool           needTableTagVal;
+  bool           needRequest;       // whether or not request server
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
@@ -1709,6 +1710,19 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
     } else {
       parserDebug("0x%" PRIx64 " insert from csv. File is too large, do it in batches.", pCxt->pComCxt->requestId);
     }
+    if (pStmt->insertType != TSDB_QUERY_TYPE_FILE_INSERT) {
+      return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is exclusive", NULL);
+    }
+  }
+  // just record pTableCxt whose data come from file
+  if (numOfRows > 0) {
+    if (NULL == pStmt->pTableCxtHashObj) {
+      pStmt->pTableCxtHashObj =
+          taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    }
+    void* pData = pTableCxt;
+    taosHashPut(pStmt->pTableCxtHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid), &pData,
+                POINTER_BYTES);
   }
   return code;
 }
@@ -1748,6 +1762,9 @@ static int32_t parseDataClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   NEXT_TOKEN(pStmt->pSql, token);
   switch (token.type) {
     case TK_VALUES:
+      if (TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_FILE_INSERT)) {
+        return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is exclusive", token.z);
+      }
       return parseValuesClause(pCxt, pStmt, pTableCxt, &token);
     case TK_FILE:
       return parseFileClause(pCxt, pStmt, pTableCxt, &token);
@@ -1862,10 +1879,19 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
 
   // release old array alloced by merge
   pStmt->freeArrayFunc(pStmt->pVgDataBlocks);
+  pStmt->pVgDataBlocks = NULL;
+  bool fileOnly = (pStmt->insertType == TSDB_QUERY_TYPE_FILE_INSERT);
+  if (fileOnly) {
+    // none data, skip merge, buildvgdata 
+    if (0 == taosHashGetSize(pStmt->pTableCxtHashObj)) {
+      pCxt->needRequest = false;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
   // merge according to vgId
-  bool type_file = TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_FILE_INSERT);
-  int32_t code = insMergeTableDataCxt(false ? pStmt->pTableCxtHashObj : pStmt->pTableBlockHashObj,
-                                      &pStmt->pVgDataBlocks, type_file);
+  int32_t code = insMergeTableDataCxt(fileOnly ? pStmt->pTableCxtHashObj : pStmt->pTableBlockHashObj,
+                                      &pStmt->pVgDataBlocks, pStmt->fileProcessing);
   // clear tmp hashobj only
   taosHashClear(pStmt->pTableCxtHashObj);
 
@@ -2173,15 +2199,6 @@ static int32_t parseInsertSqlFromStart(SInsertParseContext* pCxt, SVnodeModifyOp
 static int32_t parseInsertSqlFromCsv(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   STableDataCxt* pTableCxt = NULL;
   int32_t        code = getTableDataCxt(pCxt, pStmt, &pTableCxt);
-  // record pTableCxt for file process
-  if (TSDB_CODE_SUCCESS == code && pTableCxt) {
-    if (NULL == pStmt->pTableCxtHashObj) {
-      pStmt->pTableCxtHashObj =
-          taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-    }
-    void* pData = pTableCxt;
-    taosHashPut(pStmt->pTableCxtHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid), &pData, POINTER_BYTES);
-  }
   if (TSDB_CODE_SUCCESS == code) {
     code = parseDataFromFileImpl(pCxt, pStmt, pTableCxt);
   }
@@ -2301,6 +2318,7 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
                                  .msg = {.buf = pCxt->pMsg, .len = pCxt->msgLen},
                                  .missCache = false,
                                  .usingDuplicateTable = false,
+                                 .needRequest = true,
                                  .forceUpdate = (NULL != pCatalogReq ? pCatalogReq->forceUpdate : false)};
 
   int32_t code = initInsertQuery(&context, pCatalogReq, pMetaData, pQuery);
@@ -2315,5 +2333,10 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
     code = setRefreshMate(*pQuery);
   }
   insDestroyBoundColInfo(&context.tags);
+
+  // if no data to insert, set emptyMode to avoid request server
+  if (!context.needRequest) {
+    (*pQuery)->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
+  }
   return code;
 }
