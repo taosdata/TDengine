@@ -33,7 +33,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             )),
         },
         Ok(c) => {
-            let client = HistorianQuery::new(c).await;
+            let client = HistorianQuery::try_new(c).await;
             match client {
                 Err(err) => DataSourceValidation {
                     valid: false,

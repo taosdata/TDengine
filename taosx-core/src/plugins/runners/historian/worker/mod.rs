@@ -21,7 +21,7 @@ pub async fn migrate_history(config: TaskConfig) -> anyhow::Result<()> {
         let receiver = rx.clone();
 
         let connect_config = config.connect.clone();
-        let query = HistorianQuery::new(connect_config).await?;
+        let query = HistorianQuery::try_new(connect_config).await?;
 
         let ipc_port = config
             .ipc_port
@@ -62,7 +62,7 @@ pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
     let mut appender = ArrowDataAppender::try_new(HistorianTable::History)?;
     let mut writer = StreamWriter::try_new(&stream, appender.schema())?;
 
-    let mut query = HistorianQuery::new(task_config.clone().connect).await?;
+    let mut query = HistorianQuery::try_new(task_config.clone().connect).await?;
 
     tokio::time::sleep(task_config.tolerance.to_std().unwrap()).await;
     loop {
@@ -103,7 +103,7 @@ pub async fn sync_live(task_config: TaskConfig) -> anyhow::Result<()> {
     let mut appender = ArrowDataAppender::try_new(HistorianTable::Live)?;
     let mut writer = StreamWriter::try_new(&stream, appender.schema())?;
 
-    let mut query = HistorianQuery::new(task_config.clone().connect).await?;
+    let mut query = HistorianQuery::try_new(task_config.clone().connect).await?;
 
     loop {
         tracing::debug!("start live sync task {}", Utc::now().to_rfc3339());
