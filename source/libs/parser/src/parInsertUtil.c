@@ -21,7 +21,6 @@
 #include "querynodes.h"
 #include "tRealloc.h"
 #include "tdatablock.h"
-#include "tglobal.h"
 
 void qDestroyBoundColInfo(void* pInfo) {
   if (NULL == pInfo) {
@@ -303,7 +302,7 @@ static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
       if (NULL == pTmp->aRowP) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         taosMemoryFree(pTmp);
-      } 
+      }
     }
   }
 

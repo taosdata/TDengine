@@ -1193,14 +1193,6 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
 void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta, SSqlCallbackWrapper* pWrapper) {
   int32_t code = 0;
 
-  // no data to insert, no send to server
-  if (QUERY_NODE_VNODE_MODIFY_STMT == pQuery->pRoot->type) {
-    SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
-    if (0 == taosArrayGetSize(pStmt->pDataBlocks)) {
-      pQuery->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
-    }
-  }
-
   pRequest->body.execMode = pQuery->execMode;
   if (QUERY_EXEC_MODE_SCHEDULE != pRequest->body.execMode) {
     destorySqlCallbackWrapper(pWrapper);

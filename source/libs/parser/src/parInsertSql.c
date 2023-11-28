@@ -55,6 +55,7 @@ typedef struct SInsertParseContext {
   bool           usingDuplicateTable;
   bool           forceUpdate;
   bool           needTableTagVal;
+  bool           needRequest;       // whether or not request server
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
@@ -1681,7 +1682,6 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
 
     if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) >= tsMaxInsertBatchRows) {
       pStmt->fileProcessing = true;
-      //(*pNumOfRows)--;
       break;
     }
 
@@ -1884,6 +1884,7 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
   if (fileOnly) {
     // none data, skip merge, buildvgdata 
     if (0 == taosHashGetSize(pStmt->pTableCxtHashObj)) {
+      pCxt->needRequest = false;
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -2317,6 +2318,7 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
                                  .msg = {.buf = pCxt->pMsg, .len = pCxt->msgLen},
                                  .missCache = false,
                                  .usingDuplicateTable = false,
+                                 .needRequest = true,
                                  .forceUpdate = (NULL != pCatalogReq ? pCatalogReq->forceUpdate : false)};
 
   int32_t code = initInsertQuery(&context, pCatalogReq, pMetaData, pQuery);
@@ -2331,5 +2333,10 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
     code = setRefreshMate(*pQuery);
   }
   insDestroyBoundColInfo(&context.tags);
+
+  // if no data to insert, set emptyMode to avoid request server
+  if (!context.needRequest) {
+    (*pQuery)->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
+  }
   return code;
 }
