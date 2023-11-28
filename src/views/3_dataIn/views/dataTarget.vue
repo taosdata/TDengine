@@ -372,8 +372,15 @@ export default {
     "$store.state.app.currentDBType": {
       deep: true,
       handler(val) {
+        console.log(val,'当前数据源类型',this.$store)
         this.getInitValue();
-      },
+        this.$store.commit('app/SET_FILTER_PARSE_DATA',null)
+        this.$store.commit('app/SET_EXTRACT_PARSE_DATA',null)
+        this.$store.commit('app/SET_ECHO_MAP_DATA',null)
+        this.$store.commit('app/SET_TRANSFORM_COL_IDENTIFIED',[])
+        this.$store.commit('app/SET_TRANSFORM_PARSERDATA',null)
+        this.$store.commit('app/SET_TRANSFORMER_MAPCOLUMNS',null)
+   },
     },
     "$store.state.app.agentLists": {
       deep: true,

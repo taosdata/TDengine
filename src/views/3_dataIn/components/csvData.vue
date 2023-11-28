@@ -45,8 +45,8 @@
               class="nextbtn"
               >{{ $t("datasource.csvNext") }}</el-button
             >
-            <CommonTransformer></CommonTransformer>
-            <!-- <div class="csv-config" v-if="showConfig">
+            <!-- <CommonTransformer></CommonTransformer> -->
+            <div class="csv-config" v-if="showConfig">
               <ul class="csv-tableheader">
                 <li>{{ $t("datasource.csvcol") }}</li>
                 <li>{{ $t("datasource.dbcol") }}</li>
@@ -89,7 +89,7 @@
                   ></CsvColumn>
                 </li>
               </ul>
-            </div> -->
+            </div>
           </template>
         </CsvParameter>
       </el-tabs>
@@ -143,6 +143,7 @@ export default {
       fileurl: "",
       uploadUrl: process.env.VUE_APP_X_API + `/upload`,
       csvColumns: [],
+      sample_values:[],
       localcsv: {},
       dbOptions: [],
     };
@@ -293,6 +294,7 @@ export default {
                 return;
               }
               this.csvColumns = result.file_header.column_names;
+              // this.sample_values=result.sample_values
             } else {
               //无header需要自定义header
               if (result && result.message) {
@@ -314,6 +316,7 @@ export default {
             return;
           }
           this.csvColumns = result.file_header.column_names;
+          // this.sample_values=result.sample_values
         }
 
         this.csvParserConf = {
@@ -333,7 +336,7 @@ export default {
             alias: item,
           };
         });
-        console.log(this.csvColumns,'this.csvColumns')
+        console.log(this.csvColumns,'this.csvColumns',this.sample_values)
         this.localcsv = deepClone(this.csvParserConf);
         this.$store.commit("app/SET_CSV_PARSER", this.localcsv.parser);
         this.initDbOptions();

@@ -50,9 +50,9 @@
         </el-form-item>
       </el-form>
 
-      <div class="btns">
-        <el-button icon="el-icon-delete" @click="deleteExtract"></el-button>
-        <el-button icon="el-icon-check" @click="submit"></el-button>
+      <div class="btns" style='display:flex'>
+        <el-button icon="el-icon-delete" @click="deleteExtract" style='display:flex'></el-button>
+        <el-button icon="el-icon-check" @click="submit" style='display:flex'></el-button>
       </div>
     </div>
     <div class="table" v-if="tableData.length > 0">

@@ -44,7 +44,6 @@ export default {
         messageText = this.$t("dataIn.errorMessage") + message
         icon = 'el-icon-error'
       }
-      console.log('tyy');
       return {contentText,messageText,icon};
     },
     lang() {
