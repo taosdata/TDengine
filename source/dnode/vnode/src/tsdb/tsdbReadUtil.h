@@ -206,6 +206,7 @@ typedef struct SReaderStatus {
   SArray*               pLDataIterArray;
   SRowMerger            merger;
   SColumnInfoData*      pPrimaryTsCol;  // primary time stamp output col info data
+  bool                  bProcMemPreFileset;
 } SReaderStatus;
 
 struct STsdbReader {
@@ -228,6 +229,7 @@ struct STsdbReader {
   SBlockInfoBuf      blockInfoBuf;
   EContentData       step;
   STsdbReader*       innerReader[2];
+  bool                 bDurationOrder;   // duration by duration output
   TsdReaderNotifyCbFn  notifyFn;
   void*              notifyParam;
 };
