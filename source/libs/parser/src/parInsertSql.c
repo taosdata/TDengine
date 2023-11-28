@@ -1679,9 +1679,9 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
       (*pNumOfRows)++;
     }
 
-    if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) > tsMaxInsertBatchRows) {
+    if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) >= tsMaxInsertBatchRows) {
       pStmt->fileProcessing = true;
-      (*pNumOfRows)--;
+      //(*pNumOfRows)--;
       break;
     }
 
@@ -1879,19 +1879,22 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
 
   // release old array alloced by merge
   pStmt->freeArrayFunc(pStmt->pVgDataBlocks);
+  pStmt->pVgDataBlocks = NULL;
+  bool fileOnly = (pStmt->insertType == TSDB_QUERY_TYPE_FILE_INSERT);
+  if (fileOnly) {
+    // none data, skip merge, buildvgdata 
+    if (0 == taosHashGetSize(pStmt->pTableCxtHashObj)) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
   // merge according to vgId
-  bool fileOnly = (pStmt->insertType == TSDB_QUERY_TYPE_FILE_INSERT) &&
-                  0 < taosHashGetSize(pStmt->pTableCxtHashObj);
   int32_t code = insMergeTableDataCxt(fileOnly ? pStmt->pTableCxtHashObj : pStmt->pTableBlockHashObj,
-                                      &pStmt->pVgDataBlocks, pStmt->fileProcessing, pStmt->fileProcessing);
+                                      &pStmt->pVgDataBlocks, pStmt->fileProcessing);
   // clear tmp hashobj only
   taosHashClear(pStmt->pTableCxtHashObj);
 
   if (TSDB_CODE_SUCCESS == code) {
-    // none data, return 
-    if ( 0 == taosArrayGetSize(pStmt->pVgDataBlocks)) {
-      return code;
-    }
     code = insBuildVgDataBlocks(pStmt->pVgroupsHashObj, pStmt->pVgDataBlocks, &pStmt->pDataBlocks);
   }
 

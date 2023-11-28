@@ -273,7 +273,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
   return code;
 }
 
-static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst, bool isFileType) {
+static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
   int32_t code = TSDB_CODE_SUCCESS;
   SSubmitTbData* pTmp = taosMemoryCalloc(1, sizeof(SSubmitTbData));
   if (NULL == pTmp) {
@@ -303,10 +303,7 @@ static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst, bool 
       if (NULL == pTmp->aRowP) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         taosMemoryFree(pTmp);
-      } else if (isFileType && taosArrayGetSize(pSrc->aRowP) > tsMaxInsertBatchRows) {
-        void* data = taosArrayPop(pSrc->aRowP);
-        taosArrayPush(pTmp->aRowP, data);
-      }
+      } 
     }
   }
 
@@ -420,7 +417,7 @@ void insDestroyTableDataCxtHashMap(SHashObj* pTableCxtHash) {
   taosHashCleanup(pTableCxtHash);
 }
 
-static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCxt, bool isRebuild, bool isFileType) {
+static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCxt, bool isRebuild) {
   if (NULL == pVgCxt->pData->aSubmitTbData) {
     pVgCxt->pData->aSubmitTbData = taosArrayInit(128, sizeof(SSubmitTbData));
     if (NULL == pVgCxt->pData->aSubmitTbData) {
@@ -431,7 +428,7 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
   // push data to submit, rebuild empty data for next submit
   taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData);
   if (isRebuild) {
-    rebuildTableData(pTableCxt->pData, &pTableCxt->pData, isFileType);
+    rebuildTableData(pTableCxt->pData, &pTableCxt->pData);
   } else {
     taosMemoryFreeClear(pTableCxt->pData);
   }
@@ -477,7 +474,7 @@ int insColDataComp(const void* lp, const void* rp) {
   return 0;
 }
 
-int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool isRebuild, bool isFileType) {
+int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool isRebuild) {
   SHashObj* pVgroupHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
   SArray*   pVgroupList = taosArrayInit(8, POINTER_BYTES);
   if (NULL == pVgroupHash || NULL == pVgroupList) {
@@ -514,11 +511,11 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
     } else {
       // skip the table has no data to insert
       // eg: import a csv without valid data
-      if (0 == taosArrayGetSize(pTableCxt->pData->aRowP)) {
-        qWarn("no row in tableDataCxt uid:%" PRId64 " ", pTableCxt->pMeta->uid);
-        p = taosHashIterate(pTableHash, p);
-        continue;
-      }
+      // if (0 == taosArrayGetSize(pTableCxt->pData->aRowP)) {
+      //   qWarn("no row in tableDataCxt uid:%" PRId64 " ", pTableCxt->pMeta->uid);
+      //   p = taosHashIterate(pTableHash, p);
+      //   continue;
+      // }
       if (!pTableCxt->ordered) {
         code = tRowSort(pTableCxt->pData->aRowP);
       }
@@ -537,7 +534,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
         pVgCxt = *(SVgroupDataCxt**)pp;
       }
       if (TSDB_CODE_SUCCESS == code) {
-        code = fillVgroupDataCxt(pTableCxt, pVgCxt, isRebuild, isFileType);
+        code = fillVgroupDataCxt(pTableCxt, pVgCxt, isRebuild);
       }
     }
     if (TSDB_CODE_SUCCESS == code) {
