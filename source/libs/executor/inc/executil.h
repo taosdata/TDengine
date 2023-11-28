@@ -40,8 +40,10 @@
 #define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
 
 typedef struct SGroupResInfo {
-  int32_t index;
-  SArray* pRows;  // SArray<SResKeyPos>
+  int32_t index;    // rows consumed in func:doCopyToSDataBlockXX
+  int32_t iter;     // relate to index-1, last consumed data's slot id in hash table
+  void*   dataPos;  // relate to index-1, last consumed data's position, in the nodelist of cur slot
+  SArray* pRows;    // SArray<SResKeyPos>
   char*   pBuf;
   bool    freeItem;
 } SGroupResInfo;
@@ -178,7 +180,7 @@ void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow
 SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode);
 SColumn   extractColumnFromColumnNode(SColumnNode* pColNode);
 
-int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode);
+int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode, const SReadHandle* readHandle);
 void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 
 int32_t convertFillType(int32_t mode);
@@ -196,4 +198,22 @@ void updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, int64_t 
 
 SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList, void* pVnode,
                                         SStorageAPI* pStorageAPI);
+
+/**
+ * @brief build a tuple into keyBuf
+ * @param [out] keyBuf the output buf
+ * @param [in] pSortGroupCols the cols to build
+ * @param [in] pBlock block the tuple in
+ */
+int32_t buildKeys(char* keyBuf, const SArray* pSortGroupCols, const SSDataBlock* pBlock, int32_t rowIndex);
+
+int32_t compKeys(const SArray* pSortGroupCols, const char* oldkeyBuf, int32_t oldKeysLen, const SSDataBlock* pDataBlock,
+              int32_t rowIndex);
+
+uint64_t calcGroupId(char *pData, int32_t len);
+
+SNodeList* makeColsNodeArrFromSortKeys(SNodeList* pSortKeys);
+
+int32_t extractKeysLen(const SArray* keys);
+
 #endif  // TDENGINE_EXECUTIL_H

@@ -44,17 +44,17 @@ OS name: "windows 10", version: "10.0", arch: "amd64", family: "windows"
 <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
           xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd">
-	<!-- 配置本地maven仓库的路径 -->
+    <!-- 配置本地maven仓库的路径 -->
     <localRepository>D:\apache-maven-localRepository</localRepository>
     
     <mirrors>
         <!-- 配置阿里云Maven镜像仓库 -->
-		<mirror>
-			<id>alimaven</id>
-			<name>aliyun maven</name>
-			<url>http://maven.aliyun.com/nexus/content/groups/public/</url>
-			<mirrorOf>central</mirrorOf>
-		</mirror>
+        <mirror>
+            <id>alimaven</id>
+            <name>aliyun maven</name>
+            <url>http://maven.aliyun.com/nexus/content/groups/public/</url>
+            <mirrorOf>central</mirrorOf>
+        </mirror>
     </mirrors>
     
     <profiles>
@@ -126,7 +126,7 @@ https://www.taosdata.com/cn/all-downloads/
 修改client的hosts文件（C:\Windows\System32\drivers\etc\hosts），将server的hostname和ip配置到client的hosts文件中
 
 ```
-192.168.236.136	td01
+192.168.236.136    td01
 ```
 
 配置完成后，在命令行内使用TDengine CLI连接server端

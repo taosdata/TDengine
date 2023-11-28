@@ -188,8 +188,8 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
   if (pVnode == NULL) {
-    dGWarn("vgId:%d, msg:%p failed to put into vnode queue since %s, type:%s qtype:%d contLen:%d", pHead->vgId, pMsg,
-           terrstr(), TMSG_INFO(pMsg->msgType), qtype, pHead->contLen);
+    dGDebug("vgId:%d, msg:%p failed to put into vnode queue since %s, type:%s qtype:%d contLen:%d", pHead->vgId, pMsg,
+            terrstr(), TMSG_INFO(pMsg->msgType), qtype, pHead->contLen);
     terrno = (terrno != 0) ? terrno : -1;
     return terrno;
   }
@@ -206,11 +206,7 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
       break;
     case STREAM_QUEUE:
       dGTrace("vgId:%d, msg:%p put into vnode-stream queue", pVnode->vgId, pMsg);
-      if (pMsg->msgType == TDMT_STREAM_TASK_DISPATCH) {
-        vnodeEnqueueStreamMsg(pVnode->pImpl, pMsg);
-      } else {
-        taosWriteQitem(pVnode->pStreamQ, pMsg);
-      }
+      taosWriteQitem(pVnode->pStreamQ, pMsg);
       break;
     case FETCH_QUEUE:
       dGTrace("vgId:%d, msg:%p put into vnode-fetch queue", pVnode->vgId, pMsg);
@@ -339,8 +335,8 @@ int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
       default:
         break;
     }
-    vmReleaseVnode(pMgmt, pVnode);
   }
+  if (pVnode) vmReleaseVnode(pMgmt, pVnode);
   if (size < 0) {
     dTrace("vgId:%d, can't get size from queue since %s, qtype:%d", vgId, terrstr(), qtype);
     size = 0;

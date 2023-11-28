@@ -17,6 +17,7 @@
 #include "mndSync.h"
 #include "mndCluster.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 
 static int32_t mndSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   if (pMsg == NULL || pMsg->pCont == NULL) {
@@ -94,7 +95,11 @@ static int32_t mndTransValidatePrepareAction(SMnode *pMnode, STrans *pTrans, STr
   }
 
 _OUT:
-  taosMemoryFreeClear(pRow);
+  if (pRow) {
+    SdbDeleteFp deleteFp = pSdb->deleteFps[pRaw->type];
+    if (deleteFp) (*deleteFp)(pSdb, pRow->pObj, false);
+    taosMemoryFreeClear(pRow);
+  }
   return code;
 }
 
@@ -167,7 +172,7 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   SSdbRaw   *pRaw = pMsg->pCont;
   STrans    *pTrans = NULL;
   int32_t    code = -1;
-  int32_t transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
+  int32_t    transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
 
   if (transId <= 0) {
     mError("trans:%d, invalid commit msg, cache transId:%d seq:%" PRId64, transId, pMgmt->transId, pMgmt->transSeq);
@@ -285,9 +290,10 @@ int32_t mndSyncGetSnapshot(const SSyncFSM *pFsm, SSnapshot *pSnapshot, void *pRe
   return 0;
 }
 
-static void mndSyncGetSnapshotInfo(const SSyncFSM *pFsm, SSnapshot *pSnapshot) {
+static int32_t mndSyncGetSnapshotInfo(const SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   SMnode *pMnode = pFsm->data;
   sdbGetCommitInfo(pMnode->pSdb, &pSnapshot->lastApplyIndex, &pSnapshot->lastApplyTerm, &pSnapshot->lastConfigIndex);
+  return 0;
 }
 
 void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
@@ -304,6 +310,7 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   } else {
     mInfo("vgId:1, sync restore finished");
   }
+  mndRefreshUserIpWhiteList(pMnode);
 
   ASSERT(commitIdx == mndSyncAppliedIndex(pFsm));
 }

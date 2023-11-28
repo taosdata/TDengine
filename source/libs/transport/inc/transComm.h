@@ -29,6 +29,8 @@ extern "C" {
 #include "ttrace.h"
 #include "tutil.h"
 
+typedef bool (*FilteFunc)(void* arg);
+
 typedef void* queue[2];
 /* Private macros. */
 #define QUEUE_NEXT(q) (*(queue**)&((*(q))[0]))
@@ -117,6 +119,13 @@ typedef struct SExHandle {
   void*   pThrd;
 } SExHandle;
 
+typedef struct {
+  STransMsg* pRsp;
+  tsem_t*    pSem;
+  int8_t     inited;
+  SRWLatch   latch;
+} STransSyncMsg;
+
 /*convet from fqdn to ip */
 typedef struct SCvtAddr {
   char ip[TSDB_FQDN_LEN];
@@ -131,11 +140,13 @@ typedef struct {
   tmsg_t msgType;   // message type
   int8_t connType;  // connection type cli/srv
 
-  STransCtx  appCtx;  //
-  STransMsg* pRsp;    // for synchronous API
-  tsem_t*    pSem;    // for synchronous API
-  SCvtAddr   cvtAddr;
-  bool       setMaxRetry;
+  STransCtx      appCtx;    //
+  STransMsg*     pRsp;      // for synchronous API
+  tsem_t*        pSem;      // for synchronous API
+  STransSyncMsg* pSyncMsg;  // for syncchronous with timeout API
+  int64_t        syncMsgRef;
+  SCvtAddr       cvtAddr;
+  bool           setMaxRetry;
 
   int32_t retryMinInterval;
   int32_t retryMaxInterval;
@@ -303,11 +314,13 @@ void transUnrefCliHandle(void* handle);
 int transReleaseCliHandle(void* handle);
 int transReleaseSrvHandle(void* handle);
 
-int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
-int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
-int transSendResponse(const STransMsg* msg);
-int transRegisterMsg(const STransMsg* msg);
-int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
+int  transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
+int  transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
+int  transSendRecvWithTimeout(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp, int32_t timeoutMs);
+int  transSendResponse(const STransMsg* msg);
+int  transRegisterMsg(const STransMsg* msg);
+int  transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
+void transSetIpWhiteList(void* shandle, void* arg, FilteFunc* func);
 
 int transSockInfo2Str(struct sockaddr* sockname, char* dst);
 
@@ -417,6 +430,7 @@ void transThreadOnce();
 
 void transInit();
 void transCleanup();
+void transPrintEpSet(SEpSet* pEpSet);
 
 void    transFreeMsg(void* msg);
 int32_t transCompressMsg(char* msg, int32_t len);
@@ -428,12 +442,30 @@ int64_t transAddExHandle(int32_t refMgt, void* p);
 int32_t transRemoveExHandle(int32_t refMgt, int64_t refId);
 void*   transAcquireExHandle(int32_t refMgt, int64_t refId);
 int32_t transReleaseExHandle(int32_t refMgt, int64_t refId);
-void    transDestoryExHandle(void* handle);
+void    transDestroyExHandle(void* handle);
 
 int32_t transGetRefMgt();
 int32_t transGetInstMgt();
+int32_t transGetSyncMsgMgt();
 
 void transHttpEnvDestroy();
+
+typedef struct {
+  uint32_t netmask;
+  uint32_t address;
+  uint32_t network;
+  uint32_t broadcast;
+  char     info[32];
+  int8_t   type;
+} SubnetUtils;
+
+int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange);
+int32_t subnetCheckIp(SubnetUtils* pUtils, uint32_t ip);
+int32_t subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf);
+
+int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf);
+int32_t transUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf);
+
 #ifdef __cplusplus
 }
 #endif

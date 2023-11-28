@@ -206,7 +206,7 @@ class TDTestCase:
         while (1):
             tdSql.query('show subscriptions;')
             subscribeNum = tdSql.queryRows
-            tdLog.info(" get subscriptions count: %d"%(subscribeNum))
+            tdLog.info(" get subscriptions count: %d, expected:%d"%(subscribeNum, expectSubscribeNum))
             if subscribeNum == expectSubscribeNum:
                 flag = 1
                 break

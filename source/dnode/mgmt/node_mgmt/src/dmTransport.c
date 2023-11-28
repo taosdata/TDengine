@@ -63,6 +63,29 @@ static void dmConvertErrCode(tmsg_t msgType) {
     terrno = TSDB_CODE_VND_STOPPED;
   }
 }
+static void dmUpdateRpcIpWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
+  SUpdateIpWhite ipWhite = {0};  // aosMemoryCalloc(1, sizeof(SUpdateIpWhite));
+  tDeserializeSUpdateIpWhite(pRpc->pCont, pRpc->contLen, &ipWhite);
+
+  rpcSetIpWhite(pTrans, &ipWhite);
+  pData->ipWhiteVer = ipWhite.ver;
+
+  tFreeSUpdateIpWhiteReq(&ipWhite);
+
+  rpcFreeCont(pRpc->pCont);
+}
+static bool dmIsForbiddenIp(int8_t forbidden, char *user, uint32_t clientIp) {
+  if (forbidden) {
+    SIpV4Range range = {.ip = clientIp, .mask = 32};
+    char       buf[36] = {0};
+
+    rpcUtilSIpRangeToStr(&range, buf);
+    dError("User:%s host:%s not in ip white list", user, buf);
+    return true;
+  } else {
+    return false;
+  }
+}
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
@@ -78,6 +101,12 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   taosVersionStrToInt(version, &svrVer);
   if (0 != taosCheckVersionCompatible(pRpc->info.cliVer, svrVer, 3)) {
     dError("Version not compatible, cli ver: %d, svr ver: %d", pRpc->info.cliVer, svrVer);
+    goto _OVER;
+  }
+
+  bool isForbidden = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, pRpc->info.conn.clientIp);
+  if (isForbidden) {
+    terrno = TSDB_CODE_IP_NOT_IN_WHITE_LIST;
     goto _OVER;
   }
 
@@ -97,6 +126,10 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
         dmSetMnodeEpSet(&pDnode->data, pEpSet);
       }
       break;
+    case TDMT_MND_RETRIEVE_IP_WHITE_RSP: {
+      dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
+      return;
+    } break;
     default:
       break;
   }
@@ -218,11 +251,11 @@ _OVER:
   dmReleaseWrapper(pWrapper);
 }
 
-int32_t dmInitMsgHandle(SDnode *pDnode) {
+int32_t dmInitMsgHandle(SDnode *pDnode, SMgmtWrapper *wrappers) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
+    SMgmtWrapper *pWrapper = wrappers + ntype;
     SArray       *pArray = (*pWrapper->func.getHandlesFp)();
     if (pArray == NULL) return -1;
 
@@ -325,6 +358,50 @@ int32_t dmInitClient(SDnode *pDnode) {
   dDebug("dnode rpc client is initialized");
   return 0;
 }
+int32_t dmInitStatusClient(SDnode *pDnode) {
+  SDnodeTrans *pTrans = &pDnode->trans;
+
+  SRpcInit rpcInit = {0};
+  rpcInit.label = "DND-STATUS";
+  rpcInit.numOfThreads = 1;
+  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.sessions = 1024;
+  rpcInit.connType = TAOS_CONN_CLIENT;
+  rpcInit.user = TSDB_DEFAULT_USER;
+  rpcInit.idleTime = tsShellActivityTimer * 1000;
+  rpcInit.parent = pDnode;
+  rpcInit.rfp = rpcRfp;
+  rpcInit.compressSize = tsCompressMsgSize;
+
+  rpcInit.retryMinInterval = tsRedirectPeriod;
+  rpcInit.retryStepFactor = tsRedirectFactor;
+  rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
+  rpcInit.retryMaxTimeout = tsMaxRetryWaitTime;
+
+  rpcInit.failFastInterval = 5000;  // interval threshold(ms)
+  rpcInit.failFastThreshold = 3;    // failed threshold
+  rpcInit.ffp = dmFailFastFp;
+
+  int32_t connLimitNum = 100;
+  connLimitNum = TMAX(connLimitNum, 10);
+  connLimitNum = TMIN(connLimitNum, 500);
+
+  rpcInit.connLimitNum = connLimitNum;
+  rpcInit.connLimitLock = 1;
+  rpcInit.supportBatch = 1;
+  rpcInit.batchSize = 8 * 1024;
+  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+
+  // pTrans->statusClientRpc = rpcOpen(&rpcInit);
+  // if (pTrans->statusClientRpc == NULL) {
+  //   dError("failed to init dnode rpc status client");
+  //   return -1;
+  // }
+
+  dDebug("dnode rpc status client is initialized");
+  return 0;
+}
 
 void dmCleanupClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
@@ -333,6 +410,14 @@ void dmCleanupClient(SDnode *pDnode) {
     pTrans->clientRpc = NULL;
     dDebug("dnode rpc client is closed");
   }
+}
+void dmCleanupStatusClient(SDnode *pDnode) {
+  SDnodeTrans *pTrans = &pDnode->trans;
+  // if (pTrans->statusClientRpc) {
+  //   rpcClose(pTrans->statusClientRpc);
+  //   pTrans->statusClientRpc = NULL;
+  //   dDebug("dnode rpc status client is closed");
+  // }
 }
 
 int32_t dmInitServer(SDnode *pDnode) {
@@ -372,6 +457,7 @@ void dmCleanupServer(SDnode *pDnode) {
 SMsgCb dmGetMsgcb(SDnode *pDnode) {
   SMsgCb msgCb = {
       .clientRpc = pDnode->trans.clientRpc,
+      .serverRpc = pDnode->trans.serverRpc,
       .sendReqFp = dmSendReq,
       .sendRspFp = dmSendRsp,
       .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,

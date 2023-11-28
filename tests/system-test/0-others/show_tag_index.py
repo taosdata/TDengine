@@ -180,6 +180,13 @@ class TDTestCase:
         tdSql.error(f'show indexes from db.ctb1 from db')
         tdSql.error(f'show indexes from `db`.`ctb1` from db')
 
+        # check error information
+        tdSql.error(f'create index idx1 on db2.stb (t1);', expectErrInfo='Database not exist')
+        tdSql.error(f'use db2;', expectErrInfo='Database not exist')
+        tdSql.error(f' alter stable db2.stb add column c2 int;', expectErrInfo='Database not exist')
+
+        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

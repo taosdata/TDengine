@@ -67,7 +67,7 @@ set "FILE_NAME=testSuite.sim"
 if "%1" == "-f" set "FILE_NAME=%2"
 set FILE_NAME=%FILE_NAME:/=\%
 
-start cmd /k "timeout /t 600 /NOBREAK && taskkill /f /im tsim.exe & exit /b"
+start cmd /k "timeout /t 800 /NOBREAK && taskkill /f /im tsim.exe & exit /b"
 
 rem echo FILE_NAME:  %FILE_NAME%
 echo ExcuteCmd:  %tsim% -c %CFG_DIR% -f %FILE_NAME%

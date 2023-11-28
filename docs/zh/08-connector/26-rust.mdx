@@ -352,7 +352,7 @@ client.put(&sml_data)?
 
 ### 数据订阅
 
-TDengine 通过消息队列 [TMQ](../../../taos-sql/tmq/) 启动一个订阅。
+TDengine 通过消息队列 [TMQ](../../taos-sql/tmq/) 启动一个订阅。
 
 #### 创建 Topic
 
@@ -447,7 +447,7 @@ consumer.unsubscribe().await;
 
 - `group.id`: 同一个消费者组，将以至少消费一次的方式进行消息负载均衡。
 - `client.id`: 可选的订阅客户端识别项。
-- `auto.offset.reset`: 可选初始化订阅起点， *earliest* 为从头开始订阅， *latest* 为仅从最新数据开始订阅，默认为从头订阅。注意，此选项在同一个 `group.id` 中仅生效一次。
+- `auto.offset.reset`: 可选初始化订阅起点， *earliest* 为从头开始订阅， *latest* 为仅从最新数据开始订阅，默认值根据 TDengine 版本有所不同，详细参见 [数据订阅](https://docs.taosdata.com/develop/tmq/)。注意，此选项在同一个 `group.id` 中仅生效一次。
 - `enable.auto.commit`: 当设置为 `true` 时，将启用自动标记模式，当对数据一致性不敏感时，可以启用此方式。
 - `auto.commit.interval.ms`: 自动标记的时间间隔。
 
@@ -491,7 +491,7 @@ let taos = pool.get()?;
 
 ## 常见问题
 
-请参考 [FAQ](../../../train-faq/faq)
+请参考 [FAQ](../../train-faq/faq)
 
 ## API 参考
 

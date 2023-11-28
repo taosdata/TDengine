@@ -13,9 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "meta.h"
+#include "sync.h"
 #include "vnd.h"
 #include "vnodeInt.h"
-#include "sync.h"
 
 extern int32_t tsdbPreCommit(STsdb *pTsdb);
 extern int32_t tsdbCommitBegin(STsdb *pTsdb, SCommitInfo *pInfo);
@@ -155,7 +156,8 @@ int vnodeShouldCommit(SVnode *pVnode, bool atExit) {
 
   taosThreadMutexLock(&pVnode->mutex);
   if (pVnode->inUse && diskAvail) {
-    needCommit = (pVnode->inUse->size > pVnode->inUse->node.size) || (pVnode->inUse->size > 0 && atExit);
+    needCommit = (pVnode->inUse->size > pVnode->inUse->node.size) ||
+                 (atExit && (pVnode->inUse->size > 0 || pVnode->pMeta->changed));
   }
   taosThreadMutexUnlock(&pVnode->mutex);
   return needCommit;
@@ -177,7 +179,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   }
 
   // save info to a vnode_tmp.json
-  pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
     vError("failed to open info file:%s for write:%s", fname, terrstr());
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -285,6 +287,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
   char    dir[TSDB_FILENAME_LEN] = {0};
+  int64_t lastCommitted = pInfo->info.state.committed;
 
   tsem_wait(&pVnode->canCommit);
 

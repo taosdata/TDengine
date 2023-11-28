@@ -380,8 +380,7 @@ void destroySubRequests(SRequestObj *pRequest) {
       pReqList[++reqIdx] = pTmp;
       releaseRequest(tmpRefId);
     } else {
-      tscError("0x%" PRIx64 ", prev req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pTmp->self, tmpRefId,
-               pTmp->requestId);
+      tscError("prev req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
     }
   }
@@ -398,7 +397,7 @@ void destroySubRequests(SRequestObj *pRequest) {
       removeRequest(pTmp->self);
       releaseRequest(pTmp->self);
     } else {
-      tscError("0x%" PRIx64 " is not there", tmpRefId);
+      tscError("next req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
     }
   }
@@ -448,6 +447,7 @@ void doDestroyRequest(void *p) {
   qDestroyQuery(pRequest->pQuery);
   nodesDestroyAllocator(pRequest->allocatorRefId);
 
+  taosMemoryFreeClear(pRequest->effectiveUser);
   taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFree(pRequest);
   tscTrace("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
@@ -492,8 +492,7 @@ void stopAllQueries(SRequestObj *pRequest) {
       pReqList[++reqIdx] = pTmp;
       releaseRequest(tmpRefId);
     } else {
-      tscError("0x%" PRIx64 ", prev req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pTmp->self, tmpRefId,
-               pTmp->requestId);
+      tscError("prev req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
     }
   }
@@ -512,7 +511,7 @@ void stopAllQueries(SRequestObj *pRequest) {
       taosStopQueryImpl(pTmp);
       releaseRequest(pTmp->self);
     } else {
-      tscError("0x%" PRIx64 " is not there", tmpRefId);
+      tscError("next req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
     }
   }
@@ -556,6 +555,9 @@ static void *tscCrashReportThreadFp(void *param) {
         if (pFile) {
           taosReleaseCrashLogFile(pFile, false);
           pFile = NULL;
+
+          taosMsleep(sleepTime);
+          loopTimes = 0;
           continue;
         }
       } else {
@@ -721,6 +723,21 @@ int taos_init() {
 
 int taos_options_imp(TSDB_OPTION option, const char *str) {
   if (option == TSDB_OPTION_CONFIGDIR) {
+#ifndef WINDOWS
+    char newstr[PATH_MAX];
+    int  len = strlen(str);
+    if (len > 1 && str[0] != '"' && str[0] != '\'') {
+        if (len + 2 >= PATH_MAX) {
+        tscError("Too long path %s", str);
+        return -1;
+      }
+      newstr[0] = '"';
+      strncpy(newstr+1, str, len);
+      newstr[len + 1] = '"';
+      newstr[len + 2] = '\0';
+      str = newstr;
+    }
+#endif
     tstrncpy(configDir, str, PATH_MAX);
     tscInfo("set cfg:%s to %s", configDir, str);
     return 0;
@@ -762,7 +779,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
   } else {
     tscInfo("set cfg:%s to %s", pItem->name, str);
     if (TSDB_OPTION_SHELL_ACTIVITY_TIMER == option || TSDB_OPTION_USE_ADAPTER == option) {
-      code = taosApplyLocalCfg(pCfg, pItem->name);
+      code = taosCfgDynamicOptions(pCfg, pItem->name, false);
     }
   }
 

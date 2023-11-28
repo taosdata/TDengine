@@ -16,9 +16,14 @@
 #include "tq.h"
 #include "vnd.h"
 
+#define MAX_REPEAT_SCAN_THRESHOLD  3
+#define SCAN_WAL_IDLE_DURATION     100
+
 static int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle);
 static int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId);
-static void    handleFillhistoryScanComplete(SStreamTask* pTask, int64_t ver);
+static bool    handleFillhistoryScanComplete(SStreamTask* pTask, int64_t ver);
+static bool    taskReadyForDataFromWal(SStreamTask* pTask);
+static bool    doPutDataIntoInputQFromWal(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems);
 
 // extract data blocks(submit/delete) from WAL, and add them into the input queue for all the sources tasks.
 int32_t tqScanWal(STQ* pTq) {
@@ -34,22 +39,20 @@ int32_t tqScanWal(STQ* pTq) {
     bool shouldIdle = true;
     doScanWalForAllTasks(pTq->pStreamMeta, &shouldIdle);
 
-    int32_t times = 0;
-
     if (shouldIdle) {
-      taosWLockLatch(&pMeta->lock);
-
-      times = (--pMeta->walScanCounter);
+      streamMetaWLock(pMeta);
+      int32_t times = (--pMeta->walScanCounter);
       ASSERT(pMeta->walScanCounter >= 0);
+      streamMetaWUnLock(pMeta);
 
-      if (pMeta->walScanCounter <= 0) {
-        taosWUnLockLatch(&pMeta->lock);
+      if (times <= 0) {
         break;
+      } else {
+        tqDebug("vgId:%d scan wal for stream tasks for %d times in %dms", vgId, times, SCAN_WAL_IDLE_DURATION);
       }
-
-      taosWUnLockLatch(&pMeta->lock);
-      tqDebug("vgId:%d scan wal for stream tasks for %d times", vgId, times);
     }
+
+    taosMsleep(SCAN_WAL_IDLE_DURATION);
   }
 
   int64_t el = (taosGetTimestampMs() - st);
@@ -57,119 +60,44 @@ int32_t tqScanWal(STQ* pTq) {
   return 0;
 }
 
-int32_t tqCheckAndRunStreamTask(STQ* pTq) {
-  int32_t      vgId = TD_VID(pTq->pVnode);
-  SStreamMeta* pMeta = pTq->pStreamMeta;
-
-  int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
-  tqDebug("vgId:%d start to check all %d stream task(s) downstream status", vgId, numOfTasks);
-  if (numOfTasks == 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SArray* pTaskList = NULL;
-  taosWLockLatch(&pMeta->lock);
-  pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
-  taosWUnLockLatch(&pMeta->lock);
-
-  // broadcast the check downstream tasks msg
-  for (int32_t i = 0; i < numOfTasks; ++i) {
-    SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
-    SStreamTask*   pTask = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId);
-    if (pTask == NULL) {
-      continue;
-    }
-
-    // fill-history task can only be launched by related stream tasks.
-    if (pTask->info.fillHistory == 1) {
-      streamMetaReleaseTask(pMeta, pTask);
-      continue;
-    }
-
-    if (pTask->status.downstreamReady == 1) {
-      tqDebug("s-task:%s downstream ready, no need to check downstream, check only related fill-history task",
-              pTask->id.idStr);
-      streamLaunchFillHistoryTask(pTask);
-      streamMetaReleaseTask(pMeta, pTask);
-      continue;
-    }
-
-    streamSetStatusNormal(pTask);
-    streamTaskCheckDownstream(pTask);
-
-    streamMetaReleaseTask(pMeta, pTask);
-  }
-
-  taosArrayDestroy(pTaskList);
-  return 0;
-}
-
-int32_t tqCheckAndRunStreamTaskAsync(STQ* pTq) {
-  int32_t      vgId = TD_VID(pTq->pVnode);
-  SStreamMeta* pMeta = pTq->pStreamMeta;
-
-  taosWLockLatch(&pMeta->lock);
-
-  int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
-  if (numOfTasks == 0) {
-    tqInfo("vgId:%d no stream tasks exist", vgId);
-    taosWUnLockLatch(&pMeta->lock);
-    return 0;
-  }
-
-  SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
-  if (pRunReq == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tqError("vgId:%d failed to create msg to start wal scanning to launch stream tasks, code:%s", vgId, terrstr());
-    taosWUnLockLatch(&pMeta->lock);
-    return -1;
-  }
-
-  tqDebug("vgId:%d check %d stream task(s) status async", vgId, numOfTasks);
-  pRunReq->head.vgId = vgId;
-  pRunReq->streamId = 0;
-  pRunReq->taskId = STREAM_EXEC_TASK_STATUS_CHECK_ID;
-
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
-  tmsgPutToQueue(&pTq->pVnode->msgCb, STREAM_QUEUE, &msg);
-  taosWUnLockLatch(&pMeta->lock);
-
-  return 0;
-}
-
 int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
 
+  bool alreadyRestored = pTq->pVnode->restored;
+
   // do not launch the stream tasks, if it is a follower or not restored vnode.
-  if (!(vnodeIsRoleLeader(pTq->pVnode) && pTq->pVnode->restored)) {
+  if (!(vnodeIsRoleLeader(pTq->pVnode) && alreadyRestored)) {
     return TSDB_CODE_SUCCESS;
   }
 
-  taosWLockLatch(&pMeta->lock);
+  streamMetaWLock(pMeta);
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
   if (numOfTasks == 0) {
-    tqInfo("vgId:%d no stream tasks exist", vgId);
-    taosWUnLockLatch(&pMeta->lock);
+    tqDebug("vgId:%d no stream tasks existed to run", vgId);
+    streamMetaWUnLock(pMeta);
     return 0;
   }
 
   pMeta->walScanCounter += 1;
+  if (pMeta->walScanCounter > MAX_REPEAT_SCAN_THRESHOLD) {
+    pMeta->walScanCounter = MAX_REPEAT_SCAN_THRESHOLD;
+  }
 
   if (pMeta->walScanCounter > 1) {
     tqDebug("vgId:%d wal read task has been launched, remain scan times:%d", vgId, pMeta->walScanCounter);
-    taosWUnLockLatch(&pMeta->lock);
+    streamMetaWUnLock(pMeta);
     return 0;
   }
 
-  int32_t numOfPauseTasks = pTq->pStreamMeta->pauseTaskNum;
+  int32_t numOfPauseTasks = pTq->pStreamMeta->numOfPausedTasks;
   if (ckPause && numOfTasks == numOfPauseTasks) {
     tqDebug("vgId:%d ignore all submit, all streams had been paused, reset the walScanCounter", vgId);
 
     // reset the counter value, since we do not launch the scan wal operation.
     pMeta->walScanCounter = 0;
-    taosWUnLockLatch(&pMeta->lock);
+    streamMetaWUnLock(pMeta);
     return 0;
   }
 
@@ -177,18 +105,20 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
   if (pRunReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tqError("vgId:%d failed to create msg to start wal scanning to launch stream tasks, code:%s", vgId, terrstr());
-    taosWUnLockLatch(&pMeta->lock);
+    streamMetaWUnLock(pMeta);
     return -1;
   }
 
-  tqDebug("vgId:%d create msg to start wal scan to launch stream tasks, numOfTasks:%d", vgId, numOfTasks);
+  tqDebug("vgId:%d create msg to start wal scan to launch stream tasks, numOfTasks:%d, restored:%d", vgId, numOfTasks,
+          alreadyRestored);
+
   pRunReq->head.vgId = vgId;
   pRunReq->streamId = 0;
   pRunReq->taskId = STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID;
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
   tmsgPutToQueue(&pTq->pVnode->msgCb, STREAM_QUEUE, &msg);
-  taosWUnLockLatch(&pMeta->lock);
+  streamMetaWUnLock(pMeta);
 
   return 0;
 }
@@ -198,16 +128,15 @@ int32_t tqStopStreamTasks(STQ* pTq) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   int32_t      numOfTasks = taosArrayGetSize(pMeta->pTaskList);
 
-  tqDebug("vgId:%d start to stop all %d stream task(s)", vgId, numOfTasks);
-
+  tqDebug("vgId:%d stop all %d stream task(s)", vgId, numOfTasks);
   if (numOfTasks == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
   SArray* pTaskList = NULL;
-  taosWLockLatch(&pMeta->lock);
+  streamMetaWLock(pMeta);
   pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
-  taosWUnLockLatch(&pMeta->lock);
+  streamMetaWUnLock(pMeta);
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId*   pTaskId = taosArrayGet(pTaskList, i);
@@ -227,36 +156,36 @@ int32_t tqStopStreamTasks(STQ* pTq) {
 int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId) {
   // seek the stored version and extract data from WAL
   int64_t firstVer = walReaderGetValidFirstVer(pTask->exec.pWalReader);
-  if (pTask->chkInfo.currentVer < firstVer) {
+  if (pTask->chkInfo.nextProcessVer < firstVer) {
     tqWarn("vgId:%d s-task:%s ver:%" PRId64 " earlier than the first ver of wal range %" PRId64 ", forward to %" PRId64,
-           vgId, pTask->id.idStr, pTask->chkInfo.currentVer, firstVer, firstVer);
+           vgId, pTask->id.idStr, pTask->chkInfo.nextProcessVer, firstVer, firstVer);
 
-    pTask->chkInfo.currentVer = firstVer;
+    pTask->chkInfo.nextProcessVer = firstVer;
 
     // todo need retry if failed
-    int32_t code = walReaderSeekVer(pTask->exec.pWalReader, pTask->chkInfo.currentVer);
+    int32_t code = walReaderSeekVer(pTask->exec.pWalReader, pTask->chkInfo.nextProcessVer);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
     // append the data for the stream
-    tqDebug("vgId:%d s-task:%s wal reader seek to ver:%" PRId64, vgId, pTask->id.idStr, pTask->chkInfo.currentVer);
+    tqDebug("vgId:%d s-task:%s wal reader seek to ver:%" PRId64, vgId, pTask->id.idStr, pTask->chkInfo.nextProcessVer);
   } else {
     int64_t currentVer = walReaderGetCurrentVer(pTask->exec.pWalReader);
     if (currentVer == -1) {  // we only seek the read for the first time
-      int32_t code = walReaderSeekVer(pTask->exec.pWalReader, pTask->chkInfo.currentVer);
+      int32_t code = walReaderSeekVer(pTask->exec.pWalReader, pTask->chkInfo.nextProcessVer);
       if (code != TSDB_CODE_SUCCESS) {  // no data in wal, quit
         return code;
       }
 
       // append the data for the stream
       tqDebug("vgId:%d s-task:%s wal reader initial seek to ver:%" PRId64, vgId, pTask->id.idStr,
-              pTask->chkInfo.currentVer);
+              pTask->chkInfo.nextProcessVer);
     }
   }
 
   int64_t skipToVer = walReaderGetSkipToVersion(pTask->exec.pWalReader);
-  if (skipToVer != 0 && skipToVer > pTask->chkInfo.currentVer) {
+  if (skipToVer != 0 && skipToVer > pTask->chkInfo.nextProcessVer) {
     int32_t code = walReaderSeekVer(pTask->exec.pWalReader, skipToVer);
     if (code != TSDB_CODE_SUCCESS) {  // no data in wal, quit
       return code;
@@ -269,25 +198,109 @@ int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId) {
 }
 
 // todo handle memory error
-void handleFillhistoryScanComplete(SStreamTask* pTask, int64_t ver) {
+bool handleFillhistoryScanComplete(SStreamTask* pTask, int64_t ver) {
   const char* id = pTask->id.idStr;
   int64_t     maxVer = pTask->dataRange.range.maxVer;
 
   if ((pTask->info.fillHistory == 1) && ver > pTask->dataRange.range.maxVer) {
     if (!pTask->status.appendTranstateBlock) {
-      qWarn("s-task:%s fill-history scan WAL, currentVer:%" PRId64 " reach the maximum ver:%" PRId64
+      qWarn("s-task:%s fill-history scan WAL, nextProcessVer:%" PRId64 " out of the maximum ver:%" PRId64
             ", not scan wal anymore, add transfer-state block into inputQ",
             id, ver, maxVer);
 
-      double el = (taosGetTimestampMs() - pTask->tsInfo.step2Start) / 1000.0;
+      double el = (taosGetTimestampMs() - pTask->execInfo.step2Start) / 1000.0;
       qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, el);
       /*int32_t code = */streamTaskPutTranstateIntoInputQ(pTask);
-      /*int32_t code = */ streamSchedExec(pTask);
+      return true;
     } else {
-      qWarn("s-task:%s fill-history scan WAL, currentVer:%" PRId64 " reach the maximum ver:%" PRId64 ", not scan wal",
+      qWarn("s-task:%s fill-history scan WAL, nextProcessVer:%" PRId64 " out of the maximum ver:%" PRId64 ", not scan wal",
             id, ver, maxVer);
     }
   }
+
+  return false;
+}
+
+bool taskReadyForDataFromWal(SStreamTask* pTask) {
+  // non-source or fill-history tasks don't need to response the WAL scan action.
+  if ((pTask->info.taskLevel != TASK_LEVEL__SOURCE) || (pTask->status.downstreamReady == 0)) {
+    return false;
+  }
+
+  // not in ready state, do not handle the data from wal
+  char* p = NULL;
+  int32_t status = streamTaskGetStatus(pTask, &p);
+  if (streamTaskGetStatus(pTask, &p) != TASK_STATUS__READY) {
+    tqTrace("s-task:%s not ready for submit block in wal, status:%s", pTask->id.idStr, p);
+    return false;
+  }
+
+  // fill-history task has entered into the last phase, no need to anything
+  if ((pTask->info.fillHistory == 1) && pTask->status.appendTranstateBlock) {
+    ASSERT(status == TASK_STATUS__READY);
+    // the maximum version of data in the WAL has reached already, the step2 is done
+    tqDebug("s-task:%s fill-history reach the maximum ver:%" PRId64 ", not scan wal anymore", pTask->id.idStr,
+            pTask->dataRange.range.maxVer);
+    return false;
+  }
+
+  // check if input queue is full or not
+  if (streamQueueIsFull(pTask->inputq.queue)) {
+    tqTrace("s-task:%s input queue is full, do nothing", pTask->id.idStr);
+    return false;
+  }
+
+  // the input queue of downstream task is full, so the output is blocked, stopped for a while
+  if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
+    tqDebug("s-task:%s inputQ is blocked, do nothing", pTask->id.idStr);
+    return false;
+  }
+
+  return true;
+}
+
+bool doPutDataIntoInputQFromWal(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems) {
+  const char* id = pTask->id.idStr;
+  int32_t     numOfNewItems = 0;
+
+  while(1) {
+    if ((pTask->info.fillHistory == 1) && pTask->status.appendTranstateBlock) {
+      *numOfItems += numOfNewItems;
+      return numOfNewItems > 0;
+    }
+
+    SStreamQueueItem* pItem = NULL;
+    int32_t code = extractMsgFromWal(pTask->exec.pWalReader, (void**)&pItem, maxVer, id);
+    if (code != TSDB_CODE_SUCCESS || pItem == NULL) {  // failed, continue
+      int64_t currentVer = walReaderGetCurrentVer(pTask->exec.pWalReader);
+      bool itemInFillhistory = handleFillhistoryScanComplete(pTask, currentVer);
+      if (itemInFillhistory) {
+        numOfNewItems += 1;
+      }
+      break;
+    }
+
+    if (pItem != NULL) {
+      code = streamTaskPutDataIntoInputQ(pTask, pItem);
+      if (code == TSDB_CODE_SUCCESS) {
+        numOfNewItems += 1;
+        int64_t ver = walReaderGetCurrentVer(pTask->exec.pWalReader);
+        pTask->chkInfo.nextProcessVer = ver;
+        tqDebug("s-task:%s set ver:%" PRId64 " for reader after extract data from WAL", id, ver);
+
+        bool itemInFillhistory = handleFillhistoryScanComplete(pTask, ver);
+        if (itemInFillhistory) {
+          break;
+        }
+      } else {
+        tqError("s-task:%s append input queue failed, code: too many items, ver:%" PRId64, id, pTask->chkInfo.nextProcessVer);
+        break;
+      }
+    }
+  }
+
+  *numOfItems += numOfNewItems;
+  return numOfNewItems > 0;
 }
 
 int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
@@ -302,9 +315,9 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
 
   // clone the task list, to avoid the task update during scan wal files
   SArray* pTaskList = NULL;
-  taosWLockLatch(&pStreamMeta->lock);
+  streamMetaWLock(pStreamMeta);
   pTaskList = taosArrayDup(pStreamMeta->pTaskList, NULL);
-  taosWUnLockLatch(&pStreamMeta->lock);
+  streamMetaWUnLock(pStreamMeta);
 
   tqDebug("vgId:%d start to check wal to extract new submit block for %d tasks", vgId, numOfTasks);
 
@@ -312,45 +325,13 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
   numOfTasks = taosArrayGetSize(pTaskList);
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
-    SStreamTaskId*   pTaskId = taosArrayGet(pTaskList, i);
+    STaskId*     pTaskId = taosArrayGet(pTaskList, i);
     SStreamTask* pTask = streamMetaAcquireTask(pStreamMeta, pTaskId->streamId, pTaskId->taskId);
     if (pTask == NULL) {
       continue;
     }
 
-    int32_t status = pTask->status.taskStatus;
-
-    // non-source or fill-history tasks don't need to response the WAL scan action.
-    if ((pTask->info.taskLevel != TASK_LEVEL__SOURCE) || (pTask->status.downstreamReady == 0)) {
-      streamMetaReleaseTask(pStreamMeta, pTask);
-      continue;
-    }
-
-    const char* pStatus = streamGetTaskStatusStr(status);
-    if (status != TASK_STATUS__NORMAL) {
-      tqDebug("s-task:%s not ready for new submit block from wal, status:%s", pTask->id.idStr, pStatus);
-      streamMetaReleaseTask(pStreamMeta, pTask);
-      continue;
-    }
-
-    if ((pTask->info.fillHistory == 1) && pTask->status.appendTranstateBlock) {
-      ASSERT(status == TASK_STATUS__NORMAL);
-      // the maximum version of data in the WAL has reached already, the step2 is done
-      tqDebug("s-task:%s fill-history reach the maximum ver:%" PRId64 ", not scan wal anymore", pTask->id.idStr,
-              pTask->dataRange.range.maxVer);
-      streamMetaReleaseTask(pStreamMeta, pTask);
-      continue;
-    }
-
-    if (streamQueueIsFull(pTask->inputInfo.queue->pQueue)) {
-      tqTrace("s-task:%s input queue is full, do nothing", pTask->id.idStr);
-      streamMetaReleaseTask(pStreamMeta, pTask);
-      continue;
-    }
-
-    // downstream task has blocked the output, stopped for a while
-    if (pTask->inputInfo.status == TASK_INPUT_STATUS__BLOCKED) {
-      tqDebug("s-task:%s inputQ is blocked, do nothing", pTask->id.idStr);
+    if (!taskReadyForDataFromWal(pTask)) {
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
@@ -364,45 +345,25 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    int32_t numOfItems = streamTaskGetInputQItems(pTask);
+    int32_t numOfItems = streamQueueGetNumOfItems(pTask->inputq.queue);
     int64_t maxVer = (pTask->info.fillHistory == 1) ? pTask->dataRange.range.maxVer : INT64_MAX;
 
-    SStreamQueueItem* pItem = NULL;
-    code = extractMsgFromWal(pTask->exec.pWalReader, (void**)&pItem, maxVer, pTask->id.idStr);
-
-    if ((code != TSDB_CODE_SUCCESS || pItem == NULL) && (numOfItems == 0)) {  // failed, continue
-      handleFillhistoryScanComplete(pTask, walReaderGetCurrentVer(pTask->exec.pWalReader));
-      streamMetaReleaseTask(pStreamMeta, pTask);
-      continue;
-    }
-
     taosThreadMutexLock(&pTask->lock);
-    pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
 
-    if (pTask->status.taskStatus != TASK_STATUS__NORMAL) {
-      tqDebug("s-task:%s not ready for submit block from wal, status:%s", pTask->id.idStr, pStatus);
+    char* p = NULL;
+    ETaskStatus status = streamTaskGetStatus(pTask, &p);
+    if (status != TASK_STATUS__READY) {
+      tqDebug("s-task:%s not ready for submit block from wal, status:%s", pTask->id.idStr, p);
       taosThreadMutexUnlock(&pTask->lock);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
 
-    if (pItem != NULL) {
-      noDataInWal = false;
-      code = streamTaskPutDataIntoInputQ(pTask, pItem);
-      if (code == TSDB_CODE_SUCCESS) {
-        int64_t ver = walReaderGetCurrentVer(pTask->exec.pWalReader);
-        pTask->chkInfo.currentVer = ver;
-        handleFillhistoryScanComplete(pTask, ver);
-        tqDebug("s-task:%s set the ver:%" PRId64 " from WALReader after extract block from WAL", pTask->id.idStr, ver);
-      } else {
-        tqError("s-task:%s append input queue failed, too many in inputQ, ver:%" PRId64, pTask->id.idStr,
-                pTask->chkInfo.currentVer);
-      }
-    }
-
+    bool hasNewData = doPutDataIntoInputQFromWal(pTask, maxVer, &numOfItems);
     taosThreadMutexUnlock(&pTask->lock);
 
-    if ((code == TSDB_CODE_SUCCESS) || (numOfItems > 0)) {
+    if ((numOfItems > 0) || hasNewData) {
+      noDataInWal = false;
       code = streamSchedExec(pTask);
       if (code != TSDB_CODE_SUCCESS) {
         streamMetaReleaseTask(pStreamMeta, pTask);

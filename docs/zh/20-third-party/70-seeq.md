@@ -14,44 +14,11 @@ Seeq 是制造业和工业互联网（IIOT）高级分析软件。Seeq 支持在
 
 ### Seeq 安装方法
 
-从 (Seeq 官网)[https://www.seeq.com/customer-download]下载相关软件，例如 Seeq Server 和 Seeq Data Lab 等。
-
-### Seeq Server 安装和启动
-
-```
-tar xvzf seeq-server-xxx.tar.gz
-cd seeq-server-installer
-sudo ./install
-
-sudo seeq service enable
-sudo seeq start
-```
-
-### Seeq Data Lab Server 安装和启动
-
-Seeq Data Lab 需要安装在和 Seeq Server 不同的服务器上，并通过配置和 Seeq Server 互联。详细安装配置指令参见(Seeq 官方文档)[https://support.seeq.com/space/KB/1034059842]。
-
-```
-tar xvf seeq-data-lab-<version>-64bit-linux.tar.gz
-sudo seeq-data-lab-installer/install -f /opt/seeq/seeq-data-lab -g /var/opt/seeq -u seeq
-sudo seeq config set Network/DataLab/Hostname localhost
-sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab server (usually 34231)
-sudo seeq config set Network/Hostname <value> # the host IP or URL of the main Seeq Server
-
-# If the main Seeq server is configured to listen over HTTPS
-sudo seeq config set Network/Webserver/SecurePort 443 # the secure port of the main Seeq Server (usually 443)
-
-# If the main Seeq server is NOT configured to listen over HTTPS
-sudo seeq config set Network/Webserver/Port <value>
-
-#On the main Seeq server, open a Seeq Command Prompt and set the hostname of the Data Lab server:
-sudo seeq config set Network/DataLab/Hostname <value> # the host IP (not URL) of the Data Lab server
-sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab server (usually 34231
-```
+从 [Seeq 官网](https://www.seeq.com/customer-download)下载相关软件，例如 Seeq Server 和 Seeq Data Lab 等。Seeq Data Lab 需要安装在和 Seeq Server 不同的服务器上，并通过配置和 Seeq Server 互联。详细安装配置指令参见[Seeq 知识库]( https://support.seeq.com/kb/latest/cloud/)。
 
 ## TDengine 本地实例安装方法
 
-请参考(官网文档)[https://docs.taosdata.com/get-started/package/]。 
+请参考[官网文档](../../get-started)。 
 
 ## TDengine Cloud 访问方法
 如果使用 Seeq 连接 TDengine Cloud，请在 https://cloud.taosdata.com 申请帐号并登录查看如何访问 TDengine Cloud。
@@ -64,7 +31,7 @@ sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab serve
 sudo seeq config get Folders/Data
 ```
 
-2. 从 maven.org 下载 TDengine Java connector 包，目前最新版本为(3.2.4)[https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.4/taos-jdbcdriver-3.2.4-dist.jar]，并拷贝至 data 存储位置的 plugins\lib 中。
+2. 从 maven.org 下载 TDengine Java connector 包，目前最新版本为[3.2.5](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.5/taos-jdbcdriver-3.2.5-dist.jar)，并拷贝至 data 存储位置的 plugins\lib 中。
 
 3. 重新启动 seeq server
 
@@ -91,7 +58,7 @@ CREATE STABLE meters (ts TIMESTAMP, num INT, temperature FLOAT, goods INT) TAGS 
 CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 ```
 
-!(Seeq demo schema)[./seeq/seeq-demo-schema.webp]
+![Seeq demo schema](./seeq/seeq-demo-schema.webp)
 
 ### 构造数据方法
 
@@ -99,7 +66,8 @@ CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 python mockdata.py
 taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from power.meters interval(10d);"
 ```
-源代码托管在(github 仓库)[https://github.com/sangshuduo/td-forecasting]。
+
+源代码托管在[GitHub 仓库](https://github.com/sangshuduo/td-forecasting)。
 
 ### 使用 Seeq 进行数据分析
 
@@ -287,9 +255,9 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 
 #### 使用 Seeq Workbench
 
-登录 Seeq 服务页面并新建 Seeq Workbench，通过选择数据源搜索结果和根据需要选择不同的工具，可以进行数据展现或预测，详细使用方法参见(官方知识库)[https://support.seeq.com/space/KB/146440193/Seeq+Workbench]。
+登录 Seeq 服务页面并新建 Seeq Workbench，通过选择数据源搜索结果和根据需要选择不同的工具，可以进行数据展现或预测，详细使用方法参见[官方知识库](https://support.seeq.com/space/KB/146440193/Seeq+Workbench)。
 
-!(Seeq Workbench)[./seeq/seeq-demo-workbench.webp]
+![Seeq Workbench](./seeq/seeq-demo-workbench.webp)
 
 #### 用 Seeq Data Lab Server 进行进一步的数据分析
 
@@ -358,7 +326,7 @@ plt.show()
 
 运行程序输出结果：
 
-!(Seeq forecast result)[./seeq/seeq-forecast-result.webp]
+![Seeq forecast result](./seeq/seeq-forecast-result.webp)
 
 ### 配置 Seeq 数据源连接 TDengine Cloud
 
@@ -426,7 +394,7 @@ plt.show()
 
 #### TDengine Cloud 作为数据源的 Seeq Workbench 界面示例
 
-!(Seeq workbench with TDengine cloud)[./seeq/seeq-workbench-with-tdengine-cloud.webp]
+![Seeq workbench with TDengine cloud](./seeq/seeq-workbench-with-tdengine-cloud.webp)
 
 ## 方案总结
 

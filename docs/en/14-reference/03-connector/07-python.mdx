@@ -31,11 +31,13 @@ We recommend using the latest version of `taospy`, regardless of the version of 
 
 |Python Connector Version|major changes|
 |:-------------------:|:----:|
+|2.7.12|1. added support for `varbinary` type (STMT does not yet support)<br/> 2. improved query performance (thanks to contributor [hadrianl](https://github.com/taosdata/taos-connector-python/pull/209))|
 |2.7.9|support for getting assignment and seek function on subscription|
 |2.7.8|add `execute_many` method|
 
 |Python Websocket Connector Version|major changes|
 |:----------------------------:|:-----:|
+|0.2.9|bugs fixes|
 |0.2.5|1. support for getting assignment and seek function on subscription <br/> 2. support schemaless <br/> 3. support STMT|
 |0.2.4|support `unsubscribe` on subscription|
 
@@ -434,10 +436,21 @@ The `TaosConnection` class and the `TaosResult` class already implement all the 
 :::note
 The TaosCursor class uses native connections for write and query operations. In a client-side multi-threaded scenario, this cursor instance must remain thread exclusive and cannot be shared across threads for use, otherwise, it will result in errors in the returned results.
 
+The best practice for TaosCursor is to create a cursor at the beginning of a query and close it immediately after use. Please avoid reusing the same cursor for multiple executions.
 :::
 
 </TabItem>
 <TabItem value="rest" label="REST connection">
+
+##### Use of the RestClient class
+
+The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
+
+```python title="Use of RestClient"
+{{#include docs/examples/python/rest_client_example.py}}
+```
+
+For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
 
 ##### Use of TaosRestCursor class
 
@@ -450,15 +463,9 @@ The `TaosRestCursor` class is an implementation of the PEP249 Cursor interface.
 - `cursor.rowcount` : For write operations, returns the number of successful rows written. For query operations, returns the number of rows in the result set.
 - `cursor.description` : Returns the description of the field. Please refer to [TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html) for the specific format of the description information.
 
-##### Use of the RestClient class
-
-The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
-
-```python title="Use of RestClient"
-{{#include docs/examples/python/rest_client_example.py}}
-```
-
-For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
+:::note
+The best practice for TaosRestCursor is to create a cursor at the beginning of a query and close it immediately after use. Please avoid reusing the same cursor for multiple executions.
+:::
 
 </TabItem>
 <TabItem value="websocket" label="WebSocket connection">
@@ -552,6 +559,16 @@ The `TaosConnection` class and the `TaosResult` class already implement all the 
 </TabItem>
 <TabItem value="rest" label="REST connection">
 
+##### Use of the RestClient class
+
+The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
+
+```python title="Use of RestClient"
+{{#include docs/examples/python/rest_client_with_req_id_example.py}}
+```
+
+For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
+
 ##### Use of TaosRestCursor class
 
 As the way to connect introduced above but add `req_id` argument.
@@ -562,16 +579,6 @@ As the way to connect introduced above but add `req_id` argument.
 - `cursor.execute`: Used to execute arbitrary SQL statements.
 - `cursor.rowcount` : For write operations, returns the number of successful rows written. For query operations, returns the number of rows in the result set.
 - `cursor.description` : Returns the description of the field. Please refer to [TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html) for the specific format of the description information.
-
-##### Use of the RestClient class
-
-The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
-
-```python title="Use of RestClient"
-{{#include docs/examples/python/rest_client_with_req_id_example.py}}
-```
-
-For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
 
 </TabItem>
 
@@ -1022,10 +1029,6 @@ Due to the current imperfection of Python's nanosecond support (see link below),
 
 1. https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds
 2. https://www.python.org/dev/peps/pep-0564/
-
-## Important Update
-
-[**Release Notes**] (https://github.com/taosdata/taos-connector-python/releases)
 
 ## API Reference
 

@@ -239,7 +239,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
     numOfDownstream = 2;
   } else {
     pInfo->downstreamResBlkId[0] = getOperatorResultBlockId(pDownstream[0], 0);
-    pInfo->downstreamResBlkId[1] = getOperatorResultBlockId(pDownstream[1], 1);
+    pInfo->downstreamResBlkId[1] = getOperatorResultBlockId(pDownstream[1], 0);
   }
 
   int32_t      numOfCols = 0;
@@ -710,6 +710,11 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
         return false;
       }
     }
+  }
+
+  if (NULL == pJoinInfo->pLeft || NULL == pJoinInfo->pRight) {
+    setMergeJoinDone(pOperator);
+    return false;
   }
   
   // only the timestamp match support for ordinary table

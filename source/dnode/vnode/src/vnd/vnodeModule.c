@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "cos.h"
 #include "vnd.h"
-#include "vndCos.h"
 
 typedef struct SVnodeTask SVnodeTask;
 struct SVnodeTask {

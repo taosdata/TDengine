@@ -656,7 +656,7 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
   char obj[40] = {0};
   sprintf(obj, "%d", createReq.dnodeId);
 
-  auditRecord(pReq, pMnode->clusterId, "createMnode", obj, "", "");
+  auditRecord(pReq, pMnode->clusterId, "createMnode", "", obj, createReq.sql, createReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -665,6 +665,7 @@ _OVER:
 
   mndReleaseMnode(pMnode, pObj);
   mndReleaseDnode(pMnode, pDnode);
+  tFreeSMCreateQnodeReq(&createReq);
 
   return code;
 }
@@ -797,7 +798,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   char obj[40] = {0};
   sprintf(obj, "%d", dropReq.dnodeId);
 
-  auditRecord(pReq, pMnode->clusterId, "dropMnode", obj, "", "");
+  auditRecord(pReq, pMnode->clusterId, "dropMnode", "", obj, dropReq.sql, dropReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -805,6 +806,7 @@ _OVER:
   }
 
   mndReleaseMnode(pMnode, pObj);
+  tFreeSMCreateQnodeReq(&dropReq);
   return code;
 }
 

@@ -2200,10 +2200,15 @@ int tdbBtcDelete(SBTC *pBtc) {
           tdbOsFree(pCell);
 
           if (pPage->nOverflow > 0) {
-            tdbDebug("tdb/btc-delete: btree balance after update cell, pPage/nOverflow: %p/%d.", pPage,
-                     pPage->nOverflow);
+            tdbDebug("tdb/btc-delete: btree balance after update cell, pPage/nOverflow/pgno: %p/%d/%" PRIu32 ".", pPage,
+                     pPage->nOverflow, TDB_PAGE_PGNO(pPage));
 
-            pBtc->iPage = iPage;
+            tdbPagerReturnPage(pBtc->pBt->pPager, pBtc->pPage, pBtc->pTxn);
+            while (--pBtc->iPage != iPage) {
+              tdbPagerReturnPage(pBtc->pBt->pPager, pBtc->pgStack[pBtc->iPage], pBtc->pTxn);
+            }
+
+            // pBtc->iPage = iPage;
             pBtc->pPage = pPage;
             ret = tdbBtreeBalance(pBtc);
             if (ret < 0) {

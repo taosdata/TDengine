@@ -208,6 +208,7 @@ void sclFreeParam(SScalarParam *param) {
   if (param->columnData != NULL) {
     colDataDestroy(param->columnData);
     taosMemoryFreeClear(param->columnData);
+    param->columnData = NULL;
   }
 
   if (param->pHashFilter != NULL) {
@@ -845,6 +846,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   SScalarParam *params = NULL;
   int32_t       rowNum = 0;
   int32_t       code = 0;
+  int32_t       paramNum = 0;
 
   // json not support in in operator
   if (nodeType(node->pLeft) == QUERY_NODE_VALUE) {
@@ -865,7 +867,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(node->opType);
 
-  int32_t       paramNum = scalarGetOperatorParamNum(node->opType);
+  paramNum = scalarGetOperatorParamNum(node->opType);
   SScalarParam *pLeft = &params[0];
   SScalarParam *pRight = paramNum > 1 ? &params[1] : NULL;
 
@@ -1671,6 +1673,9 @@ static int32_t sclGetJsonOperatorResType(SOperatorNode *pOp) {
 }
 
 static int32_t sclGetBitwiseOperatorResType(SOperatorNode *pOp) {
+  if (!pOp->pLeft || !pOp->pRight) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
   SDataType ldt = ((SExprNode *)(pOp->pLeft))->resType;
   SDataType rdt = ((SExprNode *)(pOp->pRight))->resType;
   if(TSDB_DATA_TYPE_VARBINARY == ldt.type || TSDB_DATA_TYPE_VARBINARY == rdt.type){

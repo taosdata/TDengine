@@ -621,10 +621,11 @@ static int32_t data_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
     taos_print_row(buf, row, fields, numOfFields);
 
     if (0 != g_stConfInfo.showRowFlag) {
-      taosFprintfFile(g_fp, "tbname:%s, rows[%d]: %s\n", (tbName != NULL ? tbName : "null table"), totalRows, buf);
+      taosFprintfFile(g_fp, "time:%" PRId64 " tbname:%s, rows[%d]: %s\n", taosGetTimestampMs(), (tbName != NULL ? tbName : "null table"), totalRows, buf);
       // if (0 != g_stConfInfo.saveRowFlag) {
       //   saveConsumeContentToTbl(pInfo, buf);
       // }
+//      taosFsyncFile(g_fp);
     }
 
     totalRows++;
@@ -696,7 +697,7 @@ static int32_t g_once_commit_flag = 0;
 static void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
   taosFprintfFile(g_fp, "tmq_commit_cb_print() commit %d\n", code);
 
-  if (0 == g_once_commit_flag) {
+  if (0 == g_once_commit_flag && code == 0) {
     g_once_commit_flag = 1;
     notifyMainScript((SThreadInfo*)param, (int32_t)NOTIFY_CMD_START_COMMIT);
   }

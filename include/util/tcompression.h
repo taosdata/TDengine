@@ -30,6 +30,10 @@ extern "C" {
 #define INT64MASK(_x) ((((uint64_t)1) << _x) - 1)
 #define INT32MASK(_x) (((uint32_t)1 << _x) - 1)
 #define INT8MASK(_x)  (((uint8_t)1 << _x) - 1)
+
+#define ZIGZAG_ENCODE(T, v) (((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1))  // zigzag encode
+#define ZIGZAG_DECODE(T, v) (((v) >> 1) ^ -((T)((v)&1)))                                 // zigzag decode
+
 // Compression algorithm
 #define NO_COMPRESSION 0
 #define ONE_STAGE_COMP 1
@@ -54,8 +58,15 @@ extern "C" {
 #ifdef TD_TSZ
 extern bool lossyFloat;
 extern bool lossyDouble;
-int32_t     tsCompressInit();
-void        tsCompressExit();
+int32_t tsCompressInit(char* lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals, uint32_t intervals,
+                       int32_t ifAdtFse, const char* compressor);
+
+void    tsCompressExit();
+
+int32_t tsCompressFloatLossyImp(const char *const input, const int32_t nelements, char *const output);
+int32_t tsDecompressFloatLossyImp(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output);
+int32_t tsCompressDoubleLossyImp(const char *const input, const int32_t nelements, char *const output);
+int32_t tsDecompressDoubleLossyImp(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output);
 
 static FORCE_INLINE int32_t tsCompressFloatLossy(const char *const input, int32_t inputSize, const int32_t nelements,
                                                  char *const output, int32_t outputSize, char algorithm,
@@ -122,6 +133,12 @@ int32_t tsCompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32
                          int32_t nBuf);
 int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
                            int32_t nBuf);
+// for internal usage
+int32_t getWordLength(char type);
+
+int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements, char *const output, const char type);
+int32_t tsDecompressFloatImplAvx512(const char *const input, const int32_t nelements, char *const output);
+int32_t tsDecompressFloatImplAvx2(const char *const input, const int32_t nelements, char *const output);
 
 /*************************************************************************
  *                  STREAM COMPRESSION

@@ -45,9 +45,9 @@ class TMQCom:
         tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def initConsumerTable(self,cdbName='cdb'):
+    def initConsumerTable(self,cdbName='cdb', replicaVar=1):
         tdLog.info("create consume database, and consume info table, and consume result table")
-        tdSql.query("create database if not exists %s vgroups 1"%(cdbName))
+        tdSql.query("create database if not exists %s vgroups 1 replica %d"%(cdbName,replicaVar))
         tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
         tdSql.query("drop table if exists %s.consumeresult "%(cdbName))
         tdSql.query("drop table if exists %s.notifyinfo "%(cdbName))
@@ -75,7 +75,7 @@ class TMQCom:
             if tdSql.getRows() == expectRows:
                 break
             else:
-                time.sleep(5)
+                time.sleep(0.5)
 
         for i in range(expectRows):
             tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
@@ -156,7 +156,7 @@ class TMQCom:
             tdLog.info("row: %d"%(actRows))
             if (actRows >= rows):
                     loopFlag = 0
-            time.sleep(0.02)
+            time.sleep(0.5)
         return
 
     def getStartCommitNotifyFromTmqsim(self,cdbName='cdb',rows=1):
@@ -167,7 +167,7 @@ class TMQCom:
             tdLog.info("row: %d"%(actRows))
             if (actRows >= rows):
                 loopFlag = 0
-            time.sleep(0.02)
+            time.sleep(0.5)
         return
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):
@@ -233,7 +233,7 @@ class TMQCom:
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
         for i in range(ctbNum):
             rowsBatched = 0
-            sql += " %s%d values "%(stbName,i)
+            sql += " %s.%s%d values "%(dbName, stbName, i)
             for j in range(rowsPerTbl):
                 sql += "(%d, %d, 'tmqrow_%d') "%(startTs + j, j, j)
                 rowsBatched += 1
@@ -241,7 +241,7 @@ class TMQCom:
                     tsql.execute(sql)
                     rowsBatched = 0
                     if j < rowsPerTbl - 1:
-                        sql = "insert into %s%d values " %(stbName,i)
+                        sql = "insert into %s.%s%d values " %(dbName, stbName,i)
                     else:
                         sql = "insert into "
         #end sql
@@ -263,7 +263,7 @@ class TMQCom:
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
         for i in range(ctbNum):
             rowsBatched = 0
-            sql += " %s%d values "%(ctbPrefix,i)
+            sql += " %s.%s%d values "%(dbName, ctbPrefix,i)
             for j in range(rowsPerTbl):
                 if (j % 2 == 0):
                     sql += "(%d, %d, %d, 'tmqrow_%d') "%(startTs + j, j, j, j)
@@ -274,7 +274,7 @@ class TMQCom:
                     tsql.execute(sql)
                     rowsBatched = 0
                     if j < rowsPerTbl - 1:
-                        sql = "insert into %s%d values " %(ctbPrefix,i)
+                        sql = "insert into %s.%s%d values " %(dbName, ctbPrefix, i)
                     else:
                         sql = "insert into "
         #end sql
@@ -296,7 +296,7 @@ class TMQCom:
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
         for i in range(ctbNum):
             rowsBatched = 0
-            sql += " %s%d values "%(ctbPrefix,i+ctbStartIdx)
+            sql += " %s.%s%d values "%(dbName, ctbPrefix, i+ctbStartIdx)
             for j in range(rowsPerTbl):
                 if (j % 2 == 0):
                     sql += "(%d, %d, %d, 'tmqrow_%d', now) "%(startTs + j, j, j, j)
@@ -307,7 +307,7 @@ class TMQCom:
                     tsql.execute(sql)
                     rowsBatched = 0
                     if j < rowsPerTbl - 1:
-                        sql = "insert into %s%d values " %(ctbPrefix,i+ctbStartIdx)
+                        sql = "insert into %s.%s%d values " %(dbName, ctbPrefix, i+ctbStartIdx)
                     else:
                         sql = "insert into "
         #end sql

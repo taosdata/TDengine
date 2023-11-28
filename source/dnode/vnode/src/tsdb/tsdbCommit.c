@@ -69,7 +69,7 @@ typedef struct {
     SDataIter *pIter;
     SRBTree    rbt;
     SDataIter  dataIter;
-    SDataIter  aDataIter[TSDB_MAX_STT_TRIGGER];
+    SDataIter  aDataIter[TSDB_STT_TRIGGER_ARRAY_SIZE];
     int8_t     toLastOnly;
   };
   struct {
@@ -131,7 +131,7 @@ int32_t tsdbBegin(STsdb *pTsdb) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // lock
-  if ((code = taosThreadRwlockWrlock(&pTsdb->rwLock))) {
+  if ((code = taosThreadMutexLock(&pTsdb->mutex))) {
     code = TAOS_SYSTEM_ERROR(code);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -139,7 +139,7 @@ int32_t tsdbBegin(STsdb *pTsdb) {
   pTsdb->mem = pMemTable;
 
   // unlock
-  if ((code = taosThreadRwlockUnlock(&pTsdb->rwLock))) {
+  if ((code = taosThreadMutexUnlock(&pTsdb->mutex))) {
     code = TAOS_SYSTEM_ERROR(code);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -152,11 +152,11 @@ _exit:
 }
 
 int32_t tsdbPrepareCommit(STsdb *pTsdb) {
-  taosThreadRwlockWrlock(&pTsdb->rwLock);
+  taosThreadMutexLock(&pTsdb->mutex);
   ASSERT(pTsdb->imem == NULL);
   pTsdb->imem = pTsdb->mem;
   pTsdb->mem = NULL;
-  taosThreadRwlockUnlock(&pTsdb->rwLock);
+  taosThreadMutexUnlock(&pTsdb->mutex);
 
   return 0;
 }
@@ -171,9 +171,9 @@ int32_t tsdbCommit(STsdb *pTsdb, SCommitInfo *pInfo) {
 
   // check
   if (pMemTable->nRow == 0 && pMemTable->nDel == 0) {
-    taosThreadRwlockWrlock(&pTsdb->rwLock);
+    taosThreadMutexLock(&pTsdb->mutex);
     pTsdb->imem = NULL;
-    taosThreadRwlockUnlock(&pTsdb->rwLock);
+    taosThreadMutexUnlock(&pTsdb->mutex);
 
     tsdbUnrefMemTable(pMemTable, NULL, true);
     goto _exit;
@@ -867,7 +867,7 @@ static int32_t tsdbCommitDataStart(SCommitter *pCommitter) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // merger
-  for (int32_t iStt = 0; iStt < TSDB_MAX_STT_TRIGGER; iStt++) {
+  for (int32_t iStt = 0; iStt < TSDB_STT_TRIGGER_ARRAY_SIZE; iStt++) {
     SDataIter *pIter = &pCommitter->aDataIter[iStt];
     pIter->aSttBlk = taosArrayInit(0, sizeof(SSttBlk));
     if (pIter->aSttBlk == NULL) {
@@ -917,7 +917,7 @@ static void tsdbCommitDataEnd(SCommitter *pCommitter) {
   tBlockDataDestroy(&pCommitter->dReader.bData);
 
   // merger
-  for (int32_t iStt = 0; iStt < TSDB_MAX_STT_TRIGGER; iStt++) {
+  for (int32_t iStt = 0; iStt < TSDB_STT_TRIGGER_ARRAY_SIZE; iStt++) {
     SDataIter *pIter = &pCommitter->aDataIter[iStt];
     taosArrayDestroy(pIter->aSttBlk);
     tBlockDataDestroy(&pIter->bData);
@@ -1652,18 +1652,18 @@ int32_t tsdbFinishCommit(STsdb *pTsdb) {
   SMemTable *pMemTable = pTsdb->imem;
 
   // lock
-  taosThreadRwlockWrlock(&pTsdb->rwLock);
+  taosThreadMutexLock(&pTsdb->mutex);
 
   code = tsdbFSCommit(pTsdb);
   if (code) {
-    taosThreadRwlockUnlock(&pTsdb->rwLock);
+    taosThreadMutexUnlock(&pTsdb->mutex);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   pTsdb->imem = NULL;
 
   // unlock
-  taosThreadRwlockUnlock(&pTsdb->rwLock);
+  taosThreadMutexUnlock(&pTsdb->mutex);
   if (pMemTable) {
     tsdbUnrefMemTable(pMemTable, NULL, true);
   }

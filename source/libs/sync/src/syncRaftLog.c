@@ -59,7 +59,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   ASSERT(pData->pWal != NULL);
 
   taosThreadMutexInit(&(pData->mutex), NULL);
-  pData->pWalHandle = walOpenReader(pData->pWal, NULL);
+  pData->pWalHandle = walOpenReader(pData->pWal, NULL, 0);
   ASSERT(pData->pWalHandle != NULL);
 
   pLogStore->syncLogUpdateCommitIndex = raftLogUpdateCommitIndex;

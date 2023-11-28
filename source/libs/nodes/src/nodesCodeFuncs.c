@@ -251,6 +251,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowCreateTablesStmt";
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return "ShowCreateStablesStmt";
+    case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
+      return "ShowCreateViewStmt";
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       return "ShowTableDistributedStmt";
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
@@ -269,6 +271,10 @@ const char* nodesNodeName(ENodeType type) {
       return "RestoreMnodeStmt";
     case QUERY_NODE_RESTORE_VNODE_STMT:
       return "RestoreVnodeStmt";
+    case QUERY_NODE_CREATE_VIEW_STMT:
+      return "CreateViewStmt";
+    case QUERY_NODE_DROP_VIEW_STMT:
+      return "DropViewStmt";
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return "LogicScan";
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -1767,6 +1773,7 @@ static int32_t jsonToPhysiTagScanNode(const SJson* pJson, void* pObj) {
 
 static const char* jkLastRowScanPhysiPlanGroupTags = "GroupTags";
 static const char* jkLastRowScanPhysiPlanGroupSort = "GroupSort";
+static const char* jkLastRowScanPhysiPlanTargets = "Targets";
 
 static int32_t physiLastRowScanNodeToJson(const void* pObj, SJson* pJson) {
   const SLastRowScanPhysiNode* pNode = (const SLastRowScanPhysiNode*)pObj;
@@ -1777,6 +1784,9 @@ static int32_t physiLastRowScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkLastRowScanPhysiPlanGroupSort, pNode->groupSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkLastRowScanPhysiPlanTargets, pNode->pTargets);
   }
 
   return code;
@@ -1791,6 +1801,9 @@ static int32_t jsonToPhysiLastRowScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkLastRowScanPhysiPlanGroupSort, &pNode->groupSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkLastRowScanPhysiPlanTargets, &pNode->pTargets);
   }
 
   return code;
@@ -2271,6 +2284,8 @@ static const char* jkMergePhysiPlanNumOfChannels = "NumOfChannels";
 static const char* jkMergePhysiPlanSrcGroupId = "SrcGroupId";
 static const char* jkMergePhysiPlanGroupSort = "GroupSort";
 static const char* jkMergePhysiPlanIgnoreGroupID = "IgnoreGroupID";
+static const char* jkMergePhysiPlanInputWithGroupId = "InputWithGroupId";
+static const char* jkMergePhysiPlanType = "Type";
 
 static int32_t physiMergeNodeToJson(const void* pObj, SJson* pJson) {
   const SMergePhysiNode* pNode = (const SMergePhysiNode*)pObj;
@@ -2293,6 +2308,12 @@ static int32_t physiMergeNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkMergePhysiPlanIgnoreGroupID, pNode->ignoreGroupId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkMergePhysiPlanInputWithGroupId, pNode->inputWithGroupId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkMergePhysiPlanType, pNode->type);
   }
 
   return code;
@@ -2320,6 +2341,9 @@ static int32_t jsonToPhysiMergeNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkMergePhysiPlanIgnoreGroupID, &pNode->ignoreGroupId);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkMergePhysiPlanType, (int32_t*)&pNode->type);
+  }
 
   return code;
 }
@@ -2327,7 +2351,8 @@ static int32_t jsonToPhysiMergeNode(const SJson* pJson, void* pObj) {
 static const char* jkSortPhysiPlanExprs = "Exprs";
 static const char* jkSortPhysiPlanSortKeys = "SortKeys";
 static const char* jkSortPhysiPlanTargets = "Targets";
-static const char* jkSortPhysiPlanMaxRows = "MaxRows";
+static const char* jkSortPhysiPlanCalcGroupIds = "CalcGroupIds";
+static const char* jkSortPhysiPlanExcludePKCol = "ExcludePKCol";
 
 static int32_t physiSortNodeToJson(const void* pObj, SJson* pJson) {
   const SSortPhysiNode* pNode = (const SSortPhysiNode*)pObj;
@@ -2341,6 +2366,12 @@ static int32_t physiSortNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkSortPhysiPlanTargets, pNode->pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkSortPhysiPlanCalcGroupIds, pNode->calcGroupId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkSortPhysiPlanExcludePKCol, pNode->excludePkCol);
   }
 
   return code;
@@ -2358,6 +2389,12 @@ static int32_t jsonToPhysiSortNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkSortPhysiPlanTargets, &pNode->pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkSortPhysiPlanCalcGroupIds, &pNode->calcGroupId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code= tjsonGetBoolValue(pJson, jkSortPhysiPlanExcludePKCol, &pNode->excludePkCol);
   }
 
   return code;
@@ -2644,6 +2681,8 @@ static int32_t jsonToPhysiEventWindowNode(const SJson* pJson, void* pObj) {
 static const char* jkPartitionPhysiPlanExprs = "Exprs";
 static const char* jkPartitionPhysiPlanPartitionKeys = "PartitionKeys";
 static const char* jkPartitionPhysiPlanTargets = "Targets";
+static const char* jkPartitionPhysiPlanNeedBlockOutputTsOrder = "NeedBlockOutputTsOrder";
+static const char* jkPartitionPhysiPlanTsSlotId = "tsSlotId";
 
 static int32_t physiPartitionNodeToJson(const void* pObj, SJson* pJson) {
   const SPartitionPhysiNode* pNode = (const SPartitionPhysiNode*)pObj;
@@ -2657,6 +2696,12 @@ static int32_t physiPartitionNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkPartitionPhysiPlanTargets, pNode->pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonAddBoolToObject(pJson, jkPartitionPhysiPlanNeedBlockOutputTsOrder, pNode->needBlockOutputTsOrder);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonAddIntegerToObject(pJson, jkPartitionPhysiPlanTsSlotId, pNode->tsSlotId);
   }
 
   return code;
@@ -2674,6 +2719,12 @@ static int32_t jsonToPhysiPartitionNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkPartitionPhysiPlanTargets, &pNode->pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkPartitionPhysiPlanNeedBlockOutputTsOrder, &pNode->needBlockOutputTsOrder);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkPartitionPhysiPlanTsSlotId, &pNode->tsSlotId);
   }
 
   return code;
@@ -6558,6 +6609,33 @@ static int32_t jsonToShowCreateStableStmt(const SJson* pJson, void* pObj) {
   return jsonToShowCreateTableStmt(pJson, pObj);
 }
 
+static const char* jkShowCreateViewStmtDbName = "DbName";
+static const char* jkShowCreateViewStmtViewName = "ViewName";
+
+static int32_t showCreateViewStmtToJson(const void* pObj, SJson* pJson) {
+  const SShowCreateViewStmt* pNode = (const SShowCreateViewStmt*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, jkShowCreateViewStmtDbName, pNode->dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkShowCreateViewStmtViewName, pNode->viewName);
+  }
+
+  return code;
+}
+
+
+static int32_t jsonToShowCreateViewStmt(const SJson* pJson, void* pObj) {
+  SShowCreateViewStmt* pNode = (SShowCreateViewStmt*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, jkShowCreateViewStmtDbName, pNode->dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkShowCreateViewStmtViewName, pNode->viewName);
+  }
+
+  return code;
+}
+
+
 static const char* jkShowTableDistributedStmtDbName = "DbName";
 static const char* jkShowTableDistributedStmtTableName = "TableName";
 
@@ -6925,6 +7003,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showCreateTableStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return showCreateStableStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
+      return showCreateViewStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       return showTableDistributedStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
@@ -7246,6 +7326,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowCreateTableStmt(pJson, pObj);
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return jsonToShowCreateStableStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
+      return jsonToShowCreateViewStmt(pJson, pObj);
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       return jsonToShowTableDistributedStmt(pJson, pObj);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:

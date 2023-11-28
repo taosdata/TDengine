@@ -933,7 +933,13 @@ int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
         return 0;
       }
     }
-    __compar_fn_t fn = getKeyComparFunc(pColInfoData->info.type, pOrder->order);
+
+    __compar_fn_t fn;
+    if (pOrder->compFn) {
+      fn = pOrder->compFn;
+    } else {
+      fn = getKeyComparFunc(pColInfoData->info.type, pOrder->order);
+    }
 
     int ret = fn(left1, right1);
     if (ret == 0) {
@@ -1099,6 +1105,7 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
   for (int32_t i = 0; i < taosArrayGetSize(helper.orderInfo); ++i) {
     struct SBlockOrderInfo* pInfo = taosArrayGet(helper.orderInfo, i);
     pInfo->pColData = taosArrayGet(pDataBlock->pDataBlock, pInfo->slotId);
+    pInfo->compFn = getKeyComparFunc(pInfo->pColData->info.type, pInfo->order);
   }
 
   terrno = 0;
@@ -2114,6 +2121,7 @@ _end:
 char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
   char* pBuf = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);
   if (!pBuf) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   int32_t code = buildCtbNameByGroupIdImpl(stbFullName, groupId, pBuf);
@@ -2126,6 +2134,7 @@ char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
 
 int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, char* cname) {
   if (stbFullName[0] == 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return TSDB_CODE_FAILED;
   }
 
@@ -2135,26 +2144,21 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, cha
   }
 
   if (cname == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
     taosArrayDestroy(tags);
     return TSDB_CODE_FAILED;
   }
 
-  SSmlKv pTag = {.key = "group_id",
-                 .keyLen = sizeof("group_id") - 1,
-                 .type = TSDB_DATA_TYPE_UBIGINT,
-                 .u = groupId,
-                 .length = sizeof(uint64_t)};
+  int8_t      type = TSDB_DATA_TYPE_UBIGINT;
+  const char* name = "group_id";
+  int32_t     len = strlen(name);
+  SSmlKv pTag = { .key = name, .keyLen = len, .type = type, .u = groupId, .length = sizeof(uint64_t)};
   taosArrayPush(tags, &pTag);
 
   RandTableName rname = {
-      .tags = tags,
-      .stbFullName = stbFullName,
-      .stbFullNameLen = strlen(stbFullName),
-      .ctbShortName = cname,
-  };
+      .tags = tags, .stbFullName = stbFullName, .stbFullNameLen = strlen(stbFullName), .ctbShortName = cname};
 
   buildChildTableName(&rname);
-
   taosArrayDestroy(tags);
 
   if ((rname.ctbShortName && rname.ctbShortName[0]) == 0) {
@@ -2359,27 +2363,26 @@ void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList
   int32_t maxRows = 0;
 
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
-    // it is a reserved column for scalar function, and no data in this column yet.
-    if (pDst->pData == NULL) {
-      continue;
-    }
+  if (!pBoolList) {
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
+      // it is a reserved column for scalar function, and no data in this column yet.
+      if (pDst->pData == NULL) {
+        continue;
+      }
 
-    int32_t numOfRows = 0;
-    if (IS_VAR_DATA_TYPE(pDst->info.type)) {
-      pDst->varmeta.length = 0;
+      int32_t numOfRows = 0;
+      if (IS_VAR_DATA_TYPE(pDst->info.type)) {
+        pDst->varmeta.length = 0;
+      }
     }
-  }
-
-  if (NULL == pBoolList) {
     return;
   }
-  
+
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
     // it is a reserved column for scalar function, and no data in this column yet.
-    if (pDst->pData == NULL) {
+    if (pDst->pData == NULL || (IS_VAR_DATA_TYPE(pDst->info.type) && pDst->varmeta.length == 0)) {
       continue;
     }
 
@@ -2514,4 +2517,21 @@ void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList
 
 int32_t blockGetEncodeSize(const SSDataBlock* pBlock) {
   return blockDataGetSerialMetaSize(taosArrayGetSize(pBlock->pDataBlock)) + blockDataGetSize(pBlock);
+}
+
+int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
+  if (!pDataBlock || !pOrderInfo) return 0;
+  for (int32_t i = 0; i < taosArrayGetSize(pOrderInfo); ++i) {
+    SBlockOrderInfo* pOrder = taosArrayGet(pOrderInfo, i);
+    pOrder->pColData = taosArrayGet(pDataBlock->pDataBlock, pOrder->slotId);
+    pOrder->compFn = getKeyComparFunc(pOrder->pColData->info.type, pOrder->order);
+  }
+  SSDataBlockSortHelper sortHelper = {.orderInfo = pOrderInfo, .pDataBlock = pDataBlock};
+  int32_t rowIdx = 0, nextRowIdx = 1;
+  for (; rowIdx < pDataBlock->info.rows && nextRowIdx < pDataBlock->info.rows; ++rowIdx, ++nextRowIdx) {
+    if (dataBlockCompar(&nextRowIdx, &rowIdx, &sortHelper) < 0) {
+      break;
+    }
+  }
+  return nextRowIdx;
 }

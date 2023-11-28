@@ -94,6 +94,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TO_ISO8601,
   FUNCTION_TYPE_TO_UNIXTIMESTAMP,
   FUNCTION_TYPE_TO_JSON,
+  FUNCTION_TYPE_TO_TIMESTAMP,
+  FUNCTION_TYPE_TO_CHAR,
 
   // date and time function
   FUNCTION_TYPE_NOW = 2500,
@@ -236,6 +238,7 @@ bool fmIsInterpPseudoColumnFunc(int32_t funcId);
 bool fmIsGroupKeyFunc(int32_t funcId);
 bool fmIsBlockDistFunc(int32_t funcId);
 bool fmIsConstantResFunc(SFunctionNode* pFunc);
+bool fmIsSkipScanCheckFunc(int32_t funcId);
 
 void getLastCacheDataType(SDataType* pType);
 SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList);

@@ -90,7 +90,7 @@ endi
 
 sql select tags tbname,t,b from stt1 order by t
 print $rows
-print $data00 $data01 $data02 $data10 $data11 $data12 $data20 $data21 $data22 $data30 $data31 $data32 
+print $data00 $data01 $data02 $data10 $data11 $data12 $data20 $data21 $data22 $data30 $data31 $data32
 if $rows != 4 then
   return -1
 endi
@@ -103,7 +103,7 @@ endi
 
 sql select tags t,b from stt1 where t=1
 print $rows
-print $data00 $data01 
+print $data00 $data01
 if $rows != 1 then
   return -1
 endi
@@ -116,7 +116,7 @@ endi
 
 sql select tags t,b from stt1 where tbname='ctt11'
 print $rows
-print $data00 $data01 
+print $data00 $data01
 if $rows != 1 then
   return -1
 endi
@@ -127,4 +127,46 @@ if $data01 != @1aa@ then
   return -1
 endi
 
+sql select tags t,b from ctt11
+print $rows
+print $data00 $data01
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @1@ then
+  return -1
+endi
+if $data01 != @1aa@ then
+  return -1
+endi
+
+sql create table stb34 (ts timestamp, f int) tags(t int);
+sql insert into ctb34 using stb34 tags(1) values(now, 1)(now+1s, 2);
+sql select 1 from (select tags t from stb34 order by t)
+print $rows
+if $rows != 1 then
+  return -1
+endi
+
+sql select count(*) from (select tags t from stb34)
+if $data00 != 1 then
+  return -1
+endi
+
+
+sql select 1 from (select tags ts from stb34)
+print $rows
+if $rows != 2 then
+  return -1
+endi
+
+sql select count(*) from (select tags ts from stb34)
+if $data00 != 2 then
+  return -1
+endi
+
+sql select tags 2 from stb34
+if $rows != 1 then 
+  return -1
+endi
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

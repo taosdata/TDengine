@@ -818,7 +818,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
 
   if (!taosCheckExistFile(pSyncNode->configPath)) {
     // create a new raft config file
-    sInfo("vgId:%d, create a new raft config file", pSyncNode->vgId);
+    sInfo("vgId:%d, create a new raft config file", pSyncInfo->vgId);
+    pSyncNode->vgId = pSyncInfo->vgId;
     pSyncNode->raftCfg.isStandBy = pSyncInfo->isStandBy;
     pSyncNode->raftCfg.snapshotStrategy = pSyncInfo->snapshotStrategy;
     pSyncNode->raftCfg.lastConfigIndex = pSyncInfo->syncCfg.lastIndex;
@@ -1009,6 +1010,13 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
       commitIndex = snapshot.lastApplyIndex;
       sNTrace(pSyncNode, "reset commit index by snapshot");
     }
+    pSyncNode->fsmState = snapshot.state;
+    if (pSyncNode->fsmState == SYNC_FSM_STATE_INCOMPLETE) {
+      sError("vgId:%d, fsm state is incomplete.", pSyncNode->vgId);
+      if (pSyncNode->replicaNum == 1) {
+        goto _error;
+      }
+    }
   }
   pSyncNode->commitIndex = commitIndex;
   sInfo("vgId:%d, sync node commitIndex initialized as %" PRId64, pSyncNode->vgId, pSyncNode->commitIndex);
@@ -1163,7 +1171,8 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
   pSyncNode->commitIndex = TMAX(pSyncNode->commitIndex, commitIndex);
   sInfo("vgId:%d, restore sync until commitIndex:%" PRId64, pSyncNode->vgId, pSyncNode->commitIndex);
 
-  if (syncLogBufferCommit(pSyncNode->pLogBuf, pSyncNode, pSyncNode->commitIndex) < 0) {
+  if (pSyncNode->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
+      syncLogBufferCommit(pSyncNode->pLogBuf, pSyncNode, pSyncNode->commitIndex) < 0) {
     return -1;
   }
 
@@ -1455,10 +1464,9 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pNode, SRpcMsg
   }
 
   if (code < 0) {
-    sError("vgId:%d, sync send msg by id error, epset:%p dnode:%d addr:%" PRId64 " err:0x%x", pNode->vgId, epSet,
-           DID(destRaftId), destRaftId->addr, terrno);
+    sError("vgId:%d, failed to send sync msg since %s. epset:%p dnode:%d addr:%" PRId64, pNode->vgId, terrstr(), epSet,
+           DID(destRaftId), destRaftId->addr);
     rpcFreeCont(pMsg->pCont);
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
   }
 
   return code;
@@ -2562,7 +2570,11 @@ int32_t syncNodeRebuildAndCopyIfExist(SSyncNode* ths, int32_t oldtotalReplicaNum
           ths->logReplMgrs[i]->matchIndex, ths->logReplMgrs[i]->endIndex);
   }
 
-  SSyncLogReplMgr oldLogReplMgrs[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA] = {0};
+  SSyncLogReplMgr* oldLogReplMgrs = NULL;
+  int64_t          length = sizeof(SSyncLogReplMgr) * (TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA);
+  oldLogReplMgrs = taosMemoryMalloc(length);
+  if (NULL == oldLogReplMgrs) return -1;
+  memset(oldLogReplMgrs, 0, length);
 
   for(int i = 0; i < oldtotalReplicaNum; i++){
     oldLogReplMgrs[i] = *(ths->logReplMgrs[i]);
@@ -2642,6 +2654,8 @@ int32_t syncNodeRebuildAndCopyIfExist(SSyncNode* ths, int32_t oldtotalReplicaNum
       }
     }
   }
+
+  taosMemoryFree(oldLogReplMgrs);
 
   return 0;
 }
@@ -2854,11 +2868,12 @@ int32_t syncNodeChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry, char* str){
 }
 
 int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
+  int32_t code = -1;
   if (pEntry->dataLen < sizeof(SMsgHead)) {
     sError("vgId:%d, cannot append an invalid client request with no msg head. type:%s, dataLen:%d", ths->vgId,
            TMSG_INFO(pEntry->originalRpcType), pEntry->dataLen);
     syncEntryDestroy(pEntry);
-    return -1;
+    goto _out;
   }
 
   // append to log buffer
@@ -2867,9 +2882,11 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
     ASSERT(terrno != 0);
     (void)syncFsmExecute(ths, ths->pFsm, ths->state, raftStoreGetTerm(ths), pEntry, terrno, false);
     syncEntryDestroy(pEntry);
-    return -1;
+    goto _out;
   }
- 
+
+  code = 0;
+_out:;
   // proceed match index, with replicating on needed
   SyncIndex matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, NULL, "Append");  
 
@@ -2880,18 +2897,18 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
 
   // multi replica
   if (ths->replicaNum > 1) {
-    return 0;
+    return code;
   }
 
   // single replica
   (void)syncNodeUpdateCommitIndex(ths, matchIndex);
 
-  if (syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
+  if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE && syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
     sError("vgId:%d, failed to commit until commitIndex:%" PRId64 "", ths->vgId, ths->commitIndex);
-    return -1;
+    code = -1;
   }
 
-  return 0;
+  return code;
 }
 
 bool syncNodeHeartbeatReplyTimeout(SSyncNode* pSyncNode) {
@@ -3130,7 +3147,7 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     if (pMsg->currentTerm == matchTerm) {
       (void)syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);
     }
-    if (syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
+    if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE && syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
       sError("vgId:%d, failed to commit raft log since %s. commit index:%" PRId64 "", ths->vgId, terrstr(),
              ths->commitIndex);
     }

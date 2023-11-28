@@ -137,6 +137,12 @@ class TDTestCase:
         sql = "select _wstart, _wend, count(ts), sum(c1) from meters where ts > '2018-11-25 00:00:00.000' and ts < '2018-11-26 00:00:00.00' interval(1d) fill(NULL) order by _wstart desc"
         tdSql.query(sql)
         tdSql.checkRows(1)
+        sql = "select _wstart, count(*) from meters where ts > '2018-08-20 00:00:00.000' and ts < '2018-09-30 00:00:00.000' interval(9d) fill(NULL) order by _wstart desc;"
+        tdSql.query(sql)
+        tdSql.checkRows(6)
+        sql = "select _wstart, count(*) from meters where ts > '2018-08-20 00:00:00.000' and ts < '2018-09-30 00:00:00.000' interval(9d) fill(NULL) order by _wstart;"
+        tdSql.query(sql)
+        tdSql.checkRows(6)
 
     def run(self):
         self.prepareTestEnv()

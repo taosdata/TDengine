@@ -125,6 +125,8 @@ typedef enum {
 
 typedef enum {
   TAOS_NOTIFY_PASSVER = 0,
+  TAOS_NOTIFY_WHITELIST_VER = 1,
+  TAOS_NOTIFY_USER_DROPPED = 2,
 } TAOS_NOTIFY_TYPE;
 
 #define RET_MSG_LENGTH 1024
@@ -236,6 +238,14 @@ DLL_EXPORT void taos_set_hb_quit(int8_t quitByKill);
 
 DLL_EXPORT int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type);
 
+typedef void (*__taos_async_whitelist_fn_t)(void *param, int code, TAOS *taos, int numOfWhiteLists, uint64_t* pWhiteLists);
+DLL_EXPORT void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param);
+
+typedef enum {
+  TAOS_CONN_MODE_BI = 0,
+} TAOS_CONN_MODE;
+
+DLL_EXPORT int taos_set_conn_mode(TAOS* taos, int mode, int value);
 /*  --------------------------schemaless INTERFACE------------------------------- */
 
 DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision);
@@ -267,6 +277,13 @@ typedef enum tmq_conf_res_t {
   TMQ_CONF_INVALID = -1,
   TMQ_CONF_OK = 0,
 } tmq_conf_res_t;
+
+typedef enum tmq_res_t {
+  TMQ_RES_INVALID = -1,
+  TMQ_RES_DATA = 1,
+  TMQ_RES_TABLE_META = 2,
+  TMQ_RES_METADATA = 3,
+} tmq_res_t;
 
 typedef struct tmq_topic_assignment {
   int32_t vgId;
@@ -302,6 +319,9 @@ DLL_EXPORT int32_t   tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t
 DLL_EXPORT int64_t   tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId);  // The current offset is the offset of the last consumed message + 1
 DLL_EXPORT int64_t   tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId);
 
+DLL_EXPORT TAOS       *tmq_get_connect(tmq_t *tmq);
+DLL_EXPORT const char *tmq_get_table_name(TAOS_RES *res);
+DLL_EXPORT tmq_res_t   tmq_get_res_type(TAOS_RES *res);
 DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
 DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
 DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
@@ -309,34 +329,25 @@ DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES* res);
 DLL_EXPORT const char *tmq_err2str(int32_t code);
 
 /* ------------------------------ TAOSX -----------------------------------*/
-// note: following apis are unstable
-enum tmq_res_t {
-  TMQ_RES_INVALID = -1,
-  TMQ_RES_DATA = 1,
-  TMQ_RES_TABLE_META = 2,
-  TMQ_RES_METADATA = 3,
-};
-
 typedef struct tmq_raw_data {
   void    *raw;
   uint32_t raw_len;
   uint16_t raw_type;
 } tmq_raw_data;
 
-typedef enum tmq_res_t tmq_res_t;
-
-DLL_EXPORT const char *tmq_get_table_name(TAOS_RES *res);
-DLL_EXPORT tmq_res_t   tmq_get_res_type(TAOS_RES *res);
 DLL_EXPORT int32_t     tmq_get_raw(TAOS_RES *res, tmq_raw_data *raw);
 DLL_EXPORT int32_t     tmq_write_raw(TAOS *taos, tmq_raw_data raw);
 DLL_EXPORT int         taos_write_raw_block(TAOS *taos, int numOfRows, char *pData, const char *tbname);
+DLL_EXPORT int         taos_write_raw_block_with_reqid(TAOS *taos, int numOfRows, char *pData, const char *tbname, int64_t reqid);
 DLL_EXPORT int         taos_write_raw_block_with_fields(TAOS *taos, int rows, char *pData, const char *tbname,
                                                         TAOS_FIELD *fields, int numFields);
+DLL_EXPORT int         taos_write_raw_block_with_fields_with_reqid(TAOS *taos, int rows, char *pData, const char *tbname,
+                                                        TAOS_FIELD *fields, int numFields, int64_t reqid);
 DLL_EXPORT void        tmq_free_raw(tmq_raw_data raw);
+
 // Returning null means error. Returned result need to be freed by tmq_free_json_meta
 DLL_EXPORT char *tmq_get_json_meta(TAOS_RES *res);
 DLL_EXPORT void  tmq_free_json_meta(char *jsonMeta);
-
 /* ---------------------------- TAOSX END -------------------------------- */
 
 typedef enum {

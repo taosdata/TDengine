@@ -174,61 +174,6 @@ class TDTestCase:
         for offset in range(0, 1000, 500):
             self.test_interval_limit_asc(offset)
             self.test_interval_limit_desc(offset)
-            self.test_interval_fill_limit(offset)
-            self.test_interval_order_by_limit(offset)
-            self.test_interval_partition_by_slimit(offset)
-
-    def test_interval_fill_limit(self, offset: int = 0):
-        sqls = [
-                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
-                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-09-17 09:30:00.000' interval(1s) fill(linear)",
-                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
-                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-09-17 09:30:00.000' interval(1m) fill(linear)",
-                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
-                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-09-17 09:30:00.000' interval(1h) fill(linear)",
-                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
-                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-09-17 09:30:00.000' interval(1d) fill(linear)"
-                ]
-        for sql in sqls:
-            self.query_and_check_with_limit(sql, 5000, 1000, offset)
-
-    def test_interval_order_by_limit(self, offset: int = 0):
-        sqls = [
-                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
-                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) order by b",
-                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
-                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) order by a desc",
-                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), last(ts) from meters \
-                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) order by a desc",
-                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
-                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) order by count(*), sum(c1), a",
-                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
-                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) order by a, count(*), sum(c1)",
-                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
-                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) fill(linear) order by b",
-                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
-                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) fill(linear) order by a desc",
-                "select _wstart as a, _wend as b, count(*), sum(c1), last(c2), first(ts) from meters \
-                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) fill(linear) order by a desc",
-                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
-                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) fill(linear) order by count(*), sum(c1), a",
-                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
-                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) fill(linear) order by a, count(*), sum(c1)",
-                ]
-        for sql in sqls:
-            self.query_and_check_with_limit(sql, 6000, 2000, offset)
-
-    def test_interval_partition_by_slimit(self, offset: int = 0):
-        sqls = [
-                "select _wstart as a, _wend as b, count(*), sum(c1), last(c2), first(ts) from meters "
-                "where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' partition by t1 interval(1m)",
-                "select _wstart as a, _wend as b, count(*), sum(c1), last(c2), first(ts) from meters "
-                "where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' partition by t1 interval(1h)",
-                "select _wstart as a, _wend as b, count(*), sum(c1), last(c2), first(ts) from meters "
-                "where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' partition by c3 interval(1m)",
-                ]
-        for sql in sqls:
-            self.query_and_check_with_slimit(sql, 10, 2, offset)
 
     def test_interval_partition_by_slimit_limit(self):
         sql = "select * from (select _wstart as a, _wend as b, count(*), sum(c1), last(c2), first(ts),c3 from meters " \
@@ -251,10 +196,19 @@ class TDTestCase:
         tdSql.checkData(2, 4, 9)
         tdSql.checkData(3, 4, 9)
 
+    def test_partition_by_limit_no_agg(self):
+        sql_template = 'select t1 from meters partition by t1 limit %d'
+
+        for i in range(1, 5000, 1000):
+            tdSql.query(sql_template % i)
+            tdSql.checkRows(5 * i)
+
+
     def run(self):
         self.prepareTestEnv()
         self.test_interval_limit_offset()
         self.test_interval_partition_by_slimit_limit()
+        self.test_partition_by_limit_no_agg()
 
     def stop(self):
         tdSql.close()

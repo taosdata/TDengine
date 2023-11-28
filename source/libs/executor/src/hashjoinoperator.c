@@ -636,12 +636,14 @@ static int32_t addRowToHashImpl(SHJoinOperatorInfo* pJoin, SGroupData* pGroup, S
 
   int32_t code = getValBufFromPages(pJoin->pRowBufs, getHJoinValBufSize(pTable, rowIdx), &pTable->valData, pRow);
   if (code) {
+    taosMemoryFree(pRow);
     return code;
   }
 
   if (NULL == pGroup) {
     pRow->next = NULL;
     if (tSimpleHashPut(pJoin->pKeyHash, pTable->keyData, keyLen, &group, sizeof(group))) {
+      taosMemoryFree(pRow);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   } else {

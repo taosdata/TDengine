@@ -11,7 +11,11 @@ taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能�
 
 ## 安装
 
-- 安装 TDengine 官方安装包的同时会自动安装 taosBenchmark
+taosBenchmark 有两种安装方式:
+
+- 安装 TDengine 官方安装包的同时会自动安装 taosBenchmark, 详情请参考[ TDengine 安装](../../get-started/)。
+
+- 单独编译 taos-tools 并安装, 详情请参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
 
 ## 运行
 
@@ -391,6 +395,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 ### 查询场景配置参数
 
 查询场景下 `filetype` 必须设置为 `query`。
+`query_times` 指定运行查询的次数，数值类型
 
 查询场景可以通过设置 `kill_slow_query_threshold` 和 `kill_slow_query_interval` 参数来控制杀掉慢查询语句的执行，threshold 控制如果 exec_usec 超过指定时间的查询将被 taosBenchmark 杀掉，单位为秒；interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为秒。
 

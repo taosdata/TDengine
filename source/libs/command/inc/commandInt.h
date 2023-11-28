@@ -37,7 +37,7 @@ extern "C" {
 #define EXPLAIN_TABLE_COUNT_SCAN_FORMAT "Table Count Row Scan on %s"
 #define EXPLAIN_PROJECTION_FORMAT "Projection"
 #define EXPLAIN_JOIN_FORMAT "%s"
-#define EXPLAIN_AGG_FORMAT "Aggragate"
+#define EXPLAIN_AGG_FORMAT "%s"
 #define EXPLAIN_INDEF_ROWS_FORMAT "Indefinite Rows Function"
 #define EXPLAIN_EXCHANGE_FORMAT "Data Exchange %d:1"
 #define EXPLAIN_SORT_FORMAT "Sort"
@@ -59,7 +59,7 @@ extern "C" {
 #define EXPLAIN_TIME_WINDOWS_FORMAT "Time Window: interval=%" PRId64 "%c offset=%" PRId64 "%c sliding=%" PRId64 "%c"
 #define EXPLAIN_WINDOW_FORMAT "Window: gap=%" PRId64
 #define EXPLAIN_RATIO_TIME_FORMAT "Ratio: %f"
-#define EXPLAIN_MERGE_FORMAT "SortMerge"
+#define EXPLAIN_MERGE_FORMAT "Merge"
 #define EXPLAIN_MERGE_KEYS_FORMAT "Merge Key: "
 #define EXPLAIN_IGNORE_GROUPID_FORMAT "Ignore Group Id: %s"
 #define EXPLAIN_PARTITION_KETS_FORMAT "Partition Key: "
@@ -85,7 +85,9 @@ extern "C" {
 #define EXPLAIN_COLUMNS_FORMAT "columns=%d"
 #define EXPLAIN_PSEUDO_COLUMNS_FORMAT "pseudo_columns=%d"
 #define EXPLAIN_WIDTH_FORMAT "width=%d"
-#define EXPLAIN_TABLE_SCAN_FORMAT "order=[asc|%d desc|%d]"
+#define EXPLAIN_SCAN_ORDER_FORMAT "order=[asc|%d desc|%d]"
+#define EXPLAIN_SCAN_MODE_FORMAT "mode=%s"
+#define EXPLAIN_SCAN_DATA_LOAD_FORMAT "data_load=%s"
 #define EXPLAIN_GROUPS_FORMAT "groups=%d"
 #define EXPLAIN_WIDTH_FORMAT "width=%d"
 #define EXPLAIN_INTERVAL_VALUE_FORMAT "interval=%" PRId64 "%c"
@@ -104,6 +106,8 @@ extern "C" {
 #define EXPLAIN_VGROUP_SLOT_FORMAT "vgroup_slot=%d,%d"
 #define EXPLAIN_UID_SLOT_FORMAT "uid_slot=%d,%d"
 #define EXPLAIN_SRC_SCAN_FORMAT "src_scan=%d,%d"
+#define EXPLAIN_PLAN_BLOCKING "blocking=%d"
+#define EXPLAIN_MERGE_MODE_FORMAT "mode=%s"
 
 #define COMMAND_RESET_LOG "resetLog"
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"
@@ -155,6 +159,7 @@ typedef struct SExplainCtx {
 
 #define EXPLAIN_ORDER_STRING(_order) ((ORDER_ASC == _order) ? "asc" : ORDER_DESC == _order ? "desc" : "unknown")
 #define EXPLAIN_JOIN_STRING(_type) ((JOIN_TYPE_INNER == _type) ? "Inner join" : "Join")
+#define EXPLAIN_MERGE_MODE_STRING(_mode) ((_mode) == MERGE_TYPE_SORT ? "sort" : ((_mode) == MERGE_TYPE_NON_SORT ? "merge" : "column"))
 
 #define INVERAL_TIME_FROM_PRECISION_TO_UNIT(_t, _u, _p) (((_u) == 'n' || (_u) == 'y') ? (_t) : (convertTimeFromPrecisionToUnit(_t, _p, _u)))
 
@@ -167,7 +172,7 @@ typedef struct SExplainCtx {
     }                                                                                                             \
     tlen += snprintf(tbuf + VARSTR_HEADER_SIZE + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE - tlen, __VA_ARGS__);         \
   } while (0)
-  
+
 #define EXPLAIN_ROW_APPEND(...) tlen += snprintf(tbuf + VARSTR_HEADER_SIZE + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE - tlen, __VA_ARGS__)
 #define EXPLAIN_ROW_END() do { varDataSetLen(tbuf, tlen); tlen += VARSTR_HEADER_SIZE; isVerboseLine = true; } while (0)
 

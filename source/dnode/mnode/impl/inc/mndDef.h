@@ -74,6 +74,8 @@ typedef enum {
   MND_OPER_SUBSCRIBE,
   MND_OPER_CREATE_TOPIC,
   MND_OPER_DROP_TOPIC,
+  MND_OPER_CREATE_VIEW,
+  MND_OPER_DROP_VIEW,
 } EOperType;
 
 typedef enum {
@@ -136,6 +138,7 @@ typedef enum {
   DND_REASON_LOCALE_NOT_MATCH,
   DND_REASON_CHARSET_NOT_MATCH,
   DND_REASON_TTL_CHANGE_ON_WRITE_NOT_MATCH,
+  DND_REASON_ENABLE_WHITELIST_NOT_MATCH,
   DND_REASON_OTHERS
 } EDndReason;
 
@@ -189,6 +192,8 @@ typedef struct {
   int64_t createdTime;
   int64_t updateTime;
   int32_t upTime;
+  int64_t grantedTime;
+  int64_t connGrantedTime;
 } SClusterObj;
 
 typedef struct {
@@ -276,23 +281,30 @@ typedef struct {
 } SAcctObj;
 
 typedef struct {
-  char      user[TSDB_USER_LEN];
-  char      pass[TSDB_PASSWORD_LEN];
-  char      acct[TSDB_USER_LEN];
-  int64_t   createdTime;
-  int64_t   updateTime;
-  int8_t    superUser;
-  int8_t    sysInfo;
-  int8_t    enable;
-  int8_t    reserve;
-  int32_t   acctId;
-  int32_t   authVersion;
-  int32_t   passVersion;
+  char          user[TSDB_USER_LEN];
+  char          pass[TSDB_PASSWORD_LEN];
+  char          acct[TSDB_USER_LEN];
+  int64_t       createdTime;
+  int64_t       updateTime;
+  int8_t        superUser;
+  int8_t        sysInfo;
+  int8_t        enable;
+  int8_t        reserve;
+  int32_t       acctId;
+  int32_t       authVersion;
+  int32_t       passVersion;
+  int64_t       ipWhiteListVer;
+  SIpWhiteList* pIpWhiteList;
+
   SHashObj* readDbs;
   SHashObj* writeDbs;
   SHashObj* topics;
   SHashObj* readTbs;
   SHashObj* writeTbs;
+  SHashObj* alterTbs;
+  SHashObj* readViews;
+  SHashObj* writeViews;
+  SHashObj* alterViews;
   SHashObj* useDbs;
   SRWLatch  lock;
 } SUserObj;
@@ -308,6 +320,7 @@ typedef struct {
   int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
+  int32_t keepTimeOffset;
   int32_t minRows;
   int32_t maxRows;
   int32_t walFsyncPeriod;
@@ -487,32 +500,6 @@ typedef struct {
 } SShowObj;
 
 typedef struct {
-  int64_t id;
-  int8_t  type;
-  int8_t  replica;
-  int16_t numOfColumns;
-  int32_t rowSize;
-  int32_t numOfRows;
-  int32_t numOfReads;
-  int32_t payloadLen;
-  void*   pIter;
-  SMnode* pMnode;
-  char    db[TSDB_DB_FNAME_LEN];
-  int16_t offset[TSDB_MAX_COLUMNS];
-  int32_t bytes[TSDB_MAX_COLUMNS];
-  char    payload[];
-} SSysTableRetrieveObj;
-
-typedef struct {
-  char    key[TSDB_PARTITION_KEY_LEN];
-  int64_t dbUid;
-  int64_t offset;
-} SMqOffsetObj;
-
-int32_t tEncodeSMqOffsetObj(void** buf, const SMqOffsetObj* pOffset);
-void*   tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset);
-
-typedef struct {
   char           name[TSDB_TOPIC_FNAME_LEN];
   char           db[TSDB_DB_FNAME_LEN];
   char           createUser[TSDB_USER_LEN];
@@ -664,9 +651,9 @@ typedef struct SStreamConf {
 } SStreamConf;
 
 typedef struct {
-  char name[TSDB_STREAM_FNAME_LEN];
-  // ctl
+  char     name[TSDB_STREAM_FNAME_LEN];
   SRWLatch lock;
+
   // create info
   int64_t createTime;
   int64_t updateTime;
@@ -723,6 +710,34 @@ void    tFreeStreamObj(SStreamObj* pObj);
 //   int64_t streamUid;
 //   SArray* childInfo;  // SArray<SStreamChildEpInfo>
 // } SStreamCheckpointObj;
+
+#define VIEW_TYPE_UPDATABLE    (1 << 0)
+#define VIEW_TYPE_MATERIALIZED (1 << 1)
+
+typedef struct {
+  char     fullname[TSDB_VIEW_FNAME_LEN];
+  char     name[TSDB_VIEW_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  char     user[TSDB_USER_LEN];
+  char*    querySql;
+  char*    parameters;
+  void**   defaultValues;
+  char*    targetTable;
+  uint64_t viewId;
+  uint64_t dbId;
+  int64_t  createdTime;
+  int32_t  version;
+  int8_t   precision;
+  int8_t   type;
+  int32_t  numOfCols;
+  SSchema* pSchema;
+  SRWLatch lock;  
+} SViewObj;
+
+int32_t tEncodeSViewObj(SEncoder* pEncoder, const SViewObj* pObj);
+int32_t tDecodeSViewObj(SDecoder* pDecoder, SViewObj* pObj, int32_t sver);
+void    tFreeSViewObj(SViewObj* pObj);
+
 
 #ifdef __cplusplus
 }

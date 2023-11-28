@@ -13,7 +13,7 @@ taosBenchmark (formerly taosdemo ) is a tool for testing the performance of TDen
 
 There are two ways to install taosBenchmark:
 
-- Installing the official TDengine installer will automatically install taosBenchmark. Please refer to [TDengine installation](/operation/pkg-install) for details.
+- Installing the official TDengine installer will automatically install taosBenchmark.
 
 - Compile taos-tools separately and install them. Please refer to the [taos-tools](https://github.com/taosdata/taos-tools) repository for details.
 
@@ -397,6 +397,7 @@ The configuration parameters for specifying super table tag columns and data col
 ### Query scenario configuration parameters
 
 `filetype` must be set to `query` in the query scenario.
+`query_times` is number of times queries were run.
 
 To control the query scenario by setting `kill_slow_query_threshold` and `kill_slow_query_interval` parameters to kill the execution of slow query statements. Threshold controls exec_usec of query command will be killed by taosBenchmark after the specified time, in seconds; interval controls sleep time to avoid continuous querying of slow queries consuming CPU in seconds.
 

@@ -289,8 +289,8 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
   }
 
   if (disorderTs) {
-    tRowSort(tbData.aRowP);
-    if ((terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, 0)) != 0) {
+    if ((tRowSort(tbData.aRowP) != TSDB_CODE_SUCCESS) ||
+      (terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, 0)) != 0) {
       goto _end;
     }
   }
@@ -446,7 +446,7 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
   taosThreadMutexInit(&inserter->mutex, NULL);
   if (NULL == inserter->pDataBlocks) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    goto _return;
   }
 
   inserter->fullOrderColList = pInserterNode->pCols->length == inserter->pSchema->numOfCols;

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
-set(CMAKE_VERBOSE_MAKEFILE ON)
+set(CMAKE_VERBOSE_MAKEFILE FALSE)
 set(TD_BUILD_TAOSA_INTERNAL FALSE)
 
 #set output directory
@@ -83,9 +83,29 @@ ELSE ()
     SET(TAOS_LIB taos)
 ENDIF ()
 
+# build TSZ by default
+IF ("${TSZ_ENABLED}" MATCHES "false")
+  set(VAR_TSZ "" CACHE INTERNAL "global variant empty" )
+ELSE()
+  # define add 
+  MESSAGE(STATUS "build with TSZ enabled")
+  ADD_DEFINITIONS(-DTD_TSZ)
+  set(VAR_TSZ "TSZ" CACHE INTERNAL "global variant tsz" )
+ENDIF()
+
+# force set all platform to JEMALLOC_ENABLED = false
+SET(JEMALLOC_ENABLED OFF)
 IF (TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
-    SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MTd")
+    IF (${CMAKE_BUILD_TYPE} MATCHES "Release")
+      MESSAGE("${Green} will build Release version! ${ColourReset}")
+      SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi- /O2 /GL /MD")
+
+    ELSE ()
+      MESSAGE("${Green} will build Debug version! ${ColourReset}")
+      SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MTd")
+    ENDIF()
+
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO")
     # IF (MSVC AND (MSVC_VERSION GREATER_EQUAL 1900))
     #  SET(COMMON_FLAGS "${COMMON_FLAGS} /Wv:18")
@@ -105,8 +125,6 @@ IF (TD_WINDOWS)
 
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS}")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS}")
-
-    SET(JEMALLOC_ENABLED OFF)
 
 ELSE ()
     IF (${TD_DARWIN})
@@ -139,6 +157,8 @@ ELSE ()
     CHECK_C_COMPILER_FLAG("-mfma" COMPILER_SUPPORT_FMA)
     CHECK_C_COMPILER_FLAG("-mavx" COMPILER_SUPPORT_AVX)
     CHECK_C_COMPILER_FLAG("-mavx2" COMPILER_SUPPORT_AVX2)
+    CHECK_C_COMPILER_FLAG("-mavx512f" COMPILER_SUPPORT_AVX512F)
+    CHECK_C_COMPILER_FLAG("-mavx512vbmi" COMPILER_SUPPORT_AVX512BMI)
 
     IF (COMPILER_SUPPORT_SSE42)
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse4.2")
@@ -159,6 +179,12 @@ ELSE ()
             SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
         ENDIF()
         MESSAGE(STATUS "SIMD instructions (FMA/AVX/AVX2) is ACTIVATED")
+
+        IF (COMPILER_SUPPORT_AVX512F AND COMPILER_SUPPORT_AVX512BMI)
+            SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mavx512f -mavx512vbmi")
+            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx512f -mavx512vbmi")
+            MESSAGE(STATUS "avx512 supported by gcc")
+        ENDIF()
     ENDIF()
 
     # build mode

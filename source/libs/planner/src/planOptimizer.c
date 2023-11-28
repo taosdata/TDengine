@@ -26,6 +26,7 @@
 #define OPTIMIZE_FLAG_PUSH_DOWN_CONDE OPTIMIZE_FLAG_MASK(1)
 
 #define OPTIMIZE_FLAG_SET_MASK(val, mask)  (val) |= (mask)
+#define OPTIMIZE_FLAG_CLEAR_MASK(val, mask)  (val) &= (~(mask))
 #define OPTIMIZE_FLAG_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
 typedef struct SOptimizeContext {
@@ -171,11 +172,16 @@ static bool scanPathOptMayBeOptimized(SLogicNode* pNode) {
 }
 
 static bool scanPathOptShouldGetFuncs(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
+    if (pNode->pParent && QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent)) {
+      if (WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType) return true;
+    } else {
+      return !scanPathOptHaveNormalCol(((SPartitionLogicNode*)pNode)->pPartitionKeys);
+    }
+  }
+
   if ((QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode) &&
-       WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode)->winType) ||
-      (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode) && pNode->pParent &&
-       QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent) &&
-       WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType)) {
+       WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode)->winType)) {
     return true;
   }
   if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode)) {
@@ -191,30 +197,17 @@ static SNodeList* scanPathOptGetAllFuncs(SLogicNode* pNode) {
       return ((SWindowLogicNode*)pNode)->pFuncs;
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return ((SAggLogicNode*)pNode)->pAggFuncs;
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      return ((SPartitionLogicNode*)pNode)->pAggFuncs;
     default:
       break;
   }
   return NULL;
 }
 
-static bool scanPathOptNeedOptimizeDataRequire(const SFunctionNode* pFunc) {
-  if (!fmIsSpecialDataRequiredFunc(pFunc->funcId)) {
-    return false;
-  }
-  SNode* pPara = NULL;
-  FOREACH(pPara, pFunc->pParameterList) {
-    if (QUERY_NODE_COLUMN != nodeType(pPara) && QUERY_NODE_VALUE != nodeType(pPara)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool scanPathOptNeedDynOptimize(const SFunctionNode* pFunc) {
-  if (!fmIsDynamicScanOptimizedFunc(pFunc->funcId)) {
-    return false;
-  }
-  SNode* pPara = NULL;
+static bool scanPathOptIsSpecifiedFuncType(const SFunctionNode* pFunc, bool (*typeCheckFn)(int32_t)) {
+  if (!typeCheckFn(pFunc->funcId)) return false;
+  SNode* pPara;
   FOREACH(pPara, pFunc->pParameterList) {
     if (QUERY_NODE_COLUMN != nodeType(pPara) && QUERY_NODE_VALUE != nodeType(pPara)) {
       return false;
@@ -232,10 +225,12 @@ static int32_t scanPathOptGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSd
   FOREACH(pNode, pAllFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     int32_t        code = TSDB_CODE_SUCCESS;
-    if (scanPathOptNeedOptimizeDataRequire(pFunc)) {
+    if (scanPathOptIsSpecifiedFuncType(pFunc, fmIsSpecialDataRequiredFunc)) {
       code = nodesListMakeStrictAppend(&pTmpSdrFuncs, nodesCloneNode(pNode));
-    } else if (scanPathOptNeedDynOptimize(pFunc)) {
+    } else if (scanPathOptIsSpecifiedFuncType(pFunc, fmIsDynamicScanOptimizedFunc)) {
       code = nodesListMakeStrictAppend(&pTmpDsoFuncs, nodesCloneNode(pNode));
+    } else if (scanPathOptIsSpecifiedFuncType(pFunc, fmIsSkipScanCheckFunc)) {
+      continue;
     } else {
       otherFunc = true;
       break;
@@ -812,7 +807,7 @@ static bool pushDownCondOptIsColEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond,
     return false;
   }
   SOperatorNode* pOper = (SOperatorNode*)pCond;
-  if (QUERY_NODE_COLUMN != nodeType(pOper->pLeft) || QUERY_NODE_COLUMN != nodeType(pOper->pRight)) {
+  if (QUERY_NODE_COLUMN != nodeType(pOper->pLeft) || NULL == pOper->pRight || QUERY_NODE_COLUMN != nodeType(pOper->pRight)) {
     return false;
   }
   SColumnNode* pLeft = (SColumnNode*)(pOper->pLeft);
@@ -1661,22 +1656,6 @@ static int32_t smaIndexOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   return smaIndexOptimizeImpl(pCxt, pLogicSubplan, pScan);
 }
 
-static EDealRes partTagsOptHasColImpl(SNode* pNode, void* pContext) {
-  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    if (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType && COLUMN_TYPE_TBNAME != ((SColumnNode*)pNode)->colType) {
-      *(bool*)pContext = true;
-      return DEAL_RES_END;
-    }
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-static bool planOptNodeListHasCol(SNodeList* pKeys) {
-  bool hasCol = false;
-  nodesWalkExprs(pKeys, partTagsOptHasColImpl, &hasCol);
-  return hasCol;
-}
-
 static EDealRes partTagsOptHasTbname(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     if (COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType) {
@@ -1755,7 +1734,7 @@ static bool partTagsOptMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
 
-  return !planOptNodeListHasCol(partTagsGetPartKeys(pNode)) && partTagsOptAreSupportedFuncs(partTagsGetFuncs(pNode));
+  return !keysHasCol(partTagsGetPartKeys(pNode)) && partTagsOptAreSupportedFuncs(partTagsGetFuncs(pNode));
 }
 
 static int32_t partTagsOptRebuildTbanme(SNodeList* pPartKeys) {
@@ -2042,6 +2021,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   }
 
   int32_t code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pProjectNode, pChild);
+  if (pProjectNode->node.pHint && !pChild->pHint) TSWAP(pProjectNode->node.pHint, pChild->pHint);
   if (TSDB_CODE_SUCCESS == code) {
     NODES_CLEAR_LIST(pProjectNode->node.pChildren);
     nodesDestroyNode((SNode*)pProjectNode);
@@ -2499,24 +2479,32 @@ static bool hasSuitableCache(int8_t cacheLastMode, bool hasLastRow, bool hasLast
   return false;
 }
 
-static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
-  if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
-      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0))) {
-    return false;
-  }
+/// @brief check if we can apply last row scan optimization
+/// @param lastColNum how many distinct last col specified
+/// @param lastColId only used when lastColNum equals 1, the col id of the only one last col
+/// @param selectNonPKColNum num of normal cols
+/// @param selectNonPKColId only used when selectNonPKColNum equals 1, the col id of the only one select col
+static bool lastRowScanOptCheckColNum(int32_t lastColNum, col_id_t lastColId,
+                                      int32_t selectNonPKColNum, col_id_t selectNonPKColId) {
+  // multi select non pk col + last func: select c1, c2, last(c1)
+  if (selectNonPKColNum > 1 && lastColNum > 0) return false;
 
-  SAggLogicNode*  pAgg = (SAggLogicNode*)pNode;
-  SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0);
-  // Only one of LAST and LASTROW can appear
-  if (pAgg->hasLastRow == pAgg->hasLast || NULL != pAgg->pGroupKeys || NULL != pScan->node.pConditions ||
-      !hasSuitableCache(pScan->cacheLastMode, pAgg->hasLastRow, pAgg->hasLast) ||
-      IS_TSWINDOW_SPECIFIED(pScan->scanRange)) {
-    return false;
-  }
+  if (selectNonPKColNum == 1) {
+    // select last(c1), last(c2), c1 ...
+    // which is not possible currently
+    if (lastColNum > 1) return false;
 
-  bool   hasLastFunc = false;
-  bool   hasSelectFunc = false;
-  SNode* pFunc = NULL;
+    // select last(c1), c2 ...
+    if (lastColNum == 1 && lastColId != selectNonPKColId) return false;
+  }
+  return true;
+}
+
+static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, bool* hasOtherFunc) {
+  bool     hasNonPKSelectFunc = false;
+  SNode*   pFunc = NULL;
+  int32_t  lastColNum = 0, selectNonPKColNum = 0;
+  col_id_t lastColId = -1, selectNonPKColId = -1;
   FOREACH(pFunc, ((SAggLogicNode*)pNode)->pAggFuncs) {
     SFunctionNode* pAggFunc = (SFunctionNode*)pFunc;
     if (FUNCTION_TYPE_LAST == pAggFunc->funcType) {
@@ -2526,23 +2514,75 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
         if (pCol->colType != COLUMN_TYPE_COLUMN) {
           return false;
         }
+        if (lastColId != pCol->colId) {
+          lastColId = pCol->colId;
+          lastColNum++;
+        }
       }
-      if (hasSelectFunc || QUERY_NODE_VALUE == nodeType(nodesListGetNode(pAggFunc->pParameterList, 0))) {
+      if (QUERY_NODE_VALUE == nodeType(nodesListGetNode(pAggFunc->pParameterList, 0))) {
         return false;
       }
-      hasLastFunc = true;
+      if (!lastRowScanOptCheckColNum(lastColNum, lastColId, selectNonPKColNum, selectNonPKColId))
+        return false;
     } else if (FUNCTION_TYPE_SELECT_VALUE == pAggFunc->funcType) {
-      if (hasLastFunc) {
+      SNode* pParam = nodesListGetNode(pAggFunc->pParameterList, 0);
+      if (QUERY_NODE_COLUMN == nodeType(pParam)) {
+        SColumnNode* pCol = (SColumnNode*)pParam;
+        if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId) {
+          if (selectNonPKColId != pCol->colId) {
+            selectNonPKColId = pCol->colId;
+            selectNonPKColNum++;
+          }
+        } else {
+          continue;
+        }
+      } else if (lastColNum > 0) {
         return false;
       }
-      hasSelectFunc = true;
+      if (!lastRowScanOptCheckColNum(lastColNum, lastColId, selectNonPKColNum, selectNonPKColId))
+        return false;
     } else if (FUNCTION_TYPE_GROUP_KEY == pAggFunc->funcType) {
       if (!lastRowScanOptLastParaIsTag(nodesListGetNode(pAggFunc->pParameterList, 0))) {
         return false;
       }
     } else if (FUNCTION_TYPE_LAST_ROW != pAggFunc->funcType) {
-      return false;
+      *hasOtherFunc = true;
     }
+  }
+
+  return true;
+}
+
+static bool lastRowScanOptCheckLastCache(SAggLogicNode* pAgg, SScanLogicNode* pScan) {
+  // Only one of LAST and LASTROW can appear
+  if (pAgg->hasLastRow == pAgg->hasLast || (!pAgg->hasLast && !pAgg->hasLastRow) || NULL != pAgg->pGroupKeys || NULL != pScan->node.pConditions ||
+      !hasSuitableCache(pScan->cacheLastMode, pAgg->hasLastRow, pAgg->hasLast) ||
+      IS_TSWINDOW_SPECIFIED(pScan->scanRange)) {
+    return false;
+  }
+
+  return true;
+}
+
+static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
+      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0))) {
+    return false;
+  }
+
+  SAggLogicNode*  pAgg = (SAggLogicNode*)pNode;
+  SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  if (!lastRowScanOptCheckLastCache(pAgg, pScan)) {
+    return false;
+  }
+  
+  bool hasOtherFunc = false;
+  if (!lastRowScanOptCheckFuncList(pNode, &hasOtherFunc)) {
+    return false;
+  }
+
+  if (hasOtherFunc) {
+    return false;
   }
 
   return true;
@@ -2551,6 +2591,7 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
 typedef struct SLastRowScanOptSetColDataTypeCxt {
   bool       doAgg;
   SNodeList* pLastCols;
+  SNodeList* pOtherCols;
 } SLastRowScanOptSetColDataTypeCxt;
 
 static EDealRes lastRowScanOptSetColDataType(SNode* pNode, void* pContext) {
@@ -2593,6 +2634,33 @@ static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCo
   }
 }
 
+static void lastRowScanOptRemoveUslessTargets(SNodeList* pTargets, SNodeList* pList1, SNodeList* pList2) {
+  SNode* pTarget = NULL;
+  WHERE_EACH(pTarget, pTargets) {
+    bool   found = false;
+    SNode* pCol = NULL;
+    FOREACH(pCol, pList1) {
+      if (nodesEqualNode(pCol, pTarget)) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      FOREACH(pCol, pList2) {
+        if (nodesEqualNode(pCol, pTarget)) {
+          found = true;
+          break;
+        }
+      }
+    }
+    if (!found) {
+      ERASE_NODE(pTargets);
+      continue;
+    }
+    WHERE_NEXT;
+  }
+}
+
 static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SAggLogicNode* pAgg = (SAggLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, lastRowScanOptMayBeOptimized);
 
@@ -2600,8 +2668,11 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     return TSDB_CODE_SUCCESS;
   }
 
-  SLastRowScanOptSetColDataTypeCxt cxt = {.doAgg = true, .pLastCols = NULL};
+  SLastRowScanOptSetColDataTypeCxt cxt = {.doAgg = true, .pLastCols = NULL, .pOtherCols = NULL};
   SNode*                           pNode = NULL;
+  SColumnNode*                     pPKTsCol = NULL;
+  SColumnNode*                     pNonPKCol = NULL;
+
   FOREACH(pNode, pAgg->pAggFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     int32_t        funcType = pFunc->funcType;
@@ -2618,6 +2689,20 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
         nodesWalkExpr(nodesListGetNode(pFunc->pParameterList, 0), lastRowScanOptSetColDataType, &cxt);
         nodesListErase(pFunc->pParameterList, nodesListGetCell(pFunc->pParameterList, 1));
       }
+    } else {
+      pNode = nodesListGetNode(pFunc->pParameterList, 0);
+      nodesListMakeAppend(&cxt.pOtherCols, pNode);
+      
+      if (FUNCTION_TYPE_SELECT_VALUE == funcType) {
+        if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+          SColumnNode* pCol = (SColumnNode*)pNode;
+          if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+            pPKTsCol = pCol;
+          } else {
+            pNonPKCol = pCol;
+          }
+        }
+      }
     }
   }
 
@@ -2629,6 +2714,17 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols, true);
     nodesWalkExprs(pScan->pScanPseudoCols, lastRowScanOptSetColDataType, &cxt);
     lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols, false);
+    lastRowScanOptRemoveUslessTargets(pScan->node.pTargets, cxt.pLastCols, cxt.pOtherCols);
+    if (pPKTsCol && pScan->node.pTargets->length == 1) {
+      // when select last(ts),ts from ..., we add another ts to targets
+      sprintf(pPKTsCol->colName, "#sel_val.%p", pPKTsCol);
+      nodesListAppend(pScan->node.pTargets, nodesCloneNode((SNode*)pPKTsCol));
+    }
+    if (pNonPKCol && cxt.pLastCols->length == 1 && nodesEqualNode((SNode*)pNonPKCol, nodesListGetNode(cxt.pLastCols, 0))) {
+      // when select last(c1), c1 from ..., we add c1 to targets
+      sprintf(pNonPKCol->colName, "#sel_val.%p", pNonPKCol);
+      nodesListAppend(pScan->node.pTargets, nodesCloneNode((SNode*)pNonPKCol));
+    }
     nodesClearList(cxt.pLastCols);
   }
   pAgg->hasLastRow = false;
@@ -2637,6 +2733,241 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   pCxt->optimized = true;
   return TSDB_CODE_SUCCESS;
 }
+
+
+static bool splitCacheLastFuncOptMayBeOptimized(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
+      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0))) {
+    return false;
+  }
+
+  SAggLogicNode*  pAgg = (SAggLogicNode*)pNode;
+  SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  if (!lastRowScanOptCheckLastCache(pAgg, pScan)) {
+    return false;
+  }
+
+  bool hasOtherFunc = false;
+  if (!lastRowScanOptCheckFuncList(pNode, &hasOtherFunc)) {
+    return false;
+  }
+
+  if (pAgg->hasGroup || !hasOtherFunc) {
+    return false;
+  }
+
+  return true;
+}
+
+static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg, SAggLogicNode* pAgg, SNodeList* pFunc, SNodeList* pTargets) {
+  SAggLogicNode* pNew = (SAggLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_AGG);
+  if (NULL == pNew) {
+    nodesDestroyList(pFunc);
+    nodesDestroyList(pTargets);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pNew->hasLastRow = false;
+  pNew->hasLast = false;
+  pNew->hasTimeLineFunc = pAgg->hasTimeLineFunc;
+  pNew->hasGroupKeyOptimized = false;
+  pNew->onlyHasKeepOrderFunc = pAgg->onlyHasKeepOrderFunc;
+  pNew->node.groupAction = pAgg->node.groupAction;
+  pNew->node.requireDataOrder = pAgg->node.requireDataOrder;
+  pNew->node.resultDataOrder = pAgg->node.resultDataOrder;
+  pNew->node.pTargets = pTargets;
+  pNew->pAggFuncs = pFunc;
+  pNew->pGroupKeys = nodesCloneList(pAgg->pGroupKeys);
+  pNew->node.pConditions = nodesCloneNode(pAgg->node.pConditions);
+  pNew->isGroupTb = pAgg->isGroupTb;
+  pNew->isPartTb = pAgg->isPartTb;
+  pNew->hasGroup = pAgg->hasGroup;
+  pNew->node.pChildren = nodesCloneList(pAgg->node.pChildren);
+
+  int32_t code = 0;
+  SNode* pNode = nodesListGetNode(pNew->node.pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    SNodeList* pOldScanCols = NULL;
+    TSWAP(pScan->pScanCols, pOldScanCols);
+    nodesDestroyList(pScan->pScanPseudoCols);
+    pScan->pScanPseudoCols = NULL;
+    nodesDestroyList(pScan->node.pTargets);
+    pScan->node.pTargets = NULL;
+    SNodeListNode* list = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
+    list->pNodeList = pFunc;
+    code = nodesCollectColumnsFromNode((SNode*)list, NULL, COLLECT_COL_TYPE_COL, &pScan->pScanCols);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    nodesFree(list);
+    bool found = false;
+    FOREACH(pNode, pScan->pScanCols) {
+      if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      FOREACH(pNode, pOldScanCols) {
+        if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
+          nodesListMakeStrictAppend(&pScan->pScanCols, nodesCloneNode(pNode));
+          break;
+        }
+      }
+    }
+    nodesDestroyList(pOldScanCols);
+    code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    OPTIMIZE_FLAG_CLEAR_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
+  }
+
+  *pNewAgg = pNew;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t splitCacheLastFuncOptModifyAggLogicNode(SAggLogicNode* pAgg) {
+  pAgg->hasTimeLineFunc = false;
+  pAgg->onlyHasKeepOrderFunc = true;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t splitCacheLastFuncOptCreateMergeLogicNode(SMergeLogicNode** pNew, SAggLogicNode* pAgg1, SAggLogicNode* pAgg2) {
+  SMergeLogicNode* pMerge = (SMergeLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_MERGE);
+  if (NULL == pMerge) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pMerge->colsMerge = true;
+  pMerge->numOfChannels = 2;
+  pMerge->srcGroupId = -1;
+  pMerge->node.precision = pAgg1->node.precision;
+
+  SNode* pNewAgg1 = nodesCloneNode((SNode*)pAgg1);
+  SNode* pNewAgg2 = nodesCloneNode((SNode*)pAgg2);
+  if (NULL == pNewAgg1 || NULL == pNewAgg2) {
+    nodesDestroyNode(pNewAgg1);
+    nodesDestroyNode(pNewAgg2);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  
+  ((SAggLogicNode*)pNewAgg1)->node.pParent = (SLogicNode*)pMerge;
+  ((SAggLogicNode*)pNewAgg2)->node.pParent = (SLogicNode*)pMerge;
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, ((SAggLogicNode*)pNewAgg1)->node.pChildren) {
+    ((SLogicNode*)pNode)->pParent = (SLogicNode*)pNewAgg1;
+  }
+  FOREACH(pNode, ((SAggLogicNode*)pNewAgg2)->node.pChildren) {
+    ((SLogicNode*)pNode)->pParent = (SLogicNode*)pNewAgg2;
+  }
+
+  int32_t code = nodesListMakeStrictAppendList(&pMerge->node.pTargets, nodesCloneList(pAgg1->node.pTargets));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeStrictAppendList(&pMerge->node.pTargets, nodesCloneList(pAgg2->node.pTargets));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeStrictAppend(&pMerge->node.pChildren, pNewAgg1);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeStrictAppend(&pMerge->node.pChildren, pNewAgg2);
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pNewAgg1);
+    nodesDestroyNode(pNewAgg2);
+    nodesDestroyNode((SNode*)pMerge);
+  } else {
+    *pNew = pMerge;
+  }
+  
+  return code;
+}
+
+static int32_t splitCacheLastFuncOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SAggLogicNode* pAgg = (SAggLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, splitCacheLastFuncOptMayBeOptimized);
+
+  if (NULL == pAgg) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pNode = NULL;
+  SNodeList* pAggFuncList = NULL;
+  {
+    WHERE_EACH(pNode, pAgg->pAggFuncs) {
+      SFunctionNode* pFunc = (SFunctionNode*)pNode;
+      int32_t        funcType = pFunc->funcType;
+      if (FUNCTION_TYPE_LAST_ROW != funcType && FUNCTION_TYPE_LAST != funcType && 
+          FUNCTION_TYPE_SELECT_VALUE != funcType && FUNCTION_TYPE_GROUP_KEY != funcType) {
+        nodesListMakeStrictAppend(&pAggFuncList, nodesCloneNode(pNode));
+        ERASE_NODE(pAgg->pAggFuncs);
+        continue;
+      }
+      WHERE_NEXT;    
+    }
+  }
+
+  if (NULL == pAggFuncList) {
+    planError("empty agg func list while splite projections, funcNum:%d", pAgg->pAggFuncs->length);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SNodeList* pTargets = NULL;
+  {
+    WHERE_EACH(pNode, pAgg->node.pTargets) {
+      SColumnNode* pCol = (SColumnNode*)pNode;
+      SNode* pFuncNode = NULL;
+      bool found = false;
+      FOREACH(pFuncNode, pAggFuncList) {
+        SFunctionNode* pFunc = (SFunctionNode*)pFuncNode;
+        if (0 == strcmp(pFunc->node.aliasName, pCol->colName)) {
+          nodesListMakeStrictAppend(&pTargets, nodesCloneNode(pNode));
+          found = true;
+          break;
+        }
+      }
+      if (found) {
+        ERASE_NODE(pAgg->node.pTargets);
+        continue;
+      }
+      WHERE_NEXT;    
+    }
+  }
+
+  if (NULL == pTargets) {
+    planError("empty target func list while splite projections, targetsNum:%d", pAgg->node.pTargets->length);
+    nodesDestroyList(pAggFuncList);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SMergeLogicNode* pMerge = NULL;
+  SAggLogicNode* pNewAgg = NULL;
+  int32_t code = splitCacheLastFuncOptCreateAggLogicNode(&pNewAgg, pAgg, pAggFuncList, pTargets);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = splitCacheLastFuncOptModifyAggLogicNode(pAgg);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = splitCacheLastFuncOptCreateMergeLogicNode(&pMerge, pNewAgg, pAgg);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pAgg, (SLogicNode*)pMerge);
+  }
+
+  nodesDestroyNode((SNode *)pAgg);
+  nodesDestroyNode((SNode *)pNewAgg);
+
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode *)pMerge);
+  }
+  
+  pCxt->optimized = true;
+  return code;
+}
+
+
 
 // merge projects
 static bool mergeProjectsMayBeOptimized(SLogicNode* pNode) {
@@ -2734,7 +3065,7 @@ static bool tagScanOptShouldBeOptimized(SLogicNode* pNode) {
   }
 
   SAggLogicNode* pAgg = (SAggLogicNode*)(pNode->pParent);
-  if (NULL == pAgg->pGroupKeys || NULL != pAgg->pAggFuncs || planOptNodeListHasCol(pAgg->pGroupKeys) ||
+  if (NULL == pAgg->pGroupKeys || NULL != pAgg->pAggFuncs || keysHasCol(pAgg->pGroupKeys) ||
       !planOptNodeListHasTbname(pAgg->pGroupKeys)) {
     return false;
   }
@@ -2749,36 +3080,6 @@ static bool tagScanOptShouldBeOptimized(SLogicNode* pNode) {
     }
   }
   return true;
-}
-
-static SLogicNode* tagScanOptFindAncestorWithSlimit(SLogicNode* pTableScanNode) {
-  SLogicNode* pNode = pTableScanNode->pParent;
-  while (NULL != pNode) {
-    if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode) || QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode) ||
-        QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode) || QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pNode)) {
-      return NULL;
-    }
-    if (NULL != pNode->pSlimit) {
-      return pNode;
-    }
-    pNode = pNode->pParent;
-  }
-  return NULL;
-}
-
-static void tagScanOptCloneAncestorSlimit(SLogicNode* pTableScanNode) {
-  if (NULL != pTableScanNode->pSlimit) {
-    return;
-  }
-
-  SLogicNode* pNode = tagScanOptFindAncestorWithSlimit(pTableScanNode);
-  if (NULL != pNode) {
-    // TODO: only set the slimit now. push down slimit later
-    pTableScanNode->pSlimit = nodesCloneNode(pNode->pSlimit);
-    ((SLimitNode*)pTableScanNode->pSlimit)->limit += ((SLimitNode*)pTableScanNode->pSlimit)->offset;
-    ((SLimitNode*)pTableScanNode->pSlimit)->offset = 0;
-  }
-  return;
 }
 
 static int32_t tagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
@@ -2816,13 +3117,6 @@ static int32_t tagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubp
     pScanNode->node.pTargets = pScanTargets;
   }
 
-  int32_t code = replaceLogicNode(pLogicSubplan, pAgg, (SLogicNode*)pScanNode);
-  if (TSDB_CODE_SUCCESS == code) {
-    NODES_CLEAR_LIST(pAgg->pChildren);
-  }
-  nodesDestroyNode((SNode*)pAgg);
-  tagScanOptCloneAncestorSlimit((SLogicNode*)pScanNode);
-
   pScanNode->onlyMetaCtbIdx = false;
   
   pCxt->optimized = true;
@@ -2853,19 +3147,36 @@ static bool pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimitPu
       cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT_SLIMIT);
       return true;
     }
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+      if (((SSortLogicNode*)pNodeLimitPushTo)->calcGroupId) break;
+      // fall through
     case QUERY_NODE_LOGIC_PLAN_FILL:
-    case QUERY_NODE_LOGIC_PLAN_SORT: {
       cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT_SLIMIT);
       SNode* pChild = NULL;
       FOREACH(pChild, pNodeLimitPushTo->pChildren) { pushDownLimitHow(pNodeLimitPushTo, (SLogicNode*)pChild); }
       return true;
-    }
     case QUERY_NODE_LOGIC_PLAN_AGG: {
       if (nodeType(pNodeWithLimit) == QUERY_NODE_LOGIC_PLAN_PROJECT &&
           (isPartTagAgg((SAggLogicNode*)pNodeLimitPushTo) || isPartTableAgg((SAggLogicNode*)pNodeLimitPushTo))) {
-        // when part by tag, slimit will be cloned to agg, and it will be pipelined.
+        // when part by tag/tbname, slimit will be cloned to agg, and it will be pipelined.
         // The scan below will do scanning with group order
         return cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_SLIMIT);
+      }
+      // else if not part by tag and tbname, the partition node below indicates that results are sorted, the agg node can
+      // be pipelined.
+      if (nodeType(pNodeWithLimit) == QUERY_NODE_LOGIC_PLAN_PROJECT && LIST_LENGTH(pNodeLimitPushTo->pChildren) == 1) {
+        SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNodeLimitPushTo->pChildren, 0);
+        if (nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_PARTITION) {
+          pNodeLimitPushTo->forceCreateNonBlockingOptr = true;
+          return cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_SLIMIT);
+        }
+        // Currently, partColOpt is executed after pushDownLimitOpt, and partColOpt will replace partition node with
+        // sort node.
+        // To avoid dependencies between these two optimizations, we add sort node too.
+        if (nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_SORT && ((SSortLogicNode*)pChild)->calcGroupId) {
+          pNodeLimitPushTo->forceCreateNonBlockingOptr = true;
+          return cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_SLIMIT);
+        }
       }
       break;
     }
@@ -3221,8 +3532,11 @@ int32_t stbJoinOptAddFuncToScanNode(char* funcName, SScanLogicNode* pScan) {
   SFunctionNode* pUidFunc = createFunction(funcName, NULL);
   snprintf(pUidFunc->node.aliasName, sizeof(pUidFunc->node.aliasName), "%s.%p",
            pUidFunc->functionName, pUidFunc);
-  nodesListStrictAppend(pScan->pScanPseudoCols, (SNode *)pUidFunc);
-  return createColumnByRewriteExpr((SNode*)pUidFunc, &pScan->node.pTargets);
+  int32_t code = nodesListStrictAppend(pScan->pScanPseudoCols, (SNode *)pUidFunc);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createColumnByRewriteExpr((SNode*)pUidFunc, &pScan->node.pTargets);
+  }
+  return code;
 }
 
 
@@ -3369,12 +3683,7 @@ static int32_t stbJoinOptCreateTableScanNodes(SLogicNode* pJoin, SNodeList** ppL
     pScan->scanType = SCAN_TYPE_TABLE;
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
-    *ppList = pList;
-  } else {
-    nodesDestroyList(pList);
-    *ppList = NULL;
-  }
+  *ppList = pList;
 
   return code;
 }
@@ -3478,12 +3787,15 @@ static int32_t stbJoinOptCreateMergeJoinNode(SLogicNode* pOrig, SLogicNode* pChi
   FOREACH(pNode, pJoin->node.pChildren) {
     ERASE_NODE(pJoin->node.pChildren);
   }
-  nodesListStrictAppend(pJoin->node.pChildren, (SNode *)pChild);
-  pChild->pParent = (SLogicNode*)pJoin;
+  int32_t code = nodesListStrictAppend(pJoin->node.pChildren, (SNode *)pChild);
+  if (TSDB_CODE_SUCCESS == code) {
+    pChild->pParent = (SLogicNode*)pJoin;
+    *ppLogic = (SLogicNode*)pJoin;
+  } else {
+    nodesDestroyNode((SNode*)pJoin);
+  }
 
-  *ppLogic = (SLogicNode*)pJoin;
-
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t stbJoinOptCreateDynQueryCtrlNode(SLogicNode* pRoot, SLogicNode* pPrev, SLogicNode* pPost, bool* srcScan, SLogicNode** ppDynNode) {
@@ -3523,11 +3835,18 @@ static int32_t stbJoinOptCreateDynQueryCtrlNode(SLogicNode* pRoot, SLogicNode* p
   nodesListStrictAppend(pDynCtrl->stbJoin.pUidList, nodesListGetNode(pHJoin->node.pTargets, 2));
   nodesListStrictAppend(pDynCtrl->stbJoin.pVgList, nodesListGetNode(pHJoin->node.pTargets, 1));
   nodesListStrictAppend(pDynCtrl->stbJoin.pVgList, nodesListGetNode(pHJoin->node.pTargets, 3));
-  
+
   if (TSDB_CODE_SUCCESS == code) {
-    nodesListStrictAppend(pDynCtrl->node.pChildren, (SNode*)pPrev);
-    nodesListStrictAppend(pDynCtrl->node.pChildren, (SNode*)pPost);
-    pDynCtrl->node.pTargets = nodesCloneList(pPost->pTargets);
+    code = nodesListStrictAppend(pDynCtrl->node.pChildren, (SNode*)pPrev);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListStrictAppend(pDynCtrl->node.pChildren, (SNode*)pPost);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      pDynCtrl->node.pTargets = nodesCloneList(pPost->pTargets);
+      if (!pDynCtrl->node.pTargets) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -3587,6 +3906,138 @@ static int32_t stableJoinOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   return stbJoinOptRewriteStableJoin(pCxt, pNode, pLogicSubplan);
 }
 
+static bool partColOptShouldBeOptimized(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
+    SPartitionLogicNode* pPartition = (SPartitionLogicNode*)pNode;
+    if (keysHasCol(pPartition->pPartitionKeys)) return true;
+  }
+  return false;
+}
+
+static SSortLogicNode* partColOptCreateSort(SPartitionLogicNode* pPartition) {
+  SNode* node;
+  int32_t code = TSDB_CODE_SUCCESS;
+  SSortLogicNode* pSort = (SSortLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT);
+  if (pSort) {
+    bool alreadyPartByPKTs = false;
+    pSort->groupSort = false;
+    FOREACH(node, pPartition->pPartitionKeys) {
+      SOrderByExprNode* pOrder = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
+      if (QUERY_NODE_COLUMN == nodeType(node) && ((SColumnNode*)node)->colId == pPartition->pkTsColId &&
+          ((SColumnNode*)node)->tableId == pPartition->pkTsColTbId)
+        alreadyPartByPKTs = true;
+      if (!pOrder) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+      } else {
+        nodesListMakeAppend(&pSort->pSortKeys, (SNode*)pOrder);
+        pOrder->order = ORDER_ASC;
+        pOrder->pExpr = nodesCloneNode(node);
+        pOrder->nullOrder = NULL_ORDER_FIRST;
+        if (!pOrder->pExpr) code = TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
+
+    if (pPartition->needBlockOutputTsOrder && !alreadyPartByPKTs) {
+      SOrderByExprNode* pOrder = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
+      if (!pOrder) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+      } else {
+        pSort->excludePkCol = true;
+        nodesListMakeAppend(&pSort->pSortKeys, (SNode*)pOrder);
+        pOrder->order = ORDER_ASC;
+        pOrder->pExpr = 0;
+        FOREACH(node, pPartition->node.pTargets) {
+          if (nodeType(node) == QUERY_NODE_COLUMN) {
+            SColumnNode* pCol = (SColumnNode*)node;
+            if (pCol->colId == pPartition->pkTsColId && pCol->tableId == pPartition->pkTsColTbId) {
+              pOrder->pExpr = nodesCloneNode((SNode*)pCol);
+              break;
+            }
+          }
+        }
+        if (!pOrder->pExpr) {
+          code = TSDB_CODE_PAR_INTERNAL_ERROR;
+        }
+      }
+    }
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode*)pSort);
+    pSort = NULL;
+  }
+  return pSort;
+}
+
+static int32_t partitionColsOpt(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SNode*               node;
+  int32_t              code = TSDB_CODE_SUCCESS;
+  SPartitionLogicNode* pNode =
+      (SPartitionLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, partColOptShouldBeOptimized);
+  if (NULL == pNode) return TSDB_CODE_SUCCESS;
+  SLogicNode* pRootNode = getLogicNodeRootNode((SLogicNode*)pNode);
+
+
+  if (pRootNode->pHint && getSortForGroupOptHint(pRootNode->pHint)) {
+    // replace with sort node
+    SSortLogicNode* pSort = partColOptCreateSort(pNode);
+    if (!pSort) {
+      // if sort create failed, we eat the error, skip the optimization
+      code = TSDB_CODE_SUCCESS;
+    } else {
+      TSWAP(pSort->node.pChildren, pNode->node.pChildren);
+      TSWAP(pSort->node.pTargets, pNode->node.pTargets);
+      optResetParent((SLogicNode*)pSort);
+      pSort->calcGroupId = true;
+      code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pNode, (SLogicNode*)pSort);
+      if (code == TSDB_CODE_SUCCESS) {
+        pCxt->optimized = true;
+      } else {
+        nodesDestroyNode((SNode*)pSort);
+      }
+    }
+    return code;
+  } else if (pNode->node.pParent && nodeType(pNode->node.pParent) == QUERY_NODE_LOGIC_PLAN_AGG) {
+    // Check if we can delete partition node
+    SAggLogicNode* pAgg = (SAggLogicNode*)pNode->node.pParent;
+    FOREACH(node, pNode->pPartitionKeys) {
+      SGroupingSetNode* pgsNode = (SGroupingSetNode*)nodesMakeNode(QUERY_NODE_GROUPING_SET);
+      if (!pgsNode) code = TSDB_CODE_OUT_OF_MEMORY;
+      if (code == TSDB_CODE_SUCCESS) {
+        pgsNode->groupingSetType = GP_TYPE_NORMAL;
+        pgsNode->pParameterList = nodesMakeList();
+        if (!pgsNode->pParameterList) code = TSDB_CODE_OUT_OF_MEMORY;
+      }
+      if (code == TSDB_CODE_SUCCESS) {
+        code = nodesListAppend(pgsNode->pParameterList, nodesCloneNode(node));
+      }
+      if (code == TSDB_CODE_SUCCESS) {
+        // Now we are using hash agg
+        code = nodesListMakeAppend(&pAgg->pGroupKeys, (SNode*)pgsNode);
+      }
+      if (code != TSDB_CODE_SUCCESS) {
+        nodesDestroyNode((SNode*)pgsNode);
+        break;
+      }
+    }
+
+    if (code == TSDB_CODE_SUCCESS) {
+      code =
+          replaceLogicNode(pLogicSubplan, (SLogicNode*)pNode, (SLogicNode*)nodesListGetNode(pNode->node.pChildren, 0));
+      NODES_CLEAR_LIST(pNode->node.pChildren);
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      // For hash agg, nonblocking mode is meaningless, slimit is useless, so we reset it
+      pAgg->node.forceCreateNonBlockingOptr = false;
+      nodesDestroyNode(pAgg->node.pSlimit);
+      pAgg->node.pSlimit = NULL;
+      nodesDestroyNode((SNode*)pNode);
+      pCxt->optimized = true;
+    }
+    return code;
+  }
+
+  return code;
+}
 
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
@@ -3601,11 +4052,13 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "MergeProjects",              .optimizeFunc = mergeProjectsOptimize},
   {.pName = "RewriteTail",                .optimizeFunc = rewriteTailOptimize},
   {.pName = "RewriteUnique",              .optimizeFunc = rewriteUniqueOptimize},
+  {.pName = "splitCacheLastFunc",         .optimizeFunc = splitCacheLastFuncOptimize},
   {.pName = "LastRowScan",                .optimizeFunc = lastRowScanOptimize},
   {.pName = "TagScan",                    .optimizeFunc = tagScanOptimize},
   {.pName = "TableCountScan",             .optimizeFunc = tableCountScanOptimize},
   {.pName = "EliminateProject",           .optimizeFunc = eliminateProjOptimize},
   {.pName = "EliminateSetOperator",       .optimizeFunc = eliminateSetOpOptimize},
+  {.pName = "PartitionCols",              .optimizeFunc = partitionColsOpt},
 };
 // clang-format on
 

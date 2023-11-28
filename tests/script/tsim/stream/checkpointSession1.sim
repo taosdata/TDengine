@@ -57,6 +57,8 @@ system sh/stop_dnodes.sh
 
 system sh/exec.sh -n dnode1 -s start
 
+sleep 2000
+
 sql insert into t1 values(1648791213002,3,2,3,1.1);
 sql insert into t2 values(1648791233003,4,2,3,1.1);
 

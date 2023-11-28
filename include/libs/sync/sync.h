@@ -36,8 +36,7 @@ extern "C" {
 #define SYNC_DEL_WAL_MS              (1000 * 60)
 #define SYNC_ADD_QUORUM_COUNT        3
 #define SYNC_VNODE_LOG_RETENTION     (TSDB_SYNC_LOG_BUFFER_RETENTION + 1)
-#define SNAPSHOT_MAX_CLOCK_SKEW_MS   1000 * 10
-#define SNAPSHOT_WAIT_MS             1000 * 30
+#define SNAPSHOT_WAIT_MS             1000 * 5
 
 #define SYNC_MAX_RETRY_BACKOFF         5
 #define SYNC_LOG_REPL_RETRY_WAIT_MS    100
@@ -46,7 +45,8 @@ extern "C" {
 
 #define SYNC_HEARTBEAT_SLOW_MS       1500
 #define SYNC_HEARTBEAT_REPLY_SLOW_MS 1500
-#define SYNC_SNAP_RESEND_MS          1000 * 60
+#define SYNC_SNAP_RESEND_MS          1000 * 300
+#define SYNC_SNAP_TIMEOUT_MS         1000 * 1800
 
 #define SYNC_VND_COMMIT_MIN_MS 3000
 
@@ -87,6 +87,11 @@ typedef enum {
   TAOS_SYNC_ROLE_ERROR = 2,
 } ESyncRole;
 
+typedef enum {
+  SYNC_FSM_STATE_COMPLETE = 0,
+  SYNC_FSM_STATE_INCOMPLETE,
+} ESyncFsmState;
+
 typedef struct SNodeInfo {
   int64_t   clusterId;
   int32_t   nodeId;
@@ -94,6 +99,12 @@ typedef struct SNodeInfo {
   char      nodeFqdn[TSDB_FQDN_LEN];
   ESyncRole nodeRole;
 } SNodeInfo;
+
+typedef struct SSyncTLV {
+  int32_t typ;
+  int32_t len;
+  char    val[];
+} SSyncTLV;
 
 typedef struct SSyncCfg {
   int32_t   totalReplicaNum;
@@ -139,10 +150,13 @@ typedef struct SReConfigCbMeta {
 typedef struct SSnapshotParam {
   SyncIndex start;
   SyncIndex end;
+  SSyncTLV* data;
 } SSnapshotParam;
 
 typedef struct SSnapshot {
-  void*     data;
+  int32_t       type;
+  SSyncTLV* data;
+  ESyncFsmState state;
   SyncIndex lastApplyIndex;
   SyncTerm  lastApplyTerm;
   SyncIndex lastConfigIndex;
@@ -171,7 +185,7 @@ typedef struct SSyncFSM {
   void (*FpBecomeLearnerCb)(const struct SSyncFSM* pFsm);
 
   int32_t (*FpGetSnapshot)(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot, void* pReaderParam, void** ppReader);
-  void (*FpGetSnapshotInfo)(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
+  int32_t (*FpGetSnapshotInfo)(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
 
   int32_t (*FpSnapshotStartRead)(const struct SSyncFSM* pFsm, void* pReaderParam, void** ppReader);
   void (*FpSnapshotStopRead)(const struct SSyncFSM* pFsm, void* pReader);

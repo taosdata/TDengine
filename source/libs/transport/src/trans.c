@@ -41,7 +41,8 @@ void* rpcOpen(const SRpcInit* pInit) {
     return NULL;
   }
   if (pInit->label) {
-    tstrncpy(pRpc->label, pInit->label, sizeof(pRpc->label));
+    int len = strlen(pInit->label) > sizeof(pRpc->label) ? sizeof(pRpc->label) : strlen(pInit->label);
+    memcpy(pRpc->label, pInit->label, len);
   }
 
   pRpc->compressSize = pInit->compressSize;
@@ -168,6 +169,9 @@ int rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, in
 int rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
   return transSendRecv(shandle, pEpSet, pMsg, pRsp);
 }
+int rpcSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp, int32_t timeoutMs) {
+  return transSendRecvWithTimeout(shandle, pEpSet, pMsg, pRsp, timeoutMs);
+}
 
 int rpcSendResponse(const SRpcMsg* pMsg) { return transSendResponse(pMsg); }
 
@@ -178,12 +182,20 @@ void rpcUnrefHandle(void* handle, int8_t type) { (*taosUnRefHandle[type])(handle
 int rpcRegisterBrokenLinkArg(SRpcMsg* msg) { return transRegisterMsg(msg); }
 int rpcReleaseHandle(void* handle, int8_t type) { return (*transReleaseHandle[type])(handle); }
 
+// client only
 int rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   // later
   return transSetDefaultAddr(thandle, ip, fqdn);
 }
+// server only
+void rpcSetIpWhite(void* thandle, void* arg) { transSetIpWhiteList(thandle, arg, NULL); }
 
 void* rpcAllocHandle() { return (void*)transAllocHandle(); }
+
+int32_t rpcUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) { return transUtilSIpRangeToStr(pRange, buf); }
+int32_t rpcUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf) {
+  return transUtilSWhiteListToStr(pWhiteList, ppBuf);
+}
 
 int32_t rpcInit() {
   transInit();
