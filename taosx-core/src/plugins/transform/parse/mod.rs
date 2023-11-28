@@ -33,6 +33,8 @@ mod split;
 pub enum ParseError {
     #[error(transparent)]
     JsonPathError(#[from] serde_json_path::ParseError),
+    #[error("Deserialize json from {0:?} error: {1:#}")]
+    JsonDeserializeError(String, serde_json::Error),
     #[error(transparent)]
     ArrowError(#[from] ArrowError),
     #[error(transparent)]
