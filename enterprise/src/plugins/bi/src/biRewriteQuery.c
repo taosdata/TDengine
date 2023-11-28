@@ -30,7 +30,6 @@ static SNode* biMakeTbnameProjectAstNode(char* funcName, char* tableAlias) {
     n->literal = strdup(tableAlias);
     n->node.resType.type = TSDB_DATA_TYPE_BINARY;
     n->node.resType.bytes = strlen(n->literal);
-    n->isDuration = false;
     n->translate = false;
     valNode = n;
   }
