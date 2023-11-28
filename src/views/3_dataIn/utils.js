@@ -777,14 +777,14 @@ function handleAdvanced(advanced, paramsConfig) {
   paramsConfig.push(config);
   
   params.forEach(group => {
-    const { name, value, display, hint, required = false, placeholder, description: d1, short_description: d2 } = group;
+    const { name, value, display, hint, hidden = false, required = false, placeholder, description: d1, short_description: d2 } = group;
     const paramChildren = [];
     const config = { 
       label: display, 
       field: handleField(name), 
       description: d2 ?? d1, 
       defaultValue: value,
-      if: true,
+      if: !hidden,
       placeholder,
       required,
     };
