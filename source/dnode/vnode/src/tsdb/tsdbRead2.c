@@ -4148,6 +4148,20 @@ void tsdbReaderClose2(STsdbReader* pReader) {
   taosMemoryFreeClear(pReader);
 }
 
+static void clearMemIterInfo(STableBlockScanInfo* pInfo) {
+  pInfo->iterInit = false;
+  pInfo->iter.hasVal = false;
+  pInfo->iiter.hasVal = false;
+
+  if (pInfo->iter.iter != NULL) {
+    pInfo->iter.iter = tsdbTbDataIterDestroy(pInfo->iter.iter);
+  }
+
+  if (pInfo->iiter.iter != NULL) {
+    pInfo->iiter.iter = tsdbTbDataIterDestroy(pInfo->iiter.iter);
+  }
+}
+
 int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
   // save reader's base state & reset top state to be reconstructed from base state
   int32_t              code = 0;
@@ -4168,28 +4182,20 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
     tsdbDataFileReaderClose(&pReader->pFileReader);
 
     SCostSummary* pCost = &pReader->cost;
+
     pReader->status.pLDataIterArray = destroySttBlockReader(pReader->status.pLDataIterArray, &pCost->sttCost);
     pReader->status.pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
+
     // resetDataBlockScanInfo excluding lastKey
     STableBlockScanInfo** p = NULL;
-    int32_t               iter = 0;
 
+    int32_t iter = 0;
     while ((p = tSimpleHashIterate(pStatus->pTableMap, p, &iter)) != NULL) {
       STableBlockScanInfo* pInfo = *(STableBlockScanInfo**)p;
-
-      pInfo->iterInit = false;
-      pInfo->iter.hasVal = false;
-      pInfo->iiter.hasVal = false;
-
-      if (pInfo->iter.iter != NULL) {
-        pInfo->iter.iter = tsdbTbDataIterDestroy(pInfo->iter.iter);
-      }
-
-      if (pInfo->iiter.iter != NULL) {
-        pInfo->iiter.iter = tsdbTbDataIterDestroy(pInfo->iiter.iter);
-      }
-
+      clearMemIterInfo(pInfo);
+      pInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
       pInfo->delSkyline = taosArrayDestroy(pInfo->delSkyline);
+
       pInfo->pFileDelData = taosArrayDestroy(pInfo->pFileDelData);
     }
   } else {
@@ -4199,45 +4205,24 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
 
     while ((p = tSimpleHashIterate(pStatus->pTableMap, p, &iter)) != NULL) {
       STableBlockScanInfo* pInfo = *(STableBlockScanInfo**)p;
-
-      pInfo->iterInit = false;
-      pInfo->iter.hasVal = false;
-      pInfo->iiter.hasVal = false;
-
-      if (pInfo->iter.iter != NULL) {
-        pInfo->iter.iter = tsdbTbDataIterDestroy(pInfo->iter.iter);
-      }
-
-      if (pInfo->iiter.iter != NULL) {
-        pInfo->iiter.iter = tsdbTbDataIterDestroy(pInfo->iiter.iter);
-      }
-
+      clearMemIterInfo(pInfo);
+      pInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
       pInfo->delSkyline = taosArrayDestroy(pInfo->delSkyline);
     }
 
-    pBlockScanInfo = pStatus->pTableIter == NULL ? NULL : *pStatus->pTableIter;
+    pBlockScanInfo = (pStatus->pTableIter == NULL) ? NULL : *pStatus->pTableIter;
     if (pBlockScanInfo) {
       // save lastKey to restore memory iterator
       STimeWindow w = pReader->resBlockInfo.pResBlock->info.window;
       pBlockScanInfo->lastProcKey = ASCENDING_TRAVERSE(pReader->info.order) ? w.ekey : w.skey;
 
-      // reset current current table's data block scan info,
-      pBlockScanInfo->iterInit = false;
-
-      pBlockScanInfo->iter.hasVal = false;
-      pBlockScanInfo->iiter.hasVal = false;
-      if (pBlockScanInfo->iter.iter != NULL) {
-        pBlockScanInfo->iter.iter = tsdbTbDataIterDestroy(pBlockScanInfo->iter.iter);
-      }
-
-      if (pBlockScanInfo->iiter.iter != NULL) {
-        pBlockScanInfo->iiter.iter = tsdbTbDataIterDestroy(pBlockScanInfo->iiter.iter);
-      }
+      clearMemIterInfo(pBlockScanInfo);
+      pBlockScanInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
+      pBlockScanInfo->delSkyline = taosArrayDestroy(pBlockScanInfo->delSkyline);
 
       pBlockScanInfo->pBlockList = taosArrayDestroy(pBlockScanInfo->pBlockList);
       pBlockScanInfo->pBlockIdxList = taosArrayDestroy(pBlockScanInfo->pBlockIdxList);
       // TODO: keep skyline for reuse
-      pBlockScanInfo->delSkyline = taosArrayDestroy(pBlockScanInfo->delSkyline);
     }
   }
 
