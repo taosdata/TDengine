@@ -1844,6 +1844,9 @@ void taskDbDestroy(void* pDb, bool flush) {
       rocksdb_column_family_handle_destroy(wrapper->pCf[i]);
     }
   }
+
+  if (wrapper->db) rocksdb_close(wrapper->db);
+
   rocksdb_options_destroy(wrapper->dbOpt);
   rocksdb_readoptions_destroy(wrapper->readOpt);
   rocksdb_writeoptions_destroy(wrapper->writeOpt);
@@ -1851,7 +1854,6 @@ void taskDbDestroy(void* pDb, bool flush) {
   rocksdb_cache_destroy(wrapper->cache);
 
   taosMemoryFree(wrapper->pCf);
-
   for (int i = 0; i < nCf; i++) {
     rocksdb_options_t*                   opt = wrapper->pCfOpts[i];
     rocksdb_comparator_t*                compare = wrapper->pCompares[i];
@@ -1866,8 +1868,6 @@ void taskDbDestroy(void* pDb, bool flush) {
   taosMemoryFree(wrapper->pCfParams);
 
   taosThreadMutexDestroy(&wrapper->mutex);
-
-  if (wrapper->db) rocksdb_close(wrapper->db);
 
   taskDbDestroyChkpOpt(wrapper);
 
