@@ -245,6 +245,7 @@ export default {
         .then(async({ token,id }) => {
           this.$set(this.tokenMap, this.name, token);
           this.active++;
+          this.$store.commit("app/SET_CURRENT_AGENT", this.name);
          await this.$store.dispatch('app/getAgentList');
          Object.assign(
             this.agent,
