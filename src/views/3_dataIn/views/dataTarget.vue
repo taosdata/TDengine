@@ -12,13 +12,13 @@
           size="small"
           v-model="ruleForm.name"
           :placeholder="$t('dataIn.palceholders.taskName')"
-          @change="changeDBType"
+          @change="changeName"
         ></el-input>
       </el-form-item>
       <el-form-item :label="$t('type')" prop="type" size="small">
         <el-select
           v-model="ruleForm.type"
-          @change="changeDBType"
+          @change="changeType"
           :disabled="currentEditid ? true : false"
         >
           <el-option
@@ -231,7 +231,7 @@ export default {
     closeDialog() {
       this.$store.commit("app/SET_AGENT_DIALOG", false);
     },
-    setTaskName() {
+    changeName() {
       this.$store.commit("app/SET_CURRENT_DSNAME", this.ruleForm.name);
     },
     changeAgent() {
@@ -269,15 +269,14 @@ export default {
       this.$store.commit("dbs/SET_DIALOG_DB_VISABLE", true);
     },
     //切换数据源
-    changeDBType() {
+    changeType() {
       if (this.agentTypes.includes(this.ruleForm.type)) {
         this.showAgentSelect = true;
       } else {
         this.showAgentSelect = false;
       }
-      this.$store.commit("app/SET_CURRENT_DBNAME", this.ruleForm.dbName);
-      this.$store.commit("app/SET_CURRENT_AGENT", this.ruleForm.agent);
-      this.$store.commit("app/SET_CURRENT_DSNAME", this.ruleForm.name);
+      // 将 agent 设置为空
+      this.$store.commit("app/SET_CURRENT_AGENT", '');
       this.$store.commit("app/SET_CURRENT_DBTYPE", this.ruleForm.type);
     },
     getAgents() {
@@ -382,14 +381,11 @@ export default {
         this.$store.commit('app/SET_TRANSFORMER_MAPCOLUMNS',null)
    },
     },
-    "$store.state.app.agentLists": {
-      deep: true,
+    "$store.state.app.currentAgentID": {
       handler(val) {
-        this.agentList = val;
-        this.ruleForm.agent = val[val.length - 1].id;
-        this.$store.commit("app/SET_CURRENT_AGENT", this.ruleForm.agent);
-      },
-    },
+        this.ruleForm.agent = val
+      }
+    }
   },
 };
 </script>
