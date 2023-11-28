@@ -241,11 +241,6 @@ static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bo
 
     tsdbDebug("%p file found fid:%d for qrange:%" PRId64 "-%" PRId64 ", %s", pReader, fid, pReader->info.window.skey,
               pReader->info.window.ekey, pReader->idStr);
-    if (pReader->notifyFn) {
-      STsdReaderNotifyInfo info = {0};
-      info.duration.fileSetId = fid;
-      pReader->notifyFn(TSD_READER_NOTIFY_DURATION, &info, pReader->notifyParam);
-    }
     *hasNext = true;
     return TSDB_CODE_SUCCESS;
   }
@@ -4060,8 +4055,6 @@ _err:
   return code;
 }
 
-void tsdbReaderSetNotifyFn(STsdbReader* pReader, )
-
 void tsdbReaderClose2(STsdbReader* pReader) {
   if (pReader == NULL) {
     return;
@@ -5031,9 +5024,4 @@ void tsdbReaderSetId2(STsdbReader* pReader, const char* idstr) {
 }
 
 void tsdbReaderSetCloseFlag(STsdbReader* pReader) { /*pReader->code = TSDB_CODE_TSC_QUERY_CANCELLED;*/
-}
-
-void tsdbReaderSetNotifyCb(STsdbReader* pReader, TsdReaderNotifyCbFn notifyFn, void* param) {
-  pReader->notifyFn = notifyFn;
-  pReader->notifyParam = param;
 }

@@ -165,18 +165,6 @@ typedef struct {
 
 // clang-format off
 /*-------------------------------------------------new api format---------------------------------------------------*/
-typedef enum {
-  TSD_READER_NOTIFY_DURATION
-} ETsdReaderNotifyType;
-
-typedef union {
-  struct {
-    int32_t fileSetId;
-  } duration;
-} STsdReaderNotifyInfo;
-
-typedef void (*TsdReaderNotifyCbFn)(ETsdReaderNotifyType type, STsdReaderNotifyInfo* info, void* param);
-
 typedef struct TsdReader {
   int32_t      (*tsdReaderOpen)(void* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
                            SSDataBlock* pResBlock, void** ppReader, const char* idstr, bool countOnly,
@@ -195,8 +183,6 @@ typedef struct TsdReader {
   int32_t      (*tsdReaderGetDataBlockDistInfo)();
   int64_t      (*tsdReaderGetNumOfInMemRows)();
   void         (*tsdReaderNotifyClosing)();
-
-  void         (*tsdSetSetNotifyCb)(void* pReader, TsdReaderNotifyCbFn notifyFn, void* param);
 } TsdReader;
 
 typedef struct SStoreCacheReader {

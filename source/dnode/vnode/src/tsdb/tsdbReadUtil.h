@@ -22,7 +22,6 @@ extern "C" {
 
 #include "tsdbDataFileRW.h"
 #include "tsdbUtil2.h"
-#include "storageapi.h"
 
 #define ASCENDING_TRAVERSE(o) (o == TSDB_ORDER_ASC)
 
@@ -228,8 +227,6 @@ struct STsdbReader {
   SBlockInfoBuf      blockInfoBuf;
   EContentData       step;
   STsdbReader*       innerReader[2];
-  TsdReaderNotifyCbFn  notifyFn;
-  void*              notifyParam;
 };
 
 typedef struct SBrinRecordIter {
