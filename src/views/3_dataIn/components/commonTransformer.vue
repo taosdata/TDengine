@@ -260,8 +260,8 @@ export default {
         "Name",
         "Type",
         "Expression",
-        "Sample Output1",
-        "Sample Output2",
+        "Output1",
+        "Output2",
       ],
       dialogForm: {
         st_name: "",
@@ -493,7 +493,6 @@ export default {
         input: [].concat(this.generateInput()),
       };
       this.mappingParser = parserData;
-      console.log('查询mapping的参数',parserData,this.$store.state.app.transformerFilterParseData)
       this.getParserData(parserData);
     },
     changeMapColumn(scope) {
@@ -596,12 +595,17 @@ export default {
               overlapColumns.push(item);
             }
           });
+          if(outputColumns.includes('__tbname__')){
+            let index = this.tableData.findIndex(item=>item['Type']=='Tablename') 
+            overlapColumns.push(this.tableData[index]['Name']);
+          }
         this.tableData.map((item) => {
           if (overlapColumns.includes(item["Name"])) {
             outputTBData.map((val, index) => {
-              item[`Sample Output` + (index + 1)] = val[item["Name"]];
+              item[`Output` + (index + 1)] = (item["Name"]==this.sruleForm.s_name)?val['__tbname__']:val[item["Name"]];
             });
           }
+          return item
         });
         this.tablekey = Math.random();
       } catch (error) {
@@ -769,8 +773,8 @@ export default {
             Type: val[1],
             maptype: ["expression", "value"],
             Expression: "",
-            "Sample Output1": "",
-            "Sample Output2": "",
+            "Output1": "",
+            "Output2": "",
           };
         });
         this.tableData.unshift({
@@ -778,8 +782,8 @@ export default {
           Type: "Tablename",
           maptype: ["expression", "string"],
           Expression: "",
-          "Sample Output1": "",
-          "Sample Output2": "",
+          "Output1": "",
+          "Output2": "",
         });
         this.params_columns.unshift(res.data[0][0]);
       } catch (error) {

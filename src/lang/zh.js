@@ -1021,7 +1021,7 @@ export default {
       st_input:'请输入超级表名称',
       create_st:'创建超级表',
       targetSt:'目标超级表',
-      mutiple:'多添件查询以分号分隔',
+      mutiple:'多条件查询以分号分隔',
       msgbody:'消息体',
       msgbodytip:'请先输入消息体',
       searchSResult:'输入完后按enter键查询',
