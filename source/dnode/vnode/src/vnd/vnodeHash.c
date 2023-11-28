@@ -145,10 +145,11 @@ int32_t vHashDrop(SVHashTable* ht, const void* obj) {
   }
 
   uint32_t bucketIndex = ht->hash(obj) % ht->numBuckets;
-  for (SVHashEntry *entry = ht->buckets[bucketIndex], *next = NULL; entry != NULL; entry = next) {
-    next = entry->next;
-    if (ht->compare(entry->obj, obj) == 0) {
-      taosMemoryFree(entry);
+  for (SVHashEntry** entry = &ht->buckets[bucketIndex]; *entry != NULL; entry = &(*entry)->next) {
+    if (ht->compare((*entry)->obj, obj) == 0) {
+      SVHashEntry* tmp = *entry;
+      *entry = (*entry)->next;
+      taosMemoryFree(tmp);
       ht->numEntries--;
       if (ht->numBuckets > VNODE_HASH_DEFAULT_NUM_BUCKETS && ht->numEntries < ht->numBuckets / 4) {
         vHashRehash(ht, ht->numBuckets / 2);
