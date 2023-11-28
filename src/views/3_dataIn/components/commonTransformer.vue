@@ -188,6 +188,7 @@
         width="40%"
         center
         destroy-on-close
+        :append-to-body="true"
         @close="closeDialog"
       >
         <CreateSTB ref="createstb"></CreateSTB>
@@ -689,6 +690,7 @@ export default {
           return;
         }
         Message.success(this.$t("operateSucc"));
+        this.sruleForm.s_name = this.$refs.createstb.stable_form.ts_field_name
         this.getInitStables();
         this.closeDialog();
       } catch (error) {
@@ -709,6 +711,9 @@ export default {
       }
     },
     createStable() {
+      if (!this.$store.state.app.currentDBName) {
+       return Message.warning(this.$t('pleaseSelect') + " " + this.$t('stream.targetDB'))
+      }
       this.showCreateDIalog = true;
     },
     //回显数据调用mapping接口
