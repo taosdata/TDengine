@@ -51,7 +51,7 @@ class CompactTest(TDCase):
         self.disorder_day = 2
         self.stage_2_timestamp = self.disorder_start_ts + 86400 * 1000 * self.disorder_day
         self.stage_2_dt = self.tdCom.genTs(ts=self.stage_2_timestamp/1000)[1]
-        self.stage_rows = 20000
+        self.stage_rows = 30000
         self.insert_rows = 1000000
         self.compact_interval = 180
         self.compact_wait = 180
@@ -73,9 +73,9 @@ class CompactTest(TDCase):
         self.thread_count = 40
         self.num_of_records_per_req = 1000
         self.interlace_rows = 0
-        self.disorder_ratio = 20
-        self.update_ratio = 20
-        self.delete_ratio = 20
+        self.disorder_ratio = 30
+        self.update_ratio = 30
+        self.delete_ratio = 10
         self.disorder_fill_interval = 300
         self.update_fill_interval = 25
         self.generate_row_rule = 2
@@ -83,7 +83,7 @@ class CompactTest(TDCase):
         self.stream_sql2 = f"select ts,max(c1) from {self.dbname2}.{self.stbname} where c1>0 partition by tbname interval(1s) sliding(1s)"
 
         self.use_stream = False
-        self.use_tmq = False
+        self.use_tmq = True
         self.topic_name = "tp_name"
         self.tmq_status = 0
         self.offset_value = "earliest"
@@ -176,9 +176,11 @@ class CompactTest(TDCase):
             stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.stage_rows, start_timestamp=advance_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows, disorder_ratio=self.disorder_ratio, update_ratio=self.update_ratio, delete_ratio=self.delete_ratio, disorder_fill_interval=self.disorder_fill_interval, update_fill_interval=self.update_fill_interval, generate_row_rule=self.generate_row_rule)]
             # if i % 2 == 0:
             #     self.interlace_rows = 0
+            #     self.stage_rows = 100000
             #     stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.stage_rows, start_timestamp=advance_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows, disorder_ratio=self.disorder_ratio, update_ratio=self.update_ratio, delete_ratio=self.delete_ratio, disorder_fill_interval=self.disorder_fill_interval, update_fill_interval=self.update_fill_interval, generate_row_rule=self.generate_row_rule)]
             # else:
             #     self.interlace_rows = 1000
+            #     self.stage_rows = 50000
             #     stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.stage_rows, start_timestamp=advance_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows)]
             database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
             host = self.get_fqdn("taosd")[0]
@@ -206,6 +208,8 @@ class CompactTest(TDCase):
     def continue_insert(self):
         self._remote._logger.info(f'------------ schedular will compact database {self.dbname1} start with "{self.stage_1_dt}" end with "{self.today_zero_dt}" ------------')
         self._remote._logger.info(f'------------ new insert start with "{self.stage_2_dt}" ------------')
+        self.child_table_exists = "yes"
+        self.db_drop = "no"
         json_filename_list = [self.json_file_name2]
         dbinfo = self.tdCom.setDBinfo(name=self.dbname1, replica=self.replica, vgroups=self.vgroups, drop=self.db_drop, wal_retention_period=self.wal_retention_period, stt_trigger=self.stt_trigger, keep=self.keep, duration=self.duration)
         stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.insert_rows, start_timestamp=self.stage_2_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows)]
@@ -419,7 +423,7 @@ class CompactTest(TDCase):
     def run(self):
         self.insert_fh_data(self.dbname1)
         self.insert_base_data(self.dbname1)
-        self.alter_db_keep_param()
+        # self.alter_db_keep_param()
         self.tmq_schedular = self.tdCom.add_back_ground_scheduler(self.tmq_subcribe, "interval", seconds=self.tmq_schedular_interval, max_instances=1, args=[])
         self.range_compact_schedular = self.tdCom.add_back_ground_scheduler(self.start_range_compact, "interval", seconds=self.compact_schedular_interval, max_instances=1, args=[])
         # self.disorder_schedular = self.tdCom.add_back_ground_scheduler(self.disorder_update_delete_data, "interval", seconds=self.disorder_schedular_interval, max_instances=1, args=[])
