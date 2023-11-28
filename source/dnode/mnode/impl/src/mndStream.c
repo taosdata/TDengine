@@ -1337,6 +1337,9 @@ static int32_t mndProcessStreamCheckpointInCandid(SRpcMsg *pReq) {
     SCheckpointCandEntry *pEntry = pIter;
 
     SStreamObj *ps = mndAcquireStream(pMnode, pEntry->pName);
+    if (ps == NULL) {
+      continue;
+    }
     mDebug("start to launch checkpoint for stream:%s %" PRIx64 " in candidate list", pEntry->pName, pEntry->streamId);
 
     code = mndProcessStreamCheckpointTrans(pMnode, ps, pEntry->checkpointId);
