@@ -443,7 +443,6 @@ export default {
       });
     },
     edit(data, status, iscopy) {
-      console.log(data,status,iscopy,'编辑000099---pppp')
       this.$parent.sourceName = data.name;
       this.$parent.currentTaskStatus = status;
       this.$parent.agentID = data?.via;
@@ -459,7 +458,6 @@ export default {
         let editDdata = deepClone([].concat(data.from_detail));
         if(data.from_detail.id=='mqtt'||data.from_expand.id == "kafka"){
           this.$store.commit('app/SET_TRANSFORM_PARSERDATA',data.parser)
-          console.log(this.$store.state.app.transformerParserData,'mqtt编辑回西安')
         }
         if (data.from_expand && data.from_expand.id == "mqtt") {
           let dnsarr = data.from.split("?")[1].split("&");

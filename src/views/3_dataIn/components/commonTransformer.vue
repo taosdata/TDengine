@@ -68,14 +68,13 @@
             @deleteFilter="deleteFilter"
             @changeFilter="changeFilter"
             ref="filter"
-
           ></FilterExpression>
         </template>
         <el-button
           type="primary"
           size="small"
           @click="addNewFilter"
-          :disabled="filterArr.length>=1"
+          :disabled="filterArr.length >= 1"
         >
           {{ $t("add") }}
         </el-button>
@@ -337,9 +336,9 @@ export default {
       extractArr: [],
       filterArr: [
         {
-        expression: "",
-        key: Math.random()
-        }
+          expression: "",
+          key: Math.random(),
+        },
       ],
       currentCol: "",
       mappingParser: {},
@@ -358,23 +357,20 @@ export default {
     async echoParser(value) {
       this.msgForm.msgbody =
         this.$store.state.app.currentDBType == "mqtt"
-          ? value.input.map(item=>item.payload).join(';')
-          : value.input.map(item=>item.value).join(';');
+          ? value.input.map((item) => item.payload).join(";")
+          : value.input.map((item) => item.value).join(";");
       Object.entries(value.parser.parse).map((item) => {
-        Object.entries(item[1]).map((val) => {
-          let result = Array.from(Object.entries(val[1])).flat();
-          let ind = this.columnsArr.findIndex((col) => col.name == val[0]);
+        let ind = this.columnsArr.findIndex((col) => col.name == item[0]);
           if (ind > -1) {
             this.$set(this.columnsArr[ind], "show", false);
           }
           let obj = {
-            columnname: val[0],
-            expression: result[1].join(';'),
-            type: result[0],
+            columnname: item[0],
+            expression:Object.values(item[1]).flat(1).join(';') ,
+            type: Object.keys(item[1]).toString(),
             columns: this.columnsArr,
           };
           this.extractArr.push(obj);
-        });
       });
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", value.parser.parse);
       let echoMapData = [];
@@ -384,7 +380,7 @@ export default {
             expression: item.filter,
             key: Math.random(),
           };
-          this.filterArr.splice(0,this.filterArr.length,obj );
+          this.filterArr.splice(0, this.filterArr.length, obj);
         }
         if (Object.keys(item).toString() == "map") {
           echoMapData = Object.entries(item["map"]).map((val) => {
@@ -401,8 +397,11 @@ export default {
         tableData: echoMapData,
       });
       this.$nextTick(() => {
-        this.$refs.extract[this.$refs.extract.length - 1].submitExtract();
-        this.$refs.filter[0].submitFilter()
+        this.$refs.extract.map(comp=>{
+            comp.submitExtract()
+        })
+        // this.$refs.extract[this.$refs.extract.length - 1].submitExtract();
+        this.$refs.filter[0].submitFilter();
       });
 
       this.sruleForm.s_name = value.parser.model.using;
@@ -557,21 +556,16 @@ export default {
         Message.warning(this.$t("datasource.transform.mapcaculate"));
         return;
       }
+      let extractObj = {};
+      this.extractArr.forEach((item) => {
+        extractObj[item.columnname] = {
+          [`${item.type}`]:
+            item.type == "regex" ? item.expression : item.expression.split(";"),
+        };
+      });
       let parserData = {
         parser: {
-          parse: Object.assign(
-            {},
-            this.extractArr.map((item) => {
-              return {
-                [item.columnname]: {
-                  [`${item.type}`]:
-                    item.type == "regex"
-                      ? item.expression
-                      : item.expression.split(";"),
-                },
-              };
-            })
-          ),
+          parse: extractObj,
           model: this.mappingParser.parser.model,
           mutate: this.filterArr
             .map((item) => {
@@ -652,7 +646,7 @@ export default {
         });
         return inputobj;
       });
-      return inputList
+      return inputList;
     },
     submitSuper(data) {
       if (!this.msgForm.msgbody) {

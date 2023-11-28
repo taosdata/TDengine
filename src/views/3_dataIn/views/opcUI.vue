@@ -1176,7 +1176,6 @@ export default {
   methods: {
     getAdvanceParams(data){
       this.advanceParams=data
-      console.log(this.advanceParams,'this.advanceParams')
     },
     async downloadopcAllponits() {
       try {
@@ -1388,7 +1387,6 @@ export default {
       try {
         this.checkLoading = true;
         let result = await validateTask(dns, this.agentId);
-        console.log("result", result);
         this.checkResult = result;
         this.checkLoading = false; // 检测的 loading 效果
         this.activeCollapse = "one";
@@ -1399,8 +1397,6 @@ export default {
     },
 
     async submit(isSubmit) {
-      console.log(this.constMqttparser,'constMqttparser')
-      // debugger
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
@@ -1430,7 +1426,6 @@ export default {
           }
         }
         if (!this.sourceName && isSubmit) {
-          console.log("this.sourceName", this.sourceName);
           Message.warning(`${enterTip} ${this.$t("name")}`);
           return;
         }
@@ -1753,8 +1748,6 @@ export default {
         }
         if ((this.tagName == "mqtt" || this.tagName == "kafka") && isSubmit) {
           this.$refs.transformer.getTransformerParams()
-
-          console.log(this.transformerParser,'这是transforme的parser')
           // if (this.$refs.mqtt) {
           //   this.$refs.mqtt.submit();
           //   if (this.$refs.mqtt.showSuperTip) {
