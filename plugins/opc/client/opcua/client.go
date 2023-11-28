@@ -377,8 +377,8 @@ func (c *UAClient) readTypesBatch(base int, nodes []*ua.NodeID) error {
 		nt := r.Value.NodeID().IntID()
 		vt, ok := convertType[nt]
 		if !ok {
-			c.logger.Error("invalid node type", "node", nodes[uint(i)].String(), "type", nt)
-			return fmt.Errorf("invalid node type %d", nt)
+			c.logger.WithField("type", nt).WithField("node", nodes[uint(i)].String()).Error("invalid node type")
+			return fmt.Errorf("invalid node type, node: '%s' type: %d", nodes[uint(i)].String(), nt)
 		}
 		c.dataCache[base+i].ValueType = vt
 	}
