@@ -316,6 +316,69 @@ mod pipeline_tests {
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
+
+    #[test]
+    fn test_split() {
+        let records = demo_text_records();
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "text": { "split": {"sep": ",", "names": ["name","value","id", "price"] } } }
+        }"#,
+        )
+        .unwrap();
+        dbg!(&pipeline);
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+
+        assert_eq!(
+            output[0]
+                .fields
+                .iter()
+                .map(|f| (f.name.as_str(), f.arrow_type.clone()))
+                .collect_vec(),
+            vec![
+                ("ts", DataType::Timestamp(TimeUnit::Millisecond, None)),
+                ("name", DataType::Utf8),
+                ("value", DataType::Utf8),
+                ("id", DataType::Utf8),
+                ("price", DataType::Utf8),
+            ]
+        );
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "text": { "split": {"sep": ",", "n": 4 } } }
+        }"#,
+        )
+        .unwrap();
+        dbg!(&pipeline);
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+
+        assert_eq!(
+            output[0]
+                .fields
+                .iter()
+                .map(|f| (f.name.as_str(), f.arrow_type.clone()))
+                .collect_vec(),
+            vec![
+                ("ts", DataType::Timestamp(TimeUnit::Millisecond, None)),
+                ("text_0", DataType::Utf8),
+                ("text_1", DataType::Utf8),
+                ("text_2", DataType::Utf8),
+                ("text_3", DataType::Utf8),
+            ]
+        );
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+    }
     #[test]
     fn test_pipeline() {
         let records = demo_mqtt_records();
@@ -368,6 +431,40 @@ mod pipeline_tests {
         println!("{}", json);
     }
 
+    fn demo_text_records() -> RecordBatch {
+        let fields = vec![
+            Field::new(
+                "ts",
+                DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None),
+                false,
+            ),
+            Field::new("text", DataType::Utf8, true),
+        ];
+        let schema = Arc::new(Schema::new(fields));
+        let now = chrono::Utc::now()
+            .sub(Duration::from_secs(60 * 60 * 24))
+            .timestamp_millis();
+        let columns = vec![
+            Arc::new(arrow::array::TimestampMillisecondArray::from(vec![
+                now,
+                now + 1000,
+                now + 2000,
+                now + 3000,
+                now + 4000,
+                now + 5000,
+            ])) as ArrayRef,
+            Arc::new(arrow::array::StringArray::from(vec![
+                // name,value,id,price
+                r#"a,1.1,1,1.1"#,
+                r#"b,1.2,2,1.1"#,
+                r#"a,1.3,1,1.1"#,
+                r#"b,1.4,2,1.1"#,
+                r#"a,1.5,1,1.1"#,
+                r#"b,1.6,2,1.1"#,
+            ])) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).unwrap()
+    }
     fn demo_mqtt_records() -> RecordBatch {
         let fields = vec![
             Field::new(
