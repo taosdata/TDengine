@@ -140,7 +140,6 @@ advanced:
 
     - name: read_concurrency
       display: Read Concurrency
-      hidden: true
       description: |
         The number of concurrent read requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.
       value: 0
