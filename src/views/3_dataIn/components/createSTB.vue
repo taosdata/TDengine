@@ -1,6 +1,6 @@
 <template>
   <div class="create-stb">
-    <el-form :model="stable_form" :rules="rules" label-width="150px">
+    <el-form :model="stable_form" :rules="rules" label-width="150px" ref="form">
       <el-form-item prop="name" class="name_input">
         <template slot="label">
           <span>{{ $t("name") }}</span>
