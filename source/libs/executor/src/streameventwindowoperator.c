@@ -603,7 +603,7 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
            pSeKeyBuf[i].groupId, i);
     getSessionWindowInfoByKey(pAggSup, pSeKeyBuf + i, &curInfo.winInfo);
     setEventWindowFlag(pAggSup, &curInfo);
-    if (!curInfo.pWinFlag->startFlag || curInfo.pWinFlag->endFlag) {
+    if (!curInfo.pWinFlag->startFlag || !curInfo.pWinFlag->endFlag) {
       continue;
     }
 
