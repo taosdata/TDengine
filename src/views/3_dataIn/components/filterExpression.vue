@@ -128,32 +128,33 @@ export default {
             })
           );
         });
-        // let transformerColumns = [
-        //   {
-        //     value: "expression",
-        //     label: this.$t("expression"),
-        //     children: this.maptypes.map(item => {
-        //       return {
-        //         value: item,
-        //         label: item
-        //       };
-        //     })
-        //   },
-        //   {
-        //     value: "mapping",
-        //     label: this.$t("mapping"),
-        //     children: result[0].fields.map(item => {
-        //       return {
-        //         value: item.name,
-        //         label: item.name
-        //       };
-        //     })
-        //   }
-        // ];
-        // this.$store.commit(
-        //   "app/SET_TRANSFORMER_MAPCOLUMNS",
-        //   transformerColumns
-        // );
+        let transformerColumns = [
+          {
+            value: "expression",
+            label: this.$t("expression"),
+            children: this.maptypes.map((item) => {
+              return {
+                value: item,
+                label: item,
+              };
+            }),
+          },
+          {
+            value: "mapping",
+            label: this.$t("mapping"),
+            children: result[0].fields.map((item) => {
+              return {
+                value: item.name,
+                label: item.name,
+              };
+            }),
+          },
+        ];
+        this.$store.commit(
+          "app/SET_TRANSFORMER_MAPCOLUMNS",
+          transformerColumns
+        );
+        console.log(this.tableData,'filter---table')
       } catch (error) {
         console.log(error);
       }
@@ -196,6 +197,13 @@ export default {
         },
         input: inputList,
       };
+      
+      this.$store.commit('app/SET_FILTER_PARSE_DATA',{
+        filter: this.ruleForm.filter_name
+      })
+      console.log(this.$store.state.app.transformerFilterParseData,{
+        filter: this.ruleForm.filter_name
+      },'filter需要存储的参数')
       this.getParserData(parser);
     },
   },

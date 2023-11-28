@@ -139,22 +139,6 @@
                   width="320px"
                 >
                   <template slot-scope="scope">
-                    <!-- <el-select
-                      v-model="scope.row.maptype"
-                      size="small"
-                      style="width: 100px; margin-right: 10px"
-                      v-if="
-                        scope.row['Type'] != 'Tablename' &&
-                        scope.row['Type'] != 'TIMESTAMP'
-                      "
-                    >
-                      <el-option
-                        v-for="val in mappingTypes"
-                        :key="val"
-                        :label="val"
-                        :value="val"
-                      ></el-option>
-                    </el-select>-->
                     <el-cascader
                       size="small"
                       style="width: 100px; margin-right: 10px"
@@ -206,11 +190,6 @@
         destroy-on-close
         @close="closeDialog"
       >
-        <!-- <el-form :model="dialogForm" :rules="dialogRules">
-          <el-form-item prop="st_name">
-            <el-input v-model="dialogForm.st_name" size="small"></el-input>
-          </el-form-item>
-        </el-form> -->
         <CreateSTB ref="createstb"></CreateSTB>
         <div class="buttons">
           <el-button type="primary" size="small" @click="createST">
@@ -502,13 +481,18 @@ export default {
             tags: tags,
             columns: columns,
           },
-          mutate: [].concat({
+          mutate:this.$store.state.app.transformerFilterParseData?[].concat({
+            map: mutateMap,
+          }).concat({
+            filter:Object.values(this.$store.state.app.transformerFilterParseData).toString()
+          }) : [].concat({
             map: mutateMap,
           }),
         },
         input: [].concat(this.generateInput()),
       };
       this.mappingParser = parserData;
+      console.log('查询mapping的参数',parserData,this.$store.state.app.transformerFilterParseData)
       this.getParserData(parserData);
     },
     changeMapColumn(scope) {
@@ -567,7 +551,8 @@ export default {
         parser: {
           parse: extractObj,
           model: this.mappingParser.parser.model,
-          mutate: this.filterArr
+          mutate: this.mappingParser.parser.mutate.some(key=>Object.keys(key).toString()=='filter')?this.mappingParser.parser.mutate:
+          this.filterArr
             .map((item) => {
               return {
                 filter: item.expression,
@@ -844,6 +829,7 @@ export default {
         this.$set(this, "options", val);
       },
     },
+    
     "$store.state.app.currentDBName": {
       deep: true,
       handler(val) {
