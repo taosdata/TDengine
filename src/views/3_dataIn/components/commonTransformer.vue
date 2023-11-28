@@ -17,6 +17,7 @@
               size="small"
               type="textarea"
             ></el-input>
+            <!-- <div v-html='msgForm.msgbody' v-else></div> -->
           </el-form-item>
         </el-form>
       </section>
@@ -225,6 +226,7 @@ export default {
   },
   data() {
     return {
+      isCSV:false,
       mapExpressionList: [
         "value",
         "generator",
@@ -255,13 +257,7 @@ export default {
       mapType: "value",
       extractAddStatus: false,
       mappingTypes: ["value", "generator", "join", "format", "sum", "expr"],
-      st_columnLists: [
-        "Name",
-        "Type",
-        "Expression",
-        "Output1",
-        "Output2",
-      ],
+      st_columnLists: ["Name", "Type", "Expression", "Output1", "Output2"],
       dialogForm: {
         st_name: "",
       },
@@ -340,16 +336,16 @@ export default {
           : value.input.map((item) => item.value).join(";");
       Object.entries(value.parser.parse).map((item) => {
         let ind = this.columnsArr.findIndex((col) => col.name == item[0]);
-          if (ind > -1) {
-            this.$set(this.columnsArr[ind], "show", false);
-          }
-          let obj = {
-            columnname: item[0],
-            expression:Object.values(item[1]).flat(1).join(';') ,
-            type: Object.keys(item[1]).toString(),
-            columns: this.columnsArr,
-          };
-          this.extractArr.push(obj);
+        if (ind > -1) {
+          this.$set(this.columnsArr[ind], "show", false);
+        }
+        let obj = {
+          columnname: item[0],
+          expression: Object.values(item[1]).flat(1).join(";"),
+          type: Object.keys(item[1]).toString(),
+          columns: this.columnsArr,
+        };
+        this.extractArr.push(obj);
       });
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", value.parser.parse);
       let echoMapData = [];
@@ -376,9 +372,9 @@ export default {
         tableData: echoMapData,
       });
       this.$nextTick(() => {
-        this.$refs.extract.map(comp=>{
-            comp.submitExtract()
-        })
+        this.$refs.extract.map((comp) => {
+          comp.submitExtract();
+        });
         // this.$refs.extract[this.$refs.extract.length - 1].submitExtract();
         this.$refs.filter[0].submitFilter();
       });
@@ -481,16 +477,23 @@ export default {
             tags: tags,
             columns: columns,
           },
-          mutate:this.$store.state.app.transformerFilterParseData?[].concat({
-            map: mutateMap,
-          }).concat({
-            filter:Object.values(this.$store.state.app.transformerFilterParseData).toString()
-          }) : [].concat({
-            map: mutateMap,
-          }),
+          mutate: this.$store.state.app.transformerFilterParseData
+            ? []
+                .concat({
+                  map: mutateMap,
+                })
+                .concat({
+                  filter: Object.values(
+                    this.$store.state.app.transformerFilterParseData
+                  ).toString(),
+                })
+            : [].concat({
+                map: mutateMap,
+              }),
         },
-        input: [].concat(this.generateInput()),
+        input:this.isCSV?this.$store.state.app.csvTransformerParser.inputList: [].concat(this.generateInput()),
       };
+      console.log(this.$store.state.app.transformerFilterParseData,'mapping计算')
       this.mappingParser = parserData;
       this.getParserData(parserData);
     },
@@ -550,17 +553,20 @@ export default {
         parser: {
           parse: extractObj,
           model: this.mappingParser.parser.model,
-          mutate: this.mappingParser.parser.mutate.some(key=>Object.keys(key).toString()=='filter')?this.mappingParser.parser.mutate:
-          this.filterArr
-            .map((item) => {
-              return {
-                filter: item.expression,
-              };
-            })
-            .concat(this.mappingParser.parser.mutate),
+          mutate: this.mappingParser.parser.mutate.some(
+            (key) => Object.keys(key).toString() == "filter"
+          )
+            ? this.mappingParser.parser.mutate
+            : this.filterArr
+                .map((item) => {
+                  return {
+                    filter: item.expression,
+                  };
+                })
+                .concat(this.mappingParser.parser.mutate),
         },
 
-        input: [].concat(this.generateInput()),
+        input: this.isCSV?this.$store.state.app.csvTransformerParser.inputList:[].concat(this.generateInput()),
       };
       this.$emit("getTransformerParams", parserData);
     },
@@ -594,18 +600,27 @@ export default {
               overlapColumns.push(item);
             }
           });
-          if(outputColumns.includes('__tbname__')){
-            let index = this.tableData.findIndex(item=>item['Type']=='Tablename') 
-            overlapColumns.push(this.tableData[index]['Name']);
-          }
+        if (outputColumns.includes("__tbname__")) {
+          let index = this.tableData.findIndex(
+            (item) => item["Type"] == "Tablename"
+          );
+          overlapColumns.push(this.tableData[index]["Name"]);
+        }
         this.tableData.map((item) => {
+          item[`Output1`]=''
+          item[`Output2`]=''
           if (overlapColumns.includes(item["Name"])) {
             outputTBData.map((val, index) => {
-              item[`Output` + (index + 1)] = (item["Name"]==this.sruleForm.s_name)?val['__tbname__']:val[item["Name"]];
+              
+              item[`Output` + (index + 1)] =
+                item["Name"] == this.sruleForm.s_name
+                  ? val["__tbname__"]
+                  : val[item["Name"]];
             });
           }
-          return item
+          return item;
         });
+        console.log(this.tableData,'计算后的table',outputTBData);
         this.tablekey = Math.random();
       } catch (error) {
         console.log(error);
@@ -768,8 +783,8 @@ export default {
             Type: val[1],
             maptype: ["expression", "value"],
             Expression: "",
-            "Output1": "",
-            "Output2": "",
+            Output1: "",
+            Output2: "",
           };
         });
         this.tableData.unshift({
@@ -777,8 +792,8 @@ export default {
           Type: "Tablename",
           maptype: ["expression", "string"],
           Expression: "",
-          "Output1": "",
-          "Output2": "",
+          Output1: "",
+          Output2: "",
         });
         this.params_columns.unshift(res.data[0][0]);
       } catch (error) {
@@ -806,9 +821,16 @@ export default {
     deleteFilter(key) {
       let ind = this.filterArr.findIndex((val) => val.key == key);
       this.filterArr.splice(ind, 1);
+      this.$store.commit('app/SET_FILTER_PARSE_DATA',null)
     },
     deleteExtract(index, name) {
+      let oldextract=this.$store.state.app.transformExtractParseData
+      if(Object.keys(oldextract).includes(name)){
+        delete oldextract[name]
+      }
+      console.log(oldextract,this.$store.state.app.transformExtractParseData,index, name,'要删除extrasnt')
       if (name) {
+        
         let ind = this.extractArr.findIndex((item) => item.columnname == name);
         this.extractArr.splice(ind, 1);
         let restoreIndex = this.columnsArr.findIndex(
@@ -817,10 +839,56 @@ export default {
         this.$set(this.columnsArr[restoreIndex], "show", true);
       } else {
         this.extractArr.splice(index, 1);
+        
       }
+    },
+    //-----------------------处理csv部分
+    //组合csv的extract
+    formatCSVExtract(columns) {
+      this.columnsArr = columns.map((item) => {
+        return {
+          description: item,
+          name: item,
+          show: true,
+          type: "varchar",
+          value: "",
+        };
+      });
+      this.indentifiedColumns=columns.map((item) => {
+        return {
+          description: item,
+          name: item,
+          show: true,
+          type: "varchar",
+          value: "",
+        };
+      });
+      this.extractArr.push({
+        columns: this.columnsArr,
+        columnname: "",
+        expression: "",
+        type: "",
+      })
+      // this.$set(this.extractArr,0,{
+      //   columns: this.columnsArr,
+      //   columnname: "",
+      //   expression: "",
+      //   type: "",
+      // })
+      console.log(this.extractArr, "csv",this.columnsArr );
     },
   },
   watch: {
+    //csv需要单独处理
+    "$store.state.app.csvTransformerParser": {
+      deep: true,
+      handler(val) {
+        this.isCSV=true
+        this.msgForm.msgbody =val.msgBody;
+        this.formatCSVExtract(val.columns);
+        console.log(val, "监听csv----transformer");
+      },
+    },
     "$store.state.app.transformerParserData": {
       deep: true,
       handler(val) {
@@ -833,7 +901,7 @@ export default {
         this.$set(this, "options", val);
       },
     },
-    
+
     "$store.state.app.currentDBName": {
       deep: true,
       handler(val) {

@@ -32,11 +32,7 @@
             <el-input size="small" v-model="fileurl"></el-input>
           </div>
         </el-tab-pane>
-        <CsvParameter
-          ref="param"
-          :echoData="echoData"
-          :isEditable="isEditable"
-        >
+        <CsvParameter ref="param" :echoData="echoData" :isEditable="isEditable">
           <template v-slot:next>
             <el-button
               type="primary"
@@ -45,8 +41,8 @@
               class="nextbtn"
               >{{ $t("datasource.csvNext") }}</el-button
             >
-            <!-- <CommonTransformer></CommonTransformer> -->
-            <div class="csv-config" v-if="showConfig">
+            <CommonTransformer ref='transform' @getTransformerParams='getTransformerParams'></CommonTransformer>
+            <!-- <div class="csv-config" v-if="showConfig">
               <ul class="csv-tableheader">
                 <li>{{ $t("datasource.csvcol") }}</li>
                 <li>{{ $t("datasource.dbcol") }}</li>
@@ -89,7 +85,7 @@
                   ></CsvColumn>
                 </li>
               </ul>
-            </div>
+            </div> -->
           </template>
         </CsvParameter>
       </el-tabs>
@@ -103,10 +99,10 @@ import { deepClone } from "@/utils";
 import { sendSQLReq } from "@/api/gateway/console";
 import { getCSVColumns } from "@/api/explorer/datain";
 import { Message } from "element-ui";
-import CommonTransformer from './commonTransformer.vue'
+import CommonTransformer from "./commonTransformer.vue";
 export default {
   name: "CsvData",
-  components: { CsvParameter, CsvColumn,CommonTransformer },
+  components: { CsvParameter, CsvColumn, CommonTransformer },
   props: {
     isEditable: {
       type: Boolean,
@@ -117,7 +113,7 @@ export default {
       default: () => {
         return [];
       },
-    }
+    },
   },
   provide() {
     return {
@@ -127,7 +123,8 @@ export default {
   filter: {},
   data() {
     return {
-      language:  localStorage.getItem('local_language'),
+      transformerParser:null,
+      language: localStorage.getItem("local_language"),
       showConfig: false,
       csvParserConf: {},
       uploadData: {
@@ -143,7 +140,7 @@ export default {
       fileurl: "",
       uploadUrl: process.env.VUE_APP_X_API + `/upload`,
       csvColumns: [],
-      sample_values:[],
+      sample_values: [],
       localcsv: {},
       dbOptions: [],
     };
@@ -181,6 +178,11 @@ export default {
     }
   },
   methods: {
+    //获取transformer的参数
+    getTransformerParams(data){
+      this.transformerParser=data
+      console.log(data,this.transformerParser,'csv接受的transformer');
+    },
     handleRemove(file, filelist) {
       this.fileList = filelist;
     },
@@ -294,15 +296,14 @@ export default {
                 return;
               }
               this.csvColumns = result.file_header.column_names;
-              // this.sample_values=result.sample_values
+              this.sample_values = result.sample_values;
             } else {
               //无header需要自定义header
               if (result && result.message) {
                 Message.error(result.message);
                 return;
               }
-              this.csvColumns = this.$refs.param.ruleForm.customcol
-                .split(",");
+              this.csvColumns = this.$refs.param.ruleForm.customcol.split(",");
             }
           }
         } else {
@@ -316,7 +317,7 @@ export default {
             return;
           }
           this.csvColumns = result.file_header.column_names;
-          // this.sample_values=result.sample_values
+          this.sample_values = result.sample_values;
         }
 
         this.csvParserConf = {
@@ -336,7 +337,9 @@ export default {
             alias: item,
           };
         });
-        console.log(this.csvColumns,'this.csvColumns',this.sample_values)
+
+        console.log(this.csvColumns, "this.csvColumns", this.sample_values);
+        this.formatCsvTransformerData(this.csvColumns, this.sample_values);
         this.localcsv = deepClone(this.csvParserConf);
         this.$store.commit("app/SET_CSV_PARSER", this.localcsv.parser);
         this.initDbOptions();
@@ -345,6 +348,45 @@ export default {
         error && error.message && Message.error(error.message);
       }
       this.$refs.upload.submit();
+    },
+    //组合CSV的transfomrer页面需要的数据
+    formatCsvTransformerData(columns, values) {
+      let inputList = this.sample_values.map((item) => {
+        return Object.fromEntries(
+          item.map((val, index) => {
+            return [this.csvColumns[index], val];
+          })
+        );
+      });
+      let msgBody=this.sample_values.map(item=>{
+        return item
+      })
+      msgBody.unshift(columns.toString())
+      console.log(msgBody,'msgbody')
+      let extractArr = [];
+      columns.forEach((item) => {
+        let obj = {};
+        obj["columns"] = columns.map((val) => {
+          return {
+            description: item,
+            name: item,
+            show: true,
+            type: "varchar",
+            value: "",
+          };
+        });
+        (obj["columnname"] = ""), (obj["expression"] = ""), (obj["type"] = "");
+        extractArr.push(obj)
+      });
+      let csvTransformer={
+        "columns": columns,
+        inputList:inputList,
+        "msgBody": msgBody.join('\n'),
+        "msgType": "csv",
+        "transform": []
+      }
+      this.$store.commit("app/SET_CSV_TRANSFORMER_PARSER", csvTransformer);
+      console.log(msgBody,extractArr,'csv大串联',this.$store.state.app.csvTransformerParser)
     },
     async getDBColumns() {
       try {
@@ -372,8 +414,8 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
-.upload-demo{
-  display:flex;
+.upload-demo {
+  display: flex;
   align-items: baseline;
 }
 .csv-data {
@@ -392,9 +434,9 @@ export default {
       font-size: 14px;
       text-align: left;
       position: relative;
-      
+
       &.required {
-        padding-left:10px;
+        padding-left: 10px;
         &::before {
           content: "*";
           color: red;

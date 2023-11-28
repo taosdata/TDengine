@@ -50,9 +50,17 @@
         </el-form-item>
       </el-form>
 
-      <div class="btns" style='display:flex'>
-        <el-button icon="el-icon-delete" @click="deleteExtract" style='display:flex'></el-button>
-        <el-button icon="el-icon-check" @click="submit" style='display:flex'></el-button>
+      <div class="btns" style="display: flex">
+        <el-button
+          icon="el-icon-delete"
+          @click="deleteExtract"
+          style="display: flex"
+        ></el-button>
+        <el-button
+          icon="el-icon-check"
+          @click="submit"
+          style="display: flex"
+        ></el-button>
       </div>
     </div>
     <div class="table" v-if="tableData.length > 0">
@@ -180,11 +188,12 @@ export default {
     async getParserData(data) {
       try {
         let result = await getParser(data);
-        this.tableColumns = result[0].fields.map((item) => item.name);
         if (result.message) {
           Message.error(result.message);
           return;
         }
+
+        this.tableColumns = result[0].fields.map((item) => item.name);
         this.tableData = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
@@ -231,8 +240,8 @@ export default {
     //提交单个
     submitExtract() {
       let extractExpres = this.ruleForm.filter_expres.split(";");
-      let inputList=[]
-      inputList=this.$parent.msgForm.msgbody.split(";").map((msg) => {
+      let inputList = [];
+      inputList = this.$parent.msgForm.msgbody.split(";").map((msg) => {
         let inputobj = {};
         this.indentifiedColumns.forEach((item) => {
           if (this.$store.state.app.currentDBType == "mqtt") {
@@ -251,7 +260,7 @@ export default {
             }
           }
         });
-        return inputobj
+        return inputobj;
       });
       this.extractParseData = {};
       this.$parent.extractArr
@@ -272,11 +281,17 @@ export default {
         parser: {
           parse: {},
         },
-        input: inputList,
+        input:this.$parent.isCSV?this.$store.state.app.csvTransformerParser.inputList: inputList,
       };
+      console.log(this.$parent.isCSV,'this.$parent.isCSV')
+
       parser.parser.parse = this.extractParseData;
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);
-
+      console.log(
+        parser,
+        "调试csv",
+        this.$store.state.app.csvTransformerParser.inputList
+      );
       this.getParserData(parser);
     },
     deleteExtract() {
@@ -289,6 +304,7 @@ export default {
     }
   },
   watch: {
+    
     itemData: {
       deep: true,
       handler(val) {
