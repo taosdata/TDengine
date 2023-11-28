@@ -66,7 +66,7 @@
           </template>
           <template v-else-if="item.type == 'advanced'">
             <el-collapse 
-              class='advanced'
+              :class='`advanced-${lang}`'
               v-model="item.collapsed" 
               accordion>
               <el-collapse-item name='one'>
@@ -129,7 +129,7 @@ import ParserComp from '../components/parserComp.vue';
 // import OpcTable from './opcTable.vue';
 import BlockHeader from './blockHeader.vue';
 import ConnectivityCheck from '../components/connectivityCheck.vue'
-
+import { getBrowserLang } from '@/utils';
 import { hasOwn } from '@/utils/util';
 
 export default {
@@ -158,7 +158,11 @@ export default {
     this.mb10Type = ['opcTable', 'parser', 'tabs', 'advanced'];
     return {};
   },
-  computed: {},
+  computed: {
+    lang() {
+      return getBrowserLang() == 'zh' ? 'zh': 'en'
+    }
+  },
   watch: {},
   created() {},
   mounted() {},
@@ -209,9 +213,21 @@ export default {
   .mb10 {
     margin-bottom: 10px;
   }
-  .advanced {
+  .advanced-en {
     :deep(.el-collapse-item__header) {
       min-height: 80px;
+    }
+    :deep(.el-collapse-item__content) {
+      padding-bottom: 0,
+    }
+    border-top: 0;
+  }
+  .advanced-zh {
+    :deep(.el-collapse-item__header) {
+      min-height: 60px;
+    }
+    :deep(.el-collapse-item__content) {
+      padding-bottom: 0,
     }
     border-top: 0;
   }
