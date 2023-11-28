@@ -694,12 +694,13 @@ int32_t vnodeAChannelDestroy(SVAsync *async, int64_t channelId, bool waitRunning
     } else {
       if (waitRunning) {
         // wait task
-        channel->scheduled->numWait++;
-        taosThreadCondWait(&channel->scheduled->waitCond, &async->mutex);
-        channel->scheduled->numWait--;
-        if (channel->scheduled->numWait == 0) {
-          taosThreadCondDestroy(&channel->scheduled->waitCond);
-          taosMemoryFree(channel->scheduled);
+        SVATask *task = channel->scheduled;
+        task->numWait++;
+        taosThreadCondWait(&task->waitCond, &async->mutex);
+        task->numWait--;
+        if (task->numWait == 0) {
+          taosThreadCondDestroy(&task->waitCond);
+          taosMemoryFree(task);
         }
 
         taosMemoryFree(channel);
