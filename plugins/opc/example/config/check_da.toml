@@ -1,0 +1,7 @@
+opc_type = "opcda"
+debug = false
+
+
+[connect.da]  # opc da config.
+server = "Matrikon.OPC.Simulation.1" # opc da server
+nodes = ["localhost"] # opc da nodes

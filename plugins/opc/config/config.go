@@ -1,19 +1,19 @@
-package common
+package config
 
 import (
 	"errors"
 	"fmt"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/BurntSushi/toml"
 )
 
+const opcSchema = "opc.tcp"
+
 const (
 	OpcTypeUA          = "opcua"
 	OpcTypeDA          = "opcda"
-	OpcTypeFake        = "fake"
 	OpcUaObserveType   = "observe"
 	OPcUaSubscribeType = "subscribe"
 )
@@ -87,16 +87,13 @@ type DaCollectConfig struct {
 
 type NodeConfig struct {
 	ID string `json:"id,omitempty" yaml:"id" toml:"id"` // namespace=?;identifierType=identifier, ns=2;i=2. node_id for ua
-	//ValueType string `json:"value_type,omitempty" yaml:"value_type" toml:"value_type"`
 }
 
 type TagConfig struct {
 	Tag string `json:"tag,omitempty" yaml:"tag" toml:"tag"` // tag for opcda
-	//ValueType string `json:"value_type,omitempty" yaml:"value_type" toml:"value_type"`
 }
 
 type ReportConfig struct {
-	Fake         bool   `json:"fake,omitempty" yaml:"fake" toml:"fake"`
 	Remote       string `json:"remote,omitempty" yaml:"remote" toml:"remote"` //  taosx's address. ip:port
 	Concurrent   int    `json:"concurrent,omitempty" yaml:"concurrent" toml:"concurrent"`
 	BatchSize    int    `json:"batch_size,omitempty" yaml:"batch_size" toml:"batch_size"`
@@ -154,7 +151,7 @@ var policies = []string{"None", "Basic128Rsa15", "Basic256", "Basic256Sha256", "
 	"Aes256_Sha256_RsaPss"}
 
 func (c *UaConnectConfig) validateSecurityPolicy() error {
-	if !InSlice[string](c.SecurityPolicy, policies) {
+	if !Contains(policies, c.SecurityPolicy) {
 		return fmt.Errorf("invalid security policy %q", c.SecurityPolicy)
 	}
 	if c.SecurityPolicy != "None" && (len(c.Certificate) == 0 || len(c.PrivateKey) == 0) {
@@ -166,7 +163,7 @@ func (c *UaConnectConfig) validateSecurityPolicy() error {
 var modes = []string{"None", "Sign", "SignAndEncrypt"}
 
 func (c *UaConnectConfig) validateSecurityMode() error {
-	if !InSlice(c.SecurityMode, modes) {
+	if !Contains(modes, c.SecurityMode) {
 		return fmt.Errorf("invalid security type %q", c.SecurityMode)
 	}
 	if c.SecurityMode != "None" && (len(c.Certificate) == 0 || len(c.PrivateKey) == 0) {
@@ -178,7 +175,7 @@ func (c *UaConnectConfig) validateSecurityMode() error {
 var authMethods = []string{"certificate", "username", "anonymous"}
 
 func (c *UaConnectConfig) validateAuthMethod() error {
-	if !InSlice[string](strings.ToLower(c.AuthMethod), authMethods) {
+	if !Contains(authMethods, strings.ToLower(c.AuthMethod)) {
 		return fmt.Errorf("invalid auth method %q", c.AuthMethod)
 	}
 	if strings.ToLower(c.AuthMethod) == "username" && (len(c.Username) == 0 || len(c.Password) == 0) {
@@ -208,6 +205,13 @@ func (c *UaCollectConfig) Validate() error {
 	return nil
 }
 
+func (c *DaCollectConfig) Validate() error {
+	if len(c.Tags) == 0 {
+		return fmt.Errorf("tags is null")
+	}
+	return nil
+}
+
 func (r *ReportConfig) Validate() error {
 	if len(r.Remote) == 0 {
 		return fmt.Errorf("config error. taosx's address is null")
@@ -216,7 +220,7 @@ func (r *ReportConfig) Validate() error {
 		r.Concurrent = 1
 	}
 	if r.BatchSize == 0 {
-		r.BatchSize = 1
+		r.BatchSize = 1000
 	}
 	if r.BatchTimeout == 0 {
 		r.BatchTimeout = 2
@@ -240,31 +244,63 @@ func (c *PointsConfig) Validate() {
 	}
 }
 
-type NodeValue struct {
-	Identifier string    `json:"identifier,omitempty"`
-	Name       string    `json:"name,omitempty"`
-	Timestamp  time.Time `json:"timestamp,omitempty"`
-	Now        time.Time `json:"now,omitempty"`
-	Value      any       `json:"value,omitempty"`
-	ValueType  ValueType `json:"value_type,omitempty"`
-	Status     int64     `json:"status,omitempty"`
+func (c *Config) ValidateConnect() error {
+	switch c.OpcType {
+	case OpcTypeDA:
+		return c.Connect.Da.Validate()
+	case OpcTypeUA:
+		return c.Connect.Ua.Validate()
+	default:
+		return fmt.Errorf("opc type %s is not support", c.OpcType)
+	}
 }
 
-type Point struct {
-	ID   string `json:"id,omitempty"`
-	Name string `json:"name,omitempty"`
+func (c *Config) ValidateGetPoints() error {
+	switch c.OpcType {
+	case OpcTypeDA:
+		return c.Connect.Da.Validate()
+	case OpcTypeUA:
+		c.Points.Validate()
+		return c.Connect.Ua.Validate()
+	default:
+		return fmt.Errorf("opc type %s is not support", c.OpcType)
+	}
 }
 
-type NodeValues []*NodeValue
-
-func (n NodeValues) Len() int {
-	return len(n)
-}
-
-func (n NodeValues) Less(i, j int) bool {
-	return n[i].Timestamp.Before(n[j].Timestamp)
-}
-
-func (n NodeValues) Swap(i, j int) {
-	n[i], n[j] = n[j], n[i]
+func (c *Config) ValidateCollect() error {
+	var errs []error
+	switch c.OpcType {
+	case OpcTypeDA:
+		err := c.Connect.Da.Validate()
+		if err != nil {
+			errs = append(errs, err)
+		}
+		err = c.Report.Validate()
+		if err != nil {
+			errs = append(errs, err)
+		}
+		err = c.Collect.Da.Validate()
+		if err != nil {
+			errs = append(errs, err)
+		}
+	case OpcTypeUA:
+		err := c.Collect.Ua.Validate()
+		if err != nil {
+			errs = append(errs, err)
+		}
+		err = c.Report.Validate()
+		if err != nil {
+			errs = append(errs, err)
+		}
+		err = c.Collect.Ua.Validate()
+		if err != nil {
+			errs = append(errs, err)
+		}
+	default:
+		return fmt.Errorf("opc type %s is not support", c.OpcType)
+	}
+	if len(errs) > 0 {
+		return errs[0]
+	}
+	return nil
 }
