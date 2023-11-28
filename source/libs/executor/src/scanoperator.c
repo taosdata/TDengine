@@ -3284,7 +3284,7 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
 
     pOperator->resultInfo.totalRows += pBlock->info.rows;
     pInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
-
+    uInfo("getBlockForTableMergeScan retrieved one block");
     return pBlock;
   }
 
@@ -3318,6 +3318,11 @@ int32_t dumpQueryTableCond(const SQueryTableDataCond* src, SQueryTableDataCond* 
     dst->colList[i] = src->colList[i];
   }
   return 0;
+}
+
+void tableMergeScanTsdbNotifyCb(ETsdReaderNotifyType type, STsdReaderNotifyInfo* info, void* param) {
+  uInfo("tableMergeScanTsdbNotifyCb, %d, %d", type, info->duration.fileSetId);
+  return;
 }
 
 int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
@@ -3368,7 +3373,7 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   STableKeyInfo* startKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, tableStartIdx);
   pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInfo->base.cond, startKeyInfo, numOfTable, pInfo->pReaderBlock,
                                 (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), false, &pInfo->mSkipTables);
-
+  pAPI->tsdReader.tsdSetSetNotifyCb(pInfo->base.dataReader, tableMergeScanTsdbNotifyCb, pInfo);
   SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
   ps->param = param;
   ps->onlyRef = false;
