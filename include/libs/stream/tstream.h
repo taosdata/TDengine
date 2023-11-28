@@ -50,6 +50,10 @@ extern "C" {
     (_t)->hTaskInfo.id.streamId = 0;       \
   } while (0)
 
+#define STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID (-1)
+#define STREAM_EXEC_START_ALL_TASKS_ID     (-2)
+#define STREAM_EXEC_RESTART_ALL_TASKS_ID   (-3)
+
 typedef struct SStreamTask   SStreamTask;
 typedef struct SStreamQueue  SStreamQueue;
 typedef struct SStreamTaskSM SStreamTaskSM;
