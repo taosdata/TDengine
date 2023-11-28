@@ -20,6 +20,7 @@ use arrow::{
     ipc::FixedSizeBinary,
     record_batch::RecordBatch,
 };
+use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -134,8 +135,8 @@ impl Parse for FieldParser {
             FieldParser::Alias { alias } => {
                 let batch = RecordBatch::try_from_iter([(alias, array.clone())])?;
                 Ok((batch, None))
-            },
-            FieldParser::Split(split) => split.parse_array(field, array)
+            }
+            FieldParser::Split(split) => split.parse_array(field, array),
         }
     }
 }
@@ -156,8 +157,9 @@ impl TransformExt for ParserImpl {
         let schema = records.schema();
         let metadata = schema.metadata().clone();
 
-        let mut new_fields = vec![];
-        let mut new_data = vec![];
+        let mut old_fields = vec![];
+        let mut fields = vec![];
+        let mut columns = vec![];
 
         for field in schema.fields() {
             let name = field.name();
@@ -173,18 +175,36 @@ impl TransformExt for ParserImpl {
                 // dbg!(&batch);
                 debug_assert!(indices.is_none(), "Indices not supported currently");
                 for field in batch.schema().fields() {
-                    new_fields.push(field.as_ref().clone());
+                    fields.push(field.clone());
                     let array = batch.column_by_name(field.name()).unwrap();
-                    new_data.push(array.clone());
+                    columns.push(array.clone());
                 }
             } else {
-                new_fields.push(field.as_ref().clone());
-                new_data.push(array.clone());
+                old_fields.push(field);
             }
         }
-        let schema = Schema::new_with_metadata(new_fields, metadata);
+
+        let (fields, columns): (Vec<_>, Vec<_>) = old_fields
+            .iter()
+            .map(|f| f.name().clone())
+            .chain(fields.iter().map(|f| f.name().clone()))
+            .unique()
+            .map(|name| {
+                if let Some((idx, field)) =
+                    fields.iter().find_position(|field| name == *field.name())
+                {
+                    (field.clone(), columns[idx].clone())
+                } else {
+                    (
+                        schema.fields().find(&name).map(|(_, f)| f.clone()).unwrap(),
+                        records.column_by_name(&name).unwrap().clone(),
+                    )
+                }
+            })
+            .unzip();
+        let schema = Schema::new_with_metadata(fields, metadata);
         // tracing::info!("parsed schema: {schema:?}");
-        let batch = RecordBatch::try_new(Arc::new(schema), new_data)?;
+        let batch = RecordBatch::try_new(Arc::new(schema), columns)?;
         // tracing::info!("parsed records: {batch:?}");
         Ok(batch)
     }
