@@ -4060,8 +4060,6 @@ _err:
   return code;
 }
 
-void tsdbReaderSetNotifyFn(STsdbReader* pReader, )
-
 void tsdbReaderClose2(STsdbReader* pReader) {
   if (pReader == NULL) {
     return;
