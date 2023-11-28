@@ -15,270 +15,208 @@ pub struct Split {
     split: SplitImpl,
 }
 
+impl Parse for Split {
+    fn num_rows_will_be_changed(&self) -> bool {
+        self.split.num_rows_will_be_changed()
+    }
+
+    fn num_columns_will_be_changed(&self) -> bool {
+        self.split.num_columns_will_be_changed()
+    }
+
+    fn parse_array(
+        &self,
+        field: &Field,
+        array: &ArrayRef,
+    ) -> Result<(RecordBatch, Option<Vec<usize>>), super::ParseError> {
+        self.split.parse_array(field, array)
+    }
+}
+
 #[derive(Debug, Error)]
 #[error("Invalid split rule, error: {error:?}")]
 pub struct SplitError {
     error: String,
 }
 
-impl Parse for Split {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SplitImpl {
+    #[serde(flatten)]
+    sep: SplitOps,
+    n: Option<usize>,
+    reverse: Option<bool>,
+    keep: Option<bool>,
+    inplace: Option<bool>,
+    #[serde(default)]
+    names: Vec<String>,
+}
+
+impl Parse for SplitImpl {
     fn num_rows_will_be_changed(&self) -> bool {
-        match &self.split {
-            SplitImpl::SplitBySep(split) => split.num_rows_will_be_changed(),
-            SplitImpl::SplitBySeps(split) => split.num_rows_will_be_changed(),
-            SplitImpl::SplitByAt(split) => split.num_rows_will_be_changed(),
-        }
+        false
     }
 
     fn num_columns_will_be_changed(&self) -> bool {
-        match &self.split {
-            SplitImpl::SplitBySep(split) => split.num_columns_will_be_changed(),
-            SplitImpl::SplitBySeps(split) => split.num_columns_will_be_changed(),
-            SplitImpl::SplitByAt(split) => split.num_columns_will_be_changed(),
-        }
+        self.names.len() > 1 || !self.keep.unwrap_or(false)
     }
 
     fn parse_array(
         &self,
-        field: &arrow::datatypes::Field,
-        array: &arrow::array::ArrayRef,
-    ) -> Result<(arrow::record_batch::RecordBatch, Option<Vec<usize>>), super::ParseError> {
-        match &self.split {
-            SplitImpl::SplitBySep(split) => split.parse_array(field, array),
-            SplitImpl::SplitBySeps(split) => split.parse_array(field, array),
-            SplitImpl::SplitByAt(split) => split.parse_array(field, array),
+        field: &Field,
+        array: &ArrayRef,
+    ) -> Result<(RecordBatch, Option<Vec<usize>>), super::ParseError> {
+        let (n, mut names) = match (self.n, self.names.len()) {
+            (Some(n), 0) => (
+                n,
+                (0..n)
+                    .map(|i| format!("{}_{}", field.name(), i))
+                    .collect_vec(),
+            ),
+            (Some(n), l) if n == l => (n, self.names.clone()),
+            (Some(n), l) => Err(SplitError {
+                error: format!("Expecting n({}) == names.len({})", n, l),
+            })?,
+            (None, 0) => Err(SplitError {
+                error: String::from("names should not be empty"),
+            })?,
+            (None, l) => (l, self.names.clone()),
+        };
+        // downcast field values to string
+        let array_utf8 = arrow::compute::cast(array, &DataType::Utf8)?;
+        // loop and split
+        let values: Vec<_> = array_utf8
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap()
+            .iter()
+            .map(|value| match value {
+                Some(value) => self
+                    .sep
+                    .split(value)
+                    .map(|vec| (0..n).map(|i| vec.get(i).cloned()).collect_vec()),
+                None => Ok(vec![None; n]),
+            })
+            .try_collect()?;
+        // new arrays
+        let mut arrays = Vec::new();
+        // whether reverse
+        if self.reverse.unwrap_or(false) {
+            names.reverse()
         }
+        // loop and package
+        for i in 0..n {
+            let datas = values.iter().map(|value| value[i]).collect_vec();
+            let array: ArrayRef = Arc::new(StringArray::from_iter(datas));
+            arrays.push((&names[i], array));
+        }
+        // whether remove
+        if self.keep.unwrap_or(false) {
+            arrays.push((field.name(), array.clone()));
+        }
+        let records = RecordBatch::try_from_iter(arrays).unwrap();
+        Ok((records, None))
     }
 }
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum SplitImpl {
-    SplitBySep(SplitBySepImpl),
-    SplitBySeps(SplitBySepsImpl),
-    SplitByAt(SplitByAtImpl),
+enum SplitOps {
+    At { at: usize },
+    Ats { at: Vec<usize> },
+    Sep { sep: String },
+    Seps { sep: Vec<String> },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SplitBySepImpl {
-    field: String,
-    sep: char,
-    n: usize,
-    reverse: Option<bool>,
-    remove: Option<bool>,
-    inplace: Option<bool>,
-    names: Vec<String>,
-}
-
-impl Parse for SplitBySepImpl {
-    fn num_rows_will_be_changed(&self) -> bool {
-        false
-    }
-
-    fn num_columns_will_be_changed(&self) -> bool {
-        self.n > 1 || !self.remove.unwrap_or(false)
-    }
-
-    fn parse_array(
-        &self,
-        field: &Field,
-        array: &ArrayRef,
-    ) -> Result<(RecordBatch, Option<Vec<usize>>), super::ParseError> {
-        // check field name
-        if field.name() != &self.field {
-            Err(SplitError {
-                error: String::from("inconsistent field name"),
-            })?;
-        }
-        // check if names.len = n
-        if self.names.len() != self.n {
-            Err(SplitError {
-                error: String::from("names.len != n"),
-            })?;
-        }
-        // downcast field values to string
-        let array_utf8 = arrow::compute::cast(array, &DataType::Utf8)?;
-        // loop and split
-        let values: Vec<_> = array_utf8
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .unwrap()
-            .iter()
-            .map(|value| match value {
-                Some(value) => {
-                    let mut strs: Vec<&str> = value.split(self.sep).collect();
-                    strs.resize(self.n, "");
-                    strs
+impl SplitOps {
+    pub fn split<'a>(&self, str: &'a str) -> Result<Vec<&'a str>, SplitError> {
+        match self {
+            SplitOps::At { at } => {
+                if *at > str.len() {
+                    Err(SplitError {
+                        error: format!(
+                            "Expecting position at({at}) <= len({len})",
+                            at = at,
+                            len = str.len()
+                        ),
+                    })?;
                 }
-                None => vec![""; self.n],
-            })
-            .collect_vec();
-        // new arrays
-        let mut arrays = Vec::new();
-        let mut names = self.names.clone();
-        // whether reverse
-        if self.reverse.unwrap_or(false) {
-            names.reverse()
-        }
-        // loop and package
-        for i in 0..self.n {
-            let datas = values.iter().map(|value| Some(value[i])).collect_vec();
-            let array: ArrayRef = Arc::new(StringArray::from_iter(datas));
-            arrays.push((&names[i], array));
-        }
-        // whether remove
-        if !self.remove.unwrap_or(false) {
-            arrays.push((field.name(), array.clone()));
-        }
-        let records = RecordBatch::try_from_iter(arrays).unwrap();
-        Ok((records, None))
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SplitBySepsImpl {
-    field: String,
-    sep: Vec<char>,
-    n: usize,
-    reverse: Option<bool>,
-    remove: Option<bool>,
-    inplace: Option<bool>,
-    names: Vec<String>,
-}
-
-impl Parse for SplitBySepsImpl {
-    fn num_rows_will_be_changed(&self) -> bool {
-        false
-    }
-
-    fn num_columns_will_be_changed(&self) -> bool {
-        self.n > 1 || !self.remove.unwrap_or(false)
-    }
-
-    fn parse_array(
-        &self,
-        field: &Field,
-        array: &ArrayRef,
-    ) -> Result<(RecordBatch, Option<Vec<usize>>), super::ParseError> {
-        // check field name
-        if field.name() != &self.field {
-            Err(SplitError {
-                error: String::from("inconsistent field name"),
-            })?;
-        }
-        // check if names.len = n
-        if self.names.len() != self.n {
-            Err(SplitError {
-                error: String::from("names.len != n"),
-            })?;
-        }
-        // downcast field values to string
-        let array_utf8 = arrow::compute::cast(array, &DataType::Utf8)?;
-        // loop and split
-        let values: Vec<_> = array_utf8
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .unwrap()
-            .iter()
-            .map(|value| match value {
-                Some(value) => {
-                    let mut strs: Vec<&str> = value.split_terminator(self.sep.as_slice()).collect();
-                    strs.resize(self.n, "");
-                    strs
+                let (first, last) = str.split_at(*at);
+                Ok(vec![first, last])
+            }
+            SplitOps::Ats { at } => {
+                let mut strs: Vec<&str> = Vec::new();
+                let mut last = 0;
+                for i in at {
+                    if *i > str.len() {
+                        Err(SplitError {
+                            error: format!(
+                                "Expecting position at({at}) <= len({len})",
+                                at = i,
+                                len = str.len()
+                            ),
+                        })?;
+                    }
+                    let (first, _) = str.split_at(*i);
+                    strs.push(&first[last..]);
+                    last = *i;
                 }
-                None => vec![""; self.n],
-            })
-            .collect_vec();
-        // new arrays
-        let mut arrays = Vec::new();
-        let mut names = self.names.clone();
-        // whether reverse
-        if self.reverse.unwrap_or(false) {
-            names.reverse()
-        }
-        // loop and package
-        for i in 0..self.n {
-            let datas = values.iter().map(|value| Some(value[i])).collect_vec();
-            let array: ArrayRef = Arc::new(StringArray::from_iter(datas));
-            arrays.push((&names[i], array));
-        }
-        // whether remove
-        if !self.remove.unwrap_or(false) {
-            arrays.push((field.name(), array.clone()));
-        }
-        let records = RecordBatch::try_from_iter(arrays).unwrap();
-        Ok((records, None))
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SplitByAtImpl {
-    field: String,
-    at: usize,
-    remove: Option<bool>,
-    inplace: Option<bool>,
-    names: Vec<String>,
-}
-
-impl Parse for SplitByAtImpl {
-    fn num_rows_will_be_changed(&self) -> bool {
-        false
-    }
-
-    fn num_columns_will_be_changed(&self) -> bool {
-        true
-    }
-
-    fn parse_array(
-        &self,
-        field: &Field,
-        array: &ArrayRef,
-    ) -> Result<(RecordBatch, Option<Vec<usize>>), super::ParseError> {
-        // check field name
-        if field.name() != &self.field {
-            Err(SplitError {
-                error: String::from("inconsistent field name"),
-            })?;
-        }
-        // check if names.len = 2
-        if self.names.len() != 2 {
-            Err(SplitError {
-                error: String::from("names.len != 2"),
-            })?;
-        }
-        // downcast field values to string
-        let array_utf8 = arrow::compute::cast(array, &DataType::Utf8)?;
-        // loop and split
-        let values: Vec<_> = array_utf8
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .unwrap()
-            .iter()
-            .map(|value| match value {
-                Some(value) => {
-                    let (first, last) = value.split_at(self.at);
-                    vec![first, last]
+                strs.push(&str[last..]);
+                Ok(strs)
+            }
+            SplitOps::Sep { sep } => Ok(str.split(sep).collect()),
+            SplitOps::Seps { sep } => {
+                if sep.is_empty() {
+                    Err(SplitError {
+                        error: String::from("Expecting separators num > 0"),
+                    })?;
                 }
-                None => vec![""; 2],
-            })
-            .collect_vec();
-        // new arrays
-        let mut arrays = Vec::new();
-        // loop and package
-        for i in 0..2 {
-            let datas = values.iter().map(|value| Some(value[i])).collect_vec();
-            let array: ArrayRef = Arc::new(StringArray::from_iter(datas));
-            arrays.push((&self.names[i], array));
+                fn split_iter<'a>(str: &'a str, sep: &[String]) -> Vec<&'a str> {
+                    debug_assert!(!sep.is_empty());
+                    str.split(&sep[0])
+                        .flat_map(|s| {
+                            if sep.len() > 1 {
+                                split_iter(s, &sep[1..])
+                            } else {
+                                vec![s]
+                            }
+                        })
+                        .collect()
+                }
+                Ok(split_iter(str, &sep))
+            }
         }
-        // whether remove
-        if !self.remove.unwrap_or(false) {
-            arrays.push((field.name(), array.clone()));
-        }
-        let records = RecordBatch::try_from_iter(arrays).unwrap();
-        Ok((records, None))
     }
 }
 
+#[test]
+fn split_ops() {
+    let str = "abcdef,gh ijklm nop,qrst.uvw";
+    let ops = SplitOps::Sep {
+        sep: String::from(","),
+    };
+    let strs = ops.split(str).unwrap();
+    dbg!(&strs);
+    assert_eq!(strs, ["abcdef", "gh ijklm nop", "qrst.uvw"]);
+    let ops = SplitOps::Seps {
+        sep: vec![String::from(" "), String::from(","), String::from(".")],
+    };
+    let strs = ops.split(str).unwrap();
+    dbg!(&strs);
+    assert_eq!(strs, ["abcdef", "gh", "ijklm", "nop", "qrst", "uvw"]);
+    let ops = SplitOps::At { at: 4 };
+    let strs = ops.split(str).unwrap();
+    dbg!(&strs);
+    assert_eq!(strs, ["abcd", "ef,gh ijklm nop,qrst.uvw"]);
+    let ops = SplitOps::Ats { at: vec![2, 4, 8] };
+    let strs = ops.split(str).unwrap();
+    dbg!(&strs);
+    assert_eq!(strs, ["ab", "cd", "ef,g", "h ijklm nop,qrst.uvw"]);
+    let ops = SplitOps::Ats {
+        at: vec![2, 4, 8, 40],
+    };
+    let strs = ops.split(str);
+    dbg!(&strs);
+    assert!(strs.is_err());
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -319,7 +257,7 @@ mod tests {
                 "names": ["n1", "n2", "n3"]
             }
         }"#;
-        let split: Split = serde_json::from_str(split).unwrap();
+        let split: SplitImpl = serde_json::from_str(split).unwrap();
         dbg!(split.clone());
 
         let field = Field::new("field_name_1", DataType::Utf8, false);
@@ -346,7 +284,7 @@ mod tests {
                 "names": ["n1", "n2", "n3"]
             }
         }"#;
-        let split: Split = serde_json::from_str(split).unwrap();
+        let split: SplitImpl = serde_json::from_str(split).unwrap();
         dbg!(split.clone());
 
         let field = Field::new("field_name_2", DataType::Utf8, false);
@@ -371,7 +309,7 @@ mod tests {
                 "names": ["n1", "n2"]
             }
         }"#;
-        let split: Split = serde_json::from_str(split).unwrap();
+        let split: SplitImpl = serde_json::from_str(split).unwrap();
         dbg!(split.clone());
 
         let field = Field::new("field_name_3", DataType::Utf8, false);

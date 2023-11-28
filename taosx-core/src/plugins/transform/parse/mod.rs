@@ -98,8 +98,8 @@ pub(super) enum FieldParser {
     Regex(Regex),
     Cast(Cast),
     Alias { alias: String },
+    Split(Split),
     Json(Json),
-    Split(Split)
 }
 
 impl Parse for FieldParser {

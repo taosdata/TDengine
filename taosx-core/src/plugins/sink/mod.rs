@@ -2107,11 +2107,15 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
         batches += 1;
         let data_trace_id = create_data_trace_id(stream_trace_id, batches);
         let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
-        info!("Writing batch {}", data_trace_id_str);
         let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
         .unwrap();
+        info!(
+            trace.id = data_trace_id_str,
+            record.rows = record.num_rows(),
+            "Writing batch",
+        );
         let last = count;
         if let Err(err) = consume_flat_record(
             pool,

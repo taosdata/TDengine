@@ -23,4 +23,8 @@ impl FlatMessage {
     pub fn records(&self) -> &Vec<RecordMessage> {
         &self.records
     }
+
+    pub fn num_rows(&self) -> usize {
+        self.records.iter().map(|r| r.record.num_rows()).sum()
+    }
 }
