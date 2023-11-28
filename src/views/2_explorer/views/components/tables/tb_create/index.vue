@@ -271,7 +271,7 @@ export default {
     formTitle() {
       if (!this.isEdit) {
         if (this.$store.state.tables.formStatus == "createByStb") {
-          return this.$t("data.createTableUse").replace(
+          return this.$t("data.createsubTable").replace(
             /\{\}/,
             this.table_form.stbTmpl
           );

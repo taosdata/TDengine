@@ -1,6 +1,6 @@
 <template>
   <div class="create-stb">
-    <el-form :model="stable_form" :rules="rules">
+    <el-form :model="stable_form" :rules="rules" label-width="150px" ref="form">
       <el-form-item prop="name" class="name_input">
         <template slot="label">
           <span>{{ $t("name") }}</span>
@@ -29,9 +29,7 @@
           v-model="stable_form.ts_field_name"
           size="small"
         >
-          <template slot="prepend">
-            <span style="width: 108px; display: block">TIMESTAMP</span>
-          </template>
+        <div slot="prepend" style="width: 110px">TIMESTAMP</div>
         </el-input>
         <div
           class="flexCenter input_row"
@@ -191,7 +189,7 @@ export default {
           },
         ],
       },
-      activeNames: ["1"],
+      activeNames: ["1", "2"],
     };
   },
   mounted() {
@@ -238,18 +236,11 @@ export default {
 <style lang="scss" scoped>
 .input_row {
   margin-top: 18px;
-
-  ::v-deep {
-    .el-input__inner {
-      border-radius: 0px !important;
-    }
-    .el-input-number__decrease,
-    .el-input-number__increase {
-      height: 16px !important;
-    }
-  }
 }
-::v-deep {
+.create-stb ::v-deep {
+  .el-collapse {
+    border-top: 0;
+  }
   .el-form-item__content {
     display: flex;
   }
@@ -260,5 +251,47 @@ export default {
   .el-collapse-item__wrap {
     border-bottom: none !important;
   }
+}
+.columnPrependBtn {
+  width: 150px;
+  flex-shrink: 0;
+}
+.custom-length {
+  ::v-deep {
+    .el-input-number__decrease {
+      height: 16px;
+    }
+    .el-input-number__increase {
+      height: 16px;
+    }
+    .el-input {
+      .el-input__inner {
+        height: 32px !important;
+      }
+    }
+  }
+}
+.create-stb ::v-deep .el-input.is-disabled .el-input__inner,
+.create-stb ::v-deep .el-input-group__append,
+.create-stb ::v-deep .el-input-group__prepend {
+  background-color: unset;
+  color: #606266;
+  .el-button.is-disabled,
+  .el-button.is-disabled:hover,
+  .el-button.is-disabled:focus {
+    background-color: transparent;
+    border-color: transparent;
+  }
+}
+.create-stb ::v-deep .flexCenter .el-select .el-input__inner {
+  border-color: #dcdfe6;
+  border-right: none;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.create-stb ::v-deep .flexCenter .el-input .el-input__inner {
+  border-color: #dcdfe6;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 </style>
