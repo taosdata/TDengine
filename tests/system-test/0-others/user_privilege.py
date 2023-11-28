@@ -73,6 +73,7 @@ class TDTestCase:
                     tdSql.execute(f'insert into {self.stbname}_{i} values({j})')
             for i in range(self.stbnum_grant):
                 tdSql.execute(f'create table {self.stbname}_grant_{i} (ts timestamp, c0 int) tags(t0 int)')
+
     
     def user_read_privilege_check(self, dbname):
         testconn = taos.connect(user='test', password='test')        
