@@ -207,6 +207,8 @@ typedef struct SReaderStatus {
   SRowMerger            merger;
   SColumnInfoData*      pPrimaryTsCol;  // primary time stamp output col info data
   bool                  bProcMemPreFileset;
+  int64_t               memTableMaxKey;
+  int64_t               memTableMinKey;
 } SReaderStatus;
 
 struct STsdbReader {
