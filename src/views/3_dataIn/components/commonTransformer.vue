@@ -679,24 +679,45 @@ export default {
     },
     //创建或者查询
     async createST() {
-      try {
-        let payload = {
-          selected_db: this.$store.state.app.currentDBName,
-          stable_form: this.$refs.createstb.stable_form,
-        };
-        let result = await createStableReq(payload);
-        if (result?.desc) {
-          Message.error(this.$t(result.desc));
-          return;
+      this.$refs.createstb.$refs.form.validate(async valid => {
+        if (!valid) return false;
+        if (valid) {
+          try {
+            const { ts_field_name, tags, columns } = this.$refs.createstb.stable_form
+            if (!ts_field_name) {
+              return Message.warning(this.$t('dataIn.enterTip') + ' ' + this.$t('data.columnNameTip'))
+            }
+            for (let i = 0; i < columns.length; i++) {
+              const element = columns[i];
+              if (!element.field) {
+                return Message.warning(this.$t('dataIn.enterTip') + ' ' + this.$t('data.columnNameTip'))
+              }
+            }
+            for (let i = 0; i < tags.length; i++) {
+              const element = tags[i];
+              if (!element.field) {
+                return Message.warning(this.$t('dataIn.enterTip') + ' ' + this.$t('data.tagNameTip'))
+              }
+            }
+            let payload = {
+              selected_db: this.$store.state.app.currentDBName,
+              stable_form: this.$refs.createstb.stable_form,
+            };
+            let result = await createStableReq(payload);
+            if (result?.desc) {
+              Message.error(this.$t(result.desc));
+              return;
+            }
+            Message.success(this.$t("operateSucc"));
+            this.sruleForm.s_name = this.$refs.createstb.stable_form.ts_field_name
+            this.getInitStables();
+            this.closeDialog();
+          } catch (error) {
+            error.desc ? Message.error(error.desc) : "";
+            console.log(error);
+          }
         }
-        Message.success(this.$t("operateSucc"));
-        this.sruleForm.s_name = this.$refs.createstb.stable_form.ts_field_name
-        this.getInitStables();
-        this.closeDialog();
-      } catch (error) {
-        error.desc ? Message.error(error.desc) : "";
-        console.log(error);
-      }
+      })
     },
     //获取初始化的stables
     async getInitStables() {
