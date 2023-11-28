@@ -45,7 +45,8 @@
               class="nextbtn"
               >{{ $t("datasource.csvNext") }}</el-button
             >
-            <div class="csv-config" v-if="showConfig">
+            <CommonTransformer></CommonTransformer>
+            <!-- <div class="csv-config" v-if="showConfig">
               <ul class="csv-tableheader">
                 <li>{{ $t("datasource.csvcol") }}</li>
                 <li>{{ $t("datasource.dbcol") }}</li>
@@ -88,7 +89,7 @@
                   ></CsvColumn>
                 </li>
               </ul>
-            </div>
+            </div> -->
           </template>
         </CsvParameter>
       </el-tabs>
@@ -102,9 +103,10 @@ import { deepClone } from "@/utils";
 import { sendSQLReq } from "@/api/gateway/console";
 import { getCSVColumns } from "@/api/explorer/datain";
 import { Message } from "element-ui";
+import CommonTransformer from './commonTransformer.vue'
 export default {
   name: "CsvData",
-  components: { CsvParameter, CsvColumn },
+  components: { CsvParameter, CsvColumn,CommonTransformer },
   props: {
     isEditable: {
       type: Boolean,
@@ -331,6 +333,7 @@ export default {
             alias: item,
           };
         });
+        console.log(this.csvColumns,'this.csvColumns')
         this.localcsv = deepClone(this.csvParserConf);
         this.$store.commit("app/SET_CSV_PARSER", this.localcsv.parser);
         this.initDbOptions();
