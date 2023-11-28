@@ -125,7 +125,7 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
 static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_CHAR_POINT_FIELD(literal);
-  COPY_SCALAR_FIELD(isDuration);
+  COPY_SCALAR_FIELD(flag);
   COPY_SCALAR_FIELD(translate);
   COPY_SCALAR_FIELD(notReserved);
   COPY_SCALAR_FIELD(isNull);

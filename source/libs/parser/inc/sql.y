@@ -1096,11 +1096,15 @@ join_subtype(A) ::= WINDOW.                                                     
 
 window_offset_clause_opt(A) ::= .                                                 { A = NULL; }
 window_offset_clause_opt(A) ::= WINDOW_OFFSET NK_LP window_offset_literal(B) 
-  NK_COMMA window_offset_literal(C) NK_RP.                                           { A = createWindowOffsetNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
+  NK_COMMA window_offset_literal(C) NK_RP.                                        { A = createWindowOffsetNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
 
-window_offset_literal(A) ::= NK_VARIABLE(B).                                      { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
-window_offset_literal(A) ::= NK_INTEGER(B).                                       { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
-
+window_offset_literal(A) ::= NK_VARIABLE(B).                                      { A = createRawExprNode(pCxt, &B, createTimeOffsetValueNode(pCxt, &B)); }
+window_offset_literal(A) ::= NK_MINUS(B) NK_VARIABLE(C).                          {
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawExprNode(pCxt, &t, createTimeOffsetValueNode(pCxt, &t)); 
+                                                                                  }
+                                                                                  
 jlimit_clause_opt(A) ::= .                                                        { A = NULL; }
 jlimit_clause_opt(A) ::= JLIMIT NK_INTEGER(B).                                    { A = createLimitNode(pCxt, &B, NULL); }
 

@@ -659,12 +659,12 @@ int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* dura
   return getDuration(timestamp, *unit, duration, timePrecision);
 }
 
-int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision) {
+int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision, bool negativeAllow) {
   errno = 0;
 
   /* get the basic numeric value */
   *duration = taosStr2Int64(token, NULL, 10);
-  if (*duration < 0 || errno != 0) {
+  if ((*duration < 0 && !negativeAllow) || errno != 0) {
     return -1;
   }
 

@@ -1182,12 +1182,22 @@ static int32_t parseBoolFromValueNode(STranslateContext* pCxt, SValueNode* pVal)
 
 static EDealRes translateDurationValue(STranslateContext* pCxt, SValueNode* pVal) {
   if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit,
-                          pVal->node.resType.precision) != TSDB_CODE_SUCCESS) {
+                          pVal->node.resType.precision, false) != TSDB_CODE_SUCCESS) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
   }
   *(int64_t*)&pVal->typeData = pVal->datum.i;
   return DEAL_RES_CONTINUE;
 }
+
+static EDealRes translateTimeOffsetValue(STranslateContext* pCxt, SValueNode* pVal) {
+  if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &pVal->unit,
+                          pVal->node.resType.precision, true) != TSDB_CODE_SUCCESS) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+  }
+  *(int64_t*)&pVal->typeData = pVal->datum.i;
+  return DEAL_RES_CONTINUE;
+}
+
 
 static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, SDataType targetDt, bool strict) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1371,8 +1381,10 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
   pVal->node.resType.precision = getPrecisionFromCurrStmt(pCxt->pCurrStmt, targetDt.precision);
 
   EDealRes res = DEAL_RES_CONTINUE;
-  if (pVal->isDuration) {
+  if (IS_DURATION_VAL(pVal->flag)) {
     res = translateDurationValue(pCxt, pVal);
+  } else if (IS_TIME_OFFSET_VAL(pVal->flag)) {
+    res = translateTimeOffsetValue(pCxt, pVal);
   } else {
     res = translateNormalValue(pCxt, pVal, targetDt, strict);
   }
@@ -2861,7 +2873,6 @@ static EDealRes doTranslateTbName(SNode** pNode, void* pContext) {
           pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
           return DEAL_RES_ERROR;
         }
-        pVal->isDuration = false;
         pVal->translate = true;
         pVal->node.resType.type = TSDB_DATA_TYPE_BINARY;
         pVal->node.resType.bytes = tbLen + VARSTR_HEADER_SIZE;
@@ -2914,6 +2925,7 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
 }
 
 static int32_t translateJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
+  int32_t code = TSDB_CODE_SUCCESS;
   EJoinType type = pJoinTable->joinType;
   EJoinSubType* pSType = &pJoinTable->subType;
 
@@ -2935,17 +2947,20 @@ static int32_t translateJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoin
       break;
   }
 
-  if (NULL != pJoinTable->pWindowOffset && *pSType != JOIN_STYPE_WIN) {
-    return buildInvalidOperationMsg(&pCxt->msgBuf, "WINDOW_OFFSET only supported for WINDOW join");
-  }
-  if (NULL == pJoinTable->pWindowOffset && *pSType == JOIN_STYPE_WIN) {
+  if (NULL != pJoinTable->pWindowOffset) {
+    if (*pSType != JOIN_STYPE_WIN) {
+      return buildInvalidOperationMsg(&pCxt->msgBuf, "WINDOW_OFFSET only supported for WINDOW join");
+    }
+    code = translateExpr(pCxt, &pJoinTable->pWindowOffset);
+  } else if (*pSType == JOIN_STYPE_WIN) {
     return buildInvalidOperationMsg(&pCxt->msgBuf, "WINDOW_OFFSET required for WINDOW join");
   }
-  if (NULL != pJoinTable->pJLimit && *pSType != JOIN_STYPE_ASOF && *pSType != JOIN_STYPE_WIN) {
+  
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinTable->pJLimit && *pSType != JOIN_STYPE_ASOF && *pSType != JOIN_STYPE_WIN) {
     return buildInvalidOperationMsgExt(&pCxt->msgBuf, "JLIMIT not supported for %s join", getFullJoinTypeString(type, *pSType));
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t translateTable(STranslateContext* pCxt, SNode** pTable) {
@@ -3841,7 +3856,7 @@ static int32_t createDefaultEveryNode(STranslateContext* pCxt, SNode** pOutput) 
 
   pEvery->node.resType.type = TSDB_DATA_TYPE_BIGINT;
   pEvery->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
-  pEvery->isDuration = true;
+  pEvery->flag |= VALUE_FLAG_IS_DURATION;
   pEvery->literal = taosStrdup("1s");
 
   *pOutput = (SNode*)pEvery;
@@ -4746,7 +4761,7 @@ static int64_t getUnitPerMinute(uint8_t precision) {
 }
 
 static int64_t getBigintFromValueNode(SValueNode* pVal) {
-  if (pVal->isDuration) {
+  if (IS_DURATION_VAL(pVal->flag)) {
     return pVal->datum.i / getUnitPerMinute(pVal->node.resType.precision);
   }
   return pVal->datum.i;
@@ -4863,12 +4878,12 @@ static int32_t checkDbKeepOption(STranslateContext* pCxt, SDatabaseOptions* pOpt
     if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
       return pCxt->errCode;
     }
-    if (pVal->isDuration && TIME_UNIT_MINUTE != pVal->unit && TIME_UNIT_HOUR != pVal->unit &&
+    if (IS_DURATION_VAL(pVal->flag) && TIME_UNIT_MINUTE != pVal->unit && TIME_UNIT_HOUR != pVal->unit &&
         TIME_UNIT_DAY != pVal->unit) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                      "Invalid option keep unit: %c, only m, h, d allowed", pVal->unit);
     }
-    if (!pVal->isDuration) {
+    if (!IS_DURATION_VAL(pVal->flag)) {
       pVal->datum.i = pVal->datum.i * 1440;
     }
   }
@@ -5010,16 +5025,16 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
     SValueNode* pFreq = (SValueNode*)nodesListGetNode(((SNodeListNode*)pRetention)->pNodeList, 0);
     SValueNode* pKeep = (SValueNode*)nodesListGetNode(((SNodeListNode*)pRetention)->pNodeList, 1);
 
-    ASSERTS(pFreq->isDuration && pKeep->isDuration, "Retentions freq/keep should have unit");
+    ASSERTS(IS_DURATION_VAL(pFreq->flag) && IS_DURATION_VAL(pKeep->flag), "Retentions freq/keep should have unit");
 
     // check unit
-    if (pFreq->isDuration && TIME_UNIT_SECOND != pFreq->unit && TIME_UNIT_MINUTE != pFreq->unit &&
+    if (IS_DURATION_VAL(pFreq->flag) && TIME_UNIT_SECOND != pFreq->unit && TIME_UNIT_MINUTE != pFreq->unit &&
         TIME_UNIT_HOUR != pFreq->unit && TIME_UNIT_DAY != pFreq->unit && TIME_UNIT_WEEK != pFreq->unit) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                      "Invalid option retentions(freq): %s, only s, m, h, d, w allowed", pFreq->literal);
     }
 
-    if (pKeep->isDuration && TIME_UNIT_MINUTE != pKeep->unit && TIME_UNIT_HOUR != pKeep->unit &&
+    if (IS_DURATION_VAL(pKeep->flag) && TIME_UNIT_MINUTE != pKeep->unit && TIME_UNIT_HOUR != pKeep->unit &&
         TIME_UNIT_DAY != pKeep->unit) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                      "Invalid option retentions(keep): %s, only m, h, d allowed", pKeep->literal);
@@ -5970,7 +5985,7 @@ static SNode* makeIntervalVal(SRetention* pRetension, int8_t precision) {
     nodesDestroyNode((SNode*)pVal);
     return NULL;
   }
-  pVal->isDuration = true;
+  pVal->flag |= VALUE_FLAG_IS_DURATION;
   pVal->node.resType.type = TSDB_DATA_TYPE_BIGINT;
   pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
   pVal->node.resType.precision = precision;

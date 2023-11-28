@@ -788,7 +788,7 @@ static int32_t msgToColumnNode(STlvDecoder* pDecoder, void* pObj) {
 enum {
   VALUE_CODE_EXPR_BASE = 1,
   VALUE_CODE_LITERAL,
-  VALUE_CODE_IS_DURATION,
+  VALUE_CODE_FLAG,
   VALUE_CODE_TRANSLATE,
   VALUE_CODE_NOT_RESERVED,
   VALUE_CODE_IS_NULL,
@@ -849,7 +849,7 @@ static int32_t valueNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     code = tlvEncodeCStr(pEncoder, VALUE_CODE_LITERAL, pNode->literal);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeBool(pEncoder, VALUE_CODE_IS_DURATION, pNode->isDuration);
+    code = tlvEncodeI32(pEncoder, VALUE_CODE_FLAG, pNode->flag);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, VALUE_CODE_TRANSLATE, pNode->translate);
@@ -972,8 +972,8 @@ static int32_t msgToValueNode(STlvDecoder* pDecoder, void* pObj) {
       case VALUE_CODE_LITERAL:
         code = tlvDecodeCStrP(pTlv, &pNode->literal);
         break;
-      case VALUE_CODE_IS_DURATION:
-        code = tlvDecodeBool(pTlv, &pNode->isDuration);
+      case VALUE_CODE_FLAG:
+        code = tlvDecodeI32(pTlv, &pNode->flag);
         break;
       case VALUE_CODE_TRANSLATE:
         code = tlvDecodeBool(pTlv, &pNode->translate);

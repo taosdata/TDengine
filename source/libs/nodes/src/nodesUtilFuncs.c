@@ -2396,7 +2396,6 @@ SValueNode* nodesMakeValueNodeFromString(char* literal) {
     pValNode->datum.p = p;
     pValNode->literal = tstrdup(literal);
     pValNode->translate = true;
-    pValNode->isDuration = false;
     pValNode->isNull = false;
   }
   return pValNode;
@@ -2409,7 +2408,6 @@ SValueNode* nodesMakeValueNodeFromBool(bool b) {
     pValNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
     nodesSetValueNodeValue(pValNode, &b);
     pValNode->translate = true;
-    pValNode->isDuration = false;
     pValNode->isNull = false;
   }
   return pValNode;

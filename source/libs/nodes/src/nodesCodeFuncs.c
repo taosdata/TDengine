@@ -3556,7 +3556,7 @@ static int32_t jsonToColumnNode(const SJson* pJson, void* pObj) {
 
 static const char* jkValueLiteralSize = "LiteralSize";
 static const char* jkValueLiteral = "Literal";
-static const char* jkValueDuration = "Duration";
+static const char* jkValueFlag = "Flag";
 static const char* jkValueTranslate = "Translate";
 static const char* jkValueNotReserved = "NotReserved";
 static const char* jkValueIsNull = "IsNull";
@@ -3640,7 +3640,7 @@ static int32_t valueNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddStringToObject(pJson, jkValueLiteral, pNode->literal);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddBoolToObject(pJson, jkValueDuration, pNode->isDuration);
+    code = tjsonAddBoolToObject(pJson, jkValueFlag, pNode->flag);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkValueTranslate, pNode->translate);
@@ -3794,7 +3794,7 @@ static int32_t jsonToValueNode(const SJson* pJson, void* pObj) {
     code = tjsonDupStringValue(pJson, jkValueLiteral, &pNode->literal);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBoolValue(pJson, jkValueDuration, &pNode->isDuration);
+    code = tjsonGetIntValue(pJson, jkValueFlag, &pNode->flag);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkValueTranslate, &pNode->translate);

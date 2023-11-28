@@ -99,10 +99,16 @@ typedef struct STargetNode {
   SNode*    pExpr;
 } STargetNode;
 
+#define VALUE_FLAG_IS_DURATION    (1 << 0)
+#define VALUE_FLAG_IS_TIME_OFFSET (1 << 1)
+
+#define IS_DURATION_VAL(_flag) ((_flag) & VALUE_FLAG_IS_DURATION)
+#define IS_TIME_OFFSET_VAL(_flag) ((_flag) & VALUE_FLAG_IS_TIME_OFFSET)
+
 typedef struct SValueNode {
   SExprNode node;  // QUERY_NODE_VALUE
   char*     literal;
-  bool      isDuration;
+  int32_t   flag;
   bool      translate;
   bool      notReserved;
   bool      isNull;
