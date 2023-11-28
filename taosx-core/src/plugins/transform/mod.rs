@@ -221,7 +221,7 @@ mod pipeline_tests {
         // With parser only
         let pipeline: Pipeline = serde_json::from_str(
             r#"{
-            "parse": { "payload": { "json": ["$.events[0].price=price::double", "value", "$.id=id::int"] } }
+            "parse": { "payload": { "json": ["$.events[0].price=price", "value", "$.id=id::int", "$.null=null"] } }
         }"#,
         )
         .unwrap();
@@ -234,7 +234,7 @@ mod pipeline_tests {
         // With parser and mutate
         let pipeline: Pipeline = serde_json::from_str(
             r#"{
-            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int"] } },
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int", "$.null=null"] } },
             "mutate": [{ "filter": "value > 1.2" }]
         }"#,
         )
@@ -248,7 +248,7 @@ mod pipeline_tests {
         // With parser, mutate and model
         let pipeline: Pipeline = serde_json::from_str(
             r#"{
-            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int"] } },
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int", "$.null=null"] } },
             "mutate": [{ "filter": "value > 1.2" }],
             "model": [{
                 "name": "d{id}",

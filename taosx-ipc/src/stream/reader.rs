@@ -596,6 +596,8 @@ mod arrow_to_taos {
         ParseIntError(String, std::num::ParseIntError),
         #[error("Parse {0} to float error: {1}")]
         ParseFloatError(String, std::num::ParseFloatError),
+        #[error("Null is not supported")]
+        NullIsNotSupported,
     }
 
     pub fn parse_str_into(
@@ -603,6 +605,9 @@ mod arrow_to_taos {
         data: Vec<Option<&str>>,
     ) -> Result<ColumnView, ParseError> {
         let view = match ty {
+            crate::prelude::IpcDataType::Null => {
+                return Err(ParseError::NullIsNotSupported);
+            }
             crate::prelude::IpcDataType::Bool => {
                 let v = data
                     .into_iter()
