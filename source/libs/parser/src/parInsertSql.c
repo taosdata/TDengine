@@ -55,6 +55,7 @@ typedef struct SInsertParseContext {
   bool           usingDuplicateTable;
   bool           forceUpdate;
   bool           needTableTagVal;
+  bool           needRequest;       // whether or not request server
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
@@ -1240,19 +1241,8 @@ static int32_t preParseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModif
 
 static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, STableDataCxt** pTableCxt) {
   if (pCxt->pComCxt->async) {
-    int32_t code = insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid),
+    return insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid),
                               pStmt->pTableMeta, &pStmt->pCreateTblReq, pTableCxt, false, false);
-    // record pTableCxt for one commit of current request
-    if (TSDB_CODE_SUCCESS == code && pTableCxt) {
-      if (NULL == pStmt->pTableCxtHashObj) {
-        pStmt->pTableCxtHashObj =
-            taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-      }
-      void* pData = *pTableCxt;
-      taosHashPut(pStmt->pTableCxtHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid), &pData,
-                  POINTER_BYTES);
-    }
-    return code;
   }
 
   char tbFName[TSDB_TABLE_FNAME_LEN];
@@ -2007,9 +1997,8 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
       (*pNumOfRows)++;
     }
 
-    if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) > tsMaxInsertBatchRows) {
+    if (TSDB_CODE_SUCCESS == code && (*pNumOfRows) >= tsMaxInsertBatchRows) {
       pStmt->fileProcessing = true;
-      (*pNumOfRows)--;
       break;
     }
 
@@ -2309,19 +2298,23 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
 
   // release old array alloced by merge
   pStmt->freeArrayFunc(pStmt->pVgDataBlocks);
+  pStmt->pVgDataBlocks = NULL;
+  bool fileOnly = (pStmt->insertType == TSDB_QUERY_TYPE_FILE_INSERT);
+  if (fileOnly) {
+    // none data, skip merge, buildvgdata 
+    if (0 == taosHashGetSize(pStmt->pTableCxtHashObj)) {
+      pCxt->needRequest = false;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
   // merge according to vgId
-  bool fileOnly = (pStmt->insertType == TSDB_QUERY_TYPE_FILE_INSERT) &&
-                  0 < taosHashGetSize(pStmt->pTableCxtHashObj);
   int32_t code = insMergeTableDataCxt(fileOnly ? pStmt->pTableCxtHashObj : pStmt->pTableBlockHashObj,
-                                      &pStmt->pVgDataBlocks, pStmt->fileProcessing, pStmt->fileProcessing);
+                                      &pStmt->pVgDataBlocks, pStmt->fileProcessing);
   // clear tmp hashobj only
   taosHashClear(pStmt->pTableCxtHashObj);
 
   if (TSDB_CODE_SUCCESS == code) {
-    // none data, return 
-    if ( 0 == taosArrayGetSize(pStmt->pVgDataBlocks)) {
-      return code;
-    }
     code = insBuildVgDataBlocks(pStmt->pVgroupsHashObj, pStmt->pVgDataBlocks, &pStmt->pDataBlocks);
   }
 
@@ -2763,6 +2756,7 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
                                  .msg = {.buf = pCxt->pMsg, .len = pCxt->msgLen},
                                  .missCache = false,
                                  .usingDuplicateTable = false,
+                                 .needRequest = true,
                                  .forceUpdate = (NULL != pCatalogReq ? pCatalogReq->forceUpdate : false)};
 
   int32_t code = initInsertQuery(&context, pCatalogReq, pMetaData, pQuery);
@@ -2777,5 +2771,10 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
     code = setRefreshMeta(*pQuery);
   }
   insDestroyBoundColInfo(&context.tags);
+
+  // if no data to insert, set emptyMode to avoid request server
+  if (!context.needRequest) {
+    (*pQuery)->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
+  }
   return code;
 }
