@@ -792,3 +792,4 @@ void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc) 
   pDst->activeCheckpointId = pSrc->activeCheckpointId;
   pDst->checkpointFailed = pSrc->checkpointFailed;
 }
+

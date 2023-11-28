@@ -276,6 +276,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
     int32_t code = buildDispatchRsp(pTask, pReq, status, &pRsp->pCont);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s failed to build dispatch rsp, msgId:%d, code:%s", id, pReq->msgId, tstrerror(code));
+      terrno = code;
       return code;
     }
 

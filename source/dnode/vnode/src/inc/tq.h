@@ -153,7 +153,6 @@ char*   tqOffsetBuildFName(const char* path, int32_t fVer);
 int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname);
 
 // tqStream
-int32_t tqResetStreamTaskStatus(STQ* pTq);
 int32_t tqStopStreamTasks(STQ* pTq);
 
 // tq util
