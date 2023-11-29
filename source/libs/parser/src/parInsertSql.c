@@ -1824,6 +1824,10 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
     if (TSDB_CODE_SUCCESS == code) {
       insCheckTableDataOrder(pTableDataCxt, TD_ROW_KEY(*pRow));
     }
+
+    void* pData = pTableDataCxt;
+    taosHashPut(pStmt->pTableCxtHashObj, &pStbRowsCxt->pCtbMeta->uid, sizeof(pStbRowsCxt->pCtbMeta->uid), &pData,
+                POINTER_BYTES);
   }
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -2016,6 +2020,12 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
 }
 
 static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SRowsDataContext rowsDataCxt) {
+  // init only for file
+  if (NULL == pStmt->pTableCxtHashObj) {
+    pStmt->pTableCxtHashObj =
+        taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  }
+
   int32_t numOfRows = 0;
   int32_t code = parseCsvFile(pCxt, pStmt, rowsDataCxt, &numOfRows);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2034,10 +2044,6 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
 
   // just record pTableCxt whose data come from file
   if (!pStmt->stbSyntax && numOfRows > 0) {
-    if (NULL == pStmt->pTableCxtHashObj) {
-      pStmt->pTableCxtHashObj =
-          taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-    }
     void* pData = rowsDataCxt.pTableDataCxt;
     taosHashPut(pStmt->pTableCxtHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid), &pData,
                 POINTER_BYTES);
@@ -2302,7 +2308,7 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifyOpSt
   pStmt->freeArrayFunc(pStmt->pVgDataBlocks);
   pStmt->pVgDataBlocks = NULL;
 
-  bool fileOnly = (!pStmt->stbSyntax && pStmt->insertType == TSDB_QUERY_TYPE_FILE_INSERT);
+  bool fileOnly = (pStmt->insertType == TSDB_QUERY_TYPE_FILE_INSERT);
   if (fileOnly) {
     // none data, skip merge & buildvgdata 
     if (0 == taosHashGetSize(pStmt->pTableCxtHashObj)) {
