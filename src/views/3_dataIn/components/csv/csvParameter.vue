@@ -157,11 +157,11 @@ export default {
     if (this.isEditable) {
       // this.ruleForm2.subname = this.echoData[0].model.name;
       // this.ruleForm2.tableName = this.echoData[0].model.using;
-      this.ruleForm.customcol = Object.keys(this.echoData[0].parse).join(",");
+      this.ruleForm.customcol = this.$store.state.app.csvTransformerlocalCols.length>0?this.$store.state.app.csvTransformerlocalCols.join(','):'';
       this.ruleForm.hasHeader =
         this.$store.state.app.hasheader == "true" ? true : false;
-      this.showStable = this.echoData[0].model?.tags?.length > 0 ? true : false;
-      this.$store.commit("SET_SHOW_CSV_STABLE", this.showStable);
+      // this.showStable = this.echoData[0].model?.tags?.length > 0 ? true : false;
+      // this.$store.commit("SET_SHOW_CSV_STABLE", this.showStable);
       this.showcustom = !this.ruleForm.hasHeader;
     }
     this.getDatabases();

@@ -1832,29 +1832,15 @@ export default {
           ],
           // trigger: { "resume": this.resume }
         };
-        if ((this.tagName == "mqtt" ||this.tagName == "kafka"||this.tagName=='csv') && isSubmit) {
-          // piParams["parser"] = this.$store.state.app.mqttParser;
+        if ((this.tagName == "mqtt" ||this.tagName == "kafka") && isSubmit) {
           piParams["parser"]=this.transformerParser
         }
-        // if (this.tagName == "kafka" && isSubmit) {
-        //   let value = this.$store.state.app.mqttParser.parse.payload;
-        //   piParams["parser"] = {
-        //     ...this.$store.state.app.mqttParser,
-        //     parse: {
-        //       value: {
-        //         ...value,
-        //         keep: false,
-        //       },
-        //       ts: {
-        //         as: `timestamp(${this.dbprecision})`,
-        //       },
-        //     },
-        //   };
-        // }
+        if(this.tagName=='csv'&& isSubmit){
+          piParams["parser"]=this.$refs.csvdata.transformerParser
+        }
         if (this.agentId) {
           piParams["via"] = this.agentId;
         }
-        console.log('csvbaocun保存---11',this.agentId,piParams);
         if (this.tagName == "csv" && isSubmit) {
           this.$refs.csvdata.$refs.param.submit();
           this.$refs.csvdata.$refs.param.submit2();

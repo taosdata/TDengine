@@ -456,7 +456,7 @@ export default {
         this.$store.commit("app/SET_CURRENT_AGENT", data?.via);
         this.$store.commit("app/SET_CURRENT_DSNAME", data.name);
         let editDdata = deepClone([].concat(data.from_detail));
-        if(data.from_detail.id=='mqtt'||data.from_expand.id == "kafka"){
+        if(data.from_detail.id=='mqtt'||data.from_expand.id == "kafka"||data.from_expand.id == "csv"){
           this.$store.commit('app/SET_TRANSFORM_PARSERDATA',data.parser)
         }
         if (data.from_expand && data.from_expand.id == "mqtt") {
@@ -529,9 +529,17 @@ export default {
 
         if (data.from_expand && data.from_expand.id == "csv") {
           this.$store.commit("app/SET_CSV_PARSER", data.parser);
+          
           this.$parent.echoData = deepClone([].concat(data.parser));
           let filelist = data.from.match(/(?<=csv:).*?(?=\?)/)[0];
           let hasheader = data.from.match(/(?<=has_header=).*/)[0];
+          let localCols=data.from.match(/(?<=header=).*/)[0]
+          console.log(data.from,localCols,'localCols');
+          if(localCols&&localCols.includes('=')){
+            this.$store.commit("app/SET_CSV_LOCAL_COLS", localCols.split("=")[1].split(','));
+
+            console.log(localCols,'localCols[0]',this.$store.state.app.csvTransformerlocalCols);
+          }
           this.$store.commit("app/SET_CSV_HASHEADER", hasheader);
           this.$store.commit("app/SET_CSV_FILES", filelist);
         }

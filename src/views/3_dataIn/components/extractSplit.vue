@@ -239,6 +239,11 @@ export default {
     },
     //提交单个
     submitExtract() {
+      console.log(
+        "调试csv----kk",
+        this.$parent.isCSV,
+        this.$store.state.app.csvTransformerParser
+      );
       let extractExpres = this.ruleForm.filter_expres.split(";");
       let inputList = [];
       inputList = this.$parent.msgForm.msgbody.split(";").map((msg) => {
@@ -281,17 +286,13 @@ export default {
         parser: {
           parse: {},
         },
-        input:this.$parent.isCSV?this.$store.state.app.csvTransformerParser.inputList: inputList,
+        input:this.$parent.isCSV?this.$store.state.app.csvTransformerParser?.inputList: inputList,
       };
       console.log(this.$parent.isCSV,'this.$parent.isCSV')
 
       parser.parser.parse = this.extractParseData;
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);
-      console.log(
-        parser,
-        "调试csv",
-        this.$store.state.app.csvTransformerParser.inputList
-      );
+      
       this.getParserData(parser);
     },
     deleteExtract() {

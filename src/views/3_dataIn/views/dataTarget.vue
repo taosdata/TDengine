@@ -379,6 +379,9 @@ export default {
         this.$store.commit('app/SET_TRANSFORM_COL_IDENTIFIED',[])
         this.$store.commit('app/SET_TRANSFORM_PARSERDATA',null)
         this.$store.commit('app/SET_TRANSFORMER_MAPCOLUMNS',null)
+        this.$store.commit('app/SET_CSV_LOCAL_COLS',[])
+        this.$store.commit('app/SET_CSV_TRANSFORMER_PARSER',null)
+    
    },
     },
     "$store.state.app.currentAgentID": {

@@ -17,7 +17,6 @@
               size="small"
               type="textarea"
             ></el-input>
-            <!-- <div v-html='msgForm.msgbody' v-else></div> -->
           </el-form-item>
         </el-form>
       </section>
@@ -227,7 +226,7 @@ export default {
   },
   data() {
     return {
-      isCSV:false,
+      isCSV: false,
       mapExpressionList: [
         "value",
         "generator",
@@ -321,19 +320,61 @@ export default {
     };
   },
   mounted() {
-    this.initColumnLists();
-    if (this.$parent.isEditable) {
+    if (this.parserColumns) {
+      this.initColumnLists(this.params_columns);
+    }
+    console.log(
+      this.$store.state.app.csvParser,
+      this.$store.state.app.csvTransformerParser,
+      this.$store.state.app.transformerParserData,
+      "this.$store.state.app.csvParser"
+    );
+    if (
+      this.$parent.isEditable ||
+      (this.$store.state.app.csvParser &&
+        Object.hasOwn(this.$store.state.app.csvParser, "parser"))
+    ) {
+      // 编辑状态
       this.echoParser(this.$store.state.app.transformerParserData);
     }
-
+    if (this.$store.state.app.csvTransformerParser) {
+      //CSV新增
+      this.isCSV = true;
+      this.msgForm.msgbody = this.$store.state.app.csvTransformerParser.msgBody;
+      this.formatCSVExtract(this.$store.state.app.csvTransformerParser.columns);
+    }
     this.getInitStables();
   },
   methods: {
     //编辑回显数据
     async echoParser(value) {
+      console.log(
+        this.extractArr,
+        value,
+        this.isCSV,
+        this.columnsArr,
+        this.$store.state.app.csvTransformerParser,
+        "this.extractArr--csv--echo"
+      );
+      let csvechoTransData = null;
+      if (this.$store.state.app.currentDBType == "csv") {
+        this.isCSV = true;
+        csvechoTransData = this.$store.state.app.csvTransformerParser;
+        let columns = csvechoTransData.columns.map((item) => {
+          return {
+            description: item,
+            name: item,
+            type: "varchar",
+            value: "",
+          };
+        });
+        this.initColumnLists(columns);
+      }
       this.msgForm.msgbody =
         this.$store.state.app.currentDBType == "mqtt"
           ? value.input.map((item) => item.payload).join(";")
+          : this.isCSV
+          ? csvechoTransData.msgBody
           : value.input.map((item) => item.value).join(";");
       Object.entries(value.parser.parse).map((item) => {
         let ind = this.columnsArr.findIndex((col) => col.name == item[0]);
@@ -346,12 +387,17 @@ export default {
           type: Object.keys(item[1]).toString(),
           columns: this.columnsArr,
         };
-        this.extractArr.push(obj);
+        if (this.columnsArr.length > 0) {
+          this.extractArr.push(obj);
+        }
       });
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", value.parser.parse);
       let echoMapData = [];
+      let isincludeFilter = false;
       value.parser.mutate.forEach((item) => {
         if (Object.keys(item).toString() == "filter") {
+          console.log("filter--回显示过滤filter");
+          isincludeFilter = true;
           let obj = {
             expression: item.filter,
             key: Math.random(),
@@ -373,11 +419,18 @@ export default {
         tableData: echoMapData,
       });
       this.$nextTick(() => {
+        console.log(
+          this.$refs.extract,
+          "this.$refs.extract",
+          this.filterArr,
+          "回西安filter"
+        );
         this.$refs.extract.map((comp) => {
           comp.submitExtract();
         });
-        // this.$refs.extract[this.$refs.extract.length - 1].submitExtract();
-        this.$refs.filter[0].submitFilter();
+        if (isincludeFilter) {
+          this.$refs.filter[0].submitFilter();
+        }
       });
 
       this.sruleForm.s_name = value.parser.model.using;
@@ -385,11 +438,11 @@ export default {
       await this.echoFetchMap();
     },
     //初始化列下拉框数据，适用于新增和编辑，拷贝
-    initColumnLists() {
+    initColumnLists(columns) {
       this.$set(
         this,
         "indentifiedColumns",
-        this.parserColumns.map((item) => {
+        columns.map((item) => {
           return {
             ...item,
             show: true,
@@ -399,7 +452,7 @@ export default {
       this.$set(
         this,
         "columnsArr",
-        this.parserColumns
+        columns
           .filter((val) => ["varchar", "nchar"].includes(val.type))
           .map((item) => {
             return {
@@ -492,9 +545,10 @@ export default {
                 map: mutateMap,
               }),
         },
-        input:this.isCSV?this.$store.state.app.csvTransformerParser.inputList: [].concat(this.generateInput()),
+        input: this.isCSV
+          ? this.$store.state.app.csvTransformerParser.inputList
+          : [].concat(this.generateInput()),
       };
-      console.log(this.$store.state.app.transformerFilterParseData,'mapping计算')
       this.mappingParser = parserData;
       this.getParserData(parserData);
     },
@@ -567,7 +621,9 @@ export default {
                 .concat(this.mappingParser.parser.mutate),
         },
 
-        input: this.isCSV?this.$store.state.app.csvTransformerParser.inputList:[].concat(this.generateInput()),
+        input: this.isCSV
+          ? this.$store.state.app.csvTransformerParser.inputList
+          : [].concat(this.generateInput()),
       };
       this.$emit("getTransformerParams", parserData);
     },
@@ -608,11 +664,10 @@ export default {
           overlapColumns.push(this.tableData[index]["Name"]);
         }
         this.tableData.map((item) => {
-          item[`Output1`]=''
-          item[`Output2`]=''
+          item[`Output1`] = "";
+          item[`Output2`] = "";
           if (overlapColumns.includes(item["Name"])) {
             outputTBData.map((val, index) => {
-              
               item[`Output` + (index + 1)] =
                 item["Name"] == this.sruleForm.s_name
                   ? val["__tbname__"]
@@ -621,7 +676,6 @@ export default {
           }
           return item;
         });
-        console.log(this.tableData,'计算后的table',outputTBData);
         this.tablekey = Math.random();
       } catch (error) {
         console.log(error);
@@ -698,24 +752,33 @@ export default {
     },
     //创建或者查询
     async createST() {
-      this.$refs.createstb.$refs.form.validate(async valid => {
+      this.$refs.createstb.$refs.form.validate(async (valid) => {
         if (!valid) return false;
         if (valid) {
           try {
-            const { ts_field_name, tags, columns } = this.$refs.createstb.stable_form
+            const { ts_field_name, tags, columns } =
+              this.$refs.createstb.stable_form;
             if (!ts_field_name) {
-              return Message.warning(this.$t('dataIn.enterTip') + ' ' + this.$t('data.columnNameTip'))
+              return Message.warning(
+                this.$t("dataIn.enterTip") + " " + this.$t("data.columnNameTip")
+              );
             }
             for (let i = 0; i < columns.length; i++) {
               const element = columns[i];
               if (!element.field) {
-                return Message.warning(this.$t('dataIn.enterTip') + ' ' + this.$t('data.columnNameTip'))
+                return Message.warning(
+                  this.$t("dataIn.enterTip") +
+                    " " +
+                    this.$t("data.columnNameTip")
+                );
               }
             }
             for (let i = 0; i < tags.length; i++) {
               const element = tags[i];
               if (!element.field) {
-                return Message.warning(this.$t('dataIn.enterTip') + ' ' + this.$t('data.tagNameTip'))
+                return Message.warning(
+                  this.$t("dataIn.enterTip") + " " + this.$t("data.tagNameTip")
+                );
               }
             }
             let payload = {
@@ -728,7 +791,8 @@ export default {
               return;
             }
             Message.success(this.$t("operateSucc"));
-            this.sruleForm.s_name = this.$refs.createstb.stable_form.ts_field_name
+            this.sruleForm.s_name =
+              this.$refs.createstb.stable_form.ts_field_name;
             this.getInitStables();
             this.closeDialog();
           } catch (error) {
@@ -736,7 +800,7 @@ export default {
             console.log(error);
           }
         }
-      })
+      });
     },
     //获取初始化的stables
     async getInitStables() {
@@ -752,7 +816,9 @@ export default {
     },
     createStable() {
       if (!this.$store.state.app.currentDBName) {
-       return Message.warning(this.$t('pleaseSelect') + " " + this.$t('stream.targetDB'))
+        return Message.warning(
+          this.$t("pleaseSelect") + " " + this.$t("stream.targetDB")
+        );
       }
       this.showCreateDIalog = true;
     },
@@ -847,16 +913,14 @@ export default {
     deleteFilter(key) {
       let ind = this.filterArr.findIndex((val) => val.key == key);
       this.filterArr.splice(ind, 1);
-      this.$store.commit('app/SET_FILTER_PARSE_DATA',null)
+      this.$store.commit("app/SET_FILTER_PARSE_DATA", null);
     },
     deleteExtract(index, name) {
-      let oldextract=this.$store.state.app.transformExtractParseData
-      if(Object.keys(oldextract).includes(name)){
-        delete oldextract[name]
+      let oldextract = this.$store.state.app.transformExtractParseData;
+      if (Object.keys(oldextract).includes(name)) {
+        delete oldextract[name];
       }
-      console.log(oldextract,this.$store.state.app.transformExtractParseData,index, name,'要删除extrasnt')
       if (name) {
-        
         let ind = this.extractArr.findIndex((item) => item.columnname == name);
         this.extractArr.splice(ind, 1);
         let restoreIndex = this.columnsArr.findIndex(
@@ -865,7 +929,6 @@ export default {
         this.$set(this.columnsArr[restoreIndex], "show", true);
       } else {
         this.extractArr.splice(index, 1);
-        
       }
     },
     //-----------------------处理csv部分
@@ -880,7 +943,7 @@ export default {
           value: "",
         };
       });
-      this.indentifiedColumns=columns.map((item) => {
+      this.indentifiedColumns = columns.map((item) => {
         return {
           description: item,
           name: item,
@@ -889,19 +952,12 @@ export default {
           value: "",
         };
       });
-      this.extractArr.push({
-        columns: this.columnsArr,
-        columnname: "",
-        expression: "",
-        type: "",
-      })
-      // this.$set(this.extractArr,0,{
+      // this.extractArr.push({
       //   columns: this.columnsArr,
       //   columnname: "",
       //   expression: "",
       //   type: "",
-      // })
-      console.log(this.extractArr, "csv",this.columnsArr );
+      // });
     },
   },
   watch: {
@@ -909,10 +965,12 @@ export default {
     "$store.state.app.csvTransformerParser": {
       deep: true,
       handler(val) {
-        this.isCSV=true
-        this.msgForm.msgbody =val.msgBody;
+        if (val) {
+        this.isCSV = true;
+        this.msgForm.msgbody = val.msgBody;
         this.formatCSVExtract(val.columns);
         console.log(val, "监听csv----transformer");
+        }
       },
     },
     "$store.state.app.transformerParserData": {
@@ -937,7 +995,7 @@ export default {
     parserColumns: {
       deep: true,
       handler(val) {
-        this.initColumnLists();
+        this.initColumnLists(val);
       },
     },
   },
