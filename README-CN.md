@@ -45,7 +45,7 @@ TDengine 目前可以在 Linux、 Windows、macOS 等平台上安装和运行。
   
 TDengine 还提供一组辅助工具软件 taosTools，目前它包含 taosBenchmark（曾命名为 taosdemo）和 taosdump 两个软件。默认 TDengine 编译不包含 taosTools, 您可以在编译 TDengine 时使用`cmake .. -DBUILD_TOOLS=true` 来同时编译 taosTools。
 
-为了构建TDengine, 请使用 [CMake](https://cmake.org/) 3.0.2 或者更高版本。
+为了构建TDengine, 请使用 [CMake](https://cmake.org/) 3.13.0 或者更高版本。
 
 ## 安装工具
 
@@ -124,7 +124,7 @@ brew install argp-standalone gflags pkgconfig
 
 TDengine 包含数个使用 Go 语言开发的组件，比如taosAdapter, 请参考 golang.org 官方文档设置 go 开发环境。
 
-请使用 1.14 及以上版本。对于中国用户，我们建议使用代理来加速软件包下载。
+请使用 1.20 及以上版本。对于中国用户，我们建议使用代理来加速软件包下载。
 
 ```
 go env -w GO111MODULE=on
