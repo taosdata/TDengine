@@ -93,7 +93,11 @@ typedef struct SQueryNode         SQueryNode;
 #define VNODE_RSMA2_DIR "rsma2"
 #define VNODE_TQ_STREAM "stream"
 
+#if SUSPEND_RESUME_TEST        // only for test purpose
+#define VNODE_BUFPOOL_SEGMENTS 1
+#else
 #define VNODE_BUFPOOL_SEGMENTS 3
+#endif
 
 #define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
