@@ -406,14 +406,17 @@ export default {
         }
         if (Object.keys(item).toString() == "map") {
           echoMapData = Object.entries(item["map"]).map((val) => {
+            console.log(val,'===ppp',Object.keys(val[1]));
+            let expreKey=Object.keys(val[1]).filter(key=>key!='as')[0]
             return {
               columnname: val[0],
               type: Object.keys(val[1]).toString(),
-              expression: Object.values(val[1]).toString(),
+              expression: val[1][expreKey],
             };
           });
         }
       });
+      console.log(echoMapData,'echoMapData');
       this.$store.commit("app/SET_ECHO_MAP_DATA", {
         model: value.parser.model,
         tableData: echoMapData,
@@ -513,8 +516,11 @@ export default {
             mutates.push({
               [`${item["Name"]}`]: {
                 [`${key}`]: item["Expression"],
+                as:item['Type']
               },
             });
+
+            console.log(item,mutates,'获取mapping---item---shujutongbusss');
           }
         }
       });

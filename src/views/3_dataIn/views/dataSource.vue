@@ -21,7 +21,7 @@
         :data="topicList"
         size="mini"
         :max-height="maxHeight"
-        row-key="taskid"
+        row-key="id"
         :expand-row-keys="expandRowKeys"
         @expand-change="expandChange"
       >
@@ -32,6 +32,7 @@
                 :data="props.row.taskActivities"
                 size="mini"
                 class="tabel-expand"
+                row-key="at"
               >
                 <el-table-column
                   prop="level"
@@ -85,12 +86,12 @@
             <i
               class="el-circle"
               style="background-color: #e6a23c"
-              v-if="scope.row.taskActivities && scope.row.taskActivities[0].level == 'warn'"
+              v-if="scope.row.taskActivities && scope.row.taskActivities[0]?.level == 'warn'"
             ></i>
             <i
               :class="['el-circle','err-circle']"
               style="background-color: #fe6c6c"
-              v-else-if="scope.row.taskActivities && scope.row.taskActivities[0].level == 'error'"
+              v-else-if="scope.row.taskActivities && scope.row.taskActivities[0]?.level == 'error'"
             ></i>
             <i
               class="el-circle"
@@ -430,8 +431,10 @@ export default {
           type: "warning",
         }
       ).then(async () => {
+        await this.handleClearInterval()
         let result = await excuteDel(data.id);
         if (result?.message) {
+          this.handleSetInterval()
           Message.warning(result.message);
           return;
         }
@@ -439,7 +442,10 @@ export default {
           type: "success",
           message: this.$t("datasource.deleteok"),
         });
-        this.refresh();
+        await this.refresh();
+        await this.$nextTick(() => {
+          this.handleSetInterval()
+        })
       });
     },
     edit(data, status, iscopy) {
@@ -664,8 +670,10 @@ export default {
             type: "warning",
           }
         ).then(async () => {
+          await this.handleClearInterval();
           let result = await excuteStart(data.id);
           if (result && result.message) {
+            this.handleSetInterval()
             this.$message({
               dangerouslyUseHTMLString:true,
               message:`<strong>${result.message.replaceAll('\n','<br/>')}</strong>`,
@@ -673,7 +681,10 @@ export default {
             });
             return;
           }
-          this.refresh();
+          await this.refresh();
+          await this.$nextTick(() => {
+            this.handleSetInterval()
+          })
         });
       } catch (err) {
         return Promise.reject(err);
@@ -690,8 +701,10 @@ export default {
             type: "warning",
           }
         ).then(async () => {
+          await this.handleClearInterval()
           let result = await excuteStop(data.id);
           if (result?.message) {
+            this.handleSetInterval()
             this.$message({
               dangerouslyUseHTMLString: true,
               message: `<strong>${result.message.replaceAll('\n','<br/>')}</strong>`,
@@ -700,6 +713,9 @@ export default {
             return;
           }
           await this.refresh();
+          await this.$nextTick(() => {
+            this.handleSetInterval()
+          })
         });
       } catch (err) {
         return Promise.reject(err);
@@ -751,7 +767,7 @@ export default {
     addAgent() {
       this.$refs.agents.add();
     },
-    async expandChange(row, expandedRows) {
+    async expandChange(row, expandedRows) { 
       this.maxHeight = expandedRows.length == 0 ? 250 : 570;
       let activitList = await this.getCurrentActivities(row.taskid)
       this.topicList = this.topicList.map(item => {
@@ -818,19 +834,27 @@ export default {
     handleDSStatus(value) {
       return this.$t('statuses.' + value);
     },
+    handleClearInterval() {
+      this.timer && clearInterval(this.timer)
+    },
+    handleSetInterval() {
+      this.timer = setInterval(() => {
+        this.handleTaskActivities()
+      }, 10000);
+    },
   },
   mounted() {
     if (this.$parent.$parent.$parent.currentName == "datasource") {
       this.refresh().then(() => {
         this.typeList = this.sourceList;
       });
-      this.timer = setInterval(() => {
-        this.handleTaskActivities()
-      }, 10000);
+      this.$nextTick(() => {
+        this.handleSetInterval()
+      })
     }
   },
   beforeDestroy() {
-    this.timer && clearInterval(this.timer)
+    this.handleClearInterval()
   }
 };
 </script>
