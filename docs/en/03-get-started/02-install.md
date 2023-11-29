@@ -47,16 +47,35 @@ sudo ./install.sh
 
 ## Windows Platform
 
-On Windows, to use TDengine Enterprise, you need to install two packages: TDengine server and taosX. In this section we will only demonstrate how to install taosX package. The installation of TDengine server is similar to taosX. 
+On Linux, TDengine Enteprise can be installed with a single package named like  `TDengine-enterprise-<version>-<OS>-<platform>.tar.gz` (for example `TDengine-enterprise-3.1.0.3-Linux-x64.tar.gz`)
 
-- Download and install the taosX installation package.
+The TDengine Enterprise package includes the following components: 
+- `taosd`: the TDengine core
+- `taosAdapter`: a service that provides RESTful and WebSocket interfaces to TDengine
+- `taosKeeper`: a service that reports and records monitoring metrics
+- `libtaos.so`: the native client SDK (C client library)
+- `libtaosws.so`: the WebSocket client SDK (C client library)
+- `taosX`: a zero-code platform for data ingestion, replication, backup, and restore
+- `taosAgent`: an agent for ingesting data from certain sources into taosX
+- `taosExplorer`: a graphical user interface for TDengine
+- data source SDK: the SDK called by taosX or taosAgent to connect with each data source
+
+The steps are as below:
+
+- Download and install the TDengine Enterprise installation package.
 - To uninstall taosX, run the `uninstall_taosx.exe` file.
+- To start or stop the `taosx` service, run the `sc start/stop taosd` command.
+- To start or stop the `taosx` service, run the `sc start/stop taosadapter` command.
+- To start or stop the `taosx` service, run the `sc start/stop taoskeeper` command.
 - To start or stop the `taosx` service, run the `sc start/stop taosx` command.
 - To start or stop the `taosx-agent` service, run the `sc start/stop taosx-agent` command.
 - To start or stop the taos-explorer service, run the `sc start/stop taosx-explorer` command.
 By default, taosX is installed to the `C:\Program Files\taosX` directory.
 ~~~
 ├── bin
+│   ├── taosd.exe
+│   ├── taosadapter.exe
+│   ├── taoskeeper.exe
 │   ├── taosx.exe
 │   ├── taosx-srv.exe
 │   ├── taosx-srv.xml
