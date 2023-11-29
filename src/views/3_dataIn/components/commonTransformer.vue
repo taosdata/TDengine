@@ -226,6 +226,7 @@ export default {
   },
   data() {
     return {
+      isCSV: false,
       mapExpressionList: [
         "value",
         "generator",
@@ -256,13 +257,7 @@ export default {
       mapType: "value",
       extractAddStatus: false,
       mappingTypes: ["value", "generator", "join", "format", "sum", "expr"],
-      st_columnLists: [
-        "Name",
-        "Type",
-        "Expression",
-        "Output1",
-        "Output2",
-      ],
+      st_columnLists: ["Name", "Type", "Expression", "Output1", "Output2"],
       dialogForm: {
         st_name: "",
       },
@@ -325,37 +320,69 @@ export default {
     };
   },
   mounted() {
-    this.initColumnLists();
-    if (this.$parent.isEditable) {
+    if (this.parserColumns) {
+      this.initColumnLists(this.parserColumns);
+    }
+    if (
+      this.$parent.isEditable ||
+      (this.$store.state.app.csvParser &&
+        Object.hasOwn(this.$store.state.app.csvParser, "parser"))
+    ) {
+      // 编辑状态
       this.echoParser(this.$store.state.app.transformerParserData);
     }
-
+    if (this.$store.state.app.csvTransformerParser) {
+      //CSV新增
+      this.isCSV = true;
+      this.msgForm.msgbody = this.$store.state.app.csvTransformerParser.msgBody;
+      this.formatCSVExtract(this.$store.state.app.csvTransformerParser.columns);
+    }
     this.getInitStables();
   },
   methods: {
     //编辑回显数据
     async echoParser(value) {
+      let csvechoTransData = null;
+      if (this.$store.state.app.currentDBType == "csv") {
+        this.isCSV = true;
+        csvechoTransData = this.$store.state.app.csvTransformerParser;
+        let columns = csvechoTransData.columns.map((item) => {
+          return {
+            description: item,
+            name: item,
+            type: "varchar",
+            value: "",
+          };
+        });
+        this.initColumnLists(columns);
+      }
       this.msgForm.msgbody =
         this.$store.state.app.currentDBType == "mqtt"
           ? value.input.map((item) => item.payload).join(";")
+          : this.isCSV
+          ? csvechoTransData.msgBody
           : value.input.map((item) => item.value).join(";");
       Object.entries(value.parser.parse).map((item) => {
         let ind = this.columnsArr.findIndex((col) => col.name == item[0]);
-          if (ind > -1) {
-            this.$set(this.columnsArr[ind], "show", false);
-          }
-          let obj = {
-            columnname: item[0],
-            expression:Object.values(item[1]).flat(1).join(';') ,
-            type: Object.keys(item[1]).toString(),
-            columns: this.columnsArr,
-          };
+        if (ind > -1) {
+          this.$set(this.columnsArr[ind], "show", false);
+        }
+        let obj = {
+          columnname: item[0],
+          expression: Object.values(item[1]).flat(1).join(";"),
+          type: Object.keys(item[1]).toString(),
+          columns: this.columnsArr,
+        };
+        if (this.columnsArr.length > 0) {
           this.extractArr.push(obj);
+        }
       });
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", value.parser.parse);
       let echoMapData = [];
+      let isincludeFilter = false;
       value.parser.mutate.forEach((item) => {
         if (Object.keys(item).toString() == "filter") {
+          isincludeFilter = true;
           let obj = {
             expression: item.filter,
             key: Math.random(),
@@ -364,27 +391,26 @@ export default {
         }
         if (Object.keys(item).toString() == "map") {
           echoMapData = Object.entries(item["map"]).map((val) => {
-            console.log(val,'===ppp',Object.keys(val[1]));
             let expreKey=Object.keys(val[1]).filter(key=>key!='as')[0]
             return {
               columnname: val[0],
-              type: Object.keys(val[1]).toString(),
+              type: expreKey,
               expression: val[1][expreKey],
             };
           });
         }
       });
-      console.log(echoMapData,'echoMapData');
       this.$store.commit("app/SET_ECHO_MAP_DATA", {
         model: value.parser.model,
         tableData: echoMapData,
       });
       this.$nextTick(() => {
-        this.$refs.extract.map(comp=>{
-            comp.submitExtract()
-        })
-        // this.$refs.extract[this.$refs.extract.length - 1].submitExtract();
-        this.$refs.filter[0].submitFilter();
+        this.$refs.extract.map((comp) => {
+          comp.submitExtract();
+        });
+        if (isincludeFilter) {
+          this.$refs.filter[0].submitFilter();
+        }
       });
 
       this.sruleForm.s_name = value.parser.model.using;
@@ -392,11 +418,11 @@ export default {
       await this.echoFetchMap();
     },
     //初始化列下拉框数据，适用于新增和编辑，拷贝
-    initColumnLists() {
+    initColumnLists(columns) {
       this.$set(
         this,
         "indentifiedColumns",
-        this.parserColumns.map((item) => {
+        columns.map((item) => {
           return {
             ...item,
             show: true,
@@ -406,7 +432,7 @@ export default {
       this.$set(
         this,
         "columnsArr",
-        this.parserColumns
+        columns
           .filter((val) => ["varchar", "nchar"].includes(val.type))
           .map((item) => {
             return {
@@ -470,8 +496,6 @@ export default {
                 as:item['Type']
               },
             });
-
-            console.log(item,mutates,'获取mapping---item---shujutongbusss');
           }
         }
       });
@@ -488,15 +512,23 @@ export default {
             tags: tags,
             columns: columns,
           },
-          mutate:this.$store.state.app.transformerFilterParseData?[].concat({
-            map: mutateMap,
-          }).concat({
-            filter:Object.values(this.$store.state.app.transformerFilterParseData).toString()
-          }) : [].concat({
-            map: mutateMap,
-          }),
+          mutate: this.$store.state.app.transformerFilterParseData
+            ? []
+                .concat({
+                  map: mutateMap,
+                })
+                .concat({
+                  filter: Object.values(
+                    this.$store.state.app.transformerFilterParseData
+                  ).toString(),
+                })
+            : [].concat({
+                map: mutateMap,
+              }),
         },
-        input: [].concat(this.generateInput()),
+        input: this.isCSV
+          ? this.$store.state.app.csvTransformerParser.inputList
+          : [].concat(this.generateInput()),
       };
       this.mappingParser = parserData;
       this.getParserData(parserData);
@@ -557,17 +589,22 @@ export default {
         parser: {
           parse: extractObj,
           model: this.mappingParser.parser.model,
-          mutate: this.mappingParser.parser.mutate.some(key=>Object.keys(key).toString()=='filter')?this.mappingParser.parser.mutate:
-          this.filterArr
-            .map((item) => {
-              return {
-                filter: item.expression,
-              };
-            })
-            .concat(this.mappingParser.parser.mutate),
+          mutate: this.mappingParser.parser.mutate.some(
+            (key) => Object.keys(key).toString() == "filter"
+          )
+            ? this.mappingParser.parser.mutate
+            :this.filterArr[0].expression? this.filterArr
+                .map((item) => {
+                  return {
+                    filter: item.expression,
+                  };
+                })
+                .concat(this.mappingParser.parser.mutate):this.mappingParser.parser.mutate,
         },
 
-        input: [].concat(this.generateInput()),
+        input: this.isCSV
+          ? this.$store.state.app.csvTransformerParser.inputList
+          : [].concat(this.generateInput()),
       };
       this.$emit("getTransformerParams", parserData);
     },
@@ -601,17 +638,24 @@ export default {
               overlapColumns.push(item);
             }
           });
-          if(outputColumns.includes('__tbname__')){
-            let index = this.tableData.findIndex(item=>item['Type']=='Tablename') 
-            overlapColumns.push(this.tableData[index]['Name']);
-          }
+        if (outputColumns.includes("__tbname__")) {
+          let index = this.tableData.findIndex(
+            (item) => item["Type"] == "Tablename"
+          );
+          overlapColumns.push(this.tableData[index]["Name"]);
+        }
         this.tableData.map((item) => {
+          item[`Output1`] = "";
+          item[`Output2`] = "";
           if (overlapColumns.includes(item["Name"])) {
             outputTBData.map((val, index) => {
-              item[`Output` + (index + 1)] = (item["Name"]==this.sruleForm.s_name)?val['__tbname__']:val[item["Name"]];
+              item[`Output` + (index + 1)] =
+                item["Name"] == this.sruleForm.s_name
+                  ? val["__tbname__"]
+                  : val[item["Name"]];
             });
           }
-          return item
+          return item;
         });
         this.tablekey = Math.random();
       } catch (error) {
@@ -689,24 +733,33 @@ export default {
     },
     //创建或者查询
     async createST() {
-      this.$refs.createstb.$refs.form.validate(async valid => {
+      this.$refs.createstb.$refs.form.validate(async (valid) => {
         if (!valid) return false;
         if (valid) {
           try {
-            const { ts_field_name, tags, columns } = this.$refs.createstb.stable_form
+            const { ts_field_name, tags, columns } =
+              this.$refs.createstb.stable_form;
             if (!ts_field_name) {
-              return Message.warning(this.$t('dataIn.enterTip') + ' ' + this.$t('data.columnNameTip'))
+              return Message.warning(
+                this.$t("dataIn.enterTip") + " " + this.$t("data.columnNameTip")
+              );
             }
             for (let i = 0; i < columns.length; i++) {
               const element = columns[i];
               if (!element.field) {
-                return Message.warning(this.$t('dataIn.enterTip') + ' ' + this.$t('data.columnNameTip'))
+                return Message.warning(
+                  this.$t("dataIn.enterTip") +
+                    " " +
+                    this.$t("data.columnNameTip")
+                );
               }
             }
             for (let i = 0; i < tags.length; i++) {
               const element = tags[i];
               if (!element.field) {
-                return Message.warning(this.$t('dataIn.enterTip') + ' ' + this.$t('data.tagNameTip'))
+                return Message.warning(
+                  this.$t("dataIn.enterTip") + " " + this.$t("data.tagNameTip")
+                );
               }
             }
             let payload = {
@@ -719,15 +772,17 @@ export default {
               return;
             }
             Message.success(this.$t("operateSucc"));
-            this.sruleForm.s_name = this.$refs.createstb.stable_form.ts_field_name
-            this.getInitStables();
+            await this.getInitStables();
+            this.sruleForm.s_name =
+              this.$refs.createstb.stable_form.ts_field_name;
+            console.log( this.sruleForm.s_name,'创建后的数据库');
             this.closeDialog();
           } catch (error) {
             error.desc ? Message.error(error.desc) : "";
             console.log(error);
           }
         }
-      })
+      });
     },
     //获取初始化的stables
     async getInitStables() {
@@ -743,7 +798,9 @@ export default {
     },
     createStable() {
       if (!this.$store.state.app.currentDBName) {
-       return Message.warning(this.$t('pleaseSelect') + " " + this.$t('stream.targetDB'))
+        return Message.warning(
+          this.$t("pleaseSelect") + " " + this.$t("stream.targetDB")
+        );
       }
       this.showCreateDIalog = true;
     },
@@ -800,8 +857,8 @@ export default {
             Type: val[1],
             maptype: ["expression", "value"],
             Expression: "",
-            "Output1": "",
-            "Output2": "",
+            Output1: "",
+            Output2: "",
           };
         });
         this.tableData.unshift({
@@ -809,8 +866,8 @@ export default {
           Type: "Tablename",
           maptype: ["expression", "string"],
           Expression: "",
-          "Output1": "",
-          "Output2": "",
+          Output1: "",
+          Output2: "",
         });
         this.params_columns.unshift(res.data[0][0]);
       } catch (error) {
@@ -838,8 +895,13 @@ export default {
     deleteFilter(key) {
       let ind = this.filterArr.findIndex((val) => val.key == key);
       this.filterArr.splice(ind, 1);
+      this.$store.commit("app/SET_FILTER_PARSE_DATA", null);
     },
     deleteExtract(index, name) {
+      let oldextract = this.$store.state.app.transformExtractParseData;
+      if (Object.keys(oldextract).includes(name)) {
+        delete oldextract[name];
+      }
       if (name) {
         let ind = this.extractArr.findIndex((item) => item.columnname == name);
         this.extractArr.splice(ind, 1);
@@ -851,8 +913,47 @@ export default {
         this.extractArr.splice(index, 1);
       }
     },
+    //-----------------------处理csv部分
+    //组合csv的extract
+    formatCSVExtract(columns) {
+      this.columnsArr = columns.map((item) => {
+        return {
+          description: item,
+          name: item,
+          show: true,
+          type: "varchar",
+          value: "",
+        };
+      });
+      this.indentifiedColumns = columns.map((item) => {
+        return {
+          description: item,
+          name: item,
+          show: true,
+          type: "varchar",
+          value: "",
+        };
+      });
+      // this.extractArr.push({
+      //   columns: this.columnsArr,
+      //   columnname: "",
+      //   expression: "",
+      //   type: "",
+      // });
+    },
   },
   watch: {
+    //csv需要单独处理
+    "$store.state.app.csvTransformerParser": {
+      deep: true,
+      handler(val) {
+        if (val) {
+        this.isCSV = true;
+        this.msgForm.msgbody = val.msgBody;
+        this.formatCSVExtract(val.columns);
+        }
+      },
+    },
     "$store.state.app.transformerParserData": {
       deep: true,
       handler(val) {
@@ -865,7 +966,7 @@ export default {
         this.$set(this, "options", val);
       },
     },
-    
+
     "$store.state.app.currentDBName": {
       deep: true,
       handler(val) {
@@ -875,7 +976,7 @@ export default {
     parserColumns: {
       deep: true,
       handler(val) {
-        this.initColumnLists();
+        this.initColumnLists(val);
       },
     },
   },

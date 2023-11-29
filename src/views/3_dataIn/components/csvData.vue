@@ -32,11 +32,7 @@
             <el-input size="small" v-model="fileurl"></el-input>
           </div>
         </el-tab-pane>
-        <CsvParameter
-          ref="param"
-          :echoData="echoData"
-          :isEditable="isEditable"
-        >
+        <CsvParameter ref="param" :echoData="echoData" :isEditable="isEditable">
           <template v-slot:next>
             <el-button
               type="primary"
@@ -45,8 +41,8 @@
               class="nextbtn"
               >{{ $t("datasource.csvNext") }}</el-button
             >
-            <!-- <CommonTransformer></CommonTransformer> -->
-            <div class="csv-config" v-if="showConfig">
+            <CommonTransformer ref='transform' @getTransformerParams='getTransformerParams' :parserColumns="extractArr" v-if='showTransformer'></CommonTransformer>
+            <!-- <div class="csv-config" v-if="showConfig">
               <ul class="csv-tableheader">
                 <li>{{ $t("datasource.csvcol") }}</li>
                 <li>{{ $t("datasource.dbcol") }}</li>
@@ -89,7 +85,7 @@
                   ></CsvColumn>
                 </li>
               </ul>
-            </div>
+            </div> -->
           </template>
         </CsvParameter>
       </el-tabs>
@@ -103,10 +99,10 @@ import { deepClone } from "@/utils";
 import { sendSQLReq } from "@/api/gateway/console";
 import { getCSVColumns } from "@/api/explorer/datain";
 import { Message } from "element-ui";
-import CommonTransformer from './commonTransformer.vue'
+import CommonTransformer from "./commonTransformer.vue";
 export default {
   name: "CsvData",
-  components: { CsvParameter, CsvColumn,CommonTransformer },
+  components: { CsvParameter, CsvColumn, CommonTransformer },
   props: {
     isEditable: {
       type: Boolean,
@@ -117,7 +113,7 @@ export default {
       default: () => {
         return [];
       },
-    }
+    },
   },
   provide() {
     return {
@@ -127,7 +123,9 @@ export default {
   filter: {},
   data() {
     return {
-      language:  localStorage.getItem('local_language'),
+      showTransformer:false,
+      transformerParser:null,
+      language: localStorage.getItem("local_language"),
       showConfig: false,
       csvParserConf: {},
       uploadData: {
@@ -143,9 +141,10 @@ export default {
       fileurl: "",
       uploadUrl: process.env.VUE_APP_X_API + `/upload`,
       csvColumns: [],
-      sample_values:[],
+      sample_values: [],
       localcsv: {},
       dbOptions: [],
+      extractArr:[]
     };
   },
   async mounted() {
@@ -177,10 +176,15 @@ export default {
         this.$refs.param.ruleForm.hasHeader
       );
       this.csvColumns = result.file_header.column_names;
-      this.echoEditData();
+      this.sample_values = result.sample_values;
+      this.formatCsvTransformerData(this.csvColumns,this.sample_values)
     }
   },
   methods: {
+    //获取transformer的参数
+    getTransformerParams(data){
+      this.transformerParser=data
+    },
     handleRemove(file, filelist) {
       this.fileList = filelist;
     },
@@ -271,6 +275,8 @@ export default {
           Message.error(this.$t("datasource.uploadcsvtip"));
           return;
         }
+        this.showTransformer=false
+        this.$store.commit("app/SET_CSV_TRANSFORMER_PARSER", null);
         this.$refs.param.submit();
 
         if (this.isEditable) {
@@ -294,15 +300,27 @@ export default {
                 return;
               }
               this.csvColumns = result.file_header.column_names;
-              // this.sample_values=result.sample_values
+              this.sample_values = result.sample_values;
             } else {
-              //无header需要自定义header
-              if (result && result.message) {
-                Message.error(result.message);
-                return;
+              let localcolumns = this.$refs.param.ruleForm.customcol.split(",");
+              result = await getCSVColumns(
+                this.fileList.map((item) => {
+                  return item.response[0];
+                }),
+                "csv",
+                this.$refs.param.ruleForm.hasHeader
+              );
+              let apiColumns = result.file_header.column_names;
+              if(localcolumns.length!=apiColumns.length){
+                Message.error(this.$set('datasource.transformer.csvtip'));
+                return
               }
-              this.csvColumns = this.$refs.param.ruleForm.customcol
-                .split(",");
+              this.csvColumns=this.$refs.param.ruleForm.customcol.split(",")
+              this.sample_values = result.sample_values.map(item=>{
+                return item.slice(0,localcolumns.length)
+              })
+              
+
             }
           }
         } else {
@@ -316,35 +334,54 @@ export default {
             return;
           }
           this.csvColumns = result.file_header.column_names;
-          // this.sample_values=result.sample_values
+          this.sample_values = result.sample_values;
         }
-
-        this.csvParserConf = {
-          parser: {
-            parse: {},
-            model: {
-              name: "",
-              using: "",
-              tags: [],
-              columns: [],
-            },
-          },
-        };
-        this.csvColumns.forEach((item) => {
-          this.csvParserConf.parser.parse[item] = {
-            as: "",
-            alias: item,
-          };
-        });
-        console.log(this.csvColumns,'this.csvColumns',this.sample_values)
-        this.localcsv = deepClone(this.csvParserConf);
-        this.$store.commit("app/SET_CSV_PARSER", this.localcsv.parser);
-        this.initDbOptions();
+        this.formatCsvTransformerData(this.csvColumns, this.sample_values);
         this.showConfig = true;
       } catch (error) {
         error && error.message && Message.error(error.message);
       }
       this.$refs.upload.submit();
+    },
+    //组合CSV的transfomrer页面需要的数据
+    formatCsvTransformerData(columns, values) {
+      let inputList = values.map((item) => {
+        return Object.fromEntries(
+          item.map((val, index) => {
+            return [this.csvColumns[index], val];
+          })
+        );
+      });
+      let msgBody=values.map(item=>{
+        return item
+      })
+      if(this.$store.state.app.csvTransformerlocalCols.length>0){
+        msgBody.unshift(this.$store.state.app.csvTransformerlocalCols.toString())
+      }else{
+        msgBody.unshift(columns.toString())
+      }
+      this.extractArr.splice(0, this.extractArr.length);
+      columns.forEach((item) => {
+        let obj = {};
+        obj["columns"] = columns.map((val) => {
+          return {
+            description: item,
+            name: item,
+            show: true,
+            type: "varchar",
+            value: "",
+          };
+        });
+        (obj["columnname"] = ""), (obj["expression"] = ""), (obj["type"] = "");
+        this.extractArr.push(obj)
+      });
+      let csvTransformer={
+        "columns":this.$store.state.app.csvTransformerlocalCols.length>0?this.$store.state.app.csvTransformerlocalCols: columns,
+        inputList:this.$store.state.app.csvParser?this.$store.state.app.csvParser.input:inputList,
+        "msgBody": msgBody.join('\n')
+      }
+      this.$store.commit("app/SET_CSV_TRANSFORMER_PARSER", csvTransformer);
+      this.showTransformer=true
     },
     async getDBColumns() {
       try {
@@ -372,8 +409,8 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
-.upload-demo{
-  display:flex;
+.upload-demo {
+  display: flex;
   align-items: baseline;
 }
 .csv-data {
@@ -392,9 +429,9 @@ export default {
       font-size: 14px;
       text-align: left;
       position: relative;
-      
+
       &.required {
-        padding-left:10px;
+        padding-left: 10px;
         &::before {
           content: "*";
           color: red;

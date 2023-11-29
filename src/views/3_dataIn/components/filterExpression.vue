@@ -194,7 +194,7 @@ export default {
             filter: this.ruleForm.filter_name,
           }),
         },
-        input: inputList,
+        input: this.$parent.isCSV?this.$store.state.app.csvTransformerParser.inputList:inputList,
       };
       
       this.$store.commit('app/SET_FILTER_PARSE_DATA',{

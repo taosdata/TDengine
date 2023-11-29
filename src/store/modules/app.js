@@ -83,6 +83,8 @@ const state = {
   transformerParserData:null,
   transformColumnIdentify:[],
   transformEchoMapData:null,
+  csvTransformerParser:null,
+  csvTransformerlocalCols:[]//csv无头部时候的自定义列
   
 };
 const saveKey = encodeURIComponent("appId");
@@ -110,6 +112,12 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_CSV_LOCAL_COLS:(state,data)=>{
+    state.csvTransformerlocalCols=data
+  },
+  SET_CSV_TRANSFORMER_PARSER:(state,data)=>{
+    state.csvTransformerParser=data
+  },
   SET_FILTER_PARSE_DATA:(state,data)=>{
     state.transformerFilterParseData=data
   },

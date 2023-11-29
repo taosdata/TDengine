@@ -253,17 +253,6 @@ export default {
           case "mqtt":
             this.currentName = "opcui";
             this.tagName = "mqtt";
-
-            // this.uidata[0].parser.fields = this.uidata[0].parser.fields.map(
-            //   (item) => {
-            //     if (item.name == "payload") {
-            //       item["value"] = "json";
-            //     }
-            //     return item;
-            //   }
-            // );
-            
-console.log(this.uidata,this.sourceList,'mqtt-------编辑')
             break;
           case "pibackfill":
             this.currentName = "ui";

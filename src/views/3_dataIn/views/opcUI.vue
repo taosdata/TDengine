@@ -1748,61 +1748,14 @@ export default {
         }
         if ((this.tagName == "mqtt" || this.tagName == "kafka") && isSubmit) {
           this.$refs.transformer.getTransformerParams()
-          // if (this.$refs.mqtt) {
-          //   this.$refs.mqtt.submit();
-          //   if (this.$refs.mqtt.showSuperTip) {
-          //     Message({
-          //       type: "warning",
-          //       message: this.$t("datasource.bothtagsuper"),
-          //     });
-          //     return;
-          //   }
-          //   let datasource = this.tagName == "mqtt" ? 'MQTT' : 'Kafka'
-          //   if (this.$refs.mqtt.disable || this.$refs.mqtt.nameisnull) {
-          //     Message({
-          //       type: "warning",
-          //       message: this.$t("datasource.mqttparsertip").replace('{datasource}',datasource),
-          //     });
-          //     return;
-          //   }
-          // }
-          // let oldparser = this.$store.state.app.mqttParser;
-          // let columns = oldparser.model.columns;
-          // if (columns.includes(this.$refs.mqtt.defaultSelect)) {
-          //   columns.map((item, ind) => {
-          //     if (item == this.$refs.mqtt.defaultSelect) {
-          //       columns.unshift(columns.splice(ind, 1)[0]);
-          //     }
-          //   });
-          // }
-          // this.$store.commit("app/SET_MQTT_PARSER", this.constMqttparser);
+         
         }
-
+        if(this.tagName=='csv'&& isSubmit){
+          this.$refs.csvdata.$refs.transform.getTransformerParams()
+        }
+        
         if (this.tagName.includes("opc") && isSubmit) {
-          // if (this.opcPointavalible) {
-          // let oldData = this.$store.state.app.opcConfig;
-          // let columnCons = oldData.column_configs.filter((item) =>
-          //   this.$parent.echoData.includes(item.column_name)
-          // );
-          // this.$store.commit("app/SET_OPC_CONFIG", {
-          //   column_configs: columnCons,
-          //   stable_prefix: oldData.stable_prefix,
-          // });
-          // let saveConf = {
-          //   column_configs: columnCons,
-          //   stable_prefix: oldData.stable_prefix,
-          // };
-          // let prefix = dns.split("?")[0];
-          // let dnsarr = dns.split("?")[1].split("&");
-          // let indx = dnsarr.findIndex((item) =>
-          //   item.includes("opc_table_config=")
-          // );
-          // if (indx > -1) {
-          //   dnsarr.splice(indx, 1);
-          //   dns = prefix + "?" + dnsarr.join("&");
-          // }
-          // dns += "&opc_table_config=" + JSON.stringify(saveConf);
-          // } else {
+         
           if (this.dbsource[0].datasets.value == "csv_config_file") {
             if (
               this.opcfileList.length == 0 &&
@@ -1878,24 +1831,11 @@ export default {
           // trigger: { "resume": this.resume }
         };
         if ((this.tagName == "mqtt" ||this.tagName == "kafka") && isSubmit) {
-          // piParams["parser"] = this.$store.state.app.mqttParser;
           piParams["parser"]=this.transformerParser
         }
-        // if (this.tagName == "kafka" && isSubmit) {
-        //   let value = this.$store.state.app.mqttParser.parse.payload;
-        //   piParams["parser"] = {
-        //     ...this.$store.state.app.mqttParser,
-        //     parse: {
-        //       value: {
-        //         ...value,
-        //         keep: false,
-        //       },
-        //       ts: {
-        //         as: `timestamp(${this.dbprecision})`,
-        //       },
-        //     },
-        //   };
-        // }
+        if(this.tagName=='csv'&& isSubmit){
+          piParams["parser"]=this.$refs.csvdata.transformerParser
+        }
         if (this.agentId) {
           piParams["via"] = this.agentId;
         }
@@ -1919,42 +1859,43 @@ export default {
           if (!this.$refs.csvdata.$refs.param.isAllValid) {
             return;
           }
-          if (!this.$refs.csvdata.$refs.csvconfig) {
-            Message.error(this.$t("datasource.csvconfigtip"));
-            return;
-          }
-          let model = this.$store.state.app.csvParser.model;
-          let parse = this.$store.state.app.csvParser.parse;
-          if (this.$store.state.app.csvtags.length > 0 && !model.tags) {
-            model["tags"] = this.$store.state.app.csvtags;
-          }
-          if (model.tags && model.tags.length > 0) {
-            model.name = this.$refs.csvdata.$refs.param.ruleForm2.subname;
-            model.using = this.$refs.csvdata.$refs.param.ruleForm2.tableName;
-            piParams["parser"] = this.$store.state.app.csvParser;
-          } else {
-            piParams["parser"] = Object.assign(
-              { parse: parse },
-              {
-                model: {
-                  name: this.$refs.csvdata.$refs.param.ruleForm2.subname,
-                  columns: model.columns,
-                },
-              }
-            );
-          }
+          // if (!this.$refs.csvdata.$refs.csvconfig) {
+          //   Message.error(this.$t("datasource.csvconfigtip"));
+          //   return;
+          // }
+          // let model = this.$store.state.app.csvParser.model;
+          // let parse = this.$store.state.app.csvParser.parse;
+          // if (this.$store.state.app.csvtags.length > 0 && !model.tags) {
+          //   model["tags"] = this.$store.state.app.csvtags;
+          // }
+          // if (model.tags && model.tags.length > 0) {
+          //   model.name = this.$refs.csvdata.$refs.param.ruleForm2.subname;
+          //   model.using = this.$refs.csvdata.$refs.param.ruleForm2.tableName;
+          //   piParams["parser"] = this.$store.state.app.csvParser;
+          // } else {
+          //   piParams["parser"] = Object.assign(
+          //     { parse: parse },
+          //     {
+          //       model: {
+          //         name: this.$refs.csvdata.$refs.param.ruleForm2.subname,
+          //         columns: model.columns,
+          //       },
+          //     }
+          //   );
+          // }
 
-          if (model.columns.length == 0 || model.columns[0] == undefined) {
-            Message.error(this.$t("datasource.csvwholeinfo"));
-            return;
-          }
-          let flag = (
-            model.tags ? [...model.columns, ...model.tags] : [...model.columns]
-          ).some((item) => parse[item].as == "");
-          if (flag) {
-            Message.error(this.$t("datasource.csvwholeinfo"));
-            return;
-          }
+          // if (model.columns.length == 0 || model.columns[0] == undefined) {
+          //   Message.error(this.$t("datasource.csvwholeinfo"));
+          //   return;
+          // }
+          // let flag = (
+          //   model.tags ? [...model.columns, ...model.tags] : [...model.columns]
+          // ).some((item) => parse[item].as == "");
+          // if (flag) {
+          //   Message.error(this.$t("datasource.csvwholeinfo"));
+          //   return;
+          // }
+          console.log('csvbaocun保存',piParams);
           piParams["from"] =
             `csv:` +
             (this.$refs.csvdata.activeName == "first"

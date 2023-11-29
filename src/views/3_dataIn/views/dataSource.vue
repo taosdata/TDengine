@@ -462,7 +462,7 @@ export default {
         this.$store.commit("app/SET_CURRENT_AGENT", data?.via);
         this.$store.commit("app/SET_CURRENT_DSNAME", data.name);
         let editDdata = deepClone([].concat(data.from_detail));
-        if(data.from_detail.id=='mqtt'||data.from_expand.id == "kafka"){
+        if(data.from_detail.id=='mqtt'||data.from_expand.id == "kafka"||data.from_expand.id == "csv"){
           this.$store.commit('app/SET_TRANSFORM_PARSERDATA',data.parser)
         }
         if (data.from_expand && data.from_expand.id == "mqtt") {
@@ -535,9 +535,14 @@ export default {
 
         if (data.from_expand && data.from_expand.id == "csv") {
           this.$store.commit("app/SET_CSV_PARSER", data.parser);
+          
           this.$parent.echoData = deepClone([].concat(data.parser));
           let filelist = data.from.match(/(?<=csv:).*?(?=\?)/)[0];
           let hasheader = data.from.match(/(?<=has_header=).*/)[0];
+          let localCols=data.from.match(/(?<=header=).*/)[0]
+          if(localCols&&localCols.includes('=')){
+            this.$store.commit("app/SET_CSV_LOCAL_COLS", localCols.split("=")[1].split(','));
+          }
           this.$store.commit("app/SET_CSV_HASHEADER", hasheader);
           this.$store.commit("app/SET_CSV_FILES", filelist);
         }
@@ -834,8 +839,21 @@ export default {
         this.handleTaskActivities()
       }, 10000);
     },
+    //清除transformer相关的存储数据
+    clearTransformerStore(){
+      this.$store.commit('app/SET_FILTER_PARSE_DATA',null)
+        this.$store.commit('app/SET_EXTRACT_PARSE_DATA',null)
+        this.$store.commit('app/SET_ECHO_MAP_DATA',null)
+        this.$store.commit('app/SET_TRANSFORM_COL_IDENTIFIED',[])
+        this.$store.commit('app/SET_TRANSFORM_PARSERDATA',null)
+        this.$store.commit('app/SET_TRANSFORMER_MAPCOLUMNS',null)
+        this.$store.commit('app/SET_CSV_LOCAL_COLS',[])
+        this.$store.commit('app/SET_CSV_TRANSFORMER_PARSER',null)
+        this.$store.commit('app/SET_CSV_PARSER',null)
+    },
   },
   mounted() {
+    this.clearTransformerStore()
     if (this.$parent.$parent.$parent.currentName == "datasource") {
       this.refresh().then(() => {
         this.typeList = this.sourceList;
