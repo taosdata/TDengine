@@ -124,7 +124,7 @@ export default {
         this.tableData = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
-              return [item.name, data[index]];
+              return [item.name, typeof(data[index])=='boolean'?data[index].toString():data[index]];
             })
           );
         });
@@ -240,7 +240,7 @@ export default {
       width: 32px;
       border-radius: 6px;
       &:first-child {
-        margin-right: 20px;
+        margin-right: 10px;
         margin-left: 20px;
       }
     }

@@ -1208,7 +1208,7 @@ export default {
       superconfig:'Super Table Config',
       target:'Target Super Table',
       mapping:'Mapping',
-      createstb:'Create STbale',
+      createstb:'Create STable',
       payload:'Payload Format',
       upload:'Upload Sample Data',
       col_select:'Please select the column',

@@ -290,6 +290,7 @@ export default {
       this.getParserData(parser);
     },
     deleteExtract() {
+      console.log(this.index, this.ruleForm.col_name,'删除');
       this.$emit("deleteExtract", this.index, this.ruleForm.col_name);
     },
   },
