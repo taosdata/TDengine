@@ -327,6 +327,33 @@ static int32_t hbProcessViewInfoRsp(void *value, int32_t valueLen, struct SCatal
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t hbprocessTSMARsp(void* value, int32_t valueLen, struct SCatalog* pCatalog) {
+  int32_t code = 0;
+
+  STSMAHbRsp hbRsp = {0};
+  if (tDeserializeTSMAHbRsp(value, valueLen, &hbRsp)) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  int32_t numOfTsma = taosArrayGetSize(hbRsp.pTsmas);
+  for (int32_t i = 0; i < numOfTsma; ++i) {
+    STableTSMAInfo* pTsmaInfo = taosArrayGetP(hbRsp.pTsmas, i);
+
+    if (!pTsmaInfo->pFuncs) {
+      tscDebug("hb to remote tsma: %s.%s", pTsmaInfo->dbFName, pTsmaInfo->name);
+      catalogRemoveTSMA(pCatalog, pTsmaInfo);
+      tFreeAndClearTableTSMAInfo(pTsmaInfo);
+    } else {
+      tscDebug("hb to update tsma: %s.%s", pTsmaInfo->dbFName, pTsmaInfo->name);
+      catalogUpdateTSMA(pCatalog, &pTsmaInfo);
+      tFreeAndClearTableTSMAInfo(pTsmaInfo);
+    }
+  }
+
+  taosArrayDestroy(hbRsp.pTsmas);
+  return TSDB_CODE_SUCCESS;
+}
 
 static void hbProcessQueryRspKvs(int32_t kvNum, SArray* pKvs, struct SCatalog *pCatalog, SAppHbMgr *pAppHbMgr) {
   for (int32_t i = 0; i < kvNum; ++i) {
@@ -379,6 +406,13 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray* pKvs, struct SCatalog *p
         break;
       }
 #endif
+      case HEARTBEAT_KEY_TSMA: {
+        if (kv->valueLen <= 0 || !kv->value) {
+          tscError("Invalid tsma info, len: %d, value: %p", kv->valueLen, kv->value);
+        }
+        hbprocessTSMARsp(kv->value, kv->valueLen, pCatalog);
+        break;
+      }
       default:
         tscError("invalid hb key type:%d", kv->key);
         break;
@@ -871,6 +905,39 @@ int32_t hbGetExpiredViewInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t hbGetExpiredTSMAInfo(SClientHbKey* connKey, struct SCatalog* pCatalog, SClientHbReq* pReq) {
+  int32_t       code = 0;
+  uint32_t      tsmaNum = 0;
+  STSMAVersion *tsmas = NULL;
+
+  code = catalogGetExpiredTsmas(pCatalog, &tsmas, &tsmaNum);
+  if (code) {
+    taosMemoryFree(tsmas);
+    return code;
+  }
+
+  if (tsmaNum <= 0) {
+    taosMemoryFree(tsmas);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < tsmaNum; ++i) {
+    STSMAVersion* tsma = &tsmas[i];
+    tsma->dbId = htobe64(tsma->dbId);
+    tsma->tsmaId = htobe64(tsma->tsmaId);
+    tsma->version = htonl(tsma->version);
+  }
+
+  tscDebug("hb got %d expred tsmas, valueLen: %lu", tsmaNum, sizeof(STSMAVersion) * tsmaNum);
+
+  if (!pReq->info) {
+    pReq->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+  }
+
+  SKv kv = {.key = HEARTBEAT_KEY_TSMA, .valueLen = sizeof(STSMAVersion) * tsmaNum, .value = tsmas};
+  taosHashPut(pReq->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t hbGetAppInfo(int64_t clusterId, SClientHbReq *req) {
   SAppHbReq *pApp = taosHashGet(clientHbMgr.appSummary, &clusterId, sizeof(clusterId));
@@ -935,6 +1002,7 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
       return code;
     }
 #endif    
+    code = hbGetExpiredTSMAInfo(connKey, pCatalog, req);
   } else {
     req->app.appId = 0;
   }

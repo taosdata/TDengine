@@ -25,6 +25,7 @@
 #include "mndStb.h"
 #include "mndUser.h"
 #include "mndView.h"
+#include "mndSma.h"
 #include "tglobal.h"
 #include "tversion.h"
 
@@ -606,6 +607,16 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         break;
       }
 #endif
+      case HEARTBEAT_KEY_TSMA: {
+        void *  rspMsg = NULL;
+        int32_t rspLen = 0;
+        mndValidateTSMAInfo(pMnode, kv->value, kv->valueLen / sizeof(STSMAVersion), &rspMsg, &rspLen);
+        if (rspMsg && rspLen > 0) {
+          SKv kv = {.key = HEARTBEAT_KEY_TSMA, .valueLen = rspLen, .value = rspMsg};
+          taosArrayPush(hbRsp.info, &kv);
+        }
+        break;
+      }
       default:
         mError("invalid kv key:%d", kv->key);
         hbRsp.status = TSDB_CODE_APP_ERROR;

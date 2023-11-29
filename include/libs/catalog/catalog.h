@@ -94,6 +94,7 @@ typedef struct SCatalogReq {
   SArray* pTableCfg;      // element is SNAME
   SArray* pTableTag;      // element is SNAME
   SArray* pView;          // element is STablesReq
+  SArray* pTableTSMAs;    // element is STablesReq
   bool    qNodeRequired;  // valid qnode
   bool    dNodeRequired;  // valid dnode
   bool    svrVerRequired;
@@ -122,6 +123,7 @@ typedef struct SMetaData {
   SArray*   pTableTag;    // pRes = SArray<STagVal>*
   SArray*   pDnodeList;   // pRes = SArray<SEpSet>*
   SArray*   pView;        // pRes = SViewMeta*
+  SArray*   pTableTsmas;  // pRes = SArray<STableTSMAInfo>*
   SMetaRes* pSvrVer;      // pRes = char*
 } SMetaData;
 
@@ -130,9 +132,11 @@ typedef struct SCatalogCfg {
   uint32_t maxViewCacheNum;
   uint32_t maxDBCacheNum;
   uint32_t maxUserCacheNum;
+  uint32_t maxTSMACacheNum;
   uint32_t dbRentSec;
   uint32_t stbRentSec;
   uint32_t viewRentSec;
+  uint32_t tsmaRentSec;
 } SCatalogCfg;
 
 typedef struct SSTableVersion {
@@ -167,6 +171,14 @@ typedef struct SViewVersion {
   int32_t  version;
 } SViewVersion;
 
+typedef struct STSMAVersion {
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  char     tbName[TSDB_TABLE_NAME_LEN];
+  char     name[TSDB_TABLE_NAME_LEN];
+  uint64_t dbId;
+  uint64_t tsmaId;
+  int32_t  version;
+} STSMAVersion;
 
 typedef struct STbSVersion {
   char*   tbFName;
@@ -178,6 +190,8 @@ typedef struct SUserAuthVersion {
   char    user[TSDB_USER_LEN];
   int32_t version;
 } SUserAuthVersion;
+
+typedef struct {} STableTSMAVersion;
 
 typedef SUserIndexRsp SIndexInfo;
 
@@ -342,6 +356,8 @@ int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbCacheInfo** dbs, uint32_t* n
 
 int32_t catalogGetExpiredUsers(SCatalog* pCtg, SUserAuthVersion** users, uint32_t* num);
 
+int32_t catalogGetExpiredTsmas(SCatalog* pCtg, STSMAVersion** tsmas, uint32_t* num);
+
 int32_t catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SDbCfgInfo* pDbCfg);
 
 int32_t catalogGetIndexMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const char* indexName, SIndexInfo* pInfo);
@@ -387,6 +403,12 @@ int32_t catalogGetViewMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName*
 int32_t ctgdEnableDebug(char* option, bool enable);
 
 int32_t ctgdHandleDbgCommand(char* command);
+
+int32_t catalogAsyncUpdateTSMA(SCatalog* pCtg, STableTSMAInfo** pTsma);
+
+int32_t catalogUpdateTSMA(SCatalog* pCtg, STableTSMAInfo** ppTsma);
+
+int32_t catalogRemoveTSMA(SCatalog* pCtg, const STableTSMAInfo* pTsma);
 
 /**
  * Destroy catalog and relase all resources

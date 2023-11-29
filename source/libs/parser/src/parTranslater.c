@@ -10406,6 +10406,9 @@ static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMC
     }
   }
 
+  if (code == TSDB_CODE_SUCCESS)
+    code = rewriteFuncsForTSMA(info.pFuncs);
+
   if (code == TSDB_CODE_SUCCESS) {
     code = buildSampleAst(pCxt, &info, &pReq->ast, &pReq->astLen, &pReq->expr, &pReq->exprLen);
   }
@@ -10522,30 +10525,26 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
 static int32_t translateCreateTSMA(STranslateContext* pCxt, SCreateTSMAStmt* pStmt) {
   int32_t code = doTranslateValue(pCxt, (SValueNode*)pStmt->pOptions->pInterval);
 
-  pStmt->pReq = taosMemoryCalloc(1, sizeof(SMCreateSmaReq));
-  if (pStmt->pReq == NULL) code = TSDB_CODE_OUT_OF_MEMORY;
+  SMCreateSmaReq smaReq = {0};
   if (code == TSDB_CODE_SUCCESS) {
-    code = buildCreateTSMAReq(pCxt, pStmt, pStmt->pReq);
+    code = buildCreateTSMAReq(pCxt, pStmt, &smaReq);
   }
   if (TSDB_CODE_SUCCESS == code) {
     // TODO replace with tsma serialization func
-    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_TSMA, (FSerializeFunc)tSerializeSMCreateSmaReq, pStmt->pReq);
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_TSMA, (FSerializeFunc)tSerializeSMCreateSmaReq, &smaReq);
   }
-  tFreeSMCreateSmaReq(pStmt->pReq);
+  tFreeSMCreateSmaReq(&smaReq);
   return code;
 }
 
 static int32_t translateDropTSMA(STranslateContext* pCxt, SDropTSMAStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
-  pStmt->pReq = taosMemoryCalloc(1, sizeof(SMDropSmaReq));
-  if (!pStmt->pReq) code = TSDB_CODE_OUT_OF_MEMORY;
-  if (code == TSDB_CODE_SUCCESS) {
-    SName name;
-    tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tsmaName, &name), pStmt->pReq->name);
-    pStmt->pReq->igNotExists = pStmt->ignoreNotExists;
-  }
+  SMDropSmaReq dropReq = {0};
+  SName        name;
+  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tsmaName, &name), dropReq.name);
+  dropReq.igNotExists = pStmt->ignoreNotExists;
   if (TSDB_CODE_SUCCESS == code)
-    code = buildCmdMsg(pCxt, TDMT_MND_DROP_TSMA, (FSerializeFunc)tSerializeSMDropSmaReq, pStmt->pReq);
+    code = buildCmdMsg(pCxt, TDMT_MND_DROP_TSMA, (FSerializeFunc)tSerializeSMDropSmaReq, &dropReq);
   return code;
 }
 
