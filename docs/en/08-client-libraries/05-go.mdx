@@ -1,20 +1,20 @@
 ---
-title: TDengine Go Connector
+title: TDengine Go Client Library
 sidebar_label: Go
-description: This document describes the TDengine Go connector.
+description: This document describes the TDengine Go client library.
 toc_max_heading_level: 4
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-import GoInsert from "../../07-develop/03-insert-data/_go_sql.mdx"
-import GoInfluxLine from "../../07-develop/03-insert-data/_go_line.mdx"
-import GoOpenTSDBTelnet from "../../07-develop/03-insert-data/_go_opts_telnet.mdx"
-import GoOpenTSDBJson from "../../07-develop/03-insert-data/_go_opts_json.mdx"
-import GoQuery from "../../07-develop/04-query-data/_go.mdx"
+import GoInsert from "../07-develop/03-insert-data/_go_sql.mdx"
+import GoInfluxLine from "../07-develop/03-insert-data/_go_line.mdx"
+import GoOpenTSDBTelnet from "../07-develop/03-insert-data/_go_opts_telnet.mdx"
+import GoOpenTSDBJson from "../07-develop/03-insert-data/_go_opts_json.mdx"
+import GoQuery from "../07-develop/04-query-data/_go.mdx"
 
-`driver-go` is the official Go language connector for TDengine. It implements the [database/sql](https://golang.org/pkg/database/sql/) package, the generic Go language interface to SQL databases. Go developers can use it to develop applications that access TDengine cluster data.
+`driver-go` is the official Go language client library for TDengine. It implements the [database/sql](https://golang.org/pkg/database/sql/) package, the generic Go language interface to SQL databases. Go developers can use it to develop applications that access TDengine cluster data.
 
 `driver-go` provides two ways to establish connections. One is **native connection**, which connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface. The other is the **REST connection**, which connects to TDengine instances via the REST interface provided by taosAdapter. The set of features implemented by the REST connection differs slightly from those implemented by the native connection.
 
@@ -74,14 +74,14 @@ If it is a TDengine error, you can get the error code and error information in t
 ### Pre-installation preparation
 
 * Install Go development environment (Go 1.14 and above, GCC 4.8.5 and above)
-* If you use the native connector, please install the TDengine client driver. Please refer to [Install Client Driver](/reference/connector/#install-client-driver) for specific steps
+* If you use the native connection, please install the TDengine client driver. Please refer to [Install Client Driver](../#install-client-driver) for specific steps
 
 Configure the environment variables and check the command.
 
 * ```go env```
 * ```gcc -v```
 
-### Install the connectors
+### Install the client library
 
 1. Initialize the project with the `go mod` command.
 
@@ -222,11 +222,11 @@ func main() {
 
 ### Specify the URL and Properties to get the connection
 
-The Go connector does not support this feature
+The Go client library does not support this feature
 
 ### Priority of configuration parameters
 
-The Go connector does not support this feature
+The Go client library does not support this feature
 
 ## Usage examples
 
@@ -769,7 +769,7 @@ You can get the unique id by `common.GetReqID()`.
 
 ### Data Subscription
 
-The TDengine Go Connector supports subscription functionality with the following application API.
+The TDengine Go client library supports subscription functionality with the following application API.
 
 #### Create a Topic
 

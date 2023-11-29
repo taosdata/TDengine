@@ -1,16 +1,16 @@
 ---
-title: TDengine Java Connector
+title: TDengine Java Client Library
 sidebar_label: Java
-description: This document describes the TDengine Java Connector.
+description: This document describes the TDengine Java client library.
 toc_max_heading_level: 4
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-`taos-jdbcdriver` is the official Java connector for TDengine. Java developers can use it to develop applications that access data in TDengine. `taos-jdbcdriver` implements standard JDBC driver interfaces and two connection methods: One is **native connection**, which connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface. The second is **REST connection** which is implemented through taosAdapter. The set of features implemented by the REST connection differs slightly from those implemented by the native connection.
+`taos-jdbcdriver` is the official Java client library for TDengine. Java developers can use it to develop applications that access data in TDengine. `taos-jdbcdriver` implements standard JDBC driver interfaces and two connection methods: One is **native connection**, which connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface. The second is **REST connection** which is implemented through taosAdapter. The set of features implemented by the REST connection differs slightly from those implemented by the native connection.
 
-![TDengine Database Connector Java](tdengine-jdbc-connector.webp)
+![TDengine Java client library](tdengine-jdbc-connector.webp)
 
 The preceding figure shows the two ways in which a Java application can access TDengine.
 
@@ -72,7 +72,7 @@ try (Statement statement = connection.createStatement()) {
 }
 ```
 
-There are four types of error codes that the JDBC connector can report:
+There are four types of error codes that the JDBC client library can report:
 
 - Error code of the JDBC driver itself (error code between 0x2301 and 0x2350),
 - Error code of the native connection method (error code between 0x2351 and 0x2360)
@@ -123,7 +123,7 @@ For specific error codes, please refer to.
 | 0x2379     | seek offset must not be a negative number                       | The seek interface parameter cannot be negative. Use the correct parameter                                                         |
 | 0x237a     | vGroup not found in result set                                  | subscription is not bound to the VGroup due to the rebalance mechanism                                                             |
 
-- [TDengine Java Connector](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
+- [TDengine Java client library](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 <!-- - [TDengine_ERROR_CODE](../error-code) -->
 
 ## TDengine DataType vs. Java DataType
@@ -157,12 +157,12 @@ For Java connector, the jts library can be used to easily create GEOMETRY type o
 
 ### Pre-installation preparation
 
-Before using Java Connector to connect to the database, the following conditions are required.
+Before using Java client library to connect to the database, the following conditions are required.
 
 - Java 1.8 or above runtime environment and Maven 3.6 or above installed
-- TDengine client driver installed (required for native connections, not required for REST connections), please refer to [Installing Client Driver](/reference/connector#Install-Client-Driver)
+- TDengine client driver installed (required for native connections, not required for REST connections), please refer to [Installing Client Driver](../#Install-Client-Driver)
 
-### Install the connectors
+### Install the client library
 
 <Tabs defaultValue="maven">
 <TabItem value="maven" label="Install via Maven">
@@ -186,7 +186,7 @@ Add following dependency in the `pom.xml` file of your Maven project:
 </TabItem>
 <TabItem value="source" label="Build from source code">
 
-You can build Java connector from source code after cloning the TDengine project:
+You can build Java client library from source code after cloning the TDengine project:
 
 ```shell
 git clone https://github.com/taosdata/taos-connector-jdbc.git
@@ -269,7 +269,7 @@ In the above example, JDBC uses the client's configuration file to establish a c
 
 In TDengine, as long as one node in firstEp and secondEp is valid, the connection to the cluster can be established normally.
 
-The configuration file here refers to the configuration file on the machine where the application that calls the JDBC Connector is located, the default path is `/etc/taos/taos.cfg` on Linux, the default path is `C://TDengine/cfg/taos.cfg` on Windows, and the default path is `/etc/taos/taos.cfg` on macOS.
+The configuration file here refers to the configuration file on the machine where the application that calls the JDBC client library is located, the default path is `/etc/taos/taos.cfg` on Linux, the default path is `C://TDengine/cfg/taos.cfg` on Windows, and the default path is `/etc/taos/taos.cfg` on macOS.
 
 </TabItem>
 <TabItem value="rest" label="REST connection">
@@ -977,7 +977,7 @@ public void setTagGeometry(int index, byte[] value)
 
 ### Schemaless Writing
 
-TDengine supports schemaless writing. It is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet line protocol, and OpenTSDB's JSON format protocol. For more information, see [Schemaless Writing](../../schemaless).
+TDengine supports schemaless writing. It is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet line protocol, and OpenTSDB's JSON format protocol. For more information, see [Schemaless Writing](../../reference/schemaless/).
 
 <Tabs defaultValue="native">
 <TabItem value="native" label="native connection">
@@ -1057,7 +1057,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 
 ### Data Subscription
 
-The TDengine Java Connector supports subscription functionality with the following application API.
+The TDengine Java client library supports subscription functionality with the following application API.
 
 #### Create a Topic
 
@@ -1179,7 +1179,7 @@ For more information, see [Data Subscription](../../../develop/tmq).
 <Tabs defaultValue="native">
 <TabItem value="native" label="native connection">
 
-In addition to the native connection, the Java Connector also supports subscribing via websocket.
+In addition to the native connection, the Java client library also supports subscribing via websocket.
 
 ```java
 public abstract class ConsumerLoop {

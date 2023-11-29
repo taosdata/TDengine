@@ -37,7 +37,7 @@ The major features are listed below:
    - Provides an interactive [Command Line Interface (CLI)](../reference/taos-shell) for management, maintenance and ad-hoc queries.
    - Provides a tool [taosBenchmark](../reference/taosbenchmark/) for testing the performance of TDengine.
 10. Programming
-    - Provides [connectors](../reference/connector/) for [C/C++](../reference/connector/cpp), [Java](../reference/connector/java), [Python](../reference/connector/python), [Go](../reference/connector/go), [Rust](../reference/connector/rust), [Node.js](../reference/connector/node) and other programming languages.
+    - Provides [client libraries](../client-libraries/) for [C/C++](../client-libraries/cpp), [Java](../client-libraries/java), [Python](../client-libraries/python), [Go](../client-libraries/go), [Rust](../client-libraries/rust), [Node.js](../client-libraries/node) and other programming languages.
     - Provides a [REST API](../reference/rest-api/).
 
 For more details on features, please read through the entire documentation.

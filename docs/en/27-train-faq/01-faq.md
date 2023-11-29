@@ -54,7 +54,7 @@ This error indicates that the client could not connect to the server. Perform th
 
 6. Verify that your firewall settings allow all hosts in the cluster to communicate on ports 6030 and 6041 (TCP and UDP). You can run `ufw status` (Ubuntu) or `firewall-cmd --list-port` (CentOS) to check the configuration.
 
-7. If you are using the Python, Java, Go, Rust, C#, or Node.js connector on Linux to connect to the server, verify that `libtaos.so` is in the `/usr/local/taos/driver` directory and `/usr/local/taos/driver` is in the `LD_LIBRARY_PATH` environment variable.
+7. If you are using the Python, Java, Go, Rust, C#, or Node.js client library on Linux to connect to the server, verify that `libtaos.so` is in the `/usr/local/taos/driver` directory and `/usr/local/taos/driver` is in the `LD_LIBRARY_PATH` environment variable.
 
 8. If you are using macOS, verify that `libtaos.dylib` is in the `/usr/local/lib` directory and `/usr/local/lib` is in the `DYLD_LIBRARY_PATH` environment variable..
 
@@ -142,7 +142,7 @@ Timestamps are processed as follows:
 
 1. The client uses its system timezone unless it has been configured otherwise.
 2. A timezone configured in `taos.cfg` takes precedence over the system timezone.
-3. A timezone explicitly specified when establishing a connection to TDengine through a connector takes precedence over `taos.cfg` and the system timezone. For example, the Java connector allows you to specify a timezone in the JDBC URL.
+3. A timezone explicitly specified when establishing a connection to TDengine through a client library takes precedence over `taos.cfg` and the system timezone. For example, the Java client library allows you to specify a timezone in the JDBC URL.
 4. If you use an RFC 3339 timestamp (2013-04-12T15:52:01.123+08:00), or an ISO 8601 timestamp (2013-04-12T15:52:01.123+0800), the timezone specified in the timestamp is used instead of the timestamps configured using any other method. 
 
 ### 11. Which network ports are required by TDengine?

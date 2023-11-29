@@ -176,7 +176,7 @@ After completing the query, if the data written does not differ from what is exp
 
 TDengine does not support querying, or data fetching using the OpenTSDB query syntax but does provide a counterpart for each of the OpenTSDB queries. The corresponding query processing can be adapted and applied in a manner obtained by examining Appendix 1. To fully understand the types of queries supported by TDengine, refer to the TDengine user manual.
 
-TDengine supports the standard JDBC 3.0 interface for manipulating databases, but you can also use other types of high-level language connectors for querying and reading data to suit your application. Please read the user manual for specific operations and usage.
+TDengine supports the standard JDBC 3.0 interface for manipulating databases, but you can also use other types of high-level language client libraries for querying and reading data to suit your application. Please read the user manual for specific operations and usage.
 
 ## Historical Data Migration
 
