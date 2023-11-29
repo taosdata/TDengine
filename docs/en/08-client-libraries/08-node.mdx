@@ -1,7 +1,7 @@
 ---
-title: TDengine Node.js Connector
+title: TDengine Node.js Client Library
 sidebar_label: Node.js
-description: This document describes the TDengine Node.js connector.
+description: This document describes the TDengine Node.js client library.
 toc_max_heading_level: 4
 ---
 
@@ -9,32 +9,32 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
 import Preparition from "./_preparation.mdx";
-import NodeInsert from "../../07-develop/03-insert-data/_js_sql.mdx";
-import NodeInfluxLine from "../../07-develop/03-insert-data/_js_line.mdx";
-import NodeOpenTSDBTelnet from "../../07-develop/03-insert-data/_js_opts_telnet.mdx";
-import NodeOpenTSDBJson from "../../07-develop/03-insert-data/_js_opts_json.mdx";
-import NodeQuery from "../../07-develop/04-query-data/_js.mdx";
+import NodeInsert from "../07-develop/03-insert-data/_js_sql.mdx";
+import NodeInfluxLine from "../07-develop/03-insert-data/_js_line.mdx";
+import NodeOpenTSDBTelnet from "../07-develop/03-insert-data/_js_opts_telnet.mdx";
+import NodeOpenTSDBJson from "../07-develop/03-insert-data/_js_opts_json.mdx";
+import NodeQuery from "../07-develop/04-query-data/_js.mdx";
 
-`@tdengine/client` and `@tdengine/rest` are the official Node.js connectors. Node.js developers can develop applications to access TDengine instance data. Note: The connectors for TDengine 3.0 are different than those for TDengine 2.x. The new connectors do not support TDengine 2.x.
+`@tdengine/client` and `@tdengine/rest` are the official Node.js client libraries. Node.js developers can develop applications to access TDengine instance data. Note: The client libraries for TDengine 3.0 are different than those for TDengine 2.x. The new client libraries do not support TDengine 2.x.
 
-`@tdengine/client` is **native connection**, which connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface. `@tdengine/rest` is the **REST connection**, which connects to TDengine instances via the REST interface provided by taosAdapter. The REST connector can run on any platform, but performance is slightly degraded, and the interface implements a somewhat different set of functional features than the native interface.
+`@tdengine/client` is **native connection**, which connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface. `@tdengine/rest` is the **REST connection**, which connects to TDengine instances via the REST interface provided by taosAdapter. The REST client library can run on any platform, but performance is slightly degraded, and the interface implements a somewhat different set of functional features than the native interface.
 
-The source code for the Node.js connectors is located on [GitHub](https://github.com/taosdata/taos-connector-node/tree/3.0).
+The source code for the Node.js client libraries is located on [GitHub](https://github.com/taosdata/taos-connector-node/tree/3.0).
 
 ## Supported platforms
 
-The platforms supported by the native connector are the same as those supported by the TDengine client driver.
-The REST connector supports all platforms that can run Node.js.
+The platforms supported by the native client library are the same as those supported by the TDengine client driver.
+The REST client library supports all platforms that can run Node.js.
 
 ## Version support
 
-Please refer to [version support list](/reference/connector#version-support)
+Please refer to [version support list](../#version-support)
 
 ## Supported features
 
 
 <Tabs defaultValue="native">
-<TabItem value="native" label="Native connector">
+<TabItem value="native" label="Native connection">
 
 1. Connection Management
 2. General Query
@@ -44,7 +44,7 @@ Please refer to [version support list](/reference/connector#version-support)
 6. Schemaless
 
 </TabItem>
-<TabItem value="rest" label="REST connector">
+<TabItem value="rest" label="REST connection">
 
 1. Connection Management
 2. General Query
@@ -58,7 +58,7 @@ Please refer to [version support list](/reference/connector#version-support)
 ### Pre-installation preparation
 
 - Install the Node.js development environment
-- If you are using the REST connector, skip this step. However, if you use the native connector, please install the TDengine client driver. Please refer to [Install Client Driver](/reference/connector#Install-Client-Driver) for more details. We use [node-gyp](https://github.com/nodejs/node-gyp) to interact with TDengine instances and also need to install some dependencies mentioned below depending on the specific OS.
+- If you are using the REST client library, skip this step. However, if you use the native client library, please install the TDengine client driver. Please refer to [Install Client Driver](../#Install-Client-Driver) for more details. We use [node-gyp](https://github.com/nodejs/node-gyp) to interact with TDengine instances and also need to install some dependencies mentioned below depending on the specific OS.
 
 <Tabs defaultValue="Linux">
 <TabItem value="Linux" label="Linux system installation dependencies">
@@ -103,14 +103,14 @@ If using ARM64 Node.js on Windows 10 ARM, you must add "Visual C++ compilers and
 ### Install via npm
 
 <Tabs defaultValue="install_rest">
-<TabItem value="install_native" label="Install native connector">
+<TabItem value="install_native" label="Install native clieny library">
 
 ```bash
 npm install @tdengine/client
 ```
 
 </TabItem>
-<TabItem value="install_rest" label="Install REST connector">
+<TabItem value="install_rest" label="Install REST client library">
 
 ```bash
 npm install @tdengine/rest
@@ -122,7 +122,7 @@ npm install @tdengine/rest
 ### Verify
 
 <Tabs defaultValue="native">
-<TabItem value="native" label="Native connector">
+<TabItem value="native" label="Native client library">
 
 After installing the TDengine client, use the `nodejsChecker.js` program to verify that the current environment supports Node.js access to TDengine.
 
@@ -141,7 +141,7 @@ node nodejsChecker.js host=localhost
 - After executing the above steps, the command-line will output the result of `nodejsChecker.js` connecting to the TDengine instance and performing a simple insert and query.
 
 </TabItem>
-<TabItem value="rest" label="REST connector">
+<TabItem value="rest" label="REST client library">
 
 After installing the TDengine client, use the `restChecker.js` program to verify that the current environment supports Node.js access to TDengine.
 
@@ -164,7 +164,7 @@ node restChecker.js
 
 ## Establishing a connection
 
-Please choose to use one of the connectors.
+Please choose to use one of the client libraries.
 
 <Tabs defaultValue="rest">
 <TabItem value="native" label="native connection">
@@ -288,7 +288,7 @@ let cursor = conn.cursor();
 | [schemless insert](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/schemaless.js)                   | Schemaless insert                 |
 | [TMQ](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/tmq.js)                                 | Using data subscription                       |
 | [asyncQuery](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/asyncQueryExample.js)                                         | Using asynchronous queries                   |
-| [REST](https://github.com/taosdata/taos-connector-node/blob/3.0/typescript-rest/example/example.ts)                                    | Using TypeScript with the REST connector |
+| [REST](https://github.com/taosdata/taos-connector-node/blob/3.0/typescript-rest/example/example.ts)                                    | Using TypeScript with the REST client library |
 
 ## Usage limitations
 
@@ -316,7 +316,7 @@ let cursor = conn.cursor();
 
 ## Important update records
 
-### Native connectors
+### Native client library
 
 | package name     | version | TDengine version    | Description                                                             |
 |------------------|---------|---------------------|------------------------------------------------------------------|
@@ -324,7 +324,7 @@ let cursor = conn.cursor();
 | td2.0-connector  | 2.0.12  | 2.4.x; 2.5.x; 2.6.x | Fixed cursor.close() bug.                                 |
 | td2.0-connector  | 2.0.11  | 2.4.x; 2.5.x; 2.6.x | Supports parameter binding, JSON tags and schemaless interface                  |
 | td2.0-connector  | 2.0.10  | 2.4.x; 2.5.x; 2.6.x | Supports connection management, standard queries, connection queries, system information, and data subscription |
-### REST Connector
+### REST client library
 
 | package name         | version | TDengine version    | Description                                                                      |
 |----------------------|---------|---------------------|---------------------------------------------------------------------------|
@@ -334,6 +334,3 @@ let cursor = conn.cursor();
 | td2.0-rest-connector | 1.0.5   | 2.4.x; 2.5.x; 2.6.x | Support cloud token                                                  |
 | td2.0-rest-connector  | 1.0.3  | 2.4.x; 2.5.x; 2.6.x | Supports connection management, standard queries, system information, error information, and continuous queries          |
 
-## API Reference
-
-[API Reference](https://docs.taosdata.com/api/td2.0-connector/)
