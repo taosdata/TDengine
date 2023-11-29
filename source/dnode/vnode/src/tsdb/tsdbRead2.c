@@ -4361,7 +4361,8 @@ static int32_t doTsdbNextDataBlockDurationOrder(STsdbReader* pReader) {
       STimeWindow win = {0};
       tsdbFidKeyRange(fid, pReader->pTsdb->keepCfg.days, pReader->pTsdb->keepCfg.precision, &win.skey, &win.ekey);
 
-      code = buildBlockFromBufferSequentially(pReader, win.skey);
+      int64_t endKey = (ASCENDING_TRAVERSE(pReader->info.order)) ? win.skey : win.ekey;
+      code = buildBlockFromBufferSequentially(pReader, endKey);      
       if (code != TSDB_CODE_SUCCESS || pBlock->info.rows > 0) {
         return code;
       } else {
