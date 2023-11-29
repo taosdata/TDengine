@@ -4965,11 +4965,11 @@ static void getMemTableTimeRange(STsdbReader* pReader, int64_t* pMaxKey, int64_t
     if (pReader->pReadSnap->pIMem != NULL) {
       di = tsdbGetTbDataFromMemTable(pReader->pReadSnap->pIMem, pReader->info.suid, pBlockScanInfo->uid);
       if (di != NULL) {
-        if (d->maxKey > maxKey) {
-          maxKey = d->maxKey;
+        if (di->maxKey > maxKey) {
+          maxKey = di->maxKey;
         }
-        if (d->minKey < minKey) {
-          minKey = d->minKey;
+        if (di->minKey < minKey) {
+          minKey = di->minKey;
         }
       }
     }
