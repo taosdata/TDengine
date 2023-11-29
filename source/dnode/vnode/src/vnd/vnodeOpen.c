@@ -490,6 +490,7 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
     vnodeAWait(vnodeAsyncHandle[0], pVnode->commitTask);
+    vnodeAChannelDestroy(vnodeAsyncHandle[0], pVnode->commitChannel, true);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     tqClose(pVnode->pTq);
@@ -498,7 +499,6 @@ void vnodeClose(SVnode *pVnode) {
     smaClose(pVnode->pSma);
     if (pVnode->pMeta) metaClose(&pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
-    vnodeAChannelDestroy(vnodeAsyncHandle[0], pVnode->commitChannel, true);
 
     // destroy handle
     tsem_destroy(&pVnode->syncSem);

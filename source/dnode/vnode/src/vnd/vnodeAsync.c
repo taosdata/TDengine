@@ -667,7 +667,13 @@ int32_t vnodeAChannelDestroy(SVAsync *async, int64_t channelId, bool waitRunning
 
   vHashGet(async->channelTable, &channel2, (void **)&channel);
   if (channel) {
-    // cancel all tasks
+    // unregister channel
+    channel->next->prev = channel->prev;
+    channel->prev->next = channel->next;
+    vHashDrop(async->channelTable, channel);
+    async->numChannels--;
+
+    // cancel all waiting tasks
     for (int32_t i = 0; i < EVA_PRIORITY_MAX; i++) {
       while (channel->queue[i].next != &channel->queue[i]) {
         SVATask *task = channel->queue[i].next;
@@ -677,13 +683,7 @@ int32_t vnodeAChannelDestroy(SVAsync *async, int64_t channelId, bool waitRunning
       }
     }
 
-    // unregister channel
-    channel->next->prev = channel->prev;
-    channel->prev->next = channel->next;
-    vHashDrop(async->channelTable, channel);
-    async->numChannels--;
-
-    // handle scheduled task
+    // cancel or wait the scheduled task
     if (channel->scheduled == NULL || channel->scheduled->state == EVA_TASK_STATE_WAITTING) {
       if (channel->scheduled) {
         channel->scheduled->prev->next = channel->scheduled->next;
@@ -708,6 +708,9 @@ int32_t vnodeAChannelDestroy(SVAsync *async, int64_t channelId, bool waitRunning
         channel->state = EVA_CHANNEL_STATE_CLOSE;
       }
     }
+  } else {
+    taosThreadMutexUnlock(&async->mutex);
+    return TSDB_CODE_INVALID_PARA;
   }
 
   taosThreadMutexUnlock(&async->mutex);

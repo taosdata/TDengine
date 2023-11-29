@@ -1014,31 +1014,3 @@ int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
   }
   return 0;
 }
-
-int32_t tsdbFSDisableBgTask(STFileSystem *fs) {
-  // taosThreadMutexLock(&fs->tsdb->mutex);
-  // for (;;) {
-  //   fs->stop = true;
-  //   bool done = true;
-
-  //   STFileSet *fset;
-  //   TARRAY2_FOREACH(fs->fSetArr, fset) {
-  //     if (fset->bgTaskRunning) {
-  //       tsdbDoWaitBgTask(fs, fset->bgTaskRunning);
-  //       done = false;
-  //       break;
-  //     }
-  //   }
-
-  //   if (done) break;
-  // }
-  // taosThreadMutexUnlock(&fs->tsdb->mutex);
-  return 0;
-}
-
-int32_t tsdbFSEnableBgTask(STFileSystem *fs) {
-  // taosThreadMutexLock(&fs->tsdb->mutex);
-  // fs->stop = false;
-  // taosThreadMutexUnlock(&fs->tsdb->mutex);
-  return 0;
-}

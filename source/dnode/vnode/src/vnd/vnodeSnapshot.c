@@ -342,7 +342,8 @@ struct SVSnapWriter {
 };
 
 extern int32_t tsdbCancelAllBgTask(STsdb *tsdb);
-int32_t        vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter) {
+
+int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter) {
   int32_t       code = 0;
   SVSnapWriter *pWriter = NULL;
 
@@ -364,7 +365,7 @@ int32_t        vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, S
   pWriter->commitID = ++pVnode->state.commitID;
 
   vInfo("vgId:%d, vnode snapshot writer opened, sver:%" PRId64 " ever:%" PRId64 " commit id:%" PRId64, TD_VID(pVnode),
-               sver, ever, pWriter->commitID);
+        sver, ever, pWriter->commitID);
   *ppWriter = pWriter;
   return code;
 

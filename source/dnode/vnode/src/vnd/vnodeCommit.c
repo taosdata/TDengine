@@ -377,10 +377,10 @@ static int32_t vnodeCommitTask(void *arg) {
   vnodeReturnBufPool(pVnode);
 
 _exit:
-  // end commit
-  taosMemoryFree(pInfo);
   return code;
 }
+
+static void vnodeCompleteCommit(void *arg) { taosMemoryFree(arg); }
 
 int vnodeAsyncCommit(SVnode *pVnode) {
   int32_t code = 0;
@@ -398,8 +398,8 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   }
 
   // schedule the task
-  code = vnodeAsyncC(vnodeAsyncHandle[0], pVnode->commitChannel, EVA_PRIORITY_HIGH, vnodeCommitTask, NULL, pInfo,
-                     &pVnode->commitTask);
+  code = vnodeAsyncC(vnodeAsyncHandle[0], pVnode->commitChannel, EVA_PRIORITY_HIGH, vnodeCommitTask,
+                     vnodeCompleteCommit, pInfo, &pVnode->commitTask);
 
 _exit:
   if (code) {

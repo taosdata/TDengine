@@ -47,9 +47,6 @@ int64_t tsdbFSAllocEid(STFileSystem *fs);
 int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype);
 int32_t tsdbFSEditCommit(STFileSystem *fs);
 int32_t tsdbFSEditAbort(STFileSystem *fs);
-// background task
-int32_t tsdbFSDisableBgTask(STFileSystem *fs);
-int32_t tsdbFSEnableBgTask(STFileSystem *fs);
 // other
 int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
 int32_t tsdbFSCheckCommit(STsdb *tsdb, int32_t fid);
