@@ -1,6 +1,6 @@
 <template>
   <section>
-    <el-collapse v-model="activeCollapse" accordion>
+    <el-collapse v-model="activeCollapse" accordion class="connection">
       <el-collapse-item name='one'>
         <template slot="title">
           <el-button
@@ -91,3 +91,18 @@ export default {
 }
 
 </script>
+<style scoped>
+  .connection {
+    border-top: 0;
+    border-bottom: 0;
+    ::v-deep .el-collapse-item__header {
+      border-bottom: 0;
+    }
+    ::v-deep .el-collapse-item__wrap {
+      border-bottom: 0;
+    } 
+    :deep(.el-collapse-item__content) {
+      padding-bottom: 0,
+    }
+  }
+</style>

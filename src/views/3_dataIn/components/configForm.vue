@@ -155,7 +155,7 @@ export default {
   inject: ['sourceParent'],
   components: { FormItem, DocsContent, BlockHeader, ConnectivityCheck, ParserComp },
   data() {
-    this.mb10Type = ['opcTable', 'parser', 'tabs', 'advanced'];
+    this.mb10Type = ['opcTable', 'parser', 'tabs', 'advanced', 'collapse'];
     return {};
   },
   computed: {
@@ -216,19 +216,27 @@ export default {
   .advanced-en {
     :deep(.el-collapse-item__header) {
       min-height: 80px;
+      border-bottom: 0;
     }
     :deep(.el-collapse-item__content) {
       padding-bottom: 0,
     }
+      :deep(.el-collapse-item__wrap) {
+      border-bottom: 0;
+    } 
     border-top: 0;
   }
   .advanced-zh {
     :deep(.el-collapse-item__header) {
       min-height: 60px;
+      border-bottom: 0;
     }
     :deep(.el-collapse-item__content) {
       padding-bottom: 0,
     }
+    :deep(.el-collapse-item__wrap) {
+      border-bottom: 0;
+    } 
     border-top: 0;
   }
 }
