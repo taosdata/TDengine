@@ -1631,6 +1631,7 @@ void* taskDbAddRef(void* pTaskDb) {
   return taosAcquireRef(taskDbWrapperId, pBackend->refId);
 }
 void taskDbRemoveRef(void* pTaskDb) {
+  if (pTaskDb == NULL) return;
   STaskDbWrapper* pBackend = pTaskDb;
   taosReleaseRef(taskDbWrapperId, pBackend->refId);
 }

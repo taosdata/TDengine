@@ -255,6 +255,8 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg, char* key) {
     pTask->backendRefId = pBackend->refId;
     pTask->pBackend = pBackend;
     taosThreadMutexUnlock(&pMeta->backendMutex);
+
+    stDebug("s-task:0x%x set backend %p", pTask->id.taskId, pBackend);
     return 0;
   }
 
@@ -272,6 +274,8 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg, char* key) {
 
   taosHashPut(pMeta->pTaskDbUnique, key, strlen(key), &pBackend, sizeof(void*));
   taosThreadMutexUnlock(&pMeta->backendMutex);
+
+  stDebug("s-task:0x%x set backend %p", pTask->id.taskId, pBackend);
   return 0;
 }
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage) {
