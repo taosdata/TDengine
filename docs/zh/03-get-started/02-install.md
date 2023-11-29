@@ -6,18 +6,20 @@ sidebar_label: 安装与配置
 ## Linux 平台
 
 TDengine Enterprise 的安装包是一个包含了 TDengine Enterprise 所有核心组件的 all in one 安装包，其命名方式如下：
+
 - `TDengine-enterprise-<version>-<OS>-<platform>.tar.gz`，例如 `TDengine-enterprise-3.1.0.3-Linux-x64.tar.gz`
 
-TDengine Enterprise 安装包中主要包含： 
+TDengine Enterprise 安装包中主要包含：
+
 - `taosd`: 数据库服务端核心组件
 - `taosAdapter`：提供 RESTful 接入与 Websocket 连接的代理服务
 - `taosKeeper`:  taosd 上报数据的代理服务
 - `libtaos.so`：原生连接的客户端 SDK  （C语言接口）
 - `libtaosws.so`：WebSocket 连接的客户端 SDK （C语言接口）
-- `taosX`：数据接入、同步、备份和恢复的零代码平台
-- `taosAgent`：用于一些特定数据源接入时（taosX）的代理服务
-- `taosExplorer`：可视化管理工具的服务端
--  数据源接入 SDK：用于连接各种数据源，由 taosX 或 taosAgent 调用
+- taosX (`taosx`)：数据接入、同步、备份和恢复的零代码平台
+- Agent (`taosx-agent`)：用于一些特定数据源接入时（taosX）的代理服务
+- Explorer (`taos-explorer`)：可视化管理工具的服务端
+- 数据源接入 SDK：用于连接各种数据源，由 taosX 或 Agent 调用
 
 安装步骤如下：
 
@@ -41,6 +43,7 @@ sudo ./install.sh
 ```
 
 :::info
+
 1. install.sh 安装脚本在执行过程中，缺省会通过命令行交互界面询问一些配置信息，并完成单机运行环境的配置。
 2. 如果希望采取无交互安装方式，那么可以运行 `./install.sh -e no`。
 3. 运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
@@ -49,18 +52,20 @@ sudo ./install.sh
 ## Windows 平台
 
 TDengine Enterprise 的安装包是一个包含了 TDengine Enterprise 所有核心组件的 all in one 安装包，其命名方式如下：
+
 - `TDengine-enterprise-<version>-<OS>-<platform>.tar.gz`，例如 `TDengine-enterprise-3.1.0.3-Windows-x64.tar.gz`
 
-TDengine Enterprise 安装包中主要包含： 
+TDengine Enterprise 安装包中主要包含：
+
 - `taosd`: 数据库服务端核心组件
 - `taosAdapter`：提供 RESTful 接入与 Websocket 连接的代理服务
 - `taosKeeper`:  taosd 上报数据的代理服务
 - `libtaos.so`：原生连接的客户端 SDK  （C语言接口）
 - `libtaosws.so`：WebSocket 连接的客户端 SDK （C语言接口）
-- `taosX`：数据接入、同步、备份和恢复的零代码平台
-- `taosAgent`：用于一些特定数据源接入时（taosX）的代理服务
-- `taosExplorer`：可视化管理工具的服务端
--  数据源接入 SDK：用于连接各种数据源，由 taosX 或 taosAgent 调用
+- taosX (`taosx`)：数据接入、同步、备份和恢复的零代码平台
+- Agent (`taosx-agent`)：用于一些特定数据源接入时（taosX）的代理服务
+- Explorer (`taos-explorer`)：可视化管理工具的服务端
+- 数据源接入 SDK：用于连接各种数据源，由 taosX 或 taosAgent 调用
 
 安装步骤如下：
 
@@ -72,7 +77,8 @@ TDengine Enterprise 安装包中主要包含：
 - 命令行执行 ```sc start/stop taosx``` 启动/停止 taosx 服务
 - 命令行执行 ```sc start/stop taosx-agent``` 启动/停止 taosx-agent 服务
 - 命令行执行 ```sc start/stop taos-explorer``` 启动/停止 taosx-agent 服务
-- windows 默认安装在```C:\Program Files\taosX```,目录结构如下：
+- windows 默认安装在```C:\TDengine```,目录结构如下：
+
 ~~~
 ├── bin
 │   ├── taosd.exe
