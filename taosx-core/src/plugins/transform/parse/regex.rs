@@ -143,7 +143,7 @@ impl Parse for Regex {
 
         let rule = self.extract_rule();
 
-        match dbg!(rule) {
+        match rule {
             ExtractRule::ByCaptureNames(names) => {
                 let fields: Vec<_> = names
                     .into_iter()

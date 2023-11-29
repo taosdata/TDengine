@@ -404,10 +404,7 @@ mod pipeline_tests {
                 .collect_vec(),
             vec![
                 ("ts", DataType::Timestamp(TimeUnit::Millisecond, None)),
-                ("name", DataType::Utf8),
-                ("value", DataType::Utf8),
-                ("id", DataType::Utf8),
-                ("price", DataType::Utf8),
+                ("text", DataType::Utf8),
             ]
         );
         let json = serde_json::to_string_pretty(&output).unwrap();
@@ -416,7 +413,7 @@ mod pipeline_tests {
         // With parser only
         let pipeline: Pipeline = serde_json::from_str(
             r#"{
-            "parse": { "text": { "split": {"sep": ",", "n": 4 } } }
+            "parse": { "text": { "regex": "(\\d{1}).*" } }
         }"#,
         )
         .unwrap();
@@ -433,10 +430,8 @@ mod pipeline_tests {
                 .collect_vec(),
             vec![
                 ("ts", DataType::Timestamp(TimeUnit::Millisecond, None)),
-                ("text_0", DataType::Utf8),
-                ("text_1", DataType::Utf8),
-                ("text_2", DataType::Utf8),
-                ("text_3", DataType::Utf8),
+                ("text0", DataType::Utf8),
+                ("text1", DataType::Utf8),
             ]
         );
         let json = serde_json::to_string_pretty(&output).unwrap();
