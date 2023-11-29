@@ -1061,6 +1061,10 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
   size_t *values_list_sizes = taosMemoryCalloc(num_keys * 2, sizeof(size_t));
   char  **errs = taosMemoryCalloc(num_keys * 2, sizeof(char *));
   taosThreadMutexLock(&pTsdb->lruMutex);
+
+  pTsdb->flushState.flush_count = ROCKS_BATCH_SIZE;
+  taosLRUCacheApply(pTsdb->lruCache, tsdbCacheFlushDirty, &pTsdb->flushState);
+
   taosThreadMutexLock(&pTsdb->rCache.rMutex);
   rocksMayWrite(pTsdb, true, false, false);
   rocksdb_multi_get(pTsdb->rCache.db, pTsdb->rCache.readoptions, num_keys * 2, (const char *const *)keys_list,
