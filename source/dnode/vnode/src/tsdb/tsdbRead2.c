@@ -2519,7 +2519,7 @@ static void prepareDurationForNextFileSet(STsdbReader* pReader) {
   int32_t fid = pReader->status.pCurrentFileset->fid;
   STimeWindow winFid = {0};
   tsdbFidKeyRange(fid, pReader->pTsdb->keepCfg.days, pReader->pTsdb->keepCfg.precision, &winFid.skey, &winFid.ekey);
-  
+
   bool bProcMemPreFileset = false;
   if (ASCENDING_TRAVERSE(pReader->info.order)) {
     bProcMemPreFileset = !(pReader->status.prevFilesetStartKey > pReader->status.memTableMaxKey || winFid.skey < pReader->status.memTableMinKey);
@@ -2978,7 +2978,7 @@ static int32_t buildBlockFromBufferSequentially(STsdbReader* pReader, int64_t en
       if (!hasNexTable) {
         return TSDB_CODE_SUCCESS;
       }
-      continue;
+      pBlockScanInfo = pStatus->pTableIter;
     }
 
     initMemDataIterator(*pBlockScanInfo, pReader);
