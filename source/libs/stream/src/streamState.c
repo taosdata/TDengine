@@ -121,7 +121,7 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
 #ifdef USE_ROCKSDB
   SStreamMeta* pMeta = pStreamTask->pMeta;
   pState->streamBackendRid = pMeta->streamBackendRid;
-  // taosWLockLatch(&pMeta->lock);
+  // streamMetaWLock(pMeta);
   taosThreadMutexLock(&pMeta->backendMutex);
   void* uniqueId =
       taosHashGet(pMeta->pTaskBackendUnique, pState->pTdbState->idstr, strlen(pState->pTdbState->idstr) + 1);
@@ -221,7 +221,6 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
   }
 
   pState->pTdbState->pOwner = pTask;
-  pState->checkPointId = 0;
 
   return pState;
 
@@ -274,7 +273,6 @@ int32_t streamStateCommit(SStreamState* pState) {
     SStreamSnapshot* pShot = getSnapshot(pState->pFileState);
     flushSnapshot(pState->pFileState, pShot, true);
   }
-  pState->checkPointId++;
   return 0;
 #else
   if (tdbCommit(pState->pTdbState->db, pState->pTdbState->txn) < 0) {
@@ -288,7 +286,6 @@ int32_t streamStateCommit(SStreamState* pState) {
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
-  pState->checkPointId++;
   return 0;
 #endif
 }
@@ -738,6 +735,14 @@ int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void
 #endif
 }
 
+int32_t streamStateSessionAllocWinBuffByNextPosition(SStreamState* pState, SStreamStateCur* pCur, const SSessionKey* pKey, void** pVal, int32_t* pVLen) {
+#ifdef USE_ROCKSDB
+  return allocSessioncWinBuffByNextPosition(pState->pFileState, pCur, pKey, pVal, pVLen);
+#else
+  return TSDB_CODE_FAILED;
+#endif
+}
+
 int32_t streamStateSessionGet(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
   return getSessionFlushedBuff(pState->pFileState, key, pVal, pVLen);
@@ -1081,7 +1086,6 @@ _end:
 }
 
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
-  stDebug("try to write to cf parname");
 #ifdef USE_ROCKSDB
   if (tSimpleHashGetSize(pState->parNameMap) > MAX_TABLE_NAME_NUM) {
     if (tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t)) == NULL) {

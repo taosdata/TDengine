@@ -225,13 +225,22 @@ void syslog(int unused, const char *format, ...);
 #endif
 #else
 // Windows
-#define setThreadName(name)
+#define setThreadName(name)                       \
+  do {                                            \
+    pthread_setname_np(taosThreadSelf(), (name)); \
+  } while (0)
 #endif
 
 #if defined(_WIN32)
 #define TD_DIRSEP "\\"
 #else
 #define TD_DIRSEP "/"
+#endif
+
+#if defined(_WIN32)
+#define TD_DIRSEP_CHAR '\\'
+#else
+#define TD_DIRSEP_CHAR '/'
 #endif
 
 #define TD_LOCALE_LEN   64

@@ -36,11 +36,12 @@ extern int64_t         tsStreamMax;
 extern float           tsNumOfCores;
 extern int64_t         tsTotalMemoryKB;
 extern char           *tsProcPath;
-extern char            tsSIMDBuiltins;
+extern char            tsSIMDEnable;
 extern char            tsSSE42Enable;
 extern char            tsAVXEnable;
 extern char            tsAVX2Enable;
 extern char            tsFMAEnable;
+extern char 	       tsAVX512Enable;
 extern char            tsTagFilterCache;
 
 extern char configDir[];

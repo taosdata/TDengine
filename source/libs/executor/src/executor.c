@@ -69,10 +69,18 @@ static int32_t doSetSMABlock(SOperatorInfo* pOperator, void* input, size_t numOf
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
-        SPackedData  tmp = {
-             .pDataBlock = pDataBlock,
-        };
+        SPackedData tmp = {.pDataBlock = pDataBlock};
         taosArrayPush(pInfo->pBlockLists, &tmp);
+      }
+      pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
+    } else if (type == STREAM_INPUT__CHECKPOINT) {
+      SPackedData tmp = {.pDataBlock = input};
+      taosArrayPush(pInfo->pBlockLists, &tmp);
+      pInfo->blockType = STREAM_INPUT__CHECKPOINT;
+    } else if (type == STREAM_INPUT__REF_DATA_BLOCK) {
+      for (int32_t i = 0; i < numOfBlocks; ++i) {       
+        SPackedData* pReq = POINTER_SHIFT(input, i * sizeof(SPackedData));
+        taosArrayPush(pInfo->pBlockLists, pReq);
       }
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     }
@@ -633,7 +641,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     blockIndex += 1;
 
     current += p->info.rows;
-    ASSERT(p->info.rows > 0);
+    ASSERT(p->info.rows > 0 || p->info.type == STREAM_CHECKPOINT);
     taosArrayPush(pResList, &p);
 
     if (current >= rowsThreshold) {
@@ -871,32 +879,6 @@ int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, SArray* pExecInfoList) {
   return getOperatorExplainExecInfo(pTaskInfo->pRoot, pExecInfoList);
 }
 
-int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len) {
-  SExecTaskInfo* pTaskInfo = (struct SExecTaskInfo*)tinfo;
-  if (pTaskInfo->pRoot == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  int32_t nOptrWithVal = 0;
-  //  int32_t code = encodeOperator(pTaskInfo->pRoot, pOutput, len, &nOptrWithVal);
-  //  if ((code == TSDB_CODE_SUCCESS) && (nOptrWithVal == 0)) {
-  //    taosMemoryFreeClear(*pOutput);
-  //    *len = 0;
-  //  }
-  return 0;
-}
-
-int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t len) {
-  SExecTaskInfo* pTaskInfo = (struct SExecTaskInfo*)tinfo;
-
-  if (pTaskInfo == NULL || pInput == NULL || len == 0) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  return 0;
-  //  return decodeOperator(pTaskInfo->pRoot, pInput, len);
-}
-
 int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
@@ -1072,7 +1054,7 @@ int32_t qRestoreStreamOperatorOption(qTaskInfo_t tinfo) {
   }
 }
 
-bool qStreamRecoverScanFinished(qTaskInfo_t tinfo) {
+bool qStreamScanhistoryFinished(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   return pTaskInfo->streamInfo.recoverScanFinished;
 }

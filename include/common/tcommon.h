@@ -55,8 +55,8 @@ typedef struct SSessionKey {
 } SSessionKey;
 
 typedef struct SVersionRange {
-  uint64_t minVer;
-  uint64_t maxVer;
+  int64_t minVer;
+  int64_t maxVer;
 } SVersionRange;
 
 static inline int winKeyCmprImpl(const void* pKey1, const void* pKey2) {
@@ -249,6 +249,7 @@ typedef struct SQueryTableDataCond {
   SColumnInfo* colList;
   int32_t*     pSlotList;  // the column output destation slot, and it may be null
   int32_t      type;       // data block load type:
+  bool         skipRollup;
   STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;
@@ -363,6 +364,11 @@ typedef struct SSortExecInfo {
   int32_t writeBytes;  // write io bytes
   int32_t readBytes;   // read io bytes
 } SSortExecInfo;
+
+typedef struct SNonSortExecInfo {
+  int32_t blkNums;
+} SNonSortExecInfo;
+
 
 typedef struct STUidTagInfo {
   char*    name;

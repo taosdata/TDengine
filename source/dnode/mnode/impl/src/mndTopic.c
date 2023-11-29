@@ -298,11 +298,6 @@ static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pOldTopic, SMqTopic
   atomic_exchange_64(&pOldTopic->updateTime, pNewTopic->updateTime);
   atomic_exchange_32(&pOldTopic->version, pNewTopic->version);
 
-  /*taosWLockLatch(&pOldTopic->lock);*/
-
-  // TODO handle update
-
-  /*taosWUnLockLatch(&pOldTopic->lock);*/
   return 0;
 }
 
@@ -318,23 +313,6 @@ SMqTopicObj *mndAcquireTopic(SMnode *pMnode, const char *topicName) {
 void mndReleaseTopic(SMnode *pMnode, SMqTopicObj *pTopic) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pTopic);
-}
-
-static SDDropTopicReq *mndBuildDropTopicMsg(SMnode *pMnode, SVgObj *pVgroup, SMqTopicObj *pTopic) {
-  int32_t contLen = sizeof(SDDropTopicReq);
-
-  SDDropTopicReq *pDrop = taosMemoryCalloc(1, contLen);
-  if (pDrop == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  pDrop->head.contLen = htonl(contLen);
-  pDrop->head.vgId = htonl(pVgroup->vgId);
-  memcpy(pDrop->name, pTopic->name, TSDB_TOPIC_FNAME_LEN);
-  pDrop->tuid = htobe64(pTopic->uid);
-
-  return pDrop;
 }
 
 static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {
@@ -633,10 +611,10 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   tNameFromString(&dbname, createTopicReq.subDbName, T_NAME_ACCT | T_NAME_DB);
 
   SName topicName = {0};
-  tNameFromString(&topicName, createTopicReq.name, T_NAME_ACCT | T_NAME_DB);
+  tNameFromString(&topicName, createTopicReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
   //reuse this function for topic
 
-  auditRecord(pReq, pMnode->clusterId, "createTopic", topicName.dbname, dbname.dbname, 
+  auditRecord(pReq, pMnode->clusterId, "createTopic", dbname.dbname, topicName.dbname, 
               createTopicReq.sql, strlen(createTopicReq.sql));
 
 _OVER:
@@ -839,10 +817,10 @@ end:
   }
 
   SName name = {0};
-  tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB);
+  tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
   //reuse this function for topic
 
-  auditRecord(pReq, pMnode->clusterId, "dropTopic", name.dbname, "", dropReq.sql, dropReq.sqlLen);
+  auditRecord(pReq, pMnode->clusterId, "dropTopic", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen);
 
   tFreeSMDropTopicReq(&dropReq);
 

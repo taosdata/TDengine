@@ -63,20 +63,31 @@ typedef struct STableDataBlockIdx {
   int32_t globalIndex;
 } STableDataBlockIdx;
 
+typedef enum ESttKeyStatus {
+  STT_FILE_READER_UNINIT = 0x0,
+  STT_FILE_NO_DATA = 0x1,
+  STT_FILE_HAS_DATA = 0x2,
+} ESttKeyStatus;
+
+typedef struct SSttKeyInfo {
+  ESttKeyStatus status;           // this value should be updated when switch to the next fileset
+  int64_t       nextProcKey;
+} SSttKeyInfo;
+
 typedef struct STableBlockScanInfo {
-  uint64_t  uid;
-  TSKEY     lastKey;
-  TSKEY     lastKeyInStt;       // last accessed key in stt
-  SArray*   pBlockList;         // block data index list, SArray<SBrinRecord>
-  SArray*   pBlockIdxList;      // SArray<STableDataBlockIndx>
-  SArray*   pMemDelData;        // SArray<SDelData>
-  SArray*   pFileDelData;       // SArray<SDelData> from each file set
-  SIterInfo iter;               // mem buffer skip list iterator
-  SIterInfo iiter;              // imem buffer skip list iterator
-  SArray*   delSkyline;         // delete info for this table
-  int32_t   fileDelIndex;       // file block delete index
-  int32_t   sttBlockDelIndex;   // delete index for last block
-  bool      iterInit;           // whether to initialize the in-memory skip list iterator or not
+  uint64_t    uid;
+  TSKEY       lastProcKey;
+  SSttKeyInfo sttKeyInfo;
+  SArray*     pBlockList;        // block data index list, SArray<SBrinRecord>
+  SArray*     pBlockIdxList;     // SArray<STableDataBlockIndx>
+  SArray*     pMemDelData;       // SArray<SDelData>
+  SArray*     pFileDelData;      // SArray<SDelData> from each file set
+  SIterInfo   iter;              // mem buffer skip list iterator
+  SIterInfo   iiter;             // imem buffer skip list iterator
+  SArray*     delSkyline;        // delete info for this table
+  int32_t     fileDelIndex;      // file block delete index
+  int32_t     sttBlockDelIndex;  // delete index for last block
+  bool        iterInit;          // whether to initialize the in-memory skip list iterator or not
 } STableBlockScanInfo;
 
 typedef struct SResultBlockInfo {
@@ -108,7 +119,7 @@ typedef struct STableUidList {
 
 typedef struct {
   int32_t numOfBlocks;
-  int32_t numOfLastFiles;
+  int32_t numOfSttFiles;
 } SBlockNumber;
 
 typedef struct SBlockIndex {
@@ -146,7 +157,6 @@ typedef struct SLastBlockReader {
   int32_t            order;
   uint64_t           uid;
   SMergeTree         mergeTree;
-  SSttBlockLoadInfo* pInfo;
   int64_t            currentKey;
 } SLastBlockReader;
 
@@ -238,7 +248,7 @@ SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf
 void       clearBlockScanInfo(STableBlockScanInfo* p);
 void       destroyAllBlockScanInfo(SSHashObj* pTableMap);
 void       resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step);
-void       cleanupInfoFoxNextFileset(SSHashObj* pTableMap);
+void       cleanupInfoForNextFileset(SSHashObj* pTableMap);
 int32_t    ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables);
 void       clearBlockScanInfoBuf(SBlockInfoBuf* pBuf);
 void*      getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index);
