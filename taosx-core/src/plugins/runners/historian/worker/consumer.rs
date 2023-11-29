@@ -64,7 +64,7 @@ impl Consumer {
 
             // query
             let mut rows = self.query.query_history(task.tags, start, end).await?;
-            tracing::debug!("prepare record batch");
+            tracing::debug!("rows fetched");
             while let Some(row) = rows.try_next().await? {
                 match row {
                     QueryItem::Row(row) => {
@@ -79,9 +79,10 @@ impl Consumer {
                     }
                 }
             }
-
+            tracing::debug!("record batch prepared");
             // write batch
             let batch = appender.finish()?;
+            tracing::debug!("appender finish");
             tx.send_async(batch.clone()).await?;
             tracing::debug!("historian source write batch to ipc: {}", batch.num_rows());
         }
