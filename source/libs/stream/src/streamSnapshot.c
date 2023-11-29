@@ -366,8 +366,12 @@ int32_t streamSnapRead(SStreamSnapReader* pReader, uint8_t** ppData, int64_t* si
   int32_t            code = 0;
   SStreamSnapHandle* pHandle = &pReader->handle;
   int32_t            idx = pHandle->currIdx;
+
   SBackendSnapFile2* pSnapFile = taosArrayGet(pHandle->pDbSnapSet, idx);
-  SBackendFileItem*  item = NULL;
+  if (pSnapFile == NULL) {
+    return 0;
+  }
+  SBackendFileItem* item = NULL;
 
 _NEXT:
 

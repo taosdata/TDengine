@@ -1477,7 +1477,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
         {"supportVnodes", &tsNumOfSupportVnodes},
     };
 
-    if (taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true) != 0) {
+  if (taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true) != 0) {
       taosCfgSetOption(options, tListLen(options), pItem, false);
     }
   }
