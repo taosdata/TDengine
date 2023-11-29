@@ -1,3 +1,4 @@
+use anyhow::bail;
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, Write};
 use std::str::FromStr;
@@ -124,16 +125,23 @@ impl OPCConfig {
         dsn.params.get("csv_config_file").map(|v| v.to_string())
     }
     async fn build_param_mapping(dsn: &Dsn) -> anyhow::Result<HashMap<String, PointConfig>> {
-        let mut param_mapping = HashMap::new();
-
         let opc_type = OpcType::from_dsn(dsn)?;
         let csv_config_file = Self::parse_csv_config_file(dsn);
-        if let Some(csv) = csv_config_file {
-            let (opc_table_config, _, _) = generate_config_from_csv("opcua", csv.as_str()).await?;
-            return Ok(opc_table_config.id_code_map.clone());
-        }
-        match opc_type {
-            OpcType::OPCUA => {
+
+        match (opc_type, csv_config_file) {
+            (OpcType::OPCUA, Some(csv)) => {
+                let (opc_table_config, _, _) =
+                    generate_config_from_csv("opcua", csv.as_str()).await?;
+                return Ok(opc_table_config.id_code_map.clone());
+            }
+            (OpcType::OPCDA, Some(csv)) => {
+                let (opc_table_config, _, _) =
+                    generate_config_from_csv("opcda", csv.as_str()).await?;
+                return Ok(opc_table_config.id_code_map.clone());
+            }
+            (OpcType::OPCUA, None) => {
+                let mut param_mapping = HashMap::new();
+
                 let ua_nodes =
                     get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "ua.nodes")
                         .map_err(|s| anyhow::anyhow!("file parse error: {}", s))?;
@@ -158,8 +166,11 @@ impl OPCConfig {
                         },
                     );
                 }
+                return Ok(param_mapping);
             }
-            OpcType::OPCDA => {
+            (OpcType::OPCDA, None) => {
+                let mut param_mapping = HashMap::new();
+
                 let node_vec =
                     get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "da.tags")
                         .map_err(|s| anyhow::anyhow!("file parse error: {}", s))?;
@@ -167,7 +178,7 @@ impl OPCConfig {
                     let pair = node_vec[i].split("::").collect_vec();
                     if pair.len() != 2 {
                         let pair = pair.join("::");
-                        anyhow::bail!(
+                        bail!(
                             "node config error node config: {} split result len is not 2",
                             pair
                         );
@@ -184,11 +195,10 @@ impl OPCConfig {
                         },
                     );
                 }
+                return Ok(param_mapping);
             }
-            _ => {}
+            _ => bail!("invalid opc type"),
         }
-
-        Ok(param_mapping)
     }
 
     pub fn parse_select_all_points(dsn: &Dsn) -> bool {
