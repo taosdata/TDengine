@@ -27,6 +27,7 @@ class TDTestCase:
         tdSql.init(conn.cursor())
         self.setsql = TDSetSql()
         self.stbname = 'stb'
+        self.user_name = 'test'
         self.binary_length = 20  # the length of binary for column_dict
         self.nchar_length = 20  # the length of nchar for column_dict
         self.dbnames = ['db1', 'db2']
@@ -54,12 +55,12 @@ class TDTestCase:
         ]
         
         self.tbnum = 4
+        self.stbnum_grant = 200
 
     def create_user(self):
-        user_name = 'test'        
-        tdSql.execute(f'create user {user_name} pass "test"')
-        tdSql.execute(f'grant read on {self.dbnames[0]}.{self.stbname} with t2 = "Beijing" to {user_name}')
-        tdSql.execute(f'grant write on {self.dbnames[1]}.{self.stbname} with t1 = 2 to {user_name}')
+        tdSql.execute(f'create user {self.user_name} pass "test"')
+        tdSql.execute(f'grant read on {self.dbnames[0]}.{self.stbname} with t2 = "Beijing" to {self.user_name}')
+        tdSql.execute(f'grant write on {self.dbnames[1]}.{self.stbname} with t1 = 2 to {self.user_name}')
                 
     def prepare_data(self):
         for db in self.dbnames:
@@ -70,6 +71,9 @@ class TDTestCase:
                 tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags({self.tag_list[i]})')
                 for j in self.values_list:
                     tdSql.execute(f'insert into {self.stbname}_{i} values({j})')
+            for i in range(self.stbnum_grant):
+                tdSql.execute(f'create table {self.stbname}_grant_{i} (ts timestamp, c0 int) tags(t0 int)')
+
     
     def user_read_privilege_check(self, dbname):
         testconn = taos.connect(user='test', password='test')        
@@ -128,12 +132,20 @@ class TDTestCase:
                 tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{sql}, expect error not occured")
         pass
 
+    def user_privilege_grant_check(self):
+        for db in self.dbnames:
+            tdSql.execute(f"use {db}")
+            for i in range(self.stbnum_grant):
+                tdSql.execute(f'grant read on {db}.{self.stbname}_grant_{i} to {self.user_name}')
+                tdSql.execute(f'grant write on {db}.{self.stbname}_grant_{i} to {self.user_name}')
+
     def run(self):           
         self.prepare_data()
         self.create_user()
         self.user_read_privilege_check(self.dbnames[0])
         self.user_write_privilege_check(self.dbnames[1])
         self.user_privilege_error_check()
+        self.user_privilege_grant_check()
                 
     def stop(self):
         tdSql.close()
