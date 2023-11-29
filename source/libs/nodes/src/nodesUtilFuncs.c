@@ -1197,6 +1197,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pPartitionKeys);
       nodesDestroyList(pLogicNode->pTags);
       nodesDestroyNode(pLogicNode->pSubtable);
+      nodesDestroyList(pLogicNode->pAggFuncs);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC: {
