@@ -2,8 +2,8 @@
     <id>taos-explorer</id>
     <name>taos-explorer</name>
     <description>explorer service powered by WinSW</description>
-    <logpath>C:\Program Files\taosX\logs\taos-explorer</logpath>
+    <logpath>C:\TDengine\log</logpath>
     <logmode>roll</logmode>
-    <executable>C:\Program Files\taosX\bin\taos-explorer.exe</executable>
-	<arguments>-C "C:\Program Files\taosX\config\explorer.toml"</arguments>
+    <executable>C:\TDengine\taos-explorer.exe</executable>
+	<arguments>-C "C:\TDengine\cfg\explorer.toml"</arguments>
 </service>
