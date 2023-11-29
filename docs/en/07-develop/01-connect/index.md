@@ -142,7 +142,7 @@ libtaos = { version = "*", features = ["rest"] }
 </TabItem>
 <TabItem label="Node.js" value="node">
 
-Node.js client libary provides different ways of establishing connections by providing different packages.
+Node.js client library provides different ways of establishing connections by providing different packages.
 
 1. Install Node.js Native Client Library
 
