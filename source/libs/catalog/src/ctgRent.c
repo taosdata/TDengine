@@ -259,6 +259,24 @@ void ctgRemoveViewRent(SCatalog *pCtg, SCtgDBCache *dbCache) {
   }
 }
 
+void ctgRemoveTSMARent(SCatalog *pCtg, SCtgDBCache *dbCache) {
+  if (!dbCache->tsmaCache) return;
+
+  void* pIter = taosHashIterate(dbCache->tsmaCache, NULL);
+  while (pIter) {
+    SCtgTSMACache* pCtgCache = pIter;
+    CTG_LOCK(CTG_READ, &pCtgCache->tsmaLock);
+    int32_t size = pCtgCache ? pCtgCache->pTsmas->size : 0;
+    for (int32_t i = 0; i < size; ++i) {
+      STSMACache* pCache = taosArrayGet(pCtgCache->pTsmas, i);
+      if (TSDB_CODE_SUCCESS == ctgMetaRentRemove(&pCtg->tsmaRent, pCache->tsmaId, ctgTSMAVersionSortCompare, ctgTSMAVersionSearchCompare)) {
+        ctgDebug("tsma removed from rent, viewId: %" PRIx64 " name: %s.%s.%s", pCache->tsmaId, pCache->dbFName, pCache->tb, pCache->name);
+      }
+    }
+    CTG_UNLOCK(CTG_READ, &pCtgCache->tsmaLock);
+    pIter = taosHashIterate(dbCache->tsmaCache, pIter);
+  }
+}
 
 int32_t ctgUpdateRentStbVersion(SCatalog *pCtg, char *dbFName, char *tbName, uint64_t dbId, uint64_t suid,
                                 SCtgTbCache *pCache) {
@@ -297,6 +315,20 @@ int32_t ctgUpdateRentViewVersion(SCatalog *pCtg, char *dbFName, char *viewName, 
                                 ctgViewVersionSortCompare, ctgViewVersionSearchCompare));
 
   ctgDebug("db %s,0x%" PRIx64 " view %s,0x%" PRIx64 " version %d updated to viewRent", dbFName, dbId, viewName, viewId, metaRent.version);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgUpdateRentTSMAVersion(SCatalog *pCtg, char *dbFName, const STSMACache *pCache) {
+  const STableTSMAInfo *pTsmaInfo = pCache;
+  STSMAVersion    tsmaRent = {.dbId = pTsmaInfo->dbId, .tsmaId = pTsmaInfo->tsmaId, .version = pTsmaInfo->version};
+  tstrncpy(tsmaRent.name, pTsmaInfo->name, TSDB_TABLE_NAME_LEN);
+  tstrncpy(tsmaRent.dbFName, dbFName, TSDB_DB_FNAME_LEN);
+  tstrncpy(tsmaRent.tbName, pTsmaInfo->tb, TSDB_TABLE_NAME_LEN);
+  CTG_ERR_RET(ctgMetaRentUpdate(&pCtg->tsmaRent, &tsmaRent, tsmaRent.tsmaId, sizeof(STSMAVersion),
+                                ctgTSMAVersionSortCompare, ctgTSMAVersionSearchCompare));
+  ctgDebug("db %s, 0x%" PRIx64 " tsma %s, 0x%" PRIx64 "version %d updated to tsmaRent", dbFName, tsmaRent.dbId,
+           pTsmaInfo->name, pTsmaInfo->tsmaId, pTsmaInfo->version);
 
   return TSDB_CODE_SUCCESS;
 }

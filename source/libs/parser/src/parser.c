@@ -270,12 +270,14 @@ void destoryCatalogReq(SCatalogReq *pCatalogReq) {
 #ifdef TD_ENTERPRISE
     taosArrayDestroy(pCatalogReq->pView);
 #endif
+    taosArrayDestroy(pCatalogReq->pTableTSMAs);
   } else {
     taosArrayDestroyEx(pCatalogReq->pTableMeta, destoryTablesReq);
     taosArrayDestroyEx(pCatalogReq->pTableHash, destoryTablesReq);
 #ifdef TD_ENTERPRISE
     taosArrayDestroyEx(pCatalogReq->pView, destoryTablesReq);
 #endif  
+    taosArrayDestroyEx(pCatalogReq->pTableTSMAs, destoryTablesReq);
   }
   taosArrayDestroy(pCatalogReq->pUdf);
   taosArrayDestroy(pCatalogReq->pIndex);

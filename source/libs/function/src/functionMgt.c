@@ -510,3 +510,50 @@ char* fmGetFuncName(int32_t funcId) {
   }
   return  taosStrdup(funcMgtBuiltins[funcId].name);
 }
+
+/// @param [out] pStateFunc, not changed if error occured or no need to create state func
+/// @retval 0 for succ, otherwise err occured
+static int32_t fmCreateStateFunc(const SFunctionNode* pFunc, SFunctionNode** pStateFunc) {
+  if (funcMgtBuiltins[pFunc->funcId].pStateFunc) {
+    SNodeList* pParams = nodesCloneList(pFunc->pParameterList);
+    if (!pParams) return TSDB_CODE_OUT_OF_MEMORY;
+    *pStateFunc = createFunction(funcMgtBuiltins[pFunc->funcId].pStateFunc, pParams);
+    if (!pStateFunc) {
+      nodesDestroyList(pParams);
+      return TSDB_CODE_FUNC_FUNTION_ERROR;
+    }
+    strcpy((*pStateFunc)->node.aliasName, pFunc->node.aliasName);
+    strcpy((*pStateFunc)->node.userAlias, pFunc->node.userAlias);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+bool fmIsTSMASupportedFunc(func_id_t funcid) {
+  return fmIsAggFunc(funcid) && !fmIsForbidStreamFunc(funcid);
+}
+
+int32_t rewriteFuncsForTSMA(SNodeList* pFuncs) {
+  int32_t code;
+  SNode*  pNode;
+  char    buf[128] = {0};
+  FOREACH(pNode, pFuncs) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    code = fmGetFuncInfo(pFunc, buf, 128);
+    if (code) break;
+    if (fmIsTSMASupportedFunc(pFunc->funcId)) {
+      SFunctionNode* pNewFunc = NULL;
+      code = fmCreateStateFunc(pFunc, &pNewFunc);
+      if (code) {
+        // error
+        break;
+      } else if (!pNewFunc) {
+        // no need state func
+        continue;
+      } else {
+        REPLACE_NODE(pNewFunc);
+        nodesDestroyNode(pNode);
+      }
+    }
+  }
+  return code;
+}

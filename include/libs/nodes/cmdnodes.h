@@ -595,7 +595,7 @@ typedef struct SCreateTSMAStmt {
   char            dbName[TSDB_DB_NAME_LEN];
   char            tableName[TSDB_TABLE_NAME_LEN];
   STSMAOptions*   pOptions;
-  SMCreateSmaReq* pReq;
+  //SMCreateSmaReq* pReq;
 } SCreateTSMAStmt;
 
 typedef struct SShowCreateTSMAStmt {
@@ -609,7 +609,6 @@ typedef struct SDropTSMAStmt {
   bool          ignoreNotExists;
   char          dbName[TSDB_DB_NAME_LEN];
   char          tsmaName[TSDB_INDEX_NAME_LEN];
-  SMDropSmaReq* pReq;
 } SDropTSMAStmt;
 
 #ifdef __cplusplus
