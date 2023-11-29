@@ -2143,3 +2143,12 @@ class TDCreateData():
             else:
                 self._set_error_msg(f"（等于）checkEqual error, sql:{sql1}.rows:{rows1} != sql:{sql2}.rows:{rows2}")
                 return False
+            
+    def check_sql_result_include(self, db, sql,include_result):
+        result = os.popen("taos -s '%s'" %sql)
+        res = result.read()
+        self.logger.info(res)
+        if (include_result in res):
+            self.logger.info(f"checkEqual success")
+        else :
+            self.logger.exit(f"checkEqual error")
