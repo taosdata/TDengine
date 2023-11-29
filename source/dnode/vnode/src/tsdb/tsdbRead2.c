@@ -2509,6 +2509,33 @@ TSDBKEY getCurrentKeyInBuf(STableBlockScanInfo* pScanInfo, STsdbReader* pReader)
   }
 }
 
+static void prepareDurationForNextFileSet(STsdbReader* pReader) {
+  if (pReader->status.bProcMemFirstFileset) {
+    pReader->status.prevFilesetStartKey = INT64_MIN;
+    pReader->status.prevFilesetEndKey = INT64_MAX;
+    pReader->status.bProcMemFirstFileset = false;
+  }
+
+  int32_t fid = pReader->status.pCurrentFileset->fid;
+  STimeWindow winFid = {0};
+  tsdbFidKeyRange(fid, pReader->pTsdb->keepCfg.days, pReader->pTsdb->keepCfg.precision, &winFid.skey, &winFid.ekey);
+  
+  bool bProcMemPreFileset = false;
+  if (ASCENDING_TRAVERSE(pReader->info.order)) {
+    bProcMemPreFileset = !(pReader->status.prevFilesetStartKey > pReader->status.memTableMaxKey || winFid.skey < pReader->status.memTableMinKey);
+  } else {
+    bProcMemPreFileset = !(winFid.ekey > pReader->status.memTableMaxKey || pReader->status.prevFilesetEndKey < pReader->status.memTableMinKey);
+  }
+
+  if (bProcMemPreFileset) {
+    pReader->status.bProcMemPreFileset = true;
+    resetTableListIndex(&pReader->status);
+  }
+
+  pReader->status.prevFilesetStartKey = winFid.skey;
+  pReader->status.prevFilesetEndKey = winFid.ekey;
+}
+
 static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum, SArray* pTableList) {
   SReaderStatus* pStatus = &pReader->status;
   pBlockNum->numOfBlocks = 0;
@@ -2551,17 +2578,7 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum, SAr
 
       if (pBlockNum->numOfBlocks + pBlockNum->numOfSttFiles > 0) {
         if (pReader->bDurationOrder) {
-          int32_t fid = pReader->status.pCurrentFileset->fid;
-          STimeWindow win = {0};
-          tsdbFidKeyRange(fid, pReader->pTsdb->keepCfg.days, pReader->pTsdb->keepCfg.precision, &win.skey, &win.ekey);
-
-          if ((ASCENDING_TRAVERSE(pReader->info.order) &&
-                  win.skey >= pReader->status.memTableMinKey && win.skey <= pReader->status.memTableMaxKey) ||
-              (!ASCENDING_TRAVERSE(pReader->info.order) &&
-                  win.ekey >= pReader->status.memTableMinKey && win.ekey <= pReader->status.memTableMaxKey)) {
-            pReader->status.bProcMemPreFileset = true;
-            resetTableListIndex(&pReader->status);
-          }
+          prepareDurationForNextFileSet(pReader);
         }
         break;
       }

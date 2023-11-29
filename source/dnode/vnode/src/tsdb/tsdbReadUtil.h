@@ -209,6 +209,9 @@ typedef struct SReaderStatus {
   bool                  bProcMemPreFileset;
   int64_t               memTableMaxKey;
   int64_t               memTableMinKey;
+  int64_t               prevFilesetStartKey;
+  int64_t               prevFilesetEndKey;
+  bool                  bProcMemFirstFileset;
 } SReaderStatus;
 
 struct STsdbReader {
