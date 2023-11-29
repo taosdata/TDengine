@@ -2085,7 +2085,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
 }
 
 #[instrument(skip_all)]
-async fn ipc_flat_stream_reader<R: Read, W: Write>(
+async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
     pool: &TaosPool,
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
@@ -2099,9 +2099,10 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
 ) -> anyhow::Result<()> {
     let mut count = 0;
     let mut batches: u32 = 0;
-    let mut stream = futures::stream::iter(ipc_reader).inspect_err(|err| {
-        tracing::warn!("Receive IPC item error: {err:#}");
-    });
+    let mut stream = ipc_reader.into_stream();
+    // let mut stream = futures::stream::iter(ipc_reader).inspect_err(|err| {
+    //     tracing::warn!("Receive IPC item error: {err:#}");
+    // });
     let mut taos = Some(pool.get().await?);
     while let Some(record) = stream.try_next().await? {
         batches += 1;
