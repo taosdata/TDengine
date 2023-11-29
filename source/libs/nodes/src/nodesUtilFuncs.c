@@ -1194,7 +1194,7 @@ void nodesDestroyNode(SNode* pNode) {
       SJoinLogicNode* pLogicNode = (SJoinLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyNode(pLogicNode->pPrimKeyEqCond);
-      nodesDestroyNode(pLogicNode->pOtherOnCond);
+      nodesDestroyNode(pLogicNode->pFullOnCond);
       nodesDestroyNode(pLogicNode->pColEqCond);
       break;
     }
@@ -1339,7 +1339,7 @@ void nodesDestroyNode(SNode* pNode) {
       SSortMergeJoinPhysiNode* pPhyNode = (SSortMergeJoinPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pPrimKeyCond);
-      nodesDestroyNode(pPhyNode->pOtherOnCond);
+      nodesDestroyNode(pPhyNode->pFullOnCond);
       nodesDestroyList(pPhyNode->pTargets);
       nodesDestroyNode(pPhyNode->pColEqCond);
       break;
@@ -2057,6 +2057,37 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
   }
   *pCols = NULL;
   nodesWalkSelectStmt(pSelect, clause, collectColumns, &cxt);
+  taosHashCleanup(cxt.pColHash);
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    nodesDestroyList(cxt.pCols);
+    return cxt.errCode;
+  }
+  if (LIST_LENGTH(cxt.pCols) > 0) {
+    *pCols = cxt.pCols;
+  } else {
+    nodesDestroyList(cxt.pCols);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
+                            SNodeList** pCols, bool ignoreFrom) {
+  if (NULL == pSelect || NULL == pCols) {
+    return TSDB_CODE_FAILED;
+  }
+
+  SCollectColumnsCxt cxt = {
+      .errCode = TSDB_CODE_SUCCESS,
+      .pTableAlias = pTableAlias,
+      .collectType = type,
+      .pCols = (NULL == *pCols ? nodesMakeList() : *pCols),
+      .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
+  if (NULL == cxt.pCols || NULL == cxt.pColHash) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  *pCols = NULL;
+  nodesWalkSelectStmtImpl(pSelect, clause, collectColumns, &cxt, ignoreFrom);
   taosHashCleanup(cxt.pColHash);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pCols);

@@ -255,7 +255,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
 
   extractTimeCondition(pInfo, pJoinNode, GET_TASKID(pTaskInfo));
 
-  if (pJoinNode->pOtherOnCond != NULL && pJoinNode->node.pConditions != NULL) {
+  if (pJoinNode->pFullOnCond != NULL && pJoinNode->node.pConditions != NULL) {
     pInfo->pCondAfterMerge = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
     if (pInfo->pCondAfterMerge == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
@@ -269,11 +269,11 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
       goto _error;
     }
 
-    nodesListMakeAppend(&pLogicCond->pParameterList, nodesCloneNode(pJoinNode->pOtherOnCond));
+    nodesListMakeAppend(&pLogicCond->pParameterList, nodesCloneNode(pJoinNode->pFullOnCond));
     nodesListMakeAppend(&pLogicCond->pParameterList, nodesCloneNode(pJoinNode->node.pConditions));
     pLogicCond->condType = LOGIC_COND_TYPE_AND;
-  } else if (pJoinNode->pOtherOnCond != NULL) {
-    pInfo->pCondAfterMerge = nodesCloneNode(pJoinNode->pOtherOnCond);
+  } else if (pJoinNode->pFullOnCond != NULL) {
+    pInfo->pCondAfterMerge = nodesCloneNode(pJoinNode->pFullOnCond);
   } else if (pJoinNode->pColEqCond != NULL) {
     pInfo->pCondAfterMerge = nodesCloneNode(pJoinNode->pColEqCond);
   } else if (pJoinNode->node.pConditions != NULL) {

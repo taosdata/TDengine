@@ -443,7 +443,7 @@ static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   CLONE_NODE_FIELD(pColEqCond);
   CLONE_NODE_FIELD(pTagEqCond);
   CLONE_NODE_FIELD(pTagOnCond);
-  CLONE_NODE_FIELD(pOtherOnCond);
+  CLONE_NODE_FIELD(pFullOnCond);
   COPY_SCALAR_FIELD(isSingleTableJoin);
   COPY_SCALAR_FIELD(hasSubQuery);
   return TSDB_CODE_SUCCESS;

@@ -502,14 +502,26 @@ static int32_t createSubqueryLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
   return createQueryLogicNode(pCxt, pTable->pSubquery, pLogicNode);
 }
 
+int32_t collectJoinResColumns(SSelectStmt* pSelect, SJoinTableNode* pJoinTable,        SNodeList** pCols) {
+  int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_WHERE, ((STableNode*)pJoinTable->pLeft)->tableAlias, COLLECT_COL_TYPE_ALL, pCols);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCollectColumns(pSelect, SQL_CLAUSE_WHERE, ((STableNode*)pJoinTable->pRight)->tableAlias, COLLECT_COL_TYPE_ALL, pCols);
+  }
+
+  return code;
+}
+
+
 static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SJoinTableNode* pJoinTable,
                                    SLogicNode** pLogicNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
   SJoinLogicNode* pJoin = (SJoinLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_JOIN);
   if (NULL == pJoin) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pJoin->joinType = pJoinTable->joinType;
+  pJoin->subType = pJoinTable->subType;
   pJoin->joinAlgo = JOIN_ALGO_UNKNOWN;
   pJoin->isSingleTableJoin = pJoinTable->table.singleTable;
   pJoin->hasSubQuery = pJoinTable->hasSubQuery;
@@ -518,10 +530,8 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pJoin->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
   pJoin->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
   pJoin->isLowLevelJoin = pJoinTable->isLowLevelJoin;
-
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  // set left and right node
+  pJoin->pWindowOffset = nodesCloneNode(pJoinTable->pWindowOffset);
+  pJoin->pJLimit = nodesCloneNode(pJoinTable->pJLimit);
   pJoin->node.pChildren = nodesMakeList();
   if (NULL == pJoin->node.pChildren) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -548,12 +558,13 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   // set on conditions
   if (TSDB_CODE_SUCCESS == code && NULL != pJoinTable->pOnCond) {
-    pJoin->pOtherOnCond = nodesCloneNode(pJoinTable->pOnCond);
-    if (NULL == pJoin->pOtherOnCond) {
+    pJoin->pFullOnCond = nodesCloneNode(pJoinTable->pOnCond);
+    if (NULL == pJoin->pFullOnCond) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
   }
 
+#if 0
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
     SNodeList* pColList = NULL;
@@ -599,6 +610,19 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
   }
+
+#else 
+  // set the output
+  if (TSDB_CODE_SUCCESS == code) {
+    SNodeList* pColList = NULL;
+    code = collectJoinResColumns(pSelect, pJoinTable, &pColList);
+    if (TSDB_CODE_SUCCESS == code && NULL != pColList) {
+      code = createColumnByRewriteExprs(pColList, &pJoin->node.pTargets);
+    }
+    nodesDestroyList(pColList);
+  }
+#endif
+
 
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pJoin;

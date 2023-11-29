@@ -203,21 +203,25 @@ typedef struct SViewNode {
   int8_t             cacheLastMode;
 } SViewNode;
 
+#define IS_INNER_NONE_JOIN(_type, _stype) ((_type) == JOIN_TYPE_INNER && (_stype) == JOIN_STYPE_NONE)
+
 typedef enum EJoinType { 
-  JOIN_TYPE_INNER = 1,
+  JOIN_TYPE_INNER = 0,
   JOIN_TYPE_LEFT,
   JOIN_TYPE_RIGHT,
   JOIN_TYPE_FULL,
+  JOIN_TYPE_MAX_VALUE
 } EJoinType;
 
 typedef enum EJoinSubType {
-  JOIN_STYPE_NONE = 1,
+  JOIN_STYPE_NONE = 0,
   JOIN_STYPE_OUTER,
   JOIN_STYPE_SEMI,
   JOIN_STYPE_ANTI,
   JOIN_STYPE_ANY,
   JOIN_STYPE_ASOF,
   JOIN_STYPE_WIN,
+  JOIN_STYPE_MAX_VALUE
 } EJoinSubType;
 
 typedef enum EJoinAlgorithm { 
@@ -238,6 +242,7 @@ typedef struct SJoinTableNode {
   SNode*       pJLimit;
   bool         hasSubQuery;
   bool         isLowLevelJoin;
+  SNode*       pParent;
   SNode*       pLeft;
   SNode*       pRight;
   SNode*       pOnCond;
@@ -546,12 +551,15 @@ typedef struct SQuery {
   bool            stableQuery;
 } SQuery;
 
+void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext, bool ignoreFrom);
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
 void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewriter rewriter, void* pContext);
 
 typedef enum ECollectColType { COLLECT_COL_TYPE_COL = 1, COLLECT_COL_TYPE_TAG, COLLECT_COL_TYPE_ALL } ECollectColType;
 int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
                             SNodeList** pCols);
+int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
+                            SNodeList** pCols, bool ignoreFrom);                            
 int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, ECollectColType type, SNodeList** pCols);
 
 typedef bool (*FFuncClassifier)(int32_t funcId);

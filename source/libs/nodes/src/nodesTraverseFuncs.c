@@ -412,14 +412,16 @@ void nodesRewriteExprsPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* 
   (void)rewriteExprs(pList, TRAVERSAL_POSTORDER, rewriter, pContext);
 }
 
-void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext) {
+void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext, bool ignoreFrom) {
   if (NULL == pSelect) {
     return;
   }
 
   switch (clause) {
     case SQL_CLAUSE_FROM:
-      nodesWalkExpr(pSelect->pFromTable, walker, pContext);
+      if (!ignoreFrom) {
+        nodesWalkExpr(pSelect->pFromTable, walker, pContext);
+      }
       nodesWalkExpr(pSelect->pWhere, walker, pContext);
     case SQL_CLAUSE_WHERE:
       nodesWalkExprs(pSelect->pPartitionByList, walker, pContext);
@@ -446,6 +448,10 @@ void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker wa
   }
 
   return;
+}
+
+void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext) {
+  nodesWalkSelectStmtImpl(pSelect, clause, walker, pContext, false);
 }
 
 void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewriter rewriter, void* pContext) {

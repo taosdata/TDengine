@@ -2963,7 +2963,7 @@ static int32_t translateJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoin
   return code;
 }
 
-int32_t translateTable(STranslateContext* pCxt, SNode** pTable) {
+int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinParent) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(*pTable)) {
     case QUERY_NODE_REAL_TABLE: {
@@ -3023,12 +3023,13 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable) {
     }
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoinTable = (SJoinTableNode*)*pTable;
+      pJoinTable->pParent = pJoinParent;
       code = translateJoinTable(pCxt, pJoinTable);
       if (TSDB_CODE_SUCCESS == code) {
-        code = translateTable(pCxt, &pJoinTable->pLeft);
+        code = translateTable(pCxt, &pJoinTable->pLeft, (SNode*)pJoinTable);
       }
       if (TSDB_CODE_SUCCESS == code) {
-        code = translateTable(pCxt, &pJoinTable->pRight);
+        code = translateTable(pCxt, &pJoinTable->pRight, (SNode*)pJoinTable);
       }
       if (TSDB_CODE_SUCCESS == code) {
         code = checkJoinTable(pCxt, pJoinTable);
@@ -4275,7 +4276,7 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
 
 static int32_t translateFrom(STranslateContext* pCxt, SNode** pTable) {
   pCxt->currClause = SQL_CLAUSE_FROM;
-  return translateTable(pCxt, pTable);
+  return translateTable(pCxt, pTable, NULL);
 }
 
 static int32_t checkLimit(STranslateContext* pCxt, SSelectStmt* pSelect) {

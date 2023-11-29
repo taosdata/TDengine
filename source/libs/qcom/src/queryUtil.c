@@ -21,18 +21,17 @@
 #include "tsched.h"
 // clang-format off
 #include "cJSON.h"
+#include "queryInt.h"
 
-#define VALIDNUMOFCOLS(x) ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
-#define VALIDNUMOFTAGS(x) ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
-
-static struct SSchema _s = {
-    .colId = TSDB_TBNAME_COLUMN_INDEX,
-    .type = TSDB_DATA_TYPE_BINARY,
-    .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE,
-    .name = "tbname",
-};
-
-const SSchema* tGetTbnameColumnSchema() { return &_s; }
+const SSchema* tGetTbnameColumnSchema() { 
+  static struct SSchema _s = {
+      .colId = TSDB_TBNAME_COLUMN_INDEX,
+      .type = TSDB_DATA_TYPE_BINARY,
+      .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE,
+      .name = "tbname",
+  };
+  return &_s; 
+}
 
 static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen) {
   int32_t rowLen = 0;

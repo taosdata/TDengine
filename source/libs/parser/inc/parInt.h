@@ -38,7 +38,7 @@ int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery);
 int32_t translatePostCreateStream(SParseContext* pParseCxt, SQuery* pQuery, void** pResRow);
 int32_t translatePostCreateSmaIndex(SParseContext* pParseCxt, SQuery* pQuery, void** pResRow);
 int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placeholderNo, SArray** pPlaceholderValues);
-int32_t translateTable(STranslateContext* pCxt, SNode** pTable);
+int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinParent);
 int32_t getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHash, void** pOutput);
 void    tfreeSParseQueryRes(void* p);
 

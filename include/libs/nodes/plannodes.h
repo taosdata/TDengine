@@ -123,12 +123,15 @@ typedef struct SScanLogicNode {
 typedef struct SJoinLogicNode {
   SLogicNode     node;
   EJoinType      joinType;
+  EJoinSubType   subType;
+  SNode*         pWindowOffset;
+  SNode*         pJLimit;
   EJoinAlgorithm joinAlgo;
   SNode*         pPrimKeyEqCond;
   SNode*         pColEqCond;
   SNode*         pTagEqCond;
   SNode*         pTagOnCond;
-  SNode*         pOtherOnCond;
+  SNode*         pFullOnCond;
   bool           isSingleTableJoin;
   bool           hasSubQuery;
   bool           isLowLevelJoin;
@@ -468,7 +471,7 @@ typedef struct SSortMergeJoinPhysiNode {
   EJoinType  joinType;
   SNode*     pPrimKeyCond;
   SNode*     pColEqCond;
-  SNode*     pOtherOnCond;
+  SNode*     pFullOnCond;
   SNodeList* pTargets;
 } SSortMergeJoinPhysiNode;
 
