@@ -3782,6 +3782,7 @@ int32_t buildDataBlockFromBufImpl(STableBlockScanInfo* pBlockScanInfo, int64_t e
     }
 
     if (row.type == TSDBROW_ROW_FMT) {
+      int64_t ts = row.pTSRow->ts;;
       code = doAppendRowFromTSRow(pBlock, pReader, row.pTSRow, pBlockScanInfo);
 
       if (freeTSRow) {
@@ -3792,7 +3793,7 @@ int32_t buildDataBlockFromBufImpl(STableBlockScanInfo* pBlockScanInfo, int64_t e
         return code;
       }
 
-      pBlockScanInfo->lastProcKey = row.pTSRow->ts;
+      pBlockScanInfo->lastProcKey = ts;
     } else {
       code = doAppendRowFromFileBlock(pBlock, pReader, row.pBlockData, row.iRow);
       if (code) {
