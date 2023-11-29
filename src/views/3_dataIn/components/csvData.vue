@@ -123,6 +123,7 @@ export default {
   filter: {},
   data() {
     return {
+      maptypes: ["value", "generator", "join", "format", "sum", "expr"],
       showTransformer:false,
       transformerParser:null,
       language: localStorage.getItem("local_language"),
@@ -380,6 +381,32 @@ export default {
         inputList:this.$store.state.app.csvParser?this.$store.state.app.csvParser.input:inputList,
         "msgBody": msgBody.join('\n')
       }
+      let transformerColumns = [
+          {
+            value: "expression",
+            label: this.$t("expression"),
+            children: this.maptypes.map((item) => {
+              return {
+                value: item,
+                label: item,
+              };
+            }),
+          },
+          {
+            value: "mapping",
+            label: this.$t("mapping"),
+            children: csvTransformer['columns'].map((item) => {
+              return {
+                value: item,
+                label: item,
+              };
+            }),
+          },
+        ];
+        this.$store.commit(
+          "app/SET_TRANSFORMER_MAPCOLUMNS",
+          transformerColumns
+        );
       this.$store.commit("app/SET_CSV_TRANSFORMER_PARSER", csvTransformer);
       this.showTransformer=true
     },

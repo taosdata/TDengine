@@ -471,11 +471,11 @@ export default {
         if (item["Expression"]) {
           if (
             this.params_columns.includes(item["Name"]) &&
-            item["Type"] != "TIMESTAMP"
+            !item["Type"].includes("TIMESTAMP")
           ) {
             columns.push(item["Name"]);
           }
-          if (item["Type"] == "TIMESTAMP") {
+          if (item["Type"].includes("TIMESTAMP")) {
             primarykey = item["Name"];
           }
           if (this.params_tags.includes(item["Name"])) {
@@ -774,8 +774,7 @@ export default {
             Message.success(this.$t("operateSucc"));
             await this.getInitStables();
             this.sruleForm.s_name =
-              this.$refs.createstb.stable_form.ts_field_name;
-            console.log( this.sruleForm.s_name,'创建后的数据库');
+              this.$refs.createstb.stable_form.name;
             this.closeDialog();
           } catch (error) {
             error.desc ? Message.error(error.desc) : "";
@@ -839,9 +838,16 @@ export default {
         let res = await sendSQLReq(
           `desc \`${this.$store.state.app.currentDBName}\`.\`${this.sruleForm.s_name}\``
         );
+        let precision=await sendSQLReq(`
+        select \`precision\` from information_schema.ins_databases where name = '${this.$store.state.app.currentDBName}' 
+        `)
         if (res.desc) {
           Message.error(res.desc);
           return;
+        }
+
+        if(this.$store.state.app.transformerMapCloumns){
+          this.$set(this, "options", this.$store.state.app.transformerMapCloumns);
         }
         this.params_columns.splice(0, this.params_columns.length - 1);
         this.params_tags.splice(0, this.params_tags.length - 1);
@@ -854,7 +860,7 @@ export default {
           }
           return {
             Name: val[0],
-            Type: val[1],
+            Type: val[1]=='TIMESTAMP'?val[1]+'('+precision.data[0][0]+')':val[1],
             maptype: ["expression", "value"],
             Expression: "",
             Output1: "",
@@ -899,7 +905,7 @@ export default {
     },
     deleteExtract(index, name) {
       let oldextract = this.$store.state.app.transformExtractParseData;
-      if (Object.keys(oldextract).includes(name)) {
+      if (oldextract&&Object.keys(oldextract).includes(name)) {
         delete oldextract[name];
       }
       if (name) {
