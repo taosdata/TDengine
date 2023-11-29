@@ -2520,18 +2520,15 @@ static void prepareDurationForNextFileSet(STsdbReader* pReader) {
   STimeWindow winFid = {0};
   tsdbFidKeyRange(fid, pReader->pTsdb->keepCfg.days, pReader->pTsdb->keepCfg.precision, &winFid.skey, &winFid.ekey);
 
-  bool bProcMemPreFileset = false;
   if (ASCENDING_TRAVERSE(pReader->info.order)) {
-    bProcMemPreFileset = !(pReader->status.prevFilesetStartKey > pReader->status.memTableMaxKey || winFid.skey < pReader->status.memTableMinKey);
+    pReader->status.bProcMemPreFileset = !(pReader->status.prevFilesetStartKey > pReader->status.memTableMaxKey || winFid.skey < pReader->status.memTableMinKey);
   } else {
-    bProcMemPreFileset = !(winFid.ekey > pReader->status.memTableMaxKey || pReader->status.prevFilesetEndKey < pReader->status.memTableMinKey);
+    pReader->status.bProcMemPreFileset = !(winFid.ekey > pReader->status.memTableMaxKey || pReader->status.prevFilesetEndKey < pReader->status.memTableMinKey);
   }
-
-  if (bProcMemPreFileset) {
-    pReader->status.bProcMemPreFileset = true;
+  
+  if (pReader->status.bProcMemPreFileset) {
     resetTableListIndex(&pReader->status);
   }
-
   pReader->status.prevFilesetStartKey = winFid.skey;
   pReader->status.prevFilesetEndKey = winFid.ekey;
 }
@@ -2978,7 +2975,7 @@ static int32_t buildBlockFromBufferSequentially(STsdbReader* pReader, int64_t en
       if (!hasNexTable) {
         return TSDB_CODE_SUCCESS;
       }
-      pBlockScanInfo = pStatus->pTableIter;
+      continue;
     }
 
     initMemDataIterator(*pBlockScanInfo, pReader);
@@ -4947,9 +4944,9 @@ static void getMemTableTimeRange(STsdbReader* pReader, int64_t* pMaxKey, int64_t
   int64_t maxKey = INT64_MIN;
   int64_t minKey = INT64_MAX;
 
-  pStatus->pTableIter = tSimpleHashIterate(pStatus->pTableMap, NULL, &iter);
-  while (pStatus->pTableIter != NULL) {
-    STableBlockScanInfo* pBlockScanInfo = *(STableBlockScanInfo**)pStatus->pTableIter;
+  void* pHashIter = tSimpleHashIterate(pStatus->pTableMap, NULL, &iter);
+  while (pHashIter!= NULL) {
+    STableBlockScanInfo* pBlockScanInfo = *(STableBlockScanInfo**)pHashIter;
 
     STbData* d = NULL;
     if (pReader->pReadSnap->pMem != NULL) {
@@ -4978,7 +4975,7 @@ static void getMemTableTimeRange(STsdbReader* pReader, int64_t* pMaxKey, int64_t
     }
 
     // current table is exhausted, let's try the next table
-    pStatus->pTableIter = tSimpleHashIterate(pStatus->pTableMap, pStatus->pTableIter, &iter);
+    pHashIter = tSimpleHashIterate(pStatus->pTableMap, pHashIter, &iter);
   }
 
   *pMaxKey = maxKey;
