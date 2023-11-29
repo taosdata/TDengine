@@ -9745,3 +9745,153 @@ void tFreeSViewHbRsp(SViewHbRsp *pRsp) {
 
   taosArrayDestroy(pRsp->pViewRsp);
 }
+
+int32_t tSerializeTableTSMAInfoReq(void* buf, int32_t bufLen, const STableTSMAInfoReq* pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeTableTSMAInfoReq(void* buf, int32_t bufLen, STableTSMAInfoReq* pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+static int32_t tEncodeTableTSMAInfo(SEncoder* pEncoder, const STableTSMAInfo* pTsmaInfo) {
+  if (tEncodeCStr(pEncoder, pTsmaInfo->name) < 0) return -1;
+  if (tEncodeU64(pEncoder, pTsmaInfo->tsmaId) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pTsmaInfo->tb) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pTsmaInfo->dbFName) < 0) return -1;
+  if (tEncodeU64(pEncoder, pTsmaInfo->suid) < 0) return -1;
+  if (tEncodeU64(pEncoder, pTsmaInfo->dbId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pTsmaInfo->version) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pTsmaInfo->targetTb) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pTsmaInfo->targetDbFName) < 0) return -1;
+  if (tEncodeI64(pEncoder, pTsmaInfo->interval) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTsmaInfo->unit) < 0) return -1;
+
+  int32_t size = pTsmaInfo->pFuncs ? pTsmaInfo->pFuncs->size : 0;
+  if (tEncodeI32(pEncoder, size) < 0) return -1;
+  for (int32_t i = 0; i < size; ++i) {
+    STableTSMAFuncInfo* pFuncInfo = taosArrayGet(pTsmaInfo->pFuncs, i);
+    if (tEncodeI32(pEncoder, pFuncInfo->funcId) < 0) return -1;
+    if (tEncodeI16(pEncoder, pFuncInfo->colId) < 0) return -1;
+  }
+  return 0;
+}
+
+static int32_t tDecodeTableTSMAInfo(SDecoder* pDecoder, STableTSMAInfo* pTsmaInfo) {
+  if (tDecodeCStrTo(pDecoder, pTsmaInfo->name) < 0) return -1;
+  if (tDecodeU64(pDecoder, &pTsmaInfo->tsmaId) < 0) return -1;
+  if (tDecodeCStrTo(pDecoder, pTsmaInfo->tb) < 0) return -1;
+  if (tDecodeCStrTo(pDecoder, pTsmaInfo->dbFName) < 0) return -1;
+  if (tDecodeU64(pDecoder, &pTsmaInfo->suid) < 0) return -1;
+  if (tDecodeU64(pDecoder, &pTsmaInfo->dbId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pTsmaInfo->version) < 0) return -1;
+  if (tDecodeCStrTo(pDecoder, pTsmaInfo->targetTb) < 0) return -1;
+  if (tDecodeCStrTo(pDecoder, pTsmaInfo->targetDbFName) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pTsmaInfo->interval) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTsmaInfo->unit) < 0) return -1;
+  int32_t size = 0;
+  if (tDecodeI32(pDecoder, &size) < 0) return -1;
+  if (size <= 0) return 0;
+  pTsmaInfo->pFuncs = taosArrayInit(size, sizeof(STableTSMAFuncInfo));
+  if (!pTsmaInfo->pFuncs) return -1;
+  for (int32_t i = 0; i < size; ++i) {
+    STableTSMAFuncInfo funcInfo = {0};
+    //TODO free the array when decode failed
+    if (tDecodeI32(pDecoder, &funcInfo.funcId) < 0) return -1;
+    if (tDecodeI16(pDecoder, &funcInfo.colId) < 0) return -1;
+    if (!taosArrayPush(pTsmaInfo->pFuncs, &funcInfo)) return -1;
+  }
+
+  return 0;
+}
+
+static int32_t tEncodeTableTSMAInfoRsp(SEncoder *pEncoder, const STableTSMAInfoRsp *pRsp) {
+  int32_t size = pRsp->pTsmas ? pRsp->pTsmas->size : 0;
+  if (tEncodeI32(pEncoder, size) < 0) return -1;
+  for (int32_t i = 0; i < size; ++i) {
+    STableTSMAInfo* pInfo = taosArrayGetP(pRsp->pTsmas, i);
+  if (tEncodeTableTSMAInfo(pEncoder, pInfo) < 0) return -1;
+  }
+  return 0;
+}
+
+static int32_t tDecodeTableTSMAInfoRsp(SDecoder* pDecoder, STableTSMAInfoRsp* pRsp) {
+  int32_t size = 0;
+  if (tDecodeI32(pDecoder, &size) < 0) return -1;
+  if (size <= 0) return 0;
+  pRsp->pTsmas = taosArrayInit(size, POINTER_BYTES);
+  if (!pRsp->pTsmas) return -1;
+  for (int32_t i = 0; i < size; ++i) {
+    // TODO add a test case when decode failed, to see if the array is freed
+    STableTSMAInfo *pTsma = taosMemoryCalloc(1, sizeof(STableTSMAInfo));
+    if (!pTsma) return -1;
+    taosArrayPush(pRsp->pTsmas, &pTsma);
+    if (tDecodeTableTSMAInfo(pDecoder, pTsma) < 0) return -1;
+  }
+  return 0;
+}
+
+int32_t tSerializeTableTSMAInfoRsp(void* buf, int32_t bufLen, const STableTSMAInfoRsp* pRsp) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeTableTSMAInfoRsp(&encoder, pRsp) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeTableTSMAInfoRsp(void* buf, int32_t bufLen, STableTSMAInfoRsp* pRsp) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeTableTSMAInfoRsp(&decoder, pRsp) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeTableTSMAInfo(void* p) {
+  STableTSMAInfo *pTsmaInfo = p;
+  if (pTsmaInfo) taosArrayDestroy(pTsmaInfo->pFuncs);
+}
+
+void tFreeAndClearTableTSMAInfo(void* p) {
+  STableTSMAInfo* pTsmaInfo = (STableTSMAInfo*)p;
+  if (pTsmaInfo) {
+    tFreeTableTSMAInfo(pTsmaInfo);
+    taosMemoryFree(pTsmaInfo);
+  }
+}
+
+void tFreeTableTSMAInfoRsp(STableTSMAInfoRsp *pRsp) {
+  if (pRsp && pRsp->pTsmas) {
+    taosArrayDestroyP(pRsp->pTsmas, tFreeAndClearTableTSMAInfo);
+  }
+}

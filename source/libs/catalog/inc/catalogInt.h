@@ -31,6 +31,7 @@ extern "C" {
 #define CTG_DEFAULT_CACHE_DB_NUMBER      20
 #define CTG_DEFAULT_CACHE_TBLMETA_NUMBER 1000
 #define CTG_DEFAULT_CACHE_VIEW_NUMBER    256
+#define CTG_DEFAULT_CACHE_TSMA_NUMBER    10
 #define CTG_DEFAULT_RENT_SECOND          10
 #define CTG_DEFAULT_RENT_SLOT_SIZE       10
 #define CTG_DEFAULT_MAX_RETRY_TIMES      3
@@ -69,6 +70,7 @@ typedef enum {
   CTG_CI_UDF,
   CTG_CI_SVR_VER,
   CTG_CI_VIEW,
+  CTG_CI_TBL_TSMA,
   CTG_CI_MAX_VALUE,
 } CTG_CACHE_ITEM;
 
@@ -85,6 +87,7 @@ enum {
   CTG_RENT_DB = 1,
   CTG_RENT_STABLE,
   CTG_RENT_VIEW,
+  CTG_RENT_TSMA,
 };
 
 enum {
@@ -101,6 +104,8 @@ enum {
   CTG_OP_DROP_TB_INDEX,
   CTG_OP_UPDATE_VIEW_META,
   CTG_OP_DROP_VIEW_META,
+  CTG_OP_UPDATE_TB_TSMA,
+  CTG_OP_DROP_TB_TSMA,
   CTG_OP_CLEAR_CACHE,
   CTG_OP_MAX
 };
@@ -123,6 +128,7 @@ typedef enum {
   CTG_TASK_GET_TB_HASH_BATCH,
   CTG_TASK_GET_TB_TAG,
   CTG_TASK_GET_VIEW,
+  CTG_TASK_GET_TB_TSMA,
 } CTG_TASK_TYPE;
 
 typedef enum {
@@ -255,14 +261,22 @@ typedef struct SCtgViewsCtx {
   SArray* pFetchs;
 } SCtgViewsCtx;
 
+typedef struct SCtgTbTSMACtx {
+  int32_t fetchNum;
+  SArray* pNames;
+  SArray* pResList;
+  SArray* pFetches;
+} SCtgTbTSMACtx;
 
 typedef STableIndexRsp STableIndex;
+typedef STableTSMAInfo STSMACache;
 
 typedef struct SCtgTbCache {
-  SRWLatch     metaLock;
-  SRWLatch     indexLock;
-  STableMeta*  pMeta;
-  STableIndex* pIndex;
+  SRWLatch           metaLock;
+  SRWLatch           indexLock;
+  SRWLatch           tsmaLock;
+  STableMeta*        pMeta;
+  STableIndex*       pIndex;
 } SCtgTbCache;
 
 typedef struct SCtgVgCache {
@@ -280,6 +294,10 @@ typedef struct SCtgViewCache {
   SViewMeta*  pMeta;
 } SCtgViewCache;
 
+typedef struct SCtgTSMACache {
+  SRWLatch tsmaLock;
+  SArray*  pTsmas; // SArray<STSMACache*>
+} SCtgTSMACache;
 
 typedef struct SCtgDBCache {
   SRWLatch     dbLock;  // RC between destroy tbCache/stbCache and all reads
@@ -290,6 +308,7 @@ typedef struct SCtgDBCache {
   SHashObj*    viewCache; // key:viewname, value:SCtgViewCache
   SHashObj*    tbCache;   // key:tbname, value:SCtgTbCache
   SHashObj*    stbCache;  // key:suid, value:char*
+  SHashObj*    tsmaCache;  // key:tbname, value: SCtgTSMACache
   uint64_t     dbCacheNum[CTG_CI_MAX_VALUE];
   uint64_t     dbCacheSize;
 } SCtgDBCache;
@@ -325,6 +344,7 @@ typedef struct SCatalog {
   SCtgRentMgmt    dbRent;
   SCtgRentMgmt    stbRent;
   SCtgRentMgmt    viewRent;
+  SCtgRentMgmt    tsmaRent;
   SCtgCacheStat   cacheStat;
 } SCatalog;
 
@@ -370,6 +390,7 @@ typedef struct SCtgJob {
   int32_t          tbCfgNum;
   int32_t          svrVerNum;
   int32_t          viewNum;
+  int32_t          tbTsmaNum;
 } SCtgJob;
 
 typedef struct SCtgMsgCtx {
@@ -547,6 +568,21 @@ typedef struct SCtgDropViewMetaMsg {
   uint64_t  dbId;
   uint64_t  viewId;
 } SCtgDropViewMetaMsg;
+
+typedef struct SCtgUpdateTbTSMAMsg {
+  SCatalog*       pCtg;
+  STableTSMAInfo* pTsma;
+} SCtgUpdateTbTSMAMsg;
+
+typedef struct SCtgDropTbTSMAMsg {
+  SCatalog* pCtg;
+  char      dbFName[TSDB_DB_FNAME_LEN];
+  char      tbName[TSDB_TABLE_NAME_LEN];
+  char      tsmaName[TSDB_TABLE_NAME_LEN];
+  uint64_t  tsmaId;
+  uint64_t  dbId;
+  uint64_t  tbId;
+} SCtgDropTbTSMAMsg;
 
 
 typedef struct SCtgCacheOperation {
@@ -943,10 +979,12 @@ int32_t ctgMetaRentGet(SCtgRentMgmt* mgmt, void** res, uint32_t* num, int32_t si
 int32_t ctgMetaRentRemove(SCtgRentMgmt *mgmt, int64_t id, __compar_fn_t sortCompare, __compar_fn_t searchCompare);
 void    ctgRemoveStbRent(SCatalog *pCtg, SCtgDBCache *dbCache);
 void    ctgRemoveViewRent(SCatalog *pCtg, SCtgDBCache *dbCache);
+void    ctgRemoveTSMARent(SCatalog* pCtg, SCtgDBCache* dbCache);
 int32_t ctgUpdateRentStbVersion(SCatalog *pCtg, char *dbFName, char *tbName, uint64_t dbId, uint64_t suid,
                                 SCtgTbCache *pCache);
 int32_t ctgUpdateRentViewVersion(SCatalog *pCtg, char *dbFName, char *viewName, uint64_t dbId, uint64_t viewId,
-                                SCtgViewCache *pCache);                                
+                                SCtgViewCache *pCache);
+int32_t ctgUpdateRentTSMAVersion(SCatalog* pCtg, char* dbFName, const STSMACache* pCache);
 int32_t ctgUpdateTbMetaToCache(SCatalog* pCtg, STableMetaOutput* pOut, bool syncReq);
 int32_t ctgUpdateViewMetaToCache(SCatalog *pCtg, SViewMetaRsp *pRsp, bool syncReq);
 int32_t ctgStartUpdateThread();
@@ -1018,9 +1056,11 @@ void    ctgFreeDbCache(SCtgDBCache* dbCache);
 int32_t ctgStbVersionSortCompare(const void* key1, const void* key2);
 int32_t ctgViewVersionSortCompare(const void* key1, const void* key2);
 int32_t ctgDbCacheInfoSortCompare(const void* key1, const void* key2);
+int32_t ctgTSMAVersionSortCompare(const void* key1, const void* key2);
 int32_t ctgStbVersionSearchCompare(const void* key1, const void* key2);
 int32_t ctgDbCacheInfoSearchCompare(const void* key1, const void* key2);
 int32_t ctgViewVersionSearchCompare(const void* key1, const void* key2);
+int32_t ctgTSMAVersionSearchCompare(const void* key1, const void* key2);
 void    ctgFreeSTableMetaOutput(STableMetaOutput* pOutput);
 int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* target);
 int32_t ctgAddMsgCtx(SArray* pCtxs, int32_t reqType, void* out, char* target);
@@ -1072,6 +1112,19 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
 int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid, char **stbName);
 int32_t ctgGetTbTagCb(SCtgTask* pTask);
 int32_t ctgGetUserCb(SCtgTask* pTask);
+
+int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx, int32_t* fetchIdx, int32_t baseResIdx,
+                              SArray* pList);
+int32_t  ctgGetTbTSMAFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SName* name, STableTSMAInfoRsp* out,
+                               SCtgTaskReq* tReq);
+int32_t  ctgUpdateTbTSMAEnqueue(SCatalog* pCtg, STSMACache** pTsma, bool syncOp);
+int32_t  ctgDropTSMAForTbEnqueue(SCatalog* pCtg, SName* pName, bool syncOp);
+int32_t  ctgDropTbTSMAEnqueue(SCatalog* pCtg, const STSMACache* pTsma, bool syncOp);
+int32_t  ctgCloneTbTSMA(STSMACache* pTsmas, STSMACache** pRes);
+int32_t  ctgOpDropTbTSMA(SCtgCacheOperation* operation);
+int32_t  ctgOpUpdateTbTSMA(SCtgCacheOperation* operation);
+uint64_t ctgGetTbTSMACacheSize(STSMACache* pTsmaInfo);
+void     ctgFreeTbTSMAInfo(void* p);
 
 extern SCatalogMgmt      gCtgMgmt;
 extern SCtgDebug         gCTGDebug;

@@ -447,6 +447,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
+    case QUERY_NODE_SHOW_TSMAS_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
       return makeNode(type, sizeof(SShowTableTagsStmt));
@@ -489,6 +490,12 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateViewStmt));
     case QUERY_NODE_DROP_VIEW_STMT:
       return makeNode(type, sizeof(SDropViewStmt));
+    case QUERY_NODE_CREATE_TSMA_STMT:
+      return makeNode(type, sizeof(SCreateTSMAStmt));
+    case QUERY_NODE_DROP_TSMA_STMT:
+      return makeNode(type, sizeof(SDropTSMAStmt));
+    case QUERY_NODE_TSMA_OPTIONS:
+      return makeNode(type, sizeof(STSMAOptions));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -834,6 +841,13 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pOptions->pDeleteMark);
       break;
     }
+    case QUERY_NODE_TSMA_OPTIONS: {
+      STSMAOptions* pOptions = (STSMAOptions*)pNode;
+      nodesDestroyList(pOptions->pCols);
+      nodesDestroyList(pOptions->pFuncs);
+      nodesDestroyNode(pOptions->pInterval);
+      break;
+    }
     case QUERY_NODE_LEFT_VALUE:  // no pointer field
     case QUERY_NODE_COLUMN_REF:  // no pointer field
       break;
@@ -1100,7 +1114,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_VIEWS_STMT:
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
-    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT: {
+    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
+    case QUERY_NODE_SHOW_TSMAS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
@@ -1187,6 +1202,11 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_DROP_VIEW_STMT:
       break;
+    case QUERY_NODE_CREATE_TSMA_STMT: {
+      SCreateTSMAStmt* pStmt = (SCreateTSMAStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->pOptions);
+      break;
+                                      }
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pLogicNode = (SScanLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);

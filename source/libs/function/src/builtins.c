@@ -462,6 +462,18 @@ static int32_t translateAvgMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateAvgState(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // TODO check params
+  pFunc->node.resType = (SDataType){.bytes = getAvgInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateAvgStateMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // TODO check params
+  pFunc->node.resType = (SDataType){.bytes = getAvgInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateStddevPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -2530,7 +2542,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .combineFunc  = avgCombine,
     .pPartialFunc = "_avg_partial",
     .pMiddleFunc  = "_avg_middle",
-    .pMergeFunc   = "_avg_merge"
+    .pMergeFunc   = "_avg_merge",
+    .pStateFunc = "_avg_state",
   },
   {
     .name = "_avg_partial",
@@ -3814,7 +3827,34 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = NULL,
     .sprocessFunc = qPseudoTagFunction,
     .finalizeFunc = NULL
-  }
+  },
+  {
+  
+    //TODO test for child table
+    //TODO for outer use not only internal
+    .name = "_avg_state",
+    .type = FUNCTION_TYPE_AVG_STATE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateAvgState,
+    //.dataRequiredFunc = statisDataRequired,
+    .getEnvFunc = getAvgFuncEnv,
+    .initFunc = avgFunctionSetup,
+    .processFunc = avgFunction,
+    .finalizeFunc = avgPartialFinalize,
+    //.combineFunc = avgCombine,
+    .pPartialFunc = "_avg_partial",
+    .pMergeFunc = "_avg_state_merge"
+  },
+  {
+    .name = "_avg_state_merge",
+    .type = FUNCTION_TYPE_AVG_STATE_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateAvgStateMerge,
+    .getEnvFunc = getAvgFuncEnv,
+    .initFunc = avgFunctionSetup,
+    .processFunc = avgFunctionMerge,
+    .finalizeFunc = avgPartialFinalize,
+  },
 };
 // clang-format on
 

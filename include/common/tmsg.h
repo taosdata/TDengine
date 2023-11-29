@@ -110,6 +110,7 @@ enum {
   HEARTBEAT_KEY_TMQ,
   HEARTBEAT_KEY_DYN_VIEW,
   HEARTBEAT_KEY_VIEWINFO,
+  HEARTBEAT_KEY_TSMA,
 };
 
 typedef enum _mgmt_table {
@@ -4144,6 +4145,47 @@ typedef struct {
 int32_t tSerializeSViewMetaRsp(void* buf, int32_t bufLen, const SViewMetaRsp* pRsp);
 int32_t tDeserializeSViewMetaRsp(void* buf, int32_t bufLen, SViewMetaRsp* pRsp);
 void    tFreeSViewMetaRsp(SViewMetaRsp* pRsp);
+typedef struct {
+  char name[TSDB_TABLE_FNAME_LEN];
+}STableTSMAInfoReq;
+
+int32_t tSerializeTableTSMAInfoReq(void* buf, int32_t bufLen, const STableTSMAInfoReq* pReq);
+int32_t tDeserializeTableTSMAInfoReq(void* buf, int32_t bufLen, STableTSMAInfoReq* pReq);
+
+typedef struct {
+  int32_t  funcId;
+  col_id_t colId;
+} STableTSMAFuncInfo;
+
+typedef struct {
+  char     name[TSDB_TABLE_NAME_LEN];
+  uint64_t tsmaId;
+  char     targetTb[TSDB_TABLE_NAME_LEN];
+  char     targetDbFName[TSDB_DB_FNAME_LEN];
+  char     tb[TSDB_TABLE_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  uint64_t suid;
+  uint64_t dbId;
+  int32_t  version;
+  int64_t  interval;
+  int8_t   unit;
+  SArray*  pFuncs;  // SArray<STableTSMAFuncInfo>
+} STableTSMAInfo;
+
+typedef struct {
+  SArray* pTsmas;  // SArray<STableTSMAInfo*>
+} STableTSMAInfoRsp;
+
+int32_t tSerializeTableTSMAInfoRsp(void* buf, int32_t bufLen, const STableTSMAInfoRsp* pRsp);
+int32_t tDeserializeTableTSMAInfoRsp(void* buf, int32_t bufLen, STableTSMAInfoRsp* pReq);
+void    tFreeTableTSMAInfo(void* p);
+void    tFreeAndClearTableTSMAInfo(void* p);
+void    tFreeTableTSMAInfoRsp(STableTSMAInfoRsp* pRsp);
+
+#define STSMAHbRsp STableTSMAInfoRsp
+#define tSerializeTSMAHbRsp tSerializeTableTSMAInfoRsp
+#define tDeserializeTSMAHbRsp tDeserializeTableTSMAInfoRsp
+#define tFreeTSMAHbRsp tFreeTableTSMAInfoRsp
 
 #pragma pack(pop)
 
