@@ -647,7 +647,7 @@ int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* dura
 
   /* get the basic numeric value */
   int64_t timestamp = taosStr2Int64(token, &endPtr, 10);
-  if (timestamp < 0 || errno != 0) {
+  if ((timestamp == 0 && token[0] != '0') || errno != 0) {
     return -1;
   }
 
