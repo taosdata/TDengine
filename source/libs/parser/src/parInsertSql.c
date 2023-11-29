@@ -1584,7 +1584,7 @@ typedef struct SStbRowsDataContext {
   bool           isJsonTag;
 } SStbRowsDataContext;
 
-typedef struct SRowsDataContext{
+typedef union SRowsDataContext{
   STableDataCxt* pTableDataCxt;
   SStbRowsDataContext* pStbRowsCxt;
 } SRowsDataContext;
@@ -1802,10 +1802,10 @@ static void clearStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
   taosMemoryFreeClear(pStbRowsCxt->pCreateCtbReq);
 }
 
-static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,  const char** ppSql,
-                              SRowsDataContext* pRowsDataCxt, bool* pGotRow, SToken* pToken) {
-  bool bFirstTable = false;
-  SStbRowsDataContext* pStbRowsCxt = pRowsDataCxt->pStbRowsCxt;
+static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, const char** ppSql,
+                              SStbRowsDataContext* pStbRowsCxt, bool* pGotRow, SToken* pToken,
+                              STableDataCxt** ppTableDataCxt) {
+  bool    bFirstTable = false;
   int32_t code = getStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pGotRow, pToken, &bFirstTable);
   if (code != TSDB_CODE_SUCCESS || !*pGotRow) {
     return code;
@@ -1816,14 +1816,13 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   }
 
   code = insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStbRowsCxt->pCtbMeta->uid, sizeof(pStbRowsCxt->pCtbMeta->uid),
-                     pStbRowsCxt->pCtbMeta, &pStbRowsCxt->pCreateCtbReq, &pRowsDataCxt->pTableDataCxt, false, true);
-  initTableColSubmitData(pRowsDataCxt->pTableDataCxt);
+                            pStbRowsCxt->pCtbMeta, &pStbRowsCxt->pCreateCtbReq, ppTableDataCxt, false, true);
+  initTableColSubmitData(*ppTableDataCxt);
   if (code == TSDB_CODE_SUCCESS) {
-    STableDataCxt* pTableDataCxt = pRowsDataCxt->pTableDataCxt;
-    SRow** pRow = taosArrayReserve(pTableDataCxt->pData->aRowP, 1);
-    code = tRowBuild(pStbRowsCxt->aColVals, pTableDataCxt->pSchema, pRow);
+    SRow** pRow = taosArrayReserve((*ppTableDataCxt)->pData->aRowP, 1);
+    code = tRowBuild(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow);
     if (TSDB_CODE_SUCCESS == code) {
-      insCheckTableDataOrder(pTableDataCxt, TD_ROW_KEY(*pRow));
+      insCheckTableDataOrder(*ppTableDataCxt, TD_ROW_KEY(*pRow));
     }
   }
 
@@ -1921,7 +1920,8 @@ static int32_t parseValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,
       if (!pStmt->stbSyntax) {
         code = parseOneRow(pCxt, &pStmt->pSql, rowsDataCxt.pTableDataCxt, &gotRow, pToken);
       } else {
-        code = parseOneStbRow(pCxt, pStmt, &pStmt->pSql, &rowsDataCxt, &gotRow, pToken);
+        STableDataCxt* pTableDataCxt = NULL;
+        code = parseOneStbRow(pCxt, pStmt, &pStmt->pSql, rowsDataCxt.pStbRowsCxt, &gotRow, pToken, &pTableDataCxt);
       }
     }
 
@@ -1985,11 +1985,11 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
       if (!pStmt->stbSyntax) {
         code = parseOneRow(pCxt, (const char**)&pRow, rowsDataCxt.pTableDataCxt, &gotRow, &token);
       } else {
-        rowsDataCxt.pTableDataCxt = NULL;
-        code = parseOneStbRow(pCxt, pStmt, (const char**)&pRow, &rowsDataCxt, &gotRow, &token);
+        STableDataCxt* pTableDataCxt = NULL;
+        code = parseOneStbRow(pCxt, pStmt, (const char**)&pRow, rowsDataCxt.pStbRowsCxt, &gotRow, &token, &pTableDataCxt);
         if (code == TSDB_CODE_SUCCESS) {
           SStbRowsDataContext* pStbRowsCxt = rowsDataCxt.pStbRowsCxt;
-          void* pData = rowsDataCxt.pTableDataCxt;
+          void* pData = pTableDataCxt;
           taosHashPut(pStmt->pTableCxtHashObj, &pStbRowsCxt->pCtbMeta->uid, sizeof(pStbRowsCxt->pCtbMeta->uid), &pData,
                       POINTER_BYTES);
         }
