@@ -32,6 +32,7 @@
                 :data="props.row.taskActivities"
                 size="mini"
                 class="tabel-expand"
+                row-key="at"
               >
                 <el-table-column
                   prop="level"
