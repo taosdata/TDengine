@@ -1746,14 +1746,12 @@ export default {
         if (querystr) {
           dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
         }
-        console.log('csvcesh--测试',this.$refs.csvdata);
         if ((this.tagName == "mqtt" || this.tagName == "kafka") && isSubmit) {
           this.$refs.transformer.getTransformerParams()
          
         }
         if(this.tagName=='csv'&& isSubmit){
           this.$refs.csvdata.$refs.transform.getTransformerParams()
-          console.log('csvcesh--测试--csv的transformer参数',this.$refs.csvdata.transformerParser);
         }
         
         if (this.tagName.includes("opc") && isSubmit) {

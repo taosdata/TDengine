@@ -1201,6 +1201,7 @@ export default {
     // opc_alias:'Alias',
     // opc_type:'Type',
     transformer:{
+      csvtip:'The number of custom columns must be equal to the number of CSV columns',
       identified:'Column Identified',
       extract:'Extract or Split From A column',
       filter:'Filter',

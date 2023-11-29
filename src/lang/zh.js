@@ -1005,6 +1005,7 @@ export default {
 
   datasource: {
     transformer:{
+      csvtip:'自定义列数必须等于csv列数',
       identified:'识别的列',
       extract:'从列中提取或拆分',
       filter:'过滤',

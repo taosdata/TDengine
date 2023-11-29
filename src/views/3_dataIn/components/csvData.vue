@@ -178,9 +178,6 @@ export default {
       this.csvColumns = result.file_header.column_names;
       this.sample_values = result.sample_values;
       this.formatCsvTransformerData(this.csvColumns,this.sample_values)
-      
-      console.log(result,'csv-----hui回显',this.$store.state.app.csvParser);
-      // this.echoEditData();
     }
   },
   methods: {
@@ -315,14 +312,13 @@ export default {
               );
               let apiColumns = result.file_header.column_names;
               if(localcolumns.length!=apiColumns.length){
-                Message.error('自定义列必须等于csv列');
+                Message.error(this.$set('datasource.transformer.csvtip'));
                 return
               }
               this.csvColumns=this.$refs.param.ruleForm.customcol.split(",")
               this.sample_values = result.sample_values.map(item=>{
                 return item.slice(0,localcolumns.length)
               })
-              console.log(result,'没有header',this.sample_values,this.csvColumns);
               
 
             }
@@ -340,30 +336,7 @@ export default {
           this.csvColumns = result.file_header.column_names;
           this.sample_values = result.sample_values;
         }
-
-        // this.csvParserConf = {
-        //   parser: {
-        //     parse: {},
-        //     model: {
-        //       name: "",
-        //       using: "",
-        //       tags: [],
-        //       columns: [],
-        //     },
-        //   },
-        // };
-        // this.csvColumns.forEach((item) => {
-        //   this.csvParserConf.parser.parse[item] = {
-        //     as: "",
-        //     alias: item,
-        //   };
-        // });
-
-        console.log(this.csvColumns, "this.csvColumns", this.sample_values);
         this.formatCsvTransformerData(this.csvColumns, this.sample_values);
-        // this.localcsv = deepClone(this.csvParserConf);
-        // this.$store.commit("app/SET_CSV_PARSER", this.localcsv.parser);
-        // this.initDbOptions();
         this.showConfig = true;
       } catch (error) {
         error && error.message && Message.error(error.message);
@@ -387,8 +360,6 @@ export default {
       }else{
         msgBody.unshift(columns.toString())
       }
-      
-      console.log(msgBody,'msgbody')
       this.extractArr.splice(0, this.extractArr.length);
       columns.forEach((item) => {
         let obj = {};
@@ -406,12 +377,11 @@ export default {
       });
       let csvTransformer={
         "columns":this.$store.state.app.csvTransformerlocalCols.length>0?this.$store.state.app.csvTransformerlocalCols: columns,
-        inputList:inputList,
+        inputList:this.$store.state.app.csvParser?this.$store.state.app.csvParser.input:inputList,
         "msgBody": msgBody.join('\n')
       }
       this.$store.commit("app/SET_CSV_TRANSFORMER_PARSER", csvTransformer);
       this.showTransformer=true
-      console.log(this.$store.state.app.csvTransformerlocalCols,msgBody,this.extractArr,'csv大串联',this.$store.state.app.csvTransformerParser)
     },
     async getDBColumns() {
       try {

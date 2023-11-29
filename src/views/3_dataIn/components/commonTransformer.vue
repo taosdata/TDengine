@@ -321,14 +321,8 @@ export default {
   },
   mounted() {
     if (this.parserColumns) {
-      this.initColumnLists(this.params_columns);
+      this.initColumnLists(this.parserColumns);
     }
-    console.log(
-      this.$store.state.app.csvParser,
-      this.$store.state.app.csvTransformerParser,
-      this.$store.state.app.transformerParserData,
-      "this.$store.state.app.csvParser"
-    );
     if (
       this.$parent.isEditable ||
       (this.$store.state.app.csvParser &&
@@ -348,14 +342,6 @@ export default {
   methods: {
     //编辑回显数据
     async echoParser(value) {
-      console.log(
-        this.extractArr,
-        value,
-        this.isCSV,
-        this.columnsArr,
-        this.$store.state.app.csvTransformerParser,
-        "this.extractArr--csv--echo"
-      );
       let csvechoTransData = null;
       if (this.$store.state.app.currentDBType == "csv") {
         this.isCSV = true;
@@ -396,7 +382,6 @@ export default {
       let isincludeFilter = false;
       value.parser.mutate.forEach((item) => {
         if (Object.keys(item).toString() == "filter") {
-          console.log("filter--回显示过滤filter");
           isincludeFilter = true;
           let obj = {
             expression: item.filter,
@@ -406,28 +391,20 @@ export default {
         }
         if (Object.keys(item).toString() == "map") {
           echoMapData = Object.entries(item["map"]).map((val) => {
-            console.log(val,'===ppp',Object.keys(val[1]));
             let expreKey=Object.keys(val[1]).filter(key=>key!='as')[0]
             return {
               columnname: val[0],
-              type: Object.keys(val[1]).toString(),
+              type: expreKey,
               expression: val[1][expreKey],
             };
           });
         }
       });
-      console.log(echoMapData,'echoMapData');
       this.$store.commit("app/SET_ECHO_MAP_DATA", {
         model: value.parser.model,
         tableData: echoMapData,
       });
       this.$nextTick(() => {
-        console.log(
-          this.$refs.extract,
-          "this.$refs.extract",
-          this.filterArr,
-          "回西安filter"
-        );
         this.$refs.extract.map((comp) => {
           comp.submitExtract();
         });
@@ -519,8 +496,6 @@ export default {
                 as:item['Type']
               },
             });
-
-            console.log(item,mutates,'获取mapping---item---shujutongbusss');
           }
         }
       });
@@ -618,13 +593,13 @@ export default {
             (key) => Object.keys(key).toString() == "filter"
           )
             ? this.mappingParser.parser.mutate
-            : this.filterArr
+            :this.filterArr[0].expression? this.filterArr
                 .map((item) => {
                   return {
                     filter: item.expression,
                   };
                 })
-                .concat(this.mappingParser.parser.mutate),
+                .concat(this.mappingParser.parser.mutate):this.mappingParser.parser.mutate,
         },
 
         input: this.isCSV
@@ -797,9 +772,10 @@ export default {
               return;
             }
             Message.success(this.$t("operateSucc"));
+            await this.getInitStables();
             this.sruleForm.s_name =
               this.$refs.createstb.stable_form.ts_field_name;
-            this.getInitStables();
+            console.log( this.sruleForm.s_name,'创建后的数据库');
             this.closeDialog();
           } catch (error) {
             error.desc ? Message.error(error.desc) : "";
@@ -975,7 +951,6 @@ export default {
         this.isCSV = true;
         this.msgForm.msgbody = val.msgBody;
         this.formatCSVExtract(val.columns);
-        console.log(val, "监听csv----transformer");
         }
       },
     },

@@ -197,7 +197,7 @@ export default {
         this.tableData = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
-              return [item.name, data[index]];
+              return [item.name, typeof(data[index])=='boolean'?data[index].toString():data[index]];
             })
           );
         });
@@ -239,11 +239,6 @@ export default {
     },
     //提交单个
     submitExtract() {
-      console.log(
-        "调试csv----kk",
-        this.$parent.isCSV,
-        this.$store.state.app.csvTransformerParser
-      );
       let extractExpres = this.ruleForm.filter_expres.split(";");
       let inputList = [];
       inputList = this.$parent.msgForm.msgbody.split(";").map((msg) => {
@@ -275,7 +270,7 @@ export default {
               [`${item.type}`]:
                 item.type == "regex"
                   ? item.expression
-                  : item.expression.split(";"),
+                  : item.expression?item.expression.trim().split(";"):item.expression,
             },
           };
         })
@@ -288,7 +283,6 @@ export default {
         },
         input:this.$parent.isCSV?this.$store.state.app.csvTransformerParser?.inputList: inputList,
       };
-      console.log(this.$parent.isCSV,'this.$parent.isCSV')
 
       parser.parser.parse = this.extractParseData;
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);
