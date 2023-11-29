@@ -1355,5 +1355,6 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
 void    s3EvictCache(const char *path, long object_size) {}
 long    s3Size(const char *object_name) { return 0; }
 int32_t s3GetObjectsByPrefix(const char *prefix, const char *path) { return 0; }
+int32_t s3GetObjectToFile(const char *object_name, char *fileName) { return 0; }
 
 #endif
