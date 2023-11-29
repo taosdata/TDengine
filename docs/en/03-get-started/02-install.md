@@ -63,7 +63,7 @@ The TDengine Enterprise package includes the following components:
 The steps are as below:
 
 - Download and install the TDengine Enterprise installation package.
-- To uninstall taosX, run the `uninstall_taosx.exe` file.
+- To uninstall taosX, run the `uninstall_TDengine.exe` file.
 - To start or stop the `taosx` service, run the `sc start/stop taosd` command.
 - To start or stop the `taosx` service, run the `sc start/stop taosadapter` command.
 - To start or stop the `taosx` service, run the `sc start/stop taoskeeper` command.
@@ -99,6 +99,6 @@ By default, taosX is installed to the `C:\Program Files\taosX` directory.
 └── config
 │   ├── agent.toml
 │   ├── explorer.toml
-├── uninstall_taosx.exe
-├── uninstall_taosx.dat
+├── uninstall_TDengine.exe
+├── uninstall_TDengine.dat
 ~~~

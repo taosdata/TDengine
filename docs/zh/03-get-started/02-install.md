@@ -65,7 +65,7 @@ TDengine Enterprise 安装包中主要包含：
 安装步骤如下：
 
 - 下载需要的版本的 TDengine Enterprise 安装包，例如 TDengine-Enterprise-3.1.1.13-Windows-x64.exe，执行安装
-- 可使用 uninstall_taosx.exe 进行卸载
+- 可使用 uninstall_TDengine.exe 进行卸载
 - 命令行执行 ```sc start/stop taosd``` 启动/停止 taosd 服务
 - 命令行执行 ```sc start/stop taosadapter``` 启动/停止 taosadapter 服务
 - 命令行执行 ```sc start/stop taoskeeper``` 启动/停止 taoskeeper 服务
@@ -101,6 +101,6 @@ TDengine Enterprise 安装包中主要包含：
 └── config
 │   ├── agent.toml
 │   ├── explorer.toml
-├── uninstall_taosx.exe
-├── uninstall_taosx.dat
+├── uninstall_TDengine.exe
+├── uninstall_TDengine.dat
 ~~~
