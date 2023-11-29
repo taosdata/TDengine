@@ -74,13 +74,13 @@ export default {
     },
     connect() {
       this.disconnect();
-      // 测试用
       const { location } = window;
       const proto = location.protocol.startsWith("https") ? "wss" : "ws";
       console.log('location',location);
       let host = location.host;
       const wsUri = `${proto}://${host}/api/x/metrics/task/${this.taskId}`;
 
+      // dev 环境测试用
       // const x_api = process.env.VUE_APP_X_API
       // const proto = x_api.startsWith('https') ? 'wss' : 'ws'
       // let host = proto == 'wss'
@@ -94,6 +94,7 @@ export default {
       if (this.socket) {
         this.socket.onerror = (err) => {
           console.log('Error', err);
+          this.datas = []
         };
         this.socket.onmessage = (ev) => {
           let data = JSON.parse(ev.data);
