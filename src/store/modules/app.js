@@ -85,7 +85,8 @@ const state = {
   transformEchoMapData:null,
   csvTransformerParser:null,
   csvTransformerlocalCols:[],//csv无头部时候的自定义列
-  splitExpresList:null//transformer的split
+  splitExpresList:null,//transformer的split
+  mappingjoin:''//mapping时候映射值是join时候的
   
 };
 const saveKey = encodeURIComponent("appId");
@@ -113,6 +114,9 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_MAPPING_JOIN:(state,data)=>{
+    state.mappingjoin=data
+  },
   SET_SPLIT_EXPRESS:(state,data)=>{
     state.splitExpresList=data
   },

@@ -44,7 +44,7 @@ export default {
       ruleForm: {
         sep: "",
         n: "",
-        names: "",
+        names: '',
       },
       rules: {
         sep: [
@@ -63,11 +63,17 @@ export default {
         if (valid) {
           this.isValid = true;
           let splitExpre={}
+          console.log(this.ruleForm,'this.ruleForm--sploit')
           Object.keys(this.ruleForm)
             .filter((key) => this.ruleForm[key])
             .forEach((item) => {
-              splitExpre[item] =item=='names'?this.ruleForm[item].split(','): this.ruleForm[item];
+                console.log(this.ruleForm[item],'this.ruleForm[item]');
+              splitExpre[item] =item=='names'?this.ruleForm[item].toString(): this.ruleForm[item];
             });
+            if(splitExpre['names']){
+                splitExpre['names']=splitExpre['names'].toString().split(',')
+            }
+            console.log(splitExpre,splitExpre,'splitExpre');
             this.$store.commit('app/SET_SPLIT_EXPRESS',splitExpre)
           return true;
         } else {
@@ -79,6 +85,9 @@ export default {
   },
   mounted(){
     if(this.$store.state.app.splitExpresList){
+        if(this.$store.state.app.splitExpresList.names){
+            this.$store.state.app.splitExpresList.names=this.$store.state.app.splitExpresList.names.toString()
+            }
         this.ruleForm={...this.$store.state.app.splitExpresList}
     }
   },
@@ -86,6 +95,9 @@ export default {
     "$store.state.app.splitExpresList":{
         deep:true,
         handler(val){
+            if(val.names){
+                val.names=val.names.toString()
+            }
             this.ruleForm={...val}
         }
     }

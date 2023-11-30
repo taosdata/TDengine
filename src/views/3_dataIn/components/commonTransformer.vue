@@ -16,6 +16,7 @@
               v-model="msgForm.msgbody"
               size="small"
               type="textarea"
+              :autosize="{ minRows: 6 }"
             ></el-input>
           </el-form-item>
         </el-form>
@@ -156,7 +157,11 @@
                     >-->
                     <el-input
                       slot="reference"
-                      style="width: 180px"
+                      :style="
+                        scope.row.maptype[1].includes('join')
+                          ? { width: '80px' }
+                          : { width: '180px' }
+                      "
                       v-model="scope.row.Expression"
                       size="small"
                       :disabled="
@@ -165,6 +170,14 @@
                           : false
                       "
                     ></el-input>
+                    <el-input
+                      v-if="scope.row.maptype[1].includes('join')"
+                      size="small"
+                      style="width: 100px"
+                      v-model="joinwith"
+                    >
+                      <template slot="prepend">with</template>
+                    </el-input>
 
                     <!-- @keyup.enter.native="submitSuper(scope.row)" -->
                     <!-- </el-popover> -->
@@ -227,6 +240,7 @@ export default {
   },
   data() {
     return {
+      joinwith: "",
       isCSV: false,
       mapExpressionList: [
         "value",
@@ -397,6 +411,10 @@ export default {
         if (Object.keys(item).toString() == "map") {
           echoMapData = Object.entries(item["map"]).map((val) => {
             let expreKey = Object.keys(val[1]).filter((key) => key != "as")[0];
+            console.log(expreKey,'expreKeyexpreKeyexpreKey',val)
+            if(expreKey == 'join'){
+              this.joinwith=val[1]['with']
+            }
             return {
               columnname: val[0],
               type: expreKey,
@@ -427,6 +445,7 @@ export default {
     },
     //初始化列下拉框数据，适用于新增和编辑，拷贝
     initColumnLists(columns) {
+      console.log(columns, "columns", this.$store.state.app.currentDBType);
       this.$set(
         this,
         "indentifiedColumns",
@@ -437,18 +456,40 @@ export default {
           };
         })
       );
-      this.$set(
-        this,
-        "columnsArr",
-        columns
-          .filter((val) => ["varchar", "nchar"].includes(val.type))
-          .map((item) => {
-            return {
-              ...item,
-              show: true,
-            };
-          })
-      );
+      let finalCol = [];
+      switch (this.$store.state.app.currentDBType) {
+        case "csv":
+          finalCol = columns
+            .filter((val) => ["varchar", "nchar"].includes(val.type))
+            .map((item) => {
+              return {
+                ...item,
+                show: true,
+              };
+            });
+          break;
+        case "mqtt":
+          finalCol = columns
+            .filter((val) => ["payload"].includes(val.name))
+            .map((item) => {
+              return {
+                ...item,
+                show: true,
+              };
+            });
+          break;
+        case "kafka":
+          finalCol = columns
+            .filter((val) => ["value"].includes(val.name))
+            .map((item) => {
+              return {
+                ...item,
+                show: true,
+              };
+            });
+          break;
+      }
+      this.$set(this, "columnsArr", finalCol);
     },
     //messagebody非空验证触发
     validateMsgBody() {
@@ -498,14 +539,20 @@ export default {
             : item.maptype[1]; //此处处理了编辑回显
           if (item.maptype[1] != "string") {
             //排除第一行的tablename
+            let expreitem = {
+              [`${key}`]: ["sum", "join"].includes(key)
+                ? item["Expression"].split(",")
+                : item["Expression"],
+              as: item["Type"],
+            };
+            if(key=='join'){
+              expreitem['with']=this.joinwith
+            }
             mutates.push({
-              [`${item["Name"]}`]: {
-                [`${key}`]: ["sum", "join"].includes(key)
-                  ? item["Expression"].split(",")
-                  : item["Expression"],
-                as: item["Type"],
-              },
+              [`${item["Name"]}`]: expreitem,
             });
+
+            console.log(mutates, "mutates");
           }
         }
       });
@@ -833,6 +880,7 @@ export default {
     //回显数据调用mapping接口
     echoFetchMap() {
       let echoData = this.$store.state.app.transformEchoMapData;
+      console.log(echoData,'映射---回显示---mapping');
       if (echoData) {
         //编辑回显
         this.tableData.map((item) => {
@@ -1001,6 +1049,12 @@ export default {
     },
   },
   watch: {
+    joinwith: {
+      deep: true,
+      handler(val) {
+        this.$store.commit("app/SET_MAPPING_JOIN", val);
+      },
+    },
     //csv需要单独处理
     "$store.state.app.csvTransformerParser": {
       deep: true,
@@ -1131,5 +1185,8 @@ export default {
   .el-button {
     width: 60px;
   }
+}
+::v-deep .el-input-group__prepend {
+  padding: 0 4px;
 }
 </style>
