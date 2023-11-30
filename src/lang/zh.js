@@ -1005,6 +1005,7 @@ export default {
 
   datasource: {
     transformer:{
+      septip:'请输入分隔符',
       csvtip:'自定义列数必须等于csv列数',
       identified:'识别的列',
       extract:'从列中提取或拆分',

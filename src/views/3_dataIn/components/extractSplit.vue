@@ -34,7 +34,11 @@
           </el-select>
         </el-form-item>
         <el-form-item prop="filter_expres">
+          <template v-if="ruleForm.filter_name == 'split'">
+            <SplitExpression ref='splitExpression'></SplitExpression>
+          </template>
           <el-popover
+            v-else
             trigger="click"
             placement="top-start"
             :content="$t('datasource.transformer.mutiple')"
@@ -79,8 +83,12 @@
 <script>
 import { getParser } from "@/api/explorer/datain";
 import { Message } from "element-ui";
+import { getRFC3339Time } from "@/utils/index";
+import SplitExpression from './splitExpression.vue'
+import { deepClone } from "@/utils";
 export default {
   name: "ExtractSplit",
+  components:{SplitExpression},
   props: {
     itemData: {
       type: Object,
@@ -111,6 +119,7 @@ export default {
   },
   data() {
     return {
+      splitExpre:{},
       extractParseData: {},
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
       tableColumns: [],
@@ -118,7 +127,7 @@ export default {
       ruleForm: {
         col_name: "",
         filter_name: "",
-        filter_expres: "",
+        filter_expres: ""
       },
       rules: {
         col_name: [
@@ -159,7 +168,7 @@ export default {
       this.ruleForm.filter_name = val.type;
     },
     selectCol(data) {
-      this.$emit("selectColumn", this.index, this.ruleForm.col_name);
+      this.$emit('setExtractName', this.index, this.ruleForm.col_name)
     },
     changeExtractType() {
       let index = this.$parent.extractArr.findIndex(
@@ -176,9 +185,17 @@ export default {
       if (!this.$parent.msgForm.msgbody) {
         return;
       }
+      if(this.ruleForm.filter_name == 'split'){
+        this.$refs.splitExpression.submit()
+        if(!this.$refs.splitExpression.isValid){
+          return
+        }
+      }
       this.$refs.extractForm.validate((valid) => {
         if (valid) {
           this.submitExtract();
+          //执行完之后选中的列才能不会再被选中
+          this.$emit("selectColumn", this.index, this.ruleForm.col_name);
           return true;
         } else {
           return false;
@@ -197,7 +214,12 @@ export default {
         this.tableData = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
-              return [item.name, typeof(data[index])=='boolean'?data[index].toString():data[index]];
+              return [
+                item.name,
+                typeof data[index] == "boolean"
+                  ? data[index].toString()
+                  : data[index],
+              ];
             })
           );
         });
@@ -249,14 +271,14 @@ export default {
               inputobj["payload"] = msg;
             } else {
               inputobj[item.name] =
-                item.type == "timestamp" ? "now" : item.name;
+                item.type == "timestamp" ? getRFC3339Time() : item.name;
             }
           } else if (this.$store.state.app.currentDBType == "kafka") {
             if (item.name == "value") {
               inputobj["value"] = msg;
             } else {
               inputobj[item.name] =
-                item.type == "timestamp" ? "now" : item.name;
+                item.type == "timestamp" ? getRFC3339Time() : item.name;
             }
           }
         });
@@ -270,7 +292,11 @@ export default {
               [`${item.type}`]:
                 item.type == "regex"
                   ? item.expression
-                  : item.expression?item.expression.trim().split(";"):item.expression,
+                  : item.type == "split"
+                  ? this.$store.state.app.splitExpresList
+                  : item.expression
+                  ? item.expression.trim().split(";")
+                  : item.expression,
             },
           };
         })
@@ -281,17 +307,21 @@ export default {
         parser: {
           parse: {},
         },
-        input:this.$parent.isCSV?this.$store.state.app.csvTransformerParser?.inputList: inputList,
+        input: this.$parent.isCSV
+          ? this.$store.state.app.csvTransformerParser?.inputList
+          : inputList,
       };
 
       parser.parser.parse = this.extractParseData;
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);
-      
       this.getParserData(parser);
     },
     deleteExtract() {
-      console.log(this.index, this.ruleForm.col_name,'删除');
+      console.log(this.index, this.ruleForm.col_name,'删除extract',this.tableData);
       this.$emit("deleteExtract", this.index, this.ruleForm.col_name);
+      // if(this.tableData.length>0){
+      //   this.tableData.splice(0,this.tableData.length)
+      // }
     },
   },
   mounted() {
@@ -300,17 +330,17 @@ export default {
     }
   },
   watch: {
-    
     itemData: {
       deep: true,
       handler(val) {
+        console.log(val,'删除后新的版本',this.tableData)
         this.initData(val);
       },
     },
   },
 };
 </script>
-<style>
+<style lang='scss' scoped>
 .extract-split {
   margin-top: 20px;
   .extract-item {
@@ -347,4 +377,5 @@ export default {
   max-height: 300px;
   overflow-y: auto;
 }
+
 </style>

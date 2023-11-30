@@ -1,0 +1,113 @@
+<template>
+  <div class="split-expression">
+    <el-form :model="ruleForm" :rules="rules" ref="splitForm">
+      <el-form-item prop="sep">
+        <el-input
+          placeholder=","
+          class="split-item"
+          size="small"
+          v-model="ruleForm.sep"
+        >
+          <template slot="prepend">sep</template>
+        </el-input>
+      </el-form-item>
+      <el-form-item prop="n">
+        <el-input
+          placeholder="2"
+          class="split-item"
+          size="small"
+          type="number"
+          v-model="ruleForm.n"
+        >
+          <template slot="prepend">n</template>
+        </el-input>
+      </el-form-item>
+      <el-form-item prop="names">
+        <el-input
+          placeholder='str1, id, value'
+          class="split-item"
+          size="small"
+          v-model="ruleForm.names"
+        >
+          <template slot="prepend">names</template>
+        </el-input>
+      </el-form-item>
+    </el-form>
+  </div>
+</template>
+<script>
+export default {
+  name: "SplitExpression",
+  data() {
+    return {
+      isValid: true,
+      ruleForm: {
+        sep: "",
+        n: "",
+        names: "",
+      },
+      rules: {
+        sep: [
+          {
+            required: true,
+            trigger: "blur",
+            message: this.$t("datasource.transformer.septip"),
+          },
+        ],
+      },
+    };
+  },
+  methods: {
+    submit() {
+      this.$refs.splitForm.validate((valid) => {
+        if (valid) {
+          this.isValid = true;
+          let splitExpre={}
+          Object.keys(this.ruleForm)
+            .filter((key) => this.ruleForm[key])
+            .forEach((item) => {
+              splitExpre[item] =item=='names'?this.ruleForm[item].split(','): this.ruleForm[item];
+            });
+            this.$store.commit('app/SET_SPLIT_EXPRESS',splitExpre)
+          return true;
+        } else {
+          this.isValid = false;
+          return false;
+        }
+      });
+    },
+  },
+};
+</script>
+<style lang="scss" scoped>
+.split-expression {
+  .el-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr 3fr;
+    column-gap: 0px !important;
+    ::v-deep {
+      .el-input-group__prepend {
+        padding: 0px 4px !important;
+        border-radius: 0px !important;
+      }
+      .el-input__inner {
+        padding: 0 0 0 4px !important;
+        border-radius: 0px !important;
+        border: 1px solid #e3e3e3 !important;
+      }
+    }
+  }
+  .el-form-item {
+    .split-item {
+      border: none !important;
+    }
+    &:not(:last-child) {
+      ::v-deep {
+        .el-input__inner {
+          border-right: none !important;
+        }
+      }
+    }
+  }
+}
+</style>

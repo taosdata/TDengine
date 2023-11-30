@@ -186,7 +186,6 @@ export default {
         });
         return inputobj
       });
-
       let parser = {
         parser: {
           parse: this.$store.state.app.transformExtractParseData,

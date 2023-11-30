@@ -84,7 +84,8 @@ const state = {
   transformColumnIdentify:[],
   transformEchoMapData:null,
   csvTransformerParser:null,
-  csvTransformerlocalCols:[]//csv无头部时候的自定义列
+  csvTransformerlocalCols:[],//csv无头部时候的自定义列
+  splitExpresList:null//transformer的split
   
 };
 const saveKey = encodeURIComponent("appId");
@@ -112,6 +113,9 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_SPLIT_EXPRESS:(state,data)=>{
+    state.splitExpresList=data
+  },
   SET_CSV_LOCAL_COLS:(state,data)=>{
     state.csvTransformerlocalCols=data
   },
