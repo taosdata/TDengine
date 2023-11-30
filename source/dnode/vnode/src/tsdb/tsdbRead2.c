@@ -373,7 +373,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
 
   initReaderStatus(&pReader->status);
 
-  pReader->pTsdb = getTsdbByRetentions(pVnode, pCond->twindows.skey, pVnode->config.tsdbCfg.retentions, idstr, &level);
+  pReader->pTsdb = getTsdbByRetentions(pVnode, pCond, pVnode->config.tsdbCfg.retentions, idstr, &level);
   pReader->info.suid = pCond->suid;
   pReader->info.order = pCond->order;
 
@@ -3134,7 +3134,7 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
   }
 }
 
-static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* retentions, const char* idStr,
+static STsdb* getTsdbByRetentions(SVnode* pVnode, SQueryTableDataCond* pCond, SRetention* retentions, const char* idStr,
                                   int8_t* pLevel) {
   if (VND_IS_RSMA(pVnode)) {
     int8_t  level = 0;
@@ -3152,7 +3152,7 @@ static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* ret
         }
         break;
       }
-      if ((now - pRetention->keep) <= (winSKey + offset)) {
+      if ((now - pRetention->keep) <= (pCond->twindows.skey + offset)) {
         break;
       }
       ++level;
