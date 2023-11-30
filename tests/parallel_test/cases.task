@@ -198,6 +198,7 @@
 #,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-db.py -N 6 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select.py -N 2 -n 1
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-duplicatedata.py -N 3 -n 3
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-duplicatedata-false.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-column.py -N 3 -n 3
@@ -299,6 +300,7 @@ e
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/precisionUS.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/precisionNS.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4219.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/ts-4272.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4295.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td27388.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
