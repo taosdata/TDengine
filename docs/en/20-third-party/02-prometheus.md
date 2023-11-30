@@ -16,7 +16,7 @@ Prometheus data can be stored in TDengine via the `remote_write` interface with 
 
 To write Prometheus data to TDengine requires the following preparations.
 - The TDengine cluster is deployed and functioning properly
-- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](/reference/taosadapter) for details.
+- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](../../reference/taosadapter) for details.
 - Prometheus has been installed. Please refer to the [official documentation](https://prometheus.io/docs/prometheus/latest/installation/) for installing Prometheus
 
 ## Configuration steps

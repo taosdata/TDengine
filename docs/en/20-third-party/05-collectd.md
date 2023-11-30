@@ -15,7 +15,7 @@ You can write the data collected by collectd to TDengine by simply modifying the
 
 Writing collectd data to the TDengine requires several preparations.
 - The TDengine cluster is deployed and running properly
-- taosAdapter is installed and running, please refer to [taosAdapter's manual](/reference/taosadapter) for details
+- taosAdapter is installed and running, please refer to [taosAdapter's manual](../../reference/taosadapter) for details
 - collectd has been installed. Please refer to the [official documentation](https://collectd.org/download.shtml) to install collectd
 
 ## Configuration steps

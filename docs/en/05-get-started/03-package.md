@@ -243,7 +243,7 @@ You can use the TDengine CLI to monitor your TDengine deployment and execute ad 
 taos
 ```
 
-The TDengine CLI displays a welcome message and version information to indicate that its connection to the TDengine service was successful. If an error message is displayed, see the [FAQ](/train-faq/faq) for troubleshooting information. At the following prompt, you can execute SQL commands.
+The TDengine CLI displays a welcome message and version information to indicate that its connection to the TDengine service was successful. If an error message is displayed, see the [FAQ](../../train-faq/faq) for troubleshooting information. At the following prompt, you can execute SQL commands.
 
 ```cmd
 taos>
