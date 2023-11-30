@@ -482,10 +482,14 @@ func (c *UAClient) observe() error {
 						Status:     data.Status,
 					}
 				}
+				if len(values) == 0 {
+					c.logger.Warn("opcua read no values")
+					return
+				}
 				if c.dumper != nil {
-					c.logger.Debug("opcda start to dump")
+					c.logger.Debug("opcua start to dump")
 					c.dumper.Dump(values)
-					c.logger.Debug("opcda dump success")
+					c.logger.Debug("opcua dump success")
 				}
 				c.logger.Debug("read value success")
 				c.onMessage(values)
@@ -625,9 +629,9 @@ func (c *UAClient) handleSubCallback(sub *opcua.Subscription, ch chan *opcua.Pub
 					}
 					if len(values) != 0 {
 						if c.dumper != nil {
-							c.logger.Debug("opcda start to dump")
+							c.logger.Debug("opcua start to dump")
 							c.dumper.Dump(values)
-							c.logger.Debug("opcda dump success")
+							c.logger.Debug("opcua dump success")
 						}
 						c.logger.Debug("read value success")
 						c.onMessage(values)
