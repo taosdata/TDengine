@@ -67,6 +67,7 @@ pub struct Pipeline {
 
 impl Pipeline {
     pub fn transform(&self, records: &RecordBatch) -> Result<Vec<ModeledRecordBatch>, Error> {
+        self.check()?;
         let batch = self
             .parse
             .as_ref()
@@ -82,6 +83,51 @@ impl Pipeline {
         } else {
             Ok(vec![ModeledRecordBatch::new(batch)])
         }
+    }
+
+    fn check(&self) -> Result<(), Error> {
+        if self.mutate.is_empty() && self.parse.is_none() {
+            Err(anyhow::anyhow!(
+                "Either parse or mutate must be set in pipeline"
+            ))?;
+        }
+        if let Some(model) = self.model.as_ref() {
+            for table in model {
+                if table.name.is_empty() {
+                    return Err(Error::EmptyTableName);
+                } else if table.name.contains('.') {
+                    return Err(Error::TableNameContainsDot(table.name.clone()));
+                }
+
+                if let Some(columns) = table.columns.as_ref() {
+                    if columns.is_empty() {
+                        return Err(Error::EmptyTableColumns(table.name.clone()));
+                    }
+                    for dup in columns.iter().duplicates() {
+                        return Err(Error::DuplicatedColumns(dup.clone()));
+                    }
+                }
+
+                if let Some(tags) = table.tags.as_ref() {
+                    if table.using.as_ref().is_none() {
+                        return Err(Error::STableNameRequired);
+                    }
+                    for dup in tags.iter().duplicates() {
+                        return Err(Error::DuplicatedTags(dup.clone()));
+                    }
+                }
+                if let Some(stable) = table.using.as_ref() {
+                    if stable.is_empty() {
+                        return Err(Error::EmptySTableName);
+                    } else if stable.contains('.') {
+                        return Err(Error::STableNameContainsDot(stable.clone()));
+                    } else if table.tags.as_ref().map(Vec::is_empty).unwrap_or(true) {
+                        return Err(Error::STableTagsRequired);
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -814,11 +860,6 @@ impl Parser {
     }
 
     fn transform_records(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {
-        if self.mutate.is_empty() && self.parse.is_none() {
-            Err(anyhow::anyhow!(
-                "Either parse or mutate must be set in pipeline"
-            ))?;
-        }
         let batch = self
             .parse
             .as_ref()
@@ -963,6 +1004,11 @@ impl Parser {
     }
 
     fn self_check(&self) -> Result<(), Error> {
+        if self.mutate.is_empty() && self.parse.is_none() {
+            Err(anyhow::anyhow!(
+                "Either parse or mutate must be set in pipeline"
+            ))?;
+        }
         for table in &self.model {
             if table.name.is_empty() {
                 return Err(Error::EmptyTableName);
@@ -992,6 +1038,8 @@ impl Parser {
                     return Err(Error::EmptySTableName);
                 } else if stable.contains('.') {
                     return Err(Error::STableNameContainsDot(stable.clone()));
+                } else if table.tags.as_ref().map(Vec::is_empty).unwrap_or(true) {
+                    return Err(Error::STableTagsRequired);
                 }
             }
         }
@@ -1407,6 +1455,8 @@ pub enum Error {
     TableNameContainsDot(String),
     #[error("STable name should be set when tags not empty")]
     STableNameRequired,
+    #[error("Tags should not be empty when when stable set")]
+    STableTagsRequired,
     #[error("STable name should not be empty")]
     EmptySTableName,
     #[error("STable name should not contain dot: {0}")]
