@@ -23,7 +23,7 @@ class TDTestCase:
 
     def create_db(self, cache_value, dbname="test"):
         tdSql.execute(f"drop database if exists {dbname} ")
-        tdLog.info("prepare datas for auto check abs function ")
+        tdLog.info(f"prepare database for cachemode:{cache_value} ")
 
         tdSql.execute(f"create database {dbname} cachemodel {cache_value} ")
         tdSql.execute(f"use {dbname} ")
@@ -34,7 +34,7 @@ class TDTestCase:
         tdSql.execute(f"use {dbname} ")
         for tbnum in range(tbnums):
             tbname = f"{dbname}.t{tbnum}"
-            tdSql.execute(f"create table {tbname} using {dbname}.stb tags({tbnum}) ")
+            tdSql.execute(f"create table  {tbname} using {dbname}.stb tags({tbnum}) ")
 
             ts = self.ts
             for row in range(rownums):
@@ -49,7 +49,7 @@ class TDTestCase:
                 c8 = "'binary_val'"
                 c9 = "'nchar_val'"
                 c10 = ts
-                tdSql.execute(f" insert into  {tbname} values ({ts},{c1},{c2},{c3},{c4},{c5},{c6},{c7},{c8},{c9},{c10})")
+                tdSql.execute(f" insert into   {tbname} values ({ts},{c1},{c2},{c3},{c4},{c5},{c6},{c7},{c8},{c9},{c10})")
 
     def update_data(self, tbnums, rownums, time_step, dbname="test"):
         tdSql.execute(f"use {dbname} ")
@@ -71,15 +71,52 @@ class TDTestCase:
                 tdSql.execute(f" insert into  {tbname} values ({ts},{c1},{c2},{c3},{c4},{c5},{c6},{c7},{c8},{c9},{c10})")
 
 
+    def insert_disorder_data(self, tbnums, rownums, time_step, dbname="test"):
+        tdSql.execute(f"use {dbname} ")
+        for tbnum in range(tbnums):
+            tbname = f"{dbname}.t{tbnum}"
+            ts = self.ts
+            for row in range(rownums):
+                if row%2 == 0:
+                    ts = self.ts + time_step*row
+                    c1 = random.randint(0,10000)
+                    c2 = random.randint(0,100000)
+                    c3 = random.randint(0,125)
+                    c4 = random.randint(0,125)
+                    c5 = random.random()/1.0
+                    c6 = random.random()/1.0
+                    c7 = "'true'"
+                    c8 = "'binary_val'"
+                    c9 = "'nchar_val'"
+                    c10 = ts
+                    tdSql.execute(f" insert into   {tbname} values ({ts},{c1},{c2},{c3},{c4},{c5},{c6},{c7},{c8},{c9},{c10})")
+            for row in range(rownums):
+                if row%2 == 1:
+                    ts = self.ts + time_step*row
+                    c1 = random.randint(0,10000)
+                    c2 = random.randint(0,100000)
+                    c3 = random.randint(0,125)
+                    c4 = random.randint(0,125)
+                    c5 = random.random()/1.0
+                    c6 = random.random()/1.0
+                    c7 = "'true'"
+                    c8 = "'binary_val'"
+                    c9 = "'nchar_val'"
+                    c10 = ts
+                    tdSql.execute(f" insert into  {tbname} values ({ts},{c1},{c2},{c3},{c4},{c5},{c6},{c7},{c8},{c9},{c10})")
+
     def delete_data(self, rownums, time_step, origin_dbname="db_none",test_dbname="db_both"):
         ts = self.ts
         for row in range(rownums-1):
             ts = self.ts + time_step*(rownums - row -1 )
             tdSql.execute(f"use {origin_dbname} ")
-            tdSql.execute(f" delete from  t1 where ts={ts}")
+            tdSql.execute(f" delete from   {origin_dbname}.t1 where ts={ts}")
             tdSql.execute(f"use {test_dbname} ")
-            tdSql.execute(f" delete from  t1 where ts={ts}")
-            tdLog.printNoPrefix(f"==========step:test delete:{row} ==============")
+            tdSql.execute(f" delete from  {test_dbname}.t1 where ts={ts}")
+            tdLog.printNoPrefix(f"==========step4.{row}:test delete ts data ==============")
+            if row % 4 == 0:
+                tdSql.execute(f"flush database {origin_dbname} ")
+                tdSql.execute(f"flush database {test_dbname} ")
             self.check_query()
 
 
@@ -127,7 +164,7 @@ class TDTestCase:
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         # tdSql.prepare()
 
-        tdLog.printNoPrefix("==========step1:create table ==============")
+        tdLog.printNoPrefix("==========step1:create db and insert data ==============")
         self.dbname_none="db_none"
         self.dbname_both="db_both"
         # cache_last:none
@@ -136,15 +173,26 @@ class TDTestCase:
         # cache_last:both
         self.create_db("'both'",self.dbname_both)
         self.insert_data(self.tb_nums,self.row_nums,self.time_step,self.dbname_both)
+        tdLog.printNoPrefix("==========step2:check init last/last_row result==============")
         self.check_query()
         # update data
+
+        tdLog.printNoPrefix("==========step3:check init last/last_row result when update data==============")
+        self.check_query()
         self.update_data(self.tb_nums,self.row_nums,self.time_step,self.dbname_both)
         self.update_data(self.tb_nums,self.row_nums,self.time_step,self.dbname_none)
-
         self.check_query()
-        # delete data
-        self.delete_data(self.row_nums,self.time_step,self.dbname_none,self.dbname_both)
 
+        # disorder data
+        tdLog.printNoPrefix("==========step5:check  last/last_row result when disorder data==============")
+        self.insert_disorder_data(self.tb_nums,self.row_nums,self.time_step,self.dbname_none)
+        self.insert_disorder_data(self.tb_nums,self.row_nums,self.time_step,self.dbname_both)
+        self.check_query()
+
+
+        # delete data
+        tdLog.printNoPrefix("==========step4:check init last/last_row result when delete data==============")
+        self.delete_data(self.row_nums,self.time_step,self.dbname_none,self.dbname_both)
         
     def stop(self):
         tdSql.close()
