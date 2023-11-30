@@ -16,8 +16,8 @@
 #include "tsdb.h"
 #include "tsdbFS2.h"
 
-// STsdbSnapPartition =====================================
-static int32_t tsdbSnapPartCmprFn(STsdbSnapPartition* x, STsdbSnapPartition* y) {
+// STsdbFSetPartition =====================================
+static int32_t tsdbFSetPartCmprFn(STsdbFSetPartition* x, STsdbFSetPartition* y) {
   if (x->fid < y->fid) return -1;
   if (x->fid > y->fid) return 1;
   return 0;
@@ -37,8 +37,8 @@ static int32_t tsdbFileSetRangeCmprFn(STFileSetRange* x, STFileSetRange* y) {
   return 0;
 }
 
-STsdbSnapPartition* tsdbSnapPartitionCreate() {
-  STsdbSnapPartition* pSP = taosMemoryCalloc(1, sizeof(STsdbSnapPartition));
+STsdbFSetPartition* tsdbFSetPartitionCreate() {
+  STsdbFSetPartition* pSP = taosMemoryCalloc(1, sizeof(STsdbFSetPartition));
   if (pSP == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -49,7 +49,7 @@ STsdbSnapPartition* tsdbSnapPartitionCreate() {
   return pSP;
 }
 
-void tsdbSnapPartitionClear(STsdbSnapPartition** ppSP) {
+void tsdbFSetPartitionClear(STsdbFSetPartition** ppSP) {
   if (ppSP == NULL || ppSP[0] == NULL) {
     return;
   }
@@ -76,8 +76,8 @@ static int32_t tsdbFTypeToSRangeTyp(tsdb_ftype_t ftype) {
   return TSDB_SNAP_RANGE_TYP_MAX;
 }
 
-static int32_t tsdbTFileSetToSnapPart(STFileSet* fset, STsdbSnapPartition** ppSP) {
-  STsdbSnapPartition* p = tsdbSnapPartitionCreate();
+static int32_t tsdbTFileSetToSnapPart(STFileSet* fset, STsdbFSetPartition** ppSP) {
+  STsdbFSetPartition* p = tsdbFSetPartitionCreate();
   if (p == NULL) {
     goto _err;
   }
@@ -134,12 +134,12 @@ static int32_t tsdbTFileSetToSnapPart(STFileSet* fset, STsdbSnapPartition** ppSP
   return 0;
 
 _err:
-  tsdbSnapPartitionClear(&p);
+  tsdbFSetPartitionClear(&p);
   return -1;
 }
 
-STsdbSnapPartList* tsdbSnapPartListCreate() {
-  STsdbSnapPartList* pList = taosMemoryCalloc(1, sizeof(STsdbSnapPartList));
+STsdbFSetPartList* tsdbFSetPartListCreate() {
+  STsdbFSetPartList* pList = taosMemoryCalloc(1, sizeof(STsdbFSetPartList));
   if (pList == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -148,8 +148,8 @@ STsdbSnapPartList* tsdbSnapPartListCreate() {
   return pList;
 }
 
-static STsdbSnapPartList* tsdbGetSnapPartList(STFileSystem* fs) {
-  STsdbSnapPartList* pList = tsdbSnapPartListCreate();
+static STsdbFSetPartList* tsdbGetSnapPartList(STFileSystem* fs) {
+  STsdbFSetPartList* pList = tsdbFSetPartListCreate();
   if (pList == NULL) {
     return NULL;
   }
@@ -158,26 +158,26 @@ static STsdbSnapPartList* tsdbGetSnapPartList(STFileSystem* fs) {
   taosThreadMutexLock(&fs->tsdb->mutex);
   STFileSet* fset;
   TARRAY2_FOREACH(fs->fSetArr, fset) {
-    STsdbSnapPartition* pItem = NULL;
+    STsdbFSetPartition* pItem = NULL;
     if (tsdbTFileSetToSnapPart(fset, &pItem) < 0) {
       code = -1;
       break;
     }
     ASSERT(pItem != NULL);
-    code = TARRAY2_SORT_INSERT(pList, pItem, tsdbSnapPartCmprFn);
+    code = TARRAY2_SORT_INSERT(pList, pItem, tsdbFSetPartCmprFn);
     ASSERT(code == 0);
   }
   taosThreadMutexUnlock(&fs->tsdb->mutex);
 
   if (code) {
-    TARRAY2_DESTROY(pList, tsdbSnapPartitionClear);
+    TARRAY2_DESTROY(pList, tsdbFSetPartitionClear);
     taosMemoryFree(pList);
     pList = NULL;
   }
   return pList;
 }
 
-int32_t tTsdbSnapPartListDataLenCalc(STsdbSnapPartList* pList) {
+int32_t tTsdbFSetPartListDataLenCalc(STsdbFSetPartList* pList) {
   int32_t hdrLen = sizeof(int32_t);
   int32_t datLen = 0;
 
@@ -188,10 +188,10 @@ int32_t tTsdbSnapPartListDataLenCalc(STsdbSnapPartList* pList) {
   datLen += hdrLen;
 
   for (int32_t u = 0; u < len; u++) {
-    STsdbSnapPartition* p = TARRAY2_GET(pList, u);
+    STsdbFSetPartition* p = TARRAY2_GET(pList, u);
     int32_t             typMax = TSDB_SNAP_RANGE_TYP_MAX;
     int32_t             uItem = 0;
-    uItem += sizeof(STsdbSnapPartition);
+    uItem += sizeof(STsdbFSetPartition);
     uItem += sizeof(typMax);
 
     for (int32_t i = 0; i < typMax; i++) {
@@ -206,7 +206,7 @@ int32_t tTsdbSnapPartListDataLenCalc(STsdbSnapPartList* pList) {
   return datLen;
 }
 
-int32_t tSerializeTsdbSnapPartList(void* buf, int32_t bufLen, STsdbSnapPartList* pList) {
+int32_t tSerializeTsdbFSetPartList(void* buf, int32_t bufLen, STsdbFSetPartList* pList) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
 
@@ -222,7 +222,7 @@ int32_t tSerializeTsdbSnapPartList(void* buf, int32_t bufLen, STsdbSnapPartList*
   if (tEncodeI32(&encoder, len) < 0) goto _err;
 
   for (int32_t u = 0; u < len; u++) {
-    STsdbSnapPartition* p = TARRAY2_GET(pList, u);
+    STsdbFSetPartition* p = TARRAY2_GET(pList, u);
     if (tEncodeI64(&encoder, p->fid) < 0) goto _err;
     if (tEncodeI8(&encoder, p->stat) < 0) goto _err;
     if (tEncodeI8(&encoder, reserved8) < 0) goto _err;
@@ -255,7 +255,7 @@ _err:
   return -1;
 }
 
-int32_t tDeserializeTsdbSnapPartList(void* buf, int32_t bufLen, STsdbSnapPartList* pList) {
+int32_t tDeserializeTsdbFSetPartList(void* buf, int32_t bufLen, STsdbFSetPartList* pList) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
@@ -263,7 +263,7 @@ int32_t tDeserializeTsdbSnapPartList(void* buf, int32_t bufLen, STsdbSnapPartLis
   int16_t reserved16 = 0;
   int64_t reserved64 = 0;
 
-  STsdbSnapPartition* p = NULL;
+  STsdbFSetPartition* p = NULL;
 
   int8_t  msgVer = 0;
   int32_t len = 0;
@@ -272,7 +272,7 @@ int32_t tDeserializeTsdbSnapPartList(void* buf, int32_t bufLen, STsdbSnapPartLis
   if (tDecodeI32(&decoder, &len) < 0) goto _err;
 
   for (int32_t u = 0; u < len; u++) {
-    p = tsdbSnapPartitionCreate();
+    p = tsdbFSetPartitionCreate();
     if (p == NULL) goto _err;
     if (tDecodeI64(&decoder, &p->fid) < 0) goto _err;
     if (tDecodeI8(&decoder, &p->stat) < 0) goto _err;
@@ -304,13 +304,13 @@ int32_t tDeserializeTsdbSnapPartList(void* buf, int32_t bufLen, STsdbSnapPartLis
 
 _err:
   if (p) {
-    tsdbSnapPartitionClear(&p);
+    tsdbFSetPartitionClear(&p);
   }
   tDecoderClear(&decoder);
   return -1;
 }
 
-int32_t tsdbSnapPartListToRangeDiff(STsdbSnapPartList* pList, TFileSetRangeArray** ppRanges) {
+int32_t tsdbFSetPartListToRangeDiff(STsdbFSetPartList* pList, TFileSetRangeArray** ppRanges) {
   TFileSetRangeArray* pDiff = taosMemoryCalloc(1, sizeof(TFileSetRangeArray));
   if (pDiff == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -318,7 +318,7 @@ int32_t tsdbSnapPartListToRangeDiff(STsdbSnapPartList* pList, TFileSetRangeArray
   }
   TARRAY2_INIT(pDiff);
 
-  STsdbSnapPartition* part;
+  STsdbFSetPartition* part;
   TARRAY2_FOREACH(pList, part) {
     STFileSetRange* r = taosMemoryCalloc(1, sizeof(STFileSetRange));
     if (r == NULL) {
@@ -364,10 +364,10 @@ void tsdbFileSetRangeArrayDestroy(TFileSetRangeArray** ppSnap) {
   }
 }
 
-void tsdbSnapPartListDestroy(STsdbSnapPartList** ppList) {
+void tsdbFSetPartListDestroy(STsdbFSetPartList** ppList) {
   if (ppList == NULL || ppList[0] == NULL) return;
 
-  TARRAY2_DESTROY(ppList[0], tsdbSnapPartitionClear);
+  TARRAY2_DESTROY(ppList[0], tsdbFSetPartitionClear);
   taosMemoryFree(ppList[0]);
   ppList[0] = NULL;
 }
@@ -389,7 +389,7 @@ int32_t tsdbSnapGetDetails(SVnode* pVnode, SSnapshot* pSnap) {
   int                code = -1;
   int32_t            tsdbMaxCnt = (!VND_IS_RSMA(pVnode) ? 1 : TSDB_RETENTION_MAX);
   int32_t            subTyps[TSDB_RETENTION_MAX] = {SNAP_DATA_TSDB, SNAP_DATA_RSMA1, SNAP_DATA_RSMA2};
-  STsdbSnapPartList* pLists[TSDB_RETENTION_MAX] = {0};
+  STsdbFSetPartList* pLists[TSDB_RETENTION_MAX] = {0};
 
   // get part list
   for (int32_t j = 0; j < tsdbMaxCnt; ++j) {
@@ -402,7 +402,7 @@ int32_t tsdbSnapGetDetails(SVnode* pVnode, SSnapshot* pSnap) {
   int32_t bufLen = sizeof(SSyncTLV);  // typ: TDMT_SYNC_PREP_SNAPSHOT or TDMT_SYNC_PREP_SNAPSOT_REPLY
   for (int32_t j = 0; j < tsdbMaxCnt; ++j) {
     bufLen += sizeof(SSyncTLV);  // subTyps[j]
-    bufLen += tTsdbSnapPartListDataLenCalc(pLists[j]);
+    bufLen += tTsdbFSetPartListDataLenCalc(pLists[j]);
   }
 
   tsdbInfo("vgId:%d, allocate %d bytes for data of snapshot info.", TD_VID(pVnode), bufLen);
@@ -429,7 +429,7 @@ int32_t tsdbSnapGetDetails(SVnode* pVnode, SSnapshot* pSnap) {
     subHead->typ = subTyps[j];
     ASSERT(subHead->val == (char*)data + offset + sizeof(SSyncTLV));
 
-    if ((tlen = tSerializeTsdbSnapPartList(subHead->val, bufLen - offset - sizeof(SSyncTLV), pLists[j])) < 0) {
+    if ((tlen = tSerializeTsdbFSetPartList(subHead->val, bufLen - offset - sizeof(SSyncTLV), pLists[j])) < 0) {
       tsdbError("vgId:%d, failed to serialize snap partition list of tsdb %d since %s", TD_VID(pVnode), j, terrstr());
       goto _out;
     }
@@ -445,8 +445,9 @@ int32_t tsdbSnapGetDetails(SVnode* pVnode, SSnapshot* pSnap) {
 _out:
   for (int32_t j = 0; j < tsdbMaxCnt; ++j) {
     if (pLists[j] == NULL) continue;
-    tsdbSnapPartListDestroy(&pLists[j]);
+    tsdbFSetPartListDestroy(&pLists[j]);
   }
 
   return code;
 }
+

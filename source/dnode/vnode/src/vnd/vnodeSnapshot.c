@@ -18,21 +18,21 @@
 
 static int32_t vnodeExtractSnapInfoDiff(void *buf, int32_t bufLen, TFileSetRangeArray **ppRanges) {
   int32_t            code = -1;
-  STsdbSnapPartList *pList = tsdbSnapPartListCreate();
+  STsdbFSetPartList *pList = tsdbFSetPartListCreate();
   if (pList == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _out;
   }
-  if (tDeserializeTsdbSnapPartList(buf, bufLen, pList) < 0) {
+  if (tDeserializeTsdbFSetPartList(buf, bufLen, pList) < 0) {
     terrno = TSDB_CODE_INVALID_DATA_FMT;
     goto _out;
   }
-  if (tsdbSnapPartListToRangeDiff(pList, ppRanges) < 0) {
+  if (tsdbFSetPartListToRangeDiff(pList, ppRanges) < 0) {
     goto _out;
   }
   code = 0;
 _out:
-  tsdbSnapPartListDestroy(&pList);
+  tsdbFSetPartListDestroy(&pList);
   return code;
 }
 

@@ -690,14 +690,14 @@ SHashObj *tsdbGetSnapRangeHash(TFileSetRangeArray *pRanges);
 
 // snap partition list
 typedef TARRAY2(SVersionRange) SVerRangeList;
-typedef struct STsdbSnapPartition STsdbSnapPartition;
-typedef TARRAY2(STsdbSnapPartition *) STsdbSnapPartList;
+typedef struct STsdbFSetPartition STsdbFSetPartition;
+typedef TARRAY2(STsdbFSetPartition *) STsdbFSetPartList;
 // util
-STsdbSnapPartList *tsdbSnapPartListCreate();
-void               tsdbSnapPartListDestroy(STsdbSnapPartList **ppList);
-int32_t            tSerializeTsdbSnapPartList(void *buf, int32_t bufLen, STsdbSnapPartList *pList);
-int32_t            tDeserializeTsdbSnapPartList(void *buf, int32_t bufLen, STsdbSnapPartList *pList);
-int32_t            tsdbSnapPartListToRangeDiff(STsdbSnapPartList *pList, TFileSetRangeArray **ppRanges);
+STsdbFSetPartList *tsdbFSetPartListCreate();
+void               tsdbFSetPartListDestroy(STsdbFSetPartList **ppList);
+int32_t            tSerializeTsdbFSetPartList(void *buf, int32_t bufLen, STsdbFSetPartList *pList);
+int32_t            tDeserializeTsdbFSetPartList(void *buf, int32_t bufLen, STsdbFSetPartList *pList);
+int32_t            tsdbFSetPartListToRangeDiff(STsdbFSetPartList *pList, TFileSetRangeArray **ppRanges);
 
 enum {
   TSDB_SNAP_RANGE_TYP_HEAD = 0,
@@ -708,7 +708,7 @@ enum {
   TSDB_SNAP_RANGE_TYP_MAX,
 };
 
-struct STsdbSnapPartition {
+struct STsdbFSetPartition {
   int64_t       fid;
   int8_t        stat;
   SVerRangeList verRanges[TSDB_SNAP_RANGE_TYP_MAX];
