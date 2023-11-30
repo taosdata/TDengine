@@ -604,7 +604,7 @@ export default {
               ? item.expression
               : item.type == "split"
               ? this.$store.state.app.splitExpresList
-              : item.expression.split(";"),
+              : item.expression.split(";").map((item) => item.trim()),
         };
       });
       console.log(extractObj, this.mappingParser, "ppp");

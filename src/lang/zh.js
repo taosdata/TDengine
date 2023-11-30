@@ -1005,6 +1005,8 @@ export default {
 
   datasource: {
     transformer:{
+      uploadexe:'请上传csv文件并执行下一步操作',
+      sp:'请选则目标超级表',
       septip:'请输入分隔符',
       csvtip:'自定义列数必须等于csv列数',
       identified:'识别的列',
