@@ -24,7 +24,7 @@ from util.common import *
 from util.sqlset import TDSetSql
 
 class TDTestCase:
-    updatecfgDict = {'tsdbdebugFlag': 143}
+    updatecfgDict = {'tsdbdebugFlag': 131}
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
@@ -36,7 +36,7 @@ class TDTestCase:
         self.setsql = TDSetSql()
         self.stbname = 'stb'
         self.ntbname = 'ntb'
-        self.rowNum = 10
+        self.rowNum = 3
         self.tbnum = 3
         self.ts = 1537146000000
         self.binary_str = 'taosdata'
@@ -258,10 +258,15 @@ class TDTestCase:
                 tdSql.checkEqual(tdSql.queryRows, 0)
 
     def run(self):
+        tdLog.info("=================step 1=================")
         self.delete_data_stb()
         tdDnodes.stoptaosd(1)
         tdDnodes.starttaosd(1)
+        tdLog.info("=================step 2=================")
+
         self.delete_data_stb()
+        tdLog.info("=================step 3=================")
+
         self.precision_now_check()
     def stop(self):
         tdSql.close()
