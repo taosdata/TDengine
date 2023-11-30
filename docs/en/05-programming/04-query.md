@@ -1,7 +1,7 @@
 ---
 sidebar_label: Query
 title: Query Data Using SQL
-description: This document describes how to query data in TDengine Cloud and how to perform synchronous and asynchronous queries using connectors.
+description: This document describes how to query data in TDengine Cloud and how to perform synchronous and asynchronous queries using client libraries.
 ---
 
 import Tabs from '@theme/Tabs';
@@ -9,7 +9,7 @@ import TabItem from '@theme/TabItem';
 
 ## Query Using SQL
 
-SQL is used by TDengine as its query language. Application programs can send SQL statements to TDengine through REST API or connectors. TDengine's CLI `taos` can also be used to execute ad hoc SQL queries. Here is the list of major query functionalities supported by TDengine：
+SQL is used by TDengine as its query language. Application programs can send SQL statements to TDengine through REST API or client libraries. TDengine's CLI `taos` can also be used to execute ad hoc SQL queries. Here is the list of major query functionalities supported by TDengine：
 
 - Query on single column or multiple columns
 - Filter on tags or data columns：>, <, =, <\>, like
@@ -141,7 +141,7 @@ Interpolation can be performed in TDengine if there is no data in a time range.
 
 For more details please refer to [Aggregate by Window](https://docs.tdengine.com/cloud/taos-sql/distinguished/).
 
-## Connector Examples
+## Client Library Examples
 
 :::note IMPORTANT
 Before executing the sample code in this section, you need to firstly establish connection to TDegnine cloud service, please refer to [Connect to TDengine Cloud Service](../../programming/connect/).

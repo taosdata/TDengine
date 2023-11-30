@@ -10,20 +10,20 @@ description: This document describes how to use Seeq and TDengine to perform tim
 
 Seeq is an advanced analytics software for the manufacturing industry and the Industrial Internet of Things (IIoT). Seeq supports the use of machine learning innovations within process manufacturing organizations. These capabilities enable organizations to deploy their own or third-party machine learning algorithms into advanced analytics applications used by frontline process engineers and subject matter experts, thus extending the efforts of a single data scientist to many frontline workers.
 
-TDengine can be added as a data source into Seeq via JDBC connector. Once data source is configured, Seeq can read data from TDengine and offers functionalities such as data visualization, analysis, and forecasting.
+TDengine can be added as a data source into Seeq via JDBC client library. Once data source is configured, Seeq can read data from TDengine and offers functionalities such as data visualization, analysis, and forecasting.
 
 ## Prerequisite
 
 1. Install Seeq Server and Seeq Data Lab software
 2. Register TDengine Cloud service
 
-## Install TDengine JDBC connector
+## Install TDengine JDBC client library
 
 1. Lgoin to the server where Seeq is installed, get Seeq data location configuration
 ```
 sudo seeq config get Folders/Data
 ```
-2. Download the latest TDengine Java connector from maven.org (current version is [3.2.7](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.7/taos-jdbcdriver-3.2.7-dist.jar)), and copy the JAR file into the_directory_found_in_step_1/plugins/lib/
+2. Download the latest TDengine Java client library from maven.org (current version is [3.2.7](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.7/taos-jdbcdriver-3.2.7-dist.jar)), and copy the JAR file into the_directory_found_in_step_1/plugins/lib/
 3. Restart Seeq server
 ```
 sudo seeq restart

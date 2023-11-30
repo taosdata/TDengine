@@ -1,10 +1,10 @@
 ---
 sidebar_label: C#
-title: TDengine C# Connector
-description: This document describes the TDengine C# connector.
+title: TDengine C# Client Library
+description: This document describes the TDengine C# client library.
 ---
 
- `TDengine.Connector` is the official C# connector for TDengine. C# developers can develop applications to access TDengine instance data.
+ `TDengine.Connector` is the official C# client library for TDengine. C# developers can develop applications to access TDengine instance data.
 
 This article describes how to install `TDengine.Connector` in a Linux or Windows environment and connect to TDengine clusters via `TDengine.Connector` to perform basic operations such as data writing and querying.
 
@@ -78,7 +78,7 @@ dotnet add package TDengine.Connector
 
 ### Third-party driver
 
-`Taos` is an ADO.NET connector for TDengine, supporting Linux and Windows platforms. Community contributor `Maikebing@@maikebing contributes the connector`. Please refer to:
+`Taos` is an ADO.NET client library for TDengine, supporting Linux and Windows platforms. Community contributor `Maikebing@@maikebing contributes the library`. Please refer to:
 
 * Interface download:<https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos>
 

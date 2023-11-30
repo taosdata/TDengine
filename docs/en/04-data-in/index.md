@@ -12,7 +12,7 @@ The second is to write data to TDengine Cloud instances through third-party tool
 
 <!-- The third type is to import to a sub-table of a database in a TDengine Cloud instance by means of a CSV file. Note that only one CSV file can be uploaded at a time. -->
 
-In addition to the three ways of writing data to TDengine Cloud instance described in this chapter, users can also use TDengine SQL to write data to TDengine Cloud directly, or programmatically use the [Connectors](../programming/connector) provided by TDengine to write data to TDengine Cloud instance. TDengine also provides a stress testing tool [taosBenchmark](../tools/taosbenchmark) to write data to instances of TDengine Cloud.
+In addition to the three ways of writing data to TDengine Cloud instance described in this chapter, users can also use TDengine SQL to write data to TDengine Cloud directly, or programmatically use the [client libraries](../programming/client-libraries/) provided by TDengine to write data to TDengine Cloud instance. TDengine also provides a stress testing tool [taosBenchmark](../tools/taosbenchmark) to write data to instances of TDengine Cloud.
 
 :::note IMPORTANT
 Due to permission restrictions, you must first create a database in the cloud service's data browser before you can write to it. This restriction is the first thing all write methods must do.

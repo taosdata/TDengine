@@ -10,7 +10,7 @@ import TabItem from '@theme/TabItem';
 
 ## SQL Examples
 
-Here are some brief examples for `INSERT` statement. You can execute these statements manually by TDengine CLI or TDengine Cloud Explorer or programmatically by TDengine connectors. 
+Here are some brief examples for `INSERT` statement. You can execute these statements manually by TDengine CLI or TDengine Cloud Explorer or programmatically by TDengine client libraries. 
 
 ### Insert Single Row
 
@@ -38,7 +38,7 @@ INSERT INTO test.d101 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12
 
 For more details about `INSERT` please refer to [INSERT](https://docs.tdengine.com/cloud/taos-sql/insert/).
 
-## Connector Examples
+## Client Library Examples
 
 :::note IMPORTANT
 Before executing the sample code in this section, you need to firstly establish connection to TDegnine cloud service, please refer to [Connect to TDengine Cloud Service](../../programming/connect/).

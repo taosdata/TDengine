@@ -2,15 +2,15 @@
 toc_max_heading_level: 4
 sidebar_position: 2
 sidebar_label: Java
-title: TDengine Java Connector
-description: This document describes the TDengine Java connector.
+title: TDengine Java Client Library
+description: This document describes the TDengine Java client library.
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 
-'taos-jdbcdriver' is TDengine's official Java language connector, which allows Java developers to develop applications that access the TDengine database. 'taos-jdbcdriver' implements the interface of the JDBC driver standard. 'taos-jdbcdriver' connect to a TDengine instance through the REST API.
+'taos-jdbcdriver' is TDengine's official Java language client library, which allows Java developers to develop applications that access the TDengine database. 'taos-jdbcdriver' implements the interface of the JDBC driver standard. 'taos-jdbcdriver' connect to a TDengine instance through the REST API.
 
 ## TDengine DataType vs. Java DataType
 
@@ -38,7 +38,7 @@ TDengine currently supports timestamp, number, character, Boolean type, and the 
 
 Java 1.8 or above runtime environment and Maven 3.6 or above installed
 
-### Install the connectors
+### Install the client library
 
 <Tabs defaultValue="maven">
 <TabItem value="maven" label="Install via Maven">
@@ -60,7 +60,7 @@ Add following dependency in the `pom.xml` file of your Maven project:
 </TabItem>
 <TabItem value="source" label="Build from source code">
 
-You can build Java connector from source code after cloning the TDengine project:
+You can build Java client library from source code after cloning the TDengine project:
 
 ```
 git clone https://github.com/taosdata/taos-connector-jdbc.git
@@ -180,7 +180,7 @@ try (Statement statement = connection.createStatement()) {
 }
 ```
 
-There are three types of error codes that the JDBC connector can report:
+There are three types of error codes that the JDBC client library can report:
 
 - Error code of the JDBC driver itself (error code between 0x2301 and 0x2350)
 - Error code of the native connection method (error code between 0x2351 and 0x2400)
@@ -188,7 +188,7 @@ There are three types of error codes that the JDBC connector can report:
 
 For specific error codes, please refer to.
 
-- [TDengine Java Connector](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
+- [TDengine Java Client Library](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 
 ### Closing resources
 
