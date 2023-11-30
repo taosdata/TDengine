@@ -190,7 +190,7 @@ export default {
         parser: {
           parse: this.$store.state.app.transformExtractParseData,
           mutate: [].concat({
-            filter: this.ruleForm.filter_name,
+            filter: this.ruleForm.filter_name.trim(),
           }),
         },
         input: this.$parent.isCSV?this.$store.state.app.csvTransformerParser.inputList:inputList,

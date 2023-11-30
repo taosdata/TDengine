@@ -37,7 +37,7 @@
         <template v-for="(item, index) in extractArr">
           <ExtractSplit
             ref="extract"
-            :key="index"
+            :key="item.key"
             :itemData="item"
             :index="index"
             :payload="msgForm.msgbody"
@@ -368,11 +368,16 @@ export default {
         if (ind > -1) {
           this.$set(this.columnsArr[ind], "show", false);
         }
+        console.log(item,'回西安----调试split');
+        if(Object.keys(item[1]).toString()=='split'){
+          this.$store.commit('app/SET_SPLIT_EXPRESS',item[1]['split'])
+        }
         let obj = {
           columnname: item[0],
           expression: Object.values(item[1]).flat(1).join(";"),
           type: Object.keys(item[1]).toString(),
           columns: this.columnsArr,
+          key: Math.random(),
         };
         if (this.columnsArr.length > 0) {
           this.extractArr.push(obj);
@@ -493,7 +498,7 @@ export default {
             //排除第一行的tablename
             mutates.push({
               [`${item["Name"]}`]: {
-                [`${key}`]: item["Expression"],
+                [`${key}`]:['sum','join'].includes(key)?item['Expression'].split(','): item["Expression"],
                 as: item["Type"],
               },
             });
@@ -916,6 +921,7 @@ export default {
         columnname: "",
         expression: "",
         type: "",
+        key:Math.random(),
       });
     },
     //新增filter
@@ -994,6 +1000,7 @@ export default {
     "$store.state.app.csvTransformerParser": {
       deep: true,
       handler(val) {
+
         if (val) {
           this.isCSV = true;
           this.msgForm.msgbody = val.msgBody;

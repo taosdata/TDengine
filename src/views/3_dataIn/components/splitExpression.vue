@@ -77,6 +77,19 @@ export default {
       });
     },
   },
+  mounted(){
+    if(this.$store.state.app.splitExpresList){
+        this.ruleForm={...this.$store.state.app.splitExpresList}
+    }
+  },
+  watch:{
+    "$store.state.app.splitExpresList":{
+        deep:true,
+        handler(val){
+            this.ruleForm={...val}
+        }
+    }
+  }
 };
 </script>
 <style lang="scss" scoped>
