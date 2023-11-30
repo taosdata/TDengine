@@ -43,3 +43,4 @@ metrics.tmq.messages_of_data: 通过 TMQ 收到的 Data 和 MetaData 类型的�
 metrics.tmq.blocks: 写入成功的数据块数
 metrics.tmq.records: 写入成功的行数（等于数据块包含的行数）
 metrics.tmq.points: 写入成功点数(等于数据块包含的行数乘以数据块包含的列数)
+metrics.csv.files: CSV 任务读取文件数
