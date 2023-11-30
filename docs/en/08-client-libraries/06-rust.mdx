@@ -347,7 +347,7 @@ client.put(&sml_data)?
 
 ### Data Subscription
 
-TDengine starts subscriptions through [TMQ](../../../taos-sql/tmq/).
+TDengine starts subscriptions through [TMQ](../../taos-sql/tmq/).
 
 #### Create a Topic
 
@@ -442,7 +442,7 @@ The following parameters can be configured for the TMQ DSN. Only `group.id` is m
 
 - `group.id`: Within a consumer group, load balancing is implemented by consuming messages on an at-least-once basis.
 - `client.id`: Subscriber client ID.
-- `auto.offset.reset`: Initial point of subscription. *earliest* subscribes from the beginning, and *latest* subscribes from the newest message. The default value varies depending on the TDengine version. For details, see [Data Subscription](https://docs.tdengine.com/develop/tmq/). Note: This parameter is set per consumer group.
+- `auto.offset.reset`: Initial point of subscription. *earliest* subscribes from the beginning, and *latest* subscribes from the newest message. The default value varies depending on the TDengine version. For details, see [Data Subscription](../../develop/tmq/). Note: This parameter is set per consumer group.
 - `enable.auto.commit`: Automatically commits. This can be enabled when data consistency is not essential.
 - `auto.commit.interval.ms`: Interval for automatic commits.
 
@@ -488,7 +488,7 @@ The source code of the sample application is under `TDengine/examples/rust` :
 
 ## Frequently Asked Questions
 
-For additional troubleshooting, see [FAQ](../../../train-faq/faq).
+For additional troubleshooting, see [FAQ](../../train-faq/faq).
 
 ## API Reference
 
