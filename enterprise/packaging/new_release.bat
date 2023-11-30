@@ -94,16 +94,7 @@ xcopy %internal_dir%\community\include\util\tdef.h %install_dir%\include
 xcopy /S %internal_dir%\community\tools\taos-tools\packaging\win\* %install_dir%\*
 
 if "%verType%" == "cluster" (
-	echo "==== build taosx ====="
-	cd %internal_dir%\enterprise\src\plugins\taosx\packaging
-	python release.py -ob -vn %version%
-	set taosx_release_dir="C:\Program Files\taosX"
-	xcopy /S %taosx_release_dir%\plugins\* %install_dir%\plugins\*
-	xcopy /S %taosx_release_dir%\bin\*.exe %install_dir%\*
-	xcopy /S %taosx_release_dir%\append %install_dir%\append\*
-	xcopy /S %taosx_release_dir%\config\* %install_dir%\cfg\
-	echo "==== build taosx done ====="
-
+	
 	md  %install_dir%\connector
 	git clone --depth 1 https://github.com/taosdata/driver-go %install_dir%/connector/go
 	rm -rf %install_dir%/connector/go/.git*
@@ -132,20 +123,7 @@ if "%verType%" == "cluster" (
     xcopy /S %internal_dir%\community\tools\taos-tools\example %install_dir%\examples\taosbenchmark-json\*
 )
 cd %package_dir%
-if "%cusName%" == "TDengine" (
-	if "%verType%" == "cluster" (
-		call :writeTDengineServerInstallFile
-		iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\enterprise\packaging\windows\tdengine.iss /O..\release
-	) else (
-		call :writeTDengineServerInstallFile
-		iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
-	)
-) else (
-	call :writeServerInstallFile
-	iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
 
-)
-if not %errorlevel% == 0  ( call :RUNFAILED package %packagServerName_x64% failed & exit /b 1)
 if "%cusName%" == "TDengine" (
 	if "%verType%" == "cluster" (
 		call :writeTDengineClientInstallFile
@@ -163,6 +141,30 @@ if "%cusName%" == "TDengine" (
 )
 if not %errorlevel% == 0  ( call :RUNFAILED package %packagClientName_x64% failed & exit /b 1)
 
+set taosx_release_dir="%internal_dir%\enterprise\src\plugins\taosx\release\taosx"
+if "%verType%" == "cluster" (
+	echo "==== build taosx ====="
+	cd %internal_dir%\enterprise\src\plugins\taosx\packaging
+	python release.py -ob -vn %version%
+	xcopy /S %taosx_release_dir%\plugins\* %install_dir%\plugins\*
+	xcopy /S %taosx_release_dir%\bin %install_dir%\*
+	xcopy /S %taosx_release_dir%\append %install_dir%\append\*
+	xcopy /S %taosx_release_dir%\config %install_dir%\cfg\*
+	echo "==== build taosx done ====="
+)
+if "%cusName%" == "TDengine" (
+	if "%verType%" == "cluster" (
+		call :writeTDengineServerInstallFile
+		iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\enterprise\packaging\windows\tdengine.iss /O..\release
+	) else (
+		call :writeTDengineServerInstallFile
+		iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
+	)
+) else (
+	call :writeServerInstallFile
+	iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
+)
+if not %errorlevel% == 0  ( call :RUNFAILED package %packagServerName_x64% failed & exit /b 1)
 goto EXIT0
 
 :USAGE
