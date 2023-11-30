@@ -72,7 +72,7 @@ For all the dnodes in a TDengine cluster, the below parameters must be configure
 
 ## Start Cluster
 
-The first dnode can be started following the instructions in [Get Started](/get-started/). Then TDengine CLI `taos` can be launched to execute command `show dnodes`, the output is as following for example:
+The first dnode can be started following the instructions in [Get Started](../../get-started/). Then TDengine CLI `taos` can be launched to execute command `show dnodes`, the output is as following for example:
 
 ```
 taos> show dnodes;
@@ -90,7 +90,7 @@ From the above output, it is shown that the end point of the started dnode is "h
 
 There are a few steps necessary to add other dnodes in the cluster.
 
-Second, we can start `taosd` as instructed in [Get Started](/get-started/).
+Second, we can start `taosd` as instructed in [Get Started](../../get-started/).
 
 Then, on the first dnode i.e. h1.tdengine.com in our example, use TDengine CLI `taos` to execute the following command:
 

@@ -82,7 +82,7 @@ Edit the resource configuration to add the key/value pairing for Authorization. 
 Basic cm9vdDp0YW9zZGF0YQ==
 ```
 
-Please refer to the [ TDengine REST API documentation ](/reference/rest-api/) for the authorization in details. 
+Please refer to the [ TDengine REST API documentation ](../../reference/rest-api/) for the authorization in details. 
  
 Enter the rule engine replacement template in the message body:
 

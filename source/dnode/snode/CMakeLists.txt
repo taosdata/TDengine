@@ -17,4 +17,5 @@ target_link_libraries(
     PRIVATE stream
     PRIVATE wal
     PRIVATE index
+    PRIVATE tqCommon
 )

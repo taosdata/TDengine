@@ -213,7 +213,7 @@ int32_t tsdbBegin(STsdb* pTsdb);
 // int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbCacheCommit(STsdb* pTsdb);
 int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
-int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync);
+int32_t tsdbRetention(STsdb* tsdb, int64_t now, int32_t sync);
 // int32_t tsdbFinishCommit(STsdb* pTsdb);
 // int32_t tsdbRollbackCommit(STsdb* pTsdb);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
@@ -238,7 +238,6 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDropHTask(STQ* pTq, SRpcMsg* pMsg);
 
-int32_t tqStartStreamTaskAsync(STQ* pTq, bool restart);
 int32_t tqRestartStreamTasks(STQ* pTq);
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
 int32_t tqScanWal(STQ* pTq);
@@ -267,7 +266,7 @@ int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t version, char* msg, int32_t msg
 int32_t tqProcessTaskCheckReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskCheckRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec);
+int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
@@ -453,13 +452,16 @@ struct SVnode {
   SVBufPool*    recycleTail;
   SVBufPool*    onRecycle;
 
+  // commit variables
+  int64_t commitChannel;
+  int64_t commitTask;
+
   SMeta*        pMeta;
   SSma*         pSma;
   STsdb*        pTsdb;
   SWal*         pWal;
   STQ*          pTq;
   SSink*        pSink;
-  tsem_t        canCommit;
   int64_t       sync;
   TdThreadMutex lock;
   bool          blocked;
@@ -499,18 +501,18 @@ struct SSma {
   void*         pRSmaEnv;
 };
 
-#define SMA_CFG(s)        (&(s)->pVnode->config)
-#define SMA_TSDB_CFG(s)   (&(s)->pVnode->config.tsdbCfg)
-#define SMA_RETENTION(s)  ((SRetention*)&(s)->pVnode->config.tsdbCfg.retentions)
-#define SMA_LOCKED(s)     ((s)->locked)
-#define SMA_META(s)       ((s)->pVnode->pMeta)
-#define SMA_VID(s)        TD_VID((s)->pVnode)
-#define SMA_TFS(s)        ((s)->pVnode->pTfs)
-#define SMA_TSMA_ENV(s)   ((s)->pTSmaEnv)
-#define SMA_RSMA_ENV(s)   ((s)->pRSmaEnv)
-#define SMA_RSMA_TSDB0(s) ((s)->pVnode->pTsdb)
-#define SMA_RSMA_TSDB1(s) ((s)->pRSmaTsdb[TSDB_RETENTION_L0])
-#define SMA_RSMA_TSDB2(s) ((s)->pRSmaTsdb[TSDB_RETENTION_L1])
+#define SMA_CFG(s)                       (&(s)->pVnode->config)
+#define SMA_TSDB_CFG(s)                  (&(s)->pVnode->config.tsdbCfg)
+#define SMA_RETENTION(s)                 ((SRetention*)&(s)->pVnode->config.tsdbCfg.retentions)
+#define SMA_LOCKED(s)                    ((s)->locked)
+#define SMA_META(s)                      ((s)->pVnode->pMeta)
+#define SMA_VID(s)                       TD_VID((s)->pVnode)
+#define SMA_TFS(s)                       ((s)->pVnode->pTfs)
+#define SMA_TSMA_ENV(s)                  ((s)->pTSmaEnv)
+#define SMA_RSMA_ENV(s)                  ((s)->pRSmaEnv)
+#define SMA_RSMA_TSDB0(s)                ((s)->pVnode->pTsdb)
+#define SMA_RSMA_TSDB1(s)                ((s)->pRSmaTsdb[TSDB_RETENTION_L0])
+#define SMA_RSMA_TSDB2(s)                ((s)->pRSmaTsdb[TSDB_RETENTION_L1])
 #define SMA_RSMA_GET_TSDB(pVnode, level) ((level == 0) ? pVnode->pTsdb : pVnode->pSma->pRSmaTsdb[level - 1])
 
 // sma

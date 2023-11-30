@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnd.h"
 #include "tsdb.h"
+#include "vnd.h"
 
 // SVSnapReader ========================================================
 struct SVSnapReader {
@@ -32,11 +32,11 @@ struct SVSnapReader {
   TSnapRangeArray *pRanges;
   STsdbSnapReader *pTsdbReader;
   // tq
-  int8_t           tqHandleDone;
-  STqSnapReader   *pTqSnapReader;
-  int8_t           tqOffsetDone;
-  STqOffsetReader *pTqOffsetReader;
-  int8_t           tqCheckInfoDone;
+  int8_t              tqHandleDone;
+  STqSnapReader      *pTqSnapReader;
+  int8_t              tqOffsetDone;
+  STqOffsetReader    *pTqOffsetReader;
+  int8_t              tqCheckInfoDone;
   STqCheckInfoReader *pTqCheckInfoReader;
   // stream
   int8_t              streamTaskDone;
@@ -458,8 +458,8 @@ struct SVSnapWriter {
   TSnapRangeArray *pRanges;
   STsdbSnapWriter *pTsdbSnapWriter;
   // tq
-  STqSnapWriter   *pTqSnapWriter;
-  STqOffsetWriter *pTqOffsetWriter;
+  STqSnapWriter      *pTqSnapWriter;
+  STqOffsetWriter    *pTqOffsetWriter;
   STqCheckInfoWriter *pTqCheckInfoWriter;
   // stream
   SStreamTaskWriter  *pStreamTaskWriter;
@@ -519,6 +519,8 @@ _out:
   return code;
 }
 
+extern int32_t tsdbCancelAllBgTask(STsdb *tsdb);
+
 int32_t vnodeSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapWriter **ppWriter) {
   int32_t       code = 0;
   SVSnapWriter *pWriter = NULL;
@@ -526,8 +528,8 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapWriter
   int64_t       ever = pParam->end;
 
   // commit memory data
-  vnodeAsyncCommit(pVnode);
-  tsem_wait(&pVnode->canCommit);
+  vnodeSyncCommit(pVnode);
+  tsdbCancelAllBgTask(pVnode->pTsdb);
 
   // alloc
   pWriter = (SVSnapWriter *)taosMemoryCalloc(1, sizeof(*pWriter));
@@ -657,7 +659,6 @@ _exit:
     vInfo("vgId:%d, vnode snapshot writer closed, rollback:%d", TD_VID(pVnode), rollback);
     taosMemoryFree(pWriter);
   }
-  tsem_post(&pVnode->canCommit);
   return code;
 }
 

@@ -409,7 +409,6 @@ static void addIntoNodeUpdateList(SStreamTask* pTask, int32_t nodeId) {
 int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp) {
   ASSERT(pTask->id.taskId == pRsp->upstreamTaskId);
   const char* id = pTask->id.idStr;
-  int32_t vgId = pTask->pMeta->vgId;
 
   if (streamTaskShouldStop(pTask)) {
     stDebug("s-task:%s should stop, do not do check downstream again", id);
@@ -461,14 +460,15 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
             "s-task:%s vgId:%d self vnode-transfer/leader-change/restart detected, old stage:%"PRId64", current stage:%"PRId64", "
             "not check wait for downstream task nodeUpdate, and all tasks restart",
             id, pRsp->upstreamNodeId, pRsp->oldStage, pTask->pMeta->stage);
+        addIntoNodeUpdateList(pTask, pRsp->upstreamNodeId);
       } else {
         stError(
             "s-task:%s downstream taskId:0x%x (vgId:%d) not leader, self dispatch epset needs to be updated, not check "
             "downstream again, nodeUpdate needed",
             id, pRsp->downstreamTaskId, pRsp->downstreamNodeId);
+        addIntoNodeUpdateList(pTask, pRsp->downstreamNodeId);
       }
 
-      addIntoNodeUpdateList(pTask, pRsp->downstreamNodeId);
       streamMetaUpdateTaskDownstreamStatus(pTask, pTask->execInfo.init, taosGetTimestampMs(), false);
 
       // automatically set the related fill-history task to be failed.

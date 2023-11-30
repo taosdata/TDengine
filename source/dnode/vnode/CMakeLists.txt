@@ -1,4 +1,5 @@
 # vnode
+add_subdirectory(src/tqCommon)
 add_library(vnode STATIC "")
 set(
   VNODE_SOURCE_FILES
@@ -13,6 +14,8 @@ set(
   "src/vnd/vnodeSnapshot.c"
   "src/vnd/vnodeRetention.c"
   "src/vnd/vnodeInitApi.c"
+  "src/vnd/vnodeAsync.c"
+  "src/vnd/vnodeHash.c"
 
     # meta
     "src/meta/metaOpen.c"
@@ -117,6 +120,7 @@ if (${BUILD_CONTRIB})
         PUBLIC "inc"
         PUBLIC "src/inc"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+        PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
         PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
     )
 else()
@@ -125,6 +129,7 @@ else()
         PUBLIC "inc"
         PUBLIC "src/inc"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+        PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
     )
     if (${TD_LINUX})
         target_include_directories(
@@ -137,11 +142,6 @@ else()
         )
     endif()
 endif()
-
-target_include_directories(
-        vnode
-        PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
-)
 
 target_link_libraries(
     vnode
@@ -163,6 +163,7 @@ target_link_libraries(
     PUBLIC transport
     PUBLIC stream
     PUBLIC index
+    PUBLIC tqCommon
 )
 
 IF (TD_GRANT)

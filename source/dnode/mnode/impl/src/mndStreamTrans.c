@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "mndTrans.h"
 #include "mndStream.h"
+#include "mndTrans.h"
 
 typedef struct SKeyInfo {
   void*   pKey;
@@ -110,5 +110,24 @@ bool streamTransConflictOtherTrans(SMnode* pMnode, const char* pSrcDb, const cha
   return false;
 }
 
+int32_t mndAddtoCheckpointWaitingList(SStreamObj* pStream, int64_t checkpointId) {
+  SCheckpointCandEntry* pEntry = taosHashGet(execInfo.transMgmt.pWaitingList, &pStream->uid, sizeof(pStream->uid));
+  if (pEntry == NULL) {
+    SCheckpointCandEntry entry = {.streamId = pStream->uid,
+                                  .checkpointTs = taosGetTimestampMs(),
+                                  .checkpointId = checkpointId,
+                                  .pName = taosStrdup(pStream->name)};
 
+    taosHashPut(execInfo.transMgmt.pWaitingList, &pStream->uid, sizeof(pStream->uid), &entry, sizeof(entry));
+    int32_t size = taosHashGetSize(execInfo.transMgmt.pWaitingList);
 
+    mDebug("stream:%" PRIx64 " add into waiting list due to conflict, ts:%" PRId64 " , checkpointId: %" PRId64
+           ", total in waitingList:%d",
+           pStream->uid, entry.checkpointTs, checkpointId, size);
+  } else {
+    mDebug("stream:%" PRIx64 " ts:%" PRId64 ", checkpointId:%" PRId64 " already in waiting list, no need to add into",
+           pStream->uid, pEntry->checkpointTs, checkpointId);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
