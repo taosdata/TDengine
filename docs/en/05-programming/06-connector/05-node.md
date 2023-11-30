@@ -10,7 +10,7 @@ The source code for the Node.js connectors is located on [GitHub](https://github
 
 ## Version support
 
-Please refer to [version support list](/reference/connector#version-support)
+Please refer to [version support list](/client-libraries/#version-support)
 
 ## Installation steps
 

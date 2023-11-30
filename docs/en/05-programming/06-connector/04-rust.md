@@ -13,7 +13,7 @@ The source code for the Rust connectors is located on [GitHub](https://github.co
 
 ## Version support
 
-Please refer to [version support list](/reference/connector#version-support)
+Please refer to [version support list](/client-libraries/#version-support)
 
 The Rust Connector is still under rapid development and is not guaranteed to be backward compatible before 1.0. We recommend using TDengine version 3.0 or higher to avoid known issues.
 
