@@ -20,19 +20,19 @@
         style="margin-top: 20px"
         :data="topicList"
         size="mini"
-        max-height="250"
-        row-key="taskid"
+        :max-height="maxHeight"
+        row-key="id"
         :expand-row-keys="expandRowKeys"
         @expand-change="expandChange"
       >
         <el-table-column type="expand">
-          <template>
+          <template slot-scope="props">
             <div>
               <el-table
-                :data="taskActivities"
+                :data="props.row.taskActivities"
                 size="mini"
                 class="tabel-expand"
-                max-height="160"
+                row-key="at"
               >
                 <el-table-column
                   prop="level"
@@ -66,6 +66,7 @@
                 <el-table-column
                   prop="activity"
                   :label="$t('dataIn.activity')"
+                  show-overflow-tooltip
                 ></el-table-column>
                 <el-table-column
                   prop="context"
@@ -79,8 +80,28 @@
           :label="$t('datasource.taskid')"
           prop="taskid"
           width="80"
-          show-overflow-tooltip
-        ></el-table-column>
+        >
+        <template slot-scope="scope">
+          <span>
+            <i
+              class="el-circle"
+              style="background-color: #e6a23c"
+              v-if="scope.row.taskActivities && scope.row.taskActivities[0]?.level == 'warn'"
+            ></i>
+            <i
+              :class="['el-circle','err-circle']"
+              style="background-color: #fe6c6c"
+              v-else-if="scope.row.taskActivities && scope.row.taskActivities[0]?.level == 'error'"
+            ></i>
+            <i
+              class="el-circle"
+              style="background-color: #67c23a"
+              v-else
+            ></i>
+          </span>
+          <span style="padding-left:5px">{{ scope.row.taskid }}</span>
+        </template>
+        </el-table-column>
         <el-table-column
           :label="$t('datasource.name2')"
           prop="localname"
@@ -173,11 +194,11 @@
                   style="max-height: 200px; overflow: auto"
                 ></div>
                 <span style="width: 80px; display: inline-block">{{
-                  scope.row.status
+                  handleDSStatus(scope.row.status)
                 }}</span>
               </el-tooltip>
               <span style="width: 80px; display: inline-block" v-else>{{
-                scope.row.status
+                handleDSStatus(scope.row.status)
               }}</span>
               <template v-if="permitStartStatus.includes(scope.row.status.toLowerCase())">
                 <el-tooltip
@@ -320,6 +341,7 @@ import {
   refreshTask,
   getTaskActivities,
   getMetrics,
+  getMetricsDesc
 } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
@@ -358,6 +380,7 @@ export default {
       taskActivities: [],
       expandRowKeys: [],
       metricDisable: false,
+      maxHeight: 250,
       // 不允许 start/stop 的状态 sopping, suspending
       permitStartStatus: ['created','failed','stopped','suspended','completed'],
       permitStopStatus: ['queued','running','interrupted','waiting','resumed'],
@@ -408,8 +431,10 @@ export default {
           type: "warning",
         }
       ).then(async () => {
+        await this.handleClearInterval()
         let result = await excuteDel(data.id);
         if (result?.message) {
+          this.handleSetInterval()
           Message.warning(result.message);
           return;
         }
@@ -417,7 +442,10 @@ export default {
           type: "success",
           message: this.$t("datasource.deleteok"),
         });
-        this.refresh();
+        await this.refresh();
+        await this.$nextTick(() => {
+          this.handleSetInterval()
+        })
       });
     },
     edit(data, status, iscopy) {
@@ -434,6 +462,9 @@ export default {
         this.$store.commit("app/SET_CURRENT_AGENT", data?.via);
         this.$store.commit("app/SET_CURRENT_DSNAME", data.name);
         let editDdata = deepClone([].concat(data.from_detail));
+        if(data.from_detail.id=='mqtt'||data.from_expand.id == "kafka"||data.from_expand.id == "csv"){
+          this.$store.commit('app/SET_TRANSFORM_PARSERDATA',data.parser)
+        }
         if (data.from_expand && data.from_expand.id == "mqtt") {
           let dnsarr = data.from.split("?")[1].split("&");
           let caindex = dnsarr.findIndex((item) => item.includes("ca="));
@@ -456,17 +487,17 @@ export default {
           this.$store.commit("app/SET_MQTT_PARSER", data.parser);
           this.$parent.parserobj = deepClone(data.parser);
         }
-        if (data.from_expand && data.from_expand.id == "kafka") {
-          let payload = deepClone(data.parser.parse.value);
-          let parser = {
-            ...data.parser,
-            parse: {
-              payload,
-            },
-          };
-          this.$store.commit("app/SET_MQTT_PARSER", parser);
-          this.$parent.parserobj = deepClone(parser);
-        }
+        // if (data.from_expand && data.from_expand.id == "kafka") {
+        //   let payload = deepClone(data.parser.parse.value);
+        //   let parser = {
+        //     ...data.parser,
+        //     parse: {
+        //       payload,
+        //     },
+        //   };
+        //   this.$store.commit("app/SET_MQTT_PARSER", parser);
+        //   this.$parent.parserobj = deepClone(parser);
+        // }
         if (
           data.from_expand &&
           (data.from_expand.id == "opcua" || data.from_expand.id == "opcda")
@@ -504,9 +535,14 @@ export default {
 
         if (data.from_expand && data.from_expand.id == "csv") {
           this.$store.commit("app/SET_CSV_PARSER", data.parser);
+          
           this.$parent.echoData = deepClone([].concat(data.parser));
           let filelist = data.from.match(/(?<=csv:).*?(?=\?)/)[0];
           let hasheader = data.from.match(/(?<=has_header=).*/)[0];
+          let localCols=data.from.match(/(?<=header=).*/)[0]
+          if(localCols&&localCols.includes('=')){
+            this.$store.commit("app/SET_CSV_LOCAL_COLS", localCols.split("=")[1].split(','));
+          }
           this.$store.commit("app/SET_CSV_HASHEADER", hasheader);
           this.$store.commit("app/SET_CSV_FILES", filelist);
         }
@@ -597,10 +633,13 @@ export default {
               return;
           }
         }
+        let metricsDesc = await getMetricsDesc()
         this.$store.commit("SET_DIALOG", {
           component: Metrics,
           params: {
             data: array,
+            metricsDesc,
+            taskId: data.id
           },
           config: {
             title: this.$t("dataIn.metrics"),
@@ -628,8 +667,10 @@ export default {
             type: "warning",
           }
         ).then(async () => {
+          await this.handleClearInterval();
           let result = await excuteStart(data.id);
           if (result && result.message) {
+            this.handleSetInterval()
             this.$message({
               dangerouslyUseHTMLString:true,
               message:`<strong>${result.message.replaceAll('\n','<br/>')}</strong>`,
@@ -637,7 +678,10 @@ export default {
             });
             return;
           }
-          this.refresh();
+          await this.refresh();
+          await this.$nextTick(() => {
+            this.handleSetInterval()
+          })
         });
       } catch (err) {
         return Promise.reject(err);
@@ -654,8 +698,10 @@ export default {
             type: "warning",
           }
         ).then(async () => {
+          await this.handleClearInterval()
           let result = await excuteStop(data.id);
           if (result?.message) {
+            this.handleSetInterval()
             this.$message({
               dangerouslyUseHTMLString: true,
               message: `<strong>${result.message.replaceAll('\n','<br/>')}</strong>`,
@@ -664,6 +710,9 @@ export default {
             return;
           }
           await this.refresh();
+          await this.$nextTick(() => {
+            this.handleSetInterval()
+          })
         });
       } catch (err) {
         return Promise.reject(err);
@@ -672,7 +721,8 @@ export default {
 
     async refresh() {
       await this.getList();
-      await this.$refs.agents?.refresh();
+      await this.handleTaskActivities()
+      await this.$refs.agents?.refresh()
     },
     async refreshCurrentTask(data) {
       try {
@@ -681,6 +731,7 @@ export default {
           Message.error(result.message || result.desc);
           return;
         }
+        let activitList = await this.getCurrentActivities(data.taskid)
         let index = this.topicList.findIndex(
           (item) => item.taskid == data.taskid
         );
@@ -695,6 +746,7 @@ export default {
               ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") +
                 "Z"
               : "";
+            item["taskActivities"] = activitList;
             return item;
           })[0]
         );
@@ -712,31 +764,15 @@ export default {
     addAgent() {
       this.$refs.agents.add();
     },
-    async expandChange(row, expandedRows) {
-      if (row.taskid == this.expandRowKeys[0]) {
-        this.expandRowKeys = [];
-        return;
-      }
-      this.taskActivities = [];
-      let res = await getTaskActivities(row.taskid);
-      this.expandRowKeys = [row.taskid];
-      if (res && res.code && res.code != 0) {
-        Message({
-          type: "error",
-          message: res && res.message,
-        });
-        return;
-      }
-      let activitList = res.map((item) => {
-        if (item.status == "failed") {
-          item.context = item.context?.message;
+    async expandChange(row, expandedRows) { 
+      this.maxHeight = expandedRows.length == 0 ? 250 : 570;
+      let activitList = await this.getCurrentActivities(row.taskid)
+      this.topicList = this.topicList.map(item => {
+        if (item.id == row.taskid) {
+          item.taskActivities = deepClone(activitList) 
         }
-        if (typeof item.context == "object") {
-          item.context = null;
-        }
-        return item;
-      });
-      this.taskActivities = activitList;
+        return item
+      })
     },
     getLevelStyle(level) {
       let style = "";
@@ -757,14 +793,79 @@ export default {
       const property = column["property"];
       return row[property] === value;
     },
+    async getCurrentActivities(id) {
+      let res = await getTaskActivities(id);
+      if (res && res.code && res.code != 0) {
+        Message({
+          type: "error",
+          message: res && res.message,
+        });
+        return;
+      }
+      let activitList = res.map((item) => {
+        if (item.status == "failed") {
+          item.context = item.context?.message;
+        }
+        if (typeof item.context == "object") {
+          item.context = null;
+        }
+        return item;
+      });
+      return activitList
+    },
+    handleTaskActivities() {
+      this.topicList.map(async (task,index) => {
+          let res = await getTaskActivities(task.id)
+          let activitList = res.map((item) => {
+            if (item.status == "failed") {
+              item.context = item.context?.message;
+            }
+            if (typeof item.context == "object") {
+              item.context = null;
+            }
+            return item;
+          });
+          this.$set(this.topicList,index,{...task, taskActivities: activitList}) 
+      })
+    },
+    handleDSStatus(value) {
+      return this.$t('statuses.' + value);
+    },
+    handleClearInterval() {
+      this.timer && clearInterval(this.timer)
+    },
+    handleSetInterval() {
+      this.timer = setInterval(() => {
+        this.handleTaskActivities()
+      }, 10000);
+    },
+    //清除transformer相关的存储数据
+    clearTransformerStore(){
+      this.$store.commit('app/SET_FILTER_PARSE_DATA',null)
+        this.$store.commit('app/SET_EXTRACT_PARSE_DATA',null)
+        this.$store.commit('app/SET_ECHO_MAP_DATA',null)
+        this.$store.commit('app/SET_TRANSFORM_COL_IDENTIFIED',[])
+        this.$store.commit('app/SET_TRANSFORM_PARSERDATA',null)
+        this.$store.commit('app/SET_TRANSFORMER_MAPCOLUMNS',null)
+        this.$store.commit('app/SET_CSV_LOCAL_COLS',[])
+        this.$store.commit('app/SET_CSV_TRANSFORMER_PARSER',null)
+        this.$store.commit('app/SET_CSV_PARSER',null)
+    },
   },
   mounted() {
+    this.clearTransformerStore()
     if (this.$parent.$parent.$parent.currentName == "datasource") {
       this.refresh().then(() => {
         this.typeList = this.sourceList;
       });
+      this.$nextTick(() => {
+        this.handleSetInterval()
+      })
     }
   },
+  beforeDestroy() {
+    this.handleClearInterval()
+  }
 };
 </script>
 <style lang="scss">
@@ -819,7 +920,7 @@ export default {
 }
 
 .tabel-expand {
-  width: 64%;
+  min-width: 70%;
   margin-left: 40px;
   padding: 0px 5px;
   ::v-deep.el-table th.el-table__cell.is-leaf {
@@ -833,6 +934,23 @@ export default {
 ::v-deep.el-table td.el-table__cell div {
   word-wrap: break-word;
   word-break: break-word;
+}
+.el-circle {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.err-circle {
+  animation: circle 1s infinite;
+}
+@keyframes circle {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 </style>
 <style lang="scss">

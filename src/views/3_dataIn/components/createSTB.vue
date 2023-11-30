@@ -1,0 +1,297 @@
+<template>
+  <div class="create-stb">
+    <el-form :model="stable_form" :rules="rules" label-width="150px" ref="form">
+      <el-form-item prop="name" class="name_input">
+        <template slot="label">
+          <span>{{ $t("name") }}</span>
+          <el-tooltip
+            class="item"
+            effect="light"
+            :content="$t('data.tableNameTip')"
+            placement="top-start"
+          >
+            <el-icon style="margin-left: 10px" class="el-icon-info"></el-icon>
+          </el-tooltip>
+        </template>
+        <el-input
+          size="small"
+          :maxlength="192"
+          :title="stable_form.name"
+          v-model="stable_form.name"
+        >
+        </el-input>
+      </el-form-item>
+    </el-form>
+    <el-collapse v-model="activeNames" @change="handleChange">
+      <el-collapse-item name="1" :title="$t('data.columns')">
+        <el-input
+          :placeholder="$t('data.columnNameTip')"
+          v-model="stable_form.ts_field_name"
+          size="small"
+        >
+        <div slot="prepend" style="width: 110px">TIMESTAMP</div>
+        </el-input>
+        <div
+          class="flexCenter input_row"
+          v-for="(column, index) in stable_form.columns"
+          :key="'column' + index"
+        >
+          <el-select
+            v-model="column.type"
+            size="small"
+            default-first-option
+            :placeholder="$t('Data') + $t('type')"
+            class="columnPrependBtn"
+          >
+            <el-option
+              v-for="item in dataType"
+              :key="item.value"
+              v-bind="item"
+            ></el-option>
+          </el-select>
+          <el-input-number
+            size="small"
+            v-if="column.type == 'VARCHAR' || column.type == 'NCHAR'"
+            :value="
+              column.type == 'VARCHAR'
+                ? column.varcharLength
+                : column.ncharLength
+            "
+            @change="
+              (newVal, oldVal) =>
+                handleChange(newVal, oldVal, column.type, index)
+            "
+            :min="1"
+            :max="column.type == 'VARCHAR' ? 16374 : 4093"
+            label="Length"
+            controls-position="right"
+            class="custom-length"
+          ></el-input-number>
+          <el-input
+            size="small"
+            v-model="column.field"
+            :maxlength="64"
+            :placeholder="$t('data.columnNameTip')"
+          >
+            <template slot="append">
+              <el-button
+                icon="el-icon-minus"
+                @click="minusColumn(index)"
+              ></el-button>
+              <el-button @click="addColumn" icon="el-icon-plus"></el-button>
+            </template>
+          </el-input>
+        </div>
+      </el-collapse-item>
+      <el-collapse-item name="2" :title="$t('tags')">
+        <div
+          class="flexCenter input_row"
+          v-for="(column, index) in stable_form.tags"
+          :key="'column' + index"
+        >
+          <el-select
+            v-model="column.type"
+            size="small"
+            default-first-option
+            :placeholder="$t('Data') + $t('type')"
+            class="columnPrependBtn"
+          >
+            <el-option
+              v-for="item in tagType"
+              :key="item.value"
+              v-bind="item"
+            ></el-option>
+          </el-select>
+          <el-input-number
+            size="small"
+            v-if="column.type == 'VARCHAR' || column.type == 'NCHAR'"
+            :value="
+              column.type == 'VARCHAR'
+                ? column.varcharLength
+                : column.ncharLength
+            "
+            @change="
+              (newVal, oldVal) =>
+                tagLengthChange(newVal, oldVal, column.type, index)
+            "
+            :min="1"
+            :max="column.type == 'VARCHAR' ? 16374 : 4093"
+            label="Length"
+            controls-position="right"
+            class="custom-length"
+          ></el-input-number>
+          <el-input
+            size="small"
+            v-model="column.field"
+            :maxlength="64"
+            :placeholder="$t('data.tagNameTip')"
+          >
+            <template slot="append">
+              <el-button
+                icon="el-icon-minus"
+                @click="minusTags(index)"
+              ></el-button>
+              <el-button @click="addTags" icon="el-icon-plus"></el-button>
+            </template>
+          </el-input>
+        </div>
+      </el-collapse-item>
+    </el-collapse>
+  </div>
+</template>
+<script>
+import { deepClone } from "@/utils";
+
+import {
+  dataType,
+  tagType,
+} from "../../2_explorer/views/components/utils/index";
+export default {
+  name: "CreateSTB",
+  data() {
+    return {
+      dataType,
+      tagType,
+      column_item: {
+        type: "INT",
+        field: "",
+        value: "",
+        varcharLength: 8,
+        ncharLength: 8,
+      },
+
+      stable_form: {
+        name: "",
+        ts_field_name: "",
+        rollup: "",
+        columns: [],
+        tags: [],
+      },
+      rules: {
+        name: [
+          {
+            required: true,
+            message: this.$t("data.nameTip").replace(
+              "/name/",
+              this.$t("dashboard.stables")
+            ),
+            trigger: "blur",
+          },
+          {
+            validator: (_, value, callback) => {
+              callback(
+                value.indexOf(".") != -1
+                  ? new Error(this.$t("formatWrong"))
+                  : undefined
+              );
+            },
+            trigger: "blur",
+          },
+        ],
+      },
+      activeNames: ["1", "2"],
+    };
+  },
+  mounted() {
+    this.$set(this.stable_form.columns, 0, deepClone(this.column_item));
+    this.$set(this.stable_form.tags, 0, deepClone(this.column_item));
+  },
+  methods: {
+    handleChange(newVal, oldVal, type, index) {
+      if (type === "VARCHAR") {
+        this.$set(this.stable_form.columns[index], "varcharLength", newVal);
+      }
+      if (type === "NCHAR") {
+        this.$set(this.stable_form.columns[index], "ncharLength", newVal);
+      }
+    },
+    tagLengthChange(newVal, oldVal, type, index) {
+      if (type === "VARCHAR") {
+        this.$set(this.stable_form.tags[index], "varcharLength", newVal);
+      }
+      if (type === "NCHAR") {
+        this.$set(this.stable_form.tags[index], "ncharLength", newVal);
+      }
+    },
+    minusColumn(index) {
+      if (index > 0) {
+        this.stable_form.columns.splice(index, 1);
+      }
+    },
+    minusTags(index) {
+      if (index > 0) {
+        this.stable_form.tags.splice(index, 1);
+      }
+    },
+    typeChange() {},
+    addTags() {
+      this.stable_form.tags.push(deepClone(this.column_item));
+    },
+    addColumn() {
+      this.stable_form.columns.push(deepClone(this.column_item));
+    },
+  },
+};
+</script>
+<style lang="scss" scoped>
+.input_row {
+  margin-top: 18px;
+}
+.create-stb ::v-deep {
+  .el-collapse {
+    border-top: 0;
+  }
+  .el-form-item__content {
+    display: flex;
+  }
+  .el-collapse-item__header {
+    font-size:18px;
+    border-bottom: none !important;
+  }
+  .el-collapse-item__wrap {
+    border-bottom: none !important;
+  }
+}
+.columnPrependBtn {
+  width: 150px;
+  flex-shrink: 0;
+}
+.custom-length {
+  ::v-deep {
+    .el-input-number__decrease {
+      height: 16px;
+    }
+    .el-input-number__increase {
+      height: 16px;
+    }
+    .el-input {
+      .el-input__inner {
+        height: 32px !important;
+      }
+    }
+  }
+}
+.create-stb ::v-deep .el-input.is-disabled .el-input__inner,
+.create-stb ::v-deep .el-input-group__append,
+.create-stb ::v-deep .el-input-group__prepend {
+  background-color: unset;
+  color: #606266;
+  .el-button.is-disabled,
+  .el-button.is-disabled:hover,
+  .el-button.is-disabled:focus {
+    background-color: transparent;
+    border-color: transparent;
+  }
+}
+.create-stb ::v-deep .flexCenter .el-select .el-input__inner {
+  border-color: #dcdfe6;
+  border-right: none;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.create-stb ::v-deep .flexCenter .el-input .el-input__inner {
+  border-color: #dcdfe6;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+</style>

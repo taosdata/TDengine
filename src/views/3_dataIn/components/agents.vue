@@ -23,7 +23,7 @@
       :data="agentList"
       size="mini"
       row-key="id"
-      max-height="250"
+      :max-height="maxHeight"
       :expand-row-keys="expandRowKeys"
       @expand-change="expandChange"
     >
@@ -34,7 +34,6 @@
               :data="agentActivities"
               size="mini"
               class="tabel-expand"
-              max-height="160"
             >
               <el-table-column
                 prop="level"
@@ -65,10 +64,12 @@
               <el-table-column
                 prop="activity"
                 :label="$t('dataIn.activity')"
+                show-overflow-tooltip
               ></el-table-column>
               <el-table-column
                 prop="context"
                 :label="$t('dataIn.context')"
+                show-overflow-tooltip
               ></el-table-column>
             </el-table>
           </div>
@@ -93,7 +94,11 @@
       <el-table-column
         :label="$t('taosagents.status')"
         prop="status"
-      ></el-table-column>
+      >
+        <span slot-scope="scope">{{
+          handleDSStatus(scope.row.status)
+        }}</span>
+      </el-table-column>
       <!-- <el-table-column
         :label="$t('taosagents.dsn')"
         prop="dsn"
@@ -318,6 +323,7 @@ export default {
       parsinginZone,
       agentActivities: [],
       expandRowKeys: [],
+      maxHeight: 250
     };
   },
   computed: {
@@ -539,6 +545,8 @@ export default {
       }
     },
     async expandChange(row, expandedRows) {
+      console.log('expandedRows',expandedRows);
+      this.maxHeight = expandedRows.length == 0 ? 250 : 570;
       if (row.id == this.expandRowKeys[0]) {
         this.expandRowKeys = [];
         return;
@@ -579,6 +587,9 @@ export default {
           break;
       }
       return style;
+    },
+    handleDSStatus(value) {
+      return this.$t('statuses.' + value);
     },
   },
   created() {
@@ -671,7 +682,7 @@ export default {
   }
 }
 .tabel-expand {
-  width: 64%;
+  min-width: 70%;
   margin-left: 40px;
   padding: 0px 5px;
   ::v-deep.el-table th.el-table__cell.is-leaf {

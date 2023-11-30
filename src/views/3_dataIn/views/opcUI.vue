@@ -262,7 +262,7 @@
         </div>
       </section>
       <section v-if="tagName !== 'csv'">
-        <el-collapse v-model="activeCollapse" accordion>
+        <el-collapse v-model="activeCollapse" accordion class="connection">
           <el-collapse-item name="one">
             <template slot="title">
               <el-button
@@ -434,39 +434,7 @@
                   class="description"
                   v-html="transforHtml(p.description)"
                 ></div>
-                <div class="target">
-                  <!-- <span
-                    :class="['no-label', p.target.required ? 'required' : '']"
-                  ></span> -->
-                  <!-- <template v-if="p.target.multiple">
-                    <el-select
-                      v-model="p.target.value"
-                      :multiple="p.target.multiple"
-                      :allow-create="p.target.editable"
-                      placeholder=""
-                      filterable
-                      default-first-option
-                    >
-                      <el-option
-                        v-for="(t, tind) in p.target.value"
-                        :key="tind"
-                        :value="tind"
-                        disabled
-                      >
-                        {{ t }}
-                      </el-option>
-                    </el-select>
-                  </template>
-                  <template v-else>
-                    <el-input v-model="p.target.value"></el-input>
-                  </template> -->
-                  <!-- <el-button
-                    size="medium"
-                    @click="handleSelBtn"
-                    style="height: 42px"
-                    >{{ $t("datasource.select") }}</el-button
-                  > -->
-                </div>
+                <div class="target"></div>
                 <div class="configuration" v-if="isShowConfiguration">
                   <el-input
                     size="small"
@@ -840,12 +808,17 @@
         </div>
 
         <div class="parser-config">
-          <MqttConnector
+          <!-- <MqttConnector
             :connectorData="constMqttparser"
             :fields="constmqttCols"
             ref="mqtt"
             :isEditable="isEditable"
-          ></MqttConnector>
+          ></MqttConnector> -->
+          <CommonTransformer
+            :parserColumns="constmqttCols"
+            @getTransformerParams="getTransformerParams"
+            ref="transformer"
+          ></CommonTransformer>
         </div>
       </section>
       <section v-if="tagName == 'csv'">
@@ -857,7 +830,10 @@
         ></CsvData>
       </section>
       <section v-if="dbsource[0].advanced">
-        <AdvanceOptions :options="dbsource[0].advanced" @sendAdvanceParams="getAdvanceParams"></AdvanceOptions>
+        <AdvanceOptions
+          :options="dbsource[0].advanced"
+          @sendAdvanceParams="getAdvanceParams"
+        ></AdvanceOptions>
       </section>
       <section class="bottom">
         <el-button
@@ -908,7 +884,8 @@ import MqttConnector from "../components/newMqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
 import DialogCreateDb from "../components/addDbDialog.vue";
 import Result from "../components/result.vue";
-import AdvanceOptions from '../components/advancedOptions.vue'
+import AdvanceOptions from "../components/advancedOptions.vue";
+import CommonTransformer from "../components/commonTransformer.vue";
 export default {
   name: "DbSourceUI",
   components: {
@@ -919,7 +896,8 @@ export default {
     DialogCreateDb,
     DataTarget,
     Result,
-    AdvanceOptions
+    AdvanceOptions,
+    CommonTransformer,
   },
   props: {
     echoData: {
@@ -929,12 +907,6 @@ export default {
       },
     },
     opcConfig: {
-      type: Object,
-      default: () => {
-        return null;
-      },
-    },
-    constMqttparser: {
       type: Object,
       default: () => {
         return null;
@@ -975,7 +947,7 @@ export default {
   },
   data() {
     return {
-      advanceParams:'',
+      advanceParams: "",
       allnodesloading: false,
       disableallnodeclick: true,
       opcinusefile: "",
@@ -1041,6 +1013,7 @@ export default {
         // version: '', // 返回数据源版本，不能获得版本则不返回该字段。
       },
       activeCollapse: "",
+      transformerParser: null,
     };
   },
   created() {
@@ -1072,11 +1045,7 @@ export default {
   },
   mounted() {
     if (this.tagName == "mqtt" || this.tagName == "kafka") {
-      this.constmqttCols = this.dbsource[0].parser.fields.map(item=>{
-        return Object.assign(item,{
-          alias:item.name
-        })
-      });
+      this.$set(this, "constmqttCols", this.dbsource[0].parser.fields);
       let caitem = this.$store.state.app.mqttcafile[0];
       let certitem = this.$store.state.app.mqttcertfile[0];
       let certkeyitem = this.$store.state.app.mqttcertkeyfile[0];
@@ -1188,8 +1157,20 @@ export default {
     "$store.state.app.currentDBName": {
       immediate: true,
       handler() {
-        if (this.tagName == "kafka") {
+        if (this.tagName == "kafka" || this.tagName == "mqtt") {
           this.getdbprecision();
+        }
+      },
+    },
+    "$store.state.app.currentDBType": {
+      immediate: true,
+      handler(val) {
+        if (val == "kafka" || val == "mqtt") {
+          this.$set(
+            this,
+            "constmqttCols",
+            this.$parent.uidata[0].parser.fields
+          );
         }
       },
     },
@@ -1202,8 +1183,8 @@ export default {
     },
   },
   methods: {
-    getAdvanceParams(data){
-      this.advanceParams=data
+    getAdvanceParams(data) {
+      this.advanceParams = data;
     },
     async downloadopcAllponits() {
       try {
@@ -1385,7 +1366,12 @@ export default {
     },
 
     save() {
-      if (this.isEditable && !this.isCopyable) {
+      let status = this.$parent.currentTaskStatus;
+      if (
+        this.isEditable &&
+        !this.isCopyable &&
+        !["stopped", "completed"].includes(status)
+      ) {
         this.$confirm(this.$t("dataIn.saveTip"), this.$t("warning"), {
           confirmButtonText: this.$t("confirm"),
           cancelButtonText: this.$t("cancel"),
@@ -1405,12 +1391,15 @@ export default {
       this.checkResult = this.$options.data().checkResult;
       this.submit(false);
     },
+    //获取transformer的参数
+    getTransformerParams(data) {
+      this.transformerParser = data;
+    },
     // 数据源可用性和版本检查
     async getValidateResult(dns) {
       try {
         this.checkLoading = true;
         let result = await validateTask(dns, this.agentId);
-        console.log("result", result);
         this.checkResult = result;
         this.checkLoading = false; // 检测的 loading 效果
         this.activeCollapse = "one";
@@ -1421,8 +1410,6 @@ export default {
     },
 
     async submit(isSubmit) {
-      console.log(this.constMqttparser,'constMqttparser')
-      // debugger
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
@@ -1452,7 +1439,6 @@ export default {
           }
         }
         if (!this.sourceName && isSubmit) {
-          console.log("this.sourceName", this.sourceName);
           Message.warning(`${enterTip} ${this.$t("name")}`);
           return;
         }
@@ -1537,10 +1523,7 @@ export default {
                         return;
                       }
                     }
-                    if (
-                      data.groups[index].params[g].name == "topics" &&
-                      this.tagName == "mqtt"
-                    ) {
+                    if (data.groups[index].params[g].name == "topics") {
                       Message({
                         type: "warning",
                         message:
@@ -1775,61 +1758,18 @@ export default {
           dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
         }
         if ((this.tagName == "mqtt" || this.tagName == "kafka") && isSubmit) {
-          if (this.$refs.mqtt) {
-            this.$refs.mqtt.submit();
-            if (this.$refs.mqtt.showSuperTip) {
-              Message({
-                type: "warning",
-                message: this.$t("datasource.bothtagsuper"),
-              });
-              return;
-            }
-            let datasource = this.tagName == "mqtt" ? 'MQTT' : 'Kafka'
-            if (this.$refs.mqtt.disable || this.$refs.mqtt.nameisnull) {
-              Message({
-                type: "warning",
-                message: this.$t("datasource.mqttparsertip").replace('{datasource}',datasource),
-              });
-              return;
-            }
+          this.$refs.transformer.getTransformerParams();
+        }
+        if (this.tagName == "csv" && isSubmit) {
+          console.log(this.$refs.csvdata.$refs.transform, "transf");
+          if (!this.$refs.csvdata.$refs.transform) {
+            Message.warning(this.$t("datasource.uploadcsvtip"));
+            return;
           }
-          let oldparser = this.$store.state.app.mqttParser;
-          let columns = oldparser.model.columns;
-          if (columns.includes(this.$refs.mqtt.defaultSelect)) {
-            columns.map((item, ind) => {
-              if (item == this.$refs.mqtt.defaultSelect) {
-                columns.unshift(columns.splice(ind, 1)[0]);
-              }
-            });
-          }
-          this.$store.commit("app/SET_MQTT_PARSER", this.constMqttparser);
+          this.$refs.csvdata.$refs.transform.getTransformerParams();
         }
 
         if (this.tagName.includes("opc") && isSubmit) {
-          // if (this.opcPointavalible) {
-          // let oldData = this.$store.state.app.opcConfig;
-          // let columnCons = oldData.column_configs.filter((item) =>
-          //   this.$parent.echoData.includes(item.column_name)
-          // );
-          // this.$store.commit("app/SET_OPC_CONFIG", {
-          //   column_configs: columnCons,
-          //   stable_prefix: oldData.stable_prefix,
-          // });
-          // let saveConf = {
-          //   column_configs: columnCons,
-          //   stable_prefix: oldData.stable_prefix,
-          // };
-          // let prefix = dns.split("?")[0];
-          // let dnsarr = dns.split("?")[1].split("&");
-          // let indx = dnsarr.findIndex((item) =>
-          //   item.includes("opc_table_config=")
-          // );
-          // if (indx > -1) {
-          //   dnsarr.splice(indx, 1);
-          //   dns = prefix + "?" + dnsarr.join("&");
-          // }
-          // dns += "&opc_table_config=" + JSON.stringify(saveConf);
-          // } else {
           if (this.dbsource[0].datasets.value == "csv_config_file") {
             if (
               this.opcfileList.length == 0 &&
@@ -1883,15 +1823,16 @@ export default {
 
           // }
         }
-        let originDsn=(this.tagName == "mqtt"
-              ? "mqtt"
-              : this.tagName == "csv"
-              ? "csv"
-              : this.tagName == "kafka"
-              ? "kafka"
-              : "opc" + this.protocol) + dns //没有advanced options的dsn
+        let originDsn =
+          (this.tagName == "mqtt"
+            ? "mqtt"
+            : this.tagName == "csv"
+            ? "csv"
+            : this.tagName == "kafka"
+            ? "kafka"
+            : "opc" + this.protocol) + dns; //没有advanced options的dsn
         let piParams = {
-          from:originDsn+ this.advanceParams,
+          from: originDsn + this.advanceParams,
           name: this.sourceName,
           to:
             "taos+" +
@@ -1904,23 +1845,12 @@ export default {
           ],
           // trigger: { "resume": this.resume }
         };
-        if (this.tagName == "mqtt" && isSubmit) {
-          piParams["parser"] = this.$store.state.app.mqttParser;
+
+        if ((this.tagName == "mqtt" || this.tagName == "kafka") && isSubmit) {
+          piParams["parser"] = this.transformerParser;
         }
-        if (this.tagName == "kafka" && isSubmit) {
-          let value = this.$store.state.app.mqttParser.parse.payload;
-          piParams["parser"] = {
-            ...this.$store.state.app.mqttParser,
-            parse: {
-              value: {
-                ...value,
-                keep: false,
-              },
-              ts: {
-                as: `timestamp(${this.dbprecision})`,
-              },
-            },
-          };
+        if (this.tagName == "csv" && isSubmit) {
+          piParams["parser"] = this.$refs.csvdata.transformerParser;
         }
         if (this.agentId) {
           piParams["via"] = this.agentId;
@@ -1945,42 +1875,43 @@ export default {
           if (!this.$refs.csvdata.$refs.param.isAllValid) {
             return;
           }
-          if (!this.$refs.csvdata.$refs.csvconfig) {
-            Message.error(this.$t("datasource.csvconfigtip"));
-            return;
-          }
-          let model = this.$store.state.app.csvParser.model;
-          let parse = this.$store.state.app.csvParser.parse;
-          if (this.$store.state.app.csvtags.length > 0 && !model.tags) {
-            model["tags"] = this.$store.state.app.csvtags;
-          }
-          if (model.tags && model.tags.length > 0) {
-            model.name = this.$refs.csvdata.$refs.param.ruleForm2.subname;
-            model.using = this.$refs.csvdata.$refs.param.ruleForm2.tableName;
-            piParams["parser"] = this.$store.state.app.csvParser;
-          } else {
-            piParams["parser"] = Object.assign(
-              { parse: parse },
-              {
-                model: {
-                  name: this.$refs.csvdata.$refs.param.ruleForm2.subname,
-                  columns: model.columns,
-                },
-              }
-            );
-          }
+          // if (!this.$refs.csvdata.$refs.csvconfig) {
+          //   Message.error(this.$t("datasource.csvconfigtip"));
+          //   return;
+          // }
+          // let model = this.$store.state.app.csvParser.model;
+          // let parse = this.$store.state.app.csvParser.parse;
+          // if (this.$store.state.app.csvtags.length > 0 && !model.tags) {
+          //   model["tags"] = this.$store.state.app.csvtags;
+          // }
+          // if (model.tags && model.tags.length > 0) {
+          //   model.name = this.$refs.csvdata.$refs.param.ruleForm2.subname;
+          //   model.using = this.$refs.csvdata.$refs.param.ruleForm2.tableName;
+          //   piParams["parser"] = this.$store.state.app.csvParser;
+          // } else {
+          //   piParams["parser"] = Object.assign(
+          //     { parse: parse },
+          //     {
+          //       model: {
+          //         name: this.$refs.csvdata.$refs.param.ruleForm2.subname,
+          //         columns: model.columns,
+          //       },
+          //     }
+          //   );
+          // }
 
-          if (model.columns.length == 0 || model.columns[0] == undefined) {
-            Message.error(this.$t("datasource.csvwholeinfo"));
-            return;
-          }
-          let flag = (
-            model.tags ? [...model.columns, ...model.tags] : [...model.columns]
-          ).some((item) => parse[item].as == "");
-          if (flag) {
-            Message.error(this.$t("datasource.csvwholeinfo"));
-            return;
-          }
+          // if (model.columns.length == 0 || model.columns[0] == undefined) {
+          //   Message.error(this.$t("datasource.csvwholeinfo"));
+          //   return;
+          // }
+          // let flag = (
+          //   model.tags ? [...model.columns, ...model.tags] : [...model.columns]
+          // ).some((item) => parse[item].as == "");
+          // if (flag) {
+          //   Message.error(this.$t("datasource.csvwholeinfo"));
+          //   return;
+          // }
+          console.log("csvbaocun保存", piParams);
           piParams["from"] =
             `csv:` +
             (this.$refs.csvdata.activeName == "first"
@@ -2232,8 +2163,8 @@ export default {
   overflow-x: auto;
   :deep {
     .el-input__inner {
-      border: none !important;
-      box-shadow: inset 0 0 0 1px rgb(190, 188, 188);
+      // border: none !important;
+      // box-shadow: inset 0 0 0 1px rgb(190, 188, 188);
     }
     .el-textarea__inner {
       min-height: 40px !important;
@@ -2593,6 +2524,19 @@ export default {
   }
   .el-upload-list__item-name {
     max-width: 120px;
+  }
+}
+.connection {
+  border-top: 0;
+  border-bottom: 0;
+  ::v-deep .el-collapse-item__header {
+    border-bottom: 0;
+  }
+  ::v-deep .el-collapse-item__wrap {
+    border-bottom: 0;
+  }
+  :deep(.el-collapse-item__content) {
+    padding-bottom: 0;
   }
 }
 </style>

@@ -3,7 +3,7 @@
     <el-form
       :model="ruleForm"
       ref="ruleForm"
-      label-width="200px"
+      label-width="100px"
       :rules="rules"
     >
       <el-form-item :label="$t('datasource.includeheader')" prop="hasHeader">
@@ -31,7 +31,7 @@
       :rules="rules"
     >
 
-      <el-form-item
+      <!-- <el-form-item
         :label="
           showStable ? $t('datasource.name') : $t('datasource.normalname')
         "
@@ -40,15 +40,15 @@
       >
 
         <el-input size="small" v-model="ruleForm2.subname"></el-input>
-      </el-form-item>
-      <el-form-item
+      </el-form-item> -->
+      <!-- <el-form-item
         :label="$t('datasource.using')"
         prop="tableName"
         v-if="showStable"
         :rules="tableName"
       >
         <el-input size="small" v-model="ruleForm2.tableName"></el-input>
-      </el-form-item>
+      </el-form-item> -->
     </el-form>
   </div>
 </template>
@@ -155,13 +155,13 @@ export default {
   },
   mounted() {
     if (this.isEditable) {
-      this.ruleForm2.subname = this.echoData[0].model.name;
-      this.ruleForm2.tableName = this.echoData[0].model.using;
-      this.ruleForm.customcol = Object.keys(this.echoData[0].parse).join(",");
+      // this.ruleForm2.subname = this.echoData[0].model.name;
+      // this.ruleForm2.tableName = this.echoData[0].model.using;
+      this.ruleForm.customcol = this.$store.state.app.csvTransformerlocalCols.length>0?this.$store.state.app.csvTransformerlocalCols.join(','):'';
       this.ruleForm.hasHeader =
         this.$store.state.app.hasheader == "true" ? true : false;
-      this.showStable = this.echoData[0].model?.tags?.length > 0 ? true : false;
-      this.$store.commit("SET_SHOW_CSV_STABLE", this.showStable);
+      // this.showStable = this.echoData[0].model?.tags?.length > 0 ? true : false;
+      // this.$store.commit("SET_SHOW_CSV_STABLE", this.showStable);
       this.showcustom = !this.ruleForm.hasHeader;
     }
     this.getDatabases();
@@ -193,14 +193,14 @@ export default {
       });
     },
     submit2() {
-      this.$refs.ruleForm2.validate((valid) => {
-        if (valid) {
-          this.isAllValid = true;
-        } else {
-          this.isAllValid = false;
-          return false;
-        }
-      });
+      // this.$refs.ruleForm2.validate((valid) => {
+      //   if (valid) {
+      //     this.isAllValid = true;
+      //   } else {
+      //     this.isAllValid = false;
+      //     return false;
+      //   }
+      // });
     },
   },
 };
@@ -218,10 +218,13 @@ export default {
       white-space: nowrap;
     }
     .el-form-item__content {
-      margin-left: 10px !important;
+      // margin-left: 10px !important;
       flex: auto;
       display: flex;
       align-items: center;
+      span:first-child{
+        flex:1;
+      }
     }
     .el-select {
       flex: 1;

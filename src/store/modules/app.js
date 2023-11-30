@@ -76,7 +76,17 @@ const state = {
   currentDSName:'',
   currentResume: 'always',
   currentEditID:'',
-  agentDialog:false
+  agentDialog:false,
+  transformExtractParseData:null,
+  transformerFilterParseData:null,
+  transformerMapCloumns:null,
+  transformerParserData:null,
+  transformColumnIdentify:[],
+  transformEchoMapData:null,
+  csvTransformerParser:null,
+  csvTransformerlocalCols:[],//csv无头部时候的自定义列
+  splitExpresList:null//transformer的split
+  
 };
 const saveKey = encodeURIComponent("appId");
 const waitTime = 15 * 60 * 1000;
@@ -103,6 +113,33 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_SPLIT_EXPRESS:(state,data)=>{
+    state.splitExpresList=data
+  },
+  SET_CSV_LOCAL_COLS:(state,data)=>{
+    state.csvTransformerlocalCols=data
+  },
+  SET_CSV_TRANSFORMER_PARSER:(state,data)=>{
+    state.csvTransformerParser=data
+  },
+  SET_FILTER_PARSE_DATA:(state,data)=>{
+    state.transformerFilterParseData=data
+  },
+  SET_EXTRACT_PARSE_DATA:(state,data)=>{
+    state.transformExtractParseData=data
+  },
+  SET_ECHO_MAP_DATA:(state,data)=>{
+    state.transformEchoMapData=data
+  },
+  SET_TRANSFORM_COL_IDENTIFIED:(state,data)=>{
+    state.transformColumnIdentify=data
+  },
+  SET_TRANSFORM_PARSERDATA:(state,data)=>{
+    state.transformerParserData=data
+  },
+  SET_TRANSFORMER_MAPCOLUMNS:(state,data)=>{
+    state.transformerMapCloumns=data
+  },
   SET_AGENT_DIALOG:(state,data)=>{
     state.agentDialog=data
   },

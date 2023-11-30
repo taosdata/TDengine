@@ -25,6 +25,7 @@ import LinkTab from "@/components/LinkTab";
 import VueDOMPurifyHTML from 'vue-dompurify-html';
 import { clearLoginStateWhenReopen } from '@/utils/token';
 import { isFirefox } from '@/utils/is';
+import './utils/update';  
 
 Vue.use(mavonEditor)
 Vue.use(directive);

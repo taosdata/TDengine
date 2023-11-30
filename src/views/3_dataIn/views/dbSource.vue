@@ -24,6 +24,7 @@
 import DataSource from "./dataSource.vue";
 import DbSourceUI from "./dbSourceUI.vue";
 import OpcUI from "./opcUI.vue";
+import Historian from "./historian.vue"
 
 import { getUIData, getTask } from "@/api/explorer/datain";
 import constparser from "./mqttparser.json";
@@ -36,6 +37,7 @@ export default {
     dbsource: DataSource,
     ui: DbSourceUI,
     opcui: OpcUI,
+    historian: Historian
   },
   data() {
     return {
@@ -130,18 +132,18 @@ export default {
     setEditID(val) {
       this.editId = val;
     },
-    toggleComponent(type, id, editid, dbname) {
+    async toggleComponent(type, id, editid, dbname) {
       if (type && !this.isEditable) {
         //新增
+
+        
         let data = this.sourceList.filter((item) => item.id === type);
         if (type == "mqtt" || type == "kafka") {
-          // this.uidata = this.deepClone(data);
           this.$set(this.uidata, 0, this.deepClone(data)[0]);
-          this.parserobj = deepClone(this.staticParser);
-          this.parserobj.model.columns.push("ts"); //默认新增时候选中ts列
-          this.$store.commit("app/SET_MQTT_PARSER", this.parserobj);
+          // this.parserobj = deepClone(this.staticParser);
+          // this.parserobj.model.columns.push("ts"); //默认新增时候选中ts列
+          // this.$store.commit("app/SET_MQTT_PARSER", this.parserobj);
         } else {
-          // this.uidata = type == "opc" ? data : this.deepClone(data);
           if (type == "opc") {
             this.$set(this.uidata, 0, data[0]);
           } else {
@@ -211,6 +213,9 @@ export default {
             this.currentName = "opcui";
             this.tagName = "kafka";
             break;
+          case "historian":
+            this.currentName = 'historian';
+            this.tagName = 'historian';
         }
       } else {
         switch (id) {
@@ -248,16 +253,6 @@ export default {
           case "mqtt":
             this.currentName = "opcui";
             this.tagName = "mqtt";
-
-            this.uidata[0].parser.fields = this.uidata[0].parser.fields.map(
-              (item) => {
-                if (item.name == "payload") {
-                  item["value"] = "json";
-                }
-                return item;
-              }
-            );
-
             break;
           case "pibackfill":
             this.currentName = "ui";
@@ -274,16 +269,20 @@ export default {
             this.currentName = "opcui";
             this.tagName = "kafka";
 
-            this.uidata[0].parser.fields = this.uidata[0].parser.fields.map(
-              (item) => {
-                if (item.name == "value") {
-                  item["value"] = "json";
-                  item["name"] = "payload";
-                }
-                return item;
-              }
-            );
+            // this.uidata[0].parser.fields = this.uidata[0].parser.fields.map(
+            //   (item) => {
+            //     if (item.name == "value") {
+            //       item["value"] = "json";
+            //       item["name"] = "payload";
+            //     }
+            //     return item;
+            //   }
+            // );
 
+            break;
+            case "historian":
+              this.currentName = 'historian';
+              this.tagName = 'historian';
             break;
         }
 
