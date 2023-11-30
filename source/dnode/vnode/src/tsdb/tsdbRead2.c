@@ -2521,9 +2521,9 @@ static void prepareDurationForNextFileSet(STsdbReader* pReader) {
   tsdbFidKeyRange(fid, pReader->pTsdb->keepCfg.days, pReader->pTsdb->keepCfg.precision, &winFid.skey, &winFid.ekey);
 
   if (ASCENDING_TRAVERSE(pReader->info.order)) {
-    pReader->status.bProcMemPreFileset = !(pReader->status.prevFilesetStartKey > pReader->status.memTableMaxKey || winFid.skey < pReader->status.memTableMinKey);
+    pReader->status.bProcMemPreFileset = !(pReader->status.prevFilesetStartKey > pReader->status.memTableMaxKey || winFid.skey-1 < pReader->status.memTableMinKey);
   } else {
-    pReader->status.bProcMemPreFileset = !(winFid.ekey > pReader->status.memTableMaxKey || pReader->status.prevFilesetEndKey < pReader->status.memTableMinKey);
+    pReader->status.bProcMemPreFileset = !(winFid.ekey+1 > pReader->status.memTableMaxKey || pReader->status.prevFilesetEndKey < pReader->status.memTableMinKey);
   }
   
   if (pReader->status.bProcMemPreFileset) {
@@ -3911,6 +3911,11 @@ static int32_t doOpenReaderImpl(STsdbReader* pReader) {
   SReaderStatus*  pStatus = &pReader->status;
   SDataBlockIter* pBlockIter = &pStatus->blockIter;
 
+  if (pReader->bDurationOrder) {
+    getMemTableTimeRange(pReader, &pReader->status.memTableMaxKey, &pReader->status.memTableMinKey);
+    pReader->status.bProcMemFirstFileset = true;
+  }
+  
   initFilesetIterator(&pStatus->fileIter, pReader->pReadSnap->pfSetArray, pReader);
   resetDataBlockIterator(&pStatus->blockIter, pReader->info.order);
 
@@ -4342,10 +4347,6 @@ int32_t tsdbReaderResume2(STsdbReader* pReader) {
         return code;
       }
     }
-  }
-
-  if (pReader->bDurationOrder) {
-    getMemTableTimeRange(pReader, &pReader->status.memTableMaxKey, &pReader->status.memTableMinKey);
   }
 
   pReader->flag = READER_STATUS_NORMAL;

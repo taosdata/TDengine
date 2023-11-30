@@ -3284,7 +3284,6 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
 
     pOperator->resultInfo.totalRows += pBlock->info.rows;
     pInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
-    uInfo("getBlockForTableMergeScan retrieved one block");
     return pBlock;
   }
 
