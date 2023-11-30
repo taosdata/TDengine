@@ -957,8 +957,8 @@ static void cliSendCb(uv_write_t* req, int status) {
   SCliMsg* pMsg = !transQueueEmpty(&pConn->cliMsgs) ? transQueueGet(&pConn->cliMsgs, 0) : NULL;
   if (pMsg != NULL) {
     int64_t cost = taosGetTimestampUs() - pMsg->st;
-    if (cost > 1000 * 20) {
-      tWarn("%s conn %p send cost:%dus, send exception", CONN_GET_INST_LABEL(pConn), pConn, (int)cost);
+    if (cost > 1000 * 50) {
+      tTrace("%s conn %p send cost:%dus, send exception", CONN_GET_INST_LABEL(pConn), pConn, (int)cost);
     }
   }
 
@@ -2665,7 +2665,7 @@ int transSendRecvWithTimeout(void* shandle, const SEpSet* pEpSet, STransMsg* pRe
   pCtx->ahandle = pReq->info.ahandle;
   pCtx->msgType = pReq->msgType;
   pCtx->syncMsgRef = transCreateSyncMsg(pTransMsg);
- int64_t        ref = pCtx->syncMsgRef;
+  int64_t        ref = pCtx->syncMsgRef;
   STransSyncMsg* pSyncMsg = taosAcquireRef(transGetSyncMsgMgt(), ref);
 
   SCliMsg* cliMsg = taosMemoryCalloc(1, sizeof(SCliMsg));
@@ -2692,13 +2692,13 @@ int transSendRecvWithTimeout(void* shandle, const SEpSet* pEpSet, STransMsg* pRe
   } else {
     memcpy(pRsp, pSyncMsg->pRsp, sizeof(STransMsg));
     ret = 0;
-}
+  }
 _RETURN:
   transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
   taosReleaseRef(transGetSyncMsgMgt(), ref);
   taosRemoveRef(transGetSyncMsgMgt(), ref);
-   return ret;
- }
+  return ret;
+}
 /*
  *
  **/
