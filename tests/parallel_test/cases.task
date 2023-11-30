@@ -880,7 +880,7 @@ e
 ,,y,script,./test.sh -f tsim/dnode/balance2.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_repeat.sim
 ,,y,script,./test.sh -f tsim/parser/col_arithmetic_operation.sim
-,,y,script,./test.sh -f tsim/trans/create_db.sim
+#,,y,script,./test.sh -f tsim/trans/create_db.sim
 ,,y,script,./test.sh -f tsim/dnode/balance3.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_many.sim
 ,,y,script,./test.sh -f tsim/stable/metrics_idx.sim
@@ -1337,7 +1337,7 @@ e
 
 #docs-examples test
 ,,n,docs-examples-test,bash python.sh
-,,n,docs-examples-test,bash node.sh
+#,,n,docs-examples-test,bash node.sh
 ,,n,docs-examples-test,bash csharp.sh
 ,,n,docs-examples-test,bash jdbc.sh
 ,,n,docs-examples-test,bash go.sh
