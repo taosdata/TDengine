@@ -368,9 +368,8 @@ export default {
         if (ind > -1) {
           this.$set(this.columnsArr[ind], "show", false);
         }
-        console.log(item,'回西安----调试split');
-        if(Object.keys(item[1]).toString()=='split'){
-          this.$store.commit('app/SET_SPLIT_EXPRESS',item[1]['split'])
+        if (Object.keys(item[1]).toString() == "split") {
+          this.$store.commit("app/SET_SPLIT_EXPRESS", item[1]["split"]);
         }
         let obj = {
           columnname: item[0],
@@ -411,9 +410,12 @@ export default {
         tableData: echoMapData,
       });
       this.$nextTick(() => {
-        this.$refs.extract.map((comp) => {
-          comp.submitExtract();
-        });
+        if (this.$refs.extract && this.$refs.extract.length > 0) {
+          this.$refs.extract.map((comp) => {
+            comp.submitExtract();
+          });
+        }
+
         if (isincludeFilter) {
           this.$refs.filter[0].submitFilter();
         }
@@ -498,7 +500,9 @@ export default {
             //排除第一行的tablename
             mutates.push({
               [`${item["Name"]}`]: {
-                [`${key}`]:['sum','join'].includes(key)?item['Expression'].split(','): item["Expression"],
+                [`${key}`]: ["sum", "join"].includes(key)
+                  ? item["Expression"].split(",")
+                  : item["Expression"],
                 as: item["Type"],
               },
             });
@@ -526,11 +530,10 @@ export default {
                 .concat({
                   filter: Object.values(
                     this.$store.state.app.transformerFilterParseData
-                  ).toString()
-                  
+                  ).toString(),
                 })
                 .concat({
-                  map: mutateMap
+                  map: mutateMap,
                 })
             : [].concat({
                 map: mutateMap,
@@ -589,8 +592,9 @@ export default {
       //   );
 
       if (!this.mappingParser.parser) {
-        Message.warning(this.$t("datasource.transformer.mapcaculate"));
-        return;
+        this.caculateMappingResult();
+        // Message.warning(this.$t("datasource.transformer.mapcaculate"));
+        // return;
       }
       let extractObj = {};
       this.extractArr.forEach((item) => {
@@ -603,6 +607,7 @@ export default {
               : item.expression.split(";"),
         };
       });
+      console.log(extractObj, this.mappingParser, "ppp");
       let parserData = {
         parser: {
           parse: Object.keys(extractObj).toString() ? extractObj : {},
@@ -921,7 +926,7 @@ export default {
         columnname: "",
         expression: "",
         type: "",
-        key:Math.random(),
+        key: Math.random(),
       });
     },
     //新增filter
@@ -1000,7 +1005,6 @@ export default {
     "$store.state.app.csvTransformerParser": {
       deep: true,
       handler(val) {
-
         if (val) {
           this.isCSV = true;
           this.msgForm.msgbody = val.msgBody;

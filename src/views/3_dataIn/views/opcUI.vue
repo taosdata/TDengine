@@ -434,9 +434,7 @@
                   class="description"
                   v-html="transforHtml(p.description)"
                 ></div>
-                <div class="target">
-                
-                </div>
+                <div class="target"></div>
                 <div class="configuration" v-if="isShowConfiguration">
                   <el-input
                     size="small"
@@ -816,7 +814,11 @@
             ref="mqtt"
             :isEditable="isEditable"
           ></MqttConnector> -->
-          <CommonTransformer :parserColumns="constmqttCols" @getTransformerParams='getTransformerParams' ref="transformer"></CommonTransformer>
+          <CommonTransformer
+            :parserColumns="constmqttCols"
+            @getTransformerParams="getTransformerParams"
+            ref="transformer"
+          ></CommonTransformer>
         </div>
       </section>
       <section v-if="tagName == 'csv'">
@@ -828,7 +830,10 @@
         ></CsvData>
       </section>
       <section v-if="dbsource[0].advanced">
-        <AdvanceOptions :options="dbsource[0].advanced" @sendAdvanceParams="getAdvanceParams"></AdvanceOptions>
+        <AdvanceOptions
+          :options="dbsource[0].advanced"
+          @sendAdvanceParams="getAdvanceParams"
+        ></AdvanceOptions>
       </section>
       <section class="bottom">
         <el-button
@@ -879,8 +884,8 @@ import MqttConnector from "../components/newMqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
 import DialogCreateDb from "../components/addDbDialog.vue";
 import Result from "../components/result.vue";
-import AdvanceOptions from '../components/advancedOptions.vue'
-import CommonTransformer from '../components/commonTransformer.vue'
+import AdvanceOptions from "../components/advancedOptions.vue";
+import CommonTransformer from "../components/commonTransformer.vue";
 export default {
   name: "DbSourceUI",
   components: {
@@ -892,7 +897,7 @@ export default {
     DataTarget,
     Result,
     AdvanceOptions,
-    CommonTransformer
+    CommonTransformer,
   },
   props: {
     echoData: {
@@ -942,7 +947,7 @@ export default {
   },
   data() {
     return {
-      advanceParams:'',
+      advanceParams: "",
       allnodesloading: false,
       disableallnodeclick: true,
       opcinusefile: "",
@@ -1008,7 +1013,7 @@ export default {
         // version: '', // 返回数据源版本，不能获得版本则不返回该字段。
       },
       activeCollapse: "",
-      transformerParser:null
+      transformerParser: null,
     };
   },
   created() {
@@ -1040,7 +1045,7 @@ export default {
   },
   mounted() {
     if (this.tagName == "mqtt" || this.tagName == "kafka") {
-      this.$set(this,'constmqttCols',this.dbsource[0].parser.fields)
+      this.$set(this, "constmqttCols", this.dbsource[0].parser.fields);
       let caitem = this.$store.state.app.mqttcafile[0];
       let certitem = this.$store.state.app.mqttcertfile[0];
       let certkeyitem = this.$store.state.app.mqttcertkeyfile[0];
@@ -1160,8 +1165,12 @@ export default {
     "$store.state.app.currentDBType": {
       immediate: true,
       handler(val) {
-        if (val == "kafka"||val=='mqtt') {
-          this.$set(this,'constmqttCols',this.$parent.uidata[0].parser.fields)
+        if (val == "kafka" || val == "mqtt") {
+          this.$set(
+            this,
+            "constmqttCols",
+            this.$parent.uidata[0].parser.fields
+          );
         }
       },
     },
@@ -1174,8 +1183,8 @@ export default {
     },
   },
   methods: {
-    getAdvanceParams(data){
-      this.advanceParams=data
+    getAdvanceParams(data) {
+      this.advanceParams = data;
     },
     async downloadopcAllponits() {
       try {
@@ -1357,8 +1366,12 @@ export default {
     },
 
     save() {
-      let status = this.$parent.currentTaskStatus
-      if (this.isEditable && !this.isCopyable && !['stopped','completed'].includes(status)) {
+      let status = this.$parent.currentTaskStatus;
+      if (
+        this.isEditable &&
+        !this.isCopyable &&
+        !["stopped", "completed"].includes(status)
+      ) {
         this.$confirm(this.$t("dataIn.saveTip"), this.$t("warning"), {
           confirmButtonText: this.$t("confirm"),
           cancelButtonText: this.$t("cancel"),
@@ -1379,8 +1392,8 @@ export default {
       this.submit(false);
     },
     //获取transformer的参数
-    getTransformerParams(data){
-      this.transformerParser=data
+    getTransformerParams(data) {
+      this.transformerParser = data;
     },
     // 数据源可用性和版本检查
     async getValidateResult(dns) {
@@ -1510,9 +1523,7 @@ export default {
                         return;
                       }
                     }
-                    if (
-                      data.groups[index].params[g].name == "topics"
-                    ) {
+                    if (data.groups[index].params[g].name == "topics") {
                       Message({
                         type: "warning",
                         message:
@@ -1747,15 +1758,18 @@ export default {
           dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
         }
         if ((this.tagName == "mqtt" || this.tagName == "kafka") && isSubmit) {
-          this.$refs.transformer.getTransformerParams()
-         
+          this.$refs.transformer.getTransformerParams();
         }
-        if(this.tagName=='csv'&& isSubmit){
-          this.$refs.csvdata.$refs.transform.getTransformerParams()
+        if (this.tagName == "csv" && isSubmit) {
+          console.log(this.$refs.csvdata.$refs.transform, "transf");
+          if (!this.$refs.csvdata.$refs.transform) {
+            Message.warning(this.$t("datasource.uploadcsvtip"));
+            return;
+          }
+          this.$refs.csvdata.$refs.transform.getTransformerParams();
         }
-        
+
         if (this.tagName.includes("opc") && isSubmit) {
-         
           if (this.dbsource[0].datasets.value == "csv_config_file") {
             if (
               this.opcfileList.length == 0 &&
@@ -1809,15 +1823,16 @@ export default {
 
           // }
         }
-        let originDsn=(this.tagName == "mqtt"
-              ? "mqtt"
-              : this.tagName == "csv"
-              ? "csv"
-              : this.tagName == "kafka"
-              ? "kafka"
-              : "opc" + this.protocol) + dns //没有advanced options的dsn
+        let originDsn =
+          (this.tagName == "mqtt"
+            ? "mqtt"
+            : this.tagName == "csv"
+            ? "csv"
+            : this.tagName == "kafka"
+            ? "kafka"
+            : "opc" + this.protocol) + dns; //没有advanced options的dsn
         let piParams = {
-          from:originDsn+ this.advanceParams,
+          from: originDsn + this.advanceParams,
           name: this.sourceName,
           to:
             "taos+" +
@@ -1830,18 +1845,12 @@ export default {
           ],
           // trigger: { "resume": this.resume }
         };
-        
-        if ((this.tagName == "mqtt" ||this.tagName == "kafka") && isSubmit) {
-          if(!this.$refs.csvdata.transformerParser){
-            return
-          }
-          piParams["parser"]=this.transformerParser
+
+        if ((this.tagName == "mqtt" || this.tagName == "kafka") && isSubmit) {
+          piParams["parser"] = this.transformerParser;
         }
-        if(this.tagName=='csv'&& isSubmit){
-          if(!this.$refs.csvdata.transformerParser){
-            return
-          }
-          piParams["parser"]=this.$refs.csvdata.transformerParser
+        if (this.tagName == "csv" && isSubmit) {
+          piParams["parser"] = this.$refs.csvdata.transformerParser;
         }
         if (this.agentId) {
           piParams["via"] = this.agentId;
@@ -1902,7 +1911,7 @@ export default {
           //   Message.error(this.$t("datasource.csvwholeinfo"));
           //   return;
           // }
-          console.log('csvbaocun保存',piParams);
+          console.log("csvbaocun保存", piParams);
           piParams["from"] =
             `csv:` +
             (this.$refs.csvdata.activeName == "first"
@@ -2525,9 +2534,9 @@ export default {
   }
   ::v-deep .el-collapse-item__wrap {
     border-bottom: 0;
-  } 
+  }
   :deep(.el-collapse-item__content) {
-    padding-bottom: 0,
+    padding-bottom: 0;
   }
 }
 </style>
