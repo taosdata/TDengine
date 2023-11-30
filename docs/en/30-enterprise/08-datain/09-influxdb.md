@@ -29,7 +29,7 @@ Select *`InfluxDB`* from the dropdown list in the **Type** field, as shown below
 
 Detailed:
 
-1. **Agent** is not a mandatory field, if needed, you can select a specified agent from the dropdown list, or click the   **+Create New Agent** button on the right to [create a new one](#CreateAgent) .
+1. **Agent** is not a mandatory field, if needed, you can select a specified agent from the dropdown list, or click the **+Create New Agent** button on the right to [create a new one](#CreateAgent) .
 2. **Target DB** is a required field, since the time precision of data in InfluxDB can be second, millisecond, microsecond, and nanosecond, it is necessary to select a *`nanosecond precision db`* . Alternatively, you can click the   **+Create Database** button on the right to [create a new one](#CreateDatabase) .
 3. Fill in the *`Connection information of the source InfluxDB`* in the **Connection Configuration** area, as shown below:
   ![InfluxDB-03-FillInTheConnectionInformation.png](./pic/InfluxDB-03-FillInTheConnectionInformation.png "Fill in the connection information of the source InfluxDB")
@@ -50,7 +50,7 @@ Detailed:
   ![InfluxDB-06-ConnectivityCheckFailed.png](./pic/InfluxDB-06-ConnectivityCheckFailed.png "Connectivity check Successful")  
   **Successful**  
   ![InfluxDB-07-ConnectivityCheckSuccessful.png](./pic/InfluxDB-07-ConnectivityCheckSuccessful.png "Connectivity check Successful")
-6. **Bucket** is a namespace for storing data in the InfluxDB, and each task needs to specify a bucket, you need to first click on the button   **Get Schema** on the right to obtain the schema, and then select from the dropdown list, as shown below:
+6. **Bucket** is a namespace for storing data in the InfluxDB, and each task needs to specify a bucket, you need to first click on the button **Get Schema** on the right to obtain the schema, and then select from the dropdown list, as shown below:
   ![InfluxDB-08-GetSchemaAndSelectOneBucket.png](./pic/InfluxDB-08-GetSchemaAndSelectOneBucket.png "Get schema and select one Bucket")
 7. **Measurements** is a non mandatory field, select one or more specified measurements to migrate, if empty, migrate all.
 8. **Data Begin Time** is the starting time of the data, the task only reads data from the specified time and after, The timezone used is consistent with explorer.
@@ -66,4 +66,3 @@ Detailed:
 
 After completing the above information, click the submit button to directly initiate data synchronization from InfluxDB to TDengine, as shown below:
 ![InfluxDB-11-TaskCreatedSuccessfully.png](./pic/InfluxDB-11-TaskCreatedSuccessfully.png "Task created successfully")
-  

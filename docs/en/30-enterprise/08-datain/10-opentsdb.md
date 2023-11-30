@@ -53,4 +53,3 @@ Detailed:
 
 After completing the above information, click the submit button to directly initiate data synchronization from OpenTSDB to TDengine, as shown below:
 ![OpenTSDB-09-TaskCreatedSuccessfully.png](./pic/OpenTSDB-09-TaskCreatedSuccessfully.png "Task created successfully")
-  
