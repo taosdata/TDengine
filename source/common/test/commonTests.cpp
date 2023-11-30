@@ -24,6 +24,93 @@ int main(int argc, char** argv) {
   return RUN_ALL_TESTS();
 }
 
+
+TEST(testCase, toIntegerEx_test) {
+  int64_t val = 0;
+
+  char*    s = "123";
+  int32_t ret = toIntegerEx(s, strlen(s), &val);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(val, 123);
+
+  s = "9223372036854775807";
+  ret = toIntegerEx(s, strlen(s), &val);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(val, 9223372036854775807);
+
+  s = "9323372036854775807";
+  ret = toIntegerEx(s, strlen(s), &val);
+  ASSERT_EQ(ret, -1);
+
+  s = "-9323372036854775807";
+  ret = toIntegerEx(s, strlen(s), &val);
+  ASSERT_EQ(ret, -1);
+
+  s = "-1";
+  ret = toIntegerEx(s, strlen(s), &val);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(val, -1);
+
+  s = "-9223372036854775807";
+  ret = toIntegerEx(s, strlen(s), &val);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(val, -9223372036854775807);
+
+  s = "1000u";
+  ret = toIntegerEx(s, strlen(s), &val);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(val, 1000);
+
+  s = "1000l";
+  ret = toIntegerEx(s, strlen(s), &val);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(val, 1000);
+
+  s = "1000.0f";
+  ret = toIntegerEx(s, strlen(s), &val);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(val, 1000);
+
+  s = "0x1f";
+  ret = toIntegerEx(s, strlen(s), &val);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(val, 31);
+
+  s = "-0x40";
+  ret = toIntegerEx(s, strlen(s), &val);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(val, -64);
+
+  s = "0b110";
+  ret = toIntegerEx(s, strlen(s), &val);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(val, 6);
+
+  s = "-0b10010";
+  ret = toIntegerEx(s, strlen(s), &val);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(val, -18);
+
+  s = "-5.2343544534e10";
+  ret = toIntegerEx(s, strlen(s), &val);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(val, -52343544534);
+
+  s = "1.869895343e4";
+  ret = toIntegerEx(s, strlen(s), &val);
+  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(val, 18698);
+
+  // UINT64_MAX
+  s = "18446744073709551615";
+  ret = toIntegerEx(s, strlen(s), &val);
+  ASSERT_EQ(ret, -1);
+
+  s = "18446744073709551616";
+  ret = toIntegerEx(s, strlen(s), &val);
+  ASSERT_EQ(ret, -1);
+}
+
 TEST(testCase, toInteger_test) {
   char*    s = "123";
   uint32_t type = 0;
@@ -39,10 +126,9 @@ TEST(testCase, toInteger_test) {
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, 9223372036854775807);
 
-  s = "9323372036854775807";
+  s = "9323372036854775807"; // out of range, > int64_max
   ret = toInteger(s, strlen(s), 10, &val);
-  ASSERT_EQ(ret, 0);
-  ASSERT_EQ(val, 9323372036854775807u);
+  ASSERT_EQ(ret, -1);
 
   s = "-9323372036854775807";
   ret = toInteger(s, strlen(s), 10, &val);
@@ -139,7 +225,7 @@ TEST(testCase, Datablock_test) {
 
   printf("binary column length:%d\n", *(int32_t*)p1->pData);
 
-  ASSERT_EQ(blockDataGetNumOfCols(b), 2);
+  ASSERT_EQ(blockDataGetNumOfCols(b), 3);
   ASSERT_EQ(blockDataGetNumOfRows(b), 40);
 
   char* pData = colDataGetData(p1, 3);
