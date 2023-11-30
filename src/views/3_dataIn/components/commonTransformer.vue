@@ -411,7 +411,6 @@ export default {
         if (Object.keys(item).toString() == "map") {
           echoMapData = Object.entries(item["map"]).map((val) => {
             let expreKey = Object.keys(val[1]).filter((key) => key != "as")[0];
-            console.log(expreKey,'expreKeyexpreKeyexpreKey',val)
             if(expreKey == 'join'){
               this.joinwith=val[1]['with']
             }
@@ -445,7 +444,6 @@ export default {
     },
     //初始化列下拉框数据，适用于新增和编辑，拷贝
     initColumnLists(columns) {
-      console.log(columns, "columns", this.$store.state.app.currentDBType);
       this.$set(
         this,
         "indentifiedColumns",
@@ -552,7 +550,6 @@ export default {
               [`${item["Name"]}`]: expreitem,
             });
 
-            console.log(mutates, "mutates");
           }
         }
       });
@@ -654,7 +651,6 @@ export default {
               : item.expression.split(";").map((item) => item.trim()),
         };
       });
-      console.log(extractObj, this.mappingParser, "ppp");
       let parserData = {
         parser: {
           parse: Object.keys(extractObj).toString() ? extractObj : {},
@@ -880,7 +876,6 @@ export default {
     //回显数据调用mapping接口
     echoFetchMap() {
       let echoData = this.$store.state.app.transformEchoMapData;
-      console.log(echoData,'映射---回显示---mapping');
       if (echoData) {
         //编辑回显
         this.tableData.map((item) => {

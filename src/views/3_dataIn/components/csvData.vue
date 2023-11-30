@@ -41,7 +41,12 @@
               class="nextbtn"
               >{{ $t("datasource.csvNext") }}</el-button
             >
-            <CommonTransformer ref='transform' @getTransformerParams='getTransformerParams' :parserColumns="extractArr" v-if='showTransformer'></CommonTransformer>
+            <CommonTransformer
+              ref="transform"
+              @getTransformerParams="getTransformerParams"
+              :parserColumns="extractArr"
+              v-if="showTransformer"
+            ></CommonTransformer>
             <!-- <div class="csv-config" v-if="showConfig">
               <ul class="csv-tableheader">
                 <li>{{ $t("datasource.csvcol") }}</li>
@@ -124,8 +129,8 @@ export default {
   data() {
     return {
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
-      showTransformer:false,
-      transformerParser:null,
+      showTransformer: false,
+      transformerParser: null,
       language: localStorage.getItem("local_language"),
       showConfig: false,
       csvParserConf: {},
@@ -145,7 +150,7 @@ export default {
       sample_values: [],
       localcsv: {},
       dbOptions: [],
-      extractArr:[]
+      extractArr: [],
     };
   },
   async mounted() {
@@ -178,13 +183,13 @@ export default {
       );
       this.csvColumns = result.file_header.column_names;
       this.sample_values = result.sample_values;
-      this.formatCsvTransformerData(this.csvColumns,this.sample_values)
+      this.formatCsvTransformerData(this.csvColumns, this.sample_values);
     }
   },
   methods: {
     //获取transformer的参数
-    getTransformerParams(data){
-      this.transformerParser=data
+    getTransformerParams(data) {
+      this.transformerParser = data;
     },
     handleRemove(file, filelist) {
       this.fileList = filelist;
@@ -276,7 +281,7 @@ export default {
           Message.error(this.$t("datasource.uploadcsvtip"));
           return;
         }
-        this.showTransformer=false
+        this.showTransformer = false;
         this.$store.commit("app/SET_CSV_TRANSFORMER_PARSER", null);
         this.$refs.param.submit();
 
@@ -303,7 +308,6 @@ export default {
               this.csvColumns = result.file_header.column_names;
               this.sample_values = result.sample_values;
             } else {
-              let localcolumns = this.$refs.param.ruleForm.customcol.split(",");
               result = await getCSVColumns(
                 this.fileList.map((item) => {
                   return item.response[0];
@@ -311,17 +315,6 @@ export default {
                 "csv",
                 this.$refs.param.ruleForm.hasHeader
               );
-              let apiColumns = result.file_header.column_names;
-              if(localcolumns.length!=apiColumns.length){
-                Message.error(this.$set('datasource.transformer.csvtip'));
-                return
-              }
-              this.csvColumns=this.$refs.param.ruleForm.customcol.split(",")
-              this.sample_values = result.sample_values.map(item=>{
-                return item.slice(0,localcolumns.length)
-              })
-              
-
             }
           }
         } else {
@@ -337,6 +330,19 @@ export default {
           this.csvColumns = result.file_header.column_names;
           this.sample_values = result.sample_values;
         }
+        if (this.$refs.param.ruleForm.customcol) {
+          let apiColumns = result.file_header.column_names;
+          let localcolumns = this.$refs.param.ruleForm.customcol.split(",");
+          if (localcolumns.length != apiColumns.length) {
+            Message.error(this.$t("datasource.transformer.csvtip"));
+            return;
+          }
+          this.csvColumns = this.$refs.param.ruleForm.customcol.split(",");
+          this.sample_values = result.sample_values.map((item) => {
+            return item.slice(0, localcolumns.length);
+          });
+        }
+
         this.formatCsvTransformerData(this.csvColumns, this.sample_values);
         this.showConfig = true;
       } catch (error) {
@@ -353,13 +359,15 @@ export default {
           })
         );
       });
-      let msgBody=values.map(item=>{
-        return item
-      })
-      if(this.$store.state.app.csvTransformerlocalCols.length>0){
-        msgBody.unshift(this.$store.state.app.csvTransformerlocalCols.toString())
-      }else{
-        msgBody.unshift(columns.toString())
+      let msgBody = values.map((item) => {
+        return item;
+      });
+      if (this.$store.state.app.csvTransformerlocalCols.length > 0) {
+        msgBody.unshift(
+          this.$store.state.app.csvTransformerlocalCols.toString()
+        );
+      } else {
+        msgBody.unshift(columns.toString());
       }
       this.extractArr.splice(0, this.extractArr.length);
       columns.forEach((item) => {
@@ -374,41 +382,43 @@ export default {
           };
         });
         (obj["columnname"] = ""), (obj["expression"] = ""), (obj["type"] = "");
-        this.extractArr.push(obj)
+        this.extractArr.push(obj);
       });
-      let csvTransformer={
-        "columns":this.$store.state.app.csvTransformerlocalCols.length>0?this.$store.state.app.csvTransformerlocalCols: columns,
-        inputList:this.$store.state.app.csvParser?this.$store.state.app.csvParser.input:inputList,
-        "msgBody": msgBody.join('\n')
-      }
+      let csvTransformer = {
+        columns:
+          this.$store.state.app.csvTransformerlocalCols.length > 0
+            ? this.$store.state.app.csvTransformerlocalCols
+            : columns,
+        inputList: this.$store.state.app.csvParser
+          ? this.$store.state.app.csvParser.input
+          : inputList,
+        msgBody: msgBody.join("\n"),
+      };
       let transformerColumns = [
-          {
-            value: "expression",
-            label: this.$t("expression"),
-            children: this.maptypes.map((item) => {
-              return {
-                value: item,
-                label: item,
-              };
-            }),
-          },
-          {
-            value: "mapping",
-            label: this.$t("mapping"),
-            children: csvTransformer['columns'].map((item) => {
-              return {
-                value: item,
-                label: item,
-              };
-            }),
-          },
-        ];
-        this.$store.commit(
-          "app/SET_TRANSFORMER_MAPCOLUMNS",
-          transformerColumns
-        );
+        {
+          value: "expression",
+          label: this.$t("expression"),
+          children: this.maptypes.map((item) => {
+            return {
+              value: item,
+              label: item,
+            };
+          }),
+        },
+        {
+          value: "mapping",
+          label: this.$t("mapping"),
+          children: csvTransformer["columns"].map((item) => {
+            return {
+              value: item,
+              label: item,
+            };
+          }),
+        },
+      ];
+      this.$store.commit("app/SET_TRANSFORMER_MAPCOLUMNS", transformerColumns);
       this.$store.commit("app/SET_CSV_TRANSFORMER_PARSER", csvTransformer);
-      this.showTransformer=true
+      this.showTransformer = true;
     },
     async getDBColumns() {
       try {
