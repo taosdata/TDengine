@@ -184,16 +184,40 @@ class TDTestCase:
         self.check_query()
 
         # disorder data
-        tdLog.printNoPrefix("==========step5:check  last/last_row result when disorder data==============")
+        tdLog.printNoPrefix("==========step4:check  last/last_row result when disorder data==============")
         self.insert_disorder_data(self.tb_nums,self.row_nums,self.time_step,self.dbname_none)
         self.insert_disorder_data(self.tb_nums,self.row_nums,self.time_step,self.dbname_both)
         self.check_query()
 
 
         # delete data
-        tdLog.printNoPrefix("==========step4:check init last/last_row result when delete data==============")
+        tdLog.printNoPrefix("==========step5:check init last/last_row result when delete data==============")
         self.delete_data(self.row_nums,self.time_step,self.dbname_none,self.dbname_both)
-        
+
+
+        # insert data twice
+        tdLog.printNoPrefix("==========step6:check init last/last_row result when update data twice==============")
+        self.update_data(self.tb_nums,self.row_nums,self.time_step,self.dbname_both)
+        self.update_data(self.tb_nums,self.row_nums,self.time_step,self.dbname_none)
+        tdSql.execute(f"alter database {self.dbname_none} cachemodel 'both' ")
+        tdSql.execute(f"alter database {self.dbname_both} cachemodel 'none' ")
+        time.sleep(4)
+        self.check_query()
+
+        # disorder data
+        tdLog.printNoPrefix("==========step7:check  last/last_row result when disorder data==============")
+        self.insert_disorder_data(self.tb_nums,self.row_nums,self.time_step,self.dbname_none)
+        self.insert_disorder_data(self.tb_nums,self.row_nums,self.time_step,self.dbname_both)
+        time.sleep(4)
+        self.check_query()
+
+
+        # delete data
+        tdLog.printNoPrefix("==========step8:check init last/last_row result when delete data==============")
+        self.delete_data(self.row_nums,self.time_step,self.dbname_none,self.dbname_both)
+
+
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
