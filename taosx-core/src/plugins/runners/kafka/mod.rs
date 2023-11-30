@@ -220,7 +220,6 @@ fn kafka_worker(mut from: Dsn, port: u16, aborted: Arc<AtomicBool>) -> anyhow::R
         )?;
         writer.write(&batch)?;
         consumer.commit_consumed()?;
-        tracing::info!("write batch to ipc: {}", batch.num_rows());
 
         start = chrono::Utc::now().timestamp_millis();
     }

@@ -1,11 +1,27 @@
+# plugins home
 #plugins_home = "/usr/local/taos/plugins"
+
+# data dir
 #data_dir = "/var/lib/taos/taosx"
+
+# logs home
 #logs_home = "/var/log/taos"
+
+# log level: off/error/warn/info/debug/trace
 #log_level = "info"
+
+# log keep days
 #log_keep_days = 30
+
+# number of jobs, default to 0, will use `jobs` number of works for TMQ
 #jobs = 0
+
+# enable OpenTelemetry tracing and metrics exporter
 #otel = false
 
 [serve]
+# listen to ip:port address
 #listen = "0.0.0.0:6050"
+
+# database url
 #database_url = "sqlite:taosx.db"
