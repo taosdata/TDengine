@@ -43,6 +43,9 @@ public class HttpUtils {
             connection.setRequestProperty("accept", "*/*");
             connection.setRequestProperty("connection", "Keep-Alive");
             connection.setRequestProperty("user-agent", "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1;SV1)");
+            connection.setConnectTimeout(5000);
+            // 单次查询数据量大时会有较长等待，所以此处设置 10 分钟
+            connection.setReadTimeout(600000);
             connection.connect();
             in = new BufferedReader(new InputStreamReader(connection.getInputStream(), "GBK"));
             // 取第一行
