@@ -580,13 +580,18 @@ clean:
   return code;
 }
 
-static int32_t s3PutObjectFromFileWithCp(const char *file, int64_t size, int32_t lmtime, const char *object) {
+static int32_t s3PutObjectFromFileWithCp(S3BucketContext *bucket_context, char const *object_name,
+                                         int64_t contentLength, S3PutProperties *put_prop,
+                                         put_object_callback_data *data) {
+  /*
+  static int32_t s3PutObjectFromFileWithCp(const char *file, int64_t size, int32_t lmtime, const char *object) {
+  */
   int32_t code = 0;
 
   return code;
 }
 
-int32_t s3PutObjectFromFile2(const char *file, const char *object_name) {
+int32_t s3PutObjectFromFile2(const char *file, const char *object_name, int8_t withcp) {
   int32_t                  code = 0;
   int32_t                  lmtime = 0;
   const char              *filename = 0;
@@ -627,7 +632,11 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object_name) {
   if (contentLength <= MULTIPART_CHUNK_SIZE) {
     code = s3PutObjectFromFileSimple(&bucketContext, object_name, contentLength, &putProperties, &data);
   } else {
-    code = s3PutObjectFromFileWithoutCp(&bucketContext, object_name, contentLength, &putProperties, &data);
+    if (withcp) {
+      code = s3PutObjectFromFileWithCp(&bucketContext, object_name, contentLength, &putProperties, &data);
+    } else {
+      code = s3PutObjectFromFileWithoutCp(&bucketContext, object_name, contentLength, &putProperties, &data);
+    }
   }
 
   if (data.infileFD) {
@@ -981,7 +990,7 @@ int32_t s3PutObjectFromFile(const char *file_str, const char *object_str) {
   return code;
 }
 
-int32_t s3PutObjectFromFile2(const char *file_str, const char *object_str) {
+int32_t s3PutObjectFromFile2(const char *file_str, const char *object_str, int8_t withcp) {
   int32_t                     code = 0;
   cos_pool_t                 *p = NULL;
   int                         is_cname = 0;
@@ -993,6 +1002,7 @@ int32_t s3PutObjectFromFile2(const char *file_str, const char *object_str) {
   cos_table_t                *headers = NULL;
   cos_resumable_clt_params_t *clt_params = NULL;
 
+  (void)withcp;
   cos_pool_create(&p, NULL);
   options = cos_request_options_create(p);
   s3InitRequestOptions(options, is_cname);
@@ -1342,7 +1352,7 @@ long s3Size(const char *object_name) {
 int32_t s3Init() { return 0; }
 void    s3CleanUp() {}
 int32_t s3PutObjectFromFile(const char *file, const char *object) { return 0; }
-int32_t s3PutObjectFromFile2(const char *file, const char *object) { return 0; }
+int32_t s3PutObjectFromFile2(const char *file, const char *object, int8_t withcp) { return 0; }
 void    s3DeleteObjectsByPrefix(const char *prefix) {}
 void    s3DeleteObjects(const char *object_name[], int nobject) {}
 bool    s3Exists(const char *object_name) { return false; }
