@@ -448,6 +448,28 @@ static int try_get_parts_info(const char *bucketName, const char *key, UploadMan
 }
 */
 
+static int32_t s3PutObjectFromFileSimple(S3BucketContext *bucket_context, char const *object_name, int64_t size,
+                                         S3PutProperties *put_prop, put_object_callback_data *data) {
+  int32_t            code = 0;
+  S3PutObjectHandler putObjectHandler = {{&responsePropertiesCallbackNull, &responseCompleteCallback},
+                                         &putObjectDataCallback};
+
+  do {
+    S3_put_object(bucket_context, object_name, size, put_prop, 0, 0, &putObjectHandler, data);
+  } while (S3_status_is_retryable(data->status) && should_retry());
+
+  if (data->status != S3StatusOK) {
+    s3PrintError(__FILE__, __LINE__, __func__, data->status, data->err_msg);
+    code = TAOS_SYSTEM_ERROR(EIO);
+  } else if (data->contentLength) {
+    uError("ERROR: %s Failed to read remaining %llu bytes from input", __func__,
+           (unsigned long long)data->contentLength);
+    code = TAOS_SYSTEM_ERROR(EIO);
+  }
+
+  return code;
+}
+
 static int32_t s3PutObjectFromFileWithoutCp(const char *file, int64_t size, int32_t lmtime, const char *object) {
   int32_t code = 0;
 
@@ -475,23 +497,16 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
   S3NameValue              metaProperties[S3_MAX_METADATA_COUNT];
   char                     useServerSideEncryption = 0;
   put_object_callback_data data = {0};
-  // int                      noStatus = 0;
 
-  // data.infile = 0;
-  // data.gb = 0;
-  // data.infileFD = NULL;
-  // data.noStatus = noStatus;
-
-  // uError("ERROR: %s stat file %s: ", __func__, file);
   if (taosStatFile(file, &contentLength, &lmtime, NULL) < 0) {
-    uError("ERROR: %s Failed to stat file %s: ", __func__, file);
     code = TAOS_SYSTEM_ERROR(errno);
+    uError("ERROR: %s Failed to stat file %s: ", __func__, file);
     return code;
   }
 
   if (!(data.infileFD = taosOpenFile(file, TD_FILE_READ))) {
-    uError("ERROR: %s Failed to open file %s: ", __func__, file);
     code = TAOS_SYSTEM_ERROR(errno);
+    uError("ERROR: %s Failed to open file %s: ", __func__, file);
     return code;
   }
 
@@ -508,30 +523,12 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
                                    metaProperties,  useServerSideEncryption};
 
   if (contentLength <= MULTIPART_CHUNK_SIZE) {
-    S3PutObjectHandler putObjectHandler = {{&responsePropertiesCallbackNull, &responseCompleteCallback},
-                                           &putObjectDataCallback};
-
-    do {
-      S3_put_object(&bucketContext, key, contentLength, &putProperties, 0, 0, &putObjectHandler, &data);
-    } while (S3_status_is_retryable(data.status) && should_retry());
-
-    if (data.status != S3StatusOK) {
-      s3PrintError(__FILE__, __LINE__, __func__, data.status, data.err_msg);
-      code = TAOS_SYSTEM_ERROR(EIO);
-    } else if (data.contentLength) {
-      uError("ERROR: %s Failed to read remaining %llu bytes from input", __func__,
-             (unsigned long long)data.contentLength);
-      code = TAOS_SYSTEM_ERROR(EIO);
-    }
+    code = s3PutObjectFromFileSimple(&bucketContext, key, contentLength, &putProperties, &data);
   } else {
     uint64_t      totalContentLength = contentLength;
     uint64_t      todoContentLength = contentLength;
     UploadManager manager = {0};
-    // manager.upload_id = 0;
-    // manager.gb = 0;
 
-    // div round up
-    int       seq;
     uint64_t  chunk_size = MULTIPART_CHUNK_SIZE >> 3;
     int       totalSeq = (contentLength + chunk_size - 1) / chunk_size;
     const int max_part_num = 10000;
@@ -581,7 +578,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
 
   upload:
     todoContentLength -= chunk_size * manager.next_etags_pos;
-    for (seq = manager.next_etags_pos + 1; seq <= totalSeq; seq++) {
+    for (int seq = manager.next_etags_pos + 1; seq <= totalSeq; seq++) {
       partData.manager = &manager;
       partData.seq = seq;
       if (partData.put_object_data.gb == NULL) {
