@@ -14,11 +14,7 @@
  */
 
 #include "tsdb.h"
-#include "tsdbDataFileRW.h"
 #include "tsdbFS2.h"
-#include "tsdbFSetRW.h"
-#include "tsdbIter.h"
-#include "tsdbSttFileRW.h"
 
 // STsdbSnapPartition =====================================
 static int32_t tsdbSnapPartCmprFn(STsdbSnapPartition* x, STsdbSnapPartition* y) {
