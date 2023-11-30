@@ -90,9 +90,9 @@ export default {
   },
   mounted() {},
   methods: {
-    handleCellDblclick(row, column) {
+    handleCellDblclick(row, column, cell, event) {
       console.log(row, column,'row, column');
-      copy(row[column.property]);
+      copy(event?.target?.textContent);
     },
     load() {
       if (this.currentTableData.length === this.dataSource.length) return;
