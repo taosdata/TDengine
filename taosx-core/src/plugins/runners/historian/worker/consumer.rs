@@ -60,11 +60,11 @@ impl Consumer {
             let end = task
                 .end_datetime
                 .ok_or(anyhow::anyhow!("endDateTime cannot be None"))?;
-            tracing::debug!("execute migrate query, from: {}, to: {}", start, end);
 
             // query
+            tracing::debug!("execute migrate query, from: {}, to: {}", start, end);
             let mut rows = self.query.query_history(task.tags, start, end).await?;
-            tracing::debug!("rows fetched");
+            tracing::debug!("append rows into batch");
             while let Some(row) = rows.try_next().await? {
                 match row {
                     QueryItem::Row(row) => {
@@ -79,16 +79,20 @@ impl Consumer {
                     }
                 }
             }
-            tracing::debug!("record batch prepared");
             // write batch
+            tracing::debug!("finish batch into records");
             let batch = appender.finish()?;
-            tracing::debug!("appender finish");
+            tracing::debug!("send record batch to writer");
             tx.send_async(batch.clone()).await?;
-            tracing::debug!("historian source write batch to ipc: {}", batch.num_rows());
+            tracing::debug!("write batch to ipc: {}", batch.num_rows());
         }
+        drop(tx);
 
+        tracing::debug!("polling from historian finished");
         writer_handler.await??;
+        tracing::debug!("write finished");
         ack.await??;
+        tracing::debug!("consume task finished");
         Ok(())
     }
 }

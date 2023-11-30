@@ -154,7 +154,21 @@ pub async fn historian_to_taos(
     Ok(())
 }
 
-async fn exec_task(config: TaskConfig) -> anyhow::Result<()> {
+async fn exec_task(mut config: TaskConfig) -> anyhow::Result<()> {
+    let mut tags = config.tags.clone();
+    if !tags.is_empty() && tags.len() == 1 && tags.get(0).unwrap() == "*" {
+        let mut client = HistorianQuery::try_new(config.connect.clone()).await?;
+        let tag_meta = client.get_tags().await?;
+        tags = tag_meta
+            .iter()
+            .map(|meta| meta.name.clone())
+            .collect::<Vec<_>>();
+    }
+    if tags.is_empty() {
+        anyhow::bail!("tags cannot be empty");
+    }
+    config.tags = tags;
+
     match (config.mode, config.table) {
         (TaskMode::Migrate, HistorianTable::History) => {
             migrate_history(config.clone()).await?;

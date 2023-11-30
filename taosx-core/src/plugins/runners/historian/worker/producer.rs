@@ -4,7 +4,6 @@ use flume::Sender;
 use itertools::Itertools;
 
 use crate::runners::historian::config::TaskConfig;
-use crate::runners::historian::query::HistorianQuery;
 
 pub struct Producer {
     config: TaskConfig,
@@ -27,34 +26,25 @@ impl Producer {
             .end_datetime
             .ok_or(anyhow::anyhow!("endDateTime cannot be None"))?;
         let time_window = self.config.time_window;
-
-        let mut tags = self.config.tags.clone();
-        if !tags.is_empty() && tags.len() == 1 && tags.get(0).unwrap() == "*" {
-            let mut client = HistorianQuery::try_new(self.config.connect.clone()).await?;
-            let tag_meta = client.get_tags().await?;
-            tags = tag_meta
-                .iter()
-                .map(|meta| meta.name.clone())
-                .collect::<Vec<_>>();
-        }
-        if tags.is_empty() {
-            anyhow::bail!("tags cannot be empty");
-        }
+        tracing::debug!(
+            "produce task, begin: {}, end: {}, timeWindow: {}",
+            window_start,
+            end,
+            time_window
+        );
 
         while window_start < end {
             let window_end = min(window_start + time_window, end);
-            tracing::debug!(
-                "create migrate task, from: {}, to: {}",
-                window_start,
-                window_end
-            );
 
-            let tasks = tags
+            let tasks = self
+                .config
+                .tags
                 .iter()
                 .chunks(self.config.tag_list_size)
                 .into_iter()
                 .map(|list| {
                     let mut task = self.config.clone();
+
                     task.begin_datetime = Some(window_start);
                     task.end_datetime = Some(window_end);
                     task.tags = list.map(|s| s.to_string()).collect::<Vec<_>>();
@@ -70,6 +60,7 @@ impl Producer {
             window_start = window_end;
         }
 
+        tracing::debug!("produce task finished");
         Ok(())
     }
 }
