@@ -68,13 +68,19 @@ typedef struct SStreamContinueExecInfo {
   SRpcMsg msg;
 } SStreamContinueExecInfo;
 
+typedef struct {
+  int64_t streamId;
+  int64_t taskId;
+  int64_t chkpId;
+  char*   dbPrefixPath;
+} SStreamTaskSnap;
 struct STokenBucket {
-  int32_t numCapacity;    // total capacity, available token per second
-  int32_t numOfToken;     // total available tokens
-  int32_t numRate;        // number of token per second
-  double  quotaCapacity;  // available capacity for maximum input size, KiloBytes per Second
-  double  quotaRemain;    // not consumed bytes per second
-  double  quotaRate;      // number of token per second
+  int32_t numCapacity;         // total capacity, available token per second
+  int32_t numOfToken;          // total available tokens
+  int32_t numRate;             // number of token per second
+  double  quotaCapacity;       // available capacity for maximum input size, KiloBytes per Second
+  double  quotaRemain;         // not consumed bytes per second
+  double  quotaRate;           // number of token per second
   int64_t tokenFillTimestamp;  // fill timestamp
   int64_t quotaFillTimestamp;  // fill timestamp
 };
@@ -89,6 +95,7 @@ struct SStreamQueue {
 extern SStreamGlobalEnv streamEnv;
 extern int32_t          streamBackendId;
 extern int32_t          streamBackendCfWrapperId;
+extern int32_t          taskDbWrapperId;
 
 void    streamRetryDispatchData(SStreamTask* pTask, int64_t waitDuration);
 int32_t streamDispatchStreamBlock(SStreamTask* pTask);
@@ -106,6 +113,8 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
 
 int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* pReq);
 
+int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId);
+int32_t streamTaskBuildCheckpoint(SStreamTask* pTask);
 int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId);
 int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet);
 
@@ -117,7 +126,8 @@ int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t
 STaskId streamTaskExtractKey(const SStreamTask* pTask);
 void    streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo);
 void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
-int32_t streamTaskBuildScanhistoryRspMsg(SStreamTask* pTask, SStreamScanHistoryFinishReq* pReq, void** pBuffer, int32_t* pLen);
+int32_t streamTaskBuildScanhistoryRspMsg(SStreamTask* pTask, SStreamScanHistoryFinishReq* pReq, void** pBuffer,
+                                         int32_t* pLen);
 int32_t streamTaskFillHistoryFinished(SStreamTask* pTask);
 
 void              streamClearChkptReadyMsg(SStreamTask* pTask);
@@ -132,6 +142,17 @@ int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo,
 int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
 int32_t streamTransferStateToStreamTask(SStreamTask* pTask);
 
+// <<<<<<< HEAD
+// void streamClearChkptReadyMsg(SStreamTask* pTask);
+
+// int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate, const
+// char*); STaskId streamTaskExtractKey(const SStreamTask* pTask); void streamTaskInitForLaunchHTask(SHistoryTaskInfo*
+// pInfo); void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
+
+// void streamMetaResetStartInfo(STaskStartInfo* pMeta);
+
+// =======
+// >>>>>>> 3.0
 SStreamQueue* streamQueueOpen(int64_t cap);
 void          streamQueueClose(SStreamQueue* pQueue, int32_t taskId);
 void          streamQueueProcessSuccess(SStreamQueue* queue);
@@ -151,10 +172,14 @@ int         uploadCheckpoint(char* id, char* path);
 int         downloadCheckpoint(char* id, char* path);
 int         deleteCheckpoint(char* id);
 int         deleteCheckpointFile(char* id, char* name);
+int         downloadCheckpointByName(char* id, char* fname, char* dstName);
 
 int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask);
 int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask);
 
+typedef int32_t (*__stream_async_exec_fn_t)(void* param);
+
+int32_t streamMetaAsyncExec(SStreamMeta* pMeta, __stream_async_exec_fn_t fn, void* param, int32_t* code);
 #ifdef __cplusplus
 }
 #endif

@@ -186,7 +186,7 @@ See [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/bl
 
 ### TDengine RESTful interface
 
-You can use any client that supports the http protocol to write data to or query data from TDengine by accessing the REST interface address `http://<fqdn>:6041/rest/sql`. See the [official documentation](/reference/rest-api/) for details.
+You can use any client that supports the http protocol to write data to or query data from TDengine by accessing the REST interface address `http://<fqdn>:6041/rest/sql`. See the [official documentation](../rest-api/) for details.
 
 ### InfluxDB
 
@@ -202,7 +202,7 @@ Support InfluxDB query parameters as follows.
 - `precision` The time precision used by TDengine
 - `u` TDengine user name
 - `p` TDengine password
-- `ttl` The time to live of automatically created sub-table. This value cannot be updated. TDengine will use the ttl value of the first data of sub-table to create sub-table. For more information, please refer [Create Table](/taos-sql/table/#create-table)
+- `ttl` The time to live of automatically created sub-table. This value cannot be updated. TDengine will use the ttl value of the first data of sub-table to create sub-table. For more information, please refer [Create Table](../../taos-sql/table/#create-table)
 
 Note:      InfluxDB token authorization is not supported at present. Only Basic authorization and query parameter validation are supported.
 Example:   curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"

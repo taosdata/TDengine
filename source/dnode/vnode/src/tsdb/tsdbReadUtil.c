@@ -210,6 +210,7 @@ void clearBlockScanInfo(STableBlockScanInfo* p) {
   p->iterInit = false;
   p->iter.hasVal = false;
   p->iiter.hasVal = false;
+  p->sttKeyInfo.status = STT_FILE_READER_UNINIT;
 
   if (p->iter.iter != NULL) {
     p->iter.iter = tsdbTbDataIterDestroy(p->iter.iter);

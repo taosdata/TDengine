@@ -449,6 +449,7 @@ typedef struct SVnodeModifyOpStmt {
   SHashObj*             pSubTableHashObj;    // SHashObj<table_name, STableMeta*>
   SHashObj*             pTableNameHashObj;   // set of table names for refreshing meta, sync mode
   SHashObj*             pDbFNameHashObj;     // set of db names for refreshing meta, sync mode
+  SHashObj*             pTableCxtHashObj;    // temp SHashObj<tuid, STableDataCxt*> for single request
   SArray*               pVgDataBlocks;  // SArray<SVgroupDataCxt*>
   SVCreateTbReq*        pCreateTblReq;
   TdFilePtr             fp;

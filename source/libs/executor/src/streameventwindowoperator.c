@@ -604,13 +604,20 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
            pSeKeyBuf[i].groupId, i);
     getSessionWindowInfoByKey(pAggSup, pSeKeyBuf + i, &curInfo.winInfo);
     setEventWindowFlag(pAggSup, &curInfo);
-    if (!curInfo.pWinFlag->startFlag || !curInfo.pWinFlag->endFlag) {
+    if (!curInfo.pWinFlag->startFlag || curInfo.pWinFlag->endFlag) {
       continue;
     }
 
     compactEventWindow(pOperator, &curInfo, pInfo->pSeUpdated, pInfo->pSeDeleted, false);
     qDebug("===stream=== reload state. save result %" PRId64 ", %" PRIu64, curInfo.winInfo.sessionWin.win.skey,
             curInfo.winInfo.sessionWin.groupId);
+    if (IS_VALID_SESSION_WIN(curInfo.winInfo)) {
+      saveSessionOutputBuf(pAggSup, &curInfo.winInfo);
+    }
+
+    if (!curInfo.pWinFlag->endFlag) {
+      continue;
+    }
 
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE) {
       saveResult(curInfo.winInfo, pInfo->pSeUpdated);
@@ -621,10 +628,6 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
       SSessionKey key = {0};
       getSessionHashKey(&curInfo.winInfo.sessionWin, &key);
       tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &curInfo.winInfo, sizeof(SResultWindowInfo));
-    }
-
-    if (IS_VALID_SESSION_WIN(curInfo.winInfo)) {
-      saveSessionOutputBuf(pAggSup, &curInfo.winInfo);
     }
   }
   taosMemoryFree(pBuf);

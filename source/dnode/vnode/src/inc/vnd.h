@@ -48,9 +48,32 @@ int32_t vnodeCheckCfg(const SVnodeCfg*);
 int32_t vnodeEncodeConfig(const void* pObj, SJson* pJson);
 int32_t vnodeDecodeConfig(const SJson* pJson, void* pObj);
 
+// vnodeAsync.c
+typedef struct SVAsync SVAsync;
+
+typedef enum {
+  EVA_PRIORITY_HIGH = 0,
+  EVA_PRIORITY_NORMAL,
+  EVA_PRIORITY_LOW,
+} EVAPriority;
+
+#define VNODE_ASYNC_VALID_CHANNEL_ID(channelId) ((channelId) > 0)
+#define VNODE_ASYNC_VALID_TASK_ID(taskId)       ((taskId) > 0)
+
+int32_t vnodeAsyncInit(SVAsync** async, char* label);
+int32_t vnodeAsyncDestroy(SVAsync** async);
+int32_t vnodeAChannelInit(SVAsync* async, int64_t* channelId);
+int32_t vnodeAChannelDestroy(SVAsync* async, int64_t channelId, bool waitRunning);
+int32_t vnodeAsync(SVAsync* async, EVAPriority priority, int32_t (*execute)(void*), void (*complete)(void*), void* arg,
+                   int64_t* taskId);
+int32_t vnodeAsyncC(SVAsync* async, int64_t channelId, EVAPriority priority, int32_t (*execute)(void*),
+                    void (*complete)(void*), void* arg, int64_t* taskId);
+int32_t vnodeAWait(SVAsync* async, int64_t taskId);
+int32_t vnodeACancel(SVAsync* async, int64_t taskId);
+int32_t vnodeAsyncSetWorkers(SVAsync* async, int32_t numWorkers);
+
 // vnodeModule.c
-int vnodeScheduleTask(int (*execute)(void*), void* arg);
-int vnodeScheduleTaskEx(int tpid, int (*execute)(void*), void* arg);
+extern SVAsync* vnodeAsyncHandle[2];
 
 // vnodeBufPool.c
 typedef struct SVBufPoolNode SVBufPoolNode;
@@ -110,7 +133,7 @@ int32_t vnodeAsyncCommit(SVnode* pVnode);
 bool    vnodeShouldRollback(SVnode* pVnode);
 
 // vnodeSync.c
-int32_t vnodeSyncOpen(SVnode *pVnode, char *path, int32_t vnodeVersion);
+int32_t vnodeSyncOpen(SVnode* pVnode, char* path, int32_t vnodeVersion);
 int32_t vnodeSyncStart(SVnode* pVnode);
 void    vnodeSyncPreClose(SVnode* pVnode);
 void    vnodeSyncPostClose(SVnode* pVnode);
