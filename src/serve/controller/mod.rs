@@ -986,6 +986,10 @@ impl TaskController {
 
     #[instrument(skip_all, name = "task::update", fields(task.id = id))]
     pub async fn update(&self, id: i64, task: UpdateTask) -> anyhow::Result<Option<TaskDetail>> {
+        let old = self
+            .get(id)
+            .await?
+            .ok_or_else(|| anyhow!("Task not found: {}", id))?;
         tracing::info!("update task {id}: {task:?}");
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
@@ -1023,6 +1027,12 @@ impl TaskController {
         }
         bind_fields!(name stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force parser trigger);
         query = query.bind(&task.via);
+
+        if task.via.is_none() {
+            validate_dsn(task.from.as_deref().unwrap_or(old.from.as_str()))
+                .await
+                .ok()?;
+        }
 
         let res = query.execute(&self.pool).await?;
 

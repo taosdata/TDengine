@@ -96,7 +96,11 @@ impl OPCConfig {
             debug: Self::parse_debug(dsn)?,
             connect: ConnectConfig::from_dsn(dsn)?,
             points: None,
-            collect: CollectConfig::new_empty().await?,
+            collect: if dsn.get("csv_config_file").is_some() {
+                CollectConfig::from_dsn(dsn, None).await?
+            } else {
+                CollectConfig::new_empty().await?
+            },
             report: ReportConfig::from_dsn(dsn, 0)?,
             param_mapping: HashMap::new(),
             opc_table_config: None,
