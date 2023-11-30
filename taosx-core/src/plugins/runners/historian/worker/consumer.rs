@@ -20,13 +20,24 @@ impl Consumer {
     }
 
     pub async fn consume(&mut self, receiver: Receiver<TaskConfig>) -> anyhow::Result<()> {
+        let mut appender = ArrowDataAppender::try_new(HistorianTable::History)?;
+        let schema = appender.schema().clone();
+
         let socket = format!("127.0.0.1:{}", self.port);
         let stream = std::net::TcpStream::connect(socket)?;
-        let mut appender = ArrowDataAppender::try_new(HistorianTable::History)?;
-        let mut writer = StreamWriter::try_new(&stream, appender.schema())?;
-
-        // create ack stream
         let ack_stream = stream.try_clone()?;
+
+        let (tx, rx) = flume::bounded(0);
+        let writer_handler = tokio::task::spawn_blocking(move || {
+            stream.set_nonblocking(false)?;
+            let mut writer = StreamWriter::try_new(stream, &schema)?;
+            while let Ok(batch) = rx.recv() {
+                writer.write(&batch)?;
+            }
+            let _ = writer.finish()?;
+            anyhow::Ok(())
+        });
+
         let ack = tokio::task::spawn_blocking(move || {
             let ack_reader =
                 AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
@@ -53,6 +64,7 @@ impl Consumer {
 
             // query
             let mut rows = self.query.query_history(task.tags, start, end).await?;
+            tracing::debug!("prepare record batch");
             while let Some(row) = rows.try_next().await? {
                 match row {
                     QueryItem::Row(row) => {
@@ -70,11 +82,11 @@ impl Consumer {
 
             // write batch
             let batch = appender.finish()?;
-            writer.write(&batch)?;
+            tx.send_async(batch.clone()).await?;
             tracing::debug!("historian source write batch to ipc: {}", batch.num_rows());
         }
-        writer.finish()?;
 
+        writer_handler.await??;
         ack.await??;
         Ok(())
     }
