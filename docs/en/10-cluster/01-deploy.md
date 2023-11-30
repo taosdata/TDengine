@@ -77,7 +77,7 @@ In the following example we assume that first dnode has FQDN h1.taosdata.com and
 
 ### Start The First DNODE
 
-The first dnode can be started following the instructions in [Get Started](/get-started/). Then TDengine CLI `taos` can be launched to execute command `show dnodes`, the output is as following for example:
+The first dnode can be started following the instructions in [Get Started](../../get-started/). Then TDengine CLI `taos` can be launched to execute command `show dnodes`, the output is as following for example:
 
 ```
 Welcome to the TDengine shell from Linux, Client Version:2.0.0.0
@@ -114,7 +114,7 @@ serverPort            6030
 
 ```
 
-Second, we can start `taosd` as instructed in [Get Started](/get-started/).
+Second, we can start `taosd` as instructed in [Get Started](../../get-started/).
 
 Then, on the first dnode i.e. h1.taosdata.com in our example, use TDengine CLI `taos` to execute the following command to add the end point of the dnode in the cluster. In the command "fqdn:port" should be quoted using double quotes.
 

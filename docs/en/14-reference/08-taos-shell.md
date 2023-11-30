@@ -8,7 +8,7 @@ The TDengine command-line interface (hereafter referred to as `TDengine CLI`) is
 
 ## Installation
 
-If executed on the TDengine server-side, there is no need for additional installation steps to install TDengine CLI as it is already included and installed automatically. To run TDengine CLI in an environment where no TDengine server is running, the TDengine client installation package needs to be installed first. For details, please refer to [Install Client Driver](/reference/connector/#install-client-driver).
+If executed on the TDengine server-side, there is no need for additional installation steps to install TDengine CLI as it is already included and installed automatically. To run TDengine CLI in an environment where no TDengine server is running, the TDengine client installation package needs to be installed first. For details, please refer to [Install Client Driver](../connector/#install-client-driver).
 
 ## Execution
 
@@ -18,7 +18,7 @@ To access the TDengine CLI, you can execute `taos` command-line utility from a L
 taos
 ```
 
-TDengine CLI will display a welcome message and version information if it successfully connected to the TDengine service. If it fails, TDengine CLI will print an error message. See [FAQ](/train-faq/faq) to solve the problem of terminal connection failure to the server. The TDengine CLI prompts as follows:
+TDengine CLI will display a welcome message and version information if it successfully connected to the TDengine service. If it fails, TDengine CLI will print an error message. See [FAQ](../../train-faq/faq) to solve the problem of terminal connection failure to the server. The TDengine CLI prompts as follows:
 
 ```cmd
 taos>
