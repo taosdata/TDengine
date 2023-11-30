@@ -58,7 +58,7 @@ View permissions are divided into three types: READ, WRITE, and ALTER. Query ope
 - Views can be defined and used nested, and the verification of view permissions is also performed by recursion.
 - In order to facilitate the sharing and use of views, the concept of view effective user (i.e. the user who creates the view) is introduced. Authorized users can use the read and write permissions of the view effective user's library, table, and nested view. Note: After the view is REPLACE, the effective user will also be updated.
 
-<br>The detailed rules for controlling relevant permissions are summarized as follows:
+<br>The detailed rules for controlling relevant permissions are summarized as follows: </br>
 
 | Serial number | Operation | Permission requirements |
 | --- | --- | --- |
