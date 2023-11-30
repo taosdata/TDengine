@@ -760,11 +760,11 @@ static int32_t checkForNumOfStreams(SMnode *pMnode, SStreamObj *pStreamObj) {  /
 
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
-  int32_t     code = -1;
   SStreamObj *pStream = NULL;
   SStreamObj  streamObj = {0};
   char       *sql = NULL;
   int32_t     sqlLen = 0;
+  terrno = TSDB_CODE_SUCCESS;
 
   SCMCreateStreamReq createStreamReq = {0};
   if (tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, &createStreamReq) != 0) {
@@ -787,7 +787,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   if (pStream != NULL) {
     if (createStreamReq.igExists) {
       mInfo("stream:%s, already exist, ignore exist is set", createStreamReq.name);
-      code = 0;
       goto _OVER;
     } else {
       terrno = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
@@ -810,8 +809,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = checkForNumOfStreams(pMnode, &streamObj);
-  if (code != TSDB_CODE_SUCCESS) {
+  if (checkForNumOfStreams(pMnode, &streamObj) < 0) {
     goto _OVER;
   }
 
@@ -874,8 +872,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   saveStreamTasksInfo(&streamObj, &execInfo);
   taosThreadMutexUnlock(&execInfo.lock);
 
-  code = TSDB_CODE_ACTION_IN_PROGRESS;
-
   SName dbname = {0};
   tNameFromString(&dbname, createStreamReq.sourceDB, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
@@ -892,8 +888,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    code = terrno;
+   if (terrno != TSDB_CODE_SUCCESS && terrno != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
   }
 
@@ -904,7 +899,7 @@ _OVER:
     taosMemoryFreeClear(sql);
   }
 
-  return code;
+  return terrno;
 }
 
 int64_t mndStreamGenChkpId(SMnode *pMnode) {
