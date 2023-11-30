@@ -67,8 +67,11 @@ export default {
           Object.keys(this.ruleForm)
             .filter((key) => this.ruleForm[key])
             .forEach((item) => {
+
                 console.log(this.ruleForm[item],'this.ruleForm[item]');
               splitExpre[item] =item=='names'?this.ruleForm[item].toString(): this.ruleForm[item];
+
+              
             });
             if(splitExpre['names']){
                 splitExpre['names']=splitExpre['names'].toString().split(',')
