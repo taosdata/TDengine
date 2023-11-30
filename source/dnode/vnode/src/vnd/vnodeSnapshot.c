@@ -16,6 +16,26 @@
 #include "tsdb.h"
 #include "vnd.h"
 
+static int32_t vnodeExtractSnapInfoDiff(void *buf, int32_t bufLen, TFileSetRangeArray **ppRanges) {
+  int32_t            code = -1;
+  STsdbSnapPartList *pList = tsdbSnapPartListCreate();
+  if (pList == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _out;
+  }
+  if (tDeserializeTsdbSnapPartList(buf, bufLen, pList) < 0) {
+    terrno = TSDB_CODE_INVALID_DATA_FMT;
+    goto _out;
+  }
+  if (tsdbSnapPartListToRangeDiff(pList, ppRanges) < 0) {
+    goto _out;
+  }
+  code = 0;
+_out:
+  tsdbSnapPartListDestroy(&pList);
+  return code;
+}
+
 // SVSnapReader ========================================================
 struct SVSnapReader {
   SVnode *pVnode;
@@ -49,26 +69,6 @@ struct SVSnapReader {
   SRSmaSnapReader *pRsmaReader;
 };
 
-static int32_t vnodeExtractSnapInfoDiff(void *buf, int32_t bufLen, TFileSetRangeArray **ppRanges) {
-  int32_t            code = -1;
-  STsdbSnapPartList *pList = tsdbSnapPartListCreate();
-  if (pList == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _out;
-  }
-  if (tDeserializeTsdbSnapPartList(buf, bufLen, pList) < 0) {
-    terrno = TSDB_CODE_INVALID_DATA_FMT;
-    goto _out;
-  }
-  if (tsdbSnapPartListToRangeDiff(pList, ppRanges) < 0) {
-    goto _out;
-  }
-  code = 0;
-_out:
-  tsdbSnapPartListDestroy(&pList);
-  return code;
-}
-
 static TFileSetRangeArray **vnodeSnapReaderGetTsdbRanges(SVSnapReader *pReader, int32_t tsdbTyp) {
   ASSERTS(sizeof(pReader->pRsmaRanges) / sizeof(pReader->pRsmaRanges[0]) == 2, "Unexpected array size");
   switch (tsdbTyp) {
@@ -83,7 +83,7 @@ static TFileSetRangeArray **vnodeSnapReaderGetTsdbRanges(SVSnapReader *pReader, 
   }
 }
 
-static int32_t vnodeSnapReaderDoSnapInfo(SVSnapReader *pReader, SSnapshotParam *pParam) {
+static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotParam *pParam) {
   SVnode *pVnode = pReader->pVnode;
   int32_t code = -1;
 
@@ -102,14 +102,24 @@ static int32_t vnodeSnapReaderDoSnapInfo(SVSnapReader *pReader, SSnapshotParam *
       offset += sizeof(SSyncTLV) + subField->len;
       void   *buf = subField->val;
       int32_t bufLen = subField->len;
-      ppRanges = vnodeSnapReaderGetTsdbRanges(pReader, subField->typ);
-      if (ppRanges == NULL) {
-        vError("vgId:%d, unexpected subfield type in data of snapshot param. subtyp:%d", TD_VID(pVnode), subField->typ);
-        goto _out;
-      }
-      if (vnodeExtractSnapInfoDiff(buf, bufLen, ppRanges) < 0) {
-        vError("vgId:%d, failed to get range diff since %s", TD_VID(pVnode), terrstr());
-        goto _out;
+
+      switch (subField->typ) {
+        case SNAP_DATA_TSDB:
+        case SNAP_DATA_RSMA1:
+        case SNAP_DATA_RSMA2: {
+          ppRanges = vnodeSnapReaderGetTsdbRanges(pReader, subField->typ);
+          if (ppRanges == NULL) {
+            vError("vgId:%d, unexpected subfield type in snapshot param. subtyp:%d", TD_VID(pVnode), subField->typ);
+            goto _out;
+          }
+          if (vnodeExtractSnapInfoDiff(buf, bufLen, ppRanges) < 0) {
+            vError("vgId:%d, failed to get range diff since %s", TD_VID(pVnode), terrstr());
+            goto _out;
+          }
+        } break;
+        default:
+          vError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), subField->typ);
+          goto _out;
       }
     }
   }
@@ -135,7 +145,7 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
   pReader->ever = ever;
 
   // snapshot info
-  if (vnodeSnapReaderDoSnapInfo(pReader, pParam) < 0) {
+  if (vnodeSnapReaderDealWithSnapInfo(pReader, pParam) < 0) {
     goto _err;
   }
 
@@ -483,7 +493,7 @@ TFileSetRangeArray **vnodeSnapWriterGetTsdbRanges(SVSnapWriter *pWriter, int32_t
   }
 }
 
-static int32_t vnodeSnapWriterDoSnapInfo(SVSnapWriter *pWriter, SSnapshotParam *pParam) {
+static int32_t vnodeSnapWriterDealWithSnapInfo(SVSnapWriter *pWriter, SSnapshotParam *pParam) {
   SVnode *pVnode = pWriter->pVnode;
   int32_t code = -1;
 
@@ -502,14 +512,24 @@ static int32_t vnodeSnapWriterDoSnapInfo(SVSnapWriter *pWriter, SSnapshotParam *
       offset += sizeof(SSyncTLV) + subField->len;
       void   *buf = subField->val;
       int32_t bufLen = subField->len;
-      ppRanges = vnodeSnapWriterGetTsdbRanges(pWriter, subField->typ);
-      if (ppRanges == NULL) {
-        vError("vgId:%d, unexpected subfield type in data of snapshot param. subtyp:%d", TD_VID(pVnode), subField->typ);
-        goto _out;
-      }
-      if (vnodeExtractSnapInfoDiff(buf, bufLen, ppRanges) < 0) {
-        vError("vgId:%d, failed to get range diff since %s", TD_VID(pVnode), terrstr());
-        goto _out;
+
+      switch (subField->typ) {
+        case SNAP_DATA_TSDB:
+        case SNAP_DATA_RSMA1:
+        case SNAP_DATA_RSMA2: {
+          ppRanges = vnodeSnapWriterGetTsdbRanges(pWriter, subField->typ);
+          if (ppRanges == NULL) {
+            vError("vgId:%d, unexpected subfield type in snapshot param. subtyp:%d", TD_VID(pVnode), subField->typ);
+            goto _out;
+          }
+          if (vnodeExtractSnapInfoDiff(buf, bufLen, ppRanges) < 0) {
+            vError("vgId:%d, failed to get range diff since %s", TD_VID(pVnode), terrstr());
+            goto _out;
+          }
+        } break;
+        default:
+          vError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), subField->typ);
+          goto _out;
       }
     }
   }
@@ -558,7 +578,7 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapWriter
   pWriter->commitID = ++pVnode->state.commitID;
 
   // snapshot info
-  if (vnodeSnapWriterDoSnapInfo(pWriter, pParam) < 0) {
+  if (vnodeSnapWriterDealWithSnapInfo(pWriter, pParam) < 0) {
     goto _err;
   }
 
