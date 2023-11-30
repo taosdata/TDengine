@@ -28,7 +28,7 @@ impl PerformanceConfig {
             delay: dsn
                 .params
                 .get("delay")
-                .unwrap_or(&"10000".to_string())
+                .unwrap_or(&"10".to_string())
                 .parse::<u32>()
                 .map_err(|err| anyhow::anyhow!("invalid delay, cause: {:?}", err))?,
             max_thread: dsn

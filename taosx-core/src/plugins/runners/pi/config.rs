@@ -363,7 +363,7 @@ impl PiConfig {
     }
 
     fn parse_max_wait_len(dsn: &Dsn) -> anyhow::Result<Option<u32>> {
-        let max_wait_len = dsn
+        let mut max_wait_len = dsn
             .params
             .get("MaxWaitLen")
             .map(|v| {
@@ -372,6 +372,17 @@ impl PiConfig {
                 })
             })
             .transpose()?;
+        if max_wait_len.is_none() {
+            max_wait_len = dsn
+                .params
+                .get("batch_size")
+                .map(|v| {
+                    v.parse::<u32>().map_err(|err| {
+                        anyhow::anyhow!("invalid batch_size, cause: {}", err.to_string())
+                    })
+                })
+                .transpose()?;
+        }
         if let Some(mwl) = max_wait_len {
             if mwl < 1 || mwl > 10000 {
                 return Err(anyhow::anyhow!("MaxWaitLen should be in range 1..10000"));
@@ -381,7 +392,7 @@ impl PiConfig {
     }
 
     fn parse_update_interval(dsn: &Dsn) -> anyhow::Result<Option<u32>> {
-        let update_interval = dsn
+        let mut update_interval = dsn
             .params
             .get("UpdateInterval")
             .map(|v| {
@@ -390,10 +401,23 @@ impl PiConfig {
                 })
             })
             .transpose()?;
+        if update_interval.is_none() {
+            update_interval = dsn
+                .params
+                .get("batch_timeout")
+                .map(|v| {
+                    v.parse::<u32>()
+                        .map_err(|err| {
+                            anyhow::anyhow!("invalid batch_timeout, cause: {}", err.to_string())
+                        })
+                        .map(|v| v * 1000)
+                })
+                .transpose()?;
+        }
         if let Some(ui) = update_interval {
             if ui < 100 || ui > 60000 {
                 return Err(anyhow::anyhow!(
-                    "UpdateInterval should be in range 100..60000"
+                    "UpdateInterval should be in range 100..60000 ms"
                 ));
             }
         }

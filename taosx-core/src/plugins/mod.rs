@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use futures::TryStreamExt;
+use serde::{Deserialize, Serialize};
 use taos::Dsn;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
@@ -11,14 +12,12 @@ use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
 use crate::runners::influxdb::influxdb_datasets;
+use crate::runners::opc::config::OpcTableConfig;
 use crate::utils::mask_dsn;
 use crate::Transferred;
 pub use runners::mqtt::mqtt_to_taos;
 use runners::opc::opc_datasets;
 pub use runners::opc::opc_to_taos;
-pub use runners::opc::ColumnConfig;
-pub use runners::opc::OPCConfig;
-pub use runners::opc::TableConfig;
 pub use runners::opentsdb::opentsdb_datasets;
 pub use runners::opentsdb::opentsdb_to_taos;
 use runners::pi::pi_datasets;
@@ -29,32 +28,54 @@ pub use runners::{
 };
 pub use sink::IpcStreamWorker;
 pub use taosx_ipc::types::*;
-pub use transform::Parser;
+pub use transform::Pipeline;
 
-use self::runners::opc::OpcTableConfig;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Parser {
+    Inner(transform::Parser),
+    WithSample {
+        parser: transform::Parser,
+        input: Option<Vec<serde_json::Value>>,
+    },
+}
+
+impl std::ops::Deref for Parser {
+    type Target = transform::Parser;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Parser::Inner(parser) => parser,
+            Parser::WithSample { parser, .. } => parser,
+        }
+    }
+}
+
 use self::sink::IpcHandler;
 
 mod config;
+mod expr;
 pub mod runners;
 mod service;
 pub mod sink;
 mod source;
-mod transform;
+pub mod transform;
 
 /// ipc stream metrics
 /// be careful to modify, in case other crate use string value. for now POINTS value used in taosx-ipc.
-pub const RECORD_BATCHES: &str = "ipc.stream.record_batches";
-pub const BATCH_RECORDS: &str = "ipc.stream.batch_records";
-pub const INSERT_SQLS: &str = "ipc.stream.insert_sqls";
-pub const INSERT_SQL_FAILS: &str = "ipc.stream.insert_sql_fails";
-// pub const STABLE_CREATED: &str = "ipc.stream.stable_created";
-// pub const CHILD_TABLE_CREATED: &str = "ipc.stream.child_table_created";
-pub const RECORDS: &str = "ipc.stream.records";
-pub const RECORD_FAILS: &str = "ipc.stream.record_fails";
-pub const POINTS: &str = "ipc.stream.points";
-pub const POINT_FAILS: &str = "ipc.stream.point_fails";
-pub const WRITE_RAW_BLOCKS: &str = "ipc.stream.write_raw_blocks";
-pub const WRITE_RAW_BLOCK_FAILS: &str = "ipc.stream.write_raw_blocks_fails";
+pub const METRIC_RECORD_BATCHES: &str = "ipc.stream.record_batches";
+pub const METRIC_RECEIVED_BATCHES: &str = "ipc.stream.received_batches";
+pub const METRIC_BATCH_RECORDS: &str = "ipc.stream.batch_records";
+pub const METRIC_INSERT_SQLS: &str = "ipc.stream.insert_sqls";
+pub const METRIC_INSERT_SQL_FAILS: &str = "ipc.stream.insert_sql_fails";
+pub const METRIC_STABLE_CREATED: &str = "ipc.stream.stable_created";
+pub const METRIC_CHILD_TABLE_CREATED: &str = "ipc.stream.child_table_created";
+pub const METRIC_RECORDS: &str = "ipc.stream.records";
+pub const METRIC_RECORD_FAILS: &str = "ipc.stream.record_fails";
+pub const METRIC_POINTS: &str = "ipc.stream.points";
+pub const METRIC_POINT_FAILS: &str = "ipc.stream.point_fails";
+pub const METRIC_WRITE_RAW_BLOCKS: &str = "ipc.stream.write_raw_blocks";
+pub const METRIC_WRITE_RAW_BLOCK_FAILS: &str = "ipc.stream.write_raw_blocks_fails";
 
 #[instrument(skip_all, fields(ipc.listen = socket, ipc.target = % mask_dsn(to)))]
 pub async fn build_ipc(

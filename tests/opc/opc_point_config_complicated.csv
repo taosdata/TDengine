@@ -1,0 +1,4 @@
+序号,信息点编码,OPC TAG点地址(必填字段),信息点属性名称,(信息点属性值/默认值或计量单位),数据类型,采集量列名(val),质量位列名,信息点是否启用 1-启用 0-未启用,stable,ts_col,received_time
+0,tbname,point_id,tag::VARCHAR(200)::name,tag::VARCHAR(50)::unit,type,value_col,quality_col,enabled,stable,ts_col,received_time_col
+1,tbname1,ns=3;i=1002,name1,unit1,int,value11,quality11,1,stable1,ts11,received_time11
+2,tbname2,ns=3;i=1007,name2,unit2,double,value11,quality11,0,stable2,ts11,received_time11

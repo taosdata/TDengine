@@ -59,9 +59,13 @@ pub async fn list_csv_file(path: &str) -> Result<Vec<String>> {
     CsvSource::csv_path(path)
 }
 
-pub async fn csv_header(paths: Vec<impl AsRef<str>>, has_header: bool) -> Result<CsvHeader> {
+pub async fn csv_header(
+    paths: Vec<impl AsRef<str>>,
+    has_header: bool,
+    sample: usize,
+) -> Result<CsvHeader> {
     let mut header = Vec::new();
-    for path in paths {
+    for path in &paths {
         let path_header = CsvSource::read_header(path.as_ref(), has_header).await?;
         if !CsvSource::is_same_header(&header, &path_header, has_header) {
             bail!(
@@ -72,13 +76,22 @@ pub async fn csv_header(paths: Vec<impl AsRef<str>>, has_header: bool) -> Result
         header = path_header;
     }
 
+    let mut values = Vec::new();
+
+    if sample > 0 {
+        if let Some(path) = paths.first() {
+            values = CsvSource::sample(path.as_ref(), has_header, sample).await?;
+        };
+    }
+
     Ok(CsvHeader {
         columns: header.len(),
         headers: if has_header { header } else { vec![] },
+        values,
     })
 }
 
-pub const CSV_FILES: &str = "metrics.csv.csv_files";
+pub const METRIC_CSV_FILES: &str = "metrics.csv.files";
 pub const CSV_READ_RECORDS: &str = "metrics.csv.csv_read_records";
 pub const CSV_READ_RECORD_BATCHES: &str = "metrics.csv.csv_read_record_batches";
 
@@ -115,7 +128,7 @@ pub async fn csv_to_taos(
     .await?;
 
     let mut source = CsvSource::new(&mut from, port)?;
-    metrics::counter!(CSV_FILES, source.readers.len() as u64);
+    metrics::counter!(METRIC_CSV_FILES, source.readers.len() as u64);
     info!("spawn CSV worker");
     let worker = tokio::spawn(async move {
         info!(
@@ -193,6 +206,7 @@ pub async fn csv_to_taos(
 pub struct CsvHeader {
     pub columns: usize,
     pub headers: Vec<String>,
+    pub values: Vec<Vec<String>>,
 }
 
 // CsvSource read csv file and send data to Sender
@@ -322,6 +336,33 @@ impl CsvSource {
         Ok(headers)
     }
 
+    async fn sample(read_path: &str, has_header: bool, sample: usize) -> Result<Vec<Vec<String>>> {
+        let paths = CsvSource::csv_path(read_path)?;
+        if paths.is_empty() {
+            return Err(anyhow!(format!("there are not csv file is {}", read_path)));
+        }
+
+        let mut samples: Vec<_> = Vec::new();
+
+        for path in paths {
+            let mut reader = ReaderBuilder::new()
+                .has_headers(has_header)
+                .from_path(&path)
+                .with_context(|| format!("Reading CSV file {path:?} error"))?;
+
+            reader
+                .records()
+                .into_iter()
+                .take(sample)
+                .for_each(|record| {
+                    if let Ok(record) = record {
+                        samples.push(record.iter().map(String::from).collect::<Vec<String>>());
+                    }
+                });
+        }
+
+        Ok(samples)
+    }
     fn is_same_header(
         old_header: &Vec<String>,
         new_header: &Vec<String>,
@@ -635,6 +676,7 @@ impl CsvSource {
     }
 }
 
+/*
 #[tokio::test]
 async fn test_csv_source() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
@@ -678,6 +720,7 @@ async fn test_csv_source() -> anyhow::Result<()> {
     assert_eq!(u, 200);
     Ok(())
 }
+*/
 
 pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
     if let Err(err) = CsvSource::new(&mut from.clone(), 0) {

@@ -25,6 +25,7 @@ mod attrs_builder;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IpcDataType {
+    Null,
     Bool,
     UInt8,
     UInt16,
@@ -45,6 +46,7 @@ pub enum IpcDataType {
 impl IpcDataType {
     pub fn short(&self) -> String {
         match self {
+            IpcDataType::Null => "null".to_string(),
             IpcDataType::Bool => "b".to_string(),
             IpcDataType::UInt8 => "u8".to_string(),
             IpcDataType::UInt16 => "u16".to_string(),
@@ -64,6 +66,7 @@ impl IpcDataType {
     }
     pub fn sql_repr(&self) -> String {
         match self {
+            IpcDataType::Null => "null".to_string(),
             IpcDataType::Bool => "bool".to_string(),
             IpcDataType::UInt8 => "tinyint unsigned".to_string(),
             IpcDataType::UInt16 => "smallint unsigned".to_string(),
@@ -84,6 +87,7 @@ impl IpcDataType {
 
     pub fn ty(&self) -> Ty {
         match self {
+            IpcDataType::Null => Ty::Null,
             IpcDataType::Bool => Ty::Bool,
             IpcDataType::UInt8 => Ty::UTinyInt,
             IpcDataType::UInt16 => Ty::USmallInt,
@@ -104,6 +108,7 @@ impl IpcDataType {
 
     pub fn arrow_data_type(&self) -> DataType {
         match self {
+            IpcDataType::Null => DataType::Null,
             IpcDataType::Bool => DataType::Boolean,
             IpcDataType::UInt8 => DataType::UInt8,
             IpcDataType::UInt16 => DataType::UInt16,
@@ -128,6 +133,7 @@ impl FromStr for IpcDataType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
+            "null" | "none" => Ok(Self::Null),
             "b" | "bool" => Ok(Self::Bool),
             "i8" | "tinyint" => Ok(Self::Int8),
             "i16" | "smallint" => Ok(Self::Int16),
@@ -153,8 +159,8 @@ impl FromStr for IpcDataType {
                         _ => Err(s.to_string()),
                     },
                     (Some(t), None) => match *t {
-                        "binary" | "varchar" => Ok(Self::VarChar(8)),
-                        "nchar" => Ok(Self::NChar(8)),
+                        "binary" | "varchar" => Ok(Self::VarChar(128)),
+                        "nchar" => Ok(Self::NChar(128)),
                         _ => Err(s.to_string()),
                     },
                     _ => Err(s.to_string()),
@@ -213,12 +219,12 @@ impl From<&ArrowDataType> for IpcDataType {
             ArrowDataType::Float32 => IpcDataType::Float32,
             ArrowDataType::Float64 => IpcDataType::Float64,
             ArrowDataType::Timestamp(unit, _) => IpcDataType::Timestamp(unit.clone()),
-            ArrowDataType::Binary => IpcDataType::VarChar(8),
+            ArrowDataType::Binary => IpcDataType::VarChar(128),
+            ArrowDataType::Utf8 => IpcDataType::VarChar(128),
             ArrowDataType::FixedSizeBinary(len) => IpcDataType::VarChar(*len as _),
             ArrowDataType::LargeBinary => IpcDataType::VarChar(4096),
-            ArrowDataType::Utf8 => IpcDataType::VarChar(8),
             ArrowDataType::LargeUtf8 => IpcDataType::VarChar(4096),
-            ArrowDataType::Null => todo!(),
+            ArrowDataType::Null => IpcDataType::Null,
             ArrowDataType::Date32 => todo!(),
             ArrowDataType::Date64 => todo!(),
             ArrowDataType::Time32(_) => todo!(),

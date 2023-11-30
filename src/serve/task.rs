@@ -19,10 +19,12 @@ use itertools::Itertools;
 use metrics_util::debugging::Snapshotter;
 use serde::{Deserialize, Serialize};
 use taos::Code;
+use taosx_core::utils::metrics_db::MetricsDb;
 use taosx_core::{
-    get_data_dir, get_file_upload_home_dir, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND,
-    METRICS_TIME_START,
+    get_data_dir, get_file_upload_home_dir, LegacyMetrics, METRICS_TIME_COST,
+    METRICS_TIME_RECORDS_PER_SECOND, METRICS_TIME_START,
 };
+use tracing::instrument;
 use utoipa::*;
 
 use super::controller::agent::AgentActivityFilter;
@@ -79,6 +81,7 @@ impl ResponseError for Failed {
     )
 )]
 #[get("/tasks")]
+#[instrument(skip_all)]
 pub(super) async fn get_tasks(
     task_store: Data<TaskControllerRef>,
     filter: Query<TaskFilter>,
@@ -117,6 +120,7 @@ pub(super) async fn get_tasks(
     )
 )]
 #[get("/tasks/count")]
+#[instrument(skip_all)]
 pub(super) async fn get_tasks_count(
     task_store: Data<TaskControllerRef>,
     filter: Query<TaskFilter>,
@@ -152,6 +156,7 @@ pub(super) async fn get_tasks_count(
     )
 )]
 #[post("/tasks")]
+#[instrument(skip_all)]
 pub(super) async fn create_task(
     task: actix_web::web::Json<NewTask>,
     task_store: Data<TaskControllerRef>,
@@ -255,6 +260,7 @@ pub(super) struct NewReplicate {
     ),
 )]
 #[patch("/tasks/{id}")]
+#[instrument(skip_all)]
 pub(super) async fn update_task(
     id: Path<i64>,
     task: actix_web::web::Json<UpdateTask>,
@@ -303,6 +309,7 @@ pub(super) async fn update_task(
     ),
 )]
 #[delete("/tasks/{id}")]
+#[instrument(skip_all)]
 pub(super) async fn delete_task(
     id: Path<i64>,
     task_store: Data<TaskControllerRef>,
@@ -335,6 +342,7 @@ pub(super) async fn delete_task(
     ),
 )]
 #[get("/tasks/{id}")]
+#[instrument(skip_all)]
 pub(super) async fn get_task_by_id(
     id: Path<i64>,
     task_store: Data<TaskControllerRef>,
@@ -366,6 +374,7 @@ pub(super) async fn get_task_by_id(
     ),
 )]
 #[post("/tasks/{id}/start")]
+#[instrument(skip_all)]
 pub(super) async fn start_task(
     id: Path<i64>,
     task_store: Data<TaskControllerRef>,
@@ -400,6 +409,7 @@ pub(super) async fn start_task(
     ),
 )]
 #[post("/tasks/{id}/stop")]
+#[instrument(skip_all)]
 pub(super) async fn stop_task(
     id: Path<i64>,
     task_store: Data<TaskControllerRef>,
@@ -432,6 +442,7 @@ pub(super) async fn stop_task(
     ),
 )]
 #[get("/tasks/{id}/offsets")]
+#[instrument(skip_all)]
 pub(super) async fn get_task_offsets_by_id(
     id: Path<i64>,
     task_store: Data<TaskControllerRef>,
@@ -487,12 +498,54 @@ pub(super) async fn get_task_activities_by_id(
     ),
 )]
 #[get("/tasks/{id}/metrics")]
-pub(super) async fn get_task_metrics_by_id(
+#[instrument(skip_all)]
+pub(super) async fn get_task_metrics(
     snapshotter: Data<Snapshotter>,
     task_store: Data<TaskControllerRef>,
     id: Path<i64>,
 ) -> impl Responder {
-    let id = id.into_inner();
+    let task_id = id.into_inner();
+    if let Some(data) = get_task_metrics_from_snapshot(&snapshotter, &task_store, task_id).await {
+        data
+    } else if let Some(data) = get_task_metrics_from_db(task_id) {
+        data
+    } else {
+        "{}".to_string()
+    }
+}
+
+pub(crate) fn get_task_metrics_from_db(task_id: i64) -> Option<String> {
+    tracing::info!("get task metrics from MetricsDb");
+    let new_db_result = MetricsDb::new(task_id.to_string().as_str());
+    match new_db_result {
+        Ok(metrics_db) => {
+            let get_result = metrics_db.get();
+            match get_result {
+                Ok(result) => match result {
+                    Some(metrics_json) => {
+                        let metrics = LegacyMetrics::from_json(&metrics_json).unwrap();
+                        Some(metrics.to_task_metrics_json())
+                    }
+                    None => None,
+                },
+                Err(err) => {
+                    tracing::error!("Get metrics from db error: {}", err);
+                    None
+                }
+            }
+        }
+        Err(err) => {
+            tracing::warn!("{:?}", err);
+            None
+        }
+    }
+}
+
+pub(crate) async fn get_task_metrics_from_snapshot(
+    snapshotter: &Data<Snapshotter>,
+    task_store: &Data<TaskControllerRef>,
+    task_id: i64,
+) -> Option<String> {
     let snapshot = snapshotter.snapshot().into_hashmap();
     // dbg!(&snapshot);
     let mut map = snapshot
@@ -500,7 +553,7 @@ pub(super) async fn get_task_metrics_by_id(
         .filter(|(k, _)| {
             k.key()
                 .labels()
-                .find(|label| label.key() == "task.id" && label.value() == id.to_string())
+                .find(|label| label.key() == "task.id" && label.value() == task_id.to_string())
                 .is_some()
         })
         .map(|(k, v)| {
@@ -517,10 +570,13 @@ pub(super) async fn get_task_metrics_by_id(
             )
         })
         .collect::<std::collections::BTreeMap<_, _>>();
+    if map.is_empty() {
+        return None;
+    }
     let task_started_timestamp = map.get(METRICS_TIME_START);
     if task_started_timestamp.is_some() {
         let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
-        let task = task_store.get(id).await.unwrap().unwrap();
+        let task = task_store.get(task_id).await.unwrap().unwrap();
         let time_elapsed_in_seconds = if matches!(task.status(), Status::Running) {
             let time_elasped = (Utc::now().timestamp_millis()
                 - task_started_timestamp.as_f64().unwrap() as i64)
@@ -544,11 +600,8 @@ pub(super) async fn get_task_metrics_by_id(
                 None
             }
         };
-        if time_elapsed_in_seconds.is_some() {
-            map.insert(
-                METRICS_TIME_COST.to_string(),
-                Some((time_elapsed_in_seconds.unwrap()).into()),
-            );
+        if let Some(elapsed_seconds) = time_elapsed_in_seconds {
+            map.insert(METRICS_TIME_COST.to_string(), Some(elapsed_seconds.into()));
             let records_vec = map
                 .iter()
                 .filter(|(k, _v)| k.contains("records"))
@@ -556,17 +609,15 @@ pub(super) async fn get_task_metrics_by_id(
                 .collect_vec();
             let records = records_vec.get(0);
             if let Some(Some(records)) = records {
+                let speed: f64 = records.as_f64().unwrap_or_default() / elapsed_seconds as f64;
                 map.insert(
                     METRICS_TIME_RECORDS_PER_SECOND.to_string(),
-                    Some(
-                        (records.as_i64().unwrap_or_default() / time_elapsed_in_seconds.unwrap())
-                            .into(),
-                    ),
+                    serde_json::Number::from_f64(speed),
                 );
             }
         }
     }
-    serde_json::to_string(&map)
+    Some(serde_json::to_string(&map).unwrap())
 }
 
 #[derive(Debug, MultipartForm, ToSchema)]
@@ -585,6 +636,7 @@ pub struct UploadForm {
     ),
 )]
 #[post("/upload")]
+#[instrument(skip_all)]
 pub async fn upload_files(MultipartForm(form): MultipartForm<UploadForm>) -> impl Responder {
     match save_files(MultipartForm(form)).await {
         Ok(file_saved) => Ok(HttpResponse::Created().json(file_saved)),
@@ -630,6 +682,8 @@ pub struct FileMeta {
     filepath: Option<String>,
     filesize: Option<u64>,
     file_header: Option<FileMetaHeader>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sample_values: Option<Vec<Vec<String>>>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, IntoParams, ToSchema)]
@@ -638,6 +692,7 @@ pub struct FileMetaRequest {
     file_path: String,
     file_type: String,
     has_header: bool,
+    sample: Option<usize>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -658,6 +713,7 @@ pub struct FileMetaHeader {
     )
 )]
 #[get("/filemeta")]
+#[instrument(skip_all)]
 pub async fn filemeta(filemeta_request: Query<FileMetaRequest>) -> impl Responder {
     match get_filemeta(filemeta_request.into_inner()).await {
         Ok(filemeta) => Ok(HttpResponse::Ok().json(filemeta)),
@@ -669,10 +725,11 @@ pub async fn filemeta(filemeta_request: Query<FileMetaRequest>) -> impl Responde
 }
 
 async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileMeta> {
-    let (filepath_or_filedir, file_type, has_header) = (
+    let (filepath_or_filedir, file_type, has_header, sample) = (
         filemeta_request.file_path,
         filemeta_request.file_type,
         filemeta_request.has_header,
+        filemeta_request.sample.unwrap_or(5),
     );
 
     let data_dir = get_data_dir();
@@ -684,7 +741,8 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
                 .into_iter()
                 .map(|path| data_dir.join(path).display().to_string())
                 .collect_vec();
-            let csv_header = taosx_core::csv_header(filepath_or_filedir, has_header).await?;
+            let csv_header =
+                taosx_core::csv_header(filepath_or_filedir, has_header, sample).await?;
             if csv_header.columns == 0 {
                 anyhow::bail!("CSV file headers are empty");
             }
@@ -705,6 +763,11 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
                     columns_length: csv_header.columns,
                     column_names,
                 }),
+                sample_values: if csv_header.values.is_empty() {
+                    None
+                } else {
+                    Some(csv_header.values)
+                },
             })
         }
         _ => {
@@ -729,6 +792,7 @@ pub struct DownloadParams {
     )
 )]
 #[get("/download")]
+#[instrument(skip_all)]
 pub async fn download_files(params: Query<DownloadParams>, req: HttpRequest) -> impl Responder {
     match download(params).await {
         Ok(named_file) => Ok(named_file.into_response(&req)),

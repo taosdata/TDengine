@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
+use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -318,14 +319,14 @@ pub(super) enum Schedule {
 }
 
 async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::Result<()> {
-    if sqlx::query_scalar!("select id from tasks where id = ?", activity.id)
+    let exists = sqlx::query!("select id, status from tasks where id = ?", activity.id)
         .fetch_optional(pool)
-        .await?
-        .is_none()
-    {
+        .await?;
+    if exists.is_none() {
         tracing::warn!("task {id} not found", id = activity.id);
         return Ok(());
     }
+    let record = exists.unwrap();
     if activity.status == "completed" {
         let _ = sqlx::query!(
             "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ? AND status != ?",
@@ -340,6 +341,22 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
     match activity.status.as_str() {
         // with reason
         "failed" | "interrupted" | "suspending" | "waiting" => {
+            sqlx::query("UPDATE tasks SET status = ?, reason = ? WHERE id = ?")
+                .bind(activity.status.as_str())
+                .bind(activity.activity.as_str())
+                .bind(activity.id)
+                .execute(pool)
+                .await?;
+        }
+        "running" => {
+            if matches!(record.status.as_str(), "stopped" | "stopping") {
+                tracing::warn!(
+                    "Task {} is already stopped or suspended, ignore {}",
+                    activity.id,
+                    activity.activity,
+                );
+                return Ok(());
+            }
             sqlx::query("UPDATE tasks SET status = ?, reason = ? WHERE id = ?")
                 .bind(activity.status.as_str())
                 .bind(activity.activity.as_str())
@@ -550,6 +567,13 @@ impl TaskController {
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
+        match (from.driver.as_str(), to.driver.as_str()) {
+            (_, "taos") => {
+                TaosBuilder::from_dsn(&to)?.build().await?;
+            }
+            _ => (),
+        }
+
         self.validate_enterprise_license(&from, &to).await?;
 
         match from.driver.as_str() {
@@ -574,6 +598,18 @@ impl TaskController {
         if filter.has_labels_filter() {
             filter.filter_task_labels(&mut tasks);
         }
+
+        let mut tasks = if let Some(in_scheduler) = filter.in_scheduler {
+            let mut filtered = Vec::with_capacity(tasks.len());
+            for task in tasks.into_iter() {
+                if self.scheduler.exists(task.id).await == in_scheduler {
+                    filtered.push(task);
+                }
+            }
+            filtered
+        } else {
+            tasks
+        };
 
         let span = tracing::trace_span!("request_tasks", "url" = "GET /tasks");
         let _guard = span.enter();
@@ -708,17 +744,24 @@ impl TaskController {
                 from.subject.take();
                 let from = TaosBuilder::from_dsn(from)?;
                 let _ = from.build().await?;
-                let mut to = to.clone();
-                to.subject.take();
-                let to = TaosBuilder::from_dsn(to)?;
-                let _ = to.build().await?;
+                // to.subject.take();
+                let to_builder = TaosBuilder::from_dsn(to)?;
+                let mut conn = to_builder.build().await?;
+                if let Err(err) = to_builder.ping(&mut conn).await {
+                    if *err.code().deref() == 0x0388 {
+                        let subject = to.subject.as_deref().unwrap_or("unknown");
+                        Err(err.context(format!("Target database {subject}")))?
+                    } else {
+                        bail!("Failed to connect target server: {err}");
+                    }
+                };
 
                 let from_edition = from
                     .get_edition()
                     .await
                     .context("Failed to check source edition")?
                     .assert_enterprise_edition();
-                let to_edition = to
+                let to_edition = to_builder
                     .get_edition()
                     .await
                     .context("Failed to check destination edition")?
@@ -747,10 +790,18 @@ impl TaskController {
                 }
             }
             (_, "tmq" | "taos") => {
-                let mut to = to.clone();
-                to.subject.take();
-                let builder = TaosBuilder::from_dsn(to)?;
-                let _ = builder.build().await.context("Target connection error")?;
+                let to = to.clone();
+                // to.subject.take();
+                let builder = TaosBuilder::from_dsn(&to)?;
+                let mut conn = builder.build().await.context("Target connection error")?;
+                if let Err(err) = builder.ping(&mut conn).await {
+                    if *err.code().deref() == 0x0388 {
+                        let subject = to.subject.as_deref().unwrap_or("unknown");
+                        Err(err.context(format!("Target database {subject}")))?
+                    } else {
+                        bail!("Failed to connect target server: {err}");
+                    }
+                };
                 let edition = builder
                     .get_edition()
                     .await
@@ -769,6 +820,8 @@ impl TaskController {
 
     #[instrument(skip_all, name = "task::create")]
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
+        let path = get_data_dir();
+        let _ = std::env::set_current_dir(&path);
         let not_start = task.not_start;
         tracing::info!("create new task");
         let from: Dsn = task
@@ -1132,12 +1185,14 @@ impl TaskController {
                 let task_id = id.to_string();
                 taosx_core::utils::breakpoints::breakpoints_clear(&task_id)?;
 
+                // metrics_clear
+                let _ = taosx_core::utils::metrics_db::MetricsDb::clear(&task_id);
+
                 tracing::info!("successfully deleted task by id {id}");
                 anyhow::Ok(())
             }
             .in_current_span(),
         );
-
         Ok(Some(task_out.into()))
     }
 
@@ -1146,7 +1201,15 @@ impl TaskController {
         tracing::info!("Stop task by id {id}");
         if let Err(err) = self.scheduler.try_stop(id).await {
             match err {
-                crate::serve::scheduler::StopError::NotFound(_) => return Ok(None::<()>),
+                crate::serve::scheduler::StopError::NotFound(_) => {
+                    tracing::info!("Task {id} not scheduler");
+                    sqlx::query("UPDATE tasks SET status = ? WHERE id = ?")
+                        .bind(Status::Stopped)
+                        .bind(id)
+                        .execute(&self.pool)
+                        .await?;
+                    return Ok(Some(()));
+                }
                 err => Err(err)?,
             }
         }
@@ -2090,6 +2153,7 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/mqtt.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/kafka.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/csv.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/historian.yaml")).unwrap());
         for ds in &mut def {
             ds.compute();
         }
@@ -2108,6 +2172,7 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/mqtt.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/kafka.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/csv.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/historian.yaml")).unwrap());
         for ds in &mut def {
             ds.compute();
         }
@@ -2680,6 +2745,7 @@ pub struct TaskFilter {
     any_labels: Option<String>,
     without_labels: Option<String>,
     via: Option<i64>,
+    in_scheduler: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, IntoParams)]

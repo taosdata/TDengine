@@ -13,19 +13,21 @@ use file_rotate::{
 use time::macros::format_description;
 use time::UtcOffset;
 use tracing_subscriber::{
-    fmt::{format::FmtSpan, time::OffsetTime},
-    prelude::__tracing_subscriber_SubscriberExt,
-    util::SubscriberInitExt,
+    fmt::time::OffsetTime, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
     Layer as _,
 };
 use twelf::{config, Layer};
 
-use tracing::{log::LevelFilter, Level};
-
+use taosx_core::{
+    get_data_dir,
+    runners::{get_logs_home_dir, get_plugins_home_dir},
+    utils::trace::TaosXLayer,
+};
 use taosx_core::{
     get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
     set_env_plugins_home_dir, Activity, RespAction,
 };
+use tracing::{log::LevelFilter, Level};
 
 const LOG_FILE: &str = "agent.log";
 
@@ -272,25 +274,33 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[rustfmt::skip]
+fn print_effictive_config(log_level: Level, log_path: PathBuf, log_keep_days: i64, args: &Args) {
+    let w = 18;
+    let w2 = 20;
+    tracing::info!("                           global config");
+    tracing::info!("================================================================");
+    tracing::info!("{:<w$}{:<w2$}{}", ' ', "endpoint",  args.endpoint);
+    tracing::info!("{:<w$}{:<w2$}{}", ' ', "plugins_home",  get_plugins_home_dir().display());
+    tracing::info!("{:<w$}{:<w2$}{}", ' ', "data_dir",  get_data_dir().display());
+    tracing::info!("{:<w$}{:<w2$}{}", ' ', "log_home",  get_logs_home_dir().display());
+    tracing::info!("{:<w$}{:<w2$}{}", ' ', "log_path",  log_path.display());
+    tracing::info!("{:<w$}{:<w2$}{}", ' ', "log_level",  log_level);
+    tracing::info!("{:<w$}{:<w2$}{}", ' ', "log_keep_days",  log_keep_days);
+    tracing::info!("================================================================");
+}
+
 fn main() -> anyhow::Result<()> {
     let args = Args::init()?;
-    println!(
-        "Serve agent with endpoint: {} via token ******",
-        args.endpoint
-    );
     set_env_plugins_home_dir(args.plugins_home.clone());
     set_env_data_dir(args.data_dir.clone());
     set_env_log_home_dir(args.logs_home.clone());
     set_env_log_keep_days(args.log_keep_days.clone());
 
-    let mut log_path = get_log_dir("agent");
-
+    let mut log_path = get_log_dir("");
     log_path.push(LOG_FILE);
 
     let log_keep_days = get_log_keep_days();
-
-    println!("log keep days: {}", &log_keep_days);
-
     let log_rotation = FileRotate::new(
         &log_path,
         AppendTimestamp::with_format(
@@ -299,7 +309,7 @@ fn main() -> anyhow::Result<()> {
             DateFrom::DateYesterday,
         ),
         ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
+        Compression::OnRotate(2),
         #[cfg(unix)]
         None,
     );
@@ -321,25 +331,17 @@ fn main() -> anyhow::Result<()> {
         format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
     );
 
-    let level_filter =
-        tracing_subscriber::filter::LevelFilter::from_level(args.log_level.unwrap_or(Level::INFO));
-
+    let log_level = args.log_level.unwrap_or(Level::INFO);
+    let level_filter = tracing_subscriber::filter::LevelFilter::from_level(log_level);
     let mut layers = Vec::new();
-
+    // Add layer for rotating logs
     layers.push(
-        tracing_subscriber::fmt::layer()
-            .with_timer(timer.clone())
-            .with_level(true)
-            .with_thread_ids(true)
-            .with_thread_names(true)
-            .with_span_events(FmtSpan::NONE)
-            .with_file(true)
-            .with_line_number(true)
-            .with_ansi(false)
+        TaosXLayer::new()
             .with_writer(non_blocking)
             .with_filter(level_filter)
             .boxed(),
     );
+
     if atty::is(atty::Stream::Stdout) {
         cfg_if::cfg_if! {
             if #[cfg(windows)] {
@@ -367,9 +369,7 @@ fn main() -> anyhow::Result<()> {
     tracing::info!("version: {version}");
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
-
-    tracing::info!("log keep days: {}", &log_keep_days);
-
+    print_effictive_config(log_level, log_path, log_keep_days, &args);
     tracing::info!("Start");
 
     // todo: arrow flight rpc client.

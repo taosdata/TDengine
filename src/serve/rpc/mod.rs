@@ -480,6 +480,10 @@ impl FlightService for FlightServiceImpl {
             .ok_or_else(|| Status::unavailable("Task id should be set"))
             .unwrap();
         let task_id: i64 = task_id.to_str().unwrap().parse().unwrap();
+        let stream_trace_id = match meta.get("x-trace-id") {
+            Some(stream_trace_id) => stream_trace_id.to_str().unwrap(),
+            None => "0000",
+        };
 
         // let message = req.try_next().await?;
 
@@ -500,7 +504,7 @@ impl FlightService for FlightServiceImpl {
 
         Ok(Response::new(Box::pin(
             put_stream
-                .into_flight_put_result()
+                .into_flight_put_result(String::from(stream_trace_id))
                 .await
                 .map_err(|err| Status::unavailable(err.to_string()))?,
             // req.map_ok(|v| PutResult {
@@ -606,16 +610,7 @@ impl FlightService for FlightServiceImpl {
                                 .unwrap();
 
                             const ORDER: Ordering = Ordering::Relaxed;
-                            let last = last_heart_ms.load(ORDER);
-                            let now = Utc::now();
-                            if last > 0 {
-                                if std::time::Duration::from_millis(
-                                    now.timestamp_millis() as u64 - last,
-                                ) > std::time::Duration::from_secs(120)
-                                {
-                                    // tracing::error!(agent = agent_id, "Agent {agent_id} is no ok",)
-                                }
-                            }
+
                             for _ in 0..rows {
                                 let (ts, action, context, _req_id) = (
                                     ts.value_as_datetime_with_tz(
@@ -847,6 +842,8 @@ impl FlightService for FlightServiceImpl {
         // dbg!(_meta, _part, &action);
         match action.r#type.as_str() {
             "TaskStatus" => {
+                // task.
+
                 let mut status: TaskActivity = serde_json::from_slice(&action.body)
                     .map_err(|err| Status::invalid_argument(format!("{err}: {:?}", action.body)))?;
 

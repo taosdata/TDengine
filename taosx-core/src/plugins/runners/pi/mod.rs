@@ -1,11 +1,6 @@
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
-use file_rotate::{
-    compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
-};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::{Map, Value};
@@ -14,6 +9,7 @@ use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
 
+use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::pi::config::PiConfig;
@@ -47,7 +43,7 @@ fn pi_backfill_exe_path() -> anyhow::Result<PathBuf> {
 const LOG_FILE: &str = "pi.log";
 
 fn log_path() -> PathBuf {
-    super::get_log_dir("pi")
+    super::get_log_dir("")
 }
 
 /// PI DSN example: "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&points=@<file>"
@@ -62,6 +58,7 @@ pub async fn pi_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: {}", from.driver);
@@ -89,8 +86,23 @@ pub async fn pi_to_taos(
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
-
     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
+    // save the temporary file to task dir
+    match task_id {
+        Some(task_id) => {
+            let path = get_data_dir().join("tasks").join(task_id.to_string());
+            std::fs::create_dir_all(&path).unwrap();
+            let path = path.join(format!(
+                "{}-{}-{}.{}",
+                task_id,
+                "pi",
+                chrono::Local::now().format("%Y%m%d%H%M"),
+                "toml"
+            ));
+            let _ = fs::copy(&config_path, path);
+        }
+        None => {}
+    }
 
     #[derive(Deserialize, Debug, Default)]
     struct IsValid {
@@ -394,18 +406,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     tracing::info!("log file dir: {}", &log_path.display());
 
-    let mut log_rotation = FileRotate::new(
-        &log_path,
-        AppendTimestamp::with_format(
-            "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::weeks(100)),
-            DateFrom::DateYesterday,
-        ),
-        ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
-        #[cfg(unix)]
-        None,
-    );
+    let mut log_rotation = log_rotation(&log_path, 700);
 
     let output = command
         .arg("-f")
@@ -682,9 +683,11 @@ async fn validate_pi_backfill(config: PiConfig) -> anyhow::Result<DataSourceVali
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::str::FromStr;
+
     use taos::Dsn;
+
+    use super::*;
 
     #[ignore]
     #[tokio::test]

@@ -1,9 +1,11 @@
+use std::borrow::Cow;
+use std::io::BufRead;
+use std::path::{Path, PathBuf};
+
 use file_rotate::compression::Compression;
 use file_rotate::suffix::{AppendTimestamp, DateFrom, FileLimit};
 use file_rotate::{ContentLimit, FileRotate, TimeFrequency};
 use itertools::Itertools;
-use std::io::BufRead;
-use std::path::{Path, PathBuf};
 use taos::Dsn;
 
 mod config;
@@ -131,7 +133,13 @@ pub fn set_env_data_dir(config: Option<String>) {
 
 #[inline]
 pub fn get_data_dir() -> PathBuf {
-    Path::new(&std::env::var(ENV_TAOSX_DATA_DIR).unwrap()).to_path_buf()
+    Path::new(
+        std::env::var(ENV_TAOSX_DATA_DIR)
+            .map(|s| Cow::Owned(s))
+            .unwrap_or(Cow::Borrowed(ENV_TAOSX_DATA_DIR_DEFAULT))
+            .as_ref(),
+    )
+    .to_path_buf()
 }
 
 #[inline]
@@ -333,8 +341,9 @@ pub fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::str::FromStr;
+
+    use super::*;
 
     #[test]
     fn info() {
@@ -385,5 +394,26 @@ MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
             .unwrap()
             .unwrap();
         assert_eq!("123,456,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----", result);
+
+        let mut dsn = Dsn::from_str("opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double").unwrap();
+        let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").unwrap();
+        assert_eq!(
+            vec_string,
+            vec![
+                String::from("ns=3;i=1004::ntb1::c0::double"),
+                String::from("ns=3;i=1008::ntb1::c1::double"),
+            ]
+        );
+        let mut dsn = Dsn::from_str("opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double,@/Users/zmlgirl/Downloads/test_opc.csv").unwrap();
+        let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").unwrap();
+        assert_eq!(
+            vec_string,
+            vec![
+                String::from("ns=3;i=1004::ntb1::c0::double"),
+                String::from("ns=3;i=1008::ntb1::c1::double"),
+                String::from("ns=2;i=2::ntb2::c1::double"),
+                String::from("ns=2;i=3::ntb3::c2::int"),
+            ]
+        );
     }
 }

@@ -8,7 +8,7 @@
 //! - Convert: fields data into other data types.
 //! - Filter: filter one or more rows in the stream.
 
-use std::{str::FromStr, sync::Arc};
+use std::{ops::Range, str::FromStr, sync::Arc};
 
 use arrow::{
     datatypes::{DataType, Field, Schema},
@@ -18,7 +18,7 @@ use arrow::{
 use bytes::Bytes;
 use either::Either;
 use itertools::Itertools;
-use regex::Regex;
+use serde::{Deserialize, Serialize};
 use taos::{
     taos_query::{
         common::Describe,
@@ -30,14 +30,1011 @@ use taos::{
 mod select;
 
 pub use select::Select;
+use taosx_ipc::prelude::IpcDataType;
+use thiserror::Error;
+use tinytemplate::TinyTemplate;
 
-mod json;
+// mod json;
+pub mod constants;
 
 mod parse;
 
-pub use parse::Parser;
+mod filter;
+
+mod map;
+
+mod modeler;
+mod mutate;
 
 use crate::plugins::transform::parse::ArrayForTaos;
+
+use self::{
+    modeler::{ModeledRecordBatch, Modeler},
+    mutate::Mutate,
+    parse::{FieldParser, ParserImpl},
+};
+
+use super::expr;
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Pipeline {
+    #[serde(default)]
+    parse: Option<ParserImpl>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    mutate: Vec<Mutate>,
+    model: Option<Modeler>,
+}
+
+impl Pipeline {
+    pub fn transform(&self, records: &RecordBatch) -> Result<Vec<ModeledRecordBatch>, Error> {
+        let batch = self
+            .parse
+            .as_ref()
+            .map(|parse| parse.transform_record_batch(&records))
+            .transpose()?;
+
+        let batch = batch.unwrap_or_else(|| records.clone());
+        let batch = self.mutate.iter().fold(Ok(batch), |batch, mutate| {
+            batch.and_then(|batch| mutate.transform_record_batch(&batch))
+        })?;
+        if let Some(model) = self.model.as_ref() {
+            model.apply(&batch)
+        } else {
+            Ok(vec![ModeledRecordBatch::new(batch)])
+        }
+    }
+}
+
+#[cfg(test)]
+mod pipeline_tests {
+    use std::{ops::Sub, time::Duration};
+
+    use arrow::array::ArrayRef;
+    use arrow::datatypes::TimeUnit;
+
+    use super::*;
+
+    #[test]
+    fn test_pipeline_map() {
+        let records = demo_mqtt_records();
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double", "value", "$.id=id::int"] } }
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser and mutate
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int"] } },
+            "mutate": [{"map": {
+                "c1": { "value": 2, "as": "int" },
+                "g1": { "generator": "now" },
+                "f1": { "format": "format-${value}-suffix", "as": "varchar" },
+                "e1": { "expr": "if value > 1 { true } else { false }" },
+                "e2": { "expr": "value + 2" }
+            }}]
+        }"#
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        assert_eq!(
+            output[0]
+                .fields
+                .iter()
+                .map(|f| (f.name.as_str(), f.arrow_type.clone()))
+                .collect_vec(),
+            vec![
+                ("ts", DataType::Timestamp(TimeUnit::Millisecond, None)),
+                ("price", DataType::Float64),
+                ("value", DataType::Float64),
+                ("id", DataType::Int32),
+                ("c1", DataType::Int32),
+                (
+                    "g1",
+                    DataType::Timestamp(TimeUnit::Nanosecond, Some("+00:00".into()))
+                ),
+                ("f1", DataType::Utf8),
+                ("e1", DataType::Boolean),
+                ("e2", DataType::Float64)
+            ]
+        );
+
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // over write previous value.
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int"] } },
+            "mutate": [{"map": {
+                "c1": { "value": 2, "as": "int" },
+                "g1": { "generator": "now" },
+                "f1": { "format": "format-${value}-suffix", "as": "varchar" },
+                "e1": { "expr": "if value > 1 { true } else { false }" },
+                "e2": { "expr": "value + 2" }
+            }}, {"map": {
+                "c1": { "value": 4, "as": "int" },
+                "g1": { "generator": "now" },
+                "f1": { "format": "prefix-${value}-suffix", "as": "varchar" },
+                "e1": { "expr": "if value > 1 { 1 } else { 2 }" },
+                "e2": { "expr": "value + 4" }
+            }}]
+        }"#
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output_over_written = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        assert_eq!(
+            output_over_written[0]
+                .fields
+                .iter()
+                .map(|f| f.name.as_str())
+                .collect_vec(),
+            vec!["ts", "price", "value", "id", "c1", "g1", "f1", "e1", "e2"]
+        );
+        assert_eq!(output_over_written[0].columns[0][4].as_i64().unwrap(), 4); // c1
+        assert_eq!(
+            output_over_written[0].columns[0][6].as_str().unwrap(),
+            "prefix-1.1-suffix"
+        ); // f1
+        assert_eq!(output_over_written[0].columns[0][7].as_i64().unwrap(), 1); // e1, bool
+        assert_eq!(output_over_written[0].columns[0][8].as_f64().unwrap(), 5.1); // e2, double
+        let json_over_written = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json_over_written);
+
+        // With parser, mutate and model
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int"] } },
+            "mutate": [{"map": {
+                "c1": { "value": 2, "as": "int" },
+                "g1": { "generator": "now" },
+                "f1": { "format": "format-${value}-suffix", "as": "varchar" },
+                "e1": { "expr": "if value > 1 { true } else { false }" },
+                "e2": { "expr": "value + 2" }
+            }}],
+            "model": [{
+                "name": "d{id}",
+                "using": "meters",
+                "tags": ["id"],
+                "columns": ["ts", "value", "price", "c1", "g1", "f1", "e1", "e2"]
+            }]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+    }
+
+    #[test]
+    fn test_pipeline_map_with_null_column() {
+        let records = demo_mqtt_records();
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double", "value", "$.id=id::int"] } }
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser and mutate
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int"] } },
+            "mutate": [{"map": {
+                "c1": { "value": 2, "as": "int" },
+                "g1": { "generator": "now" },
+                "f1": { "format": "format-${value}-suffix", "as": "varchar" },
+                "e1": { "expr": "if value > 1 { true } else { false }" },
+                "e2": { "expr": "value + 2" },
+                "n1": { "cast": "value", "as": "timestamp" }
+            }}]
+        }"#
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        assert_eq!(
+            output[0]
+                .fields
+                .iter()
+                .map(|f| (f.name.as_str(), f.arrow_type.clone()))
+                .collect_vec(),
+            vec![
+                ("ts", DataType::Timestamp(TimeUnit::Millisecond, None)),
+                ("price", DataType::Float64),
+                ("value", DataType::Float64),
+                ("id", DataType::Int32),
+                ("c1", DataType::Int32),
+                (
+                    "g1",
+                    DataType::Timestamp(TimeUnit::Nanosecond, Some("+00:00".into()))
+                ),
+                ("f1", DataType::Utf8),
+                ("e1", DataType::Boolean),
+                ("e2", DataType::Float64),
+                ("n1", DataType::Timestamp(TimeUnit::Millisecond, None))
+            ]
+        );
+
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // over write previous value.
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int"] } },
+            "mutate": [{"map": {
+                "c1": { "value": 2, "as": "int" },
+                "g1": { "generator": "now" },
+                "f1": { "format": "format-${value}-suffix", "as": "varchar" },
+                "e1": { "expr": "if value > 1 { true } else { false }" },
+                "e2": { "expr": "value + 2" }
+            }}, {"map": {
+                "c1": { "value": 4, "as": "int" },
+                "g1": { "generator": "now" },
+                "f1": { "format": "prefix-${value}-suffix", "as": "varchar" },
+                "e1": { "expr": "if value > 1 { 1 } else { 2 }" },
+                "e2": { "expr": "value + 4" }
+            }}]
+        }"#
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output_over_written = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        assert_eq!(
+            output_over_written[0]
+                .fields
+                .iter()
+                .map(|f| f.name.as_str())
+                .collect_vec(),
+            vec!["ts", "price", "value", "id", "c1", "g1", "f1", "e1", "e2"]
+        );
+        assert_eq!(output_over_written[0].columns[0][4].as_i64().unwrap(), 4); // c1
+        assert_eq!(
+            output_over_written[0].columns[0][6].as_str().unwrap(),
+            "prefix-1.1-suffix"
+        ); // f1
+        assert_eq!(output_over_written[0].columns[0][7].as_i64().unwrap(), 1); // e1, bool
+        assert_eq!(output_over_written[0].columns[0][8].as_f64().unwrap(), 5.1); // e2, double
+        let json_over_written = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json_over_written);
+
+        // With parser, mutate and model
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int"] } },
+            "mutate": [{"map": {
+                "c1": { "value": 2, "as": "int" },
+                "g1": { "generator": "now" },
+                "f1": { "format": "format-${value}-suffix", "as": "varchar" },
+                "e1": { "expr": "if value > 1 { true } else { false }" },
+                "e2": { "expr": "value + 2" }
+            }}],
+            "model": [{
+                "name": "d{id}",
+                "using": "meters",
+                "tags": ["id"],
+                "columns": ["ts", "value", "price", "c1", "g1", "f1", "e1", "e2"]
+            }]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+    }
+
+    #[test]
+    fn test_pipeline_json_array() {
+        let records = demo_mqtt_records();
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price", "value", "$.id=id::int", "$.null=null"] } }
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser and mutate
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int", "$.null=null"] } },
+            "mutate": [{ "filter": "value > 1.2" }]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser, mutate and model
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int", "$.null=null"] } },
+            "mutate": [{ "filter": "value > 1.2" }],
+            "model": [{
+                "name": "d{id}",
+                "using": "meters",
+                "tags": ["id"],
+                "columns": ["ts", "value", "price"]
+            }]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+    }
+    #[test]
+    fn test_pipeline_empty_input() {
+        let records = demo_mqtt_records();
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["value::double", "id::int"] } }
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser and mutate
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["value::double", "id::int"] } },
+            "mutate": [{ "filter": "value > 1.2" }]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser, mutate and model
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["value::double", "id::int"] } },
+            "mutate": [{ "filter": "value > 1.2" }],
+            "model": [{
+                "name": "d{id}",
+                "using": "meters",
+                "tags": ["id"],
+                "columns": ["ts", "value"]
+            }]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+    }
+
+    #[test]
+    fn test_split() {
+        let records = demo_text_records();
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "text": { "split": {"sep": ",", "names": ["name","value","id", "price"] } } }
+        }"#,
+        )
+        .unwrap();
+        dbg!(&pipeline);
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+
+        assert_eq!(
+            output[0]
+                .fields
+                .iter()
+                .map(|f| (f.name.as_str(), f.arrow_type.clone()))
+                .collect_vec(),
+            vec![
+                ("ts", DataType::Timestamp(TimeUnit::Millisecond, None)),
+                ("name", DataType::Utf8),
+                ("value", DataType::Utf8),
+                ("id", DataType::Utf8),
+                ("price", DataType::Utf8),
+            ]
+        );
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "text": { "split": {"sep": ",", "n": 4 } } }
+        }"#,
+        )
+        .unwrap();
+        dbg!(&pipeline);
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+
+        assert_eq!(
+            output[0]
+                .fields
+                .iter()
+                .map(|f| (f.name.as_str(), f.arrow_type.clone()))
+                .collect_vec(),
+            vec![
+                ("ts", DataType::Timestamp(TimeUnit::Millisecond, None)),
+                ("text_0", DataType::Utf8),
+                ("text_1", DataType::Utf8),
+                ("text_2", DataType::Utf8),
+                ("text_3", DataType::Utf8),
+            ]
+        );
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+    }
+
+    #[test]
+    fn test_regex() {
+        let records = demo_text_records();
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "text": { "regex": "\\d{1}" } }
+        }"#,
+        )
+        .unwrap();
+        dbg!(&pipeline);
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+
+        assert_eq!(
+            output[0]
+                .fields
+                .iter()
+                .map(|f| (f.name.as_str(), f.arrow_type.clone()))
+                .collect_vec(),
+            vec![
+                ("ts", DataType::Timestamp(TimeUnit::Millisecond, None)),
+                ("text", DataType::Utf8),
+            ]
+        );
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "text": { "regex": "(\\d{1}).*" } }
+        }"#,
+        )
+        .unwrap();
+        dbg!(&pipeline);
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+
+        assert_eq!(
+            output[0]
+                .fields
+                .iter()
+                .map(|f| (f.name.as_str(), f.arrow_type.clone()))
+                .collect_vec(),
+            vec![
+                ("ts", DataType::Timestamp(TimeUnit::Millisecond, None)),
+                ("text0", DataType::Utf8),
+                ("text1", DataType::Utf8),
+            ]
+        );
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+    }
+
+    #[test]
+    fn test_pipeline() {
+        let records = demo_mqtt_records();
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["value::double", "id::int"] } }
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser and mutate
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["value::double", "id::int"] } },
+            "mutate": [{ "filter": "value > 1.2" }]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser, mutate and model
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["value::double", "id::int"] } },
+            "mutate": [{ "filter": "value > 1.2" }],
+            "model": [{
+                "name": "d{id}",
+                "using": "meters",
+                "tags": ["id"],
+                "columns": ["ts", "value"]
+            }]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+    }
+
+    fn demo_text_records() -> RecordBatch {
+        let fields = vec![
+            Field::new(
+                "ts",
+                DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None),
+                false,
+            ),
+            Field::new("text", DataType::Utf8, true),
+        ];
+        let schema = Arc::new(Schema::new(fields));
+        let now = chrono::Utc::now()
+            .sub(Duration::from_secs(60 * 60 * 24))
+            .timestamp_millis();
+        let columns = vec![
+            Arc::new(arrow::array::TimestampMillisecondArray::from(vec![
+                now,
+                now + 1000,
+                now + 2000,
+                now + 3000,
+                now + 4000,
+                now + 5000,
+            ])) as ArrayRef,
+            Arc::new(arrow::array::StringArray::from(vec![
+                // name,value,id,price
+                r#"a,1.1,1,1.1"#,
+                r#"b,1.2,2,1.1"#,
+                r#"a,1.3,1,1.1"#,
+                r#"b,1.4,2,1.1"#,
+                r#"a,1.5,1,1.1"#,
+                r#"b,1.6,2,1.1"#,
+            ])) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).unwrap()
+    }
+    fn demo_mqtt_records() -> RecordBatch {
+        let fields = vec![
+            Field::new(
+                "ts",
+                DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None),
+                false,
+            ),
+            Field::new("payload", DataType::Utf8, true),
+        ];
+        let schema = Arc::new(Schema::new(fields));
+        let now = chrono::Utc::now()
+            .sub(Duration::from_secs(60 * 60 * 24))
+            .timestamp_millis();
+        let columns = vec![
+            Arc::new(arrow::array::TimestampMillisecondArray::from(vec![
+                now,
+                now + 1000,
+                now + 2000,
+                now + 3000,
+                now + 4000,
+                now + 5000,
+            ])) as ArrayRef,
+            Arc::new(arrow::array::StringArray::from(vec![
+                r#"{"value":1.1, "id": 1, "events":[{"price": "1.1"}]}"#,
+                r#"{"value":1.2, "id": 2, "events":[{"price": "1.1"}]}"#,
+                r#"{"value":1.3, "id": 1, "events":[{"price": "1.1"}]}"#,
+                r#"{"value":1.4, "id": 2, "events":[{"price": "1.1"}]}"#,
+                r#"{"value":1.5, "id": 1, "events":[{"price": "1.1"}]}"#,
+                r#"{"value":1.6, "id": 2, "events":[{"price": "1.1"}]}"#,
+            ])) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).unwrap()
+    }
+}
+
+/// Field parser composer.
+///
+/// ```json
+/// {
+///   "parse": { "payload": { "json": ["value::double"] } },
+///   "model": {
+///     "table": "{topic}",
+///     "using": "mqtt",
+///     "tags": ["topic"],
+///     "columns": ["ts", "value", "qos"]
+///   }
+/// }
+/// ```
+///
+/// ```json
+/// {
+///   "parse": { "payload": {
+///      "json": ["metric", "location::nchar", "value::double"]
+///   } },
+///   "model": [{
+///     "name": "{topic}-{location}",
+///     "using": "{metric}",
+///     "tags": ["topic", "location"],
+///     "columns": ["ts", "value", "qos"]
+///   }
+/// }]
+/// ```
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Parser {
+    parse: Option<ParserImpl>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    mutate: Vec<Mutate>,
+    model: Modeler,
+}
+
+#[derive(Debug, Error)]
+pub enum ParserError {
+    #[error("Read parser from path {input} error: {error}")]
+    IoError {
+        input: String,
+        error: std::io::Error,
+    },
+    #[error("Deserialize parser from string {input} error: {error}")]
+    DeserializeError {
+        input: String,
+        error: serde_json::Error,
+    },
+}
+impl FromStr for Parser {
+    type Err = ParserError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.starts_with('@') {
+            let s = &s[1..];
+            let s = std::fs::read_to_string(s).map_err(|error| ParserError::IoError {
+                input: s.to_string(),
+                error,
+            })?;
+            return serde_json::from_str(&s).map_err(|error| ParserError::DeserializeError {
+                input: s.to_string(),
+                error,
+            });
+        }
+        serde_json::from_str(s).map_err(|error| ParserError::DeserializeError {
+            input: s.to_string(),
+            error,
+        })
+    }
+}
+
+impl Parser {
+    pub fn get_ipcdatatype_from_parser(&self, column_name: &str) -> Option<&IpcDataType> {
+        let payload = self.parse.as_ref()?.get("payload");
+        if payload.is_none() {
+            return None;
+        }
+        let payload = payload.unwrap();
+        match payload {
+            FieldParser::Json(json) => {
+                if json.json.is_none() {
+                    None
+                } else {
+                    let select = json.json.as_ref().unwrap();
+                    match select {
+                        Select::Include(incl) => {
+                            for item in incl.iter() {
+                                if (item.alias().is_some() && item.alias().unwrap() == column_name)
+                                    || item.name() == column_name
+                                {
+                                    return item.cast();
+                                }
+                            }
+                            None
+                        }
+                        _ => None,
+                    }
+                }
+            }
+            _ => None,
+        }
+    }
+
+    pub fn parse_schema(&self, schema: &Arc<Schema>) -> Arc<Schema> {
+        let _ = schema;
+        todo!()
+    }
+
+    fn get_schema_column_with_name<'a>(
+        schema: &'a Arc<Schema>,
+        name: &str,
+    ) -> Option<(usize, &'a Field)> {
+        let (idx, field) = schema.fields().into_iter().enumerate().find(|(_, b)| {
+            let meta_name = b.metadata().get("name");
+            (meta_name.is_some() && name == meta_name.unwrap()) || b.name() == name
+        })?;
+        Some((idx, field.as_ref()))
+    }
+
+    fn transform_records(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {
+        if self.mutate.is_empty() && self.parse.is_none() {
+            Err(anyhow::anyhow!(
+                "Either parse or mutate must be set in pipeline"
+            ))?;
+        }
+        let batch = self
+            .parse
+            .as_ref()
+            .map(|parse| parse.transform_record_batch(&records))
+            .transpose()?
+            .unwrap_or_else(|| records.clone());
+        self.mutate.iter().fold(Ok(batch), |batch, mutate| {
+            batch.and_then(|batch| mutate.transform_record_batch(&batch))
+        })
+    }
+
+    pub fn parse_message_from_records(&self, records: &RecordBatch) -> Result<Message, Error> {
+        let batch = self.transform_records(&records)?;
+        let schema = batch.schema();
+        let batches = vec![batch];
+        let batch = &batches[0];
+        // tracing::info!("Parse message {:?}", batch);
+
+        fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
+            batches
+                .iter()
+                .map(|batch| {
+                    let schema = batch.schema();
+                    let fields = schema.fields();
+
+                    RecordBatch::try_from_iter(batch.columns().iter().enumerate().filter_map(
+                        |(idx, data)| {
+                            let dt = fields[idx].data_type();
+                            if matches!(dt, DataType::Binary | DataType::LargeBinary) {
+                                arrow::compute::cast(data, &DataType::Utf8)
+                                    .ok()
+                                    .map(|data| (fields[idx].name(), data))
+                            } else {
+                                Some((fields[idx].name(), data.clone()))
+                            }
+                        },
+                    ))
+                    .unwrap()
+                })
+                .collect()
+        }
+        let json_batches = to_json_valid_batches(&batches);
+
+        let json = arrow::json::writer::record_batches_to_json_rows(
+            json_batches.iter().collect_vec().as_slice(),
+        )?;
+
+        let mut data = vec![];
+        for table in &self.model {
+            let mut template = TinyTemplate::new();
+            template.add_template("name", &table.name).unwrap();
+            if let Some(using) = table.using.as_ref() {
+                template.add_template("using", using).unwrap();
+            }
+
+            let mut columns_indices = Vec::from_iter(0..batch.num_columns());
+            let spec_columns = if let Some(cols) = table.columns.as_ref() {
+                //
+                let mut indices = Vec::new();
+                for name in cols {
+                    // if let Some((index, _)) = schema.column_with_name(name) {
+                    if let Some((index, _)) =
+                        Self::get_schema_column_with_name(&schema, name.as_str())
+                    {
+                        indices.push(index);
+                    } else {
+                        tracing::warn!("Selected column {} not found in stream message", name);
+                    }
+                }
+                Some(indices)
+            } else {
+                None
+            };
+            let (tags, columns) = if let Some(tags) = &table.tags {
+                let mut indices = vec![];
+                for name in tags {
+                    let (i, _) = Self::get_schema_column_with_name(&schema, name.as_str())
+                        .ok_or_else(|| anyhow::format_err!("Invalid field name `{name}`"))?;
+                    // let (i, _) = schema
+                    // .column_with_name(&name)
+                    // .ok_or_else(|| anyhow::format_err!("Invalid field name `{name}`"))?;
+
+                    indices.push(i);
+                    columns_indices[i] = usize::MAX;
+                }
+                let tags = batches[0].project(&indices)?;
+                let cols = spec_columns.unwrap_or(
+                    columns_indices
+                        .into_iter()
+                        .filter(|v| *v != usize::MAX)
+                        .collect_vec(),
+                );
+                (Some(tags), batch.project(&cols).unwrap())
+            } else {
+                (
+                    None,
+                    batch
+                        .project(&spec_columns.unwrap_or(columns_indices))
+                        .unwrap(),
+                )
+            };
+
+            let tables = (0..batch.num_rows())
+                .map(|row| (template.render("name", &json[row]).unwrap(), row))
+                .into_group_map();
+
+            for (name, indices) in tables {
+                let ranges = indices_to_ranges(&indices);
+                let name_row = indices[0];
+                let batches = ranges
+                    .into_iter()
+                    .map(|range| columns.slice(range.start, range.len()))
+                    .collect_vec();
+                let batch = arrow::compute::concat_batches(&columns.schema(), batches.iter())?;
+
+                let using = if table.using.is_some() {
+                    template.render("using", &json[name_row]).ok()
+                } else {
+                    None
+                };
+
+                let tags = tags.as_ref().map(|batch| batch.slice(name_row, 1));
+
+                let meta = MessageTableMeta::new(name, using, tags);
+                let item = MessageArrowRecords {
+                    table: meta,
+                    records: batch,
+                };
+                data.push(item);
+            }
+        }
+        Ok(Message::Records(data))
+    }
+    pub fn parse(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {
+        self.self_check()?;
+        Ok(self
+            .parse
+            .as_ref()
+            .map(|parse| parse.transform_record_batch(&records))
+            .transpose()?
+            .unwrap_or_else(|| records.clone()))
+    }
+
+    fn self_check(&self) -> Result<(), Error> {
+        for table in &self.model {
+            if table.name.is_empty() {
+                return Err(Error::EmptyTableName);
+            } else if table.name.contains('.') {
+                return Err(Error::TableNameContainsDot(table.name.clone()));
+            }
+
+            if let Some(columns) = table.columns.as_ref() {
+                if columns.is_empty() {
+                    return Err(Error::EmptyTableColumns(table.name.clone()));
+                }
+                for dup in columns.iter().duplicates() {
+                    return Err(Error::DuplicatedColumns(dup.clone()));
+                }
+            }
+
+            if let Some(tags) = table.tags.as_ref() {
+                if table.using.as_ref().is_none() {
+                    return Err(Error::STableNameRequired);
+                }
+                for dup in tags.iter().duplicates() {
+                    return Err(Error::DuplicatedTags(dup.clone()));
+                }
+            }
+            if let Some(stable) = table.using.as_ref() {
+                if stable.is_empty() {
+                    return Err(Error::EmptySTableName);
+                } else if stable.contains('.') {
+                    return Err(Error::STableNameContainsDot(stable.clone()));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+// impl TransformExt for Parser {
+//     // fn transform_message(&self, item: Message) -> Result<Option<Message>, Error> {
+//     //     match item {
+//     //         // todo: transformers should works on all kinds of message.
+//     //         Message::Raw(raw) => Ok(Some(Message::Raw(raw))),
+//     //         Message::Tables(tables) => Ok(Some(Message::Tables(tables))),
+//     //         Message::ChildTables(tables) => Ok(Some(Message::ChildTables(tables))),
+//     //         Message::Records(records) => {
+//     //             let mut new = vec![];
+//     //             for records in records {
+//     //                 let batch = self.transform_record_batch(&records.records)?;
+//     //                 if batch.num_rows() == 0 {
+//     //                     continue;
+//     //                 }
+//     //                 let item = MessageArrowRecords {
+//     //                     table: records.table.clone(),
+//     //                     records: batch,
+//     //                 };
+//     //                 new.push(item);
+//     //             }
+//     //             Ok(Some(Message::Records(new)))
+//     //         }
+//     //     }
+//     // }
+
+//     fn transform_schema(
+//         &self,
+//         schema: std::sync::Arc<arrow::datatypes::Schema>,
+//     ) -> Result<std::sync::Arc<arrow::datatypes::Schema>, Error> {
+//         Ok(schema)
+//     }
+
+//     fn transform_record_batch(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {
+//         self.parse(records)
+//     }
+// }
 
 #[derive(Debug)]
 pub struct MessageTable {
@@ -250,7 +1247,7 @@ impl MessageArrowRecords {
                 .map(|f| f.sql_repr())
                 .join(",");
             Some(format!(
-                "create table if not exists `{}` ({}) tags ({})",
+                "create table `{}` ({}) tags ({})",
                 using, columns, tags
             ))
         } else {
@@ -375,67 +1372,22 @@ impl Message {
     }
 }
 
-// TODO: Extractor
-#[allow(dead_code)]
-pub enum Extractor {
-    Json {
-        at: String,
-        flatten: bool,
-        select: Option<Vec<String>>,
-        keep: bool,
-    },
-    Regex {
-        pattern: Regex,
-    },
-}
-
-pub trait Source {
-    type Offset;
-
-    fn describe(&self, table: &str) -> Describe;
-    fn commit(&self, offset: Self::Offset);
-}
-
 pub trait TransformExt {
-    fn transform_message(&self, item: Message) -> Result<Option<Message>, Error> {
-        Ok(Some(item))
-    }
-
     fn transform_schema(&self, schema: Arc<Schema>) -> Result<Arc<Schema>, Error> {
-        Ok(schema)
+        let empty = RecordBatch::new_empty(schema);
+        self.transform_record_batch(&empty)
+            .map(|batch| batch.schema())
     }
-    fn transform_record_batch(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {
-        Ok(records.clone())
-    }
+
+    fn transform_record_batch(&self, records: &RecordBatch) -> Result<RecordBatch, Error>;
 }
-
-// #[derive(Debug, Deserialize, Serialize, Clone)]
-// #[serde(rename_all = "snake_case")]
-// pub enum Parser {
-//     Headers(),
-//     Json(Json),
-//     Select(Select),
-// }
-
-// pub struct Parsers {
-//     parser: Vec<Parser>,
-// }
-
-// impl Parsers {
-//     pub fn from_parser(parser: Vec<Parser>) -> Self {
-//         Self { parser }
-//     }
-
-//     pub fn parse(&self, item: Message) -> Option<Message> {
-//         for p in &self.parser {
-//             // p.parse(&mut item)
-//         }
-//         None
-//     }
-// }
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error(transparent)]
+    EvalError(#[from] expr::EvalError),
+    #[error("Template {0:?} error: {1:#}")]
+    TemplateError(String, rhai::EvalAltResult),
     #[error("Parse error for field `{field}`: {error}")]
     FieldParserError {
         field: String,
@@ -461,6 +1413,36 @@ pub enum Error {
     STableNameContainsDot(String),
     #[error(transparent)]
     ArrowError(#[from] ArrowError),
-    #[error("Unknown error: {0}")]
+    #[error(transparent)]
+    MapValueError(#[from] map::ValueBuilderError),
+    #[error("{0:#}")]
     Other(#[from] anyhow::Error),
+}
+
+fn indices_to_ranges(indices: &[usize]) -> Vec<Range<usize>> {
+    debug_assert!(!indices.is_empty());
+    let mut ranges = vec![];
+    let mut start = indices[0];
+    let mut end = start + 1;
+
+    for index in &indices[1..] {
+        if end == *index {
+            end = index + 1;
+        } else {
+            ranges.push(start..end);
+            start = *index;
+            end = index + 1;
+        }
+    }
+    ranges.push(start..end);
+
+    ranges
+}
+
+#[test]
+fn test_indices_to_ranges() {
+    let indices = vec![0, 1, 2, 3, 5, 6, 7, 8, 10];
+    let ranges = indices_to_ranges(&indices);
+    dbg!(&ranges);
+    assert_eq!(ranges, vec![0..4, 5..9, 10..11]);
 }

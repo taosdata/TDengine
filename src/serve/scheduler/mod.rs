@@ -88,7 +88,7 @@ impl Drop for TaskScheduler {
 
 #[derive(Debug, Error)]
 pub enum StopError {
-    #[error("Task {0} not found")]
+    #[error("Task {0} is not in scheduler")]
     NotFound(i64),
     #[error("Task {0} already stopped")]
     AlreadyStopped(i64),
@@ -393,6 +393,10 @@ impl TaskScheduler {
             .await
             .context("Stopping task timed out")?;
         Ok(())
+    }
+
+    pub async fn exists(&self, id: i64) -> bool {
+        self.tasks.read().await.get_by_task_id(&id).is_some()
     }
 
     pub async fn push_task(&self, task: Task) -> anyhow::Result<()> {

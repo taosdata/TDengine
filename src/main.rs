@@ -27,7 +27,11 @@ use tracing_subscriber::{
 };
 use twelf::{config, Layer};
 
-use taosx_core::utils::trace::TaosXLayer;
+use taosx_core::{
+    get_data_dir,
+    runners::{get_logs_home_dir, get_plugins_home_dir},
+    utils::trace::TaosXLayer,
+};
 use taosx_core::{
     get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
     set_env_plugins_home_dir,
@@ -256,7 +260,10 @@ impl Args {
         let matches = Args::command().get_matches();
 
         match &mut args.commands {
-            Some(Commands::Run(_)) => {}
+            Some(Commands::Run(cli)) => {
+                // verbose in subCommand
+                args.opt_args.verbose.clone_from(&cli.verbose);
+            }
             Some(Commands::Serve(cli)) => {
                 let mut serve = configurable_opts.serve.unwrap_or_default();
 
@@ -278,6 +285,8 @@ impl Args {
                     tak_or_not!(do_not_resume);
                 }
                 cli.merge_from(serve);
+                // verbose in subCommand
+                args.opt_args.verbose.clone_from(&cli.verbose);
             }
             _ => {}
         }
@@ -344,7 +353,7 @@ fn create_rotating_log_writer(log_path: &Path, log_keep_days: i64) -> FileRotate
             DateFrom::DateYesterday,
         ),
         ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
+        Compression::OnRotate(2),
         #[cfg(unix)]
         None,
     )
@@ -357,34 +366,39 @@ async fn init_tracing_layers(
     non_blocking: NonBlocking,
 ) -> Result<(), anyhow::Error> {
     let mut layers = Vec::new();
-    use tracing_subscriber::filter::LevelFilter;
-    let level_filter = match level_filter {
-        clap_verbosity_flag::LevelFilter::Off => LevelFilter::OFF,
-        clap_verbosity_flag::LevelFilter::Error => LevelFilter::ERROR,
-        clap_verbosity_flag::LevelFilter::Warn => LevelFilter::WARN,
-        clap_verbosity_flag::LevelFilter::Info => LevelFilter::INFO,
-        clap_verbosity_flag::LevelFilter::Debug => LevelFilter::DEBUG,
-        clap_verbosity_flag::LevelFilter::Trace => LevelFilter::TRACE,
+    use tracing_subscriber::filter::LevelFilter as TracingLevelFilter;
+    let tracing_level_filter = match level_filter {
+        log::LevelFilter::Off => TracingLevelFilter::OFF,
+        log::LevelFilter::Error => TracingLevelFilter::ERROR,
+        log::LevelFilter::Warn => TracingLevelFilter::WARN,
+        log::LevelFilter::Info => TracingLevelFilter::INFO,
+        log::LevelFilter::Debug => TracingLevelFilter::DEBUG,
+        log::LevelFilter::Trace => TracingLevelFilter::TRACE,
     };
     // Add layer for rotating logs
     layers.push(
         TaosXLayer::new()
             .with_writer(non_blocking)
-            .with_filter(level_filter)
+            .with_filter(tracing_level_filter)
             .boxed(),
     );
     let event_filter = EnvFilter::builder()
-        .with_default_directive(level_filter.into())
+        .with_default_directive(tracing_level_filter.into())
         .with_regex(true)
-        .from_env_lossy()
-        .add_directive("tungstenite=warn".parse()?)
-        .add_directive("tokio=warn".parse()?)
-        .add_directive("runtime=warn".parse()?)
-        .add_directive("actix_server=info".parse()?)
-        .add_directive("actix_http=info".parse()?)
-        .add_directive("tokio_tungstenite=info".parse()?)
-        .add_directive("mio=info".parse()?)
-        .add_directive("h2=info".parse()?);
+        .from_env_lossy();
+    let event_filter = if level_filter > log::LevelFilter::Info {
+        event_filter
+            .add_directive("tungstenite=warn".parse()?)
+            .add_directive("tokio=warn".parse()?)
+            .add_directive("runtime=warn".parse()?)
+            .add_directive("actix_server=info".parse()?)
+            .add_directive("actix_http=info".parse()?)
+            .add_directive("tokio_tungstenite=info".parse()?)
+            .add_directive("mio=info".parse()?)
+            .add_directive("h2=info".parse()?)
+    } else {
+        event_filter
+    };
 
     let chrono_local = Local::now();
     let timezone_offset = (chrono_local.offset().local_minus_utc()
@@ -435,7 +449,7 @@ async fn init_tracing_layers(
     }
 
     // Enable opentelemetry layer
-    if args.global.otel.unwrap_or(false) {
+    if otel_enabled(args) {
         let tracer = opentelemetry_otlp::new_pipeline()
             .tracing()
             .with_exporter(opentelemetry_otlp::new_exporter().tonic())
@@ -457,7 +471,7 @@ async fn init_tracing_layers(
             .with_tracer(tracer)
             .with_filter(
                 EnvFilter::builder()
-                    .with_default_directive(level_filter.into())
+                    .with_default_directive(tracing_level_filter.into())
                     .with_regex(true)
                     .from_env_lossy()
                     .add_directive("tungstenite=warn".parse()?)
@@ -501,46 +515,67 @@ fn level_upgrade(level: LevelFilter, num: i8) -> LevelFilter {
     };
     return level_upgrade(level, num - 1);
 }
+
+fn get_log_path() -> PathBuf {
+    let mut log_path = get_log_dir("");
+    log_path.push("taosx.log");
+    log_path
+}
+
+#[inline]
+fn otel_enabled(args: &Args) -> bool {
+    args.global.otel.unwrap_or(false)
+}
+
+/// Gether all effective enviroment variables and options, and join them with \n .
+/// This method can only be called after all env variables and options were determined.
+#[rustfmt::skip]
+fn pirnt_effective_config(level_filter: &LevelFilter, args: &Args) {
+    let w = 18;
+    let w2 = 22;
+    let mut s = String::new();
+    s += "       global config\n";
+    s += "===================================================================================\n";
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "plugins_home", get_plugins_home_dir().display()).as_str();
+    s += format!("{:<w$}{:<w2$}{}\n",' ',"data_dir", get_data_dir().display()).as_str();
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "logs_home",get_logs_home_dir().display()).as_str();
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "log_path", get_log_path().display()).as_str();
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "log_level", level_filter).as_str();
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "log_keep_days", get_log_keep_days()).as_str();
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "jobs", args.global.jobs).as_str();
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "otel", otel_enabled(args)).as_str();
+    if let Commands::Serve(cli) = args.commands.as_ref().unwrap_or(&Commands::Serve(Default::default())) {
+        s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.listen", cli.get_listen_address()).as_str();
+        s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.database_url", cli.get_database_url()).as_str();
+    }
+    s += "===================================================================================";
+    tracing::info!("{}", s);
+}
+
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
     let version = build::PKG_VERSION;
     let commit_id = build::COMMIT_HASH;
     let build_time = build::BUILD_TIME;
-    tracing::info!("taosx version: {version}");
-    tracing::info!("commit id: {commit_id}");
-    tracing::info!("build time: {build_time}");
     let args = Args::init()?;
     set_env_plugins_home_dir(args.global.plugins_home.clone());
     set_env_data_dir(args.global.data_dir.clone());
     set_env_log_home_dir(args.global.logs_home.clone());
     set_env_log_keep_days(args.global.log_keep_days.clone());
 
-    let mut log_path = get_log_dir("server");
-    log_path.push("server.log");
-    println!("log path: {:?}", log_path);
-    let log_keep_days = get_log_keep_days();
-    println!("log keep days: {}", &log_keep_days);
-    println!("configs: {:?}", args);
-
     // Initialize tracing layers
     let mut level_filter = args.global.log_level.clone().unwrap_or(LevelFilter::Info);
-    if let Some(verbosity) = args.opt_args.verbose.as_ref() {
-        let level_num = verbosity.log_level_filter();
-        let level_num: i8 = match level_num {
-            LevelFilter::Off => -3,
-            LevelFilter::Error => -2,
-            LevelFilter::Warn => -1,
-            LevelFilter::Info => 0,
-            LevelFilter::Debug => 1,
-            LevelFilter::Trace => 2,
-        };
+    if let Some(_) = args.opt_args.verbose.as_ref() {
+        let matches = Args::command().get_matches();
+        let level_num = matches.get_count("verbose") as i8 - matches.get_count("quiet") as i8;
         level_filter = level_upgrade(level_filter, level_num);
     }
-    println!("log level: {:?}", &level_filter);
+
     let span_events = args.opt_args.tracing_events.clone();
     let worker_threads = args.global.jobs.clone();
     let runtime = build_runtime(worker_threads)?;
-    let log_rotation = create_rotating_log_writer(&mut log_path, log_keep_days);
+    let log_path = get_log_path();
+    let log_rotation = create_rotating_log_writer(&log_path, get_log_keep_days());
     let (non_blocking, _guard) = tracing_appender::non_blocking(log_rotation);
     runtime.block_on(init_tracing_layers(
         &args,
@@ -548,10 +583,10 @@ fn main() -> Result<()> {
         level_filter,
         non_blocking,
     ))?;
-    // Print build info in log file.
-    tracing::info!("version: {version}");
+    tracing::info!("taosx version: {version}");
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
+    pirnt_effective_config(&level_filter, &args);
 
     match args.commands.unwrap_or(Commands::Serve(Default::default())) {
         Commands::Run(cli) => {

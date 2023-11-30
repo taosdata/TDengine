@@ -11,6 +11,7 @@ use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
+use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::mqtt::config::{MqttConfig, MqttConnectConfig};
@@ -42,7 +43,7 @@ fn mqtt_exe_path() -> anyhow::Result<PathBuf> {
 const LOG_FILE: &str = "mqtt.log";
 
 fn log_path() -> PathBuf {
-    super::get_log_dir("mqtt")
+    super::get_log_dir("")
 }
 
 pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
@@ -67,6 +68,7 @@ pub async fn mqtt_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let ipc_port = port_pool
@@ -85,6 +87,23 @@ pub async fn mqtt_to_taos(
         config_path.display(),
         toml
     );
+    // save the temporary file to task dir
+    match task_id {
+        Some(task_id) => {
+            let path = get_data_dir().join("tasks").join(task_id.to_string());
+            std::fs::create_dir_all(&path).unwrap();
+            let path = path.join(format!(
+                "{}-{}-{}.{}",
+                task_id,
+                "mqtt",
+                chrono::Local::now().format("%Y%m%d%H%M"),
+                "toml"
+            ));
+            let _ = fs::copy(&config_path, path);
+        }
+        None => {}
+    }
+    // create socket channel
     let mut ipc_handler = build_ipc(
         &config.remote,
         parser,
@@ -273,12 +292,9 @@ async fn validate_mqtt(config: MqttConfig) -> anyhow::Result<DataSourceValidatio
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::env;
     use std::str::FromStr;
-
-    use crate::TaskOpts;
-
-    use super::*;
 
     #[tokio::test]
     async fn test_invalid() {
@@ -311,65 +327,68 @@ mod tests {
 
         let dsn = Dsn::from_str("mqtt://192.168.1.42:1883?version=3.0").unwrap();
         let dsv = is_valid(&dsn).await;
+        dbg!(&dsv);
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("mqtt", dsv.data_source);
         assert_eq!(None, dsv.version);
     }
 
-    #[ignore]
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_mqtt_parser() {
-        std::env::set_var("RUST_LOG", "debug,tokio=warn");
-        let _ = pretty_env_logger::try_init();
-        let transferred = Arc::new(Transferred::default());
-        let _metrics = transferred.clone();
-        let (notify, _) = flume::unbounded();
-        use std::time::Duration;
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_millis(200));
-            loop {
-                interval.tick().await;
-                // dbg!(&metrics);
-            }
-        });
-        let opts = TaskOpts {
-            transform: vec![],
-            from: "mqtt://192.168.0.201:11883?topics=topic-1::1"
-                .parse()
-                .unwrap(),
-            to: "taos:///mqtt".parse().unwrap(),
-            parser: Some(
-                serde_json::from_str(
-                    r#"
-                {
-                    "parse": { "payload": { "json": [
-                        { "name": "pre", "alias": "value" }
-                    ], "flatten": false, "keep": true } },
-                    "model": {
-                        "name": "{topic}-{qos}",
-                        "using": "mqtt",
-                        "tags": ["topic", "qos"],
-                        "columns": ["ts", "value"]
-                    }
+    /*
+        #[ignore]
+        #[tokio::test(flavor = "multi_thread")]
+        async fn test_mqtt_parser() {
+            std::env::set_var("RUST_LOG", "debug,tokio=warn");
+            let _ = pretty_env_logger::try_init();
+            let transferred = Arc::new(Transferred::default());
+            let _metrics = transferred.clone();
+            let (notify, _) = flume::unbounded();
+            use std::time::Duration;
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(Duration::from_millis(200));
+                loop {
+                    interval.tick().await;
+                    // dbg!(&metrics);
                 }
-                "#,
-                )
-                .unwrap(),
-            ),
-            jobs: 0,
-            compression_level: None,
-            force: false,
-            cancel: CancellationToken::new(),
-            // port_pool: ONCE,
-            with_agent: None,
-            breakpoints: None,
-            offsets: Default::default(),
-            transferred: Some(transferred),
-            span: tracing::info_span!("test_mqtt"),
-            task_id: None,
-            notify,
-        };
-        opts.run(&PortPool::default()).await.unwrap();
-    }
+            });
+            let opts = TaskOpts {
+                transform: vec![],
+                from: "mqtt://192.168.0.201:11883?topics=topic-1::1"
+                    .parse()
+                    .unwrap(),
+                to: "taos:///mqtt".parse().unwrap(),
+                parser: Some(
+                    serde_json::from_str(
+                        r#"
+                    {
+                        "parse": { "payload": { "json": [
+                            { "name": "pre", "alias": "value" }
+                        ], "flatten": false, "keep": true } },
+                        "model": {
+                            "name": "{topic}-{qos}",
+                            "using": "mqtt",
+                            "tags": ["topic", "qos"],
+                            "columns": ["ts", "value"]
+                        }
+                    }
+                    "#,
+                    )
+                    .unwrap(),
+                ),
+                jobs: 0,
+                compression_level: None,
+                force: false,
+                cancel: CancellationToken::new(),
+                // port_pool: ONCE,
+                with_agent: None,
+                breakpoints: None,
+                offsets: Default::default(),
+                transferred: Some(transferred),
+                span: tracing::info_span!("test_mqtt"),
+                task_id: None,
+                notify,
+            };
+            opts.run(&PortPool::default()).await.unwrap();
+        }
+    */
 }

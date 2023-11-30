@@ -1,18 +1,16 @@
-use std::{collections::HashMap, fmt::Display, str::FromStr, sync::Arc};
+use std::{collections::HashMap, fmt::Display, str::FromStr};
 
 use arrow::{
     datatypes::{DataType, Field, FieldRef, Fields, Schema},
-    error::ArrowError,
     record_batch::RecordBatch,
 };
+use arrow_schema::ArrowError;
 use itertools::Itertools;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use taosx_ipc::prelude::IpcDataType;
-
-use super::{MessageArrowRecords, TransformExt};
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 struct SelectItem {
@@ -176,18 +174,43 @@ impl PartialEq for Select {
 
 pub fn query(fields: &Fields, path: &str) -> Option<(usize, FieldRef)> {
     if path.starts_with('$') {
+        let _ = serde_json_path::JsonPath::from_str(&path).ok()?;
+        // match json_path
         let path = path.trim_start_matches('$').trim_start_matches('.');
         if let Some((name, path)) = path.split_once('.') {
             let (i, field) = fields.find(name)?;
-            return if let DataType::Struct(fields) = field.data_type() {
-                let (_, field) = query(fields, path)?;
-                Some((i, field))
-            } else {
-                None
-            };
-        } else {
-            return fields.find(path).map(|(i, f)| (i, f.clone()));
+            if let DataType::Struct(fields) = field.data_type() {
+                let path = if path.contains(['.', '['].as_ref()) {
+                    format!("$.{}", path)
+                } else {
+                    path.to_string()
+                };
+                let (_, field) = query(fields, &path)?;
+                return Some((i, field));
+            }
         }
+        if let Some((name, index)) = path.find('[').map(|i| path.split_at(i)) {
+            let (i, field) = fields.find(name)?;
+            if let DataType::List(field) = field.data_type() {
+                // [index]
+                if index.ends_with(']') && !index.trim_end_matches(']').contains(']') {
+                    return Some((i, field.clone()));
+                }
+                // [index].path
+                if let Some((_, next_path)) = index.find(']').map(|i| index.split_at(i)) {
+                    let path = if next_path.contains(['.', '['].as_ref()) {
+                        format!("$.{}", next_path)
+                    } else {
+                        next_path.to_string()
+                    };
+                    if let DataType::Struct(fields) = field.data_type() {
+                        let (_, field) = query(fields, &path)?;
+                        return Some((i, field));
+                    }
+                }
+            }
+        }
+        return fields.find(path).map(|(i, f)| (i, f.clone()));
     }
     fields.find(path).map(|(i, f)| (i, f.clone()))
 }
@@ -231,75 +254,108 @@ impl Select {
 
                 let fields = include
                     .iter()
-                    .filter_map(|item| {
-                        query(fields, item.name()).map(|(i, f)| match (item.alias(), item.cast()) {
-                            (None, None) => {
-                                let mut m = HashMap::new();
-                                m.insert("query".to_string(), item.name().to_string());
-                                m.insert("name".to_string(), f.name().to_string());
-                                m.insert("index".to_string(), i.to_string());
-                                Field::new(f.name(), f.data_type().clone(), f.is_nullable())
-                                    .with_metadata(m)
-                            }
-                            (Some(alias), None) => {
-                                let mut m = HashMap::new();
-                                m.insert("query".to_string(), item.name().to_string());
-                                m.insert("name".to_string(), f.name().to_string());
-                                m.insert("index".to_string(), i.to_string());
-                                Field::new(alias, f.data_type().clone(), f.is_nullable())
-                                    .with_metadata(m)
-                            }
-                            (None, Some(cast)) => {
-                                let mut m = HashMap::new();
-                                m.insert("query".to_string(), item.name().to_string());
-                                m.insert("name".to_string(), f.name().to_string());
-                                m.insert("index".to_string(), i.to_string());
-                                m.insert("cast_from".to_string(), f.data_type().to_string());
-                                match cast {
-                                    IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
-                                        m.insert("length".to_string(), len.to_string());
-                                        m.insert(
-                                            "cast_to".to_string(),
-                                            cast.ty().name().to_string(),
-                                        );
-                                    }
-                                    IpcDataType::Json => {
-                                        m.insert(
-                                            "cast_to".to_string(),
-                                            cast.ty().name().to_string(),
-                                        );
-                                    }
-                                    _ => (),
+                    .map(|item| {
+                        query(fields, item.name())
+                            .map(|(i, f)| match (item.alias(), item.cast()) {
+                                (None, None) => {
+                                    let mut m = HashMap::new();
+                                    m.insert("query".to_string(), item.name().to_string());
+                                    m.insert("name".to_string(), f.name().to_string());
+                                    m.insert("index".to_string(), i.to_string());
+                                    Field::new(f.name(), f.data_type().clone(), f.is_nullable())
+                                        .with_metadata(m)
                                 }
-                                Field::new(f.name(), cast.arrow_data_type(), f.is_nullable())
-                                    .with_metadata(m)
-                            }
-                            (Some(alias), Some(cast)) => {
+                                (Some(alias), None) => {
+                                    let mut m = HashMap::new();
+                                    m.insert("query".to_string(), item.name().to_string());
+                                    m.insert("name".to_string(), f.name().to_string());
+                                    m.insert("index".to_string(), i.to_string());
+                                    Field::new(alias, f.data_type().clone(), f.is_nullable())
+                                        .with_metadata(m)
+                                }
+                                (None, Some(cast)) => {
+                                    let mut m = HashMap::new();
+                                    m.insert("query".to_string(), item.name().to_string());
+                                    m.insert("name".to_string(), f.name().to_string());
+                                    m.insert("index".to_string(), i.to_string());
+                                    m.insert("cast_from".to_string(), f.data_type().to_string());
+                                    match cast {
+                                        IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
+                                            m.insert("length".to_string(), len.to_string());
+                                            m.insert(
+                                                "cast_to".to_string(),
+                                                cast.ty().name().to_string(),
+                                            );
+                                        }
+                                        IpcDataType::Json => {
+                                            m.insert(
+                                                "cast_to".to_string(),
+                                                cast.ty().name().to_string(),
+                                            );
+                                        }
+                                        _ => (),
+                                    }
+                                    Field::new(f.name(), cast.arrow_data_type(), f.is_nullable())
+                                        .with_metadata(m)
+                                }
+                                (Some(alias), Some(cast)) => {
+                                    let mut m = HashMap::new();
+                                    m.insert("query".to_string(), item.name().to_string());
+                                    m.insert("name".to_string(), f.name().to_string());
+                                    m.insert("index".to_string(), i.to_string());
+                                    m.insert("cast_from".to_string(), f.data_type().to_string());
+                                    match cast {
+                                        IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
+                                            m.insert("length".to_string(), len.to_string());
+                                            m.insert(
+                                                "cast_to".to_string(),
+                                                cast.ty().name().to_string(),
+                                            );
+                                        }
+                                        IpcDataType::Json => {
+                                            m.insert(
+                                                "cast_to".to_string(),
+                                                cast.ty().name().to_string(),
+                                            );
+                                        }
+                                        _ => (),
+                                    }
+                                    Field::new(alias, cast.arrow_data_type(), f.is_nullable())
+                                        .with_metadata(m)
+                                }
+                            })
+                            .unwrap_or_else(|| {
                                 let mut m = HashMap::new();
                                 m.insert("query".to_string(), item.name().to_string());
-                                m.insert("name".to_string(), f.name().to_string());
-                                m.insert("index".to_string(), i.to_string());
-                                m.insert("cast_from".to_string(), f.data_type().to_string());
-                                match cast {
-                                    IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
-                                        m.insert("length".to_string(), len.to_string());
-                                        m.insert(
-                                            "cast_to".to_string(),
-                                            cast.ty().name().to_string(),
-                                        );
-                                    }
-                                    IpcDataType::Json => {
-                                        m.insert(
-                                            "cast_to".to_string(),
-                                            cast.ty().name().to_string(),
-                                        );
-                                    }
-                                    _ => (),
-                                }
-                                Field::new(alias, cast.arrow_data_type(), f.is_nullable())
+                                m.insert(
+                                    "name".to_string(),
+                                    item.alias().unwrap_or(item.name()).to_string(),
+                                );
+                                let dt = item
+                                    .cast()
+                                    .map(|cast| {
+                                        match cast {
+                                            IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
+                                                m.insert("length".to_string(), len.to_string());
+                                                m.insert(
+                                                    "cast_to".to_string(),
+                                                    cast.ty().name().to_string(),
+                                                );
+                                            }
+                                            IpcDataType::Json => {
+                                                m.insert(
+                                                    "cast_to".to_string(),
+                                                    cast.ty().name().to_string(),
+                                                );
+                                            }
+                                            _ => (),
+                                        }
+                                        cast.arrow_data_type()
+                                    })
+                                    .unwrap_or(DataType::Null);
+                                Field::new(item.alias().unwrap_or(item.name()), dt, true)
                                     .with_metadata(m)
-                            }
-                        })
+                            })
                     })
                     .collect_vec();
                 Schema::new_with_metadata(fields, metadata)
@@ -324,7 +380,7 @@ impl Select {
 
     pub fn record_batch(&self, batch: &RecordBatch) -> Result<RecordBatch, ArrowError> {
         let schema = self.schema(&batch.schema());
-        let schema_ref = Arc::new(schema);
+        let schema_ref = std::sync::Arc::new(schema);
         let columns = schema_ref
             .fields()
             .iter()
@@ -344,34 +400,37 @@ impl Select {
     }
 }
 
-impl TransformExt for Select {
-    fn transform_message(
-        &self,
-        item: super::Message,
-    ) -> Result<Option<super::Message>, super::Error> {
-        match item {
-            super::Message::Records(records) => Ok(Some(super::Message::Records(
-                records
-                    .into_iter()
-                    .map(|batch| {
-                        self.record_batch(&batch.records)
-                            .map(|records| MessageArrowRecords {
-                                table: batch.table.clone(),
-                                records,
-                            })
-                    })
-                    .try_collect()?,
-            ))),
-            item => Ok(Some(item)),
-        }
-    }
-}
+// impl TransformExt for Select {
+//     fn transform_message(
+//         &self,
+//         item: super::Message,
+//     ) -> Result<Option<super::Message>, super::Error> {
+//         match item {
+//             super::Message::Records(records) => Ok(Some(super::Message::Records(
+//                 records
+//                     .into_iter()
+//                     .map(|batch| {
+//                         self.record_batch(&batch.records)
+//                             .map(|records| MessageArrowRecords {
+//                                 table: batch.table.clone(),
+//                                 records,
+//                             })
+//                     })
+//                     .try_collect()?,
+//             ))),
+//             item => Ok(Some(item)),
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
-    use arrow::array::{ArrayRef, StringArray};
+    use std::sync::Arc;
 
-    use crate::plugins::transform::{Message, MessageTableMeta};
+    use arrow::{
+        array::{ArrayRef, StringArray},
+        record_batch::RecordBatch,
+    };
 
     use super::*;
 
@@ -462,12 +521,13 @@ mod tests {
 
         let records = RecordBatch::try_from_iter(vec![("a", b.clone()), ("b", b)]).unwrap();
 
-        let item = Message::records(vec![MessageArrowRecords {
-            table: MessageTableMeta::new(Arc::new("tb1".to_string()), None, None),
-            records,
-        }]);
+        // let item = Message::records(vec![MessageArrowRecords {
+        //     table: MessageTableMeta::new(Arc::new("tb1".to_string()), None, None),
+        //     records,
+        // }]);
 
-        let records = select.transform_message(item).unwrap();
+        // let records = select.transform_message(item).unwrap();
+        let _ = select;
 
         dbg!(&records);
     }

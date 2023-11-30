@@ -5,12 +5,15 @@ use actix_multipart::form::MultipartFormConfig;
 use anyhow::Result;
 
 use clap::Parser;
+use clap_verbosity_flag::{InfoLevel, Verbosity};
 
+use actix_web::web;
 use actix_web::{
     middleware::Compat,
-    web::{Data, PayloadConfig, ServiceConfig},
+    web::{resource, Data, PayloadConfig, ServiceConfig},
     App, HttpServer,
 };
+
 use metrics_tracing_context::TracingContextLayer;
 use metrics_util::layers::{FanoutBuilder, Layer};
 use serde::{Deserialize, Serialize};
@@ -93,6 +96,10 @@ pub(super) struct Cli {
 
     #[clap(long)]
     pub do_not_resume: Option<bool>,
+
+    #[clap(flatten)]
+    #[serde(skip)]
+    pub verbose: Option<Verbosity<InfoLevel>>,
 }
 
 impl Cli {
@@ -127,10 +134,12 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(start_task)
             .service(stop_task)
             .service(metrics::metrics_exporter)
+            .service(metrics::metrics_desc)
             .service(data_source_is_valid)
             .service(data_sources_in)
             .service(data_sources_in_one)
             .service(data_source_collection)
+            .service(data_source_sample)
             .service(download_all_data_set_file)
             .service(create_agent)
             .service(update_agent)
@@ -139,7 +148,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(get_agent_activities)
             .service(get_cluster_connector_transferred)
             .service(get_task_activities_by_id)
-            .service(get_task_metrics_by_id)
+            .service(get_task_metrics)
             .service(download_files)
             .service(upload_files)
             .service(metrics::profile)
@@ -148,8 +157,8 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
 }
 
 impl Cli {
-    pub(super) async fn controller(&self, scheduler: TaskScheduler) -> Result<TaskControllerRef> {
-        let database_url = if let Some(path) = self.database_url.as_deref() {
+    pub fn get_database_url(&self) -> String {
+        if let Some(path) = self.database_url.as_deref() {
             path.to_string()
         } else if let Ok(url) = std::env::var("DATABASE_URL") {
             url
@@ -157,7 +166,19 @@ impl Cli {
             format!("sqlite:{}/taosx.db", root)
         } else {
             "sqlite:taosx.db".to_string()
-        };
+        }
+    }
+
+    #[inline]
+    pub fn get_listen_address(&self) -> String {
+        match self.listen.as_ref() {
+            Some(addr) => addr.clone(),
+            None => "0.0.0.0:6050".to_string(),
+        }
+    }
+
+    pub(super) async fn controller(&self, scheduler: TaskScheduler) -> Result<TaskControllerRef> {
+        let database_url = self.get_database_url();
         let controller = TaskControllerRef::from_sqlite(&database_url, scheduler).await?;
 
         if !self.do_not_resume.unwrap_or(false) {
@@ -264,6 +285,8 @@ impl Cli {
                     Activity,
                     LevelFilter,
                     ActivityOrder,
+                    DsSampleIn,
+                    DsSampleOut,
                 ),
                 responses(
                 )
@@ -282,15 +305,17 @@ impl Cli {
                 task::upload_files,
                 task::filemeta,
                 task::download_files,
-                task::get_task_metrics_by_id,
+                task::get_task_metrics,
 
                 metrics::metrics_exporter,
                 metrics::profile,
+                metrics::metrics_desc,
 
                 data_source_is_valid,
                 data_sources_in,
                 data_sources_in_one,
                 data_source_collection,
+                data_source_sample,
                 download_all_data_set_file,
 
                 agent::create_agent,
@@ -305,6 +330,7 @@ impl Cli {
             tags(
                 (name = "tasks", description = "Task management endpoints"),
                 (name = "data sources", description = "Data in/out"),
+                (name = "transform", description = "Transform simulation"),
                 (name = "agents", description = "Agents Management"),
                 (name = "cluster", description = "Cluster Information"),
             ),
@@ -336,8 +362,8 @@ impl Cli {
         ::metrics::set_boxed_recorder(Box::new(fanout))?;
 
         let recorder = Data::new(handle);
-
-        let addr = self.listen.as_deref().unwrap_or("0.0.0.0:6050");
+        let addr = self.get_listen_address();
+        let addr = addr.as_str();
         let server = HttpServer::new(move || {
             let cors = Cors::default()
                 .allow_any_origin()
@@ -359,6 +385,10 @@ impl Cli {
                 .service(
                     SwaggerUi::new("/swagger-ui/{_:.*}")
                         .url("/api-doc/openapi.json", openapi.clone()),
+                )
+                .service(
+                    resource("/metrics/task/{task_id}")
+                        .route(web::get().to(metrics::ws::send_task_metrics)),
                 )
         })
         .bind(addr)

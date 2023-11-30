@@ -12,7 +12,7 @@ use arrow::datatypes::{DataType, Field, Schema};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use kafka::client::{KafkaClient, SecurityConfig};
-use kafka::consumer::{Consumer, GroupOffsetStorage, Message, MessageSet};
+use kafka::consumer::{Consumer, GroupOffsetStorage};
 use openssl::ssl::{SslConnector, SslFiletype, SslMethod, SslVerifyMode};
 use taos::Dsn;
 use tokio_util::sync::CancellationToken;
@@ -72,11 +72,11 @@ pub async fn kafka_to_taos(
     span: Span,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
-    println!(
-        "{} kafka_to_taos started, from: {}, to: {}",
-        chrono::Utc::now().to_string(),
-        from.to_string(),
-        to.to_string()
+    tracing::info!(
+        "kafka_to_taos start, from: {}, parser: {}, to: {}",
+        from,
+        serde_json::to_string(&parser)?,
+        to
     );
     let port = port_pool
         .get()
@@ -104,7 +104,6 @@ pub async fn kafka_to_taos(
     let abort_handle = worker.abort_handle();
 
     let port_pool = port_pool.clone();
-
     tokio::spawn(async move {
         tokio::select! {
             // application exit with error code
@@ -174,14 +173,13 @@ fn kafka_worker(mut from: Dsn, port: u16, aborted: Arc<AtomicBool>) -> anyhow::R
     loop {
         let message_sets = consumer.poll().context("Kafka polling error")?;
         if aborted.load(std::sync::atomic::Ordering::Relaxed) {
-            tracing::info!("{} kafka_to_taos cancelled", chrono::Utc::now().to_string());
+            tracing::info!("kafka_to_taos cancelled");
             break;
         }
         if message_sets.is_empty() {
             thread::sleep(Duration::from_millis(100));
             let now = chrono::Utc::now().timestamp_millis();
             if timeout >= 0 && now - &start > timeout {
-                println!("{} kafka_to_taos stopped", chrono::Utc::now().to_string());
                 break;
             } else {
                 continue;
@@ -198,17 +196,6 @@ fn kafka_worker(mut from: Dsn, port: u16, aborted: Arc<AtomicBool>) -> anyhow::R
         for ms in message_sets.iter() {
             for m in ms.messages() {
                 let ts = chrono::Utc::now().timestamp_nanos_opt().unwrap();
-
-                let default_print_value = String::from("false");
-                let print_value: bool = from
-                    .params
-                    .get("print_value")
-                    .unwrap_or(&default_print_value)
-                    .parse()?;
-
-                if print_value {
-                    print_message(&ms, &m, &ts);
-                }
 
                 timestamp.append_value(ts);
                 topic.append_value(ms.topic());
@@ -236,6 +223,8 @@ fn kafka_worker(mut from: Dsn, port: u16, aborted: Arc<AtomicBool>) -> anyhow::R
 
         start = chrono::Utc::now().timestamp_millis();
     }
+
+    tracing::info!("kafka_to_taos stopped");
     Ok(())
 }
 
@@ -243,7 +232,7 @@ fn build_schema() -> Schema {
     let mut metadata = HashMap::new();
     metadata.insert(String::from("version"), String::from("1.0"));
     metadata.insert(String::from("stream"), String::from("flat"));
-    metadata.insert(String::from("ack"), String::from("none"));
+    metadata.insert(String::from("ack"), String::from("lush"));
     let flat_columns = vec![
         Field::new(
             "ts",
@@ -338,20 +327,6 @@ fn build_client(config: &SourceConfig) -> anyhow::Result<KafkaClient> {
     }
     Ok(client)
 }
-
-#[allow(dead_code)]
-fn print_message(ms: &MessageSet, m: &Message, ts: &i64) {
-    println!(
-        "topic: {}, partition: {}, offset: {},ts: {}, key: {}, values: {}",
-        ms.topic(),
-        ms.partition(),
-        m.offset,
-        ts,
-        String::from_utf8_lossy(m.key),
-        String::from_utf8_lossy(m.value)
-    );
-}
-
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;

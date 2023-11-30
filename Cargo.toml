@@ -11,15 +11,16 @@ clap = { version = "4.4.7", features = ["default", "derive"] }
 regex = { version = "1.9" }
 arrow = { version = "48.0.0", features = ["chrono-tz"] }
 arrow-flight = { version = "48.0.0" }
+arrow-schema = { version = "48.0.0", features = ["serde"] }
 parquet = "48.0.0"
 
 tonic = "0.10"
 
-taos = { version = "0.10.21", default-features = false, features = [
+taos = { version = "0.10.22", default-features = false, features = [
   "ws",
   "deadpool",
 ] }
-taos-query = { version = "0.10.21", default-features = false, features = [
+taos-query = { version = "0.10.22", default-features = false, features = [
   "deadpool",
 ] }
 
@@ -94,6 +95,7 @@ csv = "1.2"
 
 actix-cors = "0.6.4"
 actix-web = "4"
+actix-ws = "0.2.5"
 actix-multipart = "0.6.0"
 actix-files = "0.6.2"
 base64 = "0.21.2"

@@ -5,6 +5,7 @@ use std::time::Duration;
 use anyhow::{bail, Result};
 use chrono::Utc;
 use clap::Parser;
+use clap_verbosity_flag::{InfoLevel, Verbosity};
 use metrics_util::debugging::Snapshotter;
 use taos::*;
 use tokio_util::sync::CancellationToken;
@@ -66,6 +67,9 @@ pub(super) struct Cli {
 
     #[clap(flatten)]
     config_args: ConfigArgs,
+
+    #[clap(flatten)]
+    pub verbose: Option<Verbosity<InfoLevel>>,
 }
 
 #[config]

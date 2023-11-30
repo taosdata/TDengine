@@ -12,16 +12,22 @@ chrono = { workspace = true }
 chrono-tz = { workspace = true }
 
 arrow = { workspace = true }
+arrow-schema = { workspace = true, features = ["serde"] }
 arrow-flight = { workspace = true }
 parquet = { workspace = true }
 tonic = { workspace = true }
 
 regex = { workspace = true }
 
+arrow-cast-guess-precision = "0.2.0"
+
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bytes = "1"
 bitflags = "2"
+rhai ={ version = "1.16.3", features = ["sync"] }
+paste = "1"
+half = "2.3"
 
 clap = { workspace = true, features = ["default", "derive"] }
 config = "0.13.2"

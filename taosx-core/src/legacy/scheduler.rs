@@ -18,6 +18,7 @@ use tokio::{
     sync::oneshot,
     task::{JoinError, JoinHandle},
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
 use crate::{
@@ -25,8 +26,9 @@ use crate::{
         split_table_into_time_range_chunks, sync_single_table_partial, sync_super_table_schema,
         transform_sql_with_remap,
     },
-    utils::breakpoints,
+    utils::{breakpoints, metrics_db::MetricsDb},
     Action, LegacyMetrics, QueryOpts, TargetOpts, TimeRange, METRICS_LEGACY_CREATED_TABLES,
+    METRICS_LEGACY_TABLES,
 };
 
 use super::{sync_normal_table_schema, sync_super_table_schema_with_subs};
@@ -84,6 +86,7 @@ async fn worker(
     query: Arc<QueryOpts>,
     opts: Arc<TargetOpts>,
     metrics: Arc<LegacyMetrics>,
+    metrics_db: Option<Arc<MetricsDb>>,
     actions: Vec<Action>,
     source_is_v3: bool,
     target_is_v3: bool,
@@ -357,6 +360,7 @@ async fn worker(
                             query.time_range = chunk;
                             let table_inner = table.clone();
                             loop {
+                                let partial_metrics = Arc::new(LegacyMetrics::default());
                                 match sync_single_table_partial(
                                     source.clone(),
                                     target.clone(),
@@ -369,7 +373,7 @@ async fn worker(
                                     remap.as_ref(),
                                     &opts,
                                     target_is_v3,
-                                    metrics.clone(),
+                                    partial_metrics.clone(),
                                 )
                                 .await
                                 {
@@ -388,6 +392,32 @@ async fn worker(
                                                 });
                                             }
                                         }
+                                        // metrics
+                                        log::debug!(
+                                            "sync table {table} time_range {time_range} partial metrics: {partial_metrics:#}",
+                                            table = table.as_str(),
+                                            time_range = query.time_range,
+                                            partial_metrics = &partial_metrics,
+                                        );
+
+                                        let _ = metrics.merge(&partial_metrics);
+
+                                        log::debug!(
+                                            "sync table {table} time_range {time_range} total metrics: {metrics:#}",
+                                            table = table.as_str(),
+                                            time_range = query.time_range,
+                                            metrics = metrics,
+                                        );
+
+                                        if let Some(metrics_db) = metrics_db.as_ref() {
+                                            let str_metrics = metrics.to_json();
+                                            log::debug!("str_metrics: {str_metrics}");
+                                            let r = metrics_db.set(&str_metrics);
+                                            if let Err(err) = r {
+                                                log::error!("metrics_db::metrics_set error: {err}");
+                                            }
+                                        }
+
                                         break;
                                     }
                                     Err(err) => {
@@ -448,20 +478,22 @@ async fn worker(
                             }
                         }
 
-                        if let Some(sender) = sender {
-                            if let Some(err) = chunk_err {
-                                let _ = sender
-                                    .send(Err(anyhow::format_err!("Syncing table failed: {err}",)));
-                            } else {
-                                let _ = sender.send(Ok(()));
+                        match chunk_err {
+                            Some(err) => {
+                                if let Some(sender) = sender {
+                                    let _ = sender.send(Err(anyhow::format_err!(
+                                        "Syncing table failed: {err}",
+                                    )));
+                                }
+                            }
+                            None => {
+                                counter!(METRICS_LEGACY_TABLES, 1);
+                                metrics.tables.fetch_add(1, Ordering::SeqCst);
+                                if let Some(sender) = sender {
+                                    let _ = sender.send(Ok(()));
+                                }
                             }
                         }
-
-                        // err
-
-                        // if let Some(sender) = sender {
-                        //     let _ = sender.send(Err(err));
-                        // }
                     }
                     Err(err) => {
                         tracing::error!(
@@ -532,32 +564,44 @@ impl Scheduler {
         workers: u32,
         actions: &Vec<Action>,
         metrics: Arc<LegacyMetrics>,
+        metrics_db: Option<Arc<MetricsDb>>,
         source_is_v3: bool,
         target_is_v3: bool,
         task_id: Option<String>,
+        cancellation: CancellationToken,
     ) -> Self {
         let workers = std::cmp::max(1, workers);
         let (sender, receiver) = flume::bounded((workers * 4) as usize);
         let file_mutex = Arc::new(std::sync::Mutex::new(()));
         let handles = (0..workers)
             .map(|i| {
-                tokio::spawn(
-                    worker(
-                        i,
-                        source.clone(),
-                        target.clone(),
-                        receiver.clone(),
-                        query.clone(),
-                        opts.clone(),
-                        metrics.clone(),
-                        actions.clone(),
-                        source_is_v3,
-                        target_is_v3,
-                        task_id.clone(),
-                        file_mutex.clone(),
-                    )
-                    .in_current_span(),
+                let cancellation = cancellation.clone();
+                let future = worker(
+                    i,
+                    source.clone(),
+                    target.clone(),
+                    receiver.clone(),
+                    query.clone(),
+                    opts.clone(),
+                    metrics.clone(),
+                    metrics_db.clone(),
+                    actions.clone(),
+                    source_is_v3,
+                    target_is_v3,
+                    task_id.clone(),
+                    file_mutex.clone(),
                 )
+                .in_current_span();
+                tokio::spawn(async move {
+                    tokio::select! {
+                        _ = future => {
+                            Ok(())
+                        }
+                        _ = cancellation.cancelled() => {
+                            Ok(())
+                        }
+                    }
+                })
             })
             .collect_vec();
 

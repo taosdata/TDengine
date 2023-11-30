@@ -13,6 +13,7 @@ use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
+// use crate::plugins::transform::*;
 use crate::runners::historian::historian_to_taos;
 use crate::runners::influxdb::influxdb_to_taos;
 use crate::runners::kafka::kafka_to_taos;
@@ -39,7 +40,7 @@ mod tmq_to_local;
 mod tmq_to_td;
 pub mod types;
 
-mod transform;
+pub mod transform;
 pub mod utils;
 
 mod plugins;
@@ -161,7 +162,6 @@ impl Drop for TaskOpts {
 }
 
 pub const METRICS_TIME_START: &str = "metrics.time_started_timestamp";
-pub const METRICS_TIME_START_DATE: &str = "metrics.time_started_date";
 pub const METRICS_TIME_COST: &str = "metrics.time_cost";
 pub const METRICS_TIME_RECORDS_PER_SECOND: &str = "metrics.records_per_second";
 
@@ -216,9 +216,7 @@ impl TaskOpts {
                             .await
                             .context("Failed to check target edition")?
                     {
-                        anyhow::bail!(
-                        "Source or target should be enterprise edition. If it's not your case, please contact us."
-                    )
+                        anyhow::bail!("Both the source and destination databases are not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
                     }
                 }
                 ("tmq" | "taos", _) => {
@@ -231,9 +229,7 @@ impl TaskOpts {
                         .await
                         .context("Failed to check source edition")?
                     {
-                        anyhow::bail!(
-                        "Only enterprise edition is supported. If it's not your case, please contact us."
-                    )
+                        anyhow::bail!("The source database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
                     }
                 }
                 (_, "tmq" | "taos") => {
@@ -246,9 +242,7 @@ impl TaskOpts {
                         .await
                         .context("Failed to check target edition")?
                     {
-                        anyhow::bail!(
-                        "Only enterprise edition is supported. If it's not your case, please contact us."
-                    )
+                        anyhow::bail!("The destination database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
                     }
                 }
                 _ => (),
@@ -325,6 +319,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
                     .await?;
@@ -340,6 +335,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
                     .await?;
@@ -355,6 +351,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
                     .await?;
@@ -413,8 +410,16 @@ impl TaskOpts {
                     tmq_to_kafka(from, to.clone(), cancel.clone()).await?;
                 }
                 ("kafka", "taos") => {
+                    let mut dsn = from.clone();
+                    if !dsn.params.contains_key("group") {
+                        let group_id = task_id
+                            .clone()
+                            .ok_or(anyhow::anyhow!("group id is required for kafka to taos"))?;
+                        dsn.params.insert("group".to_string(), group_id);
+                    }
+
                     kafka_to_taos(
-                        from.clone(),
+                        dsn,
                         parser.clone(),
                         transform.clone(),
                         to.clone(),
@@ -509,5 +514,32 @@ mod tests {
         let dsn = Dsn::from_str("opentsdb://?param1=abc&param2=123").unwrap();
         let dsn = TaskOpts::append_breakpoints_in_dsn(&None, &dsn);
         assert_eq!(None, dsn.params.get("breakpoints"));
+    }
+
+    #[tokio::test]
+    async fn test_wrong_taos_in_dsn() -> Result<(), anyhow::Error> {
+        dbg!(format!("test start: {}", chrono::Local::now()));
+        let to = Dsn::from_str("taos://localhost:6031?test_db_n").unwrap();
+        let builder = TaosBuilder::from_dsn(to)?;
+        let _ = builder
+            .build()
+            .await
+            .context(format!("Target connection error: {}", chrono::Local::now()))?;
+        dbg!(format!("test end: {}", chrono::Local::now()));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_wrong_taos_in_dsn_pool() -> Result<(), anyhow::Error> {
+        dbg!(format!("test start: {}", chrono::Local::now()));
+        let to = Dsn::from_str("taos://localhost:6031?test_db_n").unwrap();
+        let builder = taos::TaosBuilder::from_dsn(to)?;
+        let pool = builder.pool()?;
+        let _ = pool
+            .get()
+            .await
+            .context(format!("Target connection error: {}", chrono::Local::now()))?;
+        dbg!(format!("test end: {}", chrono::Local::now()));
+        Ok(())
     }
 }
