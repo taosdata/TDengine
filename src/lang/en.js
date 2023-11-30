@@ -1201,6 +1201,8 @@ export default {
     // opc_alias:'Alias',
     // opc_type:'Type',
     transformer:{
+      uploadexe:'Please upload the csv file and execute the next step',
+      sp:'Please select the target super table',
       septip:'Please enter the separator',
       csvtip:'The number of custom columns must be equal to the number of CSV columns',
       identified:'Column Identified',

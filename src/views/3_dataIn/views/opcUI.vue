@@ -1763,8 +1763,12 @@ export default {
         if (this.tagName == "csv" && isSubmit) {
           console.log(this.$refs.csvdata.$refs.transform, "transf");
           if (!this.$refs.csvdata.$refs.transform) {
-            Message.warning(this.$t("datasource.uploadcsvtip"));
+            Message.warning(this.$t("datasource.transformer.uploadexe"));
             return;
+          }
+          if(!this.$refs.csvdata.$refs.transform.sruleForm.s_name){
+            Message.warning(this.$t('datasource.transformer.sp'))
+            return
           }
           this.$refs.csvdata.$refs.transform.getTransformerParams();
         }
