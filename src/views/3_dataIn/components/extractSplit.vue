@@ -295,7 +295,7 @@ export default {
                   : item.type == "split"
                   ? this.$store.state.app.splitExpresList
                   : item.expression
-                  ? item.expression.trim().split(";")
+                  ? item.expression.split(";").map(item=>item.trim())
                   : item.expression,
             },
           };
@@ -317,7 +317,6 @@ export default {
       this.getParserData(parser);
     },
     deleteExtract() {
-      console.log(this.index, this.ruleForm.col_name,'删除extract',this.tableData);
       this.$emit("deleteExtract", this.index, this.ruleForm.col_name);
       // if(this.tableData.length>0){
       //   this.tableData.splice(0,this.tableData.length)
@@ -333,7 +332,6 @@ export default {
     itemData: {
       deep: true,
       handler(val) {
-        console.log(val,'删除后新的版本',this.tableData)
         this.initData(val);
       },
     },
