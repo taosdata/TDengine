@@ -8,6 +8,7 @@ use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
 use chrono::NaiveDateTime;
 use itertools::Itertools;
+use regex::Regex;
 use tiberius::Row;
 
 use taosx_ipc::prelude::ArrowDataType;
@@ -94,7 +95,7 @@ impl ArrowDataAppender {
 
     pub fn append_history_row(&mut self, row: Row) -> anyhow::Result<()> {
         self.append_timestamp(&row, "DateTime", 0)?;
-        self.append_string(&row, "TagName", 1)?;
+        self.append_tag_name(&row, "TagName", 1)?;
         self.append_float64(&row, "Value", 2)?;
         self.append_string(&row, "vValue", 3)?;
         self.append_uint8(&row, "Quality", 4)?;
@@ -110,7 +111,7 @@ impl ArrowDataAppender {
 
     pub fn append_live_row(&mut self, row: Row) -> anyhow::Result<()> {
         self.append_timestamp(&row, "DateTime", 0)?;
-        self.append_string(&row, "TagName", 1)?;
+        self.append_tag_name(&row, "TagName", 1)?;
         self.append_float64(&row, "Value", 2)?;
         self.append_string(&row, "vValue", 3)?;
         self.append_uint8(&row, "Quality", 4)?;
@@ -120,6 +121,35 @@ impl ArrowDataAppender {
         self.append_string(&row, "SourceTag", 8)?;
         self.append_string(&row, "SourceServer", 9)?;
 
+        Ok(())
+    }
+
+    fn append_tag_name(
+        &mut self,
+        row: &Row,
+        column_name: &str,
+        index: usize,
+    ) -> anyhow::Result<()> {
+        let val = row.try_get::<&str, _>(column_name)?;
+        match val {
+            None => {
+                self.data_builders[index]
+                    .as_any_mut()
+                    .downcast_mut::<array::StringBuilder>()
+                    .unwrap()
+                    .append_null();
+            }
+            Some(val) => {
+                let regex = Regex::new(r"[^0-9a-zA-Z_]+").unwrap();
+                let new_tag_name = regex.replace_all(val, "_").to_string();
+
+                self.data_builders[index]
+                    .as_any_mut()
+                    .downcast_mut::<array::StringBuilder>()
+                    .unwrap()
+                    .append_value(new_tag_name);
+            }
+        }
         Ok(())
     }
 
@@ -248,5 +278,18 @@ impl ArrowDataAppender {
 
     pub fn schema(&self) -> &Schema {
         &self.schema
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use regex::Regex;
+
+    #[test]
+    fn test_replace() {
+        let s = "h_02324202110001_114.1M";
+        let regex = Regex::new(r"[^0-9a-zA-Z_]+").unwrap();
+        let new_s = regex.replace_all(s, "_").to_string();
+        assert_eq!(new_s, "h_02324202110001_114_1M");
     }
 }
