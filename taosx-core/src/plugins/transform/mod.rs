@@ -724,7 +724,7 @@ mod pipeline_tests {
 /// ```
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Parser {
-    parse: ParserImpl,
+    parse: Option<ParserImpl>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     mutate: Vec<Mutate>,
     model: Modeler,
@@ -767,7 +767,7 @@ impl FromStr for Parser {
 
 impl Parser {
     pub fn get_ipcdatatype_from_parser(&self, column_name: &str) -> Option<&IpcDataType> {
-        let payload = self.parse.get("payload");
+        let payload = self.parse.as_ref()?.get("payload");
         if payload.is_none() {
             return None;
         }
@@ -814,7 +814,17 @@ impl Parser {
     }
 
     fn transform_records(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {
-        let batch = self.parse.transform_record_batch(&records)?;
+        if self.mutate.is_empty() && self.parse.is_none() {
+            Err(anyhow::anyhow!(
+                "Either parse or mutate must be set in pipeline"
+            ))?;
+        }
+        let batch = self
+            .parse
+            .as_ref()
+            .map(|parse| parse.transform_record_batch(&records))
+            .transpose()?
+            .unwrap_or_else(|| records.clone());
         self.mutate.iter().fold(Ok(batch), |batch, mutate| {
             batch.and_then(|batch| mutate.transform_record_batch(&batch))
         })
@@ -944,7 +954,12 @@ impl Parser {
     }
     pub fn parse(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {
         self.self_check()?;
-        self.parse.transform_record_batch(&records)
+        Ok(self
+            .parse
+            .as_ref()
+            .map(|parse| parse.transform_record_batch(&records))
+            .transpose()?
+            .unwrap_or_else(|| records.clone()))
     }
 
     fn self_check(&self) -> Result<(), Error> {
