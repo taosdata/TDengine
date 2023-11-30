@@ -19,6 +19,7 @@
 #include "../../../../../source/dnode/vnode/src/tsdb/tsdbIter.h"
 #include "../../../../../source/dnode/vnode/src/tsdb/tsdbSttFileRW.h"
 #include "tsdb.h"
+#include "vnd.h"
 
 extern int     vnodeScheduleTask(int (*execute)(void *), void *arg);
 extern int32_t tsdbUpdateTableSchema(SMeta *pMeta, int64_t suid, int64_t uid, SSkmInfo *pSkmInfo);
@@ -514,58 +515,6 @@ static bool tsdbCheckCompactNecessary(SCompactor2 *compactor) {
   return true;
 }
 
-static int32_t tsdbDoCompactSync(void *arg) {
-  int32_t      code = 0;
-  int32_t      lino = 0;
-  SCompactArg *compactArg = (SCompactArg *)arg;
-
-  SCompactor2 compactor[1] = {0};
-
-  code = tsdbCompactBegin(arg, compactor);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  TARRAY2_FOREACH(compactor->fsetArr, compactor->ctx->fset) {
-    if (compactor->ctx->fset->fid < compactor->minFid || compactor->ctx->fset->fid > compactor->maxFid) {
-      continue;
-    }
-
-    // check if the file set should be compacted
-    if (!tsdbCheckCompactNecessary(compactor)) {
-      continue;
-    }
-
-    // allocate disk
-    int32_t expLevel = tsdbFidLevel(compactor->ctx->fset->fid, &compactor->tsdb->keepCfg, taosGetTimestampSec());
-    if (expLevel < 0) {
-      continue;
-    }
-    code = tfsAllocDisk(compactor->tsdb->pVnode->pTfs, expLevel, &compactor->ctx->did);
-    if (code) {
-      code = TAOS_SYSTEM_ERROR(code);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
-
-    code = tsdbCompactFSetBegin(compactor);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = tsdbCompactFSet(compactor);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = tsdbCompactFSetEnd(compactor);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  code = tsdbCompactEnd(compactor);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(compactArg->tsdb->pVnode), lino, code);
-  }
-  tsem_post(&compactArg->tsdb->pVnode->canCommit);
-  return code;
-}
-
 static int32_t tsdbDoCompactAsync(void *arg) {
   int32_t      code = 0;
   int32_t      lino = 0;
@@ -622,53 +571,46 @@ static void tsdbFreeCompactArg(void *arg) { taosMemoryFree(arg); }
 int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool sync) {
   int32_t code = 0;
 
-  if (sync) {  // sync compact
+  int32_t minFid = tsdbKeyFid(tw->skey, tsdb->keepCfg.days, tsdb->keepCfg.precision);
+  int32_t maxFid = tsdbKeyFid(tw->ekey, tsdb->keepCfg.days, tsdb->keepCfg.precision);
+
+  taosThreadMutexLock(&tsdb->mutex);
+
+  STFileSet *fset;
+  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+    if (fset->fid < minFid || fset->fid > maxFid) continue;
+
+    code = tsdbTFileSetOpenChannel(fset);
+    if (code) {
+      taosThreadMutexUnlock(&tsdb->mutex);
+      return code;
+    }
+
     SCompactArg *arg = taosMemoryMalloc(sizeof(*arg));
     if (arg == NULL) {
+      taosThreadMutexUnlock(&tsdb->mutex);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     arg->tsdb = tsdb;
     arg->tw = *tw;
-    arg->fid = INT32_MAX;
+    arg->fid = fset->fid;
 
-    tsem_wait(&tsdb->pVnode->canCommit);
-    code = vnodeScheduleTask(tsdbDoCompactSync, arg);
+    if (sync) {
+      code = vnodeAsyncC(vnodeAsyncHandle[0], tsdb->pVnode->commitChannel, EVA_PRIORITY_NORMAL, tsdbDoCompactAsync,
+                         tsdbFreeCompactArg, arg, NULL);
+    } else {
+      code = vnodeAsyncC(vnodeAsyncHandle[1], fset->bgTaskChannel, EVA_PRIORITY_NORMAL, tsdbDoCompactAsync,
+                         tsdbFreeCompactArg, arg, NULL);
+    }
     if (code) {
-      tsem_post(&tsdb->pVnode->canCommit);
-      taosMemoryFree(arg);
+      tsdbFreeCompactArg(arg);
+      taosThreadMutexUnlock(&tsdb->mutex);
       return code;
     }
-  } else {  // async compact
-    int32_t minFid = tsdbKeyFid(tw->skey, tsdb->keepCfg.days, tsdb->keepCfg.precision);
-    int32_t maxFid = tsdbKeyFid(tw->ekey, tsdb->keepCfg.days, tsdb->keepCfg.precision);
-
-    taosThreadMutexLock(&tsdb->mutex);
-
-    STFileSet *fset;
-    TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
-      if (fset->fid < minFid || fset->fid > maxFid) continue;
-
-      SCompactArg *arg = taosMemoryMalloc(sizeof(*arg));
-      if (arg == NULL) {
-        taosThreadMutexUnlock(&tsdb->mutex);
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-
-      arg->tsdb = tsdb;
-      arg->tw = *tw;
-      arg->fid = fset->fid;
-
-      code = tsdbFSScheduleBgTask(tsdb->pFS, fset->fid, TSDB_BG_TASK_COMPACT, tsdbDoCompactAsync, tsdbFreeCompactArg,
-                                  arg, NULL);
-      if (code) {
-        tsdbFreeCompactArg(arg);
-        taosThreadMutexUnlock(&tsdb->mutex);
-        return code;
-      }
-    }
-
-    taosThreadMutexUnlock(&tsdb->mutex);
   }
+
+  taosThreadMutexUnlock(&tsdb->mutex);
+
   return code;
 }
