@@ -155,11 +155,14 @@ func (c *DAClient) read() {
 	for tag, item := range items {
 		info := c.tagInfo[tag]
 		if info.valueType == 0 {
+			if item.Value == nil {
+				c.logger.Logger.WithField("tag", tag).Error("opcda tag value is nil, skip unknown type")
+				continue
+			}
 			vt := types.GetValueType(item.Value)
 			if !vt.IsValid() {
-				c.logger.Logger.Error("opcda tag type is invalid", "tag", tag, "value", item.Value, "valueType", vt)
-				client.UnrecoverableError <- fmt.Errorf("opcda tag type is invalid, tag: %s, value: %v, valueType: %v", tag, item.Value, vt)
-				return
+				c.logger.Logger.WithField("tag", tag).WithField("value", item.Value).WithField("valueType", vt).Error("opcda tag type is invalid")
+				continue
 			}
 			info.valueType = vt
 		}
@@ -175,13 +178,18 @@ func (c *DAClient) read() {
 		}
 		values = append(values, v)
 	}
+	if len(values) == 0 {
+		c.logger.Warn("opcda read no values")
+		return
+	}
 	if c.dumper != nil {
 		c.logger.Debug("opcda start to dump")
 		c.dumper.Dump(values)
 		c.logger.Debug("opcda dump success")
 	}
-	c.logger.WithField("count", len(values)).Debug("prepare to send message")
+	c.logger.WithField("count", len(values)).Debug("read value success")
 	c.onmessage(values)
+	c.logger.Debug("handle message success")
 }
 
 func (c *DAClient) Close() error {
