@@ -1830,10 +1830,17 @@ export default {
           ],
           // trigger: { "resume": this.resume }
         };
+        
         if ((this.tagName == "mqtt" ||this.tagName == "kafka") && isSubmit) {
+          if(!this.$refs.csvdata.transformerParser){
+            return
+          }
           piParams["parser"]=this.transformerParser
         }
         if(this.tagName=='csv'&& isSubmit){
+          if(!this.$refs.csvdata.transformerParser){
+            return
+          }
           piParams["parser"]=this.$refs.csvdata.transformerParser
         }
         if (this.agentId) {

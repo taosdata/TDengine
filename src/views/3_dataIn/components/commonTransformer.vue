@@ -465,7 +465,7 @@ export default {
         return;
       }
       if (!this.tableData[0]["Expression"]) {
-        Message.error(this.$t("datasource.transformer.tablenametip"));
+        Message.warning(this.$t("datasource.transformer.tablenametip"));
         return;
       }
       let tags = [];
