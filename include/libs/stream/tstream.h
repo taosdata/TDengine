@@ -668,6 +668,8 @@ typedef struct STaskStatusEntry {
   int32_t relatedHTask;     // has related fill-history task
   int64_t activeCheckpointId;     // current active checkpoint id
   bool    checkpointFailed; // denote if the checkpoint is failed or not
+  bool    inputQChanging;   // inputQ is changing or not
+  int64_t inputQUnchangeCounter;
   double  inputQUsed;       // in MiB
   double  inputRate;
   double  sinkQuota;        // existed quota size for sink task
