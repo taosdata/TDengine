@@ -58,7 +58,7 @@ View permissions are divided into three types: READ, WRITE, and ALTER. Query ope
 - Views can be defined and used nested, and the verification of view permissions is also performed by recursion.
 - In order to facilitate the sharing and use of views, the concept of view effective user (i.e. the user who creates the view) is introduced. Authorized users can use the read and write permissions of the view effective user's library, table, and nested view. Note: After the view is REPLACE, the effective user will also be updated.
 
-<br>The detailed rules for controlling relevant permissions are summarized as follows:
+<br>The detailed rules for controlling relevant permissions are summarized as follows:</br>
 
 | Serial number | Operation | Permission requirements |
 | --- | --- | --- |
@@ -77,6 +77,7 @@ View permissions are divided into three types: READ, WRITE, and ALTER. Query ope
 ### Grammar
 
 #### Authorization
+
 ```sql
 GRANT privileges ON [db_name.]view_name TO user_name
 privileges: {
@@ -89,7 +90,9 @@ priv_type: {
   | ALTER
 }
 ```
+
 #### Recover permissions
+
 ```sql
 REVOKE privileges ON [db_name.]view_name FROM user_name
 privileges: {
@@ -112,17 +115,23 @@ priv_type: {
 
 
 ## Example
+
 - Create a view
+
 ```sql
 CREATE VIEW view1 AS SELECT _wstart, count(*) FROM table1 INTERVAL(1d);
 CREATE VIEW view2 AS SELECT ts, col2 FROM table1;
 CREATE VIEW view3 AS SELECT * from view1;
 ```
+
 - Query data
+
 ```sql
 SELECT * from view1;
 ```
+
 - Delete data
+
 ```sql
 DROP VIEW view1;
 ```
