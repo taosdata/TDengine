@@ -57,4 +57,4 @@ There are two ways to setup Grafana alert notification.
 
 Launch `TDinsight.sh` with the command above and restart Grafana, then open Dashboard `http://localhost:3000/d/tdinsight`.
 
-For more use cases and restrictions please refer to [TDinsight](/reference/tdinsight/).
+For more use cases and restrictions please refer to [TDinsight](../../reference/tdinsight/).

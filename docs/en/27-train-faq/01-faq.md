@@ -47,7 +47,7 @@ When the client is unable to connect to the server, you can try the following wa
 
  - On Windows system `Test-NetConnection -ComputerName {fqdn} -Port {port}` on PowerShell can be used to check whether the port on server side is open for access.
 
-7.  TDengine CLI `taos` can also be used to check network, please refer to [TDengine CLI](/reference/taos-shell).
+7.  TDengine CLI `taos` can also be used to check network, please refer to [TDengine CLI](../../reference/taos-shell).
 
 ### 3. How to handle "Unexpected generic error in RPC" or "Unable to resolve FQDN" ?
 
@@ -82,7 +82,7 @@ Inserting data in batch is a good practice. Single SQL statement can insert data
 
 ### 9. JDBC Error： the executed SQL is not a DML or a DDL？
 
-Please upgrade to latest JDBC driver, for details please refer to [Java Connector](/reference/connector/java)
+Please upgrade to latest JDBC driver, for details please refer to [Java Connector](../../reference/connector/java)
 
 ### 10. Failed to connect with error "invalid timestamp"
 

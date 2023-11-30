@@ -20,20 +20,20 @@ CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
 3. The maximum length of database name is 33 bytes.
 4. The maximum length of a SQL statement is 65,480 bytes.
 5. Below are the parameters that can be used when creating a database
-   - cache: [Description](/reference/config/#cache)
-   - blocks: [Description](/reference/config/#blocks)
-   - days: [Description](/reference/config/#days)
-   - keep: [Description](/reference/config/#keep)
-   - minRows: [Description](/reference/config/#minrows)
-   - maxRows: [Description](/reference/config/#maxrows)
-   - wal: [Description](/reference/config/#wallevel)
-   - fsync: [Description](/reference/config/#fsync)
-   - update: [Description](/reference/config/#update)
-   - cacheLast: [Description](/reference/config/#cachelast)
-   - replica: [Description](/reference/config/#replica)
-   - quorum: [Description](/reference/config/#quorum)
-   - comp: [Description](/reference/config/#comp)
-   - precision: [Description](/reference/config/#precision)
+   - cache: [Description](../../reference/config/#cache)
+   - blocks: [Description](../../reference/config/#blocks)
+   - days: [Description](../../reference/config/#days)
+   - keep: [Description](../../reference/config/#keep)
+   - minRows: [Description](../../reference/config/#minrows)
+   - maxRows: [Description](../../reference/config/#maxrows)
+   - wal: [Description](../../reference/config/#wallevel)
+   - fsync: [Description](../../reference/config/#fsync)
+   - update: [Description](../../reference/config/#update)
+   - cacheLast: [Description](../../reference/config/#cachelast)
+   - replica: [Description](../../reference/config/#replica)
+   - quorum: [Description](../../reference/config/#quorum)
+   - comp: [Description](../../reference/config/#comp)
+   - precision: [Description](../../reference/config/#precision)
 6. Please note that all of the parameters mentioned in this section are configured in configuration file `taos.cfg` on the TDengine server. If not specified in the `create database` statement, the values from taos.cfg are used by default. To override default parameters, they must be specified in the `create database` statement.
    
 :::
@@ -68,7 +68,7 @@ All data in the database will be deleted too. This command must be used with ext
 
 ## Change Database Configuration
 
-Some examples are shown below to demonstrate how to change the configuration of a database. Please note that some configuration parameters can be changed after the database is created, but some cannot. For details of the configuration parameters of database please refer to [Configuration Parameters](/reference/config/).
+Some examples are shown below to demonstrate how to change the configuration of a database. Please note that some configuration parameters can be changed after the database is created, but some cannot. For details of the configuration parameters of database please refer to [Configuration Parameters](../../reference/config/).
 
 ```
 ALTER DATABASE db_name COMP 2;
@@ -107,7 +107,7 @@ ALTER DATABASE db_name CACHELAST 0;
 CACHELAST parameter specifies whether and how the latest data of a sub table is cached.
 
 :::tip
-The above parameters can be changed using `ALTER DATABASE` command without restarting. For more details of all configuration parameters please refer to [Configuration Parameters](/reference/config/).
+The above parameters can be changed using `ALTER DATABASE` command without restarting. For more details of all configuration parameters please refer to [Configuration Parameters](../../reference/config/).
 
 :::
 

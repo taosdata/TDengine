@@ -13,7 +13,7 @@ Telegraf's data can be written to TDengine by simply adding the output configura
 
 To write Telegraf data to TDengine requires the following preparations.
 - The TDengine cluster is deployed and functioning properly
-- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](/reference/taosadapter) for details.
+- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](../../reference/taosadapter) for details.
 - Telegraf has been installed. Please refer to the [official documentation](https://docs.influxdata.com/telegraf/v1.22/install/) for Telegraf installation.
 
 ## Configuration steps
