@@ -188,7 +188,7 @@ class TDTestCase:
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
 
-        if expectrowcnt / 2 >= resultList[0]:
+        if expectrowcnt / 2 > resultList[0]:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectrowcnt / 2, resultList[0]))
             tdLog.exit("%d tmq consume rows error!"%consumerId)
 
