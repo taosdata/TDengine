@@ -412,9 +412,9 @@ def build_and_install_taosx(mode):
     print("buildAndInstallTaosX start...")
     os.chdir(taosx_dir)
     if mode == "Release":
-        os.system(f'set VER_NUMBER={release_info.TdengineVersion} & set CUS_PROMPT={release_info.CustomPrompt} & set CUS_NAME={release_info.CustomName} & set CUS_EMAIL={release_info.CustomEmail} & cargo build --release')
+        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&cargo build --release')
     else:
-        os.system(f'set VER_NUMBER={release_info.TdengineVersion} & set CUS_PROMPT={release_info.CustomPrompt} & set CUS_NAME={release_info.CustomName} & set CUS_EMAIL={release_info.CustomEmail} & cargo build')
+        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&cargo build')
     taosx_install_path = os.path.join(release_info.InstallPath, "bin")
     check_directory(taosx_install_path)
     taosx_path = os.path.join(taosx_dir, "target", mode.lower(), get_taosx_output_name())
@@ -432,9 +432,9 @@ def build_and_install_taosx_agent(mode):
     print("buildAndInstallTaosX Agent start...")
     os.chdir(taosx_dir)
     if mode == "Release":
-        os.system(f'set VER_NUMBER={release_info.TdengineVersion} & set CUS_PROMPT={release_info.CustomPrompt} & set CUS_NAME={release_info.CustomName} & set CUS_EMAIL={release_info.CustomEmail} & cargo build --release --package taosx-agent')
+        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&cargo build --release --package taosx-agent')
     else:
-        os.system(f'set VER_NUMBER={release_info.TdengineVersion} & set CUS_PROMPT={release_info.CustomPrompt} & set CUS_NAME={release_info.CustomName} & set CUS_EMAIL={release_info.CustomEmail} & cargo build --package taosx-agent')
+        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&cargo build --package taosx-agent')
 
     taosx_install_path = os.path.join(release_info.InstallPath, "bin")
     check_directory(taosx_install_path)
@@ -508,7 +508,7 @@ def build_taos_explorer(explorer_path, mode):
     os.chdir(explorer_path)
     os.system('yarn install')
     if release_info.OS.lower() == 'windows':
-        os.system(f'set VER_NUMBER={release_info.TdengineVersion} & set CUS_PROMPT={release_info.CustomPrompt} & set CUS_NAME={release_info.CustomName} & set CUS_EMAIL={release_info.CustomEmail} & yarn build:bin')
+        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&yarn build:bin')
     else:
         os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} yarn build:bin')
 
