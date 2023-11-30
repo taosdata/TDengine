@@ -48,4 +48,4 @@ create topic db_test as database test;
 
 1. FROM DSN 支持多个 Topic，多个 Topic 的名字用逗号分割。例如： `tmq+ws://root:taosdata@localhost:6041/topic1,topic2,topic3`
 2. 在 FROM DSN 中，可以用数据库名称、超级表名称或子表名称代替 Topic 名称。例如：`tmq+ws://root:taosdata@localhost:6041/db1,db2,db3`,此时不必要提前创建 Topic，taosX 将自动识别到使用的是数据库名称，并自动在源集群创建订阅数据库的 Topic。
-3. FROM DSN 支持 group.id 参数，显示指定订阅用的 group ID。不指定情况下将使用随机生成的 group ID。
+3. FROM DSN 支持 group.id 参数，以显式指定订阅用的 group ID。不指定情况下将使用随机生成的 group ID。
