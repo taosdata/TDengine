@@ -8,6 +8,7 @@
             :placeholder="$t('datasource.transformer.col_select')"
             v-model="ruleForm.col_name"
             @change="selectCol"
+            :disabled="disabled"
           >
             <el-option
               v-for="(item, index) in extractColumns"
@@ -35,7 +36,7 @@
         </el-form-item>
         <el-form-item prop="filter_expres">
           <template v-if="ruleForm.filter_name == 'split'">
-            <SplitExpression ref='splitExpression'></SplitExpression>
+            <SplitExpression ref="splitExpression"></SplitExpression>
           </template>
           <el-popover
             v-else
@@ -84,11 +85,11 @@
 import { getParser } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import { getRFC3339Time } from "@/utils/index";
-import SplitExpression from './splitExpression.vue'
+import SplitExpression from "./splitExpression.vue";
 import { deepClone } from "@/utils";
 export default {
   name: "ExtractSplit",
-  components:{SplitExpression},
+  components: { SplitExpression },
   props: {
     itemData: {
       type: Object,
@@ -119,7 +120,8 @@ export default {
   },
   data() {
     return {
-      splitExpre:{},
+      disabled: false,
+      splitExpre: {},
       extractParseData: {},
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
       tableColumns: [],
@@ -127,7 +129,7 @@ export default {
       ruleForm: {
         col_name: "",
         filter_name: "",
-        filter_expres: ""
+        filter_expres: "",
       },
       rules: {
         col_name: [
@@ -168,7 +170,9 @@ export default {
       this.ruleForm.filter_name = val.type;
     },
     selectCol(data) {
-      this.$emit('setExtractName', this.index, this.ruleForm.col_name)
+      this.disabled = true;
+      this.$emit("selectColumn", this.index, this.ruleForm.col_name);
+      // this.$emit("setExtractName", this.index, this.ruleForm.col_name);
     },
     changeExtractType() {
       let index = this.$parent.extractArr.findIndex(
@@ -185,17 +189,17 @@ export default {
       if (!this.$parent.msgForm.msgbody) {
         return;
       }
-      if(this.ruleForm.filter_name == 'split'){
-        this.$refs.splitExpression.submit()
-        if(!this.$refs.splitExpression.isValid){
-          return
+      if (this.ruleForm.filter_name == "split") {
+        this.$refs.splitExpression.submit();
+        if (!this.$refs.splitExpression.isValid) {
+          return;
         }
       }
-      this.$refs.extractForm.validate((valid) => {
+      this.$refs.extractForm.validate(async (valid) => {
         if (valid) {
-          this.submitExtract();
+          await this.submitExtract();
           //执行完之后选中的列才能不会再被选中
-          this.$emit("selectColumn", this.index, this.ruleForm.col_name);
+
           return true;
         } else {
           return false;
@@ -295,7 +299,7 @@ export default {
                   : item.type == "split"
                   ? this.$store.state.app.splitExpresList
                   : item.expression
-                  ? item.expression.split(";").map(item=>item.trim())
+                  ? item.expression.split(";").map((item) => item.trim())
                   : item.expression,
             },
           };
@@ -324,7 +328,6 @@ export default {
     },
   },
   mounted() {
-    
     if (this.itemData) {
       this.initData(this.itemData);
     }
@@ -339,7 +342,7 @@ export default {
   },
 };
 </script>
-<style lang='scss' scoped>
+<style lang="scss" scoped>
 .extract-split {
   margin-top: 20px;
   .extract-item {
@@ -376,5 +379,4 @@ export default {
   max-height: 300px;
   overflow-y: auto;
 }
-
 </style>
