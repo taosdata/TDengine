@@ -742,14 +742,14 @@ static int32_t checkForNumOfStreams(SMnode *pMnode, SStreamObj *pStreamObj) {  /
 }
 
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
-  SMnode *           pMnode = pReq->info.node;
-  int32_t            code = -1;
-  SStreamObj *       pStream = NULL;
-  SDbObj *           pDb = NULL;
-  SCMCreateStreamReq createStreamReq = {0};
-  SStreamObj         streamObj = {0};
-  char*              sql = NULL;
+  SMnode     *pMnode = pReq->info.node;
+  int32_t     code = -1;
+  SStreamObj *pStream = NULL;
+  SStreamObj  streamObj = {0};
+  char       *sql = NULL;
+  int32_t     sqlLen = 0;
 
+  SCMCreateStreamReq createStreamReq = {0};
   if (tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, &createStreamReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
@@ -780,8 +780,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  int32_t sqlLen = 0;
-  if(createStreamReq.sql != NULL){
+  if (createStreamReq.sql != NULL) {
     sqlLen = strlen(createStreamReq.sql);
     sql = taosMemoryMalloc(sqlLen + 1);
     memset(sql, 0, sqlLen + 1);
@@ -868,14 +867,13 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   // reuse this function for stream
 
   if (sql != NULL && sqlLen > 0) {
-    auditRecord(pReq, pMnode->clusterId, "createStream", dbname.dbname, name.dbname, sql,
-                sqlLen);
-  }
-  else{
+    auditRecord(pReq, pMnode->clusterId, "createStream", dbname.dbname, name.dbname, sql, sqlLen);
+  } else {
     char detail[1000] = {0};
     sprintf(detail, "dbname:%s, stream name:%s", dbname.dbname, name.dbname);
     auditRecord(pReq, pMnode->clusterId, "createStream", dbname.dbname, name.dbname, detail, strlen(detail));
   }
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
@@ -884,7 +882,7 @@ _OVER:
   mndReleaseStream(pMnode, pStream);
   tFreeSCMCreateStreamReq(&createStreamReq);
   tFreeStreamObj(&streamObj);
-  if(sql != NULL){
+  if (sql != NULL) {
     taosMemoryFreeClear(sql);
   }
   return code;
@@ -1335,7 +1333,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   }
 
   // check if it is conflict with other trans in both sourceDb and targetDb.
-  bool conflict = streamTransConflictOtherTrans(pMnode, pStream->sourceDb, pStream->targetDb);
+  bool conflict = streamTransConflictOtherTrans(pMnode, pStream->sourceDb, pStream->targetDb, true);
   if (conflict) {
     sdbRelease(pMnode->pSdb, pStream);
     tFreeMDropStreamReq(&dropReq);
@@ -1818,7 +1816,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
   }
 
   // check if it is conflict with other trans in both sourceDb and targetDb.
-  bool conflict = streamTransConflictOtherTrans(pMnode, pStream->sourceDb, pStream->targetDb);
+  bool conflict = streamTransConflictOtherTrans(pMnode, pStream->sourceDb, pStream->targetDb, true);
   if (conflict) {
     sdbRelease(pMnode->pSdb, pStream);
     return -1;
@@ -1953,7 +1951,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   }
 
   // check if it is conflict with other trans in both sourceDb and targetDb.
-  bool conflict = streamTransConflictOtherTrans(pMnode, pStream->sourceDb, pStream->targetDb);
+  bool conflict = streamTransConflictOtherTrans(pMnode, pStream->sourceDb, pStream->targetDb, true);
   if (conflict) {
     sdbRelease(pMnode->pSdb, pStream);
     return -1;
@@ -2741,7 +2739,7 @@ static int32_t mndResetStatusFromCheckpoint(SMnode *pMnode, int32_t transId) {
       break;
     }
 
-    bool conflict = streamTransConflictOtherTrans(pMnode, pStream->sourceDb, pStream->targetDb);
+    bool conflict = streamTransConflictOtherTrans(pMnode, pStream->sourceDb, pStream->targetDb, false);
     if (conflict) {
       mError("stream:%s other trans exists in DB:%s & %s failed to start reset-status trans",
              pStream->name, pStream->sourceDb, pStream->targetDb);
@@ -2777,7 +2775,7 @@ static SStreamTask* mndGetStreamTask(STaskId* pId, SStreamObj* pStream) {
 
 static bool needDropRelatedFillhistoryTask(STaskStatusEntry *pTaskEntry, SStreamExecInfo *pExecNode) {
   if (pTaskEntry->status == TASK_STATUS__STREAM_SCAN_HISTORY && pTaskEntry->statusLastDuration >= 10) {
-    if (fabs(pTaskEntry->inputQUsed) <= DBL_EPSILON) {
+    if (!pTaskEntry->inputQChanging && pTaskEntry->inputQUnchangeCounter > 10) {
       int32_t numOfReady = 0;
       int32_t numOfTotal = 0;
       for (int32_t k = 0; k < taosArrayGetSize(pExecNode->pTaskList); ++k) {
@@ -2920,6 +2918,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   bool snodeChanged = false;
   for (int32_t i = 0; i < req.numOfTasks; ++i) {
     STaskStatusEntry *p = taosArrayGet(req.pTaskStatus, i);
+
     STaskStatusEntry *pTaskEntry = taosHashGet(execInfo.pTaskMap, &p->id, sizeof(p->id));
     if (pTaskEntry == NULL) {
       mError("s-task:0x%" PRIx64 " not found in mnode task list", p->id.taskId);
@@ -2928,8 +2927,22 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
     if (pTaskEntry->stage != p->stage && pTaskEntry->stage != -1) {
       updateStageInfo(pTaskEntry, p->stage);
-      if(pTaskEntry->nodeId == SNODE_HANDLE)  snodeChanged = true;
+      if(pTaskEntry->nodeId == SNODE_HANDLE)  {
+        snodeChanged = true;
+      }
     } else {
+      // task is idle for more than 50 sec.
+      if (fabs(pTaskEntry->inputQUsed - p->inputQUsed) <= DBL_EPSILON) {
+        if (!pTaskEntry->inputQChanging) {
+          pTaskEntry->inputQUnchangeCounter++;
+        } else {
+          pTaskEntry->inputQChanging = false;
+        }
+      } else {
+        pTaskEntry->inputQChanging = true;
+        pTaskEntry->inputQUnchangeCounter = 0;
+      }
+
       streamTaskStatusCopy(pTaskEntry, p);
       if (p->activeCheckpointId != 0) {
         if (activeCheckpointId != 0) {

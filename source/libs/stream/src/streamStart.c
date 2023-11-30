@@ -409,7 +409,6 @@ static void addIntoNodeUpdateList(SStreamTask* pTask, int32_t nodeId) {
 int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp) {
   ASSERT(pTask->id.taskId == pRsp->upstreamTaskId);
   const char* id = pTask->id.idStr;
-  int32_t vgId = pTask->pMeta->vgId;
 
   if (streamTaskShouldStop(pTask)) {
     stDebug("s-task:%s should stop, do not do check downstream again", id);
@@ -461,16 +460,25 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
             "s-task:%s vgId:%d self vnode-transfer/leader-change/restart detected, old stage:%"PRId64", current stage:%"PRId64", "
             "not check wait for downstream task nodeUpdate, and all tasks restart",
             id, pRsp->upstreamNodeId, pRsp->oldStage, pTask->pMeta->stage);
+        addIntoNodeUpdateList(pTask, pRsp->upstreamNodeId);
       } else {
         stError(
             "s-task:%s downstream taskId:0x%x (vgId:%d) not leader, self dispatch epset needs to be updated, not check "
             "downstream again, nodeUpdate needed",
             id, pRsp->downstreamTaskId, pRsp->downstreamNodeId);
+        addIntoNodeUpdateList(pTask, pRsp->downstreamNodeId);
       }
 
-      addIntoNodeUpdateList(pTask, pRsp->downstreamNodeId);
       streamMetaUpdateTaskDownstreamStatus(pTask, pTask->execInfo.init, taosGetTimestampMs(), false);
 
+      // automatically set the related fill-history task to be failed.
+      if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
+        STaskId* pId = &pTask->hTaskInfo.id;
+
+        SStreamTask* pHTask = streamMetaAcquireTask(pTask->pMeta, pId->streamId, pId->taskId);
+        streamMetaUpdateTaskDownstreamStatus(pHTask, pHTask->execInfo.init, taosGetTimestampMs(), false);
+        streamMetaReleaseTask(pTask->pMeta, pHTask);
+      }
     } else {  // TASK_DOWNSTREAM_NOT_READY, let's retry in 100ms
       STaskRecheckInfo* pInfo = createRecheckInfo(pTask, pRsp);
 
@@ -1072,8 +1080,9 @@ int32_t streamMetaUpdateTaskDownstreamStatus(SStreamTask* pTask, int64_t startTs
   taosHashPut(pDst, &id, sizeof(id), &initTs, sizeof(STaskInitTs));
 
   int32_t numOfTotal = streamMetaGetNumOfTasks(pMeta);
+  int32_t numOfRecv = taosHashGetSize(pStartInfo->pReadyTaskSet) + taosHashGetSize(pStartInfo->pFailedTaskSet);
 
-  if (taosHashGetSize(pStartInfo->pReadyTaskSet) + taosHashGetSize(pStartInfo->pFailedTaskSet) == numOfTotal) {
+  if (numOfRecv == numOfTotal) {
     pStartInfo->readyTs = taosGetTimestampMs();
     pStartInfo->elapsedTime = (pStartInfo->startTs != 0) ? pStartInfo->readyTs - pStartInfo->startTs : 0;
 
@@ -1087,6 +1096,8 @@ int32_t streamMetaUpdateTaskDownstreamStatus(SStreamTask* pTask, int64_t startTs
     displayStatusInfo(pMeta, pStartInfo->pFailedTaskSet, false);
 
     streamMetaResetStartInfo(pStartInfo);
+  } else {
+    stDebug("vgId:%d recv check down results:%d, total:%d", pMeta->vgId, numOfRecv, numOfTotal);
   }
 
   streamMetaWUnLock(pMeta);
