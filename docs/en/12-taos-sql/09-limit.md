@@ -8,7 +8,7 @@ title: Limits & Restrictions
 2. Names cannot start with a digit
 3. Case insensitive without escape character "\`"
 4. Identifier with escape character "\`"
-   To support more flexible table or column names, a new escape character "\`" is introduced. For more details please refer to [escape](/taos-sql/escape).
+   To support more flexible table or column names, a new escape character "\`" is introduced. For more details please refer to [escape](../escape).
 
 ## Password Rule
 

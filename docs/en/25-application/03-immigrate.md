@@ -51,7 +51,7 @@ TDengine version 2.4 and later version includes `taosAdapter`. taosAdapter is a 
 
 Users can flexibly deploy taosAdapter instances, based on their requirements, to improve data writing throughput and provide guarantees for data writes in different application scenarios.
 
-Through taosAdapter, users can directly write the data collected by `collectd` or `StatsD` to TDengine to achieve easy, convenient and seamless migration in application scenarios. taosAdapter also supports Telegraf, Icinga, TCollector, and node_exporter data. For more details, please refer to [taosAdapter](/reference/taosadapter/).
+Through taosAdapter, users can directly write the data collected by `collectd` or `StatsD` to TDengine to achieve easy, convenient and seamless migration in application scenarios. taosAdapter also supports Telegraf, Icinga, TCollector, and node_exporter data. For more details, please refer to [taosAdapter](../../reference/taosadapter/).
 
 If using collectd, modify the configuration file in its default location `/etc/collectd/collectd.conf` to point to the IP address and port of the node where to deploy taosAdapter. For example, assuming the taosAdapter IP address is 192.168.1.130 and port 6046, configure it as follows.
 
@@ -69,7 +69,7 @@ You can use collectd and push the data to taosAdapter utilizing the write_tsdb p
 
 - **Tuning the Dashboard system**
 
-After writing the data to TDengine, you can configure Grafana to visualize the data written to TDengine. To obtain and use the Grafana plugin provided by TDengine, please refer to [Links to other tools](/third-party/grafana).
+After writing the data to TDengine, you can configure Grafana to visualize the data written to TDengine. To obtain and use the Grafana plugin provided by TDengine, please refer to [Links to other tools](../../third-party/grafana).
 
 TDengine provides two sets of Dashboard templates by default, and users only need to import the templates from the Grafana directory into Grafana to activate their use.
 
@@ -395,7 +395,7 @@ Hard disk writing performance has little effect on TDengine. The TDengine writin
 
 ### Computational resource estimates
 
-Due to the characteristics of IoT data, when the frequency of data generation is consistent, the writing process of TDengine maintains a relatively fixed amount of resource consumption (computing and storage). According to the [TDengine Operation and Maintenance Guide](/operation/) description, the system consumes less than 1 CPU core at 22,000 writes per second.
+Due to the characteristics of IoT data, when the frequency of data generation is consistent, the writing process of TDengine maintains a relatively fixed amount of resource consumption (computing and storage). According to the [TDengine Operation and Maintenance Guide](../../operation/) description, the system consumes less than 1 CPU core at 22,000 writes per second.
 
 In estimating the CPU resources consumed by the query, assuming that the application requires the database to provide 10,000 QPS, the CPU time consumed by each query is about 1 ms. The query provided by each core per second is 1,000 QPS, which satisfies 10,000 QPS. The query request requires at least 10 cores. For the system as a whole system to have less than 50% CPU load, the entire cluster needs twice as many cores i.e. 20 cores.
 

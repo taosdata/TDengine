@@ -30,7 +30,7 @@ As mentioned earlier, a scalar UDF only has to implement the "normal" function t
 - Definitions of the parameters:
 
   - data：input data
-  - itype：the type of input data, for details please refer to [type definition in column_meta](/reference/rest-api/), for example 4 represents INT
+  - itype：the type of input data, for details please refer to [type definition in column_meta](../../reference/rest-api/), for example 4 represents INT
   - iBytes：the number of bytes consumed by each value in the input data
   - oType：the type of output data, similar to iType
   - oBytes：the number of bytes consumed by each value in the output data

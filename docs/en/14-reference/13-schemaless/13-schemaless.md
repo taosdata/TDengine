@@ -84,7 +84,7 @@ If the subtable obtained by the parse line protocol does not exist, Schemaless c
 8. Errors encountered throughout the processing will interrupt the writing process and return an error code.
 
 :::tip
-All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed 48k bytes. See [TAOS SQL Boundary Limits](/taos-sql/limit) for specific constraints in this area.
+All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed 48k bytes. See [TAOS SQL Boundary Limits](../../taos-sql/limit) for specific constraints in this area.
 :::
 
 ## Time resolution recognition
