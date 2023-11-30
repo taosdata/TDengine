@@ -2,20 +2,20 @@
 toc_max_heading_level: 4
 sidebar_position: 5
 sidebar_label: Rust
-title: TDengine Rust Connector
-description: This document describes the TDengine Rust connector.
+title: TDengine Rust Client Library
+description: This document describes the TDengine Rust client library.
 ---
 [![Crates.io](https://img.shields.io/crates/v/taos)](https://crates.io/crates/taos) ![Crates.io](https://img.shields.io/crates/d/taos) [![docs.rs](https://img.shields.io/docsrs/taos)](https://docs.rs/taos)
 
-`taos` is the official Rust connector for TDengine. Rust developers can develop applications to access the TDengine instance data.
+`taos` is the official Rust client library for TDengine. Rust developers can develop applications to access the TDengine instance data.
 
-The source code for the Rust connectors is located on [GitHub](https://github.com/taosdata/taos-connector-rust).
+The source code for the Rust client library is located on [GitHub](https://github.com/taosdata/taos-connector-rust).
 
 ## Version support
 
 Please refer to [version support list](/client-libraries/#version-support)
 
-The Rust Connector is still under rapid development and is not guaranteed to be backward compatible before 1.0. We recommend using TDengine version 3.0 or higher to avoid known issues.
+The Rust client library is still under rapid development and is not guaranteed to be backward compatible before 1.0. We recommend using TDengine version 3.0 or higher to avoid known issues.
 
 ## Installation
 

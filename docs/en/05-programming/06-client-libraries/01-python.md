@@ -1,12 +1,12 @@
 ---
 sidebar_label: Python
-title: TDengine Python Connector
-description: This document describes the TDengine Python connector.
+title: TDengine Python Client Library
+description: This document describes the TDengine Python client library.
 ---
 
-`taospy` is the official Python connector for TDengine. `taospy` wraps the  [REST interface](/reference/rest-api) of TDengine. Additionally `taospy`  provides a set of programming interfaces that conforms to the [Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/). It is easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
+`taospy` is the official Python client library for TDengine. `taospy` wraps the  [REST interface](/reference/rest-api) of TDengine. Additionally `taospy`  provides a set of programming interfaces that conforms to the [Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/). It is easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
 
-The source code for the Python connector is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
+The source code for the Python client library is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
 
 ## Installation
 
@@ -108,7 +108,7 @@ except BaseException as other:
 
 ### About nanoseconds
 
-Due to the current imperfection of Python's nanosecond support (see link below), the current implementation returns integers at nanosecond precision instead of the `datetime` type produced by `ms` and `us`, which application developers will need to handle on their own. And it is recommended to use pandas' to_datetime(). The Python Connector may modify the interface in the future if Python officially supports nanoseconds in full.
+Due to the current imperfection of Python's nanosecond support (see link below), the current implementation returns integers at nanosecond precision instead of the `datetime` type produced by `ms` and `us`, which application developers will need to handle on their own. And it is recommended to use pandas' to_datetime(). The Python client library may modify the interface in the future if Python officially supports nanoseconds in full.
 
 1. https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds
 2. https://www.python.org/dev/peps/pep-0564/

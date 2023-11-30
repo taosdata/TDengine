@@ -1,7 +1,7 @@
 ---
 toc_max_heading_level: 4
-sidebar_label: R
-description: This document describes the TDengine R connector.
+sidebar_label: TDengine R Client Library
+description: This document describes the TDengine R client library.
 ---
 
 By using the RJDBC library in R, you can enable R programs to access TDengine data. Here are the installation process, configuration steps, and an example code in R.

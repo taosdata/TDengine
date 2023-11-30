@@ -1,7 +1,7 @@
 ---
 sidebar_label: Java
-title: Connect with Java Connector
-description: This document describes how to connect to TDengine Cloud using the Java connector.
+title: Connect with Java
+description: This document describes how to connect to TDengine Cloud using the Java client library.
 ---
 
 <!-- exclude -->

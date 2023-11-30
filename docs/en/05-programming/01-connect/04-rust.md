@@ -1,7 +1,7 @@
 ---
 sidebar_label: Rust
-title: Connect with Rust Connector
-description: This document describes how to connect to TDengine Cloud using the Rust connector.
+title: Connect with Rust
+description: This document describes how to connect to TDengine Cloud using the Rust client library.
 ---
 <!-- exclude -->
 import Tabs from '@theme/Tabs';

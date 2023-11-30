@@ -1,7 +1,7 @@
 ---
 sidebar_label: Python
-title: Connect with Python Connector
-description: This document describes how to connect to TDengine Cloud using the Python connector.
+title: Connect with Python
+description: This document describes how to connect to TDengine Cloud using the Python client library.
 ---
 
 <!-- exclude -->
@@ -9,7 +9,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 <!-- exclude-end -->
-## Install Connector
+## Install Client Library
 
 First, you need to install the `taospy` module version >= `2.6.2`. Run the command below in your terminal.
 
@@ -103,7 +103,7 @@ For more details about how to write or query data via REST API, please check [RE
 
 ### Step 1: Install
 
-For the users who are familiar with Jupyter to program in Python, both TDengine Python connector and Jupyter need to be ready in your environment. If you have not done yet, please use the commands below to install them.
+For the users who are familiar with Jupyter to program in Python, both TDengine Python client library and Jupyter need to be ready in your environment. If you have not done yet, please use the commands below to install them.
 
 <Tabs defaultValue="pip" groupID="package">
 <TabItem value="pip" label="pip">

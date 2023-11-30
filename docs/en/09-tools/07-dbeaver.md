@@ -29,7 +29,7 @@ Or copy TDENGINE_JDBC_URL value directly after log in.
 
  ![Connect TDengine Cloud with DBeaver](./dbeaver/dbeaver-connect-tdengine-cloud-en.webp)
 
-3. Configure the TDengine Cloud connection by filling in the JDBC URL value. Click **Test Connection**. If you do not have the TDengine Java connector installed on the local machine, DBeaver will prompt you to download and install it. If the connection is successful, it will be displayed as shown in the following figure. If the connection fails, please check whether the TDengine Cloud service is running properly and whether the JDBC URL is correct.
+3. Configure the TDengine Cloud connection by filling in the JDBC URL value. Click **Test Connection**. If you do not have the TDengine Java client library installed on the local machine, DBeaver will prompt you to download and install it. If the connection is successful, it will be displayed as shown in the following figure. If the connection fails, please check whether the TDengine Cloud service is running properly and whether the JDBC URL is correct.
 
  ![Configure the TDengine Cloud connection](./dbeaver/dbeaver-connect-tdengine-cloud-test-en.webp)
 

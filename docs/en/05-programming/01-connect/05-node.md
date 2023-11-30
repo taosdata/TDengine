@@ -1,14 +1,14 @@
 ---
 sidebar_label: Node.js
-title: Connect with Node.js Connector
-description: This document describes how to connect to TDengine Cloud using the Node.js connector.
+title: Connect with Node.js
+description: This document describes how to connect to TDengine Cloud using the Node.js client library.
 ---
 <!-- exclude -->
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 <!-- exclude-end -->
-## Install Connector
+## Install Client Library
 
 ```bash
 npm install @tdengine/rest
