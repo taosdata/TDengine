@@ -391,6 +391,7 @@ typedef struct SHistoryTaskInfo {
   int32_t retryTimes;
   int32_t waitInterval;
   int64_t haltVer;      // offset in wal when halt the stream task
+  bool    operatorOpen; // false by default
 } SHistoryTaskInfo;
 
 typedef struct STaskOutputInfo {
