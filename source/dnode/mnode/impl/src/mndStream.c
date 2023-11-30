@@ -743,13 +743,15 @@ static int32_t checkForNumOfStreams(SMnode *pMnode, SStreamObj *pStreamObj) {  /
     if (numOfStream > MND_STREAM_MAX_NUM) {
       mError("too many streams, no more than %d for each database", MND_STREAM_MAX_NUM);
       sdbCancelFetch(pMnode->pSdb, pIter);
-      return TSDB_CODE_MND_TOO_MANY_STREAMS;
+      terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
+      return terrno;
     }
 
     if (pStream->targetStbUid == pStreamObj->targetStbUid) {
       mError("Cannot write the same stable as other stream:%s", pStream->name);
       sdbCancelFetch(pMnode->pSdb, pIter);
-      return TSDB_CODE_MND_INVALID_TARGET_TABLE;
+      terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
+      return terrno;
     }
   }
 
@@ -891,6 +893,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    code = terrno;
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
   }
 
@@ -900,6 +903,7 @@ _OVER:
   if (sql != NULL) {
     taosMemoryFreeClear(sql);
   }
+
   return code;
 }
 
