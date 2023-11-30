@@ -14,7 +14,7 @@ You can write the data collected by icinga2 to TDengine by simply modifying the 
 
 To write icinga2 data to TDengine requires the following preparations.
 - The TDengine cluster is deployed and working properly
-- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](/reference/taosadapter) for details.
+- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](../../reference/taosadapter) for details.
 - icinga2 has been installed. Please refer to the [official documentation](https://icinga.com/docs/icinga-2/latest/doc/02-installation/) for icinga2 installation
 
 ## Configuration steps

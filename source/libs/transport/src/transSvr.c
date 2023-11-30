@@ -159,7 +159,7 @@ static void uvStartSendResp(SSvrMsg* msg);
 
 static void uvNotifyLinkBrokenToApp(SSvrConn* conn);
 
-static FORCE_INLINE void      destroySmsg(SSvrMsg* smsg);
+static FORCE_INLINE void destroySmsg(SSvrMsg* smsg);
 static FORCE_INLINE SSvrConn* createConn(void* hThrd);
 static FORCE_INLINE void      destroyConn(SSvrConn* conn, bool clear /*clear handle or not*/);
 static FORCE_INLINE void      destroyConnRegArg(SSvrConn* conn);
@@ -1499,6 +1499,7 @@ int transSendResponse(const STransMsg* msg) {
   }
   SExHandle* exh = msg->info.handle;
   if (exh == NULL) {
+    rpcFreeCont(msg->pCont);
     return 0;
   }
   int64_t refId = msg->info.refId;

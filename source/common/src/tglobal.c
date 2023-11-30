@@ -107,7 +107,7 @@ bool    tsEnableTelem = true;
 int32_t  tsTelemInterval = 43200;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
 uint16_t tsTelemPort = 80;
-char    *tsTelemUri = "/report";
+char *   tsTelemUri = "/report";
 
 #ifdef TD_ENTERPRISE
 bool tsEnableCrashReport = false;
@@ -354,16 +354,24 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
   char cfgFile[PATH_MAX + 100] = {0};
 
   taosExpandDir(inputCfgDir, cfgDir, PATH_MAX);
-  char lastC = cfgDir[strlen(cfgDir) - 1];
+  char  lastC = cfgDir[strlen(cfgDir) - 1];
   char *tdDirsep = TD_DIRSEP;
   if (lastC == '\\' || lastC == '/') {
     tdDirsep = "";
   }
   if (taosIsDir(cfgDir)) {
 #ifdef CUS_PROMPT
-    snprintf(cfgFile, sizeof(cfgFile), "%s" "%s" "%s.cfg", cfgDir, tdDirsep, CUS_PROMPT);
+    snprintf(cfgFile, sizeof(cfgFile),
+             "%s"
+             "%s"
+             "%s.cfg",
+             cfgDir, tdDirsep, CUS_PROMPT);
 #else
-    snprintf(cfgFile, sizeof(cfgFile), "%s" "%s" "taos.cfg", cfgDir, tdDirsep);
+    snprintf(cfgFile, sizeof(cfgFile),
+             "%s"
+             "%s"
+             "taos.cfg",
+             cfgDir, tdDirsep);
 #endif
   } else {
     tstrncpy(cfgFile, cfgDir, sizeof(cfgDir));
@@ -729,6 +737,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "disableStream", tsDisableStream, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
   if (cfgAddInt64(pCfg, "streamBufferSize", tsStreamBufferSize, 0, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
     return -1;
+
   if (cfgAddInt32(pCfg, "checkpointInterval", tsStreamCheckpointInterval, 60, 1200, CFG_SCOPE_SERVER,
                   CFG_DYN_ENT_SERVER) != 0)
     return -1;
@@ -1347,7 +1356,7 @@ void taosCleanupCfg() {
 
 typedef struct {
   const char *optionName;
-  void       *optionVar;
+  void *      optionVar;
 } OptionNameAndVar;
 
 static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, SConfigItem *pItem, bool isDebugflag) {
@@ -1360,7 +1369,7 @@ static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, 
     switch (pItem->dtype) {
       case CFG_DTYPE_BOOL: {
         int32_t flag = pItem->i32;
-        bool   *pVar = pOptions[d].optionVar;
+        bool *  pVar = pOptions[d].optionVar;
         uInfo("%s set from %d to %d", optName, *pVar, flag);
         *pVar = flag;
         terrno = TSDB_CODE_SUCCESS;
