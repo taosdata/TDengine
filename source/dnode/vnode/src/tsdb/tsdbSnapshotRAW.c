@@ -18,6 +18,8 @@
 #include "tsdbFS2.h"
 #include "tsdbFSetRAW.h"
 
+static int32_t tsdbSnapRAWReadFileSetCloseReader(STsdbSnapRAWReader* reader);
+
 // reader
 
 typedef struct SDataFileRAWReaderIter {
@@ -81,6 +83,7 @@ int32_t tsdbSnapRAWReaderClose(STsdbSnapRAWReader** reader) {
 
   STsdb* tsdb = reader[0]->tsdb;
 
+  tsdbSnapRAWReadFileSetCloseReader(reader[0]);
   tsdbFSDestroyRefSnapshot(&reader[0]->fsetArr);
   taosMemoryFree(reader[0]);
   reader[0] = NULL;
