@@ -438,9 +438,13 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
 static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(joinType);
+  COPY_SCALAR_FIELD(subType);
   COPY_SCALAR_FIELD(joinAlgo);
+  CLONE_NODE_FIELD(pWindowOffset);
+  CLONE_NODE_FIELD(pJLimit);
   CLONE_NODE_FIELD(pPrimKeyEqCond);
   CLONE_NODE_FIELD(pColEqCond);
+  CLONE_NODE_FIELD(pColOnCond);
   CLONE_NODE_FIELD(pTagEqCond);
   CLONE_NODE_FIELD(pTagOnCond);
   CLONE_NODE_FIELD(pFullOnCond);

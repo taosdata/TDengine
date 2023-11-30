@@ -20,6 +20,7 @@
 typedef struct SLogicPlanContext {
   SPlanContext* pPlanCxt;
   SLogicNode*   pCurrRoot;
+  SSHashObj*    pChildTables;
   bool          hasScan;
 } SLogicPlanContext;
 
@@ -502,8 +503,11 @@ static int32_t createSubqueryLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
   return createQueryLogicNode(pCxt, pTable->pSubquery, pLogicNode);
 }
 
+
+
 int32_t collectJoinResColumns(SSelectStmt* pSelect, SJoinTableNode* pJoinTable,        SNodeList** pCols) {
-  int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_WHERE, ((STableNode*)pJoinTable->pLeft)->tableAlias, COLLECT_COL_TYPE_ALL, pCols);
+  int32_t code = TSDB_CODE_SUCCESS;
+
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCollectColumns(pSelect, SQL_CLAUSE_WHERE, ((STableNode*)pJoinTable->pRight)->tableAlias, COLLECT_COL_TYPE_ALL, pCols);
   }

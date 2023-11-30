@@ -129,9 +129,10 @@ typedef struct SJoinLogicNode {
   EJoinAlgorithm joinAlgo;
   SNode*         pPrimKeyEqCond;
   SNode*         pColEqCond;
+  SNode*         pColOnCond;
   SNode*         pTagEqCond;
   SNode*         pTagOnCond;
-  SNode*         pFullOnCond;
+  SNode*         pFullOnCond; // except prim eq cond
   bool           isSingleTableJoin;
   bool           hasSubQuery;
   bool           isLowLevelJoin;
