@@ -68,7 +68,7 @@ All data in the database will be deleted too. This command must be used with ext
 
 ## Change Database Configuration
 
-Some examples are shown below to demonstrate how to change the configuration of a database. Please note that some configuration parameters can be changed after the database is created, but some cannot. For details of the configuration parameters of database please refer to [Configuration Parameters](/reference/config/).
+Some examples are shown below to demonstrate how to change the configuration of a database. Please note that some configuration parameters can be changed after the database is created, but some cannot. For details of the configuration parameters of database please refer to [Configuration Parameters](../../reference/config/).
 
 ```
 ALTER DATABASE db_name COMP 2;
@@ -107,7 +107,7 @@ ALTER DATABASE db_name CACHELAST 0;
 CACHELAST parameter specifies whether and how the latest data of a sub table is cached.
 
 :::tip
-The above parameters can be changed using `ALTER DATABASE` command without restarting. For more details of all configuration parameters please refer to [Configuration Parameters](/reference/config/).
+The above parameters can be changed using `ALTER DATABASE` command without restarting. For more details of all configuration parameters please refer to [Configuration Parameters](../../reference/config/).
 
 :::
 

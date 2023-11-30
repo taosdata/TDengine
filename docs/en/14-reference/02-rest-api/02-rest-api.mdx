@@ -303,5 +303,5 @@ Only some configuration parameters related to the RESTful interface are listed b
 - httpDbNameMandatory: users must specify the default database name in the RESTful URL. The default is 0, which turns off this check. If set to 1, users must put a default database name in every RESTful URL. Otherwise, it will return an execution error and reject this SQL statement, regardless of whether the SQL statement executed at this time requires a specified database.
 
 :::note 
-If you are using the REST API provided by taosd, you should write the above configuration in taosd's configuration file taos.cfg. If you use the REST API of taosAdapter, you need to refer to taosAdapter [corresponding configuration method](/reference/taosadapter/).
+If you are using the REST API provided by taosd, you should write the above configuration in taosd's configuration file taos.cfg. If you use the REST API of taosAdapter, you need to refer to taosAdapter [corresponding configuration method](../taosadapter/).
 :::

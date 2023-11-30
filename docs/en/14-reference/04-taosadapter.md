@@ -153,7 +153,7 @@ See [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/bl
 
 ## Feature List
 
-- Compatible with RESTful interfaces [REST API](/reference/rest-api/)
+- Compatible with RESTful interfaces [REST API](../rest-api/)
 - Compatible with InfluxDB v1 write interface
   [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
 - Compatible with OpenTSDB JSON and telnet format writes
@@ -176,7 +176,7 @@ See [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/bl
 
 ### TDengine RESTful interface
 
-You can use any client that supports the http protocol to write data to or query data from TDengine by accessing the REST interface address `http://<fqdn>:6041/<APIEndPoint>`. See the [official documentation](/reference/connector#restful) for details. The following EndPoint is supported.
+You can use any client that supports the http protocol to write data to or query data from TDengine by accessing the REST interface address `http://<fqdn>:6041/<APIEndPoint>`. See the [official documentation](../connector#restful) for details. The following EndPoint is supported.
 
 ```text
 /rest/sql

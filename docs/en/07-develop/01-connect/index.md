@@ -19,7 +19,7 @@ import InstallOnLinux from "../../14-reference/03-connector/\_windows_install.md
 import VerifyLinux from "../../14-reference/03-connector/\_verify_linux.mdx";
 import VerifyWindows from "../../14-reference/03-connector/\_verify_windows.mdx";
 
-Any application programs running on any kind of platform can access TDengine through the REST API provided by TDengine. For details, please refer to [REST API](/reference/rest-api/). Additionally, application programs can use the connectors of multiple programming languages including C/C++, Java, Python, Go, Node.js, C#, Rust to access TDengine. This chapter describes how to establish a connection to TDengine and briefly introduces how to install and use connectors. TDengine community also provides connectors in LUA and PHP languages. For details about the connectors, please refer to [Connectors](/reference/connector/).
+Any application programs running on any kind of platform can access TDengine through the REST API provided by TDengine. For details, please refer to [REST API](../../reference/rest-api/). Additionally, application programs can use the connectors of multiple programming languages including C/C++, Java, Python, Go, Node.js, C#, Rust to access TDengine. This chapter describes how to establish a connection to TDengine and briefly introduces how to install and use connectors. TDengine community also provides connectors in LUA and PHP languages. For details about the connectors, please refer to [Connectors](../../reference/connector/).
 
 ## Establish Connection
 
@@ -30,7 +30,7 @@ There are two ways for a connector to establish connections to TDengine:
 
 Key differences：
 
-1. The TDengine client driver (taosc) has the highest performance with all the features of TDengine like [Parameter Binding](/reference/connector/cpp#parameter-binding-api), [Subscription](/reference/connector/cpp#subscription-and-consumption-api), etc.
+1. The TDengine client driver (taosc) has the highest performance with all the features of TDengine like [Parameter Binding](../../reference/connector/cpp#parameter-binding-api), [Subscription](../../reference/connector/cpp#subscription-and-consumption-api), etc.
 2. The TDengine client driver (taosc) is not supported across all platforms, and applications built on taosc may need to be modified when updating taosc to newer versions.
 3. The REST connection is more accessible with cross-platform support, however it results in a 30% performance downgrade.
 

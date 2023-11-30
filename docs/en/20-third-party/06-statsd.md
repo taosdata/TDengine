@@ -13,7 +13,7 @@ You can write StatsD data to TDengine by simply modifying the configuration file
 
 To write StatsD data to TDengine requires the following preparations.
 - The TDengine cluster has been deployed and is working properly
-- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](/reference/taosadapter) for details.
+- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](../../reference/taosadapter) for details.
 - StatsD has been installed. To install StatsD, please refer to [official documentation](https://github.com/statsd/statsd)
 
 ## Configuration steps

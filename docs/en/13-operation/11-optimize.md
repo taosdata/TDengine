@@ -14,7 +14,7 @@ Please note that a lot of disk I/O is required for defragementation operations. 
 
 ## Optimize Storage Parameters
 
-The data in different use cases may have different characteristics, such as the days to keep, number of replicas, collection interval, record size, number of collection points, compression or not, etc. To achieve best efficiency in storage, the parameters in the table below can be used. All of them can either be configured in `taos.cfg`, as default parameters, or can be set in the command `create database`. For detailed definition of these parameters please refer to [Configuration Parameters](/reference/config/).
+The data in different use cases may have different characteristics, such as the days to keep, number of replicas, collection interval, record size, number of collection points, compression or not, etc. To achieve best efficiency in storage, the parameters in the table below can be used. All of them can either be configured in `taos.cfg`, as default parameters, or can be set in the command `create database`. For detailed definition of these parameters please refer to [Configuration Parameters](../../reference/config/).
 
 | #   | Parameter | Unit | Definition                                                                     | **Value Range**                                                                                 | **Default Value** |
 | --- | --------- | ---- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- | ----------------- |
@@ -67,7 +67,7 @@ Once a database is created, only some parameters can be changed and be effective
 
 **Explanation：** Prior to version 2.1.3.0, `taosd` server process needs to be restarted for these parameters to take in effect if they are changed using `ALTER DATABASE`.
 
-When trying to join a new dnode into a running TDengine cluster, all the parameters related to the cluster in the new dnode configuration must be consistent with the cluster, otherwise it can't join the cluster. The parameters that are checked when joining a dnode are listed below. For detailed definition of these parameters please refer to [Configuration Parameters](/reference/config/).
+When trying to join a new dnode into a running TDengine cluster, all the parameters related to the cluster in the new dnode configuration must be consistent with the cluster, otherwise it can't join the cluster. The parameters that are checked when joining a dnode are listed below. For detailed definition of these parameters please refer to [Configuration Parameters](../../reference/config/).
 
 - numOfMnodes
 - mnodeEqualVnodeNum

@@ -76,7 +76,7 @@ If the subtable obtained by the parse line protocol does not exist, Schemaless c
 8. In order to improve the efficiency of writing, the order of fields in the same super table should be the same. If the order is different, you need to configure the parameter smlDataFormat to false, otherwise, the data in the library will be abnormal.
 
 :::tip
-All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed 48k bytes. See [TAOS SQL Boundary Limits](/taos-sql/limit) for specific constraints in this area.
+All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed 48k bytes. See [TAOS SQL Boundary Limits](../../taos-sql/limit) for specific constraints in this area.
 :::
 
 ## Time resolution recognition

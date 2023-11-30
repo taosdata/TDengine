@@ -8,7 +8,7 @@ description: "taospy is the official Python connector for TDengine. taospy provi
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-`taospy` is the official Python connector for TDengine. `taospy` provides a rich set of APIs that makes it easy for Python applications to access TDengine. `taospy` wraps both the [native interface](/reference/connector/cpp) and [REST interface](/reference/rest-api) of TDengine, which correspond to the `taos` and `taosrest` modules of the `taospy` package, respectively.
+`taospy` is the official Python connector for TDengine. `taospy` provides a rich set of APIs that makes it easy for Python applications to access TDengine. `taospy` wraps both the [native interface](../cpp) and [REST interface](../../rest-api) of TDengine, which correspond to the `taos` and `taosrest` modules of the `taospy` package, respectively.
 In addition to wrapping the native and REST interfaces, `taospy` also provides a set of programming interfaces that conforms to the [Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/). It is easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
 
 The direct connection to the server using the native interface provided by the client driver is referred to hereinafter as a "native connection"; the connection to the server using the REST interface provided by taosAdapter is referred to hereinafter as a "REST connection".
@@ -17,7 +17,7 @@ The source code for the Python connector is hosted on [GitHub](https://github.co
 
 ## Supported Platforms
 
-- The [supported platforms](/reference/connector/#supported-platforms) for the native connection are the same as the ones supported by the TDengine client.
+- The [supported platforms](../#supported-platforms) for the native connection are the same as the ones supported by the TDengine client.
 - REST connections are supported on all platforms that can run Python.
 
 ## Version selection
@@ -36,7 +36,7 @@ We recommend using the latest version of `taospy`, regardless of the version of 
 1. Install Python. Python >= 3.6.2 is recommended. If Python is not available on your system, refer to the [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) to install it.
 2. Install [pip](https://pypi.org/project/pip/). In most cases, the Python installer comes with the pip utility. If not, please refer to [pip documentation](https://pip.pypa.io/en/stable/installation/) to install it.
 
-If you use a native connection, you will also need to [Install Client Driver](/reference/connector#Install-Client-Driver). The client install package includes the TDengine client dynamic link library (`libtaos.so` or `taos.dll`) and the TDengine CLI.
+If you use a native connection, you will also need to [Install Client Driver](../#Install-Client-Driver). The client install package includes the TDengine client dynamic link library (`libtaos.so` or `taos.dll`) and the TDengine CLI.
 
 ### Install via pip
 
@@ -267,7 +267,7 @@ The `TaosRestCursor` class is an implementation of the PEP249 Cursor interface.
 
 ##### Use of the RestClient class
 
-The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
+The `RestClient` class is a direct wrapper for the [REST API](../../rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
 
 ```python title="Use of RestClient"
 {{#include docs/examples/python/rest_client_example.py}}
@@ -337,7 +337,7 @@ The `TaosRestCursor` class is an implementation of the PEP249 Cursor interface.
 
 ##### Use of the RestClient class
 
-The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
+The `RestClient` class is a direct wrapper for the [REST API](../../rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
 
 ```python title="Use of RestClient"
 {{#include docs/examples/python/rest_client_with_req_id_example.py}}

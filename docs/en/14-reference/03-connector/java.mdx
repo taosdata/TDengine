@@ -35,7 +35,7 @@ REST connection supports all platforms that can run Java.
 
 ## Version support
 
-Please refer to [Version Support List](/reference/connector#version-support).
+Please refer to [Version Support List](../#version-support).
 
 ## TDengine DataType vs. Java DataType
 
@@ -64,7 +64,7 @@ TDengine currently supports timestamp, number, character, Boolean type, and the 
 Before using Java Connector to connect to the database, the following conditions are required.
 
 - Java 1.8 or above runtime environment and Maven 3.6 or above installed
-- TDengine client driver installed (required for native connections, not required for REST connections), please refer to [Installing Client Driver](/reference/connector#Install-Client-Driver)
+- TDengine client driver installed (required for native connections, not required for REST connections), please refer to [Installing Client Driver](../#Install-Client-Driver)
 
 ### Install the connectors
 
@@ -273,7 +273,7 @@ The configuration parameters in properties are as follows.
 - TSDBDriver.HTTP_SOCKET_TIMEOUT: socket timeout in milliseconds, the default value is 5000 ms. It only takes effect when using JDBC REST connection and batchfetch is false.
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: message transmission timeout in milliseconds, the default value is 3000 ms. It only takes effect when using JDBC REST connection and batchfetch is true.
 - TSDBDriver.PROPERTY_KEY_USE_SSL: connecting Securely Using SSL. true: using SSL conneciton, false: not using SSL connection. It only takes effect when using using JDBC REST connection.
-  For JDBC native connections, you can specify other parameters, such as log level, SQL length, etc., by specifying URL and Properties. For more detailed configuration, please refer to [Client Configuration](/reference/config/#Client-Only).
+  For JDBC native connections, you can specify other parameters, such as log level, SQL length, etc., by specifying URL and Properties. For more detailed configuration, please refer to [Client Configuration](../../config/#Client-Only).
 
 ### Priority of configuration parameters
 
@@ -635,7 +635,7 @@ public void setNString(int columnIndex, ArrayList<String> list, int size) throws
 
 ### Schemaless Writing
 
-Starting with version 2.2.0.0, TDengine has added the ability to perform schemaless writing. It is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet line protocol, and OpenTSDB's JSON format protocol. See [schemaless writing](/reference/schemaless/) for details.
+Starting with version 2.2.0.0, TDengine has added the ability to perform schemaless writing. It is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet line protocol, and OpenTSDB's JSON format protocol. See [schemaless writing](../../schemaless/) for details.
 
 **Note**.
 
@@ -847,7 +847,7 @@ Please refer to: [JDBC example](https://github.com/taosdata/TDengine/tree/develo
 
    **Solution**: Reinstall the 64-bit JDK. 4.
 
-For other questions, please refer to [FAQ](/train-faq/faq)
+For other questions, please refer to [FAQ](../../../train-faq/faq)
 
 ## API Reference
 

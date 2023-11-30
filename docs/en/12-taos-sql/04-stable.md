@@ -21,7 +21,7 @@ The SQL statement of creating a STable is similar to that of creating a table, b
 
 1. A tag can be of type timestamp, since version 2.1.3.0, but its value must be fixed and arithmetic operations cannot be performed on it. Prior to version 2.1.3.0, tag types specified in TAGS could not be of type timestamp.
 2. The tag names specified in TAGS should NOT be the same as other columns.
-3. The tag names specified in TAGS should NOT be the same as any reserved keywords.(Please refer to [keywords](/taos-sql/keywords/)
+3. The tag names specified in TAGS should NOT be the same as any reserved keywords.(Please refer to [keywords](../keywords/)
 4. The maximum number of tags specified in TAGS is 128, there must be at least one tag, and the total length of all tag columns should NOT exceed 16KB.
 
 :::
