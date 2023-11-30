@@ -771,9 +771,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
           if (cfgAll) {  // alter all dnodes:
             if (!failRecord) failRecord = taosArrayInit(1, sizeof(int32_t));
             if (failRecord) taosArrayPush(failRecord, &pDnode->id);
-            if (0 == cfgAllErr || cfgAllErr == TSDB_CODE_GRANT_PAR_IVLD_ACTIVE) {
-              cfgAllErr = terrno;  // output 1st or more specific error
-            }
+            if (0 == cfgAllErr) cfgAllErr = terrno;  // output 1st terrno.
           }
         } else {
           terrno = 0;  // no action for dup active code
@@ -789,9 +787,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
           if (cfgAll) {
             if (!failRecord) failRecord = taosArrayInit(1, sizeof(int32_t));
             if (failRecord) taosArrayPush(failRecord, &pDnode->id);
-            if (0 == cfgAllErr || cfgAllErr == TSDB_CODE_GRANT_PAR_IVLD_ACTIVE) {
-              cfgAllErr = terrno;  // output 1st or more specific error
-            }
+            if (0 == cfgAllErr) cfgAllErr = terrno;
           }
         } else {
           terrno = 0;
@@ -1222,10 +1218,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     int32_t optLen = strlen("keeptimeoffset");
     int32_t flag = -1;
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
-    if (code < 0) {
-      tFreeSMCfgDnodeReq(&cfgReq);
-      return code;
-    }
+    if (code < 0) return code;
 
     if (flag < 0 || flag > 23) {
       mError("dnode:%d, failed to config keepTimeOffset since value:%d. Valid range: [0, 23]", cfgReq.dnodeId, flag);
@@ -1240,10 +1233,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     int32_t optLen = strlen("ttlpushinterval");
     int32_t flag = -1;
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
-    if (code < 0) {
-      tFreeSMCfgDnodeReq(&cfgReq);
-      return code;
-    }
+    if (code < 0) return code;
 
     if (flag < 0 || flag > 100000) {
       mError("dnode:%d, failed to config ttlPushInterval since value:%d. Valid range: [0, 100000]", cfgReq.dnodeId,
@@ -1259,10 +1249,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     int32_t optLen = strlen("ttlbatchdropnum");
     int32_t flag = -1;
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
-    if (code < 0) {
-      tFreeSMCfgDnodeReq(&cfgReq);
-      return code;
-    }
+    if (code < 0) return code;
 
     if (flag < 0) {
       mError("dnode:%d, failed to config ttlBatchDropNum since value:%d. Valid range: [0, %d]", cfgReq.dnodeId,
@@ -1278,10 +1265,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     int32_t optLen = strlen("asynclog");
     int32_t flag = -1;
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
-    if (code < 0) {
-      tFreeSMCfgDnodeReq(&cfgReq);
-      return code;
-    }
+    if (code < 0) return code;
 
     if (flag < 0 || flag > 1) {
       mError("dnode:%d, failed to config asynclog since value:%d. Valid range: [0, 1]", cfgReq.dnodeId, flag);
@@ -1297,10 +1281,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     int32_t optLen = strlen("supportvnodes");
     int32_t flag = -1;
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
-    if (code < 0) {
-      tFreeSMCfgDnodeReq(&cfgReq);
-      return code;
-    }
+    if (code < 0) return code;
 
     if (flag < 0 || flag > 4096) {
       mError("dnode:%d, failed to config supportVnodes since value:%d. Valid range: [0, 4096]", cfgReq.dnodeId, flag);
@@ -1315,13 +1296,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
     strcpy(dcfgReq.config, "supportvnodes");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
-  } else if (strncasecmp(cfgReq.config, GRANT_ACTIVE_CODE, 10) == 0 ||
-             strncasecmp(cfgReq.config, GRANT_C_ACTIVE_CODE, 11) == 0) {
-    if (cfgReq.dnodeId != -1) {
-      terrno = TSDB_CODE_INVALID_CFG;
-      tFreeSMCfgDnodeReq(&cfgReq);
-      return -1;
-    }
+  } else if (strncasecmp(cfgReq.config, "activeCode", 10) == 0 || strncasecmp(cfgReq.config, "cActiveCode", 11) == 0) {
     int8_t opt = strncasecmp(cfgReq.config, "a", 1) == 0 ? DND_ACTIVE_CODE : DND_CONN_ACTIVE_CODE;
     int8_t index = opt == DND_ACTIVE_CODE ? 10 : 11;
     if (' ' != cfgReq.config[index] && 0 != cfgReq.config[index]) {
@@ -1341,10 +1316,10 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       return -1;
     }
 
-    strcpy(dcfgReq.config, opt == DND_ACTIVE_CODE ? GRANT_ACTIVE_CODE : GRANT_C_ACTIVE_CODE);
+    strcpy(dcfgReq.config, opt == DND_ACTIVE_CODE ? "activeCode" : "cActiveCode");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%s", cfgReq.value);
 
-    if ((terrno = mndConfigDnode(pMnode, pReq, &cfgReq, opt)) != 0) {
+    if (mndConfigDnode(pMnode, pReq, &cfgReq, opt) != 0) {
       mError("dnode:%d, failed to config activeCode since %s. conf:%s, val:%s", cfgReq.dnodeId, terrstr(),
              cfgReq.config, cfgReq.value);
       tFreeSMCfgDnodeReq(&cfgReq);
