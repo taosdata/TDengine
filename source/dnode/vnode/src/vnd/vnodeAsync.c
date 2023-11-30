@@ -128,7 +128,7 @@ static int32_t vnodeAsyncTaskDone(SVAsync *async, SVATask *task) {
             nextTask->next->prev = nextTask->prev;
             nextTask->prev->next = nextTask->next;
           } else {
-            nextTask->priority++;
+            nextTask->priorScore++;
             int32_t newPriority = VATASK_PIORITY(nextTask);
             if (newPriority != i) {
               // remove from current priority queue
