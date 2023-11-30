@@ -6906,6 +6906,7 @@ void destoryVnodeModifyOpStmt(SNode* pNode) {
   taosHashCleanup(pStmt->pSubTableHashObj);
   taosHashCleanup(pStmt->pTableNameHashObj);
   taosHashCleanup(pStmt->pDbFNameHashObj);
+  taosHashCleanup(pStmt->pTableCxtHashObj);
   if (pStmt->freeHashFunc) {
     pStmt->freeHashFunc(pStmt->pTableBlockHashObj);
   }
