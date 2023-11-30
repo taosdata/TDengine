@@ -19,6 +19,8 @@ tonic = { workspace = true }
 
 regex = { workspace = true }
 
+arrow-cast-guess-precision = "0.1.0"
+
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bytes = "1"

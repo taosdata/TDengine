@@ -107,7 +107,7 @@ func (r *ArrowReporter) upload(list []*common.NodeValue) error {
 		nameField.Append(msg.Name)
 		tsField.Append(arrow.Timestamp(msg.Timestamp.UnixMilli()))
 		clientTsField.Append(arrow.Timestamp(msg.StartTime.UnixMilli()))
-		if valueField == nil {
+		if msg.Value == nil {
 			valueField.AppendNull()
 		} else {
 			err := r.appendFunc(valueField, msg.Value)

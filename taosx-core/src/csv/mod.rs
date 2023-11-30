@@ -91,7 +91,7 @@ pub async fn csv_header(
     })
 }
 
-pub const CSV_FILES: &str = "metrics.csv.csv_files";
+pub const METRIC_CSV_FILES: &str = "metrics.csv.files";
 pub const CSV_READ_RECORDS: &str = "metrics.csv.csv_read_records";
 pub const CSV_READ_RECORD_BATCHES: &str = "metrics.csv.csv_read_record_batches";
 
@@ -128,7 +128,7 @@ pub async fn csv_to_taos(
     .await?;
 
     let mut source = CsvSource::new(&mut from, port)?;
-    metrics::counter!(CSV_FILES, source.readers.len() as u64);
+    metrics::counter!(METRIC_CSV_FILES, source.readers.len() as u64);
     info!("spawn CSV worker");
     let worker = tokio::spawn(async move {
         info!(

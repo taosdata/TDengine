@@ -43,3 +43,4 @@ metrics.tmq.messages_of_data: Number of messages with type "Data" that taosX rec
 metrics.tmq.blocks: Number of data blocks successfully written
 metrics.tmq.records: Number of rows successfully written
 metrics.tmq.points: Number of points successfully written
+metrics.csv.files: Number of files to read for CSV task
