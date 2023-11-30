@@ -141,7 +141,7 @@ impl Parse for FieldParser {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub(super) struct ParserImpl(LinkedHashMap<String, FieldParser>);
 
 impl std::ops::Deref for ParserImpl {
@@ -154,6 +154,9 @@ impl std::ops::Deref for ParserImpl {
 
 impl TransformExt for ParserImpl {
     fn transform_record_batch(&self, records: &RecordBatch) -> Result<RecordBatch, super::Error> {
+        if self.is_empty() {
+            return Ok(records.clone());
+        }
         let schema = records.schema();
         let metadata = schema.metadata().clone();
 

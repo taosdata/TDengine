@@ -25,7 +25,8 @@ impl ValueBuilder for CastValueBuilder {
         let array = record.column_by_name(field.name()).unwrap();
         if let Some(ty) = r#as {
             let ty = ty.arrow_data_type();
-            let array = arrow::compute::cast(array, &ty).map_err(ValueBuilderError::CastError)?;
+            let array = arrow_cast_guess_precision::cast(array, &ty)
+                .map_err(ValueBuilderError::CastError)?;
             Ok((
                 Arc::new(field.clone().with_name(name).with_data_type(ty)),
                 array,
@@ -39,7 +40,7 @@ impl ValueBuilder for CastValueBuilder {
 #[cfg(test)]
 mod tests {
     use arrow::{
-        array::{Array, Int32Array, StringArray},
+        array::{Array, Int32Array, StringArray, TimestampNanosecondArray},
         datatypes::DataType,
     };
 
@@ -77,6 +78,34 @@ mod tests {
                 .value(0),
             "a"
         );
+    }
+
+    #[test]
+    fn test_int_as_timestamp() {
+        let builder: CastValueBuilder = serde_json::from_str(r#"{"cast": "int"}"#).unwrap();
+        let batch = init_record_batch();
+
+        let (field, value) = builder
+            .build_field(
+                "n1",
+                &batch,
+                Some(IpcDataType::Timestamp(arrow_schema::TimeUnit::Nanosecond)),
+            )
+            .unwrap();
+
+        dbg!(&field, &value);
+
+        assert_eq!(field.name(), "n1");
+        assert_eq!(
+            *field.data_type(),
+            DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None)
+        );
+        assert_eq!(value.len(), 3);
+        let array = value
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        assert!(array.is_null(0));
     }
 
     #[test]

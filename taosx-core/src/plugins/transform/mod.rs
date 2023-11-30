@@ -58,7 +58,8 @@ use super::expr;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Pipeline {
-    parse: ParserImpl,
+    #[serde(default)]
+    parse: Option<ParserImpl>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     mutate: Vec<Mutate>,
     model: Option<Modeler>,
@@ -66,7 +67,13 @@ pub struct Pipeline {
 
 impl Pipeline {
     pub fn transform(&self, records: &RecordBatch) -> Result<Vec<ModeledRecordBatch>, Error> {
-        let batch = self.parse.transform_record_batch(&records)?;
+        let batch = self
+            .parse
+            .as_ref()
+            .map(|parse| parse.transform_record_batch(&records))
+            .transpose()?;
+
+        let batch = batch.unwrap_or_else(|| records.clone());
         let batch = self.mutate.iter().fold(Ok(batch), |batch, mutate| {
             batch.and_then(|batch| mutate.transform_record_batch(&batch))
         })?;
@@ -140,6 +147,135 @@ mod pipeline_tests {
                 ("f1", DataType::Utf8),
                 ("e1", DataType::Boolean),
                 ("e2", DataType::Float64)
+            ]
+        );
+
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // over write previous value.
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int"] } },
+            "mutate": [{"map": {
+                "c1": { "value": 2, "as": "int" },
+                "g1": { "generator": "now" },
+                "f1": { "format": "format-${value}-suffix", "as": "varchar" },
+                "e1": { "expr": "if value > 1 { true } else { false }" },
+                "e2": { "expr": "value + 2" }
+            }}, {"map": {
+                "c1": { "value": 4, "as": "int" },
+                "g1": { "generator": "now" },
+                "f1": { "format": "prefix-${value}-suffix", "as": "varchar" },
+                "e1": { "expr": "if value > 1 { 1 } else { 2 }" },
+                "e2": { "expr": "value + 4" }
+            }}]
+        }"#
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output_over_written = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        assert_eq!(
+            output_over_written[0]
+                .fields
+                .iter()
+                .map(|f| f.name.as_str())
+                .collect_vec(),
+            vec!["ts", "price", "value", "id", "c1", "g1", "f1", "e1", "e2"]
+        );
+        assert_eq!(output_over_written[0].columns[0][4].as_i64().unwrap(), 4); // c1
+        assert_eq!(
+            output_over_written[0].columns[0][6].as_str().unwrap(),
+            "prefix-1.1-suffix"
+        ); // f1
+        assert_eq!(output_over_written[0].columns[0][7].as_i64().unwrap(), 1); // e1, bool
+        assert_eq!(output_over_written[0].columns[0][8].as_f64().unwrap(), 5.1); // e2, double
+        let json_over_written = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json_over_written);
+
+        // With parser, mutate and model
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int"] } },
+            "mutate": [{"map": {
+                "c1": { "value": 2, "as": "int" },
+                "g1": { "generator": "now" },
+                "f1": { "format": "format-${value}-suffix", "as": "varchar" },
+                "e1": { "expr": "if value > 1 { true } else { false }" },
+                "e2": { "expr": "value + 2" }
+            }}],
+            "model": [{
+                "name": "d{id}",
+                "using": "meters",
+                "tags": ["id"],
+                "columns": ["ts", "value", "price", "c1", "g1", "f1", "e1", "e2"]
+            }]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+    }
+
+    #[test]
+    fn test_pipeline_map_with_null_column() {
+        let records = demo_mqtt_records();
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double", "value", "$.id=id::int"] } }
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser and mutate
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int"] } },
+            "mutate": [{"map": {
+                "c1": { "value": 2, "as": "int" },
+                "g1": { "generator": "now" },
+                "f1": { "format": "format-${value}-suffix", "as": "varchar" },
+                "e1": { "expr": "if value > 1 { true } else { false }" },
+                "e2": { "expr": "value + 2" },
+                "n1": { "cast": "value", "as": "timestamp" }
+            }}]
+        }"#
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        assert_eq!(
+            output[0]
+                .fields
+                .iter()
+                .map(|f| (f.name.as_str(), f.arrow_type.clone()))
+                .collect_vec(),
+            vec![
+                ("ts", DataType::Timestamp(TimeUnit::Millisecond, None)),
+                ("price", DataType::Float64),
+                ("value", DataType::Float64),
+                ("id", DataType::Int32),
+                ("c1", DataType::Int32),
+                (
+                    "g1",
+                    DataType::Timestamp(TimeUnit::Nanosecond, Some("+00:00".into()))
+                ),
+                ("f1", DataType::Utf8),
+                ("e1", DataType::Boolean),
+                ("e2", DataType::Float64),
+                ("n1", DataType::Timestamp(TimeUnit::Millisecond, None))
             ]
         );
 
@@ -437,7 +573,6 @@ mod pipeline_tests {
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
-
 
     #[test]
     fn test_pipeline() {
