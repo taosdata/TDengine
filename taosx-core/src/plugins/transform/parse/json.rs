@@ -1,4 +1,4 @@
-use std::{str::FromStr, sync::Arc};
+use std::{borrow::Cow, str::FromStr, sync::Arc};
 
 use arrow::{
     array::{
@@ -232,6 +232,8 @@ impl Parse for Json {
                             if let Some(v) = v.as_ref().and_then(getter) {
                                 v.as_u64()
                                     .map(|v| v as u8)
+                                    .or_else(|| v.as_f64().map(|v| v as _))
+                                    .or_else(|| v.as_i64().map(|v| v as _))
                                     .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
@@ -252,6 +254,8 @@ impl Parse for Json {
                             if let Some(v) = v.as_ref().and_then(getter) {
                                 v.as_u64()
                                     .map(|v| v as u16)
+                                    .or_else(|| v.as_f64().map(|v| v as _))
+                                    .or_else(|| v.as_i64().map(|v| v as _))
                                     .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
@@ -271,6 +275,8 @@ impl Parse for Json {
                             if let Some(v) = v.as_ref().and_then(getter) {
                                 v.as_u64()
                                     .map(|v| v as u32)
+                                    .or_else(|| v.as_f64().map(|v| v as _))
+                                    .or_else(|| v.as_i64().map(|v| v as _))
                                     .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
@@ -289,6 +295,8 @@ impl Parse for Json {
                         .map(|(_, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
                                 v.as_u64()
+                                    .or_else(|| v.as_f64().map(|v| v as _))
+                                    .or_else(|| v.as_i64().map(|v| v as _))
                                     .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
@@ -308,6 +316,8 @@ impl Parse for Json {
                             if let Some(v) = v.as_ref().and_then(getter) {
                                 v.as_i64()
                                     .map(|v| v as i8)
+                                    .or_else(|| v.as_f64().map(|v| v as _))
+                                    .or_else(|| v.as_u64().map(|v| v as _))
                                     .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
@@ -327,6 +337,8 @@ impl Parse for Json {
                             if let Some(v) = v.as_ref().and_then(getter) {
                                 v.as_i64()
                                     .map(|v| v as i16)
+                                    .or_else(|| v.as_f64().map(|v| v as _))
+                                    .or_else(|| v.as_u64().map(|v| v as _))
                                     .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
@@ -346,6 +358,8 @@ impl Parse for Json {
                             if let Some(v) = v.as_ref().and_then(getter) {
                                 v.as_i64()
                                     .map(|v| v as i32)
+                                    .or_else(|| v.as_f64().map(|v| v as _))
+                                    .or_else(|| v.as_u64().map(|v| v as _))
                                     .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
@@ -364,6 +378,8 @@ impl Parse for Json {
                         .map(|(_, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
                                 v.as_i64()
+                                    .or_else(|| v.as_f64().map(|v| v as _))
+                                    .or_else(|| v.as_u64().map(|v| v as _))
                                     .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
@@ -383,6 +399,8 @@ impl Parse for Json {
                             if let Some(v) = v.as_ref().and_then(getter) {
                                 v.as_f64()
                                     .map(|f| f as f32)
+                                    .or_else(|| v.as_i64().map(|v| v as _))
+                                    .or_else(|| v.as_u64().map(|v| v as _))
                                     .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
@@ -401,6 +419,8 @@ impl Parse for Json {
                         .map(|(_, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
                                 v.as_f64()
+                                    .or_else(|| v.as_i64().map(|v| v as _))
+                                    .or_else(|| v.as_u64().map(|v| v as _))
                                     .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                             } else {
                                 None
@@ -418,6 +438,8 @@ impl Parse for Json {
                         .map(|(_, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
                                 v.as_str()
+                                    .map(Cow::Borrowed)
+                                    .or_else(|| serde_json::to_string(v).map(Cow::Owned).ok())
                             } else {
                                 None
                             }
@@ -432,7 +454,10 @@ impl Parse for Json {
                         .iter()
                         .map(|(_, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
-                                v.as_str().map(|s| s.as_bytes())
+                                v.as_str()
+                                    .map(|s| s.as_bytes())
+                                    .map(Cow::Borrowed)
+                                    .or_else(|| serde_json::to_vec(v).map(Cow::Owned).ok())
                             } else {
                                 None
                             }
@@ -637,7 +662,7 @@ mod tests {
     fn json_extract() {
         let extract = Json {
             // select: None,
-            json: Some(serde_json::from_str(&r#"["a1=a::nchar(100)", "b1=b1::f32"]"#).unwrap()),
+            json: Some(serde_json::from_str(&r#"["a1=a::nchar(100)", "b1=b1::int"]"#).unwrap()),
             flatten: true,
             keep: false,
         };
@@ -645,7 +670,7 @@ mod tests {
 
         let field = Field::new("a", DataType::Utf8, false);
         let array: ArrayRef = Arc::new(StringArray::from(vec![
-            r#"[{"a1": "a1", "b1": 1}, {"a1": "a1", "b1": "none"}]"#,
+            r#"[{"a1": "a1", "b1": 1.2}, {"a1": "a1", "b1": "none"}]"#,
             r#"{"a1": "a2", "c1": 1}"#,
         ]));
 

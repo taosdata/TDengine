@@ -379,6 +379,66 @@ mod pipeline_tests {
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
     }
+
+    #[test]
+    fn test_regex() {
+        let records = demo_text_records();
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "text": { "regex": "\\d{1}" } }
+        }"#,
+        )
+        .unwrap();
+        dbg!(&pipeline);
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+
+        assert_eq!(
+            output[0]
+                .fields
+                .iter()
+                .map(|f| (f.name.as_str(), f.arrow_type.clone()))
+                .collect_vec(),
+            vec![
+                ("ts", DataType::Timestamp(TimeUnit::Millisecond, None)),
+                ("text", DataType::Utf8),
+            ]
+        );
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "text": { "regex": "(\\d{1}).*" } }
+        }"#,
+        )
+        .unwrap();
+        dbg!(&pipeline);
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+
+        assert_eq!(
+            output[0]
+                .fields
+                .iter()
+                .map(|f| (f.name.as_str(), f.arrow_type.clone()))
+                .collect_vec(),
+            vec![
+                ("ts", DataType::Timestamp(TimeUnit::Millisecond, None)),
+                ("text0", DataType::Utf8),
+                ("text1", DataType::Utf8),
+            ]
+        );
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+    }
+
+
     #[test]
     fn test_pipeline() {
         let records = demo_mqtt_records();

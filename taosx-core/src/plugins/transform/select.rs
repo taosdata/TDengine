@@ -1,6 +1,10 @@
 use std::{collections::HashMap, fmt::Display, str::FromStr};
 
-use arrow::datatypes::{DataType, Field, FieldRef, Fields, Schema};
+use arrow::{
+    datatypes::{DataType, Field, FieldRef, Fields, Schema},
+    record_batch::RecordBatch,
+};
+use arrow_schema::ArrowError;
 use itertools::Itertools;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -374,26 +378,26 @@ impl Select {
         }
     }
 
-    // pub fn record_batch(&self, batch: &RecordBatch) -> Result<RecordBatch, ArrowError> {
-    //     let schema = self.schema(&batch.schema());
-    //     let schema_ref = Arc::new(schema);
-    //     let columns = schema_ref
-    //         .fields()
-    //         .iter()
-    //         .map(|field| {
-    //             // dbg!(&field);
-    //             let metadata = field.metadata();
-    //             let name = &metadata["name"];
-    //             let column = batch.column_by_name(&name).unwrap();
-    //             // let dt0 = column.data_type();
-    //             let dt = field.data_type();
+    pub fn record_batch(&self, batch: &RecordBatch) -> Result<RecordBatch, ArrowError> {
+        let schema = self.schema(&batch.schema());
+        let schema_ref = std::sync::Arc::new(schema);
+        let columns = schema_ref
+            .fields()
+            .iter()
+            .map(|field| {
+                // dbg!(&field);
+                let metadata = field.metadata();
+                let name = &metadata["name"];
+                let column = batch.column_by_name(&name).unwrap();
+                // let dt0 = column.data_type();
+                let dt = field.data_type();
 
-    //             arrow::compute::cast(column, dt)
-    //         })
-    //         .try_collect()?;
+                arrow::compute::cast(column, dt)
+            })
+            .try_collect()?;
 
-    //     Ok(RecordBatch::try_new(schema_ref, columns)?)
-    // }
+        Ok(RecordBatch::try_new(schema_ref, columns)?)
+    }
 }
 
 // impl TransformExt for Select {
