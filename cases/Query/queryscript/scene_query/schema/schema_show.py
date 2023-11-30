@@ -127,7 +127,7 @@ class TDTestQuery(TDCase):
                         's3Endpoint','s3BucketName','minDiskFreeSize','enableWhiteList','timeseriesThreshold','LossyColumns','FPrecision','DPrecision',
                         'MaxRange','CurRange','IfAdtFse','Compressor','s3BlockSize','s3BlockCacheSize','auditCreateTable','snodeAddress','checkpointBackupDir',
                         'streamSinkDataRate','lossyColumns','fPrecision','dPrecision','maxRange','curRange','ifAdtFse','compressor','s3PageCacheSize',
-                        's3UploadDelaySec','sDebugFlag','stDebugFlag','','','','','','','','','','','','','','','','']
+                        's3UploadDelaySec','sDebugFlag','stDebugFlag','sndDebugFlag','','','','','','','','','','','','','','','']
         
         
         dnodes_list = []
@@ -226,7 +226,7 @@ class TDTestQuery(TDCase):
         show_create_sql = "show create table information_schema.ins_stables;"
         self.tdSql.query(show_create_sql)          
         self.tdCreateData.data_check(self.tdSql.getData(0,0),'ins_stables')
-        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_stables` (`stable_name` VARCHAR(192), `db_name` VARCHAR(64), `create_time` TIMESTAMP, `columns` INT, `tags` INT, `last_update` TIMESTAMP, `table_comment` VARCHAR(1025), `watermark` VARCHAR(64), `max_delay` VARCHAR(64), `rollup` VARCHAR(128)) COMMENT ''")
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_stables` (`stable_name` VARCHAR(192), `db_name` VARCHAR(64), `create_time` TIMESTAMP, `columns` INT, `tags` INT, `last_update` TIMESTAMP, `table_comment` VARCHAR(1024), `watermark` VARCHAR(64), `max_delay` VARCHAR(64), `rollup` VARCHAR(128)) COMMENT ''")
         
         show_create_sql = "show create table information_schema.ins_tables;"
         self.tdSql.query(show_create_sql)          
@@ -281,12 +281,12 @@ class TDTestQuery(TDCase):
         show_create_sql = "show create table information_schema.ins_streams;"
         self.tdSql.query(show_create_sql)          
         self.tdCreateData.data_check(self.tdSql.getData(0,0),'ins_streams')
-        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_streams` (`stream_name` VARCHAR(192), `create_time` TIMESTAMP, `sql` VARCHAR(2048), `status` VARCHAR(20), `source_db` VARCHAR(64), `target_db` VARCHAR(64), `target_table` VARCHAR(192), `watermark` BIGINT, `trigger` VARCHAR(20)) COMMENT ''")
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_streams` (`stream_name` VARCHAR(192), `create_time` TIMESTAMP, `sql` VARCHAR(2048), `status` VARCHAR(20), `source_db` VARCHAR(64), `target_db` VARCHAR(64), `target_table` VARCHAR(192), `watermark` BIGINT, `trigger` VARCHAR(20), `sink_quota` VARCHAR(20), `history_scan_idle` VARCHAR(20)) COMMENT ''")
         
         show_create_sql = "show create table information_schema.ins_stream_tasks;"
         self.tdSql.query(show_create_sql)          
         self.tdCreateData.data_check(self.tdSql.getData(0,0),'ins_stream_tasks')
-        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_stream_tasks` (`stream_name` VARCHAR(64), `task_id` VARCHAR(16), `node_type` VARCHAR(10), `node_id` INT, `level` VARCHAR(10), `status` VARCHAR(15), `stage` INT, `in_queue` VARCHAR(18), `info` VARCHAR(23)) COMMENT ''")
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_stream_tasks` (`stream_name` VARCHAR(64), `task_id` VARCHAR(16), `node_type` VARCHAR(10), `node_id` INT, `level` VARCHAR(10), `status` VARCHAR(15), `stage` BIGINT, `in_queue` VARCHAR(18), `info` VARCHAR(23)) COMMENT ''")
         
         show_create_sql = "show create table information_schema.ins_vnodes;"
         self.tdSql.query(show_create_sql)          
@@ -860,6 +860,17 @@ class TDTestQuery(TDCase):
         self.sql_check(show_create_sql1,show_create_sql2) 
         show_create_sql1 = "show table tags from stable_2_1 from %s;" % self.db
         show_create_sql2 = "show table tags from %s.stable_2_1;" % self.db
+        self.sql_check(show_create_sql1,show_create_sql2)
+        
+        
+        show_create_sql1 = "show table distributed stable_1;"
+        show_create_sql2 = "show table distributed %s.stable_1;" % self.db
+        self.sql_check(show_create_sql1,show_create_sql2)
+        show_create_sql1 = "show table distributed stable_2;"
+        show_create_sql2 = "show table distributed %s.stable_2;" % self.db
+        self.sql_check(show_create_sql1,show_create_sql2)
+        show_create_sql1 = "show table distributed stable_null_data;"
+        show_create_sql2 = "show table distributed %s.stable_null_data;" % self.db
         self.sql_check(show_create_sql1,show_create_sql2)
 
     def sql_check(self,sql1,sql2,check_tag = "Y"):
