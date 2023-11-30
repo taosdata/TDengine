@@ -1127,7 +1127,10 @@ async fn consume_point_record(
                                                 break_err = Err(err);
                                                 continue 'outer;
                                             } else {
-                                                tracing::error!("create table sql error: {err:#}");
+                                                tracing::error!(
+                                                    sql = create_child_sql,
+                                                    "create table sql error: {err:#}"
+                                                );
                                             }
                                         }
                                     }
@@ -1152,7 +1155,7 @@ async fn consume_point_record(
                                                 }
                                                 _ => {
                                                     tracing::error!(
-                                                        "create table sql error: {err:#}"
+                                                        "describe table {stable_name} error: {err:#}"
                                                     );
                                                     return Err(err.context("describe error"))?;
                                                 }
@@ -1179,7 +1182,7 @@ async fn consume_point_record(
                                             column_real_name,
                                             column_config.column_type.unwrap()
                                         );
-                                        tracing::info!("add_column_sql:{}", add_column_sql);
+                                        tracing::info!("add_column_sql: {}", add_column_sql);
                                         let res = taos
                                             .as_ref()
                                             .unwrap()
@@ -1202,6 +1205,7 @@ async fn consume_point_record(
                                                 }
                                                 _ => {
                                                     tracing::error!(
+                                                        sql = add_column_sql,
                                                         "create table sql error: {err:#}"
                                                     );
                                                     Err(err)?;
@@ -1237,7 +1241,7 @@ async fn consume_point_record(
                                             match taos
                                                 .as_ref()
                                                 .unwrap()
-                                                .exec_with_req_id(alter_sql, req_id.next())
+                                                .exec_with_req_id(&alter_sql, req_id.next())
                                                 .await
                                             {
                                                 // match taos.as_ref().unwrap().exec(alter_sql).await {
@@ -1251,6 +1255,7 @@ async fn consume_point_record(
                                                         );
                                                     } else {
                                                         tracing::warn!(
+                                                            sql = alter_sql,
                                                             "alter table err: {}",
                                                             err.to_string()
                                                         );
@@ -1693,6 +1698,10 @@ async fn consume_flat_record(
                                                     );
                                                     continue;
                                                 } else if code != 0x0360 {
+                                                    tracing::error!(
+                                                        sql,
+                                                        "create stable error: {err:#}"
+                                                    );
                                                     anyhow::bail!(
                                                         "create stable sql err: {}",
                                                         err_str
