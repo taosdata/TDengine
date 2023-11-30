@@ -79,18 +79,6 @@ By clicking "Data Write" in the function list, you can configure different types
 
 In the task list of the Data Source page, the following 3 operations can be made to every task: edit, delete and duplicate. Through the duplication operation, a new task can be created easily based on an existing task. After submitting the task, the metrics of the task can be obtained by clicking the "View" button on the task list.
 
-### TDengine Subscription
-
-Go to the TDengine Subscription Task Configuration page:
-1. In the Connection Protocol field, configure the connection protocol, which defaults to Native Connection and can be configured as WS, WSS;
-2. Configure the IP or domain name of the server in the Server field;
-3. Configure the port number for the connection in the Port field; the default value is 6030;
-4. In the Subject field, Configure can configure a subscription to one or more databases, either super or normal tables, or a created Topic;
-5. In the Authentication field, you can configure the user name and password for accessing TDengine, the default value of the user name is root and the default value of the password is taosdata; if the data source is a cloud service instance, you can select the token authentication method and configure the instance token;
-6. In the Subscription Initial Position field, you can configure the subscription to start with the earliest data (earliest) or the latest data (latest), with the default being earliest;
-7. Configure the timeout in the Timeout field, which can be configured as never. Indicates that the subscription continues without a timeout, or you can specify a timeout: 5s, 1m, etc. The supported units are ms (milliseconds), s (seconds), m (minutes), h (hours), d (days), M (months), and y (years).
-8. In the Target Database column, select the local TDengine library as the target library and click Submit to start a TDengine subscription task.
-
 ### Pi
 
 1. On the PI data access screen, set the PI server name and AF database name.
