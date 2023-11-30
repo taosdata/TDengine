@@ -22,7 +22,7 @@ import VerifyLinux from "../../08-client-libraries/_verify_linux.mdx";
 import VerifyWindows from "../../08-client-libraries/_verify_windows.mdx";
 import VerifyMacOS from "../../08-client-libraries/_verify_macos.mdx";
 
-Any application running on any platform can access TDengine through the REST API provided by TDengine. For information, see [REST API](/reference/rest-api/). Applications can also use the client libraries for various programming languages, including C/C++, Java, Python, Go, Node.js, C#, and Rust, to access TDengine. These client libraries support connecting to TDengine clusters using both native interfaces (taosc). Some client libraries also support connecting over a REST interface. Community developers have also contributed several unofficial client libraries, such as the ADO.NET, Lua, and PHP libraries.
+Any application running on any platform can access TDengine through the REST API provided by TDengine. For information, see [REST API](../../reference/rest-api/). Applications can also use the client libraries for various programming languages, including C/C++, Java, Python, Go, Node.js, C#, and Rust, to access TDengine. These client libraries support connecting to TDengine clusters using both native interfaces (taosc). Some client libraries also support connecting over a REST interface. Community developers have also contributed several unofficial client libraries, such as the ADO.NET, Lua, and PHP libraries.
 
 ## Establish Connection
 

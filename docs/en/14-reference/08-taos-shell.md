@@ -18,7 +18,7 @@ To access the TDengine CLI, you can execute `taos` command-line utility from a t
 taos
 ```
 
-TDengine CLI will display a welcome message and version information if it successfully connected to the TDengine service. If it fails, TDengine CLI will print an error message. See [FAQ](/train-faq/faq) to solve the problem of terminal connection failure to the server. The TDengine CLI prompts as follows:
+TDengine CLI will display a welcome message and version information if it successfully connected to the TDengine service. If it fails, TDengine CLI will print an error message. See [FAQ](../../train-faq/faq) to solve the problem of terminal connection failure to the server. The TDengine CLI prompts as follows:
 
 ```cmd
 taos>
