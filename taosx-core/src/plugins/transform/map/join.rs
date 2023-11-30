@@ -44,7 +44,7 @@ impl ValueBuilder for JoinValueBuilder {
                 values
             }
             Some(separator) => {
-                let column_len = record.num_columns();
+                let items_len = self.join.len();
                 let mut values = Vec::new();
                 for (i, field) in self.join.iter().enumerate() {
                     let col = record.column_by_name(field);
@@ -58,7 +58,7 @@ impl ValueBuilder for JoinValueBuilder {
                         .unwrap()
                         .clone();
                     values.push(col);
-                    if i != column_len - 1 {
+                    if i != items_len - 1 {
                         values.push(StringArray::from(vec![
                             separator.as_str();
                             record.num_rows()
@@ -135,7 +135,7 @@ mod tests {
     #[test]
     fn test_join_with() {
         let builder: JoinValueBuilder =
-            serde_json::from_str(r#"{"join": ["a", "b", "c", "d"], "with": "-"}"#).unwrap();
+            serde_json::from_str(r#"{"join": ["a", "b", "c"], "with": "-"}"#).unwrap();
         let batch = RecordBatch::try_from_iter([
             ("a", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
             ("b", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
@@ -150,8 +150,39 @@ mod tests {
         assert_eq!(*field.data_type(), DataType::Utf8);
         assert_eq!(value.len(), 3);
         let arr = value.as_any().downcast_ref::<StringArray>().unwrap();
-        assert_eq!(arr.value(0), "1-1-1-1");
-        assert_eq!(arr.value(1), "2-2-2-2");
-        assert_eq!(arr.value(2), "3-3-3-3");
+        assert_eq!(arr.value(0), "1-1-1");
+        assert_eq!(arr.value(1), "2-2-2");
+        assert_eq!(arr.value(2), "3-3-3");
+
+        let batch = RecordBatch::try_from_iter([
+            (
+                "a",
+                Arc::new(StringArray::from(vec!["1", "2", "3"])) as ArrayRef,
+            ),
+            (
+                "b",
+                Arc::new(StringArray::from(vec!["1", "2", "3"])) as ArrayRef,
+            ),
+            (
+                "c",
+                Arc::new(StringArray::from(vec!["1", "2", "3"])) as ArrayRef,
+            ),
+            (
+                "d",
+                Arc::new(StringArray::from(vec!["1", "2", "3"])) as ArrayRef,
+            ),
+        ])
+        .unwrap();
+
+        let (field, value) = builder.build_field("join", &batch, None).unwrap();
+
+        assert_eq!(field.name(), "join");
+        assert_eq!(*field.data_type(), DataType::Utf8);
+        assert_eq!(value.len(), 3);
+        let arr = value.as_any().downcast_ref::<StringArray>().unwrap();
+        assert_eq!(arr.value(0), "1-1-1");
+        assert_eq!(arr.value(1), "2-2-2");
+        assert_eq!(arr.value(2), "3-3-3");
+        dbg!(&arr);
     }
 }
