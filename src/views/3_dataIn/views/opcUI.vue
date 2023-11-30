@@ -2147,8 +2147,8 @@ export default {
   overflow-x: auto;
   :deep {
     .el-input__inner {
-      border: none !important;
-      box-shadow: inset 0 0 0 1px rgb(190, 188, 188);
+      // border: none !important;
+      // box-shadow: inset 0 0 0 1px rgb(190, 188, 188);
     }
     .el-textarea__inner {
       min-height: 40px !important;

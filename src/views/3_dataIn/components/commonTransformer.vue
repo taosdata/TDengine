@@ -45,6 +45,7 @@
             :indentifiedColumns="indentifiedColumns"
             @deleteExtract="deleteExtract"
             @selectColumn="changeColumnStatus"
+            @setExtractName="setExtractName"
             @changeExtractExpr="changeExtractExpr"
           ></ExtractSplit>
         </template>
@@ -310,10 +311,10 @@ export default {
       tableData: [],
       extractArr: [],
       filterArr: [
-        {
-          expression: "",
-          key: Math.random(),
-        },
+        // {
+        //   expression: "",
+        //   key: Math.random(),
+        // },
       ],
       currentCol: "",
       mappingParser: {},
@@ -391,7 +392,7 @@ export default {
         }
         if (Object.keys(item).toString() == "map") {
           echoMapData = Object.entries(item["map"]).map((val) => {
-            let expreKey=Object.keys(val[1]).filter(key=>key!='as')[0]
+            let expreKey = Object.keys(val[1]).filter((key) => key != "as")[0];
             return {
               columnname: val[0],
               type: expreKey,
@@ -493,7 +494,7 @@ export default {
             mutates.push({
               [`${item["Name"]}`]: {
                 [`${key}`]: item["Expression"],
-                as:item['Type']
+                as: item["Type"],
               },
             });
           }
@@ -505,7 +506,10 @@ export default {
       columns.unshift(primarykey);
       let parserData = {
         parser: {
-          parse: this.$store.state.app.transformExtractParseData,
+          parse: Object.assign(
+            {},
+            this.$store.state.app.transformExtractParseData
+          ),
           model: {
             name: this.tableData[0]["Expression"],
             using: this.sruleForm.s_name,
@@ -532,6 +536,10 @@ export default {
       };
       this.mappingParser = parserData;
       this.getParserData(parserData);
+    },
+    //设置extract的name
+    setExtractName(index, name) {
+      this.$set(this.extractArr[index], "columnname", name);
     },
     changeMapColumn(scope) {
       if (scope.row.maptype[1][0] == "mapping") {
@@ -575,31 +583,37 @@ export default {
       //   );
 
       if (!this.mappingParser.parser) {
-        Message.warning(this.$t("datasource.transform.mapcaculate"));
+        Message.warning(this.$t("datasource.transformer.mapcaculate"));
         return;
       }
       let extractObj = {};
       this.extractArr.forEach((item) => {
         extractObj[item.columnname] = {
           [`${item.type}`]:
-            item.type == "regex" ? item.expression : item.expression.split(";"),
+            item.type == "regex"
+              ? item.expression
+              : item.type == "split"
+              ? this.$store.state.app.splitExpresList
+              : item.expression.split(";"),
         };
       });
       let parserData = {
         parser: {
-          parse: extractObj,
+          parse: Object.keys(extractObj).toString() ? extractObj : {},
           model: this.mappingParser.parser.model,
           mutate: this.mappingParser.parser.mutate.some(
             (key) => Object.keys(key).toString() == "filter"
           )
             ? this.mappingParser.parser.mutate
-            :this.filterArr[0].expression? this.filterArr
+            : this.filterArr.length > 0 && this.filterArr[0].expression
+            ? this.filterArr
                 .map((item) => {
                   return {
                     filter: item.expression,
                   };
                 })
-                .concat(this.mappingParser.parser.mutate):this.mappingParser.parser.mutate,
+                .concat(this.mappingParser.parser.mutate)
+            : this.mappingParser.parser.mutate,
         },
 
         input: this.isCSV
@@ -652,6 +666,8 @@ export default {
               item[`Output` + (index + 1)] =
                 item["Name"] == this.sruleForm.s_name
                   ? val["__tbname__"]
+                  : typeof val[item["Name"]] == "boolean"
+                  ? val[item["Name"]].toString()
                   : val[item["Name"]];
             });
           }
@@ -773,8 +789,8 @@ export default {
             }
             Message.success(this.$t("operateSucc"));
             await this.getInitStables();
-            this.sruleForm.s_name =
-              this.$refs.createstb.stable_form.name;
+            this.sruleForm.s_name = this.$refs.createstb.stable_form.name;
+            this.getSTbaleList();
             this.closeDialog();
           } catch (error) {
             error.desc ? Message.error(error.desc) : "";
@@ -822,11 +838,15 @@ export default {
                   ? echoData.tableData[idx].expression
                   : echoData.tableData[idx].type
               );
-            item["Expression"] = echoData.tableData[idx].expression;
+            item["Expression"] = echoData.tableData[idx].expression.toString();
           }
           return item;
         });
-        this.$set(this.tableData[0], "Expression", echoData.model.name);
+        this.$set(
+          this.tableData[0],
+          "Expression",
+          echoData.model.name.toString()
+        );
         this.caculateMappingResult();
       }
     },
@@ -838,16 +858,20 @@ export default {
         let res = await sendSQLReq(
           `desc \`${this.$store.state.app.currentDBName}\`.\`${this.sruleForm.s_name}\``
         );
-        let precision=await sendSQLReq(`
+        let precision = await sendSQLReq(`
         select \`precision\` from information_schema.ins_databases where name = '${this.$store.state.app.currentDBName}' 
-        `)
+        `);
         if (res.desc) {
           Message.error(res.desc);
           return;
         }
 
-        if(this.$store.state.app.transformerMapCloumns){
-          this.$set(this, "options", this.$store.state.app.transformerMapCloumns);
+        if (this.$store.state.app.transformerMapCloumns) {
+          this.$set(
+            this,
+            "options",
+            this.$store.state.app.transformerMapCloumns
+          );
         }
         this.params_columns.splice(0, this.params_columns.length - 1);
         this.params_tags.splice(0, this.params_tags.length - 1);
@@ -860,7 +884,10 @@ export default {
           }
           return {
             Name: val[0],
-            Type: val[1]=='TIMESTAMP'?val[1]+'('+precision.data[0][0]+')':val[1],
+            Type:
+              val[1] == "TIMESTAMP"
+                ? val[1] + "(" + precision.data[0][0] + ")"
+                : val[1],
             maptype: ["expression", "value"],
             Expression: "",
             Output1: "",
@@ -904,20 +931,34 @@ export default {
       this.$store.commit("app/SET_FILTER_PARSE_DATA", null);
     },
     deleteExtract(index, name) {
-      let oldextract = this.$store.state.app.transformExtractParseData;
-      if (oldextract&&Object.keys(oldextract).includes(name)) {
-        delete oldextract[name];
-      }
-      if (name) {
-        let ind = this.extractArr.findIndex((item) => item.columnname == name);
-        this.extractArr.splice(ind, 1);
-        let restoreIndex = this.columnsArr.findIndex(
-          (item) => item.name == name
-        );
-        this.$set(this.columnsArr[restoreIndex], "show", true);
-      } else {
-        this.extractArr.splice(index, 1);
-      }
+      this.$confirm(
+        this.$t("datasource.deletetip"),
+        this.$t("datasource.warning"),
+        {
+          confirmButtonText: this.$t("datasource.ok"),
+          cancelButtonText: this.$t("datasource.cancel"),
+          type: "warning",
+        }
+      ).then(() => {
+        let oldextract = this.$store.state.app.transformExtractParseData;
+        if (oldextract && Object.keys(oldextract).includes(name)) {
+          delete oldextract[name];
+        }
+
+        if (name) {
+          let ind = this.extractArr.findIndex(
+            (item) => item.columnname == name
+          );
+          this.extractArr.splice(ind, 1);
+          let restoreIndex = this.columnsArr.findIndex(
+            (item) => item.name == name
+          );
+          this.$set(this.columnsArr[restoreIndex], "show", true);
+        } else {
+          this.extractArr.splice(index, 1);
+        }
+        console.log("shanchu--delete", index, name, this.extractArr);
+      });
     },
     //-----------------------处理csv部分
     //组合csv的extract
@@ -954,9 +995,10 @@ export default {
       deep: true,
       handler(val) {
         if (val) {
-        this.isCSV = true;
-        this.msgForm.msgbody = val.msgBody;
-        this.formatCSVExtract(val.columns);
+          this.isCSV = true;
+          this.msgForm.msgbody = val.msgBody;
+          this.formatCSVExtract(val.columns);
+          console.loog(val, this.extractArr, "csv的");
         }
       },
     },
