@@ -66,7 +66,7 @@ export default {
           Object.keys(this.ruleForm)
             .filter((key) => this.ruleForm[key])
             .forEach((item) => {
-              splitExpre[item] =item=='names'?this.ruleForm[item].split(','): this.ruleForm[item];
+              splitExpre[item] = item=='names'?this.ruleForm[item].split(','): item == "n" ? parseInt(this.ruleForm[item]) : this.ruleForm[item];
             });
             this.$store.commit('app/SET_SPLIT_EXPRESS',splitExpre)
           return true;
