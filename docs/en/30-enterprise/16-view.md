@@ -62,15 +62,15 @@ View permissions are divided into three types: READ, WRITE, and ALTER. Query ope
 
 | Serial number | Operation | Permission requirements |
 | --- | --- | --- |
-| 1 | CREATE OR REPLACE VIEW <br>(Create a new view) | The user has WRITE permission on the database to which the view belongs <br>And<br> Users have query permissions for the target library, table, and view of the view. If the object in the query is a view, it must meet rule 8 in the current table. |
-| 2 | CREATE OR REPLACE VIEW <br>(Overwrite old view) | The user has WRITE permission on the database to which the view belongs, and ALTER permission on the old view <br>And<br> Users have query permissions for the target library, table, and view of the view. If the object in the query is a view, it must meet rule 8 in the current table. |
+| 1 | CREATE OR REPLACE VIEW (Create a new view) | The user has WRITE permission on the database to which the view belongs And Users have query permissions for the target library, table, and view of the view. If the object in the query is a view, it must meet rule 8 in the current table. |
+| 2 | CREATE OR REPLACE VIEW (Overwrite old view) | The user has WRITE permission on the database to which the view belongs, and ALTER permission on the old view And Users have query permissions for the target library, table, and view of the view. If the object in the query is a view, it must meet rule 8 in the current table. |
 | 3 | DROP VIEW | The user has ALTER permission on the view |
 | 4 | SHOW VIEWS | No |
 | 5 | SHOW CREATE VIEW | No |
 | 6 | DESCRIBE VIEW | No |
 | 7 | System table query | No |
-| 8 | SELECT FROM VIEW | The operating user has READ permissions for the view <br>And<br> Operating users or view effective users have READ permissions on the target library, table, and view of the view |
-| 9 | INSERT INTO VIEW | The operation user has WRITE permission on the view <br>And<br> Operating users or view effective users have WRITE permissions on the target library, table, and view of the view |
+| 8 | SELECT FROM VIEW | The operating user has READ permissions for the view And Operating users or view effective users have READ permissions on the target library, table, and view of the view |
+| 9 | INSERT INTO VIEW | The operation user has WRITE permission on the view And Operating users or view effective users have WRITE permissions on the target library, table, and view of the view |
 | 10 | GRANT/REVOKE | Only the root user has permission |
 
 
