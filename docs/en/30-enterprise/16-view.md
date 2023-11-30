@@ -58,25 +58,26 @@ View permissions are divided into three types: READ, WRITE, and ALTER. Query ope
 - Views can be defined and used nested, and the verification of view permissions is also performed by recursion.
 - In order to facilitate the sharing and use of views, the concept of view effective user (i.e. the user who creates the view) is introduced. Authorized users can use the read and write permissions of the view effective user's library, table, and nested view. Note: After the view is REPLACE, the effective user will also be updated.
 
-<br>The detailed rules for controlling relevant permissions are summarized as follows: </br>
+<br>The detailed rules for controlling relevant permissions are summarized as follows:</br>
 
 | Serial number | Operation | Permission requirements |
 | --- | --- | --- |
-| 1 | CREATE OR REPLACE VIEW <br>(Create a new view) | The user has WRITE permission on the database to which the view belongs <br>And<br> Users have query permissions for the target library, table, and view of the view. If the object in the query is a view, it must meet rule 8 in the current table. |
-| 2 | CREATE OR REPLACE VIEW <br>(Overwrite old view) | The user has WRITE permission on the database to which the view belongs, and ALTER permission on the old view <br>And<br> Users have query permissions for the target library, table, and view of the view. If the object in the query is a view, it must meet rule 8 in the current table. |
+| 1 | CREATE OR REPLACE VIEW (Create a new view) | The user has WRITE permission on the database to which the view belongs And Users have query permissions for the target library, table, and view of the view. If the object in the query is a view, it must meet rule 8 in the current table. |
+| 2 | CREATE OR REPLACE VIEW (Overwrite old view) | The user has WRITE permission on the database to which the view belongs, and ALTER permission on the old view And Users have query permissions for the target library, table, and view of the view. If the object in the query is a view, it must meet rule 8 in the current table. |
 | 3 | DROP VIEW | The user has ALTER permission on the view |
 | 4 | SHOW VIEWS | No |
 | 5 | SHOW CREATE VIEW | No |
 | 6 | DESCRIBE VIEW | No |
 | 7 | System table query | No |
-| 8 | SELECT FROM VIEW | The operating user has READ permissions for the view <br>And<br> Operating users or view effective users have READ permissions on the target library, table, and view of the view |
-| 9 | INSERT INTO VIEW | The operation user has WRITE permission on the view <br>And<br> Operating users or view effective users have WRITE permissions on the target library, table, and view of the view |
+| 8 | SELECT FROM VIEW | The operating user has READ permissions for the view And Operating users or view effective users have READ permissions on the target library, table, and view of the view |
+| 9 | INSERT INTO VIEW | The operation user has WRITE permission on the view And Operating users or view effective users have WRITE permissions on the target library, table, and view of the view |
 | 10 | GRANT/REVOKE | Only the root user has permission |
 
 
 ### Grammar
 
 #### Authorization
+
 ```sql
 GRANT privileges ON [db_name.]view_name TO user_name
 privileges: {
@@ -89,7 +90,9 @@ priv_type: {
   | ALTER
 }
 ```
+
 #### Recover permissions
+
 ```sql
 REVOKE privileges ON [db_name.]view_name FROM user_name
 privileges: {
@@ -112,17 +115,23 @@ priv_type: {
 
 
 ## Example
+
 - Create a view
+
 ```sql
 CREATE VIEW view1 AS SELECT _wstart, count(*) FROM table1 INTERVAL(1d);
 CREATE VIEW view2 AS SELECT ts, col2 FROM table1;
 CREATE VIEW view3 AS SELECT * from view1;
 ```
+
 - Query data
+
 ```sql
 SELECT * from view1;
 ```
+
 - Delete data
+
 ```sql
 DROP VIEW view1;
 ```
