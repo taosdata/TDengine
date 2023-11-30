@@ -927,6 +927,8 @@ export default {
             this.$store.state.app.transformerMapCloumns
           );
         }
+        let defaultmap=this.options.filter(item=>item.value=='mapping')[0].children.map(label=>label.label)
+        console.log(this.options,'mapping字段');
         this.params_columns.splice(0, this.params_columns.length - 1);
         this.params_tags.splice(0, this.params_tags.length - 1);
         this.tableData = res.data.map((val, index) => {
@@ -936,26 +938,30 @@ export default {
           if (val.includes("TAG")) {
             this.params_tags.push(val[0]);
           }
+          let equalindex=defaultmap.findIndex(item=>item.toLowerCase()==val[0].toLowerCase())
+          console.log(equalindex,'比较',defaultmap,equalindex>0?["mapping",`${defaultmap[equalindex]}`]: ["expression", "value"]);
           return {
             Name: val[0],
             Type:
               val[1] == "TIMESTAMP"
                 ? val[1] + "(" + precision.data[0][0] + ")"
                 : val[1],
-            maptype: ["expression", "value"],
-            Expression: "",
+            maptype:equalindex>-1?["mapping",`${defaultmap[equalindex]}`]: ["expression", "value"],
+            Expression:equalindex>-1?defaultmap[equalindex]: "",
             Output1: "",
             Output2: "",
           };
         });
+        
         this.tableData.unshift({
           Name: this.sruleForm.s_name,
           Type: "Tablename",
-          maptype: ["expression", "string"],
+          maptype:  ["expression", "string"],
           Expression: "",
           Output1: "",
           Output2: "",
         });
+        console.log(this.tableData,'this.tableData');
         this.params_columns.unshift(res.data[0][0]);
       } catch (error) {
         console.log(error);
