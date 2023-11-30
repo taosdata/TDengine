@@ -324,6 +324,7 @@ export default {
     },
   },
   mounted() {
+    
     if (this.itemData) {
       this.initData(this.itemData);
     }
