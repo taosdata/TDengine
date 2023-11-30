@@ -519,12 +519,13 @@ export default {
           mutate: this.$store.state.app.transformerFilterParseData
             ? []
                 .concat({
-                  map: mutateMap,
-                })
-                .concat({
                   filter: Object.values(
                     this.$store.state.app.transformerFilterParseData
-                  ).toString(),
+                  ).toString()
+                  
+                })
+                .concat({
+                  map: mutateMap
                 })
             : [].concat({
                 map: mutateMap,
@@ -957,7 +958,6 @@ export default {
         } else {
           this.extractArr.splice(index, 1);
         }
-        console.log("shanchu--delete", index, name, this.extractArr);
       });
     },
     //-----------------------处理csv部分
@@ -998,7 +998,6 @@ export default {
           this.isCSV = true;
           this.msgForm.msgbody = val.msgBody;
           this.formatCSVExtract(val.columns);
-          console.loog(val, this.extractArr, "csv的");
         }
       },
     },
