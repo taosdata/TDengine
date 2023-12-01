@@ -346,6 +346,7 @@ export default {
     if (this.parserColumns) {
       this.initColumnLists(this.parserColumns);
     }
+    console.log(this.$store.state.app.transformerParserData,'this.$store.state.app.transformerParserData--mounted');
     if (
       this.$parent.isEditable ||
       (this.$store.state.app.csvParser &&
@@ -379,6 +380,7 @@ export default {
         });
         this.initColumnLists(columns);
       }
+      console.log(this.$store.state.app.currentDBType,'this.$store.state.app.currentDBType',value);
       this.msgForm.msgbody =
         this.$store.state.app.currentDBType == "mqtt"
           ? value.input.map((item) => item.payload).join(";")
@@ -599,6 +601,7 @@ export default {
         return;
       }
       this.mappingParser = parserData;
+      console.log(this.$store.state.app.transformerFilterParseData,'mapping-----filter--edit');
       this.getParserData(parserData);
     },
     //设置extract的name
@@ -632,9 +635,9 @@ export default {
     //获取transformer的所有参数
     getTransformerParams() {
 
-      if (!this.mappingParser.parser) {
-        this.calculateMappingResult();
-      }
+
+      this.caculateMappingResult();
+
       let extractObj = {};
       this.extractArr.forEach((item) => {
         extractObj[item.columnname] = {
