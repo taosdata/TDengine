@@ -88,7 +88,7 @@ int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName) {
    nodesDestroyNode(*pTable);
    *pTable = (SNode*)tempTable;
  
-   code = translateTable(pCxt, pTable);
+   code = translateTable(pCxt, pTable, NULL);
  
  _exit:
  
