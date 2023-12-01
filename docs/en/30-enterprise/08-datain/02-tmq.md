@@ -1,5 +1,5 @@
 ---
-title: "TDEngine Subscription"
+title: "TDengine Subscription"
 sidebar_label: "TDengine subscription"
 ---
 
