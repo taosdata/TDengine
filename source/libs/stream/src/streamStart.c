@@ -67,7 +67,8 @@ int32_t streamTaskSetReady(SStreamTask* pTask) {
   stDebug("s-task:%s all %d downstream ready, init completed, elapsed time:%" PRId64 "ms, task status:%s",
           pTask->id.idStr, numOfDowns, el, p);
 
-  streamMetaUpdateTaskDownstreamStatus(pTask, pTask->execInfo.init, pTask->execInfo.start, true);
+  streamMetaUpdateTaskDownstreamStatus(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, pTask->execInfo.init,
+                                       pTask->execInfo.start, true);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -469,14 +470,16 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
         addIntoNodeUpdateList(pTask, pRsp->downstreamNodeId);
       }
 
-      streamMetaUpdateTaskDownstreamStatus(pTask, pTask->execInfo.init, taosGetTimestampMs(), false);
+      streamMetaUpdateTaskDownstreamStatus(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, pTask->execInfo.init,
+                                           taosGetTimestampMs(), false);
 
       // automatically set the related fill-history task to be failed.
       if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
         STaskId* pId = &pTask->hTaskInfo.id;
 
         SStreamTask* pHTask = streamMetaAcquireTask(pTask->pMeta, pId->streamId, pId->taskId);
-        streamMetaUpdateTaskDownstreamStatus(pHTask, pHTask->execInfo.init, taosGetTimestampMs(), false);
+        streamMetaUpdateTaskDownstreamStatus(pHTask->pMeta, pId->streamId, pId->taskId, pHTask->execInfo.init,
+                                             taosGetTimestampMs(), false);
         streamMetaReleaseTask(pTask->pMeta, pHTask);
       }
     } else {  // TASK_DOWNSTREAM_NOT_READY, let's retry in 100ms
@@ -1066,29 +1069,26 @@ static void displayStatusInfo(SStreamMeta* pMeta, SHashObj* pTaskSet, bool succ)
   }
 }
 
-int32_t streamMetaUpdateTaskDownstreamStatus(SStreamTask* pTask, int64_t startTs, int64_t endTs, bool ready) {
-  SStreamMeta* pMeta = pTask->pMeta;
+int32_t streamMetaUpdateTaskDownstreamStatus(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, int64_t startTs,
+                                             int64_t endTs, bool ready) {
+  STaskStartInfo* pStartInfo = &pMeta->startInfo;
+  STaskId         id = {.streamId = streamId, .taskId = taskId};
 
   streamMetaWLock(pMeta);
-
-  STaskId id = streamTaskExtractKey(pTask);
-  STaskStartInfo* pStartInfo = &pMeta->startInfo;
-
-  SHashObj* pDst = ready? pStartInfo->pReadyTaskSet:pStartInfo->pFailedTaskSet;
+  SHashObj* pDst = ready ? pStartInfo->pReadyTaskSet : pStartInfo->pFailedTaskSet;
 
   STaskInitTs initTs = {.start = startTs, .end = endTs, .success = ready};
   taosHashPut(pDst, &id, sizeof(id), &initTs, sizeof(STaskInitTs));
 
   int32_t numOfTotal = streamMetaGetNumOfTasks(pMeta);
-  int32_t numOfRecv = taosHashGetSize(pStartInfo->pReadyTaskSet) + taosHashGetSize(pStartInfo->pFailedTaskSet);
 
-  if (numOfRecv == numOfTotal) {
+  if (taosHashGetSize(pStartInfo->pReadyTaskSet) + taosHashGetSize(pStartInfo->pFailedTaskSet) == numOfTotal) {
     pStartInfo->readyTs = taosGetTimestampMs();
     pStartInfo->elapsedTime = (pStartInfo->startTs != 0) ? pStartInfo->readyTs - pStartInfo->startTs : 0;
 
-    stDebug("vgId:%d all %d task(s) check downstream completed, last completed task:%s level:%d, startTs:%" PRId64
+    stDebug("vgId:%d all %d task(s) check downstream completed, last completed task:0x%x startTs:%" PRId64
             ", readyTs:%" PRId64 " total elapsed time:%.2fs",
-            pMeta->vgId, numOfTotal, pTask->id.idStr, pTask->info.taskLevel, pStartInfo->startTs, pStartInfo->readyTs,
+            pMeta->vgId, numOfTotal, taskId, pStartInfo->startTs, pStartInfo->readyTs,
             pStartInfo->elapsedTime / 1000.0);
 
     // print the initialization elapsed time and info
@@ -1096,8 +1096,6 @@ int32_t streamMetaUpdateTaskDownstreamStatus(SStreamTask* pTask, int64_t startTs
     displayStatusInfo(pMeta, pStartInfo->pFailedTaskSet, false);
 
     streamMetaResetStartInfo(pStartInfo);
-  } else {
-    stDebug("vgId:%d recv check down results:%d, total:%d", pMeta->vgId, numOfRecv, numOfTotal);
   }
 
   streamMetaWUnLock(pMeta);
