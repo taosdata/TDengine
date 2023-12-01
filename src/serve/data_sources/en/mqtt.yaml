@@ -59,9 +59,9 @@ groups:
         required: true
         hint:
           type: file
-  - name: Connection
+  - name: Collect
     display_order: 1
-    description: Some configurations used in connecting step.
+    description: Some configurations used in collection task.
     params:
       - name: version
         display: MQTT protocol version
