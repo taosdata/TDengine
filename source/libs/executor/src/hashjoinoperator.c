@@ -106,7 +106,7 @@ static bool valColInKeyCols(int16_t slotId, int32_t keyNum, SHJoinColInfo* pKeys
   return false;
 }
 
-static int32_t initJoinValColsInfo(SHJoinTableInfo* pTable, SNodeList* pList) {
+static int32_t initHJoinValColsInfo(SHJoinTableInfo* pTable, SNodeList* pList) {
   getHJoinValColNum(pList, pTable->blkId, &pTable->valNum);
   if (pTable->valNum == 0) {
     return TSDB_CODE_SUCCESS;
@@ -173,7 +173,7 @@ static int32_t initHJoinTableInfo(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode*
   if (code) {
     return code;
   }
-  code = initJoinValColsInfo(pTable, pJoinNode->pTargets);
+  code = initHJoinValColsInfo(pTable, pJoinNode->pTargets);
   if (code) {
     return code;
   }

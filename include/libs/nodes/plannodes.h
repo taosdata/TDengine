@@ -468,26 +468,37 @@ typedef struct SInterpFuncPhysiNode {
 } SInterpFuncPhysiNode;
 
 typedef struct SSortMergeJoinPhysiNode {
-  SPhysiNode node;
-  EJoinType  joinType;
-  SNode*     pPrimKeyCond;
-  SNode*     pColEqCond;
-  SNode*     pFullOnCond;
-  SNodeList* pTargets;
+  SPhysiNode   node;
+  EJoinType    joinType;
+  EJoinSubType subType;
+  SNode*       pWindowOffset;
+  SNode*       pJLimit;
+  int32_t      leftPrimSlotId;
+  int32_t      rightPrimSlotId;
+  SNodeList*   pEqLeft;
+  SNodeList*   pEqRight;
+  SNode*       pPrimKeyCond; //remove
+  SNode*       pColEqCond;   //remove
+  SNode*       pColOnCond;
+  SNode*       pFullOnCond;
+  SNodeList*   pTargets;
 } SSortMergeJoinPhysiNode;
 
 typedef struct SHashJoinPhysiNode {
-  SPhysiNode node;
-  EJoinType  joinType;
-  SNodeList* pOnLeft;
-  SNodeList* pOnRight;
-  SNode*     pFilterConditions;
-  SNodeList* pTargets;
-  SQueryStat inputStat[2];
+  SPhysiNode   node;
+  EJoinType    joinType;
+  EJoinSubType subType;
+  SNode*       pWindowOffset;
+  SNode*       pJLimit;  
+  SNodeList*   pOnLeft;
+  SNodeList*   pOnRight;
+  SNode*       pFilterConditions;
+  SNodeList*   pTargets;
+  SQueryStat   inputStat[2];
 
-  SNode*     pPrimKeyCond;
-  SNode*     pColEqCond;
-  SNode*     pTagEqCond;  
+  SNode*       pPrimKeyCond;
+  SNode*       pColEqCond;
+  SNode*       pTagEqCond;  
 } SHashJoinPhysiNode;
 
 typedef struct SGroupCachePhysiNode {

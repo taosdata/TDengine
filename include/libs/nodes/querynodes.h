@@ -23,6 +23,7 @@ extern "C" {
 #include "nodes.h"
 #include "tmsg.h"
 #include "tvariant.h"
+#include "tsimplehash.h"
 
 #define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
 #define TABLE_META_SIZE(pMeta) \
@@ -552,15 +553,15 @@ typedef struct SQuery {
   bool            stableQuery;
 } SQuery;
 
-void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext, bool ignoreFrom);
+void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
 void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewriter rewriter, void* pContext);
 
 typedef enum ECollectColType { COLLECT_COL_TYPE_COL = 1, COLLECT_COL_TYPE_TAG, COLLECT_COL_TYPE_ALL } ECollectColType;
 int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
                             SNodeList** pCols);
-int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
-                            SNodeList** pCols, bool ignoreFrom);                            
+int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, SSHashObj* pMultiTableAlias, ECollectColType type,
+                            SNodeList** pCols);                            
 int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, ECollectColType type, SNodeList** pCols);
 
 typedef bool (*FFuncClassifier)(int32_t funcId);

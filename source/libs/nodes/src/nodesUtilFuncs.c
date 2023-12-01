@@ -2000,6 +2000,7 @@ bool nodesIsBitwiseOp(const SOperatorNode* pOp) {
 typedef struct SCollectColumnsCxt {
   int32_t         errCode;
   const char*     pTableAlias;
+  SSHashObj*      pMultiTableAlias;
   ECollectColType collectType;
   SNodeList*      pCols;
   SHashObj*       pColHash;
@@ -2041,6 +2042,19 @@ static EDealRes collectColumns(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static EDealRes collectColumnsExt(SNode* pNode, void* pContext) {
+  SCollectColumnsCxt* pCxt = (SCollectColumnsCxt*)pContext;
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (isCollectType(pCxt->collectType, pCol->colType) && 0 != strcmp(pCol->colName, "*") &&
+        (NULL == pCxt->pMultiTableAlias || NULL != (pCxt->pTableAlias = tSimpleHashGet(pCxt->pMultiTableAlias, pCol->tableAlias, strlen(pCol->tableAlias))))) {
+      return doCollect(pCxt, pCol, pNode);
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+
 int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
                             SNodeList** pCols) {
   if (NULL == pSelect || NULL == pCols) {
@@ -2072,15 +2086,16 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
-                            SNodeList** pCols, bool ignoreFrom) {
+int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, SSHashObj* pMultiTableAlias, ECollectColType type,
+                            SNodeList** pCols) {
   if (NULL == pSelect || NULL == pCols) {
     return TSDB_CODE_FAILED;
   }
 
   SCollectColumnsCxt cxt = {
       .errCode = TSDB_CODE_SUCCESS,
-      .pTableAlias = pTableAlias,
+      .pTableAlias = NULL,
+      .pMultiTableAlias = pMultiTableAlias,
       .collectType = type,
       .pCols = (NULL == *pCols ? nodesMakeList() : *pCols),
       .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
@@ -2088,7 +2103,7 @@ int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, const ch
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   *pCols = NULL;
-  nodesWalkSelectStmtImpl(pSelect, clause, collectColumns, &cxt, ignoreFrom);
+  nodesWalkSelectStmtImpl(pSelect, clause, collectColumnsExt, &cxt);
   taosHashCleanup(cxt.pColHash);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pCols);

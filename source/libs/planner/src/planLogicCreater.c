@@ -503,18 +503,17 @@ static int32_t createSubqueryLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
   return createQueryLogicNode(pCxt, pTable->pSubquery, pLogicNode);
 }
 
+int32_t collectJoinResColumns(SSelectStmt* pSelect, SJoinLogicNode* pJoin, SNodeList** pCols) {
+  SSHashObj* pTables = NULL;
+  collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 0), &pTables);
+  collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 1), &pTables);
 
+  int32_t code = nodesCollectColumnsExt(pSelect, SQL_CLAUSE_WHERE, pTables, COLLECT_COL_TYPE_ALL, pCols);
 
-int32_t collectJoinResColumns(SSelectStmt* pSelect, SJoinTableNode* pJoinTable,        SNodeList** pCols) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodesCollectColumns(pSelect, SQL_CLAUSE_WHERE, ((STableNode*)pJoinTable->pRight)->tableAlias, COLLECT_COL_TYPE_ALL, pCols);
-  }
+  tSimpleHashCleanup(pTables);
 
   return code;
 }
-
 
 static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SJoinTableNode* pJoinTable,
                                    SLogicNode** pLogicNode) {
@@ -619,7 +618,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
     SNodeList* pColList = NULL;
-    code = collectJoinResColumns(pSelect, pJoinTable, &pColList);
+    code = collectJoinResColumns(pSelect, pJoin, &pColList);
     if (TSDB_CODE_SUCCESS == code && NULL != pColList) {
       code = createColumnByRewriteExprs(pColList, &pJoin->node.pTargets);
     }

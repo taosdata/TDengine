@@ -768,6 +768,9 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
   }
 
   pJoin->joinType = pJoinLogicNode->joinType;
+  pJoin->subType = pJoinLogicNode->subType;
+  pJoin->pWindowOffset = nodesCloneNode(pJoinLogicNode->pWindowOffset);
+  pJoin->pJLimit = nodesCloneNode(pJoinLogicNode->pJLimit);
   pJoin->node.inputTsOrder = pJoinLogicNode->node.inputTsOrder;
 
   SDataBlockDescNode* pLeftDesc = NULL;
@@ -795,9 +798,33 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
   if (TSDB_CODE_SUCCESS == code && ((NULL != pJoinLogicNode->pColEqCond) || (NULL != pJoinLogicNode->pTagEqCond))) {
     code = mergeEqCond(&pJoinLogicNode->pColEqCond, &pJoinLogicNode->pTagEqCond);
   }
+  //TODO set from input blocks for group algo
+/*  
   if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pColEqCond) {
     code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pColEqCond, &pJoin->pColEqCond);
   }
+*/
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pColEqCond) {
+    code = setNodeSlotId(pCxt, ((SPhysiNode*)pJoin)->pOutputDataBlockDesc->dataBlockId, -1,
+                         pJoinLogicNode->pColEqCond, &pJoin->pColEqCond);
+  }
+
+
+  if (TSDB_CODE_SUCCESS == code && ((NULL != pJoinLogicNode->pColOnCond) || (NULL != pJoinLogicNode->pTagOnCond))) {
+    code = mergeEqCond(&pJoinLogicNode->pColOnCond, &pJoinLogicNode->pTagOnCond);
+  }
+  //TODO set from input blocks for group algo
+  /*  
+    if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pColOnCond) {
+      code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pColOnCond, &pJoin->pColOnCond);
+    }
+  */
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pColOnCond) {
+    code = setNodeSlotId(pCxt, ((SPhysiNode*)pJoin)->pOutputDataBlockDesc->dataBlockId, -1,
+                         pJoinLogicNode->pColOnCond, &pJoin->pColOnCond);
+  }
+
+  
   if (TSDB_CODE_SUCCESS == code) {
     code = setConditionsSlotId(pCxt, (const SLogicNode*)pJoinLogicNode, (SPhysiNode*)pJoin);
   }
@@ -954,6 +981,9 @@ static int32_t createHashJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   int32_t             code = TSDB_CODE_SUCCESS;
 
   pJoin->joinType = pJoinLogicNode->joinType;
+  pJoin->subType = pJoinLogicNode->subType;
+  pJoin->pWindowOffset = nodesCloneNode(pJoinLogicNode->pWindowOffset);
+  pJoin->pJLimit = nodesCloneNode(pJoinLogicNode->pJLimit);
   pJoin->node.inputTsOrder = pJoinLogicNode->node.inputTsOrder;
 
   code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pPrimKeyEqCond, &pJoin->pPrimKeyCond);
