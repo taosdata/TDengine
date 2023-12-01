@@ -39,7 +39,7 @@ groups:
     required: false
     params:
       - name: timeout
-        display: Timeout
+        display: 超时时间
         description: >
           指定 Kafka Source 的超时时间，当从 Kafka 消费不到任何数据，超过 timeout 后，数据采集任务会退出。 默认值是 500 ms。
           当 timeout 设置为 `never` 时，Kafka Source 会一直等待，直到有数据可用，或者发生错误。
@@ -49,7 +49,7 @@ groups:
           type: str
 
       - name: topics
-        display: Topics
+        display: 主题
         description: >
           指定要消费的 Topic。可以配置多个 Topic，Topic 之间使用逗号分隔，例如：`tp1,tp2`。
         placeholder: "tp1,tp2"
@@ -58,7 +58,7 @@ groups:
           type: str
 
       - name: fallback_offset
-        display: Fallback Offset
+        display: Offset
         description: >
           Fallback Offset 参数可以指定以下值：
 
@@ -66,7 +66,7 @@ groups:
           * `Latest`：用于请求最晚的 offset.
           * `ByTime`：用于请求在特定时间（毫秒）之前的所有消息; 时间戳为毫秒精度。
 
-          默认值为Earliest。。
+          默认值为Earliest。
         required: false
         placeholder: Earliest
         value: Earliest
@@ -78,7 +78,7 @@ groups:
             - ByTime
 
       - name: fetch_max_wait_time
-        display: 获取消息时等待数据的最大时长
+        display: 获取数据的最大时长
         description: >
           设置获取消息时等待数据不足的最长时间（以毫秒为单位），默认值为 100ms。
         required: false
