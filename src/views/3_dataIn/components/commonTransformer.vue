@@ -520,6 +520,7 @@ export default {
         this.isbreak=true
         return;
       }
+      this.isbreak=false
       let tags = [];
       let columns = [];
       let mutates = [];
@@ -597,11 +598,13 @@ export default {
           ? this.$store.state.app.csvTransformerParser.inputList
           : [].concat(this.generateInput()),
       };
+      console.log(tags,columns,primarykey,'超级表必须的');
       if(tags.length==0||columns.length==0||!primarykey){
         Message.warning(this.$t('datasource.transformer.mappingvaildtip'));
         this.isbreak=true
         return;
       }
+      this.isbreak=false
       this.mappingParser = parserData;
       this.getParserData(parserData);
     },
@@ -689,6 +692,7 @@ export default {
           this.isbreak=true
           return;
         }
+        this.isbreak=false
         let outputColumns = result[0].fields.map((item) => item.name);
         let outputTBData = result[0].columns.map((data) => {
           return Object.fromEntries(
@@ -733,7 +737,13 @@ export default {
     //输出input结果
     generateInput() {
       let inputList = [];
-      inputList = this.msgForm.msgbody.split(";").map((msg) => {
+      let resultMsgbody=''
+      if(this.msgForm.msgbody.replace(/\}\s*\{/g,'}{').includes('}{')){
+        resultMsgbody=this.msgForm.msgbody.replace(/\}\s*\{/g,'}&${').split("&$")
+      }else{
+        resultMsgbody=this.msgForm.msgbody.split(';')
+      }
+      inputList = resultMsgbody.map((msg) => {
         let inputobj = {};
         this.indentifiedColumns.forEach((item) => {
           if (this.$store.state.app.currentDBType == "mqtt") {
