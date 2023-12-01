@@ -681,24 +681,14 @@ struct SDelFWriter {
 typedef struct STFileSet STFileSet;
 typedef TARRAY2(STFileSet *) TFileSetArray;
 
+// fset range
 typedef struct STFileSetRange STFileSetRange;
 typedef TARRAY2(STFileSetRange *) TFileSetRangeArray;  // disjoint ranges
 
-// util
-void      tsdbFileSetRangeArrayDestroy(TFileSetRangeArray **ppSnap);
-SHashObj *tsdbGetSnapRangeHash(TFileSetRangeArray *pRanges);
+int32_t tsdbTFileSetRangeClear(STFileSetRange **fsr);
+int32_t tsdbTFileSetRangeArrayDestroy(TFileSetRangeArray **ppArr);
 
-// snap partition list
-typedef TARRAY2(SVersionRange) SVerRangeList;
-typedef struct STsdbFSetPartition STsdbFSetPartition;
-typedef TARRAY2(STsdbFSetPartition *) STsdbFSetPartList;
-// util
-STsdbFSetPartList *tsdbFSetPartListCreate();
-void               tsdbFSetPartListDestroy(STsdbFSetPartList **ppList);
-int32_t            tSerializeTsdbFSetPartList(void *buf, int32_t bufLen, STsdbFSetPartList *pList);
-int32_t            tDeserializeTsdbFSetPartList(void *buf, int32_t bufLen, STsdbFSetPartList *pList);
-int32_t            tsdbFSetPartListToRangeDiff(STsdbFSetPartList *pList, TFileSetRangeArray **ppRanges);
-
+// fset partition
 enum {
   TSDB_SNAP_RANGE_TYP_HEAD = 0,
   TSDB_SNAP_RANGE_TYP_DATA,
@@ -708,11 +698,22 @@ enum {
   TSDB_SNAP_RANGE_TYP_MAX,
 };
 
+typedef TARRAY2(SVersionRange) SVerRangeList;
+
 struct STsdbFSetPartition {
   int64_t       fid;
   int8_t        stat;
   SVerRangeList verRanges[TSDB_SNAP_RANGE_TYP_MAX];
 };
+
+typedef struct STsdbFSetPartition STsdbFSetPartition;
+typedef TARRAY2(STsdbFSetPartition *) STsdbFSetPartList;
+
+STsdbFSetPartList *tsdbFSetPartListCreate();
+void               tsdbFSetPartListDestroy(STsdbFSetPartList **ppList);
+int32_t            tSerializeTsdbFSetPartList(void *buf, int32_t bufLen, STsdbFSetPartList *pList);
+int32_t            tDeserializeTsdbFSetPartList(void *buf, int32_t bufLen, STsdbFSetPartList *pList);
+int32_t            tsdbFSetPartListToRangeDiff(STsdbFSetPartList *pList, TFileSetRangeArray **ppRanges);
 
 // snap read
 struct STsdbReadSnap {

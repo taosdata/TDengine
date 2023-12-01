@@ -444,7 +444,7 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s, sver:%" PRId64 " ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode),
               __func__, lino, tstrerror(code), sver, ever, type);
-    tsdbFileSetRangeArrayDestroy(&reader[0]->fsrArr);
+    tsdbTFileSetRangeArrayDestroy(&reader[0]->fsrArr);
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
   } else {
@@ -472,7 +472,7 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** reader) {
   TARRAY2_DESTROY(reader[0]->sttReaderArr, tsdbSttFileReaderClose);
   tsdbDataFileReaderClose(&reader[0]->dataReader);
 
-  tsdbFileSetRangeArrayDestroy(&reader[0]->fsrArr);
+  tsdbTFileSetRangeArrayDestroy(&reader[0]->fsrArr);
   tDestroyTSchema(reader[0]->skmTb->pTSchema);
 
   for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->aBuf); ++i) {

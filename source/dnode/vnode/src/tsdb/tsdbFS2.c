@@ -1072,6 +1072,24 @@ int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
   return 0;
 }
 
+static SHashObj *tsdbFSetRangeArrayToHash(TFileSetRangeArray *pRanges) {
+  int32_t   capacity = TARRAY2_SIZE(pRanges) * 2;
+  SHashObj *pHash = taosHashInit(capacity, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
+  if (pHash == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < TARRAY2_SIZE(pRanges); i++) {
+    STFileSetRange *u = TARRAY2_GET(pRanges, i);
+    int32_t         fid = u->fid;
+    int32_t         code = taosHashPut(pHash, &fid, sizeof(fid), u, sizeof(*u));
+    ASSERT(code == 0);
+    tsdbDebug("range diff hash fid:%d, sver:%" PRId64 ", ever:%" PRId64, u->fid, u->sver, u->ever);
+  }
+  return pHash;
+}
+
 int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TFileSetRangeArray *pRanges, TFileSetArray **fsetArr,
                                        TFileOpArray *fopArr) {
   int32_t    code = 0;
@@ -1084,7 +1102,7 @@ int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TFileSetRangeArray *pRa
   TARRAY2_INIT(fsetArr[0]);
 
   if (pRanges) {
-    pHash = tsdbGetSnapRangeHash(pRanges);
+    pHash = tsdbFSetRangeArrayToHash(pRanges);
     if (pHash == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _out;
@@ -1123,24 +1141,6 @@ _out:
   return code;
 }
 
-SHashObj *tsdbGetSnapRangeHash(TFileSetRangeArray *pRanges) {
-  int32_t   capacity = TARRAY2_SIZE(pRanges) * 2;
-  SHashObj *pHash = taosHashInit(capacity, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
-  if (pHash == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  for (int32_t i = 0; i < TARRAY2_SIZE(pRanges); i++) {
-    STFileSetRange *u = TARRAY2_GET(pRanges, i);
-    int32_t      fid = u->fid;
-    int32_t      code = taosHashPut(pHash, &fid, sizeof(fid), u, sizeof(*u));
-    ASSERT(code == 0);
-    tsdbDebug("range diff hash fid:%d, sver:%" PRId64 ", ever:%" PRId64, u->fid, u->sver, u->ever);
-  }
-  return pHash;
-}
-
 int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TFileSetRangeArray *pRanges,
                                       TFileSetRangeArray **fsrArr) {
   int32_t      code = 0;
@@ -1156,7 +1156,7 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
 
   tsdbInfo("pRanges size:%d", (pRanges == NULL ? 0 : TARRAY2_SIZE(pRanges)));
   if (pRanges) {
-    pHash = tsdbGetSnapRangeHash(pRanges);
+    pHash = tsdbFSetRangeArrayToHash(pRanges);
     if (pHash == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _out;
@@ -1184,7 +1184,7 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
 
     tsdbDebug("fsrArr:%p, fid:%d, sver:%" PRId64 ", ever:%" PRId64, fsrArr, fset->fid, sver1, ever1);
 
-    code = tsdbTSnapRangeInitRef(fs->tsdb, fset, sver1, ever1, &fsr1);
+    code = tsdbTFileSetRangeInitRef(fs->tsdb, fset, sver1, ever1, &fsr1);
     if (code) break;
 
     code = TARRAY2_APPEND(fsrArr[0], fsr1);
@@ -1195,8 +1195,8 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
   taosThreadMutexUnlock(&fs->tsdb->mutex);
 
   if (code) {
-    tsdbTSnapRangeClear(&fsr1);
-    TARRAY2_DESTROY(fsrArr[0], tsdbTSnapRangeClear);
+    tsdbTFileSetRangeClear(&fsr1);
+    TARRAY2_DESTROY(fsrArr[0], tsdbTFileSetRangeClear);
     fsrArr[0] = NULL;
   }
 

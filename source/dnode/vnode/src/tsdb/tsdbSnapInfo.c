@@ -16,7 +16,7 @@
 #include "tsdb.h"
 #include "tsdbFS2.h"
 
-// STsdbFSetPartition =====================================
+// fset partition
 static int32_t tsdbFSetPartCmprFn(STsdbFSetPartition* x, STsdbFSetPartition* y) {
   if (x->fid < y->fid) return -1;
   if (x->fid > y->fid) return 1;
@@ -138,6 +138,7 @@ _err:
   return -1;
 }
 
+// fset partition list
 STsdbFSetPartList* tsdbFSetPartListCreate() {
   STsdbFSetPartList* pList = taosMemoryCalloc(1, sizeof(STsdbFSetPartList));
   if (pList == NULL) {
@@ -351,17 +352,9 @@ int32_t tsdbFSetPartListToRangeDiff(STsdbFSetPartList* pList, TFileSetRangeArray
 
 _err:
   if (pDiff) {
-    tsdbFileSetRangeArrayDestroy(&pDiff);
+    tsdbTFileSetRangeArrayDestroy(&pDiff);
   }
   return -1;
-}
-
-void tsdbFileSetRangeArrayDestroy(TFileSetRangeArray** ppSnap) {
-  if (ppSnap && ppSnap[0]) {
-    TARRAY2_DESTROY(ppSnap[0], tsdbTSnapRangeClear);
-    taosMemoryFree(ppSnap[0]);
-    ppSnap[0] = NULL;
-  }
 }
 
 void tsdbFSetPartListDestroy(STsdbFSetPartList** ppList) {

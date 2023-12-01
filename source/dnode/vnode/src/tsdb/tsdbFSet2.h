@@ -49,8 +49,8 @@ int32_t tsdbTFileSetRemove(STFileSet *fset);
 int32_t tsdbTFileSetFilteredInitDup(STsdb *pTsdb, const STFileSet *fset1, int64_t ever, STFileSet **fset,
                                     TFileOpArray *fopArr);
 
-int32_t tsdbTSnapRangeInitRef(STsdb *pTsdb, const STFileSet *fset1, int64_t sver, int64_t ever, STFileSetRange **fsr);
-int32_t tsdbTSnapRangeClear(STFileSetRange **fsr);
+int32_t tsdbTFileSetRangeInitRef(STsdb *pTsdb, const STFileSet *fset1, int64_t sver, int64_t ever,
+                                 STFileSetRange **fsr);
 
 // to/from json
 int32_t tsdbTFileSetToJson(const STFileSet *fset, cJSON *json);
