@@ -92,7 +92,7 @@ export default {
   },
   methods: {
     changeFilterCont(val) {
-      this.$emit("changeFilter", this.itemData.key, val);
+      // this.$emit("changeFilter", this.itemData.key, val);
     },
     initData(val) {
       if (val) {
@@ -121,6 +121,7 @@ export default {
           Message.error(result.message);
           return;
         }
+        this.$emit("changeFilter", this.itemData.key, this.ruleForm.filter_name);
         this.tableData = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
@@ -165,7 +166,13 @@ export default {
     //提交
     submitFilter() {
       let inputList = [];
-      inputList = this.$parent.msgForm.msgbody.split(";").map((msg) => {
+      let resultMsgbody=''
+      if(this.$parent.msgForm.msgbody.replace(/\}\s*\{/g,'}{').includes('}{')){
+        resultMsgbody=this.$parent.msgForm.msgbody.replace(/\}\s*\{/g,'}&${').split("&$")
+      }else{
+        resultMsgbody=this.$parent.msgForm.msgbody.split(';')
+      }
+      inputList = resultMsgbody.map((msg) => {
         let inputobj = {};
         this.indentifiedColumns.forEach((item) => {
           if (this.$store.state.app.currentDBType == "mqtt") {
