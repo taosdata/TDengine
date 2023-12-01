@@ -256,7 +256,10 @@ SScanhistoryDataInfo streamScanHistoryData(SStreamTask* pTask, int64_t st) {
   bool        finished = false;
   const char* id = pTask->id.idStr;
 
-  qSetStreamOpOpen(exec);
+  if (!pTask->hTaskInfo.operatorOpen) {
+    qSetStreamOpOpen(exec);
+    pTask->hTaskInfo.operatorOpen = true;
+  }
 
   while (1) {
     if (streamTaskShouldPause(pTask)) {
