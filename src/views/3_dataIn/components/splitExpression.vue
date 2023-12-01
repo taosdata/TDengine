@@ -13,7 +13,7 @@
       </el-form-item>
       <el-form-item prop="n">
         <el-input
-          placeholder="2"
+          placeholder="3"
           class="split-item"
           size="small"
           type="number"
@@ -24,7 +24,7 @@
       </el-form-item>
       <el-form-item prop="names">
         <el-input
-          placeholder='str1, id, value'
+          placeholder='value1,value2,value3'
           class="split-item"
           size="small"
           v-model="ruleForm.names"
@@ -44,7 +44,7 @@ export default {
       ruleForm: {
         sep: "",
         n: "",
-        names: "",
+        names: '',
       },
       rules: {
         sep: [
@@ -66,8 +66,13 @@ export default {
           Object.keys(this.ruleForm)
             .filter((key) => this.ruleForm[key])
             .forEach((item) => {
-              splitExpre[item] = item=='names'?this.ruleForm[item].split(','): item == "n" ? parseInt(this.ruleForm[item]) : this.ruleForm[item];
+              splitExpre[item] =item=='names'?this.ruleForm[item].toString():item=='n'?Number(this.ruleForm[item]) :this.ruleForm[item];
+
+              
             });
+            if(splitExpre['names']){
+                splitExpre['names']=splitExpre['names'].toString().split(',')
+            }
             this.$store.commit('app/SET_SPLIT_EXPRESS',splitExpre)
           return true;
         } else {
@@ -79,6 +84,9 @@ export default {
   },
   mounted(){
     if(this.$store.state.app.splitExpresList){
+        if(this.$store.state.app.splitExpresList.names){
+            this.$store.state.app.splitExpresList.names=this.$store.state.app.splitExpresList.names.toString()
+            }
         this.ruleForm={...this.$store.state.app.splitExpresList}
     }
   },
@@ -86,6 +94,9 @@ export default {
     "$store.state.app.splitExpresList":{
         deep:true,
         handler(val){
+            if(val.names){
+                val.names=val.names.toString()
+            }
             this.ruleForm={...val}
         }
     }

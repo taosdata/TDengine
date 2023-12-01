@@ -278,7 +278,6 @@ export default {
       // 将 agent 设置为空
       this.$store.commit("app/SET_CURRENT_AGENT", '');
       this.$store.commit("app/SET_CURRENT_DBTYPE", this.ruleForm.type);
-      console.log('数据啊源',this.$store.state.app.currentDBType);
     },
     getAgents() {
       this.agentList = this.$store.state.app.agentLists;
@@ -372,7 +371,6 @@ export default {
     "$store.state.app.currentDBType": {
       deep: true,
       handler(val) {
-        console.log(val,'当前数据源类型',this.$store)
         this.getInitValue();
         this.$store.commit('app/SET_FILTER_PARSE_DATA',null)
         this.$store.commit('app/SET_EXTRACT_PARSE_DATA',null)
@@ -383,7 +381,8 @@ export default {
         this.$store.commit('app/SET_CSV_LOCAL_COLS',[])
         this.$store.commit('app/SET_CSV_TRANSFORMER_PARSER',null)
         this.$store.commit('app/SET_CSV_PARSER',null)
-    
+        this.$store.commit('app/SET_MAPPING_JOIN','')
+        this.$store.commit('app/SET_SPLIT_EXPRESS',null)
    },
     },
     "$store.state.app.currentAgentID": {

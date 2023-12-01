@@ -16,6 +16,7 @@
               v-model="msgForm.msgbody"
               size="small"
               type="textarea"
+              :autosize="{ minRows: 6 }"
             ></el-input>
           </el-form-item>
         </el-form>
@@ -34,6 +35,10 @@
         <div class="block-title">
           <span>{{ $t("datasource.transformer.extract") }}</span>
         </div>
+        <div
+          class="description"
+          v-html="$t('datasource.transformer.extractdesc')"
+        ></div>
         <template v-for="(item, index) in extractArr">
           <ExtractSplit
             ref="extract"
@@ -58,6 +63,10 @@
         <div class="block-title">
           <span>{{ $t("datasource.transformer.filter") }}</span>
         </div>
+        <div
+          class="description"
+          v-html="$t('datasource.transformer.filterdesc')"
+        ></div>
         <template v-for="(item, index) in filterArr">
           <FilterExpression
             :key="index"
@@ -119,9 +128,9 @@
               {{ $t("datasource.transformer.mapping") }}
               <el-button
                 type="primary"
-                @click="caculateMappingResult"
+                @click="calculateMappingResult"
                 size="small"
-                >{{ $t("datasource.transformer.caculate") }}</el-button
+                >{{ $t("datasource.transformer.calculate") }}</el-button
               >
             </div>
             <el-table
@@ -156,7 +165,11 @@
                     >-->
                     <el-input
                       slot="reference"
-                      style="width: 180px"
+                      :style="
+                        scope.row.maptype[1].includes('join')
+                          ? { width: '80px' }
+                          : { width: '180px' }
+                      "
                       v-model="scope.row.Expression"
                       size="small"
                       :disabled="
@@ -165,6 +178,14 @@
                           : false
                       "
                     ></el-input>
+                    <el-input
+                      v-if="scope.row.maptype[1].includes('join')"
+                      size="small"
+                      style="width: 100px"
+                      v-model="joinwith"
+                    >
+                      <template slot="prepend">with</template>
+                    </el-input>
 
                     <!-- @keyup.enter.native="submitSuper(scope.row)" -->
                     <!-- </el-popover> -->
@@ -211,7 +232,7 @@ import FilterExpression from "./filterExpression.vue";
 import { getParser } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
-import { getRFC3339Time } from "@/utils/index";
+import { parsinginZone } from "@/utils";
 import CreateSTB from "./createSTB.vue";
 import { createStableReq } from "@/api/gateway/data/stables";
 export default {
@@ -227,6 +248,7 @@ export default {
   },
   data() {
     return {
+      joinwith: "",
       isCSV: false,
       mapExpressionList: [
         "value",
@@ -397,6 +419,9 @@ export default {
         if (Object.keys(item).toString() == "map") {
           echoMapData = Object.entries(item["map"]).map((val) => {
             let expreKey = Object.keys(val[1]).filter((key) => key != "as")[0];
+            if (expreKey == "join") {
+              this.joinwith = val[1]["with"];
+            }
             return {
               columnname: val[0],
               type: expreKey,
@@ -437,18 +462,40 @@ export default {
           };
         })
       );
-      this.$set(
-        this,
-        "columnsArr",
-        columns
-          .filter((val) => ["varchar", "nchar"].includes(val.type))
-          .map((item) => {
-            return {
-              ...item,
-              show: true,
-            };
-          })
-      );
+      let finalCol = [];
+      switch (this.$store.state.app.currentDBType) {
+        case "csv":
+          finalCol = columns
+            .filter((val) => ["varchar", "nchar"].includes(val.type))
+            .map((item) => {
+              return {
+                ...item,
+                show: true,
+              };
+            });
+          break;
+        case "mqtt":
+          finalCol = columns
+            .filter((val) => ["payload"].includes(val.name))
+            .map((item) => {
+              return {
+                ...item,
+                show: true,
+              };
+            });
+          break;
+        case "kafka":
+          finalCol = columns
+            .filter((val) => ["value"].includes(val.name))
+            .map((item) => {
+              return {
+                ...item,
+                show: true,
+              };
+            });
+          break;
+      }
+      this.$set(this, "columnsArr", finalCol);
     },
     //messagebody非空验证触发
     validateMsgBody() {
@@ -461,7 +508,7 @@ export default {
       });
     },
     //计算mapping的结果
-    caculateMappingResult() {
+    calculateMappingResult() {
       if (!this.msgForm.msgbody) {
         Message.error(this.$t("datasource.transformer.msgbodytip"));
         return;
@@ -498,13 +545,17 @@ export default {
             : item.maptype[1]; //此处处理了编辑回显
           if (item.maptype[1] != "string") {
             //排除第一行的tablename
+            let expreitem = {
+              [`${key}`]: ["sum", "join"].includes(key)
+                ? item["Expression"].split(",").map((val) => val.trim())
+                : item["Expression"],
+              as: item["Type"],
+            };
+            if (key == "join") {
+              expreitem["with"] = this.joinwith;
+            }
             mutates.push({
-              [`${item["Name"]}`]: {
-                [`${key}`]: ["sum", "join"].includes(key)
-                  ? item["Expression"].split(",")
-                  : item["Expression"],
-                as: item["Type"],
-              },
+              [`${item["Name"]}`]: expreitem,
             });
           }
         }
@@ -543,6 +594,10 @@ export default {
           ? this.$store.state.app.csvTransformerParser.inputList
           : [].concat(this.generateInput()),
       };
+      if(tags.length==0||columns.length==0||!primarykey){
+        Message.warning(this.$t('datasource.transformer.mappingvaildtip'));
+        return;
+      }
       this.mappingParser = parserData;
       this.getParserData(parserData);
     },
@@ -576,25 +631,9 @@ export default {
     },
     //获取transformer的所有参数
     getTransformerParams() {
-      //  不删除，不确定mapping表格是否计算过才能创建新任务
-
-      // let caculateRows = this.tableData.filter(item => item["Expression"]);
-      // let mutate = this.filterArr
-      //   .map(item => {
-      //     return {
-      //       filter: item.expression
-      //     };
-      //   })
-      //   .concat(
-      //     caculateRows.map(val => {
-      //       return { [`${val["maptype"]}`]: val["Expression"] };
-      //     })
-      //   );
 
       if (!this.mappingParser.parser) {
-        this.caculateMappingResult();
-        // Message.warning(this.$t("datasource.transformer.mapcaculate"));
-        // return;
+        this.calculateMappingResult();
       }
       let extractObj = {};
       this.extractArr.forEach((item) => {
@@ -604,10 +643,9 @@ export default {
               ? item.expression
               : item.type == "split"
               ? this.$store.state.app.splitExpresList
-              : item.expression.split(";"),
+              : item.expression.split(";").map((item) => item.trim()),
         };
       });
-      console.log(extractObj, this.mappingParser, "ppp");
       let parserData = {
         parser: {
           parse: Object.keys(extractObj).toString() ? extractObj : {},
@@ -700,14 +738,18 @@ export default {
               inputobj["payload"] = msg;
             } else {
               inputobj[item.name] =
-                item.type == "timestamp" ? getRFC3339Time() : item.name;
+                item.type == "timestamp"
+                  ? parsinginZone(new Date())
+                  : item.name;
             }
           } else if (this.$store.state.app.currentDBType == "kafka") {
             if (item.name == "value") {
               inputobj["value"] = msg;
             } else {
               inputobj[item.name] =
-                item.type == "timestamp" ? getRFC3339Time() : item.name;
+                item.type == "timestamp"
+                  ? parsinginZone(new Date())
+                  : item.name;
             }
           }
         });
@@ -858,7 +900,7 @@ export default {
           "Expression",
           echoData.model.name.toString()
         );
-        this.caculateMappingResult();
+        this.calculateMappingResult();
       }
     },
     async getSTbaleList() {
@@ -884,6 +926,10 @@ export default {
             this.$store.state.app.transformerMapCloumns
           );
         }
+        let defaultmap = this.options
+          .filter((item) => item.value == "mapping")[0]
+          .children.map((label) => label.label);
+
         this.params_columns.splice(0, this.params_columns.length - 1);
         this.params_tags.splice(0, this.params_tags.length - 1);
         this.tableData = res.data.map((val, index) => {
@@ -893,18 +939,26 @@ export default {
           if (val.includes("TAG")) {
             this.params_tags.push(val[0]);
           }
+          let equalindex = defaultmap.findIndex(
+            (item) => item.toLowerCase() == val[0].toLowerCase()
+          );
+
           return {
             Name: val[0],
             Type:
               val[1] == "TIMESTAMP"
                 ? val[1] + "(" + precision.data[0][0] + ")"
                 : val[1],
-            maptype: ["expression", "value"],
-            Expression: "",
+            maptype:
+              equalindex > -1
+                ? ["mapping", `${defaultmap[equalindex]}`]
+                : ["expression", "value"],
+            Expression: equalindex > -1 ? defaultmap[equalindex] : "",
             Output1: "",
             Output2: "",
           };
         });
+
         this.tableData.unshift({
           Name: this.sruleForm.s_name,
           Type: "Tablename",
@@ -1001,6 +1055,12 @@ export default {
     },
   },
   watch: {
+    joinwith: {
+      deep: true,
+      handler(val) {
+        this.$store.commit("app/SET_MAPPING_JOIN", val);
+      },
+    },
     //csv需要单独处理
     "$store.state.app.csvTransformerParser": {
       deep: true,
@@ -1049,12 +1109,12 @@ export default {
 }
 .block-title {
   margin-top: 25px;
-  margin-bottom: 15px !important;
+  margin-bottom: 10px !important;
 }
 .extract {
   .el-button {
     width: 100%;
-    margin-top: 20px;
+    margin-top: 15px;
   }
 }
 .col-list {
@@ -1075,6 +1135,7 @@ export default {
 .filter {
   .el-button {
     width: 100%;
+    margin-top:15px;
   }
   ::v-deep .el-input {
     margin-left: 0px !important;
@@ -1131,5 +1192,11 @@ export default {
   .el-button {
     width: 60px;
   }
+}
+.description {
+  color: #acaab2;
+}
+::v-deep .el-input-group__prepend {
+  padding: 0 4px;
 }
 </style>

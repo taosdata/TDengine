@@ -491,7 +491,7 @@ export default {
     <li>2 - 数据写入 WAL 且执行 fsync。</li>
     </ul>
     `,
-    walRetentionPeriodTip: "WAL 文件的大保存时长，它决定了能够订阅到的数据，单位是秒，默认值是3600，值为0时意味着没有数据可以消费，如果想订阅数据请设置为合适的正值。",
+    walRetentionPeriodTip: "WAL 文件的最大保存时长，它决定了能够订阅到的数据，单位是秒，默认值是3600，值为0时意味着没有数据可以消费，如果想订阅数据请设置为合适的正值。",
     walRetentionSizeTip: "单个 WAL 文件的大小上限，单位是 KB，默认值为0，意味着 TDengine 会自动处理。",
     pagesTip: "单个 vnode 中缓存元数据的缓存页数，缺省值是 256，该值允许配置的最小值是 64",
     pageSizeTip: "vnode 中元数据缓存的页大小，单位是 KB ，值域是 [1,16384]，缺省值是 4 KB。",
@@ -1005,6 +1005,16 @@ export default {
 
   datasource: {
     transformer:{
+      mappingvaildtip:'请填写正确的主键，列和tag',
+      extractdesc:`<strong>taosX 支持 JSON 或正则表达式解析文本</strong>：<br/>
+      1. <strong>JSON</strong>: 用户使用多个 ; 分隔的字段名（如： name ）或  [JSON Path]<em>(https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-20.html)</em> 提取表达式（形如 "$.path=new_name"，如： $.field.sub=new_name ）从 JSON 对象中提取出多列。<br/>
+      2. <strong>Regex</strong>: 用户可以在正则表达式模式中使用命名捕获组来从任何字符串（文本）字段中提取多个字段。例如，正则表达式模式<em>(?<y>[0-9]{4})-(?<m>[0-9]{2})-(?<d>[0-9]{2})</em>将提取3个字段 y、m 和 d。更多的命名捕获组（named capture groups）的说明和测试可以在这里得到：<em>http://regex101.com/</em> （使用 Rust 实现）<br/>`,
+      filterdesc:`<strong>taosX 内置一个功能丰富的表达式引擎。Filter 过滤器使用布尔类型进行过滤判断。当表达式为 false 的行将被过滤掉。</strong><br/>
+      - <strong>布尔类型</strong>: bool_value 可直接使用 BOOL 类型的变量名作为表达式。
+      - <strong>比较</strong>： 当 a b 字段都不为空时，可以进行  a > b 等比较操作，支持 > >= < <= && || 等操作。
+      - 函数：支持返回值为布尔类型的函数，如字符串包含：s.contains("abc") 。<br/>`,
+      uploadexe:'请上传csv文件并执行下一步操作',
+      sp:'请选则目标超级表',
       septip:'请输入分隔符',
       csvtip:'自定义列数必须等于csv列数',
       identified:'识别的列',
@@ -1028,8 +1038,8 @@ export default {
       msgbodytip:'请先输入消息体',
       searchSResult:'输入完后按enter键查询',
       tablenametip:'请先输入表名表达式',
-      mapcaculate:'请先计算mapping值',
-      caculate:'计算'
+      mapcalculate:'请先计算mapping值',
+      calculate:'计算'
     },
     opcurl:'请输入OPC服务地址',
     selecttargetdb:'请选择目标数据源',

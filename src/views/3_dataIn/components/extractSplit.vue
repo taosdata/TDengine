@@ -84,7 +84,7 @@
 <script>
 import { getParser } from "@/api/explorer/datain";
 import { Message } from "element-ui";
-import { getRFC3339Time } from "@/utils/index";
+import { parsinginZone } from "@/utils";
 import SplitExpression from "./splitExpression.vue";
 import { deepClone } from "@/utils";
 export default {
@@ -267,7 +267,13 @@ export default {
     submitExtract() {
       let extractExpres = this.ruleForm.filter_expres.split(";");
       let inputList = [];
-      inputList = this.$parent.msgForm.msgbody.split(";").map((msg) => {
+      let resultMsgbody=''
+      if(this.$parent.msgForm.msgbody.replace(/\}\s*\{/g,'}{').includes('}{')){
+        resultMsgbody=this.$parent.msgForm.msgbody.replace(/\}\s*\{/g,'}&${').split("&$")
+      }else{
+        resultMsgbody=this.$parent.msgForm.msgbody.split(';')
+      }
+      inputList = resultMsgbody.map((msg) => {
         let inputobj = {};
         this.indentifiedColumns.forEach((item) => {
           if (this.$store.state.app.currentDBType == "mqtt") {
@@ -275,14 +281,14 @@ export default {
               inputobj["payload"] = msg;
             } else {
               inputobj[item.name] =
-                item.type == "timestamp" ? getRFC3339Time() : item.name;
+                item.type == "timestamp" ? parsinginZone(new Date()) : item.name;
             }
           } else if (this.$store.state.app.currentDBType == "kafka") {
             if (item.name == "value") {
               inputobj["value"] = msg;
             } else {
               inputobj[item.name] =
-                item.type == "timestamp" ? getRFC3339Time() : item.name;
+                item.type == "timestamp" ? parsinginZone(new Date()) : item.name;
             }
           }
         });
@@ -344,7 +350,7 @@ export default {
 </script>
 <style lang="scss" scoped>
 .extract-split {
-  margin-top: 20px;
+  margin-top: 10px;
   .extract-item {
     display: flex;
     flex-wrap: nowrap;
