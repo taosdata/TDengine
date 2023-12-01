@@ -1155,6 +1155,3 @@ _exit:
   }
   return code;
 }
-
-extern int32_t tsdbFSCancelAllBgTask(STFileSystem* fs);
-int32_t        tsdbCancelAllBgTask(STsdb* tsdb) { return tsdbFSCancelAllBgTask(tsdb->pFS); }

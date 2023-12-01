@@ -514,6 +514,8 @@ static int32_t tsdbMergeGetFSet(SMerger *merger) {
     return 0;
   }
 
+  fset->mergeScheduled = false;
+
   int32_t code = tsdbTFileSetInitCopy(merger->tsdb, fset, &merger->fset);
   if (code) {
     taosThreadMutexUnlock(&merger->tsdb->mutex);

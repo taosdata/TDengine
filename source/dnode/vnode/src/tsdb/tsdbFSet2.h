@@ -82,6 +82,7 @@ struct STFileSet {
 
   // background task channel
   int64_t bgTaskChannel;
+  bool    mergeScheduled;
 
   // block commit variables
   TdThreadCond canCommit;
