@@ -216,9 +216,6 @@ int32_t         streamQueuePush(SStreamQueue1* pQueue, SStreamQueueItem* pItem);
 SStreamQueueRes streamQueueGetRes(SStreamQueue1* pQueue);
 #endif
 
-int32_t streamInit();
-void    streamCleanUp();
-
 SStreamDataSubmit* streamDataSubmitNew(SPackedData* pData, int32_t type);
 void               streamDataSubmitDestroy(SStreamDataSubmit* pDataSubmit);
 

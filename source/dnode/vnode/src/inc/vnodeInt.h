@@ -223,8 +223,6 @@ int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid
 int32_t tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
 
 // tq
-int     tqInit();
-void    tqCleanUp();
 STQ*    tqOpen(const char* path, SVnode* pVnode);
 void    tqNotifyClose(STQ*);
 void    tqClose(STQ*);
