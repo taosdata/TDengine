@@ -822,7 +822,7 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     if (tDecodeI64(pDecoder, &entry.id.streamId) < 0) return -1;
     if (tDecodeI32(pDecoder, &taskId) < 0) return -1;
     if (tDecodeI32(pDecoder, &entry.status) < 0) return -1;
-    if (tDecodeI32(pDecoder, &entry.stage) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.stage) < 0) return -1;
     if (tDecodeI32(pDecoder, &entry.nodeId) < 0) return -1;
     if (tDecodeDouble(pDecoder, &entry.inputQUsed) < 0) return -1;
     if (tDecodeDouble(pDecoder, &entry.inputRate) < 0) return -1;
