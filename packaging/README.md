@@ -3,12 +3,12 @@
 release.py 脚本为 taosx 及 taosx-agent 打包服务，支持 Windows 及 Linux 打包。
 安装包也会包含 taos-explorer 及各类连接器
 
-release.py 也可为 taos-agent 及连接器不依赖 taosx 独立打包，详细见参数控制 ( -o agent )
+release.py 也可为 taosx-agent 及连接器不依赖 taosx 独立打包，详细见参数控制 ( -o agent )
 
 ## 环境要求
 
-- rust 开发环境（taosX 依赖）
-- golang 1.20及以上（taos-opc、taos-mqtt 依赖）
+- rust 开发环境（taosx 依赖）
+- golang 1.20及以上（taosx-opc、taosx-mqtt 依赖）
 - PI System 授权(AF SDK)（pi-connector 依赖）
 - jdk1.8+、maven3(taosx-influxdb  taosx-opentsdb 依赖)
 - Rust 1.65+ node.js 16+, yarn( taos-explorer 依赖)
@@ -44,7 +44,12 @@ version = "1.0.0"
 - -t pi: 示例，测试 pi 编译安装
 - -t package: 已经安装好的服务打包测试( taosx taosx-agent 必须已经编译安装过)
 - -ob only_build: 仅将 build 结果写入指定目录(绝对路径)，不打包。如果没有指定目录参数，则使用默认目录。如果没有 -ob 选项，正常打包
-- - Windows 默认目录: C:\\Program Files\\taosX
+- -vn ver_number: 使用指定的版本进行发布
+- -cp cus_prompt: 自定义应用名称
+- -cn cus_name: 自定义产品名称
+- -ce cus_email: 自定义邮箱信息
+- -ua upload_agent: 仅编译taosx-agent并上传到官网
+- - Windows 默认目录: C:\\TDengine
 - - Linux 默认目录: taosx -> release -> 相应版本目录
 - 连接器可带版本号编译，和连接器名空格隔开
 - example: ```python release.py -c x64 -s pi debug```  所有连接器集合打包，除了 pi 使用 debug 模式，其他都是 release 模式
@@ -61,27 +66,29 @@ version = "1.0.0"
 - 命令窗口执行 ```sc start/stop taosx-agent``` 管理 taosx-agent 服务
 - 命令窗口执行 ```sc start/stop taos-explorer``` 管理 taos-explorer 服务
 - 使用 uninstall_taosx.exe 卸载 taosx
-- windows 安装目录为```C:\Program Files\taosX```，目录结构如下：
+- windows 安装目录为```C:\TDengine```，目录结构如下：
 
     ```text
     ├── bin
     │   ├── taosx.exe
     │   ├── taosx-agent.exe
     │   ├── taos-explorer.exe
+    │   └── ...
     ├── plugins
     │   ├── influxdb
     │   │   └── taosx-influxdb.jar
-    ├── opentsdb
+    │   ├── opentsdb
     │   │   └── taosx-opentsdb.jar
     │   ├── mqtt
     │   │   └── taosx-mqtt.exe
     │   └── opc
-    │       └── taosx-opc.exe
+    │   │   └── taosx-opc.exe
     │   └── pi
-    │       └── taosx-pi.exe
-    │       └── taosx-pi-backfill.exe
-    │       └── ...
+    │   │   └── taosx-pi.exe
+    │   │   └── taosx-pi-backfill.exe
+    │   └── ...
     └── config
+    │   ├── taosx.toml
     │   ├── agent.toml
     │   ├── explorer.toml
     ├── uninstall_taosx.exe
@@ -98,9 +105,14 @@ version = "1.0.0"
     sudo ./install.sh
     # 验证
     taosx -V
-    # taosx 1.0.0-494d280c (built linux-x86_64 2023-06-21 11:06:00 +08:00)
+    # taosx version: 1.4.0
+    # git: c63f4ffa23cf1655fc2d085dcc5e0ebba6c38654
+    # build: core-1.4.0 linux-x86_64 2023-12-01 11:52:23 +08:00
+
     taosx-agent -V
-    # taosx-agent 1.0.0-494d280c (built linux-x86_64 2023-06-21 11:06:01 +08:00)
+    # taosx-agent version: 1.4.0
+    # git: c63f4ffa23cf1655fc2d085dcc5e0ebba6c38654
+    # build: core-1.4.0 linux-x86_64 2023-12-01 11:56:12 +08:00
 
     # start taosx and taosx-agent system service
     sudo systemctl start taosx
@@ -118,15 +130,15 @@ version = "1.0.0"
     sudo systemctl stop taos-explorer
 
     # 卸载
-    cd /usr/local/taosx
+    cd /usr/local/taos
     sudo ./uninstall.sh
     ```
 
 - linux 下文件路径说明
-  1. taosx, taosx-gent, taos-explorer: /usr/bin
-  2. connectors: /usr/local/taosx/plugins
-  3. uninstall.sh:  /usr/local/taosx
-  4. config files: /etc/taos/
+  1. taosx, taosx-agent, taos-explorer: /usr/bin
+  2. connectors: /usr/local/taos/plugins
+  3. uninstall.sh:  /usr/local/taos
+  4. config files: /etc/taos
 
 
 ## taosx-agent 安装说明
@@ -137,7 +149,7 @@ version = "1.0.0"
     - linux:     taosx-agent-{version}-linux-x64.tar.gz
 - windows 使用安装程序进行安装，使用 uninstall_taosx-agent 进行卸载。taosx-agent 安装为服务
 - 命令窗口执行 `sc start/stop taosx-agent` 管理 taosx-agent 服务
-- windows 安装目录为 `C:\Program Files\taosX`，目录结构如下：
+- windows 安装目录为 `C:\TDengine`，目录结构如下：
 
   ```
   ├── bin
@@ -151,11 +163,11 @@ version = "1.0.0"
   │   ├── mqtt
   │   │   └── taosx-mqtt.exe
   │   └── opc
-  │       └── taosx-opc.exe
+  │   │   └── taosx-opc.exe
   │   └── pi
-  │       └── taosx-pi.exe
-  │       └── taosx-pi-backfill.exe
-  │       └── ...
+  │   │   └── taosx-pi.exe
+  │   │   └── taosx-pi-backfill.exe
+  │   └── ...
   └── config
   │   ├── agent.toml
   ├── uninstall_taosx-agent.exe
@@ -172,7 +184,9 @@ version = "1.0.0"
   sudo ./install.sh
   # 验证
   taosx-agent -V
-  # taosx-agent 1.0.0-494d280c (built linux-x86_64 2023-06-21 11:06:01 +08:00)
+  # taosx-agent version: 1.4.0
+  # git: c63f4ffa23cf1655fc2d085dcc5e0ebba6c38654
+  # build: core-1.4.0 linux-x86_64 2023-12-01 11:56:12 +08:00
 
   # start taosx-agent system service
   sudo systemctl start taosx-agent
@@ -184,12 +198,12 @@ version = "1.0.0"
   sudo systemctl stop taosx-agent
 
   # 卸载
-  cd /usr/local/taosx
+  cd /usr/local/taos
   sudo ./uninstall.sh
   ```
 
 - linux 下文件路径说明
   1. taosx-gent: /usr/bin
-  2. connectors: /usr/local/taosx/plugins
-  3. uninstall.sh:  /usr/local/taosx
-  4. config files: /etc/taos/
+  2. connectors: /usr/local/taos/plugins
+  3. uninstall.sh:  /usr/local/taos
+  4. config files: /etc/taos

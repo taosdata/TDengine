@@ -17,18 +17,19 @@ Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
 
 [Files]
 Source: "{#MyAppSourceDir}\plugins\*"; DestDir: "{app}\plugins"; Flags: recursesubdirs
-Source: "{#MyAppSourceDir}\bin\*"; DestDir: "{app}\bin"
-Source: "{#MyAppSourceDir}\config\agent.toml"; DestDir: "{app}\config"; Flags: uninsneveruninstall onlyifdoesntexist; BeforeInstall: MyBeforeInstall('agent.toml');
-Source: "{#MyAppSourceDir}\config\explorer.toml"; DestDir: "{app}\config"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; BeforeInstall: MyBeforeInstall('exploerer.toml');
+Source: "{#MyAppSourceDir}\bin\*"; DestDir: "{app}"
+Source: "{#MyAppSourceDir}\config\taosx.toml"; DestDir: "{app}\cfg"; Flags: uninsneveruninstall onlyifdoesntexist; BeforeInstall: MyBeforeInstall('taosx.toml');
+Source: "{#MyAppSourceDir}\config\agent.toml"; DestDir: "{app}\cfg"; Flags: uninsneveruninstall onlyifdoesntexist; BeforeInstall: MyBeforeInstall('agent.toml');
+Source: "{#MyAppSourceDir}\config\explorer.toml"; DestDir: "{app}\cfg"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; BeforeInstall: MyBeforeInstall('exploerer.toml');
 Source: "{#MyAppSourceDir}\append\opc_gdba_32\*"; DestDir: "{#OPCGdbaInstallPath}\"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; Check: ShouldInstallOPC
 
 [Components]
 Name: "component"; Description: "OPC DLL(OPC Data Access Auto Interface)              http://www.gray-box.net/daawrapper.php?lang=en";
 
 [run]
-Filename: "{app}\\bin\\taosx-srv.exe"; Parameters: "install"; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\bin\taosx-srv.exe'))
-Filename: "{app}\\bin\\taosx-agent-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\bin\taosx-agent-srv.exe'))
-Filename: "{app}\\bin\\taos-explorer-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\bin\taos-explorer-srv.exe'))
+Filename: "{app}\\taosx-srv.exe"; Parameters: "install"; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taosx-srv.exe'))
+Filename: "{app}\\taosx-agent-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taosx-agent-srv.exe'))
+Filename: "{app}\\taos-explorer-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taos-explorer-srv.exe'))
 Filename: REG.exe; Parameters: "ADD ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#AppName}_is1"" /V ""UninstallString""  \
   /T ""REG_SZ"" /D ""\""{app}\uninstall_{#AppName}.exe\"""" /F"; StatusMsg: Installing {#AppName}...; Flags: RunHidden WaitUntilTerminated
 Filename: REG.exe; Parameters: "ADD ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#AppName}_is1"" /V ""QuietUninstallString"" \
@@ -40,9 +41,9 @@ Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " ""{#OPCGdbaInstallPa
 RunOnceId: "stoptaosx"; Filename: {sys}\sc.exe; Parameters: "stop taosx" ; Flags: runhidden
 RunOnceId: "stoptaosx-agent"; Filename: {sys}\sc.exe; Parameters: "stop taosx-agent" ; Flags: runhidden
 RunOnceId: "stoptaos-explorer"; Filename: {sys}\sc.exe; Parameters: "stop taos-explorer" ; Flags: runhidden
-RunOnceId: "deltaosx"; Filename: "{app}\\bin\\taosx-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
-RunOnceId: "deltaosx-agent"; Filename: "{app}\\bin\\taosx-agent-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
-RunOnceId: "deltaos-explorer"; Filename: "{app}\\bin\\taos-explorer-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
+RunOnceId: "deltaosx"; Filename: "{app}\\taosx-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
+RunOnceId: "deltaosx-agent"; Filename: "{app}\\taosx-agent-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
+RunOnceId: "deltaos-explorer"; Filename: "{app}\\taos-explorer-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
 
 [CODE]
 var
@@ -107,7 +108,7 @@ begin
   begin
     ExplorerAddInput := InputQueryPage.Values[0];
     begin
-      ReplaceLineInFile(ExpandConstant('{app}\config\') + 'explorer.toml', 'localhost', ExplorerAddInput);
+      ReplaceLineInFile(ExpandConstant('{app}\cfg\') + 'explorer.toml', 'localhost', ExplorerAddInput);
     end;
   end;
   Result := True;
@@ -120,11 +121,11 @@ var
   NewDestFile: string;
 begin
   SourceFile := '{#MyAppSourceDir}\config\' + filename;
-  DestFile := ExpandConstant('{app}\config') + '\' + filename;
+  DestFile := ExpandConstant('{app}\cfg') + '\' + filename;
   if FileExists(SourceFile) then
     if FileExists(DestFile) then
       begin
-        NewDestFile := ExpandConstant('{app}\config') + '\' + filename + '.new';
+        NewDestFile := ExpandConstant('{app}\cfg') + '\' + filename + '.new';
         if not FileCopy(SourceFile, NewDestFile, False) then
         begin
           MsgBox('Error copying file.', mbError, MB_OK);
@@ -281,16 +282,16 @@ begin
 end;
 
 [UninstallDelete]
-Type: files; Name: "{app}\xplugins\pi\*.*"
-Type: files; Name: "{app}\xplugins\opc\*.*"
-Type: files; Name: "{app}\xplugins\mqtt\*.*"
-Type: files; Name: "{app}\xplugins\influxdb\*.*"
-Type: files; Name: "{app}\xplugins\opentsdb\*.*"
-Type: dirifempty; Name: "{app}\xplugins\pi";
-Type: dirifempty; Name: "{app}\xplugins\opc";
-Type: dirifempty; Name: "{app}\xplugins\mqtt";
-Type: dirifempty; Name: "{app}\xplugins\influxdb";
-Type: dirifempty; Name: "{app}\xplugins\opentsdb";
+Type: files; Name: "{app}\plugins\pi\*.*"
+Type: files; Name: "{app}\plugins\opc\*.*"
+Type: files; Name: "{app}\plugins\mqtt\*.*"
+Type: files; Name: "{app}\plugins\influxdb\*.*"
+Type: files; Name: "{app}\plugins\opentsdb\*.*"
+Type: dirifempty; Name: "{app}\plugins\pi";
+Type: dirifempty; Name: "{app}\plugins\opc";
+Type: dirifempty; Name: "{app}\plugins\mqtt";
+Type: dirifempty; Name: "{app}\plugins\influxdb";
+Type: dirifempty; Name: "{app}\plugins\opentsdb";
 
 [UninstallRun]
 Filename: "{app}\uninstall_{#AppName}.exe"; Parameters: "/SILENT"; Check: fileexists('{app}\uninstall_{#AppName}.exe')
