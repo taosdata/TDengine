@@ -1005,6 +1005,7 @@ export default {
 
   datasource: {
     transformer:{
+      jsontip:'请输入正确JSON格式',
       mappingvaildtip:'请填写正确的主键，列和tag',
       extractdesc:`<strong>taosX 支持 JSON 或正则表达式解析文本</strong>：<br/>
       1. <strong>JSON</strong>: 用户使用多个 ; 分隔的字段名（如： name ）或  [JSON Path]<em>(https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-20.html)</em> 提取表达式（形如 "$.path=new_name"，如： $.field.sub=new_name ）从 JSON 对象中提取出多列。<br/>

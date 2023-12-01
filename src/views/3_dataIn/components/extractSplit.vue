@@ -267,16 +267,37 @@ export default {
     submitExtract() {
       let extractExpres = this.ruleForm.filter_expres.split(";");
       let inputList = [];
-      let resultMsgbody=''
-      if(this.$parent.msgForm.msgbody.replace(/\}\s*\{/g,'}{').includes('}{')){
-        resultMsgbody=this.$parent.msgForm.msgbody.replace(/\}\s*\{/g,'}&${').split("&$")
-      }else{
-        if(/\n/g.test(this.$parent.msgForm.msgbody)){
-          resultMsgbody=this.$parent.msgForm.msgbody.replace(/[\n\s]/g,'*&$*').split('*&$*')
-        }else{
-          resultMsgbody=this.$parent.msgForm.msgbody.split(';')
+      let resultMsgbody = "";
+      if (
+        this.$parent.msgForm.msgbody.replace(/\}\s*\{/g, "}{").includes("}{")
+      ) {
+        resultMsgbody = this.$parent.msgForm.msgbody
+          .replace(/\}\s*\{/g, "}&${")
+          .split("&$");
+      } else {
+        if (
+          /\n/g.test(this.$parent.msgForm.msgbody) &&
+          /^[^\{]/.test(this.$parent.msgForm.msgbody.trim())
+        ) {
+          //普通文本，目前第一列暂时不能为json格式
+          resultMsgbody = this.$parent.msgForm.msgbody
+            .replace(/[\n\s]/g, "*&$*")
+            .split("*&$*");
+        } else {
+          try {
+            if (
+              /^\{/g.test(this.$parent.msgForm.msgbody) &&
+              JSON.parse(this.$parent.msgForm.msgbody)
+            ) {
+              resultMsgbody = [].concat(this.$parent.msgForm.msgbody);
+            } 
+          } catch (error) {
+            Message.error(this.$t("datasource.transformer.jsontip"));
+            return;
+          }
+
+          resultMsgbody = this.$parent.msgForm.msgbody.split(";");
         }
-       
       }
       inputList = resultMsgbody.map((msg) => {
         let inputobj = {};
@@ -286,21 +307,24 @@ export default {
               inputobj["payload"] = msg;
             } else {
               inputobj[item.name] =
-                item.type == "timestamp" ? parsinginZone(new Date()) : item.name;
+                item.type == "timestamp"
+                  ? parsinginZone(new Date())
+                  : item.name;
             }
           } else if (this.$store.state.app.currentDBType == "kafka") {
             if (item.name == "value") {
               inputobj["value"] = msg;
             } else {
               inputobj[item.name] =
-                item.type == "timestamp" ? parsinginZone(new Date()) : item.name;
+                item.type == "timestamp"
+                  ? parsinginZone(new Date())
+                  : item.name;
             }
           }
         });
         return inputobj;
       });
       this.extractParseData = {};
-      console.log(this.$store.state.app.splitExpresList,'单个保存');
       this.$parent.extractArr
         .map((item) => {
           return {
