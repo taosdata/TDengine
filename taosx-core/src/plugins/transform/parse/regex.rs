@@ -160,6 +160,12 @@ impl Parse for Regex {
                 // dbg!(&schema);
                 // dbg!(&fields);
                 if self.keep {
+                    if fields.iter().any(|f| f.name() == field.name()) {
+                        Err(anyhow::anyhow!(
+                            "Keep field name {:?} is already in the regex capture names",
+                            field.name()
+                        ))?;
+                    }
                     arrays.push((field.name(), array.clone()));
                 }
 
@@ -179,9 +185,6 @@ impl Parse for Regex {
                 }
                 for f in &fields {
                     let name = f.name();
-                    if name == field.name() {
-                        continue;
-                    }
                     let dt = f.data_type();
                     macro_rules! get_values {
                         ($ty:ty) => {
@@ -297,7 +300,7 @@ impl Parse for Regex {
                         }
                     }
                 }
-                let records = RecordBatch::try_from_iter(arrays).unwrap();
+                let records = RecordBatch::try_from_iter(arrays)?;
                 Ok((records, None))
             }
             ExtractRule::ByCaptureLocations(caps) => {

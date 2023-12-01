@@ -44,6 +44,8 @@ pub enum ParseError {
     SplitError(#[from] split::SplitError),
     #[error("Unsupported data type: {0:?}")]
     UnsupportedDataType(arrow::datatypes::DataType),
+    #[error(transparent)]
+    OtherError(#[from] anyhow::Error),
 }
 
 /// Parse will be applied to one filed of data with [ArrayRef].
