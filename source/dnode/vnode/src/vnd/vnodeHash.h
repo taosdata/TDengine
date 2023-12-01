@@ -13,24 +13,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_CLUSTER_H_
-#define _TD_MND_CLUSTER_H_
+#ifndef _VNODE_HAS_H_
+#define _VNODE_HAS_H_
 
-#include "mndInt.h"
+#include "vnd.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t mndInitCluster(SMnode *pMnode);
-void    mndCleanupCluster(SMnode *pMnode);
-int32_t mndGetClusterName(SMnode *pMnode, char *clusterName, int32_t len);
-int64_t mndGetClusterId(SMnode *pMnode);
-int64_t mndGetClusterCreateTime(SMnode *pMnode);
-int64_t mndGetClusterUpTime(SMnode *pMnode);
+typedef struct SVHashTable SVHashTable;
+
+int32_t vHashInit(SVHashTable** ht, uint32_t (*hash)(const void*), int32_t (*compare)(const void*, const void*));
+int32_t vHashDestroy(SVHashTable** ht);
+int32_t vHashPut(SVHashTable* ht, void* obj);
+int32_t vHashGet(SVHashTable* ht, const void* obj, void** retObj);
+int32_t vHashDrop(SVHashTable* ht, const void* obj);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MND_CLUSTER_H_*/
+#endif /*_VNODE_HAS_H_*/

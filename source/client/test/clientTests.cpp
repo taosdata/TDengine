@@ -126,9 +126,9 @@ void queryCallback(void* param, void* res, int32_t code) {
   taos_fetch_raw_block_a(res, fetchCallback, param);
 }
 
-void createNewTable(TAOS* pConn, int32_t index) {
+void createNewTable(TAOS* pConn, int32_t index, int32_t numOfRows, int64_t startTs, const char* pVarchar) {
   char str[1024] = {0};
-  sprintf(str, "create table tu%d using st2 tags(%d)", index, index);
+  sprintf(str, "create table if not exists tu%d using st2 tags(%d)", index, index);
 
   TAOS_RES* pRes = taos_query(pConn, str);
   if (taos_errno(pRes) != 0) {
@@ -136,22 +136,43 @@ void createNewTable(TAOS* pConn, int32_t index) {
   }
   taos_free_result(pRes);
 
-  for (int32_t i = 0; i < 10000; i += 20) {
-    char sql[1024] = {0};
-    sprintf(sql,
-            "insert into tu%d values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
-            "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
-            "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
-            "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)",
-            index, i, i, i + 1, i + 1, i + 2, i + 2, i + 3, i + 3, i + 4, i + 4, i + 5, i + 5, i + 6, i + 6, i + 7,
-            i + 7, i + 8, i + 8, i + 9, i + 9, i + 10, i + 10, i + 11, i + 11, i + 12, i + 12, i + 13, i + 13, i + 14,
-            i + 14, i + 15, i + 15, i + 16, i + 16, i + 17, i + 17, i + 18, i + 18, i + 19, i + 19);
-    TAOS_RES* p = taos_query(pConn, sql);
-    if (taos_errno(p) != 0) {
-      printf("failed to insert data, reason:%s\n", taos_errstr(p));
-    }
+  if (startTs == 0) {
+    for (int32_t i = 0; i < numOfRows; i += 20) {
+      char sql[1024] = {0};
+      sprintf(sql,
+              "insert into tu%d values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
+              "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
+              "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
+              "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)",
+              index, i, i, i + 1, i + 1, i + 2, i + 2, i + 3, i + 3, i + 4, i + 4, i + 5, i + 5, i + 6, i + 6, i + 7,
+              i + 7, i + 8, i + 8, i + 9, i + 9, i + 10, i + 10, i + 11, i + 11, i + 12, i + 12, i + 13, i + 13, i + 14,
+              i + 14, i + 15, i + 15, i + 16, i + 16, i + 17, i + 17, i + 18, i + 18, i + 19, i + 19);
+      TAOS_RES* p = taos_query(pConn, sql);
+      if (taos_errno(p) != 0) {
+        printf("failed to insert data, reason:%s\n", taos_errstr(p));
+      }
 
-    taos_free_result(p);
+      taos_free_result(p);
+    }
+  } else {
+    for (int32_t i = 0; i < numOfRows; i += 20) {
+      char sql[1024*50] = {0};
+      sprintf(sql,
+              "insert into tu%d values(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, "
+              "%d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, "
+              "'%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')",
+              index, startTs, i, pVarchar, startTs + 1, i + 1, pVarchar, startTs + 2, i + 2, pVarchar, startTs + 3, i + 3, pVarchar, startTs + 4, i + 4,
+              pVarchar, startTs + 5, i + 5, pVarchar, startTs + 6, i + 6, pVarchar, startTs + 7, i + 7, pVarchar, startTs + 8, i + 8, pVarchar, startTs + 9, i + 9,
+              pVarchar, startTs + 10, i + 10, pVarchar, startTs + 11, i + 11, pVarchar, startTs + 12, i + 12, pVarchar, startTs + 13, i + 13, pVarchar, startTs + 14,
+              i + 14, pVarchar, startTs + 15, i + 15, pVarchar, startTs + 16, i + 16, pVarchar, startTs + 17, i + 17, pVarchar, startTs + 18, i + 18,
+              pVarchar, startTs + 19, i + 19, pVarchar);
+      TAOS_RES* p = taos_query(pConn, sql);
+      if (taos_errno(p) != 0) {
+        printf("failed to insert data, reason:%s\n", taos_errstr(p));
+      }
+
+      taos_free_result(p);
+    }
   }
 }
 
@@ -808,14 +829,7 @@ TEST(clientCase, projection_query_tables) {
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create stable st1 (ts timestamp, k int) tags(a int)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
-  }
-
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create stable st2 (ts timestamp, k int) tags(a int)");
+  pRes = taos_query(pConn, "create stable st2 (ts timestamp, k int, f varchar(4096)) tags(a int)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
   }
@@ -828,28 +842,32 @@ TEST(clientCase, projection_query_tables) {
   taos_free_result(pRes);
 
   int64_t start = 1685959190000;
+  const char* pstr =
+      "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefgh"
+      "ijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnop"
+      "qrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx"
+      "yzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdef"
+      "ghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz!@#$%^&&*&^^%$#@!qQWERTYUIOPASDFGHJKL:"
+      "QWERTYUIOP{}";
 
-  int32_t code = -1;
-  for(int32_t i = 0; i < 1000000; ++i) {
-    char t[512] = {0};
+  for(int32_t i = 0; i < 10000; ++i) {
+    char str[1024] = {0};
+    sprintf(str, "create table if not exists tu%d using st2 tags(%d)", i, i);
 
-    sprintf(t, "insert into t1 values(now, %d)", i);
-    while(1) {
-      void* p = taos_query(pConn, t);
-      code = taos_errno(p);
-      taos_free_result(p);
-      if (code != 0) {
-        printf("insert data error, retry\n");
-      } else {
-        break;
-      }
+    TAOS_RES* px = taos_query(pConn, str);
+    if (taos_errno(px) != 0) {
+      printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+    }
+    taos_free_result(px);
+  }
+
+  for(int32_t j = 0; j < 5000; ++j) {
+    start += 20;
+    for (int32_t i = 0; i < 10000; ++i) {
+      createNewTable(pConn, i, 20, start, pstr);
     }
   }
 
-  for (int32_t i = 0; i < 1; ++i) {
-    printf("create table :%d\n", i);
-    createNewTable(pConn, i);
-  }
   //
   //  pRes = taos_query(pConn, "select * from tu");
   //  if (taos_errno(pRes) != 0) {

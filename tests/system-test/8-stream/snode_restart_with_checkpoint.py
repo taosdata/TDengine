@@ -31,7 +31,7 @@ class TDTestCase:
         tdSql.query("use test")
         tdSql.query("create snode on dnode 4")
         tdSql.query("create stream if not exists s1 trigger at_once  ignore expired 0 ignore update 0  fill_history 1 into st1 as select _wstart,sum(voltage),groupid from meters partition by groupid interval(2s)")
-        tdLog.debug("========create stream useing snode and insert data ok========")
+        tdLog.debug("========create stream using snode and insert data ok========")
         time.sleep(60)
 
         tdDnodes = cluster.dnodes
