@@ -347,10 +347,15 @@ extern int32_t tsdbEnableBgTask(STsdb *pTsdb);
 static int32_t vnodeCancelAndDisableAllBgTask(SVnode *pVnode) {
   tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
   vnodeSyncCommit(pVnode);
+  vnodeAChannelDestroy(vnodeAsyncHandle[0], pVnode->commitChannel, true);
   return 0;
 }
 
-static int32_t vnodeEnableBgTask(SVnode *pVnode) { return tsdbEnableBgTask(pVnode->pTsdb); }
+static int32_t vnodeEnableBgTask(SVnode *pVnode) {
+  tsdbEnableBgTask(pVnode->pTsdb);
+  vnodeAChannelInit(vnodeAsyncHandle[0], &pVnode->commitChannel);
+  return 0;
+}
 
 int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter) {
   int32_t       code = 0;
