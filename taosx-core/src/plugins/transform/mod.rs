@@ -67,6 +67,7 @@ pub struct Pipeline {
 
 impl Pipeline {
     pub fn transform(&self, records: &RecordBatch) -> Result<Vec<ModeledRecordBatch>, Error> {
+        self.check()?;
         let batch = self
             .parse
             .as_ref()
@@ -83,6 +84,51 @@ impl Pipeline {
             Ok(vec![ModeledRecordBatch::new(batch)])
         }
     }
+
+    fn check(&self) -> Result<(), Error> {
+        if self.mutate.is_empty() && self.parse.is_none() {
+            Err(anyhow::anyhow!(
+                "Either parse or mutate must be set in pipeline"
+            ))?;
+        }
+        if let Some(model) = self.model.as_ref() {
+            for table in model {
+                if table.name.is_empty() {
+                    return Err(Error::EmptyTableName);
+                } else if table.name.contains('.') {
+                    return Err(Error::TableNameContainsDot(table.name.clone()));
+                }
+
+                if let Some(columns) = table.columns.as_ref() {
+                    if columns.is_empty() {
+                        return Err(Error::EmptyTableColumns(table.name.clone()));
+                    }
+                    for dup in columns.iter().duplicates() {
+                        return Err(Error::DuplicatedColumns(dup.clone()));
+                    }
+                }
+
+                if let Some(tags) = table.tags.as_ref() {
+                    if table.using.as_ref().is_none() {
+                        return Err(Error::STableNameRequired);
+                    }
+                    for dup in tags.iter().duplicates() {
+                        return Err(Error::DuplicatedTags(dup.clone()));
+                    }
+                }
+                if let Some(stable) = table.using.as_ref() {
+                    if stable.is_empty() {
+                        return Err(Error::EmptySTableName);
+                    } else if stable.contains('.') {
+                        return Err(Error::STableNameContainsDot(stable.clone()));
+                    } else if table.tags.as_ref().map(Vec::is_empty).unwrap_or(true) {
+                        return Err(Error::STableTagsRequired);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -93,6 +139,61 @@ mod pipeline_tests {
     use arrow::datatypes::TimeUnit;
 
     use super::*;
+
+    #[test]
+    fn test_expr_functions() {
+        let records = demo_mqtt_records();
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double", "value", "$.id=id::int"] } }
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser and mutate
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int"] } },
+            "mutate": [
+                {"map": { "v0": { "value": "ssstr" } } },
+                {"map": {
+                    "e1": { "expr": "v0.append(\"abc\")" },
+                    "e2": { "expr": "v0.replace(\"s\", \"a\")" },
+                    "e3": { "expr": "v0.replace(\"s\", \"a\", 1)" },
+                    "e4": { "expr": "v0.truncate(1)" }
+            } } ]
+        }"#
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        assert_eq!(
+            output[0]
+                .fields
+                .iter()
+                .map(|f| (f.name.as_str(), f.arrow_type.clone()))
+                .collect_vec(),
+            vec![
+                ("ts", DataType::Timestamp(TimeUnit::Millisecond, None)),
+                ("price", DataType::Float64),
+                ("value", DataType::Float64),
+                ("id", DataType::Int32),
+                ("v0", DataType::Utf8),
+                ("e1", DataType::Utf8),
+                ("e2", DataType::Utf8),
+                ("e3", DataType::Utf8),
+                ("e4", DataType::Utf8)
+            ]
+        );
+    }
 
     #[test]
     fn test_pipeline_map() {
@@ -814,11 +915,6 @@ impl Parser {
     }
 
     fn transform_records(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {
-        if self.mutate.is_empty() && self.parse.is_none() {
-            Err(anyhow::anyhow!(
-                "Either parse or mutate must be set in pipeline"
-            ))?;
-        }
         let batch = self
             .parse
             .as_ref()
@@ -963,6 +1059,11 @@ impl Parser {
     }
 
     fn self_check(&self) -> Result<(), Error> {
+        if self.mutate.is_empty() && self.parse.is_none() {
+            Err(anyhow::anyhow!(
+                "Either parse or mutate must be set in pipeline"
+            ))?;
+        }
         for table in &self.model {
             if table.name.is_empty() {
                 return Err(Error::EmptyTableName);
@@ -992,6 +1093,8 @@ impl Parser {
                     return Err(Error::EmptySTableName);
                 } else if stable.contains('.') {
                     return Err(Error::STableNameContainsDot(stable.clone()));
+                } else if table.tags.as_ref().map(Vec::is_empty).unwrap_or(true) {
+                    return Err(Error::STableTagsRequired);
                 }
             }
         }
@@ -1407,16 +1510,22 @@ pub enum Error {
     TableNameContainsDot(String),
     #[error("STable name should be set when tags not empty")]
     STableNameRequired,
+    #[error("Tags should not be empty when when stable set")]
+    STableTagsRequired,
     #[error("STable name should not be empty")]
     EmptySTableName,
     #[error("STable name should not contain dot: {0}")]
     STableNameContainsDot(String),
-    #[error(transparent)]
+    #[error("Internal transform error: {0:#}")]
     ArrowError(#[from] ArrowError),
-    #[error(transparent)]
+    #[error("Transform mapper error: {0:#}")]
     MapValueError(#[from] map::ValueBuilderError),
-    #[error("{0:#}")]
+    #[error("Transform error: {0:#}")]
     Other(#[from] anyhow::Error),
+    #[error("Primary key({0}) must be non-null")]
+    NullPrimaryKey(String),
+    #[error("Primary key({0}) must be or could be casted to timestamp: {1:#}")]
+    PrimaryKeyCastError(String, arrow_schema::ArrowError),
 }
 
 fn indices_to_ranges(indices: &[usize]) -> Vec<Range<usize>> {

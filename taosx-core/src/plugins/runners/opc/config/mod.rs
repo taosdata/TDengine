@@ -1,4 +1,4 @@
-use anyhow::bail;
+use anyhow::{bail, Context};
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, Write};
 use std::str::FromStr;
@@ -96,7 +96,11 @@ impl OPCConfig {
             debug: Self::parse_debug(dsn)?,
             connect: ConnectConfig::from_dsn(dsn)?,
             points: None,
-            collect: CollectConfig::new_empty().await?,
+            collect: if dsn.get("csv_config_file").is_some() {
+                CollectConfig::from_dsn(dsn, None).await?
+            } else {
+                CollectConfig::new_empty().await?
+            },
             report: ReportConfig::from_dsn(dsn, 0)?,
             param_mapping: HashMap::new(),
             opc_table_config: None,
@@ -291,8 +295,8 @@ pub async fn generate_config_from_csv(
         let header = records.next().await;
         // skip first line(desc)
         if header.is_none() {
-            tracing::warn!("file {file} should have 2 lines at least");
-            continue;
+            tracing::warn!("file {file} should have 3 lines at least");
+            bail!("Config file {file} should not be empty");
         }
         let header = header.unwrap()?;
         // header parse
@@ -397,13 +401,15 @@ pub async fn generate_config_from_csv(
                     if !column_config_init {
                         let value_column_name = record_map
                             .get("value_col")
+                            .and_then(|v| if v.is_empty() { None } else { Some(v) })
                             .unwrap_or(&"val".to_string())
                             .clone();
                         check_duplicated(
                             &current_tag_names,
                             Some(&current_columns),
                             &value_column_name,
-                        )?;
+                        )
+                        .with_context(|| format!("Config error with {value_column_name}"))?;
                         current_columns.push(value_column_name.clone());
                         column_config.push(ColumnConfig {
                             column_name: "value".to_string(),
@@ -512,10 +518,10 @@ fn check_duplicated(
     column_name: &String,
 ) -> anyhow::Result<()> {
     if current_tags.contains(column_name) {
-        anyhow::bail!("duplicated column or tag: {column_name}")
+        anyhow::bail!("duplicated tag: {column_name}")
     }
     if current_columns.is_some() && current_columns.unwrap().contains(column_name) {
-        anyhow::bail!("duplicated column or tag: {column_name}")
+        anyhow::bail!("duplicated column: {column_name}")
     }
     Ok(())
 }
@@ -598,5 +604,18 @@ mod tests {
             "stable parse error"
         );
         assert!(config.param_mapping["ns=3;i=1008"].stable.as_ref().unwrap() == "stb_int");
+    }
+
+    #[tokio::test]
+    async fn test_csv_empty() {
+        tracing_subscriber::fmt::init();
+        let f = generate_config_from_csv("opcua", "@./tests/opc_table_empty.csv").await;
+        assert!(dbg!(f).is_err());
+    }
+    #[tokio::test]
+    async fn test_csv_template() {
+        tracing_subscriber::fmt::init();
+        let f = generate_config_from_csv("opcua", "@./tests/template-en.csv").await;
+        assert!(dbg!(f).is_ok());
     }
 }

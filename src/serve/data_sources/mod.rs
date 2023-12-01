@@ -322,6 +322,15 @@ pub(super) async fn data_source_sample(data: Json<DsSampleIn>) -> impl Responder
     // ));
 }
 
+#[test]
+fn test_sample_flat() {
+    let json = r#"
+{"parser":{"parse":{"current":{"regex":"(?P<current>\\d+\\.\\d+)"}}},"input":[{"current":"10.3","groupid":"2","id":"1001","location":"California.SanFrancisco","phase":"0.31","timestamp":"1538548685000","voltage":"219"},{"current":"10.2","groupid":"3","id":"1002","location":"California.SanFrancisco","phase":"0.23","timestamp":"1538548684000","voltage":"220"},{"current":"11.5","groupid":"3","id":"1003","location":"California.LosAngeles","phase":"0.35","timestamp":"1538548686500","voltage":"221"}]}
+    "#;
+    let sample_in: DsSampleIn = serde_json::from_str(json).unwrap();
+    let output = sample_in.transform().unwrap();
+    dbg!(serde_json::to_string(&output).unwrap());
+}
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub(super) struct DataSets {
     id: String,
