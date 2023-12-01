@@ -192,8 +192,6 @@ typedef struct {
   int64_t createdTime;
   int64_t updateTime;
   int32_t upTime;
-  int64_t grantedTime;
-  int64_t connGrantedTime;
 } SClusterObj;
 
 typedef struct {
@@ -651,8 +649,7 @@ typedef struct SStreamConf {
 } SStreamConf;
 
 typedef struct {
-  char name[TSDB_STREAM_FNAME_LEN];
-  // ctl
+  char     name[TSDB_STREAM_FNAME_LEN];
   SRWLatch lock;
 
   // create info
@@ -701,6 +698,11 @@ typedef struct {
 
 } SStreamObj;
 
+typedef struct SStreamSeq {
+  char     name[24];
+  uint64_t seq;
+  SRWLatch lock;
+} SStreamSeq;
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
 int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj, int32_t sver);
 void    tFreeStreamObj(SStreamObj* pObj);
@@ -732,13 +734,12 @@ typedef struct {
   int8_t   type;
   int32_t  numOfCols;
   SSchema* pSchema;
-  SRWLatch lock;  
+  SRWLatch lock;
 } SViewObj;
 
 int32_t tEncodeSViewObj(SEncoder* pEncoder, const SViewObj* pObj);
 int32_t tDecodeSViewObj(SDecoder* pDecoder, SViewObj* pObj, int32_t sver);
 void    tFreeSViewObj(SViewObj* pObj);
-
 
 #ifdef __cplusplus
 }

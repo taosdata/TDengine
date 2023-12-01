@@ -18,11 +18,6 @@
 #define TSDB_MAX_LEVEL 2  // means max level is 3
 
 typedef struct {
-  STsdb  *tsdb;
-  int32_t fid;
-} SMergeArg;
-
-typedef struct {
   STsdb     *tsdb;
   int32_t    fid;
   STFileSet *fset;
@@ -528,7 +523,7 @@ static int32_t tsdbMergeGetFSet(SMerger *merger) {
   return 0;
 }
 
-static int32_t tsdbMerge(void *arg) {
+int32_t tsdbMerge(void *arg) {
   int32_t    code = 0;
   int32_t    lino = 0;
   SMergeArg *mergeArg = (SMergeArg *)arg;
@@ -568,7 +563,7 @@ static int32_t tsdbMerge(void *arg) {
           if (mtime < now - tsS3UploadDelaySec) {
             skipMerge = true;
           }
-        } else if (s3Size(object_name) > 0) {
+        } else /* if (s3Size(object_name) > 0) */ {
           skipMerge = true;
         }
       }
@@ -595,20 +590,5 @@ _exit:
     exit(EXIT_FAILURE);
   }
   tsdbTFileSetClear(&merger->fset);
-  return code;
-}
-
-int32_t tsdbSchedMerge(STsdb *tsdb, int32_t fid) {
-  SMergeArg *arg = taosMemoryMalloc(sizeof(*arg));
-  if (arg == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  arg->tsdb = tsdb;
-  arg->fid = fid;
-
-  int32_t code = tsdbFSScheduleBgTask(tsdb->pFS, fid, TSDB_BG_TASK_MERGER, tsdbMerge, taosMemoryFree, arg, NULL);
-  if (code) taosMemoryFree(arg);
-
   return code;
 }

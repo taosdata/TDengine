@@ -3112,7 +3112,7 @@ typedef struct {
 
 int32_t tSerializeSMDropStreamReq(void* buf, int32_t bufLen, const SMDropStreamReq* pReq);
 int32_t tDeserializeSMDropStreamReq(void* buf, int32_t bufLen, SMDropStreamReq* pReq);
-void    tFreeSMDropStreamReq(SMDropStreamReq* pReq);
+void    tFreeMDropStreamReq(SMDropStreamReq* pReq);
 
 typedef struct {
   char   name[TSDB_STREAM_FNAME_LEN];
@@ -3271,7 +3271,7 @@ typedef struct {
   SMsgHead head;
   int64_t  streamId;
   int32_t  taskId;
-} SVPauseStreamTaskReq, SVResetStreamTaskReq;
+} SVPauseStreamTaskReq, SVResetStreamTaskReq, SVDropHTaskReq;
 
 typedef struct {
   int8_t reserved;

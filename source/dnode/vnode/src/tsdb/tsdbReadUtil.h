@@ -97,7 +97,7 @@ typedef struct SResultBlockInfo {
   int64_t      capacity;
 } SResultBlockInfo;
 
-typedef struct SCostSummary {
+typedef struct SReadCostSummary {
   int64_t numOfBlocks;
   double  blockLoadTime;
   double  buildmemBlock;
@@ -111,7 +111,7 @@ typedef struct SCostSummary {
   double  createScanInfoList;
   double  createSkylineIterTime;
   double  initLastBlockReader;
-} SCostSummary;
+} SReadCostSummary;
 
 typedef struct STableUidList {
   uint64_t* tableUidList;  // access table uid list in uid ascending order list
@@ -122,12 +122,6 @@ typedef struct {
   int32_t numOfBlocks;
   int32_t numOfSttFiles;
 } SBlockNumber;
-
-typedef struct SBlockIndex {
-  int32_t     ordinalIndex;
-  int64_t     inFileOffset;
-  STimeWindow window;  // todo replace it with overlap flag.
-} SBlockIndex;
 
 typedef struct SBlockOrderWrapper {
   int64_t              uid;
@@ -193,6 +187,7 @@ typedef struct SFileBlockDumpInfo {
 } SFileBlockDumpInfo;
 
 typedef struct SReaderStatus {
+  bool                  suspendInvoked;
   bool                  loadFromFile;       // check file stage
   bool                  composedDataBlock;  // the returned data block is a composed block or not
   SSHashObj*            pTableMap;          // SHash<STableBlockScanInfo>
@@ -227,7 +222,8 @@ struct STsdbReader {
   int32_t            type;   // query type: 1. retrieve all data blocks, 2. retrieve direct prev|next rows
   SBlockLoadSuppInfo suppInfo;
   STsdbReadSnap*     pReadSnap;
-  SCostSummary       cost;
+  tsem_t             resumeAfterSuspend;
+  SReadCostSummary   cost;
   SHashObj**         pIgnoreTables;
   SSHashObj*         pSchemaMap;   // keep the retrieved schema info, to avoid the overhead by repeatly load schema
   SDataFileReader*   pFileReader;  // the file reader

@@ -41,7 +41,7 @@ Launch `TDinsight.sh` with the command above and restart Grafana, then open Dash
 
 ## log database
 
-The data of tdinsight dashboard is stored in `log` database (default. You can change it in taoskeeper's config file. For more infrmation, please reference to [taoskeeper document](/reference/taosKeeper)). The taoskeeper will create log database on taoskeeper startup.
+The data of tdinsight dashboard is stored in `log` database (default. You can change it in taoskeeper's config file. For more infrmation, please reference to [taoskeeper document](../../reference/taosKeeper)). The taoskeeper will create log database on taoskeeper startup.
 
 ### cluster\_info table
 
