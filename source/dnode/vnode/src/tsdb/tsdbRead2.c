@@ -423,7 +423,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
     goto _end;
   }
 
-  pReader->bDurationOrder = true;
+  pReader->bDurationOrder = false;
 
   tsdbInitReaderLock(pReader);
   tsem_init(&pReader->resumeAfterSuspend, 0, 0);
@@ -5134,6 +5134,10 @@ void tsdbReaderSetId2(STsdbReader* pReader, const char* idstr) {
 }
 
 void tsdbReaderSetCloseFlag(STsdbReader* pReader) { /*pReader->code = TSDB_CODE_TSC_QUERY_CANCELLED;*/
+}
+
+void tsdbSetDurationOrder(STsdbReader* pReader) {
+  pReader->bDurationOrder = true;
 }
 
 void tsdbReaderSetNotifyCb(STsdbReader* pReader, TsdReaderNotifyCbFn notifyFn, void* param) {

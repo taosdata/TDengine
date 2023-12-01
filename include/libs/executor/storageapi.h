@@ -183,6 +183,7 @@ typedef struct TsdReader {
   int64_t      (*tsdReaderGetNumOfInMemRows)();
   void         (*tsdReaderNotifyClosing)();
 
+  void         (*tsdSetDurationOrder)(void* pReader);
   void         (*tsdSetSetNotifyCb)(void* pReader, TsdReaderNotifyCbFn notifyFn, void* param);
 } TsdReader;
 
