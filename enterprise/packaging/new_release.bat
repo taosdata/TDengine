@@ -107,6 +107,7 @@ if "%verType%" == "cluster" (
 	git clone --depth 1 https://github.com/taosdata/taos-connector-rust %install_dir%/connector/rust
 	rm -rf %install_dir%/connector/rust/.git*
 
+
   	md %install_dir%\examples
 	
     set examples_dir="%internal_dir%\community\examples"
@@ -122,8 +123,8 @@ if "%verType%" == "cluster" (
     md %install_dir%\examples\taosbenchmark-json
     xcopy /S %internal_dir%\community\tools\taos-tools\example %install_dir%\examples\taosbenchmark-json\*
 )
-cd %package_dir%
 
+cd %package_dir%
 if "%cusName%" == "TDengine" (
 	if "%verType%" == "cluster" (
 		call :writeTDengineClientInstallFile
@@ -146,12 +147,14 @@ if "%verType%" == "cluster" (
 	echo "==== build taosx ====="
 	cd %internal_dir%\enterprise\src\plugins\taosx\packaging
 	python release.py -ob -vn %version%
-	xcopy /S %taosx_release_dir%\plugins\* %install_dir%\plugins\*
+	xcopy /S /E %taosx_release_dir%\plugins\* %install_dir%\plugins\*
 	xcopy /S %taosx_release_dir%\bin %install_dir%\*
 	xcopy /S %taosx_release_dir%\append %install_dir%\append\*
 	xcopy /S %taosx_release_dir%\config %install_dir%\cfg\*
 	echo "==== build taosx done ====="
 )
+
+cd %package_dir%
 if "%cusName%" == "TDengine" (
 	if "%verType%" == "cluster" (
 		call :writeTDengineServerInstallFile
