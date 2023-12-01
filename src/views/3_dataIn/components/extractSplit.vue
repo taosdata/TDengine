@@ -271,7 +271,12 @@ export default {
       if(this.$parent.msgForm.msgbody.replace(/\}\s*\{/g,'}{').includes('}{')){
         resultMsgbody=this.$parent.msgForm.msgbody.replace(/\}\s*\{/g,'}&${').split("&$")
       }else{
-        resultMsgbody=this.$parent.msgForm.msgbody.split(';')
+        if(/\n/g.test(this.$parent.msgForm.msgbody)){
+          resultMsgbody=this.$parent.msgForm.msgbody.replace(/[\n\s]/g,'*&$*').split('*&$*')
+        }else{
+          resultMsgbody=this.$parent.msgForm.msgbody.split(';')
+        }
+       
       }
       inputList = resultMsgbody.map((msg) => {
         let inputobj = {};
