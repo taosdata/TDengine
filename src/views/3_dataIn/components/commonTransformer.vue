@@ -128,7 +128,7 @@
               {{ $t("datasource.transformer.mapping") }}
               <el-button
                 type="primary"
-                @click="calculateMappingResult"
+                @click="caculateMappingResult"
                 size="small"
                 >{{ $t("datasource.transformer.calculate") }}</el-button
               >
@@ -510,7 +510,7 @@ export default {
       });
     },
     //计算mapping的结果
-    calculateMappingResult() {
+    caculateMappingResult() {
       if (!this.msgForm.msgbody) {
         Message.error(this.$t("datasource.transformer.msgbodytip"));
         return;
@@ -638,7 +638,7 @@ export default {
       // if (!this.mappingParser.parser) {
       //   this.caculateMappingResult();
       // }
-      console.log(this.$store.state.app.splitExpresList,'split的参数');
+      console.log(this.$store.state.app.splitExpresList,'split的参数--最新修改');
       this.caculateMappingResult();
 
       let extractObj = {};
@@ -906,7 +906,7 @@ export default {
           "Expression",
           echoData.model.name.toString()
         );
-        this.calculateMappingResult();
+        this.caculateMappingResult();
       }
     },
     async getSTbaleList() {
