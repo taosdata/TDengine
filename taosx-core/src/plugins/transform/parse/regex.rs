@@ -117,28 +117,22 @@ impl Parse for Regex {
         if array.len() == 0 {
             return Ok((self.to_empty(field.name()), None));
         }
-        let string_array = match array.data_type() {
-            DataType::Utf8 => {
-                let string_array =
-                    array
-                        .as_any()
-                        .downcast_ref::<StringArray>()
-                        .ok_or_else(|| RegexError {
-                            info: "Failed to downcast ArrayRef to StringArray".to_owned(),
-                            item: "".to_string(),
-                            regex: self.regex.to_string(),
-                        })?;
-                string_array
-            }
-            _ => Err(RegexError {
-                info: format!(
-                    "Unsupported data type {:?} for parsing as regex",
-                    array.data_type(),
-                ),
+        let array = arrow::compute::cast(array, &DataType::Utf8).map_err(|err| RegexError {
+            info: format!(
+                "Unsupported data type {:?} for parsing as regex",
+                array.data_type(),
+            ),
+            item: err.to_string(),
+            regex: self.regex.to_string(),
+        })?;
+        let string_array = array
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .ok_or_else(|| RegexError {
+                info: "Failed to downcast ArrayRef to StringArray".to_owned(),
                 item: "".to_string(),
                 regex: self.regex.to_string(),
-            })?,
-        };
+            })?;
         let num_rows = string_array.len();
 
         let rule = self.extract_rule();
@@ -449,10 +443,10 @@ mod tests {
             keep: false,
         };
         let field = Field::new("a", DataType::Utf8, false);
-        let array: ArrayRef = Arc::new(StringArray::from(vec![
-            r#"Not my favorite movie: 'Citizen Kane' (1941)."#,
-            r#"Not my favorite movie: 'Movie1' (1942)."#,
-            r#"Not my favorite movie: 'Movie2' (1943)."#,
+        let array: ArrayRef = Arc::new(BinaryArray::from(vec![
+            r#"Not my favorite movie: 'Citizen Kane' (1941)."#.as_bytes(),
+            r#"Not my favorite movie: 'Movie1' (1942)."#.as_bytes(),
+            r#"Not my favorite movie: 'Movie2' (1943)."#.as_bytes(),
         ]));
         let (records, _) = re.parse_array(&field, &array).unwrap();
 
