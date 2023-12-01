@@ -364,6 +364,11 @@ TD_DEF_MSG_TYPE(TDMT_VND_ALTER_CONFIG, "alter-config", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_MAX_MSG, "vnd-tmq-max", NULL, NULL)
   TD_CLOSE_MSG_TYPE(TDMT_END_TMQ_MSG) 
 
+  TD_NEW_MSG_SEG(TDMT_MAX_MSG)  // msg end mark
+  
+
+  
+
 
   #if defined(TD_MSG_NUMBER_)
     TDMT_MAX
