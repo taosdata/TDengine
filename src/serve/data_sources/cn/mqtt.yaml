@@ -57,9 +57,9 @@ groups:
         required: true
         hint:
           type: file
-  - name: 连接
+  - name: 采集配置
     display_order: 1
-    description: MQTT Broker 连接配置
+    description: 采集任务配置
     params:
       - name: version
         display: MQTT 协议
