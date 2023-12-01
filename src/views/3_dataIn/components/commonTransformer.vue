@@ -635,7 +635,10 @@ export default {
     //获取transformer的所有参数
     getTransformerParams() {
 
-
+      // if (!this.mappingParser.parser) {
+      //   this.caculateMappingResult();
+      // }
+      console.log(this.$store.state.app.splitExpresList,'split的参数');
       this.caculateMappingResult();
 
       let extractObj = {};
