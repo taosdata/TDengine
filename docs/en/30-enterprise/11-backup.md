@@ -3,35 +3,28 @@ toc_max_heading_level: 4
 title: Data Backup and Restoration
 ---
 
-This article describes how to back up your TDengine data to a local disk and restore it from disk. For more information about taosX, see [taosX](../../reference/taosx/). You can back up and restore data through taosExplorer. For more information, see [taosExplorer](../explorer/). For information about installing TDengine, see [Installation](../../get-started/).
+## Backup and Restore Using the Visual Interface
 
-## Back Up TDengine Data
+This section explains how to perform data backup and restore using the visual interface. For specific details, please refer to [Visual Management](../explorer). For service installation and deployment, refer to [Installation and Deployment](../../get-started).
 
-### Example
-```shell
-taosx run -f 'tmq://root:taosdata@td1:6030/db1' -t 'local:/path_directory/'
+### Backup and Restore
 
-```
-This command is described as follows:
+You can back up data from the currently connected TDengine cluster to one or more local files, and later use these files for data restoration. This section will outline the specific steps for data backup and restore.
 
-All data in the `db1` database on the `td1` cluster is backed up to the `/path_directory` directory on the machine running taosX.
+#### Backup Data to Local Files
 
-You can back up databases, supertables, standard tables, and subtables by specifying the desired object in the DSN.
+1. Navigate to the system management page, click on **Backup** to enter the data backup page, and then click **Create New Backup** in the upper right corner.
+2. In the data backup configuration page, you can configure three parameters:
+   - Backup Cycle: Required, configure the time interval for each data backup. You can choose to perform data backup every day, every 7 days, or every 30 days from the drop-down menu. After configuration, a data backup task will start at 0:00 of the corresponding backup cycle.
+   - Database: Required, configure the name of the database to be backed up (the wal_retention_period parameter of the database must be greater than 0).
+   - Directory: Required, configure the path to back up the data to the location specified in the taosX runtime environment, such as /root/data_backup.
+3. Click **Confirm** to create a data backup task.
 
+![backup](./backup-00-new.png)
 
-## Restore TDengine Data
+#### Restore from Local Files
 
-### Example
-```shell
-taosx run -f 'local:/path_directory/' -t 'taos://root:taosdata@td2:6030/db1?assert'
-```
-
-This command is described as follows:
-
-All backed up data in the `/path_directory` directory is restored to the `db1` database on the `tb2` cluster. If `db1` does not exist, it is created.
-
-You can restore databases, supertables, standard tables, and subtables by specifying the desired object in the DSN.
-
+1. After creating the data backup task, click **Data Restore** on the right side of the corresponding data backup task in the page to restore the data that has been backed up to the specified path to the current TDengine.
 
 ## Troubleshooting
 

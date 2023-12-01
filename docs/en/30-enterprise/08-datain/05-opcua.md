@@ -1,18 +1,17 @@
 ---
-title: "OPC-DA"
-sidebar_label: "OPC-DA"
+title: "OPC-UA"
+sidebar_label: "OPC-UA"
 ---
 
-This section describes how to create a data migration task through the Explorer interface, migrating data from an OPC-DA server to the current TDengine cluster.
+This section describes how to create a data migration task through the Explorer interface, migrating data from an OPC-UA server to the current TDengine cluster.
 
 ## Overview
 
-OPC is one of interoperability standard for the secure and reliable exchange of data in the industrial automation space and in other industries.
+OPC is one of the interoperability standards for securely and reliably exchanging data in the industrial automation field and other industries.
 
-OPC DA (Data Access) is a classic COM-based specification that works only on Windows.
-OPC DA is widely used even though it isn’t the newest and most efficient data communication specification out there. This is mainly because of older devices that only support the OPC DA.
+OPC-UA is the next-generation standard for the classic OPC specification. It is a platform-independent, service-oriented architecture specification that integrates all the features of the existing OPC Classic specification and provides a path to a more secure and scalable solution.
 
-TDengine can efficiently read data from OPC-DA servers and write it into TDengine, achieving real-time data storage.
+TDengine can efficiently read data from OPC-UA servers and write it into TDengine, achieving real-time data storage.
 
 ## Creating a Task
 
@@ -26,17 +25,17 @@ In the data writing page, click the **+Add Data Source** button to enter the add
 
 In the **Name** field, enter the task name, such as "test".
 
-In the dropdown list under **Type**, select **OPC-DA**.
+In the dropdown list under **Type**, select **OPC-UA**.
 
-**Agent** is required for OPC-DA unless taosX is served in your OPC-DA accessible host. Select a specific agent from the dropdown or click the **+Create New Agent** button to create a new Agent, follow the instructions in the dialog and finish configuration.
+**Agent** is optional. If needed, you can select a specific agent from the dropdown or click the **+Create New Agent** button [Create a New Agent](#CreateAgent).
 
-In the dropdown list under **Target Database**, select a target database or click the **+Create Database** button to create a new database.
+In the dropdown list under **Target Database**, select a target database or click the **+Create Database** button [Create a New Database](#CreateDatabase).
 
 ![basic.png](./pic/opcua-01-basic.png)
 
 ### 3. Configure Connection Information
 
-In the **Connection Configuration** section, fill in the **OPC-DA Service Address**, for example, `127.0.0.1:5000`, and configure the authentication method.
+In the **Connection Configuration** section, fill in the **OPC-UA Service Address**, for example, `127.0.0.1:5000`, and configure the authentication method.
 
 Click the **Connectivity Check** button to check if the data source is available.
 
@@ -58,7 +57,7 @@ Index (optional), Information Point Code (required, used as the sub-table name),
 The following information is mandatory:
 
 - Information Point Code: Used as the sub-table name.
-- TAG Point Address: Typically in the format `id.name`, a string that can be exported from the OPC-DA server using a tool or downloaded from this page under **Download the list of all points** for editing.
+- TAG Point Address: Typically in the format `"ns=<num>;i=<name>"`, a string that can be exported from the OPC-UA server using a tool or downloaded from this page under **Download the list of all points** for editing.
 - Data Type: Used as the data type in the TDengine cluster for writing values.
 - Tag Columns: The second row defines the tags, formatted as `tag::<type>::<column>`, such as `tag::VARCHAR(200)::name`.
 
@@ -79,10 +78,10 @@ As shown in the figure:
 
 Where:
 
-- **Connection Timeout**: Configure the connection timeout interval, default is 10 seconds.
-- **Collection Timeout**: Collection timeout interval for data points, default is 10 seconds.
-- **Collection Interval**: Data point collection interval, default is 10 seconds.
-- **Collection Mode**: Can use `subscribe` or `observe` mode:
+- **Connect Timeout**: Configure the connection timeout interval, default is 10 seconds.
+- **Request Timeout**: Collection timeout interval for data points, default is 10 seconds.
+- **Collect Interval**: Data point collection interval, default is 10 seconds.
+- **Collect Mode**: Can use `subscribe` or `observe` mode:
 
   - `subscribe`: Subscription mode, report data and write when changes occur.
   - `observe`: Read the latest values of points and report.
