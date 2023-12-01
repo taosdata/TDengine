@@ -148,7 +148,7 @@ void mndCleanupStream(SMnode *pMnode) {
   taosArrayDestroy(execInfo.pTaskList);
   taosHashCleanup(execInfo.pTaskMap);
   taosHashCleanup(execInfo.transMgmt.pDBTrans);
-  taosHashCleanup(execInfo.transMgmt.pWaitingList);
+//  taosHashCleanup(execInfo.transMgmt.pWaitingList);
   taosThreadMutexDestroy(&execInfo.lock);
   mDebug("mnd stream exec info cleanup");
 }
@@ -2916,8 +2916,9 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
     if (pTaskEntry->stage != p->stage && pTaskEntry->stage != -1) {
       updateStageInfo(pTaskEntry, p->stage);
+      // NOTE: uncomment this when merging 3.0 to main.
       if(pTaskEntry->nodeId == SNODE_HANDLE)  {
-        snodeChanged = true;
+//        snodeChanged = true;
       }
     } else {
       // task is idle for more than 50 sec.
