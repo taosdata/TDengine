@@ -49,7 +49,7 @@ inline bool tmsgIsValid(tmsg_t type) {
   return false;
 }
 
-inline char *TMSG_INFO(tmsg_t type) { return (tmsgIsValid(type) ? tMsgInfo[TMSG_INDEX(type)] : "null"); };
+inline char *TMSG_INFO(tmsg_t type) { return (tmsgIsValid(type) ? tMsgInfo[TMSG_INDEX(type)] : "unKnown"); };
 #define DECODESQL()                                                                 \
   do {                                                                              \
     if (!tDecodeIsEnd(&decoder)) {                                                  \
