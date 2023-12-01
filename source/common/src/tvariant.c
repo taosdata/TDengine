@@ -45,21 +45,6 @@ int32_t parseBinaryUInteger(const char *z, int32_t n, uint64_t *value) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t parseDecimalUInteger(const char *z, int32_t n, uint64_t *value) {
-  errno = 0;
-  char *endPtr = NULL;
-  while (*z == '0' && n > 1) {
-    z++;
-    n--;
-  }
-  *value = taosStr2UInt64(z, &endPtr, 10);
-  if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
-    return TSDB_CODE_FAILED;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t parseHexUInteger(const char *z, int32_t n, uint64_t *value) {
   errno = 0;
   char *endPtr = NULL;
@@ -71,10 +56,6 @@ int32_t parseHexUInteger(const char *z, int32_t n, uint64_t *value) {
 }
 
 int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint64_t *value) {
-  *is_neg = false;
-  if (n < 1) {
-    return TSDB_CODE_FAILED;
-  }
 
   // parse sign
   bool has_sign = false;
@@ -83,18 +64,18 @@ int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint64_t *v
     has_sign = true;
   } else if (z[0] == '+') {
     has_sign = true;
-  } else if (z[0] < '0' || z[0] > '9') {
+  } else if (z[0] != '.' && (z[0] < '0' || z[0] > '9')) {
     return TSDB_CODE_FAILED;
   }
   if (has_sign) {
-    z++;
-    n--;
-    if (n < 1) {
+    if (n < 2) {
       return TSDB_CODE_FAILED;
     }
+    z++;
+    n--;
   }
 
-  if (n > 2 && z[0] == '0') {
+  if (z[0] == '0' && n > 2) {
     if (z[1] == 'b' || z[1] == 'B') {
       // paring as binary
       return parseBinaryUInteger(z, n, value);
@@ -106,89 +87,157 @@ int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint64_t *v
     }
   }
 
-  //rm flag u-unsigned, l-long, f-float(if not in hex str)
-  char last = tolower(z[n-1]);
-  if (last == 'u' || last == 'l' || last == 'f') {
-    n--;
-    if (n < 1) {
-      return TSDB_CODE_FAILED;
-    }
-  }
-
-  // parsing as decimal
-  bool parse_int = true;
-  for (int32_t i = 0; i < n; i++) {
-    if (z[i] < '0' || z[i] > '9') {
-      parse_int = false;
-      break;
-    }
-  }
-  if (parse_int) {
-    return parseDecimalUInteger(z, n, value);
-  }
-
   // parsing as double
   errno = 0;
   char  *endPtr = NULL;
   double val = taosStr2Double(z, &endPtr);
-  if (errno == ERANGE || errno == EINVAL || endPtr - z != n || !IS_VALID_UINT64(val)) {
+  if (errno == ERANGE || errno == EINVAL || endPtr - z != n || val > UINT64_MAX) {
     return TSDB_CODE_FAILED;
   }
-  *value = val;
+  *value = round(val);
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t removeSpace(const char **pp, int32_t n) {
-  // rm blank space from both head and tail
+  // rm blank space from both head and tail, keep at least one char
   const char *z = *pp;
-  while (*z == ' ' && n > 0) {
+  while (n > 1 && *z == ' ') {
     z++;
     n--;
   }
-  if (n > 0) {
-    for (int32_t i = n - 1; i > 0; i--) {
-      if (z[i] == ' ') {
-        n--;
-      } else {
-        break;
-      }
-    }
+  while (n > 1 && z[n-1] == ' ') {
+    n--;
   }
   *pp = z;
   return n;
 }
 
-int32_t toIntegerEx(const char *z, int32_t n, int64_t *value) {
-  n = removeSpace(&z, n);
-  if (n < 1) {  // fail: all char is space
+int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double* value) {
+  if (type != TK_NK_FLOAT) {
+    if (n == 0) {
+      *value = 0;
+      return TSDB_CODE_SUCCESS;
+    }
+    // rm tail space 
+    while (n > 1 && z[n-1] == ' ') {
+      n--;
+    }
+  }
+
+  errno = 0;
+  char* endPtr = NULL;
+  *value = taosStr2Double(z, &endPtr);
+
+  if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
     return TSDB_CODE_FAILED;
   }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
+  errno = 0;
+  char *endPtr = NULL;
+  switch (type)
+  {
+    case TK_NK_INTEGER: {
+      *value = taosStr2Int64(z, &endPtr, 10);
+      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+        return TSDB_CODE_FAILED;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+    case TK_NK_HEX: {
+      *value = taosStr2Int64(z, &endPtr, 16);
+      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+        return TSDB_CODE_FAILED;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+    case TK_NK_BIN: {
+      *value = taosStr2Int64(z, &endPtr, 2);
+      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+        return TSDB_CODE_FAILED;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+  default:
+    break;
+  }
+
+  // parse string 
+  if (n == 0) {
+    *value = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+  n = removeSpace(&z, n);
 
   bool     is_neg = false;
   uint64_t uv = 0;
   int32_t  code = parseSignAndUInteger(z, n, &is_neg, &uv);
   if (code == TSDB_CODE_SUCCESS) {
     // truncate into int64
-    if (uv > INT64_MAX) {
-      *value = is_neg ? INT64_MIN : INT64_MAX;
-      return TSDB_CODE_FAILED;
+    if (is_neg) {
+      if (uv > 1ull + INT64_MAX) {
+        *value = INT64_MIN;
+        return TSDB_CODE_FAILED;
+      } else {
+        *value = -uv;
+      }
     } else {
-      *value = is_neg ? -uv : uv;
+      if (uv > INT64_MAX) {
+        *value = INT64_MAX;
+        return TSDB_CODE_FAILED;
+      }
+      *value = uv;
     }
   }
 
   return code;
 }
 
-int32_t toUIntegerEx(const char *z, int32_t n, uint64_t *value) {
-  n = removeSpace(&z, n);
-  if (n < 1) {  // fail: all char is space
-    return TSDB_CODE_FAILED;
+int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
+  errno = 0;
+  char *endPtr = NULL;
+  switch (type)
+  {
+    case TK_NK_INTEGER: {
+      *value = taosStr2UInt64(z, &endPtr, 10);
+      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+        return TSDB_CODE_FAILED;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+    case TK_NK_HEX: {
+      *value = taosStr2UInt64(z, &endPtr, 16);
+      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+        return TSDB_CODE_FAILED;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+    case TK_NK_BIN: {
+      *value = taosStr2UInt64(z, &endPtr, 2);
+      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+        return TSDB_CODE_FAILED;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+  default:
+    break;
   }
+
+  // parse string 
+  if (n == 0) {
+    *value = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+  n = removeSpace(&z, n);
 
   bool    is_neg = false;
   int32_t code = parseSignAndUInteger(z, n, &is_neg, value);
   if (is_neg) {
+    if (TSDB_CODE_SUCCESS == code && 0 == *value) {
+      return TSDB_CODE_SUCCESS;
+    }
     return TSDB_CODE_FAILED;
   }
   return code;

@@ -433,7 +433,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
     }
 
     case TSDB_DATA_TYPE_TINYINT: {
-      code = toIntegerEx(pToken->z, pToken->n, &iv);
+      code = toIntegerEx(pToken->z, pToken->n, pToken->type, &iv);
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid tinyint data", pToken->z);
       } else if (!IS_VALID_TINYINT(iv)) {
@@ -445,7 +445,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
     }
 
     case TSDB_DATA_TYPE_UTINYINT: {
-      code = toUIntegerEx(pToken->z, pToken->n, &uv);
+      code = toUIntegerEx(pToken->z, pToken->n, pToken->type, &uv);
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned tinyint data", pToken->z);
       } else if (uv > UINT8_MAX) {
@@ -456,7 +456,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
     }
 
     case TSDB_DATA_TYPE_SMALLINT: {
-      code = toIntegerEx(pToken->z, pToken->n, &iv);
+      code = toIntegerEx(pToken->z, pToken->n, pToken->type, &iv);
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid smallint data", pToken->z);
       } else if (!IS_VALID_SMALLINT(iv)) {
@@ -467,7 +467,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
     }
 
     case TSDB_DATA_TYPE_USMALLINT: {
-      code = toUIntegerEx(pToken->z, pToken->n, &uv);
+      code = toUIntegerEx(pToken->z, pToken->n, pToken->type, &uv);
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned smallint data", pToken->z);
       } else if (uv > UINT16_MAX) {
@@ -478,7 +478,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
     }
 
     case TSDB_DATA_TYPE_INT: {
-      code = toIntegerEx(pToken->z, pToken->n, &iv);
+      code = toIntegerEx(pToken->z, pToken->n, pToken->type, &iv);
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid int data", pToken->z);
       } else if (!IS_VALID_INT(iv)) {
@@ -489,7 +489,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
     }
 
     case TSDB_DATA_TYPE_UINT: {
-      code = toUIntegerEx(pToken->z, pToken->n, &uv);
+      code = toUIntegerEx(pToken->z, pToken->n, pToken->type, &uv);
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned int data", pToken->z);
       } else if (uv > UINT32_MAX) {
@@ -500,7 +500,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
     }
 
     case TSDB_DATA_TYPE_BIGINT: {
-      code = toIntegerEx(pToken->z, pToken->n, &iv);
+      code = toIntegerEx(pToken->z, pToken->n, pToken->type, &iv);
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid bigint data", pToken->z);
       }
@@ -509,7 +509,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
     }
 
     case TSDB_DATA_TYPE_UBIGINT: {
-      code = toUIntegerEx(pToken->z, pToken->n, &uv);
+      code = toUIntegerEx(pToken->z, pToken->n, pToken->type, &uv);
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned bigint data", pToken->z);
       }
@@ -519,11 +519,11 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
 
     case TSDB_DATA_TYPE_FLOAT: {
       double dv;
-      if (TK_NK_ILLEGAL == toDouble(pToken, &dv, &endptr)) {
+      code = toDoubleEx(pToken->z, pToken->n, pToken->type, &dv);
+      if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(pMsgBuf, "illegal float data", pToken->z);
       }
-      if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || dv > FLT_MAX || dv < -FLT_MAX || isinf(dv) ||
-          isnan(dv)) {
+      if (dv > FLT_MAX || dv < -FLT_MAX || isinf(dv) || isnan(dv)) {
         return buildSyntaxErrMsg(pMsgBuf, "illegal float data", pToken->z);
       }
       *(float*)(&val->i64) = dv;
@@ -532,8 +532,9 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
 
     case TSDB_DATA_TYPE_DOUBLE: {
       double dv;
-      if (TK_NK_ILLEGAL == toDouble(pToken, &dv, &endptr)) {
-        return buildSyntaxErrMsg(pMsgBuf, "illegal double data", pToken->z);
+      code = toDoubleEx(pToken->z, pToken->n, pToken->type, &dv);
+      if (TSDB_CODE_SUCCESS != code) {
+        return buildSyntaxErrMsg(pMsgBuf, "illegal float data", pToken->z);
       }
       if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || isinf(dv) || isnan(dv)) {
         return buildSyntaxErrMsg(pMsgBuf, "illegal double data", pToken->z);
@@ -1359,7 +1360,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_TINYINT: {
-      int32_t code = toIntegerEx(pToken->z, pToken->n, &pVal->value.val);
+      int32_t code = toIntegerEx(pToken->z, pToken->n, pToken->type, &pVal->value.val);
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid tinyint data", pToken->z);
       } else if (!IS_VALID_TINYINT(pVal->value.val)) {
@@ -1368,7 +1369,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_UTINYINT: {
-      int32_t code = toUIntegerEx(pToken->z, pToken->n, &pVal->value.val);
+      int32_t code = toUIntegerEx(pToken->z, pToken->n, pToken->type, &pVal->value.val);
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid unsigned tinyint data", pToken->z);
       } else if (pVal->value.val > UINT8_MAX) {
@@ -1377,7 +1378,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
-      int32_t code = toIntegerEx(pToken->z, pToken->n, &pVal->value.val);
+      int32_t code = toIntegerEx(pToken->z, pToken->n, pToken->type, &pVal->value.val);
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid smallint data", pToken->z);
       } else if (!IS_VALID_SMALLINT(pVal->value.val)) {
@@ -1386,7 +1387,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_USMALLINT: {
-      int32_t code = toUIntegerEx(pToken->z, pToken->n, &pVal->value.val);
+      int32_t code = toUIntegerEx(pToken->z, pToken->n, pToken->type, &pVal->value.val);
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid unsigned smallint data", pToken->z);
       } else if (pVal->value.val > UINT16_MAX) {
@@ -1395,7 +1396,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_INT: {
-      int32_t code = toIntegerEx(pToken->z, pToken->n, &pVal->value.val);
+      int32_t code = toIntegerEx(pToken->z, pToken->n, pToken->type, &pVal->value.val);
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid int data", pToken->z);
       } else if (!IS_VALID_INT(pVal->value.val)) {
@@ -1404,7 +1405,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_UINT: {
-      int32_t code = toUIntegerEx(pToken->z, pToken->n, &pVal->value.val);
+      int32_t code = toUIntegerEx(pToken->z, pToken->n, pToken->type, &pVal->value.val);
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid unsigned int data", pToken->z);
       } else if (pVal->value.val > UINT32_MAX) {
@@ -1413,27 +1414,26 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_BIGINT: {
-      int32_t code = toIntegerEx(pToken->z, pToken->n, &pVal->value.val);
+      int32_t code = toIntegerEx(pToken->z, pToken->n, pToken->type, &pVal->value.val);
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid bigint data", pToken->z);
       }
       break;
     }
     case TSDB_DATA_TYPE_UBIGINT: {
-      int32_t code = toUIntegerEx(pToken->z, pToken->n, &pVal->value.val);
+      int32_t code = toUIntegerEx(pToken->z, pToken->n, pToken->type, &pVal->value.val);
       if (TSDB_CODE_SUCCESS != code) {
-        return buildSyntaxErrMsg(&pCxt->msg, "invalid unsigned int data", pToken->z);
+        return buildSyntaxErrMsg(&pCxt->msg, "invalid unsigned bigint data", pToken->z);
       }
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
-      char*  endptr = NULL;
       double dv;
-      if (TK_NK_ILLEGAL == toDouble(pToken, &dv, &endptr)) {
+      int32_t code = toDoubleEx(pToken->z, pToken->n, pToken->type, &dv);
+      if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "illegal float data", pToken->z);
       }
-      if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || dv > FLT_MAX || dv < -FLT_MAX || isinf(dv) ||
-          isnan(dv)) {
+      if (dv > FLT_MAX || dv < -FLT_MAX || isinf(dv) || isnan(dv)) {
         return buildSyntaxErrMsg(&pCxt->msg, "illegal float data", pToken->z);
       }
       float f = dv;
@@ -1441,12 +1441,12 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
-      char*  endptr = NULL;
       double dv;
-      if (TK_NK_ILLEGAL == toDouble(pToken, &dv, &endptr)) {
-        return buildSyntaxErrMsg(&pCxt->msg, "illegal double data", pToken->z);
+      int32_t code = toDoubleEx(pToken->z, pToken->n, pToken->type, &dv);
+      if (TSDB_CODE_SUCCESS != code) {
+        return buildSyntaxErrMsg(&pCxt->msg, "illegal float data", pToken->z);
       }
-      if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || isinf(dv) || isnan(dv)) {
+      if (isinf(dv) || isnan(dv)) {
         return buildSyntaxErrMsg(&pCxt->msg, "illegal double data", pToken->z);
       }
       pVal->value.val = *(int64_t*)&dv;
