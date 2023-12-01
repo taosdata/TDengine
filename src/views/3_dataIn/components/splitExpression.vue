@@ -99,6 +99,7 @@ export default {
     "$store.state.app.splitExpresList":{
         deep:true,
         handler(val){
+            console.log(val,'split监听');
             if(val.names){
                 val.names=val.names.toString()
             }

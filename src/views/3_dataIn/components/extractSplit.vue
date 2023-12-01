@@ -295,6 +295,7 @@ export default {
         return inputobj;
       });
       this.extractParseData = {};
+      console.log(this.$store.state.app.splitExpresList,'单个保存');
       this.$parent.extractArr
         .map((item) => {
           return {
