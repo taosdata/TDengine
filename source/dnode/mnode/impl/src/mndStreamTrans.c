@@ -35,17 +35,15 @@ int32_t mndStreamRegisterTrans(STrans* pTrans, const char* pName, const char* pS
 }
 
 int32_t clearFinishedTrans(SMnode* pMnode) {
-  SArray* pList = taosArrayInit(4, sizeof(SKeyInfo));
   size_t  keyLen = 0;
+  SArray* pList = taosArrayInit(4, sizeof(SKeyInfo));
+  void*   pIter = NULL;
 
-  taosThreadMutexLock(&execInfo.lock);
-
-  void* pIter = NULL;
   while ((pIter = taosHashIterate(execInfo.transMgmt.pDBTrans, pIter)) != NULL) {
-    SStreamTransInfo *pEntry = (SStreamTransInfo *)pIter;
-    STrans* pTrans = mndAcquireTrans(pMnode, pEntry->transId);
+    SStreamTransInfo* pEntry = (SStreamTransInfo*)pIter;
 
     // let's clear the finished trans
+    STrans* pTrans = mndAcquireTrans(pMnode, pEntry->transId);
     if (pTrans == NULL) {
       void* pKey = taosHashGetKey(pEntry, &keyLen);
       // key is the name of src/dst db name
@@ -60,44 +58,55 @@ int32_t clearFinishedTrans(SMnode* pMnode) {
   }
 
   size_t num = taosArrayGetSize(pList);
-  for(int32_t i = 0; i < num; ++i) {
+  for (int32_t i = 0; i < num; ++i) {
     SKeyInfo* pKey = taosArrayGet(pList, i);
     taosHashRemove(execInfo.transMgmt.pDBTrans, pKey->pKey, pKey->keyLen);
   }
 
-  mDebug("clear %d finished stream-trans, remained:%d", (int32_t) num, taosHashGetSize(execInfo.transMgmt.pDBTrans));
-  taosThreadMutexUnlock(&execInfo.lock);
+  mDebug("clear %d finished stream-trans, remained:%d", (int32_t)num, taosHashGetSize(execInfo.transMgmt.pDBTrans));
 
   terrno = TSDB_CODE_SUCCESS;
   taosArrayDestroy(pList);
   return 0;
 }
 
-bool streamTransConflictOtherTrans(SMnode* pMnode, const char* pSrcDb, const char* pDstDb) {
-  clearFinishedTrans(pMnode);
+bool streamTransConflictOtherTrans(SMnode* pMnode, const char* pSrcDb, const char* pDstDb, bool lock) {
+  if (lock) {
+    taosThreadMutexLock(&execInfo.lock);
+  }
 
-  taosThreadMutexLock(&execInfo.lock);
   int32_t num = taosHashGetSize(execInfo.transMgmt.pDBTrans);
   if (num <= 0) {
-    taosThreadMutexUnlock(&execInfo.lock);
+    if (lock) {
+      taosThreadMutexUnlock(&execInfo.lock);
+    }
     return false;
   }
 
+  clearFinishedTrans(pMnode);
+
   SStreamTransInfo *pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, pSrcDb, strlen(pSrcDb));
   if (pEntry != NULL) {
-    taosThreadMutexUnlock(&execInfo.lock);
+    if (lock) {
+      taosThreadMutexUnlock(&execInfo.lock);
+    }
     mWarn("conflict with other transId:%d in Db:%s, trans:%s", pEntry->transId, pSrcDb, pEntry->name);
     return true;
   }
 
   pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, pDstDb, strlen(pDstDb));
   if (pEntry != NULL) {
-    taosThreadMutexUnlock(&execInfo.lock);
+    if (lock) {
+      taosThreadMutexUnlock(&execInfo.lock);
+    }
     mWarn("conflict with other transId:%d in Db:%s, trans:%s", pEntry->transId, pSrcDb, pEntry->name);
     return true;
   }
 
-  taosThreadMutexUnlock(&execInfo.lock);
+  if (lock) {
+    taosThreadMutexUnlock(&execInfo.lock);
+  }
+
   return false;
 }
 

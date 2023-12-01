@@ -305,6 +305,7 @@ typedef struct SCheckpointInfo {
   int64_t processedVer;        // already processed ver, that has generated results version.
   int64_t nextProcessVer;     // current offset in WAL, not serialize it
   int64_t failedId;           // record the latest failed checkpoint id
+  bool    dispatchCheckpointTrigger;
 } SCheckpointInfo;
 
 typedef struct SStreamStatus {
@@ -390,6 +391,7 @@ typedef struct SHistoryTaskInfo {
   int32_t retryTimes;
   int32_t waitInterval;
   int64_t haltVer;      // offset in wal when halt the stream task
+  bool    operatorOpen; // false by default
 } SHistoryTaskInfo;
 
 typedef struct STaskOutputInfo {
@@ -654,17 +656,21 @@ int32_t tDecodeStreamCheckpointReadyMsg(SDecoder* pDecoder, SStreamCheckpointRea
 typedef struct STaskStatusEntry {
   STaskId id;
   int32_t status;
-  int32_t stage;
+  int32_t statusLastDuration; // to record the last duration of current status
+  int64_t stage;
   int32_t nodeId;
   int64_t verStart;         // start version in WAL, only valid for source task
   int64_t verEnd;           // end version in WAL, only valid for source task
   int64_t processedVer;     // only valid for source task
+  int32_t relatedHTask;     // has related fill-history task
   int64_t activeCheckpointId;     // current active checkpoint id
   bool    checkpointFailed; // denote if the checkpoint is failed or not
+  bool    inputQChanging;   // inputQ is changing or not
+  int64_t inputQUnchangeCounter;
   double  inputQUsed;       // in MiB
   double  inputRate;
   double  sinkQuota;        // existed quota size for sink task
-  double  sinkDataSize;     // sink to dest data size
+  double  sinkDataSize;     // sink to dst data size
 } STaskStatusEntry;
 
 typedef struct SStreamHbMsg {
@@ -676,6 +682,7 @@ typedef struct SStreamHbMsg {
 
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pRsp);
 int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pRsp);
+void    streamMetaClearHbMsg(SStreamHbMsg* pMsg);
 
 typedef struct {
   int64_t streamId;

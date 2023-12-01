@@ -541,66 +541,71 @@ int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelement
     memcpy(output, input + 1, nelements * longBytes);
     return nelements * longBytes;
   } else if (input[0] == 1) {  // Decompress
-    int64_t *ostream = (int64_t *)output;
+    if (tsSIMDEnable && tsAVX512Enable) {
+      tsDecompressTimestampAvx512(input, nelements, output, false);
+    } else if (tsSIMDEnable && tsAVX2Enable) {
+      tsDecompressTimestampAvx2(input, nelements, output, false);
+    } else {
+      int64_t *ostream = (int64_t *)output;
 
-    int32_t ipos = 1, opos = 0;
-    int8_t  nbytes = 0;
-    int64_t prev_value = 0;
-    int64_t prev_delta = 0;
-    int64_t delta_of_delta = 0;
+      int32_t ipos = 1, opos = 0;
+      int8_t  nbytes = 0;
+      int64_t prev_value = 0;
+      int64_t prev_delta = 0;
+      int64_t delta_of_delta = 0;
 
-    while (1) {
-      uint8_t flags = input[ipos++];
-      // Decode dd1
-      uint64_t dd1 = 0;
-      nbytes = flags & INT8MASK(4);
-      if (nbytes == 0) {
-        delta_of_delta = 0;
-      } else {
-        if (is_bigendian()) {
-          memcpy(((char *)(&dd1)) + longBytes - nbytes, input + ipos, nbytes);
+      while (1) {
+        uint8_t flags = input[ipos++];
+        // Decode dd1
+        uint64_t dd1 = 0;
+        nbytes = flags & INT8MASK(4);
+        if (nbytes == 0) {
+          delta_of_delta = 0;
         } else {
-          memcpy(&dd1, input + ipos, nbytes);
+          if (is_bigendian()) {
+            memcpy(((char *)(&dd1)) + longBytes - nbytes, input + ipos, nbytes);
+          } else {
+            memcpy(&dd1, input + ipos, nbytes);
+          }
+          delta_of_delta = ZIGZAG_DECODE(int64_t, dd1);
         }
-        delta_of_delta = ZIGZAG_DECODE(int64_t, dd1);
-      }
-      ipos += nbytes;
-      if (opos == 0) {
-        prev_value = delta_of_delta;
-        prev_delta = 0;
-        ostream[opos++] = delta_of_delta;
-      } else {
+
+        ipos += nbytes;
+        if (opos == 0) {
+          prev_value = delta_of_delta;
+          prev_delta = 0;
+          ostream[opos++] = delta_of_delta;
+        } else {
+          prev_delta = delta_of_delta + prev_delta;
+          prev_value = prev_value + prev_delta;
+          ostream[opos++] = prev_value;
+        }
+        if (opos == nelements) return nelements * longBytes;
+
+        // Decode dd2
+        uint64_t dd2 = 0;
+        nbytes = (flags >> 4) & INT8MASK(4);
+        if (nbytes == 0) {
+          delta_of_delta = 0;
+        } else {
+          if (is_bigendian()) {
+            memcpy(((char *)(&dd2)) + longBytes - nbytes, input + ipos, nbytes);
+          } else {
+            memcpy(&dd2, input + ipos, nbytes);
+          }
+          // zigzag_decoding
+          delta_of_delta = ZIGZAG_DECODE(int64_t, dd2);
+        }
+        ipos += nbytes;
         prev_delta = delta_of_delta + prev_delta;
         prev_value = prev_value + prev_delta;
         ostream[opos++] = prev_value;
+        if (opos == nelements) return nelements * longBytes;
       }
-      if (opos == nelements) return nelements * longBytes;
-
-      // Decode dd2
-      uint64_t dd2 = 0;
-      nbytes = (flags >> 4) & INT8MASK(4);
-      if (nbytes == 0) {
-        delta_of_delta = 0;
-      } else {
-        if (is_bigendian()) {
-          memcpy(((char *)(&dd2)) + longBytes - nbytes, input + ipos, nbytes);
-        } else {
-          memcpy(&dd2, input + ipos, nbytes);
-        }
-        // zigzag_decoding
-        delta_of_delta = ZIGZAG_DECODE(int64_t, dd2);
-      }
-      ipos += nbytes;
-      prev_delta = delta_of_delta + prev_delta;
-      prev_value = prev_value + prev_delta;
-      ostream[opos++] = prev_value;
-      if (opos == nelements) return nelements * longBytes;
     }
-
-  } else {
-    ASSERT(0);
-    return -1;
   }
+
+  return nelements * longBytes;
 }
 
 /* --------------------------------------------Double Compression ---------------------------------------------- */

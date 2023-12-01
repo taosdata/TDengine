@@ -784,7 +784,7 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeI64(pEncoder, ps->id.streamId) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->id.taskId) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->status) < 0) return -1;
-    if (tEncodeI32(pEncoder, ps->stage) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->stage) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->nodeId) < 0) return -1;
     if (tEncodeDouble(pEncoder, ps->inputQUsed) < 0) return -1;
     if (tEncodeDouble(pEncoder, ps->inputRate) < 0) return -1;
@@ -822,7 +822,7 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     if (tDecodeI64(pDecoder, &entry.id.streamId) < 0) return -1;
     if (tDecodeI32(pDecoder, &taskId) < 0) return -1;
     if (tDecodeI32(pDecoder, &entry.status) < 0) return -1;
-    if (tDecodeI32(pDecoder, &entry.stage) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.stage) < 0) return -1;
     if (tDecodeI32(pDecoder, &entry.nodeId) < 0) return -1;
     if (tDecodeDouble(pDecoder, &entry.inputQUsed) < 0) return -1;
     if (tDecodeDouble(pDecoder, &entry.inputRate) < 0) return -1;
@@ -861,10 +861,18 @@ static bool waitForEnoughDuration(SMetaHbInfo* pInfo) {
   return false;
 }
 
-static void clearHbMsg(SStreamHbMsg* pMsg, SArray* pIdList) {
-  taosArrayDestroy(pMsg->pTaskStatus);
-  taosArrayDestroy(pMsg->pUpdateNodes);
-  taosArrayDestroy(pIdList);
+void streamMetaClearHbMsg(SStreamHbMsg* pMsg) {
+  if (pMsg == NULL) {
+    return;
+  }
+
+  if (pMsg->pUpdateNodes != NULL) {
+    taosArrayDestroy(pMsg->pUpdateNodes);
+  }
+
+  if (pMsg->pTaskStatus != NULL) {
+    taosArrayDestroy(pMsg->pTaskStatus);
+  }
 }
 
 static bool existInHbMsg(SStreamHbMsg* pMsg, SDownstreamTaskEpset* pTaskEpset) {
@@ -1041,7 +1049,8 @@ void metaHbToMnode(void* param, void* tmrId) {
   }
 
   _end:
-  clearHbMsg(&hbMsg, pIdList);
+  streamMetaClearHbMsg(&hbMsg);
+  taosArrayDestroy(pIdList);
   taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->pHbInfo->hbTmr);
   taosReleaseRef(streamMetaId, rid);
 }

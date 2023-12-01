@@ -109,11 +109,6 @@ cat("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 # cJson
 cat("${TD_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
-# leveldb
-if(${BUILD_WITH_LEVELDB})
-    cat("${TD_SUPPORT_DIR}/leveldb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif(${BUILD_WITH_LEVELDB})
-
 if (${BUILD_CONTRIB})
     if(${BUILD_WITH_ROCKSDB})
         cat("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -132,27 +127,10 @@ else()
     endif()
 endif()
 
-# canonical-raft
-if(${BUILD_WITH_CRAFT})
-    cat("${TD_SUPPORT_DIR}/craft_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    SET(BUILD_WITH_UV ON CACHE BOOL "craft need libuv" FORCE)
-endif(${BUILD_WITH_CRAFT})
-
-# traft
-if(${BUILD_WITH_TRAFT})
-    cat("${TD_SUPPORT_DIR}/traft_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    SET(BUILD_WITH_UV ON CACHE BOOL "traft need libuv" FORCE)
-endif(${BUILD_WITH_TRAFT})
-
 #libuv
 if(${BUILD_WITH_UV})
     cat("${TD_SUPPORT_DIR}/libuv_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_WITH_UV})
-
-# bdb
-if(${BUILD_WITH_BDB})
-    cat("${TD_SUPPORT_DIR}/bdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif(${BUILD_WITH_BDB})
 
 # sqlite
 if(${BUILD_WITH_SQLITE})
@@ -177,17 +155,6 @@ elseif(${BUILD_WITH_COS})
     add_definitions(-DUSE_COS)
 
 endif()
-
-# lucene
-if(${BUILD_WITH_LUCENE})
-    cat("${TD_SUPPORT_DIR}/lucene_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    add_definitions(-DUSE_LUCENE)
-endif(${BUILD_WITH_LUCENE})
-
-# NuRaft
-if(${BUILD_WITH_NURAFT})
-    cat("${TD_SUPPORT_DIR}/nuraft_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif(${BUILD_WITH_NURAFT})
 
 # crashdump
 if(${BUILD_CRASHDUMP})
@@ -437,23 +404,6 @@ elseif(${BUILD_WITH_COS})
 
 endif()
 
-# lucene
-# To support build on ubuntu: sudo apt-get install libboost-all-dev
-if(${BUILD_WITH_LUCENE})
-    option(ENABLE_TEST "Enable the tests" OFF)
-    add_subdirectory(lucene EXCLUDE_FROM_ALL)
-    target_include_directories(
-      lucene++
-      PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lucene/include>
-    )
-
-endif(${BUILD_WITH_LUCENE})
-
-# NuRaft
-if(${BUILD_WITH_NURAFT})
-    add_subdirectory(nuraft EXCLUDE_FROM_ALL)
-endif(${BUILD_WITH_NURAFT})
-
 # pthread
 if(${BUILD_PTHREAD})
     set(CMAKE_BUILD_TYPE debug)
@@ -524,30 +474,6 @@ if(${BUILD_WCWIDTH})
     SET_TARGET_PROPERTIES(wcwidth PROPERTIES OUTPUT_NAME wcwidth)
 endif(${BUILD_WCWIDTH})
 
-# CRAFT
-if(${BUILD_WITH_CRAFT})
-    add_library(craft STATIC IMPORTED GLOBAL)
-    set_target_properties(craft PROPERTIES
-        IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/craft/.libs/libraft.a"
-        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/craft/include"
-    )
-    # target_link_libraries(craft
-    #     INTERFACE pthread
-    # )
-endif(${BUILD_WITH_CRAFT})
-
-# TRAFT
-if(${BUILD_WITH_TRAFT})
-    add_library(traft STATIC IMPORTED GLOBAL)
-    set_target_properties(traft PROPERTIES
-        IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/traft/.libs/libraft.a"
-        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/traft/include"
-    )
-    # target_link_libraries(craft
-    #     INTERFACE pthread
-    # )
-endif(${BUILD_WITH_TRAFT})
-
 # LIBUV
 if(${BUILD_WITH_UV})
     if (TD_WINDOWS)
@@ -558,18 +484,6 @@ if(${BUILD_WITH_UV})
     endif ()
     add_subdirectory(libuv EXCLUDE_FROM_ALL)
 endif(${BUILD_WITH_UV})
-
-# BDB
-if(${BUILD_WITH_BDB})
-    add_library(bdb STATIC IMPORTED GLOBAL)
-    set_target_properties(bdb PROPERTIES
-        IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/bdb/libdb.a"
-        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/bdb"
-    )
-    target_link_libraries(bdb
-        INTERFACE pthread
-    )
-endif(${BUILD_WITH_BDB})
 
 # SQLite
 # see https://stackoverflow.com/questions/8774593/cmake-link-to-external-library#comment58570736_10550334

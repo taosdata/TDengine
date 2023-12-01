@@ -93,7 +93,11 @@ typedef struct SQueryNode         SQueryNode;
 #define VNODE_RSMA2_DIR "rsma2"
 #define VNODE_TQ_STREAM "stream"
 
+#if SUSPEND_RESUME_TEST        // only for test purpose
+#define VNODE_BUFPOOL_SEGMENTS 1
+#else
 #define VNODE_BUFPOOL_SEGMENTS 3
+#endif
 
 #define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
@@ -232,6 +236,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskDropHTask(STQ* pTq, SRpcMsg* pMsg);
 
 int32_t tqStartStreamTaskAsync(STQ* pTq, bool restart);
 int32_t tqRestartStreamTasks(STQ* pTq);
