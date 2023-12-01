@@ -2860,7 +2860,7 @@ static void updateStageInfo(STaskStatusEntry* pTaskEntry, int32_t stage) {
   for(int32_t j = 0; j < numOfNodes; ++j) {
     SNodeEntry* pNodeEntry = taosArrayGet(execInfo.pNodeList, j);
     if (pNodeEntry->nodeId == pTaskEntry->nodeId) {
-      mInfo("vgId:%d stage updated from %d to %d, nodeUpdate trigger by s-task:0x%" PRIx64, pTaskEntry->nodeId,
+      mInfo("vgId:%d stage updated from %" PRId64 " to %d, nodeUpdate trigger by s-task:0x%" PRIx64, pTaskEntry->nodeId,
             pTaskEntry->stage, stage, pTaskEntry->id.taskId);
 
       pNodeEntry->stageUpdated = true;
