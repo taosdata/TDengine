@@ -47,6 +47,7 @@ database_option: {
   - last_row: The last row of each subtable is cached. This option significantly improves the performance of the LAST_ROW function.
   - last_value: The last non-null value of each column in each subtable is cached. This option significantly improves the performance of the LAST function under normal circumstances, such as statements including the WHERE, ORDER BY, GROUP BY, and INTERVAL keywords.
   - both: The last row of each subtable and the last non-null value of each column in each subtable are cached.
+    Note: If you turn on cachemodel, then turn off, and turn on again, the result of last/last_row may be wrong, don't do like this, it's strongly recommended to always turn on the cache using "both".
 - CACHESIZE: specifies the amount (in MB) of memory used for subtable caching on each vnode. Enter a value between 1 and 65536. The default value is 1.
 - COMP: specifies how databases are compressed. The default value is 2.
   - 0: Compression is disabled.
