@@ -56,6 +56,7 @@ extern "C" {
 
 extern char*   tMsgInfo[];
 extern int32_t tMsgDict[];
+extern int32_t tMsgRangeDict[];
 
 typedef uint16_t tmsg_t;
 
@@ -63,8 +64,17 @@ typedef uint16_t tmsg_t;
 #define TMSG_SEG_SEQ(TYPE)  ((TYPE)&0xff)
 #define TMSG_INDEX(TYPE)    (tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE))
 
-bool  tmsgIsValid(tmsg_t type);
-char* TMSG_INFO(tmsg_t type);
+static inline bool tmsgIsValid(tmsg_t type) {
+  // static int8_t sz = sizeof(tMsgRangeDict) / sizeof(tMsgRangeDict[0]);
+  int8_t maxSegIdx = TMSG_SEG_CODE(TDMT_MAX_MSG);
+  int    segIdx = TMSG_SEG_CODE(type);
+  if (segIdx >= 0 && segIdx < maxSegIdx) {
+    return type < tMsgRangeDict[segIdx];
+  }
+  return false;
+}
+
+#define TMSG_INFO(type) (tmsgIsValid(type) ? tMsgInfo[TMSG_INDEX(type)] : "unKnown")
 
 static inline bool vnodeIsMsgBlock(tmsg_t type) {
   return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
