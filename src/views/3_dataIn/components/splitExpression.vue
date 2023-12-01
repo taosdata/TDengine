@@ -72,7 +72,7 @@ export default {
               
             });
             if(splitExpre.names){
-                let result = splitExpre.names.toString().split(',')
+                let result = splitExpre.names.toString().split(',').map(val=>val.trim())
                 splitExpre.names=result
             }
             this.$store.commit('app/SET_SPLIT_EXPRESS',splitExpre)

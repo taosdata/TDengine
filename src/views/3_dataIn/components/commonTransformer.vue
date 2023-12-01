@@ -137,7 +137,6 @@
               :data="tableData"
               border
               style="width: 100%"
-              :key="tablekey"
             >
               <template v-for="(item, index) in st_columnLists">
                 <el-table-column
@@ -263,7 +262,6 @@ export default {
       enable: true, //只针对ts的expression的input
       timestampExpr: "",
       options: [],
-      tablekey: 1,
       msgForm: {
         msgbody: "",
       },
@@ -514,10 +512,12 @@ export default {
     caculateMappingResult() {
       if (!this.msgForm.msgbody) {
         Message.error(this.$t("datasource.transformer.msgbodytip"));
+        this.isbreak=true
         return;
       }
       if (!this.tableData[0]["Expression"]) {
         Message.warning(this.$t("datasource.transformer.tablenametip"));
+        this.isbreak=true
         return;
       }
       let tags = [];
@@ -542,16 +542,16 @@ export default {
           let key = Array.isArray(item.maptype[1])
             ? item.maptype[1][0] == "mapping"
               ? "cast"
-              : item.maptype[1][1]
+              : item.maptype[1][1].toString().trim()
             : !this.mapExpressionList.includes(item.maptype[1])
             ? "cast"
-            : item.maptype[1]; //此处处理了编辑回显
+            : item.maptype[1].toString().trim(); //此处处理了编辑回显
           if (item.maptype[1] != "string") {
             //排除第一行的tablename
             let expreitem = {
               [`${key}`]: ["sum", "join"].includes(key)
                 ? item["Expression"].split(",").map((val) => val.trim())
-                : item["Expression"],
+                : item["Expression"].toString().trim(),
               as: item["Type"],
             };
             if (key == "join") {
@@ -599,6 +599,7 @@ export default {
       };
       if(tags.length==0||columns.length==0||!primarykey){
         Message.warning(this.$t('datasource.transformer.mappingvaildtip'));
+        this.isbreak=true
         return;
       }
       this.mappingParser = parserData;
@@ -725,7 +726,6 @@ export default {
           }
           return item;
         });
-        this.tablekey = Math.random();
       } catch (error) {
         console.log(error);
       }
