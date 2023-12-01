@@ -45,7 +45,7 @@
 <script>
 import { getParser } from "@/api/explorer/datain";
 import { Message } from "element-ui";
-import { getRFC3339Time } from "@/utils/index";
+import { parsinginZone } from "@/utils";
 export default {
   name: "FilterExpression",
   props: {
@@ -173,14 +173,14 @@ export default {
               inputobj["payload"] = msg;
             } else {
               inputobj[item.name] =
-                item.type == "timestamp" ? getRFC3339Time() : item.name;
+                item.type == "timestamp" ? parsinginZone(new Date()) : item.name;
             }
           } else if (this.$store.state.app.currentDBType == "kafka") {
             if (item.name == "value") {
               inputobj["value"] = msg;
             } else {
               inputobj[item.name] =
-                item.type == "timestamp" ? getRFC3339Time() : item.name;
+                item.type == "timestamp" ? parsinginZone(new Date()) : item.name;
             }
           }
         });
@@ -219,6 +219,9 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
+.filter-expression{
+  margin-top:10px;
+}
 .filter-input {
   display: flex;
   align-items: center;
