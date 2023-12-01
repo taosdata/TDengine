@@ -128,7 +128,7 @@
               {{ $t("datasource.transformer.mapping") }}
               <el-button
                 type="primary"
-                @click="calculateMappingResult"
+                @click="caculateMappingResult"
                 size="small"
                 >{{ $t("datasource.transformer.calculate") }}</el-button
               >
@@ -137,7 +137,6 @@
               :data="tableData"
               border
               style="width: 100%"
-              :key="tablekey"
             >
               <template v-for="(item, index) in st_columnLists">
                 <el-table-column
@@ -248,6 +247,7 @@ export default {
   },
   data() {
     return {
+      isbreak:false,//tranformer创建是否出错
       joinwith: "",
       isCSV: false,
       mapExpressionList: [
@@ -262,7 +262,6 @@ export default {
       enable: true, //只针对ts的expression的input
       timestampExpr: "",
       options: [],
-      tablekey: 1,
       msgForm: {
         msgbody: "",
       },
@@ -346,6 +345,7 @@ export default {
     if (this.parserColumns) {
       this.initColumnLists(this.parserColumns);
     }
+  
     if (
       this.$parent.isEditable ||
       (this.$store.state.app.csvParser &&
@@ -379,6 +379,7 @@ export default {
         });
         this.initColumnLists(columns);
       }
+    
       this.msgForm.msgbody =
         this.$store.state.app.currentDBType == "mqtt"
           ? value.input.map((item) => item.payload).join(";")
@@ -508,15 +509,18 @@ export default {
       });
     },
     //计算mapping的结果
-    calculateMappingResult() {
+    caculateMappingResult() {
       if (!this.msgForm.msgbody) {
         Message.error(this.$t("datasource.transformer.msgbodytip"));
+        this.isbreak=true
         return;
       }
       if (!this.tableData[0]["Expression"]) {
         Message.warning(this.$t("datasource.transformer.tablenametip"));
+        this.isbreak=true
         return;
       }
+      this.isbreak=false
       let tags = [];
       let columns = [];
       let mutates = [];
@@ -539,16 +543,16 @@ export default {
           let key = Array.isArray(item.maptype[1])
             ? item.maptype[1][0] == "mapping"
               ? "cast"
-              : item.maptype[1][1]
+              : item.maptype[1][1].toString().trim()
             : !this.mapExpressionList.includes(item.maptype[1])
             ? "cast"
-            : item.maptype[1]; //此处处理了编辑回显
+            : item.maptype[1].toString().trim(); //此处处理了编辑回显
           if (item.maptype[1] != "string") {
             //排除第一行的tablename
             let expreitem = {
               [`${key}`]: ["sum", "join"].includes(key)
                 ? item["Expression"].split(",").map((val) => val.trim())
-                : item["Expression"],
+                : item["Expression"].toString().trim(),
               as: item["Type"],
             };
             if (key == "join") {
@@ -596,8 +600,10 @@ export default {
       };
       if(tags.length==0||columns.length==0||!primarykey){
         Message.warning(this.$t('datasource.transformer.mappingvaildtip'));
+        this.isbreak=true
         return;
       }
+      this.isbreak=false
       this.mappingParser = parserData;
       this.getParserData(parserData);
     },
@@ -632,9 +638,8 @@ export default {
     //获取transformer的所有参数
     getTransformerParams() {
 
-      if (!this.mappingParser.parser) {
-        this.calculateMappingResult();
-      }
+      this.caculateMappingResult();
+
       let extractObj = {};
       this.extractArr.forEach((item) => {
         extractObj[item.columnname] = {
@@ -683,8 +688,10 @@ export default {
         let result = await getParser(data);
         if (result.message) {
           Message.error(result.message);
+          this.isbreak=true
           return;
         }
+        this.isbreak=false
         let outputColumns = result[0].fields.map((item) => item.name);
         let outputTBData = result[0].columns.map((data) => {
           return Object.fromEntries(
@@ -722,7 +729,6 @@ export default {
           }
           return item;
         });
-        this.tablekey = Math.random();
       } catch (error) {
         console.log(error);
       }
@@ -730,7 +736,39 @@ export default {
     //输出input结果
     generateInput() {
       let inputList = [];
-      inputList = this.msgForm.msgbody.split(";").map((msg) => {
+      let resultMsgbody=''
+      if (
+        this.msgForm.msgbody.replace(/\}\s*\{/g, "}{").includes("}{")
+      ) {
+        resultMsgbody = this.msgForm.msgbody
+          .replace(/\}\s*\{/g, "}&${")
+          .split("&$");
+      } else {
+        if (
+          /\n/g.test(this.msgForm.msgbody) &&
+          /^[^\{]/.test(this.msgForm.msgbody.trim())
+        ) {
+          //普通文本，目前第一列暂时不能为json格式
+          resultMsgbody = this.msgForm.msgbody
+            .replace(/[\n\s]/g, "*&$*")
+            .split("*&$*");
+        } else {
+          try {
+            if (
+              /^\{/g.test(this.msgForm.msgbody) &&
+              JSON.parse(this.msgForm.msgbody)
+            ) {
+              resultMsgbody = [].concat(this.msgForm.msgbody);
+            } 
+          } catch (error) {
+            Message.error(this.$t("datasource.transformer.jsontip"));
+            return;
+          }
+
+          resultMsgbody = this.msgForm.msgbody.split(";");
+        }
+      }
+      inputList = resultMsgbody.map((msg) => {
         let inputobj = {};
         this.indentifiedColumns.forEach((item) => {
           if (this.$store.state.app.currentDBType == "mqtt") {
@@ -900,7 +938,7 @@ export default {
           "Expression",
           echoData.model.name.toString()
         );
-        this.calculateMappingResult();
+        this.caculateMappingResult();
       }
     },
     async getSTbaleList() {

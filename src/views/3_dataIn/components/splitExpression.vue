@@ -36,6 +36,7 @@
   </div>
 </template>
 <script>
+import { deepClone } from "@/utils/index";
 export default {
   name: "SplitExpression",
   data() {
@@ -70,8 +71,9 @@ export default {
 
               
             });
-            if(splitExpre['names']){
-                splitExpre['names']=splitExpre['names'].toString().split(',')
+            if(splitExpre.names){
+                let result = splitExpre.names.toString().split(',').map(val=>val.trim())
+                splitExpre.names=result
             }
             this.$store.commit('app/SET_SPLIT_EXPRESS',splitExpre)
           return true;
@@ -84,20 +86,22 @@ export default {
   },
   mounted(){
     if(this.$store.state.app.splitExpresList){
-        if(this.$store.state.app.splitExpresList.names){
-            this.$store.state.app.splitExpresList.names=this.$store.state.app.splitExpresList.names.toString()
+        let middleobj=deepClone(this.$store.state.app.splitExpresList)
+        if(this.$store.state.app.splitExpresList.names&&Array.isArray(this.$store.state.app.splitExpresList.names)){
+            middleobj.names=this.$store.state.app.splitExpresList.names.toString()
             }
-        this.ruleForm={...this.$store.state.app.splitExpresList}
+        this.ruleForm={...middleobj}
     }
   },
   watch:{
     "$store.state.app.splitExpresList":{
         deep:true,
         handler(val){
-            if(val.names){
-                val.names=val.names.toString()
+            let middleObj=deepClone(val)
+            if(val.names&&Array.isArray(val.names)){
+                middleObj.names=middleObj.names.toString()
             }
-            this.ruleForm={...val}
+            this.ruleForm={...middleObj}
         }
     }
   }
