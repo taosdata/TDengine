@@ -862,6 +862,20 @@ void grantParseParameter() {
   exit(EXIT_SUCCESS);
 }
 
+void tGetMachineId() {
+#ifdef _TD_MIPS
+  uWarn(the MIPS platform does not support machine code currently!)
+#else
+  char *key = grantGetMachineSerials();
+  if (key != NULL) {
+    fprintf(stdout, "machine code: %s \n", key);
+  } else {
+    fprintf(stderr, "should generate machine code under root authority!\n");
+  }
+#endif
+  exit(EXIT_SUCCESS);
+}
+
 static char *grantSecondsToString(uint32_t seconds) {
   char     *ts = taosMemoryCalloc(64, 1);
   time_t    sec = seconds;
