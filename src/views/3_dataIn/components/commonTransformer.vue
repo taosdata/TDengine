@@ -128,9 +128,9 @@
               {{ $t("datasource.transformer.mapping") }}
               <el-button
                 type="primary"
-                @click="caculateMappingResult"
+                @click="calculateMappingResult"
                 size="small"
-                >{{ $t("datasource.transformer.caculate") }}</el-button
+                >{{ $t("datasource.transformer.calculate") }}</el-button
               >
             </div>
             <el-table
@@ -508,7 +508,7 @@ export default {
       });
     },
     //计算mapping的结果
-    caculateMappingResult() {
+    calculateMappingResult() {
       if (!this.msgForm.msgbody) {
         Message.error(this.$t("datasource.transformer.msgbodytip"));
         return;
@@ -633,7 +633,7 @@ export default {
     getTransformerParams() {
 
       if (!this.mappingParser.parser) {
-        this.caculateMappingResult();
+        this.calculateMappingResult();
       }
       let extractObj = {};
       this.extractArr.forEach((item) => {
@@ -900,7 +900,7 @@ export default {
           "Expression",
           echoData.model.name.toString()
         );
-        this.caculateMappingResult();
+        this.calculateMappingResult();
       }
     },
     async getSTbaleList() {

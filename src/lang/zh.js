@@ -1038,8 +1038,8 @@ export default {
       msgbodytip:'请先输入消息体',
       searchSResult:'输入完后按enter键查询',
       tablenametip:'请先输入表名表达式',
-      mapcaculate:'请先计算mapping值',
-      caculate:'计算'
+      mapcalculate:'请先计算mapping值',
+      calculate:'计算'
     },
     opcurl:'请输入OPC服务地址',
     selecttargetdb:'请选择目标数据源',
