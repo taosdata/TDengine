@@ -13,7 +13,7 @@ export function getUrls() {
 }
 export function fetchApiByCluster(url, token, data) {
     return request({
-        baseURL: "",
+        baseURL: process.env.VUE_APP_BASE_URL,
         url: `/rest/sql`,
         method: "post",
         headers: {
