@@ -638,6 +638,7 @@ export default {
       // if (!this.mappingParser.parser) {
       //   this.caculateMappingResult();
       // }
+      console.log(this.$store.state.app.splitExpresList,'split的参数');
       this.caculateMappingResult();
       let extractObj = {};
       this.extractArr.forEach((item) => {

@@ -70,10 +70,15 @@ export default {
 
               
             });
-            if(splitExpre['names']){
-                splitExpre['names']=splitExpre['names'].toString().split(',')
+            if(splitExpre.names){
+                let result = splitExpre.names.toString().split(',')
+                splitExpre.names=result
+
+
+                console.log('有names',splitExpre);
             }
             this.$store.commit('app/SET_SPLIT_EXPRESS',splitExpre)
+            console.log(this.$store.state.app.splitExpresList,splitExpre,'split---store');
           return true;
         } else {
           this.isValid = false;
