@@ -264,6 +264,7 @@ typedef enum ELogicConditionType {
 #define TSDB_JOB_STATUS_LEN    32
 
 #define TSDB_CLUSTER_ID_LEN       40
+#define TSDB_MACHINE_ID_LEN       24
 #define TSDB_FQDN_LEN             128
 #define TSDB_EP_LEN               (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN         16

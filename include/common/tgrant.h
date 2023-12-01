@@ -52,6 +52,7 @@ typedef enum {
 
 int32_t grantCheck(EGrantType grant);
 int32_t grantAlterActiveCode(int32_t did, const char* old, const char* newer, char* out, int8_t type);
+char*   grantGetMachineId();
 
 #ifndef GRANTS_CFG
 #ifdef TD_ENTERPRISE
