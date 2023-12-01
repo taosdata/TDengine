@@ -598,7 +598,6 @@ export default {
           ? this.$store.state.app.csvTransformerParser.inputList
           : [].concat(this.generateInput()),
       };
-      console.log(tags,columns,primarykey,'超级表必须的');
       if(tags.length==0||columns.length==0||!primarykey){
         Message.warning(this.$t('datasource.transformer.mappingvaildtip'));
         this.isbreak=true
@@ -738,13 +737,35 @@ export default {
     generateInput() {
       let inputList = [];
       let resultMsgbody=''
-      if(this.msgForm.msgbody.replace(/\}\s*\{/g,'}{').includes('}{')){
-        resultMsgbody=this.msgForm.msgbody.replace(/\}\s*\{/g,'}&${').split("&$")
-      }else{
-        if(/\n/g.test(this.msgForm.msgbody)){
-          resultMsgbody=this.msgForm.msgbody.replace(/[\n\s]/g,'*&$*').split('*&$*')
-        }else{
-          resultMsgbody=this.msgForm.msgbody.split(';')
+      if (
+        this.msgForm.msgbody.replace(/\}\s*\{/g, "}{").includes("}{")
+      ) {
+        resultMsgbody = this.msgForm.msgbody
+          .replace(/\}\s*\{/g, "}&${")
+          .split("&$");
+      } else {
+        if (
+          /\n/g.test(this.msgForm.msgbody) &&
+          /^[^\{]/.test(this.msgForm.msgbody.trim())
+        ) {
+          //普通文本，目前第一列暂时不能为json格式
+          resultMsgbody = this.msgForm.msgbody
+            .replace(/[\n\s]/g, "*&$*")
+            .split("*&$*");
+        } else {
+          try {
+            if (
+              /^\{/g.test(this.msgForm.msgbody) &&
+              JSON.parse(this.msgForm.msgbody)
+            ) {
+              resultMsgbody = [].concat(this.msgForm.msgbody);
+            } 
+          } catch (error) {
+            Message.error(this.$t("datasource.transformer.jsontip"));
+            return;
+          }
+
+          resultMsgbody = this.msgForm.msgbody.split(";");
         }
       }
       inputList = resultMsgbody.map((msg) => {

@@ -1201,6 +1201,7 @@ export default {
     // opc_alias:'Alias',
     // opc_type:'Type',
     transformer:{
+      jsontip:'Please enter the correct JSON format',
       mappingvaildtip:'Please fill in the correct primary key, column, and tag',
       extractdesc:`
       <strong>taosX supports three kinds of extractor</strong>:<br/>
