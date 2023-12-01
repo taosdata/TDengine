@@ -1516,12 +1516,16 @@ pub enum Error {
     EmptySTableName,
     #[error("STable name should not contain dot: {0}")]
     STableNameContainsDot(String),
-    #[error(transparent)]
+    #[error("Internal transform error: {0:#}")]
     ArrowError(#[from] ArrowError),
-    #[error(transparent)]
+    #[error("Transform mapper error: {0:#}")]
     MapValueError(#[from] map::ValueBuilderError),
-    #[error("{0:#}")]
+    #[error("Transform error: {0:#}")]
     Other(#[from] anyhow::Error),
+    #[error("Primary key({0}) must be non-null")]
+    NullPrimaryKey(String),
+    #[error("Primary key({0}) must be or could be casted to timestamp: {1:#}")]
+    PrimaryKeyCastError(String, arrow_schema::ArrowError),
 }
 
 fn indices_to_ranges(indices: &[usize]) -> Vec<Range<usize>> {
