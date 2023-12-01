@@ -2514,6 +2514,15 @@ static void prepareDurationForNextFileSet(STsdbReader* pReader) {
   if (pReader->status.bProcMemPreFileset) {
     resetTableListIndex(&pReader->status);
   }
+
+  if (!pReader->status.bProcMemFirstFileset) {
+    if (pReader->notifyFn) {
+      STsdReaderNotifyInfo info = {0};
+      info.duration.fileSetId = fid;
+      pReader->notifyFn(TSD_READER_NOTIFY_DURATION_START, &info, pReader->notifyParam);
+    }    
+  }
+  
   pReader->status.prevFilesetStartKey = winFid.skey;
   pReader->status.prevFilesetEndKey = winFid.ekey;
 }
