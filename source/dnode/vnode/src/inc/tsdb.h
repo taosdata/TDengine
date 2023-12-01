@@ -690,12 +690,12 @@ int32_t tsdbTFileSetRangeArrayDestroy(TFileSetRangeArray **ppArr);
 
 // fset partition
 enum {
-  TSDB_SNAP_RANGE_TYP_HEAD = 0,
-  TSDB_SNAP_RANGE_TYP_DATA,
-  TSDB_SNAP_RANGE_TYP_SMA,
-  TSDB_SNAP_RANGE_TYP_TOMB,
-  TSDB_SNAP_RANGE_TYP_STT,
-  TSDB_SNAP_RANGE_TYP_MAX,
+  TSDB_FSET_RANGE_TYP_HEAD = 0,
+  TSDB_FSET_RANGE_TYP_DATA,
+  TSDB_FSET_RANGE_TYP_SMA,
+  TSDB_FSET_RANGE_TYP_TOMB,
+  TSDB_FSET_RANGE_TYP_STT,
+  TSDB_FSET_RANGE_TYP_MAX,
 };
 
 typedef TARRAY2(SVersionRange) SVerRangeList;
@@ -703,7 +703,7 @@ typedef TARRAY2(SVersionRange) SVerRangeList;
 struct STsdbFSetPartition {
   int64_t       fid;
   int8_t        stat;
-  SVerRangeList verRanges[TSDB_SNAP_RANGE_TYP_MAX];
+  SVerRangeList verRanges[TSDB_FSET_RANGE_TYP_MAX];
 };
 
 typedef struct STsdbFSetPartition STsdbFSetPartition;
