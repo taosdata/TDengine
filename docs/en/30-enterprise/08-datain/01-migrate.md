@@ -1,5 +1,5 @@
 ---
-Title: "TDEngine 2.x"
+title: "TDEngine 2.x"
 sidebar_label: "TDengine 2.x"
 ---
 
