@@ -2881,6 +2881,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   tDecoderInit(&decoder, pReq->pCont, pReq->contLen);
 
   if (tDecodeStreamHbMsg(&decoder, &req) < 0) {
+    streamMetaClearHbMsg(&req);
     tDecoderClear(&decoder);
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
@@ -2990,9 +2991,8 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   }
 
   taosThreadMutexUnlock(&execInfo.lock);
+  streamMetaClearHbMsg(&req);
 
-  taosArrayDestroy(req.pTaskStatus);
-  taosArrayDestroy(req.pUpdateNodes);
   return TSDB_CODE_SUCCESS;
 }
 
