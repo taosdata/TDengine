@@ -1526,8 +1526,14 @@ impl<R: Read> Iterator for IpcReader<R> {
         match res {
             Ok(record) => Some(self.parse(record)),
             Err(err) => {
-                error!("next message error, {}", err.to_string());
-                Some(Err(err))
+                let err_str = format!("{err:#}");
+                error!("next message error, {}", err_str);
+                if err_str.contains("os error 10054") {
+                    //  windows socket close error
+                    None
+                } else {
+                    Some(Err(err))
+                }
             }
         }
     }
