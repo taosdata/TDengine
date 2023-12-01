@@ -862,7 +862,7 @@ function handleInfoParams(config) {
  */
 export function generateFormInitData(paramsConfig) {
   return paramsConfig.reduce((data, item) => {
-    const value = item.type == 'number' ? item.defaultValue : item.defaultValue ?? '';
+    const value = item.type == 'number' ? Number(item.defaultValue) : item.defaultValue ?? '';
 
     if (item.children && item.children.length) {
       data[item.field] = generateFormInitData(item.children);
