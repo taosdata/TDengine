@@ -818,6 +818,7 @@
             :parserColumns="constmqttCols"
             @getTransformerParams="getTransformerParams"
             ref="transformer"
+            v-if='showtransformer'
           ></CommonTransformer>
         </div>
       </section>
@@ -947,6 +948,8 @@ export default {
   },
   data() {
     return {
+      transformerkey:Math.random(),
+      showtransformer:false,
       advanceParams: "",
       allnodesloading: false,
       disableallnodeclick: true,
@@ -1045,6 +1048,7 @@ export default {
   },
   mounted() {
     if (this.tagName == "mqtt" || this.tagName == "kafka") {
+      this.showtransformer=true
       this.$set(this, "constmqttCols", this.dbsource[0].parser.fields);
       let caitem = this.$store.state.app.mqttcafile[0];
       let certitem = this.$store.state.app.mqttcertfile[0];
@@ -1158,6 +1162,7 @@ export default {
       immediate: true,
       handler() {
         if (this.tagName == "kafka" || this.tagName == "mqtt") {
+          
           this.getdbprecision();
         }
       },
@@ -1165,12 +1170,27 @@ export default {
     "$store.state.app.currentDBType": {
       immediate: true,
       handler(val) {
+        this.showtransformer=false
+        this.$store.commit('app/SET_FILTER_PARSE_DATA',null)
+        this.$store.commit('app/SET_EXTRACT_PARSE_DATA',null)
+        this.$store.commit('app/SET_ECHO_MAP_DATA',null)
+        this.$store.commit('app/SET_TRANSFORM_COL_IDENTIFIED',[])
+        this.$store.commit('app/SET_TRANSFORM_PARSERDATA',null)
+        this.$store.commit('app/SET_TRANSFORMER_MAPCOLUMNS',null)
+        this.$store.commit('app/SET_CSV_LOCAL_COLS',[])
+        this.$store.commit('app/SET_CSV_TRANSFORMER_PARSER',null)
+        this.$store.commit('app/SET_CSV_PARSER',null)
+        this.$store.commit('app/SET_MAPPING_JOIN','')
+        this.$store.commit('app/SET_SPLIT_EXPRESS',null)
+       
         if (val == "kafka" || val == "mqtt") {
+          this.$set(this,'constmqttCols',[])
           this.$set(
             this,
             "constmqttCols",
             this.$parent.uidata[0].parser.fields
           );
+          this.showtransformer=true
         }
       },
     },
@@ -1761,7 +1781,6 @@ export default {
           this.$refs.transformer.getTransformerParams();
         }
         if (this.tagName == "csv" && isSubmit) {
-          console.log(this.$refs.csvdata.$refs.transform, "transf");
           if (!this.$refs.csvdata.$refs.transform) {
             Message.warning(this.$t("datasource.transformer.uploadexe"));
             return;

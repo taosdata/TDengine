@@ -1201,6 +1201,16 @@ export default {
     // opc_alias:'Alias',
     // opc_type:'Type',
     transformer:{
+      mappingvaildtip:'Please fill in the correct primary key, column, and tag',
+      extractdesc:`
+      <strong>taosX supports three kinds of extractor</strong>:<br/>
+1. <strong>JSON</strong>: User could use object name such as: name , or [JSON Path]<em>(https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-20.html)</em> query such as $.field.sub=new_name to extract multiple fields from one string(json) field.<br/>
+2. <strong>Regex</strong>: User could use named capture groups in regex pattern to extract multiple fields from any string(text) field. For example: a regex patten <em>(?<y>[0-9]{4})-(?<m>[0-9]{2})-(?<d>[0-9]{2})</em> will extract 3 fields y, m, d. You can use <em>http://regex101.com/</em>  test your regex with Rust flavor.<br/>
+      `,
+      filterdesc:`<strong>taosX supports a powerful expression engine to filter records. A record will be removed when the expression result is false.</strong><br/>
+      - <strong>Bool value</strong>: bool_value if bool_value is true/false.<br/>
+      - <strong>Compare oprations</strong>: a > b with a and b fields exist, or c == "value" d > 1.1 and so on.<br/>
+      - String functions is also supported: s.contains("abc") .<br/>`,
       uploadexe:'Please upload the csv file and execute the next step',
       sp:'Please select the target super table',
       septip:'Please enter the separator',

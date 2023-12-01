@@ -13,7 +13,7 @@
       </el-form-item>
       <el-form-item prop="n">
         <el-input
-          placeholder="2"
+          placeholder="3"
           class="split-item"
           size="small"
           type="number"
@@ -24,7 +24,7 @@
       </el-form-item>
       <el-form-item prop="names">
         <el-input
-          placeholder='str1, id, value'
+          placeholder='value1,value2,value3'
           class="split-item"
           size="small"
           v-model="ruleForm.names"
@@ -63,20 +63,16 @@ export default {
         if (valid) {
           this.isValid = true;
           let splitExpre={}
-          console.log(this.ruleForm,'this.ruleForm--sploit')
           Object.keys(this.ruleForm)
             .filter((key) => this.ruleForm[key])
             .forEach((item) => {
-
-                console.log(this.ruleForm[item],'this.ruleForm[item]');
-              splitExpre[item] =item=='names'?this.ruleForm[item].toString(): this.ruleForm[item];
+              splitExpre[item] =item=='names'?this.ruleForm[item].toString():item=='n'?Number(this.ruleForm[item]) :this.ruleForm[item];
 
               
             });
             if(splitExpre['names']){
                 splitExpre['names']=splitExpre['names'].toString().split(',')
             }
-            console.log(splitExpre,splitExpre,'splitExpre');
             this.$store.commit('app/SET_SPLIT_EXPRESS',splitExpre)
           return true;
         } else {

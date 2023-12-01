@@ -35,6 +35,10 @@
         <div class="block-title">
           <span>{{ $t("datasource.transformer.extract") }}</span>
         </div>
+        <div
+          class="description"
+          v-html="$t('datasource.transformer.extractdesc')"
+        ></div>
         <template v-for="(item, index) in extractArr">
           <ExtractSplit
             ref="extract"
@@ -59,6 +63,10 @@
         <div class="block-title">
           <span>{{ $t("datasource.transformer.filter") }}</span>
         </div>
+        <div
+          class="description"
+          v-html="$t('datasource.transformer.filterdesc')"
+        ></div>
         <template v-for="(item, index) in filterArr">
           <FilterExpression
             :key="index"
@@ -224,7 +232,7 @@ import FilterExpression from "./filterExpression.vue";
 import { getParser } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
-import { getRFC3339Time } from "@/utils/index";
+import { parsinginZone } from "@/utils";
 import CreateSTB from "./createSTB.vue";
 import { createStableReq } from "@/api/gateway/data/stables";
 export default {
@@ -411,8 +419,8 @@ export default {
         if (Object.keys(item).toString() == "map") {
           echoMapData = Object.entries(item["map"]).map((val) => {
             let expreKey = Object.keys(val[1]).filter((key) => key != "as")[0];
-            if(expreKey == 'join'){
-              this.joinwith=val[1]['with']
+            if (expreKey == "join") {
+              this.joinwith = val[1]["with"];
             }
             return {
               columnname: val[0],
@@ -539,17 +547,16 @@ export default {
             //排除第一行的tablename
             let expreitem = {
               [`${key}`]: ["sum", "join"].includes(key)
-                ? item["Expression"].split(",")
+                ? item["Expression"].split(",").map((val) => val.trim())
                 : item["Expression"],
               as: item["Type"],
             };
-            if(key=='join'){
-              expreitem['with']=this.joinwith
+            if (key == "join") {
+              expreitem["with"] = this.joinwith;
             }
             mutates.push({
               [`${item["Name"]}`]: expreitem,
             });
-
           }
         }
       });
@@ -587,6 +594,10 @@ export default {
           ? this.$store.state.app.csvTransformerParser.inputList
           : [].concat(this.generateInput()),
       };
+      if(tags.length==0||columns.length==0||!primarykey){
+        Message.warning(this.$t('datasource.transformer.mappingvaildtip'));
+        return;
+      }
       this.mappingParser = parserData;
       this.getParserData(parserData);
     },
@@ -620,25 +631,9 @@ export default {
     },
     //获取transformer的所有参数
     getTransformerParams() {
-      //  不删除，不确定mapping表格是否计算过才能创建新任务
-
-      // let caculateRows = this.tableData.filter(item => item["Expression"]);
-      // let mutate = this.filterArr
-      //   .map(item => {
-      //     return {
-      //       filter: item.expression
-      //     };
-      //   })
-      //   .concat(
-      //     caculateRows.map(val => {
-      //       return { [`${val["maptype"]}`]: val["Expression"] };
-      //     })
-      //   );
 
       if (!this.mappingParser.parser) {
         this.caculateMappingResult();
-        // Message.warning(this.$t("datasource.transformer.mapcaculate"));
-        // return;
       }
       let extractObj = {};
       this.extractArr.forEach((item) => {
@@ -743,14 +738,18 @@ export default {
               inputobj["payload"] = msg;
             } else {
               inputobj[item.name] =
-                item.type == "timestamp" ? getRFC3339Time() : item.name;
+                item.type == "timestamp"
+                  ? parsinginZone(new Date())
+                  : item.name;
             }
           } else if (this.$store.state.app.currentDBType == "kafka") {
             if (item.name == "value") {
               inputobj["value"] = msg;
             } else {
               inputobj[item.name] =
-                item.type == "timestamp" ? getRFC3339Time() : item.name;
+                item.type == "timestamp"
+                  ? parsinginZone(new Date())
+                  : item.name;
             }
           }
         });
@@ -927,8 +926,10 @@ export default {
             this.$store.state.app.transformerMapCloumns
           );
         }
-        let defaultmap=this.options.filter(item=>item.value=='mapping')[0].children.map(label=>label.label)
-        console.log(this.options,'mapping字段');
+        let defaultmap = this.options
+          .filter((item) => item.value == "mapping")[0]
+          .children.map((label) => label.label);
+
         this.params_columns.splice(0, this.params_columns.length - 1);
         this.params_tags.splice(0, this.params_tags.length - 1);
         this.tableData = res.data.map((val, index) => {
@@ -938,30 +939,34 @@ export default {
           if (val.includes("TAG")) {
             this.params_tags.push(val[0]);
           }
-          let equalindex=defaultmap.findIndex(item=>item.toLowerCase()==val[0].toLowerCase())
-          console.log(equalindex,'比较',defaultmap,equalindex>0?["mapping",`${defaultmap[equalindex]}`]: ["expression", "value"]);
+          let equalindex = defaultmap.findIndex(
+            (item) => item.toLowerCase() == val[0].toLowerCase()
+          );
+
           return {
             Name: val[0],
             Type:
               val[1] == "TIMESTAMP"
                 ? val[1] + "(" + precision.data[0][0] + ")"
                 : val[1],
-            maptype:equalindex>-1?["mapping",`${defaultmap[equalindex]}`]: ["expression", "value"],
-            Expression:equalindex>-1?defaultmap[equalindex]: "",
+            maptype:
+              equalindex > -1
+                ? ["mapping", `${defaultmap[equalindex]}`]
+                : ["expression", "value"],
+            Expression: equalindex > -1 ? defaultmap[equalindex] : "",
             Output1: "",
             Output2: "",
           };
         });
-        
+
         this.tableData.unshift({
           Name: this.sruleForm.s_name,
           Type: "Tablename",
-          maptype:  ["expression", "string"],
+          maptype: ["expression", "string"],
           Expression: "",
           Output1: "",
           Output2: "",
         });
-        console.log(this.tableData,'this.tableData');
         this.params_columns.unshift(res.data[0][0]);
       } catch (error) {
         console.log(error);
@@ -1104,12 +1109,12 @@ export default {
 }
 .block-title {
   margin-top: 25px;
-  margin-bottom: 15px !important;
+  margin-bottom: 10px !important;
 }
 .extract {
   .el-button {
     width: 100%;
-    margin-top: 20px;
+    margin-top: 15px;
   }
 }
 .col-list {
@@ -1130,6 +1135,7 @@ export default {
 .filter {
   .el-button {
     width: 100%;
+    margin-top:15px;
   }
   ::v-deep .el-input {
     margin-left: 0px !important;
@@ -1186,6 +1192,9 @@ export default {
   .el-button {
     width: 60px;
   }
+}
+.description {
+  color: #acaab2;
 }
 ::v-deep .el-input-group__prepend {
   padding: 0 4px;
