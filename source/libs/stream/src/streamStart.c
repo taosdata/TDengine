@@ -1081,8 +1081,9 @@ int32_t streamMetaUpdateTaskDownstreamStatus(SStreamMeta* pMeta, int64_t streamI
   taosHashPut(pDst, &id, sizeof(id), &initTs, sizeof(STaskInitTs));
 
   int32_t numOfTotal = streamMetaGetNumOfTasks(pMeta);
+  int32_t numOfRecv = taosHashGetSize(pStartInfo->pReadyTaskSet) + taosHashGetSize(pStartInfo->pFailedTaskSet);
 
-  if (taosHashGetSize(pStartInfo->pReadyTaskSet) + taosHashGetSize(pStartInfo->pFailedTaskSet) == numOfTotal) {
+  if (numOfRecv == numOfTotal) {
     pStartInfo->readyTs = taosGetTimestampMs();
     pStartInfo->elapsedTime = (pStartInfo->startTs != 0) ? pStartInfo->readyTs - pStartInfo->startTs : 0;
 
@@ -1094,8 +1095,9 @@ int32_t streamMetaUpdateTaskDownstreamStatus(SStreamMeta* pMeta, int64_t streamI
     // print the initialization elapsed time and info
     displayStatusInfo(pMeta, pStartInfo->pReadyTaskSet, true);
     displayStatusInfo(pMeta, pStartInfo->pFailedTaskSet, false);
-
     streamMetaResetStartInfo(pStartInfo);
+  } else {
+    stDebug("vgId:%d recv check down results:%d, total:%d", pMeta->vgId, numOfRecv, numOfTotal);
   }
 
   streamMetaWUnLock(pMeta);
