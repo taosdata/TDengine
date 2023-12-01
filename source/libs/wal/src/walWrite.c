@@ -324,14 +324,18 @@ int32_t walEndSnapshot(SWal *pWal) {
 
     // iterate files, until the searched result
     // delete according to file size or close time
+    SWalFileInfo *pUntil = NULL;
     for (SWalFileInfo *iter = pWal->fileInfoSet->pData; iter < pInfo; iter++) {
       if ((pWal->cfg.retentionSize > 0 && newTotSize > pWal->cfg.retentionSize) ||
           (pWal->cfg.retentionPeriod == 0 ||
            pWal->cfg.retentionPeriod > 0 && iter->closeTs >= 0 && iter->closeTs + pWal->cfg.retentionPeriod < ts)) {
-        deleteCnt++;
         newTotSize -= iter->fileSize;
-        taosArrayPush(pWal->toDeleteFiles, iter);
+        pUntil = iter;
       }
+    }
+    for (SWalFileInfo *iter = pWal->fileInfoSet->pData; iter <= pUntil; iter++) {
+      deleteCnt++;
+      taosArrayPush(pWal->toDeleteFiles, iter);
     }
 
     // make new array, remove files

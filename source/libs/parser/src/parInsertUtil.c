@@ -508,6 +508,13 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
 
       tColDataSortMerge(pTableCxt->pData->aCol);
     } else {
+      // skip the table has no data to insert
+      // eg: import a csv without valid data
+      // if (0 == taosArrayGetSize(pTableCxt->pData->aRowP)) {
+      //   qWarn("no row in tableDataCxt uid:%" PRId64 " ", pTableCxt->pMeta->uid);
+      //   p = taosHashIterate(pTableHash, p);
+      //   continue;
+      // }
       if (!pTableCxt->ordered) {
         code = tRowSort(pTableCxt->pData->aRowP);
       }
