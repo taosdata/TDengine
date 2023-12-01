@@ -141,6 +141,61 @@ mod pipeline_tests {
     use super::*;
 
     #[test]
+    fn test_expr_functions() {
+        let records = demo_mqtt_records();
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double", "value", "$.id=id::int"] } }
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser and mutate
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["$.events[0].price=price::double","value", "$.id=id::int"] } },
+            "mutate": [
+                {"map": { "v0": { "value": "ssstr" } } },
+                {"map": {
+                    "e1": { "expr": "v0.append(\"abc\")" },
+                    "e2": { "expr": "v0.replace(\"s\", \"a\")" },
+                    "e3": { "expr": "v0.replace(\"s\", \"a\", 1)" },
+                    "e4": { "expr": "v0.truncate(1)" }
+            } } ]
+        }"#
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        assert_eq!(
+            output[0]
+                .fields
+                .iter()
+                .map(|f| (f.name.as_str(), f.arrow_type.clone()))
+                .collect_vec(),
+            vec![
+                ("ts", DataType::Timestamp(TimeUnit::Millisecond, None)),
+                ("price", DataType::Float64),
+                ("value", DataType::Float64),
+                ("id", DataType::Int32),
+                ("v0", DataType::Utf8),
+                ("e1", DataType::Utf8),
+                ("e2", DataType::Utf8),
+                ("e3", DataType::Utf8),
+                ("e4", DataType::Utf8)
+            ]
+        );
+    }
+
+    #[test]
     fn test_pipeline_map() {
         let records = demo_mqtt_records();
 
