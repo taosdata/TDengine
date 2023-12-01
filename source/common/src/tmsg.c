@@ -41,10 +41,10 @@
 
 inline bool tmsgIsValid(tmsg_t type) {
   static int8_t sz = sizeof(tMsgRangeDict) / sizeof(tMsgRangeDict[0]);
-  for (int i = 0; i < sz; i++) {
-    if (type > tMsgRangeDict[i].start && type < tMsgRangeDict[i].end) {
-      return true;
-    }
+
+  int segIdx = TMSG_SEG_CODE(type);
+  if (segIdx < sz) {
+    return type < tMsgRangeDict[segIdx];
   }
   return false;
 }

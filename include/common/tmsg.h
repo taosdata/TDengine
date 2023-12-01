@@ -55,7 +55,6 @@ extern "C" {
 
 extern char*   tMsgInfo[];
 extern int32_t tMsgDict[];
-// extern int32_t tMsgRangeDict[];
 
 typedef uint16_t tmsg_t;
 

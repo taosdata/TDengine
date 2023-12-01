@@ -35,17 +35,13 @@
 
 #elif defined(TD_MSG_RANGE_CODE_)
 
-  typedef struct {
-      int32_t start;
-      int32_t end;
-  } TMsgRange;
   #undef TD_NEW_MSG_SEG
   #undef TD_DEF_MSG_TYPE
   #undef TD_CLOSE_MSG_TYPE
-  #define TD_NEW_MSG_SEG(TYPE) {(TYPE##_SEG_CODE) << 8,
+  #define TD_NEW_MSG_SEG(TYPE) 
   #define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP)
-  #define TD_CLOSE_MSG_TYPE(TYPE) TYPE},
-  TMsgRange tMsgRangeDict[] = {
+  #define TD_CLOSE_MSG_TYPE(TYPE) TYPE,
+  int32_t tMsgRangeDict[] = {
 
 #elif defined(TD_MSG_NUMBER_)
 
