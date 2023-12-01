@@ -44,34 +44,34 @@ taosX 支持通过配置文件进行配置。在 Linux 上，默认配置文件�
 #database_url = "sqlite:taosx.db"
 ```
 
-其中：
+Where:
 
-- `plugins_home`: 为 taosX 外部数据源 SDK 存放目录。
-- `data_dir`：为 taosX 数据文件存储目录。
-- `database_url`：为 taosX 数据库地址，形式为 `sqlite:<path>`。
-- `logs_home`：为 taosX 日志文件存放目录，taosX 服务日志文件名前缀为 `taosx.log`，外部数据源有各自的日志文件名前缀。
-- `log_level`：为日志级别字符串，可选项包括：`error`，`warn`，`info`，`debug`，`trace` 五个级别，默认为 `info`。
-- `log_keep_days`：日志最大存储天数，taosX 日志将按天拆分为不同的文件。
-- `jobs`：为每个运行时最大线程数量，服务模式下总线程数为 `jobs * 2`，默认线程数为当前服务器 `核数 * 2`。
-- `serve.listen`：taosX REST API 监听地址，默认为 `0.0.0.0:6050`。
-- `serve.grpc`：taosX gRCP API 监听地址，默认为 `0.0.0.0:6055`。
+- `plugins_home`: is the directory for taosX external data source SDK.
+- `data_dir`: is the directory for taosX data file storage.
+- `database_url`: is the address of the taosX database, in the form of `sqlite:<path>`.
+- `logs_home`: is the directory for taosX log file storage. The taosX service log file has the prefix `taosx.log`, and external data sources have their own log file name prefixes.
+- `log_level`: is a log level string, with optional levels including: `error`, `warn`, `info`, `debug`, `trace`. The default is `info`.
+- `log_keep_days`: is the maximum storage days for logs. taosX logs will be split into different files by day.
+- `jobs`: is the maximum number of threads for each runtime. In service mode, the total number of threads is `jobs * 2`, and the default number of threads is `current server cores * 2`.
+- `serve.listen`: is the taosX REST API listening address. The default is `0.0.0.0:6050`.
+- `serve.grpc`: is the taosX gRPC API listening address. The default is `0.0.0.0:6055`.
 
-## 启动
+## Start
 
-使用 Systemd 启动 taosX 服务，其 Systemd 的配置文件位于：`/etc/systemd/system/taosx.service`。启动命令如下：
+Start the taosX service using Systemd, and its Systemd configuration file is located at: `/etc/systemd/system/taosx.service`. The start command is as follows:
 
 ```shell
 systemctl start taosx
 ```
 
-Windows 系统上，请在 "Services" 系统管理工具中找到 "taosX" 服务，然后点击 "启动这个服务"。或在 Windows 命令行（ `cwd.exe` 或 PowerShell）中运行：`sc start taosx`。
+On Windows systems, please find the "taosX" service in the "Services" system management tool, then click "Start this service". Alternatively, in the Windows command line (cmd.exe or PowerShell), run: `sc start taosx`.
 
-## 问题排查
+## Troubleshooting
 
-1. 如何修改 taosX 的日志级别？
+1. How to modify the log level of taosX?
 
-    修改配置文件中 `log_level` 参数，默认为 `info`，可提高（ `debug`，`trace`）或降低日志级别（`warn`，`error`）。修改后重启服务。
+    Modify the `log_level` parameter in the configuration file, which defaults to `info`. It can be increased (`debug`, `trace`) or decreased (`warn`, `error`). After modification, restart the service.
 
-2. 如何查看 taosX 的日志？
+2. How to view the logs of taosX?
 
-    Linux 下 taosX 服务日志默认存储在 `/var/log/taos/taosx.log` 文件中，Windows 下默认存储在 `C:\\TDengine\\log\\taosx.log` 文件中。
+    On Linux, taosX service logs are stored by default in the `/var/log/taos/taosx.log` file. On Windows, they are stored by default in the `C:\\TDengine\\log\\taosx.log` file.
