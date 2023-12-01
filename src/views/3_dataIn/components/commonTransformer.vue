@@ -248,6 +248,7 @@ export default {
   },
   data() {
     return {
+      isbreak:false,//tranformer创建是否出错
       joinwith: "",
       isCSV: false,
       mapExpressionList: [
@@ -346,7 +347,7 @@ export default {
     if (this.parserColumns) {
       this.initColumnLists(this.parserColumns);
     }
-    console.log(this.$store.state.app.transformerParserData,'this.$store.state.app.transformerParserData--mounted');
+  
     if (
       this.$parent.isEditable ||
       (this.$store.state.app.csvParser &&
@@ -380,7 +381,7 @@ export default {
         });
         this.initColumnLists(columns);
       }
-      console.log(this.$store.state.app.currentDBType,'this.$store.state.app.currentDBType',value);
+    
       this.msgForm.msgbody =
         this.$store.state.app.currentDBType == "mqtt"
           ? value.input.map((item) => item.payload).join(";")
@@ -601,7 +602,6 @@ export default {
         return;
       }
       this.mappingParser = parserData;
-      console.log(this.$store.state.app.transformerFilterParseData,'mapping-----filter--edit');
       this.getParserData(parserData);
     },
     //设置extract的name
@@ -635,10 +635,6 @@ export default {
     //获取transformer的所有参数
     getTransformerParams() {
 
-      // if (!this.mappingParser.parser) {
-      //   this.caculateMappingResult();
-      // }
-      console.log(this.$store.state.app.splitExpresList,'split的参数--最新修改');
       this.caculateMappingResult();
 
       let extractObj = {};
@@ -689,6 +685,7 @@ export default {
         let result = await getParser(data);
         if (result.message) {
           Message.error(result.message);
+          this.isbreak=true
           return;
         }
         let outputColumns = result[0].fields.map((item) => item.name);

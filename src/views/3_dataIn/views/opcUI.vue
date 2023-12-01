@@ -1781,6 +1781,9 @@ export default {
         }
         if ((this.tagName == "mqtt" || this.tagName == "kafka") && isSubmit) {
           this.$refs.transformer.getTransformerParams();
+          if(this.$refs.transformer.isbreak){//transformer的mapping接口出错
+            return
+          }
         }
         if (this.tagName == "csv" && isSubmit) {
           if (!this.$refs.csvdata.$refs.transform) {
@@ -1792,6 +1795,9 @@ export default {
             return;
           }
           this.$refs.csvdata.$refs.transform.getTransformerParams();
+          if(this.$refs.csvdata.$refs.transform.isbreak){//transformer的mapping接口出错
+            return
+          }
         }
 
         if (this.tagName.includes("opc") && isSubmit) {
