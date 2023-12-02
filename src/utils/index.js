@@ -416,7 +416,7 @@ export function getDSN(driver = "tmq", subject = null) {
 
 // 获取时区
 export function getLocalTimezone() {
-  return localStorage.getItem("timezone") || "Greenwich";
+  return localStorage.getItem("timezone") || moment.tz.guess(true) || "UTC";
 }
 
 // format time
