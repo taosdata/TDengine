@@ -64,7 +64,7 @@ Start the taosX service using Systemd, and its Systemd configuration file is loc
 systemctl start taosx
 ```
 
-On Windows systems, please find the "taosX" service in the "Services" system management tool, then click "Start this service". Alternatively, in the Windows command line (cmd.exe or PowerShell), run: `sc start taosx`.
+On Windows systems, please find the "taosX" service in the "Services" system management tool, then click "Start this service". Alternatively, in the Windows command line (cmd.exe or PowerShell), run: `sc.exe start taosx`.
 
 ## Troubleshooting
 

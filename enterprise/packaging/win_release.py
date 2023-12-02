@@ -288,8 +288,8 @@ def write_server_install_file():
         f.write(f"{tdCustomer.Name} will be installed under {install_info.install_dir}, "
                 f"users can modify configuration file {install_info.install_dir}\\cfg\\{tdCustomer.Name}.cfg, "
                 f"set the log file path or other parameters.\n")
-        f.write(f"- To start/stop {tdCustomer.Name} with administrator privileges:  sc start/stop {tdCustomer.Prompt}d\n")
-        f.write("- To start/stop taosAdapter with administrator privileges: sc start/stop taosadapter\n")
+        f.write(f"- To start/stop {tdCustomer.Name} with administrator privileges:  sc.exe start/stop {tdCustomer.Prompt}d\n")
+        f.write("- To start/stop taosAdapter with administrator privileges: sc.exe start/stop taosadapter\n")
         f.write(f"- To access {tdCustomer.Name} from your local machine, run {tdCustomer.Prompt}\n")
         f.write(f"- Please manually remove {install_info.install_dir} from your system PATH environment "
                 f"after you remove {tdCustomer.Name} software.")

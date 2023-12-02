@@ -56,7 +56,7 @@ systemctl start taos-explorer
 Use `sc` command in Windows:
 
 ```shell
-sc start taos-explorer
+sc.exe start taos-explorer
 ```
 
 ## Troubleshooting
