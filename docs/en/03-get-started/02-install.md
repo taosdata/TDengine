@@ -70,21 +70,20 @@ The steps are as below:
 - To start or stop the `taosx` service, run the `sc.exe start/stop taosx` command.
 - To start or stop the `taosx-agent` service, run the `sc.exe start/stop taosx-agent` command.
 - To start or stop the taos-explorer service, run the `sc.exe start/stop taosx-explorer` command.
-By default, taosX is installed to the `C:\Program Files\taosX` directory.
+By default, taosX is installed to the `C:\TDengine` directory.
 ~~~
-├── bin
-│   ├── taosd.exe
-│   ├── taosadapter.exe
-│   ├── taoskeeper.exe
-│   ├── taosx.exe
-│   ├── taosx-srv.exe
-│   ├── taosx-srv.xml
-│   ├── taosx-agent.exe
-│   ├── taosx-agent-srv.exe
-│   ├── taosx-agent-srv.xml
-│   ├── taos-explorer.exe
-│   ├── taos-explorer-srv.exe
-│   └── taos-explorer-srv.xml
+├── taosd.exe
+├── taosadapter.exe
+├── taoskeeper.exe
+├── taosx.exe
+├── taosx-srv.exe
+├── taosx-srv.xml
+├── taosx-agent.exe
+├── taosx-agent-srv.exe
+├── taosx-agent-srv.xml
+├── taos-explorer.exe
+├── taos-explorer-srv.exe
+└── taos-explorer-srv.xml
 ├── plugins
 │   ├── influxdb
 │   │   └── taosx-inflxdb.jar
@@ -96,9 +95,10 @@ By default, taosX is installed to the `C:\Program Files\taosX` directory.
 │   |   └── taosx-pi.exe
 │   |   └── taosx-pi-backfill.exe
 │   |   └── ...
-└── config
+└── cfg
 │   ├── agent.toml
 │   ├── explorer.toml
+│   ├── taosx.toml
 ├── uninstall_TDengine.exe
 ├── uninstall_TDengine.dat
 ~~~
