@@ -64,12 +64,12 @@ The steps are as below:
 
 - Download and install the TDengine Enterprise installation package.
 - To uninstall taosX, run the `uninstall_TDengine.exe` file.
-- To start or stop the `taosx` service, run the `sc start/stop taosd` command.
-- To start or stop the `taosx` service, run the `sc start/stop taosadapter` command.
-- To start or stop the `taosx` service, run the `sc start/stop taoskeeper` command.
-- To start or stop the `taosx` service, run the `sc start/stop taosx` command.
-- To start or stop the `taosx-agent` service, run the `sc start/stop taosx-agent` command.
-- To start or stop the taos-explorer service, run the `sc start/stop taosx-explorer` command.
+- To start or stop the `taosx` service, run the `sc.exe start/stop taosd` command.
+- To start or stop the `taosx` service, run the `sc.exe start/stop taosadapter` command.
+- To start or stop the `taosx` service, run the `sc.exe start/stop taoskeeper` command.
+- To start or stop the `taosx` service, run the `sc.exe start/stop taosx` command.
+- To start or stop the `taosx-agent` service, run the `sc.exe start/stop taosx-agent` command.
+- To start or stop the taos-explorer service, run the `sc.exe start/stop taosx-explorer` command.
 By default, taosX is installed to the `C:\Program Files\taosX` directory.
 ~~~
 ├── bin

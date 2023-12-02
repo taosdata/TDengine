@@ -56,7 +56,7 @@ systemctl start taos-explorer
 Windows 下使用 `sc` 命令启动服务：
 
 ```shell
-sc start taos-explorer
+sc.exe start taos-explorer
 ```
 
 ## 问题排查
