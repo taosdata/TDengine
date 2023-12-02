@@ -80,19 +80,18 @@ TDengine Enterprise 安装包中主要包含：
 - windows 默认安装在```C:\TDengine```,目录结构如下：
 
 ~~~
-├── bin
-│   ├── taosd.exe
-│   ├── taosadapter.exe
-│   ├── taoskeeper.exe
-│   ├── taosx.exe
-│   ├── taosx-srv.exe
-│   ├── taosx-srv.xml
-│   ├── taosx-agent.exe
-│   ├── taosx-agent-srv.exe
-│   ├── taosx-agent-srv.xml
-│   ├── taos-explorer.exe
-│   ├── taos-explorer-srv.exe
-│   └── taos-explorer-srv.xml
+├── taosd.exe
+├── taosadapter.exe
+├── taoskeeper.exe
+├── taosx.exe
+├── taosx-srv.exe
+├── taosx-srv.xml
+├── taosx-agent.exe
+├── taosx-agent-srv.exe
+├── taosx-agent-srv.xml
+├── taos-explorer.exe
+├── taos-explorer-srv.exe
+└── taos-explorer-srv.xml
 ├── plugins
 │   ├── influxdb
 │   │   └── taosx-inflxdb.jar
@@ -104,9 +103,10 @@ TDengine Enterprise 安装包中主要包含：
 │   |   └── taosx-pi.exe
 │   |   └── taosx-pi-backfill.exe
 │   |   └── ...
-└── config
+└── cfg
 │   ├── agent.toml
 │   ├── explorer.toml
+│   ├── taosx.toml
 ├── uninstall_TDengine.exe
 ├── uninstall_TDengine.dat
 ~~~
