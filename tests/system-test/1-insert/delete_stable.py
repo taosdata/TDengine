@@ -36,7 +36,7 @@ class TDTestCase:
         self.setsql = TDSetSql()
         self.stbname = 'stb'
         self.ntbname = 'ntb'
-        self.rowNum = 10
+        self.rowNum = 3
         self.tbnum = 3
         self.ts = 1537146000000
         self.binary_str = 'taosdata'
