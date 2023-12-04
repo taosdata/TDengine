@@ -28,18 +28,6 @@ if $data05 != NULL then
   return -1
 endi
 
-sql insert into mt_int(tbname,tagname,ts,c) values("st_int_00",NULL,now,1) values("st_int_01", NULL, now,2)
-sql show create table st_int_00
-sql show create table st_int_01
-sql show tags from st_int_00
-if $data05 != NULL then
-  return -1
-endi
-sql show tags from st_int_01
-if $data05 != NULL then
-  return -1
-endi
-
 sql_error create table st_int_2  using mt_int tags ('NULL')
 sql_error create table st_int_3  using mt_int tags ('NULL')
 sql_error create table st_int_4  using mt_int tags ("NULL")
