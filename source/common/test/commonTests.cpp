@@ -13,6 +13,7 @@
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tvariant.h"
+#include "ttokendef.h"
 
 namespace {
 //
@@ -28,84 +29,73 @@ TEST(testCase, toUIntegerEx_test) {
   uint64_t val = 0;
 
   char*    s = "123";
-  int32_t ret = toUIntegerEx(s, strlen(s), &val);
+  int32_t ret = toUIntegerEx(s, strlen(s), TK_NK_INTEGER, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, 123);
 
   s = "1000u";
-  ret = toUIntegerEx(s, strlen(s), &val);
-  ASSERT_EQ(ret, 0);
-  ASSERT_EQ(val, 1000);
-
-  s = "1000l";
-  ret = toUIntegerEx(s, strlen(s), &val);
-  ASSERT_EQ(ret, 0);
-  ASSERT_EQ(val, 1000);
-
-  s = "1000.0f";
-  ret = toUIntegerEx(s, strlen(s), &val);
-  ASSERT_EQ(ret, 0);
-  ASSERT_EQ(val, 1000);
+  ret = toUIntegerEx(s, strlen(s), 0, &val);
+  ASSERT_EQ(ret, -1);
 
   s = "0x1f";
-  ret = toUIntegerEx(s, strlen(s), &val);
+  ret = toUIntegerEx(s, strlen(s), TK_NK_HEX, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, 31);
 
   s = "0b110";
-  ret = toUIntegerEx(s, strlen(s), &val);
+  ret = toUIntegerEx(s, strlen(s), 0, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, 6);
 
   s = "2567.4787";
-  ret = toUIntegerEx(s, strlen(s), &val);
+  ret = toUIntegerEx(s, strlen(s), TK_NK_FLOAT, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, 2567);
 
   s = "1.869895343e4";
-  ret = toUIntegerEx(s, strlen(s), &val);
+  ret = toUIntegerEx(s, strlen(s), TK_NK_FLOAT, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, 18699);
 
   s = "-1";
-  ret = toUIntegerEx(s, strlen(s), &val);
+  ret = toUIntegerEx(s, strlen(s),TK_NK_INTEGER, &val);
   ASSERT_EQ(ret, -1);
 
   s = "-0b10010";
-  ret = toUIntegerEx(s, strlen(s), &val);
+  ret = toUIntegerEx(s, strlen(s), 0, &val);
   ASSERT_EQ(ret, -1);
 
   s = "-0x40";
-  ret = toUIntegerEx(s, strlen(s), &val);
+  ret = toUIntegerEx(s, strlen(s), TK_NK_HEX, &val);
   ASSERT_EQ(ret, -1);
 
   s = "-80.9999";
-  ret = toUIntegerEx(s, strlen(s), &val);
+  ret = toUIntegerEx(s, strlen(s), TK_NK_FLOAT, &val);
   ASSERT_EQ(ret, -1);
 
   s = "-5.2343544534e10";
-  ret = toUIntegerEx(s, strlen(s), &val);
+  ret = toUIntegerEx(s, strlen(s), TK_NK_FLOAT, &val);
   ASSERT_EQ(ret, -1);
 
   // INT64_MAX
   s = "9223372036854775807";
-  ret = toUIntegerEx(s, strlen(s), &val);
+  ret = toUIntegerEx(s, strlen(s), TK_NK_INTEGER, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, 9223372036854775807);
 
   // UINT64_MAX
   s = "18446744073709551615";
-  ret = toUIntegerEx(s, strlen(s), &val);
+  ret = toUIntegerEx(s, strlen(s), TK_NK_INTEGER, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, 18446744073709551615u);
 
   // out of range
   s = "18446744073709551616";
-  ret = toUIntegerEx(s, strlen(s), &val);
+  ret = toUIntegerEx(s, strlen(s), TK_NK_INTEGER, &val);
   ASSERT_EQ(ret, -1);
 
   s = "5.23e25";
-  ret = toUIntegerEx(s, strlen(s), &val);
+  ret = toUIntegerEx(s, strlen(s), TK_NK_FLOAT, &val);
   ASSERT_EQ(ret, -1);
 }
 
@@ -113,93 +103,82 @@ TEST(testCase, toIntegerEx_test) {
   int64_t val = 0;
 
   char*    s = "123";
-  int32_t ret = toIntegerEx(s, strlen(s), &val);
+  int32_t ret = toIntegerEx(s, strlen(s), TK_NK_INTEGER, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, 123);
 
   s = "-1";
-  ret = toIntegerEx(s, strlen(s), &val);
+  ret = toIntegerEx(s, strlen(s), TK_NK_INTEGER, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, -1);
 
   s = "1000u";
-  ret = toIntegerEx(s, strlen(s), &val);
-  ASSERT_EQ(ret, 0);
-  ASSERT_EQ(val, 1000);
-
-  s = "1000l";
-  ret = toIntegerEx(s, strlen(s), &val);
-  ASSERT_EQ(ret, 0);
-  ASSERT_EQ(val, 1000);
-
-  s = "1000.0f";
-  ret = toIntegerEx(s, strlen(s), &val);
-  ASSERT_EQ(ret, 0);
-  ASSERT_EQ(val, 1000);
+  ret = toIntegerEx(s, strlen(s), TK_NK_INTEGER, &val);
+  ASSERT_EQ(ret, -1);
 
   s = "0x1f";
-  ret = toIntegerEx(s, strlen(s), &val);
+  ret = toIntegerEx(s, strlen(s), TK_NK_HEX, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, 31);
 
   s = "-0x40";
-  ret = toIntegerEx(s, strlen(s), &val);
+  ret = toIntegerEx(s, strlen(s), TK_NK_HEX, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, -64);
 
   s = "0b110";
-  ret = toIntegerEx(s, strlen(s), &val);
+  ret = toIntegerEx(s, strlen(s), 0, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, 6);
 
   s = "-0b10010";
-  ret = toIntegerEx(s, strlen(s), &val);
+  ret = toIntegerEx(s, strlen(s), 0, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, -18);
 
   s = "-80.9999";
-  ret = toIntegerEx(s, strlen(s), &val);
+  ret = toIntegerEx(s, strlen(s), TK_NK_FLOAT, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, -81);
 
   s = "2567.8787";
-  ret = toIntegerEx(s, strlen(s), &val);
+  ret = toIntegerEx(s, strlen(s), TK_NK_FLOAT, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, 2568);
 
   s = "-5.2343544534e10";
-  ret = toIntegerEx(s, strlen(s), &val);
+  ret = toIntegerEx(s, strlen(s), TK_NK_FLOAT, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, -52343544534);
 
   s = "1.869895343e4";
-  ret = toIntegerEx(s, strlen(s), &val);
+  ret = toIntegerEx(s, strlen(s), TK_NK_FLOAT, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, 18699);
 
   // INT64_MAX
   s = "9223372036854775807";
-  ret = toIntegerEx(s, strlen(s), &val);
+  ret = toIntegerEx(s, strlen(s), TK_NK_INTEGER, &val);
   ASSERT_EQ(ret, 0);
-  ASSERT_EQ(val, 9223372036854775807);
+  ASSERT_EQ(val, 9223372036854775807LL);
 
   s = "-9223372036854775808";
-  ret = toIntegerEx(s, strlen(s), &val);
+  ret = toIntegerEx(s, strlen(s), TK_NK_INTEGER, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, -9223372036854775808);
 
   // out of range
   s = "9323372036854775807";
-  ret = toIntegerEx(s, strlen(s), &val);
+  ret = toIntegerEx(s, strlen(s), TK_NK_INTEGER, &val);
   ASSERT_EQ(ret, -1);
 
   s = "-9323372036854775807";
-  ret = toIntegerEx(s, strlen(s), &val);
+  ret = toIntegerEx(s, strlen(s), TK_NK_INTEGER, &val);
   ASSERT_EQ(ret, -1);
 
   // UINT64_MAX
   s = "18446744073709551615";
-  ret = toIntegerEx(s, strlen(s), &val);
+  ret = toIntegerEx(s, strlen(s), TK_NK_INTEGER, &val);
   ASSERT_EQ(ret, -1);
 }
 

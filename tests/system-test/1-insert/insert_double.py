@@ -13,22 +13,22 @@ class TDTestCase:
 
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
-        self.db = "db1"
+        self.database = "db1"
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
 
     def prepare_db(self):
-        tdSql.execute(f"drop database if exists {self.db}")
-        tdSql.execute(f"create database {self.db}")
-        tdSql.execute(f"use {self.db}")
+        tdSql.execute(f"drop database if exists {self.database}")
+        tdSql.execute(f"create database {self.database}")
+        tdSql.execute(f"use {self.database}")
 
     def test_value(self, table_name, dtype, bits):
         tdSql.execute(f"drop table if exists {table_name}")
-        tdSql.execute(f"create table {table_name}(ts timestamp, i1 {dtype}, i2 {dtype} unsigned);")
+        tdSql.execute(f"create table {table_name}(ts timestamp, i1 {dtype}, i2 {dtype} unsigned)")
 
         tdSql.execute(f"insert into {table_name} values(now, -16, +6)")
-        tdSql.execute(f"insert into {table_name} values(now,  80.99  ,  +0042  )")
-        tdSql.execute(f"insert into {table_name} values(now,  -0042  , +80.99  )")
+        tdSql.execute(f"insert into {table_name} values(now, 80.99  , +0042  )")
+        tdSql.execute(f"insert into {table_name} values(now, -0042  , +80.99  )")
         tdSql.execute(f"insert into {table_name} values(now, 52.34354, 18.6)")
         tdSql.execute(f"insert into {table_name} values(now, -12., +3.)")
         tdSql.execute(f"insert into {table_name} values(now, -2.3e1, +2.324e2)")
@@ -112,9 +112,9 @@ class TDTestCase:
         self.prepare_db()
 
         self.test_value("t1", "bigint", 64)
-        self.test_value("t1", "int", 32)
-        self.test_value("t1", "smallint", 16)
-        self.test_value("t1", "tinyint", 8)
+        self.test_value("t2", "int", 32)
+        self.test_value("t3", "smallint", 16)
+        self.test_value("t4", "tinyint", 8)
         tdLog.printNoPrefix("==========end case1 run ...............")
 
         self.test_tags("t_big", "bigint", 64)
