@@ -1282,7 +1282,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 static int32_t taosCheckGlobalCfg() {
   uint32_t ipv4 = taosGetIpv4FromFqdn(tsLocalFqdn);
   if (ipv4 == 0xffffffff) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TSDB_CODE_RPC_FQDN_ERROR;
     uError("failed to get ip from fqdn:%s since %s, dnode can not be initialized", tsLocalFqdn, terrstr());
     return -1;
   }
