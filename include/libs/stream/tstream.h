@@ -402,7 +402,8 @@ typedef struct SHistoryTaskInfo {
   int32_t tickCount;
   int32_t retryTimes;
   int32_t waitInterval;
-  int64_t haltVer;  // offset in wal when halt the stream task
+  int64_t haltVer;      // offset in wal when halt the stream task
+  bool    operatorOpen; // false by default
 } SHistoryTaskInfo;
 
 typedef struct STaskOutputInfo {
@@ -852,7 +853,8 @@ void         streamMetaNotifyClose(SStreamMeta* pMeta);
 int32_t      streamTaskSetDb(SStreamMeta* pMeta, void* pTask, char* key);
 void         streamMetaStartHb(SStreamMeta* pMeta);
 bool         streamMetaTaskInTimer(SStreamMeta* pMeta);
-int32_t      streamMetaUpdateTaskDownstreamStatus(SStreamTask* pTask, int64_t startTs, int64_t endTs, bool succ);
+int32_t      streamMetaUpdateTaskDownstreamStatus(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, int64_t startTs,
+                                                  int64_t endTs, bool ready);
 void         streamMetaRLock(SStreamMeta* pMeta);
 void         streamMetaRUnLock(SStreamMeta* pMeta);
 void         streamMetaWLock(SStreamMeta* pMeta);
