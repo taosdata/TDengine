@@ -1619,6 +1619,15 @@ void appendOneRowToStreamSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKE
   pBlock->info.rows++;
 }
 
+bool checkExpiredData(SStateStore* pAPI, SUpdateInfo* pUpdateInfo, STimeWindowAggSupp* pTwSup, uint64_t tableId, TSKEY ts) {
+  bool isExpired = false;
+  bool isInc = pAPI->isIncrementalTimeStamp(pUpdateInfo, tableId, ts);
+  if (!isInc) {
+    isExpired = isOverdue(ts, pTwSup);
+  }
+  return isExpired;
+}
+
 static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock* pBlock, bool out) {
   if (out) {
     blockDataCleanup(pInfo->pUpdateDataRes);

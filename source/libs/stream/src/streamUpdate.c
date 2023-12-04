@@ -129,9 +129,9 @@ SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t waterma
     }
     pInfo->numBuckets = DEFAULT_BUCKET_SIZE;
     pInfo->pCloseWinSBF = NULL;
-    _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT);
-    pInfo->pMap = taosHashInit(DEFAULT_MAP_CAPACITY, hashFn, true, HASH_NO_LOCK);
   }
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT);
+  pInfo->pMap = taosHashInit(DEFAULT_MAP_CAPACITY, hashFn, true, HASH_NO_LOCK);
   pInfo->maxDataVersion = 0;
   return pInfo;
 }
@@ -383,4 +383,15 @@ int32_t updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo) {
 
   tDecoderClear(&decoder);
   return 0;
+}
+
+bool isIncrementalTimeStamp(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts) {
+  TSKEY *pMapMaxTs = taosHashGet(pInfo->pMap, &tableId, sizeof(uint64_t));
+  bool res = true;
+  if ( pMapMaxTs && ts < *pMapMaxTs ) {
+    res = false;
+  } else {
+    taosHashPut(pInfo->pMap, &tableId, sizeof(uint64_t), &ts, sizeof(TSKEY));
+  }
+  return res;
 }
