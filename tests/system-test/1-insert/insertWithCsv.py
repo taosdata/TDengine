@@ -134,8 +134,8 @@ class TDTestCase:
     def test_bigcsv(self):
         # prepare csv
         print("start csv data prepare")
-        once = 10000
-        qtime1 = 201
+        once = 10001
+        qtime1 = 101
         qtime2 = 100
         self.rowNum1 = qtime1 * once
         self.rowNum2 = qtime2 * once
@@ -162,6 +162,7 @@ class TDTestCase:
 
 
     def run(self):
+        tdLog.debug(f"test for TS-4272")
         self.reset_tb()
         self.test_bigcsv()
         self.test_mix()
