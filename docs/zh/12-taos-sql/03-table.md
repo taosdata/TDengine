@@ -30,9 +30,6 @@ table_options:
 
 table_option: {
     COMMENT 'string_value'
-  | WATERMARK duration[,duration]
-  | MAX_DELAY duration[,duration]
-  | ROLLUP(func_name [, func_name] ...)
   | SMA(col_name [, col_name] ...)
   | TTL value
 }
