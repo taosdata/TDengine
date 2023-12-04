@@ -430,6 +430,11 @@ int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync) {
 
   taosThreadMutexLock(&tsdb->mutex);
 
+  if (tsdb->bgTaskDisabled) {
+    taosThreadMutexUnlock(&tsdb->mutex);
+    return 0;
+  }
+
   STFileSet *fset;
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
     code = tsdbTFileSetOpenChannel(fset);
