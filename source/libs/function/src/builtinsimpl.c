@@ -5472,7 +5472,6 @@ int32_t blockDistFunction(SqlFunctionCtx* pCtx) {
   SColumnInfoData*      pInputCol = pInput->pData[0];
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-
   STableBlockDistInfo* pDistInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   STableBlockDistInfo p1 = {0};
@@ -5481,6 +5480,7 @@ int32_t blockDistFunction(SqlFunctionCtx* pCtx) {
   pDistInfo->numOfBlocks += p1.numOfBlocks;
   pDistInfo->numOfTables += p1.numOfTables;
   pDistInfo->numOfInmemRows += p1.numOfInmemRows;
+  pDistInfo->numOfSttRows += p1.numOfSttRows;
   pDistInfo->totalSize += p1.totalSize;
   pDistInfo->totalRows += p1.totalRows;
   pDistInfo->numOfFiles += p1.numOfFiles;
@@ -5488,7 +5488,6 @@ int32_t blockDistFunction(SqlFunctionCtx* pCtx) {
   pDistInfo->defMinRows = p1.defMinRows;
   pDistInfo->defMaxRows = p1.defMaxRows;
   pDistInfo->rowSize = p1.rowSize;
-  pDistInfo->numOfSttRows = p1.numOfSttRows;
 
   if (pDistInfo->minRows > p1.minRows) {
     pDistInfo->minRows = p1.minRows;
