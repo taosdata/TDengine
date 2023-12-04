@@ -4731,15 +4731,16 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
     }
   }
 
+  SMergeTreeConf conf = {
+      .pReader = pReader,
+      .pSchema = pReader->info.pSchema,
+      .pCols = pReader->suppInfo.colId,
+      .numOfCols = pReader->suppInfo.numOfCols,
+      .suid = pReader->info.suid,
+  };
+
   SReaderStatus* pStatus = &pReader->status;
   if (pStatus->pCurrentFileset != NULL) {
-    SMergeTreeConf conf = {
-        .pReader = pReader,
-        .pSchema = pReader->info.pSchema,
-        .pCols = pReader->suppInfo.colId,
-        .numOfCols = pReader->suppInfo.numOfCols,
-        .suid = pReader->info.suid,
-    };
     pTableBlockInfo->numOfSttRows += tsdbGetRowsInSttFiles(pStatus->pCurrentFileset, pStatus->pLDataIterArray,
                                                            pReader->pTsdb, &conf, pReader->idStr);
   }
@@ -4789,6 +4790,12 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
       code = initForFirstBlockInFile(pReader, pBlockIter);
       if ((code != TSDB_CODE_SUCCESS) || (pStatus->loadFromFile == false)) {
         break;
+      }
+
+      // add the data in stt files of new fileset
+      if (pStatus->pCurrentFileset != NULL) {
+        pTableBlockInfo->numOfSttRows += tsdbGetRowsInSttFiles(pStatus->pCurrentFileset, pStatus->pLDataIterArray,
+                                                               pReader->pTsdb, &conf, pReader->idStr);
       }
 
       pTableBlockInfo->numOfBlocks += pBlockIter->numOfBlocks;
