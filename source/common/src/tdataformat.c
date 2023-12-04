@@ -1273,7 +1273,6 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
     n += tGetCStr(p + n, &pTagVal->pKey);
   } else {
     n += tGetI16v(p + n, &pTagVal->cid);
-    ASSERTS(pTagVal->cid > 0, "Invalid tag cid:%" PRIi16, pTagVal->cid);
   }
 
   // type
