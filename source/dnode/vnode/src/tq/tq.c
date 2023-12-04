@@ -17,12 +17,6 @@
 #include "vnd.h"
 #include "tqCommon.h"
 
-typedef struct {
-  int8_t inited;
-} STqMgmt;
-
-static STqMgmt tqMgmt = {0};
-
 // 0: not init
 // 1: already inited
 // 2: wait to be inited or cleaup
@@ -31,36 +25,6 @@ static int32_t tqInitialize(STQ* pTq);
 static FORCE_INLINE bool tqIsHandleExec(STqHandle* pHandle) { return TMQ_HANDLE_STATUS_EXEC == pHandle->status; }
 static FORCE_INLINE void tqSetHandleExec(STqHandle* pHandle) { pHandle->status = TMQ_HANDLE_STATUS_EXEC; }
 static FORCE_INLINE void tqSetHandleIdle(STqHandle* pHandle) { pHandle->status = TMQ_HANDLE_STATUS_IDLE; }
-
-int32_t tqInit() {
-  int8_t old;
-  while (1) {
-    old = atomic_val_compare_exchange_8(&tqMgmt.inited, 0, 2);
-    if (old != 2) break;
-  }
-
-  if (old == 0) {
-    if (streamInit() < 0) {
-      return -1;
-    }
-    atomic_store_8(&tqMgmt.inited, 1);
-  }
-
-  return 0;
-}
-
-void tqCleanUp() {
-  int8_t old;
-  while (1) {
-    old = atomic_val_compare_exchange_8(&tqMgmt.inited, 1, 2);
-    if (old != 2) break;
-  }
-
-  if (old == 1) {
-    streamCleanUp();
-    atomic_store_8(&tqMgmt.inited, 0);
-  }
-}
 
 void tqDestroyTqHandle(void* data) {
   STqHandle* pData = (STqHandle*)data;
@@ -337,7 +301,7 @@ int32_t tqProcessPollPush(STQ* pTq, SRpcMsg* pMsg) {
 
     while (pIter) {
       STqHandle* pHandle = *(STqHandle**)pIter;
-      tqInfo("vgId:%d start set submit for pHandle:%p, consumer:0x%" PRIx64, vgId, pHandle, pHandle->consumerId);
+      tqDebug("vgId:%d start set submit for pHandle:%p, consumer:0x%" PRIx64, vgId, pHandle, pHandle->consumerId);
 
       if (ASSERT(pHandle->msg != NULL)) {
         tqError("pHandle->msg should not be null");

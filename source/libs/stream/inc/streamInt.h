@@ -57,11 +57,6 @@ typedef struct {
   SSDataBlock* pBlock;
 } SStreamTrigger;
 
-typedef struct SStreamGlobalEnv {
-  int8_t inited;
-  void*  timer;
-} SStreamGlobalEnv;
-
 typedef struct SStreamContinueExecInfo {
   SEpSet  epset;
   int32_t taskId;
@@ -92,7 +87,7 @@ struct SStreamQueue {
   int8_t      status;
 };
 
-extern SStreamGlobalEnv streamEnv;
+extern void*            streamTimer;
 extern int32_t          streamBackendId;
 extern int32_t          streamBackendCfWrapperId;
 extern int32_t          taskDbWrapperId;

@@ -363,35 +363,6 @@ static int32_t mndCheckCreateStreamReq(SCMCreateStreamReq *pCreate) {
   return 0;
 }
 
-static int32_t mndStreamGetPlanString(const char *ast, int8_t triggerType, int64_t watermark, char **pStr) {
-  if (NULL == ast) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SNode * pAst = NULL;
-  int32_t code = nodesStringToNode(ast, &pAst);
-
-  SQueryPlan *pPlan = NULL;
-  if (TSDB_CODE_SUCCESS == code) {
-    SPlanContext cxt = {
-        .pAstRoot = pAst,
-        .topicQuery = false,
-        .streamQuery = true,
-        .triggerType = (triggerType == STREAM_TRIGGER_MAX_DELAY) ? STREAM_TRIGGER_WINDOW_CLOSE : triggerType,
-        .watermark = watermark,
-    };
-    code = qCreateQueryPlan(&cxt, &pPlan, NULL);
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodesNodeToString((SNode *)pPlan, false, pStr, NULL);
-  }
-  nodesDestroyNode(pAst);
-  nodesDestroyNode((SNode *)pPlan);
-  terrno = code;
-  return code;
-}
-
 static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamReq *pCreate) {
   SNode *     pAst = NULL;
   SQueryPlan *pPlan = NULL;
@@ -733,11 +704,20 @@ static int32_t mndPersistTaskDropReq(SMnode *pMnode, STrans *pTrans, SStreamTask
   pReq->streamId = pTask->id.streamId;
 
   STransAction action = {0};
-  SEpSet       epset = {0};
-  if (pTask->info.nodeId == SNODE_HANDLE) {
-    SSnodeObj *pObj = mndAcquireSnode(pMnode, pTask->info.nodeId);
-    addEpIntoEpSet(&epset, pObj->pDnode->fqdn, pObj->pDnode->port);
-  } else {
+  SEpSet  epset = {0};
+  if(pTask->info.nodeId == SNODE_HANDLE){
+    SSnodeObj *pObj = NULL;
+    void  *pIter = NULL;
+    while (1) {
+      pIter = sdbFetch(pMnode->pSdb, SDB_SNODE, pIter, (void **)&pObj);
+      if (pIter == NULL) {
+        break;
+      }
+
+      addEpIntoEpSet(&epset, pObj->pDnode->fqdn, pObj->pDnode->port);
+      sdbRelease(pMnode->pSdb, pObj);
+    }
+  }else{
     SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->info.nodeId);
     epset = mndGetVgroupEpset(pMnode, pVgObj);
     mndReleaseVgroup(pMnode, pVgObj);
@@ -783,13 +763,15 @@ static int32_t checkForNumOfStreams(SMnode *pMnode, SStreamObj *pStreamObj) {  /
     if (numOfStream > MND_STREAM_MAX_NUM) {
       mError("too many streams, no more than %d for each database", MND_STREAM_MAX_NUM);
       sdbCancelFetch(pMnode->pSdb, pIter);
-      return TSDB_CODE_MND_TOO_MANY_STREAMS;
+      terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
+      return terrno;
     }
 
     if (pStream->targetStbUid == pStreamObj->targetStbUid) {
       mError("Cannot write the same stable as other stream:%s", pStream->name);
       sdbCancelFetch(pMnode->pSdb, pIter);
-      return TSDB_CODE_MND_INVALID_TARGET_TABLE;
+      terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
+      return terrno;
     }
   }
 
@@ -797,12 +779,12 @@ static int32_t checkForNumOfStreams(SMnode *pMnode, SStreamObj *pStreamObj) {  /
 }
 
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
-  SMnode *    pMnode = pReq->info.node;
-  int32_t     code = -1;
+  SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
   SStreamObj  streamObj = {0};
   char *      sql = NULL;
   int32_t     sqlLen = 0;
+  terrno = TSDB_CODE_SUCCESS;
 
   SCMCreateStreamReq createStreamReq = {0};
   if (tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, &createStreamReq) != 0) {
@@ -825,7 +807,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   if (pStream != NULL) {
     if (createStreamReq.igExists) {
       mInfo("stream:%s, already exist, ignore exist is set", createStreamReq.name);
-      code = 0;
       goto _OVER;
     } else {
       terrno = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
@@ -848,8 +829,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = checkForNumOfStreams(pMnode, &streamObj);
-  if (code != TSDB_CODE_SUCCESS) {
+  if (checkForNumOfStreams(pMnode, &streamObj) < 0) {
     goto _OVER;
   }
 
@@ -912,8 +892,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   saveStreamTasksInfo(&streamObj, &execInfo);
   taosThreadMutexUnlock(&execInfo.lock);
 
-  code = TSDB_CODE_ACTION_IN_PROGRESS;
-
   SName dbname = {0};
   tNameFromString(&dbname, createStreamReq.sourceDB, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
@@ -930,7 +908,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+   if (terrno != TSDB_CODE_SUCCESS && terrno != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
   }
 
@@ -940,7 +918,8 @@ _OVER:
   if (sql != NULL) {
     taosMemoryFreeClear(sql);
   }
-  return code;
+
+  return terrno;
 }
 
 int64_t mndStreamGenChkpId(SMnode *pMnode) {
