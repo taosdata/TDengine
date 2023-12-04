@@ -770,6 +770,9 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   taosThreadMutexUnlock(&fs->tsdb->mutex);
 
   // destroy all channels
+  int64_t channel;
+  TARRAY2_FOREACH(&channelArr, channel) { vnodeAChannelDestroy(vnodeAsyncHandle[1], channel, true); }
+  TARRAY2_DESTROY(&channelArr, NULL);
   return 0;
 }
 
