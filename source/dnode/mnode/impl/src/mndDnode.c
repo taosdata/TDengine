@@ -1283,7 +1283,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
     strcpy(dcfgReq.config, "supportvnodes");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
-  } else if (strncasecmp(cfgReq.config, "activeCode", 10) == 0 || strncasecmp(cfgReq.config, "cActiveCode", 11) == 0) {
+  } else if (strncasecmp(cfgReq.config, GRANT_ACTIVE_CODE, 10) == 0 ||
+             strncasecmp(cfgReq.config, GRANT_C_ACTIVE_CODE, 11) == 0) {
     int8_t opt = strncasecmp(cfgReq.config, "a", 1) == 0 ? DND_ACTIVE_CODE : DND_CONN_ACTIVE_CODE;
     int8_t index = opt == DND_ACTIVE_CODE ? 10 : 11;
     if (' ' != cfgReq.config[index] && 0 != cfgReq.config[index]) {
@@ -1301,7 +1302,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       goto _err_out;
     }
 
-    strcpy(dcfgReq.config, opt == DND_ACTIVE_CODE ? "activeCode" : "cActiveCode");
+    strcpy(dcfgReq.config, opt == DND_ACTIVE_CODE ? GRANT_ACTIVE_CODE : GRANT_C_ACTIVE_CODE);
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%s", cfgReq.value);
 
     if (mndConfigDnode(pMnode, pReq, &cfgReq, opt) != 0) {

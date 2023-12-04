@@ -137,7 +137,7 @@ int64_t mndGetClusterUpTime(SMnode *pMnode) {
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  int32_t  nMachineIds = taosArrayGetSize(pCluster->pMachineIds);
+  int16_t  nMachineIds = taosArrayGetSize(pCluster->pMachineIds);
   int32_t  machineSize = sizeof(int16_t) + nMachineIds * sizeof(SMachineId);
   SSdbRaw *pRaw = sdbAllocRaw(SDB_CLUSTER, CLUSTER_VER_NUMBE, sizeof(SClusterObj) + machineSize + CLUSTER_RESERVE_SIZE);
   if (pRaw == NULL) goto _OVER;
@@ -149,7 +149,7 @@ static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {
   SDB_SET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pCluster->upTime, _OVER)
   SDB_SET_INT16(pRaw, dataPos, nMachineIds, _OVER)
-  for (int32_t i = 0; i < nMachineIds; ++i) {
+  for (int16_t i = 0; i < nMachineIds; ++i) {
     SDB_SET_BINARY(pRaw, dataPos, ((SMachineId*)TARRAY_GET_ELEM(pCluster->pMachineIds, i))->id, TSDB_MACHINE_ID_LEN, _OVER)
   }
   SDB_SET_RESERVE(pRaw, dataPos, CLUSTER_RESERVE_SIZE, _OVER)
@@ -203,6 +203,7 @@ static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
       for (int16_t i = 0; i < nMachineIds; ++i) {
         SDB_GET_BINARY(pRaw, dataPos, ((SMachineId *)TARRAY_GET_ELEM(pCluster->pMachineIds, i))->id,
                        TSDB_MACHINE_ID_LEN, _OVER)
+        ++TARRAY_SIZE(pCluster->pMachineIds);
       }
     }
   }
@@ -232,6 +233,7 @@ static int32_t mndClusterActionInsert(SSdb *pSdb, SClusterObj *pCluster) {
 
 static int32_t mndClusterActionDelete(SSdb *pSdb, SClusterObj *pCluster) {
   mTrace("cluster:%" PRId64 ", perform delete action, row:%p", pCluster->id, pCluster);
+  mndFreeClusterObj(pCluster);
   return 0;
 }
 
@@ -345,6 +347,32 @@ static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *
       colDataSetNULL(pColInfo, numOfRows);
     } else {
       colDataSetVal(pColInfo, numOfRows, (const char *)&tsExpireTime, false);
+    }
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    int32_t nMachidIds = taosArrayGetSize(pCluster->pMachineIds);
+    char   *pBuf =
+        taosMemoryCalloc(1, (nMachidIds > 0 ? nMachidIds * (TSDB_MACHINE_ID_LEN + 3) : 1) + 2 + VARSTR_HEADER_SIZE);
+    VarDataLenT nPos = 0;
+    if (pBuf) {
+      nPos += VARSTR_HEADER_SIZE;
+      snprintf(pBuf + nPos, 2, "[");
+      ++nPos;
+      for (int32_t i = 0; i < nMachidIds; ++i) {
+        snprintf(pBuf + nPos, TSDB_MACHINE_ID_LEN + 2, "\"%s",
+                 ((SMachineId *)TARRAY_GET_ELEM(pCluster->pMachineIds, i))->id);
+        nPos += TSDB_MACHINE_ID_LEN + 1;
+        snprintf(pBuf + nPos, 3, "\",");
+        nPos += 2;
+      }
+      if (nMachidIds > 0) --nPos;
+      snprintf(pBuf + nPos, 2, "]");
+      ++nPos;
+      *(VarDataLenT *)(pBuf) = nPos - VARSTR_HEADER_SIZE;
+      colDataSetVal(pColInfo, numOfRows, pBuf, false);
+      taosMemoryFree(pBuf);
+    } else {
+      colDataSetNULL(pColInfo, numOfRows);
     }
 
     sdbRelease(pSdb, pCluster);
