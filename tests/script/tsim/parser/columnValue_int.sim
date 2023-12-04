@@ -17,12 +17,25 @@ sql create table mt_int (ts timestamp, c int) tags (tagname int)
 
 ## case 00: static create table for test tag values
 sql create table st_int_0  using mt_int tags (NULL)
+sql show create table st_int_0
 sql show tags from  st_int_0
 if $data05 != NULL then
   return -1
 endi
 sql create table st_int_1  using mt_int tags (NULL)
 sql show tags from  st_int_1
+if $data05 != NULL then
+  return -1
+endi
+
+sql insert into mt_int(tbname,tagname,ts,c) values("st_int_00",NULL,now,1) values("st_int_01", NULL, now,2)
+sql show create table st_int_00
+sql show create table st_int_01
+sql show tags from st_int_00
+if $data05 != NULL then
+  return -1
+endi
+sql show tags from st_int_01
 if $data05 != NULL then
   return -1
 endi
@@ -172,6 +185,7 @@ endi
 
 ## case 02: dynamic create table for test tag values
 sql insert into st_int_16 using mt_int tags (NULL)   values (now, NULL)
+sql show create table st_int_16
 sql show tags from  st_int_16
 if $data05 != NULL then
   return -1

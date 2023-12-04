@@ -593,7 +593,8 @@ static int32_t parseBoundTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStm
 
 static int32_t parseTagValue(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SSchema* pTagSchema, SToken* pToken,
                              SArray* pTagName, SArray* pTagVals, STag** pTag) {
-  if (!isNullValue(pTagSchema->type, pToken)) {
+  bool isNull = isNullValue(pTagSchema->type, pToken);
+  if (!isNull) {
     taosArrayPush(pTagName, pTagSchema->name);
   }
 
@@ -602,12 +603,14 @@ static int32_t parseTagValue(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStm
       return buildSyntaxErrMsg(&pCxt->msg, "json string too long than 4095", pToken->z);
     }
 
-    if (isNullValue(pTagSchema->type, pToken)) {
+    if (isNull) {
       return tTagNew(pTagVals, 1, true, pTag);
     } else {
       return parseJsontoTagData(pToken->z, pTagVals, pTag, &pCxt->msg);
     }
   }
+
+  if (isNull) return 0;
 
   STagVal val = {0};
   int32_t code =
