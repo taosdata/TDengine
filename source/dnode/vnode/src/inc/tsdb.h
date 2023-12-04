@@ -886,10 +886,9 @@ void tMergeTreeUnpinSttBlock(SMergeTree *pMTree);
 bool tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
 void tMergeTreeClose(SMergeTree *pMTree);
 
-SSttBlockLoadInfo *tCreateOneLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols);
-void               resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
+SSttBlockLoadInfo *tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols);
 void               getSttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, SSttBlockLoadCostInfo *pLoadCost);
-void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
+void              *destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 void              *destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost);
 
 // tsdbCache ==============================================================================================
