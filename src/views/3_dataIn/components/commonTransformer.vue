@@ -103,7 +103,6 @@
                 <el-form-item prop="s_name">
                   <el-select
                     v-model="sruleForm.s_name"
-                    filterable
                     allow-create
                     default-first-option
                     size="small"
@@ -133,11 +132,7 @@
                 >{{ $t("datasource.transformer.calculate") }}</el-button
               >
             </div>
-            <el-table
-              :data="tableData"
-              border
-              style="width: 100%"
-            >
+            <el-table :data="tableData" border style="width: 100%">
               <template v-for="(item, index) in st_columnLists">
                 <el-table-column
                   v-if="item === 'Expression'"
@@ -247,7 +242,7 @@ export default {
   },
   data() {
     return {
-      isbreak:false,//tranformer创建是否出错
+      isbreak: false, //tranformer创建是否出错
       joinwith: "",
       isCSV: false,
       mapExpressionList: [
@@ -345,7 +340,7 @@ export default {
     if (this.parserColumns) {
       this.initColumnLists(this.parserColumns);
     }
-  
+
     if (
       this.$parent.isEditable ||
       (this.$store.state.app.csvParser &&
@@ -379,7 +374,7 @@ export default {
         });
         this.initColumnLists(columns);
       }
-    
+
       this.msgForm.msgbody =
         this.$store.state.app.currentDBType == "mqtt"
           ? value.input.map((item) => item.payload).join(";")
@@ -435,21 +430,26 @@ export default {
         model: value.parser.model,
         tableData: echoMapData,
       });
-      this.$nextTick(() => {
+      this.$nextTick(async () => {
         if (this.$refs.extract && this.$refs.extract.length > 0) {
-          this.$refs.extract.map((comp) => {
-            comp.submitExtract();
-          });
+          let newarr=[]
+          for (let i = 0; i < this.$refs.extract.length; i++) {
+            newarr.push(this.$refs.extract[i].submitExtract())
+          }
+          
+         await Promise.all(newarr).then(val=>{
+            console.log(val,'获取映射字段');
+          })
         }
 
         if (isincludeFilter) {
-          this.$refs.filter[0].submitFilter();
+          await this.$refs.filter[0].submitFilter();
         }
+        this.sruleForm.s_name = value.parser.model.using;
+        
+        await this.getSTbaleList();
+        await this.echoFetchMap();
       });
-
-      this.sruleForm.s_name = value.parser.model.using;
-      await this.getSTbaleList();
-      await this.echoFetchMap();
     },
     //初始化列下拉框数据，适用于新增和编辑，拷贝
     initColumnLists(columns) {
@@ -512,15 +512,15 @@ export default {
     caculateMappingResult() {
       if (!this.msgForm.msgbody) {
         Message.error(this.$t("datasource.transformer.msgbodytip"));
-        this.isbreak=true
+        this.isbreak = true;
         return;
       }
       if (!this.tableData[0]["Expression"]) {
         Message.warning(this.$t("datasource.transformer.tablenametip"));
-        this.isbreak=true
+        this.isbreak = true;
         return;
       }
-      this.isbreak=false
+      this.isbreak = false;
       let tags = [];
       let columns = [];
       let mutates = [];
@@ -598,12 +598,12 @@ export default {
           ? this.$store.state.app.csvTransformerParser.inputList
           : [].concat(this.generateInput()),
       };
-      if(tags.length==0||columns.length==0||!primarykey){
-        Message.warning(this.$t('datasource.transformer.mappingvaildtip'));
-        this.isbreak=true
+      if (tags.length == 0 || columns.length == 0 || !primarykey) {
+        Message.warning(this.$t("datasource.transformer.mappingvaildtip"));
+        this.isbreak = true;
         return;
       }
-      this.isbreak=false
+      this.isbreak = false;
       this.mappingParser = parserData;
       this.getParserData(parserData);
     },
@@ -637,7 +637,6 @@ export default {
     },
     //获取transformer的所有参数
     getTransformerParams() {
-
       this.caculateMappingResult();
 
       let extractObj = {};
@@ -648,7 +647,9 @@ export default {
               ? item.expression
               : item.type == "split"
               ? this.$store.state.app.splitExpresList
-              : item.expression.split(";").map((item) => item.trim()),
+              : item.expression
+              ? item.expression.split(";").map((item) => item.trim())
+              : item.expression,
         };
       });
       let parserData = {
@@ -688,10 +689,10 @@ export default {
         let result = await getParser(data);
         if (result.message) {
           Message.error(result.message);
-          this.isbreak=true
+          this.isbreak = true;
           return;
         }
-        this.isbreak=false
+        this.isbreak = false;
         let outputColumns = result[0].fields.map((item) => item.name);
         let outputTBData = result[0].columns.map((data) => {
           return Object.fromEntries(
@@ -736,10 +737,8 @@ export default {
     //输出input结果
     generateInput() {
       let inputList = [];
-      let resultMsgbody=''
-      if (
-        this.msgForm.msgbody.replace(/\}\s*\{/g, "}{").includes("}{")
-      ) {
+      let resultMsgbody = "";
+      if (this.msgForm.msgbody.replace(/\}\s*\{/g, "}{").includes("}{")) {
         resultMsgbody = this.msgForm.msgbody
           .replace(/\}\s*\{/g, "}&${")
           .split("&$");
@@ -759,7 +758,7 @@ export default {
               JSON.parse(this.msgForm.msgbody)
             ) {
               resultMsgbody = [].concat(this.msgForm.msgbody);
-            } 
+            }
           } catch (error) {
             Message.error(this.$t("datasource.transformer.jsontip"));
             return;
@@ -956,7 +955,6 @@ export default {
           Message.error(res.desc);
           return;
         }
-
         if (this.$store.state.app.transformerMapCloumns) {
           this.$set(
             this,
@@ -1173,7 +1171,7 @@ export default {
 .filter {
   .el-button {
     width: 100%;
-    margin-top:15px;
+    margin-top: 15px;
   }
   ::v-deep .el-input {
     margin-left: 0px !important;

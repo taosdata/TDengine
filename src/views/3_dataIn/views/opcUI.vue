@@ -1183,8 +1183,6 @@ export default {
           this.$store.commit("app/SET_MAPPING_JOIN", "");
           this.$store.commit("app/SET_SPLIT_EXPRESS", null);
         }
-
-        console.log("数据源切换", val, this.isEditable);
         if (val == "kafka" || val == "mqtt") {
           this.$set(this, "constmqttCols", []);
           this.$set(
@@ -1942,7 +1940,6 @@ export default {
           //   Message.error(this.$t("datasource.csvwholeinfo"));
           //   return;
           // }
-          console.log("csvbaocun保存", piParams);
           piParams["from"] =
             `csv:` +
             (this.$refs.csvdata.activeName == "first"

@@ -264,7 +264,7 @@ export default {
       }
     },
     //提交单个
-    submitExtract() {
+    async submitExtract() {
       let extractExpres = this.ruleForm.filter_expres.split(";");
       let inputList = [];
       let resultMsgbody = "";
@@ -354,7 +354,7 @@ export default {
 
       parser.parser.parse = this.extractParseData;
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);
-      this.getParserData(parser);
+      await this.getParserData(parser);
     },
     deleteExtract() {
       this.$emit("deleteExtract", this.index, this.ruleForm.col_name);
