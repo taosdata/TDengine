@@ -333,7 +333,7 @@ int32_t tqProcessPollPush(STQ* pTq, SRpcMsg* pMsg) {
 
     while (pIter) {
       STqHandle* pHandle = *(STqHandle**)pIter;
-      tqInfo("vgId:%d start set submit for pHandle:%p, consumer:0x%" PRIx64, vgId, pHandle, pHandle->consumerId);
+      tqDebug("vgId:%d start set submit for pHandle:%p, consumer:0x%" PRIx64, vgId, pHandle, pHandle->consumerId);
 
       if (ASSERT(pHandle->msg != NULL)) {
         tqError("pHandle->msg should not be null");
