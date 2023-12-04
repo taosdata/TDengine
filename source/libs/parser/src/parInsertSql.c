@@ -268,26 +268,47 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
   return code;
 }
 
-static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t* time, SMsgBuf* pMsgBuf) {
-  int32_t     index = 0;
-  int64_t     interval;
-  int64_t     ts = 0;
-  const char* pTokenEnd = *end;
-
+static int parseTimestampOrInterval(const char** end, SToken* pToken, int16_t timePrec, int64_t* ts, int64_t* interval, SMsgBuf* pMsgBuf, bool* isTs) {
   if (pToken->type == TK_NOW) {
-    ts = taosGetTimestamp(timePrec);
+    *isTs = true;
+    *ts = taosGetTimestamp(timePrec);
   } else if (pToken->type == TK_TODAY) {
-    ts = taosGetTimestampToday(timePrec);
+    *isTs = true;
+    *ts = taosGetTimestampToday(timePrec);
   } else if (pToken->type == TK_NK_INTEGER) {
-    if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &ts)) {
+    *isTs = true;
+    if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, ts)) {
       return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
+    }
+  } else if (pToken->type == TK_NK_VARIABLE) {
+    char unit = 0;
+    *isTs = false;
+    if (parseAbsoluteDuration(pToken->z, pToken->n, interval, &unit, timePrec) != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
   } else {  // parse the RFC-3339/ISO-8601 timestamp format string
-    if (taosParseTime(pToken->z, time, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
+    *isTs = true;
+    if (taosParseTime(pToken->z, ts, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
       return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
     }
+  }
 
-    return TSDB_CODE_SUCCESS;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t* time, SMsgBuf* pMsgBuf) {
+  int32_t     index = 0, i = 0;
+  int64_t     interval = 0, tempInterval = 0;
+  int64_t     ts = 0, tempTs = 0;
+  bool firstIsTS = false, secondIsTs = false;
+  const char* pTokenEnd = *end;
+
+  if (TSDB_CODE_SUCCESS != parseTimestampOrInterval(&pTokenEnd, pToken, timePrec, &ts, &interval, pMsgBuf, &firstIsTS)) {
+    return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
+  }
+
+  if (firstIsTS) {
+    *time = ts;
   }
 
   for (int k = pToken->n; pToken->z[k] != '\0'; k++) {
@@ -299,45 +320,98 @@ static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t
     }
     if (pToken->z[k] == ',') {
       *end = pTokenEnd;
+      if (!firstIsTS) {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
+      }
       *time = ts;
-      return 0;
+      return TSDB_CODE_SUCCESS;
     }
-
     break;
   }
 
-  /*
-   * time expression:
-   * e.g., now+12a, now-5h
-   */
+  while (pTokenEnd[i] != '\0') {
+    if (pTokenEnd[i] == ' ' || pTokenEnd[i] == '\t') {
+      i++;
+      continue;
+    }
+    else if (pTokenEnd[i] == ',' || pTokenEnd[i] == ')') {
+      *end = pTokenEnd + i;
+      if (!firstIsTS) {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
+      }
+      *time = ts;
+      return TSDB_CODE_SUCCESS;
+    } else {
+      break;
+    }
+  }
+  pTokenEnd = pTokenEnd + i;
+
   index = 0;
   SToken token = tStrGetToken(pTokenEnd, &index, false, NULL);
-  pTokenEnd += index;
 
   if (token.type == TK_NK_MINUS || token.type == TK_NK_PLUS) {
+    pTokenEnd += index;
     index = 0;
     SToken valueToken = tStrGetToken(pTokenEnd, &index, false, NULL);
     pTokenEnd += index;
+    char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW];
+    if (TK_NK_STRING == valueToken.type) {
+      if (valueToken.n >= TSDB_MAX_BYTES_PER_ROW) {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", valueToken.z);
+      }
+      int32_t len = trimString(valueToken.z, valueToken.n, tmpTokenBuf, TSDB_MAX_BYTES_PER_ROW);
+      valueToken.z = tmpTokenBuf;
+      valueToken.n = len;
+    }
+
+    if (TSDB_CODE_SUCCESS != parseTimestampOrInterval(&pTokenEnd, &valueToken, timePrec, &tempTs, &tempInterval, pMsgBuf, &secondIsTs)) {
+      return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
+    }
 
     if (valueToken.n < 2) {
       return buildSyntaxErrMsg(pMsgBuf, "value expected in timestamp", token.z);
     }
 
-    char unit = 0;
-    if (parseAbsoluteDuration(valueToken.z, valueToken.n, &interval, &unit, timePrec) != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
+    if (secondIsTs) {
+      // not support operator between tow timestamp, such as today() + now()
+      if (firstIsTS) {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
+      }
+      ts = tempTs;
+    }else {
+      // not support operator between tow interval, such as 2h + 3s
+      if (!firstIsTS) {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
+      }
+      interval = tempInterval;
     }
-
-    if (token.type == TK_NK_PLUS) {
-      ts += interval;
+    if (token.type == TK_NK_MINUS) {
+      // not support interval - ts,such as 2h - today()
+      if (secondIsTs) {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
+      }
+      *time = ts - interval;
     } else {
-      ts = ts - interval;
+      *time = ts + interval;
     }
 
-    *end = pTokenEnd;
+    for (int k = valueToken.n; valueToken.z[k] != '\0'; k++) {
+      if (valueToken.z[k] == ' ' || valueToken.z[k] == '\t') continue;
+      if (valueToken.z[k] == '(' && valueToken.z[k + 1] == ')') {  // for insert NOW()/TODAY()
+        *end = pTokenEnd = &valueToken.z[k + 2];
+        k++;
+        continue;
+      }
+      if (valueToken.z[k] == ',' || valueToken.z[k] == ')') {
+        *end = pTokenEnd;
+        return TSDB_CODE_SUCCESS;
+      }
+      return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
+    }
   }
 
-  *time = ts;
+  *end = pTokenEnd;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -671,7 +745,7 @@ static int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMs
   if ((pToken->type != TK_NOW && pToken->type != TK_TODAY && pToken->type != TK_NK_INTEGER &&
        pToken->type != TK_NK_STRING && pToken->type != TK_NK_FLOAT && pToken->type != TK_NK_BOOL &&
        pToken->type != TK_NULL && pToken->type != TK_NK_HEX && pToken->type != TK_NK_OCT &&
-       pToken->type != TK_NK_BIN) ||
+       pToken->type != TK_NK_BIN && pToken->type != TK_NK_VARIABLE) ||
       (pToken->n == 0) || (pToken->type == TK_NK_RP)) {
     return buildSyntaxErrMsg(pMsgBuf, "invalid data or symbol", pToken->z);
   }
@@ -850,6 +924,9 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     SSchema* pTagSchema = &pSchema[pCxt->tags.pColIndex[i]];
     isJson = pTagSchema->type == TSDB_DATA_TYPE_JSON;
     code = checkAndTrimValue(&token, pCxt->tmpTokenBuf, &pCxt->msg);
+    if (TK_NK_VARIABLE == token.type) {
+      code = buildSyntaxErrMsg(&pCxt->msg, "not expected tags values ", token.z);
+    }
     if (TSDB_CODE_SUCCESS == code) {
       code = parseTagValue(pCxt, pStmt, &pStmt->pSql, pTagSchema, &token, pTagName, pTagVals, &pTag);
     }
@@ -1540,6 +1617,10 @@ static int32_t parseValueToken(SInsertParseContext* pCxt, const char** pSql, STo
     if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
       return buildSyntaxErrMsg(&pCxt->msg, "primary timestamp should not be null", pToken->z);
     }
+
+    if (TK_NK_VARIABLE == pToken->type && pSchema->type != TSDB_DATA_TYPE_TIMESTAMP) {
+      return buildSyntaxErrMsg(&pCxt->msg, "invalid values", pToken->z);
+    }
     pVal->flag = CV_FLAG_NULL;
     return TSDB_CODE_SUCCESS;
   }
@@ -1592,6 +1673,9 @@ typedef union SRowsDataContext{
 static int32_t parseTbnameToken(SInsertParseContext* pCxt, SStbRowsDataContext* pStbRowsCxt, SToken* pToken, bool* pFoundCtbName) {
   *pFoundCtbName = false;
   int32_t code = checkAndTrimValue(pToken, pCxt->tmpTokenBuf, &pCxt->msg);
+  if (TK_NK_VARIABLE == pToken->type) {
+    code = buildInvalidOperationMsg(&pCxt->msg, "not expected tbname");
+  }
   if (code == TSDB_CODE_SUCCESS){
     if (isNullValue(TSDB_DATA_TYPE_BINARY, pToken)) {
       return buildInvalidOperationMsg(&pCxt->msg, "tbname can not be null value");
@@ -1629,6 +1713,10 @@ static int32_t processCtbTagsAfterCtbName(SInsertParseContext* pCxt, SVnodeModif
       SToken*  pTagToken = (SToken*)(tagTokens + i);
       SSchema* pTagSchema = tagSchemas[i];
       code = checkAndTrimValue(pTagToken, pCxt->tmpTokenBuf, &pCxt->msg);
+      if (TK_NK_VARIABLE == pTagToken->type) {
+        code = buildInvalidOperationMsg(&pCxt->msg, "not expected tag");
+      }
+
       if (code == TSDB_CODE_SUCCESS) {
         code = parseTagValue(pCxt, pStmt, NULL, pTagSchema, pTagToken, pStbRowsCxt->aTagNames, pStbRowsCxt->aTagVals,
                              &pStbRowsCxt->pTag);
@@ -1673,6 +1761,9 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
       const SSchema* pSchema = &pSchemas[pCols->pColIndex[i]];
       SColVal* pVal = taosArrayGet(pStbRowsCxt->aColVals, pCols->pColIndex[i]);
       code = parseValueToken(pCxt, ppSql, pToken, (SSchema*)pSchema, getTableInfo(pStbRowsCxt->pStbMeta).precision, pVal);
+      if (TK_NK_VARIABLE == pToken->type) {
+          code = buildInvalidOperationMsg(&pCxt->msg, "not expected row value");
+      }
     } else if (pCols->pColIndex[i] < tbnameIdx) {
       const SSchema* pTagSchema = &pSchemas[pCols->pColIndex[i]];
       if (canParseTagsAfter) {
@@ -1681,6 +1772,9 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         ++(*pNumOfTagTokens);
       } else {
         code = checkAndTrimValue(pToken, pCxt->tmpTokenBuf, &pCxt->msg);
+        if (TK_NK_VARIABLE == pToken->type) {
+          code = buildInvalidOperationMsg(&pCxt->msg, "not expected row value");
+        }
         if (code == TSDB_CODE_SUCCESS) {
           code = parseTagValue(pCxt, pStmt, ppSql, (SSchema*)pTagSchema, pToken, pTagNames, pTagVals, &pStbRowsCxt->pTag);
         }
