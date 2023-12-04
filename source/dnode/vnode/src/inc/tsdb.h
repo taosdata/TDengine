@@ -1041,7 +1041,7 @@ typedef enum {
 
 // utils
 ETsdbFsState tsdbSnapGetFsState(SVnode *pVnode);
-int32_t      tsdbSnapGetDetails(SVnode *pVnode, SSnapshot *pSnap);
+int32_t      tsdbSnapPrepDescription(SVnode *pVnode, SSnapshot *pSnap);
 
 #ifdef __cplusplus
 }

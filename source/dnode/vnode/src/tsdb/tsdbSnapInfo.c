@@ -381,69 +381,110 @@ ETsdbFsState tsdbSnapGetFsState(SVnode* pVnode) {
 }
 
 // description
-int32_t tsdbSnapGetDetails(SVnode* pVnode, SSnapshot* pSnap) {
-  int                code = -1;
-  int32_t            tsdbMaxCnt = (!VND_IS_RSMA(pVnode) ? 1 : TSDB_RETENTION_MAX);
-  int32_t            subTyps[TSDB_RETENTION_MAX] = {SNAP_DATA_TSDB, SNAP_DATA_RSMA1, SNAP_DATA_RSMA2};
-  STsdbFSetPartList* pLists[TSDB_RETENTION_MAX] = {0};
+typedef struct STsdbPartitionInfo {
+  int32_t            vgId;
+  int32_t            tsdbMaxCnt;
+  int32_t            subTyps[TSDB_RETENTION_MAX];
+  STsdbFSetPartList* pLists[TSDB_RETENTION_MAX];
+} STsdbPartitionInfo;
 
-  // get part list
-  for (int32_t j = 0; j < tsdbMaxCnt; ++j) {
+static int32_t tsdbPartitionInfoInit(SVnode* pVnode, STsdbPartitionInfo* pInfo) {
+  int32_t subTyps[TSDB_RETENTION_MAX] = {SNAP_DATA_TSDB, SNAP_DATA_RSMA1, SNAP_DATA_RSMA2};
+  pInfo->vgId = TD_VID(pVnode);
+  pInfo->tsdbMaxCnt = (!VND_IS_RSMA(pVnode) ? 1 : TSDB_RETENTION_MAX);
+
+  ASSERT(sizeof(pInfo->subTyps) == sizeof(subTyps));
+  memcpy(pInfo->subTyps, (char*)subTyps, sizeof(subTyps));
+
+  // fset partition list
+  memset(pInfo->pLists, 0, sizeof(pInfo->pLists[0]) * TSDB_RETENTION_MAX);
+  for (int32_t j = 0; j < pInfo->tsdbMaxCnt; ++j) {
     STsdb* pTsdb = SMA_RSMA_GET_TSDB(pVnode, j);
-    pLists[j] = tsdbSnapGetFSetPartList(pTsdb->pFS);
-    if (pLists[j] == NULL) goto _out;
+    pInfo->pLists[j] = tsdbSnapGetFSetPartList(pTsdb->pFS);
+    if (pInfo->pLists[j] == NULL) return -1;
   }
+  return 0;
+}
 
-  // estimate bufLen and prepare
-  int32_t bufLen = sizeof(SSyncTLV);  // typ: TDMT_SYNC_PREP_SNAPSHOT or TDMT_SYNC_PREP_SNAPSOT_REPLY
-  for (int32_t j = 0; j < tsdbMaxCnt; ++j) {
-    bufLen += sizeof(SSyncTLV);  // subTyps[j]
-    bufLen += tTsdbFSetPartListDataLenCalc(pLists[j]);
+static void tsdbPartitionInfoClear(STsdbPartitionInfo* pInfo) {
+  for (int32_t j = 0; j < pInfo->tsdbMaxCnt; ++j) {
+    if (pInfo->pLists[j] == NULL) continue;
+    tsdbFSetPartListDestroy(&pInfo->pLists[j]);
   }
+}
 
-  tsdbInfo("vgId:%d, allocate %d bytes for data of snapshot info.", TD_VID(pVnode), bufLen);
+static int32_t tsdbPartitionInfoEstSize(STsdbPartitionInfo* pInfo) {
+  int32_t dataLen = 0;
+  for (int32_t j = 0; j < pInfo->tsdbMaxCnt; ++j) {
+    dataLen += sizeof(SSyncTLV);  // subTyps[j]
+    dataLen += tTsdbFSetPartListDataLenCalc(pInfo->pLists[j]);
+  }
+  return dataLen;
+}
 
-  void* data = taosMemoryRealloc(pSnap->data, bufLen);
+static int32_t tsdbPartitionInfoSerialize(STsdbPartitionInfo* pInfo, uint8_t* buf, int32_t bufLen, int32_t* offset) {
+  int32_t tlen = 0;
+  for (int32_t j = 0; j < pInfo->tsdbMaxCnt; ++j) {
+    SSyncTLV* pSubHead = (void*)((char*)buf + offset[0]);
+    int32_t   valOffset = offset[0] + sizeof(*pSubHead);
+    ASSERT(pSubHead->val == (char*)buf + valOffset);
+    if ((tlen = tSerializeTsdbFSetPartList(pSubHead->val, bufLen - valOffset, pInfo->pLists[j])) < 0) {
+      tsdbError("vgId:%d, failed to serialize fset partition list of tsdb %d since %s", pInfo->vgId, j, terrstr());
+      return -1;
+    }
+    pSubHead->typ = pInfo->subTyps[j];
+    pSubHead->len = tlen;
+    offset[0] += sizeof(*pSubHead) + tlen;
+  }
+  return 0;
+}
+
+int32_t syncSnapInfoDataRealloc(SSnapshot* pSnap, int32_t size) {
+  void* data = taosMemoryRealloc(pSnap->data, size);
   if (data == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  pSnap->data = data;
+  return 0;
+}
+
+int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
+  ASSERT(pSnap->type == TDMT_SYNC_PREP_SNAPSHOT || pSnap->type == TDMT_SYNC_PREP_SNAPSHOT_REPLY);
+  STsdbPartitionInfo  partitionInfo = {0};
+  int                 code = -1;
+  STsdbPartitionInfo* pInfo = &partitionInfo;
+
+  if (tsdbPartitionInfoInit(pVnode, pInfo) != 0) {
+    goto _out;
+  }
+
+  // info data realloc
+  int32_t bufLen = sizeof(SSyncTLV);
+  bufLen += tsdbPartitionInfoEstSize(pInfo);
+  if (syncSnapInfoDataRealloc(pSnap, bufLen) != 0) {
     tsdbError("vgId:%d, failed to realloc memory for data of snapshot info. bytes:%d", TD_VID(pVnode), bufLen);
     goto _out;
   }
-  pSnap->data = data;
 
-  // header
-  SSyncTLV* head = data;
-  head->len = 0;
-  head->typ = pSnap->type;
-  int32_t offset = sizeof(SSyncTLV);
-  int32_t tlen = 0;
+  // serialization
+  SSyncTLV* pHead = pSnap->data;
+  pHead->typ = pSnap->type;
 
-  // fill snapshot info
-  for (int32_t j = 0; j < tsdbMaxCnt; ++j) {
-    //  subHead
-    SSyncTLV* subHead = (void*)((char*)data + offset);
-    subHead->typ = subTyps[j];
-    ASSERT(subHead->val == (char*)data + offset + sizeof(SSyncTLV));
-
-    if ((tlen = tSerializeTsdbFSetPartList(subHead->val, bufLen - offset - sizeof(SSyncTLV), pLists[j])) < 0) {
-      tsdbError("vgId:%d, failed to serialize snap partition list of tsdb %d since %s", TD_VID(pVnode), j, terrstr());
-      goto _out;
-    }
-    subHead->len = tlen;
-    offset += sizeof(SSyncTLV) + tlen;
+  int32_t offset = 0;
+  if (tsdbPartitionInfoSerialize(pInfo, pHead->val, bufLen - sizeof(*pHead), &offset) != 0) {
+    tsdbError("vgId:%d, failed to serialize tsdb partition info since %s", TD_VID(pVnode), terrstr());
+    goto _out;
   }
 
-  // total length of subfields
-  head->len = offset - sizeof(SSyncTLV);
-  ASSERT(offset <= bufLen);
+  // set header of info data
+  ASSERT(sizeof(*pHead) + offset <= bufLen);
+  pHead->len = offset;
+
+  tsdbInfo("vgId:%d, tsdb snap info prepared. type:%s, val length:%d", TD_VID(pVnode), TMSG_INFO(pHead->typ),
+           pHead->len);
   code = 0;
-
 _out:
-  for (int32_t j = 0; j < tsdbMaxCnt; ++j) {
-    if (pLists[j] == NULL) continue;
-    tsdbFSetPartListDestroy(&pLists[j]);
-  }
-
+  tsdbPartitionInfoClear(pInfo);
   return code;
 }
-
