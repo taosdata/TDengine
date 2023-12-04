@@ -9,6 +9,12 @@ Environment=DATABASE_URL=/var/lib/taos/taosx/taosx.db
 EnvironmentFile=-/etc/default/taosx
 ExecStart=/usr/bin/taosx serve -v
 Restart=always
+LimitNOFILE=1048576
+LimitNPROC=infinity
+LimitCORE=infinity
+TimeoutStartSec=0
+StartLimitBurst=3
+StartLimitInterval=60s
 
 [Install]
 WantedBy=multi-user.target
