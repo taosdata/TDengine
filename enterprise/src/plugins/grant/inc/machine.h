@@ -18,6 +18,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "tgrant.h"
 
 #define GRANT_MACHINE_V3117 3117
 
@@ -107,8 +108,13 @@ typedef enum {
   CONN_TYPE_KAFKA,
   CONN_TYPE_INFLUXDB,
   CONN_TYPE_MQTT,
+  // CONN_TYPE_OpenTSDB,
+  // CONN_TYPE_TDengine_2_6,
+  // CONN_TYPE_TDengine_3_0,
   CONN_TYPE_MAX
 } EGrantConnType;
+
+#define CONN_TYPE_MAX_V1 6
 
 typedef struct {
   int32_t  number;  // connections
@@ -165,7 +171,29 @@ typedef struct {
     uint32_t distribute;      // distribute date since 3.1.0.0
   };
   uint32_t reserveKey2;
+
 } SGrantObj;
+
+typedef enum {
+  EXPIRE_OPT_BASIC = 0,
+  EXPIRE_OPT_STREAM = 1,
+  EXPIRE_OPT_TOPIC = 2,
+  EXPIRE_OPT_STORAGE = 3,
+  EXPIRE_OPT_AUDIT = 4,
+  EXPIRE_OPT_BAKUP_RESTORE = 5,
+  EXPIRE_OPT_REPLICATION = 6,
+  EXPIRE_OPT_MAX,
+} SGrantExpireOpt;
+
+typedef struct {
+  SGrantObj      *pObj;
+  SGrantConnItem *pItems;
+  int32_t         basicExpireDay;
+  int32_t         streamExpireDay;
+  int32_t         topicExpireDay;
+  int32_t         storageExpireDay;
+  int32_t         auditExpireDay;
+} SGrantObjUniq;
 
 typedef struct {
   bool           usbDongle;
@@ -229,6 +257,11 @@ typedef struct {
   SGrantConnMsg connectors;
 } SGrantMsg;
 
+typedef struct {
+  int64_t dist;
+  char   *key;
+} SActiveCodeInfo;
+
 char *grantGetMachineSerials();
 bool  grantGenActiveCode(SGrantObj *grant);
 bool  grantParseActiveCode(SGrantObj *grant, char **ppKey);
@@ -237,8 +270,10 @@ bool  grantConnParseActiveCode(SGrantConnObj *grant, char **ppKey);
 bool  grantCheckMachineCode(SGrantObj *grant);
 bool  grantCheckClusterId(SGrantObj *grant);
 void  grantActiveSystem(const char *cfgFile);
+bool  grantExplainActiveCode(SGrantObj *grant, SActiveCodeInfo *info);
+bool  grantConnExplainActiveCode(SGrantConnObj *grant, SActiveCodeInfo *info);
 
-int32_t grantSelectActiveCode(const char *old, const char *new, const char* key, char *out);
-int32_t grantConnSelectActiveCode(const char *old, const char *new, const char* key, char *out);
+int32_t grantSelectActiveCode(const char *old, const char *new, const char *key, char *out);
+int32_t grantConnSelectActiveCode(const char *old, const char *new, const char *key, char *out);
 
 #endif
