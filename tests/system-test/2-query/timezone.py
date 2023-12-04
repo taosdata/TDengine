@@ -163,7 +163,7 @@ class TDTestCase:
     def run(self):  # sourcery skip: extract-duplicate-method
         timezone = self.get_system_timezone()
         self.timezone_check_ntb(timezone)
-        #self.timezone_check_stb(timezone)
+        self.timezone_check_stb(timezone)
         self.timezone_format_test()
 
     def stop(self):
