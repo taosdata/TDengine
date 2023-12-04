@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tsdb.h"
 #include "vnd.h"
 #include "vndCos.h"
 
@@ -521,9 +522,13 @@ void vnodeStop(SVnode *pVnode) {}
 int64_t vnodeGetSyncHandle(SVnode *pVnode) { return pVnode->sync; }
 
 int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot) {
-  pSnapshot->data = NULL;
+  int code = 0;
   pSnapshot->lastApplyIndex = pVnode->state.committed;
   pSnapshot->lastApplyTerm = pVnode->state.commitTerm;
   pSnapshot->lastConfigIndex = -1;
-  return 0;
+
+  if (pSnapshot->type == TDMT_SYNC_PREP_SNAPSHOT || pSnapshot->type == TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
+    code = tsdbSnapPrepDescription(pVnode, pSnapshot);
+  }
+  return code;
 }

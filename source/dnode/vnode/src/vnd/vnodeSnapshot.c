@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tsdb.h"
 #include "vnd.h"
 
 // SVSnapReader ========================================================
@@ -48,8 +49,61 @@ struct SVSnapReader {
   SRSmaSnapReader *pRsmaReader;
 };
 
-int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapReader **ppReader) {
+static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotParam *pParam) {
+  SVnode *pVnode = pReader->pVnode;
+  int32_t code = -1;
+
+  if (pParam->data) {
+    // decode
+    SSyncTLV *datHead = (void *)pParam->data;
+    if (datHead->typ != TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
+      terrno = TSDB_CODE_INVALID_DATA_FMT;
+      goto _out;
+    }
+
+    STsdbRepOpts tsdbOpts = {0};
+    int32_t      offset = 0;
+
+    while (offset + sizeof(SSyncTLV) < datHead->len) {
+      SSyncTLV *subField = (void *)(datHead->val + offset);
+      offset += sizeof(SSyncTLV) + subField->len;
+      void   *buf = subField->val;
+      int32_t bufLen = subField->len;
+
+      switch (subField->typ) {
+        case SNAP_DATA_RAW: {
+          if (tDeserializeTsdbRepOpts(buf, bufLen, &tsdbOpts) < 0) {
+            vError("vgId:%d, failed to deserialize tsdb rep opts since %s", TD_VID(pVnode), terrstr());
+            goto _out;
+          }
+        } break;
+        default:
+          vError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), subField->typ);
+          goto _out;
+      }
+    }
+
+    // toggle snap replication mode
+    vInfo("vgId:%d, vnode snap reader supported tsdb rep of format:%d", TD_VID(pVnode), tsdbOpts.format);
+    if (pReader->sver == 0 && tsdbOpts.format == TSDB_SNAP_REP_FMT_RAW) {
+      pReader->tsdbDone = true;
+    } else {
+      pReader->tsdbRAWDone = true;
+    }
+
+    ASSERT(pReader->tsdbDone != pReader->tsdbRAWDone);
+    vInfo("vgId:%d, vnode snap writer enabled replication mode: %s", TD_VID(pVnode),
+          (pReader->tsdbDone ? "raw" : "normal"));
+  }
+  code = 0;
+_out:
+  return code;
+}
+
+int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader **ppReader) {
   int32_t       code = 0;
+  int64_t       sver = pParam->start;
+  int64_t       ever = pParam->end;
   SVSnapReader *pReader = NULL;
 
   pReader = (SVSnapReader *)taosMemoryCalloc(1, sizeof(*pReader));
@@ -60,6 +114,11 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapRe
   pReader->pVnode = pVnode;
   pReader->sver = sver;
   pReader->ever = ever;
+
+  // snapshot info
+  if (vnodeSnapReaderDealWithSnapInfo(pReader, pParam) < 0) {
+    goto _err;
+  }
 
   vInfo("vgId:%d, vnode snapshot reader opened, sver:%" PRId64 " ever:%" PRId64, TD_VID(pVnode), sver, ever);
   *ppReader = pReader;
@@ -162,8 +221,6 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   }
 
   // TSDB ==============
-  pReader->tsdbDone = true;
-
   if (!pReader->tsdbDone) {
     // open if not
     if (pReader->pTsdbReader == NULL) {
@@ -371,6 +428,47 @@ struct SVSnapWriter {
   SRSmaSnapWriter *pRsmaSnapWriter;
 };
 
+static int32_t vnodeSnapWriterDealWithSnapInfo(SVSnapWriter *pWriter, SSnapshotParam *pParam) {
+  SVnode *pVnode = pWriter->pVnode;
+  int32_t code = -1;
+
+  if (pParam->data) {
+    SSyncTLV *datHead = (void *)pParam->data;
+    if (datHead->typ != TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
+      terrno = TSDB_CODE_INVALID_DATA_FMT;
+      goto _out;
+    }
+
+    STsdbRepOpts tsdbOpts = {0};
+    int32_t      offset = 0;
+
+    while (offset + sizeof(SSyncTLV) < datHead->len) {
+      SSyncTLV *subField = (void *)(datHead->val + offset);
+      offset += sizeof(SSyncTLV) + subField->len;
+      void   *buf = subField->val;
+      int32_t bufLen = subField->len;
+
+      switch (subField->typ) {
+        case SNAP_DATA_RAW: {
+          if (tDeserializeTsdbRepOpts(buf, bufLen, &tsdbOpts) < 0) {
+            vError("vgId:%d, failed to deserialize tsdb rep opts since %s", TD_VID(pVnode), terrstr());
+            goto _out;
+          }
+        } break;
+        default:
+          vError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), subField->typ);
+          goto _out;
+      }
+    }
+
+    vInfo("vgId:%d, vnode snap writer supported tsdb rep of format:%d", TD_VID(pVnode), tsdbOpts.format);
+  }
+
+  code = 0;
+_out:
+  return code;
+}
+
 extern int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb);
 extern int32_t tsdbEnableBgTask(STsdb *pTsdb);
 
@@ -387,8 +485,10 @@ static int32_t vnodeEnableBgTask(SVnode *pVnode) {
   return 0;
 }
 
-int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter) {
+int32_t vnodeSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapWriter **ppWriter) {
   int32_t       code = 0;
+  int64_t       sver = pParam->start;
+  int64_t       ever = pParam->end;
   SVSnapWriter *pWriter = NULL;
 
   // cancel and disable all bg task
@@ -406,6 +506,11 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
 
   // inc commit ID
   pWriter->commitID = ++pVnode->state.commitID;
+
+  // snapshot info
+  if (vnodeSnapWriterDealWithSnapInfo(pWriter, pParam) < 0) {
+    goto _err;
+  }
 
   vInfo("vgId:%d, vnode snapshot writer opened, sver:%" PRId64 " ever:%" PRId64 " commit id:%" PRId64, TD_VID(pVnode),
         sver, ever, pWriter->commitID);

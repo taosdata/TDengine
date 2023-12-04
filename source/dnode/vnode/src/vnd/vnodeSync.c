@@ -476,7 +476,7 @@ static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta
 static int32_t vnodeSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void **ppReader) {
   SVnode         *pVnode = pFsm->data;
   SSnapshotParam *pSnapshotParam = pParam;
-  int32_t code = vnodeSnapReaderOpen(pVnode, pSnapshotParam->start, pSnapshotParam->end, (SVSnapReader **)ppReader);
+  int32_t         code = vnodeSnapReaderOpen(pVnode, pSnapshotParam, (SVSnapReader **)ppReader);
   return code;
 }
 
@@ -506,7 +506,7 @@ static int32_t vnodeSnapshotStartWrite(const SSyncFSM *pFsm, void *pParam, void 
     }
   } while (true);
 
-  int32_t code = vnodeSnapWriterOpen(pVnode, pSnapshotParam->start, pSnapshotParam->end, (SVSnapWriter **)ppWriter);
+  int32_t code = vnodeSnapWriterOpen(pVnode, pSnapshotParam, (SVSnapWriter **)ppWriter);
   return code;
 }
 

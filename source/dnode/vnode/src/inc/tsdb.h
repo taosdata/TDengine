@@ -671,6 +671,21 @@ struct SDelFWriter {
 typedef struct STFileSet STFileSet;
 typedef TARRAY2(STFileSet *) TFileSetArray;
 
+// snap rep format
+typedef enum ETsdbRepFmt {
+  TSDB_SNAP_REP_FMT_DEFAULT = 0,
+  TSDB_SNAP_REP_FMT_RAW,
+  TSDB_SNAP_REP_FMT_HYBRID,
+} ETsdbRepFmt;
+
+typedef struct STsdbRepOpts {
+  ETsdbRepFmt format;
+} STsdbRepOpts;
+
+int32_t tSerializeTsdbRepOpts(void *buf, int32_t bufLen, STsdbRepOpts *pInfo);
+int32_t tDeserializeTsdbRepOpts(void *buf, int32_t bufLen, STsdbRepOpts *pInfo);
+
+// snap read
 struct STsdbReadSnap {
   SMemTable     *pMem;
   SQueryNode    *pNode;
@@ -983,6 +998,9 @@ struct STsdbFilterInfo {
   int64_t ever;
   TABLEID tbid;
 };
+
+// utils
+int32_t tsdbSnapPrepDescription(SVnode *pVnode, SSnapshot *pSnapshot);
 
 #ifdef __cplusplus
 }
