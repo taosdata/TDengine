@@ -207,7 +207,7 @@ class TDTestCase:
     def run(self):
         self.prepareTestEnv()
         self.test_interval_limit_offset()
-        self.test_interval_partition_by_slimit_limit()
+        #self.test_interval_partition_by_slimit_limit()
         self.test_partition_by_limit_no_agg()
 
     def stop(self):

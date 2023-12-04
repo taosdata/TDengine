@@ -171,11 +171,16 @@ static bool scanPathOptMayBeOptimized(SLogicNode* pNode) {
 }
 
 static bool scanPathOptShouldGetFuncs(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
+    if (pNode->pParent && QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent)) {
+      if (WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType) return true;
+    } else {
+      return !scanPathOptHaveNormalCol(((SPartitionLogicNode*)pNode)->pPartitionKeys);
+    }
+  }
+
   if ((QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode) &&
-       WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode)->winType) ||
-      (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode) && pNode->pParent &&
-       QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent) &&
-       WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType)) {
+       WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode)->winType)) {
     return true;
   }
   if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode)) {
@@ -191,30 +196,17 @@ static SNodeList* scanPathOptGetAllFuncs(SLogicNode* pNode) {
       return ((SWindowLogicNode*)pNode)->pFuncs;
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return ((SAggLogicNode*)pNode)->pAggFuncs;
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      return ((SPartitionLogicNode*)pNode)->pAggFuncs;
     default:
       break;
   }
   return NULL;
 }
 
-static bool scanPathOptNeedOptimizeDataRequire(const SFunctionNode* pFunc) {
-  if (!fmIsSpecialDataRequiredFunc(pFunc->funcId)) {
-    return false;
-  }
-  SNode* pPara = NULL;
-  FOREACH(pPara, pFunc->pParameterList) {
-    if (QUERY_NODE_COLUMN != nodeType(pPara) && QUERY_NODE_VALUE != nodeType(pPara)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool scanPathOptNeedDynOptimize(const SFunctionNode* pFunc) {
-  if (!fmIsDynamicScanOptimizedFunc(pFunc->funcId)) {
-    return false;
-  }
-  SNode* pPara = NULL;
+static bool scanPathOptIsSpecifiedFuncType(const SFunctionNode* pFunc, bool (*typeCheckFn)(int32_t)) {
+  if (!typeCheckFn(pFunc->funcId)) return false;
+  SNode* pPara;
   FOREACH(pPara, pFunc->pParameterList) {
     if (QUERY_NODE_COLUMN != nodeType(pPara) && QUERY_NODE_VALUE != nodeType(pPara)) {
       return false;
@@ -232,10 +224,12 @@ static int32_t scanPathOptGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSd
   FOREACH(pNode, pAllFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     int32_t        code = TSDB_CODE_SUCCESS;
-    if (scanPathOptNeedOptimizeDataRequire(pFunc)) {
+    if (scanPathOptIsSpecifiedFuncType(pFunc, fmIsSpecialDataRequiredFunc)) {
       code = nodesListMakeStrictAppend(&pTmpSdrFuncs, nodesCloneNode(pNode));
-    } else if (scanPathOptNeedDynOptimize(pFunc)) {
+    } else if (scanPathOptIsSpecifiedFuncType(pFunc, fmIsDynamicScanOptimizedFunc)) {
       code = nodesListMakeStrictAppend(&pTmpDsoFuncs, nodesCloneNode(pNode));
+    } else if (scanPathOptIsSpecifiedFuncType(pFunc, fmIsSkipScanCheckFunc)) {
+      continue;
     } else {
       otherFunc = true;
       break;
