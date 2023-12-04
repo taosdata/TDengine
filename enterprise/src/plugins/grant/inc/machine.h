@@ -23,15 +23,16 @@
 #define GRANT_MACHINE_V3117 3117
 
 #ifdef GRANT_VALUE
-#define GRANT_VALUE_INT        atoi(GRANT_VALUE)
-#define GRANT_DEFAULT        (GRANT_VALUE_INT*86400)
+#define GRANT_EXPIRE_DAY      atoi(GRANT_VALUE)
+#define GRANT_DEFAULT         (GRANT_EXPIRE_DAY*86400)
 #else
-#define GRANT_DEFAULT        10*86400
+#define GRANT_EXPIRE_DAY      10
+#define GRANT_DEFAULT         (GRANT_EXPIRE_DAY*86400)
 #endif
 
 #define GRANT_CONN_NUM_DEFAULT     1
 #define GRANT_CONN_SPEED_DEFAULT   -1
-#define GRANT_CONN_EXPIRE_DEFAULT  14
+#define GRANT_CONN_EXPIRE_DEFAULT  GRANT_EXPIRE_DAY
 
 #define GRANT_CONN_NUM_UNDEF     INT32_MIN
 #define GRANT_CONN_SPEED_UNDEF   INT16_MIN
@@ -91,6 +92,33 @@
 #define GRANT_CUR_TIME                 ((tsDndStart + tsDndUpTime)/1000)
 #define GRANT_DIST_MIN                 1689552000  // 2023-07-17 08:00:00
 
+// uniq grant
+#define GRANT_UNIQ_ACTIVE_KEY_LEN        108
+#define GRANT_UNIQ_ACTIVE_RAW_LEN        80
+#define GRANT_UNIQ_ACTIVE_ENCRYPT_LEN    72
+#define GRANT_UNIQ_HASH_LEN              (GRANT_UNIQ_ACTIVE_RAW_LEN - GRANT_UNIQ_ACTIVE_ENCRYPT_LEN)
+
+#define GRANT_UNIQ_UNLIMITED             (-1)
+#define GRANT_UNIQ_UNDEFINED             (-2)
+
+#define GRANT_UNIQ_DFT_BASIC_EXPIRE      GRANT_EXPIRE_DAY
+#define GRANT_UNIQ_DFT_BASIC_TIMESERIES  1000000
+#define GRANT_UNIQ_DFT_BASIC_DNODES      8
+#define GRANT_UNIQ_DFT_BASIC_CPU         GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_STREAM_EXPIRE     GRANT_EXPIRE_DAY
+#define GRANT_UNIQ_DFT_STREAM_NUM        8
+#define GRANT_UNIQ_DFT_TOPIC_EXPIRE      GRANT_EXPIRE_DAY
+#define GRANT_UNIQ_DFT_TOPIC_NUM         8
+#define GRANT_UNIQ_DFT_STORAGE_EXPIRE    GRANT_EXPIRE_DAY
+#define GRANT_UNIQ_DFT_AUDIT_EXPIRE      GRANT_EXPIRE_DAY
+#define GRANT_UNIQ_DFT_BAKRST_EXPIRE     GRANT_EXPIRE_DAY
+#define GRANT_UNIQ_DFT_REPLICA_EXPIRE    GRANT_EXPIRE_DAY
+#define GRANT_UNIQ_DFT_DATAIN_EXPIRE     GRANT_EXPIRE_DAY
+#define GRANT_UNIQ_DFT_DATAIN_SPEED      GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_DATAIN_NUM        1
+
+// uniq grant
+
 typedef enum {
   GRANT_OBJ_SERVER = 0,
   GRANT_OBJ_CONNECTORS,
@@ -108,9 +136,9 @@ typedef enum {
   CONN_TYPE_KAFKA,
   CONN_TYPE_INFLUXDB,
   CONN_TYPE_MQTT,
-  // CONN_TYPE_OpenTSDB,
-  // CONN_TYPE_TDengine_2_6,
-  // CONN_TYPE_TDengine_3_0,
+  CONN_TYPE_OpenTSDB,
+  CONN_TYPE_TDengine_2_6,
+  CONN_TYPE_TDengine_3_0,
   CONN_TYPE_MAX
 } EGrantConnType;
 
@@ -174,26 +202,71 @@ typedef struct {
 
 } SGrantObj;
 
+// uniq grant
 typedef enum {
-  EXPIRE_OPT_BASIC = 0,
-  EXPIRE_OPT_STREAM = 1,
-  EXPIRE_OPT_TOPIC = 2,
-  EXPIRE_OPT_STORAGE = 3,
-  EXPIRE_OPT_AUDIT = 4,
-  EXPIRE_OPT_BAKUP_RESTORE = 5,
-  EXPIRE_OPT_REPLICATION = 6,
-  EXPIRE_OPT_MAX,
-} SGrantExpireOpt;
+  GRANT_OPT_BASIC = 0,
+  GRANT_OPT_STREAM = 1,
+  GRANT_OPT_TOPIC = 2,
+  GRANT_OPT_STORAGE = 3,
+  GRANT_OPT_AUDIT = 4,
+  GRANT_OPT_DATA_BAK_RST = 5,
+  GRANT_OPT_DATA_REPLICA = 6,
+  GRANT_OPT_DATA_IN = 7,
+  GRANT_OPT_MAX,
+} SGrantOpt;
 
 typedef struct {
-  SGrantObj      *pObj;
-  SGrantConnItem *pItems;
-  int32_t         basicExpireDay;
-  int32_t         streamExpireDay;
-  int32_t         topicExpireDay;
-  int32_t         storageExpireDay;
-  int32_t         auditExpireDay;
-} SGrantObjUniq;
+  int32_t number;  // connections
+  int32_t speed;   // transfer speed, unit: MB
+  int32_t expire;  // unit: day
+} SGrantDataIns;
+
+typedef struct {
+  char         *clusterId;
+  char          active[GRANT_UNIQ_ACTIVE_KEY_LEN + 1];
+  int64_t       distribute : 40;  // unit: second
+  int64_t       granted : 8;
+  int64_t       version : 8;
+  int64_t       official : 8;
+  int32_t       basicExpire;  // unit: day
+  int16_t       limitDnodes;
+  int16_t       reserve0;
+  int64_t       limitTimeSeries;
+  int32_t       limitCpuCores;
+  int16_t       limitStreams;
+  int16_t       limitTopics;
+  int32_t       streamExpire;
+  int32_t       topicExpire;
+  int32_t       storageExpire;
+  int32_t       auditExpire;
+  int32_t       bakRstExpire;
+  int32_t       replicaExpire;
+  SGrantDataIns ins[GRANT_CONN_NUM];
+} SGrantUniqObj;
+
+typedef struct {
+  int8_t  official;
+  int8_t  expired;
+  int32_t basicExpire;  // unit: day
+  int16_t limitDnodes;
+  int16_t curDnodes;
+  int64_t limitTimeSeries;
+  int64_t curTimeSeries;
+  int32_t limitCpuCores;
+  int32_t curCpuCores;
+  int16_t limitStreams;
+  int16_t curStreams;
+  int16_t limitTopics;
+  int16_t curTopics;
+  int32_t streamExpire;
+  int32_t topicExpire;
+  int32_t storageExpire;
+  int32_t auditExpire;
+  int32_t bakRstExpire;
+  int32_t replicaExpire;
+} SGrantUniqStatus;
+
+// uniq grant
 
 typedef struct {
   bool           usbDongle;

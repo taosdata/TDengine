@@ -73,14 +73,14 @@
     }                                         \
   } while (0)
 
-#define GRANT_ITEMS_INIT(pItems)                  \
-  do {                                            \
-    pItems[0].number = GRANT_CONN_NUM_UNDEF;      \
-    pItems[0].speed = GRANT_CONN_SPEED_UNDEF;     \
-    pItems[0].expire = GRANT_CONN_EXPIRE_UNDEF;   \
-    for (int32_t i = 1; i < CONN_TYPE_MAX; ++i) { \
-      *(pItems + i) = *(pItems + 0);              \
-    }                                             \
+#define GRANT_ITEMS_INIT(pItems)                     \
+  do {                                               \
+    pItems[0].number = GRANT_CONN_NUM_UNDEF;         \
+    pItems[0].speed = GRANT_CONN_SPEED_UNDEF;        \
+    pItems[0].expire = GRANT_CONN_EXPIRE_UNDEF;      \
+    for (int32_t i = 1; i < CONN_TYPE_MAX_V1; ++i) { \
+      *(pItems + i) = *(pItems + 0);                 \
+    }                                                \
   } while (0)
 
 #define GRANT_ITEMS_SHOW(appType, appStr)                                                                              \
@@ -165,16 +165,16 @@ typedef struct {
   SGrantConnMsg connectors;  // version 2 since 3.0.5.0
 } SCloudGrantStatus;
 
-SCloudGrantStatus cloudGrantStatus = {0,
-                                      GRANT_TIME_SERIES_LIMITS,
-                                      0,
-                                      0,
-                                      0,
-                                      GRANT_DATABASE_LIMITS,
-                                      0,
-                                      GRANT_STABLE_LIMITS,
-                                      0,
-                                      GRANT_TABLE_LIMITS,
+SCloudGrantStatus cloudGrantStatus = {.curTimeSeries = 0,
+                                      .limitTimeSeries = GRANT_TIME_SERIES_LIMITS,
+                                      .flag = 0,
+                                      .lastCheck = 0,
+                                      .curDbs = 0,
+                                      .limitDbs = GRANT_DATABASE_LIMITS,
+                                      .curSTables = 0,
+                                      .limitSTables = GRANT_STABLE_LIMITS,
+                                      .curTables = 0,
+                                      .limitTables = GRANT_TABLE_LIMITS,
                                       .connectors.majorVer = GRANT_CONN_MAJOR_VER,
                                       .connectors.minorVer = GRANT_CONN_MINOR_VER,
                                       .connectors.officialVersion = 0};
@@ -183,37 +183,30 @@ GRANT_CFG_EXTERN;
 typedef SCloudGrantStatus GrantStatus;
 typedef SCloudGrantMsg    GrantMsg;
 #else
-SGrantStatus         grantStatus = {false,
-                                    false,
-                                    false,
-                                    0,
-                                    GRANT_EXPIRE_TIME,
-                                    0,
-                                    (int64_t)(GRANT_STORAGE_LIMITS)*1073741824L,
-                                    0,
-                                    GRANT_TIME_SERIES_LIMITS,
-                                    GRANT_EXPIRE_TIME,
-                                    0,
-                                    GRANT_WRITING_SPEED_LIMITS,
-                                    0,
-                                    GRANT_QUERY_TIME_LIMITS,
-                                    0,
-                                    GRANT_DATABASE_LIMITS,
-                                    0,
-                                    GRANT_USER_LIMITS,
-                                    GRANT_CONNECTION_LIMITS,
-                                    GRANT_STREAM_LIMITS,
-                                    0,
-                                    GRANT_ACCT_LIMITS,
-                                    0,
-                                    GRANT_DNODE_LIMITS,
-                                    GRANT_CPU_LIMITS,
-                                    0,
-                                    .connectors.majorVer = GRANT_CONN_MAJOR_VER,
-                                    .connectors.minorVer = GRANT_CONN_MINOR_VER,
-                                    .connectors.officialVersion = 0};
-typedef SGrantStatus GrantStatus;
-typedef SGrantMsg    GrantMsg;
+SGrantUniqStatus grantStatus = {
+    .official = 0,
+    .expired = 0,
+    .basicExpire = GRANT_UNIQ_UNLIMITED,
+    .limitDnodes = GRANT_UNIQ_UNLIMITED,
+    .curDnodes = 0,
+    .limitTimeSeries = GRANT_UNIQ_UNLIMITED,
+    .curTimeSeries = 0,
+    .limitCpuCores = GRANT_UNIQ_UNLIMITED,
+    .curCpuCores = 0,
+    .limitStreams = GRANT_UNIQ_UNLIMITED,
+    .curStreams = 0,
+    .limitTopics = GRANT_UNIQ_UNLIMITED,
+    .curTopics = 0,
+    .streamExpire = GRANT_UNIQ_UNLIMITED,
+    .topicExpire = GRANT_UNIQ_UNLIMITED,
+    .storageExpire = GRANT_UNIQ_UNLIMITED,
+    .auditExpire = GRANT_UNIQ_UNLIMITED,
+    .bakRstExpire = GRANT_UNIQ_UNLIMITED,
+    .replicaExpire = GRANT_UNIQ_UNLIMITED,
+};
+
+typedef SGrantUniqStatus GrantStatus;
+typedef SGrantMsg        GrantMsg;
 #endif
 
 typedef SGrantNotify GrantNotify;
@@ -594,7 +587,7 @@ static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus
     SET_GRANT_CONNECTORS(pGrantMsg);
     SGrantConnMsg *pConn = &pGrantMsg->connectors;
     pConn->officialVersion = grantConnObj.officialVersion;
-    memcpy(pConn->items, grantConnObj.items, sizeof(SGrantConnItem) * CONN_TYPE_MAX);
+    memcpy(pConn->items, grantConnObj.items, sizeof(SGrantConnItem) * CONN_TYPE_MAX_V1);
     pGrantMsg->connectors.distribute = grantConnObj.distribute;
   }
 
@@ -629,7 +622,7 @@ static void grantConnActiveFillUndef(SMnode *pMnode, SGrantConnItem *pItems) {
                                 .speed = GRANT_CONN_SPEED_DEFAULT,
                                 .expire = ceil((double)grantClusterEpoch / 86400) + GRANT_CONN_EXPIRE_DEFAULT};
 
-  for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
+  for (int32_t i = 0; i < CONN_TYPE_MAX_V1; ++i) {
     SGrantConnItem *pItem = pItems + i;
     if (GRANT_CONN_ITEM_UNDEF(pItem)) {
       *pItem = defaultItem;
@@ -2486,8 +2479,8 @@ static int32_t tSerializeGrantConnMsg(SEncoder *encoder, SGrantConnMsg *pMsg) {
   if (tEncodeI8(encoder, pMsg->majorVer) < 0) return -1;
   if (tEncodeI8(encoder, pMsg->minorVer) < 0) return -1;
   if (tEncodeU8(encoder, pMsg->officialVersion) < 0) return -1;
-  if (tEncodeU8(encoder, CONN_TYPE_MAX) < 0) return -1;
-  for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
+  if (tEncodeU8(encoder, CONN_TYPE_MAX_V1) < 0) return -1;
+  for (int32_t i = 0; i < CONN_TYPE_MAX_V1; ++i) {
     SGrantConnItem *pItem = pMsg->items + i;
     if (tEncodeI32v(encoder, pItem->number) < 0) return -1;
     if (tEncodeI16v(encoder, pItem->speed) < 0) return -1;
