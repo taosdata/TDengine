@@ -262,7 +262,12 @@ bool    blockIteratorNext(SDataBlockIter* pBlockIter, const char* idStr);
 void    loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemTbData, int64_t ver);
 int32_t loadDataFileTombDataForAll(STsdbReader* pReader);
 int32_t loadSttTombDataForAll(STsdbReader* pReader, SSttFileReader* pSttFileReader, SSttBlockLoadInfo* pLoadInfo);
-
+int32_t getNumOfRowsInSttBlock(SSttFileReader *pSttFileReader, SSttBlockLoadInfo *pBlockLoadInfo, uint64_t suid,
+                               const uint64_t* pUidList, int32_t numOfTables);
+void    destroyLDataIter(SLDataIter* pIter);
+int32_t adjustLDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet);
+int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArray, STsdb* pTsdb, SMergeTreeConf* pConf,
+                              const char* pstr);
 typedef struct {
   SArray* pTombData;
 } STableLoadInfo;

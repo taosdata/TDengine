@@ -4730,7 +4730,18 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
       return code;
     }
   }
+
+  SMergeTreeConf conf = {
+      .pReader = pReader,
+      .pSchema = pReader->info.pSchema,
+      .pCols = pReader->suppInfo.colId,
+      .numOfCols = pReader->suppInfo.numOfCols,
+      .suid = pReader->info.suid,
+  };
+
   SReaderStatus* pStatus = &pReader->status;
+  pTableBlockInfo->numOfSttRows +=
+      tsdbGetRowsInSttFiles(pStatus->pCurrentFileset, pStatus->pLDataIterArray, pReader->pTsdb, &conf, pReader->idStr);
 
   STsdbCfg* pc = &pReader->pTsdb->pVnode->config.tsdbCfg;
   pTableBlockInfo->defMinRows = pc->minRows;
@@ -4767,10 +4778,6 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
         pTableBlockInfo->minRows = numOfRows;
       }
 
-      if (numOfRows < defaultRows) {
-        pTableBlockInfo->numOfSmallBlocks += 1;
-      }
-
       pTableBlockInfo->totalSize += pBlockInfo->record.blockSize;
 
       int32_t bucketIndex = getBucketIndex(pTableBlockInfo->defMinRows, bucketRange, numOfRows, numOfBuckets);
@@ -4786,10 +4793,9 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
       pTableBlockInfo->numOfBlocks += pBlockIter->numOfBlocks;
       hasNext = (pBlockIter->numOfBlocks > 0);
     }
-
-    //    tsdbDebug("%p %d blocks found in file for %d table(s), fid:%d, %s", pReader, numOfBlocks, numOfTables,
-    //              pReader->pFileGroup->fid, pReader->idStr);
   }
+
+  // record the data in stt files
   tsdbReleaseReader(pReader);
   return code;
 }
