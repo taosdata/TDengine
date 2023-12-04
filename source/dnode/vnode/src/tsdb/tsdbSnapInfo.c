@@ -16,6 +16,8 @@
 #include "tsdb.h"
 #include "tsdbFS2.h"
 
+#define TSDB_SNAP_MSG_VER 1
+
 // fset partition
 static int32_t tsdbFSetPartCmprFn(STsdbFSetPartition* x, STsdbFSetPartition* y) {
   if (x->fid < y->fid) return -1;
@@ -241,7 +243,7 @@ int32_t tSerializeTsdbFSetPartList(void* buf, int32_t bufLen, STsdbFSetPartList*
   int16_t reserved16 = 0;
   int64_t reserved64 = 0;
 
-  int8_t  msgVer = 1;
+  int8_t  msgVer = TSDB_SNAP_MSG_VER;
   int32_t len = TARRAY2_SIZE(pList);
 
   if (tStartEncode(&encoder) < 0) goto _err;
@@ -296,6 +298,7 @@ int32_t tDeserializeTsdbFSetPartList(void* buf, int32_t bufLen, STsdbFSetPartLis
   int32_t len = 0;
   if (tStartDecode(&decoder) < 0) goto _err;
   if (tDecodeI8(&decoder, &msgVer) < 0) goto _err;
+  if (msgVer != TSDB_SNAP_MSG_VER) goto _err;
   if (tDecodeI32(&decoder, &len) < 0) goto _err;
 
   for (int32_t u = 0; u < len; u++) {
@@ -422,11 +425,12 @@ static int32_t tsdbPartitionInfoEstSize(STsdbPartitionInfo* pInfo) {
   return dataLen;
 }
 
-static int32_t tsdbPartitionInfoSerialize(STsdbPartitionInfo* pInfo, uint8_t* buf, int32_t bufLen, int32_t* offset) {
+static int32_t tsdbPartitionInfoSerialize(STsdbPartitionInfo* pInfo, uint8_t* buf, int32_t bufLen) {
   int32_t tlen = 0;
+  int32_t offset = 0;
   for (int32_t j = 0; j < pInfo->tsdbMaxCnt; ++j) {
-    SSyncTLV* pSubHead = (void*)((char*)buf + offset[0]);
-    int32_t   valOffset = offset[0] + sizeof(*pSubHead);
+    SSyncTLV* pSubHead = (void*)((char*)buf + offset);
+    int32_t   valOffset = offset + sizeof(*pSubHead);
     ASSERT(pSubHead->val == (char*)buf + valOffset);
     if ((tlen = tSerializeTsdbFSetPartList(pSubHead->val, bufLen - valOffset, pInfo->pLists[j])) < 0) {
       tsdbError("vgId:%d, failed to serialize fset partition list of tsdb %d since %s", pInfo->vgId, j, terrstr());
@@ -434,9 +438,9 @@ static int32_t tsdbPartitionInfoSerialize(STsdbPartitionInfo* pInfo, uint8_t* bu
     }
     pSubHead->typ = pInfo->subTyps[j];
     pSubHead->len = tlen;
-    offset[0] += sizeof(*pSubHead) + tlen;
+    offset += sizeof(*pSubHead) + tlen;
   }
-  return 0;
+  return offset;
 }
 
 int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
@@ -450,26 +454,30 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
   }
 
   // info data realloc
-  int32_t bufLen = sizeof(SSyncTLV);
+  const int32_t headLen = sizeof(SSyncTLV);
+  int32_t       bufLen = headLen;
   bufLen += tsdbPartitionInfoEstSize(pInfo);
   if (syncSnapInfoDataRealloc(pSnap, bufLen) != 0) {
-    tsdbError("vgId:%d, failed to realloc memory for data of snapshot info. bytes:%d", TD_VID(pVnode), bufLen);
+    tsdbError("vgId:%d, failed to realloc memory for data of snap info. bytes:%d", TD_VID(pVnode), bufLen);
     goto _out;
   }
 
   // serialization
-  SSyncTLV* pHead = pSnap->data;
-  pHead->typ = pSnap->type;
+  char*   buf = (void*)pSnap->data;
+  int32_t offset = headLen;
+  int32_t tlen = 0;
 
-  int32_t offset = 0;
-  if (tsdbPartitionInfoSerialize(pInfo, pHead->val, bufLen - sizeof(*pHead), &offset) != 0) {
+  if ((tlen = tsdbPartitionInfoSerialize(pInfo, buf + offset, bufLen - offset)) < 0) {
     tsdbError("vgId:%d, failed to serialize tsdb partition info since %s", TD_VID(pVnode), terrstr());
     goto _out;
   }
+  offset += tlen;
+  ASSERT(offset <= bufLen);
 
   // set header of info data
-  ASSERT(sizeof(*pHead) + offset <= bufLen);
-  pHead->len = offset;
+  SSyncTLV* pHead = pSnap->data;
+  pHead->typ = pSnap->type;
+  pHead->len = offset - headLen;
 
   tsdbInfo("vgId:%d, tsdb snap info prepared. type:%s, val length:%d", TD_VID(pVnode), TMSG_INFO(pHead->typ),
            pHead->len);
