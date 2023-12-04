@@ -13,6 +13,7 @@ sql use $db
 #### case 0: field NULL, or 'NULL'
 sql create table mt1 (ts timestamp, col1 int, col2 bigint, col3 float, col4 double, col5 binary(8), col6 bool, col7 smallint, col8 tinyint, col9 nchar(8)) tags (tag1 binary(8), tag2 nchar(8), tag3 int, tag4 bigint, tag5 bool, tag6 float)
 sql create table st1 using mt1 tags (NULL, 'NULL', 100, 1000, 'false', 9.123)
+sql show create table st1
 sql insert into st1 values ('2019-01-01 09:00:00.000', 123, -123, 3.0, 4.0, 'binary', true, 1000, 121, 'nchar')
 sql insert into st1 values ('2019-01-01 09:00:01.000', '456', '456', '3.33', '4.444', 'binary', 'true', '1001', '122', 'nchar')
 sql insert into st1 values ('2019-01-01 09:00:02.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
@@ -117,6 +118,7 @@ if $rows != 0 then
 endi
 
 sql create table st3 using mt2 tags (NULL, 'ABC', 103, 'FALSE')
+sql show create table st3
 sql insert into st3 (ts, col1) values(now, 1)
 sql select tag1, tag2, tag3, tag5 from st3
 if $rows != 1 then
