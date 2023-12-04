@@ -648,7 +648,7 @@ export default {
               ? item.expression
               : item.type == "split"
               ? this.$store.state.app.splitExpresList
-              : item.expression.split(";").map((item) => item.trim()),
+              : item.expression?item.expression.split(";").map((item) => item.trim()):item.expression,
         };
       });
       let parserData = {

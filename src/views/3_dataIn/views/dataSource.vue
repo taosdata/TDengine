@@ -464,7 +464,6 @@ export default {
         let editDdata = deepClone([].concat(data.from_detail));
         if(data.from_detail.id=='mqtt'||data.from_expand.id == "kafka"||data.from_expand.id == "csv"){
           this.$store.commit('app/SET_TRANSFORM_PARSERDATA',data.parser)
-          console.log('mqtt',this.$store.state.app.transformParserData,data.parser,'parser');
         }
         if (data.from_expand && data.from_expand.id == "mqtt") {
           let dnsarr = data.from.split("?")[1].split("&");
