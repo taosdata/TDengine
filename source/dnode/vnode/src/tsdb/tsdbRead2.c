@@ -2506,9 +2506,11 @@ static void prepareDurationForNextFileSet(STsdbReader* pReader) {
   tsdbFidKeyRange(fid, pReader->pTsdb->keepCfg.days, pReader->pTsdb->keepCfg.precision, &winFid.skey, &winFid.ekey);
 
   if (ASCENDING_TRAVERSE(pReader->info.order)) {
-    pReader->status.bProcMemPreFileset = !(pReader->status.prevFilesetStartKey > pReader->status.memTableMaxKey || winFid.skey-1 < pReader->status.memTableMinKey);
+    pReader->status.bProcMemPreFileset = !(pReader->status.memTableMaxKey < pReader->status.prevFilesetStartKey || 
+                                            (winFid.skey-1) < pReader->status.memTableMinKey);
   } else {
-    pReader->status.bProcMemPreFileset = !(winFid.ekey+1 > pReader->status.memTableMaxKey || pReader->status.prevFilesetEndKey < pReader->status.memTableMinKey);
+    pReader->status.bProcMemPreFileset = !( pReader->status.memTableMaxKey < (winFid.ekey+1) || 
+                                            pReader->status.prevFilesetEndKey < pReader->status.memTableMinKey);
   }
   
   if (pReader->status.bProcMemPreFileset) {
