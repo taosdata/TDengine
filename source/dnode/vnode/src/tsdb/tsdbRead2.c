@@ -4731,17 +4731,18 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
     }
   }
 
-  SMergeTreeConf conf = {
-      .pReader = pReader,
-      .pSchema = pReader->info.pSchema,
-      .pCols = pReader->suppInfo.colId,
-      .numOfCols = pReader->suppInfo.numOfCols,
-      .suid = pReader->info.suid,
-  };
-
   SReaderStatus* pStatus = &pReader->status;
-  pTableBlockInfo->numOfSttRows +=
-      tsdbGetRowsInSttFiles(pStatus->pCurrentFileset, pStatus->pLDataIterArray, pReader->pTsdb, &conf, pReader->idStr);
+  if (pStatus->pCurrentFileset != NULL) {
+    SMergeTreeConf conf = {
+        .pReader = pReader,
+        .pSchema = pReader->info.pSchema,
+        .pCols = pReader->suppInfo.colId,
+        .numOfCols = pReader->suppInfo.numOfCols,
+        .suid = pReader->info.suid,
+    };
+    pTableBlockInfo->numOfSttRows += tsdbGetRowsInSttFiles(pStatus->pCurrentFileset, pStatus->pLDataIterArray,
+                                                           pReader->pTsdb, &conf, pReader->idStr);
+  }
 
   STsdbCfg* pc = &pReader->pTsdb->pVnode->config.tsdbCfg;
   pTableBlockInfo->defMinRows = pc->minRows;
