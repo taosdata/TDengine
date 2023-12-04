@@ -52,6 +52,8 @@ Source: taos.bat; DestDir: "{app}\include"; Flags: igNoreversion;
 ;Source: taosdemo.png; DestDir: "{app}\include"; Flags: igNoreversion;
 ;Source: taosShell.png; DestDir: "{app}\include"; Flags: igNoreversion;
 Source: favicon.ico; DestDir: "{app}\include"; Flags: igNoreversion;
+Source: start-all.bat; DestDir: "{app}"; Flags: igNoreversion;
+Source: stop-all.bat; DestDir: "{app}"; Flags: igNoreversion;
 Source: {#MyAppSourceDir}{#MyAppDLLName}; DestDir: "{win}\System32"; Flags: igNoreversion recursesubdirs createallsubdirs 64bit;Check:IsWin64;
 Source: {#MyAppSourceDir}\append\opc_gdba_32\*; DestDir: "{#OPCGdbaInstallPath}\"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; Check: ShouldInstallOPC
 Source: {#MyAppSourceDir}{#MyAppCfgName}; DestDir: "{app}\cfg"; Flags: igNoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
@@ -62,7 +64,7 @@ Source: {#MyAppSourceDir}{#MyAppIncludeName}; DestDir: "{app}\include"; Flags: i
 Source: {#MyAppSourceDir}\plugins\*; DestDir: "{app}\plugins\"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppExeName}; DestDir: "{app}"; Excludes: {#MyAppExcludeSource} ; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppTaosdemoExeName}; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
-Source: {#MyAppSourceDir}\*.xml; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}\*.xml; DestDir: "{app}"; Excludes: "taosx-agent-srv.xml"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}\taos.exe; DestDir: "{app}"; DestName: "{#CusPrompt}.exe"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}\taosBenchmark.exe; DestDir: "{app}"; DestName: "{#CusPrompt}Benchmark.exe"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}\taosdump.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs

@@ -73,8 +73,8 @@ cd %work_dir%\debug\ver-%version%-x64
 call vcvarsall.bat x64
 if "%verType%" == "cluster" (
 	if "%cusName%" == "TDengine" (
-		echo "cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_EXPLORER=false -DBUILD_TAOSX=false -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%"
-		cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_EXPLORER=false -DBUILD_TAOSX=false -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%  -DGRANT_VALUE=%grantValue%
+		echo "cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DCMAKE_BUILD_TYPE=Release -DBUILD_TOOLS=true -DBUILD_EXPLORER=false -DBUILD_TAOSX=false -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%"
+		cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DCMAKE_BUILD_TYPE=Release -DBUILD_TOOLS=true -DBUILD_EXPLORER=false -DBUILD_TAOSX=false -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%  -DGRANT_VALUE=%grantValue%
 	) else (
 		echo "cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_EXPLORER=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%"
 		cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_EXPLORER=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%  -DGRANT_VALUE=%grantValue%
@@ -158,7 +158,7 @@ cd %package_dir%
 if "%cusName%" == "TDengine" (
 	if "%verType%" == "cluster" (
 		call :writeTDengineServerInstallFile
-		iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\enterprise\packaging\windows\tdengine.iss /O..\release
+		iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="taosx-agent.exe, taosx-agent-srv.exe" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\enterprise\packaging\windows\tdengine.iss /O..\release
 	) else (
 		call :writeTDengineServerInstallFile
 		iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
