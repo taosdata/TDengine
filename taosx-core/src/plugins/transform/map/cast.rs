@@ -52,8 +52,9 @@ mod tests {
                 "f1",
                 Arc::new(StringArray::from(vec!["a", "b", "c"])) as ArrayRef,
             ),
+            ("int", Arc::new(Int32Array::from(vec![1, 2, 3])) as ArrayRef),
             (
-                "int",
+                "intstr",
                 Arc::new(StringArray::from(vec!["1", "2", "3"])) as ArrayRef,
             ),
         ])
@@ -105,12 +106,12 @@ mod tests {
             .as_any()
             .downcast_ref::<TimestampNanosecondArray>()
             .unwrap();
-        assert!(array.is_null(0));
+        assert!(array.is_valid(0));
     }
 
     #[test]
     fn test_string_as_int() {
-        let builder: CastValueBuilder = serde_json::from_str(r#"{"cast": "int"}"#).unwrap();
+        let builder: CastValueBuilder = serde_json::from_str(r#"{"cast": "intstr"}"#).unwrap();
         let batch = init_record_batch();
 
         let (field, value) = builder

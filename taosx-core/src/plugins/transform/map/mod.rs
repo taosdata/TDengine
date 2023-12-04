@@ -139,3 +139,30 @@ impl ValueBuilder for FieldValueBuilder {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arrow::array::{Int32Array, Int64Array};
+
+    #[test]
+    fn test_sum() {
+        let map: Map = serde_json::from_str(r#"{"val_sum":{"sum":["a","d"],"as":"INT"}}"#).unwrap();
+        let batch = RecordBatch::try_from_iter([
+            ("a", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
+            ("b", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
+            ("c", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
+        ])
+        .unwrap();
+
+        let result = map.transform_record_batch(&batch);
+        dbg!(&result);
+        let arr = result.unwrap();
+        let arr = arr
+            .column_by_name("val_sum")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<Int32Array>();
+        dbg!(arr);
+    }
+}
