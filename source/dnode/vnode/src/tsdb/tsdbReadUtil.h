@@ -109,7 +109,7 @@ typedef struct SReadCostSummary {
   double  buildComposedBlockTime;
   double  createScanInfoList;
   double  createSkylineIterTime;
-  double  initLastBlockReader;
+  double  initSttBlockReader;
 } SReadCostSummary;
 
 typedef struct STableUidList {
