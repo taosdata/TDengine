@@ -261,7 +261,7 @@
           </el-tabs>
         </div>
       </section>
-      <section v-if="tagName !== 'csv'">
+      <section v-if="!['csv', 'mqtt', 'kafka'].includes(this.tagName)">
         <el-collapse v-model="activeCollapse" accordion class="connection">
           <el-collapse-item name="one">
             <template slot="title">
@@ -791,6 +791,26 @@
           </template>
         </section>
       </template>
+
+      <section v-if="tagName == 'mqtt' || tagName == 'kafka'">
+        <el-collapse v-model="activeCollapse" accordion class="connection">
+          <el-collapse-item name="one">
+            <template slot="title">
+              <el-button
+                :loading="checkLoading"
+                type="primary"
+                size="small"
+                @click.capture.stop="clickCheckBtn"
+                >{{ $t("dataIn.check") }}
+              </el-button>
+            </template>
+            <Result
+              v-show="JSON.stringify(checkResult) !== '{}'"
+              :result="checkResult"
+            />
+          </el-collapse-item>
+        </el-collapse>
+      </section>
 
       <!--未分组显示根节点下的params，显示方式和groups一样-->
       <section
