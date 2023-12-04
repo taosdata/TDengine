@@ -39,12 +39,18 @@
     </div>
 
     <div class="right-ui">
-      <mavon-editor
+      <!-- <mavon-editor
         v-model="dbsource[0].description"
         :toolbarsFlag="false"
         :default-open="'preview'"
         :subfield="false"
-      />
+      /> -->
+      <div class="doc-part">
+        <DocsContent
+          class="mt20"
+          :content="dbsource[0].description"
+        ></DocsContent>
+      </div>
     </div>
     <DialogCreateDb></DialogCreateDb>
   </div>
@@ -326,7 +332,9 @@ export default {
 
   .left-ui {
     flex-shrink: 0;
-    width: 800px;
+    width: 50%;
+    min-width: 800px;
+    margin-top: 10px;
     .description {
       max-width: 568px;
       overflow: auto;
@@ -362,11 +370,26 @@ export default {
   .right-ui {
     flex: 1;
     margin-left: 40px;
-    :deep {
-      .v-note-panel {
-        border-radius: 12px;
+    overflow: hidden;    .doc-part {
+      box-shadow: rgba(0, 0, 0, 0.1) 0px 0px 15px;
+      padding: 2rem;
+      margin: 1rem;
+      background: rgb(251, 251, 251);
+      border-radius: 0.8rem;
+    }
+    &:deep(.markdown-body) {
+      background: rgb(251, 251, 251);
+      & ul,
+      ol {
+        padding-left: 0;
       }
     }
+
+    // :deep {
+    //   .v-note-panel {
+    //     border-radius: 12px;
+    //   }
+    // }
   }
   .cancel-btn,
   .edit-btn,

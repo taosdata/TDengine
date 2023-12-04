@@ -761,12 +761,18 @@
     </div>
 
     <div class="right-ui">
-      <mavon-editor
+      <!-- <mavon-editor
         v-model="dbsource[0].description"
         :toolbarsFlag="false"
         :default-open="'preview'"
         :subfield="false"
-      />
+      /> -->
+      <div class="doc-part">
+        <DocsContent
+          class="mt20"
+          :content="dbsource[0].description"
+        ></DocsContent>
+      </div>
     </div>
     <DialogCreateDb></DialogCreateDb>
   </div>
@@ -788,9 +794,10 @@ import { debounce, parsinginZone, decrypt } from "@/utils/index";
 import DialogCreateDb from "../components/addDbDialog.vue";
 import Result from "../components/result.vue";
 import AdvanceOptions from '../components/advancedOptions.vue'
+import DocsContent from '@/views/support/components/editorContentDisplay.vue';
 export default {
   name: "DbSourceUI",
-  components: { DatePicker, DialogCreateDb, DataTarget, Result ,AdvanceOptions},
+  components: { DatePicker, DialogCreateDb, DataTarget, Result ,AdvanceOptions, DocsContent},
   props: {
     dbsource: {
       type: Array,
@@ -2176,7 +2183,9 @@ export default {
 
   .left-ui {
     flex-shrink: 0;
-    width: 800px;
+    width: 50%;
+    min-width: 800px;
+    margin-top: 1rem;
     .description {
       max-width: 568px;
       overflow: auto;
@@ -2386,11 +2395,26 @@ export default {
   .right-ui {
     flex: 1;
     margin-left: 40px;
-    :deep {
-      .v-note-panel {
-        border-radius: 12px;
+    overflow: hidden;
+    .doc-part {
+      box-shadow: rgba(0, 0, 0, 0.1) 0px 0px 15px;
+      padding: 2rem;
+      margin: 1rem;
+      background: rgb(251, 251, 251);
+      border-radius: 0.8rem;
+    }
+    &:deep(.markdown-body) {
+      background: rgb(251, 251, 251);
+      & ul,
+      ol {
+        padding-left: 0;
       }
     }
+    // :deep {
+    //   .v-note-panel {
+    //     border-radius: 12px;
+    //   }
+    // }
   }
   ::v-deep .description {
     display: initial !important;
