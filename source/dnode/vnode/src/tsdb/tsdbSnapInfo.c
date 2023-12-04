@@ -439,16 +439,6 @@ static int32_t tsdbPartitionInfoSerialize(STsdbPartitionInfo* pInfo, uint8_t* bu
   return 0;
 }
 
-int32_t syncSnapInfoDataRealloc(SSnapshot* pSnap, int32_t size) {
-  void* data = taosMemoryRealloc(pSnap->data, size);
-  if (data == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-  pSnap->data = data;
-  return 0;
-}
-
 int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
   ASSERT(pSnap->type == TDMT_SYNC_PREP_SNAPSHOT || pSnap->type == TDMT_SYNC_PREP_SNAPSHOT_REPLY);
   STsdbPartitionInfo  partitionInfo = {0};
