@@ -145,21 +145,21 @@ typedef struct SBlockLoadSuppInfo {
   bool                smaValid;  // the sma on all queried columns are activated
 } SBlockLoadSuppInfo;
 
-typedef struct SLastBlockReader {
+typedef struct SSttBlockReader {
   STimeWindow        window;
   SVersionRange      verRange;
   int32_t            order;
   uint64_t           uid;
   SMergeTree         mergeTree;
   int64_t            currentKey;
-} SLastBlockReader;
+} SSttBlockReader;
 
 typedef struct SFilesetIter {
   int32_t           numOfFiles;    // number of total files
   int32_t           index;         // current accessed index in the list
   TFileSetArray*    pFilesetList;  // data file set list
   int32_t           order;
-  SLastBlockReader* pLastBlockReader;  // last file block reader
+  SSttBlockReader*  pSttBlockReader;  // last file block reader
 } SFilesetIter;
 
 typedef struct SFileDataBlockInfo {
