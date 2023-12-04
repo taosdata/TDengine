@@ -745,31 +745,45 @@ _exit:
   return code;
 }
 
-int32_t tsdbFSCancelAllBgTask(STFileSystem *fs) {
+static int32_t tsdbFSSetBlockCommit(STFileSet *fset, bool block);
+
+int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
+  STFileSystem *fs = pTsdb->pFS;
   TARRAY2(int64_t) channelArr = {0};
 
-  // collect all open channels
   taosThreadMutexLock(&fs->tsdb->mutex);
+
+  // disable
+  pTsdb->bgTaskDisabled = true;
+
+  // collect channel
   STFileSet *fset;
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     if (VNODE_ASYNC_VALID_CHANNEL_ID(fset->bgTaskChannel)) {
       TARRAY2_APPEND(&channelArr, fset->bgTaskChannel);
       fset->bgTaskChannel = 0;
     }
+    fset->mergeScheduled = false;
+    tsdbFSSetBlockCommit(fset, false);
   }
+
   taosThreadMutexUnlock(&fs->tsdb->mutex);
 
   // destroy all channels
-  int64_t channel;
-  TARRAY2_FOREACH(&channelArr, channel) { vnodeAChannelDestroy(vnodeAsyncHandle[1], channel, true); }
-  TARRAY2_DESTROY(&channelArr, NULL);
+  return 0;
+}
+
+int32_t tsdbEnableBgTask(STsdb *pTsdb) {
+  taosThreadMutexLock(&pTsdb->mutex);
+  pTsdb->bgTaskDisabled = false;
+  taosThreadMutexUnlock(&pTsdb->mutex);
   return 0;
 }
 
 int32_t tsdbCloseFS(STFileSystem **fs) {
   if (fs[0] == NULL) return 0;
 
-  tsdbFSCancelAllBgTask(*fs);
+  tsdbDisableAndCancelAllBgTask((*fs)->tsdb);
   close_file_system(fs[0]);
   destroy_fs(fs);
   return 0;
@@ -857,7 +871,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
 
   // schedule merge
   int32_t sttTrigger = fs->tsdb->pVnode->config.sttTrigger;
-  if (sttTrigger > 1) {
+  if (sttTrigger > 1 && !fs->tsdb->bgTaskDisabled) {
     STFileSet *fset;
     TARRAY2_FOREACH_REVERSE(fs->fSetArr, fset) {
       if (TARRAY2_SIZE(fset->lvlArr) == 0) {
@@ -873,7 +887,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
 
       bool    skipMerge = false;
       int32_t numFile = TARRAY2_SIZE(lvl->fobjArr);
-      if (numFile >= sttTrigger) {
+      if (numFile >= sttTrigger && (!fset->mergeScheduled)) {
         // launch merge
         {
           extern int8_t  tsS3Enabled;
@@ -917,6 +931,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
           code = vnodeAsyncC(vnodeAsyncHandle[1], fset->bgTaskChannel, EVA_PRIORITY_HIGH, tsdbMerge, taosMemoryFree,
                              arg, NULL);
           TSDB_CHECK_CODE(code, lino, _exit);
+          fset->mergeScheduled = true;
         }
       }
 
