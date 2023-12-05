@@ -5,7 +5,7 @@
         $t("refresh")
       }}</el-button>
     </div>
-    <el-table size="mini" :data="consumerList">
+    <el-table size="mini" :data="consumerList" style="margin-top: 20px">
       <el-table-column :label="$t('topic.consumerID')" prop="consumer_id"></el-table-column>
       <el-table-column :label="$t('topic.consumerGroup')" prop="consumer_group"></el-table-column>
       <el-table-column :label="$t('topic.clientID')" prop="client_id"></el-table-column>

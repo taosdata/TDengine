@@ -233,6 +233,10 @@
     &:deep(.CodeMirror-placeholder) {
       color: #c0c4cc;
     }
+    &:deep(.CodeMirror-linenumber) {
+      text-align: left;
+      padding: 0 3px 0 0;
+    }
   }
   .sql-btn {
     position: absolute;

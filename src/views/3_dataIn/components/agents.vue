@@ -661,6 +661,7 @@ export default {
   font-size: 16px;
   margin: 10px 0;
   padding: 12px 16px;
+  height: 44px;
 }
 .data-agent {
   position: relative;
