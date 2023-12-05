@@ -363,35 +363,6 @@ static int32_t mndCheckCreateStreamReq(SCMCreateStreamReq *pCreate) {
   return 0;
 }
 
-static int32_t mndStreamGetPlanString(const char *ast, int8_t triggerType, int64_t watermark, char **pStr) {
-  if (NULL == ast) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SNode * pAst = NULL;
-  int32_t code = nodesStringToNode(ast, &pAst);
-
-  SQueryPlan *pPlan = NULL;
-  if (TSDB_CODE_SUCCESS == code) {
-    SPlanContext cxt = {
-        .pAstRoot = pAst,
-        .topicQuery = false,
-        .streamQuery = true,
-        .triggerType = (triggerType == STREAM_TRIGGER_MAX_DELAY) ? STREAM_TRIGGER_WINDOW_CLOSE : triggerType,
-        .watermark = watermark,
-    };
-    code = qCreateQueryPlan(&cxt, &pPlan, NULL);
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodesNodeToString((SNode *)pPlan, false, pStr, NULL);
-  }
-  nodesDestroyNode(pAst);
-  nodesDestroyNode((SNode *)pPlan);
-  terrno = code;
-  return code;
-}
-
 static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamReq *pCreate) {
   SNode *     pAst = NULL;
   SQueryPlan *pPlan = NULL;
@@ -733,11 +704,20 @@ static int32_t mndPersistTaskDropReq(SMnode *pMnode, STrans *pTrans, SStreamTask
   pReq->streamId = pTask->id.streamId;
 
   STransAction action = {0};
-  SEpSet       epset = {0};
-  if (pTask->info.nodeId == SNODE_HANDLE) {
-    SSnodeObj *pObj = mndAcquireSnode(pMnode, pTask->info.nodeId);
-    addEpIntoEpSet(&epset, pObj->pDnode->fqdn, pObj->pDnode->port);
-  } else {
+  SEpSet  epset = {0};
+  if(pTask->info.nodeId == SNODE_HANDLE){
+    SSnodeObj *pObj = NULL;
+    void  *pIter = NULL;
+    while (1) {
+      pIter = sdbFetch(pMnode->pSdb, SDB_SNODE, pIter, (void **)&pObj);
+      if (pIter == NULL) {
+        break;
+      }
+
+      addEpIntoEpSet(&epset, pObj->pDnode->fqdn, pObj->pDnode->port);
+      sdbRelease(pMnode->pSdb, pObj);
+    }
+  }else{
     SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->info.nodeId);
     epset = mndGetVgroupEpset(pMnode, pVgObj);
     mndReleaseVgroup(pMnode, pVgObj);

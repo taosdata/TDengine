@@ -453,6 +453,7 @@ int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset) {
 
   // background task queue
   fset[0]->bgTaskChannel = 0;
+  fset[0]->mergeScheduled = false;
 
   // block commit variables
   taosThreadCondInit(&fset[0]->canCommit, NULL);

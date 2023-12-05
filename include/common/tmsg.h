@@ -35,12 +35,14 @@ extern "C" {
 #define TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
 #undef TD_MSG_INFO_
+#undef TD_MSG_RANGE_CODE_
 #undef TD_MSG_SEG_CODE_
 #include "tmsgdef.h"
 
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
 #undef TD_MSG_INFO_
+#undef TD_MSG_RANGE_CODE_
 #define TD_MSG_SEG_CODE_
 #include "tmsgdef.h"
 
@@ -48,33 +50,31 @@ extern "C" {
 #undef TD_MSG_DICT_
 #undef TD_MSG_INFO_
 #undef TD_MSG_SEG_CODE_
+#undef TD_MSG_RANGE_CODE_
 #include "tmsgdef.h"
 
 extern char*   tMsgInfo[];
 extern int32_t tMsgDict[];
-
-#define TMSG_SEG_CODE(TYPE) (((TYPE)&0xff00) >> 8)
-#define TMSG_SEG_SEQ(TYPE)  ((TYPE)&0xff)
-#define TMSG_INFO(TYPE)                                                                                                \
-  ((TYPE) < TDMT_DND_MAX_MSG || (TYPE) < TDMT_MND_MAX_MSG || (TYPE) < TDMT_VND_MAX_MSG || (TYPE) < TDMT_SCH_MAX_MSG || \
-   (TYPE) < TDMT_STREAM_MAX_MSG || (TYPE) < TDMT_MON_MAX_MSG || (TYPE) < TDMT_SYNC_MAX_MSG) ||                         \
-          (TYPE) < TDMT_VND_STREAM_MSG || (TYPE) < TDMT_VND_TMQ_MSG || (TYPE) < TDMT_VND_TMQ_MAX_MSG                   \
-      ? tMsgInfo[tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE)]                                                   \
-      : 0
-
-#define TMSG_INDEX(TYPE) (tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE))
+extern int32_t tMsgRangeDict[];
 
 typedef uint16_t tmsg_t;
 
+#define TMSG_SEG_CODE(TYPE) (((TYPE)&0xff00) >> 8)
+#define TMSG_SEG_SEQ(TYPE)  ((TYPE)&0xff)
+#define TMSG_INDEX(TYPE)    (tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE))
+
 static inline bool tmsgIsValid(tmsg_t type) {
-  if (type < TDMT_DND_MAX_MSG || type < TDMT_MND_MAX_MSG || type < TDMT_VND_MAX_MSG || type < TDMT_SCH_MAX_MSG ||
-      type < TDMT_STREAM_MAX_MSG || type < TDMT_MON_MAX_MSG || type < TDMT_SYNC_MAX_MSG || type < TDMT_VND_STREAM_MSG ||
-      type < TDMT_VND_TMQ_MSG || type < TDMT_VND_TMQ_MAX_MSG) {
-    return true;
-  } else {
-    return false;
+  // static int8_t sz = sizeof(tMsgRangeDict) / sizeof(tMsgRangeDict[0]);
+  int8_t maxSegIdx = TMSG_SEG_CODE(TDMT_MAX_MSG);
+  int    segIdx = TMSG_SEG_CODE(type);
+  if (segIdx >= 0 && segIdx < maxSegIdx) {
+    return type < tMsgRangeDict[segIdx];
   }
+  return false;
 }
+
+#define TMSG_INFO(type) (tmsgIsValid(type) ? tMsgInfo[TMSG_INDEX(type)] : "unKnown")
+
 static inline bool vnodeIsMsgBlock(tmsg_t type) {
   return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
          (type == TDMT_VND_UPDATE_TAG_VAL) || (type == TDMT_VND_ALTER_CONFIRM) || (type == TDMT_VND_COMMIT) ||
@@ -169,14 +169,14 @@ typedef enum _mgmt_table {
 #define TSDB_FILL_PREV        6
 #define TSDB_FILL_NEXT        7
 
-#define TSDB_ALTER_USER_PASSWD                 0x1
-#define TSDB_ALTER_USER_SUPERUSER              0x2
-#define TSDB_ALTER_USER_ENABLE                 0x3
-#define TSDB_ALTER_USER_SYSINFO                0x4
-#define TSDB_ALTER_USER_ADD_PRIVILEGES         0x5
-#define TSDB_ALTER_USER_DEL_PRIVILEGES         0x6
-#define TSDB_ALTER_USER_ADD_WHITE_LIST         0x7
-#define TSDB_ALTER_USER_DROP_WHITE_LIST        0x8
+#define TSDB_ALTER_USER_PASSWD          0x1
+#define TSDB_ALTER_USER_SUPERUSER       0x2
+#define TSDB_ALTER_USER_ENABLE          0x3
+#define TSDB_ALTER_USER_SYSINFO         0x4
+#define TSDB_ALTER_USER_ADD_PRIVILEGES  0x5
+#define TSDB_ALTER_USER_DEL_PRIVILEGES  0x6
+#define TSDB_ALTER_USER_ADD_WHITE_LIST  0x7
+#define TSDB_ALTER_USER_DROP_WHITE_LIST 0x8
 
 #define TSDB_KILL_MSG_LEN 30
 
@@ -346,7 +346,7 @@ typedef enum ENodeType {
   QUERY_NODE_RESTORE_MNODE_STMT,
   QUERY_NODE_RESTORE_VNODE_STMT,
   QUERY_NODE_PAUSE_STREAM_STMT,
-  QUERY_NODE_RESUME_STREAM_STMT,  
+  QUERY_NODE_RESUME_STREAM_STMT,
   QUERY_NODE_CREATE_VIEW_STMT,
   QUERY_NODE_DROP_VIEW_STMT,
 
@@ -790,7 +790,7 @@ typedef struct {
 
 int32_t tSerializeSMDropStbReq(void* buf, int32_t bufLen, SMDropStbReq* pReq);
 int32_t tDeserializeSMDropStbReq(void* buf, int32_t bufLen, SMDropStbReq* pReq);
-void    tFreeSMDropStbReq(SMDropStbReq *pReq);
+void    tFreeSMDropStbReq(SMDropStbReq* pReq);
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
@@ -871,18 +871,18 @@ int32_t tSerializeSCreateAcctReq(void* buf, int32_t bufLen, SCreateAcctReq* pReq
 int32_t tDeserializeSCreateAcctReq(void* buf, int32_t bufLen, SCreateAcctReq* pReq);
 
 typedef struct {
-  char user[TSDB_USER_LEN];
+  char    user[TSDB_USER_LEN];
   int32_t sqlLen;
   char*   sql;
 } SDropUserReq, SDropAcctReq;
 
 int32_t tSerializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
 int32_t tDeserializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
-void    tFreeSDropUserReq(SDropUserReq *pReq);
+void    tFreeSDropUserReq(SDropUserReq* pReq);
 
-typedef struct SIpV4Range{
-    uint32_t ip;
-    uint32_t mask;
+typedef struct SIpV4Range {
+  uint32_t ip;
+  uint32_t mask;
 } SIpV4Range;
 
 typedef struct {
@@ -892,21 +892,21 @@ typedef struct {
 
 SIpWhiteList* cloneIpWhiteList(SIpWhiteList* pIpWhiteList);
 typedef struct {
-  int8_t createType;
-  int8_t superUser;  // denote if it is a super user or not
-  int8_t sysInfo;
-  int8_t enable;
-  char   user[TSDB_USER_LEN];
-  char   pass[TSDB_USET_PASSWORD_LEN];
+  int8_t      createType;
+  int8_t      superUser;  // denote if it is a super user or not
+  int8_t      sysInfo;
+  int8_t      enable;
+  char        user[TSDB_USER_LEN];
+  char        pass[TSDB_USET_PASSWORD_LEN];
   int32_t     numIpRanges;
   SIpV4Range* pIpRanges;
-  int32_t sqlLen;
-  char*   sql;
+  int32_t     sqlLen;
+  char*       sql;
 } SCreateUserReq;
 
 int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
 int32_t tDeserializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
-void    tFreeSCreateUserReq(SCreateUserReq *pReq);
+void    tFreeSCreateUserReq(SCreateUserReq* pReq);
 
 typedef struct {
   int64_t     ver;
@@ -933,22 +933,22 @@ int32_t tSerializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq
 int32_t tDeserializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq* pReq);
 
 typedef struct {
-  int8_t  alterType;
-  int8_t  superUser;
-  int8_t  sysInfo;
-  int8_t  enable;
-  int8_t  isView;
-  char    user[TSDB_USER_LEN];
-  char    pass[TSDB_USET_PASSWORD_LEN];
-  char    objname[TSDB_DB_FNAME_LEN];  // db or topic
-  char    tabName[TSDB_TABLE_NAME_LEN];
-  char*   tagCond;
-  int32_t tagCondLen;
+  int8_t      alterType;
+  int8_t      superUser;
+  int8_t      sysInfo;
+  int8_t      enable;
+  int8_t      isView;
+  char        user[TSDB_USER_LEN];
+  char        pass[TSDB_USET_PASSWORD_LEN];
+  char        objname[TSDB_DB_FNAME_LEN];  // db or topic
+  char        tabName[TSDB_TABLE_NAME_LEN];
+  char*       tagCond;
+  int32_t     tagCondLen;
   int32_t     numIpRanges;
   SIpV4Range* pIpRanges;
   int64_t     privileges;
-  int32_t sqlLen;
-  char*   sql;
+  int32_t     sqlLen;
+  char*       sql;
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
@@ -978,9 +978,9 @@ typedef struct {
   SHashObj* alterTbs;
   SHashObj* readViews;
   SHashObj* writeViews;
-  SHashObj* alterViews;  
+  SHashObj* alterViews;
   SHashObj* useDbs;
-  int64_t whiteListVer;
+  int64_t   whiteListVer;
 } SGetUserAuthRsp;
 
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
@@ -995,8 +995,8 @@ int32_t tSerializeSGetUserWhiteListReq(void* buf, int32_t bufLen, SGetUserWhiteL
 int32_t tDeserializeSGetUserWhiteListReq(void* buf, int32_t bufLen, SGetUserWhiteListReq* pReq);
 
 typedef struct {
-  char user[TSDB_USER_LEN];
-  int32_t numWhiteLists;
+  char        user[TSDB_USER_LEN];
+  int32_t     numWhiteLists;
   SIpV4Range* pWhiteLists;
 } SGetUserWhiteListRsp;
 
@@ -1169,8 +1169,8 @@ int32_t tDeserializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
 void    tFreeSAlterDbReq(SAlterDbReq* pReq);
 
 typedef struct {
-  char   db[TSDB_DB_FNAME_LEN];
-  int8_t ignoreNotExists;
+  char    db[TSDB_DB_FNAME_LEN];
+  int8_t  ignoreNotExists;
   int32_t sqlLen;
   char*   sql;
 } SDropDbReq;
@@ -1378,7 +1378,7 @@ typedef struct {
 
 int32_t tSerializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);
 int32_t tDeserializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);
-void    tFreeSCompactDbReq(SCompactDbReq *pReq);
+void    tFreeSCompactDbReq(SCompactDbReq* pReq);
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
@@ -1817,7 +1817,6 @@ int32_t tSerializeSViewHbRsp(void* buf, int32_t bufLen, SViewHbRsp* pRsp);
 int32_t tDeserializeSViewHbRsp(void* buf, int32_t bufLen, SViewHbRsp* pRsp);
 void    tFreeSViewHbRsp(SViewHbRsp* pRsp);
 
-
 typedef struct {
   int32_t numOfTables;
   int32_t numOfVgroup;
@@ -2006,7 +2005,7 @@ typedef struct {
 
 int32_t tSerializeSRestoreDnodeReq(void* buf, int32_t bufLen, SRestoreDnodeReq* pReq);
 int32_t tDeserializeSRestoreDnodeReq(void* buf, int32_t bufLen, SRestoreDnodeReq* pReq);
-void    tFreeSRestoreDnodeReq(SRestoreDnodeReq *pReq);
+void    tFreeSRestoreDnodeReq(SRestoreDnodeReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -2018,7 +2017,7 @@ typedef struct {
 
 int32_t tSerializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq);
 int32_t tDeserializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq);
-void tFreeSMCfgDnodeReq(SMCfgDnodeReq *pReq);
+void    tFreeSMCfgDnodeReq(SMCfgDnodeReq* pReq);
 
 typedef struct {
   char config[TSDB_DNODE_CONFIG_LEN];
@@ -2037,7 +2036,7 @@ typedef struct {
 
 int32_t tSerializeSCreateDropMQSNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
 int32_t tDeserializeSCreateDropMQSNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
-void    tFreeSMCreateQnodeReq(SMCreateQnodeReq *pReq);
+void    tFreeSMCreateQnodeReq(SMCreateQnodeReq* pReq);
 void    tFreeSDDropQnodeReq(SDDropQnodeReq* pReq);
 typedef struct {
   int8_t   replica;
@@ -2079,7 +2078,7 @@ typedef struct {
 
 int32_t tSerializeSBalanceVgroupReq(void* buf, int32_t bufLen, SBalanceVgroupReq* pReq);
 int32_t tDeserializeSBalanceVgroupReq(void* buf, int32_t bufLen, SBalanceVgroupReq* pReq);
-void    tFreeSBalanceVgroupReq(SBalanceVgroupReq *pReq);
+void    tFreeSBalanceVgroupReq(SBalanceVgroupReq* pReq);
 
 typedef struct {
   int32_t vgId1;
@@ -2100,7 +2099,7 @@ typedef struct {
 
 int32_t tSerializeSRedistributeVgroupReq(void* buf, int32_t bufLen, SRedistributeVgroupReq* pReq);
 int32_t tDeserializeSRedistributeVgroupReq(void* buf, int32_t bufLen, SRedistributeVgroupReq* pReq);
-void    tFreeSRedistributeVgroupReq(SRedistributeVgroupReq *pReq);
+void    tFreeSRedistributeVgroupReq(SRedistributeVgroupReq* pReq);
 
 typedef struct {
   int32_t useless;
@@ -2111,7 +2110,7 @@ typedef struct {
 
 int32_t tSerializeSBalanceVgroupLeaderReq(void* buf, int32_t bufLen, SBalanceVgroupLeaderReq* pReq);
 int32_t tDeserializeSBalanceVgroupLeaderReq(void* buf, int32_t bufLen, SBalanceVgroupLeaderReq* pReq);
-void    tFreeSBalanceVgroupLeaderReq(SBalanceVgroupLeaderReq *pReq);
+void    tFreeSBalanceVgroupLeaderReq(SBalanceVgroupLeaderReq* pReq);
 
 typedef struct {
   int32_t vgId;
@@ -2503,15 +2502,15 @@ typedef struct {
 } SMVSubscribeRsp;
 
 typedef struct {
-  char   name[TSDB_TOPIC_FNAME_LEN];
-  int8_t igNotExists;
+  char    name[TSDB_TOPIC_FNAME_LEN];
+  int8_t  igNotExists;
   int32_t sqlLen;
   char*   sql;
 } SMDropTopicReq;
 
 int32_t tSerializeSMDropTopicReq(void* buf, int32_t bufLen, SMDropTopicReq* pReq);
 int32_t tDeserializeSMDropTopicReq(void* buf, int32_t bufLen, SMDropTopicReq* pReq);
-void    tFreeSMDropTopicReq(SMDropTopicReq *pReq);
+void    tFreeSMDropTopicReq(SMDropTopicReq* pReq);
 
 typedef struct {
   char   topic[TSDB_TOPIC_FNAME_LEN];
@@ -3082,8 +3081,8 @@ typedef struct {
 } SMqVDeleteRsp;
 
 typedef struct {
-  char   name[TSDB_STREAM_FNAME_LEN];
-  int8_t igNotExists;
+  char    name[TSDB_STREAM_FNAME_LEN];
+  int8_t  igNotExists;
   int32_t sqlLen;
   char*   sql;
 } SMDropStreamReq;
@@ -3920,7 +3919,7 @@ int32_t tDeserializeSCMDropViewReq(void* buf, int32_t bufLen, SCMDropViewReq* pR
 void    tFreeSCMDropViewReq(SCMDropViewReq* pReq);
 
 typedef struct {
-  char   fullname[TSDB_VIEW_FNAME_LEN];
+  char fullname[TSDB_VIEW_FNAME_LEN];
 } SViewMetaReq;
 int32_t tSerializeSViewMetaReq(void* buf, int32_t bufLen, const SViewMetaReq* pReq);
 int32_t tDeserializeSViewMetaReq(void* buf, int32_t bufLen, SViewMetaReq* pReq);
@@ -3941,7 +3940,6 @@ typedef struct {
 int32_t tSerializeSViewMetaRsp(void* buf, int32_t bufLen, const SViewMetaRsp* pRsp);
 int32_t tDeserializeSViewMetaRsp(void* buf, int32_t bufLen, SViewMetaRsp* pRsp);
 void    tFreeSViewMetaRsp(SViewMetaRsp* pRsp);
-
 
 #pragma pack(pop)
 

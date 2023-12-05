@@ -32,6 +32,35 @@
 
 #ifdef WINDOWS
 #include <windows.h>
+#else
+
+#include <arpa/inet.h>
+
+TEST(osTest, osFQDNSuccess) {
+  char     fqdn[1024];
+  char     ipString[INET_ADDRSTRLEN];
+  int      code = taosGetFqdn(fqdn);
+  uint32_t ipv4 = taosGetIpv4FromFqdn(fqdn);
+  ASSERT_NE(ipv4, 0xffffffff);
+
+  struct in_addr addr;
+  addr.s_addr = htonl(ipv4);
+  snprintf(ipString, INET_ADDRSTRLEN, "%u.%u.%u.%u", (unsigned int)(addr.s_addr >> 24) & 0xFF,
+           (unsigned int)(addr.s_addr >> 16) & 0xFF, (unsigned int)(addr.s_addr >> 8) & 0xFF,
+           (unsigned int)(addr.s_addr) & 0xFF);
+  printf("fqdn:%s  ip:%s\n", fqdn, ipString);
+}
+
+TEST(osTest, osFQDNFailed) {
+  char     fqdn[1024] = "fqdn_test_not_found";
+  char     ipString[24];
+  uint32_t ipv4 = taosGetIpv4FromFqdn(fqdn);
+  ASSERT_EQ(ipv4, 0xffffffff);
+
+  terrno = TSDB_CODE_RPC_FQDN_ERROR;
+  printf("fqdn:%s transfer to ip failed!\n", fqdn);
+}
+
 #endif  //  WINDOWS
 
 TEST(osTest, osSystem) {

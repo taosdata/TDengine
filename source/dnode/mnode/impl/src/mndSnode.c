@@ -291,11 +291,16 @@ static int32_t mndProcessCreateSnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pObj = mndAcquireSnode(pMnode, createReq.dnodeId);
-  if (pObj != NULL) {
+//  pObj = mndAcquireSnode(pMnode, createReq.dnodeId);
+//  if (pObj != NULL) {
+//    terrno = TSDB_CODE_MND_SNODE_ALREADY_EXIST;
+//    goto _OVER;
+//  } else if (terrno != TSDB_CODE_MND_SNODE_NOT_EXIST) {
+//    goto _OVER;
+//  }
+
+  if (sdbGetSize(pMnode->pSdb, SDB_SNODE) >= 1){
     terrno = TSDB_CODE_MND_SNODE_ALREADY_EXIST;
-    goto _OVER;
-  } else if (terrno != TSDB_CODE_MND_SNODE_NOT_EXIST) {
     goto _OVER;
   }
 
@@ -314,7 +319,7 @@ _OVER:
     return -1;
   }
 
-  mndReleaseSnode(pMnode, pObj);
+//  mndReleaseSnode(pMnode, pObj);
   mndReleaseDnode(pMnode, pDnode);
   tFreeSMCreateQnodeReq(&createReq);
   return code;

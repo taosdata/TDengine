@@ -340,18 +340,19 @@ enum {
 };
 
 typedef struct SStreamAggSupporter {
-  int32_t         resultRowSize;  // the result buffer size for each result row, with the meta data size for each row
-  SSDataBlock*    pScanBlock;
-  SStreamState*   pState;
-  int64_t         gap;        // stream session window gap
-  SqlFunctionCtx* pDummyCtx;  // for combine
-  SSHashObj*      pResultRows;
-  int32_t         stateKeySize;
-  int16_t         stateKeyType;
-  SDiskbasedBuf*  pResultBuf;
-  SStateStore     stateStore;
-  STimeWindow     winRange;
-  SStorageAPI*    pSessionAPI;
+  int32_t             resultRowSize;  // the result buffer size for each result row, with the meta data size for each row
+  SSDataBlock*        pScanBlock;
+  SStreamState*       pState;
+  int64_t             gap;        // stream session window gap
+  SqlFunctionCtx*     pDummyCtx;  // for combine
+  SSHashObj*          pResultRows;
+  int32_t             stateKeySize;
+  int16_t             stateKeyType;
+  SDiskbasedBuf*      pResultBuf;
+  SStateStore         stateStore;
+  STimeWindow         winRange;
+  SStorageAPI*        pSessionAPI;
+  struct SUpdateInfo* pUpdateInfo;
 } SStreamAggSupporter;
 
 typedef struct SWindowSupporter {
@@ -504,38 +505,39 @@ typedef struct SOpCheckPointInfo {
 } SOpCheckPointInfo;
 
 typedef struct SStreamIntervalOperatorInfo {
-  SOptrBasicInfo     binfo;           // basic info
-  SAggSupporter      aggSup;          // aggregate supporter
-  SExprSupp          scalarSupp;      // supporter for perform scalar function
-  SGroupResInfo      groupResInfo;    // multiple results build supporter
-  SInterval          interval;        // interval info
-  int32_t            primaryTsIndex;  // primary time stamp slot id from result of downstream operator.
-  STimeWindowAggSupp twAggSup;
-  bool               invertible;
-  bool               ignoreExpiredData;
-  bool               ignoreExpiredDataSaved;
-  SArray*            pDelWins;  // SWinRes
-  int32_t            delIndex;
-  SSDataBlock*       pDelRes;
-  SPhysiNode*        pPhyNode;  // create new child
-  SHashObj*          pPullDataMap;
-  SArray*            pPullWins;  // SPullWindowInfo
-  int32_t            pullIndex;
-  SSDataBlock*       pPullDataRes;
-  SArray*            pChildren;
-  int32_t            numOfChild;
-  SStreamState*      pState;  // void
-  SWinKey            delKey;
-  uint64_t           numOfDatapack;
-  SArray*            pUpdated;
-  SSHashObj*         pUpdatedMap;
-  int64_t            dataVersion;
-  SStateStore        stateStore;
-  bool               recvGetAll;
-  SHashObj*          pFinalPullDataMap;
-  SOpCheckPointInfo  checkPointInfo;
-  bool               reCkBlock;
-  SSDataBlock*       pCheckpointRes;
+  SOptrBasicInfo      binfo;           // basic info
+  SAggSupporter       aggSup;          // aggregate supporter
+  SExprSupp           scalarSupp;      // supporter for perform scalar function
+  SGroupResInfo       groupResInfo;    // multiple results build supporter
+  SInterval           interval;        // interval info
+  int32_t             primaryTsIndex;  // primary time stamp slot id from result of downstream operator.
+  STimeWindowAggSupp  twAggSup;
+  bool                invertible;
+  bool                ignoreExpiredData;
+  bool                ignoreExpiredDataSaved;
+  SArray*             pDelWins;  // SWinRes
+  int32_t             delIndex;
+  SSDataBlock*        pDelRes;
+  SPhysiNode*         pPhyNode;  // create new child
+  SHashObj*           pPullDataMap;
+  SArray*             pPullWins;  // SPullWindowInfo
+  int32_t             pullIndex;
+  SSDataBlock*        pPullDataRes;
+  SArray*             pChildren;
+  int32_t             numOfChild;
+  SStreamState*       pState;  // void
+  SWinKey             delKey;
+  uint64_t            numOfDatapack;
+  SArray*             pUpdated;
+  SSHashObj*          pUpdatedMap;
+  int64_t             dataVersion;
+  SStateStore         stateStore;
+  bool                recvGetAll;
+  SHashObj*           pFinalPullDataMap;
+  SOpCheckPointInfo   checkPointInfo;
+  bool                reCkBlock;
+  SSDataBlock*        pCheckpointRes;
+  struct SUpdateInfo* pUpdateInfo;
 } SStreamIntervalOperatorInfo;
 
 typedef struct SDataGroupInfo {
@@ -832,6 +834,7 @@ void     compactTimeWindow(SExprSupp* pSup, SStreamAggSupporter* pAggSup, STimeW
                            SSHashObj* pStUpdated, SSHashObj* pStDeleted, bool addGap);
 int32_t  releaseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI);
 void     resetWinRange(STimeWindow* winRange);
+bool     checkExpiredData(SStateStore* pAPI, SUpdateInfo* pUpdateInfo, STimeWindowAggSupp* pTwSup, uint64_t tableId, TSKEY ts);
 
 int32_t encodeSSessionKey(void** buf, SSessionKey* key);
 void*   decodeSSessionKey(void* buf, SSessionKey* key);
