@@ -2833,6 +2833,7 @@ pub async fn listen_tcp_socket(
                 tracing::info!("new tcp client!: {:?}", addr);
                 // let span = tracing::info_span!("ipc_reader", client.address = %addr);
                 let stream = stream.into_std().unwrap();
+                let _ = stream.set_read_timeout(Some(Duration::from_secs(60 * 60)));
                 let _ = stream.set_nonblocking(false);
                 let client = addr.to_string();
                 let se = sender.clone();
