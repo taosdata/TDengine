@@ -261,7 +261,7 @@
           </el-tabs>
         </div>
       </section>
-      <section v-if="tagName !== 'csv'">
+      <section v-if="!['csv', 'mqtt', 'kafka'].includes(this.tagName)">
         <el-collapse v-model="activeCollapse" accordion class="connection">
           <el-collapse-item name="one">
             <template slot="title">
@@ -792,6 +792,26 @@
         </section>
       </template>
 
+      <section v-if="tagName == 'mqtt' || tagName == 'kafka'">
+        <el-collapse v-model="activeCollapse" accordion class="connection">
+          <el-collapse-item name="one">
+            <template slot="title">
+              <el-button
+                :loading="checkLoading"
+                type="primary"
+                size="small"
+                @click.capture.stop="clickCheckBtn"
+                >{{ $t("dataIn.check") }}
+              </el-button>
+            </template>
+            <Result
+              v-show="JSON.stringify(checkResult) !== '{}'"
+              :result="checkResult"
+            />
+          </el-collapse-item>
+        </el-collapse>
+      </section>
+
       <!--未分组显示根节点下的params，显示方式和groups一样-->
       <section
         v-if="tagName == 'mqtt' || tagName == 'kafka'"
@@ -854,12 +874,18 @@
       </section>
     </div>
     <div class="right-ui">
-      <mavon-editor
+      <!-- <mavon-editor
         v-model="dbsource[0].description"
         :toolbarsFlag="false"
         :default-open="'preview'"
         :subfield="false"
-      />
+      /> -->
+      <div class="doc-part">
+        <DocsContent
+          class="mt20"
+          :content="dbsource[0].description"
+        ></DocsContent>
+      </div>
     </div>
     <DialogCreateDb></DialogCreateDb>
   </div>
@@ -887,6 +913,7 @@ import DialogCreateDb from "../components/addDbDialog.vue";
 import Result from "../components/result.vue";
 import AdvanceOptions from "../components/advancedOptions.vue";
 import CommonTransformer from "../components/commonTransformer.vue";
+import DocsContent from '@/views/support/components/editorContentDisplay.vue';
 export default {
   name: "DbSourceUI",
   components: {
@@ -899,6 +926,7 @@ export default {
     Result,
     AdvanceOptions,
     CommonTransformer,
+    DocsContent
   },
   props: {
     echoData: {
@@ -1778,7 +1806,7 @@ export default {
           dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
         }
         if ((this.tagName == "mqtt" || this.tagName == "kafka") && isSubmit) {
-          this.$refs.transformer.getTransformerParams();
+         await this.$refs.transformer.getTransformerParams();
           if(this.$refs.transformer.isbreak){//transformer的mapping接口出错
             return
           }
@@ -2226,8 +2254,10 @@ export default {
   .left-ui {
     position: relative;
     overflow: auto;
-    width: 800px;
+    width: 50%;
+    min-width: 800px;
     flex-shrink: 0;
+    margin-top: 1rem;
     .description {
       max-width: 568px;
       overflow: auto;
@@ -2391,11 +2421,26 @@ export default {
   .right-ui {
     flex: 1;
     margin-left: 40px;
-    :deep {
-      .v-note-panel {
-        border-radius: 12px;
+    overflow: hidden;
+    .doc-part {
+      box-shadow: rgba(0, 0, 0, 0.1) 0px 0px 15px;
+      padding: 2rem;
+      margin: 1rem;
+      background: rgb(251, 251, 251);
+      border-radius: 0.8rem;
+    }
+    &:deep(.markdown-body) {
+      background: rgb(251, 251, 251);
+      & ul,
+      ol {
+        padding-left: 0;
       }
     }
+    // :deep {
+    //   .v-note-panel {
+    //     border-radius: 12px;
+    //   }
+    // }
   }
   ::v-deep .description {
     display: initial !important;

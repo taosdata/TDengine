@@ -179,7 +179,7 @@ export default {
 }
 
 .sider_unfold {
-  width: 202px;
+  width: 240px;
 }
 .sider_menu {
   border-right: none;

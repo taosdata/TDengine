@@ -48,7 +48,7 @@ export default {
 }
 
 .sider_unfold {
-  width: 202px;
+  width: 240px;
   ::v-deep {
     .oem {
       max-width: 200px;
