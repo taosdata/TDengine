@@ -14,6 +14,7 @@
  */
 
 #include "tsdbFSet2.h"
+#include "vnd.h"
 
 int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl) {
   if (!(lvl[0] = taosMemoryMalloc(sizeof(SSttLvl)))) return TSDB_CODE_OUT_OF_MEMORY;
@@ -422,10 +423,8 @@ int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset) {
   TARRAY2_INIT(fset[0]->lvlArr);
 
   // background task queue
-  fset[0]->bgTaskNum = 0;
-  fset[0]->bgTaskQueue->next = fset[0]->bgTaskQueue;
-  fset[0]->bgTaskQueue->prev = fset[0]->bgTaskQueue;
-  fset[0]->bgTaskRunning = NULL;
+  fset[0]->bgTaskChannel = 0;
+  fset[0]->mergeScheduled = false;
 
   // block commit variables
   taosThreadCondInit(&fset[0]->canCommit, NULL);
@@ -555,4 +554,9 @@ bool tsdbTFileSetIsEmpty(const STFileSet *fset) {
     if (fset->farr[ftype] != NULL) return false;
   }
   return TARRAY2_SIZE(fset->lvlArr) == 0;
+}
+
+int32_t tsdbTFileSetOpenChannel(STFileSet *fset) {
+  if (VNODE_ASYNC_VALID_CHANNEL_ID(fset->bgTaskChannel)) return 0;
+  return vnodeAChannelInit(vnodeAsyncHandle[1], &fset->bgTaskChannel);
 }
