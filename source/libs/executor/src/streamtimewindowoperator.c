@@ -409,8 +409,10 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   blockDataDestroy(pInfo->pDelRes);
   pInfo->stateStore.streamFileStateDestroy(pInfo->pState->pFileState);
 
-  taosMemoryFreeClear(pInfo->pState->pTdbState->pOwner);
-  taosMemoryFreeClear(pInfo->pState->pTdbState);
+  if (pInfo->pState->dump == 1) {
+    taosMemoryFreeClear(pInfo->pState->pTdbState->pOwner);
+    taosMemoryFreeClear(pInfo->pState->pTdbState);
+  }
   taosMemoryFreeClear(pInfo->pState);
 
   nodesDestroyNode((SNode*)pInfo->pPhyNode);

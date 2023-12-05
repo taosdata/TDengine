@@ -1117,10 +1117,11 @@ int32_t streamStateDeleteCheckPoint(SStreamState* pState, TSKEY mark) {
 void streamStateReloadInfo(SStreamState* pState, TSKEY ts) { streamFileStateReloadInfo(pState->pFileState, ts); }
 
 void streamStateCopyBackend(SStreamState* src, SStreamState* dst) {
-  if (dst->pFileState == NULL) {
+  if (dst->pTdbState == NULL) {
     dst->pTdbState = taosMemoryCalloc(1, sizeof(STdbState));
     dst->pTdbState->pOwner = taosMemoryCalloc(1, sizeof(SStreamTask));
   }
+  dst->dump = 1;
   dst->pTdbState->pOwner->pBackend = src->pTdbState->pOwner->pBackend;
   return;
 }
