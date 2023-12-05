@@ -126,6 +126,24 @@ mod tests {
     }
 
     #[test]
+    fn test_sum_with_not_exist_field() {
+        let builder: SumValueBuilder = serde_json::from_str(r#"{"sum": ["a", "b", "c"]}"#).unwrap();
+        let batch = RecordBatch::try_from_iter([(
+            "a",
+            Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef,
+        )])
+        .unwrap();
+
+        let result = builder.build_field("sum", &batch, None);
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "sum error, cause: failed to calculate sum, cause: invalid result"
+        );
+    }
+
+    #[test]
     fn test_sum_as_float64() {
         let builder: SumValueBuilder = serde_json::from_str(r#"{"sum": ["a", "b", "c"]}"#).unwrap();
         let batch = RecordBatch::try_from_iter([

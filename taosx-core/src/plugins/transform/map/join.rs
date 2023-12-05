@@ -185,4 +185,25 @@ mod tests {
         assert_eq!(arr.value(2), "3-3-3");
         dbg!(&arr);
     }
+
+    #[test]
+    fn test_join_with_not_exist_field() {
+        let builder: JoinValueBuilder =
+            serde_json::from_str(r#"{"join": ["a", "b", "c", "d"], "with": "-"}"#).unwrap();
+        let batch = RecordBatch::try_from_iter([(
+            "a",
+            Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef,
+        )])
+        .unwrap();
+
+        let (field, value) = builder.build_field("join", &batch, None).unwrap();
+
+        assert_eq!(field.name(), "join");
+        assert_eq!(*field.data_type(), DataType::Utf8);
+        assert_eq!(value.len(), 3);
+        let arr = value.as_any().downcast_ref::<StringArray>().unwrap();
+        assert_eq!(arr.value(0), "1-");
+        assert_eq!(arr.value(1), "2-");
+        assert_eq!(arr.value(2), "3-");
+    }
 }
