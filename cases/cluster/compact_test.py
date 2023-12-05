@@ -11,16 +11,17 @@
 
 # -*- coding: utf-8 -*-
 
+# -*- taostest --setup=cluster/compact_test.yaml --case=cluster/compact_test.py --keep -*-
+# -*- taostest --setup=cluster/compact_test_rep3.yaml --case=cluster/compact_test.py --keep -*-
+
 from taostest.util.common import TDCom
 from taostest import TDCase
 from taostest.components.taosd import TaosD
 from taostest.util.remote import Remote
 import time
-import re
-from taostest.performance.result_reduction import Perf_Base_func
 from taostest.components import PrometheusServer
 import copy
-from datetime import datetime,timedelta
+from datetime import datetime
 from taos.tmq import Consumer
 import os
 import psutil
@@ -40,6 +41,7 @@ class CompactTest(TDCase):
         self.create_table_thread_count = 40
         self.childtable_count = 10000
         self.keep = "11d"
+        self.keep = "10d"
         # self.keep = "7d"
         self.duration = "1d"
         self.stt_trigger = 8
@@ -51,7 +53,7 @@ class CompactTest(TDCase):
         self.disorder_day = 2
         self.stage_2_timestamp = self.disorder_start_ts + 86400 * 1000 * self.disorder_day
         self.stage_2_dt = self.tdCom.genTs(ts=self.stage_2_timestamp/1000)[1]
-        self.stage_rows = 20000
+        self.stage_rows = 30000
         self.insert_rows = 1000000
         self.compact_interval = 180
         self.compact_wait = 180
@@ -73,9 +75,9 @@ class CompactTest(TDCase):
         self.thread_count = 40
         self.num_of_records_per_req = 1000
         self.interlace_rows = 0
-        self.disorder_ratio = 20
-        self.update_ratio = 20
-        self.delete_ratio = 20
+        self.disorder_ratio = 30
+        self.update_ratio = 30
+        self.delete_ratio = 10
         self.disorder_fill_interval = 300
         self.update_fill_interval = 25
         self.generate_row_rule = 2
@@ -129,16 +131,21 @@ class CompactTest(TDCase):
         self.standard_record_time = 180
         # self.standard_record_time = 60
 
-        self.compacting = False
         self.compact_end = False
-        self.compact_counter = 0
         self.compact_pat_list = ["start to compact", "compact.*rows"]
-        self.compact_confirm_interval = 30
-        self.compact_times = 3
+        self.compact_times = 2
         self.pat_log_info = str()
         self.compact_confirm_timeout = 10800
         self.standard_taosd_avg_cpu = 0
         self.standard_taosBenchmark_avg_cpu = 0
+        self.standard_avg_qps = 0
+        self.range_taosd_avg_cpu = 0
+        self.range_taosBenchmark_avg_cpu = 0
+        self.range_avg_qps = 0
+        self.standard_timestamp_start = str()
+        self.standard_timestamp_end = str()
+        self.range_timestamp_start = str()
+        self.range_timestamp_end = str()
         self.final_taosd_avg_cpu_list = list()
         self.final_taosBenchmark_avg_cpu_list = list()
         self.compact_end_timestamp = None
@@ -160,7 +167,7 @@ class CompactTest(TDCase):
         host = self.get_fqdn("taosd")[0]
         json_info = self.tdCom.setJsoninfo(host=host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.num_of_records_per_req)
         self.tdCom.genBenchmarkJson(self.run_log_dir, self.json_file_name1, json_info)
-        self.json_data_list.append(json_info)
+        self.json_data_list = [json_info]
         self.tdCom.put_file(self._remote, self.taosBenchmark_iplist, self.json_data_list, json_filename_list, self.run_log_dir)
         self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, self.json_data_list, json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
         self.tdSql.execute(f'flush database {dbname}')
@@ -190,7 +197,7 @@ class CompactTest(TDCase):
             else:
                 json_info = self.tdCom.setJsoninfo(host=host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.num_of_records_per_req)
             self.tdCom.genBenchmarkJson(self.run_log_dir, self.json_file_name1, json_info)
-            self.json_data_list.append(json_info)
+            self.json_data_list = [json_info]
             self.tdCom.put_file(self._remote, self.taosBenchmark_iplist, self.json_data_list, json_filename_list, self.run_log_dir)
             self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, self.json_data_list, json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
         self.tdSql.execute(f'flush database {dbname}')
@@ -204,6 +211,8 @@ class CompactTest(TDCase):
         self.tdSql.execute(f'flush database {self.dbname1}')
 
     def continue_insert(self):
+        self.child_table_exists = "yes"
+        self.db_drop = "no"
         self._remote._logger.info(f'------------ schedular will compact database {self.dbname1} start with "{self.stage_1_dt}" end with "{self.today_zero_dt}" ------------')
         self._remote._logger.info(f'------------ new insert start with "{self.stage_2_dt}" ------------')
         json_filename_list = [self.json_file_name2]
@@ -214,7 +223,7 @@ class CompactTest(TDCase):
         host = self.get_fqdn("taosd")[0]
         json_info = self.tdCom.setJsoninfo(host=host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.num_of_records_per_req)
         self.tdCom.genBenchmarkJson(self.run_log_dir, self.json_file_name2, json_info)
-        self.json_data_list.append(json_info)
+        self.json_data_list = [json_info]
         self.tdCom.put_file(self._remote, self.taosBenchmark_iplist, self.json_data_list, json_filename_list, self.run_log_dir)
         self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, self.json_data_list, json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
         self._remote.cmd(self.taosBenchmark_iplist[0], ['cp -rf /tmp/0.log /tmp/0_1.log'])
@@ -275,27 +284,44 @@ class CompactTest(TDCase):
                     self.tmq_status = 0
 
     def start_range_compact(self):
-        # cal standard cpu
-        timestamp_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-        time.sleep(self.standard_record_time)
-        timestamp_end = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-        self.standard_taosd_avg_cpu, self.standard_taosBenchmark_avg_cpu, _ = self.Prometheus.cal_range_avg(self.prometheus_setting, "cpu_utilization", timestamp_start, timestamp_end, 60)
-        self._remote._logger.info(f"------------ standard taosd avg cpu: {self.standard_taosd_avg_cpu} between {timestamp_start} and {timestamp_end} ------------")
-        self._remote._logger.info(f"------------ standard taosBenchmark avg cpu: {self.standard_taosBenchmark_avg_cpu} between {timestamp_start} and {timestamp_end} ------------")
-        self.logger.info("in start_range_compact scheduler")
-        self.tdSql.query(f'select count(*) from {self.dbname1}.{self.stbname}')
-        self._remote._logger.info(f"------------ range-compact: query result before compact: {self.tdSql.query_data[0][0]} ------------")
-        # Insert_file = Perf_Base_func(self.logger, self.run_log_dir)
-        timestamp_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-        self.tdSql.execute(f'compact database {self.dbname1} start with "{self.stage_1_dt}" end with "{self.today_zero_dt}"')
         self._remote._logger.info(f"------------ remove range compact schedular job ------------: {self.range_compact_schedular}")
         self.tdCom.remove_schedular_job(self.range_compact_schedular)
         self.range_compact_schedular = None
+        self.tdSql.query(f'select count(*) from {self.dbname1}.{self.stbname}')
+        self._remote._logger.info(f"------------ range-compact: query result before compact: {self.tdSql.query_data[0][0]} ------------")
+        time.sleep(60)
+        # cal standard cpu
+        timestamp_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+        timestamp_start_tb = self.tdCom.timeformat_trans(timestamp_start)
+        self._remote._logger.info(f"------------ standard timestamp_start_tb: {timestamp_start_tb} ------------")
+        time.sleep(self.standard_record_time)
+        timestamp_end = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+        timestamp_end_tb = self.tdCom.timeformat_trans(timestamp_end)
+        self._remote._logger.info(f"------------ standard timestamp_end_tb: {timestamp_end_tb} ------------")
+        self.standard_avg_qps = self.tdCom.taosBenchmark_log_avg_qps(timestamp_start_tb, timestamp_end_tb, "/tmp/0.log")
+        self.standard_taosd_avg_cpu, self.standard_taosBenchmark_avg_cpu, _ = self.Prometheus.cal_range_avg(self.prometheus_setting, "cpu_utilization", timestamp_start, timestamp_end, 60)
+        self.standard_timestamp_start = timestamp_start
+        self.standard_timestamp_end = timestamp_end
+        self._remote._logger.info(f"------------ standard taosd avg cpu: {self.standard_taosd_avg_cpu} between {self.standard_timestamp_start} and {self.standard_timestamp_end} ------------")
+        self._remote._logger.info(f"------------ standard taosBenchmark avg cpu: {self.standard_taosBenchmark_avg_cpu} between {self.standard_timestamp_start} and {self.standard_timestamp_end} ------------")
+        self._remote._logger.info(f"------------ standard taosBenchmark avg qps: {self.standard_avg_qps[0]} between {self.standard_timestamp_start} and {self.standard_timestamp_end} ------------")
+        self._remote._logger.info(f"------------ standard taosBenchmark min qps: {min(self.standard_avg_qps[1])} between {self.standard_timestamp_start} and {self.standard_timestamp_end} ------------")
+        self.logger.info("in start_range_compact scheduler")
+        timestamp_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+        timestamp_start_tb = self.tdCom.timeformat_trans(timestamp_start)
+        self._remote._logger.info(f"------------ range timestamp_start_tb: {timestamp_start_tb} ------------")
+        self.tdSql.execute(f'compact database {self.dbname1} start with "{self.stage_1_dt}" end with "{self.today_zero_dt}"')
         self.confirm_compact_end()
+        timestamp_end_tb = self.tdCom.timeformat_trans(self.compact_end_timestamp)
+        self._remote._logger.info(f"------------ range timestamp_end_tb: {timestamp_end_tb} ------------")
+        self.range_avg_qps = self.tdCom.taosBenchmark_log_avg_qps(timestamp_start_tb, timestamp_end_tb, "/tmp/0.log")
         # timestamp_end = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-        taosd_avg_cpu, taosBenchmark_avg_cpu, _ = self.Prometheus.cal_range_avg(self.prometheus_setting, "cpu_utilization", timestamp_start, self.compact_end_timestamp, 60)
-        self._remote._logger.info(f"------------ range-compact taosd avg cpu: {taosd_avg_cpu} between {timestamp_start} and {self.compact_end_timestamp} ------------")
-        self._remote._logger.info(f"------------ range-compact taosBenchmark avg cpu: {taosBenchmark_avg_cpu} between {timestamp_start} and {self.compact_end_timestamp} ------------")
+        self.range_taosd_avg_cpu, self.range_taosBenchmark_avg_cpu, _ = self.Prometheus.cal_range_avg(self.prometheus_setting, "cpu_utilization", timestamp_start, self.compact_end_timestamp, 60)
+        self.range_timestamp_start = timestamp_start
+        self._remote._logger.info(f"------------ range-compact taosd avg cpu: {self.range_taosd_avg_cpu} between {self.range_timestamp_start} and {self.compact_end_timestamp} ------------")
+        self._remote._logger.info(f"------------ range-compact taosBenchmark avg cpu: {self.range_taosBenchmark_avg_cpu} between {self.range_timestamp_start} and {self.compact_end_timestamp} ------------")
+        self._remote._logger.info(f"------------ range-compact taosBenchmark avg qps: {self.range_avg_qps[0]} between {self.range_timestamp_start} and {self.compact_end_timestamp} ------------")
+        self._remote._logger.info(f"------------ range-compact taosBenchmark min qps: {min(self.range_avg_qps[1])} between {self.range_timestamp_start} and {self.compact_end_timestamp} ------------")
         self.compact_schedular = self.tdCom.add_back_ground_scheduler(self.start_compact, "interval", seconds=self.compact_schedular_interval, max_instances=1, args=[])
 
     def start_compact(self):
@@ -379,10 +405,11 @@ class CompactTest(TDCase):
     def confirm_compact_end(self):
         pattern = "compact.*rows"
         log_file = self.taosd_setting["spec"]["dnodes"][0]["config"]["logDir"] + "/taosdlog.0"
-        # pattern = '\|'.join(self.compact_pat_list)
         pat_log_info = self._remote.cmd(self.host, [f'grep "{pattern}" {log_file} | tail -n 1'])
         time.sleep(self.compact_wait)
         self.pat_log_info = self._remote.cmd(self.host, [f'grep "{pattern}" {log_file} | tail -n 1'])
+        self._remote._logger.info(f"------------ expected end: {pat_log_info} ------------")
+        self._remote._logger.info(f"------------ actual   end: {self.pat_log_info} ------------")
         t_counter = 0
         while pat_log_info != self.pat_log_info:
             if t_counter < self.compact_confirm_timeout:
@@ -394,7 +421,6 @@ class CompactTest(TDCase):
                 self._remote._logger.info(f"------------ actual   end: {self.pat_log_info} ------------")
                 if pat_log_info == self.pat_log_info:
                     self._remote._logger.info(f"------------ compact already finished ------------")
-                    print(f"================{pat_log_info}")
                     pat_info_list = pat_log_info.split()
                     pat_info_list[0] = str(datetime.now().year) + "-" + pat_info_list[0].replace("/", "-")
                     self.compact_end_timestamp = " ".join(pat_info_list[0:2])
@@ -417,19 +443,38 @@ class CompactTest(TDCase):
         pass
 
     def run(self):
+        # timestamp_start = "2023-12-03 20:30:36.787877"
+        # timestamp_start_tb = self.tdCom.timeformat_trans(timestamp_start)
+        # print(timestamp_start_tb)
+        # timestamp_end = "2023-12-03 20:33:36.887969"
+        # timestamp_end_tb = self.tdCom.timeformat_trans(timestamp_end)
+        # # timestamp_start_tb = "12/03 20:30:36.787877"
+        # # timestamp_end_tb = "12/03 20:33:36.887969"
+        # res = self.tdCom.taosBenchmark_log_avg_qps(timestamp_start_tb, timestamp_end_tb, "/tmp/0.log")
+        # print(res[0])
+        # return
+        
         self.insert_fh_data(self.dbname1)
         self.insert_base_data(self.dbname1)
         self.alter_db_keep_param()
         self.tmq_schedular = self.tdCom.add_back_ground_scheduler(self.tmq_subcribe, "interval", seconds=self.tmq_schedular_interval, max_instances=1, args=[])
         self.range_compact_schedular = self.tdCom.add_back_ground_scheduler(self.start_range_compact, "interval", seconds=self.compact_schedular_interval, max_instances=1, args=[])
-        # self.disorder_schedular = self.tdCom.add_back_ground_scheduler(self.disorder_update_delete_data, "interval", seconds=self.disorder_schedular_interval, max_instances=1, args=[])
+        # # self.disorder_schedular = self.tdCom.add_back_ground_scheduler(self.disorder_update_delete_data, "interval", seconds=self.disorder_schedular_interval, max_instances=1, args=[])
         self.continue_insert()
         self.cal_compact_resource()
+        
+        self._remote._logger.info(f"------------ standard taosd avg cpu: {self.standard_taosd_avg_cpu} between {self.standard_timestamp_start} and {self.standard_timestamp_end} ------------")
+        self._remote._logger.info(f"------------ standard taosBenchmark avg cpu: {self.standard_taosBenchmark_avg_cpu} between {self.standard_timestamp_start} and {self.standard_timestamp_end} ------------")
+        self._remote._logger.info(f"------------ standard taosBenchmark avg qps: {self.standard_avg_qps[0]} between {self.standard_timestamp_start} and {self.standard_timestamp_end} ------------")
+        self._remote._logger.info(f"------------ standard taosBenchmark min qps: {min(self.standard_avg_qps[1])} between {self.standard_timestamp_start} and {self.standard_timestamp_end} ------------")
+
+        self._remote._logger.info(f"------------ range-compact taosd avg cpu: {self.range_taosd_avg_cpu} between {self.range_timestamp_start} and {self.compact_end_timestamp} ------------")
+        self._remote._logger.info(f"------------ range-compact taosBenchmark avg cpu: {self.range_taosBenchmark_avg_cpu} between {self.range_timestamp_start} and {self.compact_end_timestamp} ------------")
+        self._remote._logger.info(f"------------ range-compact taosBenchmark avg qps: {self.range_avg_qps[0]} between {self.range_timestamp_start} and {self.compact_end_timestamp} ------------")
+        self._remote._logger.info(f"------------ range-compact taosBenchmark min qps: {min(self.range_avg_qps[1])} between {self.range_timestamp_start} and {self.compact_end_timestamp} ------------")
+
         self._remote._logger.info(f"------------ compact blocking taosd cpu list: {self.final_taosd_avg_cpu_list} ------------")
         self._remote._logger.info(f"------------ compact blocking taosBenchmark cpu list: {self.final_taosBenchmark_avg_cpu_list} ------------")
-
-        self._remote._logger.info(f"------------ compact standard taosd cpu: {self.standard_taosd_avg_cpu} ------------")
-        self._remote._logger.info(f"------------ compact standard taosBenchmark cpu: {self.standard_taosBenchmark_avg_cpu} ------------")
 
         self._remote._logger.info(f"------------ compact blocking taosd cpu: {sum(self.final_taosd_avg_cpu_list)/len(self.final_taosd_avg_cpu_list)} ------------")
         self._remote._logger.info(f"------------ compact blocking taosBenchmark cpu: {sum(self.final_taosBenchmark_avg_cpu_list)/len(self.final_taosBenchmark_avg_cpu_list)} ------------")
