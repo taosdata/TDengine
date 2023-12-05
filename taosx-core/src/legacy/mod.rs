@@ -1009,12 +1009,19 @@ pub async fn sync_super_table_schema(
         .query_one(format!("show create table `{name}`"))
         .await?
         .unwrap();
-    let sql = sql
+    let mut sql = sql
         .replace("VARCHAR", "BINARY")
         .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
         .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")
         .replace("create table", "CREATE TABLE IF NOT EXISTS")
         .replace("create stable", "CREATE TABLE IF NOT EXISTS");
+
+    if let Err(err) = from.exec(&sql).await {
+        if err.code() == 0x2600 {
+            let desc = from.describe(name).await?;
+            sql = desc.to_create_table_sql(name);
+        }
+    }
 
     let target_name: Cow<str> = if actions.is_empty() {
         name.into()
@@ -1042,14 +1049,19 @@ pub async fn sync_super_table_schema(
         tracing::info!("sync schema sql: {sql}");
         if let Err(err) = to.exec(&sql).await {
             let code: i32 = err.code().into();
-            if code == 0x000B {
-                from.exec(format!("desc `{name}`")).await?;
-                break;
-            } else if code == 0x032C {
-                continue;
-            } else {
-                Err(err).with_context(|| format!("sql: [{}] exec error", &sql))?;
-                break;
+
+            match code {
+                0x000B => {
+                    break;
+                }
+                0x032C => {
+                    from.exec(format!("desc `{target_name}`")).await?;
+                    continue;
+                }
+                _ => {
+                    Err(err).with_context(|| format!("sql: [{}] exec error", &sql))?;
+                    break;
+                }
             }
         } else {
             break;
@@ -1419,6 +1431,14 @@ async fn sync_normal_table_schema(
     let mut sql = sql
         .replace("VARCHAR", "BINARY")
         .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS");
+
+    if let Err(err) = from.exec(&sql).await {
+        if err.code() == 0x2600 {
+            let desc = from.describe(name).await?;
+            sql = desc.to_create_table_sql(name);
+        }
+    }
+
     sql = transform_sql_with_actions(sql, name, actions, false, remap)?;
     if let Err(err) = to.exec(sql.clone()).await {
         if !err.to_string().contains("[0x000B]") {
@@ -3171,6 +3191,100 @@ mod tests {
             ..Default::default()
         };
         legacy_to_taos(v3, vec![], v2, 1, CancellationToken::new(), None).await?;
+        Ok(())
+    }
+
+    /// Test synchronize schema with large columns of table.
+    ///
+    /// Close https://jira.taosdata.com:18080/browse/TS-4323
+    #[tokio::test(flavor = "multi_thread")]
+    async fn sync_large_table() -> anyhow::Result<()> {
+        tracing_subscriber::fmt::fmt().with_level(true).init();
+        // prepare
+        let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
+        let db_prefix = "test_large_table";
+        let db1 = format!("{}1", db_prefix);
+        let db2 = format!("{}2", db_prefix);
+        taos.exec_many([
+            format!("drop database if exists `{db2}`"),
+            format!("create database `{db2}`"),
+            format!("use {db2}"),
+        ])
+        .await?;
+        taos.exec_many([
+            format!("drop database if exists `{db1}`"),
+            format!("create database `{db1}`"),
+            format!("use {db1}"),
+        ])
+        .await?;
+
+        let stable = "stb1";
+        let types = vec![
+            "TINYINT",
+            "SMALLINT",
+            "INT",
+            "BIGINT",
+            "TINYINT UNSIGNED",
+            "SMALLINT UNSIGNED",
+            "INT UNSIGNED",
+            "BIGINT UNSIGNED",
+            "FLOAT",
+            "DOUBLE",
+            "BINARY(16)",
+            "NCHAR(4)",
+        ];
+        let table_prefix = "tb";
+        let table_num = 1000;
+
+        let columns = 3600;
+        let mut create_table_sql = format!("CREATE TABLE `{}` (`ts` TIMESTAMP", stable);
+        for i in 0..columns {
+            let column_name = format!("a_longer_column_name_{}", i);
+            let column_type = types[i % types.len()];
+            create_table_sql.push_str(format!(", {} {}", column_name, column_type).as_str());
+        }
+        create_table_sql.push_str(") tags (`t1` INT)");
+
+        std::fs::write("tests/large_table.sql", create_table_sql.as_bytes())?;
+
+        taos.exec(&create_table_sql).await?;
+
+        let show_create: (String, String) = taos
+            .query_one(format!("show create table `{}`", stable))
+            .await?
+            .unwrap();
+        let show_sql = show_create.1;
+        tracing::info!(
+            truncated_len = show_sql.len(),
+            "show create table sql: {}",
+            &show_sql.as_str()[(show_sql.len() - 100)..show_sql.len()]
+        );
+
+        for table_idx in 0..table_num {
+            let table_name = format!("{}_{}", table_prefix, table_idx);
+            taos.exec(format!(
+                "create table `{}` using `{}` tags({})",
+                table_name, stable, table_idx
+            ))
+            .await?;
+        }
+
+        let v3: Dsn = format!("taos:///{db1}?schema=only").parse()?;
+
+        let v2: Dsn = format!("taos:///{db2}?assert").parse()?;
+        let _ = QueryOpts {
+            time_range: TimeRange::new()
+                .start(DateTime::parse_from_rfc3339("2022-12-12T08:00:00Z")?.with_timezone(&Utc)),
+            limit: Limit::new((1, Some(1))),
+            ..Default::default()
+        };
+        legacy_to_taos(v3, vec![], v2, 1, CancellationToken::new(), None).await?;
+
+        taos.exec_many([
+            format!("drop database if exists `{db1}`"),
+            format!("drop database if exists `{db2}`"),
+        ])
+        .await?;
         Ok(())
     }
 
