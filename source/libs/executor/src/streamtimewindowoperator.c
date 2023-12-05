@@ -1465,9 +1465,11 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   initBasicInfo(&pInfo->binfo, pResBlock);
 
   pInfo->pState = taosMemoryCalloc(1, sizeof(SStreamState));
-  // qError("open state %p", pInfo->pState);
-  *(pInfo->pState) = *(pTaskInfo->streamInfo.pState);
-  // qError("copy state %p to %p", pTaskInfo->streamInfo.pState, pInfo->pState);
+  qInfo("open state %p", pInfo->pState);
+  pAPI->stateStore.streamStateCopyBackend(pTaskInfo->streamInfo.pState, pInfo->pState);
+  //*(pInfo->pState) = *(pTaskInfo->streamInfo.pState);
+
+  qInfo("copy state %p to %p", pTaskInfo->streamInfo.pState, pInfo->pState);
 
   pAPI->stateStore.streamStateSetNumber(pInfo->pState, -1);
   int32_t code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str,
