@@ -27,8 +27,8 @@ class TDTestCase:
         tdSql.execute(f"create table {table_name}(ts timestamp, i1 {dtype}, i2 {dtype} unsigned)")
 
         tdSql.execute(f"insert into {table_name} values(now, -16, +6)")
-        tdSql.execute(f"insert into {table_name} values(now, 80.99  , +0042  )")
-        tdSql.execute(f"insert into {table_name} values(now, -0042  , +80.99  )")
+        tdSql.execute(f"insert into {table_name} values(now, 80.99, +0042)")
+        tdSql.execute(f"insert into {table_name} values(now, -0042, +80.99)")
         tdSql.execute(f"insert into {table_name} values(now, 52.34354, 18.6)")
         tdSql.execute(f"insert into {table_name} values(now, -12., +3.)")
         tdSql.execute(f"insert into {table_name} values(now, -.12, +.3)")

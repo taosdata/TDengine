@@ -45,18 +45,7 @@ int32_t parseBinaryUInteger(const char *z, int32_t n, uint64_t *value) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t parseHexUInteger(const char *z, int32_t n, uint64_t *value) {
-  errno = 0;
-  char *endPtr = NULL;
-  *value = taosStr2UInt64(z, &endPtr, 16);
-  if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
-    return TSDB_CODE_FAILED;
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint64_t *value) {
-
   // parse sign
   bool has_sign = false;
   if (z[0] == '-') {
@@ -75,6 +64,9 @@ int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint64_t *v
     n--;
   }
 
+  errno = 0;
+  char  *endPtr = NULL;
+  bool parsed = false;
   if (z[0] == '0' && n > 2) {
     if (z[1] == 'b' || z[1] == 'B') {
       // paring as binary
@@ -83,18 +75,35 @@ int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint64_t *v
 
     if (z[1] == 'x' || z[1] == 'X') {
       // parsing as hex
-      return parseHexUInteger(z, n, value);
+      *value = taosStr2UInt64(z, &endPtr, 16);
+      parsed = true;
     }
   }
 
-  // parsing as double
-  errno = 0;
-  char  *endPtr = NULL;
-  double val = taosStr2Double(z, &endPtr);
-  if (errno == ERANGE || errno == EINVAL || endPtr - z != n || val > UINT64_MAX) {
+  if (!parsed) {
+    bool parse_int = true;
+    for (int32_t i = 0; i < n; i++) {
+      if (z[i] < '0' || z[i] > '9') {
+        parse_int = false;
+        break;
+      }
+    }
+    if (parse_int) {
+      // parsing as decimal
+      *value = taosStr2UInt64(z, &endPtr, 10);
+    } else {
+      // parsing as double
+      double val = taosStr2Double(z, &endPtr);
+      if (val > UINT64_MAX) {
+        return TSDB_CODE_FAILED;
+      }
+      *value = round(val);
+    }
+  }
+
+  if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
     return TSDB_CODE_FAILED;
   }
-  *value = round(val);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -113,15 +122,13 @@ int32_t removeSpace(const char **pp, int32_t n) {
 }
 
 int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double* value) {
-  if (type != TK_NK_FLOAT) {
-    if (n == 0) {
-      *value = 0;
-      return TSDB_CODE_SUCCESS;
-    }
-    // rm tail space 
-    while (n > 1 && z[n-1] == ' ') {
-      n--;
-    }
+  if (n == 0) {
+    *value = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+  // rm tail space 
+  while (n > 1 && z[n-1] == ' ') {
+    n--;
   }
 
   errno = 0;
@@ -137,31 +144,36 @@ int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double* value) {
 int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
   errno = 0;
   char *endPtr = NULL;
+  bool parsed = false;
   switch (type)
   {
     case TK_NK_INTEGER: {
       *value = taosStr2Int64(z, &endPtr, 10);
-      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+      parsed = true;
+    } break;
+    case TK_NK_FLOAT: {
+      double val = taosStr2Double(z, &endPtr);
+      parsed = true;
+      if (!IS_VALID_INT64(val)) {
         return TSDB_CODE_FAILED;
       }
-      return TSDB_CODE_SUCCESS;
-    }
-    case TK_NK_HEX: {
-      *value = taosStr2Int64(z, &endPtr, 16);
-      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
-        return TSDB_CODE_FAILED;
-      }
-      return TSDB_CODE_SUCCESS;
-    }
-    case TK_NK_BIN: {
-      *value = taosStr2Int64(z, &endPtr, 2);
-      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
-        return TSDB_CODE_FAILED;
-      }
-      return TSDB_CODE_SUCCESS;
-    }
+      *value = round(val);
+    } break;
   default:
     break;
+  }
+
+  if (parsed) {
+    if (errno == ERANGE || errno == EINVAL) {
+      return TSDB_CODE_FAILED;
+    }
+    while (n > 0 && z[n-1] == ' ') {
+      n--;
+    }
+    if (endPtr - z != n) {
+      return TSDB_CODE_FAILED;
+    }
+    return TSDB_CODE_SUCCESS;
   }
 
   // parse string 
@@ -196,29 +208,23 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
 }
 
 int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
-  errno = 0;
-  char *endPtr = NULL;
+
   switch (type)
   {
     case TK_NK_INTEGER: {
-      *value = taosStr2UInt64(z, &endPtr, 10);
-      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
-        return TSDB_CODE_FAILED;
-      }
-      return TSDB_CODE_SUCCESS;
+      return toUInteger(z, n, 10, value);
     }
-    case TK_NK_HEX: {
-      *value = taosStr2UInt64(z, &endPtr, 16);
+    case TK_NK_FLOAT: {
+      errno = 0;
+      char *endPtr = NULL;
+      double val = round(taosStr2Double(z, &endPtr));
       if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
         return TSDB_CODE_FAILED;
       }
-      return TSDB_CODE_SUCCESS;
-    }
-    case TK_NK_BIN: {
-      *value = taosStr2UInt64(z, &endPtr, 2);
-      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+      if (!IS_VALID_UINT64(val)) {
         return TSDB_CODE_FAILED;
       }
+      *value = val;
       return TSDB_CODE_SUCCESS;
     }
   default:
