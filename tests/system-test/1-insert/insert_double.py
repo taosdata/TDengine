@@ -31,7 +31,7 @@ class TDTestCase:
         tdSql.execute(f"insert into {table_name} values(now, -0042, +80.99)")
         tdSql.execute(f"insert into {table_name} values(now, 52.34354, 18.6)")
         tdSql.execute(f"insert into {table_name} values(now, -12., +3.)")
-        tdSql.execute(f"insert into {table_name} values(now, -.12, +.3)")
+        tdSql.execute(f"insert into {table_name} values(now, -0.12, +3.0)")
         tdSql.execute(f"insert into {table_name} values(now, -2.3e1, +2.324e2)")
         tdSql.execute(f"insert into {table_name} values(now, -2e1,  +2e2)")
         tdSql.execute(f"insert into {table_name} values(now, -2.e1, +2.e2)")
