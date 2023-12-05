@@ -298,7 +298,7 @@ typedef struct STableMergeScanInfo {
   int64_t          mergeLimit;
   SSortExecInfo   sortExecInfo;
   bool             bNewDuration;
-  SSDataBlock*     pNewDurationBlock;
+  bool             bOnlyRetrieveBlock;
 } STableMergeScanInfo;
 
 typedef struct STagScanFilterContext {
