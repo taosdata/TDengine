@@ -92,14 +92,16 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
   int32_t code = -1;
 
   if (pParam->data) {
+    // decode
     SSyncTLV *datHead = (void *)pParam->data;
     if (datHead->typ != TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
       terrno = TSDB_CODE_INVALID_DATA_FMT;
       goto _out;
     }
 
+    STsdbRepOpts         tsdbOpts = {0};
     TFileSetRangeArray **ppRanges = NULL;
-    int32_t           offset = 0;
+    int32_t              offset = 0;
 
     while (offset + sizeof(SSyncTLV) < datHead->len) {
       SSyncTLV *subField = (void *)(datHead->val + offset);
@@ -121,13 +123,30 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
             goto _out;
           }
         } break;
+        case SNAP_DATA_RAW: {
+          if (tDeserializeTsdbRepOpts(buf, bufLen, &tsdbOpts) < 0) {
+            vError("vgId:%d, failed to deserialize tsdb rep opts since %s", TD_VID(pVnode), terrstr());
+            goto _out;
+          }
+        } break;
         default:
           vError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), subField->typ);
           goto _out;
       }
     }
-  }
 
+    // toggle snap replication mode
+    vInfo("vgId:%d, vnode snap reader supported tsdb rep of format:%d", TD_VID(pVnode), tsdbOpts.format);
+    if (pReader->sver == 0 && tsdbOpts.format == TSDB_SNAP_REP_FMT_RAW) {
+      pReader->tsdbDone = true;
+    } else {
+      pReader->tsdbRAWDone = true;
+    }
+
+    ASSERT(pReader->tsdbDone != pReader->tsdbRAWDone);
+    vInfo("vgId:%d, vnode snap writer enabled replication mode: %s", TD_VID(pVnode),
+          (pReader->tsdbDone ? "raw" : "normal"));
+  }
   code = 0;
 _out:
   return code;
@@ -277,8 +296,6 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   }
 
   // TSDB ==============
-  pReader->tsdbDone = true;
-
   if (!pReader->tsdbDone) {
     // open if not
     if (pReader->pTsdbReader == NULL) {
@@ -534,6 +551,7 @@ static int32_t vnodeSnapWriterDealWithSnapInfo(SVSnapWriter *pWriter, SSnapshotP
       goto _out;
     }
 
+    STsdbRepOpts         tsdbOpts = {0};
     TFileSetRangeArray **ppRanges = NULL;
     int32_t           offset = 0;
 
@@ -557,11 +575,19 @@ static int32_t vnodeSnapWriterDealWithSnapInfo(SVSnapWriter *pWriter, SSnapshotP
             goto _out;
           }
         } break;
+        case SNAP_DATA_RAW: {
+          if (tDeserializeTsdbRepOpts(buf, bufLen, &tsdbOpts) < 0) {
+            vError("vgId:%d, failed to deserialize tsdb rep opts since %s", TD_VID(pVnode), terrstr());
+            goto _out;
+          }
+        } break;
         default:
           vError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), subField->typ);
           goto _out;
       }
     }
+
+    vInfo("vgId:%d, vnode snap writer supported tsdb rep of format:%d", TD_VID(pVnode), tsdbOpts.format);
   }
 
   code = 0;
