@@ -7388,8 +7388,10 @@ static int32_t subtableExprHasColumnOrPseudoColumn(SNode* pNode) {
 
 static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
-  int8_t tableType = ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType;
-  if (TSDB_SUPER_TABLE == tableType && !hasPartitionByTbname(((SSelectStmt*)pStmt->pQuery)->pPartitionByList)) {
+  if ( (SRealTableNode*)pSelect->pFromTable && ((SRealTableNode*)pSelect->pFromTable)->pMeta
+    && TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType
+    && !hasPartitionByTbname(pSelect->pPartitionByList)
+    && pSelect->pWindow != NULL && pSelect->pWindow->type == QUERY_NODE_EVENT_WINDOW) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                    "Stream query on super tables must patitioned by table name");
   }
