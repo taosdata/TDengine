@@ -377,7 +377,7 @@ export default {
 
       this.msgForm.msgbody =
         this.$store.state.app.currentDBType == "mqtt"
-          ? value.input.map((item) => item.payload).join(";")
+          ? value.input.map((item) => item.payload).join(" ")
           : this.isCSV
           ? csvechoTransData.msgBody
           : value.input.map((item) => item.value).join(";");
@@ -509,7 +509,7 @@ export default {
       });
     },
     //计算mapping的结果
-    caculateMappingResult() {
+   async caculateMappingResult() {
       if (!this.msgForm.msgbody) {
         Message.error(this.$t("datasource.transformer.msgbodytip"));
         this.isbreak = true;
@@ -534,7 +534,7 @@ export default {
           ) {
             columns.push(item["Name"]);
           }
-          if (item["Type"].includes("TIMESTAMP")) {
+          if (item["Type"].includes("TIMESTAMP")&&!primarykey) {
             primarykey = item["Name"];
           }
           if (this.params_tags.includes(item["Name"])) {
@@ -605,7 +605,7 @@ export default {
       }
       this.isbreak = false;
       this.mappingParser = parserData;
-      this.getParserData(parserData);
+      await this.getParserData(parserData);
     },
     //设置extract的name
     setExtractName(index, name) {
@@ -634,10 +634,10 @@ export default {
         (item) => item.columnname == colname
       );
       this.$set(this.extractArr[index], "expression", value);
-    },
+    }, 
     //获取transformer的所有参数
-    getTransformerParams() {
-      this.caculateMappingResult();
+   async getTransformerParams() {
+     await  this.caculateMappingResult();
 
       let extractObj = {};
       this.extractArr.forEach((item) => {

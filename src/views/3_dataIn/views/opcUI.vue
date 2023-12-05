@@ -1806,7 +1806,8 @@ export default {
           dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
         }
         if ((this.tagName == "mqtt" || this.tagName == "kafka") && isSubmit) {
-          this.$refs.transformer.getTransformerParams();
+         await this.$refs.transformer.getTransformerParams();
+         console.log('mqtt请求完接口',this.$refs.transformer.isbreak);
           if(this.$refs.transformer.isbreak){//transformer的mapping接口出错
             return
           }
