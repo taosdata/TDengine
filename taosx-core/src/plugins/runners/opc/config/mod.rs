@@ -50,7 +50,7 @@ impl OPCConfig {
         id: Option<i64>,
     ) -> anyhow::Result<Self> {
         if dsn.driver != "opc" && dsn.driver != "opcua" && dsn.driver != "opcda" {
-            anyhow::bail!("invalid opc driver");
+            bail!("invalid opc driver");
         }
 
         let config = Self {
@@ -255,7 +255,7 @@ const CSV_CONFIG_COLUMNS: [&str; 2] = ["point_id", "tbname"];
 
 /// return opctableconfig, node_config, tables_to_drop
 pub async fn generate_config_from_csv(
-    ty: &str,
+    opc_type: &str,
     csv_config_file: &str,
 ) -> anyhow::Result<(OpcTableConfig, Vec<String>, Vec<String>)> {
     let files_or_strings = csv_config_file
@@ -368,7 +368,7 @@ pub async fn generate_config_from_csv(
                     let tb_name = record_map.get_mut("tbname").unwrap();
                     if tb_name.contains("{") {
                         // maybe should use pattern match?
-                        *tb_name = generate_tbname_from_pattern(ty, tb_name, &pointid);
+                        *tb_name = generate_tbname_from_pattern(opc_type, tb_name, &pointid);
                     }
                     let point_id = record_map.get("point_id").unwrap();
                     let stable = if let Some(stable_name) = record_map.get("stable") {
@@ -512,6 +512,22 @@ pub async fn generate_config_from_csv(
     ));
 }
 
+pub async fn generate_config_from_csv_2(
+    opc_type: &str,
+    csv_config_file: &str,
+) -> anyhow::Result<(OpcTableConfig, Vec<String>, Vec<String>)> {
+    let file_or_strings = csv_config_file
+        .split(",")
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+
+    for file in file_or_strings {
+
+    }
+    Ok(())
+}
+
 fn check_duplicated(
     current_tags: &Vec<String>,
     current_columns: Option<&Vec<String>>,
@@ -612,10 +628,69 @@ mod tests {
         let f = generate_config_from_csv("opcua", "@./tests/opc_table_empty.csv").await;
         assert!(dbg!(f).is_err());
     }
+
     #[tokio::test]
     async fn test_csv_template() {
         tracing_subscriber::fmt::init();
         let f = generate_config_from_csv("opcua", "@./tests/template-en.csv").await;
         assert!(dbg!(f).is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_generate_config_from_csv() {
+        let (opc_table_config, _, _) =
+            generate_config_from_csv("opcua", "@../tests/opc/opcua_rts_ts.csv")
+                .await
+                .unwrap();
+        let cols = opc_table_config
+            .table_config
+            .column_configs
+            .iter()
+            .map(|col| col.column_name.as_str())
+            .collect_vec();
+        assert_eq!(cols, vec!["value", "quality", "received_ts", "original_ts"]);
+
+        let (opc_table_config, _, _) =
+            generate_config_from_csv("opcua", "@../tests/opc/opcua_ts_rts.csv")
+                .await
+                .unwrap();
+        let cols = opc_table_config
+            .table_config
+            .column_configs
+            .iter()
+            .map(|col| col.column_name.as_str())
+            .collect_vec();
+        assert_eq!(cols, vec!["value", "quality", "original_ts", "received_ts"]);
+
+        let (opc_table_config, _, _) =
+            generate_config_from_csv("opcua", "@../tests/opc/opcua_ts.csv")
+                .await
+                .unwrap();
+        let cols = opc_table_config
+            .table_config
+            .column_configs
+            .iter()
+            .map(|col| col.column_name.as_str())
+            .collect_vec();
+        assert_eq!(cols, vec!["value", "quality", "original_ts"]);
+
+        let (opc_table_config, _, _) =
+            generate_config_from_csv("opcua", "@../tests/opc/opcua_rts.csv")
+                .await
+                .unwrap();
+        let cols = opc_table_config
+            .table_config
+            .column_configs
+            .iter()
+            .map(|col| col.column_name.as_str())
+            .collect_vec();
+        assert_eq!(cols, vec!["value", "quality", "received_ts"]);
+
+        let config = generate_config_from_csv("opcua", "@../tests/opc/opcua_without_ts.csv").await;
+        assert!(config.is_err());
+        assert_eq!(
+            config.err().unwrap().to_string(),
+            "neither ts_col nor received_ts_col exists in file @../tests/opc/opcua_without_ts.csv"
+        );
     }
 }
