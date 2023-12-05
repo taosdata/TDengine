@@ -3423,7 +3423,11 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   STableKeyInfo* startKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, tableStartIdx);
   pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInfo->base.cond, startKeyInfo, numOfTable, pInfo->pReaderBlock,
                                 (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), false, &pInfo->mSkipTables);
-  pAPI->tsdReader.tsdSetDurationOrder(pInfo->base.dataReader);
+  int32_t r = taosRand() % 2;
+  if (r == 1) {
+    uInfo("zsl: set duration order");
+    pAPI->tsdReader.tsdSetDurationOrder(pInfo->base.dataReader);
+  }
   pAPI->tsdReader.tsdSetSetNotifyCb(pInfo->base.dataReader, tableMergeScanTsdbNotifyCb, pInfo);
 
   int32_t code = startDurationForGroupTableMergeScan(pOperator);
