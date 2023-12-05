@@ -736,15 +736,15 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   }
 
   streamMetaWLock(pMeta);
-  code = streamMetaReopen(pMeta);
-  if (code != TSDB_CODE_SUCCESS) {
-    tqError("vgId:%d failed to reopen stream meta", vgId);
-    streamMetaWUnLock(pMeta);
-    code = terrno;
-    return code;
-  }
+  // code = streamMetaReopen(pMeta);
+  // if (code != TSDB_CODE_SUCCESS) {
+  //   tqError("vgId:%d failed to reopen stream meta", vgId);
+  //   streamMetaWUnLock(pMeta);
+  //   code = terrno;
+  //   return code;
+  // }
 
-  streamMetaInitBackend(pMeta);
+  // streamMetaInitBackend(pMeta);
   int64_t el = taosGetTimestampMs() - st;
 
   tqInfo("vgId:%d close&reload state elapsed time:%.3fs", vgId, el/1000.);
