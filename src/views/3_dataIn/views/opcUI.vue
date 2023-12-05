@@ -1807,7 +1807,6 @@ export default {
         }
         if ((this.tagName == "mqtt" || this.tagName == "kafka") && isSubmit) {
          await this.$refs.transformer.getTransformerParams();
-         console.log('mqtt请求完接口',this.$refs.transformer.isbreak);
           if(this.$refs.transformer.isbreak){//transformer的mapping接口出错
             return
           }
