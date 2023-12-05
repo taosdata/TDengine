@@ -18,8 +18,8 @@ Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
 [Files]
 Source: "{#MyAppSourceDir}\plugins\*"; DestDir: "{app}\plugins"; Flags: recursesubdirs
 Source: "{#MyAppSourceDir}\bin\*"; DestDir: "{app}"
-Source: "{#MyAppSourceDir}\config\taosx.toml"; DestDir: "{app}\cfg"; Flags: uninsneveruninstall onlyifdoesntexist; BeforeInstall: MyBeforeInstall('taosx.toml');
-Source: "{#MyAppSourceDir}\config\agent.toml"; DestDir: "{app}\cfg"; Flags: uninsneveruninstall onlyifdoesntexist; BeforeInstall: MyBeforeInstall('agent.toml');
+Source: "{#MyAppSourceDir}\config\taosx.toml"; DestDir: "{app}\cfg"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; BeforeInstall: MyBeforeInstall('taosx.toml');
+Source: "{#MyAppSourceDir}\config\agent.toml"; DestDir: "{app}\cfg"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; BeforeInstall: MyBeforeInstall('agent.toml');
 Source: "{#MyAppSourceDir}\config\explorer.toml"; DestDir: "{app}\cfg"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; BeforeInstall: MyBeforeInstall('exploerer.toml');
 Source: "{#MyAppSourceDir}\append\opc_gdba_32\*"; DestDir: "{#OPCGdbaInstallPath}\"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; Check: ShouldInstallOPC
 
@@ -205,7 +205,7 @@ var
   ResultCode: Integer;
   OutputFile: string;
   OutputText: AnsiString;
-  FileContent: TArrayOfString; 
+  FileContent: TArrayOfString;
 begin
   Log('InitializeSetup called');
   OutputFile := ExpandConstant('{tmp}\pisdk_version.txt');
