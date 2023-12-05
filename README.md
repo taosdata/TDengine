@@ -60,7 +60,7 @@ To build TDengine, use [CMake](https://cmake.org/) 3.13.0 or higher versions in 
 ### Ubuntu 18.04 and above or Debian
 
 ```bash
-sudo apt-get install -y gcc cmake build-essential git libssl-dev libgflags2.2 libgflags-dev
+sudo apt-get install -y gcc cmake build-essential git libssl-dev libgflags2.2 libgflags-dev libexpat1-dev libapr1-dev libaprutil1-dev libmxml-dev  geos-devel 
 ```
 
 #### Install build dependencies for taosTools
@@ -68,7 +68,7 @@ sudo apt-get install -y gcc cmake build-essential git libssl-dev libgflags2.2 li
 To build the [taosTools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
 
 ```bash
-sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config
+sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config 
 ```
 
 ### CentOS 7.9
@@ -76,7 +76,7 @@ sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-d
 ```bash
 sudo yum install epel-release
 sudo yum update
-sudo yum install -y gcc gcc-c++ make cmake3 gflags git openssl-devel
+sudo yum install -y gcc gcc-c++ make cmake3 gflags git openssl-devel expat-devel geos-devel 
 sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
