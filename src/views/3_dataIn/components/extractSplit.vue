@@ -1,8 +1,8 @@
 <template>
   <div class="extract-split">
-    <div class="extract-item">
+    <div :class="['extract-item', showFirstselect ? '' : 'hidden']">
       <el-form :model="ruleForm" :rules="rules" size="small" ref="extractForm">
-        <el-form-item prop="col_name">
+        <el-form-item prop="col_name" v-if="showFirstselect">
           <el-select
             size="small"
             :placeholder="$t('datasource.transformer.col_select')"
@@ -91,6 +91,10 @@ export default {
   name: "ExtractSplit",
   components: { SplitExpression },
   props: {
+    showFirstselect: {
+      type: Boolean,
+      default: true,
+    },
     itemData: {
       type: Object,
       default: () => {
@@ -290,7 +294,7 @@ export default {
               JSON.parse(this.$parent.msgForm.msgbody)
             ) {
               resultMsgbody = [].concat(this.$parent.msgForm.msgbody);
-            } 
+            }
           } catch (error) {
             Message.error(this.$t("datasource.transformer.jsontip"));
             return;
@@ -409,10 +413,22 @@ export default {
         }
       }
     }
+    &.hidden {
+      .el-form {
+        display: flex;
+        flex: 1;
+        .el-form-item:last-child {
+          flex: 1;
+        }
+      }
+    }
   }
 }
 .table {
   max-height: 300px;
   overflow-y: auto;
+}
+.el-form-item--small.el-form-item{
+  margin-bottom:10px;
 }
 </style>

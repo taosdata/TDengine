@@ -8,6 +8,7 @@
           <el-tooltip
             effect="light"
             :content="$t('console.cellCopyTip')"
+            :open-delay='1000'
             placement="bottom"
           >
             <i

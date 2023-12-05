@@ -12,6 +12,9 @@
           ref="msgForm"
         >
           <el-form-item prop="msgbody">
+            <div id="jsoneditor"></div>
+            <!-- <JsonEditorVue
+    v-model="msgForm.msgbody" :mode="'tree'"></JsonEditorVue> -->
             <el-input
               v-model="msgForm.msgbody"
               size="small"
@@ -21,8 +24,18 @@
           </el-form-item>
         </el-form>
       </section>
-      <section>
+      <section class="extract">
         <div class="block-title">
+          <span>{{ $t("datasource.transformer.parse") }}</span>
+        </div>
+        <div
+          class="transdescription"
+          v-html="$t('datasource.transformer.extractdesc')"
+        ></div>
+        <ExtractSplit ref="extract1" :showFirstselect="false"></ExtractSplit>
+      </section>
+      <section>
+        <div class="block-title sub">
           <span>{{ $t("datasource.transformer.identified") }}</span>
         </div>
         <ul class="col-list">
@@ -32,11 +45,11 @@
         </ul>
       </section>
       <section class="extract">
-        <div class="block-title">
+        <div class="block-title sub">
           <span>{{ $t("datasource.transformer.extract") }}</span>
         </div>
         <div
-          class="description"
+          class="transdescription"
           v-html="$t('datasource.transformer.extractdesc')"
         ></div>
         <template v-for="(item, index) in extractArr">
@@ -64,7 +77,7 @@
           <span>{{ $t("datasource.transformer.filter") }}</span>
         </div>
         <div
-          class="description"
+          class="transdescription"
           v-html="$t('datasource.transformer.filterdesc')"
         ></div>
         <template v-for="(item, index) in filterArr">
@@ -229,6 +242,7 @@ import { Message } from "element-ui";
 import { parsinginZone } from "@/utils";
 import CreateSTB from "./createSTB.vue";
 import { createStableReq } from "@/api/gateway/data/stables";
+import JsonEditorVue from "json-editor-vue";
 export default {
   name: "CommonTransformer",
   components: { ExtractSplit, FilterExpression, CreateSTB },
@@ -337,6 +351,7 @@ export default {
     };
   },
   mounted() {
+    // this.initJsonEditor()
     if (this.parserColumns) {
       this.initColumnLists(this.parserColumns);
     }
@@ -358,6 +373,27 @@ export default {
     this.getInitStables();
   },
   methods: {
+    initJsonEditor() {
+      let container = document.getElementById("jsoneditor");
+      let options = {};
+      let editor = new JsonEditorVue({ container, options });
+
+      let json = {
+        temperature: 87.37,
+        humidity: 19.99,
+        volume: 148.41,
+        pm10: 255.95,
+        pm25: 1.45,
+        so2: 4.59,
+        no2: 31.56,
+        co: 0.11,
+        area: 19,
+        colltime: "2023-12-03T16:16:06-08:00",
+        sensorid: "mock_client_1",
+      };
+      editor.set(json);
+      console.log(editor.get(),'获取json串');
+    },
     //编辑回显数据
     async echoParser(value) {
       let csvechoTransData = null;
@@ -432,21 +468,21 @@ export default {
       });
       this.$nextTick(async () => {
         if (this.$refs.extract && this.$refs.extract.length > 0) {
-          let newarr=[]
+          let newarr = [];
           for (let i = 0; i < this.$refs.extract.length; i++) {
-            newarr.push(this.$refs.extract[i].submitExtract())
+            newarr.push(this.$refs.extract[i].submitExtract());
           }
-          
-         await Promise.all(newarr).then(val=>{
-            console.log(val,'获取映射字段');
-          })
+
+          await Promise.all(newarr).then((val) => {
+            console.log(val, "获取映射字段");
+          });
         }
 
         if (isincludeFilter) {
           await this.$refs.filter[0].submitFilter();
         }
         this.sruleForm.s_name = value.parser.model.using;
-        
+
         await this.getSTbaleList();
         await this.echoFetchMap();
       });
@@ -1144,8 +1180,13 @@ export default {
   margin-bottom: 15px;
 }
 .block-title {
-  margin-top: 25px;
+  margin-top: 15px;
   margin-bottom: 10px !important;
+  &.sub {
+    span {
+      font-size: 14px !important;
+    }
+  }
 }
 .extract {
   .el-button {
@@ -1171,7 +1212,6 @@ export default {
 .filter {
   .el-button {
     width: 100%;
-    margin-top: 15px;
   }
   ::v-deep .el-input {
     margin-left: 0px !important;
@@ -1229,8 +1269,9 @@ export default {
     width: 60px;
   }
 }
-.description {
+.transdescription {
   color: #acaab2;
+  margin-bottom:15px;
 }
 ::v-deep .el-input-group__prepend {
   padding: 0 4px;

@@ -1201,6 +1201,8 @@ export default {
     // opc_alias:'Alias',
     // opc_type:'Type',
     transformer:{
+
+    parse:'Parse',
       jsontip:'Please enter the correct JSON format',
       mappingvaildtip:'Please fill in the correct primary key, column, and tag',
       extractdesc:`

@@ -2295,7 +2295,7 @@ export default {
     }
 
     .header {
-      margin-bottom: 20px;
+      // margin-bottom: 20px;
       h1 {
         font-size: 20px;
         font-weight: 700;

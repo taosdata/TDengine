@@ -1005,6 +1005,7 @@ export default {
 
   datasource: {
     transformer:{
+      parse:'解析',
       jsontip:'请输入正确JSON格式',
       mappingvaildtip:'请填写正确的主键，列和tag',
       extractdesc:`<strong>taosX 支持 JSON 或正则表达式解析文本</strong>：<br/>
