@@ -237,14 +237,21 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
         }
         sMeta->tableMeta = pTableMeta;
         taosHashPut(info->superTables, currElement->measure, currElement->measureLen, &sMeta, POINTER_BYTES);
-        for (int i = pTableMeta->tableInfo.numOfColumns;
-             i < pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns; i++) {
+        for (int i = 1; i < pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns; i++) {
           SSchema *tag = pTableMeta->schema + i;
-          SSmlKv   kv = {.key = tag->name,
-                         .keyLen = strlen(tag->name),
-                         .type = tag->type,
-                         .length = (tag->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE};
-          taosArrayPush(sMeta->tags, &kv);
+
+          if(i < pTableMeta->tableInfo.numOfColumns){
+            SSmlKv   kv = {.key = tag->name, .keyLen = strlen(tag->name), .type = tag->type};
+            if (tag->type == TSDB_DATA_TYPE_NCHAR) {
+              kv.length = (tag->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+            } else if (tag->type == TSDB_DATA_TYPE_BINARY || tag->type == TSDB_DATA_TYPE_GEOMETRY || tag->type == TSDB_DATA_TYPE_VARBINARY) {
+              kv.length = tag->bytes - VARSTR_HEADER_SIZE;
+            }
+            taosArrayPush(sMeta->cols, &kv);
+          }else{
+            SSmlKv   kv = {.key = tag->name, .keyLen = strlen(tag->name), .type = tag->type, .length = (tag->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE};
+            taosArrayPush(sMeta->tags, &kv);
+          }
         }
         tmp = &sMeta;
       }
@@ -625,7 +632,7 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   JUMP_SPACE(sql, sqlEnd)
   if (unlikely(*sql == COMMA)) return TSDB_CODE_SML_INVALID_DATA;
   elements->measure = sql;
-
+  int64_t t1 = taosGetTimestampUs();
   // parse measure
   size_t measureLenEscaped = 0;
   while (sql < sqlEnd) {
@@ -718,6 +725,8 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
     uError("SML:0x%" PRIx64 " smlParseTS error:%" PRId64, info->id, ts);
     return TSDB_CODE_INVALID_TIMESTAMP;
   }
+  int64_t t2 = taosGetTimestampUs() - t1;
+  taosArrayPush(info->parseTimeList, &t2);
   // add ts to
   SSmlKv kv = {.key = tsSmlTsDefaultName,
                .keyLen = strlen(tsSmlTsDefaultName),

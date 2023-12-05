@@ -199,6 +199,7 @@ typedef struct {
   STableMeta  *currSTableMeta;
   STableDataCxt *currTableDataCtx;
   bool         needModifySchema;
+  SArray     *parseTimeList;
 } SSmlHandle;
 
 #define IS_SAME_CHILD_TABLE (elements->measureTagsLen == info->preLine.measureTagsLen \

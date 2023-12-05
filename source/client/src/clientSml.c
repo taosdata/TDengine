@@ -1261,6 +1261,7 @@ void smlDestroyInfo(SSmlHandle *info) {
   taosArrayDestroy(info->valueJsonArray);
 
   taosArrayDestroyEx(info->preLineTagKV, freeSSmlKv);
+  taosArrayDestroy(info->parseTimeList);
 
   if (!info->dataFormat) {
     for (int i = 0; i < info->lineNum; i++) {
@@ -1309,6 +1310,7 @@ SSmlHandle *smlBuildSmlInfo(TAOS *taos) {
   info->tagJsonArray = taosArrayInit(8, POINTER_BYTES);
   info->valueJsonArray = taosArrayInit(8, POINTER_BYTES);
   info->preLineTagKV = taosArrayInit(8, sizeof(SSmlKv));
+  info->parseTimeList = taosArrayInit(8, LONG_BYTES);
 
   if (NULL == info->pVgHash || NULL == info->childTables || NULL == info->superTables || NULL == info->tableUids) {
     uError("create SSmlHandle failed");
@@ -1523,16 +1525,23 @@ static int32_t smlInsertData(SSmlHandle *info) {
 }
 
 static void smlPrintStatisticInfo(SSmlHandle *info) {
-  uDebug(
+  char parseTimeStr[102400] = {0};
+  char* tmp = parseTimeStr;
+  for(int i = 0; i < taosArrayGetSize(info->parseTimeList); i++){
+    int64_t *t = (int64_t *)taosArrayGet(info->parseTimeList, i);
+    tmp += sprintf(tmp, ":%d", (int32_t)(*t));
+  }
+  uError(
       "SML:0x%" PRIx64
       " smlInsertLines result, code:%d, msg:%s, lineNum:%d,stable num:%d,ctable num:%d,create stable num:%d,alter stable tag num:%d,alter stable col num:%d \
         parse cost:%" PRId64 ",schema cost:%" PRId64 ",bind cost:%" PRId64 ",rpc cost:%" PRId64 ",total cost:%" PRId64
-      "",
+      ", parList:%s",
       info->id, info->cost.code, tstrerror(info->cost.code), info->cost.lineNum, info->cost.numOfSTables,
       info->cost.numOfCTables, info->cost.numOfCreateSTables, info->cost.numOfAlterTagSTables,
       info->cost.numOfAlterColSTables, info->cost.schemaTime - info->cost.parseTime,
       info->cost.insertBindTime - info->cost.schemaTime, info->cost.insertRpcTime - info->cost.insertBindTime,
-      info->cost.endTime - info->cost.insertRpcTime, info->cost.endTime - info->cost.parseTime);
+      info->cost.endTime - info->cost.insertRpcTime, info->cost.endTime - info->cost.parseTime, parseTimeStr);
+
 }
 
 int32_t smlClearForRerun(SSmlHandle *info) {
@@ -1574,7 +1583,7 @@ int32_t smlClearForRerun(SSmlHandle *info) {
 }
 
 static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char *rawLineEnd, int numLines) {
-  uDebug("SML:0x%" PRIx64 " smlParseLine start", info->id);
+  uError("SML:0x%" PRIx64 " smlParseLine start", info->id);
   int32_t code = TSDB_CODE_SUCCESS;
   if (info->protocol == TSDB_SML_JSON_PROTOCOL) {
     if (lines) {
@@ -1647,7 +1656,7 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
     }
     i++;
   }
-  uDebug("SML:0x%" PRIx64 " smlParseLine end", info->id);
+  uError("SML:0x%" PRIx64 " smlParseLine end", info->id);
 
   return code;
 }
