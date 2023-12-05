@@ -1005,6 +1005,7 @@ export default {
 
   datasource: {
     transformer:{
+      parsefirst:'请先执行Parse操作',
       parse:'解析',
       jsontip:'请输入正确JSON格式',
       mappingvaildtip:'请填写正确的主键，列和tag',
@@ -1023,7 +1024,7 @@ export default {
       identified:'识别的列',
       extract:'从列中提取或拆分',
       filter:'过滤',
-      superconfig:'超级表配置',
+      superconfig:'映射',
       target:'目标超级表',
       mapping:'映射',
       createstb:'创建超级表',

@@ -979,7 +979,12 @@ export default {
     async getSTbaleList() {
       try {
         if (!this.$store.state.app.currentDBName) {
-          Message.error(this.$t("datasource.selecttargetdb"));
+          Message.warning(this.$t("datasource.selecttargetdb"));
+          return
+        }
+        if(this.options.length == 0){
+          Message.warning(this.$t("datasource.transformer.parsefirst"));
+          return
         }
         let res = await sendSQLReq(
           `desc \`${this.$store.state.app.currentDBName}\`.\`${this.sruleForm.s_name}\``

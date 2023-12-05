@@ -1201,7 +1201,7 @@ export default {
     // opc_alias:'Alias',
     // opc_type:'Type',
     transformer:{
-
+    parsefirst:'Please excute the parse first',
     parse:'Parse',
       jsontip:'Please enter the correct JSON format',
       mappingvaildtip:'Please fill in the correct primary key, column, and tag',
@@ -1222,7 +1222,7 @@ export default {
       identified:'Column Identified',
       extract:'Extract or Split From A column',
       filter:'Filter',
-      superconfig:'Super Table Config',
+      superconfig:'Mapping',
       target:'Target Super Table',
       mapping:'Mapping',
       createstb:'Create STable',
