@@ -635,18 +635,52 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
   return code;
 }
 
+//static int32_t stbSplSplitIntervalForStream(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+//  SLogicNode* pPartWindow = NULL;
+//  int32_t     code = stbSplCreatePartWindowNode((SWindowLogicNode*)pInfo->pSplitNode, &pPartWindow);
+//  if (TSDB_CODE_SUCCESS == code) {
+//    ((SWindowLogicNode*)pPartWindow)->windowAlgo = INTERVAL_ALGO_STREAM_SEMI;
+//    ((SWindowLogicNode*)pInfo->pSplitNode)->windowAlgo = INTERVAL_ALGO_STREAM_FINAL;
+//    code = stbSplCreateExchangeNode(pCxt, pInfo->pSplitNode, pPartWindow);
+//  }
+//  if (TSDB_CODE_SUCCESS == code) {
+//    code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,
+//                                     (SNode*)splCreateScanSubplan(pCxt, pPartWindow, SPLIT_FLAG_STABLE_SPLIT));
+//  }
+//  pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
+//  ++(pCxt->groupId);
+//  return code;
+//}
+
 static int32_t stbSplSplitIntervalForStream(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   SLogicNode* pPartWindow = NULL;
-  int32_t     code = stbSplCreatePartWindowNode((SWindowLogicNode*)pInfo->pSplitNode, &pPartWindow);
+  SLogicNode* pMidWindow  = NULL;
+  int32_t     code = stbSplCreatePartWindowNode((SWindowLogicNode*)pInfo->pSplitNode, &pMidWindow);
   if (TSDB_CODE_SUCCESS == code) {
-    ((SWindowLogicNode*)pPartWindow)->windowAlgo = INTERVAL_ALGO_STREAM_SEMI;
+    ((SWindowLogicNode*)pMidWindow)->windowAlgo = INTERVAL_ALGO_STREAM_MID;
     ((SWindowLogicNode*)pInfo->pSplitNode)->windowAlgo = INTERVAL_ALGO_STREAM_FINAL;
-    code = stbSplCreateExchangeNode(pCxt, pInfo->pSplitNode, pPartWindow);
+    code = stbSplCreateExchangeNode(pCxt, pInfo->pSplitNode, pMidWindow);
   }
+
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,
-                                     (SNode*)splCreateScanSubplan(pCxt, pPartWindow, SPLIT_FLAG_STABLE_SPLIT));
+    code = stbSplCreatePartWindowNode((SWindowLogicNode*)pMidWindow, &pPartWindow);
+    if (TSDB_CODE_SUCCESS == code) {
+      ((SWindowLogicNode*)pPartWindow)->windowAlgo = INTERVAL_ALGO_STREAM_SEMI;
+      code = stbSplCreateExchangeNode(pCxt, pMidWindow, pPartWindow);
+    }
   }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* subPlan = (SNode*)splCreateSubplan(pCxt, pMidWindow);
+    ((SLogicSubplan*)subPlan)->subplanType = SUBPLAN_TYPE_MERGE;
+
+    code = nodesListMakeStrictAppend(&((SLogicSubplan*)subPlan)->pChildren,
+                                     (SNode*)splCreateScanSubplan(pCxt, pPartWindow, SPLIT_FLAG_STABLE_SPLIT));
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren, subPlan);
+    }
+  }
+
   pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
   ++(pCxt->groupId);
   return code;

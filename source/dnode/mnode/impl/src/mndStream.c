@@ -328,35 +328,6 @@ static int32_t mndCheckCreateStreamReq(SCMCreateStreamReq *pCreate) {
   return 0;
 }
 
-static int32_t mndStreamGetPlanString(const char *ast, int8_t triggerType, int64_t watermark, char **pStr) {
-  if (NULL == ast) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SNode * pAst = NULL;
-  int32_t code = nodesStringToNode(ast, &pAst);
-
-  SQueryPlan *pPlan = NULL;
-  if (TSDB_CODE_SUCCESS == code) {
-    SPlanContext cxt = {
-        .pAstRoot = pAst,
-        .topicQuery = false,
-        .streamQuery = true,
-        .triggerType = (triggerType == STREAM_TRIGGER_MAX_DELAY) ? STREAM_TRIGGER_WINDOW_CLOSE : triggerType,
-        .watermark = watermark,
-    };
-    code = qCreateQueryPlan(&cxt, &pPlan, NULL);
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodesNodeToString((SNode *)pPlan, false, pStr, NULL);
-  }
-  nodesDestroyNode(pAst);
-  nodesDestroyNode((SNode *)pPlan);
-  terrno = code;
-  return code;
-}
-
 static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamReq *pCreate) {
   SNode *     pAst = NULL;
   SQueryPlan *pPlan = NULL;
@@ -768,6 +739,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   SDbObj *           pDb = NULL;
   SCMCreateStreamReq createStreamReq = {0};
   SStreamObj         streamObj = {0};
+  char*              sql = NULL;
 
   if (tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, &createStreamReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -799,7 +771,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  char* sql = NULL;
   int32_t sqlLen = 0;
   if(createStreamReq.sql != NULL){
     sqlLen = strlen(createStreamReq.sql);

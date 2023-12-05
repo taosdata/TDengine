@@ -253,6 +253,7 @@ typedef enum EWindowAlgorithm {
   SESSION_ALGO_STREAM_FINAL,
   SESSION_ALGO_STREAM_SINGLE,
   SESSION_ALGO_MERGE,
+  INTERVAL_ALGO_STREAM_MID,
 } EWindowAlgorithm;
 
 typedef struct SWindowLogicNode {
@@ -579,6 +580,7 @@ typedef SIntervalPhysiNode SMergeAlignedIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamFinalIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamSemiIntervalPhysiNode;
+typedef SIntervalPhysiNode SStreamMidIntervalPhysiNode;
 
 typedef struct SFillPhysiNode {
   SPhysiNode  node;
