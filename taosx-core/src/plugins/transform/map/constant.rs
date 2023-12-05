@@ -105,14 +105,11 @@ mod tests {
         assert_eq!(field.name(), "n1");
         assert_eq!(*field.data_type(), DataType::Utf8);
         assert_eq!(value.len(), 3);
-        assert_eq!(
-            value
-                .as_any()
-                .downcast_ref::<StringArray>()
-                .unwrap()
-                .is_null(0),
-            true
-        );
+        assert!(value
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap()
+            .is_null(0));
     }
 
     #[test]
@@ -223,7 +220,10 @@ mod tests {
         let record = builder.build_field("n1", &batch, None);
 
         assert!(record.is_err());
-        assert_eq!(record.unwrap_err().to_string(), "invalid value builder");
+        assert_eq!(
+            record.unwrap_err().to_string(),
+            "constant error, cause: array value is not supported"
+        );
     }
 
     #[test]
