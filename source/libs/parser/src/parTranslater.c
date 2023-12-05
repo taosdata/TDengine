@@ -4622,11 +4622,20 @@ static int32_t addOrderByPrimaryKeyToQueryImpl(STranslateContext* pCxt, SNode* p
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   ((SExprNode*)pOrderByExpr->pExpr)->orderAlias = true;
-  NODES_DESTORY_LIST(*pOrderByList);
+  // NODES_DESTORY_LIST(*pOrderByList);
   return nodesListMakeStrictAppend(pOrderByList, (SNode*)pOrderByExpr);
 }
 
 static int32_t addOrderByPrimaryKeyToQuery(STranslateContext* pCxt, SNode* pPrimaryKeyExpr, SNode* pStmt) {
+  SNode*     pOrderNode = NULL;
+  SNodeList* pOrederList = ((SSelectStmt*)pStmt)->pOrderByList;
+  if (pOrederList != NULL) {
+    FOREACH(pOrderNode, pOrederList) {
+      if (((SColumnNode*)pPrimaryKeyExpr)->colId == ((SColumnNode*)((SOrderByExprNode*)pOrderNode)->pExpr)->colId) {
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+  }
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     return addOrderByPrimaryKeyToQueryImpl(pCxt, pPrimaryKeyExpr, &((SSelectStmt*)pStmt)->pOrderByList);
   }
