@@ -27,11 +27,13 @@ class TDTestCase:
         tdSql.execute(f"create table {table_name}(ts timestamp, i1 {dtype}, i2 {dtype} unsigned)")
 
         tdSql.execute(f"insert into {table_name} values(now, -16, +6)")
-        tdSql.execute(f"insert into {table_name} values(now, 80.99  , +0042  )")
-        tdSql.execute(f"insert into {table_name} values(now, -0042  , +80.99  )")
+        tdSql.execute(f"insert into {table_name} values(now, 80.99, +0042)")
+        tdSql.execute(f"insert into {table_name} values(now, -0042, +80.99)")
         tdSql.execute(f"insert into {table_name} values(now, 52.34354, 18.6)")
         tdSql.execute(f"insert into {table_name} values(now, -12., +3.)")
+        tdSql.execute(f"insert into {table_name} values(now, -0.12, +3.0)")
         tdSql.execute(f"insert into {table_name} values(now, -2.3e1, +2.324e2)")
+        tdSql.execute(f"insert into {table_name} values(now, -2e1,  +2e2)")
         tdSql.execute(f"insert into {table_name} values(now, -2.e1, +2.e2)")
         tdSql.execute(f"insert into {table_name} values(now, -0x40, +0b10000)")
         tdSql.execute(f"insert into {table_name} values(now, -0b10000, +0x40)")
@@ -42,17 +44,15 @@ class TDTestCase:
         tdSql.execute(f"insert into {table_name} values(now, ' -0042  ', ' +80.99 ')")
         tdSql.execute(f"insert into {table_name} values(now, '52.34354', '18.6')")
         tdSql.execute(f"insert into {table_name} values(now, '-12.', '+5.')")
+        tdSql.execute(f"insert into {table_name} values(now, '-.12', '+.5')")
         tdSql.execute(f"insert into {table_name} values(now, '-2.e1', '+2.e2')")
+        tdSql.execute(f"insert into {table_name} values(now, '-2e1',  '+2e2')")
         tdSql.execute(f"insert into {table_name} values(now, '-2.3e1', '+2.324e2')")
         tdSql.execute(f"insert into {table_name} values(now, '-0x40', '+0b10010')")
         tdSql.execute(f"insert into {table_name} values(now, '-0b10010', '+0x40')")
 
-        # suffix support
-        tdSql.execute(f"insert into {table_name} values(now, '80l', '182u')")
-        tdSql.execute(f"insert into {table_name} values(now, '80.99f', '0042')")
-
         tdSql.query(f"select * from {table_name}")
-        tdSql.checkRows(20)
+        tdSql.checkRows(22)
 
         baseval = 2**(bits/2)
         negval = -baseval + 1.645
@@ -69,12 +69,13 @@ class TDTestCase:
         tdSql.execute(f"insert into {table_name} values(now, {max_i}, {max_u})")
         tdSql.execute(f"insert into {table_name} values(now, {min_i}, {min_u})")
 
-        #fail
-        # tdSql.query(f"insert into {table_name} values(now, 0, {max_u+1})")
-        # tdSql.query(f"insert into {table_name} values(now, {max_i+1}, 0)")
-
         tdSql.query(f"select * from {table_name}")
-        tdSql.checkRows(24)
+        tdSql.checkRows(26)
+        
+        # fail
+        tdSql.error(f"insert into {table_name} values(now, 0, {max_u+1})", "error")
+        tdSql.error(f"insert into {table_name} values(now, 0, {max_u+1})", "error")
+        tdSql.error(f"insert into {table_name} values(now, {max_i+1}, -1)", "error")
 
 
     def test_tags(self, stable_name, dtype, bits):

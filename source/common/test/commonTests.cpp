@@ -127,7 +127,7 @@ TEST(testCase, toIntegerEx_test) {
   ASSERT_EQ(val, -64);
 
   s = "0b110";
-  ret = toIntegerEx(s, strlen(s), 0, &val);
+  ret = toIntegerEx(s, strlen(s), TK_NK_BIN, &val);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(val, 6);
 
