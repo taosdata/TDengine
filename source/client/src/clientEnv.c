@@ -728,7 +728,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
     if (len > 1 && str[0] != '"' && str[0] != '\'') {
       if (len + 2 < PATH_MAX) {
         newstr[0] = '"';
-        strncpy(newstr + 1, str, len);
+        memcpy(newstr + 1, str, len);
         newstr[len + 1] = '"';
         newstr[len + 2] = '\0';
         str = newstr;
