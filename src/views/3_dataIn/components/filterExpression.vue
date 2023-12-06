@@ -131,7 +131,7 @@ export default {
             result[0].fields.map((item, index) => {
               return [
                 item.name,
-                typeof data[index] == "boolean"
+                (typeof data[index] == "boolean")||(data[index] instanceof Object)&&data[index].constructor.name=='BigNumber'
                   ? data[index].toString()
                   : data[index],
               ];
