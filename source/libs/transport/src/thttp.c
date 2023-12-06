@@ -194,18 +194,21 @@ static void httpDestroyMsg(SHttpMsg* msg) {
 
 static void httpMayDiscardMsg(SHttpModule* http, SAsyncItem* item) {
   SHttpMsg *msg = NULL, *quitMsg = NULL;
-  int8_t    quit = atomic_load_8(&http->quit);
-  if (quit == 1) {
-    while (!QUEUE_IS_EMPTY(&item->qmsg)) {
-      queue* h = QUEUE_HEAD(&item->qmsg);
-      QUEUE_REMOVE(h);
-      msg = QUEUE_DATA(h, SHttpMsg, q);
-      if (!msg->quit) {
-        httpDestroyMsg(msg);
-      } else {
-        quitMsg = msg;
-      }
+  if (atomic_load_8(&http->quit) == 0) {
+    return;
+  }
+
+  while (!QUEUE_IS_EMPTY(&item->qmsg)) {
+    queue* h = QUEUE_HEAD(&item->qmsg);
+    QUEUE_REMOVE(h);
+    msg = QUEUE_DATA(h, SHttpMsg, q);
+    if (!msg->quit) {
+      httpDestroyMsg(msg);
+    } else {
+      quitMsg = msg;
     }
+  }
+  if (quitMsg != NULL) {
     QUEUE_PUSH(&item->qmsg, &quitMsg->q);
   }
 }
