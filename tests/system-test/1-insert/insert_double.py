@@ -72,11 +72,14 @@ class TDTestCase:
         tdSql.query(f"select * from {table_name}")
         tdSql.checkRows(26)
         
-        # fail
-        tdSql.error(f"insert into {table_name} values(now, 0, {max_u+1})", "error")
-        tdSql.error(f"insert into {table_name} values(now, 0, {max_u+1})", "error")
-        tdSql.error(f"insert into {table_name} values(now, {max_i+1}, -1)", "error")
-
+        # error case
+        tdSql.error(f"insert into {table_name} values(now, 0, {max_u+1})")
+        tdSql.error(f"insert into {table_name} values(now, 0, -1)")
+        tdSql.error(f"insert into {table_name} values(now, 0, -2.0)")
+        tdSql.error(f"insert into {table_name} values(now, 0, '-2.0')")
+        tdSql.error(f"insert into {table_name} values(now, {max_i+1}, 0)")
+        tdSql.error(f"insert into {table_name} values(now, {min_i-1}, 0)")
+        tdSql.error(f"insert into {table_name} values(now, '{min_i-1}', 0)")
 
     def test_tags(self, stable_name, dtype, bits):
         tdSql.execute(f"create stable {stable_name}(ts timestamp, i1 {dtype}, i2 {dtype} unsigned) tags(id {dtype})")

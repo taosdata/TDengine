@@ -126,16 +126,19 @@ int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double* value) {
     *value = 0;
     return TSDB_CODE_SUCCESS;
   }
-  // rm tail space 
-  while (n > 1 && z[n-1] == ' ') {
-    n--;
-  }
 
   errno = 0;
   char* endPtr = NULL;
   *value = taosStr2Double(z, &endPtr);
 
-  if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+  if (errno == ERANGE || errno == EINVAL) {
+    return TSDB_CODE_FAILED;
+  }
+  // rm tail space 
+  while (n > 1 && z[n-1] == ' ') {
+    n--;
+  }
+  if (endPtr - z != n) {
     return TSDB_CODE_FAILED;
   }
   return TSDB_CODE_SUCCESS;
@@ -152,12 +155,12 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
       parsed = true;
     } break;
     case TK_NK_FLOAT: {
-      double val = taosStr2Double(z, &endPtr);
+      double val = round(taosStr2Double(z, &endPtr));
       parsed = true;
       if (!IS_VALID_INT64(val)) {
         return TSDB_CODE_FAILED;
       }
-      *value = round(val);
+      *value = val;
     } break;
   default:
     break;
@@ -167,7 +170,7 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
     if (errno == ERANGE || errno == EINVAL) {
       return TSDB_CODE_FAILED;
     }
-    while (n > 0 && z[n-1] == ' ') {
+    while (n > 1 && z[n-1] == ' ') {
       n--;
     }
     if (endPtr - z != n) {
@@ -176,7 +179,7 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // parse string 
+  // parse as string 
   if (n == 0) {
     *value = 0;
     return TSDB_CODE_SUCCESS;
@@ -231,7 +234,7 @@ int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
     break;
   }
 
-  // parse string 
+  // parse as string
   if (n == 0) {
     *value = 0;
     return TSDB_CODE_SUCCESS;
