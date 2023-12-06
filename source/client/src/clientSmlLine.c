@@ -632,7 +632,6 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   JUMP_SPACE(sql, sqlEnd)
   if (unlikely(*sql == COMMA)) return TSDB_CODE_SML_INVALID_DATA;
   elements->measure = sql;
-  int64_t t1 = taosGetTimestampUs();
   // parse measure
   size_t measureLenEscaped = 0;
   while (sql < sqlEnd) {
@@ -725,8 +724,6 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
     uError("SML:0x%" PRIx64 " smlParseTS error:%" PRId64, info->id, ts);
     return TSDB_CODE_INVALID_TIMESTAMP;
   }
-  int64_t t2 = taosGetTimestampUs() - t1;
-  taosArrayPush(info->parseTimeList, &t2);
   // add ts to
   SSmlKv kv = {.key = tsSmlTsDefaultName,
                .keyLen = strlen(tsSmlTsDefaultName),
