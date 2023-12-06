@@ -1008,11 +1008,15 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       taosMemoryFreeClear(*key);
     }
 
+    taosStringBuilderAppendStringLen(&sb, "specailkey", strlen("specailkey"));
+
     size_t    len = 0;
     char*     keyJoined = taosStringBuilderGetResult(&sb, &len);
 
+    vInfo("create table %s", keyJoined);
+    
     if(pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0){
-      auditRecord(pOriginRpc, clusterId, "createTable", name.dbname, "", keyJoined, len);
+      auditAddRecord(pOriginRpc, clusterId, "createTable", name.dbname, "", keyJoined, len);
     }
 
     taosStringBuilderDestroy(&sb);
@@ -1236,7 +1240,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     char  *keyJoined = taosStringBuilderGetResult(&sb, &len);
 
     if(pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0){
-      auditRecord(pOriginRpc, clusterId, "dropTable", name.dbname, "", keyJoined, len);
+      auditAddRecord(pOriginRpc, clusterId, "dropTable", name.dbname, "", keyJoined, len);
     }
 
     taosStringBuilderDestroy(&sb);

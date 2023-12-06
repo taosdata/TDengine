@@ -99,6 +99,27 @@ static void *dmMonitorThreadFp(void *param) {
   return NULL;
 }
 
+static void *dmAuditThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  int64_t     lastTime = taosGetTimestampMs();
+  setThreadName("dnode-audit");
+
+  while (1) {
+    taosMsleep(100);
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+
+    int64_t curTime = taosGetTimestampMs();
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = curTime - lastTime;
+    if (interval >= tsAuditInterval) {
+      (*pMgmt->sendAuditRecordsFp)();
+      lastTime = curTime;
+    }
+  }
+
+  return NULL;
+}
+
 static void *dmCrashReportThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
@@ -215,6 +236,20 @@ int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt) {
 
   taosThreadAttrDestroy(&thAttr);
   tmsgReportStartup("dnode-monitor", "initialized");
+  return 0;
+}
+
+int32_t dmStartAuditThread(SDnodeMgmt *pMgmt) {
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMgmt->auditThread, &thAttr, dmAuditThreadFp, pMgmt) != 0) {
+    dError("failed to create audit thread since %s", strerror(errno));
+    return -1;
+  }
+
+  taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("dnode-audit", "initialized");
   return 0;
 }
 
