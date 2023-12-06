@@ -167,8 +167,7 @@ _OVER:
 static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, struct sockaddr_in* dest) {
   uint32_t ip = taosGetIpv4FromFqdn(server);
   if (ip == 0xffffffff) {
-    tError("http-report failed to get http server:%s since %s", server,
-           (terrno == 0 || errno == 0) ? "invalid http server" : terrstr());
+    tError("http-report failed to resolving domain names: %s", server);
     return -1;
   }
   char buf[128] = {0};
