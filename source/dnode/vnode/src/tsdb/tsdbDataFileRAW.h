@@ -26,18 +26,6 @@
 extern "C" {
 #endif
 
-#define TSDB_SNAP_RAW_PAYLOAD_SIZE (4096 * 1024)
-#if 0
-struct SDataRAWBlock {
-    int8_t *data;
-    int64_t size;
-};
-
-int32_t tsdbDataRAWBlockReset(SDataRAWBlock *pBlock);
-int32_t tsdbDataRAWBlockAlloc(SDataRawBlock *pBlock);
-void tsdbDataRAWBlockFree(SDataRAWBlock *pBlock);
-#endif
-
 // STsdbDataRAWBlockHeader =======================================
 typedef struct STsdbDataRAWBlockHeader {
   struct {
