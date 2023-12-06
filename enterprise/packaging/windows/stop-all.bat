@@ -2,4 +2,4 @@ sc.exe stop taosd
 sc.exe stop taosadapter
 sc.exe stop taosx
 sc.exe stop taos-explorer
-sleep 1
+timeout 2
