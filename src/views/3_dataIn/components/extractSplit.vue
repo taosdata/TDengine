@@ -217,6 +217,7 @@ export default {
         this.tableData = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
+              console.log(data[index] instanceof Object,data[index].constructor.name,' leaching--bignumber------')
               return [
                 item.name,
                 (typeof data[index] == "boolean")||(data[index] instanceof Object)&&data[index].constructor.name=='BigNumber'
