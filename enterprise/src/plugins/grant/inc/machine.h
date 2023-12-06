@@ -389,7 +389,7 @@ void  grantActiveSystem(const char *cfgFile, SGrantObj *pObj, SGrantConnObj *pCo
 bool  grantExplainActiveCode(SGrantObj *grant, SActiveCodeInfo *info);
 bool  grantConnExplainActiveCode(SGrantConnObj *grant, SActiveCodeInfo *info);
 
-bool  grantGenUniqActiveCode(SGrantUniqObj *grant);
-bool  grantParseUniqActiveCode(SGrantUniqObj *grant, SActiveCodeInfo *info);
+bool grantUniqGenActiveCode(SGrantUniqObj *grant);
+bool grantUniqParseActiveCode(SGrantUniqObj *grant, SActiveCodeInfo *info);
 
 #endif

@@ -252,14 +252,15 @@ typedef struct {
 } SGrantDistInfo;
 
 typedef struct {
-  SHashObj *pOfficials;
-  SHashObj *pMachines;
-  SArray   *pDistInfo;
-  SArray   *pDnodeInfo;
-  SMnode   *pMnode;
-  int32_t   nGrantReq;
-  int32_t   nGrantRsp;
-  int8_t    nGrantNone;
+  SHashObj    *pOfficials;
+  SHashObj    *pMachines;
+  SArray      *pDistInfo;
+  SArray      *pDnodeInfo;
+  SMnode      *pMnode;
+  SGrantedInfo grantedInfo;
+  int32_t      nGrantReq;
+  int32_t      nGrantRsp;
+  int8_t       nGrantNone;
 } SGrantHandle;
 
 static bool    recheckClusterTime = true;
@@ -269,7 +270,6 @@ static int64_t grantNotifyTimeSeries = INT64_MAX;
 static int64_t grantClusterEpoch = 0;
 int32_t        grantFlag = 0;
 SGrantHandle   grantHandle = {0};
-SGrantedInfo   grantedInfo = {0};
 
 // extern SSysTableMeta infosMeta[];
 #ifdef GRANTS_CFG
@@ -332,7 +332,7 @@ void mndCleanupGrant() {
 }
 
 static int64_t grantGetExpireSec(int64_t expireSec) {
-  if (expireSec > 0) {
+  if (expireSec >= 0) {
     return expireSec;
   }
   if (expireSec == GRANT_UNIQ_UNLIMITED) {
@@ -781,6 +781,12 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
 
   grantRetrieveGrantInfo(pMnode);
 
+  char active[GRANT_UNIQ_ACTIVE_KEY_LEN] = "\0";
+  mndGetClusterActive(pMnode, active);
+  if (active[0] != 0) {
+    grantUniqParseActiveCode(&grantObj, NULL);
+  }
+
   grantSetClusterInfo(pMnode);
 
   // reset grantHandle
@@ -789,12 +795,6 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
   taosArrayClear(grantHandle.pDnodeInfo);
   grantHandle.nGrantReq = 0;
   grantHandle.nGrantRsp = 0;
-
-  char active[GRANT_UNIQ_ACTIVE_KEY_LEN] = "\0";
-  mndGetClusterActive(pMnode, active);
-  if (active[0] != 0) {
-    // parseUniq
-  }
 
   mndGetDnodeData(pMnode, grantHandle.pDnodeInfo);
 
@@ -847,8 +847,6 @@ static int32_t mndProcessGrantHBOld(SRpcMsg *pReq) {
   grantCheckClusterInfo(pMnode);
 
   grantRetrieveGrantInfo(pMnode);
-
-  grantSetClusterInfo(pMnode);
 
   // reset grantHandle
   taosHashClear(grantHandle.pOfficials);
