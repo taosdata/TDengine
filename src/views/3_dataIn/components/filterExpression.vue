@@ -130,10 +130,7 @@ export default {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
               return [
-                item.name,
-                (typeof data[index] == "boolean")||(data[index] instanceof Object)&&data[index].constructor.name=='BigNumber'
-                  ? data[index].toString()
-                  : data[index],
+                item.name,data[index].toString()
               ];
             })
           );
