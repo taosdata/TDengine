@@ -12,6 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#define ALLOW_FORBID_FUNC
 
 #include "executorInt.h"
 #include "filter.h"
@@ -3423,10 +3424,17 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   STableKeyInfo* startKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, tableStartIdx);
   pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInfo->base.cond, startKeyInfo, numOfTable, pInfo->pReaderBlock,
                                 (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), false, &pInfo->mSkipTables);
-  int32_t r = taosRand() % 2;
+  int r = 1;
+  FILE* f = fopen("/tmp/duration", "r");
+  if (f) {
+    fscanf(f, "%d", &r);
+    fclose(f);
+  }
   if (r == 1) {
-    uInfo("zsl: set duration order");
+    uInfo("zsl: DURATION ORDER");
     pAPI->tsdReader.tsdSetDurationOrder(pInfo->base.dataReader);
+  } else {
+    uInfo("zsl: NO DURATION");
   }
   pAPI->tsdReader.tsdSetSetNotifyCb(pInfo->base.dataReader, tableMergeScanTsdbNotifyCb, pInfo);
 
