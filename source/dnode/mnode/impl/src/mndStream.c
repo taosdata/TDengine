@@ -806,6 +806,10 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   int32_t     sqlLen = 0;
   terrno = TSDB_CODE_SUCCESS;
 
+  if ((terrno = grantCheck(TSDB_GRANT_STREAM)) < 0) {
+    goto _OVER;
+  }
+
   SCMCreateStreamReq createStreamReq = {0};
   if (tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, &createStreamReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;

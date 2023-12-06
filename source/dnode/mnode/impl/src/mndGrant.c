@@ -132,9 +132,6 @@ void    grantRestore(EGrantType grant, uint64_t value) {}
 char   *grantGetMachineId(){return NULL};
 int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
 int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
-int32_t grantAlterActiveCode(int32_t did, const char *old, const char *new, char *out, int8_t type) {
-  return TSDB_CODE_SUCCESS;
-}
 
 #endif
 

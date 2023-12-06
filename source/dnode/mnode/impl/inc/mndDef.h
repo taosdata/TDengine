@@ -196,6 +196,7 @@ typedef struct {
   int64_t createdTime;
   int64_t updateTime;
   int32_t upTime;
+  char    active[TSDB_UNIQ_ACTIVE_KEY_LEN + 1];
   SArray* pMachineIds;
 } SClusterObj;
 

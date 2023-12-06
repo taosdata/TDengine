@@ -46,10 +46,17 @@ typedef enum {
   TSDB_GRANT_SPEED,
   TSDB_GRANT_QUERY_TIME,
   TSDB_GRANT_CONNS,
-  TSDB_GRANT_STREAMS,
+  TSDB_GRANT_STREAM,
   TSDB_GRANT_CPU_CORES,
   TSDB_GRANT_STABLE,
   TSDB_GRANT_TABLE,
+  TSDB_GRANT_TOPIC,
+  TSDB_GRANT_STREAM_EXPIRE,
+  TSDB_GRANT_TOPIC_EXPIRE,
+  TSDB_GRANT_AUDIT_EXPIRE,
+  TSDB_GRANT_MULTI_TIER_EXPIRE,
+  TSDB_GRANT_BACKUP_RESTORE_EXPIRE,
+  TSDB_GRANT_REPLICATION_EXPIRE,
 } EGrantType;
 
 typedef struct {
@@ -58,7 +65,6 @@ typedef struct {
 } SGrantedInfo;
 
 int32_t grantCheck(EGrantType grant);
-int32_t grantAlterActiveCode(int32_t did, const char* old, const char* newer, char* out, int8_t type);
 char*   grantGetMachineId();
 
 #ifndef GRANTS_CFG

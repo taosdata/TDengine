@@ -100,6 +100,34 @@ int64_t mndGetClusterId(SMnode *pMnode) {
   return clusterId;
 }
 
+int32_t mndGetClusterActive(SMnode *pMnode, char *active) {
+  void        *pIter = NULL;
+  SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
+  if (pCluster) {
+    if (active) strncpy(active, pCluster->active, TSDB_UNIQ_ACTIVE_KEY_LEN + 1);
+    mndReleaseCluster(pMnode, pCluster, pIter);
+    return 0;
+  }
+
+  return -1;
+}
+
+int32_t mndGetClusterMachineIds(SMnode *pMnode, SArray *pIds) {
+  int32_t      code = -1;
+  void        *pIter = NULL;
+  SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
+  if (pCluster) {
+    if (!pIds) pIds = taosArrayInit(taosArrayGetSize(pCluster->pMachineIds), sizeof(SMachineId));
+    if (pIds) {
+      taosArrayAddAll(pIds, pCluster->pMachineIds);
+      code = 0;
+    }
+    mndReleaseCluster(pMnode, pCluster, pIter);
+  }
+
+  return code;
+}
+
 int64_t mndGetClusterCreateTime(SMnode *pMnode) {
   int64_t      createTime = 0;
   void        *pIter = NULL;
