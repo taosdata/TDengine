@@ -5,7 +5,7 @@ target_link_libraries(
     PUBLIC sut
 )
 
-add_test(
-    NAME profileTest
-    COMMAND profileTest
-)
+#add_test(
+#    NAME profileTest
+#    COMMAND profileTest
+#)

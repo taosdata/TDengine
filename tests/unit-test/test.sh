@@ -6,7 +6,7 @@ function usage() {
     echo -e "\t -h help"
 }
 
-ent=0
+ent=1
 while getopts "eh" opt; do
     case $opt in
         e)
@@ -33,6 +33,12 @@ if [ $ent -eq 0 ]; then
 else
     cd ../../../debug
 fi
+
+set -e
+
+pgrep taosd || taosd >> /dev/null 2>&1 &
+
+sleep 10
 
 ctest -j8
 ret=$?

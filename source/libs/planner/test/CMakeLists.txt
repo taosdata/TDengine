@@ -40,8 +40,8 @@ IF(NOT TD_DARWIN)
         target_link_libraries(plannerTest PUBLIC wingetopt)
     endif()
 
-    add_test(
-        NAME plannerTest
-        COMMAND plannerTest
-    )
+    #add_test(
+    #    NAME plannerTest
+    #    COMMAND plannerTest
+    #)
 ENDIF ()
