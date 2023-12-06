@@ -104,31 +104,31 @@ export default {
       type: Function,
       default: () => {},
     },
+    status: {
+      type: Boolean,
+      default: false,
+    }
   },
   watch: {
-    async user() {
-      this.ruleForm.user = this.user;
-      this.databaseList = [];
-      this.selectedDatabasePrivileges = {};
-      this.selectedTopicPrivileges = {};
-      this.topicList = [];
-      await this.getDatabaseList();
-      await this.getTopicList();
-      await this.getUserPrivileges();
-      await this.getUserTopics();
-    },
+    status: {
+      async handler(val) {
+        if (val) {
+          this.loading = true;
+          this.ruleForm.user = this.user;
+          this.databaseList = [];
+          this.selectedDatabasePrivileges = {};
+          this.selectedTopicPrivileges = {};
+          this.topicList = [];
+          await this.getDatabaseList();
+          await this.getTopicList();
+          await this.getUserPrivileges();
+          await this.getUserTopics();
+        }
+      },
+      immediate: true,
+    }
   },
-  async created() {
-    this.loading = true;
-    this.selectedDatabasePrivileges = {};
-    this.selectedTopicPrivileges = {};
-    this.prevSelectedDatabasePrivileges = {};
-    this.prevSelectedTopicPrivileges = {};
-    await this.getDatabaseList();
-    await this.getTopicList();
-    await this.getUserPrivileges();
-    await this.getUserTopics();
-  },
+  created() {},
   data() {
     function validPassword(password) {
       if (password) {
