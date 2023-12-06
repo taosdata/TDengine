@@ -95,19 +95,6 @@ int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint64_t *v
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t removeSpace(const char **pp, int32_t n) {
-  // rm blank space from both head and tail, keep at least one char
-  const char *z = *pp;
-  while (n > 1 && *z == ' ') {
-    z++;
-    n--;
-  }
-  while (n > 1 && z[n-1] == ' ') {
-    n--;
-  }
-  *pp = z;
-  return n;
-}
 
 int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double* value) {
   if (n == 0) {
@@ -184,6 +171,36 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
       return TSDB_CODE_FAILED;
     }
     return TSDB_CODE_SUCCESS;
+  } else if (errno == 0 && *endPtr == '.') {
+    // pure decimal part
+    const char *s = endPtr + 1;
+    const char *end = z + n;
+    bool pure = true;
+    while (s < end) {
+      if (*s < '0' || *s > '9') {
+        pure = false;
+        break;
+      }
+      s++;
+    }
+    if (pure) {
+      if (endPtr+1 < end && endPtr[1] > '4') {
+        const char *p = z;
+        while (*p == ' ') {
+          p++;
+        }
+        if (*p == '-') {
+          if ( *value > INT64_MIN) {
+            (*value)--;
+          }
+        } else {
+          if ( *value < INT64_MAX) {
+            (*value)++;
+          }
+        }
+      }
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
   // 2. parse as other 
@@ -218,9 +235,9 @@ int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
   }
 
   errno = 0;
-  const char *p = z;
   char *endPtr = NULL;
   bool parsed = false;
+  const char *p = z;
   while (*p == ' ') {
     p++;
   }
@@ -264,14 +281,31 @@ int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
 
   // 1. parse as integer
   *value = taosStr2UInt64(p, &endPtr, 10);
+  if (*p == '-' && *value) {
+    return TSDB_CODE_FAILED;
+  }
   if (endPtr - z == n) {
-    if (*p == '-' && *value) {
-      return TSDB_CODE_FAILED;
-    }
     if (errno == ERANGE || errno == EINVAL) {
       return TSDB_CODE_FAILED;
     }
     return TSDB_CODE_SUCCESS;
+  } else if (errno == 0 && *endPtr == '.') {
+    const char *s = endPtr + 1;
+    const char *end = z + n;
+    bool pure = true;
+    while (s < end) {
+      if (*s < '0' || *s > '9') {
+        pure = false;
+        break;
+      }
+      s++;
+    }
+    if (pure) {
+      if (endPtr + 1 < end && endPtr[1] > '4' && *value < UINT64_MAX) {
+        (*value)++;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
   // 2. parse as other 
