@@ -231,6 +231,7 @@ export default {
             })
           );
         });
+        console.log(this.tableData, "this.tableData")
         let transformerColumns = [
           {
             value: "expression",

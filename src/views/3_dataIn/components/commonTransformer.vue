@@ -48,10 +48,10 @@
         <div class="block-title sub">
           <span>{{ $t("datasource.transformer.extract") }}</span>
         </div>
-        <div
+        <!-- <div
           class="transdescription"
           v-html="$t('datasource.transformer.extractdesc')"
-        ></div>
+        ></div> -->
         <template v-for="(item, index) in extractArr">
           <ExtractSplit
             ref="extract"
@@ -137,7 +137,7 @@
           </div>
           <div class="table-detail" v-if="tableData.length > 0">
             <div class="mapping">
-              {{ $t("datasource.transformer.mapping") }}
+              <!-- {{ $t("datasource.transformer.mapping") }} -->
               <el-button
                 type="primary"
                 @click="caculateMappingResult"
@@ -256,6 +256,7 @@ export default {
   },
   data() {
     return {
+      tempColumns:[],
       isbreak: false, //tranformer创建是否出错
       joinwith: "",
       isCSV: false,
@@ -351,6 +352,23 @@ export default {
     };
   },
   mounted() {
+    //临时ui代码
+    // [
+    //   'timestamp','groupid','location','deviceid','current','voltage','phase'
+    // ].forEach(item=>{
+    //   this.tempColumns.push({
+    //     description:item,
+    //     name:item,
+    //     show:true,
+    //     type:'string',
+    //     value:''
+    //   })
+    // })
+
+
+
+
+
     // this.initJsonEditor()
     if (this.parserColumns) {
       this.initColumnLists(this.parserColumns);
@@ -371,6 +389,7 @@ export default {
       this.formatCSVExtract(this.$store.state.app.csvTransformerParser.columns);
     }
     this.getInitStables();
+    console.log(this.indentifiedColumns,'indentifiedColumns')
   },
   methods: {
     initJsonEditor() {
@@ -1037,7 +1056,7 @@ export default {
         });
 
         this.tableData.unshift({
-          Name: this.sruleForm.s_name,
+          Name: 'SubTableName',//this.sruleForm.s_name,
           Type: "Tablename",
           maptype: ["expression", "string"],
           Expression: "",
@@ -1247,7 +1266,7 @@ export default {
   margin-top: 20px;
   .mapping {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
   }
   .el-table {
     thead tr th:first-child {
