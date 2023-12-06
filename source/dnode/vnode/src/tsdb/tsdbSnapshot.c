@@ -331,7 +331,7 @@ static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* reader, uint8_t** dat
 
     if (!(reader->blockData->nRow % 16)) {
       int64_t nData = tBlockDataSize(reader->blockData);
-      if (nData >= 1 * 1024 * 1024) {
+      if (nData >= TSDB_SNAP_DATA_PAYLOAD_SIZE) {
         break;
       }
     }

@@ -21,7 +21,6 @@
 static int32_t tsdbSnapRAWReadFileSetCloseReader(STsdbSnapRAWReader* reader);
 
 // reader
-
 typedef struct SDataFileRAWReaderIter {
   int32_t count;
   int32_t idx;
@@ -180,7 +179,7 @@ static int32_t tsdbSnapRAWReadFileSetCloseIter(STsdbSnapRAWReader* reader) {
 }
 
 static int64_t tsdbSnapRAWReadPeek(SDataFileRAWReader* reader) {
-  int64_t size = TMIN(reader->config->file.size - reader->ctx->offset, TSDB_SNAP_RAW_PAYLOAD_SIZE);
+  int64_t size = TMIN(reader->config->file.size - reader->ctx->offset, TSDB_SNAP_DATA_PAYLOAD_SIZE);
   return size;
 }
 
