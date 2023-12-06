@@ -278,6 +278,15 @@ _exit:
   return code;
 }
 
+static int64_t tBlockDataSize(SBlockData* pBlockData) {
+  int64_t nData = 0;
+  for (int32_t iCol = 0; iCol < pBlockData->nColData; iCol++) {
+    SColData* pColData = tBlockDataGetColDataByIdx(pBlockData, iCol);
+    nData += pColData->nData;
+  }
+  return nData;
+}
+
 static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* reader, uint8_t** data) {
   int32_t   code = 0;
   int32_t   lino = 0;
@@ -320,8 +329,11 @@ static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* reader, uint8_t** dat
     code = tsdbIterMergerNext(reader->dataIterMerger);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    if (reader->blockData->nRow >= 81920) {
-      break;
+    if (!(reader->blockData->nRow % 16)) {
+      int64_t nData = tBlockDataSize(reader->blockData);
+      if (nData >= 1 * 1024 * 1024) {
+        break;
+      }
     }
   }
 
@@ -1032,9 +1044,6 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, void* pRang
   int32_t code = 0;
   int32_t lino = 0;
 
-  // disable background tasks
-  tsdbFSDisableBgTask(pTsdb->pFS);
-
   // start to write
   writer[0] = taosMemoryCalloc(1, sizeof(*writer[0]));
   if (writer[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
@@ -1107,7 +1116,6 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** writer, int8_t rollback) {
 
     taosThreadMutexUnlock(&writer[0]->tsdb->mutex);
   }
-  tsdbFSEnableBgTask(tsdb->pFS);
 
   tsdbIterMergerClose(&writer[0]->ctx->tombIterMerger);
   tsdbIterMergerClose(&writer[0]->ctx->dataIterMerger);

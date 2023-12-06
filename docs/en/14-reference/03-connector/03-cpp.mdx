@@ -24,7 +24,7 @@ The dynamic libraries for the TDengine client driver are located in.
 
 ## Supported platforms
 
-Please refer to [list of supported platforms](/reference/connector#supported-platforms)
+Please refer to [list of supported platforms](../#supported-platforms)
 
 ## Supported versions
 
@@ -32,7 +32,7 @@ The version number of the TDengine client driver and the version number of the T
 
 ## Installation Steps
 
-Please refer to the [Installation Steps](/reference/connector#installation-steps) for TDengine client driver installation
+Please refer to the [Installation Steps](../#installation-steps) for TDengine client driver installation
 
 ## Establishing a connection
 
@@ -394,7 +394,7 @@ The specific functions related to the interface are as follows (see also the [pr
 
 ### Schemaless Writing API
 
-In addition to writing data using the SQL method or the parameter binding API, writing can also be done using schemaless writing, which eliminates the need to create a super table/data sub-table structure in advance and writes the data directly. The TDengine system automatically creates and maintains the required table structure based on the written data content. The use of schemaless writing is described in the chapter [Schemaless Writing](/reference/schemaless/), and the C/C++ API used with it is described here.
+In addition to writing data using the SQL method or the parameter binding API, writing can also be done using schemaless writing, which eliminates the need to create a super table/data sub-table structure in advance and writes the data directly. The TDengine system automatically creates and maintains the required table structure based on the written data content. The use of schemaless writing is described in the chapter [Schemaless Writing](../../schemaless/), and the C/C++ API used with it is described here.
 
 - `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
 

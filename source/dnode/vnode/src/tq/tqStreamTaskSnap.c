@@ -212,9 +212,7 @@ int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback) {
     taosMemoryFree(pWriter);
     goto _err;
   }
-
   taosWUnLockLatch(&pTq->pStreamMeta->lock);
-
   taosMemoryFree(pWriter);
   return code;
 
@@ -240,7 +238,6 @@ int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t
       goto _err;
     }
     tDecoderClear(&decoder);
-    // tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn)
 
     int64_t key[2] = {taskId.streamId, taskId.taskId};
     taosWLockLatch(&pTq->pStreamMeta->lock);

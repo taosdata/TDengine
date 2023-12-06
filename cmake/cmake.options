@@ -151,6 +151,7 @@ IF(${BUILD_S3})
 
 IF(${BUILD_WITH_S3})
 
+add_definitions(-DUSE_S3)
 option(BUILD_WITH_COS "If build with cos" OFF)
 
 ELSE ()

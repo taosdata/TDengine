@@ -28,7 +28,7 @@
 extern bool tsDeployOnSnode;
 
 static int32_t doAddSinkTask(SStreamObj* pStream, SArray* pTaskList, SMnode* pMnode, int32_t vgId, SVgObj* pVgroup,
-                                  SEpSet* pEpset, bool isFillhistory);
+                             SEpSet* pEpset, bool isFillhistory);
 
 int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64_t uid, int8_t triggerType,
                            int64_t watermark, int64_t deleteMark) {

@@ -310,7 +310,12 @@ int32_t tsdbTakeReadSnap2(STsdbReader *pReader, _query_reseek_func_t reseek, STs
 void    tsdbUntakeReadSnap2(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proactive);
 
 // tsdbMerge.c ==============================================================================================
-int32_t tsdbSchedMerge(STsdb *tsdb, int32_t fid);
+typedef struct {
+  STsdb  *tsdb;
+  int32_t fid;
+} SMergeArg;
+
+int32_t tsdbMerge(void *arg);
 
 // tsdbDiskData ==============================================================================================
 int32_t tDiskDataBuilderCreate(SDiskDataBuilder **ppBuilder);
@@ -369,24 +374,25 @@ typedef struct {
 } SCacheFlushState;
 
 struct STsdb {
-  char            *path;
-  SVnode          *pVnode;
-  STsdbKeepCfg     keepCfg;
-  TdThreadMutex    mutex;
-  SMemTable       *mem;
-  SMemTable       *imem;
-  STsdbFS          fs;  // old
-  SLRUCache       *lruCache;
-  SCacheFlushState flushState;
-  TdThreadMutex    lruMutex;
-  SLRUCache       *biCache;
-  TdThreadMutex    biMutex;
-  SLRUCache       *bCache;
-  TdThreadMutex    bMutex;
-  SLRUCache       *pgCache;
-  TdThreadMutex    pgMutex;
-  STFileSystem    *pFS;  // new
-  SRocksCache      rCache;
+  char                *path;
+  SVnode              *pVnode;
+  STsdbKeepCfg         keepCfg;
+  TdThreadMutex        mutex;
+  bool                 bgTaskDisabled;
+  SMemTable           *mem;
+  SMemTable           *imem;
+  STsdbFS              fs;  // old
+  SLRUCache           *lruCache;
+  SCacheFlushState     flushState;
+  TdThreadMutex        lruMutex;
+  SLRUCache           *biCache;
+  TdThreadMutex        biMutex;
+  SLRUCache           *bCache;
+  TdThreadMutex        bMutex;
+  SLRUCache           *pgCache;
+  TdThreadMutex        pgMutex;
+  struct STFileSystem *pFS;  // new
+  SRocksCache          rCache;
   // compact monitor
   struct SCompMonitor *pCompMonitor;
 };
@@ -834,7 +840,7 @@ struct SDiskDataBuilder {
   SBlkInfo     bi;
 };
 
-typedef struct SLDataIter {
+struct SLDataIter {
   SRBTreeNode            node;
   SSttBlk               *pSttBlk;
   int64_t                cid;  // for debug purpose
@@ -848,7 +854,7 @@ typedef struct SLDataIter {
   SSttBlockLoadInfo     *pBlockLoadInfo;
   bool                   ignoreEarlierTs;
   struct SSttFileReader *pReader;
-} SLDataIter;
+};
 
 #define tMergeTreeGetRow(_t) (&((_t)->pIter->rInfo.row))
 
@@ -883,10 +889,9 @@ void tMergeTreeUnpinSttBlock(SMergeTree *pMTree);
 bool tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
 void tMergeTreeClose(SMergeTree *pMTree);
 
-SSttBlockLoadInfo *tCreateOneLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols);
-void               resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
+SSttBlockLoadInfo *tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols);
 void               getSttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, SSttBlockLoadCostInfo *pLoadCost);
-void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
+void              *destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 void              *destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost);
 
 // tsdbCache ==============================================================================================

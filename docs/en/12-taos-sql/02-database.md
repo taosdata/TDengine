@@ -26,7 +26,6 @@ database_option: {
   | PAGESIZE  value
   | PRECISION {'ms' | 'us' | 'ns'}
   | REPLICA value
-  | RETENTIONS ingestion_duration:keep_duration ...
   | WAL_LEVEL {1 | 2}
   | VGROUPS value
   | SINGLE_STABLE {0 | 1}
@@ -61,7 +60,6 @@ database_option: {
 - PAGESIZE: specifies the size (in KB) of each page in the metadata storage engine cache on each vnode. The default value is 4. Enter a value between 1 and 16384.
 - PRECISION: specifies the precision at which a database records timestamps. Enter ms for milliseconds, us for microseconds, or ns for nanoseconds. The default value is ms.
 - REPLICA: specifies the number of replicas that are made of the database. Enter 1 or 3. The default value is 1. The value of the REPLICA parameter cannot exceed the number of dnodes in the cluster.
-- RETENTIONS: specifies the retention period for data aggregated at various intervals. For example, RETENTIONS 15s:7d,1m:21d,15m:50d indicates that data aggregated every 15 seconds is retained for 7 days, data aggregated every 1 minute is retained for 21 days, and data aggregated every 15 minutes is retained for 50 days. You must enter three aggregation intervals and corresponding retention periods.
 - WAL_LEVEL: specifies whether fsync is enabled. The default value is 1.
   - 1: WAL is enabled but fsync is disabled.
   - 2: WAL and fsync are both enabled.

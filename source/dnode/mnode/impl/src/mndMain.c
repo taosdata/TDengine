@@ -158,6 +158,15 @@ static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
   }
 }
 
+static void mndStreamCheckpointRemain(SMnode* pMnode) {
+  int32_t contLen = 0;
+  void *pReq = mndBuildCheckpointTickMsg(&contLen, 0);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_CHECKPOINT_CANDIDITATE, .pCont = pReq, .contLen = contLen};
+    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+  }
+}
+
 static void mndStreamCheckNode(SMnode* pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
@@ -300,6 +309,10 @@ static void *mndThreadFp(void *param) {
 
     if (sec % tsStreamCheckpointInterval == 0) {
       mndStreamCheckpointTick(pMnode, sec);
+    }
+
+    if (sec % 5 == 0) {
+      mndStreamCheckpointRemain(pMnode);
     }
 
     if (sec % tsStreamNodeCheckInterval == 0) {

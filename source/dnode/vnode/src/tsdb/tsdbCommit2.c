@@ -421,7 +421,7 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
         if (mtime < committer->ctx->now - tsS3UploadDelaySec) {
           committer->ctx->skipTsRow = true;
         }
-      } else if (s3Size(object_name) > 0) {
+      } else /*if (s3Size(object_name) > 0) */ {
         committer->ctx->skipTsRow = true;
       }
     }

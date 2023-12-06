@@ -38,3 +38,4 @@ source /etc/profile
 ${csudo}mkdir -p ${corePath}  ||:
 ${csudo}sysctl -w kernel.core_pattern=${corePath}/core-%e-%p  ||:
 ${csudo}echo "${corePath}/core-%e-%p" | ${csudo}tee /proc/sys/kernel/core_pattern  ||:
+${csudo}echo "kernel.core_pattern = ${corePath}/core_%e-%p" >> /etc/sysctl.conf ||:

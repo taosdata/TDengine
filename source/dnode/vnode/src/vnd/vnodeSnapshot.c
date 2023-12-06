@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnd.h"
 #include "tsdb.h"
+#include "vnd.h"
 
 // SVSnapReader ========================================================
 struct SVSnapReader {
@@ -32,11 +32,11 @@ struct SVSnapReader {
   TSnapRangeArray *pRanges;
   STsdbSnapReader *pTsdbReader;
   // tq
-  int8_t           tqHandleDone;
-  STqSnapReader   *pTqSnapReader;
-  int8_t           tqOffsetDone;
-  STqOffsetReader *pTqOffsetReader;
-  int8_t           tqCheckInfoDone;
+  int8_t              tqHandleDone;
+  STqSnapReader      *pTqSnapReader;
+  int8_t              tqOffsetDone;
+  STqOffsetReader    *pTqOffsetReader;
+  int8_t              tqCheckInfoDone;
   STqCheckInfoReader *pTqCheckInfoReader;
   // stream
   int8_t              streamTaskDone;
@@ -458,8 +458,8 @@ struct SVSnapWriter {
   TSnapRangeArray *pRanges;
   STsdbSnapWriter *pTsdbSnapWriter;
   // tq
-  STqSnapWriter   *pTqSnapWriter;
-  STqOffsetWriter *pTqOffsetWriter;
+  STqSnapWriter      *pTqSnapWriter;
+  STqOffsetWriter    *pTqOffsetWriter;
   STqCheckInfoWriter *pTqCheckInfoWriter;
   // stream
   SStreamTaskWriter  *pStreamTaskWriter;
@@ -519,15 +519,30 @@ _out:
   return code;
 }
 
+extern int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb);
+extern int32_t tsdbEnableBgTask(STsdb *pTsdb);
+
+static int32_t vnodeCancelAndDisableAllBgTask(SVnode *pVnode) {
+  tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
+  vnodeSyncCommit(pVnode);
+  vnodeAChannelDestroy(vnodeAsyncHandle[0], pVnode->commitChannel, true);
+  return 0;
+}
+
+static int32_t vnodeEnableBgTask(SVnode *pVnode) {
+  tsdbEnableBgTask(pVnode->pTsdb);
+  vnodeAChannelInit(vnodeAsyncHandle[0], &pVnode->commitChannel);
+  return 0;
+}
+
 int32_t vnodeSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapWriter **ppWriter) {
   int32_t       code = 0;
   SVSnapWriter *pWriter = NULL;
   int64_t       sver = pParam->start;
   int64_t       ever = pParam->end;
 
-  // commit memory data
-  vnodeAsyncCommit(pVnode);
-  tsem_wait(&pVnode->canCommit);
+  // cancel and disable all bg task
+  vnodeCancelAndDisableAllBgTask(pVnode);
 
   // alloc
   pWriter = (SVSnapWriter *)taosMemoryCalloc(1, sizeof(*pWriter));
@@ -657,7 +672,7 @@ _exit:
     vInfo("vgId:%d, vnode snapshot writer closed, rollback:%d", TD_VID(pVnode), rollback);
     taosMemoryFree(pWriter);
   }
-  tsem_post(&pVnode->canCommit);
+  vnodeEnableBgTask(pVnode);
   return code;
 }
 

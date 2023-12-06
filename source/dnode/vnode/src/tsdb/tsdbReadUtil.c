@@ -210,6 +210,7 @@ void clearBlockScanInfo(STableBlockScanInfo* p) {
   p->iterInit = false;
   p->iter.hasVal = false;
   p->iiter.hasVal = false;
+  p->sttKeyInfo.status = STT_FILE_READER_UNINIT;
 
   if (p->iter.iter != NULL) {
     p->iter.iter = tsdbTbDataIterDestroy(p->iter.iter);
@@ -245,7 +246,7 @@ static void doCleanupInfoForNextFileset(STableBlockScanInfo* pScanInfo) {
   pScanInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
 }
 
-void cleanupInfoFoxNextFileset(SSHashObj* pTableMap) {
+void cleanupInfoForNextFileset(SSHashObj* pTableMap) {
   STableBlockScanInfo** p = NULL;
 
   int32_t iter = 0;
@@ -487,6 +488,8 @@ typedef enum {
   BLK_CHECK_QUIT = 0x2,
 } ETombBlkCheckEnum;
 
+static void    loadNextStatisticsBlock(SSttFileReader* pSttFileReader, const SSttBlockLoadInfo* pBlockLoadInfo,
+                                       const TStatisBlkArray* pStatisBlkArray, int32_t numOfRows, int32_t* i, int32_t* j);
 static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_t numOfTables, int32_t* j,
                                 ETombBlkCheckEnum* pRet) {
   int32_t     code = 0;
@@ -657,4 +660,178 @@ void loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemT
       p = p->pNext;
     }
   }
+}
+
+int32_t getNumOfRowsInSttBlock(SSttFileReader *pSttFileReader, SSttBlockLoadInfo *pBlockLoadInfo, uint64_t suid,
+                               const uint64_t* pUidList, int32_t numOfTables) {
+  int32_t num = 0;
+
+  const TStatisBlkArray *pStatisBlkArray = pBlockLoadInfo->pSttStatisBlkArray;
+  if (TARRAY2_SIZE(pStatisBlkArray) <= 0) {
+    return 0;
+  }
+
+  int32_t i = 0;
+  while((i < TARRAY2_SIZE(pStatisBlkArray)) && (pStatisBlkArray->data[i].minTbid.suid < suid)) {
+    ++i;
+  }
+
+  if (i >= TARRAY2_SIZE(pStatisBlkArray)) {
+    return 0;
+  }
+
+  SStatisBlk *p = &pStatisBlkArray->data[i];
+  if (pBlockLoadInfo->statisBlock == NULL) {
+    pBlockLoadInfo->statisBlock = taosMemoryCalloc(1, sizeof(STbStatisBlock));
+    tStatisBlockInit(pBlockLoadInfo->statisBlock);
+  }
+
+  int64_t st = taosGetTimestampMs();
+  tsdbSttFileReadStatisBlock(pSttFileReader, p, pBlockLoadInfo->statisBlock);
+  pBlockLoadInfo->statisBlockIndex = i;
+
+  double el = (taosGetTimestampMs() - st) / 1000.0;
+  pBlockLoadInfo->cost.loadStatisBlocks += 1;
+  pBlockLoadInfo->cost.statisElapsedTime += el;
+
+  STbStatisBlock *pBlock = pBlockLoadInfo->statisBlock;
+
+  int32_t index = 0;
+  while (index < TARRAY2_SIZE(pBlock->suid) && pBlock->suid->data[index] < suid) {
+    ++index;
+  }
+
+  if (index >= TARRAY2_SIZE(pBlock->suid)) {
+    return num;
+  }
+
+  int32_t j = index;
+  int32_t uidIndex = 0;
+  while (i < TARRAY2_SIZE(pStatisBlkArray) && uidIndex <= numOfTables) {
+    p = &pStatisBlkArray->data[i];
+    if (p->minTbid.suid > suid) {
+      return num;
+    }
+
+    uint64_t uid = pUidList[uidIndex];
+
+    if (pBlock->uid->data[j] == uid) {
+      num += pBlock->count->data[j];
+      uidIndex += 1;
+      j += 1;
+      loadNextStatisticsBlock(pSttFileReader, pBlockLoadInfo, pStatisBlkArray, pBlock->suid->size, &i, &j);
+    } else if (pBlock->uid->data[j] < uid) {
+      j += 1;
+      loadNextStatisticsBlock(pSttFileReader, pBlockLoadInfo, pStatisBlkArray, pBlock->suid->size, &i, &j);
+    } else {
+      uidIndex += 1;
+    }
+  }
+
+  return num;
+}
+
+// load next stt statistics block
+static void loadNextStatisticsBlock(SSttFileReader* pSttFileReader, const SSttBlockLoadInfo* pBlockLoadInfo,
+                                    const TStatisBlkArray* pStatisBlkArray, int32_t numOfRows, int32_t* i, int32_t* j) {
+  if ((*j) >= numOfRows) {
+    (*i) += 1;
+    (*j) = 0;
+    if ((*i) < TARRAY2_SIZE(pStatisBlkArray)) {
+      tsdbSttFileReadStatisBlock(pSttFileReader, &pStatisBlkArray->data[(*i)], pBlockLoadInfo->statisBlock);
+    }
+  }
+}
+
+void doAdjustValidDataIters(SArray* pLDIterList, int32_t numOfFileObj) {
+  int32_t size = taosArrayGetSize(pLDIterList);
+
+  if (size < numOfFileObj) {
+    int32_t inc = numOfFileObj - size;
+    for (int32_t k = 0; k < inc; ++k) {
+      SLDataIter *pIter = taosMemoryCalloc(1, sizeof(SLDataIter));
+      taosArrayPush(pLDIterList, &pIter);
+    }
+  } else if (size > numOfFileObj) {  // remove unused LDataIter
+    int32_t inc = size - numOfFileObj;
+
+    for (int i = 0; i < inc; ++i) {
+      SLDataIter *pIter = taosArrayPop(pLDIterList);
+      destroyLDataIter(pIter);
+    }
+  }
+}
+
+int32_t adjustLDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet) {
+  int32_t numOfLevels = pFileSet->lvlArr->size;
+
+  // add the list/iter placeholder
+  while (taosArrayGetSize(pSttFileBlockIterArray) < numOfLevels) {
+    SArray* pList = taosArrayInit(4, POINTER_BYTES);
+    taosArrayPush(pSttFileBlockIterArray, &pList);
+  }
+
+  for(int32_t j = 0; j < numOfLevels; ++j) {
+    SSttLvl* pSttLevel = pFileSet->lvlArr->data[j];
+    SArray* pList = taosArrayGetP(pSttFileBlockIterArray, j);
+    doAdjustValidDataIters(pList, TARRAY2_SIZE(pSttLevel->fobjArr));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArray, STsdb* pTsdb, SMergeTreeConf* pConf,
+                              const char* pstr) {
+  int32_t numOfRows = 0;
+
+  // no data exists, go to end
+  int32_t numOfLevels = pFileSet->lvlArr->size;
+  if (numOfLevels == 0) {
+    return numOfRows;
+  }
+
+  // add the list/iter placeholder
+  adjustLDataIters(pSttFileBlockIterArray, pFileSet);
+
+  for (int32_t j = 0; j < numOfLevels; ++j) {
+    SSttLvl* pSttLevel = pFileSet->lvlArr->data[j];
+    SArray*  pList = taosArrayGetP(pSttFileBlockIterArray, j);
+
+    for (int32_t i = 0; i < taosArrayGetSize(pList); ++i) {  // open all last file
+      SLDataIter* pIter = taosArrayGetP(pList, i);
+
+      // open stt file reader if not opened yet
+      // if failed to open this stt file, ignore the error and try next one
+      if (pIter->pReader == NULL) {
+        SSttFileReaderConfig conf = {.tsdb = pTsdb, .szPage = pTsdb->pVnode->config.tsdbPageSize};
+        conf.file[0] = *pSttLevel->fobjArr->data[i]->f;
+
+        const char* pName = pSttLevel->fobjArr->data[i]->fname;
+        int32_t     code = tsdbSttFileReaderOpen(pName, &conf, &pIter->pReader);
+        if (code != TSDB_CODE_SUCCESS) {
+          tsdbError("open stt file reader error. file:%s, code %s, %s", pName, tstrerror(code), pstr);
+          continue;
+        }
+      }
+
+      if (pIter->pBlockLoadInfo == NULL) {
+        pIter->pBlockLoadInfo = tCreateSttBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols);
+      }
+
+      // load stt blocks statis for all stt-blocks, to decide if the data of queried table exists in current stt file
+      int32_t code = tsdbSttFileReadStatisBlk(pIter->pReader, (const TStatisBlkArray **)&pIter->pBlockLoadInfo->pSttStatisBlkArray);
+      if (code != TSDB_CODE_SUCCESS) {
+        tsdbError("failed to load stt block statistics, code:%s, %s", tstrerror(code), pstr);
+        continue;
+      }
+
+      // extract rows from each stt file one-by-one
+      STsdbReader* pReader = pConf->pReader;
+      int32_t      numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
+      uint64_t*    pUidList = pReader->status.uidList.tableUidList;
+      numOfRows += getNumOfRowsInSttBlock(pIter->pReader, pIter->pBlockLoadInfo, pConf->suid, pUidList, numOfTables);
+    }
+  }
+
+  return numOfRows;
 }

@@ -21,7 +21,7 @@ TDengine Source Connector is used to read data from TDengine in real-time and se
 1. Linux operating system
 2. Java 8 and Maven installed
 3. Git/curl/vi is installed
-4. TDengine is installed and started. 
+4. TDengine is installed and started.
 
 ## Install Kafka
 
@@ -94,7 +94,7 @@ The output as bellow:
 
 The role of the TDengine Sink Connector is to synchronize the data of the specified topic to TDengine. Users do not need to create databases and super tables in advance. The name of the target database can be specified manually (see the configuration parameter connection.database), or it can be generated according to specific rules (see the configuration parameter connection.database.prefix).
 
-TDengine Sink Connector internally uses TDengine [modeless write interface](/reference/connector/cpp#modeless write-api) to write data to TDengine, currently supports data in three formats: [InfluxDB line protocol format](/develop /insert-data/influxdb-line), [OpenTSDB Telnet protocol format](/develop/insert-data/opentsdb-telnet), and [OpenTSDB JSON protocol format](/develop/insert-data/opentsdb-json).
+TDengine Sink Connector internally uses TDengine [modeless write interface](../../reference/connector/cpp#modeless write-api) to write data to TDengine, currently supports data in three formats: [InfluxDB line protocol format](../../develop/insert-data/influxdb-line), [OpenTSDB Telnet protocol format](../../develop/insert-data/opentsdb-telnet), and [OpenTSDB JSON protocol format](../../develop/insert-data/opentsdb-json).
 
 The following example synchronizes the data of the topic meters to the target database power. The data format is the InfluxDB Line protocol format.
 
@@ -213,7 +213,7 @@ If you see the above data, the synchronization is successful. If not, check the 
 
 The role of the TDengine Source Connector is to push all the data of a specific TDengine database after a particular time to Kafka. The implementation principle of TDengine Source Connector is to first pull historical data in batches and then synchronize incremental data with the strategy of the regular query. At the same time, the changes in the table will be monitored, and the newly added table can be automatically synchronized. If Kafka Connect is restarted, synchronization will resume where it left off.
 
-TDengine Source Connector will convert the data in TDengine data table into [InfluxDB Line protocol format](/develop/insert-data/influxdb-line/) or [OpenTSDB JSON protocol format](/develop/insert-data/opentsdb-json ) and then write to Kafka.
+TDengine Source Connector will convert the data in TDengine data table into [InfluxDB Line protocol format](../../develop/insert-data/influxdb-line/) or [OpenTSDB JSON protocol format](../../develop/insert-data/opentsdb-json ) and then write to Kafka.
 
 The following sample program synchronizes the data in the database test to the topic tdengine-test-meters.
 

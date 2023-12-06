@@ -93,7 +93,11 @@ typedef struct SQueryNode         SQueryNode;
 #define VNODE_RSMA2_DIR "rsma2"
 #define VNODE_TQ_STREAM "stream"
 
+#if SUSPEND_RESUME_TEST        // only for test purpose
+#define VNODE_BUFPOOL_SEGMENTS 1
+#else
 #define VNODE_BUFPOOL_SEGMENTS 3
+#endif
 
 #define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
@@ -219,8 +223,6 @@ int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid
 int32_t tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
 
 // tq
-int     tqInit();
-void    tqCleanUp();
 STQ*    tqOpen(const char* path, SVnode* pVnode);
 void    tqNotifyClose(STQ*);
 void    tqClose(STQ*);
@@ -232,8 +234,8 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskDropHTask(STQ* pTq, SRpcMsg* pMsg);
 
-int32_t tqStartStreamTaskAsync(STQ* pTq, bool restart);
 int32_t tqRestartStreamTasks(STQ* pTq);
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
 int32_t tqScanWal(STQ* pTq);
@@ -262,7 +264,7 @@ int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t version, char* msg, int32_t msg
 int32_t tqProcessTaskCheckReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskCheckRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec);
+int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
@@ -448,13 +450,16 @@ struct SVnode {
   SVBufPool*    recycleTail;
   SVBufPool*    onRecycle;
 
+  // commit variables
+  int64_t commitChannel;
+  int64_t commitTask;
+
   SMeta*        pMeta;
   SSma*         pSma;
   STsdb*        pTsdb;
   SWal*         pWal;
   STQ*          pTq;
   SSink*        pSink;
-  tsem_t        canCommit;
   int64_t       sync;
   TdThreadMutex lock;
   bool          blocked;
