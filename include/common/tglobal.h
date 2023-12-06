@@ -106,6 +106,7 @@ extern bool     tsMonitorComp;
 // audit
 extern bool     tsEnableAudit;
 extern bool     tsEnableAuditCreateTable;
+extern int32_t  tsAuditInterval;
 
 // telem
 extern bool     tsEnableTelem;
