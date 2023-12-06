@@ -61,7 +61,7 @@
   #undef TD_CLOSE_MSG_TYPE
   #define TD_NEW_MSG_SEG(TYPE) TYPE##_NUM,
   #define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP)
-  #define TD_CLOSE_MSG_TYPE(type)
+  #define TD_CLOSE_MSG_TYPE(TYPE)
 
   int32_t tMsgDict[] = {
 
