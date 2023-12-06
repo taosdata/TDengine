@@ -72,7 +72,7 @@ int32_t tsdbDataFileRAWReadBlockData(SDataFileRAWReader *reader, STsdbDataRAWBlo
   pBlock->file.maxVer = reader->config->file.maxVer;
   pBlock->file.stt->level = reader->config->file.stt->level;
 
-  code = tsdbReadFile(reader->fd, pBlock->offset, pBlock->data, pBlock->dataLength);
+  code = tsdbReadFile(reader->fd, pBlock->offset, pBlock->data, pBlock->dataLength, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
