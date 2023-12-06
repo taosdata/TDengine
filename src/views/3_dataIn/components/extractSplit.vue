@@ -219,10 +219,8 @@ export default {
             result[0].fields.map((item, index) => {
               console.log(data[index] instanceof Object,data,item,data[index],data[index].constructor.name,' leaching--bignumber------')
               return [
-                item.name,
-                (typeof data[index] == "boolean")||(data[index] instanceof Object)&&data[index].constructor.name=='BigNumber'
-                  ? data[index].toString()
-                  : data[index],
+                item.name,data[index].toString()
+                
               ];
             })
           );
