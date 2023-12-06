@@ -217,16 +217,14 @@ export default {
           Message.error(result.message);
           return;
         }
-
         this.tableColumns = result[0].fields.map((item) => item.name);
         this.tableData = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
+              console.log(data[index] instanceof Object,data,item,data[index],data[index].constructor.name,' leaching--bignumber------')
               return [
-                item.name,
-                typeof data[index] == "boolean"
-                  ? data[index].toString()
-                  : data[index],
+                item.name,data[index].toString()
+                
               ];
             })
           );

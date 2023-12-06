@@ -38,6 +38,7 @@
         <el-tooltip
           slot-scope="{ node, data }"
           effect="dark"
+          :open-delay='1000'
           :content="node.label"
           placement="right"
           popper-class="el-tree-popper"
@@ -59,6 +60,7 @@
                 <el-tooltip
                   effect="light"
                   placement="top"
+                  :open-delay='1000'
                   :content="getTooltip(data, 'view')"
                   v-if="
                     !['sfile', 'nfile', 'column', 'tag'].includes(data.typeName)
@@ -86,6 +88,7 @@
                   <el-tooltip
                     effect="light"
                     placement="top"
+                    :open-delay='1000'
                     :content="getTooltip(data, 'add')"
                     v-if="['sfile', 'nfile', 'stable'].includes(data.typeName)"
                   >
@@ -99,6 +102,7 @@
                   <el-tooltip
                     effect="light"
                     placement="top"
+                    :open-delay='1000'
                     :content="getTooltip(data, 'edit')"
                     v-if="
                       !['sfile', 'nfile', 'column', 'tag'].includes(
@@ -121,6 +125,7 @@
                     <el-tooltip
                       effect="light"
                       placement="top"
+                      :open-delay='1000'
                       :content="getTooltip(data, 'manage')"
                       v-if="data.typeName === 'database'"
                     >
@@ -135,6 +140,7 @@
                   <el-tooltip
                     effect="light"
                     placement="top"
+                    :open-delay='1000'
                     :content="getTooltip(data, 'del')"
                     v-if="
                       !['sfile', 'nfile', 'column', 'tag'].includes(
@@ -158,6 +164,7 @@
               <el-tooltip
                 v-if="data.typeName == 'table' || data.typeName == 'stable'"
                 effect="light"
+                :open-delay='1000'
                 :content="$t('data.viewData')"
               >
                 <div
@@ -168,7 +175,7 @@
                   <i class="el-icon-search"></i>
                 </div>
               </el-tooltip>
-              <el-tooltip effect="light" :content="$t('data.appendEditor')">
+              <el-tooltip effect="light" :content="$t('data.appendEditor')" :open-delay='1000'>
                 <div
                   class="tablebutton"
                   @click.stop="clickAdd(data)"
@@ -551,7 +558,7 @@ export default {
       if (clickNoChange.includes(this.$store.state.console.partActive)) {
         return;
       }
-      this.$store.state.console.partActive = "wizard";
+      this.$store.state.console.partActive = "sql";
     },
     // 处理全局db和stb
     async handleVar(data, node) {
