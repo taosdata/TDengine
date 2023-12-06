@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div v-loading="loading">
     <el-form
       :model="ruleForm"
       :rules="rules"
@@ -106,8 +106,10 @@ export default {
     },
   },
   async created() {
+    this.loading = true;
     await this.getDatabaseList();
     await this.getTopicList();
+    this.loading = false;
   },
   watch: {
     status: {
