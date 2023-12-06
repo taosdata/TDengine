@@ -81,24 +81,12 @@ int32_t parseSignAndUInteger(const char *z, int32_t n, bool *is_neg, uint64_t *v
   }
 
   if (!parsed) {
-    bool parse_int = true;
-    for (int32_t i = 0; i < n; i++) {
-      if (z[i] < '0' || z[i] > '9') {
-        parse_int = false;
-        break;
-      }
+    // parsing as double
+    double val = taosStr2Double(z, &endPtr);
+    if (val > UINT64_MAX) {
+      return TSDB_CODE_FAILED;
     }
-    if (parse_int) {
-      // parsing as decimal
-      *value = taosStr2UInt64(z, &endPtr, 10);
-    } else {
-      // parsing as double
-      double val = taosStr2Double(z, &endPtr);
-      if (val > UINT64_MAX) {
-        return TSDB_CODE_FAILED;
-      }
-      *value = round(val);
-    }
+    *value = round(val);
   }
 
   if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
@@ -145,6 +133,11 @@ int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double* value) {
 }
 
 int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
+  if (n == 0) {
+    *value = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
   errno = 0;
   char *endPtr = NULL;
   bool parsed = false;
@@ -179,13 +172,21 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // parse as string 
-  if (n == 0) {
-    *value = 0;
+  // rm tail space 
+  while (n > 1 && z[n-1] == ' ') {
+    n--;
+  }
+
+  // 1. try to parse as integer
+  *value = taosStr2Int64(z, &endPtr, 10);
+  if (endPtr - z == n) {
+    if (errno == ERANGE || errno == EINVAL) {
+      return TSDB_CODE_FAILED;
+    }
     return TSDB_CODE_SUCCESS;
   }
-  n = removeSpace(&z, n);
 
+  // 2. parse as other 
   bool     is_neg = false;
   uint64_t uv = 0;
   int32_t  code = parseSignAndUInteger(z, n, &is_neg, &uv);
@@ -211,36 +212,69 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
 }
 
 int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
-
-  switch (type)
-  {
-    case TK_NK_INTEGER: {
-      return toUInteger(z, n, 10, value);
-    }
-    case TK_NK_FLOAT: {
-      errno = 0;
-      char *endPtr = NULL;
-      double val = round(taosStr2Double(z, &endPtr));
-      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
-        return TSDB_CODE_FAILED;
-      }
-      if (!IS_VALID_UINT64(val)) {
-        return TSDB_CODE_FAILED;
-      }
-      *value = val;
-      return TSDB_CODE_SUCCESS;
-    }
-  default:
-    break;
-  }
-
-  // parse as string
   if (n == 0) {
     *value = 0;
     return TSDB_CODE_SUCCESS;
   }
-  n = removeSpace(&z, n);
 
+  errno = 0;
+  const char *p = z;
+  char *endPtr = NULL;
+  bool parsed = false;
+  while (*p == ' ') {
+    p++;
+  }
+  switch (type) {
+    case TK_NK_INTEGER: {
+      *value = taosStr2UInt64(p, &endPtr, 10);
+      if (*p == '-' && *value) {
+        return TSDB_CODE_FAILED;
+      }
+      parsed = true;
+    } break;
+    case TK_NK_FLOAT: {
+      double val = round(taosStr2Double(p, &endPtr));
+      if (!IS_VALID_UINT64(val)) {
+        return TSDB_CODE_FAILED;
+      }
+      *value = val;
+      parsed = true;
+    } break;
+    default:
+      break;
+  }
+
+  if (parsed) {
+    if (errno == ERANGE || errno == EINVAL) {
+      return TSDB_CODE_FAILED;
+    }
+    while (n > 1 && z[n-1] == ' ') {
+      n--;
+    }
+    if (endPtr - z != n) {
+      return TSDB_CODE_FAILED;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // rm tail space
+  while (n > 1 && z[n-1] == ' ') {
+    n--;
+  }
+
+  // 1. parse as integer
+  *value = taosStr2UInt64(p, &endPtr, 10);
+  if (endPtr - z == n) {
+    if (*p == '-' && *value) {
+      return TSDB_CODE_FAILED;
+    }
+    if (errno == ERANGE || errno == EINVAL) {
+      return TSDB_CODE_FAILED;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // 2. parse as other 
   bool    is_neg = false;
   int32_t code = parseSignAndUInteger(z, n, &is_neg, value);
   if (is_neg) {
