@@ -199,7 +199,7 @@ void auditSendRecordsInBatchImp(){
   taosThreadMutexUnlock(&tsAudit.lock);
 
   char *pCont = tjsonToString(pJson);
-  uInfo("audit record cont:%s\n", pCont);
+  uDebug("audit record cont:%s\n", pCont);
   if (pCont != NULL) {
     EHttpCompFlag flag = tsAudit.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
     if (taosSendHttpReport(tsAudit.cfg.server, tsAuditBatchUri, tsAudit.cfg.port, pCont, strlen(pCont), flag) != 0) {
