@@ -363,9 +363,6 @@ int32_t tsdbSnapRAWWriterOpen(STsdb* pTsdb, int64_t ever, STsdbSnapRAWWriter** w
   int32_t code = 0;
   int32_t lino = 0;
 
-  // disable background tasks
-  tsdbFSDisableBgTask(pTsdb->pFS);
-
   // start to write
   writer[0] = taosMemoryCalloc(1, sizeof(*writer[0]));
   if (writer[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
@@ -528,7 +525,6 @@ int32_t tsdbSnapRAWWriterClose(STsdbSnapRAWWriter** writer, int8_t rollback) {
 
     taosThreadMutexUnlock(&writer[0]->tsdb->mutex);
   }
-  tsdbFSEnableBgTask(tsdb->pFS);
 
   TARRAY2_DESTROY(writer[0]->fopArr, NULL);
   tsdbFSDestroyCopySnapshot(&writer[0]->fsetArr);
