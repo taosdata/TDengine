@@ -30,20 +30,29 @@ typedef enum EJoinPhase {
   E_JOIN_PHASE_RETRIEVE,
   E_JOIN_PHASE_SPLIT,
   E_JOIN_PHASE_OUTPUT,
-  E_JOIN_PHASE_
+  E_JOIN_PHASE_DONE
 } EJoinPhase;
 
 typedef struct SMJoinColInfo {
   int32_t  srcSlot;
   int32_t  dstSlot;
-  bool     keyCol;
-  bool     vardata;
-  int32_t* offset;
-  int32_t  bytes;
-  char*    data;
-  char*    bitMap;
 } SMJoinColInfo;
 
+typedef struct SMJoinCartCtx {
+  SSDataBlock*   pResBlk;
+
+  int32_t        firstColNum;
+  SMJoinColInfo* pFirstCols;
+  SSDataBlock*   pFirstBlk;
+  int32_t        firstRowIdx;
+  int32_t        firstRowNum;
+
+  int32_t        secondColNum;
+  SMJoinColInfo* pSecondCols;
+  SSDataBlock*   pSecondBlk;
+  int32_t        secondRowIdx;
+  int32_t        secondRowNum;
+} SMJoinCartCtx;
 
 typedef struct SMJoinBlkInfo {
   bool         cloned;
@@ -65,6 +74,10 @@ typedef struct SMJoinTableInfo {
 
   SMJoinColInfo* primCol;
   char*          primData;
+
+  int32_t        finNum;
+  SMJoinColInfo* finCols;
+
   
   int32_t        keyNum;
   SMJoinColInfo* keyCols;
@@ -91,41 +104,61 @@ typedef struct SMJoinTsJoinCtx {
   int64_t*        buildEndTs;
   bool            inSameTsGrp;
   bool            inDiffTsGrp;
-  SGrpPairCtx*    pLastGrpPairCtx;
-  SGrpPairCtx     currGrpPairCtx;
+  bool            nextProbeRow;
+  SGrpPairRes*    pLastGrpPair;
+  SGrpPairRes     currGrpPair;
 } SMJoinTsJoinCtx;
 
-typedef struct SBuildGrpCtx {
+typedef struct SBuildGrpResIn {
   bool             multiBlkGrp;
+  SMJoinBlkInfo*   grpBeginBlk;
+  int32_t          grpRowBeginIdx;
+  int32_t          grpRowNum;
+} SBuildGrpResIn;
+
+typedef struct SBuildGrpResOut {
   bool             hashJoin;
   SSHashObj*       pGrpHash;
   int32_t          grpRowReadIdx;
   int32_t          grpRowGReadIdx;
+} SBuildGrpResOut;
+
+typedef struct SProbeGrpResIn {
+  bool             allRowsGrp;
+  SMJoinBlkInfo*   grpBeginBlk;
   int32_t          grpRowBeginIdx;
   int32_t          grpRowNum;
-} SBuildGrpCtx;
+  int64_t          grpLastTs;
+} SProbeGrpResIn;
 
-typedef struct SProbeGrpCtx {
+typedef struct SProbeGrpResOut {
   int32_t          grpRowReadIdx;
-  int32_t          grpRowBeginIdx;
-  int32_t          grpRowNum;
-} SProbeGrpCtx;
+} SProbeGrpResOut;
 
-typedef struct SGrpPairCtx {
-  bool         sameTsGrp;
-  bool         finishGrp;
-  SBuildGrpCtx buildGrp;
-  SProbeGrpCtx probeGrp;
-} SGrpPairCtx;
+typedef struct SGrpPairRes {
+  bool            sameTsGrp;
+  bool            finishGrp;
+  SProbeGrpResIn  probeIn;
+  SBuildGrpResIn  buildIn;
+
+  /* KEEP THIS PART AT THE END */
+  bool            outBegin;
+  SBuildGrpResOut buildOut;
+  SProbeGrpResOut probeOut;
+  /* KEEP THIS PART AT THE END */
+} SGrpPairRes;
+
+#define GRP_PAIR_INIT_SIZE (sizeof(SGrpPairRes) - sizeof(bool) - sizeof(SBuildGrpResOut) - sizeof(SProbeGrpResOut))
 
 typedef struct SMJoinOutputCtx {
-  int32_t    grpReadIdx;
-  int32_t    grpWriteIdx;
-  SArray*    pGrpList;
+  int32_t       grpReadIdx;
+  SMJoinCartCtx cartCtx;
+  SArray*       pGrpResList;
 } SMJoinOutputCtx;
 
 typedef struct SMJoinTableCtx {
   EJoinTableType   type;
+  void*            blkFetchedFp;
   SMJoinTableInfo* pTbInfo;
   bool             dsInitDone;
   bool             dsFetchDone;
@@ -197,40 +230,34 @@ typedef struct SMJoinOperatorInfo {
   SMJoinExecInfo   execInfo;
 } SMJoinOperatorInfo;
 
-#define MJOIN_DOWNSTREAM_NEED_INIT(_pOp) ((_pOp)->pOperatorGetParam && ((SSortMergeJoinOperatorParam*)(_pOp)->pOperatorGetParam->value)->initDownstream)
+#define MJOIN_DS_REQ_INIT(_pOp) ((_pOp)->pOperatorGetParam && ((SSortMergeJoinOperatorParam*)(_pOp)->pOperatorGetParam->value)->initDownstream)
+#define MJOIN_DS_NEED_INIT(_pOp, _tbctx) (MJOIN_DS_REQ_INIT(_pOp) && (!(_tbctx)->dsInitDone))
+#define MJOIN_TB_LOW_BLK(_tbctx) ((_tbctx)->blkNum <= 0 || ((_tbctx)->blkNum == 1 && (_tbctx)->pHeadBlk->cloned))
 
-#define FIN_SAME_TS_GRP() do {                                             \
-    if (inSameTsGrp) {                                                     \
-      grpPairCtx.sameTsGrp = true;                                         \
-      grpPairCtx.finishGrp = true;                                         \
-      grpPairCtx.probeGrp.grpRowBeginIdx = pProbeCtx->blkRowIdx;           \
-      grpPairCtx.probeGrp.grpRowNum = 1;                                   \
-      inSameTsGrp = false;                                                 \
-      pLastGrpPairCtx = taosArrayPush(pCtx->grpCtx.pGrpList, &grpPairCtx); \
-    }                                                                      \
+#define START_NEW_GRP(_ctx) memset(&(_ctx)->currGrpPair, 0, GRP_PAIR_INIT_SIZE)
+
+#define FIN_SAME_TS_GRP(_ctx, _octx, _done) do {                                             \
+    if ((_ctx)->inSameTsGrp) {                                                               \
+      (_ctx)->currGrpPair.sameTsGrp = true;                                                  \
+      (_ctx)->currGrpPair.finishGrp = (_done);                                               \
+      (_ctx)->inSameTsGrp = false;                                                           \
+      (_ctx)->pLastGrpPair = taosArrayPush((_octx)->pGrpResList, &(_ctx)->currGrpPair);      \
+    }                                                                                        \
   } while (0)
 
-#define PAUSE_SAME_TS_GRP() do {                                           \
-    if (inSameTsGrp) {                                                     \
-      grpPairCtx.sameTsGrp = true;                                         \
-      grpPairCtx.finishGrp = false;                                        \
-      grpPairCtx.probeGrp.grpRowBeginIdx = pProbeCtx->blkRowIdx;           \
-      grpPairCtx.probeGrp.grpRowNum = 1;                                   \
-      inSameTsGrp = false;                                                 \
-      pLastGrpPairCtx = taosArrayPush(pCtx->grpCtx.pGrpList, &grpPairCtx); \
-    }                                                                      \
-  } while (0)
-
-
-#define FIN_DIFF_TS_GRP() do {                                             \
-    if (inDiffTsGrp) {                                                     \
-      grpPairCtx.sameTsGrp = false;                                        \
-      grpPairCtx.finishGrp = true;                                         \
-      grpPairCtx.probeGrp.grpRowBeginIdx = pProbeCtx->blkRowIdx;           \
-      grpPairCtx.probeGrp.grpRowNum = 1;                                   \
-      inDiffTsGrp = false;                                                 \
-      pLastGrpPairCtx = taosArrayPush(pCtx->grpCtx.pGrpList, &grpPairCtx); \
-    }                                                                      \
+#define FIN_DIFF_TS_GRP(_ctx, _octx, _done) do {                                             \
+    if ((_ctx)->inDiffTsGrp) {                                                               \
+      (_ctx)->currGrpPair.sameTsGrp = false;                                                 \
+      (_ctx)->currGrpPair.finishGrp = true;                                                  \
+      (_ctx)->currGrpPair.probeIn.allRowsGrp= (_done);                                       \
+      (_ctx)->inDiffTsGrp = false;                                                           \
+      (_ctx)->pLastGrpPair = taosArrayPush((_octx)->pGrpResList, &(_ctx)->currGrpPair);      \
+    } else if (_done) {                                                                      \
+      (_ctx)->currGrpPair.sameTsGrp = false;                                                 \
+      (_ctx)->currGrpPair.finishGrp = true;                                                  \
+      (_ctx)->currGrpPair.probeIn.grpRowBeginIdx = (_ctx)->pProbeCtx->blkRowIdx;             \
+      (_ctx)->currGrpPair.probeIn.allRowsGrp = true;                                         \
+    }                                                                                        \
   } while (0)
 
 

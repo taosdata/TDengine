@@ -479,6 +479,42 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
   return 0;
 }
 
+int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnInfoData* pSrc, int32_t srcIdx, int32_t numOfRows) {
+  if (pDst->info.type != pSrc->info.type || pSrc->reassigned) {
+    return TSDB_CODE_FAILED;
+  }
+
+  if (numOfRows <= 0) {
+    return numOfRows;
+  }
+
+  if (IS_VAR_DATA_TYPE(pDst->info.type)) {
+    memcpy(pDst->varmeta.offset, pSrc->varmeta.offset, sizeof(int32_t) * numOfRows);
+    if (pDst->varmeta.allocLen < pSrc->varmeta.length) {
+      char* tmp = taosMemoryRealloc(pDst->pData, pSrc->varmeta.length);
+      if (tmp == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+
+      pDst->pData = tmp;
+      pDst->varmeta.allocLen = pSrc->varmeta.length;
+    }
+
+    pDst->varmeta.length = pSrc->varmeta.length;
+    if (pDst->pData != NULL && pSrc->pData != NULL) {
+      memcpy(pDst->pData, pSrc->pData, pSrc->varmeta.length);
+    }
+  } else {
+    memcpy(pDst->nullbitmap, pSrc->nullbitmap, BitmapLen(numOfRows));
+    if (pSrc->pData != NULL) {
+      memcpy(pDst->pData, pSrc->pData, pSrc->info.bytes * numOfRows);
+    }
+  }
+
+  return 0;
+}
+
+
 size_t blockDataGetNumOfCols(const SSDataBlock* pBlock) { return taosArrayGetSize(pBlock->pDataBlock); }
 
 size_t blockDataGetNumOfRows(const SSDataBlock* pBlock) { return pBlock->info.rows; }
