@@ -154,3 +154,46 @@ int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+bool biRewriteToTbnameFunc(STranslateContext* pCxt, SNode** ppNode) {
+  SColumnNode* pCol = (SColumnNode*)(*ppNode);
+  if ((strcasecmp(pCol->colName, "tbname") == 0) &&
+        ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable &&
+        QUERY_NODE_REAL_TABLE == nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
+    SFunctionNode* tbnameFuncNode = NULL;
+    tbnameFuncNode = (SFunctionNode*)biMakeTbnameProjectAstNode(NULL, (pCol->tableAlias[0]!='\0') ? pCol->tableAlias : NULL);
+    tbnameFuncNode->node.resType = pCol->node.resType;
+    strcpy(tbnameFuncNode->node.aliasName, pCol->node.aliasName);
+    strcpy(tbnameFuncNode->node.userAlias, pCol->node.userAlias);
+
+    nodesDestroyNode(*ppNode);
+    *ppNode = (SNode*)tbnameFuncNode;        
+    return true;
+  }
+  
+  return false;
+}
+
+int32_t biCheckCreateTableTbnameCol(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
+  if (pStmt->pTags) {
+      SNode*  pNode = NULL;
+      FOREACH(pNode, pStmt->pTags) {
+        SColumnDefNode* pTag = (SColumnDefNode*)pNode;
+        if (strcasecmp(pTag->colName, "tbname") == 0) {
+          int32_t code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, "tbname can not used for tags in BI mode");
+          return code;
+        }
+      }
+  }
+  if (pStmt->pCols) {
+      SNode*  pNode = NULL;
+      FOREACH(pNode, pStmt->pCols) {
+        SColumnDefNode* pCol = (SColumnDefNode*)pNode;
+        if (strcasecmp(pCol->colName, "tbname") == 0) {
+          int32_t code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "tbname can not used for columns in BI mode");
+          return code;
+        }
+      }
+  }
+  return TSDB_CODE_SUCCESS;
+}

@@ -146,3 +146,13 @@ sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/udfd}
 sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-client-$version-macOS-$cpuType\</g" $communityDir/packaging/tools/TDengine.pkgproj
 sed -i '' "s/mac_before_install.txt/mac_before_install_client.txt/g" $communityDir/packaging/tools/TDengine.pkgproj
 /usr/local/bin/packagesbuild --package-version $version TDengine.pkgproj
+
+cd $topDir/release
+scp *client* root@taosdata.com:/data/www/assets-download/3.0/
+if [ $? > 0 ]; then
+  echo "copy client package to taosdata server failed"
+fi
+scp *client* ubuntu@tdengine.com:/data/www/assets-download/3.0/
+if [ $? > 0 ]; then
+  echo "copy client package to TDengine server failed"
+fi
