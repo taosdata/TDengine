@@ -131,6 +131,7 @@ void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *
     }
   }
 
+/*
   SAuditRecord *record = taosMemoryMalloc(sizeof(SAuditRecord));
 
   if(pReq != NULL && pReq->info.conn.user != NULL && strlen(pReq->info.conn.user) > 0){
@@ -157,9 +158,11 @@ void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *
   taosThreadMutexLock(&tsAudit.lock);
   taosArrayPush(tsAudit.records, &record);
   taosThreadMutexUnlock(&tsAudit.lock);
+  */
 }
 
 void auditSendRecordsInBatchImp(){
+  /*
   taosThreadMutexLock(&tsAudit.lock);
 
   int setSize = taosArrayGetSize(tsAudit.records);
@@ -178,7 +181,6 @@ void auditSendRecordsInBatchImp(){
   SJson *items = tjsonAddArrayToObject(pJson, "records");
 
   for (int i = 0; i < setSize; i++) {
-    /*
     SAuditRecord *pRecord = *(SAuditRecord **)taosArrayPop(tsAudit.records);
 
     SJson *item = tjsonCreateObject();
@@ -195,7 +197,6 @@ void auditSendRecordsInBatchImp(){
 
     taosMemoryFree(pRecord->detail);
     taosMemoryFree(pRecord);
-    */
   }
 
   taosThreadMutexUnlock(&tsAudit.lock);
@@ -211,4 +212,5 @@ void auditSendRecordsInBatchImp(){
   }
 
   tjsonDelete(pJson);
+  */
 }
