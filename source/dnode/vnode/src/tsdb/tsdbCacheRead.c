@@ -22,6 +22,17 @@
 
 #define HASTYPE(_type, _t) (((_type) & (_t)) == (_t))
 
+static void setFirstLastResColToNull(SColumnInfoData* pCol, int32_t row) {
+  char *buf = taosMemoryCalloc(1, pCol->info.bytes);
+  SFirstLastRes* pRes = (SFirstLastRes*)((char*)buf + VARSTR_HEADER_SIZE);
+  pRes->bytes = 0;
+  pRes->hasResult = true;
+  pRes->isNull = true;
+  varDataSetLen(buf, pCol->info.bytes - VARSTR_HEADER_SIZE);
+  colDataSetVal(pCol, row, buf, false);
+  taosMemoryFree(buf);
+}
+
 static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pReader, const int32_t* slotIds,
                           const int32_t* dstSlotIds, void** pRes, const char* idStr) {
   int32_t numOfRows = pBlock->info.rows;
@@ -30,6 +41,10 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
   if (HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST)) {
     for (int32_t i = 0; i < pReader->numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotIds[i]);
+      if (slotIds[i] == -1) {
+        setFirstLastResColToNull(pColInfoData, numOfRows);
+        continue;
+      }
       SFirstLastRes*   p = (SFirstLastRes*)varDataVal(pRes[i]);
       int32_t          slotId = slotIds[i];
       SLastCol*        pColVal = (SLastCol*)taosArrayGet(pRow, i);
@@ -63,6 +78,10 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotIds[i]);
 
       int32_t   slotId = slotIds[i];
+      if (slotId == -1) {
+        colDataSetNULL(pColInfoData, numOfRows);
+        continue;
+      }
       SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, i);
       SColVal*  pVal = &pColVal->colVal;
 
@@ -282,7 +301,13 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   }
 
   for (int32_t j = 0; j < pr->numOfCols; ++j) {
-    pRes[j] = taosMemoryCalloc(1, sizeof(SFirstLastRes) + pr->pSchema->columns[slotIds[j]].bytes + VARSTR_HEADER_SIZE);
+    int32_t bytes;
+    if (slotIds[j] == -1) {
+      bytes = 1;
+    } else {
+      bytes = pr->pSchema->columns[slotIds[j]].bytes;
+    }
+    pRes[j] = taosMemoryCalloc(1, sizeof(SFirstLastRes) + bytes + VARSTR_HEADER_SIZE);
     SFirstLastRes* p = (SFirstLastRes*)varDataVal(pRes[j]);
     p->ts = INT64_MIN;
   }
@@ -306,6 +331,11 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
     for (int32_t i = 0; i < pr->numOfCols; ++i) {
       int32_t          slotId = slotIds[i];
+      if (slotId == -1) {
+        SLastCol p = {.ts = INT64_MIN, .colVal.type = TSDB_DATA_TYPE_BOOL, .colVal.flag = CV_FLAG_NULL};
+        taosArrayPush(pLastCols, &p);
+        continue;
+      }
       struct STColumn* pCol = &pr->pSchema->columns[slotId];
       SLastCol         p = {.ts = INT64_MIN, .colVal.type = pCol->type, .colVal.flag = CV_FLAG_NULL};
 
@@ -330,6 +360,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         bool    hasNotNullRow = true;
         int64_t singleTableLastTs = INT64_MAX;
         for (int32_t k = 0; k < pr->numOfCols; ++k) {
+          if (slotIds[k] == -1) continue;
           SLastCol* p = taosArrayGet(pLastCols, k);
           SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, k);
 
