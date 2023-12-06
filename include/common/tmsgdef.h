@@ -362,7 +362,10 @@ enum { // WARN: new msg should be appended to segment tail
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_MAX_MSG, "vnd-tmq-max", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_END_TMQ_MSG)
 
+  
   TD_NEW_MSG_SEG(TDMT_MAX_MSG)  // msg end mark
+  TD_CLOSE_MSG_SEG(TDMT_END_MAX_MSG)
+  
 
 #if defined(TD_MSG_NUMBER_)
   TDMT_MAX
