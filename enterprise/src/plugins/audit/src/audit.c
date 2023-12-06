@@ -178,6 +178,7 @@ void auditSendRecordsInBatchImp(){
   SJson *items = tjsonAddArrayToObject(pJson, "records");
 
   for (int i = 0; i < setSize; i++) {
+    /*
     SAuditRecord *pRecord = *(SAuditRecord **)taosArrayPop(tsAudit.records);
 
     SJson *item = tjsonCreateObject();
@@ -194,6 +195,7 @@ void auditSendRecordsInBatchImp(){
 
     taosMemoryFree(pRecord->detail);
     taosMemoryFree(pRecord);
+    */
   }
 
   taosThreadMutexUnlock(&tsAudit.lock);
