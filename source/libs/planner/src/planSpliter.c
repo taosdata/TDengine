@@ -1033,6 +1033,7 @@ static SNode* stbSplCreateColumnNode(SExprNode* pExpr) {
     strcpy(pCol->colName, pExpr->aliasName);
   }
   strcpy(pCol->node.aliasName, pExpr->aliasName);
+  strcpy(pCol->node.userAlias, pExpr->userAlias);
   pCol->node.resType = pExpr->resType;
   return (SNode*)pCol;
 }
