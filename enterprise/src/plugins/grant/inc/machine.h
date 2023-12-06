@@ -93,13 +93,15 @@
 #define GRANT_DIST_MIN                 1689552000  // 2023-07-17 08:00:00
 
 // uniq grant
-#define GRANT_UNIQ_ACTIVE_KEY_LEN        108
+#define GRANT_UNIQ_ACTIVE_KEY_LEN        256
 #define GRANT_UNIQ_ACTIVE_RAW_LEN        80
 #define GRANT_UNIQ_ACTIVE_ENCRYPT_LEN    72
 #define GRANT_UNIQ_HASH_LEN              (GRANT_UNIQ_ACTIVE_RAW_LEN - GRANT_UNIQ_ACTIVE_ENCRYPT_LEN)
 
 #define GRANT_UNIQ_UNLIMITED             (-1)
 #define GRANT_UNIQ_UNDEFINED             (-2)
+
+#define GRANT_UNIQ_MAX_EXPIRE_SECOND     31556995200  // second: 1970 + 1000 year
 
 #define GRANT_UNIQ_DFT_BASIC_EXPIRE      GRANT_EXPIRE_DAY
 #define GRANT_UNIQ_DFT_BASIC_TIMESERIES  1000000
@@ -222,52 +224,93 @@ typedef struct {
 } SGrantDataIns;
 
 typedef struct {
-  char         *clusterId;
+  char          clusterId[GRANT_CLUSTER_ID_LEN + 1];
   char          active[GRANT_UNIQ_ACTIVE_KEY_LEN + 1];
   int64_t       distribute : 40;  // unit: second
   int64_t       granted : 8;
   int64_t       version : 8;
-  int64_t       official : 8;
-  int32_t       basicExpire;  // unit: day
+  int64_t       officialVersion : 8;
+  int32_t       basicExpireDay;
   int16_t       limitDnodes;
   int16_t       reserve0;
   int64_t       limitTimeSeries;
   int32_t       limitCpuCores;
   int16_t       limitStreams;
   int16_t       limitTopics;
-  int32_t       streamExpire;
-  int32_t       topicExpire;
-  int32_t       storageExpire;
-  int32_t       auditExpire;
-  int32_t       bakRstExpire;
-  int32_t       replicaExpire;
+  int32_t       streamExpireDay;
+  int32_t       topicExpireDay;
+  int32_t       multiTierExpireDay;
+  int32_t       auditExpireDay;
+  int32_t       bakRstExpireDay;
+  int32_t       replicaExpireDay;
   SGrantDataIns ins[GRANT_CONN_NUM];
 } SGrantUniqObj;
 
 typedef struct {
-  int8_t  official;
-  int8_t  expired;
-  int32_t basicExpire;  // unit: day
-  int16_t limitDnodes;
-  int16_t curDnodes;
+  union {
+    int64_t p1;
+    struct {
+      int64_t basicExpireSec : 40;
+      int64_t limitDnodes : 16;
+      int64_t officialVersion : 8;
+    };
+  };
+  union {
+    int64_t p2;
+    struct {
+      int64_t streamExpireSec : 40;
+      int64_t limitStreams : 16;
+      int64_t streamExpired : 8;
+    };
+  };
+
+  union {
+    int64_t p3;
+    struct {
+      int64_t topicExpireSec : 40;
+      int64_t limitTopics : 16;
+      int64_t topicExpired : 8;
+    };
+  };
+  union {
+    int64_t p4;
+    struct {
+      int64_t multiTierExpireSec : 40;
+      int64_t curDnodes : 16;
+      int64_t multiTierExpired : 8;
+    };
+  };
+  union {
+    int64_t p5;
+    struct {
+      int64_t auditExpireSec : 40;
+      int64_t curStreams : 16;
+      int64_t auditExpired : 8;
+    };
+  };
+  union {
+    int64_t p6;
+    struct {
+      int64_t bakRstExpireSec : 40;
+      int64_t curTopics : 16;
+      int64_t basicExpired : 8;
+    };
+  };
+  union {
+    int64_t p7;
+    struct {
+      int64_t replicaExpireSec : 40;
+      int64_t reserve : 24;
+    };
+  };
   int64_t limitTimeSeries;
   int64_t curTimeSeries;
   int32_t limitCpuCores;
   int32_t curCpuCores;
-  int16_t limitStreams;
-  int16_t curStreams;
-  int16_t limitTopics;
-  int16_t curTopics;
-  int32_t streamExpire;
-  int32_t topicExpire;
-  int32_t storageExpire;
-  int32_t auditExpire;
-  int32_t bakRstExpire;
-  int32_t replicaExpire;
+  SGrantDataIns ins[CONN_TYPE_MAX];
 } SGrantUniqStatus;
 
 // uniq grant
-
 typedef struct {
   bool           usbDongle;
   bool           officialVersion;
@@ -342,11 +385,11 @@ bool  grantConnGenActiveCode(SGrantConnObj *grant);
 bool  grantConnParseActiveCode(SGrantConnObj *grant, char **ppKey);
 bool  grantCheckMachineCode(SGrantObj *grant);
 bool  grantCheckClusterId(SGrantObj *grant);
-void  grantActiveSystem(const char *cfgFile);
+void  grantActiveSystem(const char *cfgFile, SGrantObj *pObj, SGrantConnObj *pConnObj);
 bool  grantExplainActiveCode(SGrantObj *grant, SActiveCodeInfo *info);
 bool  grantConnExplainActiveCode(SGrantConnObj *grant, SActiveCodeInfo *info);
 
-int32_t grantSelectActiveCode(const char *old, const char *new, const char *key, char *out);
-int32_t grantConnSelectActiveCode(const char *old, const char *new, const char *key, char *out);
+bool  grantGenUniqActiveCode(SGrantUniqObj *grant);
+bool  grantParseUniqActiveCode(SGrantUniqObj *grant, SActiveCodeInfo *info);
 
 #endif
