@@ -167,7 +167,8 @@ _OVER:
 static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, struct sockaddr_in* dest) {
   uint32_t ip = taosGetIpv4FromFqdn(server);
   if (ip == 0xffffffff) {
-    tError("http-report failed to get http server:%s since %s", server, errno == 0 ? "invalid http server" : terrstr());
+    tError("http-report failed to get http server:%s since %s", server,
+           (terrno == 0 || errno == 0) ? "invalid http server" : terrstr());
     return -1;
   }
   char buf[128] = {0};
@@ -519,9 +520,10 @@ static void transHttpDestroyHandle(void* handle) { taosMemoryFree(handle); }
 static void transHttpEnvInit() {
   httpRefMgt = taosOpenRef(1, transHttpDestroyHandle);
 
-  SHttpModule* http = taosMemoryMalloc(sizeof(SHttpModule));
+  SHttpModule* http = taosMemoryCalloc(1, sizeof(SHttpModule));
   http->loop = taosMemoryMalloc(sizeof(uv_loop_t));
   http->connStatusTable = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  http->quit = 0;
 
   uv_loop_init(http->loop);
 
