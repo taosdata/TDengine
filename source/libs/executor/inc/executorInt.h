@@ -297,7 +297,7 @@ typedef struct STableMergeScanInfo {
   SHashObj*        mSkipTables;
   int64_t          mergeLimit;
   SSortExecInfo   sortExecInfo;
-  bool             bNewDuration;
+  bool             bNewFileset;
   bool             bOnlyRetrieveBlock;
 } STableMergeScanInfo;
 

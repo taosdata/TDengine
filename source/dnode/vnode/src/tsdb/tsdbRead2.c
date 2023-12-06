@@ -423,7 +423,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
     goto _end;
   }
 
-  pReader->bDurationOrder = false;
+  pReader->bFilesetDelimited = false;
 
   tsdbInitReaderLock(pReader);
   tsem_init(&pReader->resumeAfterSuspend, 0, 0);
@@ -2520,7 +2520,7 @@ static void prepareDurationForNextFileSet(STsdbReader* pReader) {
   if (!pReader->status.bProcMemPreFileset) {
     if (pReader->notifyFn) {
       STsdReaderNotifyInfo info = {0};
-      info.duration.fileSetId = fid;
+      info.duration.filesetId = fid;
       pReader->notifyFn(TSD_READER_NOTIFY_DURATION_START, &info, pReader->notifyParam);
     }    
   }
@@ -2570,7 +2570,7 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum, SAr
       }
 
       if (pBlockNum->numOfBlocks + pBlockNum->numOfSttFiles > 0) {
-        if (pReader->bDurationOrder) {
+        if (pReader->bFilesetDelimited) {
           prepareDurationForNextFileSet(pReader);
         }
         break;
@@ -3915,7 +3915,7 @@ static int32_t doOpenReaderImpl(STsdbReader* pReader) {
   SReaderStatus*  pStatus = &pReader->status;
   SDataBlockIter* pBlockIter = &pStatus->blockIter;
 
-  if (pReader->bDurationOrder) {
+  if (pReader->bFilesetDelimited) {
     getMemTableTimeRange(pReader, &pReader->status.memTableMaxKey, &pReader->status.memTableMinKey);
     pReader->status.bProcMemFirstFileset = true;
   }
@@ -4227,7 +4227,7 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
 
   tsdbUntakeReadSnap2(pReader, pReader->pReadSnap, false);
   pReader->pReadSnap = NULL;
-  if (pReader->bDurationOrder) {
+  if (pReader->bFilesetDelimited) {
     pReader->status.memTableMinKey = INT64_MAX;
     pReader->status.memTableMaxKey = INT64_MIN;
   }
@@ -4342,7 +4342,7 @@ static bool tsdbReadRowsCountOnly(STsdbReader* pReader) {
   return pBlock->info.rows > 0;
 }
 
-static int32_t doTsdbNextDataBlockDurationOrder(STsdbReader* pReader) {
+static int32_t doTsdbNextDataBlockFilesetDelimited(STsdbReader* pReader) {
   SReaderStatus* pStatus = &pReader->status;
   int32_t code = TSDB_CODE_SUCCESS;
   SSDataBlock* pBlock = pReader->resBlockInfo.pResBlock;
@@ -4361,7 +4361,7 @@ static int32_t doTsdbNextDataBlockDurationOrder(STsdbReader* pReader) {
         pStatus->bProcMemPreFileset = false;
         if (pReader->notifyFn) {
           STsdReaderNotifyInfo info = {0};
-          info.duration.fileSetId = fid;
+          info.duration.filesetId = fid;
           pReader->notifyFn(TSD_READER_NOTIFY_DURATION_START, &info, pReader->notifyParam);
         }
         resetTableListIndex(pStatus);
@@ -4425,10 +4425,10 @@ static int32_t doTsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
   if (READ_MODE_COUNT_ONLY == pReader->info.readMode) {
     return tsdbReadRowsCountOnly(pReader);
   }
-  if (!pReader->bDurationOrder) {
+  if (!pReader->bFilesetDelimited) {
     code = doTsdbNextDataBlockFilesFirst(pReader);
   } else {
-    code = doTsdbNextDataBlockDurationOrder(pReader);
+    code = doTsdbNextDataBlockFilesetDelimited(pReader);
   }
 
   *hasNext = pBlock->info.rows > 0;
@@ -5152,8 +5152,8 @@ void tsdbReaderSetId2(STsdbReader* pReader, const char* idstr) {
 void tsdbReaderSetCloseFlag(STsdbReader* pReader) { /*pReader->code = TSDB_CODE_TSC_QUERY_CANCELLED;*/
 }
 
-void tsdbSetDurationOrder(STsdbReader* pReader) {
-  pReader->bDurationOrder = true;
+void tsdbSetFilesetDelimited(STsdbReader* pReader) {
+  pReader->bFilesetDelimited = true;
 }
 
 void tsdbReaderSetNotifyCb(STsdbReader* pReader, TsdReaderNotifyCbFn notifyFn, void* param) {

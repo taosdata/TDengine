@@ -158,7 +158,7 @@ typedef enum {
 
 typedef union {
   struct {
-    int32_t fileSetId;
+    int32_t filesetId;
   } duration;
 } STsdReaderNotifyInfo;
 
@@ -183,7 +183,7 @@ typedef struct TsdReader {
   int64_t      (*tsdReaderGetNumOfInMemRows)();
   void         (*tsdReaderNotifyClosing)();
 
-  void         (*tsdSetDurationOrder)(void* pReader);
+  void         (*tsdSetFilesetDelimited)(void* pReader);
   void         (*tsdSetSetNotifyCb)(void* pReader, TsdReaderNotifyCbFn notifyFn, void* param);
 } TsdReader;
 

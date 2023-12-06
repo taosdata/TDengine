@@ -61,7 +61,7 @@ void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdSetQueryTableList = tsdbSetTableList2;
   pReader->tsdSetReaderTaskId = (void (*)(void*, const char*))tsdbReaderSetId2;
 
-  pReader->tsdSetDurationOrder = (void (*)(void*))tsdbSetDurationOrder;
+  pReader->tsdSetFilesetDelimited = (void (*)(void*))tsdbSetFilesetDelimited;
   pReader->tsdSetSetNotifyCb = (void (*)(void*, TsdReaderNotifyCbFn, void*))tsdbReaderSetNotifyCb;
 }
 

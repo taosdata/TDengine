@@ -230,7 +230,7 @@ struct STsdbReader {
   SBlockInfoBuf      blockInfoBuf;
   EContentData       step;
   STsdbReader*       innerReader[2];
-  bool                 bDurationOrder;   // duration by duration output
+  bool                 bFilesetDelimited;   // duration by duration output
   TsdReaderNotifyCbFn  notifyFn;
   void*              notifyParam;
 };

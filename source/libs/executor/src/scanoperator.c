@@ -3261,7 +3261,7 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
       }
 
       if (!hasNext || isTaskKilled(pTaskInfo)) {
-        pInfo->bNewDuration = false;
+        pInfo->bNewFileset = false;
         if (isTaskKilled(pTaskInfo)) {
           qInfo("table merge scan fetch next data block found task killed. %s", GET_TASKID(pTaskInfo));
           pAPI->tsdReader.tsdReaderReleaseDataBlock(reader);
@@ -3269,7 +3269,7 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
         break;
       }
 
-      if (pInfo->bNewDuration) {
+      if (pInfo->bNewFileset) {
         pInfo->bOnlyRetrieveBlock = true;
         return NULL;
       }
@@ -3345,7 +3345,7 @@ int32_t dumpQueryTableCond(const SQueryTableDataCond* src, SQueryTableDataCond* 
 
 void tableMergeScanTsdbNotifyCb(ETsdReaderNotifyType type, STsdReaderNotifyInfo* info, void* param) {
   STableMergeScanInfo* pTmsInfo = param;
-  pTmsInfo->bNewDuration = true;
+  pTmsInfo->bNewFileset = true;
   return;
 }
 
@@ -3355,7 +3355,7 @@ int32_t startDurationForGroupTableMergeScan(SOperatorInfo* pOperator) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t numOfTable = pInfo->tableEndIndex - pInfo->tableStartIndex + 1;
 
-  pInfo->bNewDuration = false;
+  pInfo->bNewFileset = false;
 
   pInfo->sortBufSize = 2048 * pInfo->bufPageSize;
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
@@ -3432,7 +3432,7 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   }
   if (r == 1) {
     uInfo("zsl: DURATION ORDER");
-    pAPI->tsdReader.tsdSetDurationOrder(pInfo->base.dataReader);
+    pAPI->tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
   } else {
     uInfo("zsl: NO DURATION");
   }
@@ -3541,7 +3541,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
       pOperator->resultInfo.totalRows += pBlock->info.rows;
       return pBlock;
     } else {
-      if (pInfo->bNewDuration) {
+      if (pInfo->bNewFileset) {
         stopDurationForGroupTableMergeScan(pOperator);
         startDurationForGroupTableMergeScan(pOperator);
 
