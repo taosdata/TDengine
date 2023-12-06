@@ -519,7 +519,21 @@ _out:
   return code;
 }
 
-extern int32_t tsdbCancelAllBgTask(STsdb *tsdb);
+extern int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb);
+extern int32_t tsdbEnableBgTask(STsdb *pTsdb);
+
+static int32_t vnodeCancelAndDisableAllBgTask(SVnode *pVnode) {
+  tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
+  vnodeSyncCommit(pVnode);
+  vnodeAChannelDestroy(vnodeAsyncHandle[0], pVnode->commitChannel, true);
+  return 0;
+}
+
+static int32_t vnodeEnableBgTask(SVnode *pVnode) {
+  tsdbEnableBgTask(pVnode->pTsdb);
+  vnodeAChannelInit(vnodeAsyncHandle[0], &pVnode->commitChannel);
+  return 0;
+}
 
 int32_t vnodeSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapWriter **ppWriter) {
   int32_t       code = 0;
@@ -527,9 +541,8 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapWriter
   int64_t       sver = pParam->start;
   int64_t       ever = pParam->end;
 
-  // commit memory data
-  vnodeSyncCommit(pVnode);
-  tsdbCancelAllBgTask(pVnode->pTsdb);
+  // cancel and disable all bg task
+  vnodeCancelAndDisableAllBgTask(pVnode);
 
   // alloc
   pWriter = (SVSnapWriter *)taosMemoryCalloc(1, sizeof(*pWriter));
@@ -659,6 +672,7 @@ _exit:
     vInfo("vgId:%d, vnode snapshot writer closed, rollback:%d", TD_VID(pVnode), rollback);
     taosMemoryFree(pWriter);
   }
+  vnodeEnableBgTask(pVnode);
   return code;
 }
 

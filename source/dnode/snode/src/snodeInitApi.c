@@ -80,6 +80,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->updateInfoDestroy = updateInfoDestroy;
   pStore->windowSBfDelete = windowSBfDelete;
   pStore->windowSBfAdd = windowSBfAdd;
+  pStore->isIncrementalTimeStamp = isIncrementalTimeStamp;
 
   pStore->updateInfoInitP = updateInfoInitP;
   pStore->updateInfoAddCloseWindowSBF = updateInfoAddCloseWindowSBF;

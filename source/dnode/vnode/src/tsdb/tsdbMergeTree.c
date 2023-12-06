@@ -22,7 +22,7 @@
 static void tLDataIterClose2(SLDataIter *pIter);
 
 // SLDataIter =================================================
-SSttBlockLoadInfo *tCreateOneLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols) {
+SSttBlockLoadInfo *tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols) {
   SSttBlockLoadInfo *pLoadInfo = taosMemoryCalloc(1, sizeof(SSttBlockLoadInfo));
   if (pLoadInfo == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -61,7 +61,7 @@ void getSttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, SSttBlockLoadCostInfo* pL
   }
 }
 
-void *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
+void *destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
   if (pLoadInfo == NULL) {
     return NULL;
   }
@@ -78,14 +78,19 @@ void *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
   pInfo->sttBlockIndex = -1;
   pInfo->pin = false;
 
+  if (pLoadInfo->statisBlock != NULL) {
+    tStatisBlockDestroy(pLoadInfo->statisBlock);
+    taosMemoryFreeClear(pLoadInfo->statisBlock);
+  }
+
   taosArrayDestroy(pLoadInfo->aSttBlk);
   taosMemoryFree(pLoadInfo);
   return NULL;
 }
 
-static void destroyLDataIter(SLDataIter *pIter) {
+void destroyLDataIter(SLDataIter *pIter) {
   tLDataIterClose2(pIter);
-  destroyLastBlockLoadInfo(pIter->pBlockLoadInfo);
+  destroySttBlockLoadInfo(pIter->pBlockLoadInfo);
   taosMemoryFree(pIter);
 }
 
@@ -732,25 +737,6 @@ static FORCE_INLINE int32_t tLDataIterDescCmprFn(const SRBTreeNode *p1, const SR
   return -1 * tLDataIterCmprFn(p1, p2);
 }
 
-static void adjustValidLDataIters(SArray *pLDIterList, int32_t numOfFileObj) {
-  int32_t size = taosArrayGetSize(pLDIterList);
-
-  if (size < numOfFileObj) {
-    int32_t inc = numOfFileObj - size;
-    for (int32_t k = 0; k < inc; ++k) {
-      SLDataIter *pIter = taosMemoryCalloc(1, sizeof(SLDataIter));
-      taosArrayPush(pLDIterList, &pIter);
-    }
-  } else if (size > numOfFileObj) {  // remove unused LDataIter
-    int32_t inc = size - numOfFileObj;
-
-    for (int i = 0; i < inc; ++i) {
-      SLDataIter *pIter = taosArrayPop(pLDIterList);
-      destroyLDataIter(pIter);
-    }
-  }
-}
-
 int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -773,19 +759,13 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
   }
 
   // add the list/iter placeholder
-  while (taosArrayGetSize(pConf->pSttFileBlockIterArray) < numOfLevels) {
-    SArray *pList = taosArrayInit(4, POINTER_BYTES);
-    taosArrayPush(pConf->pSttFileBlockIterArray, &pList);
-  }
+  adjustLDataIters(pConf->pSttFileBlockIterArray, pConf->pCurrentFileset);
 
   for (int32_t j = 0; j < numOfLevels; ++j) {
     SSttLvl *pSttLevel = ((STFileSet *)pConf->pCurrentFileset)->lvlArr->data[j];
     SArray  *pList = taosArrayGetP(pConf->pSttFileBlockIterArray, j);
 
-    int32_t numOfFileObj = TARRAY2_SIZE(pSttLevel->fobjArr);
-    adjustValidLDataIters(pList, numOfFileObj);
-
-    for (int32_t i = 0; i < numOfFileObj; ++i) {  // open all last file
+    for (int32_t i = 0; i < TARRAY2_SIZE(pSttLevel->fobjArr); ++i) {  // open all last file
       SLDataIter *pIter = taosArrayGetP(pList, i);
 
       SSttFileReader    *pSttFileReader = pIter->pReader;
@@ -805,7 +785,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
       }
 
       if (pLoadInfo == NULL) {
-        pLoadInfo = tCreateOneLastBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols);
+        pLoadInfo = tCreateSttBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols);
       }
 
       memset(pIter, 0, sizeof(SLDataIter));

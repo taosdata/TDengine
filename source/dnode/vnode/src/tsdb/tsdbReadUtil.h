@@ -109,7 +109,7 @@ typedef struct SReadCostSummary {
   double  buildComposedBlockTime;
   double  createScanInfoList;
   double  createSkylineIterTime;
-  double  initLastBlockReader;
+  double  initSttBlockReader;
 } SReadCostSummary;
 
 typedef struct STableUidList {
@@ -145,21 +145,21 @@ typedef struct SBlockLoadSuppInfo {
   bool                smaValid;  // the sma on all queried columns are activated
 } SBlockLoadSuppInfo;
 
-typedef struct SLastBlockReader {
+typedef struct SSttBlockReader {
   STimeWindow        window;
   SVersionRange      verRange;
   int32_t            order;
   uint64_t           uid;
   SMergeTree         mergeTree;
   int64_t            currentKey;
-} SLastBlockReader;
+} SSttBlockReader;
 
 typedef struct SFilesetIter {
   int32_t           numOfFiles;    // number of total files
   int32_t           index;         // current accessed index in the list
   TFileSetArray*    pFilesetList;  // data file set list
   int32_t           order;
-  SLastBlockReader* pLastBlockReader;  // last file block reader
+  SSttBlockReader*  pSttBlockReader;  // last file block reader
 } SFilesetIter;
 
 typedef struct SFileDataBlockInfo {
@@ -262,7 +262,12 @@ bool    blockIteratorNext(SDataBlockIter* pBlockIter, const char* idStr);
 void    loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemTbData, int64_t ver);
 int32_t loadDataFileTombDataForAll(STsdbReader* pReader);
 int32_t loadSttTombDataForAll(STsdbReader* pReader, SSttFileReader* pSttFileReader, SSttBlockLoadInfo* pLoadInfo);
-
+int32_t getNumOfRowsInSttBlock(SSttFileReader *pSttFileReader, SSttBlockLoadInfo *pBlockLoadInfo, uint64_t suid,
+                               const uint64_t* pUidList, int32_t numOfTables);
+void    destroyLDataIter(SLDataIter* pIter);
+int32_t adjustLDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet);
+int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArray, STsdb* pTsdb, SMergeTreeConf* pConf,
+                              const char* pstr);
 typedef struct {
   SArray* pTombData;
 } STableLoadInfo;
