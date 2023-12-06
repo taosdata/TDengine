@@ -232,8 +232,8 @@
       title="SQL"
     >
       <pre :key="previewSql" v-highlight>
-          <code class="language-sql">{{previewSql}}</code>
-        </pre>
+        <code class="language-sql">{{previewSql}}</code>
+      </pre>
       <section class="flexEnd">
         <el-button type="primary" size="mini" @click="dialog = false">{{
           $t("confirm")
@@ -633,18 +633,21 @@ export default {
     align-items: center;
   }
 }
-.language-sql {
-  white-space: normal;
-  word-break: break-all;
-  word-wrap: break-word;
-}
+// .language-sql {
+//   white-space: normal;
+//   word-break: break-all;
+//   word-wrap: break-word;
+// }
 </style>
 <style>
 .show-topic-sql .pre-code {
   text-align: left;
   background-color: #f6f8fa;
   padding: 5px;
-  white-space: break-spaces;
+  padding: 10px 5px 20px 5px;
+  /* white-space: break-spaces; */
+  white-space: pre-wrap;
+  display: inline-flex;
 }
 
 .el-input-number__increase,
