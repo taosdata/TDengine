@@ -34,6 +34,7 @@ typedef struct SHttpModule {
   SAsyncPool* asyncPool;
   TdThread    thread;
   SHashObj*   connStatusTable;
+  int8_t      quit;
 } SHttpModule;
 
 typedef struct SHttpMsg {
@@ -190,19 +191,37 @@ static void httpDestroyMsg(SHttpMsg* msg) {
   taosMemoryFree(msg->cont);
   taosMemoryFree(msg);
 }
+
+static void httpMayDiscardMsg(SHttpModule* http, SAsyncItem* item) {
+  SHttpMsg *msg = NULL, *quitMsg = NULL;
+  int8_t    quit = atomic_load_8(&http->quit);
+  if (quit == 1) {
+    while (!QUEUE_IS_EMPTY(&item->qmsg)) {
+      queue* h = QUEUE_HEAD(&item->qmsg);
+      QUEUE_REMOVE(h);
+      msg = QUEUE_DATA(h, SHttpMsg, q);
+      if (!msg->quit) {
+        httpDestroyMsg(msg);
+      } else {
+        quitMsg = msg;
+      }
+    }
+    QUEUE_PUSH(&item->qmsg, &quitMsg->q);
+  }
+}
 static void httpAsyncCb(uv_async_t* handle) {
   SAsyncItem*  item = handle->data;
   SHttpModule* http = item->pThrd;
 
   SHttpMsg *msg = NULL, *quitMsg = NULL;
-
-  queue wq;
+  queue     wq;
   QUEUE_INIT(&wq);
 
   static int32_t BATCH_SIZE = 5;
   int32_t        count = 0;
 
   taosThreadMutexLock(&item->mtx);
+  httpMayDiscardMsg(http, item);
 
   while (!QUEUE_IS_EMPTY(&item->qmsg) && count++ < BATCH_SIZE) {
     queue* h = QUEUE_HEAD(&item->qmsg);
@@ -526,6 +545,8 @@ void transHttpEnvDestroy() {
     return;
   }
   SHttpModule* load = taosAcquireRef(httpRefMgt, httpRef);
+
+  atomic_store_8(&load->quit, 1);
   httpSendQuit();
   taosThreadJoin(load->thread, NULL);
 
