@@ -723,7 +723,8 @@ export default {
               item[`Output` + (index + 1)] =
                 item["Name"] == this.sruleForm.s_name
                   ? val["__tbname__"]
-                  : typeof val[item["Name"]] == "boolean"
+                  :(typeof val[item["Name"]] == "boolean")||(val[item["Name"]] instanceof Object)&&val[item["Name"]].constructor.name=='BigNumber'
+                 
                   ? val[item["Name"]].toString()
                   : val[item["Name"]];
             });

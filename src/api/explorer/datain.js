@@ -1,5 +1,6 @@
 
 import { request } from "@/utils/request";
+import JSONbig from "json-bigint";
 import i18n from '@/lang/index'
 let language = i18n.locale.includes('zh') ? 'zh' : 'en'
 export function getTask(id, type) {
@@ -158,6 +159,13 @@ export function getParser(data) {
         baseURL: process.env.VUE_APP_X_API,
         url: `/transform/sample/flat`,
         method: 'post',
+        transformResponse: [function (data) {
+            try {
+              return JSONbig.parse(data);
+            } catch (error) {
+              return data;
+            }
+          }],
         data
     })
 }
