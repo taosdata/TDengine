@@ -130,8 +130,14 @@ if "%cusName%" == "TDengine" (
 		call :writeTDengineClientInstallFile
 		iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="taosd.exe, taosadapter.exe, \plugins\, taosx*, taos-*, explorer.toml, agent.toml, \append\" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
 		cd %internal_dir%\enterprise\release
-		scp *client* root@taosdata.com:/data/www/assets-download/3.0/
-		scp *client* ubuntu@tdengine.com:/data/www/assets-download/3.0/
+		ssh root@taosdata.com -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no "date"
+		if %errorlevel% == 0 (
+			scp *client* root@taosdata.com:/data/www/assets-download/3.0/
+		)
+		ssh ubuntu@tdengine.com -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no "date"
+		if %errorlevel% == 0 (
+			scp *client* ubuntu@tdengine.com:/data/www/assets-download/3.0/
+		)
 	) else (
 		call :writeTDengineClientInstallFile
 		iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="taosd.exe, taosadapter.exe" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release

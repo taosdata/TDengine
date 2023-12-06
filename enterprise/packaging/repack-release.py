@@ -16,7 +16,7 @@ def rename_files(dir, args):
             if subdir.endswith("taosx") or subdir.endswith("taos"):
                 dir_path = os.path.join(root, subdir)
                 print(f"dir_path is {dir_path}")
-                new_dir = subdir.replace("taos", "prodb")
+                new_dir = subdir.replace("taos", args.prompt)
                 new_dir_path = os.path.join(root, new_dir)
                 print(f"new_dir_path is {new_dir_path}")
                 shutil.move(dir_path, new_dir_path)
