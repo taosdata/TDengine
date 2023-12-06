@@ -2,11 +2,12 @@
 
 #include "cos_cp.h"
 #include "cJSON.h"
+#include "tutil.h"
 
 int32_t cos_cp_open(char const* cp_path, SCheckpoint* checkpoint) {
   int32_t code = 0;
 
-  TdFilePtr fd = taosOpenFile(cp_path, TD_FILE_READ);
+  TdFilePtr fd = taosOpenFile(cp_path, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (!fd) {
     code = TAOS_SYSTEM_ERROR(errno);
     uError("ERROR: %s Failed to open %s", __func__, cp_path);
@@ -200,9 +201,164 @@ _exit:
   return code;
 }
 
-int32_t cos_cp_dump(SCheckpoint* checkpoint) {
+static int32_t cos_cp_save_json(cJSON const* json, SCheckpoint* checkpoint) {
   int32_t code = 0;
 
+  char* data = cJSON_PrintUnformatted(json);
+  if (NULL == data) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  TdFilePtr fp = checkpoint->thefile;
+  if (taosFtruncateFile(fp, 0) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _exit;
+  }
+  if (taosWriteFile(fp, data, strlen(data)) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _exit;
+  }
+
+  if (taosFsyncFile(fp) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _exit;
+  }
+
+_exit:
+  taosMemoryFree(data);
+  return code;
+}
+
+int32_t cos_cp_dump(SCheckpoint* cp) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  cJSON* ojson = NULL;
+  cJSON* json = cJSON_CreateObject();
+  if (!json) return TSDB_CODE_OUT_OF_MEMORY;
+
+  if (NULL == cJSON_AddNumberToObject(json, "ver", 1)) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  if (NULL == cJSON_AddNumberToObject(json, "type", cp->cp_type)) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  if (NULL == cJSON_AddStringToObject(json, "md5", cp->md5)) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  if (COS_CP_TYPE_UPLOAD == cp->cp_type) {
+    ojson = cJSON_AddObjectToObject(json, "file");
+    if (!ojson) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    if (NULL == cJSON_AddNumberToObject(ojson, "size", cp->file_size)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    if (NULL == cJSON_AddNumberToObject(ojson, "lastmodified", cp->file_last_modified)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    if (NULL == cJSON_AddStringToObject(ojson, "path", cp->file_path)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    if (NULL == cJSON_AddStringToObject(ojson, "file_md5", cp->file_md5)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+  } else if (COS_CP_TYPE_DOWNLOAD == cp->cp_type) {
+    ojson = cJSON_AddObjectToObject(json, "object");
+    if (!ojson) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    if (NULL == cJSON_AddNumberToObject(ojson, "object_size", cp->object_size)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    if (NULL == cJSON_AddStringToObject(ojson, "object_name", cp->object_name)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    if (NULL == cJSON_AddStringToObject(ojson, "object_last_modified", cp->object_last_modified)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    if (NULL == cJSON_AddStringToObject(ojson, "object_etag", cp->object_etag)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+  }
+
+  ojson = cJSON_AddObjectToObject(json, "cpparts");
+  if (!ojson) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  if (NULL == cJSON_AddNumberToObject(ojson, "number", cp->part_num)) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  if (NULL == cJSON_AddNumberToObject(ojson, "size", cp->part_size)) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  cJSON* ajson = cJSON_AddArrayToObject(ojson, "parts");
+  if (!ajson) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  for (int i = 0; i < cp->part_num; ++i) {
+    cJSON* item = cJSON_CreateObject();
+    if (!item) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    cJSON_AddItemToArray(ajson, item);
+
+    if (NULL == cJSON_AddNumberToObject(item, "index", cp->parts[i].index)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    if (NULL == cJSON_AddNumberToObject(item, "offset", cp->parts[i].offset)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    if (NULL == cJSON_AddNumberToObject(item, "size", cp->parts[i].size)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    if (NULL == cJSON_AddNumberToObject(item, "completed", cp->parts[i].completed)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    if (NULL == cJSON_AddNumberToObject(item, "crc64", cp->parts[i].crc64)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    if (NULL == cJSON_AddStringToObject(item, "etag", cp->parts[i].etag)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+  }
+
+  code = cos_cp_save_json(json, cp);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  cJSON_Delete(json);
   return code;
 }
 
