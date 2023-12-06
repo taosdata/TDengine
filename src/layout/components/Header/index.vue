@@ -163,6 +163,7 @@ export default {
               : this.license[0].valid
               ? "License Expired"
               : "");
+          localStorage.setItem("serverVersion",this.version);
         });
       } catch (error) {
         console.log(error);
