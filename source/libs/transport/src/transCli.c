@@ -1468,7 +1468,7 @@ static FORCE_INLINE uint32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn) 
   if (v == NULL) {
     addr = taosGetIpv4FromFqdn(fqdn);
     if (addr == 0xffffffff) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TSDB_CODE_RPC_FQDN_ERROR;
       tError("failed to get ip from fqdn:%s since %s", fqdn, terrstr());
       return addr;
     }

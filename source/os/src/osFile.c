@@ -348,15 +348,15 @@ HANDLE taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
   if (h != INVALID_HANDLE_VALUE && (tdFileOptions & TD_FILE_APPEND) && (tdFileOptions & TD_FILE_WRITE)) {
     SetFilePointer(h, 0, NULL, FILE_END);
   }
-  if (h == INVALID_HANDLE_VALUE) {
-    DWORD dwError = GetLastError();
-    LPVOID lpMsgBuf;
-    FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, dwError,
-                  0,
-                  (LPTSTR)&lpMsgBuf, 0, NULL);
-    printf("CreateFile failed with error %d: %s", dwError, (char*)lpMsgBuf);
-    LocalFree(lpMsgBuf);
-  }
+  // if (h == INVALID_HANDLE_VALUE) {
+  //   DWORD dwError = GetLastError();
+  //   LPVOID lpMsgBuf;
+  //   FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, dwError,
+  //                 0,
+  //                 (LPTSTR)&lpMsgBuf, 0, NULL);
+  //   printf("CreateFile failed with error %d: %s", dwError, (char*)lpMsgBuf);
+  //   LocalFree(lpMsgBuf);
+  // }
   return h;
 }
 

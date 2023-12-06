@@ -351,6 +351,8 @@ typedef struct SStateStore {
   TSKEY        (*updateInfoFillBlockData)(SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t primaryTsCol);
   bool         (*updateInfoIsUpdated)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts);
   bool         (*updateInfoIsTableInserted)(SUpdateInfo* pInfo, int64_t tbUid);
+  bool         (*isIncrementalTimeStamp)(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts);
+
   void (*updateInfoDestroy)(SUpdateInfo* pInfo);
   void (*windowSBfDelete)(SUpdateInfo *pInfo, uint64_t count);
   void (*windowSBfAdd)(SUpdateInfo *pInfo, uint64_t count);
