@@ -75,7 +75,7 @@
     </el-dialog>
 
     <el-dialog align="center" :title="$t('taosuser.edituser')" width="680px" :visible.sync="editDialog">
-      <EditUser :user="this.editUser" @close="closeEditDialog"></EditUser>
+      <EditUser :user="editUser" :status="editDialog" @close="closeEditDialog"></EditUser>
     </el-dialog>
 
   </div>
