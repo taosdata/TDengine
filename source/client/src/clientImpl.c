@@ -2607,7 +2607,9 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
 }
 
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
+  pRequest->inCallback = true;
   pRequest->body.queryFp(((SSyncQueryParam *)pRequest->body.interParam)->userParam, pRequest, code);
+  pRequest->inCallback = false;
 }
 
 int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effectiveUser, SParseSqlRes* pRes) {
