@@ -433,6 +433,7 @@ typedef struct STableScanPhysiNode {
   int8_t         igExpired;
   bool           assignBlockUid;
   int8_t         igCheckUpdate;
+  bool           filesetDelimited;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;

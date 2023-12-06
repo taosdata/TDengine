@@ -894,7 +894,9 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
-  
+    if (pInfo->filesetDelimited) {
+      pAPI->tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
+    }
     if (pInfo->pResBlock->info.capacity > pOperator->resultInfo.capacity) {
       pOperator->resultInfo.capacity = pInfo->pResBlock->info.capacity;
     }
@@ -1085,6 +1087,8 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   if (scanDebug) {
     pInfo->countOnly = true;
   }
+
+  pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
 
   taosLRUCacheSetStrictCapacity(pInfo->base.metaCache.pTableMetaEntryCache, false);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableScan, NULL, destroyTableScanOperatorInfo,
@@ -3424,17 +3428,8 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   STableKeyInfo* startKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, tableStartIdx);
   pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInfo->base.cond, startKeyInfo, numOfTable, pInfo->pReaderBlock,
                                 (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), false, &pInfo->mSkipTables);
-  int r = 1;
-  FILE* f = fopen("/tmp/duration", "r");
-  if (f) {
-    fscanf(f, "%d", &r);
-    fclose(f);
-  }
-  if (r == 1) {
-    uInfo("zsl: DURATION ORDER");
+  if (pInfo->filesetDelimited) {
     pAPI->tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
-  } else {
-    uInfo("zsl: NO DURATION");
   }
   pAPI->tsdReader.tsdSetSetNotifyCb(pInfo->base.dataReader, tableMergeScanTsdbNotifyCb, pInfo);
 
@@ -3544,7 +3539,6 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
       if (pInfo->bNewFileset) {
         stopDurationForGroupTableMergeScan(pOperator);
         startDurationForGroupTableMergeScan(pOperator);
-
       } else {
         // Data of this group are all dumped, let's try the next group
         stopGroupTableMergeScan(pOperator);
@@ -3683,6 +3677,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   uint32_t nCols = taosArrayGetSize(pInfo->pResBlock->pDataBlock);
   pInfo->bufPageSize = getProperSortPageSize(rowSize, nCols);
 
+  pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
   setOperatorInfo(pOperator, "TableMergeScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = numOfCols;
