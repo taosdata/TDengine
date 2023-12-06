@@ -185,7 +185,6 @@ export default {
         if (res && res.code == 0 && !res.desc) {
           localStorage.setItem("TDengine-Token", token);
           await this.getClusterID();
-          await this.getVersion();
           await this.getUserAuthority();
         } else {
           this.loading = false;
