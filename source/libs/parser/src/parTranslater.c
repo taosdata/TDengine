@@ -4627,14 +4627,9 @@ static int32_t addOrderByPrimaryKeyToQueryImpl(STranslateContext* pCxt, SNode* p
 }
 
 static int32_t addOrderByPrimaryKeyToQuery(STranslateContext* pCxt, SNode* pPrimaryKeyExpr, SNode* pStmt) {
-  SNode*     pOrderNode = NULL;
   SNodeList* pOrederList = ((SSelectStmt*)pStmt)->pOrderByList;
-  if (pOrederList != NULL) {
-    FOREACH(pOrderNode, pOrederList) {
-      if (((SColumnNode*)pPrimaryKeyExpr)->colId == ((SColumnNode*)((SOrderByExprNode*)pOrderNode)->pExpr)->colId) {
-        return TSDB_CODE_SUCCESS;
-      }
-    }
+  if (pOrederList && pOrederList->length > 0) {
+    return TSDB_CODE_SUCCESS;
   }
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     return addOrderByPrimaryKeyToQueryImpl(pCxt, pPrimaryKeyExpr, &((SSelectStmt*)pStmt)->pOrderByList);
