@@ -464,6 +464,8 @@ static void transHttpEnvInit() {
   httpRefMgt = taosOpenRef(1, transHttpDestroyHandle);
 
   SHttpModule* http = taosMemoryMalloc(sizeof(SHttpModule));
+
+  http->quit = 0;
   http->loop = taosMemoryMalloc(sizeof(uv_loop_t));
   uv_loop_init(http->loop);
 
