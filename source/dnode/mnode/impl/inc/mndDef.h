@@ -196,8 +196,9 @@ typedef struct {
   int64_t createdTime;
   int64_t updateTime;
   int32_t upTime;
-  char    active[TSDB_UNIQ_ACTIVE_KEY_LEN + 1];
+  int64_t grantedTime;
   SArray* pMachineIds;
+  char    active[TSDB_UNIQ_ACTIVE_KEY_LEN + 1];
 } SClusterObj;
 
 typedef struct {
@@ -220,6 +221,7 @@ typedef struct {
   char       ep[TSDB_EP_LEN];
   char       active[TSDB_ACTIVE_KEY_LEN];
   char       connActive[TSDB_CONN_ACTIVE_KEY_LEN];
+  char       machineId[TSDB_MACHINE_ID_LEN + 1];
 } SDnodeObj;
 
 typedef struct {

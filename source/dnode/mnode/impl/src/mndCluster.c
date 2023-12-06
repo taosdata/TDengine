@@ -100,6 +100,18 @@ int64_t mndGetClusterId(SMnode *pMnode) {
   return clusterId;
 }
 
+int32_t mndGetClusterGrantedInfo(SMnode *pMnode, SGrantedInfo *pInfo) {
+  void        *pIter = NULL;
+  SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
+  if (pCluster != NULL) {
+    pInfo->grantedTime = pCluster->grantedTime;
+    mndReleaseCluster(pMnode, pCluster, pIter);
+    return 0;
+  }
+
+  return -1;
+}
+
 int32_t mndGetClusterActive(SMnode *pMnode, char *active) {
   void        *pIter = NULL;
   SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);

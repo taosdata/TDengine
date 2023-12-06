@@ -61,7 +61,6 @@ typedef enum {
 
 typedef struct {
   int64_t grantedTime;
-  int64_t connGrantedTime;
 } SGrantedInfo;
 
 int32_t grantCheck(EGrantType grant);
