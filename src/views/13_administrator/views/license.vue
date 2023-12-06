@@ -40,7 +40,7 @@
         <span style="color:#333;" v-if="item.key !== 'version'"> {{(item.key == 'expire_time' && item.value !=='unlimited')? parsinginZone(item.value,'YYYY-MM-DD h:mm:ss'): item.value}}</span>
         <span style="color:#333;" v-else>
           <span style="padding-left: 2px;">{{ serverVersion }}</span>
-          {{ item.value }}
+          <!-- {{ item.value }} -->
         </span>
       </el-descriptions-item>
     </el-descriptions>
