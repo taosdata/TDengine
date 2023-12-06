@@ -872,6 +872,22 @@ class TDTestQuery(TDCase):
         show_create_sql1 = "show table distributed stable_null_data;"
         show_create_sql2 = "show table distributed %s.stable_null_data;" % self.db
         self.sql_check(show_create_sql1,show_create_sql2)
+        
+        #TS-4282
+        ts_4282_sql = "insert into %s.`tb1`(ts,q_int) using %s.stable_1 tags(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)  values(now,1) ;"% (self.db,self.db)
+        self.tdSql.execute(ts_4282_sql)  
+        show_4282_sql = "show create table tb1"
+        self.tdSql.query(show_4282_sql)          
+        self.tdCreateData.data_check(self.tdSql.getData(0,0),'tb1')
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),'CREATE TABLE `tb1` USING `stable_1` (`loc`, `t_int`, `t_bigint`, `t_smallint`, `t_tinyint`, `t_int_unsigned`, `t_bigint_unsigned`, `t_smallint_unsigned`, `t_tinyint_unsigned`, `t_bool`, `t_binary`, `t_nchar`, `t_float`, `t_double`, `t_ts`) TAGS (NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)')
+        
+        ts_4282_sql = "insert into %s.`tb2`(ts,q_int) using %s.stable_1 tags(NULL,'NULL',NULL,'NULL',NULL,'NULL',NULL,'NULL',NULL,'NULL',NULL,'NULL',NULL,NULL,'NULL')  values(now,1) ;"% (self.db,self.db)
+        self.tdSql.execute(ts_4282_sql)  
+        show_4282_sql = "show create table tb2"
+        self.tdSql.query(show_4282_sql)          
+        self.tdCreateData.data_check(self.tdSql.getData(0,0),'tb2')
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),'CREATE TABLE `tb2` USING `stable_1` (`loc`, `t_int`, `t_bigint`, `t_smallint`, `t_tinyint`, `t_int_unsigned`, `t_bigint_unsigned`, `t_smallint_unsigned`, `t_tinyint_unsigned`, `t_bool`, `t_binary`, `t_nchar`, `t_float`, `t_double`, `t_ts`) TAGS (NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, "NULL", NULL, NULL, NULL)')
+        
 
     def sql_check(self,sql1,sql2,check_tag = "Y"):
         # self.tdSql.query(sql1)
