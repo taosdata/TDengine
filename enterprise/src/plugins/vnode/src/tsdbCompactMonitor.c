@@ -15,8 +15,6 @@
 
 #include "tsdb.h"
 
-extern bool tsdbFSStopBgTask(STFileSystem *fs, int32_t fid, int64_t taskId);
-
 typedef struct SCompMonitor SCompMonitor;
 typedef struct SCompState   SCompState;
 typedef struct SCompMonInfo SCompMonInfo;
@@ -101,11 +99,12 @@ int32_t tsdbStopAllCompTask(STsdb *tsdb) {
       if (i >= TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr)) break;
       SCompState *state = TARRAY2_GET_PTR(&tsdb->pCompMonitor->stateArr, i);
 
-      if (tsdbFSStopBgTask(tsdb->pFS, state->fid, state->taskId)) {
-        TARRAY2_REMOVE(&tsdb->pCompMonitor->stateArr, i, NULL);
-      } else {
-        i++;
-      }
+      // TODO
+      // if (tsdbFSStopBgTask(tsdb->pFS, state->fid, state->taskId)) {
+      //   TARRAY2_REMOVE(&tsdb->pCompMonitor->stateArr, i, NULL);
+      // } else {
+      i++;
+      // }
     }
   }
   taosThreadMutexUnlock(&tsdb->mutex);
