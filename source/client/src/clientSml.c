@@ -127,19 +127,6 @@ static int32_t smlCheckAuth(SSmlHandle *info,  SRequestConnInfo* conn, const cha
   return (code == TSDB_CODE_SUCCESS) ? (authRes.pass[AUTH_RES_BASIC] ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED) : code;
 
 }
-inline bool smlDoubleToInt64OverFlow(double num) {
-  if (num >= (double)INT64_MAX || num <= (double)INT64_MIN) return true;
-  return false;
-}
-
-inline void smlStrReplace(char* src, int32_t len){
-  if (!tsSmlDot2Underline) return;
-  for(int i = 0; i < len; i++){
-    if(src[i] == '.'){
-      src[i] = '_';
-    }
-  }
-}
 
 int32_t smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2) {
   if (pBuf->buf) {
@@ -171,16 +158,6 @@ int64_t smlGetTimeValue(const char *value, int32_t len, uint8_t fromPrecision, u
   }
 
   return convertTimePrecision(tsInt64, fromPrecision, toPrecision);
-}
-
-inline int8_t smlGetTsTypeByLen(int32_t len) {
-  if (len == TSDB_TIME_PRECISION_SEC_DIGITS) {
-    return TSDB_TIME_PRECISION_SECONDS;
-  } else if (len == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-    return TSDB_TIME_PRECISION_MILLI;
-  } else {
-    return -1;
-  }
 }
 
 SSmlTableInfo *smlBuildTableInfo(int numRows, const char *measure, int32_t measureLen) {

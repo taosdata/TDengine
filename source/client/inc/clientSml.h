@@ -217,11 +217,9 @@ void          smlDestroyInfo(SSmlHandle *info);
 int           smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset);
 int           smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset);
 bool          smlParseNumberOld(SSmlKv *kvVal, SSmlMsgBuf *msg);
-bool          smlDoubleToInt64OverFlow(double num);
 int32_t       smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2);
 bool          smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg);
 int64_t       smlGetTimeValue(const char *value, int32_t len, uint8_t fromPrecision, uint8_t toPrecision);
-int8_t        smlGetTsTypeByLen(int32_t len);
 SSmlTableInfo*    smlBuildTableInfo(int numRows, const char* measure, int32_t measureLen);
 SSmlSTableMeta*   smlBuildSTableMeta(bool isDataFormat);
 int32_t           smlSetCTableName(SSmlTableInfo *oneTable);
@@ -238,7 +236,6 @@ void    freeSSmlKv(void* data);
 int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
 int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
 int32_t smlParseJSON(SSmlHandle *info, char *payload);
-void    smlStrReplace(char* src, int32_t len);
 
 SSmlSTableMeta* smlBuildSuperTableInfo(SSmlHandle *info, SSmlLineInfo *currElement);
 bool            isSmlTagAligned(SSmlHandle *info, int cnt, SSmlKv *kv);
@@ -249,6 +246,30 @@ int32_t         smlJoinMeasureTag(SSmlLineInfo *elements);
 void            smlBuildTsKv(SSmlKv *kv, int64_t ts);
 int32_t         smlParseEndTelnetJson(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs, SSmlKv *kv);
 int32_t         smlParseEndLine(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs);
+
+static inline bool smlDoubleToInt64OverFlow(double num) {
+  if (num >= (double)INT64_MAX || num <= (double)INT64_MIN) return true;
+  return false;
+}
+
+static inline void smlStrReplace(char* src, int32_t len){
+  if (!tsSmlDot2Underline) return;
+  for(int i = 0; i < len; i++){
+    if(src[i] == '.'){
+      src[i] = '_';
+    }
+  }
+}
+
+static inline int8_t smlGetTsTypeByLen(int32_t len) {
+  if (len == TSDB_TIME_PRECISION_SEC_DIGITS) {
+    return TSDB_TIME_PRECISION_SECONDS;
+  } else if (len == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+    return TSDB_TIME_PRECISION_MILLI;
+  } else {
+    return -1;
+  }
+}
 
 #ifdef __cplusplus
 }
