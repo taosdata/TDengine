@@ -258,6 +258,10 @@ impl TaskControllerRef {
             .await
             .map(|v| Self(Arc::new(v)))
     }
+
+    /// Start all tasks in database.
+    ///
+    /// Better to call this function in a new spawned task.
     pub async fn start_all_with_schedule(&self) -> anyhow::Result<()> {
         let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
             "select * from task_with_labels where status not in (?, ?, ?, ?) and `deleted` != TRUE order by created_at desc")
@@ -277,6 +281,8 @@ impl TaskControllerRef {
             .await?;
             if let Err(err) = self.scheduler.push_task(task).await {
                 tracing::error!(task.id = id, "Push task to scheduler error: {err:?}");
+                push_task_activity(&self.pool, &TaskActivity::failed(id, format!("{:#}", err)))
+                    .await?;
             }
         }
         Ok(())
@@ -340,7 +346,7 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
     }
     match activity.status.as_str() {
         // with reason
-        "failed" | "interrupted" | "suspending" | "waiting" => {
+        "failed" | "interrupted" | "suspending" | "waiting" | "waken" => {
             sqlx::query("UPDATE tasks SET status = ?, reason = ? WHERE id = ?")
                 .bind(activity.status.as_str())
                 .bind(activity.activity.as_str())
@@ -415,16 +421,18 @@ async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::
 }
 
 async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
-    let tasks =
-        sqlx::query_scalar::<_, TaskId>("select id from tasks where status in (?, ?, ?, ?, ?, ?)")
-            .bind(Status::Running)
-            .bind(Status::Waiting)
-            .bind(Status::Suspending)
-            .bind(Status::Queued)
-            .bind(Status::Interrupted)
-            .bind(Status::Ticked)
-            .fetch_all(pool)
-            .await?;
+    let tasks = sqlx::query_scalar::<_, TaskId>(
+        "select id from tasks where status in (?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(Status::Running)
+    .bind(Status::Waiting)
+    .bind(Status::Suspending)
+    .bind(Status::Queued)
+    .bind(Status::Interrupted)
+    .bind(Status::Ticked)
+    .bind(Status::Waken)
+    .fetch_all(pool)
+    .await?;
     if tasks.len() > 0 {
         tracing::info!(
             "{} tasks are in running status, set them to suspended",
@@ -1721,6 +1729,8 @@ pub enum Status {
     Resuming,
     /// Task is resumed.
     Resumed,
+    /// Waken
+    Waken,
 }
 
 impl Status {
