@@ -14,7 +14,7 @@
           :label="$t('topic.datacollection')"
           v-if="!isOem"
         >
-          <DataIn></DataIn>
+          <DataCollection></DataCollection>
         </el-tab-pane>
 
         <!-- <el-tab-pane name="csv" :label="$t('topic.csv')">
@@ -26,15 +26,13 @@
 </template>
 
 <script>
-import DataIn from "./dataIn.vue";
+import DataCollection from "./dataCollection.vue";
 import DbSource from "./dbSource.vue";
-import SourceContent from "./sourceContent.vue";
 import DataCSV from "./dataCSV.vue";
 export default {
   components: {
-    DataIn,
+    DataCollection,
     DbSource,
-    SourceContent,
     DataCSV,
   },
   data() {

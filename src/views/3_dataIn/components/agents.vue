@@ -278,10 +278,9 @@ import { Message } from "element-ui";
 import { parsinginZone } from "@/utils";
 import AgentDoc from "./agentDoc.vue";
 import AddAgent from "./addAgent.vue";
-import EditAgent from "./agent.vue";
 export default {
   name: "Agent",
-  components: { AgentDoc, AddAgent, EditAgent },
+  components: { AgentDoc, AddAgent },
   data() {
     return {
       expireTimeOPtion: {
