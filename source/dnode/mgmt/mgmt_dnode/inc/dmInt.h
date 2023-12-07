@@ -54,6 +54,7 @@ int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg);
 int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg);
+int32_t dmProcessGetMachine(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 // dmWorker.c
 int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);

@@ -287,7 +287,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_ACTIVE_KEY_LEN      109
 #define TSDB_CONN_ACTIVE_KEY_LEN 255
-#define TSDB_UNIQ_ACTIVE_KEY_LEN 255
+#define TSDB_UNIQ_ACTIVE_KEY_LEN 256
 
 #define TSDB_DEFAULT_PKT_SIZE 65480  // same as RPC_MAX_UDP_SIZE
 

@@ -409,6 +409,32 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t dmProcessGetMachine(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t size = TSDB_MACHINE_ID_LEN;
+  terrno = 0;
+  void *pRsp = rpcMallocCont(size);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    dError("failed to retrieve data since %s", terrstr());
+    return -1;
+  }
+  char *machineId = grantGetMachineId();
+  if (machineId && (strlen(machineId) == TSDB_MACHINE_ID_LEN)) {
+    memcpy(pRsp, machineId, TSDB_MACHINE_ID_LEN);
+  } else {
+    terrno = TSDB_CODE_INVALID_DATA_FMT;
+    rpcFreeCont(pRsp);
+    pRsp = NULL;
+    size = 0;
+  }
+
+  pMsg->code = terrno;
+  pMsg->info.rsp = pRsp;
+  pMsg->info.rspLen = size;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 SArray *dmGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(16, sizeof(SMgmtHandle));
@@ -425,11 +451,13 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_SERVER_STATUS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  
 
   // Requests handled by MNODE
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT_NOTIFY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_AUTH_RSP, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_GET_MACHINE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
   code = 0;
 

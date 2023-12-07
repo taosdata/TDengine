@@ -58,6 +58,11 @@ enum {
   DND_DROP,
 };
 
+typedef struct {
+  char   machineId[TSDB_MACHINE_ID_LEN + 1];
+  tsem_t sem;
+} SMachineInfo;
+
 static int32_t  mndCreateDefaultDnode(SMnode *pMnode);
 static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode);
 static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw);
@@ -71,6 +76,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
+static int32_t mndProcessGetMachineRsp(SRpcMsg *pRsp);
 static int32_t mndProcessStatusReq(SRpcMsg *pReq);
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq);
 static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
@@ -104,6 +110,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_DNODE, mndProcessDropDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_DNODE, mndProcessConfigDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CONFIG_DNODE_RSP, mndProcessConfigDnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_GET_MACHINE_RSP, mndProcessGetMachineRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STATUS, mndProcessStatusReq);
   mndSetMsgHandle(pMnode, TDMT_MND_NOTIFY, mndProcessNotifyReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DNODE_LIST, mndProcessDnodeListReq);
@@ -734,10 +741,24 @@ _OVER:
   return code;
 }
 
+static int32_t mndSendGetMachineToDnode(SMnode *pMnode, SDnodeObj *pObj, SMachineInfo *pInfo) {
+  SRpcMsg rpcMsg = {.pCont = NULL, .contLen = 0, .msgType = TDMT_MND_GET_MACHINE, .info.ahandle = pInfo};
+
+  mDebug("send get machine msg to dnode:%d %s", pObj->id, pObj->ep);
+
+  SEpSet epSet = {.numOfEps = 1};
+  strncpy(epSet.eps[0].fqdn, pObj->fqdn, TSDB_FQDN_LEN);
+  epSet.eps[0].port = pObj->port;
+  tmsgSendReq(&epSet, &rpcMsg);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pCreate) {
-  int32_t  code = -1;
-  SSdbRaw *pRaw = NULL;
-  STrans  *pTrans = NULL;
+  int32_t       code = -1;
+  SSdbRaw      *pRaw = NULL;
+  STrans       *pTrans = NULL;
+  SMachineInfo *pInfo = NULL;
 
   SDnodeObj dnodeObj = {0};
   dnodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_DNODE);
@@ -746,11 +767,14 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   dnodeObj.port = pCreate->port;
   tstrncpy(dnodeObj.fqdn, pCreate->fqdn, TSDB_FQDN_LEN);
   snprintf(dnodeObj.ep, TSDB_EP_LEN - 1, "%s:%u", pCreate->fqdn, pCreate->port);
-  char *machineId = grantGetMachineId();
-  if (machineId) {
-    memcpy(dnodeObj.machineId, machineId, TSDB_MACHINE_ID_LEN);
+  if (!(pInfo = taosMemoryCalloc(1, sizeof(*pInfo)))) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
   }
-
+  tsem_init(&pInfo->sem, 0, 0);
+  mndSendGetMachineToDnode(pMnode, &dnodeObj, pInfo);
+  tsem_wait(&pInfo->sem);
+  memcpy(dnodeObj.machineId, pInfo->machineId, TSDB_MACHINE_ID_LEN);
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_GLOBAL, pReq, "create-dnode");
   if (pTrans == NULL) goto _OVER;
   mInfo("trans:%d, used to create dnode:%s", pTrans->id, dnodeObj.ep);
@@ -768,6 +792,10 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
 _OVER:
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
+  if(pInfo) {
+    tsem_destroy(&pInfo->sem);
+    taosMemoryFree(pInfo);
+  }
   return code;
 }
 
@@ -1239,6 +1267,21 @@ static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp) {
   return 0;
 }
 
+static int32_t mndProcessGetMachineRsp(SRpcMsg *pRsp) {
+  if (pRsp->code != 0 || pRsp->contLen != TSDB_MACHINE_ID_LEN || pRsp->pCont == NULL) {
+    mError("failed to get machine since %s", tstrerror(pRsp->code ? pRsp->code : TSDB_CODE_INVALID_MSG));
+    return -1;
+  }
+
+  SMachineInfo *pInfo = pRsp->info.ahandle;
+  if (pInfo) {
+    memcpy(pInfo->machineId, pRsp->pCont, TSDB_MACHINE_ID_LEN);
+    tsem_post(&pInfo->sem);
+  }
+
+  return 0;
+}
+
 static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->info.node;
   int32_t totalRows = 0;
@@ -1349,11 +1392,7 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     taosMemoryFreeClear(b);
 
 #ifdef TD_ENTERPRISE
-    STR_TO_VARSTR(buf, pDnode->active);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, buf, false);
-
-    STR_TO_VARSTR(buf, pDnode->connActive);
+    STR_TO_VARSTR(buf, pDnode->machineId);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, buf, false);
 #endif

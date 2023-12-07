@@ -30,10 +30,6 @@ int64_t mndGetClusterCreateTime(SMnode *pMnode);
 int64_t mndGetClusterUpTime(SMnode *pMnode);
 int32_t mndGetClusterGrantedInfo(SMnode *pMnode, SGrantedInfo *pInfo);
 int32_t mndGetClusterActive(SMnode *pMnode, char* active);
-int32_t mndGetClusterMachineIds(SMnode *pMnode, SArray *pIds);
-int32_t mndProcessClusterMachineIds(SMnode *pMnode, SMachineId *pIds, int32_t nIds);
-int32_t mndDupClusterObj(SClusterObj *pOld, SClusterObj *pNew);
-void    mndFreeClusterObj(SClusterObj *pCluster);
 
 #ifdef __cplusplus
 }

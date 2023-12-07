@@ -75,7 +75,10 @@ static const SSysDbTableSchema clusterSchema[] = {
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
     {.name = "version", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "expire_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
-    {.name = "machine_ids", .bytes = 100 * (TSDB_MACHINE_ID_LEN + 3) + 2 + VARSTR_HEADER_SIZE, .type= TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+#ifdef TD_ENTERPRISE
+    {.name = "granted_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
+    {.name = "active_code", .bytes = TSDB_UNIQ_ACTIVE_KEY_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+#endif
 };
 
 static const SSysDbTableSchema userDBSchema[] = {
