@@ -81,7 +81,7 @@ taosBenchmark -f <json file>
 
 </details>
 
-#### 订阅场景 JSON 配置文件示例
+#### 订阅场景 JSON 配置文件示例 
 
 <details>
 <summary>subscribe.json</summary>
