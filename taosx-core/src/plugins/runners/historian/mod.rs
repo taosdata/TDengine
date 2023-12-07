@@ -216,7 +216,7 @@ mod tests {
             let listener = TcpListener::bind("127.0.0.1:54321").unwrap();
 
             for stream in listener.incoming() {
-                let stream = stream.unwrap();
+                let _ = stream.unwrap();
                 println!("connection established!");
                 thread::sleep(Duration::from_secs(5));
                 break;

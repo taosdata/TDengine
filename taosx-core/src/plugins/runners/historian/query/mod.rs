@@ -105,10 +105,14 @@ impl HistorianQuery {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::runners::historian::config::connect::ConnectConfig;
     use std::str::FromStr;
+
+    use chrono::{FixedOffset, Local, NaiveDateTime, TimeZone};
     use taos::Dsn;
+
+    use crate::runners::historian::config::connect::ConnectConfig;
+
+    use super::*;
 
     #[tokio::test]
     #[ignore]
@@ -157,7 +161,22 @@ mod tests {
         while let Some(row) = rows.try_next().await.unwrap() {
             match row {
                 QueryItem::Row(row) => {
-                    dbg!(row);
+                    let date_time = row
+                        .try_get::<NaiveDateTime, &str>("DateTime")
+                        .unwrap()
+                        .unwrap();
+
+                    dbg!(date_time);
+
+                    let ts = Local::now()
+                        .fixed_offset()
+                        .timezone()
+                        .from_local_datetime(&date_time)
+                        .unwrap()
+                        .timestamp_nanos_opt()
+                        .unwrap();
+
+                    dbg!(ts);
                 }
                 QueryItem::Metadata(_) => {
                     continue;

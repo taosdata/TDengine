@@ -6,7 +6,7 @@ use arrow::array::{ArrayBuilder, ArrayRef};
 use arrow::datatypes::TimeUnit::Nanosecond;
 use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
-use chrono::NaiveDateTime;
+use chrono::{Local, NaiveDateTime, TimeZone};
 use itertools::Itertools;
 use regex::Regex;
 use tiberius::Row;
@@ -169,13 +169,19 @@ impl ArrowDataAppender {
                     .append_null();
             }
             Some(val) => {
+                let ts = Local::now()
+                    .fixed_offset()
+                    .timezone()
+                    .from_local_datetime(&val)
+                    .unwrap()
+                    .timestamp_nanos_opt()
+                    .unwrap();
+
                 self.data_builders[index]
                     .as_any_mut()
                     .downcast_mut::<array::TimestampNanosecondBuilder>()
                     .unwrap()
-                    .append_value(val.timestamp_nanos_opt().expect(
-                        "value can not be represented in a timestamp with nanosecond precision.",
-                    ));
+                    .append_value(ts);
             }
         }
         Ok(())
