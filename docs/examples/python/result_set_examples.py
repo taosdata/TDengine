@@ -2,7 +2,7 @@ import taos
 
 conn = taos.connect()
 conn.execute("DROP DATABASE IF EXISTS test")
-conn.execute("CREATE DATABASE test")
+conn.execute("CREATE DATABASE test keep 36500")
 conn.select_db("test")
 conn.execute("CREATE STABLE weather(ts TIMESTAMP, temperature FLOAT) TAGS (location INT)")
 # prepare data
