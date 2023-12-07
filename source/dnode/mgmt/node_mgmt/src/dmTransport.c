@@ -290,8 +290,7 @@ static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
     dError("failed to send rpc msg:%s since %s, handle:%p", TMSG_INFO(pMsg->msgType), terrstr(), pMsg->info.handle);
     return -1;
   } else {
-    rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL);
-    return 0;
+    return rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL);
   }
 }
 
