@@ -22,15 +22,7 @@
 #include "tsdbUtil2.h"
 #include "tsimplehash.h"
 
-int32_t uidComparFunc(const void* p1, const void* p2) {
-  uint64_t pu1 = *(uint64_t*)p1;
-  uint64_t pu2 = *(uint64_t*)p2;
-  if (pu1 == pu2) {
-    return 0;
-  } else {
-    return (pu1 < pu2) ? -1 : 1;
-  }
-}
+static bool overlapWithDelSkylineWithoutVer(STableBlockScanInfo* pBlockScanInfo, const SBrinRecord* pRecord, int32_t order);
 
 static int32_t initBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
   int32_t num = numOfTables / pBuf->numPerBucket;
@@ -59,6 +51,16 @@ static int32_t initBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
   pBuf->numOfTables = numOfTables;
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t uidComparFunc(const void* p1, const void* p2) {
+  uint64_t pu1 = *(uint64_t*)p1;
+  uint64_t pu2 = *(uint64_t*)p2;
+  if (pu1 == pu2) {
+    return 0;
+  } else {
+    return (pu1 < pu2) ? -1 : 1;
+  }
 }
 
 int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
@@ -243,6 +245,10 @@ static void doCleanupInfoForNextFileset(STableBlockScanInfo* pScanInfo) {
   taosArrayClear(pScanInfo->pBlockList);
   taosArrayClear(pScanInfo->pBlockIdxList);
   taosArrayClear(pScanInfo->pFileDelData);  // del data from each file set
+  pScanInfo->cleanSttBlocks = false;
+  pScanInfo->numOfRowsInStt = 0;
+  pScanInfo->sttWindow.skey = INT64_MAX;
+  pScanInfo->sttWindow.ekey = INT64_MIN;
   pScanInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
 }
 
@@ -488,7 +494,7 @@ typedef enum {
   BLK_CHECK_QUIT = 0x2,
 } ETombBlkCheckEnum;
 
-static void    loadNextStatisticsBlock(SSttFileReader* pSttFileReader, const SSttBlockLoadInfo* pBlockLoadInfo,
+static void    loadNextStatisticsBlock(SSttFileReader* pSttFileReader, STbStatisBlock* pStatisBlock,
                                        const TStatisBlkArray* pStatisBlkArray, int32_t numOfRows, int32_t* i, int32_t* j);
 static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_t numOfTables, int32_t* j,
                                 ETombBlkCheckEnum* pRet) {
@@ -662,17 +668,17 @@ void loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemT
   }
 }
 
-int32_t getNumOfRowsInSttBlock(SSttFileReader *pSttFileReader, SSttBlockLoadInfo *pBlockLoadInfo, uint64_t suid,
-                               const uint64_t* pUidList, int32_t numOfTables) {
+int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo* pBlockLoadInfo,
+                               TStatisBlkArray* pStatisBlkArray, uint64_t suid, const uint64_t* pUidList,
+                               int32_t numOfTables) {
   int32_t num = 0;
 
-  const TStatisBlkArray *pStatisBlkArray = pBlockLoadInfo->pSttStatisBlkArray;
   if (TARRAY2_SIZE(pStatisBlkArray) <= 0) {
     return 0;
   }
 
   int32_t i = 0;
-  while((i < TARRAY2_SIZE(pStatisBlkArray)) && (pStatisBlkArray->data[i].minTbid.suid < suid)) {
+  while((i < TARRAY2_SIZE(pStatisBlkArray)) && (pStatisBlkArray->data[i].maxTbid.suid < suid)) {
     ++i;
   }
 
@@ -681,64 +687,65 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader *pSttFileReader, SSttBlockLoadInfo
   }
 
   SStatisBlk *p = &pStatisBlkArray->data[i];
-  if (pBlockLoadInfo->statisBlock == NULL) {
-    pBlockLoadInfo->statisBlock = taosMemoryCalloc(1, sizeof(STbStatisBlock));
-    tStatisBlockInit(pBlockLoadInfo->statisBlock);
-  }
+  STbStatisBlock* pStatisBlock = taosMemoryCalloc(1, sizeof(STbStatisBlock));
+  tStatisBlockInit(pStatisBlock);
 
   int64_t st = taosGetTimestampMs();
-  tsdbSttFileReadStatisBlock(pSttFileReader, p, pBlockLoadInfo->statisBlock);
-  pBlockLoadInfo->statisBlockIndex = i;
+  tsdbSttFileReadStatisBlock(pSttFileReader, p, pStatisBlock);
 
   double el = (taosGetTimestampMs() - st) / 1000.0;
   pBlockLoadInfo->cost.loadStatisBlocks += 1;
   pBlockLoadInfo->cost.statisElapsedTime += el;
 
-  STbStatisBlock *pBlock = pBlockLoadInfo->statisBlock;
-
   int32_t index = 0;
-  while (index < TARRAY2_SIZE(pBlock->suid) && pBlock->suid->data[index] < suid) {
+  while (index < TARRAY2_SIZE(pStatisBlock->suid) && pStatisBlock->suid->data[index] < suid) {
     ++index;
   }
 
-  if (index >= TARRAY2_SIZE(pBlock->suid)) {
+  if (index >= TARRAY2_SIZE(pStatisBlock->suid)) {
+    tStatisBlockDestroy(pStatisBlock);
+    taosMemoryFreeClear(pStatisBlock);
     return num;
   }
 
   int32_t j = index;
   int32_t uidIndex = 0;
-  while (i < TARRAY2_SIZE(pStatisBlkArray) && uidIndex <= numOfTables) {
+  while (i < TARRAY2_SIZE(pStatisBlkArray) && uidIndex < numOfTables) {
     p = &pStatisBlkArray->data[i];
     if (p->minTbid.suid > suid) {
+      tStatisBlockDestroy(pStatisBlock);
+      taosMemoryFreeClear(pStatisBlock);
       return num;
     }
 
     uint64_t uid = pUidList[uidIndex];
 
-    if (pBlock->uid->data[j] == uid) {
-      num += pBlock->count->data[j];
+    if (pStatisBlock->uid->data[j] == uid) {
+      num += pStatisBlock->count->data[j];
       uidIndex += 1;
       j += 1;
-      loadNextStatisticsBlock(pSttFileReader, pBlockLoadInfo, pStatisBlkArray, pBlock->suid->size, &i, &j);
-    } else if (pBlock->uid->data[j] < uid) {
+      loadNextStatisticsBlock(pSttFileReader, pStatisBlock, pStatisBlkArray, pStatisBlock->suid->size, &i, &j);
+    } else if (pStatisBlock->uid->data[j] < uid) {
       j += 1;
-      loadNextStatisticsBlock(pSttFileReader, pBlockLoadInfo, pStatisBlkArray, pBlock->suid->size, &i, &j);
+      loadNextStatisticsBlock(pSttFileReader, pStatisBlock, pStatisBlkArray, pStatisBlock->suid->size, &i, &j);
     } else {
       uidIndex += 1;
     }
   }
 
+  tStatisBlockDestroy(pStatisBlock);
+  taosMemoryFreeClear(pStatisBlock);
   return num;
 }
 
 // load next stt statistics block
-static void loadNextStatisticsBlock(SSttFileReader* pSttFileReader, const SSttBlockLoadInfo* pBlockLoadInfo,
+static void loadNextStatisticsBlock(SSttFileReader* pSttFileReader, STbStatisBlock* pStatisBlock,
                                     const TStatisBlkArray* pStatisBlkArray, int32_t numOfRows, int32_t* i, int32_t* j) {
   if ((*j) >= numOfRows) {
     (*i) += 1;
     (*j) = 0;
     if ((*i) < TARRAY2_SIZE(pStatisBlkArray)) {
-      tsdbSttFileReadStatisBlock(pSttFileReader, &pStatisBlkArray->data[(*i)], pBlockLoadInfo->statisBlock);
+      tsdbSttFileReadStatisBlock(pSttFileReader, &pStatisBlkArray->data[(*i)], pStatisBlock);
     }
   }
 }
@@ -762,7 +769,7 @@ void doAdjustValidDataIters(SArray* pLDIterList, int32_t numOfFileObj) {
   }
 }
 
-int32_t adjustLDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet) {
+int32_t adjustSttDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet) {
   int32_t numOfLevels = pFileSet->lvlArr->size;
 
   // add the list/iter placeholder
@@ -791,7 +798,7 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
   }
 
   // add the list/iter placeholder
-  adjustLDataIters(pSttFileBlockIterArray, pFileSet);
+  adjustSttDataIters(pSttFileBlockIterArray, pFileSet);
 
   for (int32_t j = 0; j < numOfLevels; ++j) {
     SSttLvl* pSttLevel = pFileSet->lvlArr->data[j];
@@ -819,7 +826,8 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
       }
 
       // load stt blocks statis for all stt-blocks, to decide if the data of queried table exists in current stt file
-      int32_t code = tsdbSttFileReadStatisBlk(pIter->pReader, (const TStatisBlkArray **)&pIter->pBlockLoadInfo->pSttStatisBlkArray);
+      TStatisBlkArray *pStatisBlkArray = NULL;
+      int32_t code = tsdbSttFileReadStatisBlk(pIter->pReader, (const TStatisBlkArray **)&pStatisBlkArray);
       if (code != TSDB_CODE_SUCCESS) {
         tsdbError("failed to load stt block statistics, code:%s, %s", tstrerror(code), pstr);
         continue;
@@ -829,9 +837,199 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
       STsdbReader* pReader = pConf->pReader;
       int32_t      numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
       uint64_t*    pUidList = pReader->status.uidList.tableUidList;
-      numOfRows += getNumOfRowsInSttBlock(pIter->pReader, pIter->pBlockLoadInfo, pConf->suid, pUidList, numOfTables);
+      numOfRows += getNumOfRowsInSttBlock(pIter->pReader, pIter->pBlockLoadInfo, pStatisBlkArray, pConf->suid, pUidList,
+                                          numOfTables);
     }
   }
 
   return numOfRows;
+}
+
+// overlap with deletion skyline
+static bool overlapWithTimeWindow(STimeWindow* p1, STimeWindow* pQueryWindow, STableBlockScanInfo* pBlockScanInfo,
+                                  int32_t order) {
+  // overlap with query window
+  if (!(p1->skey >= pQueryWindow->skey && p1->ekey <= pQueryWindow->ekey)) {
+    return true;
+  }
+
+  // overlap with mem data
+  SIterInfo* pMemIter = &pBlockScanInfo->iter;
+  SIterInfo* pIMemIter = &pBlockScanInfo->iiter;
+
+  if ((pMemIter->hasVal) && p1->ekey >= pMemIter->iter->pTbData->minKey && p1->skey <= pMemIter->iter->pTbData->maxKey) {
+    return true;
+  }
+
+  // overlap with imem data
+  if ((pIMemIter->hasVal) && p1->ekey >= pIMemIter->iter->pTbData->minKey && p1->skey <= pIMemIter->iter->pTbData->maxKey) {
+    return true;
+  }
+
+  // overlap with deletion skyline
+  SBrinRecord record = {.firstKey = p1->skey, .lastKey = p1->ekey};
+  if (overlapWithDelSkylineWithoutVer(pBlockScanInfo, &record, order)) {
+    return true;
+  }
+
+  return false;
+}
+
+static int32_t sortUidComparFn(const void* p1, const void* p2) {
+  const STimeWindow* px1 = p1;
+  const STimeWindow* px2 = p2;
+  if (px1->skey == px2->skey) {
+    return 0;
+  } else {
+    return px1->skey < px2->skey? -1:1;
+  }
+}
+
+bool isCleanSttBlock(SArray* pTimewindowList, STimeWindow* pQueryWindow, STableBlockScanInfo *pScanInfo, int32_t order) {
+  // check if it overlap with del skyline
+  taosArraySort(pTimewindowList, sortUidComparFn);
+
+  int32_t num = taosArrayGetSize(pTimewindowList);
+  if (num == 0) {
+    return false;
+  }
+
+  STimeWindow* p = taosArrayGet(pTimewindowList, 0);
+  if (overlapWithTimeWindow(p, pQueryWindow, pScanInfo, order)) {
+    return false;
+  }
+
+  for (int32_t i = 0; i < num - 1; ++i) {
+    STimeWindow* p1 = taosArrayGet(pTimewindowList, i);
+    STimeWindow* p2 = taosArrayGet(pTimewindowList, i + 1);
+
+    if (p1->ekey >= p2->skey) {
+      return false;
+    }
+
+    bool overlap = overlapWithTimeWindow(p2, pQueryWindow, pScanInfo, order);
+    if (overlap) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static bool doCheckDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, const SBrinRecord* pRecord,
+                                       int32_t startIndex) {
+  size_t num = taosArrayGetSize(pBlockScanInfo->delSkyline);
+
+  for (int32_t i = startIndex; i < num; i += 1) {
+    TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, i);
+    if (p->ts >= pRecord->firstKey && p->ts <= pRecord->lastKey) {
+      if (p->version >= pRecord->minVer) {
+        return true;
+      }
+    } else if (p->ts < pRecord->firstKey) {  // p->ts < pBlock->minKey.ts
+      if (p->version >= pRecord->minVer) {
+        if (i < num - 1) {
+          TSDBKEY* pnext = taosArrayGet(pBlockScanInfo->delSkyline, i + 1);
+          if (pnext->ts >= pRecord->firstKey) {
+            return true;
+          }
+        } else {  // it must be the last point
+          ASSERT(p->version == 0);
+        }
+      }
+    } else {  // (p->ts > pBlock->maxKey.ts) {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+static bool doCheckDatablockOverlapWithoutVersion(STableBlockScanInfo* pBlockScanInfo, const SBrinRecord* pRecord,
+                                                  int32_t startIndex) {
+  size_t num = taosArrayGetSize(pBlockScanInfo->delSkyline);
+
+  for (int32_t i = startIndex; i < num; i += 1) {
+    TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, i);
+    if (p->ts >= pRecord->firstKey && p->ts <= pRecord->lastKey) {
+      return true;
+    } else if (p->ts < pRecord->firstKey) {  // p->ts < pBlock->minKey.ts
+      if (i < num - 1) {
+        TSDBKEY* pnext = taosArrayGet(pBlockScanInfo->delSkyline, i + 1);
+        if (pnext->ts >= pRecord->firstKey) {
+          return true;
+        }
+      }
+    } else {  // (p->ts > pBlock->maxKey.ts) {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBrinRecord* pRecord, int32_t order) {
+  if (pBlockScanInfo->delSkyline == NULL || (taosArrayGetSize(pBlockScanInfo->delSkyline) == 0)) {
+    return false;
+  }
+
+  // ts is not overlap
+  TSDBKEY* pFirst = taosArrayGet(pBlockScanInfo->delSkyline, 0);
+  TSDBKEY* pLast = taosArrayGetLast(pBlockScanInfo->delSkyline);
+  if (pRecord->firstKey > pLast->ts || pRecord->lastKey < pFirst->ts) {
+    return false;
+  }
+
+  // version is not overlap
+  if (ASCENDING_TRAVERSE(order)) {
+    return doCheckDatablockOverlap(pBlockScanInfo, pRecord, pBlockScanInfo->fileDelIndex);
+  } else {
+    int32_t index = pBlockScanInfo->fileDelIndex;
+    while (1) {
+      TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, index);
+      if (p->ts > pRecord->firstKey && index > 0) {
+        index -= 1;
+      } else {  // find the first point that is smaller than the minKey.ts of dataBlock.
+        if (p->ts == pRecord->firstKey && p->version < pRecord->maxVer && index > 0) {
+          index -= 1;
+        }
+        break;
+      }
+    }
+
+    return doCheckDatablockOverlap(pBlockScanInfo, pRecord, index);
+  }
+}
+
+bool overlapWithDelSkylineWithoutVer(STableBlockScanInfo* pBlockScanInfo, const SBrinRecord* pRecord, int32_t order) {
+  if (pBlockScanInfo->delSkyline == NULL || (taosArrayGetSize(pBlockScanInfo->delSkyline) == 0)) {
+    return false;
+  }
+
+  // ts is not overlap
+  TSDBKEY* pFirst = taosArrayGet(pBlockScanInfo->delSkyline, 0);
+  TSDBKEY* pLast = taosArrayGetLast(pBlockScanInfo->delSkyline);
+  if (pRecord->firstKey > pLast->ts || pRecord->lastKey < pFirst->ts) {
+    return false;
+  }
+
+  // version is not overlap
+  if (ASCENDING_TRAVERSE(order)) {
+    return doCheckDatablockOverlapWithoutVersion(pBlockScanInfo, pRecord, pBlockScanInfo->fileDelIndex);
+  } else {
+    int32_t index = pBlockScanInfo->fileDelIndex;
+    while (1) {
+      TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, index);
+      if (p->ts > pRecord->firstKey && index > 0) {
+        index -= 1;
+      } else {  // find the first point that is smaller than the minKey.ts of dataBlock.
+        if (p->ts == pRecord->firstKey && index > 0) {
+          index -= 1;
+        }
+        break;
+      }
+    }
+
+    return doCheckDatablockOverlapWithoutVersion(pBlockScanInfo, pRecord, index);
+  }
 }

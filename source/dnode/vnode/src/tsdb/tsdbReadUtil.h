@@ -39,8 +39,7 @@ typedef enum {
 typedef struct STsdbReaderInfo {
   uint64_t      suid;
   STSchema*     pSchema;
-  EReadMode     readMode;
-  uint64_t      rowsNum;
+  EExecMode     execMode;
   STimeWindow   window;
   SVersionRange verRange;
   int16_t       order;
@@ -74,6 +73,11 @@ typedef struct SSttKeyInfo {
   int64_t       nextProcKey;
 } SSttKeyInfo;
 
+// clean stt file blocks:
+// 1. not overlap with stt blocks in other stt files of the same fileset
+// 2. not overlap with delete skyline
+// 3. not overlap with in-memory data (mem/imem)
+// 4. not overlap with data file blocks
 typedef struct STableBlockScanInfo {
   uint64_t    uid;
   TSKEY       lastProcKey;
@@ -88,6 +92,9 @@ typedef struct STableBlockScanInfo {
   int32_t     fileDelIndex;      // file block delete index
   int32_t     sttBlockDelIndex;  // delete index for last block
   bool        iterInit;          // whether to initialize the in-memory skip list iterator or not
+  bool        cleanSttBlocks;    // stt block is clean in current fileset
+  int64_t     numOfRowsInStt;
+  STimeWindow sttWindow;
 } STableBlockScanInfo;
 
 typedef struct SResultBlockInfo {
@@ -145,6 +152,7 @@ typedef struct SBlockLoadSuppInfo {
   bool                smaValid;  // the sma on all queried columns are activated
 } SBlockLoadSuppInfo;
 
+// each blocks in stt file not overlaps with in-memory/data-file/tomb-files, and not overlap with any other blocks in stt-file
 typedef struct SSttBlockReader {
   STimeWindow        window;
   SVersionRange      verRange;
@@ -262,12 +270,17 @@ bool    blockIteratorNext(SDataBlockIter* pBlockIter, const char* idStr);
 void    loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemTbData, int64_t ver);
 int32_t loadDataFileTombDataForAll(STsdbReader* pReader);
 int32_t loadSttTombDataForAll(STsdbReader* pReader, SSttFileReader* pSttFileReader, SSttBlockLoadInfo* pLoadInfo);
-int32_t getNumOfRowsInSttBlock(SSttFileReader *pSttFileReader, SSttBlockLoadInfo *pBlockLoadInfo, uint64_t suid,
-                               const uint64_t* pUidList, int32_t numOfTables);
+int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo* pBlockLoadInfo,
+                               TStatisBlkArray* pStatisBlkArray, uint64_t suid, const uint64_t* pUidList,
+                               int32_t numOfTables);
+
 void    destroyLDataIter(SLDataIter* pIter);
-int32_t adjustLDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet);
+int32_t adjustSttDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet);
 int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArray, STsdb* pTsdb, SMergeTreeConf* pConf,
                               const char* pstr);
+bool    isCleanSttBlock(SArray* pTimewindowList, STimeWindow* pQueryWindow, STableBlockScanInfo* pScanInfo, int32_t order);
+bool    overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBrinRecord* pRecord, int32_t order);
+
 typedef struct {
   SArray* pTombData;
 } STableLoadInfo;
