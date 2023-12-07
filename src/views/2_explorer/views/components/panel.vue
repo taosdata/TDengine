@@ -124,7 +124,7 @@ export default {
 .panel::v-deep .el-tabs__content {
   flex: 1;
   padding: 15px !important;
-  overflow: auto;
+  overflow: initial!important;
 }
 .panel::v-deep .el-tabs__content > .el-tab-pane {
   left: 15px;

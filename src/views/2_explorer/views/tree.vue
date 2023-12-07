@@ -38,7 +38,7 @@
         <el-tooltip
           slot-scope="{ node, data }"
           effect="dark"
-          :open-delay='1000'
+          :open-delay="1000"
           :content="node.label"
           placement="right"
           popper-class="el-tree-popper"
@@ -60,7 +60,7 @@
                 <el-tooltip
                   effect="light"
                   placement="top"
-                  :open-delay='1000'
+                  :open-delay="1000"
                   :content="getTooltip(data, 'view')"
                   v-if="
                     !['sfile', 'nfile', 'column', 'tag'].includes(data.typeName)
@@ -88,7 +88,7 @@
                   <el-tooltip
                     effect="light"
                     placement="top"
-                    :open-delay='1000'
+                    :open-delay="1000"
                     :content="getTooltip(data, 'add')"
                     v-if="['sfile', 'nfile', 'stable'].includes(data.typeName)"
                   >
@@ -102,7 +102,7 @@
                   <el-tooltip
                     effect="light"
                     placement="top"
-                    :open-delay='1000'
+                    :open-delay="1000"
                     :content="getTooltip(data, 'edit')"
                     v-if="
                       !['sfile', 'nfile', 'column', 'tag'].includes(
@@ -125,7 +125,7 @@
                     <el-tooltip
                       effect="light"
                       placement="top"
-                      :open-delay='1000'
+                      :open-delay="1000"
                       :content="getTooltip(data, 'manage')"
                       v-if="data.typeName === 'database'"
                     >
@@ -140,7 +140,7 @@
                   <el-tooltip
                     effect="light"
                     placement="top"
-                    :open-delay='1000'
+                    :open-delay="1000"
                     :content="getTooltip(data, 'del')"
                     v-if="
                       !['sfile', 'nfile', 'column', 'tag'].includes(
@@ -164,7 +164,7 @@
               <el-tooltip
                 v-if="data.typeName == 'table' || data.typeName == 'stable'"
                 effect="light"
-                :open-delay='1000'
+                :open-delay="1000"
                 :content="$t('data.viewData')"
               >
                 <div
@@ -175,7 +175,11 @@
                   <i class="el-icon-search"></i>
                 </div>
               </el-tooltip>
-              <el-tooltip effect="light" :content="$t('data.appendEditor')" :open-delay='1000'>
+              <el-tooltip
+                effect="light"
+                :content="$t('data.appendEditor')"
+                :open-delay="1000"
+              >
                 <div
                   class="tablebutton"
                   @click.stop="clickAdd(data)"
@@ -213,7 +217,9 @@
     >
       <div class="tag-list">
         <div class="open-tag" v-if="showtag">
-          <span class="label" style="width:150px;margin-bottom:0px;">{{$t('data.enabletag')}}</span>
+          <span class="label" style="width: 150px; margin-bottom: 0px">{{
+            $t("data.enabletag")
+          }}</span>
           <el-switch v-model="switchtag"> </el-switch>
         </div>
         <template v-if="switchtag">
@@ -239,13 +245,21 @@
              
           </div>
         </el-form-item> -->
-        <el-form-item :label="$t('datasource.csvtable')  " prop="tablename" :rules="tablerule">
+        <el-form-item
+          :label="$t('datasource.csvtable')"
+          prop="tablename"
+          :rules="tablerule"
+        >
           <el-input v-model="serachForm.tablename" size="small"></el-input>
         </el-form-item>
       </el-form>
       <div class="footer">
-        <el-button @click="closeDialog" size="small">{{$t('cancel')}}</el-button>
-        <el-button type="primary" @click="searchTables">{{$t('confirm')}}</el-button>
+        <el-button @click="closeDialog" size="small">{{
+          $t("cancel")
+        }}</el-button>
+        <el-button type="primary" @click="searchTables">{{
+          $t("confirm")
+        }}</el-button>
       </div>
     </el-dialog>
   </div>
@@ -288,9 +302,9 @@ const conditionMap = {
   NUMBER: CompareOperator.concat(getGeneralFn(["NUMBER"])),
   STRING: RegularOperator.concat(getGeneralFn(["STRING"])),
   JSON: JsonOperator,
-  BOOL: CompareOperator.concat(
-    getGeneralFn(["NOT BETWEEN", "BETWEEN"])
-  ).concat(["NOT BETWEEN", "BETWEEN"]),
+  BOOL: CompareOperator.concat(getGeneralFn(["NOT BETWEEN", "BETWEEN"])).concat(
+    ["NOT BETWEEN", "BETWEEN"]
+  ),
 };
 const conditionList = CompareOperator.concat(
   getGeneralFn(["NOT BETWEEN AND", "BETWEEN AND"])
@@ -681,20 +695,22 @@ export default {
       switch (data.typeName) {
         case "database":
           this.requesting = true;
-          let result = await getRunningTask()
-          let task = []
-          task = result.filter(item => item.to_expand?.subject == data.name)
+          let result = await getRunningTask();
+          let task = [];
+          task = result.filter((item) => item.to_expand?.subject == data.name);
           if (task.length > 0) {
             this.$alert(
-              this.$t("data.delRunningTaskBb").replace('{dbName}',data.name).replace('{taskName}',task[0]?.name),
+              this.$t("data.delRunningTaskBb")
+                .replace("{dbName}", data.name)
+                .replace("{taskName}", task[0]?.name),
               this.$t("tips"),
               {
                 confirmButtonText: this.$t("confirm"),
                 type: "warning",
               }
             ).then(() => {
-              this.requesting = false
-            })
+              this.requesting = false;
+            });
           } else {
             this.$confirm(
               this.$t("data.delDatabase") + ":" + data.name + "?",
@@ -704,25 +720,27 @@ export default {
                 cancelButtonText: this.$t("cancel"),
                 type: "warning",
               }
-            ).then(async () => {
-              this.requesting = true;
-              await this.$store
-                .dispatch("dbs/deleteDB", data.name)
-                .then(() => {
-                  this.$message.success(this.$t("delSucc"));
-                })
-                .catch((err) => {
-                  err.desc && Message.error(err.desc);
-                })
-                .finally(() => {
-                  this.requesting = false;
-                })
-                .catch((res) => {
-                  this.$message.error(res?.desc);
-                });
-            }).catch(() => {
-              this.requesting = false;
-            })
+            )
+              .then(async () => {
+                this.requesting = true;
+                await this.$store
+                  .dispatch("dbs/deleteDB", data.name)
+                  .then(() => {
+                    this.$message.success(this.$t("delSucc"));
+                  })
+                  .catch((err) => {
+                    err.desc && Message.error(err.desc);
+                  })
+                  .finally(() => {
+                    this.requesting = false;
+                  })
+                  .catch((res) => {
+                    this.$message.error(res?.desc);
+                  });
+              })
+              .catch(() => {
+                this.requesting = false;
+              });
           }
           break;
         case "stable":
@@ -810,7 +828,7 @@ export default {
       switch (data.typeName) {
         case "sfile":
           this.showtag = false;
-          this.switchtag=false
+          this.switchtag = false;
           this.dialogtitle = this.$t("data.searchsp");
           break;
         case "stable":
@@ -838,18 +856,18 @@ export default {
                   condition: "",
                 },
                 {
-                  betweenVal:''
+                  betweenVal: "",
                 }
               );
             })
             .filter((val) => val.note == "TAG");
-          
+
           this.showtag = true;
           this.dialogtitle = this.$t("data.searchsub");
           break;
         case "nfile":
           this.showtag = false;
-          this.switchtag=false
+          this.switchtag = false;
           this.dialogtitle = this.$t("data.searchnt");
           break;
       }
@@ -882,8 +900,11 @@ export default {
           case "stable":
             if (this.switchtag) {
               for (let i = 0; i < this.tagList.length; i++) {
-
-                if (!this.tagList[i].condition ||(!this.tagList[i].condition.includes('NULL')&& !this.tagList[i].value)) {
+                if (
+                  !this.tagList[i].condition ||
+                  (!this.tagList[i].condition.includes("NULL") &&
+                    !this.tagList[i].value)
+                ) {
                   Message.warning(this.$t("data.fulltagtip"));
                   return;
                 }
@@ -896,13 +917,15 @@ export default {
                   " " +
                   `${item.field}` +
                   " " +
-                  `${item.condition}` + 
-                  ( item.condition.includes('NULL')?'':item.condition.includes('IN')?("("+`'${item.value}'`+')'):" " +
-                   `'${item.value}'`)
-                  ;
-                  if(item.condition.includes('BETWEEN')){
-                    wherestr += ` AND '${item.betweenVal}'`
-                  }
+                  `${item.condition}` +
+                  (item.condition.includes("NULL")
+                    ? ""
+                    : item.condition.includes("IN")
+                    ? "(" + `'${item.value}'` + ")"
+                    : " " + `'${item.value}'`);
+                if (item.condition.includes("BETWEEN")) {
+                  wherestr += ` AND '${item.betweenVal}'`;
+                }
               });
               await this.$store
                 .dispatch(
@@ -991,8 +1014,19 @@ export default {
   flex-direction: column;
   overflow: hidden;
 }
-.dbs-tree ::v-deep .el-tree-node__content {
-  height: 30px;
+.dbs-tree ::v-deep {
+  .el-tree-node__content {
+    height: 30px;
+  }
+  ::-webkit-scrollbar {
+    width: 0px !important;
+    height: 0px !important;
+    background: rgba(255, 255, 255, 0);
+  }
+  ::-webkit-scrollbar-thumb {
+    border-radius: 4px;
+    background-color: rgba(220, 220, 220, 0);
+  }
 }
 .database_icon {
   width: 18px;
@@ -1167,7 +1201,7 @@ export default {
   .open-tag {
     display: flex;
     align-items: center;
-    margin-bottom:10px;
+    margin-bottom: 10px;
   }
   .label {
     color: #4d6992;
