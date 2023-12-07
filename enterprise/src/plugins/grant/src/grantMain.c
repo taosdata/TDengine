@@ -335,7 +335,7 @@ void mndCleanupGrant() {
 
 static void grantSetClusterInfo(SMnode *pMnode) {
   if (strncmp(tsVersionName, GRANT_VERSION, 16) != 0) {
-    strncpy(tsVersionName, GRANT_VERSION, 16);
+    memcpy(tsVersionName, GRANT_VERSION, 16);
   }
   COMPARE_SET_VAL(tsExpireTime, (int64_t)GRANT_EXPIRE * 1000, !=);
   COMPARE_SET_VAL(pMnode->grant.expireTimeMS, tsExpireTime, !=);
@@ -585,16 +585,16 @@ static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus
   // fetch the activeCodes in taos.cfg if not set in sdb/dnode
 #ifndef GRANTS_CFG
   if (pInfo->active[0] == 0 && grantObj.active[0] != 0) {
-    strncpy(pGrantMsg->active, grantObj.active, GRANT_ACTIVE_KEY_LEN + 1);
+    memcpy(pGrantMsg->active, grantObj.active, GRANT_ACTIVE_KEY_LEN + 1);
   }
 #endif
 
   if (pInfo->connActive[0] == 0 && grantConnObj.active[0] != 0) {
-    strncpy(pGrantMsg->connectors.active, grantConnObj.active, GRANT_CONN_ACTIVE_KEY_LEN + 1);
+    memcpy(pGrantMsg->connectors.active, grantConnObj.active, GRANT_CONN_ACTIVE_KEY_LEN + 1);
   }
 
   // assign machine for activeCode checking in mnode leader
-  strncpy(pGrantMsg->machine, grantObj.machine, GRANT_MACHINE_KEY_LEN + 1);
+  memcpy(pGrantMsg->machine, grantObj.machine, GRANT_MACHINE_KEY_LEN + 1);
 
   pGrantMsg->dnodeId = pInfo->id;
 
@@ -649,7 +649,7 @@ static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
   uDebug("send grant status msg to dnode:%d %s:%" PRIu16, pDnodeInfo->id, pDnodeInfo->ep.fqdn, pDnodeInfo->ep.port);
 
   SEpSet epSet = {.numOfEps = 1};
-  strncpy(epSet.eps[0].fqdn, pDnodeInfo->ep.fqdn, TSDB_FQDN_LEN);
+  memcpy(epSet.eps[0].fqdn, pDnodeInfo->ep.fqdn, TSDB_FQDN_LEN);
   epSet.eps[0].port = pDnodeInfo->ep.port;
 
   if((terrno = tmsgSendReq(&epSet, &rpcMsg)) != 0){
@@ -1080,7 +1080,7 @@ static int32_t mndSendGrantNotifyToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
   uDebug("send grant notify msg to dnode:%d %s:%" PRIu16, pDnodeInfo->id, pDnodeInfo->ep.fqdn, pDnodeInfo->ep.port);
 
   SEpSet epSet = {.numOfEps = 1};
-  strncpy(epSet.eps[0].fqdn, pDnodeInfo->ep.fqdn, TSDB_FQDN_LEN);
+  memcpy(epSet.eps[0].fqdn, pDnodeInfo->ep.fqdn, TSDB_FQDN_LEN);
   epSet.eps[0].port = pDnodeInfo->ep.port;
   tmsgSendReq(&epSet, &rpcMsg);
 
@@ -1807,8 +1807,8 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, 
 static int32_t mndCfgDnodeReq(SDnodeInfo *pDnodeInfo, const char *cfg, const char *val) {
   SMCfgDnodeReq req = {0};
   req.dnodeId = pDnodeInfo->id;
-  strncpy(req.config, cfg, TSDB_DNODE_CONFIG_LEN);
-  strncpy(req.value, val, TSDB_DNODE_VALUE_LEN);
+  memcpy(req.config, cfg, TSDB_DNODE_CONFIG_LEN);
+  memcpy(req.value, val, TSDB_DNODE_VALUE_LEN);
 
   int32_t contLen = tSerializeSMCfgDnodeReq(NULL, 0, &req);
   void   *pCont = rpcMallocCont(contLen);
@@ -1830,7 +1830,7 @@ static int32_t mndCfgDnodeReq(SDnodeInfo *pDnodeInfo, const char *cfg, const cha
         pDnodeInfo->ep.port);
 
   SEpSet epSet = {.numOfEps = 1};
-  strncpy(epSet.eps[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+  memcpy(epSet.eps[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   epSet.eps[0].port = tsServerPort;
 
   tmsgSendReq(&epSet, &rpcMsg);
@@ -2420,13 +2420,13 @@ int32_t tDeserializeGrantMsg(void *buf, int32_t bufLen, GrantMsg *pMsg) {
     if (len > 0) {
       char *data = NULL;
       if (tDecodeBinary(&decoder, (uint8_t **)&data, NULL) < 0) return -1;
-      if (data) strncpy(pMsg->active, data, len);
+      if (data) memcpy(pMsg->active, data, len);
     }
     if (tDecodeI16v(&decoder, &len) < 0) return -1;
     if (len > 0) {
       char *data = NULL;
       if (tDecodeBinary(&decoder, (uint8_t **)&data, NULL) < 0) return -1;
-      if (data) strncpy(pMsg->connectors.active, data, len);
+      if (data) memcpy(pMsg->connectors.active, data, len);
     }
   }
   // since 3.1.1.7
@@ -2436,7 +2436,7 @@ int32_t tDeserializeGrantMsg(void *buf, int32_t bufLen, GrantMsg *pMsg) {
     if (len > 0) {
       char *data = NULL;
       if (tDecodeBinary(&decoder, (uint8_t **)&data, NULL) < 0) return -1;
-      if (data) strncpy(pMsg->machine, data, len);
+      if (data) memcpy(pMsg->machine, data, len);
     }
   }
 

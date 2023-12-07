@@ -92,7 +92,7 @@ static int32_t dmInitPrerequisites() {
   char ver[64] = {0};
 
   code = (int32_t)(2147483648 | 298);
-  strncpy(stName, tsVersionName, 64);
+  memcpy(stName, tsVersionName, 16);
 
   if (STR_STR_CMP(stName, STR_STR_SIGN)) {
     DM_ERR_RTN(0);
