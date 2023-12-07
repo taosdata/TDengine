@@ -138,14 +138,14 @@
           <div class="table-detail" v-if="tableData.length > 0">
             <div class="mapping">
               <!-- {{ $t("datasource.transformer.mapping") }} -->
-              <el-button
+              <!-- <el-button
                 type="primary"
                 @click="caculateMappingResult"
                 size="small"
                 >{{ $t("datasource.transformer.calculate") }}</el-button
-              >
+              > -->
             </div>
-            <el-table :data="tableData" border style="width: 100%">
+            <el-table :data="pageTableData" border style="width: 100%">
               <template v-for="(item, index) in st_columnLists">
                 <el-table-column
                   v-if="item === 'Expression'"
@@ -208,6 +208,22 @@
                 ></el-table-column>
               </template>
             </el-table>
+            <div class="block">
+              <el-pagination
+                :page-size="pageSize"
+                layout="prev, pager, next, jumper"
+                :total="pageCount"
+                @size-change="handleSizeChange"
+      @current-change="handleCurrentChange"
+              >
+              </el-pagination>
+              <el-button
+                type="primary"
+                @click="caculateMappingResult"
+                size="small"
+                >{{ $t("datasource.transformer.calculate") }}</el-button
+              >
+            </div>
           </div>
         </div>
       </section>
@@ -256,7 +272,10 @@ export default {
   },
   data() {
     return {
-      tempColumns:[],
+      pageSize:3,
+      pageCount:10,
+      currentPage:1,
+      tempColumns: [],
       isbreak: false, //tranformer创建是否出错
       joinwith: "",
       isCSV: false,
@@ -290,6 +309,7 @@ export default {
       extractAddStatus: false,
       mappingTypes: ["value", "generator", "join", "format", "sum", "expr"],
       st_columnLists: ["Name", "Type", "Expression", "Output1", "Output2"],
+
       dialogForm: {
         st_name: "",
       },
@@ -340,6 +360,7 @@ export default {
       indentifiedColumns: [],
       columnsArr: [],
       tableData: [],
+      pageTableData:[],
       extractArr: [],
       filterArr: [
         // {
@@ -365,10 +386,6 @@ export default {
     //   })
     // })
 
-
-
-
-
     // this.initJsonEditor()
     if (this.parserColumns) {
       this.initColumnLists(this.parserColumns);
@@ -389,9 +406,19 @@ export default {
       this.formatCSVExtract(this.$store.state.app.csvTransformerParser.columns);
     }
     this.getInitStables();
-    console.log(this.indentifiedColumns,'indentifiedColumns')
+    console.log(this.indentifiedColumns, "indentifiedColumns");
   },
   methods: {
+    handleSizeChange(size){
+      console.log(size,'每页多少条');
+    },
+    handleCurrentChange(val){
+      this.pageTableData = this.tableData.slice(
+          (this.currentPage - 1) * this.pageSize,
+          this.currentPage * this.pageSize
+        );
+      console.log('当前页码',val,this.tableData);
+    },
     initJsonEditor() {
       let container = document.getElementById("jsoneditor");
       let options = {};
@@ -411,7 +438,7 @@ export default {
         sensorid: "mock_client_1",
       };
       editor.set(json);
-      console.log(editor.get(),'获取json串');
+      console.log(editor.get(), "获取json串");
     },
     //编辑回显数据
     async echoParser(value) {
@@ -564,7 +591,7 @@ export default {
       });
     },
     //计算mapping的结果
-   async caculateMappingResult() {
+    async caculateMappingResult() {
       if (!this.msgForm.msgbody) {
         Message.error(this.$t("datasource.transformer.msgbodytip"));
         this.isbreak = true;
@@ -589,7 +616,7 @@ export default {
           ) {
             columns.push(item["Name"]);
           }
-          if (item["Type"].includes("TIMESTAMP")&&!primarykey) {
+          if (item["Type"].includes("TIMESTAMP") && !primarykey) {
             primarykey = item["Name"];
           }
           if (this.params_tags.includes(item["Name"])) {
@@ -689,10 +716,10 @@ export default {
         (item) => item.columnname == colname
       );
       this.$set(this.extractArr[index], "expression", value);
-    }, 
+    },
     //获取transformer的所有参数
-   async getTransformerParams() {
-     await  this.caculateMappingResult();
+    async getTransformerParams() {
+      await this.caculateMappingResult();
 
       let extractObj = {};
       this.extractArr.forEach((item) => {
@@ -777,11 +804,16 @@ export default {
             outputTBData.map((val, index) => {
               item[`Output` + (index + 1)] =
                 item["Name"] == this.sruleForm.s_name
-                  ? val["__tbname__"]:val[item["Name"]].toString()
+                  ? val["__tbname__"]
+                  : val[item["Name"]].toString();
             });
           }
           return item;
         });
+        this.pageTableData = this.tableData.slice(
+          (this.currentPage - 1) * this.pageSize,
+          this.currentPage * this.pageSize
+        );
       } catch (error) {
         console.log(error);
       }
@@ -996,11 +1028,11 @@ export default {
       try {
         if (!this.$store.state.app.currentDBName) {
           Message.warning(this.$t("datasource.selecttargetdb"));
-          return
+          return;
         }
-        if(this.options.length == 0){
+        if (this.options.length == 0) {
           Message.warning(this.$t("datasource.transformer.parsefirst"));
-          return
+          return;
         }
         let res = await sendSQLReq(
           `desc \`${this.$store.state.app.currentDBName}\`.\`${this.sruleForm.s_name}\``
@@ -1025,9 +1057,10 @@ export default {
 
         this.params_columns.splice(0, this.params_columns.length - 1);
         this.params_tags.splice(0, this.params_tags.length - 1);
+        this.pageCount=res.data.length
         this.tableData = res.data.map((val, index) => {
           if (!val[3] && index > 0) {
-            this.params_columns.push(val[0]); //存储非逐渐列
+            this.params_columns.push(val[0]); //存储非主键列
           }
           if (val.includes("TAG")) {
             this.params_tags.push(val[0]);
@@ -1053,7 +1086,7 @@ export default {
         });
 
         this.tableData.unshift({
-          Name: 'SubTableName',//this.sruleForm.s_name,
+          Name: "SubTableName", //this.sruleForm.s_name,
           Type: "Tablename",
           maptype: ["expression", "string"],
           Expression: "",
@@ -1061,6 +1094,10 @@ export default {
           Output2: "",
         });
         this.params_columns.unshift(res.data[0][0]);
+        this.pageTableData = this.tableData.slice(
+          (this.currentPage - 1) * this.pageSize,
+          this.currentPage * this.pageSize
+        );
       } catch (error) {
         console.log(error);
       }
@@ -1260,7 +1297,7 @@ export default {
   }
 }
 .table-detail {
-  margin-top: 20px;
+  margin-top: 10px;
   .mapping {
     display: flex;
     justify-content: flex-end;
@@ -1292,7 +1329,7 @@ export default {
 }
 .transdescription {
   color: #acaab2;
-  margin-bottom:15px;
+  margin-bottom: 15px;
 }
 ::v-deep .el-input-group__prepend {
   padding: 0 4px;
