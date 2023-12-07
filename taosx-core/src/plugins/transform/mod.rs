@@ -727,6 +727,40 @@ mod pipeline_tests {
         println!("{}", json);
     }
 
+    #[test]
+    fn test_mutate_extract() {
+        let records = demo_mqtt_records();
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["value::double", "id::int"] } }
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
+
+        // With parser only
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "mutate": [{
+                "extract": { "payload": { "json": ["value::double", "id::int"] } }
+            }]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json2 = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json2);
+        assert_eq!(json, json2);
+    }
+
     fn demo_text_records() -> RecordBatch {
         let fields = vec![
             Field::new(
