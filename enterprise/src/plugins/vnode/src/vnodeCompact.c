@@ -26,9 +26,5 @@ int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t version, void *p
   vInfo("vgId:%d, compact msg will be processed, db:%s dbUid:%" PRId64 " compactStartTime:%" PRId64, TD_VID(pVnode),
         req.db, req.dbUid, req.compactStartTime);
 
-  if (pVnode->config.sttTrigger == 1) {
-    return tsdbAsyncCompact(pVnode->pTsdb, &req.tw, true);
-  } else {
-    return tsdbAsyncCompact(pVnode->pTsdb, &req.tw, false);
-  }
+  return tsdbAsyncCompact(pVnode->pTsdb, &req.tw, pVnode->config.sttTrigger == 1);
 }

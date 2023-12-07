@@ -583,6 +583,11 @@ int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool sync) {
 
   taosThreadMutexLock(&tsdb->mutex);
 
+  if (tsdb->bgTaskDisabled) {
+    taosThreadMutexUnlock(&tsdb->mutex);
+    return 0;
+  }
+
   STFileSet *fset;
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
     if (fset->fid < minFid || fset->fid > maxFid) continue;
@@ -605,15 +610,17 @@ int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool sync) {
 
     if (sync) {
       code = vnodeAsyncC(vnodeAsyncHandle[0], tsdb->pVnode->commitChannel, EVA_PRIORITY_NORMAL, tsdbDoCompactAsync,
-                         tsdbFreeCompactArg, arg, NULL);
+                         tsdbFreeCompactArg, arg, &arg->taskid);
     } else {
       code = vnodeAsyncC(vnodeAsyncHandle[1], fset->bgTaskChannel, EVA_PRIORITY_NORMAL, tsdbDoCompactAsync,
-                         tsdbFreeCompactArg, arg, NULL);
+                         tsdbFreeCompactArg, arg, &arg->taskid);
     }
     if (code) {
       tsdbFreeCompactArg(arg);
       taosThreadMutexUnlock(&tsdb->mutex);
       return code;
+    } else {
+      tsdbAddCompMonitorTask(tsdb, fset->fid, arg->taskid);
     }
   }
 
