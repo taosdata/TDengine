@@ -120,42 +120,34 @@ int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double* value) {
 }
 
 int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
-  if (n == 0) {
-    *value = 0;
-    return TSDB_CODE_SUCCESS;
-  }
-
   errno = 0;
   char *endPtr = NULL;
-  bool parsed = false;
   switch (type)
   {
     case TK_NK_INTEGER: {
       *value = taosStr2Int64(z, &endPtr, 10);
-      parsed = true;
+      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+        return TSDB_CODE_FAILED;
+      }
+      return TSDB_CODE_SUCCESS;
     } break;
     case TK_NK_FLOAT: {
       double val = round(taosStr2Double(z, &endPtr));
-      parsed = true;
       if (!IS_VALID_INT64(val)) {
         return TSDB_CODE_FAILED;
       }
+      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+        return TSDB_CODE_FAILED;
+      }
       *value = val;
+      return TSDB_CODE_SUCCESS;
     } break;
   default:
     break;
   }
 
-  if (parsed) {
-    if (errno == ERANGE || errno == EINVAL) {
-      return TSDB_CODE_FAILED;
-    }
-    while (n > 1 && z[n-1] == ' ') {
-      n--;
-    }
-    if (endPtr - z != n) {
-      return TSDB_CODE_FAILED;
-    }
+  if (n == 0) {
+    *value = 0;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -229,14 +221,8 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
 }
 
 int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
-  if (n == 0) {
-    *value = 0;
-    return TSDB_CODE_SUCCESS;
-  }
-
   errno = 0;
   char *endPtr = NULL;
-  bool parsed = false;
   const char *p = z;
   while (*p == ' ') {
     p++;
@@ -247,30 +233,28 @@ int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
       if (*p == '-' && *value) {
         return TSDB_CODE_FAILED;
       }
-      parsed = true;
+      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+        return TSDB_CODE_FAILED;
+      }
+      return TSDB_CODE_SUCCESS;
     } break;
     case TK_NK_FLOAT: {
       double val = round(taosStr2Double(p, &endPtr));
       if (!IS_VALID_UINT64(val)) {
         return TSDB_CODE_FAILED;
       }
+      if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+        return TSDB_CODE_FAILED;
+      }
       *value = val;
-      parsed = true;
+      return TSDB_CODE_SUCCESS;
     } break;
     default:
       break;
   }
 
-  if (parsed) {
-    if (errno == ERANGE || errno == EINVAL) {
-      return TSDB_CODE_FAILED;
-    }
-    while (n > 1 && z[n-1] == ' ') {
-      n--;
-    }
-    if (endPtr - z != n) {
-      return TSDB_CODE_FAILED;
-    }
+  if (n == 0) {
+    *value = 0;
     return TSDB_CODE_SUCCESS;
   }
 
