@@ -3,7 +3,7 @@ import taos
 conn = taos.connect()
 dbname = "pytest_line"
 conn.execute("drop database if exists %s" % dbname)
-conn.execute("create database if not exists %s precision 'us'" % dbname)
+conn.execute("create database if not exists %s precision 'us' keep 36500" % dbname)
 conn.select_db(dbname)
 
 lines = [

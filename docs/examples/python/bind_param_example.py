@@ -20,7 +20,7 @@ def get_ts(ts: str):
 def create_stable():
     conn = taos.connect()
     try:
-        conn.execute("CREATE DATABASE power")
+        conn.execute("CREATE DATABASE power keep 36500")
         conn.execute("CREATE STABLE power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) "
                      "TAGS (location BINARY(64), groupId INT)")
     finally:
