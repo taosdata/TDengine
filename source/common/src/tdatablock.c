@@ -480,7 +480,7 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
 }
 
 int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnInfoData* pSrc, int32_t srcIdx, int32_t numOfRows) {
-  if (pDst->info.type != pSrc->info.type || pSrc->reassigned) {
+  if (pDst->info.type != pSrc->info.type || pDst->info.bytes != pSrc->info.bytes || pSrc->reassigned) {
     return TSDB_CODE_FAILED;
   }
 
@@ -489,25 +489,108 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
   }
 
   if (IS_VAR_DATA_TYPE(pDst->info.type)) {
-    memcpy(pDst->varmeta.offset, pSrc->varmeta.offset, sizeof(int32_t) * numOfRows);
-    if (pDst->varmeta.allocLen < pSrc->varmeta.length) {
-      char* tmp = taosMemoryRealloc(pDst->pData, pSrc->varmeta.length);
-      if (tmp == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
+    int32_t allLen = 0;
+    if (pSrc->hasNull) {
+      for (int32_t i = 0; i < numOfRows; ++i) {
+        if (colDataIsNull_var(pSrc, srcIdx + i)) {
+          pDst->varmeta.offset[dstIdx + i] = -1;
+          pDst->hasNull = true;
+          continue;
+        }
 
-      pDst->pData = tmp;
-      pDst->varmeta.allocLen = pSrc->varmeta.length;
+        char* pData = colDataGetVarData(pSrc, srcIdx + i);
+        int32_t dataLen = 0;
+        if (pSrc->info.type == TSDB_DATA_TYPE_JSON) {
+          dataLen = getJsonValueLen(pData);
+        } else {
+          dataLen = varDataTLen(pData);
+        }
+        pDst->varmeta.offset[dstIdx + i] = pDst->varmeta.length + allLen;
+        allLen += dataLen;
+      }
+    } else {
+      for (int32_t i = 0; i < numOfRows; ++i) {
+        char* pData = colDataGetVarData(pSrc, srcIdx + i);
+        int32_t dataLen = 0;
+        if (pSrc->info.type == TSDB_DATA_TYPE_JSON) {
+          dataLen = getJsonValueLen(pData);
+        } else {
+          dataLen = varDataTLen(pData);
+        }
+        pDst->varmeta.offset[dstIdx + i] = pDst->varmeta.length + allLen;
+        allLen += dataLen;
+      }
     }
 
-    pDst->varmeta.length = pSrc->varmeta.length;
-    if (pDst->pData != NULL && pSrc->pData != NULL) {
-      memcpy(pDst->pData, pSrc->pData, pSrc->varmeta.length);
+    if (allLen > 0) {
+      // copy data
+      if (pDst->varmeta.allocLen < pDst->varmeta.length + allLen) {
+        char* tmp = taosMemoryRealloc(pDst->pData, pDst->varmeta.length + allLen);
+        if (tmp == NULL) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+      
+        pDst->pData = tmp;
+        pDst->varmeta.allocLen = pDst->varmeta.length + allLen;
+      }
+      
+      memcpy(pDst->pData + pDst->varmeta.length, pSrc->pData, allLen);
+      pDst->varmeta.length = pDst->varmeta.length + allLen;
     }
   } else {
-    memcpy(pDst->nullbitmap, pSrc->nullbitmap, BitmapLen(numOfRows));
+    if (pSrc->hasNull) {
+      if (0 == BitPos(dstIdx) && 0 == BitPos(srcIdx)) {
+        memcpy(BMCharPos(pDst->nullbitmap, dstIdx), BMCharPos(pSrc->nullbitmap, srcIdx), BitmapLen(numOfRows));
+        if (!pDst->hasNull) {
+          int32_t nullBytes = BitmapLen(numOfRows);
+          int32_t startPos = CharPos(dstIdx);
+          for (int32_t i = 0; i < nullBytes; ++i) {
+            if (pDst->nullbitmap[startPos + i]) {
+              pDst->hasNull = true;
+              break;
+            }
+          }
+        }
+      } else if (BitPos(dstIdx) == BitPos(srcIdx)) {
+        for (int32_t i = 0; i < numOfRows; ++i) {
+          if (0 == BitPos(dstIdx)) {
+            memcpy(BMCharPos(pDst->nullbitmap, dstIdx + i), BMCharPos(pSrc->nullbitmap, srcIdx + i), BitmapLen(numOfRows - i));
+            if (!pDst->hasNull) {
+              int32_t nullBytes = BitmapLen(numOfRows - i);
+              int32_t startPos = CharPos(dstIdx + i);
+              for (int32_t m = 0; m < nullBytes; ++m) {
+                if (pDst->nullbitmap[startPos + m]) {
+                  pDst->hasNull = true;
+                  break;
+                }
+              }
+            }
+            break;
+          } else {
+            if (colDataIsNull_f(pSrc->nullbitmap, srcIdx + i)) {
+              colDataSetNull_f(pDst->nullbitmap, dstIdx + i);
+              pDst->hasNull = true;
+            } else {
+              colDataClearNull_f(pDst->nullbitmap, dstIdx + i);
+            }
+          }
+        }
+      } else {
+        for (int32_t i = 0; i < numOfRows; ++i) {
+          if (colDataIsNull_f(pSrc->nullbitmap, srcIdx + i)) {
+            colDataSetNull_f(pDst->nullbitmap, dstIdx + i);
+            pDst->hasNull = true;
+          } else {
+            colDataClearNull_f(pDst->nullbitmap, dstIdx + i);
+          }
+        }
+      }
+    } else {
+      memset(BMCharPos(pDst->nullbitmap, dstIdx), 0, BitmapLen(numOfRows));
+    }
+
     if (pSrc->pData != NULL) {
-      memcpy(pDst->pData, pSrc->pData, pSrc->info.bytes * numOfRows);
+      memcpy(pDst->pData + pDst->info.bytes * dstIdx, pSrc->pData + pSrc->info.bytes * srcIdx, pDst->info.bytes * numOfRows);
     }
   }
 
