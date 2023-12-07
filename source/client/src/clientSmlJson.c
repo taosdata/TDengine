@@ -512,7 +512,6 @@ static int32_t smlProcessTagJson(SSmlHandle *info, cJSON *tags){
     SSmlKv kv = {0};
     kv.key = tag->string;
     kv.keyLen = keyLen;
-    taosArrayPush(preLineKV, &kv);
 
     // value
     int32_t ret = smlParseValueFromJSON(tag, &kv);
@@ -520,7 +519,7 @@ static int32_t smlProcessTagJson(SSmlHandle *info, cJSON *tags){
       terrno =  ret;
       return -1;
     }
-
+    taosArrayPush(preLineKV, &kv);
 
     if (info->dataFormat && !isSmlTagAligned(info, cnt, &kv)) {
       terrno =  TSDB_CODE_SUCCESS;

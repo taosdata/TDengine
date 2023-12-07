@@ -422,7 +422,7 @@ int32_t smlParseEndTelnetJson(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *
 int32_t smlParseEndLine(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs){
   if (info->dataFormat) {
     uDebug("SML:0x%" PRIx64 " smlParseEndLine format true, ts:%" PRId64, info->id, kvTs->i);
-    int32_t ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kvTs, 0);
+    int32_t ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, kvTs, 0);
     if (ret == TSDB_CODE_SUCCESS) {
       ret = smlBuildRow(info->currTableDataCtx);
     }
@@ -434,7 +434,7 @@ int32_t smlParseEndLine(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs){
     }
   } else {
     uDebug("SML:0x%" PRIx64 " smlParseEndLine format false, ts:%" PRId64, info->id, kvTs->i);
-    taosArraySet(elements->colArray, 0, &kvTs);
+    taosArraySet(elements->colArray, 0, kvTs);
   }
   info->preLine = *elements;
 
@@ -1374,7 +1374,9 @@ void smlDestroyInfo(SSmlHandle *info) {
       if (info->parseJsonByLib) {
         taosMemoryFree(info->lines[i].tags);
       }
-      if (info->lines[i].measureTagsLen != 0) taosMemoryFree(info->lines[i].measureTag);
+      if (info->lines[i].measureTagsLen != 0 && info->protocol != TSDB_SML_LINE_PROTOCOL) {
+        taosMemoryFree(info->lines[i].measureTag);
+      }
     }
     taosMemoryFree(info->lines);
   }
