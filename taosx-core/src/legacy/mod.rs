@@ -965,7 +965,7 @@ async fn sync_single_table_partial(
                     if !success {
                         Err(err).with_context(|| format!("[{table}] execute error and unable to auto choose a batch size limit"))?;
                     }
-                } else if err_str.contains("0x0x0020") {
+                } else if err_str.contains("0x0020") {
                     tokio::time::sleep(Duration::from_millis(100)).await;
                     stmt.execute()
                         .await
