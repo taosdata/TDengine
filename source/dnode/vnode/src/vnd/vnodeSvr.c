@@ -1009,13 +1009,9 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       taosMemoryFreeClear(*key);
     }
 
-    taosStringBuilderAppendStringLen(&sb, "specailkey", strlen("specailkey"));
-
     size_t    len = 0;
     char*     keyJoined = taosStringBuilderGetResult(&sb, &len);
 
-    vInfo("create table %s", keyJoined);
-    
     if(pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0){
       auditAddRecord(pOriginRpc, clusterId, "createTable", name.dbname, "", keyJoined, len);
     }
