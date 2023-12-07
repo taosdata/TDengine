@@ -109,10 +109,7 @@ int32_t toDoubleEx(const char *z, int32_t n, uint32_t type, double* value) {
   if (errno == ERANGE || errno == EINVAL) {
     return TSDB_CODE_FAILED;
   }
-  // rm tail space 
-  while (n > 1 && z[n-1] == ' ') {
-    n--;
-  }
+
   if (endPtr - z != n) {
     return TSDB_CODE_FAILED;
   }
@@ -149,11 +146,6 @@ int32_t toIntegerEx(const char *z, int32_t n, uint32_t type, int64_t *value) {
   if (n == 0) {
     *value = 0;
     return TSDB_CODE_SUCCESS;
-  }
-
-  // rm tail space 
-  while (n > 1 && z[n-1] == ' ') {
-    n--;
   }
 
   // 1. try to parse as integer
@@ -256,11 +248,6 @@ int32_t toUIntegerEx(const char *z, int32_t n, uint32_t type, uint64_t *value) {
   if (n == 0) {
     *value = 0;
     return TSDB_CODE_SUCCESS;
-  }
-
-  // rm tail space
-  while (n > 1 && z[n-1] == ' ') {
-    n--;
   }
 
   // 1. parse as integer
