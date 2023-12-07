@@ -10,9 +10,9 @@ try:
     conn.execute("drop database if exists %s" % dbname)
 
     if taos.IS_V3:
-        conn.execute("create database if not exists %s schemaless 1 precision 'ns'" % dbname)
+        conn.execute("create database if not exists %s schemaless 1 precision 'ns' keep 36500" % dbname)
     else:
-        conn.execute("create database if not exists %s update 2 precision 'ns'" % dbname)
+        conn.execute("create database if not exists %s update 2 precision 'ns' keep 36500" % dbname)
 
     conn.select_db(dbname)
 

@@ -5,7 +5,7 @@ LOCATIONS = ['California.SanFrancisco', 'California.LosAngles', 'California.SanD
              'California.PaloAlto', 'California.Campbell', 'California.MountainView', 'California.Sunnyvale',
              'California.SantaClara', 'California.Cupertino']
 
-CREATE_DATABASE_SQL = 'create database if not exists {} keep 365 duration 10 buffer 16 wal_level 1 wal_retention_period 3600'
+CREATE_DATABASE_SQL = 'create database if not exists {} keep 36500 duration 10 buffer 16 wal_level 1 wal_retention_period 3600'
 USE_DATABASE_SQL = 'use {}'
 DROP_TABLE_SQL = 'drop table if exists meters'
 DROP_DATABASE_SQL = 'drop database if exists {}'
