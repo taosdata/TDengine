@@ -291,6 +291,7 @@ typedef struct {
   SGrantedInfo grantedInfo;
   int32_t      nGrantReq;
   int32_t      nGrantRsp;
+  int64_t      lastCheck;
   int8_t       nGrantNone;
 } SGrantHandle;
 
@@ -803,6 +804,10 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
   if (0 != atomic_val_compare_exchange_8(&grantHbLock, 0, 1)) {
     uWarn("previous grant task not finished yet");
     atomic_val_compare_exchange_8(&grantHbLock, 1, 2);
+    // in case not enough grant responses are received for a long time
+    if (taosGetTimestampMs() - grantHandle.lastCheck > 15000) {
+      mndProcessGrantStatusCheck();
+    }
     return 0;
   }
 
@@ -846,6 +851,8 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
       ++grantHandle.nGrantReq;
     }
   }
+
+  grantHandle.lastCheck = taosGetTimestampMs();
 
   // tolerence for exception
   if (grantHandle.nGrantReq <= 0) {
@@ -1375,11 +1382,15 @@ static int32_t grantCheckAccts() { return 0; }
 
 static int32_t grantCheckDnodes() {
   ASSERTS(gStatus.limitDnodes != GRANT_UNIQ_UNDEFINED, "limitDnodes is %" PRIi64, GRANT_UNIQ_UNDEFINED);
-  if (grantStatus.limitDnodes == GRANT_DNODE_LIMITS || grantStatus.curDnodes < grantStatus.limitDnodes) {
+  if (gStatus.limitDnodes == GRANT_UNIQ_UNLIMITED) {
     return 0;
   }
-    uError("grant failed to create dnode, exist:%" PRIu32 ", reason:grant dnode limited", grantStatus.curDnodes);
-    return TSDB_CODE_GRANT_DNODE_LIMITED;
+  gStatus.curDnodes = grantGetClusterCurDnodes(grantHandle.pMnode);
+  if (gStatus.curDnodes < gStatus.limitDnodes) {
+    return 0;
+  }
+  uError("grant failed to create dnode, exist:%" PRIu32 ", reason:grant dnode limited", gStatus.curDnodes);
+  return TSDB_CODE_GRANT_DNODE_LIMITED;
 }
 
 static int32_t grantCheckStorage() { return 0; }
@@ -1411,7 +1422,11 @@ static int32_t grantCheckTopics() {
 static int32_t grantCheckStreamExpired() { return gStatus.streamExpired ? TSDB_CODE_GRANT_EXPIRED : TSDB_CODE_SUCCESS; }
 
 static int32_t grantCheckCpuCores() {
-  if (gStatus.limitCpuCores == GRANT_UNIQ_UNLIMITED || gStatus.curCpuCores < gStatus.limitCpuCores) {
+  if (gStatus.limitCpuCores == GRANT_UNIQ_UNLIMITED) {
+    return 0;
+  }
+  gStatus.curCpuCores = grantGetClusterCurCores(grantHandle.pMnode);
+  if (gStatus.curCpuCores < gStatus.limitCpuCores) {
     return 0;
   }
   uError("grant failed to create dnode, exist:%" PRIu32 ", reason:grant cpu cores limited", gStatus.curCpuCores);
