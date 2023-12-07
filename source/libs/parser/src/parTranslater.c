@@ -4622,11 +4622,15 @@ static int32_t addOrderByPrimaryKeyToQueryImpl(STranslateContext* pCxt, SNode* p
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   ((SExprNode*)pOrderByExpr->pExpr)->orderAlias = true;
-  NODES_DESTORY_LIST(*pOrderByList);
+  // NODES_DESTORY_LIST(*pOrderByList);
   return nodesListMakeStrictAppend(pOrderByList, (SNode*)pOrderByExpr);
 }
 
 static int32_t addOrderByPrimaryKeyToQuery(STranslateContext* pCxt, SNode* pPrimaryKeyExpr, SNode* pStmt) {
+  SNodeList* pOrederList = ((SSelectStmt*)pStmt)->pOrderByList;
+  if (pOrederList && pOrederList->length > 0) {
+    return TSDB_CODE_SUCCESS;
+  }
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     return addOrderByPrimaryKeyToQueryImpl(pCxt, pPrimaryKeyExpr, &((SSelectStmt*)pStmt)->pOrderByList);
   }
@@ -7388,6 +7392,13 @@ static int32_t subtableExprHasColumnOrPseudoColumn(SNode* pNode) {
 
 static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
+  if ( (SRealTableNode*)pSelect->pFromTable && ((SRealTableNode*)pSelect->pFromTable)->pMeta
+    && TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType
+    && !hasPartitionByTbname(pSelect->pPartitionByList)
+    && pSelect->pWindow != NULL && pSelect->pWindow->type == QUERY_NODE_EVENT_WINDOW) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                   "Event window for stream on super table must patitioned by table name");
+  }
   if (TSDB_DATA_TYPE_TIMESTAMP != ((SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0))->resType.type ||
       !isTimeLineQuery(pStmt->pQuery) || crossTableWithoutAggOper(pSelect) || NULL != pSelect->pOrderByList ||
       crossTableWithUdaf(pSelect) || hasJsonTypeProjection(pSelect)) {
