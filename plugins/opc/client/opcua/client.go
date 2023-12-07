@@ -30,7 +30,6 @@ type UAClient struct {
 	collectMode   string
 	nodes         []*ua.NodeID
 	dataCache     []*common.NodeValue
-	valueReqs     []*ua.ReadValueID
 	index         int
 	logger        *logrus.Entry
 	readInterval  time.Duration
@@ -213,7 +212,7 @@ func (c *UAClient) getServerLimit() error {
 			{NodeID: maxReadID},
 			{NodeID: maxItemID},
 		},
-		TimestampsToReturn: ua.TimestampsToReturnInvalid,
+		TimestampsToReturn: ua.TimestampsToReturnNeither,
 	}
 	resp, err := c.conn.Read(c.ctx, req)
 	if err != nil {
@@ -224,20 +223,28 @@ func (c *UAClient) getServerLimit() error {
 		if c.maxNodePreRead == 0 {
 			c.maxNodePreRead = uint64(resp.Results[0].Value.Int())
 		}
-		c.logger.Info("get max node pre read success", c.maxNodePreRead)
+		c.logger.Info("get max node pre read success ", c.maxNodePreRead)
 	} else {
-		c.logger.Warn("get max node pre read fail, set to 10000")
-		c.maxNodePreRead = 10000
+		c.logger.Warn("get max node pre read fail, set to 1")
+		c.maxNodePreRead = 1
+	}
+	if c.maxNodePreRead == 0 {
+		c.logger.Warn("get max node pre read 0, set to 1")
+		c.maxNodePreRead = 1
 	}
 	if resp.Results[1].Status == ua.StatusOK {
 		c.maxMonitoredItemsPreCall = resp.Results[1].Value.Uint()
 		if c.maxMonitoredItemsPreCall == 0 {
 			c.maxMonitoredItemsPreCall = uint64(resp.Results[1].Value.Int())
 		}
-		c.logger.Info("get max monitored items pre call success,", c.maxMonitoredItemsPreCall)
+		c.logger.Info("get max monitored items pre call success, ", c.maxMonitoredItemsPreCall)
 	} else {
-		c.logger.Warn("get max monitored items pre call fail, set to 10000")
-		c.maxMonitoredItemsPreCall = 10000
+		c.logger.Warn("get max monitored items pre call fail, set to 1")
+		c.maxMonitoredItemsPreCall = 1
+	}
+	if c.maxMonitoredItemsPreCall == 0 {
+		c.logger.Warn("get max monitored items pre call 0, set to 1")
+		c.maxMonitoredItemsPreCall = 1
 	}
 	return nil
 }
@@ -276,11 +283,6 @@ func (c *UAClient) checkCollect() error {
 
 func (c *UAClient) initNodeNameAndValue() error {
 	err := c.checkCollect()
-	if err != nil {
-		return err
-	}
-	// read types
-	err = c.readAllTypes()
 	if err != nil {
 		return err
 	}
@@ -375,7 +377,7 @@ func (c *UAClient) readTypesBatch(base int, nodes []*ua.NodeID) error {
 			return fmt.Errorf("read types for node %s failed: %w", nodes[uint(i)].String(), r.Status)
 		}
 		nt := r.Value.NodeID().IntID()
-		vt, ok := convertType[nt]
+		vt, ok := convertType[ua.TypeID(nt)]
 		if !ok {
 			c.logger.WithField("type", nt).WithField("node", nodes[uint(i)].String()).Error("invalid node type")
 			return fmt.Errorf("invalid node type, node: '%s' type: %d", nodes[uint(i)].String(), nt)
@@ -405,14 +407,12 @@ func (c *UAClient) readNameBatch(base int, nodes []*ua.NodeID) error {
 }
 
 func (c *UAClient) readValueBatch(base int, nodes []*ua.NodeID) error {
-	if len(c.valueReqs) == 0 {
-		c.valueReqs = make([]*ua.ReadValueID, 0, len(nodes))
-		for _, node := range nodes {
-			c.valueReqs = append(c.valueReqs, &ua.ReadValueID{NodeID: node, AttributeID: ua.AttributeIDValue})
-		}
+	valueReqs := make([]*ua.ReadValueID, 0, len(nodes))
+	for _, node := range nodes {
+		valueReqs = append(valueReqs, &ua.ReadValueID{NodeID: node, AttributeID: ua.AttributeIDValue})
 	}
 	start := time.Now()
-	resp, err := c.conn.Read(c.ctx, &ua.ReadRequest{MaxAge: 2000, TimestampsToReturn: ua.TimestampsToReturnBoth, NodesToRead: c.valueReqs})
+	resp, err := c.conn.Read(c.ctx, &ua.ReadRequest{MaxAge: 2000, TimestampsToReturn: ua.TimestampsToReturnBoth, NodesToRead: valueReqs})
 	if err != nil {
 		return err
 	}
@@ -420,10 +420,21 @@ func (c *UAClient) readValueBatch(base int, nodes []*ua.NodeID) error {
 	c.logger.WithField("time", end.Sub(start)).Debug("read value spend")
 	for i, r := range resp.Results {
 		if r.Status != ua.StatusOK {
-			c.logger.WithError(err).Error("read value error")
-			return fmt.Errorf("read value for node %s failed: %w", nodes[uint(i)].String(), r.Status)
+			c.logger.WithError(r.Status).Error("read value error")
+			c.dataCache[base+i].Value = nil
+		} else {
+			c.dataCache[base+i].Value = r.Value.Value()
+			if r.Value.ArrayLength() > 0 || r.Value.ArrayDimensions() != nil {
+				c.logger.WithField("id", c.dataCache[base+i].Identifier).Warn("skip node: read value is array")
+				continue
+			}
+			exists := false
+			c.dataCache[base+i].ValueType, exists = convertType[r.Value.Type()]
+			if !exists {
+				c.logger.WithField("id", c.dataCache[base+i].Identifier).WithField("valueType", r.Value.Type()).Warn("skip node: read value type is not supported")
+				continue
+			}
 		}
-		c.dataCache[base+i].Value = r.Value.Value()
 		var ts time.Time
 		if !r.SourceTimestamp.IsZero() {
 			ts = r.SourceTimestamp
@@ -463,15 +474,15 @@ func (c *UAClient) observe() error {
 					c.logger.WithError(err).Error("read value error")
 					continue
 				}
-				values := make([]*common.NodeValue, len(c.dataCache))
-				for i, data := range c.dataCache {
+				values := make([]*common.NodeValue, 0, len(c.dataCache))
+				for _, data := range c.dataCache {
 					if ua.StatusCode(data.Status) != ua.StatusOK {
-						c.logger.Warn("read value status is not ok", "id", data.Identifier, "status", ua.StatusCode(data.Status))
+						c.logger.WithField("id", data.Identifier).WithField("status", ua.StatusCode(data.Status)).Warn("read value status is not ok")
 						if !c.containsBad {
 							continue
 						}
 					}
-					values[i] = &common.NodeValue{
+					values = append(values, &common.NodeValue{
 						Identifier: data.Identifier,
 						Name:       data.Name,
 						Timestamp:  data.Timestamp,
@@ -480,7 +491,7 @@ func (c *UAClient) observe() error {
 						Value:      data.Value,
 						ValueType:  data.ValueType,
 						Status:     data.Status,
-					}
+					})
 				}
 				if len(values) == 0 {
 					c.logger.Warn("opcua read no values")
@@ -676,7 +687,7 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 		n := item.Value.(*opcua.Node)
 		point, err := getPoint(ctx, n, reg)
 		if err != nil {
-			return nil, err
+			c.logger.WithError(err).Error("get point error")
 		}
 		if point != nil {
 			result = append(result, *point)
@@ -686,7 +697,7 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 		}
 		children, err := getChildren(ctx, n)
 		if err != nil {
-			return nil, err
+			c.logger.WithError(err).Error("get children error")
 		}
 		for _, child := range children {
 			//avoid nested loops
@@ -700,20 +711,20 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 	return result, nil
 }
 
-var convertType = map[uint32]types.ValueType{
-	id.Boolean:  types.BOOL,
-	id.SByte:    types.INT8,
-	id.Byte:     types.UINT8,
-	id.Int16:    types.INT16,
-	id.UInt16:   types.UINT16,
-	id.Int32:    types.INT32,
-	id.UInt32:   types.UINT32,
-	id.Int64:    types.INT64,
-	id.UInt64:   types.UINT64,
-	id.Float:    types.Float,
-	id.Double:   types.DOUBLE,
-	id.String:   types.STRING,
-	id.DateTime: types.TIMESTAMP,
+var convertType = map[ua.TypeID]types.ValueType{
+	ua.TypeIDBoolean:  types.BOOL,
+	ua.TypeIDSByte:    types.INT8,
+	ua.TypeIDByte:     types.UINT8,
+	ua.TypeIDInt16:    types.INT16,
+	ua.TypeIDUint16:   types.UINT16,
+	ua.TypeIDInt32:    types.INT32,
+	ua.TypeIDUint32:   types.UINT32,
+	ua.TypeIDInt64:    types.INT64,
+	ua.TypeIDUint64:   types.UINT64,
+	ua.TypeIDFloat:    types.Float,
+	ua.TypeIDDouble:   types.DOUBLE,
+	ua.TypeIDString:   types.STRING,
+	ua.TypeIDDateTime: types.TIMESTAMP,
 }
 
 func getPoint(ctx context.Context, n *opcua.Node, reg *regexp.Regexp) (*common.Point, error) {
@@ -723,6 +734,9 @@ func getPoint(ctx context.Context, n *opcua.Node, reg *regexp.Regexp) (*common.P
 	}
 	err = attrs[0].Status
 	if err != ua.StatusOK {
+		if err == ua.StatusBadSecurityModeInsufficient {
+			return nil, nil
+		}
 		return nil, err
 	}
 	nodeClass := ua.NodeClass(attrs[0].Value.Int())
@@ -738,7 +752,7 @@ func getPoint(ctx context.Context, n *opcua.Node, reg *regexp.Regexp) (*common.P
 	switch err {
 	case ua.StatusOK:
 		dataType := attrs[2].Value.NodeID().IntID()
-		_, exist := convertType[dataType]
+		_, exist := convertType[ua.TypeID(dataType)]
 		if !exist {
 			return nil, nil
 		}
@@ -780,7 +794,7 @@ func getChildren(ctx context.Context, n *opcua.Node) ([]*opcua.Node, error) {
 	for _, refType := range refTypes {
 		refs, err := n.ReferencedNodes(ctx, refType, ua.BrowseDirectionForward, ua.NodeClassAll, true)
 		if err != nil {
-			return nil, fmt.Errorf("References: %d: %s", id.HasComponent, err)
+			return nil, fmt.Errorf("References: %d: %s", refType, err)
 		}
 		if len(refs) > 0 {
 			children = append(children, refs...)
