@@ -7,6 +7,7 @@ use tiberius::QueryItem;
 use crate::runners::historian::arrow::ArrowDataAppender;
 use crate::runners::historian::config::{HistorianTable, TaskConfig};
 use crate::runners::historian::query::HistorianQuery;
+use crate::runners::historian::set_tcp_keepalive;
 use crate::runners::historian::worker::consumer::Consumer;
 use crate::runners::historian::worker::producer::Producer;
 
@@ -14,7 +15,7 @@ mod consumer;
 mod producer;
 
 pub async fn migrate_history(config: TaskConfig) -> anyhow::Result<()> {
-    tracing::info!("create history migrate task with config: {:?}", config);
+    tracing::info!("migrate history start, config: {:?}", config);
 
     let (tx, rx) = flume::bounded(config.concurrency);
     // consume task
@@ -41,17 +42,17 @@ pub async fn migrate_history(config: TaskConfig) -> anyhow::Result<()> {
         c.await??;
     }
 
-    tracing::info!("migrate history task finished");
+    tracing::info!("migrate history finished");
     Ok(())
 }
 
 pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
-    tracing::info!("create history sync task with config: {:?}", task_config);
+    tracing::info!("sync history start, config: {:?}", task_config);
 
-    let mut now = Utc::now();
+    // migrate task
+    let now = Utc::now();
     let mut migrate_task_config = task_config.clone();
     migrate_task_config.end_datetime = Some(now);
-
     let _ = tokio::spawn(async move { migrate_history(migrate_task_config).await });
 
     let port = task_config
@@ -59,26 +60,36 @@ pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
         .ok_or(anyhow::anyhow!("ipc_port cannot be None"))?;
     let socket = format!("127.0.0.1:{}", port);
     let stream = std::net::TcpStream::connect(socket)?;
+    set_tcp_keepalive(&stream)?;
+    stream.set_nonblocking(false)?;
+
     let mut appender = ArrowDataAppender::try_new(HistorianTable::History)?;
     let mut writer = StreamWriter::try_new(&stream, appender.schema())?;
 
-    let mut query = HistorianQuery::try_new(task_config.clone().connect).await?;
+    let mut query = HistorianQuery::try_new(task_config.connect.clone()).await?;
 
     tokio::time::sleep(task_config.tolerance.to_std().unwrap()).await;
+
+    let mut window_start = now;
+    let mut count: u64 = 1;
+    let tags_group = split_tags(task_config.tags.clone(), task_config.tag_list_size);
     loop {
-        let window_start = now;
         let window_end = Utc::now();
 
         tracing::debug!(
-            "execute history sync task, begin: {}, end: {}",
+            "sync history {}, begin: {}, end: {}",
+            count,
             window_start,
             window_end
         );
 
-        let tags_group = split_tags(task_config.tags.clone(), task_config.tag_list_size);
-        for tags in tags_group {
-            let mut rows = query.query_history(tags, window_start, window_end).await?;
+        for tags in &tags_group {
+            tracing::debug!("sync history {} query rows", count);
+            let mut rows = query
+                .query_history(tags.clone(), window_start, window_end)
+                .await?;
 
+            tracing::debug!("sync history {} rows to batch", count);
             while let Some(row) = rows.try_next().await? {
                 match row {
                     QueryItem::Row(row) => {
@@ -90,35 +101,40 @@ pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
                 }
             }
 
+            tracing::debug!("sync history {} batch finish", count);
             let batch = appender.finish()?;
+            tracing::debug!("sync history {} batch to writer", count);
             writer.write(&batch)?;
+            count += 1;
         }
 
-        now = window_end;
+        window_start = window_end;
         tokio::time::sleep(task_config.retrieve_interval.to_std().unwrap()).await;
     }
 }
 
 pub async fn sync_live(task_config: TaskConfig) -> anyhow::Result<()> {
-    tracing::info!("create live sync task with config: {:?}", task_config);
+    tracing::info!("sync live start, config: {:?}", task_config);
 
     let port = task_config
         .ipc_port
         .ok_or(anyhow::anyhow!("ipc_port can not be None"))?;
     let socket = format!("127.0.0.1:{}", port);
     let stream = std::net::TcpStream::connect(socket)?;
+    stream.set_nonblocking(false)?;
     let mut appender = ArrowDataAppender::try_new(HistorianTable::Live)?;
     let mut writer = StreamWriter::try_new(&stream, appender.schema())?;
 
     let mut query = HistorianQuery::try_new(task_config.clone().connect).await?;
+    let tags_group = split_tags(task_config.tags.clone(), task_config.tag_list_size);
+
+    let mut count: u64 = 1;
     loop {
-        tracing::debug!("execute live sync task");
+        for tags in &tags_group {
+            tracing::debug!("sync live {} query rows", count);
+            let mut rows = query.query_live(tags.clone()).await?;
 
-        let tags_group = split_tags(task_config.tags.clone(), task_config.tag_list_size);
-
-        for tags in tags_group {
-            let mut rows = query.query_live(tags).await?;
-
+            tracing::debug!("sync live {} rows to batch", count);
             while let Some(row) = rows.try_next().await? {
                 match row {
                     QueryItem::Row(row) => {
@@ -130,10 +146,13 @@ pub async fn sync_live(task_config: TaskConfig) -> anyhow::Result<()> {
                 }
             }
 
+            tracing::debug!("sync live {} batch finish", count);
             let batch = appender.finish()?;
+            tracing::debug!("sync live {} batch to writer", count);
             writer.write(&batch)?;
-        }
 
+            count += 1;
+        }
         tokio::time::sleep(task_config.retrieve_interval.to_std().unwrap()).await;
     }
 }
