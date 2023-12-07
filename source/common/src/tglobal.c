@@ -97,7 +97,7 @@ bool     tsMonitorComp = false;
 // audit
 bool     tsEnableAudit = true;
 bool     tsEnableAuditCreateTable = true;
-int32_t  tsAuditInterval = 100;
+int32_t  tsAuditInterval = 500;
 
 // telem
 #ifdef TD_ENTERPRISE
@@ -687,7 +687,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddBool(pCfg, "audit", tsEnableAudit, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
   if (cfgAddBool(pCfg, "auditCreateTable", tsEnableAuditCreateTable, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
-  if (cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 1, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
+  if (cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 500, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
     return -1;
 
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
