@@ -204,9 +204,11 @@ END:
 
 int main(int argc, char* argv[]) {
   printf("test write_raw_block...\n");
-  if (init_env() < 0) {
+  int ret = init_env();
+  if (ret < 0) {
     printf("test write_raw_block failed.\n");
-    return -1;
+    return ret;
   }
   printf("test write_raw_block ok.\n");
+  return 0;
 }
