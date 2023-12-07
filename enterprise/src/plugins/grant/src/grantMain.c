@@ -83,15 +83,47 @@
     }                                                \
   } while (0)
 
+#define GRANT_EXPIRE_SHOW(expireSec)                   \
+  do {                                                 \
+    ++cols;                                            \
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols); \
+    if ((expireSec) != GRANT_UNIQ_MAX_EXPIRE_SECOND) { \
+      grantSecondsToString((expireSec), ts);           \
+      src = ts;                                        \
+    } else {                                           \
+      src = "unlimited";                               \
+    }                                                  \
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));    \
+    colDataSetVal(pColInfo, numOfRows, tmp, false);    \
+  } while (0)
+
+#define GRANT_ITEM_SHOW(cur, limit, unit)                         \
+  do {                                                            \
+    ++cols;                                                       \
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);            \
+    if ((limit) != GRANT_UNIQ_UNLIMITED) {                        \
+      if ((unit) <= 32) {                                         \
+        sprintf(tmp1, "%d/%d", (int32_t)(cur), (int32_t)(limit)); \
+      } else {                                                    \
+        sprintf(tmp1, "%" PRIi64 "/%" PRIi64, (cur), (limit));    \
+      }                                                           \
+      src = tmp1;                                                 \
+    } else {                                                      \
+      src = "unlimited";                                          \
+    }                                                             \
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));               \
+    colDataSetVal(pColInfo, numOfRows, tmp, false);               \
+  } while (0)
+
 #define GRANT_DATA_IN_SHOW(appType, appStr)                                                                            \
   do {                                                                                                                 \
     ++cols;                                                                                                            \
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);                                                                 \
-    pDataIn = GRANT_DATA_IN(&gStatus, appType);                                                                        \
+    pDataIn = GRANT_DATA_IN(&gStatus, (appType));                                                                      \
     grantSecondsToString((int64_t)pDataIn->expire * 86400, ts);                                                        \
     sprintf(tmp1,                                                                                                      \
             "{\"type\":\"%s\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\", \"expireTime\":\"%s\"}", \
-            appStr, pDataIn->number, pDataIn->speed, pDataIn->expire, ts);                                             \
+            (appStr), pDataIn->number, pDataIn->speed, pDataIn->expire, ts);                                           \
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));                                                                  \
     colDataSetVal(pColInfo, numOfRows, tmp, false);                                                                    \
   } while (0)
@@ -215,7 +247,6 @@ static int32_t  grantSecondsToString(int64_t seconds, char *ts);
 static void     dmRefreshGrantCfg();
 static void     grantRetrieveGrantInfo(SMnode *pMnode);
 static void     grantResetMaster(SMnode *pMnode);
-static void     grantConnResetMaster(SMnode *pMnode);
 static void     grantSetClusterInfo(SMnode *pMnode);
 static void     grantConnStatusCheck(SMnode *pMnode, uint32_t curTime, SDnodeInfo *pDnodeInfo);
 static int64_t  grantGetClusterCreateTime(SMnode *pMnode);
@@ -405,7 +436,7 @@ _err:
   pMsg->info.rsp = NULL;
   pMsg->info.rspLen = 0;
 
-  uWarn("failed to process grant req and send rsp in dnode since %s", tstrerror(terrno));
+  uWarn("failed to process grant notify and send rsp in dnode since %s", tstrerror(terrno));
 
   return TSDB_CODE_FAILED;
 }
@@ -1196,19 +1227,6 @@ int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
   return 0;
 }
 
-static void grantConnResetMaster(SMnode *pMnode) {
-  int64_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
-  if (clusterCreateTime > 0) {
-    COMPARE_SET_VAL(grantClusterEpoch, clusterCreateTime, !=);
-    SGrantConnItem item = {.number = GRANT_CONN_NUM_DEFAULT,
-                           .speed = GRANT_CONN_SPEED_DEFAULT,
-                           .expire = ceil((double)clusterCreateTime / 86400) + GRANT_CONN_EXPIRE_DEFAULT};
-    // for (int32_t i = 0; i < GRANT_CONN_NUM; ++i) {
-    //   *(gStatus.connectors.items + i) = item;
-    // }
-  }
-}
-
 /**
  * @brief init the grant status after mnode startup
  *
@@ -1223,12 +1241,21 @@ static void grantResetMaster(SMnode *pMnode) {
 
   if (clusterCreateTime > 0) {
     COMPARE_SET_VAL(grantClusterEpoch, clusterCreateTime, !=);
-    if (clusterCreateTime < grantCurTime) {
-      gStatus.basicExpireSec = clusterCreateTime + GRANT_DEFAULT;
-    } else {
-      gStatus.basicExpireSec = 0;
-    }
-    if (gStatus.basicExpireSec > grantCurTime) gStatus.basicExpired = false;
+    gStatus.basicExpireSec =
+        clusterCreateTime <= grantCurTime ? (ceil((double)clusterCreateTime / 86400) * 86400 + GRANT_DEFAULT) : 0;
+    gStatus.basicExpired = gStatus.basicExpireSec > grantCurTime ? false : true;
+    
+    gStatus.multiTierExpireSec = gStatus.basicExpireSec;
+    gStatus.multiTierExpired = gStatus.basicExpired;
+    gStatus.streamExpireSec = gStatus.basicExpireSec;
+    gStatus.streamExpired = gStatus.basicExpired;
+    gStatus.topicExpireSec = gStatus.basicExpireSec;
+    gStatus.topicExpired = gStatus.basicExpired;
+    gStatus.auditExpireSec = gStatus.basicExpireSec;
+    gStatus.auditExpired = gStatus.basicExpired;
+
+    gStatus.bakRstExpireSec = gStatus.basicExpireSec;
+    gStatus.replicaExpireSec = gStatus.basicExpireSec;
 
     char ts[GRANT_TS_SEC_LEN] = {0};
     grantSecondsToString(gStatus.basicExpireSec, ts);
@@ -1236,13 +1263,18 @@ static void grantResetMaster(SMnode *pMnode) {
           gStatus.curTimeSeries);
   }
 #endif
+  SGrantDataIns in = {.number = GRANT_UNIQ_DFT_DATAIN_NUM,
+                      .speed = GRANT_UNIQ_DFT_DATAIN_SPEED,
+                      .expire = ceil((double)clusterCreateTime / 86400) + GRANT_UNIQ_DFT_DATAIN_EXPIRE};
+  for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
+    gStatus.ins[i] = in;
+  }
 }
 
 void grantReset(SMnode *pMnode, EGrantType grant, uint64_t value) {
   switch (grant) {
     case TSDB_GRANT_ALL:
       grantResetMaster(pMnode);
-      grantConnResetMaster(pMnode);
       break;
     case TSDB_GRANT_STORAGE:
 #ifdef GRANTS_RESERVE
@@ -1577,7 +1609,7 @@ static void grantConnStatusCheckImpl(SMnode *pMnode) {
 
 _exit:
   if (nGrant == 0) {
-    grantConnResetMaster(pMnode);
+    // grantConnResetMaster(pMnode);
   }
 }
 
@@ -1874,140 +1906,26 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataSetVal(pColInfo, numOfRows, tmp, false);
 
+    GRANT_EXPIRE_SHOW(gStatus.basicExpireSec);
+
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    grantSecondsToString(grantStatus.expireTimeSec, ts);
-    src = grantStatus.expireTimeSec != GRANT_EXPIRE_TIME ? ts : "unlimited";
+    src = gStatus.basicExpired || (gStatus.multiTierExpired && tsDiskCfgNum > 1) ? "true" : "false";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataSetVal(pColInfo, numOfRows, tmp, false);
 
-    ++cols;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = grantStatus.expired ? "true" : "false";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataSetVal(pColInfo, numOfRows, tmp, false);
+    GRANT_ITEM_SHOW(gStatus.curTimeSeries, gStatus.limitTimeSeries, 64);
+    GRANT_ITEM_SHOW(gStatus.curDnodes, gStatus.limitDnodes, 16);
+    GRANT_ITEM_SHOW(gStatus.curStreams, gStatus.limitStreams, 16);
+    GRANT_ITEM_SHOW(gStatus.curTopics, gStatus.limitTopics, 16);
+    GRANT_ITEM_SHOW(gStatus.curCpuCores, gStatus.limitCpuCores, 32);
+    GRANT_EXPIRE_SHOW(gStatus.multiTierExpireSec);
+    GRANT_EXPIRE_SHOW(gStatus.streamExpireSec);
+    GRANT_EXPIRE_SHOW(gStatus.topicExpireSec);
+    GRANT_EXPIRE_SHOW(gStatus.auditExpireSec);
+    GRANT_EXPIRE_SHOW(gStatus.bakRstExpireSec);
+    GRANT_EXPIRE_SHOW(gStatus.replicaExpireSec);
 
-    ++cols;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    if ((uint32_t)(grantStatus.limitStorage / (int64_t)1073741824) != GRANT_STORAGE_LIMITS) {
-      sprintf(tmp1, "%" PRIu32 "/%" PRIu32, (uint32_t)(grantStatus.curStorage / (int64_t)1073741824),
-              (uint32_t)(grantStatus.limitStorage / (int64_t)1073741824));
-      src = tmp1;
-    } else {
-      src = "unlimited";
-    }
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataSetVal(pColInfo, numOfRows, tmp, false);
-
-    ++cols;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    if (grantStatus.limitTimeSeries != GRANT_TIME_SERIES_LIMITS) {
-      sprintf(tmp1, "%" PRIu64 "/%" PRIu64, grantStatus.curTimeSeries, grantStatus.limitTimeSeries);
-      src = tmp1;
-    } else {
-      src = "unlimited";
-    }
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataSetVal(pColInfo, numOfRows, tmp, false);
-
-    ++cols;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    if (grantStatus.limitDbs != GRANT_DATABASE_LIMITS) {
-      sprintf(tmp1, "%u/%u", grantStatus.curDbs, grantStatus.limitDbs);
-      src = tmp1;
-    } else {
-      src = "unlimited";
-    }
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataSetVal(pColInfo, numOfRows, tmp, false);
-
-    ++cols;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    if (grantStatus.limitUsers != GRANT_USER_LIMITS) {
-      sprintf(tmp1, "%u/%u", grantGetClusterCurUsers(pMnode), grantStatus.limitUsers);
-      src = tmp1;
-    } else {
-      src = "unlimited";
-    }
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataSetVal(pColInfo, numOfRows, tmp, false);
-
-    ++cols;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    if (grantStatus.limitAccts != GRANT_ACCT_LIMITS) {
-      sprintf(tmp1, "%u/%u", grantGetClusterCurAccts(pMnode), grantStatus.limitAccts);
-      src = tmp1;
-    } else {
-      src = "unlimited";
-    }
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataSetVal(pColInfo, numOfRows, tmp, false);
-
-    ++cols;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    if (grantStatus.limitDnodes != GRANT_DNODE_LIMITS) {
-      sprintf(tmp1, "%u/%u", grantStatus.curDnodes, grantStatus.limitDnodes);
-      src = tmp1;
-    } else {
-      src = "unlimited";
-    }
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataSetVal(pColInfo, numOfRows, tmp, false);
-
-    ++cols;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    if (grantStatus.limitConns != GRANT_CONNECTION_LIMITS) {
-      sprintf(tmp1, "%u/%u", 0, grantStatus.limitConns);
-      src = tmp1;
-    } else {
-      src = "unlimited";
-    }
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataSetVal(pColInfo, numOfRows, tmp, false);  // connections
-
-    ++cols;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    if (grantStatus.limitStreams != GRANT_STREAM_LIMITS) {
-      sprintf(tmp1, "%u/%u", 0, grantStatus.limitStreams);
-      src = tmp1;
-    } else {
-      src = "unlimited";
-    }
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataSetVal(pColInfo, numOfRows, tmp, false);  // streams
-
-    ++cols;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    if (grantStatus.limitCpuCores != GRANT_ACCT_LIMITS) {
-      sprintf(tmp1, "%u/%u", grantStatus.curCpuCores, grantStatus.limitCpuCores);
-      src = tmp1;
-    } else {
-      src = "unlimited";
-    }
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataSetVal(pColInfo, numOfRows, tmp, false);  // cpu_cores
-
-    ++cols;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    if (grantStatus.limitSpeed != GRANT_WRITING_SPEED_LIMITS) {
-      sprintf(tmp1, "%u/%u", grantStatus.curSpeed, grantStatus.limitSpeed);
-      src = tmp1;
-    } else {
-      src = "unlimited";
-    }
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataSetVal(pColInfo, numOfRows, tmp, false);  // speed
-
-    ++cols;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    if (grantStatus.limitQueryTime != GRANT_QUERY_TIME_LIMITS) {
-      sprintf(tmp1, "%u/%u", grantStatus.curQueryTime, grantStatus.limitQueryTime);
-      src = tmp1;
-    } else {
-      src = "unlimited";
-    }
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataSetVal(pColInfo, numOfRows, tmp, false);  // querytime
 #endif
     // connectors
     GRANT_DATA_IN_SHOW(CONN_TYPE_OPC_DA, "OPC_DA");
@@ -2016,6 +1934,9 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     GRANT_DATA_IN_SHOW(CONN_TYPE_KAFKA, "Kafka");
     GRANT_DATA_IN_SHOW(CONN_TYPE_INFLUXDB, "InfluxDB");
     GRANT_DATA_IN_SHOW(CONN_TYPE_MQTT, "MQTT");
+    GRANT_DATA_IN_SHOW(CONN_TYPE_OpenTSDB, "OpenTSDB");
+    GRANT_DATA_IN_SHOW(CONN_TYPE_TDengine_2_6, "TDengine2.6");
+    GRANT_DATA_IN_SHOW(CONN_TYPE_TDengine_3_0, "TDengine3.0");
 
     numOfRows++;
   }

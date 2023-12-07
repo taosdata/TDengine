@@ -31,7 +31,7 @@
 #endif
 
 #define GRANT_CONN_NUM_DEFAULT     1
-#define GRANT_CONN_SPEED_DEFAULT   -1
+#define GRANT_CONN_SPEED_DEFAULT   (-1)
 #define GRANT_CONN_EXPIRE_DEFAULT  GRANT_EXPIRE_DAY
 
 #define GRANT_CONN_NUM_UNDEF     INT32_MIN
@@ -141,7 +141,7 @@ typedef enum {
   CONN_TYPE_OpenTSDB,
   CONN_TYPE_TDengine_2_6,
   CONN_TYPE_TDengine_3_0,
-  CONN_TYPE_MAX
+  CONN_TYPE_MAX,
 } EGrantConnType;
 
 #define CONN_TYPE_MAX_V1 6
