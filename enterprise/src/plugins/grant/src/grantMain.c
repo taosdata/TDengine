@@ -781,7 +781,7 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
 
   grantRetrieveGrantInfo(pMnode);
 
-  char active[GRANT_UNIQ_ACTIVE_KEY_LEN] = "\0";
+  char active[GRANT_UNIQ_ACTIVE_KEY_LEN + 1] = "\0";
   mndGetClusterActive(pMnode, active);
   if (active[0] != 0) {
     grantUniqParseActiveCode(&grantObj, NULL);
