@@ -203,6 +203,10 @@ void vnodeSnapReaderClose(SVSnapReader *pReader) {
     tsdbSnapReaderClose(&pReader->pTsdbReader);
   }
 
+  if (pReader->pTsdbRAWReader) {
+    tsdbSnapRAWReaderClose(&pReader->pTsdbRAWReader);
+  }
+
   if (pReader->pMetaReader) {
     metaSnapReaderClose(&pReader->pMetaReader);
   }

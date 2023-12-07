@@ -82,7 +82,7 @@ int32_t tsdbSnapRAWReaderClose(STsdbSnapRAWReader** reader) {
 
   STsdb* tsdb = reader[0]->tsdb;
 
-  tsdbSnapRAWReadFileSetCloseReader(reader[0]);
+  TARRAY2_DESTROY(reader[0]->dataReaderArr, tsdbDataFileRAWReaderClose);
   tsdbFSDestroyRefSnapshot(&reader[0]->fsetArr);
   taosMemoryFree(reader[0]);
   reader[0] = NULL;
