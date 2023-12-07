@@ -588,7 +588,7 @@ int32_t vnodeACancel(SVAsync *async, int64_t taskId) {
       task->prev->next = task->next;
       vnodeAsyncTaskDone(async, task);
     } else {
-      ret = 0;  // task is running, should return code TSDB_CODE_BUSY ??
+      ret = TSDB_CODE_FAILED;
     }
   }
 

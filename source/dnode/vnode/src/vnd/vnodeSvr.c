@@ -21,8 +21,8 @@
 #include "vnd.h"
 #include "vnode.h"
 #include "vnodeInt.h"
-#include "audit.h"
-#include "tstrbuild.h"
+
+extern int32_t tsdbStopAllCompTask(STsdb *tsdb);
 
 static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -629,6 +629,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_SYNC_CONFIG_CHANGE:
       vnodeProcessConfigChangeReq(pVnode, ver, pReq, len, pRsp);
       break;
+#ifndef TD_ENTERPRISE
+    case TDMT_VND_KILL_COMPACT:
+      tsdbStopAllCompTask(pVnode->pTsdb);
+      break;
+#endif
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
       return -1;
@@ -1008,10 +1013,10 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       taosMemoryFreeClear(*key);
     }
 
-    size_t    len = 0;
-    char*     keyJoined = taosStringBuilderGetResult(&sb, &len);
+    size_t len = 0;
+    char  *keyJoined = taosStringBuilderGetResult(&sb, &len);
 
-    if(pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0){
+    if (pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0) {
       auditRecord(pOriginRpc, clusterId, "createTable", name.dbname, "", keyJoined, len);
     }
 
@@ -1023,7 +1028,7 @@ _exit:
     pCreateReq = req.pReqs + iReq;
     taosMemoryFree(pCreateReq->sql);
     taosMemoryFree(pCreateReq->comment);
-    taosArrayDestroy(pCreateReq->ctb.tagName);    
+    taosArrayDestroy(pCreateReq->ctb.tagName);
   }
   taosArrayDestroyEx(rsp.pArray, tFreeSVCreateTbRsp);
   taosArrayDestroy(tbUids);
@@ -1235,13 +1240,13 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     size_t len = 0;
     char  *keyJoined = taosStringBuilderGetResult(&sb, &len);
 
-    if(pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0){
+    if (pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0) {
       auditRecord(pOriginRpc, clusterId, "dropTable", name.dbname, "", keyJoined, len);
     }
 
     taosStringBuilderDestroy(&sb);
   }
-  
+
 _exit:
   taosArrayDestroy(tbUids);
   tdUidStoreFree(pStore);
@@ -2063,6 +2068,11 @@ static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pR
 
 #ifndef TD_ENTERPRISE
 int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  return 0;
+}
+
+int32_t vnodeQueryCompactProgress(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  // tsdbCompMonitorGetInfo(STsdb * tsdb, SCompMonInfo * info);
   return 0;
 }
 #endif
