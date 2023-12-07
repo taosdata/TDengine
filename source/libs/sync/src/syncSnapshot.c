@@ -1093,7 +1093,7 @@ static int32_t syncSnapBufferSend(SSyncSnapshotSender *pSender, SyncSnapshotRsp 
     goto _out;
   }
 
-  if (pSender->pReader == NULL || pSender->finish) {
+  if (pSender->pReader == NULL || pSender->finish || !snapshotSenderIsStart(pSender)) {
     code = terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     goto _out;
   }
