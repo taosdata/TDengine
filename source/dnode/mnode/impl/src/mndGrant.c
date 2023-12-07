@@ -73,42 +73,6 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataSetVal(pColInfo, numOfRows, tmp, false);
 
-    cols++;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "unlimited";
-    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
-    colDataSetVal(pColInfo, numOfRows, tmp, false);
-
-    cols++;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "unlimited";
-    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
-    colDataSetVal(pColInfo, numOfRows, tmp, false);
-
-    cols++;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "unlimited";
-    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
-    colDataSetVal(pColInfo, numOfRows, tmp, false);
-
-    cols++;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "unlimited";
-    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
-    colDataSetVal(pColInfo, numOfRows, tmp, false);
-
-    cols++;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "unlimited";
-    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
-    colDataSetVal(pColInfo, numOfRows, tmp, false);
-
-    cols++;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "unlimited";
-    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
-    colDataSetVal(pColInfo, numOfRows, tmp, false);
-
     numOfRows++;
   }
 
