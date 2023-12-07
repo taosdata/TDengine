@@ -5133,8 +5133,10 @@ int32_t tSerializeSQueryCompactProgressReq(void* buf, int32_t bufLen, SQueryComp
 }
 
 int32_t tDeserializeSQueryCompactProgressReq(void* buf, int32_t bufLen, SQueryCompactProgressReq* pReq){
+  int32_t headLen = sizeof(SMsgHead);
+
   SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
+  tDecoderInit(&decoder, buf + headLen, bufLen - headLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
 

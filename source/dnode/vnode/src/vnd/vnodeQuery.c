@@ -374,6 +374,15 @@ _exit:
   return code;
 }
 
+int32_t vnodeQueryCompactProgress(SVnode *pVnode, SRpcMsg *pMsg){
+  SQueryCompactProgressReq req;
+
+  if (tDeserializeSQueryCompactProgressReq(pMsg->pCont, pMsg->contLen, &req)) {
+
+  }
+  return 0;
+}
+
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   SSyncState state = syncGetState(pVnode->sync);
 
