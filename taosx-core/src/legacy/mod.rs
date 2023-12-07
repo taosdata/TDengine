@@ -3420,7 +3420,6 @@ mod tests {
             "BINARY(16)",
             "NCHAR(4)",
         ];
-        let table_prefix = "tb";
 
         let columns = 3600;
         let mut create_table_sql = format!("CREATE TABLE `{}` (`ts` TIMESTAMP", name);

@@ -276,9 +276,9 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
     let point_config = all_points
         .iter()
         .map(|point| {
-            let point_id = point.id.clone();
+            let point_id = point.id.as_str();
             let tbname =
-                generate_tbname_from_pattern(&dsn.driver, &child_table_expression, &point_id);
+                generate_tbname_from_pattern(&dsn.driver, &child_table_expression, point_id);
             // 对于 OPCUA 来说，ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]} 是一个有效的点位 ID 和名称
             // 此时需要借助 CSV 的 delimiter 使用 , 进行分隔
             // 前提是点位需要使用双引号引起来
@@ -351,32 +351,26 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
 fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> String {
     let tbname = if ty == "opcua" {
         // ns=13;i=1003
-        let mut split = point_id.split(";");
-        let ns = if let Some(ns) = split.next() {
-            if ns.contains("ns=") {
-                let mut ns_split = ns.split("=");
-                ns_split.next();
-                ns_split.next()
+        // ns=6;s=Scalar_Instructions
+        // ns=6;g=00000000-0000-0000-0000-000000009204
+        // ns=6;b=CQIABQ==
+
+        if let Some((ns, id)) = point_id.split_once(";") {
+            let ns = if ns.contains("ns=") {
+                let (_, ns) = ns.split_once("=").unwrap();
+                ns
             } else {
-                None
-            }
-        } else {
-            None
-        };
-        let id = if let Some(id) = split.next() {
-            if id.contains("i=") {
-                let mut id_split = id.split("=");
-                id_split.next();
-                id_split.next()
+                ns
+            };
+            let id = if let Some((_, id)) = id.split_once('=') {
+                id
             } else {
-                None
-            }
+                id
+            };
+            tb_name.replace("{ns}", ns).replace("{id}", id)
         } else {
-            None
-        };
-        tb_name
-            .replace("{ns}", ns.unwrap_or(""))
-            .replace("{id}", id.unwrap_or(""))
+            tb_name.replace("{ns}", "0").replace("{id}", point_id)
+        }
     } else {
         let tag_index = point_id.rfind(".");
         let tag_name = if let Some(index) = tag_index {
@@ -387,7 +381,29 @@ fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> Stri
         };
         tb_name.replace("{TagName}", tag_name)
     };
-    tbname
+    tbname.replace(".", "_").replace("`", "_")
+}
+
+#[test]
+fn test_tbname_pattern() {
+    let cases = [
+        ("{ns}_{id}", "ns=13;i=10003", "13_10003"),
+        ("{ns}_{id}", "ns=13;b=GCC", "13_GCC"),
+        (
+            "{ns}_{id}",
+            "ns=13;g=00000000-0000-0000-0000-000000009204",
+            "13_00000000-0000-0000-0000-000000009204",
+        ),
+        (
+            "{ns}_{id}",
+            r#"ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]}"#,
+            r#"3_Special_\"!§$%&/()=?_´\\+~*'#_-:_;,<>|@^°€µ{[]}"#,
+        ),
+    ];
+    for (pattern, point_id, expected) in cases.iter() {
+        let tbname = generate_tbname_from_pattern("opcua", pattern, point_id);
+        assert_eq!(tbname, *expected);
+    }
 }
 
 pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
