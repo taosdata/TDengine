@@ -8,6 +8,7 @@ use taosx_ipc::ack::AckReaderBuilder;
 use crate::runners::historian::arrow::ArrowDataAppender;
 use crate::runners::historian::config::{HistorianTable, TaskConfig};
 use crate::runners::historian::query::HistorianQuery;
+use crate::runners::historian::set_tcp_keepalive;
 
 pub struct Consumer {
     query: HistorianQuery,
@@ -25,11 +26,15 @@ impl Consumer {
 
         let socket = format!("127.0.0.1:{}", self.port);
         let stream = std::net::TcpStream::connect(socket)?;
+        set_tcp_keepalive(&stream)?;
+        stream.set_nonblocking(false)?;
+
         let ack_stream = stream.try_clone()?;
+        set_tcp_keepalive(&ack_stream)?;
+        ack_stream.set_read_timeout(None)?;
 
         let (tx, rx) = flume::bounded(0);
         let writer_handler = tokio::task::spawn_blocking(move || {
-            stream.set_nonblocking(false)?;
             let mut writer = StreamWriter::try_new(stream, &schema)?;
             while let Ok(batch) = rx.recv() {
                 writer.write(&batch)?;
@@ -39,7 +44,6 @@ impl Consumer {
         });
 
         let ack = tokio::task::spawn_blocking(move || {
-            ack_stream.set_read_timeout(None)?;
             let ack_reader =
                 AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
             for ack in ack_reader {

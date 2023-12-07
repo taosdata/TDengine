@@ -7,6 +7,7 @@ use tiberius::QueryItem;
 use crate::runners::historian::arrow::ArrowDataAppender;
 use crate::runners::historian::config::{HistorianTable, TaskConfig};
 use crate::runners::historian::query::HistorianQuery;
+use crate::runners::historian::set_tcp_keepalive;
 use crate::runners::historian::worker::consumer::Consumer;
 use crate::runners::historian::worker::producer::Producer;
 
@@ -59,7 +60,9 @@ pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
         .ok_or(anyhow::anyhow!("ipc_port cannot be None"))?;
     let socket = format!("127.0.0.1:{}", port);
     let stream = std::net::TcpStream::connect(socket)?;
+    set_tcp_keepalive(&stream)?;
     stream.set_nonblocking(false)?;
+
     let mut appender = ArrowDataAppender::try_new(HistorianTable::History)?;
     let mut writer = StreamWriter::try_new(&stream, appender.schema())?;
 
@@ -82,7 +85,9 @@ pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
 
         for tags in &tags_group {
             tracing::debug!("sync history {} query rows", count);
-            let mut rows = query.query_history(tags.clone(), window_start, window_end).await?;
+            let mut rows = query
+                .query_history(tags.clone(), window_start, window_end)
+                .await?;
 
             tracing::debug!("sync history {} rows to batch", count);
             while let Some(row) = rows.try_next().await? {
