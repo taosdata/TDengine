@@ -15,7 +15,7 @@ def get_connection():
 
 def create_database(conn):
     # the default precision is ms (microsecond), but we use us(microsecond) here.
-    conn.execute("CREATE DATABASE test precision 'us'")
+    conn.execute("CREATE DATABASE test precision 'us' keep 36500")
     conn.execute("USE test")
 
 
