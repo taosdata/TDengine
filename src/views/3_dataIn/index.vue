@@ -9,15 +9,7 @@
 </template>
 
 <script>
-import DataIn from './views/main.vue'
-import DbSource from './views/dbSource.vue'
-import DataCSV from './views/dataCSV.vue'
 export default {
-  components:{
-    DataIn,
-    DbSource,
-    DataCSV
-  },
   data() {
     return {};
   },
