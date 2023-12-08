@@ -26,7 +26,7 @@
 #define GRANT_EXPIRE_DAY      atoi(GRANT_VALUE)
 #define GRANT_DEFAULT         (GRANT_EXPIRE_DAY*86400)
 #else
-#define GRANT_EXPIRE_DAY      10
+#define GRANT_EXPIRE_DAY      (10)
 #define GRANT_DEFAULT         (GRANT_EXPIRE_DAY*86400)
 #endif
 
@@ -85,7 +85,7 @@
 #define GRANT_CONN_ACTIVE_RAW_LEN      80
 #define GRANT_CONN_ACTIVE_ENCRYPT_LEN  72
 #define GRANT_CONN_HASH_LEN            (GRANT_CONN_ACTIVE_RAW_LEN - GRANT_CONN_ACTIVE_ENCRYPT_LEN)
-#define GRANT_CONN_LIMITS              -1
+#define GRANT_CONN_LIMITS              (-1)
 #define GRANT_CONN_EXPIRE_LIMITS       65535
 #define GRANT_CONN_ITEM_UNDEF(g)       ((g)->number == GRANT_CONN_NUM_UNDEF)
 
@@ -103,6 +103,8 @@
 
 #define GRANT_UNIQ_MAX_EXPIRE_SECOND     31556995200  // second: 1970 + 1000 year
 
+
+#ifndef GRANTS_CFG
 #define GRANT_UNIQ_DFT_BASIC_EXPIRE      GRANT_EXPIRE_DAY
 #define GRANT_UNIQ_DFT_BASIC_TIMESERIES  1000000
 #define GRANT_UNIQ_DFT_BASIC_DNODES      8
@@ -118,6 +120,23 @@
 #define GRANT_UNIQ_DFT_DATAIN_EXPIRE     GRANT_EXPIRE_DAY
 #define GRANT_UNIQ_DFT_DATAIN_SPEED      GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_DATAIN_NUM        1
+#else
+#define GRANT_UNIQ_DFT_BASIC_EXPIRE      GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_BASIC_TIMESERIES  GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_BASIC_DNODES      GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_BASIC_CPU         GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_STREAM_EXPIRE     GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_STREAM_NUM        GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_TOPIC_EXPIRE      GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_TOPIC_NUM         GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_STORAGE_EXPIRE    GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_AUDIT_EXPIRE      GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_BAKRST_EXPIRE     GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_REPLICA_EXPIRE    GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_DATAIN_EXPIRE     GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_DATAIN_SPEED      GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_DATAIN_NUM        GRANT_UNIQ_UNLIMITED
+#endif
 
 // uniq grant
 
@@ -125,10 +144,6 @@ typedef enum {
   GRANT_OBJ_SERVER = 0,
   GRANT_OBJ_CONNECTORS,
 } EGrantObj;
-
-enum {
-  GRANT_EDITION_CLOUD = 1,
-};
 
 // connectors
 typedef enum {
@@ -168,11 +183,8 @@ typedef struct {
 
 typedef struct {
   uint8_t        officialVersion;
-  int8_t         majorVer;
-  int8_t         minorVer;
-  uint32_t       distribute;                             // since 3.1.0.0
-  SGrantConnItem items[GRANT_CONN_NUM];
-  char           active[GRANT_CONN_ACTIVE_KEY_LEN + 1];  // since 3.1.0.0
+  uint32_t       distribute;
+  SGrantConnItem items[CONN_TYPE_MAX_V1];
 } SGrantConnMsg;
 
 // server
@@ -252,7 +264,13 @@ typedef struct {
     struct {
       int64_t basicExpireSec : 40;
       int64_t limitDnodes : 16;
-      int64_t officialVersion : 8;
+      int64_t basicExpired : 1;
+      int64_t multiTierExpired : 1;
+      int64_t streamExpired : 1;
+      int64_t topicExpired : 1;
+      int64_t auditExpired : 1;
+      int64_t uniqActive : 1;
+      int64_t officialVersion : 2;
     };
   };
   union {
@@ -260,7 +278,7 @@ typedef struct {
     struct {
       int64_t streamExpireSec : 40;
       int64_t limitStreams : 16;
-      int64_t streamExpired : 8;
+      int64_t reserve0 : 8;
     };
   };
 
@@ -269,7 +287,7 @@ typedef struct {
     struct {
       int64_t topicExpireSec : 40;
       int64_t limitTopics : 16;
-      int64_t topicExpired : 8;
+      int64_t reserve1 : 8;
     };
   };
   union {
@@ -277,7 +295,7 @@ typedef struct {
     struct {
       int64_t multiTierExpireSec : 40;
       int64_t curDnodes : 16;
-      int64_t multiTierExpired : 8;
+      int64_t reserve2 : 8;
     };
   };
   union {
@@ -285,7 +303,7 @@ typedef struct {
     struct {
       int64_t auditExpireSec : 40;
       int64_t curStreams : 16;
-      int64_t auditExpired : 8;
+      int64_t reserve3 : 8;
     };
   };
   union {
@@ -293,26 +311,25 @@ typedef struct {
     struct {
       int64_t bakRstExpireSec : 40;
       int64_t curTopics : 16;
-      int64_t basicExpired : 8;
+      int64_t reserve4 : 8;
     };
   };
   union {
     int64_t p7;
     struct {
       int64_t replicaExpireSec : 40;
-      int64_t reserve : 24;
+      int64_t reserve5 : 24;
     };
   };
-  int64_t limitTimeSeries;
-  int64_t curTimeSeries;
-  int32_t limitCpuCores;
-  int32_t curCpuCores;
+  int64_t       limitTimeSeries;
+  int64_t       curTimeSeries;
+  int32_t       limitCpuCores;
+  int32_t       curCpuCores;
   SGrantDataIns ins[CONN_TYPE_MAX];
 } SGrantUniqStatus;
 
 // uniq grant
 typedef struct {
-  bool           usbDongle;
   bool           officialVersion;
   bool           expired;
   int8_t         flag;  // version 2 since 3.0.5.0
@@ -346,8 +363,6 @@ typedef struct {
 } SGrantNotify;
 
 typedef struct {
-  bool     updateForced;
-  bool     usbDongle;
   bool     officialVersion;
   int8_t   flag;
   int32_t  dnodeId;
@@ -368,10 +383,16 @@ typedef struct {
     uint32_t distribute;  // distribute date since 3.1.0.0
   };
   uint32_t      reserveKey2;
-  char          active[GRANT_ACTIVE_KEY_LEN + 1];
-  char          machine[GRANT_MACHINE_KEY_LEN + 1]; // since 3.1.1.7
   SGrantConnMsg connectors;
 } SGrantMsg;
+
+typedef struct {
+  int8_t     flag;
+  int32_t    dnodeId;
+  int32_t    diskCfgNum;
+  char       machine[TSDB_MACHINE_ID_LEN + 1];
+  SGrantMsg *pLegacy;
+} SGrantUniqMsg;
 
 typedef struct {
   int64_t dist;
