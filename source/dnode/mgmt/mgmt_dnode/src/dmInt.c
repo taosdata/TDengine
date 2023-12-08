@@ -43,6 +43,7 @@ static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
 static void dmStopMgmt(SDnodeMgmt *pMgmt) {
   pMgmt->pData->stopped = true;
   dmStopMonitorThread(pMgmt);
+  dmStopAuditThread(pMgmt);
   dmStopStatusThread(pMgmt);
 #ifdef TD_ENTERPRISE
   dmStopNotifyThread(pMgmt);
