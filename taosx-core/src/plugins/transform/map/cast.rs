@@ -1,8 +1,5 @@
-use std::sync::Arc;
-
-use arrow::{array::ArrayRef, datatypes::FieldRef, record_batch::RecordBatch};
+use arrow::{array::ArrayRef, record_batch::RecordBatch};
 use serde::{Deserialize, Serialize};
-use taosx_ipc::prelude::IpcDataType;
 
 use super::{ValueBuilder, ValueBuilderError};
 
@@ -12,37 +9,23 @@ pub struct CastValueBuilder {
 }
 
 impl ValueBuilder for CastValueBuilder {
-    fn build_field(
-        &self,
-        name: &str,
-        record: &RecordBatch,
-        r#as: Option<IpcDataType>,
-    ) -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
+    fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError> {
         let schema = record.schema();
-        let field = schema
-            .field_with_name(&self.cast)
-            .map_err(ValueBuilderError::CastError)?;
-        let array = record.column_by_name(field.name()).unwrap();
-        if let Some(ty) = r#as {
-            let ty = ty.arrow_data_type();
-            let array = arrow_cast_guess_precision::cast(array, &ty)
-                .map_err(ValueBuilderError::CastError)?;
-            Ok((
-                Arc::new(field.clone().with_name(name).with_data_type(ty)),
-                array,
-            ))
-        } else {
-            Ok((Arc::new(field.clone().with_name(name)), array.clone()))
-        }
+        schema
+            .index_of(&self.cast)
+            .map_err(ValueBuilderError::CastError)
+            .map(|index| record.column(index).clone())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
     use arrow::{
         array::{Array, Int32Array, StringArray, TimestampNanosecondArray},
         datatypes::DataType,
     };
+    use taosx_ipc::prelude::IpcDataType;
 
     use super::*;
 

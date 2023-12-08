@@ -3,12 +3,10 @@ use std::sync::Arc;
 use arrow::array::{Array, StringArray};
 use arrow::compute::cast;
 use arrow::compute::kernels::concat_elements::concat_elements_utf8_many;
-use arrow::{array::ArrayRef, datatypes::FieldRef, record_batch::RecordBatch};
-use arrow_schema::{DataType, Field};
+use arrow::{array::ArrayRef, record_batch::RecordBatch};
+use arrow_schema::DataType;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-
-use taosx_ipc::prelude::IpcDataType;
 
 use super::{ValueBuilder, ValueBuilderError};
 
@@ -19,12 +17,7 @@ pub struct JoinValueBuilder {
 }
 
 impl ValueBuilder for JoinValueBuilder {
-    fn build_field(
-        &self,
-        name: &str,
-        record: &RecordBatch,
-        _as: Option<IpcDataType>,
-    ) -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
+    fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError> {
         let join_columns = match self.with.clone() {
             None => {
                 let mut values = Vec::new();
@@ -78,7 +71,7 @@ impl ValueBuilder for JoinValueBuilder {
             )?,
         ) as ArrayRef;
 
-        Ok((Arc::new(Field::new(name, DataType::Utf8, true)), values))
+        Ok(values)
     }
 }
 

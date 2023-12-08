@@ -1,10 +1,7 @@
-use arrow::{array::ArrayRef, datatypes::FieldRef, record_batch::RecordBatch};
-use arrow_schema::Field;
+use arrow::{array::ArrayRef, record_batch::RecordBatch};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use crate::plugins::expr::Expr;
-use taosx_ipc::prelude::IpcDataType;
 
 use super::{ValueBuilder, ValueBuilderError};
 
@@ -14,28 +11,18 @@ pub struct FormatValueBuilder {
 }
 
 impl ValueBuilder for FormatValueBuilder {
-    fn build_field(
-        &self,
-        name: &str,
-        record: &RecordBatch,
-        r#as: Option<IpcDataType>,
-    ) -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
+    fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError> {
         let expr = Expr::try_new(format!("`{}`", self.format), true).map_err(|err| {
             let err_msg = format!("failed build format expression, cause: {}", err.to_string());
             ValueBuilderError::FormatError(err_msg)
         })?;
 
-        let values = expr
-            .eval(record, r#as.map(|data_type| data_type.arrow_data_type()))
-            .map_err(|err| {
-                let err_msg = format!("failed to format, cause: {}", err.to_string());
-                ValueBuilderError::FormatError(err_msg)
-            })?;
+        let values = expr.eval(record, None).map_err(|err| {
+            let err_msg = format!("failed to format, cause: {}", err.to_string());
+            ValueBuilderError::FormatError(err_msg)
+        })?;
 
-        Ok((
-            Arc::new(Field::new(name, values.data_type().clone(), true)),
-            values,
-        ))
+        Ok(values)
     }
 }
 
@@ -45,6 +32,8 @@ mod tests {
     use crate::plugins::transform::map::ValueBuilder;
     use arrow::array::Int64Array;
     use arrow_schema::DataType;
+    use std::sync::Arc;
+    use taosx_ipc::prelude::IpcDataType;
 
     use super::*;
 
