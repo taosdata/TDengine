@@ -22,9 +22,7 @@ extern "C" {
 
 #include "os.h"
 #include "taoserror.h"
-#ifdef GRANTS_CFG
-#include "tgrantCfg.h"
-#endif
+#include "tdef.h"
 
 #ifndef GRANTS_COL_MAX_LEN
 #define GRANTS_COL_MAX_LEN 196

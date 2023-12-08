@@ -419,8 +419,9 @@ int32_t dmProcessGetMachine(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
   char *machineId = grantGetMachineId();
-  if (machineId && (strlen(machineId) == TSDB_MACHINE_ID_LEN)) {
+  if (machineId) {
     memcpy(pRsp, machineId, TSDB_MACHINE_ID_LEN);
+    taosMemoryFreeClear(machineId);
   } else {
     terrno = TSDB_CODE_INVALID_DATA_FMT;
     rpcFreeCont(pRsp);
