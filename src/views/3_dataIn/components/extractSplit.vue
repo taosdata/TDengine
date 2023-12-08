@@ -1,8 +1,8 @@
 <template>
   <div class="extract-split">
-    <div :class="['extract-item', showFirstselect ? '' : 'hidden']">
+    <div class="extract-item">
       <el-form :model="ruleForm" :rules="rules" size="small" ref="extractForm">
-        <el-form-item prop="col_name" v-if="showFirstselect">
+        <el-form-item prop="col_name">
           <el-select
             size="small"
             :placeholder="$t('datasource.transformer.col_select')"
@@ -91,10 +91,6 @@ export default {
   name: "ExtractSplit",
   components: { SplitExpression },
   props: {
-    showFirstselect: {
-      type: Boolean,
-      default: true,
-    },
     itemData: {
       type: Object,
       default: () => {
@@ -124,12 +120,14 @@ export default {
   },
   data() {
     return {
+      mqttDefaultCols: [ "topic", "qos", "payload"],
+      kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
       disabled: false,
       splitExpre: {},
       extractParseData: {},
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
       tableColumns: [],
-      extractTypes: ["json", "split", "regex"],
+      extractTypes: ["split", "regex"],
       ruleForm: {
         col_name: "",
         filter_name: "",
@@ -217,17 +215,26 @@ export default {
           Message.error(result.message);
           return;
         }
-        this.tableColumns = result[0].fields.map((item) => item.name);
+        this.tableColumns = result[0].fields.map((item) => item.name).filter(val=>{
+          if(this.$store.state.app.currentDBType=='mqtt'&&!this.mqttDefaultCols.includes(val)){
+            return val
+          }
+          if(this.$store.state.app.currentDBType=='kafka'&&!this.kafkaDefaultCols.includes(val)){
+            return val
+          }
+        });
         this.tableData = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
+              console.log(item,'kkkk')
               return [
-                item.name,data[index].toString()
+                item.name,data[index]?data[index].toString():null
                 
               ];
             })
           );
         });
+        console.log(this.tableColumns,this.tableData,'结果');
         let transformerColumns = [
           {
             value: "expression",
@@ -325,7 +332,9 @@ export default {
         });
         return inputobj;
       });
-      this.extractParseData = {};
+      this.extractParseData = {
+        extract:{}
+      };
       this.$parent.extractArr
         .map((item) => {
           return {
@@ -342,18 +351,23 @@ export default {
           };
         })
         .forEach((val) => {
-          Object.assign(this.extractParseData, val);
+          Object.assign(this.extractParseData['extract'], val);
         });
+        console.log(this.extractParseData,'父组件的---extract');
+      let topparse=deepClone(this.$store.state.app.topParse)
+      let extractlist={}
+      topparse['parser']['mutate']=[].concat(this.extractParseData)
       let parser = {
         parser: {
-          parse: {},
+          parse: this.$store.state.app.topParse.parser.parse,
+          mutate:topparse['parser']['mutate']
         },
+        
         input: this.$parent.isCSV
           ? this.$store.state.app.csvTransformerParser?.inputList
           : inputList,
       };
-
-      parser.parser.parse = this.extractParseData;
+      console.log(parser,'extract---split---从父组件获取的',this.extractParseData,this.$store.state.app.topParse)
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);
       await this.getParserData(parser);
     },
@@ -407,15 +421,6 @@ export default {
         &:first-child {
           margin-right: 10px;
           margin-left: 20px;
-        }
-      }
-    }
-    &.hidden {
-      .el-form {
-        display: flex;
-        flex: 1;
-        .el-form-item:last-child {
-          flex: 1;
         }
       }
     }
