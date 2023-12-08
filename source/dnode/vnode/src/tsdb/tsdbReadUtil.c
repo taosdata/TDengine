@@ -862,15 +862,19 @@ static bool overlapWithTimeWindow(STimeWindow* p1, STimeWindow* pQueryWindow, ST
   SIterInfo* pIMemIter = &pBlockScanInfo->iiter;
 
   // overlap with mem data
-  STbData* pTbData = pMemIter->iter->pTbData;
-  if ((pMemIter->hasVal) && overlapHelper(p1, pTbData->minKey, pTbData->maxKey)) {
-    return true;
+  if (pMemIter->hasVal) {
+    STbData* pTbData = pMemIter->iter->pTbData;
+    if (overlapHelper(p1, pTbData->minKey, pTbData->maxKey)) {
+      return true;
+    }
   }
 
   // overlap with imem data
-  STbData* pITbData = pIMemIter->iter->pTbData;
-  if ((pIMemIter->hasVal) && overlapHelper(p1, pITbData->minKey, pITbData->maxKey)) {
-    return true;
+  if (pIMemIter->hasVal) {
+    STbData* pITbData = pIMemIter->iter->pTbData;
+    if (overlapHelper(p1, pITbData->minKey, pITbData->maxKey)) {
+      return true;
+    }
   }
 
   // overlap with data file block
