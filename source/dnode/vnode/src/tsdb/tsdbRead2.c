@@ -2069,7 +2069,7 @@ static bool initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
 
   // second time init stt block reader
   if (pScanInfo->cleanSttBlocks && pReader->info.execMode == READER_EXEC_ROWS) {
-    return true;
+    return !pScanInfo->sttBlockReturned;
   }
 
   STimeWindow w = pSttBlockReader->window;
@@ -2710,6 +2710,7 @@ static int32_t doLoadSttBlockSequentially(STsdbReader* pReader) {
       pScanInfo->lastProcKey =
           ASCENDING_TRAVERSE(pReader->info.order) ? pScanInfo->sttWindow.ekey : pScanInfo->sttWindow.skey;
       pSttBlockReader->mergeTree.pIter = NULL;
+      pScanInfo->sttBlockReturned = true;
 
       tsdbDebug("%p uid:%" PRId64 " return clean stt block as one, brange:%" PRId64 "-%" PRId64 " rows:%" PRId64 " %s",
                 pReader, pResBlock->info.id.uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
