@@ -13,31 +13,31 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "rsync.h"
 #include "executor.h"
+#include "rsync.h"
 #include "sndInt.h"
 #include "tqCommon.h"
 #include "tuuid.h"
 
 #define sndError(...)                                                     \
-  do {                                                                  \
+  do {                                                                    \
     if (sndDebugFlag & DEBUG_ERROR) {                                     \
       taosPrintLog("SND ERROR ", DEBUG_ERROR, sndDebugFlag, __VA_ARGS__); \
-    }                                                                   \
+    }                                                                     \
   } while (0)
 
-#define sndInfo(...)                                                     \
+#define sndInfo(...)                                                    \
   do {                                                                  \
-    if (sndDebugFlag & DEBUG_INFO) {                                     \
+    if (sndDebugFlag & DEBUG_INFO) {                                    \
       taosPrintLog("SND INFO ", DEBUG_INFO, sndDebugFlag, __VA_ARGS__); \
     }                                                                   \
   } while (0)
 
 #define sndDebug(...)                                               \
-  do {                                                            \
+  do {                                                              \
     if (sndDebugFlag & DEBUG_DEBUG) {                               \
       taosPrintLog("SND ", DEBUG_DEBUG, sndDebugFlag, __VA_ARGS__); \
-    }                                                             \
+    }                                                               \
   } while (0)
 
 int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer) {
@@ -46,10 +46,11 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+  pTask->pBackend = NULL;
 
   streamTaskOpenAllUpstreamInput(pTask);
 
-  SStreamTask* pSateTask = pTask;
+  SStreamTask *pSateTask = pTask;
   SStreamTask  task = {0};
   if (pTask->info.fillHistory) {
     task.id.streamId = pTask->streamTaskId.streamId;
@@ -84,7 +85,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer
   streamTaskResetUpstreamStageInfo(pTask);
   streamSetupScheduleTrigger(pTask);
 
-  SCheckpointInfo* pChkInfo = &pTask->chkInfo;
+  SCheckpointInfo *pChkInfo = &pTask->chkInfo;
   // checkpoint ver is the kept version, handled data should be the next version.
   if (pTask->chkInfo.checkpointId != 0) {
     pTask->chkInfo.nextProcessVer = pTask->chkInfo.checkpointVer + 1;
@@ -92,7 +93,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer
            pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer);
   }
 
-  char* p = NULL;
+  char *p = NULL;
   streamTaskGetStatus(pTask, &p);
 
   if (pTask->info.fillHistory) {
@@ -194,7 +195,7 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
 int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   switch (pMsg->msgType) {
     case TDMT_STREAM_TASK_DEPLOY: {
-      void   *pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+      void *  pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
       int32_t len = pMsg->contLen - sizeof(SMsgHead);
       return tqStreamTaskProcessDeployReq(pSnode->pMeta, -1, pReq, len, true, true);
     }

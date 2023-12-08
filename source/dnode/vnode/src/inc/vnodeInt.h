@@ -65,6 +65,8 @@ typedef struct SMetaSnapReader    SMetaSnapReader;
 typedef struct SMetaSnapWriter    SMetaSnapWriter;
 typedef struct STsdbSnapReader    STsdbSnapReader;
 typedef struct STsdbSnapWriter    STsdbSnapWriter;
+typedef struct STsdbSnapRAWReader STsdbSnapRAWReader;
+typedef struct STsdbSnapRAWWriter STsdbSnapRAWWriter;
 typedef struct STqSnapReader      STqSnapReader;
 typedef struct STqSnapWriter      STqSnapWriter;
 typedef struct STqOffsetReader    STqOffsetReader;
@@ -93,7 +95,11 @@ typedef struct SQueryNode         SQueryNode;
 #define VNODE_RSMA2_DIR "rsma2"
 #define VNODE_TQ_STREAM "stream"
 
+#if SUSPEND_RESUME_TEST        // only for test purpose
+#define VNODE_BUFPOOL_SEGMENTS 1
+#else
 #define VNODE_BUFPOOL_SEGMENTS 3
+#endif
 
 #define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
@@ -209,7 +215,7 @@ int32_t tsdbBegin(STsdb* pTsdb);
 // int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbCacheCommit(STsdb* pTsdb);
 int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
-int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync);
+int32_t tsdbRetention(STsdb* tsdb, int64_t now, int32_t sync);
 // int32_t tsdbFinishCommit(STsdb* pTsdb);
 // int32_t tsdbRollbackCommit(STsdb* pTsdb);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
@@ -219,8 +225,6 @@ int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid
 int32_t tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
 
 // tq
-int     tqInit();
-void    tqCleanUp();
 STQ*    tqOpen(const char* path, SVnode* pVnode);
 void    tqNotifyClose(STQ*);
 void    tqClose(STQ*);
@@ -311,6 +315,15 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, void* pRang
 int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, SSnapDataHdr* pHdr);
 int32_t tsdbSnapWriterPrepareClose(STsdbSnapWriter* pWriter);
 int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback);
+// STsdbSnapRAWReader ========================================
+int32_t tsdbSnapRAWReaderOpen(STsdb* pTsdb, int64_t ever, int8_t type, STsdbSnapRAWReader** ppReader);
+int32_t tsdbSnapRAWReaderClose(STsdbSnapRAWReader** ppReader);
+int32_t tsdbSnapRAWRead(STsdbSnapRAWReader* pReader, uint8_t** ppData);
+// STsdbSnapRAWWriter ========================================
+int32_t tsdbSnapRAWWriterOpen(STsdb* pTsdb, int64_t ever, STsdbSnapRAWWriter** ppWriter);
+int32_t tsdbSnapRAWWrite(STsdbSnapRAWWriter* pWriter, SSnapDataHdr* pHdr);
+int32_t tsdbSnapRAWWriterPrepareClose(STsdbSnapRAWWriter* pWriter);
+int32_t tsdbSnapRAWWriterClose(STsdbSnapRAWWriter** ppWriter, int8_t rollback);
 // STqSnapshotReader ==
 int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapReader** ppReader);
 int32_t tqSnapReaderClose(STqSnapReader** ppReader);
@@ -448,13 +461,16 @@ struct SVnode {
   SVBufPool*    recycleTail;
   SVBufPool*    onRecycle;
 
+  // commit variables
+  int64_t commitChannel;
+  int64_t commitTask;
+
   SMeta*        pMeta;
   SSma*         pSma;
   STsdb*        pTsdb;
   SWal*         pWal;
   STQ*          pTq;
   SSink*        pSink;
-  tsem_t        canCommit;
   int64_t       sync;
   TdThreadMutex lock;
   bool          blocked;
@@ -494,18 +510,18 @@ struct SSma {
   void*         pRSmaEnv;
 };
 
-#define SMA_CFG(s)        (&(s)->pVnode->config)
-#define SMA_TSDB_CFG(s)   (&(s)->pVnode->config.tsdbCfg)
-#define SMA_RETENTION(s)  ((SRetention*)&(s)->pVnode->config.tsdbCfg.retentions)
-#define SMA_LOCKED(s)     ((s)->locked)
-#define SMA_META(s)       ((s)->pVnode->pMeta)
-#define SMA_VID(s)        TD_VID((s)->pVnode)
-#define SMA_TFS(s)        ((s)->pVnode->pTfs)
-#define SMA_TSMA_ENV(s)   ((s)->pTSmaEnv)
-#define SMA_RSMA_ENV(s)   ((s)->pRSmaEnv)
-#define SMA_RSMA_TSDB0(s) ((s)->pVnode->pTsdb)
-#define SMA_RSMA_TSDB1(s) ((s)->pRSmaTsdb[TSDB_RETENTION_L0])
-#define SMA_RSMA_TSDB2(s) ((s)->pRSmaTsdb[TSDB_RETENTION_L1])
+#define SMA_CFG(s)                       (&(s)->pVnode->config)
+#define SMA_TSDB_CFG(s)                  (&(s)->pVnode->config.tsdbCfg)
+#define SMA_RETENTION(s)                 ((SRetention*)&(s)->pVnode->config.tsdbCfg.retentions)
+#define SMA_LOCKED(s)                    ((s)->locked)
+#define SMA_META(s)                      ((s)->pVnode->pMeta)
+#define SMA_VID(s)                       TD_VID((s)->pVnode)
+#define SMA_TFS(s)                       ((s)->pVnode->pTfs)
+#define SMA_TSMA_ENV(s)                  ((s)->pTSmaEnv)
+#define SMA_RSMA_ENV(s)                  ((s)->pRSmaEnv)
+#define SMA_RSMA_TSDB0(s)                ((s)->pVnode->pTsdb)
+#define SMA_RSMA_TSDB1(s)                ((s)->pRSmaTsdb[TSDB_RETENTION_L0])
+#define SMA_RSMA_TSDB2(s)                ((s)->pRSmaTsdb[TSDB_RETENTION_L1])
 #define SMA_RSMA_GET_TSDB(pVnode, level) ((level == 0) ? pVnode->pTsdb : pVnode->pSma->pRSmaTsdb[level - 1])
 
 // sma
@@ -526,6 +542,7 @@ enum {
   SNAP_DATA_STREAM_STATE = 11,
   SNAP_DATA_STREAM_STATE_BACKEND = 12,
   SNAP_DATA_TQ_CHECKINFO = 13,
+  SNAP_DATA_RAW = 14,
 };
 
 struct SSnapDataHdr {

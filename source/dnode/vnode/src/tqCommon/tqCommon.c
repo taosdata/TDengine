@@ -475,6 +475,7 @@ int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLe
       rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.reqId, rsp.downstreamTaskId, rsp.downstreamNodeId, rsp.status);
 
   if (!isLeader) {
+    streamMetaUpdateTaskDownstreamStatus(pMeta, rsp.streamId, rsp.upstreamTaskId, 0, taosGetTimestampMs(), false);
     tqError("vgId:%d not leader, task:0x%x not handle the check rsp, downstream:0x%x (vgId:%d)", vgId,
             rsp.upstreamTaskId, rsp.downstreamTaskId, rsp.downstreamNodeId);
     return code;
@@ -482,6 +483,7 @@ int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLe
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, rsp.streamId, rsp.upstreamTaskId);
   if (pTask == NULL) {
+    streamMetaUpdateTaskDownstreamStatus(pMeta, rsp.streamId, rsp.upstreamTaskId, 0, taosGetTimestampMs(), false);
     tqError("tq failed to locate the stream task:0x%" PRIx64 "-0x%x (vgId:%d), it may have been destroyed or stopped",
         rsp.streamId, rsp.upstreamTaskId, vgId);
     terrno = TSDB_CODE_STREAM_TASK_NOT_EXIST;
@@ -670,7 +672,8 @@ int32_t startStreamTasks(SStreamMeta* pMeta) {
         streamLaunchFillHistoryTask(pTask);
       }
 
-      streamMetaUpdateTaskDownstreamStatus(pTask, pTask->execInfo.init, pTask->execInfo.start, true);
+      streamMetaUpdateTaskDownstreamStatus(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, pTask->execInfo.init,
+                                           pTask->execInfo.start, true);
       streamMetaReleaseTask(pMeta, pTask);
       continue;
     }

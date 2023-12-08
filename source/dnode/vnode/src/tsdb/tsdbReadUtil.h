@@ -22,6 +22,7 @@ extern "C" {
 
 #include "tsdbDataFileRW.h"
 #include "tsdbUtil2.h"
+#include "storageapi.h"
 
 #define ASCENDING_TRAVERSE(o) (o == TSDB_ORDER_ASC)
 
@@ -96,7 +97,7 @@ typedef struct SResultBlockInfo {
   int64_t      capacity;
 } SResultBlockInfo;
 
-typedef struct SCostSummary {
+typedef struct SReadCostSummary {
   int64_t numOfBlocks;
   double  blockLoadTime;
   double  buildmemBlock;
@@ -109,8 +110,8 @@ typedef struct SCostSummary {
   double  buildComposedBlockTime;
   double  createScanInfoList;
   double  createSkylineIterTime;
-  double  initLastBlockReader;
-} SCostSummary;
+  double  initSttBlockReader;
+} SReadCostSummary;
 
 typedef struct STableUidList {
   uint64_t* tableUidList;  // access table uid list in uid ascending order list
@@ -121,12 +122,6 @@ typedef struct {
   int32_t numOfBlocks;
   int32_t numOfSttFiles;
 } SBlockNumber;
-
-typedef struct SBlockIndex {
-  int32_t     ordinalIndex;
-  int64_t     inFileOffset;
-  STimeWindow window;  // todo replace it with overlap flag.
-} SBlockIndex;
 
 typedef struct SBlockOrderWrapper {
   int64_t              uid;
@@ -151,21 +146,21 @@ typedef struct SBlockLoadSuppInfo {
   bool                smaValid;  // the sma on all queried columns are activated
 } SBlockLoadSuppInfo;
 
-typedef struct SLastBlockReader {
+typedef struct SSttBlockReader {
   STimeWindow        window;
   SVersionRange      verRange;
   int32_t            order;
   uint64_t           uid;
   SMergeTree         mergeTree;
   int64_t            currentKey;
-} SLastBlockReader;
+} SSttBlockReader;
 
 typedef struct SFilesetIter {
   int32_t           numOfFiles;    // number of total files
   int32_t           index;         // current accessed index in the list
   TFileSetArray*    pFilesetList;  // data file set list
   int32_t           order;
-  SLastBlockReader* pLastBlockReader;  // last file block reader
+  SSttBlockReader*  pSttBlockReader;  // last file block reader
 } SFilesetIter;
 
 typedef struct SFileDataBlockInfo {
@@ -192,6 +187,7 @@ typedef struct SFileBlockDumpInfo {
 } SFileBlockDumpInfo;
 
 typedef struct SReaderStatus {
+  bool                  suspendInvoked;
   bool                  loadFromFile;       // check file stage
   bool                  composedDataBlock;  // the returned data block is a composed block or not
   SSHashObj*            pTableMap;          // SHash<STableBlockScanInfo>
@@ -205,6 +201,12 @@ typedef struct SReaderStatus {
   SArray*               pLDataIterArray;
   SRowMerger            merger;
   SColumnInfoData*      pPrimaryTsCol;  // primary time stamp output col info data
+  bool                  bProcMemPreFileset;
+  int64_t               memTableMaxKey;
+  int64_t               memTableMinKey;
+  int64_t               prevFilesetStartKey;
+  int64_t               prevFilesetEndKey;
+  bool                  bProcMemFirstFileset;
 } SReaderStatus;
 
 struct STsdbReader {
@@ -220,13 +222,17 @@ struct STsdbReader {
   int32_t            type;   // query type: 1. retrieve all data blocks, 2. retrieve direct prev|next rows
   SBlockLoadSuppInfo suppInfo;
   STsdbReadSnap*     pReadSnap;
-  SCostSummary       cost;
+  tsem_t             resumeAfterSuspend;
+  SReadCostSummary   cost;
   SHashObj**         pIgnoreTables;
   SSHashObj*         pSchemaMap;   // keep the retrieved schema info, to avoid the overhead by repeatly load schema
   SDataFileReader*   pFileReader;  // the file reader
   SBlockInfoBuf      blockInfoBuf;
   EContentData       step;
   STsdbReader*       innerReader[2];
+  bool                 bFilesetDelimited;   // duration by duration output
+  TsdReaderNotifyCbFn  notifyFn;
+  void*              notifyParam;
 };
 
 typedef struct SBrinRecordIter {
@@ -266,7 +272,12 @@ bool    blockIteratorNext(SDataBlockIter* pBlockIter, const char* idStr);
 void    loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemTbData, int64_t ver);
 int32_t loadDataFileTombDataForAll(STsdbReader* pReader);
 int32_t loadSttTombDataForAll(STsdbReader* pReader, SSttFileReader* pSttFileReader, SSttBlockLoadInfo* pLoadInfo);
-
+int32_t getNumOfRowsInSttBlock(SSttFileReader *pSttFileReader, SSttBlockLoadInfo *pBlockLoadInfo, uint64_t suid,
+                               const uint64_t* pUidList, int32_t numOfTables);
+void    destroyLDataIter(SLDataIter* pIter);
+int32_t adjustLDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet);
+int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArray, STsdb* pTsdb, SMergeTreeConf* pConf,
+                              const char* pstr);
 typedef struct {
   SArray* pTombData;
 } STableLoadInfo;

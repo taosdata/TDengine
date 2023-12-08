@@ -44,22 +44,17 @@ int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr);
 int32_t tsdbFSCreateRefSnapshotWithoutLock(STFileSystem *fs, TFileSetArray **fsetArr);
 int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr);
 
-int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TSnapRangeArray *pExclude, TFileSetArray **fsetArr,
+int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TFileSetRangeArray *pExclude, TFileSetArray **fsetArr,
                                        TFileOpArray *fopArr);
-int32_t tsdbFSDestroyCopyRangedSnapshot(TFileSetArray **fsetArr, TFileOpArray *fopArr);
-int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TSnapRangeArray *pRanges,
-                                      TSnapRangeArray **fsrArr);
-int32_t tsdbFSDestroyRefRangedSnapshot(TSnapRangeArray **fsrArr);
-// txn
+int32_t tsdbFSDestroyCopyRangedSnapshot(TFileSetArray **fsetArr);
+int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TFileSetRangeArray *pRanges,
+                                      TFileSetRangeArray **fsrArr);
+int32_t tsdbFSDestroyRefRangedSnapshot(TFileSetRangeArray **fsrArr);
+//  txn
 int64_t tsdbFSAllocEid(STFileSystem *fs);
 int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype);
 int32_t tsdbFSEditCommit(STFileSystem *fs);
 int32_t tsdbFSEditAbort(STFileSystem *fs);
-// background task
-int32_t tsdbFSScheduleBgTask(STFileSystem *fs, int32_t fid, EFSBgTaskT type, int32_t (*run)(void *),
-                             void (*destroy)(void *), void *arg, int64_t *taskid);
-int32_t tsdbFSDisableBgTask(STFileSystem *fs);
-int32_t tsdbFSEnableBgTask(STFileSystem *fs);
 // other
 int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
 int32_t tsdbFSCheckCommit(STsdb *tsdb, int32_t fid);

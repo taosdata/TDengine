@@ -195,6 +195,10 @@ int32_t updateEventWindowInfo(SStreamAggSupporter* pAggSup, SEventWindowInfo* pW
       pWinInfo->pWinFlag->endFlag = ends[i];
     } else if (pWin->ekey == pTsData[i]) {
       pWinInfo->pWinFlag->endFlag |= ends[i];
+    } else {
+      *pRebuild = true;
+      pWinInfo->pWinFlag->endFlag |= ends[i];
+      return i + 1 - start;
     }
 
     memcpy(pWinInfo->winInfo.pStatePos->pKey, &pWinInfo->winInfo.sessionWin, sizeof(SSessionKey));
@@ -297,7 +301,8 @@ static void doStreamEventAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   int32_t rows = pSDataBlock->info.rows;
   blockDataEnsureCapacity(pAggSup->pScanBlock, rows);
   for (int32_t i = 0; i < rows; i += winRows) {
-    if (pInfo->ignoreExpiredData && isOverdue(tsCols[i], &pInfo->twAggSup)) {
+    if (pInfo->ignoreExpiredData && checkExpiredData(&pInfo->streamAggSup.stateStore, pInfo->streamAggSup.pUpdateInfo,
+                                                     &pInfo->twAggSup, pSDataBlock->info.id.uid, tsCols[i])) {
       i++;
       continue;
     }
@@ -318,6 +323,9 @@ static void doStreamEventAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
       tSimpleHashRemove(pSeUpdated, &curWin.winInfo.sessionWin, sizeof(SSessionKey));
       doDeleteEventWindow(pAggSup, pSeUpdated, &curWin.winInfo.sessionWin);
       releaseOutputBuf(pAggSup->pState, curWin.winInfo.pStatePos, &pAPI->stateStore);
+      SSessionKey tmpSeInfo = {0};
+      getSessionHashKey(&curWin.winInfo.sessionWin, &tmpSeInfo);
+      tSimpleHashPut(pStDeleted, &tmpSeInfo, sizeof(SSessionKey), NULL, 0);
       continue;
     }
     code = doOneWindowAggImpl(&pInfo->twAggSup.timeWindowData, &curWin.winInfo, &pResult, i, winRows, rows, numOfOutput,
@@ -610,6 +618,13 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
     compactEventWindow(pOperator, &curInfo, pInfo->pSeUpdated, pInfo->pSeDeleted, false);
     qDebug("===stream=== reload state. save result %" PRId64 ", %" PRIu64, curInfo.winInfo.sessionWin.win.skey,
             curInfo.winInfo.sessionWin.groupId);
+    if (IS_VALID_SESSION_WIN(curInfo.winInfo)) {
+      saveSessionOutputBuf(pAggSup, &curInfo.winInfo);
+    }
+
+    if (!curInfo.pWinFlag->endFlag) {
+      continue;
+    }
 
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE) {
       saveResult(curInfo.winInfo, pInfo->pSeUpdated);
@@ -620,10 +635,6 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
       SSessionKey key = {0};
       getSessionHashKey(&curInfo.winInfo.sessionWin, &key);
       tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &curInfo.winInfo, sizeof(SResultWindowInfo));
-    }
-
-    if (IS_VALID_SESSION_WIN(curInfo.winInfo)) {
-      saveSessionOutputBuf(pAggSup, &curInfo.winInfo);
     }
   }
   taosMemoryFree(pBuf);

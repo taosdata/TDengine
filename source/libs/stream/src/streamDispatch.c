@@ -506,9 +506,9 @@ void streamRetryDispatchData(SStreamTask* pTask, int64_t waitDuration) {
          waitDuration, pTask->execInfo.dispatch, pTask->msgInfo.retryCount);
 
   if (pTask->msgInfo.pTimer != NULL) {
-    taosTmrReset(doRetryDispatchData, waitDuration, pTask, streamEnv.timer, &pTask->msgInfo.pTimer);
+    taosTmrReset(doRetryDispatchData, waitDuration, pTask, streamTimer, &pTask->msgInfo.pTimer);
   } else {
-    pTask->msgInfo.pTimer = taosTmrStart(doRetryDispatchData, waitDuration, pTask, streamEnv.timer);
+    pTask->msgInfo.pTimer = taosTmrStart(doRetryDispatchData, waitDuration, pTask, streamTimer);
   }
 }
 
@@ -1167,10 +1167,10 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
           pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
         stError("s-task:%s failed to dispatch checkpoint-trigger msg, checkpointId:%" PRId64
                 ", set the current checkpoint failed, and send rsp to mnode",
-                id, pTask->checkpointingId);
+                id, pTask->chkInfo.checkpointingId);
         { // send checkpoint failure msg to mnode directly
-          pTask->chkInfo.failedId = pTask->checkpointingId;   // record the latest failed checkpoint id
-          pTask->checkpointingId = pTask->checkpointingId;
+          pTask->chkInfo.failedId = pTask->chkInfo.checkpointingId;   // record the latest failed checkpoint id
+          pTask->chkInfo.checkpointingId = pTask->chkInfo.checkpointingId;
           streamTaskSendCheckpointSourceRsp(pTask);
         }
       } else {

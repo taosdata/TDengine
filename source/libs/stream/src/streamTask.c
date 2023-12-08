@@ -250,9 +250,8 @@ int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo)
   SEpSet  epSet;
 
   if (tStartDecode(pDecoder) < 0) return -1;
-  if (tDecodeI64(pDecoder, &ver) < 0) return -1;
-
-  if (ver != SSTREAM_TASK_VER) return -1;
+  if (tDecodeI64(pDecoder, &pChkpInfo->msgVer) < 0) return -1;
+  // if (ver != SSTREAM_TASK_VER) return -1;
 
   if (tDecodeI64(pDecoder, &skip64) < 0) return -1;
   if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
@@ -379,6 +378,8 @@ void tFreeStreamTask(SStreamTask* pTask) {
   if (pTask->pState) {
     stDebug("s-task:0x%x start to free task state", taskId);
     streamStateClose(pTask->pState, status == TASK_STATUS__DROPPING);
+    taskDbRemoveRef(pTask->pBackend);
+     
   }
 
   if (pTask->id.idStr != NULL) {
@@ -467,6 +468,14 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   }
 
   taosThreadMutexInit(&pTask->lock, &attr);
+  // if (pTask->info.fillHistory == 1) {
+  //   // 
+  // } else {
+
+  // }
+  // if (streamTaskSetDb(pMeta, pTask) != 0) {
+  //   return -1;
+  // }
   streamTaskOpenAllUpstreamInput(pTask);
 
   pTask->outputInfo.pDownstreamUpdateList = taosArrayInit(4, sizeof(SDownstreamTaskEpset));

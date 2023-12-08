@@ -55,6 +55,7 @@ int32_t      updateInfoSerialize(void *buf, int32_t bufLen, const SUpdateInfo *p
 int32_t      updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo);
 void         windowSBfDelete(SUpdateInfo *pInfo, uint64_t count);
 void         windowSBfAdd(SUpdateInfo *pInfo, uint64_t count);
+bool         isIncrementalTimeStamp(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts);
 
 #ifdef __cplusplus
 }

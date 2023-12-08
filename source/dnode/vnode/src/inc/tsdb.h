@@ -309,7 +309,12 @@ int32_t tsdbTakeReadSnap2(STsdbReader *pReader, _query_reseek_func_t reseek, STs
 void    tsdbUntakeReadSnap2(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proactive);
 
 // tsdbMerge.c ==============================================================================================
-int32_t tsdbSchedMerge(STsdb *tsdb, int32_t fid);
+typedef struct {
+  STsdb  *tsdb;
+  int32_t fid;
+} SMergeArg;
+
+int32_t tsdbMerge(void *arg);
 
 // tsdbDiskData ==============================================================================================
 int32_t tDiskDataBuilderCreate(SDiskDataBuilder **ppBuilder);
@@ -372,6 +377,7 @@ struct STsdb {
   SVnode              *pVnode;
   STsdbKeepCfg         keepCfg;
   TdThreadMutex        mutex;
+  bool                 bgTaskDisabled;
   SMemTable           *mem;
   SMemTable           *imem;
   STsdbFS              fs;  // old
@@ -675,40 +681,53 @@ struct SDelFWriter {
 typedef struct STFileSet STFileSet;
 typedef TARRAY2(STFileSet *) TFileSetArray;
 
-typedef struct STSnapRange STSnapRange;
-typedef TARRAY2(STSnapRange *) TSnapRangeArray;  // disjoint snap ranges
+// fset range
+typedef struct STFileSetRange STFileSetRange;
+typedef TARRAY2(STFileSetRange *) TFileSetRangeArray;  // disjoint ranges
 
-// util
-int32_t   tSerializeSnapRangeArray(void *buf, int32_t bufLen, TSnapRangeArray *pSnapR);
-int32_t   tDeserializeSnapRangeArray(void *buf, int32_t bufLen, TSnapRangeArray *pSnapR);
-void      tsdbSnapRangeArrayDestroy(TSnapRangeArray **ppSnap);
-SHashObj *tsdbGetSnapRangeHash(TSnapRangeArray *pRanges);
+int32_t tsdbTFileSetRangeClear(STFileSetRange **fsr);
+int32_t tsdbTFileSetRangeArrayDestroy(TFileSetRangeArray **ppArr);
 
-// snap partition list
-typedef TARRAY2(SVersionRange) SVerRangeList;
-typedef struct STsdbSnapPartition STsdbSnapPartition;
-typedef TARRAY2(STsdbSnapPartition *) STsdbSnapPartList;
-// util
-STsdbSnapPartList *tsdbSnapPartListCreate();
-void               tsdbSnapPartListDestroy(STsdbSnapPartList **ppList);
-int32_t            tSerializeTsdbSnapPartList(void *buf, int32_t bufLen, STsdbSnapPartList *pList);
-int32_t            tDeserializeTsdbSnapPartList(void *buf, int32_t bufLen, STsdbSnapPartList *pList);
-int32_t            tsdbSnapPartListToRangeDiff(STsdbSnapPartList *pList, TSnapRangeArray **ppRanges);
-
+// fset partition
 enum {
-  TSDB_SNAP_RANGE_TYP_HEAD = 0,
-  TSDB_SNAP_RANGE_TYP_DATA,
-  TSDB_SNAP_RANGE_TYP_SMA,
-  TSDB_SNAP_RANGE_TYP_TOMB,
-  TSDB_SNAP_RANGE_TYP_STT,
-  TSDB_SNAP_RANGE_TYP_MAX,
+  TSDB_FSET_RANGE_TYP_HEAD = 0,
+  TSDB_FSET_RANGE_TYP_DATA,
+  TSDB_FSET_RANGE_TYP_SMA,
+  TSDB_FSET_RANGE_TYP_TOMB,
+  TSDB_FSET_RANGE_TYP_STT,
+  TSDB_FSET_RANGE_TYP_MAX,
 };
 
-struct STsdbSnapPartition {
+typedef TARRAY2(SVersionRange) SVerRangeList;
+
+struct STsdbFSetPartition {
   int64_t       fid;
   int8_t        stat;
-  SVerRangeList verRanges[TSDB_SNAP_RANGE_TYP_MAX];
+  SVerRangeList verRanges[TSDB_FSET_RANGE_TYP_MAX];
 };
+
+typedef struct STsdbFSetPartition STsdbFSetPartition;
+typedef TARRAY2(STsdbFSetPartition *) STsdbFSetPartList;
+
+STsdbFSetPartList *tsdbFSetPartListCreate();
+void               tsdbFSetPartListDestroy(STsdbFSetPartList **ppList);
+int32_t            tSerializeTsdbFSetPartList(void *buf, int32_t bufLen, STsdbFSetPartList *pList);
+int32_t            tDeserializeTsdbFSetPartList(void *buf, int32_t bufLen, STsdbFSetPartList *pList);
+int32_t            tsdbFSetPartListToRangeDiff(STsdbFSetPartList *pList, TFileSetRangeArray **ppRanges);
+
+// snap rep format
+typedef enum ETsdbRepFmt {
+  TSDB_SNAP_REP_FMT_DEFAULT = 0,
+  TSDB_SNAP_REP_FMT_RAW,
+  TSDB_SNAP_REP_FMT_HYBRID,
+} ETsdbRepFmt;
+
+typedef struct STsdbRepOpts {
+  ETsdbRepFmt format;
+} STsdbRepOpts;
+
+int32_t tSerializeTsdbRepOpts(void *buf, int32_t bufLen, STsdbRepOpts *pInfo);
+int32_t tDeserializeTsdbRepOpts(void *buf, int32_t bufLen, STsdbRepOpts *pInfo);
 
 // snap read
 struct STsdbReadSnap {
@@ -880,10 +899,9 @@ void tMergeTreeUnpinSttBlock(SMergeTree *pMTree);
 bool tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
 void tMergeTreeClose(SMergeTree *pMTree);
 
-SSttBlockLoadInfo *tCreateOneLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols);
-void               resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
+SSttBlockLoadInfo *tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols);
 void               getSttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, SSttBlockLoadCostInfo *pLoadCost);
-void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
+void              *destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 void              *destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost);
 
 // tsdbCache ==============================================================================================
@@ -1037,7 +1055,7 @@ typedef enum {
 
 // utils
 ETsdbFsState tsdbSnapGetFsState(SVnode *pVnode);
-int32_t      tsdbSnapGetDetails(SVnode *pVnode, SSnapshot *pSnap);
+int32_t      tsdbSnapPrepDescription(SVnode *pVnode, SSnapshot *pSnap);
 
 #ifdef __cplusplus
 }
