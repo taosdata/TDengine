@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use itertools::Itertools;
 use tiberius::{AuthMethod, Client, Config, QueryItem, QueryStream};
 use tokio::net::TcpStream;
@@ -68,6 +68,9 @@ impl HistorianQuery {
         end: DateTime<Utc>,
     ) -> anyhow::Result<QueryStream> {
         let sql;
+
+        let begin: DateTime<Local> = DateTime::from(begin);
+        let end: DateTime<Local> = DateTime::from(end);
 
         sql = format!(
                 "select {} from Runtime.dbo.History where TagName in ({}) and DateTime >= '{}' and DateTime < '{}' and wwRetrievalMode = 'full'",
@@ -183,5 +186,14 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_datetime_convert(){
+        let utc = Utc::now();
+        dbg!(utc.to_rfc3339());
+
+        let local: DateTime<Local> = DateTime::from(utc);
+        dbg!(local.to_rfc3339());
     }
 }
