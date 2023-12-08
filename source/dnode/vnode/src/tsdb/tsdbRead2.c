@@ -631,7 +631,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
 
   double el = (taosGetTimestampUs() - st) / 1000.0;
   tsdbDebug(
-      "load block of %d tables completed, blocks:%d in %d tables, last-files:%d, block-info-size:%.2f Kb, elapsed "
+      "load block of %d tables completed, blocks:%d in %d tables, stt-files:%d, block-info-size:%.2f Kb, elapsed "
       "time:%.2f ms %s",
       numOfTables, pBlockNum->numOfBlocks, (int32_t)taosArrayGetSize(pTableScanInfoList), pBlockNum->numOfSttFiles,
       sizeInDisk / 1000.0, el, pReader->idStr);
@@ -2712,6 +2712,8 @@ static int32_t doLoadSttBlockSequentially(STsdbReader* pReader) {
       pInfo->id.uid = pScanInfo->uid;
       pInfo->dataLoad = 1;
       pInfo->window = pScanInfo->sttWindow;
+      blockDataEnsureCapacity(pResBlock, pInfo->rows);
+
       setComposedBlockFlag(pReader, true);
       pScanInfo->sttKeyInfo.nextProcKey = asc ? pScanInfo->sttWindow.ekey + 1 : pScanInfo->sttWindow.skey - 1;
       pScanInfo->sttKeyInfo.status = STT_FILE_NO_DATA;
