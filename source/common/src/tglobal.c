@@ -262,6 +262,7 @@ bool    tsDisableStream = false;
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 bool    tsFilterScalarMode = false;
 int     tsResolveFQDNRetryTime = 100;  // seconds
+int     tsStreamAggCnt = 10;
 
 char   tsS3Endpoint[TSDB_FQDN_LEN] = "<endpoint>";
 char   tsS3AccessKey[TSDB_FQDN_LEN] = "<accesskey>";
@@ -737,6 +738,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "disableStream", tsDisableStream, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
   if (cfgAddInt64(pCfg, "streamBufferSize", tsStreamBufferSize, 0, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
     return -1;
+  if (cfgAddInt64(pCfg, "streamAggCnt", tsStreamAggCnt, 0, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
+    return -1;
 
   if (cfgAddInt32(pCfg, "checkpointInterval", tsStreamCheckpointInterval, 60, 1200, CFG_SCOPE_SERVER,
                   CFG_DYN_ENT_SERVER) != 0)
@@ -1191,6 +1194,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tstrncpy(tsCompressor, cfgGetItem(pCfg, "compressor")->str, sizeof(tsCompressor));
 
   tsDisableStream = cfgGetItem(pCfg, "disableStream")->bval;
+  tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;
+  tsStreamAggCnt = cfgGetItem(pCfg, "streamAggCnt")->i32;
   tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;
   tsStreamCheckpointInterval = cfgGetItem(pCfg, "checkpointInterval")->i32;
   tsSinkDataRate = cfgGetItem(pCfg, "streamSinkDataRate")->fval;

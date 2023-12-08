@@ -25,9 +25,6 @@
 #include "tuuid.h"
 
 #define SINK_NODE_LEVEL (0)
-#define SOURCE_NODE_LEVEL (0)
-#define SINK_NODE_LEVEL (0)
-#define SINK_NODE_LEVEL (0)
 extern bool tsDeployOnSnode;
 
 int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64_t uid, int8_t triggerType,
@@ -553,7 +550,6 @@ static void bindTwoLevel(SArray* tasks, int32_t begin, int32_t end) {
   }
 }
 
-#define AGGNUM 2
 static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan* pPlan, int64_t nextWindowSkey, SEpSet* pEpset) {
   SSdb*   pSdb = pMnode->pSdb;
   int32_t numOfPlanLevel = LIST_LENGTH(pPlan->pSubplans);
@@ -607,7 +603,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
     do{
       SArray** list = taosArrayGetLast(pStream->tasks);
       float size = (float)taosArrayGetSize(*list);
-      size_t cnt = (int)(size/AGGNUM + 0.5);
+      size_t cnt = (int)(size/tsStreamAggCnt + 0.5);
       if(cnt <= 1) break;
 
       addNewTaskList(pStream->tasks);
@@ -621,9 +617,9 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
           return code;
         }
 
-        bindTwoLevel(pStream->tasks, j*AGGNUM, (j+1)*AGGNUM);
+        bindTwoLevel(pStream->tasks, j*tsStreamAggCnt, (j+1)*tsStreamAggCnt);
         if (pStream->conf.fillHistory) {
-          bindTwoLevel(pStream->pHTasksList, j*AGGNUM, (j+1)*AGGNUM);
+          bindTwoLevel(pStream->pHTasksList, j*tsStreamAggCnt, (j+1)*tsStreamAggCnt);
         }
       }
     }while(1);
