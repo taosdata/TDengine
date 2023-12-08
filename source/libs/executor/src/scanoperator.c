@@ -3426,7 +3426,7 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   int32_t numOfTable = tableEndIdx - tableStartIdx + 1;
   STableKeyInfo* startKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, tableStartIdx);
   pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInfo->base.cond, startKeyInfo, numOfTable, pInfo->pReaderBlock,
-                                (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), false, &pInfo->mSkipTables);
+                                (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->mSkipTables);
   if (pInfo->filesetDelimited) {
     pAPI->tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
   }

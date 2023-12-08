@@ -2873,7 +2873,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
   return (pReader->code != TSDB_CODE_SUCCESS) ? pReader->code : code;
 }
 
-static int32_t buildBlockFromBufferSequentially(STsdbReader* pReader) {
+static int32_t buildBlockFromBufferSequentially(STsdbReader* pReader, int64_t endKey) {
   SReaderStatus* pStatus = &pReader->status;
   STableUidList* pUidList = &pStatus->uidList;
 
