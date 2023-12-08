@@ -1,9 +1,9 @@
 <template>
   <div class="source-ui">
     <div :class="['left-ui', isShowEditBtn ? 'readable' : '']">
-      <section>
+      <!-- <section>
         <DataTarget ref="sourceTop"></DataTarget>
-      </section>
+      </section> -->
       <el-form
         :model="sourceForm"
         ref="form"
@@ -12,6 +12,90 @@
         size="small"
         :rules="rules"
       >
+        <section class="block-wrapper">
+          <el-form-item
+            :label="$t('name')"
+            prop="name"
+          >
+            <el-input
+              v-model="sourceForm.name"
+              :placeholder="$t('dataIn.palceholders.taskName')"
+            ></el-input>
+          </el-form-item>
+          <el-form-item
+            :label="$t('type')"
+            prop="type"
+          >
+            <el-select
+              v-model="sourceForm.type"
+              placeholder=""
+              :disabled="!!editId"
+            >
+              <el-option
+                v-for="item in definitionsList"
+                :key="item.name"
+                :label="item.name"
+                :value="item.id"
+              ></el-option>
+            </el-select>
+            <!-- <el-button
+            class="ml10"
+            type="primary"
+            plain
+            >{{ $t('plan.price') }}</el-button
+          > -->
+          </el-form-item>
+          <el-form-item
+            v-if="agentShow"
+            :label="$t('agent')"
+            prop="agent"
+          >
+            <el-select
+              v-model="sourceForm.agent"
+              :placeholder="$t('dataIn.palceholders.agentPlaceholder')"
+              clearable
+            >
+              <el-option
+                v-for="item in agentList"
+                :key="item.name"
+                :label="item.name"
+                :value="item.id"
+              ></el-option>
+            </el-select>
+            <el-button
+              @click="createAgent"
+              type="primary"
+              size="small"
+              class="ml"
+              icon="el-icon-plus"
+              >{{ $t('dataIn.createNewAgent') }}</el-button
+            >
+            <p class="custom-placeholder mt10">{{ $t('dataIn.needAgentTip') }}</p>
+          </el-form-item>
+          <el-form-item
+            :label="$t('stream.targetDB')"
+            prop="targetDB"
+          >
+            <el-select
+              v-model="sourceForm.targetDB"
+              :placeholder="$t('dataIn.palceholders.chooseTargetDbTip')"
+            >
+              <el-option
+                v-for="item in dbList"
+                :key="item.name"
+                :value="item.name"
+              ></el-option>
+            </el-select>
+            <el-button
+              @click="createDb"
+              type="primary"
+              size="small"
+              class="ml"
+              icon="el-icon-plus"
+              >{{ $t('data.createDatabase') }}</el-button
+            >
+          </el-form-item>
+        </section>
         <ConfigForm
           v-if="currentDefinition && currentDefinition.config"
           :config="currentDefinition.config"
@@ -73,6 +157,7 @@ import {
   getFormConfigByDataSource,
   generateFormInitData,
   getDsnData,
+  NoNeedAgentType
 } from "../utils";
 import FormItem from "../components/formItem.vue";
 import BlockHeader from "../components/blockHeader.vue";
@@ -113,7 +198,7 @@ export default {
       default: false,
     },
     editId: {
-      type: Number,
+      type: [Number, String],
       default: 0,
     },
     isCopyable: {
@@ -129,14 +214,32 @@ export default {
       loading: false,
       btnLoading: false,
       isShowEditBtn: false,
+      dbList: [],
       sourceForm: {
+        name: '',
+        type: '',
+        targetDB: '',
+        agent: '',
         data: {},
       },
-      rules: {},
+      rules: {
+        name: [
+          {
+            required: true,
+            trigger: "blur",
+            message: this.$t('required', [this.$t("name")]),
+          },
+        ],
+        targetDB: {
+          required: true,
+          trigger: "change",
+          message: this.$t('required', [this.$t("stream.targetDB")]),
+        },
+      },
       currentDefinition: null,
       parent: "data.",
       level: "1",
-      editSourceConfig: null
+      editSourceConfig: null,
     };
   },
   created() {
@@ -144,9 +247,13 @@ export default {
       this.getDataSourceDetail()
       this.isShowEditBtn = this.isCopyable ? false : true;
     } 
-    this.getDataSource();
+    this.getDBLists()
   },
-  mounted() {},
+  mounted() {
+    if (!this.editId) {
+      this.sourceForm.type = 'tmq';
+    }
+  },
   computed: {
     agentId() {
       return this.$store.state.app.currentAgentID || "";
@@ -160,6 +267,18 @@ export default {
     // resume() {
     //   return this.$store.state.app.currentResume || "";
     // }
+    toUrl() {
+      return 'taos+' + localStorage.getItem("base_url") + (this.sourceForm.targetDB ? "/" + this.sourceForm.targetDB : "");
+    },
+    definitionsList() {
+      return this.$store.state.app.definitions;
+    },
+    agentShow() {
+      return !NoNeedAgentType.includes(this.sourceForm.type);
+    },
+    agentList() {
+      return this.$store.state.app.agentLists;
+    },
     defaultSourceConfig() {
       return this.isEditable ? this.editSourceConfig : getFormConfigByDataSource(this.dbsource);
     },
@@ -185,19 +304,33 @@ export default {
         this.$forceUpdate();
       },
     },
-    editSourceConfig: {
-      handler(val) {
-        if (val) {
-          this.getDataSource();
-        }
+    'sourceForm.type': {
+      handler() {
+        this.getDataSource();
       },
       immediate: true
     },
+    "$store.state.app.currentDBName": {
+      deep: true,
+      handler(val) {
+        this.sourceForm.targetDB = val;
+        this.getDBLists();
+      },
+    },
+    "$store.state.app.currentAgentID": {
+      handler(val) {
+        this.sourceForm.agent = val
+      }
+    }
   },
   methods: {
     async getDataSourceDetail() {
       await getDataSourceDetail(this.editId)
         .then(data => {
+          this.sourceForm.type = data.from_detail.id;
+          this.sourceForm.name = data.name;
+          this.sourceForm.targetDB = data?.to_expand?.subject;
+          this.sourceForm.agent = data.via;
           this.editSourceConfig = getFormConfigByDataSource([data.from_detail], data.parser);
         })
         .finally(() => {
@@ -205,12 +338,13 @@ export default {
         });
     },
     getDataSource() {
-      this.currentDefinition = this.defaultSourceConfig?.historian;
+      this.currentDefinition = this.defaultSourceConfig?.[this.sourceForm.type];
       console.log("currentDefinition", this.currentDefinition);
       if (!this.currentDefinition) return;
       this.sourceForm.data = generateFormInitData(
         this.currentDefinition?.config
       );
+      this.sourceForm.agent = '';
     },
 
     edit() {
@@ -234,23 +368,17 @@ export default {
       }
     },
 
-    validateForm() {
+    submit() {
       this.$refs.form.validate(async (valid) => {
         if (valid) {
-          const dsn = getDsnData(
-            this.sourceForm.data,
-            this.currentDefinition,
-          );
-          const type = this.tagName;
+          const dsn = getDsnData(this.sourceForm.data, this.currentDefinition,);
+          const type = this.sourceForm.type;
           let id = localStorage.getItem("local_clusterID");
           // this.requestIng = true;
           const params = {
             from: type === "tmq" ? dsn : type + dsn,
-            name: this.sourceName,
-            to:
-              "taos+" +
-              localStorage.getItem("base_url") +
-              (this.targetDatabase ? "/" + this.targetDatabase : ""),
+            name: this.sourceForm.name,
+            to: this.toUrl,
             labels: [
               "type::datain",
               `cluster-id::${id}`,
@@ -258,8 +386,8 @@ export default {
             ],
             // trigger: { "resume": this.resume }
           };
-          if (this.agentId) {
-            params["via"] = this.agentId;
+          if (this.sourceForm.agent) {
+            params["via"] = this.sourceForm.agent;
           }
           if (this.sourceForm.data.parser) {
             params.parser = this.sourceForm.data.parser;
@@ -288,19 +416,43 @@ export default {
       });
     },
     
-    async submit() {
-      let sourceTop = this.$refs.sourceTop;
-      sourceTop.$refs.ruleForm.validate(async valid => {
-        if (valid) {
-          this.validateForm()
-        } else {
-          return false
-        }
-      });
-    },
     cancel() {
       this.$parent.currentName = "dbsource";
     },
+    async getDBLists() {
+      try {
+        let data = await getDBListReq();
+        this.dbList = data.filter(v => v.name !== 'audit')
+      } catch (error) {
+        console.log(error);
+      }
+    },
+    createAgent() {
+      this.$store.commit("app/SET_AGENT_DIALOG", true);
+      this.$store.commit('SET_DIALOG', {
+        component: () => import('../components/addAgent.vue'),
+        config: {
+          width: '620px',
+          title: this.$t('dataIn.createNewAgent')
+        },
+        params: {
+          showTitle: false,
+          close: () => {
+            this.$store.commit('SET_DIALOG_VISIBLE', false);
+          }
+        },
+        listeners: {
+          close: () => {
+            this.$store.commit('SET_DIALOG_VISIBLE', false);
+          }
+        }
+      });
+    },
+    createDb() {
+      this.$store.commit("dbs/HANDLE_ADD_DB");
+      this.$store.commit("dbs/SET_ADD_DB_COMP", "datain");
+      this.$store.commit("dbs/SET_DIALOG_DB_VISABLE", true);
+    }
   },
 };
 </script>

@@ -51,8 +51,7 @@ export default {
         errorMsg.push(valid);
         if (errorMsg.length == validFieldList.length && errorMsg.some(item => !item)) {
           this.activeCollapse = '';
-          const type = this.sourceParent.tagName;
-          const dsn = type + getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
+          const dsn = getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
           this.getValidateResult(dsn,this.agentId);
         } else {
           this.$nextTick(() => {

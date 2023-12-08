@@ -875,7 +875,7 @@ export function generateFormInitData(paramsConfig) {
     return data;
   }, {});
 }
-export const NoNeedAgentType = ['tmq', 'taos'];
+export const NoNeedAgentType = ['tmq', 'taos', 'csv'];
 // tmq和taos需要再协议前面加上+
 export const ProtocolPrefix = NoNeedAgentType.concat(['influxdb']);
 
@@ -1003,6 +1003,7 @@ export function getAuthentications(authentication, params) {
 }
 
 function getOptionData(data, queryArr, definition) {
+  console.log('endggg',data);
   if (!data || !definition) return '';
   let result = '';
   let { subject, host, port, endpoint, system_configuration, PISystemName } = data;
@@ -1019,6 +1020,7 @@ function getOptionData(data, queryArr, definition) {
       result += '/' + subject;
     }
   } else {
+    console.log('000000-endpoint',endpoint);
     result += endpoint;
   }
   return result;

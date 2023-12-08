@@ -24,7 +24,7 @@
 import DataSource from "./dataSource.vue";
 import DbSourceUI from "./dbSourceUI.vue";
 import OpcUI from "./opcUI.vue";
-import Historian from "./historian.vue"
+import SourceConfig from "./sourceConfig.vue"
 
 import { getUIData, getTask } from "@/api/explorer/datain";
 import constparser from "./mqttparser.json";
@@ -37,7 +37,7 @@ export default {
     dbsource: DataSource,
     ui: DbSourceUI,
     opcui: OpcUI,
-    historian: Historian
+    sourceConfig: SourceConfig
   },
   data() {
     return {
@@ -122,6 +122,7 @@ export default {
       try {
         let result = await getUIData();
         this.$set(this, "sourceList", result);
+        this.$store.commit("app/SET_DEFINITIONS", result);
       } catch (error) {
         console.log(error);
       }
@@ -154,9 +155,10 @@ export default {
           this.$store.commit("app/SET_OPC_CONFIG", this.opcConfig);
         }
         this.isEditable = false;
+        this.setEditID('')
         switch (type) {
           case "tmq":
-            this.currentName = "ui";
+            this.currentName = "sourceConfig";
             this.tagName = "datasource";
             break;
           case "opcua":
@@ -214,7 +216,7 @@ export default {
             this.tagName = "kafka";
             break;
           case "historian":
-            this.currentName = 'historian';
+            this.currentName = 'sourceConfig';
             this.tagName = 'historian';
         }
       } else {

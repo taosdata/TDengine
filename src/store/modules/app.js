@@ -86,7 +86,8 @@ const state = {
   csvTransformerParser:null,
   csvTransformerlocalCols:[],//csv无头部时候的自定义列
   splitExpresList:null,//transformer的split
-  mappingjoin:''//mapping时候映射值是join时候的
+  mappingjoin:'',//mapping时候映射值是join时候的
+  definitions: [],
   
 };
 const saveKey = encodeURIComponent("appId");
@@ -167,6 +168,9 @@ const mutations = {
   },
   SET_AGENT_LISTS:(state,data)=>{
     state.agentLists=data
+  },
+  SET_DEFINITIONS(state, definitions) {
+    state.definitions = definitions;
   },
   //所有数据源上传的文件类型置空
   SET_FILE_EMPTY:(state,data)=>{
