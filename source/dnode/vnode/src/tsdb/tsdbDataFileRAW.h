@@ -45,8 +45,6 @@ typedef struct STsdbDataRAWBlockHeader {
     int64_t fid;
     int64_t cid;
     int64_t size;
-    int64_t minVer;
-    int64_t maxVer;
     union {
       struct {
         int32_t level;

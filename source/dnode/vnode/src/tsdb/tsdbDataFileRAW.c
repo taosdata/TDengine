@@ -31,13 +31,13 @@ int32_t tsdbDataFileRAWReaderOpen(const char *fname, const SDataFileRAWReaderCon
 
   if (fname) {
     if (fname) {
-      code = tsdbOpenFile(fname, config->tsdb, TD_FILE_READ, &reader[0]->fd);
+      code = tsdbOpenFile(fname, config->szPage, TD_FILE_READ, &reader[0]->fd);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   } else {
     char fname1[TSDB_FILENAME_LEN];
     tsdbTFileName(config->tsdb, &config->file, fname1);
-    code = tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd);
+    code = tsdbOpenFile(fname1, config->szPage, TD_FILE_READ, &reader[0]->fd);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -68,8 +68,6 @@ int32_t tsdbDataFileRAWReadBlockData(SDataFileRAWReader *reader, STsdbDataRAWBlo
   pBlock->file.fid = reader->config->file.fid;
   pBlock->file.cid = reader->config->file.cid;
   pBlock->file.size = reader->config->file.size;
-  pBlock->file.minVer = reader->config->file.minVer;
-  pBlock->file.maxVer = reader->config->file.maxVer;
   pBlock->file.stt->level = reader->config->file.stt->level;
 
   code = tsdbReadFile(reader->fd, pBlock->offset, pBlock->data, pBlock->dataLength);
@@ -151,7 +149,7 @@ static int32_t tsdbDataFileRAWWriterOpenDataFD(SDataFileRAWWriter *writer) {
   }
 
   tsdbTFileName(writer->config->tsdb, &writer->file, fname);
-  code = tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd);
+  code = tsdbOpenFile(fname, writer->config->szPage, flag, &writer->fd);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

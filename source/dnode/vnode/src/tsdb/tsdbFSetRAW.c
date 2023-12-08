@@ -86,8 +86,6 @@ static int32_t tsdbFSetRAWWriteFileDataBegin(SFSetRAWWriter *writer, STsdbDataRA
               .did = writer->config->did,
               .cid = writer->config->cid,
               .size = bHdr->file.size,
-              .minVer = bHdr->file.minVer,
-              .maxVer = bHdr->file.maxVer,
               .stt = {{
                   .level = bHdr->file.stt->level,
               }},

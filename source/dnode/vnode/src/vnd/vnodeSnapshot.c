@@ -431,10 +431,6 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     tsdbSnapRAWWriterPrepareClose(pWriter->pTsdbSnapRAWWriter);
   }
 
-  if (pWriter->pRsmaSnapWriter) {
-    rsmaSnapWriterPrepareClose(pWriter->pRsmaSnapWriter);
-  }
-
   // commit json
   if (!rollback) {
     ASSERT(pVnode->config.vgId == pWriter->info.config.vgId);
