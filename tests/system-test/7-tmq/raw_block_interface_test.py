@@ -36,7 +36,21 @@ class TDTestCase:
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/write_raw_block_test'%(buildPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        retCode = os.system(cmdStr)
+        # run program code from system return , 0 is success
+        runCode = retCode & 0xFF
+        # program retur code from main function
+        progCode = retCode >> 8
+
+        tdLog.info(f"{cmdStr} ret={retCode} runCode={runCode} progCode={progCode}")
+
+        if runCode != 0:
+            tdLog.exit(f"run {cmdStr} failed, have system error.")
+            return
+        
+        if progCode != 0:
+            tdLog.exit(f"{cmdStr} found problem, return code = {progCode}.")
+            return
 
         self.checkData()
 

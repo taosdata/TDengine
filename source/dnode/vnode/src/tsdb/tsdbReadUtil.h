@@ -22,6 +22,7 @@ extern "C" {
 
 #include "tsdbDataFileRW.h"
 #include "tsdbUtil2.h"
+#include "storageapi.h"
 
 #define ASCENDING_TRAVERSE(o) (o == TSDB_ORDER_ASC)
 
@@ -208,6 +209,12 @@ typedef struct SReaderStatus {
   SArray*               pLDataIterArray;
   SRowMerger            merger;
   SColumnInfoData*      pPrimaryTsCol;  // primary time stamp output col info data
+  bool                  bProcMemPreFileset;
+  int64_t               memTableMaxKey;
+  int64_t               memTableMinKey;
+  int64_t               prevFilesetStartKey;
+  int64_t               prevFilesetEndKey;
+  bool                  bProcMemFirstFileset;
 } SReaderStatus;
 
 struct STsdbReader {
@@ -231,6 +238,9 @@ struct STsdbReader {
   SBlockInfoBuf      blockInfoBuf;
   EContentData       step;
   STsdbReader*       innerReader[2];
+  bool                 bFilesetDelimited;   // duration by duration output
+  TsdReaderNotifyCbFn  notifyFn;
+  void*              notifyParam;
 };
 
 typedef struct SBrinRecordIter {

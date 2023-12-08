@@ -377,6 +377,7 @@ struct STsdb {
   SVnode              *pVnode;
   STsdbKeepCfg         keepCfg;
   TdThreadMutex        mutex;
+  bool                 bgTaskDisabled;
   SMemTable           *mem;
   SMemTable           *imem;
   STsdbFS              fs;  // old
