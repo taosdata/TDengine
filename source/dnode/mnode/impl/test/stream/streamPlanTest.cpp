@@ -47,16 +47,15 @@ TEST(testCase, plan_Test) {
     ASSERT(0);
   }
 
-  SPlanContext cxt = {
-      .pAstRoot = pAst,
-      .topicQuery = false,
-      .streamQuery = true,
-      .triggerType = STREAM_TRIGGER_WINDOW_CLOSE,
-      .watermark = 1,
-      .igExpired = 1,
-      .deleteMark = 1,
-      .igCheckUpdate = 1,
-  };
+  SPlanContext cxt = { 0 };
+  cxt.pAstRoot = pAst;
+  cxt.topicQuery = false;
+  cxt.streamQuery = true;
+  cxt.triggerType = STREAM_TRIGGER_WINDOW_CLOSE;
+  cxt.watermark = 1;
+  cxt.igExpired = 1;
+  cxt.deleteMark = 1;
+  cxt.igCheckUpdate = 1;
 
   // using ast and param to build physical plan
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
