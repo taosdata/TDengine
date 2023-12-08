@@ -19,12 +19,12 @@ description: 如何使用 Power BI 和 TDengine 进行时序数据分析
 
 
 ### 安装驱动
+从 TDengine 官网下载最新的 Windows X64 客户端驱动程序 [下载地址](https://docs.taosdata.com/get-started/package/)，并安装在 Power BI 运行的机器上
 
-1. 从 TDengine 官网下载最新的 Windows X64 客户端驱动程序 [下载地址](https://docs.taosdata.com/get-started/package/)，并安装在 Power BI 运行的机器上
-2. 请参考 [ODBC](../../connector/odbc) 配置Websocket数据源。
+### 配置数据源
+请参考 [ODBC](../../connector/odbc) 配置Websocket数据源。
 
 ### 导入 TDengine 数据到 Power BI
-
 1. 打开 Power BI 并登录后，通过如下步骤添加数据源，“主页” -> “获取数据” -> “其他” -> “ODBC” -> “连接”
 2. 选择数据源名称后，连接到配置好的数据源，进入导航器，浏览对应数据库的数据表并加载
 3. 如果需要输入 SQL 语句，可以点击“高级选项”，在展开的对话框中输入并加载数据
@@ -37,7 +37,6 @@ description: 如何使用 Power BI 和 TDengine 进行时序数据分析
   - 数据切分查询：如果需要同时获取很多温度传感器的聚合数值，可对数据进行切分然后在切分出的数据空间内再进行一系列的计算，对应的 SQL 语法参考 `partition by part_list`。数据切分子句最常见的用法就是在超级表查询中，按标签将子表数据进行切分，将每个子表的数据独立出来，形成一条条独立的时间序列，方便各种时序场景的统计分析。
 3. 时序：在绘制曲线或者按照时间聚合数据时，通常需要引入日期表。日期表可以从 Excel 表格中导入，也可以在 TDengine 中执行 SQL 语句获取，例如 `select _wstart date, count(*) cnt from test.meters where ts between A and B interval(1d) fill(0)`，其中 fill 字句表示数据缺失情况下的填充模式，伪列_wstart 则为要获取的日期列。
 4. 相关性：告诉数据之间如何关联，度量和维度可以通过 tbname 列关联在一起，日期表和度量则可以通过 date 列关联，配合形成可视化报表。
-
 
 ### 智能电表样例
 TDengine 有自己独特的数据模型，它使用超级表作为模板，为每个设备创建一个表，每个表最多可创建 4096 个数据列和 128 个标签列。在智能电表样例中，假如一个电表每秒产生一条记录，一天就有 86,400 条记录，一年就有 31,536,000 条记录，1000 个电表将占用  600 GB 原始磁盘空间。因此，Power BI 更多的应用方式是将标签列映射为维度列，数据列的聚合结果导入为度量列，最终为关键决策制定者提供所需的指标。
