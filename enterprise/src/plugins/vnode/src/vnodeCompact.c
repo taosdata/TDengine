@@ -32,8 +32,21 @@ int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t version, void *p
 }
 
 int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  SKillCompactReq req = {0};
+  if (tDeserializeSKillCompactReq(pReq, len, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return TSDB_CODE_INVALID_MSG;
+  }
+  vInfo("vgId:%d, kill compact msg will be processed, compactId:%d", TD_VID(pVnode),
+        req.compactId);
+
   tsdbStopAllCompTask(pVnode->pTsdb);
-  // TODO: send response
+  
+  pRsp->msgType = TDMT_VND_KILL_COMPACT_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
   return 0;
 }
 
@@ -84,7 +97,7 @@ _exit:
   rspMsg.pCont = pRsp;
   rspMsg.contLen = rspSize;
   rspMsg.code = code;
-  rspMsg.msgType = pMsg->msgType + 1;
+  rspMsg.msgType = TDMT_VND_QUERY_COMPACT_PROGRESS_RSP;
 
   tmsgSendRsp(&rspMsg);
 
