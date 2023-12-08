@@ -208,7 +208,7 @@ export default {
             this.tagName = "csv";
             break;
           case "taos":
-            this.currentName = "ui";
+            this.currentName = "sourceConfig";
             this.tagName = "taos";
             break;
           case "kafka":
@@ -222,7 +222,7 @@ export default {
       } else {
         switch (id) {
           case "tmq":
-            this.currentName = "ui";
+            this.currentName = "sourceConfig";
             this.tagName = "datasource";
             break;
           case "opcua":
@@ -264,7 +264,7 @@ export default {
             (this.currentName = "opcui"), (this.tagName = "csv");
             break;
           case "taos":
-            this.currentName = "ui";
+            this.currentName = "sourceConfig";
             this.tagName = "taos";
             break;
           case "kafka":

@@ -51,8 +51,10 @@ export default {
         errorMsg.push(valid);
         if (errorMsg.length == validFieldList.length && errorMsg.some(item => !item)) {
           this.activeCollapse = '';
+          const type = this.sourceParent.sourceForm.type
           const dsn = getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
-          this.getValidateResult(dsn,this.agentId);
+          const param = type === "tmq" ? dsn : type + dsn
+          this.getValidateResult(param,this.agentId);
         } else {
           this.$nextTick(() => {
             document.querySelector('.source-ui .left-ui .is-error')?.scrollIntoView();

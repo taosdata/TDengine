@@ -148,7 +148,7 @@ export default {
   clusterInfo: "Instance Information",
   clusterName: "Instance Name",
   document: "Documentation",
-  docsUrl: "https://docs.tdengine.com",
+  docsUrl: "/docs-en/",
   discord: "Discord",
   hour: "Hour",
   formatWrong: "wrong format",
@@ -618,7 +618,8 @@ export default {
     metricValue: 'Metrics Value',
     check: 'Check Connection',
     resume: 'Scheduling strategy',
-    resumeTip: "Indicates the scheduling policy after a task is interrupted:\n\n- *never*: Never reschedule。\n- *once*: The taosX service can be started only once after the service is abnormally interrupted and the task status is running|cancelled.\n- *always*: After the taosX service is started, tasks whose task status is running|failed|cancelled|interrupted are always restarted." 
+    resumeTip: "Indicates the scheduling policy after a task is interrupted:\n\n- *never*: Never reschedule。\n- *once*: The taosX service can be started only once after the service is abnormally interrupted and the task status is running|cancelled.\n- *always*: After the taosX service is started, tasks whose task status is running|failed|cancelled|interrupted are always restarted." ,
+    timeTip: 'The start time cannot be later than the end time',
   },
   replication: {
     theTaskWithId: "the task with id {id}",

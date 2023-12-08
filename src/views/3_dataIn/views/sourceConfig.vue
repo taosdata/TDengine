@@ -280,7 +280,7 @@ export default {
       return this.$store.state.app.agentLists;
     },
     defaultSourceConfig() {
-      return this.isEditable ? this.editSourceConfig : getFormConfigByDataSource(this.dbsource);
+      return this.isEditable ? this.editSourceConfig : getFormConfigByDataSource(this.definitionsList);
     },
   },
   watch: {
@@ -400,6 +400,7 @@ export default {
             }
             this.$parent.changeEditable(false);
             this.$parent.toggleComponent("tmqtable");
+            this.$refs.form.resetFields();
           } else {
             let result = await AddSource(params);
             if (result.message) {
@@ -408,9 +409,12 @@ export default {
             }
             this.$parent.changeEditable(false);
             this.$parent.toggleComponent("tmqtable");
+            this.$refs.form.resetFields();
           }
         } else {
-          console.log("error submit!!");
+          this.$nextTick(() => {
+            document.querySelector('.source-ui .left-ui .is-error')?.scrollIntoView();
+          });
           return false;
         }
       });

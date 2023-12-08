@@ -267,11 +267,22 @@ export default {
       return this.config.options;
     },
     compareTime(info, value, callback) {
+      const type = this.sourceParent.sourceForm.type
       let groupsData = getGroupsObj(this.sourceParent.sourceForm.data)
-      this.date1 = new Date(groupsData?.beginDateTime) ?? 0
-      this.date2 = new Date(groupsData?.endDateTime) ?? 0
+      switch (type) {
+        case 'taos':
+          this.date1 = new Date(groupsData?.start) ?? 0
+          this.date2 = new Date(groupsData?.end) ?? 0
+          break;
+        case 'historian':
+        this.date1 = new Date(groupsData?.beginDateTime) ?? 0
+        this.date2 = new Date(groupsData?.endDateTime) ?? 0
+        break;
+        default:
+          break;
+      }
       if (this.date1 && this.date2 && this.date1 > this.date2) {
-        return callback(new Error(this.$t('dataOut.startTime') + ' > ' + this.$t('dataOut.endTime')));
+        return callback(new Error(this.$t('dataIn.timeTip')));
       } else {
         callback()
       }

@@ -5,7 +5,7 @@ import { StaticTemplatePath, IsAliyun } from '@/const';
 // import { downloadFile } from '@/api/dataSource';
 // import { downloadFileBlob } from '@/utils/file';
 import { Loading } from 'element-ui';
-import { parsinginZone } from "@/utils/index";
+import { parsinginZone, decrypt } from "@/utils/index";
 import i18n from '@/lang';
 
 const lang = IsAliyun ? 'zh' : 'en';
@@ -18,7 +18,7 @@ const templateUrlMap = {
 };
 const ReplacePoint = '~';
 const InfoParams = ['security_policy', 'security_mode'];
-export const TimeFormats = ['beginDateTime', 'endDateTime'];
+export const TimeFormats = ['beginDateTime', 'endDateTime', 'start', 'end'];
 export const PayConnectorList = ['pi', 'opcua', 'opcda', 'pibackfill'];
 // // 无法使用symbol作为key，因为会被for in 和 object.keys过滤掉
 const valueField = uuid();
@@ -93,9 +93,9 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
       config: paramsConfig
     };
     currentType = id;
-    let connectivityCheck = id != 'taos'
+    let connectivityCheck = id != 'csv'
     // handleParams(params, paramsConfig);
-    // handleProtocol(protocol, paramsConfig);
+    handleProtocol(protocol, paramsConfig);
     handleOptions(options, paramsConfig);
     handleAuthentication(authentication, paramsConfig);
     handleConnectivityCheck(connectivityCheck,paramsConfig)
@@ -148,28 +148,28 @@ function handleConnectivityCheck(connectivityCheck, paramsConfig) {
     ]
 }
  */
-// function handleProtocol(protocol, paramsConfig) {
-//   if (!protocol) return;
-//   const { display, description, choices, value = '' } = protocol;
-//   paramsConfig[0].children.push({
-//     label: display,
-//     description,
-//     field: 'protocol',
-//     type: 'select',
-//     display_order: 0,
-//     defaultValue: value,
-//     if: currentData => {
-//       if (!currentData.system_configuration) return true;
-//       return currentData.system_configuration == piOptionShowValue;
-//     },
-//     required: true, // just required for cloud
-//     options: choices.map(item => ({
-//       label: item.display,
-//       value: item.name,
-//       description: item.description
-//     }))
-//   });
-// }
+function handleProtocol(protocol, paramsConfig) {
+  if (!protocol) return;
+  const { display, description, choices, value = '' } = protocol;
+  paramsConfig[0].children.push({
+    label: display,
+    description,
+    field: 'protocol',
+    type: 'select',
+    display_order: 0,
+    defaultValue: value,
+    if: currentData => {
+      if (!currentData.system_configuration) return true;
+      return currentData.system_configuration == piOptionShowValue;
+    },
+    required: true, // just required for cloud
+    options: choices.map(item => ({
+      label: item.display,
+      value: item.name,
+      description: item.description
+    }))
+  });
+}
 // 处理authentication
 /**
  * {
@@ -1003,10 +1003,10 @@ export function getAuthentications(authentication, params) {
 }
 
 function getOptionData(data, queryArr, definition) {
-  console.log('endggg',data);
   if (!data || !definition) return '';
   let result = '';
   let { subject, host, port, endpoint, system_configuration, PISystemName } = data;
+  let { id } = definition;
   if (PISystemName) {
     queryArr.push('PISystemName=' + PISystemName);
   }
@@ -1020,10 +1020,50 @@ function getOptionData(data, queryArr, definition) {
       result += '/' + subject;
     }
   } else {
-    console.log('000000-endpoint',endpoint);
-    result += endpoint;
+    if (id === 'tmq') {
+      result += handleEndpoint(endpoint)
+    } else {
+      result += endpoint;
+    }
   }
   return result;
+}
+
+// 处理 tmq endpoint
+function handleEndpoint(endpoint) {
+  if (!endpoint) return '';
+  let result = '';
+  let url = endpoint.replace(/(taos\+|tmq\+)/g, "");
+  if (url.includes("://")) {
+    let parsed_url = new URL(url);
+    let scheme = null;
+    if (parsed_url.protocol == "http:") {
+      scheme = "tmq+ws";
+    } else if (parsed_url.protocol == "https:") {
+      scheme = "tmq+wss";
+    } else {
+      scheme = "tmq+" + parsed_url.protocol.replace(":", "");
+    }
+
+    let host = parsed_url.host;
+    let user =
+      parsed_url.username || localStorage.getItem("username") || "";
+    let decrypted = encodeURI(decrypt(localStorage.getItem("pwd")));
+    let pass = parsed_url.password || decrypted || "";
+    return result =
+      scheme +
+      "://" +
+      user +
+      ":" +
+      pass +
+      "@" +
+      host +
+      parsed_url.pathname +
+      parsed_url.search;
+  } else {
+    let host = url;
+    return result = "tmq+ws://" + host;
+  }
 }
 
 function handleField(field) {
@@ -1088,6 +1128,7 @@ function formSort(data) {
 // 获取 groups 扁平化对象，好用于获取值
 export function getGroupsObj(data) {
   let groups = data[groupsField]
+  let obj = {}
   if (!groups) return {};
   for (let key in groups) {
     if (typeof groups[key] == 'object') {
@@ -1096,11 +1137,12 @@ export function getGroupsObj(data) {
         if (k == valueField) {
           continue;
         } else {
-          return {...groups[key]}
+          obj = Object.assign({}, obj, groups[key]);
         }
       }
     }
   }
+  return obj
 }
 
 export function getFieldClassMarkName(field) {
