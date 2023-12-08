@@ -24,7 +24,7 @@
       </el-form-item>
       <el-form-item prop="names">
         <el-input
-          placeholder='value1,value2,value3'
+          placeholder="value1,value2,value3"
           class="split-item"
           size="small"
           v-model="ruleForm.names"
@@ -45,7 +45,7 @@ export default {
       ruleForm: {
         sep: "",
         n: "",
-        names: '',
+        names: "",
       },
       rules: {
         sep: [
@@ -63,19 +63,25 @@ export default {
       this.$refs.splitForm.validate((valid) => {
         if (valid) {
           this.isValid = true;
-          let splitExpre={}
+          let splitExpre = {};
           Object.keys(this.ruleForm)
             .filter((key) => this.ruleForm[key])
             .forEach((item) => {
-              splitExpre[item] =item=='names'?this.ruleForm[item].toString():item=='n'?Number(this.ruleForm[item]) :this.ruleForm[item];
-
-              
+              splitExpre[item] =
+                item == "names"
+                  ? this.ruleForm[item].toString()
+                  : item == "n"
+                  ? Number(this.ruleForm[item])
+                  : this.ruleForm[item].toString().trim();
             });
-            if(splitExpre.names){
-                let result = splitExpre.names.toString().split(',').map(val=>val.trim())
-                splitExpre.names=result
-            }
-            this.$store.commit('app/SET_SPLIT_EXPRESS',splitExpre)
+          if (splitExpre.names) {
+            let result = splitExpre.names
+              .toString()
+              .split(",")
+              .map((val) => val.trim());
+            splitExpre.names = result;
+          }
+          this.$store.commit("app/SET_SPLIT_EXPRESS", splitExpre);
           return true;
         } else {
           this.isValid = false;
@@ -84,27 +90,31 @@ export default {
       });
     },
   },
-  mounted(){
-    if(this.$store.state.app.splitExpresList){
-        let middleobj=deepClone(this.$store.state.app.splitExpresList)
-        if(this.$store.state.app.splitExpresList.names&&Array.isArray(this.$store.state.app.splitExpresList.names)){
-            middleobj.names=this.$store.state.app.splitExpresList.names.toString()
-            }
-        this.ruleForm={...middleobj}
+  mounted() {
+    if (this.$store.state.app.splitExpresList) {
+      let middleobj = deepClone(this.$store.state.app.splitExpresList);
+      if (
+        this.$store.state.app.splitExpresList.names &&
+        Array.isArray(this.$store.state.app.splitExpresList.names)
+      ) {
+        middleobj.names =
+          this.$store.state.app.splitExpresList.names.toString();
+      }
+      this.ruleForm = { ...middleobj };
     }
   },
-  watch:{
-    "$store.state.app.splitExpresList":{
-        deep:true,
-        handler(val){
-            let middleObj=deepClone(val)
-            if(val.names&&Array.isArray(val.names)){
-                middleObj.names=middleObj.names.toString()
-            }
-            this.ruleForm={...middleObj}
+  watch: {
+    "$store.state.app.splitExpresList": {
+      deep: true,
+      handler(val) {
+        let middleObj = deepClone(val);
+        if (val.names && Array.isArray(val.names)) {
+          middleObj.names = middleObj.names.toString();
         }
-    }
-  }
+        this.ruleForm = { ...middleObj };
+      },
+    },
+  },
 };
 </script>
 <style lang="scss" scoped>

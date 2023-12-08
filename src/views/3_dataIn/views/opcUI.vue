@@ -1,3 +1,4 @@
+<!-- OPC-UA/OPC-DA/MQTT/CSV/Kafka-->
 <template>
   <div class="source-ui">
     <div
@@ -906,7 +907,6 @@ import marked from "marked";
 import CsvData from "../components/csvData.vue";
 import { debounce, deepClone } from "@/utils/index";
 import { validPath } from "@/utils/validate";
-import PThreeCheckbox from "../components/pThreeCheckbox.vue";
 import MqttConnector from "../components/newMqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
 import DialogCreateDb from "../components/addDbDialog.vue";
@@ -917,7 +917,6 @@ import DocsContent from '@/views/support/components/editorContentDisplay.vue';
 export default {
   name: "DbSourceUI",
   components: {
-    "p-three-checkbox": PThreeCheckbox,
     MqttConnector,
     opcConnector,
     CsvData,
