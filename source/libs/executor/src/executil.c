@@ -1735,7 +1735,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   pCond->skipRollup = readHandle->skipRollup;
 
   // allowed read stt file optimization mode
-  pCond->notLoadData = (pTableScanNode->dataRequired == FUNC_DATA_REQUIRED_NOT_LOAD);
+  pCond->notLoadData = (pTableScanNode->dataRequired == FUNC_DATA_REQUIRED_NOT_LOAD) && (pTableScanNode->scan.node.pConditions == NULL);
 
   int32_t j = 0;
   for (int32_t i = 0; i < pCond->numOfCols; ++i) {
