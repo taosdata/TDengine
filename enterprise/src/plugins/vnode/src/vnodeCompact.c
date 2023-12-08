@@ -38,22 +38,55 @@ int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int3
 }
 
 int32_t vnodeQueryCompactProgress(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t      code = 0;
+
   SQueryCompactProgressReq req = {0};
+
+  int32_t      rspSize = 0;
+  SRpcMsg      rspMsg = {0};
+  void        *pRsp = NULL;
   SQueryCompactProgressRsp rsp = {0};
 
   // deserialize request
   if (tDeserializeSQueryCompactProgressReq(pMsg->pCont, pMsg->contLen, &req)) {
     terrno = TSDB_CODE_INVALID_MSG;
-    // TODO
+    goto _exit;
   }
 
   // query compact progress
   rsp.dnodeId = req.dnodeId;
   tsdbCompMonitorGetInfo(pVnode->pTsdb, &rsp);
+  vInfo("update compact progress, compactId:%d vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", 
+        rsp.compactId, rsp.vgId, rsp.dnodeId, rsp.numberFileset, rsp.finished);
+  rsp.compactId = req.compactId;
 
   // serialize response
-  // TODO
-  // tSerializeSQueryCompactProgressRsp(void *buf, int32_t bufLen, SQueryCompactProgressRsp *pReq);
+  rspSize = tSerializeSQueryCompactProgressRsp(NULL, 0, &rsp);
+  if (rspSize < 0) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  pRsp = rpcMallocCont(rspSize);
+  if (pRsp == NULL) {
+    vError("rpcMallocCont %d failed", rspSize);
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  if (tSerializeSQueryCompactProgressRsp(pRsp, rspSize, &rsp) < 0) {
+    vError("tSerializeSQueryCompactProgressRsp %d failed", rspSize);
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+_exit:
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = pRsp;
+  rspMsg.contLen = rspSize;
+  rspMsg.code = code;
+  rspMsg.msgType = pMsg->msgType + 1;
+
+  tmsgSendRsp(&rspMsg);
 
   return 0;
 }
