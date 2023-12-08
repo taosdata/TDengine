@@ -93,6 +93,10 @@ md %install_dir%\include
 xcopy %internal_dir%\community\include\util\tdef.h %install_dir%\include
 xcopy /S %internal_dir%\community\tools\taos-tools\packaging\win\* %install_dir%\*
 
+@REM download odbc driver
+powershell -command "Start-BitsTransfer -Source https://github.com/taosdata/taos_odbc/releases/download/v1.0.0.0/taos_odbc_install_files.zip -Destination taos_odbc_install_files.zip"
+powershell -command "Expand-Archive taos_odbc_install_files.zip %install_dir%"
+
 if "%verType%" == "cluster" (
 	
 	md  %install_dir%\connector
@@ -148,6 +152,8 @@ if "%cusName%" == "TDengine" (
 )
 if not %errorlevel% == 0  ( call :RUNFAILED package %packagClientName_x64% failed & exit /b 1)
 
+@rem remove odbc driver form server package
+rd /s /Q %install_dir%\taos_odbc
 set taosx_release_dir="%internal_dir%\enterprise\src\plugins\taosx\release\taosx"
 if "%verType%" == "cluster" (
 	echo "==== build taosx ====="
