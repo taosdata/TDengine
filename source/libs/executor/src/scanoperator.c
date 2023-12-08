@@ -1059,7 +1059,6 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->base.readerAPI = pTaskInfo->storageAPI.tsdReader;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
-  //  blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
 
   code = filterInitFromNode((SNode*)pTableScanNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   if (code != TSDB_CODE_SUCCESS) {
