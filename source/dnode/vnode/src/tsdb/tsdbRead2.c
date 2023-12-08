@@ -2708,7 +2708,7 @@ static int32_t doLoadSttBlockSequentially(STsdbReader* pReader) {
       bool asc = ASCENDING_TRAVERSE(pReader->info.order);
 
       SDataBlockInfo* pInfo = &pResBlock->info;
-      blockDataEnsureCapacity(pResBlock, pInfo->rows);
+      blockDataEnsureCapacity(pResBlock, pScanInfo->numOfRowsInStt);
 
       pInfo->rows = pScanInfo->numOfRowsInStt;
       pInfo->id.uid = pScanInfo->uid;
