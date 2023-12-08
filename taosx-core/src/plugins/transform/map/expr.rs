@@ -1,11 +1,5 @@
-use std::sync::Arc;
-
-use arrow::array::Array;
-use arrow::{array::ArrayRef, datatypes::FieldRef, record_batch::RecordBatch};
-use arrow_schema::Field;
+use arrow::{array::ArrayRef, record_batch::RecordBatch};
 use serde::{Deserialize, Serialize};
-
-use taosx_ipc::prelude::IpcDataType;
 
 use crate::plugins::expr::Expr;
 
@@ -15,24 +9,13 @@ use super::{ValueBuilder, ValueBuilderError};
 pub struct ExprValueBuilder(Expr);
 
 impl ValueBuilder for ExprValueBuilder {
-    fn build_field(
-        &self,
-        name: &str,
-        record: &RecordBatch,
-        r#as: Option<IpcDataType>,
-    ) -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
-        let values = self
-            .0
-            .eval(record, r#as.map(|data_type| data_type.arrow_data_type()))
-            .map_err(|err| {
-                let err_msg = format!("failed to eval expression, cause: {}", err.to_string());
-                ValueBuilderError::ExprError(err_msg)
-            })?;
+    fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError> {
+        let values = self.0.eval(record, None).map_err(|err| {
+            let err_msg = format!("failed to eval expression, cause: {}", err.to_string());
+            ValueBuilderError::ExprError(err_msg)
+        })?;
 
-        Ok((
-            Arc::new(Field::new(name, values.data_type().clone(), true)),
-            values,
-        ))
+        Ok(values)
     }
 }
 
@@ -42,6 +25,7 @@ mod tests {
 
     use arrow::array::{BooleanArray, Int64Array};
     use arrow_schema::DataType;
+    use taosx_ipc::prelude::IpcDataType;
 
     use super::*;
 

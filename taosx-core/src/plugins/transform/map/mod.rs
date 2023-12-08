@@ -1,11 +1,11 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use arrow::{
     array::ArrayRef,
     datatypes::{FieldRef, Schema},
     record_batch::RecordBatch,
 };
-use arrow_schema::ArrowError;
+use arrow_schema::{ArrowError, Field};
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
@@ -13,7 +13,7 @@ use serde_json::Value as JsonValue;
 use taosx_ipc::prelude::IpcDataType;
 use thiserror::Error;
 
-use super::TransformExt;
+use super::{constants::META_FIELD_TYPE, TransformExt};
 
 mod cast;
 mod constant;
@@ -99,7 +99,36 @@ trait ValueBuilder {
         name: &str,
         record: &RecordBatch,
         r#as: Option<IpcDataType>,
-    ) -> Result<(FieldRef, ArrayRef), ValueBuilderError>;
+    ) -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
+        let array = self.build_from(record)?;
+
+        if let Some(ty) = r#as {
+            let mut m = HashMap::new();
+            m.insert(META_FIELD_TYPE.to_string(), ty.to_string());
+            m.insert("cast_from".to_string(), array.data_type().to_string());
+            match &ty {
+                IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
+                    m.insert("length".to_string(), len.to_string());
+                    m.insert("cast_to".to_string(), ty.ty().name().to_string());
+                }
+                IpcDataType::Json => {
+                    m.insert("cast_to".to_string(), ty.ty().name().to_string());
+                }
+                _ => (),
+            }
+            let ty = ty.arrow_data_type();
+            let array = arrow_cast_guess_precision::cast(&array, &ty)
+                .map_err(ValueBuilderError::CastError)?;
+            Ok((Arc::new(Field::new(name, ty, true).with_metadata(m)), array))
+        } else {
+            Ok((
+                Arc::new(Field::new(name, array.data_type().clone(), true)),
+                array,
+            ))
+        }
+    }
+
+    fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -136,6 +165,18 @@ impl ValueBuilder for FieldValueBuilder {
             FieldValueBuilder::Generator(builder) => builder.build_field(name, record, r#as),
             FieldValueBuilder::Join(builder) => builder.build_field(name, record, r#as),
             FieldValueBuilder::Sum(builder) => builder.build_field(name, record, r#as),
+        }
+    }
+
+    fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError> {
+        match self {
+            FieldValueBuilder::Cast(builder) => builder.build_from(record),
+            FieldValueBuilder::Value(builder) => builder.build_from(record),
+            FieldValueBuilder::Expr(builder) => builder.build_from(record),
+            FieldValueBuilder::Format(builder) => builder.build_from(record),
+            FieldValueBuilder::Generator(builder) => builder.build_from(record),
+            FieldValueBuilder::Join(builder) => builder.build_from(record),
+            FieldValueBuilder::Sum(builder) => builder.build_from(record),
         }
     }
 }

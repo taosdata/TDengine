@@ -2,11 +2,9 @@ use std::sync::Arc;
 
 use arrow::{
     array::{ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray, UInt64Array},
-    datatypes::{DataType, Field, FieldRef},
     record_batch::RecordBatch,
 };
 use serde::{Deserialize, Serialize};
-use taosx_ipc::prelude::IpcDataType;
 
 use super::{JsonValue, ValueBuilder, ValueBuilderError};
 
@@ -16,74 +14,52 @@ pub struct ConstantValueBuilder {
 }
 
 impl ValueBuilder for ConstantValueBuilder {
-    fn build_field(
-        &self,
-        name: &str,
-        record: &RecordBatch,
-        r#as: Option<IpcDataType>,
-    ) -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
+    fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError> {
         let len = record.num_rows();
         let v = match &self.value {
-            JsonValue::Null => Ok((
-                Arc::new(Field::new(name, DataType::Utf8, true)),
-                Arc::new(StringArray::new_null(len)) as ArrayRef,
-            )),
-            JsonValue::Bool(value) => Ok((
-                Arc::new(Field::new(name, DataType::Boolean, false)),
-                Arc::new(BooleanArray::from(vec![*value; len])) as ArrayRef,
-            )),
+            JsonValue::Null => Ok(Arc::new(StringArray::new_null(len)) as ArrayRef),
+            JsonValue::Bool(value) => {
+                Ok(Arc::new(BooleanArray::from(vec![*value; len])) as ArrayRef)
+            }
             JsonValue::Number(value) => {
                 if value.is_f64() {
-                    Ok((
-                        Arc::new(Field::new(name, DataType::Float64, false)),
+                    Ok(
                         Arc::new(Float64Array::from(vec![value.as_f64().unwrap(); len]))
                             as ArrayRef,
-                    ))
+                    )
                 } else if value.is_i64() {
-                    Ok((
-                        Arc::new(Field::new(name, DataType::Int64, false)),
-                        Arc::new(Int64Array::from(vec![value.as_i64().unwrap(); len])) as ArrayRef,
-                    ))
+                    Ok(Arc::new(Int64Array::from(vec![value.as_i64().unwrap(); len])) as ArrayRef)
                 } else {
-                    Ok((
-                        Arc::new(Field::new(name, DataType::UInt64, false)),
-                        Arc::new(UInt64Array::from(vec![value.as_u64().unwrap(); len])) as ArrayRef,
-                    ))
+                    Ok(Arc::new(UInt64Array::from(vec![value.as_u64().unwrap(); len])) as ArrayRef)
                 }
             }
-            JsonValue::String(value) => Ok((
-                Arc::new(Field::new(name, DataType::Utf8, false)),
-                Arc::new(StringArray::from(vec![value.as_str(); len])) as ArrayRef,
-            )),
-            JsonValue::Array(_) => Err(ValueBuilderError::ConstantError(format!(
-                "array value is not supported"
-            ))),
+            JsonValue::String(value) => {
+                Ok(Arc::new(StringArray::from(vec![value.as_str(); len])) as ArrayRef)
+            }
+            JsonValue::Array(array) => {
+                // TODO: support array to arrow array.
+                let value = serde_json::to_string(array).map_err(|err| {
+                    let err_msg = format!("failed to serialize object, cause: {}", err.to_string());
+                    ValueBuilderError::ConstantError(err_msg)
+                })?;
+                Ok(Arc::new(StringArray::from(vec![value.as_str(); len])) as ArrayRef)
+            }
             JsonValue::Object(value) => {
                 let value = serde_json::to_string(value).map_err(|err| {
                     let err_msg = format!("failed to serialize object, cause: {}", err.to_string());
                     ValueBuilderError::ConstantError(err_msg)
                 })?;
-                Ok((
-                    Arc::new(Field::new(name, DataType::Utf8, false)),
-                    Arc::new(StringArray::from(vec![value.as_str(); len])) as ArrayRef,
-                ))
+                Ok(Arc::new(StringArray::from(vec![value.as_str(); len])) as ArrayRef)
             }
-        }? as (FieldRef, ArrayRef);
-
-        if let Some(ty) = r#as {
-            let (field, array) = v;
-            let ty = ty.arrow_data_type();
-            let array = arrow::compute::cast(&array, &ty).map_err(ValueBuilderError::CastError)?;
-            Ok((Arc::new(field.as_ref().clone().with_data_type(ty)), array))
-        } else {
-            Ok(v)
-        }
+        };
+        v
     }
 }
 
 #[cfg(test)]
 mod tests {
     use arrow::array::Array;
+    use arrow_schema::DataType;
 
     use super::*;
 
