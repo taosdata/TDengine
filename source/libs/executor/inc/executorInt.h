@@ -273,6 +273,17 @@ typedef struct STableScanInfo {
   bool            filesetDelimited;
 } STableScanInfo;
 
+typedef struct STmsSortRowIdInfo {
+  int32_t blkId;
+  int64_t dataFileOffset;
+  TdFilePtr idxFile;
+  char idxPath[PATH_MAX];
+  TdFilePtr dataFile;
+  char dataPath[PATH_MAX];
+  SLRUCache* pBlkInfoCache; // blkId->(offset, len)
+  SLRUCache* pBlkDataCache;  // blkId->SSDataBlock*
+} STmsSortRowIdInfo;
+
 typedef struct STableMergeScanInfo {
   int32_t         tableStartIndex;
   int32_t         tableEndIndex;
@@ -301,6 +312,8 @@ typedef struct STableMergeScanInfo {
   bool             bNewFileset;
   bool             bOnlyRetrieveBlock;
   bool             filesetDelimited;
+  bool             bSortRowId;
+  STmsSortRowIdInfo tmsSortRowIdInfo;
 } STableMergeScanInfo;
 
 typedef struct STagScanFilterContext {
