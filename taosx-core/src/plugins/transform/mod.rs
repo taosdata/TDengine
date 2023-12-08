@@ -727,8 +727,9 @@ mod pipeline_tests {
         println!("{}", json);
     }
 
+    /// https://jira.taosdata.com:18080/browse/TD-27751
     #[test]
-    fn test_mutate_extract() {
+    fn test_nchar() {
         let records = demo_mqtt_records();
 
         // With parser only
@@ -744,11 +745,67 @@ mod pipeline_tests {
         let json = serde_json::to_string_pretty(&output).unwrap();
         println!("{}", json);
 
-        // With parser only
+        // With parser and mutate
         let pipeline: Pipeline = serde_json::from_str(
             r#"{
-            "mutate": [{
-                "extract": { "payload": { "json": ["value::double", "id::int"] } }
+            "parse": { "payload": { "json": ["value::double", "id::int"] } },
+            "mutate": [
+                { "filter": "value > 1.2" },
+                { "map": {
+                    "m1": { "cast": "value", "as": "nchar(256)" },
+                    "m2": { "expr": "\"abc - \" + value", "as": "nchar(128)" },
+                    "m3": { "format": "${id}-${value}", "as": "nchar(128)" },
+                    "m4": { "sum": ["value", "value"], "as": "nchar(128)" },
+                    "m5": { "join": ["value", "value"], "with": "-", "as": "nchar(128)" }
+                } }
+            ]
+        }"#,
+        )
+        .unwrap();
+        let res = pipeline.transform(&records).unwrap();
+        dbg!(&res);
+        let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
+        let json = serde_json::to_string_pretty(&output).unwrap();
+
+        assert_eq!(
+            output[0]
+                .fields
+                .iter()
+                .map(|f| (f.name.as_str(), f.arrow_type.clone(), f.r#type.clone()))
+                .collect_vec(),
+            vec![
+                (
+                    "ts",
+                    DataType::Timestamp(TimeUnit::Millisecond, None),
+                    IpcDataType::Timestamp(TimeUnit::Millisecond)
+                ),
+                ("value", DataType::Float64, IpcDataType::Float64),
+                ("id", DataType::Int32, IpcDataType::Int32),
+                ("m1", DataType::Utf8, IpcDataType::NChar(256)),
+                ("m2", DataType::Utf8, IpcDataType::NChar(128)),
+                ("m3", DataType::Utf8, IpcDataType::NChar(128)),
+                ("m4", DataType::Utf8, IpcDataType::NChar(128)),
+                ("m5", DataType::Utf8, IpcDataType::NChar(128)),
+            ]
+        );
+        println!("{}", json);
+
+        // With parser, mutate and model
+        let pipeline: Pipeline = serde_json::from_str(
+            r#"{
+            "parse": { "payload": { "json": ["value::double", "id::int"] } },
+            "mutate": [
+                { "filter": "value > 1.2" },
+                { "map": {
+                    "m1": { "cast": "value", "as": "nchar(256)" },
+                    "m2": { "expr": "\"abc - \" + value", "as": "nchar(128)" }
+                } }
+            ],
+            "model": [{
+                "name": "d{id}",
+                "using": "meters",
+                "tags": ["id"],
+                "columns": ["ts", "value", "m1", "m2"]
             }]
         }"#,
         )
@@ -756,9 +813,29 @@ mod pipeline_tests {
         let res = pipeline.transform(&records).unwrap();
         dbg!(&res);
         let output = res.iter().map(|m| m.into_modeled_json()).collect_vec();
-        let json2 = serde_json::to_string_pretty(&output).unwrap();
-        println!("{}", json2);
-        assert_eq!(json, json2);
+
+        assert_eq!(
+            output[0]
+                .fields
+                .iter()
+                .map(|f| (f.name.as_str(), f.arrow_type.clone(), f.r#type.clone()))
+                .collect_vec(),
+            vec![
+                ("__tbname__", DataType::Utf8, IpcDataType::VarChar(128)),
+                ("__using__", DataType::Utf8, IpcDataType::VarChar(128)),
+                (
+                    "ts",
+                    DataType::Timestamp(TimeUnit::Millisecond, None),
+                    IpcDataType::Timestamp(TimeUnit::Millisecond)
+                ),
+                ("value", DataType::Float64, IpcDataType::Float64),
+                ("m1", DataType::Utf8, IpcDataType::NChar(256)),
+                ("m2", DataType::Utf8, IpcDataType::NChar(128)),
+                ("id", DataType::Int32, IpcDataType::Int32),
+            ]
+        );
+        let json = serde_json::to_string_pretty(&output).unwrap();
+        println!("{}", json);
     }
 
     fn demo_text_records() -> RecordBatch {

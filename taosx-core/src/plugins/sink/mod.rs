@@ -720,7 +720,7 @@ async fn consume_point_record(
                 stable_prefix.push_str("_nchar");
                 Some(stable_prefix)
             } else {
-                stable_prefix.push_str(format!("_{value_type}").as_str());
+                stable_prefix.push_str(&format!("_{value_type}").replace(" ", "_"));
                 Some(stable_prefix)
             }
         } else {
@@ -796,7 +796,7 @@ async fn consume_point_record(
             } else if point_config.stable.is_some() {
                 point_config.stable.as_ref().unwrap()
             } else {
-                anyhow::bail!("id: {id} failded to get stable");
+                anyhow::bail!("id: {id} failed to get stable");
             };
             let child_table_name = format!("{}", point_config.code);
 
@@ -842,7 +842,8 @@ async fn consume_point_record(
                         .get(0)
                         .unwrap()
                         .into_value()
-                        .to_sql_value();
+                        .to_sql_value()
+                        .replace("NaN", "NULL");
                     values.push_str(format!("{value_column},").as_str());
                     value_cloumn_name = temp_alias;
                     value_cloumn_length = value_column.len();
@@ -890,7 +891,7 @@ async fn consume_point_record(
                         }
                         _ => value.to_string(),
                     };
-                    tag_values.push_str(format!("{value},",).as_str());
+                    tag_values.push_str(format!("{},", value.replace("NaN", "NULL")).as_str());
                     // index += 1;
                 }
                 tag_names.pop();
@@ -997,10 +998,10 @@ async fn consume_point_record(
                 let mut break_err = Ok(());
                 'outer: loop {
                     if retry >= 5 {
-                        tracing::warn!("sql error cannot be solved, break;");
+                        tracing::warn!(error = ?break_err, "sql error cannot be solved, break;");
                         counter!(METRIC_INSERT_SQL_FAILS, 1);
                         if break_err.is_err() {
-                            break_err?;
+                            break_err.context("Point message sql error")?;
                         }
                         break;
                     }
@@ -1336,11 +1337,12 @@ async fn consume_point_record(
                                 }
                             } else if errstr.contains("[0xE002]") || errstr.contains("[0xE003]") {
                                 taos.replace(pool.get().await?);
+                                retry += 1;
                             } else {
+                                Err(err)?;
                                 break;
                             }
                             break_err = Err(err);
-                            retry += 1;
                         }
                     }
                 }
@@ -2314,7 +2316,23 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     stream_trace_id: String,
 ) -> anyhow::Result<()> {
     info!(client, "IPC stream processing...");
-    let taos = pool.get().await?;
+    const MAX_RETRIES: usize = 10;
+    let mut retries = 0;
+    let taos = loop {
+        match pool.get().await {
+            Ok(obj) => break obj,
+            Err(err) => {
+                if retries < MAX_RETRIES {
+                    retries += 1;
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                    continue;
+                } else {
+                    tracing::error!("Get connection from pool failed: {err:#}");
+                    return Err(anyhow::anyhow!("Get connection from pool failed: {err:#}"));
+                }
+            }
+        }
+    };
     let target_precision = get_current_precision(&taos).await?;
 
     let license: Option<ConnectorLicense> = if let Some(connector) = connector {

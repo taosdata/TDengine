@@ -149,6 +149,7 @@ impl OPCConfig {
                 let ua_nodes =
                     get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "ua.nodes")
                         .map_err(|s| anyhow::anyhow!("file parse error: {}", s))?;
+
                 for i in 0..ua_nodes.len() {
                     let pair = ua_nodes[i].split("::").collect_vec();
                     if pair.len() != 2 {
@@ -253,7 +254,8 @@ pub struct PointConfig {
 
 const CSV_CONFIG_COLUMNS: [&str; 2] = ["point_id", "tbname"];
 
-/// return opctableconfig, node_config, tables_to_drop
+/// return opc table config, node_config, tables_to_drop
+#[async_backtrace::framed]
 pub async fn generate_config_from_csv(
     ty: &str,
     csv_config_file: &str,
@@ -617,5 +619,18 @@ mod tests {
         tracing_subscriber::fmt::init();
         let f = generate_config_from_csv("opcua", "@./tests/template-en.csv").await;
         assert!(dbg!(f).is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_special_nodes() {
+        let nodes = r#""ns=3;s=Special_""!§$%&/()=?`´\+~*'#_-:.;,<>|@^°€µ{[]}::meter_3_Special_""!§$%&/()=?_´\+~*'#_-:_;,<>|@^°€µ{[]}","a::b""#;
+
+        let dsn = format!("opcua://192.168.2.16:50000?ua.nodes={nodes}");
+        let taos = <TaosBuilder as taos::AsyncTBuilder>::from_dsn("taos:///").unwrap();
+        let taos = taos.build().await.unwrap();
+        let config = OPCConfig::from_dsn_collect_mode(&dsn.parse().unwrap(), 0, &taos, Some(1))
+            .await
+            .unwrap();
+        dbg!(&config);
     }
 }
