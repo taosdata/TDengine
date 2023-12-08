@@ -473,12 +473,16 @@ static int32_t mndUpdateCompactProgress(SMnode *pMnode, SRpcMsg *pReq, int32_t c
     if (pDetail->compactId == compactId && pDetail->vgId == rsp->vgId && pDetail->dnodeId == rsp->dnodeId) {
       pDetail->newNumberFileset = rsp->numberFileset;
       pDetail->newFinished = rsp->finished;
+
+      sdbRelease(pMnode->pSdb, pDetail);
+
+      return 0;
     }
 
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
-  return 0;
+  return -1;
 }
 
 int32_t mndProcessQueryCompactRsp(SRpcMsg *pReq){
@@ -495,7 +499,11 @@ int32_t mndProcessQueryCompactRsp(SRpcMsg *pReq){
   int32_t       code = -1;
   
 
-  mndUpdateCompactProgress(pMnode, pReq, req.compactId, &req);
+  if(mndUpdateCompactProgress(pMnode, pReq, req.compactId, &req) != 0){
+    mError("compact:%d, failed to update progress, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", 
+        req.compactId, req.vgId, req.dnodeId, req.numberFileset, req.finished);
+    return -1;
+  }
 
   return 0;
 }
