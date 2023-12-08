@@ -195,7 +195,6 @@ typedef struct SFileBlockDumpInfo {
 } SFileBlockDumpInfo;
 
 typedef struct SReaderStatus {
-  bool                  suspendInvoked;
   bool                  loadFromFile;       // check file stage
   bool                  composedDataBlock;  // the returned data block is a composed block or not
   SSHashObj*            pTableMap;          // SHash<STableBlockScanInfo>
