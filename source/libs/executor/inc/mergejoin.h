@@ -53,25 +53,9 @@ typedef struct SMJoinColInfo {
   char*    bitMap;
 } SMJoinColInfo;
 
-typedef struct SMJoinCartGrp {
-  bool           sameTsGrp;
-  bool           firstArrIdx;
-  bool           secondArrIdx;
-  int32_t        firstRowIdx;
-  int32_t        firstRowNum;
-  int32_t        secondRowIdx;
-  int32_t        secondRowNum;  
-} SMJoinCartGrp;
-
-typedef struct SMJoinCartBlk {
-  SSDataBlock*   pFirstBlk;
-  SSDataBlock*   pSecondBlk;
-  SArray*        pBlkGrps;
-} SMJoinCartBlk;
-
-
 typedef struct SMJoinCartCtx {
   bool           appendRes;
+  bool           firstOnly;
   int32_t        resThreshold;
   SSDataBlock*   pResBlk;
 
@@ -80,12 +64,17 @@ typedef struct SMJoinCartCtx {
   int32_t        secondColNum;
   SMJoinColMap*  pSecondCols;
 
-  SArray*        pCartRowIdx;
-  SArray*        pCartBlks;
+  SMJoinBlkInfo* pFirstBlk;
+  SMJoinBlkInfo* pSecondBlk;
+  int32_t        firstRowIdx;
+  int32_t        firstRowNum;
+  int32_t        secondRowIdx;
+  int32_t        secondRowNum;  
 } SMJoinCartCtx;
 
 typedef struct SMJoinBlkInfo {
   bool         cloned;
+  bool         inUse;
   SSDataBlock* pBlk;
   void*        pNext;
 } SMJoinBlkInfo;
@@ -142,41 +131,44 @@ typedef struct SMJoinTsJoinCtx {
 } SMJoinTsJoinCtx;
 
 typedef struct SBuildGrpResIn {
-  bool             multiBlkGrp;
-  SMJoinBlkInfo*   grpBeginBlk;
-  int32_t          grpRowBeginIdx;
-  int32_t          grpRowNum;
+  bool             multiBlk;
+  SMJoinBlkInfo*   pBeginBlk;
+  int32_t          rowBeginIdx;
+  int32_t          rowNum;
 } SBuildGrpResIn;
 
 typedef struct SBuildGrpResOut {
-  SSHashObj*       pGrpHash;
-  int32_t          grpRowReadIdx;
-  int32_t          grpRowGReadIdx;
+  SSHashObj*       pHash;
+  SMJoinBlkInfo*   pCurrBlk;
+  int32_t          rowReadIdx;
+  int32_t          rowGReadNum;
 } SBuildGrpResOut;
 
 typedef struct SProbeGrpResIn {
   bool             allRowsGrp;
-  SMJoinBlkInfo*   grpBeginBlk;
-  int32_t          grpRowBeginIdx;
-  int32_t          grpRowNum;
+  SMJoinBlkInfo*   pBeginBlk;
+  int32_t          rowBeginIdx;
+  int32_t          rowNum;
   int64_t          grpLastTs;
 } SProbeGrpResIn;
 
 typedef struct SProbeGrpResOut {
-  int32_t          grpRowReadIdx;
+  SMJoinBlkInfo*   pCurrBlk;
+  int32_t          rowReadIdx;
+  int32_t          rowGReadNum;
 } SProbeGrpResOut;
 
 typedef struct SGrpPairRes {
   bool            sameTsGrp;
   bool            finishGrp;
   bool            hashJoin;
-  SProbeGrpResIn  probeIn;
-  SBuildGrpResIn  buildIn;
+  SProbeGrpResIn  prbIn;
+  SBuildGrpResIn  bldIn;
 
   /* KEEP THIS PART AT THE END */
   bool            outBegin;
-  SBuildGrpResOut buildOut;
-  SProbeGrpResOut probeOut;
+  SBuildGrpResOut bldOut;
+  SProbeGrpResOut prbOut;
   /* KEEP THIS PART AT THE END */
 } SGrpPairRes;
 
@@ -269,9 +261,11 @@ typedef struct SMJoinOperatorInfo {
 
 #define START_NEW_GRP(_ctx) memset(&(_ctx)->currGrpPair, 0, GRP_PAIR_INIT_SIZE)
 
-#define REACH_HJOIN_THRESHOLD(_pair) ((_pair)->buildIn.grpRowNum * (_pair)->probeIn.grpRowNum > MJOIN_HJOIN_CART_THRESHOLD)
+#define REACH_HJOIN_THRESHOLD(_pair) ((_pair)->buildIn.rowNum * (_pair)->probeIn.rowNum > MJOIN_HJOIN_CART_THRESHOLD)
 
 #define SET_SAME_TS_GRP_HJOIN(_pair, _octx) ((_pair)->hashJoin = (_octx)->hashCan && REACH_HJOIN_THRESHOLD(_pair))
+
+#define BUILD_TB_BROKEN_BLK(_sg, _out, _in) ((_sg) && (((_out)->pCurrBlk == (_in)->pBeginBlk && (_out)->rowReadIdx != (_in)->rowBeginIdx) || ((_out)->pCurrBlk != (_in)->pBeginBlk && (_out)->rowReadIdx != 0)))
 
 #define FIN_SAME_TS_GRP(_ctx, _octx, _done) do {                                                             \
     if ((_ctx)->inSameTsGrp) {                                                                               \
@@ -298,7 +292,8 @@ typedef struct SMJoinOperatorInfo {
     }                                                                                        \
   } while (0)
 
-#define CURRENT_BLK_GRP_ROWS(_in) (((_in)->grpRowNum + (_in)->grpRowBeginIdx) <= (_in)->grpBeginBlk->pBlk->info.rows ? (_in)->grpRowNum : ((_in)->grpBeginBlk->pBlk->info.rows - (_in)->grpRowBeginIdx))
+#define PRB_CUR_BLK_GRP_ROWS(_rn, _rb, _bn) (((_rn) + (_rb)) <= (_bn) ? (_rn) : ((_bn) - (_rb)))
+#define BLD_CUR_BLK_GRP_ROWS(_sg, _rn, _rb, _bn) ((_sg) ? 1 : (((_rn) + (_rb)) <= (_bn) ? (_rn) : ((_bn) - (_rb))))
 
 
 #ifdef __cplusplus
