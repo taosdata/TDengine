@@ -559,7 +559,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
   pStream->tasks = taosArrayInit(numOfPlanLevel + 1, POINTER_BYTES);
   pStream->pHTasksList = taosArrayInit(numOfPlanLevel + 1, POINTER_BYTES);
 
-  if (numOfPlanLevel == 2 || externalTargetDB || multiTarget || pStream->fixedSinkVgId) {
+  if (numOfPlanLevel > 1 || externalTargetDB || multiTarget || pStream->fixedSinkVgId) {
     // add extra sink
     hasExtraSink = true;
     int32_t code = addSinkTask(pMnode, pStream, pEpset);
@@ -596,7 +596,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
       bindAggSink(pStream, pMnode, pStream->pHTasksList);
     }
 
-    plan = getScanSubPlan(pPlan, 1);
+    plan = getScanSubPlan(pPlan, numOfPlanLevel - 1);
     if(plan == NULL){
       return terrno;
     }
