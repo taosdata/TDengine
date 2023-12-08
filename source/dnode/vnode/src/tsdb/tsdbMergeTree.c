@@ -350,30 +350,33 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
     tsdbSttFileReadStatisBlock(pSttFileReader, &pStatisBlkArray->data[k], &block);
 
     int32_t i = 0;
-    while(block.suid->data[i] != suid) {
+    int32_t rows = TARRAY2_SIZE(block.suid);
+    while (i < rows && block.suid->data[i] != suid) {
       ++i;
     }
 
-    int32_t rows = TARRAY2_SIZE(block.suid);
-    if (pBlockLoadInfo->info.pUid == NULL) {
-      pBlockLoadInfo->info.pUid = taosArrayInit(rows, sizeof(int64_t));
-      pBlockLoadInfo->info.pFirstKey = taosArrayInit(rows, sizeof(int64_t));
-      pBlockLoadInfo->info.pLastKey = taosArrayInit(rows, sizeof(int64_t));
-      pBlockLoadInfo->info.pCount = taosArrayInit(rows, sizeof(int64_t));
-    }
+    // existed
+    if (i < rows) {
+      if (pBlockLoadInfo->info.pUid == NULL) {
+        pBlockLoadInfo->info.pUid = taosArrayInit(rows, sizeof(int64_t));
+        pBlockLoadInfo->info.pFirstKey = taosArrayInit(rows, sizeof(int64_t));
+        pBlockLoadInfo->info.pLastKey = taosArrayInit(rows, sizeof(int64_t));
+        pBlockLoadInfo->info.pCount = taosArrayInit(rows, sizeof(int64_t));
+      }
 
-    if (pStatisBlkArray->data[k].maxTbid.suid == suid) {
-      taosArrayAddBatch(pBlockLoadInfo->info.pUid, &block.uid->data[i], rows - i);
-      taosArrayAddBatch(pBlockLoadInfo->info.pFirstKey, &block.firstKey->data[i], rows - i);
-      taosArrayAddBatch(pBlockLoadInfo->info.pLastKey, &block.lastKey->data[i], rows - i);
-      taosArrayAddBatch(pBlockLoadInfo->info.pCount, &block.count->data[i], rows - i);
-    } else {
-      while(i < rows && block.suid->data[i] == suid) {
-        taosArrayPush(pBlockLoadInfo->info.pUid, &block.uid->data[i]);
-        taosArrayPush(pBlockLoadInfo->info.pFirstKey, &block.firstKey->data[i]);
-        taosArrayPush(pBlockLoadInfo->info.pLastKey, &block.lastKey->data[i]);
-        taosArrayPush(pBlockLoadInfo->info.pCount, &block.count->data[i]);
-        i += 1;
+      if (pStatisBlkArray->data[k].maxTbid.suid == suid) {
+        taosArrayAddBatch(pBlockLoadInfo->info.pUid, &block.uid->data[i], rows - i);
+        taosArrayAddBatch(pBlockLoadInfo->info.pFirstKey, &block.firstKey->data[i], rows - i);
+        taosArrayAddBatch(pBlockLoadInfo->info.pLastKey, &block.lastKey->data[i], rows - i);
+        taosArrayAddBatch(pBlockLoadInfo->info.pCount, &block.count->data[i], rows - i);
+      } else {
+        while (i < rows && block.suid->data[i] == suid) {
+          taosArrayPush(pBlockLoadInfo->info.pUid, &block.uid->data[i]);
+          taosArrayPush(pBlockLoadInfo->info.pFirstKey, &block.firstKey->data[i]);
+          taosArrayPush(pBlockLoadInfo->info.pLastKey, &block.lastKey->data[i]);
+          taosArrayPush(pBlockLoadInfo->info.pCount, &block.count->data[i]);
+          i += 1;
+        }
       }
     }
   }
