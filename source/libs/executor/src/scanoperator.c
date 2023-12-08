@@ -3308,7 +3308,6 @@ static int32_t retrieveSourceBlock(STableMergeScanInfo* pInfo, int32_t blockId, 
     LRUHandle*         hBlkInfo = taosLRUCacheLookup(pSortInfo->pBlkInfoCache, &blockId, sizeof(blockId));
     if (hBlkInfo) {
       blkInfo = taosLRUCacheValue(pSortInfo->pBlkInfoCache, hBlkInfo);
-      uInfo("found block info: %d for %d, offset: %"PRId64", length: %d", blkInfo->blkId, blockId, blkInfo->offset, blkInfo->length)
     } else {
       blkInfo = taosMemoryMalloc(sizeof(STmsSortBlockInfo));
       taosLSeekFile(pSortInfo->idxFile, blockId * sizeof(STmsSortBlockInfo), SEEK_SET);
@@ -3318,7 +3317,6 @@ static int32_t retrieveSourceBlock(STableMergeScanInfo* pInfo, int32_t blockId, 
                          &hBlkInfo, TAOS_LRU_PRIORITY_LOW, NULL);
     }
     {
-      uInfo("retrieve block info: %d, offset: %"PRId64", length: %d", blkInfo->blkId, blkInfo->offset, blkInfo->length)
       taosLSeekFile(pSortInfo->dataFile, blkInfo->offset, SEEK_SET);
       char* buf = taosMemoryMalloc(blkInfo->length);
       taosReadFile(pSortInfo->dataFile, buf, blkInfo->length);
@@ -3326,7 +3324,7 @@ static int32_t retrieveSourceBlock(STableMergeScanInfo* pInfo, int32_t blockId, 
       blockDataFromBuf(pBlock, buf);
       *ppBlock = pBlock;
 
-      taosLRUCacheInsert(pSortInfo->pBlkInfoCache, &blockId, sizeof(blockId), pBlock, 1, deleteBlockDataCache,
+      taosLRUCacheInsert(pSortInfo->pBlkDataCache, &blockId, sizeof(blockId), pBlock, 1, deleteBlockDataCache,
                          &hBlk, TAOS_LRU_PRIORITY_LOW, NULL);
     }
   }
