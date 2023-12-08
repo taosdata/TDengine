@@ -270,6 +270,7 @@ typedef struct STableScanInfo {
   bool            hasGroupByTag;
   bool            countOnly;
   //  TsdReader    readerAPI;
+  bool            filesetDelimited;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
@@ -297,6 +298,9 @@ typedef struct STableMergeScanInfo {
   SHashObj*        mSkipTables;
   int64_t          mergeLimit;
   SSortExecInfo   sortExecInfo;
+  bool             bNewFileset;
+  bool             bOnlyRetrieveBlock;
+  bool             filesetDelimited;
 } STableMergeScanInfo;
 
 typedef struct STagScanFilterContext {
