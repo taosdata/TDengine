@@ -195,6 +195,10 @@ int32_t updateEventWindowInfo(SStreamAggSupporter* pAggSup, SEventWindowInfo* pW
       pWinInfo->pWinFlag->endFlag = ends[i];
     } else if (pWin->ekey == pTsData[i]) {
       pWinInfo->pWinFlag->endFlag |= ends[i];
+    } else {
+      *pRebuild = true;
+      pWinInfo->pWinFlag->endFlag |= ends[i];
+      return i + 1 - start;
     }
 
     memcpy(pWinInfo->winInfo.pStatePos->pKey, &pWinInfo->winInfo.sessionWin, sizeof(SSessionKey));
