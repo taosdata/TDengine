@@ -30,6 +30,8 @@ typedef enum EJoinTableType {
   E_JOIN_TB_PROBE
 } EJoinTableType;
 
+#define MJOIN_TBTYPE(_type) (E_JOIN_TB_BUILD == (_type) ? "BUILD" : "PROBE")
+
 typedef enum EJoinPhase {
   E_JOIN_PHASE_RETRIEVE,
   E_JOIN_PHASE_SPLIT,
@@ -53,41 +55,13 @@ typedef struct SMJoinColInfo {
   char*    bitMap;
 } SMJoinColInfo;
 
-typedef struct SMJoinCartCtx {
-  bool           appendRes;
-  bool           firstOnly;
-  int32_t        resThreshold;
-  SSDataBlock*   pResBlk;
-
-  int32_t        firstColNum;
-  SMJoinColMap*  pFirstCols;
-  int32_t        secondColNum;
-  SMJoinColMap*  pSecondCols;
-
-  SMJoinBlkInfo* pFirstBlk;
-  SMJoinBlkInfo* pSecondBlk;
-  int32_t        firstRowIdx;
-  int32_t        firstRowNum;
-  int32_t        secondRowIdx;
-  int32_t        secondRowNum;  
-} SMJoinCartCtx;
-
-typedef struct SMJoinBlkInfo {
-  bool         cloned;
-  bool         inUse;
-  SSDataBlock* pBlk;
-  void*        pNext;
-} SMJoinBlkInfo;
-
-typedef struct SMJoinRowInfo {
-  int64_t blkId;
-  int32_t rowIdx;
-  int64_t rowGIdx;
-} SMJoinRowInfo;
 
 typedef struct SMJoinTableInfo {
   int32_t        downStreamIdx;
   SOperatorInfo* downStream;
+  bool           dsInitDone;
+  bool           dsFetchDone;
+
   int32_t        blkId;
   SQueryStat     inputStat;
 
@@ -112,97 +86,27 @@ typedef struct SMJoinTableInfo {
   int32_t        valBufSize;
   SArray*        valVarCols;
   bool           valColExist;
+
+  int32_t        rowIdx;
+  int32_t        grpIdx;
+  SArray*        eqGrps;
+  SArray*        createdBlks;
+  SSDataBlock*   blk;
 } SMJoinTableInfo;
 
-typedef struct SMJoinTsJoinCtx {
-  SMJoinTableCtx* pProbeCtx;
-  SMJoinTableCtx* pBuildCtx;
-  int64_t         probeRowNum;
-  int64_t         buildRowNum;
-  int64_t*        probeTs;
-  int64_t*        buildTs;
-  int64_t*        probeEndTs;
-  int64_t*        buildEndTs;
-  bool            inSameTsGrp;
-  bool            inDiffTsGrp;
-  bool            nextProbeRow;
-  SGrpPairRes*    pLastGrpPair;
-  SGrpPairRes     currGrpPair;
-} SMJoinTsJoinCtx;
-
-typedef struct SBuildGrpResIn {
-  bool             multiBlk;
-  SMJoinBlkInfo*   pBeginBlk;
-  int32_t          rowBeginIdx;
-  int32_t          rowNum;
-} SBuildGrpResIn;
-
-typedef struct SBuildGrpResOut {
-  SSHashObj*       pHash;
-  SMJoinBlkInfo*   pCurrBlk;
-  int32_t          rowReadIdx;
-  int32_t          rowGReadNum;
-} SBuildGrpResOut;
-
-typedef struct SProbeGrpResIn {
-  bool             allRowsGrp;
-  SMJoinBlkInfo*   pBeginBlk;
-  int32_t          rowBeginIdx;
-  int32_t          rowNum;
-  int64_t          grpLastTs;
-} SProbeGrpResIn;
-
-typedef struct SProbeGrpResOut {
-  SMJoinBlkInfo*   pCurrBlk;
-  int32_t          rowReadIdx;
-  int32_t          rowGReadNum;
-} SProbeGrpResOut;
-
-typedef struct SGrpPairRes {
-  bool            sameTsGrp;
-  bool            finishGrp;
-  bool            hashJoin;
-  SProbeGrpResIn  prbIn;
-  SBuildGrpResIn  bldIn;
-
-  /* KEEP THIS PART AT THE END */
-  bool            outBegin;
-  SBuildGrpResOut bldOut;
-  SProbeGrpResOut prbOut;
-  /* KEEP THIS PART AT THE END */
-} SGrpPairRes;
-
-#define GRP_PAIR_INIT_SIZE (sizeof(SGrpPairRes) - sizeof(bool) - sizeof(SBuildGrpResOut) - sizeof(SProbeGrpResOut))
-
-typedef struct SMJoinOutputCtx {
-  bool          hashCan;
-  int32_t       grpReadIdx;
-  int64_t       grpCurTs;
-  SMJoinCartCtx cartCtx;
-  SArray*       pGrpResList;
-} SMJoinOutputCtx;
-
-typedef struct SMJoinTableCtx {
-  EJoinTableType   type;
-  void*            blkFetchedFp;
-  SMJoinTableInfo* pTbInfo;
-  bool             dsInitDone;
-  bool             dsFetchDone;
-  int64_t          blkCurTs;
-  int32_t          blkRowIdx;
-  int64_t          blkIdx;
-  int64_t          blkNum;
-  SMJoinBlkInfo*   pCurrBlk;
-  SMJoinBlkInfo*   pHeadBlk;
-  SMJoinBlkInfo*   pTailBlk;
-} SMJoinTableCtx;
+typedef struct SMJoinGrpRows {
+  SSDataBlock* blk;
+  int32_t      beginIdx;
+  int32_t      rowsNum;
+} SMJoinGrpRows;
 
 typedef struct SMJoinMergeCtx {
-  EJoinPhase       joinPhase;
-  SMJoinOutputCtx  outputCtx;
-  SMJoinTsJoinCtx  tsJoinCtx;  
-  SMJoinTableCtx   buildTbCtx;
-  SMJoinTableCtx   probeTbCtx;
+  bool          hashCan;
+  bool          rowRemains;
+  bool          eqCart;
+  int64_t       curTs;
+  SMJoinGrpRows probeNEqGrps;
+  bool          hashJoin;
 } SMJoinMergeCtx;
 
 typedef struct SMJoinWinCtx {
@@ -242,9 +146,9 @@ typedef struct SMJoinOperatorInfo {
   int32_t          subType;
   int32_t          inputTsOrder;  
   SMJoinTableInfo  tbs[2];
-  SMJoinTableInfo* pBuild;
-  SMJoinTableInfo* pProbe;
-  SSDataBlock*     pRes;
+  SMJoinTableInfo* build;
+  SMJoinTableInfo* probe;
+  SSDataBlock*     pResBlk;
   int32_t          pResColNum;
   int8_t*          pResColMap;
   SFilterInfo*     pFPreFilter;
@@ -265,35 +169,9 @@ typedef struct SMJoinOperatorInfo {
 
 #define SET_SAME_TS_GRP_HJOIN(_pair, _octx) ((_pair)->hashJoin = (_octx)->hashCan && REACH_HJOIN_THRESHOLD(_pair))
 
-#define BUILD_TB_BROKEN_BLK(_sg, _out, _in) ((_sg) && (((_out)->pCurrBlk == (_in)->pBeginBlk && (_out)->rowReadIdx != (_in)->rowBeginIdx) || ((_out)->pCurrBlk != (_in)->pBeginBlk && (_out)->rowReadIdx != 0)))
+#define LEFT_JOIN_NO_EQUAL(_order, _pts, _bts) ((_order) && (_pts) < (_bts)) || (!(_order) && (_pts) > (_bts))
+#define LEFT_JOIN_DISCRAD(_order, _pts, _bts) ((_order) && (_pts) > (_bts)) || (!(_order) && (_pts) < (_bts))
 
-#define FIN_SAME_TS_GRP(_ctx, _octx, _done) do {                                                             \
-    if ((_ctx)->inSameTsGrp) {                                                                               \
-      (_ctx)->currGrpPair.sameTsGrp = true;                                                                  \
-      (_ctx)->currGrpPair.finishGrp = (_done);                                                               \
-      SET_SAME_TS_GRP_HJOIN(&(_ctx)->currGrpPair, _octx);                                                    \
-      (_ctx)->inSameTsGrp = false;                                                                           \
-      (_ctx)->pLastGrpPair = taosArrayPush((_octx)->pGrpResList, &(_ctx)->currGrpPair);                      \
-    }                                                                                                        \
-  } while (0)
-
-#define FIN_DIFF_TS_GRP(_ctx, _octx, _done) do {                                             \
-    if ((_ctx)->inDiffTsGrp) {                                                               \
-      (_ctx)->currGrpPair.sameTsGrp = false;                                                 \
-      (_ctx)->currGrpPair.finishGrp = true;                                                  \
-      (_ctx)->currGrpPair.probeIn.allRowsGrp= (_done);                                       \
-      (_ctx)->inDiffTsGrp = false;                                                           \
-      (_ctx)->pLastGrpPair = taosArrayPush((_octx)->pGrpResList, &(_ctx)->currGrpPair);      \
-    } else if (_done) {                                                                      \
-      (_ctx)->currGrpPair.sameTsGrp = false;                                                 \
-      (_ctx)->currGrpPair.finishGrp = true;                                                  \
-      (_ctx)->currGrpPair.probeIn.grpRowBeginIdx = (_ctx)->pProbeCtx->blkRowIdx;             \
-      (_ctx)->currGrpPair.probeIn.allRowsGrp = true;                                         \
-    }                                                                                        \
-  } while (0)
-
-#define PRB_CUR_BLK_GRP_ROWS(_rn, _rb, _bn) (((_rn) + (_rb)) <= (_bn) ? (_rn) : ((_bn) - (_rb)))
-#define BLD_CUR_BLK_GRP_ROWS(_sg, _rn, _rb, _bn) ((_sg) ? 1 : (((_rn) + (_rb)) <= (_bn) ? (_rn) : ((_bn) - (_rb))))
 
 
 #ifdef __cplusplus
