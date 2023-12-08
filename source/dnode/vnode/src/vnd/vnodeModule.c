@@ -39,12 +39,6 @@ int vnodeInit(int nthreads) {
   if (walInit() < 0) {
     return -1;
   }
-  if (tqInit() < 0) {
-    return -1;
-  }
-  if (s3Init() < 0) {
-    return -1;
-  }
 
   return 0;
 }
@@ -58,7 +52,5 @@ void vnodeCleanup() {
   vnodeAsyncDestroy(&vnodeAsyncHandle[1]);
 
   walCleanUp();
-  tqCleanUp();
   smaCleanUp();
-  s3CleanUp();
 }

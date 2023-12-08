@@ -60,6 +60,9 @@ void initTsdbReaderAPI(TsdReader* pReader) {
 
   pReader->tsdSetQueryTableList = tsdbSetTableList2;
   pReader->tsdSetReaderTaskId = (void (*)(void*, const char*))tsdbReaderSetId2;
+
+  pReader->tsdSetFilesetDelimited = (void (*)(void*))tsdbSetFilesetDelimited;
+  pReader->tsdSetSetNotifyCb = (void (*)(void*, TsdReaderNotifyCbFn, void*))tsdbReaderSetNotifyCb;
 }
 
 void initMetadataAPI(SStoreMeta* pMeta) {
@@ -189,6 +192,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->updateInfoDestroy = updateInfoDestroy;
   pStore->windowSBfDelete = windowSBfDelete;
   pStore->windowSBfAdd = windowSBfAdd;
+  pStore->isIncrementalTimeStamp = isIncrementalTimeStamp;
 
   pStore->updateInfoInitP = updateInfoInitP;
   pStore->updateInfoAddCloseWindowSBF = updateInfoAddCloseWindowSBF;

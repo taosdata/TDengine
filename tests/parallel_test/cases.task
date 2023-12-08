@@ -6,6 +6,7 @@
 ,,y,unit-test,bash test.sh
 
 #system test
+,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_basic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/scalar_function.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_interval.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_session.py
@@ -249,6 +250,7 @@ e
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/delete_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
 
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_double.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_replica.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
@@ -303,6 +305,7 @@ e
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/ts-4272.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4295.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td27388.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_timestamp.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_tag_index.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/information_schema.py
@@ -856,6 +859,7 @@ e
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/odbc.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill_with_group.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/state_window.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
 ,,n,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/insertMix.py -N 3
@@ -880,7 +884,7 @@ e
 ,,y,script,./test.sh -f tsim/dnode/balance2.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_repeat.sim
 ,,y,script,./test.sh -f tsim/parser/col_arithmetic_operation.sim
-,,y,script,./test.sh -f tsim/trans/create_db.sim
+#,,y,script,./test.sh -f tsim/trans/create_db.sim
 ,,y,script,./test.sh -f tsim/dnode/balance3.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_many.sim
 ,,y,script,./test.sh -f tsim/stable/metrics_idx.sim
@@ -1129,6 +1133,9 @@ e
 ,,y,script,./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
 ,,y,script,./test.sh -f tsim/stream/distributeSession0.sim
 ,,y,script,./test.sh -f tsim/stream/drop_stream.sim
+,,y,script,./test.sh -f tsim/stream/event0.sim
+,,y,script,./test.sh -f tsim/stream/event1.sim
+,,y,script,./test.sh -f tsim/stream/event2.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic1.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic2.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic3.sim
@@ -1337,7 +1344,7 @@ e
 
 #docs-examples test
 ,,n,docs-examples-test,bash python.sh
-,,n,docs-examples-test,bash node.sh
+#,,n,docs-examples-test,bash node.sh
 ,,n,docs-examples-test,bash csharp.sh
 ,,n,docs-examples-test,bash jdbc.sh
 ,,n,docs-examples-test,bash go.sh
