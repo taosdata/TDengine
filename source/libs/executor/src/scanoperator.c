@@ -3233,15 +3233,16 @@ static int32_t saveSourceBlock(STmsSortRowIdInfo* pSortInfo, const SSDataBlock* 
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   blockDataToBuf(buf, pSrcBlock);
-  *pSzBlk = szBlk;
-
   taosLSeekFile(pSortInfo->dataFile, pSortInfo->dataFileOffset, SEEK_SET);
   taosWriteFile(pSortInfo->dataFile, buf, szBlk);
+  taosMemoryFree(buf);
 
   STmsSortBlockInfo info = {.blkId = pSortInfo->blkId
                             , .offset = pSortInfo->dataFileOffset, .length = szBlk};
   taosLSeekFile(pSortInfo->idxFile, pSortInfo->blkId*sizeof(STmsSortBlockInfo), SEEK_SET);
   taosWriteFile(pSortInfo->idxFile, &info, sizeof(info));
+  
+  *pSzBlk = szBlk;
 
   return 0;
 }
@@ -3322,6 +3323,8 @@ static int32_t retrieveSourceBlock(STableMergeScanInfo* pInfo, int32_t blockId, 
       taosReadFile(pSortInfo->dataFile, buf, blkInfo->length);
       SSDataBlock* pBlock = createOneDataBlock(pInfo->pReaderBlock, false);
       blockDataFromBuf(pBlock, buf);
+      taosMemoryFree(buf);
+
       *ppBlock = pBlock;
 
       taosLRUCacheInsert(pSortInfo->pBlkDataCache, &blockId, sizeof(blockId), pBlock, 1, deleteBlockDataCache,
