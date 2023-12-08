@@ -16,6 +16,26 @@
 #include "tsdb.h"
 #include "vnd.h"
 
+static int32_t vnodeExtractSnapInfoDiff(void *buf, int32_t bufLen, TFileSetRangeArray **ppRanges) {
+  int32_t            code = -1;
+  STsdbFSetPartList *pList = tsdbFSetPartListCreate();
+  if (pList == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _out;
+  }
+  if (tDeserializeTsdbFSetPartList(buf, bufLen, pList) < 0) {
+    terrno = TSDB_CODE_INVALID_DATA_FMT;
+    goto _out;
+  }
+  if (tsdbFSetPartListToRangeDiff(pList, ppRanges) < 0) {
+    goto _out;
+  }
+  code = 0;
+_out:
+  tsdbFSetPartListDestroy(&pList);
+  return code;
+}
+
 // SVSnapReader ========================================================
 struct SVSnapReader {
   SVnode *pVnode;
@@ -29,8 +49,12 @@ struct SVSnapReader {
   SMetaSnapReader *pMetaReader;
   // tsdb
   int8_t           tsdbDone;
-  TSnapRangeArray *pRanges;
+  TFileSetRangeArray *pRanges;
   STsdbSnapReader *pTsdbReader;
+  // tsdb raw
+  int8_t              tsdbRAWDone;
+  STsdbSnapRAWReader *pTsdbRAWReader;
+
   // tq
   int8_t              tqHandleDone;
   STqSnapReader      *pTqSnapReader;
@@ -45,31 +69,11 @@ struct SVSnapReader {
   SStreamStateReader *pStreamStateReader;
   // rsma
   int8_t           rsmaDone;
-  TSnapRangeArray *pRsmaRanges[TSDB_RETENTION_L2];
+  TFileSetRangeArray *pRsmaRanges[TSDB_RETENTION_L2];
   SRSmaSnapReader *pRsmaReader;
 };
 
-static int32_t vnodeExtractSnapInfoDiff(void *buf, int32_t bufLen, TSnapRangeArray **ppRanges) {
-  int32_t            code = -1;
-  STsdbSnapPartList *pList = tsdbSnapPartListCreate();
-  if (pList == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _out;
-  }
-  if (tDeserializeTsdbSnapPartList(buf, bufLen, pList) < 0) {
-    terrno = TSDB_CODE_INVALID_DATA_FMT;
-    goto _out;
-  }
-  if (tsdbSnapPartListToRangeDiff(pList, ppRanges) < 0) {
-    goto _out;
-  }
-  code = 0;
-_out:
-  tsdbSnapPartListDestroy(&pList);
-  return code;
-}
-
-static TSnapRangeArray **vnodeSnapReaderGetTsdbRanges(SVSnapReader *pReader, int32_t tsdbTyp) {
+static TFileSetRangeArray **vnodeSnapReaderGetTsdbRanges(SVSnapReader *pReader, int32_t tsdbTyp) {
   ASSERTS(sizeof(pReader->pRsmaRanges) / sizeof(pReader->pRsmaRanges[0]) == 2, "Unexpected array size");
   switch (tsdbTyp) {
     case SNAP_DATA_TSDB:
@@ -83,37 +87,66 @@ static TSnapRangeArray **vnodeSnapReaderGetTsdbRanges(SVSnapReader *pReader, int
   }
 }
 
-static int32_t vnodeSnapReaderDoSnapInfo(SVSnapReader *pReader, SSnapshotParam *pParam) {
+static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotParam *pParam) {
   SVnode *pVnode = pReader->pVnode;
   int32_t code = -1;
 
   if (pParam->data) {
+    // decode
     SSyncTLV *datHead = (void *)pParam->data;
     if (datHead->typ != TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
       terrno = TSDB_CODE_INVALID_DATA_FMT;
       goto _out;
     }
 
-    TSnapRangeArray **ppRanges = NULL;
-    int32_t           offset = 0;
+    STsdbRepOpts         tsdbOpts = {0};
+    TFileSetRangeArray **ppRanges = NULL;
+    int32_t              offset = 0;
 
     while (offset + sizeof(SSyncTLV) < datHead->len) {
       SSyncTLV *subField = (void *)(datHead->val + offset);
       offset += sizeof(SSyncTLV) + subField->len;
       void   *buf = subField->val;
       int32_t bufLen = subField->len;
-      ppRanges = vnodeSnapReaderGetTsdbRanges(pReader, subField->typ);
-      if (ppRanges == NULL) {
-        vError("vgId:%d, unexpected subfield type in data of snapshot param. subtyp:%d", TD_VID(pVnode), subField->typ);
-        goto _out;
-      }
-      if (vnodeExtractSnapInfoDiff(buf, bufLen, ppRanges) < 0) {
-        vError("vgId:%d, failed to get range diff since %s", TD_VID(pVnode), terrstr());
-        goto _out;
+
+      switch (subField->typ) {
+        case SNAP_DATA_TSDB:
+        case SNAP_DATA_RSMA1:
+        case SNAP_DATA_RSMA2: {
+          ppRanges = vnodeSnapReaderGetTsdbRanges(pReader, subField->typ);
+          if (ppRanges == NULL) {
+            vError("vgId:%d, unexpected subfield type in snapshot param. subtyp:%d", TD_VID(pVnode), subField->typ);
+            goto _out;
+          }
+          if (vnodeExtractSnapInfoDiff(buf, bufLen, ppRanges) < 0) {
+            vError("vgId:%d, failed to get range diff since %s", TD_VID(pVnode), terrstr());
+            goto _out;
+          }
+        } break;
+        case SNAP_DATA_RAW: {
+          if (tDeserializeTsdbRepOpts(buf, bufLen, &tsdbOpts) < 0) {
+            vError("vgId:%d, failed to deserialize tsdb rep opts since %s", TD_VID(pVnode), terrstr());
+            goto _out;
+          }
+        } break;
+        default:
+          vError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), subField->typ);
+          goto _out;
       }
     }
-  }
 
+    // toggle snap replication mode
+    vInfo("vgId:%d, vnode snap reader supported tsdb rep of format:%d", TD_VID(pVnode), tsdbOpts.format);
+    if (pReader->sver == 0 && tsdbOpts.format == TSDB_SNAP_REP_FMT_RAW) {
+      pReader->tsdbDone = true;
+    } else {
+      pReader->tsdbRAWDone = true;
+    }
+
+    ASSERT(pReader->tsdbDone != pReader->tsdbRAWDone);
+    vInfo("vgId:%d, vnode snap writer enabled replication mode: %s", TD_VID(pVnode),
+          (pReader->tsdbDone ? "raw" : "normal"));
+  }
   code = 0;
 _out:
   return code;
@@ -135,7 +168,7 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
   pReader->ever = ever;
 
   // snapshot info
-  if (vnodeSnapReaderDoSnapInfo(pReader, pParam) < 0) {
+  if (vnodeSnapReaderDealWithSnapInfo(pReader, pParam) < 0) {
     goto _err;
   }
 
@@ -152,9 +185,9 @@ _err:
 static void vnodeSnapReaderDestroyTsdbRanges(SVSnapReader *pReader) {
   int32_t tsdbTyps[TSDB_RETENTION_MAX] = {SNAP_DATA_TSDB, SNAP_DATA_RSMA1, SNAP_DATA_RSMA2};
   for (int32_t j = 0; j < TSDB_RETENTION_MAX; ++j) {
-    TSnapRangeArray **ppRanges = vnodeSnapReaderGetTsdbRanges(pReader, tsdbTyps[j]);
+    TFileSetRangeArray **ppRanges = vnodeSnapReaderGetTsdbRanges(pReader, tsdbTyps[j]);
     if (ppRanges == NULL) continue;
-    tsdbSnapRangeArrayDestroy(ppRanges);
+    tsdbTFileSetRangeArrayDestroy(ppRanges);
   }
 }
 
@@ -168,6 +201,10 @@ void vnodeSnapReaderClose(SVSnapReader *pReader) {
 
   if (pReader->pTsdbReader) {
     tsdbSnapReaderClose(&pReader->pTsdbReader);
+  }
+
+  if (pReader->pTsdbRAWReader) {
+    tsdbSnapRAWReaderClose(&pReader->pTsdbRAWReader);
   }
 
   if (pReader->pMetaReader) {
@@ -280,6 +317,28 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       } else {
         pReader->tsdbDone = 1;
         code = tsdbSnapReaderClose(&pReader->pTsdbReader);
+        if (code) goto _err;
+      }
+    }
+  }
+
+  if (!pReader->tsdbRAWDone) {
+    // open if not
+    if (pReader->pTsdbRAWReader == NULL) {
+      ASSERT(pReader->sver == 0);
+      code = tsdbSnapRAWReaderOpen(pReader->pVnode->pTsdb, pReader->ever, SNAP_DATA_RAW, &pReader->pTsdbRAWReader);
+      if (code) goto _err;
+    }
+
+    code = tsdbSnapRAWRead(pReader->pTsdbRAWReader, ppData);
+    if (code) {
+      goto _err;
+    } else {
+      if (*ppData) {
+        goto _exit;
+      } else {
+        pReader->tsdbRAWDone = 1;
+        code = tsdbSnapRAWReaderClose(&pReader->pTsdbRAWReader);
         if (code) goto _err;
       }
     }
@@ -455,8 +514,10 @@ struct SVSnapWriter {
   // meta
   SMetaSnapWriter *pMetaSnapWriter;
   // tsdb
-  TSnapRangeArray *pRanges;
+  TFileSetRangeArray *pRanges;
   STsdbSnapWriter *pTsdbSnapWriter;
+  // tsdb raw
+  STsdbSnapRAWWriter *pTsdbSnapRAWWriter;
   // tq
   STqSnapWriter      *pTqSnapWriter;
   STqOffsetWriter    *pTqOffsetWriter;
@@ -465,11 +526,11 @@ struct SVSnapWriter {
   SStreamTaskWriter  *pStreamTaskWriter;
   SStreamStateWriter *pStreamStateWriter;
   // rsma
-  TSnapRangeArray *pRsmaRanges[TSDB_RETENTION_L2];
+  TFileSetRangeArray *pRsmaRanges[TSDB_RETENTION_L2];
   SRSmaSnapWriter *pRsmaSnapWriter;
 };
 
-TSnapRangeArray **vnodeSnapWriterGetTsdbRanges(SVSnapWriter *pWriter, int32_t tsdbTyp) {
+TFileSetRangeArray **vnodeSnapWriterGetTsdbRanges(SVSnapWriter *pWriter, int32_t tsdbTyp) {
   ASSERTS(sizeof(pWriter->pRsmaRanges) / sizeof(pWriter->pRsmaRanges[0]) == 2, "Unexpected array size");
   switch (tsdbTyp) {
     case SNAP_DATA_TSDB:
@@ -483,7 +544,7 @@ TSnapRangeArray **vnodeSnapWriterGetTsdbRanges(SVSnapWriter *pWriter, int32_t ts
   }
 }
 
-static int32_t vnodeSnapWriterDoSnapInfo(SVSnapWriter *pWriter, SSnapshotParam *pParam) {
+static int32_t vnodeSnapWriterDealWithSnapInfo(SVSnapWriter *pWriter, SSnapshotParam *pParam) {
   SVnode *pVnode = pWriter->pVnode;
   int32_t code = -1;
 
@@ -494,7 +555,8 @@ static int32_t vnodeSnapWriterDoSnapInfo(SVSnapWriter *pWriter, SSnapshotParam *
       goto _out;
     }
 
-    TSnapRangeArray **ppRanges = NULL;
+    STsdbRepOpts         tsdbOpts = {0};
+    TFileSetRangeArray **ppRanges = NULL;
     int32_t           offset = 0;
 
     while (offset + sizeof(SSyncTLV) < datHead->len) {
@@ -502,16 +564,34 @@ static int32_t vnodeSnapWriterDoSnapInfo(SVSnapWriter *pWriter, SSnapshotParam *
       offset += sizeof(SSyncTLV) + subField->len;
       void   *buf = subField->val;
       int32_t bufLen = subField->len;
-      ppRanges = vnodeSnapWriterGetTsdbRanges(pWriter, subField->typ);
-      if (ppRanges == NULL) {
-        vError("vgId:%d, unexpected subfield type in data of snapshot param. subtyp:%d", TD_VID(pVnode), subField->typ);
-        goto _out;
-      }
-      if (vnodeExtractSnapInfoDiff(buf, bufLen, ppRanges) < 0) {
-        vError("vgId:%d, failed to get range diff since %s", TD_VID(pVnode), terrstr());
-        goto _out;
+
+      switch (subField->typ) {
+        case SNAP_DATA_TSDB:
+        case SNAP_DATA_RSMA1:
+        case SNAP_DATA_RSMA2: {
+          ppRanges = vnodeSnapWriterGetTsdbRanges(pWriter, subField->typ);
+          if (ppRanges == NULL) {
+            vError("vgId:%d, unexpected subfield type in snapshot param. subtyp:%d", TD_VID(pVnode), subField->typ);
+            goto _out;
+          }
+          if (vnodeExtractSnapInfoDiff(buf, bufLen, ppRanges) < 0) {
+            vError("vgId:%d, failed to get range diff since %s", TD_VID(pVnode), terrstr());
+            goto _out;
+          }
+        } break;
+        case SNAP_DATA_RAW: {
+          if (tDeserializeTsdbRepOpts(buf, bufLen, &tsdbOpts) < 0) {
+            vError("vgId:%d, failed to deserialize tsdb rep opts since %s", TD_VID(pVnode), terrstr());
+            goto _out;
+          }
+        } break;
+        default:
+          vError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), subField->typ);
+          goto _out;
       }
     }
+
+    vInfo("vgId:%d, vnode snap writer supported tsdb rep of format:%d", TD_VID(pVnode), tsdbOpts.format);
   }
 
   code = 0;
@@ -558,7 +638,7 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapWriter
   pWriter->commitID = ++pVnode->state.commitID;
 
   // snapshot info
-  if (vnodeSnapWriterDoSnapInfo(pWriter, pParam) < 0) {
+  if (vnodeSnapWriterDealWithSnapInfo(pWriter, pParam) < 0) {
     goto _err;
   }
 
@@ -576,9 +656,9 @@ _err:
 static void vnodeSnapWriterDestroyTsdbRanges(SVSnapWriter *pWriter) {
   int32_t tsdbTyps[TSDB_RETENTION_MAX] = {SNAP_DATA_TSDB, SNAP_DATA_RSMA1, SNAP_DATA_RSMA2};
   for (int32_t j = 0; j < TSDB_RETENTION_MAX; ++j) {
-    TSnapRangeArray **ppRanges = vnodeSnapWriterGetTsdbRanges(pWriter, tsdbTyps[j]);
+    TFileSetRangeArray **ppRanges = vnodeSnapWriterGetTsdbRanges(pWriter, tsdbTyps[j]);
     if (ppRanges == NULL) continue;
-    tsdbSnapRangeArrayDestroy(ppRanges);
+    tsdbTFileSetRangeArrayDestroy(ppRanges);
   }
 }
 
@@ -591,6 +671,10 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
   // prepare
   if (pWriter->pTsdbSnapWriter) {
     tsdbSnapWriterPrepareClose(pWriter->pTsdbSnapWriter);
+  }
+
+  if (pWriter->pTsdbSnapRAWWriter) {
+    tsdbSnapRAWWriterPrepareClose(pWriter->pTsdbSnapRAWWriter);
   }
 
   if (pWriter->pRsmaSnapWriter) {
@@ -626,6 +710,11 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
 
   if (pWriter->pTsdbSnapWriter) {
     code = tsdbSnapWriterClose(&pWriter->pTsdbSnapWriter, rollback);
+    if (code) goto _exit;
+  }
+
+  if (pWriter->pTsdbSnapRAWWriter) {
+    code = tsdbSnapRAWWriterClose(&pWriter->pTsdbSnapRAWWriter, rollback);
     if (code) goto _exit;
   }
 
@@ -750,6 +839,17 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       }
 
       code = tsdbSnapWrite(pWriter->pTsdbSnapWriter, pHdr);
+      if (code) goto _err;
+    } break;
+    case SNAP_DATA_RAW: {
+      // tsdb
+      if (pWriter->pTsdbSnapRAWWriter == NULL) {
+        ASSERT(pWriter->sver == 0);
+        code = tsdbSnapRAWWriterOpen(pVnode->pTsdb, pWriter->ever, &pWriter->pTsdbSnapRAWWriter);
+        if (code) goto _err;
+      }
+
+      code = tsdbSnapRAWWrite(pWriter->pTsdbSnapRAWWriter, pHdr);
       if (code) goto _err;
     } break;
     case SNAP_DATA_TQ_HANDLE: {
