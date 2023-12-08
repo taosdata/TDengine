@@ -249,7 +249,8 @@ impl Table {
             let primary_array = arrow_cast_guess_precision::cast(
                 &primary_array,
                 &DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None),
-            ).map_err(|err| super::Error::PrimaryKeyCastError(self.name.clone(), err))?;
+            )
+            .map_err(|err| super::Error::PrimaryKeyCastError(self.name.clone(), err))?;
             let primary_field = schema
                 .field_with_name(primary)?
                 .clone()
@@ -264,11 +265,12 @@ impl Table {
             columns.push(primary_array);
 
             for name in &names[1..] {
-                let field = schema.field_with_name(name)?.clone().with_metadata(
-                    [(META_FIELD_SCOPE.to_string(), SCOPE_COLUMN.to_string())]
-                        .into_iter()
-                        .collect(),
-                );
+                let field = schema.field_with_name(name)?;
+                let mut metadata = field.metadata().clone();
+                metadata.insert(META_FIELD_SCOPE.to_string(), SCOPE_COLUMN.to_string());
+                let field = Field::new(name, field.data_type().clone(), field.is_nullable())
+                    .with_metadata(metadata);
+
                 let column = records.column_by_name(name).unwrap().clone();
 
                 fields.push(field);
@@ -278,11 +280,11 @@ impl Table {
 
         if let Some(tags) = self.tags.as_ref() {
             for name in tags {
-                let field = schema.field_with_name(name)?.clone().with_metadata(
-                    [(META_FIELD_SCOPE.to_string(), SCOPE_TAG.to_string())]
-                        .into_iter()
-                        .collect(),
-                );
+                let field = schema.field_with_name(name)?;
+                let mut metadata = field.metadata().clone();
+                metadata.insert(META_FIELD_SCOPE.to_string(), SCOPE_TAG.to_string());
+                let field = Field::new(name, field.data_type().clone(), field.is_nullable())
+                    .with_metadata(metadata);
                 let column = records.column_by_name(name).unwrap().clone();
 
                 fields.push(field);

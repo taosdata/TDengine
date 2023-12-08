@@ -1,12 +1,9 @@
 use std::sync::Arc;
 
 use arrow::array::TimestampNanosecondArray;
-use arrow::{array::ArrayRef, datatypes::FieldRef, record_batch::RecordBatch};
-use arrow_schema::{DataType, Field, TimeUnit};
+use arrow::{array::ArrayRef, record_batch::RecordBatch};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-
-use taosx_ipc::prelude::IpcDataType;
 
 use super::{ValueBuilder, ValueBuilderError};
 
@@ -16,24 +13,14 @@ pub struct GeneratorValueBuilder {
 }
 
 impl ValueBuilder for GeneratorValueBuilder {
-    fn build_field(
-        &self,
-        name: &str,
-        _record: &RecordBatch,
-        _as: Option<IpcDataType>,
-    ) -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
+    fn build_from(&self, _record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError> {
         let len = _record.num_rows();
 
         match self.generator.as_str() {
             "now" => {
                 let now = Utc::now().timestamp_nanos_opt().unwrap();
-                Ok((
-                    Arc::new(Field::new(
-                        name,
-                        DataType::Timestamp(TimeUnit::Nanosecond, Some("+00:00".into())),
-                        false,
-                    )),
-                    Arc::new(TimestampNanosecondArray::from(vec![now; len]).with_timezone_utc()),
+                Ok(Arc::new(
+                    TimestampNanosecondArray::from(vec![now; len]).with_timezone_utc(),
                 ))
             }
             _ => {
@@ -49,6 +36,7 @@ mod tests {
     use std::sync::Arc;
 
     use arrow::array::StringArray;
+    use arrow_schema::{DataType, TimeUnit};
 
     use super::*;
 

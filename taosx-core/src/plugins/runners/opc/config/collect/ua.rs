@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
 
@@ -56,16 +55,15 @@ impl UaCollectConfig {
 
         let mut ua_node_config_vec = Vec::new();
         for i in 0..node_vec.len() {
-            let pair = node_vec[i].split("::").collect_vec();
-            if pair.len() != 2 {
-                let pair = pair.join("::");
-                anyhow::bail!(
-                    "failed to parse node: {}, cause: split result len is not 2",
-                    pair
-                );
+            tracing::info!("Nodes[{i}]: {}", node_vec[i]);
+            if let Some((id, _)) = node_vec[i].split_once("::") {
+                ua_node_config_vec.push(UANodeConfig { id: id.to_string() });
+            } else {
+                tracing::warn!("Nodes[{i}]: {} is not regular(with \"::\")", node_vec[i]);
+                ua_node_config_vec.push(UANodeConfig {
+                    id: node_vec[i].to_string(),
+                });
             }
-            let id = String::from(pair[0]);
-            ua_node_config_vec.push(UANodeConfig { id: id.clone() });
         }
 
         Ok(ua_node_config_vec)
