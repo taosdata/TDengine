@@ -54,7 +54,7 @@ impl Consumer {
                     }
                 }
             }
-            tracing::info!("ACK reader finished");
+            tracing::info!("migrate history ACK reader finished");
             Ok(())
         });
 

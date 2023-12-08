@@ -107,7 +107,7 @@ impl HistorianQuery {
 mod tests {
     use std::str::FromStr;
 
-    use chrono::{FixedOffset, Local, NaiveDateTime, TimeZone};
+    use chrono::{Local, NaiveDateTime, TimeZone};
     use taos::Dsn;
 
     use crate::runners::historian::config::connect::ConnectConfig;
