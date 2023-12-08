@@ -3241,7 +3241,7 @@ static int32_t saveSourceBlock(STmsSortRowIdInfo* pSortInfo, const SSDataBlock* 
                             , .offset = pSortInfo->dataFileOffset, .length = szBlk};
   taosLSeekFile(pSortInfo->idxFile, pSortInfo->blkId*sizeof(STmsSortBlockInfo), SEEK_SET);
   taosWriteFile(pSortInfo->idxFile, &info, sizeof(info));
-  
+
   *pSzBlk = szBlk;
 
   return 0;
@@ -3525,7 +3525,9 @@ int32_t stopRowIdSort(STableMergeScanInfo *pInfo) {
   taosCloseFile(&pSort->dataFile);
   taosRemoveFile(pSort->dataPath);
 
+  taosLRUCacheEraseUnrefEntries(pSort->pBlkInfoCache);
   taosLRUCacheCleanup(pSort->pBlkInfoCache);
+  taosLRUCacheEraseUnrefEntries(pSort->pBlkDataCache);
   taosLRUCacheCleanup(pSort->pBlkDataCache);
   return 0;
 }
