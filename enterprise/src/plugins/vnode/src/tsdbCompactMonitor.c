@@ -120,16 +120,12 @@ int32_t tsdbStopAllCompTask(STsdb *tsdb) {
   return 0;
 }
 
-int32_t tsdbCompMonitorGetInfo(STsdb *tsdb, SCompMonInfo *info) {
+int32_t tsdbCompMonitorGetInfo(STsdb *tsdb, SQueryCompactProgressRsp *rsp) {
   taosThreadMutexLock(&tsdb->mutex);
-
-  info->compactRunning = tsdbCompMonHasTask(tsdb);
-  if (info->compactRunning) {
-    info->startTimeSec = tsdb->pCompMonitor->startTimeSec;
-    info->numTotalFileSet = tsdb->pCompMonitor->totalCompTasks;
-    info->numRemainFileSet = TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr);
-  }
-
+  rsp->compactId = 0;  // TODO
+  rsp->vgId = TD_VID(tsdb->pVnode);
+  rsp->numberFileset = tsdb->pCompMonitor->totalCompTasks;
+  rsp->finished = rsp->numberFileset - TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr);
   taosThreadMutexUnlock(&tsdb->mutex);
   return 0;
 }
