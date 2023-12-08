@@ -26,12 +26,12 @@ import threading
 import importlib
 
 import toml
-sys.path.append("../pytest")
-from util.log import *
-from util.dnodes import *
-from util.cases import *
-from util.cluster import *
-from util.taosadapter import *
+
+from frame.log import *
+from frame.dnodes import *
+from frame.cases import *
+from frame.cluster import *
+from frame.taosadapter import *
 
 import taos
 import taosrest

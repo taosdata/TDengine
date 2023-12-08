@@ -82,3 +82,21 @@ TEST(arrayTest, array_search_test) {
 
   taosArrayDestroy(pa);
 }
+
+TEST(arrayTest, array_data_correct) {
+  SArray* pa = (SArray*)taosArrayInit(1, sizeof(int32_t));
+  size_t cnt = 1000;
+
+  for (int32_t i = 0; i < cnt; ++i) {
+    taosArrayPush(pa, &i);
+  }
+  ASSERT_EQ(taosArrayGetSize(pa), cnt);
+
+  int32_t* pv = NULL;
+  for (int32_t i = 0; i < cnt; i++) {
+    pv = (int32_t*)taosArrayGet(pa, i);
+    ASSERT_EQ(*pv, i);
+  }
+
+  taosArrayDestroy(pa);
+}
