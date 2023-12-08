@@ -257,6 +257,13 @@ void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
   }
 }
 
+void dmStopAuditThread(SDnodeMgmt *pMgmt) {
+  if (taosCheckPthreadValid(pMgmt->auditThread)) {
+    taosThreadJoin(pMgmt->auditThread, NULL);
+    taosThreadClear(&pMgmt->auditThread);
+  }
+}
+
 int32_t dmStartCrashReportThread(SDnodeMgmt *pMgmt) {
   if (!tsEnableCrashReport) {
     return 0;

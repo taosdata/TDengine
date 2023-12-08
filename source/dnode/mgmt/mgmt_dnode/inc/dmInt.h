@@ -66,6 +66,7 @@ void    dmStopNotifyThread(SDnodeMgmt *pMgmt);
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt);
 int32_t dmStartAuditThread(SDnodeMgmt *pMgmt);
 void    dmStopMonitorThread(SDnodeMgmt *pMgmt);
+void    dmStopAuditThread(SDnodeMgmt *pMgmt);
 int32_t dmStartCrashReportThread(SDnodeMgmt *pMgmt);
 void    dmStopCrashReportThread(SDnodeMgmt *pMgmt);
 int32_t dmStartWorker(SDnodeMgmt *pMgmt);
