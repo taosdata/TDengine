@@ -96,7 +96,8 @@ typedef struct STableBlockScanInfo {
   bool        cleanSttBlocks;    // stt block is clean in current fileset
   bool        sttBlockReturned;  // result block returned alreay
   int64_t     numOfRowsInStt;
-  STimeWindow sttWindow;
+  STimeWindow sttWindow;         // timestamp window for current stt files
+  STimeWindow filesetWindow;     // timestamp window for current file set
 } STableBlockScanInfo;
 
 typedef struct SResultBlockInfo {

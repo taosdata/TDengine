@@ -22,6 +22,8 @@
 #include "tsdbUtil2.h"
 #include "tsimplehash.h"
 
+#define INIT_TIMEWINDOW(_w)  do { (_w)->skey = INT64_MAX; (_w)->ekey = INT64_MIN;} while(0);
+
 static bool overlapWithDelSkylineWithoutVer(STableBlockScanInfo* pBlockScanInfo, const SBrinRecord* pRecord, int32_t order);
 
 static int32_t initBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
@@ -155,6 +157,9 @@ SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf
     STableBlockScanInfo* pScanInfo = getPosInBlockInfoBuf(pBuf, j);
 
     pScanInfo->uid = idList[j].uid;
+    INIT_TIMEWINDOW(&pScanInfo->sttWindow);
+    INIT_TIMEWINDOW(&pScanInfo->filesetWindow);
+
     pUidList->tableUidList[j] = idList[j].uid;
 
     if (ASCENDING_TRAVERSE(pTsdbReader->info.order)) {
@@ -247,8 +252,8 @@ static void doCleanupInfoForNextFileset(STableBlockScanInfo* pScanInfo) {
   taosArrayClear(pScanInfo->pFileDelData);  // del data from each file set
   pScanInfo->cleanSttBlocks = false;
   pScanInfo->numOfRowsInStt = 0;
-  pScanInfo->sttWindow.skey = INT64_MAX;
-  pScanInfo->sttWindow.ekey = INT64_MIN;
+  INIT_TIMEWINDOW(&pScanInfo->sttWindow);
+  INIT_TIMEWINDOW(&pScanInfo->filesetWindow);
   pScanInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
 }
 
@@ -409,12 +414,10 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
       blockInfo.record = *(SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[0][i].pInfo->pBlockList, i);
 
       taosArrayPush(pBlockIter->blockList, &blockInfo);
-
       STableDataBlockIdx tableDataBlockIdx = {.globalIndex = i};
       taosArrayPush(pTableScanInfo->pBlockIdxList, &tableDataBlockIdx);
     }
-    taosArrayDestroy(pTableScanInfo->pBlockList);
-    pTableScanInfo->pBlockList = NULL;
+    pTableScanInfo->pBlockList = taosArrayDestroy(pTableScanInfo->pBlockList);
 
     int64_t et = taosGetTimestampUs();
     tsdbDebug("%p create blocks info struct completed for one table, %d blocks not sorted, elapsed time:%.2f ms %s",
@@ -463,8 +466,7 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
 
   for (int32_t i = 0; i < numOfTables; ++i) {
     STableBlockScanInfo* pTableScanInfo = taosArrayGetP(pTableList, i);
-    taosArrayDestroy(pTableScanInfo->pBlockList);
-    pTableScanInfo->pBlockList = NULL;
+    pTableScanInfo->pBlockList = taosArrayDestroy(pTableScanInfo->pBlockList);
   }
 
   int64_t et = taosGetTimestampUs();
@@ -845,7 +847,10 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
   return numOfRows;
 }
 
-// overlap with deletion skyline
+static bool overlapHelper(const STimeWindow* pLeft, TSKEY minKey, TSKEY maxKey) {
+  return (pLeft->ekey >= minKey) && (pLeft->skey <= maxKey);
+}
+
 static bool overlapWithTimeWindow(STimeWindow* p1, STimeWindow* pQueryWindow, STableBlockScanInfo* pBlockScanInfo,
                                   int32_t order) {
   // overlap with query window
@@ -853,16 +858,24 @@ static bool overlapWithTimeWindow(STimeWindow* p1, STimeWindow* pQueryWindow, ST
     return true;
   }
 
-  // overlap with mem data
   SIterInfo* pMemIter = &pBlockScanInfo->iter;
   SIterInfo* pIMemIter = &pBlockScanInfo->iiter;
 
-  if ((pMemIter->hasVal) && p1->ekey >= pMemIter->iter->pTbData->minKey && p1->skey <= pMemIter->iter->pTbData->maxKey) {
+  // overlap with mem data
+  STbData* pTbData = pMemIter->iter->pTbData;
+  if ((pMemIter->hasVal) && overlapHelper(p1, pTbData->minKey, pTbData->maxKey)) {
     return true;
   }
 
   // overlap with imem data
-  if ((pIMemIter->hasVal) && p1->ekey >= pIMemIter->iter->pTbData->minKey && p1->skey <= pIMemIter->iter->pTbData->maxKey) {
+  STbData* pITbData = pIMemIter->iter->pTbData;
+  if ((pIMemIter->hasVal) && overlapHelper(p1, pITbData->minKey, pITbData->maxKey)) {
+    return true;
+  }
+
+  // overlap with data file block
+  STimeWindow* pFileWin = &pBlockScanInfo->filesetWindow;
+  if ((taosArrayGetSize(pBlockScanInfo->pBlockIdxList) > 0) && overlapHelper(p1, pFileWin->skey, pFileWin->ekey)) {
     return true;
   }
 

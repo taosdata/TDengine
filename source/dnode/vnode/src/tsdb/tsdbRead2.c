@@ -606,6 +606,13 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
+    if (pScanInfo->filesetWindow.skey > pRecord->firstKey) {
+      pScanInfo->filesetWindow.skey = pRecord->firstKey;
+    }
+    if (pScanInfo->filesetWindow.ekey < pRecord->lastKey) {
+      pScanInfo->filesetWindow.ekey = pRecord->lastKey;
+    }
+
     pBlockNum->numOfBlocks += 1;
     if (taosArrayGetSize(pTableScanInfoList) == 0) {
       taosArrayPush(pTableScanInfoList, &pScanInfo);
@@ -2698,17 +2705,17 @@ static int32_t doLoadSttBlockSequentially(STsdbReader* pReader) {
 
     // if only require the total rows, no need to load data from stt file if it is clean stt blocks
     if (pReader->info.execMode == READER_EXEC_ROWS && pScanInfo->cleanSttBlocks) {
+      bool asc = ASCENDING_TRAVERSE(pReader->info.order);
+
       SDataBlockInfo* pInfo = &pResBlock->info;
       pInfo->rows = pScanInfo->numOfRowsInStt;
       pInfo->id.uid = pScanInfo->uid;
       pInfo->dataLoad = 1;
       pInfo->window = pScanInfo->sttWindow;
       setComposedBlockFlag(pReader, true);
-      pScanInfo->sttKeyInfo.nextProcKey =
-          ASCENDING_TRAVERSE(pReader->info.order) ? pScanInfo->sttWindow.ekey + 1 : pScanInfo->sttWindow.skey - 1;
+      pScanInfo->sttKeyInfo.nextProcKey = asc ? pScanInfo->sttWindow.ekey + 1 : pScanInfo->sttWindow.skey - 1;
       pScanInfo->sttKeyInfo.status = STT_FILE_NO_DATA;
-      pScanInfo->lastProcKey =
-          ASCENDING_TRAVERSE(pReader->info.order) ? pScanInfo->sttWindow.ekey : pScanInfo->sttWindow.skey;
+      pScanInfo->lastProcKey = asc ? pScanInfo->sttWindow.ekey : pScanInfo->sttWindow.skey;
       pSttBlockReader->mergeTree.pIter = NULL;
       pScanInfo->sttBlockReturned = true;
 
@@ -2833,7 +2840,8 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
       tsdbDebug("load data in stt block firstly %s", pReader->idStr);
       int64_t st = taosGetTimestampUs();
 
-      // let's load data from stt files
+      // let's load data from stt files, make sure clear the cleanStt block flag before load the data from stt files
+      pScanInfo->cleanSttBlocks = false;
       initSttBlockReader(pSttBlockReader, pScanInfo, pReader);
 
       // no data in stt block, no need to proceed.
