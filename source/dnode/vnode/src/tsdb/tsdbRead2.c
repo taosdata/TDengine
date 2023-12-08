@@ -2708,18 +2708,21 @@ static int32_t doLoadSttBlockSequentially(STsdbReader* pReader) {
       bool asc = ASCENDING_TRAVERSE(pReader->info.order);
 
       SDataBlockInfo* pInfo = &pResBlock->info;
+      blockDataEnsureCapacity(pResBlock, pInfo->rows);
+
       pInfo->rows = pScanInfo->numOfRowsInStt;
       pInfo->id.uid = pScanInfo->uid;
       pInfo->dataLoad = 1;
       pInfo->window = pScanInfo->sttWindow;
-      blockDataEnsureCapacity(pResBlock, pInfo->rows);
 
       setComposedBlockFlag(pReader, true);
+
       pScanInfo->sttKeyInfo.nextProcKey = asc ? pScanInfo->sttWindow.ekey + 1 : pScanInfo->sttWindow.skey - 1;
       pScanInfo->sttKeyInfo.status = STT_FILE_NO_DATA;
       pScanInfo->lastProcKey = asc ? pScanInfo->sttWindow.ekey : pScanInfo->sttWindow.skey;
-      pSttBlockReader->mergeTree.pIter = NULL;
       pScanInfo->sttBlockReturned = true;
+
+      pSttBlockReader->mergeTree.pIter = NULL;
 
       tsdbDebug("%p uid:%" PRId64 " return clean stt block as one, brange:%" PRId64 "-%" PRId64 " rows:%" PRId64 " %s",
                 pReader, pResBlock->info.id.uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
