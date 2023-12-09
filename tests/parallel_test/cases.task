@@ -6,7 +6,7 @@
 ,,y,unit-test,bash test.sh
 
 #army-test
-,,y,system-test,./pytest.sh python3 ./test.py -f empty.py
+,,y,army,./pytest.sh python3 ./test.py -f empty.py
 
 #system test
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_basic.py
