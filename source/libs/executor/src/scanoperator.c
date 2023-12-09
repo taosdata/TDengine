@@ -3303,19 +3303,21 @@ static int32_t retrieveSourceBlock(STableMergeScanInfo* pInfo, int32_t blockId, 
   LRUHandle* hBlk = taosLRUCacheLookup(pSortInfo->pBlkDataCache, &blockId, sizeof(blockId));
   if (hBlk) {
     SSDataBlock* pBlk = taosLRUCacheValue(pSortInfo->pBlkDataCache, hBlk);
+    taosLRUCacheRelease(pSortInfo->pBlkDataCache, hBlk, false);
     *ppBlock = pBlk;
   } else {
     STmsSortBlockInfo* blkInfo = NULL;
     LRUHandle*         hBlkInfo = taosLRUCacheLookup(pSortInfo->pBlkInfoCache, &blockId, sizeof(blockId));
     if (hBlkInfo) {
       blkInfo = taosLRUCacheValue(pSortInfo->pBlkInfoCache, hBlkInfo);
+      taosLRUCacheRelease(pSortInfo->pBlkInfoCache, hBlkInfo, false);
     } else {
       blkInfo = taosMemoryMalloc(sizeof(STmsSortBlockInfo));
       taosLSeekFile(pSortInfo->idxFile, blockId * sizeof(STmsSortBlockInfo), SEEK_SET);
       taosReadFile(pSortInfo->idxFile, blkInfo, sizeof(STmsSortBlockInfo));
       ASSERT(blkInfo->blkId == blockId);
       taosLRUCacheInsert(pSortInfo->pBlkInfoCache, &blockId, sizeof(blockId), blkInfo, 1, deleteBlockInfoCache,
-                         &hBlkInfo, TAOS_LRU_PRIORITY_LOW, NULL);
+                         NULL, TAOS_LRU_PRIORITY_LOW, NULL);
     }
     {
       taosLSeekFile(pSortInfo->dataFile, blkInfo->offset, SEEK_SET);
@@ -3328,7 +3330,7 @@ static int32_t retrieveSourceBlock(STableMergeScanInfo* pInfo, int32_t blockId, 
       *ppBlock = pBlock;
 
       taosLRUCacheInsert(pSortInfo->pBlkDataCache, &blockId, sizeof(blockId), pBlock, 1, deleteBlockDataCache,
-                         &hBlk, TAOS_LRU_PRIORITY_LOW, NULL);
+                         NULL, TAOS_LRU_PRIORITY_LOW, NULL);
     }
   }
   return 0;
@@ -3511,9 +3513,9 @@ int32_t startRowIdSort(STableMergeScanInfo *pInfo) {
   pSort->idxFile = taosOpenFile(pSort->idxPath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
   taosGetTmpfilePath(tsTempDir, "tms-block-data", pSort->dataPath);
   pSort->dataFile = taosOpenFile(pSort->dataPath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
-  pSort->pBlkInfoCache = taosLRUCacheInit(2048, 0, 0.5);
+  pSort->pBlkInfoCache = taosLRUCacheInit(2048, -1, 0.5);
   taosLRUCacheSetStrictCapacity(pSort->pBlkInfoCache, false);
-  pSort->pBlkDataCache = taosLRUCacheInit(2048, 0, 0.5);
+  pSort->pBlkDataCache = taosLRUCacheInit(2048, -1, 0.5);
   taosLRUCacheSetStrictCapacity(pSort->pBlkInfoCache, false);
   return 0;
 }
