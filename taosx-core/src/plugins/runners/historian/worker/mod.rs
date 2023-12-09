@@ -1,9 +1,12 @@
+use std::cmp;
+
 use arrow::ipc::writer::StreamWriter;
-use chrono::Utc;
+use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc};
 use futures_util::TryStreamExt;
 use itertools::Itertools;
-use taosx_ipc::ack::AckReaderBuilder;
 use tiberius::QueryItem;
+
+use taosx_ipc::ack::AckReaderBuilder;
 
 use crate::runners::historian::arrow::ArrowDataAppender;
 use crate::runners::historian::config::{HistorianTable, TaskConfig};
@@ -79,6 +82,7 @@ pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
         let mut writer = StreamWriter::try_new(stream, &schema)?;
         while let Ok(batch) = rx.recv() {
             writer.write(&batch)?;
+            tracing::debug!("sync history write {} rows", batch.num_rows());
         }
         let _ = writer.finish()?;
         anyhow::Ok(())
@@ -94,19 +98,19 @@ pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
         let window_end = Utc::now();
 
         tracing::debug!(
-            "sync history {}, begin: {}, end: {}",
+            "sync history:{}, window_start: {}, window_end: {}",
             count,
             window_start,
             window_end
         );
 
         for tags in &tags_group {
-            tracing::debug!("sync history {} query rows", count);
+            tracing::debug!("sync history:{} query rows", count);
             let mut rows = query
                 .query_history(tags.clone(), window_start, window_end)
                 .await?;
 
-            tracing::debug!("sync history {} rows to batch", count);
+            tracing::debug!("sync history:{} rows to batch", count);
             while let Some(row) = rows.try_next().await? {
                 match row {
                     QueryItem::Row(row) => {
@@ -118,9 +122,9 @@ pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
                 }
             }
 
-            tracing::debug!("sync history {} batch finish", count);
+            tracing::debug!("sync history:{} batch finish", count);
             let batch = appender.finish()?;
-            tracing::debug!("sync history {} send batch to writer", count);
+            tracing::debug!("sync history:{} send batch to writer", count);
             tx.send_async(batch.clone()).await?;
 
             count += 1;
@@ -158,6 +162,7 @@ pub async fn sync_live(task_config: TaskConfig) -> anyhow::Result<()> {
         let mut writer = StreamWriter::try_new(stream, &schema)?;
         while let Ok(batch) = rx.recv() {
             writer.write(&batch)?;
+            tracing::debug!("sync live write {} rows", batch.num_rows());
         }
         let _ = writer.finish()?;
         anyhow::Ok(())
@@ -179,33 +184,48 @@ pub async fn sync_live(task_config: TaskConfig) -> anyhow::Result<()> {
     });
 
     let mut query = HistorianQuery::try_new(task_config.clone().connect).await?;
-    let tags_group = split_tags(task_config.tags.clone(), task_config.tag_list_size);
 
     let mut count: u64 = 1;
     loop {
-        for tags in &tags_group {
-            tracing::debug!("sync live {} query rows", count);
-            let mut rows = query.query_live(tags.clone()).await?;
+        tracing::debug!(
+            "sync live:{} query rows, now: {}",
+            count,
+            Local::now().to_string()
+        );
+        let mut rows = query.query_live(task_config.tags.clone()).await?;
 
-            tracing::debug!("sync live {} rows to batch", count);
-            while let Some(row) = rows.try_next().await? {
-                match row {
-                    QueryItem::Row(row) => {
-                        appender.append_live_row(row)?;
-                    }
-                    QueryItem::Metadata(_) => {
-                        continue;
+        tracing::debug!("sync live:{} traverse rows to batch", count);
+        let mut earliest = i64::MAX;
+        let mut latest = 0;
+        while let Some(row) = rows.try_next().await? {
+            match row {
+                QueryItem::Row(row) => {
+                    let ts = appender.append_live_row(row)?;
+                    if let Some(ts) = ts {
+                        earliest = cmp::min(ts, earliest);
+                        latest = cmp::max(ts, latest);
                     }
                 }
+                QueryItem::Metadata(_) => {
+                    continue;
+                }
             }
-
-            tracing::debug!("sync live {} batch finish", count);
-            let batch = appender.finish()?;
-            tracing::debug!("sync live {} send batch to writer", count);
-            tx.send_async(batch.clone()).await?;
-
-            count += 1;
         }
+
+        tracing::debug!(
+            "sync live:{} batch finish, earliest: {}({}), latest: {}({})",
+            count,
+            to_local_datetime(earliest),
+            earliest,
+            to_local_datetime(latest),
+            latest
+        );
+        let batch = appender.finish()?;
+
+        tracing::debug!("sync live:{} send batch to writer", count);
+        tx.send_async(batch.clone()).await?;
+
+        count += 1;
         tokio::time::sleep(task_config.retrieve_interval.to_std().unwrap()).await;
     }
 }
@@ -216,4 +236,22 @@ fn split_tags(tags: Vec<String>, size: usize) -> Vec<Vec<String>> {
         .into_iter()
         .map(|list| list.map(|s| s.to_string()).collect::<Vec<String>>())
         .collect_vec()
+}
+
+fn to_local_datetime(nanos_sec: i64) -> DateTime<Local> {
+    let naive_datetime = NaiveDateTime::from_timestamp_micros(nanos_sec / 1000).unwrap();
+    Local::now().timezone().from_utc_datetime(&naive_datetime)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_convert_datetime() {
+        let ts = 10_0000_0000_123_456_789;
+        let datetime = to_local_datetime(ts);
+
+        assert_eq!("2001-09-09 09:46:40.123456 +08:00", datetime.to_string());
+    }
 }

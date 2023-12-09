@@ -93,8 +93,8 @@ impl ArrowDataAppender {
         fields
     }
 
-    pub fn append_history_row(&mut self, row: Row) -> anyhow::Result<()> {
-        self.append_timestamp(&row, "DateTime", 0)?;
+    pub fn append_history_row(&mut self, row: Row) -> anyhow::Result<Option<i64>> {
+        let ts = self.append_timestamp(&row, "DateTime", 0)?;
         self.append_tag_name(&row, "TagName", 1)?;
         self.append_float64(&row, "Value", 2)?;
         self.append_string(&row, "vValue", 3)?;
@@ -106,11 +106,11 @@ impl ArrowDataAppender {
         self.append_string(&row, "SourceTag", 9)?;
         self.append_string(&row, "SourceServer", 10)?;
 
-        Ok(())
+        Ok(ts)
     }
 
-    pub fn append_live_row(&mut self, row: Row) -> anyhow::Result<()> {
-        self.append_timestamp(&row, "DateTime", 0)?;
+    pub fn append_live_row(&mut self, row: Row) -> anyhow::Result<Option<i64>> {
+        let ts = self.append_timestamp(&row, "DateTime", 0)?;
         self.append_tag_name(&row, "TagName", 1)?;
         self.append_float64(&row, "Value", 2)?;
         self.append_string(&row, "vValue", 3)?;
@@ -121,7 +121,7 @@ impl ArrowDataAppender {
         self.append_string(&row, "SourceTag", 8)?;
         self.append_string(&row, "SourceServer", 9)?;
 
-        Ok(())
+        Ok(ts)
     }
 
     fn append_tag_name(
@@ -158,15 +158,16 @@ impl ArrowDataAppender {
         row: &Row,
         column_name: &str,
         index: usize,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Option<i64>> {
         let val = row.try_get::<NaiveDateTime, _>(column_name)?;
-        match val {
+        let ts = match val {
             None => {
                 self.data_builders[index]
                     .as_any_mut()
                     .downcast_mut::<array::TimestampNanosecondBuilder>()
                     .unwrap()
                     .append_null();
+                None
             }
             Some(val) => {
                 let ts = Local::now()
@@ -182,9 +183,10 @@ impl ArrowDataAppender {
                     .downcast_mut::<array::TimestampNanosecondBuilder>()
                     .unwrap()
                     .append_value(ts);
+                Some(ts)
             }
-        }
-        Ok(())
+        };
+        Ok(ts)
     }
 
     fn append_string(&mut self, row: &Row, column_name: &str, index: usize) -> anyhow::Result<()> {

@@ -167,13 +167,14 @@ async fn exec_task(mut config: TaskConfig) -> anyhow::Result<()> {
     if tags.is_empty() {
         anyhow::bail!("tags cannot be empty");
     }
-    config.tags = tags;
 
     match (config.mode, config.table) {
         (TaskMode::Migrate, HistorianTable::History) => {
+            config.tags = tags;
             migrate_history(config.clone()).await?;
         }
         (TaskMode::Synchronize, HistorianTable::History) => {
+            config.tags = tags;
             sync_history(config.clone()).await?;
         }
         (TaskMode::Synchronize, HistorianTable::Live) => {
