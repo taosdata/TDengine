@@ -52,11 +52,19 @@ impl HistorianQuery {
 
     pub async fn query_live(&mut self, tags: Vec<String>) -> anyhow::Result<QueryStream> {
         let sql;
-        sql = format!(
-            "select {} from Runtime.dbo.Live where TagName in ({})",
-            LIVE_COLUMNS,
-            tags.iter().map(|t| { format!("'{}'", t) }).join(",")
-        );
+
+        if !tags.is_empty() && tags.len() == 1 && tags.get(0).unwrap() == "*" {
+            sql = format!(
+                "select {} from Runtime.dbo.Live where TagName not like 'Sys%'",
+                LIVE_COLUMNS
+            );
+        } else {
+            sql = format!(
+                "select {} from Runtime.dbo.Live where TagName in ({})",
+                LIVE_COLUMNS,
+                tags.iter().map(|t| { format!("'{}'", t) }).join(",")
+            );
+        }
 
         Ok(self.client.query(sql.as_str(), &[]).await?)
     }
@@ -189,7 +197,7 @@ mod tests {
     }
 
     #[test]
-    fn test_datetime_convert(){
+    fn test_datetime_convert() {
         let utc = Utc::now();
         dbg!(utc.to_rfc3339());
 
