@@ -73,6 +73,21 @@ pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
     set_tcp_keepalive(&ack_stream)?;
     ack_stream.set_read_timeout(None)?;
 
+    // handle ack from ipc reader
+    tokio::task::spawn_blocking(move || {
+        let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
+        for ack in ack_reader {
+            if !ack.success() {
+                tracing::error!("sync history write records error: {ack:?}",);
+                if let Some(message) = ack.message() {
+                    anyhow::bail!("IPC writer error: {message}")
+                }
+            }
+        }
+        tracing::info!("sync history ACK reader finished");
+        Ok(())
+    });
+
     let mut appender = ArrowDataAppender::try_new(HistorianTable::History)?;
     let schema = appender.schema().clone();
 
@@ -82,7 +97,7 @@ pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
         let mut writer = StreamWriter::try_new(stream, &schema)?;
         while let Ok(batch) = rx.recv() {
             writer.write(&batch)?;
-            tracing::debug!("sync history write {} rows", batch.num_rows());
+            tracing::info!("sync history write {} rows to ipc", batch.num_rows());
         }
         let _ = writer.finish()?;
         anyhow::Ok(())
@@ -114,7 +129,15 @@ pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
             while let Some(row) = rows.try_next().await? {
                 match row {
                     QueryItem::Row(row) => {
-                        appender.append_history_row(row)?;
+                        appender.append_history_row(row).map_err(|err| {
+                            let err_msg = format!(
+                                "sync history:{} append row error: {}",
+                                count,
+                                err.to_string()
+                            );
+                            tracing::error!(err_msg);
+                            anyhow::anyhow!(err_msg)
+                        })?;
                     }
                     QueryItem::Metadata(_) => {
                         continue;
@@ -162,7 +185,7 @@ pub async fn sync_live(task_config: TaskConfig) -> anyhow::Result<()> {
         let mut writer = StreamWriter::try_new(stream, &schema)?;
         while let Ok(batch) = rx.recv() {
             writer.write(&batch)?;
-            tracing::debug!("sync live write {} rows", batch.num_rows());
+            tracing::info!("sync live write {} rows to ipc", batch.num_rows());
         }
         let _ = writer.finish()?;
         anyhow::Ok(())
@@ -173,7 +196,7 @@ pub async fn sync_live(task_config: TaskConfig) -> anyhow::Result<()> {
         let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
         for ack in ack_reader {
             if !ack.success() {
-                tracing::warn!("write records error: {ack:?}",);
+                tracing::error!("sync live write records error: {ack:?}",);
                 if let Some(message) = ack.message() {
                     anyhow::bail!("IPC writer error: {message}")
                 }

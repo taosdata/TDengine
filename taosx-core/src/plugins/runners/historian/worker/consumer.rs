@@ -38,6 +38,7 @@ impl Consumer {
             let mut writer = StreamWriter::try_new(stream, &schema)?;
             while let Ok(batch) = rx.recv() {
                 writer.write(&batch)?;
+                tracing::info!("migrate history write {} rows to ipc", batch.num_rows());
             }
             let _ = writer.finish()?;
             anyhow::Ok(())
@@ -48,7 +49,7 @@ impl Consumer {
                 AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
             for ack in ack_reader {
                 if !ack.success() {
-                    tracing::warn!("write records error: {ack:?}",);
+                    tracing::error!("migrate history write records error: {ack:?}",);
                     if let Some(message) = ack.message() {
                         anyhow::bail!("IPC writer error: {message}")
                     }
@@ -58,6 +59,7 @@ impl Consumer {
             Ok(())
         });
 
+        let mut count: u64 = 1;
         while let Ok(task) = receiver.recv_async().await {
             let start = task
                 .begin_datetime
@@ -67,14 +69,24 @@ impl Consumer {
                 .ok_or(anyhow::anyhow!("endDateTime cannot be None"))?;
 
             // query
-            tracing::debug!("migrate history query, from: {}, to: {}", start, end);
+            tracing::debug!(
+                "migrate history:{} query, window_start: {}, window_end: {}",
+                count,
+                start,
+                end
+            );
             let mut rows = self.query.query_history(task.tags, start, end).await?;
-            tracing::debug!("migrate history rows to batch");
+
+            tracing::debug!("migrate history:{} rows to batch", count);
             while let Some(row) = rows.try_next().await? {
                 match row {
                     QueryItem::Row(row) => {
                         appender.append_history_row(row).map_err(|err| {
-                            let err_msg = format!("append history row error: {}", err.to_string());
+                            let err_msg = format!(
+                                "migrate history:{} append row error: {}",
+                                count,
+                                err.to_string()
+                            );
                             tracing::error!(err_msg);
                             anyhow::anyhow!(err_msg)
                         })?;
@@ -84,10 +96,12 @@ impl Consumer {
                     }
                 }
             }
-            // write batch
+
             let batch = appender.finish()?;
+            tracing::debug!("migrate history:{} send batch to writer", count);
             tx.send_async(batch.clone()).await?;
-            tracing::debug!("migrate history write batch to ipc: {}", batch.num_rows());
+
+            count += 1;
         }
         drop(tx);
 
