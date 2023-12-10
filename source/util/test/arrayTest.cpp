@@ -83,20 +83,115 @@ TEST(arrayTest, array_search_test) {
   taosArrayDestroy(pa);
 }
 
+// call taosArrayResize
 TEST(arrayTest, array_data_correct) {
   SArray* pa = (SArray*)taosArrayInit(1, sizeof(int32_t));
+  SArray* pa1 = (SArray*)taosArrayInit(1, sizeof(int32_t));
   size_t cnt = 1000;
+
 
   for (int32_t i = 0; i < cnt; ++i) {
     taosArrayPush(pa, &i);
+    int32_t v = cnt + i;
+    taosArrayPush(pa1, &v);
   }
   ASSERT_EQ(taosArrayGetSize(pa), cnt);
+  ASSERT_EQ(taosArrayAddBatch(pa, NULL, 0), nullptr);
+  ASSERT_NE(taosArrayAddBatch(pa, taosArrayGet(pa1, 0), cnt), nullptr);
 
   int32_t* pv = NULL;
-  for (int32_t i = 0; i < cnt; i++) {
+  for (int32_t i = 0; i < cnt*2; i++) {
     pv = (int32_t*)taosArrayGet(pa, i);
     ASSERT_EQ(*pv, i);
   }
 
+  taosArrayDestroy(pa);
+}
+
+// free
+static void arrayFree(void *param) {
+  void *pItem = *(void **)param;
+  if (pItem != NULL) {
+    taosMemoryFree(pItem);
+  }
+}
+
+// string compare
+static int32_t strCompare(const void *a, const void *b) {
+  const char *x = *(const char **)a;
+  const char *y = *(const char **)b;
+
+  return strcmp(x, y);
+}
+
+// int32 compare
+static int int32Compare(const void* a, const void* b) {
+  int32_t l = *(int32_t*)a;
+  int32_t r = *(int32_t*)b;
+  return l - r;
+}
+
+// no need free
+TEST(arrayTest, check_duplicate_nofree) {
+  // no need free item
+  int32_t count = 5;
+  SArray* pa = taosArrayInit(1, sizeof(int32_t));
+  for (int32_t i = 1; i <= count; i++) {
+    for (int32_t j = 0; j < i; j++) {
+      taosArrayPush(pa, &i);
+      printf(" nofree put i=%d v=%d\n",i, i);
+    }
+  }
+
+  taosArrayRemoveDuplicate(pa, int32Compare, NULL);
+  printf("nofree taosArrayRemoveDuplicate size=%d\n", (int32_t)taosArrayGetSize(pa));
+  ASSERT_EQ(taosArrayGetSize(pa), count);
+  for (int32_t i = 1; i <= count; i++) {
+    int32_t v = *(int32_t*)taosArrayGet(pa, i-1);
+    printf(" nofree get i=%d v=%d\n",i, v);
+    ASSERT_EQ(v, i);
+  }
+
+  taosArrayDestroy(pa);
+}
+
+// need free
+TEST(arrayTest, check_duplicate_needfree) {
+  // no need free item
+  int32_t count = 5;
+  const char* format="hello-word-%d";
+  SArray *pa = taosArrayInit(1, sizeof(char *));
+  for (int32_t i = 1; i <= count; i++) {
+    for (int32_t j = 0; j < i; j++) {
+      char *v = (char *)taosMemoryCalloc(100, sizeof(char));
+      sprintf(v, format, i);
+      printf(" needfree put i=%d v=%s\n", i, v);
+      taosArrayPush(pa, v);
+    }
+  }
+
+  taosArrayRemoveDuplicate(pa, strCompare, arrayFree);
+  printf("needfree taosArrayRemoveDuplicate size=%d\n", (int32_t)taosArrayGetSize(pa));
+  ASSERT_EQ(taosArrayGetSize(pa), count);
+  char value[100];
+  for (int32_t i = 1; i <= count; i++) {
+    sprintf(value, format, i);
+    char * v = (char *)taosArrayGetP(pa, i - 1);
+    printf(" needfree get i=%d v=%s\n", i, v);
+    ASSERT_STREQ(v, value);
+  }
+
+  taosArrayDestroyP(pa, arrayFree);
+}
+
+// over all
+TEST(arrayTest, check_overall) {
+  
+  ASSERT_EQ(taosArrayInit(1, 0), nullptr);
+  ASSERT_EQ(taosArrayInit(9999999999999, 10000), nullptr);
+  ASSERT_EQ(taosArrayInit_s(10000,9999999999999), nullptr);
+
+  SArray* pa = taosArrayInit(1, sizeof(uint64_t));
+  
   taosArrayDestroy(pa);
 }
