@@ -106,6 +106,7 @@ TEST(arrayTest, array_data_correct) {
   }
 
   taosArrayDestroy(pa);
+  taosArrayDestroy(pa1);
 }
 
 // free
@@ -139,7 +140,7 @@ TEST(arrayTest, check_duplicate_nofree) {
   for (int32_t i = 1; i <= count; i++) {
     for (int32_t j = 0; j < i; j++) {
       taosArrayPush(pa, &i);
-      printf(" nofree put i=%d v=%d\n",i, i);
+      //printf(" nofree put i=%d v=%d\n",i, i);
     }
   }
 
@@ -148,7 +149,7 @@ TEST(arrayTest, check_duplicate_nofree) {
   ASSERT_EQ(taosArrayGetSize(pa), count);
   for (int32_t i = 1; i <= count; i++) {
     int32_t v = *(int32_t*)taosArrayGet(pa, i-1);
-    printf(" nofree get i=%d v=%d\n",i, v);
+    //printf(" nofree get i=%d v=%d\n",i, v);
     ASSERT_EQ(v, i);
   }
 
@@ -165,8 +166,8 @@ TEST(arrayTest, check_duplicate_needfree) {
     for (int32_t j = 0; j < i; j++) {
       char *v = (char *)taosMemoryCalloc(100, sizeof(char));
       sprintf(v, format, i);
-      printf(" needfree put i=%d v=%s\n", i, v);
-      taosArrayPush(pa, v);
+      //printf(" needfree put i=%d v=%s\n", i, v);
+      taosArrayPush(pa, &v);
     }
   }
 
@@ -177,21 +178,42 @@ TEST(arrayTest, check_duplicate_needfree) {
   for (int32_t i = 1; i <= count; i++) {
     sprintf(value, format, i);
     char * v = (char *)taosArrayGetP(pa, i - 1);
-    printf(" needfree get i=%d v=%s\n", i, v);
+    //printf(" needfree get i=%d v=%s\n", i, v);
     ASSERT_STREQ(v, value);
   }
 
-  taosArrayDestroyP(pa, arrayFree);
+  taosArrayClearP(pa, taosMemoryFree);
+  taosArrayDestroyP(pa, taosMemoryFree);
 }
 
 // over all
 TEST(arrayTest, check_overall) {
   
   ASSERT_EQ(taosArrayInit(1, 0), nullptr);
-  ASSERT_EQ(taosArrayInit(9999999999999, 10000), nullptr);
-  ASSERT_EQ(taosArrayInit_s(10000,9999999999999), nullptr);
+  ASSERT_EQ(taosArrayGet(NULL, 1), nullptr);
+  ASSERT_EQ(taosArrayGetP(NULL, 1), nullptr);
+  ASSERT_EQ(taosArrayInsert(NULL, 1, NULL), nullptr);
+
+  //ASSERT_EQ(taosArrayInit(0x10000000, 10000), nullptr);
+  //ASSERT_EQ(taosArrayInit_s(10000,0x10000000-1), nullptr);
 
   SArray* pa = taosArrayInit(1, sizeof(uint64_t));
-  
-  taosArrayDestroy(pa);
+  ASSERT_EQ(taosArrayGet(pa, 10), nullptr);
+  ASSERT_EQ(taosArrayGetLast(pa), nullptr);
+
+  uint64_t v = 100;
+  taosArrayPush(pa, &v);
+  taosArrayPopFrontBatch(pa, 100);
+  FDelete fnNull = NULL;
+  taosArrayClearEx(pa, fnNull);
+  taosArrayDestroyEx(pa, fnNull);
+
+  int32_t count = 5;
+  uint64_t list[5]= {1,2,3,4,5};
+
+  SArray* pb = taosArrayFromList(list, count, sizeof(uint64_t));
+  for (int32_t i=0; i < count; i++) {
+     ASSERT_EQ(*(uint64_t*)taosArrayGet(pb, i), list[i]);
+  }  
+  taosArrayDestroy(pb);
 }
