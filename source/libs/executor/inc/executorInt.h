@@ -280,8 +280,7 @@ typedef struct STmsSortRowIdInfo {
   char idxPath[PATH_MAX];
   TdFilePtr dataFile;
   char dataPath[PATH_MAX];
-  SLRUCache* pBlkInfoCache; // blkId->(offset, len)
-  SLRUCache* pBlkDataCache;  // blkId->SSDataBlock*
+  SSHashObj* pBlkDataHash;  // blkId->SSDataBlock*
 } STmsSortRowIdInfo;
 
 typedef struct STableMergeScanInfo {
