@@ -23,7 +23,7 @@ Depending on your TDengine server version, download appropriate version of TDeng
 
 ### Configure Data Source
 
-Please refer to [ODBC](../../connector/odbc) to configure TDengine ODBC Driver with WebSocket connection.
+Please refer to [ODBC](../../client-libraries/odbc) to configure TDengine ODBC Driver with WebSocket connection.
 
 ### Import Data from TDengine to Power BI
 
