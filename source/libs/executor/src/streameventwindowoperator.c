@@ -486,6 +486,11 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
       return pInfo->pCheckpointRes;
     }
 
+    if (pInfo->recvGetAll) {
+      pInfo->recvGetAll = false;
+      resetUnCloseSessionWinInfo(pInfo->streamAggSup.pResultRows);
+    }
+
     setOperatorCompleted(pOperator);
     return NULL;
   }
@@ -510,6 +515,7 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
       deleteSessionWinState(&pInfo->streamAggSup, pBlock, pInfo->pSeUpdated, pInfo->pSeDeleted);
       continue;
     } else if (pBlock->info.type == STREAM_GET_ALL) {
+      pInfo->recvGetAll = true;
       getAllSessionWindow(pInfo->streamAggSup.pResultRows, pInfo->pSeUpdated);
       continue;
     } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
@@ -672,6 +678,7 @@ SOperatorInfo* createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhys
       .calTrigger = pEventNode->window.triggerType,
       .maxTs = INT64_MIN,
       .minTs = INT64_MAX,
+      .deleteMark = getDeleteMark(&pEventNode->window, 0),
   };
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
@@ -720,6 +727,7 @@ SOperatorInfo* createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhys
 
   pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
   pInfo->reCkBlock = false;
+  pInfo->recvGetAll = false;
 
   // for stream
   void*   buff = NULL;
