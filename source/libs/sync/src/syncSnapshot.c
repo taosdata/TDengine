@@ -126,6 +126,12 @@ void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
     taosMemoryFree(pSender->snapshotParam.data);
     pSender->snapshotParam.data = NULL;
   }
+
+  if (pSender->snapshot.data) {
+    taosMemoryFree(pSender->snapshot.data);
+    pSender->snapshot.data = NULL;
+  }
+
   // free sender
   taosMemoryFree(pSender);
 }
@@ -185,6 +191,10 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   sSInfo(pSender, "snapshot sender start, to dnode:%d.", DID(&destId));
   code = 0;
 _out:
+  if (snapInfo.data) {
+    taosMemoryFree(snapInfo.data);
+    snapInfo.data = NULL;
+  }
   return code;
 }
 
@@ -423,6 +433,16 @@ void snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver) {
       sError("vgId:%d, snapshot receiver stop failed while destroy since %s", pReceiver->pSyncNode->vgId, terrstr());
     }
     pReceiver->pWriter = NULL;
+  }
+
+  if (pReceiver->snapshotParam.data) {
+    taosMemoryFree(pReceiver->snapshotParam.data);
+    pReceiver->snapshotParam.data = NULL;
+  }
+
+  if (pReceiver->snapshot.data) {
+    taosMemoryFree(pReceiver->snapshot.data);
+    pReceiver->snapshot.data = NULL;
   }
 
   // free snap buf
