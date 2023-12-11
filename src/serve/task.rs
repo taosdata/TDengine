@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use taos::Code;
 use taosx_core::utils::metrics_db::MetricsDb;
 use taosx_core::{
+    core_metrics::{self, CoreMetrics},
     get_data_dir, get_file_upload_home_dir, LegacyMetrics, METRICS_TIME_COST,
     METRICS_TIME_RECORDS_PER_SECOND, METRICS_TIME_START,
 };
@@ -486,17 +487,6 @@ pub(super) async fn get_task_activities_by_id(
     }
 }
 
-/// Get Task activities by given task id.
-///
-#[utoipa::path(
-    tag = "tasks",
-    responses(
-        (status = 200, description = "Task activities of the task", body = Vec < TaskActivity >),
-    ),
-    params(
-        ("id", description = "Unique storage id of Task"),
-    ),
-)]
 #[get("/tasks/{id}/metrics")]
 #[instrument(skip_all)]
 pub(super) async fn get_task_metrics(
@@ -618,6 +608,32 @@ pub(crate) async fn get_task_metrics_from_snapshot(
         }
     }
     Some(serde_json::to_string(&map).unwrap())
+}
+
+#[get("/tasks/{id}/metrics2")]
+#[instrument(skip_all)]
+/// New API for task metrics. will repacle the old one when all test passed
+/// Get metrics json string of a task for displaying on the web UI
+pub(super) async fn get_task_metrics_for_explorer(
+    task_store: Data<TaskControllerRef>,
+    id: Path<i64>,
+) -> impl Responder {
+    let task_id = id.into_inner();
+    let metrics = core_metrics::get_metrics(task_id);
+    if let Some(metrics_arc) = metrics {
+        let metrics = metrics_arc.as_ref();
+        match metrics {
+            CoreMetrics::Legacy(legacy_metrics) => {
+                let task = task_store.get(task_id).await.unwrap().unwrap();
+                let status = task.status();
+                let running = status == Status::Running;
+                core_metrics::get_legacy_metrics_for_explorer(running, legacy_metrics)
+            }
+            CoreMetrics::TMQ(_tmq_metrics) => todo!(),
+        }
+    } else {
+        return "{}".to_string();
+    }
 }
 
 #[derive(Debug, MultipartForm, ToSchema)]

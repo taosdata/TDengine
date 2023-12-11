@@ -6,7 +6,10 @@ use taos::{Consumer, *};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
-use crate::{sync_super_table_schema, sync_super_table_schema_with_subs, tmq::*, Action};
+use crate::{
+    core_metrics::CoreMetrics, metric::LegacyToTaosMetrics, sync_super_table_schema,
+    sync_super_table_schema_with_subs, tmq::*, Action,
+};
 use dashmap::DashMap;
 use metrics::counter;
 use taos::taos_query::tmq::Assignment;
@@ -153,7 +156,9 @@ async fn write_data(
                             let from = source.get().await?;
                             let target_opts = Default::default();
                             sync_super_table_schema(&from, &stable, taos, None, &target_opts, actions).await.context("Create sub table error")?;
-                            sync_super_table_schema_with_subs(&from, &stable, &[source_table_name], taos, None, &target_opts, true,actions, &Default::default()).await.context("Create sub table error")?;
+                            // 临时代码，保证编译通过
+                            let metrics_arc = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
+                            sync_super_table_schema_with_subs(&from, &stable, &[source_table_name], taos, None, &target_opts, true,actions, metrics_arc).await.context("Create sub table error")?;
                             taos.write_raw_block(&raw)
                                 .await
                                 .context("Write raw block into target error")?;

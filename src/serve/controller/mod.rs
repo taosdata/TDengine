@@ -32,6 +32,7 @@ use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::utils::breakpoints::breakpoints_get_all;
 use taosx_core::{
@@ -1204,7 +1205,7 @@ impl TaskController {
                 taosx_core::utils::breakpoints::breakpoints_clear(&task_id)?;
 
                 // metrics_clear
-                let _ = taosx_core::utils::metrics_db::MetricsDb::clear(&task_id);
+                clear_metrics(id);
 
                 tracing::info!("successfully deleted task by id {id}");
                 anyhow::Ok(())
