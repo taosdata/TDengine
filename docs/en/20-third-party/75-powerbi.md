@@ -9,7 +9,7 @@ description: Use PowerBI and TDengine to analyze time series data
 With TDengine ODBC driver, PowerBI can access time series data stored in TDengine. You can import tag data, original time series data, or aggregated data into PowerBI from TDengine, to create reports or dashboard without any coding effort.
 
 ## Steps
-![Power BI use step](./powerbi-step-zh.webp)
+![Power BI use step](./powerbi-step-en.webp)
 
 ### Prerequisites
 
