@@ -16,7 +16,10 @@ When you query a supertable, you may need to partition the supertable by some di
 PARTITION BY part_list
 ```
 
-part_list can be any scalar expression, such as a column, constant, scalar function, or a combination of the preceding items.
+part_list can be any scalar expression, such as a column, constant, scalar function, or a combination of the preceding items. For example, grouping data by label location, taking the average voltage within each group.
+```sql
+select avg(voltage) from meters partition by location
+```
 
 A PARTITION BY clause is processed as follows:
 
@@ -28,7 +31,10 @@ A PARTITION BY clause is processed as follows:
 select max(current) from meters partition by location interval(10m)
 ```
 
-The most common usage of PARTITION BY is partitioning the data in subtables by tags then perform computation when querying data in a supertable. More specifically, `PARTITION BY TBNAME` partitions the data of each subtable into a single timeline, and this method facilitates the statistical analysis in many use cases of processing timeseries data.
+The most common usage of PARTITION BY is partitioning the data in subtables by tags then perform computation when querying data in a supertable. More specifically, `PARTITION BY TBNAME` partitions the data of each subtable into a single timeline, and this method facilitates the statistical analysis in many use cases of processing timeseries data. For example, calculate the average voltage of each meter every 10 minutes£º
+```sql
+select avg(voltage) from meters partition by tbname interval(10m)
+```
 
 ## Windowed Queries
 
