@@ -1345,12 +1345,12 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
   return buildIntervalResult(pOperator);
 }
 
-static int64_t getDeleteMark(SIntervalPhysiNode* pIntervalPhyNode) {
-  if (pIntervalPhyNode->window.deleteMark <= 0) {
+int64_t getDeleteMark(SWindowPhysiNode* pWinPhyNode, int64_t interval) {
+  if (pWinPhyNode->deleteMark <= 0) {
     return DEAULT_DELETE_MARK;
   }
-  int64_t deleteMark = TMAX(pIntervalPhyNode->window.deleteMark, pIntervalPhyNode->window.watermark);
-  deleteMark = TMAX(deleteMark, pIntervalPhyNode->interval);
+  int64_t deleteMark = TMAX(pWinPhyNode->deleteMark, pWinPhyNode->watermark);
+  deleteMark = TMAX(deleteMark, interval);
   return deleteMark;
 }
 
@@ -1442,7 +1442,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
       .calTrigger = pIntervalPhyNode->window.triggerType,
       .maxTs = INT64_MIN,
       .minTs = INT64_MAX,
-      .deleteMark = getDeleteMark(pIntervalPhyNode),
+      .deleteMark = getDeleteMark(&pIntervalPhyNode->window, pIntervalPhyNode->interval),
       .deleteMarkSaved = 0,
       .calTriggerSaved = 0,
   };
@@ -2565,7 +2565,7 @@ void doStreamSessionSaveCheckpoint(SOperatorInfo* pOperator) {
   taosMemoryFree(buf);
 }
 
-static void resetUnCloseSessionWinInfo(SSHashObj* winMap) {
+void resetUnCloseSessionWinInfo(SSHashObj* winMap) {
   void*   pIte = NULL;
   int32_t iter = 0;
   while ((pIte = tSimpleHashIterate(winMap, pIte, &iter)) != NULL) {
@@ -3963,7 +3963,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
                                          .calTrigger = pIntervalPhyNode->window.triggerType,
                                          .maxTs = INT64_MIN,
                                          .minTs = INT64_MAX,
-                                         .deleteMark = getDeleteMark(pIntervalPhyNode)};
+                                         .deleteMark = getDeleteMark(&pIntervalPhyNode->window, pIntervalPhyNode->interval)};
 
   ASSERTS(pInfo->twAggSup.calTrigger != STREAM_TRIGGER_MAX_DELAY, "trigger type should not be max delay");
 

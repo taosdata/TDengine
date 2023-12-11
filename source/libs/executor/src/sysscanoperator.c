@@ -2304,7 +2304,7 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
     void*  pList = tableListGetInfo(pTableListInfo, 0);
 
     code = readHandle->api.tsdReader.tsdReaderOpen(readHandle->vnode, &cond, pList, num, pInfo->pResBlock,
-                                                   (void**)&pInfo->pHandle, pTaskInfo->id.str, false, NULL);
+                                                   (void**)&pInfo->pHandle, pTaskInfo->id.str, NULL);
     cleanupQueryTableDataCond(&cond);
     if (code != 0) {
       goto _error;

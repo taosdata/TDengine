@@ -195,6 +195,10 @@ int32_t updateEventWindowInfo(SStreamAggSupporter* pAggSup, SEventWindowInfo* pW
       pWinInfo->pWinFlag->endFlag = ends[i];
     } else if (pWin->ekey == pTsData[i]) {
       pWinInfo->pWinFlag->endFlag |= ends[i];
+    } else {
+      *pRebuild = true;
+      pWinInfo->pWinFlag->endFlag |= ends[i];
+      return i + 1 - start;
     }
 
     memcpy(pWinInfo->winInfo.pStatePos->pKey, &pWinInfo->winInfo.sessionWin, sizeof(SSessionKey));
@@ -319,6 +323,9 @@ static void doStreamEventAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
       tSimpleHashRemove(pSeUpdated, &curWin.winInfo.sessionWin, sizeof(SSessionKey));
       doDeleteEventWindow(pAggSup, pSeUpdated, &curWin.winInfo.sessionWin);
       releaseOutputBuf(pAggSup->pState, curWin.winInfo.pStatePos, &pAPI->stateStore);
+      SSessionKey tmpSeInfo = {0};
+      getSessionHashKey(&curWin.winInfo.sessionWin, &tmpSeInfo);
+      tSimpleHashPut(pStDeleted, &tmpSeInfo, sizeof(SSessionKey), NULL, 0);
       continue;
     }
     code = doOneWindowAggImpl(&pInfo->twAggSup.timeWindowData, &curWin.winInfo, &pResult, i, winRows, rows, numOfOutput,
@@ -479,6 +486,11 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
       return pInfo->pCheckpointRes;
     }
 
+    if (pInfo->recvGetAll) {
+      pInfo->recvGetAll = false;
+      resetUnCloseSessionWinInfo(pInfo->streamAggSup.pResultRows);
+    }
+
     setOperatorCompleted(pOperator);
     return NULL;
   }
@@ -503,6 +515,7 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
       deleteSessionWinState(&pInfo->streamAggSup, pBlock, pInfo->pSeUpdated, pInfo->pSeDeleted);
       continue;
     } else if (pBlock->info.type == STREAM_GET_ALL) {
+      pInfo->recvGetAll = true;
       getAllSessionWindow(pInfo->streamAggSup.pResultRows, pInfo->pSeUpdated);
       continue;
     } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
@@ -665,6 +678,7 @@ SOperatorInfo* createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhys
       .calTrigger = pEventNode->window.triggerType,
       .maxTs = INT64_MIN,
       .minTs = INT64_MAX,
+      .deleteMark = getDeleteMark(&pEventNode->window, 0),
   };
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
@@ -713,6 +727,7 @@ SOperatorInfo* createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhys
 
   pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
   pInfo->reCkBlock = false;
+  pInfo->recvGetAll = false;
 
   // for stream
   void*   buff = NULL;
