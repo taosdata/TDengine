@@ -1,7 +1,7 @@
 import requests
 from fabric2 import Connection
-from util.log import *
-from util.common import *
+from log import *
+from common import *
 
 
 class TAdapter:

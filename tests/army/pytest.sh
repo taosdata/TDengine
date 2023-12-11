@@ -58,6 +58,12 @@ echo "SIM_DIR  : $SIM_DIR"
 echo "CODE_DIR : $CODE_DIR"
 echo "ASAN_DIR  : $ASAN_DIR"
 
+# prevent delete / folder or /usr/bin
+if [ ${#SIM_DIR} -lt 10 ]; then
+   echo "len(SIM_DIR) < 10 , danger so exit. SIM_DIR=$SIM_DIR"
+   exit 1
+fi
+
 rm -rf $SIM_DIR/*
 
 mkdir -p $PRG_DIR

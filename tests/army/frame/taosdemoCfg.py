@@ -19,7 +19,7 @@ import inspect
 import psutil
 import shutil
 import json
-from util.log import *
+from log import *
 from multiprocessing import cpu_count
 
 

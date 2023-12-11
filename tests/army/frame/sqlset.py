@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
-from util.sql import tdSql
+from sql import tdSql
 
 class TDSetSql:
     def init(self, conn, logSql):

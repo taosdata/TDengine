@@ -15,7 +15,7 @@ import sys
 import os
 import time
 import datetime
-from util.log import *
+from log import *
 
 class TDSub:
 	def __init__(self):

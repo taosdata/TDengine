@@ -18,14 +18,14 @@ import time
 import socket
 import json
 import toml
-from util.boundary import DataBoundary
+from boundary import DataBoundary
 import taos
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
-from util.constant import *
+from log import *
+from sql import *
+from cases import *
+from dnodes import *
+from common import *
+from constant import *
 from dataclasses import dataclass,field
 from typing import List
 from datetime import datetime

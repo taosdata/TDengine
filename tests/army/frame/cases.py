@@ -18,7 +18,7 @@ import datetime
 import inspect
 import importlib
 import traceback
-from util.log import *
+from log import *
 
 
 class TDCase:

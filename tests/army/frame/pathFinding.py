@@ -13,7 +13,7 @@
 
 
 import os
-from util.log import *
+from log import *
 
 
 

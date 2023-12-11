@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 import sys
-from util.log import *
-from util.cases import *
-from util.sql import *
+from log import *
+from cases import *
+from sql import *
 import threading
 import random
 import string

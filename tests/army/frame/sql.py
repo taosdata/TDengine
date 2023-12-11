@@ -20,8 +20,8 @@ import traceback
 import psutil
 import shutil
 import pandas as pd
-from util.log import *
-from util.constant import *
+from log import *
+from constant import *
 
 # from datetime import timezone
 import time
@@ -607,14 +607,14 @@ class TDSql:
         pstate = 0
         for i in range(30):
             pstate = 0
-            pl = psutil.pids()
+            pl = pspids()
             for pid in pl:
                 try:
-                    if psutil.Process(pid).name() == 'taosd':
+                    if psProcess(pid).name() == 'taosd':
                         print('have already started')
                         pstate = 1
                         break
-                except psutil.NoSuchProcess:
+                except psNoSuchProcess:
                     pass
             if pstate == state :break
             if state or pstate:
@@ -646,7 +646,7 @@ class TDSql:
             tdLog.exit("dir: %s doesn't exist" %dir)
     def createDir(self, dir):
         if os.path.exists(dir):
-            shutil.rmtree(dir)
+            shrmtree(dir)
             tdLog.info("dir: %s is removed" %dir)
         os.makedirs( dir, 755 )
         tdLog.info("dir: %s is created" %dir)
