@@ -166,8 +166,7 @@ typedef void (*TsdReaderNotifyCbFn)(ETsdReaderNotifyType type, STsdReaderNotifyI
 
 typedef struct TsdReader {
   int32_t      (*tsdReaderOpen)(void* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
-                           SSDataBlock* pResBlock, void** ppReader, const char* idstr, bool countOnly,
-                           SHashObj** pIgnoreTables);
+                           SSDataBlock* pResBlock, void** ppReader, const char* idstr, SHashObj** pIgnoreTables);
   void         (*tsdReaderClose)();
   void         (*tsdSetReaderTaskId)(void *pReader, const char *pId);
   int32_t      (*tsdSetQueryTableList)();
