@@ -32,45 +32,45 @@ class TDTestCase:
 
         expectErrInfo = "syntax error"
         # 异常场景：timestamp + timestamp
-        tdSql.error("insert into test_t values(now + today(), 1 );", expectErrInfo=expectErrInfo)
-        tdSql.error("insert into test_t values(now - today(), 1 );", expectErrInfo=expectErrInfo)
-        tdSql.error("insert into test_t values(today() + now(), 1 ); ", expectErrInfo=expectErrInfo)
-        tdSql.error("insert into test_t values(today() - now(), 1 ); ", expectErrInfo=expectErrInfo)
-        tdSql.error("insert into test_t values('2023-11-28 00:00:00.000' + '2023-11-28 00:00:00.000', 1 ); ", expectErrInfo=expectErrInfo)
-        tdSql.error("insert into test_t values('2023-11-28 00:00:00.000' + 1701111600000, 1 ); ", expectErrInfo=expectErrInfo)
-        tdSql.error("insert into test_t values(1701111500000 + 1701111600000, 1 ); ", expectErrInfo=expectErrInfo)
+        tdSql.error("insert into test_t values(now + today(), 1 );", expectErrInfo=expectErrInfo, fullMatched=False)
+        tdSql.error("insert into test_t values(now - today(), 1 );", expectErrInfo=expectErrInfo, fullMatched=False)
+        tdSql.error("insert into test_t values(today() + now(), 1 ); ", expectErrInfo=expectErrInfo, fullMatched=False)
+        tdSql.error("insert into test_t values(today() - now(), 1 ); ", expectErrInfo=expectErrInfo, fullMatched=False)
+        tdSql.error("insert into test_t values('2023-11-28 00:00:00.000' + '2023-11-28 00:00:00.000', 1 ); ", expectErrInfo=expectErrInfo, fullMatched=False)
+        tdSql.error("insert into test_t values('2023-11-28 00:00:00.000' + 1701111600000, 1 ); ", expectErrInfo=expectErrInfo, fullMatched=False)
+        tdSql.error("insert into test_t values(1701111500000 + 1701111600000, 1 ); ", expectErrInfo=expectErrInfo, fullMatched=False)
 
         # 异常场景：timestamp + interval + interval
-        tdSql.error("insert into test_t values(today() + 1d + 1s, 1);", expectErrInfo=expectErrInfo)
+        tdSql.error("insert into test_t values(today() + 1d + 1s, 1);", expectErrInfo=expectErrInfo, fullMatched=False)
 
         # 异常场景：interval - timestamp
-        tdSql.error("insert into test_t values(2h - now(), 1 ); ", expectErrInfo=expectErrInfo)
-        tdSql.error("insert into test_t values(2h - today(), 1 ); ", expectErrInfo=expectErrInfo)
+        tdSql.error("insert into test_t values(2h - now(), 1 ); ", expectErrInfo=expectErrInfo, fullMatched=False)
+        tdSql.error("insert into test_t values(2h - today(), 1 ); ", expectErrInfo=expectErrInfo, fullMatched=False)
 
         # 异常场景：interval + interval
-        tdSql.error("insert into test_t values(2h - 1h, 1 ); ", expectErrInfo=expectErrInfo)
-        tdSql.error("insert into test_t values(2h + 1h, 1 ); ", expectErrInfo=expectErrInfo)
+        tdSql.error("insert into test_t values(2h - 1h, 1 ); ", expectErrInfo=expectErrInfo, fullMatched=False)
+        tdSql.error("insert into test_t values(2h + 1h, 1 ); ", expectErrInfo=expectErrInfo, fullMatched=False)
 
         # 异常场景：非法interval类型n
-        tdSql.error("insert into test_t values(today() + 2n, 7); ", expectErrInfo=expectErrInfo)
+        tdSql.error("insert into test_t values(today() + 2n, 7); ", expectErrInfo=expectErrInfo, fullMatched=False)
 
         # 异常场景：非法interval类型y
-        tdSql.error("insert into test_t values(today() - 2y, 8);", expectErrInfo=expectErrInfo)
+        tdSql.error("insert into test_t values(today() - 2y, 8);", expectErrInfo=expectErrInfo, fullMatched=False)
 
         # 异常场景：数据类型不对
-        tdSql.error("insert into test_t values('a1701619200000', 8);", expectErrInfo=expectErrInfo)
-        tdSql.error("insert into test_t values('ss2023-12-05 00:00:00.000' + '1701619200000', 1);", expectErrInfo=expectErrInfo)
+        tdSql.error("insert into test_t values('a1701619200000', 8);", expectErrInfo=expectErrInfo, fullMatched=False)
+        tdSql.error("insert into test_t values('ss2023-12-05 00:00:00.000' + '1701619200000', 1);", expectErrInfo=expectErrInfo, fullMatched=False)
         tdSql.error("insert into test_t values(123456, 1);", expectErrInfo="Timestamp data out of range")
-        tdSql.error("insert into test_t values(123.456, 1);", expectErrInfo=expectErrInfo)
-        tdSql.error("insert into test_t values(True, 1);", expectErrInfo=expectErrInfo)
-        tdSql.error("insert into test_t values(None, 1);", expectErrInfo=expectErrInfo)
-        tdSql.error("insert into test_t values(null, 1);", expectErrInfo=expectErrInfo)
+        tdSql.error("insert into test_t values(123.456, 1);", expectErrInfo=expectErrInfo, fullMatched=False)
+        tdSql.error("insert into test_t values(True, 1);", expectErrInfo=expectErrInfo, fullMatched=False)
+        tdSql.error("insert into test_t values(None, 1);", expectErrInfo=expectErrInfo, fullMatched=False)
+        tdSql.error("insert into test_t values(null, 1);", expectErrInfo=expectErrInfo, fullMatched=False)
 
         # 异常场景：格式不对
-        tdSql.error("insert into test_t values('2023-122-05 00:00:00.000' + '1701619200000', 1);", expectErrInfo=expectErrInfo)
-        tdSql.error("insert into test_t values('2023-12--05 00:00:00.000' + '1701619200000', 1);", expectErrInfo=expectErrInfo)
-        tdSql.error("insert into test_t values('12/12/2023' + 10a, 1);", expectErrInfo=expectErrInfo)
-        tdSql.error("insert into test_t values(1701619200000111, 1);", expectErrInfo="Timestamp data out of range")
+        tdSql.error("insert into test_t values('2023-122-05 00:00:00.000' + '1701619200000', 1);", expectErrInfo=expectErrInfo, fullMatched=False)
+        tdSql.error("insert into test_t values('2023-12--05 00:00:00.000' + '1701619200000', 1);", expectErrInfo=expectErrInfo, fullMatched=False)
+        tdSql.error("insert into test_t values('12/12/2023' + 10a, 1);", expectErrInfo=expectErrInfo, fullMatched=False)
+        tdSql.error("insert into test_t values(1701619200000111, 1);", expectErrInfo="Timestamp data out of range", fullMatched=False)
 
         # 正常场景：timestamp + interval
         tdSql.execute("insert into test_t values(today() + 2b, 1);")
