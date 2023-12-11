@@ -20,8 +20,6 @@
 #include <stdint.h>
 #include "tgrant.h"
 
-#define GRANT_MACHINE_V3117 3117
-
 #ifdef GRANT_VALUE
 #define GRANT_EXPIRE_DAY      atoi(GRANT_VALUE)
 #define GRANT_DEFAULT         (GRANT_EXPIRE_DAY*86400)
@@ -95,10 +93,11 @@
 #define GRANT_DIST_MIN                 1689552000  // 2023-07-17 08:00:00
 
 // uniq grant
+#define GRANT_UNIQ_ACTIVE_VER            1
 #define GRANT_UNIQ_ACTIVE_KEY_LEN        255
-#define GRANT_UNIQ_ACTIVE_RAW_LEN        80
-#define GRANT_UNIQ_ACTIVE_ENCRYPT_LEN    72
-#define GRANT_UNIQ_HASH_LEN              (GRANT_UNIQ_ACTIVE_RAW_LEN - GRANT_UNIQ_ACTIVE_ENCRYPT_LEN)
+#define GRANT_UNIQ_ACTIVE_RAW_LEN        184
+#define GRANT_UNIQ_ACTIVE_ENCRYPT_LEN    176
+#define GRANT_UNIQ_HASH_LEN              8
 
 #define GRANT_UNIQ_UNLIMITED             (-1)
 #define GRANT_UNIQ_UNDEFINED             (-2)

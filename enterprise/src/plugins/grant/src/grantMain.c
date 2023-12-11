@@ -83,6 +83,15 @@
     }                                             \
   } while (0)
 
+#define GRANT_LIMIT_TD_TO_UNIQ(td, uniq, max) \
+  do {                                        \
+    if ((td) == GRANT_LEGACY_LIMITS) {        \
+      (uniq) = GRANT_UNIQ_UNLIMITED;          \
+    } else {                                  \
+      (uniq) = (td) > (max) ? (max) : (td);   \
+    }                                         \
+  } while (0)
+
 #define GRANT_ITEM_TO_DATAIN(inField, iField, iLimits, iUndef) \
   do {                                                         \
     if ((iField) == (iLimits)) {                               \
@@ -188,7 +197,6 @@ typedef SGrantUniqStatus GrantStatus;
 typedef SGrantMsg        GrantMsg;
 
 extern SGrantUniqObj grantObj;
-extern int32_t       grantMachineVer;
 extern char          tsVersionName[16];
 extern int64_t       tsExpireTime;
 
@@ -654,11 +662,12 @@ static int32_t genUniqActiveFromLegacy(SGrantUniqObj *pObj, SGrantStatus *pStatu
     pObj->bakRstExpireDay = pObj->basicExpireDay;
     pObj->replicaExpireDay = pObj->basicExpireDay;
     pObj->auditExpireDay = pObj->basicExpireDay;
-    pObj->limitCpuCores = pStatus->limitCpuCores;
-    pObj->limitDnodes = pStatus->limitDnodes;
-    pObj->limitStreams = pStatus->limitStreams;
+    GRANT_LIMIT_TD_TO_UNIQ(pStatus->limitCpuCores, pObj->limitCpuCores, INT32_MAX);
+    GRANT_LIMIT_TD_TO_UNIQ(pStatus->limitDnodes, pObj->limitDnodes, INT16_MAX);
+    GRANT_LIMIT_TD_TO_UNIQ(pStatus->limitStreams, pObj->limitStreams, INT16_MAX);
+    GRANT_LIMIT_TD_TO_UNIQ(pStatus->limitCpuCores, pObj->limitTopics, INT16_MAX);
+    GRANT_LIMIT_TD_TO_UNIQ(pStatus->limitTimeSeries, pObj->limitTimeSeries, INT64_MAX);
     pObj->limitTopics = GRANT_UNIQ_UNLIMITED;
-    pObj->limitTimeSeries = pStatus->limitTimeSeries;
   } else {
     pObj->basicExpireDay = GRANT_UNIQ_UNDEFINED;
     pObj->multiTierExpireDay = GRANT_UNIQ_UNDEFINED;
@@ -674,25 +683,27 @@ static int32_t genUniqActiveFromLegacy(SGrantUniqObj *pObj, SGrantStatus *pStatu
     pObj->limitTimeSeries = GRANT_UNIQ_UNDEFINED;
   }
 
-  int32_t index = 0;
+  int32_t i = 0;
   if (IS_GRANT_CONNECTORS(pStatus)) {
-    for (int32_t i = 0; i < CONN_TYPE_MAX_V1; ++i) {
+    for (i = 0; i < CONN_TYPE_MAX_V1; ++i) {
       SGrantDataIns  *pIn = pObj->ins + i;
       SGrantConnItem *pItem = GRANT_CONN_ITEM(pStatus, i);
       GRANT_ITEM_TO_DATAIN(pIn->number, pItem->number, GRANT_CONN_LIMITS, GRANT_CONN_NUM_UNDEF);
       GRANT_ITEM_TO_DATAIN(pIn->speed, pItem->speed, GRANT_CONN_LIMITS, GRANT_CONN_SPEED_UNDEF);
       GRANT_ITEM_TO_DATAIN(pIn->expire, pItem->expire, GRANT_CONN_EXPIRE_LIMITS, GRANT_CONN_EXPIRE_UNDEF);
     }
-    index = CONN_TYPE_MAX_V1;
   }
-  for (int32_t i = index; i < CONN_TYPE_MAX; ++i) {
-    SGrantDataIns  *pIn = pObj->ins + i;
+  for (int32_t j = i; j < CONN_TYPE_MAX; ++j) {
+    SGrantDataIns *pIn = pObj->ins + j;
     pIn->number = GRANT_UNIQ_UNDEFINED;
     pIn->speed = GRANT_UNIQ_UNDEFINED;
     pIn->expire = GRANT_UNIQ_UNDEFINED;
   }
 
-  grantUniqGenActiveCode(pObj);
+  if(grantUniqGenActiveCode(pObj)){
+    // mndCfgDnodeReq(0, 0, 0);
+  }
+
   return 0;
 }
 
