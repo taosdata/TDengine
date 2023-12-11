@@ -683,7 +683,10 @@ static int32_t syncSnapReceiverExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshot
   memcpy(pInfo->data, pMsg->data, pMsg->dataLen);
 
   // exchange snap info
-  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, pInfo);
+  if (pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, pInfo) != 0) {
+    sRError(pReceiver, "failed to get snapshot info. type: %d", pMsg->payloadType);
+    goto _out;
+  }
   SSyncTLV *datHead = pInfo->data;
   if (datHead->typ != TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
     sRError(pReceiver, "unexpected data typ in data of snapshot info. typ: %d", datHead->typ);
