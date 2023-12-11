@@ -529,7 +529,8 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
     for (const STfsFile *file = NULL; (file = tfsReaddir(dir)) != NULL;) {
       if (taosIsDir(file->aname)) continue;
 
-      if (tsdbFSGetFileObjHashEntry(&fobjHash, file->aname) == NULL) {
+      if (tsdbFSGetFileObjHashEntry(&fobjHash, file->aname) == NULL &&
+          strncmp(file->aname + strlen(file->aname) - 3, ".cp", 3)) {
         int32_t nlevel = tfsGetLevel(fs->tsdb->pVnode->pTfs);
         remove_file(file->aname, nlevel > 1 && file->did.level == nlevel - 1);
       }

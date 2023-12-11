@@ -7,7 +7,7 @@
 int32_t cos_cp_open(char const* cp_path, SCheckpoint* checkpoint) {
   int32_t code = 0;
 
-  TdFilePtr fd = taosOpenFile(cp_path, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  TdFilePtr fd = taosOpenFile(cp_path, TD_FILE_WRITE | TD_FILE_CREATE /* | TD_FILE_TRUNC*/ | TD_FILE_WRITE_THROUGH);
   if (!fd) {
     code = TAOS_SYSTEM_ERROR(errno);
     uError("ERROR: %s Failed to open %s", __func__, cp_path);
@@ -51,6 +51,11 @@ static int32_t cos_cp_parse_body(char* cp_body, SCheckpoint* cp) {
   item = cJSON_GetObjectItem(json, "md5");
   if (cJSON_IsString(item)) {
     memcpy(cp->md5, item->valuestring, strlen(item->valuestring));
+  }
+
+  item = cJSON_GetObjectItem(json, "upload_id");
+  if (cJSON_IsString(item)) {
+    strncpy(cp->upload_id, item->valuestring, 128);
   }
 
   item2 = cJSON_GetObjectItem(json, "file");
@@ -111,39 +116,39 @@ static int32_t cos_cp_parse_body(char* cp_body, SCheckpoint* cp) {
       cp->part_size = item->valuedouble;
     }
 
-    item2 = cJSON_GetObjectItem(json, "parts");
+    item2 = cJSON_GetObjectItem(item2, "parts");
     if (cJSON_IsArray(item2) && cp->part_num > 0) {
       cJSON_ArrayForEach(item, item2) {
         cJSON const* item3 = cJSON_GetObjectItem(item, "index");
         int32_t      index = 0;
         if (cJSON_IsNumber(item3)) {
-          index = item->valuedouble;
+          index = item3->valuedouble;
           cp->parts[index].index = index;
         }
 
         item3 = cJSON_GetObjectItem(item, "offset");
         if (cJSON_IsNumber(item3)) {
-          cp->parts[index].offset = item->valuedouble;
+          cp->parts[index].offset = item3->valuedouble;
         }
 
         item3 = cJSON_GetObjectItem(item, "size");
         if (cJSON_IsNumber(item3)) {
-          cp->parts[index].size = item->valuedouble;
+          cp->parts[index].size = item3->valuedouble;
         }
 
         item3 = cJSON_GetObjectItem(item, "completed");
         if (cJSON_IsNumber(item3)) {
-          cp->parts[index].completed = item->valuedouble;
+          cp->parts[index].completed = item3->valuedouble;
         }
 
         item3 = cJSON_GetObjectItem(item, "crc64");
         if (cJSON_IsNumber(item3)) {
-          cp->parts[index].crc64 = item->valuedouble;
+          cp->parts[index].crc64 = item3->valuedouble;
         }
 
         item3 = cJSON_GetObjectItem(item, "etag");
-        if (cJSON_IsString(item)) {
-          strncpy(cp->parts[index].etag, item->valuestring, 128);
+        if (cJSON_IsString(item3)) {
+          strncpy(cp->parts[index].etag, item3->valuestring, 128);
         }
       }
     }
@@ -214,6 +219,10 @@ static int32_t cos_cp_save_json(cJSON const* json, SCheckpoint* checkpoint) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _exit;
   }
+  if (taosLSeekFile(fp, 0, SEEK_SET) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _exit;
+  }
   if (taosWriteFile(fp, data, strlen(data)) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _exit;
@@ -248,6 +257,11 @@ int32_t cos_cp_dump(SCheckpoint* cp) {
   }
 
   if (NULL == cJSON_AddStringToObject(json, "md5", cp->md5)) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  if (NULL == cJSON_AddStringToObject(json, "upload_id", cp->upload_id)) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TSDB_CHECK_CODE(code, lino, _exit);
   }

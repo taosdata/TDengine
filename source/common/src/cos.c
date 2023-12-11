@@ -744,9 +744,13 @@ clean:
     taosMemoryFree(parts);
   }
   */
+  if (cp.thefile) {
+    cos_cp_close(cp.thefile);
+  }
   if (cp.parts) {
     taosMemoryFree(cp.parts);
   }
+
   if (manager.upload_id) {
     taosMemoryFree(manager.upload_id);
   }
