@@ -100,7 +100,7 @@ int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, boo
    }
    
    if (0 != pNewRequest->msgBuf[0]) {
-     memcpy(pRequest->msgBuf, pNewRequest->msgBuf, pRequest->msgBufLen - 1);
+     strncpy(pRequest->msgBuf, pNewRequest->msgBuf, pRequest->msgBufLen - 1);
      pRequest->msgBuf[pRequest->msgBufLen - 1] = 0;
    }
    
