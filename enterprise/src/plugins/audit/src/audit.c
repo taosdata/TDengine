@@ -131,7 +131,6 @@ void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *
     }
   }
 
-/*
   SAuditRecord *record = taosMemoryMalloc(sizeof(SAuditRecord));
 
   if(pReq != NULL && pReq->info.conn.user != NULL && strlen(pReq->info.conn.user) > 0){
@@ -158,11 +157,9 @@ void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *
   taosThreadMutexLock(&tsAudit.lock);
   taosArrayPush(tsAudit.records, &record);
   taosThreadMutexUnlock(&tsAudit.lock);
-  */
 }
 
 void auditSendRecordsInBatchImp(){
-  /*
   taosThreadMutexLock(&tsAudit.lock);
 
   int setSize = taosArrayGetSize(tsAudit.records);
@@ -202,7 +199,8 @@ void auditSendRecordsInBatchImp(){
   taosThreadMutexUnlock(&tsAudit.lock);
 
   char *pCont = tjsonToString(pJson);
-  uDebug("audit record cont:%s\n", pCont);
+  uDebug("audit batch record count: %d\n", setSize);
+  //uDebugL("audit batch record count: %d ,cont:%s\n", setSize, pCont);
   if (pCont != NULL) {
     EHttpCompFlag flag = tsAudit.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
     if (taosSendHttpReport(tsAudit.cfg.server, tsAuditBatchUri, tsAudit.cfg.port, pCont, strlen(pCont), flag) != 0) {
@@ -212,5 +210,4 @@ void auditSendRecordsInBatchImp(){
   }
 
   tjsonDelete(pJson);
-  */
 }
