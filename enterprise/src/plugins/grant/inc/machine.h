@@ -61,6 +61,7 @@
 #define GRANT_ACTIVE_ENCRYPT_LEN  72
 #define GRANT_HASH_LEN            (GRANT_ACTIVE_RAW_LEN - GRANT_ACTIVE_ENCRYPT_LEN)
 
+#define GRANT_LEGACY_LIMITS        4102416000
 #define GRANT_EXPIRE_TIME          4102416000
 #define GRANT_STORAGE_LIMITS       4102416000
 #define GRANT_WRITING_SPEED_LIMITS 4102416000
@@ -88,6 +89,7 @@
 #define GRANT_CONN_LIMITS              (-1)
 #define GRANT_CONN_EXPIRE_LIMITS       65535
 #define GRANT_CONN_ITEM_UNDEF(g)       ((g)->number == GRANT_CONN_NUM_UNDEF)
+#define GRANT_CONN_ITEM_SET_UNDEF(g)   ((g)->number = GRANT_CONN_NUM_UNDEF)
 
 #define GRANT_CUR_TIME                 ((tsDndStart + tsDndUpTime)/1000)
 #define GRANT_DIST_MIN                 1689552000  // 2023-07-17 08:00:00
@@ -184,7 +186,7 @@ typedef struct {
 typedef struct {
   uint8_t        officialVersion;
   uint32_t       distribute;
-  SGrantConnItem items[CONN_TYPE_MAX_V1];
+  SGrantConnItem items[CONN_TYPE_MAX];
 } SGrantConnMsg;
 
 // server
