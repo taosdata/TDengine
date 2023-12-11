@@ -108,6 +108,19 @@ void syncSnapBlockDestroy(void *ptr) {
   taosMemoryFree(pBlk);
 }
 
+static int32_t snapshotSenderClearInfoData(SSyncSnapshotSender *pSender) {
+  if (pSender->snapshotParam.data) {
+    taosMemoryFree(pSender->snapshotParam.data);
+    pSender->snapshotParam.data = NULL;
+  }
+
+  if (pSender->snapshot.data) {
+    taosMemoryFree(pSender->snapshot.data);
+    pSender->snapshot.data = NULL;
+  }
+  return 0;
+}
+
 void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
   if (pSender == NULL) return;
 
@@ -122,15 +135,7 @@ void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
     syncSnapBufferDestroy(&pSender->pSndBuf);
   }
 
-  if (pSender->snapshotParam.data) {
-    taosMemoryFree(pSender->snapshotParam.data);
-    pSender->snapshotParam.data = NULL;
-  }
-
-  if (pSender->snapshot.data) {
-    taosMemoryFree(pSender->snapshot.data);
-    pSender->snapshot.data = NULL;
-  }
+  snapshotSenderClearInfoData(pSender);
 
   // free sender
   taosMemoryFree(pSender);
@@ -215,6 +220,8 @@ void snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
   }
 
   syncSnapBufferReset(pSender->pSndBuf);
+
+  snapshotSenderClearInfoData(pSender);
 
   SRaftId destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
   sSInfo(pSender, "snapshot sender stop, to dnode:%d, finish:%d", DID(&destId), finish);
@@ -422,6 +429,19 @@ SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId from
   return pReceiver;
 }
 
+static int32_t snapshotReceiverClearInfoData(SSyncSnapshotReceiver *pReceiver) {
+  if (pReceiver->snapshotParam.data) {
+    taosMemoryFree(pReceiver->snapshotParam.data);
+    pReceiver->snapshotParam.data = NULL;
+  }
+
+  if (pReceiver->snapshot.data) {
+    taosMemoryFree(pReceiver->snapshot.data);
+    pReceiver->snapshot.data = NULL;
+  }
+  return 0;
+}
+
 void snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver) {
   if (pReceiver == NULL) return;
 
@@ -435,20 +455,12 @@ void snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver) {
     pReceiver->pWriter = NULL;
   }
 
-  if (pReceiver->snapshotParam.data) {
-    taosMemoryFree(pReceiver->snapshotParam.data);
-    pReceiver->snapshotParam.data = NULL;
-  }
-
-  if (pReceiver->snapshot.data) {
-    taosMemoryFree(pReceiver->snapshot.data);
-    pReceiver->snapshot.data = NULL;
-  }
-
   // free snap buf
   if (pReceiver->pRcvBuf) {
     syncSnapBufferDestroy(&pReceiver->pRcvBuf);
   }
+
+  snapshotReceiverClearInfoData(pReceiver);
 
   // free receiver
   taosMemoryFree(pReceiver);
@@ -531,6 +543,8 @@ void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
   }
 
   syncSnapBufferReset(pReceiver->pRcvBuf);
+
+  snapshotReceiverClearInfoData(pReceiver);
 }
 
 static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg) {
