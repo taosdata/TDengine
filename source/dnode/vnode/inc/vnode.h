@@ -154,8 +154,7 @@ typedef struct STsdbReader STsdbReader;
 #define CACHESCAN_RETRIEVE_LAST        0x8
 
 int32_t      tsdbReaderOpen2(void *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
-                             SSDataBlock *pResBlock, void **ppReader, const char *idstr, bool countOnly,
-                             SHashObj **pIgnoreTables);
+                             SSDataBlock *pResBlock, void **ppReader, const char *idstr, SHashObj **pIgnoreTables);
 int32_t      tsdbSetTableList2(STsdbReader *pReader, const void *pTableList, int32_t num);
 void         tsdbReaderSetId2(STsdbReader *pReader, const char *idstr);
 void         tsdbReaderClose2(STsdbReader *pReader);

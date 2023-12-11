@@ -289,6 +289,9 @@ const char* syncStr(ESyncState state);
 
 int32_t    syncNodeGetConfig(int64_t rid, SSyncCfg *cfg);
 
+// util
+int32_t syncSnapInfoDataRealloc(SSnapshot* pSnap, int32_t size);
+
 #ifdef __cplusplus
 }
 #endif
