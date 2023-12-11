@@ -676,8 +676,6 @@ struct SDelFWriter {
 };
 
 #include "tarray2.h"
-// #include "tsdbFS2.h"
-//  struct STFileSet;
 typedef struct STFileSet STFileSet;
 typedef TARRAY2(STFileSet *) TFileSetArray;
 
@@ -786,20 +784,25 @@ typedef struct SBlockDataInfo {
   int32_t    sttBlockIndex;
 } SBlockDataInfo;
 
-typedef struct SSttBlockLoadInfo {
-  SBlockDataInfo blockData[2];      // buffered block data
-  int32_t        statisBlockIndex;  // buffered statistics block index
-  void          *statisBlock;       // buffered statistics block data
-  void          *pSttStatisBlkArray;
-  SArray        *aSttBlk;
-  int32_t        currentLoadBlockIndex;
-  STSchema      *pSchema;
-  int16_t       *colIds;
-  int32_t        numOfCols;
-  bool           checkRemainingRow;  // todo: no assign value?
-  bool           isLast;
-  bool           sttBlockLoaded;
+// todo: move away
+typedef struct {
+  SArray *pUid;
+  SArray *pFirstKey;
+  SArray *pLastKey;
+  SArray *pCount;
+} SSttTableRowsInfo;
 
+typedef struct SSttBlockLoadInfo {
+  SBlockDataInfo  blockData[2];  // buffered block data
+  SArray         *aSttBlk;
+  int32_t         currentLoadBlockIndex;
+  STSchema       *pSchema;
+  int16_t        *colIds;
+  int32_t         numOfCols;
+  bool            checkRemainingRow;  // todo: no assign value?
+  bool            isLast;
+  bool            sttBlockLoaded;
+  SSttTableRowsInfo info;
   SSttBlockLoadCostInfo cost;
 } SSttBlockLoadInfo;
 
@@ -888,27 +891,31 @@ typedef struct {
   _load_tomb_fn loadTombFn;
   void         *pReader;
   void         *idstr;
+  bool          rspRows;         // response the rows in stt-file, if possible
 } SMergeTreeConf;
 
-int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf);
+typedef struct SSttDataInfoForTable {
+  SArray* pTimeWindowList;
+  int64_t numOfRows;
+} SSttDataInfoForTable;
 
-void tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
-bool tMergeTreeNext(SMergeTree *pMTree);
-void tMergeTreePinSttBlock(SMergeTree *pMTree);
-void tMergeTreeUnpinSttBlock(SMergeTree *pMTree);
-bool tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
-void tMergeTreeClose(SMergeTree *pMTree);
+int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoForTable* pTableInfo);
+void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
+bool    tMergeTreeNext(SMergeTree *pMTree);
+void    tMergeTreePinSttBlock(SMergeTree *pMTree);
+void    tMergeTreeUnpinSttBlock(SMergeTree *pMTree);
+bool    tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
+void    tMergeTreeClose(SMergeTree *pMTree);
 
 SSttBlockLoadInfo *tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols);
-void               getSttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, SSttBlockLoadCostInfo *pLoadCost);
 void              *destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 void              *destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost);
 
 // tsdbCache ==============================================================================================
 typedef enum {
-  READ_MODE_COUNT_ONLY = 0x1,
-  READ_MODE_ALL,
-} EReadMode;
+  READER_EXEC_DATA = 0x1,
+  READER_EXEC_ROWS = 0x2,
+} EExecMode;
 
 typedef struct {
   TSKEY   ts;

@@ -1877,7 +1877,7 @@ static int32_t lastIterOpen(SFSLastIter *iter, STFileSet *pFileSet, STsdb *pTsdb
       .idstr = pr->idstr,
   };
 
-  code = tMergeTreeOpen2(&iter->mergeTree, &conf);
+  code = tMergeTreeOpen2(&iter->mergeTree, &conf, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     return -1;
   }
