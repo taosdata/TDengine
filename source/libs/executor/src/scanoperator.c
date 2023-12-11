@@ -3901,7 +3901,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
   int32_t  rowSize = pInfo->pResBlock->info.rowSize;
   uint32_t nCols = taosArrayGetSize(pInfo->pResBlock->pDataBlock);
-  pInfo->bufPageSize = getProperSortPageSize(rowSize, nCols);
+  pInfo->bufPageSize = getProperSortPageSize(pInfo->pSortInputBlock->info.rowSize, nCols);
 
   pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
 
