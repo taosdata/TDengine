@@ -21,6 +21,20 @@
 #endif
 #include "os.h"
 
+#if !defined(WINDOWS)
+
+#ifndef ALLOW_FORBID_FUNC
+#define malloc  MALLOC_FUNC_TAOS_FORBID
+#define calloc  CALLOC_FUNC_TAOS_FORBID
+#define realloc REALLOC_FUNC_TAOS_FORBID
+#define free    FREE_FUNC_TAOS_FORBID
+#ifdef strdup
+#undef strdup
+#define strdup STRDUP_FUNC_TAOS_FORBID
+#endif
+#endif  // ifndef ALLOW_FORBID_FUNC
+#endif  // if !defined(WINDOWS)
+
 #if defined(USE_TD_MEMORY) || defined(USE_ADDR2LINE)
 
 #define TD_MEMORY_SYMBOL ('T' << 24 | 'A' << 16 | 'O' << 8 | 'S')
