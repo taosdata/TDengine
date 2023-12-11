@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use itertools::Itertools;
 use tiberius::{AuthMethod, Client, Config, QueryItem, QueryStream};
 use tokio::net::TcpStream;
@@ -52,11 +52,19 @@ impl HistorianQuery {
 
     pub async fn query_live(&mut self, tags: Vec<String>) -> anyhow::Result<QueryStream> {
         let sql;
-        sql = format!(
-            "select {} from Runtime.dbo.Live where TagName in ({})",
-            LIVE_COLUMNS,
-            tags.iter().map(|t| { format!("'{}'", t) }).join(",")
-        );
+
+        if !tags.is_empty() && tags.len() == 1 && tags.get(0).unwrap() == "*" {
+            sql = format!(
+                "select {} from Runtime.dbo.Live where TagName not like 'Sys%'",
+                LIVE_COLUMNS
+            );
+        } else {
+            sql = format!(
+                "select {} from Runtime.dbo.Live where TagName in ({})",
+                LIVE_COLUMNS,
+                tags.iter().map(|t| { format!("'{}'", t) }).join(",")
+            );
+        }
 
         Ok(self.client.query(sql.as_str(), &[]).await?)
     }
@@ -68,6 +76,9 @@ impl HistorianQuery {
         end: DateTime<Utc>,
     ) -> anyhow::Result<QueryStream> {
         let sql;
+
+        let begin: DateTime<Local> = DateTime::from(begin);
+        let end: DateTime<Local> = DateTime::from(end);
 
         sql = format!(
                 "select {} from Runtime.dbo.History where TagName in ({}) and DateTime >= '{}' and DateTime < '{}' and wwRetrievalMode = 'full'",
@@ -105,10 +116,14 @@ impl HistorianQuery {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::runners::historian::config::connect::ConnectConfig;
     use std::str::FromStr;
+
+    use chrono::{Local, NaiveDateTime, TimeZone};
     use taos::Dsn;
+
+    use crate::runners::historian::config::connect::ConnectConfig;
+
+    use super::*;
 
     #[tokio::test]
     #[ignore]
@@ -157,12 +172,36 @@ mod tests {
         while let Some(row) = rows.try_next().await.unwrap() {
             match row {
                 QueryItem::Row(row) => {
-                    dbg!(row);
+                    let date_time = row
+                        .try_get::<NaiveDateTime, &str>("DateTime")
+                        .unwrap()
+                        .unwrap();
+
+                    dbg!(date_time);
+
+                    let ts = Local::now()
+                        .fixed_offset()
+                        .timezone()
+                        .from_local_datetime(&date_time)
+                        .unwrap()
+                        .timestamp_nanos_opt()
+                        .unwrap();
+
+                    dbg!(ts);
                 }
                 QueryItem::Metadata(_) => {
                     continue;
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_datetime_convert() {
+        let utc = Utc::now();
+        dbg!(utc.to_rfc3339());
+
+        let local: DateTime<Local> = DateTime::from(utc);
+        dbg!(local.to_rfc3339());
     }
 }

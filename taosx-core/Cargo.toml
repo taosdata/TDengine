@@ -122,6 +122,7 @@ tiberius = { version = "0.12.2", default-features = false, features = [
 ] }
 
 sled = "0.34.7"
+socket2 = "0.5.5"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }

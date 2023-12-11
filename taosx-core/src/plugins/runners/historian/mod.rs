@@ -167,13 +167,14 @@ async fn exec_task(mut config: TaskConfig) -> anyhow::Result<()> {
     if tags.is_empty() {
         anyhow::bail!("tags cannot be empty");
     }
-    config.tags = tags;
 
     match (config.mode, config.table) {
         (TaskMode::Migrate, HistorianTable::History) => {
+            config.tags = tags;
             migrate_history(config.clone()).await?;
         }
         (TaskMode::Synchronize, HistorianTable::History) => {
+            config.tags = tags;
             sync_history(config.clone()).await?;
         }
         (TaskMode::Synchronize, HistorianTable::Live) => {
@@ -185,17 +186,54 @@ async fn exec_task(mut config: TaskConfig) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// set tcp keep alive
+pub fn set_tcp_keepalive(stream: &std::net::TcpStream) -> anyhow::Result<()> {
+    let sock_ref = socket2::SockRef::from(stream);
+    let keep_alive = socket2::TcpKeepalive::new()
+        .with_time(Duration::from_secs(10))
+        .with_interval(Duration::from_secs(10));
+    sock_ref.set_tcp_keepalive(&keep_alive)?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs::File;
     use std::io::Write;
+    use std::net::TcpListener;
     use std::str::FromStr;
+    use std::thread;
 
     use chrono::{DateTime, NaiveDateTime, Utc};
     use rand::Rng;
     use taos::Dsn;
 
     use super::*;
+
+    #[test]
+    fn test_set_tcp_keepalive() {
+        let server = thread::spawn(|| {
+            let listener = TcpListener::bind("127.0.0.1:54321").unwrap();
+
+            for stream in listener.incoming() {
+                let _ = stream.unwrap();
+                println!("connection established!");
+                thread::sleep(Duration::from_secs(5));
+                break;
+            }
+        });
+
+        let stream = std::net::TcpStream::connect("127.0.0.1:54321").unwrap();
+        set_tcp_keepalive(&stream).unwrap();
+
+        let sock_ref = socket2::SockRef::from(&stream);
+        assert_eq!(true, sock_ref.keepalive().unwrap());
+        assert_eq!(10, sock_ref.keepalive_time().unwrap().as_secs());
+        assert_eq!(10, sock_ref.keepalive_interval().unwrap().as_secs());
+
+        server.join().unwrap();
+    }
 
     #[tokio::test]
     async fn test_is_valid() {

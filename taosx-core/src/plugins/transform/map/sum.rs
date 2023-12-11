@@ -1,13 +1,8 @@
 use std::fmt::Debug;
-use std::sync::Arc;
 
-use arrow::array::Array;
-use arrow::{array::ArrayRef, datatypes::FieldRef, record_batch::RecordBatch};
-use arrow_schema::Field;
+use arrow::{array::ArrayRef, record_batch::RecordBatch};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-
-use taosx_ipc::prelude::IpcDataType;
 
 use crate::plugins::expr::Expr;
 
@@ -19,29 +14,19 @@ pub struct SumValueBuilder {
 }
 
 impl ValueBuilder for SumValueBuilder {
-    fn build_field(
-        &self,
-        name: &str,
-        records: &RecordBatch,
-        _as: Option<IpcDataType>,
-    ) -> Result<(FieldRef, ArrayRef), ValueBuilderError> {
+    fn build_from(&self, record: &RecordBatch) -> Result<ArrayRef, ValueBuilderError> {
         let sum_expr = self.sum.iter().join("+");
         let expr = Expr::try_new(sum_expr, true).map_err(|err| {
             let err_msg = format!("failed to build sum expression, cause: {}", err.to_string());
             return ValueBuilderError::SumError(err_msg);
         })?;
 
-        let values = expr
-            .eval(records, _as.map(|d_type| d_type.arrow_data_type()))
-            .map_err(|err| {
-                let err_msg = format!("failed to calculate sum, cause: {}", err.to_string());
-                return ValueBuilderError::SumError(err_msg);
-            })?;
+        let values = expr.eval(record, None).map_err(|err| {
+            let err_msg = format!("failed to calculate sum, cause: {}", err.to_string());
+            return ValueBuilderError::SumError(err_msg);
+        })?;
 
-        Ok((
-            Arc::new(Field::new(name, values.data_type().clone(), true)),
-            values,
-        ))
+        Ok(values)
     }
 }
 
@@ -49,8 +34,11 @@ impl ValueBuilder for SumValueBuilder {
 mod tests {
     use std::sync::Arc;
 
-    use arrow::array::{new_null_array, Array, Float32Array, Float64Array, Int64Array};
+    use arrow::array::{
+        new_null_array, Array, Float32Array, Float64Array, Int64Array, StringArray,
+    };
     use arrow_schema::DataType;
+    use taosx_ipc::prelude::IpcDataType;
 
     use super::*;
 
@@ -148,6 +136,35 @@ mod tests {
         let builder: SumValueBuilder = serde_json::from_str(r#"{"sum": ["a", "b", "c"]}"#).unwrap();
         let batch = RecordBatch::try_from_iter([
             ("a", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
+            (
+                "b",
+                Arc::new(new_null_array(&DataType::Int64, 3)) as ArrayRef,
+            ),
+            ("c", Arc::new(Int64Array::from(vec![1, 2, 3])) as ArrayRef),
+        ])
+        .unwrap();
+
+        let (field, value) = builder
+            .build_field("sum", &batch, Some(IpcDataType::Float64))
+            .unwrap();
+
+        assert_eq!(field.name(), "sum");
+        assert_eq!(field.data_type(), &DataType::Float64);
+        assert_eq!(value.len(), 3);
+        let arr = value.as_any().downcast_ref::<Float64Array>().unwrap();
+        assert_eq!(arr.value(0), 0f64);
+        assert_eq!(arr.value(1), 0f64);
+        assert_eq!(arr.value(2), 0f64);
+    }
+
+    #[test]
+    fn test_sum_string_and_int() {
+        let builder: SumValueBuilder = serde_json::from_str(r#"{"sum": ["a", "b", "c"]}"#).unwrap();
+        let batch = RecordBatch::try_from_iter([
+            (
+                "a",
+                Arc::new(StringArray::from(vec!["1", "2", "3"])) as ArrayRef,
+            ),
             (
                 "b",
                 Arc::new(new_null_array(&DataType::Int64, 3)) as ArrayRef,

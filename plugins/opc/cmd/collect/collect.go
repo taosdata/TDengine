@@ -95,6 +95,9 @@ func handleMessage(manager *reporter.Manager) client.OnMessage {
 		}
 		var m = map[*reporter.ArrowReporter][]*common.NodeValue{}
 		for _, v := range message {
+			if v == nil {
+				continue
+			}
 			r, err := manager.GetReporter(v.Identifier, v.ValueType)
 			if err != nil {
 				logger.WithError(err).Error("get reporter error")

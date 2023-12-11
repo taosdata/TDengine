@@ -1,0 +1,13 @@
+{
+  "parser": { "parse": { "value": { "json": ["$.events[0].price=price"] } } },
+  "input": [
+    {
+      "ts": "now",
+      "topic": "topic",
+      "partition": "partition",
+      "offset": "offset",
+      "key": "key",
+      "value": "{\"id\":111,\"events\":[{\"price\": \"28405.2\",\"delta\": \"6\",\"boolValue\": \"true\"},{\"price\": \"38405.2\",\"delta\": \"7\", \"boolValue\": \"false\"}]}"
+    }
+  ]
+}
