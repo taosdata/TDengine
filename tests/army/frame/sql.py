@@ -20,7 +20,7 @@ import traceback
 import psutil
 import shutil
 import pandas as pd
-from log import *
+from frame.log import *
 from constant import *
 
 # from datetime import timezone

@@ -5,11 +5,11 @@ import time
 import os 
 import  socket
 
-from log import *
-from sql import *
-from cases import *
-from dnodes import *
-from common import *
+from frame.log import *
+from frame.sql import *
+from frame.cases import *
+from frame.dnodes import *
+from frame.common import *
 
 class ClusterDnodes(TDDnodes):
     """rewrite TDDnodes and make MyDdnodes as TDDnodes child class"""

@@ -15,7 +15,7 @@ import sys
 import os
 import os.path
 import subprocess
-from log import *
+from frame.log import *
 
 
 class TDSimClient:

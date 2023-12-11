@@ -13,7 +13,7 @@
 
 
 import os
-from log import *
+from frame.log import *
 
 
 

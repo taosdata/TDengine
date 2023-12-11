@@ -22,7 +22,7 @@ import base64
 import json
 import copy
 from fabric2 import Connection
-from log import *
+from frame.log import *
 from shutil import which
 
 

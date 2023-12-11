@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 import sys
-from log import *
-from cases import *
-from sql import *
+from frame.log import *
+from frame.cases import *
+from frame.sql import *
 import threading
 import random
 import string
