@@ -614,7 +614,7 @@ pub(crate) async fn get_task_metrics_from_snapshot(
 #[instrument(skip_all)]
 /// New API for task metrics. will repacle the old one when all test passed
 /// Get metrics json string of a task for displaying on the web UI
-pub(super) async fn get_task_metrics_for_explorer(
+pub(super) async fn get_task_metrics2(
     task_store: Data<TaskControllerRef>,
     id: Path<i64>,
 ) -> impl Responder {
