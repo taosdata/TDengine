@@ -97,6 +97,12 @@ public class PushPrepareThread implements Runnable {
                         }
                         // 重置计数
                         this.connectWaitCount = 0;
+                        // 为减小下游压力，此处增加睡眠
+                        try {
+                            Thread.sleep(10);
+                        } catch (InterruptedException e) {
+                            exception(start, StatusEnums.EXCEPTION, e);
+                        }
                     }
                 });
                 // 线程结束
