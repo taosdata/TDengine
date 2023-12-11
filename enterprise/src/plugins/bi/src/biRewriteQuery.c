@@ -36,7 +36,7 @@ static SNode* biMakeTbnameProjectAstNode(char* funcName, char* tableAlias) {
   }
 
   SFunctionNode* tbNameFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
-  memcpy(tbNameFunc->functionName, "tbname", strlen("tbname"));
+  strncpy(tbNameFunc->functionName, "tbname", strlen("tbname"));
   if (valNode != NULL) {
     nodesListMakeAppend(&tbNameFunc->pParameterList, (SNode*)valNode);
   }
@@ -49,7 +49,7 @@ static SNode* biMakeTbnameProjectAstNode(char* funcName, char* tableAlias) {
     return (SNode*)tbNameFunc;
   } else {
     SFunctionNode* multiResFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
-    memcpy(multiResFunc->functionName, funcName, strlen(funcName));
+    strncpy(multiResFunc->functionName, funcName, strlen(funcName));
     nodesListMakeAppend(&multiResFunc->pParameterList, (SNode*)tbNameFunc);
 
     if (tsKeepColumnName) {
