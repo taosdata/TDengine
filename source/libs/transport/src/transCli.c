@@ -261,10 +261,8 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
     }                                                                     \
     if (i == sz) {                                                        \
       pMsg = NULL;                                                        \
-      tDebug("msg not found, %" PRIu64 "", ahandle);                      \
     } else {                                                              \
       pMsg = transQueueRm(&conn->cliMsgs, i);                             \
-      tDebug("msg found, %" PRIu64 "", ahandle);                          \
     }                                                                     \
   } while (0)
 
@@ -1795,20 +1793,20 @@ static void cliAsyncCb(uv_async_t* handle) {
   QUEUE_MOVE(&item->qmsg, &wq);
   taosThreadMutexUnlock(&item->mtx);
 
-  if (rpcDebugFlag & DEBUG_TRACE) {
-    void* pIter = taosHashIterate(pThrd->msgCount, NULL);
-    while (pIter != NULL) {
-      int*   count = pIter;
-      size_t len = 0;
-      char*  key = taosHashGetKey(pIter, &len);
-      if (*count != 0) {
-        tDebug("key: %s count: %d", key, *count);
-      }
+  // if (rpcDebugFlag & DEBUG_TRACE) {
+  //   void* pIter = taosHashIterate(pThrd->msgCount, NULL);
+  //   while (pIter != NULL) {
+  //     int*   count = pIter;
+  //     size_t len = 0;
+  //     char*  key = taosHashGetKey(pIter, &len);
+  //     if (*count != 0) {
+  //       tDebug("key: %s count: %d", key, *count);
+  //     }
 
-      pIter = taosHashIterate(pThrd->msgCount, pIter);
-    }
-    tDebug("all conn count: %d", pThrd->newConnCount);
-  }
+  //     pIter = taosHashIterate(pThrd->msgCount, pIter);
+  //   }
+  //   tDebug("all conn count: %d", pThrd->newConnCount);
+  // }
 
   int8_t supportBatch = pTransInst->supportBatch;
   if (supportBatch == 0) {
@@ -1880,7 +1878,6 @@ void cliIteraConnMsgs(SCliConn* conn) {
 bool cliRecvReleaseReq(SCliConn* conn, STransMsgHead* pHead) {
   if (pHead->release == 1 && (pHead->msgLen) == sizeof(*pHead)) {
     uint64_t ahandle = pHead->ahandle;
-    tDebug("ahandle = %" PRIu64 "", ahandle);
     SCliMsg* pMsg = NULL;
     CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle);
 
