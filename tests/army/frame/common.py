@@ -18,7 +18,7 @@ import time
 import socket
 import json
 import toml
-from boundary import DataBoundary
+from frame.boundary import DataBoundary
 import taos
 from frame.log import *
 from frame.sql import *

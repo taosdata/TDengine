@@ -21,7 +21,7 @@ import psutil
 import shutil
 import pandas as pd
 from frame.log import *
-from constant import *
+from frame.constant import *
 
 # from datetime import timezone
 import time
