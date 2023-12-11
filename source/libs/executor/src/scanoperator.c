@@ -3254,10 +3254,8 @@ static int32_t transformIntoSortInputBlock(STableMergeScanInfo* pInfo, SSDataBlo
     releaseBufPage(pSortInfo->pExtSrcBlkBuf, pPage);
 
     blockDataDestroy(p);
-    uInfo("sort input block pageId %d start %d, stop %d", pageId, start, stop);
-    colDataSetNItems(blkIdCol, start, (char*)&pageId, stop-start+1, false);
-
     for (int32_t i = start; i <= stop; ++i) {
+      colDataSetInt32(blkIdCol, i, &pageId);
       int32_t rowIdx = i - start;
       colDataSetInt32(rowIdxCol, i, &rowIdx);
     }
@@ -3293,7 +3291,6 @@ void appendOneRowIdRowToDataBlock(STableMergeScanInfo* pInfo, SSDataBlock* pBloc
   int32_t blkId = *(int32_t*)tsortGetValue(pTupleHandle, 1);
   int32_t rowIdx = *(int32_t*)tsortGetValue(pTupleHandle, 2);
   SSDataBlock* pSrcBlk = NULL;
-  uInfo("sort tuple blkId %d, row idx %d", blkId, rowIdx);
   retrieveSourceBlock(pInfo, blkId, &pSrcBlk);
   
   for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
@@ -3411,10 +3408,11 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
 
     pOperator->resultInfo.totalRows += pBlock->info.rows;
 
-    SSDataBlock* pSortInputBlk = pInfo->pSortInputBlock;
+    SSDataBlock* pSortInputBlk = NULL;
     if (pInfo->bSortRowId) {
-      blockDataCleanup(pSortInputBlk);
-      transformIntoSortInputBlock(pInfo, pBlock, pSortInputBlk);
+      blockDataCleanup(pInfo->pSortInputBlock);
+      transformIntoSortInputBlock(pInfo, pBlock, pInfo->pSortInputBlock);
+      pSortInputBlk = pInfo->pSortInputBlock;
     } else {
       pSortInputBlk = pBlock;
     }
@@ -3474,7 +3472,9 @@ int32_t stopRowIdSort(STableMergeScanInfo *pInfo) {
   STmsSortRowIdInfo* pSort = &pInfo->tmsSortRowIdInfo;
 
   destroyDiskbasedBuf(pSort->pExtSrcBlkBuf);
+  pSort->pExtSrcBlkBuf = NULL;
   tSimpleHashCleanup(pSort->pBlkDataHash);
+  pSort->pBlkDataHash = NULL;
   return 0;
 }
 
