@@ -3220,36 +3220,96 @@ _error:
 }
 
 // ========================= table merge scan
-typedef struct STmsSortBlockInfo {
-  int32_t blkId;
-  int32_t length;
-  int64_t offset;
-} STmsSortBlockInfo;
 
-static int32_t saveSourceBlock(STmsSortRowIdInfo* pSortInfo, const SSDataBlock* pSrcBlock, int32_t *pSzBlk) {
-  int32_t szBlk = blockDataGetSize(pSrcBlock) + sizeof(int32_t) + taosArrayGetSize(pSrcBlock->pDataBlock) * sizeof(int32_t);
-  char* buf = taosMemoryMalloc(szBlk);
-  if (buf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+typedef struct STmsColVal {
+  char*   pData;
+  bool    isNull;
+  int16_t type;
+  int32_t bytes;
+} STmsColVal;
+
+static int32_t initColValsBuf(int32_t* rowBytes, char** rowBuf, const SArray* aColVals) {
+  int32_t numCols = taosArrayGetSize(aColVals);
+  for (int32_t i = 0; i < numCols; ++i) {
+    STmsColVal* pCol = (STmsColVal*)taosArrayGet(aColVals, i);
+    (*rowBytes) += pCol->bytes;  
   }
-  blockDataToBuf(buf, pSrcBlock);
-  taosLSeekFile(pSortInfo->dataFile, pSortInfo->dataFileOffset, SEEK_SET);
-  taosWriteFile(pSortInfo->dataFile, buf, szBlk);
-  taosMemoryFree(buf);
 
-  STmsSortBlockInfo info = {.blkId = pSortInfo->blkId
-                            , .offset = pSortInfo->dataFileOffset, .length = szBlk};
-  taosLSeekFile(pSortInfo->idxFile, pSortInfo->blkId*sizeof(STmsSortBlockInfo), SEEK_SET);
-  taosWriteFile(pSortInfo->idxFile, &info, sizeof(info));
+  int32_t nullFlagSize = sizeof(int8_t) * numCols;
+  (*rowBytes) += nullFlagSize;
 
-  *pSzBlk = szBlk;
+  if (*rowBytes >= 0) {
 
+    (*rowBuf) = taosMemoryCalloc(1, (*rowBytes));
+    if ((*rowBuf) == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t blockRowFromBuf(char* buf, int32_t bufLen,  SArray* aColVals) {
+  int32_t numOfCols = taosArrayGetSize(aColVals);
+  char* isNull = (char*)buf;
+  char* pStart = (char*)buf + sizeof(int8_t) * numOfCols;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    STmsColVal* pColVal = taosArrayGet(aColVals, i);
+    pColVal->isNull = isNull[i];
+    if (!isNull[i]) {
+      if (pColVal->type == TSDB_DATA_TYPE_JSON) {
+        int32_t dataLen = getJsonValueLen(pStart);
+        memcpy(pColVal->pData, pStart, dataLen);
+        pStart += dataLen;
+      } else if (IS_VAR_DATA_TYPE(pColVal->type)) {
+        varDataCopy(pColVal->pData, pStart);
+        pStart += varDataTLen(pStart);
+      } else {
+        int32_t bytes = pColVal->bytes;
+        memcpy(pColVal->pData, pStart, bytes);
+        pStart += bytes;
+      }
+    }
+  }
+  ASSERT(bufLen == pStart-buf);
   return 0;
 }
 
-static int32_t fillSortInputBlock(const STableMergeScanInfo* pInfo,
-                               const SSDataBlock* pSrcBlock, SSDataBlock* pSortInputBlk) {
-  const STmsSortRowIdInfo* pSortInfo = &pInfo->tmsSortRowIdInfo;
+static int32_t blockRowToBuf(SSDataBlock* pBlock, int32_t rowIdx, char* buf) {
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+
+  char* isNull = (char*)buf;
+  char* pStart = (char*)buf + sizeof(int8_t) * numOfCols;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (colDataIsNull_s(pCol, rowIdx)) {
+      isNull[i] = 1;
+      continue;
+    }
+
+    isNull[i] = 0;
+    char* pData = colDataGetData(pCol, rowIdx);
+    if (pCol->info.type == TSDB_DATA_TYPE_JSON) {
+      int32_t dataLen = getJsonValueLen(pData);
+      memcpy(pStart, pData, dataLen);
+      pStart += dataLen;
+    } else if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+      varDataCopy(pStart, pData);
+      pStart += varDataTLen(pData);
+    } else {
+      int32_t bytes = pCol->info.bytes;
+      memcpy(pStart, pData, bytes);
+      pStart += bytes;
+    }
+  }
+
+  return (int32_t)(pStart - (char*)buf);    
+}
+
+static int32_t transformIntoSortInputBlock(STableMergeScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pSortInputBlk) {
+  //TODO: batch save
+  int32_t code = 0;
+  STmsSortRowIdInfo* pSortInfo = &pInfo->tmsSortRowIdInfo;
 
   int32_t nRows = pSrcBlock->info.rows;
   pSortInputBlk->info.window = pSrcBlock->info.window;
@@ -3261,83 +3321,56 @@ static int32_t fillSortInputBlock(const STableMergeScanInfo* pInfo,
   SColumnInfoData* pSrcTsCol = taosArrayGet(pSrcBlock->pDataBlock, tsSlotId);
   colDataAssign(tsCol, pSrcTsCol, nRows, &pSortInputBlk->info);
 
-  SColumnInfoData* blkIdCol = taosArrayGet(pSortInputBlk->pDataBlock, 1);
-  colDataSetNItems(blkIdCol, 0, (char*)&pSortInfo->blkId, nRows, false);
+  SColumnInfoData* offsetCol = taosArrayGet(pSortInputBlk->pDataBlock, 1);
 
-  SColumnInfoData* rowIdxCol = taosArrayGet(pSortInputBlk->pDataBlock, 2);
+  SColumnInfoData* lenCol = taosArrayGet(pSortInputBlk->pDataBlock, 2);
+
   for (int32_t i = 0; i < nRows; ++i) {
-    colDataSetInt32(rowIdxCol, i, &i);
+    int32_t rowLen = blockRowToBuf(pSrcBlock, i, pSortInfo->rowBuf);
+    taosLSeekFile(pSortInfo->dataFile, pSortInfo->dataFileOffset, SEEK_SET);
+    taosWriteFile(pSortInfo->dataFile, pSortInfo->rowBuf, rowLen);
+    colDataSetInt64(offsetCol, i, &pSortInfo->dataFileOffset);
+    colDataSetInt32(lenCol, i, &rowLen);
+
+    pSortInfo->dataFileOffset = pSortInfo->dataFileOffset + rowLen;
   }
 
   pSortInputBlk->info.rows = nRows;
-  return 0;
-}
-
-static int32_t transformIntoSortInputBlock(STableMergeScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pSortInputBlk) {
-  //TODO: batch save
-  int32_t code = 0;
-  STmsSortRowIdInfo* pSortInfo = &pInfo->tmsSortRowIdInfo;
-  int32_t szBlk = 0;
-  code = saveSourceBlock(pSortInfo, pSrcBlock, &szBlk);
-
-  fillSortInputBlock(pInfo, pSrcBlock, pSortInputBlk);
-
-  ++pSortInfo->blkId;
-  pSortInfo->dataFileOffset = ((pSortInfo->dataFileOffset + szBlk) + 4096) & ~4096;
-
   return code;
 }
 
 
-static int32_t retrieveSourceBlock(STableMergeScanInfo* pInfo, int32_t blockId, SSDataBlock** ppBlock) {
+int32_t retrieveExtSourceRow(STableMergeScanInfo* pInfo, int64_t offset, int32_t length, SArray* aColVals) {
   STmsSortRowIdInfo* pSortInfo = &pInfo->tmsSortRowIdInfo;
 
-  void* pBlkHashVal  = tSimpleHashGet(pSortInfo->pBlkDataHash, &blockId, sizeof(blockId));
-  if (pBlkHashVal) {
-    *ppBlock = *(SSDataBlock**)pBlkHashVal;
-  }
-  else {
-    STmsSortBlockInfo blkInfo = {0};
-
-    taosLSeekFile(pSortInfo->idxFile, blockId * sizeof(STmsSortBlockInfo), SEEK_SET);
-    taosReadFile(pSortInfo->idxFile, &blkInfo, sizeof(STmsSortBlockInfo));
-    taosLSeekFile(pSortInfo->dataFile, blkInfo.offset, SEEK_SET);
-    char* buf = taosMemoryMalloc(blkInfo.length);
-    taosReadFile(pSortInfo->dataFile, buf, blkInfo.length);
-    SSDataBlock* pBlock = createOneDataBlock(pInfo->pReaderBlock, false);
-    blockDataFromBuf(pBlock, buf);
-    taosMemoryFree(buf);
-
-    *ppBlock = pBlock;
-    tSimpleHashPut(pSortInfo->pBlkDataHash, &blockId, sizeof(blockId), &pBlock, sizeof(pBlock));
-  }
+  taosLSeekFile(pSortInfo->dataFile, offset, SEEK_SET);
+  taosReadFile(pSortInfo->dataFile, pSortInfo->rowBuf, length);
+  blockRowFromBuf(pSortInfo->rowBuf, length, aColVals);
   return 0;
-}
+} 
 
 void appendOneRowIdRowToDataBlock(STableMergeScanInfo* pInfo, SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
-  int32_t blkId = *(int32_t*)tsortGetValue(pTupleHandle, 1);
-  int32_t rowIdx = *(int32_t*)tsortGetValue(pTupleHandle, 2);
-  SSDataBlock* pSrcBlk = NULL;
-  retrieveSourceBlock(pInfo, blkId, &pSrcBlk);
+  STmsSortRowIdInfo* pSortInfo = &pInfo->tmsSortRowIdInfo;
 
-  for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
+  int32_t offset = *(int64_t*)tsortGetValue(pTupleHandle, 1);
+  int32_t length = *(int32_t*)tsortGetValue(pTupleHandle, 2);
+  retrieveExtSourceRow(pInfo, offset, length, pSortInfo->aColVals);
+  
+  for (int32_t i = 0; i < taosArrayGetSize(pSortInfo->aColVals); ++i) {
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
-    SColumnInfoData* pSrcColInfo = taosArrayGet(pSrcBlk->pDataBlock, i);
+    STmsColVal* pColVal = taosArrayGet(pSortInfo->aColVals, i);
 
-    bool isNull = colDataIsNull_s(pSrcColInfo, rowIdx);
+    bool isNull = pColVal->isNull;
     if (isNull) {
       colDataSetNULL(pColInfo, pBlock->info.rows);
     } else {
-      char* pData = colDataGetData(pSrcColInfo, i);
+      char* pData = pColVal->pData;
       if (pData != NULL) {
         colDataSetVal(pColInfo, pBlock->info.rows, pData, false);
       }
     }
   }
-  if (rowIdx == pSrcBlk->info.rows - 1) {
-    tSimpleHashRemove(pInfo->tmsSortRowIdInfo.pBlkDataHash, &blkId, sizeof(blkId));
-    blockDataDestroy(pSrcBlk);
-  }
+
   pBlock->info.dataLoad = 1;
   pBlock->info.scanFlag = ((SDataBlockInfo*)tsortGetBlockInfo(pTupleHandle))->scanFlag;
   pBlock->info.rows += 1;
@@ -3488,24 +3521,19 @@ void tableMergeScanTsdbNotifyCb(ETsdReaderNotifyType type, STsdReaderNotifyInfo*
 
 int32_t startRowIdSort(STableMergeScanInfo *pInfo) {
   STmsSortRowIdInfo* pSort = &pInfo->tmsSortRowIdInfo;
-  pSort->blkId = 0;
   pSort->dataFileOffset = 0;
-  taosGetTmpfilePath(tsTempDir, "tms-block-info", pSort->idxPath);
-  pSort->idxFile = taosOpenFile(pSort->idxPath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
   taosGetTmpfilePath(tsTempDir, "tms-block-data", pSort->dataPath);
   pSort->dataFile = taosOpenFile(pSort->dataPath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
-  pSort->pBlkDataHash = tSimpleHashInit(2048, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+
   return 0;
 }
 
 int32_t stopRowIdSort(STableMergeScanInfo *pInfo) {
   STmsSortRowIdInfo* pSort = &pInfo->tmsSortRowIdInfo;
-  taosCloseFile(&pSort->idxFile);
-  taosRemoveFile(pSort->idxPath);
+
   taosCloseFile(&pSort->dataFile);
   taosRemoveFile(pSort->dataPath);
 
-  tSimpleHashCleanup(pSort->pBlkDataHash);
   return 0;
 }
 
@@ -3724,7 +3752,12 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   STableMergeScanInfo* pTableScanInfo = (STableMergeScanInfo*)param;
   cleanupQueryTableDataCond(&pTableScanInfo->base.cond);
 
-  int32_t numOfTable = taosArrayGetSize(pTableScanInfo->sortSourceParams);
+  taosMemoryFree(pTableScanInfo->tmsSortRowIdInfo.rowBuf);
+  for (int32_t i = 0; i < taosArrayGetSize(pTableScanInfo->tmsSortRowIdInfo.aColVals); ++i) {
+    STmsColVal* pColVal = taosArrayGet(pTableScanInfo->tmsSortRowIdInfo.aColVals, i);
+    taosMemoryFree(pColVal->pData);
+  }
+  taosArrayDestroy(pTableScanInfo->tmsSortRowIdInfo.aColVals);
 
   pTableScanInfo->base.readerAPI.tsdReaderClose(pTableScanInfo->base.dataReader);
   pTableScanInfo->base.dataReader = NULL;
@@ -3829,10 +3862,10 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
     SSDataBlock* pSortInput = createDataBlock();
     SColumnInfoData tsCol = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, 8, 1);
     blockDataAppendColInfo(pSortInput, &tsCol);
-    SColumnInfoData blkIdCol = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 2);
-    blockDataAppendColInfo(pSortInput, &blkIdCol);
-    SColumnInfoData  rowIdxCol = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 3);
-    blockDataAppendColInfo(pSortInput, &rowIdxCol);
+    SColumnInfoData offsetCol = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, 8, 2);
+    blockDataAppendColInfo(pSortInput, &offsetCol);
+    SColumnInfoData  lenCol = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 3);
+    blockDataAppendColInfo(pSortInput, &lenCol);
     pInfo->pSortInputBlock = pSortInput;
 
     SArray*         pList = taosArrayInit(1, sizeof(SBlockOrderInfo));
@@ -3842,6 +3875,18 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
     bi.nullFirst = NULL_ORDER_FIRST;
     taosArrayPush(pList, &bi);
     pInfo->pSortInfo = pList;
+
+    STmsSortRowIdInfo* pSortRowIdInfo = &pInfo->tmsSortRowIdInfo;
+    pSortRowIdInfo->aColVals = taosArrayInit(32, sizeof(STmsColVal));
+    for (int32_t i = 0; i < taosArrayGetSize(pInfo->pResBlock->pDataBlock); ++i) {
+      SColumnInfoData* pCol = taosArrayGet(pInfo->pResBlock->pDataBlock, i);
+      STmsColVal colVal = {0};
+      colVal.pData = taosMemoryMalloc(pCol->info.bytes);
+      colVal.bytes = pCol->info.bytes;
+      colVal.type = pCol->info.type;
+      taosArrayPush(pSortRowIdInfo->aColVals, &colVal);
+    }
+    initColValsBuf(&pSortRowIdInfo->rowBytes, &pSortRowIdInfo->rowBuf, pSortRowIdInfo->aColVals);
   }
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
   pInfo->mTableNumRows = tSimpleHashInit(1024,

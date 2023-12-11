@@ -274,13 +274,13 @@ typedef struct STableScanInfo {
 } STableScanInfo;
 
 typedef struct STmsSortRowIdInfo {
-  int32_t blkId;
   int64_t dataFileOffset;
-  TdFilePtr idxFile;
-  char idxPath[PATH_MAX];
   TdFilePtr dataFile;
   char dataPath[PATH_MAX];
-  SSHashObj* pBlkDataHash;  // blkId->SSDataBlock*
+  
+  char* rowBuf;
+  int32_t rowBytes;
+  SArray* aColVals;
 } STmsSortRowIdInfo;
 
 typedef struct STableMergeScanInfo {
