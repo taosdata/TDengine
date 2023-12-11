@@ -103,19 +103,19 @@ bool     tsEnableAuditCreateTable = true;
 
 // telem
 #ifdef TD_ENTERPRISE
-bool     tsEnableTelem = false;
+bool tsEnableTelem = false;
 #else
-bool     tsEnableTelem = true;
+bool    tsEnableTelem = true;
 #endif
 int32_t  tsTelemInterval = 43200;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
 uint16_t tsTelemPort = 80;
-char    *tsTelemUri = "/report";
+char *   tsTelemUri = "/report";
 
 #ifdef TD_ENTERPRISE
-bool  tsEnableCrashReport = false;
+bool tsEnableCrashReport = false;
 #else
-bool  tsEnableCrashReport = true;
+bool    tsEnableCrashReport = true;
 #endif
 char *tsClientCrashReportUri = "/ccrashreport";
 char *tsSvrCrashReportUri = "/dcrashreport";
@@ -330,7 +330,9 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   return 0;
 }
 
-struct SConfig *taosGetCfg() { return tsCfg; }
+struct SConfig *taosGetCfg() {
+  return tsCfg;
+}
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -458,7 +460,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "slowLogScope", "", CFG_SCOPE_CLIENT) != 0) return -1;
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
-  tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
+  tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, TSDB_MAX_RPC_THREADS);
   if (cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, CFG_SCOPE_BOTH) != 0) return -1;
 
   tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 100000);
