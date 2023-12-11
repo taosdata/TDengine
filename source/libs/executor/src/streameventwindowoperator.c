@@ -176,7 +176,7 @@ int32_t updateEventWindowInfo(SStreamAggSupporter* pAggSup, SEventWindowInfo* pW
 
   for (int32_t i = start; i < rows; ++i) {
     if (pTsData[i] >= maxTs) {
-      return i - 1 - start;
+      return i - start;
     }
 
     if (pWin->skey > pTsData[i]) {
