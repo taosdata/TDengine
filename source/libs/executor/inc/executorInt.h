@@ -270,6 +270,7 @@ typedef struct STableScanInfo {
   bool            hasGroupByTag;
   bool            countOnly;
   //  TsdReader    readerAPI;
+  bool            filesetDelimited;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
@@ -297,6 +298,9 @@ typedef struct STableMergeScanInfo {
   SHashObj*        mSkipTables;
   int64_t          mergeLimit;
   SSortExecInfo   sortExecInfo;
+  bool             bNewFileset;
+  bool             bOnlyRetrieveBlock;
+  bool             filesetDelimited;
 } STableMergeScanInfo;
 
 typedef struct STagScanFilterContext {
@@ -632,6 +636,7 @@ typedef struct SStreamEventAggOperatorInfo {
   bool                isHistoryOp;
   SArray*             historyWins;
   bool                reCkBlock;
+  bool                recvGetAll;
   SSDataBlock*        pCheckpointRes;
   SFilterInfo*        pStartCondInfo;
   SFilterInfo*        pEndCondInfo;
@@ -833,6 +838,8 @@ void     compactTimeWindow(SExprSupp* pSup, SStreamAggSupporter* pAggSup, STimeW
 int32_t  releaseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI);
 void     resetWinRange(STimeWindow* winRange);
 bool     checkExpiredData(SStateStore* pAPI, SUpdateInfo* pUpdateInfo, STimeWindowAggSupp* pTwSup, uint64_t tableId, TSKEY ts);
+int64_t  getDeleteMark(SWindowPhysiNode* pWinPhyNode, int64_t interval);
+void     resetUnCloseSessionWinInfo(SSHashObj* winMap);
 
 int32_t encodeSSessionKey(void** buf, SSessionKey* key);
 void*   decodeSSessionKey(void* buf, SSessionKey* key);

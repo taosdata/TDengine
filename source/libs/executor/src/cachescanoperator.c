@@ -352,6 +352,7 @@ int32_t extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTask
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColMatchItem* pColMatch = taosArrayGet(pColMatchInfo, i);
+    bool found = false;
     for (int32_t j = 0; j < pWrapper->nCols; ++j) {
       /*      if (pColMatch->colId == pWrapper->pSchema[j].colId && pColMatch->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         (*pSlotIds)[pColMatch->dstSlotId] = -1;
@@ -361,8 +362,13 @@ int32_t extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTask
       if (pColMatch->colId == pWrapper->pSchema[j].colId) {
         (*pSlotIds)[i] = j;
         (*pDstSlotIds)[i] = pColMatch->dstSlotId;
+        found = true;
         break;
       }
+    }
+    if (!found) {
+      (*pSlotIds)[i] = -1;
+      (*pDstSlotIds)[i] = pColMatch->dstSlotId;
     }
   }
 

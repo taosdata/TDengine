@@ -1232,7 +1232,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       if (pScanBaseInfo->dataReader == NULL) {
         int32_t code = pTaskInfo->storageAPI.tsdReader.tsdReaderOpen(
             pScanBaseInfo->readHandle.vnode, &pScanBaseInfo->cond, &keyInfo, 1, pScanInfo->pResBlock,
-            (void**)&pScanBaseInfo->dataReader, id, false, NULL);
+            (void**)&pScanBaseInfo->dataReader, id, NULL);
         if (code != TSDB_CODE_SUCCESS) {
           qError("prepare read tsdb snapshot failed, uid:%" PRId64 ", code:%s %s", pOffset->uid, tstrerror(code), id);
           terrno = code;
@@ -1291,7 +1291,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       int32_t        size = tableListGetSize(pTableListInfo);
 
       pTaskInfo->storageAPI.tsdReader.tsdReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size, NULL,
-                                                    (void**)&pInfo->dataReader, NULL, false, NULL);
+                                                    (void**)&pInfo->dataReader, NULL, NULL);
 
       cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
       strcpy(pTaskInfo->streamInfo.tbName, mtInfo.tbName);
