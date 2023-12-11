@@ -132,7 +132,7 @@
       <div class="doc-part">
         <DocsContent
           class="mt20"
-          :content="dbsource[0].description"
+          :content="currentDefinition.description"
         ></DocsContent>
       </div>
     </div>

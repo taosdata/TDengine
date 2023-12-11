@@ -18,16 +18,15 @@ const templateUrlMap = {
 };
 const ReplacePoint = '~';
 const InfoParams = ['security_policy', 'security_mode'];
-export const TimeFormats = ['beginDateTime', 'endDateTime', 'start', 'end'];
+export const TimeFormats = ['beginDateTime', 'endDateTime', 'start', 'end', 'beginTime', 'endTime'];
 export const PayConnectorList = ['pi', 'opcua', 'opcda', 'pibackfill'];
 // // 无法使用symbol作为key，因为会被for in 和 object.keys过滤掉
 const valueField = uuid();
-const optionsField = uuid();
+export const optionsField = uuid();
 const groupsField = uuid();
 const advancedField = uuid();
 const piOptionShowValue = 'PI Data Archive and Asset Framework (AF) Server';
 const authenticationField = uuid();
-const connectivityCheckField = uuid();
 const datasetsField = uuid();
 let currentType = '';
 const DefaultParserValue = {
@@ -113,13 +112,8 @@ function handleConnectivityCheck(connectivityCheck, paramsConfig) {
   if (!connectivityCheck) return;
   const children = [];
   paramsConfig.push({
-    label: undefined,
-    description: undefined,
-    field: connectivityCheckField,
-    type: 'collapse',
-    valueField,
-    defaultValue: undefined,
-    multiple: false,
+    field: 'checkConnectivity',
+    type: 'checkConnectivity',
     children
   });
 }
@@ -637,7 +631,7 @@ function handleGroups(groups, paramsConfig) {
         };
       }
       // 特殊处理 influxdb 的 bucket
-      if (currentType == 'influxdb' && paramConfig.field == 'bucket') {
+      if ((currentType == 'influxdb' && paramConfig.field == 'bucket') || (currentType == 'opentsdb' && paramConfig.field == 'metrics')) {
         paramConfig.type = 'bucket';
       }
       // 特殊处理 historian 的 mode
@@ -877,7 +871,7 @@ export function generateFormInitData(paramsConfig) {
 }
 export const NoNeedAgentType = ['tmq', 'taos', 'csv'];
 // tmq和taos需要再协议前面加上+
-export const ProtocolPrefix = NoNeedAgentType.concat(['influxdb']);
+export const ProtocolPrefix = NoNeedAgentType.concat(['influxdb', 'opentsdb']);
 
 export function getDsnData(data, definition) {
   let dsn = handleProtocolData(data[optionsField].protocol, definition);

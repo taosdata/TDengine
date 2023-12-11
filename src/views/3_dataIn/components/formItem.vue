@@ -81,14 +81,14 @@
         v-if="config.type == 'pibackfillTime'"
         :config="config"
         :data="data"
-      />
+      /> -->
       <Bucket
         v-if="config.type == 'bucket'"
         ref="bucket"
         :config="config"
         :data="data"
         :parentConfigList="parentConfigList"
-      /> -->
+      />
       <Mode
         v-if="config.type == 'mode'"
         ref="mode"
@@ -178,7 +178,7 @@ export default {
     // Dataset: () => import('./dataset.vue'),
     TimezoneDatePicker: () => import('@/components/date-picker'),
     // PibackfillTime: () => import('./pibackfillTime.vue'),
-    // Bucket: () => import('./bucket.vue')
+    Bucket: () => import('./bucket.vue'),
     Mode: () => import('./mode.vue')
   },
   data() {
@@ -277,6 +277,11 @@ export default {
         case 'historian':
         this.date1 = new Date(groupsData?.beginDateTime) ?? 0
         this.date2 = new Date(groupsData?.endDateTime) ?? 0
+        break;
+        case 'influxdb':
+        case 'opentsdb':
+        this.date1 = new Date(groupsData?.beginTime) ?? 0
+        this.date2 = new Date(groupsData?.endTime) ?? 0
         break;
         default:
           break;

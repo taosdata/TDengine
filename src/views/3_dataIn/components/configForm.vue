@@ -37,7 +37,7 @@
             v-bind="item"
           />
           <ConnectivityCheck
-            v-else-if="item.type == 'collapse'"
+            v-else-if="item.type == 'checkConnectivity'"
             :data="data[item.field]"
             :parent="parent"
             v-bind="item"

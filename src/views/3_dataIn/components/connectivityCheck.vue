@@ -49,7 +49,7 @@ export default {
       const validFieldList = this.validFieldList.filter(item => document.querySelector(`.source-ui .left-ui .${getFieldClassMarkName(item)}`));
       this.sourceParent.$refs.form.validateField(validFieldList, valid => {
         errorMsg.push(valid);
-        if (errorMsg.length == validFieldList.length && errorMsg.some(item => !item)) {
+        if (errorMsg.length == validFieldList.length && errorMsg.every(item => !item)) {
           this.activeCollapse = '';
           const type = this.sourceParent.sourceForm.type
           const dsn = getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
@@ -77,8 +77,7 @@ export default {
     },
     getValidFieldList(data, result, parent = 'data') {
       for (const val of data) {
-        // if (val.field == 'checkConnectivity') break;
-        if (val.field == 'mode') break;
+        if (val.field == 'checkConnectivity') break;
         if (val.children) {
           this.getValidFieldList(val.children, result, parent + '.' + val.field);
         } else {
