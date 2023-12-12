@@ -553,12 +553,14 @@ void mndCompactUpdate(SMnode *pMnode, SCompactObj *pCompact){
       SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_COMPACT_PROGRESS, 
                         .contLen = contLen};
       
-      rpcMsg.pCont = rpcMallocCont(contLen);
-      if (rpcMsg.pCont == NULL) {
-        return;
-      }
+      //rpcMsg.pCont = rpcMallocCont(contLen);
+      //if (rpcMsg.pCont == NULL) {
+      //  return;
+      //}
 
-      memcpy(rpcMsg.pCont, pHead, contLen);
+      //memcpy(rpcMsg.pCont, pHead, contLen);
+
+      rpcMsg.pCont = pHead;
 
       char    detail[1024] = {0};
       int32_t len = snprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d", TMSG_INFO(TDMT_VND_QUERY_COMPACT_PROGRESS),
