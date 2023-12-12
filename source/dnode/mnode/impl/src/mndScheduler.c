@@ -363,7 +363,8 @@ static SSubplan* getAggSubPlan(const SQueryPlan* pPlan, int index){
 
 static int32_t addSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream,
                                                SEpSet* pEpset, int64_t nextWindowSkey) {
-  // create exec stream task, since only one level, the exec task is also the source task
+  addNewTaskList(pStream);
+
   void* pIter = NULL;
   SSdb* pSdb = pMnode->pSdb;
   while (1) {

@@ -422,6 +422,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pCreate->sql = NULL;
   pCreate->ast = NULL;
 
+  qDebugL("ast:%s", pObj->ast);
   // deserialize ast
   if (nodesStringToNode(pObj->ast, &pAst) < 0) {
     goto FAIL;
