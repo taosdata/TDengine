@@ -1739,13 +1739,14 @@ class StreamComputingTest(TDCase):
                         self.tdSql.query(f'select count(*) from `{self.stb_name}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}`;')
                     self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
 
-    def gen_event_window_condition(self, start_trigger_condition="", end_trigger_condition=""):
+    def gen_event_window_condition(self):
         self.stb_data_filter_sql = f'ts >= {self.date_time}+1s and c1 = 1 or c2 > 1 and c3 != 4 or c4 <= 3 and c9 <> 0 or c10 is not Null or c11 is Null or \
                 c12 between "na" and "nchar4" and c11 not between "bi" and "binary" and c12 match "nchar[19]" and c12 nmatch "nchar[25]" or c13 = True or \
                 c5 in (1, 2, 3) or c6 not in (6, 7) and c12 like "nch%" and c11 not like "bina_" and c6 < 10 or c12 is Null or c8 >= 4 and t1 = 1 or t2 > 1 \
                 and t3 != 4 or c4 <= 3 and t9 <> 0 or t10 is not Null or t11 is Null or t12 between "na" and "nchar4" and t11 not between "bi" and "binary" \
                 or t12 match "nchar[19]" or t12 nmatch "nchar[25]" or t13 = True or t5 in (1, 2, 3) or t6 not in (6, 7) and t12 like "nch%" \
                 and t11 not like "bina_" and t6 <= 10 or t12 is Null or t8 >= 4'
+        condition_list = list()
         lte_list = ["<", "<="]
         gte_list = [">", ">="]
         enq_list = ["=", "!=", "<>"]
@@ -1754,14 +1755,27 @@ class StreamComputingTest(TDCase):
         between_list = ["between", "not between"]
         like_list = ["like", "not like"]
         match_list = ["match", "nmatch"]
-        tinyint_range_list = self.tdCom.Boundary.TINYINT_BOUNDARY
-        import random
-        self.c1_half_bf = random.randint(tinyint_range_list[0], round((tinyint_range_list[1]+tinyint_range_list[0])/2))
-        self.c1_half_af = random.randint(round((tinyint_range_list[1]+tinyint_range_list[0])/2), tinyint_range_list[1])
+        int_range_list = self.tdCom.Boundary.INT_BOUNDARY
+        self.c1_half_bf = random.randint(int_range_list[0], round((int_range_list[1]+int_range_list[0])/2))
+        self.c1_half_af = random.randint(round((int_range_list[1]+int_range_list[0])/2), int_range_list[1])
         # start_trigger_condition += f'c1 {random.choice(lte_list)} {self.c1_half_bf}'
         # end_trigger_condition += f'c1 {random.choice(gte_list)} {self.c1_half_af}'
-        start_trigger_condition += f'c2 {random.choice(lte_list)} {self.c1_half_bf}'
-        end_trigger_condition += f'c2 {random.choice(gte_list)} {self.c1_half_af}'
+        start_trigger_condition = f'c2 {random.choice(lte_list)} {self.c1_half_bf}'
+        end_trigger_condition = f'c2 {random.choice(gte_list)} {self.c1_half_af}'
+        condition_list.append(f'event_window start with {start_trigger_condition} end with {end_trigger_condition}')
+
+        start_trigger_condition = f'c2 {enq_list[0]} {self.c1_half_bf} or c3 {null_list[0]}'
+        end_trigger_condition = f'c2 {null_list[1]} and c3 {random.choice(enq_list[1:])} {self.c1_half_af}'
+        condition_list.append(f'event_window start with {start_trigger_condition} end with {end_trigger_condition}')
+        
+        start_trigger_condition = f'c2 {in_list[0]} (100,200,300) or c3 {between_list[0]} {self.c1_half_bf} and {self.c1_half_af}'
+        end_trigger_condition = f'c2 {in_list[1]} (100,200,300) and c3 {between_list[1]} {self.c1_half_bf} and {self.c1_half_af}'
+        condition_list.append(f'event_window start with {start_trigger_condition} end with {end_trigger_condition}')
+        
+        start_trigger_condition = f'c11 {like_list[0]} "%a%" or c11 {match_list[1]} ".*a.*"'
+        end_trigger_condition = f'c11 {like_list[1]} "_a_" and c11 {match_list[0]} ".*a.*"'
+        condition_list.append(f'event_window start with {start_trigger_condition} end with {end_trigger_condition}')
+        return random.choice(condition_list)
         return f'event_window start with {start_trigger_condition} end with {end_trigger_condition}'
 
     def at_once_event_window(self, partition="tbname", delete=False, fill_value=None, fill_history_value=None, case_when=None, use_except=None):
@@ -1824,15 +1838,15 @@ class StreamComputingTest(TDCase):
         for i in range(self.range_count):
             ts_value = str(self.date_time)+f'+{i*10}s'
             ts_cast_delete_value = self.tdCom.time_cast(ts_value)
-            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=True)
             if self.update and i%2 == 0:
-                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=True)
             if self.delete and i%2 != 0:
                 self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=ts_cast_delete_value)
             self.date_time += 1
-            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, need_null=True)
             if self.update and i%2 == 0:
-                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, need_null=True)
             if self.delete and i%2 != 0:
                 self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
             self.date_time += 1
@@ -3648,10 +3662,6 @@ class StreamComputingTest(TDCase):
 
 
     def run(self):
-        # ! TD-27838
-        # self.watermark_max_delay_event_window(watermark=None, max_delay=f"{random.randint(1, 3)}s", fill_history_value=1, partition="tbname")
-        # self.watermark_max_delay_event_window(watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s", fill_history_value=1, partition="tbname")
-        # return
         # TODO
         # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), max_delay=f"{random.randint(5, 6)}s", fill_value="NULL")
         # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), max_delay=f"{random.randint(5, 6)}s", fill_value="NEXT")
