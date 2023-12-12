@@ -2,20 +2,19 @@ import { uuid, hasOwn } from '@/utils/util';
 import { cloneDeep } from 'lodash';
 import { isObject, isArray } from '@/utils/validate';
 import { StaticTemplatePath, IsAliyun } from '@/const';
-// import { downloadFile } from '@/api/dataSource';
-// import { downloadFileBlob } from '@/utils/file';
 import { Loading } from 'element-ui';
 import { parsinginZone, decrypt } from "@/utils/index";
 import i18n from '@/lang';
 
 const lang = IsAliyun ? 'zh' : 'en';
 const templateUrlMap = {
-  // opcua: StaticTemplatePath + `opc-${lang}.csv`,
-  // opcda: StaticTemplatePath + `opc-${lang}.csv`,
-  // point_file: StaticTemplatePath + `pi-points.csv`,
-  // template_for_pi_point_file: StaticTemplatePath + 'pi-points.csv',
-  // template_for_af_element_file: StaticTemplatePath + 'elementTemplate.csv'
+  opcua: StaticTemplatePath + `opc-${lang}.csv`,
+  opcda: StaticTemplatePath + `opc-${lang}.csv`,
+  point_file: `/Points.csv`,
+  template_for_pi_point_file: '/ElementTemplates.csv',
+  template_for_af_element_file: '/ElementTemplates.csv'
 };
+const DownloadUrl =  process.env.VUE_APP_X_API + `/download?file_path=`
 const ReplacePoint = '~';
 const InfoParams = ['security_policy', 'security_mode'];
 export const TimeFormats = ['beginDateTime', 'endDateTime', 'start', 'end', 'beginTime', 'endTime'];
@@ -93,12 +92,12 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
     };
     currentType = id;
     let connectivityCheck = id != 'csv'
-    // handleParams(params, paramsConfig);
+    handleParams(params, paramsConfig);
     handleProtocol(protocol, paramsConfig);
     handleOptions(options, paramsConfig);
     handleAuthentication(authentication, paramsConfig);
     handleConnectivityCheck(connectivityCheck,paramsConfig)
-    // handleDatasets(datasets, paramsConfig);
+    handleDatasets(datasets, paramsConfig);
     handleGroups(groups, paramsConfig);
     handleParser(parser, paramsConfig, parserValue);
     handleAdvanced(advanced, paramsConfig)
@@ -475,87 +474,87 @@ function handleParser(parser, paramsConfig, value = cloneDeep(DefaultParserValue
     ]
 }
  **/
-// function handleDatasets(datasets, paramsConfig) {
-//   if (!datasets) return;
-//   const { name, description, categories, params, value: tabValue } = datasets;
-//   const datasetsConfig = {
-//     label: name,
-//     description,
-//     field: datasetsField,
-//     type: 'tabs',
-//     multiple: currentType == 'pi',
-//     name: 'datasets',
-//     children: params
-//       ? params?.map((item, index) => {
-//           const { display, description, name, value, required = false } = item;
-//           const config = {
-//             label: display,
-//             labelShow: false,
-//             labelWidth: '0px',
-//             description,
-//             required,
-//             field: name,
-//             type: 'dataset',
-//             defaultValue: value ?? '',
-//             disabled: (_, originalData) => {
-//               const optionData = originalData[optionsField];
-//               if (!optionData.system_configuration) return false;
-//               return optionData.system_configuration != piOptionShowValue && !!index;
-//             }
-//           };
-//           if (templateUrlMap[name]) {
-//             config.templateUrl = templateUrlMap[name];
-//           }
-//           handleInfoParams(config);
-//           return config;
-//         })
-//       : categories.map((item, index) => {
-//           const { category, display, description: desc, target, params: categoryParams } = item;
-//           return {
-//             label: display,
-//             name: category,
-//             labelShow: false,
-//             labelWidth: '0px',
-//             category,
-//             radio: !!index,
-//             description: desc,
-//             field: handleField(target.name),
-//             type: 'dataset',
-//             templateUrl: templateUrlMap[currentType],
-//             placeholder: target.description,
-//             required: target.required,
-//             multiple: target.multiple,
-//             editable: target.editable,
-//             selectable: target.selectable,
-//             children: categoryParams
-//               ? categoryParams.map(categoryParam => {
-//                   const config = {
-//                     ...categoryParam,
-//                     label: categoryParam.display,
-//                     field: categoryParam.name,
-//                     defaultValue: categoryParam.value ?? ''
-//                   };
-//                   handleHintType(config, categoryParam.hint);
-//                   return config;
-//                 })
-//               : undefined,
-//             defaultValue: isArray(target?.value) ? target.value.join(',') : '',
-//             disabled: (currentData, topData, currentDefinition) => {
-//               if (currentDefinition?.id?.startsWith('opc')) {
-//                 return !topData?.[optionsField]?.endpoint;
-//               } else {
-//                 return false;
-//               }
-//             }
-//           };
-//         })
-//   };
-//   if (categories) {
-//     datasetsConfig.valueField = valueField;
-//     datasetsConfig.defaultValue = tabValue ?? categories[0].category;
-//   }
-//   paramsConfig.push(datasetsConfig);
-// }
+function handleDatasets(datasets, paramsConfig) {
+  if (!datasets) return;
+  const { name, description, categories, params, value: tabValue } = datasets;
+  const datasetsConfig = {
+    label: name,
+    description,
+    field: datasetsField,
+    type: 'tabs',
+    multiple: currentType == 'pi',
+    name: 'datasets',
+    children: params
+      ? params?.map((item, index) => {
+          const { display, description, name, value, required = false } = item;
+          const config = {
+            label: display,
+            labelShow: false,
+            labelWidth: '0px',
+            description,
+            required,
+            field: name,
+            type: 'dataset',
+            defaultValue: value ?? '',
+            disabled: (_, originalData) => {
+              const optionData = originalData[optionsField];
+              if (!optionData.system_configuration) return false;
+              return optionData.system_configuration != piOptionShowValue && !!index;
+            }
+          };
+          if (templateUrlMap[name]) {
+            config.templateUrl = templateUrlMap[name];
+          }
+          handleInfoParams(config);
+          return config;
+        })
+      : categories.map((item, index) => {
+          const { category, display, description: desc, target, params: categoryParams } = item;
+          return {
+            label: display,
+            name: category,
+            labelShow: false,
+            labelWidth: '0px',
+            category,
+            radio: !!index,
+            description: desc,
+            field: handleField(target.name),
+            type: 'dataset',
+            templateUrl: templateUrlMap[currentType],
+            placeholder: target.description,
+            required: target.required,
+            multiple: target.multiple,
+            editable: target.editable,
+            selectable: target.selectable,
+            children: categoryParams
+              ? categoryParams.map(categoryParam => {
+                  const config = {
+                    ...categoryParam,
+                    label: categoryParam.display,
+                    field: categoryParam.name,
+                    defaultValue: categoryParam.value ?? ''
+                  };
+                  handleHintType(config, categoryParam.hint);
+                  return config;
+                })
+              : undefined,
+            defaultValue: isArray(target?.value) ? target.value.join(',') : '',
+            disabled: (currentData, topData, currentDefinition) => {
+              if (currentDefinition?.id?.startsWith('opc')) {
+                return !topData?.[optionsField]?.endpoint;
+              } else {
+                return false;
+              }
+            }
+          };
+        })
+  };
+  if (categories) {
+    datasetsConfig.valueField = valueField;
+    datasetsConfig.defaultValue = tabValue ?? categories[0].category;
+  }
+  paramsConfig.push(datasetsConfig);
+}
 
 // 处理groups
 /**
@@ -699,23 +698,23 @@ function handleGroups(groups, paramsConfig) {
 ]
  */
 
-// function handleParams(params, paramsConfig) {
-//   if (!params) return;
-//   params = params.sort((a, b) => a.display_order - b.display_order);
-//   const children = paramsConfig[0].children;
-//   params.forEach((param, index) => {
-//     const { name, display, description, required, placeholder, value, hint } = param;
-//     const config = { label: display, field: handleField(name), description, required, placeholder, defaultValue: value, display_order: index };
-//     if (name != 'system_configuration') {
-//       config.if = currentData => {
-//         if (!currentData.system_configuration) return true;
-//         return currentData.system_configuration == piOptionShowValue;
-//       };
-//     }
-//     handleHintType(config, hint);
-//     children.push(config);
-//   });
-// }
+function handleParams(params, paramsConfig) {
+  if (!params) return;
+  params = params.sort((a, b) => a.display_order - b.display_order);
+  const children = paramsConfig[0].children;
+  params.forEach((param, index) => {
+    const { name, display, description, required, placeholder, value, hint } = param;
+    const config = { label: display, field: handleField(name), description, required, placeholder, defaultValue: value, display_order: index };
+    if (name != 'system_configuration') {
+      config.if = currentData => {
+        if (!currentData.system_configuration) return true;
+        return currentData.system_configuration == piOptionShowValue;
+      };
+    }
+    handleHintType(config, hint);
+    children.push(config);
+  });
+}
 
 /*
 "advanced": {
@@ -1103,20 +1102,14 @@ function formSort(data) {
   });
 }
 
-// export async function handleDownload(filePath, fileName) {
-//   const loading = Loading.service({
-//     lock: true,
-//     text: 'Loading',
-//     spinner: 'el-icon-loading',
-//     background: 'rgba(0, 0, 0, 0.7)'
-//   });
-//   if (filePath && filePath.startsWith('@')) {
-//     filePath = filePath.substr(1);
-//   }
-//   let res = await downloadFile(filePath);
-//   downloadFileBlob(res, fileName);
-//   loading.close();
-// }
+export async function handleDownload(filePath, fileName) {
+  let link = document.createElement("a");
+  link.download = "file_name";
+  link.href = DownloadUrl + filePath;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
 
 
 // 获取 groups 扁平化对象，好用于获取值

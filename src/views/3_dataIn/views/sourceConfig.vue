@@ -131,6 +131,7 @@
       /> -->
       <div class="doc-part">
         <DocsContent
+          v-if="currentDefinition?.description"
           class="mt20"
           :content="currentDefinition.description"
         ></DocsContent>

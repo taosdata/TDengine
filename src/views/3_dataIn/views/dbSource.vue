@@ -172,7 +172,7 @@ export default {
             this.protocol = "da";
             break;
           case "pi":
-            this.currentName = "ui";
+            this.currentName = "sourceConfig";
             this.tagName = "pi";
             break;
           case "influxdb":
@@ -200,7 +200,7 @@ export default {
             this.tagName = "mqtt";
             break;
           case "pibackfill":
-            this.currentName = "ui";
+            this.currentName = "sourceConfig";
             this.tagName = "pibackfill";
             break;
           case "csv":
@@ -241,7 +241,7 @@ export default {
             // this.echoOpcData();
             break;
           case "pi":
-            this.currentName = "ui";
+            this.currentName = "sourceConfig";
             this.tagName = "pi";
             break;
           case "influxdb":
@@ -257,7 +257,7 @@ export default {
             this.tagName = "mqtt";
             break;
           case "pibackfill":
-            this.currentName = "ui";
+            this.currentName = "sourceConfig";
             this.tagName = "pibackfill";
             break;
           case "csv":

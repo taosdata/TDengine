@@ -13,7 +13,7 @@
       v-else-if="display"
       :label="labelText"
       :label-width="labelWidth"
-      :required="required()"
+      :required="required(config)"
       :class="classMark"
       :rules="timeFormats.includes(field) ? [...timeRules,...rules] : rules"
       :prop="parent + field"
@@ -72,16 +72,17 @@
         :config="config"
       >
       </UploadCsv>
-      <!-- <Dataset
+      <Dataset
         v-if="config.type == 'dataset'"
         :config="config"
         :data="data"
+        v-model="data[field]"
       />
       <PibackfillTime
         v-if="config.type == 'pibackfillTime'"
         :config="config"
         :data="data"
-      /> -->
+      />
       <Bucket
         v-if="config.type == 'bucket'"
         ref="bucket"
@@ -175,9 +176,9 @@ export default {
     // TabFormItem: () => import('../components/tabFormItem.vue'),
     // OpcTable: () => import('./opcTable.vue'),
     // UploadCsv: () => import('./uploadCsv.vue'),
-    // Dataset: () => import('./dataset.vue'),
+    Dataset: () => import('./dataset.vue'),
     TimezoneDatePicker: () => import('@/components/date-picker'),
-    // PibackfillTime: () => import('./pibackfillTime.vue'),
+    PibackfillTime: () => import('./pibackfillTime.vue'),
     Bucket: () => import('./bucket.vue'),
     Mode: () => import('./mode.vue')
   },
