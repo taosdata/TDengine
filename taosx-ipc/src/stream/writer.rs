@@ -126,6 +126,14 @@ impl IpcDataType {
             IpcDataType::Json => DataType::Utf8,
         }
     }
+
+    pub fn length(&self) -> Option<usize> {
+        match self {
+            IpcDataType::VarChar(len) => Some(*len as _),
+            IpcDataType::NChar(len) => Some(*len as _),
+            _ => None,
+        }
+    }
 }
 
 impl FromStr for IpcDataType {

@@ -8,6 +8,7 @@ pub mod files;
 pub mod metrics_db;
 pub mod port_pool;
 pub mod trace;
+pub mod sql;
 
 pub fn mask_dsn(dsn: &Dsn) -> Dsn {
     let mut dsn = dsn.clone();
