@@ -263,7 +263,7 @@ export default {
           }
           if (this.sourceForm.data.parser) {
             let { model } = this.sourceForm.data.parser
-            if (model.columns.length <= 2 && model.tags.length <= 1) {
+            if (model.columns.length < 2 || model.tags.length < 1) {
               Message.warning(this.$t('datasource.parserTip'))
               return;
             }
