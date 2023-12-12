@@ -345,7 +345,7 @@ pub struct RequestID {
 impl RequestID {
     pub fn new(initial_value: u64) -> Self {
         RequestID {
-            inner: AtomicU64::new(initial_value),
+            inner: AtomicU64::new(initial_value + 1),
         }
     }
 
