@@ -18,7 +18,7 @@ PARTITION BY part_list
 
 part_list can be any scalar expression, such as a column, constant, scalar function, or a combination of the preceding items. For example, grouping data by label location, taking the average voltage within each group.
 ```sql
-select avg(voltage) from meters partition by location
+select location, avg(voltage) from meters partition by location
 ```
 
 A PARTITION BY clause is processed as follows:
@@ -28,12 +28,12 @@ A PARTITION BY clause is processed as follows:
 - The PARTITION BY clause can be used together with a window clause or GROUP BY clause. In this case, the window or GROUP BY clause takes effect on every partition. For example, the following statement partitions the table by the location tag, performs downsampling over a 10 minute window, and returns the maximum value:
 
 ```sql
-select max(current) from meters partition by location interval(10m)
+select _wstart, location, max(current) from meters partition by location interval(10m)
 ```
 
 The most common usage of PARTITION BY is partitioning the data in subtables by tags then perform computation when querying data in a supertable. More specifically, `PARTITION BY TBNAME` partitions the data of each subtable into a single timeline, and this method facilitates the statistical analysis in many use cases of processing timeseries data. For example, calculate the average voltage of each meter every 10 minutes£º
 ```sql
-select avg(voltage) from meters partition by tbname interval(10m)
+select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10m)
 ```
 
 ## Windowed Queries

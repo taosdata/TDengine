@@ -18,7 +18,7 @@ PARTITION BY part_list
 
 part_list 可以是任意的标量表达式，包括列、常量、标量函数和它们的组合。例如，将数据按标签 location 进行分组，取每个分组内的电压平均值：
 ```sql
-select avg(voltage) from meters partition by location
+select location, avg(voltage) from meters partition by location
 ```
 
 
@@ -29,11 +29,11 @@ TDengine 按如下方式处理数据切分子句：
 - 数据切分子句可以和窗口切分子句（或 GROUP BY 子句）一起使用，此时后面的子句作用在每个切分的分片上。例如，将数据按标签 location 进行分组，并对每个组按 10 分钟进行降采样，取其最大值。
 
 ```sql
-select max(current) from meters partition by location interval(10m)
+select _wstart, location, max(current) from meters partition by location interval(10m)
 ```
 数据切分子句最常见的用法就是在超级表查询中，按标签将子表数据进行切分，然后分别进行计算。特别是 PARTITION BY TBNAME 用法，它将每个子表的数据独立出来，形成一条条独立的时间序列，极大的方便了各种时序场景的统计分析。例如，统计每个电表每 10 分钟内的电压平均值：
 ```sql
-select avg(voltage) from meters partition by tbname interval(10m)
+select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10m)
 ```
 
 
