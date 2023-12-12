@@ -345,15 +345,15 @@ pub struct RequestID {
 impl RequestID {
     pub fn new(initial_value: u64) -> Self {
         RequestID {
-            inner: AtomicU64::new(initial_value + 1),
+            inner: AtomicU64::new(initial_value),
         }
     }
 
     pub fn trace_id_str(&self) -> String {
-        get_data_trace_id_str(self.inner.load(Ordering::AcqRel))
+        get_data_trace_id_str(self.inner.load(Ordering::SeqCst))
     }
 
     pub fn next(&self) -> u64 {
-        self.inner.fetch_add(1, Ordering::Acquire)
+        self.inner.fetch_add(1, Ordering::Acquire) + 1
     }
 }
