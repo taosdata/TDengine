@@ -529,7 +529,8 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
     for (const STfsFile *file = NULL; (file = tfsReaddir(dir)) != NULL;) {
       if (taosIsDir(file->aname)) continue;
 
-      if (tsdbFSGetFileObjHashEntry(&fobjHash, file->aname) == NULL) {
+      if (tsdbFSGetFileObjHashEntry(&fobjHash, file->aname) == NULL &&
+          strncmp(file->aname + strlen(file->aname) - 3, ".cp", 3)) {
         int32_t nlevel = tfsGetLevel(fs->tsdb->pVnode->pTfs);
         remove_file(file->aname, nlevel > 1 && file->did.level == nlevel - 1);
       }
@@ -1113,7 +1114,7 @@ int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TFileSetRangeArray *pRa
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     int64_t ever = VERSION_MAX;
     if (pHash) {
-      int32_t      fid = fset->fid;
+      int32_t         fid = fset->fid;
       STFileSetRange *u = taosHashGet(pHash, &fid, sizeof(fid));
       if (u) {
         ever = u->sver - 1;
@@ -1145,10 +1146,10 @@ int32_t tsdbFSDestroyCopyRangedSnapshot(TFileSetArray **fsetArr) { return tsdbFS
 
 int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TFileSetRangeArray *pRanges,
                                       TFileSetRangeArray **fsrArr) {
-  int32_t      code = 0;
-  STFileSet   *fset;
+  int32_t         code = 0;
+  STFileSet      *fset;
   STFileSetRange *fsr1 = NULL;
-  SHashObj    *pHash = NULL;
+  SHashObj       *pHash = NULL;
 
   fsrArr[0] = taosMemoryCalloc(1, sizeof(*fsrArr[0]));
   if (fsrArr[0] == NULL) {
@@ -1171,7 +1172,7 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
     int64_t ever1 = ever;
 
     if (pHash) {
-      int32_t      fid = fset->fid;
+      int32_t         fid = fset->fid;
       STFileSetRange *u = taosHashGet(pHash, &fid, sizeof(fid));
       if (u) {
         sver1 = u->sver;
