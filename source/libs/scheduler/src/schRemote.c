@@ -1174,7 +1174,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       qMsg.queryId = pJob->queryId;
       qMsg.taskId = pTask->taskId;
       qMsg.refId = pJob->refId;
-      qMsg.execId = pTask->execId;
+      qMsg.execId = *(int32_t*)param;
 
       msgSize = tSerializeSTaskDropReq(NULL, 0, &qMsg);
       if (msgSize < 0) {
@@ -1258,7 +1258,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
-#if 1
+#if 0
   SSchTrans trans = {.pTrans = pJob->conn.pTrans, .pHandle = SCH_GET_TASK_HANDLE(pTask)};
   code = schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, (uint32_t)msgSize, persistHandle, (rpcCtx.args ? &rpcCtx : NULL));
   msg = NULL;
