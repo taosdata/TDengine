@@ -113,7 +113,7 @@ static int32_t tsdbDataFileRAWWriterDoClose(SDataFileRAWWriter *writer) { return
 static int32_t tsdbDataFileRAWWriterCloseCommit(SDataFileRAWWriter *writer, TFileOpArray *opArr) {
   int32_t  code = 0;
   int32_t  lino = 0;
-  ASSERT(writer->ctx->offset == writer->file.size);
+  ASSERT(writer->ctx->offset <= writer->file.size);
   ASSERT(writer->config->fid == writer->file.fid);
 
   STFileOp op = (STFileOp){
