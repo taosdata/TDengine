@@ -1311,6 +1311,7 @@ export default {
     agentexpiretip: 'The expiration time must be greater than the current time',
     mqttparsertip: 'Ensure that all required items for the {datasource} parser have been filled out',
     mqtttitle: 'MQTT Payload Parser',
+    parserTip: 'A Data Mapping contains at least one column and one tag',
 
     addmqtttip: 'Field, Column and Column Type cannot be empty before adding',
     subname: 'Table Name',
