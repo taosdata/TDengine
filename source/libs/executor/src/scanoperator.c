@@ -3235,8 +3235,7 @@ static int32_t initColValsBuf(int32_t* rowBytes, char** rowBuf, const SArray* aC
   }
 
   int32_t nullFlagSize = sizeof(int8_t) * numCols;
-  int32_t lenSize = sizeof(int32_t)*numCols;
-  (*rowBytes) += nullFlagSize + lenSize;
+  (*rowBytes) += nullFlagSize;
 
   if (*rowBytes >= 0) {
 
@@ -3252,24 +3251,20 @@ static int32_t initColValsBuf(int32_t* rowBytes, char** rowBuf, const SArray* aC
 static int32_t blockRowFromBuf(char* buf, int32_t bufLen,  SArray* aColVals) {
   int32_t numOfCols = taosArrayGetSize(aColVals);
   char* isNull = (char*)buf;
-  int32_t* aLen = (int32_t*)(buf + sizeof(int8_t) * numOfCols);
-  char* pStart = (char*)buf + sizeof(int8_t) * numOfCols + sizeof(int32_t) * numOfCols;
+  char* pStart = (char*)buf + sizeof(int8_t) * numOfCols;
   for (int32_t i = 0; i < numOfCols; ++i) {
     STmsColVal* pColVal = taosArrayGet(aColVals, i);
     pColVal->isNull = isNull[i];
     if (!isNull[i]) {
       if (pColVal->type == TSDB_DATA_TYPE_JSON) {
         int32_t dataLen = getJsonValueLen(pStart);
-        ASSERT(aLen[i] == dataLen);
         memcpy(pColVal->pData, pStart, dataLen);
         pStart += dataLen;
       } else if (IS_VAR_DATA_TYPE(pColVal->type)) {
         varDataCopy(pColVal->pData, pStart);
-        ASSERT(aLen[i] == varDataTLen(pStart));
         pStart += varDataTLen(pStart);
       } else {
         int32_t bytes = pColVal->bytes;
-        ASSERT(aLen[i] == bytes);
         memcpy(pColVal->pData, pStart, bytes);
         pStart += bytes;
       }
@@ -3283,8 +3278,7 @@ static int32_t blockRowToBuf(SSDataBlock* pBlock, int32_t rowIdx, char* buf) {
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
 
   char* isNull = (char*)buf;
-  int32_t* aLen = (int32_t*)(buf + sizeof(int8_t) * numOfCols);
-  char* pStart = (char*)aLen + sizeof(int32_t) * numOfCols;
+  char* pStart = (char*)buf + sizeof(int8_t) * numOfCols;
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
     if (colDataIsNull_s(pCol, rowIdx)) {
@@ -3296,17 +3290,14 @@ static int32_t blockRowToBuf(SSDataBlock* pBlock, int32_t rowIdx, char* buf) {
     char* pData = colDataGetData(pCol, rowIdx);
     if (pCol->info.type == TSDB_DATA_TYPE_JSON) {
       int32_t dataLen = getJsonValueLen(pData);
-      aLen[i] = dataLen;
       memcpy(pStart, pData, dataLen);
       pStart += dataLen;
     } else if (IS_VAR_DATA_TYPE(pCol->info.type)) {
       varDataCopy(pStart, pData);
-      aLen[i] = varDataTLen(pData);
       pStart += varDataTLen(pData);
     } else {
       int32_t bytes = pCol->info.bytes;
       memcpy(pStart, pData, bytes);
-      aLen[i] = bytes;
       pStart += bytes;
     }
   }
