@@ -211,8 +211,8 @@ impl PutStream {
             let matadata = worker.parser.metadata();
             if let Some(sql) = matadata.init_sql_string() {
                 let init = matadata.init().unwrap();
-                let mut req_id = RequestID::new(stream_trace_id_u64);
-                handle_lush_message_init(init, &taos, &sql, &mut req_id).await?;
+                let req_id = RequestID::new(stream_trace_id_u64);
+                handle_lush_message_init(init, &taos, &sql, &req_id).await?;
             }
             tracing::info!("Start IPC stream writer");
             loop {

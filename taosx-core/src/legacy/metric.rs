@@ -5,9 +5,9 @@ use std::sync::atomic::AtomicU32;
 use std::sync::atomic::AtomicU64;
 
 use crate::core_metrics::CoreMetrics;
+use crate::core_metrics::LastPersistTime;
 use crate::core_metrics::TaosXMetrics;
 use std::sync::atomic::Ordering::SeqCst;
-use std::time::Instant;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LegacyToTaosMetrics {
@@ -25,8 +25,7 @@ pub struct LegacyToTaosMetrics {
     pub total_execute_time: AtomicU64,
     // instant
     #[serde(skip)]
-    #[serde(default = "Instant::now")]
-    pub last_persist_time: Instant,
+    pub last_persist_time: LastPersistTime,
     // all metrics bellow are for current run
     pub start_time: i64,
     pub current_finished_tables: AtomicU32,
@@ -53,7 +52,7 @@ impl Default for LegacyToTaosMetrics {
             updated_tags: AtomicU32::new(0),
             created_tables: AtomicU32::new(0),
             total_execute_time: AtomicU64::new(0),
-            last_persist_time: Instant::now(),
+            last_persist_time: LastPersistTime::default(),
             start_time: Utc::now().timestamp_millis(),
             current_finished_tables: AtomicU32::new(0),
             current_suc_blocks: AtomicU64::new(0),
@@ -120,9 +119,9 @@ impl TaosXMetrics for LegacyToTaosMetrics {
     }
 
     fn update_total_execute_time(&self) {
-        self.total_execute_time
-            .fetch_add(self.last_persist_time.elapsed().as_secs(), SeqCst);
-        // self.last_persist_time = Instant::now();
+        let elapsed = self.last_persist_time.elapsed_millis();
+        self.total_execute_time.fetch_add(elapsed, SeqCst);
+        self.last_persist_time.reset();
     }
 }
 
