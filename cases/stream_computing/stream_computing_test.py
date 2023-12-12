@@ -798,9 +798,12 @@ class StreamComputingTest(TDCase):
             self.tdSql.query(f'select wstart, {self.stb_output_select_str} from {self.stb_name}{self.des_table_suffix} order by wstart')
             res2 = self.tdSql.query_data
             for i in range(self.range_count):
-                self.tdCom.insert_rows(tbname=self.expired_ctb_name, ts_value=o_ts)
                 o_ts = str(o_dt+self.dataDict["interval"])+f'+{i*10}s'
+                self.tdCom.insert_rows(tbname=self.expired_ctb_name, ts_value=o_ts)
                 o_dt += 2
+                if self.delete and i%2 != 0:
+                    self.tdCom.delete_rows(tbname=self.expired_ctb_name, start_ts=o_ts)
+
             self.tdSql.query(f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.stb_name} {partition_elm} interval({self.dataDict["interval"]}s) order by wstart')
             res1 = self.tdSql.query_data
             self.tdSql.checkNotEqual(res1, res2)
@@ -3749,9 +3752,25 @@ class StreamComputingTest(TDCase):
 
 
     def run(self):
-        for delete in [True, False]:
-            for fill_history_value in [0, 1]:
-                self.at_once_event_window_ext(delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True, constant_col="c1")
+        # self.at_once_event_window(partition="tbname", delete=True)
+        # self.at_once_event_window(partition="tbname", delete=True, fill_history_value=1)
+
+        # self.window_close_event_window(watermark=None)
+        # self.window_close_event_window(watermark=None, ignore_expired=0)
+        # self.window_close_event_window(watermark=random.randint(15, 20))
+        
+        # self.watermark_max_delay_event_window(watermark=None, max_delay=f"{random.randint(1, 3)}s", fill_history_value=1, partition="tbname")
+        self.watermark_max_delay_event_window(watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s", fill_history_value=1, partition="tbname")
+        # for delete in [True, False]:
+        #     for fill_history_value in [0, 1]:
+        #         self.at_once_event_window_ext(delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True, constant_col="c1")
+        #         self.at_once_event_window_ext(delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True, constant_col="c1")
+        #         self.at_once_event_window_ext(delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm},c1', subtable="c1", stb_field_name_value=None, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True, constant_col="c1")
+        #         self.at_once_event_window_ext(delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm},c1', stb_field_name_value=None, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True, constant_col="c1")
+        #         self.at_once_event_window_ext(delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm},c1', stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True, constant_col="c1")
+        #         self.at_once_event_window_ext(delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.partitial_stb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True, constant_col="c1")
+        #         self.at_once_event_window_ext(delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.exchange_stb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True, constant_col="c1")
+        # self.at_once_interval(interval=random.randint(10, 15), partition=None, delete=True, ignore_expired=1)
         # self.at_once_interval(interval=random.randint(10, 15), partition=None, delete=False, ignore_expired=1)
         # self.insert_after_restart()
         # self.insert_after_restart(delete=True, fill_history_value=1)
