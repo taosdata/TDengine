@@ -811,25 +811,6 @@ class StreamComputingTest(TDCase):
             res1 = self.tdSql.query_data
             self.tdSql.checkEqual(res1, res2)
             
-                # ts_value = str(self.date_time+self.dataDict["interval"])+f'+{i*10}s'
-                # if i == 0:
-                #     o_ts = ts_value
-                #     o_dt = self.date_time
-                # ts_cast_delete_value = self.tdCom.time_cast(ts_value)
-                # # ctb_name = self.tdCom.get_long_name()
-                # # self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
-                # self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
-                # if self.update and i%2 == 0:
-                #     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
-                # if self.delete and i%2 != 0:
-                #     self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=ts_cast_delete_value)
-                # self.date_time += 1
-                # self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
-                # if self.update and i%2 == 0:
-                #     self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
-                # if self.delete and i%2 != 0:
-                #     self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
-                # self.date_time += 1
             # if fill_value:
             #     history_ts = str(start_time)+f'-{self.dataDict["interval"]*(self.range_count+2)}s'
             # print(history_ts)
