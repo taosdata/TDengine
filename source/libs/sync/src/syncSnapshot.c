@@ -338,6 +338,12 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
     pBlk->sendTimeMs = nowMs;
   }
 
+  if (pSender->seq != SYNC_SNAPSHOT_SEQ_END && pSndBuf->end <= pSndBuf->start) {
+    if (snapshotSend(pSender) != 0) {
+      goto _out;
+    }
+  }
+
   if (pSender->seq == SYNC_SNAPSHOT_SEQ_END && pSndBuf->end <= pSndBuf->start) {
     if (syncSnapSendMsg(pSender, pSender->seq, NULL, 0, 0) != 0) {
       goto _out;
