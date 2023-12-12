@@ -3360,7 +3360,7 @@ int32_t retrieveExtSourceRow(STableMergeScanInfo* pInfo, int64_t offset, int32_t
 void appendOneRowIdRowToDataBlock(STableMergeScanInfo* pInfo, SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
   STmsSortRowIdInfo* pSortInfo = &pInfo->tmsSortRowIdInfo;
 
-  int32_t offset = *(int64_t*)tsortGetValue(pTupleHandle, 1);
+  int64_t offset = *(int64_t*)tsortGetValue(pTupleHandle, 1);
   int32_t length = *(int32_t*)tsortGetValue(pTupleHandle, 2);
   retrieveExtSourceRow(pInfo, offset, length, pSortInfo->aColVals);
   
