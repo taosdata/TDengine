@@ -744,7 +744,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
     arg->param2 = thrd;
 
     STrans* pTransInst = thrd->pTransInst;
-    conn->task = transDQSched(thrd->timeoutQueue, doCloseIdleConn, arg, CONN_PERSIST_TIME(pTransInst->idleTime));
+    conn->task = transDQSched(thrd->timeoutQueue, doCloseIdleConn, arg, 10 * CONN_PERSIST_TIME(pTransInst->idleTime));
   }
 }
 static int32_t allocConnRef(SCliConn* conn, bool update) {
@@ -1385,7 +1385,7 @@ static void cliHandleRelease(SCliMsg* pMsg, SCliThrd* pThrd) {
 
   SCliConn* conn = exh->handle;
   transReleaseExHandle(transGetRefMgt(), refId);
-  tDebug("%s conn %p start to release to inst", CONN_GET_INST_LABEL(conn), conn);
+tDebug("%s0x7f84602069b0 conn %p start to release to inst", CONN_GET_INST_LABEL(conn), conn);
 
   if (T_REF_VAL_GET(conn) == 2) {
     transUnrefCliHandle(conn);
