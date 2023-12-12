@@ -157,22 +157,21 @@ IF(NOT TD_DARWIN)
     NAME idxJsonUT
     COMMAND idxJsonUT 
   )
-  # add_test(
-  #   NAME idxFstUtilUT 
-  #   COMMAND idxFstUtilUT  
-  # 
-  # )
-
-  # add_test(
-  #   NAME idxtest
-  #   COMMAND idxTest
-  # )
-  # add_test(
-  #   NAME idxUtilUT 
-  #   COMMAND idxUtilUT 
-  # )
-  # add_test(
-  #   NAME idxFstUT 
-  #   COMMAND idxFstUT 
-  # )
+  add_test(
+    NAME idxFstUtilUT 
+    COMMAND idxFstUtilUT  
+  
+  )
+  add_test(
+    NAME idxtest
+    COMMAND idxTest
+  )
+  add_test(
+    NAME idxUtilUT 
+    COMMAND idxUtilUT 
+  )
+  add_test(
+    NAME idxFstUT 
+    COMMAND idxFstUT 
+  )
 ENDIF ()

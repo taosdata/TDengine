@@ -6,7 +6,7 @@ target_link_libraries(
     PUBLIC sdb
 )
 
-#add_test(
-#    NAME sdbTest
-#    COMMAND sdbTest
-#)
+add_test(
+    NAME sdbTest
+    COMMAND sdbTest
+)

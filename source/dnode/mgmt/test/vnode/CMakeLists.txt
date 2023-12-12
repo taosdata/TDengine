@@ -5,7 +5,7 @@
 #     PUBLIC sut
 # )
 
-# add_test(
-#     NAME dvnodeTest
-#     COMMAND dvnodeTest
-# )
+add_test(
+    NAME dvnodeTest
+    COMMAND dvnodeTest
+)
