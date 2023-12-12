@@ -23,24 +23,26 @@ extern "C" {
 #endif
 
 typedef struct SDnodeMgmt {
-  SDnodeData         *pData;
-  SMsgCb              msgCb;
-  const char         *path;
-  const char         *name;
-  TdThread            statusThread;
-  TdThread            notifyThread;
-  TdThread            monitorThread;
-  TdThread            crashReportThread;
-  SSingleWorker       mgmtWorker;
-  ProcessCreateNodeFp processCreateNodeFp;
+  SDnodeData            *pData;
+  SMsgCb                 msgCb;
+  const char            *path;
+  const char            *name;
+  TdThread               statusThread;
+  TdThread               notifyThread;
+  TdThread               monitorThread;
+  TdThread               auditThread;
+  TdThread               crashReportThread;
+  SSingleWorker          mgmtWorker;
+  ProcessCreateNodeFp    processCreateNodeFp;
   ProcessAlterNodeTypeFp processAlterNodeTypeFp;
-  ProcessDropNodeFp   processDropNodeFp;
-  SendMonitorReportFp sendMonitorReportFp;
-  GetVnodeLoadsFp     getVnodeLoadsFp;
-  GetVnodeLoadsFp     getVnodeLoadsLiteFp;
-  GetMnodeLoadsFp     getMnodeLoadsFp;
-  GetQnodeLoadsFp     getQnodeLoadsFp;
-  int32_t             statusSeq;
+  ProcessDropNodeFp      processDropNodeFp;
+  SendMonitorReportFp    sendMonitorReportFp;
+  SendAuditRecordsFp     sendAuditRecordsFp;
+  GetVnodeLoadsFp        getVnodeLoadsFp;
+  GetVnodeLoadsFp        getVnodeLoadsLiteFp;
+  GetMnodeLoadsFp        getMnodeLoadsFp;
+  GetQnodeLoadsFp        getQnodeLoadsFp;
+  int32_t                statusSeq;
 } SDnodeMgmt;
 
 // dmHandle.c
@@ -62,6 +64,7 @@ void    dmStopStatusThread(SDnodeMgmt *pMgmt);
 int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt);
 void    dmStopNotifyThread(SDnodeMgmt *pMgmt);
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt);
+int32_t dmStartAuditThread(SDnodeMgmt *pMgmt);
 void    dmStopMonitorThread(SDnodeMgmt *pMgmt);
 int32_t dmStartCrashReportThread(SDnodeMgmt *pMgmt);
 void    dmStopCrashReportThread(SDnodeMgmt *pMgmt);

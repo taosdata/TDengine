@@ -216,6 +216,7 @@ void dmCleanup() {
   if (dmCheckRepeatCleanup(pDnode) != 0) return;
   dmCleanupDnode(pDnode);
   monCleanup();
+  auditCleanup();
   syncCleanUp();
   walCleanUp();
   udfcClose();
@@ -418,6 +419,7 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .processAlterNodeTypeFp = dmProcessAlterNodeTypeReq,
       .processDropNodeFp = dmProcessDropNodeReq,
       .sendMonitorReportFp = dmSendMonitorReport,
+      .sendAuditRecordFp = auditSendRecordsInBatch,
       .getVnodeLoadsFp = dmGetVnodeLoads,
       .getVnodeLoadsLiteFp = dmGetVnodeLoadsLite,
       .getMnodeLoadsFp = dmGetMnodeLoads,

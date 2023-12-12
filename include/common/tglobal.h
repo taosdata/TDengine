@@ -107,6 +107,7 @@ extern bool     tsEnableAudit;
 extern char     tsAuditFqdn[];
 extern uint16_t tsAuditPort;
 extern bool     tsEnableAuditCreateTable;
+extern int32_t  tsAuditInterval;
 
 // telem
 extern bool     tsEnableTelem;
