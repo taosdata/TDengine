@@ -315,7 +315,7 @@ static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewRe
 
   pView->createdTime = taosGetTimestampMs();
   pView->viewId = mndGenerateUid(pCreate->fullname, strlen(pCreate->fullname));
-  pView->querySql = strdup(pCreate->querySql);
+  pView->querySql = tstrdup(pCreate->querySql);
   if (NULL == pView) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;

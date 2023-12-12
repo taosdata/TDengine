@@ -27,7 +27,7 @@ static SNode* biMakeTbnameProjectAstNode(char* funcName, char* tableAlias) {
   SValueNode* valNode = NULL;
   if (tableAlias != NULL) {
     SValueNode* n = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
-    n->literal = strdup(tableAlias);
+    n->literal = tstrdup(tableAlias);
     n->node.resType.type = TSDB_DATA_TYPE_BINARY;
     n->node.resType.bytes = strlen(n->literal);
     n->isDuration = false;
