@@ -40,7 +40,7 @@ pgrep taosd || taosd >> /dev/null 2>&1 &
 
 sleep 10
 
-ctest -E "smlTest|funcTest|profileTest|sdbTest|showTest|geomTest|idxFstUtilUT|idxTest|idxUtilUT|idxFstUT|parserTest|plannerTest|transUT|transportTest" -j8
+ctest -E "smlTest|funcTest|profileTest|sdbTest|showTest|geomTest|idxFstUtilUT|idxTest|idxUtilUT|idxFstUT|parserTest|plannerTest|transUT|transUtilUt" -j8
 
 ret=$?
 exit $ret

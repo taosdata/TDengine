@@ -162,8 +162,9 @@ IF(NOT TD_DARWIN)
     COMMAND idxFstUtilUT  
   
   )
+
   add_test(
-    NAME idxtest
+    NAME idxTest
     COMMAND idxTest
   )
   add_test(
