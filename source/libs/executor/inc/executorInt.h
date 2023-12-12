@@ -274,11 +274,13 @@ typedef struct STableScanInfo {
 } STableScanInfo;
 
 typedef struct STmsSortRowIdInfo {
-  int64_t dataFileOffset;
   TdFilePtr dataFile;
   char dataPath[PATH_MAX];
-  
+  int64_t rowFileOffset;
+
   char* rowBuf;
+
+  int32_t rowBufCap;
   int32_t rowBytes;
 } STmsSortRowIdInfo;
 

@@ -3220,7 +3220,7 @@ _error:
 
 // ========================= table merge scan
 
-static int32_t initRowIdSortRowBuf(int32_t* rowBytes, char** rowBuf, SSDataBlock* pBlock) {
+static int32_t initRowIdSortRowBuf(int32_t* rowBytes, int32_t* bufCap, char** rowBuf, SSDataBlock* pBlock) {
   int32_t numCols = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numCols; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
@@ -3230,9 +3230,11 @@ static int32_t initRowIdSortRowBuf(int32_t* rowBytes, char** rowBuf, SSDataBlock
   int32_t nullFlagSize = sizeof(int8_t) * numCols;
   (*rowBytes) += nullFlagSize;
 
-  if (*rowBytes >= 0) {
+  (*bufCap) = MIN((*rowBytes)*4096, 8192*4096);
 
-    (*rowBuf) = taosMemoryMalloc(*rowBytes);
+  if (*bufCap >= 0) {
+
+    (*rowBuf) = taosMemoryMalloc(*bufCap);
     if ((*rowBuf) == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -3291,14 +3293,29 @@ static int32_t transformIntoSortInputBlock(STableMergeScanInfo* pInfo, SSDataBlo
 
   SColumnInfoData* lenCol = taosArrayGet(pSortInputBlk->pDataBlock, 2);
 
+  int32_t rowBufFileOffset = pSortInfo->rowFileOffset;
+  int32_t rowBufSize = 0;
   for (int32_t i = 0; i < nRows; ++i) {
-    int32_t rowLen = blockRowToBuf(pSrcBlock, i, pSortInfo->rowBuf);
-    taosLSeekFile(pSortInfo->dataFile, pSortInfo->dataFileOffset, SEEK_SET);
-    taosWriteFile(pSortInfo->dataFile, pSortInfo->rowBuf, rowLen);
-    colDataSetInt64(offsetCol, i, &pSortInfo->dataFileOffset);
+    if (rowBufSize + pSortInfo->rowBytes > pSortInfo->rowBufCap) {
+      taosLSeekFile(pSortInfo->dataFile, rowBufFileOffset, SEEK_SET);
+      taosWriteFile(pSortInfo->dataFile, pSortInfo->rowBuf, rowBufSize);
+      rowBufFileOffset = pSortInfo->rowFileOffset;
+      rowBufSize = 0;      
+    }
+    int32_t rowLen = blockRowToBuf(pSrcBlock, i, pSortInfo->rowBuf+rowBufSize);
+    rowBufSize += rowLen;
+
+    colDataSetInt64(offsetCol, i, &pSortInfo->rowFileOffset);
     colDataSetInt32(lenCol, i, &rowLen);
 
-    pSortInfo->dataFileOffset = pSortInfo->dataFileOffset + rowLen;
+    pSortInfo->rowFileOffset = pSortInfo->rowFileOffset + rowLen;
+  }
+
+  if (rowBufSize > 0) {
+    taosLSeekFile(pSortInfo->dataFile, rowBufFileOffset, SEEK_SET);
+    taosWriteFile(pSortInfo->dataFile, pSortInfo->rowBuf, rowBufSize);
+    rowBufFileOffset = pSortInfo->rowFileOffset;
+    rowBufSize = 0;     
   }
 
   pSortInputBlk->info.rows = nRows;
@@ -3487,9 +3504,9 @@ void tableMergeScanTsdbNotifyCb(ETsdReaderNotifyType type, STsdReaderNotifyInfo*
 
 int32_t startRowIdSort(STableMergeScanInfo *pInfo) {
   STmsSortRowIdInfo* pSort = &pInfo->tmsSortRowIdInfo;
-  pSort->dataFileOffset = 0;
+  pSort->rowFileOffset = 0;
   taosGetTmpfilePath(tsTempDir, "tms-block-data", pSort->dataPath);
-  pSort->dataFile = taosOpenFile(pSort->dataPath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
+  pSort->dataFile = taosOpenFile(pSort->dataPath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
 
   return 0;
 }
@@ -3838,7 +3855,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
     pInfo->pSortInfo = pList;
 
     STmsSortRowIdInfo* pSortRowIdInfo = &pInfo->tmsSortRowIdInfo;
-    initRowIdSortRowBuf(&pSortRowIdInfo->rowBytes, &pSortRowIdInfo->rowBuf, pInfo->pResBlock);
+    initRowIdSortRowBuf(&pSortRowIdInfo->rowBytes, &pSortRowIdInfo->rowBufCap, &pSortRowIdInfo->rowBuf, pInfo->pResBlock);
   }
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
   pInfo->mTableNumRows = tSimpleHashInit(1024,
