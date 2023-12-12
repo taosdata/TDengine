@@ -710,6 +710,7 @@ upload:
   }
 
   cos_cp_close(cp.thefile);
+  cp.thefile = 0;
 
   int size = 0;
   size += growbuffer_append(&(manager.gb), "<CompleteMultipartUpload>", strlen("<CompleteMultipartUpload>"));
