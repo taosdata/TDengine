@@ -1,5 +1,5 @@
 use crate::get_data_dir;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing::{debug, info};
 
 pub struct MetricsDb {
@@ -7,7 +7,7 @@ pub struct MetricsDb {
 }
 
 impl MetricsDb {
-    fn db_dir(task_id: &str) -> PathBuf {
+    pub fn db_dir(task_id: &str) -> PathBuf {
         let path = get_data_dir();
         path.join("tasks").join(task_id).join("metrics")
     }
@@ -15,6 +15,12 @@ impl MetricsDb {
     pub fn new(task_id: &str) -> anyhow::Result<Self> {
         let path = Self::db_dir(task_id);
         debug!("metrics db path: {}", path.display());
+        let db = sled::open(path)
+            .map_err(|err| anyhow::anyhow!("sled open metrics db file failed: {:?}", err))?;
+        Ok(Self { db })
+    }
+
+    pub fn from_path(path: &Path) -> anyhow::Result<Self> {
         let db = sled::open(path)
             .map_err(|err| anyhow::anyhow!("sled open metrics db file failed: {:?}", err))?;
         Ok(Self { db })
