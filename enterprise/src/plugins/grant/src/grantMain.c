@@ -699,9 +699,14 @@ static int32_t genUniqActiveFromLegacy(SGrantUniqObj *pObj, SGrantStatus *pStatu
     pIn->expire = GRANT_UNIQ_UNDEFINED;
   }
 
-  if(grantUniqGenActiveCode(pObj)){
-    // mndCfgDnodeReq(0, 0, 0);
+  if(!grantUniqGenActiveCode(pObj)){
+    ASSERTS(0, "invalid active");
   }
+
+  SGrantUniqObj uniqObj = {0};
+  memcpy(uniqObj.active, pObj->active, GRANT_UNIQ_ACTIVE_KEY_LEN);
+  memcpy(uniqObj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
+  grantUniqParseActiveCode(&uniqObj, NULL);
 
   return 0;
 }
