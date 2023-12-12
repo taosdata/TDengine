@@ -245,7 +245,6 @@ typedef struct {
   SArray      *pDistInfo;
   SArray      *pDnodeInfo;
   SMnode      *pMnode;
-  SGrantedInfo grantedInfo;
   int64_t      lastCheck;
   int16_t      nGrantReq;
   int16_t      nGrantRsp;
@@ -254,13 +253,13 @@ typedef struct {
   int8_t       nGrantNone;
 } SGrantHandle;
 
-static bool    recheckClusterTime = true;
-static int8_t  grantHbLock = 0;
-static int64_t grantNotifyCnt = 0;
-static int64_t grantNotifyTimeSeries = INT64_MAX;
-static int64_t grantClusterEpoch = 0;
-int32_t        grantFlag = 0;
-SGrantHandle   grantHandle = {0};
+static bool         recheckClusterTime = true;
+static int8_t       grantHbLock = 0;
+static int64_t      grantNotifyCnt = 0;
+static int64_t      grantNotifyTimeSeries = INT64_MAX;
+static int64_t      grantClusterEpoch = 0;
+static SGrantHandle grantHandle = {0};
+SGrantedInfo        grantedInfo = {0};
 
 #define gStatus grantUniqStatus
 
