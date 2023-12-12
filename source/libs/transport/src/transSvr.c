@@ -593,7 +593,7 @@ static bool uvRecvReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
     STraceId traceId = pHead->traceId;
     transClearBuffer(&pConn->readBuf);
     transFreeMsg(transContFromHead((char*)pHead));
-    if (pConn->status == ConnAcquire) {
+    if (pConn->status != ConnAcquire) {
       return true;
     }
     pConn->status = ConnRelease;
