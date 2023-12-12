@@ -649,12 +649,12 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
     mInfo("trans:%d, check compact finished:%d, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", 
       pTrans->id, pDetail->compactId, pDetail->vgId, pDetail->dnodeId, pDetail->numberFileset, pDetail->finished);
 
-    if(pDetail->numberFileset == 0 && pDetail->finished == 0){
+    if(pDetail->numberFileset == -1 && pDetail->finished == -1){
       allFinished = false;
       sdbRelease(pMnode->pSdb, pDetail);
       break;
     }
-    if (pDetail->numberFileset != 0 && pDetail->finished != 0 &&
+    if (pDetail->numberFileset != -1 && pDetail->finished != -1 &&
         pDetail->numberFileset != pDetail->finished) {
       allFinished = false;
       sdbRelease(pMnode->pSdb, pDetail);
@@ -695,9 +695,11 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
+    sdbRelease(pMnode->pSdb, pCompact);
     return -1;
   }
 
+  sdbRelease(pMnode->pSdb, pCompact);
   mndTransDrop(pTrans);
   return 0;
 }
