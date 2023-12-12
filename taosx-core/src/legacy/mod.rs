@@ -15,7 +15,6 @@ use std::{
 
 use anyhow::{bail, Context};
 use chrono::{DateTime, TimeZone, Utc};
-use metrics::counter;
 use rand::seq::SliceRandom;
 use serde::Deserialize;
 use serde_with::serde_as;

@@ -339,7 +339,7 @@ async fn consume_lush_record(
     trace_id_str: &str,
 ) -> anyhow::Result<()> {
     counter!(METRIC_RECORD_BATCHES, 1);
-    let mut req_id = RequestID::new(data_trace_id);
+    let req_id = RequestID::new(data_trace_id);
     match record {
         LushMessage::Tables(tables) => {
             let taos: &deadpool::managed::Object<Manager<TaosBuilder>> = taos.as_ref().unwrap();
@@ -684,7 +684,7 @@ async fn consume_point_record(
     trace_id_str: &str,
 ) -> anyhow::Result<usize> {
     let mut points = 0;
-    let mut req_id = RequestID::new(data_trace_id);
+    let req_id = RequestID::new(data_trace_id);
     metrics::counter!(METRIC_RECORD_BATCHES, 1);
     for message in record.records() {
         let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(
@@ -1389,7 +1389,7 @@ async fn consume_flat_record(
     }
     // let stmt = Stmt::init(taos.as_ref().unwrap())?;
     let mut max_lengths = HashMap::new();
-    let mut req_id = RequestID::new(data_trace_id);
+    let req_id = RequestID::new(data_trace_id);
     for message in record.records() {
         tokio::task::yield_now().await;
         counter!(METRIC_RECORD_BATCHES, 1);
@@ -2379,8 +2379,8 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id.as_str());
     if let Some(sql) = metadata.init_sql_string() {
         let init = metadata.init().unwrap();
-        let mut req_id = RequestID::new(stream_trace_id_u64);
-        handle_lush_message_init(init, &taos, &sql, &mut req_id).await?;
+        let req_id = RequestID::new(stream_trace_id_u64);
+        handle_lush_message_init(init, &taos, &sql, &req_id).await?;
     }
     drop(taos);
     info!(?stream_type, "Processing stream");
@@ -2439,7 +2439,7 @@ pub async fn handle_lush_message_init(
     init: &LushMessageInit,
     taos: &Taos,
     sql: &str,
-    req_id: &mut RequestID,
+    req_id: &RequestID,
 ) -> anyhow::Result<()> {
     let max_retries = 10;
     let mut i = 0;

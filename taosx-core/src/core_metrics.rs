@@ -6,9 +6,11 @@ use crate::legacy::metric::LegacyToTaosMetrics;
 use crate::tmq::metric::TMQMetrics;
 use crate::utils::metrics_db::MetricsDb;
 use lazy_static::lazy_static;
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 /// MetricsType is an enum to store all supported metrics data structure.
 pub enum CoreMetrics {
@@ -111,10 +113,11 @@ pub fn get_legacy_metrics_for_explorer(
         return json;
     }
     let current_execute_time =
-        (chrono::Utc::now().timestamp_millis() - legacy_metrics.start_time) as f64 / 1000.0;
+        (chrono::Utc::now().timestamp_millis() - legacy_metrics.start_time) as f64;
     let current_speed = legacy_metrics
         .current_suc_records
         .load(std::sync::atomic::Ordering::SeqCst) as f64
+        * 1000_f64
         / current_execute_time;
     let mut map =
         serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(json.as_str()).unwrap();
@@ -149,6 +152,27 @@ pub fn clear_metrics(task_id: i64) {
     let _ = MetricsDb::clear(task_id.to_string().as_str());
 }
 
+#[derive(Debug)]
+pub struct LastPersistTime(Cell<Instant>);
+
+impl LastPersistTime {
+    pub fn elapsed_millis(&self) -> u64 {
+        self.0.get().elapsed().as_millis() as u64
+    }
+
+    pub fn reset(&self) {
+        self.0.set(Instant::now());
+    }
+}
+
+impl Default for LastPersistTime {
+    fn default() -> Self {
+        Self(Cell::new(Instant::now()))
+    }
+}
+
+unsafe impl Sync for LastPersistTime {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -161,7 +185,7 @@ mod tests {
         legacy_to_taos_metrics
             .workers
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
-        metrics.insert(1, Arc::new(Metrics::Legacy(legacy_to_taos_metrics)));
+        metrics.insert(1, Arc::new(CoreMetrics::Legacy(legacy_to_taos_metrics)));
         drop(metrics);
 
         let t1 = std::thread::spawn(|| {
@@ -241,7 +265,7 @@ mod tests {
         legacy_to_taos_metrics
             .workers
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
-        let metrics = Arc::new(Metrics::Legacy(legacy_to_taos_metrics));
+        let metrics = Arc::new(CoreMetrics::Legacy(legacy_to_taos_metrics));
         {
             let mut global_metrics = GLOBAL_METRICS.lock().unwrap();
             global_metrics.insert(10240, metrics.clone());
