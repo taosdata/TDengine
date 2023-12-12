@@ -28,9 +28,6 @@ static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
     return -1;
   }
 #endif
-  if (dmStartMonitorThread(pMgmt) != 0) {
-    return -1;
-  }
   if (dmStartAuditThread(pMgmt) != 0) {
     return -1;
   }
