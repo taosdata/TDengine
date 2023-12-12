@@ -402,11 +402,14 @@ static FORCE_INLINE void appendHJoinResToBlock(struct SOperatorInfo* pOperator, 
 }
 
 
-static FORCE_INLINE void copyKeyColsDataToBuf(SHJoinTableInfo* pTable, int32_t rowIdx, size_t *pBufLen) {
+static FORCE_INLINE bool copyKeyColsDataToBuf(SHJoinTableInfo* pTable, int32_t rowIdx, size_t *pBufLen) {
   char *pData = NULL;
   size_t bufLen = 0;
   
   if (1 == pTable->keyNum) {
+    if (colDataIsNull_s(pTable->keyCols[0].colData, rowIdx)) {
+      return true;
+    }
     if (pTable->keyCols[0].vardata) {
       pData = pTable->keyCols[0].data + pTable->keyCols[0].offset[rowIdx];
       bufLen = varDataTLen(pData);
@@ -417,6 +420,9 @@ static FORCE_INLINE void copyKeyColsDataToBuf(SHJoinTableInfo* pTable, int32_t r
     pTable->keyData = pData;
   } else {
     for (int32_t i = 0; i < pTable->keyNum; ++i) {
+      if (colDataIsNull_s(pTable->keyCols[i].colData, rowIdx)) {
+        return true;
+      }
       if (pTable->keyCols[i].vardata) {
         pData = pTable->keyCols[i].data + pTable->keyCols[i].offset[rowIdx];
         memcpy(pTable->keyBuf + bufLen, pData, varDataTLen(pData));
@@ -433,6 +439,8 @@ static FORCE_INLINE void copyKeyColsDataToBuf(SHJoinTableInfo* pTable, int32_t r
   if (pBufLen) {
     *pBufLen = bufLen;
   }
+
+  return false;
 }
 
 
@@ -458,7 +466,10 @@ static void doHashJoinImpl(struct SOperatorInfo* pOperator) {
   }
 
   for (; pCtx->probeIdx < pCtx->pProbeData->info.rows; ++pCtx->probeIdx) {
-    copyKeyColsDataToBuf(pProbe, pCtx->probeIdx, &bufLen);
+    if (copyKeyColsDataToBuf(pProbe, pCtx->probeIdx, &bufLen)) {
+      continue;
+    }
+    
     SGroupData* pGroup = tSimpleHashGet(pJoin->pKeyHash, pProbe->keyData, bufLen);
 /*
     size_t keySize = 0;
@@ -501,6 +512,7 @@ static int32_t setKeyColsData(SSDataBlock* pBlock, SHJoinTableInfo* pTable) {
     if (pTable->keyCols[i].vardata) {
       pTable->keyCols[i].offset = pCol->varmeta.offset;
     }
+    pTable->keyCols[i].colData = pCol;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -681,7 +693,9 @@ static int32_t addBlockRowsToHash(SSDataBlock* pBlock, SHJoinOperatorInfo* pJoin
 
   size_t bufLen = 0;
   for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-    copyKeyColsDataToBuf(pBuild, i, &bufLen);
+    if (copyKeyColsDataToBuf(pBuild, i, &bufLen)) {
+      continue;
+    }
     code = addRowToHash(pJoin, pBlock, bufLen, i);
     if (code) {
       return code;

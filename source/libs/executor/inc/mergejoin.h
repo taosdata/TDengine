@@ -20,8 +20,8 @@ extern "C" {
 #endif
 
 #define MJOIN_DEFAULT_BLK_ROWS_NUM 4096
-#define MJOIN_DEFAULT_BUFF_BLK_ROWS_NUM (MJOIN_DEFAULT_BLK_ROWS_NUM * 2)
 #define MJOIN_HJOIN_CART_THRESHOLD 16
+#define MJOIN_BLK_SIZE_LIMIT 10485760
 
 typedef SSDataBlock* (*joinImplFp)(SOperatorInfo*);
 
@@ -32,12 +32,10 @@ typedef enum EJoinTableType {
 
 #define MJOIN_TBTYPE(_type) (E_JOIN_TB_BUILD == (_type) ? "BUILD" : "PROBE")
 
-typedef enum EJoinPhase {
-  E_JOIN_PHASE_RETRIEVE,
-  E_JOIN_PHASE_SPLIT,
-  E_JOIN_PHASE_OUTPUT,
-  E_JOIN_PHASE_DONE
-} EJoinPhase;
+typedef struct SMJoinRowPos {
+  SSDataBlock* pBlk;
+  int32_t      pos;
+} SMJoinRowPos;
 
 typedef struct SMJoinColMap {
   int32_t  srcSlot;
@@ -53,10 +51,12 @@ typedef struct SMJoinColInfo {
   int32_t  bytes;
   char*    data;
   char*    bitMap;
+  SColumnInfoData* colData;  
 } SMJoinColInfo;
 
 
 typedef struct SMJoinTableInfo {
+  EJoinTableType type;
   int32_t        downStreamIdx;
   SOperatorInfo* downStream;
   bool           dsInitDone;
@@ -70,9 +70,6 @@ typedef struct SMJoinTableInfo {
 
   int32_t        finNum;
   SMJoinColMap*  finCols;
-
-  int32_t        eqNum;
-  SMJoinColMap*  eqCols;
   
   int32_t        keyNum;
   SMJoinColInfo* keyCols;
@@ -87,25 +84,45 @@ typedef struct SMJoinTableInfo {
   SArray*        valVarCols;
   bool           valColExist;
 
-  int32_t        rowIdx;
+  SSDataBlock*   blk;
+  int32_t        blkRowIdx;
+
+  int64_t        grpRowsNum;
+  int64_t        grpRemainRows;
   int32_t        grpIdx;
   SArray*        eqGrps;
   SArray*        createdBlks;
-  SSDataBlock*   blk;
+
+  int32_t        grpArrayIdx;
+  SArray*        pGrpArrays;
+
+  // hash join
+  int32_t        grpRowIdx;
+  SArray*        pHashCurGrp;
+  SSHashObj*     pGrpHash;  
 } SMJoinTableInfo;
 
 typedef struct SMJoinGrpRows {
   SSDataBlock* blk;
   int32_t      beginIdx;
-  int32_t      rowsNum;
+  int32_t      endIdx;
+  int32_t      readIdx;
+  bool         readMatch;
 } SMJoinGrpRows;
 
 typedef struct SMJoinMergeCtx {
   bool          hashCan;
-  bool          rowRemains;
+  bool          keepOrder;
+  bool          grpRemains;
+  bool          midRemains;
   bool          eqCart;
-  int64_t       curTs;
-  SMJoinGrpRows probeNEqGrps;
+  bool          noColCond;
+  int32_t       blksCapacity;
+  SSDataBlock*  midBlk;
+  SSDataBlock*  finBlk;
+  SSDataBlock*  resBlk;
+  int64_t       lastEqTs;
+  SMJoinGrpRows probeNEqGrp;
   bool          hashJoin;
 } SMJoinMergeCtx;
 
@@ -163,16 +180,24 @@ typedef struct SMJoinOperatorInfo {
 #define MJOIN_DS_NEED_INIT(_pOp, _tbctx) (MJOIN_DS_REQ_INIT(_pOp) && (!(_tbctx)->dsInitDone))
 #define MJOIN_TB_LOW_BLK(_tbctx) ((_tbctx)->blkNum <= 0 || ((_tbctx)->blkNum == 1 && (_tbctx)->pHeadBlk->cloned))
 
-#define START_NEW_GRP(_ctx) memset(&(_ctx)->currGrpPair, 0, GRP_PAIR_INIT_SIZE)
-
-#define REACH_HJOIN_THRESHOLD(_pair) ((_pair)->buildIn.rowNum * (_pair)->probeIn.rowNum > MJOIN_HJOIN_CART_THRESHOLD)
+#define REACH_HJOIN_THRESHOLD(_prb, _bld) ((_prb)->grpRowsNum * (_bld)->grpRowsNum > MJOIN_HJOIN_CART_THRESHOLD)
 
 #define SET_SAME_TS_GRP_HJOIN(_pair, _octx) ((_pair)->hashJoin = (_octx)->hashCan && REACH_HJOIN_THRESHOLD(_pair))
 
 #define LEFT_JOIN_NO_EQUAL(_order, _pts, _bts) ((_order) && (_pts) < (_bts)) || (!(_order) && (_pts) > (_bts))
 #define LEFT_JOIN_DISCRAD(_order, _pts, _bts) ((_order) && (_pts) > (_bts)) || (!(_order) && (_pts) < (_bts))
 
+#define GRP_REMAIN_ROWS(_grp) ((_grp)->endIdx - (_grp)->readIdx + 1)
+#define GRP_DONE(_grp) ((_grp)->readIdx > (_grp)->endIdx)
 
+#define BLK_IS_FULL(_blk) ((_blk)->info.rows == (_blk)->info.capacity)
+
+
+#define SET_TABLE_CUR_TS(_col, _ts, _tb)                                      \
+  do {                                                                        \
+    (_col) = taosArrayGet((_tb)->blk->pDataBlock, (_tb)->primCol->srcSlot);   \
+    (_ts) = *((int64_t*)(_col)->pData + (_tb)->blkRowIdx);                    \
+  } while (0)
 
 #ifdef __cplusplus
 }

@@ -37,14 +37,15 @@ typedef struct SHJoinCtx {
 } SHJoinCtx;
 
 typedef struct SHJoinColInfo {
-  int32_t  srcSlot;
-  int32_t  dstSlot;
-  bool     keyCol;
-  bool     vardata;
-  int32_t* offset;
-  int32_t  bytes;
-  char*    data;
-  char*    bitMap;
+  int32_t          srcSlot;
+  int32_t          dstSlot;
+  bool             keyCol;
+  bool             vardata;
+  int32_t*         offset;
+  int32_t          bytes;
+  char*            data;
+  char*            bitMap;
+  SColumnInfoData* colData;
 } SHJoinColInfo;
 
 typedef struct SBufPageInfo {
