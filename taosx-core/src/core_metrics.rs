@@ -113,10 +113,11 @@ pub fn get_legacy_metrics_for_explorer(
         return json;
     }
     let current_execute_time =
-        (chrono::Utc::now().timestamp_millis() - legacy_metrics.start_time) as f64 / 1000.0;
+        (chrono::Utc::now().timestamp_millis() - legacy_metrics.start_time) as f64;
     let current_speed = legacy_metrics
         .current_suc_records
         .load(std::sync::atomic::Ordering::SeqCst) as f64
+        * 1000_f64
         / current_execute_time;
     let mut map =
         serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(json.as_str()).unwrap();
