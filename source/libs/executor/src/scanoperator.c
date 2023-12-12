@@ -3293,7 +3293,7 @@ static int32_t transformIntoSortInputBlock(STableMergeScanInfo* pInfo, SSDataBlo
 
   SColumnInfoData* lenCol = taosArrayGet(pSortInputBlk->pDataBlock, 2);
 
-  int32_t rowBufFileOffset = pSortInfo->rowFileOffset;
+  int64_t rowBufFileOffset = pSortInfo->rowFileOffset;
   int32_t rowBufSize = 0;
   for (int32_t i = 0; i < nRows; ++i) {
     if (rowBufSize + pSortInfo->rowBytes > pSortInfo->rowBufCap) {
