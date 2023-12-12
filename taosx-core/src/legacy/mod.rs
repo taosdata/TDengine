@@ -25,14 +25,16 @@ use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument, warn};
 
 use crate::{
-    legacy::scheduler::Todo, utils::metrics_db::MetricsDb, Action, METRICS_TIME_COST,
-    METRICS_TIME_RECORDS_PER_SECOND,
+    core_metrics::{get_metrics_arc, CoreMetrics},
+    legacy::scheduler::Todo,
+    Action, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND,
 };
 
 use self::scheduler::Scheduler;
 use metrics::absolute_counter;
 use std::sync::atomic::Ordering::SeqCst;
 
+pub mod metric;
 mod scheduler;
 mod verify;
 // mod tasks;
@@ -496,7 +498,7 @@ struct WriteContext {
     to: (TaosPool, TableTodo),
     actions: Vec<Action>,
     target_opts: TargetOpts,
-    metrics: Arc<LegacyMetrics>,
+    metrics_arc: Arc<CoreMetrics>,
     remap: Option<Arc<HashMap<String, String>>>,
 }
 async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResult<()> {
@@ -518,9 +520,10 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
     let table = &context.from.1.name;
     let actions = &context.actions;
     let new_table_name = context.to.1.name.as_str();
-    let metrics = &context.metrics;
+    let metrics_arc = &context.metrics_arc;
     let target_opts = &context.target_opts;
     let remap = &context.remap;
+    let metrics = metrics_arc.legacy();
 
     if let Some(remap) = remap {
         let names = block
@@ -559,7 +562,7 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
                         target_opts,
                         true,
                         actions,
-                        metrics,
+                        metrics_arc.clone(),
                     )
                     .await?;
                 } else {
@@ -630,21 +633,20 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
         break;
     }
 
-    counter!(METRICS_LEGACY_BLOCKS, 1);
-    metrics.blocks.fetch_add(1, Ordering::AcqRel);
-    counter!(METRICS_LEGACY_RECORDS, block.nrows() as u64);
+    metrics.suc_blocks.fetch_add(1, Ordering::AcqRel);
+    metrics.current_suc_blocks.fetch_add(1, Ordering::AcqRel);
     metrics
-        .records
+        .suc_records
         .fetch_add(block.nrows() as _, Ordering::AcqRel);
-    counter!(
-        METRICS_LEGACY_POINTS,
-        block.nrows() as u64 * block.ncols() as u64
-    );
     metrics
-        .points
+        .current_suc_records
+        .fetch_add(block.nrows() as _, Ordering::AcqRel);
+    metrics
+        .suc_points
         .fetch_add((block.nrows() * block.ncols()) as _, Ordering::AcqRel);
-
-    // metrics.fetch_add()
+    metrics
+        .current_suc_points
+        .fetch_add((block.nrows() * block.ncols()) as _, Ordering::AcqRel);
 
     if let Some(duration) = target_opts.interval {
         tokio::time::sleep(duration).await;
@@ -733,9 +735,10 @@ async fn sync_single_table_partial(
     remap: Option<&Arc<HashMap<String, String>>>,
     target_opts: &TargetOpts,
     target_is_v3: bool,
-    metrics: Arc<LegacyMetrics>,
+    metrics_arc: Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
     tracing::info!("Syncing table {table} with range: {}", opts.time_range);
+    let metrics = metrics_arc.legacy();
     let (table, sql) = if opts.select_from_stable {
         if let Some(stable) = stable {
             let stable_schema = from.describe(stable).await?;
@@ -793,7 +796,7 @@ async fn sync_single_table_partial(
             ),
             actions: actions.clone(),
             target_opts: target_opts.clone(),
-            metrics: metrics.clone(),
+            metrics_arc: metrics_arc.clone(),
             remap: remap.map(Clone::clone),
         });
 
@@ -872,15 +875,19 @@ async fn sync_single_table_partial(
                         ))?;
                         stmt.execute().await
                             .with_context(|| format!("[{new_table_name}] execute {} rows insertion with batch size limit {batch_size}", range.len()))?;
-                        counter!(METRICS_LEGACY_BLOCKS, 1);
-                        metrics.blocks.fetch_add(1, Ordering::SeqCst);
-                        counter!(METRICS_LEGACY_RECORDS, params.len() as u64);
+                        metrics.suc_blocks.fetch_add(1, Ordering::SeqCst);
+                        metrics.current_suc_blocks.fetch_add(1, Ordering::SeqCst);
                         metrics
-                            .records
+                            .suc_records
                             .fetch_add(params.len() as _, Ordering::SeqCst);
-                        counter!(METRICS_LEGACY_POINTS, params.len() as u64 * fields as u64);
                         metrics
-                            .points
+                            .current_suc_records
+                            .fetch_add(params.len() as _, Ordering::SeqCst);
+                        metrics
+                            .suc_points
+                            .fetch_add((params.len() * fields) as _, Ordering::SeqCst);
+                        metrics
+                            .current_suc_points
                             .fetch_add((params.len() * fields) as _, Ordering::SeqCst);
                         if let Some(duration) = target_opts.interval {
                             tokio::time::sleep(duration).await;
@@ -942,15 +949,19 @@ async fn sync_single_table_partial(
                                 success = false;
                                 break;
                             }
-                            counter!(METRICS_LEGACY_BLOCKS, 1);
-                            metrics.blocks.fetch_add(1, Ordering::SeqCst);
-                            counter!(METRICS_LEGACY_RECORDS, params.len() as u64);
+                            metrics.suc_blocks.fetch_add(1, Ordering::SeqCst);
+                            metrics.current_suc_blocks.fetch_add(1, Ordering::SeqCst);
                             metrics
-                                .records
+                                .suc_records
                                 .fetch_add(params.len() as _, Ordering::SeqCst);
-                            counter!(METRICS_LEGACY_POINTS, params.len() as u64 * fields as u64);
                             metrics
-                                .points
+                                .current_suc_records
+                                .fetch_add(params.len() as _, Ordering::SeqCst);
+                            metrics
+                                .suc_points
+                                .fetch_add((params.len() * fields) as _, Ordering::SeqCst);
+                            metrics
+                                .current_suc_points
                                 .fetch_add((params.len() * fields) as _, Ordering::SeqCst);
                         }
                         if success {
@@ -976,13 +987,18 @@ async fn sync_single_table_partial(
                 }
             } else {
                 let rows = res.unwrap();
-                counter!(METRICS_LEGACY_BLOCKS, 1);
-                metrics.blocks.fetch_add(1, Ordering::SeqCst);
-                counter!(METRICS_LEGACY_RECORDS, rows as u64);
-                metrics.records.fetch_add(rows as _, Ordering::SeqCst);
-                counter!(METRICS_LEGACY_POINTS, rows as u64 * fields as u64);
+
+                metrics.suc_blocks.fetch_add(1, Ordering::SeqCst);
+                metrics.current_suc_blocks.fetch_add(1, Ordering::SeqCst);
+                metrics.suc_records.fetch_add(rows as _, Ordering::SeqCst);
                 metrics
-                    .points
+                    .current_suc_records
+                    .fetch_add(rows as _, Ordering::SeqCst);
+                metrics
+                    .suc_points
+                    .fetch_add((rows * fields) as _, Ordering::SeqCst);
+                metrics
+                    .current_suc_points
                     .fetch_add((rows * fields) as _, Ordering::SeqCst);
             }
 
@@ -1202,9 +1218,10 @@ pub async fn sync_super_table_schema_with_subs(
     target_opts: &TargetOpts,
     is_v3: bool,
     actions: &[Action],
-    metrics: &Arc<LegacyMetrics>,
+    metrics_arc: Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
     debug_assert!(!name.is_empty());
+    let metrics = metrics_arc.legacy();
     let desc = from.describe(name).await?;
     let tag_name_vec = desc.tag_names().collect_vec();
     let tag_names = tag_name_vec.iter().map(|s| format!("`{s}`")).join(",");
@@ -1259,8 +1276,8 @@ pub async fn sync_super_table_schema_with_subs(
                     );
                 } else {
                     updated_tags += 1;
-                    counter!(METRICS_LEGACY_UPDATED_TAGS, 1);
                     metrics.updated_tags.fetch_add(1, Ordering::SeqCst);
+                    metrics.current_updated_tags.fetch_add(1, Ordering::SeqCst);
                 }
             }
         }
@@ -1306,7 +1323,9 @@ pub async fn sync_super_table_schema_with_subs(
             new_stable_name
         );
         metrics.created_tables.fetch_add(tables, Ordering::SeqCst);
-        counter!(METRICS_LEGACY_CREATED_TABLES, tables as u64);
+        metrics
+            .current_created_tables
+            .fetch_add(tables, Ordering::SeqCst);
     }
 
     Ok(())
@@ -1580,7 +1599,6 @@ async fn sync_schema(
     todo: Arc<LegacyTodo>,
     _actions: &Vec<Action>,
     concurrency: usize,
-    _metrics: &Arc<LegacyMetrics>,
     _source_is_v3: bool,
     _target_is_v3: bool,
 ) -> anyhow::Result<()> {
@@ -1689,7 +1707,6 @@ async fn sync_specified_tables_with_workers(
     tables: &[LegacyTableItem],
     _target_opts: TargetOpts,
     workers: usize,
-    _metrics: Arc<LegacyMetrics>,
     _source_is_v3: bool,
     _target_is_v3: bool,
 ) -> anyhow::Result<()> {
@@ -2549,7 +2566,7 @@ fn reset_tracing_metrics(metrics: Arc<LegacyMetrics>) {
     absolute_counter!(METRICS_LEGACY_POINTS, metrics.points.load(SeqCst) as u64);
 }
 
-// #[instrument(skip_all)]
+#[instrument(skip_all)]
 pub async fn legacy_to_taos(
     from: Dsn,
     actions: Vec<Action>,
@@ -2572,7 +2589,6 @@ pub async fn legacy_to_taos(
     }
 }
 
-#[instrument(skip_all)]
 async fn legacy_to_taos_impl(
     mut from: Dsn,
     actions: Vec<Action>,
@@ -2594,18 +2610,8 @@ async fn legacy_to_taos_impl(
             .unwrap_or(20)
     };
 
-    let mut metrics_db: Option<Arc<MetricsDb>> = None;
-    let mut metrics = Arc::new(LegacyMetrics::default());
-    if let Some(task_id) = &task_id {
-        let metrics_db_inner = MetricsDb::new(task_id)?;
-        let metrics_json = metrics_db_inner.get()?;
-        info!("metrics from db: {:?}", metrics_json);
-        if let Some(metrics_json) = metrics_json {
-            metrics = Arc::new(LegacyMetrics::from_json(&metrics_json).unwrap());
-            reset_tracing_metrics(metrics.clone());
-        }
-        metrics_db = Some(Arc::new(metrics_db_inner));
-    }
+    let metrics_arc = get_metrics_arc(task_id.clone());
+    let metrics = metrics_arc.as_ref().legacy();
 
     let from_database = from.subject.clone().unwrap();
     let mut source_opts = SourceOpts::from_params(&mut from)?;
@@ -2723,7 +2729,6 @@ async fn legacy_to_taos_impl(
     let v2: String = target_taos.server_version().await?.to_string();
     let target_is_v3 = !v2.starts_with('2');
 
-    counter!(METRICS_LEGACY_WORKERS, source_opts.workers as u64);
     metrics
         .workers
         .store(source_opts.workers as _, Ordering::SeqCst);
@@ -2737,14 +2742,9 @@ async fn legacy_to_taos_impl(
     metrics
         .total_tables
         .store(todo.tables.len() as _, Ordering::SeqCst);
-
     metrics
         .total_stables
         .store(todo.stables.len() as _, Ordering::SeqCst);
-    counter!(METRICS_LEGACY_TOTAL_STABLES, todo.stables.len() as _);
-    counter!(METRICS_LEGACY_TOTAL_TABLES, todo.tables.len() as _);
-    let metrics_inner = metrics.clone();
-    let todo_inner = todo.clone();
 
     tracing::info!("Prepare for {} worker scheduler", source_opts.workers);
     let scheduler = scheduler::Scheduler::new(
@@ -2754,8 +2754,7 @@ async fn legacy_to_taos_impl(
         Arc::new(target_opts.clone()),
         source_opts.workers as _,
         &actions,
-        metrics.clone(),
-        metrics_db.clone(),
+        metrics_arc.clone(),
         source_is_v3,
         target_is_v3,
         task_id,
@@ -2767,7 +2766,9 @@ async fn legacy_to_taos_impl(
     let task_done = AtomicBool::new(false);
     let rc = Arc::new(task_done);
     let task_done_clone = rc.clone();
+    let metrics_arc_clone = metrics_arc.clone();
     std::thread::spawn(move || loop {
+        let metrics = metrics_arc_clone.as_ref().legacy();
         if task_done_clone.load(Ordering::Relaxed) || cancel.is_cancelled() {
             tracing::debug!("stop timer");
             break;
@@ -2775,9 +2776,9 @@ async fn legacy_to_taos_impl(
         std::thread::sleep(Duration::from_secs(5));
         tracing::info!(
             "Processed {}/{}, metrics detail:\n{}",
-            metrics_inner.tables.load(Ordering::SeqCst),
-            todo_inner.tables.len(),
-            metrics_inner
+            metrics.finished_tables.load(Ordering::SeqCst),
+            metrics.total_tables.load(Ordering::SeqCst),
+            metrics
         );
     });
 
@@ -2793,7 +2794,6 @@ async fn legacy_to_taos_impl(
                 todo.clone(),
                 &actions,
                 source_opts.workers as _,
-                &metrics,
                 source_is_v3,
                 target_is_v3,
             )
@@ -2808,7 +2808,6 @@ async fn legacy_to_taos_impl(
                 &todo.tables,
                 target_opts,
                 source_opts.workers as _,
-                metrics.clone(),
                 source_is_v3,
                 target_is_v3,
             )
@@ -2825,7 +2824,6 @@ async fn legacy_to_taos_impl(
                 todo.clone(),
                 &actions,
                 source_opts.workers as _,
-                &metrics,
                 source_is_v3,
                 target_is_v3,
             )
@@ -2840,7 +2838,6 @@ async fn legacy_to_taos_impl(
                 &todo.tables,
                 target_opts,
                 source_opts.workers as _,
-                metrics.clone(),
                 source_is_v3,
                 target_is_v3,
             )
@@ -2874,7 +2871,6 @@ async fn legacy_to_taos_impl(
                         todo.clone(),
                         &actions,
                         source_opts.workers as _,
-                        &metrics,
                         source_is_v3,
                         target_is_v3,
                     )
@@ -2891,7 +2887,6 @@ async fn legacy_to_taos_impl(
                 &todo.tables,
                 target_opts.clone(),
                 source_opts.workers as _,
-                metrics.clone(),
                 source_is_v3,
                 target_is_v3,
             )

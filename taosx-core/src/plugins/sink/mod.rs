@@ -17,6 +17,7 @@ use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions, record_batch::Recor
 use arrow_flight::FlightClient;
 use async_backtrace::framed;
 use bytes::Bytes;
+use deadpool::managed::Timeouts;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
 use metrics::*;
@@ -1910,7 +1911,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     ipc_error_strategy: IpcErrorStrategy,
     stream_trace_id: u64,
 ) -> anyhow::Result<()> {
-    let taos = pool.get().await?;
+    // let taos = pool.get().await?;
     let columns = ipc_reader
         .columns()
         .into_iter()
@@ -1918,15 +1919,18 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         .collect_vec();
     let names = columns.iter().map(|n| format!("`{n}`")).join(",");
     let marks = std::iter::repeat('?').take(columns.len()).join(",");
-    let mut stmt = Stmt::init_with_req_id(&taos, stream_trace_id).await?;
+    // let mut stmt = Stmt::init_with_req_id(&taos, stream_trace_id).await?;
 
     let mut count = 0;
     let mut stream = ipc_reader.into_stream();
 
     let mut batches: u32 = 0;
     static mut ACKS: AtomicUsize = AtomicUsize::new(0);
-    let mut taos = Some(taos);
+    // let mut taos = Some(taos);
     while let Some(record) = stream.try_next().await.context("next item error")? {
+        let taos = pool.get().await?;
+        let mut stmt = Stmt::init_with_req_id(&taos, stream_trace_id).await?;
+        let mut taos = Some(taos);
         batches += 1;
         let data_trace_id = create_data_trace_id(stream_trace_id, batches);
         let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
@@ -1992,6 +1996,8 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             tracing::info!(acks = unsafe { ACKS.load(Ordering::SeqCst) }, "ack done");
         }
         unsafe { ACKS.fetch_add(1, Ordering::SeqCst) };
+        drop(stmt);
+        drop(taos);
     }
     println!("finished, totally {count} rows");
     Ok(())
@@ -2319,7 +2325,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     const MAX_RETRIES: usize = 10;
     let mut retries = 0;
     let taos = loop {
-        match pool.get().await {
+        match pool.timeout_get(&Timeouts::wait_millis(5000)).await {
             Ok(obj) => break obj,
             Err(err) => {
                 if retries < MAX_RETRIES {
@@ -2376,6 +2382,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
         let mut req_id = RequestID::new(stream_trace_id_u64);
         handle_lush_message_init(init, &taos, &sql, &mut req_id).await?;
     }
+    drop(taos);
     info!(?stream_type, "Processing stream");
     match stream_type {
         StreamType::Line => todo!(),
