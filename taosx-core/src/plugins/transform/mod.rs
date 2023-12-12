@@ -11,6 +11,7 @@
 use std::{ops::Range, str::FromStr, sync::Arc};
 
 use arrow::{
+    array::{Array, BinaryArray, StringArray},
     datatypes::{DataType, Field, Schema},
     error::ArrowError,
     record_batch::RecordBatch,
@@ -1406,41 +1407,50 @@ impl MessageArrowRecords {
                         | DataType::Utf8
                         | DataType::LargeBinary
                         | DataType::LargeUtf8 => {
-                            let cast_to = field.metadata().get("cast_to");
-                            if cast_to.is_some() {
-                                let cast_to = cast_to.unwrap();
-                                let length = field.metadata().get("length");
-                                if length.is_some() {
-                                    // varchar or nchar
-                                    let res = length.unwrap().parse::<usize>();
-                                    match res {
-                                        Ok(length) => ColumnMeta::Column(Described::new(
-                                            field.name(),
-                                            Ty::from_str(cast_to.as_str()).unwrap(),
-                                            Some(length),
-                                        )),
-                                        Err(err) => {
-                                            tracing::error!(
-                                                "varchar/nchar parse error: {}",
-                                                err.to_string()
-                                            );
-                                            ColumnMeta::Column(Described::new(
+                            if let Some(ty) = field.metadata().get("type") {
+                                let ipc_ty = IpcDataType::from_str(ty.as_str()).unwrap();
+                                ColumnMeta::Tag(Described::new(
+                                    field.name(),
+                                    ipc_ty.ty(),
+                                    ipc_ty.length(),
+                                ))
+                            } else {
+                                let cast_to = field.metadata().get("cast_to");
+                                if cast_to.is_some() {
+                                    let cast_to = cast_to.unwrap();
+                                    let length = field.metadata().get("length");
+                                    if length.is_some() {
+                                        // varchar or nchar
+                                        let res = length.unwrap().parse::<usize>();
+                                        match res {
+                                            Ok(length) => ColumnMeta::Tag(Described::new(
                                                 field.name(),
                                                 Ty::from_str(cast_to.as_str()).unwrap(),
-                                                None,
-                                            ))
+                                                Some(length),
+                                            )),
+                                            Err(err) => {
+                                                tracing::error!(
+                                                    "varchar/nchar parse error: {}",
+                                                    err.to_string()
+                                                );
+                                                ColumnMeta::Tag(Described::new(
+                                                    field.name(),
+                                                    Ty::from_str(cast_to.as_str()).unwrap(),
+                                                    None,
+                                                ))
+                                            }
                                         }
+                                    } else {
+                                        // json
+                                        ColumnMeta::Tag(Described::new(
+                                            field.name(),
+                                            Ty::from_str(cast_to.as_str()).unwrap(),
+                                            None,
+                                        ))
                                     }
                                 } else {
-                                    // json
-                                    ColumnMeta::Column(Described::new(
-                                        field.name(),
-                                        Ty::from_str(cast_to.as_str()).unwrap(),
-                                        None,
-                                    ))
+                                    ColumnMeta::Tag(Described::new(field.name(), field.ty(), None))
                                 }
-                            } else {
-                                ColumnMeta::Column(Described::new(field.name(), field.ty(), None))
                             }
                         }
                         _ => ColumnMeta::Column(Described::new(field.name(), field.ty(), None)),
@@ -1501,6 +1511,65 @@ impl MessageArrowRecords {
                 "create table if not exists `{}` ({})",
                 self.table.name, columns
             )
+        }
+    }
+
+    pub fn sql_insert_part(&self, precision: taos::Precision, with_meta: bool) -> Option<String> {
+        let col_values = crate::utils::sql::sql_values_from_record_batch(&self.records, precision)
+            .expect("Sql values should be recognizable")?;
+        if !with_meta || self.table.using.is_none() {
+            return Some(format!("`{}` {}", self.table.name, col_values));
+        }
+        let using = self.table.using.as_ref().unwrap();
+        let names = self
+            .table
+            .tags
+            .as_ref()
+            .unwrap()
+            .schema()
+            .fields()
+            .iter()
+            .map(|f| format!("`{}`", f.name()))
+            .join(",");
+
+        let tag_values = self
+            .table
+            .tags
+            .as_ref()
+            .unwrap()
+            .columns()
+            .iter()
+            .map(|c| c.taos_value(0).to_sql_value())
+            .join(",");
+
+        Some(format!(
+            "`{}` using `{}` ({}) tags({}) {}",
+            self.table.name, using, names, tag_values, col_values
+        ))
+    }
+
+    pub fn stable_name(&self) -> Option<&str> {
+        self.table.using.as_ref().map(|s| s.as_str())
+    }
+
+    pub fn max_var_length(&self, field: &str) -> Option<usize> {
+        fn array_max_var_length(array: &dyn Array) -> Option<usize> {
+            match array.data_type() {
+                DataType::Binary => {
+                    let array = array.as_any().downcast_ref::<BinaryArray>().unwrap();
+                    array.iter().map(|v| v.map(|v| v.len()).unwrap_or(0)).max()
+                }
+                DataType::Utf8 => {
+                    let array = array.as_any().downcast_ref::<StringArray>().unwrap();
+                    array.iter().map(|v| v.map(|v| v.len()).unwrap_or(0)).max()
+                }
+                _ => None,
+            }
+        }
+        if let Some(array) = self.records.column_by_name(field) {
+            array_max_var_length(array)
+        } else {
+            array_max_var_length(self.table.tags.as_ref()?.column_by_name(field)?)
         }
     }
 }

@@ -36,9 +36,9 @@ use taosx_ipc::{
     stream::{flat::FlatMessage, point::PointMessage},
 };
 
-use crate::plugins::runners::opc::config::OpcTableConfig;
 use crate::runners::opc::config::OPCConfig;
 use crate::{plugins::runners::opc::config::table::ColumnConfig, utils::trace::get_stream_id_u64};
+use crate::{plugins::runners::opc::config::OpcTableConfig, sink::flat::flat_write_with_sql};
 use crate::{
     utils::{
         breakpoints::breakpoints_set,
@@ -50,7 +50,9 @@ use crate::{
     ConnectorLicense, Parser, Transferred,
 };
 
-use super::*;
+use super::{transform::MessageArrowRecords, *};
+
+pub mod flat;
 
 // mod rpc_client;
 
@@ -1370,23 +1372,13 @@ async fn consume_flat_record(
     record: &FlatMessage,
     count: &mut usize,
     parser: Option<&Parser>,
-    license: Option<&ConnectorLicense>,
+    _: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
     target_precision: taos::Precision,
     data_trace_id: u64,
     trace_id_str: &str,
 ) -> anyhow::Result<()> {
-    if let Some((_license, transferred)) = license.zip(transferred) {
-        let _used = transferred.records.load(Ordering::SeqCst);
-        /*if used > license.number as _ {
-            anyhow::bail!(
-                "Connector {} out of number: {}/{}",
-                license.r#type,
-                used,
-                license.number
-            );
-        }*/
-    }
+    let parser = parser.ok_or_else(|| anyhow::anyhow!("Parser should be set with flat stream"))?;
     // let stmt = Stmt::init(taos.as_ref().unwrap())?;
     let mut max_lengths = HashMap::new();
     let req_id = RequestID::new(data_trace_id);
@@ -1394,262 +1386,253 @@ async fn consume_flat_record(
         tokio::task::yield_now().await;
         counter!(METRIC_RECORD_BATCHES, 1);
         let batch = message.record();
-        if let Some(parser) = parser {
-            let batch = parser.parse_message_from_records(batch)?;
-            match batch {
-                crate::plugins::transform::Message::Raw(_) => todo!(),
-                crate::plugins::transform::Message::Tables(_) => todo!(),
-                crate::plugins::transform::Message::ChildTables(_) => todo!(),
-                crate::plugins::transform::Message::Records(message) => {
-                    for records in message {
-                        if records.records.num_rows() == 0 {
-                            continue;
-                        }
-                        counter!(METRIC_BATCH_RECORDS, records.records.num_rows() as u64);
-                        if records.records.column(0).null_count() > 0 {
-                            bail!("Timestamp field contains null or invalid values");
-                        }
-                        tracing::debug!("Write records with rows {}", records.records.num_rows());
-                        let views = taosx_ipc::stream::reader::record_batch_to_column_view(
-                            &records.records,
-                            target_precision,
-                        );
-                        // dbg!(&views);
-                        let schema = records.records.schema();
-                        let columns = schema.fields().iter().map(|f| f.name()).collect_vec();
-                        let table_name = records.table.name.as_str();
 
-                        let mut raw = RawBlock::from_views(&views, taos::Precision::Millisecond);
-                        raw.with_field_names(&columns).with_table_name(table_name);
+        let batch = parser.parse_message_from_records(batch)?;
+        match batch {
+            crate::plugins::transform::Message::Raw(_) => todo!(),
+            crate::plugins::transform::Message::Tables(_) => todo!(),
+            crate::plugins::transform::Message::ChildTables(_) => todo!(),
+            crate::plugins::transform::Message::Records(message) => {
+                let factor = message
+                    .iter()
+                    .map(|message| message.records.num_rows())
+                    .sum::<usize>()
+                    / message.len();
+                if factor > 5 {
+                    *count +=
+                        flat_write_with_sql(pool, taos, target_precision, &req_id, message).await?;
+                    continue;
+                }
+                for records in message {
+                    if records.records.num_rows() == 0 {
+                        continue;
+                    }
+                    counter!(METRIC_BATCH_RECORDS, records.records.num_rows() as u64);
+                    if records.records.column(0).null_count() > 0 {
+                        bail!("Timestamp field contains null or invalid values");
+                    }
+                    tracing::debug!("Write records with rows {}", records.records.num_rows());
+                    let views = taosx_ipc::stream::reader::record_batch_to_column_view(
+                        &records.records,
+                        target_precision,
+                    );
+                    // dbg!(&views);
+                    let schema = records.records.schema();
+                    let columns = schema.fields().iter().map(|f| f.name()).collect_vec();
+                    let table_name = records.table.name.as_str();
 
-                        let mut write_retries = 0;
-                        loop {
-                            let var_views = views
-                                .iter()
-                                .zip(&columns)
-                                .filter(|(v, _)| v.as_ty().is_var_type())
-                                .map(|(view, name)| {
-                                    (name, view.as_ty(), view.max_variable_length())
-                                })
-                                .collect_vec();
-                            if var_views.len() > 0 {
-                                for (name, ty, length) in var_views {
-                                    if let Some(max) = max_lengths.get(*name) {
-                                        if *max >= length {
-                                            continue;
-                                        }
+                    let mut raw = RawBlock::from_views(&views, taos::Precision::Millisecond);
+                    raw.with_field_names(&columns).with_table_name(table_name);
+
+                    let mut write_retries = 0;
+                    loop {
+                        let var_views = views
+                            .iter()
+                            .zip(&columns)
+                            .filter(|(v, _)| v.as_ty().is_var_type())
+                            .map(|(view, name)| (name, view.as_ty(), view.max_variable_length()))
+                            .collect_vec();
+                        if var_views.len() > 0 {
+                            for (name, ty, length) in var_views {
+                                if let Some(max) = max_lengths.get(*name) {
+                                    if *max >= length {
+                                        continue;
                                     }
-                                    loop {
-                                        let res = taos.as_ref().unwrap().describe(table_name).await;
-                                        match res {
-                                            Ok(desc) => {
-                                                if let Some(col) =
-                                                    desc.iter().find(|f| f.field() == name.as_str())
-                                                {
-                                                    // debug_assert!(ty == col.ty());
-                                                    if col.length() < length {
-                                                        let table = records
-                                                            .table
-                                                            .using
-                                                            .as_deref()
-                                                            .unwrap_or(table_name);
-                                                        let sql = format!(
+                                }
+                                loop {
+                                    let res = taos.as_ref().unwrap().describe(table_name).await;
+                                    match res {
+                                        Ok(desc) => {
+                                            if let Some(col) =
+                                                desc.iter().find(|f| f.field() == name.as_str())
+                                            {
+                                                // debug_assert!(ty == col.ty());
+                                                if col.length() < length {
+                                                    let table = records
+                                                        .table
+                                                        .using
+                                                        .as_deref()
+                                                        .unwrap_or(table_name);
+                                                    let sql = format!(
                                                         "alter table `{table}` modify column `{}` {}({})",
                                                         name,
                                                         ty,
                                                         length
                                                         );
-                                                        taos.as_ref()
-                                                            .unwrap()
-                                                            .exec_with_req_id(&sql, req_id.next())
-                                                            .await?;
-                                                        max_lengths
-                                                            .insert(name.to_string(), length);
-                                                        continue;
-                                                    }
-                                                }
-                                                break;
-                                            }
-                                            Err(err) => {
-                                                let code: i32 = err.code().into();
-                                                if code == 0xE001
-                                                    || code == 0xE002
-                                                    || code == 0xE003
-                                                    || code == 0x000B
-                                                {
-                                                    tokio::time::sleep(Duration::from_secs(2))
-                                                        .await;
-                                                    taos.replace(pool.get().await?);
+                                                    taos.as_ref()
+                                                        .unwrap()
+                                                        .exec_with_req_id(&sql, req_id.next())
+                                                        .await?;
+                                                    max_lengths.insert(name.to_string(), length);
                                                     continue;
                                                 }
-                                                // dbg!(&err);
-                                                if let Some(sql) = records.stable_sql() {
-                                                    tracing::debug!(
-                                                        "flat message stable sql : {sql}"
-                                                    );
-                                                    if let Some(transferred) = transferred {
-                                                        transferred
-                                                            .stables
-                                                            .fetch_add(1, Ordering::SeqCst);
+                                            }
+                                            break;
+                                        }
+                                        Err(err) => {
+                                            let code: i32 = err.code().into();
+                                            if code == 0xE001
+                                                || code == 0xE002
+                                                || code == 0xE003
+                                                || code == 0x000B
+                                            {
+                                                tokio::time::sleep(Duration::from_secs(2)).await;
+                                                taos.replace(pool.get().await?);
+                                                continue;
+                                            }
+                                            // dbg!(&err);
+                                            if let Some(sql) = records.stable_sql() {
+                                                tracing::debug!("flat message stable sql : {sql}");
+                                                if let Some(transferred) = transferred {
+                                                    transferred
+                                                        .stables
+                                                        .fetch_add(1, Ordering::SeqCst);
+                                                }
+                                                match taos
+                                                    .as_ref()
+                                                    .unwrap()
+                                                    .exec_with_req_id(&sql, req_id.next())
+                                                    .await
+                                                {
+                                                    Ok(_) => {
+                                                        counter!(METRIC_STABLE_CREATED, 1);
                                                     }
+                                                    Err(err) => {
+                                                        let code: i32 = err.code().into();
+                                                        // STable already exists
+                                                        if code != 0x0360 {
+                                                            Err(err)?;
+                                                        }
+                                                    }
+                                                }
+                                                let sql = records.table_sql();
+
+                                                loop {
                                                     match taos
                                                         .as_ref()
                                                         .unwrap()
                                                         .exec_with_req_id(&sql, req_id.next())
                                                         .await
                                                     {
-                                                        Ok(_) => {
-                                                            counter!(METRIC_STABLE_CREATED, 1);
+                                                        Ok(_n) => {
+                                                            counter!(METRIC_CHILD_TABLE_CREATED, 1);
                                                         }
                                                         Err(err) => {
-                                                            let code: i32 = err.code().into();
-                                                            // STable already exists
-                                                            if code != 0x0360 {
-                                                                Err(err)?;
-                                                            }
-                                                        }
-                                                    }
-                                                    let sql = records.table_sql();
-
-                                                    loop {
-                                                        match taos
-                                                            .as_ref()
-                                                            .unwrap()
-                                                            .exec_with_req_id(&sql, req_id.next())
-                                                            .await
-                                                        {
-                                                            Ok(_n) => {
-                                                                counter!(
-                                                                    METRIC_CHILD_TABLE_CREATED,
-                                                                    1
-                                                                );
-                                                            }
-                                                            Err(err) => {
-                                                                if err
-                                                                    .to_string()
-                                                                    .contains("[0x2605]")
-                                                                {
-                                                                    let table = records
-                                                                        .table
-                                                                        .using
-                                                                        .as_deref()
-                                                                        .unwrap();
-                                                                    let desc = taos
-                                                                        .as_ref()
-                                                                        .unwrap()
-                                                                        .describe(table)
-                                                                        .await
-                                                                        .unwrap();
-                                                                    for f in
-                                                                        desc.iter().filter(|f| {
-                                                                            f.is_tag()
-                                                                                && f.ty()
-                                                                                    .is_var_type()
-                                                                        })
-                                                                    {
-                                                                        let sql = format!(
+                                                            if err.to_string().contains("[0x2605]")
+                                                            {
+                                                                let table = records
+                                                                    .table
+                                                                    .using
+                                                                    .as_deref()
+                                                                    .unwrap();
+                                                                let desc = taos
+                                                                    .as_ref()
+                                                                    .unwrap()
+                                                                    .describe(table)
+                                                                    .await
+                                                                    .unwrap();
+                                                                for f in desc.iter().filter(|f| {
+                                                                    f.is_tag()
+                                                                        && f.ty().is_var_type()
+                                                                }) {
+                                                                    let sql = format!(
                                                                             "alter table `{table}` modify tag `{}` {}({})",
                                                                             f.field(),
                                                                             f.ty(),
                                                                             f.length() * 2
                                                                         );
-                                                                        let _ = taos
-                                                                            .as_ref()
-                                                                            .unwrap()
-                                                                            .exec_with_req_id(
-                                                                                &sql,
-                                                                                req_id.next(),
-                                                                            )
-                                                                            .await;
-                                                                        continue;
-                                                                    }
-                                                                } else if err
-                                                                    .to_string()
-                                                                    .contains("[0x260D]")
-                                                                {
-                                                                    // Tags number not matched
-                                                                    // add Tag
-                                                                    let table = records
-                                                                        .table
-                                                                        .using
-                                                                        .as_deref()
+                                                                    let _ = taos
+                                                                        .as_ref()
+                                                                        .unwrap()
+                                                                        .exec_with_req_id(
+                                                                            &sql,
+                                                                            req_id.next(),
+                                                                        )
+                                                                        .await;
+                                                                    continue;
+                                                                }
+                                                            } else if err
+                                                                .to_string()
+                                                                .contains("[0x260D]")
+                                                            {
+                                                                // Tags number not matched
+                                                                // add Tag
+                                                                let table = records
+                                                                    .table
+                                                                    .using
+                                                                    .as_deref()
+                                                                    .unwrap();
+                                                                let tags =
+                                                                    records.tag_meta().unwrap();
+                                                                for tag_meta in tags {
+                                                                    let mut need_add = true;
+                                                                    let res = taos
+                                                                        .as_ref()
+                                                                        .unwrap()
+                                                                        .describe(table)
+                                                                        .await
                                                                         .unwrap();
-                                                                    let tags =
-                                                                        records.tag_meta().unwrap();
-                                                                    for tag_meta in tags {
-                                                                        let mut need_add = true;
-                                                                        let res = taos
-                                                                            .as_ref()
-                                                                            .unwrap()
-                                                                            .describe(table)
-                                                                            .await
-                                                                            .unwrap();
-                                                                        res.into_iter().for_each(
-                                                                            |tag_added| {
-                                                                                if tag_added
-                                                                                    .is_tag()
-                                                                                    && tag_added
+                                                                    res.into_iter().for_each(
+                                                                        |tag_added| {
+                                                                            if tag_added.is_tag()
+                                                                                && tag_added.field()
+                                                                                    == tag_meta
                                                                                         .field()
-                                                                                        == tag_meta
-                                                                                            .field()
-                                                                                {
-                                                                                    need_add =
-                                                                                        false;
-                                                                                }
-                                                                            },
-                                                                        );
-                                                                        if need_add {
-                                                                            let add_tag_sql = format!(
+                                                                            {
+                                                                                need_add = false;
+                                                                            }
+                                                                        },
+                                                                    );
+                                                                    if need_add {
+                                                                        let add_tag_sql = format!(
                                                                                 "alter table `{table}` add tag `{}` {}",
                                                                                 tag_meta.field(),
                                                                                 parser.get_ipcdatatype_from_parser(tag_meta.field()).unwrap().sql_repr()
                                                                                 );
-                                                                            tracing::info!("table {table} add tag sql: {add_tag_sql}");
-                                                                            taos.as_ref()
-                                                                                .unwrap()
-                                                                                .exec_with_req_id(
-                                                                                    add_tag_sql,
-                                                                                    req_id.next(),
-                                                                                )
-                                                                                .await
-                                                                                .unwrap();
-                                                                        }
+                                                                        tracing::info!("table {table} add tag sql: {add_tag_sql}");
+                                                                        taos.as_ref()
+                                                                            .unwrap()
+                                                                            .exec_with_req_id(
+                                                                                add_tag_sql,
+                                                                                req_id.next(),
+                                                                            )
+                                                                            .await
+                                                                            .unwrap();
                                                                     }
-                                                                } else {
-                                                                    Err(err)?;
                                                                 }
+                                                            } else {
+                                                                Err(err)?;
                                                             }
                                                         }
-                                                        break;
                                                     }
-                                                    //.inspect_err(|err| tracing::warn!("{}", err))?
-                                                } else {
-                                                    let sql = records.table_sql();
-                                                    // dbg!(&sql);
-                                                    if let Some(transferred) = transferred {
-                                                        transferred
-                                                            .tables
-                                                            .fetch_add(1, Ordering::SeqCst);
+                                                    break;
+                                                }
+                                                //.inspect_err(|err| tracing::warn!("{}", err))?
+                                            } else {
+                                                let sql = records.table_sql();
+                                                // dbg!(&sql);
+                                                if let Some(transferred) = transferred {
+                                                    transferred
+                                                        .tables
+                                                        .fetch_add(1, Ordering::SeqCst);
+                                                }
+                                                match taos
+                                                    .as_ref()
+                                                    .unwrap()
+                                                    .exec_with_req_id(&sql, req_id.next())
+                                                    .await
+                                                {
+                                                    Ok(_) => {
+                                                        counter!(METRIC_CHILD_TABLE_CREATED, 1);
                                                     }
-                                                    match taos
-                                                        .as_ref()
-                                                        .unwrap()
-                                                        .exec_with_req_id(&sql, req_id.next())
-                                                        .await
-                                                    {
-                                                        Ok(_) => {
-                                                            counter!(METRIC_CHILD_TABLE_CREATED, 1);
-                                                        }
-                                                        Err(err) => {
-                                                            let code: i32 = err.code().into();
-                                                            match code {
-                                                                0xE001 | 0xE002 | 0xE003
-                                                                | 0x000B => {
-                                                                    taos.replace(pool.get().await?);
-                                                                    continue;
-                                                                }
-                                                                _ => Err(err)?,
+                                                    Err(err) => {
+                                                        let code: i32 = err.code().into();
+                                                        match code {
+                                                            0xE001 | 0xE002 | 0xE003 | 0x000B => {
+                                                                taos.replace(pool.get().await?);
+                                                                continue;
                                                             }
+                                                            _ => Err(err)?,
                                                         }
                                                     }
                                                 }
@@ -1658,115 +1641,62 @@ async fn consume_flat_record(
                                     }
                                 }
                             }
-                            if let Err(err) = taos
-                                .as_ref()
-                                .unwrap()
-                                .write_raw_block_with_req_id(&raw, req_id.next())
-                                .await
-                            {
-                                let code = err.code();
-                                let errno: i32 = code.into();
-                                let err_str = err.to_string();
-                                write_retries += 1;
-                                if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
-                                    tracing::warn!("flat message write raw block encounter unrecoverable err: {err:#}");
-                                    counter!(METRIC_WRITE_RAW_BLOCK_FAILS, 1);
-                                    counter!(METRIC_RECORD_FAILS, raw.nrows() as u64);
-                                    counter!(
-                                        METRIC_POINT_FAILS,
-                                        (raw.nrows() * raw.column_views().len()) as u64
-                                    );
-                                    Err(err)?;
-                                    break;
-                                }
-                                if err_str.contains("[0x2603]") || err_str.contains("[0x0618]") {
-                                    if let Some(sql) = records.stable_sql() {
-                                        // dbg!(&sql);
-                                        match taos
-                                            .as_ref()
-                                            .unwrap()
-                                            .exec_with_req_id(&sql, req_id.next())
-                                            .await
-                                        {
-                                            Ok(_n) => {
-                                                counter!(METRIC_STABLE_CREATED, 1);
-                                            }
-                                            Err(err) => {
-                                                let code: i32 = err.code().into();
-                                                let err_str = err.to_string();
-                                                if err_str.contains("0x032C") {
-                                                    // Object is creating
-                                                    tracing::warn!(
-                                                        "error code [0x032C] encountered, ignore"
-                                                    );
-                                                    continue;
-                                                } else if code != 0x0360 {
-                                                    tracing::error!(
-                                                        sql,
-                                                        "create stable error: {err:#}"
-                                                    );
-                                                    anyhow::bail!(
-                                                        "create stable sql err: {}",
-                                                        err_str
-                                                    );
-                                                }
+                        }
+                        if let Err(err) = taos
+                            .as_ref()
+                            .unwrap()
+                            .write_raw_block_with_req_id(&raw, req_id.next())
+                            .await
+                        {
+                            let code = err.code();
+                            let errno: i32 = code.into();
+                            let err_str = err.to_string();
+                            write_retries += 1;
+                            if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
+                                tracing::warn!("flat message write raw block encounter unrecoverable err: {err:#}");
+                                counter!(METRIC_WRITE_RAW_BLOCK_FAILS, 1);
+                                counter!(METRIC_RECORD_FAILS, raw.nrows() as u64);
+                                counter!(
+                                    METRIC_POINT_FAILS,
+                                    (raw.nrows() * raw.column_views().len()) as u64
+                                );
+                                Err(err)?;
+                                break;
+                            }
+                            if err_str.contains("[0x2603]") || err_str.contains("[0x0618]") {
+                                if let Some(sql) = records.stable_sql() {
+                                    // dbg!(&sql);
+                                    match taos
+                                        .as_ref()
+                                        .unwrap()
+                                        .exec_with_req_id(&sql, req_id.next())
+                                        .await
+                                    {
+                                        Ok(_n) => {
+                                            counter!(METRIC_STABLE_CREATED, 1);
+                                        }
+                                        Err(err) => {
+                                            let code: i32 = err.code().into();
+                                            let err_str = err.to_string();
+                                            if err_str.contains("0x032C") {
+                                                // Object is creating
+                                                tracing::warn!(
+                                                    "error code [0x032C] encountered, ignore"
+                                                );
+                                                continue;
+                                            } else if code != 0x0360 {
+                                                tracing::error!(
+                                                    sql,
+                                                    "create stable error: {err:#}"
+                                                );
+                                                anyhow::bail!("create stable sql err: {}", err_str);
                                             }
                                         }
+                                    }
 
-                                        let sql = records.table_sql();
+                                    let sql = records.table_sql();
 
-                                        loop {
-                                            match taos
-                                                .as_ref()
-                                                .unwrap()
-                                                .exec_with_req_id(&sql, req_id.next())
-                                                .await
-                                            {
-                                                Ok(_n) => {
-                                                    counter!(METRIC_CHILD_TABLE_CREATED, 1);
-                                                }
-                                                Err(err) => {
-                                                    if err.to_string().contains("[0x2605]") {
-                                                        let table =
-                                                            records.table.using.as_deref().unwrap();
-                                                        let desc = taos
-                                                            .as_ref()
-                                                            .unwrap()
-                                                            .describe(table)
-                                                            .await
-                                                            .unwrap();
-                                                        for f in desc.iter().filter(|f| {
-                                                            f.is_tag() && f.ty().is_var_type()
-                                                        }) {
-                                                            let sql = format!(
-                                                            "alter table `{table}` modify tag `{}` {}({})",
-                                                            f.field(),
-                                                            f.ty(),
-                                                            f.length() * 2
-                                                            );
-                                                            taos.as_ref()
-                                                                .unwrap()
-                                                                .exec(&sql)
-                                                                .await?;
-                                                            continue;
-                                                        }
-                                                    } else {
-                                                        Err(err)?;
-                                                    }
-                                                }
-                                            }
-
-                                            if let Some(transferred) = transferred {
-                                                transferred.tables.fetch_add(1, Ordering::SeqCst);
-                                            }
-                                            break;
-                                        }
-                                        //.inspect_err(|err| tracing::warn!("{}", err))?
-                                    } else {
-                                        let sql = records.table_sql();
-                                        if let Some(transferred) = transferred {
-                                            transferred.tables.fetch_add(1, Ordering::SeqCst);
-                                        }
+                                    loop {
                                         match taos
                                             .as_ref()
                                             .unwrap()
@@ -1776,124 +1706,163 @@ async fn consume_flat_record(
                                             Ok(_n) => {
                                                 counter!(METRIC_CHILD_TABLE_CREATED, 1);
                                             }
-                                            Err(err) => return Err(err)?,
+                                            Err(err) => {
+                                                if err.to_string().contains("[0x2605]") {
+                                                    let table =
+                                                        records.table.using.as_deref().unwrap();
+                                                    let desc = taos
+                                                        .as_ref()
+                                                        .unwrap()
+                                                        .describe(table)
+                                                        .await
+                                                        .unwrap();
+                                                    for f in desc.iter().filter(|f| {
+                                                        f.is_tag() && f.ty().is_var_type()
+                                                    }) {
+                                                        let sql = format!(
+                                                            "alter table `{table}` modify tag `{}` {}({})",
+                                                            f.field(),
+                                                            f.ty(),
+                                                            f.length() * 2
+                                                            );
+                                                        taos.as_ref().unwrap().exec(&sql).await?;
+                                                        continue;
+                                                    }
+                                                } else {
+                                                    Err(err)?;
+                                                }
+                                            }
                                         }
-                                    }
 
-                                    continue;
-                                } else if err_str.contains("[0x2605]") {
-                                    // container length is too short.
-                                    let desc =
-                                        taos.as_ref().unwrap().describe(table_name).await.unwrap();
-                                    let table =
-                                        records.table.using.as_deref().unwrap_or(table_name);
-                                    for f in
-                                        desc.iter().filter(|f| !f.is_tag() && f.ty().is_var_type())
+                                        if let Some(transferred) = transferred {
+                                            transferred.tables.fetch_add(1, Ordering::SeqCst);
+                                        }
+                                        break;
+                                    }
+                                    //.inspect_err(|err| tracing::warn!("{}", err))?
+                                } else {
+                                    let sql = records.table_sql();
+                                    if let Some(transferred) = transferred {
+                                        transferred.tables.fetch_add(1, Ordering::SeqCst);
+                                    }
+                                    match taos
+                                        .as_ref()
+                                        .unwrap()
+                                        .exec_with_req_id(&sql, req_id.next())
+                                        .await
                                     {
+                                        Ok(_n) => {
+                                            counter!(METRIC_CHILD_TABLE_CREATED, 1);
+                                        }
+                                        Err(err) => return Err(err)?,
+                                    }
+                                }
+
+                                continue;
+                            } else if err_str.contains("[0x2605]") {
+                                // container length is too short.
+                                let desc =
+                                    taos.as_ref().unwrap().describe(table_name).await.unwrap();
+                                let table = records.table.using.as_deref().unwrap_or(table_name);
+                                for f in desc.iter().filter(|f| !f.is_tag() && f.ty().is_var_type())
+                                {
+                                    let sql = format!(
+                                        "alter table `{table}` modify column `{}` {}({})",
+                                        f.field(),
+                                        f.ty(),
+                                        f.length() * 2
+                                    );
+                                    taos.as_ref()
+                                        .unwrap()
+                                        .exec_with_req_id(&sql, req_id.next())
+                                        .await?;
+                                }
+                            } else if err_str.contains("[0x0118]") {
+                                // Code([0x0118] Unknown or common error)
+                                // column or tag not exists
+                                let mut index = 0;
+                                while index < columns.len() {
+                                    // let column_view = views.get(index).unwrap();
+                                    let column_name = columns.get(index).unwrap().as_str();
+                                    let desc = taos.as_ref().unwrap().describe(table_name).await?;
+                                    let mut need_add = true;
+                                    desc.into_iter().for_each(|column_meta| {
+                                        if column_meta.field() == column_name {
+                                            need_add = false;
+                                        }
+                                    });
+                                    if need_add {
+                                        let ipc_data_type =
+                                            parser.get_ipcdatatype_from_parser(column_name);
+                                        if ipc_data_type.is_none() {
+                                            anyhow::bail!(
+                                                "column name {column_name} not config in parser"
+                                            );
+                                        }
                                         let sql = format!(
-                                            "alter table `{table}` modify column `{}` {}({})",
-                                            f.field(),
-                                            f.ty(),
-                                            f.length() * 2
+                                            "alter table `{}` add column `{}` {}",
+                                            records
+                                                .table
+                                                .using
+                                                .as_ref()
+                                                .unwrap_or(&table_name.to_string()),
+                                            &column_name,
+                                            ipc_data_type.unwrap(),
                                         );
+                                        tracing::info!("alter table column sql: {}", sql);
                                         taos.as_ref()
                                             .unwrap()
                                             .exec_with_req_id(&sql, req_id.next())
                                             .await?;
                                     }
-                                } else if err_str.contains("[0x0118]") {
-                                    // Code([0x0118] Unknown or common error)
-                                    // column or tag not exists
-                                    let mut index = 0;
-                                    while index < columns.len() {
-                                        // let column_view = views.get(index).unwrap();
-                                        let column_name = columns.get(index).unwrap().as_str();
-                                        let desc =
-                                            taos.as_ref().unwrap().describe(table_name).await?;
-                                        let mut need_add = true;
-                                        desc.into_iter().for_each(|column_meta| {
-                                            if column_meta.field() == column_name {
-                                                need_add = false;
-                                            }
-                                        });
-                                        if need_add {
-                                            let ipc_data_type =
-                                                parser.get_ipcdatatype_from_parser(column_name);
-                                            if ipc_data_type.is_none() {
-                                                anyhow::bail!("column name {column_name} not config in parser");
-                                            }
-                                            let sql = format!(
-                                                "alter table `{}` add column `{}` {}",
-                                                records
-                                                    .table
-                                                    .using
-                                                    .as_ref()
-                                                    .unwrap_or(&table_name.to_string()),
-                                                &column_name,
-                                                ipc_data_type.unwrap(),
-                                            );
-                                            tracing::info!("alter table column sql: {}", sql);
-                                            taos.as_ref()
-                                                .unwrap()
-                                                .exec_with_req_id(&sql, req_id.next())
-                                                .await?;
-                                        }
-                                        index += 1;
-                                    }
-                                // } else if err_str.contains("0x022D") {
-                                //     info!(table = table_name, code = %code, "write {} records failed: {err:#}, retry", records.records.num_rows());
-                                //     // panic!("{}", err);
-                                //     Err(err)?;
-                                //     break;
-                                } else if errno == 0xE001
-                                    || errno == 0xE002
-                                    || errno == 0xE003
-                                    || errno == 0x000B
-                                {
-                                    tokio::time::sleep(Duration::from_secs(2)).await;
-                                    taos.replace(pool.get().await?);
-                                    continue;
-                                } else {
-                                    error!(table = table_name, code = %code, "write {} records failed: {err:?}", records.records.num_rows());
-                                    counter!(METRIC_WRITE_RAW_BLOCK_FAILS, 1);
-                                    counter!(METRIC_RECORD_FAILS, raw.nrows() as u64);
-                                    counter!(
-                                        METRIC_POINT_FAILS,
-                                        (raw.nrows() * raw.column_views().len()) as u64
-                                    );
-                                    Err(err)?;
-                                    break;
+                                    index += 1;
                                 }
+                            // } else if err_str.contains("0x022D") {
+                            //     info!(table = table_name, code = %code, "write {} records failed: {err:#}, retry", records.records.num_rows());
+                            //     // panic!("{}", err);
+                            //     Err(err)?;
+                            //     break;
+                            } else if errno == 0xE001
+                                || errno == 0xE002
+                                || errno == 0xE003
+                                || errno == 0x000B
+                            {
+                                tokio::time::sleep(Duration::from_secs(2)).await;
+                                taos.replace(pool.get().await?);
                                 continue;
                             } else {
-                                *count += raw.nrows();
-                                counter!(METRIC_WRITE_RAW_BLOCKS, 1);
-                                counter!(METRIC_RECORDS, raw.nrows() as u64);
+                                error!(table = table_name, code = %code, "write {} records failed: {err:?}", records.records.num_rows());
+                                counter!(METRIC_WRITE_RAW_BLOCK_FAILS, 1);
+                                counter!(METRIC_RECORD_FAILS, raw.nrows() as u64);
                                 counter!(
-                                    METRIC_POINTS,
+                                    METRIC_POINT_FAILS,
                                     (raw.nrows() * raw.column_views().len()) as u64
                                 );
-                                if let Some(transferred) = transferred {
-                                    transferred
-                                        .records
-                                        .fetch_add(raw.nrows() as _, Ordering::SeqCst);
-                                    transferred.points.fetch_add(
-                                        (raw.nrows() * raw.ncols()) as _,
-                                        Ordering::SeqCst,
-                                    );
-                                }
+                                Err(err)?;
                                 break;
                             }
+                            continue;
+                        } else {
+                            *count += raw.nrows();
+                            counter!(METRIC_WRITE_RAW_BLOCKS, 1);
+                            counter!(METRIC_RECORDS, raw.nrows() as u64);
+                            counter!(
+                                METRIC_POINTS,
+                                (raw.nrows() * raw.column_views().len()) as u64
+                            );
+                            if let Some(transferred) = transferred {
+                                transferred
+                                    .records
+                                    .fetch_add(raw.nrows() as _, Ordering::SeqCst);
+                                transferred
+                                    .points
+                                    .fetch_add((raw.nrows() * raw.ncols()) as _, Ordering::SeqCst);
+                            }
+                            break;
                         }
                     }
                 }
             }
-        } else {
-            let _ = taosx_ipc::stream::reader::record_batch_to_column_view(batch, target_precision);
-            // let mut stmt = Stmt::init(&taos)?;
-            // process id, ts, value
-            // dbg!(&cv_vec);
-            anyhow::bail!("Parser should be set with flat stream");
         }
     }
     Ok(())
@@ -2114,6 +2083,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
     ipc_error_strategy: IpcErrorStrategy,
     stream_trace_id: u64,
 ) -> anyhow::Result<()> {
+
     let mut count = 0;
     let mut batches: u32 = 0;
     let mut stream = ipc_reader.into_stream();

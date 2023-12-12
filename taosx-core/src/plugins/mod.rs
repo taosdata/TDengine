@@ -40,6 +40,23 @@ pub enum Parser {
     },
 }
 
+#[test]
+fn test_parser_serde() {
+    let parser = r#"{
+  "parse": { "payload": { "json": ["value::double"] } },
+  "model": {
+    "table": "{topic}",
+    "using": "mqtt",
+    "tags": ["topic"],
+    "columns": ["ts", "value", "qos"]
+  }
+}"#;
+    let parser: Parser = serde_json::from_str(parser).unwrap();
+    dbg!(&parser);
+    let json = serde_json::to_string(&parser).unwrap();
+    assert_eq!(json, r#"{"parser":{"parse":{"payload":""}},"format":{"a":1}}"#);
+}
+
 impl std::ops::Deref for Parser {
     type Target = transform::Parser;
 
