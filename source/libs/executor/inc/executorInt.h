@@ -280,7 +280,6 @@ typedef struct STmsSortRowIdInfo {
   
   char* rowBuf;
   int32_t rowBytes;
-  SArray* aColVals;
 } STmsSortRowIdInfo;
 
 typedef struct STableMergeScanInfo {

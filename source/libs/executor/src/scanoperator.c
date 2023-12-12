@@ -3220,18 +3220,11 @@ _error:
 
 // ========================= table merge scan
 
-typedef struct STmsColVal {
-  char*   pData;
-  bool    isNull;
-  int16_t type;
-  int32_t bytes;
-} STmsColVal;
-
-static int32_t initColValsBuf(int32_t* rowBytes, char** rowBuf, const SArray* aColVals) {
-  int32_t numCols = taosArrayGetSize(aColVals);
+static int32_t initRowIdSortRowBuf(int32_t* rowBytes, char** rowBuf, SSDataBlock* pBlock) {
+  int32_t numCols = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numCols; ++i) {
-    STmsColVal* pCol = (STmsColVal*)taosArrayGet(aColVals, i);
-    (*rowBytes) += pCol->bytes;  
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    (*rowBytes) += pCol->info.bytes;  
   }
 
   int32_t nullFlagSize = sizeof(int8_t) * numCols;
@@ -3239,39 +3232,13 @@ static int32_t initColValsBuf(int32_t* rowBytes, char** rowBuf, const SArray* aC
 
   if (*rowBytes >= 0) {
 
-    (*rowBuf) = taosMemoryCalloc(1, (*rowBytes));
+    (*rowBuf) = taosMemoryMalloc(*rowBytes);
     if ((*rowBuf) == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
 
   return TSDB_CODE_SUCCESS;
-}
-
-static int32_t blockRowFromBuf(char* buf, int32_t bufLen,  SArray* aColVals) {
-  int32_t numOfCols = taosArrayGetSize(aColVals);
-  char* isNull = (char*)buf;
-  char* pStart = (char*)buf + sizeof(int8_t) * numOfCols;
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    STmsColVal* pColVal = taosArrayGet(aColVals, i);
-    pColVal->isNull = isNull[i];
-    if (!isNull[i]) {
-      if (pColVal->type == TSDB_DATA_TYPE_JSON) {
-        int32_t dataLen = getJsonValueLen(pStart);
-        memcpy(pColVal->pData, pStart, dataLen);
-        pStart += dataLen;
-      } else if (IS_VAR_DATA_TYPE(pColVal->type)) {
-        varDataCopy(pColVal->pData, pStart);
-        pStart += varDataTLen(pStart);
-      } else {
-        int32_t bytes = pColVal->bytes;
-        memcpy(pColVal->pData, pStart, bytes);
-        pStart += bytes;
-      }
-    }
-  }
-  ASSERT(bufLen == pStart-buf);
-  return 0;
 }
 
 static int32_t blockRowToBuf(SSDataBlock* pBlock, int32_t rowIdx, char* buf) {
@@ -3338,35 +3305,35 @@ static int32_t transformIntoSortInputBlock(STableMergeScanInfo* pInfo, SSDataBlo
   return code;
 }
 
-
-int32_t retrieveExtSourceRow(STableMergeScanInfo* pInfo, int64_t offset, int32_t length, SArray* aColVals) {
-  STmsSortRowIdInfo* pSortInfo = &pInfo->tmsSortRowIdInfo;
-
-  taosLSeekFile(pSortInfo->dataFile, offset, SEEK_SET);
-  taosReadFile(pSortInfo->dataFile, pSortInfo->rowBuf, length);
-  blockRowFromBuf(pSortInfo->rowBuf, length, aColVals);
-  return 0;
-} 
-
-void appendOneRowIdRowToDataBlock(STableMergeScanInfo* pInfo, SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
+static void appendOneRowIdRowToDataBlock(STableMergeScanInfo* pInfo, SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
   STmsSortRowIdInfo* pSortInfo = &pInfo->tmsSortRowIdInfo;
 
   int64_t offset = *(int64_t*)tsortGetValue(pTupleHandle, 1);
   int32_t length = *(int32_t*)tsortGetValue(pTupleHandle, 2);
-  retrieveExtSourceRow(pInfo, offset, length, pSortInfo->aColVals);
-  
-  for (int32_t i = 0; i < taosArrayGetSize(pSortInfo->aColVals); ++i) {
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
-    STmsColVal* pColVal = taosArrayGet(pSortInfo->aColVals, i);
 
-    bool isNull = pColVal->isNull;
-    if (isNull) {
-      colDataSetNULL(pColInfo, pBlock->info.rows);
-    } else {
-      char* pData = pColVal->pData;
-      if (pData != NULL) {
-        colDataSetVal(pColInfo, pBlock->info.rows, pData, false);
+  taosLSeekFile(pSortInfo->dataFile, offset, SEEK_SET);
+  taosReadFile(pSortInfo->dataFile, pSortInfo->rowBuf, length);
+
+  int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  char* buf = pSortInfo->rowBuf;
+  char* isNull = (char*)buf;
+  char* pStart = (char*)buf + sizeof(int8_t) * numOfCols;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
+
+    if (!isNull[i]) {
+      colDataSetVal(pColInfo, pBlock->info.rows, pStart, false);
+      if (pColInfo->info.type == TSDB_DATA_TYPE_JSON) {
+        int32_t dataLen = getJsonValueLen(pStart);
+        pStart += dataLen;
+      } else if (IS_VAR_DATA_TYPE(pColInfo->info.type)) {
+        pStart += varDataTLen(pStart);
+      } else {
+        int32_t bytes = pColInfo->info.bytes;
+        pStart += bytes;
       }
+    } else {
+      colDataSetNULL(pColInfo, pBlock->info.rows);
     }
   }
 
@@ -3752,11 +3719,6 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   cleanupQueryTableDataCond(&pTableScanInfo->base.cond);
 
   taosMemoryFree(pTableScanInfo->tmsSortRowIdInfo.rowBuf);
-  for (int32_t i = 0; i < taosArrayGetSize(pTableScanInfo->tmsSortRowIdInfo.aColVals); ++i) {
-    STmsColVal* pColVal = taosArrayGet(pTableScanInfo->tmsSortRowIdInfo.aColVals, i);
-    taosMemoryFree(pColVal->pData);
-  }
-  taosArrayDestroy(pTableScanInfo->tmsSortRowIdInfo.aColVals);
 
   pTableScanInfo->base.readerAPI.tsdReaderClose(pTableScanInfo->base.dataReader);
   pTableScanInfo->base.dataReader = NULL;
@@ -3876,16 +3838,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
     pInfo->pSortInfo = pList;
 
     STmsSortRowIdInfo* pSortRowIdInfo = &pInfo->tmsSortRowIdInfo;
-    pSortRowIdInfo->aColVals = taosArrayInit(32, sizeof(STmsColVal));
-    for (int32_t i = 0; i < taosArrayGetSize(pInfo->pResBlock->pDataBlock); ++i) {
-      SColumnInfoData* pCol = taosArrayGet(pInfo->pResBlock->pDataBlock, i);
-      STmsColVal colVal = {0};
-      colVal.pData = taosMemoryMalloc(pCol->info.bytes);
-      colVal.bytes = pCol->info.bytes;
-      colVal.type = pCol->info.type;
-      taosArrayPush(pSortRowIdInfo->aColVals, &colVal);
-    }
-    initColValsBuf(&pSortRowIdInfo->rowBytes, &pSortRowIdInfo->rowBuf, pSortRowIdInfo->aColVals);
+    initRowIdSortRowBuf(&pSortRowIdInfo->rowBytes, &pSortRowIdInfo->rowBuf, pInfo->pResBlock);
   }
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
   pInfo->mTableNumRows = tSimpleHashInit(1024,
