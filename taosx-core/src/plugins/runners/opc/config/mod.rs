@@ -475,13 +475,20 @@ pub async fn generate_config_from_csv(
                             .filter(|col| col.column_name == "original_ts")
                             .count();
                         if rts_col_num > 1 {
-                            bail!("received_ts_col exists more than once in file: {file}");
+                            bail!("received_ts column exists more than once in csv file");
                         }
                         if ts_col_num > 1 {
-                            bail!("ts_col exists more than once in file: {file}");
+                            bail!("original_ts column exists more than once in csv file");
                         }
+
                         if rts_col_num == 0 && ts_col_num == 0 {
-                            bail!("neither ts_col nor received_ts_col exists in file: {file}");
+                            let col_config = ColumnConfig {
+                                column_name: "original_ts".to_string(),
+                                column_type: Some(Ty::Timestamp),
+                                column_alias: Some("ts".to_string()),
+                                is_primary_key: true,
+                            };
+                            column_config.push(col_config);
                         }
 
                         column_config_init = true;
@@ -754,11 +761,25 @@ mod tests {
                 .is_primary_key
         );
 
-        let config = generate_config_from_csv("opcua", "@../tests/opc/opcua_without_ts.csv").await;
-        assert!(config.is_err());
+        let (config, _, _) =
+            generate_config_from_csv("opcua", "@../tests/opc/opcua_without_ts.csv")
+                .await
+                .unwrap();
+        let cols = config
+            .table_config
+            .column_configs
+            .iter()
+            .map(|col| col.column_name.as_str())
+            .collect_vec();
+        assert_eq!(cols, vec!["value", "quality", "original_ts"]);
         assert_eq!(
-            config.err().unwrap().to_string(),
-            "neither ts_col nor received_ts_col exists in file: @../tests/opc/opcua_without_ts.csv"
+            true,
+            opc_table_config
+                .table_config
+                .column_configs
+                .get(2)
+                .unwrap()
+                .is_primary_key
         );
     }
 }
