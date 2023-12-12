@@ -1,4 +1,4 @@
-信息点编码,OPC TAG点地址,数据类型,对应超级表表名,OPC原始时间列名,TD服务端接收时间列名,标签列1
+信息点编码,OPC TAG点地址,数据类型,对应超级表表名,TD服务端接收时间列名,标签列1
 tbname,point_id,type,stable,received_time_col,tag::nchar(10)::unit
 d_1008,ns=3;i=1008,double,stb_double,rts,%H
 d_1009,ns=3;i=1009,double,stb_double,rts,kg/h
