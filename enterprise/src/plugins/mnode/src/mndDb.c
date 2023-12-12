@@ -100,16 +100,7 @@ static int32_t mndBuildCompactDbRsp(SCompactDbRsp* pCompactRsp, int32_t *pRspLen
 }
 
 static int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw) {
-  int64_t compactTs = taosGetTimestampMs();
-  int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "compact-db");
-  if (pTrans == NULL) goto _OVER;
-
   SCompactDbRsp compactRsp = {0};
-
-  mInfo("trans:%d, used to compact db:%s", pTrans->id, pDb->name);
-  mndTransSetDbName(pTrans, pDb->name, NULL);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   bool isExist = false;
   void *pIter = NULL;
@@ -124,7 +115,7 @@ static int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWin
     sdbRelease(pMnode->pSdb, pCompact);
   }
   if(isExist) {
-    mInfo("trans:%d, compact db:%s already exist", pTrans->id, pDb->name);
+    mInfo("compact db:%s already exist", pDb->name);
     
     int32_t rspLen = 0;
     void   *pRsp = NULL;
@@ -135,9 +126,17 @@ static int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWin
     pReq->info.rsp = pRsp;
     pReq->info.rspLen = rspLen;
 
-    code = -1;
-    goto _OVER;
+    return -1;
   }
+
+  int32_t code = -1;
+  int64_t compactTs = taosGetTimestampMs();
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "compact-db");
+  if (pTrans == NULL) goto _OVER;
+
+  mInfo("trans:%d, used to compact db:%s", pTrans->id, pDb->name);
+  mndTransSetDbName(pTrans, pDb->name, NULL);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   if (mndSetCompactDbCommitLogs(pMnode, pTrans, pDb, compactTs) != 0) goto _OVER;
   if (mndSetCompactDbRedoActions(pMnode, pTrans, pDb, compactTs, tw, &compactRsp) != 0) goto _OVER;
