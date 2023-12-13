@@ -17,7 +17,9 @@ pub fn replacen(
     to: ImmutableString,
     n: rhai::INT,
 ) -> ImmutableString {
-    s.as_str().replacen(pat.as_str(), to.as_str(), n as _).into()
+    s.as_str()
+        .replacen(pat.as_str(), to.as_str(), n as _)
+        .into()
 }
 
 #[allow(dead_code)]

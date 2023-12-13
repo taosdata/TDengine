@@ -54,7 +54,10 @@ fn test_parser_serde() {
     let parser: Parser = serde_json::from_str(parser).unwrap();
     dbg!(&parser);
     let json = serde_json::to_string(&parser).unwrap();
-    assert_eq!(json, r#"{"parser":{"parse":{"payload":""}},"format":{"a":1}}"#);
+    assert_eq!(
+        json,
+        r#"{"parser":{"parse":{"payload":""}},"format":{"a":1}}"#
+    );
 }
 
 impl std::ops::Deref for Parser {
