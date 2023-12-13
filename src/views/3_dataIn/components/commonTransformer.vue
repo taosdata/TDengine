@@ -72,9 +72,13 @@
           <span>{{ $t("datasource.transformer.identified") }}</span>
         </div>
         <ul class="col-list">
+          
           <li v-for="(item, index) in columnsArr" :key="index">
+            <el-tooltip class="item" effect="light" :content="item.value" placement="top-start">
             <span>{{ item.name }}</span>
+          </el-tooltip>
           </li>
+       
         </ul>
       </section>
       <section class="extract">
@@ -87,7 +91,6 @@
             :key="item.key"
             :itemData="item"
             :index="index"
-            :payload="msgForm.msgbody"
             :extractColumns="item.columns"
             :indentifiedColumns="indentifiedColumns"
             @deleteExtract="deleteExtract"
@@ -100,11 +103,21 @@
           <el-button type="primary" size="small" @click="addNewExtract" :disabled='columnsArr.length==0'>
           {{ $t("add") }}
         </el-button>
-        <el-button type="primary" size="small"  :disabled='columnsArr.length==0'>
-          {{ $t("submit") }}
-        </el-button>
+        <!-- <el-button type="primary" size="small"  :disabled='columnsArr.length==0' @click='getAllExtract'>
+          {{ $t("previewall") }}
+        </el-button> -->
         </div>
-        
+        <!-- <div class="extract-table" v-if="allExtractTbData.length > 0">
+      <el-table :data="allExtractTbData" border style="width: 100%">
+        <el-table-column
+          v-for="(item, index) in allExtractCols"
+          :key="index"
+          :label="allExtractCols[index]"
+          :prop="allExtractCols[index]"
+          show-overflow-tooltip
+        ></el-table-column>
+      </el-table>
+    </div> -->
       </section>
       <section class="filter">
         <div class="block-title">
@@ -421,24 +434,10 @@ export default {
         // },
       ],
       currentCol: "",
-      mappingParser: {},
+      mappingParser: {}
     };
   },
   mounted() {
-    //临时ui代码
-    // [
-    //   'timestamp','groupid','location','deviceid','current','voltage','phase'
-    // ].forEach(item=>{
-    //   this.tempColumns.push({
-    //     description:item,
-    //     name:item,
-    //     show:true,
-    //     type:'string',
-    //     value:''
-    //   })
-    // })
-
-    // this.initJsonEditor()
     if (this.parserColumns) {
       this.initColumnLists(this.parserColumns);
     }
@@ -458,11 +457,19 @@ export default {
       this.formatCSVExtract(this.$store.state.app.csvTransformerParser.columns);
     }
     this.getInitStables();
-    console.log(this.indentifiedColumns, "indentifiedColumns");
   },
   methods: {
+    //获取所有的extract或者split结果
+    getAllExtract(){
+      this.$refs.extract[0].submitExtract(true)
+      console.log('所有的参数');
+    },
     async submitParse() {
       try {
+        if(!this.msgForm.msgbody){
+          Message.warning(this.$t('datasource.transformer.msgbodytip'))
+          return
+        }
         let topparser = {
           parser: {
             parse: {
@@ -490,6 +497,14 @@ export default {
           return;
         }
         this.isbreak = false;
+        let tbdata = result[0].columns.map((data) => {
+          return Object.fromEntries(
+            result[0].fields.map((item, index) => {
+              return [item.name, data[index] ? data[index].toString() : null];
+            })
+          );
+        });
+        console.log(tbdata,'tbdata---top');
         this.columnsArr= result[0].fields
           .filter((item) => {
             if (
@@ -510,7 +525,9 @@ export default {
               name: val.name,
               show: true,
               type: "string",
-              value: "",
+              value: tbdata.map(item=>{
+                return item[val.name]
+              }).join(';'),
             };
           });
         console.log(
@@ -584,11 +601,24 @@ export default {
           : this.isCSV
           ? csvechoTransData.msgBody
           : value.input.map((item) => item.value).join(";");
-      Object.entries(value.parser.parse).map((item) => {
+
+          this.parseruleForm.type=Object.keys(value.parser.parse.payload).toString()
+          this.parseruleForm.expression=Object.values(value.parser.parse.payload).toString()
+         await  this.submitParse()
+
+
+      let identifiedColObj=value.parser.mutate.filter(item=>{
+        if(Object.keys(item).toString()=='extract'){
+          return item
+        }
+      })[0]
+      Object.entries(identifiedColObj.extract).forEach((item) => {
         let ind = this.columnsArr.findIndex((col) => col.name == item[0]);
         if (ind > -1) {
           this.$set(this.columnsArr[ind], "show", false);
         }
+
+        console.log(item,ind,this.columnsArr,'编辑回显示----extract');
         if (Object.keys(item[1]).toString() == "split") {
           this.$store.commit("app/SET_SPLIT_EXPRESS", item[1]["split"]);
         }
@@ -603,6 +633,7 @@ export default {
           this.extractArr.push(obj);
         }
       });
+      console.log(this.extractArr,'this.extractArr');
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", value.parser.parse);
       let echoMapData = [];
       let isincludeFilter = false;
@@ -644,7 +675,7 @@ export default {
             console.log(val, "获取映射字段");
           });
         }
-
+console.log(isincludeFilter,'是否包含filter-----88888');
         if (isincludeFilter) {
           await this.$refs.filter[0].submitFilter();
         }
@@ -656,6 +687,7 @@ export default {
     },
     //初始化列下拉框数据，适用于新增和编辑，拷贝
     initColumnLists(columns) {
+      console.log(columns,'显示的列');
       this.$set(
         this,
         "indentifiedColumns",
@@ -773,10 +805,11 @@ export default {
       columns.unshift(primarykey);
       let parserData = {
         parser: {
-          parse: Object.assign(
-            {},
-            this.$store.state.app.transformExtractParseData
-          ),
+          parse: this.$store.state.app.topParse.parser.parse,
+          // Object.assign(
+          //   {},
+          //   this.$store.state.app.transformExtractParseData
+          // ),
           model: {
             name: this.tableData[0]["Expression"],
             using: this.sruleForm.s_name,
@@ -789,7 +822,7 @@ export default {
                   filter: Object.values(
                     this.$store.state.app.transformerFilterParseData
                   ).toString(),
-                })
+                }).concat(this.$store.state.app.transformExtractParseData)
                 .concat({
                   map: mutateMap,
                 })
@@ -857,31 +890,34 @@ export default {
       });
       let parserData = {
         parser: {
-          parse: Object.keys(extractObj).toString() ? extractObj : {},
+          parse: this.$store.state.app.topParse.parser.parse,
           model: this.mappingParser.parser.model,
-          mutate: this.mappingParser.parser.mutate.some(
-            (key) => Object.keys(key).toString() == "filter"
-          )
-            ? this.mappingParser.parser.mutate
-            : this.filterArr.length > 0 && this.filterArr[0].expression
-            ? this.filterArr
-                .map((item) => {
-                  return {
-                    filter: item.expression,
-                  };
-                })
-                .concat(this.mappingParser.parser.mutate)
-            : this.mappingParser.parser.mutate,
+          mutate: this.mappingParser.parser.mutate
+          // .some(
+          //   (key) => Object.keys(key).toString() == "filter"
+          // )
+          //   ? this.mappingParser.parser.mutate
+          //   : this.filterArr.length > 0 && this.filterArr[0].expression
+          //   ? this.filterArr
+          //       .map((item) => {
+          //         return {
+          //           filter: item.expression,
+          //         };
+          //       })
+          //       .concat(this.mappingParser.parser.mutate)
+          //   : this.mappingParser.parser.mutate,
         },
 
         input: this.isCSV
           ? this.$store.state.app.csvTransformerParser.inputList
           : [].concat(this.generateInput()),
       };
+      console.log(parserData,'parserData---创建task')
       this.$emit("getTransformerParams", parserData);
     },
     changeColumnStatus(index, name) {
       //选中的列不能再选中
+      console.log(index, name,this.columnsArr,'选中的列不能再选中');
       let ind = this.columnsArr.findIndex((item) => item.name == name);
       this.$set(this.columnsArr[ind], "show", false);
       this.extractAddStatus = this.columnsArr.every((item) => !item.show);
@@ -923,12 +959,6 @@ export default {
           item[`Output2`] = "";
           if (overlapColumns.includes(item["Name"])) {
             outputTBData.map((val, index) => {
-              console.log(
-                val,
-                item,
-                val[item["Name"]],
-                'val[item["Name"]]val[item["Name"]]'
-              );
               item[`Output` + (index + 1)] =
                 item["Name"] == "SubTableName"
                   ? val["__tbname__"]
@@ -1152,12 +1182,19 @@ export default {
       try {
         if (!this.$store.state.app.currentDBName) {
           Message.warning(this.$t("datasource.selecttargetdb"));
+          this.sruleForm.s_name=''
           return;
         }
         if (this.options.length == 0) {
           Message.warning(this.$t("datasource.transformer.parsefirst"));
+          this.sruleForm.s_name=''
           return;
         }
+        if(this.filterArr.length==0||!this.filterArr[0].expression){
+          await this.getAllExtract(true)
+        }
+        
+        console.log('选择超级表时候如果没有filter需要全量请求extract');
         let res = await sendSQLReq(
           `desc \`${this.$store.state.app.currentDBName}\`.\`${this.sruleForm.s_name}\``
         );
@@ -1374,6 +1411,7 @@ export default {
   }
 }
 .col-list {
+  margin-top:15px;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
   column-gap: 15px;
@@ -1507,5 +1545,11 @@ export default {
       }
     }
   }
+}
+.extract-btns{
+  display:flex;
+}
+.extract-table{
+  margin-top:20px;
 }
 </style>

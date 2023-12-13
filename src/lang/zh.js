@@ -13,7 +13,7 @@ export default {
   expression:'表达式',
   mapping:'映射',
   execute:'执行',
-
+  previewall:'预览所有',
   copyDsn: '复制 DSN',
 
   clone:'复制',
@@ -1005,7 +1005,9 @@ export default {
 
   datasource: {
     transformer:{
-      parsefirst:'请先执行Parse操作',
+      filterexecuted:'筛选条件已触发',
+      filterunexe:'筛选条件尚未触发，按Enter键触发',
+      parsefirst:'请先执行解析,提取或者拆分操作',
       parse:'解析',
       jsontip:'请输入正确JSON格式',
       mappingvaildtip:'请填写正确的主键，列和tag',

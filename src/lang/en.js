@@ -14,7 +14,7 @@ export default {
   expression:'Expression',
   mapping:'Mapping',
   execute:'Execute',
-
+  previewall:'Preview All',
   copyDsn: 'Copy DSN',
 
   clone:'Clone',
@@ -1201,7 +1201,9 @@ export default {
     // opc_alias:'Alias',
     // opc_type:'Type',
     transformer:{
-    parsefirst:'Please excute the parse first',
+      filterexecuted:'Filter condition triggered',
+      filterunexe:'The filtering condition has not been triggered yet, press the enter key to trigger it',
+    parsefirst:'Please excute the parse,extract or split first',
     parse:'Parse',
       jsontip:'Please enter the correct JSON format',
       mappingvaildtip:'Please fill in the correct primary key, column, and tag',
