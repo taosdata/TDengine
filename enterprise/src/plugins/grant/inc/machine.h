@@ -94,7 +94,7 @@
 
 // uniq grant
 #define GRANT_UNIQ_ACTIVE_VER            1
-#define GRANT_UNIQ_ACTIVE_KEY_LEN        255
+#define GRANT_UNIQ_ACTIVE_KEY_LEN        248
 #define GRANT_UNIQ_ACTIVE_RAW_LEN        184
 #define GRANT_UNIQ_ACTIVE_ENCRYPT_LEN    176
 #define GRANT_UNIQ_HASH_LEN              8

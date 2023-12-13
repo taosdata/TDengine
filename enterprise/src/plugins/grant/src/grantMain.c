@@ -117,22 +117,22 @@
     colDataSetVal(pColInfo, numOfRows, tmp, false);    \
   } while (0)
 
-#define GRANT_ITEM_SHOW(cur, limit, unit)                         \
-  do {                                                            \
-    ++cols;                                                       \
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);            \
-    if ((limit) != GRANT_UNIQ_UNLIMITED) {                        \
-      if ((unit) <= 32) {                                         \
-        sprintf(tmp1, "%d/%d", (int32_t)(cur), (int32_t)(limit)); \
-      } else {                                                    \
-        sprintf(tmp1, "%" PRIi64 "/%" PRIi64, (cur), (limit));    \
-      }                                                           \
-      src = tmp1;                                                 \
-    } else {                                                      \
-      src = "unlimited";                                          \
-    }                                                             \
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));               \
-    colDataSetVal(pColInfo, numOfRows, tmp, false);               \
+#define GRANT_ITEM_SHOW(cur, limit, unit)                                        \
+  do {                                                                           \
+    ++cols;                                                                      \
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);                           \
+    if ((limit) != GRANT_UNIQ_UNLIMITED) {                                       \
+      if ((unit) <= 32) {                                                        \
+        sprintf(tmp1, "%d/%d", (int32_t)(cur), (int32_t)(limit));                \
+      } else {                                                                   \
+        sprintf(tmp1, "%" PRIi64 "/%" PRIi64, (int64_t)(cur), (int64_t)(limit)); \
+      }                                                                          \
+      src = tmp1;                                                                \
+    } else {                                                                     \
+      src = "unlimited";                                                         \
+    }                                                                            \
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));                              \
+    colDataSetVal(pColInfo, numOfRows, tmp, false);                              \
   } while (0)
 
 #define GRANT_DATA_IN_SHOW(appType, appStr)                                                                            \
@@ -1277,7 +1277,7 @@ static void grantResetMaster(SMnode *pMnode) {
 
     char ts[GRANT_TS_SEC_LEN] = {0};
     grantSecondsToString(gStatus.basicExpireSec, ts);
-    uInfo("grant expire time reset to %s %u, current timeseries %" PRIu64, ts, gStatus.basicExpireSec,
+    uInfo("grant expire time reset to %s %" PRIi64 ", current timeseries %" PRIi64, ts, (int64_t)gStatus.basicExpireSec,
           gStatus.curTimeSeries);
   }
 #endif
