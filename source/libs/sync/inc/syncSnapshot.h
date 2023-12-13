@@ -63,7 +63,6 @@ typedef struct SSyncSnapshotSender {
   int64_t        sendingMS;
   SyncTerm       term;
   int64_t        startTime;
-  int64_t        waitTime;
   int64_t        lastSendTime;
   bool           finish;
 
