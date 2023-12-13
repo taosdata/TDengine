@@ -274,8 +274,7 @@ typedef struct STableScanInfo {
 } STableScanInfo;
 
 typedef struct STmsSortRowIdInfo {
-  SDiskbasedBuf* pExtSrcBlkBuf;
-  SSHashObj* pBlkDataHash;  // blkId->SSDataBlock*
+  SDiskbasedBuf* pExtSrcRowsBuf;
 } STmsSortRowIdInfo;
 
 typedef struct STableMergeScanInfo {
