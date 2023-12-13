@@ -2537,6 +2537,7 @@ async fn realtime(
 
 /// Reset tracing metrics use pesistenced metrics before starting task
 /// tracing metrics and legacy metrics should keep the same at any time
+#[allow(dead_code)]
 fn reset_tracing_metrics(metrics: Arc<LegacyMetrics>) {
     absolute_counter!(METRICS_LEGACY_WORKERS, metrics.workers.load(SeqCst) as u64);
     absolute_counter!(

@@ -50,7 +50,7 @@ use crate::{
     ConnectorLicense, Parser, Transferred,
 };
 
-use super::{transform::MessageArrowRecords, *};
+use super::{*};
 
 pub mod flat;
 

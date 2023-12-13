@@ -339,7 +339,6 @@ pub fn sql_values_from_record_batch(
 #[cfg(test)]
 mod tests {
     use arrow::array::*;
-    use arrow_schema::DataType;
     use std::sync::Arc;
     use taos::{AsyncQueryable, AsyncTBuilder};
     use taosx_ipc::prelude::IpcDataType;
@@ -451,7 +450,6 @@ mod tests {
 
             let stable = "stb";
 
-            let ty: IpcDataType = DataType::Boolean.into();
             let mut stable_create = format!("create stable {stable} (ts timestamp, `null` int");
             for i in 2..batch.num_columns() {
                 let field = schema.field(i);

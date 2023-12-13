@@ -1009,7 +1009,7 @@ fn test_historian() {
 #[test]
 fn test_pi() {
     let json = include_str!("en/pi.yaml");
-    let mut def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
 
     let dsn = "pi://PI?MaxBackfillRangeDays=1&point_file=*&system_configuration=PI Data Archive Only&batch_size=1000&batch_timeout=1";
     let dsn = Dsn::from_str(&dsn).unwrap();
