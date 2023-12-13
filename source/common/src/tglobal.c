@@ -97,7 +97,7 @@ bool     tsMonitorComp = false;
 // audit
 bool     tsEnableAudit = true;
 bool     tsEnableAuditCreateTable = true;
-int32_t  tsAuditInterval = 500;
+int32_t  tsAuditInterval = 5000;
 
 // telem
 #ifdef TD_ENTERPRISE
