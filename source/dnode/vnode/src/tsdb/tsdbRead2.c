@@ -2158,7 +2158,7 @@ static bool initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
   return hasData;
 }
 
-static bool hasDataInSttBlock(STableBlockScanInfo *pInfo, SSttBlockReader* pSttBlockReader) {
+static bool hasDataInSttBlock(STableBlockScanInfo *pInfo) {
   return pInfo->sttKeyInfo.status == STT_FILE_HAS_DATA;
 }
 
