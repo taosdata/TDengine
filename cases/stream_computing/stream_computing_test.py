@@ -146,6 +146,7 @@ class StreamComputingTest(TDCase):
 
         self.state_window_range = list()
         self.checkpoint_time = 180
+        self.stage_report_time = 5
 
         self.c1_half_bf = 0
         self.c1_half_af = 0
@@ -589,7 +590,7 @@ class StreamComputingTest(TDCase):
             self.tdCom.check_query_data(f'select wstart, `udf2(c10)` from {self.ctb_name}{self.des_table_suffix}', f'select _wstart AS wstart, udf2(c10) from {self.ctb_name} interval({self.dataDict["interval"]}s)')
             self.tdCom.check_query_data(f'select wstart, `udf2(c10)` from {self.tb_name}{self.des_table_suffix}', f'select _wstart AS wstart, udf2(c10) from {self.tb_name} interval({self.dataDict["interval"]}s)')
 
-    def at_once_interval(self, interval, partition="tbname", delete=False, fill_value=None, fill_history_value=None, interval_value=None, case_when=None, ignore_expired=None):
+    def at_once_interval(self, interval, partition="tbname", delete=False, fill_value=None, fill_history_value=None, interval_value=None, case_when=None, ignore_expired=None, check_stream_task=None):
         self.delete = delete
         self.case_name = sys._getframe().f_code.co_name
         # if interval_value is None:
@@ -810,7 +811,9 @@ class StreamComputingTest(TDCase):
             self.tdSql.query(f'select wstart, {self.stb_output_select_str} from {self.stb_name}{self.des_table_suffix} order by wstart')
             res1 = self.tdSql.query_data
             self.tdSql.checkEqual(res1, res2)
-            
+        if check_stream_task:
+            time.sleep(self.stage_report_time)
+            self.tdCom.check_stream_tasks()
             # if fill_value:
             #     history_ts = str(start_time)+f'-{self.dataDict["interval"]*(self.range_count+2)}s'
             # print(history_ts)
@@ -3474,6 +3477,9 @@ class StreamComputingTest(TDCase):
 
     def insert_after_restart(self, delete=False, fill_history_value=None):
         self.data_filter(delete=delete, fill_history_value=fill_history_value)
+        time.sleep(self.stage_report_time)
+        self.tdSql.query(f'select distinct(`stage`) from information_schema.ins_stream_tasks')
+        old_stage = int(self.tdSql.query_data[0][0])
         self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1]}, self.endpoint, True)
          # insert data
         count = self.range_count
@@ -3505,6 +3511,8 @@ class StreamComputingTest(TDCase):
         self.tdCom.check_query_data(f'select {self.tb_filter_des_select_elm} from {self.ctb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.ctb_name} where {self.stb_data_filter_sql};')
         self.tdCom.check_query_data(f'select {self.tb_filter_des_select_elm} from {self.tb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.tb_name} where {self.tb_data_filter_sql};')
         self.tdCom.stream_timeout = 12
+        time.sleep(self.stage_report_time)
+        self.tdCom.check_stream_tasks(old_stage, True)
 
     def insert_after_recreate_source_table(self):
         count = self.data_filter(True)
@@ -3693,10 +3701,10 @@ class StreamComputingTest(TDCase):
             self.udaf_test(10, 8, "double")
             self.udaf_test(10, 8, "double", 1)
 
-            self.at_once_interval(interval=random.randint(10, 15), partition="tbname")
+            self.at_once_interval(interval=random.randint(10, 15), partition="tbname", check_stream_task=True)
             self.at_once_interval(interval=random.randint(10, 15), partition="c1")
             self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)")
-            self.at_once_interval(interval=random.randint(10, 15), partition=None)
+            self.at_once_interval(interval=random.randint(10, 15), partition=None, check_stream_task=True)
             self.at_once_interval(interval=random.randint(10, 15), partition="tbname", delete=True)
             self.at_once_interval(interval=random.randint(10, 15), partition="c1", delete=True)
             self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
