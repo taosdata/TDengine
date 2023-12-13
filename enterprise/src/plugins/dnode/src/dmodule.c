@@ -24,10 +24,10 @@
 
 #ifndef ASSERT_NOT_CORE
 #define _TD_DM_CHECK_OFFSET
-#define DM_CHECK_OFFSET(p1, p2, offset, flag)                                \
-  do {                                                                       \
-    int32_t off = POINTER_DISTANCE((p1), (p2));                              \
-    ASSERTS((offset) == abs(off), "%s offset: %d!=%d", (flag), off, offset); \
+#define DM_CHECK_OFFSET(p1, p2, offset, flag)                                  \
+  do {                                                                         \
+    int32_t off = POINTER_DISTANCE((p1), (p2));                                \
+    ASSERTS((offset) == abs(off), "%s offset: %d!=%d", (flag), off, (offset)); \
   } while (0)
 #endif
 
