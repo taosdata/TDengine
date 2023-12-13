@@ -515,7 +515,7 @@ static int uploadCheckpointToS3(char* id, char* path) {
     char object[PATH_MAX] = {0};
     snprintf(object, sizeof(object), "%s%s%s", id, TD_DIRSEP, name);
 
-    if (s3PutObjectFromFile2(filename, object) != 0) {
+    if (s3PutObjectFromFile2(filename, object, 0) != 0) {
       taosCloseDir(&pDir);
       return -1;
     }
