@@ -23,6 +23,8 @@
 #include "syncReplication.h"
 #include "syncUtil.h"
 
+static SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths);
+
 static void syncSnapBufferReset(SSyncSnapBuffer *pBuf) {
   for (int64_t i = pBuf->start; i < pBuf->end; ++i) {
     if (pBuf->entryDeleteCb) {
@@ -531,6 +533,9 @@ void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *p
   pReceiver->term = pPreMsg->term;
   pReceiver->fromId = pPreMsg->srcId;
   pReceiver->startTime = pPreMsg->startTime;
+
+  pReceiver->snapshotParam.start = syncNodeGetSnapBeginIndex(pReceiver->pSyncNode);
+  pReceiver->snapshotParam.end = -1;
 
   sRInfo(pReceiver, "snapshot receiver start, from dnode:%d.", DID(&pReceiver->fromId));
 }
