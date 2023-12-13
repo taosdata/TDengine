@@ -261,26 +261,6 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   } else {
     memcpy(pReq->info.conn.user, TSDB_DEFAULT_USER, strlen(TSDB_DEFAULT_USER) + 1);
   }
-
-  SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
-
-  if (pUser == NULL) {
-    return -1;
-  }
-
-  if (pUser->superUser) {
-    return -1;
-  }
-
-  if (!pUser->enable) {
-    terrno = TSDB_CODE_MND_USER_DISABLED;
-    return -1;
-  }
-
-  if (pUser->sysInfo) {
-    return -1;
-  }
-
   if (retrieveReq.db[0] && mndCheckShowPrivilege(pMnode, pReq->info.conn.user, pShow->type, retrieveReq.db) != 0) {
     return -1;
   }
