@@ -114,11 +114,12 @@ pub fn sql_values_from_record_batch(
         values.push('(');
         for col in 0..batch.num_columns() {
             let array = &columns[col];
-            if array.is_null(row) {
-                values.push_str("NULL");
-            }
             if col > 0 {
                 values.push(',');
+            }
+            if array.is_null(row) {
+                values.push_str("NULL");
+                continue;
             }
             match columns[col].data_type() {
                 arrow_schema::DataType::Null => {
