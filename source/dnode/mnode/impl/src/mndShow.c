@@ -17,6 +17,7 @@
 #include "mndShow.h"
 #include "mndPrivilege.h"
 #include "systable.h"
+#include "mndUser.h"
 
 #define SHOW_STEP_SIZE 100
 #define SHOW_COLS_STEP_SIZE 4096
@@ -210,7 +211,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  mDebug("mndProcessRetrieveSysTableReq tb:%s", retrieveReq.tb);
+  mDebug("process to retrieve systable req db:%s, tb:%s", retrieveReq.db, retrieveReq.tb);
 
   if (retrieveReq.showId == 0) {
     STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
@@ -260,7 +261,27 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   } else {
     memcpy(pReq->info.conn.user, TSDB_DEFAULT_USER, strlen(TSDB_DEFAULT_USER) + 1);
   }
-  if (/*retrieveReq.db[0] && */mndCheckShowPrivilege(pMnode, pReq->info.conn.user, pShow->type, retrieveReq.db) != 0) {
+
+  SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
+
+  if (pUser == NULL) {
+    return -1;
+  }
+
+  if (pUser->superUser) {
+    return -1;
+  }
+
+  if (!pUser->enable) {
+    terrno = TSDB_CODE_MND_USER_DISABLED;
+    return -1;
+  }
+
+  if (pUser->sysInfo) {
+    return -1;
+  }
+
+  if (retrieveReq.db[0] && mndCheckShowPrivilege(pMnode, pReq->info.conn.user, pShow->type, retrieveReq.db) != 0) {
     return -1;
   }
 
