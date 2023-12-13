@@ -671,6 +671,13 @@ upload:
       continue;
     }
 
+    if (i > 0 && cp.parts[i - 1].completed) {
+      if (taosLSeekFile(data->infileFD, cp.parts[i].offset, SEEK_SET) < 0) {
+        code = TAOS_SYSTEM_ERROR(errno);
+        goto clean;
+      }
+    }
+
     int seq = cp.parts[i].index + 1;
 
     partData.manager = &manager;
