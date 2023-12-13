@@ -982,7 +982,8 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
   STableKeyInfo* pList = NULL;
 
   if (pInfo->currentGroupId == -1) {
-    if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
+    int32_t numOfTables = tableListGetSize(pInfo->base.pTableListInfo);
+    if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo) || numOfTables == 0) {
       setOperatorCompleted(pOperator);
       return NULL;
     }
