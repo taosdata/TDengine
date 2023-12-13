@@ -5,32 +5,16 @@ on:
   workflow_dispatch:
 
 env:
-  SCCACHE_GHA_ENABLED: "true"
-  RUSTC_WRAPPER: "sccache"
+  RUSTFLAGS: "--cfg tokio_unstable"
 
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v3
-
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.3
-      - name: Run sccache stat for check
-        shell: bash
-        run: ${SCCACHE_PATH} --show-stats
-
-      - uses: actions/cache@v3
-        name: Cargo Caches
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo
+          clean: false
 
       - uses: actions/cache@v3
         name: Target Caches
@@ -39,11 +23,10 @@ jobs:
             target
           key: ${{ runner.os }}-target
 
-      - name: Build taosX
+      - name: Compile check
         run: |
-          cargo build
+          cargo check --all
 
-      - name: Run sccache stat for check
-        shell: bash
-        run: ${SCCACHE_PATH} --show-stats
-
+      - name: Format check
+        run: |
+          cargo fmt --check --all
