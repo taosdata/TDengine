@@ -46,6 +46,7 @@ SyncIndex raftLogBeginIndex(struct SSyncLogStore* pLogStore);
 SyncIndex raftLogEndIndex(struct SSyncLogStore* pLogStore);
 int32_t   raftLogEntryCount(struct SSyncLogStore* pLogStore);
 SyncIndex raftLogLastIndex(struct SSyncLogStore* pLogStore);
+SyncIndex raftLogIndexRetention(struct SSyncLogStore* pLogStore, int64_t bytes);
 SyncTerm  raftLogLastTerm(struct SSyncLogStore* pLogStore);
 int32_t   raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry);
 
