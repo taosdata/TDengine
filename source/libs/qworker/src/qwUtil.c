@@ -298,6 +298,8 @@ int32_t qwKillTaskHandle(SQWTaskCtx *ctx, int32_t rspCode) {
 void qwFreeTaskCtx(SQWTaskCtx *ctx) {
   if (ctx->ctrlConnInfo.handle) {
     tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER);
+  } else {
+    ASSERT(0);
   }
 
   ctx->ctrlConnInfo.handle = NULL;

@@ -990,6 +990,8 @@ _return:
     if (ctx) {
       QW_UPDATE_RSP_CODE(ctx, code);
       qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_FAIL, ctx->dynamicTask);
+    } else {
+      tmsgReleaseHandle(&qwMsg->connInfo, TAOS_CONN_SERVER);
     }
   }
 
@@ -998,6 +1000,10 @@ _return:
   }
 
   if (ctx) {
+    if (qwMsg->connInfo.handle != ctx->ctrlConnInfo.handle) {
+      tmsgReleaseHandle(&qwMsg->connInfo, TAOS_CONN_SERVER);
+    }
+    
     qwReleaseTaskCtx(mgmt, ctx);
   }
 
