@@ -24,7 +24,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument, warn};
 
 use crate::{
-    core_metrics::{get_metrics_arc, CoreMetrics},
+    core_metrics::{get_metrics_arc, CoreMetrics, TaosXMetrics},
     legacy::scheduler::Todo,
     Action, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND,
 };
@@ -631,20 +631,9 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
         break;
     }
 
-    metrics.total_suc_blocks.fetch_add(1, Ordering::AcqRel);
-    metrics.suc_blocks.fetch_add(1, Ordering::AcqRel);
-    metrics
-        .total_written_rows
-        .fetch_add(block.nrows() as _, Ordering::AcqRel);
-    metrics
-        .written_rows
-        .fetch_add(block.nrows() as _, Ordering::AcqRel);
-    metrics
-        .total_written_points
-        .fetch_add((block.nrows() * block.ncols()) as _, Ordering::AcqRel);
-    metrics
-        .written_points
-        .fetch_add((block.nrows() * block.ncols()) as _, Ordering::AcqRel);
+    metrics.add_suc_blocks(1);
+    metrics.add_written_rows(block.nrows() as _);
+    metrics.add_written_points((block.nrows() * block.ncols()) as _);
 
     if let Some(duration) = target_opts.interval {
         tokio::time::sleep(duration).await;
@@ -873,20 +862,10 @@ async fn sync_single_table_partial(
                         ))?;
                         stmt.execute().await
                             .with_context(|| format!("[{new_table_name}] execute {} rows insertion with batch size limit {batch_size}", range.len()))?;
-                        metrics.total_suc_blocks.fetch_add(1, Ordering::SeqCst);
-                        metrics.suc_blocks.fetch_add(1, Ordering::SeqCst);
-                        metrics
-                            .total_written_rows
-                            .fetch_add(params.len() as _, Ordering::SeqCst);
-                        metrics
-                            .written_rows
-                            .fetch_add(params.len() as _, Ordering::SeqCst);
-                        metrics
-                            .total_written_points
-                            .fetch_add((params.len() * fields) as _, Ordering::SeqCst);
-                        metrics
-                            .written_points
-                            .fetch_add((params.len() * fields) as _, Ordering::SeqCst);
+
+                        metrics.add_suc_blocks(1);
+                        metrics.add_written_rows(params.len() as _);
+                        metrics.add_written_points((params.len() * fields) as _);
                         if let Some(duration) = target_opts.interval {
                             tokio::time::sleep(duration).await;
                         }
@@ -947,20 +926,9 @@ async fn sync_single_table_partial(
                                 success = false;
                                 break;
                             }
-                            metrics.total_suc_blocks.fetch_add(1, Ordering::SeqCst);
-                            metrics.suc_blocks.fetch_add(1, Ordering::SeqCst);
-                            metrics
-                                .total_written_rows
-                                .fetch_add(params.len() as _, Ordering::SeqCst);
-                            metrics
-                                .written_rows
-                                .fetch_add(params.len() as _, Ordering::SeqCst);
-                            metrics
-                                .total_written_points
-                                .fetch_add((params.len() * fields) as _, Ordering::SeqCst);
-                            metrics
-                                .written_points
-                                .fetch_add((params.len() * fields) as _, Ordering::SeqCst);
+                            metrics.add_suc_blocks(1);
+                            metrics.add_written_rows(params.len() as _);
+                            metrics.add_written_points((params.len() * fields) as _);
                         }
                         if success {
                             break;
@@ -985,19 +953,9 @@ async fn sync_single_table_partial(
                 }
             } else {
                 let rows = res.unwrap();
-
-                metrics.total_suc_blocks.fetch_add(1, Ordering::SeqCst);
-                metrics.suc_blocks.fetch_add(1, Ordering::SeqCst);
-                metrics
-                    .total_written_rows
-                    .fetch_add(rows as _, Ordering::SeqCst);
-                metrics.written_rows.fetch_add(rows as _, Ordering::SeqCst);
-                metrics
-                    .total_written_points
-                    .fetch_add((rows * fields) as _, Ordering::SeqCst);
-                metrics
-                    .written_points
-                    .fetch_add((rows * fields) as _, Ordering::SeqCst);
+                metrics.add_suc_blocks(1);
+                metrics.add_written_rows(rows as _);
+                metrics.add_written_points((rows * fields) as _);
             }
 
             if let Some(duration) = target_opts.interval {
