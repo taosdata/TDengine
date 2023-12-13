@@ -23,6 +23,8 @@
 #include "syncReplication.h"
 #include "syncUtil.h"
 
+static SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths);
+
 static void syncSnapBufferReset(SSyncSnapBuffer *pBuf) {
   for (int64_t i = pBuf->start; i < pBuf->end; ++i) {
     if (pBuf->entryDeleteCb) {
@@ -79,7 +81,6 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
   pSender->replicaIndex = replicaIndex;
   pSender->term = raftStoreGetTerm(pSyncNode);
   pSender->startTime = -1;
-  pSender->waitTime = -1;
   pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &pSender->snapshot);
   pSender->finish = false;
 
@@ -199,7 +200,6 @@ void snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
   taosThreadMutexLock(&pSender->pSndBuf->mutex);
   {
     pSender->finish = finish;
-    pSender->waitTime = -1;
 
     // close reader
     if (pSender->pReader != NULL) {
@@ -371,14 +371,7 @@ int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
     return 0;
   }
 
-  int64_t timeNow = taosGetTimestampMs();
-  if (pSender->waitTime <= 0) {
-    pSender->waitTime = timeNow + SNAPSHOT_WAIT_MS;
-  }
-  if (timeNow < pSender->waitTime) {
-    sSDebug(pSender, "snapshot sender waitTime not expired yet, ignore");
-    return 0;
-  }
+  taosMsleep(1);
 
   int32_t code = snapshotSenderStart(pSender);
   if (code != 0) {
@@ -514,7 +507,9 @@ void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *p
   pReceiver->term = pPreMsg->term;
   pReceiver->fromId = pPreMsg->srcId;
   pReceiver->startTime = pPreMsg->startTime;
-  ASSERT(pReceiver->startTime);
+
+  pReceiver->snapshotParam.start = syncNodeGetSnapBeginIndex(pReceiver->pSyncNode);
+  pReceiver->snapshotParam.end = -1;
 
   sRInfo(pReceiver, "snapshot receiver start, from dnode:%d.", DID(&pReceiver->fromId));
 }
