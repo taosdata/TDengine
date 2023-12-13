@@ -87,8 +87,7 @@ typedef struct SMJoinTableInfo {
   SSDataBlock*   blk;
   int32_t        blkRowIdx;
 
-  int64_t        grpRowsNum;
-  int64_t        grpRemainRows;
+  int64_t        grpTotalRows;
   int32_t        grpIdx;
   SArray*        eqGrps;
   SArray*        createdBlks;
@@ -111,19 +110,18 @@ typedef struct SMJoinGrpRows {
 } SMJoinGrpRows;
 
 typedef struct SMJoinMergeCtx {
-  bool          hashCan;
-  bool          keepOrder;
-  bool          grpRemains;
-  bool          midRemains;
-  bool          eqCart;
-  bool          noColCond;
-  int32_t       blksCapacity;
-  SSDataBlock*  midBlk;
-  SSDataBlock*  finBlk;
-  SSDataBlock*  resBlk;
-  int64_t       lastEqTs;
-  SMJoinGrpRows probeNEqGrp;
-  bool          hashJoin;
+  bool                hashCan;
+  bool                keepOrder;
+  bool                grpRemains;
+  bool                midRemains;
+  bool                lastEqGrp;
+  int32_t             blkThreshold;
+  SSDataBlock*        midBlk;
+  SSDataBlock*        finBlk;
+  int64_t             lastEqTs;
+  SMJoinGrpRows       probeNEqGrp;
+  bool                hashJoin;
+  SMJoinOperatorInfo* pJoin;
 } SMJoinMergeCtx;
 
 typedef struct SMJoinWinCtx {
@@ -161,17 +159,17 @@ typedef struct SMJoinOperatorInfo {
   SOperatorInfo*   pOperator;
   int32_t          joinType;
   int32_t          subType;
-  int32_t          inputTsOrder;  
+  int32_t          inputTsOrder;
+  int32_t          errCode;
   SMJoinTableInfo  tbs[2];
   SMJoinTableInfo* build;
   SMJoinTableInfo* probe;
-  SSDataBlock*     pResBlk;
   int32_t          pResColNum;
   int8_t*          pResColMap;
   SFilterInfo*     pFPreFilter;
   SFilterInfo*     pPreFilter;
   SFilterInfo*     pFinFilter;
-  SMJoinFuncs*     joinFps;
+//  SMJoinFuncs*     joinFps;
   SMJoinCtx        ctx;
   SMJoinExecInfo   execInfo;
 } SMJoinOperatorInfo;
@@ -180,7 +178,7 @@ typedef struct SMJoinOperatorInfo {
 #define MJOIN_DS_NEED_INIT(_pOp, _tbctx) (MJOIN_DS_REQ_INIT(_pOp) && (!(_tbctx)->dsInitDone))
 #define MJOIN_TB_LOW_BLK(_tbctx) ((_tbctx)->blkNum <= 0 || ((_tbctx)->blkNum == 1 && (_tbctx)->pHeadBlk->cloned))
 
-#define REACH_HJOIN_THRESHOLD(_prb, _bld) ((_prb)->grpRowsNum * (_bld)->grpRowsNum > MJOIN_HJOIN_CART_THRESHOLD)
+#define REACH_HJOIN_THRESHOLD(_prb, _bld) ((_prb)->grpTotalRows * (_bld)->grpTotalRows >= MJOIN_HJOIN_CART_THRESHOLD)
 
 #define SET_SAME_TS_GRP_HJOIN(_pair, _octx) ((_pair)->hashJoin = (_octx)->hashCan && REACH_HJOIN_THRESHOLD(_pair))
 
@@ -190,14 +188,41 @@ typedef struct SMJoinOperatorInfo {
 #define GRP_REMAIN_ROWS(_grp) ((_grp)->endIdx - (_grp)->readIdx + 1)
 #define GRP_DONE(_grp) ((_grp)->readIdx > (_grp)->endIdx)
 
+#define MJOIN_TB_ROWS_DONE(_tb) ((_tb)->blkRowIdx >= (_tb)->blk->info.rows)
+
 #define BLK_IS_FULL(_blk) ((_blk)->info.rows == (_blk)->info.capacity)
 
 
-#define SET_TABLE_CUR_TS(_col, _ts, _tb)                                      \
+#define MJOIN_GET_TB_COL_TS(_col, _ts, _tb)                                   \
   do {                                                                        \
     (_col) = taosArrayGet((_tb)->blk->pDataBlock, (_tb)->primCol->srcSlot);   \
     (_ts) = *((int64_t*)(_col)->pData + (_tb)->blkRowIdx);                    \
   } while (0)
+
+#define MJOIN_GET_TB_CUR_TS(_col, _ts, _tb)                                     \
+    do {                                                                        \
+      (_ts) = *((int64_t*)(_col)->pData + (_tb)->blkRowIdx);                    \
+    } while (0)
+
+
+#define MJ_ERR_RET(c)                 \
+  do {                                \
+    int32_t _code = (c);              \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+      return _code;                   \
+    }                                 \
+  } while (0)
+
+#define MJ_ERR_JRET(c)               \
+  do {                               \
+    code = (c);                      \
+    if (code != TSDB_CODE_SUCCESS) { \
+      terrno = code;                 \
+      goto _return;                  \
+    }                                \
+  } while (0)
+  
 
 #ifdef __cplusplus
 }

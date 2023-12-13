@@ -649,6 +649,24 @@ int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t blockDataMergeNRows(SSDataBlock* pDest, const SSDataBlock* pSrc, int32_t srcIdx, int32_t numOfRows) {
+  if (pDest->info.rows + numOfRows > pDest->info.capacity) {
+    return TSDB_CODE_FAILED;
+  }
+
+  size_t numOfCols = taosArrayGetSize(pDest->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol2 = taosArrayGet(pDest->pDataBlock, i);
+    SColumnInfoData* pCol1 = taosArrayGet(pSrc->pDataBlock, i);
+
+    colDataAssignNRows(pCol2, pDest->info.rows, pCol1, srcIdx, numOfRows);
+  }
+
+  pDest->info.rows += pSrc->info.rows;
+  return TSDB_CODE_SUCCESS;
+}
+
+
 size_t blockDataGetSize(const SSDataBlock* pBlock) {
   size_t total = 0;
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -751,6 +769,8 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
     SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
     SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, i);
 
+    colDataAssignNRows(pDstCol, 0, pColData, startIndex, rowCount);
+    /*
     for (int32_t j = startIndex; j < (startIndex + rowCount); ++j) {
       bool isNull = false;
       if (pBlock->pBlockAgg == NULL) {
@@ -766,6 +786,7 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
         colDataSetVal(pDstCol, j - startIndex, p, false);
       }
     }
+    */
   }
 
   pDst->info.rows = rowCount;
@@ -1281,6 +1302,31 @@ void blockDataEmpty(SSDataBlock* pDataBlock) {
   pInfo->window.ekey = 0;
   pInfo->window.skey = 0;
 }
+
+void blockDataReset(SSDataBlock* pDataBlock) {
+  SDataBlockInfo* pInfo = &pDataBlock->info;
+  if (pInfo->capacity == 0) {
+    return;
+  }
+
+  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
+    p->hasNull = false;
+    p->reassigned = false;
+    if (IS_VAR_DATA_TYPE(p->info.type)) {
+      p->varmeta.length = 0;
+    }
+  }
+
+  pInfo->rows = 0;
+  pInfo->dataLoad = 0;
+  pInfo->window.ekey = 0;
+  pInfo->window.skey = 0;
+  pInfo->id.uid = 0;
+  pInfo->id.groupId = 0;
+}
+
 
 /*
  * NOTE: the type of the input column may be TSDB_DATA_TYPE_NULL, which is used to denote
