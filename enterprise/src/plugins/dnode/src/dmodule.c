@@ -94,6 +94,7 @@ static int32_t dmWriteVars(SEngineInfo *pInfo);
 
 #ifdef _TD_DM_CHECK_OFFSET
 static void dmCheckOffset(SDnode *pDnode, SMgmtWrapper *wrappers) {
+  SMgmtWrapper   *pWrappers = &pDnode->wrappers[0];
   SMgmtFunc      *pFunc = &wrappers->func;
   const char    **pName = &wrappers->name;
   NodeRequireFp  *pRequiredFp = &pFunc->requiredFp;
@@ -103,6 +104,7 @@ static void dmCheckOffset(SDnode *pDnode, SMgmtWrapper *wrappers) {
   int32_t        *pEngineVer = &pData->engineVer;
   int64_t        *pClusterId = &pData->clusterId;
 
+  DM_CHECK_OFFSET(pWrappers, pDnode, 2552, "dnode wrappers");
   DM_CHECK_OFFSET(pFunc, wrappers, 0, "wrappers func");
   DM_CHECK_OFFSET(pName, wrappers, 96, "wrappers name");
   DM_CHECK_OFFSET(pRequiredFp, pFunc, 48, "mgmtFunc requiredFp");
