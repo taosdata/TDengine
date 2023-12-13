@@ -1385,7 +1385,7 @@ static void cliHandleRelease(SCliMsg* pMsg, SCliThrd* pThrd) {
 
   SCliConn* conn = exh->handle;
   transReleaseExHandle(transGetRefMgt(), refId);
-tDebug("%s0x7f84602069b0 conn %p start to release to inst", CONN_GET_INST_LABEL(conn), conn);
+  tDebug("%s0x7f84602069b0 conn %p start to release to inst", CONN_GET_INST_LABEL(conn), conn);
 
   if (T_REF_VAL_GET(conn) == 2) {
     transUnrefCliHandle(conn);
@@ -1418,6 +1418,11 @@ SCliConn* cliGetConn(SCliMsg** pMsg, SCliThrd* pThrd, bool* ignore, char* addr) 
     } else {
       conn = exh->handle;
       if (conn == NULL) {
+        // if ((*pMsg)->msg.msgType == TDMT_SCH_DROP_TASK) {
+        //   tError("failed to get conn, refId: %" PRId64 "", refId);
+        //   *ignore = true;
+        //   return NULL;
+        // }
         conn = getConnFromPool2(pThrd, addr, pMsg);
         if (conn != NULL) specifyConnRef(conn, true, refId);
       }
@@ -2474,6 +2479,8 @@ static FORCE_INLINE SCliThrd* transGetWorkThrdFromHandle(STrans* trans, int64_t 
   SExHandle* exh = transAcquireExHandle(transGetRefMgt(), handle);
   if (exh == NULL) {
     return NULL;
+  } else {
+    tInfo("conn %p got", exh->handle);
   }
 
   if (exh->pThrd == NULL && trans != NULL) {
@@ -2493,6 +2500,7 @@ SCliThrd* transGetWorkThrd(STrans* trans, int64_t handle) {
     return ((SCliObj*)trans->tcphandle)->pThreadObj[idx];
   }
   SCliThrd* pThrd = transGetWorkThrdFromHandle(trans, handle);
+
   return pThrd;
 }
 int transReleaseCliHandle(void* handle) {
@@ -2538,6 +2546,9 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
     transFreeMsg(pReq->pCont);
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
     return TSDB_CODE_RPC_BROKEN_LINK;
+  }
+  if (pReq->msgType == TDMT_SCH_DROP_TASK) {
+    tInfo("pReq->info.handle = %p", pReq->info.handle);
   }
 
   TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());

@@ -221,7 +221,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   pConn->inType = pHead->msgType;
   if (pConn->status == ConnNormal) {
-    if (pHead->persist == 1) {
+  if (pHead->persist == 1) {
       pConn->status = ConnAcquire;
       transRefSrvHandle(pConn);
       tDebug("conn %p acquired by server app", pConn);
