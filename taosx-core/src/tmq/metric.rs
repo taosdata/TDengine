@@ -15,6 +15,22 @@ impl TaosXMetrics for TMQMetrics {
     fn update_total_execute_time(&self) {
         todo!()
     }
+
+    fn total_execute_time(&self) -> u64 {
+        todo!()
+    }
+
+    fn total_written_rows(&self) -> u64 {
+        todo!()
+    }
+
+    fn written_rows(&self) -> u64 {
+        todo!()
+    }
+
+    fn start_time(&self) -> i64 {
+        todo!()
+    }
 }
 
 impl Into<CoreMetrics> for TMQMetrics {

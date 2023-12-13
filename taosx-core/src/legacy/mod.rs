@@ -30,7 +30,6 @@ use crate::{
 };
 
 use self::scheduler::Scheduler;
-use metrics::absolute_counter;
 use std::sync::atomic::Ordering::SeqCst;
 
 pub mod metric;
@@ -632,19 +631,19 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
         break;
     }
 
+    metrics.total_suc_blocks.fetch_add(1, Ordering::AcqRel);
     metrics.suc_blocks.fetch_add(1, Ordering::AcqRel);
-    metrics.current_suc_blocks.fetch_add(1, Ordering::AcqRel);
     metrics
-        .suc_records
+        .total_written_rows
         .fetch_add(block.nrows() as _, Ordering::AcqRel);
     metrics
-        .current_suc_records
+        .written_rows
         .fetch_add(block.nrows() as _, Ordering::AcqRel);
     metrics
-        .suc_points
+        .total_written_points
         .fetch_add((block.nrows() * block.ncols()) as _, Ordering::AcqRel);
     metrics
-        .current_suc_points
+        .written_points
         .fetch_add((block.nrows() * block.ncols()) as _, Ordering::AcqRel);
 
     if let Some(duration) = target_opts.interval {
@@ -874,19 +873,19 @@ async fn sync_single_table_partial(
                         ))?;
                         stmt.execute().await
                             .with_context(|| format!("[{new_table_name}] execute {} rows insertion with batch size limit {batch_size}", range.len()))?;
+                        metrics.total_suc_blocks.fetch_add(1, Ordering::SeqCst);
                         metrics.suc_blocks.fetch_add(1, Ordering::SeqCst);
-                        metrics.current_suc_blocks.fetch_add(1, Ordering::SeqCst);
                         metrics
-                            .suc_records
+                            .total_written_rows
                             .fetch_add(params.len() as _, Ordering::SeqCst);
                         metrics
-                            .current_suc_records
+                            .written_rows
                             .fetch_add(params.len() as _, Ordering::SeqCst);
                         metrics
-                            .suc_points
+                            .total_written_points
                             .fetch_add((params.len() * fields) as _, Ordering::SeqCst);
                         metrics
-                            .current_suc_points
+                            .written_points
                             .fetch_add((params.len() * fields) as _, Ordering::SeqCst);
                         if let Some(duration) = target_opts.interval {
                             tokio::time::sleep(duration).await;
@@ -948,19 +947,19 @@ async fn sync_single_table_partial(
                                 success = false;
                                 break;
                             }
+                            metrics.total_suc_blocks.fetch_add(1, Ordering::SeqCst);
                             metrics.suc_blocks.fetch_add(1, Ordering::SeqCst);
-                            metrics.current_suc_blocks.fetch_add(1, Ordering::SeqCst);
                             metrics
-                                .suc_records
+                                .total_written_rows
                                 .fetch_add(params.len() as _, Ordering::SeqCst);
                             metrics
-                                .current_suc_records
+                                .written_rows
                                 .fetch_add(params.len() as _, Ordering::SeqCst);
                             metrics
-                                .suc_points
+                                .total_written_points
                                 .fetch_add((params.len() * fields) as _, Ordering::SeqCst);
                             metrics
-                                .current_suc_points
+                                .written_points
                                 .fetch_add((params.len() * fields) as _, Ordering::SeqCst);
                         }
                         if success {
@@ -987,17 +986,17 @@ async fn sync_single_table_partial(
             } else {
                 let rows = res.unwrap();
 
+                metrics.total_suc_blocks.fetch_add(1, Ordering::SeqCst);
                 metrics.suc_blocks.fetch_add(1, Ordering::SeqCst);
-                metrics.current_suc_blocks.fetch_add(1, Ordering::SeqCst);
-                metrics.suc_records.fetch_add(rows as _, Ordering::SeqCst);
                 metrics
-                    .current_suc_records
+                    .total_written_rows
                     .fetch_add(rows as _, Ordering::SeqCst);
+                metrics.written_rows.fetch_add(rows as _, Ordering::SeqCst);
                 metrics
-                    .suc_points
+                    .total_written_points
                     .fetch_add((rows * fields) as _, Ordering::SeqCst);
                 metrics
-                    .current_suc_points
+                    .written_points
                     .fetch_add((rows * fields) as _, Ordering::SeqCst);
             }
 
@@ -1275,8 +1274,8 @@ pub async fn sync_super_table_schema_with_subs(
                     );
                 } else {
                     updated_tags += 1;
+                    metrics.total_updated_tags.fetch_add(1, Ordering::SeqCst);
                     metrics.updated_tags.fetch_add(1, Ordering::SeqCst);
-                    metrics.current_updated_tags.fetch_add(1, Ordering::SeqCst);
                 }
             }
         }
@@ -1321,10 +1320,10 @@ pub async fn sync_super_table_schema_with_subs(
             tables,
             new_stable_name
         );
-        metrics.created_tables.fetch_add(tables, Ordering::SeqCst);
         metrics
-            .current_created_tables
+            .total_created_tables
             .fetch_add(tables, Ordering::SeqCst);
+        metrics.created_tables.fetch_add(tables, Ordering::SeqCst);
     }
 
     Ok(())
@@ -2535,37 +2534,6 @@ async fn realtime(
     }
 }
 
-/// Reset tracing metrics use pesistenced metrics before starting task
-/// tracing metrics and legacy metrics should keep the same at any time
-#[allow(dead_code)]
-fn reset_tracing_metrics(metrics: Arc<LegacyMetrics>) {
-    absolute_counter!(METRICS_LEGACY_WORKERS, metrics.workers.load(SeqCst) as u64);
-    absolute_counter!(
-        METRICS_LEGACY_TOTAL_STABLES,
-        metrics.total_stables.load(SeqCst) as u64
-    );
-    absolute_counter!(
-        METRICS_LEGACY_UPDATED_TAGS,
-        metrics.updated_tags.load(SeqCst) as u64
-    );
-    absolute_counter!(
-        METRICS_LEGACY_UPDATED_TABLES,
-        metrics.updated_tables.load(SeqCst) as u64
-    );
-    absolute_counter!(
-        METRICS_LEGACY_CREATED_TABLES,
-        metrics.created_tables.load(SeqCst) as u64
-    );
-    absolute_counter!(
-        METRICS_LEGACY_TOTAL_TABLES,
-        metrics.total_tables.load(SeqCst) as u64
-    );
-    absolute_counter!(METRICS_LEGACY_TABLES, metrics.tables.load(SeqCst) as u64);
-    absolute_counter!(METRICS_LEGACY_BLOCKS, metrics.blocks.load(SeqCst) as u64);
-    absolute_counter!(METRICS_LEGACY_RECORDS, metrics.records.load(SeqCst) as u64);
-    absolute_counter!(METRICS_LEGACY_POINTS, metrics.points.load(SeqCst) as u64);
-}
-
 #[instrument(skip_all)]
 pub async fn legacy_to_taos(
     from: Dsn,
@@ -2776,7 +2744,7 @@ async fn legacy_to_taos_impl(
         std::thread::sleep(Duration::from_secs(5));
         tracing::info!(
             "Processed {}/{}, metrics detail:\n{}",
-            metrics.finished_tables.load(Ordering::SeqCst),
+            metrics.total_finished_tables.load(Ordering::SeqCst),
             metrics.total_tables.load(Ordering::SeqCst),
             metrics
         );

@@ -6,6 +6,7 @@ use crate::legacy::metric::LegacyToTaosMetrics;
 use crate::tmq::metric::TMQMetrics;
 use crate::utils::metrics_db::MetricsDb;
 use lazy_static::lazy_static;
+use serde_json;
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::path::Path;
@@ -50,6 +51,10 @@ pub trait TaosXMetrics: Into<CoreMetrics> {
         let db = MetricsDb::new(task_id)?;
         db.set(self.to_json().as_str())
     }
+    fn start_time(&self) -> i64;
+    fn total_execute_time(&self) -> u64;
+    fn total_written_rows(&self) -> u64;
+    fn written_rows(&self) -> u64;
 }
 
 lazy_static! {
@@ -109,24 +114,36 @@ pub fn get_legacy_metrics_for_explorer(
     legacy_metrics: &LegacyToTaosMetrics,
 ) -> String {
     let json = legacy_metrics.to_json();
-    if !running {
-        return json;
-    }
-    let current_execute_time =
-        (chrono::Utc::now().timestamp_millis() - legacy_metrics.start_time) as f64;
-    let current_speed = legacy_metrics
-        .current_suc_records
-        .load(std::sync::atomic::Ordering::SeqCst) as f64
-        * 1000_f64
-        / current_execute_time;
     let mut map =
         serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(json.as_str()).unwrap();
-    map.insert(
-        "current_execute_time".to_string(),
-        current_execute_time.into(),
-    );
-    map.insert("current_speed".to_string(), current_speed.into());
+    compute_total_avg_speed(&mut map, legacy_metrics);
+    if running {
+        compute_avg_speed(&mut map, legacy_metrics)
+    }
     serde_json::to_string(&map).unwrap()
+}
+
+fn compute_total_avg_speed(
+    map: &mut serde_json::Map<String, serde_json::Value>,
+    metrics: &impl TaosXMetrics,
+) {
+    let total_execute_time = metrics.total_execute_time();
+    if total_execute_time > 0 {
+        map.insert(
+            "total_avg_speed".to_string(),
+            (metrics.total_written_rows() as f64 * 1000_f64 / total_execute_time as f64).into(),
+        );
+    }
+}
+
+fn compute_avg_speed(
+    map: &mut serde_json::Map<String, serde_json::Value>,
+    metrics: &impl TaosXMetrics,
+) {
+    let execute_time = (chrono::Utc::now().timestamp_millis() - metrics.start_time()) as f64;
+    let current_speed = (metrics.written_rows() * 1000) as f64 / execute_time;
+    map.insert("execute_time".to_string(), execute_time.into());
+    map.insert("agv_speed".to_string(), current_speed.into());
 }
 
 /// Get metrics from global metrics map first, if not exist, try to load metrics from persistence.
@@ -195,7 +212,7 @@ mod tests {
             // let legacy_to_taos_metrics = metrics.as_ref().legacy();
             println!("thread 1 get metrics");
             legacy_to_taos_metrics
-                .created_tables
+                .total_created_tables
                 .fetch_add(100, std::sync::atomic::Ordering::SeqCst);
             println!("thread 1 end")
         });
@@ -208,11 +225,11 @@ mod tests {
             println!(
                 "created_tables: {}",
                 legacy_to_taos_metrics
-                    .created_tables
+                    .total_created_tables
                     .load(std::sync::atomic::Ordering::SeqCst)
             );
             legacy_to_taos_metrics
-                .created_tables
+                .total_created_tables
                 .fetch_add(100, std::sync::atomic::Ordering::SeqCst);
             println!("thread 2 end");
         });
@@ -230,7 +247,7 @@ mod tests {
         println!(
             "created_tables: {}",
             legacy_to_taos_metrics
-                .created_tables
+                .total_created_tables
                 .load(std::sync::atomic::Ordering::SeqCst)
         );
     }
