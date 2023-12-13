@@ -262,6 +262,7 @@ typedef struct STableScanInfo {
   int32_t         scanTimes;
   SSDataBlock*    pResBlock;
   SHashObj*       pIgnoreTables;
+  SHashObj*       pValuedTables;  // non empty table uids
   SSampleExecInfo sample;  // sample execution info
   int32_t         currentGroupId;
   int32_t         currentTable;
@@ -269,7 +270,9 @@ typedef struct STableScanInfo {
   int8_t          assignBlockUid;
   bool            hasGroupByTag;
   bool            countOnly;
-  //  TsdReader    readerAPI;
+  bool            filesetDelimited;
+  bool            needCountEmptyTable;
+  bool            processingEmptyTable;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {

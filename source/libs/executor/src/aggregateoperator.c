@@ -121,6 +121,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
     STableScanInfo* pTableScanInfo = downstream->info;
     pTableScanInfo->base.pdInfo.pExprSup = &pOperator->exprSupp;
     pTableScanInfo->base.pdInfo.pAggSup = &pInfo->aggSup;
+    pTableScanInfo->needCountEmptyTable = needCountEmpty(pTableScanInfo);
   }
 
   code = appendDownstream(pOperator, &downstream, 1);
