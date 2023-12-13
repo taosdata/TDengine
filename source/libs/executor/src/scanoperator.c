@@ -3317,8 +3317,8 @@ static int32_t transformIntoSortInputBlock(STableMergeScanInfo* pInfo, SSDataBlo
     int32_t length = -1;
     saveBlockRowToBuf(pInfo, pSrcBlock, i, &pageId, &offset, &length);
     colDataSetInt32(pageIdCol, i, &pageId);
-    colDataSetInt32(pageIdCol, i, &offset);
-    colDataSetInt32(pageIdCol, i, &length);
+    colDataSetInt32(offsetCol, i, &offset);
+    colDataSetInt32(lengthCol, i, &length);
   }
 
   pSortInputBlk->info.rows = nRows;
@@ -3327,12 +3327,12 @@ static int32_t transformIntoSortInputBlock(STableMergeScanInfo* pInfo, SSDataBlo
 }
 
 void appendOneRowIdRowToDataBlock(STableMergeScanInfo* pInfo, SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
+  STmsSortRowIdInfo* pSortInfo = &pInfo->tmsSortRowIdInfo;
+
   int32_t pageId = *(int32_t*)tsortGetValue(pTupleHandle, 1);
   int32_t offset = *(int32_t*)tsortGetValue(pTupleHandle, 2);
-  int32_t length = *(int32_t*)tsortGetValue(pTupleHandle, 2);
+  int32_t length = *(int32_t*)tsortGetValue(pTupleHandle, 3);
   void* page = getBufPage(pInfo->tmsSortRowIdInfo.pExtSrcRowsBuf, pageId);
-
-  STmsSortRowIdInfo* pSortInfo = &pInfo->tmsSortRowIdInfo;
 
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   char* buf = (char*)page + offset;
@@ -3849,7 +3849,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
     blockDataAppendColInfo(pSortInput, &pageIdCol);
     SColumnInfoData  offsetCol = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 3);
     blockDataAppendColInfo(pSortInput, &offsetCol);
-    SColumnInfoData  lengthCol = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 3);
+    SColumnInfoData  lengthCol = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 4);
     blockDataAppendColInfo(pSortInput, &lengthCol);
     pInfo->pSortInputBlock = pSortInput;
 
