@@ -57,8 +57,11 @@ class TDTestCase:
         tdSql.query(f'select count(*) from {self.stbname}')
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
+        rows = [2, 0]
         function_names = ['count', 'hyperloglog']
-        for function_name in function_names:
+        for i in range(2):
+            function_name = function_names[i]
+            row = rows[i]
             tdSql.query(f'select {function_name}(tbname) from {self.stbname}')
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 0)
@@ -93,17 +96,17 @@ class TDTestCase:
             tdSql.query(f'select sum(1),max(c2),min(1),leastsquares(c1,1,1) from {self.stbname}')
             tdSql.checkRows(0)
             tdSql.query(f'select {function_name}(c1),sum(c1) from {self.stbname} group by tbname')
-            tdSql.checkRows(0)
+            tdSql.checkRows(row)
             tdSql.query(f'select {function_name}(c1),sum(c1) from {self.stbname} group by c1')
             tdSql.checkRows(0)
             tdSql.query(f'select {function_name}(c1),sum(c1) from {self.stbname} group by t0')
-            tdSql.checkRows(0)
+            tdSql.checkRows(row)
             tdSql.query(f'select {function_name}(c1),sum(c1) from {self.stbname} partition by tbname')
-            tdSql.checkRows(0)
+            tdSql.checkRows(row)
             tdSql.query(f'select {function_name}(c1),sum(c1) from {self.stbname} partition by c1')
             tdSql.checkRows(0)
             tdSql.query(f'select {function_name}(c1),sum(c1) from {self.stbname} partition by t0')
-            tdSql.checkRows(0)
+            tdSql.checkRows(row)
             tdSql.query(f'select {function_name}(1) from (select {function_name}(c1),sum(c1) from {self.stbname} group by c1)')
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 0)
@@ -113,17 +116,24 @@ class TDTestCase:
             tdSql.checkRows(0)
             tdSql.query(f'select {function_name}(c1),sum(c1) from {self.stbname} partition by c1 interval(1s)')
             tdSql.checkRows(0)
-            tdSql.query(f'select {function_name}(1),sum(1) from (select {function_name}(1) from {self.stbname} group by tbname)')
+            tdSql.query(f'select {function_name}(1),sum(1) from (select {function_name}(1) from {self.stbname} group by tbname order by tbname)')
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 0)
-            tdSql.checkData(0, 1, None)
+            if 'count' == function_name:
+              tdSql.checkData(0, 0, 0)
+              tdSql.checkData(0, 1, None)
+            elif 'hyperloglog' == function_name:
+              tdSql.checkData(0, 0, 0)
+              tdSql.checkData(0, 0, 0)
 
     def query_empty_ntb(self):
         tdSql.query(f'select count(*) from {self.ntbname}')
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
+        rows = [1, 0]
         function_names = ['count', 'hyperloglog']
-        for function_name in function_names:
+        for i in range(2):
+            function_name = function_names[i]
+            row = rows[i]
             tdSql.query(f'select {function_name}(tbname) from {self.ntbname}')
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 0)
@@ -158,7 +168,7 @@ class TDTestCase:
             tdSql.query(f'select sum(1),max(c2),min(1),leastsquares(c1,1,1) from {self.ntbname}')
             tdSql.checkRows(0)
             tdSql.query(f'select {function_name}(c1),sum(c1) from {self.ntbname} group by tbname')
-            tdSql.checkRows(0)
+            tdSql.checkRows(row)
             tdSql.query(f'select {function_name}(c1),sum(c1) from {self.ntbname} group by c1')
             tdSql.checkRows(0)
             tdSql.query(f'select {function_name}(1) from (select {function_name}(c1),sum(c1) from {self.ntbname} group by c1)')
@@ -170,10 +180,11 @@ class TDTestCase:
             tdSql.checkRows(0)
             tdSql.query(f'select {function_name}(c1),sum(c1) from {self.ntbname} partition by c1 interval(1s)')
             tdSql.checkRows(0)
-            tdSql.query(f'select count(1),sum(1) from (select count(1) from {self.ntbname} group by tbname)')
+            tdSql.query(f'select count(1),sum(1) from (select count(1) from {self.ntbname} group by tbname order by tbname)')
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 0)
             tdSql.checkData(0, 1, None)
+
     def count_query_stb(self,column_dict,tag_dict,stbname,tbnum,rownum):
         tdSql.query(f'select count(tbname) from {stbname}')
         tdSql.checkEqual(tdSql.queryResult[0][0],tbnum*rownum)

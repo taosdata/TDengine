@@ -50,6 +50,7 @@ int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes);
 bool isPartTableAgg(SAggLogicNode* pAgg);
 bool isPartTagAgg(SAggLogicNode* pAgg);
 bool isPartTableWinodw(SWindowLogicNode* pWindow);
+bool        keysHasCol(SNodeList* pKeys);
 
 #define CLONE_LIMIT 1
 #define CLONE_SLIMIT 1 << 1

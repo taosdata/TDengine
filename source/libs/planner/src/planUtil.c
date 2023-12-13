@@ -490,3 +490,19 @@ bool cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat) {
   }
   return cloned;
 }
+
+static EDealRes partTagsOptHasColImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    if (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType && COLUMN_TYPE_TBNAME != ((SColumnNode*)pNode)->colType) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+bool keysHasCol(SNodeList* pKeys) {
+  bool hasCol = false;
+  nodesWalkExprs(pKeys, partTagsOptHasColImpl, &hasCol);
+  return hasCol;
+}

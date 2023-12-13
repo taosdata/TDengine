@@ -586,6 +586,27 @@ static int32_t createTableCountScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
 }
 
+static bool calcNeedCountEmpty(SPhysiPlanContext* pCxt, SScanLogicNode* pScanLogicNode) {
+  // refuse interval
+  if (pScanLogicNode->interval > 0) {
+    return false;
+  }
+  SNode* pRoot = pCxt->pPlanCxt->pAstRoot;
+  if (QUERY_NODE_SELECT_STMT == nodeType(pRoot)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pRoot;
+    // select & count
+    if (pSelect->hasCountFunc) {
+      // key only accept tag/tbname
+      if (NULL != pSelect->pGroupByList) {
+        return !keysHasCol(pSelect->pGroupByList);
+      } else if (NULL != pSelect->pPartitionByList) {
+        return !keysHasCol(pSelect->pPartitionByList);
+      }
+    }
+  }
+  return false;
+}
+
 static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
                                         SPhysiNode** pPhyNode) {
   STableScanPhysiNode* pTableScan = (STableScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode,
@@ -621,6 +642,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->igExpired = pScanLogicNode->igExpired;
   pTableScan->igCheckUpdate = pScanLogicNode->igCheckUpdate;
   pTableScan->assignBlockUid = pCxt->pPlanCxt->rSmaQuery ? true : false;
+  pTableScan->needCountEmptyTable = calcNeedCountEmpty(pCxt, pScanLogicNode);
 
   int32_t code = createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);
   if (TSDB_CODE_SUCCESS == code) {

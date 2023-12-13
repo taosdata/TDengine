@@ -655,6 +655,50 @@ void setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, 
   colDataDestroy(&infoData);
 }
 
+
+// record processed (non empty) table
+static int32_t insertTableToProcessed(STableScanInfo* pTableScanInfo, uint64_t uid) {
+  if (!pTableScanInfo->needCountEmptyTable) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL == pTableScanInfo->pValuedTables) {
+    int32_t tableNum = taosArrayGetSize(pTableScanInfo->base.pTableListInfo->pTableList);
+    pTableScanInfo->pValuedTables =
+        taosHashInit(tableNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    if (NULL == pTableScanInfo->pValuedTables) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  taosHashPut(pTableScanInfo->pValuedTables, &uid, sizeof(uid), &pTableScanInfo->scanTimes,
+              sizeof(pTableScanInfo->scanTimes));
+  return TSDB_CODE_SUCCESS;
+}
+
+static SSDataBlock* getBlockForEmptyTable(SOperatorInfo* pOperator, const STableKeyInfo* tbInfo) {
+  STableScanInfo* pTableScanInfo = pOperator->info;
+  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
+  SSDataBlock* pBlock = pTableScanInfo->pResBlock;
+
+  blockDataEmpty(pBlock);
+  pBlock->info.rows = 1;
+  pBlock->info.id.uid = tbInfo->uid;
+  pBlock->info.id.groupId = pOperator->dynamicTask ? tbInfo->uid : tbInfo->groupId;
+
+  // only one row: set all col data to null & hasNull 
+  int32_t col_num = blockDataGetNumOfCols(pBlock);
+  for (int32_t i = 0; i < col_num; ++i) {
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+    colDataSetNULL(pColInfoData, 0);
+  }
+
+  // set tag/tbname
+  doSetTagColumnData(&pTableScanInfo->base, pBlock, pTaskInfo, pBlock->info.rows);
+
+  pOperator->resultInfo.totalRows++;
+  return pBlock;
+}
+
 static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
   STableScanInfo* pTableScanInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
@@ -722,7 +766,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
   return NULL;
 }
 
-static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
+static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator, const STableKeyInfo* pList, int32_t num) {
   STableScanInfo* pTableScanInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
@@ -736,6 +780,7 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
   while (pTableScanInfo->scanTimes < pTableScanInfo->scanInfo.numOfAsc) {
     SSDataBlock* p = doTableScanImpl(pOperator);
     if (p != NULL) {
+      insertTableToProcessed(pTableScanInfo, p->info.id.uid);
       return p;
     }
 
@@ -764,6 +809,7 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
     while (pTableScanInfo->scanTimes < total) {
       SSDataBlock* p = doTableScanImpl(pOperator);
       if (p != NULL) {
+        insertTableToProcessed(pTableScanInfo, p->info.id.uid);
         return p;
       }
 
@@ -779,6 +825,39 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
       }
     }
   }
+
+  if (pTableScanInfo->needCountEmptyTable) {
+    if (num == 0 && 0 == taosHashGetSize(pTableScanInfo->pValuedTables)) {
+      // table by table, num is 0
+      if (!pTableScanInfo->processingEmptyTable) {
+        pTableScanInfo->processingEmptyTable = true;
+        // current table is empty, fill result block info & return
+        const STableKeyInfo* info = tableListGetInfo(pTableScanInfo->base.pTableListInfo, pTableScanInfo->currentTable);
+        return getBlockForEmptyTable(pOperator, info);
+      }
+
+    } else if (num > taosHashGetSize(pTableScanInfo->pValuedTables)) {
+      // group by group, num >= 1
+      if (!pTableScanInfo->processingEmptyTable) {
+        pTableScanInfo->processingEmptyTable = true;
+        pTableScanInfo->currentTable = 0;
+      }
+      if (pTableScanInfo->currentTable < num) {
+        // loop: get empty table uid & process
+        while (pTableScanInfo->currentTable < num) {
+          const STableKeyInfo* info = pList + pTableScanInfo->currentTable++;
+          if (pTableScanInfo->pValuedTables &&
+              NULL != taosHashGet(pTableScanInfo->pValuedTables, &info->uid, sizeof(info->uid))) {
+          } else {
+            return getBlockForEmptyTable(pOperator, info);
+          }
+        }
+      }
+    }
+
+    pTableScanInfo->processingEmptyTable = false;
+  }
+  taosHashClear(pTableScanInfo->pValuedTables);
 
   return NULL;
 }
@@ -861,7 +940,7 @@ static SSDataBlock* startNextGroupScan(SOperatorInfo* pOperator) {
   pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
   pInfo->scanTimes = 0;
   
-  SSDataBlock* result = doGroupedTableScan(pOperator);
+  SSDataBlock* result = doGroupedTableScan(pOperator, pList, num);
   if (result != NULL) {
     if (pOperator->dynamicTask) {
       result->info.id.groupId = result->info.id.uid;
@@ -876,15 +955,16 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
   STableScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
+  int32_t        num = 0;
+  STableKeyInfo* pList = NULL;
 
   if (pInfo->currentGroupId == -1) {
-    if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
+    int32_t numOfTables = tableListGetSize(pInfo->base.pTableListInfo);
+    if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo) || numOfTables == 0) {
       setOperatorCompleted(pOperator);
       return NULL;
     }
   
-    int32_t        num = 0;
-    STableKeyInfo* pList = NULL;
     tableListGetGroupList(pInfo->base.pTableListInfo, pInfo->currentGroupId, &pList, &num);
     ASSERT(pInfo->base.dataReader == NULL);
   
@@ -897,9 +977,11 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
     if (pInfo->pResBlock->info.capacity > pOperator->resultInfo.capacity) {
       pOperator->resultInfo.capacity = pInfo->pResBlock->info.capacity;
     }
+  } else {
+    tableListGetGroupList(pInfo->base.pTableListInfo, pInfo->currentGroupId, &pList, &num);
   }
 
-  SSDataBlock* result = doGroupedTableScan(pOperator);
+  SSDataBlock* result = doGroupedTableScan(pOperator, pList, num);
   if (result != NULL) {
     if (pOperator->dynamicTask) {
       result->info.id.groupId = result->info.id.uid;
@@ -921,7 +1003,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
   STableScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
-
+  
   if (pOperator->pOperatorGetParam) {
     pOperator->dynamicTask = true;
     int32_t code = createTableListInfoFromParam(pOperator);
@@ -950,7 +1032,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
     STableKeyInfo tInfo = {0};
 
     while (1) {
-      SSDataBlock* result = doGroupedTableScan(pOperator);
+      SSDataBlock* result = doGroupedTableScan(pOperator, NULL, 0);
       if (result || (pOperator->status == OP_EXEC_DONE) || isTaskKilled(pTaskInfo)) {
         return result;
       }
@@ -1010,6 +1092,7 @@ static void destroyTableScanOperatorInfo(void* param) {
   STableScanInfo* pTableScanInfo = (STableScanInfo*)param;
   blockDataDestroy(pTableScanInfo->pResBlock);
   taosHashCleanup(pTableScanInfo->pIgnoreTables);
+  taosHashCleanup(pTableScanInfo->pValuedTables);
   destroyTableScanBase(&pTableScanInfo->base, &pTableScanInfo->base.readerAPI);
   taosMemoryFreeClear(param);
 }
@@ -1073,6 +1156,9 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   setOperatorInfo(pOperator, "TableScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->exprSupp.numOfExprs = numOfCols;
+
+  pInfo->needCountEmptyTable = tsCountAlwaysReturnValue && pTableScanNode->needCountEmptyTable;
+  pInfo->processingEmptyTable = false;
 
   pInfo->base.pTableListInfo = pTableListInfo;
   pInfo->base.metaCache.pTableMetaEntryCache = taosLRUCacheInit(1024 * 128, -1, .5);
