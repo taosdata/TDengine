@@ -4,7 +4,7 @@ conn = taos.connect()
 cursor = conn.cursor()
 
 cursor.execute("DROP DATABASE IF EXISTS test")
-cursor.execute("CREATE DATABASE test")
+cursor.execute("CREATE DATABASE test keep 36500")
 cursor.execute("USE test")
 cursor.execute("CREATE STABLE weather(ts TIMESTAMP, temperature FLOAT) TAGS (location INT)")
 

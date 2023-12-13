@@ -4,7 +4,7 @@ import taos
 conn = taos.connect()
 # Execute a sql, ignore the result set, just get affected rows. It's useful for DDL and DML statement.
 conn.execute("DROP DATABASE IF EXISTS test")
-conn.execute("CREATE DATABASE test")
+conn.execute("CREATE DATABASE test keep 36500")
 # change database. same as execute "USE db"
 conn.select_db("test")
 conn.execute("CREATE STABLE weather(ts TIMESTAMP, temperature FLOAT) TAGS (location INT)")

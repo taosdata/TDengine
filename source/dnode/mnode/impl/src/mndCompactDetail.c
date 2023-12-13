@@ -276,6 +276,10 @@ int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* p
   compactDetail.vgId = pVgroup->vgId;
   compactDetail.dnodeId = pVgid->dnodeId;
   compactDetail.startTime = taosGetTimestampMs();
+  compactDetail.numberFileset = -1;
+  compactDetail.finished = -1;
+  compactDetail.newNumberFileset = -1;
+  compactDetail.newFinished = -1;
 
   SSdbRaw *pVgRaw = mndCompactDetailActionEncode(&compactDetail);
   if (pVgRaw == NULL) return -1;

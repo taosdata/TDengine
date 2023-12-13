@@ -118,6 +118,7 @@ typedef struct SScanLogicNode {
   bool          igLastNull;
   bool          groupOrderScan;
   bool          onlyMetaCtbIdx; // for tag scan with no tbname
+  bool          filesetDelimited; // returned blocks delimited by fileset
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -432,6 +433,7 @@ typedef struct STableScanPhysiNode {
   int8_t         igExpired;
   bool           assignBlockUid;
   int8_t         igCheckUpdate;
+  bool           filesetDelimited;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;

@@ -882,7 +882,6 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   if (mndAcquireGlobalIdx(pMnode, fullIdxName, SDB_IDX, &idx) == 0 && idx.pIdx != NULL) {
     terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
     mndReleaseIdx(pMnode, idx.pIdx);
-
     goto _OVER;
   }
 
@@ -1013,6 +1012,20 @@ static int32_t mndFindSuperTableColumnIndex(const SStbObj *pStb, const char *col
   }
 
   return -1;
+}
+
+static bool mndValidateSchema(SSchema *pSchemas, int32_t nSchema, SArray *pFields, int32_t maxLen) {
+  int32_t rowLen = 0;
+  for (int32_t i = 0; i < nSchema; ++i) {
+    rowLen += (pSchemas + i)->bytes;
+  }
+
+  int32_t nField = taosArrayGetSize(pFields);
+  for (int32_t i = 0; i < nField; ++i) {
+    rowLen += ((SField *)TARRAY_GET_ELEM(pFields, i))->bytes;
+  }
+
+  return rowLen <= maxLen;
 }
 
 static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq *createReq) {
@@ -1179,8 +1192,16 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   SName name = {0};
   tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, createReq.sql, createReq.sqlLen);
+  if(createReq.sql == NULL && createReq.sqlLen == 0){
+    char detail[1000] = {0};
 
+    sprintf(detail, "dbname:%s, stable name:%s", name.dbname, name.tname);
+
+    auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, detail, strlen(detail));
+  }
+  else{
+    auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, createReq.sql, createReq.sqlLen);
+  }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stb:%s, failed to create since %s", createReq.name, terrstr());
@@ -1259,6 +1280,11 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
 
   if (pOld->numOfColumns + ntags + pOld->numOfTags > TSDB_MAX_COLUMNS) {
     terrno = TSDB_CODE_MND_TOO_MANY_COLUMNS;
+    return -1;
+  }
+
+  if (!mndValidateSchema(pOld->pTags, pOld->numOfTags, pFields, TSDB_MAX_TAGS_LEN)) {
+    terrno = TSDB_CODE_PAR_INVALID_TAGS_LENGTH;
     return -1;
   }
 
@@ -1551,6 +1577,16 @@ static int32_t mndAlterStbTagBytes(SMnode *pMnode, const SStbObj *pOld, SStbObj 
     return -1;
   }
 
+  uint32_t nLen = 0;
+  for (int32_t i = 0; i < pOld->numOfTags; ++i) {
+    nLen += (pOld->pTags[i].colId == colId) ? pField->bytes : pOld->pTags[i].bytes;
+  }
+  
+  if (nLen > TSDB_MAX_TAGS_LEN) {
+    terrno = TSDB_CODE_PAR_INVALID_TAGS_LENGTH;
+    return -1;
+  }
+
   if (mndAllocStbSchemas(pOld, pNew) != 0) {
     return -1;
   }
@@ -1582,6 +1618,11 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
   }
 
   if ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) != 0) {
+    return -1;
+  }
+
+  if (!mndValidateSchema(pOld->pColumns, pOld->numOfColumns, pFields, TSDB_MAX_BYTES_PER_ROW)) {
+    terrno = TSDB_CODE_PAR_INVALID_ROW_LENGTH;
     return -1;
   }
 

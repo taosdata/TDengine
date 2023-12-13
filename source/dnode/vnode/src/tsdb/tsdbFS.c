@@ -104,7 +104,7 @@ static int32_t tsdbSaveFSToFile(STsdbFS *pFS, const char *fname) {
   taosCalcChecksumAppend(0, pData, size);
 
   // save to file
-  TdFilePtr pFD = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  TdFilePtr pFD = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFD == NULL) {
     code = TAOS_SYSTEM_ERROR(errno);
     TSDB_CHECK_CODE(code, lino, _exit);

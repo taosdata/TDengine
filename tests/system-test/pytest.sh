@@ -79,7 +79,8 @@ else
 
   unset LD_PRELOAD
   #export LD_PRELOAD=libasan.so.5
-  export LD_PRELOAD=$(gcc -print-file-name=libasan.so)
+  #export LD_PRELOAD=$(gcc -print-file-name=libasan.so)
+  export LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
   echo "Preload AsanSo:" $?
 
   $* -a 2>$AsanFile

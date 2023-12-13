@@ -7,7 +7,7 @@ description: This document describes taospy, the TDengine Python connector.
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-`taospy` is the official Python connector for TDengine. taospy provides a rich API that makes it easy for Python applications to use TDengine. `taospy` wraps both the [native interface](/reference/connector/cpp) and [REST interface](/reference/rest-api) of TDengine, which correspond to the `taos` and `taosrest` modules of the `taospy` package, respectively.
+`taospy` is the official Python connector for TDengine. taospy provides a rich API that makes it easy for Python applications to use TDengine. `taospy` wraps both the [native interface](../cpp) and [REST interface](../../rest-api) of TDengine, which correspond to the `taos` and `taosrest` modules of the `taospy` package, respectively.
 In addition to wrapping the native and REST interfaces, `taospy` also provides a set of programming interfaces that conforms to the [Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/). It is easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
 
 `taos-ws-py` is an optional package to enable using WebSocket to connect TDengine.
@@ -17,7 +17,7 @@ The direct connection to the server using the native interface provided by the c
 The source code for the Python connector is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
 ## Supported platforms
 
-- The [supported platforms](/reference/connector/#supported-platforms) for the native connection are the same as the ones supported by the TDengine client.
+- The [supported platforms](../#supported-platforms) for the native connection are the same as the ones supported by the TDengine client.
 - REST connections are supported on all platforms that can run Python.
 
 ### Supported features
@@ -95,7 +95,7 @@ TDengine currently supports timestamp, number, character, Boolean type, and the 
 
 1. Install Python. The recent taospy package requires Python 3.6.2+. The earlier versions of taospy require Python 3.7+.  The taos-ws-py package requires Python 3.7+. If Python is not available on your system, refer to the [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) to install it.
 2. Install [pip](https://pypi.org/project/pip/). In most cases, the Python installer comes with the pip utility. If not, please refer to [pip documentation](https://pip.pypa.io/en/stable/installation/) to install it.
-If you use a native connection, you will also need to [Install Client Driver](/reference/connector#Install-Client-Driver). The client install package includes the TDengine client dynamic link library (`libtaos.so` or `taos.dll`) and the TDengine CLI.
+If you use a native connection, you will also need to [Install Client Driver](../#Install-Client-Driver). The client install package includes the TDengine client dynamic link library (`libtaos.so` or `taos.dll`) and the TDengine CLI.
 
 ### Install via pip
 
@@ -436,10 +436,21 @@ The `TaosConnection` class and the `TaosResult` class already implement all the 
 :::note
 The TaosCursor class uses native connections for write and query operations. In a client-side multi-threaded scenario, this cursor instance must remain thread exclusive and cannot be shared across threads for use, otherwise, it will result in errors in the returned results.
 
+The best practice for TaosCursor is to create a cursor at the beginning of a query and close it immediately after use. Please avoid reusing the same cursor for multiple executions.
 :::
 
 </TabItem>
 <TabItem value="rest" label="REST connection">
+
+##### Use of the RestClient class
+
+The `RestClient` class is a direct wrapper for the [REST API](../../rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
+
+```python title="Use of RestClient"
+{{#include docs/examples/python/rest_client_example.py}}
+```
+
+For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
 
 ##### Use of TaosRestCursor class
 
@@ -452,15 +463,9 @@ The `TaosRestCursor` class is an implementation of the PEP249 Cursor interface.
 - `cursor.rowcount` : For write operations, returns the number of successful rows written. For query operations, returns the number of rows in the result set.
 - `cursor.description` : Returns the description of the field. Please refer to [TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html) for the specific format of the description information.
 
-##### Use of the RestClient class
-
-The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
-
-```python title="Use of RestClient"
-{{#include docs/examples/python/rest_client_example.py}}
-```
-
-For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
+:::note
+The best practice for TaosRestCursor is to create a cursor at the beginning of a query and close it immediately after use. Please avoid reusing the same cursor for multiple executions.
+:::
 
 </TabItem>
 <TabItem value="websocket" label="WebSocket connection">
@@ -496,7 +501,7 @@ The queried results can only be fetched once. For example, only one of `fetch_al
 
 <TabItem value="rest" label="REST connection">
 
-The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
+The `RestClient` class is a direct wrapper for the [REST API](../../rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
 
 ```python
 {{#include docs/examples/python/rest_client_example.py}}
@@ -554,6 +559,16 @@ The `TaosConnection` class and the `TaosResult` class already implement all the 
 </TabItem>
 <TabItem value="rest" label="REST connection">
 
+##### Use of the RestClient class
+
+The `RestClient` class is a direct wrapper for the [REST API](../../rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
+
+```python title="Use of RestClient"
+{{#include docs/examples/python/rest_client_with_req_id_example.py}}
+```
+
+For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
+
 ##### Use of TaosRestCursor class
 
 As the way to connect introduced above but add `req_id` argument.
@@ -564,16 +579,6 @@ As the way to connect introduced above but add `req_id` argument.
 - `cursor.execute`: Used to execute arbitrary SQL statements.
 - `cursor.rowcount` : For write operations, returns the number of successful rows written. For query operations, returns the number of rows in the result set.
 - `cursor.description` : Returns the description of the field. Please refer to [TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html) for the specific format of the description information.
-
-##### Use of the RestClient class
-
-The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
-
-```python title="Use of RestClient"
-{{#include docs/examples/python/rest_client_with_req_id_example.py}}
-```
-
-For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
 
 </TabItem>
 

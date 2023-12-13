@@ -43,6 +43,9 @@ static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t ver, void *pReq,
 static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 
+extern int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+extern int32_t vnodeQueryCompactProgress(SVnode *pVnode, SRpcMsg *pMsg);
+
 static int32_t vnodePreprocessCreateTableReq(SVnode *pVnode, SDecoder *pCoder, int64_t btime, int64_t *pUid) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -461,7 +464,6 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       break;
   }
 
-_exit:
   if (code) {
     vError("vgId:%d, failed to preprocess write request since %s, msg type:%s", TD_VID(pVnode), tstrerror(code),
            TMSG_INFO(pMsg->msgType));
@@ -593,6 +595,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
         tqProcessTaskResetReq(pVnode->pTq, pMsg);
       }
     } break;
+    case TDMT_STREAM_HTASK_DROP: {
+      if (pVnode->restored && vnodeIsLeader(pVnode)) {
+        tqProcessTaskDropHTask(pVnode->pTq, pMsg);
+      }
+    } break;
     case TDMT_VND_ALTER_CONFIRM:
       needCommit = pVnode->config.hashChange;
       if (vnodeProcessAlterConfirmReq(pVnode, ver, pReq, len, pRsp) < 0) {
@@ -623,6 +630,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_SYNC_CONFIG_CHANGE:
       vnodeProcessConfigChangeReq(pVnode, ver, pReq, len, pRsp);
       break;
+#ifdef TD_ENTERPRISE
+    case TDMT_VND_KILL_COMPACT:
+      vnodeProcessKillCompactReq(pVnode, ver, pReq, len, pRsp);
+      break;
+#endif
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
       return -1;
@@ -732,6 +744,10 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetTableCfg(pVnode, pMsg, true);
     case TDMT_VND_BATCH_META:
       return vnodeGetBatchMeta(pVnode, pMsg);
+#ifdef TD_ENTERPRISE
+    case TDMT_VND_QUERY_COMPACT_PROGRESS:
+      return vnodeQueryCompactProgress(pVnode, pMsg);
+#endif
       //    case TDMT_VND_TMQ_CONSUME:
       //      return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_VG_WALINFO:
@@ -760,7 +776,7 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
     case TDMT_STREAM_TASK_RUN:
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH:
-      return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, true);
+      return tqProcessTaskDispatchReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH_RSP:
       return tqProcessTaskDispatchRsp(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_TASK_CHECK:
@@ -1005,7 +1021,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     size_t len = 0;
     char  *keyJoined = taosStringBuilderGetResult(&sb, &len);
 
-    if(pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0){
+    if (pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0) {
       auditRecord(pOriginRpc, clusterId, "createTable", name.dbname, "", keyJoined, len);
     }
 
@@ -1229,7 +1245,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     size_t len = 0;
     char  *keyJoined = taosStringBuilderGetResult(&sb, &len);
 
-    if(pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0){
+    if (pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0) {
       auditRecord(pOriginRpc, clusterId, "dropTable", name.dbname, "", keyJoined, len);
     }
 
@@ -2037,11 +2053,6 @@ static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t ver, void *pR
     return 0;
   }
   return vnodeProcessCompactVnodeReqImpl(pVnode, ver, pReq, len, pRsp);
-}
-
-static int32_t vnodeProcessStopCompactReq(SVnode *pVnode) {
-  // TODO
-  return 0;
 }
 
 static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {

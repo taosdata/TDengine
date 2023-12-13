@@ -45,8 +45,8 @@ extern "C" {
 
 #define SYNC_HEARTBEAT_SLOW_MS       1500
 #define SYNC_HEARTBEAT_REPLY_SLOW_MS 1500
-#define SYNC_SNAP_RESEND_MS          1000 * 60
-#define SYNC_SNAP_TIMEOUT_MS         1000 * 600
+#define SYNC_SNAP_RESEND_MS          1000 * 300
+#define SYNC_SNAP_TIMEOUT_MS         1000 * 1800
 
 #define SYNC_VND_COMMIT_MIN_MS 3000
 
@@ -288,6 +288,9 @@ void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
 const char* syncStr(ESyncState state);
 
 int32_t    syncNodeGetConfig(int64_t rid, SSyncCfg *cfg);
+
+// util
+int32_t syncSnapInfoDataRealloc(SSnapshot* pSnap, int32_t size);
 
 #ifdef __cplusplus
 }

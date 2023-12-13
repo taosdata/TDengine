@@ -253,13 +253,12 @@ typedef struct SQueryTableDataCond {
   STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;
+  bool         notLoadData;    // response the actual data, not only the rows in the attribute of info.row of ssdatablock
 } SQueryTableDataCond;
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
 void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
 
-int32_t tEncodeDataBlocks(void** buf, const SArray* blocks);
-void*   tDecodeDataBlocks(const void* buf, SArray** blocks);
 void    colDataDestroy(SColumnInfoData* pColData);
 
 //======================================================================================================================
@@ -294,7 +293,7 @@ typedef struct STableBlockDistInfo {
   int32_t  defMaxRows;
   int32_t  firstSeekTimeUs;
   uint32_t numOfInmemRows;
-  uint32_t numOfSmallBlocks;
+  uint32_t numOfSttRows;
   uint32_t numOfVgroups;
   int32_t  blockRowsHisto[20];
 } STableBlockDistInfo;

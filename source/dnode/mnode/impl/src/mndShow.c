@@ -17,6 +17,7 @@
 #include "mndShow.h"
 #include "mndPrivilege.h"
 #include "systable.h"
+#include "mndUser.h"
 
 #define SHOW_STEP_SIZE 100
 #define SHOW_COLS_STEP_SIZE 4096
@@ -210,7 +211,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  mDebug("mndProcessRetrieveSysTableReq tb:%s", retrieveReq.tb);
+  mDebug("process to retrieve systable req db:%s, tb:%s", retrieveReq.db, retrieveReq.tb);
 
   if (retrieveReq.showId == 0) {
     STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
