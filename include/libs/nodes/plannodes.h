@@ -434,6 +434,7 @@ typedef struct STableScanPhysiNode {
   bool           assignBlockUid;
   int8_t         igCheckUpdate;
   bool           filesetDelimited;
+  bool           needCountEmptyTable;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;

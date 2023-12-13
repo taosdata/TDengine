@@ -347,6 +347,7 @@ e
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws2.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/group_partition.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py
