@@ -810,7 +810,7 @@ class StreamComputingTest(TDCase):
             self.tdSql.query(f'select wstart, {self.stb_output_select_str} from {self.stb_name}{self.des_table_suffix} order by wstart')
             res1 = self.tdSql.query_data
             self.tdSql.checkEqual(res1, res2)
-            
+        self.tdCom.check_stream_tasks()
             # if fill_value:
             #     history_ts = str(start_time)+f'-{self.dataDict["interval"]*(self.range_count+2)}s'
             # print(history_ts)
@@ -3473,6 +3473,8 @@ class StreamComputingTest(TDCase):
 
 
     def insert_after_restart(self, delete=False, fill_history_value=None):
+        self.tdSql.query(f'select distinct(`stage`) from information_schema.ins_stream_tasks')
+        old_stage = int(self.tdSql.query_data[0][0])
         self.data_filter(delete=delete, fill_history_value=fill_history_value)
         self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1]}, self.endpoint, True)
          # insert data
@@ -3505,6 +3507,7 @@ class StreamComputingTest(TDCase):
         self.tdCom.check_query_data(f'select {self.tb_filter_des_select_elm} from {self.ctb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.ctb_name} where {self.stb_data_filter_sql};')
         self.tdCom.check_query_data(f'select {self.tb_filter_des_select_elm} from {self.tb_stream_des_table};', f'select {self.filter_source_select_elm} from {self.tb_name} where {self.tb_data_filter_sql};')
         self.tdCom.stream_timeout = 12
+        self.tdCom.check_stream_tasks(old_stage, True)
 
     def insert_after_recreate_source_table(self):
         count = self.data_filter(True)
