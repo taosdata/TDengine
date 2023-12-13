@@ -75,13 +75,13 @@ typedef struct SDnode {
   bool          stop;
   EDndRunStatus status;
   SStartupInfo  startup;
-  SDnodeTrans   trans;
+  SDnodeData    data;
   SUdfdData     udfdData;
   TdThreadMutex mutex;
   TdFilePtr     lockfile;
-  SDnodeData    data;
   STfs         *pTfs;
   SMgmtWrapper  wrappers[NODE_END];
+  SDnodeTrans   trans;
 } SDnode;
 
 // dmEnv.c
