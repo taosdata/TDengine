@@ -620,6 +620,11 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         break;
       }
 
+      // support float with no decimal part after the decimal point
+      if (z[i] == '.' && seg == 1) {
+        *tokenId = TK_NK_FLOAT;
+        i++;
+      }
       if ((z[i] == 'e' || z[i] == 'E') &&
           (isdigit(z[i + 1]) || ((z[i + 1] == '+' || z[i + 1] == '-') && isdigit(z[i + 2])))) {
         i += 2;
@@ -762,7 +767,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
     // support parse the -/+number format
     if ((isPrevOptr) && (t0.type == TK_NK_MINUS || t0.type == TK_NK_PLUS)) {
       len = tGetToken(&str[*i + t0.n], &type);
-      if (type == TK_NK_INTEGER || type == TK_NK_FLOAT) {
+      if (type == TK_NK_INTEGER || type == TK_NK_FLOAT || type == TK_NK_BIN || type == TK_NK_HEX) {
         t0.type = type;
         t0.n += len;
       }

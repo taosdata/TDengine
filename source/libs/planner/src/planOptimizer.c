@@ -1565,6 +1565,7 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
       pScan->node.outputTsOrder = order;
       if (TSDB_SUPER_TABLE == pScan->tableType) {
         pScan->scanType = SCAN_TYPE_TABLE_MERGE;
+        pScan->filesetDelimited = true;
         pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
         pScan->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
       }

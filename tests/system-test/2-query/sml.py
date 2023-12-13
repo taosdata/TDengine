@@ -80,12 +80,12 @@ class TDTestCase:
         tdSql.checkData(0, 1, 13.000000000)
         tdSql.checkData(0, 2, "web01")
         tdSql.checkData(0, 3, None)
-        tdSql.checkData(0, 4, "lga")
+        tdSql.checkData(0, 4, 1)
 
         tdSql.checkData(1, 1, 9.000000000)
         tdSql.checkData(1, 2, "web02")
         tdSql.checkData(3, 3, "t1")
-        tdSql.checkData(0, 4, "lga")
+        tdSql.checkData(2, 4, 4)
 
         tdSql.query(f"select * from {dbname}.macylr")
         tdSql.checkRows(2)
