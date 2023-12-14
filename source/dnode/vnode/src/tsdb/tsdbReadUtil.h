@@ -216,6 +216,9 @@ typedef struct SReaderStatus {
   int64_t               prevFilesetStartKey;
   int64_t               prevFilesetEndKey;
   bool                  bProcMemFirstFileset;
+  STableUidList         procMemUidList;
+  STableBlockScanInfo** pProcMemTableIter;
+  SSDataBlock*           pNextFileBlock;
 } SReaderStatus;
 
 struct STsdbReader {
