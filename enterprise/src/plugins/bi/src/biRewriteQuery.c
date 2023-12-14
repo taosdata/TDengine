@@ -27,7 +27,7 @@ static SNode* biMakeTbnameProjectAstNode(char* funcName, char* tableAlias) {
   SValueNode* valNode = NULL;
   if (tableAlias != NULL) {
     SValueNode* n = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
-    n->literal = strdup(tableAlias);
+    n->literal = tstrdup(tableAlias);
     n->node.resType.type = TSDB_DATA_TYPE_BINARY;
     n->node.resType.bytes = strlen(n->literal);
     n->translate = false;
@@ -35,20 +35,20 @@ static SNode* biMakeTbnameProjectAstNode(char* funcName, char* tableAlias) {
   }
 
   SFunctionNode* tbNameFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
-  strncpy(tbNameFunc->functionName, "tbname", strlen("tbname"));
+  strncpy(tbNameFunc->functionName, "tbname", TSDB_FUNC_NAME_LEN);
   if (valNode != NULL) {
     nodesListMakeAppend(&tbNameFunc->pParameterList, (SNode*)valNode);
   }
   snprintf(tbNameFunc->node.userAlias, sizeof(tbNameFunc->node.userAlias), 
                 (tableAlias)? "%s.tbname" : "%stbname", 
                 (tableAlias)? tableAlias : "");
-  strcpy(tbNameFunc->node.aliasName, tbNameFunc->functionName);
+  strncpy(tbNameFunc->node.aliasName, tbNameFunc->functionName, TSDB_COL_NAME_LEN);
 
   if (funcName == NULL) {
     return (SNode*)tbNameFunc;
   } else {
     SFunctionNode* multiResFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
-    strncpy(multiResFunc->functionName, funcName, strlen(funcName));
+    strncpy(multiResFunc->functionName, funcName, TSDB_FUNC_NAME_LEN);
     nodesListMakeAppend(&multiResFunc->pParameterList, (SNode*)tbNameFunc);
 
     if (tsKeepColumnName) {

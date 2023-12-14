@@ -576,6 +576,11 @@ int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool sync) {
 
   taosThreadMutexLock(&tsdb->mutex);
 
+  if (tsdb->bgTaskDisabled) {
+    taosThreadMutexUnlock(&tsdb->mutex);
+    return 0;
+  }
+
   STFileSet *fset;
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
     if (fset->fid < minFid || fset->fid > maxFid) continue;
