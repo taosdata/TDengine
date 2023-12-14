@@ -4337,7 +4337,11 @@ int32_t tDeserializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableR
   if (tDecodeCStrTo(&decoder, pReq->tb) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->filterTb) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
-  if (tDecodeI64(&decoder, &pReq->compactId) < 0) return -1;
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI64(&decoder, &pReq->compactId) < 0) return -1;
+  } else {
+    pReq->compactId = -1;
+  }
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
