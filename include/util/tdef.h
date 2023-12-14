@@ -290,6 +290,7 @@ typedef enum ELogicConditionType {
 #define TSDB_UNIQ_ACTIVE_KEY_LEN 256
 
 #define TSDB_DEFAULT_PKT_SIZE 65480  // same as RPC_MAX_UDP_SIZE
+#define TSDB_SNAP_DATA_PAYLOAD_SIZE (1 * 1024 * 1024)
 
 #define TSDB_PAYLOAD_SIZE         TSDB_DEFAULT_PKT_SIZE
 #define TSDB_DEFAULT_PAYLOAD_SIZE 5120  // default payload size, greater than PATH_MAX value

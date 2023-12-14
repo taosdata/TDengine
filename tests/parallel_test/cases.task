@@ -5,6 +5,9 @@
 #unit-test
 ,,y,unit-test,bash test.sh
 
+#army-test
+,,y,army,./pytest.sh python3 ./test.py -f empty.py
+
 #system test
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_basic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/scalar_function.py
@@ -250,6 +253,7 @@ e
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/delete_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
 
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_double.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_replica.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py

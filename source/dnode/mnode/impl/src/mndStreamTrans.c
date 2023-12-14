@@ -48,8 +48,7 @@ int32_t clearFinishedTrans(SMnode* pMnode) {
       void* pKey = taosHashGetKey(pEntry, &keyLen);
       // key is the name of src/dst db name
       SKeyInfo info = {.pKey = pKey, .keyLen = keyLen};
-
-      mDebug("transId:%d %s startTs:%" PRId64 "cleared due to finished", pEntry->transId, pEntry->name,
+      mDebug("transId:%d %s startTs:%" PRId64 " cleared since finished", pEntry->transId, pEntry->name,
              pEntry->startTime);
       taosArrayPush(pList, &info);
     } else {
