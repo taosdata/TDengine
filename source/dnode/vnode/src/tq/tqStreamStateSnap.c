@@ -181,5 +181,5 @@ int32_t streamStateRebuildFromSnap(SStreamStateWriter* pWriter, int64_t chkpId) 
 }
 
 int32_t streamStateLoadTasks(SStreamStateWriter* pWriter) {
-  return streamMetaReloadAllTasks(pWriter->pTq->pStreamMeta);
+  return streamMetaLoadAllTasks(pWriter->pTq->pStreamMeta);
 }
