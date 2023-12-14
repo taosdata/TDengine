@@ -22,7 +22,7 @@
 #define _TD_DM_SKIP_CHECK
 #endif
 
-#ifndef ASSERT_NOT_CORE
+#if !defined(ASSERT_NOT_CORE) && !defined(WINDOWS) && !defined(_TD_MIPS)
 #define _TD_DM_CHECK_OFFSET
 #define DM_CHECK_OFFSET(p1, p2, offset, flag)                                  \
   do {                                                                         \
@@ -104,7 +104,14 @@ static void dmCheckOffset(SDnode *pDnode, SMgmtWrapper *wrappers) {
   int32_t        *pEngineVer = &pData->engineVer;
   int64_t        *pClusterId = &pData->clusterId;
 
+#if defined(_TD_DARWIN_64)
+  DM_CHECK_OFFSET(pWrappers, pDnode, 2936, "dnode wrappers");
+#elif defined(_TD_ARM_)
+  DM_CHECK_OFFSET(pWrappers, pDnode, 2568, "dnode wrappers");
+#else
   DM_CHECK_OFFSET(pWrappers, pDnode, 2552, "dnode wrappers");
+#endif
+
   DM_CHECK_OFFSET(pFunc, wrappers, 0, "wrappers func");
   DM_CHECK_OFFSET(pName, wrappers, 96, "wrappers name");
   DM_CHECK_OFFSET(pRequiredFp, pFunc, 48, "mgmtFunc requiredFp");
