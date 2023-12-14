@@ -116,6 +116,7 @@ typedef struct SExHandle {
   int64_t refId;
   void*   pThrd;
   queue   q;
+  int8_t  inited;
 } SExHandle;
 
 typedef struct {
