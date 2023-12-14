@@ -32,23 +32,25 @@ There is an additional charge for extracting PI System data. The charge depends 
 6. In the **Target DB** field, select one database from the current instance that you created to store PI System data.
    If you have not created a database, please go to **Explorer** page to create it.
 7. In the **Server** field, enter the name of your PI Data Archive server.
-8. (Optional) In the **AFDatabaseName** field, enter the name of your AF database.
+8. (Optional) In the **AF Database Name** field, enter the name of your AF database.
 9. In the **PI System Name** field, enter the name of your AF server.
-10. In the **Data Queue** section, configure the parameters as desired. You can also retain the default values.
+10. You can click the **Connectivity Check** button to check whether the communication between the Cloud instance and the PI server is available.
+11. In the **Data Queue** section, configure the parameters as desired. You can also retain the default values.
 
     - **Max Wait Length** indicates the maximum rows of data to send in each HTTPS insert request.
 
     - **Update Interval** indicates how often data will be pulled from the PI system.
 
     - **Max Backfill Range (in days)** indicates the maximum number of days that will be automatically backfilled when reconnecting.
-11. In the **Data Sets** section, select the ingestion method:
+
+12. In the **Data Sets** section, select the ingestion method:
     - Select **Point List** to ingest PI Points.
     - Select **Template for PI Point** to ingest PI Points based on AF element templates.
     - Select **Template for AF Elements** to ingest elements from AF.
-12. Enter a regular expression in the search field to find the desired PI Points or AF templates.
-13. Select each desired PI Point or AF template and click **Add** under the selected item.
-14. After adding all desired items, click **Add** under the **Data Sets** section.
-15. Review the pricing notice and click **Confirm**.
+13. Enter a regular expression in the search field to find the desired PI Points or AF templates.
+14. Select each desired PI Point or AF template and click **Add** under the selected item.
+15. After adding all desired items, click **Add** under the **Data Sets** section.
+16. Review the pricing notice and click **Confirm**.
 
 The selected PI Points or AF templates start streaming data to TDengine, with tables in TDengine automatically created to match point names or AF template structure.
 
