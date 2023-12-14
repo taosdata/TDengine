@@ -176,7 +176,7 @@ int32_t updateEventWindowInfo(SStreamAggSupporter* pAggSup, SEventWindowInfo* pW
 
   for (int32_t i = start; i < rows; ++i) {
     if (pTsData[i] >= maxTs) {
-      return i - 1 - start;
+      return i - start;
     }
 
     if (pWin->skey > pTsData[i]) {
@@ -616,6 +616,10 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
     qDebug("===stream=== reload state. try process result %" PRId64 ", %" PRIu64 ", index:%d", pSeKeyBuf[i].win.skey,
            pSeKeyBuf[i].groupId, i);
     getSessionWindowInfoByKey(pAggSup, pSeKeyBuf + i, &curInfo.winInfo);
+    //event window has been deleted
+    if (!IS_VALID_SESSION_WIN(curInfo.winInfo)) {
+      continue;
+    }
     setEventWindowFlag(pAggSup, &curInfo);
     if (!curInfo.pWinFlag->startFlag || curInfo.pWinFlag->endFlag) {
       continue;
