@@ -38,4 +38,25 @@ TEST(osSystemTest, osSystem1) {
 #else
   taosLogTraceToBuf(tmp, sizeof(tmp), 8);
 #endif
+  double  cpu_engine;
+  double  cpu_system;
+  float   cpu_cores;
+  int64_t mem_engine;     // KB
+  int64_t mem_system;     // KB
+
+  taosGetCpuUsage(&cpu_system, &cpu_engine);
+  taosGetCpuCores(&cpu_cores, false);
+
+  taosGetProcMemory(&mem_engine);
+  taosGetSysMemory(&mem_system);
+  printf("cpu_engine: %f  cpu_system: %f\n", cpu_engine, cpu_system);
+  printf("cpu_cores: %f\n", cpu_cores);
+  ASSERT_GT(cpu_cores, 0);
+  ASSERT_GE(mem_engine, 0);
+  ASSERT_GE(mem_system, 0);
+
+  float numOfCores = 0;
+  int32_t res = taosGetCpuInfo(tmp, 4096, &numOfCores);
+  printf("cpu info: %s\n", tmp);
+  ASSERT_EQ(res, 0);
 }
