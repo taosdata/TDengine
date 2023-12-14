@@ -162,12 +162,12 @@ export default {
             this.tagName = "datasource";
             break;
           case "opcua":
-            this.currentName = "opcui";
+            this.currentName = "sourceConfig";
             this.tagName = "opcua";
             this.protocol = "ua";
             break;
           case "opcda":
-            this.currentName = "opcui";
+            this.currentName = "sourceConfig";
             this.tagName = "opcda";
             this.protocol = "da";
             break;
@@ -226,7 +226,7 @@ export default {
             this.tagName = "datasource";
             break;
           case "opcua":
-            this.currentName = "opcui";
+            this.currentName = "sourceConfig";
             this.tagName = "opc";
             this.protocol = "ua";
             // if (this.$store.state.app.opcnodesfiles.length == 0) {
@@ -235,7 +235,7 @@ export default {
 
             break;
           case "opcda":
-            this.currentName = "opcui";
+            this.currentName = "sourceConfig";
             this.tagName = "opc";
             this.protocol = "da";
             // this.echoOpcData();

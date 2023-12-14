@@ -8,8 +8,8 @@ import i18n from '@/lang';
 
 const lang = IsAliyun ? 'zh' : 'en';
 const templateUrlMap = {
-  opcua: StaticTemplatePath + `opc-${lang}.csv`,
-  opcda: StaticTemplatePath + `opc-${lang}.csv`,
+  opcua: `template-${lang}.csv`,
+  opcda: `template-${lang}.csv`,
   point_file: `/Points.csv`,
   template_for_pi_point_file: '/ElementTemplates.csv',
   template_for_af_element_file: '/ElementTemplates.csv'
@@ -19,6 +19,7 @@ const ReplacePoint = '~';
 const InfoParams = ['security_policy', 'security_mode'];
 export const TimeFormats = ['beginDateTime', 'endDateTime', 'start', 'end', 'beginTime', 'endTime'];
 export const PayConnectorList = ['pi', 'opcua', 'opcda', 'pibackfill'];
+const SelectAllPoints = 'child_table_expression'
 // // 无法使用symbol作为key，因为会被for in 和 object.keys过滤掉
 const valueField = uuid();
 export const optionsField = uuid();
@@ -476,7 +477,7 @@ function handleParser(parser, paramsConfig, value = cloneDeep(DefaultParserValue
  **/
 function handleDatasets(datasets, paramsConfig) {
   if (!datasets) return;
-  const { name, description, categories, params, value: tabValue } = datasets;
+  let { name, description, categories, params, value: tabValue } = datasets;
   const datasetsConfig = {
     label: name,
     description,
@@ -551,6 +552,7 @@ function handleDatasets(datasets, paramsConfig) {
         })
   };
   if (categories) {
+    tabValue = tabValue === SelectAllPoints ? 'select_all_points' : tabValue
     datasetsConfig.valueField = valueField;
     datasetsConfig.defaultValue = tabValue ?? categories[0].category;
   }

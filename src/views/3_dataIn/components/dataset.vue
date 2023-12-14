@@ -113,7 +113,7 @@ export default {
         template_for_af_element_file: 'afElementTemplate'
       }[this.config.field];
       if (piText == 'afElementTemplate') return this.$t('downloadAfElement');
-      return this.$t('downloadPiPoint', [this.$t('dataIn.' + (isPi ? piText : 'allNodes'))]);
+      return this.$t('downloadPiPoint', [this.$t('dataIn.' + (isPi ? piText : 'downloadnodestip'))]);
     },
     allCategoryText() {
       return this.$t(
@@ -136,7 +136,7 @@ export default {
                 template_for_pi_point_file: 'downloadAfElementTip',
                 template_for_af_element_file: 'downloadAfElementTip'
               }[this.config.field]
-            : 'allNodes')
+            : 'dataIn.downloadnodestip')
       );
     },
     allData() {
