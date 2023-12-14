@@ -352,6 +352,8 @@ bool cliConnSendSeqMsg(int64_t refId, SCliConn* conn) {
   }
 
   taosWLockLatch(&exh->latch);
+  if (exh->handle == NULL) exh->handle = conn;
+
   exh->inited = 1;
 
   if (!QUEUE_IS_EMPTY(&exh->q)) {
