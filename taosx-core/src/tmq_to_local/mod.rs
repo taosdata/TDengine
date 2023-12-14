@@ -3,17 +3,17 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
+use std::sync::atomic::Ordering::SeqCst;
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Local};
-use metrics::counter;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use taos::{sync::MessageSet, Consumer, *};
 use tokio::sync::{Barrier, Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
-
+use crate::{core_metrics::{get_metrics_arc, CoreMetrics, TaosXMetrics}, tmq::metric::TMQMetrics};
 use crate::{taoz::ZFile, tmq::*, utils::get_main_version_from_server_version};
 
 use dashmap::DashMap;
@@ -63,26 +63,22 @@ impl ZFileMan {
         &self,
         vgroup: i32,
         meta: taos::Meta,
-        metrics: &Arc<TmqMetrics>,
+        metrics: &TMQMetrics,
     ) -> Result<()> {
         let raw = meta.as_raw_meta().await?;
         self.assert_vgroup(vgroup).await?;
         let entry = self.writers.get(&vgroup).expect("should always exist");
         entry.value().lock().await.write_meta(&raw).await?;
-        counter!(METRIC_TMQ_MESSAGES_OF_META, 1);
-        metrics
-            .messages_of_meta
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        metrics.add_messages_of_meta(1);
         Ok(())
     }
     async fn write_vgroup_with_data(
         &self,
         vgroup: i32,
         data: taos::Data,
-        metrics: &Arc<TmqMetrics>,
+        metrics: &TMQMetrics,
         stop_at: Option<DateTime<Local>>,
     ) -> Result<(usize, bool)> {
-        // let raw = meta.as_raw_meta().await?;
         self.assert_vgroup(vgroup).await?;
         let entry = self.writers.get(&vgroup).expect("should always exist");
         let mut writer = entry.value().lock().await;
@@ -106,22 +102,9 @@ impl ZFileMan {
                 block.table_name().unwrap_or_default(),
                 block.nrows()
             );
-            counter!(METRIC_TMQ_BLOCKS, 1);
-            metrics
-                .blocks
-                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            counter!(METRIC_TMQ_RECORDS, block.nrows() as u64);
-            metrics
-                .records
-                .fetch_add(block.nrows() as _, std::sync::atomic::Ordering::SeqCst);
-            counter!(
-                METRIC_TMQ_POINTS,
-                block.nrows() as u64 * block.ncols() as u64
-            );
-            metrics.points.fetch_add(
-                block.nrows() as u64 * block.ncols() as u64,
-                std::sync::atomic::Ordering::SeqCst,
-            );
+            metrics.add_suc_blocks(1);
+            metrics.add_written_rows(block.nrows() as _);
+            metrics.add_written_points((block.nrows() * block.ncols()) as _);
         }
         writer.finish_raw_block().await?;
 
@@ -134,10 +117,7 @@ impl ZFileMan {
             }
             _ => (),
         }
-        counter!(METRIC_TMQ_MESSAGES_OF_DATA, 1);
-        metrics
-            .messages_of_data
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        metrics.add_messages_of_data(1);
         Ok((nrows, stop))
     }
 
@@ -158,7 +138,7 @@ async fn backup(
     id: usize,
     barrier: Arc<Barrier>,
     cancel: CancellationToken,
-    metrics: Arc<TmqMetrics>,
+    metrics_arc: Arc<CoreMetrics>,
     stop_at: Option<DateTime<Local>>,
     offsets: Arc<DashMap<String, Vec<Assignment>>>,
     version: String,
@@ -166,7 +146,7 @@ async fn backup(
     let mut stream = consumer.stream();
     let mut rows = 0;
     let mut messages = 0;
-
+    let metrics = metrics_arc.tmq();
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
@@ -194,11 +174,8 @@ async fn backup(
                 }
 
                 if let Some((offset, message)) = next? {
-                    counter!(METRIC_TMQ_MESSAGES, 1);
-                    metrics
-                        .messages
-                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                    let total = metrics.messages.load(std::sync::atomic::Ordering::SeqCst);
+                    metrics.add_messages(1);
+                    let total = metrics.messages.load(SeqCst);
                     messages += 1;
                     if messages % 2000 == 0 {
                         tracing::info!("[{id}] received {messages} messages ({:.2})", messages as f64 / total as f64);
@@ -207,13 +184,12 @@ async fn backup(
 
                     match message {
                         MessageSet::Meta(meta) => {
-                            man.write_vgroup_with_meta(vgroup, meta, &metrics).await?;
-
+                            man.write_vgroup_with_meta(vgroup, meta, metrics).await?;
                             man.flush_vgroup(vgroup).await?;
                             consumer.commit(offset).await?;
                         }
                         MessageSet::Data(data) => {
-                            let (size, stop) = man.write_vgroup_with_data(vgroup, data, &metrics, stop_at).await?;
+                            let (size, stop) = man.write_vgroup_with_data(vgroup, data, metrics, stop_at).await?;
                             rows += size;
                             man.flush_vgroup(vgroup).await?;
                             consumer.commit(offset).await?;
@@ -222,11 +198,9 @@ async fn backup(
                             }
                         }
                         MessageSet::MetaData(meta, data) => {
-                            // writer.write_meta(&meta.as_raw_meta().await?).await?;
                             man.write_vgroup_with_meta(vgroup, meta, &metrics).await?;
                             man.flush_vgroup(vgroup).await?;
-                            let (size, stop) = man.write_vgroup_with_data(vgroup, data, &metrics, stop_at).await?;
-
+                            let (size, stop) = man.write_vgroup_with_data(vgroup, data, metrics, stop_at).await?;
                             man.flush_vgroup(vgroup).await?;
                             consumer.commit(offset).await?;
                             rows += size;
@@ -299,6 +273,7 @@ pub async fn tmq_to_local(
     force: bool,
     cancel: CancellationToken,
     offsets: Arc<DashMap<String, Vec<Assignment>>>,
+    task_id: Option<String>,
 ) -> Result<()> {
     let (mut from, builder, topics) = check_tmq_dsn(from).await?;
 
@@ -381,11 +356,9 @@ pub async fn tmq_to_local(
     from.params = from_params;
     to.params = to_params;
 
-    let metrics = Arc::new(TmqMetrics {
-        topics: config.topics.len(),
-        ..Default::default()
-    });
-    counter!(METRIC_TMQ_TOPICS, config.topics.len() as u64);
+    let metrics_arc = get_metrics_arc(task_id.clone());
+    let metrics = metrics_arc.tmq();
+    metrics.topics.fetch_add(config.topics.len() as _, SeqCst);
 
     let tmq = TmqBuilder::from_dsn(&from)?;
     tracing::info!("TMQ builder created");
@@ -400,7 +373,7 @@ pub async fn tmq_to_local(
 
     let mut handles = Vec::new();
 
-    let mut task_id = 0;
+    let mut consumer_task_id = 0;
     let (consumers_sender, mut consumers_receiver) = tokio::sync::mpsc::unbounded_channel();
 
     let mut files_manager = Vec::new();
@@ -417,10 +390,7 @@ pub async fn tmq_to_local(
 
         let mut consumers = Vec::with_capacity(jobs);
         tracing::info!("create {jobs} consumers for topic {}", topic.name);
-        metrics
-            .workers
-            .fetch_add(jobs as _, std::sync::atomic::Ordering::SeqCst);
-        counter!(METRIC_TMQ_WORKERS, jobs as u64);
+        metrics.workers.fetch_add(jobs as _, SeqCst);
         let mut consumer_handles = Vec::with_capacity(jobs);
         for id in 0..jobs {
             let mut consumer = tmq.build().await?;
@@ -454,7 +424,6 @@ pub async fn tmq_to_local(
             let barrier = barrier.clone();
             let man = man.clone();
             let cancel = cancel.clone();
-            let metrics = metrics.clone();
             let sender = consumers_sender.clone();
             let offsets = offsets.clone();
             let handle = tokio::spawn(
@@ -462,10 +431,10 @@ pub async fn tmq_to_local(
                     sender,
                     consumer,
                     man,
-                    task_id,
+                    consumer_task_id,
                     barrier,
                     cancel,
-                    metrics,
+                    metrics_arc.clone(),
                     stop_at,
                     offsets,
                     version.clone(),
@@ -473,7 +442,7 @@ pub async fn tmq_to_local(
                 .in_current_span(),
             );
             handles.push(handle);
-            task_id += 1;
+            consumer_task_id += 1;
         }
 
         files_manager.push(man);
@@ -485,13 +454,13 @@ pub async fn tmq_to_local(
     for man in files_manager {
         man.shutdown().await?;
     }
-    tracing::info!("stop all consumers({})", task_id);
-    for _ in 0..task_id {
+    tracing::info!("stop all consumers({})", consumer_task_id);
+    for _ in 0..consumer_task_id {
         let _ = consumers_receiver.recv().await;
     }
     tracing::info!("all workers done for backup");
 
-    println!("{}", metrics.as_ref());
+    println!("{}", metrics);
     Ok(())
 }
 
@@ -516,6 +485,7 @@ async fn test_tmq_to_local() -> anyhow::Result<()> {
         true,
         Default::default(),
         Default::default(),
+        None
     )
     .await?;
     std::fs::remove_dir_all("./tmq_to_local_out")?;

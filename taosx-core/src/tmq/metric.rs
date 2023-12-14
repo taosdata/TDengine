@@ -1,6 +1,9 @@
 use crate::core_metrics::{CoreMetrics, TaosXMetrics, CommonMetrics};
+use chrono::Utc;
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
+use std::fmt::Display;
+use std::sync::atomic::Ordering::SeqCst;
 use std::sync::atomic::AtomicU16;
 use tracing;
 
@@ -14,10 +17,12 @@ pub struct TMQMetrics {
     pub total_messages_of_meta: AtomicU64,
     pub total_messages_of_data: AtomicU64,
     pub total_write_meta_fails: AtomicU64,
+    pub total_suc_blocks: AtomicU64,
     pub messages: AtomicU64,
     pub messages_of_meta: AtomicU64,
     pub messages_of_data: AtomicU64,
     pub write_meta_fails: AtomicU64,
+    pub suc_blocks: AtomicU64,
 }
 
 impl Default for TMQMetrics {
@@ -30,22 +35,60 @@ impl Default for TMQMetrics {
             total_messages_of_meta: AtomicU64::new(0),
             total_messages_of_data: AtomicU64::new(0),
             total_write_meta_fails: AtomicU64::new(0),
+            total_suc_blocks: AtomicU64::new(0),
             messages: AtomicU64::new(0),
             messages_of_meta: AtomicU64::new(0),
             messages_of_data: AtomicU64::new(0),
             write_meta_fails: AtomicU64::new(0),
+            suc_blocks: AtomicU64::new(0),
         }
+    }
+}
+
+impl TMQMetrics {
+    #[inline]
+    pub fn add_messages(&self, n: u64) {
+        self.total_messages.fetch_add(n, SeqCst);
+        self.messages.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    pub fn add_messages_of_meta(&self, n: u64) -> u64 {
+        self.total_messages_of_meta.fetch_add(n, SeqCst);
+        self.messages_of_meta.fetch_add(n, SeqCst)
+    }
+
+    #[inline]
+    pub fn add_messages_of_data(&self, n: u64) -> u64 {
+        self.total_messages_of_data.fetch_add(n, SeqCst);
+        self.messages_of_data.fetch_add(n, SeqCst)
+    }
+
+    #[inline]
+    pub fn add_meta_fails(&self, n: u64) {
+        self.total_write_meta_fails.fetch_add(n, SeqCst);
+        self.write_meta_fails.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    pub fn add_suc_blocks(&self, n: u64) {
+        self.total_suc_blocks.fetch_add(n, SeqCst);
+        self.suc_blocks.fetch_add(n, SeqCst);
     }
 }
 
 impl TaosXMetrics for TMQMetrics {
 
     fn reset(&self) {
-        todo!()
+        self.com.reset();
+        self.messages.store(0, SeqCst);
+        self.messages_of_meta.store(0, SeqCst);
+        self.messages_of_data.store(0, SeqCst);
+        self.write_meta_fails.store(0, SeqCst);
     }
 
-    fn com(&self) -> &crate::core_metrics::CommonMetrics {
-        todo!()
+    fn com(&self) -> &CommonMetrics {
+        &self.com
     }
 
     /// Resore metrics from json string.
@@ -64,5 +107,43 @@ impl TaosXMetrics for TMQMetrics {
 impl Into<CoreMetrics> for TMQMetrics {
     fn into(self) -> CoreMetrics {
         CoreMetrics::TMQ(self)
+    }
+}
+
+impl Display for TMQMetrics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let records = self.com.written_rows.load(SeqCst);
+        let points = self.com.written_points.load(SeqCst);
+        let mut cost = ((Utc::now().timestamp_millis() - self.com.start_time.get()) / 1000) as u64;
+        if cost == 0 {
+            cost = 1;
+        }
+        write!(
+            f,
+            "# Metrics\n\
+            topics: {}\n\
+            workers: {}\n\
+            messages(total): {}\n\
+            messages(meta only): {}\n\
+            messages(data only): {}\n\
+            blocks: {}\n\
+            records: {} ({} r/s)\n\
+            points: {} ({} p/s)\n\
+            time cost: {:?}",
+            self.topics.load(SeqCst),
+            self.workers.load(SeqCst),
+            self.messages.load(std::sync::atomic::Ordering::SeqCst),
+            self.messages_of_meta
+                .load(std::sync::atomic::Ordering::SeqCst),
+            self.messages_of_data
+                .load(std::sync::atomic::Ordering::SeqCst),
+            self.suc_blocks.load(std::sync::atomic::Ordering::SeqCst),
+            records,
+            records / cost,
+            points,
+            points / cost,
+            cost
+        )?;
+        Ok(())
     }
 }

@@ -12,6 +12,7 @@ use serde::Deserialize;
 use serde_with::serde_as;
 use taos::taos_query::tmq::Assignment;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use tmq::metric::TMQMetrics;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
@@ -269,6 +270,7 @@ impl TaskOpts {
                         *jobs,
                         cancel.clone(),
                         offsets.clone(),
+                        task_id.clone(),
                     )
                     .in_current_span()
                     .await?;
@@ -281,6 +283,7 @@ impl TaskOpts {
                         *force,
                         cancel.clone(),
                         offsets.clone(),
+                        task_id.clone(),
                     )
                     .await?;
                 }
@@ -525,6 +528,15 @@ impl TaskOpts {
                     metrics.as_ref().legacy().reset();
                 } else {
                     let metrics = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
+                    GLOBAL_METRICS.lock().unwrap().insert(task_id, metrics);
+                }
+            }
+            ("tmq", _) => {
+                let metrics = try_get_metrics::<TMQMetrics>(task_id);
+                if let Some(metrics) = metrics {
+                    metrics.as_ref().tmq().reset();
+                } else {
+                    let metrics = Arc::new(CoreMetrics::TMQ(TMQMetrics::default()));
                     GLOBAL_METRICS.lock().unwrap().insert(task_id, metrics);
                 }
             }

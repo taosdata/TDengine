@@ -5,10 +5,10 @@ use linked_hash_map::LinkedHashMap;
 use taos::{Consumer, *};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
-
+use std::sync::atomic::Ordering::SeqCst;
 use crate::{
-    core_metrics::CoreMetrics, metric::LegacyToTaosMetrics, sync_super_table_schema,
-    sync_super_table_schema_with_subs, tmq::*, Action,
+    core_metrics::{CoreMetrics, get_metrics_arc, TaosXMetrics}, metric::LegacyToTaosMetrics, sync_super_table_schema,
+    sync_super_table_schema_with_subs, tmq::{*, metric::TMQMetrics}, Action,
 };
 use dashmap::DashMap;
 use metrics::counter;
@@ -24,13 +24,10 @@ async fn write_data(
     actions: &[Action],
     data: &Data,
     target_is_v3: bool,
-    metrics: &TmqMetrics,
+    metrics: &TMQMetrics,
 ) -> Result<u64> {
     tracing::debug!("[{id}] start writing data");
-    counter!(METRIC_TMQ_MESSAGES_OF_DATA, 1);
-    metrics
-        .messages_of_data
-        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    metrics.add_messages_of_data(1);
     let mut has_blocks = false;
     if target_is_v3 && actions.is_empty() {
         let raw = data
@@ -59,19 +56,9 @@ async fn write_data(
                 .context("Fetch raw block error")?
             {
                 *rows += raw.nrows();
-                counter!(METRIC_TMQ_BLOCKS, 1);
-                metrics
-                    .blocks
-                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                counter!(METRIC_TMQ_RECORDS, raw.nrows() as u64);
-                metrics
-                    .records
-                    .fetch_add(raw.nrows() as _, std::sync::atomic::Ordering::SeqCst);
-                counter!(METRIC_TMQ_POINTS, raw.nrows() as u64 * raw.ncols() as u64);
-                metrics.points.fetch_add(
-                    raw.nrows() as u64 * raw.ncols() as u64,
-                    std::sync::atomic::Ordering::SeqCst,
-                );
+                metrics.add_written_rows(raw.nrows() as _);
+                metrics.add_written_points((raw.nrows() * raw.ncols()) as _);
+                metrics.add_suc_blocks(1);
             }
             return Ok(0);
         }
@@ -209,19 +196,9 @@ async fn write_data(
                 .await
                 .context("Write with stmt execute error")?;
         }
-        counter!(METRIC_TMQ_BLOCKS, 1);
-        metrics
-            .blocks
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        counter!(METRIC_TMQ_RECORDS, raw.nrows() as u64);
-        metrics
-            .records
-            .fetch_add(raw.nrows() as _, std::sync::atomic::Ordering::SeqCst);
-        counter!(METRIC_TMQ_POINTS, raw.nrows() as u64 * raw.ncols() as u64);
-        metrics.points.fetch_add(
-            raw.nrows() as u64 * raw.ncols() as u64,
-            std::sync::atomic::Ordering::SeqCst,
-        );
+        metrics.add_suc_blocks(1);
+        metrics.add_written_rows(raw.nrows() as _);
+        metrics.add_written_points((raw.nrows() * raw.ncols()) as _);
     }
     if !has_blocks {
         if actions.is_empty() {
@@ -254,7 +231,7 @@ async fn write_data(
     }
     tracing::debug!(
         "[{id}] end writing data, current records {}",
-        metrics.records.load(std::sync::atomic::Ordering::SeqCst)
+        metrics.written_rows()
     );
     Ok(0)
 }
@@ -267,14 +244,10 @@ async fn write_meta(
     actions: &[Action],
     meta: &Meta,
     target_is_v3: bool,
-    metrics: &TmqMetrics,
+    metrics: &TMQMetrics,
 ) -> Result<()> {
-    counter!(METRIC_TMQ_MESSAGES_OF_META, 1);
-    let cur = metrics
-        .messages_of_meta
-        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let cur = metrics.add_messages_of_meta(1);
     tracing::debug!("[{id}] start writing meta {cur}");
-    // tracing::debug!("[{id}] meta: {}", meta.as_json_meta().await?);
     if actions.is_empty() {
         if target_is_v3 {
             let jm = meta.as_json_meta().await.context("Fetch json meta error");
@@ -344,11 +317,11 @@ async fn write_meta(
                         }
                     }
                     0x032C | 0x0115 | 0x0603 | 0x03C7 => {
-                        counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
+                        metrics.add_meta_fails(1);
                         tracing::warn!(consumer.id = id, "Write raw meta: {err:#}");
                     }
                     _ => {
-                        counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
+                        metrics.add_meta_fails(1);
                         Err(err.context("Write raw meta error"))?;
                     }
                 }
@@ -373,6 +346,7 @@ async fn write_meta(
         // dbg!(&meta);
         let sql = meta.to_string();
         if let Err(err) = taos.exec(&sql).await {
+            metrics.add_meta_fails(1);
             let errstr = err.to_string();
             if errstr.contains("[0x032C]")
                 || errstr.contains("[0x0115]")
@@ -380,9 +354,7 @@ async fn write_meta(
                 || errstr.contains("[0x03C7]")
             {
                 tracing::warn!("{errstr}");
-                counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
             } else {
-                counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
                 bail!("[{id}] write raw meta error: {err}");
             }
         }
@@ -391,7 +363,7 @@ async fn write_meta(
     Ok(())
 }
 
-#[instrument(skip(sender, consumer, taos, cancel, source_pool))]
+#[instrument(skip(sender, consumer, taos, cancel, source_pool, metrics_arc))]
 async fn sync(
     id: usize,
     sender: tokio::sync::mpsc::UnboundedSender<Consumer>,
@@ -401,7 +373,7 @@ async fn sync(
     table: Option<String>,
     actions: Vec<Action>,
     cancel: CancellationToken,
-    metrics: Arc<TmqMetrics>,
+    metrics_arc: Arc<CoreMetrics>,
     offsets: Arc<DashMap<String, Vec<Assignment>>>,
     version: String,
 ) -> Result<()> {
@@ -413,6 +385,7 @@ async fn sync(
         .exec("desc information_schema.ins_databases")
         .await
         .is_ok();
+    let metrics = metrics_arc.tmq();
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
@@ -420,24 +393,22 @@ async fn sync(
                 break;
             }
             next = stream.try_next() => {
-
                 if let Some((offset, message)) = next.with_context(|| format!("[{id}] polling next message error"))? {
-                    counter!(METRIC_TMQ_MESSAGES, 1);
-                    metrics.messages.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                    let total = metrics.messages.load(std::sync::atomic::Ordering::SeqCst);
+                    metrics.add_messages(1);                    
+                    let total = metrics.messages.load(SeqCst);
                     messages += 1;
                     if messages % 2000 == 0 {
                         tracing::info!("[{id}] received {messages} messages ({:.2})", messages as f64 / total as f64);
                     }
                     match message {
                         MessageSet::Meta(meta) => {
-                            write_meta(id, &source_pool, taos, &actions, &meta, target_is_v3, &metrics).await.with_context(|| format!("[{id}] writing meta-only message error"))?;
+                            write_meta(id, &source_pool, taos, &actions, &meta, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing meta-only message error"))?;
                         }
                         MessageSet::Data(data) => {
-                            write_data(id, &mut rows, &source_pool,  taos, table.as_deref(), &actions, &data, target_is_v3, &metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
+                            write_data(id, &mut rows, &source_pool,  taos, table.as_deref(), &actions, &data, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
                         }
                         MessageSet::MetaData(meta, data) => {
-                            write_meta(id, &source_pool,taos, &actions, &meta, target_is_v3, &metrics).await.with_context(|| format!("[{id}] writing metadata message message error"))?;
+                            write_meta(id, &source_pool,taos, &actions, &meta, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing metadata message message error"))?;
                             if !actions.is_empty() {
                                 write_data(id, &mut rows, &source_pool, taos, table.as_deref(), &actions, &data, target_is_v3, &metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
                             }
@@ -471,6 +442,7 @@ pub async fn tmq_to_td(
     jobs: usize,
     cancel: CancellationToken,
     offsets: Arc<DashMap<String, Vec<Assignment>>>,
+    task_id: Option<String>,
 ) -> Result<()> {
     let (mut from, builder, topics) = check_tmq_dsn(from).await?;
 
@@ -493,16 +465,12 @@ pub async fn tmq_to_td(
         to.params = to_params;
     }
     from.params = from_params;
-
-    let metrics = Arc::new(TmqMetrics {
-        topics: topics.len(),
-        ..Default::default()
-    });
-    counter!(METRIC_TMQ_TOPICS, topics.len() as u64);
+    let metrics_arc = get_metrics_arc(task_id.clone());
+    let metrics = metrics_arc.tmq();
+    metrics.topics.fetch_add(topics.len() as _, SeqCst);
 
     let mut handles = Vec::new();
-    let mut task_id = 0;
-
+    let mut consumer_task_id = 0;
     let target_database = to.subject.take();
 
     let target_builder = TaosBuilder::from_dsn(&to)?;
@@ -536,10 +504,7 @@ pub async fn tmq_to_td(
         } else {
             jobs
         };
-        counter!(METRIC_TMQ_WORKERS, jobs as u64);
-        metrics
-            .workers
-            .fetch_add(jobs as _, std::sync::atomic::Ordering::SeqCst);
+        metrics.workers.fetch_add(jobs as _, SeqCst);
         let mut target_dsn = to.clone();
         target_dsn.subject.replace(target_database.to_string());
         let target = TaosBuilder::from_dsn(target_dsn)?.pool()?;
@@ -658,15 +623,15 @@ pub async fn tmq_to_td(
             }
             let actions = actions.to_vec();
             let cancellation = cancel.clone();
-            let metrics = metrics.clone();
             let sender = consumers_sender.clone();
             let offsets = offsets.clone();
             let version = version.clone();
             let source_pool = source_pool.clone();
+            let metrics_arc = metrics_arc.clone();
             let handle = tokio::spawn(
                 async move {
                     sync(
-                        task_id,
+                        consumer_task_id,
                         sender,
                         consumer,
                         source_pool,
@@ -674,7 +639,7 @@ pub async fn tmq_to_td(
                         table,
                         actions,
                         cancellation,
-                        metrics,
+                        metrics_arc.clone(),
                         offsets,
                         version,
                     )
@@ -683,9 +648,9 @@ pub async fn tmq_to_td(
                 .in_current_span(),
             );
             handles.push(handle);
-            tracing::info!("spawn consuming task with id {task_id}",);
+            tracing::info!("spawn consuming task with id {consumer_task_id}",);
 
-            task_id += 1;
+            consumer_task_id += 1;
         }
     }
 
@@ -695,8 +660,8 @@ pub async fn tmq_to_td(
     }
     tracing::debug!("consumers tasks offsets: {:?}", offsets);
 
-    tracing::info!("stop all consumers({})", task_id);
-    for _ in 0..task_id {
+    tracing::info!("stop all consumers({})", consumer_task_id);
+    for _ in 0..consumer_task_id {
         let consumer = consumers_receiver.recv().await;
         tokio::spawn(async move {
             if let Some(consumer) = consumer {
@@ -711,7 +676,7 @@ pub async fn tmq_to_td(
     drop(builder);
     tokio::time::sleep(Duration::from_millis(1000)).await;
     tracing::info!("replication done.");
-    println!("{}", metrics.as_ref());
+    println!("{}", metrics);
 
     Ok(())
 }
