@@ -19,7 +19,16 @@
 #include "tchecksum.h"
 
 #if defined(GRANTS_CFG) || defined(_TD_DARWIN_64)
-#define _TD_SKIP_DM_CHECK
+#define _TD_DM_SKIP_CHECK
+#endif
+
+#ifndef ASSERT_NOT_CORE
+#define _TD_DM_CHECK_OFFSET
+#define DM_CHECK_OFFSET(p1, p2, offset, flag)                                  \
+  do {                                                                         \
+    int32_t off = POINTER_DISTANCE((p1), (p2));                                \
+    ASSERTS((offset) == abs(off), "%s offset: %d!=%d", (flag), off, (offset)); \
+  } while (0)
 #endif
 
 extern char tsVersionName[];
@@ -83,8 +92,32 @@ static int32_t dmWriteVars(SEngineInfo *pInfo);
 
 // implementations
 
+#ifdef _TD_DM_CHECK_OFFSET
+static void dmCheckOffset(SDnode *pDnode, SMgmtWrapper *wrappers) {
+  SMgmtWrapper   *pWrappers = &pDnode->wrappers[0];
+  SMgmtFunc      *pFunc = &wrappers->func;
+  const char    **pName = &wrappers->name;
+  NodeRequireFp  *pRequiredFp = &pFunc->requiredFp;
+  SDnodeData     *pData = &pDnode->data;
+  TdThreadRwlock *pLock = &pData->lock;
+  int32_t        *pDnodeId = &pData->dnodeId;
+  int32_t        *pEngineVer = &pData->engineVer;
+  int64_t        *pClusterId = &pData->clusterId;
+
+  DM_CHECK_OFFSET(pWrappers, pDnode, 2552, "dnode wrappers");
+  DM_CHECK_OFFSET(pFunc, wrappers, 0, "wrappers func");
+  DM_CHECK_OFFSET(pName, wrappers, 96, "wrappers name");
+  DM_CHECK_OFFSET(pRequiredFp, pFunc, 48, "mgmtFunc requiredFp");
+  DM_CHECK_OFFSET(pData, pDnode, 168, "dnode data");
+  DM_CHECK_OFFSET(pLock, pData, 720, "data lock");
+  DM_CHECK_OFFSET(pDnodeId, pData, 0, "data dnodeId");
+  DM_CHECK_OFFSET(pEngineVer, pData, 4, "data engineVer");
+  DM_CHECK_OFFSET(pClusterId, pData, 8, "data clusterId");
+}
+#endif
+
 static int32_t dmInitPrerequisites() {
-#ifndef _TD_SKIP_DM_CHECK
+#ifndef _TD_DM_SKIP_CHECK
   int32_t code = 0;
 
   char reName[64] = {0};
@@ -282,7 +315,7 @@ static void dmGetFname(const char *fname, char *ofname) {
 }
 
 int32_t dmInitDndInfo(SDnodeData *pData) {
-#ifndef _TD_SKIP_DM_CHECK
+#ifndef _TD_DM_SKIP_CHECK
   int32_t code = 0;
   char    cfname[PATH_MAX] = "\0";
 
@@ -328,7 +361,7 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
   dmGetFname(DM_ENGINE_FILE_T, tfname);
   dmGetFname(DM_ENGINE_FILE, cfname);
 
-  errno = 0; // clear errno
+  errno = 0;  // clear errno
 
   TdFilePtr tFile = taosOpenFile(tfname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (!tFile) {
@@ -404,7 +437,7 @@ static void dmFetchEType(int8_t *type) {
 }
 
 static int32_t dmInitVersion(SDnode *pDnode) {
-#ifndef _TD_SKIP_DM_CHECK
+#ifndef _TD_DM_SKIP_CHECK
   int32_t     code = 0;
   int8_t      eType = 0;
   SEngineInfo eInfo = {0};
@@ -513,6 +546,10 @@ bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
 int32_t dmInitModule(SDnode *pDnode, SMgmtWrapper *wrappers) {
   int32_t code = -1;
 
+#ifdef _TD_DM_CHECK_OFFSET
+  dmCheckOffset(pDnode, wrappers);
+#endif
+
   if (dmInitPrerequisites() != 0) {
     goto _err;
   }
@@ -520,10 +557,6 @@ int32_t dmInitModule(SDnode *pDnode, SMgmtWrapper *wrappers) {
     terrno = TSDB_CODE_VERSION_NOT_COMPATIBLE;
     goto _err;
   }
-
-  int32_t transOffset = POINTER_DISTANCE(&pDnode->trans, pDnode);
-
-  ASSERTS(168 == abs(transOffset), "trans offset is %d", transOffset);
 
   if (dmInitMsgHandle(pDnode, wrappers) != 0) {
     dError("failed to init msg handles since %s", terrstr());
