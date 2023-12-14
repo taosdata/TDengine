@@ -213,7 +213,12 @@ namespace TDPIConnector.Core
         }
         private void StartTemplateObserve()
         {
-            if (AppSettings.tomlConfig.TemplateForAFElement == null)
+            if (this.piSystemManager == null) {
+                log.Info("Working on only point mode.");
+                return;
+            }
+            if (AppSettings.tomlConfig.TemplateForAFElement == null ||
+                AppSettings.tomlConfig.TemplateForAFElement.Count == 0)
             {
                 log.Info("No ElementTemplates to watch.");
                 return;
