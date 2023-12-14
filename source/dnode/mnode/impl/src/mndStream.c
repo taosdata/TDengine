@@ -938,7 +938,8 @@ int64_t mndStreamGenChkpId(SMnode *pMnode) {
     if (pIter == NULL) break;
 
     maxChkpId = TMAX(maxChkpId, pStream->checkpointId);
-    mDebug("stream %p checkpoint %" PRId64 "", pStream, pStream->checkpointId);
+    mDebug("stream:%p, %s id:%" PRIx64 "checkpoint %" PRId64 "", pStream, pStream->name, pStream->uid,
+           pStream->checkpointId);
     sdbRelease(pSdb, pStream);
   }
 
