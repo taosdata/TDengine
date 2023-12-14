@@ -1,0 +1,21 @@
+name: OpenTSDB
+
+on:
+  pull_request:
+    paths:
+    - '.github/workflows/opentsdb.yaml'
+    - 'plugins/opentsdb/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          clean: false
+
+      - name: Build taosx-opentsdb
+        run: |
+          cargo make taosx-opentsdb
