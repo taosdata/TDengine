@@ -346,7 +346,10 @@ bool cliConnSendSeqMsg(int64_t refId, SCliConn* conn) {
   if (refId == 0) return false;
 
   SExHandle* exh = transAcquireExHandle(transGetRefMgt(), refId);
-  if (exh == NULL) return false;
+  if (exh == NULL) {
+    tDebug("release conn %p, refId: %" PRId64 "", conn, refId);
+    return false;
+  }
 
   taosWLockLatch(&exh->latch);
   exh->inited = 1;
@@ -359,12 +362,14 @@ bool cliConnSendSeqMsg(int64_t refId, SCliConn* conn) {
     SCliMsg* t = QUEUE_DATA(h, SCliMsg, seqq);
     transCtxMerge(&conn->ctx, &t->ctx->appCtx);
     transQueuePush(&conn->cliMsgs, t);
-
+    tDebug("pop from conn %p, refId: %" PRId64 "", conn, refId);
     transReleaseExHandle(transGetRefMgt(), refId);
+
     cliSend(conn);
     return true;
   }
   taosWUnLockLatch(&exh->latch);
+  tDebug("empty conn %p, refId: %" PRId64 "", conn, refId);
 
   transReleaseExHandle(transGetRefMgt(), refId);
   return false;
