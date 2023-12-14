@@ -23,6 +23,7 @@
 #include "tmisce.h"
 #include "audit.h"
 #include "mndPrivilege.h"
+#include "mndTrans.h"
 
 #define MND_COMPACT_VER_NUMBER 1
 
@@ -33,6 +34,7 @@ int32_t mndInitCompact(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_COMPACT, mndProcessKillCompactReq);
   mndSetMsgHandle(pMnode, TDMT_VND_QUERY_COMPACT_PROGRESS_RSP, mndProcessQueryCompactRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_COMPACT_TIMER, mndProcessCompactTimer);
+  mndSetMsgHandle(pMnode, TDMT_VND_KILL_COMPACT_RSP, mndTransProcessRsp);
 
   SSdbTable table = {
       .sdbType = SDB_COMPACT,
