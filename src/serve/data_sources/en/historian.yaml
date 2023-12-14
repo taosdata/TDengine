@@ -7,6 +7,7 @@ description: |
 
   TDengine efficiently reads data from the AVEVA™ Historian and writes it to TDengine for historical data migration or real-time data flow into the library.
 strict: false
+
 options:
   host:
     display: host
@@ -113,36 +114,6 @@ groups:
         hint:
           type: str
 
-advanced:
-  name: Advanced Options
-  collapsible: true
-  description: |
-    Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave
-    these options as default to use the recommended settings.
-  params:
-    - name: concurrency
-      hidden: true
-      display: Read Concurrency
-      description: |
-        The number of concurrent queries when reading data from the data source.
-      value: 1
-      hint:
-        type: integer
-        min: 1
-        max: 1000
-    - name: log_level
-      display: Log Level
-      description: Adjust the log level of the data source as required. This parameter does not always take effect.
-      value: info
-      hint:
-        type: str
-        choices:
-          - error
-          - warn
-          - info
-          - debug
-          - trace
-
 parser:
   display: Data Mapping
   description: |
@@ -214,3 +185,84 @@ parser:
       description: The name of the server for this replicated tag at the time this point was stored.
       type: varchar
   required: true
+
+advanced:
+  name: Advanced Options
+  collapsible: true
+  description: |
+    Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave
+    these options as default to use the recommended settings.
+  params:
+    - name: log_level
+      display: Log Level
+      description: Adjust the log level of the data source as required. This parameter does not always take effect.
+      value: info
+      hint:
+        type: str
+        choices:
+          - error
+          - warn
+          - info
+          - debug
+          - trace
+    - name: read_concurrency
+      display: Read Concurrency
+      hidden: true
+      description: |
+        The number of concurrent read requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.
+      value: 0
+      hint:
+        type: integer
+        min: 0
+        max: 1000
+    - name: write_concurrency
+      display: Write Concurrency
+      description: |
+        The number of concurrent write requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.
+      value: 0
+      hint:
+        type: integer
+        min: 0
+        max: 1000
+    - name: batch_size
+      display: Batch Size
+      description: |
+        The number of data points to be written in a single request. The default value is 1000. If the data source is slow to respond, you can reduce this value appropriately.
+      value: 10000
+      hint:
+        type: integer
+        min: 1
+        max: 100000
+    - name: batch_timeout
+      display: Batch Timeout
+      description: |
+        The maximum time(in seconds) to wait before sending a batch of data points. The default value is 1s. If the data source is slow to respond, you can increase this value appropriately.
+      value: 1
+      hint:
+        type: integer
+        min: 1
+        max: 60
+    - name: keep_raw_data
+      display: Keep Raw Data
+      description: |
+        Whether to keep the raw data. If enabled, the raw data will be stored.
+      hint:
+        type: bool
+    - name: keep_raw_data_days
+      display: Max Keep Days
+      description: |
+        The number of days to keep the raw data. The default value is 1 day.
+      value: 1
+      requires: keep_raw_data
+      hint:
+        type: integer
+        min: 1
+        max: 365
+    - name: keep_raw_data_dir
+      display: Raw Data Directory
+      description: |
+        The directory to store the raw data. The default value is `$DATA_DIR/tasks/:id/rawdata/`.
+      requires: keep_raw_data
+      placeholder: $DATA_DIR/tasks/:id/rawdata/
+      hint:
+        type: str

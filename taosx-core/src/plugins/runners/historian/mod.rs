@@ -228,9 +228,11 @@ mod tests {
 
         let sock_ref = socket2::SockRef::from(&stream);
         assert_eq!(true, sock_ref.keepalive().unwrap());
-        // Can't compile on Windows
-        // assert_eq!(10, sock_ref.keepalive_time().unwrap().as_secs());
-        // assert_eq!(10, sock_ref.keepalive_interval().unwrap().as_secs());
+        #[cfg(not(target_os = "windows"))]
+        {
+            assert_eq!(10, sock_ref.keepalive_time().unwrap().as_secs());
+            assert_eq!(10, sock_ref.keepalive_interval().unwrap().as_secs());
+        }
 
         server.join().unwrap();
     }

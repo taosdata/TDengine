@@ -21,10 +21,12 @@ mod producer;
 pub async fn migrate_history(config: TaskConfig) -> anyhow::Result<()> {
     tracing::info!("migrate history start, config: {:?}", config);
 
-    let (tx, rx) = flume::bounded(config.concurrency);
+    let (tx, rx) = flume::bounded(0);
     // consume task
     let mut consumers = Vec::new();
-    for _ in 0..config.concurrency {
+
+    let concurrency = cmp::max(config.advanced_options.write_concurrency.unwrap_or(1), 1);
+    for _ in 0..concurrency {
         let receiver = rx.clone();
 
         let query = HistorianQuery::try_new(config.connect.clone()).await?;

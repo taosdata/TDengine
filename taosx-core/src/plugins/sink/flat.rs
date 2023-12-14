@@ -1,4 +1,5 @@
 use anyhow::Context;
+use lazy_static::lazy_static;
 use metrics::*;
 
 use taos::{taos_query::Manager, AsyncQueryable, Itertools, TaosBuilder, TaosPool, Ty};
@@ -201,6 +202,11 @@ async fn assert_create_stable(
     }
 }
 
+lazy_static! {
+    static ref RE_0X2653: regex::Regex =
+        regex::Regex::new(r"`Value too long for column/tag: (.*)`").unwrap();
+}
+
 /// TODO: maybe helpful for refactor
 #[allow(dead_code)]
 async fn assert_exec_sql(
@@ -235,8 +241,7 @@ async fn assert_exec_sql(
                 0x2653 => {
                     // Value too long for column/tag
                     let message = err.message();
-                    let re = regex::Regex::new(r"`Value too long for column/tag: (.*)`").unwrap();
-                    if let Some(caps) = re.captures(&message) {
+                    if let Some(caps) = RE_0X2653.captures(&message) {
                         let field = caps.get(1).unwrap().as_str();
                         break Err(FlatWriteError::ContainerLengthTooShort(field.to_string()));
                     }
@@ -304,9 +309,7 @@ async fn write_stable_with_sql(
                     0x2653 => {
                         // Value too long for column/tag
                         let message = err.message();
-                        let re =
-                            regex::Regex::new(r"`Value too long for column/tag: (.*)`").unwrap();
-                        if let Some(caps) = re.captures(&message) {
+                        if let Some(caps) = RE_0X2653.captures(&message) {
                             let field = caps.get(1).unwrap().as_str();
                             break Err(FlatWriteError::ContainerLengthTooShort(field.to_string()));
                         }
@@ -354,6 +357,7 @@ pub async fn flat_write_with_sql(
                 match write_stable_with_sql(pool, taos, req_id, &records).await {
                     Ok(n) => {
                         count += n;
+                        break;
                     }
                     Err(err) => {
                         error!(

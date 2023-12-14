@@ -1383,7 +1383,6 @@ async fn consume_flat_record(
     let mut max_lengths = HashMap::new();
     let req_id = RequestID::new(data_trace_id);
     for message in record.records() {
-        tokio::task::yield_now().await;
         counter!(METRIC_RECORD_BATCHES, 1);
         let batch = message.record();
 
@@ -1398,7 +1397,7 @@ async fn consume_flat_record(
                     .map(|message| message.records.num_rows())
                     .sum::<usize>()
                     / message.len();
-                if factor > 5 {
+                if factor < 100 {
                     *count +=
                         flat_write_with_sql(pool, taos, target_precision, &req_id, message).await?;
                     continue;
@@ -2091,7 +2090,6 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
     // });
     let mut taos = Some(pool.get().await?);
     while let Some(record) = stream.try_next().await? {
-        batches += 1;
         let data_trace_id = create_data_trace_id(stream_trace_id, batches);
         let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
         let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
@@ -2101,8 +2099,10 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
         info!(
             trace.id = data_trace_id_str,
             record.rows = record.num_rows(),
+            batch_id = batches,
             "Writing batch",
         );
+        batches += 1;
         let last = count;
         if let Err(err) = consume_flat_record(
             pool,
@@ -2152,6 +2152,11 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
                 })
                 .context("write ack error");
         }
+        tracing::debug!(
+            trace.id = data_trace_id_str,
+            batch_id = batches,
+            "IPC write batch finished"
+        );
     }
     // may not reached when the task was stopped by user forcely
     info!("IPC processing done, written totally {count} records");

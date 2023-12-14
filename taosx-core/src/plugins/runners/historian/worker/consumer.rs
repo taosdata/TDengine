@@ -1,7 +1,8 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use arrow::ipc::writer::StreamWriter;
 use flume::Receiver;
 use futures_util::TryStreamExt;
-use tiberius::QueryItem;
 
 use taosx_ipc::ack::AckReaderBuilder;
 
@@ -33,13 +34,25 @@ impl Consumer {
         set_tcp_keepalive(&ack_stream)?;
         ack_stream.set_read_timeout(None)?;
 
-        let (tx, rx) = flume::bounded(0);
+        let (tx, rx) = flume::bounded(100);
         let writer_handler = tokio::task::spawn_blocking(move || {
             let mut writer = StreamWriter::try_new(stream, &schema)?;
+            let mut row_count = 0;
+            let mut batches = 0;
+
             while let Ok(batch) = rx.recv() {
                 writer.write(&batch)?;
-                tracing::info!("migrate history write {} rows to ipc", batch.num_rows());
+                tracing::debug!("migrate history write {} rows to ipc", batch.num_rows());
+
+                row_count += batch.num_rows();
+                batches += 1;
             }
+
+            tracing::debug!(
+                send.batches = batches,
+                send.records = row_count,
+                "sending finished, waiting for persisting"
+            );
             let _ = writer.finish()?;
             anyhow::Ok(())
         });
@@ -59,7 +72,7 @@ impl Consumer {
             Ok(())
         });
 
-        let mut count: u64 = 1;
+        let mut batch_count: u64 = 1;
         while let Ok(task) = receiver.recv_async().await {
             let start = task
                 .begin_datetime
@@ -70,44 +83,60 @@ impl Consumer {
 
             // query
             tracing::debug!(
-                "migrate history:{} query, window_start: {}, window_end: {}",
-                count,
+                "migrate history batch:{}, execute query from: {}, to: {}",
+                batch_count,
                 start,
                 end
             );
-            let mut rows = self.query.query_history(task.tags, start, end).await?;
+            let mut rows = self
+                .query
+                .query_history(task.tags, start, end)
+                .await?
+                .into_row_stream();
 
-            tracing::debug!("migrate history:{} rows to batch", count);
+            let batch_size = task.advanced_options.batch_size.unwrap_or(10000);
+            let mut row_count = 0;
             while let Some(row) = rows.try_next().await? {
-                match row {
-                    QueryItem::Row(row) => {
-                        appender.append_history_row(row).map_err(|err| {
-                            let err_msg = format!(
-                                "migrate history:{} append row error: {}",
-                                count,
-                                err.to_string()
-                            );
-                            tracing::error!(err_msg);
-                            anyhow::anyhow!(err_msg)
-                        })?;
-                    }
-                    QueryItem::Metadata(_) => {
-                        continue;
-                    }
+                appender.append_history_row(row).map_err(|err| {
+                    let err_msg = format!(
+                        "migrate history batch: {}, append row error: {}",
+                        batch_count,
+                        err.to_string()
+                    );
+                    tracing::error!(err_msg);
+                    anyhow::anyhow!(err_msg)
+                })?;
+
+                row_count += 1;
+
+                if row_count == batch_size {
+                    let batch = appender.finish()?;
+                    tracing::debug!(
+                        "migrate history batch: {}, send batch records to writer",
+                        batch_count
+                    );
+                    tx.send_async(batch.clone()).await?;
+                    batch_count += 1;
+
+                    row_count = 0;
                 }
             }
 
             let batch = appender.finish()?;
-            tracing::debug!("migrate history:{} send batch to writer", count);
+            tracing::debug!(
+                "migrate history batch: {}, send batch records to writer",
+                batch_count
+            );
             tx.send_async(batch.clone()).await?;
-
-            count += 1;
+            batch_count += 1;
         }
         drop(tx);
 
+        tracing::debug!("migrate history query finished");
         writer_handler.await??;
+        tracing::debug!("migrate history writer finished");
         ack.await??;
-        tracing::debug!("migrate history consume finished");
+        tracing::debug!("migrate history consumer finished");
         Ok(())
     }
 }

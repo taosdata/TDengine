@@ -8,6 +8,7 @@ use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
 use chrono::{Local, NaiveDateTime, TimeZone};
 use itertools::Itertools;
+use lazy_static::lazy_static;
 use regex::Regex;
 use tiberius::Row;
 
@@ -140,8 +141,10 @@ impl ArrowDataAppender {
                     .append_null();
             }
             Some(val) => {
-                let regex = Regex::new(r"[^0-9a-zA-Z_]+").unwrap();
-                let new_tag_name = regex.replace_all(val, "_").to_string();
+                lazy_static! {
+                    static ref RE: Regex = Regex::new(r"[.`]").unwrap();
+                }
+                let new_tag_name = RE.replace_all(val, "_").to_string();
 
                 self.data_builders[index]
                     .as_any_mut()
