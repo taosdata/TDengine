@@ -70,7 +70,6 @@ typedef struct SUdfdData {
   int32_t      dnodeId;
 } SUdfdData;
 
-#ifndef TD_MODULE_OPTIMIZE
 typedef struct SDnode {
   int8_t        once;
   bool          stop;
@@ -84,21 +83,6 @@ typedef struct SDnode {
   SMgmtWrapper  wrappers[NODE_END];
   SDnodeTrans   trans;
 } SDnode;
-#else
-typedef struct SDnode {
-  int8_t        once;
-  bool          stop;
-  EDndRunStatus status;
-  SStartupInfo  startup;
-  SDnodeTrans   trans;
-  SUdfdData     udfdData;
-  TdThreadMutex mutex;
-  TdFilePtr     lockfile;
-  SDnodeData    data;
-  STfs         *pTfs;
-  SMgmtWrapper  wrappers[NODE_END];
-} SDnode;
-#endif
 
 // dmEnv.c
 SDnode *dmInstance();
