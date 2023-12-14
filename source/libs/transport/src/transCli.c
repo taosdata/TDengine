@@ -1618,9 +1618,6 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
   bool      ignore = false;
   SCliConn* conn = cliGetConn(&pMsg, pThrd, &ignore, addr);
   if (ignore == true) {
-    if (pMsg->msg.msgType == TDMT_SCH_DROP_TASK) {
-      return;
-    }
     STransMsg resp;
     cliBuildExceptResp(pMsg, &resp);
     // refactorr later
