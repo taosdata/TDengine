@@ -1,57 +1,15 @@
-use std::{
-    any::Any,
-    collections::{HashMap, HashSet},
-    io::{Read, Write},
-    iter::zip,
-    net::SocketAddr,
-    num::NonZeroU8,
-    str::FromStr,
-    sync::{
-        atomic::{AtomicU32, AtomicUsize, Ordering},
-        Arc,
-    },
-    time::Duration,
-};
-
-use anyhow::{bail, Context};
-use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions, record_batch::RecordBatch};
-use arrow_flight::FlightClient;
-use async_backtrace::framed;
-use bytes::Bytes;
-use deadpool::managed::Timeouts;
-use futures::TryStreamExt;
-use futures_util::StreamExt;
+use anyhow::Context;
 use metrics::*;
-use serde_json::json;
-use taos::{
-    taos_query::{common::Describe, Manager},
-    AsyncBindable, AsyncQueryable, Dsn, Itertools, RawBlock, Stmt, Taos, TaosBuilder, TaosPool, Ty,
-    Value,
-};
-use thiserror::Error;
-use tokio::sync::{Mutex, Notify, OnceCell};
-use tokio_util::sync::CancellationToken;
-use tonic::transport::Channel;
-use tracing::{debug, error, info, instrument, Instrument, Span};
 
-use taosx_ipc::{
-    prelude::*,
-    stream::{flat::FlatMessage, point::PointMessage},
-};
+use taos::{taos_query::Manager, AsyncQueryable, Itertools, TaosBuilder, TaosPool, Ty};
+use thiserror::Error;
+
+use tracing::{error, instrument};
 
 use crate::{
-    plugins::runners::opc::config::{table::ColumnConfig, OPCConfig, OpcTableConfig},
-    plugins::transform::MessageArrowRecords,
-    sink::DEFAULT_MAX_RETRIES_FOR_CONNECTION,
-    utils::{
-        breakpoints::breakpoints_set,
-        trace::{
-            create_data_trace_id, create_stream_trace_id, get_data_trace_id_str, get_stream_id_u64,
-            set_data_trace_id_for_current_span, RequestID,
-        },
-    },
-    ConnectorLicense, Parser, Transferred, METRIC_RECORDS, METRIC_RECORD_FAILS,
-    METRIC_STABLE_CREATED, METRIC_WRITE_RAW_BLOCKS, METRIC_WRITE_RAW_BLOCK_FAILS,
+    plugins::transform::MessageArrowRecords, sink::DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+    utils::trace::RequestID, METRIC_RECORD_FAILS, METRIC_STABLE_CREATED,
+    METRIC_WRITE_RAW_BLOCK_FAILS,
 };
 
 /// All the messages should be in the same stable.
@@ -159,6 +117,7 @@ fn message_to_sql(
 /// Write records to TDengine with `sql`, which contains `tables` num of tables,
 /// and `records` number of records.
 #[derive(Debug)]
+#[allow(dead_code)]
 struct Records {
     stable: Option<String>,
     sql: String,
@@ -241,6 +200,9 @@ async fn assert_create_stable(
         }
     }
 }
+
+/// TODO: maybe helpful for refactor
+#[allow(dead_code)]
 async fn assert_exec_sql(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
@@ -477,10 +439,10 @@ mod tests {
     use super::*;
 
     use arrow::array::*;
-    use arrow_schema::{Field, FieldRef};
+    use arrow_schema::{Field, FieldRef, Schema};
     use itertools::Itertools;
     use serde_json::json;
-    use std::{collections::VecDeque, sync::Arc};
+    use std::{collections::HashMap, sync::Arc};
     use taos::AsyncTBuilder;
     use taosx_ipc::prelude::IpcDataType;
     use IpcDataType::*;
@@ -514,6 +476,8 @@ mod tests {
 
         messages_per_table: usize,
         string_repeats: usize,
+        /// TODO: The number of records in each message.
+        #[allow(dead_code)]
         records_per_message: usize,
     }
 
@@ -557,7 +521,7 @@ mod tests {
                     )) as ArrayRef
                 }
                 arrow_schema::TimeUnit::Nanosecond => {
-                    let now = chrono::Utc::now().timestamp_nanos();
+                    let now = chrono::Utc::now().timestamp_nanos_opt().unwrap();
                     Arc::new(TimestampNanosecondArray::from_iter(
                         (0..len).map(|i| (now + i as i64 * 1000_000_000)).map(Some),
                     )) as ArrayRef
@@ -588,6 +552,7 @@ mod tests {
         (field, value)
     }
 
+    #[allow(dead_code)]
     impl STableMessagesBuilder {
         fn new() -> Self {
             Self {
@@ -742,7 +707,7 @@ mod tests {
             std::iter::repeat(table_meta)
                 .zip(0..self.messages_per_table)
                 .flat_map(|(meta, mid)| meta.into_iter().map(move |meta| (meta, mid)))
-                .map(|(table, mid)| MessageArrowRecords {
+                .map(|(table, _)| MessageArrowRecords {
                     table,
                     records: {
                         let (fields, columns): (Vec<_>, Vec<_>) = column_names
@@ -779,7 +744,12 @@ mod tests {
         let pool = TaosBuilder::from_dsn("taos+ws:///flat")?.pool()?;
 
         let req_id = RequestID::new(0);
-        let taos = Some(pool.get().await?);
+        let mut taos = Some(pool.get().await?);
+
+        taos.as_ref()
+            .unwrap()
+            .exec("drop stable if exists meters")
+            .await?;
 
         flat_write_with_sql(
             &pool,

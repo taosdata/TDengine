@@ -50,7 +50,7 @@ use crate::{
     ConnectorLicense, Parser, Transferred,
 };
 
-use super::{transform::MessageArrowRecords, *};
+use super::*;
 
 pub mod flat;
 
@@ -2083,7 +2083,6 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
     ipc_error_strategy: IpcErrorStrategy,
     stream_trace_id: u64,
 ) -> anyhow::Result<()> {
-
     let mut count = 0;
     let mut batches: u32 = 0;
     let mut stream = ipc_reader.into_stream();
