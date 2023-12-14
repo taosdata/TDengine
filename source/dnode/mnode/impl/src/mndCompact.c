@@ -509,7 +509,7 @@ int32_t mndProcessQueryCompactRsp(SRpcMsg *pReq){
 }
 
 //timer
-void mndCompactUpdate(SMnode *pMnode, SCompactObj *pCompact){
+void mndCompactSendProgressReq(SMnode *pMnode, SCompactObj *pCompact){
   void   *pIter = NULL;
 
   while (1) {
@@ -722,7 +722,7 @@ void mndCompactPullup(SMnode *pMnode) {
     int32_t *pCompactId = taosArrayGet(pArray, i);
     SCompactObj  *pCompact = mndAcquireCompact(pMnode, *pCompactId);
     if (pCompact != NULL) {
-      mndCompactUpdate(pMnode, pCompact);
+      mndCompactSendProgressReq(pMnode, pCompact);
       mndSaveCompactProgress(pMnode, pCompact->compactId);
     }
     mndReleaseCompact(pMnode, pCompact);

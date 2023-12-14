@@ -110,6 +110,8 @@ int32_t tSerializeSCompactDetailObj(void *buf, int32_t bufLen, const SCompactDet
   if (tEncodeI32(&encoder, pObj->numberFileset) < 0) return -1;
   if (tEncodeI32(&encoder, pObj->finished) < 0) return -1;
   if (tEncodeI64(&encoder, pObj->startTime) < 0) return -1;
+  if (tEncodeI32(&encoder, pObj->newNumberFileset) < 0) return -1;
+  if (tEncodeI32(&encoder, pObj->newFinished) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -132,6 +134,8 @@ int32_t tDeserializeSCompactDetailObj(void *buf, int32_t bufLen, SCompactDetailO
   if (tDecodeI32(&decoder, &pObj->numberFileset) < 0) return -1;
   if (tDecodeI32(&decoder, &pObj->finished) < 0) return -1;
   if (tDecodeI64(&decoder, &pObj->startTime) < 0) return -1;
+  if (tDecodeI32(&decoder, &pObj->newNumberFileset) < 0) return -1;
+  if (tDecodeI32(&decoder, &pObj->newFinished) < 0) return -1;
 
   tEndDecode(&decoder);
 
@@ -280,6 +284,9 @@ int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* p
   compactDetail.finished = -1;
   compactDetail.newNumberFileset = -1;
   compactDetail.newFinished = -1;
+
+  mInfo("compact:%d, add compact detail to trans, vgId:%d, dnodeId:%d", 
+    pCompact->compactId, pVgroup->vgId, pVgid->dnodeId);
 
   SSdbRaw *pVgRaw = mndCompactDetailActionEncode(&compactDetail);
   if (pVgRaw == NULL) return -1;
