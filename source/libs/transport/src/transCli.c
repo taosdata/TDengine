@@ -359,6 +359,7 @@ bool cliConnSendSeqMsg(int64_t refId, SCliConn* conn) {
     SCliMsg* t = QUEUE_DATA(h, SCliMsg, seqq);
     transCtxMerge(&conn->ctx, &t->ctx->appCtx);
     transQueuePush(&conn->cliMsgs, t);
+
     transReleaseExHandle(transGetRefMgt(), refId);
     cliSend(conn);
     return true;
@@ -464,6 +465,7 @@ void cliHandleResp(SCliConn* conn) {
     }
   }
   int64_t refId = pMsg == NULL ? 0 : (int64_t)(pMsg->msg.info.handle);
+  tDebug("conn %p msg refId: %" PRId64 "", conn, refId);
 
   destroyCmsg(pMsg);
 
@@ -2617,7 +2619,7 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
         SCliMsg* pCliMsg = transInitMsg(shandle, pEpSet, pReq, ctx);
         QUEUE_PUSH(&exh->q, &pCliMsg->seqq);
         taosWUnLockLatch(&exh->latch);
-
+        tDebug("msg refId: %" PRId64 "", handle);
         transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
         return 0;
       }
