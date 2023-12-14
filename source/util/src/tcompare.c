@@ -1097,7 +1097,8 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
       c1 = str[j++];
       ++nMatchChar;
 
-      if (c == '\\' && pattern[i] == '_' && c1 == '_') {
+      if (c == '\\' && pattern[i] == c1 &&
+        (c1 == '_' || c1 == '%')) {
         i++;
         continue;
       }
