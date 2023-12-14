@@ -252,6 +252,7 @@ static void doCleanupInfoForNextFileset(STableBlockScanInfo* pScanInfo) {
   taosArrayClear(pScanInfo->pFileDelData);  // del data from each file set
   pScanInfo->cleanSttBlocks = false;
   pScanInfo->numOfRowsInStt = 0;
+  pScanInfo->sttBlockReturned = false;
   INIT_TIMEWINDOW(&pScanInfo->sttWindow);
   INIT_TIMEWINDOW(&pScanInfo->filesetWindow);
   pScanInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
