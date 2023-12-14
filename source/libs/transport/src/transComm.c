@@ -662,7 +662,7 @@ void transDestoryExHandle(void* handle) {
   bool       empty = QUEUE_IS_EMPTY(&eh->q);
 
   if (!empty) {
-    tDebug("mem leak");
+    tDebug("handle %p mem leak", handle);
   }
   taosMemoryFree(handle);
 }
