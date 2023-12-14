@@ -1,13 +1,10 @@
-use crate::core_metrics::CommonMetrics;
-use crate::core_metrics::CoreMetrics;
-use crate::core_metrics::TaosXMetrics;
+use crate::core_metrics::{CommonMetrics, CoreMetrics, TaosXMetrics};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering::SeqCst;
-use tracing;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LegacyToTaosMetrics {
@@ -110,16 +107,6 @@ impl Display for LegacyToTaosMetrics {
 }
 
 impl TaosXMetrics for LegacyToTaosMetrics {
-    fn from_json(json: &str) -> Self {
-        match serde_json::from_str(json) {
-            Ok(metrics) => metrics,
-            Err(err) => {
-                tracing::error!("failed to deserialize metrics: {}", err);
-                Self::default()
-            }
-        }
-    }
-
     /// Reset run level metrics
     fn reset(&self) {
         self.com.reset();
@@ -128,14 +115,22 @@ impl TaosXMetrics for LegacyToTaosMetrics {
         self.updated_tags.store(0, SeqCst);
         self.created_tables.store(0, SeqCst);
     }
-
-    fn to_json(&self) -> String {
-        serde_json::to_string(self).unwrap()
-    }
-
+    
     fn com(&self) -> &CommonMetrics {
         &self.com
     }
+
+        /// Resore metrics from json string.
+        fn from_json(json: &str) -> Self {
+            match serde_json::from_str(json) {
+                Ok(metrics) => metrics,
+                Err(err) => {
+                    tracing::error!("failed to deserialize metrics: {}", err);
+                    Self::default()
+                }
+            }
+        }
+    
 }
 
 impl Into<CoreMetrics> for LegacyToTaosMetrics {

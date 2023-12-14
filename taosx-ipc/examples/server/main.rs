@@ -3,7 +3,6 @@ use std::{
     collections::HashMap,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    path::Path,
 };
 use taos::sync::*;
 use taos_query::AsyncQueryable;
@@ -110,7 +109,7 @@ fn handle_flat_message<R: Read, W: Write>(
             // dbg!(record);
             for message in record.records() {
                 let mut cv_vec =
-                    taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
+                    taosx_ipc::stream::reader::record_batch_to_column_view(message.record(), taos::Precision::Microsecond);
                 let mut stmt = Stmt::init(&taos)?;
                 // process ts, topic, qos, payload
                 let schema = message.schema();
@@ -346,7 +345,7 @@ fn handle_point_message<R: Read, W: Write>(
             // let record = record.as_any().downcast_ref::<PointMessage>().unwrap();
             for message in record.records() {
                 let cv_vec =
-                    taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
+                    taosx_ipc::stream::reader::record_batch_to_column_view(message.record(), taos::Precision::Microsecond);
                 // process id, name, ts, value, status
                 let schema = message.schema();
                 let id_index = schema.index_of("id")?;

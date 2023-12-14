@@ -81,15 +81,21 @@ impl CommonMetrics {
     }
 }
 
-pub trait TaosXMetrics: Into<CoreMetrics> {
-    /// Convert metrics to json string.
-    fn to_json(&self) -> String;
-    /// Resore metrics from json string.
-    fn from_json(json: &str) -> Self;
+pub trait TaosXMetrics: Into<CoreMetrics> + Serialize {
     /// Reset run level metrics
     fn reset(&self);
+
     /// Return CommonMetrics
     fn com(&self) -> &CommonMetrics;
+    
+    /// Convert metrics to json string.
+    fn to_json(&self) -> String {
+        serde_json::to_string(self).unwrap()
+    }
+
+    /// Resore metrics from json string.
+    fn from_json(json: &str) -> Self;
+
     /// Save metrics to database
     fn save(&self, task_id: &str) -> anyhow::Result<()> {
         self.com().update_total_execute_time();
@@ -97,6 +103,7 @@ pub trait TaosXMetrics: Into<CoreMetrics> {
         db.set(self.to_json().as_str())
     }
 
+    #[inline]
     fn compute_total_avg_speed(&self, map: &mut serde_json::Map<String, serde_json::Value>) {
         let total_execute_time = self.total_execute_time();
         if total_execute_time > 0 {
@@ -107,6 +114,7 @@ pub trait TaosXMetrics: Into<CoreMetrics> {
         }
     }
 
+    #[inline]
     fn compute_avg_speed(&self, map: &mut serde_json::Map<String, serde_json::Value>) {
         let execute_time = (chrono::Utc::now().timestamp_millis() - self.start_time()) as f64;
         let current_speed = (self.written_rows() * 1000) as f64 / execute_time;
@@ -114,27 +122,33 @@ pub trait TaosXMetrics: Into<CoreMetrics> {
         map.insert("avg_speed".to_string(), current_speed.into());
     }
 
+    #[inline]
     fn total_execute_time(&self) -> u64 {
         self.com().total_execute_time.load(SeqCst)
     }
 
+    #[inline]
     fn total_written_rows(&self) -> u64 {
         self.com().total_written_rows.load(SeqCst)
     }
 
+    #[inline]
     fn written_rows(&self) -> u64 {
         self.com().written_rows.load(SeqCst)
     }
 
+    #[inline]
     fn start_time(&self) -> i64 {
         self.com().start_time.get()
     }
 
+    #[inline]
     fn add_written_rows(&self, n: u64) {
         self.com().total_written_rows.fetch_add(n, SeqCst);
         self.com().written_rows.fetch_add(n, SeqCst);
     }
 
+    #[inline]
     fn add_written_points(&self, n: u64) {
         self.com().total_written_points.fetch_add(n, SeqCst);
         self.com().written_points.fetch_add(n, SeqCst);
@@ -172,7 +186,8 @@ pub fn load_metrics<T: TaosXMetrics>(task_id: &str) -> Option<T> {
             Ok(db) => match db.get() {
                 Ok(json) => {
                     if let Some(json) = json {
-                        Some(T::from_json(json.as_str()))
+                        let j = json.as_str();
+                        Some(T::from_json(j))
                     } else {
                         tracing::error!("get metrics from db return None {}", db_path.display());
                         None
