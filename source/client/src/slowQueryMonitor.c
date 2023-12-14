@@ -59,15 +59,15 @@ void clusterSlowQueryLog(const char* clusterKey, int32_t cost) {
   taosClusterCounterInc(clusterKey, slowQueryName, slowQueryLabelValues);
 }
 
-void SlowQueryLog(int64_t connId, int32_t cost) {
+void SlowQueryLog(int64_t rid, int32_t cost) {
   if (!enableSlowQueryMonitor) return;
-  STscObj* pTscObj = acquireTscObj(connId);
+  STscObj* pTscObj = acquireTscObj(rid);
   if (pTscObj != NULL) {
     if(pTscObj->pAppInfo == NULL) {
       tscLog("SlowQueryLog, not found pAppInfo");
     }
     return clusterSlowQueryLog(pTscObj->pAppInfo->instKey, cost);
   } else {
-    tscLog("SlowQueryLog, not found connect ID");
+    tscLog("SlowQueryLog, not found rid");
   }
 }

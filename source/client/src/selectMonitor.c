@@ -33,14 +33,14 @@ void clusterSelectLog(const char* clusterKey) {
   taosClusterCounterInc(clusterKey, selectMonitorName, selectMonitorLabelValues);
 }
 
-void selectLog(int64_t connId) {
-  STscObj* pTscObj = acquireTscObj(connId);
+void selectLog(int64_t rid) {
+  STscObj* pTscObj = acquireTscObj(rid);
   if (pTscObj != NULL) {
     if(pTscObj->pAppInfo == NULL) {
       tscLog("selectLog, not found pAppInfo");
     }
     return clusterSelectLog(pTscObj->pAppInfo->instKey);
   } else {
-    tscLog("selectLog, not found connect ID");
+    tscLog("selectLog, not found rid");
   }
 }

@@ -68,11 +68,11 @@ TEST(clientMonitorTest, sendTest) {
   ASSERT_TRUE(taos != NULL);
   printf("connect taosd sucessfully.\n");
 
-  int64_t connId = *(int64_t *)taos;
-  SlowQueryLog(connId, 1000);
+  int64_t rid = *(int64_t *)taos;
+  SlowQueryLog(rid, 1000);
   int i = 0;
   while (i < 20) {
-    SlowQueryLog(connId, i * 1000);
+    SlowQueryLog(rid, i * 1000);
     taosMsleep(10);
     ++i;
   }
