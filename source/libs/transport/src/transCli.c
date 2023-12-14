@@ -1418,11 +1418,6 @@ SCliConn* cliGetConn(SCliMsg** pMsg, SCliThrd* pThrd, bool* ignore, char* addr) 
     } else {
       conn = exh->handle;
       if (conn == NULL) {
-        // if ((*pMsg)->msg.msgType == TDMT_SCH_DROP_TASK) {
-        //   tError("failed to get conn, refId: %" PRId64 "", refId);
-        //   *ignore = true;
-        //   return NULL;
-        // }
         conn = getConnFromPool2(pThrd, addr, pMsg);
         if (conn != NULL) specifyConnRef(conn, true, refId);
       }
@@ -1559,6 +1554,9 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
   SCliConn* conn = cliGetConn(&pMsg, pThrd, &ignore, addr);
   if (ignore == true) {
     // persist conn already release by server
+    if (pMsg->msg.msgType == TDMT_SCH_DROP_TASK) {
+      
+    }
     STransMsg resp;
     cliBuildExceptResp(pMsg, &resp);
     // refactorr later
