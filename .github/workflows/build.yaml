@@ -16,13 +16,6 @@ jobs:
         with:
           clean: false
 
-      - uses: actions/cache@v3
-        name: Target Caches
-        with:
-          path: |
-            target
-          key: ${{ runner.os }}-target
-
       - name: Compile check
         run: |
           cargo check --all
