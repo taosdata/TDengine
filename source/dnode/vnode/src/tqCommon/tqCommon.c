@@ -750,10 +750,10 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   }
 
   if (isLeader && !tsDisableStream) {
-    tqInfo("vgId:%d restart all stream tasks after all tasks being updated", vgId);
     resetStreamTaskStatus(pMeta);
-
     streamMetaWUnLock(pMeta);
+    tqInfo("vgId:%d restart all stream tasks after all tasks being updated", vgId);
+
     startStreamTasks(pMeta);
   } else {
     streamMetaResetStartInfo(&pMeta->startInfo);
