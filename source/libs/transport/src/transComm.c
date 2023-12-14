@@ -70,7 +70,7 @@ int32_t transDecompressMsg(char** msg, int32_t len) {
   char*          buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
   int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), (char*)pNewHead->content,
-                                                 len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
+                                          len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
   memcpy((char*)pNewHead, (char*)pHead, sizeof(STransMsgHead));
 
   pNewHead->msgLen = htonl(oriLen + sizeof(STransMsgHead));
@@ -657,6 +657,12 @@ int32_t transReleaseExHandle(int32_t refMgt, int64_t refId) {
 void transDestoryExHandle(void* handle) {
   if (handle == NULL) {
     return;
+  }
+  SExHandle* eh = handle;
+  bool       empty = QUEUE_IS_EMPTY(&eh->q);
+
+  if (!empty) {
+    tDebug("mem leak");
   }
   taosMemoryFree(handle);
 }
