@@ -509,11 +509,8 @@ typedef struct SStreamMeta {
   SArray*  chkpSaved;
   SArray*  chkpInUse;
   SRWLatch chkpDirLock;
-
-  void*   qHandle;
-  int32_t pauseTaskNum;
-
-  void* bkdChkptMgt;
+  void*    qHandle;
+  void*    bkdChkptMgt;
 } SStreamMeta;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
