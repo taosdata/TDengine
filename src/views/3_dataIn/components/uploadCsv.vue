@@ -8,7 +8,6 @@
     :on-preview="handlePreview"
     :action="uploadUrl"
     :multiple="false"
-    :limit="1"
     :on-success="handleSuccess"
     :on-change="handleChange"
     :file-list="files"
@@ -18,7 +17,6 @@
       slot="trigger"
       size="mini"
       type="primary"
-      :disabled="(!!files.length && !isEdit) || formDisabled"
       >{{ $t('support.selectFile') }}</el-button
     >
   </el-upload>
@@ -59,7 +57,11 @@ export default {
     }
   },
   watch: {},
-  created() {},
+  created() {
+    if(this.isEdit) {
+      this.handleFiles()
+    }
+  },
   mounted() {},
   methods: {
     handleRemove(_, fileList) {
@@ -72,7 +74,7 @@ export default {
     },
     handleSuccess(response, file, tmpFiles) {
       file.path = response[0];
-      this.files = tmpFiles;
+      this.files = [].concat(file);
       this.update();
     },
     update() {
@@ -83,6 +85,19 @@ export default {
           .map(item => '@' + item.path)
           .join(',')
       );
+    },
+    handleFiles() {
+      if (this.value && this.value != "*") {
+        this.files = [].concat({
+          name: this.value?.substr(this.value.lastIndexOf("/") + 1),
+          percentage: 100,
+          raw: File,
+          response: [].concat(this.value),
+          size: 87,
+          status: "success",
+          uid: 1,
+        });
+      }
     }
   }
 };

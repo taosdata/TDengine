@@ -30,6 +30,7 @@
               v-model="sourceForm.type"
               placeholder=""
               :disabled="!!editId"
+              @change="handleType"
             >
               <el-option
                 v-for="item in definitionsList"
@@ -345,7 +346,6 @@ export default {
       this.sourceForm.data = generateFormInitData(
         this.currentDefinition?.config
       );
-      this.sourceForm.agent = '';
     },
 
     edit() {
@@ -457,6 +457,9 @@ export default {
       this.$store.commit("dbs/HANDLE_ADD_DB");
       this.$store.commit("dbs/SET_ADD_DB_COMP", "datain");
       this.$store.commit("dbs/SET_DIALOG_DB_VISABLE", true);
+    },
+    handleType() {
+      this.sourceForm.agent = ''
     }
   },
 };

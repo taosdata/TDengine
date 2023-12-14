@@ -482,7 +482,7 @@ function handleDatasets(datasets, paramsConfig) {
     description,
     field: datasetsField,
     type: 'tabs',
-    multiple: currentType == 'pi',
+    multiple: false,
     name: 'datasets',
     children: params
       ? params?.map((item, index) => {
@@ -492,8 +492,9 @@ function handleDatasets(datasets, paramsConfig) {
             labelShow: false,
             labelWidth: '0px',
             description,
-            required,
+            required: true,
             field: name,
+            name,
             type: 'dataset',
             defaultValue: value ?? '',
             disabled: (_, originalData) => {
@@ -552,6 +553,10 @@ function handleDatasets(datasets, paramsConfig) {
   if (categories) {
     datasetsConfig.valueField = valueField;
     datasetsConfig.defaultValue = tabValue ?? categories[0].category;
+  }
+  if (params) {
+    datasetsConfig.valueField = valueField;
+    datasetsConfig.defaultValue = tabValue ?? params[0].name
   }
   paramsConfig.push(datasetsConfig);
 }
@@ -1002,6 +1007,9 @@ function getOptionData(data, queryArr, definition) {
   let { id } = definition;
   if (PISystemName) {
     queryArr.push('PISystemName=' + PISystemName);
+  }
+  if (system_configuration) {
+    queryArr.push('system_configuration=' + system_configuration)
   }
   if (endpoint === undefined) {
     result += host.replace(/\w*:\/\//, '');

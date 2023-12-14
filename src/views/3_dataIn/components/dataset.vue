@@ -57,11 +57,11 @@
         >
           <el-tooltip
             effect="light"
-            :content="$t('dataIn.downloadCurrentFile')"
+            :content="$t('downloadCSVInUseTip')"
           >
             <p class="file-name">
               <i class="el-icon-download"></i>
-              <span>{{ $t('dataIn.csvFileInUse') }}</span>
+              <span>{{ $t('downloadCSVInUse') }}</span>
             </p>
           </el-tooltip>
         </div>
@@ -164,7 +164,7 @@ export default {
       }
     },
     isEdit() {
-      return this.sourceParent.isEdit;
+      return this.sourceParent.isEditable;
     },
     category() {
       return {
@@ -184,28 +184,29 @@ export default {
   },
   methods: {
     downloadAllPointFile() {
-      const url = getDsnData(this.allData.data, this.sourceParent.currentDefinition);
-      console.log('url',url);
+      let type = this.sourceParent.sourceForm.type
+      let via = this.sourceParent.sourceForm.agent
+      const url = type + getDsnData(this.allData.data, this.sourceParent.currentDefinition);
       if (!/:\/\/\w+?/.test(url)) return this.$message.error(this.$t('dataIn.noDsn'));
       if (this.requestIng) return;
       this.requestIng = true;
-      const loading = this.$loading({
-        lock: true,
-        text: 'Loading',
-        spinner: 'el-icon-loading',
-        background: 'rgba(0, 0, 0, 0.7)'
-      });
-      downloadAllPointFile({
-        from: url,
-        categories: this.category,
-        via: this.sourceParent.sourceForm.agent
-      })
+      // const loading = this.$loading({
+      //   lock: true,
+      //   text: 'Loading',
+      //   spinner: 'el-icon-loading',
+      //   background: 'rgba(0, 0, 0, 0.7)'
+      // });
+      let from = url + `&categories=${this.category}`;
+      downloadAllPointFile(from, via)
         .then(res => {
+          if(res && res.code) {
+            return this.$message.error(res.message)
+          }
           downloadFileBlob(res, this.allCategoryText + '.csv');
         })
         .finally(() => {
           this.requestIng = false;
-          loading.close();
+          // loading.close();
         });
     },
     handleDownload,
@@ -238,6 +239,9 @@ export default {
     .file-name {
       flex: 1;
       @extend .nowrap;
+      & > i {
+        margin-right: 3px;
+      }
     }
     .file-btn {
       font-size: 12px;
