@@ -6,9 +6,13 @@ use crate::legacy::metric::LegacyToTaosMetrics;
 use crate::tmq::metric::TMQMetrics;
 use crate::utils::metrics_db::MetricsDb;
 use lazy_static::lazy_static;
+use metrics::atomics::AtomicU64;
+use serde::{Deserialize, Serialize};
+use serde_json;
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::atomic::Ordering::SeqCst;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -36,6 +40,47 @@ impl CoreMetrics {
     }
 }
 
+/// CommonMetrics is a data structure to store metrics that are common to all task types.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CommonMetrics {
+    pub start_time: TaskStartTime,
+    pub total_execute_time: AtomicU64,
+    pub total_written_rows: AtomicU64,
+    pub total_written_points: AtomicU64,
+    #[serde(skip)]
+    pub last_persist_time: LastPersistTime,
+    pub written_rows: AtomicU64,
+    pub written_points: AtomicU64,
+}
+
+impl Default for CommonMetrics {
+    fn default() -> Self {
+        Self {
+            start_time: TaskStartTime::default(),
+            total_execute_time: AtomicU64::new(0),
+            total_written_rows: AtomicU64::new(0),
+            total_written_points: AtomicU64::new(0),
+            last_persist_time: LastPersistTime::default(),
+            written_rows: AtomicU64::new(0),
+            written_points: AtomicU64::new(0),
+        }
+    }
+}
+
+impl CommonMetrics {
+    pub fn update_total_execute_time(&self) {
+        let elapsed = self.last_persist_time.elapsed_millis();
+        self.total_execute_time.fetch_add(elapsed, SeqCst);
+        self.last_persist_time.reset();
+    }
+
+    pub fn reset(&self) {
+        self.start_time.reset();
+        self.written_rows.store(0, SeqCst);
+        self.written_points.store(0, SeqCst);
+    }
+}
+
 pub trait TaosXMetrics: Into<CoreMetrics> {
     /// Convert metrics to json string.
     fn to_json(&self) -> String;
@@ -43,12 +88,56 @@ pub trait TaosXMetrics: Into<CoreMetrics> {
     fn from_json(json: &str) -> Self;
     /// Reset run level metrics
     fn reset(&self);
-    fn update_total_execute_time(&self);
+    /// Return CommonMetrics
+    fn com(&self) -> &CommonMetrics;
     /// Save metrics to database
     fn save(&self, task_id: &str) -> anyhow::Result<()> {
-        self.update_total_execute_time();
+        self.com().update_total_execute_time();
         let db = MetricsDb::new(task_id)?;
         db.set(self.to_json().as_str())
+    }
+
+    fn compute_total_avg_speed(&self, map: &mut serde_json::Map<String, serde_json::Value>) {
+        let total_execute_time = self.total_execute_time();
+        if total_execute_time > 0 {
+            map.insert(
+                "total_avg_speed".to_string(),
+                (self.total_written_rows() as f64 * 1000_f64 / total_execute_time as f64).into(),
+            );
+        }
+    }
+
+    fn compute_avg_speed(&self, map: &mut serde_json::Map<String, serde_json::Value>) {
+        let execute_time = (chrono::Utc::now().timestamp_millis() - self.start_time()) as f64;
+        let current_speed = (self.written_rows() * 1000) as f64 / execute_time;
+        map.insert("execute_time".to_string(), execute_time.into());
+        map.insert("avg_speed".to_string(), current_speed.into());
+    }
+
+    fn total_execute_time(&self) -> u64 {
+        self.com().total_execute_time.load(SeqCst)
+    }
+
+    fn total_written_rows(&self) -> u64 {
+        self.com().total_written_rows.load(SeqCst)
+    }
+
+    fn written_rows(&self) -> u64 {
+        self.com().written_rows.load(SeqCst)
+    }
+
+    fn start_time(&self) -> i64 {
+        self.com().start_time.get()
+    }
+
+    fn add_written_rows(&self, n: u64) {
+        self.com().total_written_rows.fetch_add(n, SeqCst);
+        self.com().written_rows.fetch_add(n, SeqCst);
+    }
+
+    fn add_written_points(&self, n: u64) {
+        self.com().total_written_points.fetch_add(n, SeqCst);
+        self.com().written_points.fetch_add(n, SeqCst);
     }
 }
 
@@ -109,23 +198,12 @@ pub fn get_legacy_metrics_for_explorer(
     legacy_metrics: &LegacyToTaosMetrics,
 ) -> String {
     let json = legacy_metrics.to_json();
-    if !running {
-        return json;
-    }
-    let current_execute_time =
-        (chrono::Utc::now().timestamp_millis() - legacy_metrics.start_time) as f64;
-    let current_speed = legacy_metrics
-        .current_suc_records
-        .load(std::sync::atomic::Ordering::SeqCst) as f64
-        * 1000_f64
-        / current_execute_time;
     let mut map =
         serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(json.as_str()).unwrap();
-    map.insert(
-        "current_execute_time".to_string(),
-        current_execute_time.into(),
-    );
-    map.insert("current_speed".to_string(), current_speed.into());
+    legacy_metrics.compute_total_avg_speed(&mut map);
+    if running {
+        legacy_metrics.compute_avg_speed(&mut map)
+    }
     serde_json::to_string(&map).unwrap()
 }
 
@@ -155,6 +233,8 @@ pub fn clear_metrics(task_id: i64) {
 #[derive(Debug)]
 pub struct LastPersistTime(Cell<Instant>);
 
+/// LastPersistTime is a wrapper of Instant to store the last persist time of a task,
+/// so that it can be accessed by multiple threads and updated concurrently.
 impl LastPersistTime {
     pub fn elapsed_millis(&self) -> u64 {
         self.0.get().elapsed().as_millis() as u64
@@ -172,6 +252,33 @@ impl Default for LastPersistTime {
 }
 
 unsafe impl Sync for LastPersistTime {}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TaskStartTime(Cell<i64>);
+
+/// TaskStartTime is a wrapper of i64 to store the start time of a task,
+/// so taht it can be accessed by multiple threads and updated concurrently.
+impl TaskStartTime {
+    pub fn new() -> Self {
+        Self(Cell::new(chrono::Utc::now().timestamp_millis()))
+    }
+
+    pub fn reset(&self) {
+        self.0.set(chrono::Utc::now().timestamp_millis());
+    }
+
+    pub fn get(&self) -> i64 {
+        self.0.get()
+    }
+}
+
+impl Default for TaskStartTime {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+unsafe impl Sync for TaskStartTime {}
 
 #[cfg(test)]
 mod tests {
@@ -195,7 +302,7 @@ mod tests {
             // let legacy_to_taos_metrics = metrics.as_ref().legacy();
             println!("thread 1 get metrics");
             legacy_to_taos_metrics
-                .created_tables
+                .total_created_tables
                 .fetch_add(100, std::sync::atomic::Ordering::SeqCst);
             println!("thread 1 end")
         });
@@ -208,11 +315,11 @@ mod tests {
             println!(
                 "created_tables: {}",
                 legacy_to_taos_metrics
-                    .created_tables
+                    .total_created_tables
                     .load(std::sync::atomic::Ordering::SeqCst)
             );
             legacy_to_taos_metrics
-                .created_tables
+                .total_created_tables
                 .fetch_add(100, std::sync::atomic::Ordering::SeqCst);
             println!("thread 2 end");
         });
@@ -230,7 +337,7 @@ mod tests {
         println!(
             "created_tables: {}",
             legacy_to_taos_metrics
-                .created_tables
+                .total_created_tables
                 .load(std::sync::atomic::Ordering::SeqCst)
         );
     }
@@ -273,7 +380,7 @@ mod tests {
         metrics.as_ref().legacy().save("10240").unwrap();
         assert!(db_path.exists());
         clear_metrics(10240);
-        let metrics = get_metrics(1);
+        let metrics = get_metrics(10240);
         assert!(metrics.is_none());
         assert!(!db_path.exists());
     }

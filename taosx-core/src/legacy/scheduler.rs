@@ -273,7 +273,7 @@ async fn worker(
                                 errors.extend(format!("- Error of table {table}: {err}\n").chars());
                             } else {
                                 counter!(METRICS_LEGACY_CREATED_TABLES, 1);
-                                metrics.created_tables.fetch_add(1, Ordering::SeqCst);
+                                metrics.total_created_tables.fetch_add(1, Ordering::SeqCst);
                             }
                         }
 
@@ -477,10 +477,8 @@ async fn worker(
                                 }
                             }
                             None => {
+                                metrics.total_finished_tables.fetch_add(1, Ordering::SeqCst);
                                 metrics.finished_tables.fetch_add(1, Ordering::SeqCst);
-                                metrics
-                                    .current_finished_tables
-                                    .fetch_add(1, Ordering::SeqCst);
                                 if let Some(sender) = sender {
                                     let _ = sender.send(Ok(()));
                                 }
