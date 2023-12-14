@@ -112,11 +112,12 @@ typedef SRpcConnInfo STransHandleInfo;
 
 // ref mgt handle
 typedef struct SExHandle {
-  void*   handle;
-  int64_t refId;
-  void*   pThrd;
-  queue   q;
-  int8_t  inited;
+  void*    handle;
+  int64_t  refId;
+  void*    pThrd;
+  queue    q;
+  int8_t   inited;
+  SRWLatch latch;
 } SExHandle;
 
 typedef struct {
