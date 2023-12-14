@@ -23,13 +23,13 @@
 #include "tjson.h"
 #include "tmsgcb.h"
 #include "trpc.h"
-#include "mnode.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #define AUDIT_DETAIL_MAX 65472
+#define AUDIT_OPERATION_LEN 20
 
 typedef struct {
   const char *server;
@@ -37,13 +37,28 @@ typedef struct {
   bool        comp;
 } SAuditCfg;
 
+typedef struct {
+  int64_t curTime;
+  char    strClusterId[TSDB_CLUSTER_ID_LEN];
+  char    clientAddress[50];
+  char    user[TSDB_USER_LEN];
+  char    operation[AUDIT_OPERATION_LEN];
+  char    target1[TSDB_DB_NAME_LEN]; //put db name
+  char    target2[TSDB_STREAM_NAME_LEN]; //put stb name, table name, topic name, user name, stream name, use max
+  char*   detail;
+} SAuditRecord;
+
 int32_t auditInit(const SAuditCfg *pCfg);
+void    auditCleanup();
 void    auditSend(SJson *pJson);
 void    auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
                     char *detail, int32_t len);
+void    auditAddRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
+                    char *detail, int32_t len);
+void    auditSendRecordsInBatch();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MONITOR_H_*/
+#endif /*_TD_AUDIT_H_*/

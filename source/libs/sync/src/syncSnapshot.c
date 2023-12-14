@@ -23,8 +23,9 @@
 #include "syncReplication.h"
 #include "syncUtil.h"
 
+static SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths);
+
 static void syncSnapBufferReset(SSyncSnapBuffer *pBuf) {
-  taosThreadMutexLock(&pBuf->mutex);
   for (int64_t i = pBuf->start; i < pBuf->end; ++i) {
     if (pBuf->entryDeleteCb) {
       pBuf->entryDeleteCb(pBuf->entries[i % pBuf->size]);
@@ -34,7 +35,6 @@ static void syncSnapBufferReset(SSyncSnapBuffer *pBuf) {
   pBuf->start = SYNC_SNAPSHOT_SEQ_BEGIN + 1;
   pBuf->end = pBuf->start;
   pBuf->cursor = pBuf->start - 1;
-  taosThreadMutexUnlock(&pBuf->mutex);
 }
 
 static void syncSnapBufferDestroy(SSyncSnapBuffer **ppBuf) {
@@ -81,7 +81,6 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
   pSender->replicaIndex = replicaIndex;
   pSender->term = raftStoreGetTerm(pSyncNode);
   pSender->startTime = -1;
-  pSender->waitTime = -1;
   pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &pSender->snapshot);
   pSender->finish = false;
 
@@ -198,20 +197,22 @@ void snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
   // update flag
   int8_t stopped = !atomic_val_compare_exchange_8(&pSender->start, true, false);
   if (stopped) return;
+  taosThreadMutexLock(&pSender->pSndBuf->mutex);
+  {
+    pSender->finish = finish;
 
-  pSender->finish = finish;
-  pSender->waitTime = -1;
+    // close reader
+    if (pSender->pReader != NULL) {
+      pSender->pSyncNode->pFsm->FpSnapshotStopRead(pSender->pSyncNode->pFsm, pSender->pReader);
+      pSender->pReader = NULL;
+    }
 
-  // close reader
-  if (pSender->pReader != NULL) {
-    pSender->pSyncNode->pFsm->FpSnapshotStopRead(pSender->pSyncNode->pFsm, pSender->pReader);
-    pSender->pReader = NULL;
+    syncSnapBufferReset(pSender->pSndBuf);
+
+    SRaftId destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
+    sSInfo(pSender, "snapshot sender stop, to dnode:%d, finish:%d", DID(&destId), finish);
   }
-
-  syncSnapBufferReset(pSender->pSndBuf);
-
-  SRaftId destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-  sSInfo(pSender, "snapshot sender stop, to dnode:%d, finish:%d", DID(&destId), finish);
+  taosThreadMutexUnlock(&pSender->pSndBuf->mutex);
 }
 
 int32_t syncSnapSendMsg(SSyncSnapshotSender *pSender, int32_t seq, void *pBlock, int32_t blockLen, int32_t typ) {
@@ -324,6 +325,9 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
   SSyncSnapBuffer *pSndBuf = pSender->pSndBuf;
   int32_t          code = -1;
   taosThreadMutexLock(&pSndBuf->mutex);
+  if (pSender->pReader == NULL || pSender->finish || !snapshotSenderIsStart(pSender)) {
+    goto _out;
+  }
 
   for (int32_t seq = pSndBuf->cursor + 1; seq < pSndBuf->end; ++seq) {
     SyncSnapBlock *pBlk = pSndBuf->entries[seq % pSndBuf->size];
@@ -336,6 +340,12 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
       goto _out;
     }
     pBlk->sendTimeMs = nowMs;
+  }
+
+  if (pSender->seq != SYNC_SNAPSHOT_SEQ_END && pSndBuf->end <= pSndBuf->start) {
+    if (snapshotSend(pSender) != 0) {
+      goto _out;
+    }
   }
 
   if (pSender->seq == SYNC_SNAPSHOT_SEQ_END && pSndBuf->end <= pSndBuf->start) {
@@ -361,14 +371,7 @@ int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
     return 0;
   }
 
-  int64_t timeNow = taosGetTimestampMs();
-  if (pSender->waitTime <= 0) {
-    pSender->waitTime = timeNow + SNAPSHOT_WAIT_MS;
-  }
-  if (timeNow < pSender->waitTime) {
-    sSDebug(pSender, "snapshot sender waitTime not expired yet, ignore");
-    return 0;
-  }
+  taosMsleep(1);
 
   int32_t code = snapshotSenderStart(pSender);
   if (code != 0) {
@@ -504,7 +507,9 @@ void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *p
   pReceiver->term = pPreMsg->term;
   pReceiver->fromId = pPreMsg->srcId;
   pReceiver->startTime = pPreMsg->startTime;
-  ASSERT(pReceiver->startTime);
+
+  pReceiver->snapshotParam.start = syncNodeGetSnapBeginIndex(pReceiver->pSyncNode);
+  pReceiver->snapshotParam.end = -1;
 
   sRInfo(pReceiver, "snapshot receiver start, from dnode:%d.", DID(&pReceiver->fromId));
 }
@@ -514,19 +519,22 @@ void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
 
   int8_t stopped = !atomic_val_compare_exchange_8(&pReceiver->start, true, false);
   if (stopped) return;
-
-  if (pReceiver->pWriter != NULL) {
-    int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, false,
-                                                                  &pReceiver->snapshot);
-    if (ret != 0) {
-      sRError(pReceiver, "snapshot receiver stop write failed since %s", terrstr());
+  taosThreadMutexLock(&pReceiver->pRcvBuf->mutex);
+  {
+    if (pReceiver->pWriter != NULL) {
+      int32_t ret = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter,
+                                                                    false, &pReceiver->snapshot);
+      if (ret != 0) {
+        sRError(pReceiver, "snapshot receiver stop write failed since %s", terrstr());
+      }
+      pReceiver->pWriter = NULL;
+    } else {
+      sRInfo(pReceiver, "snapshot receiver stop, writer is null");
     }
-    pReceiver->pWriter = NULL;
-  } else {
-    sRInfo(pReceiver, "snapshot receiver stop, writer is null");
-  }
 
-  syncSnapBufferReset(pReceiver->pRcvBuf);
+    syncSnapBufferReset(pReceiver->pRcvBuf);
+  }
+  taosThreadMutexUnlock(&pReceiver->pRcvBuf->mutex);
 }
 
 static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg) {
