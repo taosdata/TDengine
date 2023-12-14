@@ -25,7 +25,7 @@ You can install the connection agent as the following.
 4. On your local machine, run the connection agent installer and follow the prompts.
 5. In TDengine Cloud, click **Next**.
 6. Enter a unique name for your agent and click **Next** to generate an authentication token.
-7. On your local machine, open the ` C:\TDengine\config\agent.toml` file.
+7. On your local machine, open the `C:\TDengine\config\agent.toml` file.
 8. Copy the values of `endpoint` and `token` displayed in TDengine Cloud into the `agent.toml` file.
 9. In TDengine Cloud, click **Next** and click **Finish**.
 
