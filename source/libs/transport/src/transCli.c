@@ -776,11 +776,11 @@ static void addConnToPool(void* pool, SCliConn* conn) {
     return;
   }
 
-  tDebug("add conn %p to pool", conn);
-
   conn->status = ConnInPool;
   QUEUE_PUSH(&conn->list->conns, &conn->q);
   conn->list->size += 1;
+
+  tDebug("add conn %p to pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
 
   if (conn->list->size >= 20) {
     STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
