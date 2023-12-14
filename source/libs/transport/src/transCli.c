@@ -1932,6 +1932,8 @@ bool cliRecvReleaseReq(SCliConn* conn, STransMsgHead* pHead) {
     uint64_t ahandle = pHead->ahandle;
     SCliMsg* pMsg = NULL;
     CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle);
+    tDebug("%s conn %p receive release request, refId:%" PRId64 ", may ignore", CONN_GET_INST_LABEL(conn), conn,
+           conn->refId);
 
     transClearBuffer(&conn->readBuf);
     transFreeMsg(transContFromHead((char*)pHead));
@@ -1940,6 +1942,8 @@ bool cliRecvReleaseReq(SCliConn* conn, STransMsgHead* pHead) {
       SCliMsg* cliMsg = transQueueGet(&conn->cliMsgs, i);
       if (cliMsg->type == Release) {
         ASSERTS(pMsg == NULL, "trans-cli recv invaid release-req");
+        tDebug("%s conn %p receive release request, refId:%" PRId64 ", ignore msg", CONN_GET_INST_LABEL(conn), conn,
+               conn->refId);
         return true;
       }
     }
