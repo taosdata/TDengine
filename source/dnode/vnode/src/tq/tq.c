@@ -713,8 +713,8 @@ static STaskId replaceStreamTaskId(SStreamTask* pTask) {
 
 static void restoreStreamTaskId(SStreamTask* pTask, STaskId* pId) {
   ASSERT(pTask->info.fillHistory);
-  pTask->streamTaskId.taskId = pId->taskId;
-  pTask->streamTaskId.streamId = pId->streamId;
+  pTask->id.taskId = pId->taskId;
+  pTask->id.streamId = pId->streamId;
 }
 
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
