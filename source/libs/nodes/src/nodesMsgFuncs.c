@@ -2400,11 +2400,20 @@ static int32_t msgToPhysiProjectNode(STlvDecoder* pDecoder, void* pObj) {
 enum {
   PHY_SORT_MERGE_JOIN_CODE_BASE_NODE = 1,
   PHY_SORT_MERGE_JOIN_CODE_JOIN_TYPE,
-  PHY_SORT_MERGE_JOIN_CODE_PRIM_KEY_CONDITION,
-  PHY_SORT_MERGE_JOIN_CODE_ON_CONDITIONS,
+  PHY_SORT_MERGE_JOIN_CODE_SUB_TYPE,
+  PHY_SORT_MERGE_JOIN_CODE_WINDOW_OFFSET,
+  PHY_SORT_MERGE_JOIN_CODE_JOIN_LIMIT,
+  PHY_SORT_MERGE_JOIN_CODE_LEFT_PRIM_SLOT_ID,  
+  PHY_SORT_MERGE_JOIN_CODE_RIGHT_PRIM_SLOT_ID,
+  PHY_SORT_MERGE_JOIN_CODE_LEFT_EQ_COLS,  
+  PHY_SORT_MERGE_JOIN_CODE_RIGHT_EQ_COLS,
+  PHY_SORT_MERGE_JOIN_CODE_FULL_ON_CONDITIONS,
   PHY_SORT_MERGE_JOIN_CODE_TARGETS,
-  PHY_SORT_MERGE_JOIN_CODE_INPUT_TS_ORDER,
-  PHY_SORT_MERGE_JOIN_CODE_TAG_EQUAL_CONDITIONS
+  PHY_SORT_MERGE_JOIN_CODE_COL_ON_CONDITIONS,
+  PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_NUM0,
+  PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_SIZE0,
+  PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_NUM1,
+  PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_SIZE1
 };
 
 static int32_t physiMergeJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2415,17 +2424,48 @@ static int32_t physiMergeJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
     code = tlvEncodeEnum(pEncoder, PHY_SORT_MERGE_JOIN_CODE_JOIN_TYPE, pNode->joinType);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_PRIM_KEY_CONDITION, nodeToMsg, pNode->pPrimKeyCond);
+    code = tlvEncodeEnum(pEncoder, PHY_SORT_MERGE_JOIN_CODE_SUB_TYPE, pNode->subType);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_ON_CONDITIONS, nodeToMsg, pNode->pFullOnCond);
+    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_WINDOW_OFFSET, nodeToMsg, pNode->pWindowOffset);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_JOIN_LIMIT, nodeToMsg, pNode->pJLimit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_SORT_MERGE_JOIN_CODE_LEFT_PRIM_SLOT_ID, pNode->leftPrimSlotId);
+  }  
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_SORT_MERGE_JOIN_CODE_RIGHT_PRIM_SLOT_ID, pNode->rightPrimSlotId);
+  }  
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_LEFT_EQ_COLS, nodeListToMsg, pNode->pEqLeft);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_RIGHT_EQ_COLS, nodeListToMsg, pNode->pEqRight);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_COL_ON_CONDITIONS, nodeToMsg, pNode->pColOnCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_FULL_ON_CONDITIONS, nodeToMsg, pNode->pFullOnCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_TARGETS, nodeListToMsg, pNode->pTargets);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_TAG_EQUAL_CONDITIONS, nodeToMsg, pNode->pColEqCond);
+    code = tlvEncodeI64(pEncoder, PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_NUM0, pNode->inputStat[0].inputRowNum);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_NUM1, pNode->inputStat[1].inputRowNum);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_SIZE0, pNode->inputStat[0].inputRowSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_SIZE1, pNode->inputStat[1].inputRowSize);
+  }
+  
   return code;
 }
 
@@ -2442,17 +2482,47 @@ static int32_t msgToPhysiMergeJoinNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_SORT_MERGE_JOIN_CODE_JOIN_TYPE:
         code = tlvDecodeEnum(pTlv, &pNode->joinType, sizeof(pNode->joinType));
         break;
-      case PHY_SORT_MERGE_JOIN_CODE_PRIM_KEY_CONDITION:
-        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pPrimKeyCond);
+      case PHY_SORT_MERGE_JOIN_CODE_SUB_TYPE:
+        code = tlvDecodeEnum(pTlv, &pNode->subType, sizeof(pNode->subType));
         break;
-      case PHY_SORT_MERGE_JOIN_CODE_ON_CONDITIONS:
+      case PHY_SORT_MERGE_JOIN_CODE_WINDOW_OFFSET:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pWindowOffset);
+        break;
+      case PHY_SORT_MERGE_JOIN_CODE_JOIN_LIMIT:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pJLimit);
+        break;
+      case PHY_SORT_MERGE_JOIN_CODE_LEFT_PRIM_SLOT_ID:
+        code = tlvDecodeI32(pTlv, &pNode->leftPrimSlotId);
+        break;
+      case PHY_SORT_MERGE_JOIN_CODE_RIGHT_PRIM_SLOT_ID:
+        code = tlvDecodeI32(pTlv, &pNode->rightPrimSlotId);
+        break;
+      case PHY_SORT_MERGE_JOIN_CODE_LEFT_EQ_COLS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pEqLeft);
+        break;
+      case PHY_SORT_MERGE_JOIN_CODE_RIGHT_EQ_COLS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pEqRight);
+        break;
+      case PHY_SORT_MERGE_JOIN_CODE_COL_ON_CONDITIONS:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pColOnCond);
+        break;
+      case PHY_SORT_MERGE_JOIN_CODE_FULL_ON_CONDITIONS:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pFullOnCond);
         break;
       case PHY_SORT_MERGE_JOIN_CODE_TARGETS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pTargets);
         break;
-      case PHY_SORT_MERGE_JOIN_CODE_TAG_EQUAL_CONDITIONS:
-        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pColEqCond);
+      case PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_NUM0:
+        code = tlvDecodeI64(pTlv, &pNode->inputStat[0].inputRowNum);
+        break;
+      case PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_NUM1:
+        code = tlvDecodeI64(pTlv, &pNode->inputStat[1].inputRowNum);
+        break;
+      case PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_SIZE0:
+        code = tlvDecodeI32(pTlv, &pNode->inputStat[0].inputRowSize);
+        break;
+      case PHY_SORT_MERGE_JOIN_CODE_INPUT_ROW_SIZE1:
+        code = tlvDecodeI32(pTlv, &pNode->inputStat[1].inputRowSize);
         break;
       default:
         break;

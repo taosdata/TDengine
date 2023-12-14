@@ -760,6 +760,71 @@ static int32_t getJoinDataBlockDescNode(SNodeList* pChildren, int32_t idx, SData
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t setColEqList(SNode* pEqCond, int16_t leftBlkId, int16_t rightBlkId, SNodeList** ppLeft, SNodeList** ppRight) {
+  if (QUERY_NODE_OPERATOR == nodeType(pEqCond) && ((SOperatorNode*)pEqCond)->opType == OP_TYPE_EQUAL) {
+    SOperatorNode* pOp = (SOperatorNode*)pEqCond;
+    if (leftBlkId == ((SColumnNode*)pOp->pLeft)->dataBlockId) {
+      nodesListMakeStrictAppend(ppLeft, nodesCloneNode(pOp->pLeft));
+    } else if (rightBlkId == ((SColumnNode*)pOp->pLeft)->dataBlockId) {
+      nodesListMakeStrictAppend(ppRight, nodesCloneNode(pOp->pLeft));
+    } else {
+      planError("invalid col equal list, leftBlockId:%d", ((SColumnNode*)pOp->pLeft)->dataBlockId);
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+
+    if (leftBlkId == ((SColumnNode*)pOp->pRight)->dataBlockId) {
+      nodesListMakeStrictAppend(ppLeft, nodesCloneNode(pOp->pLeft));
+    } else if (rightBlkId == ((SColumnNode*)pOp->pRight)->dataBlockId) {
+      nodesListMakeStrictAppend(ppRight, nodesCloneNode(pOp->pLeft));
+    } else {
+      planError("invalid col equal list, rightBlockId:%d", ((SColumnNode*)pOp->pRight)->dataBlockId);
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+  } else if (QUERY_NODE_LOGIC_CONDITION == nodeType(pEqCond) && ((SLogicConditionNode*)pEqCond)->condType == LOGIC_COND_TYPE_AND) {
+    SLogicConditionNode* pLogic = (SLogicConditionNode*)pEqCond;
+    SNode* pNode = NULL;
+    FOREACH(pNode, pLogic->pParameterList) {
+      int32_t code = setColEqList(pNode, leftBlkId, rightBlkId, ppLeft, ppRight);
+      if (code) {
+        return code;
+      }
+    }
+  } else {
+    planError("invalid col equal cond, type:%d", nodeType(pEqCond));
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setColEqCond(SNode* pEqCond, int16_t leftBlkId, int16_t rightBlkId, int32_t* pLeftId, int32_t* pRightId) {
+  if (QUERY_NODE_OPERATOR == nodeType(pEqCond) && ((SOperatorNode*)pEqCond)->opType == OP_TYPE_EQUAL) {
+    SOperatorNode* pOp = (SOperatorNode*)pEqCond;
+    if (leftBlkId == ((SColumnNode*)pOp->pLeft)->dataBlockId) {
+      *pLeftId = ((SColumnNode*)pOp->pLeft)->slotId;
+    } else if (rightBlkId == ((SColumnNode*)pOp->pLeft)->dataBlockId) {
+      *pRightId = ((SColumnNode*)pOp->pLeft)->slotId;
+    } else {
+      planError("invalid primary key col equal cond, leftBlockId:%d", ((SColumnNode*)pOp->pLeft)->dataBlockId);
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+
+    if (leftBlkId == ((SColumnNode*)pOp->pRight)->dataBlockId) {
+      *pLeftId = ((SColumnNode*)pOp->pRight)->slotId;
+    } else if (rightBlkId == ((SColumnNode*)pOp->pRight)->dataBlockId) {
+      *pRightId = ((SColumnNode*)pOp->pRight)->slotId;
+    } else {
+      planError("invalid primary key col equal cond, rightBlockId:%d", ((SColumnNode*)pOp->pRight)->dataBlockId);
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+  } else {
+    planError("invalid primary key col equal cond, type:%d", nodeType(pEqCond));
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SJoinLogicNode* pJoinLogicNode,
                                    SPhysiNode** pPhyNode) {
   SSortMergeJoinPhysiNode* pJoin =
@@ -784,6 +849,9 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
   if (TSDB_CODE_SUCCESS == code) {
     code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pPrimKeyEqCond,
                   &pJoin->pPrimKeyCond);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = setColEqCond(pJoin->pPrimKeyCond, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, &pJoin->leftPrimSlotId, &pJoin->rightPrimSlotId);  
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -806,10 +874,12 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
   }
 */
   if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pColEqCond) {
-    code = setNodeSlotId(pCxt, ((SPhysiNode*)pJoin)->pOutputDataBlockDesc->dataBlockId, -1,
+    code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId,
                          pJoinLogicNode->pColEqCond, &pJoin->pColEqCond);
+    if (TSDB_CODE_SUCCESS == code) {        
+      code = setColEqList(pJoin->pColEqCond, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, &pJoin->pEqLeft, &pJoin->pEqRight);  
+    }
   }
-
 
   if (TSDB_CODE_SUCCESS == code && ((NULL != pJoinLogicNode->pColOnCond) || (NULL != pJoinLogicNode->pTagOnCond))) {
     code = mergeEqCond(&pJoinLogicNode->pColOnCond, &pJoinLogicNode->pTagOnCond);

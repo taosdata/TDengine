@@ -484,6 +484,7 @@ typedef struct SSortMergeJoinPhysiNode {
   SNode*       pColOnCond;
   SNode*       pFullOnCond;
   SNodeList*   pTargets;
+  SQueryStat   inputStat[2];  
 } SSortMergeJoinPhysiNode;
 
 typedef struct SHashJoinPhysiNode {

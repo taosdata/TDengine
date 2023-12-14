@@ -540,7 +540,7 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
   } else {
     if (pSrc->hasNull) {
       if (0 == BitPos(dstIdx) && 0 == BitPos(srcIdx)) {
-        memcpy(BMCharPos(pDst->nullbitmap, dstIdx), BMCharPos(pSrc->nullbitmap, srcIdx), BitmapLen(numOfRows));
+        memcpy(&BMCharPos(pDst->nullbitmap, dstIdx), &BMCharPos(pSrc->nullbitmap, srcIdx), BitmapLen(numOfRows));
         if (!pDst->hasNull) {
           int32_t nullBytes = BitmapLen(numOfRows);
           int32_t startPos = CharPos(dstIdx);
@@ -554,7 +554,7 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
       } else if (BitPos(dstIdx) == BitPos(srcIdx)) {
         for (int32_t i = 0; i < numOfRows; ++i) {
           if (0 == BitPos(dstIdx)) {
-            memcpy(BMCharPos(pDst->nullbitmap, dstIdx + i), BMCharPos(pSrc->nullbitmap, srcIdx + i), BitmapLen(numOfRows - i));
+            memcpy(&BMCharPos(pDst->nullbitmap, dstIdx + i), &BMCharPos(pSrc->nullbitmap, srcIdx + i), BitmapLen(numOfRows - i));
             if (!pDst->hasNull) {
               int32_t nullBytes = BitmapLen(numOfRows - i);
               int32_t startPos = CharPos(dstIdx + i);
@@ -586,7 +586,7 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
         }
       }
     } else {
-      memset(BMCharPos(pDst->nullbitmap, dstIdx), 0, BitmapLen(numOfRows));
+      memset(&BMCharPos(pDst->nullbitmap, dstIdx), 0, BitmapLen(numOfRows));
     }
 
     if (pSrc->pData != NULL) {

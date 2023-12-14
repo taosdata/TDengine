@@ -1339,10 +1339,15 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN: {
       SSortMergeJoinPhysiNode* pPhyNode = (SSortMergeJoinPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
+      nodesDestroyNode(pPhyNode->pWindowOffset);
+      nodesDestroyNode(pPhyNode->pJLimit);
+      nodesDestroyList(pPhyNode->pEqLeft);
+      nodesDestroyList(pPhyNode->pEqRight);
       nodesDestroyNode(pPhyNode->pPrimKeyCond);
       nodesDestroyNode(pPhyNode->pFullOnCond);
       nodesDestroyList(pPhyNode->pTargets);
       nodesDestroyNode(pPhyNode->pColEqCond);
+      nodesDestroyNode(pPhyNode->pColOnCond);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN: {

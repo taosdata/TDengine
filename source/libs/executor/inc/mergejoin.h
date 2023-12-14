@@ -23,6 +23,8 @@ extern "C" {
 #define MJOIN_HJOIN_CART_THRESHOLD 16
 #define MJOIN_BLK_SIZE_LIMIT 10485760
 
+struct SMJoinOperatorInfo;
+
 typedef SSDataBlock* (*joinImplFp)(SOperatorInfo*);
 
 typedef enum EJoinTableType {
@@ -55,7 +57,7 @@ typedef struct SMJoinColInfo {
 } SMJoinColInfo;
 
 
-typedef struct SMJoinTableInfo {
+typedef struct SMJoinTableCtx {
   EJoinTableType type;
   int32_t        downStreamIdx;
   SOperatorInfo* downStream;
@@ -87,19 +89,22 @@ typedef struct SMJoinTableInfo {
   SSDataBlock*   blk;
   int32_t        blkRowIdx;
 
+  // merge join
+  
   int64_t        grpTotalRows;
   int32_t        grpIdx;
   SArray*        eqGrps;
   SArray*        createdBlks;
 
+  // hash join
+
   int32_t        grpArrayIdx;
   SArray*        pGrpArrays;
 
-  // hash join
   int32_t        grpRowIdx;
   SArray*        pHashCurGrp;
   SSHashObj*     pGrpHash;  
-} SMJoinTableInfo;
+} SMJoinTableCtx;
 
 typedef struct SMJoinGrpRows {
   SSDataBlock* blk;
@@ -110,6 +115,7 @@ typedef struct SMJoinGrpRows {
 } SMJoinGrpRows;
 
 typedef struct SMJoinMergeCtx {
+  struct SMJoinOperatorInfo* pJoin;
   bool                hashCan;
   bool                keepOrder;
   bool                grpRemains;
@@ -121,7 +127,6 @@ typedef struct SMJoinMergeCtx {
   int64_t             lastEqTs;
   SMJoinGrpRows       probeNEqGrp;
   bool                hashJoin;
-  SMJoinOperatorInfo* pJoin;
 } SMJoinMergeCtx;
 
 typedef struct SMJoinWinCtx {
@@ -161,11 +166,9 @@ typedef struct SMJoinOperatorInfo {
   int32_t          subType;
   int32_t          inputTsOrder;
   int32_t          errCode;
-  SMJoinTableInfo  tbs[2];
-  SMJoinTableInfo* build;
-  SMJoinTableInfo* probe;
-  int32_t          pResColNum;
-  int8_t*          pResColMap;
+  SMJoinTableCtx   tbs[2];
+  SMJoinTableCtx*  build;
+  SMJoinTableCtx*  probe;
   SFilterInfo*     pFPreFilter;
   SFilterInfo*     pPreFilter;
   SFilterInfo*     pFinFilter;
