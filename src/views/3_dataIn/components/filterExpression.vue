@@ -96,7 +96,6 @@ export default {
   },
   methods: {
     excuteFilter(){
-      console.log(this.ruleForm.filter_name,'执行鼠标enter事件');
       this.isexecuted=true
       this.submit()
     },
@@ -171,7 +170,6 @@ export default {
           "app/SET_TRANSFORMER_MAPCOLUMNS",
           transformerColumns
         );
-        console.log(transformerColumns,'transformerColumns---映射的列');
       } catch (error) {
         console.log(error);
       }
@@ -256,6 +254,7 @@ export default {
       this.$store.commit("app/SET_FILTER_PARSE_DATA", {
         filter: this.ruleForm.filter_name,
       });
+      this.isexecuted=true
       this.getParserData(parser);
     },
   },

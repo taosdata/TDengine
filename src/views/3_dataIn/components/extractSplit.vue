@@ -261,7 +261,7 @@ export default {
         let colLists = [];
         let tbdata = [];
 
-        colLists = result[0].fields
+        colLists =this.$store.state.app.currentDBType=='csv'?result[0].fields: result[0].fields
           .map((item) => item.name)
           .filter((val) => {
             if (
@@ -277,7 +277,6 @@ export default {
               return val;
             }
           });
-
         tbdata = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
@@ -287,14 +286,13 @@ export default {
         });
         if (isall) {
           //获取全部的extract or split参数
-          console.log(colLists, tbdata, "预览所有");
           this.$emit("sendAllExtractParams", colLists, tbdata);
           return;
         }
         this.tableColumns = colLists.map((item) => {
           let obj = {};
-          obj.name = item;
-          obj.value = tbdata.map((val) => val[item]).join(";");
+          obj.name = this.$store.state.app.currentDBType=='csv'?item.name:item;
+          obj.value = tbdata.map((val) => val[this.$store.state.app.currentDBType=='csv'?item.name:item]).join(";");
           return obj;
         });
         // this.tableColumns = colLists;
