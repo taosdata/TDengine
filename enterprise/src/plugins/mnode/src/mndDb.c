@@ -48,6 +48,7 @@ static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     return -1;
   }
 
+  int32_t j = 0;
   while (1) {
     SVgObj *pVgroup = NULL;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
@@ -62,11 +63,12 @@ static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
 
       for(int32_t i = 0; i < pVgroup->replica; i++){
         SVnodeGid* gid = &pVgroup->vnodeGid[i];
-        if(mndAddCompactDetailToTran(pMnode, pTrans, &compact, pVgroup, gid, i) != 0) {
+        if(mndAddCompactDetailToTran(pMnode, pTrans, &compact, pVgroup, gid, j) != 0) {
           sdbCancelFetch(pSdb, pIter);
           sdbRelease(pSdb, pVgroup);
           return -1;
         }
+        j++;
       }
 
     }
