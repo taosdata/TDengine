@@ -1610,7 +1610,8 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
   const char* name = tNameGetTableName(&pInfo->name);
   if (pInfo->showRewrite) {
     getDBNameFromCondition(pInfo->pCondition, dbName);
-    if (dbName[0] != '\0') {
+    if (strncasecmp(name, TSDB_INS_TABLE_COMPACTS, TSDB_TABLE_FNAME_LEN) != 0 &&
+        strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, TSDB_TABLE_FNAME_LEN) != 0) {
       sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
     }
   } else if (strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0) {
