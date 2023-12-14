@@ -396,7 +396,7 @@ _exit:
     tsdbDebug("vgId:%d %s done, fid:%d minKey:%" PRId64 " maxKey:%" PRId64 " expLevel:%d", TD_VID(tsdb->pVnode),
               __func__, committer->ctx->fid, committer->ctx->minKey, committer->ctx->maxKey, committer->ctx->expLevel);
   }
-  return 0;
+  return code;
 }
 
 static int32_t tsdbCommitFileSetEnd(SCommitter2 *committer) {
