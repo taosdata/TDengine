@@ -138,6 +138,10 @@ alter_database_option: {
 
 如果 cacheload 非常接近 cachesize，则 cachesize 可能过小。 如果 cacheload 明显小于 cachesize 则 cachesize 是够用的。可以根据这个原则判断是否需要修改 cachesize 。具体修改值可以根据系统可用内存情况来决定是加倍或者是提高几倍。
 
+4. stt_trigger
+
+在修改 stt_trigger 参数之前请先停止数据库写入。
+
 :::note
 其它参数在 3.0.0.0 中暂不支持修改
 
