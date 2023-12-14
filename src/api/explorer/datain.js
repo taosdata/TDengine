@@ -1,6 +1,7 @@
 
 import { request } from "@/utils/request";
 import JSONbig from "json-bigint";
+import { getLocalTimezone } from "@/utils";
 import i18n from '@/lang/index'
 let language = i18n.locale.includes('zh') ? 'zh' : 'en'
 export function getTask(id, type) {
@@ -157,7 +158,7 @@ export function downlaodAllNodes(data, agentid) {
 export function getParser(data) {
     return request({
         baseURL: process.env.VUE_APP_X_API,
-        url: `/transform/sample/flat`,
+        url: `/transform/sample/flat?tz=${getLocalTimezone()}`,
         method: 'post',
         transformResponse: [function (data) {
             try {

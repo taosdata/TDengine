@@ -26,7 +26,7 @@ import VueDOMPurifyHTML from 'vue-dompurify-html';
 import { clearLoginStateWhenReopen } from '@/utils/token';
 import { isFirefox } from '@/utils/is';
 import './utils/update';  
-
+import JsonEditorVue from 'json-editor-vue'
 Vue.use(mavonEditor)
 Vue.use(directive);
 Vue.use(LazyLoad);
@@ -66,6 +66,7 @@ Vue.use(VueDOMPurifyHTML, {
     ALLOWED_ATTR: ['target', 'href', 'title', 'rel']
   }
 });
+Vue.use(JsonEditorVue)
 new Vue({
   router,
   store,

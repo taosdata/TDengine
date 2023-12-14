@@ -1819,7 +1819,7 @@ export default {
             Message.warning(this.$t("datasource.transformer.sp"));
             return;
           }
-          this.$refs.csvdata.$refs.transform.getTransformerParams();
+         await this.$refs.csvdata.$refs.transform.getTransformerParams();
           if(this.$refs.csvdata.$refs.transform.isbreak){//transformer的mapping接口出错
             return
           }
@@ -2314,7 +2314,7 @@ export default {
     }
 
     .header {
-      margin-bottom: 20px;
+      // margin-bottom: 20px;
       h1 {
         font-size: 20px;
         font-weight: 700;
