@@ -100,7 +100,7 @@ bool     tsEnableAudit = true;
 char     tsAuditFqdn[TSDB_FQDN_LEN] = {0};
 uint16_t tsAuditPort = 6043;
 bool     tsEnableAuditCreateTable = true;
-int32_t  tsAuditInterval = 500;
+int32_t  tsAuditInterval = 5000;
 
 // telem
 #ifdef TD_ENTERPRISE
