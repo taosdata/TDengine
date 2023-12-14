@@ -285,6 +285,9 @@ int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* p
   compactDetail.newNumberFileset = -1;
   compactDetail.newFinished = -1;
 
+  mInfo("compact:%d, add compact detail to trans, vgId:%d, dnodeId:%d", 
+    pCompact->compactId, pVgroup->vgId, pVgid->dnodeId);
+
   SSdbRaw *pVgRaw = mndCompactDetailActionEncode(&compactDetail);
   if (pVgRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pVgRaw) != 0) {
