@@ -555,7 +555,7 @@ static EDealRes pdcJoinIsCrossTableCond(SNode* pNode, void* pContext) {
 }
 
 static ECondAction pdcJoinGetCondAction(SJoinLogicNode* pJoin, SSHashObj* pLeftTbls, SSHashObj* pRightTbls,
-                                                SNode* pNode) {
+                                                SNode* pNode, bool whereCond) {
   EJoinType t = pJoin->joinType;   
   EJoinSubType s = pJoin->subType;
   SCpdIsMultiTableCondCxt cxt = {
@@ -564,19 +564,19 @@ static ECondAction pdcJoinGetCondAction(SJoinLogicNode* pJoin, SSHashObj* pLeftT
 
   if (cxt.havaLeftCol) {
     if (cxt.haveRightCol) {
-      if (gJoinOpt[t][s].pushDownFlag & PUSH_DOWN_ON_COND) {
+      if ((!whereCond) || (gJoinOpt[t][s].pushDownFlag & PUSH_DOWN_ON_COND)) {
         return COND_ACTION_PUSH_JOIN;
       }
       return COND_ACTION_STAY;
     }
-    if (gJoinOpt[t][s].pushDownFlag & PUSH_DOWN_LEFT_FLT) {
+    if ((!whereCond) || (gJoinOpt[t][s].pushDownFlag & PUSH_DOWN_LEFT_FLT)) {
       return COND_ACTION_PUSH_LEFT_CHILD;
     }
     return COND_ACTION_STAY;
   }
 
   if (cxt.haveRightCol) {
-    if (gJoinOpt[t][s].pushDownFlag & PUSH_DOWN_RIGHT_FLT) {
+    if ((!whereCond) || (gJoinOpt[t][s].pushDownFlag & PUSH_DOWN_RIGHT_FLT)) {
       return COND_ACTION_PUSH_RIGHT_CHILD;
     }
     return COND_ACTION_STAY;
@@ -586,7 +586,7 @@ static ECondAction pdcJoinGetCondAction(SJoinLogicNode* pJoin, SSHashObj* pLeftT
 }
 
 static int32_t pdcJoinSplitLogicCond(SJoinLogicNode* pJoin, SNode** pSrcCond, SNode** pOnCond, SNode** pLeftChildCond,
-                                            SNode** pRightChildCond) {
+                                            SNode** pRightChildCond, bool whereCond) {
   SLogicConditionNode* pLogicCond = (SLogicConditionNode*)*pSrcCond;
   if (LOGIC_COND_TYPE_AND != pLogicCond->condType) {
     return TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND;
@@ -604,7 +604,7 @@ static int32_t pdcJoinSplitLogicCond(SJoinLogicNode* pJoin, SNode** pSrcCond, SN
   SNodeList* pRemainConds = NULL;
   SNode*     pCond = NULL;
   FOREACH(pCond, pLogicCond->pParameterList) {
-    ECondAction condAction = pdcJoinGetCondAction(pJoin, pLeftTables, pRightTables, pCond);
+    ECondAction condAction = pdcJoinGetCondAction(pJoin, pLeftTables, pRightTables, pCond, whereCond);
     if (COND_ACTION_PUSH_JOIN == condAction && NULL != pOnCond) {
       code = nodesListMakeAppend(&pOnConds, nodesCloneNode(pCond));
     } else if (COND_ACTION_PUSH_LEFT_CHILD == condAction) {
@@ -662,13 +662,13 @@ static int32_t pdcJoinSplitLogicCond(SJoinLogicNode* pJoin, SNode** pSrcCond, SN
 }
 
 static int32_t pdcJoinSplitOpCond(SJoinLogicNode* pJoin, SNode** pSrcCond, SNode** pOnCond, SNode** pLeftChildCond,
-                                         SNode** pRightChildCond) {
+                                         SNode** pRightChildCond, bool whereCond) {
   SSHashObj* pLeftTables = NULL;
   SSHashObj* pRightTables = NULL;
   collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 0), &pLeftTables);
   collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 1), &pRightTables);
   
-  ECondAction condAction = pdcJoinGetCondAction(pJoin, pLeftTables, pRightTables, *pSrcCond);
+  ECondAction condAction = pdcJoinGetCondAction(pJoin, pLeftTables, pRightTables, *pSrcCond, whereCond);
 
   tSimpleHashCleanup(pLeftTables);
   tSimpleHashCleanup(pRightTables);
@@ -689,11 +689,11 @@ static int32_t pdcJoinSplitOpCond(SJoinLogicNode* pJoin, SNode** pSrcCond, SNode
 }
 
 static int32_t pdcJoinSplitCond(SJoinLogicNode* pJoin, SNode** pSrcCond, SNode** pOnCond, SNode** pLeftChildCond,
-                                       SNode** pRightChildCond) {
+                                       SNode** pRightChildCond, bool whereCond) {
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(*pSrcCond)) {
-    return pdcJoinSplitLogicCond(pJoin, pSrcCond, pOnCond, pLeftChildCond, pRightChildCond);
+    return pdcJoinSplitLogicCond(pJoin, pSrcCond, pOnCond, pLeftChildCond, pRightChildCond, whereCond);
   } else {
-    return pdcJoinSplitOpCond(pJoin, pSrcCond, pOnCond, pLeftChildCond, pRightChildCond);
+    return pdcJoinSplitOpCond(pJoin, pSrcCond, pOnCond, pLeftChildCond, pRightChildCond, whereCond);
   }
 }
 
@@ -1132,7 +1132,7 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   SNode*  pRightChildCond = NULL;
   int32_t code = pdcJoinCheckAllCond(pCxt, pJoin);
   if (TSDB_CODE_SUCCESS == code && NULL != pJoin->node.pConditions && 0 != gJoinOpt[t][s].pushDownFlag) {
-    code = pdcJoinSplitCond(pJoin, &pJoin->node.pConditions, &pOnCond, &pLeftChildCond, &pRightChildCond);
+    code = pdcJoinSplitCond(pJoin, &pJoin->node.pConditions, &pOnCond, &pLeftChildCond, &pRightChildCond, true);
     if (TSDB_CODE_SUCCESS == code && NULL != pOnCond) {
       code = pdcJoinPushDownOnCond(pCxt, pJoin, &pOnCond);
     }
@@ -1145,7 +1145,7 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = pdcJoinSplitCond(pJoin, &pJoin->pFullOnCond, NULL, &pLeftChildCond, &pRightChildCond);
+    code = pdcJoinSplitCond(pJoin, &pJoin->pFullOnCond, NULL, &pLeftChildCond, &pRightChildCond, false);
     if (TSDB_CODE_SUCCESS == code && NULL != pLeftChildCond) {
       code = pdcPushDownCondToChild(pCxt, (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0), &pLeftChildCond);
     }

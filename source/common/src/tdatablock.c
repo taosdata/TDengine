@@ -191,26 +191,29 @@ static int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t cur
   }
 
   size_t start = 1;
-
-  // the first item
-  memcpy(pColumnInfoData->pData, pData, itemLen);
-
   int32_t t = 0;
   int32_t count = log(numOfRows) / log(2);
+  uint32_t startOffset = (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) ? pColumnInfoData->varmeta.length : (currentRow * itemLen);
+  
+  // the first item
+  memcpy(pColumnInfoData->pData + startOffset, pData, itemLen);
+  
   while (t < count) {
     int32_t xlen = 1 << t;
-    memcpy(pColumnInfoData->pData + start * itemLen + pColumnInfoData->varmeta.length, pColumnInfoData->pData,
+    memcpy(pColumnInfoData->pData + start * itemLen + startOffset, 
+           pColumnInfoData->pData + startOffset,
            xlen * itemLen);
     t += 1;
     start += xlen;
   }
-
+  
   // the tail part
   if (numOfRows > start) {
-    memcpy(pColumnInfoData->pData + start * itemLen + currentRow * itemLen, pColumnInfoData->pData,
+    memcpy(pColumnInfoData->pData + start * itemLen + startOffset, 
+           pColumnInfoData->pData + startOffset,
            (numOfRows - start) * itemLen);
   }
-
+  
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     for (int32_t i = 0; i < numOfRows; ++i) {
       pColumnInfoData->varmeta.offset[i + currentRow] = pColumnInfoData->varmeta.length + i * itemLen;

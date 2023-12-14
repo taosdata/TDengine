@@ -61,28 +61,37 @@ static int32_t mJoinInitPrimKeyInfo(SMJoinTableCtx* pTable, int32_t slotId) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mJoinInitKeyColsInfo(SMJoinTableCtx* pTable, SNodeList* pList) {
-  pTable->keyNum = LIST_LENGTH(pList);
+static int32_t mJoinInitColsInfo(int32_t* colNum, int64_t* rowSize, SMJoinColInfo** pCols, SNodeList* pList) {
+  *colNum = LIST_LENGTH(pList);
   
-  pTable->keyCols = taosMemoryMalloc(pTable->keyNum * sizeof(SMJoinColInfo));
-  if (NULL == pTable->keyCols) {
+  *pCols = taosMemoryMalloc((*colNum) * sizeof(SMJoinColInfo));
+  if (NULL == *pCols) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  int64_t bufSize = 0;
+  *rowSize = 0;
+  
   int32_t i = 0;
   SNode* pNode = NULL;
   FOREACH(pNode, pList) {
     SColumnNode* pColNode = (SColumnNode*)pNode;
-    pTable->keyCols[i].srcSlot = pColNode->slotId;
-    pTable->keyCols[i].vardata = IS_VAR_DATA_TYPE(pColNode->node.resType.type);
-    pTable->keyCols[i].bytes = pColNode->node.resType.bytes;
-    bufSize += pColNode->node.resType.bytes;
+    (*pCols)[i].srcSlot = pColNode->slotId;
+    (*pCols)[i].vardata = IS_VAR_DATA_TYPE(pColNode->node.resType.type);
+    (*pCols)[i].bytes = pColNode->node.resType.bytes;
+    *rowSize += pColNode->node.resType.bytes;
     ++i;
   }  
 
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t mJoinInitKeyColsInfo(SMJoinTableCtx* pTable, SNodeList* pList) {
+  int64_t rowSize = 0;
+  MJ_ERR_RET(mJoinInitColsInfo(&pTable->keyNum, &rowSize, &pTable->keyCols, pList));
+
   if (pTable->keyNum > 1) {
-    pTable->keyBuf = taosMemoryMalloc(bufSize);
+    pTable->keyBuf = taosMemoryMalloc(rowSize);
     if (NULL == pTable->keyBuf) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -91,27 +100,44 @@ static int32_t mJoinInitKeyColsInfo(SMJoinTableCtx* pTable, SNodeList* pList) {
   return TSDB_CODE_SUCCESS;
 }
 
+
+static int32_t mJoinInitColsMap(int32_t* colNum, SMJoinColMap** pCols, int32_t blkId, SNodeList* pList) {
+  *pCols = taosMemoryMalloc(LIST_LENGTH(pList) * sizeof(SMJoinColMap));
+  if (NULL == *pCols) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  
+  int32_t i = 0;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pList) {
+    STargetNode* pTarget = (STargetNode*)pNode;
+    SColumnNode* pColumn = (SColumnNode*)pTarget->pExpr;
+    if (pColumn->dataBlockId == blkId) {
+      (*pCols)[i].srcSlot = pColumn->slotId;
+      (*pCols)[i].dstSlot = pTarget->slotId;
+      ++i;
+    }
+  }  
+
+  *colNum = i;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t mJoinInitTableInfo(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode, SOperatorInfo** pDownstream, int32_t idx, SQueryStat* pStat) {
   SMJoinTableCtx* pTable = &pJoin->tbs[idx];
   pTable->downStream = pDownstream[idx];
   pTable->blkId = pDownstream[idx]->resultDataBlockId;
-  int32_t code = mJoinInitPrimKeyInfo(pTable, (0 == idx) ? pJoinNode->leftPrimSlotId : pJoinNode->rightPrimSlotId);
-  if (code) {
-    return code;
-  }
-  code = mJoinInitKeyColsInfo(pTable, (0 == idx) ? pJoinNode->pEqLeft : pJoinNode->pEqRight);
-  if (code) {
-    return code;
-  }
-/*
-  code = mJoinInitValColsInfo(pTable, pJoinNode->pTargets);
-  if (code) {
-    return code;
-  }
-*/
+  MJ_ERR_RET(mJoinInitPrimKeyInfo(pTable, (0 == idx) ? pJoinNode->leftPrimSlotId : pJoinNode->rightPrimSlotId));
+
+  MJ_ERR_RET(mJoinInitKeyColsInfo(pTable, (0 == idx) ? pJoinNode->pEqLeft : pJoinNode->pEqRight));
+  MJ_ERR_RET(mJoinInitColsMap(&pTable->finNum, &pTable->finCols, pTable->blkId, pJoinNode->pTargets));
+
   memcpy(&pTable->inputStat, pStat, sizeof(*pStat));
 
   pTable->eqGrps = taosArrayInit(8, sizeof(SMJoinGrpRows));
+  taosArrayReserve(pTable->eqGrps, 1);
+  
   if (E_JOIN_TB_BUILD == pTable->type) {
     pTable->createdBlks = taosArrayInit(8, POINTER_BYTES);
     pTable->pGrpArrays = taosArrayInit(32, POINTER_BYTES);
@@ -167,6 +193,7 @@ static void mJoinSetBuildAndProbeTable(SMJoinOperatorInfo* pInfo, SSortMergeJoin
 static int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode) {
   SMJoinMergeCtx* pCtx = &pJoin->ctx.mergeCtx;
 
+  pCtx->pJoin = pJoin;
   pCtx->lastEqTs = INT64_MIN;
   pCtx->hashCan = pJoin->probe->keyNum > 0;
 
@@ -984,14 +1011,14 @@ static SSDataBlock* mLeftJoinDo(struct SOperatorInfo* pOperator) {
         return pCtx->finBlk;
       }
 
-      if (MJOIN_TB_ROWS_DONE(pJoin->probe)) {
+      if (MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe)) {
         continue;
       } else {
         MJOIN_GET_TB_CUR_TS(pProbeCol, probeTs, pJoin->probe);
       }
     }
 
-    while (!MJOIN_TB_ROWS_DONE(pJoin->probe) && !MJOIN_TB_ROWS_DONE(pJoin->build)) {
+    while (!MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe) && !MJOIN_BUILD_TB_ROWS_DONE(pJoin->build)) {
       if (probeTs == buildTs) {
         pCtx->lastEqTs = probeTs;
         MJ_ERR_JRET(mLeftJoinProcessEqualGrp(pCtx, probeTs, false));
@@ -999,9 +1026,10 @@ static SSDataBlock* mLeftJoinDo(struct SOperatorInfo* pOperator) {
           return pCtx->finBlk;
         }
 
-        MJOIN_GET_TB_CUR_TS(pBuildCol, buildTs, pJoin->build);
-        MJOIN_GET_TB_CUR_TS(pProbeCol, probeTs, pJoin->probe);
+        MJOIN_GET_TB_COL_TS(pBuildCol, buildTs, pJoin->build);
+        MJOIN_GET_TB_COL_TS(pProbeCol, probeTs, pJoin->probe);
       } else if (LEFT_JOIN_NO_EQUAL(asc, probeTs, buildTs)) {
+        pCtx->probeNEqGrp.blk = pJoin->probe->blk;
         pCtx->probeNEqGrp.beginIdx = pJoin->probe->blkRowIdx;
         pCtx->probeNEqGrp.readIdx = pCtx->probeNEqGrp.beginIdx;
         pCtx->probeNEqGrp.endIdx = pCtx->probeNEqGrp.beginIdx;
@@ -1029,6 +1057,20 @@ static SSDataBlock* mLeftJoinDo(struct SOperatorInfo* pOperator) {
           
           break;
         }
+      }
+    }
+
+    if (!MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe)) {
+      pCtx->probeNEqGrp.blk = pJoin->probe->blk;
+      pCtx->probeNEqGrp.beginIdx = pJoin->probe->blkRowIdx;
+      pCtx->probeNEqGrp.readIdx = pCtx->probeNEqGrp.beginIdx;
+      pCtx->probeNEqGrp.endIdx = pJoin->probe->blk->info.rows - 1;
+      
+      pJoin->probe->blkRowIdx = pJoin->probe->blk->info.rows;
+            
+      MJ_ERR_JRET(mLeftJoinNonEqCart(pCtx));
+      if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
+        return pCtx->finBlk;
       }
     }
   } while (true);
@@ -1147,9 +1189,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
 
   mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 0, &pJoinNode->inputStat[0]);
   mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 1, &pJoinNode->inputStat[1]);
-  
-  MJ_ERR_JRET(mJoinInitCtx(pInfo, pJoinNode));
-  
+    
   if (pJoinNode->pFullOnCond != NULL) {
     MJ_ERR_JRET(filterInitFromNode(pJoinNode->pFullOnCond, &pInfo->pFPreFilter, 0));
   }
@@ -1161,6 +1201,8 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   if (pJoinNode->node.pConditions != NULL) {
     MJ_ERR_JRET(filterInitFromNode(pJoinNode->node.pConditions, &pInfo->pFinFilter, 0));
   }
+
+  MJ_ERR_JRET(mJoinInitCtx(pInfo, pJoinNode));
 
   if (pJoinNode->node.inputTsOrder == ORDER_ASC) {
     pInfo->inputTsOrder = TSDB_ORDER_ASC;

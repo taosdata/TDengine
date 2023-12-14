@@ -191,15 +191,18 @@ typedef struct SMJoinOperatorInfo {
 #define GRP_REMAIN_ROWS(_grp) ((_grp)->endIdx - (_grp)->readIdx + 1)
 #define GRP_DONE(_grp) ((_grp)->readIdx > (_grp)->endIdx)
 
-#define MJOIN_TB_ROWS_DONE(_tb) ((_tb)->blkRowIdx >= (_tb)->blk->info.rows)
+#define MJOIN_PROBE_TB_ROWS_DONE(_tb) ((_tb)->blkRowIdx >= (_tb)->blk->info.rows)
+#define MJOIN_BUILD_TB_ROWS_DONE(_tb) ((NULL == (_tb)->blk) || ((_tb)->blkRowIdx >= (_tb)->blk->info.rows))
 
 #define BLK_IS_FULL(_blk) ((_blk)->info.rows == (_blk)->info.capacity)
 
 
-#define MJOIN_GET_TB_COL_TS(_col, _ts, _tb)                                   \
-  do {                                                                        \
-    (_col) = taosArrayGet((_tb)->blk->pDataBlock, (_tb)->primCol->srcSlot);   \
-    (_ts) = *((int64_t*)(_col)->pData + (_tb)->blkRowIdx);                    \
+#define MJOIN_GET_TB_COL_TS(_col, _ts, _tb)                                     \
+  do {                                                                          \
+    if (NULL != (_tb)->blk) {                                                   \
+      (_col) = taosArrayGet((_tb)->blk->pDataBlock, (_tb)->primCol->srcSlot);   \
+      (_ts) = *((int64_t*)(_col)->pData + (_tb)->blkRowIdx);                    \
+    }                                                                           \
   } while (0)
 
 #define MJOIN_GET_TB_CUR_TS(_col, _ts, _tb)                                     \
