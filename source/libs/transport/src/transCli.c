@@ -2599,6 +2599,7 @@ static SCliMsg* transInitMsg(void* shandle, const SEpSet* pEpSet, STransMsg* pRe
   cliMsg->st = taosGetTimestampUs();
   cliMsg->type = Normal;
   cliMsg->refId = (int64_t)shandle;
+  QUEUE_INIT(&cliMsg->seqq);
   return cliMsg;
 }
 int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) {
