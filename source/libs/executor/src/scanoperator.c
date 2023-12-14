@@ -709,16 +709,14 @@ static SSDataBlock* getBlockForEmptyTable(SOperatorInfo* pOperator, const STable
   SSDataBlock* pBlock = pTableScanInfo->pResBlock;
 
   blockDataEmpty(pBlock);
-  pBlock->info.rows = 0;
+  pBlock->info.rows = 1;
   pBlock->info.id.uid = tbInfo->uid;
-  pBlock->info.id.groupId = tbInfo->uid;
-  //pBlock->info.id.groupId = pOperator->dynamicTask ? tbInfo->uid : tbInfo->groupId;
+  pBlock->info.id.groupId = pOperator->dynamicTask ? tbInfo->uid : tbInfo->groupId;
   // set tagx=X, tbname=Y (count=0) as one row
-  doSetTagColumnData(&pTableScanInfo->base, pBlock, pTaskInfo, 1);
+  doSetTagColumnData(&pTableScanInfo->base, pBlock, pTaskInfo, pBlock->info.rows);
+  pBlock->info.rows = 0;
 
-  if (pBlock->info.id.groupId) {
-    pOperator->resultInfo.totalRows++;
-  }
+  pOperator->resultInfo.totalRows++;
   return pBlock;
 }
 
