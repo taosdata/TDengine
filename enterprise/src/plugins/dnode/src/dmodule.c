@@ -93,28 +93,13 @@ static int32_t dmWriteVars(SEngineInfo *pInfo);
 // implementations
 
 #ifdef _TD_DM_CHECK_OFFSET
-static void dmCheckOffset(SDnode *pDnode, SMgmtWrapper *wrappers) {
-  SMgmtWrapper   *pWrappers = &pDnode->wrappers[0];
-  SMgmtFunc      *pFunc = &wrappers->func;
-  const char    **pName = &wrappers->name;
-  NodeRequireFp  *pRequiredFp = &pFunc->requiredFp;
+static void dmCheckOffset(SDnode *pDnode) {
   SDnodeData     *pData = &pDnode->data;
   TdThreadRwlock *pLock = &pData->lock;
   int32_t        *pDnodeId = &pData->dnodeId;
   int32_t        *pEngineVer = &pData->engineVer;
   int64_t        *pClusterId = &pData->clusterId;
 
-#if defined(_TD_DARWIN_64)
-  DM_CHECK_OFFSET(pWrappers, pDnode, 2936, "dnode wrappers");
-#elif defined(_TD_ARM_)
-  DM_CHECK_OFFSET(pWrappers, pDnode, 2568, "dnode wrappers");
-#else
-  DM_CHECK_OFFSET(pWrappers, pDnode, 2552, "dnode wrappers");
-#endif
-
-  DM_CHECK_OFFSET(pFunc, wrappers, 0, "wrappers func");
-  DM_CHECK_OFFSET(pName, wrappers, 96, "wrappers name");
-  DM_CHECK_OFFSET(pRequiredFp, pFunc, 48, "mgmtFunc requiredFp");
   DM_CHECK_OFFSET(pData, pDnode, 168, "dnode data");
   DM_CHECK_OFFSET(pLock, pData, 720, "data lock");
   DM_CHECK_OFFSET(pDnodeId, pData, 0, "data dnodeId");
@@ -535,6 +520,7 @@ static int32_t dmSyncEps(SDnodeData *pData) {
   return code;
 }
 
+#ifdef TD_MODULE_OPTIMIZE
 bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
 
@@ -552,10 +538,6 @@ bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
 // invoker
 int32_t dmInitModule(SDnode *pDnode, SMgmtWrapper *wrappers) {
   int32_t code = -1;
-
-#ifdef _TD_DM_CHECK_OFFSET
-  dmCheckOffset(pDnode, wrappers);
-#endif
 
   if (dmInitPrerequisites() != 0) {
     goto _err;
@@ -584,3 +566,40 @@ _err:
 
   return code;
 }
+#else
+// invoker
+int32_t dmInitModule(SDnode *pDnode) {
+  int32_t code = -1;
+
+#ifdef _TD_DM_CHECK_OFFSET
+  dmCheckOffset(pDnode);
+#endif
+
+  if (dmInitPrerequisites() != 0) {
+    goto _err;
+  }
+  if (dmInitVersion(pDnode) != 0) {
+    terrno = TSDB_CODE_VERSION_NOT_COMPATIBLE;
+    goto _err;
+  }
+
+  if (dmInitMsgHandle(pDnode) != 0) {
+    dError("failed to init msg handles since %s", terrstr());
+    goto _err;
+  }
+
+  if (dmInitServer(pDnode) != 0) {
+    dError("failed to init transport since %s", terrstr());
+    goto _err;
+  }
+
+  if (dmInitClient(pDnode) != 0) {
+    goto _err;
+  }
+_exit:
+  code = 0;
+_err:
+
+  return code;
+}
+#endif
