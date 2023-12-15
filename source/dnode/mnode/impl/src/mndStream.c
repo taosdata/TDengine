@@ -847,11 +847,12 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   mInfo("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
 
-  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
+  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetSTbName);
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     mndTransDrop(pTrans);
     goto _OVER;
   }
+
   // create stb for stream
   if (createStreamReq.createStb == STREAM_CREATE_STABLE_TRUE &&
       mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
@@ -1381,12 +1382,12 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   }
 
   // check if it is conflict with other trans in both sourceDb and targetDb.
-  bool conflict = streamTransConflictOtherTrans(pMnode, pStream->sourceDb, pStream->targetDb, true);
-  if (conflict) {
-    sdbRelease(pMnode->pSdb, pStream);
-    tFreeMDropStreamReq(&dropReq);
-    return -1;
-  }
+//  bool conflict = streamTransConflictOtherTrans(pMnode, pStream->sourceDb, pStream->targetDb, true);
+//  if (conflict) {
+//    sdbRelease(pMnode->pSdb, pStream);
+//    tFreeMDropStreamReq(&dropReq);
+//    return -1;
+//  }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, MND_STREAM_DROP_NAME);
   if (pTrans == NULL) {
