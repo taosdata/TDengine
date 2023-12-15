@@ -6,9 +6,9 @@ use futures_util::TryStreamExt;
 use itertools::Itertools;
 use tiberius::QueryItem;
 
+use crate::runners::historian::appender::ArrowDataAppender;
 use taosx_ipc::ack::AckReaderBuilder;
 
-use crate::runners::historian::arrow::ArrowDataAppender;
 use crate::runners::historian::config::{HistorianTable, TaskConfig};
 use crate::runners::historian::query::HistorianQuery;
 use crate::runners::historian::set_tcp_keepalive;
@@ -25,7 +25,7 @@ pub async fn migrate_history(config: TaskConfig) -> anyhow::Result<()> {
     // consume task
     let mut consumers = Vec::new();
 
-    let concurrency = cmp::max(config.advanced_options.write_concurrency.unwrap_or(1), 1);
+    let concurrency = cmp::max(config.advanced_options.read_concurrency.unwrap_or(1), 1);
     for _ in 0..concurrency {
         let receiver = rx.clone();
 
@@ -131,7 +131,7 @@ pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
             while let Some(row) = rows.try_next().await? {
                 match row {
                     QueryItem::Row(row) => {
-                        appender.append_history_row(row).map_err(|err| {
+                        let raw_data = appender.append_history_row(&row).map_err(|err| {
                             let err_msg = format!(
                                 "sync history:{} append row error: {}",
                                 count,
@@ -225,11 +225,10 @@ pub async fn sync_live(task_config: TaskConfig) -> anyhow::Result<()> {
         while let Some(row) = rows.try_next().await? {
             match row {
                 QueryItem::Row(row) => {
-                    let ts = appender.append_live_row(row)?;
-                    if let Some(ts) = ts {
-                        earliest = cmp::min(ts, earliest);
-                        latest = cmp::max(ts, latest);
-                    }
+                    let ts = appender.append_live_row(&row)?.datetime;
+
+                    earliest = cmp::min(ts, earliest);
+                    latest = cmp::max(ts, latest);
                 }
                 QueryItem::Metadata(_) => {
                     continue;

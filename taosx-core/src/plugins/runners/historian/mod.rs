@@ -13,7 +13,7 @@ use crate::runners::historian::worker::{migrate_history, sync_history, sync_live
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, Action, Parser, Transferred};
 
-mod arrow;
+mod appender;
 mod config;
 mod query;
 mod worker;

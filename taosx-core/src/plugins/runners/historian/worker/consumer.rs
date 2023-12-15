@@ -1,12 +1,10 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
-
 use arrow::ipc::writer::StreamWriter;
 use flume::Receiver;
 use futures_util::TryStreamExt;
 
 use taosx_ipc::ack::AckReaderBuilder;
 
-use crate::runners::historian::arrow::ArrowDataAppender;
+use crate::runners::historian::appender::ArrowDataAppender;
 use crate::runners::historian::config::{HistorianTable, TaskConfig};
 use crate::runners::historian::query::HistorianQuery;
 use crate::runners::historian::set_tcp_keepalive;
@@ -95,9 +93,11 @@ impl Consumer {
                 .into_row_stream();
 
             let batch_size = task.advanced_options.batch_size.unwrap_or(10000);
+            let keep_raw_data = task.advanced_options.keep_raw_data.unwrap_or(false);
+
             let mut row_count = 0;
             while let Some(row) = rows.try_next().await? {
-                appender.append_history_row(row).map_err(|err| {
+                let raw_data = appender.append_history_row(&row).map_err(|err| {
                     let err_msg = format!(
                         "migrate history batch: {}, append row error: {}",
                         batch_count,
@@ -106,6 +106,9 @@ impl Consumer {
                     tracing::error!(err_msg);
                     anyhow::anyhow!(err_msg)
                 })?;
+                if keep_raw_data {
+                    write_raw_data(raw_data.to_string());
+                }
 
                 row_count += 1;
 
@@ -139,4 +142,8 @@ impl Consumer {
         tracing::debug!("migrate history consumer finished");
         Ok(())
     }
+}
+
+fn write_raw_data(raw_data: String) {
+    todo!()
 }
