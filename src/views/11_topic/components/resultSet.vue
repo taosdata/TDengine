@@ -56,6 +56,7 @@
       center
       :title="title"
       :visible.sync="dialog"
+      :close-on-click-modal="false"
     >
       <component :is="comp" v-bind="dialogParams" :field="field"></component>
       <section slot="footer">

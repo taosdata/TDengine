@@ -261,6 +261,7 @@
         destroy-on-close
         :append-to-body="true"
         @close="closeDialog"
+        :close-on-click-modal="false"
       >
         <CreateSTB ref="createstb"></CreateSTB>
         <div class="buttons">

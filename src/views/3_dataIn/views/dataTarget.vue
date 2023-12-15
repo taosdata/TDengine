@@ -117,6 +117,7 @@
       :visible.sync="showAgent"
       :destroy-on-close="true"
       @close="closeDialog"
+      :close-on-click-modal="false"
     >
       <AddAgent :key="showAgent" :agent="{}"></AddAgent>
     </el-dialog>
