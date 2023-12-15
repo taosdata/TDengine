@@ -707,6 +707,22 @@ static int32_t getDnodeList(STranslateContext* pCxt, SArray** pDnodes) {
   return code;
 }
 
+static int32_t getTableTsmas(STranslateContext* pCxt, const SName* pName, SArray** ppTsmas) {
+  SParseContext* pParCxt = pCxt->pParseCxt;
+  int32_t code = 0;
+  if (pParCxt->async) {
+    code = getTableTsmasFromCache(pCxt->pMetaCache, pName, ppTsmas);
+  } else {
+    SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                             .requestId = pParCxt->requestId,
+                             .requestObjRefId = pParCxt->requestRid,
+                             .mgmtEps = pParCxt->mgmtEpSet};
+    code = catalogGetTableTsmas(pParCxt->pCatalog, &conn, pName, ppTsmas);
+  }
+  if (code) parserError("0x%" PRIx64 " getDnodeList error, code:%s", pCxt->pParseCxt->requestId, tstrerror(code));
+  return code;
+}
+
 static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* pMetaCache, STranslateContext* pCxt) {
   pCxt->pParseCxt = pParseCxt;
   pCxt->errCode = TSDB_CODE_SUCCESS;
@@ -3612,9 +3628,19 @@ static int32_t setTableIndex(STranslateContext* pCxt, SName* pName, SRealTableNo
   if (pCxt->createStream || QUERY_SMA_OPTIMIZE_DISABLE == tsQuerySmaOptimize) {
     return TSDB_CODE_SUCCESS;
   }
-  if (isSelectStmt(pCxt->pCurrStmt) && NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pWindow &&
+  if (0 && isSelectStmt(pCxt->pCurrStmt) && NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pWindow &&
       QUERY_NODE_INTERVAL_WINDOW == nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pWindow)) {
     return getTableIndex(pCxt, pName, &pRealTable->pSmaIndexes);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
+  if (pCxt->createStream || QUERY_SMA_OPTIMIZE_DISABLE == tsQuerySmaOptimize) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (isSelectStmt(pCxt->pCurrStmt)) {
+    return getTableTsmas(pCxt, pName, &pRealTable->pTsmas);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -4210,6 +4236,9 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinPare
         code = setTableVgroupList(pCxt, &name, pRealTable);
         if (TSDB_CODE_SUCCESS == code) {
           code = setTableIndex(pCxt, &name, pRealTable);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = setTableTsmas(pCxt, &name, pRealTable);
         }
       }
       if (TSDB_CODE_SUCCESS == code) {
@@ -4934,8 +4963,8 @@ static int32_t       checkIntervalWindow(STranslateContext* pCxt, SIntervalWindo
           if (IS_CALENDAR_TIME_DURATION(pSliding->unit)) {
             return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_UNIT);
     }
-          if ((pSliding->datum.i <
-         convertTimeFromPrecisionToUnit(tsMinSlidingTime, TSDB_TIME_PRECISION_MILLI, pSliding->unit)) ||
+    if ((pSliding->datum.i < convertTimePrecision(tsMinSlidingTime, TSDB_TIME_PRECISION_MILLI,
+                                                            precision)) ||
         (pInter->datum.i / pSliding->datum.i > INTERVAL_SLIDING_FACTOR)) {
             return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL);
     }
@@ -10371,6 +10400,18 @@ SNode* createColumnNodeWithName(const char* name) {
   return (SNode*)pCol;
 }
 
+static bool sortFuncWithFuncId(SNode* pNode1, SNode* pNode2) {
+  SFunctionNode* pFunc1 = (SFunctionNode*)pNode1;
+  SFunctionNode* pFunc2 = (SFunctionNode*)pNode2;
+  return pFunc1->funcId < pFunc2->funcId;
+}
+
+static bool sortColWithColId(SNode* pNode1, SNode* pNode2) {
+  SColumnNode* pCol1 = (SColumnNode*)pNode1;
+  SColumnNode* pCol2 = (SColumnNode*)pNode2;
+  return pCol1->colId < pCol2->colId;
+}
+
 static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMCreateSmaReq* pReq,
                             STableMeta* pTableMeta) {
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -10444,9 +10485,33 @@ translateTSMAFuncs(STranslateContext * pCxt, SCreateTSMAStmt* pStmt, STableMeta*
           break;
         }
         strcpy(pCol->colName, schema->name);
+        pCol->colId = schema->colId;
+      }
+    }
+  } else {
+    SNode* pNode;
+    FOREACH(pNode, pStmt->pOptions->pCols) {
+      SColumnNode* pCol = (SColumnNode*)pNode;
+      for (int32_t i = 0; i < pTableMeta->tableInfo.numOfColumns; ++i) {
+        const SSchema* pSchema = &pTableMeta->schema[i];
+        if (strcmp(pSchema->name, pCol->colName) == 0) {
+          pCol->colId = pSchema->colId;
+          break;
+        }
       }
     }
   }
+  nodesSortList(&pStmt->pOptions->pCols, sortColWithColId);
+  SNode* pNode;
+  FOREACH(pNode, pStmt->pOptions->pFuncs) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    int32_t funcId = getFuncId(pFunc->functionName);
+    if (funcId < 0) {
+      return TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION;
+    }
+    pFunc->funcId = funcId;
+  }
+  nodesSortList(&pStmt->pOptions->pFuncs, sortFuncWithFuncId);
   if (TSDB_CODE_SUCCESS == code) {
     // assemble funcs with columns
     SNode *pNode1, *pNode2;
