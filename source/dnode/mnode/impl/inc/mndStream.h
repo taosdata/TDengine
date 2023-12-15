@@ -24,8 +24,9 @@ extern "C" {
 
 typedef struct SStreamTransInfo {
   int64_t     startTime;
-  int32_t     transId;
+  int64_t     streamUid;
   const char *name;
+  int32_t     transId;
 } SStreamTransInfo;
 
 // time to generated the checkpoint, if now() - checkpointTs >= tsCheckpointInterval, this checkpoint will be discard
@@ -52,6 +53,14 @@ typedef struct SStreamExecInfo {
   TdThreadMutex    lock;
 } SStreamExecInfo;
 
+#define MND_STREAM_CREATE_NAME      "stream-create"
+#define MND_STREAM_CHECKPOINT_NAME  "stream-checkpoint"
+#define MND_STREAM_PAUSE_NAME       "stream-pause"
+#define MND_STREAM_RESUME_NAME      "stream-resume"
+#define MND_STREAM_DROP_NAME        "stream-drop"
+#define MND_STREAM_TASK_RESET_NAME  "stream-task-reset"
+#define MND_STREAM_TASK_UPDATE_NAME "stream-task-update"
+
 extern SStreamExecInfo execInfo;
 
 int32_t     mndInitStream(SMnode *pMnode);
@@ -61,9 +70,9 @@ void        mndReleaseStream(SMnode *pMnode, SStreamObj *pStream);
 int32_t     mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 int32_t     mndPersistStream(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 
-int32_t mndStreamRegisterTrans(STrans *pTrans, const char *pName, const char *pSrcDb, const char *pDstDb);
+int32_t mndStreamRegisterTrans(STrans* pTrans, const char* pTransName, int64_t streamUid);
 int32_t mndAddtoCheckpointWaitingList(SStreamObj *pStream, int64_t checkpointId);
-bool    streamTransConflictOtherTrans(SMnode *pMnode, const char *pSrcDb, const char *pDstDb, bool lock);
+bool    streamTransConflictOtherTrans(SMnode *pMnode, int64_t streamUid, const char *pTransName, bool lock);
 
 // for sma
 // TODO refactor

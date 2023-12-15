@@ -23,21 +23,17 @@ typedef struct SKeyInfo {
 
 static int32_t clearFinishedTrans(SMnode* pMnode);
 
-int32_t mndStreamRegisterTrans(STrans* pTrans, const char* pName, const char* pSrcDb, const char* pDstDb) {
-  SStreamTransInfo info = {.transId = pTrans->id, .startTime = taosGetTimestampMs(), .name = pName};
-  taosHashPut(execInfo.transMgmt.pDBTrans, pSrcDb, strlen(pSrcDb), &info, sizeof(SStreamTransInfo));
-
-  if (strcmp(pSrcDb, pDstDb) != 0) {
-    taosHashPut(execInfo.transMgmt.pDBTrans, pDstDb, strlen(pDstDb), &info, sizeof(SStreamTransInfo));
-  }
-
+int32_t mndStreamRegisterTrans(STrans* pTrans, const char* pTransName, int64_t streamUid) {
+  SStreamTransInfo info = {
+      .transId = pTrans->id, .startTime = taosGetTimestampMs(), .name = pTransName, .streamUid = streamUid};
+  taosHashPut(execInfo.transMgmt.pDBTrans, &streamUid, sizeof(streamUid), &info, sizeof(SStreamTransInfo));
   return 0;
 }
 
 int32_t clearFinishedTrans(SMnode* pMnode) {
   size_t  keyLen = 0;
-  SArray* pList = taosArrayInit(4, sizeof(SKeyInfo));
   void*   pIter = NULL;
+  SArray* pList = taosArrayInit(4, sizeof(SKeyInfo));
 
   while ((pIter = taosHashIterate(execInfo.transMgmt.pDBTrans, pIter)) != NULL) {
     SStreamTransInfo* pEntry = (SStreamTransInfo*)pIter;
@@ -69,7 +65,7 @@ int32_t clearFinishedTrans(SMnode* pMnode) {
   return 0;
 }
 
-bool streamTransConflictOtherTrans(SMnode* pMnode, const char* pSrcDb, const char* pDstDb, bool lock) {
+bool streamTransConflictOtherTrans(SMnode* pMnode, int64_t streamUid, const char* pTransName, bool lock) {
   if (lock) {
     taosThreadMutexLock(&execInfo.lock);
   }
@@ -84,22 +80,26 @@ bool streamTransConflictOtherTrans(SMnode* pMnode, const char* pSrcDb, const cha
 
   clearFinishedTrans(pMnode);
 
-  SStreamTransInfo *pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, pSrcDb, strlen(pSrcDb));
+  SStreamTransInfo *pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, &streamUid, sizeof(streamUid));
   if (pEntry != NULL) {
-    if (lock) {
-      taosThreadMutexUnlock(&execInfo.lock);
-    }
-    mWarn("conflict with other transId:%d in Db:%s, trans:%s", pEntry->transId, pSrcDb, pEntry->name);
-    return true;
-  }
+    SStreamTransInfo tInfo = *pEntry;
 
-  pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, pDstDb, strlen(pDstDb));
-  if (pEntry != NULL) {
     if (lock) {
       taosThreadMutexUnlock(&execInfo.lock);
     }
-    mWarn("conflict with other transId:%d in Db:%s, trans:%s", pEntry->transId, pSrcDb, pEntry->name);
-    return true;
+
+    if (strcmp(tInfo.name, MND_STREAM_CHECKPOINT_NAME) == 0) {
+      if (strcmp(pTransName, MND_STREAM_DROP_NAME) != 0) {
+        mWarn("conflict with other transId:%d streamUid:%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamUid,
+              tInfo.name);
+        return true;
+      }
+    } else if ((strcmp(tInfo.name, MND_STREAM_CREATE_NAME) == 0) ||
+               (strcmp(tInfo.name, MND_STREAM_DROP_NAME) == 0)) {
+      mWarn("conflict with other transId:%d streamUid:%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamUid,
+            tInfo.name);
+      return true;
+    }
   }
 
   if (lock) {
