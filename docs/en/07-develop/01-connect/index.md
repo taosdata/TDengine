@@ -177,7 +177,7 @@ Just need to add the reference to [TDengine.Connector](https://www.nuget.org/pac
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="TDengine.Connector" Version="3.0.0" />
+    <PackageReference Include="TDengine.Connector" Version="3.1.0" />
   </ItemGroup>
 
 </Project>
