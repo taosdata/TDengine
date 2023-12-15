@@ -174,6 +174,10 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
     i += 2;
   }
 
+  if (hour > 12 || hour < 0) {
+    return -1;
+  }
+
   // return error if there're illegal charaters after min(2 Digits)
   char* minStr = &str[i];
   if (minStr[1] != '\0' && minStr[2] != '\0') {
@@ -181,7 +185,7 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
   }
 
   int64_t minute = strnatoi(&str[i], 2);
-  if (minute > 59) {
+  if (minute > 59 || (hour == 12 && minute > 0)) {
     return -1;
   }
 

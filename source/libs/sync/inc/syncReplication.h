@@ -56,6 +56,10 @@ int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode);
 
 int32_t syncNodeSendAppendEntries(SSyncNode* pNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
 
+int32_t syncSnapSendMsg(SSyncSnapshotSender* pSender, int32_t seq, void* pBlock, int32_t len, int32_t typ);
+int32_t syncSnapSendRsp(SSyncSnapshotReceiver* pReceiver, SyncSnapshotSend* pMsg, void* pBlock, int32_t len,
+                        int32_t typ, int32_t code);
+
 #ifdef __cplusplus
 }
 #endif

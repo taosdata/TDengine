@@ -95,8 +95,9 @@ int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 
 // audit
-bool tsEnableAudit = true;
-bool tsEnableAuditCreateTable = true;
+bool     tsEnableAudit = true;
+bool     tsEnableAuditCreateTable = true;
+int32_t  tsAuditInterval = 5000;
 
 // telem
 #ifdef TD_ENTERPRISE
@@ -686,6 +687,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddBool(pCfg, "audit", tsEnableAudit, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
   if (cfgAddBool(pCfg, "auditCreateTable", tsEnableAuditCreateTable, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 500, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
+    return -1;
 
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "telemetryReporting", tsEnableTelem, CFG_SCOPE_BOTH, CFG_DYN_ENT_SERVER) != 0) return -1;
@@ -1137,6 +1140,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsEnableAudit = cfgGetItem(pCfg, "audit")->bval;
   tsEnableAuditCreateTable = cfgGetItem(pCfg, "auditCreateTable")->bval;
+  tsAuditInterval = cfgGetItem(pCfg, "auditInterval")->i32;
 
   tsEnableTelem = cfgGetItem(pCfg, "telemetryReporting")->bval;
   tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;

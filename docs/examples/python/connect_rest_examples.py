@@ -11,7 +11,7 @@ conn = connect(url="http://localhost:6041",
 # create STable
 cursor = conn.cursor()
 cursor.execute("DROP DATABASE IF EXISTS power")
-cursor.execute("CREATE DATABASE power")
+cursor.execute("CREATE DATABASE power keep 36500 ")
 cursor.execute(
     "CREATE STABLE power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)")
 

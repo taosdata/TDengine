@@ -712,9 +712,9 @@ int32_t resetStreamTaskStatus(SStreamMeta* pMeta) {
 }
 
 static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
-  int32_t      vgId = pMeta->vgId;
-  int32_t      code = 0;
-  int64_t      st = taosGetTimestampMs();
+  int32_t vgId = pMeta->vgId;
+  int32_t code = 0;
+  int64_t st = taosGetTimestampMs();
 
   while(1) {
     int32_t startVal = atomic_val_compare_exchange_32(&pMeta->startInfo.taskStarting, 0, 1);
@@ -736,17 +736,10 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   }
 
   streamMetaWLock(pMeta);
-  // code = streamMetaReopen(pMeta);
-  // if (code != TSDB_CODE_SUCCESS) {
-  //   tqError("vgId:%d failed to reopen stream meta", vgId);
-  //   streamMetaWUnLock(pMeta);
-  //   code = terrno;
-  //   return code;
-  // }
+  
+  streamMetaClear(pMeta);
 
-  // streamMetaInitBackend(pMeta);
   int64_t el = taosGetTimestampMs() - st;
-
   tqInfo("vgId:%d close&reload state elapsed time:%.3fs", vgId, el/1000.);
 
   code = streamMetaLoadAllTasks(pMeta);
@@ -758,10 +751,10 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   }
 
   if (isLeader && !tsDisableStream) {
-    tqInfo("vgId:%d restart all stream tasks after all tasks being updated", vgId);
     resetStreamTaskStatus(pMeta);
-
     streamMetaWUnLock(pMeta);
+    tqInfo("vgId:%d restart all stream tasks after all tasks being updated", vgId);
+
     startStreamTasks(pMeta);
   } else {
     streamMetaResetStartInfo(&pMeta->startInfo);

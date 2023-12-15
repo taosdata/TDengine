@@ -804,7 +804,7 @@ int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnap) {
   }
 
   if (pSnap->type == TDMT_SYNC_PREP_SNAPSHOT || pSnap->type == TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
-    code = tsdbSnapGetDetails(pVnode, pSnap);
+    code = tsdbSnapPrepDescription(pVnode, pSnap);
   }
   return code;
 }

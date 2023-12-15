@@ -19,7 +19,7 @@ def get_connection():
 
 
 def create_database(conn):
-    conn.execute("CREATE DATABASE test")
+    conn.execute("CREATE DATABASE test keep 36500")
     conn.execute("USE test")
 
 
