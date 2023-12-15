@@ -302,7 +302,7 @@ export default {
   p {
     font-size: 14px;
   }
-  color: #a6adbc;
+  color: $color-description;
 }
 .ds-select {
   width: 100%;

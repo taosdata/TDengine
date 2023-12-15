@@ -196,7 +196,7 @@ export default {
     cursor: not-allowed;
   }
   .docs-content {
-    color: #acaab2;
+    color: $color-description;
     font-size: 14px;
   }
   &:deep(.el-tabs__item) {

@@ -556,5 +556,10 @@ export default {
   .upload-flex .item {
     z-index: 101;
   }
+  .custom-placeholder {
+    color: $color-description;
+    font-size: 14px;
+    margin-top: 10px;
+  }
 }
 </style>
