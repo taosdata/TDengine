@@ -301,7 +301,7 @@ export default {
     return {
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
-      parseTypes: ["json", "split", "regex"],
+      parseTypes: ["regex","json" ],
       parseruleForm: {
         type: "regex",
         expression: "",
