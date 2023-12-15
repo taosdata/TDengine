@@ -252,7 +252,7 @@ export const TDengineSqlKeywrods = [
   "NE",
   "NONE",
   "NOT",
-  "NO TNULL",
+  "NOT NULL",
   "NOW",
   "NULL",
   "OF",
