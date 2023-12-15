@@ -37,10 +37,17 @@ int32_t auditInit(const SAuditCfg *pCfg) {
   return 0;
 }
 
+static FORCE_INLINE void auditDeleteRecord(SAuditRecord * record) {
+  if (record) {
+    taosMemoryFree(record->detail);
+    taosMemoryFree(record);
+  }
+}
+
 void auditCleanup() {
   tsLogFp = NULL;
   taosThreadMutexLock(&tsAudit.lock);
-  taosArrayDestroyP(tsAudit.records, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(tsAudit.records, (FDelete)auditDeleteRecord);
   taosThreadMutexUnlock(&tsAudit.lock);
   tsAudit.records = NULL;
   taosThreadMutexDestroy(&tsAudit.lock);
