@@ -10,6 +10,10 @@ VER_NUMBER = { script = [
   "VER_NUMBER",
 ] } }
 
+[tasks.build]
+command = "cargo"
+args = ["build"]
+
 [tasks.dump-env]
 script = """
 echo $VER_NUMBER

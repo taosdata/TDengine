@@ -1,5 +1,3 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
-
 use arrow::ipc::writer::StreamWriter;
 use flume::Receiver;
 use futures_util::TryStreamExt;
