@@ -4361,12 +4361,18 @@ static int32_t doTsdbNextDataBlockFilesetDelimited(STsdbReader* pReader) {
       return code;
     }
 
-    if (pStatus->bProcMemPreFileset && pBlock->info.rows > 0) {
-      pStatus->pNextFilesetBlock = createOneDataBlock(pBlock, true);
-      blockDataCleanup(pBlock);
-      code = buildFromPreFilesetBuffer(pReader);
-      if (code != TSDB_CODE_SUCCESS || pBlock->info.rows > 0) {
-        return code;
+    tsdbTrace("block from file rows: %"PRId64", will process pre-file set buffer: %d. %s", 
+            pBlock->info.rows, pStatus->bProcMemFirstFileset, pReader->idStr);
+    if (pStatus->bProcMemPreFileset) {
+      if ( pBlock->info.rows > 0) {
+        pStatus->pNextFilesetBlock = createOneDataBlock(pBlock, true);
+        blockDataCleanup(pBlock);
+        code = buildFromPreFilesetBuffer(pReader);
+        if (code != TSDB_CODE_SUCCESS || pBlock->info.rows > 0) {
+          return code;
+        }
+      } else {
+        pStatus->bProcMemPreFileset = false;
       }
     }
     
