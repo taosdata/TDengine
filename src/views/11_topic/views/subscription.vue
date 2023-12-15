@@ -57,6 +57,7 @@
       width="400px"
       :visible.sync="dialog"
       :destroy-on-close="true"
+      :close-on-click-modal="false"
     >
       <el-form
         :model="ruleForm"

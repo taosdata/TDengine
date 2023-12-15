@@ -261,6 +261,7 @@
         destroy-on-close
         :append-to-body="true"
         @close="closeDialog"
+        :close-on-click-modal="false"
       >
         <CreateSTB ref="createstb"></CreateSTB>
         <div class="buttons">
@@ -300,7 +301,7 @@ export default {
     return {
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
-      parseTypes: ["json", "split", "regex"],
+      parseTypes: ["regex","json" ],
       parseruleForm: {
         type: "regex",
         expression: "",

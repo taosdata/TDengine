@@ -54,7 +54,7 @@
     <el-pagination class="pagination" layout="total, prev, pager, next" :current-page.sync="currentPage"
       :page-size="pageSize" :hide-on-single-page="true" :total="total" @current-change="handlePageChange"></el-pagination>
     <el-dialog align="center" :title="$t('taosuser.addreplication')" width="600px" :visible.sync="dialog"
-      @close="closeDialog" :destroy-on-close="true">
+      @close="closeDialog" :destroy-on-close="true" :close-on-click-modal="false">
       <el-form :model="ruleForm" :rules="rules" ref="ruleForm" size="mini" label-width="auto" class="demo-ruleForm">
         <el-form-item prop="source" required>
           <!-- <el-input v-model.trim="ruleForm.source"></el-input> -->
