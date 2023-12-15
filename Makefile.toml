@@ -1,3 +1,4 @@
+# command "toml get ..." requires installation of "toml-cli" first, ref https://github.com/gnprice/toml-cli
 [config]
 load_cargo_aliases = false
 skip_core_tasks = true
@@ -29,6 +30,19 @@ args = ["build", "--release", "-p", "taosx-agent"]
 
 [tasks.plugins]
 dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-mqtt", "taosx-opc"]
+
+[tasks.taos-explorer]
+script = """
+cd ..
+rm -rf explorer && git clone https://github.com/taosdata/explorer.git
+scp root@192.168.0.30:/root/enterprise-docs/docs-zh.zip .
+scp root@192.168.0.30:/root/enterprise-docs/docs-en.zip .
+rm -rf explorer/public/docs && unzip docs-zh.zip -d explorer/public/docs
+rm -rf explorer/public/docs-en && unzip docs-en.zip -d explorer/public/docs-en
+cd explorer
+yarn install && yarn build:bin
+mkdir -p ../taosx/target/release/ && cp target/release/taos-explorer ../taosx/target/release/taos-explorer
+"""
 
 [tasks.clean-plugins]
 script = """
@@ -91,7 +105,7 @@ cp plugins/opc/taosx-opc $PKG/usr/local/taos/plugins/opc/
 cp packaging/uninstall.sh $PKG/usr/local/taos/
 
 cp target/*.service $PKG/etc/systemd/
-cp taosx-agent/examples/agent.toml $PKG/etc/taos/agnt.example.toml
+cp taosx-agent/examples/agent.toml $PKG/etc/taos/agent.example.toml
 
 cd $PKG
 version=$(./usr/bin/taosx --version|cut -f 2 -d " ")
@@ -171,3 +185,67 @@ dependencies = ["build-all", "docker-cloud"]
 
 [tasks.build-and-push-docker-cloud]
 dependencies = ["build-all", "docker-cloud", "docker-push"]
+
+[tasks.build-docker-serve]
+script = """
+set -e
+option="$1"
+commit=$(git rev-parse HEAD | cut -c 1-8)
+version=$(toml get Cargo.toml workspace.package.version -r)
+echo TDengine version in cloud image is "${VER_NUMBER}"
+mkdir -p ./docker/serve/release/plugins/
+cp ./TDengine-enterprise-client-${VER_NUMBER}-Linux-x64.tar.gz ./docker/serve/release/TDengine-enterprise-client-${VER_NUMBER}-Linux-x64.tar.gz
+cp ./target/release/taosx ./docker/serve/release/taosx
+cp ./plugins/influxdb/target/taosx-influxdb.jar ./docker/serve/release/plugins/taosx-influxdb.jar
+cp ./plugins/opentsdb/target/taosx-opentsdb.jar ./docker/serve/release/plugins/taosx-opentsdb.jar
+cp ./plugins/opc/taosx-opc ./docker/serve/release/plugins/taosx-opc
+cp ./plugins/mqtt/dist/taosx-mqtt ./docker/serve/release/plugins/taosx-mqtt
+docker build --build-arg VER_NUMBER=${VER_NUMBER} -t image.cloud.taosdata.com/taosx/serve:$version-$commit ./docker/serve/
+if [ "$option" = "--push" ] || [ "$option" = "-p" ]; then
+  docker push image.cloud.taosdata.com/taosx/serve:$version-$commit
+fi
+"""
+dependencies = ["taosx", "plugins"]
+
+[tasks.build-docker-agent]
+script = """
+set -e
+option="$1"
+commit=$(git rev-parse HEAD | cut -c 1-8)
+version=$(toml get Cargo.toml workspace.package.version -r)
+echo TDengine version in cloud image is "${VER_NUMBER}"
+mkdir -p ./docker/agent/release/plugins/
+cp ./TDengine-enterprise-client-${VER_NUMBER}-Linux-x64.tar.gz ./docker/agent/release/TDengine-enterprise-client-${VER_NUMBER}-Linux-x64.tar.gz
+cp ./target/release/taosx-agent ./docker/agent/release/taosx-agent
+cp ./plugins/influxdb/target/taosx-influxdb.jar ./docker/agent/release/plugins/taosx-influxdb.jar
+cp ./plugins/opentsdb/target/taosx-opentsdb.jar ./docker/agent/release/plugins/taosx-opentsdb.jar
+cp ./plugins/opc/taosx-opc ./docker/agent/release/plugins/taosx-opc
+cp ./plugins/mqtt/dist/taosx-mqtt ./docker/agent/release/plugins/taosx-mqtt
+docker build --build-arg VER_NUMBER=${VER_NUMBER} -t image.cloud.taosdata.com/taosx/agent:$version-$commit ./docker/agent/
+if [ "$option" = "--push" ] || [ "$option" = "-p" ]; then
+  docker push image.cloud.taosdata.com/taosx/agent:$version-$commit
+fi
+"""
+dependencies = ["taosx-agent", "plugins"]
+
+[tasks.build-docker-integrated]
+script = """
+set -e
+option="$1"
+commit=$(git rev-parse HEAD | cut -c 1-8)
+version=$(toml get Cargo.toml workspace.package.version -r)
+echo TDengine version in cloud image is "${VER_NUMBER}"
+mkdir -p ./docker/integrated/release/plugins/
+cp ./TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz ./docker/integrated/release/TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz
+cp ./target/release/taosx ./docker/integrated/release/taosx
+cp ./target/release/taos-explorer ./docker/integrated/release/taos-explorer
+cp ./plugins/influxdb/target/taosx-influxdb.jar ./docker/integrated/release/plugins/taosx-influxdb.jar
+cp ./plugins/opentsdb/target/taosx-opentsdb.jar ./docker/integrated/release/plugins/taosx-opentsdb.jar
+cp ./plugins/opc/taosx-opc ./docker/integrated/release/plugins/taosx-opc
+cp ./plugins/mqtt/dist/taosx-mqtt ./docker/integrated/release/plugins/taosx-mqtt
+docker build --build-arg VER_NUMBER=${VER_NUMBER} -t image.cloud.taosdata.com/taosx/integrated:$version-$commit ./docker/integrated/
+if [ "$option" = "--push" ] || [ "$option" = "-p" ]; then
+  docker push image.cloud.taosdata.com/taosx/integrated:$version-$commit
+fi
+"""
+dependencies = ["taosx", "plugins", "taos-explorer"]
