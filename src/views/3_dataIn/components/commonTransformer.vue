@@ -284,7 +284,6 @@ import { Message } from "element-ui";
 import { parsinginZone } from "@/utils";
 import CreateSTB from "./createSTB.vue";
 import { createStableReq } from "@/api/gateway/data/stables";
-import JsonEditorVue from "json-editor-vue";
 import SplitExpression from "./splitExpression.vue";
 export default {
   name: "CommonTransformer",
@@ -535,26 +534,7 @@ export default {
       this.pageTableData.splice(0, Infinity);
       this.setPageTableData();
     },
-    initJsonEditor() {
-      let container = document.getElementById("jsoneditor");
-      let options = {};
-      let editor = new JsonEditorVue({ container, options });
-
-      let json = {
-        temperature: 87.37,
-        humidity: 19.99,
-        volume: 148.41,
-        pm10: 255.95,
-        pm25: 1.45,
-        so2: 4.59,
-        no2: 31.56,
-        co: 0.11,
-        area: 19,
-        colltime: "2023-12-03T16:16:06-08:00",
-        sensorid: "mock_client_1",
-      };
-      editor.set(json);
-    },
+   
     //编辑回显数据
     async echoParser(value) {
       let csvechoTransData = null;
