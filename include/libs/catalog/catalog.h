@@ -123,7 +123,7 @@ typedef struct SMetaData {
   SArray*   pTableTag;    // pRes = SArray<STagVal>*
   SArray*   pDnodeList;   // pRes = SArray<SEpSet>*
   SArray*   pView;        // pRes = SViewMeta*
-  SArray*   pTableTsmas;  // pRes = SArray<STableTSMAInfo>*
+  SArray*   pTableTsmas;  // pRes = SArray<STableTSMAInfo*>
   SMetaRes* pSvrVer;      // pRes = char*
 } SMetaData;
 
@@ -409,6 +409,8 @@ int32_t catalogAsyncUpdateTSMA(SCatalog* pCtg, STableTSMAInfo** pTsma);
 int32_t catalogUpdateTSMA(SCatalog* pCtg, STableTSMAInfo** ppTsma);
 
 int32_t catalogRemoveTSMA(SCatalog* pCtg, const STableTSMAInfo* pTsma);
+
+int32_t catalogGetTableTsmas(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes);
 
 /**
  * Destroy catalog and relase all resources

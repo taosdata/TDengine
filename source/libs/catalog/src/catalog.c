@@ -1830,6 +1830,46 @@ _return:
   CTG_API_LEAVE(code);
 }
 
+int32_t ctgGetTbTsmas(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, SArray** ppRes) {
+  STableTSMAInfoRsp tsmasRsp = {0};
+  int32_t code = ctgGetTbTSMAFromMnode(pCtg, pConn, pTableName, &tsmasRsp, NULL);
+  if (code == TSDB_CODE_MND_SMA_NOT_EXIST) {
+    code = 0;
+    goto _return;
+  }
+  CTG_ERR_JRET(code);
+  assert(tsmasRsp.pTsmas);
+  assert(tsmasRsp.pTsmas->size > 0);
+  *ppRes = tsmasRsp.pTsmas;
+  tsmasRsp.pTsmas = NULL;
+
+  for (int32_t i = 0; i < (*ppRes)->size; ++i) {
+    CTG_ERR_JRET(ctgUpdateTbTSMAEnqueue(pCtg, taosArrayGet((*ppRes), i), false));
+  }
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  if (tsmasRsp.pTsmas) {
+    tFreeTableTSMAInfoRsp(&tsmasRsp);
+  }
+  CTG_RET(code);
+}
+
+int32_t catalogGetTableTsmas(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == pConn || NULL == pTableName || NULL == pRes) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t code = 0;
+  CTG_ERR_JRET(ctgGetTbTsmas(pCtg, pConn, (SName*)pTableName, pRes));
+
+_return:
+
+  CTG_API_LEAVE(code);
+}
+
 int32_t catalogClearCache(void) {
   CTG_API_ENTER_NOLOCK();
 

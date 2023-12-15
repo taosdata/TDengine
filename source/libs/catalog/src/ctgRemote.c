@@ -1485,7 +1485,7 @@ int32_t ctgGetTbTSMAFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SName* na
   char*   msg = NULL;
   int32_t msgLen = 0;
   int32_t reqType = TDMT_MND_GET_TABLE_TSMA;
-  SCtgTask* pTask = tReq->pTask;
+  SCtgTask* pTask = tReq ? tReq->pTask : NULL;
   void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
   char tbFName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(name, tbFName);

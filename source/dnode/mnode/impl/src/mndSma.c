@@ -1603,6 +1603,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
   if (mndCheckCreateSmaReq(&createReq))
     goto _OVER;
 
+  // TODO handle normal table
   pStb = mndAcquireStb(pMnode, createReq.stb);
   if (!pStb) {
     mError("tsma:%s, failed to create since stb:%s not exist", createReq.name, createReq.stb);

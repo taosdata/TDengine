@@ -4327,6 +4327,243 @@ static int32_t partitionColsOpt(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   return code;
 }
 
+static bool tsmaOptMayBeOptimized(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    SNode*          pTmpNode;
+    SNodeList*      pFuncs = NULL;
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    SLogicNode*     pParent = pScan->node.pParent;
+    SNode*          pConds = pScan->node.pConditions;
+
+    if (pScan->scanType != SCAN_TYPE_TABLE || !pParent || pConds) return false;
+
+    if (!pScan->pTsmas || pScan->pTsmas->size <= 0) {
+      return false;
+    }
+
+    switch (nodeType(pParent)) {
+      case QUERY_NODE_LOGIC_PLAN_WINDOW: {
+        SWindowLogicNode* pWindow = (SWindowLogicNode*)pParent;
+        // only time window interval supported
+        if (pWindow->winType != WINDOW_TYPE_INTERVAL) return false;
+        pFuncs = pWindow->pFuncs;
+      } break;
+      case QUERY_NODE_LOGIC_PLAN_AGG: {
+        SAggLogicNode* pAgg = (SAggLogicNode*)pParent;
+        // group/partition by normal cols not supported
+        if (pAgg->pGroupKeys) return false;
+        pFuncs = pAgg->pAggFuncs;
+      } break;
+      default:
+        return false;
+    }
+    // TODO may need to replace func conds in having
+
+    assert(pFuncs);
+    FOREACH(pTmpNode, pFuncs) {
+      SFunctionNode* pFunc = (SFunctionNode*)pTmpNode;
+      if (!fmIsTSMASupportedFunc(pFunc->funcId) && !fmIsPseudoColumnFunc(pFunc->funcId)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+  return false;
+}
+
+typedef struct STSMAOptUsefulTsma {
+  const STableTSMAInfo* pTsma;
+  STimeWindow           timeRange;  // scan time range for this tsma
+} STSMAOptUsefulTsma;
+
+typedef struct STSMAOptCtx {
+  // input
+  const SLogicNode*  pParent;  // Agg or Interval
+  const SNodeList*   pAggFuncs;
+  const STimeWindow* pTimeRange;
+  const SArray*      pTsmas;
+  SInterval*         queryInterval;
+
+  // output
+  SArray* usefulTsmas;  // SArray<STSMAOptUseFulTsma>, sorted by tsma interval from long to short
+} STSMAOptCtx;
+
+static int32_t fillTSMAOptCtx (STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pScan) {
+  int32_t code = 0;
+  pTsmaOptCtx->pParent = pScan->node.pParent;
+  pTsmaOptCtx->pTsmas = pScan->pTsmas;
+  pTsmaOptCtx->pTimeRange = &pScan->scanRange;
+  pTsmaOptCtx->queryInterval = taosMemoryCalloc(1, sizeof(SInterval));
+  if (!pTsmaOptCtx->queryInterval) return TSDB_CODE_OUT_OF_MEMORY;
+
+  if (nodeType(pTsmaOptCtx->pParent) == QUERY_NODE_LOGIC_PLAN_WINDOW) {
+    SWindowLogicNode* pWindow = (SWindowLogicNode*)pTsmaOptCtx->pParent;
+    pTsmaOptCtx->queryInterval->interval = pWindow->interval;
+    pTsmaOptCtx->queryInterval->intervalUnit = pWindow->intervalUnit;
+    pTsmaOptCtx->queryInterval->offset = pWindow->offset;
+    pTsmaOptCtx->queryInterval->offsetUnit = pWindow->intervalUnit;
+    pTsmaOptCtx->queryInterval->sliding = pWindow->sliding;
+    pTsmaOptCtx->queryInterval->slidingUnit = pWindow->slidingUnit;
+    pTsmaOptCtx->queryInterval->precision = pWindow->node.precision;
+    pTsmaOptCtx->queryInterval->tz = tsTimezone;
+    pTsmaOptCtx->pAggFuncs = pWindow->pFuncs;
+  } else {
+    ASSERT(nodeType(pTsmaOptCtx->pParent) == QUERY_NODE_LOGIC_PLAN_AGG);
+    SAggLogicNode* pAgg = (SAggLogicNode*)pTsmaOptCtx->pParent;
+    pTsmaOptCtx->pAggFuncs = pAgg->pAggFuncs;
+  }
+  pTsmaOptCtx->usefulTsmas = taosArrayInit(pScan->pTsmas->size, sizeof(STSMAOptUsefulTsma));
+  if (!pTsmaOptCtx->usefulTsmas) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return code;
+}
+
+static void clearTSMAOptCtx(STSMAOptCtx* pTsmaOptCtx) {
+  taosArrayDestroy(pTsmaOptCtx->usefulTsmas);
+  taosMemoryFreeClear(pTsmaOptCtx->queryInterval);
+}
+
+static bool tsmaOptCheckValidInterval(int64_t tsmaInterval, int8_t tsmaIntevalUnit, const STSMAOptCtx* pTsmaOptCtx) {
+  if (!pTsmaOptCtx->queryInterval) return true;
+
+  // TODO save tsmaInterval in table precision to avoid convertions
+  int32_t code = getDuration(tsmaInterval, tsmaIntevalUnit, &tsmaInterval, pTsmaOptCtx->queryInterval->precision);
+  ASSERT(code == TSDB_CODE_SUCCESS);
+  bool validInterval = pTsmaOptCtx->queryInterval->interval % tsmaInterval == 0;
+  bool validSliding = pTsmaOptCtx->queryInterval->sliding % tsmaInterval == 0;
+  bool validOffset = pTsmaOptCtx->queryInterval->offset % tsmaInterval == 0;
+  return validInterval && validSliding && validOffset;
+}
+
+static bool tsmaOptCheckValidFuncs(const SArray* pTsmaFuncs, const SNodeList* pQueryFuncs) {
+  SNode*  pNode;
+  int32_t tsmaColNum = 1;
+  bool    failed = false, found = false;
+  int32_t firstFuncId = ((STableTSMAFuncInfo*)taosArrayGet(pTsmaFuncs, 0))->funcId;
+  // find col num
+  for (int32_t i = 1; i < pTsmaFuncs->size; ++i) {
+    STableTSMAFuncInfo* pTsmaFunc = taosArrayGet(pTsmaFuncs, i);
+    if (firstFuncId == pTsmaFunc->funcId) {
+      tsmaColNum++;
+    } else {
+      break;
+    }
+  }
+
+  FOREACH(pNode, pQueryFuncs) {
+    SFunctionNode* pQueryFunc = (SFunctionNode*)pNode;
+    if (1 != pQueryFunc->pParameterList->length ||
+        nodeType(pQueryFunc->pParameterList->pHead->pNode) != QUERY_NODE_COLUMN) {
+      failed = true;
+      break;
+    }
+    int32_t queryColId = ((SColumnNode*)pQueryFunc->pParameterList->pHead->pNode)->colId;
+    found = false;
+    // iterate funcs
+    for (int32_t i = 0; i < pTsmaFuncs->size; i += tsmaColNum) {
+      STableTSMAFuncInfo* pTsmaFuncInfo = taosArrayGet(pTsmaFuncs, i);
+      if (pQueryFunc->funcId < pTsmaFuncInfo->funcId) {
+        failed = true;
+        break;
+      }
+      if (pQueryFunc->funcId > pTsmaFuncInfo->funcId) {
+        continue;
+      }
+
+      // iterate cols within a func
+      for (int32_t j = i; j < tsmaColNum; ++j) {
+        if (j > i) {
+          pTsmaFuncInfo = taosArrayGet(pTsmaFuncs, j);
+        }
+        if (queryColId < pTsmaFuncInfo->colId) {
+          failed = true;
+          break;
+        }
+        if (queryColId > pTsmaFuncInfo->colId) {
+          continue;
+        }
+        found= true;
+        break;
+      }
+      break;
+    }
+    if (failed || !found) {
+      break;
+    }
+  }
+  return found;
+}
+
+static void tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
+  for (int32_t i = 0; i < pTsmaOptCtx->pTsmas->size; ++i) {
+    STableTSMAInfo* pTsma = taosArrayGetP(pTsmaOptCtx->pTsmas, i);
+    // filter with interval
+    if (!tsmaOptCheckValidInterval(pTsma->interval, pTsma->unit, pTsmaOptCtx)) {
+      continue;
+    }
+    // filter with funcs, note that tsma funcs has been sorted by funcId and ColId
+    if (!tsmaOptCheckValidFuncs(pTsma->pFuncs, pTsmaOptCtx->pAggFuncs)) {
+      continue;
+    }
+    STSMAOptUsefulTsma usefulTsma = {.pTsma = pTsma, .timeRange.skey = TSKEY_MIN, .timeRange.ekey = TSKEY_MAX};
+    taosArrayPush(pTsmaOptCtx->usefulTsmas, &usefulTsma);
+  }
+}
+
+static int tsmaInfoCompWithIntervalDesc(const void* pLeft, const void* pRight) {
+  const STSMAOptUsefulTsma* p = pLeft, *q = pRight;
+  int64_t pInterval = p->pTsma->interval, qInterval = q->pTsma->interval;
+  int32_t code = getDuration(pInterval, p->pTsma->unit, &pInterval, TSDB_TIME_PRECISION_MILLI);
+  ASSERT(code == TSDB_CODE_SUCCESS);
+  code = getDuration(qInterval, q->pTsma->unit, &qInterval, TSDB_TIME_PRECISION_MILLI);
+  ASSERT(code == TSDB_CODE_SUCCESS);
+  if (pInterval > qInterval) return -1;
+  if (pInterval < qInterval) return 1;
+  return 0;
+}
+
+static void tsmaOptSplitWindows(STSMAOptCtx *pTsmaOptCtx) {
+  // head windows
+  if (pTsmaOptCtx->pTimeRange->skey != TSKEY_MIN) {
+
+  }
+
+  // normal biggest tsma windows
+
+  // tail windows
+  if (pTsmaOptCtx->pTimeRange->ekey != TSKEY_MAX) {
+  
+  }
+}
+
+static void tsmaOptGeneratePlan(STSMAOptCtx* pTsmaOptCtx) {
+
+}
+
+static int32_t tsmaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  int32_t         code = 0;
+  STSMAOptCtx     tsmaOptCtx = {0};
+  SScanLogicNode* pScan = (SScanLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, tsmaOptMayBeOptimized);
+  if (!pScan) return code;
+
+  fillTSMAOptCtx(&tsmaOptCtx, pScan);
+  // 1. extract useful tsmas
+  tsmaOptFilterTsmas(&tsmaOptCtx);
+  // 2. sort useful tsmas with interval
+  taosArraySort(tsmaOptCtx.usefulTsmas, tsmaInfoCompWithIntervalDesc);
+  // 3. generate and replace logic plans
+  //    a. split windows
+  tsmaOptSplitWindows(&tsmaOptCtx);
+  //    b. create logic plan
+  tsmaOptGeneratePlan(&tsmaOptCtx);
+  //    c. rewrite agg funcs
+  //
+  clearTSMAOptCtx(&tsmaOptCtx);
+  return code;
+}
+
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
@@ -4348,6 +4585,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "EliminateProject",           .optimizeFunc = eliminateProjOptimize},
   {.pName = "EliminateSetOperator",       .optimizeFunc = eliminateSetOpOptimize},
   {.pName = "PartitionCols",              .optimizeFunc = partitionColsOpt},
+  {.pName = "Tsma",                       .optimizeFunc = tsmaOptimize},
 };
 // clang-format on
 

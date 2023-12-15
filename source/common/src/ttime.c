@@ -581,7 +581,7 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision) {
+int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision) {
   switch (unit) {
     case 's':
       if (val > INT64_MAX / MILLISECOND_PER_SECOND) {

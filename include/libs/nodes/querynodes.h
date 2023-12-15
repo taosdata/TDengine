@@ -184,6 +184,7 @@ typedef struct SRealTableNode {
   double             ratio;
   SArray*            pSmaIndexes;
   int8_t             cacheLastMode;
+  SArray*            pTsmas;
 } SRealTableNode;
 
 typedef struct STempTableNode {

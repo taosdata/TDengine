@@ -56,6 +56,64 @@ TEST(NodesTest, traverseTest) {
   nodesDestroyNode(pRoot);
 }
 
+bool compareValueNode(SNode* pNode1, SNode* pNode2) {
+  SValueNode* p1 = (SValueNode*)pNode1;
+  SValueNode* p2 = (SValueNode*)pNode2;
+
+  return p1->datum.i < p2->datum.i;
+}
+
+void assert_sort_result(SNodeList* pList) {
+  SNode* pNode;
+  int32_t i = 0;
+  FOREACH(pNode, pList) {
+    SValueNode* p = (SValueNode*)pNode;
+    ASSERT_EQ(p->datum.i, i++);
+  }
+  SListCell* pCell = pList->pHead;
+  ASSERT_TRUE(pCell->pPrev == NULL);
+  ASSERT_TRUE(pList->pTail->pNext == NULL);
+  int32_t len = 1;
+  while (pCell) {
+    if (pCell->pNext) {
+      ASSERT_TRUE(pCell->pNext->pPrev == pCell);
+    }
+    pCell = pCell->pNext;
+    if (pCell) len++;
+  }
+  ASSERT_EQ(len, pList->length);
+}
+
+TEST(NodesTest, sort) {
+  SValueNode *vn1 = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  vn1->datum.i = 4;
+
+  SValueNode *vn2 = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  vn2->datum.i = 3;
+
+  SValueNode *vn3 = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  vn3->datum.i = 2;
+
+  SValueNode *vn4 = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  vn4->datum.i = 1;
+
+  SValueNode *vn5 = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  vn5->datum.i = 0;
+
+  SNodeList* l = NULL;
+  nodesListMakeAppend(&l, (SNode*)vn1);
+  nodesListMakeAppend(&l, (SNode*)vn2);
+  nodesListMakeAppend(&l, (SNode*)vn3);
+  nodesListMakeAppend(&l, (SNode*)vn4);
+  nodesListMakeAppend(&l, (SNode*)vn5);
+
+  nodesSortList(&l, compareValueNode);
+
+  assert_sort_result(l);
+
+  nodesDestroyList(l);
+}
+
 int main(int argc, char* argv[]) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

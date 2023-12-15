@@ -3274,10 +3274,16 @@ int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx
 
     CTG_CACHE_HIT_INC(CTG_CI_TBL_TSMA, 1);
 
-    STableTSMAInfoRsp rsp;
-    rsp.pTsmas = taosArrayInit(pCache->pTsmas->size, POINTER_BYTES);
-    if (!rsp.pTsmas) {
+    // TODO use construct and destructor pattern
+    STableTSMAInfoRsp *pRsp = taosMemoryCalloc(1, sizeof(STableTSMAInfoRsp));
+    if (!pRsp) {
       ctgReleaseTSMAToCache(pCtg, dbCache, pCache);
+      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    pRsp->pTsmas = taosArrayInit(pCache->pTsmas->size, POINTER_BYTES);
+    if (!pRsp->pTsmas) {
+      ctgReleaseTSMAToCache(pCtg, dbCache, pCache);
+      taosMemoryFreeClear(pRsp);
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
     SMetaRes res = {0};
@@ -3287,12 +3293,13 @@ int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx
       code = ctgCloneTbTSMA(pTsmaCache, &pTsmaOut);
       if (code) {
         ctgReleaseTSMAToCache(pCtg, dbCache, pCache);
-        tFreeTableTSMAInfoRsp(&rsp);
+        tFreeTableTSMAInfoRsp(pRsp);
+        taosMemoryFreeClear(pRsp);
         CTG_ERR_RET(code);
       }
-      taosArrayPush(rsp.pTsmas, &pTsmaOut);
+      taosArrayPush(pRsp->pTsmas, &pTsmaOut);
     }
-    res.pRes = rsp.pTsmas;
+    res.pRes = pRsp;
     taosArrayPush(pCtx->pResList, &res);
     taosHashRelease(dbCache->tsmaCache, pCache);
   }
