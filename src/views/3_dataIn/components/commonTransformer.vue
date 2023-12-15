@@ -30,7 +30,7 @@
           class="transdescription"
           v-html="$t('datasource.transformer.extractdesc')"
         ></div>
-        <div class="extrac-parse">
+        <div class="extrac-parse" v-if='$store.state.app.currentDBType!=="csv"'>
           <el-form :rules="parseRules" :model="parseruleForm">
             <el-form-item prop="type">
               <el-select
@@ -300,7 +300,7 @@ export default {
     return {
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
-      parseTypes: ["regex","json" ],
+      parseTypes: ["regex","json"],
       parseruleForm: {
         type: "regex",
         expression: "",
@@ -432,6 +432,7 @@ export default {
       //CSV新增
       this.isCSV = true;
       this.msgForm.msgbody = this.$store.state.app.csvTransformerParser.msgBody;
+      this.submitParse()
       // this.formatCSVExtract(this.$store.state.app.csvTransformerParser.columns);
     }
     this.getInitStables();
