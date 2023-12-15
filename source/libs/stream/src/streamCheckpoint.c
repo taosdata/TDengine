@@ -425,7 +425,7 @@ int32_t streamTaskUploadChkp(SStreamTask* pTask, int64_t chkpId, char* taskId) {
   if (type == UPLOAD_DISABLE) {
     return 0;
   }
-  if (pTask->pBackend == NULL) {
+  if (pTask == NULL || pTask->pBackend == NULL) {
     return 0;
   }
   SAsyncUploadArg* arg = taosMemoryCalloc(1, sizeof(SAsyncUploadArg));
