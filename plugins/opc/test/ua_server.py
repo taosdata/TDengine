@@ -15,11 +15,3 @@ if __name__ == "__main__":
     main.add_reference(node_float64, ua.ObjectIds.Organizes)
 
     server.start()
-
-    print("started")
-    try:
-        user_input = input("")
-    except KeyboardInterrupt as e:
-        pass
-    finally:
-        server.stop()
