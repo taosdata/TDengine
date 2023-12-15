@@ -5466,13 +5466,12 @@ bool blockDistSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
 }
 
 int32_t blockDistFunction(SqlFunctionCtx* pCtx) {
-  const int32_t BLOCK_DIST_RESULT_ROWS = 24;
+  const int32_t BLOCK_DIST_RESULT_ROWS = 25;
 
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
-
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  STableBlockDistInfo* pDistInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
+  STableBlockDistInfo*  pDistInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   STableBlockDistInfo p1 = {0};
   tDeserializeBlockDistInfo(varDataVal(pInputCol->pData), varDataLen(pInputCol->pData), &p1);

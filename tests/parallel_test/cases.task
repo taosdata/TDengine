@@ -5,6 +5,9 @@
 #unit-test
 ,,y,unit-test,bash test.sh
 
+#army-test
+,,y,army,./pytest.sh python3 ./test.py -f empty.py
+
 #system test
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_basic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/scalar_function.py
@@ -240,6 +243,7 @@ e
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compress_tsz1.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compress_tsz2.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/view/non_marterial_view/test_view.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_table_distributed.py
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
 ,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
@@ -250,6 +254,7 @@ e
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/delete_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
 
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_double.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_replica.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
@@ -1132,6 +1137,9 @@ e
 ,,y,script,./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
 ,,y,script,./test.sh -f tsim/stream/distributeSession0.sim
 ,,y,script,./test.sh -f tsim/stream/drop_stream.sim
+,,y,script,./test.sh -f tsim/stream/event0.sim
+,,y,script,./test.sh -f tsim/stream/event1.sim
+,,y,script,./test.sh -f tsim/stream/event2.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic1.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic2.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic3.sim

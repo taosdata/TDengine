@@ -10,7 +10,7 @@ class SQLWriter:
         self._tb_tags = {}
         self._conn = get_connection_func()
         self._max_sql_length = self.get_max_sql_length()
-        self._conn.execute("create database if not exists test")
+        self._conn.execute("create database if not exists test keep 36500")
         self._conn.execute("USE test")
 
     def get_max_sql_length(self):

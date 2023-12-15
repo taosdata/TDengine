@@ -42,7 +42,7 @@ void initStorageAPI(SStorageAPI* pAPI) {
 
 void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdReaderOpen = (int32_t(*)(void*, SQueryTableDataCond*, void*, int32_t, SSDataBlock*, void**, const char*,
-                                       bool, SHashObj**))tsdbReaderOpen2;
+                                       SHashObj**))tsdbReaderOpen2;
   pReader->tsdReaderClose = tsdbReaderClose2;
 
   pReader->tsdNextDataBlock = tsdbNextDataBlock2;
@@ -60,6 +60,9 @@ void initTsdbReaderAPI(TsdReader* pReader) {
 
   pReader->tsdSetQueryTableList = tsdbSetTableList2;
   pReader->tsdSetReaderTaskId = (void (*)(void*, const char*))tsdbReaderSetId2;
+
+  pReader->tsdSetFilesetDelimited = (void (*)(void*))tsdbSetFilesetDelimited;
+  pReader->tsdSetSetNotifyCb = (void (*)(void*, TsdReaderNotifyCbFn, void*))tsdbReaderSetNotifyCb;
 }
 
 void initMetadataAPI(SStoreMeta* pMeta) {

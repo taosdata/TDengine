@@ -889,11 +889,13 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
     ASSERT(pInfo->base.dataReader == NULL);
   
     int32_t code = pAPI->tsdReader.tsdReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, pList, num, pInfo->pResBlock,
-                                  (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), pInfo->countOnly, &pInfo->pIgnoreTables);
+                                  (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->pIgnoreTables);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
-  
+    if (pInfo->filesetDelimited) {
+      pAPI->tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
+    }
     if (pInfo->pResBlock->info.capacity > pOperator->resultInfo.capacity) {
       pOperator->resultInfo.capacity = pInfo->pResBlock->info.capacity;
     }
@@ -1059,7 +1061,6 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->base.readerAPI = pTaskInfo->storageAPI.tsdReader;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
-  //  blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
 
   code = filterInitFromNode((SNode*)pTableScanNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1084,6 +1085,8 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   if (scanDebug) {
     pInfo->countOnly = true;
   }
+
+  pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
 
   taosLRUCacheSetStrictCapacity(pInfo->base.metaCache.pTableMetaEntryCache, false);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableScan, NULL, destroyTableScanOperatorInfo,
@@ -1179,7 +1182,7 @@ static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbU
   SSDataBlock* pBlock = pTableScanInfo->pResBlock;
   STsdbReader* pReader = NULL;
   int32_t      code = pAPI->tsdReader.tsdReaderOpen(pTableScanInfo->base.readHandle.vnode, &cond, &tblInfo, 1, pBlock,
-                                     (void**)&pReader, GET_TASKID(pTaskInfo), false, NULL);
+                                     (void**)&pReader, GET_TASKID(pTaskInfo), NULL);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     T_LONG_JMP(pTaskInfo->env, code);
@@ -3223,6 +3226,7 @@ static int32_t tableMergeScanDoSkipTable(STableMergeScanInfo* pInfo, SSDataBlock
     tSimpleHashPut(pInfo->mTableNumRows, &pBlock->info.id.uid, sizeof(pBlock->info.id.uid), &nRows, sizeof(nRows));
   } else {
     *(int64_t*)pNum = *(int64_t*)pNum + pBlock->info.rows;
+    nRows = *(int64_t*)pNum;
   }
 
   if (nRows >= pInfo->mergeLimit) {
@@ -3251,23 +3255,28 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
 
   STsdbReader* reader = pInfo->base.dataReader;
   while (true) {
-    code = pAPI->tsdReader.tsdNextDataBlock(reader, &hasNext);
-    if (code != 0) {
-      pAPI->tsdReader.tsdReaderReleaseDataBlock(reader);
-      qError("table merge scan fetch next data block error code: %d, %s", code, GET_TASKID(pTaskInfo));
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
+    if (!pInfo->bOnlyRetrieveBlock) {
+      code = pAPI->tsdReader.tsdNextDataBlock(reader, &hasNext);
+      if (code != 0) {
+        pAPI->tsdReader.tsdReaderReleaseDataBlock(reader);
+        qError("table merge scan fetch next data block error code: %d, %s", code, GET_TASKID(pTaskInfo));
+        T_LONG_JMP(pTaskInfo->env, code);
+      }
 
-    if (!hasNext) {
-      break;
-    }
+      if (!hasNext || isTaskKilled(pTaskInfo)) {
+        pInfo->bNewFileset = false;
+        if (isTaskKilled(pTaskInfo)) {
+          qInfo("table merge scan fetch next data block found task killed. %s", GET_TASKID(pTaskInfo));
+          pAPI->tsdReader.tsdReaderReleaseDataBlock(reader);
+        }
+        break;
+      }
 
-    if (isTaskKilled(pTaskInfo)) {
-      qInfo("table merge scan fetch next data block found task killed. %s", GET_TASKID(pTaskInfo));
-      pAPI->tsdReader.tsdReaderReleaseDataBlock(reader);
-      break;
+      if (pInfo->bNewFileset) {
+        pInfo->bOnlyRetrieveBlock = true;
+        return NULL;
+      }
     }
-
     // process this data block based on the probabilities
     bool processThisBlock = processBlockWithProbability(&pInfo->sample);
     if (!processThisBlock) {
@@ -3276,7 +3285,9 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
 
     uint32_t status = 0;
     code = loadDataBlock(pOperator, &pInfo->base, pBlock, &status);
-    //    code = loadDataBlockFromOneTable(pOperator, pTableScanInfo, pBlock, &status);
+    if (pInfo->bOnlyRetrieveBlock) {
+      pInfo->bOnlyRetrieveBlock = false;
+    }
     if (code != TSDB_CODE_SUCCESS) {
       qInfo("table merge scan load datablock code %d, %s", code, GET_TASKID(pTaskInfo));
       T_LONG_JMP(pTaskInfo->env, code);
@@ -3335,6 +3346,60 @@ int32_t dumpQueryTableCond(const SQueryTableDataCond* src, SQueryTableDataCond* 
   return 0;
 }
 
+void tableMergeScanTsdbNotifyCb(ETsdReaderNotifyType type, STsdReaderNotifyInfo* info, void* param) {
+  STableMergeScanInfo* pTmsInfo = param;
+  pTmsInfo->bNewFileset = true;
+  return;
+}
+
+int32_t startDurationForGroupTableMergeScan(SOperatorInfo* pOperator) {
+  STableMergeScanInfo* pInfo = pOperator->info;
+  SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t numOfTable = pInfo->tableEndIndex - pInfo->tableStartIndex + 1;
+
+  pInfo->bNewFileset = false;
+
+  pInfo->sortBufSize = 2048 * pInfo->bufPageSize;
+  int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
+                                             pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
+
+  tsortSetMergeLimit(pInfo->pSortHandle, pInfo->mergeLimit);
+  tsortSetAbortCheckFn(pInfo->pSortHandle, isTaskKilled, pOperator->pTaskInfo);
+
+  tsortSetFetchRawDataFp(pInfo->pSortHandle, getBlockForTableMergeScan, NULL, NULL);
+
+  STableMergeScanSortSourceParam *param = taosMemoryCalloc(1, sizeof(STableMergeScanSortSourceParam));
+  param->pOperator = pOperator;
+
+  SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
+  ps->param = param;
+  ps->onlyRef = false;
+  tsortAddSource(pInfo->pSortHandle, ps);
+
+  if (numOfTable == 1) {
+    tsortSetSingleTableMerge(pInfo->pSortHandle);
+  } else {
+    code = tsortOpen(pInfo->pSortHandle);
+  }
+  return code;
+}
+
+void stopDurationForGroupTableMergeScan(SOperatorInfo* pOperator) {
+  STableMergeScanInfo* pInfo = pOperator->info;
+
+  SSortExecInfo sortExecInfo = tsortGetSortExecInfo(pInfo->pSortHandle);
+  pInfo->sortExecInfo.sortMethod = sortExecInfo.sortMethod;
+  pInfo->sortExecInfo.sortBuffer = sortExecInfo.sortBuffer;
+  pInfo->sortExecInfo.loops += sortExecInfo.loops;
+  pInfo->sortExecInfo.readBytes += sortExecInfo.readBytes;
+  pInfo->sortExecInfo.writeBytes += sortExecInfo.writeBytes;
+
+  tsortDestroySortHandle(pInfo->pSortHandle);
+  pInfo->pSortHandle = NULL;
+}
+
 int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   STableMergeScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
@@ -3358,43 +3423,16 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
 
   tSimpleHashClear(pInfo->mTableNumRows);
 
-  size_t szRow = blockDataGetRowSize(pInfo->pResBlock);   
-//  if (pInfo->mergeLimit != -1) {
-//    pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1,
-//                                              NULL, pTaskInfo->id.str, pInfo->mergeLimit, szRow+8, tsPQSortMemThreshold * 1024* 1024);
-//  } else
-  {
-    pInfo->sortBufSize = 2048 * pInfo->bufPageSize;
-    int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
-    pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
-                                              pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
-
-    tsortSetMergeLimit(pInfo->pSortHandle, pInfo->mergeLimit);
-    tsortSetAbortCheckFn(pInfo->pSortHandle, isTaskKilled, pOperator->pTaskInfo);
-  }
-
-  tsortSetFetchRawDataFp(pInfo->pSortHandle, getBlockForTableMergeScan, NULL, NULL);
-
-  // one table has one data block
   int32_t numOfTable = tableEndIdx - tableStartIdx + 1;
-
-  STableMergeScanSortSourceParam *param = taosMemoryCalloc(1, sizeof(STableMergeScanSortSourceParam));
-  param->pOperator = pOperator;
   STableKeyInfo* startKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, tableStartIdx);
   pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInfo->base.cond, startKeyInfo, numOfTable, pInfo->pReaderBlock,
-                                (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), false, &pInfo->mSkipTables);
-
-  SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
-  ps->param = param;
-  ps->onlyRef = false;
-  tsortAddSource(pInfo->pSortHandle, ps);
-
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (numOfTable == 1) {
-    tsortSetSingleTableMerge(pInfo->pSortHandle);
-  } else {
-    code = tsortOpen(pInfo->pSortHandle);
+                                (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->mSkipTables);
+  if (pInfo->filesetDelimited) {
+    pAPI->tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
   }
+  pAPI->tsdReader.tsdSetSetNotifyCb(pInfo->base.dataReader, tableMergeScanTsdbNotifyCb, pInfo);
+
+  int32_t code = startDurationForGroupTableMergeScan(pOperator);
 
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, terrno);
@@ -3408,20 +3446,12 @@ int32_t stopGroupTableMergeScan(SOperatorInfo* pOperator) {
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*         pAPI = &pTaskInfo->storageAPI;
 
-  SSortExecInfo sortExecInfo = tsortGetSortExecInfo(pInfo->pSortHandle);
-  pInfo->sortExecInfo.sortMethod = sortExecInfo.sortMethod;
-  pInfo->sortExecInfo.sortBuffer = sortExecInfo.sortBuffer;
-  pInfo->sortExecInfo.loops += sortExecInfo.loops;
-  pInfo->sortExecInfo.readBytes += sortExecInfo.readBytes;
-  pInfo->sortExecInfo.writeBytes += sortExecInfo.writeBytes;
+  stopDurationForGroupTableMergeScan(pOperator);
 
   if (pInfo->base.dataReader != NULL) {
     pAPI->tsdReader.tsdReaderClose(pInfo->base.dataReader);
     pInfo->base.dataReader = NULL;
   }
-
-  tsortDestroySortHandle(pInfo->pSortHandle);
-  pInfo->pSortHandle = NULL;
 
   resetLimitInfoForNextGroup(&pInfo->limitInfo);
   taosHashCleanup(pInfo->mSkipTables);
@@ -3505,17 +3535,22 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
       pOperator->resultInfo.totalRows += pBlock->info.rows;
       return pBlock;
     } else {
-      // Data of this group are all dumped, let's try the next group
-      stopGroupTableMergeScan(pOperator);
-      if (pInfo->tableEndIndex >= tableListSize - 1) {
-        setOperatorCompleted(pOperator);
-        break;
-      }
+      if (pInfo->bNewFileset) {
+        stopDurationForGroupTableMergeScan(pOperator);
+        startDurationForGroupTableMergeScan(pOperator);
+      } else {
+        // Data of this group are all dumped, let's try the next group
+        stopGroupTableMergeScan(pOperator);
+        if (pInfo->tableEndIndex >= tableListSize - 1) {
+          setOperatorCompleted(pOperator);
+          break;
+        }
 
-      pInfo->tableStartIndex = pInfo->tableEndIndex + 1;
-      pInfo->groupId = tableListGetInfo(pInfo->base.pTableListInfo, pInfo->tableStartIndex)->groupId;
-      startGroupTableMergeScan(pOperator);
-      resetLimitInfoForNextGroup(&pInfo->limitInfo);
+        pInfo->tableStartIndex = pInfo->tableEndIndex + 1;
+        pInfo->groupId = tableListGetInfo(pInfo->base.pTableListInfo, pInfo->tableStartIndex)->groupId;
+        startGroupTableMergeScan(pOperator);
+        resetLimitInfoForNextGroup(&pInfo->limitInfo);
+      }
     }
   }
 
@@ -3640,7 +3675,11 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   int32_t  rowSize = pInfo->pResBlock->info.rowSize;
   uint32_t nCols = taosArrayGetSize(pInfo->pResBlock->pDataBlock);
   pInfo->bufPageSize = getProperSortPageSize(rowSize, nCols);
-
+  if (!tsExperimental) {
+    pInfo->filesetDelimited = false;
+  } else {
+    pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
+  }
   setOperatorInfo(pOperator, "TableMergeScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = numOfCols;

@@ -31,7 +31,6 @@ int32_t streamMetaId = 0;
 int32_t taskDbWrapperId = 0;
 
 static void    metaHbToMnode(void* param, void* tmrId);
-static void    streamMetaClear(SStreamMeta* pMeta);
 static int32_t streamMetaBegin(SStreamMeta* pMeta);
 static void    streamMetaCloseImpl(void* arg);
 
@@ -393,41 +392,6 @@ _err:
 
   stError("failed to open stream meta");
   return NULL;
-}
-
-int32_t streamMetaReopen(SStreamMeta* pMeta) {
-  streamMetaClear(pMeta);
-
-  // NOTE: role should not be changed during reopen meta
-  pMeta->streamBackendRid = -1;
-  pMeta->streamBackend = NULL;
-
-  char* defaultPath = taosMemoryCalloc(1, strlen(pMeta->path) + 128);
-  sprintf(defaultPath, "%s%s%s", pMeta->path, TD_DIRSEP, "state");
-  taosRemoveDir(defaultPath);
-
-  char* newPath = taosMemoryCalloc(1, strlen(pMeta->path) + 128);
-  sprintf(newPath, "%s%s%s", pMeta->path, TD_DIRSEP, "received");
-
-  int32_t code = taosStatFile(newPath, NULL, NULL, NULL);
-  if (code == 0) {
-    // directory exists
-    code = taosRenameFile(newPath, defaultPath);
-    if (code != 0) {
-      terrno = TAOS_SYSTEM_ERROR(code);
-      stError("vgId:%d failed to rename file, from %s to %s, code:%s", pMeta->vgId, newPath, defaultPath,
-              tstrerror(terrno));
-
-      taosMemoryFree(defaultPath);
-      taosMemoryFree(newPath);
-      return -1;
-    }
-  }
-
-  taosMemoryFree(defaultPath);
-  taosMemoryFree(newPath);
-
-  return 0;
 }
 
 // todo refactor: the lock shoud be restricted in one function
@@ -829,28 +793,27 @@ static void doClear(void* pKey, void* pVal, TBC* pCur, SArray* pRecycleList) {
   taosArrayDestroy(pRecycleList);
 }
 
-int32_t streamMetaReloadAllTasks(SStreamMeta* pMeta) {
-  if (pMeta == NULL) return 0;
-
-  return streamMetaLoadAllTasks(pMeta);
-}
 int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   TBC*    pCur = NULL;
-  int32_t vgId = pMeta->vgId;
-
-  stInfo("vgId:%d load stream tasks from meta files", vgId);
-
-  if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
-    stError("vgId:%d failed to open stream meta, code:%s", vgId, tstrerror(terrno));
-    return -1;
-  }
-
   void*    pKey = NULL;
   int32_t  kLen = 0;
   void*    pVal = NULL;
   int32_t  vLen = 0;
   SDecoder decoder;
-  SArray*  pRecycleList = taosArrayInit(4, sizeof(STaskId));
+
+  if (pMeta == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SArray* pRecycleList = taosArrayInit(4, sizeof(STaskId));
+  int32_t vgId = pMeta->vgId;
+  stInfo("vgId:%d load stream tasks from meta files", vgId);
+
+  if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
+    stError("vgId:%d failed to open stream meta, code:%s", vgId, tstrerror(terrno));
+    taosArrayDestroy(pRecycleList);
+    return -1;
+  }
 
   tdbTbcMoveToFirst(pCur);
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
