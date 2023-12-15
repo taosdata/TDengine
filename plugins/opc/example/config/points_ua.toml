@@ -2,7 +2,7 @@ opc_type = "opcua"
 debug = false
 
 [connect.ua]
-endpoint = "opc.tcp://max:53530/OPCUA/SimulationServer"
+endpoint = "opc.tcp://0.0.0.0:4840"
 connect_timeout = 10
 request_timeout = 10
 security_policy = "None"
