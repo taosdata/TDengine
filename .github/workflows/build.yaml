@@ -2,14 +2,22 @@ name: CI
 
 on:
   pull_request:
+    paths:
+    - 'src/**'
+    - 'tests/**'
+    - 'Cargo.toml'
+    - '.github/workflows/build.yaml'
+    - 'build.rs'
+    - 'migrations/**'
+    - 'taosx-*/**'
   workflow_dispatch:
 
 env:
   RUSTFLAGS: "--cfg tokio_unstable"
 
 jobs:
-  build:
-    name: Build
+  check:
+    name: Check
     runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v3

@@ -344,7 +344,7 @@ async fn consume_lush_record(
     let req_id = RequestID::new(data_trace_id);
     match record {
         LushMessage::Tables(tables) => {
-            let taos: &deadpool::managed::Object<Manager<TaosBuilder>> = taos.as_ref().unwrap();
+            let taos = taos.as_ref().unwrap();
             // let mut sql = format!("CREATE TABLE ");
             // map: <stable_name, (Vec<sql, sql_overflow?>, Vec<tag_name, tag_value>)>
             let mut create_sql_map: HashMap<String, LushMessageTagModify> = HashMap::new();
@@ -2600,19 +2600,6 @@ impl IpcStreamWorker {
                 Ok(count)
             }
             StreamType::Point => {
-                if let Some((_license, transferred)) =
-                    self.license.as_ref().zip(self.transferred.as_ref())
-                {
-                    let _used = transferred.points.load(Ordering::SeqCst);
-                    // if used > license.number as _ {
-                    //     anyhow::bail!(
-                    //         "Connector {} out of points: {}/{}",
-                    //         license.r#type,
-                    //         used,
-                    //         license.number
-                    //     )
-                    // }
-                }
                 let message = self.parser.parse(record)?;
                 let mut count = 0;
                 let record = *Box::<dyn Any>::downcast::<PointMessage>(unsafe {
@@ -2637,7 +2624,6 @@ impl IpcStreamWorker {
                 if let Some(transferred) = &self.transferred {
                     transferred.points.fetch_add(_n as _, Ordering::SeqCst);
                 }
-                // todo: license
                 Ok(count)
             }
         }
@@ -2843,9 +2829,8 @@ pub async fn listen_tcp_socket(
                     tokio::spawn(async move {
                         let res = ipc_tcp_forward(client, stream, cancel, server, token, id, config).await;
                         if let Err(err) = res {
-                            // panic!("{err:?}");
-                            tracing::error!("ipc read err: {}", err);
-                            let _ = se.send(err.to_string()).await;
+                            tracing::error!("ipc read err: {:#}", err);
+                            let _ = se.send(format!("{:#}", err)).await;
                         }
                     })
                 } else {
@@ -2880,7 +2865,7 @@ pub async fn listen_tcp_socket(
                             // panic!("{err:?}");
                             println!("{err:?}");
                             tracing::error!("ipc read err: {:#}", err);
-                            let _ = se.send(err.to_string()).await;
+                            let _ = se.send(format!("{:#}", err)).await;
                         } else {
                             tracing::debug!("IPC handler completed");
                         }
