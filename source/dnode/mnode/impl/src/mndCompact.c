@@ -369,6 +369,7 @@ static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompa
   }
   mInfo("trans:%d, used to kill compact:%" PRId32, pTrans->id, pCompact->compactId);
 
+  /*
   SSdbRaw *pCommitRaw = mndCompactActionEncode(pCompact);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
@@ -376,6 +377,7 @@ static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompa
     return -1;
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+  */
 
   void   *pIter = NULL;
   while (1) {
@@ -399,6 +401,7 @@ static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompa
 
       mndReleaseVgroup(pMnode, pVgroup);
 
+      /*
       SSdbRaw *pCommitRaw = mndCompactDetailActionEncode(pDetail);
       if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
         mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
@@ -406,6 +409,7 @@ static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompa
         return -1;
       }
       (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+      */
     }
 
     sdbRelease(pMnode->pSdb, pDetail);
