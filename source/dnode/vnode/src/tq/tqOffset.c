@@ -47,6 +47,7 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname) {
       }
     }
 
+    size = htonl(size);
     void*   pMemBuf = taosMemoryCalloc(1, size);
     if (pMemBuf == NULL) {
       tqError("vgId:%d failed to restore offset from file, since out of memory, malloc size:%d", vgId, size);
@@ -177,7 +178,7 @@ int32_t tqOffsetCommitFile(STqOffsetStore* pStore) {
     void*   buf = taosMemoryCalloc(1, totLen);
     void*   abuf = POINTER_SHIFT(buf, INT_BYTES);
 
-    *(int32_t*)buf = bodyLen;
+    *(int32_t*)buf = htonl(bodyLen);
     SEncoder encoder;
     tEncoderInit(&encoder, abuf, bodyLen);
     tEncodeSTqOffset(&encoder, pOffset);
