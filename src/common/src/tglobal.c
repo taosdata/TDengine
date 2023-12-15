@@ -293,9 +293,9 @@ int8_t tsClientMerge = 0;
 int8_t tsAggAlways = 0;  // Agg function always return value even if zero row
 
 // probe alive connection
-int32_t tsProbeSeconds = 5 * 60;       // start probe link alive after tsProbeSeconds from starting query
-int32_t tsProbeKillSeconds = 10 * 60;  // start kill query after tsProbeKillSeconds from last alive time
-int32_t tsProbeInterval = 40;          // 40 * 1.5s = 60 s interval time
+int32_t tsProbeSeconds = 1 * 60 * 60;       // start probe link alive after tsProbeSeconds from starting query
+int32_t tsProbeKillSeconds = 8 * 60 * 60;  // start kill query after tsProbeKillSeconds from last alive time
+int32_t tsProbeInterval = 100;          // 40 * 1.5s = 60 s interval time
 
 #ifdef TD_TSZ
 //
