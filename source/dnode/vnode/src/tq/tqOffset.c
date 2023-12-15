@@ -119,6 +119,7 @@ STqOffsetStore* tqOffsetOpen(STQ* pTq) {
 }
 
 void tqOffsetClose(STqOffsetStore* pStore) {
+  if(pStore == NULL) return;
   tqOffsetCommitFile(pStore);
   taosHashCleanup(pStore->pHash);
   taosMemoryFree(pStore);
