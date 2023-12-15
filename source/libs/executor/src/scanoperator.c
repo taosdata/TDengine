@@ -3268,7 +3268,6 @@ static void doGetBlockForTableMergeScan(SOperatorInfo* pOperator, bool* pFinishe
 
   uint32_t status = 0;
   code = loadDataBlock(pOperator, &pInfo->base, pBlock, &status);
-
   if (code != TSDB_CODE_SUCCESS) {
     qInfo("table merge scan load datablock code %d, %s", code, GET_TASKID(pTaskInfo));
     T_LONG_JMP(pTaskInfo->env, code);
@@ -3294,7 +3293,7 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
   SExecTaskInfo*                  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
-  SSDataBlock*                    pBlock = pInfo->pReaderBlock;
+  SSDataBlock*                    pBlock = NULL;
   int32_t                         code = 0;
 
   int64_t      st = taosGetTimestampUs();
@@ -3304,18 +3303,24 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
   while (true) {
     if (pInfo->rtnNextDurationBlocks) {
       if (pInfo->nextDurationBlocksIdx < pInfo->numNextDurationBlocks) {
-        copyDataBlock(pBlock, pInfo->nextDurationBlocks[pInfo->nextDurationBlocksIdx]);
-        blockDataDestroy(pInfo->nextDurationBlocks[pInfo->nextDurationBlocksIdx]);
+        pBlock = pInfo->nextDurationBlocks[pInfo->nextDurationBlocksIdx];
         ++pInfo->nextDurationBlocksIdx;
-        if (pInfo->nextDurationBlocksIdx >= pInfo->numNextDurationBlocks) {
-          pInfo->rtnNextDurationBlocks = false;
-          pInfo->nextDurationBlocksIdx = 0;
+      } else {
+        for (int32_t i = 0; i < pInfo->numNextDurationBlocks; ++i) {
+          blockDataDestroy(pInfo->nextDurationBlocks[i]);
         }
+        pInfo->rtnNextDurationBlocks = false;
+        pInfo->nextDurationBlocksIdx = 0;
+        pInfo->numNextDurationBlocks = 0;
+        continue;
       }
     } else {
+
       bool bFinished = false;
       bool bSkipped = false;
       doGetBlockForTableMergeScan(pOperator, &bFinished, &bSkipped);
+      pBlock = pInfo->pReaderBlock;
+
       if (bFinished) {
         pInfo->bNewFilesetEvent = false;
         break;
@@ -3346,7 +3351,6 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
 
     pOperator->resultInfo.totalRows += pBlock->info.rows;
     pInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
-
     return pBlock;
   }
 
@@ -3401,9 +3405,6 @@ int32_t startDurationForGroupTableMergeScan(SOperatorInfo* pOperator) {
 
   pInfo->bNewFilesetEvent = false;
   pInfo->bNextDurationBlockEvent = false;
-  pInfo->numNextDurationBlocks = 0;
-  pInfo->nextDurationBlocksIdx = 0;
-  pInfo->rtnNextDurationBlocks = false;
 
   pInfo->sortBufSize = 2048 * pInfo->bufPageSize;
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
