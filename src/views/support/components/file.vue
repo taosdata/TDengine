@@ -16,7 +16,7 @@
       </li>
     </ul>
     <el-empty v-else :image-size="200"></el-empty>
-    <el-dialog :visible.sync="dialogTableVisible">
+    <el-dialog :visible.sync="dialogTableVisible" :close-on-click-modal="false">
       <img width="100%" :src="url" alt="" />
     </el-dialog>
   </div>

@@ -197,6 +197,7 @@
       :visible.sync="dialog"
       @close="closeDialog"
       :destroy-on-close="true"
+      :close-on-click-modal="false"
     >
       <el-form
         :model="ruleForm"
@@ -260,6 +261,7 @@
       :visible.sync="showAgent"
       :destroy-on-close="true"
       @close="closeDialog"
+      :close-on-click-modal="false"
     >
       <AddAgent :agent="currentRow" :key="showAgent"></AddAgent>
     </el-dialog>

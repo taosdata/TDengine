@@ -1,5 +1,5 @@
 <template>
-  <el-dialog :visible.sync="visible" center :title="title" :width="width + 'px'">
+  <el-dialog :visible.sync="visible" center :title="title" :width="width + 'px'" :close-on-click-modal="false">
     <!-- <Plan :step.sync="step" :currentPlan="currentPricePlan" :cloudAndRegion="cloudAndRegion" @change="planChange" /> -->
   </el-dialog>
 </template>

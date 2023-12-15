@@ -214,6 +214,7 @@
       width="40%"
       :destroy-on-close="true"
       @close="closeDialog"
+      :close-on-click-modal="false"
     >
       <div class="tag-list">
         <div class="open-tag" v-if="showtag">
