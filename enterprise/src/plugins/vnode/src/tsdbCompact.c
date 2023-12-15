@@ -26,6 +26,11 @@ extern int32_t tsdbUpdateTableSchema(SMeta *pMeta, int64_t suid, int64_t uid, SS
 extern int32_t tsdbWriteDataBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SMapData *mDataBlk, int8_t cmprAlg);
 extern int32_t tsdbWriteSttBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SArray *aSttBlk, int8_t cmprAlg);
 
+// tsdbCompactMonitor.c
+extern bool    tsdbCompMonHasTask(STsdb *tsdb);
+extern int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, int64_t taskId);
+extern int32_t tsdbRemoveCompMonitorTask(STsdb *tsdb, int64_t taskId);
+
 // new code ====================================================================================
 typedef struct {
   STsdb  *tsdb;
@@ -72,6 +77,7 @@ typedef struct {
   STsdb      *tsdb;
   STimeWindow tw;
   int32_t     fid;
+  int64_t     taskid;
 } SCompactArg;
 
 static int32_t tsdbCompactBegin(SCompactArg *arg, SCompactor2 *compactor) {
@@ -563,6 +569,7 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(compactArg->tsdb->pVnode), lino, code);
   }
+  tsdbRemoveCompMonitorTask(compactArg->tsdb, compactArg->taskid);
   return code;
 }
 
@@ -603,15 +610,17 @@ int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool sync) {
 
     if (sync) {
       code = vnodeAsyncC(vnodeAsyncHandle[0], tsdb->pVnode->commitChannel, EVA_PRIORITY_NORMAL, tsdbDoCompactAsync,
-                         tsdbFreeCompactArg, arg, NULL);
+                         tsdbFreeCompactArg, arg, &arg->taskid);
     } else {
       code = vnodeAsyncC(vnodeAsyncHandle[1], fset->bgTaskChannel, EVA_PRIORITY_NORMAL, tsdbDoCompactAsync,
-                         tsdbFreeCompactArg, arg, NULL);
+                         tsdbFreeCompactArg, arg, &arg->taskid);
     }
     if (code) {
       tsdbFreeCompactArg(arg);
       taosThreadMutexUnlock(&tsdb->mutex);
       return code;
+    } else {
+      tsdbAddCompMonitorTask(tsdb, fset->fid, arg->taskid);
     }
   }
 
