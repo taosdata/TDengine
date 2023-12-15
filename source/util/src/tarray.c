@@ -430,6 +430,7 @@ int32_t taosArraySearchIdx(const SArray* pArray, const void* key, __compar_fn_t 
   return item == NULL ? -1 : (int32_t)((char*)item - (char*)pArray->pData) / pArray->elemSize;
 }
 
+#ifdef BUILD_NO_CALL
 static int32_t taosArrayPartition(SArray* pArray, int32_t i, int32_t j, __ext_compar_fn_t fn, const void* userData) {
   void* key = taosArrayGetP(pArray, i);
   while (i < j) {
@@ -485,6 +486,7 @@ static void taosArrayInsertSort(SArray* pArray, __ext_compar_fn_t fn, const void
     }
   }
 }
+#endif
 
 int32_t taosEncodeArray(void** buf, const SArray* pArray, FEncode encode) {
   int32_t tlen = 0;

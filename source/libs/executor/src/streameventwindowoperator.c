@@ -176,7 +176,7 @@ int32_t updateEventWindowInfo(SStreamAggSupporter* pAggSup, SEventWindowInfo* pW
 
   for (int32_t i = start; i < rows; ++i) {
     if (pTsData[i] >= maxTs) {
-      return i - 1 - start;
+      return i - start;
     }
 
     if (pWin->skey > pTsData[i]) {
@@ -486,6 +486,11 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
       return pInfo->pCheckpointRes;
     }
 
+    if (pInfo->recvGetAll) {
+      pInfo->recvGetAll = false;
+      resetUnCloseSessionWinInfo(pInfo->streamAggSup.pResultRows);
+    }
+
     setOperatorCompleted(pOperator);
     return NULL;
   }
@@ -510,6 +515,7 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
       deleteSessionWinState(&pInfo->streamAggSup, pBlock, pInfo->pSeUpdated, pInfo->pSeDeleted);
       continue;
     } else if (pBlock->info.type == STREAM_GET_ALL) {
+      pInfo->recvGetAll = true;
       getAllSessionWindow(pInfo->streamAggSup.pResultRows, pInfo->pSeUpdated);
       continue;
     } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
@@ -610,6 +616,10 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
     qDebug("===stream=== reload state. try process result %" PRId64 ", %" PRIu64 ", index:%d", pSeKeyBuf[i].win.skey,
            pSeKeyBuf[i].groupId, i);
     getSessionWindowInfoByKey(pAggSup, pSeKeyBuf + i, &curInfo.winInfo);
+    //event window has been deleted
+    if (!IS_VALID_SESSION_WIN(curInfo.winInfo)) {
+      continue;
+    }
     setEventWindowFlag(pAggSup, &curInfo);
     if (!curInfo.pWinFlag->startFlag || curInfo.pWinFlag->endFlag) {
       continue;
@@ -672,6 +682,7 @@ SOperatorInfo* createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhys
       .calTrigger = pEventNode->window.triggerType,
       .maxTs = INT64_MIN,
       .minTs = INT64_MAX,
+      .deleteMark = getDeleteMark(&pEventNode->window, 0),
   };
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
@@ -720,6 +731,7 @@ SOperatorInfo* createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhys
 
   pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
   pInfo->reCkBlock = false;
+  pInfo->recvGetAll = false;
 
   // for stream
   void*   buff = NULL;

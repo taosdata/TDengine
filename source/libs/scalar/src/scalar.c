@@ -1367,8 +1367,8 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
   } else {
     int32_t type = output.columnData->info.type;
     if (IS_VAR_DATA_TYPE(type)) {  // todo refactor
-      res->datum.p = output.columnData->pData;
-      output.columnData->pData = NULL;
+      res->datum.p = taosMemoryCalloc(varDataTLen(output.columnData->pData) + 1, sizeof(char));      // add \0 to the end for print json value
+      memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
     } else {
       nodesSetValueNodeValue(res, output.columnData->pData);
     }

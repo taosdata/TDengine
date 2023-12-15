@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "dmNodes.h"
+#include "audit.h"
 
 static void dmGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
   pInfo->protocol = 1;
@@ -106,6 +107,11 @@ void dmSendMonitorReport() {
   dmGetQmMonitorInfo(pDnode);
   dmGetSmMonitorInfo(pDnode);
   monSendReport();
+}
+
+//Todo: put this in seperate file in the future
+void dmSendAuditRecords() {
+  auditSendRecordsInBatch();
 }
 
 void dmGetVnodeLoads(SMonVloadInfo *pInfo) {

@@ -704,10 +704,10 @@ static int32_t mndPersistTaskDropReq(SMnode *pMnode, STrans *pTrans, SStreamTask
   pReq->streamId = pTask->id.streamId;
 
   STransAction action = {0};
-  SEpSet  epset = {0};
-  if(pTask->info.nodeId == SNODE_HANDLE){
+  SEpSet       epset = {0};
+  if (pTask->info.nodeId == SNODE_HANDLE) {
     SSnodeObj *pObj = NULL;
-    void  *pIter = NULL;
+    void      *pIter = NULL;
     while (1) {
       pIter = sdbFetch(pMnode->pSdb, SDB_SNODE, pIter, (void **)&pObj);
       if (pIter == NULL) {
@@ -717,10 +717,16 @@ static int32_t mndPersistTaskDropReq(SMnode *pMnode, STrans *pTrans, SStreamTask
       addEpIntoEpSet(&epset, pObj->pDnode->fqdn, pObj->pDnode->port);
       sdbRelease(pMnode->pSdb, pObj);
     }
-  }else{
+  } else {
     SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->info.nodeId);
-    epset = mndGetVgroupEpset(pMnode, pVgObj);
-    mndReleaseVgroup(pMnode, pVgObj);
+    if (pVgObj != NULL) {
+      epset = mndGetVgroupEpset(pMnode, pVgObj);
+      mndReleaseVgroup(pMnode, pVgObj);
+    } else {
+      mDebug("orphaned task:0x%x need to be dropped, nodeId:%d, no redo action", pTask->id.taskId, pTask->info.nodeId);
+      taosMemoryFree(pReq);
+      return 0;
+    }
   }
 
   // The epset of nodeId of this task may have been expired now, let's use the newest epset from mnode.
@@ -1657,6 +1663,7 @@ static void setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDat
 
   STaskStatusEntry *pe = taosHashGet(execInfo.pTaskMap, &id, sizeof(id));
   if (pe == NULL) {
+    mError("task:0x%" PRIx64 " not exists in vnode, no valid status/stage info", id.taskId);
     return;
   }
 
