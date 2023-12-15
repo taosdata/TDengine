@@ -220,7 +220,6 @@ typedef struct SReaderStatus {
   bool                  bProcMemFirstFileset;
   STableUidList         procMemUidList;
   STableBlockScanInfo** pProcMemTableIter;
-  SSDataBlock*           pNextFilesetBlock;
 } SReaderStatus;
 
 struct STsdbReader {

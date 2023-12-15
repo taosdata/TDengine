@@ -4332,12 +4332,7 @@ static int32_t buildFromPreFilesetBuffer(STsdbReader* pReader) {
       STsdReaderNotifyInfo info = {0};
       info.duration.filesetId = fid;
       pReader->notifyFn(TSD_READER_NOTIFY_DURATION_START, &info, pReader->notifyParam);
-      tsdbDebug("new duration %d start notification when no buffer preceeding fileset, %s", fid, pReader->idStr);
-    }
-    if (pStatus->pNextFilesetBlock && pStatus->pNextFilesetBlock->info.rows > 0) {
-      tsdbDebug("return the saved block from fileset %d files, %s", fid, pReader->idStr);
-      copyDataBlock(pBlock, pStatus->pNextFilesetBlock);
-      blockDataDestroy(pStatus->pNextFilesetBlock);
+      tsdbDebug("new duration %d start notification when buffer pre-fileset, %s", fid, pReader->idStr);
     }
   }
   return code;
@@ -4364,12 +4359,12 @@ static int32_t doTsdbNextDataBlockFilesetDelimited(STsdbReader* pReader) {
     tsdbTrace("block from file rows: %"PRId64", will process pre-file set buffer: %d. %s", 
             pBlock->info.rows, pStatus->bProcMemFirstFileset, pReader->idStr);
     if (pStatus->bProcMemPreFileset) {
-      if ( pBlock->info.rows > 0) {
-        pStatus->pNextFilesetBlock = createOneDataBlock(pBlock, true);
-        blockDataCleanup(pBlock);
-        code = buildFromPreFilesetBuffer(pReader);
-        if (code != TSDB_CODE_SUCCESS || pBlock->info.rows > 0) {
-          return code;
+      if (pBlock->info.rows > 0) {
+        if (pReader->notifyFn) {
+          int32_t        fid = pReader->status.pCurrentFileset->fid;
+          STsdReaderNotifyInfo info = {0};
+          info.duration.filesetId = fid;
+          pReader->notifyFn(TSD_READER_NOTIFY_NEXT_DURATION_BLOCK, &info, pReader->notifyParam);
         }
       } else {
         pStatus->bProcMemPreFileset = false;
