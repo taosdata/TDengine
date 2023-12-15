@@ -24,6 +24,7 @@
 #include "tglobal.h"
 #include "mnode.h"
 #include "audit.h"
+#include "osMemory.h"
 
 SAudit tsAudit = {0};
 char* tsAuditUri = "/audit";
@@ -38,7 +39,9 @@ int32_t auditInit(const SAuditCfg *pCfg) {
 
 void auditCleanup() {
   tsLogFp = NULL;
-  taosArrayDestroy(tsAudit.records);
+  taosThreadMutexLock(&tsAudit.lock);
+  taosArrayDestroyP(tsAudit.records, (FDelete)taosMemoryFree);
+  taosThreadMutexUnlock(&tsAudit.lock);
   tsAudit.records = NULL;
   taosThreadMutexDestroy(&tsAudit.lock);
 }
