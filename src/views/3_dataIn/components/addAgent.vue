@@ -97,7 +97,7 @@ token="{{ token }}"</code></pre>
             label="Windows"
             name="1"
           >
-            <pre v-highlight><code>C:\Program Files\taosX\log\agent\</code></pre>
+            <pre v-highlight><code>C:\TDengine\log\agent.log</code></pre>
           </el-tab-pane>
         </el-tabs>
         <p

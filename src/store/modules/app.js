@@ -88,6 +88,7 @@ const state = {
   splitExpresList:null,//transformer的split
   mappingjoin:'',//mapping时候映射值是join时候的
   definitions: [],
+  topParse:null
   
 };
 const saveKey = encodeURIComponent("appId");
@@ -115,6 +116,9 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_TOP_PARSE:(state,data)=>{
+    state.topParse=data
+  },
   SET_MAPPING_JOIN:(state,data)=>{
     state.mappingjoin=data
   },

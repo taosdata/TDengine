@@ -391,6 +391,11 @@ export default {
             params["via"] = this.sourceForm.agent;
           }
           if (this.sourceForm.data.parser) {
+            let { model } = this.sourceForm.data.parser
+            if (model.columns.length < 2 || model.tags.length < 1) {
+              Message.warning(this.$t('datasource.parserTip'))
+              return;
+            }
             params.parser = this.sourceForm.data.parser;
           }
           if (this.isEditable && this.editId && !this.isCopyable) {

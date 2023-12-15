@@ -13,7 +13,7 @@ export default {
   expression:'表达式',
   mapping:'映射',
   execute:'执行',
-
+  previewall:'预览所有',
   copyDsn: '复制 DSN',
 
   clone:'复制',
@@ -1006,6 +1006,10 @@ export default {
 
   datasource: {
     transformer:{
+      filterexecuted:'筛选条件已触发',
+      filterunexe:'筛选条件尚未触发，按Enter键触发',
+      parsefirst:'请先执行解析,提取或者拆分操作',
+      parse:'解析',
       jsontip:'请输入正确JSON格式',
       mappingvaildtip:'请填写正确的主键，列和tag',
       extractdesc:`<strong>taosX 支持 JSON 或正则表达式解析文本</strong>：<br/>
@@ -1023,7 +1027,7 @@ export default {
       identified:'识别的列',
       extract:'从列中提取或拆分',
       filter:'过滤',
-      superconfig:'超级表配置',
+      superconfig:'映射',
       target:'目标超级表',
       mapping:'映射',
       createstb:'创建超级表',
@@ -1031,7 +1035,7 @@ export default {
       upload:'上传样本数据',
       col_select:'请选择列',
       filter_type:'请选择筛选方式',
-      expre_input:'请输入表达式',
+      expre_input:'exp1;exp2;exp3',
       filter_input:'请输入筛选表达式',
       st_input:'请输入超级表名称',
       create_st:'创建超级表',
@@ -1115,6 +1119,7 @@ export default {
     agentexpiretip:'过期时间必须大于当前时间',
     mqttparsertip:'确保 {datasource} parser的必输项目都已填写完毕',
     // mqtttitle:'MQTT Payload Parser',
+    parserTip: '数据映射至少包含一个列和一个标签',
     
     addmqtttip:'字段，列，列类型不为空才能进行添加',
     subname:'子表名称',
@@ -1127,7 +1132,7 @@ export default {
     porttip:'请输入正确的端口号',
     ok:'确定',
     cancel:'取消',
-    deletetip:'确定删除 ',
+    deletetip:'确定删除吗？ ',
     deleteok:'删除成功',
     warning:'提醒',
     successtip:'操作成功',

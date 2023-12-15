@@ -214,7 +214,7 @@ export const TDengineSqlKeywrods = [
   "INT",
   "INTEGER",
   "INTERP",
-  "INTERVA",
+  "INTERVAL",
   "INTO",
   "IRATE",
   "IS",
