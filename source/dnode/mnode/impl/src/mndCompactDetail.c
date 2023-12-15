@@ -24,7 +24,7 @@ int32_t mndInitCompactDetail(SMnode *pMnode) {
 
   SSdbTable table = {
       .sdbType = SDB_COMPACT_DETAIL,
-      .keyType = SDB_KEY_INT32,
+      .keyType = SDB_KEY_INT64,
       .encodeFp = (SdbEncodeFp)mndCompactDetailActionEncode,
       .decodeFp = (SdbDecodeFp)mndCompactDetailActionDecode,
       .insertFp = (SdbInsertFp)mndCompactDetailActionInsert,
@@ -285,8 +285,8 @@ int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* p
   compactDetail.newNumberFileset = -1;
   compactDetail.newFinished = -1;
 
-  mInfo("compact:%d, add compact detail to trans, vgId:%d, dnodeId:%d", 
-    pCompact->compactId, pVgroup->vgId, pVgid->dnodeId);
+  mInfo("compact:%d, add compact detail to trans, index:%d, vgId:%d, dnodeId:%d", 
+    compactDetail.compactId, compactDetail.compactDetailId, compactDetail.vgId, compactDetail.dnodeId);
 
   SSdbRaw *pVgRaw = mndCompactDetailActionEncode(&compactDetail);
   if (pVgRaw == NULL) return -1;
