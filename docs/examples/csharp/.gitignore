@@ -1,5 +1,5 @@
 .vs
-asyncQuery/bin
+.idea
 connect/bin
 influxdbLine/bin
 optsJSON/bin
@@ -12,7 +12,6 @@ wsConnect/bin
 wsInsert/bin
 wsQuery/bin
 wsStmt/bin
-asyncQuery/obj
 connect/obj
 influxdbLine/obj
 optsJSON/obj
