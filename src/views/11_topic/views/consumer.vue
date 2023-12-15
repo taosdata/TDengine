@@ -33,7 +33,7 @@
       @current-change="handlePageChange"
     >
     </el-pagination>
-    <el-dialog align="center" :title="$t('topic.createTopic')" width="500px" :visible.sync="dialog">
+    <el-dialog align="center" :title="$t('topic.createTopic')" width="500px" :visible.sync="dialog" :close-on-click-modal="false">
       <el-input size="small" @input="errorText = ''" :placeholder="sqlTip" v-model="sql">
         <template slot="prepend">{{ sqlPrefix }}</template>
         <template slot="append">

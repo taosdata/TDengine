@@ -52,7 +52,7 @@
           ></el-input>
         </template>
       </el-table-column>
-      <el-table-column
+      <!-- <el-table-column
         align="center"
         :label="$t('datasource.rename')"
       >
@@ -84,7 +84,7 @@
             @change="handleDataType($event, row)"
           />
         </template>
-      </el-table-column>
+      </el-table-column> -->
       <el-table-column
         align="center"
         fixed="right"
@@ -169,7 +169,7 @@ export default {
       this.$emit('input', row.field);
     },
     isCanBePrimaryKey(row) {
-      return this.isEdit || (row.dataType != 'TIMESTAMP' && row.usageType != 1);
+      return this.isEdit || (row.field != 'DateTime');
     },
     isPrimaryKey(row) {
       return row.field == this.value;

@@ -1118,6 +1118,7 @@ export default {
     agentexpiretip:'过期时间必须大于当前时间',
     mqttparsertip:'确保 {datasource} parser的必输项目都已填写完毕',
     // mqtttitle:'MQTT Payload Parser',
+    parserTip: '数据映射至少包含一个列和一个标签',
     
     addmqtttip:'字段，列，列类型不为空才能进行添加',
     subname:'子表名称',

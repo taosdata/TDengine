@@ -15,7 +15,7 @@
       <el-button size="small" @click="dialog = true" type="primary">{{ $t("support.addComment") }}</el-button>
     </section>
     <!-- 添加评论 -->
-    <el-dialog :title="$t('support.addComment')" width="1000px" :visible.sync="dialog">
+    <el-dialog :title="$t('support.addComment')" width="1000px" :visible.sync="dialog" :close-on-click-modal="false">
       <addComment @close="dialogClose" />
     </el-dialog>
   </div>
