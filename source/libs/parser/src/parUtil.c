@@ -1132,6 +1132,18 @@ int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, 
   return code;
 }
 
+int32_t getTableTsmasFromCache(SParseMetaCache* pMetaCache, const SName* pTbName, SArray** pTsmas) {
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(pTbName, tbFName);
+  STableTSMAInfoRsp *pTsmasRsp = NULL;
+  STableTSMAInfo* pTsma = NULL;
+  int32_t code = getMetaDataFromHash(tbFName, strlen(tbFName), pMetaCache->pTableTSMAs, (void**)&pTsmasRsp);
+  if (TSDB_CODE_SUCCESS == code && pTsmasRsp) {
+    *pTsmas = pTsmasRsp->pTsmas;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 STableCfg* tableCfgDup(STableCfg* pCfg) {
   STableCfg* pNew = taosMemoryMalloc(sizeof(*pNew));
 

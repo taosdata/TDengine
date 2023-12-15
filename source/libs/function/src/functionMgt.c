@@ -557,3 +557,19 @@ int32_t rewriteFuncsForTSMA(SNodeList* pFuncs) {
   }
   return code;
 }
+
+int32_t getFuncId(const char* name) {
+  if (NULL != gFunMgtService.pFuncNameHashTable) {
+    void* pVal = taosHashGet(gFunMgtService.pFuncNameHashTable, name, strlen(name));
+    if (NULL != pVal) {
+      return *(int32_t*)pVal;
+    }
+    return -1;
+  }
+  for (int32_t i = 0; i < funcMgtBuiltinsNum; ++i) {
+    if (0 == strcmp(funcMgtBuiltins[i].name, name)) {
+      return i;
+    }
+  }
+  return -1;
+}

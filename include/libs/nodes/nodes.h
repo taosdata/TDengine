@@ -169,6 +169,7 @@ int32_t nodesMsgToNode(const char* pStr, int32_t len, SNode** pNode);
 int32_t nodesNodeToSQL(SNode* pNode, char* buf, int32_t bufSize, int32_t* len);
 char*   nodesGetNameFromColumnNode(SNode* pNode);
 int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots);
+void    nodesSortList(SNodeList** pList, bool (*)(SNode* pNode1, SNode* pNode2));
 
 #ifdef __cplusplus
 }

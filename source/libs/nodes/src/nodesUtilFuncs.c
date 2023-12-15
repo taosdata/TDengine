@@ -2480,3 +2480,70 @@ bool nodesIsTableStar(SNode* pNode) {
   return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' != ((SColumnNode*)pNode)->tableAlias[0]) &&
          (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
 }
+
+void nodesSortList(SNodeList** pList, bool (*comp)(SNode* pNode1, SNode* pNode2)) {
+  if ((*pList)->length == 1) return;
+
+  uint32_t inSize = 1;
+  SListCell* pHead = (*pList)->pHead;
+  while (1) {
+    SListCell* p = pHead;
+    pHead = NULL;
+    SListCell* pTail = NULL;
+
+    uint32_t nMerges = 0;
+    while (p) {
+      ++nMerges;
+      SListCell* q = p;
+      uint32_t pSize = 0;
+      for (uint32_t i = 0; i < inSize; ++i) {
+        ++pSize;
+        q = q->pNext;
+        if (!q) {
+          break;
+        }
+      }
+
+      uint32_t qSize = inSize;
+
+      while (pSize > 0 || (qSize > 0 && q)) {
+        SListCell* pCell;
+        if (pSize == 0) {
+          pCell = q;
+          q = q->pNext;
+          --qSize;
+        } else if (qSize == 0 || !q) {
+          pCell = p;
+          p = p->pNext;
+          --pSize;
+        } else if (!comp(q->pNode, p->pNode)) {
+          pCell = p;
+          p = p->pNext;
+          --pSize;
+        } else {
+          pCell = q;
+          q = q->pNext;
+          --qSize;
+        }
+
+        if (pTail) {
+          pTail->pNext = pCell;
+          pCell->pPrev = pTail;
+        } else {
+          pHead = pCell;
+          pHead->pPrev = NULL;
+        }
+        pTail = pCell;
+      }
+      p = q;
+    }
+    pTail->pNext = NULL;
+
+    if (nMerges <= 1) {
+      (*pList)->pHead = pHead;
+      (*pList)->pTail = pTail;
+      return;
+    }
+    inSize *= 2;
+  }
+}

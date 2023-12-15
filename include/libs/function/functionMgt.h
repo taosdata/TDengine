@@ -273,6 +273,7 @@ char*   fmGetFuncName(int32_t funcId);
 
 bool fmIsTSMASupportedFunc(func_id_t funcid);
 int32_t rewriteFuncsForTSMA(SNodeList* pFuncs);
+int32_t getFuncId(const char* name);
 
 #ifdef __cplusplus
 }
