@@ -603,7 +603,7 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, int64_t sversion, char*
 int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
 
-  int32_t      vgId = pMeta->vgId;
+  int32_t vgId = pMeta->vgId;
   tqDebug("vgId:%d receive msg to drop s-task:0x%x", vgId, pReq->taskId);
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
@@ -616,9 +616,6 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
     }
     streamMetaReleaseTask(pMeta, pTask);
   }
-
-  // TODO: send the checkpoint complete msg if it is in checkpoint procedure.
-
 
   // drop the stream task now
   streamMetaUnregisterTask(pMeta, pReq->streamId, pReq->taskId);
