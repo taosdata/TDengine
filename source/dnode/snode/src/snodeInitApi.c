@@ -14,8 +14,8 @@
  */
 
 #include "storageapi.h"
-#include "tstreamUpdate.h"
 #include "streamState.h"
+#include "tstreamUpdate.h"
 
 static void initStateStoreAPI(SStateStore* pStore);
 static void initFunctionStateStore(SFunctionStateStore* pStore);
@@ -100,9 +100,10 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateClose = streamStateClose;
   pStore->streamStateBegin = streamStateBegin;
   pStore->streamStateCommit = streamStateCommit;
-  pStore->streamStateDestroy= streamStateDestroy;
+  pStore->streamStateDestroy = streamStateDestroy;
   pStore->streamStateDeleteCheckPoint = streamStateDeleteCheckPoint;
   pStore->streamStateReloadInfo = streamStateReloadInfo;
+  pStore->streamStateCopyBackend = streamStateCopyBackend;
 }
 
 void initFunctionStateStore(SFunctionStateStore* pStore) {
