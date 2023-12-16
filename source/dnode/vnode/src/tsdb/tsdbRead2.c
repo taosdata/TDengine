@@ -2306,56 +2306,50 @@ void updateComposedBlockInfo(STsdbReader* pReader, double el, STableBlockScanInf
 }
 
 static int32_t buildComposedDataBlock(STsdbReader* pReader) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  SSDataBlock* pResBlock = pReader->resBlockInfo.pResBlock;
-
+  int32_t             code = TSDB_CODE_SUCCESS;
+  bool                asc = ASCENDING_TRAVERSE(pReader->info.order);
+  int64_t             st = taosGetTimestampUs();
+  int32_t             step = asc ? 1 : -1;
+  double              el = 0;
+  SSDataBlock*        pResBlock = pReader->resBlockInfo.pResBlock;
   SFileDataBlockInfo* pBlockInfo = getCurrentBlockInfo(&pReader->status.blockIter);
   SLastBlockReader*   pLastBlockReader = pReader->status.fileIter.pLastBlockReader;
-
-  bool         asc = ASCENDING_TRAVERSE(pReader->info.order);
-  int64_t      st = taosGetTimestampUs();
-  int32_t      step = asc ? 1 : -1;
-  double       el = 0;
-  SBrinRecord* pRecord = &pBlockInfo->record;
-
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
+  SBrinRecord*        pRecord = NULL;
 
   STableBlockScanInfo* pBlockScanInfo = NULL;
-  if (pBlockInfo != NULL) {
-    if (pReader->pIgnoreTables && taosHashGet(*pReader->pIgnoreTables, &pBlockInfo->uid, sizeof(pBlockInfo->uid))) {
-      setBlockAllDumped(pDumpInfo, pRecord->lastKey, pReader->info.order);
-      return code;
-    }
+  if (pBlockInfo == NULL) {
+    return 0;
+  }
 
-    pBlockScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockInfo->uid, pReader->idStr);
-    if (pBlockScanInfo == NULL) {
-      goto _end;
-    }
+  pRecord = &pBlockInfo->record;
 
-    pRecord = &pBlockInfo->record;
-    TSDBKEY keyInBuf = getCurrentKeyInBuf(pBlockScanInfo, pReader);
+  if (pReader->pIgnoreTables && taosHashGet(*pReader->pIgnoreTables, &pBlockInfo->uid, sizeof(pBlockInfo->uid))) {
+    setBlockAllDumped(pDumpInfo, pRecord->lastKey, pReader->info.order);
+    return code;
+  }
 
-    // it is a clean block, load it directly
-    int64_t cap = pReader->resBlockInfo.capacity;
-    if (isCleanFileDataBlock(pReader, pBlockInfo, pBlockScanInfo, keyInBuf) && (pRecord->numRow <= cap)) {
-      if (asc || (pBlockScanInfo->sttKeyInfo.status == STT_FILE_NO_DATA)) {
-        code = copyBlockDataToSDataBlock(pReader);
-        if (code) {
-          goto _end;
-        }
+  pBlockScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockInfo->uid, pReader->idStr);
+  if (pBlockScanInfo == NULL) {
+    goto _end;
+  }
 
-        // record the last key value
-        pBlockScanInfo->lastProcKey = asc ? pRecord->lastKey : pRecord->firstKey;
+  pRecord = &pBlockInfo->record;
+  TSDBKEY keyInBuf = getCurrentKeyInBuf(pBlockScanInfo, pReader);
+
+  // it is a clean block, load it directly
+  int64_t cap = pReader->resBlockInfo.capacity;
+  if (isCleanFileDataBlock(pReader, pBlockInfo, pBlockScanInfo, keyInBuf) && (pRecord->numRow <= cap)) {
+    if (((asc && (pRecord->firstKey < keyInBuf.ts)) || (!asc && (pRecord->lastKey > keyInBuf.ts))) &&
+        (pBlockScanInfo->sttKeyInfo.status == STT_FILE_NO_DATA)) {
+      code = copyBlockDataToSDataBlock(pReader);
+      if (code) {
         goto _end;
       }
-    }
-  } else {  // file blocks not exist
-    ASSERT(0);
-    pBlockScanInfo = *pReader->status.pTableIter;
-    if (pReader->pIgnoreTables &&
-        taosHashGet(*pReader->pIgnoreTables, &pBlockScanInfo->uid, sizeof(pBlockScanInfo->uid))) {
-      return code;
+
+      // record the last key value
+      pBlockScanInfo->lastProcKey = asc ? pRecord->lastKey : pRecord->firstKey;
+      goto _end;
     }
   }
 
@@ -4717,13 +4711,12 @@ static int32_t getBucketIndex(int32_t startRow, int32_t bucketRange, int32_t num
 }
 
 int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pTableBlockInfo) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t       code = TSDB_CODE_SUCCESS;
+  const int32_t numOfBuckets = 20.0;
+
   pTableBlockInfo->totalSize = 0;
   pTableBlockInfo->totalRows = 0;
   pTableBlockInfo->numOfVgroups = 1;
-
-  const int32_t numOfBuckets = 20.0;
-  const int32_t defaultRows = 4096;
 
   // find the start data block in file
   tsdbAcquireReader(pReader);
@@ -4769,10 +4762,6 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
 
       if (numOfRows < pTableBlockInfo->minRows) {
         pTableBlockInfo->minRows = numOfRows;
-      }
-
-      if (numOfRows < defaultRows) {
-        pTableBlockInfo->numOfSmallBlocks += 1;
       }
 
       pTableBlockInfo->totalSize += pBlockInfo->record.blockSize;
