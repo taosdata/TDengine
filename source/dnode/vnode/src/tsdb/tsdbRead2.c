@@ -2313,7 +2313,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
   double              el = 0;
   SSDataBlock*        pResBlock = pReader->resBlockInfo.pResBlock;
   SFileDataBlockInfo* pBlockInfo = getCurrentBlockInfo(&pReader->status.blockIter);
-  SSttBlockReader*    pSttBlockReader = pReader->status.fileIter.pSttBlockReader;
+  SLastBlockReader*   pLastBlockReader = pReader->status.fileIter.pLastBlockReader;
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
   SBrinRecord*        pRecord = NULL;
 
@@ -4762,10 +4762,6 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
 
       if (numOfRows < pTableBlockInfo->minRows) {
         pTableBlockInfo->minRows = numOfRows;
-      }
-
-      if (numOfRows < defaultRows) {
-        pTableBlockInfo->numOfSmallBlocks += 1;
       }
 
       pTableBlockInfo->totalSize += pBlockInfo->record.blockSize;
