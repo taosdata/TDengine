@@ -298,9 +298,14 @@ typedef struct STableMergeScanInfo {
   SHashObj*        mSkipTables;
   int64_t          mergeLimit;
   SSortExecInfo   sortExecInfo;
-  bool             bNewFileset;
-  bool             bOnlyRetrieveBlock;
+
   bool             filesetDelimited;
+  bool             bNewFilesetEvent;
+  bool             bNextDurationBlockEvent;
+  int32_t          numNextDurationBlocks;
+  SSDataBlock*     nextDurationBlocks[2];
+  bool             rtnNextDurationBlocks;
+  int32_t          nextDurationBlocksIdx;
 } STableMergeScanInfo;
 
 typedef struct STagScanFilterContext {
