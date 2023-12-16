@@ -982,8 +982,10 @@ int32_t chkpPreBuildDir(char* path, int64_t chkpId, char** chkpDir, char** chkpI
 }
 int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
   SStreamMeta* pMeta = arg;
-  void*        pIter = taosHashIterate(pMeta->pTaskDbUnique, NULL);
-  int32_t      code = 0;
+
+  taosThreadMutexLock(&pMeta->backendMutex);
+  void*   pIter = taosHashIterate(pMeta->pTaskDbUnique, NULL);
+  int32_t code = 0;
 
   while (pIter) {
     STaskDbWrapper* pTaskDb = *(STaskDbWrapper**)pIter;
@@ -1000,6 +1002,8 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
     taosArrayPush(pSnap, &snap);
     pIter = taosHashIterate(pMeta->pTaskDbUnique, pIter);
   }
+  taosThreadMutexUnlock(&pMeta->backendMutex);
+
   return code;
 }
 int32_t streamBackendAddInUseChkp(void* arg, int64_t chkpId) {
@@ -1810,6 +1814,8 @@ STaskDbWrapper* taskDbOpen(char* path, char* key, int64_t chkpId) {
 
 void taskDbDestroy(void* pDb, bool flush) {
   STaskDbWrapper* wrapper = pDb;
+  streamMetaRemoveDB(wrapper->pMeta, wrapper->idstr);
+
   qDebug("succ to destroy stream backend:%p", wrapper);
 
   int8_t nCf = sizeof(ginitDict) / sizeof(ginitDict[0]);
