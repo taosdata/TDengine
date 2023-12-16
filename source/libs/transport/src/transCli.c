@@ -553,7 +553,7 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
         SExHandle* exh = transAcquireExHandle(transGetRefMgt(), refId);
         if (exh) {
           taosWLockLatch(&exh->latch);
-          while (QUEUE_IS_EMPTY(&exh->q)) {
+          while (!QUEUE_IS_EMPTY(&exh->q)) {
             queue* h = QUEUE_HEAD(&exh->q);
             QUEUE_REMOVE(h);
             SCliMsg* t = QUEUE_DATA(h, SCliMsg, seqq);
