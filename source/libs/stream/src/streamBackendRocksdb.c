@@ -2293,11 +2293,10 @@ int streamStateGetCfIdx(SStreamState* pState, const char* funcName) {
     if (wrapper == NULL) {
       return -1;
     }
-    rocksdb_column_family_handle_t* cf = NULL;
 
     taosThreadMutexLock(&wrapper->mutex);
 
-    cf = wrapper->pCf[idx];
+    rocksdb_column_family_handle_t* cf = wrapper->pCf[idx];
     if (cf == NULL) {
       char* err = NULL;
       cf = rocksdb_create_column_family(wrapper->db, wrapper->pCfOpts[idx], ginitDict[idx].key, &err);
