@@ -221,7 +221,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   pConn->inType = pHead->msgType;
   if (pConn->status == ConnNormal) {
-  if (pHead->persist == 1) {
+    if (pHead->persist == 1) {
       pConn->status = ConnAcquire;
       transRefSrvHandle(pConn);
       tDebug("conn %p acquired by server app", pConn);
@@ -916,6 +916,7 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   exh->handle = pConn;
   exh->pThrd = pThrd;
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
+  QUEUE_INIT(&exh->q);
   transAcquireExHandle(transGetRefMgt(), exh->refId);
 
   STrans* pTransInst = pThrd->pTransInst;
@@ -951,6 +952,7 @@ static int reallocConnRef(SSvrConn* conn) {
   exh->handle = conn;
   exh->pThrd = conn->hostThrd;
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
+  QUEUE_INIT(&exh->q);
   transAcquireExHandle(transGetRefMgt(), exh->refId);
   conn->refId = exh->refId;
 

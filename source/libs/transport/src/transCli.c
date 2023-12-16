@@ -2012,6 +2012,7 @@ static FORCE_INLINE void destroyCmsg(void* arg) {
   if (pMsg == NULL) {
     return;
   }
+  tDebug("free pmsg: %p, free ctx: %p", pMsg, pMsg->ctx);
 
   transDestroyConnCtx(pMsg->ctx);
   destroyUserdata(&pMsg->msg);
