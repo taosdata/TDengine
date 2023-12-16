@@ -622,6 +622,9 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
     streamMetaReleaseTask(pMeta, pTask);
   }
 
+  // TODO: send the checkpoint complete msg if it is in checkpoint procedure.
+
+
   // drop the stream task now
   streamMetaUnregisterTask(pMeta, pReq->streamId, pReq->taskId);
 
@@ -633,8 +636,8 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
   if (streamMetaCommit(pMeta) < 0) {
     // persist to disk
   }
-  streamMetaWUnLock(pMeta);
 
+  streamMetaWUnLock(pMeta);
   return 0;
 }
 
