@@ -1814,6 +1814,8 @@ STaskDbWrapper* taskDbOpen(char* path, char* key, int64_t chkpId) {
 
 void taskDbDestroy(void* pDb, bool flush) {
   STaskDbWrapper* wrapper = pDb;
+  if (wrapper == NULL) return;
+
   streamMetaRemoveDB(wrapper->pMeta, wrapper->idstr);
 
   qDebug("succ to destroy stream backend:%p", wrapper);
