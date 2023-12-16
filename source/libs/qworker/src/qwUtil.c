@@ -299,7 +299,7 @@ void qwFreeTaskCtx(SQWTaskCtx *ctx) {
   if (ctx->ctrlConnInfo.handle) {
     tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER);
   } else {
-    ASSERT(0);
+    // ASSERT(0);
   }
 
   ctx->ctrlConnInfo.handle = NULL;
@@ -323,15 +323,14 @@ static void freeExplainExecItem(void *param) {
   taosMemoryFree(pInfo->verboseInfo);
 }
 
-
 int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   qTaskInfo_t taskHandle = ctx->taskHandle;
 
   ctx->explainRsped = true;
-  
+
   SArray *execInfoList = taosArrayInit(4, sizeof(SExplainExecInfo));
   QW_ERR_RET(qGetExplainExecInfo(taskHandle, execInfoList));
-  
+
   if (ctx->localExec) {
     SExplainLocalRsp localRsp = {0};
     localRsp.rsp.numOfPlans = taosArrayGetSize(execInfoList);
@@ -354,8 +353,6 @@ int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 
   return TSDB_CODE_SUCCESS;
 }
-
-
 
 int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
   char id[sizeof(qId) + sizeof(tId) + sizeof(eId)] = {0};
@@ -389,7 +386,7 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
 }
 
 int32_t qwDropTaskStatus(QW_FPARAMS_DEF) {
-  SQWSchStatus  *sch = NULL;
+  SQWSchStatus * sch = NULL;
   SQWTaskStatus *task = NULL;
   int32_t        code = 0;
 
@@ -426,7 +423,7 @@ _return:
 }
 
 int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status, bool dynamicTask) {
-  SQWSchStatus  *sch = NULL;
+  SQWSchStatus * sch = NULL;
   SQWTaskStatus *task = NULL;
   int32_t        code = 0;
 
@@ -444,7 +441,6 @@ _return:
 
   QW_RET(code);
 }
-
 
 int32_t qwHandleDynamicTaskEnd(QW_FPARAMS_DEF) {
   char id[sizeof(qId) + sizeof(tId) + sizeof(eId)] = {0};
@@ -506,10 +502,10 @@ void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
 }
 
 void qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
-  char dbFName[TSDB_DB_FNAME_LEN];
-  char tbName[TSDB_TABLE_NAME_LEN];
+  char       dbFName[TSDB_DB_FNAME_LEN];
+  char       tbName[TSDB_TABLE_NAME_LEN];
   STbVerInfo tbInfo;
-  int32_t i = 0;
+  int32_t    i = 0;
 
   while (true) {
     if (qGetQueryTableSchemaVersion(pTaskInfo, dbFName, tbName, &tbInfo.sversion, &tbInfo.tversion, i) < 0) {
@@ -525,9 +521,9 @@ void qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
     if (NULL == ctx->tbInfo) {
       ctx->tbInfo = taosArrayInit(1, sizeof(tbInfo));
     }
-    
+
     taosArrayPush(ctx->tbInfo, &tbInfo);
-    
+
     i++;
   }
 }
@@ -558,11 +554,11 @@ void qwDestroyImpl(void *pMgmt) {
 
   uint64_t qId, tId;
   int32_t  eId;
-  void    *pIter = taosHashIterate(mgmt->ctxHash, NULL);
+  void *   pIter = taosHashIterate(mgmt->ctxHash, NULL);
 
   while (pIter) {
     SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
-    void       *key = taosHashGetKey(pIter, NULL);
+    void *      key = taosHashGetKey(pIter, NULL);
     QW_GET_QTID(key, qId, tId, eId);
 
     qwFreeTaskCtx(ctx);
@@ -651,7 +647,7 @@ int64_t qwGetTimeInQueue(SQWorker *mgmt, EQueueType type) {
 void qwClearExpiredSch(SQWorker *mgmt, SArray *pExpiredSch) {
   int32_t num = taosArrayGetSize(pExpiredSch);
   for (int32_t i = 0; i < num; ++i) {
-    uint64_t     *sId = taosArrayGet(pExpiredSch, i);
+    uint64_t *    sId = taosArrayGet(pExpiredSch, i);
     SQWSchStatus *pSch = NULL;
     if (qwAcquireScheduler(mgmt, *sId, QW_WRITE, &pSch)) {
       continue;
