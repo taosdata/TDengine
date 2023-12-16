@@ -2289,7 +2289,10 @@ int streamStateGetCfIdx(SStreamState* pState, const char* funcName) {
     }
   }
   if (pState != NULL && idx != -1) {
-    STaskDbWrapper*                 wrapper = pState->pTdbState->pOwner->pBackend;
+    STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+    if (wrapper == NULL) {
+      return -1;
+    }
     rocksdb_column_family_handle_t* cf = NULL;
 
     taosThreadMutexLock(&wrapper->mutex);
