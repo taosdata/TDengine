@@ -13,9 +13,11 @@ def sync_source() {
         cd ${WKC}
         [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
         git reset --hard
+        git remote prune origin
         git fetch
         cd ${WK}
         git reset --hard
+        git remote prune origin
         git fetch
     '''
     script {
