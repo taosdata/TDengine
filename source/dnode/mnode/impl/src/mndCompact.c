@@ -436,6 +436,7 @@ int32_t mndProcessKillCompactReq(SRpcMsg *pReq){
   int32_t       code = -1;
   SCompactObj   *pCompact = mndAcquireCompact(pMnode, killCompactReq.compactId);
   if(pCompact == NULL){
+    terrno = TSDB_CODE_MND_INVALID_COMPACT_ID;
     tFreeSKillCompactReq(&killCompactReq);
     return -1;
   }
