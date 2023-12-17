@@ -592,45 +592,17 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
     pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
     if (pIter == NULL) break;
 
-    mDebug("compact:%d, check save progress, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d, "
+    if (pDetail->compactId == compactId) {
+      mDebug("compact:%d, check save progress, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d, "
             "newNumberFileset:%d, newFinished:%d", 
             pDetail->compactId, pDetail->vgId, pDetail->dnodeId, pDetail->numberFileset, pDetail->finished,
             pDetail->newNumberFileset, pDetail->newFinished);
 
-    if (pDetail->compactId == compactId) {
       if(pDetail->numberFileset < pDetail->newNumberFileset || pDetail->finished < pDetail->newFinished)
         needSave = true;
     }
 
     sdbRelease(pMnode->pSdb, pDetail);
-  }
-
-  bool allFinished = true;
-  while (1) {
-    SCompactDetailObj *pDetail = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
-    if (pIter == NULL) break;
-
-    mInfo("compact:%d, check compact finished, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", 
-      pDetail->compactId, pDetail->vgId, pDetail->dnodeId, pDetail->numberFileset, pDetail->finished);
-
-    if(pDetail->numberFileset == -1 && pDetail->finished == -1){
-      allFinished = false;
-      sdbRelease(pMnode->pSdb, pDetail);
-      break;
-    }
-    if (pDetail->numberFileset != -1 && pDetail->finished != -1 &&
-        pDetail->numberFileset != pDetail->finished) {
-      allFinished = false;
-      sdbRelease(pMnode->pSdb, pDetail);
-      break;
-    }
-
-    sdbRelease(pMnode->pSdb, pDetail);
-  }
-
-  if(allFinished){
-    needSave = true;
   }
 
   if(!needSave) {
@@ -643,7 +615,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
     mError("trans:%" PRId32 ", failed to create since %s" , pTrans->id, terrstr());
     return -1;
   }
-  mInfo("trans:%d, used to update compact progress:%" PRId32, pTrans->id, compactId);
+  mInfo("compact:%d, trans:%d, used to update compact progress.", compactId, pTrans->id);
 
   SCompactObj   *pCompact = mndAcquireCompact(pMnode, compactId);
 
@@ -654,9 +626,9 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
     if (pIter == NULL) break;
 
     if (pDetail->compactId == compactId) {
-      mInfo("trans:%d, check compact progress:%d, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d, "
+      mInfo("compact:%d, trans:%d, check compact progress, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d, "
             "newNumberFileset:%d, newFinished:%d", 
-            pTrans->id, pDetail->compactId, pDetail->vgId, pDetail->dnodeId, pDetail->numberFileset, pDetail->finished,
+            pDetail->compactId, pTrans->id, pDetail->vgId, pDetail->dnodeId, pDetail->numberFileset, pDetail->finished,
             pDetail->newNumberFileset, pDetail->newFinished);
 
       pDetail->numberFileset = pDetail->newNumberFileset;
@@ -664,7 +636,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
    
       SSdbRaw *pCommitRaw = mndCompactDetailActionEncode(pDetail);
       if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-        mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+        mError("compact:%d, trans:%d, failed to append commit log since %s", pDetail->compactId, pTrans->id, terrstr());
         mndTransDrop(pTrans);
         return -1;
       }
@@ -674,7 +646,34 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
+  bool allFinished = true;
+  while (1) {
+    SCompactDetailObj *pDetail = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
+    if (pIter == NULL) break;
+
+    if(pDetail->compactId == compactId){
+      mInfo("compact:%d, trans:%d, check compact finished, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", 
+        pDetail->compactId, pTrans->id, pDetail->vgId, pDetail->dnodeId, pDetail->numberFileset, pDetail->finished);
+
+      if(pDetail->numberFileset == -1 && pDetail->finished == -1){
+        allFinished = false;
+        sdbRelease(pMnode->pSdb, pDetail);
+        break;
+      }
+      if (pDetail->numberFileset != -1 && pDetail->finished != -1 &&
+          pDetail->numberFileset != pDetail->finished) {
+        allFinished = false;
+        sdbRelease(pMnode->pSdb, pDetail);
+        break;
+      }
+    }
+
+    sdbRelease(pMnode->pSdb, pDetail);
+  }
+
   if(allFinished){
+    mInfo("compact:%d, all finished", pCompact->compactId);
     while (1) {
       SCompactDetailObj *pDetail = NULL;
       pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
@@ -683,7 +682,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
       if (pDetail->compactId == pCompact->compactId) {    
         SSdbRaw *pCommitRaw = mndCompactDetailActionEncode(pDetail);
         if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-          mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+          mError("compact:%d, trans:%d, failed to append commit log since %s", pDetail->compactId, pTrans->id, terrstr());
           mndTransDrop(pTrans);
           return -1;
         }
@@ -695,7 +694,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
 
     SSdbRaw *pCommitRaw = mndCompactActionEncode(pCompact);
     if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-      mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+      mError("compact:%d, trans:%d, failed to append commit log since %s", compactId, pTrans->id, terrstr());
       mndTransDrop(pTrans);
       return -1;
     }
@@ -703,7 +702,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
   }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mError("compact:%d, trans:%d, failed to prepare since %s", compactId, pTrans->id, terrstr());
     mndTransDrop(pTrans);
     sdbRelease(pMnode->pSdb, pCompact);
     return -1;
@@ -729,9 +728,11 @@ void mndCompactPullup(SMnode *pMnode) {
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
+    mInfo("begin to pull up");
     int32_t *pCompactId = taosArrayGet(pArray, i);
     SCompactObj  *pCompact = mndAcquireCompact(pMnode, *pCompactId);
     if (pCompact != NULL) {
+      mInfo("compact:%d, begin to pull up", pCompact->compactId);
       mndCompactSendProgressReq(pMnode, pCompact);
       mndSaveCompactProgress(pMnode, pCompact->compactId);
     }
