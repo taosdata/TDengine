@@ -604,6 +604,35 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
 
     sdbRelease(pMnode->pSdb, pDetail);
   }
+
+  bool allFinished = true;
+  while (1) {
+    SCompactDetailObj *pDetail = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
+    if (pIter == NULL) break;
+
+    mInfo("compact:%d, check compact finished, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", 
+      pDetail->compactId, pDetail->vgId, pDetail->dnodeId, pDetail->numberFileset, pDetail->finished);
+
+    if(pDetail->numberFileset == -1 && pDetail->finished == -1){
+      allFinished = false;
+      sdbRelease(pMnode->pSdb, pDetail);
+      break;
+    }
+    if (pDetail->numberFileset != -1 && pDetail->finished != -1 &&
+        pDetail->numberFileset != pDetail->finished) {
+      allFinished = false;
+      sdbRelease(pMnode->pSdb, pDetail);
+      break;
+    }
+
+    sdbRelease(pMnode->pSdb, pDetail);
+  }
+
+  if(allFinished){
+    needSave = true;
+  }
+
   if(!needSave) {
     mDebug("compact:%" PRId32 ", no need to save" , compactId);
     return 0;
@@ -640,30 +669,6 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
         return -1;
       }
       (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-    }
-
-    sdbRelease(pMnode->pSdb, pDetail);
-  }
-
-  bool allFinished = true;
-  while (1) {
-    SCompactDetailObj *pDetail = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
-    if (pIter == NULL) break;
-
-    mInfo("trans:%d, check compact finished:%d, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", 
-      pTrans->id, pDetail->compactId, pDetail->vgId, pDetail->dnodeId, pDetail->numberFileset, pDetail->finished);
-
-    if(pDetail->numberFileset == -1 && pDetail->finished == -1){
-      allFinished = false;
-      sdbRelease(pMnode->pSdb, pDetail);
-      break;
-    }
-    if (pDetail->numberFileset != -1 && pDetail->finished != -1 &&
-        pDetail->numberFileset != pDetail->finished) {
-      allFinished = false;
-      sdbRelease(pMnode->pSdb, pDetail);
-      break;
     }
 
     sdbRelease(pMnode->pSdb, pDetail);
