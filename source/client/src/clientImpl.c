@@ -1711,6 +1711,7 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     taos_fetch_rows_a(pRequest, syncFetchFn, &sem);
     tsem_wait(&sem);
     tsem_destroy(&sem);
+    pRequest->inCallback = false;
   }
 
   if (pResultInfo->numOfRows == 0 || pRequest->code != TSDB_CODE_SUCCESS) {
@@ -2490,6 +2491,7 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
   if (param->pRequest != NULL) {
     param->pRequest->syncQuery = true;
     pRequest = param->pRequest;
+    param->pRequest->inCallback = false;
   }
   taosMemoryFree(param);
 
