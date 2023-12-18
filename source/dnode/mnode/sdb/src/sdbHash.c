@@ -64,7 +64,11 @@ const char *sdbTableName(ESdbType type) {
       return "idx";
     case SDB_VIEW:
       return "view";
-    default:
+    case SDB_COMPACT:
+      return "compact";
+    case SDB_COMPACT_DETAIL:
+      return "compact_detail";
+     default:
       return "undefine";
   }
 }
