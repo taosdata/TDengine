@@ -35,7 +35,7 @@ type UAClient struct {
 	readInterval  time.Duration
 	connectConfig config.UaConnectConfig
 
-	maxNodePerRead           uint64
+	maxNodesPerRead          uint64
 	maxMonitoredItemsPerCall uint64
 	containsBad              bool
 	closeChan                chan struct{}
@@ -85,7 +85,7 @@ func NewUAClient(ctx context.Context, connectConfig config.UaConnectConfig, coll
 		readInterval:             time.Duration(interval) * time.Second,
 		connectConfig:            connectConfig,
 		maxMonitoredItemsPerCall: 0,
-		maxNodePerRead:           0,
+		maxNodesPerRead:          0,
 		dataCache:                dataCache,
 		containsBad:              collectConfig.ContainsBad,
 		closeChan:                make(chan struct{}),
@@ -219,18 +219,18 @@ func (c *UAClient) getServerLimit() error {
 		return err
 	}
 	if resp.Results[0].Status == ua.StatusOK {
-		c.maxNodePerRead = resp.Results[0].Value.Uint()
-		if c.maxNodePerRead == 0 {
-			c.maxNodePerRead = uint64(resp.Results[0].Value.Int())
+		c.maxNodesPerRead = resp.Results[0].Value.Uint()
+		if c.maxNodesPerRead == 0 {
+			c.maxNodesPerRead = uint64(resp.Results[0].Value.Int())
 		}
-		c.logger.Info("get max node per read success ", c.maxNodePerRead)
+		c.logger.Info("get max node per read success ", c.maxNodesPerRead)
 	} else {
 		c.logger.Warn("get max node per read fail, set to 1")
-		c.maxNodePerRead = 1
+		c.maxNodesPerRead = 1
 	}
-	if c.maxNodePerRead == 0 {
+	if c.maxNodesPerRead == 0 {
 		c.logger.Warn("get max node per read 0, set to 1")
-		c.maxNodePerRead = 1
+		c.maxNodesPerRead = 1
 	}
 	if resp.Results[1].Status == ua.StatusOK {
 		c.maxMonitoredItemsPerCall = resp.Results[1].Value.Uint()
@@ -297,7 +297,7 @@ func (c *UAClient) initNodeNameAndValue() error {
 }
 
 func (c *UAClient) readAllTypes() error {
-	maxOperations := uint(c.maxNodePerRead)
+	maxOperations := uint(c.maxNodesPerRead)
 	operationTimes := uint(len(c.nodes)) / maxOperations
 	for i := uint(0); i < operationTimes; i++ {
 		base := i * maxOperations
@@ -319,7 +319,7 @@ func (c *UAClient) readAllTypes() error {
 }
 
 func (c *UAClient) readAllNames() error {
-	maxOperations := uint(c.maxNodePerRead)
+	maxOperations := uint(c.maxNodesPerRead)
 	operationTimes := uint(len(c.nodes)) / maxOperations
 	for i := uint(0); i < operationTimes; i++ {
 		base := i * maxOperations
@@ -341,7 +341,7 @@ func (c *UAClient) readAllNames() error {
 }
 
 func (c *UAClient) readAllValue() error {
-	maxOperations := uint(c.maxNodePerRead)
+	maxOperations := uint(c.maxNodesPerRead)
 	operationTimes := uint(len(c.nodes)) / maxOperations
 	for i := uint(0); i < operationTimes; i++ {
 		base := i * maxOperations
