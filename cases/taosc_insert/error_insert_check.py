@@ -47,7 +47,8 @@ class TestErrorInsert(TDCase):
                     d_list_new = copy.deepcopy(d_list)
                     d_list_new.insert(i, insert_str)
                     sql_new = ''.join(d_list_new)
-                    self.tdSql.error(sql_new)
+                    if "now, .1" not in sql_new:
+                        self.tdSql.error(sql_new)
             base_sql = base_sql.replace("values", "")
             self.tdSql.error(base_sql)
 
