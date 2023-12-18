@@ -260,13 +260,13 @@ static int32_t doAddShuffleSinkTask(SMnode* pMnode, SStreamObj* pStream, SEpSet*
   return TDB_CODE_SUCCESS;
 }
 
-static SStreamTask* buildSourceTask(SStreamObj* pStream, SEpSet* pEpset,
-                                    int64_t firstWindowSkey, bool isFillhistory) {
+static SStreamTask* buildSourceTask(SStreamObj* pStream, SEpSet* pEpset, int64_t firstWindowSkey,
+                                    bool isFillhistory, bool useTriggerParam) {
   uint64_t uid = (isFillhistory) ? pStream->hTaskUid : pStream->uid;
   SArray** pTaskList = (isFillhistory) ? taosArrayGetLast(pStream->pHTasksList) : taosArrayGetLast(pStream->tasks);
 
   SStreamTask* pTask = tNewStreamTask(uid, TASK_LEVEL__SOURCE,
-                                      isFillhistory, pStream->conf.triggerParam,
+                                      isFillhistory, useTriggerParam ? pStream->conf.triggerParam : 0,
                                       *pTaskList, pStream->conf.fillHistory);
   if (pTask == NULL) {
     return NULL;
@@ -311,11 +311,10 @@ static void setHTasksId(SStreamObj* pStream) {
   }
 }
 
-static int32_t doAddSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream,
-                               SEpSet* pEpset, int64_t nextWindowSkey,
-                               SVgObj* pVgroup, bool isFillhistory ){
+static int32_t doAddSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream, SEpSet* pEpset,
+                               int64_t nextWindowSkey, SVgObj* pVgroup, bool isFillhistory, bool useTriggerParam ){
   // new stream task
-  SStreamTask* pTask = buildSourceTask(pStream, pEpset, nextWindowSkey, isFillhistory);
+  SStreamTask* pTask = buildSourceTask(pStream, pEpset, nextWindowSkey, isFillhistory, useTriggerParam);
   if(pTask == NULL){
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
@@ -362,7 +361,7 @@ static SSubplan* getAggSubPlan(const SQueryPlan* pPlan, int index){
 }
 
 static int32_t addSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream,
-                                               SEpSet* pEpset, int64_t nextWindowSkey) {
+                             SEpSet* pEpset, int64_t nextWindowSkey, bool useTriggerParam) {
   addNewTaskList(pStream);
 
   void* pIter = NULL;
@@ -379,14 +378,14 @@ static int32_t addSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream
       continue;
     }
 
-    int code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVgroup, false);
+    int code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVgroup, false, useTriggerParam);
     if(code != 0){
       sdbRelease(pSdb, pVgroup);
       return code;
     }
 
     if (pStream->conf.fillHistory) {
-      code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVgroup, true);
+      code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVgroup, true, useTriggerParam);
       if(code != 0){
         sdbRelease(pSdb, pVgroup);
         return code;
@@ -580,7 +579,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
   if (plan == NULL) {
     return terrno;
   }
-  int32_t code = addSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey);
+  int32_t code = addSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, numOfPlanLevel == 1);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

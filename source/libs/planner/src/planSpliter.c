@@ -785,7 +785,35 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
 //  return code;
 //}
 
+static bool isStreamMultiAgg(SLogicNode* pNode) {
+  if(LIST_LENGTH(pNode->pChildren) <= 0) return false;
+
+  SNode* pChild = nodesListGetNode(pNode->pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild)) {
+    qDebug("vgroups:%d", ((SScanLogicNode*)pNode)->pVgroupList->numOfVgroups);
+    return ((SScanLogicNode*)pNode)->pVgroupList->numOfVgroups > tsStreamAggCnt;
+  }
+  return false;
+}
+
 static int32_t stbSplSplitIntervalForStream(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+  SLogicNode* pPartWindow = NULL;
+  int32_t     code = stbSplCreatePartWindowNode((SWindowLogicNode*)pInfo->pSplitNode, &pPartWindow);
+  if (TSDB_CODE_SUCCESS == code) {
+    ((SWindowLogicNode*)pPartWindow)->windowAlgo = INTERVAL_ALGO_STREAM_SEMI;
+    ((SWindowLogicNode*)pInfo->pSplitNode)->windowAlgo = INTERVAL_ALGO_STREAM_FINAL;
+    code = stbSplCreateExchangeNode(pCxt, pInfo->pSplitNode, pPartWindow);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,
+                                     (SNode*)splCreateScanSubplan(pCxt, pPartWindow, SPLIT_FLAG_STABLE_SPLIT));
+  }
+  pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
+  ++(pCxt->groupId);
+  return code;
+}
+
+static int32_t stbSplSplitIntervalForStreamMultiAgg(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   SLogicNode* pPartWindow = NULL;
   SLogicNode* pMidWindow  = NULL;
   int32_t     code = stbSplCreatePartMidWindowNode((SWindowLogicNode*)pInfo->pSplitNode, &pPartWindow, &pMidWindow);
@@ -817,7 +845,11 @@ static int32_t stbSplSplitIntervalForStream(SSplitContext* pCxt, SStableSplitInf
 
 static int32_t stbSplSplitInterval(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   if (pCxt->pPlanCxt->streamQuery) {
-    return stbSplSplitIntervalForStream(pCxt, pInfo);
+//    if(isStreamMultiAgg(pInfo->pSplitNode)){
+      return stbSplSplitIntervalForStreamMultiAgg(pCxt, pInfo);
+//    }else{
+//      return stbSplSplitIntervalForStream(pCxt, pInfo);
+//    }
   } else {
     return stbSplSplitIntervalForBatch(pCxt, pInfo);
   }
