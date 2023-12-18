@@ -713,13 +713,24 @@ export default {
         }
       });
     },
+    validateTargetStb(){
+      this.$refs.sruleForm.validate((valid) => {
+        if (valid) {
+          return true;
+        } else {
+          return false;
+        }
+      });
+    },
     //计算mapping的结果
     async caculateMappingResult() {
       if (!this.msgForm.msgbody) {
-        Message.error(this.$t("datasource.transformer.msgbodytip"));
+        this.validateMsgBody()
+        // Message.error(this.$t("datasource.transformer.msgbodytip"));
         this.isbreak = true;
         return;
       }
+      this.validateTargetStb()
       if (!this.tableData[0]["Expression"]) {
         Message.warning(this.$t("datasource.transformer.tablenametip"));
         this.isbreak = true;
