@@ -2745,6 +2745,13 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
           break;
         }
         SLastCol *pCol = taosArrayGet(pColArray, iCol);
+        if (slotIds[iCol] > pTSchema->numOfCols - 1) {
+          if (!setNoneCol) {
+            noneCol = iCol;
+            setNoneCol = true;
+          }
+          continue;
+        }
         if (pCol->colVal.cid != pTSchema->columns[slotIds[iCol]].colId) {
           continue;
         }
@@ -2919,6 +2926,9 @@ static int32_t mergeLastRowCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray,
         break;
       }
       SLastCol *pCol = taosArrayGet(pColArray, iCol);
+      if (slotIds[iCol] > pTSchema->numOfCols - 1) {
+        continue;
+      }
       if (pCol->colVal.cid != pTSchema->columns[slotIds[iCol]].colId) {
         continue;
       }
