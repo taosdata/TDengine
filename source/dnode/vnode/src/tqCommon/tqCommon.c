@@ -369,6 +369,7 @@ int32_t tqStreamTaskProcessScanHistoryFinishReq(SStreamMeta* pMeta, SRpcMsg* pMs
 }
 
 int32_t tqStreamTaskProcessScanHistoryFinishRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
+  int32_t code = TSDB_CODE_SUCCESS;
   char*   msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
 
@@ -379,6 +380,12 @@ int32_t tqStreamTaskProcessScanHistoryFinishRsp(SStreamMeta* pMeta, SRpcMsg* pMs
   tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
   tDecodeCompleteHistoryDataMsg(&decoder, &req);
   tDecoderClear(&decoder);
+
+  if (pMeta->role == NODE_ROLE_FOLLOWER) {
+    tqError("s-task:0x%x (vgId:%d) not handle the scan-history finish rsp, since it becomes follower",
+            req.upstreamTaskId, pMeta->vgId);
+    return TASK_DOWNSTREAM_NOT_LEADER;
+  }
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.upstreamTaskId);
   if (pTask == NULL) {
@@ -396,11 +403,11 @@ int32_t tqStreamTaskProcessScanHistoryFinishRsp(SStreamMeta* pMeta, SRpcMsg* pMs
         "s-task:%s scan-history finish rsp received from downstream task:0x%x, all downstream tasks rsp scan-history "
         "completed msg",
         pTask->id.idStr, req.downstreamId);
-    streamProcessScanHistoryFinishRsp(pTask);
+    code = streamProcessScanHistoryFinishRsp(pTask);
   }
 
   streamMetaReleaseTask(pMeta, pTask);
-  return 0;
+  return code;
 }
 
 int32_t tqStreamTaskProcessCheckReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {

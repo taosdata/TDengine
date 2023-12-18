@@ -476,11 +476,16 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
       // automatically set the related fill-history task to be failed.
       if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
         STaskId* pId = &pTask->hTaskInfo.id;
+        int64_t  current = taosGetTimestampMs();
 
         SStreamTask* pHTask = streamMetaAcquireTask(pTask->pMeta, pId->streamId, pId->taskId);
-        streamMetaUpdateTaskDownstreamStatus(pHTask->pMeta, pId->streamId, pId->taskId, pHTask->execInfo.init,
-                                             taosGetTimestampMs(), false);
-        streamMetaReleaseTask(pTask->pMeta, pHTask);
+        if (pHTask != NULL) {
+          streamMetaUpdateTaskDownstreamStatus(pTask->pMeta, pId->streamId, pId->taskId, pHTask->execInfo.init, current,
+                                               false);
+          streamMetaReleaseTask(pTask->pMeta, pHTask);
+        } else {
+          streamMetaUpdateTaskDownstreamStatus(pTask->pMeta, pId->streamId, pId->taskId, 0, current, false);
+        }
       }
     } else {  // TASK_DOWNSTREAM_NOT_READY, let's retry in 100ms
       STaskRecheckInfo* pInfo = createRecheckInfo(pTask, pRsp);
@@ -656,6 +661,11 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistory
 
 int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
   ETaskStatus status = streamTaskGetStatus(pTask, NULL);
+
+  // task restart now, not handle the scan-history finish rsp
+  if (status == TASK_STATUS__UNINIT) {
+    return TSDB_CODE_INVALID_MSG;
+  }
 
   ASSERT(status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__STREAM_SCAN_HISTORY);
   SStreamMeta* pMeta = pTask->pMeta;
