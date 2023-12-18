@@ -100,7 +100,7 @@ pub async fn generate_scheduler_for_test(
         .await
         .unwrap();
     tracing::info!("scheduler created: {:?}", scheduler);
-    let controller = TaskController::from_sqlite("sqlite::memory:", scheduler.clone()).await?;
+    let controller = TaskController::from_sqlite("sqlite::memory:", scheduler.clone(), 100).await?;
     tracing::info!("task controller created: {:?}", scheduler);
     Ok((controller, scheduler, agent_notify_sender))
 }

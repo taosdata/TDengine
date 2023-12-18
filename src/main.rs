@@ -157,6 +157,9 @@ struct Global {
     /// Enable OpenTelemetry tracing and metrics exporter.
     #[clap(long, action = clap::ArgAction::SetTrue, env = "ENABLE_OTEL", global = true)]
     otel: Option<bool>,
+
+    /// Max activities per entity.
+    max_activities_per_entity: Option<usize>,
 }
 
 #[derive(Parser, Debug)]
@@ -607,7 +610,8 @@ fn main() -> Result<()> {
             let grpc_rt = build_runtime(worker_threads)?;
 
             // let api_rt = build_runtime(worker_threads)?;
-            let ctl = runtime.block_on(serve.controller(scheduler))?;
+            let max_activities_per_entity = args.global.max_activities_per_entity.unwrap_or(100);
+            let ctl = runtime.block_on(serve.controller(scheduler, max_activities_per_entity))?;
             let api_ctl = ctl.clone();
             let serve_api = serve.clone();
             let grpc_handle = grpc_rt.spawn(serve_api.grpc(ctl.clone(), agent_rpc_channel));
