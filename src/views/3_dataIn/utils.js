@@ -26,6 +26,7 @@ export const optionsField = uuid();
 const groupsField = uuid();
 const advancedField = uuid();
 const piOptionShowValue = 'PI Data Archive and Asset Framework (AF) Server';
+const opcuaSecuritymodeValue = 'None'
 const authenticationField = uuid();
 const datasetsField = uuid();
 let currentType = '';
@@ -225,14 +226,34 @@ function handleAuthentication(authentication, paramsConfig) {
       children: paramsChildren
     };
     if (item.params) {
-      item.params.forEach(param => {
+      item.params.forEach((param, index) => {
         const { display, description, name, value: defaultValue, required = false } = param;
         const config = {
           label: display,
           description,
-          required,
+          required: (_, originalData,currentDefinition) => {
+            if (currentDefinition?.id?.startsWith('opcua')) {
+              let authenticationData = originalData[authenticationField];
+              return checkValue(authenticationData.certificates.security_mode) && 
+                authenticationData.certificates.security_mode !== opcuaSecuritymodeValue && index > 1
+            } else {
+              return required
+            }
+          },
           field: name,
-          defaultValue: defaultValue ?? ''
+          defaultValue: defaultValue ?? '',
+          disabled: (_, originalData,currentDefinition) => {
+            if (currentDefinition?.id?.startsWith('opcua')) {
+              let authenticationData = originalData[authenticationField];
+              // 特殊处理 opcua 安全策略
+              if ( authenticationData.certificates.security_mode == opcuaSecuritymodeValue) {
+                authenticationData.certificates.security_policy = ''
+              }
+              return authenticationData.certificates.security_mode == opcuaSecuritymodeValue && index == 1
+            } else {
+              return false
+            }
+          }
         };
         handleHintType(config, param.hint);
         handleInfoParams(config);
@@ -996,7 +1017,10 @@ export function getAuthentications(authentication, params) {
       }
       return getQueryParamValue(currentData.username) + ':' + getQueryParamValue(currentData.password) + '@';
     default:
-      params.push(...dataFields.map(item => getOriginField(item) + '=' + getQueryParamValue(currentData[item])));
+      params.push(...dataFields.map(item => {
+        if (!checkValue(currentData[item])) return
+        return getOriginField(item) + '=' + getQueryParamValue(currentData[item])
+      }));
       break;
   }
   return '';

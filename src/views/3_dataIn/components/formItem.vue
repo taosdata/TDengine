@@ -129,12 +129,12 @@
         :style="docsStyle"
         :content="config.description"
       />
-      <TabFormItem
+      <!-- <TabFormItem
         v-if="config.type == 'tab'"
         :config="config"
         :disabled="disabled()"
         :data="data"
-      />
+      /> -->
       <!-- <OpcTable
         v-if="config.type == 'opcTable'"
         :data="data[field]"
@@ -146,7 +146,8 @@
 </template>
 
 <script>
-import { hasOwn, marked } from '@/utils/util';
+import { hasOwn } from '@/utils/util';
+import { marked } from 'marked';
 import { parsinginZone } from "@/utils/index";
 import { TimeFormats, getGroupsObj, getFieldClassMarkName } from '../utils'
 
@@ -175,7 +176,7 @@ export default {
     DocsContent: () => import('@/views/support/components/editorContentDisplay.vue'),
     // TabFormItem: () => import('../components/tabFormItem.vue'),
     // OpcTable: () => import('./opcTable.vue'),
-    // UploadCsv: () => import('./uploadCsv.vue'),
+    UploadCsv: () => import('./uploadCsv.vue'),
     Dataset: () => import('./dataset.vue'),
     TimezoneDatePicker: () => import('@/components/date-picker'),
     PibackfillTime: () => import('./pibackfillTime.vue'),
@@ -222,7 +223,7 @@ export default {
       };
     },
     rules() {
-      if (typeof this.config.required === 'function') return this.config.required() ? [{ required: true, message: this.$t('required', [this.config.label ?? this.config.field]) }] : [];
+      if (typeof this.config.required === 'function') return this.config.required(this.data, this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition) ? [{ required: true, message: this.$t('required', [this.config.label ?? this.config.field]) }] : [];
       return this.config.required ? [{ required: true, message: this.$t('required', [this.config.label ?? this.config.field]) }] : [];
     },
     timeRules() {
@@ -255,7 +256,7 @@ export default {
       return marked.parse(desc);
     },
     required() {
-      if (typeof this.config.required === 'function') return this.config.required();
+      if (typeof this.config.required === 'function') return this.config.required(this.data, this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition);
       return this.config.required;
     },
     changeSwith() {
