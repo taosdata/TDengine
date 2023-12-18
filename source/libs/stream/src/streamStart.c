@@ -1083,6 +1083,7 @@ int32_t streamMetaUpdateTaskDownstreamStatus(SStreamMeta* pMeta, int64_t streamI
                                              int64_t endTs, bool ready) {
   STaskStartInfo* pStartInfo = &pMeta->startInfo;
   STaskId         id = {.streamId = streamId, .taskId = taskId};
+  bool            restart = true;
 
   streamMetaWLock(pMeta);
   SHashObj* pDst = ready ? pStartInfo->pReadyTaskSet : pStartInfo->pFailedTaskSet;
@@ -1106,6 +1107,8 @@ int32_t streamMetaUpdateTaskDownstreamStatus(SStreamMeta* pMeta, int64_t streamI
     displayStatusInfo(pMeta, pStartInfo->pReadyTaskSet, true);
     displayStatusInfo(pMeta, pStartInfo->pFailedTaskSet, false);
     streamMetaResetStartInfo(pStartInfo);
+
+    pStartInfo->completeFn(pMeta);
   } else {
     stDebug("vgId:%d recv check down results:%d, total:%d", pMeta->vgId, numOfRecv, numOfTotal);
   }

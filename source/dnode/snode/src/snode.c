@@ -127,7 +127,7 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   }
 
   pSnode->msgCb = pOption->msgCb;
-  pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskExpand *)sndExpandTask, SNODE_HANDLE, taosGetTimestampMs());
+  pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskExpand *)sndExpandTask, SNODE_HANDLE, taosGetTimestampMs(), tqStartTaskCompleteCallback);
   if (pSnode->pMeta == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto FAIL;

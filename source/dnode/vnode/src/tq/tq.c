@@ -96,7 +96,8 @@ int32_t tqInitialize(STQ* pTq) {
     return -1;
   }
 
-  pTq->pStreamMeta = streamMetaOpen(pTq->path, pTq, (FTaskExpand*)tqExpandTask, pTq->pVnode->config.vgId, -1);
+  int32_t vgId = TD_VID(pTq->pVnode);
+  pTq->pStreamMeta = streamMetaOpen(pTq->path, pTq, (FTaskExpand*)tqExpandTask, vgId, -1, tqStartTaskCompleteCallback);
   if (pTq->pStreamMeta == NULL) {
     return -1;
   }

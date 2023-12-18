@@ -699,8 +699,8 @@ int32_t startStreamTasks(SStreamMeta* pMeta) {
 }
 
 int32_t resetStreamTaskStatus(SStreamMeta* pMeta) {
-  int32_t      vgId = pMeta->vgId;
-  int32_t      numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+  int32_t vgId = pMeta->vgId;
+  int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
 
   tqDebug("vgId:%d reset all %d stream task(s) status to be uninit", vgId, numOfTasks);
   if (numOfTasks == 0) {
@@ -723,15 +723,16 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   int32_t code = 0;
   int64_t st = taosGetTimestampMs();
 
-  while(1) {
-    int32_t startVal = atomic_val_compare_exchange_32(&pMeta->startInfo.taskStarting, 0, 1);
-    if (startVal == 0) {
-      break;
-    }
-
-    tqDebug("vgId:%d in start stream tasks procedure, wait for 500ms and recheck", vgId);
-    taosMsleep(500);
+  streamMetaWLock(pMeta);
+  if (pMeta->startInfo.taskStarting == 1) {
+    pMeta->startInfo.restartCount += 1;
+    tqDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, %d", vgId, pMeta->startInfo.restartCount);
+    streamMetaWUnLock(pMeta);
+    return TSDB_CODE_SUCCESS;
   }
+
+  pMeta->startInfo.taskStarting = 1;
+  streamMetaWUnLock(pMeta);
 
   terrno = 0;
   tqInfo("vgId:%d tasks are all updated and stopped, restart all tasks, triggered by transId:%d", vgId,
@@ -791,7 +792,7 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
     char* p = NULL;
     if (streamTaskReadyToRun(pTask, &p)) {
       tqDebug("vgId:%d s-task:%s start to process block from inputQ, next checked ver:%" PRId64, vgId, pTask->id.idStr,
-          pTask->chkInfo.nextProcessVer);
+              pTask->chkInfo.nextProcessVer);
       streamExecTask(pTask);
     } else {
       int8_t status = streamTaskSetSchedStatusInactive(pTask);
@@ -808,4 +809,23 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
   }
 }
 
+int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
+  STaskStartInfo* pStartInfo = &pMeta->startInfo;
+  taosWLockLatch(&pMeta->lock);
 
+  if (pStartInfo->restartCount > 0) {
+    pStartInfo->restartCount -= 1;
+
+    ASSERT(pStartInfo->taskStarting == 0);
+    tqDebug("vgId:%d role:%d need to restart all tasks again, restartCounter:%d", pMeta->vgId, pMeta->role,
+            pStartInfo->restartCount);
+
+    taosWUnLockLatch(&pMeta->lock);
+    restartStreamTasks(pMeta, (pMeta->role == NODE_ROLE_LEADER));
+  } else {
+    taosWUnLockLatch(&pMeta->lock);
+    tqDebug("vgId:%d start all tasks completed", pMeta->vgId);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}

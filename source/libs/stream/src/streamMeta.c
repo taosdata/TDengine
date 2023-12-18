@@ -277,7 +277,9 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg, char* key) {
   stDebug("s-task:0x%x set backend %p", pTask->id.taskId, pBackend);
   return 0;
 }
-SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage) {
+
+SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage,
+                            startComplete_fn_t fn) {
   int32_t      code = -1;
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
   if (pMeta == NULL) {
@@ -343,6 +345,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->stage = stage;
   pMeta->role = (vgId == SNODE_HANDLE) ? NODE_ROLE_LEADER : NODE_ROLE_UNINIT;
 
+  pMeta->startInfo.completeFn = fn;
   pMeta->pTaskDbUnique = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
 
   // pMeta->chkpId = streamGetLatestCheckpointId(pMeta);
@@ -1258,8 +1261,9 @@ void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
   taosHashClear(pStartInfo->pFailedTaskSet);
   pStartInfo->tasksWillRestart = 0;
   pStartInfo->readyTs = 0;
+
   // reset the sentinel flag value to be 0
-  atomic_store_32(&pStartInfo->taskStarting, 0);
+  pStartInfo->taskStarting = 0;
 }
 
 void streamMetaRLock(SStreamMeta* pMeta) {

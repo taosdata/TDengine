@@ -460,14 +460,18 @@ struct SStreamTask {
   char                reserve[256];
 };
 
+typedef int32_t (*startComplete_fn_t)(struct SStreamMeta*);
+
 typedef struct STaskStartInfo {
   int64_t   startTs;
   int64_t   readyTs;
   int32_t   tasksWillRestart;
-  int32_t   taskStarting;    // restart flag, sentinel to guard the restart procedure.
-  SHashObj* pReadyTaskSet;   // tasks that are all ready for running stream processing
-  SHashObj* pFailedTaskSet;  // tasks that are done the check downstream process, may be successful or failed
+  int32_t   taskStarting;         // restart flag, sentinel to guard the restart procedure.
+  SHashObj* pReadyTaskSet;        // tasks that are all ready for running stream processing
+  SHashObj* pFailedTaskSet;       // tasks that are done the check downstream process, may be successful or failed
   int64_t   elapsedTime;
+  int32_t   restartCount;         // restart task counter
+  startComplete_fn_t completeFn;  // complete callback function
 } STaskStartInfo;
 
 typedef struct STaskUpdateInfo {
@@ -827,7 +831,7 @@ int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask);
 // stream task meta
 void         streamMetaInit();
 void         streamMetaCleanup();
-SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage);
+SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage, startComplete_fn_t fn);
 void         streamMetaClose(SStreamMeta* streamMeta);
 int32_t      streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask);  // save to stream meta store
 int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, STaskId* pKey);
