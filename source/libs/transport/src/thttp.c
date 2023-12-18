@@ -28,7 +28,7 @@
 
 static int32_t httpRefMgt = 0;
 static int64_t httpRef = -1;
-static int32_t FAST_FAILURE_LIMIT = 120;
+static int32_t FAST_FAILURE_LIMIT = 1;
 typedef struct SHttpModule {
   uv_loop_t*  loop;
   SAsyncPool* asyncPool;
