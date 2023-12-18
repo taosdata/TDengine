@@ -298,9 +298,14 @@ typedef struct STableMergeScanInfo {
   SHashObj*        mSkipTables;
   int64_t          mergeLimit;
   SSortExecInfo   sortExecInfo;
-  bool             bNewFileset;
-  bool             bOnlyRetrieveBlock;
+
   bool             filesetDelimited;
+  bool             bNewFilesetEvent;
+  bool             bNextDurationBlockEvent;
+  int32_t          numNextDurationBlocks;
+  SSDataBlock*     nextDurationBlocks[2];
+  bool             rtnNextDurationBlocks;
+  int32_t          nextDurationBlocksIdx;
 } STableMergeScanInfo;
 
 typedef struct STagScanFilterContext {
@@ -636,6 +641,7 @@ typedef struct SStreamEventAggOperatorInfo {
   bool                isHistoryOp;
   SArray*             historyWins;
   bool                reCkBlock;
+  bool                recvGetAll;
   SSDataBlock*        pCheckpointRes;
   SFilterInfo*        pStartCondInfo;
   SFilterInfo*        pEndCondInfo;
@@ -748,7 +754,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
 void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo, char* pData,
-                                   int16_t bytes, bool masterscan, uint64_t groupId, SExecTaskInfo* pTaskInfo,
+                                   int32_t bytes, bool masterscan, uint64_t groupId, SExecTaskInfo* pTaskInfo,
                                    bool isIntervalQuery, SAggSupporter* pSup, bool keepGroup);
 
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
@@ -837,6 +843,8 @@ void     compactTimeWindow(SExprSupp* pSup, SStreamAggSupporter* pAggSup, STimeW
 int32_t  releaseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI);
 void     resetWinRange(STimeWindow* winRange);
 bool     checkExpiredData(SStateStore* pAPI, SUpdateInfo* pUpdateInfo, STimeWindowAggSupp* pTwSup, uint64_t tableId, TSKEY ts);
+int64_t  getDeleteMark(SWindowPhysiNode* pWinPhyNode, int64_t interval);
+void     resetUnCloseSessionWinInfo(SSHashObj* winMap);
 
 int32_t encodeSSessionKey(void** buf, SSessionKey* key);
 void*   decodeSSessionKey(void* buf, SSessionKey* key);

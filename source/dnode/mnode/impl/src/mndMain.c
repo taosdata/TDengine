@@ -42,6 +42,8 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "mndView.h"
+#include "mndCompact.h"
+#include "mndCompactDetail.h"
 
 static inline int32_t mndAcquireRpc(SMnode *pMnode) {
   int32_t code = 0;
@@ -108,6 +110,16 @@ static void mndPullupTrans(SMnode *pMnode) {
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS_TIMER, .pCont = pReq, .contLen = contLen};
+    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  }
+}
+
+static void mndPullupCompacts(SMnode *pMnode) {
+  mTrace("pullup compact timer msg");
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_COMPACT_TIMER, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
 }
@@ -287,6 +299,10 @@ static void *mndThreadFp(void *param) {
       mndPullupTrans(pMnode);
     }
 
+    if (sec % tsCompactPullupInterval == 0) {
+      mndPullupCompacts(pMnode);
+    }
+
     if (sec % tsMqRebalanceInterval == 0) {
       mndCalMqRebalance(pMnode);
     }
@@ -462,6 +478,8 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-view", mndInitView, mndCleanupView) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-compact", mndInitCompact, mndCleanupCompact) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-compact-detail", mndInitCompactDetail, mndCleanupCompactDetail) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-sdb", mndOpenSdb, NULL) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-profile", mndInitProfile, mndCleanupProfile) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-show", mndInitShow, mndCleanupShow) != 0) return -1;
@@ -693,7 +711,8 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
 _OVER:
   if (pMsg->msgType == TDMT_MND_TMQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
       pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER ||
-      pMsg->msgType == TDMT_MND_TRIM_DB_TIMER || pMsg->msgType == TDMT_MND_UPTIME_TIMER) {
+      pMsg->msgType == TDMT_MND_TRIM_DB_TIMER || pMsg->msgType == TDMT_MND_UPTIME_TIMER ||
+      pMsg->msgType == TDMT_MND_COMPACT_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
            pMnode->stopped, state.restored, syncStr(state.state));
     return -1;

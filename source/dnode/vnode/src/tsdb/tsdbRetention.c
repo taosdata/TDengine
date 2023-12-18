@@ -112,7 +112,7 @@ static int32_t tsdbCopyFileS3(SRTNer *rtner, const STFileObj *from, const STFile
   TSDB_CHECK_CODE(code, lino, _exit);
 
   char *object_name = taosDirEntryBaseName(fname);
-  code = s3PutObjectFromFile2(from->fname, object_name);
+  code = s3PutObjectFromFile2(from->fname, object_name, 1);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   taosCloseFile(&fdFrom);

@@ -408,6 +408,11 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->pDelWins);
   blockDataDestroy(pInfo->pDelRes);
   pInfo->stateStore.streamFileStateDestroy(pInfo->pState->pFileState);
+
+  if (pInfo->pState->dump == 1) {
+    taosMemoryFreeClear(pInfo->pState->pTdbState->pOwner);
+    taosMemoryFreeClear(pInfo->pState->pTdbState);
+  }
   taosMemoryFreeClear(pInfo->pState);
 
   nodesDestroyNode((SNode*)pInfo->pPhyNode);
@@ -429,6 +434,18 @@ static bool allInvertible(SqlFunctionCtx* pFCtx, int32_t numOfCols) {
     }
   }
   return true;
+}
+
+void reloadFromDownStream(SOperatorInfo* downstream, SStreamIntervalOperatorInfo* pInfo) {
+  SStateStore* pAPI = &downstream->pTaskInfo->storageAPI.stateStore;
+
+  if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    reloadFromDownStream(downstream->pDownstream[0], pInfo);
+    return;
+  }
+
+  SStreamScanInfo* pScanInfo = downstream->info;
+  pInfo->pUpdateInfo = pScanInfo->pUpdateInfo;
 }
 
 void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SStreamIntervalOperatorInfo* pInfo) {
@@ -634,9 +651,6 @@ static void addRetriveWindow(SArray* wins, SStreamIntervalOperatorInfo* pInfo, i
   for (int32_t i = 0; i < size; i++) {
     SWinKey*    winKey = taosArrayGet(wins, i);
     STimeWindow nextWin = getFinalTimeWindow(winKey->ts, &pInfo->interval);
-    if (isOverdue(nextWin.ekey, &pInfo->twAggSup) && pInfo->ignoreExpiredData) {
-      continue;
-    }
     void* chIds = taosHashGet(pInfo->pPullDataMap, winKey, sizeof(SWinKey));
     if (!chIds) {
       SPullWindowInfo pull = {
@@ -801,7 +815,7 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDat
   }
   while (1) {
     bool isClosed = isCloseWindow(&nextWin, &pInfo->twAggSup);
-    if ((!IS_FINAL_INTERVAL_OP(pOperator) && pInfo->ignoreExpiredData &&
+    if ((!IS_FINAL_INTERVAL_OP(pOperator) && pInfo->ignoreExpiredData && pSDataBlock->info.type != STREAM_PULL_DATA &&
          checkExpiredData(&pInfo->stateStore, pInfo->pUpdateInfo, &pInfo->twAggSup, pSDataBlock->info.id.uid,
                           nextWin.ekey)) ||
         !inSlidingWindow(&pInfo->interval, &nextWin, &pSDataBlock->info)) {
@@ -1345,12 +1359,12 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
   return buildIntervalResult(pOperator);
 }
 
-static int64_t getDeleteMark(SIntervalPhysiNode* pIntervalPhyNode) {
-  if (pIntervalPhyNode->window.deleteMark <= 0) {
+int64_t getDeleteMark(SWindowPhysiNode* pWinPhyNode, int64_t interval) {
+  if (pWinPhyNode->deleteMark <= 0) {
     return DEAULT_DELETE_MARK;
   }
-  int64_t deleteMark = TMAX(pIntervalPhyNode->window.deleteMark, pIntervalPhyNode->window.watermark);
-  deleteMark = TMAX(deleteMark, pIntervalPhyNode->interval);
+  int64_t deleteMark = TMAX(pWinPhyNode->deleteMark, pWinPhyNode->watermark);
+  deleteMark = TMAX(deleteMark, interval);
   return deleteMark;
 }
 
@@ -1400,9 +1414,9 @@ static void streamIntervalReleaseState(SOperatorInfo* pOperator) {
 }
 
 void streamIntervalReloadState(SOperatorInfo* pOperator) {
+  SStreamIntervalOperatorInfo* pInfo = pOperator->info;
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL &&
       pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL) {
-    SStreamIntervalOperatorInfo* pInfo = pOperator->info;
     int32_t                      size = 0;
     void*                        pBuf = NULL;
     int32_t code = pInfo->stateStore.streamStateGetInfo(pInfo->pState, STREAM_INTERVAL_OP_STATE_NAME,
@@ -1418,6 +1432,7 @@ void streamIntervalReloadState(SOperatorInfo* pOperator) {
   if (downstream->fpSet.reloadStreamStateFn) {
     downstream->fpSet.reloadStreamStateFn(downstream);
   }
+  reloadFromDownStream(downstream, pInfo);
 }
 
 SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
@@ -1444,7 +1459,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
       .calTrigger = pIntervalPhyNode->window.triggerType,
       .maxTs = INT64_MIN,
       .minTs = INT64_MAX,
-      .deleteMark = getDeleteMark(pIntervalPhyNode),
+      .deleteMark = getDeleteMark(&pIntervalPhyNode->window, pIntervalPhyNode->interval),
       .deleteMarkSaved = 0,
       .calTriggerSaved = 0,
   };
@@ -1467,7 +1482,11 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   initBasicInfo(&pInfo->binfo, pResBlock);
 
   pInfo->pState = taosMemoryCalloc(1, sizeof(SStreamState));
-  *(pInfo->pState) = *(pTaskInfo->streamInfo.pState);
+  qInfo("open state %p", pInfo->pState);
+  pAPI->stateStore.streamStateCopyBackend(pTaskInfo->streamInfo.pState, pInfo->pState);
+  //*(pInfo->pState) = *(pTaskInfo->streamInfo.pState);
+
+  qInfo("copy state %p to %p", pTaskInfo->streamInfo.pState, pInfo->pState);
 
   pAPI->stateStore.streamStateSetNumber(pInfo->pState, -1);
   int32_t code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str,
@@ -2568,7 +2587,7 @@ void doStreamSessionSaveCheckpoint(SOperatorInfo* pOperator) {
   taosMemoryFree(buf);
 }
 
-static void resetUnCloseSessionWinInfo(SSHashObj* winMap) {
+void resetUnCloseSessionWinInfo(SSHashObj* winMap) {
   void*   pIte = NULL;
   int32_t iter = 0;
   while ((pIte = tSimpleHashIterate(winMap, pIte, &iter)) != NULL) {
@@ -3344,7 +3363,8 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   SColumnInfoData* pKeyColInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->stateCol.slotId);
   for (int32_t i = 0; i < rows; i += winRows) {
     if (pInfo->ignoreExpiredData && checkExpiredData(&pInfo->streamAggSup.stateStore, pInfo->streamAggSup.pUpdateInfo,
-                                                     &pInfo->twAggSup, pSDataBlock->info.id.uid, tsCols[i]) || colDataIsNull_s(pKeyColInfo, i)) {
+                                                     &pInfo->twAggSup, pSDataBlock->info.id.uid, tsCols[i]) ||
+        colDataIsNull_s(pKeyColInfo, i)) {
       i++;
       continue;
     }
@@ -3966,7 +3986,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
                                          .calTrigger = pIntervalPhyNode->window.triggerType,
                                          .maxTs = INT64_MIN,
                                          .minTs = INT64_MAX,
-                                         .deleteMark = getDeleteMark(pIntervalPhyNode)};
+                                         .deleteMark = getDeleteMark(&pIntervalPhyNode->window, pIntervalPhyNode->interval)};
 
   ASSERTS(pInfo->twAggSup.calTrigger != STREAM_TRIGGER_MAX_DELAY, "trigger type should not be max delay");
 
