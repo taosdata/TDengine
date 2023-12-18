@@ -1107,12 +1107,13 @@ int32_t streamMetaUpdateTaskDownstreamStatus(SStreamMeta* pMeta, int64_t streamI
     displayStatusInfo(pMeta, pStartInfo->pReadyTaskSet, true);
     displayStatusInfo(pMeta, pStartInfo->pFailedTaskSet, false);
     streamMetaResetStartInfo(pStartInfo);
+    streamMetaWUnLock(pMeta);
 
     pStartInfo->completeFn(pMeta);
   } else {
+    streamMetaWUnLock(pMeta);
     stDebug("vgId:%d recv check down results:%d, total:%d", pMeta->vgId, numOfRecv, numOfTotal);
   }
 
-  streamMetaWUnLock(pMeta);
   return TSDB_CODE_SUCCESS;
 }

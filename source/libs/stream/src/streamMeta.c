@@ -348,18 +348,6 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->startInfo.completeFn = fn;
   pMeta->pTaskDbUnique = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
 
-  // pMeta->chkpId = streamGetLatestCheckpointId(pMeta);
-  // pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
-  // while (pMeta->streamBackend == NULL) {
-  //   qError("vgId:%d failed to init stream backend", pMeta->vgId);
-  //   taosMsleep(2 * 1000);
-  //   qInfo("vgId:%d retry to init stream backend", pMeta->vgId);
-  //   pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
-  //   if (pMeta->streamBackend == NULL) {
-  //   }
-  // }
-  // pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
-
   pMeta->numOfPausedTasks = 0;
   pMeta->numOfStreamTasks = 0;
   stInfo("vgId:%d open stream meta successfully, latest checkpoint:%" PRId64 ", stage:%" PRId64, vgId, pMeta->chkpId,

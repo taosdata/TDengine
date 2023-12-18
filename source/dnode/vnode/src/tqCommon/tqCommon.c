@@ -811,7 +811,7 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
 
 int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
   STaskStartInfo* pStartInfo = &pMeta->startInfo;
-  taosWLockLatch(&pMeta->lock);
+  streamMetaWLock(pMeta);
 
   if (pStartInfo->restartCount > 0) {
     pStartInfo->restartCount -= 1;
@@ -820,10 +820,10 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
     tqDebug("vgId:%d role:%d need to restart all tasks again, restartCounter:%d", pMeta->vgId, pMeta->role,
             pStartInfo->restartCount);
 
-    taosWUnLockLatch(&pMeta->lock);
+    streamMetaWUnLock(pMeta);
     restartStreamTasks(pMeta, (pMeta->role == NODE_ROLE_LEADER));
   } else {
-    taosWUnLockLatch(&pMeta->lock);
+    streamMetaWUnLock(pMeta);
     tqDebug("vgId:%d start all tasks completed", pMeta->vgId);
   }
 
