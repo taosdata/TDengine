@@ -2752,7 +2752,10 @@ int32_t killActiveCheckpointTrans(SMnode *pMnode, const char *pDBName, size_t le
 
   STrans *pTrans = mndAcquireTrans(pMnode, pTransInfo->transId);
   if (pTrans != NULL) {
-    mInfo("kill checkpoint transId:%d in Db:%s", pTransInfo->transId, pDBName);
+    char* pDupDBName = strndup(pDBName, len);
+    mInfo("kill checkpoint transId:%d in Db:%s", pTransInfo->transId, pDupDBName);
+    taosMemoryFree(pDupDBName);
+
     mndKillTrans(pMnode, pTrans);
     mndReleaseTrans(pMnode, pTrans);
   }
