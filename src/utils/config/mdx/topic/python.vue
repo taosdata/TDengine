@@ -66,8 +66,9 @@ token = os.environ[&quot;TDENGINE_TOKEN&quot;]
 conf = {
   # auth options
   &quot;td.connect.websocket.scheme&quot;: &quot;${wsPrefix}&quot;,
-  &quot;td.connect.ip&quot;: endpoint,
-  &quot;td.connect.token&quot;: token,
+  &quot;td.connect.ip&quot;: &quot;${endpoint}&quot;,
+  &quot;td.connect.user&quot;: &quot;${user}&quot;,
+  &quot;td.connect.pass&quot;: &quot;${password}&quot;,
   # consume options
   &quot;group.id&quot;: &quot;test_group_py&quot;,
   &quot;client.id&quot;: &quot;test_consumer_ws_py&quot;,
@@ -124,6 +125,14 @@ export default {
       type: String,
       default: "",
     },
+    user: {
+      type: String,
+      default: ''
+    },
+    password: {
+      type: String,
+      default: ''
+    }
   },
   data(){
     return {
@@ -156,8 +165,9 @@ token = os.environ["TDENGINE_TOKEN"]
 conf = {
   # auth options
   "td.connect.websocket.scheme": "${wsPrefix}",
-  "td.connect.ip": endpoint,
-  "td.connect.token": token,
+  "td.connect.ip": "${this.endpoint}",
+  "td.connect.user": "${this.user}",
+  "td.connect.pass": "${this.password}",
   # consume options
   "group.id": "test_group_py",
   "client.id": "test_consumer_ws_py",

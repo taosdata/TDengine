@@ -668,7 +668,7 @@ export default {
 .flexEnd {
   position: absolute;
   top: 6px;
-  z-index: 9999;
+  z-index: 9;
   right: 10px;
   .el-button {
     border: 1px solid transparent;

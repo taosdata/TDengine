@@ -89,7 +89,7 @@ export default {
         }
       }
       result = `${cType}${tmpURL}`;
-      if (this.needToken) {
+      if (this.needToken&&this.$route.name!=='Topic Example') {
         result += `\n${cType}${tmpToken}`;
       }
       return result;
