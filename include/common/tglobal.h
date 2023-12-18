@@ -107,8 +107,9 @@ extern int32_t  tsMonitorMaxLogs;
 extern bool     tsMonitorComp;
 
 // audit
-extern bool tsEnableAudit;
-extern bool tsEnableAuditCreateTable;
+extern bool     tsEnableAudit;
+extern bool     tsEnableAuditCreateTable;
+extern int32_t  tsAuditInterval;
 
 // telem
 extern bool     tsEnableTelem;
@@ -195,6 +196,7 @@ extern int64_t tsWalFsyncDataSizeLimit;
 
 // internal
 extern int32_t tsTransPullupInterval;
+extern int32_t tsCompactPullupInterval;
 extern int32_t tsMqRebalanceInterval;
 extern int32_t tsStreamCheckpointInterval;
 extern float   tsSinkDataRate;
@@ -213,6 +215,7 @@ extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
 extern int32_t tsResolveFQDNRetryTime;
 
+extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,

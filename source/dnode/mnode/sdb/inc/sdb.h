@@ -150,7 +150,9 @@ typedef enum {
   SDB_IDX = 21,
   SDB_VIEW = 22,
   SDB_STREAM_SEQ = 23,
-  SDB_MAX = 24
+  SDB_COMPACT = 24,
+  SDB_COMPACT_DETAIL = 25,
+  SDB_MAX = 26
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -170,11 +172,11 @@ typedef struct SSdbRow {
 } SSdbRow;
 
 typedef struct SSdb {
-  SMnode *       pMnode;
-  SWal *         pWal;
+  SMnode        *pMnode;
+  SWal          *pWal;
   int64_t        sync;
-  char *         currDir;
-  char *         tmpDir;
+  char          *currDir;
+  char          *tmpDir;
   int64_t        commitIndex;
   int64_t        commitTerm;
   int64_t        commitConfig;
@@ -184,7 +186,7 @@ typedef struct SSdb {
   int64_t        tableVer[SDB_MAX];
   int64_t        maxId[SDB_MAX];
   EKeyType       keyTypes[SDB_MAX];
-  SHashObj *     hashObjs[SDB_MAX];
+  SHashObj      *hashObjs[SDB_MAX];
   TdThreadRwlock locks[SDB_MAX];
   SdbInsertFp    insertFps[SDB_MAX];
   SdbUpdateFp    updateFps[SDB_MAX];
@@ -199,7 +201,7 @@ typedef struct SSdb {
 typedef struct SSdbIter {
   TdFilePtr file;
   int64_t   total;
-  char *    name;
+  char     *name;
 } SSdbIter;
 
 typedef struct {
@@ -216,8 +218,8 @@ typedef struct {
 
 typedef struct SSdbOpt {
   const char *path;
-  SMnode *    pMnode;
-  SWal *      pWal;
+  SMnode     *pMnode;
+  SWal       *pWal;
   int64_t     sync;
 } SSdbOpt;
 
@@ -394,7 +396,7 @@ int32_t  sdbGetRawSoftVer(SSdbRaw *pRaw, int8_t *sver);
 int32_t  sdbGetRawTotalSize(SSdbRaw *pRaw);
 
 SSdbRow *sdbAllocRow(int32_t objSize);
-void *   sdbGetRowObj(SSdbRow *pRow);
+void    *sdbGetRowObj(SSdbRow *pRow);
 void     sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc);
 
 int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *term, int64_t *config);

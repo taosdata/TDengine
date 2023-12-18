@@ -720,14 +720,21 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask) {
 
 // this function is only invoked by source task, and send rsp to mnode
 int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask) {
-  ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE && taosArrayGetSize(pTask->pReadyMsgList) == 1);
-  SStreamChkptReadyInfo* pInfo = taosArrayGet(pTask->pReadyMsgList, 0);
+  taosThreadMutexLock(&pTask->lock);
 
-  tmsgSendRsp(&pInfo->msg);
+  ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
 
-  taosArrayClear(pTask->pReadyMsgList);
-  stDebug("s-task:%s level:%d source checkpoint completed msg sent to mnode", pTask->id.idStr, pTask->info.taskLevel);
+  if (taosArrayGetSize(pTask->pReadyMsgList) == 1) {
+    SStreamChkptReadyInfo* pInfo = taosArrayGet(pTask->pReadyMsgList, 0);
+    tmsgSendRsp(&pInfo->msg);
 
+    taosArrayClear(pTask->pReadyMsgList);
+    stDebug("s-task:%s level:%d source checkpoint completed msg sent to mnode", pTask->id.idStr, pTask->info.taskLevel);
+  } else {
+    stDebug("s-task:%s level:%d already send rsp to mnode", pTask->id.idStr, pTask->info.taskLevel);
+  }
+
+  taosThreadMutexUnlock(&pTask->lock);
   return TSDB_CODE_SUCCESS;
 }
 

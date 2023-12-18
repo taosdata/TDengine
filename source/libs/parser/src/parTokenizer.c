@@ -64,6 +64,7 @@ static SKeyword keywordTable[] = {
     {"COMMENT",              TK_COMMENT},
     {"COMP",                 TK_COMP},
     {"COMPACT",              TK_COMPACT},
+    {"COMPACTS",             TK_COMPACTS},
     {"CONNECTION",           TK_CONNECTION},
     {"CONNECTIONS",          TK_CONNECTIONS},
     {"CONNS",                TK_CONNS},
