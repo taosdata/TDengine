@@ -31,7 +31,7 @@ class Customer:
         self.Email = email
         self.Prompt = prompt
         self.grantValue = grantValue
-tdCustomer = Customer("TDengine", "support@taosdata.com", "taos", 60)
+tdCustomer = Customer("TDengine", "support@taosdata.com", "taos", 10)
 
 class TDVersion:
     def __init__(self, verType, version):

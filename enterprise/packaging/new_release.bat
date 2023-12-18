@@ -8,7 +8,7 @@ set install_dir=C:\TDengine
 set cusName=TDengine
 set cusPrompt=taos
 set cusEmail=support@taosdata.com
-set grantValue=60
+set grantValue=10
 
 :param
 if "%1"=="" (

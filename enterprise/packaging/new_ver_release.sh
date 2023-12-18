@@ -22,7 +22,7 @@ verType=stable      # -V [stable, beta]
 versionComp=3.0.0.0
 dockerMode="no"
 dockerProject="tdengine"
-grantValue=60
+grantValue=10
 skip=0
 
 while getopts "hb:c:n:l:v:d:V:N:P:M:D:G:s:" arg
