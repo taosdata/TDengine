@@ -1501,8 +1501,7 @@ int transSendResponse(const STransMsg* msg) {
 
   if (exh == NULL) {
     rpcFreeCont(msg->pCont);
-    tTrace("msg handle already released");
-    return -1;
+    return 0;
   }
   int64_t refId = msg->info.refId;
   ASYNC_CHECK_HANDLE(exh, refId);

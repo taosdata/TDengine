@@ -394,9 +394,12 @@ class TDTestCase:
         tdSql.execute(f"create table if not exists {dbname}.jsons3(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json)")
         tdSql.execute(f"insert into {dbname}.jsons3_1 using {dbname}.jsons3 tags('{{\"tag1\":\"fff\",\"tag2\":5, \"tag3\":true}}') values(1591060618000, 3, false, 'json3', '你是3')")
         tdSql.execute(f"insert into {dbname}.jsons3_2 using {dbname}.jsons3 tags('{{\"tag1\":5,\"tag2\":\"beijing\"}}') values (1591060638000, 2, true, 'json3', 'sss')")
+        tdSql.execute(f"insert into {dbname}.jsons3_3 using {dbname}.jsons3 tags(NULL) values (1591060638000, 2, true, 'json3', 'sss')")
         tdSql.query(f"select 'sss',33,a.jtag->'tag3' from {dbname}.jsons2 a,jsons3 b where a.ts=b.ts and a.jtag->'tag1'=b.jtag->'tag1'")
         tdSql.checkData(0, 0, "sss")
         tdSql.checkData(0, 2, "true")
+        tdSql.query(f"show create table jsons3_3")
+        tdSql.checkNotEqual(tdSql.queryResult[0][1].find("TAGS (null)"), 0)
 
         res = tdSql.getColNameList(f"select 'sss',33,a.jtag->'tag3' from {dbname}.jsons2 a,jsons3 b where a.ts=b.ts and a.jtag->'tag1'=b.jtag->'tag1'")
         cname_list = []

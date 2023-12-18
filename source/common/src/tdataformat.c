@@ -1248,6 +1248,7 @@ static int32_t tPutTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
     n += tPutCStr(p ? p + n : p, pTagVal->pKey);
   } else {
     n += tPutI16v(p ? p + n : p, pTagVal->cid);
+    ASSERTS(pTagVal->cid > 0, "Invalid tag cid:%" PRIi16, pTagVal->cid);
   }
 
   // type
@@ -3590,9 +3591,9 @@ void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_
     tColDataCalcSMAUInt,           // TSDB_DATA_TYPE_UINT
     tColDataCalcSMAUBigInt,        // TSDB_DATA_TYPE_UBIGINT
     tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_JSON
-    NULL,                          // TSDB_DATA_TYPE_VARBINARY
-    NULL,                          // TSDB_DATA_TYPE_DECIMAL
-    NULL,                          // TSDB_DATA_TYPE_BLOB
+    tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_VARBINARY
+    tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_DECIMAL
+    tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_BLOB
     NULL,                          // TSDB_DATA_TYPE_MEDIUMBLOB
     tColDataCalcSMAVarType         // TSDB_DATA_TYPE_GEOMETRY
 };

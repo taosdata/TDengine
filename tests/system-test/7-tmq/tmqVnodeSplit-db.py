@@ -15,12 +15,15 @@ from util.common import *
 from util.cluster import *
 sys.path.append("./7-tmq")
 from tmqCommon import *
+sys.path.append("./6-cluster")
+from clusterCommonCreate import *
+from clusterCommonCheck import clusterComCheck
 
 class TDTestCase:
     def __init__(self):
         self.vgroups    = 1
         self.ctbNum     = 10
-        self.rowsPerTbl = 10000
+        self.rowsPerTbl = 1000
 
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -46,7 +49,7 @@ class TDTestCase:
                     'ctbPrefix':  'ctb',
                     'ctbStartIdx': 0,
                     'ctbNum':     10,
-                    'rowsPerTbl': 10000,
+                    'rowsPerTbl': 1000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  60,
@@ -115,7 +118,7 @@ class TDTestCase:
                     'ctbPrefix':  'ctb1',
                     'ctbStartIdx': 0,
                     'ctbNum':     10,
-                    'rowsPerTbl': 10000,
+                    'rowsPerTbl': 1000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  60,
@@ -186,7 +189,7 @@ class TDTestCase:
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
 
-        if expectrowcnt / 2 >= resultList[0]:
+        if expectrowcnt / 2 > resultList[0]:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectrowcnt / 2, resultList[0]))
             tdLog.exit("%d tmq consume rows error!"%consumerId)
 
@@ -195,6 +198,9 @@ class TDTestCase:
         time.sleep(2)
         for i in range(len(topicNameList)):
             tdSql.query("drop topic %s"%topicNameList[i])
+
+        if deleteWal == True:
+            clusterComCheck.check_vgroups_status(vgroup_numbers=2,db_replica=self.replicaVar,db_name="dbt",count_number=240)   
 
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 

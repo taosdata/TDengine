@@ -328,6 +328,7 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
       SIF_ERR_RET(scalarGenerateSetFromList((void **)&param->pFilter, node, nl->node.resType.type));
       if (taosHashPut(ctx->pRes, &node, POINTER_BYTES, param, sizeof(*param))) {
         taosHashCleanup(param->pFilter);
+        param->pFilter = NULL;
         indexError("taosHashPut nodeList failed, size:%d", (int32_t)sizeof(*param));
         SIF_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }

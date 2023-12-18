@@ -133,6 +133,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   }
 
   walBuildIdxName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
+  taosCloseFile(&pWal->pIdxFile);
   TdFilePtr pIdxFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
 
   if (pIdxFile == NULL) {
@@ -153,6 +154,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   }
 
   walBuildLogName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
+  taosCloseFile(&pWal->pLogFile);
   TdFilePtr pLogFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
   wDebug("vgId:%d, wal truncate file %s", pWal->cfg.vgId, fnameStr);
   if (pLogFile == NULL) {
@@ -204,6 +206,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   pWal->vers.lastVer = ver - 1;
   ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->lastVer = ver - 1;
   ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->fileSize = entry.offset;
+
   taosCloseFile(&pIdxFile);
   taosCloseFile(&pLogFile);
 
@@ -324,14 +327,18 @@ int32_t walEndSnapshot(SWal *pWal) {
 
     // iterate files, until the searched result
     // delete according to file size or close time
+    SWalFileInfo *pUntil = NULL;
     for (SWalFileInfo *iter = pWal->fileInfoSet->pData; iter < pInfo; iter++) {
       if ((pWal->cfg.retentionSize > 0 && newTotSize > pWal->cfg.retentionSize) ||
           (pWal->cfg.retentionPeriod == 0 ||
            pWal->cfg.retentionPeriod > 0 && iter->closeTs >= 0 && iter->closeTs + pWal->cfg.retentionPeriod < ts)) {
-        deleteCnt++;
         newTotSize -= iter->fileSize;
-        taosArrayPush(pWal->toDeleteFiles, iter);
+        pUntil = iter;
       }
+    }
+    for (SWalFileInfo *iter = pWal->fileInfoSet->pData; iter <= pUntil; iter++) {
+      deleteCnt++;
+      taosArrayPush(pWal->toDeleteFiles, iter);
     }
 
     // make new array, remove files
@@ -605,7 +612,7 @@ int32_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SWalSync
     return -1;
   }
 
-  if (pWal->pIdxFile == NULL || pWal->pIdxFile == NULL || pWal->writeCur < 0) {
+  if (pWal->pIdxFile == NULL || pWal->pLogFile == NULL || pWal->writeCur < 0) {
     if (walInitWriteFile(pWal) < 0) {
       taosThreadMutexUnlock(&pWal->mutex);
       return -1;

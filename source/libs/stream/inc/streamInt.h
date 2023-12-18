@@ -18,9 +18,9 @@
 
 #include "executor.h"
 #include "query.h"
-#include "tstream.h"
 #include "streamBackendRocksdb.h"
 #include "trpc.h"
+#include "tstream.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,13 +32,13 @@ extern "C" {
 #define MAX_RETRY_LAUNCH_HISTORY_TASK  40
 #define RETRY_LAUNCH_INTERVAL_INC_RATE 1.2
 
-#define MAX_BLOCK_NAME_NUM             1024
-#define DISPATCH_RETRY_INTERVAL_MS     300
-#define MAX_CONTINUE_RETRY_COUNT       5
+#define MAX_BLOCK_NAME_NUM         1024
+#define DISPATCH_RETRY_INTERVAL_MS 300
+#define MAX_CONTINUE_RETRY_COUNT   5
 
-#define META_HB_CHECK_INTERVAL         200
-#define META_HB_SEND_IDLE_COUNTER      25  // send hb every 5 sec
-#define STREAM_TASK_KEY_LEN            ((sizeof(int64_t)) << 1)
+#define META_HB_CHECK_INTERVAL    200
+#define META_HB_SEND_IDLE_COUNTER 25  // send hb every 5 sec
+#define STREAM_TASK_KEY_LEN       ((sizeof(int64_t)) << 1)
 
 #define STREAM_TASK_QUEUE_CAPACITY         20480
 #define STREAM_TASK_QUEUE_CAPACITY_IN_SIZE (30)
@@ -57,24 +57,25 @@ typedef struct {
   SSDataBlock* pBlock;
 } SStreamTrigger;
 
-typedef struct SStreamGlobalEnv {
-  int8_t inited;
-  void*  timer;
-} SStreamGlobalEnv;
-
 typedef struct SStreamContinueExecInfo {
   SEpSet  epset;
   int32_t taskId;
   SRpcMsg msg;
 } SStreamContinueExecInfo;
 
+typedef struct {
+  int64_t streamId;
+  int64_t taskId;
+  int64_t chkpId;
+  char*   dbPrefixPath;
+} SStreamTaskSnap;
 struct STokenBucket {
-  int32_t numCapacity;    // total capacity, available token per second
-  int32_t numOfToken;     // total available tokens
-  int32_t numRate;        // number of token per second
-  double  quotaCapacity;  // available capacity for maximum input size, KiloBytes per Second
-  double  quotaRemain;    // not consumed bytes per second
-  double  quotaRate;      // number of token per second
+  int32_t numCapacity;         // total capacity, available token per second
+  int32_t numOfToken;          // total available tokens
+  int32_t numRate;             // number of token per second
+  double  quotaCapacity;       // available capacity for maximum input size, KiloBytes per Second
+  double  quotaRemain;         // not consumed bytes per second
+  double  quotaRate;           // number of token per second
   int64_t tokenFillTimestamp;  // fill timestamp
   int64_t quotaFillTimestamp;  // fill timestamp
 };
@@ -86,14 +87,15 @@ struct SStreamQueue {
   int8_t      status;
 };
 
-extern SStreamGlobalEnv streamEnv;
+extern void*   streamTimer;
 extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;
+extern int32_t taskDbWrapperId;
 
-void        streamRetryDispatchData(SStreamTask* pTask, int64_t waitDuration);
-int32_t     streamDispatchStreamBlock(SStreamTask* pTask);
-void        destroyDispatchMsg(SStreamDispatchReq* pReq, int32_t numOfVgroups);
-int32_t     getNumOfDispatchBranch(SStreamTask* pTask);
+void    streamRetryDispatchData(SStreamTask* pTask, int64_t waitDuration);
+int32_t streamDispatchStreamBlock(SStreamTask* pTask);
+void    destroyDispatchMsg(SStreamDispatchReq* pReq, int32_t numOfVgroups);
+int32_t getNumOfDispatchBranch(SStreamTask* pTask);
 
 int32_t           streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBlock);
 SStreamDataBlock* createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg);
@@ -106,6 +108,8 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
 
 int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* pReq);
 
+int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId);
+int32_t streamTaskBuildCheckpoint(SStreamTask* pTask);
 int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId);
 int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet);
 
@@ -117,19 +121,33 @@ int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t
 STaskId streamTaskExtractKey(const SStreamTask* pTask);
 void    streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo);
 void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
-int32_t streamTaskBuildScanhistoryRspMsg(SStreamTask* pTask, SStreamScanHistoryFinishReq* pReq, void** pBuffer, int32_t* pLen);
+int32_t streamTaskBuildScanhistoryRspMsg(SStreamTask* pTask, SStreamScanHistoryFinishReq* pReq, void** pBuffer,
+                                         int32_t* pLen);
 int32_t streamTaskFillHistoryFinished(SStreamTask* pTask);
 
-int32_t     streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks, int32_t* blockSize);
-int32_t     streamQueueItemGetSize(const SStreamQueueItem* pItem);
-void        streamQueueItemIncSize(const SStreamQueueItem* pItem, int32_t size);
-const char* streamQueueItemGetTypeStr(int32_t type);
+void              streamClearChkptReadyMsg(SStreamTask* pTask);
+int32_t           streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
+                                              int32_t* blockSize);
+int32_t           streamQueueItemGetSize(const SStreamQueueItem* pItem);
+void              streamQueueItemIncSize(const SStreamQueueItem* pItem, int32_t size);
+const char*       streamQueueItemGetTypeStr(int32_t type);
 SStreamQueueItem* streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem);
 
 int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo, SStreamScanHistoryFinishReq* pReq);
 int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
 int32_t streamTransferStateToStreamTask(SStreamTask* pTask);
 
+// <<<<<<< HEAD
+// void streamClearChkptReadyMsg(SStreamTask* pTask);
+
+// int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate, const
+// char*); STaskId streamTaskExtractKey(const SStreamTask* pTask); void streamTaskInitForLaunchHTask(SHistoryTaskInfo*
+// pInfo); void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
+
+// void streamMetaResetStartInfo(STaskStartInfo* pMeta);
+
+// =======
+// >>>>>>> 3.0
 SStreamQueue* streamQueueOpen(int64_t cap);
 void          streamQueueClose(SStreamQueue* pQueue, int32_t taskId);
 void          streamQueueProcessSuccess(SStreamQueue* queue);
@@ -138,21 +156,27 @@ void*         streamQueueNextItem(SStreamQueue* pQueue);
 void          streamFreeQitem(SStreamQueueItem* data);
 int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
 
-typedef enum UPLOAD_TYPE{
+void streamMetaRemoveDB(void* arg, char* key);
+
+typedef enum UPLOAD_TYPE {
   UPLOAD_DISABLE = -1,
   UPLOAD_S3 = 0,
   UPLOAD_RSYNC = 1,
 } UPLOAD_TYPE;
 
 UPLOAD_TYPE getUploadType();
-int uploadCheckpoint(char* id, char* path);
-int downloadCheckpoint(char* id, char* path);
-int deleteCheckpoint(char* id);
-int deleteCheckpointFile(char* id, char* name);
+int         uploadCheckpoint(char* id, char* path);
+int         downloadCheckpoint(char* id, char* path);
+int         deleteCheckpoint(char* id);
+int         deleteCheckpointFile(char* id, char* name);
+int         downloadCheckpointByName(char* id, char* fname, char* dstName);
 
 int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask);
 int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask);
 
+typedef int32_t (*__stream_async_exec_fn_t)(void* param);
+
+int32_t streamMetaAsyncExec(SStreamMeta* pMeta, __stream_async_exec_fn_t fn, void* param, int32_t* code);
 #ifdef __cplusplus
 }
 #endif
