@@ -3,13 +3,13 @@
     <p>{{ $t("docs.topic.topdesc", [org, instance, topic]) }}</p>
     <h2 id="rust-create-project">{{ $t("docs.topic.rust.step1") }}</h2>
     <p>{{ $t("docs.topic.rust.step1desc") }}</p>
-    <pre v-highlight><code>cargo new --bin cloud-example
+    <pre v-highlight><code>cargo new --bin tdengine-sub-sample-rust
 </code></pre>
     <p>{{ $t("docs.topic.rust.step1desc1") }}</p>
     <pre v-highlight><code class="language-toml">[package]
-name = &quot;cloud-example&quot;
+name = &quot;tdengine-sub-sample-rust&quot;
 version = &quot;0.1.0&quot;
-edition = &quot;2023&quot;
+edition = &quot;2021&quot;
 
 [dependencies]
 taos = { version = &quot;*&quot;, default-features = false, features = [&quot;ws&quot;, &quot;ws-native-tls&quot;] }
@@ -28,7 +28,7 @@ anyhow = &quot;1.0.0&quot;
     <pre
       v-highlight
     ><code class="language-rust">let tmq_str = std::env::var("TDENGINE_TMQ")?;
-let tmq_uri = format!( "{}&\
+let tmq_uri = format!( "{}?\
 group.id=test_group_rs&\
 client.id=test_consumer_ws", tmq_str);
 println!("request tmq URI is {tmq_uri}\n");
@@ -72,7 +72,7 @@ consumer
       v-highlight
     ><code class="language-rust">consumer.unsubscribe().await;</code></pre>
     <h2 id="rust-fullexample">{{ $t("docs.topic.step6") }}</h2>
-    <p>{{ $t("docs.topic.step6desc") }}</p>
+    <p>{{ $t("docs.topic.step6desc",[topicName]) }}</p>
     <pre
       v-highlight="
         `use taos::*;
@@ -81,12 +81,12 @@ consumer
 async fn main() -> anyhow::Result<()> {
   // subscribe
   let tmq_str = std::env::var(&quot;TDENGINE_TMQ&quot;)?;
-  let tmq_uri = format!( &quot;{}&\\
+  let tmq_uri = format!( &quot;{}?\\
   group.id=test_group_rs&\\
   client.id=test_consumer_ws&quot;, tmq_str);
   println!(&quot;request tmq URI is {tmq_uri}\n&quot;);
   let tmq = TmqBuilder::from_dsn(tmq_uri,)?;
-  let mut consumer = tmq.build()?;
+  let mut consumer = tmq.build().await?;
   consumer.subscribe([&quot;${topicName}&quot;]).await?;
 
   // consume loop
