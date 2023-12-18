@@ -26,7 +26,7 @@ func TestUAClient_GetAllPoints(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	connectConfig := config.UaConnectConfig{
-		Endpoint:       "opc.tcp://max:53530/OPCUA/SimulationServer",
+		Endpoint:       "opc.tcp://127.0.0.1:4840",
 		ConnectTimeout: 10,
 		RequestTimeout: 10,
 		SecurityPolicy: "None",
@@ -71,7 +71,7 @@ func TestUAClient_Collect_Observer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	connectConfig := config.UaConnectConfig{
-		Endpoint:       "opc.tcp://max:53530/OPCUA/SimulationServer",
+		Endpoint:       "opc.tcp://127.0.0.1:4840",
 		ConnectTimeout: 10,
 		RequestTimeout: 10,
 		SecurityPolicy: "None",
@@ -89,9 +89,9 @@ func TestUAClient_Collect_Observer(t *testing.T) {
 		Ua: config.UaCollectConfig{
 			CollectMode: "observe",
 			Nodes: []config.NodeConfig{
-				{"ns=3;i=1001"},
-				{"ns=3;i=1002"},
-				{"ns=3;i=1003"},
+				{"ns=2;i=1001"},
+				{"ns=2;i=1002"},
+				{"ns=2;i=1003"},
 			},
 		},
 	}
@@ -127,7 +127,7 @@ func TestUAClient_Collect_Subscribe(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	connectConfig := config.UaConnectConfig{
-		Endpoint:       "opc.tcp://max:53530/OPCUA/SimulationServer",
+		Endpoint:       "opc.tcp://127.0.0.1:4840",
 		ConnectTimeout: 10,
 		RequestTimeout: 10,
 		SecurityPolicy: "None",
@@ -145,9 +145,9 @@ func TestUAClient_Collect_Subscribe(t *testing.T) {
 		Ua: config.UaCollectConfig{
 			CollectMode: "subscribe",
 			Nodes: []config.NodeConfig{
-				{"ns=3;i=1001"},
-				{"ns=3;i=1002"},
-				{"ns=3;i=1003"},
+				{"ns=2;i=1001"},
+				{"ns=2;i=1002"},
+				{"ns=2;i=1003"},
 			},
 		},
 	}

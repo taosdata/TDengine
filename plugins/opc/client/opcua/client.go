@@ -699,6 +699,7 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 		if err != nil {
 			c.logger.WithError(err).Error("get children error")
 		}
+		m[n.String()] = struct{}{}
 		for _, child := range children {
 			//avoid nested loops
 			_, ok := m[child.String()]
