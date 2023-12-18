@@ -14,7 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "audit.h"
 #include "mndCluster.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 
@@ -31,6 +33,8 @@ static int32_t  mndCreateDefaultCluster(SMnode *pMnode);
 static int32_t  mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextCluster(SMnode *pMnode, void *pIter);
 static int32_t  mndProcessUptimeTimer(SRpcMsg *pReq);
+static int32_t  mndProcessConfigClusterReq(SRpcMsg *pReq);
+static int32_t  mndProcessConfigClusterRsp(SRpcMsg *pReq);
 
 int32_t mndInitCluster(SMnode *pMnode) {
   SSdbTable table = {
@@ -45,6 +49,8 @@ int32_t mndInitCluster(SMnode *pMnode) {
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_UPTIME_TIMER, mndProcessUptimeTimer);
+  mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_CLUSTER, mndProcessConfigClusterReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_CLUSTER_RSP, mndProcessConfigClusterRsp);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CLUSTER, mndRetrieveClusters);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CLUSTER, mndCancelGetNextCluster);
 
@@ -399,5 +405,56 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
   }
 
   mndTransDrop(pTrans);
+  return 0;
+}
+
+static int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
+  SMnode         *pMnode = pReq->info.node;
+  SMCfgClusterReq cfgReq = {0};
+  if (tDeserializeSMCfgClusterReq(pReq->pCont, pReq->contLen, &cfgReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  int32_t code = 0;
+  mInfo("cluster: start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_CLUSTER) != 0) {
+    code = terrno != 0 ? terrno : TSDB_CODE_MND_NO_RIGHTS;
+    goto _exit;
+  }
+
+  if (strncmp(cfgReq.config, GRANT_ACTIVE_CODE, 11) == 0) {
+#ifdef TD_ENTERPRISE
+    if (strlen(cfgReq.config) >= TSDB_DNODE_CONFIG_LEN) {
+      code = TSDB_CODE_INVALID_CFG;
+      goto _exit;
+    }
+    if (strlen(cfgReq.value) >= TSDB_DNODE_VALUE_LEN) {
+      code = TSDB_CODE_INVALID_CFG_VALUE;
+      goto _exit;
+    }
+    // code = xxx;
+#else
+    code = TSDB_CODE_OPS_NOT_SUPPORT;
+    goto _exit;
+#endif
+  }
+
+  {  // audit
+    auditRecord(pReq, pMnode->clusterId, "alterCluster", "", "", cfgReq.sql, cfgReq.sqlLen);
+  }
+_exit:
+  tFreeSMCfgClusterReq(&cfgReq);
+  if (code != 0) {
+    terrno = code;
+    mError("cluster: failed to config:%s, %s since %s", cfgReq.config, cfgReq.value, terrstr());
+  } else {
+    mError("cluster: success to config:%s, %s", cfgReq.config, cfgReq.value);
+  }
+  return -1;
+}
+
+static int32_t mndProcessConfigClusterRsp(SRpcMsg *pRsp) {
+  mInfo("config rsp from cluster");
   return 0;
 }

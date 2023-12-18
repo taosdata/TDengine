@@ -193,6 +193,8 @@ const char* nodesNodeName(ENodeType type) {
       return "GrantStmt";
     case QUERY_NODE_REVOKE_STMT:
       return "RevokeStmt";
+    case QUERY_NODE_ALTER_CLUSTER_STMT:
+      return "AlterClusterStmt";
     case QUERY_NODE_SHOW_DNODES_STMT:
       return "ShowDnodesStmt";
     case QUERY_NODE_SHOW_MNODES_STMT:
@@ -6122,6 +6124,31 @@ static int32_t jsonToDropConsumerGroupStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkAlterClusterStmtConfig = "Config";
+static const char* jkAlterClusterStmtValue = "Value";
+
+static int32_t alterClusterStmtToJson(const void* pObj, SJson* pJson) {
+  const SAlterClusterStmt* pNode = (const SAlterClusterStmt*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, jkAlterClusterStmtConfig, pNode->config);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkAlterClusterStmtValue, pNode->value);
+  }
+
+  return code;
+}
+
+static int32_t jsonToAlterClusterStmt(const SJson* pJson, void* pObj) {
+  SAlterClusterStmt* pNode = (SAlterClusterStmt*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, jkAlterClusterStmtConfig, pNode->config);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkAlterClusterStmtValue, pNode->value);
+  }
+
+  return code;
+}
+
 static const char* jkAlterLocalStmtConfig = "Config";
 static const char* jkAlterLocalStmtValue = "Value";
 
@@ -6974,6 +7001,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return grantStmtToJson(pObj, pJson);
     case QUERY_NODE_REVOKE_STMT:
       return revokeStmtToJson(pObj, pJson);
+    case QUERY_NODE_ALTER_CLUSTER_STMT:
+      return alterClusterStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_DNODES_STMT:
       return showDnodesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_MNODES_STMT:
@@ -7297,6 +7326,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToGrantStmt(pJson, pObj);
     case QUERY_NODE_REVOKE_STMT:
       return jsonToRevokeStmt(pJson, pObj);
+    case QUERY_NODE_ALTER_CLUSTER_STMT:
+      return jsonToAlterClusterStmt(pJson, pObj);
     case QUERY_NODE_SHOW_DNODES_STMT:
       return jsonToShowDnodesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_MNODES_STMT:

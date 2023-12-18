@@ -24,7 +24,6 @@
 #include "tglobal.h"
 #endif
 
-#ifndef TD_MODULE_OPTIMIZE
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
 
@@ -38,7 +37,6 @@ static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
 
   return required;
 }
-#endif
 
 int32_t dmInitDnode(SDnode *pDnode) {
   dDebug("start to create dnode");
@@ -81,15 +79,9 @@ int32_t dmInitDnode(SDnode *pDnode) {
   if (pDnode->lockfile == NULL) {
     goto _OVER;
   }
-#ifdef TD_MODULE_OPTIMIZE
-  if (dmInitModule(pDnode, pDnode->wrappers) != 0) {
-    goto _OVER;
-  }
-#else
   if (dmInitModule(pDnode) != 0) {
     goto _OVER;
   }
-#endif
   indexInit(tsNumOfCommitThreads);
   streamMetaInit();
 

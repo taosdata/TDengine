@@ -76,6 +76,7 @@ typedef enum {
   MND_OPER_DROP_TOPIC,
   MND_OPER_CREATE_VIEW,
   MND_OPER_DROP_VIEW,
+  MND_OPER_CONFIG_CLUSTER,
 } EOperType;
 
 typedef enum {

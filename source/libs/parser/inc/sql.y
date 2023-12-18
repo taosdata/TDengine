@@ -174,7 +174,7 @@ unsafe_opt(A) ::= UNSAFE.                                                       
 
 /************************************************ alter cluster *********************************************************/
 cmd ::= ALTER CLUSTER NK_STRING(A).                                               { pCxt->pRootNode = createAlterClusterStmt(pCxt, &A, NULL); }
-cmd ::= ALTER CLUSTER NK_STRING(A) NK_STRING(B).                                  { pCxt->pRootNode = createAlterClsuterStmt(pCxt, &A, &B); }
+cmd ::= ALTER CLUSTER NK_STRING(A) NK_STRING(B).                                  { pCxt->pRootNode = createAlterClusterStmt(pCxt, &A, &B); }
 
 /************************************************ alter local *********************************************************/
 cmd ::= ALTER LOCAL NK_STRING(A).                                                 { pCxt->pRootNode = createAlterLocalStmt(pCxt, &A, NULL); }

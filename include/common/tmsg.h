@@ -2024,6 +2024,17 @@ int32_t tDeserializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp);
 void    tFreeSExplainRsp(SExplainRsp* pRsp);
 
 typedef struct {
+  char    config[TSDB_DNODE_CONFIG_LEN];
+  char    value[TSDB_DNODE_VALUE_LEN];
+  int32_t sqlLen;
+  char*   sql;
+} SMCfgClusterReq;
+
+int32_t tSerializeSMCfgClusterReq(void* buf, int32_t bufLen, SMCfgClusterReq* pReq);
+int32_t tDeserializeSMCfgClusterReq(void* buf, int32_t bufLen, SMCfgClusterReq* pReq);
+void    tFreeSMCfgClusterReq(SMCfgClusterReq* pReq);
+
+typedef struct {
   char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port
   int32_t port;
   int32_t sqlLen;
