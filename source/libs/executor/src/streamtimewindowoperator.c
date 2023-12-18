@@ -408,6 +408,11 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->pDelWins);
   blockDataDestroy(pInfo->pDelRes);
   pInfo->stateStore.streamFileStateDestroy(pInfo->pState->pFileState);
+
+  if (pInfo->pState->dump == 1) {
+    taosMemoryFreeClear(pInfo->pState->pTdbState->pOwner);
+    taosMemoryFreeClear(pInfo->pState->pTdbState);
+  }
   taosMemoryFreeClear(pInfo->pState);
 
   nodesDestroyNode((SNode*)pInfo->pPhyNode);
@@ -1462,7 +1467,11 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   initBasicInfo(&pInfo->binfo, pResBlock);
 
   pInfo->pState = taosMemoryCalloc(1, sizeof(SStreamState));
-  *(pInfo->pState) = *(pTaskInfo->streamInfo.pState);
+  qInfo("open state %p", pInfo->pState);
+  pAPI->stateStore.streamStateCopyBackend(pTaskInfo->streamInfo.pState, pInfo->pState);
+  //*(pInfo->pState) = *(pTaskInfo->streamInfo.pState);
+
+  qInfo("copy state %p to %p", pTaskInfo->streamInfo.pState, pInfo->pState);
 
   pAPI->stateStore.streamStateSetNumber(pInfo->pState, -1);
   int32_t code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str,
@@ -3338,7 +3347,8 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   SColumnInfoData* pKeyColInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->stateCol.slotId);
   for (int32_t i = 0; i < rows; i += winRows) {
     if (pInfo->ignoreExpiredData && checkExpiredData(&pInfo->streamAggSup.stateStore, pInfo->streamAggSup.pUpdateInfo,
-                                                     &pInfo->twAggSup, pSDataBlock->info.id.uid, tsCols[i]) || colDataIsNull_s(pKeyColInfo, i)) {
+                                                     &pInfo->twAggSup, pSDataBlock->info.id.uid, tsCols[i]) ||
+        colDataIsNull_s(pKeyColInfo, i)) {
       i++;
       continue;
     }

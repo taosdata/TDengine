@@ -309,9 +309,15 @@ typedef struct STableMergeScanInfo {
   SHashObj*        mSkipTables;
   int64_t          mergeLimit;
   SSortExecInfo   sortExecInfo;
-  bool             bNewFileset;
-  bool             bOnlyRetrieveBlock;
+
   bool             filesetDelimited;
+  bool             bNewFilesetEvent;
+  bool             bNextDurationBlockEvent;
+  int32_t          numNextDurationBlocks;
+  SSDataBlock*     nextDurationBlocks[2];
+  bool             rtnNextDurationBlocks;
+  int32_t          nextDurationBlocksIdx;
+  
   bool             bSortRowId;
   STmsSortRowIdInfo tmsSortRowIdInfo;
 } STableMergeScanInfo;
@@ -762,7 +768,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
 void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo, char* pData,
-                                   int16_t bytes, bool masterscan, uint64_t groupId, SExecTaskInfo* pTaskInfo,
+                                   int32_t bytes, bool masterscan, uint64_t groupId, SExecTaskInfo* pTaskInfo,
                                    bool isIntervalQuery, SAggSupporter* pSup, bool keepGroup);
 
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,

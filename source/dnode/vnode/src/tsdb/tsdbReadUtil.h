@@ -210,12 +210,16 @@ typedef struct SReaderStatus {
   SArray*               pLDataIterArray;
   SRowMerger            merger;
   SColumnInfoData*      pPrimaryTsCol;  // primary time stamp output col info data
+  // the following for preceeds fileset memory processing 
+  // TODO: refactor into seperate struct
   bool                  bProcMemPreFileset;
   int64_t               memTableMaxKey;
   int64_t               memTableMinKey;
   int64_t               prevFilesetStartKey;
   int64_t               prevFilesetEndKey;
   bool                  bProcMemFirstFileset;
+  STableUidList         procMemUidList;
+  STableBlockScanInfo** pProcMemTableIter;
 } SReaderStatus;
 
 struct STsdbReader {
