@@ -409,6 +409,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SGrantStmt));
     case QUERY_NODE_REVOKE_STMT:
       return makeNode(type, sizeof(SRevokeStmt));
+    case QUERY_NODE_ALTER_CLUSTER_STMT:
+      return makeNode(type, sizeof(SAlterClusterStmt));
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
@@ -1038,6 +1040,8 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_REVOKE_STMT:
       nodesDestroyNode(((SRevokeStmt*)pNode)->pTagCond);
+      break;
+    case QUERY_NODE_ALTER_CLUSTER_STMT:           // no pointer field
       break;
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
