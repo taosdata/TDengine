@@ -33,13 +33,11 @@ dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-mqtt", "taosx-opc"]
 
 [tasks.taos-explorer]
 script = """
-cd ..
-rm -rf explorer && git clone https://github.com/taosdata/explorer.git
-scp root@192.168.0.30:/root/enterprise-docs/docs-zh.zip .
-scp root@192.168.0.30:/root/enterprise-docs/docs-en.zip .
-rm -rf explorer/public/docs && unzip docs-zh.zip -d explorer/public/docs
-rm -rf explorer/public/docs-en && unzip docs-en.zip -d explorer/public/docs-en
-cd explorer
+cd ../explorer && git checkout main && git pull
+rsync -u root@192.168.0.30:/root/enterprise-docs/docs-zh.zip .
+rsync -u root@192.168.0.30:/root/enterprise-docs/docs-en.zip .
+rm -rf public/docs && unzip docs-zh.zip -d public/docs
+rm -rf public/docs-en && unzip docs-en.zip -d public/docs-en
 yarn install && yarn build:bin
 mkdir -p ../taosx/target/release/ && cp target/release/taos-explorer ../taosx/target/release/taos-explorer
 """
