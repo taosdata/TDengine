@@ -13,7 +13,7 @@ use taos::{sync::MessageSet, Consumer, *};
 use tokio::sync::{Barrier, Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
-use crate::{core_metrics::{get_metrics_arc, CoreMetrics, TaosXMetrics}, tmq::metric::TMQMetrics};
+use crate::{core_metrics::{get_metrics_arc, CoreMetrics, TaosXMetrics}, tmq::tmq_metric::TMQMetrics};
 use crate::{taoz::ZFile, tmq::*, utils::get_main_version_from_server_version};
 
 use dashmap::DashMap;

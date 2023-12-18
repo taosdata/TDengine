@@ -53,6 +53,7 @@ use crate::{
 use super::*;
 
 pub mod flat;
+pub mod ipc_metric;
 
 // mod rpc_client;
 

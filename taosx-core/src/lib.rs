@@ -7,12 +7,13 @@ use anyhow::Context;
 use chrono::{NaiveDate, Utc};
 use core_metrics::{try_get_metrics, CoreMetrics, TaosXMetrics, GLOBAL_METRICS};
 use dashmap::DashMap;
-use legacy::metric::LegacyToTaosMetrics;
+use legacy::legacy_metric::LegacyToTaosMetrics;
+use plugins::sink::ipc_metric::IPCMetrics;
 use serde::Deserialize;
 use serde_with::serde_as;
 use taos::taos_query::tmq::Assignment;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
-use tmq::metric::TMQMetrics;
+use tmq::tmq_metric::TMQMetrics;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
@@ -527,7 +528,7 @@ impl TaskOpts {
                 if let Some(metrics) = metrics {
                     metrics.as_ref().legacy().reset();
                 } else {
-                    let metrics = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
+                    let metrics = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::new(task_id)));
                     GLOBAL_METRICS.lock().unwrap().insert(task_id, metrics);
                 }
             }
@@ -536,9 +537,21 @@ impl TaskOpts {
                 if let Some(metrics) = metrics {
                     metrics.as_ref().tmq().reset();
                 } else {
-                    let metrics = Arc::new(CoreMetrics::TMQ(TMQMetrics::default()));
+                    let metrics = Arc::new(CoreMetrics::TMQ(TMQMetrics::new(task_id)));
                     GLOBAL_METRICS.lock().unwrap().insert(task_id, metrics);
                 }
+            }
+            ("opc" | "pi" | "mqtt" | "influxdb" | "opentsdb" | "kafka" | "historian", _) => {
+                let metrics = try_get_metrics::<IPCMetrics>(task_id);
+                if let Some(metrics) = metrics {
+                    metrics.as_ref().ipc().reset();
+                } else {
+                    let metrics = Arc::new(CoreMetrics::IPC(IPCMetrics::new(task_id)));
+                    GLOBAL_METRICS.lock().unwrap().insert(task_id, metrics);
+                }
+            }
+            ("csv", _) => {
+                todo!("csv metrics")
             }
             _ => (),
         }

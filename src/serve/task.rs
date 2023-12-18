@@ -630,6 +630,7 @@ pub(super) async fn get_task_metrics2(
                 core_metrics::get_legacy_metrics_for_explorer(running, legacy_metrics)
             }
             CoreMetrics::TMQ(_tmq_metrics) => todo!(),
+            CoreMetrics::IPC(_ipc_metrics) => todo!(),
         }
     } else {
         return "{}".to_string();

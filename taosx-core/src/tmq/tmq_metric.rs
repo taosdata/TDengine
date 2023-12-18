@@ -1,10 +1,10 @@
-use crate::core_metrics::{CoreMetrics, TaosXMetrics, CommonMetrics};
+use crate::core_metrics::{CommonMetrics, CoreMetrics, TaosXMetrics};
 use chrono::Utc;
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use std::sync::atomic::Ordering::SeqCst;
 use std::sync::atomic::AtomicU16;
+use std::sync::atomic::Ordering::SeqCst;
 use tracing;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -46,6 +46,24 @@ impl Default for TMQMetrics {
 }
 
 impl TMQMetrics {
+    pub fn new(task_id: i64) -> Self {
+        Self {
+            com: CommonMetrics::new(task_id),
+            topics: AtomicU16::new(0),
+            workers: AtomicU16::new(0),
+            total_messages: AtomicU64::new(0),
+            total_messages_of_meta: AtomicU64::new(0),
+            total_messages_of_data: AtomicU64::new(0),
+            total_write_meta_fails: AtomicU64::new(0),
+            total_suc_blocks: AtomicU64::new(0),
+            messages: AtomicU64::new(0),
+            messages_of_meta: AtomicU64::new(0),
+            messages_of_data: AtomicU64::new(0),
+            write_meta_fails: AtomicU64::new(0),
+            suc_blocks: AtomicU64::new(0),
+        }
+    }
+
     #[inline]
     pub fn add_messages(&self, n: u64) {
         self.total_messages.fetch_add(n, SeqCst);
@@ -78,7 +96,6 @@ impl TMQMetrics {
 }
 
 impl TaosXMetrics for TMQMetrics {
-
     fn reset(&self) {
         self.com.reset();
         self.messages.store(0, SeqCst);
@@ -101,7 +118,6 @@ impl TaosXMetrics for TMQMetrics {
             }
         }
     }
-    
 }
 
 impl Into<CoreMetrics> for TMQMetrics {

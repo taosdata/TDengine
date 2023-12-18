@@ -1,18 +1,21 @@
 use std::{ops::Deref, sync::Arc, time::Duration};
 
+use crate::{
+    core_metrics::{get_metrics_arc, CoreMetrics, TaosXMetrics},
+    legacy_metric::LegacyToTaosMetrics,
+    sync_super_table_schema, sync_super_table_schema_with_subs,
+    tmq::{tmq_metric::TMQMetrics, *},
+    Action,
+};
 use anyhow::{bail, Context, Result};
+use dashmap::DashMap;
 use linked_hash_map::LinkedHashMap;
+use metrics::counter;
+use std::sync::atomic::Ordering::SeqCst;
+use taos::taos_query::tmq::Assignment;
 use taos::{Consumer, *};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
-use std::sync::atomic::Ordering::SeqCst;
-use crate::{
-    core_metrics::{CoreMetrics, get_metrics_arc, TaosXMetrics}, metric::LegacyToTaosMetrics, sync_super_table_schema,
-    sync_super_table_schema_with_subs, tmq::{*, metric::TMQMetrics}, Action,
-};
-use dashmap::DashMap;
-use metrics::counter;
-use taos::taos_query::tmq::Assignment;
 
 #[instrument(skip_all, fields(table, rows))]
 async fn write_data(
@@ -394,7 +397,7 @@ async fn sync(
             }
             next = stream.try_next() => {
                 if let Some((offset, message)) = next.with_context(|| format!("[{id}] polling next message error"))? {
-                    metrics.add_messages(1);                    
+                    metrics.add_messages(1);
                     let total = metrics.messages.load(SeqCst);
                     messages += 1;
                     if messages % 2000 == 0 {
@@ -419,6 +422,10 @@ async fn sync(
                             consumer.worker.id = id,
                             "[{id}] commit error: {err:?}"
                         );
+                    } else {
+                       if metrics.shold_save() {
+                            let _ = metrics.save();
+                        }
                     };
                 } else {
                     break;

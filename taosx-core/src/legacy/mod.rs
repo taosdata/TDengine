@@ -32,7 +32,7 @@ use crate::{
 use self::scheduler::Scheduler;
 use std::sync::atomic::Ordering::SeqCst;
 
-pub mod metric;
+pub mod legacy_metric;
 mod scheduler;
 mod verify;
 // mod tasks;

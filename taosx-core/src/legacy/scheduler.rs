@@ -404,8 +404,8 @@ async fn worker(
                                             metrics = metrics,
                                         );
 
-                                        if let Some(id) = task_id.as_ref() {
-                                            let _ = metrics.save(id.as_str());
+                                        if metrics.shold_save() {
+                                            let _ = metrics.save();
                                         }
 
                                         break;

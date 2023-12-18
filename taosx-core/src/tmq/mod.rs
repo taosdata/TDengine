@@ -10,7 +10,7 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 use taos::*;
 
-pub mod metric;
+pub mod tmq_metric;
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub(crate) struct TopicTable {
     pub(crate) stable: Option<String>,

@@ -2,8 +2,9 @@
 //! Define metrics data structure for each supported datasource.
 //! And supply a global accessable map to store all metrics data.
 
-use crate::legacy::metric::LegacyToTaosMetrics;
-use crate::tmq::metric::TMQMetrics;
+use crate::legacy::legacy_metric::LegacyToTaosMetrics;
+use crate::plugins::sink::ipc_metric::IPCMetrics;
+use crate::tmq::tmq_metric::TMQMetrics;
 use crate::utils::metrics_db::MetricsDb;
 use lazy_static::lazy_static;
 use metrics::atomics::AtomicU64;
@@ -20,6 +21,7 @@ use std::time::Instant;
 pub enum CoreMetrics {
     Legacy(LegacyToTaosMetrics),
     TMQ(TMQMetrics),
+    IPC(IPCMetrics),
 }
 
 impl CoreMetrics {
@@ -38,11 +40,19 @@ impl CoreMetrics {
             _ => panic!("metrics type not match"),
         }
     }
+
+    pub fn ipc(&self) -> &IPCMetrics {
+        match self {
+            CoreMetrics::IPC(ipc) => ipc,
+            _ => panic!("metrics type not match"),
+        }
+    }
 }
 
 /// CommonMetrics is a data structure to store metrics that are common to all task types.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommonMetrics {
+    pub task_id: i64,
     pub start_time: TaskStartTime,
     pub total_execute_time: AtomicU64,
     pub total_written_rows: AtomicU64,
@@ -56,6 +66,7 @@ pub struct CommonMetrics {
 impl Default for CommonMetrics {
     fn default() -> Self {
         Self {
+            task_id: -1,
             start_time: TaskStartTime::default(),
             total_execute_time: AtomicU64::new(0),
             total_written_rows: AtomicU64::new(0),
@@ -68,6 +79,13 @@ impl Default for CommonMetrics {
 }
 
 impl CommonMetrics {
+    pub fn new(task_id: i64) -> Self {
+        Self {
+            task_id,
+            ..Default::default()
+        }
+    }
+
     pub fn update_total_execute_time(&self) {
         let elapsed = self.last_persist_time.elapsed_millis();
         self.total_execute_time.fetch_add(elapsed, SeqCst);
@@ -87,7 +105,7 @@ pub trait TaosXMetrics: Into<CoreMetrics> + Serialize {
 
     /// Return CommonMetrics
     fn com(&self) -> &CommonMetrics;
-    
+
     /// Convert metrics to json string.
     fn to_json(&self) -> String {
         serde_json::to_string(self).unwrap()
@@ -97,10 +115,16 @@ pub trait TaosXMetrics: Into<CoreMetrics> + Serialize {
     fn from_json(json: &str) -> Self;
 
     /// Save metrics to database
-    fn save(&self, task_id: &str) -> anyhow::Result<()> {
+    fn save(&self) -> anyhow::Result<()> {
         self.com().update_total_execute_time();
-        let db = MetricsDb::new(task_id)?;
+        let task_id = self.com().task_id.to_string();
+        let db = MetricsDb::new(task_id.as_str())?;
         db.set(self.to_json().as_str())
+    }
+
+    #[inline]
+    fn shold_save(&self) -> bool {
+        self.com().task_id > -1
     }
 
     #[inline]
@@ -108,8 +132,12 @@ pub trait TaosXMetrics: Into<CoreMetrics> + Serialize {
         let total_execute_time = self.total_execute_time();
         if total_execute_time > 0 {
             map.insert(
-                "total_avg_speed".to_string(),
+                "total_records_per_second".to_string(),
                 (self.total_written_rows() as f64 * 1000_f64 / total_execute_time as f64).into(),
+            );
+            map.insert(
+                "total_points_per_second".to_string(),
+                (self.total_written_points() as f64 * 1000_f64 / total_execute_time as f64).into(),
             );
         }
     }
@@ -117,9 +145,15 @@ pub trait TaosXMetrics: Into<CoreMetrics> + Serialize {
     #[inline]
     fn compute_avg_speed(&self, map: &mut serde_json::Map<String, serde_json::Value>) {
         let execute_time = (chrono::Utc::now().timestamp_millis() - self.start_time()) as f64;
-        let current_speed = (self.written_rows() * 1000) as f64 / execute_time;
         map.insert("execute_time".to_string(), execute_time.into());
-        map.insert("avg_speed".to_string(), current_speed.into());
+        map.insert(
+            "records_per_second".to_string(),
+            (self.written_rows() as f64 * 1000_f64 / execute_time).into(),
+        );
+        map.insert(
+            "points_per_second".to_string(),
+            (self.written_points() as f64 * 1000_f64 / execute_time).into(),
+        );
     }
 
     #[inline]
@@ -135,6 +169,16 @@ pub trait TaosXMetrics: Into<CoreMetrics> + Serialize {
     #[inline]
     fn written_rows(&self) -> u64 {
         self.com().written_rows.load(SeqCst)
+    }
+
+    #[inline]
+    fn total_written_points(&self) -> u64 {
+        self.com().total_written_points.load(SeqCst)
+    }
+
+    #[inline]
+    fn written_points(&self) -> u64 {
+        self.com().written_points.load(SeqCst)
     }
 
     #[inline]
@@ -303,7 +347,7 @@ mod tests {
     #[test]
     fn test_global_metrics() {
         let mut metrics = GLOBAL_METRICS.lock().unwrap();
-        let legacy_to_taos_metrics = LegacyToTaosMetrics::default();
+        let legacy_to_taos_metrics = LegacyToTaosMetrics::new(1);
         legacy_to_taos_metrics
             .workers
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
@@ -360,7 +404,7 @@ mod tests {
     /// This test case is to verify that the metrics can be loaded from persistence.
     #[test]
     fn test_load_metrics() {
-        let legacy_to_taos_metrics = LegacyToTaosMetrics::default();
+        let legacy_to_taos_metrics = LegacyToTaosMetrics::new(1024);
         legacy_to_taos_metrics
             .workers
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
@@ -383,7 +427,7 @@ mod tests {
         let path_buf = MetricsDb::db_dir("10240");
         let db_path = Path::new(&path_buf);
 
-        let legacy_to_taos_metrics = LegacyToTaosMetrics::default();
+        let legacy_to_taos_metrics = LegacyToTaosMetrics::new(1024);
         legacy_to_taos_metrics
             .workers
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
@@ -392,7 +436,7 @@ mod tests {
             let mut global_metrics = GLOBAL_METRICS.lock().unwrap();
             global_metrics.insert(10240, metrics.clone());
         }
-        metrics.as_ref().legacy().save("10240").unwrap();
+        metrics.as_ref().legacy().save().unwrap();
         assert!(db_path.exists());
         clear_metrics(10240);
         let metrics = get_metrics(10240);

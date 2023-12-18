@@ -31,6 +31,23 @@ pub struct LegacyToTaosMetrics {
 }
 
 impl LegacyToTaosMetrics {
+    pub fn new(task_id: i64) -> Self {
+        Self {
+            com: CommonMetrics::new(task_id),
+            workers: Default::default(),
+            total_stables: Default::default(),
+            total_tables: Default::default(),
+            total_finished_tables: Default::default(),
+            total_suc_blocks: Default::default(),
+            total_updated_tags: Default::default(),
+            total_created_tables: Default::default(),
+            finished_tables: Default::default(),
+            suc_blocks: Default::default(),
+            updated_tags: Default::default(),
+            created_tables: Default::default(),
+        }
+    }
+
     pub fn add_suc_blocks(&self, n: u64) {
         self.total_suc_blocks.fetch_add(n, SeqCst);
         self.suc_blocks.fetch_add(n, SeqCst);
