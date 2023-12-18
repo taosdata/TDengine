@@ -35,8 +35,8 @@ type UAClient struct {
 	readInterval  time.Duration
 	connectConfig config.UaConnectConfig
 
-	maxNodePreRead           uint64
-	maxMonitoredItemsPreCall uint64
+	maxNodesPerRead          uint64
+	maxMonitoredItemsPerCall uint64
 	containsBad              bool
 	closeChan                chan struct{}
 	once                     sync.Once
@@ -84,8 +84,8 @@ func NewUAClient(ctx context.Context, connectConfig config.UaConnectConfig, coll
 		logger:                   opcLogger,
 		readInterval:             time.Duration(interval) * time.Second,
 		connectConfig:            connectConfig,
-		maxMonitoredItemsPreCall: 0,
-		maxNodePreRead:           0,
+		maxMonitoredItemsPerCall: 0,
+		maxNodesPerRead:          0,
 		dataCache:                dataCache,
 		containsBad:              collectConfig.ContainsBad,
 		closeChan:                make(chan struct{}),
@@ -219,32 +219,32 @@ func (c *UAClient) getServerLimit() error {
 		return err
 	}
 	if resp.Results[0].Status == ua.StatusOK {
-		c.maxNodePreRead = resp.Results[0].Value.Uint()
-		if c.maxNodePreRead == 0 {
-			c.maxNodePreRead = uint64(resp.Results[0].Value.Int())
+		c.maxNodesPerRead = resp.Results[0].Value.Uint()
+		if c.maxNodesPerRead == 0 {
+			c.maxNodesPerRead = uint64(resp.Results[0].Value.Int())
 		}
-		c.logger.Info("get max node pre read success ", c.maxNodePreRead)
+		c.logger.Info("get max node per read success ", c.maxNodesPerRead)
 	} else {
-		c.logger.Warn("get max node pre read fail, set to 1")
-		c.maxNodePreRead = 1
+		c.logger.Warn("get max node per read fail, set to 1")
+		c.maxNodesPerRead = 1
 	}
-	if c.maxNodePreRead == 0 {
-		c.logger.Warn("get max node pre read 0, set to 1")
-		c.maxNodePreRead = 1
+	if c.maxNodesPerRead == 0 {
+		c.logger.Warn("get max node per read 0, set to 1")
+		c.maxNodesPerRead = 1
 	}
 	if resp.Results[1].Status == ua.StatusOK {
-		c.maxMonitoredItemsPreCall = resp.Results[1].Value.Uint()
-		if c.maxMonitoredItemsPreCall == 0 {
-			c.maxMonitoredItemsPreCall = uint64(resp.Results[1].Value.Int())
+		c.maxMonitoredItemsPerCall = resp.Results[1].Value.Uint()
+		if c.maxMonitoredItemsPerCall == 0 {
+			c.maxMonitoredItemsPerCall = uint64(resp.Results[1].Value.Int())
 		}
-		c.logger.Info("get max monitored items pre call success, ", c.maxMonitoredItemsPreCall)
+		c.logger.Info("get max monitored items per call success, ", c.maxMonitoredItemsPerCall)
 	} else {
-		c.logger.Warn("get max monitored items pre call fail, set to 1")
-		c.maxMonitoredItemsPreCall = 1
+		c.logger.Warn("get max monitored items per call fail, set to 1")
+		c.maxMonitoredItemsPerCall = 1
 	}
-	if c.maxMonitoredItemsPreCall == 0 {
-		c.logger.Warn("get max monitored items pre call 0, set to 1")
-		c.maxMonitoredItemsPreCall = 1
+	if c.maxMonitoredItemsPerCall == 0 {
+		c.logger.Warn("get max monitored items per call 0, set to 1")
+		c.maxMonitoredItemsPerCall = 1
 	}
 	return nil
 }
@@ -297,7 +297,7 @@ func (c *UAClient) initNodeNameAndValue() error {
 }
 
 func (c *UAClient) readAllTypes() error {
-	maxOperations := uint(c.maxNodePreRead)
+	maxOperations := uint(c.maxNodesPerRead)
 	operationTimes := uint(len(c.nodes)) / maxOperations
 	for i := uint(0); i < operationTimes; i++ {
 		base := i * maxOperations
@@ -319,7 +319,7 @@ func (c *UAClient) readAllTypes() error {
 }
 
 func (c *UAClient) readAllNames() error {
-	maxOperations := uint(c.maxNodePreRead)
+	maxOperations := uint(c.maxNodesPerRead)
 	operationTimes := uint(len(c.nodes)) / maxOperations
 	for i := uint(0); i < operationTimes; i++ {
 		base := i * maxOperations
@@ -341,7 +341,7 @@ func (c *UAClient) readAllNames() error {
 }
 
 func (c *UAClient) readAllValue() error {
-	maxOperations := uint(c.maxNodePreRead)
+	maxOperations := uint(c.maxNodesPerRead)
 	operationTimes := uint(len(c.nodes)) / maxOperations
 	for i := uint(0); i < operationTimes; i++ {
 		base := i * maxOperations
@@ -516,7 +516,7 @@ func (c *UAClient) subscribe() error {
 	if err != nil {
 		return err
 	}
-	maxOperations := uint(c.maxMonitoredItemsPreCall)
+	maxOperations := uint(c.maxMonitoredItemsPerCall)
 	ch := make(chan *opcua.PublishNotificationData, 1)
 	sub, err := c.conn.Subscribe(c.ctx, &opcua.SubscriptionParameters{}, ch)
 	if err != nil {
@@ -605,7 +605,7 @@ func (c *UAClient) handleSubCallback(sub *opcua.Subscription, ch chan *opcua.Pub
 						identifier := nodeID.String()
 
 						if item == nil || item.Value == nil {
-							c.logger.Error("observe opc ua item is nil", "identifier", identifier, "item", item)
+							c.logger.WithField("identifier", identifier).WithField("item", item).Error("observe opc ua item is nil")
 							continue
 						}
 						c.dataCache[handle].Value = item.Value.Value.Value()
@@ -622,7 +622,7 @@ func (c *UAClient) handleSubCallback(sub *opcua.Subscription, ch chan *opcua.Pub
 						c.dataCache[handle].StartTime = now
 						c.dataCache[handle].Status = int64(item.Value.Status)
 						if item.Value.Status != ua.StatusOK {
-							c.logger.Warn("read value status is not ok", "id", identifier, "status", item.Value.Status)
+							c.logger.WithField("status", item.Value.Status).WithField("identifier", identifier).Warn("read value status is not ok")
 							if !c.containsBad {
 								continue
 							}
