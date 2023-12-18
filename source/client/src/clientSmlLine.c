@@ -237,15 +237,24 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
         }
         sMeta->tableMeta = pTableMeta;
         taosHashPut(info->superTables, currElement->measure, currElement->measureLen, &sMeta, POINTER_BYTES);
-        for (int i = pTableMeta->tableInfo.numOfColumns;
-             i < pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns; i++) {
-          SSchema *tag = pTableMeta->schema + i;
-          SSmlKv   kv = {.key = tag->name,
-                         .keyLen = strlen(tag->name),
-                         .type = tag->type,
-                         .length = (tag->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE};
-          taosArrayPush(sMeta->tags, &kv);
+        for (int i = 1; i < pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns; i++) {
+          SSchema *col = pTableMeta->schema + i;
+          SSmlKv   kv = {.key = col->name, .keyLen = strlen(col->name), .type = col->type};
+          if (col->type == TSDB_DATA_TYPE_NCHAR) {
+            kv.length = (col->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+          } else if (col->type == TSDB_DATA_TYPE_BINARY || col->type == TSDB_DATA_TYPE_GEOMETRY || col->type == TSDB_DATA_TYPE_VARBINARY) {
+            kv.length = col->bytes - VARSTR_HEADER_SIZE;
+          } else{
+            kv.length = col->bytes;
+          }
+
+          if(i < pTableMeta->tableInfo.numOfColumns){
+            taosArrayPush(sMeta->cols, &kv);
+          }else{
+            taosArrayPush(sMeta->tags, &kv);
+          }
         }
+
         tmp = &sMeta;
       }
       info->currSTableMeta = (*tmp)->tableMeta;
