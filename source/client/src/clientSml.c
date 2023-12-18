@@ -1640,25 +1640,25 @@ int32_t smlClearForRerun(SSmlHandle *info) {
   return TSDB_CODE_SUCCESS;
 }
 
-static bool getLine(SSmlHandle *info, char *lines[], char *rawLine, char *rawLineEnd,
+static bool getLine(SSmlHandle *info, char *lines[], char **rawLine, char *rawLineEnd,
                     int numLines, int i, char** tmp, int *len){
   if (lines) {
     *tmp = lines[i];
     *len = strlen(*tmp);
-  } else if (rawLine) {
-    *tmp = rawLine;
-    while (rawLine < rawLineEnd) {
-      if (*(rawLine++) == '\n') {
+  } else if (*rawLine) {
+    *tmp = *rawLine;
+    while (*rawLine < rawLineEnd) {
+      if (*((*rawLine)++) == '\n') {
         break;
       }
       (*len)++;
     }
     if (info->protocol == TSDB_SML_LINE_PROTOCOL && (*tmp)[0] == '#') {  // this line is comment
-      false;
+      return false;
     }
   }
 
-  if(rawLine != NULL){
+  if(*rawLine != NULL){
     char* print = taosMemoryCalloc(*len + 1, 1);
     memcpy(print, *tmp, *len);
     uDebug("SML:0x%" PRIx64 " smlParseLine is raw, numLines:%d, protocol:%d, len:%d, data:%s", info->id,
@@ -1692,7 +1692,7 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
   while (i < numLines) {
     char *tmp = NULL;
     int   len = 0;
-    if(!getLine(info, lines, rawLine, rawLineEnd, numLines, i, &tmp, &len)){
+    if(!getLine(info, lines, &rawLine, rawLineEnd, numLines, i, &tmp, &len)){
       continue;
     }
     if (info->protocol == TSDB_SML_LINE_PROTOCOL) {
