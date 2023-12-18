@@ -30,7 +30,7 @@ let timerFuncion = async () => {
     // 首次加载网页的时候 存储第一份version
     if (!version) {
       version = res
-    } else if (version != res) {
+    } else if (res && version != res) {
         // 弹出更新提示 发现verison文件更新了 就代表新部署了
         // 借鉴Element的Message实现挂载vue组件到页面上
         let MessageConstructor = Vue.extend(Modal);
