@@ -83,6 +83,10 @@ public class PushPrepareThread implements Runnable {
                 Set<String> bucketDataKeySet = BucketDataCache.getBucketDataKeySet();
                 // 遍历，如果不存在线程则新建连接与线程
                 bucketDataKeySet.stream().forEach(key -> {
+                    // 判断队列长度与当前连接数
+                    if (BucketDataCache.getBucketDataQueueSize(key) == 0 || (this.performanceConfig.getLimitConnect() > 0 && BucketDataCache.socketMap.size() > this.performanceConfig.getLimitConnect())) {
+                        return;
+                    }
                     // 判断是否存在并且状态正常
                     if (!BucketDataCache.socketMap.containsKey(key) || !BucketDataCache.socketMap.get(key).isOpen()) {
                         // 创建连接并启动推送线程
