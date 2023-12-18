@@ -3566,8 +3566,8 @@ int32_t startRowIdSort(STableMergeScanInfo *pInfo) {
   STmsSortRowIdInfo* pSort = &pInfo->tmsSortRowIdInfo;
   int32_t pageSize = getProperSortPageSize(blockDataGetRowSize(pInfo->pResBlock),
                                                       taosArrayGetSize(pInfo->pResBlock->pDataBlock));
-  int32_t memSize = pageSize * 2048;
-  createDiskbasedBuf(&pSort->pExtSrcRowsBuf, pageSize, memSize, "tms-ext-src-block", tsTempDir);
+  int32_t memSize = pageSize * 4 * 8192;
+  createDiskbasedBuf(&pSort->pExtSrcRowsBuf, pageSize * 4, memSize, "tms-ext-src-block", tsTempDir);
   dBufSetPrintInfo(pSort->pExtSrcRowsBuf);
   return 0;
 }
