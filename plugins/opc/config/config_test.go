@@ -23,7 +23,7 @@ opc_type = "opcua"
 debug = false
 
 [connect.ua]
-endpoint = "opc.tcp://0.0.0.0:4840"
+endpoint = "opc.tcp://127.0.0.1:4840"
 connect_timeout = 10
 request_timeout = 10
 security_policy = "None"
@@ -63,7 +63,7 @@ opc_type = "opcua"
 debug = false
 
 [connect.ua]
-endpoint = "opc.tcp://0.0.0.0:4840"
+endpoint = "opc.tcp://127.0.0.1:4840"
 connect_timeout = 10
 request_timeout = 10
 security_policy = "None"
@@ -103,7 +103,7 @@ opc_type = "opcua"
 debug = false
 
 [connect.ua]
-endpoint = "opc.tcp://0.0.0.0:4840"
+endpoint = "opc.tcp://127.0.0.1:4840"
 connect_timeout = 10
 request_timeout = 10
 security_policy = "None"
@@ -157,7 +157,7 @@ opc_type = "opcua"
 debug = false
 
 [connect.ua]
-endpoint = "opc.tcp://0.0.0.0:4840"
+endpoint = "opc.tcp://127.0.0.1:4840"
 connect_timeout = 10
 request_timeout = 10
 security_policy = "None"

@@ -26,7 +26,7 @@ func TestUAClient_GetAllPoints(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	connectConfig := config.UaConnectConfig{
-		Endpoint:       "opc.tcp://0.0.0.0:4840",
+		Endpoint:       "opc.tcp://127.0.0.1:4840",
 		ConnectTimeout: 10,
 		RequestTimeout: 10,
 		SecurityPolicy: "None",
@@ -71,7 +71,7 @@ func TestUAClient_Collect_Observer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	connectConfig := config.UaConnectConfig{
-		Endpoint:       "opc.tcp://0.0.0.0:4840",
+		Endpoint:       "opc.tcp://127.0.0.1:4840",
 		ConnectTimeout: 10,
 		RequestTimeout: 10,
 		SecurityPolicy: "None",
@@ -127,7 +127,7 @@ func TestUAClient_Collect_Subscribe(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	connectConfig := config.UaConnectConfig{
-		Endpoint:       "opc.tcp://0.0.0.0:4840",
+		Endpoint:       "opc.tcp://127.0.0.1:4840",
 		ConnectTimeout: 10,
 		RequestTimeout: 10,
 		SecurityPolicy: "None",
