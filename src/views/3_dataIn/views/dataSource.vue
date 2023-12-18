@@ -66,8 +66,13 @@
                 <el-table-column
                   prop="activity"
                   :label="$t('dataIn.activity')"
-                  show-overflow-tooltip
-                ></el-table-column>
+                >
+                <template slot-scope="scope">
+                  <el-tooltip :content="scope.row.activity" placement="top-start">
+                    <span class="nowrap">{{ scope.row.activity }}</span>
+                  </el-tooltip>
+                </template> 
+                </el-table-column>
                 <el-table-column
                   prop="context"
                   :label="$t('dataIn.context')"
@@ -106,7 +111,6 @@
           :label="$t('datasource.name2')"
           prop="localname"
           min-width="100"
-          show-overflow-tooltip
         >
           <template slot-scope="scope">
             <el-tooltip :content="scope.row.localname" placement="top-start">
@@ -118,16 +122,26 @@
           :label="$t('datasource.type')"
           prop="localtype"
           width="180"
-          show-overflow-tooltip
           :filters="filterMap.type"
           :filter-method="filterHandler"
-        ></el-table-column>
+        >
+        <template slot-scope="scope">
+          <el-tooltip :content="scope.row.localtype" placement="top-start">
+            <span class="nowrap">{{ scope.row.localtype }}</span>
+          </el-tooltip>
+        </template> 
+        </el-table-column>
         <el-table-column
           :label="$t('datasource.target')"
           prop="target"
           min-width="100"
-          show-overflow-tooltip
-        ></el-table-column>
+        >
+          <template slot-scope="scope">
+            <el-tooltip :content="scope.row.target" placement="top-start">
+              <span class="nowrap">{{ scope.row.target }}</span>
+            </el-tooltip>
+          </template> 
+        </el-table-column>
         <el-table-column
           :label="$t('datasource.createat')"
           prop="created_at"
@@ -141,11 +155,12 @@
           :label="$t('datasource.via')"
           prop="via"
           min-width="100"
-          show-overflow-tooltip
         >
           <template slot-scope="{ row }">
-            {{ agentMap[row.via] }}
-          </template>
+            <el-tooltip :content="agentMap[row.via]" placement="top-start">
+              <span class="nowrap">{{ agentMap[row.via] }}</span>
+            </el-tooltip>
+          </template> 
         </el-table-column>
 
         <el-table-column

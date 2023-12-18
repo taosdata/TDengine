@@ -34,6 +34,8 @@ Vue.component("MainContentHeader", MainContentHeader);
 Vue.component("Icon", Icon);
 Vue.component("CopyText", CopyText);
 Vue.config.productionTip = false;
+// 修改tooltip的openDelay属性默认值为1000
+ELEMENT.Tooltip.props.openDelay = {type: Number, default: 1000};
 Vue.use(ELEMENT);
 Vue.prototype.$bus = $bus;
 Vue.prototype.$BusOnAndAutoOff = BusOnAndAutoOff;
