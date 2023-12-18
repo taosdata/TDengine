@@ -89,11 +89,11 @@ export default {
         }
       }
       result = `${cType}${tmpURL}`;
-      if (this.needToken) {
+      if (this.needToken&&this.$route.name!=='Topic Example') {//数据订阅的python不展示token
         result += `\n${cType}${tmpToken}`;
       }
       return result;
     },
-  },
+  }
 };
 </script>
