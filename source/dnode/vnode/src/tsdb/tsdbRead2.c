@@ -4184,6 +4184,8 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
   SReaderStatus*       pStatus = &pReader->status;
   STableBlockScanInfo* pBlockScanInfo = NULL;
 
+  pReader->status.suspendInvoked = true; // record the suspend status
+
   if (pStatus->loadFromFile) {
     SFileDataBlockInfo* pBlockInfo = getCurrentBlockInfo(&pReader->status.blockIter);
     if (pBlockInfo != NULL) {
@@ -4353,7 +4355,7 @@ static int32_t doTsdbNextDataBlockFilesetDelimited(STsdbReader* pReader) {
       return code;
     }
 
-    tsdbTrace("block from file rows: %"PRId64", will process pre-file set buffer: %d. %s", 
+    tsdbTrace("block from file rows: %"PRId64", will process pre-file set buffer: %d. %s",
             pBlock->info.rows, pStatus->bProcMemFirstFileset, pReader->idStr);
     if (pStatus->bProcMemPreFileset) {
       if (pBlock->info.rows > 0) {
@@ -4367,7 +4369,7 @@ static int32_t doTsdbNextDataBlockFilesetDelimited(STsdbReader* pReader) {
         pStatus->bProcMemPreFileset = false;
       }
     }
-    
+
     if (pBlock->info.rows <= 0) {
       resetTableListIndex(&pReader->status);
       int64_t endKey = (ASCENDING_TRAVERSE(pReader->info.order)) ? INT64_MAX : INT64_MIN;

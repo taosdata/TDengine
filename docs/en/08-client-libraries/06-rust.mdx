@@ -1,7 +1,7 @@
 ---
-title: TDengine Rust Connector
+title: TDengine Rust Client Library
 sidebar_label: Rust
-description: This document describes the TDengine Rust connector.
+description: This document describes the TDengine Rust client library.
 toc_max_heading_level: 4
 ---
 
@@ -9,18 +9,18 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 import Preparition from "./_preparation.mdx"
-import RustInsert from "../../07-develop/03-insert-data/_rust_sql.mdx"
-import RustBind from "../../07-develop/03-insert-data/_rust_stmt.mdx"
-import RustSml from "../../07-develop/03-insert-data/_rust_schemaless.mdx"
-import RustQuery from "../../07-develop/04-query-data/_rust.mdx"
+import RustInsert from "../07-develop/03-insert-data/_rust_sql.mdx"
+import RustBind from "../07-develop/03-insert-data/_rust_stmt.mdx"
+import RustSml from "../07-develop/03-insert-data/_rust_schemaless.mdx"
+import RustQuery from "../07-develop/04-query-data/_rust.mdx"
 
 [![Crates.io](https://img.shields.io/crates/v/taos)](https://crates.io/crates/taos) ![Crates.io](https://img.shields.io/crates/d/taos) [![docs.rs](https://img.shields.io/docsrs/taos)](https://docs.rs/taos)
 
-`taos` is the official Rust connector for TDengine. Rust developers can develop applications to access the TDengine instance data.
+`taos` is the official Rust client library for TDengine. Rust developers can develop applications to access the TDengine instance data.
 
 `taos` provides two ways to establish connections. One is the **Native Connection**, which connects to TDengine instances via the TDengine client driver (taosc). The other is the **WebSocket connection**, which connects to TDengine instances via the WebSocket interface provided by taosAdapter. You can specify a connection type with Cargo features. By default, both types are supported. The Websocket connection can be used on any platform. The native connection can be used on any platform that the TDengine Client supports.
 
-The source code for the Rust connectors is located on [GitHub](https://github.com/taosdata/taos-connector-rust).
+The source code for the Rust client library is located on [GitHub](https://github.com/taosdata/taos-connector-rust).
 
 ## Supported platforms
 
@@ -37,7 +37,7 @@ Websocket connections are supported on all platforms that can run Go.
 |       v0.7.6       |      3.0.3.0     | Support req_id in query. |
 |       v0.6.0       |      3.0.0.0     | Base features. |
 
-The Rust Connector is still under rapid development and is not guaranteed to be backward compatible before 1.0. We recommend using TDengine version 3.0 or higher to avoid known issues.
+The Rust client library is still under rapid development and is not guaranteed to be backward compatible before 1.0. We recommend using TDengine version 3.0 or higher to avoid known issues.
 
 ## Handling exceptions
 
@@ -82,7 +82,7 @@ Note: Only TAG supports JSON types
 * Install the Rust development toolchain
 * If using the native connection, please install the TDengine client driver. Please refer to [install client driver](../#install-client-driver)
 
-### Install the connectors
+### Install the client library
 
 Depending on the connection method, add the [taos][taos] dependency in your Rust project as follows:
 
@@ -154,8 +154,8 @@ The structure of the DSN description string is as follows:
 
 The parameters are described as follows:
 
-- **driver**: Specify a driver name so that the connector can choose which method to use to establish the connection. Supported driver names are as follows:
-  - **taos**: Table names use the TDengine connector driver.
+- **driver**: Specify a driver name so that the client library can choose which method to use to establish the connection. Supported driver names are as follows:
+  - **taos**: Table names use the TDengine native connection driver.
   - **tmq**: Use the TMQ to subscribe to data.
   - **http/ws**: Use Websocket to establish connections.
   - **https/wss**: Use Websocket to establish connections, and enable SSL/TLS.
@@ -327,7 +327,7 @@ Parameter binding details see [API Reference](#stmt-api)
 
 ### Schemaless Writing
 
-TDengine supports schemaless writing. It is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet line protocol, and OpenTSDB's JSON format protocol. For more information, see [Schemaless Writing](../../schemaless).
+TDengine supports schemaless writing. It is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet line protocol, and OpenTSDB's JSON format protocol. For more information, see [Schemaless Writing](../../reference/schemaless/).
 
 <RustSml />
 
@@ -347,7 +347,7 @@ client.put(&sml_data)?
 
 ### Data Subscription
 
-TDengine starts subscriptions through [TMQ](../../../taos-sql/tmq/).
+TDengine starts subscriptions through [TMQ](../../taos-sql/tmq/).
 
 #### Create a Topic
 
@@ -361,7 +361,7 @@ taos.exec_many([
 
 #### Create a Consumer
 
-You create a TMQ connector by using a DSN.
+You create a TMQ connection by using a DSN.
 
 ```rust
 let tmq = TmqBuilder::from_dsn("taos://localhost:6030/?group.id=test")?;
@@ -442,7 +442,7 @@ The following parameters can be configured for the TMQ DSN. Only `group.id` is m
 
 - `group.id`: Within a consumer group, load balancing is implemented by consuming messages on an at-least-once basis.
 - `client.id`: Subscriber client ID.
-- `auto.offset.reset`: Initial point of subscription. *earliest* subscribes from the beginning, and *latest* subscribes from the newest message. The default value varies depending on the TDengine version. For details, see [Data Subscription](https://docs.tdengine.com/develop/tmq/). Note: This parameter is set per consumer group.
+- `auto.offset.reset`: Initial point of subscription. *earliest* subscribes from the beginning, and *latest* subscribes from the newest message. The default value varies depending on the TDengine version. For details, see [Data Subscription](../../develop/tmq/). Note: This parameter is set per consumer group.
 - `enable.auto.commit`: Automatically commits. This can be enabled when data consistency is not essential.
 - `auto.commit.interval.ms`: Interval for automatic commits.
 
@@ -488,7 +488,7 @@ The source code of the sample application is under `TDengine/examples/rust` :
 
 ## Frequently Asked Questions
 
-For additional troubleshooting, see [FAQ](../../../train-faq/faq).
+For additional troubleshooting, see [FAQ](../../train-faq/faq).
 
 ## API Reference
 

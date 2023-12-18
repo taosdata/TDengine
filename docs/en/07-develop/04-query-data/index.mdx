@@ -1,6 +1,6 @@
 ---
 title: Query Data
-description: This document describes how to query data in TDengine and how to perform synchronous and asynchronous queries using connectors.
+description: This document describes how to query data in TDengine and how to perform synchronous and asynchronous queries using client libraries.
 ---
 
 import Tabs from "@theme/Tabs";
@@ -19,7 +19,7 @@ import CAsync from "./_c_async.mdx";
 
 ## Introduction
 
-SQL is used by TDengine as its query language. Application programs can send SQL statements to TDengine through REST API or connectors. TDengine's CLI `taos` can also be used to execute ad hoc SQL queries. Here is the list of major query functionalities supported by TDengine:
+SQL is used by TDengine as its query language. Application programs can send SQL statements to TDengine through REST API or client libraries. TDengine's CLI `taos` can also be used to execute ad hoc SQL queries. Here is the list of major query functionalities supported by TDengine:
 
 - Query on single column or multiple columns
 - Filter on tags or data columns: >, <, =, <\>, like
