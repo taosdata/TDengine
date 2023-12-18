@@ -101,9 +101,10 @@
 
 #define GRANT_UNIQ_UNLIMITED             (-1)
 #define GRANT_UNIQ_UNDEFINED             (-2)
+#define GRANT_UNIQ_UNLIMITED_S           "unlimited"
+#define GRANT_UNIQ_UNDEFINED_S           "undef"
 
-#define GRANT_UNIQ_MAX_EXPIRE_SECOND     31556995200  // second: 1970 + 1000 year
-
+#define GRANT_UNIQ_MAX_EXPIRE_SECOND     (31556995200)  // second: 1970 + 1000 year
 
 #ifndef GRANTS_CFG
 #define GRANT_UNIQ_DFT_BASIC_EXPIRE      GRANT_EXPIRE_DAY

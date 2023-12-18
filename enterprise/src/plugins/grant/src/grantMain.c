@@ -135,7 +135,7 @@
     colDataSetVal(pColInfo, numOfRows, tmp, false);                              \
   } while (0)
 
-#define GRANT_DATA_IN_SHOW(appType, appStr)                                                                            \
+#define GRANT_DATA_IN_SHOW(appType)                                                                                    \
   do {                                                                                                                 \
     ++cols;                                                                                                            \
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);                                                                 \
@@ -143,7 +143,7 @@
     grantSecondsToString((int64_t)pDataIn->expire * 86400, ts);                                                        \
     sprintf(tmp1,                                                                                                      \
             "{\"type\":\"%s\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\", \"expireTime\":\"%s\"}", \
-            (appStr), pDataIn->number, pDataIn->speed, pDataIn->expire, ts);                                           \
+            gConnName[(appType)], pDataIn->number, pDataIn->speed, pDataIn->expire, ts);                               \
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));                                                                  \
     colDataSetVal(pColInfo, numOfRows, tmp, false);                                                                    \
   } while (0)
@@ -175,6 +175,9 @@
 
 #define GRANT_DIST_TOLERENCE 86400  // seconds
 #define GRANT_TS_SEC_LEN 20
+
+static const char *gConnName[CONN_TYPE_MAX] = {"OPC_DA", "OPC_UA",   "Pi",          "Kafka",      "InfluxDB",
+                                               "MQTT",   "OpenTSDB", "TDengine2.6", "TDengine3.0"};
 
 SGrantStatus     grantStatus = {0};
 SGrantUniqStatus grantUniqStatus = {
@@ -700,13 +703,13 @@ static int32_t genUniqActiveFromLegacy(SGrantUniqObj *pObj, SGrantStatus *pStatu
   }
 
   if(!grantUniqGenActiveCode(pObj)){
-    ASSERTS(0, "invalid active");
+    ASSERTS(0, "invalid gen uniq active");
   }
 
   SGrantUniqObj uniqObj = {0};
   memcpy(uniqObj.active, pObj->active, GRANT_UNIQ_ACTIVE_KEY_LEN);
   memcpy(uniqObj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
-  grantUniqParseActiveCode(&uniqObj, NULL);
+  ASSERTS(true == grantUniqParseActiveCode(&uniqObj, NULL), "invalid parse uniq active");
 
   return 0;
 }
@@ -1747,15 +1750,9 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     GRANT_EXPIRE_SHOW(gStatus.replicaExpireSec);
 
     // connectors
-    GRANT_DATA_IN_SHOW(CONN_TYPE_OPC_DA, "OPC_DA");
-    GRANT_DATA_IN_SHOW(CONN_TYPE_OPC_UA, "OPC_UA");
-    GRANT_DATA_IN_SHOW(CONN_TYPE_PI, "Pi");
-    GRANT_DATA_IN_SHOW(CONN_TYPE_KAFKA, "Kafka");
-    GRANT_DATA_IN_SHOW(CONN_TYPE_INFLUXDB, "InfluxDB");
-    GRANT_DATA_IN_SHOW(CONN_TYPE_MQTT, "MQTT");
-    GRANT_DATA_IN_SHOW(CONN_TYPE_OpenTSDB, "OpenTSDB");
-    GRANT_DATA_IN_SHOW(CONN_TYPE_TDengine_2_6, "TDengine2.6");
-    GRANT_DATA_IN_SHOW(CONN_TYPE_TDengine_3_0, "TDengine3.0");
+    for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
+      GRANT_DATA_IN_SHOW(i);
+    }
 
     numOfRows++;
   }
