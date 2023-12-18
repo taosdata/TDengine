@@ -1547,6 +1547,37 @@ int32_t smlClearForRerun(SSmlHandle *info) {
   return TSDB_CODE_SUCCESS;
 }
 
+static bool getLine(SSmlHandle *info, char *lines[], char *rawLine, char *rawLineEnd,
+                    int numLines, int i, char** tmp, int *len){
+  if (lines) {
+    *tmp = lines[i];
+    *len = strlen(*tmp);
+  } else if (rawLine) {
+    *tmp = rawLine;
+    while (rawLine < rawLineEnd) {
+      if (*(rawLine++) == '\n') {
+        break;
+      }
+      (*len)++;
+    }
+    if (info->protocol == TSDB_SML_LINE_PROTOCOL && (*tmp)[0] == '#') {  // this line is comment
+      false;
+    }
+  }
+
+  if(rawLine != NULL){
+    char* print = taosMemoryCalloc(*len + 1, 1);
+    memcpy(print, *tmp, *len);
+    uDebug("SML:0x%" PRIx64 " smlParseLine is raw, numLines:%d, protocol:%d, len:%d, data:%s", info->id,
+           numLines, info->protocol, *len, print);
+    taosMemoryFree(print);
+  }else{
+    uDebug("SML:0x%" PRIx64 " smlParseLine is not numLines:%d, protocol:%d, len:%d, data:%s", info->id,
+           numLines, info->protocol, *len, *tmp);
+  }
+  return true;
+}
+
 static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char *rawLineEnd, int numLines) {
   uDebug("SML:0x%" PRIx64 " smlParseLine start", info->id);
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1568,25 +1599,9 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
   while (i < numLines) {
     char *tmp = NULL;
     int   len = 0;
-    if (lines) {
-      tmp = lines[i];
-      len = strlen(tmp);
-    } else if (rawLine) {
-      tmp = rawLine;
-      while (rawLine < rawLineEnd) {
-        if (*(rawLine++) == '\n') {
-          break;
-        }
-        len++;
-      }
-      if (info->protocol == TSDB_SML_LINE_PROTOCOL && tmp[0] == '#') {  // this line is comment
-        continue;
-      }
+    if(!getLine(info, lines, rawLine, rawLineEnd, numLines, i, &tmp, &len)) {
+      continue;
     }
-
-    uDebug("SML:0x%" PRIx64 " smlParseLine israw:%d, numLines:%d, protocol:%d, len:%d, sql:%s", info->id,
-           info->isRawLine, numLines, info->protocol, len, info->isRawLine ? "rawdata" : tmp);
-
     if (info->protocol == TSDB_SML_LINE_PROTOCOL) {
       if (info->dataFormat) {
         SSmlLineInfo element = {0};
@@ -1606,7 +1621,14 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
       code = TSDB_CODE_SML_INVALID_PROTOCOL_TYPE;
     }
     if (code != TSDB_CODE_SUCCESS) {
-      uError("SML:0x%" PRIx64 " smlParseLine failed. line %d : %s", info->id, i, info->isRawLine ? "rawdata" : tmp);
+      if(rawLine != NULL){
+        char* print = taosMemoryCalloc(len + 1, 1);
+        memcpy(print, tmp, len);
+        uError("SML:0x%" PRIx64 " smlParseLine failed. line %d : %s", info->id, i, print);
+        taosMemoryFree(print);
+      }else{
+        uError("SML:0x%" PRIx64 " smlParseLine failed. line %d : %s", info->id, i, tmp);
+      }
       return code;
     }
     if (info->reRun) {
@@ -1735,7 +1757,6 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
       return (TAOS_RES *)request;
     }
     info->pRequest = request;
-    info->isRawLine = rawLine != NULL;
     info->ttl = ttl;
     info->precision = precision;
     info->protocol = (TSDB_SML_PROTOCOL_TYPE)protocol;
@@ -1841,8 +1862,7 @@ TAOS_RES *taos_schemaless_insert_with_reqid(TAOS *taos, char *lines[], int numLi
                                                reqid);
 }
 
-TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
-                                                    int precision, int32_t ttl, int64_t reqid) {
+static void getRawLineLen(char *lines, int len, int32_t *totalRows, int protocol){
   int numLines = 0;
   *totalRows = 0;
   char *tmp = lines;
@@ -1855,6 +1875,11 @@ TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int
       tmp = lines + i + 1;
     }
   }
+}
+
+TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
+                                                    int precision, int32_t ttl, int64_t reqid) {
+  getRawLineLen(lines, len, totalRows, protocol);
   return taos_schemaless_insert_inner(taos, NULL, lines, lines + len, *totalRows, protocol, precision, ttl, reqid);
 }
 
