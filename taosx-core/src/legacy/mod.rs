@@ -3311,7 +3311,7 @@ mod tests {
         ])
         .await?;
 
-        let stable = "stb1";
+        let stable = "sTb1";
         let types = vec![
             "TINYINT",
             "SMALLINT",
@@ -3326,7 +3326,7 @@ mod tests {
             "BINARY(16)",
             "NCHAR(4)",
         ];
-        let table_prefix = "tb";
+        let table_prefix = "tB";
         let table_num = 1000;
 
         let columns = 3600;
@@ -3373,6 +3373,9 @@ mod tests {
         };
         legacy_to_taos(v3, vec![], v2, 1, CancellationToken::new(), None).await?;
 
+        taos.exec(format!("use `{}`", db2)).await?;
+        let _ = taos.describe(stable).await?;
+
         taos.exec_many([
             format!("drop database if exists `{db1}`"),
             format!("drop database if exists `{db2}`"),
@@ -3405,7 +3408,7 @@ mod tests {
         ])
         .await?;
 
-        let name = "ntb1";
+        let name = "nTb1";
         let types = vec![
             "TINYINT",
             "SMALLINT",
