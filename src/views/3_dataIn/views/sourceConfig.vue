@@ -105,6 +105,7 @@
           :level="1"
         />
       </el-form>
+      <CsvData v-if='currentDefinition.id=="csv"'></CsvData>
       <section class="bottom">
         <el-button
           v-if="isShowEditBtn"
@@ -144,6 +145,7 @@
 <script>
 import DataTarget from "./dataTarget.vue";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
+import CsvData from "../components/csvData.vue";
 import {
   AddSource,
   EditSource,
@@ -183,6 +185,7 @@ export default {
     BlockHeader,
     DocsContent,
     ConfigForm,
+    CsvData
   },
   props: {
     dbsource: {
@@ -255,6 +258,7 @@ export default {
     if (!this.editId) {
       this.sourceForm.type = 'tmq';
     }
+    console.log(this.defaultSourceConfig,this.sourceForm,'kkkkk---99999',this.dbsource);
   },
   computed: {
     agentId() {
@@ -306,6 +310,35 @@ export default {
         this.$forceUpdate();
       },
     },
+    "$store.state.app.currentDBType": {
+      immediate: true,
+      handler(val) {
+        console.log(val,'tagname------切换');
+        this.showtransformer = false;
+        if (!this.isEditable) {
+          this.$store.commit("app/SET_FILTER_PARSE_DATA", null);
+          this.$store.commit("app/SET_EXTRACT_PARSE_DATA", null);
+          this.$store.commit("app/SET_ECHO_MAP_DATA", null);
+          this.$store.commit("app/SET_TRANSFORM_COL_IDENTIFIED", []);
+          this.$store.commit("app/SET_TRANSFORM_PARSERDATA", null);
+          this.$store.commit("app/SET_TRANSFORMER_MAPCOLUMNS", null);
+          this.$store.commit("app/SET_CSV_LOCAL_COLS", []);
+          this.$store.commit("app/SET_CSV_TRANSFORMER_PARSER", null);
+          this.$store.commit("app/SET_CSV_PARSER", null);
+          this.$store.commit("app/SET_MAPPING_JOIN", "");
+          this.$store.commit("app/SET_SPLIT_EXPRESS", null);
+        }
+        if (val == "kafka" || val == "mqtt") {
+          // this.$set(this, "constmqttCols", []);
+          // this.$set(
+          //   this,
+          //   "constmqttCols",
+          //   this.$parent.uidata[0].parser.fields
+          // );
+          // this.showtransformer = true;
+        }
+      },
+    },
     'sourceForm.type': {
       handler() {
         this.getDataSource();
@@ -333,6 +366,7 @@ export default {
           this.sourceForm.name = data.name;
           this.sourceForm.targetDB = data?.to_expand?.subject;
           this.sourceForm.agent = data.via;
+          console.log(data,data.parser,'总量');
           this.editSourceConfig = getFormConfigByDataSource([data.from_detail], data.parser);
         })
         .finally(() => {
@@ -341,7 +375,7 @@ export default {
     },
     getDataSource() {
       this.currentDefinition = this.defaultSourceConfig?.[this.sourceForm.type];
-      console.log("currentDefinition", this.currentDefinition);
+      console.log("currentDefinition", this.currentDefinition,this.defaultSourceConfig,this.sourceForm);
       if (!this.currentDefinition) return;
       this.sourceForm.data = generateFormInitData(
         this.currentDefinition?.config
@@ -561,5 +595,14 @@ export default {
   .upload-flex .item {
     z-index: 101;
   }
+  ::v-deep .block-title {
+      margin-bottom: 10px;
+      span {
+        font-size: 16px;
+        color: #4259ce;
+        font-weight: 600;
+      }
+    }
 }
+
 </style>

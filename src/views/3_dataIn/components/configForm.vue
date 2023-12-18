@@ -30,12 +30,14 @@
             :parent="parent"
             v-bind="item"
           /> -->
-          <ParserComp
+          <!-- <ParserComp
             v-if="item.type == 'parser'"
             :data="data[item.field]"
             :parent="parent"
             v-bind="item"
-          />
+          /> -->
+          
+          <CommonTransformer v-if="item.type == 'parser'" :parent="parent"></CommonTransformer>
           <ConnectivityCheck
             v-else-if="item.type == 'checkConnectivity'"
             :data="data[item.field]"
@@ -109,6 +111,7 @@
           :data="data[item.field]"
           :parent="parent + item.field + '.'"
         ></ConfigForm>
+        
       </template>
 
       <FormItem
@@ -119,6 +122,7 @@
         :parent="parent"
       />
     </template>
+   
   </div>
 </template>
 
@@ -131,6 +135,7 @@ import BlockHeader from './blockHeader.vue';
 import ConnectivityCheck from '../components/connectivityCheck.vue'
 import { getBrowserLang } from '@/utils';
 import { hasOwn } from '@/utils/util';
+import CommonTransformer from './commonTransformer.vue'
 
 export default {
   props: {
@@ -153,7 +158,7 @@ export default {
   },
   name: 'ConfigForm',
   inject: ['sourceParent'],
-  components: { FormItem, DocsContent, BlockHeader, ConnectivityCheck, ParserComp },
+  components: { FormItem, DocsContent, BlockHeader, ConnectivityCheck, ParserComp,CommonTransformer },
   data() {
     this.mb10Type = ['opcTable', 'parser', 'tabs', 'advanced', 'collapse'];
     return {};

@@ -74,8 +74,10 @@ export const DefaultOpcTableValue = {
 
 // 根据返回的数据源参数定义生成对应的表单配置
 export function getFormConfigByDataSource(dataSource, parserValue) {
+  console.log(dataSource,'dataSource---form',parserValue);
   return dataSource.reduce((formConfig, item) => {
     const { id, name, type, strict, description, protocol, authentication, groups, options, datasets, parser, params, advanced } = item;
+    console.log(parser,'----parser---form');
     const paramsConfig = [
       {
         label: i18n.t('dataIn.connectionConfiguration'),

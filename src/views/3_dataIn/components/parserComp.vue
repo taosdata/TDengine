@@ -188,7 +188,6 @@ export default {
       //     2
       //   )
       // );
-      console.log('table',this.tableData);
     },
     getCustomeField(data, usageType = 1) {
       if (!data.length || !this.jsonArray.length) return [];
