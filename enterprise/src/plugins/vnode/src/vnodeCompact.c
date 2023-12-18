@@ -32,8 +32,8 @@ int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t version, void *p
 }
 
 int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  SKillCompactReq req = {0};
-  if (tDeserializeSKillCompactReq(pReq, len, &req) != 0) {
+  SVKillCompactReq req = {0};
+  if (tDeserializeSVKillCompactReq(pReq, len, &req) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return TSDB_CODE_INVALID_MSG;
   }
