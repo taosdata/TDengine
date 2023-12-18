@@ -225,6 +225,7 @@ bool walIsEmpty(SWal *);
 int64_t walGetFirstVer(SWal *);
 int64_t walGetSnapshotVer(SWal *);
 int64_t walGetLastVer(SWal *);
+int64_t walGetVerRetention(SWal *pWal, int64_t bytes);
 int64_t walGetCommittedVer(SWal *);
 int64_t walGetAppliedVer(SWal *);
 

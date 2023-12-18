@@ -250,9 +250,11 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg, char* key) {
     taskDbAddRef(*ppBackend);
 
     STaskDbWrapper* pBackend = *ppBackend;
+    pBackend->pMeta = pMeta;
 
     pTask->backendRefId = pBackend->refId;
     pTask->pBackend = pBackend;
+
     taosThreadMutexUnlock(&pMeta->backendMutex);
 
     stDebug("s-task:0x%x set backend %p", pTask->id.taskId, pBackend);
@@ -270,12 +272,22 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg, char* key) {
   pTask->pBackend = pBackend;
   pBackend->refId = tref;
   pBackend->pTask = pTask;
+  pBackend->pMeta = pMeta;
 
   taosHashPut(pMeta->pTaskDbUnique, key, strlen(key), &pBackend, sizeof(void*));
   taosThreadMutexUnlock(&pMeta->backendMutex);
 
   stDebug("s-task:0x%x set backend %p", pTask->id.taskId, pBackend);
   return 0;
+}
+void streamMetaRemoveDB(void* arg, char* key) {
+  if (arg == NULL || key == NULL) return;
+
+  SStreamMeta* pMeta = arg;
+  taosThreadMutexLock(&pMeta->backendMutex);
+  taosHashRemove(pMeta->pTaskDbUnique, key, strlen(key));
+
+  taosThreadMutexUnlock(&pMeta->backendMutex);
 }
 
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage,
@@ -785,7 +797,7 @@ static void doClear(void* pKey, void* pVal, TBC* pCur, SArray* pRecycleList) {
 }
 
 int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
-  TBC*    pCur = NULL;
+  TBC*     pCur = NULL;
   void*    pKey = NULL;
   int32_t  kLen = 0;
   void*    pVal = NULL;
