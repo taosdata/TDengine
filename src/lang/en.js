@@ -1371,7 +1371,7 @@ export default {
   },
   docs: {
     taosxAgent: {
-      1: `Download  taosx-agent through  link <a href="{linuxDL}">Linux</a> or <a href="{windowDL}">Windows</a> to your local environment.<br/><br/>For Linux, please decompress the downloaded file to a specified folder and execute the <code>install.sh</code> file inside the folder. For Windows, please double-click the downloaded file to install the taox-agent and then add <code>C:\\TDengine\\bin\\</code> to the Path variable of the system environments.<br/><br/>Open a shell, please execute the following command to check if taosx-agent is installed successfully.`,
+      1: `Download  taosx-agent through  link <a href="{linuxDL}">Linux</a> or <a href="{windowDL}">Windows</a> to your local environment.<br/><br/>For Linux, please decompress the downloaded file to a specified folder and execute the <code>install.sh</code> file inside the folder. For Windows, please double-click the downloaded file to install the taox-agent and then add <code>C:\\TDengine</code> to the Path variable of the system environments.<br/><br/>Open a shell, please execute the following command to check if taosx-agent is installed successfully.`,
       2: 'Input a unique name for the agent. The system will generate a connection token for the agent.',
       // 3: `IMPORTANT: Please save the endpoint and generated token to a local file BEFORE clicking on the "Next" button. TDengine Cloud does not save the generated token online and once you click "Next" you cannot retrieve this token and will have to create a new agent.<br/><br/>
       // To ensure your TDx agent works correctly you have to make changes to the <code>agent.toml</code> file. This file can be found in the following directory:<br/>
