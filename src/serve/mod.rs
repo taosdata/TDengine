@@ -177,9 +177,15 @@ impl Cli {
         }
     }
 
-    pub(super) async fn controller(&self, scheduler: TaskScheduler) -> Result<TaskControllerRef> {
+    pub(super) async fn controller(
+        &self,
+        scheduler: TaskScheduler,
+        max_activities_per_entity: usize,
+    ) -> Result<TaskControllerRef> {
         let database_url = self.get_database_url();
-        let controller = TaskControllerRef::from_sqlite(&database_url, scheduler).await?;
+        let controller =
+            TaskControllerRef::from_sqlite(&database_url, scheduler, max_activities_per_entity)
+                .await?;
 
         if !self.do_not_resume.unwrap_or(false) {
             info!("resume all tasks");
