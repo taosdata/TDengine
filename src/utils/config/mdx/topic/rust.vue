@@ -6,7 +6,7 @@
     <pre v-highlight><code>cargo new --bin tdengine-sub-sample-rust
 </code></pre>
     <p>{{ $t("docs.topic.rust.step1desc1") }}</p>
-    <pre v-highlight><code class="language-toml">[package]
+    <pre v-highlight="`[package]
 name = &quot;tdengine-sub-sample-rust&quot;
 version = &quot;0.1.0&quot;
 edition = &quot;2021&quot;
@@ -14,7 +14,7 @@ edition = &quot;2021&quot;
 [dependencies]
 taos = { version = &quot;*&quot;, default-features = false, features = [&quot;ws&quot;, &quot;ws-native-tls&quot;] }
 tokio = { version = &quot;1&quot;, features = [&quot;full&quot;]}
-anyhow = &quot;1.0.0&quot; 
+anyhow = &quot;1.0.0&quot; `"><code class="language-toml">
 </code></pre>
     <doc-config
       :id="'rust-config'"
@@ -31,7 +31,7 @@ anyhow = &quot;1.0.0&quot;
 let tmq_uri = format!( "{}?\
 group.id=test_group_rs&\
 client.id=test_consumer_ws", tmq_str);
-println!("request tmq URI is {tmq_uri}\n");
+println!("request tmq URI is {tmq_uri}");
 let tmq = TmqBuilder::from_dsn(tmq_uri,)?;
 let mut consumer = tmq.build()?;</code></pre>
     <h2 id="rust-subscribe-consume">{{ $t("docs.topic.step4") }}</h2>
@@ -84,7 +84,7 @@ async fn main() -> anyhow::Result<()> {
   let tmq_uri = format!( &quot;{}?\\
   group.id=test_group_rs&\\
   client.id=test_consumer_ws&quot;, tmq_str);
-  println!(&quot;request tmq URI is {tmq_uri}\n&quot;);
+  println!(&quot;request tmq URI is {tmq_uri}&quot;);
   let tmq = TmqBuilder::from_dsn(tmq_uri,)?;
   let mut consumer = tmq.build().await?;
   consumer.subscribe([&quot;${topicName}&quot;]).await?;
