@@ -61,7 +61,6 @@ while 1:
 from taosws import Consumer
 
 endpoint = os.environ[&quot;TDENGINE_ENDPOINT&quot;]
-token = os.environ[&quot;TDENGINE_TOKEN&quot;]
 
 conf = {
   # auth options
@@ -160,7 +159,6 @@ export default {
 from taosws import Consumer
 
 endpoint = os.environ["TDENGINE_ENDPOINT"]
-token = os.environ["TDENGINE_TOKEN"]
 
 conf = {
   # auth options
