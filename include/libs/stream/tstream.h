@@ -695,6 +695,7 @@ typedef struct SStreamHbMsg {
 
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pRsp);
 int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pRsp);
+void    streamMetaClearHbMsg(SStreamHbMsg* pMsg);
 
 typedef struct {
   int64_t streamId;

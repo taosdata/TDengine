@@ -1309,6 +1309,10 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   }
 
   SRequestObj *pRequest = res;
+  if (TSDB_SQL_RETRIEVE_EMPTY_RESULT == pRequest->type) {
+    fp(param, res, 0);
+    return;
+  }
 
   taosAsyncFetchImpl(pRequest, fp, param);
 }

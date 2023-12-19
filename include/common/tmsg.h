@@ -32,6 +32,7 @@ extern "C" {
 #endif
 
 /* ------------------------ MESSAGE DEFINITIONS ------------------------ */
+
 #define TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
 #undef TD_MSG_INFO_
@@ -357,7 +358,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_USER_PRIVILEGES_STMT,
   QUERY_NODE_SHOW_VIEWS_STMT,
   QUERY_NODE_SHOW_COMPACTS_STMT,
-  QUERY_NODE_SHOW_COMPACT_DETAILS_STMT,  
+  QUERY_NODE_SHOW_COMPACT_DETAILS_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -1699,7 +1700,7 @@ typedef struct {
   int32_t vgId;
   int32_t dnodeId;
   int32_t numberFileset;
-  int32_t finished; 
+  int32_t finished;
 } SQueryCompactProgressRsp;
 
 int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);

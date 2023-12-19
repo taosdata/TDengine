@@ -1,10 +1,10 @@
 ---
-title: C/C++ Connector
+title: C/C++ Client Library
 sidebar_label: C/C++
-description: This document describes the TDengine C/C++ connector.
+description: This document describes the TDengine C/C++ client library.
 ---
 
-C/C++ developers can use TDengine's client driver and the C/C++ connector, to develop their applications to connect to TDengine clusters for data writing, querying, and other functions.  To use the C/C++ connector you must include the TDengine header file _taos.h_, which lists the function prototypes of the provided APIs. The application also needs to link to the corresponding dynamic libraries on the platform where it is located.
+C/C++ developers can use TDengine's client driver and the C/C++ client library, to develop their applications to connect to TDengine clusters for data writing, querying, and other functions.  To use the C/C++ client library you must include the TDengine header file _taos.h_, which lists the function prototypes of the provided APIs. The application also needs to link to the corresponding dynamic libraries on the platform where it is located.
 
 ```c
 #include <taos.h>
@@ -263,7 +263,7 @@ typedef struct taosField {
   Get the reason for the last API call failure. The return value is the error code.
 
 :::note
-TDengine version 2.0 and above recommends that each thread of a database application create a separate connection or a connection pool based on threads. It is not recommended to pass the connection (TAOS\*) structure to different threads for shared use in the application. Queries, writes, and other operations issued that are based on TAOS structures are multi-thread safe, but state quantities such as the "USE statement" may interfere between threads. In addition, the C connector can dynamically create new database-oriented connections on demand (this procedure is not visible to the user), and it is recommended that `taos_close()` be called only at the final exit of the program to close the connection.
+TDengine version 2.0 and above recommends that each thread of a database application create a separate connection or a connection pool based on threads. It is not recommended to pass the connection (TAOS\*) structure to different threads for shared use in the application. Queries, writes, and other operations issued that are based on TAOS structures are multi-thread safe, but state quantities such as the "USE statement" may interfere between threads. In addition, the C client library can dynamically create new database-oriented connections on demand (this procedure is not visible to the user), and it is recommended that `taos_close()` be called only at the final exit of the program to close the connection.
 
 :::
 
@@ -394,7 +394,7 @@ The specific functions related to the interface are as follows (see also the [pr
 
 ### Schemaless Writing API
 
-In addition to writing data using the SQL method or the parameter binding API, writing can also be done using schemaless writing, which eliminates the need to create a super table/data sub-table structure in advance and writes the data directly. The TDengine system automatically creates and maintains the required table structure based on the written data content. The use of schemaless writing is described in the chapter [Schemaless Writing](../../schemaless/), and the C/C++ API used with it is described here.
+In addition to writing data using the SQL method or the parameter binding API, writing can also be done using schemaless writing, which eliminates the need to create a super table/data sub-table structure in advance and writes the data directly. The TDengine system automatically creates and maintains the required table structure based on the written data content. The use of schemaless writing is described in the chapter [Schemaless Writing](../../reference/schemaless/), and the C/C++ API used with it is described here.
 
 - `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
 

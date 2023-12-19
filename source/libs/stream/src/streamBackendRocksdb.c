@@ -2297,12 +2297,14 @@ int streamStateGetCfIdx(SStreamState* pState, const char* funcName) {
     }
   }
   if (pState != NULL && idx != -1) {
-    STaskDbWrapper*                 wrapper = pState->pTdbState->pOwner->pBackend;
-    rocksdb_column_family_handle_t* cf = NULL;
+    STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+    if (wrapper == NULL) {
+      return -1;
+    }
 
     taosThreadMutexLock(&wrapper->mutex);
 
-    cf = wrapper->pCf[idx];
+    rocksdb_column_family_handle_t* cf = wrapper->pCf[idx];
     if (cf == NULL) {
       char* err = NULL;
       cf = rocksdb_create_column_family(wrapper->db, wrapper->pCfOpts[idx], ginitDict[idx].key, &err);
