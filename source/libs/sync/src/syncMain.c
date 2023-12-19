@@ -305,6 +305,10 @@ SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode) {
   return minMatchIndex;
 }
 
+static SyncIndex syncLogRetentionIndex(SSyncNode* pSyncNode, int64_t bytes) {
+  return pSyncNode->pLogStore->syncLogIndexRetention(pSyncNode->pLogStore, bytes);
+}
+
 int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
@@ -331,7 +335,6 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
   } else {
     // vnode
     if (pSyncNode->replicaNum > 1) {
-      // multi replicas
       logRetention = SYNC_VNODE_LOG_RETENTION;
     }
   }
@@ -344,7 +347,9 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
       syncNodeRelease(pSyncNode);
       return 0;
     }
-    logRetention = TMAX(logRetention, lastApplyIndex - pSyncNode->minMatchIndex + logRetention);
+    SyncIndex retentionIndex =
+        TMAX(pSyncNode->minMatchIndex, syncLogRetentionIndex(pSyncNode, SYNC_WAL_LOG_RETENTION_SIZE));
+    logRetention += TMAX(0, lastApplyIndex - retentionIndex);
   }
 
 _DEL_WAL:

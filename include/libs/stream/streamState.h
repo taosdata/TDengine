@@ -35,6 +35,7 @@ int32_t       streamStateBegin(SStreamState* pState);
 int32_t       streamStateCommit(SStreamState* pState);
 void          streamStateDestroy(SStreamState* pState, bool remove);
 int32_t       streamStateDeleteCheckPoint(SStreamState* pState, TSKEY mark);
+int32_t       streamStateDelTaskDb(SStreamState* pState);
 
 int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
 int32_t streamStateFuncGet(SStreamState* pState, const SWinKey* key, void** ppVal, int32_t* pVLen);
@@ -49,7 +50,7 @@ void    streamStateSetNumber(SStreamState* pState, int32_t number);
 int32_t streamStateSaveInfo(SStreamState* pState, void* pKey, int32_t keyLen, void* pVal, int32_t vLen);
 int32_t streamStateGetInfo(SStreamState* pState, void* pKey, int32_t keyLen, void** pVal, int32_t* pLen);
 
-//session window
+// session window
 int32_t streamStateSessionAddIfNotExist(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal, int32_t* pVLen);
 int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void* value, int32_t vLen);
 int32_t streamStateSessionGet(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen);
@@ -64,7 +65,7 @@ SStreamStateCur* streamStateSessionSeekKeyNext(SStreamState* pState, const SSess
 SStreamStateCur* streamStateSessionSeekKeyCurrentPrev(SStreamState* pState, const SSessionKey* key);
 SStreamStateCur* streamStateSessionSeekKeyCurrentNext(SStreamState* pState, const SSessionKey* key);
 
-//state window
+// state window
 int32_t streamStateStateAddIfNotExist(SStreamState* pState, SSessionKey* key, char* pKeyData, int32_t keyDataLen,
                                       state_key_cmpr_fn fn, void** pVal, int32_t* pVLen);
 
@@ -95,6 +96,9 @@ int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char*
 int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal);
 
 void streamStateReloadInfo(SStreamState* pState, TSKEY ts);
+
+void streamStateCopyBackend(SStreamState* src, SStreamState* dst);
+
 SStreamStateCur* createStreamStateCursor();
 
 /***compare func **/

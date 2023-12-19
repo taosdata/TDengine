@@ -67,15 +67,19 @@ int32_t doGeomFromTextFunc(const char *input, unsigned char **output) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // make input as a zero ending string
-  char *end = varDataVal(input) + varDataLen(input);
-  char endValue = *end;
-  *end = 0; 
-
+  char *inputGeom = NULL;
   unsigned char *outputGeom = NULL;
   size_t size = 0;
 
-  code = doGeomFromText(varDataVal(input), &outputGeom, &size);
+  // make a zero ending string
+  inputGeom = taosMemoryCalloc(1, varDataLen(input) + 1);
+  if (inputGeom == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  memcpy(inputGeom, varDataVal(input), varDataLen(input));
+
+  code = doGeomFromText(inputGeom, &outputGeom, &size);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
@@ -92,8 +96,7 @@ int32_t doGeomFromTextFunc(const char *input, unsigned char **output) {
 
 _exit:
   geosFreeBuffer(outputGeom);
-
-  *end = endValue;  //recover the input string
+  geosFreeBuffer(inputGeom);
 
   return code;
 }

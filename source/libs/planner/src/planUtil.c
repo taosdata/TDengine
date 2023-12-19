@@ -164,6 +164,7 @@ static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel 
     pScan->scanType = SCAN_TYPE_TABLE;
   } else if (TSDB_SUPER_TABLE == pScan->tableType) {
     pScan->scanType = SCAN_TYPE_TABLE_MERGE;
+    pScan->filesetDelimited = true;
   }
 
   if (TSDB_NORMAL_TABLE != pScan->tableType && TSDB_CHILD_TABLE != pScan->tableType) {

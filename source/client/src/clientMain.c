@@ -876,6 +876,7 @@ int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {
     code = 0;
   }
   taosThreadMutexUnlock(&pTscObj->mutex);
+  releaseTscObj(*(int64_t *)taos);
   return code;
 }
 
@@ -1094,7 +1095,7 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
     pRequest->pWrapper = NULL;
     terrno = code;
     pRequest->code = code;
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    doRequestCallback(pRequest, code);
   }
 }
 
@@ -1111,7 +1112,7 @@ void continueInsertFromCsv(SSqlCallbackWrapper *pWrapper, SRequestObj *pRequest)
     pRequest->pWrapper = NULL;
     terrno = code;
     pRequest->code = code;
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    doRequestCallback(pRequest, code);
   }
 }
 
@@ -1209,7 +1210,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     terrno = code;
     pRequest->code = code;
     tscDebug("call sync query cb with code: %s", tstrerror(code));
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    doRequestCallback(pRequest, code);
     return;
   }
 
@@ -1241,7 +1242,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 
     terrno = code;
     pRequest->code = code;
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    doRequestCallback(pRequest, code);
   }
 }
 
@@ -1548,12 +1549,12 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
-  code = catalogAsyncGetAllMeta(pCtg, &conn, &catalogReq, syncCatalogFn, pRequest->body.param, NULL);
+  code = catalogAsyncGetAllMeta(pCtg, &conn, &catalogReq, syncCatalogFn, pRequest->body.interParam, NULL);
   if (code) {
     goto _return;
   }
 
-  SSyncQueryParam *pParam = pRequest->body.param;
+  SSyncQueryParam *pParam = pRequest->body.interParam;
   tsem_wait(&pParam->sem);
 
 _return:

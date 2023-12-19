@@ -251,6 +251,7 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
 
   ++pMeta->pVnode->config.vndStats.numOfSTables;
 
+  pMeta->changed = true;
   metaDebug("vgId:%d, stb:%s is created, suid:%" PRId64, TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
 
   return 0;
@@ -324,6 +325,8 @@ _drop_super_table:
   metaULock(pMeta);
 
   metaUpdTimeSeriesNum(pMeta);
+
+  pMeta->changed = true;
 
 _exit:
   tdbFree(pKey);
@@ -423,6 +426,8 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     pMeta->pVnode->config.vndStats.numOfTimeSeries += (ctbNum * deltaCol);
     metaTimeSeriesNotifyCheck(pMeta);
   }
+
+  pMeta->changed = true;
 
 _exit:
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
@@ -847,6 +852,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
     }
   }
 
+  pMeta->changed = true;
   metaDebug("vgId:%d, table:%s uid %" PRId64 " is created, type:%" PRId8, TD_VID(pMeta->pVnode), pReq->name, pReq->uid,
             pReq->type);
   return 0;
@@ -895,6 +901,7 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUi
     *tbUid = uid;
   }
 
+  pMeta->changed = true;
 _exit:
   tdbFree(pData);
   return rc;
@@ -938,6 +945,8 @@ void metaDropTables(SMeta *pMeta, SArray *tbUids) {
     }
   }
   tSimpleHashCleanup(suidHash);
+
+  pMeta->changed = true;
 }
 
 static int32_t metaFilterTableByHash(SMeta *pMeta, SArray *uidList) {
@@ -1233,6 +1242,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
   if (pAlterTbReq->colName == NULL) {
     terrno = TSDB_CODE_INVALID_MSG;
+    metaError("meta/table: null pAlterTbReq->colName");
     return -1;
   }
 
@@ -1300,20 +1310,27 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   SMetaEntry oldEntry = {.type = TSDB_NORMAL_TABLE, .uid = entry.uid};
   oldEntry.ntbEntry.schemaRow.nCols = pSchema->nCols;
 
-  int32_t iCol = 0;
+  int32_t rowLen = -1;
+  if (pAlterTbReq->action == TSDB_ALTER_TABLE_ADD_COLUMN ||
+      pAlterTbReq->action == TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES) {
+    rowLen = 0;
+  }
+
+  int32_t  iCol = 0, jCol = 0;
+  SSchema *qColumn = NULL;
   for (;;) {
-    pColumn = NULL;
+    qColumn = NULL;
 
-    if (iCol >= pSchema->nCols) break;
-    pColumn = &pSchema->pSchema[iCol];
+    if (jCol >= pSchema->nCols) break;
+    qColumn = &pSchema->pSchema[jCol];
 
-    if (NULL == pAlterTbReq->colName) {
-      metaError("meta/table: null pAlterTbReq->colName");
-      return -1;
+    if (!pColumn && (strcmp(qColumn->name, pAlterTbReq->colName) == 0)) {
+      pColumn = qColumn;
+      iCol = jCol;
+      if (rowLen < 0) break;
     }
-
-    if (strcmp(pColumn->name, pAlterTbReq->colName) == 0) break;
-    iCol++;
+    rowLen += qColumn->bytes;
+    ++jCol;
   }
 
   entry.version = version;
@@ -1326,6 +1343,10 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         goto _err;
       }
       if ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) < 0) {
+        goto _err;
+      }
+      if (rowLen + pAlterTbReq->bytes > TSDB_MAX_BYTES_PER_ROW) {
+        terrno = TSDB_CODE_PAR_INVALID_ROW_LENGTH;
         goto _err;
       }
       pSchema->version++;
@@ -1369,8 +1390,12 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         terrno = TSDB_CODE_VND_COL_NOT_EXISTS;
         goto _err;
       }
-      if (!IS_VAR_DATA_TYPE(pColumn->type) || pColumn->bytes > pAlterTbReq->colModBytes) {
+      if (!IS_VAR_DATA_TYPE(pColumn->type) || pColumn->bytes >= pAlterTbReq->colModBytes) {
         terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+        goto _err;
+      }
+      if (rowLen + pAlterTbReq->colModBytes - pColumn->bytes > TSDB_MAX_BYTES_PER_ROW) {
+        terrno = TSDB_CODE_PAR_INVALID_ROW_LENGTH;
         goto _err;
       }
       if (tqCheckColModifiable(pMeta->pVnode->pTq, uid, pColumn->colId) != 0) {
@@ -1970,6 +1995,7 @@ _err:
 }
 
 int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pMetaRsp) {
+  pMeta->changed = true;
   switch (pReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
     case TSDB_ALTER_TABLE_DROP_COLUMN:
