@@ -125,6 +125,30 @@ impl ModeledRecordBatch {
     pub fn into_modeled_json(&self) -> ModeledJsonOutput {
         self.inner().into()
     }
+
+    pub fn into_modeled_json_with_tz(&self, tz: &str) -> ModeledJsonOutput {
+        let schema = self.records.schema();
+        let (fields, columns): (Vec<_>, Vec<_>) = (0..self.records.num_columns())
+            .map(|i| {
+                let field = schema.fields().get(i).unwrap();
+                let column = self.records.column(i);
+                if let DataType::Timestamp(unit, _) = field.data_type() {
+                    let dt = DataType::Timestamp(unit.clone(), Some(tz.to_string().into()));
+                    let column = arrow::compute::cast(column, &dt).unwrap();
+                    (
+                        Arc::new(Field::new(field.name(), dt, field.is_nullable())),
+                        column,
+                    )
+                } else {
+                    (field.clone(), column.clone())
+                }
+            })
+            .unzip();
+
+        let records = RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).unwrap();
+
+        (&records).into()
+    }
 }
 
 impl Modeler {
@@ -329,5 +353,51 @@ mod model_serde {
         D: Deserializer<'de>,
     {
         Model::deserialize(deserializer).map(Into::into)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use arrow::array::{ArrayRef, Float64Array, TimestampMillisecondArray};
+
+    use super::*;
+
+    #[test]
+    fn test_into_modeled_json_with_tz() {
+        let schema = Schema::new(vec![
+            Field::new(
+                "time",
+                DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None),
+                false,
+            ),
+            Field::new("value", DataType::Float64, false),
+        ]);
+        let records = RecordBatch::try_new(
+            Arc::new(schema),
+            vec![
+                Arc::new(TimestampMillisecondArray::from_iter(vec![
+                    Some(1619740800000),
+                    Some(1619740800000),
+                ])) as ArrayRef,
+                Arc::new(Float64Array::from_iter(vec![Some(1.0), Some(2.0)])),
+            ],
+        )
+        .unwrap();
+
+        let modeled = ModeledRecordBatch::new(records);
+        let output = modeled.into_modeled_json_with_tz("Asia/Shanghai");
+        assert_eq!(
+            output.columns,
+            vec![
+                vec![
+                    serde_json::Value::String("2021-04-30T00:00:00+08:00".to_string()),
+                    serde_json::Value::String("2021-04-30T00:00:00+08:00".to_string())
+                ],
+                vec![
+                    serde_json::Value::Number(1.into()),
+                    serde_json::Value::Number(2.into())
+                ]
+            ]
+        );
     }
 }
