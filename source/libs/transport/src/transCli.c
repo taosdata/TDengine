@@ -1109,6 +1109,7 @@ void cliSend(SCliConn* pConn) {
   STransMsg* pMsg = (STransMsg*)(&pCliMsg->msg);
   if (pMsg->pCont == 0) {
     pMsg->pCont = (void*)rpcMallocCont(0);
+    tDebug("malloc memory: %p", pMsg->pCont);
     pMsg->contLen = 0;
   }
 
@@ -1993,6 +1994,9 @@ _err:
 static FORCE_INLINE void destroyUserdata(STransMsg* userdata) {
   if (userdata->pCont == NULL) {
     return;
+  }
+  if (userdata->contLen == 0) {
+    tDebug("free memory: %p", userdata->pCont);
   }
   transFreeMsg(userdata->pCont);
   userdata->pCont = NULL;
