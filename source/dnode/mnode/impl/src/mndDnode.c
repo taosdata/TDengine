@@ -59,8 +59,10 @@ enum {
 };
 
 typedef struct {
-  char   machineId[TSDB_MACHINE_ID_LEN + 1];
-  tsem_t sem;
+  SMnodeRefInfo refInfo;
+  int64_t       refId;
+  tsem_t        sem;
+  char          machineId[TSDB_MACHINE_ID_LEN + 1];
 } SMachineInfo;
 
 static int32_t  mndCreateDefaultDnode(SMnode *pMnode);
@@ -416,6 +418,7 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
     tstrncpy(dInfo.ep.fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
     tstrncpy(dInfo.active, pDnode->active, TSDB_ACTIVE_KEY_LEN);
     tstrncpy(dInfo.connActive, pDnode->connActive, TSDB_CONN_ACTIVE_KEY_LEN);
+    tstrncpy(dInfo.machineId, pDnode->machineId, TSDB_MACHINE_ID_LEN + 1);
     sdbRelease(pSdb, pDnode);
     if (mndIsMnode(pMnode, pDnode->id)) {
       dInfo.isMnode = 1;
@@ -743,11 +746,17 @@ _OVER:
 }
 
 static int32_t mndSendGetMachineToDnode(SMnode *pMnode, SDnodeObj *pObj, SMachineInfo *pInfo) {
-  SRpcMsg rpcMsg = {.pCont = NULL, .contLen = 0, .msgType = TDMT_MND_GET_MACHINE, .info.ahandle = pInfo};
+  SRpcMsg rpcMsg = {.pCont = NULL, .contLen = 0, .msgType = TDMT_MND_GET_MACHINE, .info.ahandle = (void*)pInfo->refId};
   SEpSet  epSet = {.numOfEps = 1};
   strncpy(epSet.eps[0].fqdn, pObj->fqdn, TSDB_FQDN_LEN);
   epSet.eps[0].port = pObj->port;
   return tmsgSendReq(&epSet, &rpcMsg);
+}
+
+static void mndDestroyMachineInfo(void *pInfo) {
+  if (pInfo) {
+    tsem_destroy(&((SMachineInfo *)pInfo)->sem);
+  }
 }
 
 static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pCreate) {
@@ -767,7 +776,11 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
+  pInfo->refInfo.freeFp = mndDestroyMachineInfo;
   tsem_init(&pInfo->sem, 0, 0);
+  if((pInfo->refId = taosAddRef(pMnode->refMgmt, pInfo)) < 0) {
+    goto _OVER;
+  }
   if ((terrno = mndSendGetMachineToDnode(pMnode, &dnodeObj, pInfo)) != 0) {
     goto _OVER;
   }
@@ -798,8 +811,7 @@ _OVER:
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
   if (pInfo) {
-    tsem_destroy(&pInfo->sem);
-    taosMemoryFree(pInfo);
+    taosRemoveRef(pMnode->refMgmt, pInfo->refId);
   }
   return code;
 }
@@ -1280,10 +1292,16 @@ static int32_t mndProcessGetMachineRsp(SRpcMsg *pRsp) {
     return -1;
   }
 
-  SMachineInfo *pInfo = pRsp->info.ahandle;
-  if (pInfo) {
-    memcpy(pInfo->machineId, pRsp->pCont, TSDB_MACHINE_ID_LEN);
-    tsem_post(&pInfo->sem);
+  SMnode *pMnode = pRsp->info.node;
+  int64_t refId = (int64_t)pRsp->info.ahandle;
+
+  if (pMnode) {
+    SMachineInfo *pInfo = taosAcquireRef(pMnode->refMgmt, refId);
+    if (pInfo) {
+      memcpy(pInfo->machineId, pRsp->pCont, TSDB_MACHINE_ID_LEN);
+      tsem_post(&pInfo->sem);
+      taosReleaseRef(pMnode->refMgmt, refId);
+    }
   }
 
   return 0;

@@ -1600,6 +1600,7 @@ typedef struct {
   SEp     ep;
   char    active[TSDB_ACTIVE_KEY_LEN];
   char    connActive[TSDB_CONN_ACTIVE_KEY_LEN];
+  char    machineId[TSDB_MACHINE_ID_LEN + 1];
 } SDnodeInfo;
 
 typedef struct {

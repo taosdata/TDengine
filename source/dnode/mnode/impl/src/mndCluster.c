@@ -434,6 +434,7 @@ static int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
       goto _exit;
     }
     // code = xxx;
+    code = grantAlterActiveCode(cfgReq.value);
 #else
     code = TSDB_CODE_OPS_NOT_SUPPORT;
     goto _exit;
@@ -447,11 +448,11 @@ _exit:
   tFreeSMCfgClusterReq(&cfgReq);
   if (code != 0) {
     terrno = code;
-    mError("cluster: failed to config:%s, %s since %s", cfgReq.config, cfgReq.value, terrstr());
+    mError("cluster: failed to config:%s %s since %s", cfgReq.config, cfgReq.value, terrstr());
   } else {
-    mError("cluster: success to config:%s, %s", cfgReq.config, cfgReq.value);
+    mInfo("cluster: success to config:%s %s", cfgReq.config, cfgReq.value);
   }
-  return -1;
+  return code;
 }
 
 static int32_t mndProcessConfigClusterRsp(SRpcMsg *pRsp) {
