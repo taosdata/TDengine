@@ -724,8 +724,10 @@ export default {
     },
     //计算mapping的结果
     async caculateMappingResult() {
+      console.log(this.msgForm.msgbody,'this.msgForm.msgbody---消息体');
       if (!this.msgForm.msgbody) {
         this.validateMsgBody()
+        console.log('验证消息体');
         // Message.error(this.$t("datasource.transformer.msgbodytip"));
         this.isbreak = true;
         return;
