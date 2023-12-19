@@ -421,7 +421,7 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
         if (mtime < committer->ctx->now - tsS3UploadDelaySec) {
           committer->ctx->skipTsRow = true;
         }
-      } else if (s3Size(object_name) > 0) {
+      } else /*if (s3Size(object_name) > 0) */ {
         committer->ctx->skipTsRow = true;
       }
     }
@@ -435,7 +435,7 @@ _exit:
     tsdbDebug("vgId:%d %s done, fid:%d minKey:%" PRId64 " maxKey:%" PRId64 " expLevel:%d", TD_VID(tsdb->pVnode),
               __func__, committer->ctx->fid, committer->ctx->minKey, committer->ctx->maxKey, committer->ctx->expLevel);
   }
-  return 0;
+  return code;
 }
 
 static int32_t tsdbCommitFileSetEnd(SCommitter2 *committer) {

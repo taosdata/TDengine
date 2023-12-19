@@ -906,6 +906,7 @@ void* consumeThreadFunc(void* param) {
     pPrint("tmq_commit() manual commit when consume end.\n");
     /*tmq_commit(pInfo->tmq, NULL, 0);*/
     tmq_commit_sync(pInfo->tmq, NULL);
+    tmq_commit_cb_print(pInfo->tmq, 0, pInfo);
     taosFprintfFile(g_fp, "tmq_commit() manual commit over.\n");
     pPrint("tmq_commit() manual commit over.\n");
   }

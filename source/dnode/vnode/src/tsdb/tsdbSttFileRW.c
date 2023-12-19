@@ -60,7 +60,7 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
   int64_t offset = config->file->size - sizeof(SSttFooter);
   ASSERT(offset >= TSDB_FHDR_SIZE);
 
-  code = tsdbReadFile(reader[0]->fd, offset, (uint8_t *)(reader[0]->footer), sizeof(SSttFooter));
+  code = tsdbReadFile(reader[0]->fd, offset, (uint8_t *)(reader[0]->footer), sizeof(SSttFooter), 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -97,7 +97,7 @@ int32_t tsdbSttFileReadStatisBlk(SSttFileReader *reader, const TStatisBlkArray *
       if (!data) return TSDB_CODE_OUT_OF_MEMORY;
 
       int32_t code =
-          tsdbReadFile(reader->fd, reader->footer->statisBlkPtr->offset, data, reader->footer->statisBlkPtr->size);
+          tsdbReadFile(reader->fd, reader->footer->statisBlkPtr->offset, data, reader->footer->statisBlkPtr->size, 0);
       if (code) {
         taosMemoryFree(data);
         return code;
@@ -125,7 +125,7 @@ int32_t tsdbSttFileReadTombBlk(SSttFileReader *reader, const TTombBlkArray **tom
       if (!data) return TSDB_CODE_OUT_OF_MEMORY;
 
       int32_t code =
-          tsdbReadFile(reader->fd, reader->footer->tombBlkPtr->offset, data, reader->footer->tombBlkPtr->size);
+          tsdbReadFile(reader->fd, reader->footer->tombBlkPtr->offset, data, reader->footer->tombBlkPtr->size, 0);
       if (code) {
         taosMemoryFree(data);
         return code;
@@ -152,7 +152,8 @@ int32_t tsdbSttFileReadSttBlk(SSttFileReader *reader, const TSttBlkArray **sttBl
       void   *data = taosMemoryMalloc(reader->footer->sttBlkPtr->size);
       if (!data) return TSDB_CODE_OUT_OF_MEMORY;
 
-      int32_t code = tsdbReadFile(reader->fd, reader->footer->sttBlkPtr->offset, data, reader->footer->sttBlkPtr->size);
+      int32_t code =
+          tsdbReadFile(reader->fd, reader->footer->sttBlkPtr->offset, data, reader->footer->sttBlkPtr->size, 0);
       if (code) {
         taosMemoryFree(data);
         return code;
@@ -177,7 +178,7 @@ int32_t tsdbSttFileReadBlockData(SSttFileReader *reader, const SSttBlk *sttBlk, 
   code = tRealloc(&reader->config->bufArr[0], sttBlk->bInfo.szBlock);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbReadFile(reader->fd, sttBlk->bInfo.offset, reader->config->bufArr[0], sttBlk->bInfo.szBlock);
+  code = tsdbReadFile(reader->fd, sttBlk->bInfo.offset, reader->config->bufArr[0], sttBlk->bInfo.szBlock, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tDecmprBlockData(reader->config->bufArr[0], sttBlk->bInfo.szBlock, bData, &reader->config->bufArr[1]);
@@ -209,7 +210,7 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
   code = tRealloc(&reader->config->bufArr[0], sttBlk->bInfo.szKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbReadFile(reader->fd, sttBlk->bInfo.offset, reader->config->bufArr[0], sttBlk->bInfo.szKey);
+  code = tsdbReadFile(reader->fd, sttBlk->bInfo.offset, reader->config->bufArr[0], sttBlk->bInfo.szKey, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // hdr
@@ -255,7 +256,7 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
       TSDB_CHECK_CODE(code, lino, _exit);
 
       code = tsdbReadFile(reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey, reader->config->bufArr[0],
-                          hdr->szBlkCol);
+                          hdr->szBlkCol, 0);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -296,7 +297,7 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
           TSDB_CHECK_CODE(code, lino, _exit);
 
           code = tsdbReadFile(reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey + hdr->szBlkCol + blockCol->offset,
-                              reader->config->bufArr[1], size1);
+                              reader->config->bufArr[1], size1, 0);
           TSDB_CHECK_CODE(code, lino, _exit);
 
           code = tsdbDecmprColData(reader->config->bufArr[1], blockCol, hdr->cmprAlg, hdr->nRow, colData,
@@ -321,7 +322,7 @@ int32_t tsdbSttFileReadTombBlock(SSttFileReader *reader, const STombBlk *tombBlk
   code = tRealloc(&reader->config->bufArr[0], tombBlk->dp->size);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbReadFile(reader->fd, tombBlk->dp->offset, reader->config->bufArr[0], tombBlk->dp->size);
+  code = tsdbReadFile(reader->fd, tombBlk->dp->offset, reader->config->bufArr[0], tombBlk->dp->size, 0);
   if (code) TSDB_CHECK_CODE(code, lino, _exit);
 
   int64_t size = 0;
@@ -352,7 +353,7 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
   code = tRealloc(&reader->config->bufArr[0], statisBlk->dp->size);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbReadFile(reader->fd, statisBlk->dp->offset, reader->config->bufArr[0], statisBlk->dp->size);
+  code = tsdbReadFile(reader->fd, statisBlk->dp->offset, reader->config->bufArr[0], statisBlk->dp->size, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   int64_t size = 0;
@@ -405,7 +406,7 @@ struct SSttFileWriter {
 };
 
 static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, int8_t cmprAlg, int64_t *fileSize,
-                                 TSttBlkArray *sttBlkArray, uint8_t **bufArr, SVersionRange *range) {
+                                           TSttBlkArray *sttBlkArray, uint8_t **bufArr, SVersionRange *range) {
   if (blockData->nRow == 0) return 0;
 
   int32_t code = 0;
