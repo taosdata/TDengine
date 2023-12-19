@@ -16,6 +16,8 @@ In some scenarios, data stored in TDengine may become fragmented or take up an e
 
 ```SQL
 COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY']； 
+SHOW COMPACTS [compact_id]；
+KILL COMPACT compact_id；
 ```
 
 ### Results
@@ -25,6 +27,9 @@ COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY']；
 - STT files are combined.
 - You can use the `START WITH` keyword to specify a start time for the `COMPACT` command.
 - You can use the `END WITH` keyword to specify an end time for the `COMPACT` command.
+- The `COMPACT` command returns a compact ID.
+- The `COMPACT` tasks run asynchronously. You can use the `SHOW COMPACTS` command to view the progress of the `COMPACT` tasks.
+- The `SHOW` command returns the compact ID of the `COMPACT` command. You can use the `KILL COMPACT` command to terminate the `COMPACT` command.
 
 
 ### Additional Notes
