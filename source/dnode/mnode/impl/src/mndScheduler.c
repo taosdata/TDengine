@@ -181,20 +181,39 @@ int32_t mndAssignStreamTaskToSnode(SMnode* pMnode, SStreamTask* pTask, SSubplan*
   return qSubPlanToString(plan, &pTask->exec.qmsg, &msgLen);
 }
 
-// todo random choose a node to do compute
-SVgObj* mndSchedFetchOneVg(SMnode* pMnode, int64_t dbUid) {
+// random choose a node to do compute
+SVgObj* mndSchedFetchOneVg(SMnode* pMnode, SStreamObj* pStream) {
+  SDbObj* pDbObj = mndAcquireDb(pMnode, pStream->sourceDb);
+  if (pDbObj == NULL) {
+    terrno = TSDB_CODE_QRY_INVALID_INPUT;
+    return NULL;
+  }
+
+  if(pStream->indexForMultiAggBalance == -1){
+    taosSeedRand(taosSafeRand());
+    pStream->indexForMultiAggBalance = taosRand() % pDbObj->cfg.numOfVgroups;
+  }
+
+  int32_t index = 0;
   void*   pIter = NULL;
   SVgObj* pVgroup = NULL;
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
     if (pIter == NULL) break;
-    if (pVgroup->dbUid != dbUid) {
+    if (pVgroup->dbUid != pStream->sourceDbUid) {
       sdbRelease(pMnode->pSdb, pVgroup);
       continue;
     }
-    sdbCancelFetch(pMnode->pSdb, pIter);
-    return pVgroup;
+    if (index++ == pStream->indexForMultiAggBalance){
+      pStream->indexForMultiAggBalance++;
+      pStream->indexForMultiAggBalance %= pDbObj->cfg.numOfVgroups;
+      sdbCancelFetch(pMnode->pSdb, pIter);
+      break;
+    }
+    sdbRelease(pMnode->pSdb, pVgroup);
   }
+  sdbRelease(pMnode->pSdb, pDbObj);
+
   return pVgroup;
 }
 
@@ -440,10 +459,10 @@ static int32_t addAggTask(SStreamObj* pStream, SMnode* pMnode, SSubplan* plan, S
   if (tsDeployOnSnode) {
     pSnode = mndSchedFetchOneSnode(pMnode);
     if (pSnode == NULL) {
-      pVgroup = mndSchedFetchOneVg(pMnode, pStream->sourceDbUid);
+      pVgroup = mndSchedFetchOneVg(pMnode, pStream);
     }
   } else {
-    pVgroup = mndSchedFetchOneVg(pMnode, pStream->sourceDbUid);
+    pVgroup = mndSchedFetchOneVg(pMnode, pStream);
   }
 
   code = doAddAggTask(pStream, pMnode, plan, pEpset, pVgroup, pSnode, false);

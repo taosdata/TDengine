@@ -363,6 +363,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pObj->updateTime = pObj->createTime;
   pObj->version = 1;
   pObj->smaId = 0;
+  pObj->indexForMultiAggBalance = -1;
 
   pObj->uid = mndGenerateUid(pObj->name, strlen(pObj->name));
 
