@@ -139,6 +139,11 @@ You can query tag columns in supertables and subtables and receive results in th
 SELECT location, groupid, current FROM d1001 LIMIT 2;
 ```
 
+### Alias Name
+
+The naming rules for aliases are the same as those for columns, and it supports directly specifying Chinese aliases in UTF-8 encoding format.
+
+
 ### Distinct Values
 
 The DISTINCT keyword returns only values that are different over one or more columns. You can use the DISTINCT keyword with tag columns and data columns.
@@ -435,6 +440,7 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 :::info
 
 - The result of a nested query is returned as a virtual table used by the outer query. It's recommended to give an alias to this table for the convenience of using it in the outer query.
+- Outer queries support directly referencing columns or pseudo-columns of inner queries in the form of column names or `column names`.
 - JOIN operation is allowed between tables/STables inside both inner and outer queries. Join operation can be performed on the result set of the inner query.
 - The features that can be used in the inner query are the same as those that can be used in a non-nested query.
   - `ORDER BY` inside the inner query is unnecessary and will slow down the query performance significantly. It is best to avoid the use of `ORDER BY` inside the inner query.
