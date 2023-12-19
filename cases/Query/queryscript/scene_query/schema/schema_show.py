@@ -71,7 +71,7 @@ class TDTestQuery(TDCase):
                      'rpcDebugFlag','timezone','qDebugFlag','locale','charset','assert','enableCoreFile','numOfCores','SSE42','AVX','AVX2',
                      'FMA','SIMD-builtins','tagFilterCache','openMax','streamMax','pageSizeKB','totalMemoryKB','os sysname',
                      'os nodename','os release','os version','os machine','version','compatible_version','gitinfo','buildinfo','keepAliveIdle','ssd42','avx','avx2',
-                     'fma','avx512','simdEnable','','','','','','','',''];
+                     'fma','avx512','simdEnable','experimental','','','','','','',''];
         
         list_client = ['queryPolicy','enableQueryHb','enableScience','querySmaOptimize','queryPlannerTrace','queryNodeChunkSize','queryUseNodeAllocator',
                        'keepColumnName','smlChildTableName','smlTagName','maxInsertBatchRows','useAdapter','queryMaxConcurrentTables','metaCacheMaxSize',
@@ -106,7 +106,7 @@ class TDTestQuery(TDCase):
                         'countAlwaysReturnValue','numOfRpcThreads','numOfRpcSessions','timeToGetAvailableConn','rpcQueueMemoryAllowed',
                         'crashReporting','telemetryReporting','telemetryInterval','telemetryServer','telemetryPort','configDir','scriptDir',
                         'logDir','minimalLogDirGB','numOfLogLines','asyncLog','logKeepDays','debugFlag','sDebugFlag','keepAliveIdle','rsyncPort',
-                        'ssd42','avx','avx2','fma','avx512','simdEnable','','','','','','','','','',''];
+                        'ssd42','avx','avx2','fma','avx512','simdEnable','experimental','','','','','','','','',''];
     
         list_client = ['queryPolicy','enableQueryHb','enableScience','querySmaOptimize','queryPlannerTrace','queryNodeChunkSize','queryUseNodeAllocator',
                         'keepColumnName','smlChildTableName','smlTagName','maxInsertBatchRows','useAdapter','queryMaxConcurrentTables','metaCacheMaxSize',
@@ -127,7 +127,7 @@ class TDTestQuery(TDCase):
                         's3Endpoint','s3BucketName','minDiskFreeSize','enableWhiteList','timeseriesThreshold','LossyColumns','FPrecision','DPrecision',
                         'MaxRange','CurRange','IfAdtFse','Compressor','s3BlockSize','s3BlockCacheSize','auditCreateTable','snodeAddress','checkpointBackupDir',
                         'streamSinkDataRate','lossyColumns','fPrecision','dPrecision','maxRange','curRange','ifAdtFse','compressor','s3PageCacheSize',
-                        's3UploadDelaySec','sDebugFlag','stDebugFlag','sndDebugFlag','','','','','','','','','','','','','','','']
+                        's3UploadDelaySec','sDebugFlag','stDebugFlag','sndDebugFlag','auditInterval','compactPullupInterval','','','','','','','','','','','','','']
         
         
         dnodes_list = []
