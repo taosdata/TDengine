@@ -225,6 +225,7 @@ static int32_t mndPostMgmtCode(SMnode *pMnode, int32_t code) {
     goto _OUT;
   }
 
+  int32_t transId = pMgmt->transId;
   pMgmt->transId = 0;
   pMgmt->transSec = 0;
   pMgmt->transSeq = 0;
@@ -232,9 +233,9 @@ static int32_t mndPostMgmtCode(SMnode *pMnode, int32_t code) {
   tsem_post(&pMgmt->syncSem);
 
   if (pMgmt->errCode != 0) {
-    mError("trans:%d, failed to propose since %s, post sem", pMgmt->transId, tstrerror(pMgmt->errCode));
+    mError("trans:%d, failed to propose since %s, post sem", transId, tstrerror(pMgmt->errCode));
   } else {
-    mInfo("trans:%d, is proposed and post sem, seq:%" PRId64, pMgmt->transId, pMgmt->transSeq);
+    mInfo("trans:%d, is proposed and post sem, seq:%" PRId64, transId, pMgmt->transSeq);
   }
 
 _OUT:
