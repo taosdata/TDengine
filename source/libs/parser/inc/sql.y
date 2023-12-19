@@ -1090,7 +1090,6 @@ join_subtype(A) ::= .                                                           
 join_subtype(A) ::= OUTER.                                                        { A = JOIN_STYPE_OUTER; }
 join_subtype(A) ::= SEMI.                                                         { A = JOIN_STYPE_SEMI; }
 join_subtype(A) ::= ANTI.                                                         { A = JOIN_STYPE_ANTI; }
-join_subtype(A) ::= ANY.                                                          { A = JOIN_STYPE_ANY; }
 join_subtype(A) ::= ASOF.                                                         { A = JOIN_STYPE_ASOF; }
 join_subtype(A) ::= WINDOW.                                                       { A = JOIN_STYPE_WIN; }
 

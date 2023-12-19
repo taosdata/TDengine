@@ -19,17 +19,17 @@ IF(NOT TD_DARWIN)
         )
 ENDIF ()
 
-# SET(CMAKE_CXX_STANDARD 11)
-# AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
+SET(CMAKE_CXX_STANDARD 11)
+AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
-# ADD_EXECUTABLE(tSimpleHashTest tSimpleHashTests.cpp)
-# TARGET_LINK_LIBRARIES(
-#         tSimpleHashTest
-#         PRIVATE os util common executor gtest_main
-# )
+ADD_EXECUTABLE(joinTests joinTests.cpp)
+TARGET_LINK_LIBRARIES(
+        joinTests
+        PRIVATE os util common executor gtest_main qcom
+)
 
-# TARGET_INCLUDE_DIRECTORIES(
-#         tSimpleHashTest
-#         PUBLIC "${TD_SOURCE_DIR}/include/common"
-#         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-# )
+TARGET_INCLUDE_DIRECTORIES(
+        joinTests
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)

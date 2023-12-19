@@ -85,6 +85,7 @@ typedef struct SJoinOptimizeOpt {
 typedef bool (*FMayBeOptimized)(SLogicNode* pNode);
 typedef bool (*FShouldBeOptimized)(SLogicNode* pNode, void* pInfo);
 
+#if 0
 static SJoinOptimizeOpt gJoinOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
            /* NONE                OUTER                  SEMI                  ANTI                   ANY                    ASOF                   WINDOW */
 /*INNER*/  {{PUSH_DOWN_ALL_COND}, {0},                   {0},                  {0},                   {PUSH_DOWN_ALL_COND},  {0},                   {0}},
@@ -92,6 +93,16 @@ static SJoinOptimizeOpt gJoinOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
 /*RIGHT*/  {{0},                  {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_ALL_COND}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}},
 /*FULL*/   {{0},                  {0},                   {0},                  {0},                   {0},                   {0},                   {0}},
 };
+#else
+static SJoinOptimizeOpt gJoinOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
+           /* NONE                OUTER                  SEMI                  ANTI                   ASOF                   WINDOW */
+/*INNER*/  {{PUSH_DOWN_ALL_COND}, {0},                   {0},                  {0},                   {0},                   {0}},
+/*LEFT*/   {{0},                  {PUSH_DOWN_LEFT_FLT},  {PUSH_DOWN_ALL_COND}, {PUSH_DOWN_LEFT_FLT},  {PUSH_DOWN_LEFT_FLT},  {PUSH_DOWN_LEFT_FLT}},
+/*RIGHT*/  {{0},                  {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_ALL_COND}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}},
+/*FULL*/   {{0},                  {0},                   {0},                  {0},                   {0},                   {0}},
+};
+
+#endif
 
 static SLogicNode* optFindPossibleNode(SLogicNode* pNode, FMayBeOptimized func) {
   if (func(pNode)) {

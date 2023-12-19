@@ -38,7 +38,7 @@ static SKeyword keywordTable[] = {
     {"ANALYZE",              TK_ANALYZE},
     {"AND",                  TK_AND},
     {"ANTI",                 TK_ANTI},
-    {"ANY",                  TK_ANY},
+//    {"ANY",                  TK_ANY},
     {"APPS",                 TK_APPS},
     {"AS",                   TK_AS},
     {"ASC",                  TK_ASC},
