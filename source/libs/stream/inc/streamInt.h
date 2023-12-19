@@ -87,10 +87,10 @@ struct SStreamQueue {
   int8_t      status;
 };
 
-extern void*            streamTimer;
-extern int32_t          streamBackendId;
-extern int32_t          streamBackendCfWrapperId;
-extern int32_t          taskDbWrapperId;
+extern void*   streamTimer;
+extern int32_t streamBackendId;
+extern int32_t streamBackendCfWrapperId;
+extern int32_t taskDbWrapperId;
 
 void    streamRetryDispatchData(SStreamTask* pTask, int64_t waitDuration);
 int32_t streamDispatchStreamBlock(SStreamTask* pTask);
@@ -155,6 +155,8 @@ void          streamQueueProcessFail(SStreamQueue* queue);
 void*         streamQueueNextItem(SStreamQueue* pQueue);
 void          streamFreeQitem(SStreamQueueItem* data);
 int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
+
+void streamMetaRemoveDB(void* arg, char* key);
 
 typedef enum UPLOAD_TYPE {
   UPLOAD_DISABLE = -1,

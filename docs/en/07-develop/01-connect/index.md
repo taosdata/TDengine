@@ -1,7 +1,7 @@
 ---
 title: Connect to TDengine
 sidebar_label: Connect
-description: This document describes how to establish connections to TDengine and how to install and use TDengine connectors.
+description: This document describes how to establish connections to TDengine and how to install and use TDengine client libraries.
 ---
 
 import Tabs from "@theme/Tabs";
@@ -15,28 +15,28 @@ import ConnCSNative from "./_connect_cs.mdx";
 import ConnC from "./_connect_c.mdx";
 import ConnR from "./_connect_r.mdx";
 import ConnPHP from "./_connect_php.mdx";
-import InstallOnLinux from "../../14-reference/03-connector/_linux_install.mdx";
-import InstallOnWindows from "../../14-reference/03-connector/_windows_install.mdx";
-import InstallOnMacOS from "../../14-reference/03-connector/_macos_install.mdx";
-import VerifyLinux from "../../14-reference/03-connector/_verify_linux.mdx";
-import VerifyWindows from "../../14-reference/03-connector/_verify_windows.mdx";
-import VerifyMacOS from "../../14-reference/03-connector/_verify_macos.mdx";
+import InstallOnLinux from "../../08-client-libraries/_linux_install.mdx";
+import InstallOnWindows from "../../08-client-libraries/_windows_install.mdx";
+import InstallOnMacOS from "../../08-client-libraries/_macos_install.mdx";
+import VerifyLinux from "../../08-client-libraries/_verify_linux.mdx";
+import VerifyWindows from "../../08-client-libraries/_verify_windows.mdx";
+import VerifyMacOS from "../../08-client-libraries/_verify_macos.mdx";
 
-Any application running on any platform can access TDengine through the REST API provided by TDengine. For information, see [REST API](../../reference/rest-api/). Applications can also use the connectors for various programming languages, including C/C++, Java, Python, Go, Node.js, C#, and Rust, to access TDengine. These connectors support connecting to TDengine clusters using both native interfaces (taosc). Some connectors also support connecting over a REST interface. Community developers have also contributed several unofficial connectors, such as the ADO.NET connector, the Lua connector, and the PHP connector.
+Any application running on any platform can access TDengine through the REST API provided by TDengine. For information, see [REST API](../../reference/rest-api/). Applications can also use the client libraries for various programming languages, including C/C++, Java, Python, Go, Node.js, C#, and Rust, to access TDengine. These client libraries support connecting to TDengine clusters using both native interfaces (taosc). Some client libraries also support connecting over a REST interface. Community developers have also contributed several unofficial client libraries, such as the ADO.NET, Lua, and PHP libraries.
 
 ## Establish Connection
 
-There are two ways for a connector to establish connections to TDengine:
+There are two ways for a client library to establish connections to TDengine:
 
 1. REST connection through the REST API provided by the taosAdapter component.
 2. Native connection through the TDengine client driver (taosc).
 
-For REST and native connections, connectors provide similar APIs for performing operations and running SQL statements on your databases. The main difference is the method of establishing the connection, which is not visible to users.
+For REST and native connections, client libraries provide similar APIs for performing operations and running SQL statements on your databases. The main difference is the method of establishing the connection, which is not visible to users.
 
 Key differences:
 
 3. The REST connection is more accessible with cross-platform support, however it results in a 30% performance downgrade.
-1. The TDengine client driver (taosc) has the highest performance with all the features of TDengine like [Parameter Binding](../../reference/connector/cpp#parameter-binding-api), [Subscription](../../reference/connector/cpp#subscription-and-consumption-api), etc.
+1. The TDengine client driver (taosc) has the highest performance with all the features of TDengine like [Parameter Binding](../../client-libraries/cpp#parameter-binding-api), [Subscription](../../client-libraries/cpp#subscription-and-consumption-api), etc.
 
 ## Install Client Driver taosc
 
@@ -72,7 +72,7 @@ After the above installation and configuration are done and making sure TDengine
   </TabItem>
 </Tabs>
 
-## Install Connectors
+## Install Client Library
 
 <Tabs groupId="lang">
 <TabItem label="Java" value="java">
@@ -131,7 +131,7 @@ libtaos = { version = "0.4.2"}
 ```
 
 :::info
-Rust connector uses different features to distinguish the way to establish connection. To establish REST connection, please enable `rest` feature.
+Rust client library uses different features to distinguish the way to establish connection. To establish REST connection, please enable `rest` feature.
 
 ```toml
 libtaos = { version = "*", features = ["rest"] }
@@ -142,9 +142,9 @@ libtaos = { version = "*", features = ["rest"] }
 </TabItem>
 <TabItem label="Node.js" value="node">
 
-Node.js connector provides different ways of establishing connections by providing different packages.
+Node.js client library provides different ways of establishing connections by providing different packages.
 
-1. Install Node.js Native Connector
+1. Install Node.js Native Client Library
 
 ```
 npm install @tdengine/client
@@ -154,7 +154,7 @@ npm install @tdengine/client
 It's recommend to use Node whose version is between `node-v12.8.0` and `node-v13.0.0`.
 :::
 
-2. Install Node.js REST Connector
+2. Install Node.js REST Client Library
 
 ```
 npm install @tdengine/rest
@@ -177,7 +177,7 @@ Just need to add the reference to [TDengine.Connector](https://www.nuget.org/pac
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="TDengine.Connector" Version="3.0.0" />
+    <PackageReference Include="TDengine.Connector" Version="3.1.0" />
   </ItemGroup>
 
 </Project>
@@ -207,7 +207,7 @@ install.packages("RJDBC")
 </TabItem>
 <TabItem label="C" value="c">
 
-If the client driver (taosc) is already installed, then the C connector is already available.
+If the client driver (taosc) is already installed, then the C client library is already available.
 <br/>
 
 </TabItem>

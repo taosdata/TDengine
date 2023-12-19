@@ -91,6 +91,8 @@ class TDTestCase:
         tdLog.info("loop wait result ...")
         tdSql.checkDataLoop(0, 0, 99999, sql, loopCount=120, waitTime=0.5)
 
+        time.sleep(5)
+
         # check all data is correct
         sql = "select * from sta where cnt != 20;"
         tdSql.query(sql)

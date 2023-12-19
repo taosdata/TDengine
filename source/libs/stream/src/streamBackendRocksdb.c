@@ -982,8 +982,10 @@ int32_t chkpPreBuildDir(char* path, int64_t chkpId, char** chkpDir, char** chkpI
 }
 int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
   SStreamMeta* pMeta = arg;
-  void*        pIter = taosHashIterate(pMeta->pTaskDbUnique, NULL);
-  int32_t      code = 0;
+
+  taosThreadMutexLock(&pMeta->backendMutex);
+  void*   pIter = taosHashIterate(pMeta->pTaskDbUnique, NULL);
+  int32_t code = 0;
 
   while (pIter) {
     STaskDbWrapper* pTaskDb = *(STaskDbWrapper**)pIter;
@@ -1000,6 +1002,8 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
     taosArrayPush(pSnap, &snap);
     pIter = taosHashIterate(pMeta->pTaskDbUnique, pIter);
   }
+  taosThreadMutexUnlock(&pMeta->backendMutex);
+
   return code;
 }
 int32_t streamBackendAddInUseChkp(void* arg, int64_t chkpId) {
@@ -1810,6 +1814,10 @@ STaskDbWrapper* taskDbOpen(char* path, char* key, int64_t chkpId) {
 
 void taskDbDestroy(void* pDb, bool flush) {
   STaskDbWrapper* wrapper = pDb;
+  if (wrapper == NULL) return;
+
+  streamMetaRemoveDB(wrapper->pMeta, wrapper->idstr);
+
   qDebug("succ to destroy stream backend:%p", wrapper);
 
   int8_t nCf = sizeof(ginitDict) / sizeof(ginitDict[0]);
@@ -2289,12 +2297,14 @@ int streamStateGetCfIdx(SStreamState* pState, const char* funcName) {
     }
   }
   if (pState != NULL && idx != -1) {
-    STaskDbWrapper*                 wrapper = pState->pTdbState->pOwner->pBackend;
-    rocksdb_column_family_handle_t* cf = NULL;
+    STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+    if (wrapper == NULL) {
+      return -1;
+    }
 
     taosThreadMutexLock(&wrapper->mutex);
 
-    cf = wrapper->pCf[idx];
+    rocksdb_column_family_handle_t* cf = wrapper->pCf[idx];
     if (cf == NULL) {
       char* err = NULL;
       cf = rocksdb_create_column_family(wrapper->db, wrapper->pCfOpts[idx], ginitDict[idx].key, &err);
