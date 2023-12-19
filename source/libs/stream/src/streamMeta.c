@@ -1270,18 +1270,22 @@ void streamMetaRLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-rlock", pMeta->vgId);
   taosRLockLatch(&pMeta->lock);
 }
+
 void streamMetaRUnLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-runlock", pMeta->vgId);
   taosRUnLockLatch(&pMeta->lock);
 }
+
 void streamMetaWLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-wlock", pMeta->vgId);
   taosWLockLatch(&pMeta->lock);
 }
+
 void streamMetaWUnLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-wunlock", pMeta->vgId);
   taosWUnLockLatch(&pMeta->lock);
 }
+
 static void execHelper(struct SSchedMsg* pSchedMsg) {
   __async_exec_fn_t execFn = (__async_exec_fn_t)pSchedMsg->ahandle;
   int32_t           code = execFn(pSchedMsg->thandle);

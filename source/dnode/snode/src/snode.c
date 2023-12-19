@@ -150,7 +150,7 @@ FAIL:
 }
 
 int32_t sndInit(SSnode * pSnode) {
-  resetStreamTaskStatus(pSnode->pMeta);
+  tqStreamTaskResetStatus(pSnode->pMeta);
   startStreamTasks(pSnode->pMeta);
   return 0;
 }
