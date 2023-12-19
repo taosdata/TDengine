@@ -530,7 +530,7 @@ fn otel_enabled(args: &Args) -> bool {
     args.global.otel.unwrap_or(false)
 }
 
-/// Gether all effective enviroment variables and options, and join them with \n .
+/// Gether all effective environment variables and options, and join them with \n .
 /// This method can only be called after all env variables and options were determined.
 #[rustfmt::skip]
 fn pirnt_effective_config(level_filter: &LevelFilter, args: &Args) {
