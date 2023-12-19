@@ -108,8 +108,10 @@ fn handle_flat_message<R: Read, W: Write>(
             // let record = record.as_any().downcast_ref::<FlatMessage>().unwrap();
             // dbg!(record);
             for message in record.records() {
-                let mut cv_vec =
-                    taosx_ipc::stream::reader::record_batch_to_column_view(message.record(), taos::Precision::Microsecond);
+                let mut cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(
+                    message.record(),
+                    taos::Precision::Millisecond,
+                );
                 let mut stmt = Stmt::init(&taos)?;
                 // process ts, topic, qos, payload
                 let schema = message.schema();
@@ -344,8 +346,10 @@ fn handle_point_message<R: Read, W: Write>(
             dbg!(&record);
             // let record = record.as_any().downcast_ref::<PointMessage>().unwrap();
             for message in record.records() {
-                let cv_vec =
-                    taosx_ipc::stream::reader::record_batch_to_column_view(message.record(), taos::Precision::Microsecond);
+                let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(
+                    message.record(),
+                    taos::Precision::Millisecond,
+                );
                 // process id, name, ts, value, status
                 let schema = message.schema();
                 let id_index = schema.index_of("id")?;
@@ -363,7 +367,7 @@ fn handle_point_message<R: Read, W: Write>(
                 let status_cv = cv_vec.get(status_index).unwrap();
 
                 // let table_info = &config.table_info;
-                // let ts_cloumn = &config.ts_cloumn_name;
+                // let ts_column = &config.ts_column_name;
                 let value_type = IpcDataType::from(value_field.data_type()).sql_repr();
 
                 let mut stable_prefix = table_config.stable_prefix.clone();
@@ -437,8 +441,8 @@ fn handle_point_message<R: Read, W: Write>(
                     // let mut new_cv_vec = Vec::new();
                     // let mut question_marks = String::new();
                     let mut values = String::new();
-                    let mut value_cloumn_name = "value";
-                    let mut value_cloumn_length = 128;
+                    let mut value_column_name = "value";
+                    let mut value_column_length = 128;
                     let mut field_names = String::new();
                     for (temp_name, temp_alias) in &columns_insert {
                         if temp_name == "received_time" {
@@ -483,9 +487,9 @@ fn handle_point_message<R: Read, W: Write>(
                                 .unwrap()
                                 .into_value()
                                 .to_sql_value();
-                            value_cloumn_length = value_column.len();
+                            value_column_length = value_column.len();
                             values.push_str(format!("{value_column},").as_str());
-                            value_cloumn_name = temp_alias;
+                            value_column_name = temp_alias;
                             // insert_sql.push_str(format!("{temp_alias},").as_str());
                             // question_marks.push_str("?,");
                         } else if temp_name == "status" {
@@ -609,9 +613,9 @@ fn handle_point_message<R: Read, W: Write>(
                                                 column_type = "tag";
                                                 length = point_name.len();
                                             } else if (column_meta.ty == Ty::VarChar || column_meta.ty == Ty::NChar)
-                                                && column_meta.field() == value_cloumn_name && value_cloumn_length > column_meta.length() {
+                                                && column_meta.field() == value_column_name && value_column_length > column_meta.length() {
                                                 column_type = "column";
-                                                length = value_cloumn_length;
+                                                length = value_column_length;
                                             } else {
                                                 return;
                                             }

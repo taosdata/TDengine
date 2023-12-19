@@ -26,8 +26,12 @@ jobs:
 
       - name: Compile check
         run: |
-          cargo check --all
+          cargo check --workspace --all --tests --examples
 
       - name: Format check
         run: |
           cargo fmt --check --all
+
+      - name: Typos check
+        run: |
+          typos src taosx-* README.md

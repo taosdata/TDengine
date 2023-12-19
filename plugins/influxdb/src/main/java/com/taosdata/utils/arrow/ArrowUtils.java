@@ -278,6 +278,25 @@ public class ArrowUtils {
     }
 
     /**
+     * 数据流关闭信号
+     *
+     * @return
+     * @throws IOException
+     */
+    public byte[] closeArrow() throws IOException {
+        // 输出字节流，完整结构体的字节流
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        try {
+            ArrowStreamWriter.writeEndOfStream(new WriteChannel(Channels.newChannel(outputStream)), IpcOption.DEFAULT);
+            return outputStream.toByteArray();
+        } catch (Exception e) {
+            throw e;
+        } finally {
+            outputStream.close();
+        }
+    }
+
+    /**
      * 获取arrow类型
      *
      * @param type

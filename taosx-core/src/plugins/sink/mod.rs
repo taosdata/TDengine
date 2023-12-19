@@ -670,8 +670,8 @@ fn get_ts_from_sql(sql: &str) -> Option<String> {
 struct ModifyStructForPointMessage {
     id: String,
     point_name: String,
-    value_cloumn_name: String,
-    value_cloumn_length: usize,
+    value_column_name: String,
+    value_column_length: usize,
 }
 
 #[instrument(skip_all, fields(target_precision = ?target_precision, trace.id=trace_id_str))]
@@ -807,8 +807,8 @@ async fn consume_point_record(
             // child_table_name.push_str(format!("_{}", point_config.code).as_str());
             // let mut insert_sql = format!("insert into `{child_table_name}` ");
             let mut values = String::new();
-            let mut value_cloumn_name = "value";
-            let mut value_cloumn_length = 128;
+            let mut value_column_name = "value";
+            let mut value_column_length = 128;
             let mut columns_in_insert = String::new();
             for (temp_name, temp_alias) in &columns_insert {
                 if temp_name == "received_ts" || temp_name == "received_time" {
@@ -849,8 +849,8 @@ async fn consume_point_record(
                         .to_sql_value()
                         .replace("NaN", "NULL");
                     values.push_str(format!("{value_column},").as_str());
-                    value_cloumn_name = temp_alias;
-                    value_cloumn_length = value_column.len();
+                    value_column_name = temp_alias;
+                    value_column_length = value_column.len();
                 } else if temp_name == "quality" {
                     values.push_str(
                         format!(
@@ -960,8 +960,8 @@ async fn consume_point_record(
                         ModifyStructForPointMessage {
                             id,
                             point_name,
-                            value_cloumn_name: value_cloumn_name.to_string(),
-                            value_cloumn_length,
+                            value_column_name: value_column_name.to_string(),
+                            value_column_length,
                         },
                     ));
                 }
@@ -985,8 +985,8 @@ async fn consume_point_record(
                     ModifyStructForPointMessage {
                         id,
                         point_name,
-                        value_cloumn_name: value_cloumn_name.to_string(),
-                        value_cloumn_length,
+                        value_column_name: value_column_name.to_string(),
+                        value_column_length,
                     },
                 ));
                 stable_insert_map.insert(stable_name.clone(), sql_vec);
@@ -1319,14 +1319,14 @@ async fn consume_point_record(
                                 for column_meta in desc {
                                     if (column_meta.ty == Ty::VarChar
                                         || column_meta.ty == Ty::NChar)
-                                        && column_meta.field() == modify_message.value_cloumn_name
-                                        && modify_message.value_cloumn_length > column_meta.length()
+                                        && column_meta.field() == modify_message.value_column_name
+                                        && modify_message.value_column_length > column_meta.length()
                                     {
                                         let sql = format!(
                                             "alter table `{stable_name}` modify column `{}` {}({})",
                                             column_meta.field(),
                                             column_meta.ty(),
-                                            modify_message.value_cloumn_length,
+                                            modify_message.value_column_length,
                                         );
                                         tracing::info!("add execute sql: {}", &sql);
                                         // taos.as_ref().unwrap().exec(sql).await.context(

@@ -32,7 +32,7 @@ pub struct ModeledRecordBatch {
 pub enum FieldScope {
     /// Sub or ordinary table name
     TableName,
-    /// S(uper)Table name.
+    /// SuperTable name.
     STableName,
     /// Primary key field(must in timestamp format).
     PrimaryKey,
