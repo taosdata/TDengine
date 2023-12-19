@@ -3278,8 +3278,13 @@ static int32_t saveBlockRowToBuf(STableMergeScanInfo* pInfo, SSDataBlock* pBlock
       memcpy(pStart, pData, dataLen);
       pStart += dataLen;
     } else if (IS_VAR_DATA_TYPE(pCol->info.type)) {
-      varDataCopy(pStart, pData);
-      pStart += varDataTLen(pData);
+      if (colDataGetLength(pCol, blockDataGetNumOfRows(pBlock)) != 0) {
+        varDataCopy(pStart, pData);
+        pStart += varDataTLen(pData);        
+      } else {
+        *(VarDataLenT*)(pStart) = 0;
+        pStart += VARSTR_HEADER_SIZE;
+      }
     } else {
       int32_t bytes = pCol->info.bytes;
       memcpy(pStart, pData, bytes);
@@ -3301,9 +3306,8 @@ static int32_t transformIntoSortInputBlock(STableMergeScanInfo* pInfo, SSDataBlo
   pSortInputBlk->info.id = pSrcBlock->info.id;
   blockDataEnsureCapacity(pSortInputBlk, nRows);
 
-  int32_t tsSlotId = ((SBlockOrderInfo*)taosArrayGet(pInfo->pSortInfo, 0))->slotId;
   SColumnInfoData* tsCol = taosArrayGet(pSortInputBlk->pDataBlock, 0);
-  SColumnInfoData* pSrcTsCol = taosArrayGet(pSrcBlock->pDataBlock, tsSlotId);
+  SColumnInfoData* pSrcTsCol = taosArrayGet(pSrcBlock->pDataBlock, pSortInfo->srcTsSlotId);
   colDataAssign(tsCol, pSrcTsCol, nRows, &pSortInputBlk->info);
 
   SColumnInfoData* pageIdCol = taosArrayGet(pSortInputBlk->pDataBlock, 1);
@@ -3412,6 +3416,7 @@ static void doGetBlockForTableMergeScan(SOperatorInfo* pOperator, bool* pFinishe
 
   uint32_t status = 0;
   code = loadDataBlock(pOperator, &pInfo->base, pBlock, &status);
+
   if (code != TSDB_CODE_SUCCESS) {
     qInfo("table merge scan load datablock code %d, %s", code, GET_TASKID(pTaskInfo));
     T_LONG_JMP(pTaskInfo->env, code);
@@ -3918,6 +3923,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
     pInfo->pSortInfo = generateSortByTsInfo(pInfo->base.matchInfo.pList, pInfo->base.cond.order);
     pInfo->pSortInputBlock = createOneDataBlock(pInfo->pResBlock, false);
   } else {
+    
     SSDataBlock* pSortInput = createDataBlock();
     SColumnInfoData tsCol = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, 8, 1);
     blockDataAppendColInfo(pSortInput, &tsCol);
@@ -3929,6 +3935,14 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
     blockDataAppendColInfo(pSortInput, &lengthCol);
     pInfo->pSortInputBlock = pSortInput;
 
+    int32_t srcTsSlotId = 0;
+    for (int32_t i = 0; i < taosArrayGetSize(pInfo->base.matchInfo.pList); ++i) {
+      SColMatchItem* colInfo = taosArrayGet(pInfo->base.matchInfo.pList, i);
+      if (colInfo->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        srcTsSlotId = colInfo->dstSlotId;
+      }
+    }
+    pInfo->tmsSortRowIdInfo.srcTsSlotId = srcTsSlotId;
     SArray*         pList = taosArrayInit(1, sizeof(SBlockOrderInfo));
     SBlockOrderInfo bi = {0};
     bi.order = pInfo->base.cond.order;

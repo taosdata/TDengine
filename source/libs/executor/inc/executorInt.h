@@ -275,6 +275,7 @@ typedef struct STableScanInfo {
 
 typedef struct STmsSortRowIdInfo {
   SDiskbasedBuf* pExtSrcRowsBuf;
+  int32_t srcTsSlotId;
 } STmsSortRowIdInfo;
 
 typedef struct STableMergeScanInfo {
