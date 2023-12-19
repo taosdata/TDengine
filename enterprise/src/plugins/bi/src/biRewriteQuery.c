@@ -27,7 +27,7 @@ static SNode* biMakeTbnameProjectAstNode(char* funcName, char* tableAlias) {
   SValueNode* valNode = NULL;
   if (tableAlias != NULL) {
     SValueNode* n = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
-    n->literal = strdup(tableAlias);
+    n->literal = tstrdup(tableAlias);
     n->node.resType.type = TSDB_DATA_TYPE_BINARY;
     n->node.resType.bytes = strlen(n->literal);
     n->isDuration = false;
@@ -36,20 +36,20 @@ static SNode* biMakeTbnameProjectAstNode(char* funcName, char* tableAlias) {
   }
 
   SFunctionNode* tbNameFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
-  memcpy(tbNameFunc->functionName, "tbname", strlen("tbname"));
+  tstrncpy(tbNameFunc->functionName, "tbname", TSDB_FUNC_NAME_LEN);
   if (valNode != NULL) {
     nodesListMakeAppend(&tbNameFunc->pParameterList, (SNode*)valNode);
   }
   snprintf(tbNameFunc->node.userAlias, sizeof(tbNameFunc->node.userAlias), 
                 (tableAlias)? "%s.tbname" : "%stbname", 
                 (tableAlias)? tableAlias : "");
-  strcpy(tbNameFunc->node.aliasName, tbNameFunc->functionName);
+  strncpy(tbNameFunc->node.aliasName, tbNameFunc->functionName, TSDB_COL_NAME_LEN);
 
   if (funcName == NULL) {
     return (SNode*)tbNameFunc;
   } else {
     SFunctionNode* multiResFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
-    memcpy(multiResFunc->functionName, funcName, strlen(funcName));
+    tstrncpy(multiResFunc->functionName, funcName, TSDB_FUNC_NAME_LEN);
     nodesListMakeAppend(&multiResFunc->pParameterList, (SNode*)tbNameFunc);
 
     if (tsKeepColumnName) {
@@ -152,5 +152,48 @@ int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
      WHERE_NEXT;
   }
 
+  return TSDB_CODE_SUCCESS;
+}
+
+bool biRewriteToTbnameFunc(STranslateContext* pCxt, SNode** ppNode) {
+  SColumnNode* pCol = (SColumnNode*)(*ppNode);
+  if ((strcasecmp(pCol->colName, "tbname") == 0) &&
+        ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable &&
+        QUERY_NODE_REAL_TABLE == nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
+    SFunctionNode* tbnameFuncNode = NULL;
+    tbnameFuncNode = (SFunctionNode*)biMakeTbnameProjectAstNode(NULL, (pCol->tableAlias[0]!='\0') ? pCol->tableAlias : NULL);
+    tbnameFuncNode->node.resType = pCol->node.resType;
+    strcpy(tbnameFuncNode->node.aliasName, pCol->node.aliasName);
+    strcpy(tbnameFuncNode->node.userAlias, pCol->node.userAlias);
+
+    nodesDestroyNode(*ppNode);
+    *ppNode = (SNode*)tbnameFuncNode;
+    return true;
+  }
+
+  return false;
+}
+
+int32_t biCheckCreateTableTbnameCol(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
+  if (pStmt->pTags) {
+      SNode*  pNode = NULL;
+      FOREACH(pNode, pStmt->pTags) {
+        SColumnDefNode* pTag = (SColumnDefNode*)pNode;
+        if (strcasecmp(pTag->colName, "tbname") == 0) {
+          int32_t code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, "tbname can not used for tags in BI mode");
+          return code;
+        }
+      }
+  }
+  if (pStmt->pCols) {
+      SNode*  pNode = NULL;
+      FOREACH(pNode, pStmt->pCols) {
+        SColumnDefNode* pCol = (SColumnDefNode*)pNode;
+        if (strcasecmp(pCol->colName, "tbname") == 0) {
+          int32_t code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "tbname can not used for columns in BI mode");
+          return code;
+        }
+      }
+  }
   return TSDB_CODE_SUCCESS;
 }

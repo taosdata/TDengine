@@ -315,7 +315,7 @@ static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewRe
 
   pView->createdTime = taosGetTimestampMs();
   pView->viewId = mndGenerateUid(pCreate->fullname, strlen(pCreate->fullname));
-  pView->querySql = strdup(pCreate->querySql);
+  pView->querySql = tstrdup(pCreate->querySql);
   if (NULL == pView) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
@@ -730,7 +730,7 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
       tNameFromString(&name, pView->dbFName, T_NAME_ACCT | T_NAME_DB);
       tNameGetDbName(&name, varDataVal(tmpBuf));
     } else {
-      memcpy(varDataVal(tmpBuf), pView->dbFName, strlen(pView->dbFName) + 1);
+      tstrncpy(varDataVal(tmpBuf), pView->dbFName, TSDB_SHOW_SQL_LEN);
     }
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
