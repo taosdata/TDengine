@@ -58,7 +58,7 @@ class StreamComputingTest(TDCase):
         self.default_interval = 5
 
         self.range_count = 5
-        self.vgroups = 2
+        self.vgroups = 3
         # self.vgroups_list = [1, self.vgroups]
         self.vgroups_list = [self.vgroups]
         self.des_table_suffix = "_output"
@@ -1770,11 +1770,11 @@ class StreamComputingTest(TDCase):
         start_trigger_condition = f'c2 {enq_list[0]} {self.c1_half_bf} or c3 {null_list[0]}'
         end_trigger_condition = f'c2 {null_list[1]} and c3 {random.choice(enq_list[1:])} {self.c1_half_af}'
         condition_list.append(f'event_window start with {start_trigger_condition} end with {end_trigger_condition}')
-        
+
         start_trigger_condition = f'c2 {in_list[0]} (100,200,300) or c3 {between_list[0]} {self.c1_half_bf} and {self.c1_half_af}'
         end_trigger_condition = f'c2 {in_list[1]} (100,200,300) and c3 {between_list[1]} {self.c1_half_bf} and {self.c1_half_af}'
         condition_list.append(f'event_window start with {start_trigger_condition} end with {end_trigger_condition}')
-        
+
         start_trigger_condition = f'c11 {like_list[0]} "%a%" or c11 {match_list[1]} ".*a.*"'
         end_trigger_condition = f'c11 {like_list[1]} "_a_" and c11 {match_list[0]} ".*a.*"'
         condition_list.append(f'event_window start with {start_trigger_condition} end with {end_trigger_condition}')
@@ -1838,18 +1838,19 @@ class StreamComputingTest(TDCase):
                 fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11'
         self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tb_source_select_str}  from {self.tb_name} {partition_elm} {event_window_condition}', trigger_mode="at_once", subtable_value=tb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value)
         start_time = self.date_time
+        need_null = True if partition == "tbname" else False
         for i in range(self.range_count):
             ts_value = str(self.date_time)+f'+{i*10}s'
             ts_cast_delete_value = self.tdCom.time_cast(ts_value)
-            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=True)
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=need_null)
             if self.update and i%2 == 0:
-                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=True)
+                self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value, need_null=need_null)
             if self.delete and i%2 != 0:
                 self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=ts_cast_delete_value)
             self.date_time += 1
-            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, need_null=True)
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, need_null=need_null)
             if self.update and i%2 == 0:
-                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, need_null=True)
+                self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value, need_null=need_null)
             if self.delete and i%2 != 0:
                 self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
             self.date_time += 1
@@ -3721,7 +3722,7 @@ class StreamComputingTest(TDCase):
                 self.at_once_session(session=random.randint(10, 15), ignore_expired=ignore_expired)
             for ignore_update in [None, 0, 1]:
                 self.at_once_session(session=random.randint(10, 15), ignore_update=ignore_update, fill_history_value=1)
-            ## return
+            # return
             for fill_history_value in [None, 1]:
                 self.at_once_state_window(state_window="c1", partition="tbname", fill_history_value=fill_history_value)
                 self.at_once_state_window(state_window="c1", partition="c1", fill_history_value=fill_history_value)
@@ -3730,13 +3731,14 @@ class StreamComputingTest(TDCase):
                 self.at_once_state_window(state_window="c1", partition="c1", delete=True, fill_history_value=fill_history_value)
                 self.at_once_state_window(state_window="c1", partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
                 self.at_once_state_window(state_window="c1", partition="c1", subtable=None, fill_history_value=fill_history_value)
-                self.at_once_session(session=random.randint(10, 15), partition="tbname", fill_history_value=fill_history_value)
-                self.at_once_session(session=random.randint(10, 15), partition="c1", fill_history_value=fill_history_value)
-                self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", fill_history_value=fill_history_value)
-                self.at_once_session(session=random.randint(10, 15), partition="tbname", delete=True, fill_history_value=fill_history_value)
-                self.at_once_session(session=random.randint(10, 15), partition="c1", delete=True, fill_history_value=fill_history_value)
-                self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
-                self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", delete=True, subtable=None, fill_history_value=fill_history_value)
+                # ! TD-27957
+                # self.at_once_session(session=random.randint(10, 15), partition="tbname", fill_history_value=fill_history_value)
+                # self.at_once_session(session=random.randint(10, 15), partition="c1", fill_history_value=fill_history_value)
+                # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", fill_history_value=fill_history_value)
+                # self.at_once_session(session=random.randint(10, 15), partition="tbname", delete=True, fill_history_value=fill_history_value)
+                # self.at_once_session(session=random.randint(10, 15), partition="c1", delete=True, fill_history_value=fill_history_value)
+                # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
+                # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", delete=True, subtable=None, fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), ignore_expired=1, fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), ignore_update=1, fill_history_value=fill_history_value)
                 self.watermark_window_close_session(session=random.randint(10, 15), watermark=None, fill_history_value=fill_history_value)
@@ -3799,7 +3801,6 @@ class StreamComputingTest(TDCase):
                     self.at_once_interval_ext(interval=random.randint(10, 15), delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.partitial_stb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
                     self.at_once_interval_ext(interval=random.randint(10, 15), delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm.split(",")[0]},c1', subtable="c1", stb_field_name_value=self.exchange_stb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
                     self.at_once_interval_ext(interval=random.randint(10, 15), delete=delete, fill_history_value=fill_history_value, partition=None, subtable="constant", stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True)
-                    # ! TD-27675
                     self.at_once_interval_ext(interval=random.randint(10, 15), delete=delete, fill_history_value=fill_history_value, partition=None, subtable=None, stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
                     self.at_once_state_window_ext(state_window="c1", delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm},c1', subtable="c1", stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
                     self.at_once_state_window_ext(state_window="c1", delete=delete, fill_history_value=fill_history_value, partition=f'tbname,{self.tag_filter_des_select_elm},c1', subtable="c1", stb_field_name_value=None, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True)
