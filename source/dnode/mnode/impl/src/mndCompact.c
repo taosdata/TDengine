@@ -288,7 +288,7 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
       tNameFromString(&name, pCompact->dbname, T_NAME_ACCT | T_NAME_DB);
       tNameGetDbName(&name, varDataVal(tmpBuf));
     } else {
-      strncpy(varDataVal(tmpBuf), pCompact->dbname, strlen(pCompact->dbname) + 1);
+      strncpy(varDataVal(tmpBuf), pCompact->dbname, TSDB_SHOW_SQL_LEN);
     }
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
