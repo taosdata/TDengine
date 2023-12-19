@@ -1565,7 +1565,7 @@ static bool getLine(SSmlHandle *info, char *lines[], char **rawLine, char *rawLi
     }
   }
 
-  if(*rawLine != NULL){
+  if(*rawLine != NULL && (uDebugFlag & DEBUG_DEBUG)){
     char* print = taosMemoryCalloc(*len + 1, 1);
     memcpy(print, *tmp, *len);
     uDebug("SML:0x%" PRIx64 " smlParseLine is raw, numLines:%d, protocol:%d, len:%d, data:%s", info->id,
