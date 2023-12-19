@@ -66,6 +66,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer
   } else {
     sndDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
   }
+  
 
   int32_t     numOfVgroups = (int32_t)taosArrayGetSize(pTask->upstreamInfo.pList);
   SReadHandle handle = {

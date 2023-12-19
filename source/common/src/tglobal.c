@@ -95,8 +95,9 @@ int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 
 // audit
-bool tsEnableAudit = true;
-bool tsEnableAuditCreateTable = true;
+bool     tsEnableAudit = true;
+bool     tsEnableAuditCreateTable = true;
+int32_t  tsAuditInterval = 5000;
 
 // telem
 #ifdef TD_ENTERPRISE
@@ -247,6 +248,7 @@ int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
 
 // internal
 int32_t tsTransPullupInterval = 2;
+int32_t tsCompactPullupInterval = 10;
 int32_t tsMqRebalanceInterval = 2;
 int32_t tsStreamCheckpointInterval = 60;
 float   tsSinkDataRate = 2.0;
@@ -280,6 +282,8 @@ int32_t tsS3BlockSize = -1;        // number of tsdb pages (4096)
 int32_t tsS3BlockCacheSize = 16;   // number of blocks
 int32_t tsS3PageCacheSize = 4096;  // number of pages
 int32_t tsS3UploadDelaySec = 60 * 60 * 24;
+
+bool    tsExperimental = true;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -528,6 +532,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   }
   if (cfgAddInt32(pCfg, "numOfTaskQueueThreads", tsNumOfTaskQueueThreads, 4, 1024, CFG_SCOPE_CLIENT, CFG_DYN_NONE) != 0)
     return -1;
+  if (cfgAddBool(pCfg, "experimental", tsExperimental, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
 
   return 0;
 }
@@ -687,6 +692,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddBool(pCfg, "audit", tsEnableAudit, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
   if (cfgAddBool(pCfg, "auditCreateTable", tsEnableAuditCreateTable, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 500, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
+    return -1;
 
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "telemetryReporting", tsEnableTelem, CFG_SCOPE_BOTH, CFG_DYN_ENT_SERVER) != 0) return -1;
@@ -703,6 +710,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
     return -1;
 
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
+      0)
+    return -1;
+  if (cfgAddInt32(pCfg, "compactPullupInterval", tsCompactPullupInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
       0)
     return -1;
   if (cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
@@ -791,6 +801,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
                   CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
     return -1;
   if (cfgAddBool(pCfg, "enableWhiteList", tsEnableWhiteList, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
+
+  if (cfgAddBool(pCfg, "experimental", tsExperimental, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
 
   GRANT_CFG_ADD;
   return 0;
@@ -1077,6 +1089,8 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsTimeToGetAvailableConn = cfgGetItem(pCfg, "timeToGetAvailableConn")->i32;
 
   tsKeepAliveIdle = cfgGetItem(pCfg, "keepAliveIdle")->i32;
+
+  tsExperimental = cfgGetItem(pCfg, "experimental")->bval;
   return 0;
 }
 
@@ -1140,6 +1154,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsEnableAudit = cfgGetItem(pCfg, "audit")->bval;
   tsEnableAuditCreateTable = cfgGetItem(pCfg, "auditCreateTable")->bval;
+  tsAuditInterval = cfgGetItem(pCfg, "auditInterval")->i32;
 
   tsEnableTelem = cfgGetItem(pCfg, "telemetryReporting")->bval;
   tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
@@ -1155,6 +1170,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tmqMaxTopicNum = cfgGetItem(pCfg, "tmqMaxTopicNum")->i32;
 
   tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
+  tsCompactPullupInterval = cfgGetItem(pCfg, "compactPullupInterval")->i32;
   tsMqRebalanceInterval = cfgGetItem(pCfg, "mqRebalanceInterval")->i32;
   tsTtlUnit = cfgGetItem(pCfg, "ttlUnit")->i32;
   tsTtlPushIntervalSec = cfgGetItem(pCfg, "ttlPushInterval")->i32;
@@ -1210,6 +1226,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsS3BlockCacheSize = cfgGetItem(pCfg, "s3BlockCacheSize")->i32;
   tsS3PageCacheSize = cfgGetItem(pCfg, "s3PageCacheSize")->i32;
   tsS3UploadDelaySec = cfgGetItem(pCfg, "s3UploadDelaySec")->i32;
+
+  tsExperimental = cfgGetItem(pCfg, "experimental")->bval;
 
   GRANT_CFG_GET;
   return 0;
@@ -1471,6 +1489,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
         {"timeseriesThreshold", &tsTimeSeriesThreshold},
         {"tmqMaxTopicNum", &tmqMaxTopicNum},
         {"transPullupInterval", &tsTransPullupInterval},
+        {"compactPullupInterval", &tsCompactPullupInterval},
         {"trimVDbIntervalSec", &tsTrimVDbIntervalSec},
         {"ttlBatchDropNum", &tsTtlBatchDropNum},
         {"ttlFlushThreshold", &tsTtlFlushThreshold},
@@ -1480,6 +1499,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
         {"s3PageCacheSize", &tsS3PageCacheSize},
         {"s3UploadDelaySec", &tsS3UploadDelaySec},
         {"supportVnodes", &tsNumOfSupportVnodes},
+        {"experimental", &tsExperimental}
     };
 
     if (taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true) != 0) {
@@ -1703,6 +1723,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         {"shellActivityTimer", &tsShellActivityTimer},
         {"slowLogThreshold", &tsSlowLogThreshold},
         {"useAdapter", &tsUseAdapter},
+        {"experimental", &tsExperimental}
     };
 
     if (taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true) != 0) {

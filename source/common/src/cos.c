@@ -1,6 +1,8 @@
 #define ALLOW_FORBID_FUNC
 
 #include "cos.h"
+#include "cos_cp.h"
+#include "tdef.h"
 
 extern char   tsS3Endpoint[];
 extern char   tsS3AccessKeyId[];
@@ -86,7 +88,7 @@ typedef struct {
   char     err_msg[128];
   S3Status status;
   uint64_t content_length;
-  char *   buf;
+  char    *buf;
   int64_t  buf_pos;
 } TS3SizeCBD;
 
@@ -270,7 +272,7 @@ typedef struct list_parts_callback_data {
 typedef struct MultipartPartData {
   put_object_callback_data put_object_data;
   int                      seq;
-  UploadManager *          manager;
+  UploadManager           *manager;
 } MultipartPartData;
 
 static int putObjectDataCallback(int bufferSize, char *buffer, void *callbackData) {
@@ -317,9 +319,20 @@ S3Status MultipartResponseProperiesCallback(const S3ResponseProperties *properti
 
   MultipartPartData *data = (MultipartPartData *)callbackData;
   int                seq = data->seq;
-  const char *       etag = properties->eTag;
+  const char        *etag = properties->eTag;
   data->manager->etags[seq - 1] = strdup(etag);
   data->manager->next_etags_pos = seq;
+  return S3StatusOK;
+}
+
+S3Status MultipartResponseProperiesCallbackWithCp(const S3ResponseProperties *properties, void *callbackData) {
+  responsePropertiesCallbackNull(properties, callbackData);
+
+  MultipartPartData *data = (MultipartPartData *)callbackData;
+  int                seq = data->seq;
+  const char        *etag = properties->eTag;
+  data->manager->etags[seq - 1] = strdup(etag);
+  // data->manager->next_etags_pos = seq;
   return S3StatusOK;
 }
 
@@ -446,37 +459,343 @@ static int try_get_parts_info(const char *bucketName, const char *key, UploadMan
   return 0;
 }
 */
-int32_t s3PutObjectFromFile2(const char *file, const char *object) {
-  int32_t     code = 0;
-  const char *key = object;
-  // const char              *uploadId = 0;
-  const char *             filename = 0;
+
+static int32_t s3PutObjectFromFileSimple(S3BucketContext *bucket_context, char const *object_name, int64_t size,
+                                         S3PutProperties *put_prop, put_object_callback_data *data) {
+  int32_t            code = 0;
+  S3PutObjectHandler putObjectHandler = {{&responsePropertiesCallbackNull, &responseCompleteCallback},
+                                         &putObjectDataCallback};
+
+  do {
+    S3_put_object(bucket_context, object_name, size, put_prop, 0, 0, &putObjectHandler, data);
+  } while (S3_status_is_retryable(data->status) && should_retry());
+
+  if (data->status != S3StatusOK) {
+    s3PrintError(__FILE__, __LINE__, __func__, data->status, data->err_msg);
+    code = TAOS_SYSTEM_ERROR(EIO);
+  } else if (data->contentLength) {
+    uError("%s Failed to read remaining %llu bytes from input", __func__, (unsigned long long)data->contentLength);
+    code = TAOS_SYSTEM_ERROR(EIO);
+  }
+
+  return code;
+}
+
+static int32_t s3PutObjectFromFileWithoutCp(S3BucketContext *bucket_context, char const *object_name,
+                                            int64_t contentLength, S3PutProperties *put_prop,
+                                            put_object_callback_data *data) {
+  int32_t       code = 0;
+  uint64_t      totalContentLength = contentLength;
+  uint64_t      todoContentLength = contentLength;
+  UploadManager manager = {0};
+
+  uint64_t  chunk_size = MULTIPART_CHUNK_SIZE >> 3;
+  int       totalSeq = (contentLength + chunk_size - 1) / chunk_size;
+  const int max_part_num = 10000;
+  if (totalSeq > max_part_num) {
+    chunk_size = (contentLength + max_part_num - contentLength % max_part_num) / max_part_num;
+    totalSeq = (contentLength + chunk_size - 1) / chunk_size;
+  }
+
+  MultipartPartData partData;
+  memset(&partData, 0, sizeof(MultipartPartData));
+  int partContentLength = 0;
+
+  S3MultipartInitialHandler handler = {{&responsePropertiesCallbackNull, &responseCompleteCallback},
+                                       &initial_multipart_callback};
+
+  S3PutObjectHandler putObjectHandler = {{&MultipartResponseProperiesCallback, &responseCompleteCallback},
+                                         &putObjectDataCallback};
+
+  S3MultipartCommitHandler commit_handler = {
+      {&responsePropertiesCallbackNull, &responseCompleteCallback}, &multipartPutXmlCallback, 0};
+
+  manager.etags = (char **)taosMemoryCalloc(totalSeq, sizeof(char *));
+  manager.next_etags_pos = 0;
+  do {
+    S3_initiate_multipart(bucket_context, object_name, 0, &handler, 0, timeoutMsG, &manager);
+  } while (S3_status_is_retryable(manager.status) && should_retry());
+
+  if (manager.upload_id == 0 || manager.status != S3StatusOK) {
+    s3PrintError(__FILE__, __LINE__, __func__, manager.status, manager.err_msg);
+    code = TAOS_SYSTEM_ERROR(EIO);
+    goto clean;
+  }
+
+upload:
+  todoContentLength -= chunk_size * manager.next_etags_pos;
+  for (int seq = manager.next_etags_pos + 1; seq <= totalSeq; seq++) {
+    partData.manager = &manager;
+    partData.seq = seq;
+    if (partData.put_object_data.gb == NULL) {
+      partData.put_object_data = *data;
+    }
+    partContentLength = ((contentLength > chunk_size) ? chunk_size : contentLength);
+    // printf("%s Part Seq %d, length=%d\n", srcSize ? "Copying" : "Sending", seq, partContentLength);
+    partData.put_object_data.contentLength = partContentLength;
+    partData.put_object_data.originalContentLength = partContentLength;
+    partData.put_object_data.totalContentLength = todoContentLength;
+    partData.put_object_data.totalOriginalContentLength = totalContentLength;
+    put_prop->md5 = 0;
+    do {
+      S3_upload_part(bucket_context, object_name, put_prop, &putObjectHandler, seq, manager.upload_id,
+                     partContentLength, 0, timeoutMsG, &partData);
+    } while (S3_status_is_retryable(partData.put_object_data.status) && should_retry());
+    if (partData.put_object_data.status != S3StatusOK) {
+      s3PrintError(__FILE__, __LINE__, __func__, partData.put_object_data.status, partData.put_object_data.err_msg);
+      code = TAOS_SYSTEM_ERROR(EIO);
+      goto clean;
+    }
+    contentLength -= chunk_size;
+    todoContentLength -= chunk_size;
+  }
+
+  int i;
+  int size = 0;
+  size += growbuffer_append(&(manager.gb), "<CompleteMultipartUpload>", strlen("<CompleteMultipartUpload>"));
+  char buf[256];
+  int  n;
+  for (i = 0; i < totalSeq; i++) {
+    if (!manager.etags[i]) {
+      code = TAOS_SYSTEM_ERROR(EIO);
+      goto clean;
+    }
+    n = snprintf(buf, sizeof(buf),
+                 "<Part><PartNumber>%d</PartNumber>"
+                 "<ETag>%s</ETag></Part>",
+                 i + 1, manager.etags[i]);
+    size += growbuffer_append(&(manager.gb), buf, n);
+  }
+  size += growbuffer_append(&(manager.gb), "</CompleteMultipartUpload>", strlen("</CompleteMultipartUpload>"));
+  manager.remaining = size;
+
+  do {
+    S3_complete_multipart_upload(bucket_context, object_name, &commit_handler, manager.upload_id, manager.remaining, 0,
+                                 timeoutMsG, &manager);
+  } while (S3_status_is_retryable(manager.status) && should_retry());
+  if (manager.status != S3StatusOK) {
+    s3PrintError(__FILE__, __LINE__, __func__, manager.status, manager.err_msg);
+    code = TAOS_SYSTEM_ERROR(EIO);
+    goto clean;
+  }
+
+clean:
+  if (manager.upload_id) {
+    taosMemoryFree(manager.upload_id);
+  }
+  for (i = 0; i < manager.next_etags_pos; i++) {
+    taosMemoryFree(manager.etags[i]);
+  }
+  growbuffer_destroy(manager.gb);
+  taosMemoryFree(manager.etags);
+
+  return code;
+}
+
+static int32_t s3PutObjectFromFileWithCp(S3BucketContext *bucket_context, const char *file, int32_t lmtime,
+                                         char const *object_name, int64_t contentLength, S3PutProperties *put_prop,
+                                         put_object_callback_data *data) {
+  int32_t code = 0;
+
+  uint64_t totalContentLength = contentLength;
+  // uint64_t      todoContentLength = contentLength;
+  UploadManager manager = {0};
+
+  uint64_t  chunk_size = MULTIPART_CHUNK_SIZE >> 3;
+  int       totalSeq = (contentLength + chunk_size - 1) / chunk_size;
+  const int max_part_num = 10000;
+  if (totalSeq > max_part_num) {
+    chunk_size = (contentLength + max_part_num - contentLength % max_part_num) / max_part_num;
+    totalSeq = (contentLength + chunk_size - 1) / chunk_size;
+  }
+
+  bool need_init_upload = true;
+  char file_cp_path[TSDB_FILENAME_LEN];
+  snprintf(file_cp_path, TSDB_FILENAME_LEN, "%s.cp", file);
+
+  SCheckpoint cp = {0};
+  cp.parts = taosMemoryCalloc(max_part_num, sizeof(SCheckpointPart));
+
+  if (taosCheckExistFile(file_cp_path)) {
+    if (!cos_cp_load(file_cp_path, &cp) && cos_cp_is_valid_upload(&cp, contentLength, lmtime)) {
+      manager.upload_id = strdup(cp.upload_id);
+      need_init_upload = false;
+    } else {
+      cos_cp_remove(file_cp_path);
+    }
+  }
+
+  if (need_init_upload) {
+    S3MultipartInitialHandler handler = {{&responsePropertiesCallbackNull, &responseCompleteCallback},
+                                         &initial_multipart_callback};
+    do {
+      S3_initiate_multipart(bucket_context, object_name, 0, &handler, 0, timeoutMsG, &manager);
+    } while (S3_status_is_retryable(manager.status) && should_retry());
+
+    if (manager.upload_id == 0 || manager.status != S3StatusOK) {
+      s3PrintError(__FILE__, __LINE__, __func__, manager.status, manager.err_msg);
+      code = TAOS_SYSTEM_ERROR(EIO);
+      goto clean;
+    }
+
+    cos_cp_build_upload(&cp, file, contentLength, lmtime, manager.upload_id, chunk_size);
+  }
+
+  if (cos_cp_open(file_cp_path, &cp)) {
+    code = TAOS_SYSTEM_ERROR(EIO);
+    goto clean;
+  }
+
+  int     part_num = 0;
+  int64_t consume_bytes = 0;
+  // SCheckpointPart *parts = taosMemoryCalloc(cp.part_num, sizeof(SCheckpointPart));
+  // cos_cp_get_undo_parts(&cp, &part_num, parts, &consume_bytes);
+
+  MultipartPartData partData;
+  memset(&partData, 0, sizeof(MultipartPartData));
+  int partContentLength = 0;
+
+  S3PutObjectHandler putObjectHandler = {{&MultipartResponseProperiesCallbackWithCp, &responseCompleteCallback},
+                                         &putObjectDataCallback};
+
+  S3MultipartCommitHandler commit_handler = {
+      {&responsePropertiesCallbackNull, &responseCompleteCallback}, &multipartPutXmlCallback, 0};
+
+  manager.etags = (char **)taosMemoryCalloc(totalSeq, sizeof(char *));
+  manager.next_etags_pos = 0;
+
+upload:
+  // todoContentLength -= chunk_size * manager.next_etags_pos;
+  for (int i = 0; i < cp.part_num; ++i) {
+    if (cp.parts[i].completed) {
+      continue;
+    }
+
+    if (i > 0 && cp.parts[i - 1].completed) {
+      if (taosLSeekFile(data->infileFD, cp.parts[i].offset, SEEK_SET) < 0) {
+        code = TAOS_SYSTEM_ERROR(errno);
+        goto clean;
+      }
+    }
+
+    int seq = cp.parts[i].index + 1;
+
+    partData.manager = &manager;
+    partData.seq = seq;
+    if (partData.put_object_data.gb == NULL) {
+      partData.put_object_data = *data;
+    }
+
+    partContentLength = cp.parts[i].size;
+    partData.put_object_data.contentLength = partContentLength;
+    partData.put_object_data.originalContentLength = partContentLength;
+    // partData.put_object_data.totalContentLength = todoContentLength;
+    partData.put_object_data.totalOriginalContentLength = totalContentLength;
+    put_prop->md5 = 0;
+    do {
+      S3_upload_part(bucket_context, object_name, put_prop, &putObjectHandler, seq, manager.upload_id,
+                     partContentLength, 0, timeoutMsG, &partData);
+    } while (S3_status_is_retryable(partData.put_object_data.status) && should_retry());
+    if (partData.put_object_data.status != S3StatusOK) {
+      s3PrintError(__FILE__, __LINE__, __func__, partData.put_object_data.status, partData.put_object_data.err_msg);
+      code = TAOS_SYSTEM_ERROR(EIO);
+
+      //(void)cos_cp_dump(&cp);
+      goto clean;
+    }
+
+    if (!manager.etags[seq - 1]) {
+      code = TAOS_SYSTEM_ERROR(EIO);
+      goto clean;
+    }
+
+    cos_cp_update(&cp, cp.parts[seq - 1].index, manager.etags[seq - 1], 0);
+    (void)cos_cp_dump(&cp);
+
+    contentLength -= chunk_size;
+    // todoContentLength -= chunk_size;
+  }
+
+  cos_cp_close(cp.thefile);
+  cp.thefile = 0;
+
+  int size = 0;
+  size += growbuffer_append(&(manager.gb), "<CompleteMultipartUpload>", strlen("<CompleteMultipartUpload>"));
+  char buf[256];
+  int  n;
+  for (int i = 0; i < cp.part_num; ++i) {
+    n = snprintf(buf, sizeof(buf),
+                 "<Part><PartNumber>%d</PartNumber>"
+                 "<ETag>%s</ETag></Part>",
+                 // i + 1, manager.etags[i]);
+                 cp.parts[i].index + 1, cp.parts[i].etag);
+    size += growbuffer_append(&(manager.gb), buf, n);
+  }
+  size += growbuffer_append(&(manager.gb), "</CompleteMultipartUpload>", strlen("</CompleteMultipartUpload>"));
+  manager.remaining = size;
+
+  do {
+    S3_complete_multipart_upload(bucket_context, object_name, &commit_handler, manager.upload_id, manager.remaining, 0,
+                                 timeoutMsG, &manager);
+  } while (S3_status_is_retryable(manager.status) && should_retry());
+  if (manager.status != S3StatusOK) {
+    s3PrintError(__FILE__, __LINE__, __func__, manager.status, manager.err_msg);
+    code = TAOS_SYSTEM_ERROR(EIO);
+    goto clean;
+  }
+
+  cos_cp_remove(file_cp_path);
+
+clean:
+  /*
+  if (parts) {
+    taosMemoryFree(parts);
+  }
+  */
+  if (cp.thefile) {
+    cos_cp_close(cp.thefile);
+  }
+  if (cp.parts) {
+    taosMemoryFree(cp.parts);
+  }
+
+  if (manager.upload_id) {
+    taosMemoryFree(manager.upload_id);
+  }
+  for (int i = 0; i < cp.part_num; ++i) {
+    if (manager.etags[i]) {
+      taosMemoryFree(manager.etags[i]);
+    }
+  }
+  taosMemoryFree(manager.etags);
+  growbuffer_destroy(manager.gb);
+
+  return code;
+}
+
+int32_t s3PutObjectFromFile2(const char *file, const char *object_name, int8_t withcp) {
+  int32_t                  code = 0;
+  int32_t                  lmtime = 0;
+  const char              *filename = 0;
   uint64_t                 contentLength = 0;
-  const char *             cacheControl = 0, *contentType = 0, *md5 = 0;
-  const char *             contentDispositionFilename = 0, *contentEncoding = 0;
+  const char              *cacheControl = 0, *contentType = 0, *md5 = 0;
+  const char              *contentDispositionFilename = 0, *contentEncoding = 0;
   int64_t                  expires = -1;
   S3CannedAcl              cannedAcl = S3CannedAclPrivate;
   int                      metaPropertiesCount = 0;
   S3NameValue              metaProperties[S3_MAX_METADATA_COUNT];
   char                     useServerSideEncryption = 0;
   put_object_callback_data data = {0};
-  // int                      noStatus = 0;
 
-  // data.infile = 0;
-  // data.gb = 0;
-  // data.infileFD = NULL;
-  // data.noStatus = noStatus;
-
-  // uError("ERROR: %s stat file %s: ", __func__, file);
-  if (taosStatFile(file, &contentLength, NULL, NULL) < 0) {
-    uError("ERROR: %s Failed to stat file %s: ", __func__, file);
+  if (taosStatFile(file, &contentLength, &lmtime, NULL) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
+    uError("ERROR: %s Failed to stat file %s: ", __func__, file);
     return code;
   }
 
   if (!(data.infileFD = taosOpenFile(file, TD_FILE_READ))) {
-    uError("ERROR: %s Failed to open file %s: ", __func__, file);
     code = TAOS_SYSTEM_ERROR(errno);
+    uError("ERROR: %s Failed to open file %s: ", __func__, file);
     return code;
   }
 
@@ -493,143 +812,13 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
                                    metaProperties,  useServerSideEncryption};
 
   if (contentLength <= MULTIPART_CHUNK_SIZE) {
-    S3PutObjectHandler putObjectHandler = {{&responsePropertiesCallbackNull, &responseCompleteCallback},
-                                           &putObjectDataCallback};
-
-    do {
-      S3_put_object(&bucketContext, key, contentLength, &putProperties, 0, 0, &putObjectHandler, &data);
-    } while (S3_status_is_retryable(data.status) && should_retry());
-
-    if (data.status != S3StatusOK) {
-      s3PrintError(__FILE__, __LINE__, __func__, data.status, data.err_msg);
-      code = TAOS_SYSTEM_ERROR(EIO);
-    } else if (data.contentLength) {
-      uError("ERROR: %s Failed to read remaining %llu bytes from input", __func__,
-             (unsigned long long)data.contentLength);
-      code = TAOS_SYSTEM_ERROR(EIO);
-    }
+    code = s3PutObjectFromFileSimple(&bucketContext, object_name, contentLength, &putProperties, &data);
   } else {
-    uint64_t      totalContentLength = contentLength;
-    uint64_t      todoContentLength = contentLength;
-    UploadManager manager = {0};
-    // manager.upload_id = 0;
-    // manager.gb = 0;
-
-    // div round up
-    int       seq;
-    uint64_t  chunk_size = MULTIPART_CHUNK_SIZE >> 3;
-    int       totalSeq = (contentLength + chunk_size - 1) / chunk_size;
-    const int max_part_num = 10000;
-    if (totalSeq > max_part_num) {
-      chunk_size = (contentLength + max_part_num - contentLength % max_part_num) / max_part_num;
-      totalSeq = (contentLength + chunk_size - 1) / chunk_size;
+    if (withcp) {
+      code = s3PutObjectFromFileWithCp(&bucketContext, file, lmtime, object_name, contentLength, &putProperties, &data);
+    } else {
+      code = s3PutObjectFromFileWithoutCp(&bucketContext, object_name, contentLength, &putProperties, &data);
     }
-
-    MultipartPartData partData;
-    memset(&partData, 0, sizeof(MultipartPartData));
-    int partContentLength = 0;
-
-    S3MultipartInitialHandler handler = {{&responsePropertiesCallbackNull, &responseCompleteCallback},
-                                         &initial_multipart_callback};
-
-    S3PutObjectHandler putObjectHandler = {{&MultipartResponseProperiesCallback, &responseCompleteCallback},
-                                           &putObjectDataCallback};
-
-    S3MultipartCommitHandler commit_handler = {
-        {&responsePropertiesCallbackNull, &responseCompleteCallback}, &multipartPutXmlCallback, 0};
-
-    manager.etags = (char **)taosMemoryCalloc(totalSeq, sizeof(char *));
-    manager.next_etags_pos = 0;
-    /*
-    if (uploadId) {
-      manager.upload_id = strdup(uploadId);
-      manager.remaining = contentLength;
-      if (!try_get_parts_info(tsS3BucketName, key, &manager)) {
-        fseek(data.infile, -(manager.remaining), 2);
-        taosLSeekFile(data.infileFD, -(manager.remaining), SEEK_END);
-        contentLength = manager.remaining;
-        goto upload;
-      } else {
-        goto clean;
-      }
-    }
-    */
-    do {
-      S3_initiate_multipart(&bucketContext, key, 0, &handler, 0, timeoutMsG, &manager);
-    } while (S3_status_is_retryable(manager.status) && should_retry());
-
-    if (manager.upload_id == 0 || manager.status != S3StatusOK) {
-      s3PrintError(__FILE__, __LINE__, __func__, manager.status, manager.err_msg);
-      code = TAOS_SYSTEM_ERROR(EIO);
-      goto clean;
-    }
-
-  upload:
-    todoContentLength -= chunk_size * manager.next_etags_pos;
-    for (seq = manager.next_etags_pos + 1; seq <= totalSeq; seq++) {
-      partData.manager = &manager;
-      partData.seq = seq;
-      if (partData.put_object_data.gb == NULL) {
-        partData.put_object_data = data;
-      }
-      partContentLength = ((contentLength > chunk_size) ? chunk_size : contentLength);
-      // printf("%s Part Seq %d, length=%d\n", srcSize ? "Copying" : "Sending", seq, partContentLength);
-      partData.put_object_data.contentLength = partContentLength;
-      partData.put_object_data.originalContentLength = partContentLength;
-      partData.put_object_data.totalContentLength = todoContentLength;
-      partData.put_object_data.totalOriginalContentLength = totalContentLength;
-      putProperties.md5 = 0;
-      do {
-        S3_upload_part(&bucketContext, key, &putProperties, &putObjectHandler, seq, manager.upload_id,
-                       partContentLength, 0, timeoutMsG, &partData);
-      } while (S3_status_is_retryable(partData.put_object_data.status) && should_retry());
-      if (partData.put_object_data.status != S3StatusOK) {
-        s3PrintError(__FILE__, __LINE__, __func__, partData.put_object_data.status, partData.put_object_data.err_msg);
-        code = TAOS_SYSTEM_ERROR(EIO);
-        goto clean;
-      }
-      contentLength -= chunk_size;
-      todoContentLength -= chunk_size;
-    }
-
-    int i;
-    int size = 0;
-    size += growbuffer_append(&(manager.gb), "<CompleteMultipartUpload>", strlen("<CompleteMultipartUpload>"));
-    char buf[256];
-    int  n;
-    for (i = 0; i < totalSeq; i++) {
-      if (!manager.etags[i]) {
-        code = TAOS_SYSTEM_ERROR(EIO);
-        goto clean;
-      }
-      n = snprintf(buf, sizeof(buf),
-                   "<Part><PartNumber>%d</PartNumber>"
-                   "<ETag>%s</ETag></Part>",
-                   i + 1, manager.etags[i]);
-      size += growbuffer_append(&(manager.gb), buf, n);
-    }
-    size += growbuffer_append(&(manager.gb), "</CompleteMultipartUpload>", strlen("</CompleteMultipartUpload>"));
-    manager.remaining = size;
-
-    do {
-      S3_complete_multipart_upload(&bucketContext, key, &commit_handler, manager.upload_id, manager.remaining, 0,
-                                   timeoutMsG, &manager);
-    } while (S3_status_is_retryable(manager.status) && should_retry());
-    if (manager.status != S3StatusOK) {
-      s3PrintError(__FILE__, __LINE__, __func__, manager.status, manager.err_msg);
-      code = TAOS_SYSTEM_ERROR(EIO);
-      goto clean;
-    }
-
-  clean:
-    if (manager.upload_id) {
-      taosMemoryFree(manager.upload_id);
-    }
-    for (i = 0; i < manager.next_etags_pos; i++) {
-      taosMemoryFree(manager.etags[i]);
-    }
-    growbuffer_destroy(manager.gb);
-    taosMemoryFree(manager.etags);
   }
 
   if (data.infileFD) {
@@ -648,7 +837,7 @@ typedef struct list_bucket_callback_data {
   char     nextMarker[1024];
   int      keyCount;
   int      allDetails;
-  SArray * objectArray;
+  SArray  *objectArray;
 } list_bucket_callback_data;
 
 static S3Status listBucketCallback(int isTruncated, const char *nextMarker, int contentsCount,
@@ -693,11 +882,11 @@ static void s3FreeObjectKey(void *pItem) {
 
 static SArray *getListByPrefix(const char *prefix) {
   S3BucketContext     bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
-                                   0, awsRegionG};
+                                       0, awsRegionG};
   S3ListBucketHandler listBucketHandler = {{&responsePropertiesCallbackNull, &responseCompleteCallback},
                                            &listBucketCallback};
 
-  const char *              marker = 0, *delimiter = 0;
+  const char               *marker = 0, *delimiter = 0;
   int                       maxkeys = 0, allDetails = 0;
   list_bucket_callback_data data;
   data.objectArray = taosArrayInit(32, sizeof(void *));
@@ -738,7 +927,7 @@ static SArray *getListByPrefix(const char *prefix) {
 
 void s3DeleteObjects(const char *object_name[], int nobject) {
   S3BucketContext   bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
-                                   0, awsRegionG};
+                                     0, awsRegionG};
   S3ResponseHandler responseHandler = {0, &responseCompleteCallback};
 
   for (int i = 0; i < nobject; ++i) {
@@ -789,7 +978,7 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
   const char *ifMatch = 0, *ifNotMatch = 0;
 
   S3BucketContext    bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
-                                   0, awsRegionG};
+                                      0, awsRegionG};
   S3GetConditions    getConditions = {ifModifiedSince, ifNotModifiedSince, ifMatch, ifNotMatch};
   S3GetObjectHandler getObjectHandler = {{&responsePropertiesCallback, &responseCompleteCallback},
                                          &getObjectDataCallback};
@@ -827,7 +1016,7 @@ int32_t s3GetObjectToFile(const char *object_name, char *fileName) {
   const char *ifMatch = 0, *ifNotMatch = 0;
 
   S3BucketContext    bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
-                                   0, awsRegionG};
+                                      0, awsRegionG};
   S3GetConditions    getConditions = {ifModifiedSince, ifNotModifiedSince, ifMatch, ifNotMatch};
   S3GetObjectHandler getObjectHandler = {{&responsePropertiesCallbackNull, &responseCompleteCallback},
                                          &getObjectCallback};
@@ -858,7 +1047,7 @@ int32_t s3GetObjectsByPrefix(const char *prefix, const char *path) {
   if (objectArray == NULL) return -1;
 
   for (size_t i = 0; i < taosArrayGetSize(objectArray); i++) {
-    char *      object = taosArrayGetP(objectArray, i);
+    char       *object = taosArrayGetP(objectArray, i);
     const char *tmp = strchr(object, '/');
     tmp = (tmp == NULL) ? object : tmp + 1;
     char fileName[PATH_MAX] = {0};
@@ -949,12 +1138,12 @@ static void s3InitRequestOptions(cos_request_options_t *options, int is_cname) {
 
 int32_t s3PutObjectFromFile(const char *file_str, const char *object_str) {
   int32_t                code = 0;
-  cos_pool_t *           p = NULL;
+  cos_pool_t            *p = NULL;
   int                    is_cname = 0;
-  cos_status_t *         s = NULL;
+  cos_status_t          *s = NULL;
   cos_request_options_t *options = NULL;
   cos_string_t           bucket, object, file;
-  cos_table_t *          resp_headers;
+  cos_table_t           *resp_headers;
   // int                    traffic_limit = 0;
 
   cos_pool_create(&p, NULL);
@@ -983,18 +1172,19 @@ int32_t s3PutObjectFromFile(const char *file_str, const char *object_str) {
   return code;
 }
 
-int32_t s3PutObjectFromFile2(const char *file_str, const char *object_str) {
+int32_t s3PutObjectFromFile2(const char *file_str, const char *object_str, int8_t withcp) {
   int32_t                     code = 0;
-  cos_pool_t *                p = NULL;
+  cos_pool_t                 *p = NULL;
   int                         is_cname = 0;
-  cos_status_t *              s = NULL;
-  cos_request_options_t *     options = NULL;
+  cos_status_t               *s = NULL;
+  cos_request_options_t      *options = NULL;
   cos_string_t                bucket, object, file;
-  cos_table_t *               resp_headers;
+  cos_table_t                *resp_headers;
   int                         traffic_limit = 0;
-  cos_table_t *               headers = NULL;
+  cos_table_t                *headers = NULL;
   cos_resumable_clt_params_t *clt_params = NULL;
 
+  (void)withcp;
   cos_pool_create(&p, NULL);
   options = cos_request_options_create(p);
   s3InitRequestOptions(options, is_cname);
@@ -1025,11 +1215,11 @@ int32_t s3PutObjectFromFile2(const char *file_str, const char *object_str) {
 }
 
 void s3DeleteObjectsByPrefix(const char *prefix_str) {
-  cos_pool_t *           p = NULL;
+  cos_pool_t            *p = NULL;
   cos_request_options_t *options = NULL;
   int                    is_cname = 0;
   cos_string_t           bucket;
-  cos_status_t *         s = NULL;
+  cos_status_t          *s = NULL;
   cos_string_t           prefix;
 
   cos_pool_create(&p, NULL);
@@ -1044,10 +1234,10 @@ void s3DeleteObjectsByPrefix(const char *prefix_str) {
 }
 
 void s3DeleteObjects(const char *object_name[], int nobject) {
-  cos_pool_t *           p = NULL;
+  cos_pool_t            *p = NULL;
   int                    is_cname = 0;
   cos_string_t           bucket;
-  cos_table_t *          resp_headers = NULL;
+  cos_table_t           *resp_headers = NULL;
   cos_request_options_t *options = NULL;
   cos_list_t             object_list;
   cos_list_t             deleted_object_list;
@@ -1081,14 +1271,14 @@ void s3DeleteObjects(const char *object_name[], int nobject) {
 
 bool s3Exists(const char *object_name) {
   bool                      ret = false;
-  cos_pool_t *              p = NULL;
+  cos_pool_t               *p = NULL;
   int                       is_cname = 0;
-  cos_status_t *            s = NULL;
-  cos_request_options_t *   options = NULL;
+  cos_status_t             *s = NULL;
+  cos_request_options_t    *options = NULL;
   cos_string_t              bucket;
   cos_string_t              object;
-  cos_table_t *             resp_headers;
-  cos_table_t *             headers = NULL;
+  cos_table_t              *resp_headers;
+  cos_table_t              *headers = NULL;
   cos_object_exist_status_e object_exist;
 
   cos_pool_create(&p, NULL);
@@ -1115,15 +1305,15 @@ bool s3Exists(const char *object_name) {
 
 bool s3Get(const char *object_name, const char *path) {
   bool                   ret = false;
-  cos_pool_t *           p = NULL;
+  cos_pool_t            *p = NULL;
   int                    is_cname = 0;
-  cos_status_t *         s = NULL;
+  cos_status_t          *s = NULL;
   cos_request_options_t *options = NULL;
   cos_string_t           bucket;
   cos_string_t           object;
   cos_string_t           file;
-  cos_table_t *          resp_headers = NULL;
-  cos_table_t *          headers = NULL;
+  cos_table_t           *resp_headers = NULL;
+  cos_table_t           *headers = NULL;
   int                    traffic_limit = 0;
 
   //创建内存池
@@ -1159,15 +1349,15 @@ bool s3Get(const char *object_name, const char *path) {
 int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_size, bool check, uint8_t **ppBlock) {
   (void)check;
   int32_t                code = 0;
-  cos_pool_t *           p = NULL;
+  cos_pool_t            *p = NULL;
   int                    is_cname = 0;
-  cos_status_t *         s = NULL;
+  cos_status_t          *s = NULL;
   cos_request_options_t *options = NULL;
   cos_string_t           bucket;
   cos_string_t           object;
-  cos_table_t *          resp_headers;
-  cos_table_t *          headers = NULL;
-  cos_buf_t *            content = NULL;
+  cos_table_t           *resp_headers;
+  cos_table_t           *headers = NULL;
+  cos_buf_t             *content = NULL;
   // cos_string_t file;
   // int  traffic_limit = 0;
   char range_buf[64];
@@ -1261,7 +1451,7 @@ void s3EvictCache(const char *path, long object_size) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       vError("failed to open %s since %s", dir_name, terrstr());
     }
-    SArray *       evict_files = taosArrayInit(16, sizeof(SEvictFile));
+    SArray        *evict_files = taosArrayInit(16, sizeof(SEvictFile));
     tdbDirEntryPtr pDirEntry;
     while ((pDirEntry = taosReadDir(pDir)) != NULL) {
       char *name = taosGetDirEntryName(pDirEntry);
@@ -1303,13 +1493,13 @@ void s3EvictCache(const char *path, long object_size) {
 long s3Size(const char *object_name) {
   long size = 0;
 
-  cos_pool_t *           p = NULL;
+  cos_pool_t            *p = NULL;
   int                    is_cname = 0;
-  cos_status_t *         s = NULL;
+  cos_status_t          *s = NULL;
   cos_request_options_t *options = NULL;
   cos_string_t           bucket;
   cos_string_t           object;
-  cos_table_t *          resp_headers = NULL;
+  cos_table_t           *resp_headers = NULL;
 
   //创建内存池
   cos_pool_create(&p, NULL);
@@ -1344,7 +1534,7 @@ long s3Size(const char *object_name) {
 int32_t s3Init() { return 0; }
 void    s3CleanUp() {}
 int32_t s3PutObjectFromFile(const char *file, const char *object) { return 0; }
-int32_t s3PutObjectFromFile2(const char *file, const char *object) { return 0; }
+int32_t s3PutObjectFromFile2(const char *file, const char *object, int8_t withcp) { return 0; }
 void    s3DeleteObjectsByPrefix(const char *prefix) {}
 void    s3DeleteObjects(const char *object_name[], int nobject) {}
 bool    s3Exists(const char *object_name) { return false; }

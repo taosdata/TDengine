@@ -302,17 +302,25 @@ static void freeUpstreamItem(void* p) {
 }
 
 void tFreeStreamTask(SStreamTask* pTask) {
-  int32_t taskId = pTask->id.taskId;
-
+  char*                p = NULL;
+  int32_t              taskId = pTask->id.taskId;
   STaskExecStatisInfo* pStatis = &pTask->execInfo;
-  stDebug("start to free s-task:0x%x, %p, state:%p", taskId, pTask, pTask->pState);
 
+  ETaskStatus status1 = TASK_STATUS__UNINIT;
+  taosThreadMutexLock(&pTask->lock);
+  if (pTask->status.pSM != NULL) {
+    status1 = streamTaskGetStatus(pTask, &p);
+  }
+  taosThreadMutexUnlock(&pTask->lock);
+
+  stDebug("start to free s-task:0x%x, %p, state:%s", taskId, pTask, p);
+
+  SCheckpointInfo* pCkInfo = &pTask->chkInfo;
   stDebug("s-task:0x%x task exec summary: create:%" PRId64 ", init:%" PRId64 ", start:%" PRId64
           ", updateCount:%d latestUpdate:%" PRId64 ", latestCheckPoint:%" PRId64 ", ver:%" PRId64
           " nextProcessVer:%" PRId64 ", checkpointCount:%d",
           taskId, pStatis->created, pStatis->init, pStatis->start, pStatis->updateCount, pStatis->latestUpdateTs,
-          pTask->chkInfo.checkpointId, pTask->chkInfo.checkpointVer, pTask->chkInfo.nextProcessVer,
-          pStatis->checkpoint);
+          pCkInfo->checkpointId, pCkInfo->checkpointVer, pCkInfo->nextProcessVer, pStatis->checkpoint);
 
   // remove the ref by timer
   while (pTask->status.timerActive > 0) {
@@ -335,7 +343,6 @@ void tFreeStreamTask(SStreamTask* pTask) {
     pTask->msgInfo.pTimer = NULL;
   }
 
-  int32_t status = atomic_load_8((int8_t*)&(pTask->status.taskStatus));
   if (pTask->inputq.queue) {
     streamQueueClose(pTask->inputq.queue, pTask->id.taskId);
   }
@@ -377,9 +384,8 @@ void tFreeStreamTask(SStreamTask* pTask) {
 
   if (pTask->pState) {
     stDebug("s-task:0x%x start to free task state", taskId);
-    streamStateClose(pTask->pState, status == TASK_STATUS__DROPPING);
+    streamStateClose(pTask->pState, status1 == TASK_STATUS__DROPPING);
     taskDbRemoveRef(pTask->pBackend);
-     
   }
 
   if (pTask->id.idStr != NULL) {
@@ -396,7 +402,6 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   pTask->status.pSM = streamDestroyStateMachine(pTask->status.pSM);
-
   streamTaskDestroyUpstreamInfo(&pTask->upstreamInfo);
 
   pTask->msgInfo.pRetryList = taosArrayDestroy(pTask->msgInfo.pRetryList);

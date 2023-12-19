@@ -177,12 +177,15 @@ static int32_t vnodeAsyncTaskDone(SVAsync *async, SVATask *task) {
 }
 
 static int32_t vnodeAsyncCancelAllTasks(SVAsync *async) {
-  for (int32_t i = 0; i < EVA_PRIORITY_MAX; i++) {
-    while (async->queue[i].next != &async->queue[i]) {
-      SVATask *task = async->queue[i].next;
-      task->prev->next = task->next;
-      task->next->prev = task->prev;
-      vnodeAsyncTaskDone(async, task);
+  while (async->queue[0].next != &async->queue[0] || async->queue[1].next != &async->queue[1] ||
+         async->queue[2].next != &async->queue[2]) {
+    for (int32_t i = 0; i < EVA_PRIORITY_MAX; i++) {
+      while (async->queue[i].next != &async->queue[i]) {
+        SVATask *task = async->queue[i].next;
+        task->prev->next = task->next;
+        task->next->prev = task->prev;
+        vnodeAsyncTaskDone(async, task);
+      }
     }
   }
   return 0;
@@ -588,7 +591,7 @@ int32_t vnodeACancel(SVAsync *async, int64_t taskId) {
       task->prev->next = task->next;
       vnodeAsyncTaskDone(async, task);
     } else {
-      ret = 0;  // task is running, should return code TSDB_CODE_BUSY ??
+      ret = TSDB_CODE_FAILED;
     }
   }
 

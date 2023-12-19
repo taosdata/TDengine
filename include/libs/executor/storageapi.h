@@ -38,8 +38,8 @@ extern "C" {
 
 #define META_READER_NOLOCK 0x1
 
-#define  STREAM_STATE_BUFF_HASH 1
-#define  STREAM_STATE_BUFF_SORT 2
+#define STREAM_STATE_BUFF_HASH 1
+#define STREAM_STATE_BUFF_SORT 2
 
 typedef struct SMeta SMeta;
 typedef TSKEY (*GetTsFun)(void*);
@@ -102,14 +102,14 @@ typedef struct SMTbCursor {
 } SMTbCursor;
 
 typedef struct SMCtbCursor {
-  SMeta   *pMeta;
-  void    *pCur;
+  SMeta*   pMeta;
+  void*    pCur;
   tb_uid_t suid;
-  void    *pKey;
-  void    *pVal;
+  void*    pKey;
+  void*    pVal;
   int      kLen;
   int      vLen;
-  int8_t     paused;
+  int8_t   paused;
   int      lock;
 } SMCtbCursor;
 
@@ -153,7 +153,8 @@ typedef struct {
 // clang-format off
 /*-------------------------------------------------new api format---------------------------------------------------*/
 typedef enum {
-  TSD_READER_NOTIFY_DURATION_START
+  TSD_READER_NOTIFY_DURATION_START,
+  TSD_READER_NOTIFY_NEXT_DURATION_BLOCK,
 } ETsdReaderNotifyType;
 
 typedef union {
@@ -166,8 +167,7 @@ typedef void (*TsdReaderNotifyCbFn)(ETsdReaderNotifyType type, STsdReaderNotifyI
 
 typedef struct TsdReader {
   int32_t      (*tsdReaderOpen)(void* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
-                           SSDataBlock* pResBlock, void** ppReader, const char* idstr, bool countOnly,
-                           SHashObj** pIgnoreTables);
+                           SSDataBlock* pResBlock, void** ppReader, const char* idstr, SHashObj** pIgnoreTables);
   void         (*tsdReaderClose)();
   void         (*tsdSetReaderTaskId)(void *pReader, const char *pId);
   int32_t      (*tsdSetQueryTableList)();
@@ -263,22 +263,23 @@ typedef struct SStoreMeta {
   void* (*storeGetIndexInfo)();
   void* (*getInvertIndex)(void* pVnode);
   // support filter and non-filter cases. [vnodeGetCtbIdList & vnodeGetCtbIdListByFilter]
-  int32_t (*getChildTableList)( void* pVnode, int64_t suid, SArray* list);
+  int32_t (*getChildTableList)(void* pVnode, int64_t suid, SArray* list);
   int32_t (*storeGetTableList)(void* pVnode, int8_t type, SArray* pList);
   void* storeGetVersionRange;
   void* storeGetLastTimestamp;
 
   int32_t (*getTableSchema)(void* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid);  // tsdbGetTableSchema
-  int32_t (*getNumOfChildTables)( void* pVnode, int64_t uid, int64_t* numOfTables, int32_t* numOfCols);
-  void (*getBasicInfo)(void* pVnode, const char** dbname, int32_t* vgId, int64_t* numOfTables, int64_t* numOfNormalTables);
+  int32_t (*getNumOfChildTables)(void* pVnode, int64_t uid, int64_t* numOfTables, int32_t* numOfCols);
+  void (*getBasicInfo)(void* pVnode, const char** dbname, int32_t* vgId, int64_t* numOfTables,
+                       int64_t* numOfNormalTables);
 
   int64_t (*getNumOfRowsInMem)(void* pVnode);
 
-  SMCtbCursor* (*openCtbCursor)(void *pVnode, tb_uid_t uid, int lock);
-  int32_t      (*resumeCtbCursor)(SMCtbCursor* pCtbCur, int8_t first);
-  void         (*pauseCtbCursor)(SMCtbCursor* pCtbCur);
-  void         (*closeCtbCursor)(SMCtbCursor *pCtbCur);
-  tb_uid_t     (*ctbCursorNext)(SMCtbCursor* pCur);
+  SMCtbCursor* (*openCtbCursor)(void* pVnode, tb_uid_t uid, int lock);
+  int32_t (*resumeCtbCursor)(SMCtbCursor* pCtbCur, int8_t first);
+  void (*pauseCtbCursor)(SMCtbCursor* pCtbCur);
+  void (*closeCtbCursor)(SMCtbCursor* pCtbCur);
+  tb_uid_t (*ctbCursorNext)(SMCtbCursor* pCur);
 } SStoreMeta;
 
 typedef struct SStoreMetaReader {
@@ -363,14 +364,14 @@ typedef struct SStateStore {
                                                           const SSessionKey* pKey, void** pVal, int32_t* pVLen);
 
   SUpdateInfo* (*updateInfoInit)(int64_t interval, int32_t precision, int64_t watermark, bool igUp);
-  TSKEY        (*updateInfoFillBlockData)(SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t primaryTsCol);
-  bool         (*updateInfoIsUpdated)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts);
-  bool         (*updateInfoIsTableInserted)(SUpdateInfo* pInfo, int64_t tbUid);
-  bool         (*isIncrementalTimeStamp)(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts);
+  TSKEY (*updateInfoFillBlockData)(SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t primaryTsCol);
+  bool (*updateInfoIsUpdated)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts);
+  bool (*updateInfoIsTableInserted)(SUpdateInfo* pInfo, int64_t tbUid);
+  bool (*isIncrementalTimeStamp)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts);
 
   void (*updateInfoDestroy)(SUpdateInfo* pInfo);
-  void (*windowSBfDelete)(SUpdateInfo *pInfo, uint64_t count);
-  void (*windowSBfAdd)(SUpdateInfo *pInfo, uint64_t count);
+  void (*windowSBfDelete)(SUpdateInfo* pInfo, uint64_t count);
+  void (*windowSBfAdd)(SUpdateInfo* pInfo, uint64_t count);
 
   SUpdateInfo* (*updateInfoInitP)(SInterval* pInterval, int64_t watermark, bool igUp);
   void (*updateInfoAddCloseWindowSBF)(SUpdateInfo* pInfo);
@@ -397,6 +398,7 @@ typedef struct SStateStore {
   void (*streamStateDestroy)(SStreamState* pState, bool remove);
   int32_t (*streamStateDeleteCheckPoint)(SStreamState* pState, TSKEY mark);
   void (*streamStateReloadInfo)(SStreamState* pState, TSKEY ts);
+  void (*streamStateCopyBackend)(SStreamState* src, SStreamState* dst);
 } SStateStore;
 
 typedef struct SStorageAPI {
