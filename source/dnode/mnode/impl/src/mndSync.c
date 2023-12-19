@@ -208,15 +208,11 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   }
 
   if (pTrans->stage == TRN_STAGE_PREPARE) {
-    bool continueExec = mndTransPerformPrepareStage(pMnode, pTrans);
+    bool continueExec = mndTransPerformPrepareStage(pMnode, pTrans, false);
     if (!continueExec) goto _OUT;
   }
 
-  if (pTrans->id != pMgmt->transId) {
-    mInfo("trans:%d, execute in mnode which not leader or sync timeout, createTime:%" PRId64 " saved trans:%d",
-          pTrans->id, pTrans->createdTime, pMgmt->transId);
-    mndTransRefresh(pMnode, pTrans);
-  }
+  mndTransRefresh(pMnode, pTrans);
 
   sdbSetApplyInfo(pMnode->pSdb, pMeta->index, pMeta->term, pMeta->lastConfigIndex);
   sdbWriteFile(pMnode->pSdb, tsMndSdbWriteDelta);
