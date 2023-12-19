@@ -1750,6 +1750,18 @@ int32_t grantAlterActiveCode(const char *active) {
   int32_t       code = 0;
   SGrantUniqObj obj = {0};
   SMnode       *pMnode = grantHandle.pMnode;
+
+  if (!active) {
+    code = TSDB_CODE_INVALID_PTR;
+    goto _exit;
+  }
+
+  if(active[0] == 0) {
+    grantResetMaster(pMnode);
+
+  }
+
+
   if (grantObj.clusterId[0] != 0) {
     memcpy(obj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
   } else {
@@ -1757,7 +1769,10 @@ int32_t grantAlterActiveCode(const char *active) {
   }
   if (active) memcpy(obj.active, active, GRANT_UNIQ_ACTIVE_KEY_LEN);
   SActiveCodeInfo info = {0};
-  if ((code = grantUniqParseActiveCode(&obj, &info)) != 0) goto _exit;
+  grantUniqParseActiveCode(&obj, &info);
+  if (!grantObj.granted) {
+    code = terrno != 0 ? terrno : TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
+  }
 
   if (info.dist < grantedInfo.grantedTime) {
     code = TSDB_CODE_GRANT_PAR_IVLD_DIST;
@@ -1771,6 +1786,19 @@ int32_t grantAlterActiveCode(const char *active) {
     }
   }
 
+  int32_t nLoops = 0;
+  int64_t startMs = taosGetTimestampMs();
+  int64_t elapse = 0;
+  while (GRANT_IN_PROGRESS()) {
+    if (++nLoops > 1024) {
+      sched_yield();
+      nLoops = 0;
+    }
+    if ((elapse = taosGetTimestampMs() - startMs) > 1500) {
+      code = TSDB_CODE_TIMEOUT_ERROR;
+    }
+  }
+  uInfo("%" PRIi64 " ms used to sync grant info", elapse);
 
   if (GRANT_IS_IVLD_MACHINE()) {
     code = TSDB_CODE_GRANT_INVALID_HW;
@@ -1779,6 +1807,7 @@ int32_t grantAlterActiveCode(const char *active) {
 
   // char active[GRANT_UNIQ_ACTIVE_KEY_LEN + 1] = "\0";
   // mndGetClusterActive(pMnode, active);
+  uInfo("succeed to alter grant info");
 
 _exit:
   return code;
