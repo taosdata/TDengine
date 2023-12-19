@@ -182,7 +182,7 @@ The TBNAME pseudocolumn in a supertable contains the names of subtables within t
 The following SQL statement returns all unique subtable names and locations within the meters supertable:
 
 ```mysql
-SELECT DISTINCT TBNAME, location FROM meters;
+SELECT TAGS TBNAME, location FROM meters;
 ```
 
 Use the `INS_TAGS` system table in `INFORMATION_SCHEMA` to query the information for subtables in a supertable. For example, the following statement returns the name and tag values for each subtable in the `meters` supertable.

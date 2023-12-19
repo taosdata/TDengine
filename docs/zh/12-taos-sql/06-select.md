@@ -192,7 +192,7 @@ taos> SELECT ts, ts AS primary_key_ts FROM d1001;
 获取一个超级表所有的子表名及相关的标签信息：
 
 ```mysql
-SELECT DISTINCT TBNAME, location FROM meters;
+SELECT TAGS TBNAME, location FROM meters;
 ```
 
 建议用户使用 INFORMATION_SCHEMA 下的 INS_TAGS 系统表来查询超级表的子表标签信息，例如获取超级表 meters 所有的子表名和标签值：
