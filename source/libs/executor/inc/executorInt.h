@@ -282,6 +282,7 @@ typedef struct STmsSortRowIdInfo {
 
   int32_t rowBufCap;
   int32_t rowBytes;
+  int32_t srcTsSlotId;
 } STmsSortRowIdInfo;
 
 typedef struct STableMergeScanInfo {
