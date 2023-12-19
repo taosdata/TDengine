@@ -1899,7 +1899,7 @@ void cliDestroyConnMsgs(SCliConn* conn, bool destroy) {
   }
 }
 
-void cliFreeConnMsgsMsgs(SCliConn* conn) {
+void cliConnFreeMsgs(SCliConn* conn) {
   SCliThrd* pThrd = conn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
 
@@ -1941,7 +1941,7 @@ bool cliRecvReleaseReq(SCliConn* conn, STransMsgHead* pHead) {
       }
     }
 
-    cliFreeConnMsgsMsgs(conn);
+    cliConnFreeMsgs(conn);
 
     tDebug("%s conn %p receive release request, refId:%" PRId64 "", CONN_GET_INST_LABEL(conn), conn, conn->refId);
     destroyCmsg(pMsg);
