@@ -33,5 +33,6 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
 int32_t startStreamTasks(SStreamMeta* pMeta);
 int32_t tqStreamTaskResetStatus(SStreamMeta* pMeta);
 int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta);
+int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, SRpcMsg* pMsg);
 
 #endif  // TDENGINE_TQ_COMMON_H

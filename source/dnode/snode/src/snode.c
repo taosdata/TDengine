@@ -205,6 +205,8 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
       return tqStreamTaskProcessDropReq(pSnode->pMeta, pMsg->pCont, pMsg->contLen);
     case TDMT_VND_STREAM_TASK_UPDATE:
       return tqStreamTaskProcessUpdateReq(pSnode->pMeta, &pSnode->msgCb, pMsg, true);
+    case TDMT_VND_STREAM_TASK_RESET:
+      return tqStreamTaskProcessTaskResetReq(pSnode->pMeta, pMsg);
     default:
       ASSERT(0);
   }

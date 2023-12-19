@@ -1336,26 +1336,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 }
 
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg) {
-  SVPauseStreamTaskReq* pReq = (SVPauseStreamTaskReq*)pMsg->pCont;
-
-  SStreamMeta* pMeta = pTq->pStreamMeta;
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
-  if (pTask == NULL) {
-    tqError("vgId:%d process task-reset req, failed to acquire task:0x%x, it may have been dropped already",
-            pMeta->vgId, pReq->taskId);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  tqDebug("s-task:%s receive task-reset msg from mnode, reset status and ready for data processing", pTask->id.idStr);
-
-  // clear flag set during do checkpoint, and open inputQ for all upstream tasks
-  if (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__CK) {
-    streamTaskClearCheckInfo(pTask, true);
-    streamTaskSetStatusReady(pTask);
-  }
-
-  streamMetaReleaseTask(pMeta, pTask);
-  return TSDB_CODE_SUCCESS;
+  return tqStreamTaskProcessTaskResetReq(pTq->pStreamMeta, pMsg);
 }
 
 int32_t tqProcessTaskDropHTask(STQ* pTq, SRpcMsg* pMsg) {
