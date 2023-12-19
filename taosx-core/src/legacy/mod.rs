@@ -1319,7 +1319,7 @@ async fn query_sub_tables_from_source(
     }
 }
 
-// transfrom create sql based on actions
+/// transform create sql based on actions
 fn transform_sql_with_actions(
     sql: String,
     table_name: &str,

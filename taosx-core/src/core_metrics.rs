@@ -1,6 +1,6 @@
 //! Crate level metrics related data structures and functions.
 //! Define metrics data structure for each supported datasource.
-//! And supply a global accessable map to store all metrics data.
+//! And supply a global accessible map to store all metrics data.
 
 use crate::legacy::metric::LegacyToTaosMetrics;
 use crate::tmq::metric::TMQMetrics;
@@ -84,7 +84,7 @@ impl CommonMetrics {
 pub trait TaosXMetrics: Into<CoreMetrics> {
     /// Convert metrics to json string.
     fn to_json(&self) -> String;
-    /// Resore metrics from json string.
+    /// Restore metrics from json string.
     fn from_json(json: &str) -> Self;
     /// Reset run level metrics
     fn reset(&self);
@@ -257,7 +257,7 @@ unsafe impl Sync for LastPersistTime {}
 pub struct TaskStartTime(Cell<i64>);
 
 /// TaskStartTime is a wrapper of i64 to store the start time of a task,
-/// so taht it can be accessed by multiple threads and updated concurrently.
+/// so that it can be accessed by multiple threads and updated concurrently.
 impl TaskStartTime {
     pub fn new() -> Self {
         Self(Cell::new(chrono::Utc::now().timestamp_millis()))

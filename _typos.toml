@@ -1,0 +1,22 @@
+[default.extend-words]
+avaliable = "avaliable"
+optin = "optin"
+
+[type.csv]
+extend-glob = ["*.csv"]
+check-file = false
+
+[type.txt]
+extend-glob = ["*.txt", "*.text"]
+check-file = false
+
+[type.json]
+extend-glob = ["*.json"]
+check-file = true
+
+[type.sql]
+extend-glob = ["*.sql"]
+check-file = false
+
+[files]
+extend-exclude = ["taosx-ipc/tests/**", "taosx-core/tests/str-slice.rs"]

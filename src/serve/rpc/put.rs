@@ -208,9 +208,9 @@ impl PutStream {
                 .parser
                 .as_ref()
                 .map(|v| serde_json::from_value(v.clone()).unwrap());
-            let matadata = worker.parser.metadata();
-            if let Some(sql) = matadata.init_sql_string() {
-                let init = matadata.init().unwrap();
+            let metadata = worker.parser.metadata();
+            if let Some(sql) = metadata.init_sql_string() {
+                let init = metadata.init().unwrap();
                 let req_id = RequestID::new(stream_trace_id_u64);
                 handle_lush_message_init(init, &taos, &sql, &req_id).await?;
             }

@@ -216,13 +216,13 @@ fn print_metrics(snapshotter: Arc<Snapshotter>) -> Result<()> {
     if task_started_timestamp.is_some() {
         let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
         let time_elapsed_in_seconds = {
-            let time_elasped = (Utc::now().timestamp_millis()
+            let time_elapsed = (Utc::now().timestamp_millis()
                 - task_started_timestamp.as_f64().unwrap() as i64)
                 / 1000;
-            if time_elasped < 1 {
+            if time_elapsed < 1 {
                 Some(1)
             } else {
-                Some(time_elasped)
+                Some(time_elapsed)
             }
         };
         if time_elapsed_in_seconds.is_some() {
