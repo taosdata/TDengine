@@ -172,6 +172,9 @@
 #define GRANT_CONN_DIST(p, idx) (((SGrantDistInfo *)TARRAY_GET_ELEM((p), (idx)))->connDist)
 // uniq grant
 #define GRANT_DATA_IN(s, i) ((s)->ins + i)
+#define GRANT_IN_PROGRESS() (atomic_load_8(&grantHbLock) != 0)
+#define GRANT_IS_IVLD_MACHINE() ((grantHandle.info & 0x01) != 0)
+#define GRANT_SET_IVLD_MACHINE() (grantHandle.info |= 0x01)
 
 #define GRANT_DIST_TOLERENCE 86400  // seconds
 #define GRANT_TS_SEC_LEN 20
@@ -243,17 +246,19 @@ typedef struct {
 } SGrantDistInfo;
 
 typedef struct {
-  SHashObj    *pOfficials;
-  SHashObj    *pMachines;
-  SArray      *pDistInfo;
-  SArray      *pDnodeInfo;
-  SMnode      *pMnode;
-  int64_t      lastCheck;
-  int16_t      nGrantReq;
-  int16_t      nGrantRsp;
-  int16_t      nTaosdGranted;
-  int16_t      nConnGranted;
-  int8_t       nGrantNone;
+  SHashObj *pOfficials;
+  SHashObj *pMachines;
+  SArray   *pDistInfo;
+  SArray   *pDnodeInfo;
+  SMnode   *pMnode;
+  int64_t   lastCheck;
+  int16_t   nGrantReq;
+  int16_t   nGrantRsp;
+  int16_t   nTaosdGranted;
+  int16_t   nConnGranted;
+  int8_t    granted;
+  int8_t    nGrantNone;
+  uint8_t   info;
 } SGrantHandle;
 
 static bool         recheckClusterTime = true;
@@ -261,14 +266,14 @@ static int8_t       grantHbLock = 0;
 static int64_t      grantNotifyCnt = 0;
 static int64_t      grantNotifyTimeSeries = INT64_MAX;
 static int64_t      grantClusterEpoch = 0;
-static SGrantHandle grantHandle = {0};
+static SGrantHandle grantHandle = {.lastCheck = INT64_MIN};
 SGrantedInfo        grantedInfo = {0};
 
 #define gStatus grantUniqStatus
 
 int32_t mndInitGrant(SMnode *pMnode) {
   terrno = 0;
-  tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
+  tsGrantHBInterval = 1;
 
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_HB_TIMER, mndProcessGrantHB);
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_RSP, mndProcessGrantRsp);
@@ -346,11 +351,11 @@ static FORCE_INLINE void grantSetClusterIdEx(int64_t clusterId) {
   }
 }
 
-static FORCE_INLINE void grantSetClusterId(SMnode *pMnode) {
-  if (grantObj.clusterId[0] == 0) {
+static FORCE_INLINE void grantSetClusterId(SMnode *pMnode, char *pClusterId) {
+  if ((*pClusterId == 0) && pMnode) {
     int64_t clusterId = mndGetClusterId(pMnode);
     if (clusterId > 0) {
-      snprintf(grantObj.clusterId, GRANT_CLUSTER_ID_LEN + 1, "%" PRIi64, clusterId);
+      snprintf(pClusterId, GRANT_CLUSTER_ID_LEN + 1, "%" PRIi64, clusterId);
     }
   }
 }
@@ -716,6 +721,7 @@ static int32_t genUniqActiveFromLegacy(SGrantUniqObj *pObj, SGrantStatus *pStatu
 
 static void mndProcessGrantStatusCheck() {
   grantStatusCheck(grantHandle.pMnode, taosGetTimestampMs() / 1000, NULL);
+  atomic_val_compare_exchange_8(&grantHandle.granted, 0, 1);
   if(grantHandle.nTaosdGranted || grantHandle.nConnGranted){
     SGrantUniqObj uniqObj = {0};
     memcpy(uniqObj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
@@ -790,42 +796,30 @@ _exit:
   return code;
 }
 
-static void grantCheckClusterInfo(SMnode *pMnode) {
+static int32_t grantCheckClusterInfo(SMnode *pMnode) {
+  int32_t code = 0;
   if (recheckClusterTime) {
     int64_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
     if (clusterCreateTime > 0) {
-      recheckClusterTime = false;
       COMPARE_SET_VAL(grantClusterEpoch, clusterCreateTime, !=);
+      recheckClusterTime = false;
+    } else {
+      code = TSDB_CODE_APP_IS_STARTING;
     }
   }
 
   if (recheckClusterTime) {
-    tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
-  } else if (tsGrantHBInterval != GRANT_HEART_BEAT_MSG) {
-    tsGrantHBInterval = GRANT_HEART_BEAT_MSG;
+    COMPARE_SET_VAL(tsGrantHBInterval, GRANT_HEART_BEAT_MIN, !=);
+  } else {
+    COMPARE_SET_VAL(tsGrantHBInterval, GRANT_HEART_BEAT_MSG, !=);
   }
+  return code;
 }
 
-/**
- * @brief process grant heartbeat msg from mnode
- *
- * @param pReq
- * @return int32_t
- */
-static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
-  if (0 != atomic_val_compare_exchange_8(&grantHbLock, 0, 1)) {
-    uWarn("previous grant task not finished yet");
-    atomic_val_compare_exchange_8(&grantHbLock, 1, 2);
-    // in case some grant responses are not received for a long time
-    if (taosGetTimestampMs() - grantHandle.lastCheck > 15000) {
-      mndProcessGrantStatusCheck();
-    }
-    return 0;
+static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
+  if ((terrno = grantCheckClusterInfo(pMnode)) != 0) {
+    return -1;
   }
-
-  SMnode *pMnode = pReq->info.node;
-
-  grantCheckClusterInfo(pMnode);
 
   grantRetrieveGrantInfo(pMnode);
 
@@ -842,6 +836,35 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
 
   // set cluster info after parse uniq active
   grantSetClusterInfo(pMnode);
+
+  return 0;
+}
+
+static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
+  if (!pMnode) {
+    terrno = TSDB_CODE_INVALID_PTR;
+    return -1;
+  }
+
+  if (0 != atomic_val_compare_exchange_8(&grantHbLock, 0, 1)) {
+    uWarn("previous grant task not finished yet");
+    atomic_val_compare_exchange_8(&grantHbLock, 1, 2);
+    // in case some grant responses are not received for a long time
+    if (taosGetTimestampMs() - grantHandle.lastCheck > 15000) {
+      if (mndProcessGrantHBSyncInfo(pMnode, type) != 0) {
+        atomic_store_8(&grantHbLock, 0);
+        return -1;
+      }
+      grantHandle.lastCheck = taosGetTimestampMs();
+      mndProcessGrantStatusCheck();
+    }
+    return 0;
+  }
+
+  if (mndProcessGrantHBSyncInfo(pMnode, type) != 0) {
+    atomic_store_8(&grantHbLock, 0);
+    return -1;
+  }
 
   // reset grantHandle
   taosHashClear(grantHandle.pOfficials);
@@ -877,14 +900,13 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
 
   // tolerence for exception
   if (grantHandle.nGrantReq <= 0) {
-    if (++grantHandle.nGrantNone > 5) {  
+    if (++grantHandle.nGrantNone > 5) {
       grantHandle.nGrantNone = 0;
       mndProcessGrantStatusCheck();
     } else {
       atomic_store_8(&grantHbLock, 0);
     }
   }
-
   return 0;
 }
 
@@ -894,60 +916,72 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
  * @param pReq
  * @return int32_t
  */
-static int32_t mndProcessGrantHBOld(SRpcMsg *pReq) {
-  if (0 != atomic_val_compare_exchange_8(&grantHbLock, 0, 1)) {
-    uWarn("previous grant task not finished yet");
-    atomic_val_compare_exchange_8(&grantHbLock, 1, 2);
+static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq ? pReq->info.node : grantHandle.pMnode;
+  return mndProcessGrantHBImpl(pMnode, 0);
+}
+
+  /**
+   * @brief process grant heartbeat msg from mnode
+   *
+   * @param pReq
+   * @return int32_t
+   */
+  static int32_t mndProcessGrantHBOld(SRpcMsg * pReq) {
+    if (0 != atomic_val_compare_exchange_8(&grantHbLock, 0, 1)) {
+      uWarn("previous grant task not finished yet");
+      atomic_val_compare_exchange_8(&grantHbLock, 1, 2);
+      return 0;
+    }
+
+    SMnode *pMnode = pReq->info.node;
+
+    grantCheckClusterInfo(pMnode);
+
+    grantRetrieveGrantInfo(pMnode);
+
+    // reset grantHandle
+    taosHashClear(grantHandle.pOfficials);
+    taosArrayClear(grantHandle.pDistInfo);
+    taosArrayClear(grantHandle.pDnodeInfo);
+    grantHandle.nGrantReq = 0;
+    grantHandle.nGrantRsp = 0;
+
+    mndGetDnodeData(pMnode, grantHandle.pDnodeInfo);
+
+    int32_t dnodeSize = taosArrayGetSize(grantHandle.pDnodeInfo);
+
+    if (dnodeSize > 1) {
+      taosArraySort(grantHandle.pDnodeInfo, dnodeInfoCmprFn);
+    }
+
+    int64_t clusterTime = grantGetClusterCreateTime(pMnode) + mndGetClusterUpTime(pMnode);
+    for (int32_t i = 0; i < dnodeSize; ++i) {
+      SDnodeInfo *info = (SDnodeInfo *)TARRAY_GET_ELEM(grantHandle.pDnodeInfo, i);
+      if (info->offlineReason == DND_REASON_STATUS_MSG_TIMEOUT ||
+          info->offlineReason == DND_REASON_STATUS_NOT_RECEIVED) {
+        uDebug("not send grant status to dnode:%d since offline state:%d", info->id, info->offlineReason);
+        continue;
+      }
+      if (0 == mndSendGrantStatusToDnode(pMnode, info, clusterTime)) {
+        ++grantHandle.nGrantReq;
+      }
+    }
+
+    // tolerence for exception
+    if (grantHandle.nGrantReq <= 0) {
+      if (++grantHandle.nGrantNone > 5) {
+        grantHandle.nGrantNone = 0;
+        mndProcessGrantStatusCheck();
+      } else {
+        atomic_store_8(&grantHbLock, 0);
+      }
+    }
+
     return 0;
   }
 
-  SMnode *pMnode = pReq->info.node;
-
-  grantCheckClusterInfo(pMnode);
-
-  grantRetrieveGrantInfo(pMnode);
-
-  // reset grantHandle
-  taosHashClear(grantHandle.pOfficials);
-  taosArrayClear(grantHandle.pDistInfo);
-  taosArrayClear(grantHandle.pDnodeInfo);
-  grantHandle.nGrantReq = 0;
-  grantHandle.nGrantRsp = 0;
-
-  mndGetDnodeData(pMnode, grantHandle.pDnodeInfo);
-
-  int32_t dnodeSize = taosArrayGetSize(grantHandle.pDnodeInfo);
-
-  if (dnodeSize > 1) {
-    taosArraySort(grantHandle.pDnodeInfo, dnodeInfoCmprFn);
-  }
-
-  int64_t clusterTime = grantGetClusterCreateTime(pMnode) + mndGetClusterUpTime(pMnode);
-  for (int32_t i = 0; i < dnodeSize; ++i) {
-    SDnodeInfo *info = (SDnodeInfo *)TARRAY_GET_ELEM(grantHandle.pDnodeInfo, i);
-    if (info->offlineReason == DND_REASON_STATUS_MSG_TIMEOUT || info->offlineReason == DND_REASON_STATUS_NOT_RECEIVED) {
-      uDebug("not send grant status to dnode:%d since offline state:%d", info->id, info->offlineReason);
-      continue;
-    }
-    if (0 == mndSendGrantStatusToDnode(pMnode, info, clusterTime)) {
-      ++grantHandle.nGrantReq;
-    }
-  }
-
-  // tolerence for exception
-  if (grantHandle.nGrantReq <= 0) {
-    if (++grantHandle.nGrantNone > 5) {  
-      grantHandle.nGrantNone = 0;
-      mndProcessGrantStatusCheck();
-    } else {
-      atomic_store_8(&grantHbLock, 0);
-    }
-  }
-
-  return 0;
-}
-
-void grantParseParameter() {
+  void grantParseParameter() {
 #ifdef _TD_MIPS
   fprintf(stderr, "the MIPS platform does not support machine code currently!\n");
 #else
@@ -1712,6 +1746,44 @@ static int32_t mndCfgDnodeReq(SDnodeInfo *pDnodeInfo, const char *cfg, const cha
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t grantAlterActiveCode(const char *active) {
+  int32_t       code = 0;
+  SGrantUniqObj obj = {0};
+  SMnode       *pMnode = grantHandle.pMnode;
+  if (grantObj.clusterId[0] != 0) {
+    memcpy(obj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
+  } else {
+    grantSetClusterId(pMnode, obj.clusterId);
+  }
+  if (active) memcpy(obj.active, active, GRANT_UNIQ_ACTIVE_KEY_LEN);
+  SActiveCodeInfo info = {0};
+  if ((code = grantUniqParseActiveCode(&obj, &info)) != 0) goto _exit;
+
+  if (info.dist < grantedInfo.grantedTime) {
+    code = TSDB_CODE_GRANT_PAR_IVLD_DIST;
+    goto _exit;
+  }
+
+  if (!GRANT_IN_PROGRESS()) {
+    if (mndProcessGrantHBImpl(pMnode, 1) != 0) {
+      code = terrno != 0 ? terrno : TSDB_CODE_APP_IS_STARTING;
+      goto _exit;
+    }
+  }
+
+
+  if (GRANT_IS_IVLD_MACHINE()) {
+    code = TSDB_CODE_GRANT_INVALID_HW;
+    goto _exit;
+  }
+
+  // char active[GRANT_UNIQ_ACTIVE_KEY_LEN + 1] = "\0";
+  // mndGetClusterActive(pMnode, active);
+
+_exit:
+  return code;
+}
+
 static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->info.node;
   int32_t numOfRows = 0;
@@ -1742,6 +1814,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     GRANT_ITEM_SHOW(gStatus.curStreams, gStatus.limitStreams, 16);
     GRANT_ITEM_SHOW(gStatus.curTopics, gStatus.limitTopics, 16);
     GRANT_ITEM_SHOW(gStatus.curCpuCores, gStatus.limitCpuCores, 32);
+
     GRANT_EXPIRE_SHOW(gStatus.multiTierExpireSec);
     GRANT_EXPIRE_SHOW(gStatus.streamExpireSec);
     GRANT_EXPIRE_SHOW(gStatus.topicExpireSec);
