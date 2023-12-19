@@ -479,10 +479,15 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SShowCreateViewStmt));
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       return makeNode(type, sizeof(SShowTableDistributedStmt));
+    case QUERY_NODE_SHOW_COMPACTS_STMT:
+      return makeNode(type, sizeof(SShowCompactsStmt));
+    case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
+      return makeNode(type, sizeof(SShowCompactDetailsStmt));
     case QUERY_NODE_KILL_QUERY_STMT:
       return makeNode(type, sizeof(SKillQueryStmt));
     case QUERY_NODE_KILL_TRANSACTION_STMT:
     case QUERY_NODE_KILL_CONNECTION_STMT:
+    case QUERY_NODE_KILL_COMPACT_STMT:
       return makeNode(type, sizeof(SKillStmt));
     case QUERY_NODE_DELETE_STMT:
       return makeNode(type, sizeof(SDeleteStmt));
@@ -1114,6 +1119,13 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pDnodeId);
       nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pLikePattern);
       break;
+    case QUERY_NODE_SHOW_COMPACTS_STMT:
+      break;
+    case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT: {
+      SShowCompactDetailsStmt* pStmt = (SShowCompactDetailsStmt*)pNode;
+      nodesDestroyNode(pStmt->pCompactId);
+      break;
+    }
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       taosMemoryFreeClear(((SShowCreateDatabaseStmt*)pNode)->pCfg);
       break;
@@ -1127,6 +1139,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_KILL_CONNECTION_STMT:         // no pointer field
     case QUERY_NODE_KILL_QUERY_STMT:              // no pointer field
     case QUERY_NODE_KILL_TRANSACTION_STMT:        // no pointer field
+    case QUERY_NODE_KILL_COMPACT_STMT:            // no pointer field
       break;
     case QUERY_NODE_DELETE_STMT: {
       SDeleteStmt* pStmt = (SDeleteStmt*)pNode;

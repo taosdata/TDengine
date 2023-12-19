@@ -747,6 +747,7 @@ _exit:
 }
 
 static int32_t tsdbFSSetBlockCommit(STFileSet *fset, bool block);
+extern int32_t tsdbStopAllCompTask(STsdb *tsdb);
 
 int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   STFileSystem *fs = pTsdb->pFS;
@@ -774,6 +775,10 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   int64_t channel;
   TARRAY2_FOREACH(&channelArr, channel) { vnodeAChannelDestroy(vnodeAsyncHandle[1], channel, true); }
   TARRAY2_DESTROY(&channelArr, NULL);
+
+#ifdef TD_ENTERPRISE
+  tsdbStopAllCompTask(pTsdb);
+#endif
   return 0;
 }
 

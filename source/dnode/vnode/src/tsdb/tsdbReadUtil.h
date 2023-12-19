@@ -197,6 +197,7 @@ typedef struct SFileBlockDumpInfo {
 } SFileBlockDumpInfo;
 
 typedef struct SReaderStatus {
+  bool                  suspendInvoked;
   bool                  loadFromFile;       // check file stage
   bool                  composedDataBlock;  // the returned data block is a composed block or not
   SSHashObj*            pTableMap;          // SHash<STableBlockScanInfo>
@@ -210,12 +211,16 @@ typedef struct SReaderStatus {
   SArray*               pLDataIterArray;
   SRowMerger            merger;
   SColumnInfoData*      pPrimaryTsCol;  // primary time stamp output col info data
+  // the following for preceeds fileset memory processing
+  // TODO: refactor into seperate struct
   bool                  bProcMemPreFileset;
   int64_t               memTableMaxKey;
   int64_t               memTableMinKey;
   int64_t               prevFilesetStartKey;
   int64_t               prevFilesetEndKey;
   bool                  bProcMemFirstFileset;
+  STableUidList         procMemUidList;
+  STableBlockScanInfo** pProcMemTableIter;
 } SReaderStatus;
 
 struct STsdbReader {

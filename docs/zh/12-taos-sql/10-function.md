@@ -626,9 +626,9 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 #### TIMETRUNCATE
 
 ```sql
-TIMETRUNCATE(expr, time_unit [, ignore_timezone])
+TIMETRUNCATE(expr, time_unit [, use_current_timezone])
 
-ignore_timezone: {
+use_current_timezone: {
     0
   | 1
 }
@@ -647,10 +647,11 @@ ignore_timezone: {
           1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
 - 输入包含不符合时间日期格式的字符串则返回 NULL。
-- 当使用 1d 作为时间单位对时间戳进行截断时， 可通过设置 ignore_timezone 参数指定返回结果的显示是否忽略客户端时区的影响。
-  例如客户端所配置时区为 UTC+0800, 则 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 0) 返回结果为 '2020-01-01 08:00:00'。
-  而使用 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 1) 设置忽略时区时，返回结果为 '2020-01-01 00:00:00'
-  ignore_timezone 如果忽略的话，则默认值为 1 。
+- 当使用 1d/1w 作为时间单位对时间戳进行截断时， 可通过设置 use_current_timezone 参数指定是否根据当前时区进行截断处理。
+  值 0 表示使用 UTC 时区进行截断，值 1 表示使用当前时区进行截断。
+  例如客户端所配置时区为 UTC+0800, 则 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 0) 返回结果为东八区时间 '2020-01-01 08:00:00'。
+  而使用 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 1) 时，返回结果为东八区时间 '2020-01-01 00:00:00'。
+  当不指定 use_current_timezone 时，use_current_timezone 默认值为 1 。
 
 
 

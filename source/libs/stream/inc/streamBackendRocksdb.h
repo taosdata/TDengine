@@ -79,6 +79,8 @@ typedef struct {
   TdThreadRwlock chkpDirLock;
   int64_t        dataWritten;
 
+  void* pMeta;
+
 } STaskDbWrapper;
 
 typedef struct SDbChkp {

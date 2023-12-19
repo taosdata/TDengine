@@ -215,6 +215,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateDestroy = streamStateDestroy;
   pStore->streamStateDeleteCheckPoint = streamStateDeleteCheckPoint;
   pStore->streamStateReloadInfo = streamStateReloadInfo;
+  pStore->streamStateCopyBackend = streamStateCopyBackend;
 }
 
 void initMetaReaderAPI(SStoreMetaReader* pMetaReader) {

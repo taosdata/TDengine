@@ -31,7 +31,6 @@ int32_t streamMetaId = 0;
 int32_t taskDbWrapperId = 0;
 
 static void    metaHbToMnode(void* param, void* tmrId);
-static void    streamMetaClear(SStreamMeta* pMeta);
 static int32_t streamMetaBegin(SStreamMeta* pMeta);
 static void    streamMetaCloseImpl(void* arg);
 
@@ -251,9 +250,11 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg, char* key) {
     taskDbAddRef(*ppBackend);
 
     STaskDbWrapper* pBackend = *ppBackend;
+    pBackend->pMeta = pMeta;
 
     pTask->backendRefId = pBackend->refId;
     pTask->pBackend = pBackend;
+
     taosThreadMutexUnlock(&pMeta->backendMutex);
 
     stDebug("s-task:0x%x set backend %p", pTask->id.taskId, pBackend);
@@ -261,9 +262,17 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg, char* key) {
   }
 
   STaskDbWrapper* pBackend = taskDbOpen(pMeta->path, key, chkpId);
-  if (pBackend == NULL) {
-    taosThreadMutexUnlock(&pMeta->backendMutex);
-    return -1;
+  while (1) {
+    if (pBackend == NULL) {
+      taosThreadMutexUnlock(&pMeta->backendMutex);
+      taosMsleep(1000);
+      stDebug("backed holded by other task, restart later, path: %s, key: %s", pMeta->path, key);
+    } else {
+      taosThreadMutexUnlock(&pMeta->backendMutex);
+      break;
+    }
+    taosThreadMutexLock(&pMeta->backendMutex);
+    pBackend = taskDbOpen(pMeta->path, key, chkpId);
   }
 
   int64_t tref = taosAddRef(taskDbWrapperId, pBackend);
@@ -271,12 +280,22 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg, char* key) {
   pTask->pBackend = pBackend;
   pBackend->refId = tref;
   pBackend->pTask = pTask;
+  pBackend->pMeta = pMeta;
 
   taosHashPut(pMeta->pTaskDbUnique, key, strlen(key), &pBackend, sizeof(void*));
   taosThreadMutexUnlock(&pMeta->backendMutex);
 
   stDebug("s-task:0x%x set backend %p", pTask->id.taskId, pBackend);
   return 0;
+}
+void streamMetaRemoveDB(void* arg, char* key) {
+  if (arg == NULL || key == NULL) return;
+
+  SStreamMeta* pMeta = arg;
+  taosThreadMutexLock(&pMeta->backendMutex);
+  taosHashRemove(pMeta->pTaskDbUnique, key, strlen(key));
+
+  taosThreadMutexUnlock(&pMeta->backendMutex);
 }
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage) {
   int32_t      code = -1;
@@ -393,41 +412,6 @@ _err:
 
   stError("failed to open stream meta");
   return NULL;
-}
-
-int32_t streamMetaReopen(SStreamMeta* pMeta) {
-  streamMetaClear(pMeta);
-
-  // NOTE: role should not be changed during reopen meta
-  pMeta->streamBackendRid = -1;
-  pMeta->streamBackend = NULL;
-
-  char* defaultPath = taosMemoryCalloc(1, strlen(pMeta->path) + 128);
-  sprintf(defaultPath, "%s%s%s", pMeta->path, TD_DIRSEP, "state");
-  taosRemoveDir(defaultPath);
-
-  char* newPath = taosMemoryCalloc(1, strlen(pMeta->path) + 128);
-  sprintf(newPath, "%s%s%s", pMeta->path, TD_DIRSEP, "received");
-
-  int32_t code = taosStatFile(newPath, NULL, NULL, NULL);
-  if (code == 0) {
-    // directory exists
-    code = taosRenameFile(newPath, defaultPath);
-    if (code != 0) {
-      terrno = TAOS_SYSTEM_ERROR(code);
-      stError("vgId:%d failed to rename file, from %s to %s, code:%s", pMeta->vgId, newPath, defaultPath,
-              tstrerror(terrno));
-
-      taosMemoryFree(defaultPath);
-      taosMemoryFree(newPath);
-      return -1;
-    }
-  }
-
-  taosMemoryFree(defaultPath);
-  taosMemoryFree(newPath);
-
-  return 0;
 }
 
 // todo refactor: the lock shoud be restricted in one function
@@ -829,28 +813,27 @@ static void doClear(void* pKey, void* pVal, TBC* pCur, SArray* pRecycleList) {
   taosArrayDestroy(pRecycleList);
 }
 
-int32_t streamMetaReloadAllTasks(SStreamMeta* pMeta) {
-  if (pMeta == NULL) return 0;
-
-  return streamMetaLoadAllTasks(pMeta);
-}
 int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
-  TBC*    pCur = NULL;
-  int32_t vgId = pMeta->vgId;
-
-  stInfo("vgId:%d load stream tasks from meta files", vgId);
-
-  if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
-    stError("vgId:%d failed to open stream meta, code:%s", vgId, tstrerror(terrno));
-    return -1;
-  }
-
+  TBC*     pCur = NULL;
   void*    pKey = NULL;
   int32_t  kLen = 0;
   void*    pVal = NULL;
   int32_t  vLen = 0;
   SDecoder decoder;
-  SArray*  pRecycleList = taosArrayInit(4, sizeof(STaskId));
+
+  if (pMeta == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SArray* pRecycleList = taosArrayInit(4, sizeof(STaskId));
+  int32_t vgId = pMeta->vgId;
+  stInfo("vgId:%d load stream tasks from meta files", vgId);
+
+  if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
+    stError("vgId:%d failed to open stream meta, code:%s", vgId, tstrerror(terrno));
+    taosArrayDestroy(pRecycleList);
+    return -1;
+  }
 
   tdbTbcMoveToFirst(pCur);
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
@@ -1032,10 +1015,18 @@ static bool waitForEnoughDuration(SMetaHbInfo* pInfo) {
   return false;
 }
 
-static void clearHbMsg(SStreamHbMsg* pMsg, SArray* pIdList) {
-  taosArrayDestroy(pMsg->pTaskStatus);
-  taosArrayDestroy(pMsg->pUpdateNodes);
-  taosArrayDestroy(pIdList);
+void streamMetaClearHbMsg(SStreamHbMsg* pMsg) {
+  if (pMsg == NULL) {
+    return;
+  }
+
+  if (pMsg->pUpdateNodes != NULL) {
+    taosArrayDestroy(pMsg->pUpdateNodes);
+  }
+
+  if (pMsg->pTaskStatus != NULL) {
+    taosArrayDestroy(pMsg->pTaskStatus);
+  }
 }
 
 static bool existInHbMsg(SStreamHbMsg* pMsg, SDownstreamTaskEpset* pTaskEpset) {
@@ -1214,7 +1205,8 @@ void metaHbToMnode(void* param, void* tmrId) {
   }
 
 _end:
-  clearHbMsg(&hbMsg, pIdList);
+  streamMetaClearHbMsg(&hbMsg);
+  taosArrayDestroy(pIdList);
   taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr);
   taosReleaseRef(streamMetaId, rid);
 }
