@@ -66,6 +66,29 @@ if $rows != 1 then
   return -1
 endi
 
+sql insert into st(tbname, ts, f, t) values('ct2',now,20,NULL)('ct3',now,30,NULL)
+sql insert into st(tbname, t, ts, f) values('ct4',NULL, now,20)('ct5',NULL, now,30)
+sql show create table ct2
+sql show create table ct3
+sql show create table ct4
+sql show create table ct5
+sql show tags from ct2
+if $data05 != NULL then
+  return -1
+endi
+sql show tags from ct3
+if $data05 != NULL then
+  return -1
+endi
+sql show tags from ct4
+if $data05 != NULL then
+  return -1
+endi
+sql show tags from ct5
+if $data05 != NULL then
+  return -1
+endi
+
 sql_error insert into d2.st values(now, 1, 1)
 sql_error insert into d2.st(ts, f) values(now, 1);
 sql_error insert into d2.st(ts, f, tbname) values(now, 1);

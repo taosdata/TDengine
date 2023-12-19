@@ -393,7 +393,7 @@ pipeline {
                     agent{label " Mac_catalina "}
                     steps {
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            timeout(time: 20, unit: 'MINUTES'){
+                            timeout(time: 30, unit: 'MINUTES'){
                                 pre_test()
                                 pre_test_build_mac()
                             }

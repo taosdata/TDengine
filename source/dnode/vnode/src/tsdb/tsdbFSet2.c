@@ -14,6 +14,7 @@
  */
 
 #include "tsdbFSet2.h"
+#include "vnd.h"
 
 int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl) {
   if (!(lvl[0] = taosMemoryMalloc(sizeof(SSttLvl)))) return TSDB_CODE_OUT_OF_MEMORY;
@@ -451,10 +452,8 @@ int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset) {
   TARRAY2_INIT(fset[0]->lvlArr);
 
   // background task queue
-  fset[0]->bgTaskNum = 0;
-  fset[0]->bgTaskQueue->next = fset[0]->bgTaskQueue;
-  fset[0]->bgTaskQueue->prev = fset[0]->bgTaskQueue;
-  fset[0]->bgTaskRunning = NULL;
+  fset[0]->bgTaskChannel = 0;
+  fset[0]->mergeScheduled = false;
 
   // block commit variables
   taosThreadCondInit(&fset[0]->canCommit, NULL);
@@ -534,7 +533,8 @@ int32_t tsdbTFileSetFilteredInitDup(STsdb *pTsdb, const STFileSet *fset1, int64_
   return 0;
 }
 
-int32_t tsdbTSnapRangeInitRef(STsdb *pTsdb, const STFileSet *fset1, int64_t sver, int64_t ever, STSnapRange **fsr) {
+int32_t tsdbTFileSetRangeInitRef(STsdb *pTsdb, const STFileSet *fset1, int64_t sver, int64_t ever,
+                                 STFileSetRange **fsr) {
   fsr[0] = taosMemoryCalloc(1, sizeof(*fsr[0]));
   if (fsr[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
   fsr[0]->fid = fset1->fid;
@@ -576,12 +576,21 @@ int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fs
   return 0;
 }
 
-int32_t tsdbTSnapRangeClear(STSnapRange **fsr) {
+int32_t tsdbTFileSetRangeClear(STFileSetRange **fsr) {
   if (!fsr[0]) return 0;
 
   tsdbTFileSetClear(&fsr[0]->fset);
   taosMemoryFree(fsr[0]);
   fsr[0] = NULL;
+  return 0;
+}
+
+int32_t tsdbTFileSetRangeArrayDestroy(TFileSetRangeArray** ppArr) {
+  if (ppArr && ppArr[0]) {
+    TARRAY2_DESTROY(ppArr[0], tsdbTFileSetRangeClear);
+    taosMemoryFree(ppArr[0]);
+    ppArr[0] = NULL;
+  }
   return 0;
 }
 
@@ -649,4 +658,9 @@ bool tsdbTFileSetIsEmpty(const STFileSet *fset) {
     if (fset->farr[ftype] != NULL) return false;
   }
   return TARRAY2_SIZE(fset->lvlArr) == 0;
+}
+
+int32_t tsdbTFileSetOpenChannel(STFileSet *fset) {
+  if (VNODE_ASYNC_VALID_CHANNEL_ID(fset->bgTaskChannel)) return 0;
+  return vnodeAChannelInit(vnodeAsyncHandle[1], &fset->bgTaskChannel);
 }

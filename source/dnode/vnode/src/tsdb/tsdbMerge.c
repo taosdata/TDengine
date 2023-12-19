@@ -18,11 +18,6 @@
 #define TSDB_MAX_LEVEL 2  // means max level is 3
 
 typedef struct {
-  STsdb  *tsdb;
-  int32_t fid;
-} SMergeArg;
-
-typedef struct {
   STsdb     *tsdb;
   int32_t    fid;
   STFileSet *fset;
@@ -519,6 +514,8 @@ static int32_t tsdbMergeGetFSet(SMerger *merger) {
     return 0;
   }
 
+  fset->mergeScheduled = false;
+
   int32_t code = tsdbTFileSetInitCopy(merger->tsdb, fset, &merger->fset);
   if (code) {
     taosThreadMutexUnlock(&merger->tsdb->mutex);
@@ -528,7 +525,7 @@ static int32_t tsdbMergeGetFSet(SMerger *merger) {
   return 0;
 }
 
-static int32_t tsdbMerge(void *arg) {
+int32_t tsdbMerge(void *arg) {
   int32_t    code = 0;
   int32_t    lino = 0;
   SMergeArg *mergeArg = (SMergeArg *)arg;
@@ -548,6 +545,39 @@ static int32_t tsdbMerge(void *arg) {
 
   if (merger->fset == NULL) return 0;
 
+  bool skipMerge = false;
+  {
+    extern int8_t  tsS3Enabled;
+    extern int32_t tsS3UploadDelaySec;
+    long           s3Size(const char *object_name);
+    int32_t        nlevel = tfsGetLevel(merger->tsdb->pVnode->pTfs);
+    if (tsS3Enabled && nlevel > 1) {
+      STFileObj *fobj = merger->fset->farr[TSDB_FTYPE_DATA];
+      if (fobj && fobj->f->did.level == nlevel - 1) {
+        // if exists on s3 or local mtime < committer->ctx->now - tsS3UploadDelay
+        const char *object_name = taosDirEntryBaseName((char *)fobj->fname);
+
+        if (taosCheckExistFile(fobj->fname)) {
+          int32_t now = taosGetTimestampSec();
+          int32_t mtime = 0;
+
+          taosStatFile(fobj->fname, NULL, &mtime, NULL);
+          if (mtime < now - tsS3UploadDelaySec) {
+            skipMerge = true;
+          }
+        } else /* if (s3Size(object_name) > 0) */ {
+          skipMerge = true;
+        }
+      }
+      // new fset can be written with ts data
+    }
+  }
+
+  if (skipMerge) {
+    code = 0;
+    goto _exit;
+  }
+
   // do merge
   tsdbDebug("vgId:%d merge begin, fid:%d", TD_VID(tsdb->pVnode), merger->fid);
   code = tsdbDoMerge(merger);
@@ -562,20 +592,5 @@ _exit:
     exit(EXIT_FAILURE);
   }
   tsdbTFileSetClear(&merger->fset);
-  return code;
-}
-
-int32_t tsdbSchedMerge(STsdb *tsdb, int32_t fid) {
-  SMergeArg *arg = taosMemoryMalloc(sizeof(*arg));
-  if (arg == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  arg->tsdb = tsdb;
-  arg->fid = fid;
-
-  int32_t code = tsdbFSScheduleBgTask(tsdb->pFS, fid, TSDB_BG_TASK_MERGER, tsdbMerge, taosMemoryFree, arg, NULL);
-  if (code) taosMemoryFree(arg);
-
   return code;
 }

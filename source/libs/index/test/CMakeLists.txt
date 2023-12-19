@@ -164,7 +164,7 @@ IF(NOT TD_DARWIN)
   )
 
   add_test(
-    NAME idxtest
+    NAME idxTest
     COMMAND idxTest
   )
   add_test(

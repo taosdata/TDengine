@@ -262,6 +262,63 @@ The following types may be returned:
 - "INT UNSIGNED"
 - "BIGINT UNSIGNED"
 - "JSON"
+- "VARBINARY"
+- "GEOMETRY"
+
+`VARBINARY` and `GEOMETRY` types return data as Hex string, example:
+
+Prepare data
+
+```bash
+create database demo
+use demo
+create table t(ts timestamp,c1 varbinary(20),c2 geometry(100))
+insert into t values(now,'\x7f8290','point(100 100)')
+```
+
+Execute query
+
+```bash
+curl --location 'http://<fqdn>:<port>/rest/sql' \
+--header 'Content-Type: text/plain' \
+--header 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' \
+--data 'select * from demo.t'
+```
+
+Return results
+
+```json
+{
+     "code": 0,
+     "column_meta": [
+         [
+             "ts",
+             "TIMESTAMP",
+             8
+         ],
+         [
+             "c1",
+             "VARBINARY",
+             20
+         ],
+         [
+             "c2",
+             "GEOMETRY",
+             100
+         ]
+     ],
+     "data": [
+         [
+             "2023-11-01T06:28:15.210Z",
+             "7f8290",
+             "010100000000000000000059400000000000005940"
+         ]
+     ],
+     "rows": 1
+}
+```
+
+- `010100000000000000000059400000000000005940` is [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/) format for `point(100 100)`
 
 #### Errors
 
