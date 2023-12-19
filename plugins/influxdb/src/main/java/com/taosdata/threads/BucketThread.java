@@ -2,6 +2,7 @@ package com.taosdata.threads;
 
 import com.taosdata.ApplicationContextProvider;
 import com.taosdata.caches.BucketCache;
+import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.config.LocalConfig;
@@ -114,7 +115,11 @@ public class BucketThread implements Runnable {
                     // 如果设置了endTime并且now>endTime并且任务已运行完成，正常退出进程
                     if (StringUtils.isNotEmpty(taskConfig.getEndTime()) && this.taskEndTime.before(this.now)) {
                         // 判断是否可以退出进程
-                        if (StatisticCache.createdTaskSet.size() >= StatisticCache.totalReadTaskEstimated && StatisticCache.completedTaskSet.size() >= StatisticCache.createdTaskSet.size() && StatisticCache.totalPush.get() >= StatisticCache.totalRead.get()) {
+                        if (StatisticCache.createdTaskSet.size() >= StatisticCache.totalReadTaskEstimated // 防止启动时直接退出
+                                && StatisticCache.completedTaskSet.size() >= StatisticCache.createdTaskSet.size() // 判断读取任务完成
+                                && StatisticCache.totalPush.get() >= StatisticCache.totalRead.get() // 判断全部推送
+                                && BucketDataCache.socketMap.size() == 0 // 判断连接全部关闭
+                        ) {
                             Thread.sleep(5000L);
                             logger.info("Task execution completed, normal exit.");
                             logger.info(StatusCache.toPrintString());
