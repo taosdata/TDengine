@@ -148,11 +148,17 @@ sed -i '' "s/mac_before_install.txt/mac_before_install_client.txt/g" $communityD
 /usr/local/bin/packagesbuild --package-version $version TDengine.pkgproj
 
 cd $topDir/release
-scp *client* root@taosdata.com:/data/www/assets-download/3.0/
-if [ $? > 0 ]; then
-  echo "copy client package to taosdata server failed"
+ssh root@taosdata.com -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no "date" > /dev/null 2>&1
+if [ $? = 0 ]; then 
+  scp *client* root@taosdata.com:/data/www/assets-download/3.0/
+  if [ $? > 0 ]; then
+    echo "copy client package to taosdata server failed"
+  fi
 fi
-scp *client* ubuntu@tdengine.com:/data/www/assets-download/3.0/
-if [ $? > 0 ]; then
-  echo "copy client package to TDengine server failed"
+ssh ubuntu@tdengine.com -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no "date" > /dev/null 2>&1
+if [ $? = 0 ]; then 
+  scp *client* ubuntu@tdengine.com:/data/www/assets-download/3.0/
+  if [ $? > 0 ]; then
+    echo "copy client package to TDengine server failed"
+  fi
 fi

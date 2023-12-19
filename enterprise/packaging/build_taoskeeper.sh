@@ -21,6 +21,7 @@ Build taoskeeper in latest tag.
 -r, --arch <arch>                           Remove TDinsight dashboard, TDengine data source and the plugin.
 -f, --force                                 Force rebuild and pack
 -e, --repo                                  Code repositories
+-t, --tag                                   tag
 EOF
 }
 
@@ -38,8 +39,15 @@ checkout_latest_tag() {
   cd build-taoskeeper
 
   git fetch
-  # get latest tag
-  latest=`git tag --sort=-creatordate | head -1`
+  # get tag  
+  if [ -n "$TAG" ] && [ $(git tag -l "$TAG") ]; then
+    latest=$TAG
+  else
+    latest=`git tag --sort=-creatordate | head -1`
+  fi
+
+  echo $latest
+
   latestv=$(echo "$latest" | sed 's/ver-//')
 
   gitinfo=`git rev-parse HEAD`
@@ -68,7 +76,7 @@ build_binary() {
 }
 
 # eval set -- "$OPTIONS"
-while getopts "ho:r:e:f" arg
+while getopts "ho:r:e:f:t:" arg
 do
   case $arg in
   h)
@@ -86,6 +94,9 @@ do
     ;;
   f)
     export FORCE=1
+    ;;
+  t)
+    export TAG=$OPTARG
     ;;
   ?)
     break

@@ -18,9 +18,9 @@
 
 int32_t taosSetReleaseCfg(SConfig *pCfg) {
 #ifndef GRANTS_CFG
-  strncpy(tsVersionName, "trial", 16);
+  memcpy(tsVersionName, "trial", 6);
 #else
-  strncpy(tsVersionName, "official", 16);
+  memcpy(tsVersionName, "official", 9);
 #endif
-  return 0;
+  return 0; 
 }

@@ -98,7 +98,7 @@ stop_service(){
 
 
 # remove old taosx and taosx-agent
-remove_taosx() { 
+remove_taosx() {
   for service in "${services[@]}"; do
     if [ -f ./bin/${service} ]; then
         stop_service ${service}
@@ -130,6 +130,7 @@ remove_target() {
 
 print_tips(){
     if [ "$target" = "taosx" ]; then
+      echo -e "\033[32mTo configure taosx         \033[0m: edit /etc/taos/taosx.toml"
       echo -e "\033[32mTo configure taosx-agent   \033[0m: edit /etc/taos/agent.toml"
       echo -e "\033[32mTo configure taos-explorer \033[0m: edit /etc/taos/explorer.toml"
       echo -e "\033[32mTo start taosx             \033[0m: sudo systemctl start taosx"
@@ -140,6 +141,7 @@ print_tips(){
       echo -e "\033[32mTo access the TDengine management system: http://`hostname`:6060\033[0m"
       echo -e "\033[32mTo read the TDengine user manual: http://`hostname`:6060/docs-en\033[0m"
     else
+      echo -e "\033[32mTo configure taosx         \033[0m: edit /etc/taos/taosx.toml"
       echo -e "\033[32mTo configure taosx-agent   \033[0m: edit /etc/taos/agent.toml"
       echo -e "\033[32mTo start taosx-agent       \033[0m: sudo systemctl start taosx-agent"
 
@@ -168,7 +170,7 @@ getUserInputEndpoint() {
 }
 
 function replaceExplorerEndpoint() {
-  local FileName=$1  
+  local FileName=$1
   if [ -f "$FileName" ]; then
       ${csudo}sed -i "s/localhost/${explorerEndpoint}/g" $FileName
   fi
@@ -212,6 +214,11 @@ install_taosx() {
     check_and_create_directory "${CONFIG_DIR}"
     getUserInputEndpoint
     # copy config to /etc/taos
+    if [ -f ${CONFIG_DIR}/taosx.toml ]; then
+        ${csudo}cp -f ./etc/taos/taosx.toml ${CONFIG_DIR}/taosx.toml.new
+    else
+        ${csudo}cp -f ./etc/taos/taosx.toml ${CONFIG_DIR}/
+    fi
     if [ -f ${CONFIG_DIR}/agent.toml ]; then
         ${csudo}cp -f ./etc/taos/agent.toml ${CONFIG_DIR}/agent.toml.new
     else
