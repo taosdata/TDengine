@@ -26,17 +26,7 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
   if (pFD->pFD == NULL) {
     int         errsv = errno;
     const char *object_name = taosDirEntryBaseName((char *)path);
-    long        s3_size = 0;
-    if (tsS3Enabled) {
-      long size = s3Size(object_name);
-      if (size < 0) {
-        code = terrno = TSDB_CODE_FAILED_TO_CONNECT_S3;
-        goto _exit;
-      }
-
-      s3_size = size;
-    }
-
+    long        s3_size = tsS3Enabled ? s3Size(object_name) : 0;
     if (tsS3Enabled && !strncmp(path + strlen(path) - 5, ".data", 5) && s3_size > 0) {
 #ifndef S3_BLOCK_CACHE
       s3EvictCache(path, s3_size);
@@ -58,7 +48,6 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
       // pFD->szFile = s3_size;
 #endif
     } else {
-      tsdbInfo("no file: %s", path);
       code = TAOS_SYSTEM_ERROR(errsv);
       // taosMemoryFree(pFD);
       goto _exit;
@@ -294,7 +283,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint) {
+static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size) {
   int32_t code = 0;
   int64_t n = 0;
   int32_t szPgCont = PAGE_CONTENT_SIZE(pFD->szPage);
@@ -341,7 +330,7 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
     memcpy(pBuf + n, pFD->pBuf + bOffset, nRead);
 
     n += nRead;
-    ++pgno;
+    pgno++;
     bOffset = 0;
   }
 
@@ -350,12 +339,7 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
     uint8_t *pBlock = NULL;
     int64_t  retrieve_offset = PAGE_OFFSET(pgno, pFD->szPage);
     int64_t  pgnoEnd = pgno - 1 + (bOffset + size - n + szPgCont - 1) / szPgCont;
-
-    if (szHint > 0) {
-      pgnoEnd = pgno - 1 + (bOffset + szHint - n + szPgCont - 1) / szPgCont;
-    }
-
-    int64_t retrieve_size = (pgnoEnd - pgno + 1) * pFD->szPage;
+    int64_t  retrieve_size = (pgnoEnd - pgno + 1) * pFD->szPage;
     code = s3GetObjectBlock(pFD->objName, retrieve_offset, retrieve_size, 1, &pBlock);
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
@@ -366,10 +350,6 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
     for (int i = 0; i < nPage; ++i) {
       tsdbCacheSetPageS3(pFD->pTsdb->pgCache, pFD, pgno, pBlock + i * pFD->szPage);
 
-      if (szHint > 0 && n >= size) {
-        ++pgno;
-        continue;
-      }
       memcpy(pFD->pBuf, pBlock + i * pFD->szPage, pFD->szPage);
 
       // check
@@ -384,7 +364,7 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
       memcpy(pBuf + n, pFD->pBuf + bOffset, nRead);
 
       n += nRead;
-      ++pgno;
+      pgno++;
       bOffset = 0;
     }
 
@@ -395,7 +375,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint) {
+int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size) {
   int32_t code = 0;
   if (!pFD->pFD) {
     code = tsdbOpenFileImpl(pFD);
@@ -405,7 +385,7 @@ int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, 
   }
 
   if (pFD->s3File && tsS3BlockSize < 0) {
-    return tsdbReadFileS3(pFD, offset, pBuf, size, szHint);
+    return tsdbReadFileS3(pFD, offset, pBuf, size);
   } else {
     return tsdbReadFileImp(pFD, offset, pBuf, size);
   }
@@ -1161,7 +1141,7 @@ int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx) {
   if (code) goto _err;
 
   // read
-  code = tsdbReadFile(pReader->pHeadFD, offset, pReader->aBuf[0], size, 0);
+  code = tsdbReadFile(pReader->pHeadFD, offset, pReader->aBuf[0], size);
   if (code) goto _err;
 
   // decode
@@ -1198,7 +1178,7 @@ int32_t tsdbReadSttBlk(SDataFReader *pReader, int32_t iStt, SArray *aSttBlk) {
   if (code) goto _err;
 
   // read
-  code = tsdbReadFile(pReader->aSttFD[iStt], offset, pReader->aBuf[0], size, 0);
+  code = tsdbReadFile(pReader->aSttFD[iStt], offset, pReader->aBuf[0], size);
   if (code) goto _err;
 
   // decode
@@ -1231,7 +1211,7 @@ int32_t tsdbReadDataBlk(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *m
   if (code) goto _err;
 
   // read
-  code = tsdbReadFile(pReader->pHeadFD, offset, pReader->aBuf[0], size, 0);
+  code = tsdbReadFile(pReader->pHeadFD, offset, pReader->aBuf[0], size);
   if (code) goto _err;
 
   // decode
@@ -1262,7 +1242,7 @@ int32_t tsdbReadBlockSma(SDataFReader *pReader, SDataBlk *pDataBlk, SArray *aCol
   if (code) goto _err;
 
   // read
-  code = tsdbReadFile(pReader->pSmaFD, pSmaInfo->offset, pReader->aBuf[0], pSmaInfo->size, 0);
+  code = tsdbReadFile(pReader->pSmaFD, pSmaInfo->offset, pReader->aBuf[0], pSmaInfo->size);
   if (code) goto _err;
 
   // decode
@@ -1296,7 +1276,7 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
   code = tRealloc(&pReader->aBuf[0], pBlkInfo->szKey);
   if (code) goto _err;
 
-  code = tsdbReadFile(pFD, pBlkInfo->offset, pReader->aBuf[0], pBlkInfo->szKey, 0);
+  code = tsdbReadFile(pFD, pBlkInfo->offset, pReader->aBuf[0], pBlkInfo->szKey);
   if (code) goto _err;
 
   SDiskDataHdr hdr;
@@ -1342,7 +1322,7 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
     code = tRealloc(&pReader->aBuf[0], hdr.szBlkCol);
     if (code) goto _err;
 
-    code = tsdbReadFile(pFD, offset, pReader->aBuf[0], hdr.szBlkCol, 0);
+    code = tsdbReadFile(pFD, offset, pReader->aBuf[0], hdr.szBlkCol);
     if (code) goto _err;
   }
 
@@ -1386,7 +1366,7 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
         code = tRealloc(&pReader->aBuf[1], size);
         if (code) goto _err;
 
-        code = tsdbReadFile(pFD, offset, pReader->aBuf[1], size, 0);
+        code = tsdbReadFile(pFD, offset, pReader->aBuf[1], size);
         if (code) goto _err;
 
         code = tsdbDecmprColData(pReader->aBuf[1], pBlockCol, hdr.cmprAlg, hdr.nRow, pColData, &pReader->aBuf[2]);
@@ -1412,7 +1392,7 @@ int32_t tsdbReadDataBlockEx(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockDat
   if (code) goto _err;
 
   // read
-  code = tsdbReadFile(pReader->pDataFD, pBlockInfo->offset, pReader->aBuf[0], pBlockInfo->szBlock, 0);
+  code = tsdbReadFile(pReader->pDataFD, pBlockInfo->offset, pReader->aBuf[0], pBlockInfo->szBlock);
   if (code) goto _err;
 
   // decmpr
@@ -1464,7 +1444,7 @@ int32_t tsdbReadSttBlockEx(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // read
-  code = tsdbReadFile(pReader->aSttFD[iStt], pSttBlk->bInfo.offset, pReader->aBuf[0], pSttBlk->bInfo.szBlock, 0);
+  code = tsdbReadFile(pReader->aSttFD[iStt], pSttBlk->bInfo.offset, pReader->aBuf[0], pSttBlk->bInfo.szBlock);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // decmpr
@@ -1720,7 +1700,7 @@ int32_t tsdbReadDelDatav1(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelDa
   if (code) goto _err;
 
   // read
-  code = tsdbReadFile(pReader->pReadH, offset, pReader->aBuf[0], size, 0);
+  code = tsdbReadFile(pReader->pReadH, offset, pReader->aBuf[0], size);
   if (code) goto _err;
 
   // // decode
@@ -1760,7 +1740,7 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx) {
   if (code) goto _err;
 
   // read
-  code = tsdbReadFile(pReader->pReadH, offset, pReader->aBuf[0], size, 0);
+  code = tsdbReadFile(pReader->pReadH, offset, pReader->aBuf[0], size);
   if (code) goto _err;
 
   // decode

@@ -423,7 +423,6 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(igLastNull);
   COPY_SCALAR_FIELD(groupOrderScan);
   COPY_SCALAR_FIELD(onlyMetaCtbIdx);
-  COPY_SCALAR_FIELD(filesetDelimited);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -651,7 +650,6 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(igExpired);
-  COPY_SCALAR_FIELD(filesetDelimited);
   return TSDB_CODE_SUCCESS;
 }
 

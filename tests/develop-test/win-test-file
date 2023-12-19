@@ -1,7 +1,4 @@
 python3 ./test.py -f 2-query/table_count_scan.py
-python3 ./test.py -f 2-query/pseudo_column.py
-python3 ./test.py -f 2-query/ts-range.py
-python3 ./test.py -f 2-query/tag_scan.py
 python3 ./test.py -f 2-query/show_create_db.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/auto_create_table_json.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/custom_col_tag.py

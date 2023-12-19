@@ -281,8 +281,8 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   vmGenerateWrapperCfg(pMgmt, &req, &wrapperCfg);
 
-  SVnodeObj *pVnode = vmAcquireVnodeImpl(pMgmt, req.vgId, false);
-  if (pVnode != NULL && (req.replica == 1 || !pVnode->failed)) {
+  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
+  if (pVnode != NULL && !pVnode->failed) {
     dError("vgId:%d, already exist", req.vgId);
     tFreeSCreateVnodeReq(&req);
     vmReleaseVnode(pMgmt, pVnode);
@@ -291,20 +291,18 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return 0;
   }
 
-  int32_t diskPrimary = vmGetPrimaryDisk(pMgmt, vnodeCfg.vgId);
-  if (diskPrimary < 0) {
-    diskPrimary = vmAllocPrimaryDisk(pMgmt, vnodeCfg.vgId);
-  }
-  wrapperCfg.diskPrimary = diskPrimary;
+  ASSERT(pVnode == NULL || pVnode->failed);
+
+  wrapperCfg.diskPrimary = pVnode ? pVnode->diskPrimary : vmAllocPrimaryDisk(pMgmt, vnodeCfg.vgId);
+  int32_t diskPrimary = wrapperCfg.diskPrimary;
 
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
 
   if (vnodeCreate(path, &vnodeCfg, diskPrimary, pMgmt->pTfs) < 0) {
-    dError("vgId:%d, failed to create vnode since %s", req.vgId, terrstr());
-    vmReleaseVnode(pMgmt, pVnode);
     tFreeSCreateVnodeReq(&req);
+    dError("vgId:%d, failed to create vnode since %s", req.vgId, terrstr());
     code = terrno;
-    return code;
+    goto _OVER;
   }
 
   SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb, true);
@@ -372,7 +370,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
         TMSG_INFO(pMsg->msgType));
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
-  if (pVnode == NULL) {
+  if (pVnode == NULL || pVnode->failed) {
     dError("vgId:%d, failed to alter vnode type since %s", req.vgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
     if (pVnode) vmReleaseVnode(pMgmt, pVnode);
@@ -490,7 +488,7 @@ int32_t vmProcessCheckLearnCatchupReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
           req.vgId, TMSG_INFO(pMsg->msgType));
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
-  if (pVnode == NULL) {
+  if (pVnode == NULL || pVnode->failed) {
     dError("vgId:%d, failed to alter vnode type since %s", req.vgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
     if (pVnode) vmReleaseVnode(pMgmt, pVnode);
@@ -533,7 +531,7 @@ int32_t vmProcessDisableVnodeWriteReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dInfo("vgId:%d, vnode write disable:%d", req.vgId, req.disable);
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
-  if (pVnode == NULL) {
+  if (pVnode == NULL || pVnode->failed) {
     dError("vgId:%d, failed to disable write since %s", req.vgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
     if (pVnode) vmReleaseVnode(pMgmt, pVnode);
@@ -566,7 +564,7 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dInfo("vgId:%d, start to alter vnode hashrange:[%u, %u], dstVgId:%d", req.srcVgId, req.hashBegin, req.hashEnd,
         req.dstVgId);
   pVnode = vmAcquireVnode(pMgmt, srcVgId);
-  if (pVnode == NULL) {
+  if (pVnode == NULL || pVnode->failed) {
     dError("vgId:%d, failed to alter hashrange since %s", srcVgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
     if (pVnode) vmReleaseVnode(pMgmt, pVnode);
@@ -681,7 +679,7 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
-  if (pVnode == NULL) {
+  if (pVnode == NULL || pVnode->failed) {
     dError("vgId:%d, failed to alter replica since %s", vgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
     if (pVnode) vmReleaseVnode(pMgmt, pVnode);
@@ -749,7 +747,7 @@ int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  SVnodeObj *pVnode = vmAcquireVnodeImpl(pMgmt, vgId, false);
+  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
   if (pVnode == NULL) {
     dInfo("vgId:%d, failed to drop since %s", vgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
@@ -818,8 +816,6 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_SCH_QUERY_HEARTBEAT, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_CREATE_INDEX, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_DROP_INDEX, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_QUERY_COMPACT_PROGRESS, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_KILL_COMPACT, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DEPLOY, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DROP, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;

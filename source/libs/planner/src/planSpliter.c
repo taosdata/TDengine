@@ -692,7 +692,6 @@ static void stbSplSetTableMergeScan(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
     pScan->scanType = SCAN_TYPE_TABLE_MERGE;
-    pScan->filesetDelimited = true;
     if (NULL != pScan->pGroupTags) {
       pScan->groupSort = true;
     }
@@ -1034,7 +1033,6 @@ static SNode* stbSplCreateColumnNode(SExprNode* pExpr) {
     strcpy(pCol->colName, pExpr->aliasName);
   }
   strcpy(pCol->node.aliasName, pExpr->aliasName);
-  strcpy(pCol->node.userAlias, pExpr->userAlias);
   pCol->node.resType = pExpr->resType;
   return (SNode*)pCol;
 }
@@ -1064,9 +1062,8 @@ static int32_t stbSplCreateMergeKeys(SNodeList* pSortKeys, SNodeList* pTargets, 
     SNode*            pTarget = NULL;
     bool              found = false;
     FOREACH(pTarget, pTargets) {
-      if ((QUERY_NODE_COLUMN == nodeType(pSortExpr) && nodesEqualNode((SNode*)pSortExpr, pTarget))
-        // || (0 == strcmp(pSortExpr->aliasName, ((SColumnNode*)pTarget)->colName))
-        ) {
+      if ((QUERY_NODE_COLUMN == nodeType(pSortExpr) && nodesEqualNode((SNode*)pSortExpr, pTarget)) ||
+          (0 == strcmp(pSortExpr->aliasName, ((SColumnNode*)pTarget)->colName))) {
         code = nodesListMakeStrictAppend(&pMergeKeys, stbSplCreateOrderByExpr(pSortKey, pTarget));
         if (TSDB_CODE_SUCCESS != code) {
           break;
@@ -1244,7 +1241,6 @@ static int32_t stbSplCreateMergeScanNode(SScanLogicNode* pScan, SLogicNode** pOu
   SNodeList* pMergeKeys = NULL;
   if (TSDB_CODE_SUCCESS == code) {
     pMergeScan->scanType = SCAN_TYPE_TABLE_MERGE;
-    pMergeScan->filesetDelimited = true;
     pMergeScan->node.pChildren = pChildren;
     splSetParent((SLogicNode*)pMergeScan);
     code = stbSplCreateMergeKeysByPrimaryKey(stbSplFindPrimaryKeyFromScan(pMergeScan),

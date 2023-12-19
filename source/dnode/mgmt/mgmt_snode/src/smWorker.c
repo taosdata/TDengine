@@ -193,6 +193,10 @@ int32_t smPutNodeMsgToStreamQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SSingleWorker *pWorker = &pMgmt->streamWorker;
 
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
-  taosWriteQitem(pWorker->queue, pMsg);
+  if (pMsg->msgType == TDMT_STREAM_TASK_DISPATCH) {
+    sndEnqueueStreamDispatch(pMgmt->pSnode, pMsg);
+  } else {
+    taosWriteQitem(pWorker->queue, pMsg);
+  }
   return 0;
 }

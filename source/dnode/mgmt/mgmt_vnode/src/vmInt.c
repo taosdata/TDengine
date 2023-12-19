@@ -19,19 +19,6 @@
 #include "vnd.h"
 #include "libs/function/tudf.h"
 
-int32_t vmGetPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
-  int32_t    diskId = -1;
-  SVnodeObj *pVnode = NULL;
-
-  taosThreadRwlockRdlock(&pMgmt->lock);
-  taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
-  if (pVnode != NULL) {
-    diskId = pVnode->diskPrimary;
-  }
-  taosThreadRwlockUnlock(&pMgmt->lock);
-  return diskId;
-}
-
 int32_t vmAllocPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
   STfs   *pTfs = pMgmt->pTfs;
   int32_t diskId = 0;
@@ -87,12 +74,12 @@ int32_t vmAllocPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
   return diskId;
 }
 
-SVnodeObj *vmAcquireVnodeImpl(SVnodeMgmt *pMgmt, int32_t vgId, bool strict) {
+SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId) {
   SVnodeObj *pVnode = NULL;
 
   taosThreadRwlockRdlock(&pMgmt->lock);
   taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
-  if (pVnode == NULL || strict && (pVnode->dropped || pVnode->failed)) {
+  if (pVnode == NULL || pVnode->dropped) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     pVnode = NULL;
   } else {
@@ -104,8 +91,6 @@ SVnodeObj *vmAcquireVnodeImpl(SVnodeMgmt *pMgmt, int32_t vgId, bool strict) {
   return pVnode;
 }
 
-SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId) { return vmAcquireVnodeImpl(pMgmt, vgId, true); }
-
 void vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   if (pVnode == NULL) return;
 
@@ -113,15 +98,6 @@ void vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
   // dTrace("vgId:%d, release vnode, ref:%d", pVnode->vgId, refCount);
   taosThreadRwlockUnlock(&pMgmt->lock);
-}
-
-static void vmFreeVnodeObj(SVnodeObj **ppVnode) {
-  if (!ppVnode || !(*ppVnode)) return;
-
-  SVnodeObj *pVnode = *ppVnode;
-  taosMemoryFree(pVnode->path);
-  taosMemoryFree(pVnode);
-  ppVnode[0] = NULL;
 }
 
 int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
@@ -158,12 +134,6 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   }
 
   taosThreadRwlockWrlock(&pMgmt->lock);
-  SVnodeObj *pOld = NULL;
-  taosHashGetDup(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), (void *)&pOld);
-  if (pOld) {
-    ASSERT(pOld->failed);
-    vmFreeVnodeObj(&pOld);
-  }
   int32_t code = taosHashPut(pMgmt->hash, &pVnode->vgId, sizeof(int32_t), &pVnode, sizeof(SVnodeObj *));
   taosThreadRwlockUnlock(&pMgmt->lock);
 
@@ -253,7 +223,8 @@ _closed:
     vnodeDestroy(pVnode->vgId, path, pMgmt->pTfs);
   }
 
-  vmFreeVnodeObj(&pVnode);
+  taosMemoryFree(pVnode->path);
+  taosMemoryFree(pVnode);
 }
 
 static int32_t vmRestoreVgroupId(SWrapperCfg *pCfg, STfs *pTfs) {
@@ -650,7 +621,7 @@ static void *vmRestoreVnodeInThread(void *param) {
   for (int32_t v = 0; v < pThread->vnodeNum; ++v) {
     SVnodeObj *pVnode = pThread->ppVnodes[v];
     if (pVnode->failed) {
-      dError("vgId:%d, cannot restore a vnode in failed mode.", pVnode->vgId);
+      dError("vgId:%d, skip restoring vnode in failure mode.", pVnode->vgId);
       continue;
     }
 

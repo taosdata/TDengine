@@ -693,8 +693,8 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
       ret = 0;
       break;
     } else if (ret != 0) {
-      simDebug("script:%s, taos:%p, %s failed, ret:%d:%s", script->fileName, script->taos, rest, ret & 0XFFFF,
-               tstrerror(ret));
+      simDebug("script:%s, taos:%p, %s failed, ret:%d:%s, error:%s", script->fileName, script->taos, rest, ret & 0XFFFF,
+               tstrerror(ret), taos_errstr(pSql));
 
       if (line->errorJump == SQL_JUMP_TRUE) {
         script->linePos = line->jump;

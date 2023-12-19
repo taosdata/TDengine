@@ -20,7 +20,7 @@ class TDTestCase:
     def __init__(self):
         self.vgroups    = 1
         self.ctbNum     = 10
-        self.rowsPerTbl = 1000
+        self.rowsPerTbl = 10000
 
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -46,7 +46,7 @@ class TDTestCase:
                     'ctbPrefix':  'ctb',
                     'ctbStartIdx': 0,
                     'ctbNum':     10,
-                    'rowsPerTbl': 1000,
+                    'rowsPerTbl': 10000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  30,
@@ -138,7 +138,7 @@ class TDTestCase:
                     'ctbPrefix':  'ctb',
                     'ctbStartIdx': 0,
                     'ctbNum':     10,
-                    'rowsPerTbl': 1000,
+                    'rowsPerTbl': 10000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  10,
@@ -217,7 +217,7 @@ class TDTestCase:
                     'ctbPrefix':  'ctb',
                     'ctbStartIdx': 0,
                     'ctbNum':     10,
-                    'rowsPerTbl': 1000,
+                    'rowsPerTbl': 10000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  10,

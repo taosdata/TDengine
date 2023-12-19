@@ -2,7 +2,6 @@ add_executable(transportTest "")
 add_executable(transUT "")
 add_executable(svrBench "")
 add_executable(cliBench "")
-add_executable(httpBench "")
 
 target_sources(transUT
   PRIVATE
@@ -22,10 +21,6 @@ target_sources(cliBench
   PRIVATE
   "cliBench.c"
 )
-target_sources(httpBench
-  PRIVATE
-  "http_test.c"
-) 
 
 target_include_directories(transportTest 
   PUBLIC
@@ -61,6 +56,11 @@ target_include_directories(svrBench
   "${TD_SOURCE_DIR}/include/libs/transport" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(svrBench
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/transport" 
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
 target_link_libraries (svrBench
   os  
@@ -75,22 +75,13 @@ target_include_directories(cliBench
   "${TD_SOURCE_DIR}/include/libs/transport" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-
-target_include_directories(httpBench
+target_include_directories(cliBench
   PUBLIC
   "${TD_SOURCE_DIR}/include/libs/transport" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
 target_link_libraries (cliBench
-  os  
-  util
-  common
-  gtest_main
-  transport 
-)
-
-target_link_libraries(httpBench
   os  
   util
   common
@@ -106,3 +97,4 @@ add_test(
   NAME transUtilUt 
   COMMAND transportTest
 )
+

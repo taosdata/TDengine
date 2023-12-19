@@ -24,7 +24,7 @@ from util.common import *
 from util.sqlset import TDSetSql
 
 class TDTestCase:
-    updatecfgDict = {'tsdbdebugFlag': 131}
+    updatecfgDict = {'tsdbdebugFlag': 143}
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
@@ -36,7 +36,7 @@ class TDTestCase:
         self.setsql = TDSetSql()
         self.stbname = 'stb'
         self.ntbname = 'ntb'
-        self.rowNum = 3
+        self.rowNum = 10
         self.tbnum = 3
         self.ts = 1537146000000
         self.binary_str = 'taosdata'

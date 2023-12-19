@@ -57,16 +57,12 @@ class TDTestCase:
             "create database db1 retentions 1s:1d",
             "create database db1 retentions 1s:1d,2s:2d",
             "create database db1 retentions 1s:1d,2s:2d,3s:3d",
-            "create database db1 retentions 1s:1d,2s:2d,3s:3d,4s:4d",
             "create database db1 retentions -:1d,2s:2d,3s:3d,4s:4d",
-            "create database db1 retentions --:1d",
-            "create database db1 retentions -:-:1d",
-            "create database db1 retentions 1d:-",
             "create database db1 retentions -:-",
+            "create database db1 retentions --:1d",
             "create database db1 retentions +:1d",
             "create database db1 retentions :1d",
             "create database db1 retentions -:1d,-:2d",
-            "create database db1 retentions -:1d,-:2d,-:3d",
             "create database db1 retentions -:1d,1s:-",
             "create database db1 retentions -:1d,15s:2d,-:3d",
 
@@ -80,7 +76,6 @@ class TDTestCase:
             "create database db1 retentions -:1d,1s:86400000a",
             "create database db1 retentions -:1d,1s:86400000000u",
             "create database db1 retentions -:1d,1s:86400000000000b",
-            "create database db1 retentions -:1s,1s:2s",
             "create database db1 retentions -:1d,1s:1w",
             "create database db1 retentions -:1d,1s:1n",
             "create database db1 retentions -:1d,1s:1y",
@@ -102,8 +97,6 @@ class TDTestCase:
             "create database db5 retentions -:1d,2s:2d,2s:3d",
             "create database db5 retentions -:1d,3s:2d,2s:3d",
             "create database db1 retentions -:1d,2s:3d,3s:2d",
-            "create database db1 retentions -:1d,2s:3d,1s:2d",
-
         ]
 
     @property

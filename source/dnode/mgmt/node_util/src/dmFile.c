@@ -120,7 +120,7 @@ int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
   if (buffer == NULL) goto _OVER;
   terrno = 0;
 
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) goto _OVER;
 
   int32_t len = strlen(buffer);
@@ -149,7 +149,7 @@ TdFilePtr dmCheckRunning(const char *dataDir) {
   char filepath[PATH_MAX] = {0};
   snprintf(filepath, sizeof(filepath), "%s%s.running", dataDir, TD_DIRSEP);
 
-  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_CLOEXEC);
+  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to open file:%s since %s", filepath, terrstr());

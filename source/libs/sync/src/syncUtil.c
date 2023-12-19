@@ -487,13 +487,3 @@ void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteRepl
   sNInfo(pSyncNode, "send sync-request-vote-reply to dnode:%d {term:%" PRId64 ", grant:%d}, %s", DID(&pMsg->destId),
          pMsg->term, pMsg->voteGranted, s);
 }
-
-int32_t syncSnapInfoDataRealloc(SSnapshot* pSnap, int32_t size) {
-  void* data = taosMemoryRealloc(pSnap->data, size);
-  if (data == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-  pSnap->data = data;
-  return 0;
-}

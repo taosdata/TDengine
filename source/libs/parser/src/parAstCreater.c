@@ -1638,13 +1638,6 @@ SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
   return (SNode*)pStmt;
 }
 
-SNode* createShowCompactsStmt(SAstCreateContext* pCxt, ENodeType type) {
-  CHECK_PARSER_STATUS(pCxt);
-  SShowCompactsStmt* pStmt = (SShowCompactsStmt*)nodesMakeNode(type);
-  CHECK_OUT_OF_MEM(pStmt);
-  return (SNode*)pStmt;
-}
-
 SNode* setShowKind(SAstCreateContext* pCxt, SNode* pStmt, EShowKind showKind) {
   if (pStmt == NULL) {
     return NULL;
@@ -1787,13 +1780,6 @@ SNode* createShowTableTagsStmt(SAstCreateContext* pCxt, SNode* pTbName, SNode* p
   pStmt->pDbName = pDbName;
   pStmt->pTbName = pTbName;
   pStmt->pTags = pTags;
-  return (SNode*)pStmt;
-}
-
-SNode* createShowCompactDetailsStmt(SAstCreateContext* pCxt, SNode* pCompactId) {
-  CHECK_PARSER_STATUS(pCxt);
-  SShowCompactDetailsStmt* pStmt = (SShowCompactDetailsStmt*)nodesMakeNode(QUERY_NODE_SHOW_COMPACT_DETAILS_STMT);
-  pStmt->pCompactId = pCompactId;
   return (SNode*)pStmt;
 }
 

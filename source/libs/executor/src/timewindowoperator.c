@@ -899,7 +899,6 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
 
   SWindowRowsSup* pRowSup = &pInfo->winSup;
   pRowSup->numOfRows = 0;
-  pRowSup->startRowIndex = 0;
 
   struct SColumnDataAgg* pAgg = NULL;
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
@@ -924,6 +923,9 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
       doKeepTuple(pRowSup, tsList[j], gid);
     } else if (compareVal(val, &pInfo->stateKey)) {
       doKeepTuple(pRowSup, tsList[j], gid);
+      if (j == 0 && pRowSup->startRowIndex != 0) {
+        pRowSup->startRowIndex = 0;
+      }
     } else {  // a new state window started
       SResultRow* pResult = NULL;
 

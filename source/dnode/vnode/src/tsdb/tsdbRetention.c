@@ -112,7 +112,7 @@ static int32_t tsdbCopyFileS3(SRTNer *rtner, const STFileObj *from, const STFile
   TSDB_CHECK_CODE(code, lino, _exit);
 
   char *object_name = taosDirEntryBaseName(fname);
-  code = s3PutObjectFromFile2(from->fname, object_name, 1);
+  code = s3PutObjectFromFile2(from->fname, object_name);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   taosCloseFile(&fdFrom);
@@ -249,7 +249,7 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
   } else {
-    tsdbDebug("vid:%d, cid:%" PRId64 ", %s done", TD_VID(rtner->tsdb->pVnode), rtner->cid, __func__);
+    tsdbInfo("vid:%d, cid:%" PRId64 ", %s done", TD_VID(rtner->tsdb->pVnode), rtner->cid, __func__);
   }
   return code;
 }
@@ -279,7 +279,7 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
   } else {
-    tsdbDebug("vid:%d, cid:%" PRId64 ", %s done", TD_VID(rtner->tsdb->pVnode), rtner->cid, __func__);
+    tsdbInfo("vid:%d, cid:%" PRId64 ", %s done", TD_VID(rtner->tsdb->pVnode), rtner->cid, __func__);
   }
   tsdbFSDestroyCopySnapshot(&rtner->fsetArr);
   return code;
@@ -391,6 +391,32 @@ _exit:
 
 static void tsdbFreeRtnArg(void *arg) { taosMemoryFree(arg); }
 
+static int32_t tsdbDoRetentionSync(void *arg) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SRTNer  rtner[1] = {0};
+
+  code = tsdbDoRetentionBegin(arg, rtner);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  STFileSet *fset;
+  TARRAY2_FOREACH(rtner->fsetArr, fset) {
+    code = tsdbDoRetentionOnFileSet(rtner, fset);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  code = tsdbDoRetentionEnd(rtner);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
+  }
+  tsem_post(&((SRtnArg *)arg)->tsdb->pVnode->canCommit);
+  tsdbFreeRtnArg(arg);
+  return code;
+}
+
 static int32_t tsdbDoRetentionAsync(void *arg) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -428,46 +454,49 @@ _exit:
 int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync) {
   int32_t code = 0;
 
-  taosThreadMutexLock(&tsdb->mutex);
-
-  if (tsdb->bgTaskDisabled) {
-    taosThreadMutexUnlock(&tsdb->mutex);
-    return 0;
-  }
-
-  STFileSet *fset;
-  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
-    code = tsdbTFileSetOpenChannel(fset);
-    if (code) {
-      taosThreadMutexUnlock(&tsdb->mutex);
-      return code;
-    }
-
+  if (sync) {  // sync retention
     SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
     if (arg == NULL) {
-      taosThreadMutexUnlock(&tsdb->mutex);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     arg->tsdb = tsdb;
     arg->now = now;
-    arg->fid = fset->fid;
+    arg->fid = INT32_MAX;
 
-    if (sync) {
-      code = vnodeAsyncC(vnodeAsyncHandle[0], tsdb->pVnode->commitChannel, EVA_PRIORITY_LOW, tsdbDoRetentionAsync,
-                         tsdbFreeRtnArg, arg, NULL);
-    } else {
-      code = vnodeAsyncC(vnodeAsyncHandle[1], fset->bgTaskChannel, EVA_PRIORITY_LOW, tsdbDoRetentionAsync,
-                         tsdbFreeRtnArg, arg, NULL);
-    }
+    tsem_wait(&tsdb->pVnode->canCommit);
+    code = vnodeScheduleTask(tsdbDoRetentionSync, arg);
     if (code) {
-      tsdbFreeRtnArg(arg);
-      taosThreadMutexUnlock(&tsdb->mutex);
+      tsem_post(&tsdb->pVnode->canCommit);
+      taosMemoryFree(arg);
       return code;
     }
-  }
+  } else {  // async retention
+    taosThreadMutexLock(&tsdb->mutex);
 
-  taosThreadMutexUnlock(&tsdb->mutex);
+    STFileSet *fset;
+    TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+      SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
+      if (arg == NULL) {
+        taosThreadMutexUnlock(&tsdb->mutex);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+
+      arg->tsdb = tsdb;
+      arg->now = now;
+      arg->fid = fset->fid;
+
+      code = tsdbFSScheduleBgTask(tsdb->pFS, fset->fid, TSDB_BG_TASK_RETENTION, tsdbDoRetentionAsync, tsdbFreeRtnArg,
+                                  arg, NULL);
+      if (code) {
+        tsdbFreeRtnArg(arg);
+        taosThreadMutexUnlock(&tsdb->mutex);
+        return code;
+      }
+    }
+
+    taosThreadMutexUnlock(&tsdb->mutex);
+  }
 
   return code;
 }

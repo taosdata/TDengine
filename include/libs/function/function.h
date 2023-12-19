@@ -171,7 +171,6 @@ typedef struct {
   int32_t                  taskId;
   int64_t                  streamId;
   int64_t                  streamBackendRid;
-  int8_t                   dump;
 } SStreamState;
 
 typedef struct SFunctionStateStore {

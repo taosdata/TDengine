@@ -129,8 +129,8 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t
   }
   pCfg->changeVersion = pReq->changeVersion;
 
-  vInfo("vgId:%d, save config while alter, replicas:%d totalReplicas:%d selfIndex:%d changeVersion:%d", pReq->vgId,
-        pCfg->replicaNum, pCfg->totalReplicaNum, pCfg->myIndex, pCfg->changeVersion);
+  vInfo("vgId:%d, save config while alter, replicas:%d totalReplicas:%d selfIndex:%d changeVersion:%d", 
+        pReq->vgId, pCfg->replicaNum, pCfg->totalReplicaNum, pCfg->myIndex, pCfg->changeVersion);
 
   info.config.syncCfg = *pCfg;
   ret = vnodeSaveInfo(dir, &info);
@@ -396,13 +396,9 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   pVnode->blocked = false;
 
   tsem_init(&pVnode->syncSem, 0, 0);
+  tsem_init(&(pVnode->canCommit), 0, 1);
   taosThreadMutexInit(&pVnode->mutex, NULL);
   taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
-
-  if (vnodeAChannelInit(vnodeAsyncHandle[0], &pVnode->commitChannel) != 0) {
-    vError("vgId:%d, failed to init commit channel", TD_VID(pVnode));
-    goto _err;
-  }
 
   int8_t rollback = vnodeShouldRollback(pVnode);
 
@@ -491,6 +487,7 @@ _err:
   if (pVnode->pMeta) metaClose(&pVnode->pMeta);
   if (pVnode->freeList) vnodeCloseBufPool(pVnode);
 
+  tsem_destroy(&(pVnode->canCommit));
   taosMemoryFree(pVnode);
   return NULL;
 }
@@ -504,8 +501,7 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
-    vnodeAWait(vnodeAsyncHandle[0], pVnode->commitTask);
-    vnodeAChannelDestroy(vnodeAsyncHandle[0], pVnode->commitChannel, true);
+    tsem_wait(&pVnode->canCommit);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     tqClose(pVnode->pTq);
@@ -514,8 +510,10 @@ void vnodeClose(SVnode *pVnode) {
     smaClose(pVnode->pSma);
     if (pVnode->pMeta) metaClose(&pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
+    tsem_post(&pVnode->canCommit);
 
     // destroy handle
+    tsem_destroy(&(pVnode->canCommit));
     tsem_destroy(&pVnode->syncSem);
     taosThreadCondDestroy(&pVnode->poolNotEmpty);
     taosThreadMutexDestroy(&pVnode->mutex);

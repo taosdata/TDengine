@@ -148,9 +148,6 @@ static void *dmCrashReportThreadFp(void *param) {
         if (pFile) {
           taosReleaseCrashLogFile(pFile, false);
           pFile = NULL;
-
-          taosMsleep(sleepTime);
-          loopTimes = 0;
           continue;
         }
       } else {

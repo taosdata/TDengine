@@ -503,15 +503,15 @@ static void seqJoinLaunchNewRetrieveImpl(SOperatorInfo* pOperator, SSDataBlock**
     T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
   }
 
-  qDebug("%s dynamic post task begin", GET_TASKID(pOperator->pTaskInfo));
+  qError("dynamic post task begin");
   *ppRes = pOperator->pDownstream[1]->fpSet.getNextExtFn(pOperator->pDownstream[1], pParam);
   if (*ppRes) {
     pPost->isStarted = true;
     pStbJoin->execInfo.postBlkNum++;
     pStbJoin->execInfo.postBlkRows += (*ppRes)->info.rows;
-    qDebug("%s join res block retrieved", GET_TASKID(pOperator->pTaskInfo));
+    qError("join res block retrieved");
   } else {
-    qDebug("%s Empty join res block retrieved", GET_TASKID(pOperator->pTaskInfo));
+    qError("Empty join res block retrieved");
   }
 }
 

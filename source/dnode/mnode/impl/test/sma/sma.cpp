@@ -253,14 +253,12 @@ TEST_F(MndTestSma, 02_Create_Show_Meta_Drop_Restart_BSma) {
     pReq = BuildCreateDbReq(dbname, &contLen);
     pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
-    rpcFreeCont(pRsp->pCont);
   }
 
   {
     pReq = BuildCreateBSmaStbReq(stbname, &contLen);
     pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
-    rpcFreeCont(pRsp->pCont);
     test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
@@ -271,14 +269,12 @@ TEST_F(MndTestSma, 02_Create_Show_Meta_Drop_Restart_BSma) {
     pReq = BuildCreateBSmaStbReq(stbname, &contLen);
     pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_STB_ALREADY_EXIST);
-    rpcFreeCont(pRsp->pCont);
   }
 
   {
     pReq = BuildDropStbReq(stbname, &contLen);
     pRsp = test.SendReq(TDMT_MND_DROP_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
-    rpcFreeCont(pRsp->pCont);
     test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 0);
   }
@@ -287,6 +283,5 @@ TEST_F(MndTestSma, 02_Create_Show_Meta_Drop_Restart_BSma) {
     pReq = BuildDropStbReq(stbname, &contLen);
     pRsp = test.SendReq(TDMT_MND_DROP_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_STB_NOT_EXIST);
-    rpcFreeCont(pRsp->pCont);
   }
 }

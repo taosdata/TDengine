@@ -56,7 +56,6 @@ static int32_t streamTaskInitStatus(SStreamTask* pTask);
 static int32_t streamTaskKeepCurrentVerInWal(SStreamTask* pTask);
 static int32_t initStateTransferTable();
 static void    doInitStateTransferTable(void);
-static int32_t streamTaskSendTransSuccessMsg(SStreamTask* pTask);
 
 static STaskStateTrans createStateTransform(ETaskStatus current, ETaskStatus next, EStreamTaskEvent event,
                                             __state_trans_fn fn, __state_trans_succ_fn succFn,
@@ -85,13 +84,6 @@ int32_t streamTaskInitStatus(SStreamTask* pTask) {
 
 static int32_t streamTaskDoCheckpoint(SStreamTask* pTask) {
   stDebug("s-task:%s start to do checkpoint", pTask->id.idStr);
-  return 0;
-}
-
-int32_t streamTaskSendTransSuccessMsg(SStreamTask* pTask) {
-  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    streamTaskSendCheckpointSourceRsp(pTask);
-  }
   return 0;
 }
 
@@ -559,7 +551,7 @@ void doInitStateTransferTable(void) {
   taosArrayPush(streamTaskSMTrans, &trans);
   trans = createStateTransform(TASK_STATUS__PAUSE, TASK_STATUS__DROPPING, TASK_EVENT_DROPPING, NULL, NULL, NULL, true);
   taosArrayPush(streamTaskSMTrans, &trans);
-  trans = createStateTransform(TASK_STATUS__CK, TASK_STATUS__DROPPING, TASK_EVENT_DROPPING, streamTaskSendTransSuccessMsg, NULL, NULL, true);
+  trans = createStateTransform(TASK_STATUS__CK, TASK_STATUS__DROPPING, TASK_EVENT_DROPPING, NULL, NULL, NULL, true);
   taosArrayPush(streamTaskSMTrans, &trans);
   trans = createStateTransform(TASK_STATUS__STREAM_SCAN_HISTORY, TASK_STATUS__DROPPING, TASK_EVENT_DROPPING, NULL, NULL, NULL, true);
   taosArrayPush(streamTaskSMTrans, &trans);

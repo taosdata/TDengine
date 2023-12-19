@@ -124,7 +124,6 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_INVALID_CFG_VALUE             TAOS_DEF_ERROR_CODE(0, 0x0133)
 
 #define TSDB_CODE_IP_NOT_IN_WHITE_LIST          TAOS_DEF_ERROR_CODE(0, 0x0134)
-#define TSDB_CODE_FAILED_TO_CONNECT_S3          TAOS_DEF_ERROR_CODE(0, 0x0135)
 
 //client
 #define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)
@@ -426,9 +425,6 @@ int32_t* taosGetErrno();
 // mnode-view
 #define TSDB_CODE_MND_VIEW_ALREADY_EXIST        TAOS_DEF_ERROR_CODE(0, 0x04A0)
 #define TSDB_CODE_MND_VIEW_NOT_EXIST            TAOS_DEF_ERROR_CODE(0, 0x04A1)
-
-//mnode-compact
-#define TSDB_CODE_MND_INVALID_COMPACT_ID        TAOS_DEF_ERROR_CODE(0, 0x04B1)
 
 
 // vnode

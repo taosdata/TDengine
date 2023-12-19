@@ -16,18 +16,38 @@
 #include "streamInt.h"
 #include "ttimer.h"
 
-void* streamTimer = NULL;
+SStreamGlobalEnv streamEnv;
 
-int32_t streamTimerInit() {
-  streamTimer = taosTmrInit(1000, 100, 10000, "STREAM");
-  if (streamTimer == NULL) {
-    return -1;
+int32_t streamInit() {
+  int8_t old;
+  while (1) {
+    old = atomic_val_compare_exchange_8(&streamEnv.inited, 0, 2);
+    if (old != 2) break;
   }
+
+  if (old == 0) {
+    streamEnv.timer = taosTmrInit(1000, 100, 10000, "STREAM");
+    if (streamEnv.timer == NULL) {
+      atomic_store_8(&streamEnv.inited, 0);
+      return -1;
+    }
+    atomic_store_8(&streamEnv.inited, 1);
+  }
+
   return 0;
 }
 
-void streamTimerCleanUp() {
-  taosTmrCleanUp(streamTimer);
+void streamCleanUp() {
+  int8_t old;
+  while (1) {
+    old = atomic_val_compare_exchange_8(&streamEnv.inited, 1, 2);
+    if (old != 2) break;
+  }
+
+  if (old == 1) {
+    taosTmrCleanUp(streamEnv.timer);
+    atomic_store_8(&streamEnv.inited, 0);
+  }
 }
 
 char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
@@ -57,7 +77,7 @@ static void streamSchedByTimer(void* param, void* tmrId) {
       if (pTrigger == NULL) {
         stError("s-task:%s failed to prepare retrieve data trigger, code:%s, try again in %dms", id, "out of memory",
                 nextTrigger);
-        taosTmrReset(streamSchedByTimer, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pTimer);
+        taosTmrReset(streamSchedByTimer, nextTrigger, pTask, streamEnv.timer, &pTask->schedInfo.pTimer);
         return;
       }
 
@@ -68,7 +88,7 @@ static void streamSchedByTimer(void* param, void* tmrId) {
 
         stError("s-task:%s failed to prepare retrieve data trigger, code:%s, try again in %dms", id, "out of memory",
                 nextTrigger);
-        taosTmrReset(streamSchedByTimer, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pTimer);
+        taosTmrReset(streamSchedByTimer, nextTrigger, pTask, streamEnv.timer, &pTask->schedInfo.pTimer);
         return;
       }
 
@@ -77,7 +97,7 @@ static void streamSchedByTimer(void* param, void* tmrId) {
 
       int32_t code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTrigger);
       if (code != TSDB_CODE_SUCCESS) {
-        taosTmrReset(streamSchedByTimer, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pTimer);
+        taosTmrReset(streamSchedByTimer, nextTrigger, pTask, streamEnv.timer, &pTask->schedInfo.pTimer);
         return;
       }
 
@@ -85,7 +105,7 @@ static void streamSchedByTimer(void* param, void* tmrId) {
     }
   }
 
-  taosTmrReset(streamSchedByTimer, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pTimer);
+  taosTmrReset(streamSchedByTimer, nextTrigger, pTask, streamEnv.timer, &pTask->schedInfo.pTimer);
 }
 
 int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
@@ -95,7 +115,7 @@ int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
 
     stDebug("s-task:%s setup scheduler trigger, delay:%" PRId64 " ms", pTask->id.idStr, pTask->info.triggerParam);
 
-    pTask->schedInfo.pTimer = taosTmrStart(streamSchedByTimer, (int32_t)pTask->info.triggerParam, pTask, streamTimer);
+    pTask->schedInfo.pTimer = taosTmrStart(streamSchedByTimer, (int32_t)pTask->info.triggerParam, pTask, streamEnv.timer);
     pTask->schedInfo.status = TASK_TRIGGER_STATUS__INACTIVE;
   }
 
@@ -256,7 +276,6 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
     int32_t code = buildDispatchRsp(pTask, pReq, status, &pRsp->pCont);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s failed to build dispatch rsp, msgId:%d, code:%s", id, pReq->msgId, tstrerror(code));
-      terrno = code;
       return code;
     }
 
@@ -264,6 +283,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
     tmsgSendRsp(pRsp);
   }
 
+  tDeleteStreamDispatchReq(pReq);
   streamSchedExec(pTask);
 
   return 0;

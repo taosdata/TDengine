@@ -189,7 +189,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
   }
 
   int64_t lastTs = TSKEY_MIN;
-  bool    updateLastRow = false;
+  bool    ignoreRow = false;
   bool    disorderTs = false;
 
   for (int32_t j = 0; j < rows; ++j) {  // iterate by row
@@ -249,7 +249,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
             } else {
               if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
                 if (*(int64_t*)var == lastTs) {
-                  updateLastRow = true;
+                  ignoreRow = true;
                 } else if (*(int64_t*)var < lastTs) {
                   disorderTs = true;
                 } else {
@@ -269,6 +269,15 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
           }
           break;
       }
+
+      if (ignoreRow) {
+        break;
+      }
+    }
+
+    if (ignoreRow) {
+      ignoreRow = false;
+      continue;
     }
 
     SRow* pRow = NULL;
@@ -276,14 +285,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
       tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
       goto _end;
     }
-    if (updateLastRow) {
-      updateLastRow = false;
-      SRow** lastRow = taosArrayPop(tbData.aRowP);
-      tRowDestroy(*lastRow);
-      taosArrayPush(tbData.aRowP, &pRow);
-    } else {
-      taosArrayPush(tbData.aRowP, &pRow);
-    }
+    taosArrayPush(tbData.aRowP, &pRow);
   }
 
   if (disorderTs) {

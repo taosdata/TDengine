@@ -46,10 +46,6 @@ extern "C" {
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD3_LEN (TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE)
 
-#define COMPACT_DB_RESULT_COLS 3
-#define COMPACT_DB_RESULT_FIELD1_LEN 32
-#define COMPACT_DB_RESULT_FIELD3_LEN 128
-
 #define SHOW_ALIVE_RESULT_COLS 1
 
 #define BIT_FLAG_MASK(n)              (1 << n)
@@ -338,15 +334,6 @@ typedef struct SShowTableTagsStmt {
   SNode*     pTbName;  // SValueNode
   SNodeList* pTags;
 } SShowTableTagsStmt;
-
-typedef struct SShowCompactsStmt {
-  ENodeType type;
-} SShowCompactsStmt;
-
-typedef struct SShowCompactDetailsStmt {
-  ENodeType type;
-  SNode* pCompactId;
-} SShowCompactDetailsStmt;
 
 typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT, INDEX_TYPE_NORMAL } EIndexType;
 

@@ -441,5 +441,4 @@ TEST_F(WalRetentionEnv, repairMeta1) {
       EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
     }
   }
-  walCloseReader(pRead);
 }

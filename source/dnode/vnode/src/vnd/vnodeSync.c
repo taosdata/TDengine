@@ -18,7 +18,6 @@
 #include "sync.h"
 #include "tsdb.h"
 #include "vnd.h"
-#include "tqCommon.h"
 
 #define BATCH_ENABLE 0
 
@@ -570,8 +569,8 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
       vInfo("vgId:%d, sync restore finished, not launch stream tasks, since stream tasks are disabled", vgId);
     } else {
       vInfo("vgId:%d sync restore finished, start to launch stream tasks", pVnode->config.vgId);
-      resetStreamTaskStatus(pVnode->pTq->pStreamMeta);
-      tqStreamTaskStartAsync(pMeta, &pVnode->msgCb, false);
+      tqResetStreamTaskStatus(pVnode->pTq);
+      tqStartStreamTaskAsync(pVnode->pTq, false);
     }
   } else {
     vInfo("vgId:%d, sync restore finished, not launch stream tasks since not leader", vgId);
@@ -804,7 +803,7 @@ int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnap) {
   }
 
   if (pSnap->type == TDMT_SYNC_PREP_SNAPSHOT || pSnap->type == TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
-    code = tsdbSnapPrepDescription(pVnode, pSnap);
+    code = tsdbSnapGetDetails(pVnode, pSnap);
   }
   return code;
 }
