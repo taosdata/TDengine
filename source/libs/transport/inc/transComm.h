@@ -23,7 +23,6 @@ extern "C" {
 #include "taoserror.h"
 #include "theap.h"
 #include "tmisce.h"
-#include "tmsg.h"
 #include "transLog.h"
 #include "transportInt.h"
 #include "trpc.h"

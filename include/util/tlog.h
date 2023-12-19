@@ -66,7 +66,6 @@ extern int32_t udfDebugFlag;
 extern int32_t smaDebugFlag;
 extern int32_t idxDebugFlag;
 extern int32_t tdbDebugFlag;
-extern int32_t sndDebugFlag;
 
 int32_t taosInitLog(const char *logName, int32_t maxFiles);
 void    taosCloseLog();

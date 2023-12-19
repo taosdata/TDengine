@@ -112,59 +112,10 @@ class TDTestCase:
         self.data_check(timezone,self.stbname,'stable')
         for i in range(self.tbnum):
             self.data_check(timezone,f'{self.stbname}_{i}','child_table')
-        tdSql.execute(f'drop database {self.dbname}')
-
-    def timezone_format_test(self):
-        tdSql.execute(f'create database {self.dbname}')
-        tdSql.execute(self.setsql.set_create_stable_sql(f'{self.dbname}.stb', {'ts':'timestamp','id':'int'}, {'status':'int'}))
-
-        tdSql.execute(f"insert into {self.dbname}.d0 using {self.dbname}.stb tags (1) values ('2021-07-01 00:00:00.000',0);")
-        tdSql.query(f"select ts from {self.dbname}.d0;")
-        tdSql.checkData(0, 0, "2021-07-01 00:00:00.000")
-
-        tdSql.execute(f"insert into {self.dbname}.d1 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+07:50',1)")
-        tdSql.query(f"select ts from {self.dbname}.d1")
-        tdSql.checkData(0, 0, "2021-07-01 00:10:00.000")
-
-        tdSql.execute(f"insert into {self.dbname}.d2 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+12:00',1)")
-        tdSql.query(f"select ts from {self.dbname}.d2")
-        tdSql.checkData(0, 0, "2021-06-30 20:00:00.000")
-
-        tdSql.execute(f"insert into {self.dbname}.d3 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-00:10',1)")
-        tdSql.query(f"select ts from {self.dbname}.d3")
-        tdSql.checkData(0, 0, "2021-07-01 08:10:00.000")
-
-        tdSql.execute(f"insert into {self.dbname}.d4 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-12:00',1)")
-        tdSql.query(f"select ts from {self.dbname}.d4")
-        tdSql.checkData(0, 0, "2021-07-01 20:00:00.000")
-
-        tdSql.execute(f"insert into {self.dbname}.d5 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-1200',1)")
-        tdSql.query(f"select ts from {self.dbname}.d5")
-        tdSql.checkData(0, 0, "2021-07-01 20:00:00.000")
-
-        tdSql.execute(f"insert into {self.dbname}.d6 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-115',1)")
-        tdSql.query(f"select ts from {self.dbname}.d6")
-        tdSql.checkData(0, 0, "2021-07-01 19:05:00.000")
-
-        tdSql.execute(f"insert into {self.dbname}.d7 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-1105',1)")
-        tdSql.query(f"select ts from {self.dbname}.d7")
-        tdSql.checkData(0, 0, "2021-07-01 19:05:00.000")
-
-        tdSql.error(f"insert into {self.dbname}.d21 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+12:10',1)")
-        tdSql.error(f"insert into {self.dbname}.d22 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24:10',1)")
-        tdSql.error(f"insert into {self.dbname}.d23 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+12:10',1)")
-        tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24:10',1)")
-        tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24100',1)")
-        tdSql.error(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-1210',1)")
-
-        tdSql.execute(f'drop database {self.dbname}')
-
-
     def run(self):  # sourcery skip: extract-duplicate-method
         timezone = self.get_system_timezone()
         self.timezone_check_ntb(timezone)
         self.timezone_check_stb(timezone)
-        self.timezone_format_test()
 
     def stop(self):
         tdSql.close()

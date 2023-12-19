@@ -153,8 +153,29 @@ typedef struct STsdbReader STsdbReader;
 #define CACHESCAN_RETRIEVE_LAST_ROW    0x4
 #define CACHESCAN_RETRIEVE_LAST        0x8
 
+int32_t      tsdbReaderOpen(void *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
+                            SSDataBlock *pResBlock, void **ppReader, const char *idstr, bool countOnly,
+                            SHashObj **pIgnoreTables);
+int32_t      tsdbSetTableList(STsdbReader *pReader, const void *pTableList, int32_t num);
+void         tsdbReaderSetId(STsdbReader *pReader, const char *idstr);
+void         tsdbReaderClose(STsdbReader *pReader);
+int32_t      tsdbNextDataBlock(STsdbReader *pReader, bool *hasNext);
+int32_t      tsdbRetrieveDatablockSMA(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave, bool *hasNullSMA);
+void         tsdbReleaseDataBlock(STsdbReader *pReader);
+SSDataBlock *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
+int32_t      tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);
+int32_t      tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
+int64_t      tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
+void        *tsdbGetIdx(SMeta *pMeta);
+void        *tsdbGetIvtIdx(SMeta *pMeta);
+uint64_t     tsdbGetReaderMaxVersion(STsdbReader *pReader);
+void         tsdbReaderSetCloseFlag(STsdbReader *pReader);
+int64_t      tsdbGetLastTimestamp(SVnode *pVnode, void *pTableList, int32_t numOfTables, const char *pIdStr);
+
+//======================================================================================================================
 int32_t      tsdbReaderOpen2(void *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
-                             SSDataBlock *pResBlock, void **ppReader, const char *idstr, SHashObj **pIgnoreTables);
+                             SSDataBlock *pResBlock, void **ppReader, const char *idstr, bool countOnly,
+                             SHashObj **pIgnoreTables);
 int32_t      tsdbSetTableList2(STsdbReader *pReader, const void *pTableList, int32_t num);
 void         tsdbReaderSetId2(STsdbReader *pReader, const char *idstr);
 void         tsdbReaderClose2(STsdbReader *pReader);
@@ -170,8 +191,7 @@ void        *tsdbGetIvtIdx2(SMeta *pMeta);
 uint64_t     tsdbGetReaderMaxVersion2(STsdbReader *pReader);
 void         tsdbReaderSetCloseFlag(STsdbReader *pReader);
 int64_t      tsdbGetLastTimestamp2(SVnode *pVnode, void *pTableList, int32_t numOfTables, const char *pIdStr);
-void         tsdbSetFilesetDelimited(STsdbReader* pReader);
-void         tsdbReaderSetNotifyCb(STsdbReader* pReader, TsdReaderNotifyCbFn notifyFn, void* param);
+//======================================================================================================================
 
 int32_t tsdbReuseCacherowsReader(void *pReader, void *pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
@@ -232,6 +252,8 @@ int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, i
 bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(STqReader *pReader, SSDataBlock **pRes, const char *idstr);
 int32_t tqRetrieveTaosxBlock(STqReader *pReader, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet);
+
+int32_t vnodeEnqueueStreamMsg(SVnode *pVnode, SRpcMsg *pMsg);
 
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);

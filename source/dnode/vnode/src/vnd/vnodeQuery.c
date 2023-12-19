@@ -423,9 +423,9 @@ void vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
                             "nBatchInsertSuccess");
 }
 
-void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *numOfTables, int64_t *numOfNormalTables) {
-  SVnode    *pVnodeObj = pVnode;
-  SVnodeCfg *pConf = &pVnodeObj->config;
+void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t* numOfTables, int64_t* numOfNormalTables) {
+  SVnode* pVnodeObj = pVnode;
+  SVnodeCfg* pConf = &pVnodeObj->config;
 
   if (dbname) {
     *dbname = pConf->dbname;
@@ -444,7 +444,7 @@ void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *num
   }
 }
 
-int32_t vnodeGetTableList(void *pVnode, int8_t type, SArray *pList) {
+int32_t vnodeGetTableList(void* pVnode, int8_t type, SArray* pList) {
   if (type == TSDB_SUPER_TABLE) {
     return vnodeGetStbIdList(pVnode, 0, pList);
   } else {
@@ -694,12 +694,12 @@ void *vnodeGetIdx(void *pVnode) {
     return NULL;
   }
 
-  return metaGetIdx(((SVnode *)pVnode)->pMeta);
+  return metaGetIdx(((SVnode*)pVnode)->pMeta);
 }
 
 void *vnodeGetIvtIdx(void *pVnode) {
   if (pVnode == NULL) {
     return NULL;
   }
-  return metaGetIvtIdx(((SVnode *)pVnode)->pMeta);
+  return metaGetIvtIdx(((SVnode*)pVnode)->pMeta);
 }

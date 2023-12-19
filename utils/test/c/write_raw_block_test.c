@@ -19,8 +19,8 @@
 #include "taos.h"
 #include "types.h"
 
-int buildStable(TAOS* pConn) {
-  TAOS_RES* pRes = taos_query(pConn,
+int buildStable(TAOS* pConn, TAOS_RES* pRes) {
+  pRes = taos_query(pConn,
                     "CREATE STABLE `meters` (`ts` TIMESTAMP, `current` INT, `voltage` INT, `phase` FLOAT) TAGS "
                     "(`groupid` INT, `location` VARCHAR(16))");
   if (taos_errno(pRes) != 0) {
@@ -57,34 +57,6 @@ int buildStable(TAOS* pConn) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table ntba(ts timestamp, addr binary(32))");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create ntba, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create table ntbb(ts timestamp, addr binary(8))");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create ntbb, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "insert into ntba values(now,'123456789abcdefg123456789')");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to insert table ntba, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "insert into ntba values(now,'hello')");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to insert table ntba, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
   return 0;
 }
 
@@ -93,43 +65,40 @@ int32_t init_env() {
   if (pConn == NULL) {
     return -1;
   }
-  int32_t ret = -1;
 
   TAOS_RES* pRes = taos_query(pConn, "drop database if exists db_raw");
   if (taos_errno(pRes) != 0) {
     printf("error in drop db_taosx, reason:%s\n", taos_errstr(pRes));
-    goto END;
+    return -1;
   }
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create database if not exists db_raw vgroups 2");
   if (taos_errno(pRes) != 0) {
     printf("error in create db_taosx, reason:%s\n", taos_errstr(pRes));
-    goto END;
+    return -1;
   }
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "use db_raw");
   if (taos_errno(pRes) != 0) {
     printf("error in create db_taosx, reason:%s\n", taos_errstr(pRes));
-    goto END;
+    return -1;
   }
   taos_free_result(pRes);
 
-  buildStable(pConn);
+  buildStable(pConn, pRes);
 
   pRes = taos_query(pConn, "select * from d0");
   if (taos_errno(pRes) != 0) {
     printf("error in drop db_taosx, reason:%s\n", taos_errstr(pRes));
-    goto END;
+    return -1;
   }
   void   *data = NULL;
   int32_t numOfRows = 0;
   int     error_code = taos_fetch_raw_block(pRes, &numOfRows, &data);
-  if(error_code !=0 ){
-    printf("error fetch raw block, reason:%s\n", taos_errstr(pRes));
-    goto END;
-  }
+  ASSERT(error_code == 0);
+  ASSERT(numOfRows == 1);
 
   taos_write_raw_block(pConn, numOfRows, data, "d1");
   taos_free_result(pRes);
@@ -137,78 +106,23 @@ int32_t init_env() {
   pRes = taos_query(pConn, "select ts,phase from d0");
   if (taos_errno(pRes) != 0) {
     printf("error in drop db_taosx, reason:%s\n", taos_errstr(pRes));
-    goto END;
+    return -1;
   }
   error_code = taos_fetch_raw_block(pRes, &numOfRows, &data);
-  if(error_code !=0 ){
-    printf("error fetch raw block, reason:%s\n", taos_errstr(pRes));
-    goto END;
-  }
+  ASSERT(error_code == 0);
+  ASSERT(numOfRows == 1);
 
   int         numFields = taos_num_fields(pRes);
   TAOS_FIELD *fields = taos_fetch_fields(pRes);
   taos_write_raw_block_with_fields(pConn, numOfRows, data, "d2", fields, numFields);
   taos_free_result(pRes);
 
-  // check error msg
-  pRes = taos_query(pConn, "select * from ntba");
-  if (taos_errno(pRes) != 0) {
-    printf("error select * from ntba, reason:%s\n", taos_errstr(pRes));
-    goto END;
-  }
-
-  data = NULL;
-  numOfRows = 0;
-  error_code = taos_fetch_raw_block(pRes, &numOfRows, &data);
-  if(error_code !=0 ){
-    printf("error fetch select * from ntba, reason:%s\n", taos_errstr(pRes));
-    goto END;
-  }
-  error_code = taos_write_raw_block(pConn, numOfRows, data, "ntbb");
-  if(error_code == 0) {
-      printf(" taos_write_raw_block to ntbb expect failed , but success!\n");
-      goto END;
-  }
-
-  // pass NULL return last error code describe
-  const char* err = taos_errstr(NULL);
-  printf("write_raw_block return code =0x%x err=%s\n", error_code, err);
-  if(strcmp(err, "success") == 0) {
-      printf("expect failed , but error string is success! err=%s\n", err);
-      goto END;
-  }
-
-  // no exist table
-  error_code = taos_write_raw_block(pConn, numOfRows, data, "no-exist-table");
-  if(error_code == 0) {
-      printf(" taos_write_raw_block to no-exist-table expect failed , but success!\n");
-      goto END;
-  }
-
-  err = taos_errstr(NULL);
-  printf("write_raw_block no exist table return code =0x%x err=%s\n", error_code, err);
-  if(strcmp(err, "success") == 0) {
-      printf("expect failed write no exist table, but error string is success! err=%s\n", err);
-      goto END;
-  }
-
-  // success
-  ret  = 0;
-
-END:
-  // free
-  if(pRes) taos_free_result(pRes);
-  if(pConn) taos_close(pConn);
-  return ret;
+  taos_close(pConn);
+  return 0;
 }
 
 int main(int argc, char* argv[]) {
-  printf("test write_raw_block...\n");
-  int ret = init_env();
-  if (ret < 0) {
-    printf("test write_raw_block failed.\n");
-    return ret;
+  if (init_env() < 0) {
+    return -1;
   }
-  printf("test write_raw_block ok.\n");
-  return 0;
 }

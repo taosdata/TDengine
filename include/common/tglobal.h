@@ -75,15 +75,12 @@ extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
 extern int32_t tsHeartbeatTimeout;
 
-// vnode
-extern int64_t tsVndCommitMaxIntervalMs;
-
 // snode
 extern int32_t tsRsyncPort;
-extern char    tsCheckpointBackupDir[];
+extern char tsCheckpointBackupDir[];
 
 // vnode checkpoint
-extern char tsSnodeAddress[];  // 127.0.0.1:873
+extern char tsSnodeAddress[];       //127.0.0.1:873
 
 // mnode
 extern int64_t tsMndSdbWriteDelta;
@@ -117,9 +114,9 @@ extern int32_t  tsTelemInterval;
 extern char     tsTelemServer[];
 extern uint16_t tsTelemPort;
 extern bool     tsEnableCrashReport;
-extern char *   tsTelemUri;
-extern char *   tsClientCrashReportUri;
-extern char *   tsSvrCrashReportUri;
+extern char    *tsTelemUri;
+extern char    *tsClientCrashReportUri;
+extern char    *tsSvrCrashReportUri;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
@@ -196,7 +193,6 @@ extern int64_t tsWalFsyncDataSizeLimit;
 
 // internal
 extern int32_t tsTransPullupInterval;
-extern int32_t tsCompactPullupInterval;
 extern int32_t tsMqRebalanceInterval;
 extern int32_t tsStreamCheckpointInterval;
 extern float   tsSinkDataRate;
@@ -215,7 +211,6 @@ extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
 extern int32_t tsResolveFQDNRetryTime;
 
-extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,

@@ -288,7 +288,6 @@ typedef enum ELogicConditionType {
 #define TSDB_CONN_ACTIVE_KEY_LEN 255
 
 #define TSDB_DEFAULT_PKT_SIZE 65480  // same as RPC_MAX_UDP_SIZE
-#define TSDB_SNAP_DATA_PAYLOAD_SIZE (1 * 1024 * 1024)
 
 #define TSDB_PAYLOAD_SIZE         TSDB_DEFAULT_PKT_SIZE
 #define TSDB_DEFAULT_PAYLOAD_SIZE 5120  // default payload size, greater than PATH_MAX value
@@ -306,7 +305,7 @@ typedef enum ELogicConditionType {
 #define TSDB_SYNC_APPLYQ_SIZE_LIMIT    512
 #define TSDB_SYNC_NEGOTIATION_WIN      512
 
-#define TSDB_SYNC_SNAP_BUFFER_SIZE 1024
+#define TSDB_SYNC_SNAP_BUFFER_SIZE 2048
 
 #define TSDB_TBNAME_COLUMN_INDEX     (-1)
 #define TSDB_MULTI_TABLEMETA_MAX_NUM 100000  // maximum batch size allowed to load table meta

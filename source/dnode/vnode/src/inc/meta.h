@@ -79,7 +79,6 @@ struct SMeta {
 
   char*   path;
   SVnode* pVnode;
-  bool    changed;
   TDB*    pEnv;
   TXN*    txn;
   TTB*    pTbDb;

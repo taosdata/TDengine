@@ -37,7 +37,6 @@ TEST_F(DndTestQnode, 01_Create_Qnode) {
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_QNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_INVALID_OPTION);
-    rpcFreeCont(pRsp->pCont);
   }
 
   {
@@ -51,7 +50,6 @@ TEST_F(DndTestQnode, 01_Create_Qnode) {
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_QNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
-    rpcFreeCont(pRsp->pCont);
   }
 
   {
@@ -65,7 +63,6 @@ TEST_F(DndTestQnode, 01_Create_Qnode) {
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_QNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_QNODE_ALREADY_DEPLOYED);
-    rpcFreeCont(pRsp->pCont);
   }
 
   test.Restart();
@@ -81,7 +78,6 @@ TEST_F(DndTestQnode, 01_Create_Qnode) {
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_QNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_QNODE_ALREADY_DEPLOYED);
-    rpcFreeCont(pRsp->pCont);
   }
 }
 
@@ -98,7 +94,6 @@ TEST_F(DndTestQnode, 02_Drop_Qnode) {
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_QNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_INVALID_OPTION);
-    rpcFreeCont(pRsp->pCont);
   }
 #endif
 
@@ -113,7 +108,6 @@ TEST_F(DndTestQnode, 02_Drop_Qnode) {
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_QNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
-    rpcFreeCont(pRsp->pCont);
   }
 
   {
@@ -127,7 +121,6 @@ TEST_F(DndTestQnode, 02_Drop_Qnode) {
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_QNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_QNODE_NOT_DEPLOYED);
-    rpcFreeCont(pRsp->pCont);
   }
 
   test.Restart();
@@ -143,7 +136,6 @@ TEST_F(DndTestQnode, 02_Drop_Qnode) {
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_QNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_QNODE_NOT_DEPLOYED);
-    rpcFreeCont(pRsp->pCont);
   }
 
   {
@@ -157,6 +149,5 @@ TEST_F(DndTestQnode, 02_Drop_Qnode) {
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_QNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
-    rpcFreeCont(pRsp->pCont);
   }
 }

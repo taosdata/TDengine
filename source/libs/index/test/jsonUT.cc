@@ -60,7 +60,6 @@ class JsonEnv : public ::testing::Test {
   }
   virtual void TearDown() {
     indexJsonClose(index);
-    indexOptsDestroy(opts);
     printf("destory\n");
     taosMsleep(1000);
   }
@@ -153,7 +152,6 @@ TEST_F(JsonEnv, testWrite) {
     indexMultiTermQueryAdd(mq, q, QUERY_TERM);
     indexJsonSearch(index, mq, result);
     EXPECT_EQ(100, taosArrayGetSize(result));
-    taosArrayDestroy(result);
     indexMultiTermQueryDestroy(mq);
   }
 }
@@ -213,7 +211,6 @@ TEST_F(JsonEnv, testWriteMillonData) {
     indexJsonSearch(index, mq, result);
     EXPECT_EQ(10, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
-    taosArrayDestroy(result);
   }
   {
     {
@@ -229,7 +226,6 @@ TEST_F(JsonEnv, testWriteMillonData) {
       indexJsonSearch(index, mq, result);
       EXPECT_EQ(0, taosArrayGetSize(result));
       indexMultiTermQueryDestroy(mq);
-      taosArrayDestroy(result);
     }
     {
       {
@@ -245,7 +241,6 @@ TEST_F(JsonEnv, testWriteMillonData) {
         indexJsonSearch(index, mq, result);
         EXPECT_EQ(10, taosArrayGetSize(result));
         indexMultiTermQueryDestroy(mq);
-        taosArrayDestroy(result);
       }
     }
   }
@@ -316,7 +311,6 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
     indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
-    taosArrayDestroy(result);
   }
   {
     std::string colName("test");
@@ -331,7 +325,6 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
     indexJsonSearch(index, mq, result);
     EXPECT_EQ(0, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
-    taosArrayDestroy(result);
   }
   {
     std::string colName("test");
@@ -347,7 +340,6 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
     indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
-    taosArrayDestroy(result);
   }
   {
     std::string colName("test");
@@ -363,7 +355,6 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
     indexJsonSearch(index, mq, result);
     EXPECT_EQ(0, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
-    taosArrayDestroy(result);
   }
   {
     std::string colName("test");
@@ -379,7 +370,6 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
     indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
-    taosArrayDestroy(result);
   }
 }
 
@@ -423,7 +413,6 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
     indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
-    taosArrayDestroy(result);
   }
   {
     std::string colName("test1");
@@ -438,7 +427,6 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
     indexJsonSearch(index, mq, result);
     EXPECT_EQ(0, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
-    taosArrayDestroy(result);
   }
   {
     std::string colName("test1");
@@ -454,7 +442,6 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
     indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
-    taosArrayDestroy(result);
   }
   {
     std::string colName("test1");
@@ -469,7 +456,6 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
     indexJsonSearch(index, mq, result);
     EXPECT_EQ(0, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
-    taosArrayDestroy(result);
   }
   {
     std::string colName("test1");
@@ -484,7 +470,6 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
     indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
-    taosArrayDestroy(result);
   }
   {
     std::string colName("other_column");
@@ -514,7 +499,6 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
     indexJsonSearch(index, mq, result);
     EXPECT_EQ(0, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
-    taosArrayDestroy(result);
   }
   {
     std::string colName("test1");
@@ -543,7 +527,6 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
     indexJsonSearch(index, mq, result);
     EXPECT_EQ(2000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
-    taosArrayDestroy(result);
   }
 }
 TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT2) {
@@ -570,7 +553,6 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT2) {
     int         val = 9;
     Search(index, colName, TSDB_DATA_TYPE_INT, &val, sizeof(val), QUERY_GREATER_EQUAL, &res);
     EXPECT_EQ(1000, taosArrayGetSize(res));
-    taosArrayDestroy(res);
   }
   {
     SArray*     res = NULL;
@@ -578,7 +560,6 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT2) {
     std::string colVal("xxxxxxxxxxxxxxx");
     Search(index, colName, TSDB_DATA_TYPE_BINARY, (void*)(colVal.c_str()), colVal.size(), QUERY_TERM, &res);
     EXPECT_EQ(1000, taosArrayGetSize(res));
-    taosArrayDestroy(res);
   }
 }
 TEST_F(JsonEnv, testWriteJsonTfileAndCache_FLOAT) {
@@ -602,7 +583,6 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_FLOAT) {
     float       val = 1.9;
     Search(index, colName, TSDB_DATA_TYPE_FLOAT, &val, sizeof(val), QUERY_GREATER_EQUAL, &res);
     EXPECT_EQ(2000, taosArrayGetSize(res));
-    taosArrayDestroy(res);
   }
   {
     SArray*     res = NULL;
@@ -610,7 +590,6 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_FLOAT) {
     float       val = 2.1;
     Search(index, colName, TSDB_DATA_TYPE_FLOAT, &val, sizeof(val), QUERY_GREATER_EQUAL, &res);
     EXPECT_EQ(1000, taosArrayGetSize(res));
-    taosArrayDestroy(res);
   }
   {
     std::string colName("test1");
@@ -618,7 +597,6 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_FLOAT) {
     float       val = 2.1;
     Search(index, colName, TSDB_DATA_TYPE_FLOAT, &val, sizeof(val), QUERY_GREATER_EQUAL, &res);
     EXPECT_EQ(1000, taosArrayGetSize(res));
-    taosArrayDestroy(res);
   }
 }
 TEST_F(JsonEnv, testWriteJsonTfileAndCache_DOUBLE) {
@@ -640,34 +618,29 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_DOUBLE) {
     double      val = 1.9;
     Search(index, "test1", TSDB_DATA_TYPE_DOUBLE, &val, sizeof(val), QUERY_GREATER_EQUAL, &res);
     EXPECT_EQ(2000, taosArrayGetSize(res));
-    taosArrayDestroy(res);
   }
   {
     SArray* res = NULL;
     double  val = 2.1;
     Search(index, "test1", TSDB_DATA_TYPE_DOUBLE, &val, sizeof(val), QUERY_GREATER_EQUAL, &res);
     EXPECT_EQ(1000, taosArrayGetSize(res));
-    taosArrayDestroy(res);
   }
   {
     SArray* res = NULL;
     double  val = 2.1;
     Search(index, "test1", TSDB_DATA_TYPE_DOUBLE, &val, sizeof(val), QUERY_GREATER_EQUAL, &res);
     EXPECT_EQ(1000, taosArrayGetSize(res));
-    taosArrayDestroy(res);
   }
   {
     SArray* res = NULL;
     double  val = 10.0;
     Search(index, "test1", TSDB_DATA_TYPE_DOUBLE, &val, sizeof(val), QUERY_LESS_EQUAL, &res);
     EXPECT_EQ(2000, taosArrayGetSize(res));
-    taosArrayDestroy(res);
   }
   {
     SArray* res = NULL;
     double  val = 10.0;
     Search(index, "test1", TSDB_DATA_TYPE_DOUBLE, &val, sizeof(val), QUERY_LESS_THAN, &res);
     EXPECT_EQ(1000, taosArrayGetSize(res));
-    taosArrayDestroy(res);
   }
 }

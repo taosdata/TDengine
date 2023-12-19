@@ -244,7 +244,7 @@ class ClusterComCheck:
                 else:
                     tdLog.exit(f"vgroup number of {db_name} is not correct")
             if self.db_replica == 1 :
-                if  tdSql.queryResult[0][4] == 'leader' and tdSql.queryResult[last_number][4] == 'leader':
+                if  tdSql.queryResult[0][4] == 'leader' and tdSql.queryResult[1][4] == 'leader' and tdSql.queryResult[last_number][4] == 'leader':
                     tdSql.query(f"select `replica` from information_schema.ins_databases where `name`='{db_name}';")
                     print("db replica :",tdSql.queryResult[0][0])
                     if tdSql.queryResult[0][0] == db_replica:

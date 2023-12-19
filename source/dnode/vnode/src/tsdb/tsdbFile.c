@@ -177,7 +177,7 @@ int32_t tsdbDFileRollback(STsdb *pTsdb, SDFileSet *pSet, EDataFileT ftype) {
   taosCalcChecksumAppend(0, hdr, TSDB_FHDR_SIZE);
 
   // open
-  pFD = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_WRITE_THROUGH);
+  pFD = taosOpenFile(fname, TD_FILE_WRITE);
   if (pFD == NULL) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;

@@ -90,10 +90,7 @@ class TDTestCase:
         
         packagePath = "/usr/local/src/"
         dataPath = cPath + "/../data/"
-        if platform.system() == "Linux" and platform.machine() == "aarch64":
-            packageName = "TDengine-server-"+  BASEVERSION + "-Linux-arm64.tar.gz"
-        else:
-            packageName = "TDengine-server-"+  BASEVERSION + "-Linux-x64.tar.gz"
+        packageName = "TDengine-server-"+  BASEVERSION + "-Linux-x64.tar.gz"
         packageTPath = packageName.split("-Linux-")[0]
         my_file = Path(f"{packagePath}/{packageName}")
         if not  my_file.exists():

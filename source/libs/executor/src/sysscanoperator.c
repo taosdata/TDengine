@@ -1610,10 +1610,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
   const char* name = tNameGetTableName(&pInfo->name);
   if (pInfo->showRewrite) {
     getDBNameFromCondition(pInfo->pCondition, dbName);
-    if (strncasecmp(name, TSDB_INS_TABLE_COMPACTS, TSDB_TABLE_FNAME_LEN) != 0 &&
-        strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, TSDB_TABLE_FNAME_LEN) != 0) {
-      sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
-    }
+    sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
   } else if (strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0) {
     getDBNameFromCondition(pInfo->pCondition, dbName);
     if (dbName[0]) sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
@@ -2307,7 +2304,7 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
     void*  pList = tableListGetInfo(pTableListInfo, 0);
 
     code = readHandle->api.tsdReader.tsdReaderOpen(readHandle->vnode, &cond, pList, num, pInfo->pResBlock,
-                                                   (void**)&pInfo->pHandle, pTaskInfo->id.str, NULL);
+                                                   (void**)&pInfo->pHandle, pTaskInfo->id.str, false, NULL);
     cleanupQueryTableDataCond(&cond);
     if (code != 0) {
       goto _error;

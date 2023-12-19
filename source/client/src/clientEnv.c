@@ -316,15 +316,6 @@ void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
   }
-  SSyncQueryParam *interParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
-  if (interParam == NULL) {
-    doDestroyRequest(pRequest);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-  tsem_init(&interParam->sem, 0, 0);
-  interParam->pRequest = pRequest;
-  pRequest->body.interParam = interParam;
 
   pRequest->resType = RES_TYPE__QUERY;
   pRequest->requestId = reqid == 0 ? generateRequestId() : reqid;
@@ -446,10 +437,12 @@ void doDestroyRequest(void *p) {
     deregisterRequest(pRequest);
   }
 
-  if (pRequest->body.interParam) {
-    tsem_destroy(&((SSyncQueryParam *)pRequest->body.interParam)->sem);
+  if (pRequest->syncQuery) {
+    if (pRequest->body.param) {
+      tsem_destroy(&((SSyncQueryParam *)pRequest->body.param)->sem);
+    }
+    taosMemoryFree(pRequest->body.param);
   }
-  taosMemoryFree(pRequest->body.interParam);
 
   qDestroyQuery(pRequest->pQuery);
   nodesDestroyAllocator(pRequest->allocatorRefId);
@@ -562,9 +555,6 @@ static void *tscCrashReportThreadFp(void *param) {
         if (pFile) {
           taosReleaseCrashLogFile(pFile, false);
           pFile = NULL;
-
-          taosMsleep(sleepTime);
-          loopTimes = 0;
           continue;
         }
       } else {
@@ -739,7 +729,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
         return -1;
       }
       newstr[0] = '"';
-      memcpy(newstr+1, str, len);
+      strncpy(newstr+1, str, len);
       newstr[len + 1] = '"';
       newstr[len + 2] = '\0';
       str = newstr;

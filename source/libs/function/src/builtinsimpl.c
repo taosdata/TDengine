@@ -5466,12 +5466,14 @@ bool blockDistSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
 }
 
 int32_t blockDistFunction(SqlFunctionCtx* pCtx) {
-  const int32_t BLOCK_DIST_RESULT_ROWS = 25;
+  const int32_t BLOCK_DIST_RESULT_ROWS = 24;
 
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
-  SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
-  STableBlockDistInfo*  pDistInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+
+  STableBlockDistInfo* pDistInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   STableBlockDistInfo p1 = {0};
   tDeserializeBlockDistInfo(varDataVal(pInputCol->pData), varDataLen(pInputCol->pData), &p1);
@@ -5479,7 +5481,6 @@ int32_t blockDistFunction(SqlFunctionCtx* pCtx) {
   pDistInfo->numOfBlocks += p1.numOfBlocks;
   pDistInfo->numOfTables += p1.numOfTables;
   pDistInfo->numOfInmemRows += p1.numOfInmemRows;
-  pDistInfo->numOfSttRows += p1.numOfSttRows;
   pDistInfo->totalSize += p1.totalSize;
   pDistInfo->totalRows += p1.totalRows;
   pDistInfo->numOfFiles += p1.numOfFiles;
@@ -5487,6 +5488,7 @@ int32_t blockDistFunction(SqlFunctionCtx* pCtx) {
   pDistInfo->defMinRows = p1.defMinRows;
   pDistInfo->defMaxRows = p1.defMaxRows;
   pDistInfo->rowSize = p1.rowSize;
+  pDistInfo->numOfSmallBlocks = p1.numOfSmallBlocks;
 
   if (pDistInfo->minRows > p1.minRows) {
     pDistInfo->minRows = p1.minRows;
@@ -5521,7 +5523,7 @@ int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDist
   if (tEncodeI32(&encoder, pInfo->defMaxRows) < 0) return -1;
   if (tEncodeI32(&encoder, pInfo->defMinRows) < 0) return -1;
   if (tEncodeU32(&encoder, pInfo->numOfInmemRows) < 0) return -1;
-  if (tEncodeU32(&encoder, pInfo->numOfSttRows) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->numOfSmallBlocks) < 0) return -1;
   if (tEncodeU32(&encoder, pInfo->numOfVgroups) < 0) return -1;
 
   for (int32_t i = 0; i < tListLen(pInfo->blockRowsHisto); ++i) {
@@ -5553,7 +5555,7 @@ int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo
   if (tDecodeI32(&decoder, &pInfo->defMaxRows) < 0) return -1;
   if (tDecodeI32(&decoder, &pInfo->defMinRows) < 0) return -1;
   if (tDecodeU32(&decoder, &pInfo->numOfInmemRows) < 0) return -1;
-  if (tDecodeU32(&decoder, &pInfo->numOfSttRows) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->numOfSmallBlocks) < 0) return -1;
   if (tDecodeU32(&decoder, &pInfo->numOfVgroups) < 0) return -1;
 
   for (int32_t i = 0; i < tListLen(pInfo->blockRowsHisto); ++i) {
@@ -5587,7 +5589,7 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   int32_t len = sprintf(st + VARSTR_HEADER_SIZE,
-                        "Total_Blocks=[%d] Total_Size=[%.2f KiB] Average_size=[%.2f KiB] Compression_Ratio=[%.2f %c]",
+                        "Total_Blocks=[%d] Total_Size=[%.2f KB] Average_size=[%.2f KB] Compression_Ratio=[%.2f %c]",
                         pData->numOfBlocks, pData->totalSize / 1024.0, averageSize / 1024.0, compRatio, '%');
 
   varDataSetLen(st, len);
@@ -5598,16 +5600,14 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     avgRows = pData->totalRows / pData->numOfBlocks;
   }
 
-  len = sprintf(st + VARSTR_HEADER_SIZE, "Block_Rows=[%" PRId64 "] MinRows=[%d] MaxRows=[%d] AvgRows=[%" PRId64 "]",
-                pData->totalRows, pData->minRows, pData->maxRows, avgRows);
+  len = sprintf(st + VARSTR_HEADER_SIZE,
+                "Total_Rows=[%" PRId64 "] Inmem_Rows=[%d] MinRows=[%d] MaxRows=[%d] Average_Rows=[%" PRId64 "]",
+                pData->totalRows, pData->numOfInmemRows, pData->minRows, pData->maxRows, avgRows);
+
   varDataSetLen(st, len);
   colDataSetVal(pColInfo, row++, st, false);
 
-  len = sprintf(st + VARSTR_HEADER_SIZE, "Inmem_Rows=[%d] Stt_Rows=[%d] ", pData->numOfInmemRows, pData->numOfSttRows);
-  varDataSetLen(st, len);
-  colDataSetVal(pColInfo, row++, st, false);
-
-  len = sprintf(st + VARSTR_HEADER_SIZE, "Total_Tables=[%d] Total_Filesets=[%d] Total_Vgroups=[%d]", pData->numOfTables,
+  len = sprintf(st + VARSTR_HEADER_SIZE, "Total_Tables=[%d] Total_Files=[%d] Total_Vgroups=[%d]", pData->numOfTables,
                 pData->numOfFiles, pData->numOfVgroups);
 
   varDataSetLen(st, len);
@@ -5634,7 +5634,7 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   double factor = pData->numOfBlocks / 80.0;
 
   int32_t numOfBuckets = sizeof(pData->blockRowsHisto) / sizeof(pData->blockRowsHisto[0]);
-  int32_t bucketRange = ceil(((double) (pData->defMaxRows - pData->defMinRows)) / numOfBuckets);
+  int32_t bucketRange = (pData->defMaxRows - pData->defMinRows) / numOfBuckets;
 
   for (int32_t i = 0; i < tListLen(pData->blockRowsHisto); ++i) {
     len = sprintf(st + VARSTR_HEADER_SIZE, "%04d |", pData->defMinRows + bucketRange * (i + 1));
@@ -5649,7 +5649,7 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       len += x;
     }
 
-    if (pData->blockRowsHisto[i] > 0) {
+    if (num > 0) {
       double v = pData->blockRowsHisto[i] * 100.0 / pData->numOfBlocks;
       len += sprintf(st + VARSTR_HEADER_SIZE + len, "  %d (%.2f%c)", pData->blockRowsHisto[i], v, '%');
     }

@@ -56,7 +56,7 @@ int  metaPrepareAsyncCommit(SMeta *pMeta) {
   code = ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn);
   metaULock(pMeta);
   code = tdbCommit(pMeta->pEnv, pMeta->txn);
-  pMeta->changed = false;
+
   return code;
 }
 

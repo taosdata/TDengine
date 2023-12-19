@@ -204,11 +204,6 @@ TEST(utilTest, char_pattern_match_test) {
   const char* str12 = NULL;
   ret = patternMatch(pattern12, 4, str12, 0, &pInfo);
   ASSERT_EQ(ret, TSDB_PATTERN_NOMATCH);
-
-  const char* pattern13 = "a\\%c";
-  const char* str13 = "a%c";
-  ret = patternMatch(pattern13, 5, str13, strlen(str13), &pInfo);
-  ASSERT_EQ(ret, TSDB_PATTERN_MATCH);
 }
 
 TEST(utilTest, char_pattern_match_no_terminated) {

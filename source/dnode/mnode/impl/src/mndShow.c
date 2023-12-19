@@ -17,7 +17,6 @@
 #include "mndShow.h"
 #include "mndPrivilege.h"
 #include "systable.h"
-#include "mndUser.h"
 
 #define SHOW_STEP_SIZE 100
 #define SHOW_COLS_STEP_SIZE 4096
@@ -119,10 +118,6 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_PRIVILEGES;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VIEWS, len) == 0) {
     type = TSDB_MGMT_TABLE_VIEWS;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACTS, len) == 0) {
-    type = TSDB_MGMT_TABLE_COMPACT;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, len) == 0) {
-    type = TSDB_MGMT_TABLE_COMPACT_DETAIL;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }
@@ -211,7 +206,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  mDebug("process to retrieve systable req db:%s, tb:%s", retrieveReq.db, retrieveReq.tb);
+  mDebug("mndProcessRetrieveSysTableReq tb:%s", retrieveReq.tb);
 
   if (retrieveReq.showId == 0) {
     STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));

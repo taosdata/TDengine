@@ -161,7 +161,6 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, SMqSubscribeObj 
 static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj *pSub,
                                         const SMqRebOutputVg *pRebVg, SSubplan* pPlan) {
   if (pRebVg->oldConsumerId == pRebVg->newConsumerId) {
-    if(pRebVg->oldConsumerId == -1) return 0;   //drop stream, no consumer, while split vnode,all consumerId is -1
     terrno = TSDB_CODE_MND_INVALID_SUB_OPTION;
     return -1;
   }

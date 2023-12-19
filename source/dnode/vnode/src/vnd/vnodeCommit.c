@@ -13,10 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "meta.h"
-#include "sync.h"
 #include "vnd.h"
 #include "vnodeInt.h"
+#include "sync.h"
 
 extern int32_t tsdbPreCommit(STsdb *pTsdb);
 extern int32_t tsdbCommitBegin(STsdb *pTsdb, SCommitInfo *pInfo);
@@ -156,8 +155,7 @@ int vnodeShouldCommit(SVnode *pVnode, bool atExit) {
 
   taosThreadMutexLock(&pVnode->mutex);
   if (pVnode->inUse && diskAvail) {
-    needCommit = (pVnode->inUse->size > pVnode->inUse->node.size) ||
-                 (atExit && (pVnode->inUse->size > 0 || pVnode->pMeta->changed));
+    needCommit = (pVnode->inUse->size > pVnode->inUse->node.size) || (pVnode->inUse->size > 0 && atExit);
   }
   taosThreadMutexUnlock(&pVnode->mutex);
   return needCommit;
@@ -179,7 +177,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   }
 
   // save info to a vnode_tmp.json
-  pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     vError("failed to open info file:%s for write:%s", fname, terrstr());
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -203,8 +201,10 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // free info binary
   taosMemoryFree(data);
 
-  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d changeVersion:%d", pInfo->config.vgId, fname,
-        pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex, pInfo->config.syncCfg.changeVersion);
+  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d changeVersion:%d", 
+        pInfo->config.vgId, fname,
+        pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex, 
+        pInfo->config.syncCfg.changeVersion);
 
   return 0;
 
@@ -287,10 +287,9 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   char    dir[TSDB_FILENAME_LEN] = {0};
   int64_t lastCommitted = pInfo->info.state.committed;
 
-  // wait last commit task
-  vnodeAWait(vnodeAsyncHandle[0], pVnode->commitTask);
+  tsem_wait(&pVnode->canCommit);
 
-  if (syncNodeGetConfig(pVnode->sync, &pVnode->config.syncCfg) != 0) goto _exit;
+  if(syncNodeGetConfig(pVnode->sync, &pVnode->config.syncCfg) != 0) goto _exit;
 
   pVnode->state.commitTerm = pVnode->state.applyTerm;
 
@@ -378,10 +377,11 @@ static int32_t vnodeCommitTask(void *arg) {
   vnodeReturnBufPool(pVnode);
 
 _exit:
+  // end commit
+  tsem_post(&pVnode->canCommit);
+  taosMemoryFree(pInfo);
   return code;
 }
-
-static void vnodeCompleteCommit(void *arg) { taosMemoryFree(arg); }
 
 int vnodeAsyncCommit(SVnode *pVnode) {
   int32_t code = 0;
@@ -399,14 +399,14 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   }
 
   // schedule the task
-  code = vnodeAsyncC(vnodeAsyncHandle[0], pVnode->commitChannel, EVA_PRIORITY_HIGH, vnodeCommitTask,
-                     vnodeCompleteCommit, pInfo, &pVnode->commitTask);
+  code = vnodeScheduleTask(vnodeCommitTask, pInfo);
 
 _exit:
   if (code) {
     if (NULL != pInfo) {
       taosMemoryFree(pInfo);
     }
+    tsem_post(&pVnode->canCommit);
     vError("vgId:%d, %s failed since %s, commit id:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code),
            pVnode->state.commitID);
   } else {
@@ -418,7 +418,8 @@ _exit:
 
 int vnodeSyncCommit(SVnode *pVnode) {
   vnodeAsyncCommit(pVnode);
-  vnodeAWait(vnodeAsyncHandle[0], pVnode->commitTask);
+  tsem_wait(&pVnode->canCommit);
+  tsem_post(&pVnode->canCommit);
   return 0;
 }
 
@@ -498,7 +499,7 @@ _exit:
 }
 
 bool vnodeShouldRollback(SVnode *pVnode) {
-  char    tFName[TSDB_FILENAME_LEN] = {0};
+  char tFName[TSDB_FILENAME_LEN] = {0};
   int32_t offset = 0;
 
   vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
@@ -509,7 +510,7 @@ bool vnodeShouldRollback(SVnode *pVnode) {
 }
 
 void vnodeRollback(SVnode *pVnode) {
-  char    tFName[TSDB_FILENAME_LEN] = {0};
+  char tFName[TSDB_FILENAME_LEN] = {0};
   int32_t offset = 0;
 
   vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);

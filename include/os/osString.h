@@ -47,13 +47,18 @@ typedef int32_t TdUcs4;
 #define strtof      STR_TO_F_FUNC_TAOS_FORBID
 #endif
 
+#ifdef WINDOWS
+#define tstrdup(str) _strdup(str)
+#else
+#define tstrdup(str) strdup(str)
+#endif
+
 #define tstrncpy(dst, src, size)   \
   do {                             \
     strncpy((dst), (src), (size)); \
     (dst)[(size)-1] = 0;           \
   } while (0)
 
-char   *tstrdup(const char *src);
 int32_t taosUcs4len(TdUcs4 *ucs4);
 int64_t taosStr2int64(const char *str);
 

@@ -654,23 +654,6 @@ _err:
   return -1;
 }
 
-int64_t walGetVerRetention(SWal* pWal, int64_t bytes) {
-  int64_t ver = -1;
-  int64_t totSize = 0;
-  taosThreadMutexLock(&pWal->mutex);
-  int32_t fileIdx = taosArrayGetSize(pWal->fileInfoSet);
-  while (--fileIdx) {
-    SWalFileInfo* pInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
-    if (totSize >= bytes) {
-      ver = pInfo->lastVer;
-      break;
-    }
-    totSize += pInfo->fileSize;
-  }
-  taosThreadMutexUnlock(&pWal->mutex);
-  return ver + 1;
-}
-
 int walCheckAndRepairIdx(SWal* pWal) {
   int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
   int32_t fileIdx = sz;
@@ -890,7 +873,7 @@ int walSaveMeta(SWal* pWal) {
     return -1;
   }
 
-  TdFilePtr pMetaFile = taosOpenFile(tmpFnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  TdFilePtr pMetaFile = taosOpenFile(tmpFnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pMetaFile == NULL) {
     wError("vgId:%d, failed to open file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), tmpFnameStr);
     terrno = TAOS_SYSTEM_ERROR(errno);

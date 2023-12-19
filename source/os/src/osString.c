@@ -24,14 +24,6 @@
 extern int wcwidth(wchar_t c);
 extern int wcswidth(const wchar_t *s, size_t n);
 
-char *tstrdup(const char *str) {
-#ifdef WINDOWS
-  return _strdup(str);
-#else
-  return strdup(str);
-#endif
-}
-
 #ifdef WINDOWS
 char *strsep(char **stringp, const char *delim) {
   char       *s;

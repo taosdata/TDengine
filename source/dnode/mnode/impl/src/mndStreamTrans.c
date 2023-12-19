@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "mndStream.h"
 #include "mndTrans.h"
+#include "mndStream.h"
 
 typedef struct SKeyInfo {
   void*   pKey;
@@ -23,17 +23,21 @@ typedef struct SKeyInfo {
 
 static int32_t clearFinishedTrans(SMnode* pMnode);
 
-int32_t mndStreamRegisterTrans(STrans* pTrans, const char* pTransName, int64_t streamUid) {
-  SStreamTransInfo info = {
-      .transId = pTrans->id, .startTime = taosGetTimestampMs(), .name = pTransName, .streamUid = streamUid};
-  taosHashPut(execInfo.transMgmt.pDBTrans, &streamUid, sizeof(streamUid), &info, sizeof(SStreamTransInfo));
+int32_t mndStreamRegisterTrans(STrans* pTrans, const char* pName, const char* pSrcDb, const char* pDstDb) {
+  SStreamTransInfo info = {.transId = pTrans->id, .startTime = taosGetTimestampMs(), .name = pName};
+  taosHashPut(execInfo.transMgmt.pDBTrans, pSrcDb, strlen(pSrcDb), &info, sizeof(SStreamTransInfo));
+
+  if (strcmp(pSrcDb, pDstDb) != 0) {
+    taosHashPut(execInfo.transMgmt.pDBTrans, pDstDb, strlen(pDstDb), &info, sizeof(SStreamTransInfo));
+  }
+
   return 0;
 }
 
 int32_t clearFinishedTrans(SMnode* pMnode) {
   size_t  keyLen = 0;
-  void*   pIter = NULL;
   SArray* pList = taosArrayInit(4, sizeof(SKeyInfo));
+  void*   pIter = NULL;
 
   while ((pIter = taosHashIterate(execInfo.transMgmt.pDBTrans, pIter)) != NULL) {
     SStreamTransInfo* pEntry = (SStreamTransInfo*)pIter;
@@ -44,7 +48,8 @@ int32_t clearFinishedTrans(SMnode* pMnode) {
       void* pKey = taosHashGetKey(pEntry, &keyLen);
       // key is the name of src/dst db name
       SKeyInfo info = {.pKey = pKey, .keyLen = keyLen};
-      mDebug("transId:%d %s startTs:%" PRId64 " cleared since finished", pEntry->transId, pEntry->name,
+
+      mDebug("transId:%d %s startTs:%" PRId64 "cleared due to finished", pEntry->transId, pEntry->name,
              pEntry->startTime);
       taosArrayPush(pList, &info);
     } else {
@@ -65,7 +70,7 @@ int32_t clearFinishedTrans(SMnode* pMnode) {
   return 0;
 }
 
-bool streamTransConflictOtherTrans(SMnode* pMnode, int64_t streamUid, const char* pTransName, bool lock) {
+bool streamTransConflictOtherTrans(SMnode* pMnode, const char* pSrcDb, const char* pDstDb, bool lock) {
   if (lock) {
     taosThreadMutexLock(&execInfo.lock);
   }
@@ -80,26 +85,22 @@ bool streamTransConflictOtherTrans(SMnode* pMnode, int64_t streamUid, const char
 
   clearFinishedTrans(pMnode);
 
-  SStreamTransInfo *pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, &streamUid, sizeof(streamUid));
+  SStreamTransInfo *pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, pSrcDb, strlen(pSrcDb));
   if (pEntry != NULL) {
-    SStreamTransInfo tInfo = *pEntry;
-
     if (lock) {
       taosThreadMutexUnlock(&execInfo.lock);
     }
+    mWarn("conflict with other transId:%d in Db:%s, trans:%s", pEntry->transId, pSrcDb, pEntry->name);
+    return true;
+  }
 
-    if (strcmp(tInfo.name, MND_STREAM_CHECKPOINT_NAME) == 0) {
-      if (strcmp(pTransName, MND_STREAM_DROP_NAME) != 0) {
-        mWarn("conflict with other transId:%d streamUid:%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamUid,
-              tInfo.name);
-        return true;
-      }
-    } else if ((strcmp(tInfo.name, MND_STREAM_CREATE_NAME) == 0) ||
-               (strcmp(tInfo.name, MND_STREAM_DROP_NAME) == 0)) {
-      mWarn("conflict with other transId:%d streamUid:%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamUid,
-            tInfo.name);
-      return true;
+  pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, pDstDb, strlen(pDstDb));
+  if (pEntry != NULL) {
+    if (lock) {
+      taosThreadMutexUnlock(&execInfo.lock);
     }
+    mWarn("conflict with other transId:%d in Db:%s, trans:%s", pEntry->transId, pSrcDb, pEntry->name);
+    return true;
   }
 
   if (lock) {
@@ -109,24 +110,5 @@ bool streamTransConflictOtherTrans(SMnode* pMnode, int64_t streamUid, const char
   return false;
 }
 
-int32_t mndAddtoCheckpointWaitingList(SStreamObj* pStream, int64_t checkpointId) {
-  SCheckpointCandEntry* pEntry = taosHashGet(execInfo.transMgmt.pWaitingList, &pStream->uid, sizeof(pStream->uid));
-  if (pEntry == NULL) {
-    SCheckpointCandEntry entry = {.streamId = pStream->uid,
-                                  .checkpointTs = taosGetTimestampMs(),
-                                  .checkpointId = checkpointId,
-                                  .pName = taosStrdup(pStream->name)};
 
-    taosHashPut(execInfo.transMgmt.pWaitingList, &pStream->uid, sizeof(pStream->uid), &entry, sizeof(entry));
-    int32_t size = taosHashGetSize(execInfo.transMgmt.pWaitingList);
 
-    mDebug("stream:%" PRIx64 " add into waiting list due to conflict, ts:%" PRId64 " , checkpointId: %" PRId64
-           ", total in waitingList:%d",
-           pStream->uid, entry.checkpointTs, checkpointId, size);
-  } else {
-    mDebug("stream:%" PRIx64 " ts:%" PRId64 ", checkpointId:%" PRId64 " already in waiting list, no need to add into",
-           pStream->uid, pEntry->checkpointTs, checkpointId);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}

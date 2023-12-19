@@ -208,7 +208,6 @@ void sclFreeParam(SScalarParam *param) {
   if (param->columnData != NULL) {
     colDataDestroy(param->columnData);
     taosMemoryFreeClear(param->columnData);
-    param->columnData = NULL;
   }
 
   if (param->pHashFilter != NULL) {
@@ -846,7 +845,6 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   SScalarParam *params = NULL;
   int32_t       rowNum = 0;
   int32_t       code = 0;
-  int32_t       paramNum = 0;
 
   // json not support in in operator
   if (nodeType(node->pLeft) == QUERY_NODE_VALUE) {
@@ -867,7 +865,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(node->opType);
 
-  paramNum = scalarGetOperatorParamNum(node->opType);
+  int32_t       paramNum = scalarGetOperatorParamNum(node->opType);
   SScalarParam *pLeft = &params[0];
   SScalarParam *pRight = paramNum > 1 ? &params[1] : NULL;
 
@@ -1367,8 +1365,8 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
   } else {
     int32_t type = output.columnData->info.type;
     if (IS_VAR_DATA_TYPE(type)) {  // todo refactor
-      res->datum.p = taosMemoryCalloc(varDataTLen(output.columnData->pData) + 1, sizeof(char));      // add \0 to the end for print json value
-      memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
+      res->datum.p = output.columnData->pData;
+      output.columnData->pData = NULL;
     } else {
       nodesSetValueNodeValue(res, output.columnData->pData);
     }

@@ -33,14 +33,6 @@ ENDIF()
 
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
 
-# arrayTest
-add_executable(arrayTest "arrayTest.cpp")
-target_link_libraries(arrayTest os util gtest_main)
-add_test(
-    NAME arrayTest
-    COMMAND arrayTest
-)
-
 # # freelistTest
 # add_executable(freelistTest "")
 # target_sources(freelistTest

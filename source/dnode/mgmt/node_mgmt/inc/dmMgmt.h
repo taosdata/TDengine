@@ -70,21 +70,6 @@ typedef struct SUdfdData {
   int32_t      dnodeId;
 } SUdfdData;
 
-#ifndef TD_MODULE_OPTIMIZE
-typedef struct SDnode {
-  int8_t        once;
-  bool          stop;
-  EDndRunStatus status;
-  SStartupInfo  startup;
-  SDnodeData    data;
-  SUdfdData     udfdData;
-  TdThreadMutex mutex;
-  TdFilePtr     lockfile;
-  STfs         *pTfs;
-  SMgmtWrapper  wrappers[NODE_END];
-  SDnodeTrans   trans;
-} SDnode;
-#else
 typedef struct SDnode {
   int8_t        once;
   bool          stop;
@@ -98,7 +83,6 @@ typedef struct SDnode {
   STfs         *pTfs;
   SMgmtWrapper  wrappers[NODE_END];
 } SDnode;
-#endif
 
 // dmEnv.c
 SDnode *dmInstance();
@@ -113,12 +97,8 @@ int32_t       dmMarkWrapper(SMgmtWrapper *pWrapper);
 void          dmReleaseWrapper(SMgmtWrapper *pWrapper);
 int32_t       dmInitVars(SDnode *pDnode);
 void          dmClearVars(SDnode *pDnode);
-#ifdef TD_MODULE_OPTIMIZE
-int32_t dmInitModule(SDnode *pDnode, SMgmtWrapper *wrappers);
-bool    dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper);
-#else
-int32_t dmInitModule(SDnode *pDnode);
-#endif
+int32_t       dmInitModule(SDnode *pDnode, SMgmtWrapper *wrappers);
+bool          dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper);
 SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper);
 void          dmSetStatus(SDnode *pDnode, EDndRunStatus stype);
 void          dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg);
@@ -139,11 +119,7 @@ int32_t dmInitStatusClient(SDnode *pDnode);
 void    dmCleanupClient(SDnode *pDnode);
 void    dmCleanupStatusClient(SDnode *pDnode);
 SMsgCb  dmGetMsgcb(SDnode *pDnode);
-#ifdef TD_MODULE_OPTIMIZE
 int32_t dmInitMsgHandle(SDnode *pDnode, SMgmtWrapper *wrappers);
-#else
-int32_t dmInitMsgHandle(SDnode *pDnode);
-#endif
 int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 
 // dmMonitor.c

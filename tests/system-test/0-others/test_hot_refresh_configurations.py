@@ -2,7 +2,7 @@ import subprocess
 import random
 import time
 import os
-import platform
+
 from util.log import *
 from util.sql import *
 from util.cases import *
@@ -190,8 +190,6 @@ class TDTestCase:
             for v in values:
                 dnode = random.choice(p_list)
                 tdSql.execute(f'alter {dnode} "{name} {v}";')
-                if platform.system() == "Linux" and platform.machine() == "aarch64":
-                    continue
                 value = self.get_param_value_with_gdb(alias, "taosd")
                 if value:
                     tdLog.debug(f"value: {value}")

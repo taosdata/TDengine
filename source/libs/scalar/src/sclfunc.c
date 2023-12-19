@@ -1457,29 +1457,13 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
       }
       case 604800000: { /* 1w */
         if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-          if (ignoreTz) {
-            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1000)) % (((int64_t)604800) * 1000);
-          } else {
-            timeVal = timeVal / 1000 / 604800 * 604800 * 1000;
-          }
+          timeVal = timeVal / 1000 / 604800 * 604800 * 1000;
         } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-          if (ignoreTz) {
-            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1000000)) % (((int64_t)604800) * 1000000);
-          } else {
-            timeVal = timeVal / 1000000 / 604800 * 604800 * 1000000;
-          }
+          timeVal = timeVal / 1000000 / 604800 * 604800 * 1000000;
         } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-          if (ignoreTz) {
-            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1000000000)) % (((int64_t)604800) * 1000000000);
-          } else {
-            timeVal = timeVal / 1000000000 / 604800 * 604800 * 1000000000;
-          }
+          timeVal = timeVal / 1000000000 / 604800 * 604800 * 1000000000;
         } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
-          if (ignoreTz) {
-            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1)) % (((int64_t)604800L) * factor);
-          } else {
-            timeVal = timeVal * factor / factor / 604800 * 604800 * factor;
-          }
+          timeVal = timeVal * factor / factor / 604800 * 604800 * factor;
         } else {
           colDataSetNULL(pOutput->columnData, i);
           continue;
