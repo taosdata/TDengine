@@ -1994,6 +1994,7 @@ _err:
 
 static FORCE_INLINE void destroyUserdata(STransMsg* userdata) {
   if (userdata->pCont == NULL) {
+    tDebug("empty pCont");
     return;
   }
   if (userdata->contLen == 0) {
@@ -2022,12 +2023,12 @@ static FORCE_INLINE void destroyCmsgAndAhandle(void* param) {
   SCliMsg*  pMsg = arg->param1;
   SCliThrd* pThrd = arg->param2;
 
-  tDebug("destroy Ahandle A");
+  tTrace("destroy Ahandle A");
   if (pThrd != NULL && pThrd->destroyAhandleFp != NULL) {
-    tDebug("destroy Ahandle B");
+    tTrace("destroy Ahandle B");
     pThrd->destroyAhandleFp(pMsg->ctx->ahandle);
   }
-  tDebug("destroy Ahandle C");
+  tTrace("destroy Ahandle C");
 
   transDestroyConnCtx(pMsg->ctx);
   destroyUserdata(&pMsg->msg);
@@ -2051,11 +2052,9 @@ static SCliThrd* createThrdObj(void* trans) {
     taosMemoryFree(pThrd);
     return NULL;
   }
-  if (pTransInst->supportBatch) {
-    pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 4, pThrd, cliAsyncCb);
-  } else {
-    pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 8, pThrd, cliAsyncCb);
-  }
+
+  int32_t nSync = pTransInst->supportBatch ? 4 : 8;
+  pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, nSync, pThrd, cliAsyncCb);
   if (pThrd->asyncPool == NULL) {
     tError("failed to init async pool");
     uv_loop_close(pThrd->loop);
@@ -2162,14 +2161,7 @@ void cliSendQuit(SCliThrd* thrd) {
 void cliWalkCb(uv_handle_t* handle, void* arg) {
   if (!uv_is_closing(handle)) {
     if (uv_handle_get_type(handle) == UV_TIMER) {
-      // SCliConn* pConn = handle->data;
-      //  if (pConn != NULL && pConn->timer != NULL) {
-      //    SCliThrd* pThrd = pConn->hostThrd;
-      //    uv_timer_stop((uv_timer_t*)handle);
-      //    handle->data = NULL;
-      //    taosArrayPush(pThrd->timerList, &pConn->timer);
-      //    pConn->timer = NULL;
-      //  }
+      // do nothing
     } else {
       uv_read_stop((uv_stream_t*)handle);
     }
@@ -2205,23 +2197,26 @@ static void doCloseIdleConn(void* param) {
   taosMemoryFree(arg);
 }
 
-static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
-  STrans*        pTransInst = pThrd->pTransInst;
+static void cliSchedMsgToDebug(SCliMsg* pMsg, char* label) {
   STransConnCtx* pCtx = pMsg->ctx;
-
   if (rpcDebugFlag & DEBUG_DEBUG) {
     STraceId* trace = &pMsg->msg.info.traceId;
     char      tbuf[512] = {0};
     EPSET_TO_STR(&pCtx->epSet, tbuf);
-    tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", transLabel(pThrd->pTransInst), tbuf,
-            pCtx->retryStep, pCtx->retryNextInterval);
+    tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", label, tbuf, pCtx->retryStep,
+            pCtx->retryNextInterval);
   }
+  return;
+}
+static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
+  STrans* pTransInst = pThrd->pTransInst;
+
+  cliSchedMsgToDebug(pMsg, transLabel(pThrd->pTransInst));
 
   STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
   arg->param1 = pMsg;
   arg->param2 = pThrd;
-
-  transDQSched(pThrd->delayQueue, doDelayTask, arg, pCtx->retryNextInterval);
+  transDQSched(pThrd->delayQueue, doDelayTask, arg, pMsg->ctx->retryNextInterval);
 }
 
 FORCE_INLINE void cliCompareAndSwap(int8_t* val, int8_t exp, int8_t newVal) {
@@ -2575,7 +2570,7 @@ int transReleaseCliHandle(void* handle) {
   cmsg->ctx = pCtx;
 
   STraceId* trace = &tmsg.info.traceId;
-  tGDebug("send release request at thread:%08" PRId64 "", pThrd->pid);
+  tGDebug("send release request at thread:%08" PRId64 ", malloc memory:%p", pThrd->pid, cmsg);
 
   if (0 != transAsyncSend(pThrd->asyncPool, &cmsg->q)) {
     destroyCmsg(cmsg);
