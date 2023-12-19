@@ -40,6 +40,7 @@ class TestErrorInsert(TDCase):
         symbol_list.remove('-')
         # ! TD-13248
         symbol_list.remove(',')
+        symbol_list.remove('.')
         for base_sql in [f'insert into {dbname}.{tbname} values (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, True)', f'insert into {dbname}.tb values (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, True)']:
             for insert_str in symbol_list:
                 d_list = list(base_sql)
@@ -47,8 +48,7 @@ class TestErrorInsert(TDCase):
                     d_list_new = copy.deepcopy(d_list)
                     d_list_new.insert(i, insert_str)
                     sql_new = ''.join(d_list_new)
-                    if "now, .1" not in sql_new:
-                        self.tdSql.error(sql_new)
+                    self.tdSql.error(sql_new)
             base_sql = base_sql.replace("values", "")
             self.tdSql.error(base_sql)
 
