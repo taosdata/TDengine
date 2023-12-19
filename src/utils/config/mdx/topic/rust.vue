@@ -31,7 +31,7 @@ anyhow = &quot;1.0.0&quot;
 let tmq_uri = format!( "{}?\
 group.id=test_group_rs&\
 client.id=test_consumer_ws", tmq_str);
-println!("request tmq URI is {tmq_uri}\n");
+println!("request tmq URI is {tmq_uri}");
 let tmq = TmqBuilder::from_dsn(tmq_uri,)?;
 let mut consumer = tmq.build()?;</code></pre>
     <h2 id="rust-subscribe-consume">{{ $t("docs.topic.step4") }}</h2>
@@ -84,7 +84,7 @@ async fn main() -> anyhow::Result<()> {
   let tmq_uri = format!( &quot;{}?\\
   group.id=test_group_rs&\\
   client.id=test_consumer_ws&quot;, tmq_str);
-  println!(&quot;request tmq URI is {tmq_uri}\n&quot;);
+  println!(&quot;request tmq URI is {tmq_uri}&quot;);
   let tmq = TmqBuilder::from_dsn(tmq_uri,)?;
   let mut consumer = tmq.build().await?;
   consumer.subscribe([&quot;${topicName}&quot;]).await?;
