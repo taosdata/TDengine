@@ -278,6 +278,15 @@ _exit:
   return code;
 }
 
+static int64_t tBlockDataSize(SBlockData* pBlockData) {
+  int64_t nData = 0;
+  for (int32_t iCol = 0; iCol < pBlockData->nColData; iCol++) {
+    SColData* pColData = tBlockDataGetColDataByIdx(pBlockData, iCol);
+    nData += pColData->nData;
+  }
+  return nData;
+}
+
 static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* reader, uint8_t** data) {
   int32_t   code = 0;
   int32_t   lino = 0;
@@ -320,8 +329,11 @@ static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* reader, uint8_t** dat
     code = tsdbIterMergerNext(reader->dataIterMerger);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    if (reader->blockData->nRow >= 81920) {
-      break;
+    if (!(reader->blockData->nRow % 16)) {
+      int64_t nData = tBlockDataSize(reader->blockData);
+      if (nData >= TSDB_SNAP_DATA_PAYLOAD_SIZE) {
+        break;
+      }
     }
   }
 
