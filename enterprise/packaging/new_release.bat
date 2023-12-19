@@ -8,7 +8,7 @@ set install_dir=C:\TDengine
 set cusName=TDengine
 set cusPrompt=taos
 set cusEmail=support@taosdata.com
-set grantValue=60
+set grantValue=10
 
 :param
 if "%1"=="" (
@@ -73,8 +73,8 @@ cd %work_dir%\debug\ver-%version%-x64
 call vcvarsall.bat x64
 if "%verType%" == "cluster" (
 	if "%cusName%" == "TDengine" (
-		echo "cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_EXPLORER=false -DBUILD_TAOSX=false -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%"
-		cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_EXPLORER=false -DBUILD_TAOSX=false -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%  -DGRANT_VALUE=%grantValue%
+		echo "cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DCMAKE_BUILD_TYPE=Release -DBUILD_TOOLS=true -DBUILD_EXPLORER=false -DBUILD_TAOSX=false -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%"
+		cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DCMAKE_BUILD_TYPE=Release -DBUILD_TOOLS=true -DBUILD_EXPLORER=false -DBUILD_TAOSX=false -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%  -DGRANT_VALUE=%grantValue%
 	) else (
 		echo "cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_EXPLORER=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%"
 		cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_EXPLORER=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%  -DGRANT_VALUE=%grantValue%
@@ -91,18 +91,14 @@ if not %errorlevel% == 0  ( call :RUNFAILED build x64 failed & exit /b 1)
 
 md %install_dir%\include
 xcopy %internal_dir%\community\include\util\tdef.h %install_dir%\include
+xcopy /S %internal_dir%\community\tools\taos-tools\packaging\win\* %install_dir%\*
+
+@REM download odbc driver
+powershell -command "Start-BitsTransfer -Source https://github.com/taosdata/taos_odbc/releases/download/v1.0.0.0/taos_odbc_install_files.zip -Destination taos_odbc_install_files.zip"
+powershell -command "Expand-Archive taos_odbc_install_files.zip %install_dir%"
 
 if "%verType%" == "cluster" (
-	echo "==== build taosx ====="
-	cd %internal_dir%\enterprise\src\plugins\taosx\packaging
-	python release.py -ob -vn %version%
-	set taosx_release_dir="C:\Program Files\taosX"
-	xcopy /S %taosx_release_dir%\plugins\* %install_dir%\plugins\*
-	xcopy /S %taosx_release_dir%\bin\*.exe %install_dir%\*
-	xcopy /S %taosx_release_dir%\append %install_dir%\append\*
-	xcopy /S %taosx_release_dir%\config\* %install_dir%\cfg\
-	echo "==== build taosx done ====="
-
+	
 	md  %install_dir%\connector
 	git clone --depth 1 https://github.com/taosdata/driver-go %install_dir%/connector/go
 	rm -rf %install_dir%/connector/go/.git*
@@ -114,6 +110,7 @@ if "%verType%" == "cluster" (
 	rm -rf %install_dir%/connector/dotnet/.git*
 	git clone --depth 1 https://github.com/taosdata/taos-connector-rust %install_dir%/connector/rust
 	rm -rf %install_dir%/connector/rust/.git*
+
 
   	md %install_dir%\examples
 	
@@ -130,28 +127,21 @@ if "%verType%" == "cluster" (
     md %install_dir%\examples\taosbenchmark-json
     xcopy /S %internal_dir%\community\tools\taos-tools\example %install_dir%\examples\taosbenchmark-json\*
 )
-cd %package_dir%
-if "%cusName%" == "TDengine" (
-	if "%verType%" == "cluster" (
-		call :writeTDengineServerInstallFile
-		iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\enterprise\packaging\windows\tdengine.iss /O..\release
-	) else (
-		call :writeTDengineServerInstallFile
-		iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
-	)
-) else (
-	call :writeServerInstallFile
-	iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
 
-)
-if not %errorlevel% == 0  ( call :RUNFAILED package %packagServerName_x64% failed & exit /b 1)
+cd %package_dir%
 if "%cusName%" == "TDengine" (
 	if "%verType%" == "cluster" (
 		call :writeTDengineClientInstallFile
 		iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="taosd.exe, taosadapter.exe, \plugins\, taosx*, taos-*, explorer.toml, agent.toml, \append\" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
 		cd %internal_dir%\enterprise\release
-		scp *client* root@taosdata.com:/data/www/assets-download/3.0/
-		scp *client* ubuntu@tdengine.com:/data/www/assets-download/3.0/
+		ssh root@taosdata.com -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no "date"
+		if %errorlevel% == 0 (
+			scp *client* root@taosdata.com:/data/www/assets-download/3.0/
+		)
+		ssh ubuntu@tdengine.com -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no "date"
+		if %errorlevel% == 0 (
+			scp *client* ubuntu@tdengine.com:/data/www/assets-download/3.0/
+		)
 	) else (
 		call :writeTDengineClientInstallFile
 		iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="taosd.exe, taosadapter.exe" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
@@ -162,6 +152,34 @@ if "%cusName%" == "TDengine" (
 )
 if not %errorlevel% == 0  ( call :RUNFAILED package %packagClientName_x64% failed & exit /b 1)
 
+@rem remove odbc driver form server package
+rd /s /Q %install_dir%\taos_odbc
+set taosx_release_dir="%internal_dir%\enterprise\src\plugins\taosx\release\taosx"
+if "%verType%" == "cluster" (
+	echo "==== build taosx ====="
+	cd %internal_dir%\enterprise\src\plugins\taosx\packaging
+	python release.py -ob -vn %version%
+	xcopy /S /E %taosx_release_dir%\plugins\* %install_dir%\plugins\*
+	xcopy /S %taosx_release_dir%\bin %install_dir%\*
+	xcopy /S %taosx_release_dir%\append %install_dir%\append\*
+	xcopy /S %taosx_release_dir%\config %install_dir%\cfg\*
+	echo "==== build taosx done ====="
+)
+
+cd %package_dir%
+if "%cusName%" == "TDengine" (
+	if "%verType%" == "cluster" (
+		call :writeTDengineServerInstallFile
+		iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="taosx-agent.exe, taosx-agent-srv.exe" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\enterprise\packaging\windows\tdengine.iss /O..\release
+	) else (
+		call :writeTDengineServerInstallFile
+		iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
+	)
+) else (
+	call :writeServerInstallFile
+	iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
+)
+if not %errorlevel% == 0  ( call :RUNFAILED package %packagServerName_x64% failed & exit /b 1)
 goto EXIT0
 
 :USAGE
@@ -182,8 +200,8 @@ goto :eof
 echo %cusName% is an open-source, cloud-native time-series database optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. With its built-in caching, stream processing, and data subscription capabilities, TDengine offers a simplified solution for time-series data processing.  > %internal_dir%\community\packaging\tools\windows_before_install.txt
 echo:  >> %internal_dir%\community\packaging\tools\windows_before_install.txt
 echo %cusName% will be installed under C:\TDengine, users can modify configuration file C:\TDengine\cfg\taos.cfg, set the log file path or other parameters. >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo - To start/stop %cusName% with administrator privileges:  run sc start/stop taosd >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo - To start/stop taosAdapter with administrator privileges: run sc start/stop taosadapter >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo - To start/stop %cusName% with administrator privileges:  run sc.exe start/stop taosd >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo - To start/stop taosAdapter with administrator privileges: run sc.exe start/stop taosadapter >> %internal_dir%\community\packaging\tools\windows_before_install.txt
 echo - To access %cusName% from your local machine, run %cusPrompt% >> %internal_dir%\community\packaging\tools\windows_before_install.txt
 echo - Please manually remove C:\TDengine from your system PATH environment after you remove %cusName% software.  >> %internal_dir%\community\packaging\tools\windows_before_install.txt
 exit /b
@@ -202,8 +220,8 @@ exit /b
 :: oem taosd install description
 :writeServerInstallFile
 echo %cusName% will be installed under C:\TDengine, users can modify configuration file C:\TDengine\cfg\taos.cfg, set the log file path or other parameters. > %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo - To start/stop %cusName% with administrator privileges:  sc start/stop taosd >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo - To start/stop taosAdapter with administrator privileges: sc start/stop taosadapter >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo - To start/stop %cusName% with administrator privileges:  sc.exe start/stop taosd >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo - To start/stop taosAdapter with administrator privileges: sc.exe start/stop taosadapter >> %internal_dir%\community\packaging\tools\windows_before_install.txt
 echo - To access %cusName% from your local machine, run %cusPrompt% >> %internal_dir%\community\packaging\tools\windows_before_install.txt
 echo - Please manually remove C:\TDengine from your system PATH environment after you remove %cusName% software.  >> %internal_dir%\community\packaging\tools\windows_before_install.txt
 exit /b

@@ -48,10 +48,12 @@ Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
 
 [Files]
 ;Source: {#MyAppSourceDir}{#MyAppAllFile}; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs 
-;Source: taos.bat; DestDir: "{app}\include"; Flags: igNoreversion;
+Source: taos.bat; DestDir: "{app}\include"; Flags: igNoreversion;
 ;Source: taosdemo.png; DestDir: "{app}\include"; Flags: igNoreversion;
 ;Source: taosShell.png; DestDir: "{app}\include"; Flags: igNoreversion;
 Source: favicon.ico; DestDir: "{app}\include"; Flags: igNoreversion;
+Source: start-all.bat; DestDir: "{app}"; Flags: igNoreversion;
+Source: stop-all.bat; DestDir: "{app}"; Flags: igNoreversion;
 Source: {#MyAppSourceDir}{#MyAppDLLName}; DestDir: "{win}\System32"; Flags: igNoreversion recursesubdirs createallsubdirs 64bit;Check:IsWin64;
 Source: {#MyAppSourceDir}\append\opc_gdba_32\*; DestDir: "{#OPCGdbaInstallPath}\"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; Check: ShouldInstallOPC
 Source: {#MyAppSourceDir}{#MyAppCfgName}; DestDir: "{app}\cfg"; Flags: igNoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
@@ -59,8 +61,10 @@ Source: {#MyAppSourceDir}{#MyAppDriverName}; DestDir: "{app}\driver"; Flags: igN
 ;Source: {#MyAppSourceDir}{#MyAppConnectorName}; DestDir: "{app}\connector"; Flags: igNoreversion recursesubdirs createallsubdirs
 ;Source: {#MyAppSourceDir}{#MyAppExamplesName}; DestDir: "{app}\examples"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppIncludeName}; DestDir: "{app}\include"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}\plugins\*; DestDir: "{app}\plugins\"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppExeName}; DestDir: "{app}"; Excludes: {#MyAppExcludeSource} ; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppTaosdemoExeName}; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}\*.xml; DestDir: "{app}"; Excludes: "taosx-agent-srv.xml"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}\taos.exe; DestDir: "{app}"; DestName: "{#CusPrompt}.exe"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}\taosBenchmark.exe; DestDir: "{app}"; DestName: "{#CusPrompt}Benchmark.exe"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}\taosdump.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs
@@ -69,8 +73,8 @@ Source: {#MyAppSourceDir}\taosdump.exe; DestDir: "{app}"; DestName: "{#CusPrompt
 Name: "component"; Description: "OPC DLL(OPC Data Access Auto Interface)              http://www.gray-box.net/daawrapper.php?lang=en";
 
 [run]
-Filename: {sys}\sc.exe; Parameters: "create taosd start= DEMAND binPath= ""C:\\TDengine\\taosd.exe --win_service""" ; Flags: runhidden
-Filename: {sys}\sc.exe; Parameters: "create taosadapter start= DEMAND binPath= ""C:\\TDengine\\taosadapter.exe""" ; Flags: runhidden
+Filename: {sys}\sc.exe; Parameters: "create taosd start= AUTO binPath= ""C:\\TDengine\\taosd.exe --win_service""" ; Flags: runhidden
+Filename: {sys}\sc.exe; Parameters: "create taosadapter start= AUTO binPath= ""C:\\TDengine\\taosadapter.exe""" ; Flags: runhidden
 Filename: "{app}\\taosx-srv.exe"; Parameters: "install"; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taosx-srv.exe'))
 Filename: "{app}\\taosx-agent-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taosx-agent-srv.exe'))
 Filename: "{app}\\taos-explorer-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taos-explorer-srv.exe'))

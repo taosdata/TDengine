@@ -116,7 +116,7 @@ else
   arch=$cpuType
 fi
 
-taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeperinternal`
+taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeperinternal -t ver-$version`
 
 set -e
 # unpack server package and repack with taoskeeper binary and service file.
@@ -140,13 +140,21 @@ if [ -d $archiveDir ] && [ -z "${cusName}" ]; then
     cp -f $communityDir/release/* ./
 
     if [ $skip == 0 ]; then
-      scp *client* root@taosdata.com:/data/www/assets-download/3.0/
-      if [ $? > 0 ]; then
-        echo "copy client package to taosdata server failed"
+      # copy client package to server if password free is set
+      ssh root@taosdata.com -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no "date" > /dev/null 2>&1
+      if [ $? = 0 ]; then
+        scp $communityDir/release/*client* root@taosdata.com:/data/www/assets-download/3.0/
+        if [ $? > 0 ]; then
+          echo "copy client package to taosdata server failed"
+        fi
       fi
-      scp *client* ubuntu@tdengine.com:/data/www/assets-download/3.0/
-      if [ $? > 0 ]; then
-        echo "copy client package to TDengine server failed"
+      
+      ssh ubuntu@tdengine.com -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no "date" > /dev/null 2>&1
+      if [ $? = 0 ]; then
+        scp $communityDir/release/*client* ubuntu@tdengine.com:/data/www/assets-download/3.0/
+        if [ $? > 0 ]; then
+          echo "copy client package to TDengine server failed"
+        fi
       fi
     fi
 else
