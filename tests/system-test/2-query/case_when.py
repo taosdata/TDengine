@@ -333,7 +333,7 @@ class TDTestCase:
         taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
         _ = subprocess.check_output(taos_cmd1, shell=True)
         print("taos -f sql over!")     
-                
+        time.sleep(5)         
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
@@ -342,6 +342,7 @@ class TDTestCase:
 
     def stop(self):
         tdSql.close()
+        time.sleep(5)
         tdLog.success("%s successfully executed" % __file__)
 
 
