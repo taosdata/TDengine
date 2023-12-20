@@ -1322,7 +1322,7 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
 
     if (pMsg != NULL && REQUEST_NO_RESP(&pMsg->msg) &&
         (pTransInst->failFastFp != NULL && pTransInst->failFastFp(pMsg->msg.msgType))) {
-      SFailFastItem* item = taosHashGet(pThrd->failFastCache, pConn->dstAddr, strlen(pConn->dstAddr) + 1);
+      SFailFastItem* item = taosHashGet(pThrd->failFastCache, pConn->dstAddr, strlen(pConn->dstAddr));
       int64_t        cTimestamp = taosGetTimestampMs();
       if (item != NULL) {
         int32_t elapse = cTimestamp - item->timestamp;
@@ -1334,7 +1334,7 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
         }
       } else {
         SFailFastItem item = {.count = 1, .timestamp = cTimestamp};
-        taosHashPut(pThrd->failFastCache, pConn->dstAddr, strlen(pConn->dstAddr) + 1, &item, sizeof(SFailFastItem));
+        taosHashPut(pThrd->failFastCache, pConn->dstAddr, strlen(pConn->dstAddr), &item, sizeof(SFailFastItem));
       }
     }
   } else {
@@ -1738,7 +1738,6 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
       char     key[TSDB_FQDN_LEN + 64] = {0};
       CONN_CONSTRUCT_HASH_KEY(key, ip, port);
 
-      // SCliBatch** ppBatch = taosHashGet(pThrd->batchCache, key, sizeof(key));
       SCliBatchList** ppBatchList = taosHashGet(pThrd->batchCache, key, strlen(key));
       if (ppBatchList == NULL || *ppBatchList == NULL) {
         SCliBatchList* pBatchList = taosMemoryCalloc(1, sizeof(SCliBatchList));
