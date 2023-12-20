@@ -522,32 +522,33 @@ impl TaskOpts {
             ("taos", "taos") => {
                 let metrics = try_get_metrics::<LegacyToTaosMetrics>(task_id);
                 if let Some(metrics) = metrics {
-                    metrics.as_ref().legacy().reset();
+                    metrics.legacy().reset();
                 } else {
                     let metrics = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::new(task_id)));
                     GLOBAL_METRICS.lock().unwrap().insert(task_id, metrics);
                 }
             }
-            ("tmq", _) => {
+            ("tmq", "taos" | "local") => {
                 let metrics = try_get_metrics::<TMQMetrics>(task_id);
                 if let Some(metrics) = metrics {
-                    metrics.as_ref().tmq().reset();
+                    metrics.tmq().reset();
                 } else {
                     let metrics = Arc::new(CoreMetrics::TMQ(TMQMetrics::new(task_id)));
                     GLOBAL_METRICS.lock().unwrap().insert(task_id, metrics);
                 }
             }
-            ("opc" | "pi" | "mqtt" | "influxdb" | "opentsdb" | "kafka" | "historian", _) => {
+            (
+                "opc" | "opcua" | "opcda" | "pi" | "pibackfill" | "mqtt" | "influxdb" | "opentsdb"
+                | "kafka" | "historian" | "csv",
+                "taos",
+            ) => {
                 let metrics = try_get_metrics::<IPCMetrics>(task_id);
                 if let Some(metrics) = metrics {
-                    metrics.as_ref().ipc().reset();
+                    metrics.ipc().reset();
                 } else {
                     let metrics = Arc::new(CoreMetrics::IPC(IPCMetrics::new(task_id)));
                     GLOBAL_METRICS.lock().unwrap().insert(task_id, metrics);
                 }
-            }
-            ("csv", _) => {
-                todo!("csv metrics")
             }
             _ => (),
         }
