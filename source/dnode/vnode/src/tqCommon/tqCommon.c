@@ -686,7 +686,8 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   streamMetaWLock(pMeta);
   if (pMeta->startInfo.taskStarting == 1) {
     pMeta->startInfo.restartCount += 1;
-    tqDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, %d", vgId, pMeta->startInfo.restartCount);
+    tqDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, remaining restart:%d", vgId,
+            pMeta->startInfo.restartCount);
     streamMetaWUnLock(pMeta);
     return TSDB_CODE_SUCCESS;
   }
@@ -720,7 +721,7 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   if (isLeader && !tsDisableStream) {
     tqStreamTaskResetStatus(pMeta);
     streamMetaWUnLock(pMeta);
-    tqInfo("vgId:%d restart all stream tasks after all tasks being updated", vgId);
+    tqInfo("vgId:%d start all stream tasks after reload tasks from disk", vgId);
 
     startStreamTasks(pMeta);
   } else {
