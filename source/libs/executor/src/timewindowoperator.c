@@ -1328,6 +1328,7 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
 
   SWindowRowsSup* pRowSup = &pInfo->winSup;
   pRowSup->numOfRows = 0;
+  pRowSup->startRowIndex = 0;
 
   // In case of ascending or descending order scan data, only one time window needs to be kepted for each table.
   TSKEY* tsList = (TSKEY*)pColInfoData->pData;
@@ -1339,9 +1340,6 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
                ((pRowSup->prevTs - tsList[j] >= 0) && (pRowSup->prevTs - tsList[j] <= gap))) {
       // The gap is less than the threshold, so it belongs to current session window that has been opened already.
       doKeepTuple(pRowSup, tsList[j], gid);
-      if (j == 0 && pRowSup->startRowIndex != 0) {
-        pRowSup->startRowIndex = 0;
-      }
     } else {  // start a new session window
       SResultRow* pResult = NULL;
 
