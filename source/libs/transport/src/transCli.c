@@ -1230,8 +1230,7 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
     addr.sin_addr.s_addr = ipaddr;
     addr.sin_port = (uint16_t)htons(pList->port);
 
-    tTrace("%s conn %p try to connect to %s", pTransInst->label, conn, pList->dst);
-    pThrd->newConnCount++;
+    tDebug("%s conn %p try to connect to %s", pTransInst->label, conn, pList->dst);
     int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 10);
     if (fd == -1) {
       tError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn,
@@ -1307,6 +1306,7 @@ static void cliSendBatchCb(uv_write_t* req, int status) {
   cliDestroyBatch(p);
   taosMemoryFree(req);
 }
+
 static void cliHandleFastFail(SCliConn* pConn, int status) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
