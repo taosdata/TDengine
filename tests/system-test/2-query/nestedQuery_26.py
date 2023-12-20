@@ -62,6 +62,7 @@ class TDTestCase(TDTestCase):
         
 
         endTime = time.time()
+        time.sleep(5)
         print("total time %ds" % (endTime - startTime))
 
         
