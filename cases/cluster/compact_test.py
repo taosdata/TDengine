@@ -25,6 +25,7 @@ from datetime import datetime
 from taos.tmq import Consumer
 import os
 import psutil
+import pandas as pd
 
 class CompactTest(TDCase):
     def init(self):
@@ -53,7 +54,7 @@ class CompactTest(TDCase):
         self.disorder_day = 2
         self.stage_2_timestamp = self.disorder_start_ts + 86400 * 1000 * self.disorder_day
         self.stage_2_dt = self.tdCom.genTs(ts=self.stage_2_timestamp/1000)[1]
-        self.stage_rows = 30000
+        self.stage_rows = 10000
         self.insert_rows = 1000000
         self.compact_interval = 180
         self.compact_wait = 180
@@ -160,6 +161,8 @@ class CompactTest(TDCase):
         self.mem_usage_after_compact = 0
 
     def insert_fh_data(self, dbname):
+        if dbname == self.dbname2:
+            self.keep = "10d"
         json_filename_list = [self.json_file_name1]
         dbinfo = self.tdCom.setDBinfo(name=dbname, replica=self.replica, vgroups=self.vgroups, drop=self.db_drop, wal_retention_period=self.wal_retention_period, stt_trigger=self.stt_trigger, keep=self.keep, duration=self.duration)
         stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.stage_rows, start_timestamp=self.stage_1_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows, disorder_ratio=self.disorder_ratio, update_ratio=self.update_ratio, delete_ratio=self.delete_ratio, disorder_fill_interval=self.disorder_fill_interval, update_fill_interval=self.update_fill_interval, generate_row_rule=self.generate_row_rule)]
@@ -181,14 +184,6 @@ class CompactTest(TDCase):
             advance_timestamp += 86400*1000
             dbinfo = self.tdCom.setDBinfo(name=dbname, replica=self.replica, vgroups=self.vgroups, drop=self.db_drop, wal_retention_period=self.wal_retention_period, stt_trigger=self.stt_trigger, keep=self.keep, duration=self.duration)
             stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.stage_rows, start_timestamp=advance_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows, disorder_ratio=self.disorder_ratio, update_ratio=self.update_ratio, delete_ratio=self.delete_ratio, disorder_fill_interval=self.disorder_fill_interval, update_fill_interval=self.update_fill_interval, generate_row_rule=self.generate_row_rule)]
-            # if i % 2 == 0:
-            #     self.interlace_rows = 0
-            #     self.stage_rows = 100000
-            #     stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.stage_rows, start_timestamp=advance_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows, disorder_ratio=self.disorder_ratio, update_ratio=self.update_ratio, delete_ratio=self.delete_ratio, disorder_fill_interval=self.disorder_fill_interval, update_fill_interval=self.update_fill_interval, generate_row_rule=self.generate_row_rule)]
-            # else:
-            #     self.interlace_rows = 1000
-            #     self.stage_rows = 50000
-            #     stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.stage_rows, start_timestamp=advance_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows)]
             database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
             host = self.get_fqdn("taosd")[0]
             if self.use_stream:
@@ -314,7 +309,8 @@ class CompactTest(TDCase):
         timestamp_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
         timestamp_start_tb = self.tdCom.timeformat_trans(timestamp_start)
         self._remote._logger.info(f"------------ range timestamp_start_tb: {timestamp_start_tb} ------------")
-        self.tdSql.execute(f'compact database {self.dbname1} start with "{self.stage_1_dt}" end with "{self.today_zero_dt}"')
+        self.tdSql.query(f'compact database {self.dbname1} start with "{self.stage_1_dt}" end with "{self.today_zero_dt}"')
+        self._remote._logger.info(f"------------ range-compact return: \n{pd.DataFrame(self.tdSql.query_data).to_string(index=False,header=False)}\n")
         self.confirm_compact_end()
         timestamp_end_tb = self.tdCom.timeformat_trans(self.compact_end_timestamp)
         self._remote._logger.info(f"------------ range timestamp_end_tb: {timestamp_end_tb} ------------")
@@ -334,7 +330,8 @@ class CompactTest(TDCase):
         self.tdCom.remove_schedular_job(self.compact_schedular)
         for i in range(self.compact_times):
             timestamp_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-            self.tdSql.execute(f'compact database {self.dbname1}')
+            self.tdSql.query(f'compact database {self.dbname1}')
+            self._remote._logger.info(f"------------ full-compact return: \n{pd.DataFrame(self.tdSql.query_data).to_string(index=False,header=False)}\n")
             self.confirm_compact_end()
             # timestamp_end = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
             taosd_avg_cpu, taosBenchmark_avg_cpu, _ = self.Prometheus.cal_range_avg(self.prometheus_setting, "cpu_utilization", timestamp_start, self.compact_end_timestamp, 60)
@@ -372,7 +369,8 @@ class CompactTest(TDCase):
         self._remote._logger.info(f"------------ query rows before compact: {self.query_rows_before_compact} ------------")
         self._remote._logger.info(f"------------ query time before compact: {self.query_time_before_compact}s ------------")
         timestamp_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-        self.tdSql.execute(f'compact database {self.dbname2}')
+        self.tdSql.query(f'compact database {self.dbname2}')
+        self._remote._logger.info(f"------------ full-compact return: \n{pd.DataFrame(self.tdSql.query_data).to_string(index=False,header=False)}\n")
         self.confirm_compact_end()
         # timestamp_end = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
         taosd_avg_cpu, taosBenchmark_avg_cpu, _ = self.Prometheus.cal_range_avg(self.prometheus_setting, "cpu_utilization", timestamp_start, self.compact_end_timestamp, 60)
@@ -407,6 +405,12 @@ class CompactTest(TDCase):
     #     self._remote._logger.info(f"------------ disk usage after compact: {disk_usage} ------------")
 
     def confirm_compact_end(self):
+        self.tdSql.query("show compacts")
+        self._remote._logger.info(f"------------ show-compacts return: \n{pd.DataFrame(self.tdSql.query_data).to_string(index=False,header=False)}\n")
+        if len(self.tdSql.query_data) > 0:
+            compact_id = self.tdSql.query_data[0][0]
+            self.tdSql.query(f"show compact {compact_id}")
+            self._remote._logger.info(f"------------ show-compact-{compact_id} return: \n{pd.DataFrame(self.tdSql.query_data).to_string(index=False,header=False)}\n")
         pattern = "compact.*rows"
         log_file = self.taosd_setting["spec"]["dnodes"][0]["config"]["logDir"] + "/taosdlog.0"
         pat_log_info = self._remote.cmd(self.host, [f'grep "{pattern}" {log_file} | tail -n 1'])
@@ -416,6 +420,12 @@ class CompactTest(TDCase):
         self._remote._logger.info(f"------------ actual   end: {self.pat_log_info} ------------")
         t_counter = 0
         while pat_log_info != self.pat_log_info:
+            self.tdSql.query("show compacts")
+            self._remote._logger.info(f"------------ show-compacts return: \n{pd.DataFrame(self.tdSql.query_data).to_string(index=False,header=False)}\n")
+            if len(self.tdSql.query_data) > 0:
+                compact_id = self.tdSql.query_data[0][0]
+                self.tdSql.query(f"show compact {compact_id}")
+                self._remote._logger.info(f"------------ show-compact-{compact_id} return: \n{pd.DataFrame(self.tdSql.query_data).to_string(index=False,header=False)}\n")
             if t_counter < self.compact_confirm_timeout:
                 pat_log_info = self._remote.cmd(self.host, [f'grep "{pattern}" {log_file} | tail -n 1'])
                 time.sleep(self.compact_wait)
@@ -447,6 +457,16 @@ class CompactTest(TDCase):
         pass
 
     def run(self):
+        compact_id = self.tdCom.compact(self.dbname1)
+        self.tdCom.comfirm_compact_start(self._remote, self.host, self.taosd_setting)
+        # time.sleep(1)
+        compact_starttime = self.tdCom.get_compact_starttime(self._remote, self.host, self.taosd_setting)
+        self.tdCom.compact_rejected(self.dbname1)
+        self.tdCom.check_show_compacts_colname()
+        self.tdCom.check_show_compact_colname()
+        self.tdCom.check_show_compacts(self.dbname1, compact_id, compact_starttime)
+        self.tdCom.check_show_compact(self.dbname1, compact_id)
+        return
         # timestamp_start = "2023-12-03 20:30:36.787877"
         # timestamp_start_tb = self.tdCom.timeformat_trans(timestamp_start)
         # print(timestamp_start_tb)
@@ -460,10 +480,10 @@ class CompactTest(TDCase):
         
         self.insert_fh_data(self.dbname1)
         self.insert_base_data(self.dbname1)
-        # self.alter_db_keep_param()
+        self.alter_db_keep_param()
         self.tmq_schedular = self.tdCom.add_back_ground_scheduler(self.tmq_subcribe, "interval", seconds=self.tmq_schedular_interval, max_instances=1, args=[])
         self.range_compact_schedular = self.tdCom.add_back_ground_scheduler(self.start_range_compact, "interval", seconds=self.compact_schedular_interval, max_instances=1, args=[])
-        # # self.disorder_schedular = self.tdCom.add_back_ground_scheduler(self.disorder_update_delete_data, "interval", seconds=self.disorder_schedular_interval, max_instances=1, args=[])
+        # self.disorder_schedular = self.tdCom.add_back_ground_scheduler(self.disorder_update_delete_data, "interval", seconds=self.disorder_schedular_interval, max_instances=1, args=[])
         self.continue_insert()
         self.cal_compact_resource()
         
