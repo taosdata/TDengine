@@ -172,7 +172,7 @@ static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDisp
   return status;
 }
 
-int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pRsp) {
+int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq) {
   SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SStreamDataBlock));
   int8_t            status = TASK_INPUT_STATUS__NORMAL;
 
@@ -193,17 +193,6 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
     /*streamTaskInputFail(pTask);*/
     /*status = TASK_INPUT_STATUS__FAILED;*/
   }
-
-  // rsp by input status
-  void* buf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamRetrieveRsp));
-  ((SMsgHead*)buf)->vgId = htonl(pReq->srcNodeId);
-  SStreamRetrieveRsp* pCont = POINTER_SHIFT(buf, sizeof(SMsgHead));
-  pCont->streamId = pReq->streamId;
-  pCont->rspToTaskId = pReq->srcTaskId;
-  pCont->rspFromTaskId = pReq->dstTaskId;
-  pRsp->pCont = buf;
-  pRsp->contLen = sizeof(SMsgHead) + sizeof(SStreamRetrieveRsp);
-  tmsgSendRsp(pRsp);
 
   return status == TASK_INPUT_STATUS__NORMAL ? 0 : -1;
 }
@@ -269,11 +258,12 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   return 0;
 }
 
-int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pRsp) {
-  streamTaskEnqueueRetrieve(pTask, pReq, pRsp);
-  ASSERT(pTask->info.taskLevel != TASK_LEVEL__SINK);
-  streamSchedExec(pTask);
-  return 0;
+int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq) {
+  int32_t code = streamTaskEnqueueRetrieve(pTask, pReq);
+  if(code != 0){
+    return code;
+  }
+  return streamSchedExec(pTask);
 }
 
 void streamTaskInputFail(SStreamTask* pTask) { atomic_store_8(&pTask->inputq.status, TASK_INPUT_STATUS__FAILED); }

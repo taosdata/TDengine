@@ -743,7 +743,6 @@ int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* p
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
 
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq);
-void    tDeleteStreamRetrieveReq(SStreamRetrieveReq* pReq);
 void    tDeleteStreamDispatchReq(SStreamDispatchReq* pReq);
 
 int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
@@ -751,7 +750,7 @@ int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
 
-int32_t             streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
+int32_t             streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq);
 SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId);
 
 void    streamTaskInputFail(SStreamTask* pTask);
@@ -868,6 +867,9 @@ int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInf
 
 SStreamTaskSM* streamCreateStateMachine(SStreamTask* pTask);
 void*          streamDestroyStateMachine(SStreamTaskSM* pSM);
+
+int32_t broadcastRetrieveMsg(SStreamTask* pTask, SStreamRetrieveReq *req);
+void    sendRetrieveRsp(SStreamRetrieveReq *pReq, SRpcMsg* pRsp);
 #ifdef __cplusplus
 }
 #endif

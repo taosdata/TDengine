@@ -144,7 +144,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
     }
 
     if (output->info.type == STREAM_RETRIEVE) {
-      if (streamBroadcastToChildren(pTask, output) < 0) {
+      if (streamBroadcastToUpTasks(pTask, output) < 0) {
         // TODO
       }
       continue;

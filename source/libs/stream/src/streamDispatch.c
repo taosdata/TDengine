@@ -162,16 +162,71 @@ int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq) {
   return 0;
 }
 
-void tDeleteStreamRetrieveReq(SStreamRetrieveReq* pReq) { taosMemoryFree(pReq->pRetrieve); }
+void sendRetrieveRsp(SStreamRetrieveReq *pReq, SRpcMsg* pRsp){
+  void* buf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamRetrieveRsp));
+  ((SMsgHead*)buf)->vgId = htonl(pReq->srcNodeId);
+  SStreamRetrieveRsp* pCont = POINTER_SHIFT(buf, sizeof(SMsgHead));
+  pCont->streamId = pReq->streamId;
+  pCont->rspToTaskId = pReq->srcTaskId;
+  pCont->rspFromTaskId = pReq->dstTaskId;
+  pRsp->pCont = buf;
+  pRsp->contLen = sizeof(SMsgHead) + sizeof(SStreamRetrieveRsp);
+  tmsgSendRsp(pRsp);
+}
 
-int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock) {
-  int32_t            code = -1;
+int32_t broadcastRetrieveMsg(SStreamTask* pTask, SStreamRetrieveReq *req){
+  int32_t code = 0;
+  void*   buf = NULL;
+  int32_t sz = taosArrayGetSize(pTask->upstreamInfo.pList);
+  ASSERT(sz > 0);
+  for (int32_t i = 0; i < sz; i++) {
+    req->reqId = tGenIdPI64();
+    SStreamChildEpInfo* pEpInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
+    req->dstNodeId = pEpInfo->nodeId;
+    req->dstTaskId = pEpInfo->taskId;
+    int32_t len;
+    tEncodeSize(tEncodeStreamRetrieveReq, req, len, code);
+    if (code != 0) {
+      ASSERT(0);
+      return code;
+    }
+
+    buf = rpcMallocCont(sizeof(SMsgHead) + len);
+    if (buf == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      return code;
+    }
+
+    ((SMsgHead*)buf)->vgId = htonl(pEpInfo->nodeId);
+    void*    abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+    SEncoder encoder;
+    tEncoderInit(&encoder, abuf, len);
+    tEncodeStreamRetrieveReq(&encoder, req);
+    tEncoderClear(&encoder);
+
+    SRpcMsg rpcMsg = {0};
+    initRpcMsg(&rpcMsg, TDMT_STREAM_RETRIEVE, buf, len + sizeof(SMsgHead));
+
+    code = tmsgSendReq(&pEpInfo->epSet, &rpcMsg);
+    if (code != 0) {
+      ASSERT(0);
+      rpcFreeCont(buf);
+      return code;
+    }
+
+    buf = NULL;
+    stDebug("s-task:%s (child %d) send retrieve req to task:0x%x (vgId:%d), reqId:0x%" PRIx64, pTask->id.idStr,
+            pTask->info.selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req->reqId);
+  }
+  return code;
+}
+
+static int32_t buildStreamRetrieveReq(SStreamTask* pTask, const SSDataBlock* pBlock, SStreamRetrieveReq* req){
   SRetrieveTableRsp* pRetrieve = NULL;
-  void*              buf = NULL;
   int32_t            dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
 
   pRetrieve = taosMemoryCalloc(1, dataStrLen);
-  if (pRetrieve == NULL) return -1;
+  if (pRetrieve == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   pRetrieve->useconds = 0;
@@ -187,57 +242,24 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
 
   int32_t actualLen = blockEncode(pBlock, pRetrieve->data, numOfCols);
 
-  SStreamRetrieveReq req = {
-      .streamId = pTask->id.streamId,
-      .srcNodeId = pTask->info.nodeId,
-      .srcTaskId = pTask->id.taskId,
-      .pRetrieve = pRetrieve,
-      .retrieveLen = dataStrLen,
-  };
+  req->streamId = pTask->id.streamId;
+  req->srcNodeId = pTask->info.nodeId;
+  req->srcTaskId = pTask->id.taskId;
+  req->pRetrieve = pRetrieve;
+  req->retrieveLen = dataStrLen;
+  return 0;
+}
 
-  int32_t sz = taosArrayGetSize(pTask->upstreamInfo.pList);
-  ASSERT(sz > 0);
-  for (int32_t i = 0; i < sz; i++) {
-    req.reqId = tGenIdPI64();
-    SStreamChildEpInfo* pEpInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
-    req.dstNodeId = pEpInfo->nodeId;
-    req.dstTaskId = pEpInfo->taskId;
-    int32_t len;
-    tEncodeSize(tEncodeStreamRetrieveReq, &req, len, code);
-    if (code < 0) {
-      ASSERT(0);
-      return -1;
-    }
-
-    buf = rpcMallocCont(sizeof(SMsgHead) + len);
-    if (buf == NULL) {
-      goto CLEAR;
-    }
-
-    ((SMsgHead*)buf)->vgId = htonl(pEpInfo->nodeId);
-    void*    abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-    SEncoder encoder;
-    tEncoderInit(&encoder, abuf, len);
-    tEncodeStreamRetrieveReq(&encoder, &req);
-    tEncoderClear(&encoder);
-
-    SRpcMsg rpcMsg = {0};
-    initRpcMsg(&rpcMsg, TDMT_STREAM_RETRIEVE, buf, len + sizeof(SMsgHead));
-
-    if (tmsgSendReq(&pEpInfo->epSet, &rpcMsg) < 0) {
-      ASSERT(0);
-      goto CLEAR;
-    }
-
-    buf = NULL;
-    stDebug("s-task:%s (child %d) send retrieve req to task:0x%x (vgId:%d), reqId:0x%" PRIx64, pTask->id.idStr,
-            pTask->info.selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req.reqId);
+int32_t streamBroadcastToUpTasks(SStreamTask* pTask, const SSDataBlock* pBlock) {
+  SStreamRetrieveReq req;
+  int32_t code = buildStreamRetrieveReq(pTask, pBlock, &req);
+  if(code != 0){
+    return code;
   }
-  code = 0;
 
-CLEAR:
-  taosMemoryFree(pRetrieve);
-  rpcFreeCont(buf);
+  code = broadcastRetrieveMsg(pTask, &req);
+  taosMemoryFree(req.pRetrieve);
+
   return code;
 }
 

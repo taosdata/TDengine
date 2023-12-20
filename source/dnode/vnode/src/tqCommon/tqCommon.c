@@ -331,15 +331,25 @@ int32_t tqStreamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   if (pTask == NULL) {
     tqError("vgId:%d process retrieve req, failed to acquire task:0x%x, it may have been dropped already", pMeta->vgId,
             req.dstTaskId);
+    taosMemoryFree(req.pRetrieve);
     return -1;
   }
 
+  int32_t code = 0;
+  if(pTask->info.taskLevel == TASK_LEVEL__SOURCE){
+    code = streamProcessRetrieveReq(pTask, &req);
+  }else{
+    req.srcNodeId = pTask->info.nodeId;
+    req.srcTaskId = pTask->id.taskId;
+    code = broadcastRetrieveMsg(pTask, &req);
+  }
+
   SRpcMsg rsp = {.info = pMsg->info, .code = 0};
-  streamProcessRetrieveReq(pTask, &req, &rsp);
+  sendRetrieveRsp(&req, &rsp);
 
   streamMetaReleaseTask(pMeta, pTask);
-  tDeleteStreamRetrieveReq(&req);
-  return 0;
+  taosMemoryFree(req.pRetrieve);
+  return code;
 }
 
 int32_t tqStreamTaskProcessScanHistoryFinishReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
