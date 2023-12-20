@@ -285,7 +285,7 @@ impl DsSampleIn {
 }
 
 #[derive(Deserialize, Debug, ToSchema, IntoParams)]
-struct TzQuery {
+pub struct TzQuery {
     /// Timezone name, e.g. "Asia/Shanghai"
     tz: Option<String>,
 }
