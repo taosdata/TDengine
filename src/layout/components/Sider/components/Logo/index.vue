@@ -1,7 +1,7 @@
 <template>
   <div class="sidebar_logo_container">
     <router-link :to="title?'/explorer':'/landing'">
-      <span v-if="title" class="oem">{{ title }}</span>
+      <span v-if="title" :class="opened ? 'oem' : 'oem-none'">{{ title }}</span>
       <template v-else>
         <img
           v-if="opened"
@@ -52,6 +52,9 @@ export default {
     margin-top: 15px;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .oem-none {
+    visibility: hidden;
   }
 }
 </style>
