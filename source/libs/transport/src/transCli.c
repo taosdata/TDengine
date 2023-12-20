@@ -626,12 +626,12 @@ void* destroyConnPool(SCliThrd* pThrd) {
 
 static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
   void*      pool = pThrd->pool;
-  SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key) + 1);
+  SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
   STrans*    pTranInst = pThrd->pTransInst;
   if (plist == NULL) {
     SConnList list = {0};
-    taosHashPut((SHashObj*)pool, key, strlen(key) + 1, (void*)&list, sizeof(list));
-    plist = taosHashGet(pool, key, strlen(key) + 1);
+    taosHashPut((SHashObj*)pool, key, strlen(key), (void*)&list, sizeof(list));
+    plist = taosHashGet(pool, key, strlen(key));
 
     SMsgList* nList = taosMemoryCalloc(1, sizeof(SMsgList));
     QUEUE_INIT(&nList->msgQ);
@@ -666,11 +666,11 @@ static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
 static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
   void*      pool = pThrd->pool;
   STrans*    pTransInst = pThrd->pTransInst;
-  SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key) + 1);
+  SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
   if (plist == NULL) {
     SConnList list = {0};
-    taosHashPut((SHashObj*)pool, key, strlen(key) + 1, (void*)&list, sizeof(list));
-    plist = taosHashGet(pool, key, strlen(key) + 1);
+    taosHashPut((SHashObj*)pool, key, strlen(key), (void*)&list, sizeof(list));
+    plist = taosHashGet(pool, key, strlen(key));
 
     SMsgList* nList = taosMemoryCalloc(1, sizeof(SMsgList));
     QUEUE_INIT(&nList->msgQ);
@@ -756,7 +756,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   cliDestroyConnMsgs(conn, false);
 
   if (conn->list == NULL) {
-    conn->list = taosHashGet((SHashObj*)pool, conn->dstAddr, strlen(conn->dstAddr) + 1);
+    conn->list = taosHashGet((SHashObj*)pool, conn->dstAddr, strlen(conn->dstAddr));
   }
 
   SConnList* pList = conn->list;
@@ -922,7 +922,7 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
     connList->size--;
   } else {
     if (pThrd->pool) {
-      SConnList* connList = taosHashGet((SHashObj*)pThrd->pool, conn->dstAddr, strlen(conn->dstAddr) + 1);
+      SConnList* connList = taosHashGet((SHashObj*)pThrd->pool, conn->dstAddr, strlen(conn->dstAddr));
       if (connList != NULL) connList->list->numOfConn--;
     }
   }
@@ -1321,7 +1321,7 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
 
     if (pMsg != NULL && REQUEST_NO_RESP(&pMsg->msg) &&
         (pTransInst->failFastFp != NULL && pTransInst->failFastFp(pMsg->msg.msgType))) {
-      SFailFastItem* item = taosHashGet(pThrd->failFastCache, pConn->dstAddr, strlen(pConn->dstAddr) + 1);
+      SFailFastItem* item = taosHashGet(pThrd->failFastCache, pConn->dstAddr, strlen(pConn->dstAddr));
       int64_t        cTimestamp = taosGetTimestampMs();
       if (item != NULL) {
         int32_t elapse = cTimestamp - item->timestamp;
@@ -1333,7 +1333,7 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
         }
       } else {
         SFailFastItem item = {.count = 1, .timestamp = cTimestamp};
-        taosHashPut(pThrd->failFastCache, pConn->dstAddr, strlen(pConn->dstAddr) + 1, &item, sizeof(SFailFastItem));
+        taosHashPut(pThrd->failFastCache, pConn->dstAddr, strlen(pConn->dstAddr), &item, sizeof(SFailFastItem));
       }
     }
   } else {
@@ -1518,7 +1518,7 @@ FORCE_INLINE int32_t cliBuildExceptResp(SCliMsg* pMsg, STransMsg* pResp) {
 }
 static FORCE_INLINE uint32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn) {
   uint32_t  addr = 0;
-  uint32_t* v = taosHashGet(cache, fqdn, strlen(fqdn) + 1);
+  uint32_t* v = taosHashGet(cache, fqdn, strlen(fqdn));
   if (v == NULL) {
     addr = taosGetIpv4FromFqdn(fqdn);
     if (addr == 0xffffffff) {
@@ -1527,7 +1527,7 @@ static FORCE_INLINE uint32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn) 
       return addr;
     }
 
-    taosHashPut(cache, fqdn, strlen(fqdn) + 1, &addr, sizeof(addr));
+    taosHashPut(cache, fqdn, strlen(fqdn), &addr, sizeof(addr));
   } else {
     addr = *v;
   }
@@ -1537,13 +1537,13 @@ static FORCE_INLINE void cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
   // impl later
   uint32_t addr = taosGetIpv4FromFqdn(fqdn);
   if (addr != 0xffffffff) {
-    uint32_t* v = taosHashGet(cache, fqdn, strlen(fqdn) + 1);
+    uint32_t* v = taosHashGet(cache, fqdn, strlen(fqdn));
     if (addr != *v) {
       char old[64] = {0}, new[64] = {0};
       tinet_ntoa(old, *v);
       tinet_ntoa(new, addr);
       tWarn("update ip of fqdn:%s, old: %s, new: %s", fqdn, old, new);
-      taosHashPut(cache, fqdn, strlen(fqdn) + 1, &addr, sizeof(addr));
+      taosHashPut(cache, fqdn, strlen(fqdn), &addr, sizeof(addr));
     }
   }
   return;
@@ -1735,8 +1735,7 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
       char     key[TSDB_FQDN_LEN + 64] = {0};
       CONN_CONSTRUCT_HASH_KEY(key, ip, port);
 
-      // SCliBatch** ppBatch = taosHashGet(pThrd->batchCache, key, sizeof(key));
-      SCliBatchList** ppBatchList = taosHashGet(pThrd->batchCache, key, sizeof(key));
+      SCliBatchList** ppBatchList = taosHashGet(pThrd->batchCache, key, strlen(key));
       if (ppBatchList == NULL || *ppBatchList == NULL) {
         SCliBatchList* pBatchList = taosMemoryCalloc(1, sizeof(SCliBatchList));
         QUEUE_INIT(&pBatchList->wq);
@@ -1760,7 +1759,7 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
 
         QUEUE_PUSH(&pBatchList->wq, &pBatch->listq);
 
-        taosHashPut(pThrd->batchCache, key, sizeof(key), &pBatchList, sizeof(void*));
+        taosHashPut(pThrd->batchCache, key, strlen(key), &pBatchList, sizeof(void*));
       } else {
         if (QUEUE_IS_EMPTY(&(*ppBatchList)->wq)) {
           SCliBatch* pBatch = taosMemoryCalloc(1, sizeof(SCliBatch));
