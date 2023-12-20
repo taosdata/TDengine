@@ -4256,6 +4256,11 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
       break;
     } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE || pBlock->info.type == STREAM_PULL_OVER) {
       return pBlock;
+    } else if (pBlock->info.type == STREAM_CHECKPOINT) {
+      pAPI->stateStore.streamStateCommit(pInfo->pState);
+      doStreamIntervalSaveCheckpoint(pOperator);
+      copyDataBlock(pInfo->pCheckpointRes, pBlock);
+      continue;
     } else {
       ASSERTS(pBlock->info.type == STREAM_INVALID, "invalid SSDataBlock type");
     }
