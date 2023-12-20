@@ -209,7 +209,11 @@ void streamTaskCheckDownstream(SStreamTask* pTask) {
 
     int32_t numOfVgs = taosArrayGetSize(vgInfo);
     pTask->notReadyTasks = numOfVgs;
-    pTask->checkReqIds = taosArrayInit(numOfVgs, sizeof(int64_t));
+    if (pTask->checkReqIds == NULL) {
+      pTask->checkReqIds = taosArrayInit(numOfVgs, sizeof(int64_t));
+    } else {
+      taosArrayClear(pTask->checkReqIds);
+    }
 
     stDebug("s-task:%s check %d downstream tasks, ver:%" PRId64 "-%" PRId64 " window:%" PRId64 "-%" PRId64,
             pTask->id.idStr, numOfVgs, pRange->range.minVer, pRange->range.maxVer, pWindow->skey, pWindow->ekey);
@@ -436,8 +440,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
       ASSERT(left >= 0);
 
       if (left == 0) {
-        taosArrayDestroy(pTask->checkReqIds);
-        pTask->checkReqIds = NULL;
+        pTask->checkReqIds = taosArrayDestroy(pTask->checkReqIds);;
 
         doProcessDownstreamReadyRsp(pTask);
       } else {
