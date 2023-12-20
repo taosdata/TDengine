@@ -3222,7 +3222,7 @@ _error:
 
 static int32_t saveBlockRowToBuf(STableMergeScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowIdx, int32_t* pPageId, int32_t* pOffset, int32_t* pLength) {
   SDiskbasedBuf* pResultBuf = pInfo->tmsSortRowIdInfo.pExtSrcRowsBuf;
-  int32_t rowBytes = blockDataGetRowSize(pBlock);
+  int32_t rowBytes = blockDataGetRowSize(pBlock) + taosArrayGetSize(pBlock->pDataBlock);
 
   SFilePage* pFilePage = NULL;
 
