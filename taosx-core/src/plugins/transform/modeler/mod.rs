@@ -122,23 +122,34 @@ impl ModeledRecordBatch {
         &self.records
     }
 
-    pub fn into_modeled_json(&self) -> ModeledJsonOutput {
+    pub fn to_modeled_json(&self) -> ModeledJsonOutput {
         self.inner().into()
     }
 
-    pub fn into_modeled_json_with_tz(&self, tz: &str) -> ModeledJsonOutput {
+    pub fn to_modeled_json_with_tz(&self, tz: &str) -> ModeledJsonOutput {
         let schema = self.records.schema();
         let (fields, columns): (Vec<_>, Vec<_>) = (0..self.records.num_columns())
             .map(|i| {
                 let field = schema.fields().get(i).unwrap();
                 let column = self.records.column(i);
-                if let DataType::Timestamp(unit, _) = field.data_type() {
-                    let dt = DataType::Timestamp(unit.clone(), Some(tz.to_string().into()));
-                    let column = arrow::compute::cast(column, &dt).unwrap();
-                    (
-                        Arc::new(Field::new(field.name(), dt, field.is_nullable())),
-                        column,
-                    )
+                if let DataType::Timestamp(unit, left_tz) = field.data_type() {
+                    if left_tz.is_some() {
+                        let dt = DataType::Timestamp(unit.clone(), Some(tz.to_string().into()));
+                        let column = arrow::compute::cast(column, &dt).unwrap();
+                        (
+                            Arc::new(Field::new(field.name(), dt, field.is_nullable())),
+                            column,
+                        )
+                    } else {
+                        let dt = DataType::Timestamp(unit.clone(), Some("UTC".into()));
+                        let column = arrow::compute::cast(column, &dt).unwrap();
+                        let dt = DataType::Timestamp(unit.clone(), Some(tz.to_string().into()));
+                        let column = arrow::compute::cast(&column, &dt).unwrap();
+                        (
+                            Arc::new(Field::new(field.name(), dt, field.is_nullable())),
+                            column,
+                        )
+                    }
                 } else {
                     (field.clone(), column.clone())
                 }
@@ -385,17 +396,31 @@ mod tests {
         .unwrap();
 
         let modeled = ModeledRecordBatch::new(records);
-        let output = modeled.into_modeled_json_with_tz("Asia/Shanghai");
+        let output = modeled.to_modeled_json_with_tz("UTC");
         assert_eq!(
             output.columns,
             vec![
                 vec![
-                    serde_json::Value::String("2021-04-30T00:00:00+08:00".to_string()),
-                    serde_json::Value::String("2021-04-30T00:00:00+08:00".to_string())
+                    serde_json::Value::String("2021-04-30T00:00:00Z".to_string()),
+                    serde_json::Value::Number(serde_json::Number::from_f64(1.0).unwrap())
                 ],
                 vec![
-                    serde_json::Value::Number(1.into()),
-                    serde_json::Value::Number(2.into())
+                    serde_json::Value::String("2021-04-30T00:00:00Z".to_string()),
+                    serde_json::Value::Number(serde_json::Number::from_f64(2.0).unwrap())
+                ]
+            ]
+        );
+        let output = modeled.to_modeled_json_with_tz("Asia/Shanghai");
+        assert_eq!(
+            output.columns,
+            vec![
+                vec![
+                    serde_json::Value::String("2021-04-30T08:00:00+08:00".to_string()),
+                    serde_json::Value::Number(serde_json::Number::from_f64(1.0).unwrap()),
+                ],
+                vec![
+                    serde_json::Value::String("2021-04-30T08:00:00+08:00".to_string()),
+                    serde_json::Value::Number(serde_json::Number::from_f64(2.0).unwrap())
                 ]
             ]
         );
