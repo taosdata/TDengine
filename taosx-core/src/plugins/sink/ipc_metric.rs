@@ -8,9 +8,9 @@ use tracing;
 pub struct IPCMetrics {
     pub com: CommonMetrics,
     pub total_received_batches: AtomicU64,
-    pub total_received_records: AtomicU64,
+    pub total_processed_batches: AtomicU64,
     pub total_insert_sqls: AtomicU64,
-    pub total_failed_sql: AtomicU64,
+    pub total_failed_sqls: AtomicU64,
     pub total_created_stables: AtomicU64,
     pub total_created_tables: AtomicU64,
     pub total_failed_rows: AtomicU64,
@@ -18,9 +18,10 @@ pub struct IPCMetrics {
     pub total_written_raw_blocks: AtomicU64,
     pub total_failed_raw_blocks: AtomicU64,
     pub received_batches: AtomicU64,
-    pub received_records: AtomicU64,
+    pub processed_batches: AtomicU64,
+    pub processed_records: AtomicU64,
     pub insert_sqls: AtomicU64,
-    pub failed_sql: AtomicU64,
+    pub failed_sqls: AtomicU64,
     pub created_stables: AtomicU64,
     pub created_tables: AtomicU64,
     pub failed_rows: AtomicU64,
@@ -34,9 +35,9 @@ impl Default for IPCMetrics {
         Self {
             com: CommonMetrics::default(),
             total_received_batches: AtomicU64::new(0),
-            total_received_records: AtomicU64::new(0),
+            total_processed_batches: AtomicU64::new(0),
             total_insert_sqls: AtomicU64::new(0),
-            total_failed_sql: AtomicU64::new(0),
+            total_failed_sqls: AtomicU64::new(0),
             total_created_stables: AtomicU64::new(0),
             total_created_tables: AtomicU64::new(0),
             total_failed_rows: AtomicU64::new(0),
@@ -44,9 +45,10 @@ impl Default for IPCMetrics {
             total_written_raw_blocks: AtomicU64::new(0),
             total_failed_raw_blocks: AtomicU64::new(0),
             received_batches: AtomicU64::new(0),
-            received_records: AtomicU64::new(0),
+            processed_batches: AtomicU64::new(0),
+            processed_records: AtomicU64::new(0),
             insert_sqls: AtomicU64::new(0),
-            failed_sql: AtomicU64::new(0),
+            failed_sqls: AtomicU64::new(0),
             created_stables: AtomicU64::new(0),
             created_tables: AtomicU64::new(0),
             failed_rows: AtomicU64::new(0),
@@ -62,9 +64,9 @@ impl IPCMetrics {
         Self {
             com: CommonMetrics::new(task_id),
             total_received_batches: AtomicU64::new(0),
-            total_received_records: AtomicU64::new(0),
+            total_processed_batches: AtomicU64::new(0),
             total_insert_sqls: AtomicU64::new(0),
-            total_failed_sql: AtomicU64::new(0),
+            total_failed_sqls: AtomicU64::new(0),
             total_created_stables: AtomicU64::new(0),
             total_created_tables: AtomicU64::new(0),
             total_failed_rows: AtomicU64::new(0),
@@ -72,9 +74,10 @@ impl IPCMetrics {
             total_written_raw_blocks: AtomicU64::new(0),
             total_failed_raw_blocks: AtomicU64::new(0),
             received_batches: AtomicU64::new(0),
-            received_records: AtomicU64::new(0),
+            processed_batches: AtomicU64::new(0),
+            processed_records: AtomicU64::new(0),
             insert_sqls: AtomicU64::new(0),
-            failed_sql: AtomicU64::new(0),
+            failed_sqls: AtomicU64::new(0),
             created_stables: AtomicU64::new(0),
             created_tables: AtomicU64::new(0),
             failed_rows: AtomicU64::new(0),
@@ -90,9 +93,15 @@ impl IPCMetrics {
     }
 
     #[inline]
-    pub fn add_received_records(&self, n: u64) {
-        self.total_received_records.fetch_add(n, SeqCst);
-        self.received_records.fetch_add(n, SeqCst);
+    pub fn add_processed_batches(&self, n: u64) {
+        self.total_processed_batches.fetch_add(n, SeqCst);
+        self.processed_batches.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    pub fn add_processed_records(&self, n: u64) {
+        self.total_processed_batches.fetch_add(n, SeqCst);
+        self.processed_records.fetch_add(n, SeqCst);
     }
 
     #[inline]
@@ -102,9 +111,9 @@ impl IPCMetrics {
     }
 
     #[inline]
-    pub fn add_failed_sql(&self, n: u64) {
-        self.total_failed_sql.fetch_add(n, SeqCst);
-        self.failed_sql.fetch_add(n, SeqCst);
+    pub fn add_failed_sqls(&self, n: u64) {
+        self.total_failed_sqls.fetch_add(n, SeqCst);
+        self.failed_sqls.fetch_add(n, SeqCst);
     }
 
     #[inline]
@@ -154,9 +163,9 @@ impl TaosXMetrics for IPCMetrics {
     fn reset(&self) {
         self.com.reset();
         self.received_batches.store(0, SeqCst);
-        self.received_records.store(0, SeqCst);
+        self.processed_records.store(0, SeqCst);
         self.insert_sqls.store(0, SeqCst);
-        self.failed_sql.store(0, SeqCst);
+        self.failed_sqls.store(0, SeqCst);
         self.created_stables.store(0, SeqCst);
         self.created_tables.store(0, SeqCst);
         self.failed_rows.store(0, SeqCst);

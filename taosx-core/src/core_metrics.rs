@@ -221,6 +221,14 @@ pub fn get_metrics_arc(task_id: Option<String>) -> Arc<CoreMetrics> {
     get_metrics(task_id).expect("metrics not found")
 }
 
+pub fn get_metrics_arc_from_i64(task_id: Option<i64>) -> Arc<CoreMetrics> {
+    let task_id = match task_id {
+        Some(id) => id,
+        _ => -1,
+    };
+    get_metrics(task_id).expect("metrics not found")
+}
+
 /// Try to load metrics from persistence.
 pub fn load_metrics<T: TaosXMetrics>(task_id: &str) -> Option<T> {
     let path_buf = MetricsDb::db_dir(task_id);

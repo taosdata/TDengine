@@ -252,16 +252,12 @@ impl TaskOpts {
                 }
                 _ => (),
             }
-        }
-
-        // Init metrics for tasks start by taosx server
-        if self.with_agent == None {
+            // Init metrics for tasks start by taosx server
             self.init_task_metrics();
         }
 
         // Run task
         {
-            metrics::gauge!(METRICS_TIME_START, Utc::now().timestamp_millis() as f64);
             match (from.driver.as_str(), to.driver.as_str()) {
                 ("tmq", "taos") => {
                     tmq_to_td(
