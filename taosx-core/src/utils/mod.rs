@@ -72,7 +72,7 @@ pub async fn clear_database(dsn: &Dsn) -> anyhow::Result<()> {
 /// append: append all values into a single string (contains line break) when set true
 pub fn get_string_content_from_param_value(
     param_value: &str,
-    read_fisrt: bool,
+    read_first: bool,
     append: bool,
 ) -> anyhow::Result<Option<String>> {
     let (files, str_contents): (Vec<String>, Vec<String>) = param_value
@@ -83,7 +83,7 @@ pub fn get_string_content_from_param_value(
         .partition(|v| v.starts_with("@"));
     let mut result = String::new();
     let mut index = 0;
-    let len = if read_fisrt {
+    let len = if read_first {
         1
     } else {
         if files.len() > str_contents.len() {

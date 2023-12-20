@@ -568,13 +568,13 @@ pub(crate) async fn get_task_metrics_from_snapshot(
         let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
         let task = task_store.get(task_id).await.unwrap().unwrap();
         let time_elapsed_in_seconds = if matches!(task.status(), Status::Running) {
-            let time_elasped = (Utc::now().timestamp_millis()
+            let time_elapsed = (Utc::now().timestamp_millis()
                 - task_started_timestamp.as_f64().unwrap() as i64)
                 / 1000;
-            if time_elasped < 1 {
+            if time_elapsed < 1 {
                 Some(1)
             } else {
-                Some(time_elasped)
+                Some(time_elapsed)
             }
         } else {
             if task.task.finished_at.is_some() {
@@ -675,9 +675,9 @@ async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::R
         let path = upload_dir.join(&req_id);
         fs::create_dir_all(&path).with_context(|| "create file path failed")?;
         let file_name = f.file_name.unwrap();
-        let releative_path = format!("{req_id}/{file_name}");
+        let relative_path = format!("{req_id}/{file_name}");
         tracing::info!(
-            "saving to {}, {releative_path}",
+            "saving to {}, {relative_path}",
             upload_dir.to_str().unwrap()
         );
         let path = upload_dir.join(&req_id).join(&file_name);
@@ -694,7 +694,7 @@ async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::R
 #[serde(default)]
 pub struct FileMeta {
     filename: Option<String>,
-    /// releative
+    /// relative
     filepath: Option<String>,
     filesize: Option<u64>,
     file_header: Option<FileMetaHeader>,
@@ -722,7 +722,7 @@ pub struct FileMetaHeader {
     tag = "data sources",
     responses(
         (status = 200, description = "filemeta access success", body = Vec < String >),
-        (status = 500, description = "metadata achive occur error", body = Failed)
+        (status = 500, description = "metadata archive occur error", body = Failed)
     ),
     params(
         FileMetaRequest

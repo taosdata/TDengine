@@ -23,7 +23,7 @@ options:
     required: true
     description: |
       OPC server endpoint, such as `127.0.0.1<,localhost>/Matrikon.OPC.Simulation.1`.
-      If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
+      If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be the taosX host.
     placeholder: 127.0.0.1/Matrikon.OPC.Simulation.1
 
 strict: false

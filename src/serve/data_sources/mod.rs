@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::time::Duration;
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -223,7 +224,7 @@ pub struct DsSampleIn {
 }
 
 impl DsSampleIn {
-    pub fn transform(&self) -> anyhow::Result<impl Serialize> {
+    pub fn transform(&self, tz: Option<&str>) -> anyhow::Result<impl Serialize> {
         if self.input.is_empty() {
             anyhow::bail!("Input should not be empty");
         }
@@ -267,27 +268,46 @@ impl DsSampleIn {
 
         let output = self.parser.transform(&batch)?;
 
+        if let Some(tz) = tz {
+            let _ = arrow::array::timezone::Tz::from_str(tz).context("Invalid timezone")?;
+            return Ok(output
+                .iter()
+                .map(|batch| batch.to_modeled_json_with_tz(tz))
+                .collect_vec());
+        }
+
         let output = output
             .iter()
-            .map(|batch| batch.into_modeled_json())
+            .map(|batch| batch.to_modeled_json())
             .collect_vec();
         Ok(output)
     }
 }
 
+#[derive(Deserialize, Debug, ToSchema, IntoParams)]
+pub struct TzQuery {
+    /// Timezone name, e.g. "Asia/Shanghai"
+    tz: Option<String>,
+}
 /// Flat stream transform sample data simulation.
 #[utoipa::path(
     tag = "transform",
     request_body = DsSampleIn,
     responses(
         (status = 200, description = "Sample data output", body = Vec<DsSampleOut>),
+    ),
+    params(
+        TzQuery,
     )
 )]
 #[post("/transform/sample/flat")]
-pub(super) async fn data_source_sample(data: Json<DsSampleIn>) -> impl Responder {
+pub(super) async fn data_source_sample(
+    data: Json<DsSampleIn>,
+    tz: Query<TzQuery>,
+) -> impl Responder {
     let sample_in = data.into_inner();
 
-    match sample_in.transform() {
+    match sample_in.transform(tz.tz.as_deref()) {
         Ok(output) => Ok(HttpResponse::Ok()
             .content_type(ContentType::json())
             .json(output)),
@@ -328,7 +348,7 @@ fn test_sample_flat() {
 {"parser":{"parse":{"current":{"regex":"(?P<current>\\d+\\.\\d+)"}}},"input":[{"current":"10.3","groupid":"2","id":"1001","location":"California.SanFrancisco","phase":"0.31","timestamp":"1538548685000","voltage":"219"},{"current":"10.2","groupid":"3","id":"1002","location":"California.SanFrancisco","phase":"0.23","timestamp":"1538548684000","voltage":"220"},{"current":"11.5","groupid":"3","id":"1003","location":"California.LosAngeles","phase":"0.35","timestamp":"1538548686500","voltage":"221"}]}
     "#;
     let sample_in: DsSampleIn = serde_json::from_str(json).unwrap();
-    let output = sample_in.transform().unwrap();
+    let output = sample_in.transform(Some("Asia/Shanghai")).unwrap();
     dbg!(serde_json::to_string(&output).unwrap());
 }
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]

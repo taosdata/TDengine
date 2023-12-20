@@ -239,7 +239,7 @@ pub enum AuthMethod {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct OpcTableConfig {
     /// id, (code, stable, enabled)
-    /// code for child table name, stable maybe none when use ui config, casue stabel_prefix exists
+    /// code for child table name, stable maybe none when use ui config, cause stable_prefix exists
     /// when stable is none stable_prefix will be enabled
     pub id_code_map: HashMap<String, PointConfig>,
     pub table_config: TableConfig,

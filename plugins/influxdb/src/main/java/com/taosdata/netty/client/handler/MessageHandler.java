@@ -51,12 +51,12 @@ public class MessageHandler extends ChannelInboundHandlerAdapter {
      */
     private void sendTypeErrorResponse(ChannelHandlerContext channelHandlerContext, MessageDto req) {
         // 封装消息体
-        MessageDto messageDto = new MessageDto();
+        /*MessageDto messageDto = new MessageDto();
         messageDto.setVersion(req.getVersion());
         messageDto.setMsgType(MessageTypeEnums.MSG_RES.getValue());
         messageDto.setSeq(req.getSeq());
-        messageDto.setBody(new byte[0]);
+        messageDto.setBody(new byte[0]);*/
         // 发送消息
-        channelHandlerContext.writeAndFlush(messageDto);
+        channelHandlerContext.writeAndFlush(new byte[0]);
     }
 }

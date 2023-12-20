@@ -76,7 +76,7 @@ pub async fn mqtt_to_taos(
         .await
         .ok_or_else(|| anyhow::format_err!("No available port for MQTT connection"))?;
 
-    let config = MqttConfig::from(&from, Some(ipc_port))?;
+    let config = MqttConfig::from(&from, Some(ipc_port), task_id)?;
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
@@ -229,6 +229,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                 remote: "".to_string(),
                 mqtt: c,
                 topics: HashMap::new(),
+                dump: None,
             };
             let valid = validate_mqtt(mqtt_config).await;
             match valid {

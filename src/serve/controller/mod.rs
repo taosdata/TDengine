@@ -230,6 +230,11 @@ pub(crate) struct TaskController {
     pub ctl_alive: Arc<AtomicBool>,
 
     pub shutdown_notify: Arc<tokio::sync::Notify>,
+
+    /// Max activities per task or agent.
+    pub max_activities_per_entity: usize,
+
+    pub max_activities_keep_interval: Duration,
 }
 
 impl Debug for TaskController {
@@ -238,6 +243,11 @@ impl Debug for TaskController {
             .field("pool", &self.pool)
             .field("tasks", &self.tasks)
             .field("offsets", &self.offsets)
+            .field("max_activities_per_entity", &self.max_activities_per_entity)
+            .field(
+                "max_activities_keep_interval",
+                &self.max_activities_keep_interval,
+            )
             .field("scheduler", &"...")
             .finish()
     }
@@ -254,8 +264,12 @@ impl Debug for TaskController {
 pub(crate) struct TaskControllerRef(Arc<TaskController>);
 
 impl TaskControllerRef {
-    pub async fn from_sqlite(sqlite: &str, scheduler: TaskScheduler) -> anyhow::Result<Self> {
-        TaskController::from_sqlite(sqlite, scheduler)
+    pub async fn from_sqlite(
+        sqlite: &str,
+        scheduler: TaskScheduler,
+        max_activities_per_entity: usize,
+    ) -> anyhow::Result<Self> {
+        TaskController::from_sqlite(sqlite, scheduler, max_activities_per_entity)
             .await
             .map(|v| Self(Arc::new(v)))
     }
@@ -421,6 +435,53 @@ async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::
     Ok(())
 }
 
+/// Keep max activities per task or agent, but at least keep 10 activities.
+async fn keep_max_activities(pool: &SqlitePool, max: usize) -> anyhow::Result<()> {
+    let max = if max > 9 { max - 1 } else { 9 } as i64;
+    // tasks
+    let tasks = sqlx::query_scalar::<_, i64>("select id from tasks")
+        .fetch_all(pool)
+        .await?;
+    for id in tasks {
+        if let Some(at) = sqlx::query_scalar::<_, DateTime<Utc>>(
+            "select `at` from task_activities where id = ? order by `at` desc limit 1 offset ?",
+        )
+        .bind(id)
+        .bind(max)
+        .fetch_optional(pool)
+        .await?
+        {
+            sqlx::query("delete from task_activities where id = ? and `at` < ?")
+                .bind(id)
+                .bind(&at)
+                .execute(pool)
+                .await?;
+        }
+    }
+
+    // agents
+    let agents = sqlx::query_scalar::<_, i64>("select id from agents")
+        .fetch_all(pool)
+        .await?;
+    for id in agents {
+        if let Some(at) = sqlx::query_scalar::<_, DateTime<Utc>>(
+            "select `at` from agent_activities where id = ? order by `at` desc limit 1 offset ?",
+        )
+        .bind(id)
+        .bind(max)
+        .fetch_optional(pool)
+        .await?
+        {
+            sqlx::query("delete from agent_activities where id = ? and `at` < ?")
+                .bind(id)
+                .bind(&at)
+                .execute(pool)
+                .await?;
+        }
+    }
+    Ok(())
+}
+
 async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
     let tasks = sqlx::query_scalar::<_, TaskId>(
         "select id from tasks where status in (?, ?, ?, ?, ?, ?, ?)",
@@ -471,7 +532,11 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
 }
 
 impl TaskController {
-    pub async fn from_sqlite(sqlite: &str, scheduler: TaskScheduler) -> anyhow::Result<Self> {
+    pub async fn from_sqlite(
+        sqlite: &str,
+        scheduler: TaskScheduler,
+        max_activities_per_entity: usize,
+    ) -> anyhow::Result<Self> {
         if !sqlite.contains(":memory:") {
             let file = sqlite.replacen("sqlite:", "", 1);
             let path = std::path::Path::new(&file);
@@ -542,6 +607,19 @@ impl TaskController {
         let transferred = Transferred::new(pool.clone(), Duration::from_secs(10));
 
         database_initiate(&pool).await?;
+
+        let max_activities_pool = pool.clone();
+        let max_activities_keep_interval = Duration::from_secs(60 * 60);
+        tokio::task::spawn(async move {
+            loop {
+                tokio::time::sleep(max_activities_keep_interval).await;
+                if let Err(err) =
+                    keep_max_activities(&max_activities_pool, max_activities_per_entity).await
+                {
+                    tracing::error!("keep max activities error: {err:?}");
+                }
+            }
+        });
         Ok(Self {
             pool,
             tasks: Default::default(),
@@ -551,6 +629,8 @@ impl TaskController {
             transferred,
             ctl_alive,
             shutdown_notify,
+            max_activities_per_entity,
+            max_activities_keep_interval,
         })
     }
 
@@ -3082,6 +3162,38 @@ mod tests {
         let offset = controller.offsets(task.id).await?.unwrap();
         dbg!(&offset);
 
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_max_activities_per_entity() -> anyhow::Result<()> {
+        tracing_subscriber_init()?;
+        let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
+        let agent = controller
+            .create_agent(AgentProps {
+                dsn: "".to_string(),
+                name: "a1".to_string(),
+                cluster_id: "".to_string(),
+                user_id: "".to_string(),
+            })
+            .await?;
+        dbg!(&agent);
+        let pool = controller.pool.clone();
+        for _i in 0..1000 {
+            let _ = push_agent_activity(
+                &pool,
+                &Activity::agent_transferring(agent.id, "test".to_string()),
+            )
+            .await;
+            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        }
+
+        keep_max_activities(&pool, 100).await?;
+
+        let len = sqlx::query_scalar::<_, i64>("select count(*) from agent_activities")
+            .fetch_one(&pool)
+            .await?;
+        assert_eq!(len, 100);
         Ok(())
     }
 }

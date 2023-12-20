@@ -161,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    fn test_breakpoints_set_muti_thread() {
+    fn test_breakpoints_set_multi_thread() {
         use std::thread;
         let mut handles = vec![];
         let n = 10;
