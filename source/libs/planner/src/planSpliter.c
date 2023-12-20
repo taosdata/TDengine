@@ -574,53 +574,6 @@ static int32_t stbSplCreatePartMidWindowNode(SWindowLogicNode* pMergeWindow, SLo
   return code;
 }
 
-//static int32_t stbSplCreateSemiWindowNode(SWindowLogicNode* pMidWindow, SLogicNode** pSemiWindow) {
-//  SNodeList* pFunc = pMidWindow->pFuncs;
-//  pMidWindow->pFuncs = NULL;
-//  nodesDestroyList(pMidWindow->node.pTargets);
-//  pMidWindow->node.pTargets = NULL;
-//  SNodeList* pChildren = pMidWindow->node.pChildren;
-//  pMidWindow->node.pChildren = NULL;
-//
-//  SWindowLogicNode* pPartWin = (SWindowLogicNode*)nodesCloneNode((SNode*)pMidWindow);
-//  if (NULL == pPartWin) {
-//    return TSDB_CODE_OUT_OF_MEMORY;
-//  }
-//
-//  pPartWin->node.pChildren = pChildren;
-//  splSetParent((SLogicNode*)pPartWin);
-//
-//  int32_t index = 0;
-//  int32_t code = stbSplRewriteFuns(pFunc, &pPartWin->pFuncs, &pMidWindow->pFuncs);
-//  if (TSDB_CODE_SUCCESS == code) {
-//    code = stbSplAppendWStart(pPartWin->pFuncs, &index, ((SColumnNode*)pMidWindow->pTspk)->node.resType.precision);
-//  }
-//  if (TSDB_CODE_SUCCESS == code) {
-//    code = createColumnByRewriteExprs(pPartWin->pFuncs, &pPartWin->node.pTargets);
-//  }
-//
-//  if (TSDB_CODE_SUCCESS == code) {
-//    code = createColumnByRewriteExprs(pMidWindow->pFuncs, &pMidWindow->node.pTargets);
-//  }
-//
-//  if (TSDB_CODE_SUCCESS == code) {
-//    nodesDestroyNode(pMidWindow->pTspk);
-//    pMidWindow->pTspk = nodesCloneNode(nodesListGetNode(pPartWin->node.pTargets, index));
-//    if (NULL == pMidWindow->pTspk) {
-//      code = TSDB_CODE_OUT_OF_MEMORY;
-//    }
-//  }
-//
-//  nodesDestroyList(pFunc);
-//  if (TSDB_CODE_SUCCESS == code) {
-//    *pSemiWindow = (SLogicNode*)pPartWin;
-//  } else {
-//    nodesDestroyNode((SNode*)pPartWin);
-//  }
-//
-//  return code;
-//}
-
 static int32_t stbSplGetNumOfVgroups(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
     return ((SScanLogicNode*)pNode)->pVgroupList->numOfVgroups;
