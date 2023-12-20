@@ -939,8 +939,8 @@ export default {
     validTopicSqlDesc: "不支持的SQL语句对于创建主题"
   },
   landing: {
-    title: "欢迎使用 TDengine Cloud ，让我们从了解基本概念开始。",
-    introduce: "TDengine Cloud 是一全托管的时间序列数据处理云服务。使用前，请阅读TDengine数据模型的关键概念。",
+    title: "欢迎使用 TDengine Explorer ，让我们从了解基本概念开始。",
+    introduce: "使用前，请阅读TDengine数据模型的关键概念。",
     pageTip: "This page has some helpful references for getting started. You can reference it anytime by clicking the TDengine Logo in the top left.",
     metricTitle: "采集量 (Metric)",
     metricDesc:

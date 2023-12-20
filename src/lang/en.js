@@ -1112,7 +1112,7 @@ export default {
 
   landing: {
     title: "Welcome, let's get started!",
-    introduce: "TDengine is a fully managed service for time-series data processing. Take a moment to read the key concepts of TDengine data model.",
+    introduce: "Take a moment to read the key concepts of TDengine data model.",
     pageTip: "This page has some helpful references for getting started. You can reference it anytime by clicking the TDengine Logo in the top left.",
     metricTitle: "Metric",
     metricDesc:
