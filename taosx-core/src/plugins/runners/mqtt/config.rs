@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use taos::Dsn;
 
-use crate::runners::{get_string_from_param_or_file, get_string_vec_from_param_or_file};
+use crate::{
+    get_data_dir,
+    runners::{get_string_from_param_or_file, get_string_vec_from_param_or_file},
+};
 
 #[derive(Debug, serde::Serialize)]
 pub struct MqttConfig {
@@ -11,11 +14,73 @@ pub struct MqttConfig {
     pub remote: String,
     pub mqtt: MqttConnectConfig,
     pub topics: HashMap<String, u8>,
+    pub dump: Option<Dump>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct Dump {
+    pub enable: bool,
+    pub path: String,
+    pub keep: usize,
+}
+
+impl Dump {
+    pub fn from_dsn(dsn: &Dsn, id: Option<i64>) -> anyhow::Result<Option<Self>> {
+        let enable = dsn
+            .params
+            .get("keep_raw_data")
+            .map(|v| {
+                let v = v.trim();
+                if v.is_empty() {
+                    return Ok(true);
+                }
+                v.trim().parse::<bool>().map_err(|err| {
+                    tracing::error!(
+                        "invalid keep_raw_data: `{}`, require boolean value, cause: {}",
+                        v,
+                        err
+                    );
+                    err
+                })
+            })
+            .transpose()?
+            .unwrap_or(false);
+        if !enable {
+            return Ok(None);
+        }
+        let path = dsn
+            .params
+            .get("keep_raw_data_dir")
+            .map(|v| v.to_string())
+            .or_else(|| {
+                id.map(|id| {
+                    let path = get_data_dir().join(format!("{id}")).join("rawdata");
+                    path.display().to_string()
+                })
+            })
+            .ok_or_else(|| anyhow::anyhow!("path is required if keep_raw_data is enabled"))?;
+        let keep = dsn
+            .params
+            .get("keep_raw_data_days")
+            .map(|v| {
+                v.parse::<usize>().map_err(|err| {
+                    anyhow::anyhow!(
+                        "parse keep_raw_data_days failed, which requires integer value: {}",
+                        err.to_string()
+                    )
+                })
+            })
+            .transpose()?
+            .unwrap_or(1); // Default keep 1 day.
+
+        Ok(Some(Dump { enable, path, keep }))
+    }
 }
 
 impl MqttConfig {
-    pub fn from(dsn: &Dsn, ipc_port: Option<u16>) -> anyhow::Result<Self> {
+    pub fn from(dsn: &Dsn, ipc_port: Option<u16>, task_id: Option<i64>) -> anyhow::Result<Self> {
         let connect_config = MqttConnectConfig::from_dsn(&dsn)?;
+        let dump = Dump::from_dsn(dsn, task_id)?;
         let topics_vec = get_string_vec_from_param_or_file(&mut dsn.clone(), "topics")
             .map_err(|err| anyhow::anyhow!("invalid topics, cause: {}", err.to_string()))?;
 
@@ -49,6 +114,7 @@ impl MqttConfig {
             remote: format!("127.0.0.1:{}", ipc_port.unwrap_or(0)),
             mqtt: connect_config,
             topics,
+            dump,
         })
     }
 }
@@ -206,7 +272,7 @@ mod tests {
         let dsn =
             Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true")
                 .unwrap();
-        let config = MqttConfig::from(&dsn, Some(10086));
+        let config = MqttConfig::from(&dsn, Some(10086), None);
         assert!(config.is_err());
         assert_eq!(
             "invalid topics, cause: Nodes not set",
@@ -217,7 +283,7 @@ mod tests {
             "mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=a,b,c",
         )
         .unwrap();
-        let config = MqttConfig::from(&dsn, Some(10086));
+        let config = MqttConfig::from(&dsn, Some(10086), None);
         assert!(config.is_err());
         assert_eq!(
             "invalid topic: a, cause: the format of topic is name::qos",
@@ -228,7 +294,7 @@ mod tests {
             "mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::abc",
         )
         .unwrap();
-        let config = MqttConfig::from(&dsn, Some(10086));
+        let config = MqttConfig::from(&dsn, Some(10086), None);
         assert!(config.is_err());
         assert_eq!(
             "invalid qos: abc in topic, cause: invalid digit found in string",
@@ -239,12 +305,11 @@ mod tests {
             "mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::0",
         )
         .unwrap();
-        let config = MqttConfig::from(&dsn, Some(10086));
-        assert!(config.is_err());
-        assert_eq!("log_level is required", config.err().unwrap().to_string());
+        let config = MqttConfig::from(&dsn, Some(10086), None);
+        assert!(config.is_ok());
 
         let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::0,tp2::1,tp3::2&log_level=debug&version=3.0&keep_alive=60&clean_session=true").unwrap();
-        let config = MqttConfig::from(&dsn, Some(10086)).unwrap();
+        let config = MqttConfig::from(&dsn, Some(10086), None).unwrap();
         assert_eq!("debug", config.log_level);
         assert_eq!("127.0.0.1:10086", config.remote);
         assert_eq!(3, config.topics.len());
@@ -262,5 +327,25 @@ mod tests {
             "address = \"tcp://192.168.1.42:1833\"\\nversion = \"3.0\"",
             toml.unwrap()
         );
+    }
+
+    #[test]
+    fn test_mqtt_dump() {
+        let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::0,tp2::1,tp3::2&log_level=debug&version=3.0&keep_alive=60&clean_session=true").unwrap();
+        let config = MqttConfig::from(&dsn, Some(10086), None).unwrap();
+        assert_eq!("debug", config.log_level);
+        assert_eq!("127.0.0.1:10086", config.remote);
+        assert_eq!(3, config.topics.len());
+        assert_eq!(0, *config.topics.get("tp1").unwrap());
+        assert_eq!(1, *config.topics.get("tp2").unwrap());
+        assert_eq!(2, *config.topics.get("tp3").unwrap());
+        assert!(config.dump.is_none());
+
+        let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::0,tp2::1,tp3::2&log_level=debug&version=3.0&keep_alive=60&clean_session=true&keep_raw_data&keep_raw_data_dir=./abc").unwrap();
+        let config = MqttConfig::from(&dsn, Some(10086), None).unwrap();
+        let dump = config.dump.unwrap();
+        assert_eq!(dump.enable, true);
+        assert_eq!(dump.path, "./abc");
+        assert_eq!(dump.keep, 1);
     }
 }
