@@ -312,7 +312,7 @@ typedef struct STableMergeScanInfo {
   bool             rtnNextDurationBlocks;
   int32_t          nextDurationBlocksIdx;
   bool             bSortRowId;
-  STmsSortRowIdInfo tmsSortRowIdInfo;
+  STmsSortRowIdInfo sortRowIdInfo;
 } STableMergeScanInfo;
 
 typedef struct STagScanFilterContext {
