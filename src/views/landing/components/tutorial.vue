@@ -65,11 +65,6 @@
       desc: i18n.t("landing.databaseDesc"),
       img: "/static/landing/database.png",
     },
-    {
-      title: i18n.t("landing.instanceTitle"),
-      desc: i18n.t("landing.instanceDesc"),
-      img: "/static/landing/instances.png",
-    },
   ];
 }
   export default {
