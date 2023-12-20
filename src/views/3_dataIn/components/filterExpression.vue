@@ -144,6 +144,7 @@ export default {
             })
           );
         });
+        this.$store.commit("app/SET_TRANS_RESULT_TABLE", this.tableData);
         let transformerColumns = [
           {
             value: "expression",

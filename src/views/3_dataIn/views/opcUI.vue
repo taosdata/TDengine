@@ -887,8 +887,11 @@
           :content="dbsource[0].description"
         ></DocsContent>
       </div>
+
+      <ResultTable></ResultTable>
     </div>
     <DialogCreateDb></DialogCreateDb>
+    
   </div>
 </template>
 <script>
@@ -914,6 +917,7 @@ import Result from "../components/result.vue";
 import AdvanceOptions from "../components/advancedOptions.vue";
 import CommonTransformer from "../components/commonTransformer.vue";
 import DocsContent from '@/views/support/components/editorContentDisplay.vue';
+import ResultTable from '../components/transformResultTable.vue'
 export default {
   name: "DbSourceUI",
   components: {
@@ -925,7 +929,8 @@ export default {
     Result,
     AdvanceOptions,
     CommonTransformer,
-    DocsContent
+    DocsContent,
+    ResultTable
   },
   props: {
     echoData: {
@@ -2216,6 +2221,7 @@ export default {
   justify-content: space-between;
   display: flex;
   overflow-x: auto;
+  position:relative;
   :deep {
     .el-input__inner {
       // border: none !important;
@@ -2421,6 +2427,7 @@ export default {
     flex: 1;
     margin-left: 40px;
     overflow: hidden;
+    position:relative;
     .doc-part {
       box-shadow: rgba(0, 0, 0, 0.1) 0px 0px 15px;
       padding: 2rem;

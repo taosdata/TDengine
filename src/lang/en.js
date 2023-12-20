@@ -1201,6 +1201,12 @@ export default {
     // opc_alias:'Alias',
     // opc_type:'Type',
     transformer:{
+      msgbodytypes:{
+        type1:'Copy and Paste',
+        type2:'Retrieve From Server',
+        type3:'Upload File',
+        retrieve:'Retrieve',
+      },
       filterexecuted:'Filter condition triggered',
       filterunexe:'The filtering condition has not been triggered yet, press the enter key to trigger it',
     parsefirst:'Please excute the parse,extract or split first',
@@ -1238,7 +1244,7 @@ export default {
       create_st:'Create STable',
       targetSt:'Target Super Table',
       mutiple:'Multiple addition queries separated by semicolons',
-      msgbody:'Message Body',
+      msgbody:'Sample Message Body',
       msgbodytip:'Please enter the message body first',
       searchSResult:'Press the enter key to query after completion',
       tablenametip:'Please enter the table name expression first',

@@ -286,7 +286,8 @@ export default {
         });
         if (isall) {
           //获取全部的extract or split参数
-          this.$emit("sendAllExtractParams", colLists, tbdata);
+          this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
+          console.log(colLists,tbdata,'transformer列的全量结果----99999');
           return;
         }
         this.tableColumns = colLists.map((item) => {
@@ -356,6 +357,8 @@ export default {
         if (this.$store.state.app.currentDBType == "kafka") {
           hiddenCols = ["ts", "topic", "partition", "offset", "key"];
         }
+      }else{
+        hiddenCols=[]
       }
 
       inputList = resultMsgbody.map((msg) => {
@@ -365,7 +368,7 @@ export default {
           .forEach((item) => {
             if (this.$store.state.app.currentDBType == "mqtt") {
               if (item.name == "payload") {
-                inputobj["payload"] = this.isJson
+                inputobj["payload"] =isall?msg: this.isJson
                   ? JSON.stringify({
                       [`${this.itemData.columnname}`]:
                         JSON.parse(msg)[this.itemData.columnname],

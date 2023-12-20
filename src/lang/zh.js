@@ -1005,6 +1005,12 @@ export default {
 
   datasource: {
     transformer:{
+        msgbodytypes:{
+          type1:'复制粘贴',
+          type2:'从服务器检索',
+          type3:'上传文件',
+          retrieve:'检索',
+        },
       filterexecuted:'筛选条件已触发',
       filterunexe:'筛选条件尚未触发，按Enter键触发',
       parsefirst:'请先执行解析,提取或者拆分操作',
@@ -1040,7 +1046,7 @@ export default {
       create_st:'创建超级表',
       targetSt:'目标超级表',
       mutiple:'多条件查询以分号分隔',
-      msgbody:'消息体',
+      msgbody:'示例消息体',
       msgbodytip:'请先输入消息体',
       searchSResult:'输入完后按enter键查询',
       tablenametip:'请先输入表名表达式',
