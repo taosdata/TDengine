@@ -69,6 +69,7 @@ class TDTestCase(TDTestCase):
 
     def stop(self):
         tdSql.close()
+        time.sleep(5)
         tdLog.success("%s successfully executed" % __file__)
 
 

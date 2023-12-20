@@ -556,6 +556,7 @@ class TDTestCase:
         print("taos -f sql start!")
         taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
         _ = subprocess.check_output(taos_cmd1, shell=True)
+        time.sleep(5)
         print("taos -f sql over!")     
                 
 
@@ -566,6 +567,7 @@ class TDTestCase:
 
     def stop(self):
         tdSql.close()
+        time.sleep(5)
         tdLog.success("%s successfully executed" % __file__)
 
 

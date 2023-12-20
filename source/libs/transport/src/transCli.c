@@ -1906,7 +1906,6 @@ void cliConnFreeMsgs(SCliConn* conn) {
   for (int i = 0; i < transQueueSize(&conn->cliMsgs); i++) {
     SCliMsg* cmsg = transQueueGet(&conn->cliMsgs, i);
     if (cmsg->type == Release || REQUEST_NO_RESP(&cmsg->msg) || cmsg->msg.msgType == TDMT_SCH_DROP_TASK) {
-      if (cmsg->type == Release) destroyCmsg(cmsg);
       continue;
     }
 
