@@ -124,9 +124,6 @@ typedef struct SCliThrd {
   SCliMsg* stopMsg;
 
   bool quit;
-
-  int       newConnCount;
-  SHashObj* msgCount;
 } SCliThrd;
 
 typedef struct SCliObj {
@@ -205,7 +202,6 @@ static FORCE_INLINE void cliMayUpdateFqdnCache(SHashObj* cache, char* dst);
 static void cliHandleResp(SCliConn* conn);
 // handle except about conn
 static void cliHandleExcept(SCliConn* conn);
-static void cliReleaseUnfinishedMsg(SCliConn* conn);
 static void cliHandleFastFail(SCliConn* pConn, int status);
 
 static void doNotifyApp(SCliMsg* pMsg, SCliThrd* pThrd);
@@ -464,7 +460,7 @@ void cliHandleResp(SCliConn* conn) {
       return;
     }
   }
-  int64_t refId = pMsg == NULL ? 0 : (int64_t)(pMsg->msg.info.handle);
+  int64_t refId = (pMsg == NULL ? 0 : (int64_t)(pMsg->msg.info.handle));
   tDebug("conn %p msg refId: %" PRId64 "", conn, refId);
 
   destroyCmsg(pMsg);
@@ -481,7 +477,21 @@ void cliHandleResp(SCliConn* conn) {
 
   uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
 }
-
+static void cliDestroyMsgInExhandle(int64_t refId) {
+  if (refId == 0) return;
+  SExHandle* exh = transAcquireExHandle(transGetRefMgt(), refId);
+  if (exh) {
+    taosWLockLatch(&exh->latch);
+    while (!QUEUE_IS_EMPTY(&exh->q)) {
+      queue* h = QUEUE_HEAD(&exh->q);
+      QUEUE_REMOVE(h);
+      SCliMsg* t = QUEUE_DATA(h, SCliMsg, seqq);
+      destroyCmsg(t);
+    }
+    taosWUnLockLatch(&exh->latch);
+    transReleaseExHandle(transGetRefMgt(), refId);
+  }
+}
 void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
   if (transQueueEmpty(&pConn->cliMsgs)) {
     if (pConn->broken == true && CONN_NO_PERSIST_BY_APP(pConn)) {
@@ -541,20 +551,7 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
 
     if (pMsg == NULL || (pMsg && pMsg->type != Release)) {
       int64_t refId = (pMsg == NULL ? 0 : (int64_t)(pMsg->msg.info.handle));
-      if (refId != 0) {
-        SExHandle* exh = transAcquireExHandle(transGetRefMgt(), refId);
-        if (exh) {
-          taosWLockLatch(&exh->latch);
-          while (!QUEUE_IS_EMPTY(&exh->q)) {
-            queue* h = QUEUE_HEAD(&exh->q);
-            QUEUE_REMOVE(h);
-            SCliMsg* t = QUEUE_DATA(h, SCliMsg, seqq);
-            destroyCmsg(t);
-          }
-          taosWUnLockLatch(&exh->latch);
-          transReleaseExHandle(transGetRefMgt(), refId);
-        }
-      }
+      cliDestroyMsgInExhandle(refId);
       if (cliAppCb(pConn, &transMsg, pMsg) != 0) {
         return;
       }
@@ -930,7 +927,6 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
     }
   }
   conn->list = NULL;
-  pThrd->newConnCount--;
 
   transReleaseExHandle(transGetRefMgt(), conn->refId);
   transRemoveExHandle(transGetRefMgt(), conn->refId);
@@ -1235,7 +1231,6 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
     addr.sin_port = (uint16_t)htons(pList->port);
 
     tTrace("%s conn %p try to connect to %s", pTransInst->label, conn, pList->dst);
-    pThrd->newConnCount++;
     int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 10);
     if (fd == -1) {
       tError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn,
@@ -1588,22 +1583,6 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     destroyCmsg(pMsg);
     return;
   }
-
-  if (rpcDebugFlag & DEBUG_TRACE) {
-    if (tmsgIsValid(pMsg->msg.msgType)) {
-      char buf[128] = {0};
-      sprintf(buf, "%s", TMSG_INFO(pMsg->msg.msgType));
-      int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
-      if (NULL == 0) {
-        int localCount = 1;
-        taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-      } else {
-        int localCount = *count + 1;
-        taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-      }
-    }
-  }
-
   char*    fqdn = EPSET_GET_INUSE_IP(&pMsg->ctx->epSet);
   uint16_t port = EPSET_GET_INUSE_PORT(&pMsg->ctx->epSet);
   char     addr[TSDB_FQDN_LEN + 64] = {0};
@@ -1661,7 +1640,6 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     addr.sin_port = (uint16_t)htons(port);
 
     tGTrace("%s conn %p try to connect to %s", pTransInst->label, conn, conn->dstAddr);
-    pThrd->newConnCount++;
     int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 10);
     if (fd == -1) {
       tGError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn,
@@ -2094,8 +2072,6 @@ static SCliThrd* createThrdObj(void* trans) {
 
   pThrd->quit = false;
 
-  pThrd->newConnCount = 0;
-  pThrd->msgCount = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   return pThrd;
 }
 static void destroyThrdObj(SCliThrd* pThrd) {
@@ -2141,7 +2117,6 @@ static void destroyThrdObj(SCliThrd* pThrd) {
     pIter = (void**)taosHashIterate(pThrd->batchCache, pIter);
   }
   taosHashCleanup(pThrd->batchCache);
-  taosHashCleanup(pThrd->msgCount);
   taosMemoryFree(pThrd);
 }
 
@@ -2197,14 +2172,15 @@ static void doCloseIdleConn(void* param) {
 }
 
 static void cliSchedMsgToDebug(SCliMsg* pMsg, char* label) {
-  STransConnCtx* pCtx = pMsg->ctx;
-  if (rpcDebugFlag & DEBUG_DEBUG) {
-    STraceId* trace = &pMsg->msg.info.traceId;
-    char      tbuf[512] = {0};
-    EPSET_TO_STR(&pCtx->epSet, tbuf);
-    tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", label, tbuf, pCtx->retryStep,
-            pCtx->retryNextInterval);
+  if (!(rpcDebugFlag & DEBUG_DEBUG)) {
+    return;
   }
+  STransConnCtx* pCtx = pMsg->ctx;
+  STraceId*      trace = &pMsg->msg.info.traceId;
+  char           tbuf[512] = {0};
+  EPSET_TO_STR(&pCtx->epSet, tbuf);
+  tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", label, tbuf, pCtx->retryStep,
+          pCtx->retryNextInterval);
   return;
 }
 static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
@@ -2216,12 +2192,6 @@ static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
   arg->param1 = pMsg;
   arg->param2 = pThrd;
   transDQSched(pThrd->delayQueue, doDelayTask, arg, pMsg->ctx->retryNextInterval);
-}
-
-FORCE_INLINE void cliCompareAndSwap(int8_t* val, int8_t exp, int8_t newVal) {
-  if (*val != exp) {
-    *val = newVal;
-  }
 }
 
 FORCE_INLINE bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
@@ -2441,20 +2411,6 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
       char tbuf[512] = {0};
       EPSET_TO_STR(&pCtx->epSet, tbuf);
       tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
-    }
-  }
-  if (rpcDebugFlag & DEBUG_TRACE) {
-    if (tmsgIsValid(pResp->msgType - 1)) {
-      char buf[128] = {0};
-      sprintf(buf, "%s", TMSG_INFO(pResp->msgType - 1));
-      int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
-      if (NULL == 0) {
-        int localCount = 0;
-        taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-      } else {
-        int localCount = *count - 1;
-        taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-      }
     }
   }
   if (pCtx->pSem || pCtx->syncMsgRef != 0) {
