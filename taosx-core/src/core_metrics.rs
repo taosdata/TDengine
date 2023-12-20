@@ -16,6 +16,8 @@ use std::path::Path;
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use tokio::sync::oneshot;
+use tracing::Instrument;
 
 /// MetricsType is an enum to store all supported metrics data structure.
 pub enum CoreMetrics {
@@ -346,6 +348,44 @@ impl Default for TaskStartTime {
 }
 
 unsafe impl Sync for TaskStartTime {}
+
+/// Save every 10 seconds
+pub fn auto_save_ipc_metrics(
+    metrics_arc: Arc<CoreMetrics>,
+    mut close_signal: oneshot::Receiver<()>,
+) {
+    tokio::spawn(
+        async move {
+            let metrics = metrics_arc.ipc();
+            loop {
+                match close_signal.try_recv() {
+                    Ok(_) => {
+                        break;
+                    }
+                    Err(recv_error) => match recv_error {
+                        oneshot::error::TryRecvError::Closed => {
+                            tracing::debug!("auto-save metrics channel closed");
+                            break;
+                        }
+                        oneshot::error::TryRecvError::Empty => {
+                            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                            match metrics.save() {
+                                Ok(_) => {
+                                    tracing::debug!("save metrics success")
+                                }
+                                Err(err) => {
+                                    tracing::error!("save metrics failed. {}", err);
+                                }
+                            }
+                        }
+                    },
+                }
+            }
+            tracing::info!("auto-save metrics task exit");
+        }
+        .in_current_span(),
+    );
+}
 
 #[cfg(test)]
 mod tests {

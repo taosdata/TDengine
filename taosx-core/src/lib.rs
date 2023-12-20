@@ -4,7 +4,7 @@ use std::sync::{
 };
 
 use anyhow::Context;
-use chrono::{NaiveDate, Utc};
+use chrono::NaiveDate;
 use core_metrics::{try_get_metrics, CoreMetrics, TaosXMetrics, GLOBAL_METRICS};
 use dashmap::DashMap;
 use legacy::legacy_metric::LegacyToTaosMetrics;
