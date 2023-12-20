@@ -242,6 +242,7 @@ function handleAuthentication(authentication, paramsConfig) {
           },
           field: name,
           defaultValue: defaultValue ?? '',
+          accept: '.pem,.der',
           disabled: (_, originalData,currentDefinition) => {
             if (currentDefinition?.id?.startsWith('opcua')) {
               let authenticationData = originalData[authenticationField];
