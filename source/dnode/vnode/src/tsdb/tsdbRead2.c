@@ -3340,7 +3340,8 @@ TSDBROW* getValidMemRow(SIterInfo* pIter, const SArray* pDelList, STsdbReader* p
   }
 
   // it is a valid data version
-  if ((key.version <= pReader->info.verRange.maxVer && key.version >= pReader->info.verRange.minVer)) {
+  if ((key.version <= pReader->info.verRange.maxVer && key.version >= pReader->info.verRange.minVer) &&
+      pDelList != NULL && TARRAY_SIZE(pDelList) > 0) {
     bool dropped = hasBeenDropped(pDelList, &pIter->index, key.ts, key.version, order, &pReader->info.verRange);
     if (!dropped) {
       return pRow;
@@ -3361,7 +3362,8 @@ TSDBROW* getValidMemRow(SIterInfo* pIter, const SArray* pDelList, STsdbReader* p
       return NULL;
     }
 
-    if (key.version <= pReader->info.verRange.maxVer && key.version >= pReader->info.verRange.minVer) {
+    if (key.version <= pReader->info.verRange.maxVer && key.version >= pReader->info.verRange.minVer &&
+        pDelList != NULL && TARRAY_SIZE(pDelList) > 0) {
       bool dropped = hasBeenDropped(pDelList, &pIter->index, key.ts, key.version, order, &pReader->info.verRange);
       if (!dropped) {
         return pRow;
