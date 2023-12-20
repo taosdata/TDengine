@@ -53,7 +53,7 @@ You can choose to install through source code, [container](https://docs.tdengine
 
 TDengine provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. By default, TDengine compiling does not include taosTools. You can use `cmake .. -DBUILD_TOOLS=true` to make them be compiled with TDengine.
 
-To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in the project directory.
+To build TDengine, use [CMake](https://cmake.org/) 3.13.0 or higher versions in the project directory.
 
 ## Install build tools
 
@@ -131,7 +131,7 @@ brew install argp-standalone gflags pkgconfig
 
 TDengine includes a few components like taosAdapter developed by Go language. Please refer to golang.org official documentation for golang environment setup.
 
-Please use version 1.14+. For the user in China, we recommend using a proxy to accelerate package downloading.
+Please use version 1.20+. For the user in China, we recommend using a proxy to accelerate package downloading.
 
 ```
 go env -w GO111MODULE=on

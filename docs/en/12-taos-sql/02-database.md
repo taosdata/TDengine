@@ -46,6 +46,7 @@ database_option: {
   - last_row: The last row of each subtable is cached. This option significantly improves the performance of the LAST_ROW function.
   - last_value: The last non-null value of each column in each subtable is cached. This option significantly improves the performance of the LAST function under normal circumstances, such as statements including the WHERE, ORDER BY, GROUP BY, and INTERVAL keywords.
   - both: The last row of each subtable and the last non-null value of each column in each subtable are cached.
+    Note: If you turn on cachemodel, then turn off, and turn on again, the result of last/last_row may be wrong, don't do like this, it's strongly recommended to always turn on the cache using "both".
 - CACHESIZE: specifies the amount (in MB) of memory used for subtable caching on each vnode. Enter a value between 1 and 65536. The default value is 1.
 - COMP: specifies how databases are compressed. The default value is 2.
   - 0: Compression is disabled.
@@ -136,6 +137,10 @@ You can use `show <db_name>.vgroups;` to check the value of cacheload.
 3. Determine whether cachesize is big engough
 
 If the value of `cacheload` is very close to the value of `cachesize`, then it's very probably that `cachesize` is too small. If the value of `cacheload` is much smaller than the value of `cachesize`, then `cachesize` is big enough. You can use this simple principle to determine. Depending on how much memory is available in your system, you can choose to double `cachesize` or incrase it by even 5 or more times.
+
+4. stt_trigger
+
+Pleae make sure stopping data writing before trying to alter stt_trigger parameter. 
 
 :::note
 Other parameters cannot be modified after the database has been created.

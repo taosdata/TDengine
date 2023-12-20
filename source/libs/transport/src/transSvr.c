@@ -1498,6 +1498,7 @@ int transSendResponse(const STransMsg* msg) {
     return 0;
   }
   SExHandle* exh = msg->info.handle;
+
   if (exh == NULL) {
     rpcFreeCont(msg->pCont);
     return 0;
