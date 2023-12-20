@@ -270,7 +270,8 @@ impl Table {
                 return Err(super::Error::EmptyTableColumns(self.name.clone()));
             }
             let primary = names[0].as_str();
-            let timestamp = DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None);
+            let timestamp =
+                DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, Some("UTC".into()));
 
             // Primary key column.
             let primary_array = records
@@ -283,7 +284,7 @@ impl Table {
             // Cast primary key column to timestamp.
             let primary_array = arrow_cast_guess_precision::cast(
                 &primary_array,
-                &DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None),
+                &DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, Some("UTC".into())),
             )
             .map_err(|err| super::Error::PrimaryKeyCastError(self.name.clone(), err))?;
             let primary_field = schema
