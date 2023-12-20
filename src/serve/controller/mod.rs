@@ -2243,18 +2243,28 @@ lazy_static::lazy_static! {
     /// Data source definition map/list
     pub static ref DATA_SOURCE_DEFINITIONS: LinkedHashMap<String, DataSourceDefinition> = {
         let mut def: Vec<DataSourceDefinition> = Vec::new();
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/tmq.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/taos.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi-backfill.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcua.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcda.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/influxdb.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opentsdb.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/mqtt.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/kafka.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/csv.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/en/historian.yaml")).unwrap());
+        macro_rules! include_ds_yaml {
+            ($ds:literal) => {
+                let yaml = include_str!(concat!("../data_sources/en/", $ds, ".yaml"));
+                let yaml = yaml
+                    .replace("taosX", crate::build::CUS_APP_NAME)
+                    .replace("TDengine", crate::build::CUS_NAME)
+                    .replace("taosAdapter",const_format::concatcp!(crate::build::CUS_PROMPT, "Adapter"));
+                def.push(serde_yaml::from_str(yaml.as_str()).unwrap());
+            };
+        }
+        include_ds_yaml!("tmq");
+        include_ds_yaml!("taos");
+        include_ds_yaml!("pi");
+        include_ds_yaml!("pi-backfill");
+        include_ds_yaml!("opcua");
+        include_ds_yaml!("opcda");
+        include_ds_yaml!("influxdb");
+        include_ds_yaml!("opentsdb");
+        include_ds_yaml!("mqtt");
+        include_ds_yaml!("kafka");
+        include_ds_yaml!("csv");
+        include_ds_yaml!("historian");
         for ds in &mut def {
             ds.compute();
         }
@@ -2262,18 +2272,28 @@ lazy_static::lazy_static! {
     };
     pub static ref DATA_SOURCE_DEFINITIONS_CN: LinkedHashMap<String, DataSourceDefinition> = {
         let mut def: Vec<DataSourceDefinition> = Vec::new();
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/tmq.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/taos.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi-backfill.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcua.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcda.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/influxdb.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opentsdb.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/mqtt.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/kafka.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/csv.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/historian.yaml")).unwrap());
+        macro_rules! include_ds_yaml {
+            ($ds:literal) => {
+                let yaml = include_str!(concat!("../data_sources/cn/", $ds, ".yaml"));
+                let yaml = yaml
+                    .replace("taosX", crate::build::CUS_APP_NAME)
+                    .replace("TDengine", crate::build::CUS_NAME)
+                    .replace("taosAdapter",const_format::concatcp!(crate::build::CUS_PROMPT, "Adapter"));
+                def.push(serde_yaml::from_str(yaml.as_str()).unwrap());
+            };
+        }
+        include_ds_yaml!("tmq");
+        include_ds_yaml!("taos");
+        include_ds_yaml!("pi");
+        include_ds_yaml!("pi-backfill");
+        include_ds_yaml!("opcua");
+        include_ds_yaml!("opcda");
+        include_ds_yaml!("influxdb");
+        include_ds_yaml!("opentsdb");
+        include_ds_yaml!("mqtt");
+        include_ds_yaml!("kafka");
+        include_ds_yaml!("csv");
+        include_ds_yaml!("historian");
         for ds in &mut def {
             ds.compute();
         }
