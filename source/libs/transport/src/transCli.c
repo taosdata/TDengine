@@ -1913,6 +1913,7 @@ bool cliRecvReleaseReq(SCliConn* conn, STransMsgHead* pHead) {
         ASSERTS(pMsg == NULL, "trans-cli recv invaid release-req");
         tDebug("%s conn %p receive release request, refId:%" PRId64 ", ignore msg", CONN_GET_INST_LABEL(conn), conn,
                conn->refId);
+        cliDestroyConn(conn, true);
         return true;
       }
     }
