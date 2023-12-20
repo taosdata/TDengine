@@ -16,6 +16,7 @@ settings:
             asyncLog: 0
             logkeepDays: 2
             numOfLogLines: 300000000
+            checkpointInterval: 60
         - endpoint: node221:6030
           config_dir: /etc/taos
           config: # will write into taos.cfg
@@ -26,6 +27,7 @@ settings:
             asyncLog: 0
             logkeepDays: 2
             numOfLogLines: 300000000
+            checkpointInterval: 60
         - endpoint: node222:6030
           config_dir: /etc/taos
           config: # will write into taos.cfg
@@ -36,6 +38,7 @@ settings:
             asyncLog: 0
             logkeepDays: 2
             numOfLogLines: 300000000
+            checkpointInterval: 60
   - name: taosBenchmark
     fqdn: [ceph01]
     spec:
