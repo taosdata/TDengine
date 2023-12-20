@@ -272,13 +272,13 @@ impl DsSampleIn {
             let _ = arrow::array::timezone::Tz::from_str(tz).context("Invalid timezone")?;
             return Ok(output
                 .iter()
-                .map(|batch| batch.into_modeled_json_with_tz(tz))
+                .map(|batch| batch.to_modeled_json_with_tz(tz))
                 .collect_vec());
         }
 
         let output = output
             .iter()
-            .map(|batch| batch.into_modeled_json())
+            .map(|batch| batch.to_modeled_json())
             .collect_vec();
         Ok(output)
     }
