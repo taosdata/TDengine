@@ -372,8 +372,8 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
     pTask->msgInfo.pData = pReqs;
   }
 
-  stDebug("s-task:%s build dispatch msg success, msgId:%d, stage:%" PRId64, pTask->id.idStr, pTask->execInfo.dispatch,
-          pTask->pMeta->stage);
+  stDebug("s-task:%s build dispatch msg success, msgId:%d, stage:%"PRId64" %p", pTask->id.idStr, pTask->execInfo.dispatch,
+          pTask->pMeta->stage, pTask->msgInfo.pData);
   return code;
 }
 
@@ -1081,6 +1081,7 @@ int32_t streamNotifyUpstreamContinue(SStreamTask* pTask) {
 
 // this message has been sent successfully, let's try next one.
 static int32_t handleDispatchSuccessRsp(SStreamTask* pTask, int32_t downstreamId) {
+  stDebug("s-task:%s destroy dispatch msg:%p", pTask->id.idStr, pTask->msgInfo.pData);
   destroyDispatchMsg(pTask->msgInfo.pData, getNumOfDispatchBranch(pTask));
 
   bool delayDispatch = (pTask->msgInfo.dispatchMsgType == STREAM_INPUT__CHECKPOINT_TRIGGER);
