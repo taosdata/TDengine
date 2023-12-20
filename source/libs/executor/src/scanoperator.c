@@ -3312,7 +3312,6 @@ static int32_t fillSortInputBlock(STableMergeScanInfo* pInfo, SSDataBlock* pSrcB
 
   SColumnInfoData* pageIdCol = taosArrayGet(pSortInputBlk->pDataBlock, 1);
   SColumnInfoData* offsetCol = taosArrayGet(pSortInputBlk->pDataBlock, 2);
-  SColumnInfoData* lengthCol = taosArrayGet(pSortInputBlk->pDataBlock, 3);
 
   for (int32_t i = 0; i < pSrcBlock->info.rows; ++i) {
     int32_t pageId = -1;
