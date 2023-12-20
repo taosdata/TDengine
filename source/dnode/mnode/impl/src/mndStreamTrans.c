@@ -94,8 +94,8 @@ bool streamTransConflictOtherTrans(SMnode* pMnode, int64_t streamUid, const char
               tInfo.name);
         return true;
       }
-    } else if ((strcmp(tInfo.name, MND_STREAM_CREATE_NAME) == 0) ||
-               (strcmp(tInfo.name, MND_STREAM_DROP_NAME) == 0)) {
+    } else if ((strcmp(tInfo.name, MND_STREAM_CREATE_NAME) == 0) || (strcmp(tInfo.name, MND_STREAM_DROP_NAME) == 0) ||
+               (strcmp(tInfo.name, MND_STREAM_TASK_RESET_NAME) == 0)) {
       mWarn("conflict with other transId:%d streamUid:%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamUid,
             tInfo.name);
       return true;

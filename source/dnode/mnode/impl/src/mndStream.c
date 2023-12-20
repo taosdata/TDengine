@@ -2330,12 +2330,28 @@ static SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
 }
 
 static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo) {
-  SSdb *pSdb = pMnode->pSdb;
-
-  // check all streams that involved this vnode should update the epset info
+  SSdb       *pSdb = pMnode->pSdb;
   SStreamObj *pStream = NULL;
-  void *      pIter = NULL;
-  STrans *    pTrans = NULL;
+  void       *pIter = NULL;
+  STrans     *pTrans = NULL;
+
+  // conflict check for nodeUpdate trans, here we randomly chose one stream to add into the trans pool
+  while(1) {
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) {
+      break;
+    }
+
+    bool conflict = streamTransConflictOtherTrans(pMnode, pStream->uid, MND_STREAM_TASK_UPDATE_NAME, true);
+    sdbRelease(pSdb, pStream);
+
+    if (conflict) {
+      mWarn("nodeUpdate trans in progress, current nodeUpdate ignored");
+      sdbCancelFetch(pSdb, pIter);
+      return -1;
+    }
+  }
+
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
@@ -2351,6 +2367,8 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
         sdbCancelFetch(pSdb, pIter);
         return terrno;
       }
+
+      mndStreamRegisterTrans(pTrans, MND_STREAM_TASK_RESET_NAME, pStream->uid);
     }
 
     void *p = taosHashGet(pChangeInfo->pDBMap, pStream->targetDb, strlen(pStream->targetDb));
@@ -2597,7 +2615,7 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
 
     code = mndProcessVgroupChange(pMnode, &changeInfo);
 
-    // keep the new vnode snapshot
+    // keep the new vnode snapshot if success
     if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS) {
       mDebug("create trans successfully, update cached node list");
       taosArrayDestroy(execInfo.pNodeList);

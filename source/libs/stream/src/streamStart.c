@@ -73,7 +73,7 @@ int32_t streamTaskSetReady(SStreamTask* pTask) {
 
   taosThreadMutexUnlock(&pTask->lock);
 
-  // to avoid deadlock
+  // todo: fix it, to avoid deadlock in: tqStreamTaskProcessUpdateReq
   streamMetaUpdateTaskDownstreamStatus(pMeta, id.streamId, id.taskId, initTs, startTs, true);
 
   taosThreadMutexLock(&pTask->lock);
