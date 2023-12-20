@@ -4254,7 +4254,7 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
         return pInfo->pDelRes;
       }
       break;
-    } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
+    } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE || pBlock->info.type == STREAM_PULL_OVER) {
       return pBlock;
     } else {
       ASSERTS(pBlock->info.type == STREAM_INVALID, "invalid SSDataBlock type");
