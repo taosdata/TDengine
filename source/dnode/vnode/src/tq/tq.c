@@ -1071,6 +1071,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
     tqScanWal(pTq);
     return 0;
   }
+
   int32_t code = tqStreamTaskProcessRunReq(pTq->pStreamMeta, pMsg, vnodeIsRoleLeader(pTq->pVnode));
   if(code == 0 && taskId > 0){
     tqScanWalAsync(pTq, false);

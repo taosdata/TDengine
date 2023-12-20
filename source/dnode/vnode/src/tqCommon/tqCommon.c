@@ -621,6 +621,8 @@ int32_t startStreamTasks(SStreamMeta* pMeta) {
     SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
     SStreamTask*   pTask = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId);
     if (pTask == NULL) {
+      streamMetaUpdateTaskDownstreamStatus(pMeta, pTaskId->streamId, pTaskId->taskId, 0,
+                                           taosGetTimestampMs(), false);
       continue;
     }
 
@@ -637,7 +639,7 @@ int32_t startStreamTasks(SStreamMeta* pMeta) {
         streamLaunchFillHistoryTask(pTask);
       }
 
-      streamMetaUpdateTaskDownstreamStatus(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, pTask->execInfo.init,
+      streamMetaUpdateTaskDownstreamStatus(pMeta, pTask->id.streamId, pTask->id.taskId, pTask->execInfo.init,
                                            pTask->execInfo.start, true);
       streamMetaReleaseTask(pMeta, pTask);
       continue;

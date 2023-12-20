@@ -324,6 +324,7 @@ typedef struct SStreamStatus {
   int8_t         keepTaskStatus;
   bool           appendTranstateBlock;  // has append the transfer state data block already, todo: remove it
   int32_t        timerActive;           // timer is active
+  int8_t         allowedAddInTimer;     // allowed to add into timer
   int32_t        inScanHistorySentinel;
 } SStreamStatus;
 
