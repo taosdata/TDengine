@@ -826,7 +826,7 @@ mod pipeline_tests {
                 ("__using__", DataType::Utf8, IpcDataType::VarChar(128)),
                 (
                     "ts",
-                    DataType::Timestamp(TimeUnit::Millisecond, None),
+                    DataType::Timestamp(TimeUnit::Millisecond, Some("UTC".into())),
                     IpcDataType::Timestamp(TimeUnit::Millisecond)
                 ),
                 ("value", DataType::Float64, IpcDataType::Float64),
