@@ -148,6 +148,17 @@
     colDataSetVal(pColInfo, numOfRows, tmp, false);                                                                    \
   } while (0)
 
+#define GRANT_VALUE_CONVERT(from, to, factor, dft) \
+  do {                                             \
+    if ((from) == GRANT_UNIQ_UNDEFINED) {          \
+      (to) = (dft) * (factor);                     \
+    } else if ((from) == GRANT_UNIQ_UNLIMITED) {   \
+      (to) = (from);                               \
+    } else {                                       \
+      (to) = (from) * (factor);                    \
+    }                                              \
+  } while (0)
+
 #define GRANT_VERSION (gStatus.officialVersion ? "official" : "trial")
 #define GRANT_EXPIRE (gStatus.basicExpireSec)
 #define GRANT_EXPIRED(exp) (exp) ? TSDB_CODE_GRANT_EXPIRED : TSDB_CODE_SUCCESS
@@ -175,6 +186,7 @@
 #define GRANT_IN_PROGRESS() (atomic_load_8(&grantHbLock) != 0)
 #define GRANT_IS_IVLD_MACHINE() ((grantHandle.info & 0x01) != 0)
 #define GRANT_SET_IVLD_MACHINE() (grantHandle.info |= 0x01)
+#define GRANT_SET_VLD_MACHINE() (grantHandle.info |= 0x0)
 
 #define GRANT_DIST_TOLERENCE 86400  // seconds
 #define GRANT_TS_SEC_LEN 20
@@ -256,7 +268,7 @@ typedef struct {
   int16_t   nGrantRsp;
   int16_t   nTaosdGranted;
   int16_t   nConnGranted;
-  int8_t    granted;
+  int16_t   nServer;
   int8_t    nGrantNone;
   uint8_t   info;
 } SGrantHandle;
@@ -721,7 +733,11 @@ static int32_t genUniqActiveFromLegacy(SGrantUniqObj *pObj, SGrantStatus *pStatu
 
 static void mndProcessGrantStatusCheck() {
   grantStatusCheck(grantHandle.pMnode, taosGetTimestampMs() / 1000, NULL);
-  atomic_val_compare_exchange_8(&grantHandle.granted, 0, 1);
+  if (grantHandle.nServer > 0) {
+    GRANT_SET_IVLD_MACHINE();
+  } else {
+    GRANT_SET_VLD_MACHINE();
+  }
   if(grantHandle.nTaosdGranted || grantHandle.nConnGranted){
     SGrantUniqObj uniqObj = {0};
     memcpy(uniqObj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
@@ -758,7 +774,7 @@ static int32_t dnodeInfoCmprFn(const void *p1, const void *p2) {
 }
 
 /**
- * @brief 1) process response (grant msg) from dnode in async mode
+ * @brief 1) mnode-read thread: process response (grant msg) from dnode in async mode
  * @param pRsp
  * @return int32_t
  */
@@ -828,6 +844,29 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
   if (active[0] != 0) {
     if (!grantUniqParseActiveCode(&grantObj, NULL)) {
       grantResetMaster(pMnode);
+    } else if (type == 0) {
+      // transfer grantObj to gStatus
+      int32_t dftExpireDay = ceil((double)grantClusterEpoch / 86400) + GRANT_UNIQ_DFT_BASIC_EXPIRE;
+      gStatus.officialVersion = grantObj.officialVersion;
+      GRANT_VALUE_CONVERT(grantObj.basicExpireDay, gStatus.basicExpireSec, 86400, dftExpireDay);
+      GRANT_VALUE_CONVERT(grantObj.limitTimeSeries, gStatus.limitTimeSeries, 1, GRANT_UNIQ_DFT_BASIC_TIMESERIES);
+      GRANT_VALUE_CONVERT(grantObj.limitDnodes, gStatus.limitDnodes, 1, GRANT_UNIQ_DFT_BASIC_DNODES);
+      GRANT_VALUE_CONVERT(grantObj.limitCpuCores, gStatus.limitCpuCores, 1, GRANT_UNIQ_DFT_BASIC_CPU);
+      GRANT_VALUE_CONVERT(grantObj.streamExpireDay, gStatus.streamExpireSec, 86400, dftExpireDay);
+      GRANT_VALUE_CONVERT(grantObj.limitStreams, gStatus.limitStreams, 1, GRANT_UNIQ_DFT_STREAM_NUM);
+      GRANT_VALUE_CONVERT(grantObj.topicExpireDay, gStatus.topicExpireSec, 86400, dftExpireDay);
+      GRANT_VALUE_CONVERT(grantObj.limitTopics, gStatus.limitTopics, 1, GRANT_UNIQ_DFT_TOPIC_NUM);
+      GRANT_VALUE_CONVERT(grantObj.multiTierExpireDay, gStatus.multiTierExpireSec,86400,dftExpireDay);
+      GRANT_VALUE_CONVERT(grantObj.auditExpireDay, gStatus.auditExpireSec,86400, dftExpireDay);
+      GRANT_VALUE_CONVERT(grantObj.bakRstExpireDay, gStatus.bakRstExpireSec,86400,dftExpireDay);
+      GRANT_VALUE_CONVERT(grantObj.replicaExpireDay, gStatus.replicaExpireSec, 86400,dftExpireDay);
+      for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
+        SGrantDataIns *pFrom = grantObj.ins + i;
+        SGrantDataIns *pTo = gStatus.ins + i;
+        GRANT_VALUE_CONVERT(pFrom->expire, pTo->expire, 1, dftExpireDay);
+        GRANT_VALUE_CONVERT(pFrom->speed, pTo->speed, 1, GRANT_UNIQ_DFT_DATAIN_SPEED);
+        GRANT_VALUE_CONVERT(pFrom->number, pTo->number, 1, GRANT_UNIQ_DFT_DATAIN_NUM);
+      }
     }
     gStatus.uniqActive = 1;
   } else {
@@ -875,6 +914,7 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
   grantHandle.nGrantRsp = 0;
   grantHandle.nTaosdGranted = 0;
   grantHandle.nConnGranted = 0;
+  grantHandle.nServer = 0;
 
   mndGetDnodeData(pMnode, grantHandle.pDnodeInfo);
 
@@ -1665,6 +1705,11 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, 
       taosHashPut(grantHandle.pMachines, &pDnodeInfo->id, sizeof(pDnodeInfo->id), &pGrantMsg->machine,
                   strlen(pGrantMsg->machine));
     }
+    if ((pDnodeInfo->machineId[0] != 0) &&
+        (strncmp(pDnodeInfo->machineId, pGrantMsg->machine, GRANT_MACHINE_KEY_LEN + 1) != 0)) {
+      ++grantHandle.nServer;
+      uInfo("dnode:%d, %s not equal to %s", pDnodeInfo->id, pDnodeInfo->machineId, pGrantMsg->machine);
+    }
   }
 
   if (pGrantMsg->pLegacy) {
@@ -1746,7 +1791,8 @@ static int32_t mndCfgDnodeReq(SDnodeInfo *pDnodeInfo, const char *cfg, const cha
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t grantAlterActiveCode(const char *active) {
+// mnode-write thread
+int32_t grantAlterActiveCode(const char *active, char** newActive) {
   int32_t       code = 0;
   SGrantUniqObj obj = {0};
   SMnode       *pMnode = grantHandle.pMnode;
@@ -1756,12 +1802,13 @@ int32_t grantAlterActiveCode(const char *active) {
     goto _exit;
   }
 
-  if(active[0] == 0) {
+  // clear the activeCode
+  if (active[0] == 0) {
     grantResetMaster(pMnode);
-
+    goto _exit;
   }
 
-
+  // parse active code
   if (grantObj.clusterId[0] != 0) {
     memcpy(obj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
   } else {
@@ -1770,40 +1817,71 @@ int32_t grantAlterActiveCode(const char *active) {
   if (active) memcpy(obj.active, active, GRANT_UNIQ_ACTIVE_KEY_LEN);
   SActiveCodeInfo info = {0};
   grantUniqParseActiveCode(&obj, &info);
-  if (!grantObj.granted) {
+  if (!obj.granted) {
     code = terrno != 0 ? terrno : TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
   }
 
+  // check dist
   if (info.dist < grantedInfo.grantedTime) {
     code = TSDB_CODE_GRANT_PAR_IVLD_DIST;
     goto _exit;
   }
 
+  // sync grant info
   if (!GRANT_IN_PROGRESS()) {
     if (mndProcessGrantHBImpl(pMnode, 1) != 0) {
       code = terrno != 0 ? terrno : TSDB_CODE_APP_IS_STARTING;
       goto _exit;
     }
   }
-
   int32_t nLoops = 0;
   int64_t startMs = taosGetTimestampMs();
   int64_t elapse = 0;
   while (GRANT_IN_PROGRESS()) {
     if (++nLoops > 1024) {
+      if (taosGetTimestampMs() - startMs > 1500) {
+        code = TSDB_CODE_TIMEOUT_ERROR;
+        goto _exit;
+      }
       sched_yield();
       nLoops = 0;
     }
-    if ((elapse = taosGetTimestampMs() - startMs) > 1500) {
-      code = TSDB_CODE_TIMEOUT_ERROR;
-    }
   }
-  uInfo("%" PRIi64 " ms used to sync grant info", elapse);
+  elapse = taosGetTimestampMs() - startMs;
+  uInfo("alter active: %" PRIi64 " ms used to sync grant info", elapse);
 
-  if (GRANT_IS_IVLD_MACHINE()) {
-    code = TSDB_CODE_GRANT_INVALID_HW;
+  // check grantItems of basic function
+  if ((obj.limitTimeSeries > GRANT_UNIQ_UNLIMITED) && (gStatus.curTimeSeries > obj.limitTimeSeries)) {
+    code = TSDB_CODE_GRANT_TIMESERIES_LIMITED;
     goto _exit;
   }
+  if ((obj.limitDnodes > GRANT_UNIQ_UNLIMITED) && (gStatus.curDnodes > obj.limitDnodes)) {
+    code = TSDB_CODE_GRANT_DNODE_LIMITED;
+    goto _exit;
+  }
+  if ((obj.limitCpuCores > GRANT_UNIQ_UNLIMITED) && (gStatus.curCpuCores > obj.limitCpuCores)) {
+    code = TSDB_CODE_GRANT_CPU_LIMITED;
+    goto _exit;
+  }
+
+  // check machineIds
+  if (GRANT_IS_IVLD_MACHINE()) {
+    code = TSDB_CODE_GRANT_INVALID_SERVER;
+    goto _exit;
+  }
+
+  // no active code in SClusterObj
+  if (gStatus.uniqActive == 0) {
+    if (obj.basicExpireDay == GRANT_UNIQ_UNDEFINED || obj.limitTimeSeries == GRANT_UNIQ_UNDEFINED ||
+        obj.limitDnodes == GRANT_UNIQ_UNDEFINED || obj.limitCpuCores == GRANT_UNIQ_UNDEFINED) {
+      code = TSDB_CODE_GRANT_LACK_OF_BASIC;
+      goto _exit;
+    }
+    goto _exit; // utilized active directly since 
+  }
+
+  // merge active code
+  grantUniqMergeActiveCode(&obj, &grantObj, newActive);
 
   // char active[GRANT_UNIQ_ACTIVE_KEY_LEN + 1] = "\0";
   // mndGetClusterActive(pMnode, active);

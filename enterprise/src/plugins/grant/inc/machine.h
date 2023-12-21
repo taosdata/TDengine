@@ -273,7 +273,7 @@ typedef struct {
       int64_t topicExpired : 1;
       int64_t auditExpired : 1;
       int64_t uniqActive : 1;
-      int64_t officialVersion : 2;
+      int64_t reserve0 : 2;
     };
   };
   union {
@@ -281,7 +281,7 @@ typedef struct {
     struct {
       int64_t streamExpireSec : 40;
       int64_t limitStreams : 16;
-      int64_t reserve0 : 8;
+      int64_t officialVersion : 8;
     };
   };
 
@@ -413,7 +413,8 @@ void  grantActiveSystem(const char *cfgFile, SGrantObj *pObj, SGrantConnObj *pCo
 bool  grantExplainActiveCode(SGrantObj *grant, SActiveCodeInfo *info);
 bool  grantConnExplainActiveCode(SGrantConnObj *grant, SActiveCodeInfo *info);
 
-bool grantUniqGenActiveCode(SGrantUniqObj *grant);
-bool grantUniqParseActiveCode(SGrantUniqObj *grant, SActiveCodeInfo *info);
+bool  grantUniqGenActiveCode(SGrantUniqObj *grant);
+bool  grantUniqParseActiveCode(SGrantUniqObj *grant, SActiveCodeInfo *info);
+char *grantUniqMergeActiveCode(SGrantUniqObj *new, SGrantUniqObj *old, char** newActive);
 
 #endif
