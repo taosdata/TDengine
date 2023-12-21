@@ -348,8 +348,8 @@ static int64_t grantGetExpireSec(int64_t expireSec) {
 }
 
 static void grantSetClusterInfo(SMnode *pMnode) {
-  if (strncmp(tsVersionName, GRANT_VERSION, 16) != 0) {
-    strncpy(tsVersionName, GRANT_VERSION, 16);
+  if (strncmp(tsVersionName, GRANT_VERSION, tListLen(tsVersionName)) != 0) {
+    tstrncpy(tsVersionName, GRANT_VERSION, tListLen(tsVersionName));
   }
   int64_t expireSec = grantGetExpireSec(GRANT_EXPIRE);
   COMPARE_SET_VAL(tsExpireTime, expireSec * 1000, !=);
@@ -653,7 +653,7 @@ static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
   uDebug("send grant status msg to dnode:%d %s:%" PRIu16, pDnodeInfo->id, pDnodeInfo->ep.fqdn, pDnodeInfo->ep.port);
 
   SEpSet epSet = {.numOfEps = 1};
-  strncpy(epSet.eps[0].fqdn, pDnodeInfo->ep.fqdn, TSDB_FQDN_LEN);
+  tstrncpy(epSet.eps[0].fqdn, pDnodeInfo->ep.fqdn, TSDB_FQDN_LEN);
   epSet.eps[0].port = pDnodeInfo->ep.port;
 
   if((terrno = tmsgSendReq(&epSet, &rpcMsg)) != 0){
@@ -1264,7 +1264,7 @@ static int32_t mndSendGrantNotifyToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
   uDebug("send grant notify msg to dnode:%d %s:%" PRIu16, pDnodeInfo->id, pDnodeInfo->ep.fqdn, pDnodeInfo->ep.port);
 
   SEpSet epSet = {.numOfEps = 1};
-  strncpy(epSet.eps[0].fqdn, pDnodeInfo->ep.fqdn, TSDB_FQDN_LEN);
+  tstrncpy(epSet.eps[0].fqdn, pDnodeInfo->ep.fqdn, TSDB_FQDN_LEN);
   epSet.eps[0].port = pDnodeInfo->ep.port;
   tmsgSendReq(&epSet, &rpcMsg);
 
@@ -1760,8 +1760,8 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, 
 static int32_t mndCfgDnodeReq(SDnodeInfo *pDnodeInfo, const char *cfg, const char *val) {
   SMCfgDnodeReq req = {0};
   req.dnodeId = pDnodeInfo->id;
-  strncpy(req.config, cfg, TSDB_DNODE_CONFIG_LEN);
-  strncpy(req.value, val, TSDB_DNODE_VALUE_LEN);
+  tstrncpy(req.config, cfg, TSDB_DNODE_CONFIG_LEN);
+  tstrncpy(req.value, val, TSDB_DNODE_VALUE_LEN);
 
   int32_t contLen = tSerializeSMCfgDnodeReq(NULL, 0, &req);
   void   *pCont = rpcMallocCont(contLen);
@@ -1783,7 +1783,7 @@ static int32_t mndCfgDnodeReq(SDnodeInfo *pDnodeInfo, const char *cfg, const cha
         pDnodeInfo->ep.port);
 
   SEpSet epSet = {.numOfEps = 1};
-  strncpy(epSet.eps[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+  tstrncpy(epSet.eps[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   epSet.eps[0].port = tsServerPort;
 
   tmsgSendReq(&epSet, &rpcMsg);

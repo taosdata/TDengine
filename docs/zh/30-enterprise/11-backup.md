@@ -3,39 +3,30 @@ toc_max_heading_level: 4
 title: 数据备份和恢复
 ---
 
-本节讲述如何使用 taosX 的命令行将 TDengine 集群中的数据备份到本地文件以及如何从一个备份出的本地文件恢复数据到 TDengine 集群中。对于 taosX 的命令行参数解析，请参考 [taosX](../../reference/taosx)。您也可以使用 taos-explorer 的可视化界面进行数据备份和恢复，具体请参考[可视化管理](../explorer)。服务安装与部署请参考 [安装与部署](../../get-started)。
+本节讲述如何使用可视化界面进行数据备份和恢复，具体请参考[可视化管理](../explorer)。服务安装与部署请参考 [安装与部署](../../get-started)。
 
-## 从 TDengine 备份数据文件到本地
+## 备份和恢复
 
-### 示例：
-```shell
-taosx run -f 'tmq://root:taosdata@td1:6030/db1' -t 'local:/path_directory/'
+您可以将当前连接的 TDengine 集群中的数据备份至一个或多个本地文件中，稍后可以通过这些文件进行数据恢复。本章节将介绍数据备份和恢复的具体步骤。
 
-```
-以上示例执行的结果及参数说明：
+### 备份数据到本地文件
 
-将集群 td1 中的数据库 db1 的所有数据，备份到 taosx 所在设备的 /path_directory 路径下。
+1. 进入系统管理页面，点击【备份】进入数据备份页面，点击右上角【新增备份】。
+2. 在数据备份配置页面中可以配置三个参数：
+  - 备份周期：必填项，配置每次执行数据备份的时间间隔，可通过下拉框选择每天、每 7 天、每 30 天执行一次数据备份，配置后，会在对应的备份周期的0:00时启动一次数据备份任务；
+  - 数据库：必填项，配置需要备份的数据库名（数据库的 wal_retention_period 参数需大于0）；
+  - 目录：必填项，配置将数据备份到 taosX 所在运行环境中指定的路径下，如 /root/data_backup；
+3. 点击【确定】，可创建数据备份任务。
 
-数据源(-f 参数的 DSN)的 object 支持配置为 数据库级(dbname)、超级表级(dbname.stablename)、子表/普通表级(dbname.tablename)，对应备份数据的级别数据库级、超级表级、子表/普通表级
+![backup](./backup-00-new.png)
 
+### 从本地文件恢复
 
-## 从本地数据文件恢复到 TDengine
-
-### 示例
-```shell
-taosx run -f 'local:/path_directory/' -t 'taos://root:taosdata@td2:6030/db1?assert'
-```
-
-以上示例执行的结果：
-
-将 taosx 所在设备 /path_directory 路径下已备份的数据文件，恢复到集群 td2 的数据库 db1 中，如果 db1 不存在，则自动建库。
-
-目标源(-t 参数的 DSN)中的 object 支持配置为数据库(dbname)、超级表(dbname.stablename)、子表/普通表(dbname.tablename)，对应备份数据的级别数据库级、超级表级、子表/普通表级，前提是备份的数据文件也是对应的数据库级、超级表级、子表/普通表级数据。
-
+1. 完成数据备份任务创建后，在页面中对应的数据备份任务右侧点击【数据恢复】，可将已经备份到指定路径下的数据恢复到当前 TDengine 中。
 
 ## 常见错误排查
 
-(1) 如果使用原生连接，任务启动失败并报以下错误：
+(1) 如果任务启动失败并报以下错误：
 
 ```text
 Error: tmq to td task exec error

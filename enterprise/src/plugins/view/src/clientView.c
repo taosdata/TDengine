@@ -100,8 +100,7 @@ int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, boo
    }
    
    if (0 != pNewRequest->msgBuf[0]) {
-     strncpy(pRequest->msgBuf, pNewRequest->msgBuf, pRequest->msgBufLen - 1);
-     pRequest->msgBuf[pRequest->msgBufLen - 1] = 0;
+     tstrncpy(pRequest->msgBuf, pNewRequest->msgBuf, pRequest->msgBufLen);
    }
    
    freeQueryParam(syncParam);
