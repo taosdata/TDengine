@@ -102,8 +102,10 @@ public class BucketDataThread implements Runnable {
                     sleep(performanceConfig.getThread().getReadBucketFullInterval(), start, StatusEnums.NORMAL);
                     continue;
                 }
+                // 获取计算后的读取限制
+                long queryLimit = BucketCache.getQueryLimit(BucketCache.generateBucketDataThreadKey(this.bucket, this.measurement));
                 // 读取数据
-                List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = influxdbService.selectBucketData(this.orgId, this.bucket, this.measurement, this.startTime, this.stopTime, this.performanceConfig.getThread().getReadBucketBatch(), this.offset);
+                List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = influxdbService.selectBucketData(this.orgId, this.bucket, this.measurement, this.startTime, this.stopTime, queryLimit, this.offset);
                 // 更新速度
                 FluxManager.getInstance().getFluxControl(FluxEnums.ReadData.getCode()).cycleCheck(influxdbBucketDataEntityList.size(), -1);
                 // 判断数据长度
@@ -113,7 +115,7 @@ public class BucketDataThread implements Runnable {
                     // 记录统计信息
                     StatisticCache.totalRead.addAndGet(influxdbBucketDataEntityList.size());
                     // 更新offset，如果未读满batch，说明没数据了，所以可以不考虑
-                    this.offset += this.performanceConfig.getThread().getReadBucketBatch();
+                    this.offset += queryLimit;
                 } else {
                     // 记录任务完成信息
                     StatisticCache.noteCompletedTask(this.key);

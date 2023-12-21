@@ -13,6 +13,7 @@ import com.influxdb.query.InfluxQLQueryResult;
 import com.taosdata.caches.BucketCache;
 import com.taosdata.config.InfluxdbConfig;
 import com.taosdata.config.LocalConfig;
+import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import com.taosdata.model.entity.InfluxdbBucketEntity;
 import com.taosdata.model.entity.InfluxdbMeasurementEntity;
@@ -54,6 +55,9 @@ public class InfluxdbServiceImpl implements InfluxdbService {
 
     @Resource
     private InfluxdbConfig influxdbConfig;
+
+    @Resource
+    private PerformanceConfig performanceConfig;
 
     /**
      * 单次连接，查询指定influxdb中schema信息
@@ -302,6 +306,8 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                     "|> limit(n: " + batch + ", offset: " + offset + ")";
             // 执行查询
             List<FluxTable> tables = influxDBClient.getQueryApi().query(sql, orgId);
+            // 子表集合
+            Set<String> subtableSet = new HashSet<>();
             // 遍历结果集进行封装
             for (FluxTable fluxTable : tables) {
                 // 记录
@@ -317,6 +323,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                             influxdbBucketDataEntity.setMeasurement(String.valueOf(value));
                         } else if ("table".equalsIgnoreCase(key)) {
                             influxdbBucketDataEntity.setTable(String.valueOf(value));
+                            subtableSet.add(String.valueOf(value));
                         } else if ("_time".equalsIgnoreCase(key)) {
                             influxdbBucketDataEntity.setTime((Instant) value);
                         } else if ("_field".equalsIgnoreCase(key)) {
@@ -340,9 +347,14 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                     influxdbBucketDataEntityList.add(influxdbBucketDataEntity);
                 }
             }
+            // 更新measurement查询限制
+            BucketCache.updateQueryLimit(BucketCache.generateBucketDataThreadKey(bucket, measurement), subtableSet.size(), performanceConfig.getQueueSizeD(), performanceConfig.getThread().getReadBucketBatch());
             return influxdbBucketDataEntityList;
         } catch (Exception e) {
             handlerException(e);
+            // 异常后更新measurement查询限制
+            BucketCache.updateQueryLimit(BucketCache.generateBucketDataThreadKey(bucket, measurement), Integer.MAX_VALUE, performanceConfig.getQueueSizeD(), performanceConfig.getThread().getReadBucketBatch());
+            logger.error("update query limit from {} to {}", batch, BucketCache.getQueryLimit(BucketCache.generateBucketDataThreadKey(bucket, measurement)));
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
             if (influxDBClient != null) {

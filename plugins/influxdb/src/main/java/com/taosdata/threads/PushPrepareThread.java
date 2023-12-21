@@ -188,8 +188,8 @@ public class PushPrepareThread implements Runnable {
         influxdbBucketDataEntityList.forEach(influxdbBucketDataEntity -> {
             // Influxdb中自带表名不可靠，根据Measurement与Tags生成表名
             generateTableName(influxdbBucketDataEntity);
-            // 拆分依据bucket,measurement,table
-            String key = influxdbBucketDataEntity.getInfluxdbMeasurementEntity().getBucket() + "," + influxdbBucketDataEntity.getMeasurement() + "," + influxdbBucketDataEntity.getTable();
+            // 拆分依据bucket,measurement
+            String key = influxdbBucketDataEntity.getInfluxdbMeasurementEntity().getBucket() + "," + influxdbBucketDataEntity.getMeasurement();
             // 写入内存队列
             BucketDataCache.addBucketData(key, influxdbBucketDataEntity);
         });
