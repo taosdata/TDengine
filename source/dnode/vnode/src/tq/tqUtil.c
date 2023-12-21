@@ -40,6 +40,12 @@ void tqUpdateNodeStage(STQ* pTq, bool isLeader) {
   int64_t      stage = pMeta->stage;
 
   pMeta->stage = state.term;
+
+  // mark the sign to send msg before close all tasks
+  if ((!isLeader) && (pMeta->role == NODE_ROLE_LEADER)) {
+    pMeta->sendMsgBeforeClosing = true;
+  }
+
   pMeta->role = (isLeader)? NODE_ROLE_LEADER:NODE_ROLE_FOLLOWER;
   if (isLeader) {
     tqInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb", pMeta->vgId,

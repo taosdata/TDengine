@@ -494,6 +494,7 @@ typedef struct SStreamMeta {
   int32_t         vgId;
   int64_t         stage;
   int32_t         role;
+  bool            sendMsgBeforeClosing; // send hb to mnode before close all tasks when switch to follower.
   STaskStartInfo  startInfo;
   SRWLatch        lock;
   int32_t         walScanCounter;
@@ -782,6 +783,8 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
                               int64_t* oldStage);
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
 void    streamTaskResetUpstreamStageInfo(SStreamTask* pTask);
+SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta);
+
 bool    streamTaskAllUpstreamClosed(SStreamTask* pTask);
 bool    streamTaskSetSchedStatusWait(SStreamTask* pTask);
 int8_t  streamTaskSetSchedStatusActive(SStreamTask* pTask);
