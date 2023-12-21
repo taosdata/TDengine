@@ -46,6 +46,12 @@ class TDTestCase:
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} group by tbname ")
         tdSql.checkRows(check_num)
 
+        tdSql.query(f"select tbname from {self.dbname}.{self.stable} group by tbname order by count(*)")
+        tdSql.checkRows(check_num)
+
+        tdSql.query(f"select tbname from {self.dbname}.{self.stable} group by tbname having count(*)>=0")
+        tdSql.checkRows(check_num)
+
         # having filter out empty
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} group by tbname having count(*) <= 0")
         tdSql.checkRows(check_num - real_num)
@@ -62,26 +68,26 @@ class TDTestCase:
         tdSql.checkRows(check_num - real_num)
 
         # col where filter nothing
-        # tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where ts < now group by t2 ")
-        # tdSql.checkRows(check_num)
+        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where ts < now group by t2 ")
+        tdSql.checkRows(check_num)
 
-        ############### same with old ###############
         # col where filter all
-        # tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where ts > 1737146000000 group by t2 ")
-        # tdSql.checkRows(0)
+        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where ts > 1737146000000 group by t2 ")
+        tdSql.checkRows(check_num)
 
         # col where filter part
         tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where c1 = 1 group by t2 ")
-        tdSql.checkRows(real_num)
+        tdSql.checkRows(check_num)
 
         # col
         tdSql.query(f"select count(c1) from {self.dbname}.{self.stable} group by tbname ")
-        tdSql.checkRows(real_num)
+        tdSql.checkRows(check_num)
 
         # count + sum(col)
         tdSql.query(f"select count(*), sum(c1) from {self.dbname}.{self.stable} group by tbname ")
-        tdSql.checkRows(real_num)
+        tdSql.checkRows(check_num)
 
+        ############### same with old ###############
         tdSql.query(f"select c1, count(*) from {self.dbname}.{self.stable} group by c1 ")
         num = 0
         if real_num > 0:
@@ -103,6 +109,12 @@ class TDTestCase:
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname ")
         tdSql.checkRows(check_num)
 
+        tdSql.query(f"select tbname from {self.dbname}.{self.stable} partition by tbname order by count(*)")
+        tdSql.checkRows(check_num)
+
+        tdSql.query(f"select tbname from {self.dbname}.{self.stable} partition by tbname having count(*)>=0")
+        tdSql.checkRows(check_num)
+
         # having filter out empty
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname having count(*) <= 0")
         tdSql.checkRows(check_num - real_num)
@@ -119,22 +131,25 @@ class TDTestCase:
         tdSql.checkRows(check_num - real_num)
 
         # col where filter nothing
-        # tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where ts < now partition by t2 ")
-        # tdSql.checkRows(check_num)
+        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where ts < now partition by t2 ")
+        tdSql.checkRows(check_num)
 
-        ############### same with old ###############
         # col where filter all
-        # tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where ts > 1737146000000 partition by t2 ")
-        # tdSql.checkRows(0)
+        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where ts > 1737146000000 partition by t2 ")
+        tdSql.checkRows(check_num)
 
         # col where filter part
         tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where c1 = 1 partition by t2 ")
-        tdSql.checkRows(real_num)
+        tdSql.checkRows(check_num)
 
         #col
         tdSql.query(f"select count(c1) from {self.dbname}.{self.stable} partition by tbname ")
+        tdSql.checkRows(check_num)
+
+        tdSql.query(f"select count(c1) from {self.dbname}.{self.stable} partition by tbname interval(1d)")
         tdSql.checkRows(real_num)
 
+        ############### same with old ###############
         tdSql.query(f"select c1, count(*) from {self.dbname}.{self.stable} partition by c1 ")
         num = 0
         if real_num > 0:
@@ -150,6 +165,7 @@ class TDTestCase:
     def test_error(self):
         tdSql.error(f"select * from {self.dbname}.{self.stable} group by t2")
         tdSql.error(f"select t2, count(*) from {self.dbname}.{self.stable} group by t2 where t2 = 1")
+        tdSql.error(f"select t2, count(*) from {self.dbname}.{self.stable} group by t2 interval(1d)")
 
   
     def run(self):
