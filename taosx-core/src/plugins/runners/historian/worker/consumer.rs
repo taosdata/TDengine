@@ -1,5 +1,5 @@
 use arrow::ipc::writer::StreamWriter;
-use flume::Receiver;
+use flume::{Receiver, Sender};
 use futures_util::TryStreamExt;
 
 use taosx_ipc::ack::AckReaderBuilder;
@@ -11,27 +11,34 @@ use crate::runners::historian::set_tcp_keepalive;
 
 pub struct Consumer {
     query: HistorianQuery,
-    port: u16,
+    ipc_port: u16,
 }
 
 impl Consumer {
-    pub fn new(query: HistorianQuery, port: u16) -> Self {
-        Self { query, port }
+    pub fn new(query: HistorianQuery, ipc_port: u16) -> Self {
+        Self { query, ipc_port }
     }
 
-    pub async fn consume(&mut self, receiver: Receiver<TaskConfig>) -> anyhow::Result<()> {
+    pub async fn consume(
+        &mut self,
+        receiver: Receiver<TaskConfig>,
+        logger_tx: Sender<String>,
+    ) -> anyhow::Result<()> {
         let mut appender = ArrowDataAppender::try_new(HistorianTable::History)?;
         let schema = appender.schema().clone();
 
-        let socket = format!("127.0.0.1:{}", self.port);
+        // IPC Tcp stream
+        let socket = format!("127.0.0.1:{}", self.ipc_port);
         let stream = std::net::TcpStream::connect(socket)?;
         set_tcp_keepalive(&stream)?;
         stream.set_nonblocking(false)?;
 
+        // ack reader stream
         let ack_stream = stream.try_clone()?;
         set_tcp_keepalive(&ack_stream)?;
         ack_stream.set_read_timeout(None)?;
 
+        // write batch to IPC
         let (tx, rx) = flume::bounded(100);
         let writer_handler = tokio::task::spawn_blocking(move || {
             let mut writer = StreamWriter::try_new(stream, &schema)?;
@@ -55,6 +62,7 @@ impl Consumer {
             anyhow::Ok(())
         });
 
+        // receive ACK from IPC
         let ack = tokio::task::spawn_blocking(move || {
             let ack_reader =
                 AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
@@ -70,6 +78,7 @@ impl Consumer {
             Ok(())
         });
 
+        // query database and send to writer
         let mut batch_count: u64 = 1;
         while let Ok(task) = receiver.recv_async().await {
             let start = task
@@ -93,8 +102,6 @@ impl Consumer {
                 .into_row_stream();
 
             let batch_size = task.advanced_options.batch_size.unwrap_or(10000);
-            let keep_raw_data = task.advanced_options.keep_raw_data.unwrap_or(false);
-
             let mut row_count = 0;
             while let Some(row) = rows.try_next().await? {
                 let raw_data = appender.append_history_row(&row).map_err(|err| {
@@ -106,9 +113,8 @@ impl Consumer {
                     tracing::error!(err_msg);
                     anyhow::anyhow!(err_msg)
                 })?;
-                if keep_raw_data {
-                    write_raw_data(raw_data.to_string());
-                }
+
+                let _ = logger_tx.send_async(raw_data.to_string()).await;
 
                 row_count += 1;
 
@@ -142,8 +148,4 @@ impl Consumer {
         tracing::debug!("migrate history consumer finished");
         Ok(())
     }
-}
-
-fn write_raw_data(raw_data: String) {
-    todo!()
 }

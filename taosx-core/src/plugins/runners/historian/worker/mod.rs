@@ -2,13 +2,13 @@ use std::cmp;
 
 use arrow::ipc::writer::StreamWriter;
 use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc};
+use flume::Sender;
 use futures_util::TryStreamExt;
 use itertools::Itertools;
-use tiberius::QueryItem;
 
-use crate::runners::historian::appender::ArrowDataAppender;
 use taosx_ipc::ack::AckReaderBuilder;
 
+use crate::runners::historian::appender::ArrowDataAppender;
 use crate::runners::historian::config::{HistorianTable, TaskConfig};
 use crate::runners::historian::query::HistorianQuery;
 use crate::runners::historian::set_tcp_keepalive;
@@ -18,7 +18,7 @@ use crate::runners::historian::worker::producer::Producer;
 mod consumer;
 mod producer;
 
-pub async fn migrate_history(config: TaskConfig) -> anyhow::Result<()> {
+pub async fn migrate_history(config: TaskConfig, logger: Sender<String>) -> anyhow::Result<()> {
     tracing::info!("migrate history start, config: {:?}", config);
 
     let (tx, rx) = flume::bounded(0);
@@ -26,7 +26,8 @@ pub async fn migrate_history(config: TaskConfig) -> anyhow::Result<()> {
     let mut consumers = Vec::new();
 
     let concurrency = cmp::max(config.advanced_options.read_concurrency.unwrap_or(1), 1);
-    for _ in 0..concurrency {
+
+    for _ in 1..=concurrency {
         let receiver = rx.clone();
 
         let query = HistorianQuery::try_new(config.connect.clone()).await?;
@@ -34,9 +35,10 @@ pub async fn migrate_history(config: TaskConfig) -> anyhow::Result<()> {
             .ipc_port
             .ok_or(anyhow::anyhow!("ipc_port cannot be None"))?;
 
+        let logger_tx = logger.clone();
         let c = tokio::spawn(async move {
             let mut consumer = Consumer::new(query, ipc_port);
-            consumer.consume(receiver).await
+            consumer.consume(receiver, logger_tx).await
         });
         consumers.push(c);
     }
@@ -52,14 +54,16 @@ pub async fn migrate_history(config: TaskConfig) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
+pub async fn sync_history(task_config: TaskConfig, logger: Sender<String>) -> anyhow::Result<()> {
     tracing::info!("sync history start, config: {:?}", task_config);
 
     // create migrate task
     let now = Utc::now();
     let mut migrate_task_config = task_config.clone();
     migrate_task_config.end_datetime = Some(now);
-    let _ = tokio::spawn(async move { migrate_history(migrate_task_config).await });
+
+    let logger_tx = logger.clone();
+    let _ = tokio::spawn(async move { migrate_history(migrate_task_config, logger_tx).await });
 
     // create stream for ipc
     let port = task_config
@@ -105,9 +109,9 @@ pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
         anyhow::Ok(())
     });
 
-    let mut query = HistorianQuery::try_new(task_config.connect.clone()).await?;
     tokio::time::sleep(task_config.tolerance.to_std().unwrap()).await;
-
+    // query database and send to writer
+    let mut query = HistorianQuery::try_new(task_config.connect.clone()).await?;
     let mut window_start = now;
     let mut count: u64 = 1;
     let tags_group = split_tags(task_config.tags.clone(), task_config.tag_list_size);
@@ -125,26 +129,21 @@ pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
             tracing::debug!("sync history:{} query rows", count);
             let mut rows = query
                 .query_history(tags.clone(), window_start, window_end)
-                .await?;
+                .await?
+                .into_row_stream();
 
             tracing::debug!("sync history:{} rows to batch", count);
             while let Some(row) = rows.try_next().await? {
-                match row {
-                    QueryItem::Row(row) => {
-                        let raw_data = appender.append_history_row(&row).map_err(|err| {
-                            let err_msg = format!(
-                                "sync history:{} append row error: {}",
-                                count,
-                                err.to_string()
-                            );
-                            tracing::error!(err_msg);
-                            anyhow::anyhow!(err_msg)
-                        })?;
-                    }
-                    QueryItem::Metadata(_) => {
-                        continue;
-                    }
-                }
+                let raw_data = appender.append_history_row(&row).map_err(|err| {
+                    let err_msg = format!(
+                        "sync history:{} append row error: {}",
+                        count,
+                        err.to_string()
+                    );
+                    tracing::error!(err_msg);
+                    anyhow::anyhow!(err_msg)
+                })?;
+                logger.send_async(raw_data.to_string()).await?;
             }
 
             tracing::debug!("sync history:{} batch finish", count);
@@ -160,7 +159,7 @@ pub async fn sync_history(task_config: TaskConfig) -> anyhow::Result<()> {
     }
 }
 
-pub async fn sync_live(task_config: TaskConfig) -> anyhow::Result<()> {
+pub async fn sync_live(task_config: TaskConfig, logger: Sender<String>) -> anyhow::Result<()> {
     tracing::info!("sync live start, config: {:?}", task_config);
 
     let port = task_config
@@ -217,23 +216,20 @@ pub async fn sync_live(task_config: TaskConfig) -> anyhow::Result<()> {
             count,
             Local::now().to_string()
         );
-        let mut rows = query.query_live(task_config.tags.clone()).await?;
+        let mut rows = query
+            .query_live(task_config.tags.clone())
+            .await?
+            .into_row_stream();
 
         tracing::debug!("sync live:{} traverse rows to batch", count);
         let mut earliest = i64::MAX;
         let mut latest = 0;
         while let Some(row) = rows.try_next().await? {
-            match row {
-                QueryItem::Row(row) => {
-                    let ts = appender.append_live_row(&row)?.datetime;
-
-                    earliest = cmp::min(ts, earliest);
-                    latest = cmp::max(ts, latest);
-                }
-                QueryItem::Metadata(_) => {
-                    continue;
-                }
-            }
+            let raw_data = appender.append_live_row(&row)?;
+            let ts = raw_data.datetime;
+            logger.send_async(raw_data.to_string()).await?;
+            earliest = cmp::min(ts, earliest);
+            latest = cmp::max(ts, latest);
         }
 
         tracing::debug!(

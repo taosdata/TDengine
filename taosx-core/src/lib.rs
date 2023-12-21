@@ -442,6 +442,14 @@ impl TaskOpts {
                     .await?;
                 }
                 ("historian", "taos") => {
+                    let task_id = task_id
+                        .clone()
+                        .map(|t| {
+                            t.parse::<i64>()
+                                .map_err(|e| anyhow::anyhow!("task id parse error: {}", e))
+                        })
+                        .transpose()?;
+
                     historian_to_taos(
                         from.clone(),
                         parser.clone(),
@@ -453,6 +461,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        task_id,
                         notify.clone(),
                     )
                     .await?;

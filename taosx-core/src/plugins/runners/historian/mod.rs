@@ -6,6 +6,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
+use crate::plugins::raw_data::RawDataLogger;
 use crate::runners::historian::config::connect::ConnectConfig;
 use crate::runners::historian::config::{HistorianTable, TaskConfig, TaskMode};
 use crate::runners::historian::query::HistorianQuery;
@@ -21,31 +22,25 @@ mod worker;
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = ConnectConfig::from_dsn(dsn);
     match config {
-        Err(err) => DataSourceValidation {
-            valid: false,
-            support: false,
-            data_source: "historian".to_string(),
-            version: None,
-            message: Some(format!(
+        Err(err) => DataSourceValidation::invalid(
+            "historian".to_string(),
+            format!(
                 "invalid dsn: {}, cause: {}",
                 dsn.to_string(),
                 err.to_string()
-            )),
-        },
+            ),
+        ),
         Ok(c) => {
             let client = HistorianQuery::try_new(c).await;
             match client {
-                Err(err) => DataSourceValidation {
-                    valid: false,
-                    support: false,
-                    data_source: "historian".to_string(),
-                    version: None,
-                    message: Some(format!(
+                Err(err) => DataSourceValidation::invalid(
+                    "historian".to_string(),
+                    format!(
                         "failed to connect to dsn: {}, cause: {}",
-                        dsn,
+                        dsn.to_string(),
                         err.to_string()
-                    )),
-                },
+                    ),
+                ),
                 Ok(_cli) => DataSourceValidation {
                     valid: true,
                     support: true,
@@ -69,6 +64,7 @@ pub async fn historian_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let mut config = TaskConfig::from_dsn(&from)?;
@@ -97,7 +93,7 @@ pub async fn historian_to_taos(
     config.ipc_port = Some(port);
 
     // create worker
-    let worker = tokio::spawn(exec_task(config));
+    let worker = tokio::spawn(exec_task(task_id, config));
 
     let port_pool = port_pool.clone();
     let abort_handle = worker.abort_handle();
@@ -154,7 +150,7 @@ pub async fn historian_to_taos(
     Ok(())
 }
 
-async fn exec_task(mut config: TaskConfig) -> anyhow::Result<()> {
+async fn exec_task(task_id: Option<i64>, mut config: TaskConfig) -> anyhow::Result<()> {
     let mut tags = config.tags.clone();
     if !tags.is_empty() && tags.len() == 1 && tags.get(0).unwrap() == "*" {
         let mut client = HistorianQuery::try_new(config.connect.clone()).await?;
@@ -168,17 +164,35 @@ async fn exec_task(mut config: TaskConfig) -> anyhow::Result<()> {
         anyhow::bail!("tags cannot be empty");
     }
 
+    let (logger_tx, logger_rx) = flume::bounded(0);
+    let logger = RawDataLogger::new(
+        task_id.unwrap_or(0),
+        config.advanced_options.keep_raw_data.unwrap_or(false),
+        config
+            .advanced_options
+            .keep_raw_data_dir
+            .clone()
+            .unwrap_or(std::env::var(crate::runners::ENV_TAOSX_DATA_DIR).unwrap()),
+        config
+            .advanced_options
+            .keep_raw_data_days
+            .clone()
+            .unwrap_or(30),
+        logger_rx,
+    );
+    logger.start();
+
     match (config.mode, config.table) {
         (TaskMode::Migrate, HistorianTable::History) => {
             config.tags = tags;
-            migrate_history(config.clone()).await?;
+            migrate_history(config.clone(), logger_tx).await?;
         }
         (TaskMode::Synchronize, HistorianTable::History) => {
             config.tags = tags;
-            sync_history(config.clone()).await?;
+            sync_history(config.clone(), logger_tx).await?;
         }
         (TaskMode::Synchronize, HistorianTable::Live) => {
-            sync_live(config.clone()).await?;
+            sync_live(config.clone(), logger_tx).await?;
         }
         _ => {}
     }
@@ -210,6 +224,7 @@ mod tests {
     use taos::Dsn;
 
     use super::*;
+
     #[test]
     fn test_set_tcp_keepalive() {
         let server = thread::spawn(|| {
