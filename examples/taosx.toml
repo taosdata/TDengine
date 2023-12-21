@@ -1,11 +1,14 @@
 # plugins home
-#plugins_home = "/usr/local/taos/plugins"
+#plugins_home = "/usr/local/taos/plugins" # on linux/macOS
+#plugins_home = "C:\\TDengine\\plugins" # on windows
 
 # data dir
-#data_dir = "/var/lib/taos/taosx"
+#data_dir = "/var/lib/taos/taosx" # on linux/macOS
+#data_dir = "C:\\TDengine\\data\\taosx" # on windows
 
 # logs home
-#logs_home = "/var/log/taos"
+#logs_home = "/var/log/taos" # on linux/macOS
+#logs_home = "C:\\TDengine\\log" # on windows
 
 # log level: off/error/warn/info/debug/trace
 #log_level = "info"
