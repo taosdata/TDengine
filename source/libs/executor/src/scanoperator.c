@@ -3220,10 +3220,7 @@ _error:
 
 // ========================= table merge scan
 
-static int32_t saveBlockRowToBuf(STableMergeScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowIdx, int32_t* pPageId, int32_t* pOffset, int32_t* pLength) {
-  SDiskbasedBuf* pResultBuf = pInfo->sortRowIdInfo.pExtSrcRowsBuf;
-  int32_t rowBytes = blockDataGetRowSize(pBlock) + taosArrayGetSize(pBlock->pDataBlock) + sizeof(int32_t);
-
+static int32_t getPageFromExtSrcRowsBuf(SDiskbasedBuf* pResultBuf, int32_t rowBytes, int32_t* pPageId, SFilePage** ppFilePage) {
   SFilePage* pFilePage = NULL;
 
   int32_t pageId = -1;
@@ -3258,8 +3255,11 @@ static int32_t saveBlockRowToBuf(STableMergeScanInfo* pInfo, SSDataBlock* pBlock
   }
 
   *pPageId = pageId;
-  *pOffset = pFilePage->num;
-  char* buf = (char*)pFilePage + (*pOffset);
+  *ppFilePage = pFilePage;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t blockRowToBuf(SSDataBlock* pBlock, int32_t rowIdx, char* buf) {
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
 
   char* isNull = (char*)buf;
@@ -3274,14 +3274,21 @@ static int32_t saveBlockRowToBuf(STableMergeScanInfo* pInfo, SSDataBlock* pBlock
     isNull[i] = 0;
     char* pData = colDataGetData(pCol, rowIdx);
     if (pCol->info.type == TSDB_DATA_TYPE_JSON) {
-      int32_t dataLen = getJsonValueLen(pData);
-      memcpy(pStart, pData, dataLen);
-      pStart += dataLen;
+      if (colDataGetLength(pCol, blockDataGetNumOfRows(pBlock)) != 0) {
+        int32_t dataLen = getJsonValueLen(pData);
+        memcpy(pStart, pData, dataLen);
+        pStart += dataLen;
+      } else {
+        // the column that is pre-allocated, has no data and has offset
+        *pStart = 0;
+        pStart += 1;
+      }
     } else if (IS_VAR_DATA_TYPE(pCol->info.type)) {
       if (colDataGetLength(pCol, blockDataGetNumOfRows(pBlock)) != 0) {
         varDataCopy(pStart, pData);
         pStart += varDataTLen(pData);        
       } else {
+        // the column that is pre-allocated, has no data and has offset
         *(VarDataLenT*)(pStart) = 0;
         pStart += VARSTR_HEADER_SIZE;
       }
@@ -3293,7 +3300,23 @@ static int32_t saveBlockRowToBuf(STableMergeScanInfo* pInfo, SSDataBlock* pBlock
   }
   *(int32_t*)pStart = (char*)pStart - (char*)buf;
   pStart += sizeof(int32_t);
-  *pLength = (int32_t)(pStart - (char*)buf);
+  return (int32_t)(pStart - (char*)buf);
+}
+
+static int32_t saveBlockRowToExtRowsBuf(STableMergeScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowIdx, int32_t* pPageId, int32_t* pOffset, int32_t* pLength) {
+  SDiskbasedBuf* pResultBuf = pInfo->sortRowIdInfo.pExtSrcRowsBuf;
+  int32_t rowBytes = blockDataGetRowSize(pBlock) + taosArrayGetSize(pBlock->pDataBlock) + sizeof(int32_t);
+  int32_t pageId = -1;
+  SFilePage* pFilePage = NULL;
+  int32_t code = getPageFromExtSrcRowsBuf(pResultBuf, rowBytes, &pageId, &pFilePage);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  *pPageId = pageId;
+  *pOffset = pFilePage->num;
+  *pLength = blockRowToBuf(pBlock, rowIdx, (char*)pFilePage + (*pOffset));
+
   pFilePage->num += (*pLength);
   setBufPageDirty(pFilePage, true);
   releaseBufPage(pResultBuf, pFilePage);
@@ -3319,7 +3342,7 @@ static int32_t fillSortInputBlock(STableMergeScanInfo* pInfo, SSDataBlock* pSrcB
     int32_t pageId = -1;
     int32_t offset = -1;
     int32_t length = -1;
-    saveBlockRowToBuf(pInfo, pSrcBlock, i, &pageId, &offset, &length);
+    saveBlockRowToExtRowsBuf(pInfo, pSrcBlock, i, &pageId, &offset, &length);
     colDataSetInt32(pageIdCol, i, &pageId);
     colDataSetInt32(offsetCol, i, &offset);
   }
