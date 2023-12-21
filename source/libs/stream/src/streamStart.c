@@ -313,9 +313,24 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
     stError("s-task:%s receive check msg from upstream task:0x%x(vgId:%d), new stage received:%" PRId64
             ", prev:%" PRId64,
             id, upstreamTaskId, vgId, stage, pInfo->stage);
+    // record the checkpoint failure id and sent to mnode
+    taosThreadMutexLock(&pTask->lock);
+    ETaskStatus status = streamTaskGetStatus(pTask, NULL);
+    if (status == TASK_STATUS__CK) {
+      streamTaskSetCheckpointFailedId(pTask);
+    }
+    taosThreadMutexUnlock(&pTask->lock);
   }
 
   if (pInfo->stage != stage) {
+
+    taosThreadMutexLock(&pTask->lock);
+    ETaskStatus status = streamTaskGetStatus(pTask, NULL);
+    if (status == TASK_STATUS__CK) {
+      streamTaskSetCheckpointFailedId(pTask);
+    }
+    taosThreadMutexUnlock(&pTask->lock);
+
     return TASK_UPSTREAM_NEW_STAGE;
   } else if (pTask->status.downstreamReady != 1) {
     stDebug("s-task:%s vgId:%d leader:%d, downstream not ready", id, vgId, (pTask->pMeta->role == NODE_ROLE_LEADER));

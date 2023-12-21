@@ -341,9 +341,8 @@ int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId) {
   return code;
 }
 
-void streamTaskSetFailedId(SStreamTask* pTask) {
+void streamTaskSetCheckpointFailedId(SStreamTask* pTask) {
   pTask->chkInfo.failedId = pTask->chkInfo.checkpointingId;
-  pTask->chkInfo.checkpointId = pTask->chkInfo.checkpointingId;
 }
 
 int32_t getChkpMeta(char* id, char* path, SArray* list) {
@@ -485,7 +484,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
     taosThreadMutexUnlock(&pTask->lock);
 
-    streamTaskSetFailedId(pTask);
+    streamTaskSetCheckpointFailedId(pTask);
     stDebug("s-task:%s clear checkpoint flag since gen checkpoint failed, checkpointId:%" PRId64, pTask->id.idStr,
             ckId);
   }
