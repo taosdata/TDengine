@@ -262,9 +262,17 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg, char* key) {
   }
 
   STaskDbWrapper* pBackend = taskDbOpen(pMeta->path, key, chkpId);
-  if (pBackend == NULL) {
-    taosThreadMutexUnlock(&pMeta->backendMutex);
-    return -1;
+  while (1) {
+    if (pBackend == NULL) {
+      taosThreadMutexUnlock(&pMeta->backendMutex);
+      taosMsleep(1000);
+      stDebug("backed holded by other task, restart later, path: %s, key: %s", pMeta->path, key);
+    } else {
+      taosThreadMutexUnlock(&pMeta->backendMutex);
+      break;
+    }
+    taosThreadMutexLock(&pMeta->backendMutex);
+    pBackend = taskDbOpen(pMeta->path, key, chkpId);
   }
 
   int64_t tref = taosAddRef(taskDbWrapperId, pBackend);
@@ -386,7 +394,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->qHandle = taosInitScheduler(32, 1, "stream-chkp", NULL);
 
   pMeta->bkdChkptMgt = bkdMgtCreate(tpath);
-
+  taosThreadMutexInit(&pMeta->backendMutex, NULL);
   return pMeta;
 
 _err:
@@ -1007,10 +1015,18 @@ static bool waitForEnoughDuration(SMetaHbInfo* pInfo) {
   return false;
 }
 
-static void clearHbMsg(SStreamHbMsg* pMsg, SArray* pIdList) {
-  taosArrayDestroy(pMsg->pTaskStatus);
-  taosArrayDestroy(pMsg->pUpdateNodes);
-  taosArrayDestroy(pIdList);
+void streamMetaClearHbMsg(SStreamHbMsg* pMsg) {
+  if (pMsg == NULL) {
+    return;
+  }
+
+  if (pMsg->pUpdateNodes != NULL) {
+    taosArrayDestroy(pMsg->pUpdateNodes);
+  }
+
+  if (pMsg->pTaskStatus != NULL) {
+    taosArrayDestroy(pMsg->pTaskStatus);
+  }
 }
 
 static bool existInHbMsg(SStreamHbMsg* pMsg, SDownstreamTaskEpset* pTaskEpset) {
@@ -1189,7 +1205,8 @@ void metaHbToMnode(void* param, void* tmrId) {
   }
 
 _end:
-  clearHbMsg(&hbMsg, pIdList);
+  streamMetaClearHbMsg(&hbMsg);
+  taosArrayDestroy(pIdList);
   taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr);
   taosReleaseRef(streamMetaId, rid);
 }

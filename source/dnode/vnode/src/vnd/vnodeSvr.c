@@ -1266,6 +1266,7 @@ _exit:
   return 0;
 }
 
+#ifdef BUILD_NO_CALL
 static int32_t vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, SSubmitMsgIter *msgIter,
                                               const char *tags) {
   SSubmitBlkIter blkIter = {0};
@@ -1296,7 +1297,7 @@ static int32_t vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, 
 
   return TSDB_CODE_SUCCESS;
 }
-
+#endif
 typedef struct SSubmitReqConvertCxt {
   SSubmitMsgIter msgIter;
   SSubmitBlk    *pBlock;

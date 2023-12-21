@@ -401,7 +401,14 @@ echo
 echo "Do you want to remove all the data, log and configuration files? [y/n]"
 read answer
 if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
+  confirmMsg="I confirm that I would like to delete all data, log and configuration files"
+  echo "Please enter '${confirmMsg}' to continue"
+  read answer
+  if [ X"$answer" == X"${confirmMsg}" ]; then
     remove_data_and_config
+  else
+    echo "answer doesn't match, skip this step"
+  fi
 fi
 
 echo 

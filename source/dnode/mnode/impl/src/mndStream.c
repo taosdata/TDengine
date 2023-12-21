@@ -93,6 +93,9 @@ static int32_t mndStreamSeqActionInsert(SSdb *pSdb, SStreamSeq *pStream);
 static int32_t mndStreamSeqActionDelete(SSdb *pSdb, SStreamSeq *pStream);
 static int32_t mndStreamSeqActionUpdate(SSdb *pSdb, SStreamSeq *pOldStream, SStreamSeq *pNewStream);
 
+static SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
+static SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
+
 int32_t mndInitStream(SMnode *pMnode) {
   SSdbTable table = {
       .sdbType = SDB_STREAM,
@@ -2936,6 +2939,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   tDecoderInit(&decoder, pReq->pCont, pReq->contLen);
 
   if (tDecodeStreamHbMsg(&decoder, &req) < 0) {
+    streamMetaClearHbMsg(&req);
     tDecoderClear(&decoder);
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
@@ -3043,9 +3047,8 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   }
 
   taosThreadMutexUnlock(&execInfo.lock);
+  streamMetaClearHbMsg(&req);
 
-  taosArrayDestroy(req.pTaskStatus);
-  taosArrayDestroy(req.pUpdateNodes);
   return TSDB_CODE_SUCCESS;
 }
 
