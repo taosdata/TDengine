@@ -152,6 +152,7 @@ mod tests {
     use super::*;
     use std::str::FromStr;
     use taos::Dsn;
+
     #[test]
     fn test_parse_log_level() {
         let dsn = Dsn::from_str("ds://?log_level=error").unwrap();
