@@ -1340,6 +1340,7 @@ int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg) {
   return tqStreamTaskProcessTaskResetReq(pTq->pStreamMeta, pMsg);
 }
 
+// NOTE: here we may receive this message more than once, so need to handle this case
 int32_t tqProcessTaskDropHTask(STQ* pTq, SRpcMsg* pMsg) {
   SVDropHTaskReq* pReq = (SVDropHTaskReq*)pMsg->pCont;
 
@@ -1358,13 +1359,16 @@ int32_t tqProcessTaskDropHTask(STQ* pTq, SRpcMsg* pMsg) {
     return TSDB_CODE_SUCCESS;
   }
 
+  taosThreadMutexLock(&pTask->lock);
   ETaskStatus status = streamTaskGetStatus(pTask, NULL);
-  ASSERT(status == TASK_STATUS__STREAM_SCAN_HISTORY);
-
-  streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
+  if (status == TASK_STATUS__STREAM_SCAN_HISTORY) {
+    streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
+  }
 
   SStreamTaskId id = {.streamId = pTask->hTaskInfo.id.streamId, .taskId = pTask->hTaskInfo.id.taskId};
   streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &id);
+
+  taosThreadMutexUnlock(&pTask->lock);
 
   // clear the scheduler status
   streamTaskSetSchedStatusInactive(pTask);
