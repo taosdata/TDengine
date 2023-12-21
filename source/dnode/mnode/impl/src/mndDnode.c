@@ -772,6 +772,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   dnodeObj.port = pCreate->port;
   tstrncpy(dnodeObj.fqdn, pCreate->fqdn, TSDB_FQDN_LEN);
   snprintf(dnodeObj.ep, TSDB_EP_LEN - 1, "%s:%u", pCreate->fqdn, pCreate->port);
+  #if 0
   if (!(pInfo = taosMemoryCalloc(1, sizeof(*pInfo)))) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
@@ -793,6 +794,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   } else {
     mWarn("Invalid machineId:%s to create dnode:%s", pInfo->machineId, dnodeObj.fqdn);
   }
+  #endif
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_GLOBAL, pReq, "create-dnode");
   if (pTrans == NULL) goto _OVER;
   mInfo("trans:%d, used to create dnode:%s", pTrans->id, dnodeObj.ep);

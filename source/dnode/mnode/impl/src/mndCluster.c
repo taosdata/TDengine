@@ -423,6 +423,17 @@ static int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
     goto _exit;
   }
 
+  SClusterObj  clusterObj = {0};
+  void        *pIter = NULL;
+  SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
+  if (!pCluster || pCluster->id <= 0) {
+    code = TSDB_CODE_APP_IS_STARTING;
+    if (pCluster) mndReleaseCluster(pMnode, pCluster, pIter);
+    goto _exit;
+  }
+  memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
+  mndReleaseCluster(pMnode, pCluster, pIter);
+
   if (strncmp(cfgReq.config, GRANT_ACTIVE_CODE, 11) == 0) {
 #ifdef TD_ENTERPRISE
     if (strlen(cfgReq.config) >= TSDB_DNODE_CONFIG_LEN) {
@@ -433,13 +444,36 @@ static int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
       code = TSDB_CODE_INVALID_CFG_VALUE;
       goto _exit;
     }
-    // code = xxx;
-    code = grantAlterActiveCode(cfgReq.value);
+    char *newActive = NULL;
+    if ((code = grantAlterActiveCode(cfgReq.value, &newActive)) != 0) {
+      goto _exit;
+    }
 #else
     code = TSDB_CODE_OPS_NOT_SUPPORT;
     goto _exit;
 #endif
   }
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-cluster");
+  if (pTrans == NULL) return -1;
+
+  SSdbRaw *pCommitRaw = mndClusterActionEncode(&clusterObj);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    code = terrno;
+    goto _exit;
+  }
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    code = terrno;
+    goto _exit;
+  }
+
+  mndTransDrop(pTrans);
 
   {  // audit
     auditRecord(pReq, pMnode->clusterId, "alterCluster", "", "", cfgReq.sql, cfgReq.sqlLen);
