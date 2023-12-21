@@ -3600,7 +3600,7 @@ int32_t startRowIdSort(STableMergeScanInfo *pInfo) {
                                                       taosArrayGetSize(pInfo->pResBlock->pDataBlock));
   pageSize *= 2;
   int numOfTables = pInfo->tableEndIndex - pInfo->tableStartIndex + 1;                                                       
-  int32_t memSize = MIN(pageSize * numOfTables, 512 * 1024 * 1024);
+  int32_t memSize = TMIN(pageSize * numOfTables, 512 * 1024 * 1024);
   int32_t code = createDiskbasedBuf(&pSort->pExtSrcRowsBuf, pageSize, memSize, "tms-ext-src-block", tsTempDir);
   dBufSetPrintInfo(pSort->pExtSrcRowsBuf);
   return code;
