@@ -1783,7 +1783,7 @@ static int32_t lastIterOpen(SFSLastIter *iter, STFileSet *pFileSet, STsdb *pTsdb
       .backward = 1,
       .pSttFileBlockIterArray = pr->pLDataIterArray,
       .pCols = aCols,
-      .numOfCols = nCols,
+      .numOfCols = nCols + 1,
       .loadTombFn = loadSttTomb,
       .pReader = pr,
       .idstr = pr->idstr,
