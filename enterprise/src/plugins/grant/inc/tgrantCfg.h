@@ -61,7 +61,7 @@ extern "C" {
 
 #define GRANT_CFG_ADD                                                                        \
   do {                                                                                       \
-    if (cfgAddString(pCfg, "grant", "", false, CFG_DYN_SERVER) != 0) return -1;              \
+    if (cfgAddString(pCfg, "grant", "", false, CFG_DYN_NONE) != 0) return -1;                \
     SConfigItem *pItemGrant = cfgGetItem(pCfg, "grant");                                     \
     pItemGrant->array = taosArrayInit_s(sizeof(SConfigGrantItem), 5);                        \
     if (pItemGrant->array == NULL) {                                                         \
