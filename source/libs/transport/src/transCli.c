@@ -656,6 +656,7 @@ static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
   SCliConn* conn = QUEUE_DATA(h, SCliConn, q);
   conn->status = ConnNormal;
   QUEUE_INIT(&conn->q);
+  tDebug("conn %p got from pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
 
   if (conn->task != NULL) {
     transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
@@ -730,6 +731,7 @@ static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
   SCliConn* conn = QUEUE_DATA(h, SCliConn, q);
   conn->status = ConnNormal;
   QUEUE_INIT(&conn->q);
+  tDebug("conn %p got from pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
 
   if (conn->task != NULL) {
     transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
@@ -782,6 +784,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   conn->status = ConnInPool;
   QUEUE_PUSH(&conn->list->conns, &conn->q);
   conn->list->size += 1;
+  tDebug("conn %p added to pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
 
   if (conn->list->size >= 10) {
     STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
