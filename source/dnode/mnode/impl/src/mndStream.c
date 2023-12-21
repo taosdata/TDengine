@@ -3006,6 +3006,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   bool    checkpointFailed = false;
   int64_t activeCheckpointId = 0;
   int64_t streamId = 0;
+  int32_t transId = 0;
 
   SDecoder decoder = {0};
   tDecoderInit(&decoder, pReq->pCont, pReq->contLen);
@@ -3075,6 +3076,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
         if (p->checkpointFailed) {
           checkpointFailed = p->checkpointFailed;
           streamId = p->id.streamId;
+          transId = p->chkpointTransId;
         }
       }
     }
