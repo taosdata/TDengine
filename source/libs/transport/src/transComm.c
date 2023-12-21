@@ -87,6 +87,7 @@ void transFreeMsg(void* msg) {
   if (msg == NULL) {
     return;
   }
+  // tDebug("free memory: %p", msg);
   taosMemoryFree((char*)msg - sizeof(STransMsgHead));
 }
 int transSockInfo2Str(struct sockaddr* sockname, char* dst) {
@@ -298,7 +299,7 @@ void transCtxCleanup(STransCtx* ctx) {
     ctx->freeFunc(iter->val);
     iter = taosHashIterate(ctx->args, iter);
   }
-  ctx->freeFunc(ctx->brokenVal.val);
+  if (ctx->freeFunc) ctx->freeFunc(ctx->brokenVal.val);
   taosHashCleanup(ctx->args);
   ctx->args = NULL;
 }
@@ -657,6 +658,10 @@ int32_t transReleaseExHandle(int32_t refMgt, int64_t refId) {
 void transDestroyExHandle(void* handle) {
   if (handle == NULL) {
     return;
+  }
+  SExHandle* eh = handle;
+  if (!QUEUE_IS_EMPTY(&eh->q)) {
+    tDebug("handle %p mem leak", handle);
   }
   taosMemoryFree(handle);
 }
