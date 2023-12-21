@@ -17,6 +17,7 @@
 #include "trow.h"
 #include "tlog.h"
 
+#ifdef BUILD_NO_CALL
 const uint8_t tdVTypeByte[2][3] = {{
                                        // 2 bits
                                        TD_VTYPE_NORM_BYTE_II,
@@ -1079,3 +1080,4 @@ void tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pColV
     }
   }
 }
+#endif
