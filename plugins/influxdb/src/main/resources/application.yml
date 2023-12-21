@@ -34,8 +34,8 @@ task:
 #performance parameters
 performance:
   delay: 10000
-  limitConnect: 1000
-  limitBatch: 1000
+  limitConnect: 500
+  limitBatch: 5000
   limitSpeed: 100000
   retryTimes: 3
   # millisecond
@@ -58,7 +58,7 @@ performance:
     createBucketInterval: 5
     createBucketFullInterval: 200
     # BucketDataThread线程
-    readBucketBatch: 2
+    readBucketBatch: 1000
     readBucketInterval: 1
     readBucketFullInterval: 200
     # ScheduleThread线程

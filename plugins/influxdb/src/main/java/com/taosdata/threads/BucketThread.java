@@ -121,8 +121,8 @@ public class BucketThread implements Runnable {
                                 && BucketDataCache.socketMap.size() == 0 // 判断连接全部关闭
                         ) {
                             Thread.sleep(5000L);
-                            logger.info("Task execution completed, normal exit.");
                             logger.info(StatusCache.toPrintString());
+                            logger.info("Task execution completed, normal exit.");
                             System.exit(0);
                         }
                     }
