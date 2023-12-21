@@ -4113,8 +4113,7 @@ static void doStreamMidIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pS
   STimeWindow nextWin = getFinalTimeWindow(ts, &pInfo->interval);
 
   while (1) {
-    bool isClosed = isCloseWindow(&nextWin, &pInfo->twAggSup);
-    if ((pInfo->ignoreExpiredData && isClosed) || !inSlidingWindow(&pInfo->interval, &nextWin, &pSDataBlock->info)) {
+    if (!inSlidingWindow(&pInfo->interval, &nextWin, &pSDataBlock->info)) {
       startPos = getNexWindowPos(&pInfo->interval, &pSDataBlock->info, tsCol, startPos, nextWin.ekey, &nextWin);
       if (startPos < 0) {
         break;
