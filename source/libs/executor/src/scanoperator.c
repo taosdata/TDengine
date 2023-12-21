@@ -3274,21 +3274,21 @@ static int32_t blockRowToBuf(SSDataBlock* pBlock, int32_t rowIdx, char* buf) {
     isNull[i] = 0;
     char* pData = colDataGetData(pCol, rowIdx);
     if (pCol->info.type == TSDB_DATA_TYPE_JSON) {
-      if (colDataGetLength(pCol, blockDataGetNumOfRows(pBlock)) != 0) {
+      if (pCol->pData) {
         int32_t dataLen = getJsonValueLen(pData);
         memcpy(pStart, pData, dataLen);
         pStart += dataLen;
       } else {
-        // the column that is pre-allocated, has no data and has offset
+        // the column that is pre-allocated has no data and has offset
         *pStart = 0;
         pStart += 1;
       }
     } else if (IS_VAR_DATA_TYPE(pCol->info.type)) {
-      if (colDataGetLength(pCol, blockDataGetNumOfRows(pBlock)) != 0) {
+      if (pCol->pData) {
         varDataCopy(pStart, pData);
         pStart += varDataTLen(pData);        
       } else {
-        // the column that is pre-allocated, has no data and has offset
+        // the column that is pre-allocated has no data and has offset
         *(VarDataLenT*)(pStart) = 0;
         pStart += VARSTR_HEADER_SIZE;
       }
