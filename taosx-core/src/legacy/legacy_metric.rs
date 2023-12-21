@@ -26,7 +26,6 @@ pub struct LegacyToTaosMetrics {
     pub created_tables: AtomicU32,
     // api level metrics (update on every api call)
     // total_avg_speed
-    // execute_time
     // avg_speed
 }
 
@@ -132,22 +131,21 @@ impl TaosXMetrics for LegacyToTaosMetrics {
         self.updated_tags.store(0, SeqCst);
         self.created_tables.store(0, SeqCst);
     }
-    
+
     fn com(&self) -> &CommonMetrics {
         &self.com
     }
 
-        /// Resore metrics from json string.
-        fn from_json(json: &str) -> Self {
-            match serde_json::from_str(json) {
-                Ok(metrics) => metrics,
-                Err(err) => {
-                    tracing::error!("failed to deserialize metrics: {}", err);
-                    Self::default()
-                }
+    /// Resore metrics from json string.
+    fn from_json(json: &str) -> Self {
+        match serde_json::from_str(json) {
+            Ok(metrics) => metrics,
+            Err(err) => {
+                tracing::error!("failed to deserialize metrics: {}", err);
+                Self::default()
             }
         }
-    
+    }
 }
 
 impl Into<CoreMetrics> for LegacyToTaosMetrics {

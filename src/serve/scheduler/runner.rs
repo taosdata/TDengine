@@ -13,7 +13,9 @@ use metrics::atomics::AtomicU64;
 use multi_index_map::MultiIndexMap;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::{
-    core_metrics::{try_get_metrics, CoreMetrics, TaosXMetrics, GLOBAL_METRICS},
+    core_metrics::{
+        save_task_metrics_finally, try_get_metrics, CoreMetrics, TaosXMetrics, GLOBAL_METRICS,
+    },
     dsv::DataSourceValidation,
     sink::ipc_metric::IPCMetrics,
     TaskNotify, TaskNotifyReceiver,
@@ -1280,4 +1282,5 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
             tracing::info!("task finished without state(usually means the job runs on an agent)");
         }
     }
+    save_task_metrics_finally(task.task.id);
 }

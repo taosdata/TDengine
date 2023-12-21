@@ -61,6 +61,7 @@ pub struct CommonMetrics {
     pub total_written_points: AtomicU64,
     #[serde(skip)]
     pub last_persist_time: LastPersistTime,
+    pub execute_time: AtomicU64,
     pub written_rows: AtomicU64,
     pub written_points: AtomicU64,
 }
@@ -74,6 +75,7 @@ impl Default for CommonMetrics {
             total_written_rows: AtomicU64::new(0),
             total_written_points: AtomicU64::new(0),
             last_persist_time: LastPersistTime::default(),
+            execute_time: AtomicU64::new(0),
             written_rows: AtomicU64::new(0),
             written_points: AtomicU64::new(0),
         }
@@ -88,9 +90,11 @@ impl CommonMetrics {
         }
     }
 
-    pub fn update_total_execute_time(&self) {
+    /// 更新总执行时间和本次运行时间
+    pub fn update_execute_time(&self) {
         let elapsed = self.last_persist_time.elapsed_millis();
         self.total_execute_time.fetch_add(elapsed, SeqCst);
+        self.execute_time.store(elapsed, SeqCst);
         self.last_persist_time.reset();
     }
 
@@ -98,6 +102,7 @@ impl CommonMetrics {
         self.start_time.reset();
         self.written_rows.store(0, SeqCst);
         self.written_points.store(0, SeqCst);
+        self.execute_time.store(0, SeqCst);
     }
 }
 
@@ -118,7 +123,7 @@ pub trait TaosXMetrics: Into<CoreMetrics> + Serialize {
 
     /// Save metrics to database
     fn save(&self) -> anyhow::Result<()> {
-        self.com().update_total_execute_time();
+        self.com().update_execute_time();
         let task_id = self.com().task_id.to_string();
         let db = MetricsDb::new(task_id.as_str())?;
         db.set(self.to_json().as_str())
@@ -127,35 +132,6 @@ pub trait TaosXMetrics: Into<CoreMetrics> + Serialize {
     #[inline]
     fn shold_save(&self) -> bool {
         self.com().task_id > -1
-    }
-
-    #[inline]
-    fn compute_total_avg_speed(&self, map: &mut serde_json::Map<String, serde_json::Value>) {
-        let total_execute_time = self.total_execute_time();
-        if total_execute_time > 0 {
-            map.insert(
-                "total_records_per_second".to_string(),
-                (self.total_written_rows() as f64 * 1000_f64 / total_execute_time as f64).into(),
-            );
-            map.insert(
-                "total_points_per_second".to_string(),
-                (self.total_written_points() as f64 * 1000_f64 / total_execute_time as f64).into(),
-            );
-        }
-    }
-
-    #[inline]
-    fn compute_avg_speed(&self, map: &mut serde_json::Map<String, serde_json::Value>) {
-        let execute_time = (chrono::Utc::now().timestamp_millis() - self.start_time()) as f64;
-        map.insert("execute_time".to_string(), execute_time.into());
-        map.insert(
-            "records_per_second".to_string(),
-            (self.written_rows() as f64 * 1000_f64 / execute_time).into(),
-        );
-        map.insert(
-            "points_per_second".to_string(),
-            (self.written_points() as f64 * 1000_f64 / execute_time).into(),
-        );
     }
 
     #[inline]
@@ -262,18 +238,64 @@ pub fn load_metrics<T: TaosXMetrics>(task_id: &str) -> Option<T> {
     }
 }
 
-pub fn get_legacy_metrics_for_explorer(
-    running: bool,
-    legacy_metrics: &LegacyToTaosMetrics,
-) -> String {
-    let json = legacy_metrics.to_json();
+pub fn get_task_metrics_string(running: bool, metrics: Arc<CoreMetrics>) -> String {
+    let (common_metrics, json) = match metrics.as_ref() {
+        CoreMetrics::Legacy(legacy_metrics) => (legacy_metrics.com(), legacy_metrics.to_json()),
+        CoreMetrics::TMQ(tmq_metrics) => (tmq_metrics.com(), tmq_metrics.to_json()),
+        CoreMetrics::IPC(ipc_metrics) => (ipc_metrics.com(), ipc_metrics.to_json()),
+    };
     let mut map =
         serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(json.as_str()).unwrap();
-    legacy_metrics.compute_total_avg_speed(&mut map);
-    if running {
-        legacy_metrics.compute_avg_speed(&mut map)
-    }
+    map.remove("task_id");
+    compute_total_avg_speed(common_metrics, &mut map);
+    compute_avg_speed(common_metrics, &mut map, running);
     serde_json::to_string(&map).unwrap()
+}
+
+#[inline]
+fn compute_total_avg_speed(
+    common_metrics: &CommonMetrics,
+    map: &mut serde_json::Map<String, serde_json::Value>,
+) {
+    let total_execute_time = common_metrics.total_execute_time.load(SeqCst);
+    let total_written_rows = common_metrics.total_written_rows.load(SeqCst);
+    let total_written_points = common_metrics.total_written_points.load(SeqCst);
+    if total_execute_time > 0 {
+        map.insert(
+            "total_records_per_second".to_string(),
+            (total_written_rows as f64 * 1000_f64 / total_execute_time as f64).into(),
+        );
+        map.insert(
+            "total_points_per_second".to_string(),
+            (total_written_points as f64 * 1000_f64 / total_execute_time as f64).into(),
+        );
+    }
+}
+
+#[inline]
+fn compute_avg_speed(
+    common_metrics: &CommonMetrics,
+    map: &mut serde_json::Map<String, serde_json::Value>,
+    running: bool,
+) {
+    let written_rows = common_metrics.written_rows.load(SeqCst);
+    let written_points = common_metrics.written_points.load(SeqCst);
+    let execute_time = if running {
+        let start_time = common_metrics.start_time.get();
+        let now = chrono::Utc::now().timestamp_millis();
+        (now - start_time) as u64
+    } else {
+        common_metrics.execute_time.load(SeqCst)
+    };
+    map.insert("execute_time".to_string(), execute_time.into());
+    map.insert(
+        "records_per_second".to_string(),
+        (written_rows as f64 * 1000_f64 / execute_time as f64).into(),
+    );
+    map.insert(
+        "points_per_second".to_string(),
+        (written_points as f64 * 1000_f64 / execute_time as f64).into(),
+    );
 }
 
 /// Get metrics from global metrics map first, if not exist, try to load metrics from persistence.
@@ -282,12 +304,14 @@ pub fn try_get_metrics<T: TaosXMetrics>(task_id: i64) -> Option<Arc<CoreMetrics>
     if let Some(metrics) = get_metrics(task_id) {
         Some(metrics)
     } else {
+        tracing::info!("load metrics for task {}", task_id);
         if let Some(metrics) = load_metrics::<T>(task_id.to_string().as_str()) {
             let metrics = Arc::new(metrics.into());
             let mut global_metrics = GLOBAL_METRICS.lock().unwrap();
             global_metrics.insert(task_id, metrics.clone());
             Some(metrics)
         } else {
+            tracing::warn!("no metrics found for task {}", task_id);
             None
         }
     }
@@ -385,6 +409,38 @@ pub fn auto_save_ipc_metrics(
         }
         .in_current_span(),
     );
+}
+
+pub fn save_task_metrics_finally(task_id: i64) {
+    let metrics = get_metrics(task_id);
+    match metrics {
+        Some(metrics) => match metrics.as_ref() {
+            CoreMetrics::Legacy(legacy_metrics) => {
+                if let Err(err) = legacy_metrics.save() {
+                    tracing::error!("save metrics failed. {}", err);
+                } else {
+                    tracing::debug!("finally save metrics success")
+                }
+            }
+            CoreMetrics::TMQ(tmq_metrics) => {
+                if let Err(err) = tmq_metrics.save() {
+                    tracing::error!("save metrics failed. {}", err);
+                } else {
+                    tracing::debug!("finally save metrics success")
+                }
+            }
+            CoreMetrics::IPC(ipc_metrics) => {
+                if let Err(err) = ipc_metrics.save() {
+                    tracing::error!("save metrics failed. {}", err);
+                } else {
+                    tracing::debug!("finally save metrics success")
+                }
+            }
+        },
+        None => {
+            tracing::error!("finally save metrics failed, metrics not found");
+        }
+    }
 }
 
 #[cfg(test)]

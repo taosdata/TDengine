@@ -12,7 +12,7 @@ pub struct TMQMetrics {
     #[serde(flatten)]
     pub com: CommonMetrics,
     pub topics: AtomicU16,
-    pub workers: AtomicU16,
+    pub consumers: AtomicU16,
     pub total_messages: AtomicU64,
     pub total_messages_of_meta: AtomicU64,
     pub total_messages_of_data: AtomicU64,
@@ -30,7 +30,7 @@ impl Default for TMQMetrics {
         Self {
             com: CommonMetrics::default(),
             topics: AtomicU16::new(0),
-            workers: AtomicU16::new(0),
+            consumers: AtomicU16::new(0),
             total_messages: AtomicU64::new(0),
             total_messages_of_meta: AtomicU64::new(0),
             total_messages_of_data: AtomicU64::new(0),
@@ -50,7 +50,7 @@ impl TMQMetrics {
         Self {
             com: CommonMetrics::new(task_id),
             topics: AtomicU16::new(0),
-            workers: AtomicU16::new(0),
+            consumers: AtomicU16::new(0),
             total_messages: AtomicU64::new(0),
             total_messages_of_meta: AtomicU64::new(0),
             total_messages_of_data: AtomicU64::new(0),
@@ -147,7 +147,7 @@ impl Display for TMQMetrics {
             points: {} ({} p/s)\n\
             time cost: {:?}",
             self.topics.load(SeqCst),
-            self.workers.load(SeqCst),
+            self.consumers.load(SeqCst),
             self.messages.load(std::sync::atomic::Ordering::SeqCst),
             self.messages_of_meta
                 .load(std::sync::atomic::Ordering::SeqCst),

@@ -511,7 +511,7 @@ pub async fn tmq_to_td(
         } else {
             jobs
         };
-        metrics.workers.fetch_add(jobs as _, SeqCst);
+        metrics.consumers.fetch_add(jobs as _, SeqCst);
         let mut target_dsn = to.clone();
         target_dsn.subject.replace(target_database.to_string());
         let target = TaosBuilder::from_dsn(target_dsn)?.pool()?;

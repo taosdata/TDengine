@@ -1,10 +1,15 @@
+use std::sync::atomic::Ordering::SeqCst;
 use std::{
     path::{Path, PathBuf},
     str::FromStr,
     sync::Arc,
 };
-use std::sync::atomic::Ordering::SeqCst;
 
+use crate::{
+    core_metrics::{get_metrics_arc, CoreMetrics, TaosXMetrics},
+    tmq::tmq_metric::TMQMetrics,
+};
+use crate::{taoz::ZFile, tmq::*, utils::get_main_version_from_server_version};
 use anyhow::{Context, Result};
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
@@ -13,8 +18,6 @@ use taos::{sync::MessageSet, Consumer, *};
 use tokio::sync::{Barrier, Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
-use crate::{core_metrics::{get_metrics_arc, CoreMetrics, TaosXMetrics}, tmq::tmq_metric::TMQMetrics};
-use crate::{taoz::ZFile, tmq::*, utils::get_main_version_from_server_version};
 
 use dashmap::DashMap;
 use taos::taos_query::tmq::Assignment;
@@ -390,7 +393,7 @@ pub async fn tmq_to_local(
 
         let mut consumers = Vec::with_capacity(jobs);
         tracing::info!("create {jobs} consumers for topic {}", topic.name);
-        metrics.workers.fetch_add(jobs as _, SeqCst);
+        metrics.consumers.fetch_add(jobs as _, SeqCst);
         let mut consumer_handles = Vec::with_capacity(jobs);
         for id in 0..jobs {
             let mut consumer = tmq.build().await?;
@@ -485,7 +488,7 @@ async fn test_tmq_to_local() -> anyhow::Result<()> {
         true,
         Default::default(),
         Default::default(),
-        None
+        None,
     )
     .await?;
     std::fs::remove_dir_all("./tmq_to_local_out")?;

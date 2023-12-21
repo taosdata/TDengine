@@ -1,5 +1,3 @@
-use crate::serve::task::{get_task_metrics_from_db, get_task_metrics_from_snapshot};
-
 use actix_web::{
     rt,
     web::{Data, Payload},
@@ -11,13 +9,16 @@ use futures_util::{
     future::{self, Either},
     StreamExt as _,
 };
-use tokio::{pin, time::interval};
-
 use metrics_util::debugging::Snapshotter;
 use taos::Code;
+use taosx_core::core_metrics::get_task_metrics_string;
+use tokio::{pin, time::interval};
 use tracing::instrument;
 
-use crate::serve::{controller::TaskControllerRef, task::Failed};
+use crate::serve::{
+    controller::{Status, TaskControllerRef},
+    task::{try_get_metrics_from_task_detail, Failed},
+};
 use tokio::time::{sleep, Duration};
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(60);
@@ -112,31 +113,63 @@ pub async fn echo_heartbeat_ws(
 
 async fn send_task_metrics_ws(task_id: i64, req: HttpRequest, mut session: Session) {
     let task_store = req.app_data::<Data<TaskControllerRef>>().unwrap();
-    let snapshotter = req.app_data::<Data<Snapshotter>>().unwrap();
+    let get_task_result = task_store.get(task_id).await;
+    if let Err(err) = get_task_result {
+        let resson = Some(CloseReason {
+            code: CloseCode::Abnormal,
+            description: Some(format!("{:#}", err)),
+        });
+        let _ = session.close(resson).await;
+        return;
+    }
+    let task = get_task_result.unwrap();
+    if task.is_none() {
+        let resson = Some(CloseReason {
+            code: CloseCode::Abnormal,
+            description: Some(format!("task {} not found", task_id)),
+        });
+        let _ = session.close(resson).await;
+        return;
+    }
+    let task = task.unwrap();
+    let metrics = try_get_metrics_from_task_detail(&task);
+    if metrics.is_none() {
+        let resson = Some(CloseReason {
+            code: CloseCode::Abnormal,
+            description: Some(format!("task {} metrics not found", task_id)),
+        });
+        let _ = session.close(resson).await;
+        return;
+    }
+    let metrics = metrics.unwrap();
     loop {
-        match get_task_metrics_from_snapshot(snapshotter, task_store, task_id).await {
-            Some(metrics) => {
-                if let Err(Closed) = session.text(metrics).await {
-                    tracing::info!("ws session closed");
-                    break;
-                }
-            }
-            None => {
-                if let Some(metrics) = get_task_metrics_from_db(task_id) {
-                    if let Err(Closed) = session.text(metrics).await {
-                        tracing::info!("ws session closed");
-                        break;
-                    }
-                } else {
-                    let resson = Some(CloseReason {
-                        code: CloseCode::Abnormal,
-                        description: Some("no metrics found".to_string()),
-                    });
-                    let _ = session.close(resson).await;
-                    break;
-                }
-            }
-        };
+        let get_task_result = task_store.get(task_id).await;
+        if get_task_result.is_err() {
+            let _ = session
+                .close(Some(CloseReason {
+                    code: CloseCode::Abnormal,
+                    description: Some(format!("{:#}", get_task_result.unwrap_err())),
+                }))
+                .await;
+            break;
+        }
+        let task = get_task_result.unwrap();
+        if task.is_none() {
+            let resson = Some(CloseReason {
+                code: CloseCode::Normal,
+                description: Some(format!("task {} not found", task_id)),
+            });
+            let _ = session.close(resson).await;
+            break;
+        }
+        let task = task.unwrap();
+        let status = task.status();
+        let running = status == Status::Running || status == Status::Stopping;
+        let metrics_string = get_task_metrics_string(running, metrics.clone());
+        if let Err(Closed) = session.text(metrics_string).await {
+            tracing::info!("ws session closed");
+            break;
+        }
         sleep(SEND_METRICS_INTERVAL).await;
     }
 }

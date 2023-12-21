@@ -8,39 +8,58 @@ taosx_process_mem_percent: "% of memory occupied by taosx processes"
 taosx_process_io_read_bytes:  Number of read bytes since the last refresh
 taosx_process_io_written_bytes: Number of written bytes since the last refresh
 taosx_process_tasks: Number of threads run by this process
-metrics.legacy.workers: The number of workers concurrently reading data sources
-metrics.legacy.total_stables: Total super tables to migrate
-metrics.legacy.updated_tags: Updated tag count
-metrics.legacy.updated_tables: Updated sub tables count
-metrics.legacy.created_tables: Number of child tables created
-metrics.legacy.total_tables: Total tables to migrate
-metrics.legacy.tables: Number of sub-tables successfully migrated.(may greater than the actual value if task was resumed from break point)
-metrics.legacy.blocks: Number of data blocks successfully written
-metrics.legacy.records: Number of rows written successfully
-metrics.legacy.points: Number of points written successfully
-metrics.time_started_timestamp: The number of milliseconds corresponding to the time when the task is started
-metrics.time_cost: The number of seconds the task has been running
-metrics.records_per_second: Average lines written per second
-ipc.stream.record_batches: Number of data batches processed by taosx
-ipc.stream.received_batches: Number of data batched received by taosx. (only task with agent has this metric)
-ipc.stream.batch_records: Number of data rows received by taosx via IPC stream
-ipc.stream.insert_sqls: Number of INSERT SQLs execute by taosx
-ipc.stream.insert_sql_fails: Number of INSERT SQLs failed to execute
-ipc.stream.stable_created: Number of super tables that taosX try to created.(may greater than successfully created super tables)
-ipc.stream.child_table_created: Number of child tables that taosX try to created
-ipc.stream.records: Number of rows written successfully, including duplicated rows
-ipc.stream.record_fails: Number of rows failed to write
-ipc.stream.points: Number of points written successfully.(equals number of rows multiply number of columns)
-ipc.stream.point_fails: Number of points failed to write
-ipc.stream.write_raw_blocks: Number of raw blocks written successfully
-ipc.stream.write_raw_blocks_fails: Number of raw blocks failed to write
-metrics.tmq.topics: Number of topics that taosX will try to subscribe to
-metrics.tmq.workers: Number of consumers that taosX created to consume topics
-metrics.tmq.messages: Number of messages that taosX received
-metrics.tmq.messages_of_meta: Number of messages with type "Meta" that taosX received
-metrics.tmq.write_meta_fails: Number of "Meta" messages that taosX failed to deal with
-metrics.tmq.messages_of_data: Number of messages with type "Data" that taosX received
-metrics.tmq.blocks: Number of data blocks successfully written
-metrics.tmq.records: Number of rows successfully written
-metrics.tmq.points: Number of points successfully written
-metrics.csv.files: Number of files to read for CSV task
+total_execute_time: Total execute time in seconds
+total_written_rows: Total rows written to TDengine (including duplicate records)
+total_written_points: Total points written successfully (equal to the number of rows in the data block multiplied by the number of columns in the data block)
+total_records_per_second: Average number of rows written per second
+total_points_per_second: Average number of points written per second
+start_time: Task start time (reset each time the task is restarted), in milliseconds
+written_rows: Total rows written to TDengine (including duplicate records) in this task run
+written_points: Total points written successfully in this task run (equal to the number of rows in the data block multiplied by the number of columns in the data block)
+execute_time: Task execute time in seconds for this task run
+record_per_second: Average number of rows written per second for this task run
+points_per_second: Average number of points written per second for this task run
+workers: Number of data workers concurrently reading data sources
+total_stables: Total super tables to migrate
+total_updated_tags: Total updated tag count
+total_created_tables: Total number of child tables created
+total_tables: Total tables to migrate
+total_finished_tables: Total number of sub-tables successfully migrated.(may greater than the actual value if task was resumed from break point)
+total_suc_blocks: Total number of data blocks successfully written
+finished_tables: Number of sub-tables successfully migrated in this task run
+suc_blocks: Number of data blocks successfully written in this task run
+created_tables: Number of child tables created in this task run
+updated_tags: Number of updated tags in this task run
+total_messages: Total number of messages received via TMQ
+total_messages_of_meta: Total number of messages with type "Meta" received via TMQ
+total_messages_of_data: Total number of messages with type "Data" and "MetaData" received via TMQ
+total_write_meta_fails: Total number of "Meta" messages failed to deal with
+total_suc_blocks: Total number of data blocks successfully written
+topics: Total number of topics subscribed to via TMQ
+consumers: Total number of consumers created via TMQ
+messages: Total number of messages received via TMQ in this task run
+messages_of_meta: Total number of messages with type "Meta" received via TMQ in this task run
+messages_of_data: Total number of messages with type "Data" and "MetaData" received via TMQ in this task run
+write_meta_fails: Total number of "Meta" messages failed to deal with in this task run
+total_received_batches: Total number of data batches received via IPC Stream
+total_processed_batches: Total number of data batches processed by taosx
+total_processed_record: Total number of rows processed (equal to the sum of the number of data rows contained in the batch containing data)
+total_insert_sqls: Total number of INSERT SQLs executed by taosx
+total_failed_sqls: Total number of INSERT SQLs failed to execute by taosx
+total_created_stables: Total number of super tables that taosX try to created.(may greater than successfully created super tables)
+total_created_tables: Total number of child tables that taosX try to created
+total_failed_rows: Total number of rows failed to write
+total_failed_point: Total number of points failed to write
+total_written_raw_blocks: Total number of raw blocks successfully written
+total_failed_raw_blocks: Total number of raw blocks failed to write
+received_batches: Number of data batches received via IPC Stream in this task run
+processed_batches: Number of data batches processed by taosx in this task run
+processed_record: Number of rows processed in this task run (equal to the sum of the number of data rows contained in the batch containing data)
+insert_sqls: Number of INSERT SQLs execute by taosx in this task run
+failed_sqls: Number of INSERT SQLs failed to execute by taosx in this task run
+created_stables: Number of super tables that taosX try to created in this task run.(may greater than successfully created super tables)
+created_tables: Number of child tables that taosX try to created in this task run
+failed_rows: Number of rows failed to write in this task run
+failed_points: Number of points failed to write in this task run
+written_raw_blocks: Number of raw blocks successfully written in this task run
+failed_raw_blocks: Number of raw blocks failed to write in this task run

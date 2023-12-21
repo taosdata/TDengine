@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::fs;
+use std::sync::Arc;
 
 use crate::serve::{
     controller::{Status, TaskControllerRef},
@@ -18,10 +19,14 @@ use chrono::Utc;
 use itertools::Itertools;
 use metrics_util::debugging::Snapshotter;
 use serde::{Deserialize, Serialize};
-use taos::Code;
+use taos::{Code, Dsn};
+use taosx_core::core_metrics::{try_get_metrics, CoreMetrics};
+use taosx_core::legacy_metric::LegacyToTaosMetrics;
+use taosx_core::sink::ipc_metric::IPCMetrics;
+use taosx_core::tmq::tmq_metric::TMQMetrics;
 use taosx_core::utils::metrics_db::MetricsDb;
 use taosx_core::{
-    core_metrics::{self, CoreMetrics},
+    core_metrics::{self},
     get_data_dir, get_file_upload_home_dir, LegacyMetrics, METRICS_TIME_COST,
     METRICS_TIME_RECORDS_PER_SECOND, METRICS_TIME_START,
 };
@@ -29,6 +34,7 @@ use tracing::instrument;
 use utoipa::*;
 
 use super::controller::agent::AgentActivityFilter;
+use super::controller::TaskDetail;
 
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -487,153 +493,177 @@ pub(super) async fn get_task_activities_by_id(
     }
 }
 
+// #[get("/tasks/{id}/metrics")]
+// #[instrument(skip_all)]
+// pub(super) async fn get_task_metrics(
+//     snapshotter: Data<Snapshotter>,
+//     task_store: Data<TaskControllerRef>,
+//     id: Path<i64>,
+// ) -> impl Responder {
+//     let task_id = id.into_inner();
+//     if let Some(data) = get_task_metrics_from_snapshot(&snapshotter, &task_store, task_id).await {
+//         data
+//     } else if let Some(data) = get_task_metrics_from_db(task_id) {
+//         data
+//     } else {
+//         "{}".to_string()
+//     }
+// }
+
+// pub(crate) fn get_task_metrics_from_db(task_id: i64) -> Option<String> {
+//     tracing::info!("get task metrics from MetricsDb");
+//     let new_db_result = MetricsDb::new(task_id.to_string().as_str());
+//     match new_db_result {
+//         Ok(metrics_db) => {
+//             let get_result = metrics_db.get();
+//             match get_result {
+//                 Ok(result) => match result {
+//                     Some(metrics_json) => {
+//                         let metrics = LegacyMetrics::from_json(&metrics_json).unwrap();
+//                         Some(metrics.to_task_metrics_json())
+//                     }
+//                     None => None,
+//                 },
+//                 Err(err) => {
+//                     tracing::error!("Get metrics from db error: {}", err);
+//                     None
+//                 }
+//             }
+//         }
+//         Err(err) => {
+//             tracing::warn!("{:?}", err);
+//             None
+//         }
+//     }
+// }
+
+// pub(crate) async fn get_task_metrics_from_snapshot(
+//     snapshotter: &Data<Snapshotter>,
+//     task_store: &Data<TaskControllerRef>,
+//     task_id: i64,
+// ) -> Option<String> {
+//     let snapshot = snapshotter.snapshot().into_hashmap();
+//     // dbg!(&snapshot);
+//     let mut map = snapshot
+//         .into_iter()
+//         .filter(|(k, _)| {
+//             k.key()
+//                 .labels()
+//                 .find(|label| label.key() == "task.id" && label.value() == task_id.to_string())
+//                 .is_some()
+//         })
+//         .map(|(k, v)| {
+//             (
+//                 // k.key().description().to_string(),
+//                 k.key().name().to_string(),
+//                 match v.2 {
+//                     metrics_util::debugging::DebugValue::Gauge(c) => {
+//                         serde_json::Number::from_f64(c.0)
+//                     }
+//                     metrics_util::debugging::DebugValue::Counter(c) => Some(c.into()),
+//                     _ => None,
+//                 },
+//             )
+//         })
+//         .collect::<std::collections::BTreeMap<_, _>>();
+//     if map.is_empty() {
+//         return None;
+//     }
+//     let task_started_timestamp = map.get(METRICS_TIME_START);
+//     if task_started_timestamp.is_some() {
+//         let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
+//         let task = task_store.get(task_id).await.unwrap().unwrap();
+//         let time_elapsed_in_seconds = if matches!(task.status(), Status::Running) {
+//             let time_elapsed = (Utc::now().timestamp_millis()
+//                 - task_started_timestamp.as_f64().unwrap() as i64)
+//                 / 1000;
+//             if time_elapsed < 1 {
+//                 Some(1)
+//             } else {
+//                 Some(time_elapsed)
+//             }
+//         } else {
+//             if task.task.finished_at.is_some() {
+//                 let time_elapsed = (task.task.finished_at.unwrap().timestamp_millis()
+//                     - task_started_timestamp.as_f64().unwrap() as i64)
+//                     / 1000;
+//                 if time_elapsed < 1 {
+//                     Some(1)
+//                 } else {
+//                     Some(time_elapsed)
+//                 }
+//             } else {
+//                 None
+//             }
+//         };
+//         if let Some(elapsed_seconds) = time_elapsed_in_seconds {
+//             map.insert(METRICS_TIME_COST.to_string(), Some(elapsed_seconds.into()));
+//             let records_vec = map
+//                 .iter()
+//                 .filter(|(k, _v)| k.contains("records"))
+//                 .map(|(_k, v)| v)
+//                 .collect_vec();
+//             let records = records_vec.get(0);
+//             if let Some(Some(records)) = records {
+//                 let speed: f64 = records.as_f64().unwrap_or_default() / elapsed_seconds as f64;
+//                 map.insert(
+//                     METRICS_TIME_RECORDS_PER_SECOND.to_string(),
+//                     serde_json::Number::from_f64(speed),
+//                 );
+//             }
+//         }
+//     }
+//     Some(serde_json::to_string(&map).unwrap())
+// }
+
 #[get("/tasks/{id}/metrics")]
-#[instrument(skip_all)]
-pub(super) async fn get_task_metrics(
-    snapshotter: Data<Snapshotter>,
-    task_store: Data<TaskControllerRef>,
-    id: Path<i64>,
-) -> impl Responder {
-    let task_id = id.into_inner();
-    if let Some(data) = get_task_metrics_from_snapshot(&snapshotter, &task_store, task_id).await {
-        data
-    } else if let Some(data) = get_task_metrics_from_db(task_id) {
-        data
-    } else {
-        "{}".to_string()
-    }
-}
-
-pub(crate) fn get_task_metrics_from_db(task_id: i64) -> Option<String> {
-    tracing::info!("get task metrics from MetricsDb");
-    let new_db_result = MetricsDb::new(task_id.to_string().as_str());
-    match new_db_result {
-        Ok(metrics_db) => {
-            let get_result = metrics_db.get();
-            match get_result {
-                Ok(result) => match result {
-                    Some(metrics_json) => {
-                        let metrics = LegacyMetrics::from_json(&metrics_json).unwrap();
-                        Some(metrics.to_task_metrics_json())
-                    }
-                    None => None,
-                },
-                Err(err) => {
-                    tracing::error!("Get metrics from db error: {}", err);
-                    None
-                }
-            }
-        }
-        Err(err) => {
-            tracing::warn!("{:?}", err);
-            None
-        }
-    }
-}
-
-pub(crate) async fn get_task_metrics_from_snapshot(
-    snapshotter: &Data<Snapshotter>,
-    task_store: &Data<TaskControllerRef>,
-    task_id: i64,
-) -> Option<String> {
-    let snapshot = snapshotter.snapshot().into_hashmap();
-    // dbg!(&snapshot);
-    let mut map = snapshot
-        .into_iter()
-        .filter(|(k, _)| {
-            k.key()
-                .labels()
-                .find(|label| label.key() == "task.id" && label.value() == task_id.to_string())
-                .is_some()
-        })
-        .map(|(k, v)| {
-            (
-                // k.key().description().to_string(),
-                k.key().name().to_string(),
-                match v.2 {
-                    metrics_util::debugging::DebugValue::Gauge(c) => {
-                        serde_json::Number::from_f64(c.0)
-                    }
-                    metrics_util::debugging::DebugValue::Counter(c) => Some(c.into()),
-                    _ => None,
-                },
-            )
-        })
-        .collect::<std::collections::BTreeMap<_, _>>();
-    if map.is_empty() {
-        return None;
-    }
-    let task_started_timestamp = map.get(METRICS_TIME_START);
-    if task_started_timestamp.is_some() {
-        let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
-        let task = task_store.get(task_id).await.unwrap().unwrap();
-        let time_elapsed_in_seconds = if matches!(task.status(), Status::Running) {
-            let time_elapsed = (Utc::now().timestamp_millis()
-                - task_started_timestamp.as_f64().unwrap() as i64)
-                / 1000;
-            if time_elapsed < 1 {
-                Some(1)
-            } else {
-                Some(time_elapsed)
-            }
-        } else {
-            if task.task.finished_at.is_some() {
-                let time_elapsed = (task.task.finished_at.unwrap().timestamp_millis()
-                    - task_started_timestamp.as_f64().unwrap() as i64)
-                    / 1000;
-                if time_elapsed < 1 {
-                    Some(1)
-                } else {
-                    Some(time_elapsed)
-                }
-            } else {
-                None
-            }
-        };
-        if let Some(elapsed_seconds) = time_elapsed_in_seconds {
-            map.insert(METRICS_TIME_COST.to_string(), Some(elapsed_seconds.into()));
-            let records_vec = map
-                .iter()
-                .filter(|(k, _v)| k.contains("records"))
-                .map(|(_k, v)| v)
-                .collect_vec();
-            let records = records_vec.get(0);
-            if let Some(Some(records)) = records {
-                let speed: f64 = records.as_f64().unwrap_or_default() / elapsed_seconds as f64;
-                map.insert(
-                    METRICS_TIME_RECORDS_PER_SECOND.to_string(),
-                    serde_json::Number::from_f64(speed),
-                );
-            }
-        }
-    }
-    Some(serde_json::to_string(&map).unwrap())
-}
-
-#[get("/tasks/{id}/metrics2")]
 #[instrument(skip_all)]
 /// New API for task metrics. will repacle the old one when all test passed
 /// Get metrics json string of a task for displaying on the web UI
-pub(super) async fn get_task_metrics2(
+pub(super) async fn get_task_metrics(
     task_store: Data<TaskControllerRef>,
     id: Path<i64>,
 ) -> impl Responder {
     let task_id = id.into_inner();
-    let metrics = core_metrics::get_metrics(task_id);
-    if let Some(metrics_arc) = metrics {
-        let metrics = metrics_arc.as_ref();
-        match metrics {
-            CoreMetrics::Legacy(legacy_metrics) => {
-                let task = task_store.get(task_id).await.unwrap().unwrap();
-                let status = task.status();
-                let running = status == Status::Running;
-                core_metrics::get_legacy_metrics_for_explorer(running, legacy_metrics)
+    let task = task_store.get(task_id).await;
+    match task {
+        Ok(Some(task)) => {
+            let metrics = try_get_metrics_from_task_detail(&task);
+            match metrics {
+                Some(metrics) => {
+                    let status = task.status();
+                    let running = status == Status::Running || status == Status::Stopping;
+                    core_metrics::get_task_metrics_string(running, metrics)
+                }
+                None => "".to_string(),
             }
-            CoreMetrics::TMQ(_tmq_metrics) => todo!(),
-            CoreMetrics::IPC(_ipc_metrics) => todo!(),
         }
-    } else {
-        return "{}".to_string();
+        Ok(None) => "{}".to_string(),
+        Err(err) => {
+            tracing::error!("get task metrics error: {}", err);
+            "{}".to_string()
+        }
+    }
+}
+
+pub fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMetrics>> {
+    let parse_dsn_result: Result<Dsn, _> = task.task.from.parse();
+    if parse_dsn_result.is_err() {
+        tracing::error!(
+            "parse dsn error: {}, from={}",
+            parse_dsn_result.unwrap_err(),
+            task.task.from
+        );
+        return None;
+    }
+    let dsn = parse_dsn_result.unwrap();
+    let task_id = task.task.id;
+    match dsn.driver.as_str() {
+        "taos" => try_get_metrics::<LegacyToTaosMetrics>(task_id),
+        "tmq" => try_get_metrics::<TMQMetrics>(task_id),
+        "opc" | "opcua" | "opcda" | "pi" | "pibackfill" | "mqtt" | "influxdb" | "opentsdb"
+        | "kafka" | "historian" | "csv" => try_get_metrics::<IPCMetrics>(task_id),
+        _ => None,
     }
 }
 
