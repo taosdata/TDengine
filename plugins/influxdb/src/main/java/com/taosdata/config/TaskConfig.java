@@ -25,4 +25,5 @@ public class TaskConfig {
     private String endTime;
     private int assignmentType = 3;
     private Map<String, Long> breakpoint;
+    private String logLevel = "info";
 }

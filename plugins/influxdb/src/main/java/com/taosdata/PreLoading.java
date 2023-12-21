@@ -31,6 +31,9 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -252,6 +255,14 @@ public class PreLoading implements CommandLineRunner {
             if (StringUtils.isNotEmpty(breakpoints)) {
                 this.taskConfig.setBreakpoint(parseBreakpoint(breakpoints));
             }
+            // 日志级别error/warn/info/debug/trace，配置错误将会设置为error级别
+            if (StringUtils.isNotEmpty(tomlParseResult.getString("task.logLevel", String::new))) {
+                this.taskConfig.setLogLevel(tomlParseResult.getString("task.logLevel", String::new));
+            }
+            LoggerContext loggerContext = LoggerContext.getContext(false);
+            LoggerConfig loggerConfig = loggerContext.getConfiguration().getRootLogger();
+            loggerConfig.setLevel(Level.getLevel(this.taskConfig.getLogLevel().toUpperCase()));
+            loggerContext.updateLoggers();
             // 如果设置了性能参数，则覆盖默认值
             if (tomlParseResult.getLong("performance.readWindow") != null) {
                 this.performanceConfig.setReadWindow(tomlParseResult.getLong("performance.readWindow").intValue());
