@@ -339,44 +339,12 @@ class TDTestCase:
         tdSql.checkData(0, 0, '999')
         p = subprocess.run(["taos", '-s', "alter table test.meters drop column c1; alter table test.meters add column c12 int"])
         p.check_returncode()
-        tdSql.query("select last(c1) from meters", queryTimes=1)
-        tdSql.checkData(0, 0, None)
-        tdSql.query('select last(*) from meters', queryTimes=1)
-        print(str(tdSql.queryResult))
-        tdSql.checkData(0, 1, None)
-        tdSql.query('select last(c1), c1, ts from meters', queryTimes=1)
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, None)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
-
-        try:
-            tdSql.query('select ts, last(c1), c1, ts, c1 from meters', queryTimes=1)
-        except Exception as e:
-            if str(e).count('Invalid column name') == 1:
-                print('column has been dropped, the cache has been updated: %s' % (str(e)))
-                return
-            else:
-                raise
-        tdSql.checkRows(1)
-        tdSql.checkCols(5)
-        tdSql.checkData(0, 0, None)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
-        tdSql.checkData(0, 3, None)
-        tdSql.checkData(0, 4, None)
-
-        try:
-            tdSql.query('select last(c1), last(c2), last(c3) from meters', queryTimes=1)
-        except Exception as e:
-            if str(e).count('Invalid column name') == 1:
-                print('column has been dropped, the cache has been updated: %s' % (str(e)))
-                return
-            else:
-                raise
+        tdSql.query_success_failed("select ts, last(c1), c1, ts, c1 from meters", queryTimes=10, expectErrInfo="Invalid column name: c1")
+        tdSql.query('select last(c12), c12, ts from meters', queryTimes=1)
         tdSql.checkRows(1)
         tdSql.checkCols(3)
         tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)        
 
     def test_cache_scan_with_drop_column(self):
         tdSql.query('select last(*) from meters')
