@@ -314,6 +314,7 @@ typedef struct SCheckpointInfo {
   int32_t checkpointNotReadyTasks;
   bool    dispatchCheckpointTrigger;
   int64_t msgVer;
+  int32_t transId;
 } SCheckpointInfo;
 
 typedef struct SStreamStatus {
@@ -635,6 +636,7 @@ typedef struct {
   int32_t nodeId;
   SEpSet  mgmtEps;
   int32_t mnodeId;
+  int32_t transId;
   int64_t expireTime;
 } SStreamCheckpointSourceReq;
 
@@ -677,8 +679,8 @@ typedef struct STaskStatusEntry {
   int64_t verStart;         // start version in WAL, only valid for source task
   int64_t verEnd;           // end version in WAL, only valid for source task
   int64_t processedVer;     // only valid for source task
-  int32_t relatedHTask;     // has related fill-history task
   int64_t activeCheckpointId;     // current active checkpoint id
+  int32_t chkpointTransId;  // checkpoint trans id
   bool    checkpointFailed; // denote if the checkpoint is failed or not
   bool    inputQChanging;   // inputQ is changing or not
   int64_t inputQUnchangeCounter;

@@ -25,6 +25,7 @@ typedef struct {
 
   SStreamTask* pTask;
 } SAsyncUploadArg;
+
 int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
@@ -34,6 +35,7 @@ int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckp
   if (tEncodeSEpSet(pEncoder, &pReq->mgmtEps) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->mnodeId) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->expireTime) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->transId) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
@@ -47,6 +49,7 @@ int32_t tDecodeStreamCheckpointSourceReq(SDecoder* pDecoder, SStreamCheckpointSo
   if (tDecodeSEpSet(pDecoder, &pReq->mgmtEps) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->mnodeId) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->expireTime) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->transId) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
 }
@@ -149,6 +152,7 @@ int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSo
   // 1. set task status to be prepared for check point, no data are allowed to put into inputQ.
   streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_GEN_CHECKPOINT);
 
+  pTask->chkInfo.transId = pReq->transId;
   pTask->chkInfo.checkpointingId = pReq->checkpointId;
   pTask->chkInfo.checkpointNotReadyTasks = streamTaskGetNumOfDownstream(pTask);
   pTask->chkInfo.startTs = taosGetTimestampMs();
@@ -273,8 +277,9 @@ void streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg) {
   pTask->chkInfo.failedId = 0;
   pTask->chkInfo.startTs = 0;  // clear the recorded start time
   pTask->chkInfo.checkpointNotReadyTasks = 0;
-  // pTask->chkInfo.checkpointAlignCnt = 0;
+  pTask->chkInfo.transId = 0;
   pTask->chkInfo.dispatchCheckpointTrigger = false;
+
   streamTaskOpenAllUpstreamInput(pTask);  // open inputQ for all upstream tasks
   if (clearChkpReadyMsg) {
     streamClearChkptReadyMsg(pTask);

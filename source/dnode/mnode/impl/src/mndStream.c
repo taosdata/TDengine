@@ -62,7 +62,7 @@ static void    mndCancelGetNextStreamTask(SMnode *pMnode, void *pIter);
 static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq);
 static int32_t mndBuildStreamCheckpointSourceReq2(void **pBuf, int32_t *pLen, int32_t nodeId, int64_t checkpointId,
-                                                  int64_t streamId, int32_t taskId);
+                                                  int64_t streamId, int32_t taskId, int32_t transId);
 static int32_t mndProcessNodeCheck(SRpcMsg *pReq);
 static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg);
 static SArray *extractNodeListFromStream(SMnode *pMnode);
@@ -997,13 +997,14 @@ static int32_t mndProcessStreamRemainChkptTmr(SRpcMsg *pReq) {
 }
 
 static int32_t mndBuildStreamCheckpointSourceReq2(void **pBuf, int32_t *pLen, int32_t nodeId, int64_t checkpointId,
-                                                  int64_t streamId, int32_t taskId) {
+                                                  int64_t streamId, int32_t taskId, int32_t transId) {
   SStreamCheckpointSourceReq req = {0};
   req.checkpointId = checkpointId;
   req.nodeId = nodeId;
   req.expireTime = -1;
   req.streamId = streamId;  // pTask->id.streamId;
   req.taskId = taskId;      // pTask->id.taskId;
+  req.transId = transId;
 
   int32_t code;
   int32_t blen;
@@ -1093,7 +1094,7 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
         void *  buf;
         int32_t tlen;
         if (mndBuildStreamCheckpointSourceReq2(&buf, &tlen, pTask->info.nodeId, checkpointId, pTask->id.streamId,
-                                               pTask->id.taskId) < 0) {
+                                               pTask->id.taskId, pTrans->id) < 0) {
           mndReleaseVgroup(pMnode, pVgObj);
           taosWUnLockLatch(&pStream->lock);
           goto _ERR;
@@ -1162,7 +1163,7 @@ static int32_t mndAddStreamCheckpointToTrans(STrans *pTrans, SStreamObj *pStream
         void *  buf;
         int32_t tlen;
         if (mndBuildStreamCheckpointSourceReq2(&buf, &tlen, pTask->info.nodeId, chkptId, pTask->id.streamId,
-                                               pTask->id.taskId) < 0) {
+                                               pTask->id.taskId, pTrans->id) < 0) {
           mndReleaseVgroup(pMnode, pVgObj);
           taosWUnLockLatch(&pStream->lock);
           return -1;
@@ -2837,39 +2838,36 @@ int32_t killActiveCheckpointTrans(SMnode *pMnode, const char *pDBName, size_t le
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mndResetStatusFromCheckpoint(SMnode *pMnode, int32_t transId) {
+static int32_t mndResetStatusFromCheckpoint(SMnode *pMnode, int64_t streamId, int32_t transId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
   STrans *pTrans = mndAcquireTrans(pMnode, transId);
   if (pTrans != NULL) {
     mInfo("kill checkpoint transId:%d to reset task status", transId);
     mndKillTrans(pMnode, pTrans);
     mndReleaseTrans(pMnode, pTrans);
+  } else {
+    mError("failed to acquire checkpoint trans:%d", transId);
   }
 
-  // set all tasks status to be normal, refactor later to be stream level, instead of vnode level.
-  SSdb *      pSdb = pMnode->pSdb;
-  SStreamObj *pStream = NULL;
-  void *      pIter = NULL;
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
-    if (pIter == NULL) {
-      break;
-    }
-
+  SStreamObj *pStream = mndGetStreamObj(pMnode, streamId);
+  if (pStream == NULL) {
+    code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
+    mError("failed to acquire the streamObj:0x%" PRIx64 " to reset checkpoint, may have been dropped", pStream->uid);
+  } else {
     bool conflict = streamTransConflictOtherTrans(pMnode, pStream->uid, MND_STREAM_TASK_RESET_NAME, false);
     if (conflict) {
-      mError("stream:%s other trans exists in DB:%s & %s failed to start reset-status trans", pStream->name,
-             pStream->sourceDb, pStream->targetDb);
-      continue;
-    }
-
-    mDebug("stream:%s (0x%" PRIx64 ") reset checkpoint procedure, create reset trans", pStream->name, pStream->uid);
-    int32_t code = createStreamResetStatusTrans(pMnode, pStream);
-    if (code != TSDB_CODE_SUCCESS) {
-      sdbCancelFetch(pSdb, pIter);
-      return code;
+      mError("stream:%s other trans exists in DB:%s, dstTable:%s failed to start reset-status trans", pStream->name,
+             pStream->sourceDb, pStream->targetSTbName);
+    } else {
+      mDebug("stream:%s (0x%" PRIx64 ") reset checkpoint procedure, transId:%d, create reset trans", pStream->name,
+             pStream->uid, transId);
+      code = createStreamResetStatusTrans(pMnode, pStream);
+      mndReleaseStream(pMnode, pStream);
     }
   }
-  return 0;
+
+  return code;
 }
 
 static SStreamTask *mndGetStreamTask(STaskId *pId, SStreamObj *pStream) {
@@ -3007,6 +3005,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   bool    checkpointFailed = false;
   int64_t activeCheckpointId = 0;
+  int64_t streamId = 0;
 
   SDecoder decoder = {0};
   tDecoderInit(&decoder, pReq->pCont, pReq->contLen);
@@ -3049,7 +3048,9 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
     if (pTaskEntry->stage != p->stage && pTaskEntry->stage != -1) {
       updateStageInfo(pTaskEntry, p->stage);
-      if (pTaskEntry->nodeId == SNODE_HANDLE) snodeChanged = true;
+      if (pTaskEntry->nodeId == SNODE_HANDLE) {
+        snodeChanged = true;
+      }
     } else {
       // task is idle for more than 50 sec.
       if (fabs(pTaskEntry->inputQUsed - p->inputQUsed) <= DBL_EPSILON) {
@@ -3073,6 +3074,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
         if (p->checkpointFailed) {
           checkpointFailed = p->checkpointFailed;
+          streamId = p->id.streamId;
         }
       }
     }
@@ -3111,9 +3113,8 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
     if (allReady || snodeChanged) {
       // if the execInfo.activeCheckpoint == 0, the checkpoint is restoring from wal
-      mInfo("checkpointId:%" PRId64 " failed, issue task-reset trans to reset all tasks status",
-            execInfo.activeCheckpoint);
-      mndResetStatusFromCheckpoint(pMnode, activeCheckpointId);
+      mInfo("checkpointId:%" PRId64 " failed, issue task-reset trans to reset all tasks status", activeCheckpointId);
+      mndResetStatusFromCheckpoint(pMnode, streamId, activeCheckpointId);
     } else {
       mInfo("not all vgroups are ready, wait for next HB from stream tasks");
     }

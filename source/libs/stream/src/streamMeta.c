@@ -940,6 +940,7 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeI64(pEncoder, ps->verEnd) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->activeCheckpointId) < 0) return -1;
     if (tEncodeI8(pEncoder, ps->checkpointFailed) < 0) return -1;
+    if (tEncodeI32(pEncoder, ps->chkpointTransId) < 0) return -1;
   }
 
   int32_t numOfVgs = taosArrayGetSize(pReq->pUpdateNodes);
@@ -978,6 +979,7 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     if (tDecodeI64(pDecoder, &entry.verEnd) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.activeCheckpointId) < 0) return -1;
     if (tDecodeI8(pDecoder, (int8_t*)&entry.checkpointFailed) < 0) return -1;
+    if (tDecodeI32(pDecoder, &entry.chkpointTransId) < 0) return -1;
 
     entry.id.taskId = taskId;
     taosArrayPush(pReq->pTaskStatus, &entry);
@@ -1103,6 +1105,7 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
     if ((*pTask)->chkInfo.checkpointingId != 0) {
       entry.checkpointFailed = ((*pTask)->chkInfo.failedId >= (*pTask)->chkInfo.checkpointingId);
       entry.activeCheckpointId = (*pTask)->chkInfo.checkpointingId;
+      entry.chkpointTransId = (*pTask)->chkInfo.transId;
     }
 
     if ((*pTask)->exec.pWalReader != NULL) {
@@ -1350,10 +1353,13 @@ SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta) {
     }
 
     taosThreadMutexLock(&pTask->lock);
-    ETaskStatus s = streamTaskGetStatus(pTask, NULL);
+    char* p = NULL;
+    ETaskStatus s = streamTaskGetStatus(pTask, &p);
     if (s == TASK_STATUS__CK) {
       streamTaskSetCheckpointFailedId(pTask);
       stDebug("s-task:%s mark the checkpoint:%"PRId64" failed", pTask->id.idStr, pTask->chkInfo.checkpointingId);
+    } else {
+      stDebug("s-task:%s status:%s not reset the checkpoint", pTask->id.idStr, p);
     }
 
     taosThreadMutexUnlock(&pTask->lock);
