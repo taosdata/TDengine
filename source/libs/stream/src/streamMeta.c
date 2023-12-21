@@ -394,7 +394,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->qHandle = taosInitScheduler(32, 1, "stream-chkp", NULL);
 
   pMeta->bkdChkptMgt = bkdMgtCreate(tpath);
-
+  taosThreadMutexInit(&pMeta->backendMutex, NULL);
   return pMeta;
 
 _err:
