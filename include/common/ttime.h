@@ -105,7 +105,7 @@ int32_t taosTm2Ts(struct STm* tm, int64_t* ts, int32_t precision);
 /// formats array; If not NULL, [formats] will be used instead of [format] to skip parse formats again.
 /// @param out output buffer, should be initialized by memset
 /// @notes remember to free the generated formats
-void taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen);
+int32_t taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen);
 /// @brief convert a formatted timestamp string to a timestamp
 /// @param format must null terminated
 /// @param [in, out] formats, see taosTs2Char

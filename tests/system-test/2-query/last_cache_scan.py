@@ -284,6 +284,8 @@ class TDTestCase:
         tdSql.checkData(0, 3, 1001)
         tdSql.checkData(0, 4, "2018-11-25 19:30:00.000")
 
+        tdSql.query("select last(ts) from meters partition by tbname")
+        tdSql.query("select last(ts) from meters partition by t1")
         sql_template = 'select %s from meters partition by tbname'
         select_items = ["ts, last(c10), c10, ts", "ts, ts, last(c10), c10, tbname", "last(c10), c10, ts"]
         has_last_row_scan_res = [1,1,1]

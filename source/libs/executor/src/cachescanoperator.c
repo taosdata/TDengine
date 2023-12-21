@@ -54,16 +54,29 @@ static int32_t      removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColM
 
 #define SCAN_ROW_TYPE(_t) ((_t) ? CACHESCAN_RETRIEVE_LAST : CACHESCAN_RETRIEVE_LAST_ROW)
 
-static void setColIdForCacheReadBlock(SSDataBlock* pBlock, SNodeList* pTargets) {
+static void setColIdForCacheReadBlock(SSDataBlock* pBlock, SLastRowScanPhysiNode* pScan) {
   SNode*  pNode;
   int32_t idx = 0;
-  FOREACH(pNode, pTargets) {
+  FOREACH(pNode, pScan->pTargets) {
     if (nodeType(pNode) == QUERY_NODE_COLUMN) {
       SColumnNode* pCol = (SColumnNode*)pNode;
       SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, idx);
       pColInfo->info.colId = pCol->colId;
     }
     idx++;
+  }
+
+  for (; idx < pBlock->pDataBlock->size; ++idx) {
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, idx);
+    if (pScan->scan.pScanPseudoCols) {
+      FOREACH(pNode, pScan->scan.pScanPseudoCols) {
+        STargetNode* pTarget = (STargetNode*)pNode;
+        if (pColInfo->info.slotId == pTarget->slotId) {
+          pColInfo->info.colId = 0;
+          break;
+        }
+      }
+    }
   }
 }
 
@@ -127,12 +140,12 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
     capacity = TMIN(totalTables, 4096);
 
     pInfo->pBufferredRes = createOneDataBlock(pInfo->pRes, false);
-    setColIdForCacheReadBlock(pInfo->pBufferredRes, pScanNode->pTargets);
+    setColIdForCacheReadBlock(pInfo->pBufferredRes, pScanNode);
     blockDataEnsureCapacity(pInfo->pBufferredRes, capacity);
   } else {  // by tags
     pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_SINGLE | SCAN_ROW_TYPE(pScanNode->ignoreNull);
     capacity = 1;  // only one row output
-    setColIdForCacheReadBlock(pInfo->pRes, pScanNode->pTargets);
+    setColIdForCacheReadBlock(pInfo->pRes, pScanNode);
   }
 
   initResultSizeInfo(&pOperator->resultInfo, capacity);
