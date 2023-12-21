@@ -82,6 +82,7 @@ cp %{_compiledir}/build/bin/taos                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/udfd                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosBenchmark           %{buildroot}%{homepath}/bin
+cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
 
 if [ -f %{_compiledir}/../build-taoskeeper/taoskeeper ]; then
     cp %{_compiledir}/../build-taoskeeper/taoskeeper %{buildroot}%{homepath}/bin

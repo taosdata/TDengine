@@ -3222,7 +3222,7 @@ _error:
 
 static int32_t saveBlockRowToBuf(STableMergeScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowIdx, int32_t* pPageId, int32_t* pOffset, int32_t* pLength) {
   SDiskbasedBuf* pResultBuf = pInfo->sortRowIdInfo.pExtSrcRowsBuf;
-  int32_t rowBytes = blockDataGetRowSize(pBlock) + taosArrayGetSize(pBlock->pDataBlock);
+  int32_t rowBytes = blockDataGetRowSize(pBlock) + taosArrayGetSize(pBlock->pDataBlock) + sizeof(int32_t);
 
   SFilePage* pFilePage = NULL;
 
@@ -3291,6 +3291,8 @@ static int32_t saveBlockRowToBuf(STableMergeScanInfo* pInfo, SSDataBlock* pBlock
       pStart += bytes;
     }
   }
+  *(int32_t*)pStart = (char*)pStart - (char*)buf;
+  pStart += sizeof(int32_t);
   *pLength = (int32_t)(pStart - (char*)buf);
   pFilePage->num += (*pLength);
   setBufPageDirty(pFilePage, true);
@@ -3356,6 +3358,11 @@ static void appendOneRowIdRowToDataBlock(STableMergeScanInfo* pInfo, SSDataBlock
       colDataSetNULL(pColInfo, pBlock->info.rows);
     }
   }
+
+  if (*(int32_t*)pStart != pStart-buf) {
+    qError("table merge scan row buf deserialization. length error %d != %d ", *(int32_t*)pStart, (int32_t)(pStart-buf));
+  };
+
   releaseBufPage(pInfo->sortRowIdInfo.pExtSrcRowsBuf, page);
 
   pBlock->info.dataLoad = 1;

@@ -1827,7 +1827,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   char *tb = taosHashIterate(pRsp->readTbs, NULL);
   while (tb != NULL) {
     size_t keyLen = 0;
-    void  *key = taosHashGetKey(tb, &keyLen);
+    void * key = taosHashGetKey(tb, &keyLen);
     if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
     if (tEncodeCStr(pEncoder, key) < 0) return -1;
 
@@ -1842,7 +1842,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   tb = taosHashIterate(pRsp->writeTbs, NULL);
   while (tb != NULL) {
     size_t keyLen = 0;
-    void  *key = taosHashGetKey(tb, &keyLen);
+    void * key = taosHashGetKey(tb, &keyLen);
     if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
     if (tEncodeCStr(pEncoder, key) < 0) return -1;
 
@@ -1857,7 +1857,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   tb = taosHashIterate(pRsp->alterTbs, NULL);
   while (tb != NULL) {
     size_t keyLen = 0;
-    void  *key = taosHashGetKey(tb, &keyLen);
+    void * key = taosHashGetKey(tb, &keyLen);
     if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
     if (tEncodeCStr(pEncoder, key) < 0) return -1;
 
@@ -1872,7 +1872,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   tb = taosHashIterate(pRsp->readViews, NULL);
   while (tb != NULL) {
     size_t keyLen = 0;
-    void  *key = taosHashGetKey(tb, &keyLen);
+    void * key = taosHashGetKey(tb, &keyLen);
     if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
     if (tEncodeCStr(pEncoder, key) < 0) return -1;
 
@@ -1887,7 +1887,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   tb = taosHashIterate(pRsp->writeViews, NULL);
   while (tb != NULL) {
     size_t keyLen = 0;
-    void  *key = taosHashGetKey(tb, &keyLen);
+    void * key = taosHashGetKey(tb, &keyLen);
     if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
     if (tEncodeCStr(pEncoder, key) < 0) return -1;
 
@@ -1902,7 +1902,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   tb = taosHashIterate(pRsp->alterViews, NULL);
   while (tb != NULL) {
     size_t keyLen = 0;
-    void  *key = taosHashGetKey(tb, &keyLen);
+    void * key = taosHashGetKey(tb, &keyLen);
     if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
     if (tEncodeCStr(pEncoder, key) < 0) return -1;
 
@@ -1917,7 +1917,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   int32_t *useDb = taosHashIterate(pRsp->useDbs, NULL);
   while (useDb != NULL) {
     size_t keyLen = 0;
-    void  *key = taosHashGetKey(useDb, &keyLen);
+    void * key = taosHashGetKey(useDb, &keyLen);
     if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
     if (tEncodeCStr(pEncoder, key) < 0) return -1;
 
@@ -8342,7 +8342,7 @@ int32_t tEncodeMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
 
     for (int32_t i = 0; i < pRsp->blockNum; i++) {
       int32_t bLen = *(int32_t *)taosArrayGet(pRsp->blockDataLen, i);
-      void   *data = taosArrayGetP(pRsp->blockData, i);
+      void *  data = taosArrayGetP(pRsp->blockData, i);
       if (tEncodeBinary(pEncoder, (const uint8_t *)data, bLen) < 0) return -1;
       if (pRsp->withSchema) {
         SSchemaWrapper *pSW = (SSchemaWrapper *)taosArrayGetP(pRsp->blockSchema, i);
@@ -8375,7 +8375,7 @@ int32_t tDecodeMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
     }
 
     for (int32_t i = 0; i < pRsp->blockNum; i++) {
-      void    *data;
+      void *   data;
       uint64_t bLen;
       if (tDecodeBinaryAlloc(pDecoder, &data, &bLen) < 0) return -1;
       taosArrayPush(pRsp->blockData, &data);
@@ -8421,7 +8421,7 @@ int32_t tEncodeSTaosxRsp(SEncoder *pEncoder, const STaosxRsp *pRsp) {
   if (tEncodeI32(pEncoder, pRsp->createTableNum) < 0) return -1;
   if (pRsp->createTableNum) {
     for (int32_t i = 0; i < pRsp->createTableNum; i++) {
-      void   *createTableReq = taosArrayGetP(pRsp->createTableReq, i);
+      void *  createTableReq = taosArrayGetP(pRsp->createTableReq, i);
       int32_t createTableLen = *(int32_t *)taosArrayGet(pRsp->createTableLen, i);
       if (tEncodeBinary(pEncoder, createTableReq, createTableLen) < 0) return -1;
     }
@@ -8437,7 +8437,7 @@ int32_t tDecodeSTaosxRsp(SDecoder *pDecoder, STaosxRsp *pRsp) {
     pRsp->createTableLen = taosArrayInit(pRsp->createTableNum, sizeof(int32_t));
     pRsp->createTableReq = taosArrayInit(pRsp->createTableNum, sizeof(void *));
     for (int32_t i = 0; i < pRsp->createTableNum; i++) {
-      void    *pCreate = NULL;
+      void *   pCreate = NULL;
       uint64_t len;
       if (tDecodeBinaryAlloc(pDecoder, &pCreate, &len) < 0) return -1;
       int32_t l = (int32_t)len;
@@ -8739,7 +8739,7 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
       taosArrayDestroy(pTbData->aCol);
     } else {
       int32_t nRow = TARRAY_SIZE(pTbData->aRowP);
-      SRow  **rows = (SRow **)TARRAY_DATA(pTbData->aRowP);
+      SRow ** rows = (SRow **)TARRAY_DATA(pTbData->aRowP);
 
       for (int32_t i = 0; i < nRow; ++i) {
         tRowDestroy(rows[i]);

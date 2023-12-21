@@ -21,6 +21,7 @@ docker run -d --name tdengine \
 * /var/lib/taos: TDengine's default data file directory. The location can be changed via [configuration file]. And also you can modify ~/data/taos/dnode/data to your any other local emtpy data directory
 * /var/log/taos: TDengine's default log file directory. The location can be changed via [configure file]. And also you can modify ~/data/taos/dnode/log to your any other local empty log directory
   
+
 :::
 
 The above command starts a container named "tdengine" and maps the HTTP service port 6041 to the host port 6041. You can verify that the HTTP service provided in this container is available using the following command.
@@ -42,7 +43,7 @@ taos> show databases;
 Query OK, 2 row(s) in set (0.002843s)
 ```
 
-The TDengine server running in the container uses the container's hostname to establish a connection. Using TDengine CLI or various connectors (such as JDBC-JNI) to access the TDengine inside the container from outside the container is more complicated. So the above is the simplest way to access the TDengine service in the container and is suitable for some simple scenarios. Please refer to the next section if you want to access the TDengine service in the container from outside the container using TDengine CLI or various connectors for complex scenarios.
+The TDengine server running in the container uses the container's hostname to establish a connection. Using TDengine CLI or various client libraries (such as JDBC-JNI) to access the TDengine inside the container from outside the container is more complicated. So the above is the simplest way to access the TDengine service in the container and is suitable for some simple scenarios. Please refer to the next section if you want to access the TDengine service in the container from outside the container using TDengine CLI or various client libraries for complex scenarios.
 
 ## Start TDengine on the host network
 
@@ -83,7 +84,7 @@ Next, ensure the hostname "tdengine" is resolvable in `/etc/hosts`.
 echo 127.0.0.1 tdengine |sudo tee -a /etc/hosts
 ```
 
-Finally, the TDengine service can be accessed from the TDengine CLI or any connector with "tdengine" as the server address.
+Finally, the TDengine service can be accessed from the TDengine CLI or any client library with "tdengine" as the server address.
 
 ```shell
 taos -h tdengine -P 6030
@@ -324,6 +325,7 @@ services:
 - The `VERSION` environment variable is used to set the tdengine image tag
 - `TAOS_FIRST_EP` must be set on the newly created instance so that it can join the TDengine cluster; if there is a high availability requirement, `TAOS_SECOND_EP` needs to be used at the same time
   
+
 :::
 
 2. Start the cluster

@@ -9,7 +9,7 @@ description: 查询数据的详细语法
 ```sql
 SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
-SELECT [hints] [DISTINCT] select_list
+SELECT [hints] [DISTINCT] [TAGS] select_list
     from_clause
     [WHERE condition]
     [partition_by_clause]
@@ -162,6 +162,16 @@ SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
 
 :::
 
+### 标签查询
+
+当查询的列只有标签列时，`TAGS` 关键字可以指定返回所有子表的标签列。每个子表只返回一行标签列。
+
+返回所有子表的标签列：
+
+```sql
+SELECT TAGS tag_name [, tag_name ...] FROM stb_name
+``` 
+
 ### 结果集列名
 
 `SELECT`子句中，如果不指定返回结果集合的列名，结果集列名称默认使用`SELECT`子句中的表达式名称作为列名称。此外，用户可使用`AS`来重命名返回结果集合中列的名称。例如：
@@ -182,7 +192,7 @@ taos> SELECT ts, ts AS primary_key_ts FROM d1001;
 获取一个超级表所有的子表名及相关的标签信息：
 
 ```mysql
-SELECT DISTINCT TBNAME, location FROM meters;
+SELECT TAGS TBNAME, location FROM meters;
 ```
 
 建议用户使用 INFORMATION_SCHEMA 下的 INS_TAGS 系统表来查询超级表的子表标签信息，例如获取超级表 meters 所有的子表名和标签值：
@@ -259,7 +269,12 @@ GROUP BY 子句中的表达式可以包含表或视图中的任何列，这些�
 
 ## PARTITION BY
 
-PARTITION BY 子句是 TDengine 特色语法，按 part_list 对数据进行切分，在每个切分的分片中进行计算。
+PARTITION BY 子句是 TDengine 3.0版本引入的特色语法，用于根据 part_list 对数据进行切分，在每个切分的分片中可以进行各种计算。
+
+PARTITION BY 与 GROUP BY 基本含义相似，都是按照指定列表进行数据分组然后进行计算，不同点在于 PARTITION BY 没有 GROUP BY 子句的 SELECT 列表的各种限制，组内可以进行任意运算（常量、聚合、标量、表达式等），因此在使用上 PARTITION BY 完全兼容 GROUP BY，所有使用 GROUP BY 子句的地方都可以替换为 PARTITION BY。
+
+因为 PARTITION BY 没有返回一行聚合数据的要求，因此还可以支持在分组切片后的各种窗口运算，所有需要分组进行的窗口运算都只能使用 PARTITION BY 子句。
+
 
 详见 [TDengine 特色查询](../distinguished)
 

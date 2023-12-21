@@ -1,7 +1,7 @@
 ---
-title: TDengine C# Connector
+title: TDengine C# Client Library
 sidebar_label: C#
-description: This document describes the TDengine C# connector.
+description: This document describes the TDengine C# client library.
 toc_max_heading_level: 4
 ---
 
@@ -509,7 +509,7 @@ namespace NativeStmt
                         stmt.AddBatch();
                         stmt.Exec();
                         var affected = stmt.Affected();
-                        Console.WriteLine($"affected rows: {affected}"); 
+                        Console.WriteLine($"affected rows: {affected}");
                     }
                 }
                 catch (Exception e)
@@ -554,7 +554,7 @@ namespace WSStmt
                         stmt.AddBatch();
                         stmt.Exec();
                         var affected = stmt.Affected();
-                        Console.WriteLine($"affected rows: {affected}"); 
+                        Console.WriteLine($"affected rows: {affected}");
                     }
                 }
                 catch (Exception e)
@@ -950,7 +950,7 @@ namespace NativeSubscription
                 }
             }
         }
-        
+
         static void InsertData()
         {
             var builder = new ConnectionStringBuilder("host=localhost;port=6030;username=root;password=taosdata");
@@ -1033,7 +1033,7 @@ namespace WSSubscription
                 }
             }
         }
-        
+
         static void InsertData()
         {
             var builder = new ConnectionStringBuilder("protocol=WebSocket;host=localhost;port=6041;useSSL=false;username=root;password=taosdata");

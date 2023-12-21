@@ -19,7 +19,7 @@ To connect TDengine using qStudio, you need to complete the following preparatio
 
  ![qConnecting TDengine with qStudio](./qstudio/qstudio-connect-tdengine.webp)
 
-2. Configure the TDengine connection by entering the host address, port number, username, and password. If TDengine is deployed on the local machine, you can fill in the username and password only. The default username is "root," and the default password is "taosdata." Click "Test" to test the connection's availability. If the TDengine Java connector is not installed on the local machine, qStudio will prompt you to download and install it.
+2. Configure the TDengine connection by entering the host address, port number, username, and password. If TDengine is deployed on the local machine, you can fill in the username and password only. The default username is "root," and the default password is "taosdata." Click "Test" to test the connection's availability. If the TDengine Java client library is not installed on the local machine, qStudio will prompt you to download and install it.
 
  ![Download Java Connector](./qstudio/qstudio-jdbc-connector-download.webp)
 
