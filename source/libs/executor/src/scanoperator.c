@@ -683,7 +683,7 @@ static SSDataBlock* getBlockForEmptyTable(SOperatorInfo* pOperator, const STable
   blockDataEmpty(pBlock);
   pBlock->info.rows = 1;
   pBlock->info.id.uid = tbInfo->uid;
-  pBlock->info.id.groupId = pOperator->dynamicTask ? tbInfo->uid : tbInfo->groupId;
+  pBlock->info.id.groupId = tbInfo->groupId;
 
   // only one row: set all col data to null & hasNull 
   int32_t col_num = blockDataGetNumOfCols(pBlock);
