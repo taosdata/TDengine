@@ -1079,7 +1079,10 @@ static int32_t pdcJoinAddPreFilterColsToTarget(SOptimizeContext* pCxt, SJoinLogi
   if (NULL == pCondCols) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   } else {
-    code = nodesCollectColumnsFromNode(pJoin->pFullOnCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
+    code = nodesCollectColumnsFromNode(pJoin->pColOnCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCollectColumnsFromNode(pJoin->pTagOnCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pCondCols, &pTargets);

@@ -19,9 +19,9 @@
 extern "C" {
 #endif
 
-#define MJOIN_DEFAULT_BLK_ROWS_NUM 4096
+#define MJOIN_DEFAULT_BLK_ROWS_NUM 4
 #define MJOIN_HJOIN_CART_THRESHOLD 16
-#define MJOIN_BLK_SIZE_LIMIT 10485760
+#define MJOIN_BLK_SIZE_LIMIT 20
 
 struct SMJoinOperatorInfo;
 
@@ -86,6 +86,7 @@ typedef struct SMJoinTableCtx {
   SArray*        valVarCols;
   bool           valColExist;
 
+  bool           newBlk;
   SSDataBlock*   blk;
   int32_t        blkRowIdx;
 
@@ -199,9 +200,11 @@ typedef struct SMJoinOperatorInfo {
 
 #define MJOIN_GET_TB_COL_TS(_col, _ts, _tb)                                     \
   do {                                                                          \
-    if (NULL != (_tb)->blk) {                                                   \
+    if (NULL != (_tb)->blk && (_tb)->blkRowIdx < (_tb)->blk->info.rows) {                                                   \
       (_col) = taosArrayGet((_tb)->blk->pDataBlock, (_tb)->primCol->srcSlot);   \
       (_ts) = *((int64_t*)(_col)->pData + (_tb)->blkRowIdx);                    \
+    } else {                                                                    \
+      (_ts) = INT64_MIN;                                                        \
     }                                                                           \
   } while (0)
 
@@ -228,6 +231,20 @@ typedef struct SMJoinOperatorInfo {
       goto _return;                  \
     }                                \
   } while (0)
+
+
+
+
+int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode);
+SSDataBlock* mLeftJoinDo(struct SOperatorInfo* pOperator);
+bool mJoinRetrieveImpl(SMJoinOperatorInfo* pJoin, int32_t* pIdx, SSDataBlock** ppBlk, SMJoinTableCtx* pTb);
+void mJoinSetDone(SOperatorInfo* pOperator);
+bool mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen);
+void mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk, bool restart);
+int32_t mJoinRetrieveEqGrpRows(SOperatorInfo* pOperator, SMJoinTableCtx* pTable, int64_t timestamp);
+int32_t mJoinMakeBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable);
+int32_t mJoinSetKeyColsData(SSDataBlock* pBlock, SMJoinTableCtx* pTable);
+
   
 
 #ifdef __cplusplus

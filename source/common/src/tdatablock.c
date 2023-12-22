@@ -242,10 +242,12 @@ int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, 
 }
 
 void colDataSetNItemsNull(SColumnInfoData* pColumnInfoData, uint32_t currentRow, uint32_t numOfRows) {
+  pColumnInfoData->hasNull = true;
+  
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     memset(&pColumnInfoData->varmeta.offset[currentRow], -1, sizeof(int32_t) * numOfRows);
   } else {
-    if (numOfRows < sizeof(char) * 2) {
+    if (numOfRows < 16) {
       for (int32_t i = 0; i < numOfRows; ++i) {
         colDataSetNull_f(pColumnInfoData->nullbitmap, currentRow + i);
       }
@@ -259,8 +261,9 @@ void colDataSetNItemsNull(SColumnInfoData* pColumnInfoData, uint32_t currentRow,
         }
       }
 
-      memset(&BMCharPos(pColumnInfoData->nullbitmap, currentRow + i), 0xFF, (numOfRows - i) / sizeof(char));
-      i += (numOfRows - i) / sizeof(char) * sizeof(char);
+      int32_t bytes = (numOfRows - i) / 8;
+      memset(&BMCharPos(pColumnInfoData->nullbitmap, currentRow + i), 0xFF, bytes);
+      i += bytes * 8;
       
       for (; i < numOfRows; ++i) {
         colDataSetNull_f(pColumnInfoData->nullbitmap, currentRow + i);
@@ -542,33 +545,14 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
     }
   } else {
     if (pSrc->hasNull) {
-      if (0 == BitPos(dstIdx) && 0 == BitPos(srcIdx)) {
-        memcpy(&BMCharPos(pDst->nullbitmap, dstIdx), &BMCharPos(pSrc->nullbitmap, srcIdx), BitmapLen(numOfRows));
-        if (!pDst->hasNull) {
-          int32_t nullBytes = BitmapLen(numOfRows);
-          int32_t startPos = CharPos(dstIdx);
-          for (int32_t i = 0; i < nullBytes; ++i) {
-            if (pDst->nullbitmap[startPos + i]) {
-              pDst->hasNull = true;
-              break;
-            }
-          }
-        }
-      } else if (BitPos(dstIdx) == BitPos(srcIdx)) {
+      if (BitPos(dstIdx) == BitPos(srcIdx)) {
         for (int32_t i = 0; i < numOfRows; ++i) {
-          if (0 == BitPos(dstIdx)) {
-            memcpy(&BMCharPos(pDst->nullbitmap, dstIdx + i), &BMCharPos(pSrc->nullbitmap, srcIdx + i), BitmapLen(numOfRows - i));
-            if (!pDst->hasNull) {
-              int32_t nullBytes = BitmapLen(numOfRows - i);
-              int32_t startPos = CharPos(dstIdx + i);
-              for (int32_t m = 0; m < nullBytes; ++m) {
-                if (pDst->nullbitmap[startPos + m]) {
-                  pDst->hasNull = true;
-                  break;
-                }
-              }
+          if (0 == BitPos(dstIdx) && (i + (1 << NBIT) <= numOfRows)) {
+            BMCharPos(pDst->nullbitmap, dstIdx + i) = BMCharPos(pSrc->nullbitmap, srcIdx + i);
+            if (BMCharPos(pDst->nullbitmap, dstIdx + i)) {
+              pDst->hasNull = true;
             }
-            break;
+            i += (1 << NBIT) - 1;
           } else {
             if (colDataIsNull_f(pSrc->nullbitmap, srcIdx + i)) {
               colDataSetNull_f(pDst->nullbitmap, dstIdx + i);
@@ -588,9 +572,7 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
           }
         }
       }
-    } else {
-      memset(&BMCharPos(pDst->nullbitmap, dstIdx), 0, BitmapLen(numOfRows));
-    }
+    } 
 
     if (pSrc->pData != NULL) {
       memcpy(pDst->pData + pDst->info.bytes * dstIdx, pSrc->pData + pSrc->info.bytes * srcIdx, pDst->info.bytes * numOfRows);
@@ -665,8 +647,43 @@ int32_t blockDataMergeNRows(SSDataBlock* pDest, const SSDataBlock* pSrc, int32_t
     colDataAssignNRows(pCol2, pDest->info.rows, pCol1, srcIdx, numOfRows);
   }
 
-  pDest->info.rows += pSrc->info.rows;
+  pDest->info.rows += numOfRows;
   return TSDB_CODE_SUCCESS;
+}
+
+void blockDataShrinkNRows(SSDataBlock* pBlock, int32_t numOfRows) {
+  if (numOfRows >= pBlock->info.rows) {
+    blockDataCleanup(pBlock);
+    return;
+  }
+
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+      pCol->varmeta.length = pCol->varmeta.offset[pBlock->info.rows - numOfRows];
+      memset(pCol->varmeta.offset + pBlock->info.rows - numOfRows, 0, sizeof(*pCol->varmeta.offset) * numOfRows);
+    } else {
+      int32_t i = pBlock->info.rows - numOfRows;
+      for (; i < pBlock->info.rows; ++i) {
+        if (BitPos(i)) {
+          colDataClearNull_f(pCol->nullbitmap, i);
+        } else {
+          break;
+        }
+      }
+
+      int32_t bytes = (pBlock->info.rows - i) / 8;
+      memset(&BMCharPos(pCol->nullbitmap, i), 0, bytes);
+      i += bytes * 8;
+      
+      for (; i < pBlock->info.rows; ++i) {
+        colDataClearNull_f(pCol->nullbitmap, i);
+      }
+    }
+  }
+
+  pBlock->info.rows -= numOfRows;
 }
 
 
@@ -2542,6 +2559,8 @@ void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList
       int32_t numOfRows = 0;
       if (IS_VAR_DATA_TYPE(pDst->info.type)) {
         pDst->varmeta.length = 0;
+      } else {
+        memset(pDst->nullbitmap, 0, bmLen);
       }
     }
     return;
