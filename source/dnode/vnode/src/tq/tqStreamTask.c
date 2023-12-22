@@ -123,6 +123,7 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
   return 0;
 }
 
+// todo: createMsg to invoke this function in stream threads, to avoid blocking the syn thread
 int32_t tqStopStreamTasks(STQ* pTq) {
   SStreamMeta* pMeta = pTq->pStreamMeta;
   int32_t      vgId = TD_VID(pTq->pVnode);
@@ -142,7 +143,7 @@ int32_t tqStopStreamTasks(STQ* pTq) {
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
-    SStreamTask*   pTask = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId);
+    SStreamTask*   pTask = streamMetaAcquireTaskNoLock(pMeta, pTaskId->streamId, pTaskId->taskId);
     if (pTask == NULL) {
       continue;
     }

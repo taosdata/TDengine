@@ -607,22 +607,23 @@ int32_t streamMetaGetNumOfTasks(SStreamMeta* pMeta) {
   return (int32_t)size;
 }
 
-SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
-  streamMetaRLock(pMeta);
-
+SStreamTask* streamMetaAcquireTaskNoLock(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
   STaskId       id = {.streamId = streamId, .taskId = taskId};
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
-  if (ppTask != NULL) {
-    if (!streamTaskShouldStop(*ppTask)) {
-      int32_t ref = atomic_add_fetch_32(&(*ppTask)->refCnt, 1);
-      streamMetaRUnLock(pMeta);
-      stTrace("s-task:%s acquire task, ref:%d", (*ppTask)->id.idStr, ref);
-      return *ppTask;
-    }
+  if (ppTask == NULL || streamTaskShouldStop(*ppTask)) {
+    return NULL;
   }
 
+  int32_t ref = atomic_add_fetch_32(&(*ppTask)->refCnt, 1);
+  stTrace("s-task:%s acquire task, ref:%d", (*ppTask)->id.idStr, ref);
+  return *ppTask;
+}
+
+SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
+  streamMetaRLock(pMeta);
+  SStreamTask* p = streamMetaAcquireTaskNoLock(pMeta, streamId, taskId);
   streamMetaRUnLock(pMeta);
-  return NULL;
+  return p;
 }
 
 void streamMetaReleaseTask(SStreamMeta* UNUSED_PARAM(pMeta), SStreamTask* pTask) {
@@ -1293,6 +1294,7 @@ void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
 void streamMetaRLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-rlock", pMeta->vgId);
   taosRLockLatch(&pMeta->lock);
+  ASSERT(pMeta->lock != 0x40000001);
 }
 
 void streamMetaRUnLock(SStreamMeta* pMeta) {
@@ -1303,6 +1305,7 @@ void streamMetaRUnLock(SStreamMeta* pMeta) {
 void streamMetaWLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-wlock", pMeta->vgId);
   taosWLockLatch(&pMeta->lock);
+  ASSERT(pMeta->lock != 0x40000001);
   stTrace("vgId:%d meta-wlock completed", pMeta->vgId);
 }
 
