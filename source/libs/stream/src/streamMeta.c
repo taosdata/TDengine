@@ -375,6 +375,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
          stage);
 
   pMeta->rid = taosAddRef(streamMetaId, pMeta);
+  taosThreadRwlockInit(&pMeta->lock, NULL);
 
   int64_t* pRid = taosMemoryMalloc(sizeof(int64_t));
   memcpy(pRid, &pMeta->rid, sizeof(pMeta->rid));
