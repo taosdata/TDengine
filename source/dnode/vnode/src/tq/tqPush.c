@@ -14,7 +14,6 @@
  */
 
 #include "tq.h"
-#include "vnd.h"
 
 int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
   if (taosHashGetSize(pTq->pPushMgr) <= 0) {
@@ -23,7 +22,7 @@ int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
   SRpcMsg msg = {.msgType = TDMT_VND_TMQ_CONSUME_PUSH};
   msg.pCont = rpcMallocCont(sizeof(SMsgHead));
   msg.contLen = sizeof(SMsgHead);
-  SMsgHead *pHead = msg.pCont;
+  SMsgHead* pHead = msg.pCont;
   pHead->vgId = TD_VID(pTq->pVnode);
   pHead->contLen = msg.contLen;
   tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg);
@@ -39,7 +38,8 @@ int32_t tqPushMsg(STQ* pTq, tmsg_t msgType) {
   int32_t numOfTasks = streamMetaGetNumOfTasks(pTq->pStreamMeta);
   streamMetaRUnLock(pTq->pStreamMeta);
 
-//  tqTrace("vgId:%d handle submit, restore:%d, numOfTasks:%d", TD_VID(pTq->pVnode), pTq->pVnode->restored, numOfTasks);
+  //  tqTrace("vgId:%d handle submit, restore:%d, numOfTasks:%d", TD_VID(pTq->pVnode), pTq->pVnode->restored,
+  //  numOfTasks);
 
   // push data for stream processing:
   // 1. the vnode has already been restored.
@@ -61,7 +61,7 @@ int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
     memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
     pHandle->msg->pCont = rpcMallocCont(pMsg->contLen);
   } else {
-//    tqPushDataRsp(pHandle, vgId);
+    //    tqPushDataRsp(pHandle, vgId);
     tqPushEmptyDataRsp(pHandle, vgId);
 
     void* tmp = pHandle->msg->pCont;
@@ -77,18 +77,18 @@ int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
   return 0;
 }
 
-int tqUnregisterPushHandle(STQ* pTq, void *handle) {
-  STqHandle *pHandle = (STqHandle*)handle;
+int tqUnregisterPushHandle(STQ* pTq, void* handle) {
+  STqHandle* pHandle = (STqHandle*)handle;
   int32_t    vgId = TD_VID(pTq->pVnode);
 
-  if(taosHashGetSize(pTq->pPushMgr) <= 0) {
+  if (taosHashGetSize(pTq->pPushMgr) <= 0) {
     return 0;
   }
   int32_t ret = taosHashRemove(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey));
   tqInfo("vgId:%d remove pHandle:%p,ret:%d consumer Id:0x%" PRIx64, vgId, pHandle, ret, pHandle->consumerId);
 
-  if(pHandle->msg != NULL) {
-//    tqPushDataRsp(pHandle, vgId);
+  if (pHandle->msg != NULL) {
+    //    tqPushDataRsp(pHandle, vgId);
     tqPushEmptyDataRsp(pHandle, vgId);
 
     rpcFreeCont(pHandle->msg->pCont);

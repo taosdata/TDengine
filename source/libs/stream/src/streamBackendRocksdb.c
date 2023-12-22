@@ -14,7 +14,6 @@
  */
 
 #include "streamBackendRocksdb.h"
-#include "executor.h"
 #include "query.h"
 #include "streamInt.h"
 #include "tcommon.h"

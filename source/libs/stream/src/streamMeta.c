@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executor.h"
 #include "streamBackendRocksdb.h"
 #include "streamInt.h"
 #include "tmisce.h"

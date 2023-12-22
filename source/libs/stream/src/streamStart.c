@@ -14,7 +14,6 @@
  */
 
 #include "streamInt.h"
-#include "streamsm.h"
 #include "trpc.h"
 #include "ttimer.h"
 #include "wal.h"

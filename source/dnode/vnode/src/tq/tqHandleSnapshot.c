@@ -13,8 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "meta.h"
-#include "tdbInt.h"
 #include "tq.h"
 
 // STqSnapReader ========================================
@@ -74,11 +72,11 @@ int32_t tqSnapReaderClose(STqSnapReader** ppReader) {
 }
 
 int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
-  int32_t     code = 0;
-  void* pKey = NULL;
-  void* pVal = NULL;
-  int32_t     kLen = 0;
-  int32_t     vLen = 0;
+  int32_t code = 0;
+  void*   pKey = NULL;
+  void*   pVal = NULL;
+  int32_t kLen = 0;
+  int32_t vLen = 0;
 
   if (tdbTbcNext(pReader->pCur, &pKey, &kLen, &pVal, &vLen)) {
     goto _exit;

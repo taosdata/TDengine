@@ -15,7 +15,6 @@
 
 #include "executor.h"
 #include "streamInt.h"
-#include "streamsm.h"
 #include "tmisce.h"
 #include "tstream.h"
 #include "ttimer.h"
@@ -474,7 +473,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
 
   taosThreadMutexInit(&pTask->lock, &attr);
   // if (pTask->info.fillHistory == 1) {
-  //   // 
+  //   //
   // } else {
 
   // }
@@ -797,4 +796,3 @@ void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc) 
   pDst->activeCheckpointId = pSrc->activeCheckpointId;
   pDst->checkpointFailed = pSrc->checkpointFailed;
 }
-

@@ -14,7 +14,6 @@
  */
 
 #include "streamInt.h"
-#include "tmisce.h"
 #include "trpc.h"
 #include "ttimer.h"
 
@@ -1175,8 +1174,8 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
         stError("s-task:%s failed to dispatch checkpoint-trigger msg, checkpointId:%" PRId64
                 ", set the current checkpoint failed, and send rsp to mnode",
                 id, pTask->chkInfo.checkpointingId);
-        { // send checkpoint failure msg to mnode directly
-          pTask->chkInfo.failedId = pTask->chkInfo.checkpointingId;   // record the latest failed checkpoint id
+        {                                                            // send checkpoint failure msg to mnode directly
+          pTask->chkInfo.failedId = pTask->chkInfo.checkpointingId;  // record the latest failed checkpoint id
           pTask->chkInfo.checkpointingId = pTask->chkInfo.checkpointingId;
           streamTaskSendCheckpointSourceRsp(pTask);
         }

@@ -13,8 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "meta.h"
-#include "tdbInt.h"
 #include "tq.h"
 
 // STqCheckInfoReader ========================================
@@ -26,7 +24,7 @@ struct STqCheckInfoReader {
 };
 
 int32_t tqCheckInfoReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqCheckInfoReader** ppReader) {
-  int32_t        code = 0;
+  int32_t             code = 0;
   STqCheckInfoReader* pReader = NULL;
 
   // alloc
@@ -74,11 +72,11 @@ int32_t tqCheckInfoReaderClose(STqCheckInfoReader** ppReader) {
 }
 
 int32_t tqCheckInfoRead(STqCheckInfoReader* pReader, uint8_t** ppData) {
-  int32_t     code = 0;
-  void* pKey = NULL;
-  void* pVal = NULL;
-  int32_t     kLen = 0;
-  int32_t     vLen = 0;
+  int32_t code = 0;
+  void*   pKey = NULL;
+  void*   pVal = NULL;
+  int32_t kLen = 0;
+  int32_t vLen = 0;
 
   if (tdbTbcNext(pReader->pCur, &pKey, &kLen, &pVal, &vLen)) {
     goto _exit;
@@ -119,7 +117,7 @@ struct STqCheckInfoWriter {
 };
 
 int32_t tqCheckInfoWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqCheckInfoWriter** ppWriter) {
-  int32_t        code = 0;
+  int32_t             code = 0;
   STqCheckInfoWriter* pWriter;
 
   // alloc
@@ -148,9 +146,9 @@ _err:
 }
 
 int32_t tqCheckInfoWriterClose(STqCheckInfoWriter** ppWriter, int8_t rollback) {
-  int32_t        code = 0;
+  int32_t             code = 0;
   STqCheckInfoWriter* pWriter = *ppWriter;
-  STQ*           pTq = pWriter->pTq;
+  STQ*                pTq = pWriter->pTq;
 
   if (rollback) {
     tdbAbort(pWriter->pTq->pMetaDB, pWriter->txn);
@@ -172,11 +170,11 @@ _err:
 }
 
 int32_t tqCheckInfoWrite(STqCheckInfoWriter* pWriter, uint8_t* pData, uint32_t nData) {
-  int32_t   code = 0;
-  STQ*      pTq = pWriter->pTq;
+  int32_t      code = 0;
+  STQ*         pTq = pWriter->pTq;
   STqCheckInfo info = {0};
   SDecoder     decoder;
-  SDecoder* pDecoder = &decoder;
+  SDecoder*    pDecoder = &decoder;
 
   tDecoderInit(pDecoder, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   code = tDecodeSTqCheckInfo(pDecoder, &info);

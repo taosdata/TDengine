@@ -13,9 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "meta.h"
 #include "streamSnapshot.h"
-#include "tdbInt.h"
 #include "tq.h"
 
 // STqSnapReader ========================================
@@ -180,6 +178,4 @@ int32_t streamStateRebuildFromSnap(SStreamStateWriter* pWriter, int64_t chkpId) 
   return code;
 }
 
-int32_t streamStateLoadTasks(SStreamStateWriter* pWriter) {
-  return streamMetaLoadAllTasks(pWriter->pTq->pStreamMeta);
-}
+int32_t streamStateLoadTasks(SStreamStateWriter* pWriter) { return streamMetaLoadAllTasks(pWriter->pTq->pStreamMeta); }

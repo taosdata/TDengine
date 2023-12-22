@@ -15,10 +15,8 @@
 
 #include "streamSnapshot.h"
 #include "query.h"
-#include "rocksdb/c.h"
 #include "streamBackendRocksdb.h"
 #include "streamInt.h"
-#include "tcommon.h"
 
 enum SBackendFileType {
   ROCKSDB_OPTIONS_TYPE = 1,
