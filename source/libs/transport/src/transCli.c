@@ -655,6 +655,7 @@ static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
   SCliConn* conn = QUEUE_DATA(h, SCliConn, q);
   conn->status = ConnNormal;
   QUEUE_INIT(&conn->q);
+  tDebug("conn %p get from pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
 
   if (conn->task != NULL) {
     transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
@@ -718,7 +719,7 @@ static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
       }
       list->numOfConn++;
     }
-    tTrace("%s numOfConn: %d, limit: %d, dst:%s", pTransInst->label, list->numOfConn, pTransInst->connLimitNum, key);
+    tDebug("%s numOfConn: %d, limit: %d, dst:%s", pTransInst->label, list->numOfConn, pTransInst->connLimitNum, key);
     return NULL;
   }
 
@@ -729,6 +730,7 @@ static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
   SCliConn* conn = QUEUE_DATA(h, SCliConn, q);
   conn->status = ConnNormal;
   QUEUE_INIT(&conn->q);
+  tDebug("conn %p get from pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
 
   if (conn->task != NULL) {
     transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
@@ -781,7 +783,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   conn->status = ConnInPool;
   QUEUE_PUSH(&conn->list->conns, &conn->q);
   conn->list->size += 1;
-  tDebug("add conn %p to pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
+  tDebug("conn %p added to pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
 
   if (conn->list->size >= 10) {
     STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
@@ -801,9 +803,10 @@ static int32_t allocConnRef(SCliConn* conn, bool update) {
   SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
   exh->handle = conn;
   exh->pThrd = conn->hostThrd;
-  exh->refId = transAddExHandle(transGetRefMgt(), exh);
   QUEUE_INIT(&exh->q);
   taosInitRWLatch(&exh->latch);
+
+  exh->refId = transAddExHandle(transGetRefMgt(), exh);
 
   conn->refId = exh->refId;
 
@@ -826,8 +829,9 @@ static int32_t specifyConnRef(SCliConn* conn, bool update, int64_t handle) {
   taosWLockLatch(&exh->latch);
   exh->handle = conn;
   exh->pThrd = conn->hostThrd;
-  conn->refId = exh->refId;
   taosWUnLockLatch(&exh->latch);
+
+  conn->refId = exh->refId;
 
   transReleaseExHandle(transGetRefMgt(), handle);
   return 0;
@@ -888,13 +892,11 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
     uv_timer_init(pThrd->loop, timer);
   }
   timer->data = conn;
-  conn->timer = timer;
 
+  conn->timer = timer;
   conn->connReq.data = conn;
   transReqQueueInit(&conn->wreqQueue);
-
   transQueueInit(&conn->cliMsgs, NULL);
-
   transInitBuffer(&conn->readBuf);
   QUEUE_INIT(&conn->q);
   conn->hostThrd = pThrd;
@@ -1003,7 +1005,7 @@ static void cliSendCb(uv_write_t* req, int status) {
   SCliConn* pConn = transReqQueueRemove(req);
   if (pConn == NULL) return;
 
-  SCliMsg* pMsg = !transQueueEmpty(&pConn->cliMsgs) ? transQueueGet(&pConn->cliMsgs, 0) : NULL;
+  SCliMsg* pMsg = transQueueGet(&pConn->cliMsgs, 0);
   if (pMsg != NULL) {
     int64_t cost = taosGetTimestampUs() - pMsg->st;
     if (cost > 1000 * 50) {
