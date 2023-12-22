@@ -260,11 +260,14 @@
   };
 </script>
 
-<style lang="scss">
+<style lang="scss" scoped>
   .sql-code {
     position: relative;
     text-align: left;
     padding: 3px 0;
     font-size: 16px;
+  }
+  .language-sql {
+    white-space: inherit !important;
   }
 </style>
