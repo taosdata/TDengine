@@ -344,11 +344,12 @@ static bool stbSplFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SL
   return false;
 }
 
-static int32_t stbSplRewriteFuns(const SNodeList* pFuncs, SNodeList** pPartialFuncs, SNodeList** pMergeFuncs) {
+static int32_t stbSplRewriteFuns(const SNodeList* pFuncs, SNodeList** pPartialFuncs, SNodeList** pMidFuncs, SNodeList** pMergeFuncs) {
   SNode* pNode = NULL;
   FOREACH(pNode, pFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     SFunctionNode* pPartFunc = NULL;
+    SFunctionNode* pMidFunc = NULL;
     SFunctionNode* pMergeFunc = NULL;
     int32_t        code = TSDB_CODE_SUCCESS;
     if (fmIsWindowPseudoColumnFunc(pFunc->funcId)) {
@@ -359,18 +360,33 @@ static int32_t stbSplRewriteFuns(const SNodeList* pFuncs, SNodeList** pPartialFu
         nodesDestroyNode((SNode*)pMergeFunc);
         code = TSDB_CODE_OUT_OF_MEMORY;
       }
+      if(pMidFuncs != NULL){
+        pMidFunc = (SFunctionNode*)nodesCloneNode(pNode);
+        if (NULL == pMidFunc) {
+          nodesDestroyNode((SNode*)pMidFunc);
+          code = TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }
     } else {
-      code = fmGetDistMethod(pFunc, &pPartFunc, &pMergeFunc);
+      code = fmGetDistMethod(pFunc, &pPartFunc, &pMidFunc, &pMergeFunc);
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListMakeStrictAppend(pPartialFuncs, (SNode*)pPartFunc);
     }
     if (TSDB_CODE_SUCCESS == code) {
+      if(pMidFuncs != NULL){
+        code = nodesListMakeStrictAppend(pMidFuncs, (SNode*)pMidFunc);
+      }else{
+        nodesDestroyNode((SNode*)pMidFunc);
+      }
+    }
+    if (TSDB_CODE_SUCCESS == code) {
       code = nodesListMakeStrictAppend(pMergeFuncs, (SNode*)pMergeFunc);
     }
     if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyList(*pPartialFuncs);
-      nodesDestroyList(*pMergeFuncs);
+      nodesDestroyNode((SNode*)pPartFunc);
+      nodesDestroyNode((SNode*)pMidFunc);
+      nodesDestroyNode((SNode*)pMergeFunc);
       return code;
     }
   }
@@ -463,7 +479,7 @@ static int32_t stbSplCreatePartWindowNode(SWindowLogicNode* pMergeWindow, SLogic
   splSetParent((SLogicNode*)pPartWin);
 
   int32_t index = 0;
-  int32_t code = stbSplRewriteFuns(pFunc, &pPartWin->pFuncs, &pMergeWindow->pFuncs);
+  int32_t code = stbSplRewriteFuns(pFunc, &pPartWin->pFuncs, NULL, &pMergeWindow->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
     code = stbSplAppendWStart(pPartWin->pFuncs, &index, ((SColumnNode*)pMergeWindow->pTspk)->node.resType.precision);
   }
@@ -486,16 +502,6 @@ static int32_t stbSplCreatePartWindowNode(SWindowLogicNode* pMergeWindow, SLogic
   }
 
   return code;
-}
-
-static SNode* createColumnByFunc(const SFunctionNode* pFunc) {
-  SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
-  if (NULL == pCol) {
-    return NULL;
-  }
-  strcpy(pCol->colName, pFunc->node.aliasName);
-  pCol->node.resType = pFunc->node.resType;
-  return (SNode*)pCol;
 }
 
 static int32_t stbSplCreatePartMidWindowNode(SWindowLogicNode* pMergeWindow, SLogicNode** pPartWindow, SLogicNode** pMidWindow) {
@@ -527,11 +533,12 @@ static int32_t stbSplCreatePartMidWindowNode(SWindowLogicNode* pMergeWindow, SLo
   splSetParent((SLogicNode*)pPartWin);
 
   SNodeList* pFuncPart = NULL;
+  SNodeList* pFuncMid = NULL;
   SNodeList* pFuncMerge = NULL;
-  int32_t code = stbSplRewriteFuns(pFunc, &pFuncPart, &pFuncMerge);
+  int32_t code = stbSplRewriteFuns(pFunc, &pFuncPart, &pFuncMid, &pFuncMerge);
   pPartWin->pFuncs = pFuncPart;
+  pMidWin->pFuncs = pFuncMid;
   pMergeWindow->pFuncs = pFuncMerge;
-  pMidWin->pFuncs = nodesCloneList(pFuncPart);
 
   int32_t index = 0;
   if (TSDB_CODE_SUCCESS == code) {
@@ -546,23 +553,6 @@ static int32_t stbSplCreatePartMidWindowNode(SWindowLogicNode* pMergeWindow, SLo
     pMidWin->pTspk = nodesCloneNode(nodesListGetNode(pPartWin->node.pTargets, index));
     if (NULL == pMidWin->pTspk) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-    }
-  }
-
-  if(TSDB_CODE_SUCCESS == code){
-    for (int32_t i = 0; i < LIST_LENGTH(pMidWin->pFuncs); ++i) {
-      SFunctionNode* pFunc1 = (SFunctionNode*)nodesListGetNode(pPartWin->pFuncs, i);
-      SFunctionNode* pFunc2 = (SFunctionNode*)nodesListGetNode(pMidWin->pFuncs, i);
-      NODES_DESTORY_LIST(pFunc2->pParameterList);
-
-      SNodeList* pParameterList = NULL;
-      SNode* pRes = createColumnByFunc(pFunc1);
-      code = nodesListMakeStrictAppend(&pParameterList, pRes);
-      if(code == TSDB_CODE_SUCCESS){
-        pFunc2->pParameterList = pParameterList;
-      }else{
-        nodesDestroyNode(pRes);
-      }
     }
   }
 
@@ -978,7 +968,7 @@ static int32_t stbSplCreatePartAggNode(SAggLogicNode* pMergeAgg, SLogicNode** pO
     pPartAgg->node.pChildren = pChildren;
     splSetParent((SLogicNode*)pPartAgg);
 
-    code = stbSplRewriteFuns(pFunc, &pPartAgg->pAggFuncs, &pMergeAgg->pAggFuncs);
+    code = stbSplRewriteFuns(pFunc, &pPartAgg->pAggFuncs, NULL, &pMergeAgg->pAggFuncs);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pPartAgg->pAggFuncs, &pPartAgg->node.pTargets);

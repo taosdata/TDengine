@@ -243,7 +243,7 @@ bool fmIsSkipScanCheckFunc(int32_t funcId);
 void getLastCacheDataType(SDataType* pType);
 SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList);
 
-int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
+int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc, SFunctionNode** pMergeFunc);
 
 typedef enum EFuncDataRequired {
   FUNC_DATA_REQUIRED_DATA_LOAD = 1,

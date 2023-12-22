@@ -422,6 +422,35 @@ static int32_t createMergeFuncPara(const SFunctionNode* pSrcFunc, const SFunctio
   }
 }
 
+static int32_t createMidFunction(const SFunctionNode* pSrcFunc, const SFunctionNode* pPartialFunc,
+                                   SFunctionNode** pMidFunc) {
+  SNodeList*     pParameterList = NULL;
+  SFunctionNode* pFunc = NULL;
+
+  int32_t code = createMergeFuncPara(pSrcFunc, pPartialFunc, &pParameterList);
+  if (TSDB_CODE_SUCCESS == code) {
+    if(funcMgtBuiltins[pSrcFunc->funcId].pMiddleFunc != NULL){
+      pFunc = createFunction(funcMgtBuiltins[pSrcFunc->funcId].pMiddleFunc, pParameterList);
+    }else{
+      pFunc = createFunction(funcMgtBuiltins[pSrcFunc->funcId].pMergeFunc, pParameterList);
+    }
+    if (NULL == pFunc) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    strcpy(pFunc->node.aliasName, pPartialFunc->node.aliasName);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pMidFunc = pFunc;
+  } else {
+    nodesDestroyList(pParameterList);
+  }
+
+  return code;
+}
+
 static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctionNode* pPartialFunc,
                                    SFunctionNode** pMergeFunc) {
   SNodeList*     pParameterList = NULL;
@@ -451,18 +480,22 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
   return code;
 }
 
-int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc) {
+int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc, SFunctionNode** pMergeFunc) {
   if (!fmIsDistExecFunc(pFunc->funcId)) {
     return TSDB_CODE_FAILED;
   }
 
   int32_t code = createPartialFunction(pFunc, pPartialFunc);
   if (TSDB_CODE_SUCCESS == code) {
+    code = createMidFunction(pFunc, *pPartialFunc, pMidFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = createMergeFunction(pFunc, *pPartialFunc, pMergeFunc);
   }
 
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)*pPartialFunc);
+    nodesDestroyNode((SNode*)*pMidFunc);
     nodesDestroyNode((SNode*)*pMergeFunc);
   }
 
