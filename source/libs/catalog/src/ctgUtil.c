@@ -2382,21 +2382,6 @@ int32_t dupViewMetaFromRsp(SViewMetaRsp* pRsp, SViewMeta* pViewMeta) {
 }
 
 uint64_t ctgGetTbTSMACacheSize(STableTSMAInfo* pTsmaInfo) {
+  //TODO
   return 0;
-}
-
-int32_t ctgCloneTbTSMA(STSMACache* pInfo, STSMACache** pRes) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (NULL == pInfo) {
-    return TSDB_CODE_SUCCESS;
-  }
-  STSMACache* pCache = taosMemoryCalloc(1, sizeof(STSMACache));
-  if (!pCache) return TSDB_CODE_OUT_OF_MEMORY;
-
-  *pCache = *pInfo;
-  if (pInfo->pFuncs) {
-    pCache->pFuncs = taosArrayDup(pInfo->pFuncs, NULL);
-  }
-  *pRes = pCache;
-  return code;
 }

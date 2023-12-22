@@ -2655,7 +2655,7 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
   if (pOut->pTsmas && taosArrayGetSize(pOut->pTsmas) > 0) {
     for (int32_t i = 0; i < taosArrayGetSize(pOut->pTsmas); ++i) {
       STableTSMAInfo* pInfo = taosArrayGetP(pOut->pTsmas, i);
-      CTG_ERR_JRET(ctgCloneTbTSMA(pInfo, &pTsma));
+      CTG_ERR_JRET(tCloneTbTSMAInfo(pInfo, &pTsma));
       CTG_ERR_JRET(ctgUpdateTbTSMAEnqueue(pTask->pJob->pCtg, &pTsma, false));
     }
   }

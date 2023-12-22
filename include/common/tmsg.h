@@ -4165,6 +4165,7 @@ typedef struct {
   char     tb[TSDB_TABLE_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
   uint64_t suid;
+  uint64_t destTbUid;
   uint64_t dbId;
   int32_t  version;
   int64_t  interval;
@@ -4178,6 +4179,7 @@ typedef struct {
 
 int32_t tSerializeTableTSMAInfoRsp(void* buf, int32_t bufLen, const STableTSMAInfoRsp* pRsp);
 int32_t tDeserializeTableTSMAInfoRsp(void* buf, int32_t bufLen, STableTSMAInfoRsp* pReq);
+int32_t tCloneTbTSMAInfo(STableTSMAInfo* pInfo, STableTSMAInfo** pRes);
 void    tFreeTableTSMAInfo(void* p);
 void    tFreeAndClearTableTSMAInfo(void* p);
 void    tFreeTableTSMAInfoRsp(STableTSMAInfoRsp* pRsp);
