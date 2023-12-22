@@ -387,17 +387,17 @@ export default {
     }
   }
 }
+.show-topic-sql .pre-code {
+  text-align: left;
+  background-color: #f6f8fa;
+  padding: 10px 5px 20px 5px;
+  display: inline-flex;
+}
+
 .language-sql {
   white-space: normal;
   word-break: break-all;
   word-wrap: break-word;
 }
 </style>
-<style>
-.show-topic-sql .pre-code {
-  text-align: left;
-  background-color: #f6f8fa;
-  padding: 5px;
-  white-space: break-spaces;
-}
-</style>
+
