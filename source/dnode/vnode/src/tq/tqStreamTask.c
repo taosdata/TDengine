@@ -141,8 +141,8 @@ int32_t tqStopStreamTasks(STQ* pTq) {
   int32_t numOfTasks = taosArrayGetSize(pTaskList);
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
-    SStreamTaskId*   pTaskId = taosArrayGet(pTaskList, i);
-    SStreamTask* pTask = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId);
+    SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
+    SStreamTask*   pTask = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId);
     if (pTask == NULL) {
       continue;
     }

@@ -1210,7 +1210,7 @@ void metaHbToMnode(void* param, void* tmrId) {
 
 bool streamMetaTaskInTimer(SStreamMeta* pMeta) {
   bool inTimer = false;
-  streamMetaWLock(pMeta);
+  streamMetaRLock(pMeta);
 
   void* pIter = NULL;
   while (1) {
@@ -1226,7 +1226,7 @@ bool streamMetaTaskInTimer(SStreamMeta* pMeta) {
     }
   }
 
-  streamMetaWUnLock(pMeta);
+  streamMetaRUnLock(pMeta);
   return inTimer;
 }
 
@@ -1303,6 +1303,7 @@ void streamMetaRUnLock(SStreamMeta* pMeta) {
 void streamMetaWLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-wlock", pMeta->vgId);
   taosWLockLatch(&pMeta->lock);
+  stTrace("vgId:%d meta-wlock completed", pMeta->vgId);
 }
 
 void streamMetaWUnLock(SStreamMeta* pMeta) {
