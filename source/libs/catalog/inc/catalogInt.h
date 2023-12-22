@@ -1120,7 +1120,6 @@ int32_t  ctgGetTbTSMAFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SName* n
 int32_t  ctgUpdateTbTSMAEnqueue(SCatalog* pCtg, STSMACache** pTsma, bool syncOp);
 int32_t  ctgDropTSMAForTbEnqueue(SCatalog* pCtg, SName* pName, bool syncOp);
 int32_t  ctgDropTbTSMAEnqueue(SCatalog* pCtg, const STSMACache* pTsma, bool syncOp);
-int32_t  ctgCloneTbTSMA(STSMACache* pTsmas, STSMACache** pRes);
 int32_t  ctgOpDropTbTSMA(SCtgCacheOperation* operation);
 int32_t  ctgOpUpdateTbTSMA(SCtgCacheOperation* operation);
 uint64_t ctgGetTbTSMACacheSize(STSMACache* pTsmaInfo);
