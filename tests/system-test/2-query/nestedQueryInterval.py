@@ -1113,157 +1113,106 @@ class TDTestCase:
         tdLog.debug("test insert data into stable")
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 100);
-        tdSql.checkData(1, 1, 200);
+        tdSql.checkData(0, 1, 100)
+        tdSql.checkData(1, 1, 200)
                 
         tdSql.query(f"insert into nested.stable_1 (ts,tbname) values(now,'stable_1_1');")
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 101);
-        tdSql.checkData(1, 1, 200);
+        tdSql.checkData(0, 1, 101)
+        tdSql.checkData(1, 1, 200)
                
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_int) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_bigint) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_smallint) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_tinyint) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_float) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_double) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_bool) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_binary) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_nchar) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_ts) values(now,'stable_1_1',1);")
-        tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
+        qlist = ['q_int', 'q_bigint', 'q_smallint', 'q_tinyint', 'q_float', 'q_double', 'q_bool', 'q_binary', 'q_nchar', 'q_ts']
+        for i in range(10):
+            coulmn_name =  qlist[i]
+            tdSql.execute(f"insert into nested.stable_1 (ts, tbname, {coulmn_name}) values(now+{i}s,'stable_1_1',1);")
+        tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;",queryTimes=5)
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 111);
-        tdSql.checkData(1, 1, 200);
-               
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_int_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_bigint_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_smallint_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_tinyint_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_float_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_double_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_bool_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_binary_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_nchar_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_ts_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
+        tdSql.checkData(0, 1, 111)
+        tdSql.checkData(1, 1, 200)
+
+        q_null_list = ['q_int_null', 'q_bigint_null', 'q_smallint_null', 'q_tinyint_null', 'q_float_null', 'q_double_null', 'q_bool_null', 'q_binary_null', 'q_nchar_null', 'q_ts_null']
+        for i in range(10):
+            coulmn_name =  q_null_list[i]
+            tdSql.execute(f"insert into nested.stable_1 (ts, tbname, {coulmn_name}) values(now+{i}s,'stable_1_1',1);")       
+        tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;",queryTimes=5)
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 121);
-        tdSql.checkData(1, 1, 200);
+        tdSql.checkData(0, 1, 121)
+        tdSql.checkData(1, 1, 200)
                        
                        
         tdSql.query(f"insert into nested.stable_null_data (ts,tbname) values(now,'stable_null_data_1');")
         tdSql.query(f"select tbname,count(*) from nested.stable_null_data_1 group by tbname order by tbname;")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 1);
-                
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_int) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_bigint) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_smallint) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_tinyint) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_float) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_double) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_bool) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_binary) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_nchar) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_ts) values(now,'stable_null_data_1',1);")
+        tdSql.checkData(0, 1, 1)
+
+        for i in range(10):
+            coulmn_name =  qlist[i]
+            tdSql.execute(f"insert into nested.stable_null_data (ts, tbname, {coulmn_name}) values(now+{i}s,'stable_null_data_1',1);")                        
+
+        tdSql.query(f"select tbname,count(*) from nested.stable_null_data group by tbname order by tbname;",queryTimes=5)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 11)
+
+        for i in range(10):
+            coulmn_name =  q_null_list[i]
+            tdSql.execute(f"insert into nested.stable_null_data (ts, tbname, {coulmn_name}) values(now+{i}s,'stable_null_data_1',1);")                       
+
         tdSql.query(f"select tbname,count(*) from nested.stable_null_data group by tbname order by tbname;")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 11);
-                
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_int_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_bigint_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_smallint_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_tinyint_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_float_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_double_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_bool_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_binary_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_nchar_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_ts_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"select tbname,count(*) from nested.stable_null_data group by tbname order by tbname;")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 21);
-        
+        tdSql.checkData(0, 1, 21)
         
         tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname) values(now,'stable_null_childtable_1');")
         tdSql.query(f"select tbname,count(*) from nested.stable_null_childtable group by tbname order by tbname;")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 1);
-        
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_int) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_bigint) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_smallint) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_tinyint) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_float) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_double) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_bool) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_binary) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_nchar) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_ts) values(now,'stable_null_childtable_1',1);")
+        tdSql.checkData(0, 1, 1)
+
+        for i in range(10):
+            coulmn_name =  qlist[i]
+            tdSql.execute(f"insert into nested.stable_null_childtable (ts, tbname, {coulmn_name}) values(now+{i}s,'stable_null_childtable_1',1);")    
         tdSql.query(f"select tbname,count(*) from nested.stable_null_childtable group by tbname order by tbname;")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 11);
-        
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_int_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_bigint_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_smallint_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_tinyint_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_float_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_double_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_bool_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_binary_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_nchar_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_ts_null) values(now,'stable_null_childtable_1',1);")
+        tdSql.checkData(0, 1, 11)
+
+        for i in range(10):
+            coulmn_name =  q_null_list[i]
+            tdSql.execute(f"insert into nested.stable_null_childtable (ts, tbname, {coulmn_name}) values(now+{i}s,'stable_null_childtable_1',1);")           
         tdSql.query(f"select tbname,count(*) from nested.stable_null_childtable group by tbname order by tbname;")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 21);
+        tdSql.checkData(0, 1, 21)
         
     def TS_3932_flushdb(self):
         tdLog.debug("test flush db and insert data into stable")
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 121);
-        tdSql.checkData(1, 1, 200);
-                
+        tdSql.checkData(0, 1, 121)
+        tdSql.checkData(1, 1, 200)
+
+        qlist = ['q_int', 'q_bigint', 'q_smallint', 'q_tinyint', 'q_float', 'q_double', 'q_bool', 'q_binary', 'q_nchar', 'q_ts']
+        q_null_list = ['q_int_null', 'q_bigint_null', 'q_smallint_null', 'q_tinyint_null', 'q_float_null', 'q_double_null', 'q_bool_null', 'q_binary_null', 'q_nchar_null', 'q_ts_null']                        
         tdSql.query(f"insert into nested.stable_1 (ts,tbname) values(now,'stable_1_1');")
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 122);
-        tdSql.checkData(1, 1, 200);
-               
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_int) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_bigint) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_smallint) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_tinyint) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_float) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_double) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_bool) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_binary) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_nchar) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_ts) values(now,'stable_1_1',1);")
+        tdSql.checkData(0, 1, 122)
+        tdSql.checkData(1, 1, 200)
+
+        for i in range(10):
+            coulmn_name =  qlist[i]
+            tdSql.execute(f"insert into nested.stable_1 (ts, tbname, {coulmn_name}) values(now+{i}s,'stable_1_1',1);")
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 132);
-        tdSql.checkData(1, 1, 200);
-               
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_int_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_bigint_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_smallint_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_tinyint_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_float_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_double_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_bool_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_binary_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_nchar_null) values(now,'stable_1_1',1);")
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_ts_null) values(now,'stable_1_1',1);")
+        tdSql.checkData(0, 1, 132)
+        tdSql.checkData(1, 1, 200)
+
+        for i in range(10):
+            coulmn_name =  q_null_list[i]
+            tdSql.execute(f"insert into nested.stable_1 (ts, tbname, {coulmn_name}) values(now+{i}s,'stable_1_1',1);")
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 142);
-        tdSql.checkData(1, 1, 200);
+        tdSql.checkData(0, 1, 142)
+        tdSql.checkData(1, 1, 200)
                        
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_int) values(now,'stable_1_1',1) \
+        tdSql.execute(f"insert into nested.stable_1 (ts,tbname,q_int) values(now,'stable_1_1',1) \
                       nested.stable_1 (ts,tbname,q_bigint) values(now+1a,'stable_1_1',1)\
                       nested.stable_1 (ts,tbname,q_smallint) values(now+2a,'stable_1_1',1)\
                       nested.stable_1 (ts,tbname,q_tinyint) values(now+3a,'stable_1_1',1)\
@@ -1282,34 +1231,21 @@ class TDTestCase:
         tdSql.query(f"select tbname,count(*) from nested.stable_null_data_1 group by tbname order by tbname;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 22);
-                
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_int) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_bigint) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_smallint) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_tinyint) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_float) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_double) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_bool) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_binary) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_nchar) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_ts) values(now,'stable_null_data_1',1);")
+
+        for i in range(10):
+            coulmn_name =  qlist[i]
+            tdSql.execute(f"insert into nested.stable_null_data (ts, tbname, {coulmn_name}) values(now+{i}s,'stable_null_data_1',1);")
         tdSql.query(f"select tbname,count(*) from nested.stable_null_data group by tbname order by tbname;")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 32);
-                
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_int_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_bigint_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_smallint_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_tinyint_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_float_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_double_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_bool_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_binary_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_nchar_null) values(now,'stable_null_data_1',1);")
-        tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_ts_null) values(now,'stable_null_data_1',1);")
+        tdSql.checkData(0, 1, 32)
+
+        for i in range(10):
+            coulmn_name =  q_null_list[i]
+            tdSql.execute(f"insert into nested.stable_null_data (ts, tbname, {coulmn_name}) values(now+{i}s,'stable_null_data_1',1);")                
+
         tdSql.query(f"select tbname,count(*) from nested.stable_null_data group by tbname order by tbname;")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 42);
+        tdSql.checkData(0, 1, 42)
          
         tdSql.query(f"insert into nested.stable_null_data (ts,tbname,q_int) values(now,'stable_null_data_1',1) \
                       nested.stable_null_data (ts,tbname,q_bigint) values(now+1a,'stable_null_data_1',1)\
@@ -1330,32 +1266,18 @@ class TDTestCase:
         tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname) values(now,'stable_null_childtable_1');")
         tdSql.query(f"select tbname,count(*) from nested.stable_null_childtable group by tbname order by tbname;")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 22);
-        
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_int) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_bigint) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_smallint) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_tinyint) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_float) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_double) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_bool) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_binary) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_nchar) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_ts) values(now,'stable_null_childtable_1',1);")
+        tdSql.checkData(0, 1, 22)
+
+        for i in range(10):
+            coulmn_name =  qlist[i]
+            tdSql.execute(f"insert into nested.stable_null_childtable (ts, tbname, {coulmn_name}) values(now+{i}s,'stable_null_childtable_1',1);")
         tdSql.query(f"select tbname,count(*) from nested.stable_null_childtable group by tbname order by tbname;")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 32);
-        
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_int_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_bigint_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_smallint_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_tinyint_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_float_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_double_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_bool_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_binary_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_nchar_null) values(now,'stable_null_childtable_1',1);")
-        tdSql.query(f"insert into nested.stable_null_childtable (ts,tbname,q_ts_null) values(now,'stable_null_childtable_1',1);")
+        tdSql.checkData(0, 1, 32)
+
+        for i in range(10):
+            coulmn_name =  q_null_list[i]
+            tdSql.execute(f"insert into nested.stable_null_childtable (ts, tbname, {coulmn_name}) values(now+{i}s,'stable_null_childtable_1',1);")
         tdSql.query(f"select tbname,count(*) from nested.stable_null_childtable group by tbname order by tbname;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 42);
