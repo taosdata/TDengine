@@ -488,6 +488,16 @@ static int32_t stbSplCreatePartWindowNode(SWindowLogicNode* pMergeWindow, SLogic
   return code;
 }
 
+static SNode* createColumnByFunc(const SFunctionNode* pFunc) {
+  SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == pCol) {
+    return NULL;
+  }
+  strcpy(pCol->colName, pFunc->node.aliasName);
+  pCol->node.resType = pFunc->node.resType;
+  return (SNode*)pCol;
+}
+
 static int32_t stbSplCreatePartMidWindowNode(SWindowLogicNode* pMergeWindow, SLogicNode** pPartWindow, SLogicNode** pMidWindow) {
   SNodeList* pFunc = pMergeWindow->pFuncs;
   pMergeWindow->pFuncs = NULL;
@@ -521,7 +531,7 @@ static int32_t stbSplCreatePartMidWindowNode(SWindowLogicNode* pMergeWindow, SLo
   int32_t code = stbSplRewriteFuns(pFunc, &pFuncPart, &pFuncMerge);
   pPartWin->pFuncs = pFuncPart;
   pMergeWindow->pFuncs = pFuncMerge;
-  pMidWin->pFuncs = nodesCloneList(pFuncMerge);
+  pMidWin->pFuncs = nodesCloneList(pFuncPart);
 
   int32_t index = 0;
   if (TSDB_CODE_SUCCESS == code) {
@@ -543,7 +553,16 @@ static int32_t stbSplCreatePartMidWindowNode(SWindowLogicNode* pMergeWindow, SLo
     for (int32_t i = 0; i < LIST_LENGTH(pMidWin->pFuncs); ++i) {
       SFunctionNode* pFunc1 = (SFunctionNode*)nodesListGetNode(pPartWin->pFuncs, i);
       SFunctionNode* pFunc2 = (SFunctionNode*)nodesListGetNode(pMidWin->pFuncs, i);
-      strcpy(pFunc2->node.aliasName, pFunc1->node.aliasName);
+      NODES_DESTORY_LIST(pFunc2->pParameterList);
+
+      SNodeList* pParameterList = NULL;
+      SNode* pRes = createColumnByFunc(pFunc1);
+      code = nodesListMakeStrictAppend(&pParameterList, pRes);
+      if(code == TSDB_CODE_SUCCESS){
+        pFunc2->pParameterList = pParameterList;
+      }else{
+        nodesDestroyNode(pRes);
+      }
     }
   }
 

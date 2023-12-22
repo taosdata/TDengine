@@ -556,12 +556,13 @@ static void bindTwoLevel(SArray* tasks, int32_t begin, int32_t end) {
   SArray* pUpTaskList = taosArrayGetP(tasks, size - 2);
 
   SStreamTask** pDownTask = taosArrayGetLast(pDownTaskList);
-  for(int i = begin; i < end && i < taosArrayGetSize(pUpTaskList); i++){
+  end = end > taosArrayGetSize(pUpTaskList) ? taosArrayGetSize(pUpTaskList): end;
+  for(int i = begin; i < end; i++){
     SStreamTask* pUpTask = taosArrayGetP(pUpTaskList, i);
     streamTaskSetFixedDownstreamInfo(pUpTask, *pDownTask);
     streamTaskSetUpstreamInfo(*pDownTask, pUpTask);
   }
-  mDebug("bindTwoLevel task list(%d-%d) to taskId:%s", begin, end, (*(pDownTask))->id.idStr);
+  mDebug("bindTwoLevel task list(%d-%d) to taskId:%s", begin, end - 1, (*(pDownTask))->id.idStr);
 }
 
 static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan* pPlan, int64_t nextWindowSkey, SEpSet* pEpset) {

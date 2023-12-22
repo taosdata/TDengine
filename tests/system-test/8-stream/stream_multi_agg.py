@@ -37,11 +37,11 @@ class TDTestCase:
     def case1(self):
         tdLog.debug("========case1 start========")
 
-        os.system("nohup taosBenchmark -y -B 1 -t 40 -S 1000 -n 10 -i 1000 -v 12  > /dev/null 2>&1 &")
-        time.sleep(4)
+        os.system("nohup taosBenchmark -y -B 1 -t 40 -S 1000 -n 10 -i 1000 -v 5  > /dev/null 2>&1 &")
+        time.sleep(10)
         tdSql.query("use test")
         tdSql.query("create stream if not exists s1 trigger at_once  ignore expired 0 ignore update 0  fill_history 1 into st1 as select _wstart,sum(voltage),groupid from meters partition by groupid interval(2s)")
-        tdLog.debug("========create stream useing snode and insert data ok========")
+        tdLog.debug("========create stream and insert data ok========")
         time.sleep(15)
 
         tdSql.query("select _wstart,sum(voltage),groupid from meters partition by groupid interval(2s) order by groupid,_wstart")
@@ -64,7 +64,7 @@ class TDTestCase:
     def case2(self):
         tdLog.debug("========case2 start========")
 
-        os.system("taosBenchmark -d db -t 20 -v 12 -n 1000 -y  > /dev/null 2>&1")
+        os.system("taosBenchmark -d db -t 20 -v 6 -n 1000 -y  > /dev/null 2>&1")
         # create stream
         tdSql.execute("use db")
         tdSql.execute("create stream stream1 fill_history 1 into sta as select count(*) as cnt from meters interval(10a);",show=True)
