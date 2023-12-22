@@ -97,8 +97,24 @@ export default {
       }
     },
   },
+  // 监听,当路由发生变化的时候执行
+  watch:{
+    $route: {
+      handler (to,from,next){
+        try {
+          if (to.name != "Login") {
+            this.getLicense()
+          }
+          next();
+        } catch (error) {
+          console.log('err');
+        }
+      },
+      immediate: true
+    }
+  },
   created() {
-    this.getLicense();
+    // this.getLicense();
   },
   mounted() {
     if (process.env.VUE_APP_CUS_CONFIG) {
