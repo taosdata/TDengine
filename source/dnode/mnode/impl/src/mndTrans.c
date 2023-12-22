@@ -1096,7 +1096,7 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
 
 static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf) {
   if (pAction->rawWritten) return 0;
-  if (topHalf) return -1;
+  if (topHalf) return TSDB_CODE_MND_TRANS_CTX_SWITCH;
 
   int32_t code = sdbWriteWithoutFree(pMnode->pSdb, pAction->pRaw);
   if (code == 0 || terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
@@ -1119,7 +1119,7 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
 
 static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf) {
   if (pAction->msgSent) return 0;
-  if (mndCannotExecuteTransAction(pMnode, topHalf)) return -1;
+  if (mndCannotExecuteTransAction(pMnode, topHalf)) return TSDB_CODE_MND_TRANS_CTX_SWITCH;
 
   int64_t signature = pTrans->id;
   signature = (signature << 32);
@@ -1165,7 +1165,7 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
 }
 
 static int32_t mndTransExecNullMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf) {
-  if (!topHalf) return -1;
+  if (!topHalf) return TSDB_CODE_MND_TRANS_CTX_SWITCH;
   pAction->rawWritten = 0;
   pAction->errCode = 0;
   mInfo("trans:%d, %s:%d confirm action executed", pTrans->id, mndTransStr(pAction->stage), pAction->id);
@@ -1191,7 +1191,11 @@ static int32_t mndTransExecSingleActions(SMnode *pMnode, STrans *pTrans, SArray 
   for (int32_t action = 0; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pArray, action);
     code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf);
-    if (code != 0) break;
+    if (code != 0) {
+      mInfo("trans:%d, action:%d not executed since %s. numOfActions:%d", pTrans->id, action, tstrerror(code),
+            numOfActions);
+      break;
+    }
   }
 
   return code;
@@ -1199,9 +1203,10 @@ static int32_t mndTransExecSingleActions(SMnode *pMnode, STrans *pTrans, SArray 
 
 static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pArray, bool topHalf) {
   int32_t numOfActions = taosArrayGetSize(pArray);
+  int32_t code = 0;
   if (numOfActions == 0) return 0;
 
-  if (mndTransExecSingleActions(pMnode, pTrans, pArray, topHalf) != 0) {
+  if ((code = mndTransExecSingleActions(pMnode, pTrans, pArray, topHalf)) != 0) {
     return -1;
   }
 

@@ -533,7 +533,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   taosThreadMutexLock(&pMgmt->lock);
   pMgmt->errCode = 0;
 
-  if (pMgmt->transId != 0 /* && pMgmt->transId != transId*/) {
+  if (pMgmt->transId != 0) {
     mError("trans:%d, can't be proposed since trans:%d already waiting for confirm", transId, pMgmt->transId);
     taosThreadMutexUnlock(&pMgmt->lock);
     rpcFreeCont(req.pCont);
