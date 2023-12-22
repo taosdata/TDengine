@@ -1294,7 +1294,6 @@ void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
 void streamMetaRLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-rlock", pMeta->vgId);
   taosRLockLatch(&pMeta->lock);
-  ASSERT(pMeta->lock != 0x40000001);
 }
 
 void streamMetaRUnLock(SStreamMeta* pMeta) {
