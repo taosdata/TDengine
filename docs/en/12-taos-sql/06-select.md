@@ -9,7 +9,7 @@ description: This document describes how to query data in TDengine.
 ```sql
 SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
-SELECT [hints] [DISTINCT] select_list
+SELECT [hints] [DISTINCT] [TAGS] select_list
     from_clause
     [WHERE condition]
     [partition_by_clause]
@@ -187,7 +187,7 @@ The TBNAME pseudocolumn in a supertable contains the names of subtables within t
 The following SQL statement returns all unique subtable names and locations within the meters supertable:
 
 ```mysql
-SELECT DISTINCT TBNAME, location FROM meters;
+SELECT TAGS TBNAME, location FROM meters;
 ```
 
 Use the `INS_TAGS` system table in `INFORMATION_SCHEMA` to query the information for subtables in a supertable. For example, the following statement returns the name and tag values for each subtable in the `meters` supertable.
@@ -230,6 +230,14 @@ The \_IROWTS pseudocolumn can only be used with INTERP function. This pseudocolu
 
 ```sql
 select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(linear);
+```
+
+### TAGS Query
+
+The TAGS keyword returns only tag columns from all child tables when only tag columns are specified. One row containing tag columns is returned for each child table.
+
+```sql
+SELECT TAGS tag_name [, tag_name ...] FROM stb_name
 ```
 
 ## Query Objects
