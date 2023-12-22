@@ -20,7 +20,7 @@ scriptDir=$(dirname $(readlink -f $0))
 version="3.0.1.7"
 originversion="3.0.1.7"
 testFile="server"
-verMode="communtity"
+verMode="community"
 sourcePath="nas"
 cpuType="x64"
 lite="true"
@@ -79,7 +79,7 @@ GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
 if [[ ${verMode} = "enterprise" ]];then
-    prePackage="TDengine-enterprise-${testFile}"
+    prePackage="TDengine-enterprise-"
 elif [ ${verMode} = "community" ];then
     prePackage="TDengine-${testFile}"
 fi
@@ -145,41 +145,35 @@ elif [ ${color} = 'BD' ];then
 fi
 }
 
-
-
 function wgetFile {
+    file=$1
+    versionPath=$2
+    sourceP=$3
+    nasServerIP="192.168.1.213"
+    packagePath="/nas/TDengine/v${versionPath}/${verMode}"
+    if [ -f  ${file}  ];then
+        echoColor  YD "${file} already exists ,it will delete it and download  it again "
+        rm -rf ${file}
+    fi
 
-file=$1
-versionPath=$2
-sourceP=$3
-nasServerIP="192.168.1.213"
-packagePath="/nas/TDengine/v${versionPath}/${verMode}"
-if [ -f  ${file}  ];then
-    echoColor  YD "${file} already exists ,it will delete it and download  it again "
-    rm -rf ${file}
-fi
-
-if [[ ${sourceP} = 'web' ]];then
-    echoColor  BD "====download====:wget https://www.taosdata.com/assets-download/3.0/${file}"
-    wget https://www.taosdata.com/assets-download/3.0/${file}
-elif [[ ${sourceP} = 'nas' ]];then
-    echoColor  BD "====download====:scp root@${nasServerIP}:${packagePath}/${file} ."
-    scp root@${nasServerIP}:${packagePath}/${file} .
-fi
-
+    if [[ ${sourceP} = 'web' ]];then
+        echoColor  BD "====download====:wget https://www.taosdata.com/assets-download/3.0/${file}"
+        wget https://www.taosdata.com/assets-download/3.0/${file}
+    elif [[ ${sourceP} = 'nas' ]];then
+        echoColor  BD "====download====:scp root@${nasServerIP}:${packagePath}/${file} ."
+        scp root@${nasServerIP}:${packagePath}/${file} .
+    fi
 }
 
 function newPath {
+    buildPath=$1
 
-buildPath=$1
-
-if [ ! -d ${buildPath} ] ;then
-    echoColor BD "mkdir -p ${buildPath}"
-    mkdir -p ${buildPath}
-else  
-    echoColor YD "${buildPath} already exists"
-fi
-
+    if [ ! -d ${buildPath} ] ;then
+        echoColor BD "mkdir -p ${buildPath}"
+        mkdir -p ${buildPath}
+    else  
+        echoColor YD "${buildPath} already exists"
+    fi
 }
 
 
