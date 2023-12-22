@@ -814,9 +814,17 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   int32_t               code = 0;
   rocksdb_writebatch_t *wb = NULL;
   SArray               *pTmpColArray = NULL;
-  int                   num_keys = TARRAY_SIZE(remainCols);
-  int16_t              *aCols = taosMemoryMalloc(num_keys * sizeof(int16_t));
-  int16_t              *slotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
+
+  SIdxKey *idxKey = taosArrayGet(remainCols, 0);
+  if (idxKey->key.cid != PRIMARYKEY_TIMESTAMP_COL_ID) {
+    SLastKey *key = &(SLastKey){.ltype = ltype, .uid = uid, .cid = PRIMARYKEY_TIMESTAMP_COL_ID};
+
+    taosArrayInsert(remainCols, 0, &(SIdxKey){0, *key});
+  }
+
+  int      num_keys = TARRAY_SIZE(remainCols);
+  int16_t *aCols = taosMemoryMalloc(num_keys * sizeof(int16_t));
+  int16_t *slotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
 
   for (int i = 0; i < num_keys; ++i) {
     SIdxKey *idxKey = taosArrayGet(remainCols, i);
@@ -1783,7 +1791,7 @@ static int32_t lastIterOpen(SFSLastIter *iter, STFileSet *pFileSet, STsdb *pTsdb
       .backward = 1,
       .pSttFileBlockIterArray = pr->pLDataIterArray,
       .pCols = aCols,
-      .numOfCols = nCols + 1,
+      .numOfCols = nCols,
       .loadTombFn = loadSttTomb,
       .pReader = pr,
       .idstr = pr->idstr,
