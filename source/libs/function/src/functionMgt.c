@@ -538,11 +538,11 @@ static int32_t fmCreateStateFunc(const SFunctionNode* pFunc, SFunctionNode** pSt
   return TSDB_CODE_SUCCESS;
 }
 
-bool fmIsTSMASupportedFunc(func_id_t funcid) {
-  return fmIsAggFunc(funcid) && !fmIsForbidStreamFunc(funcid);
+bool fmIsTSMASupportedFunc(func_id_t funcId) {
+  return fmIsAggFunc(funcId) && !fmIsForbidStreamFunc(funcId);
 }
 
-int32_t rewriteFuncsForTSMA(SNodeList* pFuncs) {
+int32_t fmCreateStateFuncs(SNodeList* pFuncs) {
   int32_t code;
   SNode*  pNode;
   char    buf[128] = {0};
@@ -568,7 +568,7 @@ int32_t rewriteFuncsForTSMA(SNodeList* pFuncs) {
   return code;
 }
 
-int32_t getFuncId(const char* name) {
+int32_t fmGetFuncId(const char* name) {
   if (NULL != gFunMgtService.pFuncNameHashTable) {
     void* pVal = taosHashGet(gFunMgtService.pFuncNameHashTable, name, strlen(name));
     if (NULL != pVal) {
@@ -582,4 +582,13 @@ int32_t getFuncId(const char* name) {
     }
   }
   return -1;
+}
+
+bool fmIsMyStateFunc(int32_t funcId, int32_t stateFuncId) {
+  const SBuiltinFuncDefinition* pFunc = &funcMgtBuiltins[funcId];
+  const SBuiltinFuncDefinition* pStateFunc = &funcMgtBuiltins[stateFuncId];
+  if (!pFunc->pStateFunc) {
+    return false;
+  }
+  return strcmp(pFunc->pStateFunc, pStateFunc->name) == 0;
 }

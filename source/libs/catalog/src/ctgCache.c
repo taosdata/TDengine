@@ -3287,10 +3287,11 @@ int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
     SMetaRes res = {0};
+    // TODO if pCache->pTsmas is empty, maybe we should get tsmas from mnode
     for (int32_t i = 0; i < pCache->pTsmas->size; ++i) {
       STSMACache *pTsmaOut = NULL;
       STSMACache *pTsmaCache = taosArrayGetP(pCache->pTsmas, i);
-      code = ctgCloneTbTSMA(pTsmaCache, &pTsmaOut);
+      code = tCloneTbTSMAInfo(pTsmaCache, &pTsmaOut);
       if (code) {
         ctgReleaseTSMAToCache(pCtg, dbCache, pCache);
         tFreeTableTSMAInfoRsp(pRsp);

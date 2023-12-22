@@ -10448,7 +10448,7 @@ static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMC
   }
 
   if (code == TSDB_CODE_SUCCESS)
-    code = rewriteFuncsForTSMA(info.pFuncs);
+    code = fmCreateStateFuncs(info.pFuncs);
 
   if (code == TSDB_CODE_SUCCESS) {
     code = buildSampleAst(pCxt, &info, &pReq->ast, &pReq->astLen, &pReq->expr, &pReq->exprLen);
@@ -10505,7 +10505,7 @@ translateTSMAFuncs(STranslateContext * pCxt, SCreateTSMAStmt* pStmt, STableMeta*
   SNode* pNode;
   FOREACH(pNode, pStmt->pOptions->pFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
-    int32_t funcId = getFuncId(pFunc->functionName);
+    int32_t funcId = fmGetFuncId(pFunc->functionName);
     if (funcId < 0) {
       return TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION;
     }

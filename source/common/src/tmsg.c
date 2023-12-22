@@ -9970,6 +9970,7 @@ static int32_t tEncodeTableTSMAInfo(SEncoder* pEncoder, const STableTSMAInfo* pT
   if (tEncodeCStr(pEncoder, pTsmaInfo->tb) < 0) return -1;
   if (tEncodeCStr(pEncoder, pTsmaInfo->dbFName) < 0) return -1;
   if (tEncodeU64(pEncoder, pTsmaInfo->suid) < 0) return -1;
+  if (tEncodeU64(pEncoder, pTsmaInfo->destTbUid) < 0) return -1;
   if (tEncodeU64(pEncoder, pTsmaInfo->dbId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTsmaInfo->version) < 0) return -1;
   if (tEncodeCStr(pEncoder, pTsmaInfo->targetTb) < 0) return -1;
@@ -9993,6 +9994,7 @@ static int32_t tDecodeTableTSMAInfo(SDecoder* pDecoder, STableTSMAInfo* pTsmaInf
   if (tDecodeCStrTo(pDecoder, pTsmaInfo->tb) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pTsmaInfo->dbFName) < 0) return -1;
   if (tDecodeU64(pDecoder, &pTsmaInfo->suid) < 0) return -1;
+  if (tDecodeU64(pDecoder, &pTsmaInfo->destTbUid) < 0) return -1;
   if (tDecodeU64(pDecoder, &pTsmaInfo->dbId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTsmaInfo->version) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pTsmaInfo->targetTb) < 0) return -1;
@@ -10079,6 +10081,22 @@ void tFreeAndClearTableTSMAInfo(void* p) {
     tFreeTableTSMAInfo(pTsmaInfo);
     taosMemoryFree(pTsmaInfo);
   }
+}
+
+int32_t tCloneTbTSMAInfo(STableTSMAInfo* pInfo, STableTSMAInfo** pRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (NULL == pInfo) {
+    return TSDB_CODE_SUCCESS;
+  }
+  STableTSMAInfo* pRet = taosMemoryCalloc(1, sizeof(STableTSMAInfo));
+  if (!pRet) return TSDB_CODE_OUT_OF_MEMORY;
+
+  *pRet = *pInfo;
+  if (pInfo->pFuncs) {
+    pRet->pFuncs = taosArrayDup(pInfo->pFuncs, NULL);
+  }
+  *pRes = pRet;
+  return code;
 }
 
 void tFreeTableTSMAInfoRsp(STableTSMAInfoRsp *pRsp) {

@@ -1394,7 +1394,7 @@ static void initSMAObj(SCreateTSMACxt* pCxt) {
   pCxt->pSma->uid = mndGenerateUid(pCxt->pCreateSmaReq->name, TSDB_TABLE_FNAME_LEN);
 
   memcpy(pCxt->pSma->dstTbName, pCxt->targetStbFullName, TSDB_TABLE_FNAME_LEN);
-  pCxt->pSma->dstTbUid = mndGenerateUid(pCxt->pSma->dstTbName, TSDB_TABLE_FNAME_LEN);
+  pCxt->pSma->dstTbUid = 0; // not used
   pCxt->pSma->stbUid = pCxt->pSrcStb->uid;
   pCxt->pSma->dbUid = pCxt->pDb->uid;
   pCxt->pSma->interval = pCxt->pCreateSmaReq->interval;
@@ -1561,8 +1561,8 @@ static int32_t mndCreateTSMA(SCreateTSMACxt *pCxt) {
     code = -1;
     goto _OVER;
   } else {
-    mInfo("sma:%s, uid:%" PRIi64 " create on stb:%" PRIi64 ", dstSuid:%" PRIi64 " dstTb:%s dstVg:%d",
-          pCxt->pCreateSmaReq->name, sma.uid, sma.stbUid, sma.dstTbUid, sma.dstTbName, sma.dstVgId);
+    mInfo("sma:%s, uid:%" PRIi64 " create on stb:%" PRIi64 " dstTb:%s dstVg:%d", pCxt->pCreateSmaReq->name, sma.uid,
+          sma.stbUid, sma.dstTbName, sma.dstVgId);
     code = 0;
   }
 
@@ -1921,13 +1921,14 @@ static void mndCancelRetrieveTSMA(SMnode *pMnode, void *pIter) {
   taosMemoryFree(p);
 }
 
-int32_t dumpTSMAInfoFromSmaObj(const SSmaObj* pSma, STableTSMAInfo* pInfo) {
+int32_t dumpTSMAInfoFromSmaObj(const SSmaObj* pSma, const SStbObj* pDestStb, STableTSMAInfo* pInfo) {
   int32_t code = 0;
   pInfo->interval = pSma->interval;
   pInfo->unit = pSma->intervalUnit;
   pInfo->tsmaId = pSma->uid;
   pInfo->version = pSma->version;
   pInfo->tsmaId = pSma->uid;
+  pInfo->destTbUid = pDestStb->uid;
   SName sName = {0};
   tNameFromString(&sName, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
   tstrncpy(pInfo->name, sName.tname, TSDB_TABLE_NAME_LEN);
@@ -1987,13 +1988,21 @@ static int32_t mndGetTableTSMA(SMnode *pMnode, char *tbFName, STableTSMAInfoRsp 
       continue;
     }
 
+    pStb = mndAcquireStb(pMnode, pSma->dstTbName);
+    if (!pStb) {
+      sdbRelease(pSdb, pSma);
+      continue;
+    }
+
     STableTSMAInfo *pTsma = taosMemoryCalloc(1, sizeof(STableTSMAInfo));
     if (!pTsma) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
+      mndReleaseStb(pMnode, pStb);
       sdbRelease(pSdb, pSma);
       return code;
     }
-    terrno = dumpTSMAInfoFromSmaObj(pSma, pTsma);
+    terrno = dumpTSMAInfoFromSmaObj(pSma, pStb, pTsma);
+    mndReleaseStb(pMnode, pStb);
     if (terrno) {
       sdbRelease(pSdb, pSma);
       return code;
@@ -2120,16 +2129,25 @@ int32_t mndValidateTSMAInfo(SMnode *pMnode, STSMAVersion *pTsmaVersions, int32_t
       continue;
     }
 
+    SStbObj* pDestStb = mndAcquireStb(pMnode, pSma->dstTbName);
+    if (!pDestStb) {
+      mInfo("tsma: %s.%" PRIx64 " dest stb: %s not found, maybe dropped", tsmaFName, pTsmaVer->tsmaId, pSma->dstTbName);
+      mndReleaseSma(pMnode, pSma);
+      continue;
+    }
+
     // dump smaObj into rsp
     STableTSMAInfo *   pInfo = NULL;
     pInfo = taosMemoryCalloc(1, sizeof(STableTSMAInfo));
-    if (!pInfo || (terrno = dumpTSMAInfoFromSmaObj(pSma, pInfo))) {
+    if (!pInfo || (terrno = dumpTSMAInfoFromSmaObj(pSma, pDestStb, pInfo))) {
       mndReleaseSma(pMnode, pSma);
+      mndReleaseStb(pMnode, pDestStb);
       taosMemoryFreeClear(pInfo);
       goto _OVER;
     }
 
     taosArrayPush(hbRsp.pTsmas, pInfo);
+    mndReleaseStb(pMnode, pDestStb);
     mndReleaseSma(pMnode, pSma);
   }
 
