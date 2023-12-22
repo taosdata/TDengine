@@ -1293,24 +1293,23 @@ void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
 
 void streamMetaRLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-rlock", pMeta->vgId);
-  taosRLockLatch(&pMeta->lock);
+  taosThreadRwlockRdlock(&pMeta->lock);
 }
 
 void streamMetaRUnLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-runlock", pMeta->vgId);
-  taosRUnLockLatch(&pMeta->lock);
+  taosThreadRwlockUnlock(&pMeta->lock);
 }
 
 void streamMetaWLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-wlock", pMeta->vgId);
-  taosWLockLatch(&pMeta->lock);
-  ASSERT(pMeta->lock != 0x40000001);
+  taosThreadRwlockWrlock(&pMeta->lock);
   stTrace("vgId:%d meta-wlock completed", pMeta->vgId);
 }
 
 void streamMetaWUnLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-wunlock", pMeta->vgId);
-  taosWUnLockLatch(&pMeta->lock);
+  taosThreadRwlockUnlock(&pMeta->lock);
 }
 
 static void execHelper(struct SSchedMsg* pSchedMsg) {

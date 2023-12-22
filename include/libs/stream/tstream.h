@@ -497,7 +497,7 @@ typedef struct SStreamMeta {
   int32_t         role;
   bool            sendMsgBeforeClosing; // send hb to mnode before close all tasks when switch to follower.
   STaskStartInfo  startInfo;
-  SRWLatch        lock;
+  TdThreadRwlock  lock;
   int32_t         walScanCounter;
   void*           streamBackend;
   int64_t         streamBackendRid;
