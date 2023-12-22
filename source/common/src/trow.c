@@ -17,6 +17,221 @@
 #include "trow.h"
 #include "tlog.h"
 
+static bool  tdSTSRowIterGetTpVal(STSRowIter *pIter, col_type_t colType, int32_t offset, SCellVal *pVal);
+static bool  tdSTSRowIterGetKvVal(STSRowIter *pIter, col_id_t colId, col_id_t *nIdx, SCellVal *pVal);
+
+void tdSTSRowIterInit(STSRowIter *pIter, STSchema *pSchema) {
+  pIter->pSchema = pSchema;
+  pIter->maxColId = pSchema->columns[pSchema->numOfCols - 1].colId;
+}
+
+void *tdGetBitmapAddr(STSRow *pRow, uint8_t rowType, uint32_t flen, col_id_t nKvCols) {
+#ifdef TD_SUPPORT_BITMAP
+  switch (rowType) {
+    case TD_ROW_TP:
+      return tdGetBitmapAddrTp(pRow, flen);
+    case TD_ROW_KV:
+      return tdGetBitmapAddrKv(pRow, nKvCols);
+    default:
+      break;
+  }
+#endif
+  return NULL;
+}
+
+void tdSTSRowIterReset(STSRowIter *pIter, STSRow *pRow) {
+  pIter->pRow = pRow;
+  pIter->pBitmap = tdGetBitmapAddr(pRow, pRow->type, pIter->pSchema->flen, tdRowGetNCols(pRow));
+  pIter->offset = 0;
+  pIter->colIdx = 0;  // PRIMARYKEY_TIMESTAMP_COL_ID;
+  pIter->kvIdx = 0;
+}
+
+bool tdSTSRowIterFetch(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal) {
+  if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+    pVal->val = &pIter->pRow->ts;
+    pVal->valType = TD_VTYPE_NORM;
+    return true;
+  }
+
+  if (TD_IS_TP_ROW(pIter->pRow)) {
+    STColumn *pCol = NULL;
+    STSchema *pSchema = pIter->pSchema;
+    while (pIter->colIdx < pSchema->numOfCols) {
+      pCol = &pSchema->columns[pIter->colIdx];  // 1st column of schema is primary TS key
+      if (colId == pCol->colId) {
+        break;
+      } else if (pCol->colId < colId) {
+        ++pIter->colIdx;
+        continue;
+      } else {
+        return false;
+      }
+    }
+    tdSTSRowIterGetTpVal(pIter, pCol->type, pCol->offset, pVal);
+    ++pIter->colIdx;
+  } else if (TD_IS_KV_ROW(pIter->pRow)) {
+    return tdSTSRowIterGetKvVal(pIter, colId, &pIter->kvIdx, pVal);
+  } else {
+    pVal->valType = TD_VTYPE_NONE;
+    terrno = TSDB_CODE_INVALID_PARA;
+    if (COL_REACH_END(colId, pIter->maxColId)) return false;
+  }
+  return true;
+}
+
+bool tdSTSRowIterGetTpVal(STSRowIter *pIter, col_type_t colType, int32_t offset, SCellVal *pVal) {
+  STSRow *pRow = pIter->pRow;
+  if (pRow->statis == 0) {
+    pVal->valType = TD_VTYPE_NORM;
+    if (IS_VAR_DATA_TYPE(colType)) {
+      pVal->val = POINTER_SHIFT(pRow, *(VarDataOffsetT *)POINTER_SHIFT(TD_ROW_DATA(pRow), offset));
+    } else {
+      pVal->val = POINTER_SHIFT(TD_ROW_DATA(pRow), offset);
+    }
+    return true;
+  }
+
+  if (tdGetBitmapValType(pIter->pBitmap, pIter->colIdx - 1, &pVal->valType, 0) != TSDB_CODE_SUCCESS) {
+    pVal->valType = TD_VTYPE_NONE;
+    return true;
+  }
+
+  if (pVal->valType == TD_VTYPE_NORM) {
+    if (IS_VAR_DATA_TYPE(colType)) {
+      pVal->val = POINTER_SHIFT(pRow, *(VarDataOffsetT *)POINTER_SHIFT(TD_ROW_DATA(pRow), offset));
+    } else {
+      pVal->val = POINTER_SHIFT(TD_ROW_DATA(pRow), offset);
+    }
+  }
+
+  return true;
+}
+
+int32_t tdGetBitmapValTypeII(const void *pBitmap, int16_t colIdx, TDRowValT *pValType) {
+  if (!pBitmap || colIdx < 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  int16_t nBytes = colIdx / TD_VTYPE_PARTS;
+  int16_t nOffset = colIdx & TD_VTYPE_OPTR;
+  char   *pDestByte = (char *)POINTER_SHIFT(pBitmap, nBytes);
+  // use literal value directly and not use formula to simplify the codes
+  switch (nOffset) {
+    case 0:
+      *pValType = (((*pDestByte) & 0xC0) >> 6);
+      break;
+    case 1:
+      *pValType = (((*pDestByte) & 0x30) >> 4);
+      break;
+    case 2:
+      *pValType = (((*pDestByte) & 0x0C) >> 2);
+      break;
+    case 3:
+      *pValType = ((*pDestByte) & 0x03);
+      break;
+    default:
+      terrno = TSDB_CODE_INVALID_PARA;
+      return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tdGetBitmapValTypeI(const void *pBitmap, int16_t colIdx, TDRowValT *pValType) {
+  if (!pBitmap || colIdx < 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  int16_t nBytes = colIdx / TD_VTYPE_PARTS_I;
+  int16_t nOffset = colIdx & TD_VTYPE_OPTR_I;
+  char   *pDestByte = (char *)POINTER_SHIFT(pBitmap, nBytes);
+  // use literal value directly and not use formula to simplify the codes
+  switch (nOffset) {
+    case 0:
+      *pValType = (((*pDestByte) & 0x80) >> 7);
+      break;
+    case 1:
+      *pValType = (((*pDestByte) & 0x40) >> 6);
+      break;
+    case 2:
+      *pValType = (((*pDestByte) & 0x20) >> 5);
+      break;
+    case 3:
+      *pValType = (((*pDestByte) & 0x10) >> 4);
+      break;
+    case 4:
+      *pValType = (((*pDestByte) & 0x08) >> 3);
+      break;
+    case 5:
+      *pValType = (((*pDestByte) & 0x04) >> 2);
+      break;
+    case 6:
+      *pValType = (((*pDestByte) & 0x02) >> 1);
+      break;
+    case 7:
+      *pValType = ((*pDestByte) & 0x01);
+      break;
+    default:
+      terrno = TSDB_CODE_INVALID_PARA;
+      return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValType, int8_t bitmapMode) {
+  switch (bitmapMode) {
+    case 0:
+      tdGetBitmapValTypeII(pBitmap, colIdx, pValType);
+      break;
+    case -1:
+    case 1:
+      tdGetBitmapValTypeI(pBitmap, colIdx, pValType);
+      break;
+    default:
+      terrno = TSDB_CODE_INVALID_PARA;
+      return TSDB_CODE_FAILED;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+bool tdSTSRowIterGetKvVal(STSRowIter *pIter, col_id_t colId, col_id_t *nIdx, SCellVal *pVal) {
+  STSRow    *pRow = pIter->pRow;
+  SKvRowIdx *pKvIdx = NULL;
+  bool       colFound = false;
+  col_id_t   kvNCols = tdRowGetNCols(pRow) - 1;
+  void      *pColIdx = TD_ROW_COL_IDX(pRow);
+  while (*nIdx < kvNCols) {
+    pKvIdx = (SKvRowIdx *)POINTER_SHIFT(pColIdx, *nIdx * sizeof(SKvRowIdx));
+    if (pKvIdx->colId == colId) {
+      ++(*nIdx);
+      pVal->val = POINTER_SHIFT(pRow, pKvIdx->offset);
+      colFound = true;
+      break;
+    } else if (pKvIdx->colId > colId) {
+      pVal->valType = TD_VTYPE_NONE;
+      return true;
+    } else {
+      ++(*nIdx);
+    }
+  }
+
+  if (!colFound) {
+    if (colId <= pIter->maxColId) {
+      pVal->valType = TD_VTYPE_NONE;
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  if (tdGetBitmapValType(pIter->pBitmap, pIter->kvIdx - 1, &pVal->valType, 0) != TSDB_CODE_SUCCESS) {
+    pVal->valType = TD_VTYPE_NONE;
+  }
+
+  return true;
+}
+
+#ifdef BUILD_NO_CALL
 const uint8_t tdVTypeByte[2][3] = {{
                                        // 2 bits
                                        TD_VTYPE_NORM_BYTE_II,
@@ -34,8 +249,6 @@ const uint8_t tdVTypeByte[2][3] = {{
 
 // declaration
 static uint8_t tdGetBitmapByte(uint8_t byte);
-static bool    tdSTSRowIterGetTpVal(STSRowIter *pIter, col_type_t colType, int32_t offset, SCellVal *pVal);
-static bool    tdSTSRowIterGetKvVal(STSRowIter *pIter, col_id_t colId, col_id_t *nIdx, SCellVal *pVal);
 static bool    tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t colType, int32_t flen, uint32_t offset,
                               col_id_t colIdx, SCellVal *pVal);
 static bool    tdSKvRowGetVal(STSRow *pRow, col_id_t colId, col_id_t colIdx, SCellVal *pVal);
@@ -199,38 +412,6 @@ bool tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t colType, int32_t fl
   return true;
 }
 
-bool tdSTSRowIterFetch(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal) {
-  if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-    pVal->val = &pIter->pRow->ts;
-    pVal->valType = TD_VTYPE_NORM;
-    return true;
-  }
-
-  if (TD_IS_TP_ROW(pIter->pRow)) {
-    STColumn *pCol = NULL;
-    STSchema *pSchema = pIter->pSchema;
-    while (pIter->colIdx < pSchema->numOfCols) {
-      pCol = &pSchema->columns[pIter->colIdx];  // 1st column of schema is primary TS key
-      if (colId == pCol->colId) {
-        break;
-      } else if (pCol->colId < colId) {
-        ++pIter->colIdx;
-        continue;
-      } else {
-        return false;
-      }
-    }
-    tdSTSRowIterGetTpVal(pIter, pCol->type, pCol->offset, pVal);
-    ++pIter->colIdx;
-  } else if (TD_IS_KV_ROW(pIter->pRow)) {
-    return tdSTSRowIterGetKvVal(pIter, colId, &pIter->kvIdx, pVal);
-  } else {
-    pVal->valType = TD_VTYPE_NONE;
-    terrno = TSDB_CODE_INVALID_PARA;
-    if (COL_REACH_END(colId, pIter->maxColId)) return false;
-  }
-  return true;
-}
 
 bool tdSTSRowIterNext(STSRowIter *pIter, SCellVal *pVal) {
   if (pIter->colIdx >= pIter->pSchema->numOfCols) {
@@ -254,71 +435,6 @@ bool tdSTSRowIterNext(STSRowIter *pIter, SCellVal *pVal) {
     ASSERT(0);
   }
   ++pIter->colIdx;
-
-  return true;
-}
-
-bool tdSTSRowIterGetTpVal(STSRowIter *pIter, col_type_t colType, int32_t offset, SCellVal *pVal) {
-  STSRow *pRow = pIter->pRow;
-  if (pRow->statis == 0) {
-    pVal->valType = TD_VTYPE_NORM;
-    if (IS_VAR_DATA_TYPE(colType)) {
-      pVal->val = POINTER_SHIFT(pRow, *(VarDataOffsetT *)POINTER_SHIFT(TD_ROW_DATA(pRow), offset));
-    } else {
-      pVal->val = POINTER_SHIFT(TD_ROW_DATA(pRow), offset);
-    }
-    return true;
-  }
-
-  if (tdGetBitmapValType(pIter->pBitmap, pIter->colIdx - 1, &pVal->valType, 0) != TSDB_CODE_SUCCESS) {
-    pVal->valType = TD_VTYPE_NONE;
-    return true;
-  }
-
-  if (pVal->valType == TD_VTYPE_NORM) {
-    if (IS_VAR_DATA_TYPE(colType)) {
-      pVal->val = POINTER_SHIFT(pRow, *(VarDataOffsetT *)POINTER_SHIFT(TD_ROW_DATA(pRow), offset));
-    } else {
-      pVal->val = POINTER_SHIFT(TD_ROW_DATA(pRow), offset);
-    }
-  }
-
-  return true;
-}
-
-bool tdSTSRowIterGetKvVal(STSRowIter *pIter, col_id_t colId, col_id_t *nIdx, SCellVal *pVal) {
-  STSRow    *pRow = pIter->pRow;
-  SKvRowIdx *pKvIdx = NULL;
-  bool       colFound = false;
-  col_id_t   kvNCols = tdRowGetNCols(pRow) - 1;
-  void      *pColIdx = TD_ROW_COL_IDX(pRow);
-  while (*nIdx < kvNCols) {
-    pKvIdx = (SKvRowIdx *)POINTER_SHIFT(pColIdx, *nIdx * sizeof(SKvRowIdx));
-    if (pKvIdx->colId == colId) {
-      ++(*nIdx);
-      pVal->val = POINTER_SHIFT(pRow, pKvIdx->offset);
-      colFound = true;
-      break;
-    } else if (pKvIdx->colId > colId) {
-      pVal->valType = TD_VTYPE_NONE;
-      return true;
-    } else {
-      ++(*nIdx);
-    }
-  }
-
-  if (!colFound) {
-    if (colId <= pIter->maxColId) {
-      pVal->valType = TD_VTYPE_NONE;
-      return true;
-    } else {
-      return false;
-    }
-  }
-
-  if (tdGetBitmapValType(pIter->pBitmap, pIter->kvIdx - 1, &pVal->valType, 0) != TSDB_CODE_SUCCESS) {
-    pVal->valType = TD_VTYPE_NONE;
-  }
 
   return true;
 }
@@ -488,76 +604,6 @@ bool tdSTSRowGetVal(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCell
   }
 
   return true;
-}
-
-int32_t tdGetBitmapValTypeII(const void *pBitmap, int16_t colIdx, TDRowValT *pValType) {
-  if (!pBitmap || colIdx < 0) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-  int16_t nBytes = colIdx / TD_VTYPE_PARTS;
-  int16_t nOffset = colIdx & TD_VTYPE_OPTR;
-  char   *pDestByte = (char *)POINTER_SHIFT(pBitmap, nBytes);
-  // use literal value directly and not use formula to simplify the codes
-  switch (nOffset) {
-    case 0:
-      *pValType = (((*pDestByte) & 0xC0) >> 6);
-      break;
-    case 1:
-      *pValType = (((*pDestByte) & 0x30) >> 4);
-      break;
-    case 2:
-      *pValType = (((*pDestByte) & 0x0C) >> 2);
-      break;
-    case 3:
-      *pValType = ((*pDestByte) & 0x03);
-      break;
-    default:
-      terrno = TSDB_CODE_INVALID_PARA;
-      return terrno;
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t tdGetBitmapValTypeI(const void *pBitmap, int16_t colIdx, TDRowValT *pValType) {
-  if (!pBitmap || colIdx < 0) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-  int16_t nBytes = colIdx / TD_VTYPE_PARTS_I;
-  int16_t nOffset = colIdx & TD_VTYPE_OPTR_I;
-  char   *pDestByte = (char *)POINTER_SHIFT(pBitmap, nBytes);
-  // use literal value directly and not use formula to simplify the codes
-  switch (nOffset) {
-    case 0:
-      *pValType = (((*pDestByte) & 0x80) >> 7);
-      break;
-    case 1:
-      *pValType = (((*pDestByte) & 0x40) >> 6);
-      break;
-    case 2:
-      *pValType = (((*pDestByte) & 0x20) >> 5);
-      break;
-    case 3:
-      *pValType = (((*pDestByte) & 0x10) >> 4);
-      break;
-    case 4:
-      *pValType = (((*pDestByte) & 0x08) >> 3);
-      break;
-    case 5:
-      *pValType = (((*pDestByte) & 0x04) >> 2);
-      break;
-    case 6:
-      *pValType = (((*pDestByte) & 0x02) >> 1);
-      break;
-    case 7:
-      *pValType = ((*pDestByte) & 0x01);
-      break;
-    default:
-      terrno = TSDB_CODE_INVALID_PARA;
-      return terrno;
-  }
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tdSetBitmapValTypeI(void *pBitmap, int16_t colIdx, TDRowValT valType) {
@@ -944,21 +990,6 @@ int32_t tdSRowSetInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValType, int8_t bitmapMode) {
-  switch (bitmapMode) {
-    case 0:
-      tdGetBitmapValTypeII(pBitmap, colIdx, pValType);
-      break;
-    case -1:
-    case 1:
-      tdGetBitmapValTypeI(pBitmap, colIdx, pValType);
-      break;
-    default:
-      terrno = TSDB_CODE_INVALID_PARA;
-      return TSDB_CODE_FAILED;
-  }
-  return TSDB_CODE_SUCCESS;
-}
 #if 0
 bool tdIsBitmapValTypeNorm(const void *pBitmap, int16_t idx, int8_t bitmapMode) {
   TDRowValT valType = 0;
@@ -1020,32 +1051,7 @@ int32_t tdSetBitmapValType(void *pBitmap, int16_t colIdx, TDRowValT valType, int
   return TSDB_CODE_SUCCESS;
 }
 
-void *tdGetBitmapAddr(STSRow *pRow, uint8_t rowType, uint32_t flen, col_id_t nKvCols) {
-#ifdef TD_SUPPORT_BITMAP
-  switch (rowType) {
-    case TD_ROW_TP:
-      return tdGetBitmapAddrTp(pRow, flen);
-    case TD_ROW_KV:
-      return tdGetBitmapAddrKv(pRow, nKvCols);
-    default:
-      break;
-  }
-#endif
-  return NULL;
-}
 
-void tdSTSRowIterReset(STSRowIter *pIter, STSRow *pRow) {
-  pIter->pRow = pRow;
-  pIter->pBitmap = tdGetBitmapAddr(pRow, pRow->type, pIter->pSchema->flen, tdRowGetNCols(pRow));
-  pIter->offset = 0;
-  pIter->colIdx = 0;  // PRIMARYKEY_TIMESTAMP_COL_ID;
-  pIter->kvIdx = 0;
-}
-
-void tdSTSRowIterInit(STSRowIter *pIter, STSchema *pSchema) {
-  pIter->pSchema = pSchema;
-  pIter->maxColId = pSchema->columns[pSchema->numOfCols - 1].colId;
-}
 
 void tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pColVal) {
   STColumn *pTColumn = &pTSchema->columns[iCol];
@@ -1079,3 +1085,4 @@ void tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pColV
     }
   }
 }
+#endif
