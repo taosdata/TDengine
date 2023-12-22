@@ -88,7 +88,9 @@ const state = {
   splitExpresList:null,//transformer的split
   mappingjoin:'',//mapping时候映射值是join时候的
   definitions: [],
-  topParse:null
+  topParse:null,
+  transformresulttable:[],
+  createStWithoutDB:0
   
 };
 const saveKey = encodeURIComponent("appId");
@@ -116,6 +118,12 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_CREATESTWITHOUT_DB:(state,data)=>{
+    state.createStWithoutDB=data
+  },
+  SET_TRANS_RESULT_TABLE:(state,data)=>{
+    state.transformresulttable=data
+  },
   SET_TOP_PARSE:(state,data)=>{
     state.topParse=data
   },

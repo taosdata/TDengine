@@ -37,7 +37,7 @@
             v-bind="item"
           /> -->
           
-          <CommonTransformer v-if="item.type == 'parser'" :parent="parent"></CommonTransformer>
+          <CommonTransformer v-if="item.type == 'parser'" :parent="parent" ref='transform' :parserColumns="constmqttCols"></CommonTransformer>
           <ConnectivityCheck
             v-else-if="item.type == 'checkConnectivity'"
             :data="data[item.field]"
@@ -147,6 +147,10 @@ export default {
       type: Object,
       default: () => {}
     },
+    parser:{
+      type:Object,
+      default:()=>{}
+    },
     parent: {
       type: String,
       default: ''
@@ -161,16 +165,31 @@ export default {
   components: { FormItem, DocsContent, BlockHeader, ConnectivityCheck, ParserComp,CommonTransformer },
   data() {
     this.mb10Type = ['opcTable', 'parser', 'tabs', 'advanced', 'collapse'];
-    return {};
+    return {
+      constmqttCols:[]
+    };
   },
   computed: {
     lang() {
       return getBrowserLang() == 'zh' ? 'zh': 'en'
     }
   },
-  watch: {},
+  watch: {
+    parser:{
+      deep:true,
+      handler(val){
+        if(val){
+          this.$set(this, "constmqttCols", val.fields);
+        }
+       
+        console.log(val,'监听parser',this.$store.state.app.currentDBType);
+      }
+    }
+  },
   created() {},
-  mounted() {},
+  mounted() {
+    console.log(this.parent,this.$parent,'parent---trans',this.parser);
+  },
   methods: {
     tabDisabled(child, parent) {
       if (!hasOwn(child, 'disabled')) return false;

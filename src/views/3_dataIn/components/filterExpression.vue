@@ -26,23 +26,11 @@
 
       <div class="btns">
         <el-button icon="el-icon-delete" @click="deleteFilter"></el-button>
-        <!-- <el-button icon="el-icon-check" @click="submit"></el-button> -->
       </div>
     </div>
     <div class='tip' v-if='ruleForm.filter_name'>
       <span :class="['excutetip',isexecuted?'done':'']">{{isexecuted?$t('datasource.transformer.filterexecuted'):$t('datasource.transformer.filterunexe')}}</span>
     </div>
-    <!-- <div class="table" v-if="tableData.length > 0">
-      <el-table :data="tableData" border style="width: 100%">
-        <el-table-column
-          v-for="(item, index) in tableColumns"
-          :key="index"
-          :label="tableColumns[index]"
-          :prop="tableColumns[index]"
-          show-overflow-tooltip
-        ></el-table-column>
-      </el-table>
-    </div> -->
   </div>
 </template>
 <script>
@@ -144,6 +132,7 @@ export default {
             })
           );
         });
+        this.$store.commit("app/SET_TRANS_RESULT_TABLE", this.tableData);
         let transformerColumns = [
           {
             value: "expression",

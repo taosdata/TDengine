@@ -36,7 +36,10 @@
         </el-form-item>
         <el-form-item prop="filter_expres">
           <template v-if="ruleForm.filter_name == 'split'">
-            <SplitExpression ref="splitExpression"></SplitExpression>
+            <SplitExpression
+              ref="splitExpression"
+              :ruleForm="itemData.splitParams"
+            ></SplitExpression>
           </template>
           <el-popover
             v-else
@@ -83,19 +86,6 @@
         <span v-else>{{ item.name }}</span>
       </li>
     </ul>
-    <!-- <el-dialog :visible.sync='dialogVisible'> -->
-    <!-- <div class="table" v-if="tableData.length > 0">
-      <el-table :data="tableData" border style="width: 100%">
-        <el-table-column
-          v-for="(item, index) in tableColumns"
-          :key="index"
-          :label="tableColumns[index]"
-          :prop="tableColumns[index]"
-          show-overflow-tooltip
-        ></el-table-column>
-      </el-table>
-    </div> -->
-    <!-- </el-dialog> -->
   </div>
 </template>
 <script>
@@ -133,6 +123,11 @@ export default {
   },
   data() {
     return {
+      splitParams: {
+        sep: "",
+        n: "",
+        names: "",
+      },
       isJson: true,
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
@@ -261,22 +256,25 @@ export default {
         let colLists = [];
         let tbdata = [];
 
-        colLists =this.$store.state.app.currentDBType=='csv'?result[0].fields: result[0].fields
-          .map((item) => item.name)
-          .filter((val) => {
-            if (
-              this.$store.state.app.currentDBType == "mqtt" &&
-              !this.mqttDefaultCols.includes(val)
-            ) {
-              return val;
-            }
-            if (
-              this.$store.state.app.currentDBType == "kafka" &&
-              !this.kafkaDefaultCols.includes(val)
-            ) {
-              return val;
-            }
-          });
+        colLists =
+          this.$store.state.app.currentDBType == "csv"
+            ? result[0].fields
+            : result[0].fields
+                .map((item) => item.name)
+                .filter((val) => {
+                  if (
+                    this.$store.state.app.currentDBType == "mqtt" &&
+                    !this.mqttDefaultCols.includes(val)
+                  ) {
+                    return val;
+                  }
+                  if (
+                    this.$store.state.app.currentDBType == "kafka" &&
+                    !this.kafkaDefaultCols.includes(val)
+                  ) {
+                    return val;
+                  }
+                });
         tbdata = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
@@ -286,13 +284,27 @@ export default {
         });
         if (isall) {
           //获取全部的extract or split参数
-          this.$emit("sendAllExtractParams", colLists, tbdata);
+          this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
+          console.log(colLists, tbdata, "transformer列的全量结果----99999");
           return;
         }
         this.tableColumns = colLists.map((item) => {
           let obj = {};
-          obj.name = this.$store.state.app.currentDBType=='csv'?item.name:item;
-          obj.value = tbdata.map((val) => val[this.$store.state.app.currentDBType=='csv'?item.name:item]).join(";");
+          obj.name =
+            this.$store.state.app.currentDBType == "csv" ? item.name : item;
+          obj.value =
+            this.$t("datasource.transformer.sampleval") +
+            ":" +
+            tbdata
+              .map(
+                (val) =>
+                  val[
+                    this.$store.state.app.currentDBType == "csv"
+                      ? item.name
+                      : item
+                  ]
+              )
+              .join(" ; ");
           return obj;
         });
         // this.tableColumns = colLists;
@@ -356,6 +368,9 @@ export default {
         if (this.$store.state.app.currentDBType == "kafka") {
           hiddenCols = ["ts", "topic", "partition", "offset", "key"];
         }
+      } else {
+        console.log(this.$store.state.app.transformerFilterParseData,'filter参数');
+        hiddenCols = [];
       }
 
       inputList = resultMsgbody.map((msg) => {
@@ -365,7 +380,9 @@ export default {
           .forEach((item) => {
             if (this.$store.state.app.currentDBType == "mqtt") {
               if (item.name == "payload") {
-                inputobj["payload"] = this.isJson
+                inputobj["payload"] = isall
+                  ? msg
+                  : this.isJson
                   ? JSON.stringify({
                       [`${this.itemData.columnname}`]:
                         JSON.parse(msg)[this.itemData.columnname],
@@ -379,7 +396,14 @@ export default {
               }
             } else if (this.$store.state.app.currentDBType == "kafka") {
               if (item.name == "value") {
-                inputobj["value"] = msg;
+                inputobj["value"] = isall
+                  ? msg
+                  : this.isJson
+                  ? JSON.stringify({
+                      [`${this.itemData.columnname}`]:
+                        JSON.parse(msg)[this.itemData.columnname],
+                    })
+                  : msg;
               } else {
                 inputobj[item.name] =
                   item.type == "timestamp"
@@ -393,15 +417,24 @@ export default {
       this.extractParseData = {
         extract: {},
       };
-      this.$parent.extractArr
+      deepClone(this.$parent.extractArr)
         .map((item) => {
+          let splitobj = Object.fromEntries(
+            Object.entries(item.splitParams).filter(([key, value]) => {
+              return value !== null && value != undefined && value != "";
+            })
+          );
+          splitobj["n"] = Number(splitobj["n"]);
+          Object.hasOwnProperty.call(splitobj, "names")
+            ? (splitobj["names"] = splitobj["names"].split(","))
+            : splitobj;
           return {
             [`${item.columnname}`]: {
               [`${item.type}`]:
                 item.type == "regex"
                   ? item.expression
                   : item.type == "split"
-                  ? this.$store.state.app.splitExpresList
+                  ? splitobj
                   : item.expression
                   ? item.expression.split(";").map((item) => item.trim())
                   : item.expression,
@@ -414,7 +447,7 @@ export default {
       let topparse = deepClone(this.$store.state.app.topParse);
       let extractlist = {};
       topparse["parser"]["mutate"] = isall
-        ? [].concat(this.extractParseData)
+        ?this.$store.state.app.transformerFilterParseData?[].concat(this.$store.state.app.transformerFilterParseData).concat(this.extractParseData): [].concat(this.extractParseData)
         : [].concat({
             extract: {
               [`${this.itemData.columnname}`]:
@@ -432,14 +465,11 @@ export default {
           : inputList,
       };
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);
-
+      console.log(this.$store.state.app.transformerFilterParseData,'filter参数');
       await this.getParserData(parser, isall);
     },
     deleteExtract() {
       this.$emit("deleteExtract", this.index, this.ruleForm.col_name);
-      // if(this.tableData.length>0){
-      //   this.tableData.splice(0,this.tableData.length)
-      // }
     },
   },
   mounted() {

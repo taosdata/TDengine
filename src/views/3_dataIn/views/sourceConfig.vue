@@ -1,9 +1,6 @@
 <template>
   <div class="source-ui">
     <div :class="['left-ui', isShowEditBtn ? 'readable' : '']">
-      <!-- <section>
-        <DataTarget ref="sourceTop"></DataTarget>
-      </section> -->
       <el-form
         :model="sourceForm"
         ref="form"
@@ -39,12 +36,6 @@
                 :value="item.id"
               ></el-option>
             </el-select>
-            <!-- <el-button
-            class="ml10"
-            type="primary"
-            plain
-            >{{ $t('plan.price') }}</el-button
-          > -->
           </el-form-item>
           <el-form-item
             v-if="agentShow"
@@ -101,11 +92,13 @@
           v-if="currentDefinition && currentDefinition.config"
           :config="currentDefinition.config"
           :data="sourceForm.data"
+          :parser="currentDefinition.parser"
           parent="data."
           :level="1"
+          ref='configform'
         />
       </el-form>
-      <CsvData v-if='currentDefinition.id=="csv"'></CsvData>
+      <CsvData v-if='currentDefinition?.id=="csv"'></CsvData>
       <section class="bottom">
         <el-button
           v-if="isShowEditBtn"
@@ -125,12 +118,6 @@
     </div>
 
     <div class="right-ui">
-      <!-- <mavon-editor
-        v-model="dbsource[0].description"
-        :toolbarsFlag="false"
-        :default-open="'preview'"
-        :subfield="false"
-      /> -->
       <div class="doc-part">
         <DocsContent
           v-if="currentDefinition?.description"
@@ -138,6 +125,7 @@
           :content="currentDefinition.description"
         ></DocsContent>
       </div>
+     
     </div>
     <DialogCreateDb></DialogCreateDb>
   </div>
@@ -204,7 +192,7 @@ export default {
     },
     editId: {
       type: [Number, String],
-      default: 0,
+      default:''
     },
     isCopyable: {
       type: Boolean,
@@ -251,14 +239,8 @@ export default {
     if (this.isEditable) {
       this.getDataSourceDetail()
       this.isShowEditBtn = this.isCopyable ? false : true;
-    } 
-    this.getDBLists()
-  },
-  mounted() {
-    if (!this.editId) {
-      this.sourceForm.type = 'tmq';
     }
-    console.log(this.defaultSourceConfig,this.sourceForm,'kkkkk---99999',this.dbsource);
+    this.getDBLists()
   },
   computed: {
     agentId() {
@@ -290,6 +272,26 @@ export default {
     },
   },
   watch: {
+    '$store.state.app.createStWithoutDB':{
+      deep:true,
+      handler(val){
+        if(val){
+          this.$refs.form.validate(valid=>{
+            if(valid){
+              return true
+            }else{
+              return false
+            }
+          })
+        }
+      }
+    },
+    'sourceForm.targetDB':{
+      deep:true,
+      handler(val){
+        this.$store.commit('app/SET_CURRENT_DBNAME',val)
+      }
+    },
     "$i18n.locale": {
       deep: true,
       handler(val) {
@@ -299,21 +301,24 @@ export default {
     dbsource: {
       deep: true,
       handler(val) {
+        if(!this.isEditable&&!this.sourceForm.type){
+          this.$set(this.sourceForm,'type','tmq')
+        }
         this.$forceUpdate();
         this.getDataSource();
       },
       immediate: true
     },
-    tagName: {
-      deep: true,
-      handler(val) {
-        this.$forceUpdate();
-      },
-    },
+    // tagName: {
+    //   deep: true,
+    //   handler(val) {
+    //     console.log(val,'当前的tag');
+    //     this.$forceUpdate();
+    //   },
+    // },
     "$store.state.app.currentDBType": {
       immediate: true,
       handler(val) {
-        console.log(val,'tagname------切换');
         this.showtransformer = false;
         if (!this.isEditable) {
           this.$store.commit("app/SET_FILTER_PARSE_DATA", null);
@@ -327,6 +332,8 @@ export default {
           this.$store.commit("app/SET_CSV_PARSER", null);
           this.$store.commit("app/SET_MAPPING_JOIN", "");
           this.$store.commit("app/SET_SPLIT_EXPRESS", null);
+          this.$store.commit('app/SET_TRANS_RESULT_TABLE',[])
+          this.$store.commit('app/SET_TRANS_RESULT_TABLE',[])
         }
         if (val == "kafka" || val == "mqtt") {
           // this.$set(this, "constmqttCols", []);
@@ -340,7 +347,8 @@ export default {
       },
     },
     'sourceForm.type': {
-      handler() {
+      handler(val) {
+        this.$store.commit('app/SET_CURRENT_DBTYPE',val)
         this.getDataSource();
       },
       immediate: true
@@ -348,6 +356,7 @@ export default {
     "$store.state.app.currentDBName": {
       deep: true,
       handler(val) {
+        console.log(val,'数据库9');
         this.sourceForm.targetDB = val;
         this.getDBLists();
       },
@@ -366,7 +375,6 @@ export default {
           this.sourceForm.name = data.name;
           this.sourceForm.targetDB = data?.to_expand?.subject;
           this.sourceForm.agent = data.via;
-          console.log(data,data.parser,'总量');
           this.editSourceConfig = getFormConfigByDataSource([data.from_detail], data.parser);
         })
         .finally(() => {
@@ -375,7 +383,6 @@ export default {
     },
     getDataSource() {
       this.currentDefinition = this.defaultSourceConfig?.[this.sourceForm.type];
-      console.log("currentDefinition", this.currentDefinition,this.defaultSourceConfig,this.sourceForm);
       if (!this.currentDefinition) return;
       this.sourceForm.data = generateFormInitData(
         this.currentDefinition?.config
@@ -425,7 +432,9 @@ export default {
             params["via"] = this.sourceForm.agent;
           }
           if (this.sourceForm.data.parser) {
-            console.log(this.sourceForm.data.parser,'this.sourceForm.data.parser');
+            this.$refs.configform.$refs.transform[0].caculateMappingResult()
+            console.log(this.$refs.configform.$refs.transform[0],this.sourceForm.data.parser,'this.sourceForm.data.parser');
+            return
             // let { model } = this.sourceForm.data.parser
             // if (model.columns.length < 2 || model.tags.length < 1) {
             //   Message.warning(this.$t('datasource.parserTip'))

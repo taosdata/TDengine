@@ -64,13 +64,23 @@
               <el-table-column
                 prop="activity"
                 :label="$t('dataIn.activity')"
-                show-overflow-tooltip
-              ></el-table-column>
+              >
+                <template slot-scope="scope">
+                  <el-tooltip :content="scope.row.activity" placement="top-start">
+                    <span class="nowrap">{{ scope.row.activity }}</span>
+                  </el-tooltip>
+                </template> 
+              </el-table-column>
               <el-table-column
                 prop="context"
                 :label="$t('dataIn.context')"
-                show-overflow-tooltip
-              ></el-table-column>
+              >
+                <template slot-scope="scope">
+                  <el-tooltip :content="scope.row.context" placement="top-start">
+                    <span class="nowrap">{{ scope.row.context }}</span>
+                  </el-tooltip>
+                </template> 
+              </el-table-column>
             </el-table>
           </div>
         </template>
@@ -670,7 +680,7 @@ export default {
 .flexEnd {
   position: absolute;
   top: 6px;
-  z-index: 9999;
+  z-index: 9;
   right: 10px;
   .el-button {
     border: 1px solid transparent;

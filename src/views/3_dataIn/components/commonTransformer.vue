@@ -5,6 +5,48 @@
         <div class="block-title">
           <span>{{ $t("datasource.transformer.msgbody") }}</span>
         </div>
+        <el-tabs v-model="activeName">
+          <el-tab-pane
+            :label="$t('datasource.transformer.msgbodytypes.type1')"
+            name="first"
+          >
+          </el-tab-pane>
+          <el-tab-pane
+            :label="$t('datasource.transformer.msgbodytypes.type2')"
+            name="second"
+          >
+            <el-button
+              type="primary"
+              size="small"
+              style="margin-bottom: 15px"
+              >{{
+                $t("datasource.transformer.msgbodytypes.retrieve")
+              }}</el-button
+            >
+          </el-tab-pane>
+
+          <el-tab-pane
+            :label="$t('datasource.transformer.msgbodytypes.type3')"
+            name="third"
+          >
+            <el-upload
+              class="upload-demo"
+              action="https://jsonplaceholder.typicode.com/posts/"
+              :on-preview="handlePreview"
+              :on-remove="handleRemove"
+              :before-remove="beforeRemove"
+              multiple
+              :limit="3"
+              :on-exceed="handleExceed"
+              :file-list="fileList"
+              style="margin-bottom: 15px"
+            >
+              <el-button size="small" type="primary">{{
+                $t("datasource.transformer.msgbodytypes.type3")
+              }}</el-button>
+            </el-upload>
+          </el-tab-pane>
+        </el-tabs>
         <el-form
           @submit.native.prevent
           :model="msgForm"
@@ -14,10 +56,11 @@
           <el-form-item prop="msgbody">
             <div id="jsoneditor"></div>
             <el-input
+              class="msgbody"
               v-model="msgForm.msgbody"
               size="small"
               type="textarea"
-              :autosize="{ minRows: 6 }"
+              :autosize="{ minRows: 5, maxRows: 5 }"
             ></el-input>
           </el-form-item>
         </el-form>
@@ -30,7 +73,10 @@
           class="transdescription"
           v-html="$t('datasource.transformer.extractdesc')"
         ></div>
-        <div class="extrac-parse" v-if='$store.state.app.currentDBType!=="csv"'>
+        <div
+          class="extrac-parse"
+          v-if="$store.state.app.currentDBType !== 'csv'"
+        >
           <el-form :rules="parseRules" :model="parseruleForm">
             <el-form-item prop="type">
               <el-select
@@ -57,12 +103,12 @@
                 size="small"
               ></el-input>
             </el-form-item>
-
             <el-button
               size="small"
               icon="el-icon-check"
               @click="submitParse"
               style="display: flex"
+              :disabled="msgForm.msgbody == ''"
             ></el-button>
           </el-form>
         </div>
@@ -153,7 +199,7 @@
               <span style="color: #4259ce">
                 {{ $t("datasource.transformer.targetSt") }}
               </span>
-              <el-form :model="sruleForm">
+              <el-form :model="sruleForm" ref="sruleForm" :rules="srules">
                 <el-form-item prop="s_name">
                   <el-select
                     v-model="sruleForm.s_name"
@@ -172,13 +218,13 @@
                 </el-form-item>
               </el-form>
             </div>
-            <el-button type="primary" size="small" @click="createStable">
+            <span style='color:red;font-size:24px;'>{{$store.state.app.currentDBName==''}}</span>
+            <el-button type="primary" size="small" @click="createStable" :disabled='$store.state.app.currentDBName==""'>
               {{ $t("datasource.transformer.createstb") }}
             </el-button>
           </div>
           <div class="table-detail" v-if="tableData.length > 0">
-            <div class="mapping">
-            </div>
+            <div class="mapping"></div>
             <el-table :data="pageTableData" border style="width: 100%">
               <template v-for="(item, index) in st_columnLists">
                 <el-table-column
@@ -286,9 +332,16 @@ import { parsinginZone } from "@/utils";
 import CreateSTB from "./createSTB.vue";
 import { createStableReq } from "@/api/gateway/data/stables";
 import SplitExpression from "./splitExpression.vue";
+import ResultTable from "./transformResultTable.vue";
 export default {
   name: "CommonTransformer",
-  components: { ExtractSplit, FilterExpression, CreateSTB, SplitExpression },
+  components: {
+    ExtractSplit,
+    FilterExpression,
+    CreateSTB,
+    SplitExpression,
+    ResultTable,
+  },
   props: {
     parserColumns: {
       type: Array,
@@ -299,11 +352,12 @@ export default {
   },
   data() {
     return {
+      activeName: "first",
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
-      parseTypes: ["regex","json"],
+      parseTypes: ["regex", "json"],
       parseruleForm: {
-        type: "regex",
+        type: "json",
         expression: "",
       },
       parseRules: {
@@ -417,6 +471,8 @@ export default {
     };
   },
   mounted() {
+    console.log(document.querySelector('.col-list').offsetTop,document.querySelector('.col-list').getBoundingClientRect(),'获取高度');
+    
     if (this.parserColumns) {
       this.initColumnLists(this.parserColumns);
     }
@@ -433,12 +489,28 @@ export default {
       //CSV新增
       this.isCSV = true;
       this.msgForm.msgbody = this.$store.state.app.csvTransformerParser.msgBody;
-      this.submitParse()
+      this.submitParse();
       // this.formatCSVExtract(this.$store.state.app.csvTransformerParser.columns);
     }
     this.getInitStables();
   },
   methods: {
+    handleRemove(file, fileList) {
+      console.log(file, fileList);
+    },
+    handlePreview(file) {
+      console.log(file);
+    },
+    handleExceed(files, fileList) {
+      this.$message.warning(
+        `当前限制选择 3 个文件，本次选择了 ${files.length} 个文件，共选择了 ${
+          files.length + fileList.length
+        } 个文件`
+      );
+    },
+    beforeRemove(file, fileList) {
+      return this.$confirm(`确定移除 ${file.name}？`);
+    },
     //获取所有的extract或者split结果
     getAllExtract() {
       this.$refs.extract[0].submitExtract(true);
@@ -473,50 +545,67 @@ export default {
               ? this.$store.state.app.csvTransformerParser.inputList
               : [].concat(this.generateInput()),
         };
-        this.$store.commit("app/SET_TOP_PARSE", topparser);
-        let result = await getParser(topparser);
-        if (result.message) {
-          Message.error(result.message);
-          this.isbreak = true;
-          return;
+        console.log(this.extractArr, this.filterArr,topparser, "this.filterArr---[arse]");
+        if (this.filterArr.length > 0) {
+          this.$refs.filter[0].submitFilter();
+        } else {
+          if (this.extractArr.length > 0) {
+            this.$refs.extract[0].submitExtract(true);
+          } else {
+            this.$store.commit("app/SET_TOP_PARSE", topparser);
+            let result = await getParser(topparser);
+            if (result.message) {
+              Message.error(result.message);
+              this.isbreak = true;
+              return;
+            }
+            this.isbreak = false;
+            let tbdata = result[0].columns.map((data) => {
+              return Object.fromEntries(
+                result[0].fields.map((item, index) => {
+                  return [
+                    item.name,
+                    data[index] ? data[index].toString() : null,
+                  ];
+                })
+              );
+            });
+            this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
+            console.log(tbdata, "计算结果");
+            this.columnsArr = (
+              this.$store.state.app.currentDBType == "csv"
+                ? result[0].fields
+                : result[0].fields.filter((item) => {
+                    if (
+                      this.$store.state.app.currentDBType == "mqtt" &&
+                      !this.mqttDefaultCols.includes(item.name)
+                    ) {
+                      return item;
+                    } else if (
+                      this.$store.state.app.currentDBType == "kafka" &&
+                      !this.kafkaDefaultCols.includes(item.name)
+                    ) {
+                      return item;
+                    }
+                  })
+            ).map((val) => {
+              return {
+                description: val.name,
+                name: val.name,
+                show: true,
+                type: "string",
+                value:
+                  this.$t("datasource.transformer.sampleval") +
+                  ":" +
+                  tbdata
+                    .map((item) => {
+                      return item[val.name];
+                    })
+                    .join(" ; "),
+              };
+            });
+          }
         }
-        this.isbreak = false;
-        let tbdata = result[0].columns.map((data) => {
-          return Object.fromEntries(
-            result[0].fields.map((item, index) => {
-              return [item.name, data[index] ? data[index].toString() : null];
-            })
-          );
-        });
-        this.columnsArr = (
-          this.$store.state.app.currentDBType == "csv"
-            ? result[0].fields
-            : result[0].fields.filter((item) => {
-                if (
-                  this.$store.state.app.currentDBType == "mqtt" &&
-                  !this.mqttDefaultCols.includes(item.name)
-                ) {
-                  return item;
-                } else if (
-                  this.$store.state.app.currentDBType == "kafka" &&
-                  !this.kafkaDefaultCols.includes(item.name)
-                ) {
-                  return item;
-                }
-              })
-        ).map((val) => {
-          return {
-            description: val.name,
-            name: val.name,
-            show: true,
-            type: "string",
-            value: tbdata
-              .map((item) => {
-                return item[val.name];
-              })
-              .join(";"),
-          };
-        });
       } catch (error) {
         console.log(error);
       }
@@ -536,11 +625,11 @@ export default {
       this.pageTableData.splice(0, Infinity);
       this.setPageTableData();
     },
-   
+
     //编辑回显数据
     async echoParser(value) {
       let csvechoTransData = null;
-      this.currentPage=value.format.currentPage
+      this.currentPage = value.format.currentPage;
       if (this.$store.state.app.currentDBType == "csv") {
         this.isCSV = true;
         csvechoTransData = this.$store.state.app.csvTransformerParser;
@@ -567,7 +656,7 @@ export default {
         case "mqtt":
           tagKey = "payload";
           break;
-       default:
+        default:
           tagKey = "value";
           break;
       }
@@ -586,19 +675,29 @@ export default {
       })[0];
       Object.entries(identifiedColObj.extract).forEach((item) => {
         let ind = this.columnsArr.findIndex((col) => col.name == item[0]);
-        if (ind > -1) {
-          this.$set(this.columnsArr[ind], "show", false);
-        }
-        if (Object.keys(item[1]).toString() == "split") {
-          this.$store.commit("app/SET_SPLIT_EXPRESS", item[1]["split"]);
-        }
         let obj = {
           columnname: item[0],
           expression: Object.values(item[1]).flat(1).join(";"),
           type: Object.keys(item[1]).toString(),
           columns: this.columnsArr,
-          key: Math.random(),
+          key: Math.random()
         };
+        if (ind > -1) {
+          this.$set(this.columnsArr[ind], "show", false);
+        }
+        if (Object.keys(item[1]).toString() == "split") {
+          obj['splitParams']=Object.keys(item[1]['split']).map(k=>{
+            return {
+              [k]:String(item[1]['split'][k])
+            }
+          }).reduce((a,b)=>{
+            a[Object.keys(b).toString()]=String(b[Object.keys(b).toString()])
+            return a
+          },{})
+        }
+
+        console.log(item,obj,'回显示');
+        
         if (this.columnsArr.length > 0) {
           this.extractArr.push(obj);
         }
@@ -703,9 +802,17 @@ export default {
       }
       // this.$set(this, "columnsArr", finalCol);
     },
+    validateTransform() {
+      let msgflag = this.validateMsgBody();
+      let stableflag = this.validateTargetStb();
+      if (msgflag && stableflag) {
+        return true;
+      }
+      return false;
+    },
     //messagebody非空验证触发
     validateMsgBody() {
-      this.$refs.msgForm.validate((valid) => {
+      return this.$refs.msgForm.validate((valid) => {
         if (valid) {
           return true;
         } else {
@@ -713,8 +820,8 @@ export default {
         }
       });
     },
-    validateTargetStb(){
-      this.$refs.sruleForm.validate((valid) => {
+    validateTargetStb() {
+      return this.$refs.sruleForm.validate((valid) => {
         if (valid) {
           return true;
         } else {
@@ -724,17 +831,17 @@ export default {
     },
     //计算mapping的结果
     async caculateMappingResult() {
-      console.log(this.msgForm.msgbody,'this.msgForm.msgbody---消息体');
+      this.validateTransform();
+      this.$nextTick(() => {
+        document
+          .querySelector(".common-transformer .el-form-item__error")
+          ?.scrollIntoView();
+      });
       if (!this.msgForm.msgbody) {
-        this.validateMsgBody()
-        console.log('验证消息体');
-        // Message.error(this.$t("datasource.transformer.msgbodytip"));
         this.isbreak = true;
         return;
       }
-      this.validateTargetStb()
-      if (!this.tableData[0]["Expression"]) {
-        Message.warning(this.$t("datasource.transformer.tablenametip"));
+      if (this.tableData && !this.tableData[0]?.["Expression"]) {
         this.isbreak = true;
         return;
       }
@@ -789,10 +896,6 @@ export default {
       let parserData = {
         parser: {
           parse: this.$store.state.app.topParse.parser.parse,
-          // Object.assign(
-          //   {},
-          //   this.$store.state.app.transformExtractParseData
-          // ),
           model: {
             name: this.tableData[0]["Expression"],
             using: this.sruleForm.s_name,
@@ -810,9 +913,11 @@ export default {
                 .concat({
                   map: mutateMap,
                 })
-            : [].concat(this.$store.state.app.transformExtractParseData).concat({
-                map: mutateMap,
-              }),
+            : []
+                .concat(this.$store.state.app.transformExtractParseData)
+                .concat({
+                  map: mutateMap,
+                }),
         },
         input: this.isCSV
           ? this.$store.state.app.csvTransformerParser.inputList
@@ -954,7 +1059,9 @@ export default {
               item[`Output` + (index + 1)] =
                 item["Name"] == "SubTableName"
                   ? val["__tbname__"]
-                  : val[item["Name"]]?val[item["Name"]].toString():'';
+                  : val[item["Name"]]
+                  ? val[item["Name"]].toString()
+                  : "";
             });
           }
           return item;
@@ -1069,10 +1176,12 @@ export default {
     },
     //创建或者查询
     async createST() {
+      console.log(this.$refs.createstb.stable_form,'this.$refs.createstb.stable_form;');
       this.$refs.createstb.$refs.form.validate(async (valid) => {
         if (!valid) return false;
         if (valid) {
           try {
+        
             const { ts_field_name, tags, columns } =
               this.$refs.createstb.stable_form;
             if (!ts_field_name) {
@@ -1132,11 +1241,15 @@ export default {
       }
     },
     createStable() {
+      console.log(this.$store.state.app.currentDBName,'当前数据库');
       if (!this.$store.state.app.currentDBName) {
-        return Message.warning(
-          this.$t("pleaseSelect") + " " + this.$t("stream.targetDB")
-        );
+        this.$store.commit('app/SET_CREATESTWITHOUT_DB',1)
+        console.log(this.$store.state.app.createStWithoutDB,'you---');
+        return
+      }else{
+        this.$store.commit('app/SET_CREATESTWITHOUT_DB',2)
       }
+      
       this.showCreateDIalog = true;
     },
     //回显数据调用mapping接口
@@ -1185,7 +1298,7 @@ export default {
         if (this.filterArr.length == 0 || !this.filterArr[0].expression) {
           await this.getAllExtract(true);
         }
-        this.currentPage=1
+        this.currentPage = 1;
         let res = await sendSQLReq(
           `desc \`${this.$store.state.app.currentDBName}\`.\`${this.sruleForm.s_name}\``
         );
@@ -1260,6 +1373,11 @@ export default {
         expression: "",
         type: "",
         key: Math.random(),
+        splitParams: {
+          sep: "",
+          n: "",
+          names: "",
+        },
       });
     },
     //新增filter
@@ -1271,9 +1389,20 @@ export default {
     },
     //删除filter
     deleteFilter(key) {
-      let ind = this.filterArr.findIndex((val) => val.key == key);
-      this.filterArr.splice(ind, 1);
-      this.$store.commit("app/SET_FILTER_PARSE_DATA", null);
+      this.$confirm(
+        this.$t("datasource.deletetip"),
+        this.$t("datasource.warning"),
+        {
+          confirmButtonText: this.$t("datasource.ok"),
+          cancelButtonText: this.$t("datasource.cancel"),
+          type: "warning",
+        }
+      ).then(() => {
+        let ind = this.filterArr.findIndex((val) => val.key == key);
+        this.filterArr.splice(ind, 1);
+        this.$store.commit("app/SET_FILTER_PARSE_DATA", null);
+        this.submitParse()
+      });
     },
     deleteExtract(index, name) {
       this.$confirm(
@@ -1303,6 +1432,24 @@ export default {
         } else {
           this.extractArr.splice(index, 1);
         }
+        if (this.extractArr.length > 0) {
+          if (this.filterArr.lenght > 0 && this.$refs.filter[0].isexecuted) {
+            this.$refs.filter[0].submit();
+          } else {
+            this.$refs.extract[0].submitExtract(true);
+          }
+        } else {
+          if (this.filterArr.lenght > 0 && this.$refs.filter[0].isexecuted) {
+            this.$refs.filter[0].submit();
+          } else {
+            this.submitParse();
+          }
+        }
+        console.log(
+          this.$store.state.app.transformExtractParseData,
+          this.extractArr,
+          "删除extract"
+        );
       });
     },
     //-----------------------处理csv部分

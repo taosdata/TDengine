@@ -67,40 +67,64 @@
       <el-table-column
         :label="$t('taosuser.clientAddress')"
         prop="client_address"
-        :show-overflow-tooltip="true"
         width="180"
       >
+        <template slot-scope="scope">
+          <el-tooltip :content="scope.row.client_address" placement="top-start">
+            <span class="nowrap">{{ scope.row.client_address }}</span>
+          </el-tooltip>
+        </template>
       </el-table-column>
       <el-table-column
         :label="$t('taosuser.user')"
         prop="user_name"
-        show-overflow-tooltip
       >
+        <template slot-scope="scope">
+          <el-tooltip :content="scope.row.user_name" placement="top-start">
+            <span class="nowrap">{{ scope.row.user_name }}</span>
+          </el-tooltip>
+        </template>
       </el-table-column>
       <el-table-column
         :label="$t('taosuser.operation')"
         prop="operation"
-        show-overflow-tooltip
       >
+        <template slot-scope="scope">
+          <el-tooltip :content="scope.row.operation" placement="top-start">
+            <span class="nowrap">{{ scope.row.operation }}</span>
+          </el-tooltip>
+        </template>
       </el-table-column>
       <el-table-column
         :label="$t('taosuser.db')"
         prop="db"
-        show-overflow-tooltip
       >
+        <template slot-scope="scope">
+          <el-tooltip :content="scope.row.db" placement="top-start">
+            <span class="nowrap">{{ scope.row.db }}</span>
+          </el-tooltip>
+        </template>
       </el-table-column>
       <el-table-column
         :label="$t('taosuser.resource')"
         prop="resource"
-        show-overflow-tooltip
       >
+        <template slot-scope="scope">
+          <el-tooltip :content="scope.row.resource" placement="top-start">
+            <span class="nowrap">{{ scope.row.resource }}</span>
+          </el-tooltip>
+        </template>
       </el-table-column>
       <el-table-column
         :label="$t('taosuser.details')"
         prop="details"
         min-width="260"
-        :show-overflow-tooltip="true"
       >
+        <template slot-scope="scope">
+          <el-tooltip :content="scope.row.details" placement="top-start">
+            <span class="nowrap">{{ scope.row.details }}</span>
+          </el-tooltip>
+        </template>
       </el-table-column>
     </el-table>
     <el-pagination

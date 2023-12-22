@@ -193,7 +193,7 @@ export default {
             this.tagName = "opc";
             break;
           case "mqtt":
-            this.currentName = "opcui";
+            this.currentName = "sourceConfig";
             this.tagName = "mqtt";
             break;
           case "pibackfill":
@@ -247,7 +247,7 @@ export default {
             this.tagName = "opentsdb";
             break;
           case "mqtt":
-            this.currentName = "opcui";
+            this.currentName = "sourceConfig";
             this.tagName = "mqtt";
             break;
           case "pibackfill":
