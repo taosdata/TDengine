@@ -126,10 +126,13 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
 int32_t tqStopStreamTasks(STQ* pTq) {
   SStreamMeta* pMeta = pTq->pStreamMeta;
   int32_t      vgId = TD_VID(pTq->pVnode);
-  int32_t      num = taosArrayGetSize(pMeta->pTaskList);
 
+  streamMetaRLock(pMeta);
+
+  int32_t num = taosArrayGetSize(pMeta->pTaskList);
   tqDebug("vgId:%d stop all %d stream task(s)", vgId, num);
   if (num == 0) {
+    streamMetaRUnLock(pMeta);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -149,6 +152,8 @@ int32_t tqStopStreamTasks(STQ* pTq) {
   }
 
   taosArrayDestroy(pTaskList);
+
+  streamMetaRUnLock(pMeta);
   return 0;
 }
 

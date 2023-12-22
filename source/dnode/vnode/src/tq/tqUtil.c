@@ -39,6 +39,8 @@ void tqUpdateNodeStage(STQ* pTq, bool isLeader) {
   SStreamMeta* pMeta = pTq->pStreamMeta;
   int64_t      stage = pMeta->stage;
 
+  streamMetaWLock(pMeta);
+
   pMeta->stage = state.term;
 
   // mark the sign to send msg before close all tasks
@@ -52,9 +54,11 @@ void tqUpdateNodeStage(STQ* pTq, bool isLeader) {
            state.term, stage, isLeader);
     streamMetaStartHb(pMeta);
   } else {
-    tqInfo("vgId:%d update meta stage:%" PRId64 " prev:%" PRId64 " leader:%d", pMeta->vgId, state.term, stage,
-           isLeader);
+    tqInfo("vgId:%d update meta stage:%" PRId64 " prev:%" PRId64 " leader:%d sendMsg beforeClosing:%d", pMeta->vgId,
+           state.term, stage, isLeader, pMeta->sendMsgBeforeClosing);
   }
+
+  streamMetaWUnLock(pMeta);
 }
 
 static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, STqOffsetVal pOffset) {

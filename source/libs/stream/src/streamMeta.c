@@ -1328,14 +1328,9 @@ int32_t streamMetaAsyncExec(SStreamMeta* pMeta, __stream_async_exec_fn_t fn, voi
 }
 
 SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta) {
-  SArray* pTaskList = NULL;
-  bool    sendMsg = false;
+  SArray* pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
 
-  streamMetaWLock(pMeta);
-  pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
-  sendMsg = pMeta->sendMsgBeforeClosing;
-  streamMetaWUnLock(pMeta);
-
+  bool sendMsg = pMeta->sendMsgBeforeClosing;
   if (!sendMsg) {
     stDebug("vgId:%d no need to send msg to mnode before closing tasks", pMeta->vgId);
     return pTaskList;
