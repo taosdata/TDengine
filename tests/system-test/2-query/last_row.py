@@ -436,7 +436,7 @@ class TDTestCase:
         tdSql.checkData(1,1,None)
 
         tdSql.query(f"select t1 ,count(c1) from {dbname}.stb1 partition by t1 ")
-        tdSql.checkRows(2)
+        tdSql.checkRows(4)
 
         # filter by tbname
         tdSql.query(f"select last_row(c1) from {dbname}.stb1 where tbname = 'ct1' ")
