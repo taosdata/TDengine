@@ -28,8 +28,6 @@
 #include "ttszip.h"
 #include "tudf.h"
 
-void cleanupResultRowEntry(struct SResultRowEntryInfo* pCell) { pCell->initialized = false; }
-
 int32_t getNumOfResult(SqlFunctionCtx* pCtx, int32_t num, SSDataBlock* pResBlock) {
   int32_t maxRows = 0;
 
@@ -59,9 +57,3 @@ int32_t getNumOfResult(SqlFunctionCtx* pCtx, int32_t num, SSDataBlock* pResBlock
   pResBlock->info.rows = maxRows;
   return maxRows;
 }
-
-bool isRowEntryCompleted(struct SResultRowEntryInfo* pEntry) {
-  return pEntry->complete;
-}
-
-bool isRowEntryInitialized(struct SResultRowEntryInfo* pEntry) { return pEntry->initialized; }

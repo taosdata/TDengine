@@ -186,7 +186,25 @@ class TDTestCase:
         tdSql.execute("insert into t0 values(now, 3,3,3,3,3,3,3,3,3)", queryTimes=1)
         tdSql.execute("select bottom(c1, 1), c2 from t0 state_window(c2) order by ts", queryTimes=1)
 
+    def test_crash_for_session_window(self):
+        tdSql.execute("drop database if exists test")
+        self.prepareTestEnv()
+        tdSql.execute("alter local 'queryPolicy' '3'")
+        tdSql.execute("insert into t0 values(now, 2,2,2,2,2,2,2,2,2)", queryTimes=1)
+        tdSql.execute("insert into t0 values(now, 2,2,2,2,2,2,2,2,2)", queryTimes=1)
+        tdSql.execute("insert into t0 values(now, 2,2,2,2,2,2,2,2,2)", queryTimes=1)
+        tdSql.execute("insert into t0 values(now, 2,2,2,2,2,2,2,2,2)", queryTimes=1)
+        tdSql.execute("insert into t0 values(now, 2,2,2,2,2,2,2,2,2)", queryTimes=1)
+        tdSql.execute("insert into t0 values(now, 3,3,3,3,3,3,3,3,3)", queryTimes=1)
+        tdSql.execute("insert into t0 values(now, 3,NULL,3,3,3,3,3,3,3)", queryTimes=1)
+        tdSql.execute("insert into t0 values(now, 3,NULL,3,3,3,3,3,3,3)", queryTimes=1)
+        tdSql.execute("flush database test", queryTimes=1)
+        time.sleep(2)
+        tdSql.execute("insert into t0 values(now, 3,NULL,3,3,3,3,3,3,3)", queryTimes=1)
+        tdSql.query("select first(c2) from t0 session(ts, 1s) order by ts", queryTimes=1)
+
     def run(self):
+        self.test_crash_for_session_window()
         self.test_crash_for_state_window1()
         self.test_crash_for_state_window2()
         self.test_crash_for_state_window3()

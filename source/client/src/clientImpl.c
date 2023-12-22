@@ -1711,6 +1711,7 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     taos_fetch_rows_a(pRequest, syncFetchFn, &sem);
     tsem_wait(&sem);
     tsem_destroy(&sem);
+    pRequest->inCallback = false;
   }
 
   if (pResultInfo->numOfRows == 0 || pRequest->code != TSDB_CODE_SUCCESS) {
@@ -2490,6 +2491,7 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
   if (param->pRequest != NULL) {
     param->pRequest->syncQuery = true;
     pRequest = param->pRequest;
+    param->pRequest->inCallback = false;
   }
   taosMemoryFree(param);
 
@@ -2607,7 +2609,14 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
 }
 
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
+  pRequest->inCallback = true;
+  int64_t this = pRequest->self;
   pRequest->body.queryFp(((SSyncQueryParam *)pRequest->body.interParam)->userParam, pRequest, code);
+  SRequestObj* pReq = acquireRequest(this);
+  if (pReq != NULL) {
+    pReq->inCallback = false;
+    releaseRequest(this);
+  }
 }
 
 int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effectiveUser, SParseSqlRes* pRes) {
