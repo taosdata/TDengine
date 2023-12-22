@@ -3116,7 +3116,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     if (allReady || snodeChanged) {
       // if the execInfo.activeCheckpoint == 0, the checkpoint is restoring from wal
       mInfo("checkpointId:%" PRId64 " failed, issue task-reset trans to reset all tasks status", activeCheckpointId);
-      mndResetStatusFromCheckpoint(pMnode, streamId, activeCheckpointId);
+      mndResetStatusFromCheckpoint(pMnode, streamId, transId);
     } else {
       mInfo("not all vgroups are ready, wait for next HB from stream tasks");
     }

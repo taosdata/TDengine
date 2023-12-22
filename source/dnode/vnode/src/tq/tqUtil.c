@@ -35,30 +35,8 @@ int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
 }
 
 void tqUpdateNodeStage(STQ* pTq, bool isLeader) {
-  SSyncState   state = syncGetState(pTq->pVnode->sync);
-  SStreamMeta* pMeta = pTq->pStreamMeta;
-  int64_t      stage = pMeta->stage;
-
-  streamMetaWLock(pMeta);
-
-  pMeta->stage = state.term;
-
-  // mark the sign to send msg before close all tasks
-  if ((!isLeader) && (pMeta->role == NODE_ROLE_LEADER)) {
-    pMeta->sendMsgBeforeClosing = true;
-  }
-
-  pMeta->role = (isLeader)? NODE_ROLE_LEADER:NODE_ROLE_FOLLOWER;
-  if (isLeader) {
-    tqInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb", pMeta->vgId,
-           state.term, stage, isLeader);
-    streamMetaStartHb(pMeta);
-  } else {
-    tqInfo("vgId:%d update meta stage:%" PRId64 " prev:%" PRId64 " leader:%d sendMsg beforeClosing:%d", pMeta->vgId,
-           state.term, stage, isLeader, pMeta->sendMsgBeforeClosing);
-  }
-
-  streamMetaWUnLock(pMeta);
+  SSyncState state = syncGetState(pTq->pVnode->sync);
+  streamMetaUpdateStageRole(pTq->pStreamMeta, state.term, isLeader);
 }
 
 static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, STqOffsetVal pOffset) {

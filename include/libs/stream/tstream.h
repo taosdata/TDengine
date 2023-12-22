@@ -53,6 +53,7 @@ extern "C" {
 #define STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID (-1)
 #define STREAM_EXEC_START_ALL_TASKS_ID     (-2)
 #define STREAM_EXEC_RESTART_ALL_TASKS_ID   (-3)
+#define STREAM_EXEC_STOP_ALL_TASKS_ID      (-4)
 
 typedef struct SStreamTask   SStreamTask;
 typedef struct SStreamQueue  SStreamQueue;
@@ -785,8 +786,6 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
                               int64_t* oldStage);
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
 void    streamTaskResetUpstreamStageInfo(SStreamTask* pTask);
-SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta);
-
 bool    streamTaskAllUpstreamClosed(SStreamTask* pTask);
 bool    streamTaskSetSchedStatusWait(SStreamTask* pTask);
 int8_t  streamTaskSetSchedStatusActive(SStreamTask* pTask);
@@ -821,6 +820,7 @@ int32_t streamTaskReleaseState(SStreamTask* pTask);
 int32_t streamTaskReloadState(SStreamTask* pTask);
 void    streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
 void    streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
+int32_t streamTaskSetDb(SStreamMeta* pMeta, void* pTask, char* key);
 
 void streamTaskStatusInit(STaskStatusEntry* pEntry, const SStreamTask* pTask);
 void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc);
@@ -851,10 +851,8 @@ void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
 void         streamMetaClear(SStreamMeta* pMeta);
 void         streamMetaInitBackend(SStreamMeta* pMeta);
 int32_t      streamMetaCommit(SStreamMeta* pMeta);
-int32_t      streamMetaLoadAllTasks(SStreamMeta* pMeta);
 int64_t      streamMetaGetLatestCheckpointId(SStreamMeta* pMeta);
 void         streamMetaNotifyClose(SStreamMeta* pMeta);
-int32_t      streamTaskSetDb(SStreamMeta* pMeta, void* pTask, char* key);
 void         streamMetaStartHb(SStreamMeta* pMeta);
 bool         streamMetaTaskInTimer(SStreamMeta* pMeta);
 int32_t      streamMetaUpdateTaskDownstreamStatus(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, int64_t startTs,
@@ -864,6 +862,11 @@ void         streamMetaRUnLock(SStreamMeta* pMeta);
 void         streamMetaWLock(SStreamMeta* pMeta);
 void         streamMetaWUnLock(SStreamMeta* pMeta);
 void         streamMetaResetStartInfo(STaskStartInfo* pMeta);
+SArray*      streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta);
+void         streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader);
+int32_t      streamMetaLoadAllTasks(SStreamMeta* pMeta);
+int32_t      streamMetaStartAllTasks(SStreamMeta* pMeta);
+int32_t      streamMetaStopAllTasks(SStreamMeta* pMeta);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);

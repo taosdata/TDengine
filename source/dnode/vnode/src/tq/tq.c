@@ -1076,6 +1076,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   if(code == 0 && taskId > 0){
     tqScanWalAsync(pTq, false);
   }
+
   return code;
 }
 

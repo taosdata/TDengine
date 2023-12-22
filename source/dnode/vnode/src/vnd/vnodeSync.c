@@ -594,7 +594,7 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
 
   if (pVnode->pTq) {
     tqUpdateNodeStage(pVnode->pTq, false);
-    tqStopStreamTasks(pVnode->pTq);
+    tqStopStreamTasksAsync(pVnode->pTq);
   }
 }
 

@@ -1367,3 +1367,119 @@ SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta) {
   pMeta->sendMsgBeforeClosing = false;
   return pTaskList;
 }
+
+void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader) {
+  streamMetaWLock(pMeta);
+
+  int64_t prevStage = pMeta->stage;
+  pMeta->stage = stage;
+
+  // mark the sign to send msg before close all tasks
+  if ((!isLeader) && (pMeta->role == NODE_ROLE_LEADER)) {
+    pMeta->sendMsgBeforeClosing = true;
+  }
+
+  pMeta->role = (isLeader)? NODE_ROLE_LEADER:NODE_ROLE_FOLLOWER;
+
+  if (isLeader) {
+    stInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb", pMeta->vgId,
+           prevStage, stage, isLeader);
+    streamMetaStartHb(pMeta);
+  } else {
+    stInfo("vgId:%d update meta stage:%" PRId64 " prev:%" PRId64 " leader:%d sendMsg beforeClosing:%d", pMeta->vgId,
+           prevStage, stage, isLeader, pMeta->sendMsgBeforeClosing);
+  }
+
+  streamMetaWUnLock(pMeta);
+}
+
+int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
+  streamMetaRLock(pMeta);
+
+  int32_t num = taosArrayGetSize(pMeta->pTaskList);
+  stDebug("vgId:%d stop all %d stream task(s)", pMeta->vgId, num);
+  if (num == 0) {
+    streamMetaRUnLock(pMeta);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // send hb msg to mnode before closing all tasks.
+  SArray* pTaskList = streamMetaSendMsgBeforeCloseTasks(pMeta);
+  int32_t numOfTasks = taosArrayGetSize(pTaskList);
+
+  for (int32_t i = 0; i < numOfTasks; ++i) {
+    SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
+    SStreamTask*   pTask = streamMetaAcquireTaskNoLock(pMeta, pTaskId->streamId, pTaskId->taskId);
+    if (pTask == NULL) {
+      continue;
+    }
+
+    streamTaskStop(pTask);
+    streamMetaReleaseTask(pMeta, pTask);
+  }
+
+  taosArrayDestroy(pTaskList);
+
+  streamMetaRUnLock(pMeta);
+  return 0;
+}
+
+int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t vgId = pMeta->vgId;
+
+  int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+  stDebug("vgId:%d start to check all %d stream task(s) downstream status", vgId, numOfTasks);
+  if (numOfTasks == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SArray* pTaskList = NULL;
+  streamMetaWLock(pMeta);
+  pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
+  taosHashClear(pMeta->startInfo.pReadyTaskSet);
+  taosHashClear(pMeta->startInfo.pFailedTaskSet);
+  pMeta->startInfo.startTs = taosGetTimestampMs();
+  streamMetaWUnLock(pMeta);
+
+  // broadcast the check downstream tasks msg
+  for (int32_t i = 0; i < numOfTasks; ++i) {
+    SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
+    SStreamTask*   pTask = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId);
+    if (pTask == NULL) {
+      streamMetaUpdateTaskDownstreamStatus(pMeta, pTaskId->streamId, pTaskId->taskId, 0,
+                                           taosGetTimestampMs(), false);
+      continue;
+    }
+
+    // fill-history task can only be launched by related stream tasks.
+    if (pTask->info.fillHistory == 1) {
+      streamMetaReleaseTask(pMeta, pTask);
+      continue;
+    }
+
+    if (pTask->status.downstreamReady == 1) {
+      if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
+        stDebug("s-task:%s downstream ready, no need to check downstream, check only related fill-history task",
+                pTask->id.idStr);
+        streamLaunchFillHistoryTask(pTask);
+      }
+
+      streamMetaUpdateTaskDownstreamStatus(pMeta, pTask->id.streamId, pTask->id.taskId, pTask->execInfo.init,
+                                           pTask->execInfo.start, true);
+      streamMetaReleaseTask(pMeta, pTask);
+      continue;
+    }
+
+    EStreamTaskEvent event = (HAS_RELATED_FILLHISTORY_TASK(pTask)) ? TASK_EVENT_INIT_STREAM_SCANHIST : TASK_EVENT_INIT;
+    int32_t          ret = streamTaskHandleEvent(pTask->status.pSM, event);
+    if (ret != TSDB_CODE_SUCCESS) {
+      code = ret;
+    }
+
+    streamMetaReleaseTask(pMeta, pTask);
+  }
+
+  taosArrayDestroy(pTaskList);
+  return code;
+}
