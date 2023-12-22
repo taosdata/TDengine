@@ -1889,6 +1889,7 @@ bool cliRecvReleaseReq(SCliConn* conn, STransMsgHead* pHead) {
       SCliMsg* cliMsg = transQueueGet(&conn->cliMsgs, i);
       if (cliMsg->type == Release) {
         ASSERTS(pMsg == NULL, "trans-cli recv invaid release-req");
+        cliDestroyConn(conn, true);
         return true;
       }
     }
