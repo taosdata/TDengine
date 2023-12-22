@@ -1299,7 +1299,12 @@ void streamMetaRLock(SStreamMeta* pMeta) {
 
 void streamMetaRUnLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-runlock", pMeta->vgId);
-  taosThreadRwlockUnlock(&pMeta->lock);
+  int32_t code = taosThreadRwlockUnlock(&pMeta->lock);
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("vgId:%d meta-runlock failed, code:%d", pMeta->vgId, code);
+  } else {
+    stDebug("vgId:%d meta-runlock completed", pMeta->vgId);
+  }
 }
 
 void streamMetaWLock(SStreamMeta* pMeta) {
