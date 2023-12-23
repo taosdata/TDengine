@@ -217,12 +217,16 @@ class TDDnode:
         # dataDir
         simPath = os.path.join(self.path, "sim", "dnode%d" % self.index)
         primary = 1
-        for i in range(self.level):
-            for j in range(self.disk):
-                eDir = os.path.join(simPath, f"data{i}{j}")
-                self.dataDir.append(f"{eDir} {i} {primary}")
-                if primary == 1:
-                    primary = 0
+        if self.level == 1 and self.disk == 1:
+            eDir = os.path.join(simPath, "data")
+            self.dataDir.append(eDir)
+        else:     
+            for i in range(self.level):
+                for j in range(self.disk):
+                    eDir = os.path.join(simPath, f"data{i}{j}")
+                    self.dataDir.append(f"{eDir} {i} {primary}")
+                    if primary == 1:
+                        primary = 0
 
         # taos.cfg
         self.cfgDir = os.path.join(self.path,"sim","dnode%d" % self.index, "cfg")
