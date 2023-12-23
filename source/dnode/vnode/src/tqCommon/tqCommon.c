@@ -661,8 +661,6 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   if (isLeader && !tsDisableStream) {
     tqStreamTaskResetStatus(pMeta);
     streamMetaWUnLock(pMeta);
-    tqInfo("vgId:%d start all stream tasks after reload tasks from disk", vgId);
-
     streamMetaStartAllTasks(pMeta);
   } else {
     streamMetaResetStartInfo(&pMeta->startInfo);
