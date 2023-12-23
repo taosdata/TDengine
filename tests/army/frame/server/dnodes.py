@@ -115,7 +115,7 @@ class TDSimClient:
 
 
 class TDDnode:
-    def __init__(self, index, level, disk):
+    def __init__(self, index=1, level=1, disk=1):
         self.index = index
         self.level = level
         self.disk  = disk
@@ -212,12 +212,19 @@ class TDDnode:
             self.remote_conn.run("python3 ./test.py %s -d %s -e %s"%(valgrindStr,remoteCfgDictStr,execCmdStr))
 
     def deploy(self, *updatecfgDict):
+        # logDir
         self.logDir = os.path.join(self.path,"sim","dnode%d" % self.index, "log")
+        # dataDir
         simPath = os.path.join(self.path, "sim", "dnode%d" % self.index)
-        for i in range(1, self.level):
-            for j in range(1, self.disk):
+        primary = 1
+        for i in range(self.level):
+            for j in range(self.disk):
                 eDir = os.path.join(simPath, f"data{i}{j}")
-                self.dataDir.append(eDir)
+                self.dataDir.append(f"{eDir} {i} {primary}")
+                if primary == 1:
+                    primary = 0
+
+        # taos.cfg
         self.cfgDir = os.path.join(self.path,"sim","dnode%d" % self.index, "cfg")
         self.cfgPath = os.path.join(self.path,"sim","dnode%d" % self.index, "cfg","taos.cfg")
         
@@ -238,7 +245,7 @@ class TDDnode:
         # if os.system(cmd) != 0:
         #     tdLog.exit(cmd)
         for eDir in self.dataDir:
-             os.makedirs(self.dataDir)
+             os.makedirs(eDir.split(' ')[0])
 
         # cmd = "mkdir -p " + self.logDir
         # if os.system(cmd) != 0:
@@ -284,7 +291,11 @@ class TDDnode:
                     self.addExtraCfg(key, value)
         if (self.remoteIP == ""):
             for key, value in self.cfgDict.items():
-                self.cfg(key, value)
+                if type(value) == list:
+                    for v in value:
+                        self.cfg(key, v)
+                else:
+                    self.cfg(key, value)
         else:
             self.remoteExec(self.cfgDict, "tdDnodes.deploy(%d,updateCfgDict)"%self.index)
 

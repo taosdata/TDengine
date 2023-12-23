@@ -114,8 +114,9 @@ if __name__ == "__main__":
     level = 1
     disk  = 1
 
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RWD:n:i:aP', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','websocket','adaptercfgupdate','replicaVar','independentMnode','previous'])
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RWU:n:i:aP:L:D:', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums',
+        'queryPolicy','createDnodeNums','restful','websocket','adaptercfgupdate','replicaVar','independentMnode',"asan",'previous','level','disk'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -137,7 +138,7 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-C create Dnode Numbers in one cluster')
             tdLog.printNoPrefix('-R restful realization form')
             tdLog.printNoPrefix('-W websocket connection')
-            tdLog.printNoPrefix('-D taosadapter update cfg dict ')
+            tdLog.printNoPrefix('-U taosadapter update cfg dict ')
             tdLog.printNoPrefix('-n the number of replicas')
             tdLog.printNoPrefix('-i independentMnode Mnode')
             tdLog.printNoPrefix('-a address sanitizer mode')
