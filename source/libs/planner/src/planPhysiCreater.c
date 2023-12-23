@@ -37,6 +37,7 @@ typedef struct SPhysiPlanContext {
   SArray*       pLocationHelper;
   bool          hasScan;
   bool          hasSysScan;
+  SLogicNode*   pNode;  // tmp record LogicSubplan->pNode
 } SPhysiPlanContext;
 
 static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char* pKey, int32_t keyBufSize) {
@@ -592,17 +593,13 @@ static bool calcNeedCountEmpty(SPhysiPlanContext* pCxt, SScanLogicNode* pScanLog
   if (pScanLogicNode->interval > 0) {
     return false;
   }
+  // limit: root node is select
   SNode* pRoot = pCxt->pPlanCxt->pAstRoot;
-  if (QUERY_NODE_SELECT_STMT == nodeType(pRoot)) {
-    SSelectStmt* pSelect = (SSelectStmt*)pRoot;
-    // select & count
-    if (pSelect->hasCountFunc) {
-      // key only accept tag/tbname
-      if (NULL != pSelect->pGroupByList) {
-        return !keysHasCol(pSelect->pGroupByList);
-      } else if (NULL != pSelect->pPartitionByList) {
-        return !keysHasCol(pSelect->pPartitionByList);
-      }
+  if (QUERY_NODE_SELECT_STMT == nodeType(pRoot)
+      && pCxt->pNode && QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pCxt->pNode)) {
+    SAggLogicNode* pNode = (SAggLogicNode*)pCxt->pNode;
+    if (pNode->isCountByTag) {
+      return true;
     }
   }
   return false;
@@ -2302,7 +2299,9 @@ static int32_t createPhysiSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogic
     } else {
       pSubplan->msgType = TDMT_SCH_MERGE_QUERY;
     }
+    pCxt->pNode = pLogicSubplan->pNode;
     code = createPhysiNode(pCxt, pLogicSubplan->pNode, pSubplan, &pSubplan->pNode);
+    pCxt->pNode = NULL;
     if (TSDB_CODE_SUCCESS == code && !pCxt->pPlanCxt->streamQuery && !pCxt->pPlanCxt->topicQuery) {
       code = createDataDispatcher(pCxt, pSubplan->pNode, &pSubplan->pDataSink);
     }
@@ -2454,7 +2453,8 @@ int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryP
                            .nextDataBlockId = 0,
                            .pLocationHelper = taosArrayInit(32, POINTER_BYTES),
                            .hasScan = false,
-                           .hasSysScan = false};
+                           .hasSysScan = false,
+                           .pNode = NULL};
   if (NULL == cxt.pLocationHelper) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }

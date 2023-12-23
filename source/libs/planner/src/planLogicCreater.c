@@ -748,6 +748,15 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   pAgg->isGroupTb = pAgg->pGroupKeys ? keysHasTbname(pAgg->pGroupKeys) : 0;
   pAgg->isPartTb = pSelect->pPartitionByList ? keysHasTbname(pSelect->pPartitionByList) : 0;
   pAgg->hasGroup = pAgg->pGroupKeys || pSelect->pPartitionByList;
+  bool isCountByTag = false;
+  if (pSelect->hasCountFunc) {
+    if (pSelect->pGroupByList) {
+      isCountByTag = !keysHasCol(pSelect->pGroupByList);
+    } else if (pSelect->pPartitionByList) {
+      isCountByTag = !keysHasCol(pSelect->pPartitionByList);
+    }
+  }
+  pAgg->isCountByTag = isCountByTag;
   
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pAgg;

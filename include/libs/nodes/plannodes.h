@@ -147,6 +147,7 @@ typedef struct SAggLogicNode {
   bool       isGroupTb;
   bool       isPartTb;  // true if partition keys has tbname
   bool       hasGroup;
+  bool       isCountByTag;  // true if hasCountFunc & part by tag/tbname
 } SAggLogicNode;
 
 typedef struct SProjectLogicNode {

@@ -2783,6 +2783,7 @@ static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg, 
   pNew->isGroupTb = pAgg->isGroupTb;
   pNew->isPartTb = pAgg->isPartTb;
   pNew->hasGroup = pAgg->hasGroup;
+  pNew->isCountByTag = pAgg->isCountByTag;
   pNew->node.pChildren = nodesCloneList(pAgg->node.pChildren);
 
   int32_t code = 0;
