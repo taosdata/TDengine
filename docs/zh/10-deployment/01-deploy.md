@@ -172,16 +172,10 @@ Query OK, 8 row(s) in set (0.001154s)
 启动 CLI 程序 taos，执行：
 
 ```sql
-DROP DNODE "fqdn:port";
-```
-
-或者
-
-```sql
 DROP DNODE dnodeId;
 ```
 
-通过 “fqdn:port” 或 dnodeID 来指定一个具体的节点都是可以的。其中 fqdn 是被删除的节点的 FQDN，port 是其对外服务器的端口号；dnodeID 可以通过 SHOW DNODES 获得。
+dnodeId 可以通过 SHOW DNODES 获得。
 
 :::warning
 
