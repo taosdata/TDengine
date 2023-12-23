@@ -1102,6 +1102,7 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
       entry.checkpointFailed = ((*pTask)->chkInfo.failedId >= (*pTask)->chkInfo.checkpointingId);
       entry.activeCheckpointId = (*pTask)->chkInfo.checkpointingId;
       entry.chkpointTransId = (*pTask)->chkInfo.transId;
+      stInfo("s-task:%s send kill checkpoint trans info, transId:%d", (*pTask)->id.idStr, (*pTask)->chkInfo.transId);
     }
 
     if ((*pTask)->exec.pWalReader != NULL) {

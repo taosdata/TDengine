@@ -1259,10 +1259,11 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   if (pTask->status.downstreamReady != 1) {
     pTask->chkInfo.failedId = req.checkpointId;  // record the latest failed checkpoint id
     pTask->chkInfo.checkpointingId = req.checkpointId;
+    pTask->chkInfo.transId = req.transId;
 
     tqError("s-task:%s not ready for checkpoint, since downstream not ready, ignore this checkpoint:%" PRId64
-            ", set it failure",
-            pTask->id.idStr, req.checkpointId);
+            ", transId:%d set it failed",
+            pTask->id.idStr, req.checkpointId, req.transId);
     streamMetaReleaseTask(pMeta, pTask);
 
     SRpcMsg rsp = {0};
