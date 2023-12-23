@@ -115,8 +115,11 @@ class TDSimClient:
 
 
 class TDDnode:
-    def __init__(self, index):
+    def __init__(self, index, level, disk):
         self.index = index
+        self.level = level
+        self.disk  = disk
+        self.dataDir = []
         self.running = 0
         self.deployed = 0
         self.testCluster = False
@@ -210,13 +213,18 @@ class TDDnode:
 
     def deploy(self, *updatecfgDict):
         self.logDir = os.path.join(self.path,"sim","dnode%d" % self.index, "log")
-        self.dataDir = os.path.join(self.path,"sim","dnode%d" % self.index, "data")
+        simPath = os.path.join(self.path, "sim", "dnode%d" % self.index)
+        for i in range(1, self.level):
+            for j in range(1, self.disk):
+                eDir = os.path.join(simPath, f"data{i}{j}")
+                self.dataDir.append(eDir)
         self.cfgDir = os.path.join(self.path,"sim","dnode%d" % self.index, "cfg")
         self.cfgPath = os.path.join(self.path,"sim","dnode%d" % self.index, "cfg","taos.cfg")
-
-        cmd = "rm -rf " + self.dataDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        
+        for eDir in self.dataDir:
+            cmd = "rm -rf " + eDir
+            if os.system(cmd) != 0:
+                tdLog.exit(cmd)
 
         cmd = "rm -rf " + self.logDir
         if os.system(cmd) != 0:
@@ -229,7 +237,8 @@ class TDDnode:
         # cmd = "mkdir -p " + self.dataDir
         # if os.system(cmd) != 0:
         #     tdLog.exit(cmd)
-        os.makedirs(self.dataDir)
+        for eDir in self.dataDir:
+             os.makedirs(self.dataDir)
 
         # cmd = "mkdir -p " + self.logDir
         # if os.system(cmd) != 0:

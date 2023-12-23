@@ -630,6 +630,7 @@ class TDSql:
             tdLog.exit("taosd state is %d != expect:%d" %args)
         pass
 
+    '''
     def haveFile(self, dir, state):
         if os.path.exists(dir) and os.path.isdir(dir):
             if not os.listdir(dir):
@@ -644,6 +645,7 @@ class TDSql:
                     tdLog.exit("dir: %s is not empty, expect: empty" %dir)
         else:
             tdLog.exit("dir: %s doesn't exist" %dir)
+
     def createDir(self, dir):
         if os.path.exists(dir):
             shrmtree(dir)
@@ -651,5 +653,6 @@ class TDSql:
         os.makedirs( dir, 755 )
         tdLog.info("dir: %s is created" %dir)
         pass
+'''        
 
 tdSql = TDSql()

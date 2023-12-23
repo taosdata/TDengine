@@ -28,9 +28,9 @@ import importlib
 import toml
 
 from frame.log import *
-from frame.dnodes import *
+from frame.server.dnodes import *
+from frame.server.cluster import *
 from frame.cases import *
-from frame.cluster import *
 from frame.taosadapter import *
 
 import taos
@@ -111,6 +111,9 @@ if __name__ == "__main__":
     asan = False
     independentMnode = False
     previousCluster = False
+    level = 1
+    disk  = 1
+
     opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RWD:n:i:aP', [
         'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','websocket','adaptercfgupdate','replicaVar','independentMnode','previous'])
     for key, value in opts:
@@ -139,6 +142,8 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-i independentMnode Mnode')
             tdLog.printNoPrefix('-a address sanitizer mode')
             tdLog.printNoPrefix('-P run case with [P]revious cluster, do not create new cluster to run case.')
+            tdLog.printNoPrefix('-L set multiple level number.     range 1 ~ 3')
+            tdLog.printNoPrefix('-D set disk number on each level. range 1 ~ 10')
 
             sys.exit(0)
 
@@ -225,6 +230,12 @@ if __name__ == "__main__":
 
         if key in ['-P', '--previous']:
             previousCluster = True
+
+        if key in ['-L', '--level']:
+            level = value
+
+        if key in ['-D', '--disk']:
+            disk = value
 
     #
     # do exeCmd command
@@ -391,7 +402,7 @@ if __name__ == "__main__":
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
         else :
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
-            dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums, mnodeNums=mnodeNums, independentMnode=independentMnode)
+            dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums, mnodeNums=mnodeNums, independentMnode=independentMnode, level=level, disk=disk)
             tdDnodes = ClusterDnodes(dnodeslist)
             tdDnodes.init(deployPath, masterIp)
             tdDnodes.setTestCluster(testCluster)
@@ -498,6 +509,7 @@ if __name__ == "__main__":
                 else:
                     tdLog.info("not need to query")
     else:
+        # except windows
         tdDnodes.setKillValgrind(killValgrind)
         tdDnodes.init(deployPath, masterIp)
         tdDnodes.setTestCluster(testCluster)
@@ -574,7 +586,8 @@ if __name__ == "__main__":
             # dnode > 1 cluster
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
             print(independentMnode,"independentMnode valuse")
-            dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums, mnodeNums=mnodeNums, independentMnode=independentMnode)
+            # create dnode list
+            dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums, mnodeNums=mnodeNums, independentMnode=independentMnode, level=level, disk=disk)
             tdDnodes = ClusterDnodes(dnodeslist)
             tdDnodes.init(deployPath, masterIp)
             tdDnodes.setTestCluster(testCluster)
