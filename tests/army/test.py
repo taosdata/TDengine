@@ -218,7 +218,7 @@ if __name__ == "__main__":
         if key in ['-a', '--asan']:
             asan = True
 
-        if key in ['-D', '--adaptercfgupdate']:
+        if key in ['-U', '--adaptercfgupdate']:
             try:
                 adaptercfgupdate = eval(base64.b64decode(value.encode()).decode())
             except:
