@@ -2311,9 +2311,11 @@ static int32_t createPhysiSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogic
     } else {
       pSubplan->msgType = TDMT_SCH_MERGE_QUERY;
     }
-    pCxt->pNode = pLogicSubplan->pNode;
+    
+    if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pLogicSubplan->pNode)) {
+      pCxt->pNode = pLogicSubplan->pNode;
+    }
     code = createPhysiNode(pCxt, pLogicSubplan->pNode, pSubplan, &pSubplan->pNode);
-    pCxt->pNode = NULL;
     if (TSDB_CODE_SUCCESS == code && !pCxt->pPlanCxt->streamQuery && !pCxt->pPlanCxt->topicQuery) {
       code = createDataDispatcher(pCxt, pSubplan->pNode, &pSubplan->pDataSink);
     }
@@ -2414,6 +2416,7 @@ static int32_t doCreatePhysiPlan(SPhysiPlanContext* pCxt, SQueryLogicPlan* pLogi
       break;
     }
   }
+  pCxt->pNode = NULL;
 
   if (TSDB_CODE_SUCCESS == code) {
     *pPhysiPlan = pPlan;
