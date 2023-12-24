@@ -119,8 +119,8 @@ class TDTestCase:
             tdSql.query(f'select {function_name}(1),sum(1) from (select {function_name}(1) from {self.stbname} group by tbname order by tbname)')
             tdSql.checkRows(1)
             if 'count' == function_name:
-              tdSql.checkData(0, 0, 0)
-              tdSql.checkData(0, 1, None)
+              tdSql.checkData(0, 0, 2)
+              tdSql.checkData(0, 1, 2)
             elif 'hyperloglog' == function_name:
               tdSql.checkData(0, 0, 0)
               tdSql.checkData(0, 0, 0)

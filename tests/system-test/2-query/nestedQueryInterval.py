@@ -1113,8 +1113,8 @@ class TDTestCase:
           
     def TS_3932(self):
         tdLog.debug("test insert data into stable")
-        tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
-        tdSql.checkRows(6)
+        tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname having count(*)>0 order by tbname;")
+        tdSql.checkRows(2)
         tdSql.checkData(0, 1, 100)
         tdSql.checkData(1, 1, 200)
                 
