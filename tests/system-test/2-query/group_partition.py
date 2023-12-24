@@ -83,6 +83,10 @@ class TDTestCase:
         tdSql.query(f"select count(c1) from {self.dbname}.{self.stable} group by tbname ")
         tdSql.checkRows(check_num)
 
+        #inner select
+        tdSql.query(f"select * from (select count(c1) from {self.dbname}.{self.stable} group by tbname) ")
+        tdSql.checkRows(check_num)
+
         # count + sum(col)
         tdSql.query(f"select count(*), sum(c1) from {self.dbname}.{self.stable} group by tbname ")
         tdSql.checkRows(check_num)
@@ -144,6 +148,10 @@ class TDTestCase:
 
         #col
         tdSql.query(f"select count(c1) from {self.dbname}.{self.stable} partition by tbname ")
+        tdSql.checkRows(check_num)
+
+        #inner select
+        tdSql.query(f"select * from (select count(c1) from {self.dbname}.{self.stable} partition by tbname) ")
         tdSql.checkRows(check_num)
 
         tdSql.query(f"select count(c1) from {self.dbname}.{self.stable} partition by tbname interval(1d)")

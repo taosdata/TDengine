@@ -123,7 +123,7 @@ class TDTestCase:
               tdSql.checkData(0, 1, 2)
             elif 'hyperloglog' == function_name:
               tdSql.checkData(0, 0, 0)
-              tdSql.checkData(0, 0, 0)
+              tdSql.checkData(0, 1, None)
 
     def query_empty_ntb(self):
         tdSql.query(f'select count(*) from {self.ntbname}')

@@ -595,13 +595,25 @@ static bool calcNeedCountEmpty(SPhysiPlanContext* pCxt, SScanLogicNode* pScanLog
   }
   // limit: root node is select
   SNode* pRoot = pCxt->pPlanCxt->pAstRoot;
-  if (QUERY_NODE_SELECT_STMT == nodeType(pRoot)
-      && pCxt->pNode && QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pCxt->pNode)) {
-    SAggLogicNode* pNode = (SAggLogicNode*)pCxt->pNode;
-    if (pNode->isCountByTag) {
-      return true;
+  if (QUERY_NODE_SELECT_STMT == nodeType(pRoot)) {
+    // case1 root select
+    SSelectStmt* pSelect = (SSelectStmt*)pRoot;
+    if (pSelect->hasCountFunc) {
+      if (NULL != pSelect->pGroupByList) {
+        return !keysHasCol(pSelect->pGroupByList);
+      } else if (NULL != pSelect->pPartitionByList) {
+        return !keysHasCol(pSelect->pPartitionByList);
+      }
+    }
+    // case2 inner agg
+    if (pCxt->pNode && QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pCxt->pNode)) {
+      SAggLogicNode* pNode = (SAggLogicNode*)pCxt->pNode;
+      if (pNode->isCountByTag) {
+        return true;
+      }
     }
   }
+
   return false;
 }
 
