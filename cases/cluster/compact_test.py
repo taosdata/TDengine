@@ -155,6 +155,11 @@ class CompactTest(TDCase):
         self.mem_usage_before_compact = 0
         self.mem_usage_after_compact = 0
 
+        if "common_insert.yaml" in " ".join(sys.argv):
+            print("???")
+            self.childtable_count = 1000
+            self.stage_rows = 5000
+
     def insert_fh_data(self, dbname):
         if dbname == self.dbname2:
             self.keep = "10d"
@@ -366,9 +371,10 @@ class CompactTest(TDCase):
         self.tdCom.confirm_compact_end(self._remote, compact_id, self.compact_wait)
         timestamp_end = self.tdCom.get_compact_endtime(self._remote, self.host, self.taosd_setting)
         # timestamp_end = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-        taosd_avg_cpu, taosBenchmark_avg_cpu, _ = self.Prometheus.cal_range_avg(self.prometheus_setting, "cpu_utilization", timestamp_start, timestamp_end, 60)
-        self._remote._logger.info(f"------------ compact taosd avg cpu: {taosd_avg_cpu} between {timestamp_start} and {timestamp_end} ------------")
-        self._remote._logger.info(f"------------ compact taosBenchmark avg cpu: {taosBenchmark_avg_cpu} between {timestamp_start} and {timestamp_end} ------------")
+        if "common_insert.yaml" not in " ".join(sys.argv):
+            taosd_avg_cpu, taosBenchmark_avg_cpu, _ = self.Prometheus.cal_range_avg(self.prometheus_setting, "cpu_utilization", timestamp_start, timestamp_end, 60)
+            self._remote._logger.info(f"------------ compact taosd avg cpu: {taosd_avg_cpu} between {timestamp_start} and {timestamp_end} ------------")
+            self._remote._logger.info(f"------------ compact taosBenchmark avg cpu: {taosBenchmark_avg_cpu} between {timestamp_start} and {timestamp_end} ------------")
         # record disk usage after compact
         self.disk_usage_after_compact = self._remote.cmd(self.host, [f'du -sh -k {self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"]}']).split('\t')[0]
         self._remote._logger.info(f"------------ disk usage after compact: {self.disk_usage_after_compact} ------------")
@@ -483,7 +489,7 @@ class CompactTest(TDCase):
         # self.tdCom.confirm_compact_end(self._remote, compact_id, 1)
         # compact_endtime = self.tdCom.get_compact_endtime(self._remote, self.host, self.taosd_setting)
         # print(compact_endtime)
-        
+
         # compact_id = self.tdCom.compact(self.dbname1)
         # self.tdCom.comfirm_compact_start(self._remote, self.host, self.taosd_setting)
         # compact_starttime = self.tdCom.get_compact_starttime(self._remote, self.host, self.taosd_setting)
@@ -493,8 +499,7 @@ class CompactTest(TDCase):
         # self.tdCom.check_show_compact(self.dbname1, compact_id)
         # self.tdCom.confirm_compact_end(self._remote, compact_id, 1)
         # self.tdCom.kill_compact(compact_id, True)
-        
-        
+
         # return
         # timestamp_start = "2023-12-03 20:30:36.787877"
         # timestamp_start_tb = self.tdCom.timeformat_trans(timestamp_start)
@@ -506,43 +511,50 @@ class CompactTest(TDCase):
         # res = self.tdCom.taosBenchmark_log_avg_qps(timestamp_start_tb, timestamp_end_tb, "/tmp/0.log")
         # print(res[0])
         # return
-        
-        self.insert_fh_data(self.dbname1)
-        self.insert_base_data(self.dbname1)
-        self.alter_db_keep_param()
-        self.tmq_schedular = self.tdCom.add_back_ground_scheduler(self.tmq_subcribe, "interval", seconds=self.tmq_schedular_interval, max_instances=1, args=[])
-        self.range_compact_schedular = self.tdCom.add_back_ground_scheduler(self.start_range_compact, "interval", seconds=self.compact_schedular_interval, max_instances=1, args=[])
-        # self.disorder_schedular = self.tdCom.add_back_ground_scheduler(self.disorder_update_delete_data, "interval", seconds=self.disorder_schedular_interval, max_instances=1, args=[])
-        self.continue_insert()
-        self.cal_compact_resource()
-        self.compact_multi_dbs()
-        
-        self._remote._logger.info(f"------------ standard taosd avg cpu: {self.standard_taosd_avg_cpu} between {self.standard_timestamp_start} and {self.standard_timestamp_end} ------------")
-        self._remote._logger.info(f"------------ standard taosBenchmark avg cpu: {self.standard_taosBenchmark_avg_cpu} between {self.standard_timestamp_start} and {self.standard_timestamp_end} ------------")
-        self._remote._logger.info(f"------------ standard taosBenchmark avg qps: {self.standard_avg_qps[0]} between {self.standard_timestamp_start} and {self.standard_timestamp_end} ------------")
-        self._remote._logger.info(f"------------ standard taosBenchmark min qps: {min(self.standard_avg_qps[1])} between {self.standard_timestamp_start} and {self.standard_timestamp_end} ------------")
+        if "common_insert.yaml" in " ".join(sys.argv):
+            self.insert_fh_data(self.dbname1)
+            self.insert_base_data(self.dbname1)
+            self.alter_db_keep_param()
+            self.tmq_schedular = self.tdCom.add_back_ground_scheduler(self.tmq_subcribe, "interval", seconds=self.tmq_schedular_interval, max_instances=1, args=[])
+            self.cal_compact_resource()
+            self.compact_multi_dbs()
+        else:
+            self.insert_fh_data(self.dbname1)
+            self.insert_base_data(self.dbname1)
+            self.alter_db_keep_param()
+            self.tmq_schedular = self.tdCom.add_back_ground_scheduler(self.tmq_subcribe, "interval", seconds=self.tmq_schedular_interval, max_instances=1, args=[])
+            self.range_compact_schedular = self.tdCom.add_back_ground_scheduler(self.start_range_compact, "interval", seconds=self.compact_schedular_interval, max_instances=1, args=[])
+            # self.disorder_schedular = self.tdCom.add_back_ground_scheduler(self.disorder_update_delete_data, "interval", seconds=self.disorder_schedular_interval, max_instances=1, args=[])
+            self.continue_insert()
+            self.cal_compact_resource()
+            self.compact_multi_dbs()
 
-        self._remote._logger.info(f"------------ range-compact taosd avg cpu: {self.range_taosd_avg_cpu} between {self.range_timestamp_start} and {self.compact_end_timestamp} ------------")
-        self._remote._logger.info(f"------------ range-compact taosBenchmark avg cpu: {self.range_taosBenchmark_avg_cpu} between {self.range_timestamp_start} and {self.compact_end_timestamp} ------------")
-        self._remote._logger.info(f"------------ range-compact taosBenchmark avg qps: {self.range_avg_qps[0]} between {self.range_timestamp_start} and {self.compact_end_timestamp} ------------")
-        self._remote._logger.info(f"------------ range-compact taosBenchmark min qps: {min(self.range_avg_qps[1])} between {self.range_timestamp_start} and {self.compact_end_timestamp} ------------")
+            self._remote._logger.info(f"------------ standard taosd avg cpu: {self.standard_taosd_avg_cpu} between {self.standard_timestamp_start} and {self.standard_timestamp_end} ------------")
+            self._remote._logger.info(f"------------ standard taosBenchmark avg cpu: {self.standard_taosBenchmark_avg_cpu} between {self.standard_timestamp_start} and {self.standard_timestamp_end} ------------")
+            self._remote._logger.info(f"------------ standard taosBenchmark avg qps: {self.standard_avg_qps[0]} between {self.standard_timestamp_start} and {self.standard_timestamp_end} ------------")
+            self._remote._logger.info(f"------------ standard taosBenchmark min qps: {min(self.standard_avg_qps[1])} between {self.standard_timestamp_start} and {self.standard_timestamp_end} ------------")
 
-        self._remote._logger.info(f"------------ compact blocking taosd cpu list: {self.final_taosd_avg_cpu_list} ------------")
-        self._remote._logger.info(f"------------ compact blocking taosBenchmark cpu list: {self.final_taosBenchmark_avg_cpu_list} ------------")
+            self._remote._logger.info(f"------------ range-compact taosd avg cpu: {self.range_taosd_avg_cpu} between {self.range_timestamp_start} and {self.compact_end_timestamp} ------------")
+            self._remote._logger.info(f"------------ range-compact taosBenchmark avg cpu: {self.range_taosBenchmark_avg_cpu} between {self.range_timestamp_start} and {self.compact_end_timestamp} ------------")
+            self._remote._logger.info(f"------------ range-compact taosBenchmark avg qps: {self.range_avg_qps[0]} between {self.range_timestamp_start} and {self.compact_end_timestamp} ------------")
+            self._remote._logger.info(f"------------ range-compact taosBenchmark min qps: {min(self.range_avg_qps[1])} between {self.range_timestamp_start} and {self.compact_end_timestamp} ------------")
 
-        self._remote._logger.info(f"------------ compact blocking taosd cpu: {sum(self.final_taosd_avg_cpu_list)/len(self.final_taosd_avg_cpu_list)} ------------")
-        self._remote._logger.info(f"------------ compact blocking taosBenchmark cpu: {sum(self.final_taosBenchmark_avg_cpu_list)/len(self.final_taosBenchmark_avg_cpu_list)} ------------")
-        
-        self._remote._logger.info(f"------------ query rows before compact: {self.query_rows_before_compact} ------------")
-        self._remote._logger.info(f"------------ query rows after compact: {self.query_rows_after_compact} ------------")
-        
-        self._remote._logger.info(f"------------ query time before compact: {self.query_time_before_compact}s ------------")
-        self._remote._logger.info(f"------------ query time after compact: {self.query_time_after_compact}s ------------")
-        
-        self._remote._logger.info(f"------------ init disk usage: {self.disk_usage_init}Kb ------------")
-        self._remote._logger.info(f"------------ disk usage before compact: {self.disk_usage_before_compact}Kb ------------")
-        self._remote._logger.info(f"------------ disk usage after compact: {self.disk_usage_after_compact}Kb ------------")
-        
-        self._remote._logger.info(f"------------ mem usage before compact: {self.mem_usage_before_compact}Mb ------------")
-        self._remote._logger.info(f"------------ mem usage after compact: {self.mem_usage_after_compact}Mb ------------")
+            self._remote._logger.info(f"------------ compact blocking taosd cpu list: {self.final_taosd_avg_cpu_list} ------------")
+            self._remote._logger.info(f"------------ compact blocking taosBenchmark cpu list: {self.final_taosBenchmark_avg_cpu_list} ------------")
+
+            self._remote._logger.info(f"------------ compact blocking taosd cpu: {sum(self.final_taosd_avg_cpu_list)/len(self.final_taosd_avg_cpu_list)} ------------")
+            self._remote._logger.info(f"------------ compact blocking taosBenchmark cpu: {sum(self.final_taosBenchmark_avg_cpu_list)/len(self.final_taosBenchmark_avg_cpu_list)} ------------")
+
+            self._remote._logger.info(f"------------ query rows before compact: {self.query_rows_before_compact} ------------")
+            self._remote._logger.info(f"------------ query rows after compact: {self.query_rows_after_compact} ------------")
+
+            self._remote._logger.info(f"------------ query time before compact: {self.query_time_before_compact}s ------------")
+            self._remote._logger.info(f"------------ query time after compact: {self.query_time_after_compact}s ------------")
+
+            self._remote._logger.info(f"------------ init disk usage: {self.disk_usage_init}Kb ------------")
+            self._remote._logger.info(f"------------ disk usage before compact: {self.disk_usage_before_compact}Kb ------------")
+            self._remote._logger.info(f"------------ disk usage after compact: {self.disk_usage_after_compact}Kb ------------")
+
+            self._remote._logger.info(f"------------ mem usage before compact: {self.mem_usage_before_compact}Mb ------------")
+            self._remote._logger.info(f"------------ mem usage after compact: {self.mem_usage_after_compact}Mb ------------")
         
