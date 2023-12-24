@@ -379,10 +379,11 @@ int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask) {
   stDebug("s-task:%s enter into scan-history data stage, status:%s", id, p);
   streamTaskStartScanHistory(pTask);
 
-  // start the related fill-history task, when current task is ready
-  if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
-    streamLaunchFillHistoryTask(pTask);
-  }
+  // NOTE: there will be an deadlock if launch fill history here.
+//  // start the related fill-history task, when current task is ready
+//  if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
+//    streamLaunchFillHistoryTask(pTask);
+//  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -400,6 +401,13 @@ void doProcessDownstreamReadyRsp(SStreamTask* pTask) {
   int64_t initTs = pTask->execInfo.init;
   int64_t startTs = pTask->execInfo.start;
   streamMetaUpdateTaskDownstreamStatus(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, initTs, startTs, true);
+
+  // start the related fill-history task, when current task is ready
+  // not invoke in success callback due to the deadlock.
+  if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
+    stDebug("s-task:%s try to launch related fill-history task", pTask->id.idStr);
+    streamLaunchFillHistoryTask(pTask);
+  }
 }
 
 static void addIntoNodeUpdateList(SStreamTask* pTask, int32_t nodeId) {
