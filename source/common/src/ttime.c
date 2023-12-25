@@ -1297,7 +1297,7 @@ static void parseTsFormat(const char* formatStr, SArray* formats) {
   }
 }
 
-static void tm2char(const SArray* formats, const struct STm* tm, char* s, int32_t outLen) {
+static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int32_t outLen) {
   int32_t size = taosArrayGetSize(formats);
   const char* start = s;
   for (int32_t i = 0; i < size; ++i) {
@@ -1332,6 +1332,9 @@ static void tm2char(const SArray* formats, const struct STm* tm, char* s, int32_
         s += 4;
         break;
       case TSFKW_DDD:
+#ifdef WINDOWS
+        return TSDB_CODE_FUNC_TO_CHAR_NOT_SUPPORTED;
+#endif
         sprintf(s, "%03d", tm->tm.tm_yday + 1);
         s += strlen(s);
         break;
@@ -1486,6 +1489,7 @@ static void tm2char(const SArray* formats, const struct STm* tm, char* s, int32_
         break;
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 /// @brief find s in arr case insensitively
@@ -1889,14 +1893,14 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   return ret;
 }
 
-void taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen) {
+int32_t taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen) {
   if (!*formats) {
     *formats = taosArrayInit(8, sizeof(TSFormatNode));
     parseTsFormat(format, *formats);
   }
   struct STm tm;
   taosTs2Tm(ts, precision, &tm);
-  tm2char(*formats, &tm, out, outLen);
+  return tm2char(*formats, &tm, out, outLen);
 }
 
 int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int64_t* ts, int32_t precision, char* errMsg,
