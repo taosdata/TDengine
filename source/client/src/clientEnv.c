@@ -336,6 +336,7 @@ void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
 
   pRequest->pDb = getDbOfConnection(pTscObj);
   pRequest->pTscObj = pTscObj;
+  pRequest->inCallback = false;
 
   pRequest->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   pRequest->msgBufLen = ERROR_MSG_BUF_DEFAULT_SIZE;
