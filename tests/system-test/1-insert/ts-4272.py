@@ -49,10 +49,10 @@ class TDTestCase:
         tdSql.execute(f"create table {self.stable2}_1 using {self.stable2}(t_int) tags(2);")
 
     def test(self, sql):
-        sql = f"use {self.db};" + sql
-        os.system(f'taos -s "{sql}"')
-        # print(f'{sql}\n')
-        # tdSql.execute(sql, 1)
+        # sql = f"use {self.db};" + sql
+        # os.system(f'taos -s "{sql}"')
+        print(f'{sql}\n')
+        tdSql.execute(sql, 1)
 
     def check(self):
         # same table, auto create + create
