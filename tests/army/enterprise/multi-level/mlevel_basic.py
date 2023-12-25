@@ -15,26 +15,65 @@ import sys
 import time
 
 import taos
+import frame
+
 from frame.log import *
 from frame.cases import *
 from frame.sql import *
+from frame.caseBase import *
 
-class TDTestCase:
-    # init
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+
+
+class TDTestCase(TBase):
+        
+
+    def insertData(self):
+        tdLog.info(f"insert data.")
+        # taosBenchmark run
+        json = frame.etool.curFile(__file__, "mlevel_basic.json")
+        frame.etool.runBenchmark(json=json)
+
+        # set insert data information
+        self.childtable_count = 2
+        self.insert_rows = 1000000
+        self.timestamp_step = 1000
+
+    def doAction(self):
+        tdLog.info(f"trim database.")
+        self.trimDb()
+
+    def saveData(self):
+        tdLog.info(f"check correct.")
+
+    def checkSaveCorrent(self):
+        tdLog.info(f"check correct.")
+
+    def checkCorrect(self):
+        tdLog.info(f"check correct.")
+
 
     # run
     def run(self):
-        # check two db query result same
-        tdLog.info(f"hello world.")
+        tdLog.debug(f"start to excute {__file__}")
 
-    # stop
-    def stop(self):
-        tdSql.close()
+        # insert data
+        self.insertData()
+
+        # check insert data correct
+        self.checkInsertCorrect()
+
+        # save
+        self.snapshotAgg()
+
+        # do action
+        self.doAction()
+
+        # check save agg result correct
+        self.checkAggCorrect()
+
         tdLog.success(f"{__file__} successfully executed")
+
+        
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())

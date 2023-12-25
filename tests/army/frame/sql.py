@@ -535,6 +535,16 @@ class TDSql:
             tdLog.info("%s(%d) failed: sql:%s, elm:%s == expect_elm:%s" % args)
             raise Exception
 
+    # check like select count(*) ...  sql
+    def checkAgg(self, sql, expectCnt):
+        self.query(sql)
+        self.checkRowCol(0, 0, expectCnt)
+
+    # get first value
+    def getFirstValue(self, sql) :
+        self.query(sql)
+        return self.getData(0, 0)
+
     def get_times(self, time_str, precision="ms"):
         caller = inspect.getframeinfo(inspect.stack()[1][0])
         if time_str[-1] not in TAOS_TIME_INIT:
@@ -602,6 +612,7 @@ class TDSql:
         if self.cursor.istype(col, "BIGINT UNSIGNED"):
             return "BIGINT UNSIGNED"
 
+    '''
     def taosdStatus(self, state):
         tdLog.sleep(5)
         pstate = 0
@@ -630,7 +641,7 @@ class TDSql:
             tdLog.exit("taosd state is %d != expect:%d" %args)
         pass
 
-    '''
+    
     def haveFile(self, dir, state):
         if os.path.exists(dir) and os.path.isdir(dir):
             if not os.listdir(dir):
