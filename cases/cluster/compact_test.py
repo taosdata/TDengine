@@ -156,9 +156,8 @@ class CompactTest(TDCase):
         self.mem_usage_after_compact = 0
 
         if "common_insert.yaml" in " ".join(sys.argv):
-            print("???")
             self.childtable_count = 1000
-            self.stage_rows = 5000
+            self.stage_rows = 3000
 
     def insert_fh_data(self, dbname):
         if dbname == self.dbname2:
