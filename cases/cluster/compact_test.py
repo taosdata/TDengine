@@ -155,7 +155,7 @@ class CompactTest(TDCase):
         self.mem_usage_before_compact = 0
         self.mem_usage_after_compact = 0
 
-        if "common_insert.yaml" in " ".join(sys.argv):
+        if "cluster_common_insert.yaml" in " ".join(sys.argv):
             self.childtable_count = 1000
             self.stage_rows = 3000
 
@@ -370,7 +370,7 @@ class CompactTest(TDCase):
         self.tdCom.confirm_compact_end(self._remote, compact_id, self.compact_wait)
         timestamp_end = self.tdCom.get_compact_endtime(self._remote, self.host, self.taosd_setting)
         # timestamp_end = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-        if "common_insert.yaml" not in " ".join(sys.argv):
+        if "cluster_common_insert.yaml" not in " ".join(sys.argv):
             taosd_avg_cpu, taosBenchmark_avg_cpu, _ = self.Prometheus.cal_range_avg(self.prometheus_setting, "cpu_utilization", timestamp_start, timestamp_end, 60)
             self._remote._logger.info(f"------------ compact taosd avg cpu: {taosd_avg_cpu} between {timestamp_start} and {timestamp_end} ------------")
             self._remote._logger.info(f"------------ compact taosBenchmark avg cpu: {taosBenchmark_avg_cpu} between {timestamp_start} and {timestamp_end} ------------")
@@ -510,7 +510,7 @@ class CompactTest(TDCase):
         # res = self.tdCom.taosBenchmark_log_avg_qps(timestamp_start_tb, timestamp_end_tb, "/tmp/0.log")
         # print(res[0])
         # return
-        if "common_insert.yaml" in " ".join(sys.argv):
+        if "cluster_common_insert.yaml" in " ".join(sys.argv):
             self.insert_fh_data(self.dbname1)
             self.insert_base_data(self.dbname1)
             self.alter_db_keep_param()

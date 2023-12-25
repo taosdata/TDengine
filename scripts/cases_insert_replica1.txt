@@ -1,5 +1,5 @@
 taostest --setup=common_insert.yaml --case=stream_computing/stream_computing_test.py --keep --containers
-taostest --setup=common_insert.yaml --case=cluster/compact_test.py --keep --containers
+taostest --setup=cluster_common_insert.yaml --case=cluster/compact_test.py --keep --containers
 
 taostest --setup=common_insert.yaml --case=taosc_insert/alter_table.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/delete_data.py --keep --containers
