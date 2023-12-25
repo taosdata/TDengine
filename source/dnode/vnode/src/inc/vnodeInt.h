@@ -232,6 +232,7 @@ int     tqPushMsg(STQ*, tmsg_t msgType);
 int     tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
 int     tqUnregisterPushHandle(STQ* pTq, void* pHandle);
 int     tqScanWalAsync(STQ* pTq, bool ckPause);
+int32_t tqStopStreamTasksAsync(STQ* pTq);
 int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp);
 int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);

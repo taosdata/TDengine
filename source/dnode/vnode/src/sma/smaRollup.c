@@ -240,23 +240,23 @@ int32_t tdFetchTbUidList(SSma *pSma, STbUidStore **ppStore, tb_uid_t suid, tb_ui
 
 static void tdRSmaTaskInit(SStreamMeta *pMeta, SRSmaInfoItem *pItem, SStreamTaskId *pId) {
   STaskId id = {.streamId = pId->streamId, .taskId = pId->taskId};
-  taosRLockLatch(&pMeta->lock);
+  streamMetaRLock(pMeta);
   SStreamTask **ppTask = (SStreamTask **)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask && *ppTask) {
     pItem->submitReqVer = (*ppTask)->chkInfo.checkpointVer;
     pItem->fetchResultVer = (*ppTask)->info.triggerParam;
   }
-  taosRUnLockLatch(&pMeta->lock);
+  streamMetaRUnLock(pMeta);
 }
 
 static void tdRSmaTaskRemove(SStreamMeta *pMeta, int64_t streamId, int32_t taskId) {
   streamMetaUnregisterTask(pMeta, streamId, taskId);
-  taosWLockLatch(&pMeta->lock);
+  streamMetaWLock(pMeta);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
   if (streamMetaCommit(pMeta) < 0) {
     // persist to disk
   }
-  taosWUnLockLatch(&pMeta->lock);
+  streamMetaWUnLock(pMeta);
   smaDebug("vgId:%d, rsma task:%" PRIi64 ",%d dropped, remain tasks:%d", pMeta->vgId, streamId, taskId, numOfTasks);
 }
 
@@ -1301,14 +1301,14 @@ _checkpoint:
             checkpointBuilt = true;
           }
 
-          taosWLockLatch(&pMeta->lock);
+          streamMetaWLock(pMeta);
           if (streamMetaSaveTask(pMeta, pTask)) {
-            taosWUnLockLatch(&pMeta->lock);
+            streamMetaWUnLock(pMeta);
             code = terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY;
             taosHashCancelIterate(pInfoHash, infoHash);
             TSDB_CHECK_CODE(code, lino, _exit);
           }
-          taosWUnLockLatch(&pMeta->lock);
+          streamMetaWUnLock(pMeta);
           smaDebug("vgId:%d, rsma commit, succeed to commit task:%p, submitReqVer:%" PRIi64 ", fetchResultVer:%" PRIi64
                    ", table:%" PRIi64 ", level:%d",
                    TD_VID(pVnode), pTask, pItem->submitReqVer, pItem->fetchResultVer, pRSmaInfo->suid, i + 1);
@@ -1316,13 +1316,13 @@ _checkpoint:
       }
     }
     if (pMeta) {
-      taosWLockLatch(&pMeta->lock);
+      streamMetaWLock(pMeta);
       if (streamMetaCommit(pMeta)) {
-        taosWUnLockLatch(&pMeta->lock);
+        streamMetaWUnLock(pMeta);
         code = terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
-      taosWUnLockLatch(&pMeta->lock);
+      streamMetaWUnLock(pMeta);
     }
     if (checkpointBuilt) {
       smaInfo("vgId:%d, rsma commit, succeed to commit checkpoint:%" PRIi64, TD_VID(pVnode), checkpointId);
