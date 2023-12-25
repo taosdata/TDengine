@@ -1037,15 +1037,16 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
     streamMetaReleaseTask(pMeta, pStreamTask);
   } else {
-    STimeWindow* pWindow = &pTask->dataRange.window;
-    ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask) || streamTaskShouldStop(pTask));
-
-    // Not update the fill-history time window until the state transfer is completed.
-    tqDebug("s-task:%s scan-history in stream time window completed, start to handle data from WAL, startVer:%" PRId64
-            ", window:%" PRId64 " - %" PRId64,
-            id, pTask->chkInfo.nextProcessVer, pWindow->skey, pWindow->ekey);
-
-    code = streamTaskScanHistoryDataComplete(pTask);
+    ASSERT(0);
+//    STimeWindow* pWindow = &pTask->dataRange.window;
+//    ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask) || streamTaskShouldStop(pTask));
+//
+//    // Not update the fill-history time window until the state transfer is completed.
+//    tqDebug("s-task:%s scan-history in stream time window completed, start to handle data from WAL, startVer:%" PRId64
+//            ", window:%" PRId64 " - %" PRId64,
+//            id, pTask->chkInfo.nextProcessVer, pWindow->skey, pWindow->ekey);
+//
+//    code = streamTaskScanHistoryDataComplete(pTask);
   }
 
   atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
@@ -1170,7 +1171,7 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
   } else if (status == TASK_STATUS__UNINIT) {
     // todo: fill-history task init ?
     if (pTask->info.fillHistory == 0) {
-      EStreamTaskEvent event = HAS_RELATED_FILLHISTORY_TASK(pTask) ? TASK_EVENT_INIT_STREAM_SCANHIST : TASK_EVENT_INIT;
+      EStreamTaskEvent event = /*HAS_RELATED_FILLHISTORY_TASK(pTask) ? TASK_EVENT_INIT_STREAM_SCANHIST : */TASK_EVENT_INIT;
       streamTaskHandleEvent(pTask->status.pSM, event);
     }
   }
@@ -1363,9 +1364,9 @@ int32_t tqProcessTaskDropHTask(STQ* pTq, SRpcMsg* pMsg) {
 
   taosThreadMutexLock(&pTask->lock);
   ETaskStatus status = streamTaskGetStatus(pTask, NULL);
-  if (status == TASK_STATUS__STREAM_SCAN_HISTORY) {
-    streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
-  }
+//  if (status == TASK_STATUS__STREAM_SCAN_HISTORY) {
+//    streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
+//  }
 
   SStreamTaskId id = {.streamId = pTask->hTaskInfo.id.streamId, .taskId = pTask->hTaskInfo.id.taskId};
   streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &id);

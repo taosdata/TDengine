@@ -646,7 +646,7 @@ bool streamTaskIsIdle(const SStreamTask* pTask) {
 
 bool streamTaskReadyToRun(const SStreamTask* pTask, char** pStatus) {
   ETaskStatus st = streamTaskGetStatus(pTask, NULL);
-  return (st == TASK_STATUS__READY || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__STREAM_SCAN_HISTORY ||
+  return (st == TASK_STATUS__READY || st == TASK_STATUS__SCAN_HISTORY/* || st == TASK_STATUS__STREAM_SCAN_HISTORY*/ ||
           st == TASK_STATUS__CK);
 }
 
