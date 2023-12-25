@@ -119,6 +119,7 @@ typedef struct SScanLogicNode {
   bool          groupOrderScan;
   bool          onlyMetaCtbIdx; // for tag scan with no tbname
   bool          filesetDelimited; // returned blocks delimited by fileset
+  bool          isCountByTag;  // true if selectstmt hasCountFunc & part by tag/tbname
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -147,7 +148,6 @@ typedef struct SAggLogicNode {
   bool       isGroupTb;
   bool       isPartTb;  // true if partition keys has tbname
   bool       hasGroup;
-  bool       isCountByTag;  // true if hasCountFunc & part by tag/tbname
 } SAggLogicNode;
 
 typedef struct SProjectLogicNode {
