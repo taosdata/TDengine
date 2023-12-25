@@ -376,12 +376,16 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 
   pMeta->rid = taosAddRef(streamMetaId, pMeta);
 
+  // set the attribute when running on Linux OS
+#if defined LINUX
   TdThreadRwlockAttr attr;
   taosThreadRwlockAttrInit(&attr);
 
   pthread_rwlockattr_setkind_np(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
   taosThreadRwlockInit(&pMeta->lock, &attr);
+
   taosThreadRwlockAttrDestroy(&attr);
+#endif
 
   int64_t* pRid = taosMemoryMalloc(sizeof(int64_t));
   memcpy(pRid, &pMeta->rid, sizeof(pMeta->rid));
