@@ -373,6 +373,7 @@ if __name__ == "__main__":
         tAdapter.stop(force_kill=True)
 
         if dnodeNums == 1 :
+            tdDnodes.setLevelDisk(level, disk)
             tdDnodes.deploy(1,updateCfgDict)
             tdDnodes.start(1)
             tdCases.logSql(logSql)
@@ -542,6 +543,7 @@ if __name__ == "__main__":
 
         if dnodeNums == 1 :
             # dnode is one
+            tdDnodes.setLevelDisk(level, disk)
             tdDnodes.deploy(1,updateCfgDict)
             tdDnodes.start(1)
             tdCases.logSql(logSql)

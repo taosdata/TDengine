@@ -911,4 +911,10 @@ class TDDnodes:
     def getAsan(self):
         return self.asan
 
+    def setLevelDisk(self, level, disk):
+        for i in range(len(self.dnodes)):
+            self.dnodes[i].level = int(level)
+            self.dnodes[i].disk  = int(disk)
+
+
 tdDnodes = TDDnodes()

@@ -24,12 +24,12 @@
                 {
                     "name": "stb",
                     "child_table_exists": "no",
-                    "childtable_count": 2,
+                    "childtable_count": 4,
                     "insert_rows": 1000000,
                     "childtable_prefix": "d",
                     "insert_mode": "taosc",
                     "timestamp_step": 1000,
-                    "start_timestamp":"now-10d",
+                    "start_timestamp":"now-12d",
                     "columns": [
                         { "type": "bool",        "name": "bc"},
                         { "type": "float",       "name": "fc" },

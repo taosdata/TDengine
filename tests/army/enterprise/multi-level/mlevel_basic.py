@@ -36,23 +36,15 @@ class TDTestCase(TBase):
 
         tdSql.execute(f"use {self.db}")
         # set insert data information
-        self.childtable_count = 2
+        self.childtable_count = 4
         self.insert_rows = 1000000
         self.timestamp_step = 1000
 
     def doAction(self):
-        tdLog.info(f"trim database.")
+        tdLog.info(f"do action.")
+        self.flushDb()
         self.trimDb()
-
-    def saveData(self):
-        tdLog.info(f"check correct.")
-
-    def checkSaveCorrent(self):
-        tdLog.info(f"check correct.")
-
-    def checkCorrect(self):
-        tdLog.info(f"check correct.")
-
+        self.compactDb()
 
     # run
     def run(self):
@@ -72,6 +64,9 @@ class TDTestCase(TBase):
 
         # check save agg result correct
         self.checkAggCorrect()
+
+        # check insert correct again
+        self.checkInsertCorrect()
 
         tdLog.success(f"{__file__} successfully executed")
 

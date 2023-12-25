@@ -21,6 +21,7 @@ import time
 import datetime
 import frame.epath
 import frame.eos
+from frame.log import *
 
 # run taosBenchmark with command or json file mode
 def runBenchmark(command = "", json = "") :
@@ -35,7 +36,10 @@ def runBenchmark(command = "", json = "") :
     if json != "":
         cmd = f"{bmFile} -f {json}"
         print(cmd)
-        frame.eos.exe(cmd)
+        status = frame.eos.exe(cmd)
+        if status !=0:
+          tdLog.exit(f"run failed {cmd} status={status}")
+       
 
 # get current directory file name
 def curFile(fullPath, filename):

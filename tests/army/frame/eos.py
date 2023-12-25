@@ -19,10 +19,11 @@ import sys
 import os
 import time
 import datetime
+import platform
 
 # if windows platform return True
 def isWin():
-    return sys.platform.lower() == 'windows'
+    return platform.system().lower() == 'windows'
 
 # wait util execute file finished 
 def exe(file):

@@ -69,6 +69,8 @@ class TBase:
     def compactDb(self):
         tdSql.execute(f"compact database {self.db}")
 
+    def flushDb(self):
+        tdSql.execute(f"flush database {self.db}")
 
 #
 #  check db correct
