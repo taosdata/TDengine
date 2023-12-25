@@ -19,13 +19,13 @@ import os
 from frame.log import *
 
 # build/bin path
-binPath = ""
+binDir = ""
 
-def binPath(self):
-    global binPath
+def binPath():
+    global binDir
 
-    if binPath != "":
-        return binPath
+    if binDir != "":
+        return binDir
 
     selfPath = os.path.dirname(os.path.realpath(__file__))
 
@@ -46,8 +46,8 @@ def binPath(self):
     else:
         tdLog.info(f"taosd found in {buildPath}")
     # return
-    binPath = buildPath + "/build/bin/"
-    return binPath
+    binDir = buildPath + "/build/bin/"
+    return binDir
 
-def binFile(self, file):
-    return binPath() + file
+def binFile(filename):
+    return binPath() + filename

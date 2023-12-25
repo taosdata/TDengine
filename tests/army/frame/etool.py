@@ -19,22 +19,24 @@ import sys
 import os
 import time
 import datetime
-import epath
-import eos
+import frame.epath
+import frame.eos
 
 # run taosBenchmark with command or json file mode
 def runBenchmark(command = "", json = "") :
     # get taosBenchmark path
-    bmFile = epath.binFile("taosBenchmark")
-    if eos.isWin():
+    bmFile = frame.epath.binFile("taosBenchmark")
+    if frame.eos.isWin():
         bmFile += ".exe"
 
     # run
     if command != "":
-        eos.exe(bmFile + " " + command)
+        frame.eos.exe(bmFile + " " + command)
     if json != "":
-        eos.exe(bmFile + " -f " + json)
+        cmd = f"{bmFile} -f {json}"
+        print(cmd)
+        frame.eos.exe(cmd)
 
 # get current directory file name
-def curFile(fullPath, file):
-    return os.path.dirname(fullPath) + "/" + file
+def curFile(fullPath, filename):
+    return os.path.dirname(fullPath) + "/" + filename

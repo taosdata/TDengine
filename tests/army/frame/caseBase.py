@@ -16,11 +16,11 @@ import os
 import time
 import datetime
 
-from log import *
-from sql import *
+from frame.log import *
+from frame.sql import *
 
 # test case base
-class DbBase:
+class TBase:
 
 #
 #   frame call 
@@ -85,7 +85,7 @@ class DbBase:
         tdSql.checkAgg(sql, self.childtable_count)
 
         # check step
-        sql = f"select count(*) from (select diff(ts) as dif from {self.stb} group by tbname) where dif != {self.timestamp_step}"
+        sql = f"select count(*) from (select diff(ts) as dif from {self.stb} partition by tbname) where dif != {self.timestamp_step}"
         tdSql.checkAgg(sql, 0)
 
     # save agg result

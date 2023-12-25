@@ -16,12 +16,13 @@ import time
 
 import taos
 import frame
+import frame.etool
 
 from frame.log import *
 from frame.cases import *
 from frame.sql import *
 from frame.caseBase import *
-
+from frame import *
 
 
 class TDTestCase(TBase):
@@ -30,9 +31,10 @@ class TDTestCase(TBase):
     def insertData(self):
         tdLog.info(f"insert data.")
         # taosBenchmark run
-        json = frame.etool.curFile(__file__, "mlevel_basic.json")
-        frame.etool.runBenchmark(json=json)
+        json = etool.curFile(__file__, "mlevel_basic.json")
+        etool.runBenchmark(json=json)
 
+        tdSql.execute(f"use {self.db}")
         # set insert data information
         self.childtable_count = 2
         self.insert_rows = 1000000

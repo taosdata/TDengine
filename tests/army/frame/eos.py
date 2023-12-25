@@ -22,7 +22,7 @@ import datetime
 
 # if windows platform return True
 def isWin():
-    return sys.platform.system().lower() == 'windows'
+    return sys.platform.lower() == 'windows'
 
 # wait util execute file finished 
 def exe(file):

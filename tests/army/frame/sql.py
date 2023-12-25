@@ -538,7 +538,7 @@ class TDSql:
     # check like select count(*) ...  sql
     def checkAgg(self, sql, expectCnt):
         self.query(sql)
-        self.checkRowCol(0, 0, expectCnt)
+        self.checkData(0, 0, expectCnt)
 
     # get first value
     def getFirstValue(self, sql) :
