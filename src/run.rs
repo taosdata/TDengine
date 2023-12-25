@@ -1,7 +1,6 @@
 use anyhow::{bail, Result};
 use clap::Parser;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
-use metrics_util::debugging::Snapshotter;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use taos::*;
@@ -12,7 +11,7 @@ use tracing::Instrument;
 use twelf::config;
 
 use taosx_core::utils::{self};
-use taosx_core::{Action, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND, METRICS_TIME_START};
+use taosx_core::Action;
 
 use crate::serve::check_parser_timestamp_precision;
 
@@ -157,11 +156,9 @@ impl Cli {
 
         // start metrics print schedular
         let debugging_recorder = metrics_util::debugging::DebuggingRecorder::new();
-        let snapshotter = Arc::new(debugging_recorder.snapshotter());
         debugging_recorder.install()?;
 
         let timer_run = Arc::new(AtomicBool::new(true));
-        let snapshotter_clone = snapshotter.clone();
         // let timer_flag = timer_run.clone();
         // std::thread::spawn(move || {
         //     println!("print timer start");

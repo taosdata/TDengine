@@ -15,20 +15,16 @@ use actix_web::{
     HttpRequest, HttpResponse, Responder, ResponseError,
 };
 use anyhow::Context;
-use chrono::Utc;
 use itertools::Itertools;
-use metrics_util::debugging::Snapshotter;
 use serde::{Deserialize, Serialize};
 use taos::{Code, Dsn};
 use taosx_core::core_metrics::{try_get_metrics, CoreMetrics};
 use taosx_core::legacy_metric::LegacyToTaosMetrics;
 use taosx_core::sink::ipc_metric::IPCMetrics;
 use taosx_core::tmq::tmq_metric::TMQMetrics;
-use taosx_core::utils::metrics_db::MetricsDb;
 use taosx_core::{
     core_metrics::{self},
-    get_data_dir, get_file_upload_home_dir, LegacyMetrics, METRICS_TIME_COST,
-    METRICS_TIME_RECORDS_PER_SECOND, METRICS_TIME_START,
+    get_data_dir, get_file_upload_home_dir,
 };
 use tracing::instrument;
 use utoipa::*;

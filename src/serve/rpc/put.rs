@@ -14,7 +14,6 @@ use taosx_core::{
     },
     ConnectorLicense, IpcStreamWorker, Parser,
 };
-use tokio::sync::oneshot;
 use tonic::{Status, Streaming};
 use tracing::{debug, instrument, Instrument, Span};
 
@@ -185,6 +184,7 @@ impl PutStream {
             stream_trace_id_u64: u64,
         ) -> anyhow::Result<()> {
             // dbg!(&task);
+            let task_id = task.id;
             let from = task.from.parse().unwrap();
             let taos = pool.get().await?;
             let _ = span.clone().entered();
@@ -232,6 +232,7 @@ impl PutStream {
                         parser.as_deref(),
                         trace_id,
                         &get_data_trace_id_str(trace_id),
+                        metrics,
                     )
                     .in_current_span()
                     .await

@@ -1,6 +1,6 @@
 use crate::get_data_dir;
 use std::path::{Path, PathBuf};
-use tracing::{debug, info, trace};
+use tracing::{info, trace};
 
 pub struct MetricsDb {
     db: sled::Db,

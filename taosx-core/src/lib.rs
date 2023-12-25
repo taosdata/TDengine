@@ -5,15 +5,11 @@ use std::sync::{
 
 use anyhow::Context;
 use chrono::NaiveDate;
-use core_metrics::{try_get_metrics, CoreMetrics, TaosXMetrics, GLOBAL_METRICS};
 use dashmap::DashMap;
-use legacy::legacy_metric::LegacyToTaosMetrics;
-use plugins::sink::ipc_metric::IPCMetrics;
 use serde::Deserialize;
 use serde_with::serde_as;
 use taos::taos_query::tmq::Assignment;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
-use tmq::tmq_metric::TMQMetrics;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 

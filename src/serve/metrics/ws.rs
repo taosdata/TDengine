@@ -9,7 +9,6 @@ use futures_util::{
     future::{self, Either},
     StreamExt as _,
 };
-use metrics_util::debugging::Snapshotter;
 use taos::Code;
 use taosx_core::core_metrics::get_task_metrics_string;
 use tokio::{pin, time::interval};
