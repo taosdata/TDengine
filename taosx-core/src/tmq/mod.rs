@@ -152,8 +152,6 @@ impl FromStr for StopAt {
     }
 }
 
-
-
 /// Parse input dsn, returns subscription dsn and a list of topics.
 ///
 /// Steps:
