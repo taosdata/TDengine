@@ -93,7 +93,7 @@ typedef struct SQueryNode         SQueryNode;
 #define VNODE_RSMA2_DIR "rsma2"
 #define VNODE_TQ_STREAM "stream"
 
-#if SUSPEND_RESUME_TEST        // only for test purpose
+#if SUSPEND_RESUME_TEST  // only for test purpose
 #define VNODE_BUFPOOL_SEGMENTS 1
 #else
 #define VNODE_BUFPOOL_SEGMENTS 3
@@ -213,8 +213,6 @@ int32_t tsdbBegin(STsdb* pTsdb);
 // int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbCacheCommit(STsdb* pTsdb);
 int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
-// int32_t tsdbFinishCommit(STsdb* pTsdb);
-// int32_t tsdbRollbackCommit(STsdb* pTsdb);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
