@@ -8,7 +8,7 @@ After logging into TDengine Cloud, please click the **Ticket** menu item in the 
 
 ## Add Ticket
 
-Click the **Add Ticket** button next to the title of the **Add Ticket** page to open the **Add  Ticket** dialog box, please follow the steps below to add a new ticket:
+Click the **Add Ticket** button next to the title of the **Add Ticket** page to open the **Add Ticket** dialog box, please follow the steps below to add a new ticket:
 
 1. Fill in the title of the ticket, including the core content of the ticket, which can be the main description of the problem, ideas for improvement or other.
 
@@ -19,11 +19,11 @@ Click the **Add Ticket** button next to the title of the **Add Ticket** page to 
     - Issue: Issues during you use TDengine Cloud.
     - Billing: Billing related tickets, such as applying for invoices,coupon, price plan, billing order, and so on.
 
-3. In the **Instance** section, please select the TDengine instances that are related to the ticket, if not, you don't need to select them. 4.
+3. In the **Instance** section, please select the TDengine instances that are related to the ticket, if not, you don't need to select them.
 
 4. In the **Description** section, please describe the content of the ticket in detail, including the details of the issue, suggestions for improvement, and specifics of the new features.
 
-5. In the **Attachment** section, please upload pictures or files related to the ticket, the size should not exceed 10MB and the maxium number is 5.
+5. In the **Attachment** section, please upload pictures or files related to the ticket, the size should not exceed 10MB and the maximum number is 5.
 
 6. In the **Email** section, TDengine Cloud will automatically fill in the email address of the current user.
 
