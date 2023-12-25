@@ -25,6 +25,7 @@ typedef struct {
 
   SStreamTask* pTask;
 } SAsyncUploadArg;
+
 int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
@@ -379,38 +380,111 @@ int32_t getChkpMeta(char* id, char* path, SArray* list) {
   taosMemoryFree(file);
   return code;
 }
+
+int32_t chkpEnvInit_S3(void* pEnv) {
+  SDbChkpEnv* p = pEnv;
+  p->arg = taosArrayInit(4, sizeof(void*));
+  return 0;
+}
+int32_t chkpEnvPrepare_S3(void* pEnv, void* arg) {
+  if (pEnv == NULL) return 0;
+  SDbChkpEnv* p = pEnv;
+
+  SArray* list = p->arg;
+  return getChkpMeta(p->taskId, (char*)arg, (SArray*)(p->arg));
+}
+int32_t chkpEnvEnd_S3(void* pEnv, void* arg) {
+  if (pEnv == NULL || arg == NULL) {
+    return 0;
+  }
+  SArray* list = ((SDbChkpEnv*)pEnv)->arg;
+  char*   id = arg;
+  int32_t code = 0;
+  for (int i = 0; i < taosArrayGetSize(list); i++) {
+    char* p = taosArrayGetP(list, i);
+    code = deleteCheckpointFile(id, p);
+    if (code != 0) {
+      break;
+    }
+  }
+  return 0;
+}
+
+void chkpEnvDestroy_S3(void* pEnv) {
+  if (pEnv == NULL) return;
+  SDbChkpEnv* p = pEnv;
+
+  SArray* list = p->arg;
+  taosArrayDestroyP(list, taosMemoryFree);
+
+  return;
+}
+
+int32_t chkpEnvInit_Rsync(void* pEnv) { return 0; }
+int32_t chkpEnvPrepare_Rsync(void* pEnv, void* arg) { return 0; }
+int32_t chkpEnvEnd_Rsync(void* pEnv, void* arg) { return 0; }
+void    chkpEnvDestroy_Rsync(void* pEnv) { return; }
+
+SDbChkpEnv envConfig[] = {
+    {.type = UPLOAD_S3, chkpEnvInit_S3, chkpEnvPrepare_S3, chkpEnvEnd_S3, chkpEnvDestroy_S3},
+    {.type = UPLOAD_RSYNC, chkpEnvInit_Rsync, chkpEnvPrepare_Rsync, chkpEnvEnd_Rsync, chkpEnvDestroy_Rsync},
+
+};
+
+SDbChkpEnv* createDbChkpEnv(int8_t type, char* taskId) {
+  static int8_t sz = sizeof(envConfig) / sizeof(envConfig[0]);
+
+  int i = -1;
+  for (i = 0; i < sz; i++) {
+    if (envConfig[i].type == type) {
+      break;
+    }
+  }
+
+  if (i >= sz || i < 0) {
+    return NULL;
+  }
+
+  SDbChkpEnv* env = taosMemoryCalloc(1, sizeof(SDbChkpEnv));
+  memcpy(env, &envConfig[i], sizeof(SDbChkpEnv));
+  env->taskId = taosStrdup(taskId);
+
+  if (env->initFunc(env) != 0) {
+    env->destroyFunc(env);
+    return NULL;
+  }
+  return env;
+}
+void destroyDbChkpEnv(SDbChkpEnv* env) {
+  if (env && env->destroyFunc) {
+    env->destroyFunc(env);
+  }
+  taosMemoryFree(env->taskId);
+  taosMemoryFree(env);
+}
+
 int32_t doUploadChkp(void* param) {
   SAsyncUploadArg* arg = param;
   char*            path = NULL;
   int32_t          code = 0;
-  SArray*          toDelFiles = taosArrayInit(4, sizeof(void*));
+
+  SDbChkpEnv* pDbEnv = createDbChkpEnv(arg->type, arg->taskId);
+  if (pDbEnv == NULL) return code;
 
   if ((code = taskDbGenChkpUploadData(arg->pTask->pBackend, arg->pTask->pMeta->bkdChkptMgt, arg->chkpId,
-                                      (int8_t)(arg->type), &path, toDelFiles)) != 0) {
+                                      (int8_t)(arg->type), &path, pDbEnv)) != 0) {
     stError("s-task:%s failed to gen upload checkpoint:%" PRId64 "", arg->pTask->id.idStr, arg->chkpId);
   }
-  if (arg->type == UPLOAD_S3) {
-    if (code == 0 && (code = getChkpMeta(arg->taskId, path, toDelFiles)) != 0) {
-      stError("s-task:%s failed to get  checkpoint:%" PRId64 " meta", arg->pTask->id.idStr, arg->chkpId);
-    }
-  }
 
+  if (code == 0 && (code = pDbEnv->prepreFunc(pDbEnv, path)) != 0) {
+    stError("s-task:%s failed to get  checkpoint:%" PRId64 " meta", arg->pTask->id.idStr, arg->chkpId);
+  }
   if (code == 0 && (code = uploadCheckpoint(arg->taskId, path)) != 0) {
     stError("s-task:%s failed to upload checkpoint:%" PRId64, arg->pTask->id.idStr, arg->chkpId);
   }
-
-  if (code == 0) {
-    for (int i = 0; i < taosArrayGetSize(toDelFiles); i++) {
-      char* p = taosArrayGetP(toDelFiles, i);
-      code = deleteCheckpointFile(arg->taskId, p);
-      stDebug("s-task:%s try to del file: %s", arg->pTask->id.idStr, p);
-      if (code != 0) {
-        break;
-      }
-    }
+  if (code == 0 && (code = pDbEnv->endFunc(pDbEnv, (void*)arg->taskId)) != 0) {
   }
-
-  taosArrayDestroyP(toDelFiles, taosMemoryFree);
+  destroyDbChkpEnv(pDbEnv);
 
   taosRemoveDir(path);
   taosMemoryFree(path);

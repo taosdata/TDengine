@@ -17,12 +17,23 @@
 #define _STREAM_BACKEDN_ROCKSDB_H_
 
 #include "rocksdb/c.h"
-//#include "streamInt.h"
 #include "streamState.h"
-#include "tcoding.h"
 #include "tcommon.h"
-#include "tcompare.h"
-#include "ttimer.h"
+
+typedef int (*__chkp_env_init_fn_t)(void* env);
+typedef int (*__chkp_env_prepare_fn_t)(void* env, void* arg);
+typedef int (*__chkp_env_end_fn_t)(void* env, void* arg);
+typedef void (*__chkp_env_destroy_fn_t)(void* env);
+
+typedef struct {
+  int8_t                  type;
+  __chkp_env_init_fn_t    initFunc;
+  __chkp_env_prepare_fn_t prepreFunc;
+  __chkp_env_end_fn_t     endFunc;
+  __chkp_env_destroy_fn_t destroyFunc;
+  char*                   taskId;
+  void*                   arg;
+} SDbChkpEnv;
 
 typedef struct SCfComparator {
   rocksdb_comparator_t** comp;
@@ -259,5 +270,5 @@ int32_t  bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list,
 int32_t  bkdMgtDumpTo(SBkdMgt* bm, char* taskId, char* dname);
 void     bkdMgtDestroy(SBkdMgt* bm);
 
-int32_t taskDbGenChkpUploadData(void* arg, void* bkdMgt, int64_t chkpId, int8_t type, char** path, SArray* list);
+int32_t taskDbGenChkpUploadData(void* arg, void* bkdMgt, int64_t chkpId, int8_t type, char** path, SDbChkpEnv* pEnv);
 #endif

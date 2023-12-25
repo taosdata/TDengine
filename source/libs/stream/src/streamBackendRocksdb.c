@@ -1910,8 +1910,10 @@ int32_t taskDbGenChkpUploadData__rsync(STaskDbWrapper* pDb, int64_t chkpId, char
   return code;
 }
 
-int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64_t chkpId, char** path, SArray* list) {
+int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64_t chkpId, char** path,
+                                    SDbChkpEnv* pEnv) {
   int32_t  code = 0;
+  SArray*  list = pEnv->arg;
   SBkdMgt* p = (SBkdMgt*)bkdChkpMgt;
 
   char* temp = taosMemoryCalloc(1, strlen(pDb->path) + 32);
@@ -1929,14 +1931,14 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
 
   return code;
 }
-int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path, SArray* list) {
+int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path, SDbChkpEnv* pEnv) {
   STaskDbWrapper* pDb = arg;
   UPLOAD_TYPE     utype = type;
 
   if (utype == UPLOAD_RSYNC) {
     return taskDbGenChkpUploadData__rsync(pDb, chkpId, path);
   } else if (utype == UPLOAD_S3) {
-    return taskDbGenChkpUploadData__s3(pDb, mgt, chkpId, path, list);
+    return taskDbGenChkpUploadData__s3(pDb, mgt, chkpId, path, pEnv);
   }
   return -1;
 }
