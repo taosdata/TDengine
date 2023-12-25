@@ -3,8 +3,8 @@
 //! And supply a global accessible map to store all metrics data.
 
 use crate::legacy::legacy_metric::LegacyToTaosMetrics;
-use crate::plugins::sink::ipc_metric::IPCMetrics;
-use crate::tmq::tmq_metric::TMQMetrics;
+use crate::plugins::sink::ipc_metric::IpcMetrics;
+use crate::tmq::tmq_metric::TmqMetrics;
 use crate::utils::metrics_db::MetricsDb;
 use lazy_static::lazy_static;
 use metrics::atomics::AtomicU64;
@@ -23,8 +23,8 @@ use tracing::Instrument;
 /// MetricsType is an enum to store all supported metrics data structure.
 pub enum CoreMetrics {
     Legacy(LegacyToTaosMetrics),
-    TMQ(TMQMetrics),
-    IPC(IPCMetrics),
+    TMQ(TmqMetrics),
+    IPC(IpcMetrics),
 }
 
 impl CoreMetrics {
@@ -37,14 +37,14 @@ impl CoreMetrics {
     }
 
     /// Unwrap this enum to get the TMQMetrics.
-    pub fn tmq(&self) -> &TMQMetrics {
+    pub fn tmq(&self) -> &TmqMetrics {
         match self {
             CoreMetrics::TMQ(tmq) => tmq,
             _ => panic!("metrics type not match"),
         }
     }
 
-    pub fn ipc(&self) -> &IPCMetrics {
+    pub fn ipc(&self) -> &IpcMetrics {
         match self {
             CoreMetrics::IPC(ipc) => ipc,
             _ => panic!("metrics type not match"),
@@ -338,14 +338,14 @@ pub fn init_task_metrics(from: Dsn, to: Dsn, task_id: i64) -> Arc<CoreMetrics> {
             }
         }
         ("tmq", "taos" | "local") => {
-            let metrics = try_get_metrics::<TMQMetrics>(task_id);
+            let metrics = try_get_metrics::<TmqMetrics>(task_id);
             if let Some(metrics) = metrics {
                 tracing::info!("reset metrics for task {}", task_id);
                 metrics.tmq().reset();
                 metrics
             } else {
                 tracing::info!("create new metrics for task {}", task_id);
-                let metrics = Arc::new(CoreMetrics::TMQ(TMQMetrics::new(task_id)));
+                let metrics = Arc::new(CoreMetrics::TMQ(TmqMetrics::new(task_id)));
                 GLOBAL_METRICS
                     .lock()
                     .unwrap()
@@ -358,14 +358,14 @@ pub fn init_task_metrics(from: Dsn, to: Dsn, task_id: i64) -> Arc<CoreMetrics> {
             | "kafka" | "historian" | "csv",
             "taos",
         ) => {
-            let metrics = try_get_metrics::<IPCMetrics>(task_id);
+            let metrics = try_get_metrics::<IpcMetrics>(task_id);
             if let Some(metrics) = metrics {
                 tracing::info!("reset metrics for task {}", task_id);
                 metrics.ipc().reset();
                 metrics
             } else {
                 tracing::info!("create new metrics for task {}", task_id);
-                let metrics = Arc::new(CoreMetrics::IPC(IPCMetrics::new(task_id)));
+                let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(task_id)));
                 GLOBAL_METRICS
                     .lock()
                     .unwrap()

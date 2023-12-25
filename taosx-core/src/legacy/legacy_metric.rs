@@ -14,12 +14,12 @@ pub struct LegacyToTaosMetrics {
     pub total_stables: AtomicU32,
     pub total_tables: AtomicU32,
     pub total_finished_tables: AtomicU32,
-    pub total_suc_blocks: AtomicU64,
+    pub total_success_blocks: AtomicU64,
     pub total_updated_tags: AtomicU32,
     pub total_created_tables: AtomicU32,
     #[serde(skip)]
     pub finished_tables: AtomicU32,
-    pub suc_blocks: AtomicU64,
+    pub success_blocks: AtomicU64,
     pub updated_tags: AtomicU32,
     pub created_tables: AtomicU32,
 }
@@ -32,19 +32,19 @@ impl LegacyToTaosMetrics {
             total_stables: Default::default(),
             total_tables: Default::default(),
             total_finished_tables: Default::default(),
-            total_suc_blocks: Default::default(),
+            total_success_blocks: Default::default(),
             total_updated_tags: Default::default(),
             total_created_tables: Default::default(),
             finished_tables: Default::default(),
-            suc_blocks: Default::default(),
+            success_blocks: Default::default(),
             updated_tags: Default::default(),
             created_tables: Default::default(),
         }
     }
 
-    pub fn add_suc_blocks(&self, n: u64) {
-        self.total_suc_blocks.fetch_add(n, SeqCst);
-        self.suc_blocks.fetch_add(n, SeqCst);
+    pub fn add_success_blocks(&self, n: u64) {
+        self.total_success_blocks.fetch_add(n, SeqCst);
+        self.success_blocks.fetch_add(n, SeqCst);
     }
 
     pub fn add_updated_tags(&self, n: u32) {
@@ -71,11 +71,11 @@ impl Default for LegacyToTaosMetrics {
             total_stables: AtomicU32::new(0),
             total_tables: AtomicU32::new(0),
             total_finished_tables: AtomicU32::new(0),
-            total_suc_blocks: AtomicU64::new(0),
+            total_success_blocks: AtomicU64::new(0),
             total_updated_tags: AtomicU32::new(0),
             total_created_tables: AtomicU32::new(0),
             finished_tables: AtomicU32::new(0),
-            suc_blocks: AtomicU64::new(0),
+            success_blocks: AtomicU64::new(0),
             updated_tags: AtomicU32::new(0),
             created_tables: AtomicU32::new(0),
         }
@@ -106,7 +106,7 @@ impl Display for LegacyToTaosMetrics {
             self.created_tables.load(SeqCst),
             self.updated_tags.load(SeqCst),
             self.finished_tables.load(SeqCst),
-            self.suc_blocks.load(SeqCst),
+            self.success_blocks.load(SeqCst),
             records,
             records / cost,
             points,
@@ -122,7 +122,7 @@ impl TaosXMetrics for LegacyToTaosMetrics {
     fn reset(&self) {
         self.com.reset();
         self.finished_tables.store(0, SeqCst);
-        self.suc_blocks.store(0, SeqCst);
+        self.success_blocks.store(0, SeqCst);
         self.updated_tags.store(0, SeqCst);
         self.created_tables.store(0, SeqCst);
     }

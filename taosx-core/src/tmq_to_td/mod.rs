@@ -4,7 +4,7 @@ use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaosXMetrics},
     legacy_metric::LegacyToTaosMetrics,
     sync_super_table_schema, sync_super_table_schema_with_subs,
-    tmq::{tmq_metric::TMQMetrics, *},
+    tmq::{tmq_metric::TmqMetrics, *},
     Action,
 };
 use anyhow::{bail, Context, Result};
@@ -27,7 +27,7 @@ async fn write_data(
     actions: &[Action],
     data: &Data,
     target_is_v3: bool,
-    metrics: &TMQMetrics,
+    metrics: &TmqMetrics,
 ) -> Result<u64> {
     tracing::debug!("[{id}] start writing data");
     metrics.add_messages_of_data(1);
@@ -247,7 +247,7 @@ async fn write_meta(
     actions: &[Action],
     meta: &Meta,
     target_is_v3: bool,
-    metrics: &TMQMetrics,
+    metrics: &TmqMetrics,
 ) -> Result<()> {
     let cur = metrics.add_messages_of_meta(1);
     tracing::debug!("[{id}] start writing meta {cur}");

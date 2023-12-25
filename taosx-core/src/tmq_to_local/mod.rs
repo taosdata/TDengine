@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaosXMetrics},
-    tmq::tmq_metric::TMQMetrics,
+    tmq::tmq_metric::TmqMetrics,
 };
 use crate::{taoz::ZFile, tmq::*, utils::get_main_version_from_server_version};
 use anyhow::{Context, Result};
@@ -66,7 +66,7 @@ impl ZFileMan {
         &self,
         vgroup: i32,
         meta: taos::Meta,
-        metrics: &TMQMetrics,
+        metrics: &TmqMetrics,
     ) -> Result<()> {
         let raw = meta.as_raw_meta().await?;
         self.assert_vgroup(vgroup).await?;
@@ -79,7 +79,7 @@ impl ZFileMan {
         &self,
         vgroup: i32,
         data: taos::Data,
-        metrics: &TMQMetrics,
+        metrics: &TmqMetrics,
         stop_at: Option<DateTime<Local>>,
     ) -> Result<(usize, bool)> {
         self.assert_vgroup(vgroup).await?;

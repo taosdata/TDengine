@@ -52,7 +52,7 @@ use crate::{
     ConnectorLicense, Parser, Transferred,
 };
 
-use self::ipc_metric::IPCMetrics;
+use self::ipc_metric::IpcMetrics;
 use crate::core_metrics::get_metrics_arc_from_i64;
 
 use super::*;
@@ -342,7 +342,7 @@ async fn consume_lush_record(
     task: Option<i64>,
     data_trace_id: u64,
     trace_id_str: &str,
-    metrics: &IPCMetrics,
+    metrics: &IpcMetrics,
 ) -> anyhow::Result<()> {
     metrics.add_processed_records(1);
     let req_id = RequestID::new(data_trace_id);
@@ -701,7 +701,7 @@ async fn consume_point_record(
     target_precision: taos::Precision,
     data_trace_id: u64,
     trace_id_str: &str,
-    metrics: &IPCMetrics,
+    metrics: &IpcMetrics,
 ) -> anyhow::Result<usize> {
     let mut points = 0;
     let req_id = RequestID::new(data_trace_id);
@@ -1392,7 +1392,7 @@ async fn consume_flat_record(
     target_precision: taos::Precision,
     data_trace_id: u64,
     trace_id_str: &str,
-    metrics: &IPCMetrics,
+    metrics: &IpcMetrics,
 ) -> anyhow::Result<()> {
     let parser = parser.ok_or_else(|| anyhow::anyhow!("Parser should be set with flat stream"))?;
     // let stmt = Stmt::init(taos.as_ref().unwrap())?;
@@ -1891,7 +1891,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
     stream_trace_id: u64,
-    metrics: &IPCMetrics,
+    metrics: &IpcMetrics,
 ) -> anyhow::Result<()> {
     // let taos = pool.get().await?;
     let columns = ipc_reader
@@ -2006,7 +2006,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
         record: Result<Box<dyn IpcMessage>, arrow::error::ArrowError>,
         data_trace_id: u64,
         trace_id_str: &str,
-        metrics: &IPCMetrics,
+        metrics: &IpcMetrics,
     ) -> anyhow::Result<usize> {
         let record = record?;
         let pool = &context.pool;
@@ -2091,7 +2091,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
     stream_trace_id: u64,
-    metrics: &IPCMetrics,
+    metrics: &IpcMetrics,
 ) -> anyhow::Result<()> {
     let mut count = 0;
     let mut batches: u32 = 0;
@@ -2431,7 +2431,7 @@ pub async fn handle_lush_message_init(
     taos: &Taos,
     sql: &str,
     req_id: &RequestID,
-    metrics: &IPCMetrics,
+    metrics: &IpcMetrics,
 ) -> anyhow::Result<()> {
     let max_retries = 10;
     let mut i = 0;
@@ -2551,7 +2551,7 @@ impl IpcStreamWorker {
         parser: Option<&Parser>,
         data_trace_id: u64,
         trace_id_str: &str,
-        metrics: &IPCMetrics,
+        metrics: &IpcMetrics,
     ) -> anyhow::Result<usize> {
         let taos = self.pool.get().await?;
         let target_precision = get_current_precision(&taos).await?;

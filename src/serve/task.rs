@@ -20,8 +20,8 @@ use serde::{Deserialize, Serialize};
 use taos::{Code, Dsn};
 use taosx_core::core_metrics::{try_get_metrics, CoreMetrics};
 use taosx_core::legacy_metric::LegacyToTaosMetrics;
-use taosx_core::sink::ipc_metric::IPCMetrics;
-use taosx_core::tmq::tmq_metric::TMQMetrics;
+use taosx_core::sink::ipc_metric::IpcMetrics;
+use taosx_core::tmq::tmq_metric::TmqMetrics;
 use taosx_core::{
     core_metrics::{self},
     get_data_dir, get_file_upload_home_dir,
@@ -656,9 +656,9 @@ pub fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMet
     let task_id = task.task.id;
     match dsn.driver.as_str() {
         "taos" => try_get_metrics::<LegacyToTaosMetrics>(task_id),
-        "tmq" => try_get_metrics::<TMQMetrics>(task_id),
+        "tmq" => try_get_metrics::<TmqMetrics>(task_id),
         "opc" | "opcua" | "opcda" | "pi" | "pibackfill" | "mqtt" | "influxdb" | "opentsdb"
-        | "kafka" | "historian" | "csv" => try_get_metrics::<IPCMetrics>(task_id),
+        | "kafka" | "historian" | "csv" => try_get_metrics::<IpcMetrics>(task_id),
         _ => None,
     }
 }

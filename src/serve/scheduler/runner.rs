@@ -18,7 +18,7 @@ use taosx_core::{
         try_get_metrics, CoreMetrics, TaosXMetrics, GLOBAL_METRICS,
     },
     dsv::DataSourceValidation,
-    sink::ipc_metric::IPCMetrics,
+    sink::ipc_metric::IpcMetrics,
     TaskNotify, TaskNotifyReceiver,
 };
 use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, DataSet, TaskOpts};
@@ -913,10 +913,10 @@ impl TaskJob {
                     .push_action(agent_id, AgentAction::Run(task_id, jid, run_id))
                     .await;
                 tracing::debug!("Command run sending ok");
-                match try_get_metrics::<IPCMetrics>(task_id) {
+                match try_get_metrics::<IpcMetrics>(task_id) {
                     Some(metrics_arc) => metrics_arc.ipc().reset(),
                     None => {
-                        let metrics = Arc::new(CoreMetrics::IPC(IPCMetrics::new(task_id)));
+                        let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(task_id)));
                         GLOBAL_METRICS.lock().unwrap().insert(task_id, metrics);
                     }
                 }

@@ -5,7 +5,7 @@ use std::sync::atomic::Ordering::SeqCst;
 use tracing;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct IPCMetrics {
+pub struct IpcMetrics {
     #[serde(flatten)]
     pub com: CommonMetrics,
     pub total_received_batches: AtomicU64,
@@ -31,7 +31,7 @@ pub struct IPCMetrics {
     pub failed_raw_blocks: AtomicU64,
 }
 
-impl Default for IPCMetrics {
+impl Default for IpcMetrics {
     fn default() -> Self {
         Self {
             com: CommonMetrics::default(),
@@ -60,7 +60,7 @@ impl Default for IPCMetrics {
     }
 }
 
-impl IPCMetrics {
+impl IpcMetrics {
     pub fn new(task_id: i64) -> Self {
         Self {
             com: CommonMetrics::new(task_id),
@@ -154,13 +154,13 @@ impl IPCMetrics {
     }
 }
 
-impl Into<CoreMetrics> for IPCMetrics {
+impl Into<CoreMetrics> for IpcMetrics {
     fn into(self) -> CoreMetrics {
         CoreMetrics::IPC(self)
     }
 }
 
-impl TaosXMetrics for IPCMetrics {
+impl TaosXMetrics for IpcMetrics {
     fn reset(&self) {
         self.com.reset();
         self.received_batches.store(0, SeqCst);

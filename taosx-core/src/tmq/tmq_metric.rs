@@ -8,7 +8,7 @@ use std::sync::atomic::Ordering::SeqCst;
 use tracing;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct TMQMetrics {
+pub struct TmqMetrics {
     #[serde(flatten)]
     pub com: CommonMetrics,
     pub topics: AtomicU16,
@@ -25,7 +25,7 @@ pub struct TMQMetrics {
     pub suc_blocks: AtomicU64,
 }
 
-impl Default for TMQMetrics {
+impl Default for TmqMetrics {
     fn default() -> Self {
         Self {
             com: CommonMetrics::default(),
@@ -45,7 +45,7 @@ impl Default for TMQMetrics {
     }
 }
 
-impl TMQMetrics {
+impl TmqMetrics {
     pub fn new(task_id: i64) -> Self {
         Self {
             com: CommonMetrics::new(task_id),
@@ -95,7 +95,7 @@ impl TMQMetrics {
     }
 }
 
-impl TaosXMetrics for TMQMetrics {
+impl TaosXMetrics for TmqMetrics {
     fn reset(&self) {
         self.com.reset();
         self.topics.store(0, SeqCst);
@@ -122,13 +122,13 @@ impl TaosXMetrics for TMQMetrics {
     }
 }
 
-impl Into<CoreMetrics> for TMQMetrics {
+impl Into<CoreMetrics> for TmqMetrics {
     fn into(self) -> CoreMetrics {
         CoreMetrics::TMQ(self)
     }
 }
 
-impl Display for TMQMetrics {
+impl Display for TmqMetrics {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let records = self.com.written_rows.load(SeqCst);
         let points = self.com.written_points.load(SeqCst);

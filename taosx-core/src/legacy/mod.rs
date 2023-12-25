@@ -631,7 +631,7 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
         break;
     }
 
-    metrics.add_suc_blocks(1);
+    metrics.add_success_blocks(1);
     metrics.add_written_rows(block.nrows() as _);
     metrics.add_written_points((block.nrows() * block.ncols()) as _);
 
@@ -863,7 +863,7 @@ async fn sync_single_table_partial(
                         stmt.execute().await
                             .with_context(|| format!("[{new_table_name}] execute {} rows insertion with batch size limit {batch_size}", range.len()))?;
 
-                        metrics.add_suc_blocks(1);
+                        metrics.add_success_blocks(1);
                         metrics.add_written_rows(params.len() as _);
                         metrics.add_written_points((params.len() * fields) as _);
                         if let Some(duration) = target_opts.interval {
@@ -926,7 +926,7 @@ async fn sync_single_table_partial(
                                 success = false;
                                 break;
                             }
-                            metrics.add_suc_blocks(1);
+                            metrics.add_success_blocks(1);
                             metrics.add_written_rows(params.len() as _);
                             metrics.add_written_points((params.len() * fields) as _);
                         }
@@ -953,7 +953,7 @@ async fn sync_single_table_partial(
                 }
             } else {
                 let rows = res.unwrap();
-                metrics.add_suc_blocks(1);
+                metrics.add_success_blocks(1);
                 metrics.add_written_rows(rows as _);
                 metrics.add_written_points((rows * fields) as _);
             }
