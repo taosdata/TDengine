@@ -27,6 +27,8 @@ task:
   beginTime: 2023-08-10T08:00:00+0800
   # empty is now
   endTime:
+  # logLevel: trace/debug/info/warn/error
+  logLevel: info
 
 #performance parameters
 performance:

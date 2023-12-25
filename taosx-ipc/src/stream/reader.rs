@@ -34,6 +34,7 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone)]
 pub struct IpcParser {
     pub metadata: Arc<IpcMetadata>,
     pub schema: Arc<Schema>,

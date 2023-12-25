@@ -49,6 +49,7 @@ func Start(s service.Service) {
 type program struct {
 	configFile    string
 	messages      *report.MessageList
+	dump          *log.DataDump
 	reporter      *report.ArrowReporter
 	logger        *logrus.Entry
 	mqttConnector connector.MQTTConnector
@@ -67,9 +68,19 @@ func (p *program) Start(s service.Service) error {
 	if err != nil {
 		return err
 	}
+
 	err = log.SetLevel(conf.LogLevel)
 	if err != nil {
 		return err
+	}
+	if conf.Dump != nil {
+		if conf.Dump.Enable {
+			p.dump, err = log.NewDataDump(conf.Dump.Path, conf.Dump.Keep)
+			if err != nil {
+				p.logger.WithError(err).Error("new data dump fail")
+				return errors.WithMessage(err, "new data dump fail")
+			}
+		}
 	}
 	p.messages = report.NewMessageList()
 	p.logger = log.GetLogger("main")
@@ -129,12 +140,16 @@ func (p *program) onMessage(qos byte, topic string, payload []byte) {
 		"topic":   topic,
 		"payload": payload,
 	}).Debugln("got message")
+	now := time.Now()
 	p.messages.Add(&report.Message{
-		TS:      time.Now().UnixMilli(),
+		TS:      now.UnixMilli(),
 		Topic:   topic,
 		Qos:     qos,
 		Payload: payload,
 	})
+	if p.dump != nil {
+		p.dump.Dump(now, qos, topic, payload)
+	}
 }
 
 func (p *program) onConnect() {

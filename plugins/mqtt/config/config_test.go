@@ -90,6 +90,11 @@ asClqpnHT8/VJYTD7Kqj0fouTTZf0zkig/y+2XERppd8k+pSKjUCPQ==
 [topics]
 "test/topic1" = 1
 "test/topic2" = 2
+
+[dump]
+enable = true
+path = "/tmp/mqtt"
+keep = 7
 `
 
 func TestParseConfig(t *testing.T) {
@@ -182,6 +187,11 @@ asClqpnHT8/VJYTD7Kqj0fouTTZf0zkig/y+2XERppd8k+pSKjUCPQ==
 		Topics: map[string]int{
 			"test/topic1": 1,
 			"test/topic2": 2,
+		},
+		Dump: &Dump{
+			Enable: true,
+			Path:   "/tmp/mqtt",
+			Keep:   7,
 		},
 	}
 

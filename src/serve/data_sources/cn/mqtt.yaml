@@ -172,14 +172,12 @@ advanced:
         min: 1
         max: 60
     - name: keep_raw_data
-      hidden: true
       display: 保存原始数据
       description: |
         是否保存原始数据？
       hint:
         type: bool
     - name: keep_raw_data_days
-      hidden: true
       display: 最大保留天数
       description: |
         原始数据最大保存天数，默认 1 天。
@@ -191,7 +189,6 @@ advanced:
         max: 365
 
     - name: keep_raw_data_dir
-      hidden: true
       display: 原始数据存储目录
       description: |
         自定义原始数据存储目录，默认存储到系统数据目录下。

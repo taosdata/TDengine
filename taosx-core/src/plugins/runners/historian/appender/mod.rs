@@ -8,13 +8,16 @@ use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
 use chrono::{Local, NaiveDateTime, TimeZone};
 use itertools::Itertools;
-use lazy_static::lazy_static;
-use regex::Regex;
 use tiberius::Row;
 
 use taosx_ipc::prelude::ArrowDataType;
 
+use crate::runners::historian::appender::history::History;
+use crate::runners::historian::appender::live::Live;
 use crate::runners::historian::config::HistorianTable;
+
+mod history;
+mod live;
 
 pub struct ArrowDataAppender {
     schema: Schema,
@@ -94,66 +97,72 @@ impl ArrowDataAppender {
         fields
     }
 
-    pub fn append_history_row(&mut self, row: Row) -> anyhow::Result<Option<i64>> {
-        let ts = self.append_timestamp(&row, "DateTime", 0)?;
-        self.append_tag_name(&row, "TagName", 1)?;
-        self.append_float64(&row, "Value", 2)?;
-        self.append_string(&row, "vValue", 3)?;
-        self.append_uint8(&row, "Quality", 4)?;
-        self.append_int32(&row, "QualityDetail", 5)?;
-        self.append_int32(&row, "wwTagKey", 6)?;
-        self.append_int32(&row, "wwResolution", 7)?;
-        self.append_timestamp(&row, "StartDateTime", 8)?;
-        self.append_string(&row, "SourceTag", 9)?;
-        self.append_string(&row, "SourceServer", 10)?;
+    pub fn append_history_row(&mut self, row: &Row) -> anyhow::Result<History> {
+        let datetime = self
+            .append_timestamp(row, "DateTime", 0)?
+            .ok_or(anyhow::anyhow!("DateTime cannot be None"))?;
+        let tag_name = self.append_tag_name(row, "TagName", 1)?;
+        let value = self.append_float64(row, "Value", 2)?;
+        let v_value = self.append_string(row, "vValue", 3)?;
+        let quality = self
+            .append_uint8(row, "Quality", 4)?
+            .ok_or(anyhow::anyhow!("Quality cannot be None"))?;
+        let quality_detail = self.append_int32(row, "QualityDetail", 5)?;
+        let ww_tag_key = self
+            .append_int32(row, "wwTagKey", 6)?
+            .ok_or(anyhow::anyhow!("wwTagKey cannot be None"))?;
+        let ww_resolution = self.append_int32(row, "wwResolution", 7)?;
+        let start_datetime = self
+            .append_timestamp(row, "StartDateTime", 8)?
+            .ok_or(anyhow::anyhow!("StartDateTime cannot be None"))?;
+        let source_tag = self.append_string(row, "SourceTag", 9)?;
+        let source_server = self.append_string(row, "SourceServer", 10)?;
 
-        Ok(ts)
+        Ok(History {
+            datetime,
+            tag_name,
+            value,
+            v_value,
+            quality,
+            quality_detail,
+            ww_tag_key,
+            ww_resolution,
+            start_datetime,
+            source_tag,
+            source_server,
+        })
     }
 
-    pub fn append_live_row(&mut self, row: Row) -> anyhow::Result<Option<i64>> {
-        let ts = self.append_timestamp(&row, "DateTime", 0)?;
-        self.append_tag_name(&row, "TagName", 1)?;
-        self.append_float64(&row, "Value", 2)?;
-        self.append_string(&row, "vValue", 3)?;
-        self.append_uint8(&row, "Quality", 4)?;
-        self.append_int32(&row, "QualityDetail", 5)?;
-        self.append_int32(&row, "OPCQuality", 6)?;
-        self.append_int32(&row, "wwTagKey", 7)?;
-        self.append_string(&row, "SourceTag", 8)?;
-        self.append_string(&row, "SourceServer", 9)?;
+    pub fn append_live_row(&mut self, row: &Row) -> anyhow::Result<Live> {
+        let datetime = self
+            .append_timestamp(row, "DateTime", 0)?
+            .ok_or(anyhow::anyhow!("DateTime cannot be None"))?;
+        let tag_name = self.append_tag_name(row, "TagName", 1)?;
+        let value = self.append_float64(row, "Value", 2)?;
+        let v_value = self.append_string(row, "vValue", 3)?;
+        let quality = self
+            .append_uint8(row, "Quality", 4)?
+            .ok_or(anyhow::anyhow!("Quality cannot be None"))?;
+        let quality_detail = self.append_int32(row, "QualityDetail", 5)?;
+        let opc_quality = self.append_int32(row, "OPCQuality", 6)?;
+        let ww_tag_key = self
+            .append_int32(row, "wwTagKey", 7)?
+            .ok_or(anyhow::anyhow!("wwTagKey cannot be None"))?;
+        let source_tag = self.append_string(row, "SourceTag", 8)?;
+        let source_server = self.append_string(row, "SourceServer", 9)?;
 
-        Ok(ts)
-    }
-
-    fn append_tag_name(
-        &mut self,
-        row: &Row,
-        column_name: &str,
-        index: usize,
-    ) -> anyhow::Result<()> {
-        let val = row.try_get::<&str, _>(column_name)?;
-        match val {
-            None => {
-                self.data_builders[index]
-                    .as_any_mut()
-                    .downcast_mut::<array::StringBuilder>()
-                    .unwrap()
-                    .append_null();
-            }
-            Some(val) => {
-                lazy_static! {
-                    static ref RE: Regex = Regex::new(r"[.`]").unwrap();
-                }
-                let new_tag_name = RE.replace_all(val, "_").to_string();
-
-                self.data_builders[index]
-                    .as_any_mut()
-                    .downcast_mut::<array::StringBuilder>()
-                    .unwrap()
-                    .append_value(new_tag_name);
-            }
-        }
-        Ok(())
+        Ok(Live {
+            datetime,
+            tag_name,
+            value,
+            v_value,
+            quality,
+            quality_detail,
+            opc_quality,
+            ww_tag_key,
+            source_tag,
+            source_server,
+        })
     }
 
     fn append_timestamp(
@@ -192,15 +201,49 @@ impl ArrowDataAppender {
         Ok(ts)
     }
 
-    fn append_string(&mut self, row: &Row, column_name: &str, index: usize) -> anyhow::Result<()> {
+    fn append_tag_name(
+        &mut self,
+        row: &Row,
+        column_name: &str,
+        index: usize,
+    ) -> anyhow::Result<String> {
         let val = row.try_get::<&str, _>(column_name)?;
-        match val {
+        let tag_name = match val {
+            None => {
+                return Err(anyhow::anyhow!("TagName cannot be None"));
+            }
+            Some(val) => {
+                let new_tag_name = val.replace(".", "_").replace("`", "_");
+
+                self.data_builders[index]
+                    .as_any_mut()
+                    .downcast_mut::<array::StringBuilder>()
+                    .unwrap()
+                    .append_value(new_tag_name.clone());
+
+                new_tag_name
+            }
+        };
+
+        Ok(tag_name)
+    }
+
+    fn append_string(
+        &mut self,
+        row: &Row,
+        column_name: &str,
+        index: usize,
+    ) -> anyhow::Result<Option<String>> {
+        let val = row.try_get::<&str, _>(column_name)?;
+        let string_value = match val {
             None => {
                 self.data_builders[index]
                     .as_any_mut()
                     .downcast_mut::<array::StringBuilder>()
                     .unwrap()
                     .append_null();
+
+                None
             }
             Some(val) => {
                 self.data_builders[index]
@@ -208,20 +251,28 @@ impl ArrowDataAppender {
                     .downcast_mut::<array::StringBuilder>()
                     .unwrap()
                     .append_value(val);
+
+                Some(val.to_string())
             }
-        }
-        Ok(())
+        };
+        Ok(string_value)
     }
 
-    fn append_float64(&mut self, row: &Row, column_name: &str, index: usize) -> anyhow::Result<()> {
+    fn append_float64(
+        &mut self,
+        row: &Row,
+        column_name: &str,
+        index: usize,
+    ) -> anyhow::Result<Option<f64>> {
         let val = row.try_get::<f64, _>(column_name)?;
-        match val {
+        let float_value = match val {
             None => {
                 self.data_builders[index]
                     .as_any_mut()
                     .downcast_mut::<array::Float64Builder>()
                     .unwrap()
                     .append_null();
+                None
             }
             Some(val) => {
                 self.data_builders[index]
@@ -229,20 +280,28 @@ impl ArrowDataAppender {
                     .downcast_mut::<array::Float64Builder>()
                     .unwrap()
                     .append_value(val);
+                Some(val)
             }
-        }
-        Ok(())
+        };
+
+        Ok(float_value)
     }
 
-    fn append_int32(&mut self, row: &Row, column_name: &str, index: usize) -> anyhow::Result<()> {
+    fn append_int32(
+        &mut self,
+        row: &Row,
+        column_name: &str,
+        index: usize,
+    ) -> anyhow::Result<Option<i32>> {
         let val = row.try_get::<i32, _>(column_name)?;
-        match val {
+        let i32_value = match val {
             None => {
                 self.data_builders[index]
                     .as_any_mut()
                     .downcast_mut::<array::Int32Builder>()
                     .unwrap()
                     .append_null();
+                None
             }
             Some(val) => {
                 self.data_builders[index]
@@ -250,20 +309,27 @@ impl ArrowDataAppender {
                     .downcast_mut::<array::Int32Builder>()
                     .unwrap()
                     .append_value(val);
+                Some(val)
             }
-        }
-        Ok(())
+        };
+        Ok(i32_value)
     }
 
-    fn append_uint8(&mut self, row: &Row, column_name: &str, index: usize) -> anyhow::Result<()> {
+    fn append_uint8(
+        &mut self,
+        row: &Row,
+        column_name: &str,
+        index: usize,
+    ) -> anyhow::Result<Option<u8>> {
         let val = row.try_get::<u8, _>(column_name)?;
-        match val {
+        let u8_value = match val {
             None => {
                 self.data_builders[index]
                     .as_any_mut()
                     .downcast_mut::<array::UInt8Builder>()
                     .unwrap()
                     .append_null();
+                None
             }
             Some(val) => {
                 self.data_builders[index]
@@ -271,9 +337,10 @@ impl ArrowDataAppender {
                     .downcast_mut::<array::UInt8Builder>()
                     .unwrap()
                     .append_value(val);
+                Some(val)
             }
-        }
-        Ok(())
+        };
+        Ok(u8_value)
     }
 
     pub fn finish(&mut self) -> anyhow::Result<RecordBatch> {
@@ -294,13 +361,12 @@ impl ArrowDataAppender {
 
 #[cfg(test)]
 mod tests {
-    use regex::Regex;
-
     #[test]
     fn test_replace() {
         let s = "h_02324202110001_114.1M";
-        let regex = Regex::new(r"[^0-9a-zA-Z_]+").unwrap();
-        let new_s = regex.replace_all(s, "_").to_string();
+        // let regex = Regex::new(r"[^0-9a-zA-Z_]+").unwrap();
+        // let new_s = regex.replace_all(s, "_").to_string();
+        let new_s = s.to_string().replace(".", "_").replace("`", "_");
         assert_eq!(new_s, "h_02324202110001_114_1M");
     }
 }

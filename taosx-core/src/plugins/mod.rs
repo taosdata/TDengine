@@ -75,6 +75,7 @@ use self::sink::IpcHandler;
 
 mod config;
 mod expr;
+mod raw_data;
 pub mod runners;
 mod service;
 pub mod sink;

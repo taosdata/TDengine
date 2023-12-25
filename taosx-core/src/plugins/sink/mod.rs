@@ -23,7 +23,7 @@ use futures_util::StreamExt;
 use serde_json::json;
 use taos::{
     taos_query::{common::Describe, Manager},
-    AsyncBindable, AsyncQueryable, Dsn, Itertools, RawBlock, Stmt, Taos, TaosPool, Ty, Value,
+    Dsn, Itertools, RawBlock, Taos, TaosPool, Ty, Value,
 };
 use tokio::sync::{Mutex, Notify, OnceCell};
 use tokio_util::sync::CancellationToken;
@@ -334,11 +334,8 @@ struct LushMessageTagModify {
 async fn consume_lush_record(
     pool: &TaosPool,
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
-    stmt: &mut Stmt,
     record: LushMessage,
     columns: &Vec<String>,
-    names: &str,
-    marks: &str,
     records: &mut usize,
     _license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
@@ -568,7 +565,7 @@ async fn consume_lush_record(
                                     break;
                                 }
                                 Err(err) => {
-                                    if retry > 5 {
+                                    if retry > 10 {
                                         tracing::warn!("retry write failed continue: {err:#}");
                                         metrics.add_failed_sqls(1);
                                         if break_err.is_err() {
@@ -582,43 +579,55 @@ async fn consume_lush_record(
                                         error = errstr,
                                         "Lush stream writing error"
                                     );
-                                    if errstr.contains("[0x2653]") {
-                                        // column or tag length not enough
-                                        let fields = Vec::from_iter(field_map.clone());
-                                        // get stable name
-                                        let stable_name = record.stable_name();
-                                        if stable_name.is_none() {
-                                            tracing::error!("record should contains init message for stable name");
-                                            break;
+                                    let code: i32 = err.code().into();
+                                    match code {
+                                        0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                                            taos.replace(pool.get().await?);
+                                            retry += 1;
                                         }
-                                        let stable_name = stable_name.unwrap();
-                                        let desc =
-                                            taos.as_ref().unwrap().describe(&stable_name).await?;
-                                        let alter_sqls = generate_alter_sql_diff_desc(
-                                            &stable_name,
-                                            &desc,
-                                            &fields.clone(),
-                                            false,
-                                        );
-                                        if alter_sqls.is_some() {
-                                            let alter_sqls = alter_sqls.unwrap();
-                                            for alter_sql in alter_sqls {
-                                                tracing::info!("alter sql: {alter_sql}");
-                                                if let Err(err) = taos
-                                                    .as_ref()
-                                                    .unwrap()
-                                                    .exec_with_req_id(alter_sql, req_id.next())
-                                                    .await
-                                                {
-                                                    tracing::info!("alter sql error: {err:#}");
+                                        0x2603 | 0x0618 => {
+                                            // table not exists
+                                            tokio::time::sleep(Duration::from_millis(100)).await;
+                                        }
+                                        0x2653 => {
+                                            // column or tag length not enough
+                                            let fields = Vec::from_iter(field_map.clone());
+                                            // get stable name
+                                            let stable_name = record.stable_name();
+                                            if stable_name.is_none() {
+                                                tracing::error!("record should contains init message for stable name");
+                                                break;
+                                            }
+                                            let stable_name = stable_name.unwrap();
+                                            let desc = taos
+                                                .as_ref()
+                                                .unwrap()
+                                                .describe(&stable_name)
+                                                .await?;
+                                            let alter_sqls = generate_alter_sql_diff_desc(
+                                                &stable_name,
+                                                &desc,
+                                                &fields.clone(),
+                                                false,
+                                            );
+                                            if alter_sqls.is_some() {
+                                                let alter_sqls = alter_sqls.unwrap();
+                                                for alter_sql in alter_sqls {
+                                                    tracing::info!("alter sql: {alter_sql}");
+                                                    if let Err(err) = taos
+                                                        .as_ref()
+                                                        .unwrap()
+                                                        .exec_with_req_id(alter_sql, req_id.next())
+                                                        .await
+                                                    {
+                                                        tracing::info!("alter sql error: {err:#}");
+                                                    }
                                                 }
                                             }
                                         }
-                                    } else if errstr.contains("[0x0E") {
-                                        taos.replace(pool.get().await?);
-                                        retry += 1;
-                                    } else {
-                                        retry += 1;
+                                        _ => {
+                                            retry += 1;
+                                        }
                                     }
                                     break_err = Err(err).with_context(|| {
                                         format!("lush stream error with {retry} retries")
@@ -629,30 +638,31 @@ async fn consume_lush_record(
                         info!("written [{count}] records");
                     }
                 } else {
-                    let sql = format!("insert into ? ({names}) values({marks})");
-                    info!("prepare with sql: {sql}");
+                    unreachable!("lush message insert sqls should not be none");
+                    // let sql = format!("insert into ? ({names}) values({marks})");
+                    // info!("prepare with sql: {sql}");
 
-                    stmt.prepare(&sql)
-                        .await
-                        .context("lush stream prepare stmt error")?;
-                    info!("prepare");
-                    stmt.bind(data.as_slice())
-                        .await
-                        .context("lush stream bind stmt error")?;
-                    stmt.add_batch()
-                        .await
-                        .context("lush stream add batch error")?;
-                    let n = stmt
-                        .execute()
-                        .await
-                        .context("lush stream stmt execution error")?;
-                    info!("written : [{n}] records");
-                    if let Some(transferred) = transferred {
-                        transferred.records.fetch_add(n as _, Ordering::SeqCst);
-                        transferred
-                            .points
-                            .fetch_add((n * data.len()) as _, Ordering::SeqCst);
-                    }
+                    // stmt.prepare(&sql)
+                    //     .await
+                    //     .context("lush stream prepare stmt error")?;
+                    // info!("prepare");
+                    // stmt.bind(data.as_slice())
+                    //     .await
+                    //     .context("lush stream bind stmt error")?;
+                    // stmt.add_batch()
+                    //     .await
+                    //     .context("lush stream add batch error")?;
+                    // let n = stmt
+                    //     .execute()
+                    //     .await
+                    //     .context("lush stream stmt execution error")?;
+                    // info!("written : [{n}] records");
+                    // if let Some(transferred) = transferred {
+                    //     transferred.records.fetch_add(n as _, Ordering::SeqCst);
+                    //     transferred
+                    //         .points
+                    //         .fetch_add((n * data.len()) as _, Ordering::SeqCst);
+                    // }
                 }
             }
             // drop(guard);
@@ -685,7 +695,6 @@ struct ModifyStructForPointMessage {
 async fn consume_point_record(
     pool: &TaosPool,
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
-    _: &mut Stmt,
     record: &PointMessage,
     count: &mut usize,
     config: &OpcTableConfig,
@@ -1890,9 +1899,6 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         .into_iter()
         .map(|s| format!("{s}"))
         .collect_vec();
-    let names = columns.iter().map(|n| format!("`{n}`")).join(",");
-    let marks = std::iter::repeat('?').take(columns.len()).join(",");
-    // let mut stmt = Stmt::init_with_req_id(&taos, stream_trace_id).await?;
 
     let mut count = 0;
     let mut stream = ipc_reader.into_stream();
@@ -1902,7 +1908,6 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     // let mut taos = Some(taos);
     while let Some(record) = stream.try_next().await.context("next item error")? {
         let taos = pool.get().await?;
-        let mut stmt = Stmt::init_with_req_id(&taos, stream_trace_id).await?;
         let mut taos = Some(taos);
         batches += 1;
         let data_trace_id = create_data_trace_id(stream_trace_id, batches);
@@ -1916,11 +1921,8 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         if let Err(err) = consume_lush_record(
             pool,
             &mut taos,
-            &mut stmt,
             record,
             &columns,
-            &names,
-            &marks,
             &mut count,
             license,
             transferred,
@@ -1970,7 +1972,6 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             tracing::info!(acks = unsafe { ACKS.load(Ordering::SeqCst) }, "ack done");
         }
         unsafe { ACKS.fetch_add(1, Ordering::SeqCst) };
-        drop(stmt);
         drop(taos);
     }
     println!("finished, totally {count} rows");
@@ -2011,7 +2012,6 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
         let pool = &context.pool;
         let taos = context.pool.get().await?;
         let mut count = 0;
-        let mut stmt = Stmt::init_with_req_id(&taos, data_trace_id).await?;
         let mut taos = Some(taos);
         let record = *Box::<dyn Any>::downcast::<PointMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
@@ -2020,7 +2020,6 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
         let n = consume_point_record(
             pool,
             &mut taos,
-            &mut stmt,
             &record,
             &mut count,
             context.config.as_ref().unwrap(),
@@ -2488,16 +2487,17 @@ pub async fn handle_lush_message_init(
 }
 
 #[allow(dead_code)]
+#[derive(Clone)]
 pub struct IpcStreamWorker {
     pool: TaosPool,
     pub parser: IpcParser,
     lock: Arc<Mutex<()>>,
     task: Option<i64>,
     from: Dsn,
-    config: Option<OPCConfig>,
+    config: Option<Arc<OPCConfig>>,
     opc_table_config: OnceCell<OpcTableConfig>,
-    license: Option<ConnectorLicense>,
-    transferred: Option<Transferred>,
+    license: Option<Arc<ConnectorLicense>>,
+    transferred: Option<Arc<Transferred>>,
     span: tracing::Span,
     // stmt: Arc<UnsafeCell<Stmt>>,
 }
@@ -2531,20 +2531,22 @@ impl IpcStreamWorker {
             task,
             config: None,
             opc_table_config,
-            license,
-            transferred, // stmt: Arc::new(UnsafeCell::new(stmt)),
+            license: license.map(Arc::new),
+            transferred: transferred.map(Arc::new), // stmt: Arc::new(UnsafeCell::new(stmt)),
             span,
         })
     }
 
+    pub fn stream_type(&self) -> &StreamType {
+        self.parser.metadata().stream_type()
+    }
     pub fn with_presets(mut self, preset: OPCConfig) -> Self {
-        self.config.replace(preset);
+        self.config.replace(Arc::new(preset));
         self
     }
 
     pub async fn process_record(
         &self,
-        stmt: &mut Stmt,
         record: RecordBatch,
         parser: Option<&Parser>,
         data_trace_id: u64,
@@ -2571,8 +2573,8 @@ impl IpcStreamWorker {
                     &record,
                     &mut count,
                     parser, // todo: license
-                    self.license.as_ref(),
-                    self.transferred.as_ref(),
+                    self.license.as_deref(),
+                    self.transferred.as_deref(),
                     target_precision,
                     data_trace_id,
                     trace_id_str,
@@ -2588,9 +2590,6 @@ impl IpcStreamWorker {
                     .into_iter()
                     .map(|s| format!("{s}"))
                     .collect_vec();
-                let names = columns.iter().map(|n| format!("`{n}`")).join(",");
-                let marks = std::iter::repeat('?').take(columns.len()).join(",");
-
                 let message = self.parser.parse(record)?;
                 let mut count = 0;
 
@@ -2605,14 +2604,11 @@ impl IpcStreamWorker {
                 consume_lush_record(
                     &self.pool,
                     &mut taos,
-                    stmt,
                     record,
                     &columns,
-                    &names,
-                    &marks,
                     &mut count,
-                    self.license.as_ref(),
-                    self.transferred.as_ref(),
+                    self.license.as_deref(),
+                    self.transferred.as_deref(),
                     task,
                     data_trace_id,
                     trace_id_str,
@@ -2632,7 +2628,6 @@ impl IpcStreamWorker {
                 let _n = consume_point_record(
                     &self.pool,
                     &mut taos,
-                    stmt,
                     &record,
                     &mut count,
                     self.opc_table_config.get().ok_or_else(|| {

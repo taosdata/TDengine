@@ -37,6 +37,7 @@ type UAClient struct {
 
 	maxNodesPerRead          uint64
 	maxMonitoredItemsPerCall uint64
+	maxNodesPerBrowse        uint64
 	containsBad              bool
 	closeChan                chan struct{}
 	once                     sync.Once
@@ -204,13 +205,15 @@ func (c *UAClient) Connect() error {
 }
 
 func (c *UAClient) getServerLimit() error {
-	maxReadID, _ := ua.ParseNodeID("i=11705")
-	maxItemID, _ := ua.ParseNodeID("i=11714")
+	maxReadID, _ := ua.ParseNodeID("i=11705")         //MaxNodesPerRead
+	maxItemID, _ := ua.ParseNodeID("i=11714")         //MaxMonitoredItemsPerCall
+	maxNodesPerBrowse, _ := ua.ParseNodeID("i=11710") //MaxNodesPerBrowse
 	req := &ua.ReadRequest{
 		MaxAge: 2000,
 		NodesToRead: []*ua.ReadValueID{
 			{NodeID: maxReadID},
 			{NodeID: maxItemID},
+			{NodeID: maxNodesPerBrowse},
 		},
 		TimestampsToReturn: ua.TimestampsToReturnNeither,
 	}
@@ -245,6 +248,18 @@ func (c *UAClient) getServerLimit() error {
 	if c.maxMonitoredItemsPerCall == 0 {
 		c.logger.Warn("get max monitored items per call 0, set to 1")
 		c.maxMonitoredItemsPerCall = 1
+	}
+
+	if resp.Results[2].Status == ua.StatusOK {
+		c.maxNodesPerBrowse = resp.Results[2].Value.Uint()
+		if c.maxNodesPerBrowse == 0 {
+			c.maxNodesPerBrowse = uint64(resp.Results[2].Value.Int())
+		}
+		c.logger.Info("get max nodes per browse success, ", c.maxNodesPerBrowse)
+	}
+	if c.maxNodesPerBrowse == 0 {
+		c.logger.Warn("get max nodes per browse fail, set to maxMonitoredItemsPerCall")
+		c.maxNodesPerBrowse = c.maxMonitoredItemsPerCall
 	}
 	return nil
 }
@@ -516,6 +531,26 @@ func (c *UAClient) subscribe() error {
 	if err != nil {
 		return err
 	}
+	needSubTimes := uint64(len(c.nodes)) / c.maxNodesPerBrowse
+	for subTimes := uint64(0); subTimes < needSubTimes; subTimes++ {
+		err = c.doSubBatch(uint(subTimes*c.maxNodesPerBrowse), c.nodes[subTimes*c.maxNodesPerBrowse:(subTimes+1)*c.maxNodesPerBrowse])
+		if err != nil {
+			c.logger.WithError(err).Error("subscribe error")
+			return err
+		}
+	}
+	if len(c.nodes)%int(c.maxNodesPerBrowse) != 0 {
+		err = c.doSubBatch(uint(needSubTimes*c.maxNodesPerBrowse), c.nodes[needSubTimes*c.maxNodesPerBrowse:])
+		if err != nil {
+			c.logger.WithError(err).Error("subscribe error")
+			return err
+		}
+	}
+	c.logger.Info("add monitored items success")
+	return err
+}
+
+func (c *UAClient) doSubBatch(base uint, nodes []*ua.NodeID) error {
 	maxOperations := uint(c.maxMonitoredItemsPerCall)
 	ch := make(chan *opcua.PublishNotificationData, 1)
 	sub, err := c.conn.Subscribe(c.ctx, &opcua.SubscriptionParameters{}, ch)
@@ -524,27 +559,26 @@ func (c *UAClient) subscribe() error {
 		return err
 	}
 	c.logger.Info("start to add monitored items")
-	subTimes := uint(len(c.nodes)) / maxOperations
+	subItemTimes := uint(len(nodes)) / maxOperations
 
-	for i := uint(0); i < subTimes; i++ {
-		base := i * maxOperations
-		nodes := c.nodes[base : base+maxOperations]
-		err = c.doSubItems(int(base), nodes, sub)
+	for i := uint(0); i < subItemTimes; i++ {
+		indexBase := i * maxOperations
+		subNodes := nodes[indexBase : indexBase+maxOperations]
+		err = c.doSubItems(int(indexBase+base), subNodes, sub)
 		if err != nil {
 			return err
 		}
 	}
-	if len(c.nodes)%int(maxOperations) != 0 {
-		base := subTimes * maxOperations
-		nodes := c.nodes[base:]
-		err = c.doSubItems(int(base), nodes, sub)
+	if len(nodes)%int(maxOperations) != 0 {
+		indexBase := subItemTimes * maxOperations
+		subNodes := nodes[indexBase:]
+		err = c.doSubItems(int(indexBase+base), subNodes, sub)
 		if err != nil {
 			return err
 		}
 	}
-	c.logger.Info("add monitored items success")
 	c.handleSubCallback(sub, ch)
-	return err
+	return nil
 }
 
 func (c *UAClient) doSubItems(base int, nodes []*ua.NodeID, sub *opcua.Subscription) error {

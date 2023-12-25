@@ -1,10 +1,11 @@
-use anyhow::{bail, Context};
+use std::sync::Arc;
+
+use anyhow::bail;
 use arrow_flight::{error::FlightError, FlightData, PutResult};
 use futures::{Stream, TryStreamExt};
 use futures_util::StreamExt;
 use parquet::data_type::AsBytes;
-use std::sync::Arc;
-use taos::{AsyncBindable, AsyncQueryable, AsyncTBuilder, Dsn, Stmt, TaosBuilder};
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::{
     core_metrics::get_metrics,
     sink::{handle_lush_message_init, IpcErrorStrategy},
@@ -186,9 +187,6 @@ impl PutStream {
             // dbg!(&task);
             let from = task.from.parse().unwrap();
             let taos = pool.get().await?;
-            let mut stmt = Stmt::init_with_req_id(&taos, stream_trace_id_u64)
-                .await
-                .context("Initialize STMT")?;
             let _ = span.clone().entered();
             let worker = IpcStreamWorker::new(
                 pool.clone(),
@@ -198,13 +196,14 @@ impl PutStream {
                 license,
                 None,
                 span,
-                Some(task.id),
+                Some(task_id),
             )
             .await?;
-            let parser: Option<Parser> = task
+            let parser: Option<Arc<Parser>> = task
                 .parser
                 .as_ref()
-                .map(|v| serde_json::from_value(v.clone()).unwrap());
+                .map(|v| serde_json::from_value(v.clone()).unwrap())
+                .map(Arc::new);
             let metadata = worker.parser.metadata();
             let metrics_arc = get_metrics(task.id).expect("metrics not found");
             let metrics = metrics_arc.ipc();
@@ -214,57 +213,59 @@ impl PutStream {
                 handle_lush_message_init(init, &taos, &sql, &req_id, metrics).await?;
             }
             tracing::info!("Start IPC stream writer");
-            loop {
-                match rx.recv_async().await {
-                    Ok((record, trace_id)) => {
-                        let trace_id_str = get_data_trace_id_str(trace_id);
-                        tracing::info!("Writing batch {trace_id_str}");
-                        tracing::debug!(columns = ?record.columns(), num.rows = record.num_rows(), num.columns = record.num_columns());
-                        if let Err(err) = worker
-                            .process_record(
-                                &mut stmt,
-                                record.clone(),
-                                parser.as_ref(),
-                                trace_id,
-                                &trace_id_str,
-                                metrics,
-                            )
-                            .in_current_span()
-                            .await
-                        {
-                            tracing::warn!(
-                                "Can't write batch {} to database, err: {:#}, backtrace: {}",
-                                trace_id_str,
-                                err,
-                                err.backtrace()
-                            );
-                            let _ = notify_sender.send(
-                                crate::serve::scheduler::agent::AgentNotify::TaskActivity(
-                                    agent_id,
-                                    TaskActivity::error(task.id, format!("{err:#}")),
-                                ),
-                            );
-                            if ipc_error_strategy.will_stop() {
-                                abort_message_tx
-                                    .send(Err(Status::data_loss(format!("{err:#}"))))?;
-                                notify_sender.send(
-                                    crate::serve::scheduler::agent::AgentNotify::WriterError(
-                                        agent_id,
-                                        task.id,
-                                        format!("{err:#}"),
-                                    ),
-                                )?;
-                                bail!("{err:#}");
-                            }
-                            tx.send_async((record, trace_id)).await?;
-                        }
+
+            let stream = rx.stream();
+
+            use futures::StreamExt;
+            let limit = std::thread::available_parallelism()
+                .map(|v| v.get())
+                .unwrap_or(48);
+            stream.map(|(record, trace_id)| {
+                let trace_id_str = get_data_trace_id_str(trace_id);
+                tracing::info!("Writing batch {trace_id_str}");
+                tracing::debug!(columns = ?record.columns(), num.rows = record.num_rows(), num.columns = record.num_columns());
+                anyhow::Ok((record, trace_id, worker.clone(), parser.clone(), notify_sender.clone(), tx.clone(), abort_message_tx.clone()))
+            }).try_for_each_concurrent(limit, |(record, trace_id, worker, parser, notify_sender, tx, abort_message_tx)| async move {
+                if let Err(err) = worker
+                    .process_record(
+                        record.clone(),
+                        parser.as_deref(),
+                        trace_id,
+                        &get_data_trace_id_str(trace_id),
+                    )
+                    .in_current_span()
+                    .await
+                {
+                    tracing::warn!(
+                        trace_id = %get_data_trace_id_str(trace_id),
+                        error = format!("{:#}", err),
+                        backtrace = %err.backtrace(),
+                        "Can't write batch {} to database",
+                        get_data_trace_id_str(trace_id),
+                    );
+                    let _ = notify_sender.send(
+                        crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                            agent_id,
+                            TaskActivity::error(task_id, format!("{err:#}")),
+                        ),
+                    );
+                    if ipc_error_strategy.will_stop() {
+                        abort_message_tx
+                            .send(Err(Status::data_loss(format!("{err:#}"))))?;
+                        notify_sender.send(
+                            crate::serve::scheduler::agent::AgentNotify::WriterError(
+                                agent_id,
+                                task_id,
+                                format!("{err:#}"),
+                            ),
+                        )?;
+                        bail!("{err:#}");
                     }
-                    Err(err) => {
-                        tracing::warn!("IPC stream worker stopped, err:{}", err.to_string());
-                        break Ok(());
-                    }
+                    tx.send_async((record, trace_id)).await?;
                 }
-            }
+                Ok(())
+            }).await?;
+            Ok(())
         }
         let notify_sender = self.notify_sender.clone();
         // 任务的 metrics 在启动任务的时候已经放入全局 Map 中，所以这里一定存在

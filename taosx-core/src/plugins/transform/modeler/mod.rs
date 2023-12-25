@@ -122,8 +122,43 @@ impl ModeledRecordBatch {
         &self.records
     }
 
-    pub fn into_modeled_json(&self) -> ModeledJsonOutput {
+    pub fn to_modeled_json(&self) -> ModeledJsonOutput {
         self.inner().into()
+    }
+
+    pub fn to_modeled_json_with_tz(&self, tz: &str) -> ModeledJsonOutput {
+        let schema = self.records.schema();
+        let (fields, columns): (Vec<_>, Vec<_>) = (0..self.records.num_columns())
+            .map(|i| {
+                let field = schema.fields().get(i).unwrap();
+                let column = self.records.column(i);
+                if let DataType::Timestamp(unit, left_tz) = field.data_type() {
+                    if left_tz.is_some() {
+                        let dt = DataType::Timestamp(unit.clone(), Some(tz.to_string().into()));
+                        let column = arrow::compute::cast(column, &dt).unwrap();
+                        (
+                            Arc::new(Field::new(field.name(), dt, field.is_nullable())),
+                            column,
+                        )
+                    } else {
+                        let dt = DataType::Timestamp(unit.clone(), Some("UTC".into()));
+                        let column = arrow::compute::cast(column, &dt).unwrap();
+                        let dt = DataType::Timestamp(unit.clone(), Some(tz.to_string().into()));
+                        let column = arrow::compute::cast(&column, &dt).unwrap();
+                        (
+                            Arc::new(Field::new(field.name(), dt, field.is_nullable())),
+                            column,
+                        )
+                    }
+                } else {
+                    (field.clone(), column.clone())
+                }
+            })
+            .unzip();
+
+        let records = RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).unwrap();
+
+        (&records).into()
     }
 }
 
@@ -235,7 +270,8 @@ impl Table {
                 return Err(super::Error::EmptyTableColumns(self.name.clone()));
             }
             let primary = names[0].as_str();
-            let timestamp = DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None);
+            let timestamp =
+                DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, Some("UTC".into()));
 
             // Primary key column.
             let primary_array = records
@@ -248,7 +284,7 @@ impl Table {
             // Cast primary key column to timestamp.
             let primary_array = arrow_cast_guess_precision::cast(
                 &primary_array,
-                &DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None),
+                &DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, Some("UTC".into())),
             )
             .map_err(|err| super::Error::PrimaryKeyCastError(self.name.clone(), err))?;
             let primary_field = schema
@@ -329,5 +365,65 @@ mod model_serde {
         D: Deserializer<'de>,
     {
         Model::deserialize(deserializer).map(Into::into)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use arrow::array::{ArrayRef, Float64Array, TimestampMillisecondArray};
+
+    use super::*;
+
+    #[test]
+    fn test_into_modeled_json_with_tz() {
+        let schema = Schema::new(vec![
+            Field::new(
+                "time",
+                DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None),
+                false,
+            ),
+            Field::new("value", DataType::Float64, false),
+        ]);
+        let records = RecordBatch::try_new(
+            Arc::new(schema),
+            vec![
+                Arc::new(TimestampMillisecondArray::from_iter(vec![
+                    Some(1619740800000),
+                    Some(1619740800000),
+                ])) as ArrayRef,
+                Arc::new(Float64Array::from_iter(vec![Some(1.0), Some(2.0)])),
+            ],
+        )
+        .unwrap();
+
+        let modeled = ModeledRecordBatch::new(records);
+        let output = modeled.to_modeled_json_with_tz("UTC");
+        assert_eq!(
+            output.columns,
+            vec![
+                vec![
+                    serde_json::Value::String("2021-04-30T00:00:00Z".to_string()),
+                    serde_json::Value::Number(serde_json::Number::from_f64(1.0).unwrap())
+                ],
+                vec![
+                    serde_json::Value::String("2021-04-30T00:00:00Z".to_string()),
+                    serde_json::Value::Number(serde_json::Number::from_f64(2.0).unwrap())
+                ]
+            ]
+        );
+        let output = modeled.to_modeled_json_with_tz("Asia/Shanghai");
+        assert_eq!(
+            output.columns,
+            vec![
+                vec![
+                    serde_json::Value::String("2021-04-30T08:00:00+08:00".to_string()),
+                    serde_json::Value::Number(serde_json::Number::from_f64(1.0).unwrap()),
+                ],
+                vec![
+                    serde_json::Value::String("2021-04-30T08:00:00+08:00".to_string()),
+                    serde_json::Value::Number(serde_json::Number::from_f64(2.0).unwrap())
+                ]
+            ]
+        );
     }
 }

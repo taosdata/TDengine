@@ -28,14 +28,14 @@ task:
   beginTime: 2023-05-16 08:00:00
   # empty is now
   endTime: 2023-06-30 16:14:00
-  # specify the way of task assignment: 1-queue 2-average 3-blocked
-  # assignmentType: 3
+  # logLevel: trace/debug/info/warn/error
+  logLevel: info
 
 #performance parameters
 performance:
   delay: 10000
-  limitConnect: 1000
-  limitBatch: 1000
+  limitConnect: 500
+  limitBatch: 5000
   limitSpeed: 100000
   retryTimes: 3
   # millisecond
@@ -58,7 +58,7 @@ performance:
     createBucketInterval: 5
     createBucketFullInterval: 200
     # BucketDataThread线程
-    readBucketBatch: 2
+    readBucketBatch: 1000
     readBucketInterval: 1
     readBucketFullInterval: 200
     # ScheduleThread线程

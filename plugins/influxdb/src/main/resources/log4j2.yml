@@ -21,7 +21,7 @@ Configuration:
       # 临界值过滤器
       ThresholdFilter:
         # 设定级别
-        level: info
+        level: debug
         # 匹配该级别及以上
         onMatch: ACCEPT
         # 不匹配该级别以下
@@ -113,7 +113,7 @@ Configuration:
     # 系统操作日志
     Root:
       # 日志级别
-      level: info
+      level: debug
       # 关联输出
       AppenderRef:
         - ref: console
@@ -125,7 +125,7 @@ Configuration:
         # 是否将日志流反馈到root中
         additivity: false
         # 日志级别
-        level: info
+        level: debug
         # 关联输出
         AppenderRef:
           - ref: console
