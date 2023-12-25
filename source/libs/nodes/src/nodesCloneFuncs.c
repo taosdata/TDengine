@@ -424,6 +424,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(groupOrderScan);
   COPY_SCALAR_FIELD(onlyMetaCtbIdx);
   COPY_SCALAR_FIELD(filesetDelimited);
+  COPY_SCALAR_FIELD(isCountByTag);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -453,7 +454,6 @@ static int32_t logicAggCopy(const SAggLogicNode* pSrc, SAggLogicNode* pDst) {
   COPY_SCALAR_FIELD(isGroupTb);
   COPY_SCALAR_FIELD(isPartTb);
   COPY_SCALAR_FIELD(hasGroup);
-  COPY_SCALAR_FIELD(isCountByTag);
   return TSDB_CODE_SUCCESS;
 }
 

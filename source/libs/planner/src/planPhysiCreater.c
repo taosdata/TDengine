@@ -37,7 +37,6 @@ typedef struct SPhysiPlanContext {
   SArray*       pLocationHelper;
   bool          hasScan;
   bool          hasSysScan;
-  SLogicNode*   pNode;  // tmp record LogicSubplan->pNode
 } SPhysiPlanContext;
 
 static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char* pKey, int32_t keyBufSize) {
@@ -595,23 +594,8 @@ static bool calcNeedCountEmpty(SPhysiPlanContext* pCxt, SScanLogicNode* pScanLog
   }
   // limit: root node is select
   SNode* pRoot = pCxt->pPlanCxt->pAstRoot;
-  if (QUERY_NODE_SELECT_STMT == nodeType(pRoot)) {
-    // case1 root select
-    SSelectStmt* pSelect = (SSelectStmt*)pRoot;
-    if (pSelect->hasCountFunc) {
-      if (NULL != pSelect->pGroupByList) {
-        return !keysHasCol(pSelect->pGroupByList);
-      } else if (NULL != pSelect->pPartitionByList) {
-        return !keysHasCol(pSelect->pPartitionByList);
-      }
-    }
-    // case2 inner agg
-    if (pCxt->pNode && QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pCxt->pNode)) {
-      SAggLogicNode* pNode = (SAggLogicNode*)pCxt->pNode;
-      if (pNode->isCountByTag) {
-        return true;
-      }
-    }
+  if (QUERY_NODE_SELECT_STMT == nodeType(pRoot) && pScanLogicNode->isCountByTag) {
+    return true;
   }
 
   return false;
@@ -2312,9 +2296,6 @@ static int32_t createPhysiSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogic
       pSubplan->msgType = TDMT_SCH_MERGE_QUERY;
     }
     
-    if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pLogicSubplan->pNode)) {
-      pCxt->pNode = pLogicSubplan->pNode;
-    }
     code = createPhysiNode(pCxt, pLogicSubplan->pNode, pSubplan, &pSubplan->pNode);
     if (TSDB_CODE_SUCCESS == code && !pCxt->pPlanCxt->streamQuery && !pCxt->pPlanCxt->topicQuery) {
       code = createDataDispatcher(pCxt, pSubplan->pNode, &pSubplan->pDataSink);
@@ -2416,7 +2397,6 @@ static int32_t doCreatePhysiPlan(SPhysiPlanContext* pCxt, SQueryLogicPlan* pLogi
       break;
     }
   }
-  pCxt->pNode = NULL;
 
   if (TSDB_CODE_SUCCESS == code) {
     *pPhysiPlan = pPlan;
@@ -2468,8 +2448,7 @@ int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryP
                            .nextDataBlockId = 0,
                            .pLocationHelper = taosArrayInit(32, POINTER_BYTES),
                            .hasScan = false,
-                           .hasSysScan = false,
-                           .pNode = NULL};
+                           .hasSysScan = false};
   if (NULL == cxt.pLocationHelper) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
