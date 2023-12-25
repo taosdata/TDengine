@@ -16,6 +16,8 @@ TDengine 面向多种写入场景，而很多写入场景下，TDengine 的存�
 
 ```SQL
 COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY']； 
+SHOW COMPACTS [compact_id]；
+KILL COMPACT compact_id；
 ```
 
 ### 效果
@@ -25,13 +27,15 @@ COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY']；
 -   COMPACT 会合并多个 STT 文件
 -   可通过 start with 关键字指定 COMPACT 数据的起始时间
 -   可通过 end with 关键字指定 COMPACT 数据的终止时间
+-   COMPACT 命令会返回 COMPACT 任务的 ID
+-   COMPACT 任务会在后台异步执行，可以通过 SHOW COMPACTS 命令查看 COMPACT 任务的进度
+-   SHOW 命令会返回 COMPACT 任务的 ID，可以通过 KILL COMPACT 命令终止 COMPACT 任务
 
 
 ### 补充说明
 
 -   COMPACT 为异步，执行 COMPACT 命令后不会等 COMPACT 结束就会返回。如果上一个 COMPACT 没有完成则再发起一个 COMPACT 任务，则会等上一个任务完成后再返回。
--   COMPACT 可能阻塞写入，但不阻塞查询
--   COMPACT 的进度不可观测
+-   COMPACT 可能阻塞写入，尤其是在 stt_trigger = 1 的数据库中，但不阻塞查询。
 
 ## RAFT Leader 再平衡
 
