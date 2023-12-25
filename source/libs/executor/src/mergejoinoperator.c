@@ -519,22 +519,47 @@ SSDataBlock* mJoinMainProcess(struct SOperatorInfo* pOperator) {
   return (pBlock && pBlock->info.rows > 0) ? pBlock : NULL;
 }
 
+void destroyGrpArray(void* ppArray) {
+  SArray* pArray = *(SArray**)ppArray;
+  taosArrayDestroy(pArray);
+}
+
+void destroyMergeJoinTableCtx(SMJoinTableCtx* pTable) {
+  mJoinDestroyCreatedBlks(pTable->createdBlks);
+  taosArrayDestroy(pTable->createdBlks);
+  tSimpleHashCleanup(pTable->pGrpHash);
+
+  taosMemoryFree(pTable->primCol);
+  taosMemoryFree(pTable->finCols);
+  taosMemoryFree(pTable->keyCols);
+  taosMemoryFree(pTable->keyBuf);
+
+  taosArrayDestroy(pTable->eqGrps);
+  taosArrayDestroyEx(pTable->pGrpArrays, destroyGrpArray);
+}
 
 void destroyMergeJoinOperator(void* param) {
-  SOperatorInfo* pOperator = (SOperatorInfo*)param;
-  SMJoinOperatorInfo* pJoin = pOperator->info;
+  SMJoinOperatorInfo* pJoin = (SMJoinOperatorInfo*)param;
   pJoin->ctx.mergeCtx.finBlk = blockDataDestroy(pJoin->ctx.mergeCtx.finBlk);
   pJoin->ctx.mergeCtx.midBlk = blockDataDestroy(pJoin->ctx.mergeCtx.midBlk);
 
-  mJoinDestroyCreatedBlks(pJoin->probe->createdBlks);
-  taosArrayDestroy(pJoin->probe->createdBlks);
-  tSimpleHashCleanup(pJoin->probe->pGrpHash);
+  if (pJoin->pFPreFilter != NULL) {
+    filterFreeInfo(pJoin->pFPreFilter);
+    pJoin->pFPreFilter = NULL;
+  }
+  if (pJoin->pPreFilter != NULL) {
+    filterFreeInfo(pJoin->pPreFilter);
+    pJoin->pPreFilter = NULL;
+  }
+  if (pJoin->pFinFilter != NULL) {
+    filterFreeInfo(pJoin->pFinFilter);
+    pJoin->pFinFilter = NULL;
+  }
 
-  mJoinDestroyCreatedBlks(pJoin->build->createdBlks);
-  taosArrayDestroy(pJoin->build->createdBlks);
-  tSimpleHashCleanup(pJoin->build->pGrpHash);
+  destroyMergeJoinTableCtx(pJoin->probe);
+  destroyMergeJoinTableCtx(pJoin->build);
 
-  taosMemoryFreeClear(param);
+  taosMemoryFreeClear(pJoin);
 }
 
 

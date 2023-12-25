@@ -19,9 +19,9 @@
 extern "C" {
 #endif
 
-#define MJOIN_DEFAULT_BLK_ROWS_NUM 4
+#define MJOIN_DEFAULT_BLK_ROWS_NUM 4096
 #define MJOIN_HJOIN_CART_THRESHOLD 16
-#define MJOIN_BLK_SIZE_LIMIT 20
+#define MJOIN_BLK_SIZE_LIMIT 10485760
 
 struct SMJoinOperatorInfo;
 
@@ -77,14 +77,6 @@ typedef struct SMJoinTableCtx {
   SMJoinColInfo* keyCols;
   char*          keyBuf;
   char*          keyData;
-  
-  int32_t        valNum;
-  SMJoinColInfo* valCols;
-  char*          valData;
-  int32_t        valBitMapSize;
-  int32_t        valBufSize;
-  SArray*        valVarCols;
-  bool           valColExist;
 
   bool           newBlk;
   SSDataBlock*   blk;
