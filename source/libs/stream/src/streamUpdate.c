@@ -13,8 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "query.h"
-#include "tdatablock.h"
 #include "tencode.h"
 #include "tstreamUpdate.h"
 #include "ttime.h"
@@ -387,8 +385,8 @@ int32_t updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo) {
 
 bool isIncrementalTimeStamp(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts) {
   TSKEY *pMapMaxTs = taosHashGet(pInfo->pMap, &tableId, sizeof(uint64_t));
-  bool res = true;
-  if ( pMapMaxTs && ts < *pMapMaxTs ) {
+  bool   res = true;
+  if (pMapMaxTs && ts < *pMapMaxTs) {
     res = false;
   } else {
     taosHashPut(pInfo->pMap, &tableId, sizeof(uint64_t), &ts, sizeof(TSKEY));
