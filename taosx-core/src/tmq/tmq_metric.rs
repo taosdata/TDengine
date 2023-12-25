@@ -98,6 +98,8 @@ impl TMQMetrics {
 impl TaosXMetrics for TMQMetrics {
     fn reset(&self) {
         self.com.reset();
+        self.topics.store(0, SeqCst);
+        self.consumers.store(0, SeqCst);
         self.messages.store(0, SeqCst);
         self.messages_of_meta.store(0, SeqCst);
         self.messages_of_data.store(0, SeqCst);
@@ -109,12 +111,12 @@ impl TaosXMetrics for TMQMetrics {
     }
 
     /// Resore metrics from json string.
-    fn from_json(json: &str) -> Self {
+    fn from_json(json: &str) -> Option<Self> {
         match serde_json::from_str(json) {
             Ok(metrics) => metrics,
             Err(err) => {
                 tracing::error!("failed to deserialize metrics: {}", err);
-                Self::default()
+                None
             }
         }
     }

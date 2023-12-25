@@ -1,6 +1,6 @@
 use crate::get_data_dir;
 use std::path::{Path, PathBuf};
-use tracing::{debug, info};
+use tracing::{debug, info, trace};
 
 pub struct MetricsDb {
     db: sled::Db,
@@ -14,7 +14,7 @@ impl MetricsDb {
 
     pub fn new(task_id: &str) -> anyhow::Result<Self> {
         let path = Self::db_dir(task_id);
-        debug!("metrics db path: {}", path.display());
+        trace!("metrics db path: {}", path.display());
         let db = sled::open(path)
             .map_err(|err| anyhow::anyhow!("sled open metrics db file failed: {:?}", err))?;
         Ok(Self { db })

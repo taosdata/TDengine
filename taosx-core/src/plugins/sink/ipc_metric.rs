@@ -6,6 +6,7 @@ use tracing;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IPCMetrics {
+    #[serde(flatten)]
     pub com: CommonMetrics,
     pub total_received_batches: AtomicU64,
     pub total_processed_batches: AtomicU64,
@@ -179,12 +180,12 @@ impl TaosXMetrics for IPCMetrics {
     }
 
     /// Resore metrics from json string.
-    fn from_json(json: &str) -> Self {
+    fn from_json(json: &str) -> Option<Self> {
         match serde_json::from_str(json) {
             Ok(metrics) => metrics,
             Err(err) => {
-                tracing::error!("failed to deserialize metrics: {}", err);
-                Self::default()
+                tracing::error!("failed to deserialize metrics: {:?}", err);
+                None
             }
         }
     }

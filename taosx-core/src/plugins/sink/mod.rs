@@ -25,7 +25,7 @@ use taos::{
     taos_query::{common::Describe, Manager},
     AsyncBindable, AsyncQueryable, Dsn, Itertools, RawBlock, Stmt, Taos, TaosPool, Ty, Value,
 };
-use tokio::sync::{oneshot, Mutex, Notify, OnceCell};
+use tokio::sync::{Mutex, Notify, OnceCell};
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::{debug, error, info, instrument, Instrument, Span};
@@ -53,7 +53,7 @@ use crate::{
 };
 
 use self::ipc_metric::IPCMetrics;
-use crate::core_metrics::{auto_save_ipc_metrics, get_metrics_arc_from_i64};
+use crate::core_metrics::get_metrics_arc_from_i64;
 
 use super::*;
 
@@ -2373,8 +2373,6 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     }
     drop(taos);
     info!(?stream_type, "Processing stream");
-    let (_, close_signal) = oneshot::channel::<()>();
-    auto_save_ipc_metrics(metrics_arc.clone(), close_signal);
     match stream_type {
         StreamType::Line => todo!(),
         StreamType::Flat => {

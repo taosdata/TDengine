@@ -10,7 +10,6 @@ use std::sync::atomic::Ordering::SeqCst;
 pub struct LegacyToTaosMetrics {
     #[serde(flatten)]
     pub com: CommonMetrics,
-    // task level metrics
     pub workers: AtomicU32,
     pub total_stables: AtomicU32,
     pub total_tables: AtomicU32,
@@ -18,15 +17,11 @@ pub struct LegacyToTaosMetrics {
     pub total_suc_blocks: AtomicU64,
     pub total_updated_tags: AtomicU32,
     pub total_created_tables: AtomicU32,
-    // instant
     #[serde(skip)]
     pub finished_tables: AtomicU32,
     pub suc_blocks: AtomicU64,
     pub updated_tags: AtomicU32,
     pub created_tables: AtomicU32,
-    // api level metrics (update on every api call)
-    // total_avg_speed
-    // avg_speed
 }
 
 impl LegacyToTaosMetrics {
@@ -137,12 +132,12 @@ impl TaosXMetrics for LegacyToTaosMetrics {
     }
 
     /// Resore metrics from json string.
-    fn from_json(json: &str) -> Self {
+    fn from_json(json: &str) -> Option<Self> {
         match serde_json::from_str(json) {
             Ok(metrics) => metrics,
             Err(err) => {
                 tracing::error!("failed to deserialize metrics: {}", err);
-                Self::default()
+                None
             }
         }
     }

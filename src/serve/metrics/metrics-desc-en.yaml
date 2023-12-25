@@ -17,7 +17,7 @@ start_time: Task start time (reset each time the task is restarted), in millisec
 written_rows: Total rows written to TDengine (including duplicate records) in this task run
 written_points: Total points written successfully in this task run (equal to the number of rows in the data block multiplied by the number of columns in the data block)
 execute_time: Task execute time in seconds for this task run
-record_per_second: Average number of rows written per second for this task run
+records_per_second: Average number of rows written per second for this task run
 points_per_second: Average number of points written per second for this task run
 workers: Number of data workers concurrently reading data sources
 total_stables: Total super tables to migrate
@@ -43,7 +43,7 @@ messages_of_data: Total number of messages with type "Data" and "MetaData" recei
 write_meta_fails: Total number of "Meta" messages failed to deal with in this task run
 total_received_batches: Total number of data batches received via IPC Stream
 total_processed_batches: Total number of data batches processed by taosx
-total_processed_record: Total number of rows processed (equal to the sum of the number of data rows contained in the batch containing data)
+total_processed_records: Total number of rows processed (equal to the sum of the number of data rows contained in the batch containing data)
 total_insert_sqls: Total number of INSERT SQLs executed by taosx
 total_failed_sqls: Total number of INSERT SQLs failed to execute by taosx
 total_created_stables: Total number of super tables that taosX try to created.(may greater than successfully created super tables)
@@ -54,7 +54,7 @@ total_written_raw_blocks: Total number of raw blocks successfully written
 total_failed_raw_blocks: Total number of raw blocks failed to write
 received_batches: Number of data batches received via IPC Stream in this task run
 processed_batches: Number of data batches processed by taosx in this task run
-processed_record: Number of rows processed in this task run (equal to the sum of the number of data rows contained in the batch containing data)
+processed_records: Number of rows processed in this task run (equal to the sum of the number of data rows contained in the batch containing data)
 insert_sqls: Number of INSERT SQLs execute by taosx in this task run
 failed_sqls: Number of INSERT SQLs failed to execute by taosx in this task run
 created_stables: Number of super tables that taosX try to created in this task run.(may greater than successfully created super tables)

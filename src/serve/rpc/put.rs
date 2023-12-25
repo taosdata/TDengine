@@ -6,7 +6,7 @@ use parquet::data_type::AsBytes;
 use std::sync::Arc;
 use taos::{AsyncBindable, AsyncQueryable, AsyncTBuilder, Dsn, Stmt, TaosBuilder};
 use taosx_core::{
-    core_metrics::{auto_save_ipc_metrics, get_metrics},
+    core_metrics::get_metrics,
     sink::{handle_lush_message_init, IpcErrorStrategy},
     utils::trace::{
         get_data_trace_id_str, get_stream_id_u64, set_data_trace_id_for_current_span, RequestID,
@@ -269,11 +269,8 @@ impl PutStream {
         let notify_sender = self.notify_sender.clone();
         // 任务的 metrics 在启动任务的时候已经放入全局 Map 中，所以这里一定存在
         let metrics_arc = get_metrics(self.task_id).expect("metrics not found");
-        let metrics_arc_clone = metrics_arc.clone();
         tokio::spawn(
             async move {
-                let (_, close_signal) = oneshot::channel::<()>();
-                auto_save_ipc_metrics(metrics_arc_clone, close_signal);
                 let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id.as_str());
                 if let Err(err) = ipc_stream_writer(
                     notify_sender,

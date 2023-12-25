@@ -413,7 +413,7 @@ async fn sync(
                         MessageSet::MetaData(meta, data) => {
                             write_meta(id, &source_pool,taos, &actions, &meta, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing metadata message message error"))?;
                             if !actions.is_empty() {
-                                write_data(id, &mut rows, &source_pool, taos, table.as_deref(), &actions, &data, target_is_v3, &metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
+                                write_data(id, &mut rows, &source_pool, taos, table.as_deref(), &actions, &data, target_is_v3, metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
                             }
                         }
                     }
@@ -422,11 +422,7 @@ async fn sync(
                             consumer.worker.id = id,
                             "[{id}] commit error: {err:?}"
                         );
-                    } else {
-                       if metrics.shold_save() {
-                            let _ = metrics.save();
-                        }
-                    };
+                    }
                 } else {
                     break;
                 }

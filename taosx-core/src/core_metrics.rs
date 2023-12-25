@@ -16,6 +16,7 @@ use std::path::Path;
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use taos::Dsn;
 use tokio::sync::oneshot;
 use tracing::Instrument;
 
@@ -94,7 +95,7 @@ impl CommonMetrics {
     pub fn update_execute_time(&self) {
         let elapsed = self.last_persist_time.elapsed_millis();
         self.total_execute_time.fetch_add(elapsed, SeqCst);
-        self.execute_time.store(elapsed, SeqCst);
+        self.execute_time.fetch_add(elapsed, SeqCst);
         self.last_persist_time.reset();
     }
 
@@ -119,7 +120,7 @@ pub trait TaosXMetrics: Into<CoreMetrics> + Serialize {
     }
 
     /// Resore metrics from json string.
-    fn from_json(json: &str) -> Self;
+    fn from_json(json: &str) -> Option<Self>;
 
     /// Save metrics to database
     fn save(&self) -> anyhow::Result<()> {
@@ -127,11 +128,6 @@ pub trait TaosXMetrics: Into<CoreMetrics> + Serialize {
         let task_id = self.com().task_id.to_string();
         let db = MetricsDb::new(task_id.as_str())?;
         db.set(self.to_json().as_str())
-    }
-
-    #[inline]
-    fn shold_save(&self) -> bool {
-        self.com().task_id > -1
     }
 
     #[inline]
@@ -217,7 +213,7 @@ pub fn load_metrics<T: TaosXMetrics>(task_id: &str) -> Option<T> {
                 Ok(json) => {
                     if let Some(json) = json {
                         let j = json.as_str();
-                        Some(T::from_json(j))
+                        T::from_json(j)
                     } else {
                         tracing::error!("get metrics from db return None {}", db_path.display());
                         None
@@ -323,6 +319,67 @@ pub fn clear_metrics(task_id: i64) {
     let _ = MetricsDb::clear(task_id.to_string().as_str());
 }
 
+pub fn init_task_metrics(from: Dsn, to: Dsn, task_id: i64) -> Arc<CoreMetrics> {
+    match (from.driver.as_str(), to.driver.as_str()) {
+        ("taos", "taos") => {
+            let metrics = try_get_metrics::<LegacyToTaosMetrics>(task_id);
+            if let Some(metrics) = metrics {
+                tracing::info!("reset metrics for task {}", task_id);
+                metrics.legacy().reset();
+                metrics
+            } else {
+                tracing::info!("create new metrics for task {}", task_id);
+                let metrics = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::new(task_id)));
+                GLOBAL_METRICS
+                    .lock()
+                    .unwrap()
+                    .insert(task_id, metrics.clone());
+                metrics
+            }
+        }
+        ("tmq", "taos" | "local") => {
+            let metrics = try_get_metrics::<TMQMetrics>(task_id);
+            if let Some(metrics) = metrics {
+                tracing::info!("reset metrics for task {}", task_id);
+                metrics.tmq().reset();
+                metrics
+            } else {
+                tracing::info!("create new metrics for task {}", task_id);
+                let metrics = Arc::new(CoreMetrics::TMQ(TMQMetrics::new(task_id)));
+                GLOBAL_METRICS
+                    .lock()
+                    .unwrap()
+                    .insert(task_id, metrics.clone());
+                metrics
+            }
+        }
+        (
+            "opc" | "opcua" | "opcda" | "pi" | "pibackfill" | "mqtt" | "influxdb" | "opentsdb"
+            | "kafka" | "historian" | "csv",
+            "taos",
+        ) => {
+            let metrics = try_get_metrics::<IPCMetrics>(task_id);
+            if let Some(metrics) = metrics {
+                tracing::info!("reset metrics for task {}", task_id);
+                metrics.ipc().reset();
+                metrics
+            } else {
+                tracing::info!("create new metrics for task {}", task_id);
+                let metrics = Arc::new(CoreMetrics::IPC(IPCMetrics::new(task_id)));
+                GLOBAL_METRICS
+                    .lock()
+                    .unwrap()
+                    .insert(task_id, metrics.clone());
+                metrics
+            }
+        }
+        _ => {
+            tracing::error!("unsupported datasource");
+            panic!("unsupported datasource")
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct LastPersistTime(Cell<Instant>);
 
@@ -374,13 +431,13 @@ impl Default for TaskStartTime {
 unsafe impl Sync for TaskStartTime {}
 
 /// Save every 10 seconds
-pub fn auto_save_ipc_metrics(
+pub fn auto_save_task_metrics(
     metrics_arc: Arc<CoreMetrics>,
     mut close_signal: oneshot::Receiver<()>,
 ) {
     tokio::spawn(
         async move {
-            let metrics = metrics_arc.ipc();
+            tracing::info!("auto-save metrics task start");
             loop {
                 match close_signal.try_recv() {
                     Ok(_) => {
@@ -393,12 +450,12 @@ pub fn auto_save_ipc_metrics(
                         }
                         oneshot::error::TryRecvError::Empty => {
                             tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-                            match metrics.save() {
+                            match save_metrics(metrics_arc.clone()) {
                                 Ok(_) => {
-                                    tracing::debug!("save metrics success")
+                                    tracing::debug!("auto-save metrics success")
                                 }
                                 Err(err) => {
-                                    tracing::error!("save metrics failed. {}", err);
+                                    tracing::error!("auto-save metrics failed. {}", err);
                                 }
                             }
                         }
@@ -414,32 +471,25 @@ pub fn auto_save_ipc_metrics(
 pub fn save_task_metrics_finally(task_id: i64) {
     let metrics = get_metrics(task_id);
     match metrics {
-        Some(metrics) => match metrics.as_ref() {
-            CoreMetrics::Legacy(legacy_metrics) => {
-                if let Err(err) = legacy_metrics.save() {
-                    tracing::error!("save metrics failed. {}", err);
-                } else {
-                    tracing::debug!("finally save metrics success")
-                }
+        Some(metrics) => match save_metrics(metrics) {
+            Ok(_) => {
+                tracing::info!("finally save metrics success");
             }
-            CoreMetrics::TMQ(tmq_metrics) => {
-                if let Err(err) = tmq_metrics.save() {
-                    tracing::error!("save metrics failed. {}", err);
-                } else {
-                    tracing::debug!("finally save metrics success")
-                }
-            }
-            CoreMetrics::IPC(ipc_metrics) => {
-                if let Err(err) = ipc_metrics.save() {
-                    tracing::error!("save metrics failed. {}", err);
-                } else {
-                    tracing::debug!("finally save metrics success")
-                }
+            Err(err) => {
+                tracing::error!("finally save metrics failed. {}", err);
             }
         },
         None => {
             tracing::error!("finally save metrics failed, metrics not found");
         }
+    }
+}
+
+fn save_metrics(metrics: Arc<CoreMetrics>) -> anyhow::Result<()> {
+    match metrics.as_ref() {
+        CoreMetrics::Legacy(legacy_metrics) => legacy_metrics.save(),
+        CoreMetrics::TMQ(tmq_metrics) => tmq_metrics.save(),
+        CoreMetrics::IPC(ipc_metrics) => ipc_metrics.save(),
     }
 }
 

@@ -403,11 +403,6 @@ async fn worker(
                                             time_range = query.time_range,
                                             metrics = metrics,
                                         );
-
-                                        if metrics.shold_save() {
-                                            let _ = metrics.save();
-                                        }
-
                                         break;
                                     }
                                     Err(err) => {

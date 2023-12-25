@@ -175,7 +175,7 @@ impl TaskOpts {
         self.cancel.cancel();
     }
 
-    #[instrument(skip_all, name = "run_task")]
+    #[instrument(skip_all)]
     pub async fn run(&self, port_pool: &PortPool) -> Result<(), anyhow::Error> {
         let Self {
             from,
@@ -252,8 +252,6 @@ impl TaskOpts {
                 }
                 _ => (),
             }
-            // Init metrics for tasks start by taosx server
-            self.init_task_metrics();
         }
 
         // Run task
@@ -502,55 +500,6 @@ impl TaskOpts {
                 from.params.insert("breakpoints".to_string(), b.clone());
                 from
             }
-        }
-    }
-
-    fn init_task_metrics(&self) {
-        let Self {
-            from, to, task_id, ..
-        } = self;
-        let task_id = if let Some(id) = task_id {
-            id.parse::<i64>().unwrap()
-        } else {
-            // Use -1 when start taosx in "run" model.
-            // Then we can get metrics in the same way no matter what model it was started with.
-            // But metrics with task_id -1 will never be persisted.
-            -1
-        };
-
-        match (from.driver.as_str(), to.driver.as_str()) {
-            ("taos", "taos") => {
-                let metrics = try_get_metrics::<LegacyToTaosMetrics>(task_id);
-                if let Some(metrics) = metrics {
-                    metrics.legacy().reset();
-                } else {
-                    let metrics = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::new(task_id)));
-                    GLOBAL_METRICS.lock().unwrap().insert(task_id, metrics);
-                }
-            }
-            ("tmq", "taos" | "local") => {
-                let metrics = try_get_metrics::<TMQMetrics>(task_id);
-                if let Some(metrics) = metrics {
-                    metrics.tmq().reset();
-                } else {
-                    let metrics = Arc::new(CoreMetrics::TMQ(TMQMetrics::new(task_id)));
-                    GLOBAL_METRICS.lock().unwrap().insert(task_id, metrics);
-                }
-            }
-            (
-                "opc" | "opcua" | "opcda" | "pi" | "pibackfill" | "mqtt" | "influxdb" | "opentsdb"
-                | "kafka" | "historian" | "csv",
-                "taos",
-            ) => {
-                let metrics = try_get_metrics::<IPCMetrics>(task_id);
-                if let Some(metrics) = metrics {
-                    metrics.ipc().reset();
-                } else {
-                    let metrics = Arc::new(CoreMetrics::IPC(IPCMetrics::new(task_id)));
-                    GLOBAL_METRICS.lock().unwrap().insert(task_id, metrics);
-                }
-            }
-            _ => (),
         }
     }
 }

@@ -1,13 +1,12 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
-
 use anyhow::{bail, Result};
-use chrono::Utc;
 use clap::Parser;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use metrics_util::debugging::Snapshotter;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use taos::*;
+use taosx_core::core_metrics::{auto_save_task_metrics, init_task_metrics};
+use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 use twelf::config;
@@ -175,7 +174,9 @@ impl Cli {
         //         std::thread::sleep(Duration::from_secs(5));
         //     }
         // });
-
+        let metrics_arc = init_task_metrics(task_opt.from.clone(), task_opt.to.clone(), -1);
+        let (_sender, close_signal) = oneshot::channel::<()>();
+        auto_save_task_metrics(metrics_arc, close_signal);
         let port_pool = Default::default();
         tokio::select! {
             res = task_opt.run(&port_pool).in_current_span() => {
