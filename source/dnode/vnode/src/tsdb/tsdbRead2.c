@@ -1379,11 +1379,13 @@ static bool nextRowFromSttBlocks(SSttBlockReader* pSttBlockReader, STableBlockSc
     pScanInfo->sttKeyInfo.nextProcKey = key;
 
     if (pScanInfo->delSkyline != NULL && TARRAY_SIZE(pScanInfo->delSkyline) > 0) {
-      bool dropped = hasBeenDropped(pScanInfo->delSkyline, &pScanInfo->sttBlockDelIndex, key, ver, order, pVerRange);
-      if (!dropped) {
+      if (!hasBeenDropped(pScanInfo->delSkyline, &pScanInfo->sttBlockDelIndex, key, ver, order, pVerRange)) {
         pScanInfo->sttKeyInfo.status = STT_FILE_HAS_DATA;
         return true;
       }
+    } else {
+      pScanInfo->sttKeyInfo.status = STT_FILE_HAS_DATA;
+      return true;
     }
   }
 }
