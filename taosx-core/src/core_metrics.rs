@@ -119,7 +119,7 @@ pub trait TaosXMetrics: Into<CoreMetrics> + Serialize {
         serde_json::to_string(self).unwrap()
     }
 
-    /// Resore metrics from json string.
+    /// Restore metrics from json string.
     fn from_json(json: &str) -> Option<Self>;
 
     /// Save metrics to database

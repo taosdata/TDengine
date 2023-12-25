@@ -179,7 +179,7 @@ impl TaosXMetrics for IPCMetrics {
         &self.com
     }
 
-    /// Resore metrics from json string.
+    /// Restore metrics from json string.
     fn from_json(json: &str) -> Option<Self> {
         match serde_json::from_str(json) {
             Ok(metrics) => metrics,
