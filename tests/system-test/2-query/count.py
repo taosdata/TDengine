@@ -182,8 +182,8 @@ class TDTestCase:
             tdSql.checkRows(0)
             tdSql.query(f'select count(1),sum(1) from (select count(1) from {self.ntbname} group by tbname order by tbname)')
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 0)
-            tdSql.checkData(0, 1, None)
+            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(0, 1, 2)
 
     def count_query_stb(self,column_dict,tag_dict,stbname,tbnum,rownum):
         tdSql.query(f'select count(tbname) from {stbname}')
