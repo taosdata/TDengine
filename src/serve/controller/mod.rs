@@ -768,9 +768,10 @@ impl TaskController {
         //     return Ok(());
         // }
 
-        let used: Vec<String> = sqlx::query_scalar(&format!("select `from` from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}://%';",cluster_id, from.driver))
+        let mut used: Vec<String> = sqlx::query_scalar(&format!("select `from` from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}%';",cluster_id, from.driver))
                         .fetch_all(&self.pool)
                         .await?;
+        used.push(from.to_string());
         let used = used
             .into_iter()
             .map(|s| s.parse::<Dsn>().unwrap().addresses[0].to_string())
@@ -926,7 +927,7 @@ impl TaskController {
         self.validate_enterprise_license(&from, &to).await?;
 
         match from.driver.as_str() {
-            "opcua" | "opcda" | "pi" => {
+            "opcua" | "opcda" | "pi" | "kafka" | "influxdb" | "mqtt" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
