@@ -40,9 +40,6 @@ class TDTestCase:
         tdSql.query(f"select count(*) from {self.dbname}.{self.stable} group by tbname ")
         tdSql.checkRows(check_num)
 
-        tdSql.query(f"select count(*), sum(1) from {self.dbname}.{self.stable} group by tbname ")
-        tdSql.checkRows(check_num)
-
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} group by tbname ")
         tdSql.checkRows(check_num)
 
@@ -57,10 +54,11 @@ class TDTestCase:
         tdSql.checkRows(check_num - real_num)
 
         # tag
-        tdSql.query(f"select count(*) from {self.dbname}.{self.stable} group by t2 ")
-        tdSql.checkRows(check_num)
-    
         tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} group by t2 ")
+        tdSql.checkRows(check_num)
+
+        # multi tag
+        tdSql.query(f"select t2, t3, tbname, count(*) from {self.dbname}.{self.stable} group by t2, t3, tbname")
         tdSql.checkRows(check_num)
 
         # having
@@ -87,9 +85,15 @@ class TDTestCase:
         tdSql.query(f"select * from (select count(c1) from {self.dbname}.{self.stable} group by tbname) ")
         tdSql.checkRows(check_num)
 
-        # count + sum(col)
+        # multi agg
         tdSql.query(f"select count(*), sum(c1) from {self.dbname}.{self.stable} group by tbname ")
         tdSql.checkRows(check_num)
+
+        tdSql.query(f"select count(1), sum(1) from {self.dbname}.{self.stable} group by tbname ")
+        tdSql.checkRows(check_num)
+
+        tdSql.query(f" select count(c1), max(c1), avg(c1), elapsed(ts), spread(c1) from {self.dbname}.{self.stable} group by tbname")
+        tdSql.checkRows(real_num)
 
         ############### same with old ###############
         tdSql.query(f"select c1, count(*) from {self.dbname}.{self.stable} group by c1 ")
@@ -105,13 +109,19 @@ class TDTestCase:
         tdSql.query(f"select t2, c1, count(*) from {self.dbname}.{self.stable} group by t2, c1 ")
         tdSql.checkRows(real_num * self.row_nums)
 
+        tdSql.query(f"select t2, t3, c1, count(*) from {self.dbname}.{self.stable} group by t2, t3, c1 ")
+        tdSql.checkRows(real_num * self.row_nums)
+
     
     def test_partitionby(self, check_num, real_num): 
         tdSql.query(f"select tbname , count(*) from {self.dbname}.{self.stable} partition by tbname ")
         tdSql.checkRows(check_num)
       
-        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname ")
+        tdSql.query(f"select count(*), sum(1) from {self.dbname}.{self.stable} partition by tbname ")
         tdSql.checkRows(check_num)
+
+        tdSql.query(f" select count(c5), max(c5), avg(c5), elapsed(ts), spread(c1) from {self.dbname}.{self.stable} partition by tbname")
+        tdSql.checkRows(real_num)
 
         tdSql.query(f"select tbname from {self.dbname}.{self.stable} partition by tbname order by count(*)")
         tdSql.checkRows(check_num)
@@ -124,10 +134,10 @@ class TDTestCase:
         tdSql.checkRows(check_num - real_num)
 
         #tag
-        tdSql.query(f"select count(*) from {self.dbname}.{self.stable} partition by t2 ")
-        tdSql.checkRows(check_num)
-    
         tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} partition by t2 ")
+        tdSql.checkRows(check_num)
+
+        tdSql.query(f"select t2, t3, tbname, count(*) from {self.dbname}.{self.stable} partition by t2, t3, tbname")
         tdSql.checkRows(check_num)
 
         # having
@@ -150,6 +160,13 @@ class TDTestCase:
         tdSql.query(f"select count(c1) from {self.dbname}.{self.stable} partition by tbname ")
         tdSql.checkRows(check_num)
 
+        #multi agg
+        tdSql.query(f"select count(1), sum(1) from {self.dbname}.{self.stable} partition by tbname ")
+        tdSql.checkRows(check_num)
+
+        tdSql.query(f" select count(c1), max(c1), avg(c1), elapsed(ts), spread(c1) from {self.dbname}.{self.stable} partition by tbname")
+        tdSql.checkRows(real_num)
+
         #inner select
         tdSql.query(f"select * from (select count(c1) from {self.dbname}.{self.stable} partition by tbname) ")
         tdSql.checkRows(check_num)
@@ -168,6 +185,9 @@ class TDTestCase:
         tdSql.checkRows(real_num * self.row_nums)
 
         tdSql.query(f"select t2, c1, count(*) from {self.dbname}.{self.stable} partition by t2, c1 ")
+        tdSql.checkRows(real_num * self.row_nums)
+
+        tdSql.query(f"select t2, t3, c1, count(*) from {self.dbname}.{self.stable} partition by t2, t3, c1 ")
         tdSql.checkRows(real_num * self.row_nums)
 
     def test_error(self):

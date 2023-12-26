@@ -770,7 +770,8 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator, const STableKey
   STableScanInfo* pTableScanInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
-  bool outputAll = pTableScanInfo->base.pTableListInfo->oneTableForEachGroup;
+  // Only when all tables are scanned can you determine how many groups the tag has
+  bool outputAll = true;
 
   // The read handle is not initialized yet, since no qualified tables exists
   if (pTableScanInfo->base.dataReader == NULL || pOperator->status == OP_EXEC_DONE) {
