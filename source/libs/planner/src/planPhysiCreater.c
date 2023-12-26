@@ -587,14 +587,12 @@ static int32_t createTableCountScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
 }
 
-static bool calcNeedCountEmpty(SPhysiPlanContext* pCxt, SScanLogicNode* pScanLogicNode) {
-  // refuse interval
+static bool calcNeedCountEmpty(SScanLogicNode* pScanLogicNode) {
   if (pScanLogicNode->interval > 0) {
     return false;
   }
-  // limit: root node is select
-  SNode* pRoot = pCxt->pPlanCxt->pAstRoot;
-  if (QUERY_NODE_SELECT_STMT == nodeType(pRoot) && pScanLogicNode->isCountByTag) {
+
+  if (pScanLogicNode->isCountByTag) {
     return true;
   }
 
@@ -637,7 +635,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->igCheckUpdate = pScanLogicNode->igCheckUpdate;
   pTableScan->assignBlockUid = pCxt->pPlanCxt->rSmaQuery ? true : false;
   pTableScan->filesetDelimited = pScanLogicNode->filesetDelimited;
-  pTableScan->needCountEmptyTable = calcNeedCountEmpty(pCxt, pScanLogicNode);
+  pTableScan->needCountEmptyTable = calcNeedCountEmpty(pScanLogicNode);
 
   int32_t code = createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);
   if (TSDB_CODE_SUCCESS == code) {
