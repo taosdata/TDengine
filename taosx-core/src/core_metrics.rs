@@ -258,7 +258,7 @@ fn compute_total_avg_speed(
     let total_written_points = common_metrics.total_written_points.load(SeqCst);
     if total_execute_time > 0 {
         map.insert(
-            "total_records_per_second".to_string(),
+            "total_rows_per_second".to_string(),
             (total_written_rows as f64 * 1000_f64 / total_execute_time as f64).into(),
         );
         map.insert(
@@ -285,7 +285,7 @@ fn compute_avg_speed(
     };
     map.insert("execute_time".to_string(), execute_time.into());
     map.insert(
-        "records_per_second".to_string(),
+        "rows_per_second".to_string(),
         (written_rows as f64 * 1000_f64 / execute_time as f64).into(),
     );
     map.insert(
