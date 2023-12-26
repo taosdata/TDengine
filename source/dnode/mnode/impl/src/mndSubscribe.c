@@ -1215,7 +1215,7 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
       return -1;
     }
 
-    if (mndSetDropSubRedoLogs(pMnode, pTrans, pSub) < 0) {
+    if (mndSetDropSubCommitLogs(pMnode, pTrans, pSub) < 0) {
       sdbRelease(pSdb, pSub);
       sdbCancelFetch(pSdb, pIter);
       return -1;
