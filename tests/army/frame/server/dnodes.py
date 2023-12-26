@@ -115,8 +115,11 @@ class TDSimClient:
 
 
 class TDDnode:
-    def __init__(self, index):
+    def __init__(self, index=1, level=1, disk=1):
         self.index = index
+        self.level = level
+        self.disk  = disk
+        self.dataDir = []
         self.running = 0
         self.deployed = 0
         self.testCluster = False
@@ -209,14 +212,30 @@ class TDDnode:
             self.remote_conn.run("python3 ./test.py %s -d %s -e %s"%(valgrindStr,remoteCfgDictStr,execCmdStr))
 
     def deploy(self, *updatecfgDict):
+        # logDir
         self.logDir = os.path.join(self.path,"sim","dnode%d" % self.index, "log")
-        self.dataDir = os.path.join(self.path,"sim","dnode%d" % self.index, "data")
+        # dataDir
+        simPath = os.path.join(self.path, "sim", "dnode%d" % self.index)
+        primary = 1
+        if self.level == 1 and self.disk == 1:
+            eDir = os.path.join(simPath, "data")
+            self.dataDir.append(eDir)
+        else:     
+            for i in range(self.level):
+                for j in range(self.disk):
+                    eDir = os.path.join(simPath, f"data{i}{j}")
+                    self.dataDir.append(f"{eDir} {i} {primary}")
+                    if primary == 1:
+                        primary = 0
+
+        # taos.cfg
         self.cfgDir = os.path.join(self.path,"sim","dnode%d" % self.index, "cfg")
         self.cfgPath = os.path.join(self.path,"sim","dnode%d" % self.index, "cfg","taos.cfg")
-
-        cmd = "rm -rf " + self.dataDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        
+        for eDir in self.dataDir:
+            cmd = "rm -rf " + eDir
+            if os.system(cmd) != 0:
+                tdLog.exit(cmd)
 
         cmd = "rm -rf " + self.logDir
         if os.system(cmd) != 0:
@@ -229,7 +248,8 @@ class TDDnode:
         # cmd = "mkdir -p " + self.dataDir
         # if os.system(cmd) != 0:
         #     tdLog.exit(cmd)
-        os.makedirs(self.dataDir)
+        for eDir in self.dataDir:
+             os.makedirs(eDir.split(' ')[0])
 
         # cmd = "mkdir -p " + self.logDir
         # if os.system(cmd) != 0:
@@ -275,7 +295,11 @@ class TDDnode:
                     self.addExtraCfg(key, value)
         if (self.remoteIP == ""):
             for key, value in self.cfgDict.items():
-                self.cfg(key, value)
+                if type(value) == list:
+                    for v in value:
+                        self.cfg(key, v)
+                else:
+                    self.cfg(key, value)
         else:
             self.remoteExec(self.cfgDict, "tdDnodes.deploy(%d,updateCfgDict)"%self.index)
 
@@ -886,5 +910,11 @@ class TDDnodes:
 
     def getAsan(self):
         return self.asan
+
+    def setLevelDisk(self, level, disk):
+        for i in range(len(self.dnodes)):
+            self.dnodes[i].level = int(level)
+            self.dnodes[i].disk  = int(disk)
+
 
 tdDnodes = TDDnodes()
