@@ -15,6 +15,12 @@ addr = "0.0.0.0"
 
 # ipv6 = "::1"
 
+# Enable ssl
+# Default is false, if set to true, the following two files must exist
+enable_ssl = false
+ssl_certificate = ""
+ssl_certificate_key = ""
+
 # Explorer server log level.
 # Default is "info"
 #

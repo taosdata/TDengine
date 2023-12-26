@@ -3,6 +3,7 @@ use anyhow::Context;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use http_auth_basic::Credentials;
 use log::LevelFilter;
+use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use std::{fmt::Display, fs::File, io::Read, path::PathBuf, time::Duration};
 use taos::*;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -101,13 +102,7 @@ async fn main() -> anyhow::Result<()> {
                 .allow_any_header()
         } else {
             Cors::default()
-                .allowed_origin_fn(|origin, req_head| {
-                    req_head
-                        .headers()
-                        .get("Host")
-                        .map(|host| origin.as_bytes().ends_with(host.as_bytes()))
-                        .unwrap_or(false)
-                })
+                .allow_any_origin()
                 .allow_any_method()
                 .allow_any_header()
                 .max_age(3600)
@@ -163,16 +158,33 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting server at {addr}:{port}");
 
-    let server = server
-        .bind((addr, port))
-        .with_context(|| format!("Bind address {addr}:{port} error"))?;
-
-    let server = if let Some(ipv6) = args.ipv6.as_deref() {
-        server
-            .bind((ipv6, port))
-            .with_context(|| format!("Bind IPv6 address [{ipv6}]:{port} error"))?
+    let server = if args.enable_ssl.unwrap_or_default() {
+        let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+        builder
+            .set_private_key_file(args.ssl_certificate_key.unwrap(), SslFiletype::PEM)
+            .unwrap();
+        builder
+            .set_certificate_chain_file(args.ssl_certificate.unwrap())
+            .unwrap();
+        if let Some(ipv6) = args.ipv6.as_deref() {
+            server
+                .bind_openssl((ipv6, port), builder)
+                .with_context(|| format!("Bind IPv6 address [{ipv6}]:{port} error"))?
+        } else {
+            server
+                .bind_openssl((addr, port), builder)
+                .with_context(|| format!("Bind address {addr}:{port} error"))?
+        }
     } else {
-        server
+        if let Some(ipv6) = args.ipv6.as_deref() {
+            server
+                .bind((ipv6, port))
+                .with_context(|| format!("Bind IPv6 address [{ipv6}]:{port} error"))?
+        } else {
+            server
+                .bind((addr, port))
+                .with_context(|| format!("Bind address {addr}:{port} error"))?
+        }
     };
 
     server.run().await?;
@@ -536,6 +548,15 @@ struct Args {
 
     #[clap(long, global = true, env = "EXPLORER_IPV6")]
     ipv6: Option<String>,
+
+    #[clap(skip)]
+    enable_ssl: Option<bool>,
+
+    #[clap(skip)]
+    ssl_certificate: Option<String>,
+
+    #[clap(skip)]
+    ssl_certificate_key: Option<String>,
 
     /// Allow all origins or not.
     #[clap(skip)]
