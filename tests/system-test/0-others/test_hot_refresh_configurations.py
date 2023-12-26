@@ -215,6 +215,12 @@ class TDTestCase:
                         self.svr_check(item["name"], item["alias"], item["except_values"], True)
             else:
                 raise Exception(f"unknown key: {key}")
+        # reset log
+        path = os.sep.join([tdDnodes.getDnodesRootDir(), "dnode1", "log", "taosdlog.*"])
+        tdSql.execute("alter all dnodes 'resetlog';")
+        r = subprocess.Popen("cat {} | grep 'reset log file'".format(path), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = r.communicate()
+        assert('reset log file' in stdout.decode())
 
     def stop(self):
         tdSql.close()
