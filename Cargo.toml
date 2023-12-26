@@ -158,8 +158,8 @@ opentelemetry = { version = "0.20.0", features = [
 opentelemetry-otlp = { version = "0.13" }
 tracing-opentelemetry = { version = "0.21.0" }
 tracing-actix-web = "0.7"
-metrics-tracing-context = "*"
-metrics-util = "*"
+metrics-tracing-context = "0.14.0"
+metrics-util = "0.15.1"
 console-subscriber = { version = "*", optional = true }
 
 reqwest = "0.11.15"
