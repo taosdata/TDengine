@@ -643,7 +643,7 @@ int32_t doStreamExecTask(SStreamTask* pTask) {
 
         if (code != TSDB_CODE_SUCCESS) {
           // todo: let's retry send rsp to upstream/mnode
-          stError("s-task:%s failed to send checkpoint rsp to upstream, checkpointId:%" PRId64 ", code:%s", pTask->id.idStr,
+          stError("s-task:%s failed to send checkpoint rsp to upstream, checkpointId:%d, code:%s", pTask->id.idStr,
                   0, tstrerror(code));
         }
       }
