@@ -599,6 +599,7 @@ bool nodesIsTableStar(SNode* pNode);
 char* getJoinTypeString(EJoinType type);
 char* getJoinSTypeString(EJoinSubType type);
 char* getFullJoinTypeString(EJoinType type, EJoinSubType stype);
+int32_t mergeJoinConds(SNode** ppDst, SNode** ppSrc);
 
 
 #ifdef __cplusplus

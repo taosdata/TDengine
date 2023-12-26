@@ -65,6 +65,54 @@ char* getFullJoinTypeString(EJoinType type, EJoinSubType stype) {
   return joinFullType[type][stype];
 }
 
+
+int32_t mergeJoinConds(SNode** ppDst, SNode** ppSrc) {
+  if (NULL == *ppSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL == *ppDst) {
+    *ppDst = *ppSrc;
+    *ppSrc = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppSrc) && ((SLogicConditionNode*)(*ppSrc))->condType == LOGIC_COND_TYPE_AND) {
+    TSWAP(*ppDst, *ppSrc);
+  }
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppDst)) {
+    SLogicConditionNode* pDst = (SLogicConditionNode*)*ppDst;
+    if (pDst->condType == LOGIC_COND_TYPE_AND) {
+      if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppSrc) && ((SLogicConditionNode*)(*ppSrc))->condType == LOGIC_COND_TYPE_AND) {
+        nodesListStrictAppendList(pDst->pParameterList, ((SLogicConditionNode*)(*ppSrc))->pParameterList);
+        ((SLogicConditionNode*)(*ppSrc))->pParameterList = NULL;
+      } else {
+        nodesListStrictAppend(pDst->pParameterList, *ppSrc);
+        *ppSrc = NULL;
+      }
+      nodesDestroyNode(*ppSrc);
+      *ppSrc = NULL;
+      
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+  if (NULL == pLogicCond) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pLogicCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pLogicCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  pLogicCond->condType = LOGIC_COND_TYPE_AND;
+  pLogicCond->pParameterList = nodesMakeList();
+  nodesListStrictAppend(pLogicCond->pParameterList, *ppSrc);
+  nodesListStrictAppend(pLogicCond->pParameterList, *ppDst);
+
+  *ppDst = (SNode*)pLogicCond;
+  *ppSrc = NULL;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 static SNodeMemChunk* callocNodeChunk(SNodeAllocator* pAllocator) {
   SNodeMemChunk* pNewChunk = taosMemoryCalloc(1, sizeof(SNodeMemChunk) + pAllocator->chunkSize);
   if (NULL == pNewChunk) {

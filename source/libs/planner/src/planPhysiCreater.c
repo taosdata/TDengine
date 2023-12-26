@@ -703,49 +703,6 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
   return TSDB_CODE_FAILED;
 }
 
-static int32_t mergeEqCond(SNode** ppDst, SNode** ppSrc) {
-  if (NULL == *ppSrc) {
-    return TSDB_CODE_SUCCESS;
-  }
-  if (NULL == *ppDst) {
-    *ppDst = *ppSrc;
-    *ppSrc = NULL;
-    return TSDB_CODE_SUCCESS;
-  }
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppSrc)) {
-    TSWAP(*ppDst, *ppSrc);
-  }
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppDst)) {
-    SLogicConditionNode* pLogic = (SLogicConditionNode*)*ppDst;
-    if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppSrc)) {
-      nodesListStrictAppendList(pLogic->pParameterList, ((SLogicConditionNode*)(*ppSrc))->pParameterList);
-      ((SLogicConditionNode*)(*ppSrc))->pParameterList = NULL;
-    } else {
-      nodesListStrictAppend(pLogic->pParameterList, *ppSrc);
-      *ppSrc = NULL;
-    }
-    nodesDestroyNode(*ppSrc);
-    *ppSrc = NULL;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
-  if (NULL == pLogicCond) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pLogicCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
-  pLogicCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
-  pLogicCond->condType = LOGIC_COND_TYPE_AND;
-  pLogicCond->pParameterList = nodesMakeList();
-  nodesListStrictAppend(pLogicCond->pParameterList, *ppSrc);
-  nodesListStrictAppend(pLogicCond->pParameterList, *ppDst);
-
-  *ppDst = (SNode*)pLogicCond;
-  *ppSrc = NULL;
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t getJoinDataBlockDescNode(SNodeList* pChildren, int32_t idx, SDataBlockDescNode** ppDesc) {
   if (2 == pChildren->length) {
     *ppDesc = ((SPhysiNode*)nodesListGetNode(pChildren, idx))->pOutputDataBlockDesc;
@@ -865,7 +822,7 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
   }
 
   if (TSDB_CODE_SUCCESS == code && ((NULL != pJoinLogicNode->pColEqCond) || (NULL != pJoinLogicNode->pTagEqCond))) {
-    code = mergeEqCond(&pJoinLogicNode->pColEqCond, &pJoinLogicNode->pTagEqCond);
+    code = mergeJoinConds(&pJoinLogicNode->pColEqCond, &pJoinLogicNode->pTagEqCond);
   }
   //TODO set from input blocks for group algo
 /*  
@@ -882,7 +839,7 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
   }
 
   if (TSDB_CODE_SUCCESS == code && ((NULL != pJoinLogicNode->pColOnCond) || (NULL != pJoinLogicNode->pTagOnCond))) {
-    code = mergeEqCond(&pJoinLogicNode->pColOnCond, &pJoinLogicNode->pTagOnCond);
+    code = mergeJoinConds(&pJoinLogicNode->pColOnCond, &pJoinLogicNode->pTagOnCond);
   }
   //TODO set from input blocks for group algo
   /*  

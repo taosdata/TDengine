@@ -22,10 +22,12 @@ extern "C" {
 #define MJOIN_DEFAULT_BLK_ROWS_NUM 4096
 #define MJOIN_HJOIN_CART_THRESHOLD 16
 #define MJOIN_BLK_SIZE_LIMIT 10485760
+#define MJOIN_ROW_BITMAP_SIZE (2 * 1048576)
 
 struct SMJoinOperatorInfo;
 
 typedef SSDataBlock* (*joinImplFp)(SOperatorInfo*);
+typedef int32_t (*joinCartFp)(void*);
 
 typedef enum EJoinTableType {
   E_JOIN_TB_BUILD = 1,
@@ -33,6 +35,7 @@ typedef enum EJoinTableType {
 } EJoinTableType;
 
 #define MJOIN_TBTYPE(_type) (E_JOIN_TB_BUILD == (_type) ? "BUILD" : "PROBE")
+#define IS_FULL_OUTER_JOIN(_jtype, _stype) ((_jtype) == JOIN_TYPE_FULL && (_stype) == JOIN_STYPE_OUTER)
 
 typedef struct SMJoinRowPos {
   SSDataBlock* pBlk;
@@ -97,6 +100,10 @@ typedef struct SMJoinTableCtx {
   int32_t        grpRowIdx;
   SArray*        pHashCurGrp;
   SSHashObj*     pGrpHash;  
+
+  int64_t        rowBitmapSize;
+  int64_t        rowBitmapOffset;
+  char*          pRowBitmap;
 } SMJoinTableCtx;
 
 typedef struct SMJoinGrpRows {
@@ -104,22 +111,29 @@ typedef struct SMJoinGrpRows {
   int32_t      beginIdx;
   int32_t      endIdx;
   int32_t      readIdx;
+  int32_t      rowBitmapOffset;
+  int32_t      rowMatchNum;
   bool         readMatch;
 } SMJoinGrpRows;
 
 typedef struct SMJoinMergeCtx {
   struct SMJoinOperatorInfo* pJoin;
+  bool                ascTs;
   bool                hashCan;
   bool                keepOrder;
   bool                grpRemains;
   bool                midRemains;
   bool                lastEqGrp;
+  bool                lastProbeGrp;
   int32_t             blkThreshold;
   SSDataBlock*        midBlk;
   SSDataBlock*        finBlk;
   int64_t             lastEqTs;
   SMJoinGrpRows       probeNEqGrp;
+  SMJoinGrpRows       buildNEqGrp;
   bool                hashJoin;
+  joinCartFp          hashCartFp;
+  joinCartFp          mergeCartFp;
 } SMJoinMergeCtx;
 
 typedef struct SMJoinWinCtx {
@@ -178,8 +192,8 @@ typedef struct SMJoinOperatorInfo {
 
 #define SET_SAME_TS_GRP_HJOIN(_pair, _octx) ((_pair)->hashJoin = (_octx)->hashCan && REACH_HJOIN_THRESHOLD(_pair))
 
-#define LEFT_JOIN_NO_EQUAL(_order, _pts, _bts) ((_order) && (_pts) < (_bts)) || (!(_order) && (_pts) > (_bts))
-#define LEFT_JOIN_DISCRAD(_order, _pts, _bts) ((_order) && (_pts) > (_bts)) || (!(_order) && (_pts) < (_bts))
+#define PROBE_TS_UNREACH(_order, _pts, _bts) ((_order) && (_pts) < (_bts)) || (!(_order) && (_pts) > (_bts))
+#define PROBE_TS_OVER(_order, _pts, _bts) ((_order) && (_pts) > (_bts)) || (!(_order) && (_pts) < (_bts))
 
 #define GRP_REMAIN_ROWS(_grp) ((_grp)->endIdx - (_grp)->readIdx + 1)
 #define GRP_DONE(_grp) ((_grp)->readIdx > (_grp)->endIdx)
@@ -225,19 +239,22 @@ typedef struct SMJoinOperatorInfo {
   } while (0)
 
 
-
-
 int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode);
 SSDataBlock* mLeftJoinDo(struct SOperatorInfo* pOperator);
 bool mJoinRetrieveImpl(SMJoinOperatorInfo* pJoin, int32_t* pIdx, SSDataBlock** ppBlk, SMJoinTableCtx* pTb);
 void mJoinSetDone(SOperatorInfo* pOperator);
 bool mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen);
-void mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk, bool restart);
+int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk, bool restart);
 int32_t mJoinRetrieveEqGrpRows(SOperatorInfo* pOperator, SMJoinTableCtx* pTable, int64_t timestamp);
 int32_t mJoinMakeBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable);
 int32_t mJoinSetKeyColsData(SSDataBlock* pBlock, SMJoinTableCtx* pTable);
-
-  
+int32_t mJoinProcessEqualGrp(SMJoinMergeCtx* pCtx, int64_t timestamp, bool lastBuildGrp);
+bool mJoinHashGrpCart(SSDataBlock* pBlk, SMJoinGrpRows* probeGrp, bool append, SMJoinTableCtx* probe, SMJoinTableCtx* build);
+int32_t mJoinMergeGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool append, SMJoinGrpRows* pFirst, SMJoinGrpRows* pSecond);
+int32_t mJoinHandleMidRemains(SMJoinMergeCtx* pCtx);
+int32_t mJoinNonEqGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool append, SMJoinGrpRows* pGrp, bool probeGrp);
+int32_t mJoinNonEqCart(SMJoinMergeCtx* pCtx, SMJoinGrpRows* pGrp, bool probeGrp);
+int32_t mJoinCopyMergeMidBlk(SMJoinMergeCtx* pCtx, SSDataBlock** ppMid, SSDataBlock** ppFin);
 
 #ifdef __cplusplus
 }

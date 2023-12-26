@@ -76,6 +76,7 @@ typedef enum ECondAction {
 #define PUSH_DOWN_LEFT_FLT  (1 << 0)
 #define PUSH_DOWN_RIGHT_FLT (1 << 1)
 #define PUSH_DOWN_ON_COND   (1 << 2)
+#define PUSH_DONW_FLT_COND  (PUSH_DOWN_LEFT_FLT | PUSH_DOWN_RIGHT_FLT)
 #define PUSH_DOWN_ALL_COND  (PUSH_DOWN_LEFT_FLT | PUSH_DOWN_RIGHT_FLT | PUSH_DOWN_ON_COND)
 
 typedef struct SJoinOptimizeOpt {
@@ -94,13 +95,22 @@ static SJoinOptimizeOpt gJoinOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
 /*FULL*/   {{0},                  {0},                   {0},                  {0},                   {0},                   {0},                   {0}},
 };
 #else
-static SJoinOptimizeOpt gJoinOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
+static SJoinOptimizeOpt gJoinWhereOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
            /* NONE                OUTER                  SEMI                  ANTI                   ASOF                   WINDOW */
 /*INNER*/  {{PUSH_DOWN_ALL_COND}, {0},                   {0},                  {0},                   {0},                   {0}},
 /*LEFT*/   {{0},                  {PUSH_DOWN_LEFT_FLT},  {PUSH_DOWN_ALL_COND}, {PUSH_DOWN_LEFT_FLT},  {PUSH_DOWN_LEFT_FLT},  {PUSH_DOWN_LEFT_FLT}},
 /*RIGHT*/  {{0},                  {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_ALL_COND}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}},
 /*FULL*/   {{0},                  {0},                   {0},                  {0},                   {0},                   {0}},
 };
+
+static SJoinOptimizeOpt gJoinOnOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
+           /* NONE                OUTER                  SEMI                  ANTI                   ASOF                   WINDOW */
+/*INNER*/  {{PUSH_DONW_FLT_COND}, {0},                   {0},                  {0},                   {0},                   {0}},
+/*LEFT*/   {{0},                  {0},                   {PUSH_DONW_FLT_COND}, {0},                   {0},                   {0}},
+/*RIGHT*/  {{0},                  {0},                   {PUSH_DONW_FLT_COND}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}, {PUSH_DOWN_RIGHT_FLT}},
+/*FULL*/   {{0},                  {0},                   {0},                  {0},                   {0},                   {0}},
+};
+
 
 #endif
 
@@ -575,19 +585,19 @@ static ECondAction pdcJoinGetCondAction(SJoinLogicNode* pJoin, SSHashObj* pLeftT
 
   if (cxt.havaLeftCol) {
     if (cxt.haveRightCol) {
-      if ((!whereCond) || (gJoinOpt[t][s].pushDownFlag & PUSH_DOWN_ON_COND)) {
+      if (whereCond && gJoinWhereOpt[t][s].pushDownFlag & PUSH_DOWN_ON_COND) {
         return COND_ACTION_PUSH_JOIN;
       }
       return COND_ACTION_STAY;
     }
-    if ((!whereCond) || (gJoinOpt[t][s].pushDownFlag & PUSH_DOWN_LEFT_FLT)) {
+    if ((whereCond && gJoinWhereOpt[t][s].pushDownFlag & PUSH_DOWN_LEFT_FLT) || (!whereCond && gJoinOnOpt[t][s].pushDownFlag & PUSH_DOWN_LEFT_FLT)) {
       return COND_ACTION_PUSH_LEFT_CHILD;
     }
     return COND_ACTION_STAY;
   }
 
   if (cxt.haveRightCol) {
-    if ((!whereCond) || (gJoinOpt[t][s].pushDownFlag & PUSH_DOWN_RIGHT_FLT)) {
+    if ((whereCond && gJoinWhereOpt[t][s].pushDownFlag & PUSH_DOWN_RIGHT_FLT) || (!whereCond && gJoinOnOpt[t][s].pushDownFlag & PUSH_DOWN_RIGHT_FLT)) {
       return COND_ACTION_PUSH_RIGHT_CHILD;
     }
     return COND_ACTION_STAY;
@@ -1003,6 +1013,7 @@ static int32_t pdcJoinCollectColsFromParent(SJoinLogicNode* pJoin, SSHashObj* pT
   }
   
   nodesWalkExpr(pJoin->pPrimKeyEqCond, pdcJoinCollectCondCol, &cxt);
+  nodesWalkExpr(pJoin->node.pConditions, pdcJoinCollectCondCol, &cxt);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
     nodesWalkExpr(pJoin->pFullOnCond, pdcJoinCollectCondCol, &cxt);
   }
@@ -1112,6 +1123,48 @@ static int32_t pdcJoinAddPreFilterColsToTarget(SOptimizeContext* pCxt, SJoinLogi
   return code;
 }
 
+static int32_t pdcJoinAddWhereFilterColsToTarget(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
+  if (NULL == pJoin->node.pConditions) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNodeList* pCondCols = nodesMakeList();
+  SNodeList* pTargets = NULL;
+  if (NULL == pCondCols) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    code = nodesCollectColumnsFromNode(pJoin->node.pConditions, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createColumnByRewriteExprs(pCondCols, &pTargets);
+  }
+  
+  nodesDestroyList(pCondCols);
+  
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pTargets) {
+      SNode* pTmp = NULL;
+      bool found = false;
+      FOREACH(pTmp, pJoin->node.pTargets) {
+        if (nodesEqualNode(pTmp, pNode)) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        nodesListStrictAppend(pJoin->node.pTargets, nodesCloneNode(pNode));
+      }
+    }
+  }    
+
+  nodesDestroyList(pTargets);
+
+  return code;
+}
+
+
 static int32_t pdcJoinCheckAllCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (NULL == pJoin->pFullOnCond) {
     if ((!IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType)) || NULL == pJoin->node.pConditions) {
@@ -1145,7 +1198,7 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   SNode*  pLeftChildCond = NULL;
   SNode*  pRightChildCond = NULL;
   int32_t code = pdcJoinCheckAllCond(pCxt, pJoin);
-  if (TSDB_CODE_SUCCESS == code && NULL != pJoin->node.pConditions && 0 != gJoinOpt[t][s].pushDownFlag) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoin->node.pConditions && 0 != gJoinWhereOpt[t][s].pushDownFlag) {
     code = pdcJoinSplitCond(pJoin, &pJoin->node.pConditions, &pOnCond, &pLeftChildCond, &pRightChildCond, true);
     if (TSDB_CODE_SUCCESS == code && NULL != pOnCond) {
       code = pdcJoinPushDownOnCond(pCxt, pJoin, &pOnCond);
@@ -1182,6 +1235,10 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
 
   if (TSDB_CODE_SUCCESS == code) {
     code = pdcJoinAddPreFilterColsToTarget(pCxt, pJoin);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = pdcJoinAddWhereFilterColsToTarget(pCxt, pJoin);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
