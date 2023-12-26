@@ -157,7 +157,7 @@ func (p *program) onConnect() {
 }
 
 func (p *program) onDisconnected(err error) {
-	p.logger.WithError(err).Fatal("new arrow reporter")
+	p.logger.WithError(err).Fatal("mqtt disconnected")
 }
 
 func (p *program) handleMessage() {
