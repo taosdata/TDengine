@@ -561,6 +561,7 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     tdbTbUpsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, pMeta->txn);
     metaULock(pMeta);
     metaDestroyTagIdxKey(pTagIdxKey);
+    pTagIdxKey = NULL;
   }
 
   nStbEntry.version = version;
@@ -691,6 +692,7 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
     tdbTbDelete(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, pMeta->txn);
     metaULock(pMeta);
     metaDestroyTagIdxKey(pTagIdxKey);
+    pTagIdxKey = NULL;
   }
 
   // clear idx flag
@@ -1074,7 +1076,7 @@ static int metaDeleteTtl(SMeta *pMeta, const SMetaEntry *pME) {
   return ttlMgrDeleteTtl(pMeta->pTtlMgr, &ctx);
 }
 
-static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid, int8_t* pSysTbl) {
+static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid, int8_t *pSysTbl) {
   void      *pData = NULL;
   int        nData = 0;
   int        rc = 0;
@@ -1144,6 +1146,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
               tdbTbDelete(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, pMeta->txn);
             }
             metaDestroyTagIdxKey(pTagIdxKey);
+            pTagIdxKey = NULL;
           }
         }
         tDecoderClear(&tdc);
@@ -1864,6 +1867,7 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
     }
     tdbTbUpsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, pMeta->txn);
     metaDestroyTagIdxKey(pTagIdxKey);
+    pTagIdxKey = NULL;
   }
   tdbTbcClose(pCtbIdxc);
   return 0;
@@ -2121,7 +2125,7 @@ int metaUpdateChangeTimeWithLock(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeM
   if (!tsTtlChangeOnWrite) return 0;
 
   metaWLock(pMeta);
-  int ret =  metaUpdateChangeTime(pMeta,  uid,  changeTimeMs);
+  int ret = metaUpdateChangeTime(pMeta, uid, changeTimeMs);
   metaULock(pMeta);
   return ret;
 }
@@ -2236,6 +2240,7 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
         tdbTbUpsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, pMeta->txn);
       }
       metaDestroyTagIdxKey(pTagIdxKey);
+      pTagIdxKey = NULL;
     }
   }
 end:
