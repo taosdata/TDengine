@@ -2231,14 +2231,12 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
         nTagData = tDataTypes[pTagColumn->type].bytes;
       }
 
-      if (pTagData != NULL) {
-        if (metaCreateTagIdxKey(pCtbEntry->ctbEntry.suid, pTagColumn->colId, pTagData, nTagData, pTagColumn->type,
-                                pCtbEntry->uid, &pTagIdxKey, &nTagIdxKey) < 0) {
-          ret = -1;
-          goto end;
-        }
-        tdbTbUpsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, pMeta->txn);
+      if (metaCreateTagIdxKey(pCtbEntry->ctbEntry.suid, pTagColumn->colId, pTagData, nTagData, pTagColumn->type,
+                              pCtbEntry->uid, &pTagIdxKey, &nTagIdxKey) < 0) {
+        ret = -1;
+        goto end;
       }
+      tdbTbUpsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, pMeta->txn);
       metaDestroyTagIdxKey(pTagIdxKey);
       pTagIdxKey = NULL;
     }
