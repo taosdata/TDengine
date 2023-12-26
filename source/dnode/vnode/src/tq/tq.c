@@ -1294,8 +1294,8 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   if (status == TASK_STATUS__CK) {
     ASSERT(pTask->chkInfo.checkpointingId == req.checkpointId);
     tqWarn("s-task:%s recv checkpoint-source msg again checkpointId:%" PRId64
-           " already received, ignore this msg and continue process checkpoint",
-           pTask->id.idStr, pTask->chkInfo.checkpointingId);
+           " transId:%d already received, ignore this msg and continue process checkpoint",
+           pTask->id.idStr, pTask->chkInfo.checkpointingId, req.transId);
 
     taosThreadMutexUnlock(&pTask->lock);
     streamMetaReleaseTask(pMeta, pTask);
