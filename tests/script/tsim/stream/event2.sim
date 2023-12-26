@@ -31,6 +31,8 @@ sql insert into t4 values(1648791223000,1,1,10,3.0);
 sql insert into t4 values(1648791233000,0,2,11,1.0);
 sql insert into t4 values(1648791243000,1,9,12,2.0);
 
+sleep 1000
+
 sql create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 fill_history 1 into streamt0 as select  _wstart as s, count(*) c1,  sum(b), max(c), _wend as e from st partition by tbname event_window start with a = 0 end with b = 9;
 
 sleep 1000
@@ -76,6 +78,37 @@ endi
 
 if $data21 != 2 then
   print ======data21=$data21
+  goto loop0
+endi
+
+sql insert into t3 values(1648791222000,0,1,7,3.0);
+
+$loop_count = 0
+loop1:
+
+sleep 300
+print 2 sql select * from streamt0 order by 1, 2, 3, 4;
+sql select * from streamt0 order by 1, 2, 3, 4;
+
+print   
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print   
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 4 then
+  print ======rows=$rows
+  goto loop1
+endi
+
+if $data01 != 5 then
+  print ======data01=$data01
   goto loop0
 endi
 

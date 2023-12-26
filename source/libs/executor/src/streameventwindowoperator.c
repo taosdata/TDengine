@@ -622,6 +622,7 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
     }
     setEventWindowFlag(pAggSup, &curInfo);
     if (!curInfo.pWinFlag->startFlag || curInfo.pWinFlag->endFlag) {
+      saveSessionOutputBuf(pAggSup, &curInfo.winInfo);
       continue;
     }
 

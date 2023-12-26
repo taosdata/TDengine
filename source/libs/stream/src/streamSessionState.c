@@ -449,13 +449,13 @@ int32_t sessionWinStateGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, void
 
   SSHashObj* pSessionBuff = getRowStateBuff(pCur->pStreamFileState);
   void**     ppBuff = tSimpleHashGet(pSessionBuff, &pKey->groupId, sizeof(uint64_t));
-  if (!ppBuff) {
-    return TSDB_CODE_FAILED;
+  SArray* pWinStates = NULL;
+  if (ppBuff) {
+    pWinStates = (SArray*)(*ppBuff);
   }
 
-  SArray* pWinStates = (SArray*)(*ppBuff);
-  int32_t size = taosArrayGetSize(pWinStates);
   if (pCur->buffIndex >= 0) {
+    int32_t size = taosArrayGetSize(pWinStates);
     if (pCur->buffIndex >= size) {
       return TSDB_CODE_FAILED;
     }
