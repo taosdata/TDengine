@@ -2384,7 +2384,6 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
         SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
         char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
         for (int32_t k = 0; k < pRow->numOfRows; ++k) {
-          qDebug("===stream===block rows:%d, rows:%d, exprs:%d, capacity:%d", pBlock->info.rows, i, j, pBlock->info.capacity);
           colDataSetVal(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
         }
       }
