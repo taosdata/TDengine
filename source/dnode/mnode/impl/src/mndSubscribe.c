@@ -732,6 +732,10 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
   SMqDoRebalanceMsg *pReq = pMsg->pCont;
   void              *pIter = NULL;
 //  bool               rebalanceOnce = false;  // to ensure only once.
+  if (!mndRebTryStart()) {
+    mInfo("mq rebalance already in progress, do nothing");
+    return 0;
+  }
 
   mInfo("mq re-balance start, total required re-balanced trans:%d", taosHashGetSize(pReq->rebSubHash));
 

@@ -47,6 +47,7 @@ int32_t mndSetConsumerCommitLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj 
 int32_t mndSetConsumerDropLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer);
 
 bool mndRebTryStart();
+bool mndRebCanStart();
 void mndRebEnd();
 void mndRebCntInc();
 void mndRebCntDec();
