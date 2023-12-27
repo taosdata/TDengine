@@ -280,8 +280,11 @@ static int32_t translateInNumOutDou(SFunctionNode* pFunc, char* pErrBuf, int32_t
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
-
-  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+   SNode* pExprNode = nodesListGetNode(pFunc->pParameterList, 0);
+   if (pExprNode->type == QUERY_NODE_COLUMN_REF){
+     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+   }
+  uint8_t paraType = ((SExprNode*)pExprNode)->resType.type;
   if (!IS_NUMERIC_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
@@ -1733,8 +1736,11 @@ static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t l
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
   }
-
-  pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
+  SNode* pExprNode = nodesListGetNode(pFunc->pParameterList, 0);
+  if (pExprNode->type == QUERY_NODE_COLUMN_REF){
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  pFunc->node.resType = ((SExprNode*)pExprNode)->resType;
   return TSDB_CODE_SUCCESS;
 }
 
