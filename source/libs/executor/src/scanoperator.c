@@ -657,6 +657,7 @@ void setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, 
 
 static int32_t initRemainTable(STableScanInfo* pTableScanInfo, const STableKeyInfo* pList, int32_t num) {
   if (!pTableScanInfo->needCountEmptyTable) {
+    pTableScanInfo->countState = TABLE_COUNT_STATE_END;
     return TSDB_CODE_SUCCESS;
   }
   pTableScanInfo->isOneGroup = true;
@@ -681,6 +682,7 @@ static int32_t initRemainTable(STableScanInfo* pTableScanInfo, const STableKeyIn
     }
     taosHashPut(pTableScanInfo->pRemainTables, &(pInfo->uid), sizeof(pInfo->uid), &(pInfo->groupId), sizeof(pInfo->groupId));
   }
+  pTableScanInfo->countState = TABLE_COUNT_STATE_SCAN;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -688,6 +690,11 @@ static void markTableProcessed(STableScanInfo* pTableScanInfo, uint64_t uid) {
   // case0 group scanning, mark
   // case1 stream scan: no need to mark
   if (pTableScanInfo->countState > TABLE_COUNT_STATE_SCAN) {
+    return;
+  }
+  // case2 only one group, uid ready
+  if (pTableScanInfo->isOneGroup) {
+    pTableScanInfo->countState = TABLE_COUNT_STATE_END;
     return;
   }
   taosHashRemove(pTableScanInfo->pRemainTables, &uid, sizeof(uid));
@@ -796,7 +803,6 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator, const STableKey
 
   if (TABLE_COUNT_STATE_NONE == pTableScanInfo->countState) {
     initRemainTable(pTableScanInfo, pList, num);
-    pTableScanInfo->countState = TABLE_COUNT_STATE_SCAN;
   }
 
   // do the ascending order traverse in the first place.
@@ -849,7 +855,7 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator, const STableKey
     }
   }
 
-  if (pTableScanInfo->needCountEmptyTable) {
+  if (pTableScanInfo->countState < TABLE_COUNT_STATE_END) {
     int32_t tb_cnt = taosHashGetSize(pTableScanInfo->pRemainTables);
     if (tb_cnt) {
       if (!pTableScanInfo->isOneGroup) {
@@ -865,14 +871,14 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator, const STableKey
         }
       } else {
         // output one table for this group
-        taosHashClear(pTableScanInfo->pRemainTables);
+        pTableScanInfo->countState = TABLE_COUNT_STATE_END;
         return getBlockForEmptyTable(pOperator, pList);
       }
     }
-
     pTableScanInfo->countState = TABLE_COUNT_STATE_END;
   }
 
+  taosHashClear(pTableScanInfo->pRemainTables);
   return NULL;
 }
 
