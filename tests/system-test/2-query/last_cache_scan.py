@@ -28,7 +28,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=2,replica=1, duration:str='1d'):
         if dropFlag == 1:
@@ -284,6 +284,8 @@ class TDTestCase:
         tdSql.checkData(0, 3, 1001)
         tdSql.checkData(0, 4, "2018-11-25 19:30:00.000")
 
+        tdSql.query("select last(ts) from meters partition by tbname")
+        tdSql.query("select last(ts) from meters partition by t1")
         sql_template = 'select %s from meters partition by tbname'
         select_items = ["ts, last(c10), c10, ts", "ts, ts, last(c10), c10, tbname", "last(c10), c10, ts"]
         has_last_row_scan_res = [1,1,1]
@@ -339,44 +341,12 @@ class TDTestCase:
         tdSql.checkData(0, 0, '999')
         p = subprocess.run(["taos", '-s', "alter table test.meters drop column c1; alter table test.meters add column c12 int"])
         p.check_returncode()
-        tdSql.query("select last(c1) from meters", queryTimes=1)
-        tdSql.checkData(0, 0, None)
-        tdSql.query('select last(*) from meters', queryTimes=1)
-        print(str(tdSql.queryResult))
-        tdSql.checkData(0, 1, None)
-        tdSql.query('select last(c1), c1, ts from meters', queryTimes=1)
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, None)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
-
-        try:
-            tdSql.query('select ts, last(c1), c1, ts, c1 from meters', queryTimes=1)
-        except Exception as e:
-            if str(e).count('Invalid column name') == 1:
-                print('column has been dropped, the cache has been updated: %s' % (str(e)))
-                return
-            else:
-                raise
-        tdSql.checkRows(1)
-        tdSql.checkCols(5)
-        tdSql.checkData(0, 0, None)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
-        tdSql.checkData(0, 3, None)
-        tdSql.checkData(0, 4, None)
-
-        try:
-            tdSql.query('select last(c1), last(c2), last(c3) from meters', queryTimes=1)
-        except Exception as e:
-            if str(e).count('Invalid column name') == 1:
-                print('column has been dropped, the cache has been updated: %s' % (str(e)))
-                return
-            else:
-                raise
+        tdSql.query_success_failed("select ts, last(c1), c1, ts, c1 from meters", queryTimes=10, expectErrInfo="Invalid column name: c1")
+        tdSql.query('select last(c12), c12, ts from meters', queryTimes=1)
         tdSql.checkRows(1)
         tdSql.checkCols(3)
         tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)        
 
     def test_cache_scan_with_drop_column(self):
         tdSql.query('select last(*) from meters')
@@ -401,49 +371,48 @@ class TDTestCase:
         tdSql.checkData(0, 10, None)
         
     def test_cache_scan_last_row_with_drop_column2(self):
-        tdSql.query('select last_row(c1) from meters')
+        tdSql.query('select last_row(c2) from meters')
         print(str(tdSql.queryResult))
         tdSql.checkCols(1)
-        p = subprocess.run(["taos", '-s', "alter table test.meters drop column c1; alter table test.meters add column c11 int"])
+        p = subprocess.run(["taos", '-s', "alter table test.meters drop column c2; alter table test.meters add column c1 int"])
         p.check_returncode()
-        tdSql.query('select last_row(c1) from meters', queryTimes=1)
-        print(str(tdSql.queryResult))
-        tdSql.checkCols(1)
+        tdSql.query_success_failed("select ts, last_row(c2), c12, ts, c12 from meters", queryTimes=10, expectErrInfo="Invalid column name: c2")
+        tdSql.query('select last(c1), c1, ts from meters', queryTimes=1)
+        tdSql.checkRows(1)
+        tdSql.checkCols(3)
         tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)    
 
     def test_cache_scan_last_row_with_partition_by(self):
         tdSql.query('select last(c1) from meters partition by t1')
         print(str(tdSql.queryResult))
         tdSql.checkCols(1)
-        tdSql.checkRows(5)
-        p = subprocess.run(["taos", '-s', "alter table test.meters drop column c1; alter table test.meters add column c11 int"])
+        tdSql.checkRows(2)
+        p = subprocess.run(["taos", '-s', "alter table test.meters drop column c1; alter table test.meters add column c2 int"])
         p.check_returncode()
-        tdSql.query('select last_row(c1) from meters partition by t1', queryTimes=1)
+        tdSql.query_success_failed('select last(c1) from meters partition by t1',  queryTimes=10, expectErrInfo="Invalid column name: c1")
+        tdSql.query('select last(c2), c2, ts from meters', queryTimes=1)
         print(str(tdSql.queryResult))
-        tdSql.checkCols(1)
-        tdSql.checkRows(5)
+        tdSql.checkRows(1)
+        tdSql.checkCols(3)
         tdSql.checkData(0, 0, None)
-        tdSql.checkData(1, 0, None)
-        tdSql.checkData(2, 0, None)
-        tdSql.checkData(3, 0, None)
-        tdSql.checkData(4, 0, None)
+        tdSql.checkData(0, 1, None)    
+
 
     def test_cache_scan_last_row_with_partition_by_tbname(self):
-        tdSql.query('select last(c1) from meters partition by tbname', queryTimes=1)
+        tdSql.query('select last(c2) from meters partition by tbname')
         print(str(tdSql.queryResult))
         tdSql.checkCols(1)
         tdSql.checkRows(10)
-        p = subprocess.run(["taos", '-s', "alter table test.meters drop column c1; alter table test.meters add column c11 int"])
+        p = subprocess.run(["taos", '-s', "alter table test.meters drop column c2; alter table test.meters add column c1 int"])
         p.check_returncode()
-        tdSql.query('select last_row(c1) from meters partition by tbname', queryTimes=1)
+        tdSql.query_success_failed('select last_row(c2) from meters partition by tbname', queryTimes=10, expectErrInfo="Invalid column name: c2")
+        tdSql.query('select last(c1), c1, ts from meters', queryTimes=1)
         print(str(tdSql.queryResult))
-        tdSql.checkCols(1)
-        tdSql.checkRows(10)
+        tdSql.checkRows(1)
+        tdSql.checkCols(3)
         tdSql.checkData(0, 0, None)
-        tdSql.checkData(1, 0, None)
-        tdSql.checkData(2, 0, None)
-        tdSql.checkData(3, 0, None)
-        tdSql.checkData(4, 0, None)
+        tdSql.checkData(0, 1, None)           
 
 
 
@@ -455,9 +424,9 @@ class TDTestCase:
         self.test_cache_scan_with_drop_and_add_column2()
         #self.test_cache_scan_with_drop_column()
         #self.test_cache_scan_last_row_with_drop_column()
-        #self.test_cache_scan_last_row_with_drop_column2()
-        #self.test_cache_scan_last_row_with_partition_by()
-        #self.test_cache_scan_last_row_with_partition_by_tbname()
+        self.test_cache_scan_last_row_with_drop_column2()
+        self.test_cache_scan_last_row_with_partition_by()
+        self.test_cache_scan_last_row_with_partition_by_tbname()
 
     def stop(self):
         tdSql.close()

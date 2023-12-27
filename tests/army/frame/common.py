@@ -23,7 +23,7 @@ import taos
 from frame.log import *
 from frame.sql import *
 from frame.cases import *
-from frame.dnodes import *
+from frame.server.dnodes import *
 from frame.common import *
 from frame.constant import *
 from dataclasses import dataclass,field

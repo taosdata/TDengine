@@ -1623,6 +1623,7 @@ void initDummyFunction(SqlFunctionCtx* pDummy, SqlFunctionCtx* pCtx, int32_t num
     pDummy[i].functionId = pCtx[i].functionId;
     pDummy[i].isNotNullFunc = pCtx[i].isNotNullFunc;
     pDummy[i].isPseudoFunc = pCtx[i].isPseudoFunc;
+    pDummy[i].fpSet.init = pCtx[i].fpSet.init;
   }
 }
 
@@ -2774,6 +2775,9 @@ void streamSessionSemiReloadState(SOperatorInfo* pOperator) {
   for (int32_t i = 0; i < num; i++) {
     SResultWindowInfo winInfo = {0};
     getSessionWindowInfoByKey(pAggSup, pSeKeyBuf + i, &winInfo);
+    if (!IS_VALID_SESSION_WIN(winInfo)) {
+      continue;
+    }
     compactSessionSemiWindow(pOperator, &winInfo);
     saveSessionOutputBuf(pAggSup, &winInfo);
   }

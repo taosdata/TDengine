@@ -64,7 +64,7 @@ class TwoClients:
         cursor2.execute("drop table t0")
         cursor2.execute("create table t0 using tb tags('beijing')")
 
-        tdSql.execute("insert into t0 values(now, 2, 'test')")
+        tdSql.execute("insert into t0 values(now+1s, 2, 'test')")
         tdSql.query("select * from tb")
         tdSql.checkRows(1)
 

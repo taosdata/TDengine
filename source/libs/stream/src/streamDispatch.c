@@ -352,6 +352,7 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
             return code;
           }
 
+          // it's a new vnode to receive dispatch msg, so add one
           if (pReqs[j].blockNum == 0) {
             atomic_add_fetch_32(&pTask->outputInfo.shuffleDispatcher.waitingRspCnt, 1);
           }
@@ -372,8 +373,15 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
     pTask->msgInfo.pData = pReqs;
   }
 
-  stDebug("s-task:%s build dispatch msg success, msgId:%d, stage:%" PRId64, pTask->id.idStr, pTask->execInfo.dispatch,
-          pTask->pMeta->stage);
+  if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
+    stDebug("s-task:%s build dispatch msg success, msgId:%d, stage:%" PRId64 " %p", pTask->id.idStr,
+            pTask->execInfo.dispatch, pTask->pMeta->stage, pTask->msgInfo.pData);
+  } else {
+    stDebug("s-task:%s build dispatch msg success, msgId:%d, stage:%" PRId64 " dstVgNum:%d %p", pTask->id.idStr,
+            pTask->execInfo.dispatch, pTask->pMeta->stage, pTask->outputInfo.shuffleDispatcher.waitingRspCnt,
+            pTask->msgInfo.pData);
+  }
+
   return code;
 }
 
@@ -395,9 +403,11 @@ static int32_t sendDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pDispatch
     SArray* vgInfo = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
     int32_t numOfVgroups = taosArrayGetSize(vgInfo);
 
-    stDebug("s-task:%s (child taskId:%d) start to shuffle-dispatch blocks to %d vgroup(s), msgId:%d", id,
-            pTask->info.selfChildId, numOfVgroups, msgId);
+    int32_t actualVgroups = pTask->outputInfo.shuffleDispatcher.waitingRspCnt;
+    stDebug("s-task:%s (child taskId:%d) start to shuffle-dispatch blocks to %d/%d vgroup(s), msgId:%d", id,
+            pTask->info.selfChildId, actualVgroups, numOfVgroups, msgId);
 
+    int32_t numOfSend = 0;
     for (int32_t i = 0; i < numOfVgroups; i++) {
       if (pDispatchMsg[i].blockNum > 0) {
         SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
@@ -406,6 +416,11 @@ static int32_t sendDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pDispatch
 
         code = doSendDispatchMsg(pTask, &pDispatchMsg[i], pVgInfo->vgId, &pVgInfo->epSet);
         if (code < 0) {
+          break;
+        }
+
+        // no need to try remain, all already send.
+        if (++numOfSend == actualVgroups) {
           break;
         }
       }
@@ -1081,6 +1096,7 @@ int32_t streamNotifyUpstreamContinue(SStreamTask* pTask) {
 
 // this message has been sent successfully, let's try next one.
 static int32_t handleDispatchSuccessRsp(SStreamTask* pTask, int32_t downstreamId) {
+  stDebug("s-task:%s destroy dispatch msg:%p", pTask->id.idStr, pTask->msgInfo.pData);
   destroyDispatchMsg(pTask->msgInfo.pData, getNumOfDispatchBranch(pTask));
 
   bool delayDispatch = (pTask->msgInfo.dispatchMsgType == STREAM_INPUT__CHECKPOINT_TRIGGER);
