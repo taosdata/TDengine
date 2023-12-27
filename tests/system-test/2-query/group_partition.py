@@ -35,161 +35,132 @@ class TDTestCase:
                 tdSql.execute(f"insert into {tbname} values({ts} , {row} , {row} , {row} , {row} , 1 , 2 , 'true' , 'binary_{row}' , 'nchar_{row}' , {row} , {row} , 1 ,2 )")
 
 
-    def test_groupby(self, check_num, real_num):
-        # tbname
-        tdSql.query(f"select count(*) from {self.dbname}.{self.stable} group by tbname ")
+    def test_groupby(self, keyword, check_num, nonempty_tb_num):
+        ####### by tbname
+        tdSql.query(f"select count(*), count(1), count(c1) from {self.dbname}.{self.stable} {keyword} by tbname ")
         tdSql.checkRows(check_num)
 
-        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} group by tbname ")
+        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} {keyword} by tbname ")
         tdSql.checkRows(check_num)
 
-        tdSql.query(f"select tbname from {self.dbname}.{self.stable} group by tbname order by count(*)")
+        tdSql.query(f"select tbname from {self.dbname}.{self.stable} {keyword} by tbname order by count(*)")
         tdSql.checkRows(check_num)
 
-        tdSql.query(f"select tbname from {self.dbname}.{self.stable} group by tbname having count(*)>=0")
+        # last
+        tdSql.query(f"select last(ts), count(*) from {self.dbname}.{self.stable} {keyword} by tbname order by last(ts)")
+        tdSql.checkRows(check_num)
+
+        tdSql.query(f"select tbname from {self.dbname}.{self.stable} {keyword} by tbname having count(*)>=0")
         tdSql.checkRows(check_num)
 
         # having filter out empty
-        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} group by tbname having count(*) <= 0")
-        tdSql.checkRows(check_num - real_num)
+        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} {keyword} by tbname having count(*) <= 0")
+        tdSql.checkRows(check_num - nonempty_tb_num)
 
-        # tag
-        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} group by t2 ")
+        ####### by tag
+        tdSql.query(f"select t2, count(*), count(1), count(c1) from {self.dbname}.{self.stable} {keyword} by t2 ")
         tdSql.checkRows(check_num)
 
-        # multi tag
-        tdSql.query(f"select t2, t3, tbname, count(*) from {self.dbname}.{self.stable} group by t2, t3, tbname")
+        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} {keyword} by t2 having count(*) <= 0")
+        tdSql.checkRows(check_num - nonempty_tb_num)
+
+        # where
+        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where ts < now {keyword} by t2 ")
         tdSql.checkRows(check_num)
 
-        # having
-        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} group by t2 having count(*) <= 0")
-        tdSql.checkRows(check_num - real_num)
-
-        # col where filter nothing
-        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where ts < now group by t2 ")
+        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where ts > 1737146000000 {keyword} by t2 ")
         tdSql.checkRows(check_num)
 
-        # col where filter all
-        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where ts > 1737146000000 group by t2 ")
+        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where c1 = 1 {keyword} by t2 ")
         tdSql.checkRows(check_num)
 
-        # col where filter part
-        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where c1 = 1 group by t2 ")
-        tdSql.checkRows(check_num)
-
-        # col
-        tdSql.query(f"select count(c1) from {self.dbname}.{self.stable} group by tbname ")
-        tdSql.checkRows(check_num)
-
-        #inner select
-        tdSql.query(f"select * from (select count(c1) from {self.dbname}.{self.stable} group by tbname) ")
-        tdSql.checkRows(check_num)
-
-        # multi agg
-        tdSql.query(f"select count(*), sum(c1) from {self.dbname}.{self.stable} group by tbname ")
-        tdSql.checkRows(check_num)
-
-        tdSql.query(f"select count(1), sum(1) from {self.dbname}.{self.stable} group by tbname ")
-        tdSql.checkRows(check_num)
-
-        tdSql.query(f" select count(c1), max(c1), avg(c1), elapsed(ts), spread(c1) from {self.dbname}.{self.stable} group by tbname")
-        tdSql.checkRows(real_num)
-
-        ############### same with old ###############
-        tdSql.query(f"select c1, count(*) from {self.dbname}.{self.stable} group by c1 ")
+        ####### by col
+        tdSql.query(f"select c1, count(*), count(1), count(c1) from {self.dbname}.{self.stable} {keyword} by c1 ")
         num = 0
-        if real_num > 0:
+        if nonempty_tb_num > 0:
             num = self.row_nums
         tdSql.checkRows(num)
     
-        tdSql.query(f"select ts, count(*) from {self.dbname}.{self.stable} group by ts ")
-        tdSql.checkRows(real_num * self.row_nums)
+        tdSql.query(f"select ts, count(*) from {self.dbname}.{self.stable} {keyword} by ts ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
 
         # col + tag
-        tdSql.query(f"select t2, c1, count(*) from {self.dbname}.{self.stable} group by t2, c1 ")
-        tdSql.checkRows(real_num * self.row_nums)
+        tdSql.query(f"select t2, c1, count(*) from {self.dbname}.{self.stable} {keyword} by t2, c1 ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
 
-        tdSql.query(f"select t2, t3, c1, count(*) from {self.dbname}.{self.stable} group by t2, t3, c1 ")
-        tdSql.checkRows(real_num * self.row_nums)
+        tdSql.query(f"select t2, t3, c1, count(*) from {self.dbname}.{self.stable} {keyword} by t2, t3, c1 ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
 
-    
-    def test_partitionby(self, check_num, real_num): 
-        tdSql.query(f"select tbname , count(*) from {self.dbname}.{self.stable} partition by tbname ")
-        tdSql.checkRows(check_num)
-      
-        tdSql.query(f"select count(*), sum(1) from {self.dbname}.{self.stable} partition by tbname ")
-        tdSql.checkRows(check_num)
 
-        tdSql.query(f" select count(c5), max(c5), avg(c5), elapsed(ts), spread(c1) from {self.dbname}.{self.stable} partition by tbname")
-        tdSql.checkRows(real_num)
-
-        tdSql.query(f"select tbname from {self.dbname}.{self.stable} partition by tbname order by count(*)")
-        tdSql.checkRows(check_num)
-
-        tdSql.query(f"select tbname from {self.dbname}.{self.stable} partition by tbname having count(*)>=0")
-        tdSql.checkRows(check_num)
-
-        # having filter out empty
-        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname having count(*) <= 0")
-        tdSql.checkRows(check_num - real_num)
-
-        #tag
-        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} partition by t2 ")
+    def test_multi_group_key(self, check_num, nonempty_tb_num):
+        # multi tag/tbname
+        tdSql.query(f"select t2, t3, tbname, count(*) from {self.dbname}.{self.stable} group by t2, t3, tbname")
         tdSql.checkRows(check_num)
 
         tdSql.query(f"select t2, t3, tbname, count(*) from {self.dbname}.{self.stable} partition by t2, t3, tbname")
         tdSql.checkRows(check_num)
 
-        # having
-        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} partition by t2 having count(*) <= 0")
-        tdSql.checkRows(check_num - real_num)
+        # multi tag + col
+        tdSql.query(f"select t1, t2, c1, count(*) from {self.dbname}.{self.stable} partition by t1, t2, c1 ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
 
-        # col where filter nothing
-        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where ts < now partition by t2 ")
-        tdSql.checkRows(check_num)
+        # tag + multi col
+        tdSql.query(f"select t2, c1, c2, count(*) from {self.dbname}.{self.stable} partition by t2, c1, c2 ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
 
-        # col where filter all
-        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where ts > 1737146000000 partition by t2 ")
-        tdSql.checkRows(check_num)
 
-        # col where filter part
-        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where c1 = 1 partition by t2 ")
-        tdSql.checkRows(check_num)
+    def test_multi_agg(self, all_tb_num, nonempty_tb_num):
+        tdSql.query(f"select count(*), sum(c1) from {self.dbname}.{self.stable} group by tbname ")
+        tdSql.checkRows(all_tb_num)
 
-        #col
-        tdSql.query(f"select count(c1) from {self.dbname}.{self.stable} partition by tbname ")
-        tdSql.checkRows(check_num)
+        tdSql.query(f"select count(1), sum(1), avg(c1), apercentile(c1, 50), spread(ts) from {self.dbname}.{self.stable} group by tbname ")
+        tdSql.checkRows(all_tb_num)
 
-        #multi agg
-        tdSql.query(f"select count(1), sum(1) from {self.dbname}.{self.stable} partition by tbname ")
-        tdSql.checkRows(check_num)
+        tdSql.query(f"select count(c1), sum(c1), min(c1), mode(c1), stddev(c1), spread(c1) from {self.dbname}.{self.stable} partition by tbname ")
+        tdSql.checkRows(all_tb_num)
+
+        # elapsed: continuous duration in a statistical period, table merge scan
+        tdSql.query(f" select count(c1), max(c5), avg(c5), elapsed(ts), spread(c1) from {self.dbname}.{self.stable} group by tbname")
+        tdSql.checkRows(nonempty_tb_num)
 
         tdSql.query(f" select count(c1), max(c1), avg(c1), elapsed(ts), spread(c1) from {self.dbname}.{self.stable} partition by tbname")
-        tdSql.checkRows(real_num)
+        tdSql.checkRows(nonempty_tb_num)
 
-        #inner select
+
+    def test_innerSelect(self, check_num):
+        tdSql.query(f"select * from (select count(c1) from {self.dbname}.{self.stable} group by tbname) ")
+        tdSql.checkRows(check_num)   
+
         tdSql.query(f"select * from (select count(c1) from {self.dbname}.{self.stable} partition by tbname) ")
         tdSql.checkRows(check_num)
 
+        tdSql.query(f"select t1, c from (select t1, sum(c1) as s, count(*) as c from {self.stable} partition by t1)")
+        tdSql.checkRows(check_num)
+
+
+    def test_window(self, nonempty_tb_num):
+        # empty group optimization condition is not met
+        # time window
         tdSql.query(f"select count(c1) from {self.dbname}.{self.stable} partition by tbname interval(1d)")
-        tdSql.checkRows(real_num)
+        tdSql.checkRows(nonempty_tb_num)
 
-        ############### same with old ###############
-        tdSql.query(f"select c1, count(*) from {self.dbname}.{self.stable} partition by c1 ")
-        num = 0
-        if real_num > 0:
-            num = self.row_nums
-        tdSql.checkRows(num)
-    
-        tdSql.query(f"select ts, count(*) from {self.dbname}.{self.stable} partition by ts ")
-        tdSql.checkRows(real_num * self.row_nums)
+        tdSql.query(f"select _wstart, _wend, count(c1), max(c1), apercentile(c1, 50) from {self.dbname}.{self.stable} partition by tbname interval(1d)")
+        tdSql.checkRows(nonempty_tb_num)
 
-        tdSql.query(f"select t2, c1, count(*) from {self.dbname}.{self.stable} partition by t2, c1 ")
-        tdSql.checkRows(real_num * self.row_nums)
+        # state window
+        tdSql.query(f"select tbname, count(*), c1 from {self.dbname}.{self.stable} partition by tbname state_window(c1)")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
 
-        tdSql.query(f"select t2, t3, c1, count(*) from {self.dbname}.{self.stable} partition by t2, t3, c1 ")
-        tdSql.checkRows(real_num * self.row_nums)
+        # session window
+        tdSql.query(f"select count(c1) from {self.dbname}.{self.stable} partition by tbname session(ts, 5s)")
+        tdSql.checkRows(nonempty_tb_num)
 
+        # event window
+        tdSql.query(f"select tbname, count(*) from {self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9;")
+        tdSql.checkRows(nonempty_tb_num)
+
+
+  
     def test_error(self):
         tdSql.error(f"select * from {self.dbname}.{self.stable} group by t2")
         tdSql.error(f"select t2, count(*) from {self.dbname}.{self.stable} group by t2 where t2 = 1")
@@ -199,21 +170,29 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
         self.prepare_db()
-        check_num = self.tb_nums
-        self.test_groupby(check_num, 0)
-        self.test_partitionby(check_num, 0)
-        # insert into half of tables
-        real_num = 5
-        self.insert_db(real_num, self.row_nums)
-        self.test_groupby(check_num, real_num)
-        self.test_partitionby(check_num, real_num)
+        # empty table only
+        self.test_groupby('group', self.tb_nums, 0)
+        self.test_groupby('partition', self.tb_nums, 0)
+        self.test_innerSelect(self.tb_nums)
+        self.test_multi_group_key(self.tb_nums, 0)
+        self.test_multi_agg(self.tb_nums, 0)
+        self.test_window(0)
 
-        # test old version before changed
-        # self.test_groupby(0, 0)
-        # self.test_partitionby(0, 0)
+        # insert data to 5 tables
+        nonempty_tb_num = 5
+        self.insert_db(nonempty_tb_num, self.row_nums)
+
+        self.test_groupby('group', self.tb_nums, nonempty_tb_num)
+        self.test_groupby('partition', self.tb_nums, nonempty_tb_num)
+        self.test_innerSelect(self.tb_nums)
+        self.test_multi_group_key(self.tb_nums, nonempty_tb_num)
+        self.test_multi_agg(self.tb_nums, nonempty_tb_num)
+        self.test_window(nonempty_tb_num)
+
+        ## test old version before changed
+        # self.test_groupby('group', 0, 0)
         # self.insert_db(5, self.row_nums)
-        # self.test_groupby(5, 5)
-        # self.test_partitionby(5, 5)
+        # self.test_groupby('group', 5, 5)
 
         self.test_error()
 

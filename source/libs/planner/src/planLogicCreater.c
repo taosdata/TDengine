@@ -487,7 +487,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   bool isCountByTag = false;
-  if (pSelect->hasCountFunc && !pSelect->pWindow) {
+  if (pSelect->hasCountFunc && NULL == pSelect->pWindow) {
     if (pSelect->pGroupByList) {
       isCountByTag = !keysHasCol(pSelect->pGroupByList);
     } else if (pSelect->pPartitionByList) {
