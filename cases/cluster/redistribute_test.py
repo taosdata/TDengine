@@ -24,8 +24,8 @@ from copy import deepcopy
 import random
 import pandas as pd
 import time
-from taos.tmq import Consumer
 import copy
+import sys
 
 class VnodeRedistribute(TDCase):
     def init(self):
@@ -41,7 +41,7 @@ class VnodeRedistribute(TDCase):
         self.result_file_name = ""
         self._tmp_dir: str = os.path.join(self.run_log_dir, "tmp")
         self.replica = int(os.environ["DATABASE_REPLICAS"]) if "DATABASE_REPLICAS" in os.environ else 1
-        self.vgroups = 5
+        self.vgroups = 3
         self.create_table_thread_count = 40
         self.thread_count = 200
         # self.thread_count = 10
@@ -107,8 +107,8 @@ class VnodeRedistribute(TDCase):
         self.tdSql.query('show dnodes')
         self.source_dnode_id_list = list(map(lambda x:x[0], self.tdSql.query_data))
         self.cluster_to_redistribute_list = list()
-        self.use_stream = True
-        self.stream_drop_after_test = True
+        self.use_stream = False
+        self.stream_drop_after_test = False
         self.use_tmq = True
         self.topic_name = "tp_name"
         self.tmq_status = 0
@@ -118,6 +118,7 @@ class VnodeRedistribute(TDCase):
         self.group_id = "tq_1"
         self.auto_commit_interval = "100"
         self.consumer_ip = self.taosd_setting["spec"]["config"]["firstEP"].split(":")[0]
+        self.queryString = f"select ts, log(c0), ceil(pow(c0,3)) from {self.dbname}.{self.stbname} where c0 % 7 >= 0"
         self.column_info_list = [
             {
               "type": "INT",
@@ -130,6 +131,9 @@ class VnodeRedistribute(TDCase):
               "count": 1
             }
         ]
+        if "cluster_common_insert.yaml" in " ".join(sys.argv):
+            self.insert_rows = 200000
+
     def desc(self):
         pass
 
@@ -388,22 +392,7 @@ class VnodeRedistribute(TDCase):
             if self.tmq_status == 0:
                 self.tdSql.query(f'show {self.dbname}.stables')
                 if self.stbname in str(self.tdSql.query_data):
-                    queryString = f"select ts, log(c0), ceil(pow(c0,3)) from {self.dbname}.{self.stbname} where c0 % 7 >= 0"
-                    sqlString = "create topic if not exists %s as %s" %(self.topic_name, queryString)
-                    self.tdSql.execute(sqlString)
-                    consumer_dict = {
-                                "group.id": self.group_id,
-                                "td.connect.user": "root",
-                                "td.connect.pass": "taosdata",
-                                "td.connect.ip": self.consumer_ip,
-                                "auto.commit.interval.ms": self.auto_commit_interval,
-                                "enable.auto.commit": self.commit_value,
-                                "auto.offset.reset": self.offset_value,
-                                "msg.with.table.name": self.tbname_value
-                            }
-                    consumer = Consumer(consumer_dict)
-                    consumer.subscribe([self.topic_name])
-
+                    consumer = self.tdCom.tmq(self.queryString, self.consumer_ip)
                     while True:
                         self.tmq_status = 1
                         if self.tmq_schedular is not None:
