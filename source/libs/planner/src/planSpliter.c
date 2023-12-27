@@ -725,9 +725,26 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
       nodesDestroyList(pMergeKeys);
     }
   }
+  if (code == TSDB_CODE_SUCCESS) {
+    SNode* pNode;
+    FOREACH(pNode, pInfo->pSubplan->pChildren) {
+      SLogicSubplan*   pSubplan = (SLogicSubplan*)pNode;
+      SMergeLogicNode* pMerge = (SMergeLogicNode*)pInfo->pSplitNode->pChildren->pHead->pNode;
+      //pMerge->numOfChannels += stbSplGetNumOfVgroups(pSubplan->pNode);
+      pSubplan->id.groupId = pCxt->groupId;
+      pSubplan->id.queryId = pCxt->queryId;
+      pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
+      TSWAP(((SScanLogicNode*)pSubplan->pNode->pChildren->pHead->pNode)->pVgroupList, pSubplan->pVgroupList);
+      //++(pCxt->groupId);
+    }
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,
                                      (SNode*)splCreateScanSubplan(pCxt, pPartWindow, SPLIT_FLAG_STABLE_SPLIT));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    ((SMergeLogicNode*)pInfo->pSplitNode->pChildren->pHead->pNode)->srcEndGroupId = pCxt->groupId;
+    ((SMergeLogicNode*)pInfo->pSplitNode->pChildren->pHead->pNode)->numOfSubplans = pInfo->pSubplan->pChildren->length;
   }
   pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
   ++(pCxt->groupId);

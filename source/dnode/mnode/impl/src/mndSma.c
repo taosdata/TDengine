@@ -1964,6 +1964,14 @@ int32_t dumpTSMAInfoFromSmaObj(const SSmaObj* pSma, const SStbObj* pDestStb, STa
     }
     nodesDestroyNode(pNode);
   }
+  if (code == TSDB_CODE_SUCCESS) {
+    if (pDestStb->numOfTags > 0) {
+      pInfo->pTags = taosArrayInit(pDestStb->numOfTags, sizeof(SSchema));
+      for (int32_t i = 0; i < pDestStb->numOfTags; ++i) {
+        taosArrayPush(pInfo->pTags, &pDestStb->pTags[i]);
+      }
+    }
+  }
   return code;
 }
 

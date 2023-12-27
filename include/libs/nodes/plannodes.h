@@ -253,7 +253,9 @@ typedef struct SMergeLogicNode {
   SNodeList* pMergeKeys;
   SNodeList* pInputs;
   int32_t    numOfChannels;
+  int32_t    numOfSubplans;
   int32_t    srcGroupId;
+  int32_t    srcEndGroupId;
   bool       colsMerge;
   bool       needSort;
   bool       groupSort;
@@ -607,7 +609,9 @@ typedef struct SMergePhysiNode {
   SNodeList* pMergeKeys;
   SNodeList* pTargets;
   int32_t    numOfChannels;
+  int32_t    numOfSubplans;
   int32_t    srcGroupId;
+  int32_t    srcEndGroupId;
   bool       groupSort;
   bool       ignoreGroupId;
   bool       inputWithGroupId;
