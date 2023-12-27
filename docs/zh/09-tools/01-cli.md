@@ -5,6 +5,7 @@ description: TDengine CLI 的使用说明和技巧
 ---
 
 <!-- exclude -->
+
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
@@ -55,9 +56,11 @@ export TDENGINE_CLOUD_DSN="<DSN>"
 </Tabs>
 
 <!-- exclude -->
+
 :::note IMPORTANT
 获取真实的 `DSN` 的值，请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”工具“菜单，然后选择”TDengine CLI“。
 :::
+
 <!-- exclude-end -->
 
 ## 建立连接
@@ -89,7 +92,7 @@ taos.exe
 如果您没有设置 TDengine Cloud 实例的环境变量，或者您想访问其他 TDengine Cloud 实例，您可以使用下面的命令 `taos -E <DSN>`来执行：
 
 ```powershell
-taos.exe -E $TDENGINE_CLOUD_DSN
+taos.exe -E %TDENGINE_CLOUD_DSN%
 ```
 
 </TabItem>

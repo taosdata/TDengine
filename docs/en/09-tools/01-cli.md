@@ -5,6 +5,7 @@ description: This document describes how to use the TDengine CLI to connect to T
 ---
 
 <!-- exclude -->
+
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
@@ -55,10 +56,12 @@ export TDENGINE_CLOUD_DSN="<DSN>"
 </Tabs>
 
 <!-- exclude -->
+
 :::note IMPORTANT
 To obtain the value of cloud DSN, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Tools" and then select "TDengine CLI".
 
 :::
+
 <!-- exclude-end -->
 
 ## Connect
@@ -90,7 +93,7 @@ taos.exe
 If you did not set environment variable for a TDengine Cloud instance, or you want to access other TDengine Cloud instances rather than the instance you already set the environment variable, you can use `taos -E <DSN>` as below.
 
 ```powershell
-taos.exe -E $TDENGINE_CLOUD_DSN
+taos.exe -E %TDENGINE_CLOUD_DSN%
 ```
 
 </TabItem>
