@@ -217,6 +217,12 @@ enum {
   TABLE_SCAN__BLOCK_ORDER = 2,
 };
 
+typedef enum ETableCountState {
+  TABLE_COUNT_STATE_NONE = 0,     // before start scan
+  TABLE_COUNT_STATE_SCAN = 1,     // scanning
+  TABLE_COUNT_STATE_END = 2,      // finish or noneed to process
+} ETableCountState;
+
 typedef struct SAggSupporter {
   SSHashObj*     pResultRowHashTable;  // quick locate the window object for each result
   char*          keyBuf;               // window key buffer
@@ -262,17 +268,18 @@ typedef struct STableScanInfo {
   int32_t         scanTimes;
   SSDataBlock*    pResBlock;
   SHashObj*       pIgnoreTables;
-  SHashObj*       pValuedTables;  // non empty table uids
+  SHashObj*       pRemainTables;  // remain table to process
   SSampleExecInfo sample;  // sample execution info
   int32_t         currentGroupId;
   int32_t         currentTable;
   int8_t          scanMode;
   int8_t          assignBlockUid;
+  uint8_t         countState;     // empty table count state
+  bool            isOneGroup;     // whether or not only one group in this scan
   bool            hasGroupByTag;
   bool            countOnly;
   bool            filesetDelimited;
   bool            needCountEmptyTable;
-  bool            processingEmptyTable;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
