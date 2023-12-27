@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use flume::{Receiver, Sender};
 use futures::FutureExt;
 use itertools::Itertools;
-use metrics::counter;
+
 use taos::{AsyncQueryable, Taos, TaosPool};
 use tokio::{
     sync::oneshot,
@@ -28,7 +28,7 @@ use crate::{
         transform_sql_with_remap,
     },
     utils::breakpoints,
-    Action, QueryOpts, TargetOpts, TimeRange, METRICS_LEGACY_CREATED_TABLES,
+    Action, QueryOpts, TargetOpts, TimeRange,
 };
 
 use super::{sync_normal_table_schema, sync_super_table_schema_with_subs};
@@ -272,8 +272,7 @@ async fn worker(
                                 }
                                 errors.extend(format!("- Error of table {table}: {err}\n").chars());
                             } else {
-                                counter!(METRICS_LEGACY_CREATED_TABLES, 1);
-                                metrics.total_created_tables.fetch_add(1, Ordering::SeqCst);
+                                metrics.add_created_tables(1);
                             }
                         }
 
