@@ -344,7 +344,7 @@ async fn consume_lush_record(
     trace_id_str: &str,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<()> {
-    metrics.add_processed_records(1);
+    metrics.add_processed_batches(1);
     let req_id = RequestID::new(data_trace_id);
     match record {
         LushMessage::Tables(tables) => {
@@ -705,7 +705,7 @@ async fn consume_point_record(
 ) -> anyhow::Result<usize> {
     let mut points = 0;
     let req_id = RequestID::new(data_trace_id);
-    metrics.add_processed_records(1);
+    metrics.add_processed_batches(1);
     for message in record.records() {
         let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(
             message.record(),
@@ -1399,7 +1399,7 @@ async fn consume_flat_record(
     let mut max_lengths = HashMap::new();
     let req_id = RequestID::new(data_trace_id);
     for message in record.records() {
-        metrics.add_processed_records(1);
+        metrics.add_processed_batches(1);
         let batch = message.record();
 
         let batch = parser.parse_message_from_records(batch)?;

@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use std::cell::Cell;
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;

@@ -10,6 +10,7 @@ pub struct IpcMetrics {
     pub com: CommonMetrics,
     pub total_received_batches: AtomicU64,
     pub total_processed_batches: AtomicU64,
+    pub total_processed_records: AtomicU64,
     pub total_insert_sqls: AtomicU64,
     pub total_failed_sqls: AtomicU64,
     pub total_created_stables: AtomicU64,
@@ -37,6 +38,7 @@ impl Default for IpcMetrics {
             com: CommonMetrics::default(),
             total_received_batches: AtomicU64::new(0),
             total_processed_batches: AtomicU64::new(0),
+            total_processed_records: AtomicU64::new(0),
             total_insert_sqls: AtomicU64::new(0),
             total_failed_sqls: AtomicU64::new(0),
             total_created_stables: AtomicU64::new(0),
@@ -66,6 +68,7 @@ impl IpcMetrics {
             com: CommonMetrics::new(task_id),
             total_received_batches: AtomicU64::new(0),
             total_processed_batches: AtomicU64::new(0),
+            total_processed_records: AtomicU64::new(0),
             total_insert_sqls: AtomicU64::new(0),
             total_failed_sqls: AtomicU64::new(0),
             total_created_stables: AtomicU64::new(0),
@@ -101,7 +104,7 @@ impl IpcMetrics {
 
     #[inline]
     pub fn add_processed_records(&self, n: u64) {
-        self.total_processed_batches.fetch_add(n, SeqCst);
+        self.total_processed_records.fetch_add(n, SeqCst);
         self.processed_records.fetch_add(n, SeqCst);
     }
 
