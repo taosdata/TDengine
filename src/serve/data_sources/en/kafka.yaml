@@ -20,6 +20,12 @@ groups:
     description: Use self-signed certificate file and private key.
     collapsible: true
     params:
+      - name: ca
+        display: CA
+        description: CA file.
+        required: true
+        hint:
+          type: file
       - name: cert
         display: Client certificate file
         description: Client certificate file.
