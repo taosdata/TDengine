@@ -95,8 +95,18 @@ void mndDropConsumerFromSdb(SMnode *pMnode, int64_t consumerId, SRpcHandleInfo* 
 
 bool mndRebTryStart() {
   int32_t old = atomic_val_compare_exchange_32(&mqRebInExecCnt, 0, 1);
-  mDebug("tq timer, rebalance counter old val:%d", old);
+  mInfo("tq timer, rebalance counter old val:%d", old);
   return old == 0;
+}
+
+bool mndRebCanStart() {
+  int32_t val = atomic_load_32(&mqRebInExecCnt);
+  if (val < 0) {
+    mError("rebalance trans end, rebalance counter:%d should not be less equalled than 0, ignore counter desc", val);
+    return false;
+  }
+  mInfo("tq timer, rebalance counter val:%d", val);
+  return val == 0;
 }
 
 void mndRebEnd() { mndRebCntDec(); }
@@ -117,7 +127,7 @@ void mndRebCntDec() {
     int32_t newVal = val - 1;
     int32_t oldVal = atomic_val_compare_exchange_32(&mqRebInExecCnt, val, newVal);
     if (oldVal == val) {
-      mDebug("rebalance trans end, rebalance counter:%d", newVal);
+      mInfo("rebalance trans end, rebalance counter:%d", newVal);
       break;
     }
   }
@@ -257,10 +267,10 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
   SMqConsumerObj *pConsumer;
   void           *pIter = NULL;
 
-  mDebug("start to process mq timer");
+  mInfo("start to process mq timer");
 
   // rebalance cannot be parallel
-  if (!mndRebTryStart()) {
+  if (!mndRebCanStart()) {
     mInfo("mq rebalance already in progress, do nothing");
     return 0;
   }
@@ -268,7 +278,6 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
   SMqDoRebalanceMsg *pRebMsg = rpcMallocCont(sizeof(SMqDoRebalanceMsg));
   if (pRebMsg == NULL) {
     mError("failed to create the rebalance msg, size:%d, quit mq timer", (int32_t)sizeof(SMqDoRebalanceMsg));
-    mndRebEnd();
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -276,7 +285,6 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
   if (pRebMsg->rebSubHash == NULL) {
     mError("failed to create rebalance hashmap");
     rpcFreeCont(pRebMsg);
-    mndRebEnd();
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -335,6 +343,11 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
         SMqRebInfo *pRebSub = mndGetOrCreateRebSub(pRebMsg->rebSubHash, key);
         taosArrayPush(pRebSub->removedConsumers, &pConsumer->consumerId);
       }
+
+      if (newTopicNum == 0 && removedTopicNum == 0 && taosArrayGetSize(pConsumer->assignedTopics) == 0) {   // unsubscribe or close
+        mndDropConsumerFromSdb(pMnode, pConsumer->consumerId, &pMsg->info);
+      }
+
       taosRUnLockLatch(&pConsumer->lock);
     }
 
@@ -342,7 +355,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
   }
 
   if (taosHashGetSize(pRebMsg->rebSubHash) != 0) {
-      mInfo("mq rebalance will be triggered");
+    mInfo("mq send msg to rebalance");
     SRpcMsg rpcMsg = {
         .msgType = TDMT_MND_TMQ_DO_REBALANCE,
         .pCont = pRebMsg,
@@ -352,8 +365,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
   } else {
     taosHashCleanup(pRebMsg->rebSubHash);
     rpcFreeCont(pRebMsg);
-    mDebug("mq timer finished, no need to re-balance");
-    mndRebEnd();
+    mInfo("mq timer finished, no need to re-balance");
   }
   return 0;
 }
