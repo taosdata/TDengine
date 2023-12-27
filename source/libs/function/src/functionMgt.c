@@ -518,7 +518,7 @@ static int32_t fmCreateStateFunc(const SFunctionNode* pFunc, SFunctionNode** pSt
     SNodeList* pParams = nodesCloneList(pFunc->pParameterList);
     if (!pParams) return TSDB_CODE_OUT_OF_MEMORY;
     *pStateFunc = createFunction(funcMgtBuiltins[pFunc->funcId].pStateFunc, pParams);
-    if (!pStateFunc) {
+    if (!*pStateFunc) {
       nodesDestroyList(pParams);
       return TSDB_CODE_FUNC_FUNTION_ERROR;
     }
@@ -548,6 +548,45 @@ int32_t fmCreateStateFuncs(SNodeList* pFuncs) {
         break;
       } else if (!pNewFunc) {
         // no need state func
+        continue;
+      } else {
+        REPLACE_NODE(pNewFunc);
+        nodesDestroyNode(pNode);
+      }
+    }
+  }
+  return code;
+}
+
+static int32_t fmCreateStateMergeFunc(SFunctionNode* pFunc, SFunctionNode** pStateMergeFunc) {
+  if (funcMgtBuiltins[pFunc->funcId].pMergeFunc) {
+    SNodeList* pParams = nodesCloneList(pFunc->pParameterList);
+    if (!pParams) return TSDB_CODE_OUT_OF_MEMORY;
+    *pStateMergeFunc = createFunction(funcMgtBuiltins[pFunc->funcId].pMergeFunc, pParams);
+    if (!*pStateMergeFunc) {
+      nodesDestroyList(pParams);
+      return TSDB_CODE_FUNC_FUNTION_ERROR;
+    }
+    strcpy((*pStateMergeFunc)->node.aliasName, pFunc->node.aliasName);
+    strcpy((*pStateMergeFunc)->node.userAlias, pFunc->node.userAlias);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t fmCreateStateMergeFuncs(SNodeList* pFuncs) {
+  int32_t code;
+  SNode*  pNode;
+  char    buf[128] = {0};
+  FOREACH(pNode, pFuncs) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (fmIsTSMASupportedFunc(pFunc->funcId)) {
+      SFunctionNode* pNewFunc = NULL;
+      code = fmCreateStateMergeFunc(pFunc, &pNewFunc);
+      if (code) {
+        // error
+        break;
+      } else if (!pNewFunc) {
+        // no state merge func
         continue;
       } else {
         REPLACE_NODE(pNewFunc);
