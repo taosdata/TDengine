@@ -3,24 +3,22 @@ use std::path::{Path, PathBuf};
 use std::str::ParseBoolError;
 use std::time::Duration;
 
+use crate::plugins::config::AdvancedOptions;
 use kafka::consumer::{FetchOffset, GroupOffsetStorage};
 use taos::Dsn;
 
 #[derive(Debug)]
-pub struct SourceConfig {
+pub struct KafkaTaskConfig {
     // kafka brokers
     pub bootstrap_servers: Vec<String>,
+
+    pub use_ssl: bool,
+    pub cert: Option<PathBuf>,
+    pub cert_key: Option<PathBuf>,
 
     pub group: String,
     pub topics: Option<Vec<String>>,
     pub topic_partitions: Option<HashMap<String, Vec<i32>>>,
-
-    // certification file path
-    pub cert: Option<PathBuf>,
-    // certification key file path
-    pub cert_key: Option<PathBuf>,
-    // use SSL or not
-    pub use_ssl: bool,
 
     pub fallback_offset: FetchOffset,
     pub fetch_max_wait_time: Option<Duration>,
@@ -33,9 +31,10 @@ pub struct SourceConfig {
     pub client_id: Option<String>,
 
     pub timeout: i64,
+    pub advanced_options: AdvancedOptions,
 }
 
-impl SourceConfig {
+impl KafkaTaskConfig {
     pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
         let use_ssl = Self::parse_use_ssl(dsn)?;
         let (cert, cert_key) = if use_ssl {
@@ -44,7 +43,7 @@ impl SourceConfig {
             (None, None)
         };
 
-        let config = SourceConfig {
+        let config = KafkaTaskConfig {
             bootstrap_servers: Self::parse_bootstrap_servers(dsn)?,
             group: Self::parse_group(dsn),
             topics: Self::parse_topics(dsn),
@@ -62,6 +61,7 @@ impl SourceConfig {
             connection_idle_timeout: Self::parse_connection_idle_timeout(dsn)?,
             client_id: Self::parse_client_id(dsn)?,
             timeout: Self::parse_timeout(dsn)?,
+            advanced_options: AdvancedOptions::from_dsn(dsn)?,
         };
         Ok(config)
     }
@@ -351,12 +351,12 @@ mod tests {
     #[test]
     fn test_parse_bootstrap_servers() {
         let dsn = Dsn::from_str("kafka://localhost:9092,192.168.1.92:9092").unwrap();
-        let bootstrap_servers = SourceConfig::parse_bootstrap_servers(&dsn).unwrap();
+        let bootstrap_servers = KafkaTaskConfig::parse_bootstrap_servers(&dsn).unwrap();
         assert_eq!("localhost:9092", bootstrap_servers[0]);
         assert_eq!("192.168.1.92:9092", bootstrap_servers[1]);
 
         let dsn = Dsn::from_str("kafka://localhost").unwrap();
-        let bootstrap_servers = SourceConfig::parse_bootstrap_servers(&dsn);
+        let bootstrap_servers = KafkaTaskConfig::parse_bootstrap_servers(&dsn);
         assert!(bootstrap_servers.is_err());
         assert_eq!(
             "invalid bootstrap_servers, cause: host or port is none",
@@ -364,7 +364,7 @@ mod tests {
         );
 
         let dsn = Dsn::from_str("kafka://:9092").unwrap();
-        let bootstrap_servers = SourceConfig::parse_bootstrap_servers(&dsn);
+        let bootstrap_servers = KafkaTaskConfig::parse_bootstrap_servers(&dsn);
         assert!(bootstrap_servers.is_err());
         assert_eq!(
             "invalid bootstrap_servers, cause: host or port is none",
@@ -375,22 +375,22 @@ mod tests {
     #[test]
     fn test_parse_use_ssl() {
         let dsn = Dsn::from_str("kafka://?use_ssl=true").unwrap();
-        let use_ssl = SourceConfig::parse_use_ssl(&dsn).unwrap();
+        let use_ssl = KafkaTaskConfig::parse_use_ssl(&dsn).unwrap();
         assert_eq!(true, use_ssl);
 
         let dsn = Dsn::from_str("kafka://?use_ssl=false").unwrap();
-        let use_ssl = SourceConfig::parse_use_ssl(&dsn).unwrap();
+        let use_ssl = KafkaTaskConfig::parse_use_ssl(&dsn).unwrap();
         assert_eq!(false, use_ssl);
 
         let dsn = Dsn::from_str("kafka://").unwrap();
-        let use_ssl = SourceConfig::parse_use_ssl(&dsn).unwrap();
+        let use_ssl = KafkaTaskConfig::parse_use_ssl(&dsn).unwrap();
         assert_eq!(false, use_ssl);
 
         let dsn = Dsn::from_str("kafka://?use_ssl=invalid").unwrap();
-        let result = SourceConfig::parse_use_ssl(&dsn);
+        let result = KafkaTaskConfig::parse_use_ssl(&dsn);
         assert!(result.is_err());
         assert_eq!(
-            "invalid use_ssl: invalid, cause: provided string was not `true` or `false`",
+            "invalid use_ssl, cause: provided string was not `true` or `false`",
             result.unwrap_err().to_string()
         );
     }
@@ -401,12 +401,12 @@ mod tests {
         let dsn =
             Dsn::from_str("kafka://?cert=../tests/kafka/ca.pem&cert_key=../tests/kafka/ca.key")
                 .unwrap();
-        let (cert, cert_key) = SourceConfig::parse_certification(&dsn).unwrap();
+        let (cert, cert_key) = KafkaTaskConfig::parse_certification(&dsn).unwrap();
         assert_eq!(Path::new("../tests/kafka/ca.pem"), cert.unwrap());
         assert_eq!(Path::new("../tests/kafka/ca.key"), cert_key.unwrap());
 
         let dsn = Dsn::from_str("kafka://").unwrap();
-        let result = SourceConfig::parse_certification(&dsn);
+        let result = KafkaTaskConfig::parse_certification(&dsn);
         assert!(result.is_err());
         assert_eq!(
             "Kafka source CA config read error, cause: cert file not found",
@@ -414,7 +414,7 @@ mod tests {
         );
 
         let dsn = Dsn::from_str("kafka://?cert=../tests/kafka/ca.pem").unwrap();
-        let result = SourceConfig::parse_certification(&dsn);
+        let result = KafkaTaskConfig::parse_certification(&dsn);
         assert!(result.is_err());
         assert_eq!(
             "Kafka source CA config read error, cause: cert_key file not found",
@@ -425,22 +425,22 @@ mod tests {
     #[test]
     fn test_parse_group() {
         let dsn = Dsn::from_str("kafka://:?group=group1").unwrap();
-        let group = SourceConfig::parse_group(&dsn);
+        let group = KafkaTaskConfig::parse_group(&dsn);
         assert_eq!("group1", group);
 
         let dsn = Dsn::from_str("kafka://").unwrap();
-        let group = SourceConfig::parse_group(&dsn);
+        let group = KafkaTaskConfig::parse_group(&dsn);
         assert_eq!("", group);
 
         let dsn = Dsn::from_str("kafka://:?group=&topics=tp1").unwrap();
-        let group = SourceConfig::parse_group(&dsn);
+        let group = KafkaTaskConfig::parse_group(&dsn);
         assert_eq!("", group);
     }
 
     #[test]
     fn test_parse_topics() {
         let dsn = Dsn::from_str("kafka://:?topics=tp1,tp2").unwrap();
-        let topics = SourceConfig::parse_topics(&dsn);
+        let topics = KafkaTaskConfig::parse_topics(&dsn);
         assert_eq!("tp1", topics.as_ref().unwrap()[0]);
         assert_eq!("tp2", topics.as_ref().unwrap()[1]);
     }
@@ -448,36 +448,46 @@ mod tests {
     #[test]
     fn test_parse_topic_partitions() {
         let dsn = Dsn::from_str("kafka://:?topic_partitions=tp1").unwrap();
-        let topic_partitions = SourceConfig::parse_topic_partitions(&dsn).unwrap().unwrap();
+        let topic_partitions = KafkaTaskConfig::parse_topic_partitions(&dsn)
+            .unwrap()
+            .unwrap();
         assert_eq!(1, topic_partitions.len());
         assert_eq!(true, topic_partitions.get("tp1").unwrap().is_empty());
 
         let dsn = Dsn::from_str("kafka://:?topic_partitions=tp2:0").unwrap();
-        let topic_partitions = SourceConfig::parse_topic_partitions(&dsn).unwrap().unwrap();
+        let topic_partitions = KafkaTaskConfig::parse_topic_partitions(&dsn)
+            .unwrap()
+            .unwrap();
         assert_eq!(1, topic_partitions.len());
         assert_eq!(1, topic_partitions.get("tp2").unwrap().len());
         assert_eq!(0, topic_partitions.get("tp2").unwrap()[0]);
 
         let dsn = Dsn::from_str("kafka://:?topic_partitions=tp3:0..9").unwrap();
-        let topic_partitions = SourceConfig::parse_topic_partitions(&dsn).unwrap().unwrap();
+        let topic_partitions = KafkaTaskConfig::parse_topic_partitions(&dsn)
+            .unwrap()
+            .unwrap();
         assert_eq!(1, topic_partitions.len());
         assert_eq!(10, topic_partitions.get("tp3").unwrap().len());
         assert_eq!(5, topic_partitions.get("tp3").unwrap()[5]);
 
         let dsn = Dsn::from_str("kafka://:?topic_partitions=tp4:0..5,tp4:7,tp5").unwrap();
-        let topic_partitions = SourceConfig::parse_topic_partitions(&dsn).unwrap().unwrap();
+        let topic_partitions = KafkaTaskConfig::parse_topic_partitions(&dsn)
+            .unwrap()
+            .unwrap();
         assert_eq!(2, topic_partitions.len());
         assert_eq!(7, topic_partitions.get("tp4").unwrap().len());
         assert_eq!(7, topic_partitions.get("tp4").unwrap()[6]);
         assert_eq!(true, topic_partitions.get("tp5").unwrap().is_empty());
 
         let dsn = Dsn::from_str("kafka://:?topic_partitions=tp6:0..5,tp6:7,tp6").unwrap();
-        let topic_partitions = SourceConfig::parse_topic_partitions(&dsn).unwrap().unwrap();
+        let topic_partitions = KafkaTaskConfig::parse_topic_partitions(&dsn)
+            .unwrap()
+            .unwrap();
         assert_eq!(1, topic_partitions.len());
         assert_eq!(true, topic_partitions.get("tp6").unwrap().is_empty());
 
         let dsn = Dsn::from_str("kafka://:?topic_partitions=tp7:5..2").unwrap();
-        let topic_partitions = SourceConfig::parse_topic_partitions(&dsn);
+        let topic_partitions = KafkaTaskConfig::parse_topic_partitions(&dsn);
         assert!(topic_partitions.is_err());
         assert_eq!(
             "invalid partition range: 5..2",
@@ -489,22 +499,22 @@ mod tests {
     fn test_parse_fallback_offset() {
         // Earliest
         let dsn = Dsn::from_str("kafka://:?fallback_offset=Earliest").unwrap();
-        let result = SourceConfig::parse_fallback_offset(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_fallback_offset(&dsn).unwrap();
         assert_eq!("Earliest", format!("{result:?}"));
 
         // Latest
         let dsn = Dsn::from_str("kafka://:?fallback_offset=Latest").unwrap();
-        let result = SourceConfig::parse_fallback_offset(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_fallback_offset(&dsn).unwrap();
         assert_eq!("Latest", format!("{result:?}"));
 
         // ByTime
         let dsn = Dsn::from_str("kafka://:?fallback_offset=1600000000000").unwrap();
-        let result = SourceConfig::parse_fallback_offset(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_fallback_offset(&dsn).unwrap();
         assert_eq!("ByTime(1600000000000)", format!("{result:?}"));
 
         // invalid
         let dsn = Dsn::from_str("kafka://:?fallback_offset=invalid").unwrap();
-        let result = SourceConfig::parse_fallback_offset(&dsn);
+        let result = KafkaTaskConfig::parse_fallback_offset(&dsn);
         assert!(result.is_err());
         assert_eq!(
             "invalid fallback_offset: invalid, cause: invalid digit found in string",
@@ -515,16 +525,16 @@ mod tests {
     #[test]
     fn test_parse_fetch_max_wait_time() {
         let dsn = Dsn::from_str("kafka://?fetch_max_wait_time=1h").unwrap();
-        let result = SourceConfig::parse_fetch_max_wait_time(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_fetch_max_wait_time(&dsn).unwrap();
         assert!(result.is_some());
         assert_eq!(3600, result.unwrap().as_secs());
 
         let dsn = Dsn::from_str("kafka://").unwrap();
-        let result = SourceConfig::parse_fetch_max_wait_time(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_fetch_max_wait_time(&dsn).unwrap();
         assert!(result.is_none());
 
         let dsn = Dsn::from_str("kafka://?fetch_max_wait_time=invalid").unwrap();
-        let result = SourceConfig::parse_fetch_max_wait_time(&dsn);
+        let result = KafkaTaskConfig::parse_fetch_max_wait_time(&dsn);
         assert!(result.is_err());
         assert_eq!("invalid fetch_max_wait_time: invalid, cause: NoValueFoundError: no value found in the string \"invalid\"", result.unwrap_err().to_string());
     }
@@ -532,16 +542,16 @@ mod tests {
     #[test]
     fn test_parse_fetch_min_bytes() {
         let dsn = Dsn::from_str("kafka://?fetch_min_bytes=100").unwrap();
-        let result = SourceConfig::parse_fetch_min_bytes(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_fetch_min_bytes(&dsn).unwrap();
         assert!(result.is_some());
         assert_eq!(100, result.unwrap());
 
         let dsn = Dsn::from_str("kafka://").unwrap();
-        let result = SourceConfig::parse_fetch_min_bytes(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_fetch_min_bytes(&dsn).unwrap();
         assert!(result.is_none());
 
         let dsn = Dsn::from_str("kafka://?fetch_min_bytes=invalid").unwrap();
-        let result = SourceConfig::parse_fetch_min_bytes(&dsn);
+        let result = KafkaTaskConfig::parse_fetch_min_bytes(&dsn);
         assert!(result.is_err());
         assert_eq!(
             "invalid fetch_min_bytes: invalid, cause: invalid digit found in string",
@@ -552,17 +562,17 @@ mod tests {
     #[test]
     fn test_parse_fetch_max_bytes_per_partition() {
         let dsn = Dsn::from_str("kafka://?fetch_max_bytes_per_partition=100").unwrap();
-        let config = SourceConfig::parse_fetch_max_bytes_per_partition(&dsn).unwrap();
+        let config = KafkaTaskConfig::parse_fetch_max_bytes_per_partition(&dsn).unwrap();
         assert!(config.is_some());
         assert_eq!(100, config.unwrap());
 
         let dsn = Dsn::from_str("kafka://").unwrap();
-        let config = SourceConfig::parse_fetch_max_bytes_per_partition(&dsn).unwrap();
+        let config = KafkaTaskConfig::parse_fetch_max_bytes_per_partition(&dsn).unwrap();
         assert!(config.is_some());
         assert_eq!(1024 * 1024, config.unwrap());
 
         let dsn = Dsn::from_str("kafka://?fetch_max_bytes_per_partition=invalid").unwrap();
-        let result = SourceConfig::parse_fetch_max_bytes_per_partition(&dsn);
+        let result = KafkaTaskConfig::parse_fetch_max_bytes_per_partition(&dsn);
         assert!(result.is_err());
         assert_eq!(
             "invalid fetch_max_bytes_per_partition: invalid, cause: invalid digit found in string",
@@ -573,16 +583,16 @@ mod tests {
     #[test]
     fn test_parse_fetch_crc_validation() {
         let dsn = Dsn::from_str("kafka://?fetch_crc_validation=true").unwrap();
-        let config = SourceConfig::parse_fetch_crc_validation(&dsn).unwrap();
+        let config = KafkaTaskConfig::parse_fetch_crc_validation(&dsn).unwrap();
         assert!(config.is_some());
         assert_eq!(true, config.unwrap());
 
         let dsn = Dsn::from_str("kafka://").unwrap();
-        let config = SourceConfig::parse_fetch_crc_validation(&dsn).unwrap();
+        let config = KafkaTaskConfig::parse_fetch_crc_validation(&dsn).unwrap();
         assert!(config.is_none());
 
         let dsn = Dsn::from_str("kafka://?fetch_crc_validation=invalid").unwrap();
-        let result = SourceConfig::parse_fetch_crc_validation(&dsn);
+        let result = KafkaTaskConfig::parse_fetch_crc_validation(&dsn);
         assert!(result.is_err());
         assert_eq!("invalid fetch_crc_validation: invalid, cause: provided string was not `true` or `false`", result.unwrap_err().to_string());
     }
@@ -590,16 +600,16 @@ mod tests {
     #[test]
     fn test_parse_offset_storage() {
         let dsn = Dsn::from_str("kafka://?offset_storage=Kafka").unwrap();
-        let config = SourceConfig::parse_offset_storage(&dsn).unwrap();
+        let config = KafkaTaskConfig::parse_offset_storage(&dsn).unwrap();
         assert!(config.is_some());
         assert_eq!("Kafka", format!("{:?}", config.unwrap()));
 
         let dsn = Dsn::from_str("kafka://").unwrap();
-        let config = SourceConfig::parse_offset_storage(&dsn).unwrap();
+        let config = KafkaTaskConfig::parse_offset_storage(&dsn).unwrap();
         assert!(config.is_none());
 
         let dsn = Dsn::from_str("kafka://?offset_storage=invalid").unwrap();
-        let result = SourceConfig::parse_offset_storage(&dsn);
+        let result = KafkaTaskConfig::parse_offset_storage(&dsn);
         assert!(result.is_err());
         assert_eq!("invalid offset_storage: invalid, cause: provided string was not `Zookeeper` or `Kafka`", result.unwrap_err().to_string());
     }
@@ -607,16 +617,16 @@ mod tests {
     #[test]
     fn test_parse_retry_max_bytes_limit() {
         let dsn = Dsn::from_str("kafka://?retry_max_bytes_limit=100").unwrap();
-        let config = SourceConfig::parse_retry_max_bytes_limit(&dsn).unwrap();
+        let config = KafkaTaskConfig::parse_retry_max_bytes_limit(&dsn).unwrap();
         assert!(config.is_some());
         assert_eq!(100, config.unwrap());
 
         let dsn = Dsn::from_str("kafka://").unwrap();
-        let config = SourceConfig::parse_retry_max_bytes_limit(&dsn).unwrap();
+        let config = KafkaTaskConfig::parse_retry_max_bytes_limit(&dsn).unwrap();
         assert!(config.is_none());
 
         let dsn = Dsn::from_str("kafka://?retry_max_bytes_limit=invalid").unwrap();
-        let result = SourceConfig::parse_retry_max_bytes_limit(&dsn);
+        let result = KafkaTaskConfig::parse_retry_max_bytes_limit(&dsn);
         assert!(result.is_err());
         assert_eq!(
             "invalid retry_max_bytes_limit: invalid, cause: invalid digit found in string",
@@ -627,15 +637,15 @@ mod tests {
     #[test]
     fn test_parse_connection_idle_timeout() {
         let dsn = Dsn::from_str("kafka://?connection_idle_timeout=1h").unwrap();
-        let result = SourceConfig::parse_connection_idle_timeout(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_connection_idle_timeout(&dsn).unwrap();
         assert!(result.is_some());
 
         let dsn = Dsn::from_str("kafka://").unwrap();
-        let result = SourceConfig::parse_connection_idle_timeout(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_connection_idle_timeout(&dsn).unwrap();
         assert!(result.is_none());
 
         let dsn = Dsn::from_str("kafka://?connection_idle_timeout=invalid").unwrap();
-        let result = SourceConfig::parse_connection_idle_timeout(&dsn);
+        let result = KafkaTaskConfig::parse_connection_idle_timeout(&dsn);
         assert!(result.is_err());
         assert_eq!("invalid connection_idle_timeout: invalid, cause: NoValueFoundError: no value found in the string \"invalid\"", result.unwrap_err().to_string());
     }
@@ -643,51 +653,51 @@ mod tests {
     #[test]
     fn test_parse_client_id() {
         let dsn = Dsn::from_str("kafka://?client_id=client1").unwrap();
-        let result = SourceConfig::parse_client_id(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_client_id(&dsn).unwrap();
         assert!(result.is_some());
         assert_eq!("client1", result.unwrap());
 
         let dsn = Dsn::from_str("kafka://").unwrap();
-        let result = SourceConfig::parse_client_id(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_client_id(&dsn).unwrap();
         assert!(result.is_none());
 
         let dsn = Dsn::from_str("kafka://?client_id=").unwrap();
-        let result = SourceConfig::parse_client_id(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_client_id(&dsn).unwrap();
         assert_eq!("", result.unwrap().as_str());
     }
 
     #[test]
     fn test_parse_timeout() {
         let dsn = Dsn::from_str("kafka://?timeout=5s").unwrap();
-        let result = SourceConfig::parse_timeout(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_timeout(&dsn).unwrap();
         assert_eq!(5000, result);
 
         let dsn = Dsn::from_str("kafka://?timeout=30s").unwrap();
-        let result = SourceConfig::parse_timeout(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_timeout(&dsn).unwrap();
         assert_eq!(30 * 1000, result);
 
         let dsn = Dsn::from_str("kafka://?timeout=5min").unwrap();
-        let result = SourceConfig::parse_timeout(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_timeout(&dsn).unwrap();
         assert_eq!(5 * 60 * 1000, result);
 
         let dsn = Dsn::from_str("kafka://?timeout=6h").unwrap();
-        let result = SourceConfig::parse_timeout(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_timeout(&dsn).unwrap();
         assert_eq!(6 * 3600 * 1000, result);
 
         let dsn = Dsn::from_str("kafka://?timeout=1d").unwrap();
-        let result = SourceConfig::parse_timeout(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_timeout(&dsn).unwrap();
         assert_eq!(24 * 3600 * 1000, result);
 
         let dsn = Dsn::from_str("kafka://?").unwrap();
-        let result = SourceConfig::parse_timeout(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_timeout(&dsn).unwrap();
         assert_eq!(500, result);
 
         let dsn = Dsn::from_str("kafka://?timeout=never").unwrap();
-        let result = SourceConfig::parse_timeout(&dsn).unwrap();
+        let result = KafkaTaskConfig::parse_timeout(&dsn).unwrap();
         assert_eq!(-1, result);
 
         let dsn = Dsn::from_str("kafka://?timeout=invalid").unwrap();
-        let result = SourceConfig::parse_timeout(&dsn);
+        let result = KafkaTaskConfig::parse_timeout(&dsn);
         assert!(result.is_err());
         assert_eq!("invalid timeout: invalid, cause: NoValueFoundError: no value found in the string \"invalid\"", result.unwrap_err().to_string());
     }
