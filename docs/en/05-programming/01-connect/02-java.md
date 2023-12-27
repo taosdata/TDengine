@@ -5,12 +5,13 @@ description: This document describes how to connect to TDengine Cloud using the 
 ---
 
 <!-- exclude -->
+
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 <!-- exclude-end -->
-## Add Dependency
 
+## Add Dependency
 
 <Tabs defaultValue="maven">
 <TabItem value="maven" label="Maven">
@@ -24,7 +25,7 @@ import TabItem from '@theme/TabItem';
 
 ```groovy title="build.gradle"
 dependencies {
-  implementation 'com.taosdata.jdbc:taos-jdbcdriver:3.0.0.0'
+  implementation 'com.taosdata.jdbc:taos-jdbcdriver:3.2.7'
 }
 ```
 
@@ -35,19 +36,20 @@ dependencies {
 
 Run this command in your terminal to save the JDBC URL as variable:
 
-
 <Tabs defaultValue="bash">
 <TabItem value="bash" label="Bash">
 
 ```bash
 export TDENGINE_JDBC_URL="<jdbcURL>"
 ```
+
 </TabItem>
 <TabItem value="cmd" label="CMD">
 
 ```shell
 set TDENGINE_JDBC_URL=<jdbcURL>
 ```
+
 </TabItem>
 <TabItem value="powershell" label="Powershell">
 
@@ -58,17 +60,18 @@ $env:TDENGINE_JDBC_URL='<jdbcURL>'
 </TabItem>
 </Tabs>
 
-
 Alternatively, you can set environment variable in your IDE's run configurations.
 
-
 <!-- exclude -->
+
 :::note IMPORTANT
-Replace  <jdbcURL\> with real JDBC URL, it will seems like: `jdbc:TAOS-RS://example.com?useSSL=true&token=xxxx`.
+Replace <jdbcURL\> with real JDBC URL, it will seems like: `jdbc:TAOS-RS://example.com?useSSL=true&token=xxxx`.
 
 To obtain the value of JDBC URL, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on the left menu, then select "Java".
 :::
+
 <!-- exclude-end -->
+
 ## Connect
 
 Code bellow get JDBC URL from environment variables first and then create a `Connection` object, which is a standard JDBC Connection object.
