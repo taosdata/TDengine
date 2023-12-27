@@ -2343,10 +2343,6 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
     }
 
     int32_t code = pAPI->stateStore.streamStateGetByPos(pState, pPos, (void**)&pRow);
-    if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
-      ASSERT(pBlock->info.rows > 0);
-      break;
-    }
 
     if (code == -1) {
       // for history
@@ -2361,6 +2357,11 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
     if (pRow->numOfRows == 0) {
       pGroupResInfo->index += 1;
       continue;
+    }
+
+    if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
+      ASSERT(pBlock->info.rows > 0);
+      break;
     }
 
     pGroupResInfo->index += 1;
@@ -2383,6 +2384,7 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
         SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
         char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
         for (int32_t k = 0; k < pRow->numOfRows; ++k) {
+          qDebug("===stream===block rows:%d, rows:%d, exprs:%d, capacity:%d", pBlock->info.rows, i, j, pBlock->info.capacity);
           colDataSetVal(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
         }
       }
