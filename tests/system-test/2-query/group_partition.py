@@ -134,7 +134,7 @@ class TDTestCase:
         tdSql.query(f"select * from (select count(c1) from {self.dbname}.{self.stable} partition by tbname) ")
         tdSql.checkRows(check_num)
 
-        tdSql.query(f"select t1, c from (select t1, sum(c1) as s, count(*) as c from {self.stable} partition by t1)")
+        tdSql.query(f"select t1, c from (select t1, sum(c1) as s, count(*) as c from {self.dbname}.{self.stable} partition by t1)")
         tdSql.checkRows(check_num)
 
 
@@ -156,7 +156,7 @@ class TDTestCase:
         tdSql.checkRows(nonempty_tb_num)
 
         # event window
-        tdSql.query(f"select tbname, count(*) from {self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9;")
+        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9;")
         tdSql.checkRows(nonempty_tb_num)
 
 
