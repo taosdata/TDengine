@@ -1292,7 +1292,6 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 
   // check if the checkpoint msg already sent or not.
   if (status == TASK_STATUS__CK) {
-    ASSERT(pTask->chkInfo.checkpointingId == req.checkpointId);
     tqWarn("s-task:%s recv checkpoint-source msg again checkpointId:%" PRId64
            " transId:%d already received, ignore this msg and continue process checkpoint",
            pTask->id.idStr, pTask->chkInfo.checkpointingId, req.transId);
