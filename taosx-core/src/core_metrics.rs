@@ -5,7 +5,7 @@
 use crate::legacy::legacy_metric::LegacyToTaosMetrics;
 use crate::plugins::sink::ipc_metric::IpcMetrics;
 use crate::tmq::tmq_metric::TmqMetrics;
-use crate::utils::metrics_db::MetricsDb;
+use crate::utils::metrics_db::MetricsStore;
 use lazy_static::lazy_static;
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
@@ -116,7 +116,7 @@ pub trait TaosXMetrics: Into<CoreMetrics> + Serialize {
 
     /// Convert metrics to json string.
     fn to_json(&self) -> String {
-        serde_json::to_string(self).unwrap()
+        serde_json::to_string_pretty(self).unwrap()
     }
 
     /// Restore metrics from json string.
@@ -126,8 +126,8 @@ pub trait TaosXMetrics: Into<CoreMetrics> + Serialize {
     fn save(&self) -> anyhow::Result<()> {
         self.com().update_execute_time();
         let task_id = self.com().task_id.to_string();
-        let db = MetricsDb::new(task_id.as_str())?;
-        db.set(self.to_json().as_str())
+        let store = MetricsStore::new(task_id.as_str());
+        store.set(self.to_json().as_str())
     }
 
     #[inline]
@@ -205,27 +205,15 @@ pub fn get_metrics_arc_from_i64(task_id: Option<i64>) -> Arc<CoreMetrics> {
 
 /// Try to load metrics from persistence.
 pub fn load_metrics<T: TaosXMetrics>(task_id: &str) -> Option<T> {
-    let path_buf = MetricsDb::db_dir(task_id);
-    let db_path = Path::new(&path_buf);
-    if db_path.exists() {
-        match MetricsDb::from_path(db_path) {
-            Ok(db) => match db.get() {
-                Ok(json) => {
-                    if let Some(json) = json {
-                        let j = json.as_str();
-                        T::from_json(j)
-                    } else {
-                        tracing::error!("get metrics from db return None {}", db_path.display());
-                        None
-                    }
-                }
-                Err(err) => {
-                    tracing::error!("get metrics from db failed: {:?}", &err);
-                    None
-                }
-            },
+    let store = MetricsStore::new(task_id);
+    if store.path.exists() {
+        match store.get_string() {
+            Ok(json) => {
+                let j = json.as_str();
+                T::from_json(j)
+            }
             Err(err) => {
-                tracing::error!("load metrics from db failed: {:?}", &err);
+                tracing::error!("get metrics from disk failed: {:?}", &err);
                 None
             }
         }
@@ -316,7 +304,10 @@ pub fn try_get_metrics<T: TaosXMetrics>(task_id: i64) -> Option<Arc<CoreMetrics>
 pub fn clear_metrics(task_id: i64) {
     let mut metrics = GLOBAL_METRICS.lock().unwrap();
     let _ = metrics.remove(&task_id);
-    let _ = MetricsDb::clear(task_id.to_string().as_str());
+    let store = MetricsStore::new(task_id.to_string().as_str());
+    if let Err(err) = store.clear() {
+        tracing::error!("clear metrics failed: {:?}", err);
+    }
 }
 
 pub fn init_task_metrics(from: Dsn, to: Dsn, task_id: i64) -> Arc<CoreMetrics> {
@@ -496,6 +487,7 @@ fn save_metrics(metrics: Arc<CoreMetrics>) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::get_data_dir;
 
     /// This test case is to verify that the global metrics can be accessed by multiple threads and the metrics can be updated concurrently.
     #[test]
@@ -558,13 +550,15 @@ mod tests {
     /// This test case is to verify that the metrics can be loaded from persistence.
     #[test]
     fn test_load_metrics() {
+        let task_dir = get_data_dir().join("tasks").join("1024");
+        std::fs::create_dir_all(&task_dir).unwrap();
         let legacy_to_taos_metrics = LegacyToTaosMetrics::new(1024);
         legacy_to_taos_metrics
             .workers
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
 
         {
-            let db = MetricsDb::new("1024").unwrap();
+            let db = MetricsStore::new("1024");
             db.set(legacy_to_taos_metrics.to_json().as_str()).unwrap();
         }
         let metrics = load_metrics::<LegacyToTaosMetrics>("1024").unwrap();
@@ -572,14 +566,14 @@ mod tests {
             metrics.workers.load(std::sync::atomic::Ordering::SeqCst),
             10
         );
-        MetricsDb::clear("1024").unwrap();
     }
 
     /// This test case is to verify that the metrics can be saved to persistence and cleared.
     #[test]
     fn test_save_and_clear_metrics() {
-        let path_buf = MetricsDb::db_dir("10240");
-        let db_path = Path::new(&path_buf);
+        let task_dir = get_data_dir().join("tasks").join("1024");
+        std::fs::create_dir_all(&task_dir).unwrap();
+        let db = MetricsStore::new("1024");
 
         let legacy_to_taos_metrics = LegacyToTaosMetrics::new(1024);
         legacy_to_taos_metrics
@@ -588,13 +582,13 @@ mod tests {
         let metrics = Arc::new(CoreMetrics::Legacy(legacy_to_taos_metrics));
         {
             let mut global_metrics = GLOBAL_METRICS.lock().unwrap();
-            global_metrics.insert(10240, metrics.clone());
+            global_metrics.insert(1024, metrics.clone());
         }
         metrics.as_ref().legacy().save().unwrap();
-        assert!(db_path.exists());
-        clear_metrics(10240);
-        let metrics = get_metrics(10240);
+        assert!(db.path.exists());
+        clear_metrics(1024);
+        let metrics = get_metrics(1024);
         assert!(metrics.is_none());
-        assert!(!db_path.exists());
+        assert!(!db.path.exists());
     }
 }
