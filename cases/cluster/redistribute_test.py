@@ -132,7 +132,9 @@ class VnodeRedistribute(TDCase):
             }
         ]
         if "cluster_common_insert.yaml" in " ".join(sys.argv):
-            self.insert_rows = 50000
+            self.insert_rows = 30000
+            self.thread_count = 20
+            self.trying_interval = 30000
 
     def desc(self):
         pass

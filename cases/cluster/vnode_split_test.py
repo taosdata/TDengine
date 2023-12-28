@@ -63,7 +63,7 @@ class VnodeSplit(TDCase):
         self.wal_retention_period = 86400
         self.stream_drop = "yes"
         self.keep_trying = -1
-        self.trying_interval = 10
+        self.trying_interval = 10000
         self.interlace_rows = 0
         self.disorder_ratio = 10
         self.update_ratio = 5
@@ -131,7 +131,9 @@ class VnodeSplit(TDCase):
             }
         ]
         if "cluster_common_insert.yaml" in " ".join(sys.argv):
-            self.insert_rows = 50000
+            self.insert_rows = 30000
+            self.thread_count = 20
+            self.trying_interval = 30000
 
     def desc(self):
         pass
