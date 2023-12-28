@@ -670,15 +670,11 @@ static int32_t initTableCountEnv(STableScanInfo* pTableScanInfo, const STableKey
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
-  uint64_t groupId = 0;
+  uint64_t groupId = pList->groupId;
   for (int32_t i = 0; i < num; i++) {
     const STableKeyInfo* pInfo = pList + i;
-    if (pTableScanInfo->isSameGroup) {
-      if (i == 0) {
-        groupId = pInfo->groupId;
-      } else if (groupId != pInfo->groupId) {
-        pTableScanInfo->isSameGroup = false;
-      }
+    if (pTableScanInfo->isSameGroup && groupId != pInfo->groupId) {
+      pTableScanInfo->isSameGroup = false;
     }
     taosHashPut(pTableScanInfo->pRemainTables, &(pInfo->uid), sizeof(pInfo->uid), &(pInfo->groupId), sizeof(pInfo->groupId));
   }
