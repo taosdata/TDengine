@@ -20,6 +20,12 @@ groups:
     description: 使用证书和私钥建立连接以启用 SSL。
     collapsible: true
     params:
+      - name: ca
+        display: CA
+        description: CA 证书文件
+        required: true
+        hint:
+          type: file
       - name: cert
         display: 客户端证书
         description: .cert 文件

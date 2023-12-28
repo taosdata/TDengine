@@ -21,8 +21,9 @@ use taosx_ipc::ack::AckReaderBuilder;
 use taosx_ipc::prelude::ArrowDataType;
 
 use crate::plugins::dsv::DataSourceValidation;
-use crate::plugins::runners::kafka::config::KafkaTaskConfig;
 use crate::runners::historian::set_tcp_keepalive;
+use crate::runners::kafka::config::connect::KafkaConnectConfig;
+use crate::runners::kafka::config::KafkaTaskConfig;
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, Action, Parser, Transferred};
 
@@ -40,7 +41,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             ),
         ),
         Ok(c) => {
-            let mut client = KafkaClient::new(c.bootstrap_servers);
+            let mut client = KafkaClient::new(c.connect.bootstrap_servers);
             let result = client.load_metadata_all();
             match result {
                 Ok(()) => DataSourceValidation::valid("kafka".to_string(), None),
@@ -155,11 +156,7 @@ pub async fn kafka_to_taos(
     Ok(())
 }
 
-async fn kafka_worker(
-    mut from: Dsn,
-    ipc_port: u16,
-    aborted: Arc<AtomicBool>,
-) -> anyhow::Result<()> {
+async fn kafka_worker(from: Dsn, ipc_port: u16, aborted: Arc<AtomicBool>) -> anyhow::Result<()> {
     let socket = format!("127.0.0.1:{}", ipc_port);
     let stream = std::net::TcpStream::connect(socket)?;
 
@@ -185,7 +182,13 @@ async fn kafka_worker(
     let schema = build_schema();
     let mut writer = StreamWriter::try_new(&stream, &schema)?;
 
-    let mut consumer = build_consumer(&mut from)?;
+    let config = KafkaTaskConfig::from_dsn(&from)?;
+
+    let mut client = build_client(config.connect.clone())?;
+    client.load_metadata_all()?;
+
+    let mut consumer = build_consumer(client, config)?;
+
     let timeout = KafkaTaskConfig::parse_timeout(&from)?;
     let mut start = chrono::Utc::now().timestamp_millis();
 
@@ -270,11 +273,7 @@ fn build_schema() -> Schema {
     schema
 }
 
-fn build_consumer(dsn: &Dsn) -> anyhow::Result<Consumer> {
-    let config = KafkaTaskConfig::from_dsn(dsn)?;
-    let mut client = build_client(&config)?;
-    client.load_metadata_all()?;
-
+fn build_consumer(client: KafkaClient, config: KafkaTaskConfig) -> anyhow::Result<Consumer> {
     let mut builder = Consumer::from_client(client);
     // group
     builder = builder.with_group(config.group);
@@ -325,29 +324,49 @@ fn build_consumer(dsn: &Dsn) -> anyhow::Result<Consumer> {
     Ok(consumer)
 }
 
-fn build_client(config: &KafkaTaskConfig) -> anyhow::Result<KafkaClient> {
-    let client;
-    if config.use_ssl {
-        let mut ssl_builder = SslConnector::builder(SslMethod::tls())?;
-        ssl_builder.set_cipher_list("DEFAULT")?;
-        ssl_builder
-            .set_certificate_file(config.cert.clone().unwrap().as_path(), SslFiletype::PEM)?;
-        ssl_builder
-            .set_private_key_file(config.cert_key.clone().unwrap().as_path(), SslFiletype::PEM)?;
-        ssl_builder.check_private_key()?;
-        ssl_builder.set_default_verify_paths()?;
-        ssl_builder.set_verify(SslVerifyMode::PEER);
-        let connector = ssl_builder.build();
+fn build_client(connect: KafkaConnectConfig) -> anyhow::Result<KafkaClient> {
+    let client = if connect.use_ssl {
+        let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+        builder.set_cipher_list("DEFAULT")?;
+        builder.set_verify(SslVerifyMode::PEER);
+        if let (Some(ccert), Some(ckey)) = (connect.client_cert, connect.client_key) {
+            tracing::info!("loading cert-file={}, key-file={}", ccert, ckey);
 
-        client = KafkaClient::new_secure(
-            config.bootstrap_servers.clone(),
-            SecurityConfig::new(connector),
+            builder
+                .set_certificate_file(ccert, SslFiletype::PEM)
+                .unwrap();
+            builder
+                .set_private_key_file(ckey, SslFiletype::PEM)
+                .unwrap();
+            builder.check_private_key().unwrap();
+        }
+
+        if let Some(ca_cert) = connect.ca_cert {
+            tracing::info!("loading ca-file={}", ca_cert);
+            builder.set_ca_file(ca_cert).unwrap();
+        } else {
+            // ~ allow client specify the CAs through the default paths:
+            // "These locations are read from the SSL_CERT_FILE and
+            // SSL_CERT_DIR environment variables if present, or defaults
+            // specified at OpenSSL build time otherwise."
+            builder.set_default_verify_paths().unwrap();
+        }
+        let connector = builder.build();
+
+        // ~ instantiate KafkaClient with the previous OpenSSL setup
+        let client = KafkaClient::new_secure(
+            connect.bootstrap_servers,
+            SecurityConfig::new(connector).with_hostname_verification(false),
         );
+
+        client
     } else {
-        client = KafkaClient::new(config.bootstrap_servers.clone());
-    }
+        KafkaClient::new(connect.bootstrap_servers)
+    };
+
     Ok(client)
 }
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;

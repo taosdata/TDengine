@@ -1,25 +1,22 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::str::ParseBoolError;
 use std::time::Duration;
 
-use crate::plugins::config::AdvancedOptions;
 use kafka::consumer::{FetchOffset, GroupOffsetStorage};
 use taos::Dsn;
 
-#[derive(Debug)]
+use crate::plugins::config::AdvancedOptions;
+use crate::runners::kafka::config::connect::KafkaConnectConfig;
+
+pub mod connect;
+
+#[derive(Debug, Clone)]
 pub struct KafkaTaskConfig {
-    // kafka brokers
-    pub bootstrap_servers: Vec<String>,
+    pub connect: KafkaConnectConfig,
 
-    pub use_ssl: bool,
-    pub cert: Option<PathBuf>,
-    pub cert_key: Option<PathBuf>,
-
+    pub timeout: i64,
     pub group: String,
     pub topics: Option<Vec<String>>,
     pub topic_partitions: Option<HashMap<String, Vec<i32>>>,
-
     pub fallback_offset: FetchOffset,
     pub fetch_max_wait_time: Option<Duration>,
     pub fetch_min_bytes: Option<i32>,
@@ -30,27 +27,18 @@ pub struct KafkaTaskConfig {
     pub connection_idle_timeout: Option<Duration>,
     pub client_id: Option<String>,
 
-    pub timeout: i64,
     pub advanced_options: AdvancedOptions,
 }
 
 impl KafkaTaskConfig {
     pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
-        let use_ssl = Self::parse_use_ssl(dsn)?;
-        let (cert, cert_key) = if use_ssl {
-            Self::parse_certification(dsn)?
-        } else {
-            (None, None)
-        };
-
         let config = KafkaTaskConfig {
-            bootstrap_servers: Self::parse_bootstrap_servers(dsn)?,
+            connect: KafkaConnectConfig::from_dsn(dsn)?,
+
+            timeout: Self::parse_timeout(dsn)?,
             group: Self::parse_group(dsn),
             topics: Self::parse_topics(dsn),
             topic_partitions: Self::parse_topic_partitions(dsn)?,
-            use_ssl,
-            cert,
-            cert_key,
             fallback_offset: Self::parse_fallback_offset(dsn)?,
             fetch_max_wait_time: Self::parse_fetch_max_wait_time(dsn)?,
             fetch_min_bytes: Self::parse_fetch_min_bytes(dsn)?,
@@ -60,58 +48,10 @@ impl KafkaTaskConfig {
             retry_max_bytes_limit: Self::parse_retry_max_bytes_limit(dsn)?,
             connection_idle_timeout: Self::parse_connection_idle_timeout(dsn)?,
             client_id: Self::parse_client_id(dsn)?,
-            timeout: Self::parse_timeout(dsn)?,
+
             advanced_options: AdvancedOptions::from_dsn(dsn)?,
         };
         Ok(config)
-    }
-
-    fn parse_bootstrap_servers(dsn: &Dsn) -> anyhow::Result<Vec<String>> {
-        let mut bootstrap_servers = Vec::new();
-        for address in dsn.addresses.iter() {
-            if address.host.is_none() || address.port.is_none() {
-                return Err(anyhow::anyhow!(
-                    "invalid bootstrap_servers, cause: host or port is none"
-                ));
-            }
-            bootstrap_servers.push(format!(
-                "{}:{}",
-                address.host.clone().unwrap(),
-                address.port.clone().unwrap()
-            ));
-        }
-        Ok(bootstrap_servers)
-    }
-
-    fn parse_use_ssl(dsn: &Dsn) -> anyhow::Result<bool> {
-        dsn.params
-            .get("use_ssl")
-            .unwrap_or(&"false".to_string())
-            .parse()
-            .map_err(|e: ParseBoolError| {
-                anyhow::anyhow!("invalid use_ssl, cause: {}", e.to_string())
-            })
-    }
-
-    fn parse_certification(dsn: &Dsn) -> anyhow::Result<(Option<PathBuf>, Option<PathBuf>)> {
-        let cert = dsn.params.get("cert").map(|s| Path::new(s).to_path_buf());
-        let cert_key = dsn
-            .params
-            .get("cert_key")
-            .map(|s| Path::new(s).to_path_buf());
-
-        if cert.is_none() || !cert.clone().unwrap().exists() {
-            return Err(anyhow::anyhow!(
-                "Kafka source CA config read error, cause: cert file not found"
-            ));
-        }
-        if cert_key.is_none() || !cert_key.clone().unwrap().exists() {
-            return Err(anyhow::anyhow!(
-                "Kafka source CA config read error, cause: cert_key file not found"
-            ));
-        }
-
-        Ok((cert, cert_key))
     }
 
     fn parse_group(dsn: &Dsn) -> String {
@@ -347,80 +287,6 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-
-    #[test]
-    fn test_parse_bootstrap_servers() {
-        let dsn = Dsn::from_str("kafka://localhost:9092,192.168.1.92:9092").unwrap();
-        let bootstrap_servers = KafkaTaskConfig::parse_bootstrap_servers(&dsn).unwrap();
-        assert_eq!("localhost:9092", bootstrap_servers[0]);
-        assert_eq!("192.168.1.92:9092", bootstrap_servers[1]);
-
-        let dsn = Dsn::from_str("kafka://localhost").unwrap();
-        let bootstrap_servers = KafkaTaskConfig::parse_bootstrap_servers(&dsn);
-        assert!(bootstrap_servers.is_err());
-        assert_eq!(
-            "invalid bootstrap_servers, cause: host or port is none",
-            bootstrap_servers.unwrap_err().to_string()
-        );
-
-        let dsn = Dsn::from_str("kafka://:9092").unwrap();
-        let bootstrap_servers = KafkaTaskConfig::parse_bootstrap_servers(&dsn);
-        assert!(bootstrap_servers.is_err());
-        assert_eq!(
-            "invalid bootstrap_servers, cause: host or port is none",
-            bootstrap_servers.unwrap_err().to_string()
-        );
-    }
-
-    #[test]
-    fn test_parse_use_ssl() {
-        let dsn = Dsn::from_str("kafka://?use_ssl=true").unwrap();
-        let use_ssl = KafkaTaskConfig::parse_use_ssl(&dsn).unwrap();
-        assert_eq!(true, use_ssl);
-
-        let dsn = Dsn::from_str("kafka://?use_ssl=false").unwrap();
-        let use_ssl = KafkaTaskConfig::parse_use_ssl(&dsn).unwrap();
-        assert_eq!(false, use_ssl);
-
-        let dsn = Dsn::from_str("kafka://").unwrap();
-        let use_ssl = KafkaTaskConfig::parse_use_ssl(&dsn).unwrap();
-        assert_eq!(false, use_ssl);
-
-        let dsn = Dsn::from_str("kafka://?use_ssl=invalid").unwrap();
-        let result = KafkaTaskConfig::parse_use_ssl(&dsn);
-        assert!(result.is_err());
-        assert_eq!(
-            "invalid use_ssl, cause: provided string was not `true` or `false`",
-            result.unwrap_err().to_string()
-        );
-    }
-
-    #[test]
-    fn test_parse_certification() {
-        dbg!(std::env::current_dir().unwrap());
-        let dsn =
-            Dsn::from_str("kafka://?cert=../tests/kafka/ca.pem&cert_key=../tests/kafka/ca.key")
-                .unwrap();
-        let (cert, cert_key) = KafkaTaskConfig::parse_certification(&dsn).unwrap();
-        assert_eq!(Path::new("../tests/kafka/ca.pem"), cert.unwrap());
-        assert_eq!(Path::new("../tests/kafka/ca.key"), cert_key.unwrap());
-
-        let dsn = Dsn::from_str("kafka://").unwrap();
-        let result = KafkaTaskConfig::parse_certification(&dsn);
-        assert!(result.is_err());
-        assert_eq!(
-            "Kafka source CA config read error, cause: cert file not found",
-            result.unwrap_err().to_string()
-        );
-
-        let dsn = Dsn::from_str("kafka://?cert=../tests/kafka/ca.pem").unwrap();
-        let result = KafkaTaskConfig::parse_certification(&dsn);
-        assert!(result.is_err());
-        assert_eq!(
-            "Kafka source CA config read error, cause: cert_key file not found",
-            result.unwrap_err().to_string()
-        );
-    }
 
     #[test]
     fn test_parse_group() {
