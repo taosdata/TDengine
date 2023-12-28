@@ -161,7 +161,8 @@ void dmSendNotifyReq(SDnodeMgmt *pMgmt) {
                     .msgType = TDMT_MND_NOTIFY,
                     .info.ahandle = (void *)0x9527,
                     .info.refId = 0,
-                    .info.noResp = 1};
+                    .info.noResp = 1,
+                    .info.handle = 0};
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
