@@ -17,12 +17,12 @@ pub struct TmqMetrics {
     pub total_messages_of_meta: AtomicU64,
     pub total_messages_of_data: AtomicU64,
     pub total_write_meta_fails: AtomicU64,
-    pub total_suc_blocks: AtomicU64,
+    pub total_success_blocks: AtomicU64,
     pub messages: AtomicU64,
     pub messages_of_meta: AtomicU64,
     pub messages_of_data: AtomicU64,
     pub write_meta_fails: AtomicU64,
-    pub suc_blocks: AtomicU64,
+    pub success_blocks: AtomicU64,
 }
 
 impl Default for TmqMetrics {
@@ -35,12 +35,12 @@ impl Default for TmqMetrics {
             total_messages_of_meta: AtomicU64::new(0),
             total_messages_of_data: AtomicU64::new(0),
             total_write_meta_fails: AtomicU64::new(0),
-            total_suc_blocks: AtomicU64::new(0),
+            total_success_blocks: AtomicU64::new(0),
             messages: AtomicU64::new(0),
             messages_of_meta: AtomicU64::new(0),
             messages_of_data: AtomicU64::new(0),
             write_meta_fails: AtomicU64::new(0),
-            suc_blocks: AtomicU64::new(0),
+            success_blocks: AtomicU64::new(0),
         }
     }
 }
@@ -55,12 +55,12 @@ impl TmqMetrics {
             total_messages_of_meta: AtomicU64::new(0),
             total_messages_of_data: AtomicU64::new(0),
             total_write_meta_fails: AtomicU64::new(0),
-            total_suc_blocks: AtomicU64::new(0),
+            total_success_blocks: AtomicU64::new(0),
             messages: AtomicU64::new(0),
             messages_of_meta: AtomicU64::new(0),
             messages_of_data: AtomicU64::new(0),
             write_meta_fails: AtomicU64::new(0),
-            suc_blocks: AtomicU64::new(0),
+            success_blocks: AtomicU64::new(0),
         }
     }
 
@@ -90,8 +90,8 @@ impl TmqMetrics {
 
     #[inline]
     pub fn add_suc_blocks(&self, n: u64) {
-        self.total_suc_blocks.fetch_add(n, SeqCst);
-        self.suc_blocks.fetch_add(n, SeqCst);
+        self.total_success_blocks.fetch_add(n, SeqCst);
+        self.success_blocks.fetch_add(n, SeqCst);
     }
 }
 
@@ -155,7 +155,8 @@ impl Display for TmqMetrics {
                 .load(std::sync::atomic::Ordering::SeqCst),
             self.messages_of_data
                 .load(std::sync::atomic::Ordering::SeqCst),
-            self.suc_blocks.load(std::sync::atomic::Ordering::SeqCst),
+            self.success_blocks
+                .load(std::sync::atomic::Ordering::SeqCst),
             records,
             records / cost,
             points,

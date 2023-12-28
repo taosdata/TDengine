@@ -10,7 +10,7 @@ use std::sync::atomic::Ordering::SeqCst;
 pub struct LegacyToTaosMetrics {
     #[serde(flatten)]
     pub com: CommonMetrics,
-    pub workers: AtomicU32,
+    pub read_concurrency: AtomicU32,
     pub total_stables: AtomicU32,
     pub total_tables: AtomicU32,
     pub total_finished_tables: AtomicU32,
@@ -28,7 +28,7 @@ impl LegacyToTaosMetrics {
     pub fn new(task_id: i64) -> Self {
         Self {
             com: CommonMetrics::new(task_id),
-            workers: Default::default(),
+            read_concurrency: Default::default(),
             total_stables: Default::default(),
             total_tables: Default::default(),
             total_finished_tables: Default::default(),
@@ -67,7 +67,7 @@ impl Default for LegacyToTaosMetrics {
     fn default() -> Self {
         Self {
             com: CommonMetrics::default(),
-            workers: AtomicU32::new(0),
+            read_concurrency: AtomicU32::new(0),
             total_stables: AtomicU32::new(0),
             total_tables: AtomicU32::new(0),
             total_finished_tables: AtomicU32::new(0),
@@ -94,7 +94,7 @@ impl Display for LegacyToTaosMetrics {
         write!(
             f,
             "# Metrics\n\
-            workers: {}\n\
+            read_concurrency: {}\n\
             created tables: {}\n\
             updated tags: {}\n\
             finished tables: {}\n\
@@ -102,7 +102,7 @@ impl Display for LegacyToTaosMetrics {
             records: {} ({} r/s)\n\
             points: {} ({} p/s)\n\
             time cost: {:?} s",
-            self.workers.load(SeqCst),
+            self.read_concurrency.load(SeqCst),
             self.created_tables.load(SeqCst),
             self.updated_tags.load(SeqCst),
             self.finished_tables.load(SeqCst),

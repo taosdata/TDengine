@@ -31,7 +31,6 @@ use crate::{
 
 use self::scheduler::Scheduler;
 
-
 pub mod legacy_metric;
 mod scheduler;
 mod verify;
@@ -2501,7 +2500,7 @@ async fn legacy_to_taos_impl(
     let target_is_v3 = !v2.starts_with('2');
 
     metrics
-        .workers
+        .read_concurrency
         .store(source_opts.workers as _, Ordering::SeqCst);
 
     // span.exit();

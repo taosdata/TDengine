@@ -1,6 +1,9 @@
 //! Crate level metrics related data structures and functions.
 //! Define metrics data structure for each supported datasource.
 //! And supply a global accessible map to store all metrics data.
+//! Cocepts:
+//! 1. Run Metrics：metrics that will be reset before each run.
+//! 2. Total Metrics：metrics that will be accumulated during the whole life cycle of a task.
 
 use crate::legacy::legacy_metric::LegacyToTaosMetrics;
 use crate::plugins::sink::ipc_metric::IpcMetrics;
@@ -43,6 +46,7 @@ impl CoreMetrics {
         }
     }
 
+    /// Unwrap this enum to get the IpcMetrics.
     pub fn ipc(&self) -> &IpcMetrics {
         match self {
             CoreMetrics::IPC(ipc) => ipc,
@@ -107,7 +111,7 @@ impl CommonMetrics {
 }
 
 pub trait TaosXMetrics: Into<CoreMetrics> + Serialize {
-    /// Reset run level metrics
+    /// Reset all "run metrics"
     fn reset(&self);
 
     /// Return CommonMetrics
@@ -121,7 +125,6 @@ pub trait TaosXMetrics: Into<CoreMetrics> + Serialize {
     /// Restore metrics from json string.
     fn from_json(json: &str) -> Option<Self>;
 
-    /// Save metrics to database
     fn save(&self) -> anyhow::Result<()> {
         self.com().update_execute_time();
         let task_id = self.com().task_id.to_string();
@@ -173,6 +176,7 @@ pub trait TaosXMetrics: Into<CoreMetrics> + Serialize {
 }
 
 lazy_static! {
+    /// Global metrics map to store all metrics data. The key is task_id.
     pub static ref GLOBAL_METRICS: Mutex<HashMap<i64, Arc<CoreMetrics>>> =
         Mutex::new(HashMap::new());
 }
@@ -494,7 +498,7 @@ mod tests {
         let mut metrics = GLOBAL_METRICS.lock().unwrap();
         let legacy_to_taos_metrics = LegacyToTaosMetrics::new(1);
         legacy_to_taos_metrics
-            .workers
+            .read_concurrency
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
         metrics.insert(1, Arc::new(CoreMetrics::Legacy(legacy_to_taos_metrics)));
         drop(metrics);
@@ -535,7 +539,7 @@ mod tests {
         println!(
             "workers: {}",
             legacy_to_taos_metrics
-                .workers
+                .read_concurrency
                 .load(std::sync::atomic::Ordering::SeqCst)
         );
         println!(
@@ -553,7 +557,7 @@ mod tests {
         std::fs::create_dir_all(&task_dir).unwrap();
         let legacy_to_taos_metrics = LegacyToTaosMetrics::new(1024);
         legacy_to_taos_metrics
-            .workers
+            .read_concurrency
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
 
         {
@@ -562,7 +566,9 @@ mod tests {
         }
         let metrics = load_metrics::<LegacyToTaosMetrics>("1024").unwrap();
         assert_eq!(
-            metrics.workers.load(std::sync::atomic::Ordering::SeqCst),
+            metrics
+                .read_concurrency
+                .load(std::sync::atomic::Ordering::SeqCst),
             10
         );
     }
@@ -576,7 +582,7 @@ mod tests {
 
         let legacy_to_taos_metrics = LegacyToTaosMetrics::new(1024);
         legacy_to_taos_metrics
-            .workers
+            .read_concurrency
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
         let metrics = Arc::new(CoreMetrics::Legacy(legacy_to_taos_metrics));
         {
