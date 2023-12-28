@@ -56,7 +56,7 @@ export default {
       return this.sourceParent.formDisabled;
     },
     accept() {
-      return this.config.accept || '.csv'
+      return this.config.accept || ''
     }
   },
   watch: {},

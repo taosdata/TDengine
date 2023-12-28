@@ -283,7 +283,7 @@ export default {
 
             break;
             case "historian":
-              this.currentName = 'historian';
+              this.currentName = 'sourceConfig';
               this.tagName = 'historian';
             break;
         }

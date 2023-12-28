@@ -93,7 +93,7 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
       config: paramsConfig
     };
     currentType = id;
-    let connectivityCheck = id != 'csv'
+    let connectivityCheck = id != 'csv' && id != 'kafka' && id != 'mqtt'
     handleParams(params, paramsConfig);
     handleProtocol(protocol, paramsConfig);
     handleOptions(options, paramsConfig);
@@ -101,6 +101,9 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
     handleConnectivityCheck(connectivityCheck,paramsConfig)
     handleDatasets(datasets, paramsConfig);
     handleGroups(groups, paramsConfig);
+    if (id == 'kafka' || id == 'mqtt') {
+      handleConnectivityCheck(connectivityCheck=true,paramsConfig)
+    }
     handleParser(parser, paramsConfig, parserValue);
     handleAdvanced(advanced, paramsConfig)
     // 先处理protocol
@@ -242,7 +245,7 @@ function handleAuthentication(authentication, paramsConfig) {
           },
           field: name,
           defaultValue: defaultValue ?? '',
-          accept: '.pem,.der',
+          accept: '.pem,.der,.cert,.key',
           disabled: (_, originalData,currentDefinition) => {
             if (currentDefinition?.id?.startsWith('opcua')) {
               let authenticationData = originalData[authenticationField];
@@ -519,6 +522,7 @@ function handleDatasets(datasets, paramsConfig) {
             field: name,
             name,
             type: 'dataset',
+            accept: '.csv',
             defaultValue: value ?? '',
             disabled: (_, originalData) => {
               const optionData = originalData[optionsField];
@@ -544,6 +548,7 @@ function handleDatasets(datasets, paramsConfig) {
             description: desc,
             field: handleField(target.name),
             type: 'dataset',
+            accept: '.csv',
             templateUrl: templateUrlMap[currentType],
             placeholder: target.description,
             required: target.required,
