@@ -307,7 +307,8 @@ typedef struct STableMergeScanInfo {
   SHashObj*        mSkipTables;
   int64_t          mergeLimit;
   SSortExecInfo   sortExecInfo;
-
+  bool             needCountEmptyTable;
+  bool             bGroupProcessed;    // the group return data means processed
   bool             filesetDelimited;
   bool             bNewFilesetEvent;
   bool             bNextDurationBlockEvent;

@@ -120,12 +120,21 @@ class TDTestCase:
         tdSql.checkRows(all_tb_num)
 
         # elapsed: continuous duration in a statistical period, table merge scan
-        tdSql.query(f" select count(c1), max(c5), avg(c5), elapsed(ts), spread(c1) from {self.dbname}.{self.stable} group by tbname")
+        tdSql.query(f" select count(c1), max(c5), last_row(c5), elapsed(ts), spread(c1) from {self.dbname}.{self.stable} group by tbname")
+        tdSql.checkRows(all_tb_num)
+
+        tdSql.query(f" select count(c1), min(c1), avg(c1), elapsed(ts), mode(c1) from {self.dbname}.{self.stable} partition by tbname")
+        tdSql.checkRows(all_tb_num)
+
+        tdSql.query(f" select count(c1), elapsed(ts), twa(c1), irate(c1), leastsquares(c1,1,1) from {self.dbname}.{self.stable} partition by tbname")
+        tdSql.checkRows(all_tb_num)
+
+        tdSql.query(f" select avg(c1), elapsed(ts), twa(c1), irate(c1) from {self.dbname}.{self.stable} partition by tbname")
         tdSql.checkRows(nonempty_tb_num)
 
-        tdSql.query(f" select count(c1), max(c1), avg(c1), elapsed(ts), spread(c1) from {self.dbname}.{self.stable} partition by tbname")
-        tdSql.checkRows(nonempty_tb_num)
-
+        # if nonempty_tb_num > 0:
+        #   tdSql.query(f" select avg(c1), percentile(c1, 50) from {self.dbname}.sub_{self.stable}_1")
+        #   tdSql.checkRows(1)
 
     def test_innerSelect(self, check_num):
         tdSql.query(f"select * from (select count(c1) from {self.dbname}.{self.stable} group by tbname) ")

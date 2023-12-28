@@ -700,17 +700,14 @@ static void markTableProcessed(STableScanInfo* pTableScanInfo, uint64_t uid) {
   taosHashRemove(pTableScanInfo->pRemainTables, &uid, sizeof(uid));
 }
 
-static SSDataBlock* getBlockForEmptyTable(SOperatorInfo* pOperator, const STableKeyInfo* tbInfo) {
-  STableScanInfo* pTableScanInfo = pOperator->info;
-  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
-  SSDataBlock* pBlock = pTableScanInfo->pResBlock;
-
+static SSDataBlock* getOneRowResultBlock(SExecTaskInfo* pTaskInfo, STableScanBase* pBase, SSDataBlock* pBlock,
+                                         const STableKeyInfo* tbInfo) {
   blockDataEmpty(pBlock);
   pBlock->info.rows = 1;
   pBlock->info.id.uid = tbInfo->uid;
   pBlock->info.id.groupId = tbInfo->groupId;
 
-  // only one row: set all col data to null & hasNull 
+  // only one row: set all col data to null & hasNull
   int32_t col_num = blockDataGetNumOfCols(pBlock);
   for (int32_t i = 0; i < col_num; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
@@ -718,7 +715,14 @@ static SSDataBlock* getBlockForEmptyTable(SOperatorInfo* pOperator, const STable
   }
 
   // set tag/tbname
-  doSetTagColumnData(&pTableScanInfo->base, pBlock, pTaskInfo, pBlock->info.rows);
+  doSetTagColumnData(pBase, pBlock, pTaskInfo, pBlock->info.rows);
+  return pBlock;
+}
+
+static SSDataBlock* getBlockForEmptyTable(SOperatorInfo* pOperator, const STableKeyInfo* tbInfo) {
+  STableScanInfo* pTableScanInfo = pOperator->info;
+  SSDataBlock*    pBlock =
+      getOneRowResultBlock(pOperator->pTaskInfo, &pTableScanInfo->base, pTableScanInfo->pResBlock, tbInfo);
 
   pOperator->resultInfo.totalRows++;
   return pBlock;
@@ -3585,7 +3589,7 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
     }
     pInfo->tableEndIndex = i - 1;
   }
-
+  pInfo->bGroupProcessed = false;
   int32_t tableStartIdx = pInfo->tableStartIndex;
   int32_t tableEndIdx = pInfo->tableEndIndex;
 
@@ -3707,9 +3711,14 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
 
     pBlock = getSortedTableMergeScanBlockData(pInfo->pSortHandle, pInfo->pResBlock, pOperator->resultInfo.capacity,
                                               pOperator);
+    if (pBlock == NULL && !pInfo->bGroupProcessed && pInfo->needCountEmptyTable) {
+      STableKeyInfo* tbInfo = tableListGetInfo(pInfo->base.pTableListInfo, pInfo->tableStartIndex);
+      pBlock = getOneRowResultBlock(pTaskInfo, &pInfo->base, pInfo->pResBlock, tbInfo);
+    }
     if (pBlock != NULL) {
       pBlock->info.id.groupId = pInfo->groupId;
       pOperator->resultInfo.totalRows += pBlock->info.rows;
+      pInfo->bGroupProcessed = true;
       return pBlock;
     } else {
       if (pInfo->bNewFilesetEvent) {
@@ -3864,6 +3873,8 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   } else {
     pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
   }
+  pInfo->needCountEmptyTable = tsCountAlwaysReturnValue && pTableScanNode->needCountEmptyTable;
+  
   setOperatorInfo(pOperator, "TableMergeScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = numOfCols;
