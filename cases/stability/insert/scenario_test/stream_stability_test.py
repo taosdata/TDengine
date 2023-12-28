@@ -133,6 +133,8 @@ class StreamStabilityTest(TDCase):
         self.stream_dbname, self.stream_stbname= self.stream_json_info["streams"][0]["stream_stb"].split(".")
         self.json_file_info_list.append({self.json_file: self.json_info})
         self.json_file_info_list.append({self.stream_json_file: self.stream_json_info})
+        if "cluster_common_insert.yaml" in " ".join(sys.argv):
+            self.stream_json_info["databases"][0]["super_tables"][0]["insert_rows"] = 50000
 
     def desc(self):
         pass
