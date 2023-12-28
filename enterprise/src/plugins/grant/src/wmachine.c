@@ -28,8 +28,8 @@ void grantActiveSystem(const char *inputCfgFile, SGrantObj *pObj, SGrantConnObj 
   grantObj.topicExpireDay = GRANT_UNIQ_UNLIMITED;
   grantObj.multiTierExpireDay = GRANT_UNIQ_UNLIMITED;
   grantObj.auditExpireDay = GRANT_UNIQ_UNLIMITED;
+  grantObj.csvExpireDay = GRANT_UNIQ_UNLIMITED;
   grantObj.bakRstExpireDay = GRANT_UNIQ_UNLIMITED;
-  grantObj.replicaExpireDay = GRANT_UNIQ_UNLIMITED;
   for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
     ins[i].number = GRANT_UNIQ_UNLIMITED;
     ins[i].speed = GRANT_UNIQ_UNLIMITED;

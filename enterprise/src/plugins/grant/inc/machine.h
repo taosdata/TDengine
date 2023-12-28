@@ -78,6 +78,7 @@
 // specific for connectors
 #define GRANT_CONN_ACTIVE_MAJOR_VER    2 // increase if the definition of data structure or active code changes, history value 1:2
 #define GRANT_CONN_ACTIVE_MINOR_VER    1
+#define GRANT_CONN_NAME_LEN 32
 #define GRANT_CONN_NUM_V1              32
 #define GRANT_CONN_NUM                 GRANT_CONN_NUM_V1
 #define GRANT_CONN_ACTIVE_KEY_LEN      108
@@ -156,13 +157,17 @@ typedef enum {
   CONN_TYPE_KAFKA,
   CONN_TYPE_INFLUXDB,
   CONN_TYPE_MQTT,
-  CONN_TYPE_OpenTSDB,
-  CONN_TYPE_TDengine_2_6,
-  CONN_TYPE_TDengine_3_0,
-  CONN_TYPE_MAX,
+  CONN_TYPE_AVEVAHISTORIAN,
+  CONN_TYPE_OPENTSDB,
+  CONN_TYPE_TDENGINE_2_6,
+  CONN_TYPE_TDENGINE_3_0,
+  CONN_TYPE_MAX = 10,  // max connType before importing dynamic DataIns
+  CONN_TYPE_CLICKHOUSE = 10,
+  CONN_TYPE_DYN_MAX
 } EGrantConnType;
 
 #define CONN_TYPE_MAX_V1 6
+#define CONN_TYPE_MAX_V2 7  // support avevaHistorian in 3.1
 
 typedef struct {
   int32_t  number;  // connections
@@ -233,7 +238,8 @@ typedef enum {
 } SGrantOpt;
 
 typedef struct {
-  int32_t number;  // connections
+  char    name[GRANT_CONN_NAME_LEN];
+  int32_t number;  // number of connections
   int32_t speed;   // transfer speed, unit: MB
   int32_t expire;  // unit: day
 } SGrantDataIns;
@@ -256,8 +262,8 @@ typedef struct {
   int32_t       topicExpireDay;
   int32_t       multiTierExpireDay;
   int32_t       auditExpireDay;
+  int32_t       csvExpireDay;
   int32_t       bakRstExpireDay;
-  int32_t       replicaExpireDay;
   SGrantDataIns ins[GRANT_CONN_NUM];
 } SGrantUniqObj;
 
@@ -272,8 +278,9 @@ typedef struct {
       int64_t streamExpired : 1;
       int64_t topicExpired : 1;
       int64_t auditExpired : 1;
+      int64_t csvExpired : 1;
       int64_t uniqActive : 1;
-      int64_t reserve0 : 2;
+      int64_t reserve0 : 1;
     };
   };
   union {
@@ -312,7 +319,7 @@ typedef struct {
   union {
     int64_t p6;
     struct {
-      int64_t bakRstExpireSec : 40;
+      int64_t csvExpireSec : 40;
       int64_t curTopics : 16;
       int64_t reserve4 : 8;
     };
@@ -320,7 +327,7 @@ typedef struct {
   union {
     int64_t p7;
     struct {
-      int64_t replicaExpireSec : 40;
+      int64_t bakRstExpireSec : 40;
       int64_t reserve5 : 24;
     };
   };

@@ -191,8 +191,8 @@
 #define GRANT_DIST_TOLERENCE 86400  // seconds
 #define GRANT_TS_SEC_LEN 20
 
-static const char *gConnName[CONN_TYPE_MAX] = {"OPC_DA", "OPC_UA",   "Pi",          "Kafka",      "InfluxDB",
-                                               "MQTT",   "OpenTSDB", "TDengine2.6", "TDengine3.0"};
+static const char *gConnName[CONN_TYPE_MAX] = {"OPC_DA", "OPC_UA",         "Pi",       "Kafka",       "InfluxDB",
+                                               "MQTT",   "avevaHistorian", "OpenTSDB", "TDengine2.6", "TDengine3.0"};
 
 SGrantStatus     grantStatus = {0};
 SGrantUniqStatus grantUniqStatus = {
@@ -206,8 +206,8 @@ SGrantUniqStatus grantUniqStatus = {
     .topicExpireSec = GRANT_UNIQ_UNLIMITED,
     .multiTierExpireSec = GRANT_UNIQ_UNLIMITED,
     .auditExpireSec = GRANT_UNIQ_UNLIMITED,
+    .csvExpireSec = GRANT_UNIQ_UNLIMITED,
     .bakRstExpireSec = GRANT_UNIQ_UNLIMITED,
-    .replicaExpireSec = GRANT_UNIQ_UNLIMITED,
 };
 
 typedef SGrantNotify     GrantNotify;
@@ -542,7 +542,7 @@ static int32_t dmGenerateGrantMsg(SGrantUniqMsg *pGrant, GrantStatus *pGrantStat
   }
 #else
   SGrantObj     grantObj = {0};
-  SGrantConnObj grantConnObj = {0};
+  SGrantConnObj grantConnObj = {.machine = &grantObj.machine[0], .clusterId = &grantObj.clusterId[0]};
   grantSetActiveCodes(pInfo, &grantObj, &grantConnObj);
   dmRefreshGrantCfg(&grantObj, &grantConnObj);
 
@@ -679,8 +679,8 @@ static int32_t genUniqActiveFromLegacy(SGrantUniqObj *pObj, SGrantStatus *pStatu
     pObj->streamExpireDay = pObj->basicExpireDay;
     pObj->topicExpireDay = pObj->basicExpireDay;
     pObj->bakRstExpireDay = pObj->basicExpireDay;
-    pObj->replicaExpireDay = pObj->basicExpireDay;
     pObj->auditExpireDay = pObj->basicExpireDay;
+    pObj->csvExpireDay = pObj->csvExpireDay;
     GRANT_LIMIT_TD_TO_UNIQ(pStatus->limitCpuCores, pObj->limitCpuCores, INT32_MAX);
     GRANT_LIMIT_TD_TO_UNIQ(pStatus->limitDnodes, pObj->limitDnodes, INT16_MAX);
     GRANT_LIMIT_TD_TO_UNIQ(pStatus->limitStreams, pObj->limitStreams, INT16_MAX);
@@ -693,8 +693,8 @@ static int32_t genUniqActiveFromLegacy(SGrantUniqObj *pObj, SGrantStatus *pStatu
     pObj->streamExpireDay = GRANT_UNIQ_UNDEFINED;
     pObj->topicExpireDay = GRANT_UNIQ_UNDEFINED;
     pObj->bakRstExpireDay = GRANT_UNIQ_UNDEFINED;
-    pObj->replicaExpireDay = GRANT_UNIQ_UNDEFINED;
     pObj->auditExpireDay = GRANT_UNIQ_UNDEFINED;
+    pObj->csvExpireDay = GRANT_UNIQ_UNDEFINED;
     pObj->limitCpuCores = GRANT_UNIQ_UNDEFINED;
     pObj->limitDnodes = GRANT_UNIQ_UNDEFINED;
     pObj->limitStreams = GRANT_UNIQ_UNDEFINED;
@@ -723,10 +723,12 @@ static int32_t genUniqActiveFromLegacy(SGrantUniqObj *pObj, SGrantStatus *pStatu
     ASSERTS(0, "invalid gen uniq active");
   }
 
-  SGrantUniqObj uniqObj = {0};
-  memcpy(uniqObj.active, pObj->active, GRANT_UNIQ_ACTIVE_KEY_LEN);
-  memcpy(uniqObj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
-  ASSERTS(true == grantUniqParseActiveCode(&uniqObj, NULL), "invalid parse uniq active");
+  SGrantUniqObj *uniqObj = taosMemoryCalloc(1, sizeof(SGrantUniqObj));
+  memcpy(uniqObj->active, pObj->active, GRANT_UNIQ_ACTIVE_KEY_LEN);
+  memcpy(uniqObj->clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
+  ASSERTS(true == grantUniqParseActiveCode(uniqObj, NULL), "invalid parse uniq active");
+
+  taosMemoryFreeClear(uniqObj);
 
   return 0;
 }
@@ -858,8 +860,8 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
       GRANT_VALUE_CONVERT(grantObj.limitTopics, gStatus.limitTopics, 1, GRANT_UNIQ_DFT_TOPIC_NUM);
       GRANT_VALUE_CONVERT(grantObj.multiTierExpireDay, gStatus.multiTierExpireSec,86400,dftExpireDay);
       GRANT_VALUE_CONVERT(grantObj.auditExpireDay, gStatus.auditExpireSec,86400, dftExpireDay);
-      GRANT_VALUE_CONVERT(grantObj.bakRstExpireDay, gStatus.bakRstExpireSec,86400,dftExpireDay);
-      GRANT_VALUE_CONVERT(grantObj.replicaExpireDay, gStatus.replicaExpireSec, 86400,dftExpireDay);
+      GRANT_VALUE_CONVERT(grantObj.csvExpireDay, gStatus.csvExpireSec, 86400, dftExpireDay);
+      GRANT_VALUE_CONVERT(grantObj.bakRstExpireDay, gStatus.bakRstExpireSec, 86400, dftExpireDay);
       for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
         SGrantDataIns *pFrom = grantObj.ins + i;
         SGrantDataIns *pTo = gStatus.ins + i;
@@ -1348,9 +1350,10 @@ static void grantResetMaster(SMnode *pMnode) {
     gStatus.topicExpired = gStatus.basicExpired;
     gStatus.auditExpireSec = gStatus.basicExpireSec;
     gStatus.auditExpired = gStatus.basicExpired;
+    gStatus.csvExpireSec = gStatus.basicExpireSec;
+    gStatus.csvExpired = gStatus.basicExpired;
 
     gStatus.bakRstExpireSec = gStatus.basicExpireSec;
-    gStatus.replicaExpireSec = gStatus.basicExpireSec;
 
     char ts[GRANT_TS_SEC_LEN] = {0};
     grantSecondsToString(gStatus.basicExpireSec, ts);
@@ -1460,7 +1463,7 @@ static int32_t grantCheckStreams() {
   }
   uError("grant failed to check stream, expire:%" PRIi64 ", num:%d, reason:stream limited",
          (int64_t)gStatus.streamExpireSec, (int32_t)gStatus.curStreams);
-  return TSDB_CODE_GRANT_CPU_LIMITED;
+  return TSDB_CODE_GRANT_STREAM_LIMITED;
 }
 static int32_t grantCheckTopics() {
   ASSERTS(gStatus.limitTopics != GRANT_UNIQ_UNDEFINED, "limitTopics is %d", GRANT_UNIQ_UNDEFINED);
@@ -1470,7 +1473,7 @@ static int32_t grantCheckTopics() {
   }
   uError("grant failed to check topic, expire:%" PRIi64 ", num:%d, reason:topic limited",
          (int64_t)gStatus.topicExpireSec, (int32_t)gStatus.curTopics);
-  return TSDB_CODE_GRANT_CPU_LIMITED;
+  return TSDB_CODE_GRANT_STREAM_LIMITED;  // TODO
 }
 
 static int32_t grantCheckStreamExpired() { return gStatus.streamExpired ? TSDB_CODE_GRANT_EXPIRED : TSDB_CODE_SUCCESS; }
@@ -1521,6 +1524,8 @@ int32_t grantCheck(EGrantType grant) {
       return GRANT_EXPIRED(gStatus.topicExpired);
     case TSDB_GRANT_AUDIT_EXPIRE:
       return GRANT_EXPIRED(gStatus.auditExpired);
+    case TSDB_GRANT_CSV_EXPIRE:
+      return GRANT_EXPIRED(gStatus.csvExpired);
     case TSDB_GRANT_MULTI_TIER_EXPIRE:
       return GRANT_EXPIRED(gStatus.multiTierExpired);
     default:
@@ -1819,6 +1824,7 @@ int32_t grantAlterActiveCode(const char *active, char** newActive) {
   grantUniqParseActiveCode(&obj, &info);
   if (!obj.granted) {
     code = terrno != 0 ? terrno : TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
+    goto _exit;
   }
 
   // check dist
@@ -1866,7 +1872,7 @@ int32_t grantAlterActiveCode(const char *active, char** newActive) {
 
   // check machineIds
   if (GRANT_IS_IVLD_MACHINE()) {
-    code = TSDB_CODE_GRANT_INVALID_SERVER;
+    code = TSDB_CODE_GRANT_UNLICENSED_CLUSTER;
     goto _exit;
   }
 
@@ -1926,8 +1932,8 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     GRANT_EXPIRE_SHOW(gStatus.streamExpireSec);
     GRANT_EXPIRE_SHOW(gStatus.topicExpireSec);
     GRANT_EXPIRE_SHOW(gStatus.auditExpireSec);
+    GRANT_EXPIRE_SHOW(gStatus.csvExpireSec);
     GRANT_EXPIRE_SHOW(gStatus.bakRstExpireSec);
-    GRANT_EXPIRE_SHOW(gStatus.replicaExpireSec);
 
     // connectors
     for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
