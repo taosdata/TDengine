@@ -2343,10 +2343,6 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
     }
 
     int32_t code = pAPI->stateStore.streamStateGetByPos(pState, pPos, (void**)&pRow);
-    if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
-      ASSERT(pBlock->info.rows > 0);
-      break;
-    }
 
     if (code == -1) {
       // for history
@@ -2361,6 +2357,11 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
     if (pRow->numOfRows == 0) {
       pGroupResInfo->index += 1;
       continue;
+    }
+
+    if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
+      ASSERT(pBlock->info.rows > 0);
+      break;
     }
 
     pGroupResInfo->index += 1;
