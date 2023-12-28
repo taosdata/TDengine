@@ -112,7 +112,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.statusSeq = pMgmt->statusSeq;
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
-  void *  pHead = rpcMallocCont(contLen);
+  void   *pHead = rpcMallocCont(contLen);
   tSerializeSStatusReq(pHead, contLen, &req);
   tFreeSStatusReq(&req);
 
@@ -153,7 +153,7 @@ void dmSendNotifyReq(SDnodeMgmt *pMgmt) {
   req.pVloads = vinfo.pVloads;
 
   int32_t contLen = tSerializeSNotifyReq(NULL, 0, &req);
-  void *  pHead = rpcMallocCont(contLen);
+  void   *pHead = rpcMallocCont(contLen);
   tSerializeSNotifyReq(pHead, contLen, &req);
   tFreeSNotifyReq(&req);
 
@@ -162,7 +162,8 @@ void dmSendNotifyReq(SDnodeMgmt *pMgmt) {
                     .msgType = TDMT_MND_NOTIFY,
                     .info.ahandle = (void *)0x9527,
                     .info.refId = 0,
-                    .info.noResp = 1};
+                    .info.noResp = 1,
+                    .info.handle = 0};
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
@@ -245,7 +246,7 @@ int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 SSDataBlock *dmBuildVariablesBlock(void) {
-  SSDataBlock *        pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  SSDataBlock         *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   size_t               size = 0;
   const SSysTableMeta *pMeta = NULL;
   getInfosDbMeta(&pMeta, &size);
