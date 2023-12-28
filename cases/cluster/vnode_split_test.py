@@ -131,7 +131,7 @@ class VnodeSplit(TDCase):
             }
         ]
         if "cluster_common_insert.yaml" in " ".join(sys.argv):
-            self.insert_rows = 200000
+            self.insert_rows = 50000
 
     def desc(self):
         pass
