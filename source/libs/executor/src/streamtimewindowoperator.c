@@ -801,9 +801,23 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDat
   SRowBuffPos*    pResPos = NULL;
   SResultRow*     pResult = NULL;
   int32_t         forwardRows = 0;
+  int32_t         endRowId = pSDataBlock->info.rows - 1;
 
   SColumnInfoData* pColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
   tsCols = (int64_t*)pColDataInfo->pData;
+
+  if (pSDataBlock->info.window.skey != tsCols[0] || pSDataBlock->info.window.ekey != tsCols[endRowId]) {
+    qError("table uid %" PRIu64 " data block timestamp range may not be calculated! minKey %" PRId64
+            ",maxKey %" PRId64,
+            pSDataBlock->info.id.uid, pSDataBlock->info.window.skey, pSDataBlock->info.window.ekey);
+    blockDataUpdateTsWindow(pSDataBlock, pInfo->primaryTsIndex);
+
+    // timestamp of the data is incorrect
+    if (pSDataBlock->info.window.skey <= 0 || pSDataBlock->info.window.ekey <= 0) {
+      qError("table uid %" PRIu64 " data block timestamp is out of range! minKey %" PRId64 ",maxKey %" PRId64,
+              pSDataBlock->info.id.uid, pSDataBlock->info.window.skey, pSDataBlock->info.window.ekey);
+    }
+  }
 
   int32_t     startPos = 0;
   TSKEY       ts = getStartTsKey(&pSDataBlock->info.window, tsCols);
@@ -902,19 +916,6 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDat
       pInfo->delKey = key;
     }
     int32_t prevEndPos = (forwardRows - 1) * step + startPos;
-    if (pSDataBlock->info.window.skey <= 0 || pSDataBlock->info.window.ekey <= 0) {
-      qError("table uid %" PRIu64 " data block timestamp range may not be calculated! minKey %" PRId64
-             ",maxKey %" PRId64,
-             pSDataBlock->info.id.uid, pSDataBlock->info.window.skey, pSDataBlock->info.window.ekey);
-      blockDataUpdateTsWindow(pSDataBlock, 0);
-
-      // timestamp of the data is incorrect
-      if (pSDataBlock->info.window.skey <= 0 || pSDataBlock->info.window.ekey <= 0) {
-        qError("table uid %" PRIu64 " data block timestamp is out of range! minKey %" PRId64 ",maxKey %" PRId64,
-               pSDataBlock->info.id.uid, pSDataBlock->info.window.skey, pSDataBlock->info.window.ekey);
-      }
-    }
-
     if (IS_FINAL_INTERVAL_OP(pOperator)) {
       startPos = getNextQualifiedFinalWindow(&pInfo->interval, &nextWin, &pSDataBlock->info, tsCols, prevEndPos);
     } else {
