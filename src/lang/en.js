@@ -1297,7 +1297,7 @@ export default {
     primarytip:'Primary keys only support columns of type timestamp',
     bothtagsuper:'Tags and super table name must both exist',
     selectfieldtip:'Please check the Field(Source) with value',
-    createsubtbtip:'Select Column(Targte) as template',
+    createsubtbtip:'Select Column(Target) as template',
     ascolumn: 'As Column',
     astag: 'As Tag',
     colname: 'Field(Source)',
