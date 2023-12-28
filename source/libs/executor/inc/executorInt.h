@@ -275,7 +275,7 @@ typedef struct STableScanInfo {
   int8_t          scanMode;
   int8_t          assignBlockUid;
   uint8_t         countState;     // empty table count state
-  bool            isOneGroup;     // whether or not only one group in this scan
+  bool            isSameGroup;    // whether all tables are in the same group this scan
   bool            hasGroupByTag;
   bool            countOnly;
   bool            filesetDelimited;

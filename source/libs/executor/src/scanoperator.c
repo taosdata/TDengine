@@ -655,12 +655,12 @@ void setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, 
   colDataDestroy(&infoData);
 }
 
-static int32_t initRemainTable(STableScanInfo* pTableScanInfo, const STableKeyInfo* pList, int32_t num) {
+static int32_t initTableCountEnv(STableScanInfo* pTableScanInfo, const STableKeyInfo* pList, int32_t num) {
   if (!pTableScanInfo->needCountEmptyTable) {
     pTableScanInfo->countState = TABLE_COUNT_STATE_END;
     return TSDB_CODE_SUCCESS;
   }
-  pTableScanInfo->isOneGroup = true;
+  pTableScanInfo->isSameGroup = true;
   if (NULL == pTableScanInfo->pRemainTables) {
     int32_t tableNum = taosArrayGetSize(pTableScanInfo->base.pTableListInfo->pTableList);
     pTableScanInfo->pRemainTables =
@@ -673,11 +673,11 @@ static int32_t initRemainTable(STableScanInfo* pTableScanInfo, const STableKeyIn
   uint64_t groupId = 0;
   for (int32_t i = 0; i < num; i++) {
     const STableKeyInfo* pInfo = pList + i;
-    if (pTableScanInfo->isOneGroup) {
+    if (pTableScanInfo->isSameGroup) {
       if (i == 0) {
         groupId = pInfo->groupId;
       } else if (groupId != pInfo->groupId) {
-        pTableScanInfo->isOneGroup = false;
+        pTableScanInfo->isSameGroup = false;
       }
     }
     taosHashPut(pTableScanInfo->pRemainTables, &(pInfo->uid), sizeof(pInfo->uid), &(pInfo->groupId), sizeof(pInfo->groupId));
@@ -692,8 +692,8 @@ static void markTableProcessed(STableScanInfo* pTableScanInfo, uint64_t uid) {
   if (pTableScanInfo->countState > TABLE_COUNT_STATE_SCAN) {
     return;
   }
-  // case2 only one group, uid ready
-  if (pTableScanInfo->isOneGroup) {
+  // case2 if all table in same group, process only once
+  if (pTableScanInfo->isSameGroup) {
     pTableScanInfo->countState = TABLE_COUNT_STATE_END;
     return;
   }
@@ -802,7 +802,7 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator, const STableKey
   }
 
   if (TABLE_COUNT_STATE_NONE == pTableScanInfo->countState) {
-    initRemainTable(pTableScanInfo, pList, num);
+    initTableCountEnv(pTableScanInfo, pList, num);
   }
 
   // do the ascending order traverse in the first place.
@@ -858,7 +858,7 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator, const STableKey
   if (pTableScanInfo->countState < TABLE_COUNT_STATE_END) {
     int32_t tb_cnt = taosHashGetSize(pTableScanInfo->pRemainTables);
     if (tb_cnt) {
-      if (!pTableScanInfo->isOneGroup) {
+      if (!pTableScanInfo->isSameGroup) {
         // get first empty table uid, mark processed & rm from hash
         void *pIte = taosHashIterate(pTableScanInfo->pRemainTables, NULL);
         if (pIte != NULL) {
