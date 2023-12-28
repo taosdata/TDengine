@@ -1,7 +1,4 @@
 taostest --setup=cluster/cluster_common_insert.yaml --case=cluster/compact_test.py --keep --containers
-taostest --setup=cluster/cluster_common_insert.yaml --case=cluster/redistribute_test.py --keep
-taostest --setup=cluster/cluster_common_insert.yaml --case=cluster/vnode_split_test.py --keep
-
-
-
+taostest --setup=cluster/cluster_common_insert.yaml --case=cluster/redistribute_test.py --keep --containers
+taostest --setup=cluster/cluster_common_insert.yaml --case=cluster/vnode_split_test.py --keep --containers
 
