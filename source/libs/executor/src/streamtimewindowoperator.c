@@ -1223,7 +1223,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       return pInfo->pCheckpointRes;
     }
 
-    setOperatorCompleted(pOperator);
+    setStreamOperatorCompleted(pOperator);
     if (!IS_FINAL_INTERVAL_OP(pOperator)) {
       clearFunctionContext(&pOperator->exprSupp);
       // semi interval operator clear disk buffer
@@ -2609,18 +2609,18 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
       return opRes;
     }
 
+    if (pInfo->recvGetAll) {
+      pInfo->recvGetAll = false;
+      resetUnCloseSessionWinInfo(pInfo->streamAggSup.pResultRows);
+    }
+
     if (pInfo->reCkBlock) {
       pInfo->reCkBlock = false;
       printDataBlock(pInfo->pCheckpointRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
       return pInfo->pCheckpointRes;
     }
 
-    if (pInfo->recvGetAll) {
-      pInfo->recvGetAll = false;
-      resetUnCloseSessionWinInfo(pInfo->streamAggSup.pResultRows);
-    }
-
-    setOperatorCompleted(pOperator);
+    setStreamOperatorCompleted(pOperator);
     return NULL;
   }
 
@@ -2718,7 +2718,7 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
     return opRes;
   }
 
-  setOperatorCompleted(pOperator);
+  setStreamOperatorCompleted(pOperator);
   return NULL;
 }
 
@@ -3001,7 +3001,7 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
       clearFunctionContext(&pOperator->exprSupp);
       // semi session operator clear disk buffer
       clearStreamSessionOperator(pInfo);
-      setOperatorCompleted(pOperator);
+      setStreamOperatorCompleted(pOperator);
       pInfo->clearState = false;
       return NULL;
     }
@@ -3074,7 +3074,7 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
   clearFunctionContext(&pOperator->exprSupp);
   // semi session operator clear disk buffer
   clearStreamSessionOperator(pInfo);
-  setOperatorCompleted(pOperator);
+  setStreamOperatorCompleted(pOperator);
   return NULL;
 }
 
@@ -3551,18 +3551,18 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
       return resBlock;
     }
 
+    if (pInfo->recvGetAll) {
+      pInfo->recvGetAll = false;
+      resetUnCloseSessionWinInfo(pInfo->streamAggSup.pResultRows);
+    }
+
     if (pInfo->reCkBlock) {
       pInfo->reCkBlock = false;
       printDataBlock(pInfo->pCheckpointRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
       return pInfo->pCheckpointRes;
     }
 
-    if (pInfo->recvGetAll) {
-      pInfo->recvGetAll = false;
-      resetUnCloseSessionWinInfo(pInfo->streamAggSup.pResultRows);
-    }
-
-    setOperatorCompleted(pOperator);
+    setStreamOperatorCompleted(pOperator);
     return NULL;
   }
 
@@ -3628,7 +3628,7 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
   if (resBlock != NULL) {
     return resBlock;
   }
-  setOperatorCompleted(pOperator);
+  setStreamOperatorCompleted(pOperator);
   return NULL;
 }
 
@@ -3864,11 +3864,11 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
 
     if (pInfo->reCkBlock) {
       pInfo->reCkBlock = false;
-      // printDataBlock(pInfo->pCheckpointRes, "single interval ck");
+      printDataBlock(pInfo->pCheckpointRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
       return pInfo->pCheckpointRes;
     }
 
-    setOperatorCompleted(pOperator);
+    setStreamOperatorCompleted(pOperator);
     return NULL;
   }
 
@@ -3900,7 +3900,6 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       doDeleteWindows(pOperator, &pInfo->interval, pBlock, pInfo->pDelWins, pInfo->pUpdatedMap);
       continue;
     } else if (pBlock->info.type == STREAM_GET_ALL) {
-      qDebug("===stream===%s recv|block type STREAM_GET_ALL", getStreamOpName(pOperator->operatorType));
       pInfo->recvGetAll = true;
       getAllIntervalWindow(pInfo->aggSup.pResultRowHashTable, pInfo->pUpdatedMap);
       continue;
@@ -4082,4 +4081,9 @@ _error:
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
   return NULL;
+}
+
+void setStreamOperatorCompleted(SOperatorInfo* pOperator) {
+  setOperatorCompleted(pOperator);
+  qDebug("stask:%s  %s status: %d. set completed", GET_TASKID(pOperator->pTaskInfo), getStreamOpName(pOperator->operatorType), pOperator->status);
 }
