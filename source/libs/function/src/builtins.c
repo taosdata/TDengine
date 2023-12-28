@@ -2516,19 +2516,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .combineFunc  = avgCombine,
   },
   {
-    .name = "_avg_middle",
-    .type = FUNCTION_TYPE_AVG_PARTIAL,
-    .classification = FUNC_MGT_AGG_FUNC,
-    .translateFunc = translateAvgMiddle,
-    .dataRequiredFunc = statisDataRequired,
-    .getEnvFunc   = getAvgFuncEnv,
-    .initFunc     = avgFunctionSetup,
-    .processFunc  = avgFunctionMerge,
-    .finalizeFunc = avgPartialFinalize,
-    .invertFunc   = avgInvertFunction,
-    .combineFunc  = avgCombine,
-  },
-  {
     .name = "_avg_merge",
     .type = FUNCTION_TYPE_AVG_MERGE,
     .classification = FUNC_MGT_AGG_FUNC,
@@ -3737,7 +3724,19 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = toCharFunction,
     .finalizeFunc = NULL
   },
-  
+  {
+      .name = "_avg_middle",
+      .type = FUNCTION_TYPE_AVG_PARTIAL,
+      .classification = FUNC_MGT_AGG_FUNC,
+      .translateFunc = translateAvgMiddle,
+      .dataRequiredFunc = statisDataRequired,
+      .getEnvFunc   = getAvgFuncEnv,
+      .initFunc     = avgFunctionSetup,
+      .processFunc  = avgFunctionMerge,
+      .finalizeFunc = avgPartialFinalize,
+      .invertFunc   = avgInvertFunction,
+      .combineFunc  = avgCombine,
+  },
 };
 // clang-format on
 
