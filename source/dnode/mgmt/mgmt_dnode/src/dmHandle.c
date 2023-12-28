@@ -53,7 +53,8 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
                     .msgType = TDMT_MND_RETRIEVE_IP_WHITE,
                     .info.ahandle = (void *)0x9527,
                     .info.refId = 0,
-                    .info.noResp = 0};
+                    .info.noResp = 0,
+                    .info.handle = 0};
   SEpSet  epset = {0};
 
   dmGetMnodeEpSet(pMgmt->pData, &epset);
@@ -153,7 +154,8 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
                     .msgType = TDMT_MND_STATUS,
                     .info.ahandle = (void *)0x9527,
                     .info.refId = 0,
-                    .info.noResp = 0};
+                    .info.noResp = 0,
+                    .info.handle = 0};
   SRpcMsg rpcRsp = {0};
 
   dTrace("send status req to mnode, dnodeVer:%" PRId64 " statusSeq:%d", req.dnodeVer, req.statusSeq);
@@ -193,7 +195,8 @@ void dmSendNotifyReq(SDnodeMgmt *pMgmt) {
                     .msgType = TDMT_MND_NOTIFY,
                     .info.ahandle = (void *)0x9527,
                     .info.refId = 0,
-                    .info.noResp = 1};
+                    .info.noResp = 1,
+                    .info.handle = 0};
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
