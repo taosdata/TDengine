@@ -57,18 +57,20 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 pub async fn kafka_to_taos(
     from: Dsn,
     parser: Option<Parser>,
-    _: Vec<Action>,
+    _transform: Vec<Action>,
     to: Dsn,
-    _: usize,
+    _jobs: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     tracing::info!(
-        "kafka_to_taos start, from: {}, parser: {}, to: {}",
+        "Kafka task: {} start, from: {}, parser: {}, to: {}",
+        task_id.unwrap_or(-1),
         from,
         serde_json::to_string(&parser)?,
         to
@@ -153,6 +155,7 @@ pub async fn kafka_to_taos(
         Ok(())
     }).await??;
 
+    tracing::info!("Kafka task: {} stopped", task_id.unwrap_or(-1));
     Ok(())
 }
 
@@ -248,7 +251,6 @@ async fn kafka_worker(from: Dsn, ipc_port: u16, aborted: Arc<AtomicBool>) -> any
     }
 
     ack.await??;
-    tracing::info!("kafka_to_taos stopped");
     Ok(())
 }
 
