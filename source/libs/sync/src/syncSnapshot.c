@@ -995,6 +995,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
     sRError(pReceiver, "reject snap replication with smaller term. msg term:%" PRId64 ", seq:%d", pMsg->term,
             pMsg->seq);
     terrno = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
+    syncSnapSendRsp(pReceiver, pMsg, NULL, 0, 0, terrno);
     return -1;
   }
 
