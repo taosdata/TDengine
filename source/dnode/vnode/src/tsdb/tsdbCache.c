@@ -1183,8 +1183,10 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
     LRUHandle *h = taosLRUCacheLookup(pTsdb->lruCache, keys_list[i], klen);
     if (h) {
       SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pTsdb->lruCache, h);
-      if (pLastCol->dirty && (pLastCol->ts <= eKey && pLastCol->ts >= sKey)) {
+      if (pLastCol->dirty) {
         pLastCol->dirty = 0;
+      }
+      if (pLastCol->ts <= eKey && pLastCol->ts >= sKey) {
         erase = true;
       }
       taosLRUCacheRelease(pTsdb->lruCache, h, erase);
@@ -1197,8 +1199,10 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
     h = taosLRUCacheLookup(pTsdb->lruCache, keys_list[num_keys + i], klen);
     if (h) {
       SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pTsdb->lruCache, h);
-      if (pLastCol->dirty && (pLastCol->ts <= eKey && pLastCol->ts >= sKey)) {
+      if (pLastCol->dirty) {
         pLastCol->dirty = 0;
+      }
+      if (pLastCol->ts <= eKey && pLastCol->ts >= sKey) {
         erase = true;
       }
       taosLRUCacheRelease(pTsdb->lruCache, h, erase);
