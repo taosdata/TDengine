@@ -209,16 +209,18 @@ static int32_t mndSplitSubscribeKey(const char *key, char *topic, char *cgroup, 
 }
 
 static SMqRebInfo *mndGetOrCreateRebSub(SHashObj *pHash, const char *key) {
-  SMqRebInfo *pRebSub = taosHashGet(pHash, key, strlen(key) + 1);
-  if (pRebSub == NULL) {
-    pRebSub = tNewSMqRebSubscribe(key);
-    if (pRebSub == NULL) {
+  SMqRebInfo *pRebInfo = taosHashGet(pHash, key, strlen(key) + 1);
+  if (pRebInfo == NULL) {
+    pRebInfo = tNewSMqRebSubscribe(key);
+    if (pRebInfo == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
-    taosHashPut(pHash, key, strlen(key) + 1, pRebSub, sizeof(SMqRebInfo));
+    taosHashPut(pHash, key, strlen(key) + 1, pRebInfo, sizeof(SMqRebInfo));
+    taosMemoryFree(pRebInfo);
+    pRebInfo = taosHashGet(pHash, key, strlen(key) + 1);
   }
-  return pRebSub;
+  return pRebInfo;
 }
 
 static void doRemoveLostConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash, const SMqRebInputObj *pInput) {

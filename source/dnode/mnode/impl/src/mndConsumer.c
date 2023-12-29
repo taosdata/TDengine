@@ -220,21 +220,6 @@ FAIL:
   return -1;
 }
 
-static SMqRebInfo *mndGetOrCreateRebSub(SHashObj *pHash, const char *key) {
-  SMqRebInfo *pRebInfo = taosHashGet(pHash, key, strlen(key) + 1);
-  if (pRebInfo == NULL) {
-    pRebInfo = tNewSMqRebSubscribe(key);
-    if (pRebInfo == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return NULL;
-    }
-    taosHashPut(pHash, key, strlen(key) + 1, pRebInfo, sizeof(SMqRebInfo));
-    taosMemoryFree(pRebInfo);
-    pRebInfo = taosHashGet(pHash, key, strlen(key) + 1);
-  }
-  return pRebInfo;
-}
-
 static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   int32_t code = 0;
   SMnode  *pMnode = pMsg->info.node;
