@@ -644,6 +644,7 @@ static int32_t stbSplCreateMergeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
   pMerge->node.precision = pPartChild->precision;
   pMerge->pMergeKeys = pMergeKeys;
   pMerge->groupSort = groupSort;
+  pMerge->numOfSubplans = 1;
 
   int32_t code = TSDB_CODE_SUCCESS;
   pMerge->pInputs = nodesCloneList(pPartChild->pTargets);
@@ -727,15 +728,13 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
   }
   if (code == TSDB_CODE_SUCCESS) {
     SNode* pNode;
+    SMergeLogicNode* pMerge = (SMergeLogicNode*)pInfo->pSplitNode->pChildren->pHead->pNode;
     FOREACH(pNode, pInfo->pSubplan->pChildren) {
       SLogicSubplan*   pSubplan = (SLogicSubplan*)pNode;
-      SMergeLogicNode* pMerge = (SMergeLogicNode*)pInfo->pSplitNode->pChildren->pHead->pNode;
-      //pMerge->numOfChannels += stbSplGetNumOfVgroups(pSubplan->pNode);
       pSubplan->id.groupId = pCxt->groupId;
       pSubplan->id.queryId = pCxt->queryId;
       pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
-      TSWAP(((SScanLogicNode*)pSubplan->pNode->pChildren->pHead->pNode)->pVgroupList, pSubplan->pVgroupList);
-      //++(pCxt->groupId);
+      splSetSubplanVgroups(pSubplan, pSubplan->pNode);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -743,7 +742,6 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
                                      (SNode*)splCreateScanSubplan(pCxt, pPartWindow, SPLIT_FLAG_STABLE_SPLIT));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    ((SMergeLogicNode*)pInfo->pSplitNode->pChildren->pHead->pNode)->srcEndGroupId = pCxt->groupId;
     ((SMergeLogicNode*)pInfo->pSplitNode->pChildren->pHead->pNode)->numOfSubplans = pInfo->pSubplan->pChildren->length;
   }
   pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
@@ -959,7 +957,8 @@ static int32_t stbSplSplitWindowForPartTable(SSplitContext* pCxt, SStableSplitIn
 }
 
 static int32_t stbSplSplitWindowNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
-  if (isPartTableWinodw((SWindowLogicNode*)pInfo->pSplitNode)) {
+  if (isPartTableWinodw((SWindowLogicNode*)pInfo->pSplitNode) &&
+      (pInfo->pSubplan->pChildren && LIST_LENGTH(pInfo->pSubplan->pChildren) > 0)) {
     return stbSplSplitWindowForPartTable(pCxt, pInfo);
   } else {
     return stbSplSplitWindowForCrossTable(pCxt, pInfo);
