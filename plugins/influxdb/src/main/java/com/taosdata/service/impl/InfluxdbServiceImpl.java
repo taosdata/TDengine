@@ -189,12 +189,16 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            if (influxDBClient != null) {
-                if (LocalConfig.isInfluxDBCloud) {
-                    influxDBClient.close();
-                } else {
-                    influxdbPool.getPool().returnObject(influxDBClient);
+            try {
+                if (influxDBClient != null) {
+                    if (LocalConfig.isInfluxDBCloud) {
+                        influxDBClient.close();
+                    } else {
+                        influxdbPool.getPool().returnObject(influxDBClient);
+                    }
                 }
+            } catch (Exception e) {
+                logger.error("An exception occurred during the recycling of connection", e);
             }
         }
     }
@@ -255,12 +259,16 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            if (influxDBClient != null) {
-                if (LocalConfig.isInfluxDBCloud) {
-                    influxDBClient.close();
-                } else {
-                    influxdbPool.getPool().returnObject(influxDBClient);
+            try {
+                if (influxDBClient != null) {
+                    if (LocalConfig.isInfluxDBCloud) {
+                        influxDBClient.close();
+                    } else {
+                        influxdbPool.getPool().returnObject(influxDBClient);
+                    }
                 }
+            } catch (Exception e) {
+                logger.error("An exception occurred during the recycling of connection", e);
             }
         }
     }
@@ -357,12 +365,16 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             logger.error("update query limit from {} to {}", batch, BucketCache.getQueryLimit(BucketCache.generateBucketDataThreadKey(bucket, measurement)));
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            if (influxDBClient != null) {
-                if (LocalConfig.isInfluxDBCloud) {
-                    influxDBClient.close();
-                } else {
-                    influxdbPool.getPool().returnObject(influxDBClient);
+            try {
+                if (influxDBClient != null) {
+                    if (LocalConfig.isInfluxDBCloud) {
+                        influxDBClient.close();
+                    } else {
+                        influxdbPool.getPool().returnObject(influxDBClient);
+                    }
                 }
+            } catch (Exception e) {
+                logger.error("An exception occurred during the recycling of connection", e);
             }
         }
     }
@@ -419,8 +431,12 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            if (influxDB != null) {
-                influxdbV1Pool.getPool().returnObject(influxDB);
+            try {
+                if (influxDB != null) {
+                    influxdbV1Pool.getPool().returnObject(influxDB);
+                }
+            } catch (Exception e) {
+                logger.error("An exception occurred during the recycling of connection", e);
             }
         }
     }
@@ -470,8 +486,12 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            if (influxDB != null) {
-                influxdbV1Pool.getPool().returnObject(influxDB);
+            try {
+                if (influxDB != null) {
+                    influxdbV1Pool.getPool().returnObject(influxDB);
+                }
+            } catch (Exception e) {
+                logger.error("An exception occurred during the recycling of connection", e);
             }
         }
     }
@@ -569,8 +589,12 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            if (influxDB != null) {
-                influxdbV1Pool.getPool().returnObject(influxDB);
+            try {
+                if (influxDB != null) {
+                    influxdbV1Pool.getPool().returnObject(influxDB);
+                }
+            } catch (Exception e) {
+                logger.error("An exception occurred during the recycling of connection", e);
             }
         }
     }
