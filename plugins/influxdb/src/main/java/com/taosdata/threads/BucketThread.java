@@ -147,12 +147,16 @@ public class BucketThread implements Runnable {
                         }
                     }
                     if (this.bucket.equals(v.getBucket()) && StringUtils.isNotEmpty(v.getMeasurement())) {
-                        // 使用bucket+measurement区分任务队列
-                        String key = BucketCache.generateBucketDataThreadKey(this.bucket, v.getMeasurement());
-                        // 生成bucket子线程并放入队列中
-                        BucketCache.addBucketDataThread(key, new BucketDataThread(this.orgId, this.bucket, v.getMeasurement(), timeRangeArr[0], timeRangeArr[1]));
-                        // 读取数据任务计数
-                        StatisticCache.noteCreatedTask(key, timeRangeArr[0], timeRangeArr[1]);
+                        try {
+                            // 使用bucket+measurement区分任务队列
+                            String key = BucketCache.generateBucketDataThreadKey(this.bucket, v.getMeasurement());
+                            // 生成bucket子线程并放入队列中
+                            BucketCache.addBucketDataThread(key, new BucketDataThread(this.orgId, this.bucket, v.getMeasurement(), timeRangeArr[0], timeRangeArr[1]));
+                            // 读取数据任务计数
+                            StatisticCache.noteCreatedTask(key, timeRangeArr[0], timeRangeArr[1]);
+                        } catch (Exception e) {
+                            logger.error("An exception occurred during the creating of BucketDataThread", e);
+                        }
                     }
                 });
                 // 更新序号
