@@ -26,6 +26,8 @@ export const optionsField = uuid();
 const groupsField = uuid();
 const advancedField = uuid();
 const piOptionShowValue = 'PI Data Archive and Asset Framework (AF) Server';
+const historianLiveTable = 'Runtime.dbo.Live'
+const historianSynchronizeMode = 'synchronize'
 const opcuaSecuritymodeValue = 'None'
 const authenticationField = uuid();
 const datasetsField = uuid();
@@ -648,7 +650,20 @@ function handleGroups(groups, paramsConfig) {
         label: display,
         description: short_description ?? description,
         field: handleField(name),
-        if: collapsible ? data => data[valueField] : true,
+        // if: collapsible ? data => data[valueField] : true,
+        if: currentData => {
+          if (collapsible) return currentData[valueField];
+          if (!currentData.table) return true;
+          if (currentData.mode == historianSynchronizeMode) {
+            if (currentData.table == historianLiveTable) {
+              return !['beginDateTime','endDateTime','timeWindow'].includes(name)
+            } else {
+              return !['endDateTime'].includes(name)
+            }
+          } else {
+            return !['retrieveInterval','tolerance'].includes(name)
+          }
+        },
         placeholder,
         defaultValue: value,
         required
