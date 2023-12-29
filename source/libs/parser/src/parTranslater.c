@@ -2281,9 +2281,9 @@ static int32_t translateScanPseudoColumnFunc(STranslateContext* pCxt, SNode** pp
       return rewriteToColumnAndRetranslate(pCxt, ppNode, TSDB_CODE_PAR_INVALID_TBNAME);
     }
   } else {
-    SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
+    SColumnNode* pVal = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
     STableNode* pTable = NULL;
-    pCxt->errCode = findTable(pCxt, pVal->literal, &pTable);
+    pCxt->errCode = findTable(pCxt, pVal->tableAlias, &pTable);
     if (TSDB_CODE_SUCCESS != pCxt->errCode || (NULL == pTable)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TBNAME);
     } 
