@@ -33,6 +33,8 @@ if $rows != 3 then
   return -1
 endi
 
+sleep 1000
+
 sql create stream s1 trigger at_once into outstb as select _wstart, min(k), max(k), sum(k) as sum_alias from ct1 interval(10m)
 
 sql show stables
