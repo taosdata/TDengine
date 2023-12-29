@@ -1,10 +1,12 @@
+#[cfg(not(target_os = "windows"))]
+use std::path::Path;
 use std::{
     any::Any,
     collections::HashMap,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    path::Path,
 };
+
 use taos::sync::*;
 use taos_query::AsyncQueryable;
 use taosx_ipc::{
