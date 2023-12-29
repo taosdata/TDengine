@@ -4699,8 +4699,9 @@ SNodeList* tsmaOptCreateTsmaScanCols(const STSMAOptUsefulTsma* pTsma, const SNod
   return pScanCols;
 }
 
-static int32_t tsmaOptRewriteTags(STSMAOptCtx* pTsmaOptCtx, const STSMAOptUsefulTsma* pTsma, SColumnNode* pTagCol) {
+static int32_t tsmaOptRewriteTag(STSMAOptCtx* pTsmaOptCtx, const STSMAOptUsefulTsma* pTsma, SColumnNode* pTagCol) {
   bool found = false;
+  if (pTagCol->colType != COLUMN_TYPE_TAG) return 0;
   for (int32_t i = 0; i < pTsma->pTsma->pTags->size; ++i) {
     const SSchema* pSchema = taosArrayGet(pTsma->pTsma->pTags, i);
     if (strcmp(pTagCol->colName, pSchema->name) == 0) {
@@ -4715,6 +4716,12 @@ static int32_t tsmaOptRewriteTags(STSMAOptCtx* pTsmaOptCtx, const STSMAOptUseful
   }
   ASSERT(found);
   return 0;
+}
+
+static int32_t tsmaOptRewriteTbname(STSMAOptCtx* pTsmaOptCtx, SFunctionNode* pTbNameNode) {
+  int32_t code = 0;
+
+  return code;
 }
 
 static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNewScan, const STSMAOptUsefulTsma* pTsma) {
@@ -4762,12 +4769,18 @@ static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNew
       // pseudo columns
       FOREACH(pNode, pNewScan->pScanPseudoCols) {
         if (nodeType(pNode) == QUERY_NODE_COLUMN) {
-          tsmaOptRewriteTags(pTsmaOptCtx, pTsma, (SColumnNode*)pNode);
+          code = tsmaOptRewriteTag(pTsmaOptCtx, pTsma, (SColumnNode*)pNode);
+        } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
+          code = tsmaOptRewriteTbname(pTsmaOptCtx, (SFunctionNode*)pNode);
         }
       }
+    }
+    if (code == TSDB_CODE_SUCCESS) {
       FOREACH(pNode, pNewScan->pGroupTags) {
         if (nodeType(pNode) == QUERY_NODE_COLUMN) {
-          tsmaOptRewriteTags(pTsmaOptCtx, pTsma, (SColumnNode*)pNode);
+          code = tsmaOptRewriteTag(pTsmaOptCtx, pTsma, (SColumnNode*)pNode);
+        } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
+          code = tsmaOptRewriteTbname(pTsmaOptCtx, (SFunctionNode*)pNode);
         }
       }
     }
@@ -4797,7 +4810,8 @@ static int32_t tsmaOptCreateWStart(int8_t precision, SFunctionNode** pWStartOut)
   return code;
 }
 
-static int32_t tsmaOptRevisePlan(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent, SScanLogicNode* pScan) {
+static int32_t tsmaOptRevisePlan(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent, SScanLogicNode* pScan,
+                                 const STSMAOptUsefulTsma* pTsma) {
   SNode *           pStateFuncNode, *pAggFuncNode;
   SColumnNode*      pColNode;
   int32_t           code = 0;
@@ -4825,7 +4839,13 @@ static int32_t tsmaOptRevisePlan(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent, 
   FORBOTH(pStateFuncNode, pAggStateFuncs, pAggFuncNode, pAggFuncs) {
     SFunctionNode* pStateFunc = (SFunctionNode*)pStateFuncNode;
     SFunctionNode* pAggFunc = (SFunctionNode*)pAggFuncNode;
-    if (fmIsGroupKeyFunc(pStateFunc->funcId)) {
+    if (fmIsGroupKeyFunc(pAggFunc->funcId)) {
+      ASSERT(pAggFunc->pParameterList->length == 1);
+      SNode* pParamNode = pAggFunc->pParameterList->pHead->pNode;
+      if (nodeType(pParamNode) == QUERY_NODE_COLUMN) {
+        SColumnNode* pTagCol = (SColumnNode*)pParamNode;
+        if (pTagCol->colType == COLUMN_TYPE_TAG) tsmaOptRewriteTag(pTsmaOptCtx, pTsma, pTagCol);
+      }
       continue;
     } else if (fmIsPseudoColumnFunc(pStateFunc->funcId)) {
       if (pStateFunc->funcType == FUNCTION_TYPE_WSTART) hasWStart = true;
@@ -4893,10 +4913,11 @@ static int32_t tsmaOptGeneratePlan(STSMAOptCtx* pTsmaOptCtx) {
     }
     pSubplan->pNode = pParent;
     pParent->pParent = NULL;
+    pParent->groupAction = GROUP_ACTION_KEEP;
     SScanLogicNode* pScan = (SScanLogicNode*)pParent->pChildren->pHead->pNode;
     code = tsmaOptRewriteScan(pTsmaOptCtx, pScan, pTsma);
     if (code == TSDB_CODE_SUCCESS && pTsma->pTsma) {
-      code = tsmaOptRevisePlan(pTsmaOptCtx, pParent, pScan);
+      code = tsmaOptRevisePlan(pTsmaOptCtx, pParent, pScan, pTsma);
     }
   }
 
@@ -4904,8 +4925,7 @@ static int32_t tsmaOptGeneratePlan(STSMAOptCtx* pTsmaOptCtx) {
     pTsma = taosArrayGet(pTsmaOptCtx->pUsedTsmas, 0);
     code = tsmaOptRewriteScan(pTsmaOptCtx, pTsmaOptCtx->pScan, pTsma);
     if (code == TSDB_CODE_SUCCESS && pTsma->pTsma) {
-      code = tsmaOptRevisePlan(pTsmaOptCtx, pTsmaOptCtx->pParent, pTsmaOptCtx->pScan);
-    }
+      code = tsmaOptRevisePlan(pTsmaOptCtx, pTsmaOptCtx->pParent, pTsmaOptCtx->pScan, pTsma); }
   }
 
   return code;
