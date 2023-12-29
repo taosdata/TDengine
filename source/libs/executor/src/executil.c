@@ -2122,6 +2122,9 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
 
   bool   groupByTbname = groupbyTbname(group);
   size_t numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
+  if (!numOfTables) {
+    return code;
+  }
   if (group == NULL || groupByTbname) {
     for (int32_t i = 0; i < numOfTables; i++) {
       STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
@@ -2143,7 +2146,6 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
-    if (pScanNode->groupOrderScan) pTableListInfo->numOfOuputGroups = taosArrayGetSize(pTableListInfo->pTableList);
 
     if (groupSort || pScanNode->groupOrderScan) {
       code = sortTableGroup(pTableListInfo);

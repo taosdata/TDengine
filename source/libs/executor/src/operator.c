@@ -302,7 +302,7 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
         pTableListInfo->idInfo.suid = pTableScanNode->scan.suid;
         pTableListInfo->idInfo.tableType = pTableScanNode->scan.tableType;
       } else {
-        code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort, pHandle,
+        code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, true, pHandle,
                                     pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
         if (code) {
           pTaskInfo->code = code;

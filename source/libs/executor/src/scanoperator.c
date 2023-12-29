@@ -659,17 +659,30 @@ void setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, 
 static void initNextGroupScan(STableScanInfo* pInfo, STableKeyInfo** pKeyInfo, int32_t* size) {
   pInfo->tableStartIndex = pInfo->tableEndIndex + 1;
 
-  int32_t numOfTables = tableListGetSize(pInfo->base.pTableListInfo);
-  STableKeyInfo* pStart = (STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->tableStartIndex);
-  int32_t i = pInfo->tableStartIndex + 1;
-  for (; i < numOfTables; ++i) {
-    STableKeyInfo* pCur = tableListGetInfo(pInfo->base.pTableListInfo, i);
-    if (pCur->groupId != pStart->groupId) {
-      break;
+  STableListInfo* pTableListInfo = pInfo->base.pTableListInfo;
+  int32_t numOfTables = tableListGetSize(pTableListInfo);
+  STableKeyInfo* pStart = (STableKeyInfo*)tableListGetInfo(pTableListInfo, pInfo->tableStartIndex);
+
+  if (pTableListInfo->oneTableForEachGroup) {
+    pInfo->tableEndIndex = pInfo->tableStartIndex;
+  } else if (pTableListInfo->groupOffset) {
+    pInfo->currentGroupIndex++;
+    if (pInfo->currentGroupIndex + 1 < pTableListInfo->numOfOuputGroups) {
+      pInfo->tableEndIndex = pTableListInfo->groupOffset[pInfo->currentGroupIndex + 1] - 1;
+    } else {
+      pInfo->tableEndIndex = numOfTables - 1;
     }
+  } else {
+    int32_t i = pInfo->tableStartIndex + 1;
+    for (; i < numOfTables; ++i) {
+      STableKeyInfo* pCur = tableListGetInfo(pTableListInfo, i);
+      if (pCur->groupId != pStart->groupId) {
+        break;
+      }
+    }
+    pInfo->tableEndIndex = i - 1;
   }
 
-  pInfo->tableEndIndex = i - 1;
   if (!pInfo->needCountEmptyTable) {
     pInfo->countState = TABLE_COUNT_STATE_END;
   } else {
@@ -677,7 +690,7 @@ static void initNextGroupScan(STableScanInfo* pInfo, STableKeyInfo** pKeyInfo, i
   }
 
   *pKeyInfo = pStart;
-  *size = i - pInfo->tableStartIndex;
+  *size = pInfo->tableEndIndex - pInfo->tableStartIndex + 1;
 }
 
 static SSDataBlock* getOneRowResultBlock(SExecTaskInfo* pTaskInfo, STableScanBase* pBase, SSDataBlock* pBlock,
@@ -1133,6 +1146,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   }
 
   pInfo->tableEndIndex = -1;
+  pInfo->currentGroupIndex = -1;
   pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
   pInfo->hasGroupByTag = pTableScanNode->pGroupTags ? true : false;
 
