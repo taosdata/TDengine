@@ -3,7 +3,6 @@ use std::{
     collections::HashMap,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    path::Path,
 };
 use taos::sync::*;
 use taos_query::AsyncQueryable;
