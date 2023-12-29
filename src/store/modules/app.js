@@ -90,7 +90,10 @@ const state = {
   definitions: [],
   topParse:null,
   transformresulttable:[],
-  createStWithoutDB:0
+  createStWithoutDB:0,
+  transformTableHeight:0,
+  transformerfullparams:null,
+  transresultname:''
   
 };
 const saveKey = encodeURIComponent("appId");
@@ -118,6 +121,15 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_TRANS_RESULT_NAME:(state,data)=>{
+    state.transresultname=data
+  },
+  SET_TRANS_FULL_PARAMS:(state,data)=>{
+    state.transformerfullparams=data
+  },
+  SET_TRANS_TABLE_HEIGHT:(state,data)=>{
+    state.transformTableHeight=data
+  },
   SET_CREATESTWITHOUT_DB:(state,data)=>{
     state.createStWithoutDB=data
   },

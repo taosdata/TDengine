@@ -201,7 +201,7 @@ export default {
             this.tagName = "pibackfill";
             break;
           case "csv":
-            this.currentName = "opcui";
+            this.currentName = "sourceConfig";
             this.tagName = "csv";
             break;
           case "taos":
@@ -209,7 +209,7 @@ export default {
             this.tagName = "taos";
             break;
           case "kafka":
-            this.currentName = "opcui";
+            this.currentName = "sourceConfig";
             this.tagName = "kafka";
             break;
           case "historian":
@@ -255,14 +255,14 @@ export default {
             this.tagName = "pibackfill";
             break;
           case "csv":
-            (this.currentName = "opcui"), (this.tagName = "csv");
+            (this.currentName = "sourceConfig"), (this.tagName = "csv");
             break;
           case "taos":
             this.currentName = "sourceConfig";
             this.tagName = "taos";
             break;
           case "kafka":
-            this.currentName = "opcui";
+            this.currentName = "sourceConfig";
             this.tagName = "kafka";
 
             break;

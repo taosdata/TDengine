@@ -5,6 +5,7 @@ import { StaticTemplatePath, IsAliyun } from '@/const';
 import { Loading } from 'element-ui';
 import { parsinginZone, decrypt } from "@/utils/index";
 import i18n from '@/lang';
+import store from '@/store/modules/app';
 
 const lang = IsAliyun ? 'zh' : 'en';
 const templateUrlMap = {
@@ -105,6 +106,9 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
     handleParser(parser, paramsConfig, parserValue);
     handleAdvanced(advanced, paramsConfig)
     // 先处理protocol
+    if(id=='csv'){
+      config.parser=parserValue
+    }
     formConfig[id] = config;
     return formConfig;
   }, {});
@@ -899,6 +903,9 @@ export function getDsnData(data, definition) {
     }
     dsn += queryArr.join('&');
   }
+  if(definition.id=='csv'){
+    dsn+=`&has_header=${store.state.hasheader}`
+  }
   return dsn;
 }
 function handleProtocolData(protocol, definition) {
@@ -912,6 +919,9 @@ function handleProtocolData(protocol, definition) {
       dsn += '+';
     }
     dsn += protocol;
+  }
+  if(id=='csv'){
+    return dsn+':'
   }
   return dsn + '://';
 }
@@ -1015,7 +1025,7 @@ function getOptionData(data, queryArr, definition) {
   if (system_configuration) {
     queryArr.push('system_configuration=' + system_configuration)
   }
-  if (endpoint === undefined) {
+  if (endpoint === undefined&&definition.id!=='csv') {
     result += host.replace(/\w*:\/\//, '');
     if (system_configuration && system_configuration != piOptionShowValue) return result;
     if (port) {
@@ -1028,7 +1038,11 @@ function getOptionData(data, queryArr, definition) {
     if (id === 'tmq') {
       result += handleEndpoint(endpoint)
     } else {
-      result += endpoint;
+      if(id=='csv'){
+        result+=store.state.csvfiles[0].response[0]
+      }else{
+        result += endpoint;
+      }
     }
   }
   return result;

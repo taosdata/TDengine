@@ -23,7 +23,9 @@
               <el-button slot="trigger" size="small" type="primary">{{
                 $t("datasource.selectfile")
               }}</el-button>
+              
             </el-upload>
+            <span style='color:red;font-size:12px;margin-left:10px;' v-if='showfiletip'>{{this.$t("datasource.uploadcsvtip")}}</span>
           </div>
         </el-tab-pane>
         <el-tab-pane :label="$t('datasource.configcsv')" name="second">
@@ -47,50 +49,6 @@
               :parserColumns="extractArr"
               v-if="showTransformer"
             ></CommonTransformer>
-            <!-- <div class="csv-config" v-if="showConfig">
-              <ul class="csv-tableheader">
-                <li>{{ $t("datasource.csvcol") }}</li>
-                <li>{{ $t("datasource.dbcol") }}</li>
-                <li>{{ $t("datasource.coltype") }}</li>
-                <li>{{ $t("datasource.primarykey") }}</li>
-                <li>{{ $t("datasource.ascolumn") }}</li>
-                <li>{{ $t("datasource.astag") }}</li>
-              </ul>
-              <ul v-for="(item, index) in csvColumns" :key="item">
-                <li class="csv-content">
-                  <div class="csv-col">
-                    <el-tooltip
-                      effect="light"
-                      placement="right-end"
-                      :content="item"
-                    >
-                      <span
-                        style="
-                          width: 120px;
-                          overflow: hidden;
-                          text-overflow: ellipsis;
-                        "
-                        >{{ item }}</span
-                      ></el-tooltip
-                    >
-                  </div>
-
-                  <CsvColumn
-                    :csvColName="item"
-                    :key="index"
-                    :index="index"
-                    :colData="localcsv"
-                    :dbOptions="dbOptions"
-                    :isEditable="isEditable"
-                    @handleVisble="handleVisble"
-                    @handledbChange="handledbChange"
-                    @handleFilter="handleFilter"
-                    @handleClear="handleClear"
-                    ref="csvconfig"
-                  ></CsvColumn>
-                </li>
-              </ul>
-            </div> -->
           </template>
         </CsvParameter>
       </el-tabs>
@@ -128,6 +86,7 @@ export default {
   filter: {},
   data() {
     return {
+      showfiletip:false,
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
       showTransformer: false,
       transformerParser: null,
@@ -154,10 +113,12 @@ export default {
     };
   },
   async mounted() {
+    console.log(this.isEditable,this.$store.state.app.csvfiles,'csv------bianji----edit*******');
     if (this.isEditable) {
       //编辑状态直接从返回值去csv 的parser
       this.activeName = "second";
       this.showConfig = true;
+
       this.fileList = this.$store.state.app.csvfiles
         .split(",")
         .map((item, index) => {
@@ -265,7 +226,11 @@ export default {
 
     handleClick() {},
     handleSuccess(response, file, fileList) {
+      console.log(response,'上传成功');
+
       this.fileList = [].concat(file);
+      this.showfiletip=false
+      this.$store.commit("app/SET_CSV_FILES", this.fileList );
     },
     submitUpload() {
       this.$refs.upload.submit();
@@ -273,14 +238,20 @@ export default {
 
     async getCsvColumnsData() {
       try {
+        this.showfiletip=false
         if (this.activeName == "first" && this.fileList.length == 0) {
-          Message.error(this.$t("datasource.uploadcsvtip"));
+          this.showfiletip=true
           return;
         }
         if (this.activeName == "second" && !this.fileurl) {
           Message.error(this.$t("datasource.uploadcsvtip"));
           return;
         }
+
+        if(!this.$refs.param.submit()){
+          return
+        }
+        console.log( this.$refs.param.submit(),'自定义列');
         this.showTransformer = false;
         this.$store.commit("app/SET_CSV_TRANSFORMER_PARSER", null);
         this.$refs.param.submit();
@@ -454,6 +425,10 @@ export default {
   // width: 600px;
   padding: 5px;
   box-sizing: border-box;
+  border: 1px solid #e3e4e6;
+      margin-bottom: 20px;
+      border-radius: 12px;
+      padding: 15px;
   .upload-file {
     display: flex;
     margin-bottom: 18px;
@@ -461,7 +436,7 @@ export default {
     .label {
       padding-right: 40px;
       color: #4259ce;
-      width: 150px;
+      width: 220px;
       font-weight: 500;
       font-size: 14px;
       text-align: left;

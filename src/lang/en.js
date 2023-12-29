@@ -1303,6 +1303,10 @@ export default {
       csvtip:
         "The number of custom columns must be equal to the number of CSV columns",
       identified: "Column Identified",
+      preview:'Preview',
+      previewmore:'Preview Result',
+      more:'More',
+      viewmore:'View More',
       extract: "Extract or Split From A column",
       filter: "Filter",
       superconfig: "Mapping",

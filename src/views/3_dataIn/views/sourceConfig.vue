@@ -10,19 +10,13 @@
         :rules="rules"
       >
         <section class="block-wrapper">
-          <el-form-item
-            :label="$t('name')"
-            prop="name"
-          >
+          <el-form-item :label="$t('name')" prop="name">
             <el-input
               v-model="sourceForm.name"
               :placeholder="$t('dataIn.palceholders.taskName')"
             ></el-input>
           </el-form-item>
-          <el-form-item
-            :label="$t('type')"
-            prop="type"
-          >
+          <el-form-item :label="$t('type')" prop="type">
             <el-select
               v-model="sourceForm.type"
               placeholder=""
@@ -37,11 +31,7 @@
               ></el-option>
             </el-select>
           </el-form-item>
-          <el-form-item
-            v-if="agentShow"
-            :label="$t('agent')"
-            prop="agent"
-          >
+          <el-form-item v-if="agentShow" :label="$t('agent')" prop="agent">
             <el-select
               v-model="sourceForm.agent"
               :placeholder="$t('dataIn.palceholders.agentPlaceholder')"
@@ -60,14 +50,13 @@
               size="small"
               class="ml"
               icon="el-icon-plus"
-              >{{ $t('dataIn.createNewAgent') }}</el-button
+              >{{ $t("dataIn.createNewAgent") }}</el-button
             >
-            <p class="custom-placeholder mt10">{{ $t('dataIn.needAgentTip') }}</p>
+            <p class="custom-placeholder mt10">
+              {{ $t("dataIn.needAgentTip") }}
+            </p>
           </el-form-item>
-          <el-form-item
-            :label="$t('stream.targetDB')"
-            prop="targetDB"
-          >
+          <el-form-item :label="$t('stream.targetDB')" prop="targetDB">
             <el-select
               v-model="sourceForm.targetDB"
               :placeholder="$t('dataIn.palceholders.chooseTargetDbTip')"
@@ -84,7 +73,7 @@
               size="small"
               class="ml"
               icon="el-icon-plus"
-              >{{ $t('data.createDatabase') }}</el-button
+              >{{ $t("data.createDatabase") }}</el-button
             >
           </el-form-item>
         </section>
@@ -95,10 +84,10 @@
           :parser="currentDefinition.parser"
           parent="data."
           :level="1"
-          ref='configform'
+          ref="configform"
         />
       </el-form>
-      <CsvData v-if='currentDefinition?.id=="csv"'></CsvData>
+      <CsvData v-if="currentDefinition?.id == 'csv'" ref='csvdata' :isEditable='isEditable'></CsvData>
       <section class="bottom">
         <el-button
           v-if="isShowEditBtn"
@@ -125,7 +114,7 @@
           :content="currentDefinition.description"
         ></DocsContent>
       </div>
-     
+      <ResultTable :isEditable='isEditable'></ResultTable>
     </div>
     <DialogCreateDb></DialogCreateDb>
   </div>
@@ -138,18 +127,19 @@ import {
   AddSource,
   EditSource,
   validateTask,
-  refreshTask as getDataSourceDetail
+  refreshTask as getDataSourceDetail,
 } from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";
 import { Message } from "element-ui";
 import { debounce, parsinginZone, decrypt } from "@/utils/index";
 import DialogCreateDb from "../components/addDbDialog.vue";
 import Result from "../components/result.vue";
+import ResultTable from "../components/transformResultTable.vue";
 import {
   getFormConfigByDataSource,
   generateFormInitData,
   getDsnData,
-  NoNeedAgentType
+  NoNeedAgentType,
 } from "../utils";
 import FormItem from "../components/formItem.vue";
 import BlockHeader from "../components/blockHeader.vue";
@@ -173,7 +163,8 @@ export default {
     BlockHeader,
     DocsContent,
     ConfigForm,
-    CsvData
+    CsvData,
+    ResultTable,
   },
   props: {
     dbsource: {
@@ -192,7 +183,7 @@ export default {
     },
     editId: {
       type: [Number, String],
-      default:''
+      default: "",
     },
     isCopyable: {
       type: Boolean,
@@ -209,10 +200,10 @@ export default {
       isShowEditBtn: false,
       dbList: [],
       sourceForm: {
-        name: '',
-        type: '',
-        targetDB: '',
-        agent: '',
+        name: "",
+        type: "",
+        targetDB: "",
+        agent: "",
         data: {},
       },
       rules: {
@@ -220,13 +211,13 @@ export default {
           {
             required: true,
             trigger: "blur",
-            message: this.$t('required', [this.$t("name")]),
+            message: this.$t("required", [this.$t("name")]),
           },
         ],
         targetDB: {
           required: true,
           trigger: "change",
-          message: this.$t('required', [this.$t("stream.targetDB")]),
+          message: this.$t("required", [this.$t("stream.targetDB")]),
         },
       },
       currentDefinition: null,
@@ -237,10 +228,10 @@ export default {
   },
   created() {
     if (this.isEditable) {
-      this.getDataSourceDetail()
+      this.getDataSourceDetail();
       this.isShowEditBtn = this.isCopyable ? false : true;
     }
-    this.getDBLists()
+    this.getDBLists();
   },
   computed: {
     agentId() {
@@ -256,7 +247,11 @@ export default {
     //   return this.$store.state.app.currentResume || "";
     // }
     toUrl() {
-      return 'taos+' + localStorage.getItem("base_url") + (this.sourceForm.targetDB ? "/" + this.sourceForm.targetDB : "");
+      return (
+        "taos+" +
+        localStorage.getItem("base_url") +
+        (this.sourceForm.targetDB ? "/" + this.sourceForm.targetDB : "")
+      );
     },
     definitionsList() {
       return this.$store.state.app.definitions;
@@ -268,29 +263,31 @@ export default {
       return this.$store.state.app.agentLists;
     },
     defaultSourceConfig() {
-      return this.isEditable ? this.editSourceConfig : getFormConfigByDataSource(this.definitionsList);
+      return this.isEditable
+        ? this.editSourceConfig
+        : getFormConfigByDataSource(this.definitionsList);
     },
   },
   watch: {
-    '$store.state.app.createStWithoutDB':{
-      deep:true,
-      handler(val){
-        if(val){
-          this.$refs.form.validate(valid=>{
-            if(valid){
-              return true
-            }else{
-              return false
+    "$store.state.app.createStWithoutDB": {
+      deep: true,
+      handler(val) {
+        if (val) {
+          this.$refs.form.validate((valid) => {
+            if (valid) {
+              return true;
+            } else {
+              return false;
             }
-          })
+          });
         }
-      }
+      },
     },
-    'sourceForm.targetDB':{
-      deep:true,
-      handler(val){
-        this.$store.commit('app/SET_CURRENT_DBNAME',val)
-      }
+    "sourceForm.targetDB": {
+      deep: true,
+      handler(val) {
+        this.$store.commit("app/SET_CURRENT_DBNAME", val);
+      },
     },
     "$i18n.locale": {
       deep: true,
@@ -301,21 +298,14 @@ export default {
     dbsource: {
       deep: true,
       handler(val) {
-        if(!this.isEditable&&!this.sourceForm.type){
-          this.$set(this.sourceForm,'type','tmq')
+        if (!this.isEditable && !this.sourceForm.type) {
+          this.$set(this.sourceForm, "type", "tmq");
         }
         this.$forceUpdate();
         this.getDataSource();
       },
-      immediate: true
+      immediate: true,
     },
-    // tagName: {
-    //   deep: true,
-    //   handler(val) {
-    //     console.log(val,'当前的tag');
-    //     this.$forceUpdate();
-    //   },
-    // },
     "$store.state.app.currentDBType": {
       immediate: true,
       handler(val) {
@@ -332,8 +322,10 @@ export default {
           this.$store.commit("app/SET_CSV_PARSER", null);
           this.$store.commit("app/SET_MAPPING_JOIN", "");
           this.$store.commit("app/SET_SPLIT_EXPRESS", null);
-          this.$store.commit('app/SET_TRANS_RESULT_TABLE',[])
-          this.$store.commit('app/SET_TRANS_RESULT_TABLE',[])
+          this.$store.commit("app/SET_TRANS_RESULT_TABLE", []);
+          this.$store.commit('app/SET_TRANS_RESULT_NAME','')
+          this.$store.commit('app/SET_TRANS_FULL_PARAMS',null)
+          this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", 0);
         }
         if (val == "kafka" || val == "mqtt") {
           // this.$set(this, "constmqttCols", []);
@@ -346,36 +338,50 @@ export default {
         }
       },
     },
-    'sourceForm.type': {
+    "sourceForm.type": {
       handler(val) {
-        this.$store.commit('app/SET_CURRENT_DBTYPE',val)
+        this.$store.commit("app/SET_CURRENT_DBTYPE", val);
+        this.$store.commit('app/SET_TRANS_RESULT_NAME','')
         this.getDataSource();
+        this.$nextTick(() => {
+          if (document.querySelector(".transdescription")) {
+            let dom = document.querySelector(".transdescription");
+            let top = dom.offsetTop + dom.getBoundingClientRect().height;
+            this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
+          }
+
+        console.log(val,'切换呢类型',document.querySelector(".transdescription"));
+        });
       },
-      immediate: true
+      immediate: true,
     },
     "$store.state.app.currentDBName": {
       deep: true,
       handler(val) {
-        console.log(val,'数据库9');
         this.sourceForm.targetDB = val;
         this.getDBLists();
       },
     },
     "$store.state.app.currentAgentID": {
       handler(val) {
-        this.sourceForm.agent = val
-      }
-    }
+        this.sourceForm.agent = val;
+      },
+    },
   },
   methods: {
     async getDataSourceDetail() {
       await getDataSourceDetail(this.editId)
-        .then(data => {
+        .then((data) => {
           this.sourceForm.type = data.from_detail.id;
           this.sourceForm.name = data.name;
           this.sourceForm.targetDB = data?.to_expand?.subject;
           this.sourceForm.agent = data.via;
-          this.editSourceConfig = getFormConfigByDataSource([data.from_detail], data.parser);
+          this.editSourceConfig = getFormConfigByDataSource(
+            [data.from_detail],
+            data.parser
+          );
+
+          console.log(data,'回-------=',this.editSourceConfig,this.defaultSourceConfig);
         })
         .finally(() => {
           this.requestIng = false;
@@ -394,8 +400,12 @@ export default {
     },
 
     save() {
-      let status = this.$parent.currentTaskStatus
-      if (this.isEditable && !this.isCopyable && !['stopped','completed'].includes(status)) {
+      let status = this.$parent.currentTaskStatus;
+      if (
+        this.isEditable &&
+        !this.isCopyable &&
+        !["stopped", "completed"].includes(status)
+      ) {
         this.$confirm(this.$t("dataIn.saveTip"), this.$t("warning"), {
           confirmButtonText: this.$t("confirm"),
           cancelButtonText: this.$t("cancel"),
@@ -410,10 +420,15 @@ export default {
       }
     },
 
-    submit() {
+   async submit() {
       this.$refs.form.validate(async (valid) => {
         if (valid) {
-          const dsn = getDsnData(this.sourceForm.data, this.currentDefinition,);
+          if(this.sourceForm.type=='csv'){
+            this.$refs.csvdata.submitUpload()
+            await this.$refs.csvdata.$refs.transform.getTransformerParams();
+            params.parser = this.$store.state.app.transformerfullparams;
+          }
+          const dsn = getDsnData(this.sourceForm.data, this.currentDefinition);
           const type = this.sourceForm.type;
           let id = localStorage.getItem("local_clusterID");
           // this.requestIng = true;
@@ -431,16 +446,23 @@ export default {
           if (this.sourceForm.agent) {
             params["via"] = this.sourceForm.agent;
           }
+          console.log(this.sourceForm,'csvtiji---提交');
+          
           if (this.sourceForm.data.parser) {
-            this.$refs.configform.$refs.transform[0].caculateMappingResult()
-            console.log(this.$refs.configform.$refs.transform[0],this.sourceForm.data.parser,'this.sourceForm.data.parser');
-            return
+           await this.$refs.configform.$refs.transform[0].getTransformerParams();
+            params.parser = this.$store.state.app.transformerfullparams;
+            console.log(
+              this.$store.state.app.transformerfullparams,
+              this.$refs.configform.$refs.transform[0],
+              this.sourceForm.data.parser,
+              "this.sourceForm.data.parser"
+            );
             // let { model } = this.sourceForm.data.parser
             // if (model.columns.length < 2 || model.tags.length < 1) {
             //   Message.warning(this.$t('datasource.parserTip'))
             //   return;
             // }
-            // params.parser = this.sourceForm.data.parser;
+            
           }
           if (this.isEditable && this.editId && !this.isCopyable) {
             let result = await EditSource(params, this.editId);
@@ -457,49 +479,52 @@ export default {
               Message.error(result.message);
               return;
             }
+            this.$refs.form.resetFields();
             this.$parent.changeEditable(false);
             this.$parent.toggleComponent("tmqtable");
-            this.$refs.form.resetFields();
+            
           }
         } else {
           this.$nextTick(() => {
-            document.querySelector('.source-ui .left-ui .is-error')?.scrollIntoView();
+            document
+              .querySelector(".source-ui .left-ui .is-error")
+              ?.scrollIntoView();
           });
           return false;
         }
       });
     },
-    
+
     cancel() {
       this.$parent.currentName = "dbsource";
     },
     async getDBLists() {
       try {
         let data = await getDBListReq();
-        this.dbList = data.filter(v => v.name !== 'audit')
+        this.dbList = data.filter((v) => v.name !== "audit");
       } catch (error) {
         console.log(error);
       }
     },
     createAgent() {
       this.$store.commit("app/SET_AGENT_DIALOG", true);
-      this.$store.commit('SET_DIALOG', {
-        component: () => import('../components/addAgent.vue'),
+      this.$store.commit("SET_DIALOG", {
+        component: () => import("../components/addAgent.vue"),
         config: {
-          width: '620px',
-          title: this.$t('dataIn.createNewAgent')
+          width: "620px",
+          title: this.$t("dataIn.createNewAgent"),
         },
         params: {
           showTitle: false,
           close: () => {
-            this.$store.commit('SET_DIALOG_VISIBLE', false);
-          }
+            this.$store.commit("SET_DIALOG_VISIBLE", false);
+          },
         },
         listeners: {
           close: () => {
-            this.$store.commit('SET_DIALOG_VISIBLE', false);
-          }
-        }
+            this.$store.commit("SET_DIALOG_VISIBLE", false);
+          },
+        },
       });
     },
     createDb() {
@@ -508,11 +533,12 @@ export default {
       this.$store.commit("dbs/SET_DIALOG_DB_VISABLE", true);
     },
     handleType() {
-      this.sourceForm.agent = ''
-    }
+      this.sourceForm.agent = "";
+    },
   },
 };
 </script>
+
 <style lang="scss" scoped>
 .source-ui {
   justify-content: space-between;
@@ -579,7 +605,9 @@ export default {
   .right-ui {
     flex: 1;
     margin-left: 40px;
-    overflow: hidden;    .doc-part {
+    overflow: hidden;
+    position:relative;
+    .doc-part {
       box-shadow: rgba(0, 0, 0, 0.1) 0px 0px 15px;
       padding: 2rem;
       margin: 1rem;
@@ -606,13 +634,12 @@ export default {
     z-index: 101;
   }
   ::v-deep .block-title {
-      margin-bottom: 10px;
-      span {
-        font-size: 16px;
-        color: #4259ce;
-        font-weight: 600;
-      }
+    margin-bottom: 10px;
+    span {
+      font-size: 16px;
+      color: #4259ce;
+      font-weight: 600;
     }
+  }
 }
-
 </style>

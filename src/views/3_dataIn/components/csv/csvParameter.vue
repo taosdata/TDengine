@@ -174,6 +174,7 @@ export default {
     },
     changeHeader() {
       this.showcustom = !this.ruleForm.hasHeader;
+      this.$store.commit("app/SET_CSV_HASHEADER", this.ruleForm.hasHeader);
     },
     async getDatabases() {
       try {
@@ -188,9 +189,9 @@ export default {
           this.isValid = true;
         } else {
           this.isValid = false;
-          return false;
         }
       });
+      return this.isValid
     },
     submit2() {
       // this.$refs.ruleForm2.validate((valid) => {

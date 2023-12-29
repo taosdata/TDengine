@@ -1,7 +1,9 @@
 <template>
   <div class="result-table" v-if="showtable">
     <div class="title-block">
-      <span class="title">{{ $t("datasource.transformer.resulttb") }}</span>
+      <span class="title">{{
+        $store.state.app.transresultname + $t("datasource.transformer.resulttb")
+      }}</span>
       <!-- <span class='el-icon-close'></span> -->
     </div>
     <el-table border style="width: 100%" :data="pageTableData">
@@ -28,6 +30,12 @@
 <script>
 export default {
   name: "ResultTable",
+  props:{
+    isEditable: {
+      type: Boolean,
+      default: false,
+    },
+  },
   data() {
     return {
       columns: ["Name", "Output1", "Output2", "Output3"],
@@ -42,7 +50,8 @@ export default {
     };
   },
   mounted() {
-    if (this.$store.state.app.transformresulttable.length > 0) {
+    console.log(this.isEditable,'isEditableisEditableisEditable',this.$store.state.app.transresultname);
+    if (this.$store.state.app.transformresulttable.length > 0&&!this.isEditable&&this.$store.state.app.transresultname) {
       this.getResultData(this.$store.state.app.transformresulttable);
       this.showtable = true;
     }
@@ -93,26 +102,64 @@ export default {
     },
   },
   watch: {
+    "$store.state.app.transresultname": {
+      deep: true,
+      handler(val) {
+        console.log(
+          val,
+          "监听名称-----table",
+          this.$store.state.app.transformresulttable
+        );
+        if (val) {
+          this.showtable = true;
+          this.getResultData(this.$store.state.app.transformresulttable);
+          this.$nextTick(() => {
+            let dom = document.querySelector(".result-table");
+            if (dom) {
+              dom.style.top = this.$store.state.app.transformTableHeight + "px";
+            }
+          });
+        }else{
+            this.showtable = false
+            this.$store.commit("app/SET_TRANS_RESULT_TABLE", []);
+        }
+      },
+    },
     "$store.state.app.transformresulttable": {
       deep: true,
       handler(val) {
-        console.log(val, "结果表格-----ppppp");
-        this.getResultData(val);
-        this.showtable = true;
+        console.log(val, "结果表格-----ppppp",this.$store.state.app.transresultname);
+        if (val && val.length > 0&&this.$store.state.app.transresultname) {
+            this.getResultData(val);
+            
+          
+        }
       },
     },
   },
 };
 </script>
+<style>
+/* @media screen and (max-width: 1366px) {
+  .result-table {
+    background: red;
+    display: none !important;
+  }
+} */
+</style>
 <style lang="scss" scoped>
 .result-table {
   border: 1px solid #e3e4e6;
   border-radius: 12px;
   padding: 20px;
-  max-width: 600px;
-  min-width: 480px;
+  width: 100%;
+  //   max-width: 600px;
+  //   min-width: 480px;
   position: absolute;
-  top: 54%;
+  .block-page {
+    overflow: auto;
+  }
+  //   top: 54%;
   .title-block {
     display: flex;
     justify-content: space-between;

@@ -37,7 +37,7 @@
             v-bind="item"
           /> -->
           
-          <CommonTransformer v-if="item.type == 'parser'" :parent="parent" ref='transform' :parserColumns="constmqttCols"></CommonTransformer>
+          <CommonTransformer v-if="item.type == 'parser'&&constmqttCols.length>0" ref='transform' :parserColumns="constmqttCols"></CommonTransformer>
           <ConnectivityCheck
             v-else-if="item.type == 'checkConnectivity'"
             :data="data[item.field]"
@@ -181,14 +181,14 @@ export default {
         if(val){
           this.$set(this, "constmqttCols", val.fields);
         }
-       
-        console.log(val,'监听parser',this.$store.state.app.currentDBType);
       }
     }
   },
   created() {},
   mounted() {
-    console.log(this.parent,this.$parent,'parent---trans',this.parser);
+    if(this.parser){
+      this.$set(this, "constmqttCols", this.parser.fields);
+    }
   },
   methods: {
     tabDisabled(child, parent) {
@@ -201,10 +201,6 @@ export default {
       return child.name === this.data[parent.field][parent.valueField];
     }
   }
-  // errorCaptured(err, vm, info) {
-  //   console.log(info);
-  //   return false;
-  // }
 };
 </script>
 
