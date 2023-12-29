@@ -128,9 +128,13 @@ public class MetricThread implements Runnable {
                         }
                     }
                     if (StringUtils.isNotEmpty(v.getMetric())) {
-                        MetricCache.addMetricDataThread(v.getMetric(), new MetricDataThread(v.getMetric(), timeRangeArr[0], timeRangeArr[1]));
-                        // 读取数据任务计数
-                        StatisticCache.noteCreatedTask(v.getMetric(), timeRangeArr[0], timeRangeArr[1]);
+                        try {
+                            MetricCache.addMetricDataThread(v.getMetric(), new MetricDataThread(v.getMetric(), timeRangeArr[0], timeRangeArr[1]));
+                            // 读取数据任务计数
+                            StatisticCache.noteCreatedTask(v.getMetric(), timeRangeArr[0], timeRangeArr[1]);
+                        } catch (Exception e) {
+                            logger.error("An exception occurred during the creating of MetricDataThread", e);
+                        }
                     }
                 });
                 // 更新序号
