@@ -46,9 +46,10 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw);
 int32_t mndSetConsumerCommitLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer);
 int32_t mndSetConsumerDropLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer);
 
-bool mndRebTryStart();
+const char *mndConsumerStatusName(int status);
+
 bool mndRebCanStart();
-void mndRebEnd();
+bool mndRebTryStart();
 void mndRebCntInc();
 void mndRebCntDec();
 
