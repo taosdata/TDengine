@@ -2,7 +2,9 @@ package report
 
 import (
 	"fmt"
+	"math"
 	"net"
+	"time"
 
 	"github.com/apache/arrow/go/v12/arrow"
 	"github.com/apache/arrow/go/v12/arrow/array"
@@ -57,7 +59,7 @@ func NewArrowReporter(remote string) (*ArrowReporter, error) {
 }
 
 func (r *ArrowReporter) Report(list []*Message) error {
-	r.logger.Debugf("report %#v", list)
+	r.logger.Debugf("report count %d\n", len(list))
 	recordBuilder := array.NewRecordBuilder(r.allocator, r.schema)
 	defer recordBuilder.Release()
 	tsField := recordBuilder.Field(0).(*array.TimestampBuilder)
@@ -68,16 +70,44 @@ func (r *ArrowReporter) Report(list []*Message) error {
 	defer qosField.Release()
 	payloadField := recordBuilder.Field(3).(*array.StringBuilder)
 	defer payloadField.Release()
+	total := 0
 	for i := 0; i < len(list); i++ {
+		if len(list[i].Payload) > math.MaxInt32 {
+			r.logger.Errorf("payload length %d larger than max Int32\n", len(list[i].Payload))
+			return fmt.Errorf("payload length %d larger than max Int32\n", len(list[i].Payload))
+		}
+		total += len(list[i].Payload)
+		if total >= math.MaxInt32 {
+			r.logger.Warnf("payload total length %d larger than max Int32\n", total)
+			err := r.Write(recordBuilder)
+			if err != nil {
+				return err
+			}
+			total = len(list[i].Payload)
+		}
 		tsField.Append(arrow.Timestamp(list[i].TS))
 		topicField.Append(list[i].Topic)
 		qosField.Append(list[i].Qos)
 		payloadField.BinaryBuilder.Append(list[i].Payload)
 	}
+	return r.Write(recordBuilder)
+}
+
+func (r *ArrowReporter) Write(recordBuilder *array.RecordBuilder) error {
 	record := recordBuilder.NewRecord()
 	defer record.Release()
-	r.logger.Debugf("report data%#v:", list)
-	return r.writer.Write(record)
+	start := time.Now()
+	defer func() {
+		end := time.Now()
+		if end.Sub(start) > time.Second {
+			r.logger.Warnf("write %d rows cost %s\n", record.NumRows(), end.Sub(start))
+		}
+	}()
+	if record.NumRows() > 0 {
+		r.logger.Debugf("write %d rows\n", record.NumRows())
+		return r.writer.Write(record)
+	}
+	return nil
 }
 
 func (r *ArrowReporter) Close() {
