@@ -48,11 +48,6 @@ int32_t mndSetConsumerDropLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *p
 
 const char *mndConsumerStatusName(int status);
 
-bool mndRebCanStart();
-bool mndRebTryStart();
-void mndRebCntInc();
-void mndRebCntDec();
-
 #ifdef __cplusplus
 }
 #endif

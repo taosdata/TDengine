@@ -30,6 +30,8 @@
 #define MND_CONSUMER_LOST_HB_CNT          6
 #define MND_CONSUMER_LOST_CLEAR_THRESHOLD 43200
 
+static int32_t mqRebInExecCnt = 0;
+
 static SSdbRaw *mndSubActionEncode(SMqSubscribeObj *);
 static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw);
 static int32_t  mndSubActionInsert(SSdb *pSdb, SMqSubscribeObj *);
@@ -828,6 +830,22 @@ static int32_t mndCheckConsumer(SRpcMsg *pMsg, SHashObj* rebSubHash) {
   }
 
   return 0;
+}
+
+bool mndRebTryStart() {
+  int32_t old = atomic_val_compare_exchange_32(&mqRebInExecCnt, 0, 1);
+  mInfo("rebalance counter old val:%d", old);
+  return old == 0;
+}
+
+void mndRebCntInc() {
+  int32_t val = atomic_add_fetch_32(&mqRebInExecCnt, 1);
+  mInfo("rebalance cnt inc, value:%d", val);
+}
+
+void mndRebCntDec() {
+  int32_t val = atomic_sub_fetch_32(&mqRebInExecCnt, 1);
+  mInfo("rebalance cnt sub, value:%d", val);
 }
 
 static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
