@@ -44,6 +44,7 @@ int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr);
 int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr);
 // txn
 int64_t tsdbFSAllocEid(STFileSystem *fs);
+void    tsdbFSUpdateEid(STFileSystem *fs, int64_t cid);
 int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype);
 int32_t tsdbFSEditCommit(STFileSystem *fs);
 int32_t tsdbFSEditAbort(STFileSystem *fs);
