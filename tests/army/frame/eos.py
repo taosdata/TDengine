@@ -20,10 +20,15 @@ import os
 import time
 import datetime
 import platform
+import subprocess
 
 # if windows platform return True
 def isWin():
     return platform.system().lower() == 'windows'
+
+#
+#  execute programe
+#
 
 # wait util execute file finished 
 def exe(file):
@@ -34,3 +39,19 @@ def exeNoWait(file):
     print("exe no wait")
 
 
+# run return output and error
+def run(command):
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process.wait(3)
+
+    output = process.stdout.read().decode(encoding="gbk")
+    error = process.stderr.read().decode(encoding="gbk")
+
+    return output, error
+
+
+# return list after run
+def runRetList(command):
+    lines = []
+    output,error = run(command)
+    return output.splitlines()

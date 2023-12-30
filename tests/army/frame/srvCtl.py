@@ -16,6 +16,8 @@ import os
 import time
 import datetime
 
+from frame.server.dnodes import *
+
 class srvCtl:
     def __init__(self):
         # record server information
@@ -23,5 +25,20 @@ class srvCtl:
         self.mnodeNum = 0
         self.mLevel = 0
         self.mLevelDisk = 0
+
+    #
+    #  about path
+    #
+
+    # get cluster root path like /root/TDinternal/sim/ 
+    def clusterRootPath(self):
+        return tdDnodes.getDnodesRootDir()
+
+    # return dnode data files list
+    def dnodeDataFiles(self, idx):
+        files = []
+        return files
+
+    
 
 sc = srvCtl()

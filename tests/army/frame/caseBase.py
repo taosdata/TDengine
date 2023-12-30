@@ -63,14 +63,18 @@ class TBase:
 #   db action
 #         
 
-    def trimDb(self):
-        tdSql.execute(f"trim database {self.db}")
+    def trimDb(self, show = False):
+        tdSql.execute(f"trim database {self.db}", show = show)
 
-    def compactDb(self):
-        tdSql.execute(f"compact database {self.db}")
+    def compactDb(self, show = False):
+        tdSql.execute(f"compact database {self.db}", show = show)
 
-    def flushDb(self):
-        tdSql.execute(f"flush database {self.db}")
+    def flushDb(self, show = False):
+        tdSql.execute(f"flush database {self.db}", show = show)
+
+    def dropDb(self, show = False):
+        tdSql.execute(f"drop database {self.db}", show = show)
+
 
 #
 #  check db correct

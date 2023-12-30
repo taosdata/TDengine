@@ -5,10 +5,17 @@
 #unit-test
 ,,y,unit-test,bash test.sh
 
-#army-test
+#
+# army-test
+#
 ,,y,army,./pytest.sh python3 ./test.py -f enterprise/multi-level/mlevel_basic.py -N 3 -L 3 -D 2
+,,y,army,./pytest.sh python3 ./test.py -f enterprise/s3/s3_basic.py -L 3 -D 1
 
-#system test
+
+
+#
+# system test
+#
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_basic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/scalar_function.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_interval.py
