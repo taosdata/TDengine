@@ -24,4 +24,9 @@ class srvCtl:
         self.mLevel = 0
         self.mLevelDisk = 0
 
+    # return dnode data files list
+    def dnodeDataFiles(self, idx):
+        files = []
+        return files
+
 sc = srvCtl()
