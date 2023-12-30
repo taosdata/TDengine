@@ -129,7 +129,7 @@ static struct argp_option shellOptions[] = {
     {"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
 #endif
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
-    {"bimode", 'B', "BIMODE", 0, SHELL_BI_MODE},
+    {"bimode", 'B', 0, 0, SHELL_BI_MODE},
     {0},
 };
 
