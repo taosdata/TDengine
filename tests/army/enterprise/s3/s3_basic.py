@@ -17,6 +17,7 @@ import time
 import taos
 import frame
 import frame.etool
+import frame.eos
 
 from frame.log import *
 from frame.cases import *
@@ -24,6 +25,7 @@ from frame.sql import *
 from frame.caseBase import *
 from frame.srvCtl import *
 from frame import *
+from frame.eos import *
 
 #  
 # 192.168.1.52 MINIO S3 API KEY: MQCEIoaPGUs1mhXgpUAu:XTgpN2dEMInnYgqN4gj3G5zgb39ROtsisKKy0GFa
@@ -42,13 +44,16 @@ class TDTestCase(TBase):
         's3EndPoint': 'http://192.168.1.52:9000', 
         's3AccessKey': 'MQCEIoaPGUs1mhXgpUAu:XTgpN2dEMInnYgqN4gj3G5zgb39ROtsisKKy0GFa', 
         's3BucketName': 'ci-bucket',
+        's3BlockSize': '10240',
+        's3BlockCacheSize': '320',
+        's3PageCacheSize': '10240',
         's3UploadDelaySec':'60'
     }    
 
     def insertData(self):
         tdLog.info(f"insert data.")
         # taosBenchmark run
-        json = etool.curFile(__file__, "mlevel_basic.json")
+        json = etool.curFile(__file__, "s3_basic.json")
         etool.runBenchmark(json=json)
 
         tdSql.execute(f"use {self.db}")
@@ -63,12 +68,15 @@ class TDTestCase(TBase):
         self.compactDb()
 
         # sleep 70s
+        tdLog.info(f"wait 70s ...")
         time.sleep(70)
         self.trimDb()
-        
+
+        rootPath = sc.clusterRootPath()
+        cmd = f"ls {rootPath}/dnode1/data02/vnode/vnode*/tsdb/*.data"
         loop = 0
-        while len(sc.dnodeDataFiles()) > 0 and loop < 10:
-            time.sleep(10)
+        while len(eos.runRetList(cmd)) > 0 and loop < 40:
+            time.sleep(5)
             self.trimDb()
             loop += 1
 

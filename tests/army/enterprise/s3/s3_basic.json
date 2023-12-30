@@ -29,7 +29,7 @@
                     "childtable_prefix": "d",
                     "insert_mode": "taosc",
                     "timestamp_step": 1000,
-                    "start_timestamp":"now-12d",
+                    "start_timestamp":"now-15d",
                     "columns": [
                         { "type": "bool",        "name": "bc"},
                         { "type": "float",       "name": "fc" },
