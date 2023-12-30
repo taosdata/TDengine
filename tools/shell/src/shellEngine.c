@@ -1291,6 +1291,15 @@ int32_t shellExecute() {
   shellSetConn(shell.conn, runOnce);
   shellReadHistory();
 
+ if(shell.args.is_bi_mode) { 
+  // need set bi mode
+#ifdef WEBSOCKET
+    //ws_taos_set_conn_mode(shell.ws_conn, TAOS_CONN_MODE_BI, 1);
+#else
+    taos_set_conn_mode(shell.conn, TAOS_CONN_MODE_BI, 1);
+#endif
+ }
+
   if (runOnce) {
     if (pArgs->commands != NULL) {
       printf("%s%s\r\n", shell.info.promptHeader, pArgs->commands);
