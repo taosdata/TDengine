@@ -70,14 +70,15 @@ class TDTestCase(TBase):
         # sleep 70s
         tdLog.info(f"wait 70s ...")
         time.sleep(70)
-        self.trimDb()
+        self.trimDb(True)
 
         rootPath = sc.clusterRootPath()
         cmd = f"ls {rootPath}/dnode1/data02/vnode/vnode*/tsdb/*.data"
+        tdLog.info(cmd)
         loop = 0
         while len(eos.runRetList(cmd)) > 0 and loop < 40:
             time.sleep(5)
-            self.trimDb()
+            self.trimDb(True)
             loop += 1
 
     # run
