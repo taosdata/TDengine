@@ -164,7 +164,7 @@ class TDTestCase:
         self.c2Sum = None
 
         # create database  db
-        sql = f"create database @db_name vgroups {self.vgroups1} replica 1"
+        sql = f"create database @db_name vgroups {self.vgroups1} replica 1 wal_retention_period 1 wal_retention_size 1"
         self.exeDouble(sql)
 
         # create super talbe st
