@@ -1104,11 +1104,9 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
   return DEAL_RES_CONTINUE;
 }
 
-#ifndef TD_ENTERPRISE
 bool biRewriteToTbnameFunc(STranslateContext* pCxt, SNode** ppNode) {
   return false;
 }
-#endif
 
 static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
   if (NULL == pCxt->pCurrStmt ||
@@ -3178,9 +3176,7 @@ static int32_t createTags(STranslateContext* pCxt, SNodeList** pOutput) {
   return TSDB_CODE_SUCCESS;
 }
 
-#ifndef TD_ENTERPRISE
 int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) { return TSDB_CODE_SUCCESS; }
-#endif
 
 static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
   SNode* pNode = NULL;
@@ -5743,11 +5739,9 @@ static int32_t checkTableDeleteMarkOption(STranslateContext* pCxt, STableOptions
   return code;
 }
 
-#ifndef TD_ENTERPRISE
 int32_t biCheckCreateTableTbnameCol(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
-#endif
 
 static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt, bool createStable) {
   if (NULL != strchr(pStmt->tableName, '.')) {
