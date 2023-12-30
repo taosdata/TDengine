@@ -32,7 +32,7 @@ class srvCtl:
 
     # get cluster root path like /root/TDinternal/sim/ 
     def clusterRootPath(self):
-        return tdDnodes.path 
+        return tdDnodes.getDnodesRootDir()
 
     # return dnode data files list
     def dnodeDataFiles(self, idx):
