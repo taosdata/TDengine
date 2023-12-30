@@ -35,20 +35,8 @@ int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
 }
 
 void tqUpdateNodeStage(STQ* pTq, bool isLeader) {
-  SSyncState   state = syncGetState(pTq->pVnode->sync);
-  SStreamMeta* pMeta = pTq->pStreamMeta;
-  int64_t      stage = pMeta->stage;
-
-  pMeta->stage = state.term;
-  pMeta->role = (isLeader)? NODE_ROLE_LEADER:NODE_ROLE_FOLLOWER;
-  if (isLeader) {
-    tqInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb", pMeta->vgId,
-           state.term, stage, isLeader);
-    streamMetaStartHb(pMeta);
-  } else {
-    tqInfo("vgId:%d update meta stage:%" PRId64 " prev:%" PRId64 " leader:%d", pMeta->vgId, state.term, stage,
-           isLeader);
-  }
+  SSyncState state = syncGetState(pTq->pVnode->sync);
+  streamMetaUpdateStageRole(pTq->pStreamMeta, state.term, isLeader);
 }
 
 static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, STqOffsetVal pOffset) {

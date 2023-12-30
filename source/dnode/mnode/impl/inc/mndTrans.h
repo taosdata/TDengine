@@ -97,7 +97,7 @@ SSdbRaw *mndTransEncode(STrans *pTrans);
 SSdbRow *mndTransDecode(SSdbRaw *pRaw);
 void     mndTransDropData(STrans *pTrans);
 
-bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans);
+bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans, bool topHalf);
 #ifdef __cplusplus
 }
 #endif

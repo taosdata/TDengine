@@ -125,7 +125,7 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   }
 
   pSnode->msgCb = pOption->msgCb;
-  pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskExpand *)sndExpandTask, SNODE_HANDLE, taosGetTimestampMs());
+  pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskExpand *)sndExpandTask, SNODE_HANDLE, taosGetTimestampMs(), tqStartTaskCompleteCallback);
   if (pSnode->pMeta == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto FAIL;
@@ -147,8 +147,8 @@ FAIL:
 }
 
 int32_t sndInit(SSnode *pSnode) {
-  resetStreamTaskStatus(pSnode->pMeta);
-  startStreamTasks(pSnode->pMeta);
+  tqStreamTaskResetStatus(pSnode->pMeta);
+  streamMetaStartAllTasks(pSnode->pMeta);
   return 0;
 }
 
@@ -202,6 +202,8 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
       return tqStreamTaskProcessDropReq(pSnode->pMeta, pMsg->pCont, pMsg->contLen);
     case TDMT_VND_STREAM_TASK_UPDATE:
       return tqStreamTaskProcessUpdateReq(pSnode->pMeta, &pSnode->msgCb, pMsg, true);
+    case TDMT_VND_STREAM_TASK_RESET:
+      return tqStreamTaskProcessTaskResetReq(pSnode->pMeta, pMsg);
     default:
       ASSERT(0);
   }

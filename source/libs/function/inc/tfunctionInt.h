@@ -28,8 +28,6 @@ extern "C" {
 #include "tudf.h"
 #include "tvariant.h"
 
-bool topbot_datablock_filter(SqlFunctionCtx *pCtx, const char *minval, const char *maxval);
-
 /**
  * the numOfRes should be kept, since it may be used later
  * and allow the ResultInfo to be re initialized

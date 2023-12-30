@@ -17,21 +17,43 @@ import time
 import taos
 import frame
 import frame.etool
+import frame.eos
 
 from frame.log import *
 from frame.cases import *
 from frame.sql import *
 from frame.caseBase import *
+from frame.srvCtl import *
 from frame import *
+from frame.eos import *
+
+#  
+# 192.168.1.52 MINIO S3 API KEY: MQCEIoaPGUs1mhXgpUAu:XTgpN2dEMInnYgqN4gj3G5zgb39ROtsisKKy0GFa
+#
+
+'''
+s3EndPoint     http://192.168.1.52:9000
+s3AccessKey    MQCEIoaPGUs1mhXgpUAu:XTgpN2dEMInnYgqN4gj3G5zgb39ROtsisKKy0GFa
+s3BucketName   ci-bucket
+s3UploadDelaySec 60
+'''
 
 
 class TDTestCase(TBase):
-        
+    updatecfgDict = {
+        's3EndPoint': 'http://192.168.1.52:9000', 
+        's3AccessKey': 'MQCEIoaPGUs1mhXgpUAu:XTgpN2dEMInnYgqN4gj3G5zgb39ROtsisKKy0GFa', 
+        's3BucketName': 'ci-bucket',
+        's3BlockSize': '10240',
+        's3BlockCacheSize': '320',
+        's3PageCacheSize': '10240',
+        's3UploadDelaySec':'60'
+    }    
 
     def insertData(self):
         tdLog.info(f"insert data.")
         # taosBenchmark run
-        json = etool.curFile(__file__, "mlevel_basic.json")
+        json = etool.curFile(__file__, "s3_basic.json")
         etool.runBenchmark(json=json)
 
         tdSql.execute(f"use {self.db}")
@@ -43,8 +65,21 @@ class TDTestCase(TBase):
     def doAction(self):
         tdLog.info(f"do action.")
         self.flushDb()
-        self.trimDb()
         self.compactDb()
+
+        # sleep 70s
+        tdLog.info(f"wait 65s ...")
+        time.sleep(65)
+        self.trimDb(True)
+
+        rootPath = sc.clusterRootPath()
+        cmd = f"ls {rootPath}/dnode1/data20/vnode/vnode*/tsdb/*.data"
+        tdLog.info(cmd)
+        loop = 0
+        while len(eos.runRetList(cmd)) > 0 and loop < 40:
+            time.sleep(5)
+            self.trimDb(True)
+            loop += 1
 
     # run
     def run(self):
@@ -67,6 +102,9 @@ class TDTestCase(TBase):
 
         # check insert correct again
         self.checkInsertCorrect()
+
+        # drop database and free s3 file
+        self.dropDb()
 
         tdLog.success(f"{__file__} successfully executed")
 

@@ -152,9 +152,6 @@ void    tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data);
 char*   tqOffsetBuildFName(const char* path, int32_t fVer);
 int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname);
 
-// tqStream
-int32_t tqStopStreamTasks(STQ* pTq);
-
 // tq util
 int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int32_t type);
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
