@@ -36,7 +36,7 @@
                         { "type": "bool",        "name": "bc"},
                         { "type": "float",       "name": "fc" },
                         { "type": "double",      "name": "dc"},
-                        { "type": "tinyint",     "name": "ti", "values":["1"]},
+                        { "type": "tinyint",     "name": "ti"},
                         { "type": "smallint",    "name": "si" },
                         { "type": "int",         "name": "ic" },
                         { "type": "bigint",      "name": "bi" },

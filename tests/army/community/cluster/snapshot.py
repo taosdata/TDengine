@@ -13,10 +13,12 @@
 
 import sys
 import time
+import random
 
 import taos
 import frame
 import frame.etool
+
 
 from frame.log import *
 from frame.cases import *
@@ -43,7 +45,21 @@ class TDTestCase(TBase):
     def doAction(self):
         tdLog.info(f"do action.")
         self.flushDb()
+
+        # split vgroups
+        self.splitVGroups()
         self.trimDb()
+
+        # balance vgroups
+        self.balanceVGroupLeader()
+
+        # replica to 1
+        self.alterReplica(1)
+
+        vgids = self.getVGroup()
+        selid = random.choice(vgids)
+        self.balanceVGroupLeaderOn(selid)
+
         self.compactDb()
 
     # run
