@@ -49,14 +49,16 @@ class TDTestCase(TBase):
         # split vgroups
         self.splitVGroups()
         self.trimDb()
+        self.checkAggCorrect()
 
         # balance vgroups
         self.balanceVGroupLeader()
 
         # replica to 1
         self.alterReplica(1)
+        self.checkAggCorrect()
 
-        vgids = self.getVGroup()
+        vgids = self.getVGroup(self.db)
         selid = random.choice(vgids)
         self.balanceVGroupLeaderOn(selid)
 
