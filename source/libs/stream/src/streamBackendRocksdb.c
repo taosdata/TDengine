@@ -665,6 +665,7 @@ void streamBackendHandleCleanup(void* arg) {
   return;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t getLatestCheckpoint(void* arg, int64_t* checkpoint) {
   SStreamMeta* pMeta = arg;
   taosWLockLatch(&pMeta->chkpDirLock);
@@ -738,6 +739,7 @@ int32_t delObsoleteCheckpoint(void* arg, const char* path) {
   taosArrayDestroy(chkpDel);
   return 0;
 }
+#endif
 /*
  *  checkpointSave |--cp1--|--cp2--|--cp3--|--cp4--|--cp5--|
  *  chkpInUse: |--cp2--|--cp4--|
@@ -855,6 +857,7 @@ int32_t streamBackendLoadCheckpointInfo(void* arg) {
   return 0;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t chkpGetAllDbCfHandle(SStreamMeta* pMeta, rocksdb_column_family_handle_t*** ppHandle, SArray* refs) {
   return 0;
   // SArray* pHandle = taosArrayInit(16, POINTER_BYTES);
@@ -891,6 +894,7 @@ int32_t chkpGetAllDbCfHandle(SStreamMeta* pMeta, rocksdb_column_family_handle_t*
   // *ppHandle = ppCf;
   // return nCf;
 }
+#endif
 
 int32_t chkpGetAllDbCfHandle2(STaskDbWrapper* pBackend, rocksdb_column_family_handle_t*** ppHandle) {
   SArray* pHandle = taosArrayInit(8, POINTER_BYTES);
@@ -1006,6 +1010,7 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
 
   return code;
 }
+#ifdef BUILD_NO_CALL
 int32_t streamBackendAddInUseChkp(void* arg, int64_t chkpId) {
   // if (arg == NULL) return 0;
 
@@ -1029,6 +1034,7 @@ int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId) {
   // }
   // taosWUnLockLatch(&pMeta->chkpDirLock);
 }
+#endif
 
 /*
    0
@@ -1099,7 +1105,9 @@ void streamBackendDelCompare(void* backend, void* arg) {
     taosMemoryFree(node);
   }
 }
+#ifdef BUILD_NO_CALL
 void streamStateDestroy_rocksdb(SStreamState* pState, bool remove) { streamStateCloseBackend(pState, remove); }
+#endif
 void destroyRocksdbCfInst(RocksdbCfInst* inst) {
   int cfLen = sizeof(ginitDict) / sizeof(ginitDict[0]);
   if (inst->pHandle) {
@@ -2170,6 +2178,7 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
   taosMemoryFree(cfOpts);
   return 0;
 }
+#ifdef BUILD_NO_CALL
 int streamStateOpenBackend(void* backend, SStreamState* pState) {
   taosAcquireRef(streamBackendId, pState->streamBackendRid);
   SBackendWrapper*   handle = backend;
@@ -2279,6 +2288,7 @@ void streamStateCloseBackend(SStreamState* pState, bool remove) {
   wrapper->remove |= remove;  // update by other pState
   taosReleaseRef(streamBackendCfWrapperId, pState->pTdbState->backendCfWrapperId);
 }
+#endif
 void streamStateDestroyCompar(void* arg) {
   SCfComparator* comp = (SCfComparator*)arg;
   for (int i = 0; i < comp->numOfComp; i++) {
@@ -2669,7 +2679,7 @@ SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState) {
   STREAM_STATE_DEL_ROCKSDB(pState, "state", &maxStateKey);
   return pCur;
 }
-
+#ifdef BUILD_NO_CALL
 SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* key) {
   qDebug("streamStateGetCur_rocksdb");
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
@@ -2719,6 +2729,7 @@ int32_t streamStateFuncDel_rocksdb(SStreamState* pState, const STupleKey* key) {
   STREAM_STATE_DEL_ROCKSDB(pState, "func", key);
   return 0;
 }
+#endif
 
 // session cf
 int32_t streamStateSessionPut_rocksdb(SStreamState* pState, const SSessionKey* key, const void* value, int32_t vLen) {
@@ -3128,6 +3139,7 @@ SStreamStateCur* streamStateFillSeekKeyPrev_rocksdb(SStreamState* pState, const 
   streamStateFreeCur(pCur);
   return NULL;
 }
+#ifdef BUILD_NO_CALL
 int32_t streamStateSessionGetKeyByRange_rocksdb(SStreamState* pState, const SSessionKey* key, SSessionKey* curKey) {
   stDebug("streamStateSessionGetKeyByRange_rocksdb");
   STaskDbWrapper*  wrapper = pState->pTdbState->pOwner->pBackend;
@@ -3185,6 +3197,7 @@ int32_t streamStateSessionGetKeyByRange_rocksdb(SStreamState* pState, const SSes
   streamStateFreeCur(pCur);
   return -1;
 }
+#endif
 
 int32_t streamStateSessionAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal,
                                                 int32_t* pVLen) {
@@ -3317,6 +3330,7 @@ _end:
   return res;
 }
 
+#ifdef BUILD_NO_CALL
 //  partag cf
 int32_t streamStatePutParTag_rocksdb(SStreamState* pState, int64_t groupId, const void* tag, int32_t tagLen) {
   int code = 0;
@@ -3329,6 +3343,7 @@ int32_t streamStateGetParTag_rocksdb(SStreamState* pState, int64_t groupId, void
   STREAM_STATE_GET_ROCKSDB(pState, "partag", &groupId, tagVal, tagLen);
   return code;
 }
+#endif
 // parname cfg
 int32_t streamStatePutParName_rocksdb(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
   int code = 0;
@@ -3342,11 +3357,13 @@ int32_t streamStateGetParName_rocksdb(SStreamState* pState, int64_t groupId, voi
   return code;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t streamDefaultPut_rocksdb(SStreamState* pState, const void* key, void* pVal, int32_t pVLen) {
   int code = 0;
   STREAM_STATE_PUT_ROCKSDB(pState, "default", key, pVal, pVLen);
   return code;
 }
+#endif
 int32_t streamDefaultGet_rocksdb(SStreamState* pState, const void* key, void** pVal, int32_t* pVLen) {
   int code = 0;
   STREAM_STATE_GET_ROCKSDB(pState, "default", key, pVal, pVLen);
@@ -3400,6 +3417,7 @@ int32_t streamDefaultIterGet_rocksdb(SStreamState* pState, const void* start, co
   rocksdb_iter_destroy(pIter);
   return code;
 }
+#ifdef BUILD_NO_CALL
 void* streamDefaultIterCreate_rocksdb(SStreamState* pState) {
   SStreamStateCur* pCur = createStreamStateCursor();
   STaskDbWrapper*  wrapper = pState->pTdbState->pOwner->pBackend;
@@ -3443,6 +3461,7 @@ char* streamDefaultIterVal_rocksdb(void* iter, int32_t* len) {
 
   return ret;
 }
+#endif
 // batch func
 void* streamStateCreateBatch() {
   rocksdb_writebatch_t* pBatch = rocksdb_writebatch_create();
@@ -3796,11 +3815,12 @@ void dbChkpDestroy(SDbChkp* pChkp) {
   taosMemoryFree(pChkp->pManifest);
   taosMemoryFree(pChkp);
 }
-
+#ifdef BUILD_NO_CALL
 int32_t dbChkpInit(SDbChkp* p) {
   if (p == NULL) return 0;
   return 0;
 }
+#endif
 int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
   taosThreadRwlockRdlock(&p->rwLock);
   int32_t code = -1;
@@ -3945,6 +3965,7 @@ int32_t bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list, 
   return code;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t bkdMgtAddChkp(SBkdMgt* bm, char* task, char* path) {
   int32_t code = -1;
 
@@ -3975,3 +3996,4 @@ int32_t bkdMgtDumpTo(SBkdMgt* bm, char* taskId, char* dname) {
   taosThreadRwlockUnlock(&bm->rwLock);
   return code;
 }
+#endif
