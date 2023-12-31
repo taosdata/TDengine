@@ -42,11 +42,6 @@ class TBase:
         self.db     = "db"
         self.stb    = "stb"
 
-        # variant in taosBenchmark json
-        self.childtable_count = 2
-        self.insert_rows = 1000000
-        self.timestamp_step = 1000
-
         # sql 
         self.sqlSum = f"select sum(ic) from {self.stb}"
         self.sqlMax = f"select max(ic) from {self.stb}"
