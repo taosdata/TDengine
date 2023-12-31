@@ -182,7 +182,7 @@ class TBase:
             sql ="show transactions;"
             rows = tdSql.query(sql)
             if rows == 0:
-                tdLog.info("split vgroup finished.")
+                tdLog.info("transaction count became zero.")
                 return True
             #tdLog.info(f"i={i} wait ...")
             time.sleep(interval)
