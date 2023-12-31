@@ -57,12 +57,14 @@ class TDTestCase(TBase):
         # replica to 1
         self.alterReplica(1)
         self.checkAggCorrect()
+        self.compactDb()
+        self.alterReplica(3)
 
         vgids = self.getVGroup(self.db)
         selid = random.choice(vgids)
         self.balanceVGroupLeaderOn(selid)
 
-        self.compactDb()
+        
 
     # run
     def run(self):
