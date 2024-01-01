@@ -6929,11 +6929,45 @@ static int32_t translateCreateFullTextIndex(STranslateContext* pCxt, SCreateInde
 }
 
 static int32_t translateCreateNormalIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
+  SName       name;
+  STableMeta* pMeta = NULL;
+  int32_t     code =
+      getTargetMeta(pCxt, toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name), &pMeta, false);
+  if (code) {
+    taosMemoryFree(pMeta);
+    return code;
+  }
+  if (TSDB_SUPER_TABLE != pMeta->tableType) {
+    taosMemoryFree(pMeta);
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Only supertable table can be used");
+  }
+
+  if (LIST_LENGTH(pStmt->pCols) != 1) {
+    taosMemoryFree(pMeta);
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_NUM, "Only 1 tag is allowed");
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pStmt->pCols) {
+    SColumnNode*   p = (SColumnNode*)pNode;
+    const SSchema* pSchema = getTagSchema(pMeta, p->colName);
+    if (!pSchema) {
+      taosMemoryFree(pMeta);
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, p->colName);
+    }
+    if (IS_IDX_ON(pSchema)) {
+      code = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
+      goto _exit;
+    }
+  }
+
   SCreateTagIndexReq createTagIdxReq = {0};
-  int32_t            code = buildCreateTagIndexReq(pCxt, pStmt, &createTagIdxReq);
+  code = buildCreateTagIndexReq(pCxt, pStmt, &createTagIdxReq);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_INDEX, (FSerializeFunc)tSerializeSCreateTagIdxReq, &createTagIdxReq);
   }
+_exit:  
+  taosMemoryFree(pMeta);
   return code;
 }
 
