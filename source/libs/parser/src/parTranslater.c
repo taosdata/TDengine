@@ -6949,11 +6949,10 @@ static int32_t translateCreateNormalIndex(STranslateContext* pCxt, SCreateIndexS
 
   SNode* pNode = NULL;
   FOREACH(pNode, pStmt->pCols) {
-    SColumnNode*   p = (SColumnNode*)pNode;
-    const SSchema* pSchema = getTagSchema(pMeta, p->colName);
+    const SSchema* pSchema = getTagSchema(pMeta, ((SColumnNode*)pNode)->colName);
     if (!pSchema) {
       taosMemoryFree(pMeta);
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, p->colName);
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, ((SColumnNode*)pNode)->colName);
     }
     if (IS_IDX_ON(pSchema)) {
       code = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
