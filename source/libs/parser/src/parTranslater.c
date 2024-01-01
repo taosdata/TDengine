@@ -6939,12 +6939,12 @@ static int32_t translateCreateNormalIndex(STranslateContext* pCxt, SCreateIndexS
   }
   if (TSDB_SUPER_TABLE != pMeta->tableType) {
     taosMemoryFree(pMeta);
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Only supertable table can be used");
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Only super table is allowed");
   }
 
   if (LIST_LENGTH(pStmt->pCols) != 1) {
     taosMemoryFree(pMeta);
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_NUM, "Only 1 tag is allowed");
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_NUM, "Only one tag is allowed");
   }
 
   SNode* pNode = NULL;
