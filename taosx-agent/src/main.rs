@@ -3,6 +3,7 @@ use std::{path::PathBuf, time::Duration};
 use chrono::{Local, Utc};
 use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
+use const_format::concatcp;
 use thiserror::Error;
 
 use file_rotate::{
@@ -10,6 +11,7 @@ use file_rotate::{
     suffix::{AppendTimestamp, DateFrom, FileLimit},
     ContentLimit, FileRotate, TimeFrequency,
 };
+use lazy_static::lazy_static;
 use time::macros::format_description;
 use time::UtcOffset;
 use tracing_subscriber::{
@@ -32,6 +34,66 @@ use tracing::{log::LevelFilter, Level};
 const LOG_FILE: &str = "agent.log";
 
 shadow_rs::shadow!(build);
+
+lazy_static! {
+    static ref CLAP_SHORT_VERSION: &'static str = if build::GIT_CLEAN {
+        if build::BUILD_RUST_CHANNEL == "debug" {
+            concatcp!(
+                "version: ",
+                build::TD_VERSION,
+                "\ngit: ",
+                build::COMMIT_HASH,
+                "\nbuild: core-",
+                build::PKG_VERSION,
+                " debug ",
+                build::BUILD_OS,
+                " ",
+                build::BUILD_TIME
+            )
+        } else {
+            concatcp!(
+                "version: ",
+                build::TD_VERSION,
+                "\ngit: ",
+                build::COMMIT_HASH,
+                "\nbuild: core-",
+                build::PKG_VERSION,
+                " ",
+                build::BUILD_OS,
+                " ",
+                build::BUILD_TIME
+            )
+        }
+    } else {
+        if build::BUILD_RUST_CHANNEL == "debug" {
+            concatcp!(
+                "version: ",
+                build::TD_VERSION,
+                "\ngit: ",
+                build::COMMIT_HASH,
+                "\nbuild: core-dirty-",
+                build::PKG_VERSION,
+                " debug ",
+                build::BUILD_OS,
+                " ",
+                build::BUILD_TIME
+            )
+        } else {
+            concatcp!(
+                "version: ",
+                build::TD_VERSION,
+                "\ngit: ",
+                build::COMMIT_HASH,
+                "\nbuild: core-dirty-",
+                build::PKG_VERSION,
+                " ",
+                build::BUILD_OS,
+                " ",
+                build::BUILD_TIME
+            )
+        }
+    };
+}
 
 fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
     match level {
@@ -66,7 +128,7 @@ pub struct Args {
 #[derive(Parser, Debug)]
 #[clap(
     name = build::CUS_CLI_NAME,
-    author, version = build::VERBOSE_VERSION,
+    author, version = *CLAP_SHORT_VERSION,
     about = build::CUS_CLI_ABOUT,
     long_about = build::CUS_CLI_ABOUT)]
 pub struct ConfigArgs {
