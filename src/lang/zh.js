@@ -994,10 +994,8 @@ export default {
   },
   landing: {
     title: "欢迎使用 TDengine Explorer ，让我们从了解基本概念开始。",
-    introduce:
-      "TDengine 是一全托管的时间序列数据处理服务。使用前，请阅读TDengine数据模型的关键概念。",
-    pageTip:
-      "This page has some helpful references for getting started. You can reference it anytime by clicking the TDengine Logo in the top left.",
+    introduce: "使用前，请阅读TDengine数据模型的关键概念。",
+    pageTip: "This page has some helpful references for getting started. You can reference it anytime by clicking the TDengine Logo in the top left.",
     metricTitle: "采集量 (Metric)",
     metricDesc:
       "采集量是指传感器、设备或其他类型采集点采集的物理量，比如电流、电压、温度、压力、GPS 位置等，是随时间变化的，数据类型可以是整型、浮点型、布尔型，也可是字符串。随着时间的推移，存储的采集量的数据量越来越大。智能电表示例中的电流、电压、相位就是采集量。",

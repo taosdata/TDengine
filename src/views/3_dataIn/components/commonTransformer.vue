@@ -1147,7 +1147,6 @@ export default {
     //获取transformer的所有参数
     async getTransformerParams() {
       await this.caculateMappingResult()
-      console.log(this.isbreak,'this.isbreak----计算');
       if(this.isbreak)return
       let extractObj = {};
       this.extractArr.forEach((item) => {
@@ -1473,6 +1472,7 @@ export default {
           Message.error(res.desc);
           return;
         }
+        await this.getAllExtract(true);
         if (this.$store.state.app.transformerMapCloumns) {
           this.$set(
             this,

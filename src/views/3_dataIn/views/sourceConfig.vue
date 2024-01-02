@@ -353,12 +353,6 @@ export default {
             let top = dom.offsetTop + dom.getBoundingClientRect().height;
             this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
           }
-
-          console.log(
-            val,
-            "切换呢类型",
-            document.querySelector(".transdescription")
-          );
         });
       },
       immediate: true,
@@ -389,12 +383,6 @@ export default {
             data.parser
           );
 
-          console.log(
-            data,
-            "回-------=",
-            this.editSourceConfig,
-            this.defaultSourceConfig
-          );
         })
         .finally(() => {
           this.requestIng = false;
@@ -434,7 +422,6 @@ export default {
     },
 
     async submit() {
-      console.log("submit");
       this.$refs.form.validate(async (valid) => {
         if (valid) {
           const dsn = getDsnData(this.sourceForm.data, this.currentDefinition);
@@ -461,17 +448,10 @@ export default {
             
             await this.$refs.csvdata.$refs.transform.getTransformerParams();
             params.parser = this.$store.state.app.transformerfullparams;
-            console.log(
-              this.$refs.csvdata.showTransformer,
-              this.sourceForm,
-              params,
-              "this.$refs.csvdata.submitUpload()---csv---trans"
-            );
           }
           if (this.sourceForm.data.parser) {
             await this.$refs.configform.$refs.transform[0].getTransformerParams();
             if(this.$refs.configform.$refs.transform[0].isbreak) return 
-            console.log(this.$refs.configform,this.$refs.configform.$refs.transform[0].isbreak, "this.$refs.configform---save");
             params.parser = this.$store.state.app.transformerfullparams;
             
           }
