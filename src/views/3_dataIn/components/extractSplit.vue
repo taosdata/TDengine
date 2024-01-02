@@ -36,7 +36,10 @@
         </el-form-item>
         <el-form-item prop="filter_expres">
           <template v-if="ruleForm.filter_name == 'split'">
-            <SplitExpression ref="splitExpression"></SplitExpression>
+            <SplitExpression
+              ref="splitExpression"
+              :ruleForm="itemData.splitParams"
+            ></SplitExpression>
           </template>
           <el-popover
             v-else
@@ -62,19 +65,19 @@
           style="display: flex"
         ></el-button>
         <el-button
-          icon="el-icon-check"
+          icon="el-icon-PREVIEW"
           @click="submit"
           style="display: flex"
         ></el-button>
       </div>
     </div>
-    <ul class="col-list">
-      <li v-for="(item, index) in tableColumns" :key="index">
-        <template v-if="item.value && item.value !== ';'">
+    <ul class="col-list" v-if='tableColumns.length>0'>
+      <li v-for="(item, index) in tableColumns.slice(0, 9)" :key="index">
+        <template v-if="item.value">
           <el-tooltip
             class="item"
             effect="light"
-            :content="item.value == ';' ? '' : item.value"
+            :content="$t('datasource.transformer.sampleval')+':' + item.value"
             placement="top-start"
           >
             <span>{{ item.name }}</span>
@@ -82,20 +85,16 @@
         </template>
         <span v-else>{{ item.name }}</span>
       </li>
+      <li v-if="tableColumns.length > 0" @click="showResultTable">
+        <el-tooltip
+          :content="$t('datasource.transformer.viewmore')"
+          placement="top"
+          effect="light"
+        >
+          <span ><i class="el-icon-more"></i></span>
+        </el-tooltip>
+      </li>
     </ul>
-    <!-- <el-dialog :visible.sync='dialogVisible'> -->
-    <!-- <div class="table" v-if="tableData.length > 0">
-      <el-table :data="tableData" border style="width: 100%">
-        <el-table-column
-          v-for="(item, index) in tableColumns"
-          :key="index"
-          :label="tableColumns[index]"
-          :prop="tableColumns[index]"
-          show-overflow-tooltip
-        ></el-table-column>
-      </el-table>
-    </div> -->
-    <!-- </el-dialog> -->
   </div>
 </template>
 <script>
@@ -133,6 +132,11 @@ export default {
   },
   data() {
     return {
+      splitParams: {
+        sep: "",
+        n: "",
+        names: "",
+      },
       isJson: true,
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
@@ -177,6 +181,11 @@ export default {
   methods: {
     //提交验证
     validateExtreact() {},
+    async showResultTable() {
+      await this.submitExtract();
+      await this.submitExtract(true);
+      this.$store.commit("app/SET_TRANS_RESULT_NAME", this.itemData.columnname);
+    },
     changeExtractExpr(val) {
       this.$emit("changeExtractExpr", this.ruleForm.col_name, val);
     },
@@ -213,8 +222,10 @@ export default {
       }
       this.$refs.extractForm.validate(async (valid) => {
         if (valid) {
+          // this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
           await this.submitExtract();
           await this.submitExtract(true);
+          Message.success(this.$t('datasource.successtip'))
           //执行完之后选中的列才能不会再被选中
 
           return true;
@@ -253,30 +264,29 @@ export default {
             }),
           },
         ];
-        this.$store.commit(
-          "app/SET_TRANSFORMER_MAPCOLUMNS",
-          transformerColumns
-        );
 
         let colLists = [];
         let tbdata = [];
 
-        colLists =this.$store.state.app.currentDBType=='csv'?result[0].fields: result[0].fields
-          .map((item) => item.name)
-          .filter((val) => {
-            if (
-              this.$store.state.app.currentDBType == "mqtt" &&
-              !this.mqttDefaultCols.includes(val)
-            ) {
-              return val;
-            }
-            if (
-              this.$store.state.app.currentDBType == "kafka" &&
-              !this.kafkaDefaultCols.includes(val)
-            ) {
-              return val;
-            }
-          });
+        colLists =
+          this.$store.state.app.currentDBType == "csv"
+            ? result[0].fields
+            : result[0].fields
+                .map((item) => item.name)
+                .filter((val) => {
+                  if (
+                    this.$store.state.app.currentDBType == "mqtt" &&
+                    !this.mqttDefaultCols.includes(val)
+                  ) {
+                    return val;
+                  }
+                  if (
+                    this.$store.state.app.currentDBType == "kafka" &&
+                    !this.kafkaDefaultCols.includes(val)
+                  ) {
+                    return val;
+                  }
+                });
         tbdata = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
@@ -285,18 +295,45 @@ export default {
           );
         });
         if (isall) {
+          transformerColumns.splice(1, 1, {
+            value: "mapping",
+            label: this.$t("mapping"),
+            children: result[0].fields.map((item) => {
+              return {
+                value: item.name,
+                label: item.name,
+              };
+            }),
+          });
+          this.$store.commit(
+            "app/SET_TRANSFORMER_MAPCOLUMNS",
+            transformerColumns
+          );
           //获取全部的extract or split参数
-          this.$emit("sendAllExtractParams", colLists, tbdata);
+          // this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
+          // return;
           return;
         }
+        this.$store.commit(
+          "app/SET_TRANSFORMER_MAPCOLUMNS",
+          transformerColumns
+        );
         this.tableColumns = colLists.map((item) => {
           let obj = {};
-          obj.name = this.$store.state.app.currentDBType=='csv'?item.name:item;
-          obj.value = tbdata.map((val) => val[this.$store.state.app.currentDBType=='csv'?item.name:item]).join(";");
+          let finalVal = tbdata.map(
+            (val) =>
+              val[
+                this.$store.state.app.currentDBType == "csv" ? item.name : item
+              ]
+          );
+          obj.name =
+            this.$store.state.app.currentDBType == "csv" ? item.name : item;
+          obj.value = finalVal.join("") ? finalVal.join(" ; ") : "";
           return obj;
         });
         // this.tableColumns = colLists;
         this.tableData = tbdata;
+        this.$store.commit("app/SET_TRANS_RESULT_TABLE", this.tableData);
       } catch (error) {
         console.log(error);
       }
@@ -356,6 +393,8 @@ export default {
         if (this.$store.state.app.currentDBType == "kafka") {
           hiddenCols = ["ts", "topic", "partition", "offset", "key"];
         }
+      } else {
+        hiddenCols = [];
       }
 
       inputList = resultMsgbody.map((msg) => {
@@ -365,7 +404,9 @@ export default {
           .forEach((item) => {
             if (this.$store.state.app.currentDBType == "mqtt") {
               if (item.name == "payload") {
-                inputobj["payload"] = this.isJson
+                inputobj["payload"] = isall
+                  ? msg
+                  : this.isJson
                   ? JSON.stringify({
                       [`${this.itemData.columnname}`]:
                         JSON.parse(msg)[this.itemData.columnname],
@@ -379,7 +420,14 @@ export default {
               }
             } else if (this.$store.state.app.currentDBType == "kafka") {
               if (item.name == "value") {
-                inputobj["value"] = msg;
+                inputobj["value"] = isall
+                  ? msg
+                  : this.isJson
+                  ? JSON.stringify({
+                      [`${this.itemData.columnname}`]:
+                        JSON.parse(msg)[this.itemData.columnname],
+                    })
+                  : msg;
               } else {
                 inputobj[item.name] =
                   item.type == "timestamp"
@@ -393,15 +441,24 @@ export default {
       this.extractParseData = {
         extract: {},
       };
-      this.$parent.extractArr
+      deepClone(this.$parent.extractArr)
         .map((item) => {
+          let splitobj = Object.fromEntries(
+            Object.entries(item.splitParams).filter(([key, value]) => {
+              return value !== null && value != undefined && value != "";
+            })
+          );
+          splitobj["n"] = Number(splitobj["n"]);
+          Object.hasOwnProperty.call(splitobj, "names")
+            ? (splitobj["names"] = splitobj["names"].split(","))
+            : splitobj;
           return {
             [`${item.columnname}`]: {
               [`${item.type}`]:
                 item.type == "regex"
                   ? item.expression
                   : item.type == "split"
-                  ? this.$store.state.app.splitExpresList
+                  ? splitobj
                   : item.expression
                   ? item.expression.split(";").map((item) => item.trim())
                   : item.expression,
@@ -414,7 +471,11 @@ export default {
       let topparse = deepClone(this.$store.state.app.topParse);
       let extractlist = {};
       topparse["parser"]["mutate"] = isall
-        ? [].concat(this.extractParseData)
+        ? this.$store.state.app.transformerFilterParseData
+          ? []
+              .concat(this.$store.state.app.transformerFilterParseData)
+              .concat(this.extractParseData)
+          : [].concat(this.extractParseData)
         : [].concat({
             extract: {
               [`${this.itemData.columnname}`]:
@@ -432,14 +493,12 @@ export default {
           : inputList,
       };
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);
+      this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
 
       await this.getParserData(parser, isall);
     },
     deleteExtract() {
       this.$emit("deleteExtract", this.index, this.ruleForm.col_name);
-      // if(this.tableData.length>0){
-      //   this.tableData.splice(0,this.tableData.length)
-      // }
     },
   },
   mounted() {
@@ -462,7 +521,7 @@ export default {
 </script>
 <style lang="scss" scoped>
 .extract-split {
-  margin-top: 10px;
+  margin-top: 20px;
   .extract-item {
     display: flex;
     flex-wrap: nowrap;
@@ -502,12 +561,13 @@ export default {
 }
 .col-list {
   margin-top: 10px;
+  margin-bottom: 25px;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
   column-gap: 15px;
   row-gap: 20px;
-  max-height: 200px;
-  overflow-y: auto;
+  max-height: 80px;
+  overflow-y: hidden;
   li {
     color: #4259ce;
     background: #ecf2fe;

@@ -87,7 +87,13 @@ const state = {
   csvTransformerlocalCols:[],//csv无头部时候的自定义列
   splitExpresList:null,//transformer的split
   mappingjoin:'',//mapping时候映射值是join时候的
-  topParse:null
+  definitions: [],
+  topParse:null,
+  transformresulttable:[],
+  createStWithoutDB:0,
+  transformTableHeight:0,
+  transformerfullparams:null,
+  transresultname:''
   
 };
 const saveKey = encodeURIComponent("appId");
@@ -115,6 +121,21 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_TRANS_RESULT_NAME:(state,data)=>{
+    state.transresultname=data
+  },
+  SET_TRANS_FULL_PARAMS:(state,data)=>{
+    state.transformerfullparams=data
+  },
+  SET_TRANS_TABLE_HEIGHT:(state,data)=>{
+    state.transformTableHeight=data
+  },
+  SET_CREATESTWITHOUT_DB:(state,data)=>{
+    state.createStWithoutDB=data
+  },
+  SET_TRANS_RESULT_TABLE:(state,data)=>{
+    state.transformresulttable=data
+  },
   SET_TOP_PARSE:(state,data)=>{
     state.topParse=data
   },
@@ -171,6 +192,9 @@ const mutations = {
   },
   SET_AGENT_LISTS:(state,data)=>{
     state.agentLists=data
+  },
+  SET_DEFINITIONS(state, definitions) {
+    state.definitions = definitions;
   },
   //所有数据源上传的文件类型置空
   SET_FILE_EMPTY:(state,data)=>{

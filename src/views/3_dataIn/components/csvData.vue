@@ -24,13 +24,29 @@
                 $t("datasource.selectfile")
               }}</el-button>
             </el-upload>
+            <span
+              style="color: red; font-size: 12px; margin-left: 10px"
+              v-if="showfiletip"
+              >{{ this.$t("datasource.uploadcsvtip") }}</span
+            >
           </div>
         </el-tab-pane>
         <el-tab-pane :label="$t('datasource.configcsv')" name="second">
-          <div class="upload-file">
-            <span class="label required">{{ $t("datasource.fileurl") }}</span>
-            <el-input size="small" v-model="fileurl"></el-input>
-          </div>
+          <el-form
+            :model="fileForm"
+            ref="fileform"
+            :rules="fileRules"
+            label-width="220px"
+          >
+            <el-form-item prop="fileurl" :label="$t('datasource.fileurl')">
+              <!-- <div class="upload-file"> -->
+              <!-- <span class="label required">{{
+                  $t("datasource.fileurl")
+                }}</span> -->
+              <el-input size="small" v-model="fileForm.fileurl"></el-input>
+              <!-- </div> -->
+            </el-form-item>
+          </el-form>
         </el-tab-pane>
         <CsvParameter ref="param" :echoData="echoData" :isEditable="isEditable">
           <template v-slot:next>
@@ -47,50 +63,6 @@
               :parserColumns="extractArr"
               v-if="showTransformer"
             ></CommonTransformer>
-            <!-- <div class="csv-config" v-if="showConfig">
-              <ul class="csv-tableheader">
-                <li>{{ $t("datasource.csvcol") }}</li>
-                <li>{{ $t("datasource.dbcol") }}</li>
-                <li>{{ $t("datasource.coltype") }}</li>
-                <li>{{ $t("datasource.primarykey") }}</li>
-                <li>{{ $t("datasource.ascolumn") }}</li>
-                <li>{{ $t("datasource.astag") }}</li>
-              </ul>
-              <ul v-for="(item, index) in csvColumns" :key="item">
-                <li class="csv-content">
-                  <div class="csv-col">
-                    <el-tooltip
-                      effect="light"
-                      placement="right-end"
-                      :content="item"
-                    >
-                      <span
-                        style="
-                          width: 120px;
-                          overflow: hidden;
-                          text-overflow: ellipsis;
-                        "
-                        >{{ item }}</span
-                      ></el-tooltip
-                    >
-                  </div>
-
-                  <CsvColumn
-                    :csvColName="item"
-                    :key="index"
-                    :index="index"
-                    :colData="localcsv"
-                    :dbOptions="dbOptions"
-                    :isEditable="isEditable"
-                    @handleVisble="handleVisble"
-                    @handledbChange="handledbChange"
-                    @handleFilter="handleFilter"
-                    @handleClear="handleClear"
-                    ref="csvconfig"
-                  ></CsvColumn>
-                </li>
-              </ul>
-            </div> -->
           </template>
         </CsvParameter>
       </el-tabs>
@@ -128,6 +100,7 @@ export default {
   filter: {},
   data() {
     return {
+      showfiletip: false,
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
       showTransformer: false,
       transformerParser: null,
@@ -144,7 +117,19 @@ export default {
       },
       activeName: "first",
       fileList: [],
-      fileurl: "",
+      fileForm: {
+        fileurl: "",
+      },
+      fileRules: {
+        fileurl: [
+          {
+            required: true,
+            trigger: "blur",
+            message: this.$t("datasource.uploadcsvtip"),
+          },
+        ],
+      },
+
       uploadUrl: process.env.VUE_APP_X_API + `/upload`,
       csvColumns: [],
       sample_values: [],
@@ -158,6 +143,7 @@ export default {
       //编辑状态直接从返回值去csv 的parser
       this.activeName = "second";
       this.showConfig = true;
+
       this.fileList = this.$store.state.app.csvfiles
         .split(",")
         .map((item, index) => {
@@ -171,13 +157,13 @@ export default {
             uid: index,
           };
         });
-      this.fileurl = this.fileList
+      this.fileForm.fileurl = this.fileList
         .map((item) => {
           return item.response[0];
         })
         .join("");
       let result = await getCSVColumns(
-        this.fileurl,
+        this.fileForm.fileurl,
         "csv",
         this.$refs.param.ruleForm.hasHeader
       );
@@ -187,6 +173,17 @@ export default {
     }
   },
   methods: {
+    submitUrl() {
+      let flag=false
+      this.$refs.fileform.validate((valid) => {
+        if (valid) {
+          flag=true;
+        } else {
+          flag= false;
+        }
+      });
+      return flag
+    },
     //获取transformer的参数
     getTransformerParams(data) {
       this.transformerParser = data;
@@ -266,19 +263,46 @@ export default {
     handleClick() {},
     handleSuccess(response, file, fileList) {
       this.fileList = [].concat(file);
+      this.showfiletip = false;
+      this.$store.commit("app/SET_CSV_FILES", this.fileList);
     },
     submitUpload() {
-      this.$refs.upload.submit();
+      if (this.activeName == "first") {
+        if (this.fileList.length == 0) {
+          this.showfiletip = true;
+          return false;
+        }
+      } else {
+       return this.submitUrl();
+      }
+
+      if (this.$refs.param.showcustom) {
+        return this.submitUrl();
+      }
+
+      if (!this.$refs.param.submit()) {
+        return false;
+      }
+      if (!this.showTransformer) {
+        Message.warning(this.$t("datasource.transformer.nexttip"));
+        return false;
+      } else {
+        return this.$refs.transform.getTransformerParams();
+      }
     },
 
     async getCsvColumnsData() {
       try {
+        this.showfiletip = false;
         if (this.activeName == "first" && this.fileList.length == 0) {
-          Message.error(this.$t("datasource.uploadcsvtip"));
+          this.showfiletip = true;
           return;
         }
-        if (this.activeName == "second" && !this.fileurl) {
-          Message.error(this.$t("datasource.uploadcsvtip"));
+        if (this.activeName == "second" && !this.fileForm.fileurl) {
+          return;
+        }
+
+        if (!this.$refs.param.submit()) {
           return;
         }
         this.showTransformer = false;
@@ -319,7 +343,7 @@ export default {
           }
         } else {
           result = await getCSVColumns(
-            this.fileurl,
+            this.fileForm.fileurl,
             "csv",
             this.$refs.param.ruleForm.hasHeader
           );
@@ -454,6 +478,10 @@ export default {
   // width: 600px;
   padding: 5px;
   box-sizing: border-box;
+  border: 1px solid #e3e4e6;
+  margin-bottom: 20px;
+  border-radius: 12px;
+  padding: 15px;
   .upload-file {
     display: flex;
     margin-bottom: 18px;
@@ -461,7 +489,7 @@ export default {
     .label {
       padding-right: 40px;
       color: #4259ce;
-      width: 150px;
+      width: 220px;
       font-weight: 500;
       font-size: 14px;
       text-align: left;

@@ -49,11 +49,13 @@ export default {
       const validFieldList = this.validFieldList.filter(item => document.querySelector(`.source-ui .left-ui .${getFieldClassMarkName(item)}`));
       this.sourceParent.$refs.form.validateField(validFieldList, valid => {
         errorMsg.push(valid);
-        if (errorMsg.length == validFieldList.length && errorMsg.some(item => !item)) {
+        if (errorMsg.length == validFieldList.length && errorMsg.every(item => !item)) {
           this.activeCollapse = '';
-          const type = this.sourceParent.tagName;
-          const dsn = type + getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
-          this.getValidateResult(dsn,this.agentId);
+          const type = this.sourceParent.sourceForm.type
+          const agent = this.sourceParent.sourceForm.agent
+          const dsn = getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
+          const param = type === "tmq" ? dsn : type + dsn
+          this.getValidateResult(param, agent);
         } else {
           this.$nextTick(() => {
             document.querySelector('.source-ui .left-ui .is-error')?.scrollIntoView();
@@ -62,10 +64,10 @@ export default {
       });
     },
     // 数据源可用性和版本检查
-    async getValidateResult(dns,agentId) {
+    async getValidateResult(dsn, agent) {
       try {
         this.checkLoading = true;
-        let result = await validateTask(dns, agentId);
+        let result = await validateTask(dsn, agent);
         this.checkResult = result;
         this.checkLoading = false; // 检测的 loading 效果
         this.activeCollapse = "one";
@@ -76,8 +78,7 @@ export default {
     },
     getValidFieldList(data, result, parent = 'data') {
       for (const val of data) {
-        // if (val.field == 'checkConnectivity') break;
-        if (val.field == 'mode') break;
+        if (val.field == 'checkConnectivity') break;
         if (val.children) {
           this.getValidFieldList(val.children, result, parent + '.' + val.field);
         } else {

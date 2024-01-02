@@ -13,7 +13,7 @@
       v-else-if="display"
       :label="labelText"
       :label-width="labelWidth"
-      :required="required()"
+      :required="required(config)"
       :class="classMark"
       :rules="timeFormats.includes(field) ? [...timeRules,...rules] : rules"
       :prop="parent + field"
@@ -72,10 +72,11 @@
         :config="config"
       >
       </UploadCsv>
-      <!-- <Dataset
+      <Dataset
         v-if="config.type == 'dataset'"
         :config="config"
         :data="data"
+        v-model="data[field]"
       />
       <PibackfillTime
         v-if="config.type == 'pibackfillTime'"
@@ -88,7 +89,7 @@
         :config="config"
         :data="data"
         :parentConfigList="parentConfigList"
-      /> -->
+      />
       <Mode
         v-if="config.type == 'mode'"
         ref="mode"
@@ -175,10 +176,10 @@ export default {
     // TabFormItem: () => import('../components/tabFormItem.vue'),
     // OpcTable: () => import('./opcTable.vue'),
     // UploadCsv: () => import('./uploadCsv.vue'),
-    // Dataset: () => import('./dataset.vue'),
+    Dataset: () => import('./dataset.vue'),
     TimezoneDatePicker: () => import('@/components/date-picker'),
-    // PibackfillTime: () => import('./pibackfillTime.vue'),
-    // Bucket: () => import('./bucket.vue')
+    PibackfillTime: () => import('./pibackfillTime.vue'),
+    Bucket: () => import('./bucket.vue'),
     Mode: () => import('./mode.vue')
   },
   data() {
@@ -267,11 +268,27 @@ export default {
       return this.config.options;
     },
     compareTime(info, value, callback) {
+      const type = this.sourceParent.sourceForm.type
       let groupsData = getGroupsObj(this.sourceParent.sourceForm.data)
-      this.date1 = new Date(groupsData?.beginDateTime) ?? 0
-      this.date2 = new Date(groupsData?.endDateTime) ?? 0
+      switch (type) {
+        case 'taos':
+          this.date1 = new Date(groupsData?.start) ?? 0
+          this.date2 = new Date(groupsData?.end) ?? 0
+          break;
+        case 'historian':
+        this.date1 = new Date(groupsData?.beginDateTime) ?? 0
+        this.date2 = new Date(groupsData?.endDateTime) ?? 0
+        break;
+        case 'influxdb':
+        case 'opentsdb':
+        this.date1 = new Date(groupsData?.beginTime) ?? 0
+        this.date2 = new Date(groupsData?.endTime) ?? 0
+        break;
+        default:
+          break;
+      }
       if (this.date1 && this.date2 && this.date1 > this.date2) {
-        return callback(new Error(this.$t('dataOut.startTime') + ' > ' + this.$t('dataOut.endTime')));
+        return callback(new Error(this.$t('dataIn.timeTip')));
       } else {
         callback()
       }
