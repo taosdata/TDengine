@@ -27,6 +27,8 @@ class TDTestCase:
         self.tb_stream_des_table = f'{self.tb_name}{self.tdCom.des_table_suffix}'
         self.tdCom.date_time = self.tdCom.dataDict["start_ts"]
 
+        time.sleep(1)
+
         if watermark is not None:
             watermark_value = f'{self.tdCom.dataDict["watermark"]}s'
         else:
