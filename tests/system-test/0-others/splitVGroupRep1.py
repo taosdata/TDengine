@@ -164,7 +164,7 @@ class TDTestCase:
         self.c2Sum = None
 
         # create database  db
-        sql = f"create database @db_name vgroups {self.vgroups1} replica 1 wal_retention_period 1 wal_retention_size 1"
+        sql = f"create database @db_name vgroups {self.vgroups1} replica 1 wal_retention_period 0 wal_retention_size 1"
         self.exeDouble(sql)
 
         # create super talbe st
@@ -221,14 +221,14 @@ class TDTestCase:
         sql1 = sql.replace('@db_name', self.db1)
         tdLog.info(sql1)
         start1 = time.time()
-        rows1 = tdSql.query(sql1)
+        rows1 = tdSql.query(sql1,queryTimes=2)
         spend1 = time.time() - start1
         res1 = copy.deepcopy(tdSql.queryResult)
 
         sql2 = sql.replace('@db_name', self.db2)
         tdLog.info(sql2)
         start2 = time.time()
-        tdSql.query(sql2)
+        tdSql.query(sql2,queryTimes=2)
         spend2 = time.time() - start2
         res2 = tdSql.queryResult
 
@@ -269,7 +269,7 @@ class TDTestCase:
     def checkResult(self):
         # check vgroupid
         sql = f"select vgroup_id from information_schema.ins_vgroups where db_name='{self.db2}'"
-        tdSql.query(sql)
+        tdSql.query(sql,queryTimes=2)
         tdSql.checkRows(self.vgroups2)
 
         # check child table count same
@@ -412,8 +412,16 @@ class TDTestCase:
     def run(self):
         # prepare env
         self.prepareEnv()
-
+        tdLog.info("add  two  same ver stt file like v4f1944ver3.stt and v4f1944ver3.stt to db2 and db1 ")
+        for dbname in [self.db2, self.db1]:
+            tdSql.execute(f'insert into {dbname}.t1  values("2023-03-28 10:40:00.010",103,103,"2023-03-28 18:41:39.999") ;')
+            tdSql.execute(f'flush database {dbname}')
+            tdSql.execute(f'insert into {dbname}.t1  values("2023-03-28 10:40:00.100",103,103,"2023-03-28 18:41:39.999") ;')
+            tdSql.execute(f'flush database {dbname}')     
+            tdSql.execute(f'insert into {dbname}.t1  values("2023-03-28 10:40:00.100",103,103,"2023-03-28 18:41:39.999") ;')
+            tdSql.execute(f'flush database {dbname}')              
         tdLog.info("check db1 and db2 same after creating ...")
+
         self.checkResult()
 
         for i in range(3):
@@ -423,6 +431,15 @@ class TDTestCase:
             end = time.time()
             self.vgroups2 += 1
             
+            # insert the same data per tables into splited vgroups
+            tdLog.info("insert the same data per tables into splited vgroups(3,4)")
+            for dbname in [self.db2, self.db1]:
+                for tableid in range(self.childCnt):
+                    tdSql.execute(f'insert into {dbname}.t{tableid}  values("2023-03-28 10:40:00.100",103,103,"2023-03-28 18:41:39.999") ;')
+                    tdSql.execute(f'flush database {dbname}')
+                tdSql.execute(f'insert into {dbname}.ta  values("2023-03-28 10:40:00.100",103,103,"2023-03-28 18:41:39.999",0);')
+                tdSql.execute(f'flush database {dbname}')                       
+
             # check two db query result same
             self.checkResult()
             spend = "%.3f"%(end-start)
