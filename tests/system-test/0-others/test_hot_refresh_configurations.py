@@ -203,10 +203,7 @@ class TDTestCase:
     def run(self):
 
         # reset log
-        taosdPath = tdCom.getTaosdPath()
-        print(taosdPath,"123")
-        taosdLogAbsoluteFilename = taosdPath + "/log/" + "taosdlog*"
-        print(taosdLogAbsoluteFilename)
+        taosdLogAbsoluteFilename = tdCom.getTaosdPath() + "/log/" + "taosdlog*"
         tdSql.execute("alter all dnodes 'resetlog';")
         r = subprocess.Popen("cat {} | grep 'reset log file'".format(taosdLogAbsoluteFilename), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = r.communicate()

@@ -514,7 +514,6 @@ class TDCom:
     
     def getTaosdPath(self, dnodeID="dnode1"):
         buildPath = self.getBuildPath()
-        print("123456",buildPath)
         if (buildPath == ""):
             tdLog.exit("taosd not found!")
         else:
