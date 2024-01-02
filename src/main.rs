@@ -12,7 +12,6 @@ use file_rotate::{
     suffix::{AppendTimestamp, DateFrom, FileLimit},
     ContentLimit, FileRotate, TimeFrequency,
 };
-use lazy_static::lazy_static;
 use metrics_tracing_context::MetricsLayer;
 #[cfg(feature = "mimalloc")]
 use mimalloc::MiMalloc;
@@ -54,65 +53,33 @@ static GLOBAL: MiMalloc = MiMalloc;
 
 shadow!(build);
 
-lazy_static! {
-    static ref CLAP_SHORT_VERSION: &'static str = if build::GIT_CLEAN {
-        if build::BUILD_RUST_CHANNEL == "debug" {
-            concatcp!(
-                "version: ",
-                build::TD_VERSION,
-                "\ngit: ",
-                build::COMMIT_HASH,
-                "\nbuild: core-",
-                build::PKG_VERSION,
-                " debug ",
-                build::BUILD_OS,
-                " ",
-                build::BUILD_TIME
-            )
-        } else {
-            concatcp!(
-                "version: ",
-                build::TD_VERSION,
-                "\ngit: ",
-                build::COMMIT_HASH,
-                "\nbuild: core-",
-                build::PKG_VERSION,
-                " ",
-                build::BUILD_OS,
-                " ",
-                build::BUILD_TIME
-            )
-        }
-    } else {
-        if build::BUILD_RUST_CHANNEL == "debug" {
-            concatcp!(
-                "version: ",
-                build::TD_VERSION,
-                "\ngit: ",
-                build::COMMIT_HASH,
-                "\nbuild: core-dirty-",
-                build::PKG_VERSION,
-                " debug ",
-                build::BUILD_OS,
-                " ",
-                build::BUILD_TIME
-            )
-        } else {
-            concatcp!(
-                "version: ",
-                build::TD_VERSION,
-                "\ngit: ",
-                build::COMMIT_HASH,
-                "\nbuild: core-dirty-",
-                build::PKG_VERSION,
-                " ",
-                build::BUILD_OS,
-                " ",
-                build::BUILD_TIME
-            )
-        }
-    };
-}
+const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
+    concatcp!(
+        "version: ",
+        build::TD_VERSION,
+        "\ngit: ",
+        build::COMMIT_HASH,
+        "\nbuild: core-",
+        build::PKG_VERSION,
+        if build::IS_DEBUG {" debug "} else {""},
+        build::BUILD_OS,
+        " ",
+        build::BUILD_TIME
+    )
+} else {
+    concatcp!(
+        "version: ",
+        build::TD_VERSION,
+        "\ngit: ",
+        build::COMMIT_HASH,
+        "\nbuild: core-dirty-",
+        build::PKG_VERSION,
+        if build::IS_DEBUG {" debug "} else {""},
+        build::BUILD_OS,
+        " ",
+        build::BUILD_TIME
+    )
+};
 
 mod run;
 mod serve;
@@ -198,7 +165,7 @@ struct Global {
 }
 
 #[derive(Parser, Debug)]
-#[clap(name = build::CUS_CLI_NAME, author, version = *CLAP_SHORT_VERSION, about = build::CUS_CLI_ABOUT, long_about = build::CUS_CLI_ABOUT)]
+#[clap(name = build::CUS_CLI_NAME, author, version = CLAP_SHORT_VERSION, about = build::CUS_CLI_ABOUT, long_about = build::CUS_CLI_ABOUT)]
 struct Args {
     #[clap(subcommand)]
     commands: Option<Commands>,
@@ -477,9 +444,9 @@ async fn init_tracing_layers(
 
     // Enable console subscriber
     #[cfg(feature = "tokio-tracing")]
-    {
-        layers.push(console_subscriber::spawn().boxed());
-    }
+        {
+            layers.push(console_subscriber::spawn().boxed());
+        }
 
     // Enable opentelemetry layer
     if otel_enabled(args) {

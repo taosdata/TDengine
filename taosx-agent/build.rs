@@ -60,7 +60,14 @@ fn shadow_build() {
             writeln!(file, r#"pub const TD_VERSION: &str = PKG_VERSION;"#)?;
         }
         println!("cargo:rerun-if-env-changed=PKG_TIME");
-
+        #[cfg(debug_assertions)]
+        {
+            writeln!(file, r#"pub const IS_DEBUG: bool = true;"#)?;
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            writeln!(file, r#"pub const IS_DEBUG: bool = false;"#)?;
+        }
         Ok(())
     }
 
