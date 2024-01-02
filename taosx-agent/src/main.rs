@@ -42,7 +42,7 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
         build::COMMIT_HASH,
         "\nbuild: core-",
         build::PKG_VERSION,
-        if build::IS_DEBUG {" debug "} else {""},
+        if build::IS_DEBUG { " debug " } else { " " },
         build::BUILD_OS,
         " ",
         build::BUILD_TIME
@@ -55,7 +55,7 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
         build::COMMIT_HASH,
         "\nbuild: core-dirty-",
         build::PKG_VERSION,
-        if build::IS_DEBUG {" debug "} else {""},
+        if build::IS_DEBUG { " debug " } else { " " },
         build::BUILD_OS,
         " ",
         build::BUILD_TIME
