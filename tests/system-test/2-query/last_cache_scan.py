@@ -413,8 +413,7 @@ class TDTestCase:
         tdSql.checkCols(3)
         tdSql.checkData(0, 0, None)
         tdSql.checkData(0, 1, None)           
-
-
+        tdSql.query_success_failed('select last(c2), c2, c3 from meters', queryTimes=10, expectErrInfo="Invalid column name: c2")
 
     def run(self):
         self.prepareTestEnv()
