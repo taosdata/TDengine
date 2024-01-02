@@ -1039,7 +1039,7 @@ function getOptionData(data, queryArr, definition) {
       result += handleEndpoint(endpoint)
     } else {
       if(id=='csv'){
-        result+=store.state.csvfiles[0].response[0]
+        result+= Array.isArray(store.state.csvfiles)?store.state.csvfiles[0].response[0]:store.state.csvfiles
       }else{
         result += endpoint;
       }

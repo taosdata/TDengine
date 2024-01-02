@@ -71,7 +71,7 @@
         ></el-button>
       </div>
     </div>
-    <ul class="col-list">
+    <ul class="col-list" v-if='tableColumns.length>0'>
       <li v-for="(item, index) in tableColumns.slice(0, 9)" :key="index">
         <template v-if="item.value">
           <el-tooltip
@@ -295,7 +295,6 @@ export default {
           );
         });
         if (isall) {
-          console.log(result, "全量数据");
           transformerColumns.splice(1, 1, {
             value: "mapping",
             label: this.$t("mapping"),
@@ -335,7 +334,6 @@ export default {
         // this.tableColumns = colLists;
         this.tableData = tbdata;
         this.$store.commit("app/SET_TRANS_RESULT_TABLE", this.tableData);
-        console.log(this.tableData, "this.tableData---耽搁extract");
       } catch (error) {
         console.log(error);
       }

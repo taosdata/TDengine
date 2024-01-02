@@ -24,32 +24,7 @@
       </el-form-item>
     </el-form>
     <slot name="next"></slot>
-    <el-form
-      :model="ruleForm2"
-      ref="ruleForm2"
-      label-width="200px"
-      :rules="rules"
-    >
-
-      <!-- <el-form-item
-        :label="
-          showStable ? $t('datasource.name') : $t('datasource.normalname')
-        "
-        prop="subname"
-        :rules="showStable ? rules.subname : normaltable"
-      >
-
-        <el-input size="small" v-model="ruleForm2.subname"></el-input>
-      </el-form-item> -->
-      <!-- <el-form-item
-        :label="$t('datasource.using')"
-        prop="tableName"
-        v-if="showStable"
-        :rules="tableName"
-      >
-        <el-input size="small" v-model="ruleForm2.tableName"></el-input>
-      </el-form-item> -->
-    </el-form>
+    
   </div>
 </template>
 <script>
@@ -79,11 +54,7 @@ export default {
         customcol: "",
         isValid: false,
       },
-      ruleForm2: {
-        // dbName: "",
-        subname: "",
-        tableName: "",
-      },
+      
       customcolrule: [
         {
           required: true,
@@ -192,16 +163,6 @@ export default {
         }
       });
       return this.isValid
-    },
-    submit2() {
-      // this.$refs.ruleForm2.validate((valid) => {
-      //   if (valid) {
-      //     this.isAllValid = true;
-      //   } else {
-      //     this.isAllValid = false;
-      //     return false;
-      //   }
-      // });
     },
   },
 };

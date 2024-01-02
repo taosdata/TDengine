@@ -1272,6 +1272,7 @@ export default {
     transformer: {
       sampleval: "Smaple Value",
       resulttb: "Result Display",
+      nexttip:"Please proceed the next step first",
       msgbodytypes: {
         type1: "Copy and Paste",
         type2: "Retrieve From Server",

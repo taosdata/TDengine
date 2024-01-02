@@ -87,7 +87,11 @@
           ref="configform"
         />
       </el-form>
-      <CsvData v-if="currentDefinition?.id == 'csv'" ref='csvdata' :isEditable='isEditable'></CsvData>
+      <CsvData
+        v-if="currentDefinition?.id == 'csv'"
+        ref="csvdata"
+        :isEditable="isEditable"
+      ></CsvData>
       <section class="bottom">
         <el-button
           v-if="isShowEditBtn"
@@ -114,7 +118,7 @@
           :content="currentDefinition.description"
         ></DocsContent>
       </div>
-      <ResultTable :isEditable='isEditable'></ResultTable>
+      <ResultTable :isEditable="isEditable"></ResultTable>
     </div>
     <DialogCreateDb></DialogCreateDb>
   </div>
@@ -323,8 +327,8 @@ export default {
           this.$store.commit("app/SET_MAPPING_JOIN", "");
           this.$store.commit("app/SET_SPLIT_EXPRESS", null);
           this.$store.commit("app/SET_TRANS_RESULT_TABLE", []);
-          this.$store.commit('app/SET_TRANS_RESULT_NAME','')
-          this.$store.commit('app/SET_TRANS_FULL_PARAMS',null)
+          this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
+          this.$store.commit("app/SET_TRANS_FULL_PARAMS", null);
           this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", 0);
         }
         if (val == "kafka" || val == "mqtt") {
@@ -341,7 +345,7 @@ export default {
     "sourceForm.type": {
       handler(val) {
         this.$store.commit("app/SET_CURRENT_DBTYPE", val);
-        this.$store.commit('app/SET_TRANS_RESULT_NAME','')
+        this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
         this.getDataSource();
         this.$nextTick(() => {
           if (document.querySelector(".transdescription")) {
@@ -350,7 +354,11 @@ export default {
             this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
           }
 
-        console.log(val,'切换呢类型',document.querySelector(".transdescription"));
+          console.log(
+            val,
+            "切换呢类型",
+            document.querySelector(".transdescription")
+          );
         });
       },
       immediate: true,
@@ -381,7 +389,12 @@ export default {
             data.parser
           );
 
-          console.log(data,'回-------=',this.editSourceConfig,this.defaultSourceConfig);
+          console.log(
+            data,
+            "回-------=",
+            this.editSourceConfig,
+            this.defaultSourceConfig
+          );
         })
         .finally(() => {
           this.requestIng = false;
@@ -420,14 +433,10 @@ export default {
       }
     },
 
-   async submit() {
+    async submit() {
+      console.log("submit");
       this.$refs.form.validate(async (valid) => {
         if (valid) {
-          if(this.sourceForm.type=='csv'){
-            this.$refs.csvdata.submitUpload()
-            await this.$refs.csvdata.$refs.transform.getTransformerParams();
-            params.parser = this.$store.state.app.transformerfullparams;
-          }
           const dsn = getDsnData(this.sourceForm.data, this.currentDefinition);
           const type = this.sourceForm.type;
           let id = localStorage.getItem("local_clusterID");
@@ -446,22 +455,24 @@ export default {
           if (this.sourceForm.agent) {
             params["via"] = this.sourceForm.agent;
           }
-          console.log(this.sourceForm,'csvtiji---提交');
-          
-          if (this.sourceForm.data.parser) {
-           await this.$refs.configform.$refs.transform[0].getTransformerParams();
+          if (this.sourceForm.type == "csv") {
+            if (!this.$refs.csvdata.submitUpload()) return;
+
+            
+            await this.$refs.csvdata.$refs.transform.getTransformerParams();
             params.parser = this.$store.state.app.transformerfullparams;
             console.log(
-              this.$store.state.app.transformerfullparams,
-              this.$refs.configform.$refs.transform[0],
-              this.sourceForm.data.parser,
-              "this.sourceForm.data.parser"
+              this.$refs.csvdata.showTransformer,
+              this.sourceForm,
+              params,
+              "this.$refs.csvdata.submitUpload()---csv---trans"
             );
-            // let { model } = this.sourceForm.data.parser
-            // if (model.columns.length < 2 || model.tags.length < 1) {
-            //   Message.warning(this.$t('datasource.parserTip'))
-            //   return;
-            // }
+          }
+          if (this.sourceForm.data.parser) {
+            await this.$refs.configform.$refs.transform[0].getTransformerParams();
+            if(this.$refs.configform.$refs.transform[0].isbreak) return 
+            console.log(this.$refs.configform,this.$refs.configform.$refs.transform[0].isbreak, "this.$refs.configform---save");
+            params.parser = this.$store.state.app.transformerfullparams;
             
           }
           if (this.isEditable && this.editId && !this.isCopyable) {
@@ -482,7 +493,6 @@ export default {
             this.$refs.form.resetFields();
             this.$parent.changeEditable(false);
             this.$parent.toggleComponent("tmqtable");
-            
           }
         } else {
           this.$nextTick(() => {
@@ -606,7 +616,7 @@ export default {
     flex: 1;
     margin-left: 40px;
     overflow: hidden;
-    position:relative;
+    position: relative;
     .doc-part {
       box-shadow: rgba(0, 0, 0, 0.1) 0px 0px 15px;
       padding: 2rem;

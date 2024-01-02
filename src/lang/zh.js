@@ -1059,6 +1059,7 @@ export default {
     transformer: {
       resulttb: "结果展示",
       sampleval: "示例值",
+      nexttip:"请先执行下一步操作",
       msgbodytypes: {
         type1: "复制粘贴",
         type2: "从服务器检索",

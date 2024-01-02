@@ -50,7 +50,6 @@ export default {
     };
   },
   mounted() {
-    console.log(this.isEditable,'isEditableisEditableisEditable',this.$store.state.app.transresultname);
     if (this.$store.state.app.transformresulttable.length > 0&&!this.isEditable&&this.$store.state.app.transresultname) {
       this.getResultData(this.$store.state.app.transformresulttable);
       this.showtable = true;
@@ -105,11 +104,6 @@ export default {
     "$store.state.app.transresultname": {
       deep: true,
       handler(val) {
-        console.log(
-          val,
-          "监听名称-----table",
-          this.$store.state.app.transformresulttable
-        );
         if (val) {
           this.showtable = true;
           this.getResultData(this.$store.state.app.transformresulttable);
@@ -128,7 +122,6 @@ export default {
     "$store.state.app.transformresulttable": {
       deep: true,
       handler(val) {
-        console.log(val, "结果表格-----ppppp",this.$store.state.app.transresultname);
         if (val && val.length > 0&&this.$store.state.app.transresultname) {
             this.getResultData(val);
             

@@ -207,7 +207,7 @@
           {{ $t("add") }}
         </el-button>
       </section>
-      <section>
+      <section style="margin-bottom: 20px">
         <div class="block-title">
           <span>{{ $t("datasource.transformer.superconfig") }}</span>
         </div>
@@ -569,25 +569,29 @@ export default {
   },
   methods: {
     changeSubname(val) {
-      console.log(val, "sub----999");
       this.subrule.subname = val;
     },
     validateSubName() {
-      return this.$refs.subtb[0].validate((valid) => {
-        console.log(this.$refs.subtb, valid, "验证-----pppp");
-        if (valid) {
-          return true;
-        } else {
-          return false;
-        }
-      });
+      let flag = false;
+      if (this.$refs.subtb && this.$refs?.subtb[0]) {
+        this.$refs?.subtb[0].validate((valid) => {
+          if (valid) {
+            flag = true;
+          } else {
+            flag = false;
+          }
+        });
+      } else {
+        flag = false;
+      }
+      return flag;
     },
     showIndentifyResulttb() {
       if (this.$store.state.app.currentDBType == "csv") {
         this.$nextTick(() => {
           if (document.querySelector(".transdescription")) {
             let dom = document.querySelector(".transdescription");
-            let top = dom.offsetTop +document.body.scrollHeight;
+            let top = dom.offsetTop + document.body.scrollHeight;
             this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
           }
         });
@@ -598,7 +602,6 @@ export default {
         this.$t("datasource.transformer.identified")
       );
       this.submitParse();
-      console.log(this.$store.state.app.transresultname, "transresultname");
     },
     handleRemove(file, fileList) {
       console.log(file, fileList);
@@ -759,12 +762,6 @@ export default {
         if (!this.$store.state.app.transresultname) {
           this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
         }
-
-        console.log(
-          this.$store.state.app.transresultname,
-          tbdata,
-          "transresultname----dianji---top--parse"
-        );
       } catch (error) {
         console.log(error);
       }
@@ -832,7 +829,6 @@ export default {
           return item;
         }
       })[0];
-      console.log(identifiedColObj, "identifiedColObj----回----000000");
       if (identifiedColObj?.extract) {
         Object.entries(identifiedColObj.extract).forEach((item) => {
           let ind = this.columnsArr.findIndex((col) => col.name == item[0]);
@@ -974,48 +970,56 @@ export default {
       if (msgflag && stableflag) {
         return true;
       }
+
       return false;
     },
     //messagebody非空验证触发
     validateMsgBody() {
-      return this.$refs.msgForm.validate((valid) => {
+      let flag = false;
+      this.$refs.msgForm.validate((valid) => {
         if (valid) {
-          return true;
+          flag = true;
         } else {
-          return false;
+          flag = false;
         }
       });
+      return flag;
     },
     validateTargetStb() {
-      return this.$refs.sruleForm.validate((valid) => {
+      let flag = false;
+      this.$refs.sruleForm.validate((valid) => {
         if (valid) {
-          return true;
+          flag = true;
         } else {
-          return false;
+          flag = false;
         }
       });
+      return flag;
     },
     //计算mapping的结果
     async caculateMappingResult() {
-      console.log("计算", this.tableData, this.msgForm.msgbody);
-      this.validateSubName();
-      this.validateTransform();
+      if (!this.validateTransform()) {
+        this.isbreak = true;
+        return;
+      }
+      if (!this.validateSubName()) {
+        this.isbreak = true;
+        return;
+      }
       this.$nextTick(() => {
         document
           .querySelector(".common-transformer .el-form-item__error")
           ?.scrollIntoView();
         return;
       });
-      console.log("计算2");
       if (!this.msgForm.msgbody) {
         this.isbreak = true;
-        return;
+        return false;
       }
       if (this.tableData && !this.tableData[0]?.["Expression"]) {
         this.isbreak = true;
-        return;
+        return false;
       }
-      console.log("进入计算程序");
       this.isbreak = false;
       let tags = [];
       let columns = [];
@@ -1060,13 +1064,6 @@ export default {
           }
         }
       });
-      console.log(
-        mutateMap,
-        "mutate参数-----00000",
-        [].concat(this.$store.state.app.transformExtractParseData).concat({
-          map: mutateMap,
-        })
-      );
       mutates.forEach((item) => {
         Object.assign(mutateMap, item);
       });
@@ -1110,7 +1107,6 @@ export default {
           currentPage: this.currentPage,
         },
       };
-      console.log(tags, columns, primarykey, "mapping三要素");
       if (tags.length == 0 || columns.length == 0 || !primarykey) {
         Message.warning(this.$t("datasource.transformer.mappingvaildtip"));
         this.isbreak = true;
@@ -1150,8 +1146,9 @@ export default {
     },
     //获取transformer的所有参数
     async getTransformerParams() {
-      await this.caculateMappingResult();
-
+      await this.caculateMappingResult()
+      console.log(this.isbreak,'this.isbreak----计算');
+      if(this.isbreak)return
       let extractObj = {};
       this.extractArr.forEach((item) => {
         extractObj[item.columnname] = {
@@ -1182,11 +1179,6 @@ export default {
         },
       };
       this.$store.commit("app/SET_TRANS_FULL_PARAMS", parserData);
-      console.log(
-        parserData,
-        this.$store.state.app.transformerfullparams,
-        "全部的参数"
-      );
       this.$emit("getTransformerParams", parserData);
     },
     changeColumnStatus(index, name) {
@@ -1589,7 +1581,6 @@ export default {
         if (this.$store.state.app.transresultname == name) {
           this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
         }
-        console.log(index, name, "删除extract");
         let oldextract = this.$store.state.app.transformExtractParseData;
 
         if (oldextract && Object.keys(oldextract.extract).includes(name)) {
