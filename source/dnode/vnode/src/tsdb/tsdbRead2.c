@@ -1714,6 +1714,9 @@ static int32_t mergeFileBlockAndSttBlock(STsdbReader* pReader, SSttBlockReader* 
   } else if ((!dataInDataFile) && dataInSttFile) {
     // no data ile block exists
     return mergeRowsInSttBlocks(pSttBlockReader, pBlockScanInfo, pReader);
+  } else if (pBlockScanInfo->cleanSttBlocks && pReader->info.execMode == READER_EXEC_ROWS) {
+    // opt model for count data in stt file, which is not overlap with data blocks in files.
+    return mergeRowsInFileBlocks(pBlockData, pBlockScanInfo, key, pReader);
   } else {
     // row in both stt file blocks and data file blocks
     TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
