@@ -444,9 +444,9 @@ async fn init_tracing_layers(
 
     // Enable console subscriber
     #[cfg(feature = "tokio-tracing")]
-        {
-            layers.push(console_subscriber::spawn().boxed());
-        }
+    {
+        layers.push(console_subscriber::spawn().boxed());
+    }
 
     // Enable opentelemetry layer
     if otel_enabled(args) {
