@@ -654,7 +654,7 @@ export default {
                     ? this.$store.state.app.splitExpresList
                     : this.parseruleForm.expression
                     ? this.parseruleForm.expression
-                        .split(";")
+                        .split(",")
                         .map((item) => item.trim())
                     : this.parseruleForm.expression,
               },
@@ -1107,6 +1107,7 @@ export default {
           currentPage: this.currentPage,
         },
       };
+      console.log(parserData,'parserData----ssss',this.$store.state.app.transformExtractParseData);
       if (tags.length == 0 || columns.length == 0 || !primarykey) {
         Message.warning(this.$t("datasource.transformer.mappingvaildtip"));
         this.isbreak = true;
@@ -1146,8 +1147,8 @@ export default {
     },
     //获取transformer的所有参数
     async getTransformerParams() {
-      await this.caculateMappingResult()
-      if(this.isbreak)return
+      await this.caculateMappingResult();
+      if (this.isbreak) return;
       let extractObj = {};
       this.extractArr.forEach((item) => {
         extractObj[item.columnname] = {
@@ -1226,7 +1227,7 @@ export default {
               item[`Output` + (index + 1)] =
                 item["Name"] == "SubTableName"
                   ? val["__tbname__"]
-                  : val[item["Name"]]
+                  : this.filterEmpty(val[item["Name"]])
                   ? val[item["Name"]].toString()
                   : "";
             });
@@ -1472,7 +1473,10 @@ export default {
           Message.error(res.desc);
           return;
         }
-        await this.getAllExtract(true);
+        if (this.extractArr.length > 0) {
+          await this.getAllExtract(true);
+        }
+
         if (this.$store.state.app.transformerMapCloumns) {
           this.$set(
             this,
@@ -1606,6 +1610,10 @@ export default {
             this.$refs.extract[0].submitExtract(true);
           }
         } else {
+          console.log(this.extractArr, "删光了");
+          this.$store.commit('app/SET_EXTRACT_PARSE_DATA',null)
+          this.filterArr.splice(0,1)
+          this.$store.commit("app/SET_FILTER_PARSE_DATA", null);
           if (this.filterArr.lenght > 0 && this.$refs.filter[0].isexecuted) {
             this.$refs.filter[0].submit();
           } else {
