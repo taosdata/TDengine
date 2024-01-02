@@ -117,7 +117,7 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey,
     void*   pFileStore = getStateFileStore(pFileState);
     void*   p = NULL;
     int32_t code_file = streamStateSessionAddIfNotExist_rocksdb(pFileStore, pKey, gap, &p, pVLen);
-    if (code_file == TSDB_CODE_SUCCESS) {
+    if (code_file == TSDB_CODE_SUCCESS || isFlushedState(pFileState, endTs, 0)) {
       (*pVal) = createSessionWinBuff(pFileState, pKey, p, pVLen);
       code = code_file;
       qDebug("===stream===0 get session win:%" PRId64 ",%" PRId64 " from disc, res %d", startTs, endTs, code_file);
