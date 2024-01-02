@@ -14,6 +14,7 @@
  */
 
 #include "tsdbFSetRAW.h"
+#include "tsdbFS2.h"
 
 // SFSetRAWWriter ==================================================
 typedef struct SFSetRAWWriter {
@@ -76,7 +77,7 @@ static int32_t tsdbFSetRAWWriteFileDataBegin(SFSetRAWWriter *writer, STsdbDataRA
       .szPage = writer->config->szPage,
       .fid = bHdr->file.fid,
       .did = writer->config->did,
-      .cid = writer->config->cid,
+      .cid = bHdr->file.cid,
       .level = writer->config->level,
 
       .file =
@@ -84,7 +85,7 @@ static int32_t tsdbFSetRAWWriteFileDataBegin(SFSetRAWWriter *writer, STsdbDataRA
               .type = bHdr->file.type,
               .fid = bHdr->file.fid,
               .did = writer->config->did,
-              .cid = writer->config->cid,
+              .cid = bHdr->file.cid,
               .size = bHdr->file.size,
               .stt = {{
                   .level = bHdr->file.stt->level,
@@ -92,6 +93,7 @@ static int32_t tsdbFSetRAWWriteFileDataBegin(SFSetRAWWriter *writer, STsdbDataRA
           },
   };
 
+  tsdbFSUpdateEid(config.tsdb->pFS, config.cid);
   writer->ctx->offset = 0;
   writer->ctx->file = config.file;
 

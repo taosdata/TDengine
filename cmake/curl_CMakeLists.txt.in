@@ -1,6 +1,7 @@
 # curl
 ExternalProject_Add(curl
-        URL  https://curl.se/download/curl-8.2.1.tar.gz
+        URL  https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz
+        #URL  https://curl.se/download/curl-8.2.1.tar.gz
         URL_HASH MD5=b25588a43556068be05e1624e0e74d41
         DOWNLOAD_NO_PROGRESS 1
         DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"

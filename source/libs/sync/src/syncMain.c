@@ -1155,9 +1155,12 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
   ASSERTS(pSyncNode->pLogStore != NULL, "log store not created");
   ASSERTS(pSyncNode->pLogBuf != NULL, "ring log buffer not created");
 
+  taosThreadMutexLock(&pSyncNode->pLogBuf->mutex);
   SyncIndex lastVer = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
   SyncIndex commitIndex = pSyncNode->pLogStore->syncLogCommitIndex(pSyncNode->pLogStore);
   SyncIndex endIndex = pSyncNode->pLogBuf->endIndex;
+  taosThreadMutexUnlock(&pSyncNode->pLogBuf->mutex);
+
   if (lastVer != -1 && endIndex != lastVer + 1) {
     terrno = TSDB_CODE_WAL_LOG_INCOMPLETE;
     sError("vgId:%d, failed to restore sync node since %s. expected lastLogIndex:%" PRId64 ", lastVer:%" PRId64 "",

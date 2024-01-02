@@ -1108,15 +1108,21 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
 
     // taosThreadMutexLock(&pTsdb->lruMutex);
 
+    bool       erase = false;
     LRUHandle *h = taosLRUCacheLookup(pTsdb->lruCache, keys_list[i], klen);
     if (h) {
       SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pTsdb->lruCache, h);
       if (pLastCol->dirty) {
         pLastCol->dirty = 0;
       }
+      if (pLastCol->ts <= eKey && pLastCol->ts >= sKey) {
+        erase = true;
+      }
       taosLRUCacheRelease(pTsdb->lruCache, h, true);
     }
-    taosLRUCacheErase(pTsdb->lruCache, keys_list[i], klen);
+    if (erase) {
+      taosLRUCacheErase(pTsdb->lruCache, keys_list[i], klen);
+    }
 
     h = taosLRUCacheLookup(pTsdb->lruCache, keys_list[num_keys + i], klen);
     if (h) {
@@ -1124,10 +1130,14 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
       if (pLastCol->dirty) {
         pLastCol->dirty = 0;
       }
+      if (pLastCol->ts <= eKey && pLastCol->ts >= sKey) {
+        erase = true;
+      }
       taosLRUCacheRelease(pTsdb->lruCache, h, true);
     }
-    taosLRUCacheErase(pTsdb->lruCache, keys_list[num_keys + i], klen);
-
+    if (erase) {
+      taosLRUCacheErase(pTsdb->lruCache, keys_list[num_keys + i], klen);
+    }
     // taosThreadMutexUnlock(&pTsdb->lruMutex);
   }
   for (int i = 0; i < num_keys; ++i) {
