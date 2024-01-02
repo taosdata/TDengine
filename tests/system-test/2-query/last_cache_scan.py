@@ -284,6 +284,8 @@ class TDTestCase:
         tdSql.checkData(0, 3, 1001)
         tdSql.checkData(0, 4, "2018-11-25 19:30:00.000")
 
+        tdSql.query("select last(ts) from meters partition by tbname")
+        tdSql.query("select last(ts) from meters partition by t1")
         sql_template = 'select %s from meters partition by tbname'
         select_items = ["ts, last(c10), c10, ts", "ts, ts, last(c10), c10, tbname", "last(c10), c10, ts"]
         has_last_row_scan_res = [1,1,1]
@@ -329,6 +331,10 @@ class TDTestCase:
         tdSql.checkData(0, 0, None)
         tdSql.query('select last(*) from meters', queryTimes=1)
         tdSql.checkData(0, 10, None)
+        tdSql.query('select last(c10), c10, ts from meters', queryTimes=1)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
 
     def test_cache_scan_with_drop_and_add_column2(self):
         tdSql.query("select last(c1) from meters")
@@ -413,9 +419,9 @@ class TDTestCase:
     def run(self):
         self.prepareTestEnv()
         #time.sleep(99999999)
-        #self.test_last_cache_scan()
+        self.test_last_cache_scan()
         #self.test_cache_scan_with_drop_and_add_column()
-        #self.test_cache_scan_with_drop_and_add_column2()
+        self.test_cache_scan_with_drop_and_add_column2()
         #self.test_cache_scan_with_drop_column()
         #self.test_cache_scan_last_row_with_drop_column()
         self.test_cache_scan_last_row_with_drop_column2()

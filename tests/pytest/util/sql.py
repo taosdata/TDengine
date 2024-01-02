@@ -108,10 +108,8 @@ class TDSql:
             expectErrNotOccured = False
             self.errno = e.errno
             error_info = repr(e)
-            # self.error_info = error_info[error_info.index('(')+1:-1].split(",")[0].replace("'","")
             self.error_info = ','.join(error_info[error_info.index('(')+1:-1].split(",")[:-1]).replace("'","")
             # self.error_info = (','.join(error_info.split(",")[:-1]).split("(",1)[1:][0]).replace("'","")
-            tdLog.info("sql:%s, expect error occured" % (sql))
         if expectErrNotOccured:
             tdLog.exit("%s(%d) failed: sql:%s, expect error not occured" % (caller.filename, caller.lineno, sql))
         else:
