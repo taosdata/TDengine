@@ -550,6 +550,9 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     }
 
     if (pDataBlock->info.parTbName[0]) {
+      if(pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER){
+        buildCtbNameAddGruopId(pDataBlock->info.parTbName, groupId);
+      }
       snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->outputInfo.shuffleDispatcher.dbInfo.db,
                pDataBlock->info.parTbName);
     } else {

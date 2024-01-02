@@ -41,7 +41,7 @@ static bool    isValidDstChildTable(SMetaReader* pReader, int32_t vgId, const ch
 static int32_t initCreateTableMsg(SVCreateTbReq* pCreateTableReq, uint64_t suid, const char* stbFullName, int32_t numOfTags);
 static SArray* createDefaultTagColName();
 static void    setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* pDataBlock, const char* stbFullName,
-                                   int64_t gid);
+                                   int64_t gid, bool newSubTableRule);
 
 int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
                          const char* pIdStr) {
@@ -173,9 +173,15 @@ SArray* createDefaultTagColName() {
 }
 
 void setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* pDataBlock, const char* stbFullName,
-                                int64_t gid) {
+                                int64_t gid, bool newSubTableRule) {
   if (pDataBlock->info.parTbName[0]) {
-    pCreateTableReq->name = taosStrdup(pDataBlock->info.parTbName);
+    if(newSubTableRule) {
+      pCreateTableReq->name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
+      strcpy(pCreateTableReq->name, pDataBlock->info.parTbName);
+      buildCtbNameAddGruopId(pCreateTableReq->name, gid);
+    }else{
+      pCreateTableReq->name = taosStrdup(pDataBlock->info.parTbName);
+    }
   } else {
     pCreateTableReq->name = buildCtbNameByGroupId(stbFullName, gid);
   }
@@ -247,7 +253,7 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
       ASSERT(gid == *(int64_t*)pGpIdData);
     }
 
-    setCreateTableMsgTableName(pCreateTbReq, pDataBlock, stbFullName, gid);
+    setCreateTableMsgTableName(pCreateTbReq, pDataBlock, stbFullName, gid, pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER);
 
     taosArrayPush(reqs.pArray, pCreateTbReq);
     tqDebug("s-task:%s build create table:%s msg complete", pTask->id.idStr, pCreateTbReq->name);
@@ -411,7 +417,7 @@ bool isValidDstChildTable(SMetaReader* pReader, int32_t vgId, const char* ctbNam
 }
 
 SVCreateTbReq* buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t numOfCols,
-                                       SSDataBlock* pDataBlock, SArray* pTagArray) {
+                                       SSDataBlock* pDataBlock, SArray* pTagArray, bool newSubTableRule) {
   SVCreateTbReq* pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
   if (pCreateTbReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -436,7 +442,7 @@ SVCreateTbReq* buildAutoCreateTableReq(const char* stbFullName, int64_t suid, in
   pCreateTbReq->ctb.tagName = createDefaultTagColName();
 
   // set table name
-  setCreateTableMsgTableName(pCreateTbReq, pDataBlock, stbFullName, pDataBlock->info.id.groupId);
+  setCreateTableMsgTableName(pCreateTbReq, pDataBlock, stbFullName, pDataBlock->info.id.groupId, newSubTableRule);
   return pCreateTbReq;
 }
 
@@ -649,6 +655,10 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
     if (dstTableName[0] == 0) {
       memset(dstTableName, 0, TSDB_TABLE_NAME_LEN);
       buildCtbNameByGroupIdImpl(stbFullName, groupId, dstTableName);
+    }else{
+      if(pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
+        buildCtbNameAddGruopId(dstTableName, groupId);
+      }
     }
 
     int32_t nameLen = strlen(dstTableName);
@@ -690,7 +700,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
 
       pTableData->flags = SUBMIT_REQ_AUTO_CREATE_TABLE;
       pTableData->pCreateTbReq =
-          buildAutoCreateTableReq(stbFullName, suid, pTSchema->numOfCols + 1, pDataBlock, pTagArray);
+          buildAutoCreateTableReq(stbFullName, suid, pTSchema->numOfCols + 1, pDataBlock, pTagArray, pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER);
       taosArrayDestroy(pTagArray);
 
       if (pTableData->pCreateTbReq == NULL) {

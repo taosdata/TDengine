@@ -2118,6 +2118,13 @@ _end:
   return TSDB_CODE_SUCCESS;
 }
 
+void  buildCtbNameAddGruopId(char* ctbName, uint64_t groupId){
+  char tmp[TSDB_TABLE_NAME_LEN] = {0};
+  snprintf(tmp, TSDB_TABLE_NAME_LEN, "-%"PRIu64, groupId);
+  ctbName[TSDB_TABLE_NAME_LEN - strlen(tmp) - 1] = 0;  // put groupId to the end
+  strcat(ctbName, tmp);
+}
+
 char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
   char* pBuf = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);
   if (!pBuf) {
