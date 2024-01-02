@@ -29,7 +29,12 @@ class TDTestCase:
         tdSql.query(f'select * from (select * from ts_4338.t where i8 = 3);')
         tdSql.checkRows(0)
 
-        tdSql.query(f'select * from (select * from ts_4338.t where 1 = 2);')
+        # TD-27939
+        tdSql.query(f'select * from (select * from ts_4338.t where 1 = 100);')
+        tdSql.checkRows(0)
+
+        # TD-27939
+        tdSql.query(f'select * from (select * from (select * from ts_4338.t where 1 = 200));')
         tdSql.checkRows(0)
 
 
