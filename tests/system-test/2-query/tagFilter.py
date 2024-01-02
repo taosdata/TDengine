@@ -52,12 +52,63 @@ class TDTestCase:
         )
         tdSql.checkRows(0)
 
+    def __ts4421(self, dbname="db", stbname='stb4421', ctbname='ctb4421'):
+        TAG_TYPE   = ['varchar', 'nchar']
+        TAG_LEN    = [2, 8, 200]
+        TAG_VAL    = [200, 123456789]
+        TAG_RESULT = [False, False, True, False, True, True, False, False, True, False, True, True]
+
+        nTagCtb = 0
+        for tagType in TAG_TYPE:
+            for tagLen in TAG_LEN:
+                tdSql.execute(f'create stable {dbname}.{stbname}(ts timestamp, f1 int) tags(t1 %s(%d))'%(tagType, tagLen))
+                for tagVal in TAG_VAL:
+                    if TAG_RESULT[nTagCtb] == False:
+                        tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} tags(%d)'%(tagVal))
+                        tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags(%d) values(now,1)'%(tagVal))
+                        tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} tags("%d")'%(tagVal))
+                        tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags("%d") values(now,1)'%(tagVal))
+                        tdSql.error(f"create table {dbname}.{ctbname} using {dbname}.{stbname} tags('%d')"%(tagVal))
+                        tdSql.error(f"insert into {dbname}.{ctbname} using {dbname}.{stbname} tags('%d') values(now,1)"%(tagVal))
+                    else:
+                        # integer as tag value
+                        tdSql.execute(f'create table {dbname}.{ctbname} using {dbname}.stb4421 tags(%d)'%(tagVal))
+                        tdSql.execute(f'insert into {dbname}.{ctbname} values(now,1)')
+                        tdSql.query(f'select * from {dbname}.{ctbname} where t1="%s"'%(tagVal))
+                        tdSql.checkRows(1)
+                        tdSql.execute(f'drop table {dbname}.{ctbname}')
+                        tdSql.execute(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags(%d) values(now,1)'%(tagVal))
+                        tdSql.checkRows(1)
+                        tdSql.execute(f'drop table {dbname}.{ctbname}')
+                        # string as tag value
+                        tdSql.execute(f'create table {dbname}.{ctbname} using {dbname}.stb4421 tags("%d")'%(tagVal))
+                        tdSql.execute(f'insert into {dbname}.{ctbname} values(now,1)')
+                        tdSql.query(f'select * from {dbname}.{ctbname} where t1="%s"'%(tagVal))
+                        tdSql.checkRows(1)
+                        tdSql.execute(f'drop table {dbname}.{ctbname}')
+                        tdSql.execute(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags("%d") values(now,1)'%(tagVal))
+                        tdSql.checkRows(1)
+                        tdSql.execute(f'drop table {dbname}.{ctbname}')
+                        tdSql.execute(f"create table {dbname}.{ctbname} using {dbname}.stb4421 tags('%d')"%(tagVal))
+                        tdSql.execute(f"insert into {dbname}.{ctbname} values(now,1)")
+                        tdSql.query(f"select * from {dbname}.{ctbname} where t1='%s'"%(tagVal))
+                        tdSql.checkRows(1)
+                        tdSql.execute(f"drop table {dbname}.{ctbname}")
+                        tdSql.execute(f"insert into {dbname}.{ctbname} using {dbname}.{stbname} tags('%d') values(now,1)"%(tagVal))
+                        tdSql.checkRows(1)
+                        tdSql.execute(f"drop table {dbname}.{ctbname}")
+                    nTagCtb += 1
+                tdSql.execute(f'drop table {dbname}.{stbname}')
+
     def run(self):
         tdLog.printNoPrefix("==========step1:create table")
         self.__create_tb()
 
         tdLog.printNoPrefix("==========step2:query data")
         self.__query_data(10)
+
+        tdLog.printNoPrefix("==========step3:check ts4421")
+        self.__ts4421()
 
     def stop(self):
         tdSql.close()
