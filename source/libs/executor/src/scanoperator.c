@@ -673,14 +673,7 @@ static void initNextGroupScan(STableScanInfo* pInfo, STableKeyInfo** pKeyInfo, i
       pInfo->tableEndIndex = numOfTables - 1;
     }
   } else {
-    int32_t i = pInfo->tableStartIndex + 1;
-    for (; i < numOfTables; ++i) {
-      STableKeyInfo* pCur = tableListGetInfo(pTableListInfo, i);
-      if (pCur->groupId != pStart->groupId) {
-        break;
-      }
-    }
-    pInfo->tableEndIndex = i - 1;
+    pInfo->tableEndIndex = numOfTables - 1;
   }
 
   if (!pInfo->needCountEmptyTable) {
@@ -691,6 +684,17 @@ static void initNextGroupScan(STableScanInfo* pInfo, STableKeyInfo** pKeyInfo, i
 
   *pKeyInfo = pStart;
   *size = pInfo->tableEndIndex - pInfo->tableStartIndex + 1;
+}
+
+void markGroupProcessed(STableScanInfo* pInfo, uint64_t groupId) {
+  if (pInfo->countState ==  TABLE_COUNT_STATE_END) {
+    return;
+  }
+  if (pInfo->base.pTableListInfo->oneTableForEachGroup) {
+    pInfo->countState = TABLE_COUNT_STATE_PROCESSED;
+  } else {
+    taosHashRemove(pInfo->base.pTableListInfo->remainGroups, &groupId, sizeof(groupId));
+  }
 }
 
 static SSDataBlock* getOneRowResultBlock(SExecTaskInfo* pTaskInfo, STableScanBase* pBase, SSDataBlock* pBlock,
@@ -802,7 +806,7 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
   while (pTableScanInfo->scanTimes < pTableScanInfo->scanInfo.numOfAsc) {
     SSDataBlock* p = doTableScanImpl(pOperator);
     if (p != NULL) {
-      pTableScanInfo->countState = TABLE_COUNT_STATE_END;
+      markGroupProcessed(pTableScanInfo, p->info.id.groupId);
       return p;
     }
 
@@ -831,7 +835,7 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
     while (pTableScanInfo->scanTimes < total) {
       SSDataBlock* p = doTableScanImpl(pOperator);
       if (p != NULL) {
-        pTableScanInfo->countState = TABLE_COUNT_STATE_END;
+        markGroupProcessed(pTableScanInfo, p->info.id.groupId);
         return p;
       }
 
@@ -849,11 +853,30 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
   }
 
   if (pTableScanInfo->countState < TABLE_COUNT_STATE_END) {
-    // output once for this group
+    STableListInfo* pTableListInfo = pTableScanInfo->base.pTableListInfo;
+    if (pTableListInfo->oneTableForEachGroup) { // group by tbname
+      if (pTableScanInfo->countState < TABLE_COUNT_STATE_PROCESSED) {
+        pTableScanInfo->countState = TABLE_COUNT_STATE_PROCESSED;
+        STableKeyInfo* pStart =
+            (STableKeyInfo*)tableListGetInfo(pTableScanInfo->base.pTableListInfo, pTableScanInfo->tableStartIndex);
+        return getBlockForEmptyTable(pOperator, pStart);
+      }
+    } else { // group by tag
+      int32_t numOfTables = tableListGetSize(pTableListInfo);
+      if (pTableScanInfo->tableEndIndex + 1 >= numOfTables) {
+        // get empty group, mark processed & rm from hash
+        void* pIte = taosHashIterate(pTableListInfo->remainGroups, NULL);
+        if (pIte != NULL) {
+          size_t        keySize = 0;
+          uint64_t*     pGroupId = taosHashGetKey(pIte, &keySize);
+          STableKeyInfo info = {.uid = *(uint64_t*)pIte, .groupId = *pGroupId};
+          taosHashCancelIterate(pTableListInfo->remainGroups, pIte);
+          markGroupProcessed(pTableScanInfo, *pGroupId);
+          return getBlockForEmptyTable(pOperator, &info);
+        }
+      }
+    }
     pTableScanInfo->countState = TABLE_COUNT_STATE_END;
-    STableKeyInfo* pStart =
-        (STableKeyInfo*)tableListGetInfo(pTableScanInfo->base.pTableListInfo, pTableScanInfo->tableStartIndex);
-    return getBlockForEmptyTable(pOperator, pStart);
   }
 
   return NULL;

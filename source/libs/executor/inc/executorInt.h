@@ -218,9 +218,10 @@ enum {
 };
 
 typedef enum ETableCountState {
-  TABLE_COUNT_STATE_NONE = 0,     // before start scan
-  TABLE_COUNT_STATE_SCAN = 1,     // scanning
-  TABLE_COUNT_STATE_END = 2,      // finish or noneed to process
+  TABLE_COUNT_STATE_NONE = 0,      // before start scan
+  TABLE_COUNT_STATE_SCAN = 1,      // cur group scanning
+  TABLE_COUNT_STATE_PROCESSED = 2, // cur group processed
+  TABLE_COUNT_STATE_END = 3,       // finish or noneed to process
 } ETableCountState;
 
 typedef struct SAggSupporter {
