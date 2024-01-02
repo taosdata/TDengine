@@ -168,6 +168,8 @@ public class PreLoading implements CommandLineRunner {
         try {
             // 读取外部toml文件
             String tomlConfig = FileUtils.readAbsoluteFile(externalConfigFile);
+            // 输出配置
+            System.err.println(tomlConfig);
             // 解析配置内容
             TomlParseResult tomlParseResult = Toml.parse(tomlConfig);
             // 逐项替换默认配置
