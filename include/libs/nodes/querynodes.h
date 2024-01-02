@@ -88,6 +88,7 @@ typedef struct SColumnNode {
 } SColumnNode;
 
 typedef struct SColumnRefNode {
+  SExprNode node;  // QUERY_NODE_COLUMN
   ENodeType type;
   char      colName[TSDB_COL_NAME_LEN];
 } SColumnRefNode;

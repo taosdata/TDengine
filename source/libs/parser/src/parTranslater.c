@@ -1094,6 +1094,7 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
         return DEAL_RES_ERROR;
       }
       strcpy(pColRef->colName, pExpr->aliasName);
+      pColRef->node = *pExpr;
       nodesDestroyNode(*(SNode**)pCol);
       *(SNode**)pCol = (SNode*)pColRef;
       *pFound = true;
@@ -3431,6 +3432,24 @@ static int32_t getPositionValue(const SValueNode* pVal) {
   return -1;
 }
 
+static int32_t checkOrderByAggForGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect, SNodeList* pOrderByList) {
+  if (NULL != getGroupByList(pCxt) || NULL != pSelect->pWindow) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SNode* pNode = NULL;
+  WHERE_EACH(pNode, pOrderByList) {
+    SNode* pExpr = ((SOrderByExprNode*)pNode)->pExpr;
+    if ((QUERY_NODE_FUNCTION == nodeType(pExpr))) {
+      SFunctionNode* pFunc = (SFunctionNode*)pExpr;
+      if (fmIsAggFunc(pFunc->funcId)) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
+      }
+    }
+    WHERE_NEXT;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateOrderByPosition(STranslateContext* pCxt, SNodeList* pProjectionList, SNodeList* pOrderByList,
                                         bool* pOther) {
   *pOther = false;
@@ -3481,6 +3500,9 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
+  }
+  if (other && TSDB_CODE_SUCCESS == code) {
+    code = checkOrderByAggForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
   }
   return code;
 }
