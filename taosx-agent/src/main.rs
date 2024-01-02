@@ -11,7 +11,6 @@ use file_rotate::{
     suffix::{AppendTimestamp, DateFrom, FileLimit},
     ContentLimit, FileRotate, TimeFrequency,
 };
-use lazy_static::lazy_static;
 use time::macros::format_description;
 use time::UtcOffset;
 use tracing_subscriber::{
