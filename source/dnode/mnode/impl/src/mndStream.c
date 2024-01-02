@@ -792,7 +792,7 @@ static int32_t checkForNumOfStreams(SMnode *pMnode, SStreamObj *pStreamObj) {  /
     if (pStream->targetStbUid == pStreamObj->targetStbUid) {
       mError("Cannot write the same stable as other stream:%s", pStream->name);
       sdbCancelFetch(pMnode->pSdb, pIter);
-      terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
+      terrno = TSDB_CODE_MND_INVALID_TARGET_TABLE;
       return terrno;
     }
   }

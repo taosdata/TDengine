@@ -8941,7 +8941,7 @@ static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pS
 
   (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[0].bytes = TSDB_CONFIG_OPTION_LEN;
-  strcpy((*pSchema)[0].name, "result");
+  strcpy((*pSchema)[0].name, "name");
 
   (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[1].bytes = TSDB_CONFIG_VALUE_LEN;
@@ -8963,7 +8963,7 @@ static int32_t extractCompactDbResultSchema(int32_t* numOfCols, SSchema** pSchem
 
   (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[0].bytes = COMPACT_DB_RESULT_FIELD1_LEN;
-  strcpy((*pSchema)[0].name, "name");
+  strcpy((*pSchema)[0].name, "result");
 
   (*pSchema)[1].type = TSDB_DATA_TYPE_INT;
   (*pSchema)[1].bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;

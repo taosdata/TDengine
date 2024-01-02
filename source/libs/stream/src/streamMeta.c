@@ -419,6 +419,7 @@ _err:
 }
 
 // todo refactor: the lock shoud be restricted in one function
+#ifdef BUILD_NO_CALL
 void streamMetaInitBackend(SStreamMeta* pMeta) {
   pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId, pMeta->vgId);
   if (pMeta->streamBackend == NULL) {
@@ -440,6 +441,7 @@ void streamMetaInitBackend(SStreamMeta* pMeta) {
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
   streamBackendLoadCheckpointInfo(pMeta);
 }
+#endif
 
 void streamMetaClear(SStreamMeta* pMeta) {
   // remove all existed tasks in this vnode

@@ -789,7 +789,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "s3PageCacheSize", tsS3PageCacheSize, 4, 1024 * 1024 * 1024, CFG_SCOPE_SERVER,
                   CFG_DYN_ENT_SERVER) != 0)
     return -1;
-  if (cfgAddInt32(pCfg, "s3UploadDelaySec", tsS3UploadDelaySec, 60 * 10, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER,
+  if (cfgAddInt32(pCfg, "s3UploadDelaySec", tsS3UploadDelaySec, 60 * 1, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER,
                   CFG_DYN_ENT_SERVER) != 0)
     return -1;
 

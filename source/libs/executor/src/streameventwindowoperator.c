@@ -480,18 +480,18 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
       return resBlock;
     }
 
+    if (pInfo->recvGetAll) {
+      pInfo->recvGetAll = false;
+      resetUnCloseSessionWinInfo(pInfo->streamAggSup.pResultRows);
+    }
+
     if (pInfo->reCkBlock) {
       pInfo->reCkBlock = false;
       printDataBlock(pInfo->pCheckpointRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
       return pInfo->pCheckpointRes;
     }
 
-    if (pInfo->recvGetAll) {
-      pInfo->recvGetAll = false;
-      resetUnCloseSessionWinInfo(pInfo->streamAggSup.pResultRows);
-    }
-
-    setOperatorCompleted(pOperator);
+    setStreamOperatorCompleted(pOperator);
     return NULL;
   }
 
@@ -561,7 +561,7 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
   if (resBlock != NULL) {
     return resBlock;
   }
-  setOperatorCompleted(pOperator);
+  setStreamOperatorCompleted(pOperator);
   return NULL;
 }
 

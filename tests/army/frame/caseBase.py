@@ -15,6 +15,7 @@ import sys
 import os
 import time
 import datetime
+import random
 
 from frame.log import *
 from frame.sql import *
@@ -42,17 +43,13 @@ class TBase:
         self.db     = "db"
         self.stb    = "stb"
 
-        # variant in taosBenchmark json
-        self.childtable_count = 2
-        self.insert_rows = 1000000
-        self.timestamp_step = 1000
-
         # sql 
         self.sqlSum = f"select sum(ic) from {self.stb}"
         self.sqlMax = f"select max(ic) from {self.stb}"
         self.sqlMin = f"select min(ic) from {self.stb}"
         self.sqlAvg = f"select avg(ic) from {self.stb}"
-
+        self.sqlFirst = f"select first(ts) from {self.stb}"
+        self.sqlLast  = f"select last(ts) from {self.stb}"
 
     # stop
     def stop(self):
@@ -63,14 +60,62 @@ class TBase:
 #   db action
 #         
 
-    def trimDb(self):
-        tdSql.execute(f"trim database {self.db}")
+    def trimDb(self, show = False):
+        tdSql.execute(f"trim database {self.db}", show = show)
 
-    def compactDb(self):
-        tdSql.execute(f"compact database {self.db}")
+    def compactDb(self, show = False):
+        tdSql.execute(f"compact database {self.db}", show = show)
 
-    def flushDb(self):
-        tdSql.execute(f"flush database {self.db}")
+    def flushDb(self, show = False):
+        tdSql.execute(f"flush database {self.db}", show = show)
+
+    def dropDb(self, show = False):
+        tdSql.execute(f"drop database {self.db}", show = show)
+
+    def splitVGroups(self):
+        vgids = self.getVGroup(self.db)
+        selid = random.choice(vgids)
+        sql = f"split vgroup {selid}"
+        tdSql.execute(sql, show=True)
+        if self.waitTransactionZero() is False:
+            tdLog.exit(f"{sql} transaction not finished")
+            return False
+        return True
+    
+
+    def alterReplica(self, replica):
+        sql = f"alter database {self.db} replica {replica}"
+        tdSql.execute(sql, show=True)
+        if self.waitTransactionZero() is False:
+            tdLog.exit(f"{sql} transaction not finished")
+            return False
+        return True
+
+    def balanceVGroup(self):
+        sql = f"balance vgroup"
+        tdSql.execute(sql, show=True)
+        if self.waitTransactionZero() is False:
+            tdLog.exit(f"{sql} transaction not finished")
+            return False
+        return True
+    
+    def balanceVGroupLeader(self):
+        sql = f"balance vgroup leader"
+        tdSql.execute(sql, show=True)
+        if self.waitTransactionZero() is False:
+            tdLog.exit(f"{sql} transaction not finished")
+            return False
+        return True
+
+
+    def balanceVGroupLeaderOn(self, vgId):
+        sql = f"balance vgroup leader on {vgId}"
+        tdSql.execute(sql, show=True)
+        if self.waitTransactionZero() is False:
+            tdLog.exit(f"{sql} transaction not finished")
+            return False
+        return True
+
 
 #
 #  check db correct
@@ -91,12 +136,13 @@ class TBase:
         tdSql.checkAgg(sql, 0)
 
     # save agg result
-    def snapshotAgg(self):
-        
+    def snapshotAgg(self):        
         self.sum =  tdSql.getFirstValue(self.sqlSum)
         self.avg =  tdSql.getFirstValue(self.sqlAvg)
         self.min =  tdSql.getFirstValue(self.sqlMin)
         self.max =  tdSql.getFirstValue(self.sqlMax)
+        self.first = tdSql.getFirstValue(self.sqlFirst)
+        self.last  = tdSql.getFirstValue(self.sqlLast)
 
     # check agg 
     def checkAggCorrect(self):
@@ -104,3 +150,41 @@ class TBase:
         tdSql.checkAgg(self.sqlAvg, self.avg)
         tdSql.checkAgg(self.sqlMin, self.min)
         tdSql.checkAgg(self.sqlMax, self.max)
+        tdSql.checkAgg(self.sqlFirst, self.first)
+        tdSql.checkAgg(self.sqlLast,  self.last)
+
+
+#
+#   get db information
+#
+
+    # get vgroups
+    def getVGroup(self, db_name):
+        vgidList = []
+        sql = f"select vgroup_id from information_schema.ins_vgroups where db_name='{db_name}'"
+        res = tdSql.getResult(sql)
+        rows = len(res)
+        for i in range(rows):
+            vgidList.append(res[i][0])
+
+        return vgidList
+    
+
+
+#
+#   util 
+#
+    
+    # wait transactions count to zero , return False is translation not finished
+    def waitTransactionZero(self, seconds = 300, interval = 1):
+        # wait end
+        for i in range(seconds):
+            sql ="show transactions;"
+            rows = tdSql.query(sql)
+            if rows == 0:
+                tdLog.info("transaction count became zero.")
+                return True
+            #tdLog.info(f"i={i} wait ...")
+            time.sleep(interval)
+        
+        return False    
