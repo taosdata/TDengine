@@ -278,10 +278,10 @@ static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskSt
       ETaskStatus s = streamTaskGetStatus(pTask, NULL);
       taosThreadMutexUnlock(&pTask->lock);
 
-      if ((s == pTrans->next.state) && (pSM->prev.evt == pTrans->event)) {
+      if ((s == pTrans->next.state) && (pSM->prev.evt == pTrans->event)) {// this event has been handled already
         stDebug("s-task:%s attached event:%s handled", id, GET_EVT_NAME(pTrans->event));
         return TSDB_CODE_SUCCESS;
-      } else if (s != TASK_STATUS__DROPPING && s != TASK_STATUS__STOP) {  // this event has been handled already
+      } else if (s != TASK_STATUS__DROPPING && s != TASK_STATUS__STOP && s != TASK_STATUS__UNINIT) {
         stDebug("s-task:%s not handle event:%s yet, wait for 100ms and recheck", id, GET_EVT_NAME(event));
         taosMsleep(100);
       } else {

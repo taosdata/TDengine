@@ -792,6 +792,7 @@ int8_t  streamTaskSetSchedStatusInactive(SStreamTask* pTask);
 int32_t streamTaskClearHTaskAttr(SStreamTask* pTask);
 
 int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event);
+int32_t streamTaskHandleEventAsync(SStreamTaskSM* pSM, EStreamTaskEvent event, void* pFn);
 int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent event);
 void    streamTaskRestoreStatus(SStreamTask* pTask);
 
