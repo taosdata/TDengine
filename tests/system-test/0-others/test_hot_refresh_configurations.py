@@ -159,20 +159,21 @@ class TDTestCase:
             ]
         }
 
-    def get_param_value_with_gdb(self, config_name, process_name):
-        res = subprocess.Popen("gdb -q -nx -p `pidof {}` --batch -ex 'set height 0' -ex 'p {}'".format(process_name, config_name), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        r_lines = res.stdout.read()
-        if r_lines:
-            for line in r_lines.decode().split("\n"):
-                if "$1 = " in line:
-                    tdLog.debug("gdb result: {}".format(line))
-                    return line.split(" = ")[1]
+    def get_param_value(self, config_name):
+        tdSql.query("show local variables;")
+        for row in tdSql.queryResult:
+            if config_name == row[0]:
+                tdLog.debug("Found variable '{}'".format(row[0]))
+                return row[1]
 
     def cli_check(self, name, values, except_values=False):
         if not except_values:
             for v in values:
                 tdLog.debug("Set {} to {}".format(name, v))
                 tdSql.execute(f'alter local "{name} {v}";')
+                value = self.get_param_value(name)
+                tdLog.debug("Get {} value: {}".format(name, value))
+                assert(v == int(value))
         else:
             for v in values:
                 tdLog.debug("Set {} to {}".format(name, v))
@@ -190,9 +191,7 @@ class TDTestCase:
             for v in values:
                 dnode = random.choice(p_list)
                 tdSql.execute(f'alter {dnode} "{name} {v}";')
-                if platform.system() == "Linux" and platform.machine() == "aarch64":
-                    continue
-                value = self.get_param_value_with_gdb(alias, "taosd")
+                value = self.get_param_value(alias)
                 if value:
                     tdLog.debug(f"value: {value}")
                     assert(value == str(bool(v)).lower() if is_bool else str(v))

@@ -1997,7 +1997,6 @@ void streamScanOperatorSaveCheckpoint(SStreamScanInfo* pInfo) {
   int32_t len = streamScanOperatorEncode(pInfo, &pBuf);
   pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_CHECKPOINT_NAME, strlen(STREAM_SCAN_OP_CHECKPOINT_NAME), pBuf, len);
   taosMemoryFree(pBuf);
-  pInfo->stateStore.streamStateCommit(pInfo->pState);
 }
 
 // other properties are recovered from the execution plan
@@ -2316,6 +2315,7 @@ FETCH_NEXT_BLOCK:
 
         doCheckUpdate(pInfo, pBlockInfo->window.ekey, pInfo->pRes);
         doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+        blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
 
         int64_t numOfUpdateRes = pInfo->pUpdateDataRes->info.rows;
         qDebug("%s %" PRId64 " rows in datablock, update res:%" PRId64, id, pBlockInfo->rows, numOfUpdateRes);
