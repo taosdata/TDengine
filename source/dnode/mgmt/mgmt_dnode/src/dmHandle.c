@@ -136,6 +136,10 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
     char tbuf[256];
     dmEpSetToStr(tbuf, sizeof(tbuf), &epSet);
     dError("failed to send status req since %s, epSet:%s, inUse:%d", tstrerror(rpcRsp.code), tbuf, epSet.inUse);
+  } else {
+    if (epUpdated == 1) {
+      dmSetMnodeEpSet(pMgmt->pData, &epSet);
+    }
   }
   dmProcessStatusRsp(pMgmt, &rpcRsp);
 }
