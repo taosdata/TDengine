@@ -15,7 +15,6 @@
 ./test.sh -f tsim/dnode/balance2.sim
 ./test.sh -f tsim/vnode/replica3_repeat.sim
 ./test.sh -f tsim/parser/col_arithmetic_operation.sim
-./test.sh -f tsim/trans/create_db.sim
 ./test.sh -f tsim/dnode/balance3.sim
 ./test.sh -f tsim/vnode/replica3_many.sim
 ./test.sh -f tsim/stable/metrics_idx.sim
@@ -201,6 +200,7 @@
 ./test.sh -f tsim/query/show_db_table_kind.sim
 ./test.sh -f tsim/query/bi_star_table.sim
 ./test.sh -f tsim/query/bi_tag_scan.sim
+./test.sh -f tsim/query/bi_tbname_col.sim
 ./test.sh -f tsim/query/tag_scan.sim
 ./test.sh -f tsim/query/nullColSma.sim
 ./test.sh -f tsim/query/bug3398.sim
