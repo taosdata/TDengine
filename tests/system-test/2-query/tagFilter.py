@@ -55,8 +55,8 @@ class TDTestCase:
     def __ts4421(self, dbname="db", stbname='stb4421', ctbname='ctb4421'):
         TAG_TYPE   = ['varchar', 'nchar']
         TAG_LEN    = [2, 8, 200]
-        TAG_VAL    = [200, 123456789]
-        TAG_RESULT = [False, False, True, False, True, True, False, False, True, False, True, True]
+        TAG_VAL    = [0, -200, 123456789]
+        TAG_RESULT = [True,False,False,True,True,False,True,True,True,True,False,False,True,True,False,True,True,True]
 
         nTagCtb = 0
         for tagType in TAG_TYPE:
@@ -78,6 +78,7 @@ class TDTestCase:
                         tdSql.checkRows(1)
                         tdSql.execute(f'drop table {dbname}.{ctbname}')
                         tdSql.execute(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags(%d) values(now,1)'%(tagVal))
+                        tdSql.query(f'select * from {dbname}.{ctbname} where t1="%s"'%(tagVal))
                         tdSql.checkRows(1)
                         tdSql.execute(f'drop table {dbname}.{ctbname}')
                         # string as tag value
@@ -87,6 +88,7 @@ class TDTestCase:
                         tdSql.checkRows(1)
                         tdSql.execute(f'drop table {dbname}.{ctbname}')
                         tdSql.execute(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags("%d") values(now,1)'%(tagVal))
+                        tdSql.query(f'select * from {dbname}.{ctbname} where t1="%s"'%(tagVal))
                         tdSql.checkRows(1)
                         tdSql.execute(f'drop table {dbname}.{ctbname}')
                         tdSql.execute(f"create table {dbname}.{ctbname} using {dbname}.stb4421 tags('%d')"%(tagVal))
@@ -95,6 +97,7 @@ class TDTestCase:
                         tdSql.checkRows(1)
                         tdSql.execute(f"drop table {dbname}.{ctbname}")
                         tdSql.execute(f"insert into {dbname}.{ctbname} using {dbname}.{stbname} tags('%d') values(now,1)"%(tagVal))
+                        tdSql.query(f"select * from {dbname}.{ctbname} where t1='%s'"%(tagVal))
                         tdSql.checkRows(1)
                         tdSql.execute(f"drop table {dbname}.{ctbname}")
                     nTagCtb += 1
