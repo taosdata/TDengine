@@ -88,7 +88,7 @@ class TDTestCase:
                         tdSql.checkRows(1)
                         tdSql.execute(f'drop table {dbname}.{ctbname}')
                         tdSql.execute(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags("%d") values(now,1)'%(tagVal))
-                        tdSql.query(f"select * from {dbname}.{ctbname} where t1='%s'"%(tagVal))
+                        tdSql.query(f'select * from {dbname}.{ctbname} where t1="%s"'%(tagVal))
                         tdSql.checkRows(1)
                         tdSql.execute(f'drop table {dbname}.{ctbname}')
                         tdSql.execute(f"create table {dbname}.{ctbname} using {dbname}.stb4421 tags('%d')"%(tagVal))
@@ -97,7 +97,7 @@ class TDTestCase:
                         tdSql.checkRows(1)
                         tdSql.execute(f"drop table {dbname}.{ctbname}")
                         tdSql.execute(f"insert into {dbname}.{ctbname} using {dbname}.{stbname} tags('%d') values(now,1)"%(tagVal))
-                        tdSql.query(f"select * from {dbname}.{ctbname} where t1='%s'"%(tagVal))
+                        tdSql.query(f'select * from {dbname}.{ctbname} where t1="%s"'%(tagVal))
                         tdSql.checkRows(1)
                         tdSql.execute(f"drop table {dbname}.{ctbname}")
                     nTagCtb += 1
