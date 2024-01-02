@@ -587,10 +587,9 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
       }
     }
   } else {
+    streamMetaWUnLock(pMeta);
     vInfo("vgId:%d, sync restore finished, not launch stream tasks since not leader", vgId);
   }
-
-  streamMetaWUnLock(pMeta);
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
