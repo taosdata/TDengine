@@ -32,26 +32,24 @@ int32_t tqScanWal(STQ* pTq) {
   int64_t      st = taosGetTimestampMs();
 
   while (1) {
-    int32_t scan = pMeta->walScanCounter;
-    tqDebug("vgId:%d continue check if data in wal are available, walScanCounter:%d", vgId, scan);
+    tqDebug("vgId:%d continue check if data in wal are available, walScanCounter:%d", vgId, pMeta->walScanCounter);
 
     // check all tasks
     bool shouldIdle = true;
-    doScanWalForAllTasks(pTq->pStreamMeta, &shouldIdle);
+    doScanWalForAllTasks(pMeta, &shouldIdle);
 
-//    if (shouldIdle) {
-      streamMetaWLock(pMeta);
-      int32_t times = (--pMeta->walScanCounter);
-      ASSERT(pMeta->walScanCounter >= 0);
-      streamMetaWUnLock(pMeta);
+    streamMetaWLock(pMeta);
+    int32_t times = (--pMeta->walScanCounter);
+    ASSERT(pMeta->walScanCounter >= 0);
+    streamMetaWUnLock(pMeta);
 
-      if (times <= 0) {
-        break;
-      } else {
-        tqDebug("vgId:%d scan wal for stream tasks for %d times in %dms", vgId, times, SCAN_WAL_IDLE_DURATION);
-      }
-//    }
+    if (times > 0) {
+      tqDebug("vgId:%d scan wal for stream tasks for %d times in %dms", vgId, times, SCAN_WAL_IDLE_DURATION);
+    } else {  // times <= 0
+      break;
+    }
 
+    // todo: remove the sleep
     taosMsleep(SCAN_WAL_IDLE_DURATION);
   }
 
