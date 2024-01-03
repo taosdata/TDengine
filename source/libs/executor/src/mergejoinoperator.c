@@ -27,6 +27,119 @@
 #include "ttypes.h"
 #include "mergejoin.h"
 
+
+int32_t mJoinFilterAndMarkHashRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SMJoinTableCtx* build, int32_t startRowIdx) {
+  if (pFilterInfo == NULL || pBlock->info.rows == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
+  SColumnInfoData*   p = NULL;
+
+  int32_t code = filterSetDataFromSlotId(pFilterInfo, &param1);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _err;
+  }
+
+  int32_t status = 0;
+  code = filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _err;
+  }
+
+  if (!build->pHashGrpRows->allRowsMatch && (status == FILTER_RESULT_ALL_QUALIFIED || status == FILTER_RESULT_PARTIAL_QUALIFIED)) {
+    if (status == FILTER_RESULT_ALL_QUALIFIED && taosArrayGetSize(build->pHashCurGrp) == pBlock.info.rows) {
+      build->pHashGrpRows->allRowsMatch = true;
+    } else {
+      bool* pRes = (bool*)p->pData;
+      for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+        if ((status == FILTER_RESULT_PARTIAL_QUALIFIED && false == *pRes) || MJOIN_ROW_BITMAP_SET(build->pRowBitmap, build->pHashGrpRows->rowBitmapOffset, startRowIdx + i)) {
+          continue;
+        }
+
+        MJOIN_SET_ROW_BITMAP(build->pRowBitmap, build->pHashGrpRows->rowBitmapOffset, startRowIdx + i);
+        build->pHashGrpRows->rowMatchNum++;
+      }
+
+      if (build->pHashGrpRows->rowMatchNum == taosArrayGetSize(build->pHashGrpRows->pRows)) {
+        build->pHashGrpRows->allRowsMatch = true;
+      }
+    }
+  }
+
+  extractQualifiedTupleByFilterResult(pBlock, p, status);
+
+  code = TSDB_CODE_SUCCESS;
+
+_err:
+  colDataDestroy(p);
+  taosMemoryFree(p);
+  return code;
+}
+
+int32_t mJoinFilterAndMarkRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SMJoinTableCtx* build, int32_t startGrpIdx, int32_t startRowIdx) {
+  if (pFilterInfo == NULL || pBlock->info.rows == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
+  SColumnInfoData*   p = NULL;
+
+  int32_t code = filterSetDataFromSlotId(pFilterInfo, &param1);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _err;
+  }
+
+  int32_t status = 0;
+  code = filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _err;
+  }
+
+  int32_t rowNum = 0;
+  bool* pRes = (bool*)p->pData;  
+  int32_t grpNum = taosArrayGetSize(build->eqGrps);
+  if (status == FILTER_RESULT_ALL_QUALIFIED || status == FILTER_RESULT_PARTIAL_QUALIFIED) {
+    for (int32_t i = startGrpIdx; i < grpNum && rowNum < pBlock->info.rows; startRowIdx = 0, ++i) {
+      SMJoinGrpRows* buildGrp = taosArrayGet(build->eqGrps, i);
+      if (buildGrp->allRowsMatch) {
+        rowNum += buildGrp->endIdx - startRowIdx + 1;
+        continue;
+      }
+      
+      if (status == FILTER_RESULT_ALL_QUALIFIED && startRowIdx == buildGrp->beginIdx && ((pBlock->info.rows - rowNum) >= (buildGrp->endIdx - startRowIdx + 1))) {
+        buildGrp->allRowsMatch = true;
+        rowNum += buildGrp->endIdx - startRowIdx + 1;
+        continue;
+      }
+
+      for (int32_t m = startRowIdx; m < buildGrp->endIdx && rowNum < pBlock->info.rows; ++m, ++rowNum) {
+        if ((status == FILTER_RESULT_PARTIAL_QUALIFIED && false == *pRes) || MJOIN_ROW_BITMAP_SET(build->pRowBitmap, buildGrp->rowBitmapOffset, m - buildGrp->beginIdx)) {
+          continue;
+        }
+
+        MJOIN_SET_ROW_BITMAP(build->pRowBitmap, buildGrp->rowBitmapOffset, m - buildGrp->beginIdx);
+        buildGrp->rowMatchNum++;
+      }
+
+      if (buildGrp->rowMatchNum == (buildGrp->endIdx - buildGrp->beginIdx + 1))) {
+        buildGrp->allRowsMatch = true;
+      }
+    }
+  } 
+  
+  extractQualifiedTupleByFilterResult(pBlock, p, status);
+
+  code = TSDB_CODE_SUCCESS;
+
+_err:
+  colDataDestroy(p);
+  taosMemoryFree(p);
+  return code;
+}
+
+
+
 int32_t mJoinCopyMergeMidBlk(SMJoinMergeCtx* pCtx, SSDataBlock** ppMid, SSDataBlock** ppFin) {
   SSDataBlock* pLess = NULL;
   SSDataBlock* pMore = NULL;
@@ -209,6 +322,17 @@ bool mJoinHashGrpCart(SSDataBlock* pBlk, SMJoinGrpRows* probeGrp, bool append, S
   return true;
 }
 
+int32_t mJoinAllocGrpRowBitmap(SMJoinTableCtx*        pTb) {
+  int32_t grpNum = taosArrayGetSize(pTb);
+  for (int32_t i = 0; i < grpNum; ++i) {
+    SMJoinGrpRows* pGrp = (SMJoinGrpRows*)taosArrayGet(pTb->eqGrps, i);
+    MJ_ERR_RET(mJoinGetRowBitmapOffset(pTb, pGrp->endIdx - pGrp->beginIdx + 1, &pGrp->rowBitmapOffset));
+    pGrp->rowMatchNum = 0;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t mJoinProcessEqualGrp(SMJoinMergeCtx* pCtx, int64_t timestamp, bool lastBuildGrp) {
   SMJoinOperatorInfo* pJoin = pCtx->pJoin;
@@ -224,7 +348,11 @@ int32_t mJoinProcessEqualGrp(SMJoinMergeCtx* pCtx, int64_t timestamp, bool lastB
   
   if (pCtx->hashCan && REACH_HJOIN_THRESHOLD(pJoin->probe, pJoin->build)) {
     if (!lastBuildGrp || !pCtx->hashJoin) {
-      MJ_ERR_RET(mJoinMakeBuildTbHash(pJoin, pJoin->build));
+      if (pJoin->build->rowBitmapSize > 0) {
+        MJ_ERR_RET(mJoinCreateFullBuildTbHash(pJoin, pJoin->build));
+      } else {
+        MJ_ERR_RET(mJoinCreateBuildTbHash(pJoin, pJoin->build));
+      }
     }
 
     if (pJoin->probe->newBlk) {
@@ -238,6 +366,10 @@ int32_t mJoinProcessEqualGrp(SMJoinMergeCtx* pCtx, int64_t timestamp, bool lastB
   }
 
   pCtx->hashJoin = false;    
+
+  if (pJoin->build->rowBitmapSize > 0) {
+    mJoinAllocGrpRowBitmap(pJoin->build);
+  }
   
   return (*pCtx->mergeCartFp)(pCtx);
 }
@@ -394,7 +526,7 @@ static int32_t mJoinInitTableInfo(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysi
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
-    if (pJoin->pPreFilter && IS_FULL_OUTER_JOIN(pJoin->joinType, pJoin->subType)) {
+    if (pJoin->pFPreFilter && IS_FULL_OUTER_JOIN(pJoin->joinType, pJoin->subType)) {
       pTable->rowBitmapSize = MJOIN_ROW_BITMAP_SIZE;
       pTable->pRowBitmap = taosMemoryMalloc(pTable->rowBitmapSize);
       if (NULL == pTable->pRowBitmap) {
@@ -513,12 +645,23 @@ static int32_t mJoinGetRowBitmapOffset(SMJoinTableCtx* pTable, int32_t rowNum, i
     pTable->rowBitmapSize = newSize;
   }
 
-  memset(pTable->pRowBitmap + pTable->rowBitmapOffset, 0, bitmapLen);
+  memset(pTable->pRowBitmap + pTable->rowBitmapOffset, 0xFFFFFFFF, bitmapLen);
   
   *rowBitmapOffset = pTable->rowBitmapOffset;
   pTable->rowBitmapOffset += bitmapLen;
 
   return TSDB_CODE_SUCCESS;
+}
+
+void mJoinResetForBuildTable(SMJoinTableCtx* pTable) {
+  pTable->grpTotalRows = 0;
+  pTable->grpIdx = 0;
+  mJoinDestroyCreatedBlks(pTable->createdBlks);
+  taosArrayClear(pTable->eqGrps);
+  if (pTable->rowBitmapSize > 0) {
+    pTable->rowBitmapOffset = 1;
+    memset(&pTable->nMatchCtx, 0, sizeof(pTable->nMatchCtx));
+  }
 }
 
 int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk, bool restart) {
@@ -530,10 +673,7 @@ int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* whol
   }
 
   if (restart) {
-    pTable->grpTotalRows = 0;
-    pTable->grpIdx = 0;
-    mJoinDestroyCreatedBlks(pTable->createdBlks);
-    taosArrayClear(pTable->eqGrps);
+    mJoinResetForBuildTable(pTable);
   }
 
   pGrp = taosArrayReserve(pTable->eqGrps, 1);
@@ -568,11 +708,6 @@ int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* whol
   }
 
 _return:
-
-  if (wholeBlk && pTable->rowBitmapSize > 0) {
-    MJ_ERR_RET(mJoinGetRowBitmapOffset(pTable, pGrp->endIdx - pGrp->beginIdx + 1, &pGrp->rowBitmapOffset));
-    pGrp->rowMatchNum = 0;
-  }
 
   pTable->grpTotalRows += pGrp->endIdx - pGrp->beginIdx + 1;  
 
@@ -701,7 +836,50 @@ static int32_t mJoinAddRowToHash(SMJoinOperatorInfo* pJoin, size_t keyLen, SSDat
 }
 
 
-int32_t mJoinMakeBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable) {
+static int32_t mJoinAddRowToFullHash(SMJoinOperatorInfo* pJoin, size_t keyLen, SSDataBlock* pBlock, int32_t rowIdx) {
+  SMJoinTableCtx* pBuild = pJoin->build;
+  SMJoinRowPos pos = {pBlock, rowIdx};
+  SMJoinHashGrpRows* pGrpRows = (SMJoinHashGrpRows*)tSimpleHashGet(pBuild->pGrpHash, pBuild->keyData, keyLen);
+  if (!pGrpRows) {
+    SMJoinHashGrpRows pNewGrp = {0};
+    MJ_ERR_RET(mJoinGetAvailableGrpArray(pBuild, &pNewGrp.pRows));
+
+    taosArrayPush(pNewGrp.pRows, &pos);
+    tSimpleHashPut(pBuild->pGrpHash, pBuild->keyData, keyLen, &pNewGrp, sizeof(pNewGrp));
+  } else {
+    taosArrayPush(pGrpRows->pRows, &pos);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mJoinCreateFullBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable) {
+  size_t bufLen = 0;
+
+  tSimpleHashClear(pJoin->build->pGrpHash);
+  pJoin->build->grpArrayIdx = 0;
+
+  pJoin->build->grpRowIdx = -1;
+  
+  int32_t grpNum = taosArrayGetSize(pTable->eqGrps);
+  for (int32_t g = 0; g < grpNum; ++g) {
+    SMJoinGrpRows* pGrp = taosArrayGet(pTable->eqGrps, g);
+    MJ_ERR_RET(mJoinSetKeyColsData(pGrp->blk, pTable));
+
+    int32_t grpRows = GRP_REMAIN_ROWS(pGrp);
+    for (int32_t r = 0; r < grpRows; ++r) {
+      if (mJoinCopyKeyColsDataToBuf(pTable, pGrp->beginIdx + r, &bufLen)) {
+        continue;
+      }
+
+      MJ_ERR_RET(mJoinAddRowToFullHash(pJoin, bufLen, pGrp->blk, pGrp->beginIdx + r));
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mJoinCreateBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable) {
   size_t bufLen = 0;
 
   tSimpleHashClear(pJoin->build->pGrpHash);
@@ -726,6 +904,7 @@ int32_t mJoinMakeBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable) 
 
   return TSDB_CODE_SUCCESS;
 }
+
 
 void mJoinResetTableCtx(SMJoinTableCtx* pCtx) {
   pCtx->dsInitDone = false;

@@ -97,13 +97,16 @@ typedef struct SMJoinTableCtx {
   int32_t        grpArrayIdx;
   SArray*        pGrpArrays;
 
-  int32_t        grpRowIdx;
-  SArray*        pHashCurGrp;
-  SSHashObj*     pGrpHash;  
+  int32_t            grpRowIdx;
+  SArray*            pHashCurGrp;
+  SMJoinHashGrpRows* pHashGrpRows;
+  SSHashObj*         pGrpHash;  
 
-  int64_t        rowBitmapSize;
-  int64_t        rowBitmapOffset;
-  char*          pRowBitmap;
+  int64_t          rowBitmapSize;
+  int64_t          rowBitmapOffset;
+  char*            pRowBitmap;
+  
+  SMJoinNMatchCtx  nMatchCtx;
 } SMJoinTableCtx;
 
 typedef struct SMJoinGrpRows {
@@ -113,8 +116,23 @@ typedef struct SMJoinGrpRows {
   int32_t      readIdx;
   int32_t      rowBitmapOffset;
   int32_t      rowMatchNum;
+  bool         allRowsMatch;
   bool         readMatch;
 } SMJoinGrpRows;
+
+typedef struct SMJoinHashGrpRows {
+  int32_t      rowBitmapOffset;
+  int32_t      rowMatchNum;
+  bool         allRowsMatch;
+  SArray*      pRows;
+} SMJoinHashGrpRows;
+
+typedef struct SMJoinNMatchCtx {
+  void*   pGrp;
+  int32_t iter;
+  int32_t bitIdx;
+  int32_t grpIdx;
+} SMJoinNMatchCtx;
 
 typedef struct SMJoinMergeCtx {
   struct SMJoinOperatorInfo* pJoin;
@@ -123,6 +141,7 @@ typedef struct SMJoinMergeCtx {
   bool                keepOrder;
   bool                grpRemains;
   bool                midRemains;
+  bool                nmatchRemains;
   bool                lastEqGrp;
   bool                lastProbeGrp;
   int32_t             blkThreshold;
@@ -203,6 +222,9 @@ typedef struct SMJoinOperatorInfo {
 
 #define BLK_IS_FULL(_blk) ((_blk)->info.rows == (_blk)->info.capacity)
 
+#define MJOIN_ROW_BITMAP_SET(_b, _base, _idx) (!colDataIsNull_f((_b + _base), _idx))
+#define MJOIN_SET_ROW_BITMAP(_b, _base, _idx) (colDataClearNull_f((_b + _base), _idx))
+
 
 #define MJOIN_GET_TB_COL_TS(_col, _ts, _tb)                                     \
   do {                                                                          \
@@ -246,7 +268,8 @@ void mJoinSetDone(SOperatorInfo* pOperator);
 bool mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen);
 int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk, bool restart);
 int32_t mJoinRetrieveEqGrpRows(SOperatorInfo* pOperator, SMJoinTableCtx* pTable, int64_t timestamp);
-int32_t mJoinMakeBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable);
+int32_t mJoinCreateFullBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable);
+int32_t mJoinCreateBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable);
 int32_t mJoinSetKeyColsData(SSDataBlock* pBlock, SMJoinTableCtx* pTable);
 int32_t mJoinProcessEqualGrp(SMJoinMergeCtx* pCtx, int64_t timestamp, bool lastBuildGrp);
 bool mJoinHashGrpCart(SSDataBlock* pBlk, SMJoinGrpRows* probeGrp, bool append, SMJoinTableCtx* probe, SMJoinTableCtx* build);
