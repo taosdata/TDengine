@@ -1056,7 +1056,7 @@ static void initRowIdSort(SSortHandle* pHandle) {
 
   blockDataDestroy(pHandle->pDataBlock);
   pHandle->pDataBlock = pSortInput;
-  
+
   int32_t  rowSize = blockDataGetRowSize(pHandle->pDataBlock);
   size_t nCols = taosArrayGetSize(pHandle->pDataBlock->pDataBlock);
   pHandle->pageSize = getProperSortPageSize(rowSize, nCols);
@@ -1206,7 +1206,8 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
     int32_t minIdx = tMergeTreeGetChosenIndex(pTree);
     SSDataBlock* minBlk = taosArrayGetP(aBlk, minIdx);
     int32_t minRow = sup.aRowIdx[minIdx];
-    int32_t bufInc = getPageBufIncForRow(minBlk, minRow, pHandle->pDataBlock->info.rows);
+    SSDataBlock* incBlock = (pHandle->bSortByRowId) ? pHandle->pDataBlock : minBlk;
+    int32_t bufInc = getPageBufIncForRow(incBlock, minRow, pHandle->pDataBlock->info.rows);
 
     if (blkPgSz <= pHandle->pageSize && blkPgSz + bufInc > pHandle->pageSize) {
         SColumnInfoData* tsCol = taosArrayGet(pHandle->pDataBlock->pDataBlock, pHandleBlockOrder->slotId);
@@ -1215,7 +1216,8 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
         nMergedRows += pHandle->pDataBlock->info.rows;
         blockDataCleanup(pHandle->pDataBlock);
         blkPgSz = pgHeaderSz;
-        bufInc = getPageBufIncForRow(minBlk, minRow, 0);
+        incBlock = (pHandle->bSortByRowId) ? pHandle->pDataBlock : minBlk;
+        bufInc = getPageBufIncForRow(incBlock, minRow, 0);
         
         if ((pHandle->mergeLimit != -1) && (nMergedRows >= pHandle->mergeLimit)) {
           mergeLimitReached = true;
