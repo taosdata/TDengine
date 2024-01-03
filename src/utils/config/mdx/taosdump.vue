@@ -28,9 +28,9 @@
         >TDengine CLI</a
       >{{ $t("docs.connector.bottom3end") }} -->
     </p>
-    <!-- <p>{{ $t("docs.dataout.dump.step2desc2") }}</p>
+    <p>{{ $t("docs.dataout.dump.step2desc2") }}</p>
     <pre v-highlight><code>{{ linuxcode }}
-</code></pre> -->
+</code></pre>
     <p>{{ $t("docs.dataout.dump.step2desc3") }}</p>
     <pre
       v-highlight="
@@ -148,9 +148,9 @@ export default {
   data() {
     return {
       version:localStorage.getItem('agent_version'),
-      linuxcode:`tar -xzf taosTools-${localStorage.getItem('agent_version')}-Linux-x64-comp3.tar.gz
-cd taosTools-${localStorage.getItem('agent_version')}-Linux-x64-comp3
-sudo ./install-taostools.sh`
+      linuxcode:`tar -xzf TDengine-enterprise-client-${localStorage.getItem('agent_version')}-Linux-x64.tar.gz
+cd TDengine-enterprise-client-${localStorage.getItem('agent_version')}
+sudo ./install_client.sh`
     };
   },
   computed: {
