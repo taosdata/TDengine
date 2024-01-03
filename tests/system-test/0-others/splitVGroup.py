@@ -163,8 +163,8 @@ class TDTestCase:
         self.c2Min = None
         self.c2Sum = None
 
-        # create database  db
-        sql = f"create database @db_name vgroups {self.vgroups1} replica 1 wal_retention_period 0 wal_retention_size 1"
+        # create database  db  wal_retention_period 0 
+        sql = f"create database @db_name vgroups {self.vgroups1} replica {self.replicaVar} wal_retention_period 0 wal_retention_size 1"
         self.exeDouble(sql)
 
         # create super talbe st
@@ -277,11 +277,11 @@ class TDTestCase:
         self.queryDouble(sql)
 
         # check row value is ok
-        sql = "select * from @db_name.st order by ts"
+        sql = "select * from @db_name.st order by ts, tbname"
         self.queryDouble(sql)
         
         # where
-        sql = "select *,tbname from @db_name.st where c1 < 1000 order by ts"
+        sql = "select *,tbname from @db_name.st where c1 < 1000 order by ts, tbname"
         self.queryDouble(sql)
 
         # max
@@ -369,7 +369,7 @@ class TDTestCase:
         dbName = "emptydb"
         vgNum = 2
         # create database
-        sql = f"create database {dbName} vgroups {vgNum} replica 1"
+        sql = f"create database {dbName} vgroups {vgNum} replica {self.replicaVar }"
         tdLog.info(sql)
         tdSql.execute(sql)
 
@@ -412,7 +412,7 @@ class TDTestCase:
     def run(self):
         # prepare env
         self.prepareEnv()
-        tdLog.info("add  two  same ver stt file like v4f1944ver3.stt and v4f1944ver4.stt to db2 and db1 ")
+        tdLog.info("generate at least two stt files of the same fileset (e.g. v4f1944)  for db2 and db1 ")
         for dbname in [self.db2, self.db1]:
             tdSql.execute(f'insert into {dbname}.t1  values("2023-03-28 10:40:00.010",103,103,"2023-03-28 18:41:39.999") ;')
             tdSql.execute(f'flush database {dbname}')
