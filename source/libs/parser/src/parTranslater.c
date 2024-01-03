@@ -7468,6 +7468,7 @@ typedef struct SSampleAstInfo {
   STableMeta* pRollupTableMeta;
   bool        createSmaIndex;
   SNodeList*  pTags;
+  SNode*      pSubTable;
 } SSampleAstInfo;
 
 static int32_t buildTableForSampleAst(SSampleAstInfo* pInfo, SNode** pOutput) {
@@ -7567,6 +7568,7 @@ static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, ch
     code = buildProjectsForSampleAst(pInfo, &pSelect->pProjectionList);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    TSWAP(pInfo->pSubTable, pSelect->pSubtable);
     TSWAP(pInfo->pTags, pSelect->pTags);
     TSWAP(pSelect->pPartitionByList, pInfo->pPartitionByList);
     code = buildIntervalForSampleAst(pInfo, &pSelect->pWindow);
@@ -10431,6 +10433,35 @@ static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMC
       nodesListMakeAppend(&info.pPartitionByList, (SNode*)pTbnameFunc);
     } else {
       code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      SFunctionNode* pConcatFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+      SValueNode*    pValue = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+      if (!pConcatFunc || !pValue) code = TSDB_CODE_OUT_OF_MEMORY;
+      if (code == TSDB_CODE_SUCCESS) {
+        pValue->literal = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
+        if (!pValue->literal) code = TSDB_CODE_OUT_OF_MEMORY;
+      }
+      if (code == TSDB_CODE_SUCCESS) {
+        strcpy(pValue->literal, pReq->name);
+        int32_t len = taosCreateMD5Hash(pValue->literal, strlen(pValue->literal));
+        pValue->literal[len] = '_';
+        snprintf(pConcatFunc->functionName, TSDB_FUNC_NAME_LEN, "concat");
+        pValue->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+        pValue->node.resType.bytes = strlen(pValue->literal);
+        pValue->isDuration = false;
+        pValue->isNull = false;
+        code = nodesListMakeAppend(&pConcatFunc->pParameterList, (SNode*)pValue);
+      }
+      if (code == TSDB_CODE_SUCCESS) {
+        code = nodesListStrictAppend(pConcatFunc->pParameterList, nodesCloneNode((SNode*)pTbnameFunc));
+      }
+      if (code) {
+        nodesDestroyNode((SNode*)pConcatFunc);
+        nodesDestroyNode((SNode*)pValue);
+      } else {
+        info.pSubTable = (SNode*)pConcatFunc;
+      }
     }
   }
   if (TSDB_CODE_SUCCESS == code) {

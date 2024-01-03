@@ -595,7 +595,7 @@ typedef struct STSMAOptions {
   SNodeList* pFuncs;
   SNodeList* pCols;
   SNode*     pInterval;
-  uint8_t     tsPrecision;
+  uint8_t    tsPrecision;
 } STSMAOptions;
 
 typedef struct SCreateTSMAStmt {
