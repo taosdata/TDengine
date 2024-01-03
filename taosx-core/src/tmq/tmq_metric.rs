@@ -104,6 +104,7 @@ impl TaosXMetrics for TmqMetrics {
         self.messages_of_meta.store(0, SeqCst);
         self.messages_of_data.store(0, SeqCst);
         self.write_raw_fails.store(0, SeqCst);
+        self.success_blocks.store(0, SeqCst);
     }
 
     fn com(&self) -> &CommonMetrics {
