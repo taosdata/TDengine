@@ -869,6 +869,9 @@ bool inWinRange(STimeWindow* range, STimeWindow* cur);
 
 int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
                                TSKEY* primaryKeys, int32_t prevPosition, int32_t order);
+void    extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status);
+
+
 
 #ifdef __cplusplus
 }

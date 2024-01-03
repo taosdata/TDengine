@@ -48,7 +48,7 @@ int32_t mJoinFilterAndMarkHashRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo
   }
 
   if (!build->pHashGrpRows->allRowsMatch && (status == FILTER_RESULT_ALL_QUALIFIED || status == FILTER_RESULT_PARTIAL_QUALIFIED)) {
-    if (status == FILTER_RESULT_ALL_QUALIFIED && taosArrayGetSize(build->pHashCurGrp) == pBlock.info.rows) {
+    if (status == FILTER_RESULT_ALL_QUALIFIED && taosArrayGetSize(build->pHashCurGrp) == pBlock->info.rows) {
       build->pHashGrpRows->allRowsMatch = true;
     } else {
       bool* pRes = (bool*)p->pData;
@@ -122,7 +122,7 @@ int32_t mJoinFilterAndMarkRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SM
         buildGrp->rowMatchNum++;
       }
 
-      if (buildGrp->rowMatchNum == (buildGrp->endIdx - buildGrp->beginIdx + 1))) {
+      if (buildGrp->rowMatchNum == (buildGrp->endIdx - buildGrp->beginIdx + 1)) {
         buildGrp->allRowsMatch = true;
       }
     }
@@ -323,7 +323,7 @@ bool mJoinHashGrpCart(SSDataBlock* pBlk, SMJoinGrpRows* probeGrp, bool append, S
 }
 
 int32_t mJoinAllocGrpRowBitmap(SMJoinTableCtx*        pTb) {
-  int32_t grpNum = taosArrayGetSize(pTb);
+  int32_t grpNum = taosArrayGetSize(pTb->eqGrps);
   for (int32_t i = 0; i < grpNum; ++i) {
     SMJoinGrpRows* pGrp = (SMJoinGrpRows*)taosArrayGet(pTb->eqGrps, i);
     MJ_ERR_RET(mJoinGetRowBitmapOffset(pTb, pGrp->endIdx - pGrp->beginIdx + 1, &pGrp->rowBitmapOffset));
@@ -404,7 +404,7 @@ int32_t mJoinProcessNonEqualGrp(SMJoinMergeCtx* pCtx, SColumnInfoData* pCol,    
     break;
   }
 
-  return mJoinNonEqCart(pCtx, pGrp, );  
+  return mJoinNonEqCart(pCtx, pGrp, probeGrp);  
 }
 
 SOperatorInfo** mJoinBuildDownstreams(SMJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream) {
@@ -633,7 +633,7 @@ static void mJoinDestroyCreatedBlks(SArray* pCreatedBlks) {
   taosArrayClear(pCreatedBlks);
 }
 
-static int32_t mJoinGetRowBitmapOffset(SMJoinTableCtx* pTable, int32_t rowNum, int32_t *rowBitmapOffset) {
+int32_t mJoinGetRowBitmapOffset(SMJoinTableCtx* pTable, int32_t rowNum, int32_t *rowBitmapOffset) {
   int32_t bitmapLen = BitmapLen(rowNum);
   int64_t reqSize = pTable->rowBitmapOffset + bitmapLen;
   if (reqSize > pTable->rowBitmapSize) {
@@ -1059,6 +1059,7 @@ int32_t mJoinHandleConds(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJo
       break;
   }
 
+  return TSDB_CODE_SUCCESS;
 }
 
 

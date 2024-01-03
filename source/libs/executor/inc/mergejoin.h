@@ -59,6 +59,23 @@ typedef struct SMJoinColInfo {
   SColumnInfoData* colData;  
 } SMJoinColInfo;
 
+typedef struct SMJoinHashGrpRows {
+  int32_t      rowBitmapOffset;
+  int32_t      rowMatchNum;
+  bool         allRowsMatch;
+  bool         allRowsNMatch;
+  SArray*      pRows;
+} SMJoinHashGrpRows;
+
+
+typedef struct SMJoinNMatchCtx {
+  void*   pGrp;
+  int32_t iter;
+  int32_t bitIdx;
+  int32_t rowIdx;
+  int32_t grpIdx;
+} SMJoinNMatchCtx;
+
 
 typedef struct SMJoinTableCtx {
   EJoinTableType type;
@@ -116,23 +133,11 @@ typedef struct SMJoinGrpRows {
   int32_t      readIdx;
   int32_t      rowBitmapOffset;
   int32_t      rowMatchNum;
+  bool         allRowsNMatch;
   bool         allRowsMatch;
   bool         readMatch;
 } SMJoinGrpRows;
 
-typedef struct SMJoinHashGrpRows {
-  int32_t      rowBitmapOffset;
-  int32_t      rowMatchNum;
-  bool         allRowsMatch;
-  SArray*      pRows;
-} SMJoinHashGrpRows;
-
-typedef struct SMJoinNMatchCtx {
-  void*   pGrp;
-  int32_t iter;
-  int32_t bitIdx;
-  int32_t grpIdx;
-} SMJoinNMatchCtx;
 
 typedef struct SMJoinMergeCtx {
   struct SMJoinOperatorInfo* pJoin;
@@ -223,7 +228,7 @@ typedef struct SMJoinOperatorInfo {
 #define BLK_IS_FULL(_blk) ((_blk)->info.rows == (_blk)->info.capacity)
 
 #define MJOIN_ROW_BITMAP_SET(_b, _base, _idx) (!colDataIsNull_f((_b + _base), _idx))
-#define MJOIN_SET_ROW_BITMAP(_b, _base, _idx) (colDataClearNull_f((_b + _base), _idx))
+#define MJOIN_SET_ROW_BITMAP(_b, _base, _idx) colDataClearNull_f((_b + _base), _idx)
 
 
 #define MJOIN_GET_TB_COL_TS(_col, _ts, _tb)                                     \
@@ -278,6 +283,10 @@ int32_t mJoinHandleMidRemains(SMJoinMergeCtx* pCtx);
 int32_t mJoinNonEqGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool append, SMJoinGrpRows* pGrp, bool probeGrp);
 int32_t mJoinNonEqCart(SMJoinMergeCtx* pCtx, SMJoinGrpRows* pGrp, bool probeGrp);
 int32_t mJoinCopyMergeMidBlk(SMJoinMergeCtx* pCtx, SSDataBlock** ppMid, SSDataBlock** ppFin);
+int32_t mJoinFilterAndMarkRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SMJoinTableCtx* build, int32_t startGrpIdx, int32_t startRowIdx);
+int32_t mJoinFilterAndMarkHashRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SMJoinTableCtx* build, int32_t startRowIdx);
+int32_t mJoinGetRowBitmapOffset(SMJoinTableCtx* pTable, int32_t rowNum, int32_t *rowBitmapOffset);
+int32_t mJoinProcessNonEqualGrp(SMJoinMergeCtx* pCtx, SColumnInfoData* pCol,         bool probeGrp, int64_t* probeTs, int64_t* buildTs);
 
 #ifdef __cplusplus
 }
