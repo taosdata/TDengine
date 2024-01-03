@@ -273,11 +273,6 @@ typedef struct STableScanInfo {
   bool            filesetDelimited;
 } STableScanInfo;
 
-typedef struct STmsSortRowIdInfo {
-  SDiskbasedBuf* pExtSrcRowsBuf;
-  int32_t srcTsSlotId;
-} STmsSortRowIdInfo;
-
 typedef struct STableMergeScanInfo {
   int32_t         tableStartIndex;
   int32_t         tableEndIndex;
@@ -312,7 +307,6 @@ typedef struct STableMergeScanInfo {
   bool             rtnNextDurationBlocks;
   int32_t          nextDurationBlocksIdx;
   bool             bSortRowId;
-  STmsSortRowIdInfo sortRowIdInfo;
 } STableMergeScanInfo;
 
 typedef struct STagScanFilterContext {

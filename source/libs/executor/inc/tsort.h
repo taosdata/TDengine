@@ -194,6 +194,9 @@ void tsortSetClosed(SSortHandle* pHandle);
 void tsortSetSingleTableMerge(SSortHandle* pHandle);
 void tsortSetAbortCheckFn(SSortHandle* pHandle, bool (*checkFn)(void* param), void* param);
 
+int32_t tsortSetSortByRowId(SSortHandle* pHandle, int32_t extRowsPageSize, int32_t extRowsSize);
+
+void tsortAppendTupleToBlock(SSortHandle* pHandle, SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 /**
  * @brief comp the tuple with keyBuf, if not equal, new keys will be built in keyBuf, newLen will be stored in keyLen
  * @param [in] pSortCols cols to comp and build
