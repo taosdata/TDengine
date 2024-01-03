@@ -107,7 +107,7 @@ class VnodeRedistribute(TDCase):
         self.tdSql.query('show dnodes')
         self.source_dnode_id_list = list(map(lambda x:x[0], self.tdSql.query_data))
         self.cluster_to_redistribute_list = list()
-        self.use_stream = False
+        self.use_stream = True
         self.stream_drop_after_test = False
         self.use_tmq = True
         self.topic_name = "tp_name"
@@ -380,8 +380,8 @@ class VnodeRedistribute(TDCase):
                 if self.stream_drop_after_test:
                     self.tdSql.execute(f'drop stream if exists {self.stream_name}')
                 self.check_restored_true()
-                killCmd = "ps ef | grep %s | grep -v grep | awk '{print $2}' | xargs kill -9 " % self.taosBenchmark_env_setting[0]["spec"]["config_dir"]
-                self._remote.cmd(self.taosBenchmark_iplist[0], [killCmd])
+                # killCmd = "ps -ef | grep taosBenchmark | grep -v grep | awk '{print $2}' | xargs kill -9 "
+                # self._remote.cmd(self.taosBenchmark_iplist[0], [killCmd])
         self._remote._logger.info(f"------------ remove vginfo schedular job ------------: {self.vgid_info_schedular}")
         self.remove_schedular(self.vgid_info_schedular)
         self._remote._logger.info(f"------------ remove restart dnode schedular job ------------: {self.restart_dnode_schedular}")
@@ -435,11 +435,12 @@ class VnodeRedistribute(TDCase):
         self.tmq_schedular = self.tdCom.add_back_ground_scheduler(self.tmq_subcribe, "interval", seconds=self.tmq_schedular_interval, max_instances=1, args=[])
         self.redistribute_schedular = self.tdCom.add_back_ground_scheduler(self.redistribute_vnode, "interval", seconds=self.schedular_interval, max_instances=1, args=[])
         self.vgid_info_schedular = self.tdCom.add_back_ground_scheduler(self.get_vgid_info, "interval", seconds=self.query_vgid_interval, max_instances=1, args=[])
-        self.disorder_schedular = self.tdCom.add_back_ground_scheduler(self.disorder_update_delete_data, "interval", seconds=self.disorder_schedular_interval, max_instances=1, args=[])
+        # self.disorder_schedular = self.tdCom.add_back_ground_scheduler(self.disorder_update_delete_data, "interval", seconds=self.disorder_schedular_interval, max_instances=1, args=[])
         self.restart_dnode_schedular = self.tdCom.add_back_ground_scheduler(self.restart_dnodes, "interval", seconds=self.restart_dnode_interval, max_instances=1, args=[])
         self.insert_data()
         self.check_restored_true()
         self._remote._logger.info(f"------------ delete ------------")
         self.tdSql.execute(f'delete from {self.dbname}.{self.stbname} where ts >= "{self.disorder_start_timestamp}" and ts < "{self.fill_history_start_timestamp}"')
-        self.tdSql.query(f'select count(*) from {self.dbname}.{self.stbname}')
+        self.tdSql.query(f'select count(*) from {self.dbname}.{self.stbname} where ts >= "{self.fill_history_start_timestamp}"')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.childtable_count*(self.insert_rows+self.fill_history_rows))
+        # self.tdCom.check_query_data(f"select count(c0) from {self.dbname}.{self.stbname} where c0 % 7 >= 0", f'select count(*) from {self.dbname}.{self.stream_stbname}')
