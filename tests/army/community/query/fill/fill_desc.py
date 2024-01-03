@@ -43,7 +43,7 @@ class TDTestCase(TBase):
 
         tdLog.printNoPrefix("==========step3:fill data")
 
-        tdSql.query(f"select wstart as ts, first(point_value) as pointValue from {dbname}.{tbname} where wstart between '2823-12-2510:35:00' and '2023-12-2510:40:00' fill(prev) order by wstart desc limit 100")
+        tdSql.query(f"select wstart as ts, first(point_value) as pointValue from {dbname}.{tbname} where wstart between '2023-12-26 10:35:00' and '2023-12-26 10:40:00' interval(1M) fill(prev) order by wstart desc limit 100")
         tdSql.checkRows(6)
         tdSql.checkData(0, 1, 5)
         tdSql.checkData(1, 1, 5)
