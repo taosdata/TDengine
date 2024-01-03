@@ -1500,6 +1500,16 @@ int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
           return -1;
         }
 #endif
+
+        // kill the related checkpoint trans
+        int32_t transId = mndStreamGetRelCheckpointTrans(pMnode, pStream->uid);
+        if (transId != 0) {
+          killCheckpointTransImpl(pMnode, transId, pStream->sourceDb);
+        }
+
+        // drop the stream obj in execInfo
+        removeStreamTasksInBuf(pStream, &execInfo);
+
         if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
           sdbRelease(pSdb, pStream);
           sdbCancelFetch(pSdb, pIter);
