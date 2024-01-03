@@ -27,9 +27,9 @@
       }}</a
       >{{ $t("docs.connector.bottom3end") }} -->
     </p>
-    <!-- <p>{{ $t("docs.tool.benchmark.step2desc3") }}</p>
+    <p>{{ $t("docs.tool.benchmark.step2desc3") }}</p>
     <pre v-highlight><code>{{ benchcode }}
-</code></pre> -->
+</code></pre>
     <h2 id="run">{{ $t("docs.tool.benchmark.step3") }}</h2>
     <h3 id="configuration-and-running-methods">
       {{ $t("docs.tool.benchmark.step31") }}
@@ -634,9 +634,9 @@ export default {
   data() {
     return {
       version:localStorage.getItem('agent_version'),
-      benchcode:`tar -xzf taosTools-${localStorage.getItem('agent_version')}-Linux-x64-comp3.tar.gz
-cd taosTools-${localStorage.getItem('agent_version')}-Linux-x64-comp3
-sudo ./install-taostools.sh`
+      benchcode:`tar -xzf TDengine-enterprise-client-${localStorage.getItem('agent_version')}-Linux-x64.tar.gz
+cd TDengine-enterprise-client-${localStorage.getItem('agent_version')}
+sudo ./install_client.sh`
     };
   },
   computed: {
