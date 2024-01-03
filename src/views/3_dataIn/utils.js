@@ -108,8 +108,14 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
     // 先处理protocol
     if(id=='csv'){
       config.parser=parserValue
+      let index=paramsConfig.findIndex((item)=>{
+        return ['连接配置','Connection Configuration'].includes(item.label)
+      })
+      paramsConfig.splice(index,1)
     }
     formConfig[id] = config;
+    
+   
     return formConfig;
   }, {});
 }
@@ -886,7 +892,7 @@ export const NoNeedAgentType = ['tmq', 'taos', 'csv'];
 export const ProtocolPrefix = NoNeedAgentType.concat(['influxdb', 'opentsdb']);
 
 export function getDsnData(data, definition) {
-  let dsn = handleProtocolData(data[optionsField].protocol, definition);
+  let dsn = handleProtocolData(data[optionsField]?.protocol, definition);
   let queryArr = [];
   dsn += getAuthentications(data[authenticationField], queryArr);
   dsn += getOptionData(data[optionsField], queryArr, definition);
@@ -921,7 +927,7 @@ function handleProtocolData(protocol, definition) {
     dsn += protocol;
   }
   if(id=='csv'){
-    return dsn+':'
+    return dsn+(Array.isArray(store.state.csvfiles)?store.state.csvfiles[0].response[0]:store.state.csvfiles)
   }
   return dsn + '://';
 }
@@ -1039,7 +1045,7 @@ function getOptionData(data, queryArr, definition) {
       result += handleEndpoint(endpoint)
     } else {
       if(id=='csv'){
-        result+= Array.isArray(store.state.csvfiles)?store.state.csvfiles[0].response[0]:store.state.csvfiles
+        result+= (Array.isArray(store.state.csvfiles)?store.state.csvfiles[0].response[0]:store.state.csvfiles)
       }else{
         result += endpoint;
       }

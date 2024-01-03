@@ -1271,6 +1271,8 @@ export default {
       sampleval: "Smaple Value",
       resulttb: "Result Display",
       nexttip:"Please proceed the next step first",
+      addExtract:'Add Extract/Split',
+      addfilter:'Add Filter',
       msgbodytypes: {
         type1: "Copy and Paste",
         type2: "Retrieve From Server",

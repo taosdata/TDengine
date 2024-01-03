@@ -28,9 +28,9 @@
         >TDengine CLI</a
       >{{ $t("docs.connector.bottom3end") }} -->
     </p>
-    <p>{{ $t("docs.dataout.dump.step2desc2") }}</p>
+    <!-- <p>{{ $t("docs.dataout.dump.step2desc2") }}</p>
     <pre v-highlight><code>{{ linuxcode }}
-</code></pre>
+</code></pre> -->
     <p>{{ $t("docs.dataout.dump.step2desc3") }}</p>
     <pre
       v-highlight="
