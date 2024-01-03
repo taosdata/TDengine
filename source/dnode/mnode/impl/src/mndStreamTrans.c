@@ -65,7 +65,7 @@ int32_t clearFinishedTrans(SMnode* pMnode) {
   return 0;
 }
 
-bool streamTransConflictOtherTrans(SMnode* pMnode, int64_t streamUid, const char* pTransName, bool lock) {
+bool mndStreamTransConflictCheck(SMnode* pMnode, int64_t streamUid, const char* pTransName, bool lock) {
   if (lock) {
     taosThreadMutexLock(&execInfo.lock);
   }
@@ -111,6 +111,30 @@ bool streamTransConflictOtherTrans(SMnode* pMnode, int64_t streamUid, const char
   }
 
   return false;
+}
+
+int32_t mndStreamGetRelCheckpointTrans(SMnode* pMnode, int64_t streamUid) {
+  taosThreadMutexLock(&execInfo.lock);
+  int32_t num = taosHashGetSize(execInfo.transMgmt.pDBTrans);
+  if (num <= 0) {
+    taosThreadMutexUnlock(&execInfo.lock);
+    return 0;
+  }
+
+  clearFinishedTrans(pMnode);
+  SStreamTransInfo* pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, &streamUid, sizeof(streamUid));
+  if (pEntry != NULL) {
+    SStreamTransInfo tInfo = *pEntry;
+    taosThreadMutexUnlock(&execInfo.lock);
+
+    if (strcmp(tInfo.name, MND_STREAM_CHECKPOINT_NAME) == 0) {
+      return tInfo.transId;
+    }
+  } else {
+    taosThreadMutexUnlock(&execInfo.lock);
+  }
+
+  return 0;
 }
 
 int32_t mndAddtoCheckpointWaitingList(SStreamObj* pStream, int64_t checkpointId) {
