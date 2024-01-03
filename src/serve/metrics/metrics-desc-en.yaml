@@ -8,7 +8,7 @@ taosx_process_mem_percent: "% of memory occupied by taosx processes"
 taosx_process_io_read_bytes:  Number of read bytes since the last refresh
 taosx_process_io_written_bytes: Number of written bytes since the last refresh
 taosx_process_tasks: Number of threads run by this process
-total_execute_time: Total execute time in seconds
+total_execute_time: Total execute time in milliseconds
 total_written_rows: Total rows written to TDengine (including duplicate records)
 total_written_points: Total points written successfully (equal to the number of rows in the data block multiplied by the number of columns in the data block)
 total_rows_per_second: Average number of rows written per second
@@ -16,7 +16,7 @@ total_points_per_second: Average number of points written per second
 start_time: Task start time (reset each time the task is restarted), in milliseconds
 written_rows: Total rows written to TDengine (including duplicate records) in this task run
 written_points: Total points written successfully in this task run (equal to the number of rows in the data block multiplied by the number of columns in the data block)
-execute_time: Task execute time in seconds for this task run
+execute_time: Task execute time in milliseconds for this task run
 rows_per_second: Average number of rows written per second for this task run
 points_per_second: Average number of points written per second for this task run
 read_concurrency: Number of data workers concurrently reading data sources
