@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -18,17 +17,20 @@ use taos::Dsn;
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
+use taosx_ipc::ack::AckReaderBuilder;
 use taosx_ipc::prelude::ArrowDataType;
 
 use crate::plugins::dsv::DataSourceValidation;
-use crate::plugins::runners::kafka::config::SourceConfig;
+use crate::runners::historian::set_tcp_keepalive;
+use crate::runners::kafka::config::connect::KafkaConnectConfig;
+use crate::runners::kafka::config::KafkaTaskConfig;
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, Action, Parser, Transferred};
 
 mod config;
 
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
-    let config = SourceConfig::from_dsn(dsn);
+    let config = KafkaTaskConfig::from_dsn(dsn);
     match config {
         Err(err) => DataSourceValidation::invalid(
             "kafka".to_string(),
@@ -39,17 +41,10 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             ),
         ),
         Ok(c) => {
-            let mut client = KafkaClient::new(c.bootstrap_servers);
+            let mut client = KafkaClient::new(c.connect.bootstrap_servers);
             let result = client.load_metadata_all();
             match result {
-                Ok(()) => DataSourceValidation {
-                    valid: true,
-                    support: true,
-                    data_source: "kafka".to_string(),
-                    version: None,
-                    message: None,
-                },
-                //
+                Ok(()) => DataSourceValidation::valid("kafka".to_string(), None),
                 Err(err) => DataSourceValidation::invalid(
                     "kafka".to_string(),
                     format!("failed to connect to kafka, cause: {}", err.to_string()),
@@ -62,27 +57,30 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 pub async fn kafka_to_taos(
     from: Dsn,
     parser: Option<Parser>,
-    _: Vec<Action>,
+    _transform: Vec<Action>,
     to: Dsn,
-    _: usize,
+    _jobs: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     tracing::info!(
-        "kafka_to_taos start, from: {}, parser: {}, to: {}",
+        "Kafka task: {} start, from: {}, parser: {}, to: {}",
+        task_id.unwrap_or(-1),
         from,
         serde_json::to_string(&parser)?,
         to
     );
-    let port = port_pool
+
+    let ipc_port = port_pool
         .get()
         .await
         .ok_or_else(|| anyhow::format_err!("No available port for Kafka connection"))?;
-    let socket = format!("127.0.0.1:{}", port);
+    let socket = format!("127.0.0.1:{}", ipc_port);
     let mut ipc = build_ipc(
         &socket,
         parser,
@@ -100,7 +98,7 @@ pub async fn kafka_to_taos(
 
     let aborted = Arc::new(AtomicBool::new(false));
     let aborted_cloned = aborted.clone();
-    let worker = tokio::task::spawn_blocking(move || kafka_worker(from, port, aborted_cloned));
+    let worker = tokio::spawn(kafka_worker(from, ipc_port, aborted_cloned));
     let abort_handle = worker.abort_handle();
 
     let port_pool = port_pool.clone();
@@ -151,23 +149,50 @@ pub async fn kafka_to_taos(
         tracing::info!("Kafka task Done");
         ipc.close().await?;
         // put ipc port back to port pool.
-        port_pool.put(port).await;
+        port_pool.put(ipc_port).await;
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
         Ok(())
     }).await??;
 
+    tracing::info!("Kafka task: {} stopped", task_id.unwrap_or(-1));
     Ok(())
 }
 
-fn kafka_worker(mut from: Dsn, port: u16, aborted: Arc<AtomicBool>) -> anyhow::Result<()> {
-    let socket = format!("127.0.0.1:{}", port);
+async fn kafka_worker(from: Dsn, ipc_port: u16, aborted: Arc<AtomicBool>) -> anyhow::Result<()> {
+    let socket = format!("127.0.0.1:{}", ipc_port);
     let stream = std::net::TcpStream::connect(socket)?;
+
+    // ack reader stream
+    let ack_stream = stream.try_clone()?;
+    set_tcp_keepalive(&ack_stream)?;
+    ack_stream.set_read_timeout(None)?;
+    // receive ACK from IPC
+    let ack = tokio::task::spawn_blocking(move || {
+        let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
+        for ack in ack_reader {
+            if !ack.success() {
+                tracing::error!("Kafka write records error: {ack:?}");
+                if let Some(message) = ack.message() {
+                    anyhow::bail!("IPC writer error: {message}")
+                }
+            }
+        }
+        tracing::info!("Kafka ACK reader finished");
+        Ok(())
+    });
+
     let schema = build_schema();
     let mut writer = StreamWriter::try_new(&stream, &schema)?;
 
-    let mut consumer = build_consumer(&mut from)?;
-    let timeout = SourceConfig::parse_timeout(&from)?;
+    let config = KafkaTaskConfig::from_dsn(&from)?;
+
+    let mut client = build_client(config.connect.clone())?;
+    client.load_metadata_all()?;
+
+    let mut consumer = build_consumer(client, config)?;
+
+    let timeout = KafkaTaskConfig::parse_timeout(&from)?;
     let mut start = chrono::Utc::now().timestamp_millis();
 
     loop {
@@ -177,7 +202,7 @@ fn kafka_worker(mut from: Dsn, port: u16, aborted: Arc<AtomicBool>) -> anyhow::R
             break;
         }
         if message_sets.is_empty() {
-            thread::sleep(Duration::from_millis(100));
+            tokio::time::sleep(Duration::from_millis(100)).await;
             let now = chrono::Utc::now().timestamp_millis();
             if timeout >= 0 && now - &start > timeout {
                 break;
@@ -219,12 +244,13 @@ fn kafka_worker(mut from: Dsn, port: u16, aborted: Arc<AtomicBool>) -> anyhow::R
             ],
         )?;
         writer.write(&batch)?;
+        tracing::debug!("write batch to IPC, batch size: {}", batch.num_rows());
         consumer.commit_consumed()?;
 
         start = chrono::Utc::now().timestamp_millis();
     }
 
-    tracing::info!("kafka_to_taos stopped");
+    ack.await??;
     Ok(())
 }
 
@@ -249,11 +275,7 @@ fn build_schema() -> Schema {
     schema
 }
 
-fn build_consumer(dsn: &Dsn) -> anyhow::Result<Consumer> {
-    let config = SourceConfig::from_dsn(dsn)?;
-    let mut client = build_client(&config)?;
-    client.load_metadata_all()?;
-
+fn build_consumer(client: KafkaClient, config: KafkaTaskConfig) -> anyhow::Result<Consumer> {
     let mut builder = Consumer::from_client(client);
     // group
     builder = builder.with_group(config.group);
@@ -304,29 +326,49 @@ fn build_consumer(dsn: &Dsn) -> anyhow::Result<Consumer> {
     Ok(consumer)
 }
 
-fn build_client(config: &SourceConfig) -> anyhow::Result<KafkaClient> {
-    let client;
-    if config.use_ssl {
-        let mut ssl_builder = SslConnector::builder(SslMethod::tls())?;
-        ssl_builder.set_cipher_list("DEFAULT")?;
-        ssl_builder
-            .set_certificate_file(config.cert.clone().unwrap().as_path(), SslFiletype::PEM)?;
-        ssl_builder
-            .set_private_key_file(config.cert_key.clone().unwrap().as_path(), SslFiletype::PEM)?;
-        ssl_builder.check_private_key()?;
-        ssl_builder.set_default_verify_paths()?;
-        ssl_builder.set_verify(SslVerifyMode::PEER);
-        let connector = ssl_builder.build();
+fn build_client(connect: KafkaConnectConfig) -> anyhow::Result<KafkaClient> {
+    let client = if connect.use_ssl {
+        let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+        builder.set_cipher_list("DEFAULT")?;
+        builder.set_verify(SslVerifyMode::PEER);
+        if let (Some(ccert), Some(ckey)) = (connect.client_cert, connect.client_key) {
+            tracing::info!("loading cert-file={}, key-file={}", ccert, ckey);
 
-        client = KafkaClient::new_secure(
-            config.bootstrap_servers.clone(),
-            SecurityConfig::new(connector),
+            builder
+                .set_certificate_file(ccert, SslFiletype::PEM)
+                .unwrap();
+            builder
+                .set_private_key_file(ckey, SslFiletype::PEM)
+                .unwrap();
+            builder.check_private_key().unwrap();
+        }
+
+        if let Some(ca_cert) = connect.ca_cert {
+            tracing::info!("loading ca-file={}", ca_cert);
+            builder.set_ca_file(ca_cert).unwrap();
+        } else {
+            // ~ allow client specify the CAs through the default paths:
+            // "These locations are read from the SSL_CERT_FILE and
+            // SSL_CERT_DIR environment variables if present, or defaults
+            // specified at OpenSSL build time otherwise."
+            builder.set_default_verify_paths().unwrap();
+        }
+        let connector = builder.build();
+
+        // ~ instantiate KafkaClient with the previous OpenSSL setup
+        let client = KafkaClient::new_secure(
+            connect.bootstrap_servers,
+            SecurityConfig::new(connector).with_hostname_verification(false),
         );
+
+        client
     } else {
-        client = KafkaClient::new(config.bootstrap_servers.clone());
-    }
+        KafkaClient::new(connect.bootstrap_servers)
+    };
+
     Ok(client)
 }
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;

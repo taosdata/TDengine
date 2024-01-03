@@ -828,10 +828,11 @@ pub async fn sync_super_table_schema(
     let sql = sql
         .replace("VARCHAR", "BINARY")
         .replace("IF NOT EXISTS", "")
-        .replace("CREATE TABLE", "CREATE STABLE IF NOT EXISTS")
+        .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
         .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")
-        .replace("create table", "CREATE STABLE IF NOT EXISTS")
-        .replace("create stable", "CREATE STABLE IF NOT EXISTS");
+        .replace("create table", "CREATE TABLE IF NOT EXISTS")
+        .replace("create stable", "CREATE STABLE IF NOT EXISTS")
+        .replace("IF NOT EXISTS IF NOT EXISTS ", "IF NOT EXISTS ");
 
     let target_name: Cow<str> = if actions.is_empty() {
         name.into()

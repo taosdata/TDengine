@@ -12,6 +12,16 @@ pub struct DataSourceValidation {
 }
 
 impl DataSourceValidation {
+    pub fn valid(data_source: String, version: Option<String>) -> DataSourceValidation {
+        Self {
+            valid: true,
+            support: true,
+            data_source,
+            version,
+            message: None,
+        }
+    }
+
     pub fn invalid(data_source: String, message: String) -> DataSourceValidation {
         DataSourceValidation {
             valid: false,

@@ -45,16 +45,6 @@ fn shadow_build() {
         writeln!(file, r#"pub const CUS_PROMPT: &str = "{}";"#, cus_prompt)?;
         writeln!(
             file,
-            r#"
-pub const VERBOSE_VERSION: &str = if GIT_CLEAN {{
-    ::const_format::concatcp!("version: ",TD_VERSION,"\ngit: ",COMMIT_HASH,"\nbuild: core-",PKG_VERSION," ",BUILD_OS," ",BUILD_TIME)
-}} else {{
-    ::const_format::concatcp!("version: ",TD_VERSION,"\ngit: ",COMMIT_HASH,"\nbuild: core-dirty-",PKG_VERSION," ",BUILD_OS," ",BUILD_TIME)
-}};
-"#
-        )?;
-        writeln!(
-            file,
             r#"pub const CUS_CLI_NAME: &str = "{}x-agent";"#,
             cus_prompt
         )?;
@@ -70,7 +60,14 @@ pub const VERBOSE_VERSION: &str = if GIT_CLEAN {{
             writeln!(file, r#"pub const TD_VERSION: &str = PKG_VERSION;"#)?;
         }
         println!("cargo:rerun-if-env-changed=PKG_TIME");
-
+        #[cfg(debug_assertions)]
+        {
+            writeln!(file, r#"pub const IS_DEBUG: bool = true;"#)?;
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            writeln!(file, r#"pub const IS_DEBUG: bool = false;"#)?;
+        }
         Ok(())
     }
 

@@ -45,6 +45,7 @@ import org.tomlj.TomlParseResult;
 
 import javax.annotation.Resource;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * 预加载
@@ -221,6 +222,14 @@ public class PreLoading implements CommandLineRunner {
         try {
             // 读取外部toml文件
             String tomlConfig = FileUtils.readAbsoluteFile(externalConfigFile);
+            /** 输出配置（处理token与password） START */
+            String printConfig = tomlConfig;
+            Pattern tokenPattern = Pattern.compile("^token.*\n?$", Pattern.MULTILINE);
+            Pattern passwordPattern = Pattern.compile("^password.*\n?$", Pattern.MULTILINE);
+            printConfig = tokenPattern.matcher(printConfig).replaceAll("token = *");
+            printConfig = passwordPattern.matcher(printConfig).replaceAll("password = *");
+            System.err.println(printConfig);
+            /** 输出配置（处理token与password） END */
             // 解析配置内容
             TomlParseResult tomlParseResult = Toml.parse(tomlConfig);
             // 逐项替换默认配置

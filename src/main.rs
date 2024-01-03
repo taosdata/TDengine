@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
 
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
+
 use anyhow::{bail, Result};
 use chrono::Local;
 use clap::{parser::ValueSource, CommandFactory, Parser, Subcommand};
@@ -59,7 +61,7 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
         build::COMMIT_HASH,
         "\nbuild: core-",
         build::PKG_VERSION,
-        " ",
+        if build::IS_DEBUG { " debug " } else { " " },
         build::BUILD_OS,
         " ",
         build::BUILD_TIME
@@ -72,7 +74,7 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
         build::COMMIT_HASH,
         "\nbuild: core-dirty-",
         build::PKG_VERSION,
-        " ",
+        if build::IS_DEBUG { " debug " } else { " " },
         build::BUILD_OS,
         " ",
         build::BUILD_TIME
@@ -347,19 +349,14 @@ fn build_runtime(
         .build()
 }
 
-fn create_rotating_log_writer(log_path: &Path, log_keep_days: i64) -> FileRotate<AppendTimestamp> {
-    FileRotate::new(
-        &log_path,
-        AppendTimestamp::with_format(
-            "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::days(log_keep_days)),
-            DateFrom::DateYesterday,
-        ),
-        ContentLimit::Time(TimeFrequency::Daily),
-        Compression::OnRotate(2),
-        #[cfg(unix)]
-        None,
-    )
+fn create_rolling_file_appender(log_dir: &Path) -> RollingFileAppender {
+    let max_files = get_log_keep_days() + 1;
+    RollingFileAppender::builder()
+        .max_log_files(max_files as usize)
+        .filename_prefix("taosx.log")
+        .rotation(Rotation::DAILY)
+        .build(log_dir)
+        .expect("failed to initialize rolling file appender")
 }
 
 async fn init_tracing_layers(
@@ -577,9 +574,9 @@ fn main() -> Result<()> {
     let span_events = args.opt_args.tracing_events.clone();
     let worker_threads = args.global.jobs.clone();
     let runtime = build_runtime(worker_threads)?;
-    let log_path = get_log_path();
-    let log_rotation = create_rotating_log_writer(&log_path, get_log_keep_days());
-    let (non_blocking, _guard) = tracing_appender::non_blocking(log_rotation);
+    let log_dir = get_log_dir("");
+    let rolling_file_appender = create_rolling_file_appender(&log_dir);
+    let (non_blocking, _guard) = tracing_appender::non_blocking(rolling_file_appender);
     runtime.block_on(init_tracing_layers(
         &args,
         span_events,

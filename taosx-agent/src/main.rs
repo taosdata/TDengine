@@ -3,6 +3,7 @@ use std::{path::PathBuf, time::Duration};
 use chrono::{Local, Utc};
 use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
+use const_format::concatcp;
 use thiserror::Error;
 
 use file_rotate::{
@@ -32,6 +33,34 @@ use tracing::{log::LevelFilter, Level};
 const LOG_FILE: &str = "agent.log";
 
 shadow_rs::shadow!(build);
+
+const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
+    concatcp!(
+        "version: ",
+        build::TD_VERSION,
+        "\ngit: ",
+        build::COMMIT_HASH,
+        "\nbuild: core-",
+        build::PKG_VERSION,
+        if build::IS_DEBUG { " debug " } else { " " },
+        build::BUILD_OS,
+        " ",
+        build::BUILD_TIME
+    )
+} else {
+    concatcp!(
+        "version: ",
+        build::TD_VERSION,
+        "\ngit: ",
+        build::COMMIT_HASH,
+        "\nbuild: core-dirty-",
+        build::PKG_VERSION,
+        if build::IS_DEBUG { " debug " } else { " " },
+        build::BUILD_OS,
+        " ",
+        build::BUILD_TIME
+    )
+};
 
 fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
     match level {
@@ -66,7 +95,7 @@ pub struct Args {
 #[derive(Parser, Debug)]
 #[clap(
     name = build::CUS_CLI_NAME,
-    author, version = build::VERBOSE_VERSION,
+    author, version = CLAP_SHORT_VERSION,
     about = build::CUS_CLI_ABOUT,
     long_about = build::CUS_CLI_ABOUT)]
 pub struct ConfigArgs {
