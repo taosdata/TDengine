@@ -2125,6 +2125,10 @@ void  buildCtbNameAddGruopId(char* ctbName, uint64_t groupId){
   strcat(ctbName, tmp);
 }
 
+bool  isAutoTableName(char* ctbName){
+  return (strlen(ctbName) == 34 && ctbName[0] == 't' && ctbName[1] == '_');
+}
+
 char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
   char* pBuf = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);
   if (!pBuf) {

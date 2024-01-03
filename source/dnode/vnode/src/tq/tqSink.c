@@ -175,7 +175,7 @@ SArray* createDefaultTagColName() {
 void setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* pDataBlock, const char* stbFullName,
                                 int64_t gid, bool newSubTableRule) {
   if (pDataBlock->info.parTbName[0]) {
-    if(newSubTableRule) {
+    if(newSubTableRule && !isAutoTableName(pDataBlock->info.parTbName)) {
       pCreateTableReq->name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
       strcpy(pCreateTableReq->name, pDataBlock->info.parTbName);
       buildCtbNameAddGruopId(pCreateTableReq->name, gid);
@@ -627,23 +627,13 @@ int32_t doWaitForDstTableCreated(SVnode* pVnode, SStreamTask* pTask, STableSinkI
 int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDataBlock, char* stbFullName,
                            SSubmitTbData* pTableData) {
   uint64_t        groupId = pDataBlock->info.id.groupId;
+  char*           dstTableName = pDataBlock->info.parTbName;
   int32_t         numOfRows = pDataBlock->info.rows;
   const char*     id = pTask->id.idStr;
   int64_t         suid = pTask->outputInfo.tbSink.stbUid;
   STSchema*       pTSchema = pTask->outputInfo.tbSink.pTSchema;
   int32_t         vgId = TD_VID(pVnode);
   STableSinkInfo* pTableSinkInfo = NULL;
-  char*           dstTableName = NULL;
-  int32_t         code = 0;
-  if(pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER){
-    dstTableName = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
-    if(dstTableName == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    strcpy(dstTableName, pDataBlock->info.parTbName);
-  }else{
-    dstTableName = pDataBlock->info.parTbName;
-  }
 
   bool alreadyCached = tqGetTableInfo(pTask->outputInfo.tbSink.pTblInfo, groupId, &pTableSinkInfo);
 
@@ -666,7 +656,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
       memset(dstTableName, 0, TSDB_TABLE_NAME_LEN);
       buildCtbNameByGroupIdImpl(stbFullName, groupId, dstTableName);
     }else{
-      if(pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
+      if(pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER && !isAutoTableName(dstTableName)) {
         buildCtbNameAddGruopId(dstTableName, groupId);
       }
     }
@@ -674,8 +664,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
     int32_t nameLen = strlen(dstTableName);
     pTableSinkInfo = taosMemoryCalloc(1, sizeof(STableSinkInfo) + nameLen);
     if (pTableSinkInfo == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto END;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     pTableSinkInfo->name.len = nameLen;
@@ -688,8 +677,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
 
     if (pTableData->uid == 0) {
       tqTrace("s-task:%s cached tableInfo uid is invalid, acquire it from meta", id);
-      code = doWaitForDstTableCreated(pVnode, pTask, pTableSinkInfo, dstTableName, &pTableData->uid);
-      goto END;
+      return doWaitForDstTableCreated(pVnode, pTask, pTableSinkInfo, dstTableName, &pTableData->uid);
     } else {
       tqTrace("s-task:%s set the dstTable uid from cache:%"PRId64, id, pTableData->uid);
     }
@@ -718,8 +706,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
       if (pTableData->pCreateTbReq == NULL) {
         tqError("s-task:%s failed to build auto create table req, code:%s", id, tstrerror(terrno));
         taosMemoryFree(pTableSinkInfo);
-        code = terrno;
-        goto END;
+        return terrno;
       }
 
       pTableSinkInfo->uid = 0;
@@ -731,8 +718,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
         taosMemoryFree(pTableSinkInfo);
         tqError("s-task:%s vgId:%d table:%s already exists, but not child table, stream results is discarded", id, vgId,
                 dstTableName);
-        code = terrno;
-        goto END;
+        return terrno;
       } else {
         pTableData->uid = mr.me.uid;
         pTableSinkInfo->uid = mr.me.uid;
@@ -743,11 +729,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
     }
   }
 
-END:
-  if(pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER){
-    taosMemoryFree(dstTableName);
-  }
-  return code;
+  return TDB_CODE_SUCCESS;
 }
 
 int32_t setDstTableDataPayload(uint64_t suid, const STSchema *pTSchema, int32_t blockIndex, SSDataBlock* pDataBlock,
