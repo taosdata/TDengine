@@ -10,7 +10,10 @@
         :rules="rules"
       >
         <section class="block-wrapper">
-          <el-form-item :label="$t('name')" prop="name">
+          <el-form-item
+            :label="$t('name')"
+            prop="name"
+          >
             <el-input
               v-model="sourceForm.name"
               :placeholder="$t('dataIn.palceholders.taskName')"
@@ -145,7 +148,6 @@ import {
   getDsnData,
   NoNeedAgentType,
 } from "../utils";
-import FormItem from "../components/formItem.vue";
 import BlockHeader from "../components/blockHeader.vue";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
 import ConfigForm from "../components/configForm.vue";
@@ -163,7 +165,6 @@ export default {
     DialogCreateDb,
     DataTarget,
     Result,
-    FormItem,
     BlockHeader,
     DocsContent,
     ConfigForm,
@@ -210,20 +211,7 @@ export default {
         agent: "",
         data: {},
       },
-      rules: {
-        name: [
-          {
-            required: true,
-            trigger: "blur",
-            message: this.$t("required", [this.$t("name")]),
-          },
-        ],
-        targetDB: {
-          required: true,
-          trigger: "change",
-          message: this.$t("required", [this.$t("stream.targetDB")]),
-        },
-      },
+
       currentDefinition: null,
       parent: "data.",
       level: "1",
@@ -238,6 +226,22 @@ export default {
     this.getDBLists();
   },
   computed: {
+    rules() {
+      return {
+        name: [
+          {
+            required: true,
+            trigger: "blur",
+            message: this.$t("required", [this.$t("name")]),
+          },
+        ],
+        targetDB: {
+          required: true,
+          trigger: "change",
+          message: this.$t("required", [this.$t("stream.targetDB")]),
+        },
+      };
+    },
     agentId() {
       return this.$store.state.app.currentAgentID || "";
     },
@@ -297,6 +301,10 @@ export default {
       deep: true,
       handler(val) {
         this.language = val;
+        this.$nextTick(()=>{
+          this.$refs.form.clearValidate();
+        })
+        
       },
     },
     dbsource: {
@@ -348,6 +356,7 @@ export default {
         this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
         this.getDataSource();
         this.$nextTick(() => {
+          this.$refs.form.clearValidate();
           if (document.querySelector(".transdescription")) {
             let dom = document.querySelector(".transdescription");
             let top = dom.offsetTop + dom.getBoundingClientRect().height;
@@ -382,7 +391,6 @@ export default {
             [data.from_detail],
             data.parser
           );
-
         })
         .finally(() => {
           this.requestIng = false;
@@ -424,12 +432,15 @@ export default {
     async submit() {
       this.$refs.form.validate(async (valid) => {
         if (valid) {
+          if (this.sourceForm.type == "csv") {
+            if (!this.$refs.csvdata.submitUpload()) return;
+          }
           const dsn = getDsnData(this.sourceForm.data, this.currentDefinition);
           const type = this.sourceForm.type;
           let id = localStorage.getItem("local_clusterID");
           // this.requestIng = true;
           const params = {
-            from: type === "tmq" ? dsn : type + dsn,
+            from: type === "tmq" ? dsn : type=='csv'?type+':'+dsn:type + dsn,
             name: this.sourceForm.name,
             to: this.toUrl,
             labels: [
@@ -445,15 +456,14 @@ export default {
           if (this.sourceForm.type == "csv") {
             if (!this.$refs.csvdata.submitUpload()) return;
 
-            
             await this.$refs.csvdata.$refs.transform.getTransformerParams();
             params.parser = this.$store.state.app.transformerfullparams;
           }
           if (this.sourceForm.data.parser) {
+            console.log('mqtt和kafka');
             await this.$refs.configform.$refs.transform[0].getTransformerParams();
-            if(this.$refs.configform.$refs.transform[0].isbreak) return 
+            if (this.$refs.configform.$refs.transform[0].isbreak) return;
             params.parser = this.$store.state.app.transformerfullparams;
-            
           }
           if (this.isEditable && this.editId && !this.isCopyable) {
             let result = await EditSource(params, this.editId);

@@ -124,8 +124,6 @@ export default {
       handler(val) {
         if (val && val.length > 0&&this.$store.state.app.transresultname) {
             this.getResultData(val);
-            
-          
         }
       },
     },

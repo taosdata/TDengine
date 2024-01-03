@@ -184,6 +184,13 @@ export default {
     async showResultTable() {
       await this.submitExtract();
       await this.submitExtract(true);
+      this.$nextTick(() => {
+          if (document.querySelector(".transdescription")) {
+            let dom = document.querySelector(".transdescription");
+            let top = dom.offsetTop + document.body.scrollHeight;
+            this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
+          }
+        });
       this.$store.commit("app/SET_TRANS_RESULT_NAME", this.itemData.columnname);
     },
     changeExtractExpr(val) {
@@ -489,7 +496,13 @@ export default {
         },
 
         input: this.$parent.isCSV
-          ? this.$store.state.app.csvTransformerParser?.inputList
+          ?isall?this.$store.state.app.csvTransformerParser?.inputList: this.$store.state.app.csvTransformerParser?.inputList.map(item=>{
+            if(Object.keys(item).includes(this.itemData.columnname)){
+              return {
+                [this.itemData.columnname]:item[this.itemData.columnname]
+              }
+            }
+          })
           : inputList,
       };
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);

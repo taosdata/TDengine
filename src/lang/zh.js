@@ -1058,6 +1058,8 @@ export default {
       resulttb: "结果展示",
       sampleval: "示例值",
       nexttip:"请先执行下一步操作",
+      addExtract:'新增提取/拆分',
+      addfilter:'新增过滤',
       msgbodytypes: {
         type1: "复制粘贴",
         type2: "从服务器检索",

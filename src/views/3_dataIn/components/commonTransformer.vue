@@ -85,7 +85,6 @@
                 size="small"
                 :placeholder="$t('datasource.transformer.filter_type')"
                 v-model="parseruleForm.type"
-                :disabled="$parent.$parent.$parent.isEditable"
               >
                 <el-option
                   v-for="item in parseTypes"
@@ -104,18 +103,17 @@
                 v-model="parseruleForm.expression"
                 :placeholder="$t('datasource.transformer.expre_input')"
                 size="small"
-                :disabled="$parent.$parent.$parent.isEditable"
               ></el-input>
+              <!-- :disabled="$parent.$parent.$parent.isEditable" -->
             </el-form-item>
             <el-button
               size="small"
               icon="el-icon-PREVIEW"
               @click="submitParse"
               style="display: flex"
-              :disabled="
-                msgForm.msgbody == '' || $parent.$parent.$parent.isEditable
-              "
+              :disabled="msgForm.msgbody == ''"
             ></el-button>
+            <!-- || $parent.$parent.$parent.isEditable -->
           </el-form>
         </div>
       </section>
@@ -173,7 +171,7 @@
             @click="addNewExtract"
             :disabled="columnsArr.length == 0"
           >
-            {{ $t("add") }}
+            {{ $t("datasource.transformer.addExtract") }}
           </el-button>
         </div>
       </section>
@@ -204,7 +202,7 @@
           @click="addNewFilter"
           :disabled="filterArr.length >= 1 || columnsArr.length == 0"
         >
-          {{ $t("add") }}
+          {{ $t("datasource.transformer.addfilter") }}
         </el-button>
       </section>
       <section style="margin-bottom: 20px">
@@ -654,6 +652,8 @@ export default {
                     ? this.$store.state.app.splitExpresList
                     : this.parseruleForm.expression
                     ? this.parseruleForm.expression
+                        .split(";")
+                        .toString()
                         .split(",")
                         .map((item) => item.trim())
                     : this.parseruleForm.expression,
@@ -819,9 +819,9 @@ export default {
       this.parseruleForm.type = Object.keys(
         value.parser.parse[tagKey]
       ).toString();
-      this.parseruleForm.expression = Object.values(
-        value.parser.parse[tagKey]
-      ).toString();
+      this.parseruleForm.expression = Object.values(value.parser.parse[tagKey])
+        .toString()
+        .replace(",", ";");
       await this.submitParse();
 
       let identifiedColObj = value.parser.mutate.filter((item) => {
@@ -1107,7 +1107,6 @@ export default {
           currentPage: this.currentPage,
         },
       };
-      console.log(parserData,'parserData----ssss',this.$store.state.app.transformExtractParseData);
       if (tags.length == 0 || columns.length == 0 || !primarykey) {
         Message.warning(this.$t("datasource.transformer.mappingvaildtip"));
         this.isbreak = true;
@@ -1610,9 +1609,8 @@ export default {
             this.$refs.extract[0].submitExtract(true);
           }
         } else {
-          console.log(this.extractArr, "删光了");
-          this.$store.commit('app/SET_EXTRACT_PARSE_DATA',null)
-          this.filterArr.splice(0,1)
+          this.$store.commit("app/SET_EXTRACT_PARSE_DATA", null);
+          this.filterArr.splice(0, 1);
           this.$store.commit("app/SET_FILTER_PARSE_DATA", null);
           if (this.filterArr.lenght > 0 && this.$refs.filter[0].isexecuted) {
             this.$refs.filter[0].submit();
