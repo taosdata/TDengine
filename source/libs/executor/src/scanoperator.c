@@ -690,7 +690,7 @@ void markGroupProcessed(STableScanInfo* pInfo, uint64_t groupId) {
   if (pInfo->countState ==  TABLE_COUNT_STATE_END) {
     return;
   }
-  if (pInfo->base.pTableListInfo->oneTableForEachGroup) {
+  if (pInfo->base.pTableListInfo->oneTableForEachGroup || pInfo->base.pTableListInfo->groupOffset) {
     pInfo->countState = TABLE_COUNT_STATE_PROCESSED;
   } else {
     taosHashRemove(pInfo->base.pTableListInfo->remainGroups, &groupId, sizeof(groupId));
@@ -854,14 +854,14 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
 
   if (pTableScanInfo->countState < TABLE_COUNT_STATE_END) {
     STableListInfo* pTableListInfo = pTableScanInfo->base.pTableListInfo;
-    if (pTableListInfo->oneTableForEachGroup) { // group by tbname
+    if (pTableListInfo->oneTableForEachGroup || pTableListInfo->groupOffset) { // group by tbname, group by tag + sort
       if (pTableScanInfo->countState < TABLE_COUNT_STATE_PROCESSED) {
         pTableScanInfo->countState = TABLE_COUNT_STATE_PROCESSED;
         STableKeyInfo* pStart =
             (STableKeyInfo*)tableListGetInfo(pTableScanInfo->base.pTableListInfo, pTableScanInfo->tableStartIndex);
         return getBlockForEmptyTable(pOperator, pStart);
       }
-    } else { // group by tag
+    } else { // group by tag + no sort
       int32_t numOfTables = tableListGetSize(pTableListInfo);
       if (pTableScanInfo->tableEndIndex + 1 >= numOfTables) {
         // get empty group, mark processed & rm from hash
