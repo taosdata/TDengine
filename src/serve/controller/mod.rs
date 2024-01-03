@@ -7,16 +7,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::{collections::HashMap, time::Duration};
 
-use self::agent::{
-    Agent, AgentActivityFilter, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken,
-    LevelFilter,
-};
-use self::transferred::Transferred;
-use self::trigger::Strategy;
-use super::data_sources::DataSourceDefinition;
-use super::scheduler::agent::{AgentId, TaskId};
-use super::scheduler::TaskScheduler;
-use crate::serve::controller::agent::Activity;
 use anyhow::{anyhow, bail, Context};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -32,17 +22,32 @@ use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
-use taosx_core::core_metrics::clear_metrics;
-use taosx_core::dsv::DataSourceValidation;
-use taosx_core::utils::breakpoints::breakpoints_get_all;
-use taosx_core::{
-    get_data_dir, validate_dsn, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts,
-};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 use utoipa::*;
 use uuid::Uuid;
+
+use taosx_core::core_metrics::clear_metrics;
+use taosx_core::dsv::DataSourceValidation;
+use taosx_core::runners::historian::AVEVA_HISTORIAN_ID;
+use taosx_core::utils::breakpoints::breakpoints_get_all;
+use taosx_core::{
+    get_data_dir, validate_dsn, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts,
+};
+
+use crate::serve::controller::agent::Activity;
+
+use super::data_sources::DataSourceDefinition;
+use super::scheduler::agent::{AgentId, TaskId};
+use super::scheduler::TaskScheduler;
+
+use self::agent::{
+    Agent, AgentActivityFilter, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken,
+    LevelFilter,
+};
+use self::transferred::Transferred;
+use self::trigger::Strategy;
 
 pub(crate) mod agent;
 pub(crate) mod transferred;
@@ -666,7 +671,8 @@ impl TaskController {
         self.validate_enterprise_license(&from, &to).await?;
 
         match from.driver.as_str() {
-            "opcua" | "opcda" | "pi" => {
+            "opcua" | "opcda" | "influxdb" | "opentsdb" | "pi" | "kafka" | AVEVA_HISTORIAN_ID
+            | "mqtt" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
@@ -786,6 +792,7 @@ impl TaskController {
             "opentsdb" => "opentsdb",
             "pi" => "pi",
             "kafka" => "kafka",
+            AVEVA_HISTORIAN_ID => AVEVA_HISTORIAN_ID,
             "mqtt" => "mqtt",
             _ => unreachable!(),
         };
@@ -927,7 +934,8 @@ impl TaskController {
         self.validate_enterprise_license(&from, &to).await?;
 
         match from.driver.as_str() {
-            "opcua" | "opcda" | "pi" | "kafka" | "influxdb" | "mqtt" => {
+            "opcua" | "opcda" | "influxdb" | "opentsdb" | "pi" | "kafka" | AVEVA_HISTORIAN_ID
+            | "mqtt" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),

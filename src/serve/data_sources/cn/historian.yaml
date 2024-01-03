@@ -1,32 +1,32 @@
 ---
-id: historian
-name: AVEVA™ Historian
+id: avevaHistorian
+name: AVEVA Historian
 type: uri
 description: |
-  AVEVA™ Historian 是一款工业大数据分析软件，前身为 Wonderware。可以捕获并存储高保真工业大数据，释放受制约的潜力，从而改善运营。
-  TDengine 可以高效地从 Historian 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据流入库。
+  AVEVA Historian 是一款工业大数据分析软件，前身为 Wonderware。可以捕获并存储高保真工业大数据，释放受制约的潜力，从而改善运营。
+  TDengine 可以高效地从 AVEVA Historian 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据流入库。
 strict: false
 
 options:
   host:
     display: Server 地址
-    description: AVEVA™ Historian SQL Server 的 IP 地址或域名
+    description: AVEVA Historian SQL Server 的 IP 地址或域名
     placeholder: "127.0.0.1"
     required: true
   port:
     display: Server 端口
-    description: AVEVA™ Historian SQL Server 的端口
+    description: AVEVA Historian SQL Server 的端口
     placeholder: "1433"
     required: false
 
 authentication:
   display: 认证
-  description: 使用用户名和密码访问 AVEVA™ Historian SQL Server
+  description: 使用用户名和密码访问 AVEVA Historian SQL Server
   value: plain
   alternatives:
     - name: plain
       display: 用户名密码访问
-      description: 使用用户名和密码访问 AVEVA™ Historian SQL Server
+      description: 使用用户名和密码访问 AVEVA Historian SQL Server
       username:
         display: 用户
         placeholder: username

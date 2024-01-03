@@ -436,7 +436,7 @@ impl TaskOpts {
                     )
                     .await?;
                 }
-                ("historian", "taos") => {
+                (runners::historian::AVEVA_HISTORIAN_ID, "taos") => {
                     let task_id = task_id
                         .clone()
                         .map(|t| {

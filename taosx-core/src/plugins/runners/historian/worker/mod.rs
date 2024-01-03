@@ -11,9 +11,9 @@ use taosx_ipc::ack::AckReaderBuilder;
 use crate::runners::historian::appender::ArrowDataAppender;
 use crate::runners::historian::config::{HistorianTable, TaskConfig};
 use crate::runners::historian::query::HistorianQuery;
-use crate::runners::historian::set_tcp_keepalive;
 use crate::runners::historian::worker::consumer::Consumer;
 use crate::runners::historian::worker::producer::Producer;
+use crate::runners::set_tcp_keepalive;
 
 mod consumer;
 mod producer;
@@ -22,11 +22,9 @@ pub async fn migrate_history(config: TaskConfig, logger: Sender<String>) -> anyh
     tracing::info!("migrate history start, config: {:?}", config);
 
     let (tx, rx) = flume::bounded(0);
+    let concurrency = cmp::max(config.advanced_options.read_concurrency.unwrap_or(1), 1);
     // consume task
     let mut consumers = Vec::new();
-
-    let concurrency = cmp::max(config.advanced_options.read_concurrency.unwrap_or(1), 1);
-
     for _ in 1..=concurrency {
         let receiver = rx.clone();
 
@@ -109,14 +107,22 @@ pub async fn sync_history(task_config: TaskConfig, logger: Sender<String>) -> an
         anyhow::Ok(())
     });
 
-    tokio::time::sleep(task_config.tolerance.to_std().unwrap()).await;
     // query database and send to writer
-    let mut query = HistorianQuery::try_new(task_config.connect.clone()).await?;
-    let mut window_start = now;
-    let mut count: u64 = 1;
     let tags_group = split_tags(task_config.tags.clone(), task_config.tag_list_size);
+    let mut query = HistorianQuery::try_new(task_config.connect.clone()).await?;
+
+    // sync-history start from now + retrieve_interval + tolerance
+    tokio::time::sleep(
+        (task_config.tolerance + task_config.retrieve_interval)
+            .to_std()
+            .unwrap(),
+    )
+    .await;
+
+    let mut count: u64 = 1;
+    let mut window_start = now;
     loop {
-        let window_end = Utc::now();
+        let window_end = Utc::now() - task_config.tolerance;
 
         tracing::debug!(
             "sync history:{}, window_start: {}, window_end: {}",
