@@ -328,9 +328,9 @@ void tFreeStreamTask(SStreamTask* pTask) {
     taosMsleep(100);
   }
 
-  if (pTask->schedInfo.pTimer != NULL) {
-    taosTmrStop(pTask->schedInfo.pTimer);
-    pTask->schedInfo.pTimer = NULL;
+  if (pTask->schedInfo.pDelayTimer != NULL) {
+    taosTmrStop(pTask->schedInfo.pDelayTimer);
+    pTask->schedInfo.pDelayTimer = NULL;
   }
 
   if (pTask->hTaskInfo.pTimer != NULL) {

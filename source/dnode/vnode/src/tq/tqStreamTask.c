@@ -114,7 +114,8 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
 
   pRunReq->head.vgId = vgId;
   pRunReq->streamId = 0;
-  pRunReq->taskId = STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID;
+  pRunReq->taskId = 0;
+  pRunReq->reqType = STREAM_EXEC_T_EXTRACT_WAL_DATA;
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
   tmsgPutToQueue(&pTq->pVnode->msgCb, STREAM_QUEUE, &msg);
@@ -138,7 +139,8 @@ int32_t tqStopStreamTasksAsync(STQ* pTq) {
 
   pRunReq->head.vgId = vgId;
   pRunReq->streamId = 0;
-  pRunReq->taskId = STREAM_EXEC_STOP_ALL_TASKS_ID;
+  pRunReq->taskId = 0;
+  pRunReq->reqType = STREAM_EXEC_T_STOP_ALL_TASKS;
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
   tmsgPutToQueue(&pTq->pVnode->msgCb, STREAM_QUEUE, &msg);

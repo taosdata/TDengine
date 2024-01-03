@@ -42,7 +42,8 @@ int32_t tqStreamTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, bool restart) {
   tqDebug("vgId:%d start all %d stream task(s) async", vgId, numOfTasks);
   pRunReq->head.vgId = vgId;
   pRunReq->streamId = 0;
-  pRunReq->taskId = restart ? STREAM_EXEC_RESTART_ALL_TASKS_ID : STREAM_EXEC_START_ALL_TASKS_ID;
+  pRunReq->taskId = 0;
+  pRunReq->reqType = restart ? STREAM_EXEC_T_RESTART_ALL_TASKS : STREAM_EXEC_T_START_ALL_TASKS;
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
   tmsgPutToQueue(cb, STREAM_QUEUE, &msg);
@@ -675,21 +676,30 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
 int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLeader) {
   SStreamTaskRunReq* pReq = pMsg->pCont;
 
-  int32_t taskId = pReq->taskId;
+  int32_t type = pReq->reqType;
   int32_t vgId = pMeta->vgId;
 
-  if (taskId == STREAM_EXEC_START_ALL_TASKS_ID) {
+  if (type == STREAM_EXEC_T_START_ALL_TASKS) {
     streamMetaStartAllTasks(pMeta);
     return 0;
-  } else if (taskId == STREAM_EXEC_RESTART_ALL_TASKS_ID) {
+  } else if (type == STREAM_EXEC_T_RESTART_ALL_TASKS) {
     restartStreamTasks(pMeta, isLeader);
     return 0;
-  } else if (taskId == STREAM_EXEC_STOP_ALL_TASKS_ID) {
+  } else if (type == STREAM_EXEC_T_STOP_ALL_TASKS) {
     streamMetaStopAllTasks(pMeta);
+    return 0;
+  } else if (type == STREAM_EXEC_T_RESUME_TASK) {
+    SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
+    if (pTask != NULL) {
+      ASSERT(streamTaskReadyToRun(pTask, NULL));
+      streamResumeTask(pTask);
+    }
+
+    streamMetaReleaseTask(pMeta, pTask);
     return 0;
   }
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, taskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
   if (pTask != NULL) {  // even in halt status, the data in inputQ must be processed
     char* p = NULL;
     if (streamTaskReadyToRun(pTask, &p)) {
@@ -706,7 +716,7 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
     return 0;
   } else {  // NOTE: pTask->status.schedStatus is not updated since it is not be handled by the run exec.
     // todo add one function to handle this
-    tqError("vgId:%d failed to found s-task, taskId:0x%x may have been dropped", vgId, taskId);
+    tqError("vgId:%d failed to found s-task, taskId:0x%x may have been dropped", vgId, pReq->taskId);
     return -1;
   }
 }

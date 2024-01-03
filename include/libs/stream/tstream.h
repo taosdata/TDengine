@@ -50,10 +50,11 @@ extern "C" {
     (_t)->hTaskInfo.id.streamId = 0;       \
   } while (0)
 
-#define STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID (-1)
-#define STREAM_EXEC_START_ALL_TASKS_ID     (-2)
-#define STREAM_EXEC_RESTART_ALL_TASKS_ID   (-3)
-#define STREAM_EXEC_STOP_ALL_TASKS_ID      (-4)
+#define STREAM_EXEC_T_EXTRACT_WAL_DATA    (-1)
+#define STREAM_EXEC_T_START_ALL_TASKS     (-2)
+#define STREAM_EXEC_T_RESTART_ALL_TASKS   (-3)
+#define STREAM_EXEC_T_STOP_ALL_TASKS      (-4)
+#define STREAM_EXEC_T_RESUME_TASK         (-5)
 
 typedef struct SStreamTask   SStreamTask;
 typedef struct SStreamQueue  SStreamQueue;
@@ -81,14 +82,12 @@ typedef enum ETaskStatus {
   TASK_STATUS__HALT,          // pause, but not be manipulated by user command
   TASK_STATUS__PAUSE,         // pause
   TASK_STATUS__CK,            // stream task is in checkpoint status, no data are allowed to put into inputQ anymore
-//  TASK_STATUS__STREAM_SCAN_HISTORY,
 } ETaskStatus;
 
 enum {
   TASK_SCHED_STATUS__INACTIVE = 1,
   TASK_SCHED_STATUS__WAITING,
   TASK_SCHED_STATUS__ACTIVE,
-  TASK_SCHED_STATUS__FAILED,
   TASK_SCHED_STATUS__DROPPING,
 };
 
@@ -322,10 +321,11 @@ typedef struct SStreamStatus {
   int8_t         taskStatus;
   int8_t         downstreamReady;  // downstream tasks are all ready now, if this flag is set
   int8_t         schedStatus;
-  int8_t         keepTaskStatus;
-  bool           appendTranstateBlock;  // has append the transfer state data block already, todo: remove it
+  int32_t        schedIdleTime;    // idle time before invoke again
+  int64_t        lastExecTs;       // last exec time stamp
+  int8_t         statusBackup;
+  bool           appendTranstateBlock;  // has append the transfer state data block already
   int32_t        timerActive;           // timer is active
-  int8_t         allowedAddInTimer;     // allowed to add into timer
   int32_t        inScanHistorySentinel;
 } SStreamStatus;
 
@@ -366,7 +366,8 @@ typedef struct STaskQueue {
 
 typedef struct STaskSchedInfo {
   int8_t status;
-  void*  pTimer;
+  tmr_h  pDelayTimer;
+  tmr_h  pIdleTimer;
 } STaskSchedInfo;
 
 typedef struct SSinkRecorder {
@@ -541,6 +542,7 @@ typedef struct {
   SMsgHead head;
   int64_t  streamId;
   int32_t  taskId;
+  int32_t  reqType;
 } SStreamTaskRunReq;
 
 struct SStreamDispatchReq {
@@ -764,6 +766,7 @@ SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t 
 
 void    streamTaskInputFail(SStreamTask* pTask);
 int32_t streamExecTask(SStreamTask* pTask);
+int32_t streamResumeTask(SStreamTask* pTask);
 int32_t streamSchedExec(SStreamTask* pTask);
 bool    streamTaskShouldStop(const SStreamTask* pStatus);
 bool    streamTaskShouldPause(const SStreamTask* pStatus);

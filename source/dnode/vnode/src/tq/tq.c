@@ -1068,7 +1068,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
 
   int32_t taskId = pReq->taskId;
 
-  if (taskId == STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID) {  // all tasks are extracted submit data from the wal
+  if (taskId == STREAM_EXEC_T_EXTRACT_WAL_DATA) {  // all tasks are extracted submit data from the wal
     tqScanWal(pTq);
     return 0;
   }

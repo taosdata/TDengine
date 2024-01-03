@@ -1847,7 +1847,7 @@ int32_t mndPauseAllStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStre
       }
 
       if (atomic_load_8(&pTask->status.taskStatus) != TASK_STATUS__PAUSE) {
-        atomic_store_8(&pTask->status.keepTaskStatus, pTask->status.taskStatus);
+        atomic_store_8(&pTask->status.statusBackup, pTask->status.taskStatus);
         atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
       }
     }
@@ -2005,7 +2005,7 @@ int32_t mndResumeAllStreamTasks(STrans *pTrans, SMnode *pMnode, SStreamObj *pStr
       }
 
       if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__PAUSE) {
-        atomic_store_8(&pTask->status.taskStatus, pTask->status.keepTaskStatus);
+        atomic_store_8(&pTask->status.taskStatus, pTask->status.statusBackup);
       }
     }
   }
