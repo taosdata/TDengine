@@ -1,9 +1,10 @@
+use std::cmp;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use arrow::array::{
     BinaryBuilder, Int32Builder, Int64Builder, StringBuilder, TimestampNanosecondBuilder,
 };
@@ -11,7 +12,7 @@ use arrow::datatypes::{DataType, Field, Schema};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use kafka::client::{KafkaClient, SecurityConfig};
-use kafka::consumer::{Consumer, GroupOffsetStorage};
+use kafka::consumer::{Builder, Consumer, GroupOffsetStorage};
 use openssl::ssl::{SslConnector, SslFiletype, SslMethod, SslVerifyMode};
 use taos::Dsn;
 use tokio_util::sync::CancellationToken;
@@ -98,7 +99,7 @@ pub async fn kafka_to_taos(
 
     let aborted = Arc::new(AtomicBool::new(false));
     let aborted_cloned = aborted.clone();
-    let worker = tokio::spawn(kafka_worker(from, ipc_port, aborted_cloned));
+    let worker = tokio::spawn(execute(from, ipc_port, aborted_cloned));
     let abort_handle = worker.abort_handle();
 
     let port_pool = port_pool.clone();
@@ -159,14 +160,19 @@ pub async fn kafka_to_taos(
     Ok(())
 }
 
-async fn kafka_worker(from: Dsn, ipc_port: u16, aborted: Arc<AtomicBool>) -> anyhow::Result<()> {
-    let socket = format!("127.0.0.1:{}", ipc_port);
-    let stream = std::net::TcpStream::connect(socket)?;
+async fn execute(from: Dsn, ipc_server_port: u16, aborted: Arc<AtomicBool>) -> anyhow::Result<()> {
+    let ipc_server = format!("127.0.0.1:{}", ipc_server_port);
+
+    // ipc writer stream
+    let stream = std::net::TcpStream::connect(ipc_server)?;
+    set_tcp_keepalive(&stream)?;
+    stream.set_read_timeout(None)?;
 
     // ack reader stream
     let ack_stream = stream.try_clone()?;
     set_tcp_keepalive(&ack_stream)?;
     ack_stream.set_read_timeout(None)?;
+
     // receive ACK from IPC
     let ack = tokio::task::spawn_blocking(move || {
         let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
@@ -174,7 +180,7 @@ async fn kafka_worker(from: Dsn, ipc_port: u16, aborted: Arc<AtomicBool>) -> any
             if !ack.success() {
                 tracing::error!("Kafka write records error: {ack:?}");
                 if let Some(message) = ack.message() {
-                    anyhow::bail!("IPC writer error: {message}")
+                    anyhow::bail!("Kafka IPC writer error: {message}")
                 }
             }
         }
@@ -183,28 +189,159 @@ async fn kafka_worker(from: Dsn, ipc_port: u16, aborted: Arc<AtomicBool>) -> any
     });
 
     let schema = build_schema();
-    let mut writer = StreamWriter::try_new(&stream, &schema)?;
+    // multi producer(KafkaConsumer) and single consumer(IPC Writer)
+    let (tx, rx) = flume::bounded(0);
 
+    // IPC Writer
+    let schema_clone = schema.clone();
+    let ipc_writer = tokio::task::spawn_blocking(move || {
+        let mut writer = StreamWriter::try_new(stream, &schema_clone)?;
+
+        let mut row_count = 0;
+        let mut batches = 0;
+        while let Ok(batch) = rx.recv() {
+            writer.write(&batch)?;
+            tracing::debug!("Kafka IPC Writer send {} rows", batch.num_rows());
+
+            row_count += batch.num_rows();
+            batches += 1;
+        }
+        let _ = writer.finish()?;
+        tracing::info!(
+            send.batches = batches,
+            send.records = row_count,
+            "Kafka IPC Writer finished, waiting for persisting"
+        );
+        anyhow::Ok(())
+    });
+
+    // kafka task config
     let config = KafkaTaskConfig::from_dsn(&from)?;
+    // split into sub tasks
+    let sub_tasks: Vec<SubTask> = SubTask::from_kafka_config(config)?;
+    // polling from kafka and send to ipc writer
+    let mut consumers = Vec::new();
+    for (idx, task) in sub_tasks.into_iter().enumerate() {
+        let tx = tx.clone();
+        let aborted = aborted.clone();
+        let schema = schema.clone();
+        let consumer = task.consumer;
+        let timeout = task.timeout;
 
-    let mut client = build_client(config.connect.clone())?;
-    client.load_metadata_all()?;
+        let sub_task = tokio::spawn(async move {
+            let _ = poll_message(idx, consumer, tx, timeout, aborted, schema).await;
+        });
+        consumers.push(sub_task);
+    }
 
-    let mut consumer = build_consumer(client, config)?;
+    drop(tx);
+    for c in consumers {
+        c.await?;
+    }
+    tracing::debug!("Kafka polling finished");
+    ack.await??;
+    tracing::debug!("Kafka ACK reader finished");
+    ipc_writer.await??;
+    tracing::debug!("Kafka IPC Writer finished");
+    Ok(())
+}
 
-    let timeout = KafkaTaskConfig::parse_timeout(&from)?;
-    let mut start = chrono::Utc::now().timestamp_millis();
+struct SubTask {
+    consumer: Consumer,
+    timeout: i64,
+}
 
+impl SubTask {
+    pub fn from_kafka_config(config: KafkaTaskConfig) -> anyhow::Result<Vec<Self>> {
+        let mut client = build_client(config.connect.clone())?;
+        client.load_metadata_all()?;
+
+        let topics = config.topics.clone();
+        let mut topic_partitions: Vec<String> = Vec::new();
+        client
+            .topics()
+            .iter()
+            .filter(|tp| !tp.name().starts_with("__"))
+            .filter(|tp| topics.contains(&tp.name().to_string()))
+            .for_each(|tp| {
+                for partition in tp.partitions() {
+                    topic_partitions.push(format!("{}:{}", tp.name(), partition.id()))
+                }
+            });
+        if topic_partitions.is_empty() {
+            bail!("no invalid topic, topics: {:?}", topics);
+        }
+
+        let mut concurrency = config
+            .advanced_options
+            .read_concurrency
+            .unwrap_or(usize::MAX);
+        if concurrency == 0 {
+            concurrency = topic_partitions.len();
+        }
+        concurrency = cmp::min(concurrency, topic_partitions.len());
+
+        let mut sub_tasks = Vec::new();
+        for (index, chunk) in topic_partitions
+            .chunks(topic_partitions.len().div_ceil(concurrency))
+            .enumerate()
+        {
+            let mut topic_partitions: HashMap<String, Vec<i32>> = HashMap::new();
+            for c in chunk {
+                let mut parts = c.split(":");
+                let topic = parts.next().unwrap().to_string();
+                let partition = parts.next().unwrap().parse::<i32>().unwrap();
+                if topic_partitions.contains_key(&topic) {
+                    topic_partitions.get_mut(&topic).unwrap().push(partition);
+                } else {
+                    topic_partitions.insert(topic, vec![partition]);
+                }
+            }
+            tracing::info!(
+                "kafka consumer-{} assigned topic partitions: {:?}",
+                index,
+                topic_partitions
+            );
+
+            let mut builder = consumer_builder(config.clone())?;
+            for (topic, partitions) in topic_partitions {
+                builder = builder.with_topic_partitions(topic, partitions.as_slice());
+            }
+            let consumer = builder.create().map_err(|err| {
+                anyhow::format_err!("Kafka consumer-{} create error: {:?}", index, err)
+            })?;
+
+            let sub_task = SubTask {
+                consumer,
+                timeout: config.timeout,
+            };
+            sub_tasks.push(sub_task);
+        }
+        Ok(sub_tasks)
+    }
+}
+
+async fn poll_message(
+    index: usize,
+    mut consumer: Consumer,
+    tx: flume::Sender<RecordBatch>,
+    timeout: i64,
+    aborted: Arc<AtomicBool>,
+    schema: Schema,
+) -> anyhow::Result<()> {
+    let mut last_polling = chrono::Utc::now().timestamp_millis();
     loop {
         let message_sets = consumer.poll().context("Kafka polling error")?;
         if aborted.load(std::sync::atomic::Ordering::Relaxed) {
-            tracing::info!("kafka_to_taos cancelled");
+            tracing::info!("Kafka consumer-{} cancelled", index);
             break;
         }
+
         if message_sets.is_empty() {
             tokio::time::sleep(Duration::from_millis(100)).await;
             let now = chrono::Utc::now().timestamp_millis();
-            if timeout >= 0 && now - &start > timeout {
+            if timeout >= 0 && now - &last_polling > timeout {
+                tracing::info!("Kafka consumer-{} polling timeout", index);
                 break;
             } else {
                 continue;
@@ -243,14 +380,19 @@ async fn kafka_worker(from: Dsn, ipc_port: u16, aborted: Arc<AtomicBool>) -> any
                 Arc::new(value.finish()),
             ],
         )?;
-        writer.write(&batch)?;
-        tracing::debug!("write batch to IPC, batch size: {}", batch.num_rows());
+
+        let batch_size = batch.num_rows();
+        tx.send_async(batch).await?;
+
+        tracing::debug!(
+            "Kafka consumer-{} send batch to IPC Writer, batch size: {}",
+            index,
+            batch_size
+        );
         consumer.commit_consumed()?;
 
-        start = chrono::Utc::now().timestamp_millis();
+        last_polling = chrono::Utc::now().timestamp_millis();
     }
-
-    ack.await??;
     Ok(())
 }
 
@@ -275,24 +417,17 @@ fn build_schema() -> Schema {
     schema
 }
 
-fn build_consumer(client: KafkaClient, config: KafkaTaskConfig) -> anyhow::Result<Consumer> {
+fn consumer_builder(config: KafkaTaskConfig) -> anyhow::Result<Builder> {
+    let mut client = build_client(config.connect)?;
+    client.load_metadata_all()?;
+
     let mut builder = Consumer::from_client(client);
     // group
     builder = builder.with_group(config.group);
-    // topics
-    for topic in config.topics.unwrap_or(vec![]) {
-        builder = builder.with_topic(topic);
-    }
-    // topic_partitions
-    for (t, p) in config.topic_partitions.unwrap_or(HashMap::new()).iter() {
-        if p.is_empty() {
-            builder = builder.with_topic(t.to_string());
-        } else {
-            builder = builder.with_topic_partitions(t.to_string(), p);
-        }
-    }
+
     // fallback_offset
     builder = builder.with_fallback_offset(config.fallback_offset);
+
     // offset_storage: use Kafka as Default
     builder = builder.with_offset_storage(Some(GroupOffsetStorage::Kafka));
 
@@ -322,8 +457,7 @@ fn build_consumer(client: KafkaClient, config: KafkaTaskConfig) -> anyhow::Resul
         builder = builder.with_client_id(config.client_id.unwrap());
     }
 
-    let consumer = builder.create()?;
-    Ok(consumer)
+    Ok(builder)
 }
 
 fn build_client(connect: KafkaConnectConfig) -> anyhow::Result<KafkaClient> {

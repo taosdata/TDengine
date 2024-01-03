@@ -54,7 +54,6 @@ groups:
         required: false
         hint:
           type: str
-
       - name: topics
         display: Topics
         description: >
@@ -63,7 +62,6 @@ groups:
         required: true
         hint:
           type: str
-
       - name: fallback_offset
         display: Fallback Offset
         description: >
@@ -83,7 +81,6 @@ groups:
             - Earliest
             - Latest
             - ByTime
-
       - name: fetch_max_wait_time
         display: Maximum time to wait for data
         description: >
@@ -130,3 +127,21 @@ parser:
       description: Value
       type: varchar
   required: true
+
+advanced:
+  name: Advanced Options
+  collapsible: true
+  description: |
+    Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave
+    these options as default to use the recommended settings.
+  params:
+    - name: read_concurrency
+      display: Read Concurrency
+      hidden: true
+      description: |
+        The number of concurrent read requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.
+      value: 0
+      hint:
+        type: integer
+        min: 0
+        max: 1000
