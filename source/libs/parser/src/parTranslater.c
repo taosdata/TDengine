@@ -1094,7 +1094,7 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
         return DEAL_RES_ERROR;
       }
       strcpy(pColRef->colName, pExpr->aliasName);
-      pColRef->node = *pExpr;
+      pColRef->resType = pExpr->resType;
       nodesDestroyNode(*(SNode**)pCol);
       *(SNode**)pCol = (SNode*)pColRef;
       *pFound = true;

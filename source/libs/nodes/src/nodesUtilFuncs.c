@@ -295,7 +295,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_LEFT_VALUE:
       return makeNode(type, sizeof(SLeftValueNode));
     case QUERY_NODE_COLUMN_REF:
-      return makeNode(type, sizeof(SColumnDefNode));
+      return makeNode(type, sizeof(SColumnRefNode));
     case QUERY_NODE_WHEN_THEN:
       return makeNode(type, sizeof(SWhenThenNode));
     case QUERY_NODE_CASE_WHEN:

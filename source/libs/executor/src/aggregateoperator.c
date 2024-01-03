@@ -562,7 +562,12 @@ void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pC
     } else {
       int32_t code = TSDB_CODE_SUCCESS;
       if (functionNeedToExecute(&pCtx[k]) && pCtx[k].fpSet.process != NULL) {
-        code = pCtx[k].fpSet.process(&pCtx[k]);
+        if ((&pCtx[k])->input.pData[0] == NULL) {
+          code = TSDB_CODE_TDB_INVALID_ACTION;
+          qError("%s apply functions error, input data is NULL.", GET_TASKID(taskInfo));
+        } else {
+          code = pCtx[k].fpSet.process(&pCtx[k]);
+        }
 
         if (code != TSDB_CODE_SUCCESS) {
           qError("%s apply functions error, code: %s", GET_TASKID(taskInfo), tstrerror(code));
