@@ -281,11 +281,11 @@ impl SubTask {
         }
         concurrency = cmp::min(concurrency, topic_partitions.len());
 
+        // let chunk_size = topic_partitions.len().div_ceil(concurrency);
+        let chunk_size = (topic_partitions.len() + concurrency - 1) / concurrency;
+
         let mut sub_tasks = Vec::new();
-        for (index, chunk) in topic_partitions
-            .chunks(topic_partitions.len().div_ceil(concurrency))
-            .enumerate()
-        {
+        for (index, chunk) in topic_partitions.chunks(chunk_size).enumerate() {
             let mut topic_partitions: HashMap<String, Vec<i32>> = HashMap::new();
             for c in chunk {
                 let mut parts = c.split(":");
