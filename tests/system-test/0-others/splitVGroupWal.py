@@ -412,7 +412,7 @@ class TDTestCase:
     def run(self):
         # prepare env
         self.prepareEnv()
-        tdLog.info("add  two  same ver stt file like v4f1944ver3.stt and v4f1944ver4.stt to db2 and db1 ")
+        tdLog.info("generate at least two stt files of the same fileset (e.g. v4f1944) for db2 and db1 ")
         for dbname in [self.db2, self.db1]:
             tdSql.execute(f'insert into {dbname}.t1  values("2023-03-28 10:40:00.010",103,103,"2023-03-28 18:41:39.999") ;')
             tdSql.execute(f'flush database {dbname}')
