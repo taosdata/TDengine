@@ -1074,7 +1074,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t code = tqStreamTaskProcessRunReq(pTq->pStreamMeta, pMsg, vnodeIsRoleLeader(pTq->pVnode));
 
   // let's continue scan data in the wal files
-  if(code == 0 && pReq->reqType > 0){
+  if(code == 0 && pReq->reqType >= 0){
     tqScanWalAsync(pTq, false);
   }
 
