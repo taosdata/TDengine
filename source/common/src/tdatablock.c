@@ -2132,10 +2132,11 @@ bool  isAutoTableName(char* ctbName){
 bool  alreadyAddGroupId(char* ctbName){
   size_t len = strlen(ctbName);
   size_t _location = len - 1;
-  for(; _location >= 0; _location--){
-    if(ctbName[_location] < '0' && ctbName[_location] > '9'){
+  while(_location > 0){
+    if(ctbName[_location] < '0' || ctbName[_location] > '9'){
       break;
     }
+    _location--;
   }
 
   return ctbName[_location] == '_' && _location < len -1;
