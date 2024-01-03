@@ -717,6 +717,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
 
       if (pTableData->pCreateTbReq == NULL) {
         tqError("s-task:%s failed to build auto create table req, code:%s", id, tstrerror(terrno));
+        taosMemoryFree(pTableSinkInfo);
         code = terrno;
         goto END;
       }
@@ -727,6 +728,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
       bool isValid = isValidDstChildTable(&mr, vgId, dstTableName, suid);
       if (!isValid) {
         metaReaderClear(&mr);
+        taosMemoryFree(pTableSinkInfo);
         tqError("s-task:%s vgId:%d table:%s already exists, but not child table, stream results is discarded", id, vgId,
                 dstTableName);
         code = terrno;
@@ -745,7 +747,6 @@ END:
   if(pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER){
     taosMemoryFree(dstTableName);
   }
-  taosMemoryFree(pTableSinkInfo);
   return code;
 }
 
