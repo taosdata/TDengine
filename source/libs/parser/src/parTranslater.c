@@ -3442,7 +3442,7 @@ static int32_t checkOrderByAggForGroupBy(STranslateContext* pCxt, SSelectStmt* p
     if ((QUERY_NODE_FUNCTION == nodeType(pExpr))) {
       SFunctionNode* pFunc = (SFunctionNode*)pExpr;
       if (fmIsAggFunc(pFunc->funcId)) {
-        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SINGLE_GROUP);
       }
     }
     WHERE_NEXT;
@@ -3501,9 +3501,9 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (TSDB_CODE_SUCCESS == code) {
     code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
   }
-  if (other && TSDB_CODE_SUCCESS == code) {
-    code = checkOrderByAggForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
-  }
+  // if (other && TSDB_CODE_SUCCESS == code) {
+  //   code = checkOrderByAggForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
+  // }
   return code;
 }
 

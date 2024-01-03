@@ -273,6 +273,7 @@ SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
 }
 
 int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
+  int32_t code = TSDB_CODE_SUCCESS;
   for (int32_t k = 0; k < pOperator->exprSupp.numOfExprs; ++k) {
     if (functionNeedToExecute(&pCtx[k])) {
       // todo add a dummy funtion to avoid process check
@@ -280,7 +281,13 @@ int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
         continue;
       }
 
-      int32_t code = pCtx[k].fpSet.process(&pCtx[k]);
+      if ((&pCtx[k])->input.pData[0] == NULL) {
+        code = TSDB_CODE_TDB_INVALID_ACTION;
+        qError("%s aggregate function error happens, input data is NULL.", GET_TASKID(pOperator->pTaskInfo));
+      } else {
+        code = pCtx[k].fpSet.process(&pCtx[k]);
+      }
+
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s aggregate function error happens, code: %s", GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
         return code;
