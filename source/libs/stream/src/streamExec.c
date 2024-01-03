@@ -728,6 +728,7 @@ static void doStreamExecTaskHelper(void* param, void* tmrId) {
   tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &msg);
 
   // release the task ref count
+  pTask->status.schedIdleTime = 0; // clear the idle time
   streamMetaReleaseTask(pTask->pMeta, pTask);
 }
 
