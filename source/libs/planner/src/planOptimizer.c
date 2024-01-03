@@ -4699,7 +4699,7 @@ SNodeList* tsmaOptCreateTsmaScanCols(const STSMAOptUsefulTsma* pTsma, const SNod
   return pScanCols;
 }
 
-static int32_t tsmaOptRewriteTag(STSMAOptCtx* pTsmaOptCtx, const STSMAOptUsefulTsma* pTsma, SColumnNode* pTagCol) {
+static int32_t tsmaOptRewriteTag(const STSMAOptCtx* pTsmaOptCtx, const STSMAOptUsefulTsma* pTsma, SColumnNode* pTagCol) {
   bool found = false;
   if (pTagCol->colType != COLUMN_TYPE_TAG) return 0;
   for (int32_t i = 0; i < pTsma->pTsma->pTags->size; ++i) {
@@ -4718,10 +4718,42 @@ static int32_t tsmaOptRewriteTag(STSMAOptCtx* pTsmaOptCtx, const STSMAOptUsefulT
   return 0;
 }
 
-static int32_t tsmaOptRewriteTbname(STSMAOptCtx* pTsmaOptCtx, SFunctionNode* pTbNameNode) {
+static int32_t tsmaOptRewriteTbname(const STSMAOptCtx* pTsmaOptCtx, SNode** pTbNameNode, bool withTsma) {
   int32_t code = 0;
-
+  if (withTsma) {
+    // TODO test child tbname too long
+    // if with tsma, we replace func tbname with concat(tbname, '')
+  } else {
+    // if no tsma, we replace func tbname with concat('dbname_tsmaname', tbname)
+  }
   return code;
+}
+
+struct TsmaOptRewriteCtx {
+  const STSMAOptCtx*        pTsmaOptCtx;
+  const STSMAOptUsefulTsma* pTsma;
+  bool                      rewriteTag;
+  bool                      rewriteTbname;
+  int32_t                   code;
+};
+
+EDealRes tsmaOptRewriter(SNode** ppNode, void* ctx) {
+  SNode*                    pNode = *ppNode;
+  int32_t                   code = 0;
+  struct TsmaOptRewriteCtx* pCtx = ctx;
+  if (pCtx->rewriteTag && nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->colType == COLUMN_TYPE_TAG) {
+    code = tsmaOptRewriteTag(pCtx->pTsmaOptCtx, pCtx->pTsma, (SColumnNode*)pNode);
+  } else if (pCtx->rewriteTbname && nodeType(pNode) == QUERY_NODE_FUNCTION){
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (pFunc->funcType == FUNCTION_TYPE_TBNAME) {
+      code = tsmaOptRewriteTbname(pCtx->pTsmaOptCtx, ppNode, pCtx->pTsma);
+    }
+  }
+  if (code) {
+    pCtx->code = code;
+    return DEAL_RES_ERROR;
+  }
+  return DEAL_RES_CONTINUE;
 }
 
 static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNewScan, const STSMAOptUsefulTsma* pTsma) {
@@ -4770,18 +4802,32 @@ static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNew
       FOREACH(pNode, pNewScan->pScanPseudoCols) {
         if (nodeType(pNode) == QUERY_NODE_COLUMN) {
           code = tsmaOptRewriteTag(pTsmaOptCtx, pTsma, (SColumnNode*)pNode);
-        } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
-          code = tsmaOptRewriteTbname(pTsmaOptCtx, (SFunctionNode*)pNode);
         }
       }
     }
     if (code == TSDB_CODE_SUCCESS) {
       FOREACH(pNode, pNewScan->pGroupTags) {
-        if (nodeType(pNode) == QUERY_NODE_COLUMN) {
-          code = tsmaOptRewriteTag(pTsmaOptCtx, pTsma, (SColumnNode*)pNode);
-        } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
-          code = tsmaOptRewriteTbname(pTsmaOptCtx, (SFunctionNode*)pNode);
+        // TODO rewrite tag and tbname recursively
+        struct TsmaOptRewriteCtx ctx = {
+            .pTsmaOptCtx = pTsmaOptCtx, .pTsma = pTsma, .rewriteTag = true, .rewriteTbname = true, .code = 0};
+        nodesRewriteExpr(&pNode, tsmaOptRewriter, &ctx);
+        if (ctx.code) {
+          code = ctx.code;
+        } else {
+          REPLACE_NODE(pNode);
         }
+      }
+    }
+  } else {
+    FOREACH(pNode, pNewScan->pGroupTags) {
+      // rewrite tbname recursively
+      struct TsmaOptRewriteCtx ctx = {
+          .pTsmaOptCtx = pTsmaOptCtx, .pTsma = NULL, .rewriteTag = false, .rewriteTbname = true, .code = 0};
+      nodesRewriteExpr(&pNode, tsmaOptRewriter, &ctx);
+      if (ctx.code) {
+        code = ctx.code;
+      } else {
+        REPLACE_NODE(pNode);
       }
     }
   }
