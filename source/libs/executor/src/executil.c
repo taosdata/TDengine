@@ -2164,7 +2164,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
     bool initRemainGroups = false;
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pScanNode)) {
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pScanNode;
-      if (pTableScanNode->needCountEmptyTable && !(groupSort || pScanNode->groupOrderScan)) {
+      if (tsCountAlwaysReturnValue && pTableScanNode->needCountEmptyTable && !(groupSort || pScanNode->groupOrderScan)) {
         initRemainGroups = true;
       }
     }
