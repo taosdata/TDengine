@@ -35,6 +35,9 @@ fn shadow_build() {
             .expect(&format!("{}", service_template.display()))
             .replace(DEFAULT_CUS_PROMPT, &cus_prompt)
             .replace(DEFAULT_CUS_NAME, &cus_name);
+        if !target_dir.exists() {
+            std::fs::create_dir_all(&target_dir).unwrap();
+        }
         std::fs::write(
             &target_dir.join(format!("{cus_prompt}x-agent.service")),
             service,

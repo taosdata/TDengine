@@ -16,6 +16,18 @@ env:
   RUSTFLAGS: "--cfg tokio_unstable"
 
 jobs:
+  stable:
+    name: Stable Channel
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          clean: false
+
+      - name: Compile check
+        run: |
+          cargo +stable check --workspace --all --tests --examples --target-dir targets/stable
+
   check:
     name: Check
     runs-on: [self-hosted, linux, x64]
