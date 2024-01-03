@@ -309,11 +309,11 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
   qDebug("all source fetch time: %" PRId64 "us num:%" PRId64 " %s", fetchUs, fetchNum, pSortHandle->idStr);
   
   taosArrayDestroy(pSortHandle->pOrderedSource);
-  taosMemoryFreeClear(pSortHandle);
   if (pSortHandle->pExtRowsBuf != NULL) {
     destroyDiskbasedBuf(pSortHandle->pExtRowsBuf);
   }
-  taosArrayDestroy(pSortHandle->pSortInfo);
+  taosArrayDestroy(pSortHandle->pSortInfo);  
+  taosMemoryFreeClear(pSortHandle);
 }
 
 int32_t tsortAddSource(SSortHandle* pSortHandle, void* pSource) {
@@ -1072,6 +1072,7 @@ static void initRowIdSort(SSortHandle* pHandle) {
 
 int32_t tsortSetSortByRowId(SSortHandle* pHandle, int32_t extRowsPageSize, int32_t extRowsMemSize) {
   int32_t code = createDiskbasedBuf(&pHandle->pExtRowsBuf, extRowsPageSize, extRowsMemSize, "sort-ext-rows", tsTempDir);
+  dBufSetPrintInfo(pHandle->pExtRowsBuf);
   pHandle->extRowsPageSize = extRowsPageSize;
   pHandle->extRowsMemSize = extRowsMemSize;
   SBlockOrderInfo* pOrder = taosArrayGet(pHandle->pSortInfo, 0);
@@ -1267,7 +1268,7 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
   size_t           nSrc = taosArrayGetSize(pHandle->pOrderedSource);
   SArray*          aExtSrc = taosArrayInit(nSrc, POINTER_BYTES);
 
-  size_t maxBufSize = pHandle->numOfPages * pHandle->pageSize;
+  size_t maxBufSize = (pHandle->bSortByRowId) ? pHandle->extRowsMemSize : (pHandle->numOfPages * pHandle->pageSize);
 
   int32_t code = createPageBuf(pHandle);
   if (code != TSDB_CODE_SUCCESS) {
