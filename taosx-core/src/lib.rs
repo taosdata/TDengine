@@ -4,10 +4,8 @@ use std::sync::{
 };
 
 use anyhow::Context;
-use chrono::{NaiveDate, Utc};
-use core_metrics::{try_get_metrics, CoreMetrics, TaosXMetrics, GLOBAL_METRICS};
+use chrono::NaiveDate;
 use dashmap::DashMap;
-use legacy::metric::LegacyToTaosMetrics;
 use serde::Deserialize;
 use serde_with::serde_as;
 use taos::taos_query::tmq::Assignment;
@@ -173,7 +171,7 @@ impl TaskOpts {
         self.cancel.cancel();
     }
 
-    #[instrument(skip_all, name = "run_task")]
+    #[instrument(skip_all)]
     pub async fn run(&self, port_pool: &PortPool) -> Result<(), anyhow::Error> {
         let Self {
             from,
@@ -252,14 +250,8 @@ impl TaskOpts {
             }
         }
 
-        // Init metrics for tasks start by taosx server
-        if self.with_agent == None {
-            self.init_task_metrics();
-        }
-
         // Run task
         {
-            metrics::gauge!(METRICS_TIME_START, Utc::now().timestamp_millis() as f64);
             match (from.driver.as_str(), to.driver.as_str()) {
                 ("tmq", "taos") => {
                     tmq_to_td(
@@ -269,6 +261,7 @@ impl TaskOpts {
                         *jobs,
                         cancel.clone(),
                         offsets.clone(),
+                        task_id.clone(),
                     )
                     .in_current_span()
                     .await?;
@@ -281,6 +274,7 @@ impl TaskOpts {
                         *force,
                         cancel.clone(),
                         offsets.clone(),
+                        task_id.clone(),
                     )
                     .await?;
                 }
@@ -512,33 +506,6 @@ impl TaskOpts {
                 from.params.insert("breakpoints".to_string(), b.clone());
                 from
             }
-        }
-    }
-
-    fn init_task_metrics(&self) {
-        let Self {
-            from, to, task_id, ..
-        } = self;
-        let task_id = if let Some(id) = task_id {
-            id.parse::<i64>().unwrap()
-        } else {
-            // Use -1 when start taosx in "run" model.
-            // Then we can get metrics in the same way no matter what model it was started with.
-            // But metrics with task_id -1 will never be persisted.
-            -1
-        };
-
-        match (from.driver.as_str(), to.driver.as_str()) {
-            ("taos", "taos") => {
-                let metrics = try_get_metrics::<LegacyToTaosMetrics>(task_id);
-                if let Some(metrics) = metrics {
-                    metrics.as_ref().legacy().reset();
-                } else {
-                    let metrics = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
-                    GLOBAL_METRICS.lock().unwrap().insert(task_id, metrics);
-                }
-            }
-            _ => (),
         }
     }
 }

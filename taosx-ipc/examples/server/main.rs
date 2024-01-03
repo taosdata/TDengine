@@ -1,5 +1,3 @@
-#[cfg(not(target_os = "windows"))]
-use std::path::Path;
 use std::{
     any::Any,
     collections::HashMap,
@@ -18,6 +16,8 @@ use tracing::{info, instrument};
 
 use taosx_ipc::prelude::*;
 
+#[cfg(not(target_os = "windows"))]
+use std::path::Path;
 // shadow_rs::shadow!(build);
 
 #[instrument]
