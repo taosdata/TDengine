@@ -320,11 +320,11 @@ async fn write_meta(
                         }
                     }
                     0x032C | 0x0115 | 0x0603 | 0x03C7 => {
-                        metrics.add_meta_fails(1);
+                        metrics.add_write_raw_fails(1);
                         tracing::warn!(consumer.id = id, "Write raw meta: {err:#}");
                     }
                     _ => {
-                        metrics.add_meta_fails(1);
+                        metrics.add_write_raw_fails(1);
                         Err(err.context("Write raw meta error"))?;
                     }
                 }
@@ -349,7 +349,7 @@ async fn write_meta(
         // dbg!(&meta);
         let sql = meta.to_string();
         if let Err(err) = taos.exec(&sql).await {
-            metrics.add_meta_fails(1);
+            metrics.add_write_raw_fails(1);
             let errstr = err.to_string();
             if errstr.contains("[0x032C]")
                 || errstr.contains("[0x0115]")

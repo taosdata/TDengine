@@ -11,7 +11,7 @@ pub struct IpcMetrics {
     pub total_received_batches: AtomicU64,
     pub total_processed_batches: AtomicU64,
     pub total_processed_records: AtomicU64,
-    pub total_insert_sqls: AtomicU64,
+    pub total_inserted_sqls: AtomicU64,
     pub total_failed_sqls: AtomicU64,
     pub total_created_stables: AtomicU64,
     pub total_created_tables: AtomicU64,
@@ -22,7 +22,7 @@ pub struct IpcMetrics {
     pub received_batches: AtomicU64,
     pub processed_batches: AtomicU64,
     pub processed_records: AtomicU64,
-    pub insert_sqls: AtomicU64,
+    pub inserted_sqls: AtomicU64,
     pub failed_sqls: AtomicU64,
     pub created_stables: AtomicU64,
     pub created_tables: AtomicU64,
@@ -39,7 +39,7 @@ impl Default for IpcMetrics {
             total_received_batches: AtomicU64::new(0),
             total_processed_batches: AtomicU64::new(0),
             total_processed_records: AtomicU64::new(0),
-            total_insert_sqls: AtomicU64::new(0),
+            total_inserted_sqls: AtomicU64::new(0),
             total_failed_sqls: AtomicU64::new(0),
             total_created_stables: AtomicU64::new(0),
             total_created_tables: AtomicU64::new(0),
@@ -50,7 +50,7 @@ impl Default for IpcMetrics {
             received_batches: AtomicU64::new(0),
             processed_batches: AtomicU64::new(0),
             processed_records: AtomicU64::new(0),
-            insert_sqls: AtomicU64::new(0),
+            inserted_sqls: AtomicU64::new(0),
             failed_sqls: AtomicU64::new(0),
             created_stables: AtomicU64::new(0),
             created_tables: AtomicU64::new(0),
@@ -69,7 +69,7 @@ impl IpcMetrics {
             total_received_batches: AtomicU64::new(0),
             total_processed_batches: AtomicU64::new(0),
             total_processed_records: AtomicU64::new(0),
-            total_insert_sqls: AtomicU64::new(0),
+            total_inserted_sqls: AtomicU64::new(0),
             total_failed_sqls: AtomicU64::new(0),
             total_created_stables: AtomicU64::new(0),
             total_created_tables: AtomicU64::new(0),
@@ -80,7 +80,7 @@ impl IpcMetrics {
             received_batches: AtomicU64::new(0),
             processed_batches: AtomicU64::new(0),
             processed_records: AtomicU64::new(0),
-            insert_sqls: AtomicU64::new(0),
+            inserted_sqls: AtomicU64::new(0),
             failed_sqls: AtomicU64::new(0),
             created_stables: AtomicU64::new(0),
             created_tables: AtomicU64::new(0),
@@ -109,9 +109,9 @@ impl IpcMetrics {
     }
 
     #[inline]
-    pub fn add_insert_sqls(&self, n: u64) {
-        self.total_insert_sqls.fetch_add(n, SeqCst);
-        self.insert_sqls.fetch_add(n, SeqCst);
+    pub fn add_inserted_sqls(&self, n: u64) {
+        self.total_inserted_sqls.fetch_add(n, SeqCst);
+        self.inserted_sqls.fetch_add(n, SeqCst);
     }
 
     #[inline]
@@ -168,7 +168,7 @@ impl TaosXMetrics for IpcMetrics {
         self.com.reset();
         self.received_batches.store(0, SeqCst);
         self.processed_records.store(0, SeqCst);
-        self.insert_sqls.store(0, SeqCst);
+        self.inserted_sqls.store(0, SeqCst);
         self.failed_sqls.store(0, SeqCst);
         self.created_stables.store(0, SeqCst);
         self.created_tables.store(0, SeqCst);

@@ -16,12 +16,12 @@ pub struct TmqMetrics {
     pub total_messages: AtomicU64,
     pub total_messages_of_meta: AtomicU64,
     pub total_messages_of_data: AtomicU64,
-    pub total_write_meta_fails: AtomicU64,
+    pub total_write_raw_fails: AtomicU64,
     pub total_success_blocks: AtomicU64,
     pub messages: AtomicU64,
     pub messages_of_meta: AtomicU64,
     pub messages_of_data: AtomicU64,
-    pub write_meta_fails: AtomicU64,
+    pub write_raw_fails: AtomicU64,
     pub success_blocks: AtomicU64,
 }
 
@@ -34,12 +34,12 @@ impl Default for TmqMetrics {
             total_messages: AtomicU64::new(0),
             total_messages_of_meta: AtomicU64::new(0),
             total_messages_of_data: AtomicU64::new(0),
-            total_write_meta_fails: AtomicU64::new(0),
+            total_write_raw_fails: AtomicU64::new(0),
             total_success_blocks: AtomicU64::new(0),
             messages: AtomicU64::new(0),
             messages_of_meta: AtomicU64::new(0),
             messages_of_data: AtomicU64::new(0),
-            write_meta_fails: AtomicU64::new(0),
+            write_raw_fails: AtomicU64::new(0),
             success_blocks: AtomicU64::new(0),
         }
     }
@@ -54,12 +54,12 @@ impl TmqMetrics {
             total_messages: AtomicU64::new(0),
             total_messages_of_meta: AtomicU64::new(0),
             total_messages_of_data: AtomicU64::new(0),
-            total_write_meta_fails: AtomicU64::new(0),
+            total_write_raw_fails: AtomicU64::new(0),
             total_success_blocks: AtomicU64::new(0),
             messages: AtomicU64::new(0),
             messages_of_meta: AtomicU64::new(0),
             messages_of_data: AtomicU64::new(0),
-            write_meta_fails: AtomicU64::new(0),
+            write_raw_fails: AtomicU64::new(0),
             success_blocks: AtomicU64::new(0),
         }
     }
@@ -83,9 +83,9 @@ impl TmqMetrics {
     }
 
     #[inline]
-    pub fn add_meta_fails(&self, n: u64) {
-        self.total_write_meta_fails.fetch_add(n, SeqCst);
-        self.write_meta_fails.fetch_add(n, SeqCst);
+    pub fn add_write_raw_fails(&self, n: u64) {
+        self.total_write_raw_fails.fetch_add(n, SeqCst);
+        self.write_raw_fails.fetch_add(n, SeqCst);
     }
 
     #[inline]
@@ -103,7 +103,7 @@ impl TaosXMetrics for TmqMetrics {
         self.messages.store(0, SeqCst);
         self.messages_of_meta.store(0, SeqCst);
         self.messages_of_data.store(0, SeqCst);
-        self.write_meta_fails.store(0, SeqCst);
+        self.write_raw_fails.store(0, SeqCst);
     }
 
     fn com(&self) -> &CommonMetrics {

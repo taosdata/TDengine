@@ -30,29 +30,29 @@ updated_tags: 本次运行更新 tag 数
 total_messages: 通过 TMQ 累计收到的消息总数
 total_messages_of_meta: 通过 TMQ 累计收到的 Meta 类型的消息总数
 total_messages_of_data: 通过 TMQ 累计收到的 Data 和 MetaData 类型的消息总数
-total_write_meta_fails: 累计写入 Raw Meta 失败次数
+total_write_raw_fails: 累计写入 Raw Meta 失败次数
 total_success_blocks: 累计写入成功的数据块数
 topics: 通过 TMQ 订阅的主题数
 consumers: TMQ 消费者数
 messages: 本次运行通过 TMQ 收到的消息总数
 messages_of_meta: 本次运行通过 TMQ 收到的 Meta 类型的消息总数
 messages_of_data: 本次运行通过 TMQ 收到的 Data 和 MetaData 类型的消息总数
-write_meta_fails: 本次运行写入 Raw Meta 失败次数
+write_raw_fails: 本次运行写入 Raw Meta 失败次数
 total_received_batches: 通过 IPC Stream 收到的数据总批数
 total_processed_batches: 已经处理的总批数
 total_processed_records: 已经处理的总行数（等于包含数据的 batch 包含的数据行数之和）
-total_insert_sqls: 执行的 INSERT SQL 总条数
+total_inserted_sqls: 执行的 INSERT SQL 总条数
 total_failed_sqls: 执行失败的 INSERT SQL 总条数
 total_created_stables: 尝试创建超级表总数（可能大于实际值）
 total_created_tables: 尝试创建子表总数(可能大于实际值)
 total_failed_rows: 写入失败的总行数
-total_failed_point: 写入失败的总点数
+total_failed_points: 写入失败的总点数
 total_written_raw_blocks: 写入成功的 raw block 总数
 total_failed_raw_blocks: 写入失败的 raw block 总数
 received_batches: 本次运行此任务通过 IPC Stream 收到的数据总批数
 processed_batches: 本次运行此任务已经处理的批数
 processed_records: 本次处理的总行数（等于包含数据的 batch 包含的数据行数之和）
-insert_sqls: 本次运行此任务执行的 INSERT SQL 总条数
+inserted_sqls: 本次运行此任务执行的 INSERT SQL 总条数
 failed_sqls: 本次运行此任务执行失败的 INSERT SQL 总条数
 created_stables: 本次运行此任务尝试创建超级表数（可能大于实际值）
 created_tables: 本次运行此任务尝试创建子表数(可能大于实际值)

@@ -559,7 +559,7 @@ async fn consume_lush_record(
                             {
                                 Ok(num) => {
                                     count = count + num;
-                                    metrics.add_insert_sqls(1);
+                                    metrics.add_inserted_sqls(1);
                                     metrics.add_written_rows(num as u64);
                                     metrics.add_written_points((num * cols) as u64);
                                     break;
@@ -1034,7 +1034,7 @@ async fn consume_point_record(
                     match sql_res {
                         Ok(n) => {
                             *count += n;
-                            metrics.add_insert_sqls(1);
+                            metrics.add_inserted_sqls(1);
                             metrics.add_written_rows(n as u64);
                             metrics.add_written_points((n * columns_insert.len()) as u64);
                             points += n;
