@@ -1045,7 +1045,6 @@ static void appendToRowIndexDataBlock(SSortHandle* pHandle, SSDataBlock* pSource
 }
 
 static void initRowIdSort(SSortHandle* pHandle) {
-  blockDataDestroy(pHandle->pDataBlock);
 
   SSDataBlock* pSortInput = createDataBlock();
   SColumnInfoData tsCol = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, 8, 1);
@@ -1054,7 +1053,14 @@ static void initRowIdSort(SSortHandle* pHandle) {
   blockDataAppendColInfo(pSortInput, &pageIdCol);
   SColumnInfoData  offsetCol = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 3);
   blockDataAppendColInfo(pSortInput, &offsetCol);
+
+  blockDataDestroy(pHandle->pDataBlock);
   pHandle->pDataBlock = pSortInput;
+  
+  int32_t  rowSize = blockDataGetRowSize(pHandle->pDataBlock);
+  size_t nCols = taosArrayGetSize(pHandle->pDataBlock->pDataBlock);
+  pHandle->pageSize = getProperSortPageSize(rowSize, nCols);
+  pHandle->numOfPages = 2048;
 
   SBlockOrderInfo* pOrder = taosArrayGet(pHandle->pSortInfo, 0);
   SBlockOrderInfo bi = {0};
