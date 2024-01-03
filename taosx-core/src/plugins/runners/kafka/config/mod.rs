@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::time::Duration;
 
 use kafka::consumer::{FetchOffset, GroupOffsetStorage};
@@ -15,8 +14,8 @@ pub struct KafkaTaskConfig {
 
     pub timeout: i64,
     pub group: String,
-    pub topics: Option<Vec<String>>,
-    pub topic_partitions: Option<HashMap<String, Vec<i32>>>,
+    pub topics: Vec<String>,
+
     pub fallback_offset: FetchOffset,
     pub fetch_max_wait_time: Option<Duration>,
     pub fetch_min_bytes: Option<i32>,
@@ -37,8 +36,7 @@ impl KafkaTaskConfig {
 
             timeout: Self::parse_timeout(dsn)?,
             group: Self::parse_group(dsn),
-            topics: Self::parse_topics(dsn),
-            topic_partitions: Self::parse_topic_partitions(dsn)?,
+            topics: Self::parse_topics(dsn)?,
             fallback_offset: Self::parse_fallback_offset(dsn)?,
             fetch_max_wait_time: Self::parse_fetch_max_wait_time(dsn)?,
             fetch_min_bytes: Self::parse_fetch_min_bytes(dsn)?,
@@ -61,55 +59,54 @@ impl KafkaTaskConfig {
             .to_string()
     }
 
-    fn parse_topics(dsn: &Dsn) -> Option<Vec<String>> {
-        let topics = dsn
-            .params
+    fn parse_topics(dsn: &Dsn) -> anyhow::Result<Vec<String>> {
+        Ok(dsn
             .get("topics")
-            .map(|s| s.split(",").map(|s| s.to_string()).collect::<Vec<String>>());
-        topics
+            .map(|s| s.split(",").map(|s| s.to_string()).collect::<Vec<String>>())
+            .ok_or(anyhow::anyhow!("topics is required"))?)
     }
-
-    fn parse_topic_partitions(dsn: &Dsn) -> anyhow::Result<Option<HashMap<String, Vec<i32>>>> {
-        let topic_partitions = dsn.params.get("topic_partitions");
-        if topic_partitions.is_none() {
-            return Ok(None);
-        }
-
-        let mut topic_map = HashMap::new();
-
-        for tp in topic_partitions.unwrap().split(",") {
-            if tp.contains(":") {
-                let topic_partition = tp.split(":").collect::<Vec<&str>>();
-                let topic = topic_partition[0];
-                let partition = topic_partition[1];
-                if partition.contains("..") {
-                    let partition_range = partition.split("..").collect::<Vec<&str>>();
-                    let start = partition_range[0].parse::<i32>()?;
-                    let end = partition_range[1].parse::<i32>()?;
-                    if start > end {
-                        return Err(anyhow::anyhow!("invalid partition range: {}", partition));
-                    }
-                    let partitions = (start..=end).collect::<Vec<i32>>();
-                    topic_map
-                        .entry(topic.to_string())
-                        .or_insert(vec![])
-                        .extend(partitions);
-                } else {
-                    let partition = partition.parse::<i32>()?;
-                    topic_map
-                        .entry(topic.to_string())
-                        .or_insert(vec![])
-                        .push(partition);
-                }
-            } else {
-                let topic = tp;
-                topic_map.insert(topic.to_string(), vec![]);
+    /*
+        fn parse_topic_partitions(dsn: &Dsn) -> anyhow::Result<Option<HashMap<String, Vec<i32>>>> {
+            let topic_partitions = dsn.params.get("topic_partitions");
+            if topic_partitions.is_none() {
+                return Ok(None);
             }
+
+            let mut topic_map = HashMap::new();
+
+            for tp in topic_partitions.unwrap().split(",") {
+                if tp.contains(":") {
+                    let topic_partition = tp.split(":").collect::<Vec<&str>>();
+                    let topic = topic_partition[0];
+                    let partition = topic_partition[1];
+                    if partition.contains("..") {
+                        let partition_range = partition.split("..").collect::<Vec<&str>>();
+                        let start = partition_range[0].parse::<i32>()?;
+                        let end = partition_range[1].parse::<i32>()?;
+                        if start > end {
+                            return Err(anyhow::anyhow!("invalid partition range: {}", partition));
+                        }
+                        let partitions = (start..=end).collect::<Vec<i32>>();
+                        topic_map
+                            .entry(topic.to_string())
+                            .or_insert(vec![])
+                            .extend(partitions);
+                    } else {
+                        let partition = partition.parse::<i32>()?;
+                        topic_map
+                            .entry(topic.to_string())
+                            .or_insert(vec![])
+                            .push(partition);
+                    }
+                } else {
+                    let topic = tp;
+                    topic_map.insert(topic.to_string(), vec![]);
+                }
+            }
+
+            Ok(Some(topic_map))
         }
-
-        Ok(Some(topic_map))
-    }
-
+    */
     fn parse_fallback_offset(dsn: &Dsn) -> anyhow::Result<FetchOffset> {
         let fallback_offset = dsn.params.get("fallback_offset").map(String::as_str);
 
@@ -309,56 +306,11 @@ mod tests {
         let topics = KafkaTaskConfig::parse_topics(&dsn);
         assert_eq!("tp1", topics.as_ref().unwrap()[0]);
         assert_eq!("tp2", topics.as_ref().unwrap()[1]);
-    }
 
-    #[test]
-    fn test_parse_topic_partitions() {
-        let dsn = Dsn::from_str("kafka://:?topic_partitions=tp1").unwrap();
-        let topic_partitions = KafkaTaskConfig::parse_topic_partitions(&dsn)
-            .unwrap()
-            .unwrap();
-        assert_eq!(1, topic_partitions.len());
-        assert_eq!(true, topic_partitions.get("tp1").unwrap().is_empty());
-
-        let dsn = Dsn::from_str("kafka://:?topic_partitions=tp2:0").unwrap();
-        let topic_partitions = KafkaTaskConfig::parse_topic_partitions(&dsn)
-            .unwrap()
-            .unwrap();
-        assert_eq!(1, topic_partitions.len());
-        assert_eq!(1, topic_partitions.get("tp2").unwrap().len());
-        assert_eq!(0, topic_partitions.get("tp2").unwrap()[0]);
-
-        let dsn = Dsn::from_str("kafka://:?topic_partitions=tp3:0..9").unwrap();
-        let topic_partitions = KafkaTaskConfig::parse_topic_partitions(&dsn)
-            .unwrap()
-            .unwrap();
-        assert_eq!(1, topic_partitions.len());
-        assert_eq!(10, topic_partitions.get("tp3").unwrap().len());
-        assert_eq!(5, topic_partitions.get("tp3").unwrap()[5]);
-
-        let dsn = Dsn::from_str("kafka://:?topic_partitions=tp4:0..5,tp4:7,tp5").unwrap();
-        let topic_partitions = KafkaTaskConfig::parse_topic_partitions(&dsn)
-            .unwrap()
-            .unwrap();
-        assert_eq!(2, topic_partitions.len());
-        assert_eq!(7, topic_partitions.get("tp4").unwrap().len());
-        assert_eq!(7, topic_partitions.get("tp4").unwrap()[6]);
-        assert_eq!(true, topic_partitions.get("tp5").unwrap().is_empty());
-
-        let dsn = Dsn::from_str("kafka://:?topic_partitions=tp6:0..5,tp6:7,tp6").unwrap();
-        let topic_partitions = KafkaTaskConfig::parse_topic_partitions(&dsn)
-            .unwrap()
-            .unwrap();
-        assert_eq!(1, topic_partitions.len());
-        assert_eq!(true, topic_partitions.get("tp6").unwrap().is_empty());
-
-        let dsn = Dsn::from_str("kafka://:?topic_partitions=tp7:5..2").unwrap();
-        let topic_partitions = KafkaTaskConfig::parse_topic_partitions(&dsn);
-        assert!(topic_partitions.is_err());
-        assert_eq!(
-            "invalid partition range: 5..2",
-            topic_partitions.unwrap_err().to_string()
-        );
+        let dsn = Dsn::from_str("kafka://").unwrap();
+        let topics = KafkaTaskConfig::parse_topics(&dsn);
+        assert!(topics.is_err());
+        assert_eq!("topics is required", topics.unwrap_err().to_string());
     }
 
     #[test]
