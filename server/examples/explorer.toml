@@ -15,12 +15,6 @@ addr = "0.0.0.0"
 
 # ipv6 = "::1"
 
-# Enable ssl
-# Default is false, if set to true, the following two files must exist
-enable_ssl = false
-ssl_certificate = ""
-ssl_certificate_key = ""
-
 # Explorer server log level.
 # Default is "info"
 #
@@ -42,3 +36,10 @@ x_api ="http://localhost:6050"
 #   "http://192.168.111.111:6055" or "http://node1.company.domain:6055" and
 #   ensure to add the port to the exception list of the firewall if it enabled.
 grpc = "http://localhost:6055"
+
+# Enable ssl
+# Default is false, if set to true, the following two files must exist
+[ssl]
+enable = false
+certificate = "/path/to/ca.file"
+certificate_key = "/path/to/key.file"

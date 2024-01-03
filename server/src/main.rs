@@ -3,8 +3,15 @@ use anyhow::Context;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use http_auth_basic::Credentials;
 use log::LevelFilter;
-use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-use std::{fmt::Display, fs::File, io::Read, path::PathBuf, time::Duration};
+use rustls::{server::ServerConfig, Certificate, PrivateKey};
+use rustls_pemfile::{certs, private_key};
+use std::{
+    fmt::Display,
+    fs::File,
+    io::{BufReader, Read},
+    path::PathBuf,
+    time::Duration,
+};
 use taos::*;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{info, instrument, Level};
@@ -158,21 +165,36 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting server at {addr}:{port}");
 
-    let server = if args.enable_ssl.unwrap_or_default() {
-        let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-        builder
-            .set_private_key_file(args.ssl_certificate_key.unwrap(), SslFiletype::PEM)
-            .unwrap();
-        builder
-            .set_certificate_chain_file(args.ssl_certificate.unwrap())
-            .unwrap();
+    let server = if args.ssl.enable.unwrap_or_default() {
+        let cert_file =
+            File::open(args.ssl.certificate.unwrap()).expect("Failed to open certificate file");
+        let cert_key_file =
+            File::open(args.ssl.certificate_key.unwrap()).expect("Failed to open private key file");
+
+        let cert = certs(&mut BufReader::new(cert_file))
+            .map(|result| Certificate(result.unwrap().to_vec()))
+            .collect_vec();
+        let cert_key = PrivateKey(
+            private_key(&mut BufReader::new(cert_key_file))
+                .unwrap()
+                .unwrap()
+                .secret_der()
+                .to_vec(),
+        );
+
+        let config = ServerConfig::builder()
+            .with_safe_defaults()
+            .with_no_client_auth()
+            .with_single_cert(cert, cert_key)
+            .expect("bad certificate/key");
+
         if let Some(ipv6) = args.ipv6.as_deref() {
             server
-                .bind_openssl((ipv6, port), builder)
+                .bind_rustls((ipv6, port), config)
                 .with_context(|| format!("Bind IPv6 address [{ipv6}]:{port} error"))?
         } else {
             server
-                .bind_openssl((addr, port), builder)
+                .bind_rustls((addr, port), config)
                 .with_context(|| format!("Bind address {addr}:{port} error"))?
         }
     } else {
@@ -549,15 +571,6 @@ struct Args {
     #[clap(long, global = true, env = "EXPLORER_IPV6")]
     ipv6: Option<String>,
 
-    #[clap(skip)]
-    enable_ssl: Option<bool>,
-
-    #[clap(skip)]
-    ssl_certificate: Option<String>,
-
-    #[clap(skip)]
-    ssl_certificate_key: Option<String>,
-
     /// Allow all origins or not.
     #[clap(skip)]
     #[serde(default)]
@@ -575,6 +588,22 @@ struct Args {
     #[clap(flatten)]
     #[serde(flatten)]
     profile: Profile,
+
+    #[clap(flatten)]
+    ssl: Ssl,
+}
+
+#[derive(Parser, Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(default)]
+struct Ssl {
+    #[clap(skip)]
+    enable: Option<bool>,
+
+    #[clap(skip)]
+    certificate: Option<String>,
+
+    #[clap(skip)]
+    certificate_key: Option<String>,
 }
 
 impl Args {
