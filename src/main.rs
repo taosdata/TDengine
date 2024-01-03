@@ -7,11 +7,6 @@ use chrono::Local;
 use clap::{parser::ValueSource, CommandFactory, Parser, Subcommand};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
-use file_rotate::{
-    compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
-};
 use metrics_tracing_context::MetricsLayer;
 #[cfg(feature = "mimalloc")]
 use mimalloc::MiMalloc;

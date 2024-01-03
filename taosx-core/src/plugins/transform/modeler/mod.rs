@@ -69,7 +69,10 @@ pub struct ModeledField {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ModeledJsonOutput {
+    /// Modeled fields.
     pub fields: Vec<ModeledField>,
+    // #[serde_as(as = "DefaultOnNull")]
+    /// The order of columns is the same as the order of fields.
     pub columns: Vec<Vec<serde_json::Value>>,
 }
 
@@ -101,11 +104,12 @@ impl From<&RecordBatch> for ModeledJsonOutput {
             columns: arrow::json::writer::record_batches_to_json_rows(&[value])
                 .unwrap()
                 .into_iter()
-                .map(|value| {
-                    value
-                        .into_iter()
-                        .sorted_by_key(|n| schema.fields().find(&n.0).unwrap())
-                        .map(|(_, v)| v)
+                .map(|mut value| {
+                    // Keep the order and null values.
+                    schema
+                        .fields()
+                        .iter()
+                        .map(|field| value.remove(field.name()).unwrap_or_default())
                         .collect_vec()
                 })
                 .collect_vec(),
