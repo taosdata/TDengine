@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use actix_web::{
     rt,
     web::{Data, Payload},
@@ -10,7 +12,7 @@ use futures_util::{
     StreamExt as _,
 };
 use taos::Code;
-use taosx_core::core_metrics::get_task_metrics_string;
+use taosx_core::core_metrics::{get_task_metrics_string, CoreMetrics};
 use tokio::{pin, time::interval};
 use tracing::instrument;
 
@@ -127,20 +129,18 @@ async fn send_task_metrics_ws(task_id: i64, req: HttpRequest, mut session: Sessi
             code: CloseCode::Abnormal,
             description: Some(format!("task {} not found", task_id)),
         });
+        tracing::info!("close session since task not found");
         let _ = session.close(resson).await;
         return;
     }
     let task = task.unwrap();
-    let metrics = try_get_metrics_from_task_detail(&task);
-    if metrics.is_none() {
-        let resson = Some(CloseReason {
-            code: CloseCode::Abnormal,
-            description: Some(format!("task {} metrics not found", task_id)),
-        });
-        let _ = session.close(resson).await;
-        return;
+    let mut metrics_opt: Option<Arc<CoreMetrics>> = None;
+    while metrics_opt.is_none() {
+        metrics_opt = try_get_metrics_from_task_detail(&task);
+        sleep(SEND_METRICS_INTERVAL).await;
     }
-    let metrics = metrics.unwrap();
+    let metrics = metrics_opt.unwrap();
+
     loop {
         let get_task_result = task_store.get(task_id).await;
         if get_task_result.is_err() {
@@ -158,6 +158,7 @@ async fn send_task_metrics_ws(task_id: i64, req: HttpRequest, mut session: Sessi
                 code: CloseCode::Normal,
                 description: Some(format!("task {} not found", task_id)),
             });
+            tracing::info!("close session since task not found");
             let _ = session.close(resson).await;
             break;
         }
