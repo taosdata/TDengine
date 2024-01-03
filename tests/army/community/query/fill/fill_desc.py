@@ -1,11 +1,13 @@
 import taos
 import sys
 
-from util.log import *
-from util.sql import *
-from util.cases import *
+from frame.log import *
+from frame.cases import *
+from frame.sql import *
+from frame.caseBase import *
+from frame import *
 
-class TDTestCase:
+class TDTestCase(TBase):
 
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -41,7 +43,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step3:fill data")
 
-        tdSql.query(f"wstart as ts, first(point_value) as pointValu from {dbname}.{tbname} where ts between '2823-12-2510:35:00' and '2023-12-2510:40:00' fill(prev) order by wstart desc limit 100")
+        tdSql.query(f"wstart as ts, first(point_value) as pointValu from {dbname}.{tbname} where wstart between '2823-12-2510:35:00' and '2023-12-2510:40:00' fill(prev) order by wstart desc limit 100")
         tdSql.checkRows(6)
         tdSql.checkData(0, 1, 5)
         tdSql.checkData(1, 1, 5)
