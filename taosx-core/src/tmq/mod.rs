@@ -1,9 +1,7 @@
 use std::{
-    fmt::Display,
     ops::{AddAssign, SubAssign},
     str::FromStr,
-    sync::atomic::{AtomicU16, AtomicU64},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use crate::dsv::DataSourceValidation;
@@ -12,7 +10,7 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 use taos::*;
 
-pub mod metric;
+pub mod tmq_metric;
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub(crate) struct TopicTable {
     pub(crate) stable: Option<String>,
@@ -94,35 +92,6 @@ pub const METRIC_TMQ_RECORDS: &str = "metrics.tmq.records";
 pub const METRIC_TMQ_POINTS: &str = "metrics.tmq.points";
 // pub const METRIC_TMQ_TIME_COST: &str = "tmq.time_cost";
 
-#[derive(Debug)]
-pub(crate) struct TmqMetrics {
-    pub topics: usize,
-    pub workers: AtomicU16,
-    pub messages: AtomicU64,
-    pub messages_of_meta: AtomicU64,
-    pub messages_of_data: AtomicU64,
-    pub blocks: AtomicU64,
-    pub records: AtomicU64,
-    pub points: AtomicU64,
-    pub time_cost: Instant,
-}
-
-impl Default for TmqMetrics {
-    fn default() -> Self {
-        Self {
-            topics: Default::default(),
-            workers: Default::default(),
-            messages: Default::default(),
-            messages_of_meta: Default::default(),
-            messages_of_data: Default::default(),
-            blocks: Default::default(),
-            records: Default::default(),
-            points: Default::default(),
-            time_cost: Instant::now(),
-        }
-    }
-}
-
 #[derive(Debug, Default)]
 pub(crate) enum StopAt {
     #[default]
@@ -180,54 +149,6 @@ impl FromStr for StopAt {
                 Ok(Self::At(d.into()))
             }
         }
-    }
-}
-
-// pub(crate) struct TmqExtraOpts {
-//     stop_at: StopAt,
-// }
-// impl TmqMetrics {
-//     pub fn new() -> Self {
-//         Self {
-//             time_cost: Instant::now(),
-//             ..Default::default()
-//         }
-//     }
-// }
-
-impl Display for TmqMetrics {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use std::sync::atomic::Ordering::SeqCst;
-        let records = self.records.load(SeqCst);
-        let points = self.points.load(SeqCst);
-        let cost = self.time_cost.elapsed();
-        write!(
-            f,
-            "# Metrics\n\
-            topics: {}\n\
-            workers: {}\n\
-            messages(total): {}\n\
-            messages(meta only): {}\n\
-            messages(data only): {}\n\
-            blocks: {}\n\
-            records: {} ({} r/s)\n\
-            points: {} ({} p/s)\n\
-            time cost: {:?}",
-            self.topics,
-            self.workers.load(std::sync::atomic::Ordering::SeqCst),
-            self.messages.load(std::sync::atomic::Ordering::SeqCst),
-            self.messages_of_meta
-                .load(std::sync::atomic::Ordering::SeqCst),
-            self.messages_of_data
-                .load(std::sync::atomic::Ordering::SeqCst),
-            self.blocks.load(std::sync::atomic::Ordering::SeqCst),
-            records,
-            records / cost.as_secs(),
-            points,
-            points / cost.as_secs(),
-            self.time_cost.elapsed()
-        )?;
-        Ok(())
     }
 }
 

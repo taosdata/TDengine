@@ -12,7 +12,15 @@ use dashmap::DashMap;
 use metrics::atomics::AtomicU64;
 use multi_index_map::MultiIndexMap;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
-use taosx_core::{dsv::DataSourceValidation, TaskNotify, TaskNotifyReceiver};
+use taosx_core::{
+    core_metrics::{
+        auto_save_task_metrics, get_metrics, init_task_metrics, save_task_metrics_finally,
+        try_get_metrics, CoreMetrics, TaosXMetrics, GLOBAL_METRICS,
+    },
+    dsv::DataSourceValidation,
+    sink::ipc_metric::IpcMetrics,
+    TaskNotify, TaskNotifyReceiver,
+};
 use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, DataSet, TaskOpts};
 use tokio::sync::{oneshot, Mutex, RwLock};
 use tokio_cron_scheduler::JobScheduler;
@@ -126,7 +134,6 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
     let state = task;
     let task = &state.task;
     let task_id = task.id;
-
     let (opts, task_rx) = task_opts_init(task).await?;
     tracing::info!("start worker");
     // set current dir for upload files
@@ -145,6 +152,9 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
             global_sender.send_task_activity(activity);
         }
     });
+    let metrics_arc = init_task_metrics(opts.from.clone(), opts.to.clone(), task_id);
+    let (_sender, close_signal) = oneshot::channel::<()>();
+    auto_save_task_metrics(metrics_arc, close_signal);
     let res = opts.run(&global.port_pool).in_current_span().await;
     tracing::Span::current().record("task.elapsed", tracing::field::debug(instant.elapsed()));
     if let Err(error) = res {
@@ -903,6 +913,17 @@ impl TaskJob {
                     .push_action(agent_id, AgentAction::Run(task_id, jid, run_id))
                     .await;
                 tracing::debug!("Command run sending ok");
+                match try_get_metrics::<IpcMetrics>(task_id) {
+                    Some(metrics_arc) => metrics_arc.ipc().reset(),
+                    None => {
+                        let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(task_id)));
+                        GLOBAL_METRICS.lock().unwrap().insert(task_id, metrics);
+                    }
+                }
+                tracing::debug!("Reset metrics ok");
+                // start save metrics task
+                let (_senter, stop_save_metrics_signal) = oneshot::channel::<()>();
+                auto_save_task_metrics(get_metrics(task_id).unwrap(), stop_save_metrics_signal);
                 let waiter = state.agent_waiter.as_ref().unwrap();
 
                 let agent_activities = waiter.agent_activities.clone();
@@ -1122,6 +1143,7 @@ impl TaskJob {
 
                 let handler = move |result| async move {
                     info!("task finished");
+
                     if let Err(err) = &result {
                         error!(error = %err, backtrace = ?err);
                     }
@@ -1151,8 +1173,9 @@ impl TaskJob {
                 if !should_stop {
                     should_stop = opts.stop_condition.should_stop();
                 }
-
-                let state_guard = opts.last_state.read().await;
+                save_task_metrics_finally(task_id);
+                let state_guard: tokio::sync::RwLockReadGuard<'_, Option<LastState>> =
+                    opts.last_state.read().await;
                 let state = state_guard.as_ref().expect("task should have a last state");
                 match state {
                     LastState::Done => match opts.operator.operator() {
@@ -1228,6 +1251,8 @@ impl TaskJob {
         self.task.last_state.write().await.take()
     }
 }
+
+#[instrument(skip_all, fields(task.id = task.task.id, job.id = %jid))]
 pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalState>) {
     if task.stop_condition.should_stop() {
         tracing::error!("stop condition reached");
@@ -1267,4 +1292,5 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
             tracing::info!("task finished without state(usually means the job runs on an agent)");
         }
     }
+    save_task_metrics_finally(task.task.id);
 }

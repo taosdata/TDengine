@@ -2,18 +2,17 @@ use std::sync::Arc;
 
 use anyhow::bail;
 use arrow_flight::{error::FlightError, FlightData, PutResult};
-use chrono::Utc;
 use futures::{Stream, TryStreamExt};
 use futures_util::StreamExt;
-use metrics::counter;
 use parquet::data_type::AsBytes;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::{
+    core_metrics::get_metrics,
     sink::{handle_lush_message_init, IpcErrorStrategy},
     utils::trace::{
         get_data_trace_id_str, get_stream_id_u64, set_data_trace_id_for_current_span, RequestID,
     },
-    ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START, METRIC_RECEIVED_BATCHES,
+    ConnectorLicense, IpcStreamWorker, Parser,
 };
 use tonic::{Status, Streaming};
 use tracing::{debug, instrument, Instrument, Span};
@@ -167,7 +166,6 @@ impl PutStream {
             _ => None,
         };
 
-        // let transferred = self.controller.transferred.get((cluster_id, ))
         async fn ipc_stream_writer(
             notify_sender: AgentNotifySender,
             agent_id: i64,
@@ -186,7 +184,6 @@ impl PutStream {
             stream_trace_id_u64: u64,
         ) -> anyhow::Result<()> {
             // dbg!(&task);
-            metrics::gauge!(METRICS_TIME_START, Utc::now().timestamp_millis() as f64);
             let task_id = task.id;
             let from = task.from.parse().unwrap();
             let taos = pool.get().await?;
@@ -208,10 +205,12 @@ impl PutStream {
                 .map(|v| serde_json::from_value(v.clone()).unwrap())
                 .map(Arc::new);
             let metadata = worker.parser.metadata();
+            let metrics_arc = get_metrics(task.id).expect("metrics not found");
+            let metrics = metrics_arc.ipc();
             if let Some(sql) = metadata.init_sql_string() {
                 let init = metadata.init().unwrap();
                 let req_id = RequestID::new(stream_trace_id_u64);
-                handle_lush_message_init(init, &taos, &sql, &req_id).await?;
+                handle_lush_message_init(init, &taos, &sql, &req_id, metrics).await?;
             }
             tracing::info!("Start IPC stream writer");
 
@@ -233,6 +232,7 @@ impl PutStream {
                         parser.as_deref(),
                         trace_id,
                         &get_data_trace_id_str(trace_id),
+                        metrics,
                     )
                     .in_current_span()
                     .await
@@ -269,6 +269,8 @@ impl PutStream {
             Ok(())
         }
         let notify_sender = self.notify_sender.clone();
+        // 任务的 metrics 在启动任务的时候已经放入全局 Map 中，所以这里一定存在
+        let metrics_arc = get_metrics(self.task_id).expect("metrics not found");
         tokio::spawn(
             async move {
                 let stream_trace_id_u64 = get_stream_id_u64(stream_trace_id.as_str());
@@ -301,11 +303,12 @@ impl PutStream {
         let stream = stream
             .zip(futures::stream::repeat(tx))
             .map(move |(message, tx)| {
+                let metrics = metrics_arc.ipc();
                 let message = message?;
                 let app_metadata = message.app_metadata();
                 let trace_id: u64 = get_trace_id_from_app_meta(&app_metadata);
                 cur_span.in_scope(|| {
-                    counter!(METRIC_RECEIVED_BATCHES, 1);
+                    metrics.add_received_batches(1);
                     tracing::debug!("Receive batch {}", get_data_trace_id_str(trace_id));
                 });
                 Ok(match message.payload {

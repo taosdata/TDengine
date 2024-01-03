@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use flume::{Receiver, Sender};
 use futures::FutureExt;
 use itertools::Itertools;
-use metrics::counter;
+
 use taos::{AsyncQueryable, Taos, TaosPool};
 use tokio::{
     sync::oneshot,
@@ -22,13 +22,13 @@ use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
 use crate::{
-    core_metrics::{CoreMetrics, TaosXMetrics},
+    core_metrics::CoreMetrics,
     legacy::{
         split_table_into_time_range_chunks, sync_single_table_partial, sync_super_table_schema,
         transform_sql_with_remap,
     },
     utils::breakpoints,
-    Action, QueryOpts, TargetOpts, TimeRange, METRICS_LEGACY_CREATED_TABLES,
+    Action, QueryOpts, TargetOpts, TimeRange,
 };
 
 use super::{sync_normal_table_schema, sync_super_table_schema_with_subs};
@@ -272,8 +272,7 @@ async fn worker(
                                 }
                                 errors.extend(format!("- Error of table {table}: {err}\n").chars());
                             } else {
-                                counter!(METRICS_LEGACY_CREATED_TABLES, 1);
-                                metrics.total_created_tables.fetch_add(1, Ordering::SeqCst);
+                                metrics.add_created_tables(1);
                             }
                         }
 
@@ -403,11 +402,6 @@ async fn worker(
                                             time_range = query.time_range,
                                             metrics = metrics,
                                         );
-
-                                        if let Some(id) = task_id.as_ref() {
-                                            let _ = metrics.save(id.as_str());
-                                        }
-
                                         break;
                                     }
                                     Err(err) => {

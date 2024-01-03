@@ -7,7 +7,7 @@ use std::{
     path::Path,
     str::FromStr,
     sync::{
-        atomic::{AtomicBool, AtomicU16, AtomicU32, AtomicU64, Ordering},
+        atomic::{AtomicBool, Ordering},
         Arc,
     },
     time::{Duration, Instant},
@@ -26,13 +26,12 @@ use tracing::{info, instrument, warn};
 use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaosXMetrics},
     legacy::scheduler::Todo,
-    Action, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND,
+    Action,
 };
 
 use self::scheduler::Scheduler;
-use std::sync::atomic::Ordering::SeqCst;
 
-pub mod metric;
+pub mod legacy_metric;
 mod scheduler;
 mod verify;
 // mod tasks;
@@ -94,161 +93,6 @@ impl TableOpts {
     }
 }
 
-// legacy metrics
-pub const METRICS_LEGACY_WORKERS: &str = "metrics.legacy.workers";
-pub const METRICS_LEGACY_TOTAL_STABLES: &str = "metrics.legacy.total_stables";
-pub const METRICS_LEGACY_UPDATED_TAGS: &str = "metrics.legacy.updated_tags";
-pub const METRICS_LEGACY_UPDATED_TABLES: &str = "metrics.legacy.updated_tables";
-pub const METRICS_LEGACY_CREATED_TABLES: &str = "metrics.legacy.created_tables";
-pub const METRICS_LEGACY_TOTAL_TABLES: &str = "metrics.legacy.total_tables";
-pub const METRICS_LEGACY_TABLES: &str = "metrics.legacy.tables";
-pub const METRICS_LEGACY_BLOCKS: &str = "metrics.legacy.blocks";
-pub const METRICS_LEGACY_RECORDS: &str = "metrics.legacy.records";
-pub const METRICS_LEGACY_POINTS: &str = "metrics.legacy.points";
-
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
-pub struct LegacyMetrics {
-    pub workers: AtomicU16,
-    pub total_stables: AtomicU32,
-    pub total_tables: AtomicU32,
-    pub tables: AtomicU32,
-    pub blocks: AtomicU64,
-    pub records: AtomicU64,
-    pub points: AtomicU64,
-    pub updated_tags: AtomicU32,
-    pub updated_tables: AtomicU32,
-    pub created_tables: AtomicU32,
-    // last_time_cost in seconds
-    pub last_time_cost: AtomicU64,
-    #[serde(skip)]
-    #[serde(default = "Instant::now")]
-    pub time_cost: Instant,
-}
-
-impl Default for LegacyMetrics {
-    fn default() -> Self {
-        Self {
-            workers: Default::default(),
-            total_stables: Default::default(),
-            total_tables: Default::default(),
-            tables: Default::default(),
-            blocks: Default::default(),
-            records: Default::default(),
-            points: Default::default(),
-            updated_tags: Default::default(),
-            updated_tables: Default::default(),
-            created_tables: Default::default(),
-            last_time_cost: Default::default(),
-            time_cost: Instant::now(),
-        }
-    }
-}
-impl Display for LegacyMetrics {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let records = self.records.load(SeqCst);
-        let points = self.points.load(SeqCst);
-        let cost = self.time_cost.elapsed() + Duration::from_secs(self.last_time_cost.load(SeqCst));
-        let mut cons_as_secs = cost.as_secs();
-        if cons_as_secs == 0 {
-            cons_as_secs = 1;
-        }
-        write!(
-            f,
-            "# Metrics\n\
-            workers: {}\n\
-            created tables: {}\n\
-            updated tags: {}\n\
-            stables: {}\n\
-            tables: {}\n\
-            blocks: {}\n\
-            records: {} ({} r/s)\n\
-            points: {} ({} p/s)\n\
-            time cost: {:?}",
-            self.workers.load(SeqCst),
-            self.created_tables.load(SeqCst),
-            self.updated_tags.load(SeqCst),
-            self.total_stables.load(SeqCst),
-            self.tables.load(SeqCst),
-            self.blocks.load(SeqCst),
-            records,
-            records / cons_as_secs,
-            points,
-            points / cons_as_secs,
-            cost
-        )?;
-        Ok(())
-    }
-}
-
-impl LegacyMetrics {
-    pub fn merge(&self, other: &Self) -> anyhow::Result<()> {
-        self.blocks
-            .fetch_add(other.blocks.load(Ordering::SeqCst), Ordering::SeqCst);
-        self.records
-            .fetch_add(other.records.load(Ordering::SeqCst), Ordering::SeqCst);
-        self.points
-            .fetch_add(other.points.load(Ordering::SeqCst), Ordering::SeqCst);
-        Ok(())
-    }
-
-    pub fn to_json(&self) -> String {
-        let metrics = Self {
-            workers: AtomicU16::from(self.workers.load(Ordering::SeqCst)),
-            total_stables: AtomicU32::from(self.total_stables.load(Ordering::SeqCst)),
-            total_tables: AtomicU32::from(self.total_tables.load(Ordering::SeqCst)),
-            tables: AtomicU32::from(self.tables.load(Ordering::SeqCst)),
-            blocks: AtomicU64::from(self.blocks.load(Ordering::SeqCst)),
-            records: AtomicU64::from(self.records.load(Ordering::SeqCst)),
-            points: AtomicU64::from(self.points.load(Ordering::SeqCst)),
-            updated_tags: AtomicU32::from(self.updated_tags.load(Ordering::SeqCst)),
-            updated_tables: AtomicU32::from(self.updated_tables.load(Ordering::SeqCst)),
-            created_tables: AtomicU32::from(self.created_tables.load(Ordering::SeqCst)),
-            last_time_cost: AtomicU64::from(
-                self.last_time_cost.load(Ordering::SeqCst) + self.time_cost.elapsed().as_secs(),
-            ),
-            time_cost: Instant::now(),
-        };
-        serde_json::to_string(&metrics).unwrap()
-    }
-
-    pub fn from_json(json: &str) -> anyhow::Result<Self> {
-        let metrics: Self = serde_json::from_str(json)?;
-        Ok(metrics)
-    }
-
-    pub fn to_task_metrics_json(&self) -> String {
-        let mut map: BTreeMap<&str, u64> = BTreeMap::new();
-        map.insert(METRICS_LEGACY_WORKERS, self.workers.load(SeqCst) as u64);
-        map.insert(
-            METRICS_LEGACY_TOTAL_STABLES,
-            self.total_stables.load(SeqCst) as u64,
-        );
-        map.insert(
-            METRICS_LEGACY_UPDATED_TAGS,
-            self.updated_tags.load(SeqCst) as u64,
-        );
-        map.insert(
-            METRICS_LEGACY_UPDATED_TABLES,
-            self.updated_tables.load(SeqCst) as u64,
-        );
-        map.insert(
-            METRICS_LEGACY_CREATED_TABLES,
-            self.created_tables.load(SeqCst) as u64,
-        );
-        map.insert(
-            METRICS_LEGACY_TOTAL_TABLES,
-            self.total_tables.load(SeqCst) as u64,
-        );
-        map.insert(METRICS_LEGACY_TABLES, self.tables.load(SeqCst) as u64);
-        map.insert(METRICS_LEGACY_BLOCKS, self.blocks.load(SeqCst) as u64);
-        map.insert(METRICS_LEGACY_RECORDS, self.records.load(SeqCst) as u64);
-        map.insert(METRICS_LEGACY_POINTS, self.points.load(SeqCst) as u64);
-        map.insert(METRICS_TIME_COST, self.last_time_cost.load(SeqCst) as u64);
-        let speed = self.records.load(SeqCst) as u64 / self.last_time_cost.load(SeqCst) as u64;
-        map.insert(METRICS_TIME_RECORDS_PER_SECOND, speed);
-        serde_json::to_string(&map).unwrap()
-    }
-}
 /// A paging expression.
 ///
 /// It will be append to query with `LIMIT {limit} OFFSET {offset}`.
@@ -631,7 +475,7 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
         break;
     }
 
-    metrics.add_suc_blocks(1);
+    metrics.add_success_blocks(1);
     metrics.add_written_rows(block.nrows() as _);
     metrics.add_written_points((block.nrows() * block.ncols()) as _);
 
@@ -863,7 +707,7 @@ async fn sync_single_table_partial(
                         stmt.execute().await
                             .with_context(|| format!("[{new_table_name}] execute {} rows insertion with batch size limit {batch_size}", range.len()))?;
 
-                        metrics.add_suc_blocks(1);
+                        metrics.add_success_blocks(1);
                         metrics.add_written_rows(params.len() as _);
                         metrics.add_written_points((params.len() * fields) as _);
                         if let Some(duration) = target_opts.interval {
@@ -926,7 +770,7 @@ async fn sync_single_table_partial(
                                 success = false;
                                 break;
                             }
-                            metrics.add_suc_blocks(1);
+                            metrics.add_success_blocks(1);
                             metrics.add_written_rows(params.len() as _);
                             metrics.add_written_points((params.len() * fields) as _);
                         }
@@ -953,7 +797,7 @@ async fn sync_single_table_partial(
                 }
             } else {
                 let rows = res.unwrap();
-                metrics.add_suc_blocks(1);
+                metrics.add_success_blocks(1);
                 metrics.add_written_rows(rows as _);
                 metrics.add_written_points((rows * fields) as _);
             }
@@ -2657,7 +2501,7 @@ async fn legacy_to_taos_impl(
     let target_is_v3 = !v2.starts_with('2');
 
     metrics
-        .workers
+        .read_concurrency
         .store(source_opts.workers as _, Ordering::SeqCst);
 
     // span.exit();
