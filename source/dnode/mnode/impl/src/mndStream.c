@@ -1642,9 +1642,17 @@ static void mndCancelGetNextStream(SMnode *pMnode, void *pIter) {
   sdbCancelFetch(pSdb, pIter);
 }
 
-static void setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlock *pBlock, int32_t numOfRows) {
+static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlock *pBlock, int32_t numOfRows) {
   SColumnInfoData *pColInfo;
   int32_t          cols = 0;
+
+  STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
+
+  STaskStatusEntry *pe = taosHashGet(execInfo.pTaskMap, &id, sizeof(id));
+  if (pe == NULL) {
+    mError("task:0x%" PRIx64 " not exists in vnode, no valid status/stage info", id.taskId);
+    return -1;
+  }
 
   // stream name
   char streamName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -1696,14 +1704,7 @@ static void setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDat
   colDataSetVal(pColInfo, numOfRows, (const char *)level, false);
 
   // status
-  char    status[20 + VARSTR_HEADER_SIZE] = {0};
-  STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
-
-  STaskStatusEntry *pe = taosHashGet(execInfo.pTaskMap, &id, sizeof(id));
-  if (pe == NULL) {
-    mError("task:0x%" PRIx64 " not exists in vnode, no valid status/stage info", id.taskId);
-    return;
-  }
+  char status[20 + VARSTR_HEADER_SIZE] = {0};
 
   const char *pStatus = streamTaskGetStatusStr(pe->status);
   STR_TO_VARSTR(status, pStatus);
@@ -1746,6 +1747,8 @@ static void setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDat
 
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t getNumOfTasks(SArray *pTaskList) {
@@ -1787,8 +1790,10 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       int32_t numOfLevels = taosArrayGetSize(pLevel);
       for (int32_t j = 0; j < numOfLevels; j++) {
         SStreamTask *pTask = taosArrayGetP(pLevel, j);
-        setTaskAttrInResBlock(pStream, pTask, pBlock, numOfRows);
-        numOfRows++;
+        int32_t code = setTaskAttrInResBlock(pStream, pTask, pBlock, numOfRows);
+        if (code == TSDB_CODE_SUCCESS) {
+          numOfRows++;
+        }
       }
     }
 
