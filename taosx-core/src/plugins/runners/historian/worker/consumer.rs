@@ -7,7 +7,7 @@ use taosx_ipc::ack::AckReaderBuilder;
 use crate::runners::historian::appender::ArrowDataAppender;
 use crate::runners::historian::config::{HistorianTable, TaskConfig};
 use crate::runners::historian::query::HistorianQuery;
-use crate::runners::historian::set_tcp_keepalive;
+use crate::runners::set_tcp_keepalive;
 
 pub struct Consumer {
     query: HistorianQuery,

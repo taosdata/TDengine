@@ -24,7 +24,7 @@ use taosx_core::sink::ipc_metric::IpcMetrics;
 use taosx_core::tmq::tmq_metric::TmqMetrics;
 use taosx_core::{
     core_metrics::{self},
-    get_data_dir, get_file_upload_home_dir,
+    get_data_dir, get_file_upload_home_dir, runners,
 };
 use tracing::instrument;
 use utoipa::*;
@@ -657,8 +657,17 @@ pub fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMet
     match dsn.driver.as_str() {
         "taos" => try_get_metrics::<LegacyToTaosMetrics>(task_id),
         "tmq" => try_get_metrics::<TmqMetrics>(task_id),
-        "opc" | "opcua" | "opcda" | "pi" | "pibackfill" | "mqtt" | "influxdb" | "opentsdb"
-        | "kafka" | "historian" | "csv" => try_get_metrics::<IpcMetrics>(task_id),
+        "opc"
+        | "opcua"
+        | "opcda"
+        | "pi"
+        | "pibackfill"
+        | "mqtt"
+        | "influxdb"
+        | "opentsdb"
+        | "kafka"
+        | runners::historian::AVEVA_HISTORIAN_ID
+        | "csv" => try_get_metrics::<IpcMetrics>(task_id),
         _ => None,
     }
 }

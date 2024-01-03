@@ -19,11 +19,14 @@ mod config;
 mod query;
 mod worker;
 
+pub const AVEVA_HISTORIAN_ID: &str = "avevaHistorian";
+pub const AVEVA_HISTORIAN_NAME: &str = "AVEVA Historian";
+
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = ConnectConfig::from_dsn(dsn);
     match config {
         Err(err) => DataSourceValidation::invalid(
-            "historian".to_string(),
+            AVEVA_HISTORIAN_ID.to_string(),
             format!(
                 "invalid dsn: {}, cause: {}",
                 dsn.to_string(),
@@ -34,20 +37,14 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             let client = HistorianQuery::try_new(c).await;
             match client {
                 Err(err) => DataSourceValidation::invalid(
-                    "historian".to_string(),
+                    AVEVA_HISTORIAN_ID.to_string(),
                     format!(
                         "failed to connect to dsn: {}, cause: {}",
                         dsn.to_string(),
                         err.to_string()
                     ),
                 ),
-                Ok(_cli) => DataSourceValidation {
-                    valid: true,
-                    support: true,
-                    data_source: "historian".to_string(),
-                    version: None,
-                    message: None,
-                },
+                Ok(_cli) => DataSourceValidation::valid(AVEVA_HISTORIAN_ID.to_string(), None),
             }
         }
     }
@@ -68,7 +65,7 @@ pub async fn historian_to_taos(
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let mut config = TaskConfig::from_dsn(&from)?;
-    tracing::info!("AVEVA™ Historian task configuration: {:?}", config);
+    tracing::info!("{AVEVA_HISTORIAN_NAME} task configuration: {:?}", config);
 
     let port = port_pool
         .get()
@@ -80,7 +77,7 @@ pub async fn historian_to_taos(
         &socket,
         parser,
         &to,
-        Some("Historian"),
+        Some(AVEVA_HISTORIAN_ID),
         None,
         &cancel,
         with_agent,
@@ -106,17 +103,17 @@ pub async fn historian_to_taos(
                         match ipc.try_recv_error() {
                             Ok(res) => {
                                 tracing::error!("IPC Error: {res}");
-                                anyhow::bail!("AVEVA™ Historian worker exit with IPC error: {res}");
+                                anyhow::bail!("{AVEVA_HISTORIAN_NAME} exit with IPC error: {res}");
                             }
                             Err(_) => {
-                                tracing::info!("AVEVA™ Historian worker done successfully");
+                                tracing::info!("{AVEVA_HISTORIAN_NAME} done successfully");
                                 let _ = ipc.send(());
                             }
                         }
                     }
                     Err(err) => {
                         let _ = ipc.send(());
-                        anyhow::bail!("AVEVA™ Historian exit with error: {:#}", err);
+                        anyhow::bail!("{AVEVA_HISTORIAN_NAME} exit with error: {:#}", err);
                     }
                 }
             },
@@ -127,18 +124,18 @@ pub async fn historian_to_taos(
                     let _ = ipc.send(());
                     let _ = ipc.close().await;
                     abort_handle.abort();
-                    anyhow::bail!("AVEVA™ Historian writer error: {err:#}");
+                    anyhow::bail!("{AVEVA_HISTORIAN_NAME} writer error: {err:#}");
                 }
             },
             _ = cancel.cancelled() => {
-                tracing::info!("AVEVA™ Historian task cancelled");
+                tracing::info!("{AVEVA_HISTORIAN_NAME} task cancelled");
                 abort_handle.abort();
             }
         }
         // send an empty tuple
         let _ = ipc.send(());
         // stop the connector
-        tracing::info!("AVEVA™ Historian task Done");
+        tracing::info!("{AVEVA_HISTORIAN_NAME} task done");
         ipc.close().await?;
         // put ipc port back to port pool.
         port_pool.put(port).await;
@@ -200,57 +197,17 @@ async fn exec_task(task_id: Option<i64>, mut config: TaskConfig) -> anyhow::Resu
     Ok(())
 }
 
-/// set tcp keep alive
-pub fn set_tcp_keepalive(stream: &std::net::TcpStream) -> anyhow::Result<()> {
-    let sock_ref = socket2::SockRef::from(stream);
-    let keep_alive = socket2::TcpKeepalive::new()
-        .with_time(Duration::from_secs(10))
-        .with_interval(Duration::from_secs(10));
-    sock_ref.set_tcp_keepalive(&keep_alive)?;
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use std::fs::File;
     use std::io::Write;
-    use std::net::TcpListener;
     use std::str::FromStr;
-    use std::thread;
 
     use chrono::{DateTime, NaiveDateTime, Utc};
     use rand::Rng;
     use taos::Dsn;
 
     use super::*;
-
-    #[test]
-    fn test_set_tcp_keepalive() {
-        let server = thread::spawn(|| {
-            let listener = TcpListener::bind("127.0.0.1:54321").unwrap();
-
-            for stream in listener.incoming() {
-                let _ = stream.unwrap();
-                println!("connection established!");
-                thread::sleep(Duration::from_secs(5));
-                break;
-            }
-        });
-
-        let stream = std::net::TcpStream::connect("127.0.0.1:54321").unwrap();
-        set_tcp_keepalive(&stream).unwrap();
-
-        let sock_ref = socket2::SockRef::from(&stream);
-        assert_eq!(true, sock_ref.keepalive().unwrap());
-        #[cfg(not(target_os = "windows"))]
-        {
-            assert_eq!(10, sock_ref.keepalive_time().unwrap().as_secs());
-            assert_eq!(10, sock_ref.keepalive_interval().unwrap().as_secs());
-        }
-
-        server.join().unwrap();
-    }
 
     #[tokio::test]
     async fn test_is_valid() {

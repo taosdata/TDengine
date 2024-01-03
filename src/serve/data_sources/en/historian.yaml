@@ -1,33 +1,33 @@
 ---
-id: historian
-name: AVEVA™ Historian
+id: avevaHistorian
+name: AVEVA Historian
 type: uri
 description: |
-  AVEVA™ Historian process database integrated with operations control enabling access to your process, alarm, and event history data. Wonderware Historian is now AVEVA Historian.
+  AVEVA Historian process database integrated with operations control enabling access to your process, alarm, and event history data. Wonderware Historian is now AVEVA Historian.
 
-  TDengine efficiently reads data from the AVEVA™ Historian and writes it to TDengine for historical data migration or real-time data flow into the library.
+  TDengine efficiently reads data from the AVEVA Historian and writes it to TDengine for historical data migration or real-time data flow into the library.
 strict: false
 
 options:
   host:
     display: host
-    description: AVEVA™ Historian SQL Server IP address or host name
+    description: AVEVA Historian SQL Server IP address or host name
     placeholder: "127.0.0.1"
     required: true
   port:
     display: port
-    description: AVEVA™ Historian SQL Server port
+    description: AVEVA Historian SQL Server port
     placeholder: "1433"
     required: false
 
 authentication:
   display: Authentication
-  description: Use username and password of AVEVA™ Historian SQL Server
+  description: Use username and password of AVEVA Historian SQL Server
   value: plain
   alternatives:
     - name: plain
       display: Username and Password
-      description: Use username and password of AVEVA™ Historian SQL Server
+      description: Use username and password of AVEVA Historian SQL Server
       username:
         display: Username
         placeholder: aaAdmin
