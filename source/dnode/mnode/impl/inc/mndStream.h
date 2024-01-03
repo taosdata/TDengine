@@ -44,12 +44,11 @@ typedef struct SStreamTransMgmt {
 } SStreamTransMgmt;
 
 typedef struct SStreamExecInfo {
-  SArray *         pNodeList;
+  SArray          *pNodeList;
   int64_t          ts;  // snapshot ts
   SStreamTransMgmt transMgmt;
-  int64_t          activeCheckpoint;  // active check point id
-  SHashObj *       pTaskMap;
-  SArray *         pTaskList;
+  SHashObj        *pTaskMap;
+  SArray          *pTaskList;
   TdThreadMutex    lock;
 } SStreamExecInfo;
 

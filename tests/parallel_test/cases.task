@@ -5,10 +5,17 @@
 #unit-test
 ,,y,unit-test,bash test.sh
 
-#army-test
-,,y,army,./pytest.sh python3 ./test.py -f empty.py
+#
+# army-test
+#
+,,y,army,./pytest.sh python3 ./test.py -f enterprise/multi-level/mlevel_basic.py -N 3 -L 3 -D 2
+,,y,army,./pytest.sh python3 ./test.py -f enterprise/s3/s3_basic.py -L 3 -D 1
+,,y,army,./pytest.sh python3 ./test.py -f community/cluster/snapshot.py -N 3 -L 3 -D 2
 
-#system test
+
+#
+# system test
+#
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_basic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/scalar_function.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_interval.py
@@ -29,6 +36,7 @@
 ,,n,system-test,python3 ./test.py -f 8-stream/snode_restart_with_checkpoint.py -N 4
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname_vgroup.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/compact-col.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 3
@@ -131,6 +139,10 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py -Q 4
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3 -i False
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3 -i False
@@ -514,6 +526,7 @@ e
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/systable_func.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4382.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py

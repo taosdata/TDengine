@@ -789,7 +789,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "s3PageCacheSize", tsS3PageCacheSize, 4, 1024 * 1024 * 1024, CFG_SCOPE_SERVER,
                   CFG_DYN_ENT_SERVER) != 0)
     return -1;
-  if (cfgAddInt32(pCfg, "s3UploadDelaySec", tsS3UploadDelaySec, 60 * 10, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER,
+  if (cfgAddInt32(pCfg, "s3UploadDelaySec", tsS3UploadDelaySec, 60 * 1, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER,
                   CFG_DYN_ENT_SERVER) != 0)
     return -1;
 
@@ -1432,6 +1432,13 @@ static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, 
 static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
   terrno = TSDB_CODE_SUCCESS;
 
+  if (strcasecmp(name, "resetlog") == 0) {
+    // trigger, no item in cfg
+    taosResetLog();
+    cfgDumpCfg(tsCfg, 0, false);
+    return 0;
+  }
+
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (!pItem || (pItem->dynScope & CFG_DYN_SERVER) == 0) {
     uError("failed to config:%s, not support", name);
@@ -1442,12 +1449,6 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
   if (strncasecmp(name, "debugFlag", 9) == 0) {
     int32_t flag = pItem->i32;
     taosSetAllDebugFlag(flag, true);
-    return 0;
-  }
-
-  if (strcasecmp(name, "resetlog") == 0) {
-    taosResetLog();
-    cfgDumpCfg(tsCfg, 0, false);
     return 0;
   }
 

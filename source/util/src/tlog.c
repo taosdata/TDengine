@@ -337,14 +337,10 @@ static int32_t taosOpenNewLogFile() {
 }
 
 void taosResetLog() {
-  char lastName[LOG_FILE_NAME_LEN + 20];
-  sprintf(lastName, "%s.%d", tsLogObj.logName, tsLogObj.flag);
-
   // force create a new log file
   tsLogObj.lines = tsNumOfLogLines + 10;
 
   taosOpenNewLogFile();
-  (void)taosRemoveFile(lastName);
 
   uInfo("==================================");
   uInfo("   reset log file ");

@@ -2545,12 +2545,6 @@ _err:
   return NULL;
 }
 
-// this message is sent from mnode to mnode(read thread to write thread),
-// so there is no need for serialization or deserialization
-typedef struct {
-  SHashObj* rebSubHash;  // SHashObj<key, SMqRebSubscribe>
-} SMqDoRebalanceMsg;
-
 typedef struct {
   int64_t streamId;
   int64_t checkpointId;

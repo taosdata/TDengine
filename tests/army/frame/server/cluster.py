@@ -8,7 +8,7 @@ import  socket
 from frame.log import *
 from frame.sql import *
 from frame.cases import *
-from frame.dnodes import *
+from frame.server.dnodes import *
 from frame.common import *
 
 class ClusterDnodes(TDDnodes):
@@ -35,17 +35,21 @@ class ConfigureyCluster:
         self.startPort = 6030
         self.portStep = 100
         self.mnodeNums = 0
+        self.level = 0
+        self.disk = 0
 
-    def configure_cluster(self ,dnodeNums=5,mnodeNums=0,independentMnode=True,startPort=6030,portStep=100,hostname="%s"%hostname): 
+    def configure_cluster(self ,dnodeNums=5, mnodeNums=0, independentMnode=True, startPort=6030, portStep=100, hostname="%s"%hostname, level=1, disk=1): 
         self.startPort=int(startPort)
         self.portStep=int(portStep)
         self.hostname=hostname
         self.dnodeNums = int(dnodeNums)
         self.mnodeNums = int(mnodeNums)
+        self.level     = int(level)
+        self.disk      = int(disk)
         self.dnodes = []
         startPort_sec = int(startPort+portStep)
         for num in range(1, (self.dnodeNums+1)):
-            dnode = TDDnode(num)
+            dnode = TDDnode(num, self.level, self.disk)
             dnode.addExtraCfg("firstEp", f"{hostname}:{self.startPort}")
             dnode.addExtraCfg("fqdn", f"{hostname}")
             dnode.addExtraCfg("serverPort", f"{self.startPort + (num-1)*self.portStep}")
