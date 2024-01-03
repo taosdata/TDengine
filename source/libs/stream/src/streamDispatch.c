@@ -18,11 +18,6 @@
 #include "trpc.h"
 #include "ttimer.h"
 
-typedef struct SBlockName {
-  uint32_t hashValue;
-  char     parTbName[TSDB_TABLE_NAME_LEN];
-} SBlockName;
-
 typedef struct {
   int32_t upStreamTaskId;
   SEpSet  upstreamNodeEpset;
@@ -537,40 +532,24 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
 
   void* pVal = tSimpleHashGet(pTask->pNameMap, &groupId, sizeof(int64_t));
   if (pVal) {
-    SBlockName* pBln = (SBlockName*)pVal;
-    hashValue = pBln->hashValue;
-    if (!pDataBlock->info.parTbName[0]) {
-      memset(pDataBlock->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
-      memcpy(pDataBlock->info.parTbName, pBln->parTbName, strlen(pBln->parTbName));
-    }
+    hashValue = *(uint32_t*)pVal;
   } else {
-    char* ctbName = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
-    if (ctbName == NULL) {
-      return -1;
-    }
-
+    char ctbName[TSDB_TABLE_FNAME_LEN] = {0};
+    char parTbName[TSDB_TABLE_NAME_LEN] = {0};
     if (pDataBlock->info.parTbName[0]) {
       if(pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER){
-        buildCtbNameAddGruopId(pDataBlock->info.parTbName, groupId);
+        strcpy(parTbName, pDataBlock->info.parTbName);
+        buildCtbNameAddGruopId(parTbName, groupId);
       }
-      snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->outputInfo.shuffleDispatcher.dbInfo.db,
-               pDataBlock->info.parTbName);
     } else {
-      buildCtbNameByGroupIdImpl(pTask->outputInfo.shuffleDispatcher.stbFullName, groupId, pDataBlock->info.parTbName);
-      snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->outputInfo.shuffleDispatcher.dbInfo.db,
-               pDataBlock->info.parTbName);
+      buildCtbNameByGroupIdImpl(pTask->outputInfo.shuffleDispatcher.stbFullName, groupId, parTbName);
     }
-
+    snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->outputInfo.shuffleDispatcher.dbInfo.db, parTbName);
     /*uint32_t hashValue = MurmurHash3_32(ctbName, strlen(ctbName));*/
     SUseDbRsp* pDbInfo = &pTask->outputInfo.shuffleDispatcher.dbInfo;
-    hashValue =
-        taosGetTbHashVal(ctbName, strlen(ctbName), pDbInfo->hashMethod, pDbInfo->hashPrefix, pDbInfo->hashSuffix);
-    taosMemoryFree(ctbName);
-    SBlockName bln = {0};
-    bln.hashValue = hashValue;
-    memcpy(bln.parTbName, pDataBlock->info.parTbName, strlen(pDataBlock->info.parTbName));
+    hashValue = taosGetTbHashVal(ctbName, strlen(ctbName), pDbInfo->hashMethod, pDbInfo->hashPrefix, pDbInfo->hashSuffix);
     if (tSimpleHashGetSize(pTask->pNameMap) < MAX_BLOCK_NAME_NUM) {
-      tSimpleHashPut(pTask->pNameMap, &groupId, sizeof(int64_t), &bln, sizeof(SBlockName));
+      tSimpleHashPut(pTask->pNameMap, &groupId, sizeof(int64_t), &hashValue, sizeof(uint32_t));
     }
   }
 
