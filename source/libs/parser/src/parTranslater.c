@@ -8161,9 +8161,9 @@ int32_t translatePostCreateStream(SParseContext* pParseCxt, SQuery* pQuery, void
   }
   if (TSDB_CODE_SUCCESS == code) {
     if (interval.interval > 0) {
-      pStmt->pReq->lastTs = taosTimeTruncate(lastTs, &interval);
+      pStmt->pReq->lastTs = taosTimeAdd(taosTimeTruncate(lastTs, &interval), interval.interval, interval.intervalUnit, interval.precision);
     } else {
-      pStmt->pReq->lastTs = lastTs;
+      pStmt->pReq->lastTs = lastTs + 1;  // start key of the next time window
     }
     code = buildCmdMsg(&cxt, TDMT_MND_CREATE_STREAM, (FSerializeFunc)tSerializeSCMCreateStreamReq, pStmt->pReq);
   }

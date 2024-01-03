@@ -2761,6 +2761,18 @@ void getSessionWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, 
   }
 }
 
+void reloadAggSupFromDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup) {
+  SStateStore* pAPI = &downstream->pTaskInfo->storageAPI.stateStore;
+
+  if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    reloadAggSupFromDownStream(downstream->pDownstream[0], pAggSup);
+    return;
+  }
+
+  SStreamScanInfo* pScanInfo = downstream->info;
+  pAggSup->pUpdateInfo = pScanInfo->pUpdateInfo;
+}
+
 void streamSessionSemiReloadState(SOperatorInfo* pOperator) {
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
   SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
@@ -2792,6 +2804,7 @@ void streamSessionSemiReloadState(SOperatorInfo* pOperator) {
   if (downstream->fpSet.reloadStreamStateFn) {
     downstream->fpSet.reloadStreamStateFn(downstream);
   }
+  reloadAggSupFromDownStream(downstream, &pInfo->streamAggSup);
 }
 
 void streamSessionReloadState(SOperatorInfo* pOperator) {
@@ -2844,6 +2857,7 @@ void streamSessionReloadState(SOperatorInfo* pOperator) {
   if (downstream->fpSet.reloadStreamStateFn) {
     downstream->fpSet.reloadStreamStateFn(downstream);
   }
+  reloadAggSupFromDownStream(downstream, &pInfo->streamAggSup);
 }
 
 SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
@@ -3726,6 +3740,7 @@ void streamStateReloadState(SOperatorInfo* pOperator) {
   if (downstream->fpSet.reloadStreamStateFn) {
     downstream->fpSet.reloadStreamStateFn(downstream);
   }
+  reloadAggSupFromDownStream(downstream, &pInfo->streamAggSup);
 }
 
 SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,

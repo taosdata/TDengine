@@ -545,7 +545,7 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, int64_t sversion, char*
       SStreamTask* p = streamMetaAcquireTask(pMeta, streamId, taskId);
 
       if (p != NULL && restored && p->info.fillHistory == 0) {
-        EStreamTaskEvent event = (HAS_RELATED_FILLHISTORY_TASK(p)) ? TASK_EVENT_INIT_STREAM_SCANHIST : TASK_EVENT_INIT;
+        EStreamTaskEvent event = TASK_EVENT_INIT;
         streamTaskHandleEvent(p->status.pSM, event);
       } else if (!restored) {
         tqWarn("s-task:%s not launched since vnode(vgId:%d) not ready", p->id.idStr, vgId);
