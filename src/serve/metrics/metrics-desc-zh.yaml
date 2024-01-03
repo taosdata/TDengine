@@ -13,7 +13,7 @@ total_points_per_second: 任务累计平均每秒写入测点数
 start_time: 任务启动时间(每次重启任务会被重置), 单位毫秒
 written_rows: 本次运行此任务成功写入 TDengine 的总行数（包括重复记录）
 written_points: 本次运行写入成功点数(等于数据块包含的行数乘以数据块包含的列数)
-execute_time: 任务本次运行时间，单位秒
+execute_time: 任务本次运行时间，单位毫秒
 rows_per_second: 任务本次运行平均每秒写入行数
 points_per_second: 任务本次运行评价每秒写入测点数
 read_concurrency: 并发读取数据源的数据 worker 数
