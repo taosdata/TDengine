@@ -410,10 +410,14 @@ _err:
  * @return int32_t
  */
 int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
+  char tbuf[40] = {0};
+  TRACE_TO_STR(&pMsg->info.traceId, tbuf);
+
   terrno = 0;
+
   if (!pMsg->pCont || (pMsg->contLen <= 0)) {
     terrno = TSDB_CODE_INVALID_MSG;
-    uWarn("failed to process grant req in dnode since msg is empty");
+    uWarn("failed to process grant req in dnode since msg is empty, gtid:%s", tbuf);
     goto _err;
   }
   // step 1: process grant status from mnode
@@ -422,7 +426,6 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
   int64_t     clusterTime = 0;
   if (tDeserializeGrantStatus(pMsg->pCont, pMsg->contLen, &grantStatusReq, &dnodeInfo, &clusterTime) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    uWarn("failed to process grant req in dnode since %s", terrstr());
     goto _err;
   }
 
@@ -460,7 +463,7 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
   pMsg->info.rsp = pCont;
   pMsg->info.rspLen = contLen;
 
-  uDebug("succeed to process grant req and send rsp in dnode");
+  uDebug("succeed to process grant req and send rsp in dnode, gtid:%s", tbuf);
 
   return TSDB_CODE_SUCCESS;
 _err:
@@ -468,7 +471,7 @@ _err:
   pMsg->info.rsp = NULL;
   pMsg->info.rspLen = 0;
 
-  uWarn("failed to process grant req and send rsp in dnode since %s", tstrerror(terrno));
+  uWarn("failed to process grant req and send rsp in dnode since %s, gtid:%s", tstrerror(terrno), tbuf);
 
   return TSDB_CODE_FAILED;
 }
@@ -646,7 +649,6 @@ static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
 
   SRpcMsg rpcMsg = {.pCont = pCont, .contLen = contLen, .msgType = TDMT_MND_GRANT, .info.ahandle = (void *)0x818};
 
-  uDebug("send grant status msg to dnode:%d %s:%" PRIu16, pDnodeInfo->id, pDnodeInfo->ep.fqdn, pDnodeInfo->ep.port);
 
   SEpSet epSet = {.numOfEps = 1};
   tstrncpy(epSet.eps[0].fqdn, pDnodeInfo->ep.fqdn, TSDB_FQDN_LEN);
@@ -657,33 +659,10 @@ static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
     return TSDB_CODE_FAILED;
   }
 
-#ifdef GRANT_SYNC_MODE_STASH
-  // TODO: use async mode instead of sync mode
-  rpcSendRecvWithTimeout(pMnode->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp, 3000);
-
-  // step 2: process response from dnode
-  if (!rpcRsp.pCont || rpcRsp.contLen <= 0 || rpcRsp.code != 0) {
-    uError("failed to process the grant rsp from dnode:%d %s:%" PRIu16 " since empty content: %" PRIi32, pDnodeInfo->id,
-           pDnodeInfo->ep.fqdn, pDnodeInfo->ep.port, rpcRsp.code);
-    goto _err;
-  }
-
-  GrantMsg grantMsgRsp = {0};
-  if (tDeserializeGrantMsg(rpcRsp.pCont, rpcRsp.contLen, &grantMsgRsp) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    uWarn("failed to process the grant rsp from dnode:%d %s:%" PRIu16 " since %s", pDnodeInfo->id, pDnodeInfo->ep.fqdn,
-          pDnodeInfo->ep.port, terrstr());
-    goto _err;
-  }
-  rpcFreeCont(rpcRsp.pCont);
-
-  uDebug("succeed to receive grant msg from dnode:%d %s:%" PRIu16, pDnodeInfo->id, pDnodeInfo->ep.fqdn,
-         pDnodeInfo->ep.port);
-
-  mndProcessDnodeSGrantMsg(pMnode, pDnodeInfo, &grantMsgRsp, &gStatus);
-
-  mndSetActiveCodeFromCfg(pDnodeInfo, &grantMsgRsp);
-#endif
+  char tbuf[40] = {0};
+  TRACE_TO_STR(&rpcMsg.info.traceId, tbuf);
+  uDebug("send grant status msg to dnode:%d %s:%" PRIu16 ", gtid:%s", pDnodeInfo->id, pDnodeInfo->ep.fqdn,
+         pDnodeInfo->ep.port, tbuf);
 
   return TSDB_CODE_SUCCESS;
 _err:
@@ -736,8 +715,10 @@ static int32_t dnodeInfoCmprFn(const void *p1, const void *p2) {
  */
 static int32_t mndProcessGrantRsp(SRpcMsg *pRsp) {
   int32_t code = 0;
+  char    tbuf[40] = {0};
+  TRACE_TO_STR(&pRsp->info.traceId, tbuf);
 
-  ++grantHandle.nGrantRsp;
+  int32_t nGrantRsp = atomic_add_fetch_32(&grantHandle.nGrantRsp, 1);
 
   if (!pRsp->pCont || pRsp->contLen <= 0 || pRsp->code != 0) {
     code = pRsp->code != 0 ? pRsp->code : TSDB_CODE_INVALID_MSG_LEN;
@@ -756,14 +737,19 @@ static int32_t mndProcessGrantRsp(SRpcMsg *pRsp) {
   ASSERTS(pDnodeInfo, "pDnodeInfo is NULL for %d", grantMsgRsp.dnodeId);
 
   if (pDnodeInfo) {
-    uDebug("succeed to receive grant msg from dnode:%d, %s:%" PRIu16 ", nReq:%d, nRsp:%d", grantMsgRsp.dnodeId,
-           pDnodeInfo->ep.fqdn, pDnodeInfo->ep.port, grantHandle.nGrantReq, grantHandle.nGrantRsp);
+    uDebug("succeed to receive grant msg from dnode:%d, %s:%" PRIu16 ", nReq:%d, nRsp:%d, gtid:%s", grantMsgRsp.dnodeId,
+           pDnodeInfo->ep.fqdn, pDnodeInfo->ep.port, grantHandle.nGrantReq, nGrantRsp, tbuf);
     mndProcessDnodeSGrantMsg(grantHandle.pMnode, pDnodeInfo, &grantMsgRsp, &gStatus);
     mndSetActiveCodeFromCfg(pDnodeInfo, &grantMsgRsp);
   }
 
 _exit:
-  if (grantHandle.nGrantRsp >= grantHandle.nGrantReq) {
+  if (code != 0) {
+    uWarn("receive grant msg from dnode:%d, %s:%" PRIu16 ", nReq:%d, nRsp:%d with error:%s, gtid:%s",
+          grantMsgRsp.dnodeId, pDnodeInfo->ep.fqdn, pDnodeInfo->ep.port, grantHandle.nGrantReq, nGrantRsp,
+          tstrerror(code), tbuf);
+  }
+  if (nGrantRsp >= grantHandle.nGrantReq) {
     mndProcessGrantStatusCheck();
   }
   return code;
@@ -796,8 +782,12 @@ static void grantCheckClusterInfo(SMnode *pMnode) {
 static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
   if (0 != atomic_val_compare_exchange_8(&grantHbLock, 0, 1)) {
     uWarn("previous grant task not finished yet");
-    atomic_val_compare_exchange_8(&grantHbLock, 1, 2);
-    return 0;
+    // in case grant rsp not received for a long time
+    if (taosGetTimestampMs() / 1000 - *grantHandle.lastCheck < 20) {
+      atomic_val_compare_exchange_8(&grantHbLock, 1, 2);
+      return 0;
+    }
+    atomic_store_8(&grantHbLock, 1);
   }
 
   SMnode *pMnode = pReq->info.node;
