@@ -1,5 +1,3 @@
-#[cfg(not(target_os = "windows"))]
-use std::path::Path;
 use std::{
     any::Any,
     collections::HashMap,
