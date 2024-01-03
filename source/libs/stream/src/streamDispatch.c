@@ -546,7 +546,9 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
   } else {
     char ctbName[TSDB_TABLE_FNAME_LEN] = {0};
     if (pDataBlock->info.parTbName[0]) {
-      if(pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER && !isAutoTableName(pDataBlock->info.parTbName)){
+      if(pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER &&
+          !isAutoTableName(pDataBlock->info.parTbName) &&
+          !alreadyAddGroupId(pDataBlock->info.parTbName)){
         buildCtbNameAddGruopId(pDataBlock->info.parTbName, groupId);
       }
     } else {

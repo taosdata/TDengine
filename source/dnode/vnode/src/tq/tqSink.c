@@ -175,7 +175,9 @@ SArray* createDefaultTagColName() {
 void setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* pDataBlock, const char* stbFullName,
                                 int64_t gid, bool newSubTableRule) {
   if (pDataBlock->info.parTbName[0]) {
-    if(newSubTableRule && !isAutoTableName(pDataBlock->info.parTbName)) {
+    if(newSubTableRule &&
+        !isAutoTableName(pDataBlock->info.parTbName) &&
+        !alreadyAddGroupId(pDataBlock->info.parTbName)) {
       pCreateTableReq->name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
       strcpy(pCreateTableReq->name, pDataBlock->info.parTbName);
       buildCtbNameAddGruopId(pCreateTableReq->name, gid);
@@ -656,7 +658,9 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
       memset(dstTableName, 0, TSDB_TABLE_NAME_LEN);
       buildCtbNameByGroupIdImpl(stbFullName, groupId, dstTableName);
     }else{
-      if(pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER && !isAutoTableName(dstTableName)) {
+      if(pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER &&
+          !isAutoTableName(dstTableName) &&
+          !alreadyAddGroupId(dstTableName)) {
         buildCtbNameAddGruopId(dstTableName, groupId);
       }
     }

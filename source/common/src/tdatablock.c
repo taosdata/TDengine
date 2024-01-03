@@ -2120,13 +2120,25 @@ _end:
 
 void  buildCtbNameAddGruopId(char* ctbName, uint64_t groupId){
   char tmp[TSDB_TABLE_NAME_LEN] = {0};
-  snprintf(tmp, TSDB_TABLE_NAME_LEN, "-%"PRIu64, groupId);
+  snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%"PRIu64, groupId);
   ctbName[TSDB_TABLE_NAME_LEN - strlen(tmp) - 1] = 0;  // put groupId to the end
   strcat(ctbName, tmp);
 }
 
 bool  isAutoTableName(char* ctbName){
   return (strlen(ctbName) == 34 && ctbName[0] == 't' && ctbName[1] == '_');
+}
+
+bool  alreadyAddGroupId(char* ctbName){
+  size_t len = strlen(ctbName);
+  size_t _location = len - 1;
+  for(; _location >= 0; _location--){
+    if(ctbName[_location] < '0' && ctbName[_location] > '9'){
+      break;
+    }
+  }
+
+  return ctbName[_location] == '_' && _location < len -1;
 }
 
 char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
