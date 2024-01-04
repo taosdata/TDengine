@@ -188,7 +188,13 @@ int rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   return transSetDefaultAddr(thandle, ip, fqdn);
 }
 
-void* rpcAllocHandle() { return (void*)transAllocHandle(); }
+void*   rpcAllocHandle() { return (void*)transAllocHandle(); }
+int32_t rpcCvtErrCode(int32_t code) {
+  if (code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    return TSDB_CODE_RPC_NETWORK_ERROR;
+  }
+  return code;
+}
 
 int32_t rpcInit() {
   transInit();
