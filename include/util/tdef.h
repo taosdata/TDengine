@@ -260,7 +260,7 @@ typedef enum ELogicConditionType {
 #define TSDB_PASSWORD_LEN      32
 #define TSDB_USET_PASSWORD_LEN 129
 #define TSDB_VERSION_LEN       32
-#define TSDB_LABEL_LEN         12 
+#define TSDB_LABEL_LEN         12
 #define TSDB_JOB_STATUS_LEN    32
 
 #define TSDB_CLUSTER_ID_LEN       40
@@ -272,6 +272,7 @@ typedef enum ELogicConditionType {
 #define TSDB_SHOW_SCHEMA_JSON_LEN TSDB_MAX_COLUMNS * 256
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 #define TSDB_SHOW_SUBQUERY_LEN    1000
+#define TSDB_LOG_VAR_LEN          32
 
 #define TSDB_TRANS_STAGE_LEN 12
 #define TSDB_TRANS_TYPE_LEN  16
@@ -502,6 +503,10 @@ typedef struct {
   int32_t level;
   int32_t primary;
 } SDiskCfg;
+
+typedef struct {
+  char name[TSDB_LOG_VAR_LEN];
+} SLogVar;
 
 #define TMQ_SEPARATOR ':'
 
