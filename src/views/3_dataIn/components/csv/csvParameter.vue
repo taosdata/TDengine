@@ -55,13 +55,13 @@ export default {
         isValid: false,
       },
       
-      customcolrule: [
-        {
-          required: true,
-          trigger: "blur",
-          message: this.$t("datasource.customcol"),
-        },
-      ],
+      // customcolrule: [
+      //   {
+      //     required: true,
+      //     trigger: "blur",
+      //     message: this.$t("datasource.customcol"),
+      //   },
+      // ],
       tableName: [
         {
           required: true,
@@ -77,13 +77,6 @@ export default {
         },
       ],
       rules: {
-        // dbName: [
-        //   {
-        //     required: true,
-        //     trigger: "change",
-        //     message: this.$t("datasource.nametip"),
-        //   },
-        // ],
         subname: [
           {
             required: true,
@@ -109,6 +102,15 @@ export default {
       ],
     };
   },
+  computed:{
+    customcolrule(){
+      return {
+        required: true,
+          trigger: "blur",
+          message: this.$t("datasource.customcol"),
+      }
+    }
+  },
   watch: {
     "$store.state.app.showcsvStable": {
       deep: true,
@@ -122,7 +124,16 @@ export default {
           this.getDatabases()
         }
       }
-    }
+    },
+    "$i18n.locale": {
+      deep: true,
+      handler(val) {
+        this.$nextTick(()=>{
+          this.$refs.ruleForm.clearValidate();
+        })
+        
+      },
+    },
   },
   mounted() {
     if (this.isEditable) {

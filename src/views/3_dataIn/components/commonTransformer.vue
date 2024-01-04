@@ -415,15 +415,7 @@ export default {
       subrule: {
         subname: "",
       },
-      subnameRule: {
-        subname: [
-          {
-            required: true,
-            trigger: "blur",
-            message: this.$t("datasource.transformer.tablenametip"),
-          },
-        ],
-      },
+
       activeName: "first",
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
@@ -498,15 +490,15 @@ export default {
       sruleForm: {
         s_name: "",
       },
-      srules: {
-        s_name: [
-          {
-            required: true,
-            trigger: "change",
-            message: this.$t("datasource.transformer.st_input"),
-          },
-        ],
-      },
+      // srules: {
+      //   s_name: [
+      //     {
+      //       required: true,
+      //       trigger: "change",
+      //       message: this.$t("datasource.transformer.st_input"),
+      //     },
+      //   ],
+      // },
       uploadData: {
         req_id: new Date().getTime(),
       },
@@ -542,6 +534,30 @@ export default {
       currentCol: "",
       mappingParser: {},
     };
+  },
+  computed: {
+    srules() {
+      return {
+        s_name: [
+          {
+            required: true,
+            trigger: "change",
+            message: this.$t("datasource.transformer.st_input"),
+          },
+        ],
+      };
+    },
+    subnameRule() {
+      return {
+        subname: [
+          {
+            required: true,
+            trigger: "blur",
+            message: this.$t("datasource.transformer.tablenametip"),
+          },
+        ],
+      };
+    },
   },
   mounted() {
     if (this.parserColumns) {
@@ -1000,6 +1016,7 @@ export default {
     async caculateMappingResult() {
       if (!this.validateTransform()) {
         this.isbreak = true;
+        console.log(this.isbreak,'this.isbreak');
         return;
       }
       if (!this.validateSubName()) {
@@ -1178,7 +1195,7 @@ export default {
         },
       };
       this.$store.commit("app/SET_TRANS_FULL_PARAMS", parserData);
-      this.$emit("getTransformerParams", parserData);
+      // this.$emit("getTransformerParams", parserData);
     },
     changeColumnStatus(index, name) {
       //选中的列不能再选中
@@ -1644,6 +1661,15 @@ export default {
     },
   },
   watch: {
+    "$i18n.locale": {
+      deep: true,
+      handler(val) {
+        this.$nextTick(() => {
+          this.$refs.sruleForm.clearValidate();
+          if (this.$refs.subtb) this.$refs.subtb[0]?.clearValidate();
+        });
+      },
+    },
     joinwith: {
       deep: true,
       handler(val) {
