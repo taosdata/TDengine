@@ -335,7 +335,7 @@ multi_create_clause(A) ::= multi_create_clause(B) create_subtable_clause(C).    
 
 create_subtable_clause(A) ::=
   not_exists_opt(B) full_table_name(C) USING full_table_name(D)
-  specific_cols_opt(E) TAGS NK_LP expression_list(F) NK_RP table_options(G).      { A = createCreateSubTableClause(pCxt, B, C, D, E, F, G); }
+  specific_cols_opt(E) TAGS NK_LP tags_literal_list(F) NK_RP table_options(G).    { A = createCreateSubTableClause(pCxt, B, C, D, E, F, G); }
 
 %type multi_drop_clause                                                           { SNodeList* }
 %destructor multi_drop_clause                                                     { nodesDestroyList($$); }
@@ -676,6 +676,38 @@ cmd ::= insert_query(A).                                                        
 insert_query(A) ::= INSERT INTO full_table_name(D) 
   NK_LP col_name_list(B) NK_RP query_or_subquery(C).                              { A = createInsertStmt(pCxt, D, B, C); }
 insert_query(A) ::= INSERT INTO full_table_name(C) query_or_subquery(B).          { A = createInsertStmt(pCxt, C, NULL, B); }
+
+/************************************************ tags_literal *************************************************************/
+tags_literal(A) ::= NK_INTEGER(B).                                                { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B)); }
+tags_literal(A) ::= NK_PLUS(B) NK_INTEGER(C).                                     { 
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &t)); 
+                                                                                  }
+tags_literal(A) ::= NK_MINUS(B) NK_INTEGER(C).                                    { 
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &t)); 
+                                                                                  }
+tags_literal(A) ::= NK_FLOAT(B).                                                  { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &B)); }
+tags_literal(A) ::= NK_PLUS(B) NK_FLOAT(C).                                       { 
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &t)); 
+                                                                                  }
+tags_literal(A) ::= NK_MINUS(B) NK_FLOAT(C).                                      { 
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &t)); 
+                                                                                  }
+tags_literal(A) ::= NK_STRING(B).                                                 { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B)); }
+tags_literal(A) ::= NK_BOOL(B).                                                   { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_BOOL, &B)); }
+tags_literal(A) ::= NULL(B).                                                      { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_NULL, &B)); }
+
+%type tags_literal_list                                                           { SNodeList* }
+%destructor tags_literal_list                                                     { nodesDestroyList($$); }
+tags_literal_list(A) ::= tags_literal(B).                                         { A = createNodeList(pCxt, B); }
+tags_literal_list(A) ::= tags_literal_list(B) NK_COMMA tags_literal(C).           { A = addNodeToList(pCxt, B, C); }
 
 /************************************************ literal *************************************************************/
 literal(A) ::= NK_INTEGER(B).                                                     { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B)); }

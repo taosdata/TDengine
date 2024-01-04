@@ -456,9 +456,9 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BOOL: {
       if ((pToken->type == TK_NK_BOOL || pToken->type == TK_NK_STRING) && (pToken->n != 0)) {
-        if (strncmp(pToken->z, "true", pToken->n) == 0) {
+        if (strncasecmp(pToken->z, "true", pToken->n) == 0) {
           *(int8_t*)(&val->i64) = TRUE_VALUE;
-        } else if (strncmp(pToken->z, "false", pToken->n) == 0) {
+        } else if (strncasecmp(pToken->z, "false", pToken->n) == 0) {
           *(int8_t*)(&val->i64) = FALSE_VALUE;
         } else {
           return buildSyntaxErrMsg(pMsgBuf, "invalid bool data", pToken->z);
@@ -1382,9 +1382,9 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BOOL: {
       if ((pToken->type == TK_NK_BOOL || pToken->type == TK_NK_STRING) && (pToken->n != 0)) {
-        if (strncmp(pToken->z, "true", pToken->n) == 0) {
+        if (strncasecmp(pToken->z, "true", pToken->n) == 0) {
           pVal->value.val = TRUE_VALUE;
-        } else if (strncmp(pToken->z, "false", pToken->n) == 0) {
+        } else if (strncasecmp(pToken->z, "false", pToken->n) == 0) {
           pVal->value.val = FALSE_VALUE;
         } else {
           return buildSyntaxErrMsg(&pCxt->msg, "invalid bool data", pToken->z);
