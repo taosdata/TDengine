@@ -231,7 +231,12 @@ pub async fn influxdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     let c = ConnectionConfig::from_dsn(&dsn)?;
     // 连接器路径
     let path = influxdb_jar_path()?;
-
+    // get the version of jdk
+    let _ = tokio::process::Command::new("java")
+        .arg("-version")
+        .output()
+        .await
+        .context("Get JDK version error")?;
     // startup the connector
     let mut command = tokio::process::Command::new("java");
     // 查询命令
@@ -329,7 +334,12 @@ async fn validate_source_influxdb(
 ) -> anyhow::Result<DataSourceValidation> {
     // 连接器路径
     let connector_path = influxdb_jar_path()?;
-
+    // get the version of jdk
+    let _ = tokio::process::Command::new("java")
+        .arg("-version")
+        .output()
+        .await
+        .context("Get JDK version error")?;
     // startup the connector
     let mut command = tokio::process::Command::new("java");
     // 查询命令

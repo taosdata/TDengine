@@ -245,6 +245,12 @@ pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
         Ok(c) => {
             // 连接器路径
             let connector_path = opentsdb_jar_path()?;
+            // get the version of jdk
+            let _ = tokio::process::Command::new("java")
+                .arg("-version")
+                .output()
+                .await
+                .context("Get JDK version error")?;
             // startup the connector
             let mut command = tokio::process::Command::new("java");
             // 查询命令
@@ -324,6 +330,12 @@ async fn validate_source_opentsdb(
 ) -> anyhow::Result<DataSourceValidation> {
     // 连接器路径
     let connector_path = opentsdb_jar_path()?;
+    // get the version of jdk
+    let _ = tokio::process::Command::new("java")
+        .arg("-version")
+        .output()
+        .await
+        .context("Get JDK version error")?;
     // startup the connector
     let mut command = tokio::process::Command::new("java");
     // 查询命令
