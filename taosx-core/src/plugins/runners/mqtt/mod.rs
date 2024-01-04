@@ -114,7 +114,7 @@ pub async fn mqtt_to_taos(
         with_agent,
         transferred,
         span,
-        None,
+        task_id.clone(),
         notify,
     )
     .await?;

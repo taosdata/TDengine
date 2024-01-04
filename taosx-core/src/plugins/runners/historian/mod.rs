@@ -65,7 +65,11 @@ pub async fn historian_to_taos(
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let mut config = TaskConfig::from_dsn(&from)?;
-    tracing::info!("{AVEVA_HISTORIAN_NAME} task configuration: {:?}", config);
+    tracing::info!(
+        "{AVEVA_HISTORIAN_NAME} task start, id: {}, configuration: {:?}",
+        task_id.unwrap_or(-1),
+        config
+    );
 
     let port = port_pool
         .get()
@@ -83,7 +87,7 @@ pub async fn historian_to_taos(
         with_agent,
         transferred,
         span,
-        None,
+        task_id.clone(),
         notify,
     )
     .await?;
@@ -128,14 +132,14 @@ pub async fn historian_to_taos(
                 }
             },
             _ = cancel.cancelled() => {
-                tracing::info!("{AVEVA_HISTORIAN_NAME} task cancelled");
+                tracing::info!("{AVEVA_HISTORIAN_NAME} task cancelled, id: {}", task_id.unwrap_or(-1));
                 abort_handle.abort();
             }
         }
         // send an empty tuple
         let _ = ipc.send(());
         // stop the connector
-        tracing::info!("{AVEVA_HISTORIAN_NAME} task done");
+        tracing::info!("{AVEVA_HISTORIAN_NAME} task done, id: {}", task_id.unwrap_or(-1));
         ipc.close().await?;
         // put ipc port back to port pool.
         port_pool.put(port).await;
