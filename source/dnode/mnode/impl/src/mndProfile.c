@@ -833,7 +833,7 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->subPlanNum, false);
 
     char    subStatus[TSDB_SHOW_SUBQUERY_LEN] = {0};
-    int32_t reserve = 24;
+    int32_t reserve = 48 + 1;
     int32_t strSize = sizeof(subStatus);
     int32_t offset = VARSTR_HEADER_SIZE;
     for (int32_t i = 0; i < pQuery->subPlanNum && offset + reserve < strSize; ++i) {
