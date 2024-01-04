@@ -165,7 +165,7 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting server at {addr}:{port}");
 
-    let server = if args.ssl.enable.unwrap_or_default() {
+    let server = if args.ssl.certificate.is_some() && args.ssl.certificate_key.is_some() {
         let cert_file =
             File::open(args.ssl.certificate.unwrap()).expect("Failed to open certificate file");
         let cert_key_file =
@@ -188,24 +188,28 @@ async fn main() -> anyhow::Result<()> {
             .with_single_cert(cert, cert_key)
             .expect("bad certificate/key");
 
+        let server = server
+            .bind_rustls((addr, port), config.clone())
+            .with_context(|| format!("Bind address {addr}:{port} error"))?;
+
         if let Some(ipv6) = args.ipv6.as_deref() {
             server
-                .bind_rustls((ipv6, port), config)
+                .bind_rustls((ipv6, port), config.clone())
                 .with_context(|| format!("Bind IPv6 address [{ipv6}]:{port} error"))?
         } else {
             server
-                .bind_rustls((addr, port), config)
-                .with_context(|| format!("Bind address {addr}:{port} error"))?
         }
     } else {
+        let server = server
+            .bind((addr, port))
+            .with_context(|| format!("Bind address {addr}:{port} error"))?;
+
         if let Some(ipv6) = args.ipv6.as_deref() {
             server
                 .bind((ipv6, port))
                 .with_context(|| format!("Bind IPv6 address [{ipv6}]:{port} error"))?
         } else {
             server
-                .bind((addr, port))
-                .with_context(|| format!("Bind address {addr}:{port} error"))?
         }
     };
 
@@ -596,13 +600,12 @@ struct Args {
 #[derive(Parser, Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(default)]
 struct Ssl {
-    #[clap(skip)]
-    enable: Option<bool>,
-
-    #[clap(skip)]
+    /// SSL certificate
+    #[clap(long, global = true, env = "CERTIFICATE")]
     certificate: Option<String>,
 
-    #[clap(skip)]
+    /// SSL certificate key
+    #[clap(long, global = true, env = "CERTIFICATE_KEY")]
     certificate_key: Option<String>,
 }
 
