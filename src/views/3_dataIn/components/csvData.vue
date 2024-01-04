@@ -59,7 +59,6 @@
             >
             <CommonTransformer
               ref="transform"
-              @getTransformerParams="getTransformerParams"
               :parserColumns="extractArr"
               v-if="showTransformer"
             ></CommonTransformer>
@@ -174,20 +173,20 @@ export default {
   },
   methods: {
     submitUrl() {
-      let flag=false
+      let flag = false;
       this.$refs.fileform.validate((valid) => {
         if (valid) {
-          flag=true;
+          flag = true;
         } else {
-          flag= false;
+          flag = false;
         }
       });
-      return flag
+      return flag;
     },
     //获取transformer的参数
-    getTransformerParams(data) {
-      this.transformerParser = data;
-    },
+    // getTransformerParams(data) {
+    //   this.transformerParser = data;
+    // },
     handleRemove(file, filelist) {
       this.fileList = filelist;
     },
@@ -267,28 +266,42 @@ export default {
       this.$store.commit("app/SET_CSV_FILES", this.fileList);
     },
     submitUpload() {
+      console.log(this.showTransformer,'验证');
+      let isbreak=true
       if (this.activeName == "first") {
         if (this.fileList.length == 0) {
           this.showfiletip = true;
-          return false;
+          isbreak=false;
         }
       } else {
-       return this.submitUrl();
+        isbreak=this.submitUrl();
       }
 
-      if (this.$refs.param.showcustom) {
-        return this.submitUrl();
+      if (!this.$refs.param.ruleForm.hasHeader) {
+        this.$refs.param.submit();
+        if (!this.$refs.param.isValid) {
+          isbreak=false;
+        }
       }
-
-      if (!this.$refs.param.submit()) {
-        return false;
+      if(!isbreak){
+        return isbreak
       }
       if (!this.showTransformer) {
-        Message.warning(this.$t("datasource.transformer.nexttip"));
-        return false;
+        Message.closeAll();
+        Message({
+          type: "warning",
+          message: this.$t("datasource.transformer.nexttip"),
+        });
+
+        // Message.warning(this.$t("datasource.transformer.nexttip"));
+        isbreak= false;
       } else {
-        return this.$refs.transform.getTransformerParams();
+        this.$nextTick(() => {
+          this.$refs.transform.getTransformerParams();
+          if (this.$refs.transform.isbreak) isbreak= false;
+        });
       }
+      return isbreak
     },
 
     async getCsvColumnsData() {
@@ -301,13 +314,10 @@ export default {
         if (this.activeName == "second" && !this.fileForm.fileurl) {
           return;
         }
-
-        if (!this.$refs.param.submit()) {
-          return;
-        }
+        this.$refs.param.submit();
+        if(!this.$refs.param.isValid)return 
         this.showTransformer = false;
         this.$store.commit("app/SET_CSV_TRANSFORMER_PARSER", null);
-        this.$refs.param.submit();
 
         if (this.isEditable) {
           this.$parent.$parent.isEditable = false;
@@ -369,10 +379,11 @@ export default {
 
         this.formatCsvTransformerData(this.csvColumns, this.sample_values);
         this.showConfig = true;
+
+        this.submitUpload();
       } catch (error) {
         error && error.message && Message.error(error.message);
       }
-      this.$refs.upload.submit();
     },
     //组合CSV的transfomrer页面需要的数据
     formatCsvTransformerData(columns, values) {
@@ -467,6 +478,17 @@ export default {
       }
     },
   },
+  watch:{
+    "$i18n.locale": {
+      deep: true,
+      handler(val) {
+        this.$nextTick(()=>{
+          this.showfiletip=false
+        })
+        
+      },
+    },
+  }
 };
 </script>
 <style lang="scss" scoped>

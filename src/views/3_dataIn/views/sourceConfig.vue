@@ -433,7 +433,8 @@ export default {
       this.$refs.form.validate(async (valid) => {
         if (valid) {
           if (this.sourceForm.type == "csv") {
-            if (!this.$refs.csvdata.submitUpload()) return;
+            let flag=this.$refs.csvdata.submitUpload()
+            if(!flag)return
           }
           const dsn = getDsnData(this.sourceForm.data, this.currentDefinition);
           const type = this.sourceForm.type;
@@ -454,13 +455,11 @@ export default {
             params["via"] = this.sourceForm.agent;
           }
           if (this.sourceForm.type == "csv") {
-            if (!this.$refs.csvdata.submitUpload()) return;
-
             await this.$refs.csvdata.$refs.transform.getTransformerParams();
+            if (this.$refs.csvdata.$refs.transform.isbreak) return;
             params.parser = this.$store.state.app.transformerfullparams;
           }
           if (this.sourceForm.data.parser) {
-            console.log('mqtt和kafka');
             await this.$refs.configform.$refs.transform[0].getTransformerParams();
             if (this.$refs.configform.$refs.transform[0].isbreak) return;
             params.parser = this.$store.state.app.transformerfullparams;
