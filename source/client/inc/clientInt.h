@@ -205,7 +205,7 @@ typedef struct SRequestSendRecvBody {
   __taos_async_fn_t queryFp;
   __taos_async_fn_t fetchFp;
   EQueryExecMode    execMode;
-  void*             param;
+  void*             interParam;
   SDataBuf          requestMsg;
   int64_t           queryJob;  // query job, created according to sql query DAG.
   int32_t           subplanNum;
@@ -273,6 +273,7 @@ typedef struct SRequestObj {
   bool                 killed;
   bool                 inRetry;
   bool                 isSubReq;
+  bool                 inCallback;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
   int64_t              allocatorRefId;
@@ -287,6 +288,7 @@ typedef struct SRequestObj {
 typedef struct SSyncQueryParam {
   tsem_t       sem;
   SRequestObj* pRequest;
+  void*        userParam;
 } SSyncQueryParam;
 
 void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
@@ -422,6 +424,7 @@ int32_t buildPreviousRequest(SRequestObj *pRequest, const char* sql, SRequestObj
 int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *pRequest, bool updateMetaForce);
 void    returnToUser(SRequestObj* pRequest);
 void    stopAllQueries(SRequestObj *pRequest);
+void    doRequestCallback(SRequestObj* pRequest, int32_t code);
 void    freeQueryParam(SSyncQueryParam* param);
 
 #ifdef TD_ENTERPRISE

@@ -168,10 +168,10 @@ typedef struct {
   struct SStreamFileState *pFileState;
   int32_t                  number;
   SSHashObj               *parNameMap;
-  int64_t                  checkPointId;
   int32_t                  taskId;
   int64_t                  streamId;
   int64_t                  streamBackendRid;
+  int8_t                   dump;
 } SStreamState;
 
 typedef struct SFunctionStateStore {
@@ -237,9 +237,9 @@ struct SScalarParam {
   int32_t          numOfQualified;  // number of qualified elements in the final results
 };
 
-void cleanupResultRowEntry(struct SResultRowEntryInfo *pCell);
-bool isRowEntryCompleted(struct SResultRowEntryInfo *pEntry);
-bool isRowEntryInitialized(struct SResultRowEntryInfo *pEntry);
+#define cleanupResultRowEntry(p)  p->initialized = false
+#define isRowEntryCompleted(p)   (p->complete)
+#define isRowEntryInitialized(p) (p->initialized)
 
 typedef struct SPoint {
   int64_t key;

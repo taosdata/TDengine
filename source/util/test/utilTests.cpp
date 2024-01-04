@@ -76,6 +76,16 @@ TEST(utilTest, wchar_pattern_match_test) {
   const TdWchar* str12 = L"";
   ret = wcsPatternMatch(reinterpret_cast<const TdUcs4*>(pattern12), 4, reinterpret_cast<const TdUcs4*>(str12), 0, &pInfo);
   ASSERT_EQ(ret, TSDB_PATTERN_NOMATCH);
+
+  const TdWchar* pattern13 = L"%\\_6 ";
+  const TdWchar* str13 = L"6a6 ";
+  ret = wcsPatternMatch(reinterpret_cast<const TdUcs4*>(pattern13), 6, reinterpret_cast<const TdUcs4*>(str13), 4, &pInfo);
+  ASSERT_EQ(ret, TSDB_PATTERN_NOWILDCARDMATCH);
+
+  const TdWchar* pattern14 = L"%\\%6 ";
+  const TdWchar* str14 = L"6a6 ";
+  ret = wcsPatternMatch(reinterpret_cast<const TdUcs4*>(pattern14), 6, reinterpret_cast<const TdUcs4*>(str14), 4, &pInfo);
+  ASSERT_EQ(ret, TSDB_PATTERN_NOWILDCARDMATCH);
 }
 
 TEST(utilTest, wchar_pattern_match_no_terminated) {
@@ -126,14 +136,24 @@ TEST(utilTest, wchar_pattern_match_no_terminated) {
   ret = wcsPatternMatch(reinterpret_cast<const TdUcs4*>(pattern8), 8, reinterpret_cast<const TdUcs4*>(str8), 6, &pInfo);
   ASSERT_EQ(ret, TSDB_PATTERN_NOWILDCARDMATCH);
 
-  const TdWchar* pattern9 = L"6\\_6  ";
+  const TdWchar* pattern9 = L"6\\_6 ";
   const TdWchar* str9 = L"6_6 ";
-  ret = wcsPatternMatch(reinterpret_cast<const TdUcs4*>(pattern9), 4, reinterpret_cast<const TdUcs4*>(str9), 3, &pInfo);
+  ret = wcsPatternMatch(reinterpret_cast<const TdUcs4*>(pattern9), 6, reinterpret_cast<const TdUcs4*>(str9), 4, &pInfo);
   ASSERT_EQ(ret, TSDB_PATTERN_MATCH);
 
   const TdWchar* pattern10 = L"% ";
   const TdWchar* str10 = L"6_6 ";
-  ret = wcsPatternMatch(reinterpret_cast<const TdUcs4*>(pattern10), 1, reinterpret_cast<const TdUcs4*>(str10), 3, &pInfo);
+  ret = wcsPatternMatch(reinterpret_cast<const TdUcs4*>(pattern10), 2, reinterpret_cast<const TdUcs4*>(str10), 4, &pInfo);
+  ASSERT_EQ(ret, TSDB_PATTERN_MATCH);
+
+  const TdWchar* pattern11 = L"%\\_6 ";
+  const TdWchar* str11 = L"6_6 ";
+  ret = wcsPatternMatch(reinterpret_cast<const TdUcs4*>(pattern11), 6, reinterpret_cast<const TdUcs4*>(str11), 4, &pInfo);
+  ASSERT_EQ(ret, TSDB_PATTERN_MATCH);
+
+  const TdWchar* pattern12 = L"%\\%6 ";
+  const TdWchar* str12 = L"6%6 ";
+  ret = wcsPatternMatch(reinterpret_cast<const TdUcs4*>(pattern12), 6, reinterpret_cast<const TdUcs4*>(str12), 4, &pInfo);
   ASSERT_EQ(ret, TSDB_PATTERN_MATCH);
 }
 
@@ -204,6 +224,41 @@ TEST(utilTest, char_pattern_match_test) {
   const char* str12 = NULL;
   ret = patternMatch(pattern12, 4, str12, 0, &pInfo);
   ASSERT_EQ(ret, TSDB_PATTERN_NOMATCH);
+
+  const char* pattern13 = "a\\%c";
+  const char* str13 = "a%c";
+  ret = patternMatch(pattern13, 5, str13, strlen(str13), &pInfo);
+  ASSERT_EQ(ret, TSDB_PATTERN_MATCH);
+
+  const char* pattern14 = "%a\\%c";
+  const char* str14 = "a%c";
+  ret = patternMatch(pattern14, strlen(pattern14), str14, strlen(str14), &pInfo);
+  ASSERT_EQ(ret, TSDB_PATTERN_MATCH);
+
+  const char* pattern15 = "_a\\%c";
+  const char* str15 = "ba%c";
+  ret = patternMatch(pattern15, strlen(pattern15), str15, strlen(str15), &pInfo);
+  ASSERT_EQ(ret, TSDB_PATTERN_MATCH);
+
+  const char* pattern16 = "_\\%c";
+  const char* str16 = "a%c";
+  ret = patternMatch(pattern16, strlen(pattern16), str16, strlen(str16), &pInfo);
+  ASSERT_EQ(ret, TSDB_PATTERN_MATCH);
+
+  const char* pattern17 = "_\\%c";
+  const char* str17 = "ba%c";
+  ret = patternMatch(pattern17, strlen(pattern17), str17, strlen(str17), &pInfo);
+  ASSERT_EQ(ret, TSDB_PATTERN_NOMATCH);
+
+  const char* pattern18 = "%\\%c";
+  const char* str18 = "abc";
+  ret = patternMatch(pattern18, strlen(pattern18), str18, strlen(str18), &pInfo);
+  ASSERT_EQ(ret, TSDB_PATTERN_NOWILDCARDMATCH);
+
+  const char* pattern19 = "%\\_c";
+  const char* str19 = "abc";
+  ret = patternMatch(pattern19, strlen(pattern19), str19, strlen(str19), &pInfo);
+  ASSERT_EQ(ret, TSDB_PATTERN_NOWILDCARDMATCH);
 }
 
 TEST(utilTest, char_pattern_match_no_terminated) {

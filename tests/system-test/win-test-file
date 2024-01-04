@@ -1,3 +1,12 @@
+python3 ./test.py -f 2-query/tbname_vgroup.py
+python3 ./test.py -f 2-query/stbJoin.py
+python3 ./test.py -f 2-query/stbJoin.py -Q 2
+python3 ./test.py -f 2-query/stbJoin.py -Q 3
+python3 ./test.py -f 2-query/stbJoin.py -Q 4
+python3 ./test.py -f 2-query/hint.py
+python3 ./test.py -f 2-query/hint.py -Q 2
+python3 ./test.py -f 2-query/hint.py -Q 3
+python3 ./test.py -f 2-query/hint.py -Q 4
 python3 ./test.py -f 2-query/nestedQuery.py
 python3 ./test.py -f 2-query/nestedQuery_str.py
 python3 ./test.py -f 2-query/nestedQuery_math.py
@@ -18,7 +27,30 @@ python3 ./test.py -f 2-query/nestedQuery_math.py -Q 4
 python3 ./test.py -f 2-query/nestedQuery_time.py -Q 4
 python3 ./test.py -f 2-query/nestedQuery_26.py -Q 4
 python3 ./test.py -f 2-query/interval_limit_opt.py -Q 4
+python3 ./test.py -f 2-query/interval_unit.py
+python3 ./test.py -f 2-query/interval_unit.py -Q 2
+python3 ./test.py -f 2-query/interval_unit.py -Q 3
+python3 ./test.py -f 2-query/interval_unit.py -Q 4
 python3 ./test.py -f 2-query/partition_by_col.py -Q 4
+python3 ./test.py -f 2-query/partition_by_col.py -Q 3
+python3 ./test.py -f 2-query/partition_by_col.py -Q 2
+python3 ./test.py -f 2-query/partition_by_col.py
+python3 ./test.py -f 2-query/partition_by_col_agg.py
+python3 ./test.py -f 2-query/partition_by_col_agg.py -Q 2
+python3 ./test.py -f 2-query/partition_by_col_agg.py -Q 3
+python3 ./test.py -f 2-query/partition_by_col_agg.py -Q 4
+python3 ./test.py -f 2-query/interval_limit_opt_2.py -Q 4
+python3 ./test.py -f 2-query/interval_limit_opt_2.py -Q 3
+python3 ./test.py -f 2-query/interval_limit_opt_2.py -Q 2
+python3 ./test.py -f 2-query/interval_limit_opt_2.py
+python3 ./test.py -f 2-query/func_to_char_timestamp.py
+python3 ./test.py -f 2-query/func_to_char_timestamp.py -Q 2
+python3 ./test.py -f 2-query/func_to_char_timestamp.py -Q 3
+python3 ./test.py -f 2-query/func_to_char_timestamp.py -Q 4
+python3 ./test.py -f 2-query/last_cache_scan.py
+python3 ./test.py -f 2-query/last_cache_scan.py -Q 2
+python3 ./test.py -f 2-query/last_cache_scan.py -Q 3
+python3 ./test.py -f 2-query/last_cache_scan.py -Q 4
 python3 ./test.py -f 7-tmq/tmqShow.py
 python3 ./test.py -f 7-tmq/tmqDropStb.py
 python3 ./test.py -f 7-tmq/subscribeStb0.py
@@ -29,11 +61,13 @@ python3 ./test.py -f 7-tmq/subscribeDb0.py -N 3 -n 3
 python3 ./test.py -f 7-tmq/ins_topics_test.py
 python3 ./test.py -f 7-tmq/tmqMaxTopic.py
 python3 ./test.py -f 7-tmq/tmqParamsTest.py
+python3 ./test.py -f 7-tmq/tmqParamsTest.py -R
 python3 ./test.py -f 7-tmq/tmqClientConsLog.py
 python3 ./test.py -f 7-tmq/tmqMaxGroupIds.py
 python3 ./test.py -f 7-tmq/tmqConsumeDiscontinuousData.py
 python3 ./test.py -f 7-tmq/tmqOffset.py
 python3 ./test.py -f 7-tmq/tmqDropConsumer.py
+python3 ./test.py -f 1-insert/insert_stb.py
 python3 ./test.py -f 1-insert/delete_stable.py
 python3 ./test.py -f 2-query/out_of_order.py -Q 3
 python3 ./test.py -f 2-query/out_of_order.py
@@ -61,10 +95,18 @@ python3 ./test.py -f 2-query/slimit.py -R
 python3 ./test.py -f 2-query/slimit.py -Q 2
 python3 ./test.py -f 2-query/slimit.py -Q 3
 python3 ./test.py -f 2-query/slimit.py -Q 4
-python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3
-python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3
-python3 ./test.py -f 3-enterprise/restore/restoreMnode.py -N 5 -M 3
-python3 ./test.py -f 3-enterprise/restore/restoreQnode.py -N 5 -M 3
+python3 ./test.py -f 2-query/ts-4233.py
+python3 ./test.py -f 2-query/ts-4233.py -Q 2
+python3 ./test.py -f 2-query/ts-4233.py -Q 3
+python3 ./test.py -f 2-query/ts-4233.py -Q 4
+python3 ./test.py -f 2-query/like.py
+python3 ./test.py -f 2-query/like.py -Q 2
+python3 ./test.py -f 2-query/like.py -Q 3
+python3 ./test.py -f 2-query/like.py -Q 4
+python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3 -i False
+python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3 -i False
+python3 ./test.py -f 3-enterprise/restore/restoreMnode.py -N 5 -M 3 -i False
+python3 ./test.py -f 3-enterprise/restore/restoreQnode.py -N 5 -M 3 -i False
 python3 ./test.py -f 7-tmq/create_wrong_topic.py
 python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3
 python3 ./test.py -f 7-tmq/basic5.py
@@ -111,17 +153,32 @@ python3 ./test.py -f 7-tmq/tmqDropNtb-snapshot1.py
 python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py
 python3 ./test.py -f 7-tmq/dataFromTsdbNWal.py
 python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
-python3 ./test.py -f 7-tmq/tmq_taosx.py
+# python3 ./test.py -f 7-tmq/tmq_taosx.py
+python3 ./test.py -f 7-tmq/tmq_replay.py
+python3 ./test.py -f 7-tmq/tmqSeekAndCommit.py
+python3 ./test.py -f 7-tmq/tmq_offset.py
+python3 ./test.py -f 7-tmq/tmqDataPrecisionUnit.py
 python3 ./test.py -f 7-tmq/raw_block_interface_test.py
 python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 python3 ./test.py -f 7-tmq/tmqSubscribeStb-r3.py -N 5
-python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3
-python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3
+python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -i True
+python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 -i True
+python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 2 -n 1
+python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 6 -n 3
+python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select.py -N 2 -n 1
+python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-duplicatedata.py -N 3 -n 3
+python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-duplicatedata-false.py -N 3 -n 3
+python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select.py -N 3 -n 3
+python3 test.py -f 7-tmq/tmqVnodeSplit-stb.py -N 3 -n 3
+python3 test.py -f 7-tmq/tmqVnodeSplit-column.py -N 3 -n 3
+python3 test.py -f 7-tmq/tmqVnodeSplit-db.py -N 3 -n 3
+python3 test.py -f 7-tmq/tmqVnodeReplicate.py -M 3 -N 3 -n 3
 python3 ./test.py -f 99-TDcase/TD-19201.py
 python3 ./test.py -f 99-TDcase/TD-21561.py
 python3 ./test.py -f 99-TDcase/TS-3404.py
 python3 ./test.py -f 99-TDcase/TS-3581.py
 python3 ./test.py -f 99-TDcase/TS-3311.py
+python3 ./test.py -f 99-TDcase/TS-3821.py
 python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
 python3 ./test.py -f 0-others/taosShell.py
 python3 ./test.py -f 0-others/taosShellError.py
@@ -139,10 +196,21 @@ python3 ./test.py -f 0-others/user_privilege_show.py
 python3 ./test.py -f 0-others/user_privilege_all.py
 python3 ./test.py -f 0-others/fsync.py
 python3 ./test.py -f 0-others/multilevel.py
+python3 ./test.py -f 0-others/ttl.py
+python3 ./test.py -f 0-others/ttlChangeOnWrite.py
+python3 ./test.py -f 0-others/compress_tsz1.py
+python3 ./test.py -f 0-others/compress_tsz2.py
+python3 ./test.py -f 0-others/view/non_marterial_view/test_view.py
+python3 ./test.py -f 0-others/test_show_table_distributed.py
 python3 ./test.py -f 0-others/compatibility.py
 python3 ./test.py -f 0-others/tag_index_basic.py
 python3 ./test.py -N 3 -f 0-others/walRetention.py
+python3 ./test.py -f 0-others/splitVGroupRep1.py -N 3
+python3 ./test.py -f 0-others/splitVGroupRep3.py -N 3
 python3 ./test.py -f 0-others/timeRangeWise.py -N 3
+python3 ./test.py -f 0-others/delete_check.py
+python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
+python3 ./test.py -f 1-insert/insert_double.py
 python3 ./test.py -f 1-insert/alter_database.py
 python3 ./test.py -f 1-insert/alter_replica.py -N 3
 python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
@@ -190,6 +258,11 @@ python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 3
 python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 4
 python3 ./test.py -f 1-insert/precisionUS.py
 python3 ./test.py -f 1-insert/precisionNS.py
+python3 ./test.py -f 1-insert/test_ts4219.py
+python3 ./test.py -f 1-insert/ts-4272.py
+python3 ./test.py -f 1-insert/test_ts4295.py
+python3 ./test.py -f 1-insert/test_td27388.py
+python3 ./test.py -f 1-insert/insert_timestamp.py
 python3 ./test.py -f 0-others/show.py
 python3 ./test.py -f 0-others/show_tag_index.py
 python3 ./test.py -f 0-others/information_schema.py
@@ -325,6 +398,8 @@ python3 ./test.py -f 2-query/smaTest.py
 python3 ./test.py -f 2-query/smaTest.py -R
 python3 ./test.py -f 0-others/sma_index.py
 python3 ./test.py -f 2-query/sml_TS-3724.py
+python3 ./test.py -f 2-query/sml-TD19291.py
+python3 ./test.py -f 2-query/varbinary.py
 python3 ./test.py -f 2-query/sml.py
 python3 ./test.py -f 2-query/sml.py -R
 python3 ./test.py -f 2-query/spread.py
@@ -426,7 +501,6 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3 -n 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3
 python3 ./test.py -f 6-cluster/manually-test/6dnode3mnodeInsertLessDataAlterRep3to1to3.py -N 6 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeRoll.py -N 3 -C 1
 python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6
 python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6 -n 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeRecreateMnode.py -N 6 -M 3
@@ -731,7 +805,10 @@ python3 ./test.py -f 2-query/out_of_order.py -R
 python3 ./test.py -f 2-query/blockSMA.py -Q 4
 python3 ./test.py -f 2-query/projectionDesc.py -Q 4
 python3 ./test.py -f 2-query/odbc.py
+python3 ./test.py -f 2-query/fill_with_group.py
+python3 ./test.py -f 2-query/state_window.py -Q 3
 python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
 python3 ./test.py -f 99-TDcase/TD-20582.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/insertMix.py -N 3
 python3 ./test.py -f 5-taos-tools/taosbenchmark/stt.py -N 3
+python3 ./test.py -f eco-system/meta/database/keep_time_offset.py

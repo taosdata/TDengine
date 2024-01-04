@@ -552,6 +552,7 @@ static int32_t createLastRowScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSu
   if (NULL == pScan) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pScan->pTargets = nodesCloneList(pScanLogicNode->node.pTargets);
 
   pScan->pGroupTags = nodesCloneList(pScanLogicNode->pGroupTags);
   if (NULL != pScanLogicNode->pGroupTags && NULL == pScan->pGroupTags) {
@@ -621,6 +622,8 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->igExpired = pScanLogicNode->igExpired;
   pTableScan->igCheckUpdate = pScanLogicNode->igCheckUpdate;
   pTableScan->assignBlockUid = pCxt->pPlanCxt->rSmaQuery ? true : false;
+  pTableScan->filesetDelimited = pScanLogicNode->filesetDelimited;
+  pTableScan->needCountEmptyTable = pScanLogicNode->isCountByTag;
 
   int32_t code = createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1950,41 +1953,60 @@ static int32_t createExchangePhysiNodeByMerge(SMergePhysiNode* pMerge) {
   return nodesListMakeStrictAppend(&pMerge->node.pChildren, (SNode*)pExchange);
 }
 
-static int32_t createMergePhysiNode(SPhysiPlanContext* pCxt, SMergeLogicNode* pMergeLogicNode, SPhysiNode** pPhyNode) {
+static int32_t createMergePhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SMergeLogicNode* pMergeLogicNode, SPhysiNode** pPhyNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
   SMergePhysiNode* pMerge =
       (SMergePhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pMergeLogicNode, QUERY_NODE_PHYSICAL_PLAN_MERGE);
   if (NULL == pMerge) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  if (pMergeLogicNode->colsMerge) {
+    pMerge->type = MERGE_TYPE_COLUMNS;
+  } else if (pMergeLogicNode->needSort) {
+    pMerge->type = MERGE_TYPE_SORT;
+  } else {
+    pMerge->type = MERGE_TYPE_NON_SORT;
+  }
+  
   pMerge->numOfChannels = pMergeLogicNode->numOfChannels;
   pMerge->srcGroupId = pMergeLogicNode->srcGroupId;
   pMerge->groupSort = pMergeLogicNode->groupSort;
   pMerge->ignoreGroupId = pMergeLogicNode->ignoreGroupId;
   pMerge->inputWithGroupId = pMergeLogicNode->inputWithGroupId;
 
-  int32_t code = addDataBlockSlots(pCxt, pMergeLogicNode->pInputs, pMerge->node.pOutputDataBlockDesc);
+  if (!pMergeLogicNode->colsMerge) {
+    code = addDataBlockSlots(pCxt, pMergeLogicNode->pInputs, pMerge->node.pOutputDataBlockDesc);
 
-  if (TSDB_CODE_SUCCESS == code) {
-    for (int32_t i = 0; i < pMerge->numOfChannels; ++i) {
-      code = createExchangePhysiNodeByMerge(pMerge);
-      if (TSDB_CODE_SUCCESS != code) {
-        break;
+    if (TSDB_CODE_SUCCESS == code) {
+      for (int32_t i = 0; i < pMerge->numOfChannels; ++i) {
+        code = createExchangePhysiNodeByMerge(pMerge);
+        if (TSDB_CODE_SUCCESS != code) {
+          break;
+        }
       }
     }
-  }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pMergeLogicNode->pMergeKeys) {
-    code = setListSlotId(pCxt, pMerge->node.pOutputDataBlockDesc->dataBlockId, -1, pMergeLogicNode->pMergeKeys,
-                         &pMerge->pMergeKeys);
-  }
+    if (TSDB_CODE_SUCCESS == code && NULL != pMergeLogicNode->pMergeKeys) {
+      code = setListSlotId(pCxt, pMerge->node.pOutputDataBlockDesc->dataBlockId, -1, pMergeLogicNode->pMergeKeys,
+                           &pMerge->pMergeKeys);
+    }
 
-  if (TSDB_CODE_SUCCESS == code) {
-    code = setListSlotId(pCxt, pMerge->node.pOutputDataBlockDesc->dataBlockId, -1, pMergeLogicNode->node.pTargets,
-                         &pMerge->pTargets);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = addDataBlockSlots(pCxt, pMerge->pTargets, pMerge->node.pOutputDataBlockDesc);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = setListSlotId(pCxt, pMerge->node.pOutputDataBlockDesc->dataBlockId, -1, pMergeLogicNode->node.pTargets,
+                           &pMerge->pTargets);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = addDataBlockSlots(pCxt, pMerge->pTargets, pMerge->node.pOutputDataBlockDesc);
+    }
+  } else {
+    SDataBlockDescNode* pLeftDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc;
+    SDataBlockDescNode* pRightDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 1))->pOutputDataBlockDesc;
+
+    code = setListSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pMergeLogicNode->node.pTargets, &pMerge->pTargets);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = addDataBlockSlots(pCxt, pMerge->pTargets, pMerge->node.pOutputDataBlockDesc);
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -2022,7 +2044,7 @@ static int32_t doCreatePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       return createInterpFuncPhysiNode(pCxt, pChildren, (SInterpFuncLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_MERGE:
-      return createMergePhysiNode(pCxt, (SMergeLogicNode*)pLogicNode, pPhyNode);
+      return createMergePhysiNode(pCxt, pChildren, (SMergeLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       return createGroupCachePhysiNode(pCxt, pChildren, (SGroupCacheLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:

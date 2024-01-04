@@ -32,8 +32,10 @@ typedef int32_t (*__state_trans_fn)(SStreamTask*);
 typedef int32_t (*__state_trans_succ_fn)(SStreamTask*);
 
 typedef struct SAttachedEventInfo {
-  ETaskStatus      status;    // required status that this event can be handled
-  EStreamTaskEvent event;     // the delayed handled event
+  ETaskStatus      status;  // required status that this event can be handled
+  EStreamTaskEvent event;   // the delayed handled event
+  void*            pParam;
+  void*            pFn;
 } SAttachedEventInfo;
 
 typedef struct STaskStateTrans {
@@ -64,8 +66,8 @@ typedef struct SStreamEventInfo {
   const char*      name;
 } SStreamEventInfo;
 
-SStreamTaskSM* streamCreateStateMachine(SStreamTask* pTask);
-void* streamDestroyStateMachine(SStreamTaskSM* pSM);
+// SStreamTaskSM* streamCreateStateMachine(SStreamTask* pTask);
+// void* streamDestroyStateMachine(SStreamTaskSM* pSM);
 #ifdef __cplusplus
 }
 #endif

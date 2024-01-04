@@ -16,7 +16,11 @@ TDengine 提供的特色查询包括数据切分查询和时间窗口切分查�
 PARTITION BY part_list
 ```
 
-part_list 可以是任意的标量表达式，包括列、常量、标量函数和它们的组合。
+part_list 可以是任意的标量表达式，包括列、常量、标量函数和它们的组合。例如，将数据按标签 location 进行分组，取每个分组内的电压平均值：
+```sql
+select location, avg(voltage) from meters partition by location
+```
+
 
 TDengine 按如下方式处理数据切分子句：
 
@@ -25,9 +29,13 @@ TDengine 按如下方式处理数据切分子句：
 - 数据切分子句可以和窗口切分子句（或 GROUP BY 子句）一起使用，此时后面的子句作用在每个切分的分片上。例如，将数据按标签 location 进行分组，并对每个组按 10 分钟进行降采样，取其最大值。
 
 ```sql
-select max(current) from meters partition by location interval(10m)
+select _wstart, location, max(current) from meters partition by location interval(10m)
 ```
-数据切分子句最常见的用法就是在超级表查询中，按标签将子表数据进行切分，然后分别进行计算。特别是 PARTITION BY TBNAME 用法，它将每个子表的数据独立出来，形成一条条独立的时间序列，极大的方便了各种时序场景的统计分析。
+数据切分子句最常见的用法就是在超级表查询中，按标签将子表数据进行切分，然后分别进行计算。特别是 PARTITION BY TBNAME 用法，它将每个子表的数据独立出来，形成一条条独立的时间序列，极大的方便了各种时序场景的统计分析。例如，统计每个电表每 10 分钟内的电压平均值：
+```sql
+select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10m)
+```
+
 
 ## 窗口切分查询
 
@@ -44,7 +52,11 @@ window_clause: {
 }
 ```
 
-在上述语法中的具体限制如下
+其中，interval_val 和 sliding_val 都表示时间段, 语法上支持三种方式，举例说明如下:
+ - INTERVAL(1s, 500a) SLIDING(1s), 自带时间单位的形式，其中的时间单位是单字符表示, 分别为: a (毫秒), b (纳秒), d (天), h (小时), m (分钟), n (月), s (秒), u (微妙), w (周), y (年).
+ - INTERVAL(1000, 500) SLIDING(1000), 不带时间单位的形式，将使用查询库的时间精度作为默认时间单位，当存在多个库时默认采用精度更高的库.
+ - INTERVAL('1s', '500a') SLIDING('1s'), 自带时间单位的字符串形式，字符串内部不能有任何空格等其它字符.
+
 
 ### 窗口子句的规则
 

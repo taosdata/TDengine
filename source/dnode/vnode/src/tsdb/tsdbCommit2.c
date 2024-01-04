@@ -192,7 +192,7 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
       committer->ctx->tbid->uid = record->uid;
 
       if (metaGetInfo(committer->tsdb->pVnode->pMeta, record->uid, &info, NULL) != 0) {
-        code = tsdbIterMergerSkipTableData(committer->dataIterMerger, committer->ctx->tbid);
+        code = tsdbIterMergerSkipTableData(committer->tombIterMerger, committer->ctx->tbid);
         TSDB_CHECK_CODE(code, lino, _exit);
         continue;
       }
@@ -409,7 +409,6 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
   extern int32_t tsS3UploadDelaySec;
   long           s3Size(const char *object_name);
   int32_t        nlevel = tfsGetLevel(committer->tsdb->pVnode->pTfs);
-  committer->ctx->skipTsRow = false;
   if (tsS3Enabled && nlevel > 1 && committer->ctx->fset) {
     STFileObj *fobj = committer->ctx->fset->farr[TSDB_FTYPE_DATA];
     if (fobj && fobj->f->did.level == nlevel - 1) {
@@ -422,7 +421,7 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
         if (mtime < committer->ctx->now - tsS3UploadDelaySec) {
           committer->ctx->skipTsRow = true;
         }
-      } else if (s3Size(object_name) > 0) {
+      } else /*if (s3Size(object_name) > 0) */ {
         committer->ctx->skipTsRow = true;
       }
     }
@@ -436,7 +435,7 @@ _exit:
     tsdbDebug("vgId:%d %s done, fid:%d minKey:%" PRId64 " maxKey:%" PRId64 " expLevel:%d", TD_VID(tsdb->pVnode),
               __func__, committer->ctx->fid, committer->ctx->minKey, committer->ctx->maxKey, committer->ctx->expLevel);
   }
-  return 0;
+  return code;
 }
 
 static int32_t tsdbCommitFileSetEnd(SCommitter2 *committer) {

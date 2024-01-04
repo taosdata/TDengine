@@ -305,6 +305,10 @@ SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode) {
   return minMatchIndex;
 }
 
+static SyncIndex syncLogRetentionIndex(SSyncNode* pSyncNode, int64_t bytes) {
+  return pSyncNode->pLogStore->syncLogIndexRetention(pSyncNode->pLogStore, bytes);
+}
+
 int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
@@ -331,7 +335,6 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
   } else {
     // vnode
     if (pSyncNode->replicaNum > 1) {
-      // multi replicas
       logRetention = SYNC_VNODE_LOG_RETENTION;
     }
   }
@@ -344,7 +347,9 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
       syncNodeRelease(pSyncNode);
       return 0;
     }
-    logRetention = TMAX(logRetention, lastApplyIndex - pSyncNode->minMatchIndex + logRetention);
+    SyncIndex retentionIndex =
+        TMAX(pSyncNode->minMatchIndex, syncLogRetentionIndex(pSyncNode, SYNC_WAL_LOG_RETENTION_SIZE));
+    logRetention += TMAX(0, lastApplyIndex - retentionIndex);
   }
 
 _DEL_WAL:
@@ -657,14 +662,14 @@ ESyncRole syncGetRole(int64_t rid) {
 int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_t* seq) {
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
     terrno = TSDB_CODE_SYN_NOT_LEADER;
-    sNError(pSyncNode, "sync propose not leader, type:%s", TMSG_INFO(pMsg->msgType));
+    sNWarn(pSyncNode, "sync propose not leader, type:%s", TMSG_INFO(pMsg->msgType));
     return -1;
   }
 
   if (!pSyncNode->restoreFinish) {
     terrno = TSDB_CODE_SYN_PROPOSE_NOT_READY;
-    sNError(pSyncNode, "failed to sync propose since not ready, type:%s, last:%" PRId64 ", cmt:%" PRId64,
-            TMSG_INFO(pMsg->msgType), syncNodeGetLastIndex(pSyncNode), pSyncNode->commitIndex);
+    sNWarn(pSyncNode, "failed to sync propose since not ready, type:%s, last:%" PRId64 ", cmt:%" PRId64,
+           TMSG_INFO(pMsg->msgType), syncNodeGetLastIndex(pSyncNode), pSyncNode->commitIndex);
     return -1;
   }
 
@@ -1157,9 +1162,12 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
   ASSERTS(pSyncNode->pLogStore != NULL, "log store not created");
   ASSERTS(pSyncNode->pLogBuf != NULL, "ring log buffer not created");
 
+  taosThreadMutexLock(&pSyncNode->pLogBuf->mutex);
   SyncIndex lastVer = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
   SyncIndex commitIndex = pSyncNode->pLogStore->syncLogCommitIndex(pSyncNode->pLogStore);
   SyncIndex endIndex = pSyncNode->pLogBuf->endIndex;
+  taosThreadMutexUnlock(&pSyncNode->pLogBuf->mutex);
+
   if (lastVer != -1 && endIndex != lastVer + 1) {
     terrno = TSDB_CODE_WAL_LOG_INCOMPLETE;
     sError("vgId:%d, failed to restore sync node since %s. expected lastLogIndex:%" PRId64 ", lastVer:%" PRId64 "",

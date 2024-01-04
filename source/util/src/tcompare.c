@@ -1070,6 +1070,11 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
         return TSDB_PATTERN_MATCH; /* "*" at the end of the pattern matches */
       }
 
+      if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
+        c = pattern[i];
+        i++;
+      }
+
       char rejectList[2] = {toupper(c), tolower(c)};
 
       str += nMatchChar;
@@ -1097,7 +1102,8 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
       c1 = str[j++];
       ++nMatchChar;
 
-      if (c == '\\' && pattern[i] == '_' && c1 == '_') {
+      if (c == '\\' && pattern[i] == c1 &&
+        (c1 == '_' || c1 == '%')) {
         i++;
         continue;
       }
@@ -1138,6 +1144,11 @@ int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, 
         return TSDB_PATTERN_MATCH;
       }
 
+      if (c == '\\' && (pattern[i] == '_' || pattern[i] == '%')) {
+        c = pattern[i];
+        i++;
+      }
+
       TdUcs4 rejectList[2] = {towupper(c), towlower(c)};
 
       str += nMatchChar;
@@ -1165,7 +1176,8 @@ int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, 
       c1 = str[j++];
       nMatchChar++;
 
-      if (c == L'\\' && pattern[i] == L'_' && c1 == L'_') {
+      if (c == '\\' && pattern[i] == c1 &&
+        (c1 == '_' || c1 == '%')) {
         i++;
         continue;
       }

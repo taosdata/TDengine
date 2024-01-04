@@ -28,7 +28,7 @@
 extern bool tsDeployOnSnode;
 
 static int32_t doAddSinkTask(SStreamObj* pStream, SArray* pTaskList, SMnode* pMnode, int32_t vgId, SVgObj* pVgroup,
-                                  SEpSet* pEpset, bool isFillhistory);
+                             SEpSet* pEpset, bool isFillhistory);
 
 int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64_t uid, int8_t triggerType,
                            int64_t watermark, int64_t deleteMark) {
@@ -251,7 +251,7 @@ int32_t doAddSinkTask(SStreamObj* pStream, SArray* pTaskList, SMnode* pMnode, in
 
 static int32_t addSourceTask(SMnode* pMnode, SVgObj* pVgroup, SArray* pTaskList, SArray* pSinkTaskList,
                              SStreamObj* pStream, SSubplan* plan, uint64_t uid, SEpSet* pEpset, bool fillHistory,
-                             bool hasExtraSink, int64_t firstWindowSkey, bool hasFillHistory) {
+                             bool hasExtraSink, int64_t nextWindowSkey, bool hasFillHistory) {
   SStreamTask* pTask =
       tNewStreamTask(uid, TASK_LEVEL__SOURCE, fillHistory, pStream->conf.triggerParam, pTaskList, hasFillHistory);
   if (pTask == NULL) {
@@ -262,7 +262,7 @@ static int32_t addSourceTask(SMnode* pMnode, SVgObj* pVgroup, SArray* pTaskList,
   STimeWindow* pWindow = &pTask->dataRange.window;
 
   pWindow->skey = INT64_MIN;
-  pWindow->ekey = firstWindowSkey - 1;
+  pWindow->ekey = nextWindowSkey - 1;
   mDebug("add source task 0x%x window:%" PRId64 " - %" PRId64, pTask->id.taskId, pWindow->skey, pWindow->ekey);
 
   // sink or dispatch
@@ -382,7 +382,7 @@ static int32_t doAddSourceTask(SArray* pTaskList, bool isFillhistory, int64_t ui
 
   epsetAssign(&(pTask)->info.mnodeEpset, pEpset);
 
-  // todo set the correct ts, which should be last key of queried table.
+  // set the correct ts, which is the last key of queried table.
   STimeWindow* pWindow = &pTask->dataRange.window;
   pWindow->skey = INT64_MIN;
   pWindow->ekey = nextWindowSkey - 1;

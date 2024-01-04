@@ -39,6 +39,8 @@ Compression=lzma
 SolidCompression=yes
 DisableDirPage=yes
 Uninstallable=yes
+ArchitecturesAllowed=x64
+ArchitecturesInstallIn64BitMode=x64
 
 [Languages]
 Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
@@ -53,6 +55,7 @@ Source: favicon.ico; DestDir: "{app}\include"; Flags: igNoreversion;
 Source: {#MyAppSourceDir}{#MyAppDLLName}; DestDir: "{win}\System32"; Flags: igNoreversion recursesubdirs createallsubdirs 64bit;Check:IsWin64;
 Source: {#MyAppSourceDir}{#MyAppCfgName}; DestDir: "{app}\cfg"; Flags: igNoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
 Source: {#MyAppSourceDir}{#MyAppDriverName}; DestDir: "{app}\driver"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}\taos_odbc\*; DestDir: "{app}\taos_odbc\"; Flags: igNoreversion recursesubdirs createallsubdirs
 ;Source: {#MyAppSourceDir}{#MyAppConnectorName}; DestDir: "{app}\connector"; Flags: igNoreversion recursesubdirs createallsubdirs
 ;Source: {#MyAppSourceDir}{#MyAppExamplesName}; DestDir: "{app}\examples"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppIncludeName}; DestDir: "{app}\include"; Flags: igNoreversion recursesubdirs createallsubdirs
@@ -66,6 +69,7 @@ Source: {#MyAppSourceDir}\taosdump.exe; DestDir: "{app}"; DestName: "{#CusPrompt
 [run]
 Filename: {sys}\sc.exe; Parameters: "create taosd start= DEMAND binPath= ""C:\\TDengine\\taosd.exe --win_service""" ; Flags: runhidden
 Filename: {sys}\sc.exe; Parameters: "create taosadapter start= DEMAND binPath= ""C:\\TDengine\\taosadapter.exe""" ; Flags: runhidden
+Filename: "{cmd}"; Parameters: "/c odbcconf /F ""C:\TDengine\taos_odbc\win_odbcinst.in"""; WorkingDir: "{app}"; Flags: runhidden; StatusMsg: "Configuring ODBC"
 
 [UninstallRun]
 RunOnceId: "stoptaosd"; Filename: {sys}\sc.exe; Parameters: "stop taosd" ; Flags: runhidden
@@ -93,6 +97,43 @@ begin
   { look for the path with leading and trailing semicolon }
   { Pos() returns 0 if not found }
   Result := Pos(';' + Param + ';', ';' + OrigPath + ';') = 0;
+end;
+
+function DeleteOdbcDsnRegistry: Boolean;
+var
+  Names: TArrayOfString;
+  I: Integer;
+  Value: String;
+begin
+  if RegGetValueNames(HKCU64, 'SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources', Names) then
+  begin
+    for I := 0 to GetArrayLength(Names) - 1 do
+    begin
+      if RegQueryStringValue(HKCU64, 'SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources', Names[I], Value) then
+      begin
+        if Value = 'TDengine' then
+        begin
+          RegDeleteKeyIncludingSubkeys(HKCU64, 'SOFTWARE\ODBC\ODBC.INI\' + Names[I]);
+          RegDeleteValue(HKCU64, 'SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources\',  Names[I]);
+        end;
+      end;
+    end;
+  end;
+  Result := True;
+end;
+
+function DeleteOdbcDriverRegistry: Boolean;
+begin
+  RegDeleteKeyIncludingSubkeys(HKLM64, 'SOFTWARE\ODBC\ODBCINST.INI\TDengine');
+  RegDeleteValue(HKLM64, 'SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers', 'TDengine');
+  Result := True;
+end;
+
+
+procedure DeinitializeUninstall();
+begin
+	DeleteOdbcDsnRegistry();
+	DeleteOdbcDriverRegistry();
 end;
 
 [UninstallDelete]

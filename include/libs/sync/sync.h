@@ -33,10 +33,11 @@ extern "C" {
 #define SYNC_MAX_PROGRESS_WAIT_MS    4000
 #define SYNC_MAX_START_TIME_RANGE_MS (1000 * 20)
 #define SYNC_MAX_RECV_TIME_RANGE_MS  1200
-#define SYNC_DEL_WAL_MS              (1000 * 60)
 #define SYNC_ADD_QUORUM_COUNT        3
 #define SYNC_VNODE_LOG_RETENTION     (TSDB_SYNC_LOG_BUFFER_RETENTION + 1)
 #define SNAPSHOT_WAIT_MS             1000 * 5
+
+#define SYNC_WAL_LOG_RETENTION_SIZE (8LL * 1024 * 1024 * 1024)
 
 #define SYNC_MAX_RETRY_BACKOFF         5
 #define SYNC_LOG_REPL_RETRY_WAIT_MS    100
@@ -46,7 +47,7 @@ extern "C" {
 #define SYNC_HEARTBEAT_SLOW_MS       1500
 #define SYNC_HEARTBEAT_REPLY_SLOW_MS 1500
 #define SYNC_SNAP_RESEND_MS          1000 * 60
-#define SYNC_SNAP_TIMEOUT_MS         1000 * 600
+#define SYNC_SNAP_TIMEOUT_MS         1000 * 300
 
 #define SYNC_VND_COMMIT_MIN_MS 3000
 
@@ -219,6 +220,7 @@ typedef struct SSyncLogStore {
 
   SyncIndex (*syncLogWriteIndex)(struct SSyncLogStore* pLogStore);
   SyncIndex (*syncLogLastIndex)(struct SSyncLogStore* pLogStore);
+  SyncIndex (*syncLogIndexRetention)(struct SSyncLogStore* pLogStore, int64_t bytes);
   SyncTerm (*syncLogLastTerm)(struct SSyncLogStore* pLogStore);
 
   int32_t (*syncLogAppendEntry)(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, bool forcSync);
@@ -288,6 +290,9 @@ void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
 const char* syncStr(ESyncState state);
 
 int32_t    syncNodeGetConfig(int64_t rid, SSyncCfg *cfg);
+
+// util
+int32_t syncSnapInfoDataRealloc(SSnapshot* pSnap, int32_t size);
 
 #ifdef __cplusplus
 }

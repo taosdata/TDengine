@@ -418,6 +418,12 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       return NULL;
     }
 
+    if(pRequest->inCallback) {
+      tscError("can not call taos_fetch_row before query callback ends.");
+      terrno = TSDB_CODE_TSC_INVALID_OPERATION;
+      return NULL;
+    }
+
     return doAsyncFetchRows(pRequest, true, true);
   } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     SMqRspObj      *msg = ((SMqRspObj *)res);
@@ -876,6 +882,7 @@ int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {
     code = 0;
   }
   taosThreadMutexUnlock(&pTscObj->mutex);
+  releaseTscObj(*(int64_t *)taos);
   return code;
 }
 
@@ -1094,7 +1101,7 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
     pRequest->pWrapper = NULL;
     terrno = code;
     pRequest->code = code;
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    doRequestCallback(pRequest, code);
   }
 }
 
@@ -1111,7 +1118,7 @@ void continueInsertFromCsv(SSqlCallbackWrapper *pWrapper, SRequestObj *pRequest)
     pRequest->pWrapper = NULL;
     terrno = code;
     pRequest->code = code;
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    doRequestCallback(pRequest, code);
   }
 }
 
@@ -1209,7 +1216,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     terrno = code;
     pRequest->code = code;
     tscDebug("call sync query cb with code: %s", tstrerror(code));
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    doRequestCallback(pRequest, code);
     return;
   }
 
@@ -1241,7 +1248,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 
     terrno = code;
     pRequest->code = code;
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    doRequestCallback(pRequest, code);
   }
 }
 
@@ -1308,6 +1315,10 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   }
 
   SRequestObj *pRequest = res;
+  if (TSDB_SQL_RETRIEVE_EMPTY_RESULT == pRequest->type) {
+    fp(param, res, 0);
+    return;
+  }
 
   taosAsyncFetchImpl(pRequest, fp, param);
 }
@@ -1544,12 +1555,12 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
-  code = catalogAsyncGetAllMeta(pCtg, &conn, &catalogReq, syncCatalogFn, pRequest->body.param, NULL);
+  code = catalogAsyncGetAllMeta(pCtg, &conn, &catalogReq, syncCatalogFn, pRequest->body.interParam, NULL);
   if (code) {
     goto _return;
   }
 
-  SSyncQueryParam *pParam = pRequest->body.param;
+  SSyncQueryParam *pParam = pRequest->body.interParam;
   tsem_wait(&pParam->sem);
 
 _return:

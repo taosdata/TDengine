@@ -34,7 +34,6 @@ extern "C" {
 // Bytes for each type.
 extern const int32_t TYPE_BYTES[21];
 
-// TODO: replace and remove code below
 #define CHAR_BYTES      sizeof(char)
 #define SHORT_BYTES     sizeof(int16_t)
 #define INT_BYTES       sizeof(int32_t)
@@ -261,7 +260,7 @@ typedef enum ELogicConditionType {
 #define TSDB_PASSWORD_LEN      32
 #define TSDB_USET_PASSWORD_LEN 129
 #define TSDB_VERSION_LEN       32
-#define TSDB_LABEL_LEN         12 
+#define TSDB_LABEL_LEN         12
 #define TSDB_JOB_STATUS_LEN    32
 
 #define TSDB_CLUSTER_ID_LEN       40
@@ -273,6 +272,7 @@ typedef enum ELogicConditionType {
 #define TSDB_SHOW_SCHEMA_JSON_LEN TSDB_MAX_COLUMNS * 256
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 #define TSDB_SHOW_SUBQUERY_LEN    1000
+#define TSDB_LOG_VAR_LEN          32
 
 #define TSDB_TRANS_STAGE_LEN 12
 #define TSDB_TRANS_TYPE_LEN  16
@@ -289,6 +289,7 @@ typedef enum ELogicConditionType {
 #define TSDB_CONN_ACTIVE_KEY_LEN 255
 
 #define TSDB_DEFAULT_PKT_SIZE 65480  // same as RPC_MAX_UDP_SIZE
+#define TSDB_SNAP_DATA_PAYLOAD_SIZE (1 * 1024 * 1024)
 
 #define TSDB_PAYLOAD_SIZE         TSDB_DEFAULT_PKT_SIZE
 #define TSDB_DEFAULT_PAYLOAD_SIZE 5120  // default payload size, greater than PATH_MAX value
@@ -306,7 +307,7 @@ typedef enum ELogicConditionType {
 #define TSDB_SYNC_APPLYQ_SIZE_LIMIT    512
 #define TSDB_SYNC_NEGOTIATION_WIN      512
 
-#define TSDB_SYNC_SNAP_BUFFER_SIZE 2048
+#define TSDB_SYNC_SNAP_BUFFER_SIZE 1024
 
 #define TSDB_TBNAME_COLUMN_INDEX     (-1)
 #define TSDB_MULTI_TABLEMETA_MAX_NUM 100000  // maximum batch size allowed to load table meta
@@ -502,6 +503,10 @@ typedef struct {
   int32_t level;
   int32_t primary;
 } SDiskCfg;
+
+typedef struct {
+  char name[TSDB_LOG_VAR_LEN];
+} SLogVar;
 
 #define TMQ_SEPARATOR ':'
 

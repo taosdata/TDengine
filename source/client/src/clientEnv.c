@@ -317,6 +317,15 @@ void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
   }
+  SSyncQueryParam *interParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
+  if (interParam == NULL) {
+    doDestroyRequest(pRequest);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  tsem_init(&interParam->sem, 0, 0);
+  interParam->pRequest = pRequest;
+  pRequest->body.interParam = interParam;
 
   pRequest->resType = RES_TYPE__QUERY;
   pRequest->requestId = reqid == 0 ? generateRequestId() : reqid;
@@ -328,6 +337,7 @@ void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
 
   pRequest->pDb = getDbOfConnection(pTscObj);
   pRequest->pTscObj = pTscObj;
+  pRequest->inCallback = false;
 
   pRequest->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   pRequest->msgBufLen = ERROR_MSG_BUF_DEFAULT_SIZE;
@@ -438,12 +448,10 @@ void doDestroyRequest(void *p) {
     deregisterRequest(pRequest);
   }
 
-  if (pRequest->syncQuery) {
-    if (pRequest->body.param) {
-      tsem_destroy(&((SSyncQueryParam *)pRequest->body.param)->sem);
-    }
-    taosMemoryFree(pRequest->body.param);
+  if (pRequest->body.interParam) {
+    tsem_destroy(&((SSyncQueryParam *)pRequest->body.interParam)->sem);
   }
+  taosMemoryFree(pRequest->body.interParam);
 
   qDestroyQuery(pRequest->pQuery);
   nodesDestroyAllocator(pRequest->allocatorRefId);
@@ -556,6 +564,9 @@ static void *tscCrashReportThreadFp(void *param) {
         if (pFile) {
           taosReleaseCrashLogFile(pFile, false);
           pFile = NULL;
+
+          taosMsleep(sleepTime);
+          loopTimes = 0;
           continue;
         }
       } else {
@@ -730,7 +741,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
         return -1;
       }
       newstr[0] = '"';
-      strncpy(newstr+1, str, len);
+      memcpy(newstr+1, str, len);
       newstr[len + 1] = '"';
       newstr[len + 2] = '\0';
       str = newstr;
@@ -777,7 +788,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
   } else {
     tscInfo("set cfg:%s to %s", pItem->name, str);
     if (TSDB_OPTION_SHELL_ACTIVITY_TIMER == option || TSDB_OPTION_USE_ADAPTER == option) {
-      code = taosApplyLocalCfg(pCfg, pItem->name);
+      code = taosCfgDynamicOptions(pCfg, pItem->name, false);
     }
   }
 

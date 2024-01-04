@@ -29,6 +29,9 @@ static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   if (dmStartMonitorThread(pMgmt) != 0) {
     return -1;
   }
+  if (dmStartAuditThread(pMgmt) != 0) {
+    return -1;
+  }
   if (dmStartCrashReportThread(pMgmt) != 0) {
     return -1;
   }
@@ -38,6 +41,7 @@ static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
 static void dmStopMgmt(SDnodeMgmt *pMgmt) {
   pMgmt->pData->stopped = true;
   dmStopMonitorThread(pMgmt);
+  dmStopAuditThread(pMgmt);
   dmStopStatusThread(pMgmt);
 #if defined(TD_ENTERPRISE)
   dmStopNotifyThread(pMgmt);
@@ -60,6 +64,7 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->processAlterNodeTypeFp = pInput->processAlterNodeTypeFp;
   pMgmt->processDropNodeFp = pInput->processDropNodeFp;
   pMgmt->sendMonitorReportFp = pInput->sendMonitorReportFp;
+  pMgmt->sendAuditRecordsFp = pInput->sendAuditRecordFp;
   pMgmt->getVnodeLoadsFp = pInput->getVnodeLoadsFp;
   pMgmt->getVnodeLoadsLiteFp = pInput->getVnodeLoadsLiteFp;
   pMgmt->getMnodeLoadsFp = pInput->getMnodeLoadsFp;

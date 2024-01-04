@@ -134,6 +134,162 @@ if $rows != 2 then
   goto loop1
 endi
 
+print step 1 max delay 2s
+sql create database test3 vgroups 4;
+sql use test3;
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+
+sql create stream stream13 trigger max_delay 2s into streamt13 as select  _wstart, sum(a), now from t1 interval(10s);
+
+sleep 1000
+
+sql insert into t1 values(1648791213000,1,2,3,1.0);
+sql insert into t1 values(1648791223001,2,2,3,1.1);
+
+$loop_count = 0
+
+loop2:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sql select * from streamt13;
+
+if $rows != 2 then
+  print ======rows=$rows
+  goto loop2
+endi
+
+$now02 = $data02
+$now12 = $data12
+
+
+print step1 max delay 2s......... sleep 3s
+sleep 3000
+
+sql select * from streamt13;
+
+
+if $data02 != $now02 then
+  print ======data02=$data02
+  return -1
+endi
+
+if $data12 != $now12 then
+  print ======data12=$data12
+  return -1
+endi
+
+print step 2 max delay 2s
+
+sql create database test4 vgroups 4;
+sql use test4;
+
+sql create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+
+sql create stream stream14 trigger max_delay 2s into streamt14 as select  _wstart, sum(a), now from st partition by tbname interval(10s);
+
+sleep 1000
+
+sql insert into t1 values(1648791213000,1,2,3,1.0);
+sql insert into t1 values(1648791223000,2,2,3,1.1);
+
+sql insert into t2 values(1648791213000,3,2,3,1.0);
+sql insert into t2 values(1648791223000,4,2,3,1.1);
+
+$loop_count = 0
+
+loop3:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt14 order by 2;
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+print $data20 $data21 $data22
+print $data30 $data31 $data32
+
+if $rows != 4 then
+  print ======rows=$rows
+  goto loop3
+endi
+
+$now02 = $data02
+$now12 = $data12
+$now22 = $data22
+$now32 = $data32
+
+print step2 max delay 2s......... sleep 3s
+sleep 3000
+
+sql select * from streamt14 order by 2;
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+print $data20 $data21 $data22
+print $data30 $data31 $data32
+
+
+if $data02 != $now02 then
+  print ======data02=$data02
+  return -1
+endi
+
+if $data12 != $now12 then
+  print ======data12=$data12
+  return -1
+endi
+
+if $data22 != $now22 then
+  print ======data22=$data22
+  return -1
+endi
+
+if $data32 != $now32 then
+  print ======data32=$data32
+  return -1
+endi
+
+print step2 max delay 2s......... sleep 3s
+sleep 3000
+
+sql select * from streamt14 order by 2;
+print $data00 $data01 $data02
+print $data10 $data11 $data12
+print $data20 $data21 $data22
+print $data30 $data31 $data32
+
+
+if $data02 != $now02 then
+  print ======data02=$data02
+  return -1
+endi
+
+if $data12 != $now12 then
+  print ======data12=$data12
+  return -1
+endi
+
+if $data22 != $now22 then
+  print ======data22=$data22
+  return -1
+endi
+
+if $data32 != $now32 then
+  print ======data32=$data32
+  return -1
+endi
+
 print ======over
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

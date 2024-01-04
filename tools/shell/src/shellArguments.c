@@ -44,6 +44,7 @@
 #define SHELL_NET_ROLE "Net role when network connectivity test, options: client|server."
 #define SHELL_PKT_LEN  "Packet length used for net test, default is 1024 bytes."
 #define SHELL_PKT_NUM  "Packet numbers used for net test, default is 100."
+#define SHELL_BI_MODE  "Set BI mode"
 #define SHELL_VERSION  "Print program version."
 
 #ifdef WEBSOCKET
@@ -59,6 +60,7 @@ void shellPrintHelp() {
   printf("Usage: taos [OPTION...] \r\n\r\n");
   printf("%s%s%s%s\r\n", indent, "-a,", indent, SHELL_AUTH);
   printf("%s%s%s%s\r\n", indent, "-A,", indent, SHELL_GEN_AUTH);
+  printf("%s%s%s%s\r\n", indent, "-B,", indent, SHELL_BI_MODE);
   printf("%s%s%s%s\r\n", indent, "-c,", indent, SHELL_CFG_DIR);
   printf("%s%s%s%s\r\n", indent, "-C,", indent, SHELL_DMP_CFG);
   printf("%s%s%s%s\r\n", indent, "-d,", indent, SHELL_DB);
@@ -127,6 +129,7 @@ static struct argp_option shellOptions[] = {
     {"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
 #endif
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
+    {"bimode", 'B', 0, 0, SHELL_BI_MODE},
     {0},
 };
 
@@ -172,6 +175,9 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       break;
     case 'A':
       pArgs->is_gen_auth = true;
+      break;
+    case 'B':
+      pArgs->is_bi_mode = true;
       break;
     case 'c':
 #ifdef WEBSOCKET
@@ -410,7 +416,7 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shellInitArgs(argc, argv);
   shell.info.clientVersion =
       "Welcome to the %s Command Line Interface, Client Version:%s\r\n"
-      "Copyright (c) 2022 by %s, all rights reserved.\r\n\r\n";
+      "Copyright (c) 2023 by %s, all rights reserved.\r\n\r\n";
 #ifdef CUS_NAME
   strcpy(shell.info.cusName, CUS_NAME);
 #else

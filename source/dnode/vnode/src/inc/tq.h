@@ -43,9 +43,6 @@ extern "C" {
 
 typedef struct STqOffsetStore STqOffsetStore;
 
-#define STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID (-1)
-#define STREAM_EXEC_START_ALL_TASKS_ID     (-2)
-#define STREAM_EXEC_RESTART_ALL_TASKS_ID   (-3)
 #define IS_OFFSET_RESET_TYPE(_t)  ((_t) < 0)
 
 // tqExec
@@ -147,7 +144,7 @@ int32_t         tqOffsetDelete(STqOffsetStore* pStore, const char* subscribeKey)
 int32_t         tqOffsetCommitFile(STqOffsetStore* pStore);
 
 // tqSink
-int32_t tqBuildDeleteReq(const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
+int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
                          const char* pIdStr);
 void    tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data);
 
@@ -155,12 +152,8 @@ void    tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data);
 char*   tqOffsetBuildFName(const char* path, int32_t fVer);
 int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname);
 
-// tqStream
-int32_t tqResetStreamTaskStatus(STQ* pTq);
-int32_t tqStopStreamTasks(STQ* pTq);
-
 // tq util
-int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStreamRefDataBlock** pRefBlock);
+int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int32_t type);
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
 int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever);

@@ -11,8 +11,6 @@ The collection of the monitoring information is enabled by default, but can be d
 
 TDinsight is a complete solution which uses the monitoring database `log` mentioned previously, and Grafana, to monitor a TDengine cluster.
 
-Please refer to [TDinsight Grafana Dashboard](../../reference/tdinsight) to learn more details about using TDinsight to monitor TDengine.
-
 A script `TDinsight.sh` is provided to deploy TDinsight automatically.
 
 Download `TDinsight.sh` with the below command:
@@ -43,7 +41,7 @@ Launch `TDinsight.sh` with the command above and restart Grafana, then open Dash
 
 ## log database
 
-The data of tdinsight dashboard is stored in `log` database (default. You can change it in taoskeeper's config file. For more infrmation, please reference to [taoskeeper document](/reference/taosKeeper)). The taoskeeper will create log database on taoskeeper startup.
+The data of tdinsight dashboard is stored in `log` database (default. You can change it in taoskeeper's config file. For more infrmation, please reference to [taoskeeper document](../../reference/taosKeeper)). The taoskeeper will create log database on taoskeeper startup.
 
 ### cluster\_info table
 

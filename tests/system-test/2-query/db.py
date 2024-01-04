@@ -52,10 +52,10 @@ class TDTestCase:
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, i + 1)
             tdSql.checkData(0, 1, 'debugFlag')
-            tdSql.checkData(0, 2, 0)
+            tdSql.checkData(0, 2, 131)
 
         tdSql.query("show dnode 1 variables like '%debugFlag'")
-        tdSql.checkRows(22)
+        tdSql.checkRows(23)
 
         tdSql.query("show dnode 1 variables like '____debugFlag'")
         tdSql.checkRows(2)

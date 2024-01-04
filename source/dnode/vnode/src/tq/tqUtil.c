@@ -35,20 +35,8 @@ int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
 }
 
 void tqUpdateNodeStage(STQ* pTq, bool isLeader) {
-  SSyncState   state = syncGetState(pTq->pVnode->sync);
-  SStreamMeta* pMeta = pTq->pStreamMeta;
-  int64_t      stage = pMeta->stage;
-
-  pMeta->stage = state.term;
-  pMeta->role = (isLeader)? NODE_ROLE_LEADER:NODE_ROLE_FOLLOWER;
-  if (isLeader) {
-    tqInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb", pMeta->vgId,
-           state.term, stage, isLeader);
-    streamMetaStartHb(pMeta);
-  } else {
-    tqInfo("vgId:%d update meta stage:%" PRId64 " prev:%" PRId64 " leader:%d", pMeta->vgId, state.term, stage,
-           isLeader);
-  }
+  SSyncState state = syncGetState(pTq->pVnode->sync);
+  streamMetaUpdateStageRole(pTq->pStreamMeta, state.term, isLeader);
 }
 
 static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, STqOffsetVal pOffset) {
@@ -168,6 +156,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     taosWUnLockLatch(&pTq->lock);
   }
 
+  dataRsp.reqOffset = *pOffset;   // reqOffset represents the current date offset, may be changed if wal not exists
   code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&dataRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
 
 end : {
@@ -399,7 +388,7 @@ int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* 
   return 0;
 }
 
-int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStreamRefDataBlock** pRefBlock) {
+int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int32_t type) {
   SDecoder*   pCoder = &(SDecoder){0};
   SDeleteRes* pRes = &(SDeleteRes){0};
 
@@ -442,14 +431,21 @@ int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStream
   }
 
   taosArrayDestroy(pRes->uidList);
-  *pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
-  if (*pRefBlock == NULL) {
-    blockDataCleanup(pDelBlock);
-    taosMemoryFree(pDelBlock);
-    return TSDB_CODE_OUT_OF_MEMORY;
+  if (type == 0) {
+    *pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
+    if (*pRefBlock == NULL) {
+      blockDataCleanup(pDelBlock);
+      taosMemoryFree(pDelBlock);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    ((SStreamRefDataBlock*)(*pRefBlock))->type = STREAM_INPUT__REF_DATA_BLOCK;
+    ((SStreamRefDataBlock*)(*pRefBlock))->pBlock = pDelBlock;
+  } else if (type == 1) {
+    *pRefBlock = pDelBlock;
+  } else {
+    ASSERTS(0, "unknown type:%d", type);
   }
 
-  (*pRefBlock)->type = STREAM_INPUT__REF_DATA_BLOCK;
-  (*pRefBlock)->pBlock = pDelBlock;
   return TSDB_CODE_SUCCESS;
 }

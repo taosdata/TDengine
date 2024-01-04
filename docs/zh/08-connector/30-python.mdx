@@ -436,10 +436,22 @@ now 为系统内部函数，默认为客户端所在计算机当前时间。 now
 
 :::note
 TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线程的场景下，这个游标实例必须保持线程独享，不能跨线程共享使用，否则会导致返回结果出现错误。
+
+TaosCursor 的最佳实践是，查询开始时创建 cursor，用完之后就关闭，请避免复用同一个 cursor 多次执行。
 :::
 
 </TabItem>
 <TabItem value="rest" label="REST 连接">
+
+##### RestClient 类的使用
+
+`RestClient` 类是对于 [REST API](../rest-api) 的直接封装。它只包含一个 `sql()` 方法用于执行任意 SQL 语句， 并返回执行结果。
+
+```python title="RestClient 的使用"
+{{#include docs/examples/python/rest_client_example.py}}
+```
+
+对于 `sql()` 方法更详细的介绍， 请参考 [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html)。
 
 #####  TaosRestCursor 类的使用
 
@@ -452,15 +464,10 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 - `cursor.rowcount`： 对于写入操作返回写入成功记录数。对于查询操作，返回结果集行数。
 - `cursor.description` ： 返回字段的描述信息。关于描述信息的具体格式请参考[TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html)。
 
-##### RestClient 类的使用
+:::note
+TaosRestCursor 的最佳实践是，查询开始时创建 cursor，用完之后就关闭，请避免复用同一个 cursor 多次执行。
+:::
 
-`RestClient` 类是对于 [REST API](../rest-api) 的直接封装。它只包含一个 `sql()` 方法用于执行任意 SQL 语句， 并返回执行结果。
-
-```python title="RestClient 的使用"
-{{#include docs/examples/python/rest_client_example.py}}
-```
-
-对于 `sql()` 方法更详细的介绍， 请参考 [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html)。
 </TabItem>
 <TabItem value="websocket" label="WebSocket 连接">
 
@@ -557,6 +564,16 @@ RestClient 类是对于 REST API 的直接封装。它只包含一个 sql() 方�
 
 类似上文介绍的使用方法，增加 `req_id` 参数。
 
+##### RestClient 类的使用
+
+`RestClient` 类是对于 [REST API](../rest-api) 的直接封装。它只包含一个 `sql()` 方法用于执行任意 SQL 语句， 并返回执行结果。
+
+```python title="RestClient 的使用"
+{{#include docs/examples/python/rest_client_with_req_id_example.py}}
+```
+
+对于 `sql()` 方法更详细的介绍， 请参考 [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html)。
+
 #####  TaosRestCursor 类的使用
 
 `TaosRestCursor` 类是对 PEP249 Cursor 接口的实现。
@@ -568,15 +585,6 @@ RestClient 类是对于 REST API 的直接封装。它只包含一个 sql() 方�
 - `cursor.rowcount`： 对于写入操作返回写入成功记录数。对于查询操作，返回结果集行数。
 - `cursor.description` ： 返回字段的描述信息。关于描述信息的具体格式请参考[TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html)。
 
-##### RestClient 类的使用
-
-`RestClient` 类是对于 [REST API](../rest-api) 的直接封装。它只包含一个 `sql()` 方法用于执行任意 SQL 语句， 并返回执行结果。
-
-```python title="RestClient 的使用"
-{{#include docs/examples/python/rest_client_with_req_id_example.py}}
-```
-
-对于 `sql()` 方法更详细的介绍， 请参考 [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html)。
 </TabItem>
 
 <TabItem value="websocket" label="WebSocket 连接">

@@ -14,8 +14,8 @@
  */
 
 #include "storageapi.h"
-#include "tstreamUpdate.h"
 #include "streamState.h"
+#include "tstreamUpdate.h"
 
 static void initStateStoreAPI(SStateStore* pStore);
 static void initFunctionStateStore(SFunctionStateStore* pStore);
@@ -71,6 +71,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateSessionGetKVByCur = streamStateSessionGetKVByCur;
   pStore->streamStateStateAddIfNotExist = streamStateStateAddIfNotExist;
   pStore->streamStateSessionGetKeyByRange = streamStateSessionGetKeyByRange;
+  pStore->streamStateSessionAllocWinBuffByNextPosition = streamStateSessionAllocWinBuffByNextPosition;
 
   pStore->updateInfoInit = updateInfoInit;
   pStore->updateInfoFillBlockData = updateInfoFillBlockData;
@@ -79,6 +80,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->updateInfoDestroy = updateInfoDestroy;
   pStore->windowSBfDelete = windowSBfDelete;
   pStore->windowSBfAdd = windowSBfAdd;
+  pStore->isIncrementalTimeStamp = isIncrementalTimeStamp;
 
   pStore->updateInfoInitP = updateInfoInitP;
   pStore->updateInfoAddCloseWindowSBF = updateInfoAddCloseWindowSBF;
@@ -98,9 +100,10 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateClose = streamStateClose;
   pStore->streamStateBegin = streamStateBegin;
   pStore->streamStateCommit = streamStateCommit;
-  pStore->streamStateDestroy= streamStateDestroy;
+  pStore->streamStateDestroy = streamStateDestroy;
   pStore->streamStateDeleteCheckPoint = streamStateDeleteCheckPoint;
   pStore->streamStateReloadInfo = streamStateReloadInfo;
+  pStore->streamStateCopyBackend = streamStateCopyBackend;
 }
 
 void initFunctionStateStore(SFunctionStateStore* pStore) {

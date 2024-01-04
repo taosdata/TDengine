@@ -957,8 +957,8 @@ static void cliSendCb(uv_write_t* req, int status) {
   SCliMsg* pMsg = !transQueueEmpty(&pConn->cliMsgs) ? transQueueGet(&pConn->cliMsgs, 0) : NULL;
   if (pMsg != NULL) {
     int64_t cost = taosGetTimestampUs() - pMsg->st;
-    if (cost > 1000 * 20) {
-      tWarn("%s conn %p send cost:%dus, send exception", CONN_GET_INST_LABEL(pConn), pConn, (int)cost);
+    if (cost > 1000 * 50) {
+      tTrace("%s conn %p send cost:%dus ", CONN_GET_INST_LABEL(pConn), pConn, (int)cost);
     }
   }
 
@@ -1468,7 +1468,7 @@ static FORCE_INLINE uint32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn) 
   if (v == NULL) {
     addr = taosGetIpv4FromFqdn(fqdn);
     if (addr == 0xffffffff) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TSDB_CODE_RPC_FQDN_ERROR;
       tError("failed to get ip from fqdn:%s since %s", fqdn, terrstr());
       return addr;
     }

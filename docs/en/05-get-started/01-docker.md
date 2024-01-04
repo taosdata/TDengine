@@ -30,7 +30,7 @@ And then run the following command:
 docker run -d -p 6030:6030 -p 6041:6041 -p 6043-6049:6043-6049 -p 6043-6049:6043-6049/udp tdengine/tdengine
 ```
 
-Note that TDengine Server 3.0 uses TCP port 6030. Port 6041 is used by taosAdapter for the REST API service. Ports 6043 through 6049 are used by taosAdapter for other connectors. You can open these ports as needed.
+Note that TDengine Server 3.0 uses TCP port 6030. Port 6041 is used by taosAdapter for the REST API service. Ports 6043 through 6049 are used by taosAdapter for other connections. You can open these ports as needed.
 
 If you need to persist data to a specific directory on your local machine, please run the following command:
 ```shell

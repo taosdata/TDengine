@@ -1028,11 +1028,16 @@ static void tmqMgmtInit(void) {
   }
 }
 
+#define SET_ERROR_MSG(MSG) if(errstr!=NULL)snprintf(errstr,errstrLen,MSG);
 tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
-  if(conf == NULL) return NULL;
+  if(conf == NULL) {
+    SET_ERROR_MSG("configure is null")
+    return NULL;
+  }
   taosThreadOnce(&tmqInit, tmqMgmtInit);
   if (tmqInitRes != 0) {
     terrno = tmqInitRes;
+    SET_ERROR_MSG("tmq timer init error")
     return NULL;
   }
 
@@ -1040,6 +1045,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   if (pTmq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tscError("failed to create consumer, groupId:%s, code:%s", conf->groupId, terrstr());
+    SET_ERROR_MSG("malloc tmq failed")
     return NULL;
   }
 
@@ -1055,6 +1061,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
       conf->groupId[0] == 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tscError("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
+    SET_ERROR_MSG("malloc tmq element failed or group is empty")
     goto _failed;
   }
 
@@ -1086,6 +1093,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   if (tsem_init(&pTmq->rspSem, 0, 0) != 0) {
     tscError("consumer:0x %" PRIx64 " setup failed since %s, consumer group %s", pTmq->consumerId, terrstr(),
              pTmq->groupId);
+    SET_ERROR_MSG("init t_sem failed")
     goto _failed;
   }
 
@@ -1094,11 +1102,13 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   if (pTmq->pTscObj == NULL) {
     tscError("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
     tsem_destroy(&pTmq->rspSem);
+    SET_ERROR_MSG("init tscObj failed")
     goto _failed;
   }
 
   pTmq->refId = taosAddRef(tmqMgmt.rsetId, pTmq);
   if (pTmq->refId < 0) {
+    SET_ERROR_MSG("add tscObj ref failed")
     goto _failed;
   }
 
@@ -1216,7 +1226,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   }
 
   int32_t retryCnt = 0;
-  while (TSDB_CODE_MND_CONSUMER_NOT_READY == syncAskEp(tmq)) {
+  while (syncAskEp(tmq) != 0) {
     if (retryCnt++ > MAX_RETRY_COUNT) {
       tscError("consumer:0x%" PRIx64 ", mnd not ready for subscribe, retry more than 2 minutes", tmq->consumerId);
       code = TSDB_CODE_MND_CONSUMER_NOT_READY;
@@ -1454,6 +1464,9 @@ static bool doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
   if (epoch < tmq->epoch || (epoch == tmq->epoch && topicNumGet == 0)) {
     tscInfo("consumer:0x%" PRIx64 " no update ep epoch from %d to epoch %d, incoming topics:%d",
             tmq->consumerId, tmq->epoch, epoch, topicNumGet);
+    if(atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__RECOVER){
+      atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__READY);
+    }
     return false;
   }
 
@@ -1965,9 +1978,14 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     return NULL;
   }
 
-  while (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__RECOVER) {
+  while (1) {
+    if(atomic_load_8(&tmq->status) != TMQ_CONSUMER_STATUS__RECOVER){
+      break;
+    }
+    tscInfo("consumer:0x%" PRIx64 " tmq status is recover", tmq->consumerId);
+
     int32_t retryCnt = 0;
-    while (TSDB_CODE_MND_CONSUMER_NOT_READY == syncAskEp(tmq)) {
+    while (syncAskEp(tmq) != 0) {
       if (retryCnt++ > 40) {
         return NULL;
       }

@@ -22,14 +22,11 @@
 extern "C" {
 #endif
 
-typedef struct STFileSet STFileSet;
-typedef struct STFileOp  STFileOp;
-typedef struct SSttLvl   SSttLvl;
+typedef struct STFileOp STFileOp;
+typedef struct SSttLvl  SSttLvl;
 typedef TARRAY2(STFileObj *) TFileObjArray;
 typedef TARRAY2(SSttLvl *) TSttLvlArray;
 typedef TARRAY2(STFileOp) TFileOpArray;
-typedef struct STFileSystem STFileSystem;
-typedef struct STFSBgTask   STFSBgTask;
 
 typedef enum {
   TSDB_FOP_NONE = 0,
@@ -51,8 +48,8 @@ int32_t tsdbTFileSetRemove(STFileSet *fset);
 int32_t tsdbTFileSetFilteredInitDup(STsdb *pTsdb, const STFileSet *fset1, int64_t ever, STFileSet **fset,
                                     TFileOpArray *fopArr);
 
-int32_t tsdbTSnapRangeInitRef(STsdb *pTsdb, const STFileSet *fset1, int64_t sver, int64_t ever, STSnapRange **fsr);
-int32_t tsdbTSnapRangeClear(STSnapRange **fsr);
+int32_t tsdbTFileSetRangeInitRef(STsdb *pTsdb, const STFileSet *fset1, int64_t sver, int64_t ever,
+                                 STFileSetRange **fsr);
 
 // to/from json
 int32_t tsdbTFileSetToJson(const STFileSet *fset, cJSON *json);
@@ -72,33 +69,8 @@ bool tsdbTFileSetIsEmpty(const STFileSet *fset);
 // stt
 int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl);
 int32_t tsdbSttLvlClear(SSttLvl **lvl);
-
-typedef enum {
-  TSDB_BG_TASK_MERGER = 1,
-  TSDB_BG_TASK_RETENTION,
-  TSDB_BG_TASK_COMPACT,
-} EFSBgTaskT;
-
-struct STFSBgTask {
-  STFileSystem *fs;
-  int32_t       fid;
-
-  EFSBgTaskT type;
-  int32_t (*run)(void *arg);
-  void (*destroy)(void *arg);
-  void *arg;
-
-  TdThreadCond done[1];
-  int32_t      numWait;
-
-  int64_t taskid;
-  int64_t scheduleTime;
-  int64_t launchTime;
-  int64_t finishTime;
-
-  struct STFSBgTask *prev;
-  struct STFSBgTask *next;
-};
+// open channel
+int32_t tsdbTFileSetOpenChannel(STFileSet *fset);
 
 struct STFileOp {
   tsdb_fop_t optype;
@@ -118,10 +90,9 @@ struct STFileSet {
   STFileObj   *farr[TSDB_FTYPE_MAX];  // file array
   TSttLvlArray lvlArr[1];             // level array
 
-  // background task queue
-  int32_t     bgTaskNum;
-  STFSBgTask  bgTaskQueue[1];
-  STFSBgTask *bgTaskRunning;
+  // background task channel
+  int64_t bgTaskChannel;
+  bool    mergeScheduled;
 
   // block commit variables
   TdThreadCond canCommit;
@@ -129,7 +100,7 @@ struct STFileSet {
   bool         blockCommit;
 };
 
-struct STSnapRange {
+struct STFileSetRange {
   int32_t    fid;
   int64_t    sver;
   int64_t    ever;

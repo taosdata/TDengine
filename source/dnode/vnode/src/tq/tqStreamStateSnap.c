@@ -104,8 +104,8 @@ int32_t streamStateSnapRead(SStreamStateReader* pReader, uint8_t** ppData) {
   pHdr->type = SNAP_DATA_STREAM_STATE_BACKEND;
   pHdr->size = len;
   memcpy(pHdr->data, rowData, len);
-  tqDebug("vgId:%d, vnode stream-state snapshot read data success", TD_VID(pReader->pTq->pVnode));
   taosMemoryFree(rowData);
+  tqDebug("vgId:%d, vnode stream-state snapshot read data success", TD_VID(pReader->pTq->pVnode));
   return code;
 
 _err:
@@ -139,7 +139,7 @@ int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   pWriter->sver = sver;
   pWriter->ever = ever;
 
-  sprintf(tdir, "%s%s%s%s%s", pTq->path, TD_DIRSEP, VNODE_TQ_STREAM, TD_DIRSEP, "received");
+  sprintf(tdir, "%s%s%s", pTq->path, TD_DIRSEP, VNODE_TQ_STREAM);
   taosMkDir(tdir);
 
   SStreamSnapWriter* pSnapWriter = NULL;
@@ -167,20 +167,19 @@ int32_t streamStateSnapWriterClose(SStreamStateWriter* pWriter, int8_t rollback)
 
   return code;
 }
+
+int32_t streamStateSnapWrite(SStreamStateWriter* pWriter, uint8_t* pData, uint32_t nData) {
+  tqDebug("vgId:%d, vnode %s snapshot write data", TD_VID(pWriter->pTq->pVnode), STREAM_STATE_TRANSFER);
+  return streamSnapWrite(pWriter->pWriterImpl, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
+}
 int32_t streamStateRebuildFromSnap(SStreamStateWriter* pWriter, int64_t chkpId) {
   tqDebug("vgId:%d, vnode %s  start to rebuild stream-state", TD_VID(pWriter->pTq->pVnode), STREAM_STATE_TRANSFER);
-  int32_t code = streamMetaReopen(pWriter->pTq->pStreamMeta);
-  if (code == 0) {
-    code = streamStateLoadTasks(pWriter);
-  }
+  int32_t code = streamStateLoadTasks(pWriter);
   tqDebug("vgId:%d, vnode %s  succ to rebuild stream-state", TD_VID(pWriter->pTq->pVnode), STREAM_STATE_TRANSFER);
   taosMemoryFree(pWriter);
   return code;
 }
 
-int32_t streamStateLoadTasks(SStreamStateWriter* pWriter) { return streamMetaLoadAllTasks(pWriter->pTq->pStreamMeta); }
-
-int32_t streamStateSnapWrite(SStreamStateWriter* pWriter, uint8_t* pData, uint32_t nData) {
-  tqDebug("vgId:%d, vnode %s snapshot write data", TD_VID(pWriter->pTq->pVnode), STREAM_STATE_TRANSFER);
-  return streamSnapWrite(pWriter->pWriterImpl, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
+int32_t streamStateLoadTasks(SStreamStateWriter* pWriter) {
+  return streamMetaLoadAllTasks(pWriter->pTq->pStreamMeta);
 }

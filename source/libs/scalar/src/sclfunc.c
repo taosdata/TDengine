@@ -1083,6 +1083,15 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       memmove(fraction, fraction + TSDB_TIME_PRECISION_SEC_DIGITS, TSDB_TIME_PRECISION_SEC_DIGITS);
     }
 
+    // trans current timezone's unix ts to dest timezone
+    // offset = delta from dest timezone to zero
+    // delta from zero to current timezone = 3600 * (cur)tsTimezone
+    int64_t offset = 0;
+    if (0 != offsetOfTimezone(tz, &offset)) {
+      goto _end;
+    }
+    timeVal -= offset + 3600 * ((int64_t)tsTimezone);
+
     struct tm tmInfo;
     int32_t len = 0;
 
@@ -1230,7 +1239,6 @@ int32_t toTimestampFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam
     code = taosChar2Ts(format, &formats, tsStr, &ts, precision, errMsg, 128);
     if (code) {
       qError("func to_timestamp failed %s", errMsg);
-      code = code == -1 ? TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_FORMAT_ERR : TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_TS_ERR;
       break;
     }
     colDataSetVal(pOutput->columnData, i, (char *)&ts, false);
@@ -1246,6 +1254,7 @@ int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
   char *  out = taosMemoryCalloc(1, TS_FORMAT_MAX_LEN + VARSTR_HEADER_SIZE);
   int32_t len;
   SArray *formats = NULL;
+  int32_t code = 0;
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[1].columnData, i) || colDataIsNull_s(pInput[0].columnData, i)) {
       colDataSetNULL(pOutput->columnData, i);
@@ -1264,14 +1273,15 @@ int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
       }
     }
     int32_t precision = pInput[0].columnData->info.precision;
-    taosTs2Char(format, &formats, *(int64_t *)ts, precision, varDataVal(out), TS_FORMAT_MAX_LEN);
+    code = taosTs2Char(format, &formats, *(int64_t *)ts, precision, varDataVal(out), TS_FORMAT_MAX_LEN);
+    if (code) break;
     varDataSetLen(out, strlen(varDataVal(out)));
     colDataSetVal(pOutput->columnData, i, out, false);
   }
   if (formats) taosArrayDestroy(formats);
   taosMemoryFree(format);
   taosMemoryFree(out);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 /** Time functions **/
@@ -1449,13 +1459,29 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
       }
       case 604800000: { /* 1w */
         if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-          timeVal = timeVal / 1000 / 604800 * 604800 * 1000;
+          if (ignoreTz) {
+            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1000)) % (((int64_t)604800) * 1000);
+          } else {
+            timeVal = timeVal / 1000 / 604800 * 604800 * 1000;
+          }
         } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-          timeVal = timeVal / 1000000 / 604800 * 604800 * 1000000;
+          if (ignoreTz) {
+            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1000000)) % (((int64_t)604800) * 1000000);
+          } else {
+            timeVal = timeVal / 1000000 / 604800 * 604800 * 1000000;
+          }
         } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-          timeVal = timeVal / 1000000000 / 604800 * 604800 * 1000000000;
+          if (ignoreTz) {
+            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1000000000)) % (((int64_t)604800) * 1000000000);
+          } else {
+            timeVal = timeVal / 1000000000 / 604800 * 604800 * 1000000000;
+          }
         } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
-          timeVal = timeVal * factor / factor / 604800 * 604800 * factor;
+          if (ignoreTz) {
+            timeVal = timeVal - (timeVal + offsetFromTz(timezone, 1)) % (((int64_t)604800L) * factor);
+          } else {
+            timeVal = timeVal * factor / factor / 604800 * 604800 * factor;
+          }
         } else {
           colDataSetNULL(pOutput->columnData, i);
           continue;

@@ -250,7 +250,7 @@ void taosGetSystemInfo() {
   taosGetCpuCores(&tsNumOfCores, false);
   taosGetTotalMemory(&tsTotalMemoryKB);
   taosGetCpuUsage(NULL, NULL);
-  taosGetCpuInstructions(&tsSSE42Enable, &tsAVXEnable, &tsAVX2Enable, &tsFMAEnable);
+  taosGetCpuInstructions(&tsSSE42Enable, &tsAVXEnable, &tsAVX2Enable, &tsFMAEnable, &tsAVX512Enable);
 #endif
 }
 
@@ -602,7 +602,7 @@ void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
                       : "0"(level))
 
 // todo add for windows and mac
-int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma) {
+int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma, char* avx512) {
 #ifdef WINDOWS
 #elif defined(_TD_DARWIN_64)
 #else
@@ -610,12 +610,6 @@ int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma) {
 #ifdef _TD_X86_
   // Since the compiler is not support avx/avx2 instructions, the global variables always need to be
   // set to be false
-//#if __AVX__ || __AVX2__
-//  tsSIMDBuiltins = true;
-//#else
-//  tsSIMDBuiltins = false;
-//#endif
-
   uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
 
   int32_t ret = __get_cpuid(1, &eax, &ebx, &ecx, &edx);
@@ -631,6 +625,7 @@ int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma) {
   // Ref to https://gcc.gnu.org/bugzilla/show_bug.cgi?id=77756
   __cpuid_fix(7u, eax, ebx, ecx, edx);
   *avx2 = (char) ((ebx & bit_AVX2) == bit_AVX2);
+  *avx512 = (char)((ebx & bit_AVX512F) == bit_AVX512F);
 #endif   // _TD_X86_
 #endif
 

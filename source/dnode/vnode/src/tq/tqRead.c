@@ -195,7 +195,8 @@ int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t 
   int64_t committedVer = walGetCommittedVer(pHandle->pWalReader->pWal);
   int64_t appliedVer = walGetAppliedVer(pHandle->pWalReader->pWal);
 
-  wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64 ", applied index:%" PRId64", 0x%"PRIx64,
+  wDebug("vgId:%d, start to fetch wal, index:%" PRId64 ", last:%" PRId64 " commit:%" PRId64 ", applied:%" PRId64
+         ", 0x%" PRIx64,
          vgId, offset, lastVer, committedVer, appliedVer, id);
 
   while (offset <= appliedVer) {
@@ -343,7 +344,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
       void*   pBody = POINTER_SHIFT(pCont->body, sizeof(SMsgHead));
       int32_t len = pCont->bodyLen - sizeof(SMsgHead);
 
-      code = extractDelDataBlock(pBody, len, ver, (SStreamRefDataBlock**)pItem);
+      code = extractDelDataBlock(pBody, len, ver, (void**)pItem, 0);
       if (code == TSDB_CODE_SUCCESS) {
         if (*pItem == NULL) {
           tqDebug("s-task:%s empty delete msg, discard it, len:%d, ver:%" PRId64, id, len, ver);

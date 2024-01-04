@@ -221,7 +221,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
         *pInput = qItem;
       } else {
         // merge current block failed, let's handle the already merged blocks.
-        void* newRet = streamMergeQueueItem(*pInput, qItem);
+        void* newRet = streamQueueMergeQueueItem(*pInput, qItem);
         if (newRet == NULL) {
           if (terrno != 0) {
             stError("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d, code:%s", id, *numOfBlocks,
@@ -270,7 +270,6 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
           "s-task:%s inputQ is full, capacity(size:%d num:%dMiB), current(blocks:%d, size:%.2fMiB) stop to push data",
           pTask->id.idStr, STREAM_TASK_QUEUE_CAPACITY, STREAM_TASK_QUEUE_CAPACITY_IN_SIZE, total, size);
       streamDataSubmitDestroy(px);
-      taosFreeQitem(pItem);
       return -1;
     }
 
@@ -280,7 +279,6 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
     int32_t code = taosWriteQitem(pQueue, pItem);
     if (code != TSDB_CODE_SUCCESS) {
       streamDataSubmitDestroy(px);
-      taosFreeQitem(pItem);
       return code;
     }
 
@@ -296,13 +294,13 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
 
       stTrace("s-task:%s input queue is full, capacity:%d size:%d MiB, current(blocks:%d, size:%.2fMiB) abort",
              pTask->id.idStr, STREAM_TASK_QUEUE_CAPACITY, STREAM_TASK_QUEUE_CAPACITY_IN_SIZE, total, size);
-      destroyStreamDataBlock((SStreamDataBlock*)pItem);
+      streamFreeQitem(pItem);
       return -1;
     }
 
     int32_t code = taosWriteQitem(pQueue, pItem);
     if (code != TSDB_CODE_SUCCESS) {
-      destroyStreamDataBlock((SStreamDataBlock*)pItem);
+      streamFreeQitem(pItem);
       return code;
     }
 
@@ -312,7 +310,7 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
              type == STREAM_INPUT__TRANS_STATE) {
     int32_t code = taosWriteQitem(pQueue, pItem);
     if (code != TSDB_CODE_SUCCESS) {
-      taosFreeQitem(pItem);
+      streamFreeQitem(pItem);
       return code;
     }
 
@@ -323,7 +321,7 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
     // use the default memory limit, refactor later.
     int32_t code = taosWriteQitem(pQueue, pItem);
     if (code != TSDB_CODE_SUCCESS) {
-      taosFreeQitem(pItem);
+      streamFreeQitem(pItem);
       return code;
     }
 
@@ -390,32 +388,36 @@ int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t
   pBucket->quotaCapacity = quotaRate * MAX_SMOOTH_BURST_RATIO;
   pBucket->quotaRemain = pBucket->quotaCapacity;
 
-  pBucket->fillTimestamp = taosGetTimestampMs();
+  pBucket->tokenFillTimestamp = taosGetTimestampMs();
+  pBucket->quotaFillTimestamp = taosGetTimestampMs();
   stDebug("s-task:%s sink quotaRate:%.2fMiB, numRate:%d", id, quotaRate, numRate);
   return TSDB_CODE_SUCCESS;
 }
 
 static void fillTokenBucket(STokenBucket* pBucket, const char* id) {
   int64_t now = taosGetTimestampMs();
-  int64_t delta = now - pBucket->fillTimestamp;
+
+  int64_t deltaToken = now - pBucket->tokenFillTimestamp;
   ASSERT(pBucket->numOfToken >= 0);
 
-  int32_t incNum = (delta / 1000.0) * pBucket->numRate;
+  int32_t incNum = (deltaToken / 1000.0) * pBucket->numRate;
   if (incNum > 0) {
     pBucket->numOfToken = TMIN(pBucket->numOfToken + incNum, pBucket->numCapacity);
-    pBucket->fillTimestamp = now;
+    pBucket->tokenFillTimestamp = now;
   }
 
   // increase the new available quota as time goes on
-  double incSize = (delta / 1000.0) * pBucket->quotaRate;
+  int64_t deltaQuota = now - pBucket->quotaFillTimestamp;
+  double incSize = (deltaQuota / 1000.0) * pBucket->quotaRate;
   if (incSize > 0) {
     pBucket->quotaRemain = TMIN(pBucket->quotaRemain + incSize, pBucket->quotaCapacity);
-    pBucket->fillTimestamp = now;
+    pBucket->quotaFillTimestamp = now;
   }
 
   if (incNum > 0 || incSize > 0) {
-    stTrace("token/quota available, token:%d inc:%d, quota:%.2fMiB inc:%.3fMiB, ts:%" PRId64 " idle:%" PRId64 "ms, %s",
-            pBucket->numOfToken, incNum, pBucket->quotaRemain, incSize, now, delta, id);
+    stTrace("token/quota available, token:%d inc:%d, token_TsDelta:%" PRId64
+            ", quota:%.2fMiB inc:%.3fMiB quotaTs:%" PRId64 " now:%" PRId64 "ms, %s",
+            pBucket->numOfToken, incNum, deltaToken, pBucket->quotaRemain, incSize, deltaQuota, now, id);
   }
 }
 

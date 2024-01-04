@@ -506,7 +506,22 @@ class TDCom:
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
                     break
+        if platform.system().lower() == 'windows':
+            win_sep = "\\"
+            buildPath = buildPath.replace(win_sep,'/')
+
         return buildPath
+    
+    def getTaosdPath(self, dnodeID="dnode1"):
+        buildPath = self.getBuildPath()
+        if (buildPath == ""):
+            tdLog.exit("taosd not found!")
+        else:
+            tdLog.info("taosd found in %s" % buildPath)
+        taosdPath = buildPath + "/../sim/" + dnodeID
+        tdLog.info("taosdPath: %s" % taosdPath)
+        return taosdPath
+
 
     def getClientCfgPath(self):
         buildPath = self.getBuildPath()

@@ -110,6 +110,8 @@ int32_t metaDebugFlag = 131;
 int32_t udfDebugFlag = 131;
 int32_t smaDebugFlag = 131;
 int32_t idxDebugFlag = 131;
+int32_t sndDebugFlag = 131;
+int32_t simDebugFlag = 131;
 
 int64_t dbgEmptyW = 0;
 int64_t dbgWN = 0;
@@ -153,7 +155,12 @@ int32_t taosInitSlowLog() {
 #endif
 
   if (strlen(tsLogDir) != 0) {
-    snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logFileName);
+    char lastC = tsLogDir[strlen(tsLogDir) - 1];
+    if (lastC == '\\' || lastC == '/') {
+      snprintf(fullName, PATH_MAX, "%s" "%s", tsLogDir, logFileName);
+    } else {
+      snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logFileName);
+    }
   } else {
     snprintf(fullName, PATH_MAX, "%s", logFileName);
   }
@@ -177,7 +184,12 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles) {
 
   char fullName[PATH_MAX] = {0};
   if (strlen(tsLogDir) != 0) {
-    snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logName);
+    char lastC = tsLogDir[strlen(tsLogDir) - 1];
+    if (lastC == '\\' || lastC == '/') {
+      snprintf(fullName, PATH_MAX, "%s" "%s", tsLogDir, logName);
+    } else {
+      snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logName);
+    }
   } else {
     snprintf(fullName, PATH_MAX, "%s", logName);
   }
@@ -326,14 +338,10 @@ static int32_t taosOpenNewLogFile() {
 }
 
 void taosResetLog() {
-  char lastName[LOG_FILE_NAME_LEN + 20];
-  sprintf(lastName, "%s.%d", tsLogObj.logName, tsLogObj.flag);
-
   // force create a new log file
   tsLogObj.lines = tsNumOfLogLines + 10;
 
   taosOpenNewLogFile();
-  (void)taosRemoveFile(lastName);
 
   uInfo("==================================");
   uInfo("   reset log file ");

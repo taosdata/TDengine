@@ -75,7 +75,7 @@ class TMQCom:
             if tdSql.getRows() == expectRows:
                 break
             else:
-                time.sleep(5)
+                time.sleep(0.5)
 
         for i in range(expectRows):
             tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
@@ -156,7 +156,7 @@ class TMQCom:
             tdLog.info("row: %d"%(actRows))
             if (actRows >= rows):
                     loopFlag = 0
-            time.sleep(0.02)
+            time.sleep(0.5)
         return
 
     def getStartCommitNotifyFromTmqsim(self,cdbName='cdb',rows=1):
@@ -167,7 +167,7 @@ class TMQCom:
             tdLog.info("row: %d"%(actRows))
             if (actRows >= rows):
                 loopFlag = 0
-            time.sleep(0.02)
+            time.sleep(0.5)
         return
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):

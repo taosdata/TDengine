@@ -313,7 +313,7 @@ _CONNECT:
   code = 0;
 
   char detail[1000] = {0};
-  sprintf(detail, "%s:%d, app:%s", ip, pConn->port, connReq.app);
+  sprintf(detail, "app:%s", connReq.app);
 
   auditRecord(pReq, pMnode->clusterId, "login", "", "", detail, strlen(detail));
 

@@ -249,16 +249,16 @@ typedef struct SQueryTableDataCond {
   SColumnInfo* colList;
   int32_t*     pSlotList;  // the column output destation slot, and it may be null
   int32_t      type;       // data block load type:
+  bool         skipRollup;
   STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;
+  bool         notLoadData;    // response the actual data, not only the rows in the attribute of info.row of ssdatablock
 } SQueryTableDataCond;
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
 void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
 
-int32_t tEncodeDataBlocks(void** buf, const SArray* blocks);
-void*   tDecodeDataBlocks(const void* buf, SArray** blocks);
 void    colDataDestroy(SColumnInfoData* pColData);
 
 //======================================================================================================================
@@ -293,7 +293,7 @@ typedef struct STableBlockDistInfo {
   int32_t  defMaxRows;
   int32_t  firstSeekTimeUs;
   uint32_t numOfInmemRows;
-  uint32_t numOfSmallBlocks;
+  uint32_t numOfSttRows;
   uint32_t numOfVgroups;
   int32_t  blockRowsHisto[20];
 } STableBlockDistInfo;
@@ -363,6 +363,11 @@ typedef struct SSortExecInfo {
   int32_t writeBytes;  // write io bytes
   int32_t readBytes;   // read io bytes
 } SSortExecInfo;
+
+typedef struct SNonSortExecInfo {
+  int32_t blkNums;
+} SNonSortExecInfo;
+
 
 typedef struct STUidTagInfo {
   char*    name;

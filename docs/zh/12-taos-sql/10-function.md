@@ -565,7 +565,7 @@ TO_TIMESTAMP(ts_str_literal, format_str_literal)
 - `MONTH`, `MON`, `DAY`, `DY` 以及其他输出为数字的格式的大小写意义相同, 如 `to_timestamp('2023-JANUARY-01', 'YYYY-month-dd')`, `month`可以被替换为`MONTH` 或者`Month`.
 - 如果同一字段被指定了多次, 那么前面的指定将会被覆盖.  如 `to_timestamp('2023-22-10-10', 'yyyy-yy-MM-dd')`, 输出年份是`2022`.
 - 为避免转换时使用了非预期的时区，推荐在时间中携带时区信息，例如'2023-10-10 10:10:10+08'，如果未指定时区则默认时区为服务端或客户端指定的时区。
-- 如果没有指定完整的时间，那么默认时间值为指定或默认时区的 `1970-01-01 00:00:00`, 未指定部分使用该默认值中的对应部分.
+- 如果没有指定完整的时间，那么默认时间值为指定或默认时区的 `1970-01-01 00:00:00`, 未指定部分使用该默认值中的对应部分. 暂不支持只指定年日而不指定月日的格式, 如'yyyy-mm-DDD', 支持'yyyy-mm-DD'.
 - 如果格式串中有`AM`, `PM`等, 那么小时必须是12小时制, 范围必须是01-12.
 - `to_timestamp`转换具有一定的容错机制, 在格式串和时间戳串不完全对应时, 有时也可转换, 如: `to_timestamp('200101/2', 'yyyyMM1/dd')`, 格式串中多出来的1会被丢弃. 格式串与时间戳串中多余的空格字符(空格, tab等)也会被 自动忽略. 如`to_timestamp('  23 年 - 1 月 - 01 日  ', 'yy 年-MM月-dd日')` 可以被成功转换. 虽然`MM`等字段需要两个数字对应(只有一位时前面补0), 在`to_timestamp`时, 一个数字也可以成功转换.
 - 输出时间戳的精度与查询表的精度相同, 若查询未指定表, 则输出精度为毫秒. 如`select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns')`的输出将会把微妙和纳秒进行截断. 如果指定一张纳秒表, 那么就不会发生截断, 如`select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns') from db_ns.table_ns limit 1`.
@@ -626,9 +626,9 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 #### TIMETRUNCATE
 
 ```sql
-TIMETRUNCATE(expr, time_unit [, ignore_timezone])
+TIMETRUNCATE(expr, time_unit [, use_current_timezone])
 
-ignore_timezone: {
+use_current_timezone: {
     0
   | 1
 }
@@ -647,10 +647,11 @@ ignore_timezone: {
           1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
 - 输入包含不符合时间日期格式的字符串则返回 NULL。
-- 当使用 1d 作为时间单位对时间戳进行截断时， 可通过设置 ignore_timezone 参数指定返回结果的显示是否忽略客户端时区的影响。
-  例如客户端所配置时区为 UTC+0800, 则 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 0) 返回结果为 '2020-01-01 08:00:00'。
-  而使用 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 1) 设置忽略时区时，返回结果为 '2020-01-01 00:00:00'
-  ignore_timezone 如果忽略的话，则默认值为 1 。
+- 当使用 1d/1w 作为时间单位对时间戳进行截断时， 可通过设置 use_current_timezone 参数指定是否根据当前时区进行截断处理。
+  值 0 表示使用 UTC 时区进行截断，值 1 表示使用当前时区进行截断。
+  例如客户端所配置时区为 UTC+0800, 则 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 0) 返回结果为东八区时间 '2020-01-01 08:00:00'。
+  而使用 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 1) 时，返回结果为东八区时间 '2020-01-01 00:00:00'。
+  当不指定 use_current_timezone 时，use_current_timezone 默认值为 1 。
 
 
 

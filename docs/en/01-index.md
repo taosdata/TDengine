@@ -19,7 +19,9 @@ TDengine uses ubiquitous SQL as its query language, which greatly reduces learni
 
 If you are a system administrator who cares about installation, upgrade, fault tolerance, disaster recovery, data import, data export, system configuration, how to monitor whether TDengine is running healthily, and how to improve system performance, please refer to, and thoroughly read the [Administration](./operation) section.
 
-If you want to know more about TDengine tools, the REST API, and connectors for various programming languages, please see the [Reference](./reference) chapter.
+If you want to know more about TDengine tools and the REST API, please see the [Reference](./reference) chapter.
+
+For information about connecting to TDengine with different programming languages, see [Client Libraries](./client-libraries/).
 
 If you are very interested in the internal design of TDengine, please read the chapter [Inside TDengine](./tdinternal), which introduces the cluster design, data partitioning, sharding, writing, and reading processes in detail. If you want to study TDengine code or even contribute code, please read this chapter carefully.
 

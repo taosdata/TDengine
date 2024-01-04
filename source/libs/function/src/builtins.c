@@ -2772,7 +2772,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_cache_last",
     .type = FUNCTION_TYPE_CACHE_LAST,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateFirstLast,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -3425,7 +3425,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_wstart",
     .type = FUNCTION_TYPE_WSTART,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
     .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
@@ -3435,7 +3435,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_wend",
     .type = FUNCTION_TYPE_WEND,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
     .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
@@ -3445,7 +3445,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_wduration",
     .type = FUNCTION_TYPE_WDURATION,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
     .translateFunc = translateWduration,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,

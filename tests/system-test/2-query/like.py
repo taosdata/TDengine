@@ -1,0 +1,148 @@
+import taos
+import sys
+import datetime
+import inspect
+
+from util.log import *
+from util.sql import *
+from util.cases import *
+from util.common import tdCom
+
+class TDTestCase:
+
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
+        tdLog.debug(f"start to excute {__file__}")
+        tdSql.init(conn.cursor(), False)
+        
+    def initDB(self):
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database if not exists db")
+        
+    def stopTest(self):
+        tdSql.execute("drop database if exists db")
+
+    def like_wildcard_test(self):
+        tdSql.execute("create table db.t1x (ts timestamp, c1 varchar(100))")
+        tdSql.execute("create table db.t_1x (ts timestamp, c1 varchar(100))")
+
+        tdSql.query("select * from information_schema.ins_columns where table_name like '%1x'")
+        tdSql.checkRows(4)
+        
+        tdSql.query("select * from information_schema.ins_columns where table_name like '%\_1x'")
+        tdSql.checkRows(2)
+
+
+        tdSql.query("insert into db.t1x values(now, 'abc'), (now+1s, 'a%c'),(now+2s, 'a_c'),(now+3s, '_c'),(now+4s, '%c')")
+        
+        tdSql.query("select * from db.t1x")
+        tdSql.checkRows(5)
+        
+        tdSql.query("select * from db.t1x where c1 like '%_c'")
+        tdSql.checkRows(5)
+        
+        tdSql.query("select * from db.t1x where c1 like '%__c'")
+        tdSql.checkRows(3)
+        
+        tdSql.query("select * from db.t1x where c1 like '%\_c'")
+        tdSql.checkRows(2)
+        
+        tdSql.query("select * from db.t1x where c1 like '%\%c'")
+        tdSql.checkRows(2)
+        
+        tdSql.query("select * from db.t1x where c1 like '_\%c'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "a%c")
+        
+        tdSql.query("select * from db.t1x where c1 like '_\_c'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "a_c")
+        
+        tdSql.query("select * from db.t1x where c1 like '%%_c'")
+        tdSql.checkRows(5)
+        
+        tdSql.query("select * from db.t1x where c1 like '%_%c'")
+        tdSql.checkRows(5)
+        
+        tdSql.query("select * from db.t1x where c1 like '__%c'")
+        tdSql.checkRows(3)
+        
+        tdSql.query("select * from db.t1x where c1 not like '__%c'")
+        tdSql.checkRows(2)
+       
+    def like_cnc_wildcard_test(self): 
+        tdSql.execute("create table db.t3x (ts timestamp, c1 varchar(100))")
+        
+        tdSql.execute("insert into db.t3x values(now, '我是中文'), (now+1s, '我是_中文'), (now+2s, '我是%中文'), (now+3s, '%中文'),(now+4s, '_中文')")
+        tdSql.query("select * from db.t3x")
+        tdSql.checkRows(5)
+          
+        tdSql.query("select * from db.t3x where c1 like '%中文'")
+        tdSql.checkRows(5)
+        
+        tdSql.query("select * from db.t3x where c1 like '%中_文'")
+        tdSql.checkRows(0)
+        
+        tdSql.query("select * from db.t3x where c1 like '%\%中文'")
+        tdSql.checkRows(2)
+        
+        tdSql.query("select * from db.t3x where c1 like '%\_中文'")
+        tdSql.checkRows(2)
+        
+        tdSql.query("select * from db.t3x where c1 like '_中文'")
+        tdSql.checkRows(2)
+        
+        tdSql.query("select * from db.t3x where c1 like '\_中文'")
+        tdSql.checkRows(1)
+        
+    def like_multi_wildcard_test(self): 
+        tdSql.execute("create table db.t4x (ts timestamp, c1 varchar(100))")
+
+        # 插入测试数据
+        tdSql.execute("insert into db.t4x values(now, 'abc'), (now+1s, 'a%c'),(now+2s, 'a_c'),(now+3s, '_c'),(now+4s, '%c')")
+        tdSql.execute("insert into db.t4x values(now+5s, '%%%c'),(now+6s, '___c'),(now+7s, '%_%c'),(now+8s, '%\\c')")
+
+        tdSql.query("select * from db.t4x where c1 like '%%%_'")
+        tdSql.checkRows(9)
+
+        tdSql.query("select * from db.t4x where c1 like '\%\%\%_'")
+        tdSql.checkRows(1)
+        
+        tdSql.query("select * from db.t4x where c1 like '%\_%%'")
+        tdSql.checkRows(4)
+
+        tdSql.query("select * from db.t4x where c1 like '_\%\%'")
+        tdSql.checkRows(0)
+        
+        tdSql.query("select * from db.t4x where c1 like '%abc%'")
+        tdSql.checkRows(1)
+        
+        tdSql.query("select * from db.t4x where c1 like '_%abc%'")
+        tdSql.checkRows(0)
+        
+        tdSql.query("select * from db.t4x where c1 like '\%%\%%'")
+        tdSql.checkRows(2)
+        
+        tdSql.query("select * from db.t4x where c1 like '\%\_%\%%'")
+        tdSql.checkRows(1)
+        
+    def run(self):
+        tdLog.printNoPrefix("==========start like_wildcard_test run ...............")
+        tdSql.prepare(replica = self.replicaVar)
+
+
+        self.initDB()
+        self.like_wildcard_test()
+        self.like_cnc_wildcard_test()
+        self.like_multi_wildcard_test()
+        tdLog.printNoPrefix("==========end like_wildcard_test run ...............")
+        
+        self.stopTest()
+
+    def stop(self):
+        tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")
+
+
+tdCases.addLinux(__file__, TDTestCase())
+tdCases.addWindows(__file__, TDTestCase())

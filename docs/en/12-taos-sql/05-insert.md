@@ -5,7 +5,8 @@ description: This document describes how to insert data into TDengine.
 ---
 
 ## Syntax
-
+The writing of records supports two syntaxes, normal syntax and super table syntax. In the normal syntax, the table name immediately following `INSERT INTO` represents subtable names or regular table names. In the super table syntax, the table name immediately following `INSERT INTO` represents the super table name.
+### Normal Syntax
 ```sql
 INSERT INTO
     tb_name
@@ -20,6 +21,15 @@ INSERT INTO
 
 INSERT INTO tb_name [(field1_name, ...)] subquery
 ```
+### Super Table Syntax
+```sql
+INSERT INTO
+    stb1_name [(field1_name, ...)]       
+        VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
+    [stb2_name [(field1_name, ...)]  
+        VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
+    ...];
+```
 
 **Timestamps**
 
@@ -32,26 +42,34 @@ INSERT INTO tb_name [(field1_name, ...)] subquery
 
 **Syntax**
 
-1. The USING clause automatically creates the specified subtable if it does not exist. If it's unknown whether the table already exists, the table can be created automatically while inserting using the SQL statement below. To use this functionality, a STable must be used as template and tag values must be provided. Any tags that you do not specify will be assigned a null value.
+1. You can insert data into specified columns. Any columns in which you do not insert data will be assigned a null value.
 
-2. You can insert data into specified columns. Any columns in which you do not insert data will be assigned a null value.
+2. The VALUES clause inserts one or more rows of data into a table.
 
-3. The VALUES clause inserts one or more rows of data into a table.
+3. The FILE clause inserts tags or data from a comma-separates values (CSV) file. Do not include headers in your CSV files.
 
-4. The FILE clause inserts tags or data from a comma-separates values (CSV) file. Do not include headers in your CSV files.
+4. A single `INSERT ... VALUES` statement and `INSERT ... FILE` statement can write data to multiple tables.
 
-5. A single `INSERT ... VALUES` statement and `INSERT ... FILE` statement can write data to multiple tables.
-
-6. The INSERT statement is fully parsed before being executed, so that if any element of the statement fails, the entire statement will fail. For example, the following statement will not create a table because the latter part of the statement is invalid:
+5. The INSERT statement is fully parsed before being executed, so that if any element of the statement fails, the entire statement will fail. For example, the following statement will not create a table because the latter part of the statement is invalid:
 
    ```sql
    INSERT INTO d1001 USING meters TAGS('Beijing.Chaoyang', 2) VALUES('a');
    ```
 
-7. However, an INSERT statement that writes data to multiple subtables can succeed for some tables and fail for others. This situation is caused because vnodes perform write operations independently of each other. One vnode failing to write data does not affect the ability of other vnodes to write successfully.
+6. However, an INSERT statement that writes data to multiple subtables can succeed for some tables and fail for others. This situation is caused because vnodes perform write operations independently of each other. One vnode failing to write data does not affect the ability of other vnodes to write successfully.
 
-8. Data from TDengine can be inserted into a specified table using the `INSERT ... subquery` statement. Arbitrary query statements are supported. This syntax can only be used for subtables and normal tables, and does not support automatic table creation.
+**Normal Syntax**
+1. The USING clause automatically creates the specified subtable if it does not exist. If it's unknown whether the table already exists, the table can be created automatically while inserting using the SQL statement below. To use this functionality, a STable must be used as template and tag values must be provided. Any tags that you do not specify will be assigned a null value.
 
+2. Data from TDengine can be inserted into a specified table using the `INSERT ... subquery` statement. Arbitrary query statements are supported. This syntax can only be used for subtables and normal tables, and does not support automatic table creation.
+
+**Super Table Syntax**
+
+1. The tbname column must be included in the field_name list and represents the name of the child table. This column is of string type, and the use of the . character is not permitted in the tbname column.
+
+2. Tag columns are eligible for inclusion in the field_name list. If the specified child table doesn't exist, a new child table will be generated with the provided tag values. In the absence of specified tag values, the newly created table will have all NULL tag values. Existing child table tag values remain unchanged.
+
+3. Param binding is not supported.
 ## Insert a Record
 
 Single row or multiple rows specified with VALUES can be inserted into a specific table. A single row is inserted using the below statement.
@@ -134,3 +152,14 @@ When writing data from a file, you can automatically create the specified subtab
 INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile_21001.csv'
             d21002 USING meters (groupId) TAGS (2) FILE '/tmp/csvfile_21002.csv';
 ```
+## Super Table Syntax
+
+Automatically creating table and the table name is specified through the `tbname` column
+
+```sql
+INSERT INTO meters(tbname, location, groupId, ts, current, phase) 
+                values('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:34.630', 10.2, 219, 0.32) 
+                ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:35.779', 10.15, 217, 0.33)
+                ('d31002', NULL, 2, '2021-07-13 14:06:34.255', 10.15, 217, 0.33)        
+```
+

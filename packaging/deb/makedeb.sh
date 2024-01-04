@@ -87,6 +87,7 @@ cp ${compile_dir}/../packaging/tools/taosd-dump-cfg.gdb    ${pkg_dir}${install_h
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/udfd                   ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosBenchmark           ${pkg_dir}${install_home_path}/bin
+cp ${compile_dir}/build/bin/taosdump               ${pkg_dir}${install_home_path}/bin
 
 if [ -f "${compile_dir}/build/bin/taosadapter" ]; then
     cp ${compile_dir}/build/bin/taosadapter                    ${pkg_dir}${install_home_path}/bin ||:

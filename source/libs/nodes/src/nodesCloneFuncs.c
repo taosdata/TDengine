@@ -419,9 +419,12 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(groupSort);
   CLONE_NODE_LIST_FIELD(pTags);
   CLONE_NODE_FIELD(pSubtable);
+  COPY_SCALAR_FIELD(cacheLastMode);
   COPY_SCALAR_FIELD(igLastNull);
   COPY_SCALAR_FIELD(groupOrderScan);
   COPY_SCALAR_FIELD(onlyMetaCtbIdx);
+  COPY_SCALAR_FIELD(filesetDelimited);
+  COPY_SCALAR_FIELD(isCountByTag);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -443,8 +446,14 @@ static int32_t logicAggCopy(const SAggLogicNode* pSrc, SAggLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pGroupKeys);
   CLONE_NODE_LIST_FIELD(pAggFuncs);
+  COPY_SCALAR_FIELD(hasLastRow);
+  COPY_SCALAR_FIELD(hasLast);
+  COPY_SCALAR_FIELD(hasTimeLineFunc);
+  COPY_SCALAR_FIELD(onlyHasKeepOrderFunc);
   COPY_SCALAR_FIELD(hasGroupKeyOptimized);
+  COPY_SCALAR_FIELD(isGroupTb);
   COPY_SCALAR_FIELD(isPartTb);
+  COPY_SCALAR_FIELD(hasGroup);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -488,6 +497,8 @@ static int32_t logicMergeCopy(const SMergeLogicNode* pSrc, SMergeLogicNode* pDst
   CLONE_NODE_LIST_FIELD(pInputs);
   COPY_SCALAR_FIELD(numOfChannels);
   COPY_SCALAR_FIELD(srcGroupId);
+  COPY_SCALAR_FIELD(colsMerge);
+  COPY_SCALAR_FIELD(needSort);
   COPY_SCALAR_FIELD(groupSort);
   COPY_SCALAR_FIELD(ignoreGroupId);
   COPY_SCALAR_FIELD(inputWithGroupId);
@@ -641,6 +652,8 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(igExpired);
+  COPY_SCALAR_FIELD(filesetDelimited);
+  COPY_SCALAR_FIELD(needCountEmptyTable);
   return TSDB_CODE_SUCCESS;
 }
 

@@ -475,6 +475,7 @@ static void appendOneRowToDataBlock(SSDataBlock* pBlock, const SSDataBlock* pSou
     if (isNull) {
       colDataSetVal(pColInfo, pBlock->info.rows, NULL, true);
     } else {
+      if (!pSrcColInfo->pData) continue;
       char* pData = colDataGetData(pSrcColInfo, *rowIndex);
       colDataSetVal(pColInfo, pBlock->info.rows, pData, false);
     }
@@ -900,7 +901,7 @@ static int32_t getPageBufIncForRow(SSDataBlock* blk, int32_t row, int32_t rowIdx
     for (int32_t i = 0; i < numCols; ++i) {
       SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(blk->pDataBlock, i);
       if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-        if (pColInfoData->varmeta.offset[row] != -1) {
+        if ((pColInfoData->varmeta.offset[row] != -1) && (pColInfoData->pData)) {
           char* p = colDataGetData(pColInfoData, row);
           sz += varDataTLen(p);
         }
@@ -970,7 +971,6 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SBlockO
         lastPageBufTs = ((int64_t*)tsCol->pData)[pHandle->pDataBlock->info.rows - 1];
         appendDataBlockToPageBuf(pHandle, pHandle->pDataBlock, aPgId);
         nMergedRows += pHandle->pDataBlock->info.rows;
-
         blockDataCleanup(pHandle->pDataBlock);
         blkPgSz = pgHeaderSz;
         bufInc = getPageBufIncForRow(minBlk, minRow, 0);

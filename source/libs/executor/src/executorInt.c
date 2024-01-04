@@ -137,7 +137,7 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
  * +----------+---------------+
  */
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo, char* pData,
-                                   int16_t bytes, bool masterscan, uint64_t groupId, SExecTaskInfo* pTaskInfo,
+                                   int32_t bytes, bool masterscan, uint64_t groupId, SExecTaskInfo* pTaskInfo,
                                    bool isIntervalQuery, SAggSupporter* pSup, bool keepGroup) {
   SET_RES_WINDOW_KEY(pSup->keyBuf, pData, bytes, groupId);
   if (!keepGroup) {
@@ -652,6 +652,85 @@ int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPos
 
   releaseBufPage(pBuf, page);
   pBlock->info.rows += pRow->numOfRows;
+  return 0;
+}
+
+int32_t doCopyToSDataBlockByHash(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
+                                 SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t threshold,
+                                 bool ignoreGroup) {
+  SExprInfo*      pExprInfo = pSup->pExprInfo;
+  int32_t         numOfExprs = pSup->numOfExprs;
+  int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
+  SqlFunctionCtx* pCtx = pSup->pCtx;
+
+  size_t  keyLen = 0;
+  int32_t numOfRows = tSimpleHashGetSize(pHashmap);
+
+  // begin from last iter
+  void*   pData = pGroupResInfo->dataPos;
+  int32_t iter = pGroupResInfo->iter;
+  while ((pData = tSimpleHashIterate(pHashmap, pData, &iter)) != NULL) {
+    void*               key = tSimpleHashGetKey(pData, &keyLen);
+    SResultRowPosition* pos = pData;
+    uint64_t            groupId = *(uint64_t*)key;
+
+    SFilePage* page = getBufPage(pBuf, pos->pageId);
+    if (page == NULL) {
+      qError("failed to get buffer, code:%s, %s", tstrerror(terrno), GET_TASKID(pTaskInfo));
+      T_LONG_JMP(pTaskInfo->env, terrno);
+    }
+
+    SResultRow* pRow = (SResultRow*)((char*)page + pos->offset);
+
+    doUpdateNumOfRows(pCtx, pRow, numOfExprs, rowEntryOffset);
+
+    // no results, continue to check the next one
+    if (pRow->numOfRows == 0) {
+      pGroupResInfo->index += 1;
+      pGroupResInfo->iter = iter;
+      pGroupResInfo->dataPos = pData;
+
+      releaseBufPage(pBuf, page);
+      continue;
+    }
+
+    if (!ignoreGroup) {
+      if (pBlock->info.id.groupId == 0) {
+        pBlock->info.id.groupId = groupId;
+      } else {
+        // current value belongs to different group, it can't be packed into one datablock
+        if (pBlock->info.id.groupId != groupId) {
+          releaseBufPage(pBuf, page);
+          break;
+        }
+      }
+    }
+
+    if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
+      uint32_t newSize = pBlock->info.rows + pRow->numOfRows + ((numOfRows - iter) > 1 ? 1 : 0);
+      blockDataEnsureCapacity(pBlock, newSize);
+      qDebug("datablock capacity not sufficient, expand to required:%d, current capacity:%d, %s", newSize,
+             pBlock->info.capacity, GET_TASKID(pTaskInfo));
+      // todo set the pOperator->resultInfo size
+    }
+
+    pGroupResInfo->index += 1;
+    pGroupResInfo->iter = iter;
+    pGroupResInfo->dataPos = pData;
+
+    copyResultrowToDataBlock(pExprInfo, numOfExprs, pRow, pCtx, pBlock, rowEntryOffset, pTaskInfo);
+
+    releaseBufPage(pBuf, page);
+    pBlock->info.rows += pRow->numOfRows;
+    if (pBlock->info.rows >= threshold) {
+      break;
+    }
+  }
+
+  qDebug("%s result generated, rows:%" PRId64 ", groupId:%" PRIu64, GET_TASKID(pTaskInfo), pBlock->info.rows,
+        pBlock->info.id.groupId);
+  pBlock->info.dataLoad = 1;
+  blockDataUpdateTsWindow(pBlock, 0);
   return 0;
 }
 

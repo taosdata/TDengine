@@ -14,9 +14,9 @@ This document describes how to install TDengine on Linux/Windows/macOS and perfo
 - To get started with TDengine on Docker, see [Quick Install on Docker](../../get-started/docker).
 - If you want to view the source code, build TDengine yourself, or contribute to the project, see the [TDengine GitHub repository](https://github.com/taosdata/TDengine).
 
-The full package of TDengine includes the TDengine Server (`taosd`), TDengine Client (`taosc`), taosAdapter for connecting with third-party systems and providing a RESTful interface, a command-line interface (CLI, taos), and some tools. Note that taosAdapter supports Linux only. In addition to connectors for multiple languages, TDengine also provides a [REST API](../../reference/rest-api) through [taosAdapter](../../reference/taosadapter).
+The full package of TDengine includes the TDengine Server (`taosd`), TDengine Client (`taosc`), taosAdapter for connecting with third-party systems and providing a RESTful interface, a command-line interface (CLI, taos), and some tools. Note that taosAdapter supports Linux only. In addition to client libraries for multiple languages, TDengine also provides a [REST API](../../reference/rest-api) through [taosAdapter](../../reference/taosadapter).
 
-The standard server installation package includes `taos`, `taosd`, `taosAdapter`, `taosBenchmark`, and sample code. You can also download the Lite package that includes only `taosd` and the C/C++ connector.
+The standard server installation package includes `taos`, `taosd`, `taosAdapter`, `taosBenchmark`, and sample code. You can also download the Lite package that includes only `taosd` and the C/C++ client library.
 
 TDengine OSS is released as Deb and RPM packages. The Deb package can be installed on Debian, Ubuntu, and derivative systems. The RPM package can be installed on CentOS, RHEL, SUSE, and derivative systems. A .tar.gz package is also provided for enterprise customers, and you can install TDengine over `apt-get` as well. The .tar.tz package includes `taosdump` and the TDinsight installation script. If you want to use these utilities with the Deb or RPM package, download and install taosTools separately. TDengine can also be installed on x64 Windows and x64/m1 macOS.
 
@@ -243,7 +243,7 @@ You can use the TDengine CLI to monitor your TDengine deployment and execute ad 
 taos
 ```
 
-The TDengine CLI displays a welcome message and version information to indicate that its connection to the TDengine service was successful. If an error message is displayed, see the [FAQ](/train-faq/faq) for troubleshooting information. At the following prompt, you can execute SQL commands.
+The TDengine CLI displays a welcome message and version information to indicate that its connection to the TDengine service was successful. If an error message is displayed, see the [FAQ](../../train-faq/faq) for troubleshooting information. At the following prompt, you can execute SQL commands.
 
 ```cmd
 taos>

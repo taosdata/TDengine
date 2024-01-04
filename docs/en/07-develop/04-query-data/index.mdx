@@ -1,6 +1,6 @@
 ---
 title: Query Data
-description: This document describes how to query data in TDengine and how to perform synchronous and asynchronous queries using connectors.
+description: This document describes how to query data in TDengine and how to perform synchronous and asynchronous queries using client libraries.
 ---
 
 import Tabs from "@theme/Tabs";
@@ -15,12 +15,11 @@ import CQuery from "./_c.mdx";
 import PhpQuery from "./_php.mdx";
 import PyAsync from "./_py_async.mdx";
 import NodeAsync from "./_js_async.mdx";
-import CsAsync from "./_cs_async.mdx";
 import CAsync from "./_c_async.mdx";
 
 ## Introduction
 
-SQL is used by TDengine as its query language. Application programs can send SQL statements to TDengine through REST API or connectors. TDengine's CLI `taos` can also be used to execute ad hoc SQL queries. Here is the list of major query functionalities supported by TDengine:
+SQL is used by TDengine as its query language. Application programs can send SQL statements to TDengine through REST API or client libraries. TDengine's CLI `taos` can also be used to execute ad hoc SQL queries. Here is the list of major query functionalities supported by TDengine:
 
 - Query on single column or multiple columns
 - Filter on tags or data columns: >, <, =, <\>, like
@@ -128,7 +127,7 @@ For more information, see [Aggregate by Window](../../taos-sql/distinguished).
 
 ### Query
 
-In the section describing [Insert](/develop/insert-data/sql-writing), a database named `power` is created and some data are inserted into STable `meters`. Below sample code demonstrates how to query the data in this STable.
+In the section describing [Insert](../insert-data/sql-writing), a database named `power` is created and some data are inserted into STable `meters`. Below sample code demonstrates how to query the data in this STable.
 
 <Tabs defaultValue="java" groupId="lang">
   <TabItem label="Java" value="java">
@@ -173,9 +172,6 @@ Please note that async query can only be used with a native connection.
 <Tabs defaultValue="python" groupId="lang">
   <TabItem label="Python" value="python">
     <PyAsync />
-  </TabItem>
-  <TabItem label="C#" value="csharp">
-    <CsAsync />
   </TabItem>
   <TabItem label="C" value="c">
     <CAsync />

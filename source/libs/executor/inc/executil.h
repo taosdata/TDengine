@@ -40,8 +40,10 @@
 #define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
 
 typedef struct SGroupResInfo {
-  int32_t index;
-  SArray* pRows;  // SArray<SResKeyPos>
+  int32_t index;    // rows consumed in func:doCopyToSDataBlockXX
+  int32_t iter;     // relate to index-1, last consumed data's slot id in hash table
+  void*   dataPos;  // relate to index-1, last consumed data's position, in the nodelist of cur slot
+  SArray* pRows;    // SArray<SResKeyPos>
   char*   pBuf;
   bool    freeItem;
 } SGroupResInfo;
@@ -103,6 +105,7 @@ typedef struct STableListInfo {
   int32_t*         groupOffset;       // keep the offset value for each group in the tableList
   SArray*          pTableList;
   SHashObj*        map;     // speedup acquire the tableQueryInfo by table uid
+  SHashObj*        remainGroups; // remaining group has not yet processed the empty group
   STableListIdInfo idInfo;  // this maybe the super table or ordinary table
 } STableListInfo;
 
@@ -178,7 +181,7 @@ void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow
 SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode);
 SColumn   extractColumnFromColumnNode(SColumnNode* pColNode);
 
-int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode);
+int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode, const SReadHandle* readHandle);
 void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 
 int32_t convertFillType(int32_t mode);

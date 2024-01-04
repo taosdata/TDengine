@@ -105,7 +105,7 @@ int32_t taosTm2Ts(struct STm* tm, int64_t* ts, int32_t precision);
 /// formats array; If not NULL, [formats] will be used instead of [format] to skip parse formats again.
 /// @param out output buffer, should be initialized by memset
 /// @notes remember to free the generated formats
-void taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen);
+int32_t taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen);
 /// @brief convert a formatted timestamp string to a timestamp
 /// @param format must null terminated
 /// @param [in, out] formats, see taosTs2Char
@@ -117,6 +117,13 @@ int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int
 
 void    TEST_ts2char(const char* format, int64_t ts, int32_t precision, char* out, int32_t outLen);
 int32_t TEST_char2ts(const char* format, int64_t* ts, int32_t precision, const char* tsStr);
+
+/// @brief get offset seconds from zero timezone to input timezone
+///        for +XX timezone, the offset to zero is negative value
+/// @param tzStr timezonestr, eg: +0800, -0830, -08
+/// @param offset seconds, eg: +08 offset -28800, -01 offset 3600
+/// @return 0 success, other fail
+int32_t offsetOfTimezone(char* tzStr, int64_t* offset);
 
 #ifdef __cplusplus
 }

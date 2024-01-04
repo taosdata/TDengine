@@ -174,6 +174,10 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
     i += 2;
   }
 
+  if (hour > 12 || hour < 0) {
+    return -1;
+  }
+
   // return error if there're illegal charaters after min(2 Digits)
   char* minStr = &str[i];
   if (minStr[1] != '\0' && minStr[2] != '\0') {
@@ -181,7 +185,7 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
   }
 
   int64_t minute = strnatoi(&str[i], 2);
-  if (minute > 59) {
+  if (minute > 59 || (hour == 12 && minute > 0)) {
     return -1;
   }
 
@@ -192,6 +196,14 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
   }
 
   return 0;
+}
+
+int32_t offsetOfTimezone(char* tzStr, int64_t* offset) {
+  if (tzStr && (tzStr[0] == 'z' || tzStr[0] == 'Z')) {
+    *offset = 0;
+    return 0;
+  }
+  return parseTimezone(tzStr, offset);
 }
 
 /*
@@ -638,7 +650,7 @@ int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* dura
 
   /* get the basic numeric value */
   int64_t timestamp = taosStr2Int64(token, &endPtr, 10);
-  if (timestamp < 0 || errno != 0) {
+  if ((timestamp == 0 && token[0] != '0') || errno != 0) {
     return -1;
   }
 
@@ -1285,7 +1297,7 @@ static void parseTsFormat(const char* formatStr, SArray* formats) {
   }
 }
 
-static void tm2char(const SArray* formats, const struct STm* tm, char* s, int32_t outLen) {
+static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int32_t outLen) {
   int32_t size = taosArrayGetSize(formats);
   const char* start = s;
   for (int32_t i = 0; i < size; ++i) {
@@ -1320,6 +1332,9 @@ static void tm2char(const SArray* formats, const struct STm* tm, char* s, int32_
         s += 4;
         break;
       case TSFKW_DDD:
+#ifdef WINDOWS
+        return TSDB_CODE_FUNC_TO_CHAR_NOT_SUPPORTED;
+#endif
         sprintf(s, "%03d", tm->tm.tm_yday + 1);
         s += strlen(s);
         break;
@@ -1474,6 +1489,7 @@ static void tm2char(const SArray* formats, const struct STm* tm, char* s, int32_
         break;
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 /// @brief find s in arr case insensitively
@@ -1580,6 +1596,7 @@ static bool needMoreDigits(SArray* formats, int32_t curIdx) {
 /// @retval 0 for success
 /// @retval -1 for format and s mismatch error
 /// @retval -2 if datetime err, like 2023-13-32 25:61:69
+/// @retval -3 if not supported
 static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t precision, const char** sErrPos,
                        int32_t* fErrIdx) {
   int32_t size = taosArrayGetSize(formats);
@@ -1589,6 +1606,7 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   int32_t hour = 0, min = 0, sec = 0, us = 0, ms = 0, ns = 0;
   int32_t tzSign = 1, tz = tsTimezone;
   int32_t err = 0;
+  bool    withYD = false, withMD = false;
 
   for (int32_t i = 0; i < size && *s != '\0'; ++i) {
     while (isspace(*s) && *s != '\0') {
@@ -1782,6 +1800,7 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
         } else {
           s = newPos;
         }
+        withYD = true;
       } break;
       case TSFKW_DD: {
         const char* newPos = tsFormatStr2Int32(&md, s, 2, needMoreDigits(formats, i));
@@ -1790,6 +1809,7 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
         } else {
           s = newPos;
         }
+        withMD = true;
       } break;
       case TSFKW_D: {
         const char* newPos = tsFormatStr2Int32(&wd, s, 1, needMoreDigits(formats, i));
@@ -1843,6 +1863,10 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
       return err;
     }
   }
+  if (!withMD) {
+    // yyyy-mm-DDD, currently, the c api can't convert to correct timestamp, return not supported
+    if (withYD) return -3;
+  }
   struct STm tm = {0};
   tm.tm.tm_year = year - 1900;
   tm.tm.tm_mon = mon;
@@ -1869,14 +1893,14 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   return ret;
 }
 
-void taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen) {
+int32_t taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen) {
   if (!*formats) {
     *formats = taosArrayInit(8, sizeof(TSFormatNode));
     parseTsFormat(format, *formats);
   }
   struct STm tm;
   taosTs2Tm(ts, precision, &tm);
-  tm2char(*formats, &tm, out, outLen);
+  return tm2char(*formats, &tm, out, outLen);
 }
 
 int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int64_t* ts, int32_t precision, char* errMsg,
@@ -1892,8 +1916,13 @@ int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int
     TSFormatNode* fNode = (taosArrayGet(*formats, fErrIdx));
     snprintf(errMsg, errMsgLen, "mismatch format for: %s and %s", sErrPos,
              fErrIdx < taosArrayGetSize(*formats) ? ((TSFormatNode*)taosArrayGet(*formats, fErrIdx))->key->name : "");
+    code = TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_FORMAT_ERR;
   } else if (code == -2) {
     snprintf(errMsg, errMsgLen, "timestamp format error: %s -> %s", tsStr, format);
+    code = TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_TS_ERR;
+  } else if (code == -3) {
+    snprintf(errMsg, errMsgLen, "timestamp format not supported");
+    code = TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_NOT_SUPPORTED;
   }
   return code;
 }
