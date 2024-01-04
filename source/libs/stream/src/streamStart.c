@@ -388,12 +388,7 @@ int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask) {
 }
 
 void doProcessDownstreamReadyRsp(SStreamTask* pTask) {
-  EStreamTaskEvent event;
-  if (pTask->info.fillHistory == 0) {
-    event = /*HAS_RELATED_FILLHISTORY_TASK(pTask) ? TASK_EVENT_INIT_STREAM_SCANHIST : */TASK_EVENT_INIT;
-  } else {
-    event = TASK_EVENT_INIT_SCANHIST;
-  }
+  EStreamTaskEvent event = (pTask->info.fillHistory == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_SCANHIST;
 
   streamTaskOnHandleEventSuccess(pTask->status.pSM, event);
 
@@ -820,11 +815,23 @@ SLaunchHTaskInfo* createHTaskLaunchInfo(SStreamMeta* pMeta, int64_t streamId, in
 // an fill history task needs to be started.
 int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
-  int32_t      hTaskId = pTask->hTaskInfo.id.taskId;
 
-  ASSERT((hTaskId != 0) && (pTask->status.downstreamReady == 1));
-  stDebug("s-task:%s start to launch related fill-history task:0x%" PRIx64 "-0x%x", pTask->id.idStr,
-          pTask->hTaskInfo.id.streamId, hTaskId);
+  int64_t streamId = pTask->hTaskInfo.id.streamId;
+  int32_t hTaskId = pTask->hTaskInfo.id.taskId;
+  ASSERT(hTaskId != 0);
+
+  SStreamTaskState* pStatus = streamTaskGetStatus(pTask);
+  if (pStatus->state != TASK_STATUS__READY) {
+    STaskExecStatisInfo* pInfo = &pTask->execInfo;
+    stDebug("s-task:%s not launch related fill-history task:0x%" PRIx64 "-0x%x, status:%s", pTask->id.idStr,
+            pTask->hTaskInfo.id.streamId, hTaskId);
+
+    streamMetaUpdateTaskDownstreamStatus(pMeta, streamId, hTaskId, pInfo->init, pInfo->start, false);
+    return -1;// todo set the correct error code
+  } else {
+    stDebug("s-task:%s start to launch related fill-history task:0x%" PRIx64 "-0x%x", pTask->id.idStr,
+            pTask->hTaskInfo.id.streamId, hTaskId);
+  }
 
   // Set the execute conditions, including the query time window and the version range
   SStreamTask** pHTask = taosHashGet(pMeta->pTasksMap, &pTask->hTaskInfo.id, sizeof(pTask->hTaskInfo.id));

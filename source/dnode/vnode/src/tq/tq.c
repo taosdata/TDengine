@@ -1160,7 +1160,7 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
   } else if (status == TASK_STATUS__UNINIT) {
     // todo: fill-history task init ?
     if (pTask->info.fillHistory == 0) {
-      EStreamTaskEvent event = /*HAS_RELATED_FILLHISTORY_TASK(pTask) ? TASK_EVENT_INIT_STREAM_SCANHIST : */TASK_EVENT_INIT;
+      EStreamTaskEvent event = TASK_EVENT_INIT;
       streamTaskHandleEvent(pTask->status.pSM, event);
     }
   }

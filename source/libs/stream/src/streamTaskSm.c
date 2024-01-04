@@ -38,7 +38,6 @@ SStreamEventInfo StreamTaskEventList[12] = {
     {.event = 0, .name = ""},  // dummy event, place holder
     {.event = TASK_EVENT_INIT, .name = "initialize"},
     {.event = TASK_EVENT_INIT_SCANHIST, .name = "scan-history-init"},
-//    {.event = TASK_EVENT_INIT_STREAM_SCANHIST, .name = "stream-scan-history-init"},
     {.event = TASK_EVENT_SCANHIST_DONE, .name = "scan-history-completed"},
     {.event = TASK_EVENT_STOP, .name = "stopping"},
     {.event = TASK_EVENT_GEN_CHECKPOINT, .name = "checkpoint"},
