@@ -500,22 +500,14 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
         addIntoNodeUpdateList(pTask, pRsp->downstreamNodeId);
       }
 
-      streamMetaUpdateTaskDownstreamStatus(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, pTask->execInfo.init,
-                                           taosGetTimestampMs(), false);
+      int32_t startTs = pTask->execInfo.init;
+      int64_t now = taosGetTimestampMs();
+      streamMetaUpdateTaskDownstreamStatus(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, startTs, now, false);
 
       // automatically set the related fill-history task to be failed.
       if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
         STaskId* pId = &pTask->hTaskInfo.id;
-        int64_t  current = taosGetTimestampMs();
-
-        SStreamTask* pHTask = streamMetaAcquireTask(pTask->pMeta, pId->streamId, pId->taskId);
-        if (pHTask != NULL) {
-          streamMetaUpdateTaskDownstreamStatus(pTask->pMeta, pId->streamId, pId->taskId, pHTask->execInfo.init, current,
-                                               false);
-          streamMetaReleaseTask(pTask->pMeta, pHTask);
-        } else {
-          streamMetaUpdateTaskDownstreamStatus(pTask->pMeta, pId->streamId, pId->taskId, 0, current, false);
-        }
+        streamMetaUpdateTaskDownstreamStatus(pTask->pMeta, pId->streamId, pId->taskId, startTs, now, false);
       }
     } else {  // TASK_DOWNSTREAM_NOT_READY, let's retry in 100ms
       STaskRecheckInfo* pInfo = createRecheckInfo(pTask, pRsp);

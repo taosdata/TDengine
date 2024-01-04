@@ -1467,6 +1467,8 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
+    // todo: may be we should find the related fill-history task and set it failed.
+
     // fill-history task can only be launched by related stream tasks.
     STaskExecStatisInfo* pInfo = &pTask->execInfo;
     if (pTask->info.fillHistory == 1) {
@@ -1486,13 +1488,16 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
-    EStreamTaskEvent event = /*(HAS_RELATED_FILLHISTORY_TASK(pTask)) ? TASK_EVENT_INIT_STREAM_SCANHIST : */TASK_EVENT_INIT;
-    int32_t          ret = streamTaskHandleEvent(pTask->status.pSM, event);
+    int32_t ret = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
     if (ret != TSDB_CODE_SUCCESS) {
-      stError("vgId:%d failed to handle event:%d", pMeta->vgId, event);
+      stError("vgId:%d failed to handle event:%d", pMeta->vgId, TASK_EVENT_INIT);
       code = ret;
 
       streamMetaUpdateTaskDownstreamStatus(pMeta, pTaskId->streamId, pTaskId->taskId, pInfo->init, pInfo->start, false);
+      if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
+        STaskId* pId = &pTask->hTaskInfo.id;
+        streamMetaUpdateTaskDownstreamStatus(pMeta, pId->streamId, pId->taskId, pInfo->init, pInfo->start, false);
+      }
     }
 
     streamMetaReleaseTask(pMeta, pTask);
