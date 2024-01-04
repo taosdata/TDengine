@@ -730,6 +730,11 @@ typedef struct SStreamTaskNodeUpdateMsg {
 int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpdateMsg* pMsg);
 int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg* pMsg);
 
+typedef struct SStreamTaskState {
+    ETaskStatus state;
+    char*       name;
+} SStreamTaskState;
+
 typedef struct {
   int64_t streamId;
   int32_t downstreamTaskId;
@@ -773,11 +778,11 @@ bool    streamTaskShouldPause(const SStreamTask* pStatus);
 bool    streamTaskIsIdle(const SStreamTask* pTask);
 bool    streamTaskReadyToRun(const SStreamTask* pTask, char** pStatus);
 
-char*       createStreamTaskIdStr(int64_t streamId, int32_t taskId);
-ETaskStatus streamTaskGetStatus(const SStreamTask* pTask, char** pStr);
-const char* streamTaskGetStatusStr(ETaskStatus status);
-void        streamTaskResetStatus(SStreamTask* pTask);
-void        streamTaskSetStatusReady(SStreamTask* pTask);
+char*            createStreamTaskIdStr(int64_t streamId, int32_t taskId);
+SStreamTaskState* streamTaskGetStatus(const SStreamTask* pTask);
+const char*      streamTaskGetStatusStr(ETaskStatus status);
+void             streamTaskResetStatus(SStreamTask* pTask);
+void             streamTaskSetStatusReady(SStreamTask* pTask);
 
 void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen);
 
