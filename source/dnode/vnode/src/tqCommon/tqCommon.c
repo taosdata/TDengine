@@ -400,11 +400,11 @@ int32_t tqStreamTaskProcessCheckReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
       rsp.status = streamTaskCheckStatus(pTask, req.upstreamTaskId, req.upstreamNodeId, req.stage, &rsp.oldStage);
       streamMetaReleaseTask(pMeta, pTask);
 
-      char* p = NULL;
-      streamTaskGetStatus(pTask, &p);
+      SStreamTaskState* pState = streamTaskGetStatus(pTask);
       tqDebug("s-task:%s status:%s, stage:%" PRId64 " recv task check req(reqId:0x%" PRIx64
               ") task:0x%x (vgId:%d), check_status:%d",
-              pTask->id.idStr, p, rsp.oldStage, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
+              pTask->id.idStr, pState->name, rsp.oldStage, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId,
+              rsp.status);
     } else {
       rsp.status = TASK_DOWNSTREAM_NOT_READY;
       tqDebug("tq recv task check(taskId:0x%" PRIx64 "-0x%x not built yet) req(reqId:0x%" PRIx64
@@ -706,9 +706,11 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
     streamMetaStopAllTasks(pMeta);
     return 0;
   } else if (type == STREAM_EXEC_T_RESUME_TASK) {
+    // task resume to run after idle for a while
     SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
     if (pTask != NULL) {
       ASSERT(streamTaskReadyToRun(pTask, NULL));
+      tqDebug("s-task:%s task resume to run after idle for a while", pTask->id.idStr);
       streamResumeTask(pTask);
     }
 
@@ -772,7 +774,7 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   tqDebug("s-task:%s receive task-reset msg from mnode, reset status and ready for data processing", pTask->id.idStr);
 
   // clear flag set during do checkpoint, and open inputQ for all upstream tasks
-  if (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__CK) {
+  if (streamTaskGetStatus(pTask)->state == TASK_STATUS__CK) {
     streamTaskClearCheckInfo(pTask, true);
     streamTaskSetStatusReady(pTask);
   }

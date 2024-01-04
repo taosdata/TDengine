@@ -1093,7 +1093,7 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
 
     STaskStatusEntry entry = {
         .id = *pId,
-        .status = streamTaskGetStatus(*pTask, NULL),
+        .status = streamTaskGetStatus(*pTask)->state,
         .nodeId = hbMsg.vgId,
         .stage = pMeta->stage,
         .inputQUsed = SIZE_IN_MiB(streamQueueGetItemSize((*pTask)->inputq.queue)),
@@ -1362,13 +1362,13 @@ SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta) {
     }
 
     taosThreadMutexLock(&pTask->lock);
-    char* p = NULL;
-    ETaskStatus s = streamTaskGetStatus(pTask, &p);
-    if (s == TASK_STATUS__CK) {
+
+    SStreamTaskState* pState = streamTaskGetStatus(pTask);
+    if (pState->state == TASK_STATUS__CK) {
       streamTaskSetCheckpointFailedId(pTask);
       stDebug("s-task:%s mark the checkpoint:%"PRId64" failed", pTask->id.idStr, pTask->chkInfo.checkpointingId);
     } else {
-      stDebug("s-task:%s status:%s not reset the checkpoint", pTask->id.idStr, p);
+      stDebug("s-task:%s status:%s not reset the checkpoint", pTask->id.idStr, pState->state);
     }
 
     taosThreadMutexUnlock(&pTask->lock);

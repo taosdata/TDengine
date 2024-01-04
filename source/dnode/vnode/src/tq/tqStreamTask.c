@@ -220,16 +220,15 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
   }
 
   // not in ready state, do not handle the data from wal
-  char* p = NULL;
-  int32_t status = streamTaskGetStatus(pTask, &p);
-  if (streamTaskGetStatus(pTask, &p) != TASK_STATUS__READY) {
-    tqTrace("s-task:%s not ready for submit block in wal, status:%s", pTask->id.idStr, p);
+  SStreamTaskState* pState = streamTaskGetStatus(pTask);
+  if (pState->state != TASK_STATUS__READY) {
+    tqTrace("s-task:%s not ready for submit block in wal, status:%s", pTask->id.idStr, pState->name);
     return false;
   }
 
   // fill-history task has entered into the last phase, no need to anything
   if ((pTask->info.fillHistory == 1) && pTask->status.appendTranstateBlock) {
-    ASSERT(status == TASK_STATUS__READY);
+    ASSERT(pState->state == TASK_STATUS__READY);
     // the maximum version of data in the WAL has reached already, the step2 is done
     tqDebug("s-task:%s fill-history reach the maximum ver:%" PRId64 ", not scan wal anymore", pTask->id.idStr,
             pTask->dataRange.range.maxVer);
@@ -342,10 +341,9 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
 
     taosThreadMutexLock(&pTask->lock);
 
-    char* p = NULL;
-    ETaskStatus status = streamTaskGetStatus(pTask, &p);
-    if (status != TASK_STATUS__READY) {
-      tqDebug("s-task:%s not ready for submit block from wal, status:%s", pTask->id.idStr, p);
+    SStreamTaskState* pState = streamTaskGetStatus(pTask);
+    if (pState->state != TASK_STATUS__READY) {
+      tqDebug("s-task:%s not ready for submit block from wal, status:%s", pTask->id.idStr, pState->name);
       taosThreadMutexUnlock(&pTask->lock);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;

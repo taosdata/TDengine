@@ -49,7 +49,7 @@ static void streamSchedByTimer(void* param, void* tmrId) {
     return;
   }
 
-  if (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__CK) {
+  if (streamTaskGetStatus(pTask)->state == TASK_STATUS__CK) {
     stDebug("s-task:%s in checkpoint procedure, not retrieve result, next:%dms", id, nextTrigger);
   } else {
     if (status == TASK_TRIGGER_STATUS__ACTIVE) {
@@ -247,7 +247,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   }
 
   // disable the data from upstream tasks
-  if (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__HALT) {
+  if (streamTaskGetStatus(pTask)->state == TASK_STATUS__HALT) {
     status = TASK_INPUT_STATUS__BLOCKED;
   }
 

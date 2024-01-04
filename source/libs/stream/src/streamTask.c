@@ -309,7 +309,9 @@ void tFreeStreamTask(SStreamTask* pTask) {
   ETaskStatus status1 = TASK_STATUS__UNINIT;
   taosThreadMutexLock(&pTask->lock);
   if (pTask->status.pSM != NULL) {
-    status1 = streamTaskGetStatus(pTask, &p);
+    SStreamTaskState* pStatus = streamTaskGetStatus(pTask);
+    p = pStatus->name;
+    status1 = pStatus->state;
   }
   taosThreadMutexUnlock(&pTask->lock);
 
