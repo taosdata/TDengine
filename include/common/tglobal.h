@@ -228,8 +228,8 @@ int32_t taosCfgDynamicOptions(SConfig *pCfg, char *name, bool forServer);
 
 struct SConfig *taosGetCfg();
 
-void    taosSetAllDebugFlag(int32_t flag, bool rewrite);
-void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal, bool rewrite);
+void    taosSetAllDebugFlag(int32_t flag);
+void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal);
 void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
 int8_t  taosGranted();
 

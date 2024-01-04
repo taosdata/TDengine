@@ -81,7 +81,7 @@ typedef enum ETaskStatus {
   TASK_STATUS__HALT,          // pause, but not be manipulated by user command
   TASK_STATUS__PAUSE,         // pause
   TASK_STATUS__CK,            // stream task is in checkpoint status, no data are allowed to put into inputQ anymore
-  TASK_STATUS__STREAM_SCAN_HISTORY,
+//  TASK_STATUS__STREAM_SCAN_HISTORY,
 } ETaskStatus;
 
 enum {
@@ -138,15 +138,14 @@ enum {
 typedef enum EStreamTaskEvent {
   TASK_EVENT_INIT = 0x1,
   TASK_EVENT_INIT_SCANHIST = 0x2,
-  TASK_EVENT_INIT_STREAM_SCANHIST = 0x3,
-  TASK_EVENT_SCANHIST_DONE = 0x4,
-  TASK_EVENT_STOP = 0x5,
-  TASK_EVENT_GEN_CHECKPOINT = 0x6,
-  TASK_EVENT_CHECKPOINT_DONE = 0x7,
-  TASK_EVENT_PAUSE = 0x8,
-  TASK_EVENT_RESUME = 0x9,
-  TASK_EVENT_HALT = 0xA,
-  TASK_EVENT_DROPPING = 0xB,
+  TASK_EVENT_SCANHIST_DONE = 0x3,
+  TASK_EVENT_STOP = 0x4,
+  TASK_EVENT_GEN_CHECKPOINT = 0x5,
+  TASK_EVENT_CHECKPOINT_DONE = 0x6,
+  TASK_EVENT_PAUSE = 0x7,
+  TASK_EVENT_RESUME = 0x8,
+  TASK_EVENT_HALT = 0x9,
+  TASK_EVENT_DROPPING = 0xA,
 } EStreamTaskEvent;
 
 typedef struct {
@@ -793,6 +792,7 @@ int8_t  streamTaskSetSchedStatusInactive(SStreamTask* pTask);
 int32_t streamTaskClearHTaskAttr(SStreamTask* pTask);
 
 int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event);
+int32_t streamTaskHandleEventAsync(SStreamTaskSM* pSM, EStreamTaskEvent event, void* pFn);
 int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent event);
 void    streamTaskRestoreStatus(SStreamTask* pTask);
 

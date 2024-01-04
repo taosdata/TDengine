@@ -2886,38 +2886,38 @@ static SStreamTask *mndGetStreamTask(STaskId *pId, SStreamObj *pStream) {
   return NULL;
 }
 
-static bool needDropRelatedFillhistoryTask(STaskStatusEntry *pTaskEntry, SStreamExecInfo *pExecNode) {
-  if (pTaskEntry->status == TASK_STATUS__STREAM_SCAN_HISTORY && pTaskEntry->statusLastDuration >= 10) {
-    if (!pTaskEntry->inputQChanging && pTaskEntry->inputQUnchangeCounter > 10) {
-      int32_t numOfReady = 0;
-      int32_t numOfTotal = 0;
-      for (int32_t k = 0; k < taosArrayGetSize(pExecNode->pTaskList); ++k) {
-        STaskId *pId = taosArrayGet(pExecNode->pTaskList, k);
-        if (pTaskEntry->id.streamId == pId->streamId) {
-          numOfTotal++;
-
-          if (pTaskEntry->id.taskId != pId->taskId) {
-            STaskStatusEntry *pEntry = taosHashGet(execInfo.pTaskMap, pId, sizeof(*pId));
-            if (pEntry->status == TASK_STATUS__READY) {
-              numOfReady++;
-            }
-          }
-        }
-      }
-
-      if (numOfReady > 0) {
-        mDebug("stream:0x%" PRIx64
-               " %d tasks are ready, %d tasks in stream-scan-history for more than 50s, drop related fill-history task",
-               pTaskEntry->id.streamId, numOfReady, numOfTotal - numOfReady);
-        return true;
-      } else {
-        return false;
-      }
-    }
-  }
-
-  return false;
-}
+//static bool needDropRelatedFillhistoryTask(STaskStatusEntry *pTaskEntry, SStreamExecInfo *pExecNode) {
+//  if (pTaskEntry->status == TASK_STATUS__STREAM_SCAN_HISTORY && pTaskEntry->statusLastDuration >= 10) {
+//    if (!pTaskEntry->inputQChanging && pTaskEntry->inputQUnchangeCounter > 10) {
+//      int32_t numOfReady = 0;
+//      int32_t numOfTotal = 0;
+//      for (int32_t k = 0; k < taosArrayGetSize(pExecNode->pTaskList); ++k) {
+//        STaskId *pId = taosArrayGet(pExecNode->pTaskList, k);
+//        if (pTaskEntry->id.streamId == pId->streamId) {
+//          numOfTotal++;
+//
+//          if (pTaskEntry->id.taskId != pId->taskId) {
+//            STaskStatusEntry *pEntry = taosHashGet(execInfo.pTaskMap, pId, sizeof(*pId));
+//            if (pEntry->status == TASK_STATUS__READY) {
+//              numOfReady++;
+//            }
+//          }
+//        }
+//      }
+//
+//      if (numOfReady > 0) {
+//        mDebug("stream:0x%" PRIx64
+//               " %d tasks are ready, %d tasks in stream-scan-history for more than 50s, drop related fill-history task",
+//               pTaskEntry->id.streamId, numOfReady, numOfTotal - numOfReady);
+//        return true;
+//      } else {
+//        return false;
+//      }
+//    }
+//  }
+//
+//  return false;
+//}
 
 // currently only handle the sink task
 // 1. sink task, drop related fill-history task msg is missing
@@ -3091,18 +3091,18 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     if (p->status != TASK_STATUS__READY) {
       mDebug("received s-task:0x%" PRIx64 " not in ready status:%s", p->id.taskId, streamTaskGetStatusStr(p->status));
 
-      if (p->status == TASK_STATUS__STREAM_SCAN_HISTORY) {
-        bool drop = needDropRelatedFillhistoryTask(pTaskEntry, &execInfo);
-        if (drop) {
-          SStreamObj *pStreamObj = mndGetStreamObj(pMnode, pTaskEntry->id.streamId);
-          if (pStreamObj == NULL) {
-            mError("failed to acquire the streamObj:0x%" PRIx64 " it may have been dropped", pStreamObj->uid);
-          } else {
-            mndDropRelatedFillhistoryTask(pMnode, pTaskEntry, pStreamObj);
-            mndReleaseStream(pMnode, pStreamObj);
-          }
-        }
-      }
+//      if (p->status == TASK_STATUS__STREAM_SCAN_HISTORY) {
+//        bool drop = needDropRelatedFillhistoryTask(pTaskEntry, &execInfo);
+//        if (drop) {
+//          SStreamObj *pStreamObj = mndGetStreamObj(pMnode, pTaskEntry->id.streamId);
+//          if (pStreamObj == NULL) {
+//            mError("failed to acquire the streamObj:0x%" PRIx64 " it may have been dropped", pStreamObj->uid);
+//          } else {
+//            mndDropRelatedFillhistoryTask(pMnode, pTaskEntry, pStreamObj);
+//            mndReleaseStream(pMnode, pStreamObj);
+//          }
+//        }
+//      }
     }
   }
 

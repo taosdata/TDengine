@@ -39,7 +39,7 @@ int32_t tqScanWal(STQ* pTq) {
     bool shouldIdle = true;
     doScanWalForAllTasks(pTq->pStreamMeta, &shouldIdle);
 
-    if (shouldIdle) {
+//    if (shouldIdle) {
       streamMetaWLock(pMeta);
       int32_t times = (--pMeta->walScanCounter);
       ASSERT(pMeta->walScanCounter >= 0);
@@ -50,7 +50,7 @@ int32_t tqScanWal(STQ* pTq) {
       } else {
         tqDebug("vgId:%d scan wal for stream tasks for %d times in %dms", vgId, times, SCAN_WAL_IDLE_DURATION);
       }
-    }
+//    }
 
     taosMsleep(SCAN_WAL_IDLE_DURATION);
   }

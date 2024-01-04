@@ -120,7 +120,7 @@ static int32_t updateBlockSMAInfo(STSchema* pSchema, SBlockLoadSuppInfo* pSupInf
     } else if (pTCol->colId < pSupInfo->colId[j]) {  // do nothing
       i += 1;
     } else {
-      return TSDB_CODE_INVALID_PARA;
+      return TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
     }
   }
 
@@ -1713,6 +1713,9 @@ static int32_t mergeFileBlockAndSttBlock(STsdbReader* pReader, SSttBlockReader* 
   } else if ((!dataInDataFile) && dataInSttFile) {
     // no data ile block exists
     return mergeRowsInSttBlocks(pSttBlockReader, pBlockScanInfo, pReader);
+  } else if (pBlockScanInfo->cleanSttBlocks && pReader->info.execMode == READER_EXEC_ROWS) {
+    // opt model for count data in stt file, which is not overlap with data blocks in files.
+    return mergeRowsInFileBlocks(pBlockData, pBlockScanInfo, key, pReader);
   } else {
     // row in both stt file blocks and data file blocks
     TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);

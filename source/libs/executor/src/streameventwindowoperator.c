@@ -622,6 +622,7 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
     }
     setEventWindowFlag(pAggSup, &curInfo);
     if (!curInfo.pWinFlag->startFlag || curInfo.pWinFlag->endFlag) {
+      saveSessionOutputBuf(pAggSup, &curInfo.winInfo);
       continue;
     }
 
@@ -653,6 +654,7 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
   if (downstream->fpSet.reloadStreamStateFn) {
     downstream->fpSet.reloadStreamStateFn(downstream);
   }
+  reloadAggSupFromDownStream(downstream, &pInfo->streamAggSup);
 }
 
 SOperatorInfo* createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,

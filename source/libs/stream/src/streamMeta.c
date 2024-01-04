@@ -1486,7 +1486,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
-    EStreamTaskEvent event = (HAS_RELATED_FILLHISTORY_TASK(pTask)) ? TASK_EVENT_INIT_STREAM_SCANHIST : TASK_EVENT_INIT;
+    EStreamTaskEvent event = /*(HAS_RELATED_FILLHISTORY_TASK(pTask)) ? TASK_EVENT_INIT_STREAM_SCANHIST : */TASK_EVENT_INIT;
     int32_t          ret = streamTaskHandleEvent(pTask->status.pSM, event);
     if (ret != TSDB_CODE_SUCCESS) {
       stError("vgId:%d failed to handle event:%d", pMeta->vgId, event);

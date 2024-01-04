@@ -486,6 +486,16 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = tagScanSetExecutionMode(pScan);
   }
 
+  bool isCountByTag = false;
+  if (pSelect->hasCountFunc && NULL == pSelect->pWindow) {
+    if (pSelect->pGroupByList) {
+      isCountByTag = !keysHasCol(pSelect->pGroupByList);
+    } else if (pSelect->pPartitionByList) {
+      isCountByTag = !keysHasCol(pSelect->pPartitionByList);
+    }
+  }
+  pScan->isCountByTag = isCountByTag;
+
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pScan;
   } else {

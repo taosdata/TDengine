@@ -52,7 +52,7 @@ int32_t streamTaskSetReady(SStreamTask* pTask) {
   int32_t       numOfDowns = streamTaskGetNumOfDownstream(pTask);
   ETaskStatus   status = streamTaskGetStatus(pTask, &p);
 
-  if ((status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__STREAM_SCAN_HISTORY) &&
+  if ((status == TASK_STATUS__SCAN_HISTORY/* || status == TASK_STATUS__STREAM_SCAN_HISTORY*/) &&
       pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
     pTask->numOfWaitingUpstream = taosArrayGetSize(pTask->upstreamInfo.pList);
     stDebug("s-task:%s level:%d task wait for %d upstream tasks complete scan-history procedure, status:%s",
@@ -158,7 +158,7 @@ int32_t streamTaskStartScanHistory(SStreamTask* pTask) {
   ETaskStatus status = streamTaskGetStatus(pTask, NULL);
 
   ASSERT(pTask->status.downstreamReady == 1 &&
-         ((status == TASK_STATUS__SCAN_HISTORY) || (status == TASK_STATUS__STREAM_SCAN_HISTORY)));
+         ((status == TASK_STATUS__SCAN_HISTORY)/* || (status == TASK_STATUS__STREAM_SCAN_HISTORY)*/));
 
   if (level == TASK_LEVEL__SOURCE) {
     return doStartScanHistoryTask(pTask);
@@ -374,10 +374,14 @@ int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask) {
 
   char*       p = NULL;
   ETaskStatus status = streamTaskGetStatus(pTask, &p);
-  ASSERT(status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__STREAM_SCAN_HISTORY);
+  ASSERT(status == TASK_STATUS__SCAN_HISTORY/* || status == TASK_STATUS__STREAM_SCAN_HISTORY*/);
 
-  stDebug("s-task:%s enter into scan-history data stage, status:%s", id, p);
-  streamTaskStartScanHistory(pTask);
+  if (pTask->info.fillHistory == 1) {
+    stDebug("s-task:%s fill-history task enters into scan-history data stage, status:%s", id, p);
+    streamTaskStartScanHistory(pTask);
+  } else {
+    stDebug("s-task:%s scan wal data, status:%s", id, p);
+  }
 
   // NOTE: there will be an deadlock if launch fill history here.
 //  // start the related fill-history task, when current task is ready
@@ -391,7 +395,7 @@ int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask) {
 void doProcessDownstreamReadyRsp(SStreamTask* pTask) {
   EStreamTaskEvent event;
   if (pTask->info.fillHistory == 0) {
-    event = HAS_RELATED_FILLHISTORY_TASK(pTask) ? TASK_EVENT_INIT_STREAM_SCANHIST : TASK_EVENT_INIT;
+    event = /*HAS_RELATED_FILLHISTORY_TASK(pTask) ? TASK_EVENT_INIT_STREAM_SCANHIST : */TASK_EVENT_INIT;
   } else {
     event = TASK_EVENT_INIT_SCANHIST;
   }
@@ -631,7 +635,7 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistory
   char*       p = NULL;
   ETaskStatus status = streamTaskGetStatus(pTask, &p);
 
-  if (status != TASK_STATUS__SCAN_HISTORY && status != TASK_STATUS__STREAM_SCAN_HISTORY) {
+  if (status != TASK_STATUS__SCAN_HISTORY /*&& status != TASK_STATUS__STREAM_SCAN_HISTORY*/) {
     stError("s-task:%s not in scan-history status, status:%s return upstream:0x%x scan-history finish directly", id, p,
             pReq->upstreamTaskId);
 
@@ -693,7 +697,7 @@ int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
     return TSDB_CODE_INVALID_MSG;
   }
 
-  ASSERT(status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__STREAM_SCAN_HISTORY);
+  ASSERT(status == TASK_STATUS__SCAN_HISTORY/* || status == TASK_STATUS__STREAM_SCAN_HISTORY*/);
   SStreamMeta* pMeta = pTask->pMeta;
 
   // execute in the scan history complete call back msg, ready to process data from inputQ

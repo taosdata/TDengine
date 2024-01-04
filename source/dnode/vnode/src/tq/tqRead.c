@@ -195,7 +195,8 @@ int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t 
   int64_t committedVer = walGetCommittedVer(pHandle->pWalReader->pWal);
   int64_t appliedVer = walGetAppliedVer(pHandle->pWalReader->pWal);
 
-  wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64 ", applied index:%" PRId64", 0x%"PRIx64,
+  wDebug("vgId:%d, start to fetch wal, index:%" PRId64 ", last:%" PRId64 " commit:%" PRId64 ", applied:%" PRId64
+         ", 0x%" PRIx64,
          vgId, offset, lastVer, committedVer, appliedVer, id);
 
   while (offset <= appliedVer) {

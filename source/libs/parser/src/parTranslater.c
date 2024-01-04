@@ -2083,6 +2083,7 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
   if (NULL != pCurrStmt && QUERY_NODE_SELECT_STMT == nodeType(pCurrStmt)) {
     SSelectStmt* pSelect = (SSelectStmt*)pCurrStmt;
     pSelect->hasAggFuncs = pSelect->hasAggFuncs ? true : fmIsAggFunc(pFunc->funcId);
+    pSelect->hasCountFunc = pSelect->hasCountFunc ? true : (FUNCTION_TYPE_COUNT == pFunc->funcType);
     pSelect->hasRepeatScanFuncs = pSelect->hasRepeatScanFuncs ? true : fmIsRepeatScanFunc(pFunc->funcId);
 
     if (fmIsIndefiniteRowsFunc(pFunc->funcId)) {
@@ -7479,7 +7480,7 @@ static int32_t addTagsToCreateStreamQuery(STranslateContext* pCxt, SCreateStream
       }
     }
     if (!found) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, ((SColumnDefNode*)pTag)->colName);
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, getTagNameForCreateStreamTag(pTag));
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -8194,9 +8195,9 @@ int32_t translatePostCreateStream(SParseContext* pParseCxt, SQuery* pQuery, void
   }
   if (TSDB_CODE_SUCCESS == code) {
     if (interval.interval > 0) {
-      pStmt->pReq->lastTs = taosTimeTruncate(lastTs, &interval);
+      pStmt->pReq->lastTs = taosTimeAdd(taosTimeTruncate(lastTs, &interval), interval.interval, interval.intervalUnit, interval.precision);
     } else {
-      pStmt->pReq->lastTs = lastTs;
+      pStmt->pReq->lastTs = lastTs + 1;  // start key of the next time window
     }
     code = buildCmdMsg(&cxt, TDMT_MND_CREATE_STREAM, (FSerializeFunc)tSerializeSCMCreateStreamReq, pStmt->pReq);
   }
