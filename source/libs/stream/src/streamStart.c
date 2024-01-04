@@ -63,7 +63,7 @@ int32_t streamTaskSetReady(SStreamTask* pTask) {
   pTask->execInfo.start = taosGetTimestampMs();
   int64_t el = (pTask->execInfo.start - pTask->execInfo.init);
   stDebug("s-task:%s all %d downstream ready, init completed, elapsed time:%" PRId64 "ms, task status:%s",
-          pTask->id.idStr, numOfDowns, el, p);
+          pTask->id.idStr, numOfDowns, el, p->name);
   return TSDB_CODE_SUCCESS;
 }
 
