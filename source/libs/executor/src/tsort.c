@@ -1384,7 +1384,7 @@ static int32_t sortBlocksToExtSourceWhenRowIdSort(SSortHandle* pHandle, SArray* 
       lastPageBufTs = ((int64_t*)tsCol->pData)[pHandle->pExtDataBlock->info.rows - 1];
       transformIntoSortInputBlock(pHandle, pHandle->pExtDataBlock, pHandle->pDataBlock);
       appendDataBlockToPageBuf(pHandle, pHandle->pDataBlock, aPgId);
-      nMergedRows += pHandle->pDataBlock->info.rows;
+      nMergedRows += pHandle->pExtDataBlock->info.rows;
       blockDataCleanup(pHandle->pDataBlock);
       blockDataCleanup(pHandle->pExtDataBlock);
       blkPgSz = pgHeaderSz;
@@ -1415,10 +1415,10 @@ static int32_t sortBlocksToExtSourceWhenRowIdSort(SSortHandle* pHandle, SArray* 
   if (pHandle->pExtDataBlock->info.rows > 0) {
     if (!mergeLimitReached) {
       SColumnInfoData* tsCol = taosArrayGet(pHandle->pExtDataBlock->pDataBlock, pOrigBlockOrder->slotId);
-      lastPageBufTs = ((int64_t*)tsCol->pData)[pHandle->pDataBlock->info.rows - 1];
+      lastPageBufTs = ((int64_t*)tsCol->pData)[pHandle->pExtDataBlock->info.rows - 1];
       transformIntoSortInputBlock(pHandle, pHandle->pExtDataBlock, pHandle->pDataBlock);
       appendDataBlockToPageBuf(pHandle, pHandle->pDataBlock, aPgId);
-      nMergedRows += pHandle->pDataBlock->info.rows;
+      nMergedRows += pHandle->pExtDataBlock->info.rows;
       if ((pHandle->mergeLimit != -1) && (nMergedRows >= pHandle->mergeLimit)) {
           mergeLimitReached = true;
           if ((lastPageBufTs < pHandle->currMergeLimitTs && pHandleBlockOrder->order == TSDB_ORDER_ASC) ||
