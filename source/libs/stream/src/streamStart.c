@@ -355,7 +355,7 @@ int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask) {
     stDebug("s-task:%s no need to scan-history data, status:%s, sched-status:%d, ready for data from wal ver:%" PRId64,
             id, p, pTask->status.schedStatus, startVer);
   } else {
-    stDebug("s-task:%s level:%d status:%s sched-status:%d", id, pTask->info.taskLevel, p, pTask->status.schedStatus);
+    stDebug("s-task:%s level:%d status:%s sched-status:%d", id, pTask->info.taskLevel, p->name, pTask->status.schedStatus);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -824,7 +824,7 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
   if (pStatus->state != TASK_STATUS__READY) {
     STaskExecStatisInfo* pInfo = &pTask->execInfo;
     stDebug("s-task:%s not launch related fill-history task:0x%" PRIx64 "-0x%x, status:%s", pTask->id.idStr,
-            pTask->hTaskInfo.id.streamId, hTaskId);
+            pTask->hTaskInfo.id.streamId, hTaskId, pStatus->name);
 
     streamMetaUpdateTaskDownstreamStatus(pMeta, streamId, hTaskId, pInfo->init, pInfo->start, false);
     return -1;// todo set the correct error code
