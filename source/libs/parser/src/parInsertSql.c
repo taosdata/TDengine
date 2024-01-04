@@ -945,6 +945,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pTagCond) {
+    assert(0);
     code = checkSubtablePrivilege(pTagVals, pTagName, &pStmt->pTagCond);
   }
 
