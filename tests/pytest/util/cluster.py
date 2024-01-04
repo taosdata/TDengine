@@ -52,10 +52,9 @@ class ConfigureyCluster:
             dnode.addExtraCfg("secondEp", f"{hostname}:{startPort_sec}")
 
             # configure  dnoe of independent mnodes
-            if num <= self.mnodeNums and self.mnodeNums != 0 and independentMnode == True :
+            if num <= self.mnodeNums and self.mnodeNums != 0 and independentMnode == "True" :
                 tdLog.info(f"set mnode:{num} supportVnodes 0")
-                dnode.addExtraCfg("supportVnodes", 0)            
-            # print(dnode)
+                dnode.addExtraCfg("supportVnodes", 0)
             self.dnodes.append(dnode)
         return self.dnodes
         

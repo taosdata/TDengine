@@ -47,29 +47,29 @@ static void *dmStatusThreadFp(void *param) {
 }
 
 SDmNotifyHandle dmNotifyHdl = {.state = 0};
-static void *   dmNotifyThreadFp(void *param) {
-  SDnodeMgmt *pMgmt = param;
-  int64_t     lastTime = taosGetTimestampMs();
-  setThreadName("dnode-notify");
+static void    *dmNotifyThreadFp(void *param) {
+     SDnodeMgmt *pMgmt = param;
+     int64_t     lastTime = taosGetTimestampMs();
+     setThreadName("dnode-notify");
 
-  if (tsem_init(&dmNotifyHdl.sem, 0, 0) != 0) {
-    return NULL;
+     if (tsem_init(&dmNotifyHdl.sem, 0, 0) != 0) {
+       return NULL;
   }
 
-  bool wait = true;
-  while (1) {
-    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+     bool wait = true;
+     while (1) {
+       if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
     if (wait) tsem_wait(&dmNotifyHdl.sem);
     atomic_store_8(&dmNotifyHdl.state, 1);
-    dmSendNotifyReq(pMgmt);
-    if (1 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 0)) {
-      wait = true;
-      continue;
+       dmSendNotifyReq(pMgmt);
+       if (1 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 0)) {
+         wait = true;
+         continue;
     }
-    wait = false;
+       wait = false;
   }
 
-  return NULL;
+     return NULL;
 }
 
 static void *dmMonitorThreadFp(void *param) {
@@ -77,7 +77,7 @@ static void *dmMonitorThreadFp(void *param) {
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-monitor");
 
-  static int16_t TRIM_FREQ = 3600;
+  static int16_t TRIM_FREQ = 20;
   int16_t        trimCount = 0;
 
   while (1) {
@@ -130,7 +130,7 @@ static void *dmCrashReportThreadFp(void *param) {
   setThreadName("dnode-crashReport");
   char filepath[PATH_MAX] = {0};
   snprintf(filepath, sizeof(filepath), "%s%s.taosdCrashLog", tsLogDir, TD_DIRSEP);
-  char *    pMsg = NULL;
+  char     *pMsg = NULL;
   int64_t   msgLen = 0;
   TdFilePtr pFile = NULL;
   bool      truncateFile = false;
@@ -304,7 +304,7 @@ void dmStopCrashReportThread(SDnodeMgmt *pMgmt) {
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
-  STraceId *  trace = &pMsg->info.traceId;
+  STraceId   *trace = &pMsg->info.traceId;
   dGTrace("msg:%p, will be processed in dnode queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
 
   switch (pMsg->msgType) {

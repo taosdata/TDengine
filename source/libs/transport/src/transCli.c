@@ -2424,6 +2424,10 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
       STransSyncMsg* pSyncMsg = taosAcquireRef(transGetSyncMsgMgt(), pCtx->syncMsgRef);
       if (pSyncMsg != NULL) {
         memcpy(pSyncMsg->pRsp, (char*)pResp, sizeof(*pResp));
+        if (cliIsEpsetUpdated(pResp->code, pCtx)) {
+          pSyncMsg->hasEpSet = 1;
+          epsetAssign(&pSyncMsg->epSet, &pCtx->epSet);
+        }
         tsem_post(pSyncMsg->pSem);
         taosReleaseRef(transGetSyncMsgMgt(), pCtx->syncMsgRef);
       } else {
@@ -2661,10 +2665,12 @@ int64_t transCreateSyncMsg(STransMsg* pTransMsg) {
   pSyncMsg->inited = 0;
   pSyncMsg->pRsp = pTransMsg;
   pSyncMsg->pSem = sem;
+  pSyncMsg->hasEpSet = 0;
 
   return taosAddRef(transGetSyncMsgMgt(), pSyncMsg);
 }
-int transSendRecvWithTimeout(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int32_t timeoutMs) {
+int transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
+                             int32_t timeoutMs) {
   STrans*    pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
   STransMsg* pTransMsg = taosMemoryCalloc(1, sizeof(STransMsg));
   if (pTransInst == NULL) {
@@ -2715,6 +2721,10 @@ int transSendRecvWithTimeout(void* shandle, const SEpSet* pEpSet, STransMsg* pRe
     ret = TSDB_CODE_TIMEOUT_ERROR;
   } else {
     memcpy(pRsp, pSyncMsg->pRsp, sizeof(STransMsg));
+    if (pSyncMsg->hasEpSet == 1) {
+      epsetAssign(pEpSet, &pSyncMsg->epSet);
+      *epUpdated = 1;
+    }
     ret = 0;
   }
 _RETURN:
