@@ -353,7 +353,7 @@ int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask) {
     }
 
     stDebug("s-task:%s no need to scan-history data, status:%s, sched-status:%d, ready for data from wal ver:%" PRId64,
-            id, p, pTask->status.schedStatus, startVer);
+            id, p->name, pTask->status.schedStatus, startVer);
   } else {
     stDebug("s-task:%s level:%d status:%s sched-status:%d", id, pTask->info.taskLevel, p->name, pTask->status.schedStatus);
   }
