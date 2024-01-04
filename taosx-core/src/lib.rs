@@ -400,13 +400,14 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
                     .await?;
                 }
                 ("tmq", "kafka") => {
                     let mut from = from.clone();
-                    if let Some(task_id) = self.task_id.clone() {
+                    if let Some(task_id) = task_id.clone() {
                         from.params.insert("topic_suffix".parse()?, task_id);
                     }
                     tmq_to_kafka(from, to.clone(), cancel.clone()).await?;
@@ -437,14 +438,6 @@ impl TaskOpts {
                     .await?;
                 }
                 (runners::historian::AVEVA_HISTORIAN_ID, "taos") => {
-                    let task_id = task_id
-                        .clone()
-                        .map(|t| {
-                            t.parse::<i64>()
-                                .map_err(|e| anyhow::anyhow!("task id parse error: {}", e))
-                        })
-                        .transpose()?;
-
                     historian_to_taos(
                         from.clone(),
                         parser.clone(),
@@ -456,7 +449,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                        task_id,
+                        task_id.clone().map(|t| t.parse().unwrap()),
                         notify.clone(),
                     )
                     .await?;

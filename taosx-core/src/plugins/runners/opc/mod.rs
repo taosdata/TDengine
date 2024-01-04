@@ -148,7 +148,7 @@ pub async fn opc_to_taos(
         with_agent,
         transferred,
         span,
-        None,
+        task_id.clone(),
         notify,
     )
     .await?;
