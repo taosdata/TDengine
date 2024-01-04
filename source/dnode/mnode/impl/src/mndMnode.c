@@ -874,6 +874,12 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
 
+    // char machineId[25] = "JGQ8Y+huRyiz4lHnR9gHngYx";
+    // char machieIdVar[26] = {0};
+    // STR_WITH_MAXSIZE_TO_VARSTR(machieIdVar, (const char*)&machineId, pShow->pMeta->pSchemas[cols].bytes);
+    // pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    // colDataSetVal(pColInfo, numOfRows, (const char *)&machineId, false);
+
     numOfRows++;
     sdbRelease(pSdb, pObj);
   }
