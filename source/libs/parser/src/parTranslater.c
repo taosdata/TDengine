@@ -6930,10 +6930,11 @@ static int32_t translateCreateFullTextIndex(STranslateContext* pCxt, SCreateInde
 }
 
 static int32_t translateCreateNormalIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
+  int32_t     code = 0;
   SName       name;
   STableMeta* pMeta = NULL;
-  int32_t     code =
-      getTargetMeta(pCxt, toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name), &pMeta, false);
+
+  code = getTargetMeta(pCxt, toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name), &pMeta, false);
   if (code) {
     taosMemoryFree(pMeta);
     return code;
@@ -6955,10 +6956,6 @@ static int32_t translateCreateNormalIndex(STranslateContext* pCxt, SCreateIndexS
       taosMemoryFree(pMeta);
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, ((SColumnNode*)pNode)->colName);
     }
-    if (IS_IDX_ON(pSchema)) {
-      code = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
-      goto _exit;
-    }
   }
 
   SCreateTagIndexReq createTagIdxReq = {0};
@@ -6966,7 +6963,7 @@ static int32_t translateCreateNormalIndex(STranslateContext* pCxt, SCreateIndexS
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_INDEX, (FSerializeFunc)tSerializeSCreateTagIdxReq, &createTagIdxReq);
   }
-_exit:  
+_exit:
   taosMemoryFree(pMeta);
   return code;
 }
