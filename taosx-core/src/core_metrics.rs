@@ -7,6 +7,7 @@
 
 use crate::legacy::legacy_metric::LegacyToTaosMetrics;
 use crate::plugins::sink::ipc_metric::IpcMetrics;
+use crate::runners;
 use crate::tmq::tmq_metric::TmqMetrics;
 use crate::utils::metrics_db::MetricsStore;
 use lazy_static::lazy_static;
@@ -348,8 +349,17 @@ pub fn init_task_metrics(from: Dsn, to: Dsn, task_id: i64) -> Arc<CoreMetrics> {
             }
         }
         (
-            "opc" | "opcua" | "opcda" | "pi" | "pibackfill" | "mqtt" | "influxdb" | "opentsdb"
-            | "kafka" | "historian" | "csv",
+            "opc"
+            | "opcua"
+            | "opcda"
+            | "pi"
+            | "pibackfill"
+            | "mqtt"
+            | "influxdb"
+            | "opentsdb"
+            | "kafka"
+            | runners::historian::AVEVA_HISTORIAN_ID
+            | "csv",
             "taos",
         ) => {
             let metrics = try_get_metrics::<IpcMetrics>(task_id);
