@@ -393,15 +393,16 @@ class TDSql:
 
 
     def checkDataCsv(self, csvfilePath):
-        if not isinstance(csvfilePath, str) | | len(csvfilePath) == 0:
+        if not isinstance(csvfilePath, str) or len(csvfilePath) == 0:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, csvfilePath)
             tdLog.exit("%s(%d) failed: sql:%s, expect csvfile path error:%s" % args)
 
+        tdLog.info("read csvfile read begin")
         data = []
         try:
             with open(csvfilePath) as csvfile:
-                csv_reader = csv.reader(csvfilePath)  # 使用csv.reader读取csvfile中的文件
+                csv_reader = csv.reader(csvfile)  # 使用csv.reader读取csvfile中的文件
                 # header = next(csv_reader)        # 读取第一行每一列的标题
                 for row in csv_reader:  # 将csv 文件中的数据保存到data中
                     data.append(row)  # 选择某一列加入到data数组中
