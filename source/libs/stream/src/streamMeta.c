@@ -1368,7 +1368,7 @@ SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta) {
       streamTaskSetCheckpointFailedId(pTask);
       stDebug("s-task:%s mark the checkpoint:%"PRId64" failed", pTask->id.idStr, pTask->chkInfo.checkpointingId);
     } else {
-      stDebug("s-task:%s status:%s not reset the checkpoint", pTask->id.idStr, pState->state);
+      stDebug("s-task:%s status:%s not reset the checkpoint", pTask->id.idStr, pState->name);
     }
 
     taosThreadMutexUnlock(&pTask->lock);
