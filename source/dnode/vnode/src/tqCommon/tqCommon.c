@@ -152,9 +152,8 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     }
   }
 
-  tqDebug("s-task:%s start to save task", pTask->id.idStr);
-
-  {
+  if (restored) {
+    tqDebug("s-task:%s vgId:%d start to save task", pTask->id.idStr, vgId);
     streamMetaSaveTask(pMeta, pTask);
     if (ppHTask != NULL) {
       streamMetaSaveTask(pMeta, *ppHTask);
@@ -163,10 +162,11 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     if (streamMetaCommit(pMeta) < 0) {
       //     persist to disk
     }
+  } else {
+    tqDebug("s-task:%s vgId:%d not save since restore not finish", pTask->id.idStr, vgId);
   }
 
   tqDebug("s-task:%s start to stop task after save task", pTask->id.idStr);
-
   streamTaskStop(pTask);
 
   // keep the already handled info
