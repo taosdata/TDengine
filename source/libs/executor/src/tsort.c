@@ -878,30 +878,21 @@ static int32_t transformIntoSortInputBlock(SSortHandle* pHandle, SSDataBlock* pS
   SColumnInfoData* blkIdCol = taosArrayGet(pSortInputBlk->pDataBlock, 1);
   SColumnInfoData* rowIdxCol = taosArrayGet(pSortInputBlk->pDataBlock, 2);
 
-  int32_t start = 0;
-  while (start < pSrcBlock->info.rows) {
-    int32_t stop = 0;
-    blockDataSplitRows(pSrcBlock, pSrcBlock->info.hasVarCol, start, &stop, pHandle->extRowsPageSize);
-    SSDataBlock* p = blockDataExtractBlock(pSrcBlock, start, stop-start+1);
+  int32_t pageId = -1;
+  void* pPage = getNewBufPage(pHandle->pExtRowsBuf, &pageId);
 
-    int32_t pageId = -1;
-    void* pPage = getNewBufPage(pHandle->pExtRowsBuf, &pageId);
+  int32_t size = blockDataGetSize(pSrcBlock) + sizeof(int32_t) + taosArrayGetSize(pSrcBlock->pDataBlock) * sizeof(int32_t);
+  ASSERT(size <= getBufPageSize(pHandle->pExtRowsBuf));
 
-    int32_t size = blockDataGetSize(p) + sizeof(int32_t) + taosArrayGetSize(p->pDataBlock) * sizeof(int32_t);
-    ASSERT(size <= getBufPageSize(pHandle->pExtRowsBuf));
+  blockDataToBuf(pPage, pSrcBlock);
 
-    blockDataToBuf(pPage, p);
+  setBufPageDirty(pPage, true);
+  releaseBufPage(pHandle->pExtRowsBuf, pPage);
 
-    setBufPageDirty(pPage, true);
-    releaseBufPage(pHandle->pExtRowsBuf, pPage);
-
-    blockDataDestroy(p);
-    for (int32_t i = start; i <= stop; ++i) {
-      colDataSetInt32(blkIdCol, i, &pageId);
-      int32_t rowIdx = i - start;
-      colDataSetInt32(rowIdxCol, i, &rowIdx);
-    }
-    start = stop + 1;
+  for (int32_t i = 0; i < nRows; ++i) {
+    colDataSetInt32(blkIdCol, i, &pageId);
+    int32_t rowIdx = i;
+    colDataSetInt32(rowIdxCol, i, &rowIdx);
   }
 
   pSortInputBlk->info.rows = nRows;
@@ -1193,6 +1184,40 @@ static int32_t appendDataBlockToPageBuf(SSortHandle* pHandle, SSDataBlock* blk, 
   return 0;
 }
 
+static int32_t saveDataBlockToPageBufPages(SSortHandle* pHandle, SSDataBlock* pDataBlock, SArray* pPageIdList) {
+  int32_t start = 0;
+  while (start < pDataBlock->info.rows) {
+    int32_t stop = 0;
+    blockDataSplitRows(pDataBlock, pDataBlock->info.hasVarCol, start, &stop, pHandle->pageSize);
+    SSDataBlock* p = blockDataExtractBlock(pDataBlock, start, stop - start + 1);
+    if (p == NULL) {
+      return terrno;
+    }
+
+    int32_t pageId = -1;
+    void*   pPage = getNewBufPage(pHandle->pBuf, &pageId);
+    if (pPage == NULL) {
+      blockDataDestroy(p);
+      return terrno;
+    }
+
+    taosArrayPush(pPageIdList, &pageId);
+
+    int32_t size = blockDataGetSize(p) + sizeof(int32_t) + taosArrayGetSize(p->pDataBlock) * sizeof(int32_t);
+    ASSERT(size <= getBufPageSize(pHandle->pBuf));
+
+    blockDataToBuf(pPage, p);
+
+    setBufPageDirty(pPage, true);
+    releaseBufPage(pHandle->pBuf, pPage);
+
+    blockDataDestroy(p);
+    start = stop + 1;
+  }
+
+  return 0;
+}
+
 static int32_t getPageBufIncForRow(SSDataBlock* blk, int32_t row, int32_t rowIdxInPage) {
   int sz = 0;
   int numCols = taosArrayGetSize(blk->pDataBlock);
@@ -1370,25 +1395,32 @@ static int32_t sortBlocksToExtSourceWhenRowIdSort(SSortHandle* pHandle, SArray* 
   int32_t nRows = 0;
   int32_t nMergedRows = 0;
   bool mergeLimitReached = false;
-  size_t blkPgSz = pgHeaderSz;
+  int extPgHeaderSz = sizeof(int32_t) + sizeof(int32_t) * taosArrayGetSize(pHandle->pExtDataBlock->pDataBlock);
+  size_t blkPgSz = extPgHeaderSz;
   int64_t lastPageBufTs = (pHandleBlockOrder->order == TSDB_ORDER_ASC) ? INT64_MAX : INT64_MIN;
   int64_t currTs = (pHandleBlockOrder->order == TSDB_ORDER_ASC) ? INT64_MAX : INT64_MIN;
+  SSDataBlock* pSortInputBlk = createOneDataBlock(pHandle->pDataBlock, false);
   while (nRows < totalRows) {
     int32_t minIdx = tMergeTreeGetChosenIndex(pTree);
     SSDataBlock* minBlk = taosArrayGetP(aBlk, minIdx);
     int32_t minRow = sup.aRowIdx[minIdx];
-    int32_t bufInc = getPageBufIncForRow(pHandle->pDataBlock, minRow, pHandle->pExtDataBlock->info.rows);
+    int32_t bufInc = getPageBufIncForRow(minBlk, minRow, pHandle->pExtDataBlock->info.rows);
 
-    if (blkPgSz <= pHandle->pageSize && blkPgSz + bufInc > pHandle->pageSize) {
+    if (blkPgSz <= pHandle->extRowsPageSize && blkPgSz + bufInc > pHandle->extRowsPageSize) {
       SColumnInfoData* tsCol = taosArrayGet(pHandle->pExtDataBlock->pDataBlock, pOrigBlockOrder->slotId);
       lastPageBufTs = ((int64_t*)tsCol->pData)[pHandle->pExtDataBlock->info.rows - 1];
-      transformIntoSortInputBlock(pHandle, pHandle->pExtDataBlock, pHandle->pDataBlock);
-      appendDataBlockToPageBuf(pHandle, pHandle->pDataBlock, aPgId);
+
+      transformIntoSortInputBlock(pHandle, pHandle->pExtDataBlock, pSortInputBlk);
+      blockDataMerge(pHandle->pDataBlock, pSortInputBlk);
+      blockDataCleanup(pSortInputBlk);
+      if (pHandle->pDataBlock->info.rows >= rowCap) {
+          saveDataBlockToPageBufPages(pHandle, pHandle->pDataBlock, aPgId);
+          blockDataCleanup(pHandle->pDataBlock);
+      }
       nMergedRows += pHandle->pExtDataBlock->info.rows;
-      blockDataCleanup(pHandle->pDataBlock);
       blockDataCleanup(pHandle->pExtDataBlock);
-      blkPgSz = pgHeaderSz;
-      bufInc = getPageBufIncForRow(pHandle->pDataBlock, minRow, 0);
+      blkPgSz = extPgHeaderSz;
+      bufInc = getPageBufIncForRow(minBlk, minRow, 0);
 
       if ((pHandle->mergeLimit != -1) && (nMergedRows >= pHandle->mergeLimit)) {
           mergeLimitReached = true;
@@ -1416,8 +1448,9 @@ static int32_t sortBlocksToExtSourceWhenRowIdSort(SSortHandle* pHandle, SArray* 
     if (!mergeLimitReached) {
       SColumnInfoData* tsCol = taosArrayGet(pHandle->pExtDataBlock->pDataBlock, pOrigBlockOrder->slotId);
       lastPageBufTs = ((int64_t*)tsCol->pData)[pHandle->pExtDataBlock->info.rows - 1];
-      transformIntoSortInputBlock(pHandle, pHandle->pExtDataBlock, pHandle->pDataBlock);
-      appendDataBlockToPageBuf(pHandle, pHandle->pDataBlock, aPgId);
+      transformIntoSortInputBlock(pHandle, pHandle->pExtDataBlock, pSortInputBlk);
+      blockDataMerge(pHandle->pDataBlock, pSortInputBlk);
+      blockDataCleanup(pSortInputBlk);
       nMergedRows += pHandle->pExtDataBlock->info.rows;
       if ((pHandle->mergeLimit != -1) && (nMergedRows >= pHandle->mergeLimit)) {
           mergeLimitReached = true;
@@ -1427,9 +1460,14 @@ static int32_t sortBlocksToExtSourceWhenRowIdSort(SSortHandle* pHandle, SArray* 
           }
       }
     }
-    blockDataCleanup(pHandle->pDataBlock);
     blockDataCleanup(pHandle->pExtDataBlock);
   }
+  if (pHandle->pDataBlock->info.rows > 0) {
+    saveDataBlockToPageBufPages(pHandle, pHandle->pDataBlock, aPgId);
+    blockDataCleanup(pHandle->pDataBlock);
+  }
+  blockDataDestroy(pSortInputBlk);
+
   SSDataBlock* pMemSrcBlk = createOneDataBlock(pHandle->pDataBlock, false);
   doAddNewExternalMemSource(pHandle->pBuf, aExtSrc, pMemSrcBlk, &pHandle->sourceId, aPgId);
 
