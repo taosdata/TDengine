@@ -931,11 +931,14 @@ function updateProduct() {
   if [ -z $1 ]; then
     install_bin
     install_service
-    install_adapter_service    
-    install_adapter_config
-    install_keeper_service
-    if [ "${verMode}" != "cloud" ]; then
-      install_keeper_config
+
+    if [ "${pagMode}" != "lite" ]; then
+      install_adapter_service
+      install_adapter_config
+      if [ "${verMode}" != "cloud" ]; then
+        install_keeper_service
+        install_keeper_config
+      fi
     fi
 
     openresty_work=false
@@ -1034,12 +1037,16 @@ function installProduct() {
     # For installing new
     install_bin
     install_service
-    install_adapter_service
-    install_adapter_config
-    install_keeper_service
-    if [ "${verMode}" != "cloud" ]; then
-      install_keeper_config
+
+    if [ "${pagMode}" != "lite" ]; then
+      install_adapter_service
+      install_adapter_config
+      if [ "${verMode}" != "cloud" ]; then
+        install_keeper_service
+        install_keeper_config
+      fi
     fi
+
     openresty_work=false
 
 
