@@ -6939,10 +6939,6 @@ static int32_t translateCreateNormalIndex(STranslateContext* pCxt, SCreateIndexS
     taosMemoryFree(pMeta);
     return code;
   }
-  if (TSDB_SUPER_TABLE != pMeta->tableType) {
-    taosMemoryFree(pMeta);
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Only super table is allowed");
-  }
 
   if (LIST_LENGTH(pStmt->pCols) != 1) {
     taosMemoryFree(pMeta);
