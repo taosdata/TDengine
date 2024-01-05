@@ -52,9 +52,10 @@ extern "C" {
 
 #define STREAM_EXEC_T_EXTRACT_WAL_DATA    (-1)
 #define STREAM_EXEC_T_START_ALL_TASKS     (-2)
-#define STREAM_EXEC_T_RESTART_ALL_TASKS   (-3)
-#define STREAM_EXEC_T_STOP_ALL_TASKS      (-4)
-#define STREAM_EXEC_T_RESUME_TASK         (-5)
+#define STREAM_EXEC_T_START_ONE_TASK      (-3)
+#define STREAM_EXEC_T_RESTART_ALL_TASKS   (-4)
+#define STREAM_EXEC_T_STOP_ALL_TASKS      (-5)
+#define STREAM_EXEC_T_RESUME_TASK         (-6)
 
 typedef struct SStreamTask   SStreamTask;
 typedef struct SStreamQueue  SStreamQueue;
@@ -880,6 +881,7 @@ void         streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool i
 int32_t      streamMetaLoadAllTasks(SStreamMeta* pMeta);
 int32_t      streamMetaStartAllTasks(SStreamMeta* pMeta);
 int32_t      streamMetaStopAllTasks(SStreamMeta* pMeta);
+int32_t      streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);

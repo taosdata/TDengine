@@ -50,6 +50,33 @@ int32_t tqStreamTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, bool restart) {
   return 0;
 }
 
+int32_t tqStreamOneTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t streamId, int32_t taskId) {
+  int32_t vgId = pMeta->vgId;
+
+  int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+  if (numOfTasks == 0) {
+    tqDebug("vgId:%d no stream tasks existed to run", vgId);
+    return 0;
+  }
+
+  SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
+  if (pRunReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    tqError("vgId:%d failed to create msg to start task:0x%x, code:%s", vgId, taskId, terrstr());
+    return -1;
+  }
+
+  tqDebug("vgId:%d start task:0x%x async", vgId, taskId);
+  pRunReq->head.vgId = vgId;
+  pRunReq->streamId = streamId;
+  pRunReq->taskId = taskId;
+  pRunReq->reqType = STREAM_EXEC_T_START_ONE_TASK;
+
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
+  tmsgPutToQueue(cb, STREAM_QUEUE, &msg);
+  return 0;
+}
+
 int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored) {
   int32_t vgId = pMeta->vgId;
   char*   msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
@@ -507,8 +534,8 @@ int32_t tqStreamTaskProcessCheckpointReadyMsg(SStreamMeta* pMeta, SRpcMsg* pMsg)
   return code;
 }
 
-int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, int64_t sversion, char* msg, int32_t msgLen, bool isLeader,
-                                     bool restored) {
+int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sversion, char* msg, int32_t msgLen,
+                                     bool isLeader, bool restored) {
   int32_t code = 0;
   int32_t vgId = pMeta->vgId;
 
@@ -560,18 +587,19 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, int64_t sversion, char*
     // only handled in the leader node
     if (isLeader) {
       tqDebug("vgId:%d s-task:0x%x is deployed and add into meta, numOfTasks:%d", vgId, taskId, numOfTasks);
-      SStreamTask* p = streamMetaAcquireTask(pMeta, streamId, taskId);
 
-      if (p != NULL && restored && p->info.fillHistory == 0) {
-        EStreamTaskEvent event = TASK_EVENT_INIT;
-        streamTaskHandleEvent(p->status.pSM, event);
-      } else if (!restored) {
-        tqWarn("s-task:%s not launched since vnode(vgId:%d) not ready", p->id.idStr, vgId);
+      if (restored) {
+        SStreamTask* p = streamMetaAcquireTask(pMeta, streamId, taskId);
+        if (p != NULL && (p->info.fillHistory == 0)) {
+          tqStreamOneTaskStartAsync(pMeta, cb, streamId, taskId);
+        }
+        if (p != NULL) {
+          streamMetaReleaseTask(pMeta, p);
+        }
+      } else {
+        tqWarn("s-task:0x%x not launched since vnode(vgId:%d) not ready", taskId, vgId);
       }
 
-      if (p != NULL) {
-        streamMetaReleaseTask(pMeta, p);
-      }
     } else {
       tqDebug("vgId:%d not leader, not launch stream task s-task:0x%x", vgId, taskId);
     }
@@ -696,7 +724,10 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
   int32_t type = pReq->reqType;
   int32_t vgId = pMeta->vgId;
 
-  if (type == STREAM_EXEC_T_START_ALL_TASKS) {
+  if (type == STREAM_EXEC_T_START_ONE_TASK) {
+    streamMetaStartOneTask(pMeta, pReq->streamId, pReq->taskId);
+    return 0;
+  } else if (type == STREAM_EXEC_T_START_ALL_TASKS) {
     streamMetaStartAllTasks(pMeta);
     return 0;
   } else if (type == STREAM_EXEC_T_RESTART_ALL_TASKS) {
@@ -755,7 +786,7 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
     restartStreamTasks(pMeta, (pMeta->role == NODE_ROLE_LEADER));
   } else {
     streamMetaWUnLock(pMeta);
-    tqDebug("vgId:%d start all tasks completed", pMeta->vgId);
+    tqDebug("vgId:%d start all tasks completed in callbackFn", pMeta->vgId);
   }
 
   return TSDB_CODE_SUCCESS;

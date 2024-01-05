@@ -1507,3 +1507,39 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
   taosArrayDestroy(pTaskList);
   return code;
 }
+
+int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
+  int32_t vgId = pMeta->vgId;
+  stInfo("vgId:%d start to task:0x%x by checking downstream status", vgId, taskId);
+
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, streamId, taskId);
+  if (pTask == NULL) {
+    stError("vgId:%d failed to acquire task:0x%x during start tasks", pMeta->vgId, taskId);
+    streamMetaUpdateTaskDownstreamStatus(pMeta, streamId, taskId, 0, taosGetTimestampMs(), false);
+    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+  }
+
+  // todo: may be we should find the related fill-history task and set it failed.
+
+  // fill-history task can only be launched by related stream tasks.
+  STaskExecStatisInfo* pInfo = &pTask->execInfo;
+  if (pTask->info.fillHistory == 1) {
+    streamMetaReleaseTask(pMeta, pTask);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  ASSERT(pTask->status.downstreamReady == 0);
+
+  int32_t ret = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
+  if (ret != TSDB_CODE_SUCCESS) {
+    stError("vgId:%d failed to handle event:%d", pMeta->vgId, TASK_EVENT_INIT);
+
+    streamMetaUpdateTaskDownstreamStatus(pMeta, streamId, taskId, pInfo->init, pInfo->start, false);
+    if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
+      STaskId* pId = &pTask->hTaskInfo.id;
+      streamMetaUpdateTaskDownstreamStatus(pMeta, pId->streamId, pId->taskId, pInfo->init, pInfo->start, false);
+    }
+  }
+
+  return ret;
+}

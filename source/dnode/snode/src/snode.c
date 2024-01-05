@@ -193,7 +193,7 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
     case TDMT_STREAM_TASK_DEPLOY: {
       void *  pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
       int32_t len = pMsg->contLen - sizeof(SMsgHead);
-      return tqStreamTaskProcessDeployReq(pSnode->pMeta, -1, pReq, len, true, true);
+      return tqStreamTaskProcessDeployReq(pSnode->pMeta, &pSnode->msgCb, -1, pReq, len, true, true);
     }
 
     case TDMT_STREAM_TASK_DROP:
