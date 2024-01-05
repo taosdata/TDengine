@@ -918,8 +918,8 @@ static int32_t retrieveSourceBlock(SSortHandle* pHandle, int32_t blockId, SSData
     void* pPage = getBufPage(pHandle->pExtRowsBuf, blockId);
     SSDataBlock* pBlock = createOneDataBlock(pHandle->pExtDataBlock, false);
     blockDataFromBuf(pBlock, pPage);
-    releaseBufPage(pHandle->pExtRowsBuf, pPage);
-
+    // releaseBufPage(pHandle->pExtRowsBuf, pPage);
+    dBufSetBufPageRecycled(pHandle->pExtRowsBuf, pPage);
     *ppBlock = pBlock;
     tSimpleHashPut(pHandle->pExtBlkDataHash, &blockId, sizeof(blockId), &pBlock, sizeof(pBlock));
   }
