@@ -42,7 +42,7 @@ typedef struct {
   uint64_t killId;
   int32_t  numOfQueries;
   SRWLatch queryLock;
-  SArray * pQueries;  // SArray<SQueryDesc>
+  SArray  *pQueries;  // SArray<SQueryDesc>
 } SConnObj;
 
 typedef struct {
@@ -60,7 +60,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
 static void      mndFreeConn(SConnObj *pConn);
 static SConnObj *mndAcquireConn(SMnode *pMnode, uint32_t connId);
 static void      mndReleaseConn(SMnode *pMnode, SConnObj *pConn, bool extendLifespan);
-static void *    mndGetNextConn(SMnode *pMnode, SCacheIter *pIter);
+static void     *mndGetNextConn(SMnode *pMnode, SCacheIter *pIter);
 static void      mndCancelGetNextConn(SMnode *pMnode, void *pIter);
 static int32_t   mndProcessHeartBeatReq(SRpcMsg *pReq);
 static int32_t   mndProcessConnectReq(SRpcMsg *pReq);
@@ -214,10 +214,10 @@ static void mndCancelGetNextConn(SMnode *pMnode, void *pIter) {
 }
 
 static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
-  SMnode *        pMnode = pReq->info.node;
-  SUserObj *      pUser = NULL;
-  SDbObj *        pDb = NULL;
-  SConnObj *      pConn = NULL;
+  SMnode         *pMnode = pReq->info.node;
+  SUserObj       *pUser = NULL;
+  SDbObj         *pDb = NULL;
+  SConnObj       *pConn = NULL;
   int32_t         code = -1;
   SConnectReq     connReq = {0};
   char            ip[24] = {0};
@@ -415,7 +415,7 @@ static SClientHbRsp *mndMqHbBuildRsp(SMnode *pMnode, SClientHbReq *pReq) {
 
 static int32_t mndUpdateAppInfo(SMnode *pMnode, SClientHbReq *pHbReq, SRpcConnInfo *connInfo) {
   SAppHbReq *pReq = &pHbReq->app;
-  SAppObj *  pApp = mndAcquireApp(pMnode, pReq->appId);
+  SAppObj   *pApp = mndAcquireApp(pMnode, pReq->appId);
   if (pApp == NULL) {
     pApp = mndCreateApp(pMnode, connInfo->clientIp, pReq);
     if (pApp == NULL) {
@@ -436,10 +436,10 @@ static int32_t mndUpdateAppInfo(SMnode *pMnode, SClientHbReq *pHbReq, SRpcConnIn
 }
 
 static int32_t mndGetOnlineDnodeNum(SMnode *pMnode, int32_t *num) {
-  SSdb *     pSdb = pMnode->pSdb;
+  SSdb      *pSdb = pMnode->pSdb;
   SDnodeObj *pDnode = NULL;
   int64_t    curMs = taosGetTimestampMs();
-  void *     pIter = NULL;
+  void      *pIter = NULL;
 
   while (true) {
     pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
@@ -531,7 +531,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 
     switch (kv->key) {
       case HEARTBEAT_KEY_USER_AUTHINFO: {
-        void *  rspMsg = NULL;
+        void   *rspMsg = NULL;
         int32_t rspLen = 0;
         mndValidateUserAuthInfo(pMnode, kv->value, kv->valueLen / sizeof(SUserAuthVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
@@ -541,7 +541,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         break;
       }
       case HEARTBEAT_KEY_DBINFO: {
-        void *  rspMsg = NULL;
+        void   *rspMsg = NULL;
         int32_t rspLen = 0;
         mndValidateDbInfo(pMnode, kv->value, kv->valueLen / sizeof(SDbCacheInfo), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
@@ -551,7 +551,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         break;
       }
       case HEARTBEAT_KEY_STBINFO: {
-        void *  rspMsg = NULL;
+        void   *rspMsg = NULL;
         int32_t rspLen = 0;
         mndValidateStbInfo(pMnode, kv->value, kv->valueLen / sizeof(SSTableVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
@@ -604,7 +604,7 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   taosArrayDestroyEx(batchReq.reqs, tFreeClientHbReq);
 
   int32_t tlen = tSerializeSClientHbBatchRsp(NULL, 0, &batchRsp);
-  void *  buf = rpcMallocCont(tlen);
+  void   *buf = rpcMallocCont(tlen);
   tSerializeSClientHbBatchRsp(buf, tlen, &batchRsp);
 
   tFreeClientHbBatchRsp(&batchRsp);
@@ -615,7 +615,7 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
 }
 
 static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
-  SMnode *      pMnode = pReq->info.node;
+  SMnode       *pMnode = pReq->info.node;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   SKillQueryReq killReq = {0};
@@ -631,7 +631,7 @@ static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
 
   int32_t  connId = 0;
   uint64_t queryId = 0;
-  char *   p = strchr(killReq.queryStrId, ':');
+  char    *p = strchr(killReq.queryStrId, ':');
   if (NULL == p) {
     mError("invalid query id %s", killReq.queryStrId);
     terrno = TSDB_CODE_MND_INVALID_QUERY_ID;
@@ -655,7 +655,7 @@ static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
 }
 
 static int32_t mndProcessKillConnReq(SRpcMsg *pReq) {
-  SMnode *      pMnode = pReq->info.node;
+  SMnode       *pMnode = pReq->info.node;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   SKillConnReq killReq = {0};
@@ -703,8 +703,8 @@ _over:
 }
 
 static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode *  pMnode = pReq->info.node;
-  SSdb *    pSdb = pMnode->pSdb;
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
   int32_t   cols = 0;
   SConnObj *pConn = NULL;
@@ -864,8 +864,8 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
 }
 
 static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode *  pMnode = pReq->info.node;
-  SSdb *    pSdb = pMnode->pSdb;
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
   SConnObj *pConn = NULL;
 
@@ -900,8 +900,8 @@ static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 }
 
 static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode * pMnode = pReq->info.node;
-  SSdb *   pSdb = pMnode->pSdb;
+  SMnode  *pMnode = pReq->info.node;
+  SSdb    *pSdb = pMnode->pSdb;
   int32_t  numOfRows = 0;
   int32_t  cols = 0;
   SAppObj *pApp = NULL;
