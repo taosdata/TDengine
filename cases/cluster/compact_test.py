@@ -441,7 +441,7 @@ class CompactTest(TDCase):
                 self._remote._logger.error(f"------------ expected end: {pat_log_info} ------------")
                 self._remote._logger.error(f"------------ actual   end: {self.pat_log_info} ------------")
                 return
-    
+
     def compact_multi_dbs(self):
         self._remote._logger.info(f'------------ compact multi dbs ------------')
         self.tdCom.confirm_compact_end(self._remote, None, self.compact_wait)

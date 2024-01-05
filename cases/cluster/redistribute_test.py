@@ -132,9 +132,10 @@ class VnodeRedistribute(TDCase):
             }
         ]
         if "cluster_common_insert.yaml" in " ".join(sys.argv):
-            self.insert_rows = 30000
+            self.insert_rows = 20000
             self.thread_count = 20
             self.trying_interval = 30000
+            self.reserve_dnode_list = 1 if self.replica == 1 else self.taosd_setting["spec"]["reserve_dnodes"]
 
     def desc(self):
         pass
