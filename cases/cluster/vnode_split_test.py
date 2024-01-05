@@ -134,6 +134,7 @@ class VnodeSplit(TDCase):
             self.insert_rows = 30000
             self.thread_count = 20
             self.trying_interval = 30000
+            self.childtable_count = 3000
 
     def desc(self):
         pass

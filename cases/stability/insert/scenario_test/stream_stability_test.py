@@ -190,11 +190,12 @@ class StreamStabilityTest(TDCase):
                 result_file_list = self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, json_data_list, json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
 
         timestamp_end = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-        env_setting = self.get_component_by_name("prometheus")
-        Insert_file = Perf_Base_func(self._remote._logger, self.run_log_dir)
-        Insert_file.taosBenchmark_insert_summary_result(result_file_list, version="3.0")
-        Insert_file.get_process_exporter_info(env_setting, 30, timestamp_start, timestamp_end)
-        Insert_file.get_node_exporter_info(env_setting, 30, timestamp_start, timestamp_end)
+        if "cluster_common_insert.yaml" not in " ".join(sys.argv):
+            env_setting = self.get_component_by_name("prometheus")
+            Insert_file = Perf_Base_func(self._remote._logger, self.run_log_dir)
+            Insert_file.taosBenchmark_insert_summary_result(result_file_list, version="3.0")
+            Insert_file.get_process_exporter_info(env_setting, 30, timestamp_start, timestamp_end)
+            Insert_file.get_node_exporter_info(env_setting, 30, timestamp_start, timestamp_end)
         if self.trigger_mode.lower() == "at_once" and "ignore_expired 1" not in self.stream_sql and int(self.stream_json_info["streams"][0]["fill_history"]) == 1:
             if "partition by" not in self.stream_sql:
                 self.tdSql.query(self.stream_sql)
@@ -204,13 +205,14 @@ class StreamStabilityTest(TDCase):
             else:
                 self.tdSql.query(f'select count(*) from {self.dbname}.{self.stream_stbname}')
                 self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
-        end_time = datetime.now()
-        for host in self.taosBenchmark_iplist:
-            self._remote.get(host, json_info["result_file"], self.run_log_dir)
-        res_msg = self.taosbenchmark.confirm_res(f'{self.run_log_dir}/taosBenchmark_{os.path.split(json_file)[1]}.log')
-        report_file = f'{getpass.getuser()}@{socket.gethostname()}:{self.result_file_name}'
-        report_http_addr = self.FILE_WEB_SERVER + report_file.split(self.split_str)[1]
-        text = f'''result: {res_msg}
+        if "cluster_common_insert.yaml" not in " ".join(sys.argv):
+            end_time = datetime.now()
+            for host in self.taosBenchmark_iplist:
+                self._remote.get(host, json_info["result_file"], self.run_log_dir)
+            res_msg = self.taosbenchmark.confirm_res(f'{self.run_log_dir}/taosBenchmark_{os.path.split(json_file)[1]}.log')
+            report_file = f'{getpass.getuser()}@{socket.gethostname()}:{self.result_file_name}'
+            report_http_addr = self.FILE_WEB_SERVER + report_file.split(self.split_str)[1]
+            text = f'''result: {res_msg}
 test scope: stream stability test
 owner: Jayden Jia
 hostname: {self.host_list}
@@ -220,7 +222,7 @@ report file: {report_file}
 report http addr: {report_http_addr}
 cmd: {self.exec_cmd}
 others: none'''
-        self.msg.send_msg(self.msg.get_msg(text))
-        with open(self.result_file_name, "r") as file:
-            file_content = file.read()
-            self._remote._logger.info(f"final result:\n\n{file_content}")
+            self.msg.send_msg(self.msg.get_msg(text))
+            with open(self.result_file_name, "r") as file:
+                file_content = file.read()
+                self._remote._logger.info(f"final result:\n\n{file_content}")
