@@ -19,9 +19,9 @@
 extern "C" {
 #endif
 
-#define MJOIN_DEFAULT_BLK_ROWS_NUM 4096
-#define MJOIN_HJOIN_CART_THRESHOLD 16
-#define MJOIN_BLK_SIZE_LIMIT 10485760
+#define MJOIN_DEFAULT_BLK_ROWS_NUM 2 //4096
+#define MJOIN_HJOIN_CART_THRESHOLD 1024 //16
+#define MJOIN_BLK_SIZE_LIMIT 0 //10485760
 #define MJOIN_ROW_BITMAP_SIZE (2 * 1048576)
 
 struct SMJoinOperatorInfo;
@@ -203,7 +203,7 @@ typedef struct SMJoinOperatorInfo {
   SFilterInfo*     pFPreFilter;
   SFilterInfo*     pPreFilter;
   SFilterInfo*     pFinFilter;
-//  SMJoinFuncs*     joinFps;
+  joinImplFp       joinFp;
   SMJoinCtx        ctx;
   SMJoinExecInfo   execInfo;
 } SMJoinOperatorInfo;
@@ -223,6 +223,7 @@ typedef struct SMJoinOperatorInfo {
 #define GRP_DONE(_grp) ((_grp)->readIdx > (_grp)->endIdx)
 
 #define MJOIN_PROBE_TB_ROWS_DONE(_tb) ((_tb)->blkRowIdx >= (_tb)->blk->info.rows)
+#define FJOIN_PROBE_TB_ROWS_DONE(_tb) ((NULL == (_tb)->blk) || ((_tb)->blkRowIdx >= (_tb)->blk->info.rows))
 #define MJOIN_BUILD_TB_ROWS_DONE(_tb) ((NULL == (_tb)->blk) || ((_tb)->blkRowIdx >= (_tb)->blk->info.rows))
 
 #define BLK_IS_FULL(_blk) ((_blk)->info.rows == (_blk)->info.capacity)
@@ -237,7 +238,7 @@ typedef struct SMJoinOperatorInfo {
       (_col) = taosArrayGet((_tb)->blk->pDataBlock, (_tb)->primCol->srcSlot);   \
       (_ts) = *((int64_t*)(_col)->pData + (_tb)->blkRowIdx);                    \
     } else {                                                                    \
-      (_ts) = INT64_MIN;                                                        \
+      (_ts) = INT64_MAX;                                                        \
     }                                                                           \
   } while (0)
 
@@ -267,7 +268,9 @@ typedef struct SMJoinOperatorInfo {
 
 
 int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode);
+SSDataBlock* mInnerJoinDo(struct SOperatorInfo* pOperator);
 SSDataBlock* mLeftJoinDo(struct SOperatorInfo* pOperator);
+SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator);
 bool mJoinRetrieveImpl(SMJoinOperatorInfo* pJoin, int32_t* pIdx, SSDataBlock** ppBlk, SMJoinTableCtx* pTb);
 void mJoinSetDone(SOperatorInfo* pOperator);
 bool mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen);
@@ -286,7 +289,8 @@ int32_t mJoinCopyMergeMidBlk(SMJoinMergeCtx* pCtx, SSDataBlock** ppMid, SSDataBl
 int32_t mJoinFilterAndMarkRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SMJoinTableCtx* build, int32_t startGrpIdx, int32_t startRowIdx);
 int32_t mJoinFilterAndMarkHashRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SMJoinTableCtx* build, int32_t startRowIdx);
 int32_t mJoinGetRowBitmapOffset(SMJoinTableCtx* pTable, int32_t rowNum, int32_t *rowBitmapOffset);
-int32_t mJoinProcessNonEqualGrp(SMJoinMergeCtx* pCtx, SColumnInfoData* pCol,         bool probeGrp, int64_t* probeTs, int64_t* buildTs);
+int32_t mJoinProcessUnreachGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs);
+int32_t mJoinProcessOverGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs);
 
 #ifdef __cplusplus
 }

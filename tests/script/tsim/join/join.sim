@@ -5,19 +5,19 @@ sql connect
 sql drop database if exists test0
 sql create database test0 vgroups 3;
 sql use test0;
-create stable sta (ts timestamp, col1 int) tags(t1 int);
-create table tba1 using sta tags(1);
-create table tba2 using sta tags(2);
+sql create stable sta (ts timestamp, col1 int) tags(t1 int);
+sql create table tba1 using sta tags(1);
+sql create table tba2 using sta tags(2);
 
-insert into tba1 values ('2023-11-17 16:29:00', 1);
-insert into tba1 values ('2023-11-17 16:29:02', 3);
-insert into tba1 values ('2023-11-17 16:29:03', 4);
-insert into tba1 values ('2023-11-17 16:29:04', 5);
-
-insert into tba2 values ('2023-11-17 16:29:00', 2);
-insert into tba2 values ('2023-11-17 16:29:01', 3);
-insert into tba2 values ('2023-11-17 16:29:03', 5);
-insert into tba2 values ('2023-11-17 16:29:05', 7);
+sql insert into tba1 values ('2023-11-17 16:29:00', 1);
+sql insert into tba1 values ('2023-11-17 16:29:02', 3);
+sql insert into tba1 values ('2023-11-17 16:29:03', 4);
+sql insert into tba1 values ('2023-11-17 16:29:04', 5);
+ 
+sql insert into tba2 values ('2023-11-17 16:29:00', 2);
+sql insert into tba2 values ('2023-11-17 16:29:01', 3);
+sql insert into tba2 values ('2023-11-17 16:29:03', 5);
+sql insert into tba2 values ('2023-11-17 16:29:05', 7);
 
 sql drop database if exists testa
 sql create database testa vgroups 3;
@@ -57,13 +57,17 @@ sql insert into ctb22 using st2 tags(2) values('2023-10-16 09:10:12', 110222, 11
 sql insert into ctb23 using st2 tags(3) values('2023-10-16 09:10:13', 110223, 1102230);
 sql insert into ctb24 using st2 tags(4) values('2023-10-16 09:10:14', 110224, 1102240);
 
+run tsim/join/inner_join.sim
 run tsim/join/left_join.sim
+run tsim/join/right_join.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 
+run tsim/join/inner_join.sim
 run tsim/join/left_join.sim
+run tsim/join/right_join.sim
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

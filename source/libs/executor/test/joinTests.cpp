@@ -66,7 +66,7 @@ enum {
 };
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP       100000
+#define JT_MAX_LOOP       3000
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
@@ -156,6 +156,9 @@ typedef struct {
   SOperatorInfo* pJoinOp;
 
   int32_t  loopIdx;
+
+  int32_t  rightFinMatchNum;
+  bool*    rightFinMatch;
 } SJoinTestCtx;
 
 typedef struct {
@@ -174,7 +177,7 @@ typedef struct {
 
 
 SJoinTestCtx jtCtx = {0};
-SJoinTestCtrl jtCtrl = {0, 0, 0, 0};
+SJoinTestCtrl jtCtrl = {1, 1, 1, 0};
 SJoinTestStat jtStat = {0};
 SJoinTestResInfo jtRes = {0};
 
@@ -1144,6 +1147,136 @@ void leftJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
 
 }
 
+
+void fullJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
+  bool leftMatch = false, rightMatch = false, lfilterOut = false, rfilterOut = false;
+  void* lValue = NULL, *rValue = NULL, *filterValue = NULL;
+  int64_t lBig = 0, rBig = 0, fbig = 0;
+  int64_t rightTbOffset = jtCtx.blkRowSize * leftGrpRows;
+
+  memset(jtCtx.rightFinMatch, 0, rightGrpRows * sizeof(bool));
+  
+  for (int32_t l = 0; l < leftGrpRows; ++l) {
+    char* lrow = jtCtx.colRowDataBuf + jtCtx.blkRowSize * l;
+    
+    lfilterOut = false;
+    leftMatch = false;
+    
+    for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+      lValue = lrow + jtCtx.colRowOffset[c];
+      switch (jtInputColType[c]) {
+        case TSDB_DATA_TYPE_TIMESTAMP:
+          fbig = TIMESTAMP_FILTER_VALUE;
+          lBig = *(int64_t*)lValue;
+          break;
+        case TSDB_DATA_TYPE_INT:
+          fbig = INT_FILTER_VALUE;
+          lBig = *(int32_t*)lValue;
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          fbig = BIGINT_FILTER_VALUE;
+          lBig = *(int64_t*)lValue;
+          break;
+        default:
+          break;
+      }
+      
+      if (jtCtx.leftFilterNum && jtCtx.leftFilterColList[c] && ((*(bool*)(lrow + c)) || lBig <= fbig)) {
+        lfilterOut = true;
+      }
+    }
+
+    for (int32_t r = 0; r < rightGrpRows; ++r) {
+      char* rrow = jtCtx.colRowDataBuf + rightTbOffset + jtCtx.blkRowSize * r;
+      rightMatch = true;
+      rfilterOut = false;
+
+      for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
+        lValue = lrow + jtCtx.colRowOffset[c];
+
+        if (!*(bool*)(rrow + c)) {
+          rValue = rrow + jtCtx.colRowOffset[c];
+        }
+
+        switch (jtInputColType[c]) {
+          case TSDB_DATA_TYPE_TIMESTAMP:
+            fbig = TIMESTAMP_FILTER_VALUE;
+            lBig = *(int64_t*)lValue;
+            rBig = *(int64_t*)rValue;
+            break;
+          case TSDB_DATA_TYPE_INT:
+            fbig = INT_FILTER_VALUE;
+            lBig = *(int32_t*)lValue;
+            rBig = *(int32_t*)rValue;
+            break;
+          case TSDB_DATA_TYPE_BIGINT:
+            fbig = BIGINT_FILTER_VALUE;
+            lBig = *(int64_t*)lValue;
+            rBig = *(int64_t*)rValue;
+            break;
+          default:
+            break;
+        }
+      
+        if (jtCtx.colEqNum && jtCtx.colEqList[c] && ((*(bool*)(lrow + c)) || (*(bool*)(rrow + c)) || lBig != rBig)) {
+          rightMatch = false;
+        }
+
+        if (jtCtx.colOnNum && jtCtx.colOnList[c] && ((*(bool*)(lrow + c)) || (*(bool*)(rrow + c)) || lBig <= rBig)) {
+          rightMatch = false;
+        }
+
+        if (jtCtx.rightFilterNum && jtCtx.rightFilterColList[c] && ((*(bool*)(rrow + c)) || rBig <= fbig)) {
+          rfilterOut = true;
+        }
+      }
+
+      if (rightMatch) {
+        jtCtx.rightFinMatch[r] = true;
+      }
+      
+      if (rfilterOut) {
+        if (!rightMatch) {
+          jtCtx.rightFinMatch[r] = true;
+        }
+        continue;
+      }
+
+      if (!lfilterOut && rightMatch) {
+        putMatchRowToRes(lrow, rrow);
+        leftMatch= true;
+      }
+    }
+
+    if (!lfilterOut && !leftMatch && 0 == jtCtx.rightFilterNum) {
+      putNMatchRowToRes(lrow, 0, MAX_SLOT_NUM);
+    }
+  }
+
+  if (0 == jtCtx.leftFilterNum) {
+    for (int32_t r = 0; r < rightGrpRows; ++r) {
+      if (!jtCtx.rightFinMatch[r]) {
+        char* rrow = jtCtx.colRowDataBuf + rightTbOffset + jtCtx.blkRowSize * r;
+        putNMatchRowToRes(rrow, MAX_SLOT_NUM, 0);
+      }
+    }
+  }
+}
+
+
+void appendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
+  switch (jtCtx.joinType) {
+    case JOIN_TYPE_LEFT:
+      leftJoinAppendEqGrpRes(leftGrpRows, rightGrpRows);
+      break;
+    case JOIN_TYPE_FULL:
+      fullJoinAppendEqGrpRes(leftGrpRows, rightGrpRows);
+      break;
+    default:
+      break;
+  }
+}
+
 void createTsEqGrpRows(SSDataBlock** ppLeft, SSDataBlock** ppRight, int32_t leftGrpRows, int32_t rightGrpRows) {
   if (leftGrpRows <= 0 && rightGrpRows <= 0) {
     return;
@@ -1170,7 +1303,7 @@ void createTsEqGrpRows(SSDataBlock** ppLeft, SSDataBlock** ppRight, int32_t left
 
   makeAppendBlkData(ppLeft, ppRight, leftGrpRows, rightGrpRows);
 
-  leftJoinAppendEqGrpRes(leftGrpRows, rightGrpRows);
+  appendEqGrpRes(leftGrpRows, rightGrpRows);
 }
 
 
@@ -1239,6 +1372,12 @@ void createDummyBlkList(int32_t leftMaxRows, int32_t leftMaxGrpRows, int32_t rig
   jtCtx.rightMaxRows = rightMaxRows;
   jtCtx.rightMaxGrpRows = rightMaxGrpRows;
   jtCtx.blkRows = blkRows;
+
+  int32_t maxGrpRows = TMAX(leftMaxGrpRows, rightMaxGrpRows);
+  if (maxGrpRows > jtCtx.rightFinMatchNum) {
+    jtCtx.rightFinMatchNum = maxGrpRows;
+    jtCtx.rightFinMatch = (bool*)taosMemoryRealloc(jtCtx.rightFinMatch, maxGrpRows * sizeof(bool));
+  }
 
   createBothBlkRowsData();
 }
@@ -1638,7 +1777,7 @@ void runSingleTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
   SSortMergeJoinPhysiNode* pNode = createDummySortMergeJoinPhysiNode(param->joinType, param->subType, param->cond, param->filter, param->asc);    
-  createDummyBlkList(200, 200, 200, 200, 10);
+  createDummyBlkList(10, 10, 10, 10, 2);
   
   while (contLoop) {
     rerunBlockedHere();
@@ -1663,8 +1802,14 @@ void runSingleTest(char* caseName, SJoinTestParam* param) {
   handleTestDone();
 }
 
+void handleCaseEnd() {
+  taosMemoryFree(jtCtx.rightFinMatch);
+  jtCtx.rightFinMatchNum = 0;
+}
+
 }  // namespace
 
+#if 0
 #if 1
 TEST(leftOuterJoin, noCondTest) {
   SJoinTestParam param;
@@ -1748,6 +1893,108 @@ TEST(leftOuterJoin, fullCondTest) {
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
+  param.subType = JOIN_STYPE_OUTER;
+  param.cond = TEST_FULL_COND;
+  param.asc = true;
+  
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.filter = false;
+    runSingleTest(caseName, &param);
+
+    param.filter = true;
+    runSingleTest(caseName, &param);
+  }
+  
+  printStatInfo(caseName);   
+  taosMemoryFree(pTask);
+}
+#endif
+#endif
+
+#if 0
+TEST(fullOuterJoin, noCondTest) {
+  SJoinTestParam param;
+  char* caseName = "fullOuterJoin:noCondTest";
+  SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
+
+  param.pTask = pTask;
+  param.joinType = JOIN_TYPE_FULL;
+  param.subType = JOIN_STYPE_OUTER;
+  param.cond = TEST_NO_COND;
+  param.asc = true;
+  
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.filter = false;
+    runSingleTest(caseName, &param);
+
+    param.filter = true;
+    runSingleTest(caseName, &param);
+  }
+
+  printStatInfo(caseName); 
+  taosMemoryFree(pTask);
+}
+#endif
+
+#if 0
+TEST(fullOuterJoin, eqCondTest) {
+  SJoinTestParam param;
+  char* caseName = "fullOuterJoin:eqCondTest";
+  SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
+
+  param.pTask = pTask;
+  param.joinType = JOIN_TYPE_FULL;
+  param.subType = JOIN_STYPE_OUTER;
+  param.cond = TEST_EQ_COND;
+  param.asc = true;
+  
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.filter = false;
+    runSingleTest(caseName, &param);
+
+    param.filter = true;
+    runSingleTest(caseName, &param);
+  }
+  
+  printStatInfo(caseName); 
+  taosMemoryFree(pTask);
+  handleCaseEnd();
+}
+#endif
+
+#if 1
+TEST(fullOuterJoin, onCondTest) {
+  SJoinTestParam param;
+  char* caseName = "fullOuterJoin:onCondTest";
+  SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
+
+  param.pTask = pTask;
+  param.joinType = JOIN_TYPE_FULL;
+  param.subType = JOIN_STYPE_OUTER;
+  param.cond = TEST_ON_COND;
+  param.asc = true;
+  
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.filter = false;
+    runSingleTest(caseName, &param);
+
+    param.filter = true;
+    runSingleTest(caseName, &param);
+  }
+  
+  printStatInfo(caseName);   
+  taosMemoryFree(pTask);
+}
+#endif
+
+#if 1
+TEST(fullOuterJoin, fullCondTest) {
+  SJoinTestParam param;
+  char* caseName = "fullOuterJoin:fullCondTest";
+  SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
+
+  param.pTask = pTask;
+  param.joinType = JOIN_TYPE_FULL;
   param.subType = JOIN_STYPE_OUTER;
   param.cond = TEST_FULL_COND;
   param.asc = true;

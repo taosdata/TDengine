@@ -1255,9 +1255,14 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
       SJoinLogicNode* pLogicNode = (SJoinLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
+      nodesDestroyNode(pLogicNode->pWindowOffset);
+      nodesDestroyNode(pLogicNode->pJLimit);
       nodesDestroyNode(pLogicNode->pPrimKeyEqCond);
-      nodesDestroyNode(pLogicNode->pFullOnCond);
       nodesDestroyNode(pLogicNode->pColEqCond);
+      nodesDestroyNode(pLogicNode->pColOnCond);
+      nodesDestroyNode(pLogicNode->pTagEqCond);
+      nodesDestroyNode(pLogicNode->pTagOnCond);
+      nodesDestroyNode(pLogicNode->pFullOnCond);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_AGG: {

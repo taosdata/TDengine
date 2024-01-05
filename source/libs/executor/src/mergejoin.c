@@ -481,7 +481,7 @@ SSDataBlock* mLeftJoinDo(struct SOperatorInfo* pOperator) {
         MJOIN_GET_TB_COL_TS(pBuildCol, buildTs, pJoin->build);
         MJOIN_GET_TB_COL_TS(pProbeCol, probeTs, pJoin->probe);
       } else if (PROBE_TS_UNREACH(pCtx->ascTs, probeTs, buildTs)) {
-        MJ_ERR_JRET(mJoinProcessNonEqualGrp(pCtx, pProbeCol, true, &probeTs, &buildTs));
+        MJ_ERR_JRET(mJoinProcessUnreachGrp(pCtx, pJoin->probe, pProbeCol, &probeTs, &buildTs));
         if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
           return pCtx->finBlk;
         }
@@ -742,14 +742,9 @@ static FORCE_INLINE int32_t mFullJoinHandleGrpRemains(SMJoinMergeCtx* pCtx) {
 
 static bool mFullJoinRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* pJoin, SMJoinMergeCtx* pCtx) {
   bool probeGot = mJoinRetrieveImpl(pJoin, &pJoin->probe->blkRowIdx, &pJoin->probe->blk, pJoin->probe);
-  bool buildGot = false;
-
-  if (probeGot || MJOIN_DS_NEED_INIT(pOperator, pJoin->build)) {  
-    buildGot = mJoinRetrieveImpl(pJoin, &pJoin->build->blkRowIdx, &pJoin->build->blk, pJoin->build);
-  }
+  bool buildGot = mJoinRetrieveImpl(pJoin, &pJoin->build->blkRowIdx, &pJoin->build->blk, pJoin->build);
   
   if (!probeGot && !buildGot) {
-    mJoinSetDone(pOperator);
     return false;
   }
 
@@ -764,7 +759,7 @@ static int32_t mFullJoinMergeCart(SMJoinMergeCtx* pCtx) {
   return (NULL == pCtx->pJoin->pFPreFilter) ? mOuterJoinMergeFullCart(pCtx) : mOuterJoinMergeSeqCart(pCtx);
 }
 
-const uint8_t lowest_bit_bitmap[] = {32, 7, 6, 32, 5, 4, 32, 0, 4, 1, 2};
+const uint8_t lowest_bit_bitmap[] = {32, 7, 6, 32, 5, 3, 32, 0, 4, 1, 2};
 
 static FORCE_INLINE int32_t mFullJoinOutputHashRow(SMJoinMergeCtx* pCtx, SMJoinHashGrpRows* pGrpRows, int32_t idx) {
   SMJoinGrpRows grp = {0};
@@ -775,13 +770,14 @@ static FORCE_INLINE int32_t mFullJoinOutputHashRow(SMJoinMergeCtx* pCtx, SMJoinH
   return mJoinNonEqGrpCart(pCtx->pJoin, pCtx->finBlk, true, &grp, false);
 }
 
-static int32_t mFullJoinOutputHashGrpRows(SMJoinMergeCtx* pCtx, SMJoinHashGrpRows* pGrpRows, SMJoinNMatchCtx* pNMatch) {
+static int32_t mFullJoinOutputHashGrpRows(SMJoinMergeCtx* pCtx, SMJoinHashGrpRows* pGrpRows, SMJoinNMatchCtx* pNMatch, bool* grpDone) {
   int32_t rowNum = taosArrayGetSize(pGrpRows->pRows);
   for (; pNMatch->rowIdx < rowNum && !BLK_IS_FULL(pCtx->finBlk); ++pNMatch->rowIdx) {
     MJ_ERR_RET(mFullJoinOutputHashRow(pCtx, pGrpRows, pNMatch->rowIdx));
   }
 
   if (pNMatch->rowIdx >= rowNum) {
+    *grpDone = true;
     pNMatch->rowIdx = 0;
   }
   
@@ -807,9 +803,15 @@ static int32_t mFullJoinHandleHashGrpRemains(SMJoinMergeCtx* pCtx) {
   
     if (pGrpRows->rowMatchNum <= 0 || pGrpRows->allRowsNMatch) {
       pGrpRows->allRowsNMatch = true;
-      
-      MJ_ERR_RET(mFullJoinOutputHashGrpRows(pCtx, pGrpRows, pNMatch));
+
+      bool grpDone = false;      
+      MJ_ERR_RET(mFullJoinOutputHashGrpRows(pCtx, pGrpRows, pNMatch, &grpDone));
       if (BLK_IS_FULL(pCtx->finBlk)) {
+        if (grpDone) {
+          pNMatch->pGrp = tSimpleHashIterate(build->pGrpHash, pNMatch->pGrp, &pNMatch->iter);
+          pNMatch->bitIdx = 0;      
+        }
+        
         pCtx->nmatchRemains = true;
         return TSDB_CODE_SUCCESS;
       }
@@ -818,8 +820,9 @@ static int32_t mFullJoinHandleHashGrpRemains(SMJoinMergeCtx* pCtx) {
       pNMatch->bitIdx = 0;      
       continue;
     }
-  
-    int32_t bitBytes = BitmapLen(taosArrayGetSize(pGrpRows->pRows));
+
+    int32_t grpRowNum = taosArrayGetSize(pGrpRows->pRows);
+    int32_t bitBytes = BitmapLen(grpRowNum);
     for (; pNMatch->bitIdx < bitBytes; ++pNMatch->bitIdx) {
       if (0 == build->pRowBitmap[pGrpRows->rowBitmapOffset + pNMatch->bitIdx]) {
         continue;
@@ -829,6 +832,11 @@ static int32_t mFullJoinHandleHashGrpRemains(SMJoinMergeCtx* pCtx) {
       char *v = &build->pRowBitmap[pGrpRows->rowBitmapOffset + pNMatch->bitIdx];
       while (*v && !BLK_IS_FULL(pCtx->finBlk)) {
         uint8_t n = lowest_bit_bitmap[((*v & (*v - 1)) ^ *v) % 11];
+        if (baseIdx + n >= grpRowNum) {
+          MJOIN_SET_ROW_BITMAP(build->pRowBitmap, pGrpRows->rowBitmapOffset + pNMatch->bitIdx, n);
+          continue;
+        }
+
         MJ_ERR_RET(mFullJoinOutputHashRow(pCtx, pGrpRows, baseIdx + n));
         MJOIN_SET_ROW_BITMAP(build->pRowBitmap, pGrpRows->rowBitmapOffset + pNMatch->bitIdx, n);
         if (++pGrpRows->rowMatchNum == taosArrayGetSize(pGrpRows->pRows)) {
@@ -839,6 +847,11 @@ static int32_t mFullJoinHandleHashGrpRemains(SMJoinMergeCtx* pCtx) {
       }
   
       if (BLK_IS_FULL(pCtx->finBlk)) {
+        if (pNMatch->bitIdx == bitBytes) {
+          pNMatch->pGrp = tSimpleHashIterate(build->pGrpHash, pNMatch->pGrp, &pNMatch->iter);
+          pNMatch->bitIdx = 0;      
+        }
+
         pCtx->nmatchRemains = true;
         return TSDB_CODE_SUCCESS;
       }
@@ -863,12 +876,13 @@ static FORCE_INLINE int32_t mFullJoinOutputMergeRow(SMJoinMergeCtx* pCtx, SMJoin
 }
 
 
-static int32_t mFullJoinOutputMergeGrpRows(SMJoinMergeCtx* pCtx, SMJoinGrpRows* pGrpRows, SMJoinNMatchCtx* pNMatch) {
-  for (; pNMatch->rowIdx < pGrpRows->endIdx && !BLK_IS_FULL(pCtx->finBlk); ++pNMatch->rowIdx) {
+static int32_t mFullJoinOutputMergeGrpRows(SMJoinMergeCtx* pCtx, SMJoinGrpRows* pGrpRows, SMJoinNMatchCtx* pNMatch, bool* grpDone) {
+  for (; pNMatch->rowIdx <= pGrpRows->endIdx && !BLK_IS_FULL(pCtx->finBlk); ++pNMatch->rowIdx) {
     MJ_ERR_RET(mFullJoinOutputMergeRow(pCtx, pGrpRows, pNMatch->rowIdx));
   }
 
-  if (pNMatch->rowIdx >= pGrpRows->endIdx) {
+  if (pNMatch->rowIdx > pGrpRows->endIdx) {
+    *grpDone = true;
     pNMatch->rowIdx = 0;
   }
   
@@ -879,11 +893,13 @@ static int32_t mFullJoinOutputMergeGrpRows(SMJoinMergeCtx* pCtx, SMJoinGrpRows* 
 static int32_t mFullJoinHandleMergeGrpRemains(SMJoinMergeCtx* pCtx) {
   SMJoinTableCtx* build = pCtx->pJoin->build;
   SMJoinNMatchCtx* pNMatch = &build->nMatchCtx;
-
+  bool grpDone = false;
   int32_t baseIdx = 0;
   int32_t rowNum = 0;
   int32_t grpNum = taosArrayGetSize(build->eqGrps);
-  for (; pNMatch->grpIdx < grpNum; ++pNMatch->grpIdx) {
+  for (; pNMatch->grpIdx < grpNum; ++pNMatch->grpIdx, pNMatch->bitIdx = 0) {
+    grpDone = false;
+    
     SMJoinGrpRows* pGrpRows = taosArrayGet(build->eqGrps, pNMatch->grpIdx);
     if (pGrpRows->allRowsMatch) {
       continue;
@@ -892,9 +908,14 @@ static int32_t mFullJoinHandleMergeGrpRemains(SMJoinMergeCtx* pCtx) {
     if (pGrpRows->rowMatchNum <= 0 || pGrpRows->allRowsNMatch) {
       pGrpRows->allRowsNMatch = true;
       
-      MJ_ERR_RET(mFullJoinOutputMergeGrpRows(pCtx, pGrpRows, pNMatch));
+      MJ_ERR_RET(mFullJoinOutputMergeGrpRows(pCtx, pGrpRows, pNMatch, &grpDone));
 
       if (BLK_IS_FULL(pCtx->finBlk)) {
+        if (grpDone) {
+          ++pNMatch->grpIdx;
+          pNMatch->bitIdx = 0;
+        }
+        
         pCtx->nmatchRemains = true;
         return TSDB_CODE_SUCCESS;
       }
@@ -913,6 +934,12 @@ static int32_t mFullJoinHandleMergeGrpRemains(SMJoinMergeCtx* pCtx) {
       char *v = &build->pRowBitmap[pGrpRows->rowBitmapOffset + pNMatch->bitIdx];
       while (*v && !BLK_IS_FULL(pCtx->finBlk)) {
         uint8_t n = lowest_bit_bitmap[((*v & (*v - 1)) ^ *v) % 11];
+        if (baseIdx + n > pGrpRows->endIdx) {
+          MJOIN_SET_ROW_BITMAP(build->pRowBitmap, pGrpRows->rowBitmapOffset + pNMatch->bitIdx, n);
+          continue;
+        }
+        
+        ASSERT(baseIdx + n <= pGrpRows->endIdx);
         MJ_ERR_RET(mFullJoinOutputMergeRow(pCtx, pGrpRows, baseIdx + n));
 
         MJOIN_SET_ROW_BITMAP(build->pRowBitmap, pGrpRows->rowBitmapOffset + pNMatch->bitIdx, n);
@@ -925,6 +952,11 @@ static int32_t mFullJoinHandleMergeGrpRemains(SMJoinMergeCtx* pCtx) {
     }
 
     if (BLK_IS_FULL(pCtx->finBlk)) {
+      if (pNMatch->bitIdx == bitBytes) {
+        ++pNMatch->grpIdx;
+        pNMatch->bitIdx = 0;
+      }
+      
       pCtx->nmatchRemains = true;
       return TSDB_CODE_SUCCESS;
     }      
@@ -976,6 +1008,14 @@ SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator) {
 
   do {
     if (!mFullJoinRetrieve(pOperator, pJoin, pCtx)) {
+      if (pCtx->lastEqGrp && pJoin->build->rowBitmapSize > 0) {
+        MJ_ERR_JRET(mFullJoinHandleBuildTableRemains(pCtx));
+        if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
+          return pCtx->finBlk;
+        }
+      }
+
+      mJoinSetDone(pOperator);      
       break;
     }
 
@@ -988,7 +1028,7 @@ SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator) {
         return pCtx->finBlk;
       }
 
-      if (MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe)) {
+      if (FJOIN_PROBE_TB_ROWS_DONE(pJoin->probe)) {
         continue;
       } else {
         MJOIN_GET_TB_CUR_TS(pProbeCol, probeTs, pJoin->probe);
@@ -1000,7 +1040,7 @@ SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator) {
       }
     }
 
-    while (!MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe) && !MJOIN_BUILD_TB_ROWS_DONE(pJoin->build)) {
+    while (!FJOIN_PROBE_TB_ROWS_DONE(pJoin->probe) && !MJOIN_BUILD_TB_ROWS_DONE(pJoin->build)) {
       if (probeTs == buildTs) {
         pCtx->lastEqTs = probeTs;
         MJ_ERR_JRET(mJoinProcessEqualGrp(pCtx, probeTs, false));
@@ -1022,9 +1062,9 @@ SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator) {
       }
 
       if (PROBE_TS_UNREACH(pCtx->ascTs, probeTs, buildTs)) {
-        MJ_ERR_JRET(mJoinProcessNonEqualGrp(pCtx, pProbeCol, true, &probeTs, &buildTs));
+        MJ_ERR_JRET(mJoinProcessUnreachGrp(pCtx, pJoin->probe, pProbeCol, &probeTs, &buildTs));
       } else {
-        MJ_ERR_JRET(mJoinProcessNonEqualGrp(pCtx, pBuildCol, false, &probeTs, &buildTs));
+        MJ_ERR_JRET(mJoinProcessOverGrp(pCtx, pJoin->build, pBuildCol, &probeTs, &buildTs));
       }
 
       if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
@@ -1032,7 +1072,7 @@ SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator) {
       }
     }
 
-    if (pJoin->build->dsFetchDone && !MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe)) {
+    if (pJoin->build->dsFetchDone && !FJOIN_PROBE_TB_ROWS_DONE(pJoin->probe)) {
       pCtx->probeNEqGrp.blk = pJoin->probe->blk;
       pCtx->probeNEqGrp.beginIdx = pJoin->probe->blkRowIdx;
       pCtx->probeNEqGrp.readIdx = pCtx->probeNEqGrp.beginIdx;
@@ -1046,7 +1086,7 @@ SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator) {
       }
     }
 
-    if (pJoin->probe->dsFetchDone && !MJOIN_PROBE_TB_ROWS_DONE(pJoin->build)) {
+    if (pJoin->probe->dsFetchDone && !MJOIN_BUILD_TB_ROWS_DONE(pJoin->build)) {
       pCtx->buildNEqGrp.blk = pJoin->build->blk;
       pCtx->buildNEqGrp.beginIdx = pJoin->build->blkRowIdx;
       pCtx->buildNEqGrp.readIdx = pCtx->buildNEqGrp.beginIdx;
