@@ -141,9 +141,6 @@ export default {
         let data = this.sourceList.filter((item) => item.id === type);
         if (type == "mqtt" || type == "kafka") {
           this.$set(this.uidata, 0, this.deepClone(data)[0]);
-          // this.parserobj = deepClone(this.staticParser);
-          // this.parserobj.model.columns.push("ts"); //默认新增时候选中ts列
-          // this.$store.commit("app/SET_MQTT_PARSER", this.parserobj);
         } else {
           if (type == "opc") {
             this.$set(this.uidata, 0, data[0]);
@@ -196,7 +193,7 @@ export default {
             this.tagName = "opc";
             break;
           case "mqtt":
-            this.currentName = "opcui";
+            this.currentName = "sourceConfig";
             this.tagName = "mqtt";
             break;
           case "pibackfill":
@@ -204,7 +201,7 @@ export default {
             this.tagName = "pibackfill";
             break;
           case "csv":
-            this.currentName = "opcui";
+            this.currentName = "sourceConfig";
             this.tagName = "csv";
             break;
           case "taos":
@@ -212,7 +209,7 @@ export default {
             this.tagName = "taos";
             break;
           case "kafka":
-            this.currentName = "opcui";
+            this.currentName = "sourceConfig";
             this.tagName = "kafka";
             break;
           case "historian":
@@ -229,9 +226,6 @@ export default {
             this.currentName = "sourceConfig";
             this.tagName = "opc";
             this.protocol = "ua";
-            // if (this.$store.state.app.opcnodesfiles.length == 0) {
-            // this.echoOpcData();
-            // }
 
             break;
           case "opcda":
@@ -253,7 +247,7 @@ export default {
             this.tagName = "opentsdb";
             break;
           case "mqtt":
-            this.currentName = "opcui";
+            this.currentName = "sourceConfig";
             this.tagName = "mqtt";
             break;
           case "pibackfill":
@@ -261,25 +255,15 @@ export default {
             this.tagName = "pibackfill";
             break;
           case "csv":
-            (this.currentName = "opcui"), (this.tagName = "csv");
+            (this.currentName = "sourceConfig"), (this.tagName = "csv");
             break;
           case "taos":
             this.currentName = "sourceConfig";
             this.tagName = "taos";
             break;
           case "kafka":
-            this.currentName = "opcui";
+            this.currentName = "sourceConfig";
             this.tagName = "kafka";
-
-            // this.uidata[0].parser.fields = this.uidata[0].parser.fields.map(
-            //   (item) => {
-            //     if (item.name == "value") {
-            //       item["value"] = "json";
-            //       item["name"] = "payload";
-            //     }
-            //     return item;
-            //   }
-            // );
 
             break;
             case "historian":

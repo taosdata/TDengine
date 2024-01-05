@@ -6,6 +6,34 @@
   "description": "taosexplorer",
   "glyphs": [
     {
+      "icon_id": "22879319",
+      "name": "PREVIEW",
+      "font_class": "PREVIEW",
+      "unicode": "ea06",
+      "unicode_decimal": 59910
+    },
+    {
+      "icon_id": "23487633",
+      "name": "delete",
+      "font_class": "a-6",
+      "unicode": "e602",
+      "unicode_decimal": 58882
+    },
+    {
+      "icon_id": "37704232",
+      "name": "Language",
+      "font_class": "Language-copy",
+      "unicode": "ed51",
+      "unicode_decimal": 60753
+    },
+    {
+      "icon_id": "9568084",
+      "name": "Language",
+      "font_class": "Language",
+      "unicode": "e659",
+      "unicode_decimal": 58969
+    },
+    {
       "icon_id": "36018526",
       "name": "data-metric",
       "font_class": "data-metric",

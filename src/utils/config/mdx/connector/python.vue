@@ -102,7 +102,7 @@ export default {
     url: {
       type: String,
       default: "",
-    },
+    }
   },
   data() {
     return {};
@@ -118,5 +118,6 @@ export default {
       return this.$i18n.locale.includes('en') ?"reference": "connector";
     }
   },
+ 
 };
 </script>

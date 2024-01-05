@@ -91,6 +91,7 @@
       width="600px"
       :visible.sync="dialog"
       :destroy-on-close='true'
+      :close-on-click-modal="false"
     >
       <div slot="title">
         <div class="activate-title">{{ $t('taosuser.activationLicense') }}</div>

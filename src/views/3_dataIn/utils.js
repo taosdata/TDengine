@@ -5,6 +5,7 @@ import { StaticTemplatePath, IsAliyun } from '@/const';
 import { Loading } from 'element-ui';
 import { parsinginZone, decrypt } from "@/utils/index";
 import i18n from '@/lang';
+import store from '@/store/modules/app';
 
 const lang = IsAliyun ? 'zh' : 'en';
 const templateUrlMap = {
@@ -79,6 +80,7 @@ export const DefaultOpcTableValue = {
 export function getFormConfigByDataSource(dataSource, parserValue) {
   return dataSource.reduce((formConfig, item) => {
     const { id, name, type, strict, description, protocol, authentication, groups, options, datasets, parser, params, advanced } = item;
+  
     const paramsConfig = [
       {
         label: i18n.t('dataIn.connectionConfiguration'),
@@ -92,7 +94,8 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
       type,
       description,
       strict,
-      config: paramsConfig
+      config: paramsConfig,
+      parser
     };
     currentType = id;
     let connectivityCheck = id != 'csv' && id != 'kafka' && id != 'mqtt'
@@ -109,7 +112,16 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
     handleParser(parser, paramsConfig, parserValue);
     handleAdvanced(advanced, paramsConfig)
     // 先处理protocol
+    if(id=='csv'){
+      config.parser=parserValue
+      let index=paramsConfig.findIndex((item)=>{
+        return ['连接配置','Connection Configuration'].includes(item.label)
+      })
+      paramsConfig.splice(index,1)
+    }
     formConfig[id] = config;
+    
+   
     return formConfig;
   }, {});
 }
@@ -390,7 +402,7 @@ function handleParser(parser, paramsConfig, value = cloneDeep(DefaultParserValue
     description,
     field: 'parser',
     type: 'parser',
-    fields: fields.filter(item => item.name != 'payload'),
+    fields: fields,//fields.filter(item => item.name != 'payload'),
     defaultValue: value,
     children: []
   });
@@ -922,7 +934,7 @@ export const NoNeedAgentType = ['tmq', 'taos', 'csv'];
 export const ProtocolPrefix = NoNeedAgentType.concat(['influxdb', 'opentsdb']);
 
 export function getDsnData(data, definition) {
-  let dsn = handleProtocolData(data[optionsField].protocol, definition);
+  let dsn = handleProtocolData(data[optionsField]?.protocol, definition);
   let queryArr = [];
   dsn += getAuthentications(data[authenticationField], queryArr);
   dsn += getOptionData(data[optionsField], queryArr, definition);
@@ -939,6 +951,9 @@ export function getDsnData(data, definition) {
     }
     dsn += queryArr.join('&');
   }
+  if(definition.id=='csv'){
+    dsn+=`&has_header=${store.state.hasheader}`
+  }
   return dsn;
 }
 function handleProtocolData(protocol, definition) {
@@ -952,6 +967,9 @@ function handleProtocolData(protocol, definition) {
       dsn += '+';
     }
     dsn += protocol;
+  }
+  if(id=='csv'){
+    return dsn+(Array.isArray(store.state.csvfiles)?store.state.csvfiles[0].response[0]:store.state.csvfiles)
   }
   return dsn + '://';
 }
@@ -1058,7 +1076,7 @@ function getOptionData(data, queryArr, definition) {
   if (system_configuration) {
     queryArr.push('system_configuration=' + system_configuration)
   }
-  if (endpoint === undefined) {
+  if (endpoint === undefined&&definition.id!=='csv') {
     result += host.replace(/\w*:\/\//, '');
     if (system_configuration && system_configuration != piOptionShowValue) return result;
     if (port) {
@@ -1071,7 +1089,11 @@ function getOptionData(data, queryArr, definition) {
     if (id === 'tmq') {
       result += handleEndpoint(endpoint)
     } else {
-      result += endpoint;
+      if(id=='csv'){
+        result+= (Array.isArray(store.state.csvfiles)?store.state.csvfiles[0].response[0]:store.state.csvfiles)
+      }else{
+        result += endpoint;
+      }
     }
   }
   return result;

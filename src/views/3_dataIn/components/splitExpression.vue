@@ -39,15 +39,34 @@
 import { deepClone } from "@/utils/index";
 export default {
   name: "SplitExpression",
+  props: {
+    ruleForm: {
+      type: Object,
+      default: () => {
+        return {
+          sep: "",
+          n: "",
+          names: "",
+        };
+      },
+    },
+  },
   data() {
     return {
       isValid: true,
-      ruleForm: {
-        sep: "",
-        n: "",
-        names: "",
-      },
+      // ruleForm: {
+      //   sep: "",
+      //   n: "",
+      //   names: "",
+      // },
       rules: {
+        n:[
+        {
+            required: true,
+            trigger: "blur",
+            message: this.$t("datasource.transformer.sepntip"),
+          },
+        ],
         sep: [
           {
             required: true,
@@ -61,6 +80,7 @@ export default {
   methods: {
     submit() {
       this.$refs.splitForm.validate((valid) => {
+        console.log(valid,'====split====',this.ruleForm);
         if (valid) {
           this.isValid = true;
           let splitExpre = {};
@@ -91,6 +111,7 @@ export default {
     },
   },
   mounted() {
+    console.log(this.ruleForm,'split');
     if (this.$store.state.app.splitExpresList) {
       let middleobj = deepClone(this.$store.state.app.splitExpresList);
       if (
@@ -100,7 +121,7 @@ export default {
         middleobj.names =
           this.$store.state.app.splitExpresList.names.toString();
       }
-      this.ruleForm = { ...middleobj };
+      // this.ruleForm = { ...middleobj };
     }
   },
   watch: {
@@ -111,7 +132,7 @@ export default {
         if (val.names && Array.isArray(val.names)) {
           middleObj.names = middleObj.names.toString();
         }
-        this.ruleForm = { ...middleObj };
+        // this.ruleForm = { ...middleObj };
       },
     },
   },

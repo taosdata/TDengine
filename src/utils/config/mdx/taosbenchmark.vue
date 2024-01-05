@@ -634,9 +634,9 @@ export default {
   data() {
     return {
       version:localStorage.getItem('agent_version'),
-      benchcode:`tar -xzf taosTools-${localStorage.getItem('agent_version')}-Linux-x64-comp3.tar.gz
-cd taosTools-${localStorage.getItem('agent_version')}-Linux-x64-comp3
-sudo ./install-taostools.sh`
+      benchcode:`tar -xzf TDengine-enterprise-client-${localStorage.getItem('agent_version')}-Linux-x64.tar.gz
+cd TDengine-enterprise-client-${localStorage.getItem('agent_version')}
+sudo ./install_client.sh`
     };
   },
   computed: {

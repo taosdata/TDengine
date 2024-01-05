@@ -58,7 +58,7 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-dialog append-to-body width="300px" center :visible.sync="dialog" :title="$t('accessControl.addAccess')">
+    <el-dialog append-to-body width="300px" center :visible.sync="dialog" :title="$t('accessControl.addAccess')" :close-on-click-modal="false">
       <ResourceRole ref="resourceRole" type="residue" :params="params" v-model="newResource" />
       <span slot="footer" class="dialog-footer">
         <el-button size="mini" @click="dialog = false">{{ $t("cancel") }}</el-button>

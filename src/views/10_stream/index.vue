@@ -9,23 +9,67 @@
           }}</el-button>
         </div>
         <el-table style="margin-top: 20px" size="mini" :data="streamList">
-          <el-table-column :label="$t('stream.streamName')" width="200" prop="stream_name" show-overflow-tooltip></el-table-column>
-          <el-table-column :label="$t('createTime')" width="210" prop="create_time" show-overflow-tooltip>
+          <el-table-column :label="$t('stream.streamName')" width="200" prop="stream_name">
+            <template slot-scope="scope">
+              <el-tooltip :content="scope.row.stream_name" placement="top-start">
+                <span class="nowrap">{{ scope.row.stream_name }}</span>
+              </el-tooltip>
+            </template> 
+          </el-table-column>
+          <el-table-column :label="$t('createTime')" width="210" prop="create_time"  >
             <span slot-scope="scope">{{ parsinginZone(scope.row.create_time) }}</span>
           </el-table-column>
-          <el-table-column label="sql" min-width="200" prop="sql" show-overflow-tooltip>
+          <el-table-column label="sql" min-width="200" prop="sql">
             <template slot-scope="scope">
-              <pre v-highlight class="nowrap sql-code pre-code" slot="reference">
-          <code class="language-sql" style="overflow:hidden">{{ scope.row.sql }} </code>
-        </pre>
+              <el-tooltip :content="scope.row.sql" placement="top-start">
+                <pre v-highlight class="nowrap sql-code pre-code" >
+                  <code class="language-sql" style="overflow:hidden">{{ scope.row.sql }} </code>
+                </pre>
+              </el-tooltip>
             </template>
           </el-table-column>
-          <el-table-column width="100" :label="$t('status')" prop="status" show-overflow-tooltip></el-table-column>
-          <el-table-column width="120" :label="$t('stream.sourceDB')" prop="source_db" show-overflow-tooltip></el-table-column>
-          <el-table-column width="120" :label="$t('stream.targetDB')" prop="target_db" show-overflow-tooltip></el-table-column>
-          <el-table-column width="120" :label="$t('stream.targetTable')" prop="target_table" show-overflow-tooltip></el-table-column>
-          <el-table-column width="140" :label="watermarkdetail" prop="watermark" show-overflow-tooltip></el-table-column>
-          <el-table-column width="110" :label="$t('stream.trigger')" prop="trigger" show-overflow-tooltip></el-table-column>
+          <el-table-column width="100" :label="$t('status')" prop="status">
+            <template slot-scope="scope">
+              <el-tooltip :content="scope.row.status" placement="top-start">
+                <span class="nowrap">{{ scope.row.status }}</span>
+              </el-tooltip>
+            </template> 
+          </el-table-column>
+          <el-table-column width="120" :label="$t('stream.sourceDB')" prop="source_db">
+            <template slot-scope="scope">
+              <el-tooltip :content="scope.row.source_db" placement="top-start">
+                <span class="nowrap">{{ scope.row.source_db }}</span>
+              </el-tooltip>
+            </template> 
+          </el-table-column>
+          <el-table-column width="120" :label="$t('stream.targetDB')" prop="target_db">
+            <template slot-scope="scope">
+              <el-tooltip :content="scope.row.target_db" placement="top-start">
+                <span class="nowrap">{{ scope.row.target_db }}</span>
+              </el-tooltip>
+            </template> 
+          </el-table-column>
+          <el-table-column width="120" :label="$t('stream.targetTable')" prop="target_table"  >
+            <template slot-scope="scope">
+              <el-tooltip :content="scope.row.target_table" placement="top-start">
+                <span class="nowrap">{{ scope.row.target_table }}</span>
+              </el-tooltip>
+            </template> 
+          </el-table-column>
+          <el-table-column width="140" :label="watermarkdetail" prop="watermark">
+            <template slot-scope="scope">
+              <el-tooltip :content="scope.row.watermark" placement="top-start">
+                <span class="nowrap">{{ scope.row.watermark }}</span>
+              </el-tooltip>
+            </template> 
+          </el-table-column>
+          <el-table-column width="110" :label="$t('stream.trigger')" prop="trigger">
+            <template slot-scope="scope">
+              <el-tooltip :content="scope.row.trigger" placement="top-start">
+                <span class="nowrap">{{ scope.row.trigger }}</span>
+              </el-tooltip>
+            </template> 
+          </el-table-column>
 
           <el-table-column :label="$t('operate')" width="80">
             <template slot-scope="scope">

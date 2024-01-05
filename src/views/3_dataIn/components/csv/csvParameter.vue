@@ -24,32 +24,7 @@
       </el-form-item>
     </el-form>
     <slot name="next"></slot>
-    <el-form
-      :model="ruleForm2"
-      ref="ruleForm2"
-      label-width="200px"
-      :rules="rules"
-    >
-
-      <!-- <el-form-item
-        :label="
-          showStable ? $t('datasource.name') : $t('datasource.normalname')
-        "
-        prop="subname"
-        :rules="showStable ? rules.subname : normaltable"
-      >
-
-        <el-input size="small" v-model="ruleForm2.subname"></el-input>
-      </el-form-item> -->
-      <!-- <el-form-item
-        :label="$t('datasource.using')"
-        prop="tableName"
-        v-if="showStable"
-        :rules="tableName"
-      >
-        <el-input size="small" v-model="ruleForm2.tableName"></el-input>
-      </el-form-item> -->
-    </el-form>
+    
   </div>
 </template>
 <script>
@@ -79,18 +54,14 @@ export default {
         customcol: "",
         isValid: false,
       },
-      ruleForm2: {
-        // dbName: "",
-        subname: "",
-        tableName: "",
-      },
-      customcolrule: [
-        {
-          required: true,
-          trigger: "blur",
-          message: this.$t("datasource.customcol"),
-        },
-      ],
+      
+      // customcolrule: [
+      //   {
+      //     required: true,
+      //     trigger: "blur",
+      //     message: this.$t("datasource.customcol"),
+      //   },
+      // ],
       tableName: [
         {
           required: true,
@@ -106,13 +77,6 @@ export default {
         },
       ],
       rules: {
-        // dbName: [
-        //   {
-        //     required: true,
-        //     trigger: "change",
-        //     message: this.$t("datasource.nametip"),
-        //   },
-        // ],
         subname: [
           {
             required: true,
@@ -138,6 +102,15 @@ export default {
       ],
     };
   },
+  computed:{
+    customcolrule(){
+      return {
+        required: true,
+          trigger: "blur",
+          message: this.$t("datasource.customcol"),
+      }
+    }
+  },
   watch: {
     "$store.state.app.showcsvStable": {
       deep: true,
@@ -151,7 +124,16 @@ export default {
           this.getDatabases()
         }
       }
-    }
+    },
+    "$i18n.locale": {
+      deep: true,
+      handler(val) {
+        this.$nextTick(()=>{
+          this.$refs.ruleForm.clearValidate();
+        })
+        
+      },
+    },
   },
   mounted() {
     if (this.isEditable) {
@@ -174,6 +156,7 @@ export default {
     },
     changeHeader() {
       this.showcustom = !this.ruleForm.hasHeader;
+      this.$store.commit("app/SET_CSV_HASHEADER", this.ruleForm.hasHeader);
     },
     async getDatabases() {
       try {
@@ -188,19 +171,9 @@ export default {
           this.isValid = true;
         } else {
           this.isValid = false;
-          return false;
         }
       });
-    },
-    submit2() {
-      // this.$refs.ruleForm2.validate((valid) => {
-      //   if (valid) {
-      //     this.isAllValid = true;
-      //   } else {
-      //     this.isAllValid = false;
-      //     return false;
-      //   }
-      // });
+      return this.isValid
     },
   },
 };

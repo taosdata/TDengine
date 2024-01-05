@@ -10,7 +10,7 @@
       
     
 
-    <el-dialog :title="$t('support.addOrder')" width="1000px" :visible.sync="dialog" append-to-body>
+    <el-dialog :title="$t('support.addOrder')" width="1000px" :visible.sync="dialog" append-to-body :close-on-click-modal="false">
       <!-- <addFrom :typeList="issueTypeList" @close="dialogClose" /> -->
     </el-dialog>
   </div>

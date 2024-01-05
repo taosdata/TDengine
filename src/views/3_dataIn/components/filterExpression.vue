@@ -17,6 +17,7 @@
             size="small"
             v-model="ruleForm.filter_name"
             :placeholder="$t('datasource.transformer.filter_input')"
+            @keyup.enter.native="excuteFilter"
             @input="changeFilterCont"
           ></el-input>
           <!-- </el-popover> -->
@@ -25,20 +26,10 @@
 
       <div class="btns">
         <el-button icon="el-icon-delete" @click="deleteFilter"></el-button>
-        <el-button icon="el-icon-check" @click="submit"></el-button>
       </div>
     </div>
-
-    <div class="table" v-if="tableData.length > 0">
-      <el-table :data="tableData" border style="width: 100%">
-        <el-table-column
-          v-for="(item, index) in tableColumns"
-          :key="index"
-          :label="tableColumns[index]"
-          :prop="tableColumns[index]"
-          show-overflow-tooltip
-        ></el-table-column>
-      </el-table>
+    <div class='tip' v-if='ruleForm.filter_name'>
+      <span :class="['excutetip',isexecuted?'done':'']">{{isexecuted?$t('datasource.transformer.filterexecuted'):$t('datasource.transformer.filterunexe')}}</span>
     </div>
   </div>
 </template>
@@ -74,6 +65,7 @@ export default {
   },
   data() {
     return {
+      isexecuted:false,
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
       ruleForm: {
         filter_name: "",
@@ -81,7 +73,7 @@ export default {
       rules: {
         filter_name: [
           {
-            required: true,
+            required: false,
             trigger: "blur",
             message: this.$t("datasource.transformer.filter_input"),
           },
@@ -91,7 +83,12 @@ export default {
     };
   },
   methods: {
+    excuteFilter(){
+      this.isexecuted=true
+      this.submit()
+    },
     changeFilterCont(val) {
+      this.isexecuted=false
       // this.$emit("changeFilter", this.itemData.key, val);
     },
     initData(val) {
@@ -130,11 +127,12 @@ export default {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
               return [
-                item.name,data[index].toString()
+                item.name,data[index] ? data[index].toString() : null
               ];
             })
           );
         });
+        // this.$store.commit("app/SET_TRANS_RESULT_TABLE", this.tableData);
         let transformerColumns = [
           {
             value: "expression",
@@ -231,10 +229,11 @@ export default {
       });
       let parser = {
         parser: {
-          parse: this.$store.state.app.transformExtractParseData,
+          parse: this.$store.state.app.topParse.parser.parse,
           mutate: [].concat({
             filter: this.ruleForm.filter_name.trim(),
-          }),
+            
+          }).concat(this.$store.state.app.transformExtractParseData,),
         },
         input: this.$parent.isCSV
           ? this.$store.state.app.csvTransformerParser.inputList
@@ -244,6 +243,7 @@ export default {
       this.$store.commit("app/SET_FILTER_PARSE_DATA", {
         filter: this.ruleForm.filter_name,
       });
+      this.isexecuted=true
       this.getParserData(parser);
     },
   },
@@ -265,11 +265,12 @@ export default {
 <style lang="scss" scoped>
 .filter-expression {
   margin-top: 10px;
+  margin-bottom:20px;
 }
 .filter-input {
   display: flex;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 5px;
   .el-form {
     flex: 1;
   }
@@ -286,7 +287,6 @@ export default {
       width: 32px;
       border-radius: 6px;
       &:first-child {
-        margin-right: 10px;
         margin-left: 20px;
       }
     }
@@ -294,5 +294,14 @@ export default {
 }
 .table {
   margin-bottom: 20px;
+}
+.tip{
+  font-size:12px;
+  .excutetip{
+    color:red;
+    &.done{
+      color:#acaab2;
+    }
+  }
 }
 </style>

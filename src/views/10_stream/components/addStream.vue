@@ -230,6 +230,7 @@
       append-to-body
       :visible.sync="dialog"
       title="SQL"
+      :close-on-click-modal="false"
     >
       <pre :key="previewSql" v-highlight>
         <code class="language-sql">{{previewSql}}</code>

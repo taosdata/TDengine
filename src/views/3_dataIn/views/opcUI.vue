@@ -887,11 +887,15 @@
           :content="dbsource[0].description"
         ></DocsContent>
       </div>
+
+      <ResultTable></ResultTable>
     </div>
     <DialogCreateDb></DialogCreateDb>
+    
   </div>
 </template>
 <script>
+import Vue from 'vue';
 import DataTarget from "./dataTarget.vue";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import {
@@ -914,6 +918,24 @@ import Result from "../components/result.vue";
 import AdvanceOptions from "../components/advancedOptions.vue";
 import CommonTransformer from "../components/commonTransformer.vue";
 import DocsContent from '@/views/support/components/editorContentDisplay.vue';
+import ResultTable from '../components/transformResultTable.vue'
+
+// function createResultTable() {
+//   return {
+//     instance: null,
+//     mounted: () => {
+//       const resultTable = Vue.extend(ResultTable)
+//       this.instance = new resultTable()
+//       this.instance.$mounte()
+//       document.body.appendChild(this.instance.$el)
+//     },
+//     destroy: () => {
+//       document.body.removeChild(this.instance.$el)
+//       this.instance.$destroy()
+//     }
+//   }
+// }
+
 export default {
   name: "DbSourceUI",
   components: {
@@ -925,7 +947,8 @@ export default {
     Result,
     AdvanceOptions,
     CommonTransformer,
-    DocsContent
+    DocsContent,
+    ResultTable
   },
   props: {
     echoData: {
@@ -966,8 +989,8 @@ export default {
       default: false,
     },
     editId: {
-      type: Number,
-      default: 0,
+      type: [Number,String],
+      default: '',
     },
     isCopyable: {
       type: Boolean,
@@ -1074,6 +1097,9 @@ export default {
     }
   },
   mounted() {
+    // const ResultTableInstance = createResultTable()
+    // createResultTable.mounted()
+    // this.$once('hook:beforeDestroy', ResultTableInstance.destroy)
     if (this.tagName == "mqtt" || this.tagName == "kafka") {
       this.showtransformer = true;
       this.$set(this, "constmqttCols", this.dbsource[0].parser.fields);
@@ -1819,7 +1845,7 @@ export default {
             Message.warning(this.$t("datasource.transformer.sp"));
             return;
           }
-          this.$refs.csvdata.$refs.transform.getTransformerParams();
+         await this.$refs.csvdata.$refs.transform.getTransformerParams();
           if(this.$refs.csvdata.$refs.transform.isbreak){//transformer的mapping接口出错
             return
           }
@@ -2216,6 +2242,7 @@ export default {
   justify-content: space-between;
   display: flex;
   overflow-x: auto;
+  position:relative;
   :deep {
     .el-input__inner {
       // border: none !important;
@@ -2314,7 +2341,7 @@ export default {
     }
 
     .header {
-      margin-bottom: 20px;
+      // margin-bottom: 20px;
       h1 {
         font-size: 20px;
         font-weight: 700;
@@ -2421,6 +2448,7 @@ export default {
     flex: 1;
     margin-left: 40px;
     overflow: hidden;
+    position:relative;
     .doc-part {
       box-shadow: rgba(0, 0, 0, 0.1) 0px 0px 15px;
       padding: 2rem;

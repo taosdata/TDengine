@@ -88,6 +88,12 @@ const state = {
   splitExpresList:null,//transformer的split
   mappingjoin:'',//mapping时候映射值是join时候的
   definitions: [],
+  topParse:null,
+  transformresulttable:[],
+  createStWithoutDB:0,
+  transformTableHeight:0,
+  transformerfullparams:null,
+  transresultname:''
   
 };
 const saveKey = encodeURIComponent("appId");
@@ -115,6 +121,24 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_TRANS_RESULT_NAME:(state,data)=>{
+    state.transresultname=data
+  },
+  SET_TRANS_FULL_PARAMS:(state,data)=>{
+    state.transformerfullparams=data
+  },
+  SET_TRANS_TABLE_HEIGHT:(state,data)=>{
+    state.transformTableHeight=data
+  },
+  SET_CREATESTWITHOUT_DB:(state,data)=>{
+    state.createStWithoutDB=data
+  },
+  SET_TRANS_RESULT_TABLE:(state,data)=>{
+    state.transformresulttable=data
+  },
+  SET_TOP_PARSE:(state,data)=>{
+    state.topParse=data
+  },
   SET_MAPPING_JOIN:(state,data)=>{
     state.mappingjoin=data
   },

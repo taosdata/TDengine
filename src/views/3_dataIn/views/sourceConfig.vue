@@ -1,9 +1,6 @@
 <template>
   <div class="source-ui">
     <div :class="['left-ui', isShowEditBtn ? 'readable' : '']">
-      <!-- <section>
-        <DataTarget ref="sourceTop"></DataTarget>
-      </section> -->
       <el-form
         :model="sourceForm"
         ref="form"
@@ -22,10 +19,7 @@
               :placeholder="$t('dataIn.palceholders.taskName')"
             ></el-input>
           </el-form-item>
-          <el-form-item
-            :label="$t('type')"
-            prop="type"
-          >
+          <el-form-item :label="$t('type')" prop="type">
             <el-select
               v-model="sourceForm.type"
               placeholder=""
@@ -39,18 +33,8 @@
                 :value="item.id"
               ></el-option>
             </el-select>
-            <!-- <el-button
-            class="ml10"
-            type="primary"
-            plain
-            >{{ $t('plan.price') }}</el-button
-          > -->
           </el-form-item>
-          <el-form-item
-            v-if="agentShow"
-            :label="$t('agent')"
-            prop="agent"
-          >
+          <el-form-item v-if="agentShow" :label="$t('agent')" prop="agent">
             <el-select
               v-model="sourceForm.agent"
               :placeholder="$t('dataIn.palceholders.agentPlaceholder')"
@@ -69,14 +53,13 @@
               size="small"
               class="ml"
               icon="el-icon-plus"
-              >{{ $t('dataIn.createNewAgent') }}</el-button
+              >{{ $t("dataIn.createNewAgent") }}</el-button
             >
-            <p class="custom-placeholder mt10">{{ $t('dataIn.needAgentTip') }}</p>
+            <p class="custom-placeholder mt10">
+              {{ $t("dataIn.needAgentTip") }}
+            </p>
           </el-form-item>
-          <el-form-item
-            :label="$t('stream.targetDB')"
-            prop="targetDB"
-          >
+          <el-form-item :label="$t('stream.targetDB')" prop="targetDB">
             <el-select
               v-model="sourceForm.targetDB"
               :placeholder="$t('dataIn.palceholders.chooseTargetDbTip')"
@@ -93,7 +76,7 @@
               size="small"
               class="ml"
               icon="el-icon-plus"
-              >{{ $t('data.createDatabase') }}</el-button
+              >{{ $t("data.createDatabase") }}</el-button
             >
           </el-form-item>
         </section>
@@ -101,10 +84,17 @@
           v-if="currentDefinition && currentDefinition.config"
           :config="currentDefinition.config"
           :data="sourceForm.data"
+          :parser="currentDefinition.parser"
           parent="data."
           :level="1"
+          ref="configform"
         />
       </el-form>
+      <CsvData
+        v-if="currentDefinition?.id == 'csv'"
+        ref="csvdata"
+        :isEditable="isEditable"
+      ></CsvData>
       <section class="bottom">
         <el-button
           v-if="isShowEditBtn"
@@ -124,12 +114,6 @@
     </div>
 
     <div class="right-ui">
-      <!-- <mavon-editor
-        v-model="dbsource[0].description"
-        :toolbarsFlag="false"
-        :default-open="'preview'"
-        :subfield="false"
-      /> -->
       <div class="doc-part">
         <DocsContent
           v-if="currentDefinition?.description"
@@ -137,6 +121,7 @@
           :content="currentDefinition.description"
         ></DocsContent>
       </div>
+      <ResultTable :isEditable="isEditable"></ResultTable>
     </div>
     <DialogCreateDb></DialogCreateDb>
   </div>
@@ -144,24 +129,25 @@
 <script>
 import DataTarget from "./dataTarget.vue";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
+import CsvData from "../components/csvData.vue";
 import {
   AddSource,
   EditSource,
   validateTask,
-  refreshTask as getDataSourceDetail
+  refreshTask as getDataSourceDetail,
 } from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";
 import { Message } from "element-ui";
 import { debounce, parsinginZone, decrypt } from "@/utils/index";
 import DialogCreateDb from "../components/addDbDialog.vue";
 import Result from "../components/result.vue";
+import ResultTable from "../components/transformResultTable.vue";
 import {
   getFormConfigByDataSource,
   generateFormInitData,
   getDsnData,
-  NoNeedAgentType
+  NoNeedAgentType,
 } from "../utils";
-import FormItem from "../components/formItem.vue";
 import BlockHeader from "../components/blockHeader.vue";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
 import ConfigForm from "../components/configForm.vue";
@@ -179,10 +165,11 @@ export default {
     DialogCreateDb,
     DataTarget,
     Result,
-    FormItem,
     BlockHeader,
     DocsContent,
     ConfigForm,
+    CsvData,
+    ResultTable,
   },
   props: {
     dbsource: {
@@ -201,7 +188,7 @@ export default {
     },
     editId: {
       type: [Number, String],
-      default: 0,
+      default: "",
     },
     isCopyable: {
       type: Boolean,
@@ -218,26 +205,13 @@ export default {
       isShowEditBtn: false,
       dbList: [],
       sourceForm: {
-        name: '',
-        type: '',
-        targetDB: '',
-        agent: '',
+        name: "",
+        type: "",
+        targetDB: "",
+        agent: "",
         data: {},
       },
-      rules: {
-        name: [
-          {
-            required: true,
-            trigger: "blur",
-            message: this.$t('required', [this.$t("name")]),
-          },
-        ],
-        targetDB: {
-          required: true,
-          trigger: "change",
-          message: this.$t('required', [this.$t("stream.targetDB")]),
-        },
-      },
+
       currentDefinition: null,
       parent: "data.",
       level: "1",
@@ -246,17 +220,28 @@ export default {
   },
   created() {
     if (this.isEditable) {
-      this.getDataSourceDetail()
+      this.getDataSourceDetail();
       this.isShowEditBtn = this.isCopyable ? false : true;
-    } 
-    this.getDBLists()
-  },
-  mounted() {
-    if (!this.editId) {
-      this.sourceForm.type = 'tmq';
     }
+    this.getDBLists();
   },
   computed: {
+    rules() {
+      return {
+        name: [
+          {
+            required: true,
+            trigger: "blur",
+            message: this.$t("required", [this.$t("name")]),
+          },
+        ],
+        targetDB: {
+          required: true,
+          trigger: "change",
+          message: this.$t("required", [this.$t("stream.targetDB")]),
+        },
+      };
+    },
     agentId() {
       return this.$store.state.app.currentAgentID || "";
     },
@@ -270,7 +255,11 @@ export default {
     //   return this.$store.state.app.currentResume || "";
     // }
     toUrl() {
-      return 'taos+' + localStorage.getItem("base_url") + (this.sourceForm.targetDB ? "/" + this.sourceForm.targetDB : "");
+      return (
+        "taos+" +
+        localStorage.getItem("base_url") +
+        (this.sourceForm.targetDB ? "/" + this.sourceForm.targetDB : "")
+      );
     },
     definitionsList() {
       return this.$store.state.app.definitions;
@@ -282,35 +271,100 @@ export default {
       return this.$store.state.app.agentLists;
     },
     defaultSourceConfig() {
-      return this.isEditable ? this.editSourceConfig : getFormConfigByDataSource(this.definitionsList);
+      return this.isEditable
+        ? this.editSourceConfig
+        : getFormConfigByDataSource(this.definitionsList);
     },
   },
   watch: {
+    "$store.state.app.createStWithoutDB": {
+      deep: true,
+      handler(val) {
+        if (val) {
+          this.$refs.form.validate((valid) => {
+            if (valid) {
+              return true;
+            } else {
+              return false;
+            }
+          });
+        }
+      },
+    },
+    "sourceForm.targetDB": {
+      deep: true,
+      handler(val) {
+        this.$store.commit("app/SET_CURRENT_DBNAME", val);
+      },
+    },
     "$i18n.locale": {
       deep: true,
       handler(val) {
         this.language = val;
+        this.$nextTick(()=>{
+          this.$refs.form.clearValidate();
+        })
+        
       },
     },
     dbsource: {
       deep: true,
       handler(val) {
+        if (!this.isEditable && !this.sourceForm.type) {
+          this.$set(this.sourceForm, "type", "tmq");
+        }
         this.$forceUpdate();
         this.getDataSource();
       },
-      immediate: true
+      immediate: true,
     },
-    tagName: {
-      deep: true,
+    "$store.state.app.currentDBType": {
+      immediate: true,
       handler(val) {
-        this.$forceUpdate();
+        this.showtransformer = false;
+        if (!this.isEditable) {
+          this.$store.commit("app/SET_FILTER_PARSE_DATA", null);
+          this.$store.commit("app/SET_EXTRACT_PARSE_DATA", null);
+          this.$store.commit("app/SET_ECHO_MAP_DATA", null);
+          this.$store.commit("app/SET_TRANSFORM_COL_IDENTIFIED", []);
+          this.$store.commit("app/SET_TRANSFORM_PARSERDATA", null);
+          this.$store.commit("app/SET_TRANSFORMER_MAPCOLUMNS", null);
+          this.$store.commit("app/SET_CSV_LOCAL_COLS", []);
+          this.$store.commit("app/SET_CSV_TRANSFORMER_PARSER", null);
+          this.$store.commit("app/SET_CSV_PARSER", null);
+          this.$store.commit("app/SET_MAPPING_JOIN", "");
+          this.$store.commit("app/SET_SPLIT_EXPRESS", null);
+          this.$store.commit("app/SET_TRANS_RESULT_TABLE", []);
+          this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
+          this.$store.commit("app/SET_TRANS_FULL_PARAMS", null);
+          this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", 0);
+        }
+        if (val == "kafka" || val == "mqtt") {
+          // this.$set(this, "constmqttCols", []);
+          // this.$set(
+          //   this,
+          //   "constmqttCols",
+          //   this.$parent.uidata[0].parser.fields
+          // );
+          // this.showtransformer = true;
+        }
       },
     },
-    'sourceForm.type': {
-      handler() {
+    "sourceForm.type": {
+      handler(val) {
+        this.$store.commit("app/SET_CURRENT_DBTYPE", val);
+        this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
         this.getDataSource();
+        this.$nextTick(() => {
+          this.$refs.form.clearValidate();
+          if (document.querySelector(".transdescription")) {
+            let dom = document.querySelector(".transdescription");
+            let top = dom.offsetTop + dom.getBoundingClientRect().height;
+            this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
+          }
+        });
       },
-      immediate: true
+      immediate: true,
     },
     "$store.state.app.currentDBName": {
       deep: true,
@@ -321,19 +375,22 @@ export default {
     },
     "$store.state.app.currentAgentID": {
       handler(val) {
-        this.sourceForm.agent = val
-      }
-    }
+        this.sourceForm.agent = val;
+      },
+    },
   },
   methods: {
     async getDataSourceDetail() {
       await getDataSourceDetail(this.editId)
-        .then(data => {
+        .then((data) => {
           this.sourceForm.type = data.from_detail.id;
           this.sourceForm.name = data.name;
           this.sourceForm.targetDB = data?.to_expand?.subject;
           this.sourceForm.agent = data.via;
-          this.editSourceConfig = getFormConfigByDataSource([data.from_detail], data.parser);
+          this.editSourceConfig = getFormConfigByDataSource(
+            [data.from_detail],
+            data.parser
+          );
         })
         .finally(() => {
           this.requestIng = false;
@@ -341,7 +398,6 @@ export default {
     },
     getDataSource() {
       this.currentDefinition = this.defaultSourceConfig?.[this.sourceForm.type];
-      console.log("currentDefinition", this.currentDefinition);
       if (!this.currentDefinition) return;
       this.sourceForm.data = generateFormInitData(
         this.currentDefinition?.config
@@ -353,8 +409,12 @@ export default {
     },
 
     save() {
-      let status = this.$parent.currentTaskStatus
-      if (this.isEditable && !this.isCopyable && !['stopped','completed'].includes(status)) {
+      let status = this.$parent.currentTaskStatus;
+      if (
+        this.isEditable &&
+        !this.isCopyable &&
+        !["stopped", "completed"].includes(status)
+      ) {
         this.$confirm(this.$t("dataIn.saveTip"), this.$t("warning"), {
           confirmButtonText: this.$t("confirm"),
           cancelButtonText: this.$t("cancel"),
@@ -369,15 +429,19 @@ export default {
       }
     },
 
-    submit() {
+    async submit() {
       this.$refs.form.validate(async (valid) => {
         if (valid) {
-          const dsn = getDsnData(this.sourceForm.data, this.currentDefinition,);
+          if (this.sourceForm.type == "csv") {
+            let flag=this.$refs.csvdata.submitUpload()
+            if(!flag)return
+          }
+          const dsn = getDsnData(this.sourceForm.data, this.currentDefinition);
           const type = this.sourceForm.type;
           let id = localStorage.getItem("local_clusterID");
           // this.requestIng = true;
           const params = {
-            from: type === "tmq" ? dsn : type + dsn,
+            from: type === "tmq" ? dsn : type=='csv'?type+':'+dsn:type + dsn,
             name: this.sourceForm.name,
             to: this.toUrl,
             labels: [
@@ -390,8 +454,15 @@ export default {
           if (this.sourceForm.agent) {
             params["via"] = this.sourceForm.agent;
           }
+          if (this.sourceForm.type == "csv") {
+            await this.$refs.csvdata.$refs.transform.getTransformerParams();
+            if (this.$refs.csvdata.$refs.transform.isbreak) return;
+            params.parser = this.$store.state.app.transformerfullparams;
+          }
           if (this.sourceForm.data.parser) {
-            params.parser = this.sourceForm.data.parser;
+            await this.$refs.configform.$refs.transform[0].getTransformerParams();
+            if (this.$refs.configform.$refs.transform[0].isbreak) return;
+            params.parser = this.$store.state.app.transformerfullparams;
           }
           if (this.isEditable && this.editId && !this.isCopyable) {
             let result = await EditSource(params, this.editId);
@@ -408,49 +479,51 @@ export default {
               Message.error(result.message);
               return;
             }
+            this.$refs.form.resetFields();
             this.$parent.changeEditable(false);
             this.$parent.toggleComponent("tmqtable");
-            this.$refs.form.resetFields();
           }
         } else {
           this.$nextTick(() => {
-            document.querySelector('.source-ui .left-ui .is-error')?.scrollIntoView();
+            document
+              .querySelector(".source-ui .left-ui .is-error")
+              ?.scrollIntoView();
           });
           return false;
         }
       });
     },
-    
+
     cancel() {
       this.$parent.currentName = "dbsource";
     },
     async getDBLists() {
       try {
         let data = await getDBListReq();
-        this.dbList = data.filter(v => v.name !== 'audit')
+        this.dbList = data.filter((v) => v.name !== "audit");
       } catch (error) {
         console.log(error);
       }
     },
     createAgent() {
       this.$store.commit("app/SET_AGENT_DIALOG", true);
-      this.$store.commit('SET_DIALOG', {
-        component: () => import('../components/addAgent.vue'),
+      this.$store.commit("SET_DIALOG", {
+        component: () => import("../components/addAgent.vue"),
         config: {
-          width: '620px',
-          title: this.$t('dataIn.createNewAgent')
+          width: "620px",
+          title: this.$t("dataIn.createNewAgent"),
         },
         params: {
           showTitle: false,
           close: () => {
-            this.$store.commit('SET_DIALOG_VISIBLE', false);
-          }
+            this.$store.commit("SET_DIALOG_VISIBLE", false);
+          },
         },
         listeners: {
           close: () => {
-            this.$store.commit('SET_DIALOG_VISIBLE', false);
-          }
-        }
+            this.$store.commit("SET_DIALOG_VISIBLE", false);
+          },
+        },
       });
     },
     createDb() {
@@ -459,11 +532,12 @@ export default {
       this.$store.commit("dbs/SET_DIALOG_DB_VISABLE", true);
     },
     handleType() {
-      this.sourceForm.agent = ''
-    }
+      this.sourceForm.agent = "";
+    },
   },
 };
 </script>
+
 <style lang="scss" scoped>
 .source-ui {
   justify-content: space-between;
@@ -530,7 +604,9 @@ export default {
   .right-ui {
     flex: 1;
     margin-left: 40px;
-    overflow: hidden;    .doc-part {
+    overflow: hidden;
+    position: relative;
+    .doc-part {
       box-shadow: rgba(0, 0, 0, 0.1) 0px 0px 15px;
       padding: 2rem;
       margin: 1rem;

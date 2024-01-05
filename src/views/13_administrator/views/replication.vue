@@ -7,18 +7,44 @@
       <el-button plain @click="add" size="small" icon="el-icon-plus" style="font-size:14px;">{{ $t('taosuser.addreplication') }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column label="ID" width="60" prop="id" show-overflow-tooltip></el-table-column>
-      <el-table-column :label="$t('taosuser.fromdb')" prop="fromdb" show-overflow-tooltip></el-table-column>
-      <el-table-column :label="$t('taosuser.toinstance')" prop="hostport" show-overflow-tooltip>
+      <el-table-column label="ID" width="60" prop="id">
         <template slot-scope="scope">
-        <copy-text :text="scope.row.hostport" isShowBtnText></copy-text>
+          <el-tooltip :content="scope.row.id" placement="top-start">
+            <span class="nowrap">{{ scope.row.id }}</span>
+          </el-tooltip>
+        </template>
+      </el-table-column>
+      <el-table-column :label="$t('taosuser.fromdb')" prop="fromdb">
+        <template slot-scope="scope">
+          <el-tooltip :content="scope.row.fromdb" placement="top-start">
+            <span class="nowrap">{{ scope.row.fromdb }}</span>
+          </el-tooltip>
+        </template>
+      </el-table-column>
+      <el-table-column :label="$t('taosuser.toinstance')" prop="hostport">
+        <template slot-scope="scope">
+          <el-tooltip :content="scope.row.hostport" placement="top-start">
+            <copy-text :text="scope.row.hostport" isShowBtnText></copy-text>
+          </el-tooltip>
         <!-- {{ scope.row.hostport }} -->
         </template>
       </el-table-column>
       <!-- <el-table-column :label="$t('taosuser.todb')" prop="db" show-overflow-tooltip></el-table-column> -->
 
-      <el-table-column :label="$t('taosuser.status')" prop="status" show-overflow-tooltip width="80"></el-table-column>
-      <el-table-column :label="$t('taosuser.reason')" prop="reason" show-overflow-tooltip></el-table-column>
+      <el-table-column :label="$t('taosuser.status')" prop="status" width="80">
+        <template slot-scope="scope">
+          <el-tooltip :content="scope.row.status" placement="top-start">
+            <span class="nowrap">{{ scope.row.status }}</span>
+          </el-tooltip>
+        </template>
+      </el-table-column>
+      <el-table-column :label="$t('taosuser.reason')" prop="reason">
+        <template slot-scope="scope">
+          <el-tooltip :content="scope.row.reason" placement="top-start">
+            <span class="nowrap">{{ scope.row.reason }}</span>
+          </el-tooltip>
+        </template>
+      </el-table-column>
       <el-table-column :label="$t('taosuser.finishat')" prop="finished_at" min-width="210" show-overflow-tooltip>
         <span slot-scope="scope">{{ parsinginZone(scope.row.finished_at) }}</span>
       </el-table-column>
@@ -54,7 +80,7 @@
     <el-pagination class="pagination" layout="total, prev, pager, next" :current-page.sync="currentPage"
       :page-size="pageSize" :hide-on-single-page="true" :total="total" @current-change="handlePageChange"></el-pagination>
     <el-dialog align="center" :title="$t('taosuser.addreplication')" width="600px" :visible.sync="dialog"
-      @close="closeDialog" :destroy-on-close="true">
+      @close="closeDialog" :destroy-on-close="true" :close-on-click-modal="false">
       <el-form :model="ruleForm" :rules="rules" ref="ruleForm" size="mini" label-width="auto" class="demo-ruleForm">
         <el-form-item prop="source" required>
           <!-- <el-input v-model.trim="ruleForm.source"></el-input> -->

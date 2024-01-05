@@ -30,12 +30,14 @@
             :parent="parent"
             v-bind="item"
           /> -->
-          <ParserComp
+          <!-- <ParserComp
             v-if="item.type == 'parser'"
             :data="data[item.field]"
             :parent="parent"
             v-bind="item"
-          />
+          /> -->
+          
+          <CommonTransformer v-if="item.type == 'parser'&&constmqttCols.length>0" ref='transform' :parserColumns="constmqttCols"></CommonTransformer>
           <ConnectivityCheck
             v-else-if="item.type == 'checkConnectivity'"
             :data="data[item.field]"
@@ -109,6 +111,7 @@
           :data="data[item.field]"
           :parent="parent + item.field + '.'"
         ></ConfigForm>
+        
       </template>
 
       <FormItem
@@ -119,6 +122,7 @@
         :parent="parent"
       />
     </template>
+   
   </div>
 </template>
 
@@ -131,6 +135,7 @@ import BlockHeader from './blockHeader.vue';
 import ConnectivityCheck from '../components/connectivityCheck.vue'
 import { getBrowserLang } from '@/utils';
 import { hasOwn } from '@/utils/util';
+import CommonTransformer from './commonTransformer.vue'
 
 export default {
   props: {
@@ -141,6 +146,10 @@ export default {
     data: {
       type: Object,
       default: () => {}
+    },
+    parser:{
+      type:Object,
+      default:()=>{}
     },
     parent: {
       type: String,
@@ -153,19 +162,34 @@ export default {
   },
   name: 'ConfigForm',
   inject: ['sourceParent'],
-  components: { FormItem, DocsContent, BlockHeader, ConnectivityCheck, ParserComp },
+  components: { FormItem, DocsContent, BlockHeader, ConnectivityCheck, ParserComp,CommonTransformer },
   data() {
     this.mb10Type = ['opcTable', 'parser', 'tabs', 'advanced', 'collapse'];
-    return {};
+    return {
+      constmqttCols:[]
+    };
   },
   computed: {
     lang() {
       return getBrowserLang() == 'zh' ? 'zh': 'en'
     }
   },
-  watch: {},
+  watch: {
+    parser:{
+      deep:true,
+      handler(val){
+        if(val){
+          this.$set(this, "constmqttCols", val.fields);
+        }
+      }
+    }
+  },
   created() {},
-  mounted() {},
+  mounted() {
+    if(this.parser){
+      this.$set(this, "constmqttCols", this.parser.fields);
+    }
+  },
   methods: {
     tabDisabled(child, parent) {
       if (!hasOwn(child, 'disabled')) return false;
@@ -177,10 +201,6 @@ export default {
       return child.name === this.data[parent.field][parent.valueField];
     }
   }
-  // errorCaptured(err, vm, info) {
-  //   console.log(info);
-  //   return false;
-  // }
 };
 </script>
 

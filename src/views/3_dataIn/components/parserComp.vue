@@ -6,7 +6,8 @@
     />
     <el-form-item
       :label="$t('datasource.name')"
-      required
+      prop='data.parser.model.name'
+      :rules="[{ required: true, message: $t('required', [$t('datasource.name')]) }]" 
     >
       <template slot="label">
         <span
@@ -23,13 +24,14 @@
             ></el-icon> </el-tooltip
         ></span>
       </template>
-      <el-input v-model="subtableNamingRules"></el-input>
+      <el-input v-model="data.model.name"></el-input>
     </el-form-item>
     <el-form-item
       :label="$t('data.stableName')"
-      required
+      prop='data.parser.model.using'
+      :rules="[{ required: true, message: $t('required', [$t('data.stableName')]) }]" 
     >
-      <el-input v-model="stableName"></el-input>
+      <el-input v-model="data.model.using"></el-input>
     </el-form-item>
   </div>
 </template>
@@ -59,7 +61,7 @@ export default {
   inject: ['sourceParent'],
   data() {
     return {
-      primaryKey: 'ts',
+      primaryKey: 'DateTime',
       tableData: [],
       dbPrecision: '',
       displayfiledNameArr: []
@@ -105,6 +107,9 @@ export default {
     collectTable() {
       return getGroupsObj(this.sourceParent.sourceForm.data)?.table;
     },
+    isEdit() {
+      return this.sourceParent.isEditable;
+    }
   },
   watch: {
     tableData: {
@@ -155,30 +160,34 @@ export default {
       
       const result = this.displayfiledNameArr.map(item => {
         const config = {
-          usageType: item.name == 'TagName' ? 2 : 1,
+          usageType: 0,
           field: item.name,
           type: 'system',
           cast: item.cast
         };
-        if (columns.includes(item)) {
-          config.usageType = 1;
-        }
-        if (tags.includes(item)) {
-          config.usageType = 2;
+        if (this.isEdit) {
+          if (columns.includes(item.name)) {
+            config.usageType = 1;
+          } 
+          if (tags.includes(item.name)) {
+            config.usageType = 2;
+          } 
+        } else {
+          config.usageType =  item.name == 'TagName' ? 2 : 1;
         }
         return config;
       });
-      this.tableData = result.concat(
-        this.getCustomeField(
-          columns.filter(item => !this.filedNameArr.includes(item)),
-          1
-        ),
-        this.getCustomeField(
-          tags.filter(item => !this.filedNameArr.includes(item)),
-          2
-        )
-      );
-      // console.log('table',this.tableData);
+      this.tableData = result
+      // this.tableData = result.concat(
+      //   this.getCustomeField(
+      //     columns.filter(item => !this.filedNameArr.includes(item.name)),
+      //     1
+      //   ),
+      //   this.getCustomeField(
+      //     tags.filter(item => !this.filedNameArr.includes(item.name)),
+      //     2
+      //   )
+      // );
     },
     getCustomeField(data, usageType = 1) {
       if (!data.length || !this.jsonArray.length) return [];
