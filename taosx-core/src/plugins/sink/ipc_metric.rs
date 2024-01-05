@@ -167,6 +167,7 @@ impl TaosXMetrics for IpcMetrics {
     fn reset(&self) {
         self.com.reset();
         self.received_batches.store(0, SeqCst);
+        self.processed_batches.store(0, SeqCst);
         self.processed_records.store(0, SeqCst);
         self.inserted_sqls.store(0, SeqCst);
         self.failed_sqls.store(0, SeqCst);
