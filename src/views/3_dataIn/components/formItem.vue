@@ -308,7 +308,7 @@ export default {
           this.date1 = new Date(groupsData?.start) ?? 0;
           this.date2 = new Date(groupsData?.end) ?? 0;
           break;
-        case "historian":
+        case "avevaHistorian":
           this.date1 = new Date(groupsData?.beginDateTime) ?? 0;
           this.date2 = new Date(groupsData?.endDateTime) ?? 0;
           break;

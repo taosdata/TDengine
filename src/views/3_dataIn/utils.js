@@ -683,7 +683,7 @@ function handleGroups(groups, paramsConfig) {
         paramConfig.type = 'bucket';
       }
       // 特殊处理 historian 的 mode
-      if (currentType == 'historian' && paramConfig.field == 'mode') {
+      if (currentType == 'avevaHistorian' && paramConfig.field == 'mode') {
         paramConfig.type = 'mode';
       }
       if (paramConfig.type == 'select') {
