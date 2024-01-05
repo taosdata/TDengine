@@ -472,12 +472,18 @@ static int32_t mJoinInitColsInfo(int32_t* colNum, int64_t* rowSize, SMJoinColInf
 }
 
 
-static int32_t mJoinInitKeyColsInfo(SMJoinTableCtx* pTable, SNodeList* pList) {
+static int32_t mJoinInitKeyColsInfo(SMJoinTableCtx* pTable, SNodeList* pList, bool allocKeyBuf) {
   int64_t rowSize = 0;
   MJ_ERR_RET(mJoinInitColsInfo(&pTable->keyNum, &rowSize, &pTable->keyCols, pList));
 
-  if (pTable->keyNum > 1) {
-    pTable->keyBuf = taosMemoryMalloc(rowSize);
+  if (pTable->keyNum > 1 || allocKeyBuf) {
+    if (rowSize > 1) {
+      pTable->keyNullSize = 1;
+    } else {
+      pTable->keyNullSize = 2;
+    }
+
+    pTable->keyBuf = taosMemoryMalloc(TMAX(rowSize, pTable->keyNullSize));
     if (NULL == pTable->keyBuf) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -516,7 +522,7 @@ static int32_t mJoinInitTableInfo(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysi
   pTable->blkId = pDownstream[idx]->resultDataBlockId;
   MJ_ERR_RET(mJoinInitPrimKeyInfo(pTable, (0 == idx) ? pJoinNode->leftPrimSlotId : pJoinNode->rightPrimSlotId));
 
-  MJ_ERR_RET(mJoinInitKeyColsInfo(pTable, (0 == idx) ? pJoinNode->pEqLeft : pJoinNode->pEqRight));
+  MJ_ERR_RET(mJoinInitKeyColsInfo(pTable, (0 == idx) ? pJoinNode->pEqLeft : pJoinNode->pEqRight, JOIN_TYPE_FULL == pJoin->joinType));
   MJ_ERR_RET(mJoinInitColsMap(&pTable->finNum, &pTable->finCols, pTable->blkId, pJoinNode->pTargets));
 
   memcpy(&pTable->inputStat, pStat, sizeof(*pStat));
@@ -870,7 +876,9 @@ int32_t mJoinCreateFullBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pT
     int32_t grpRows = GRP_REMAIN_ROWS(pGrp);
     for (int32_t r = 0; r < grpRows; ++r) {
       if (mJoinCopyKeyColsDataToBuf(pTable, pGrp->beginIdx + r, &bufLen)) {
-        continue;
+        *(int16_t *)pTable->keyBuf = 0;
+        pTable->keyData = pTable->keyBuf;
+        bufLen = pTable->keyNullSize;
       }
 
       MJ_ERR_RET(mJoinAddRowToFullHash(pJoin, bufLen, pGrp->blk, pGrp->beginIdx + r));

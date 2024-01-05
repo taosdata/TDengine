@@ -66,7 +66,7 @@ enum {
 };
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP       3000
+#define JT_MAX_LOOP       1000
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
@@ -1777,7 +1777,7 @@ void runSingleTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
   SSortMergeJoinPhysiNode* pNode = createDummySortMergeJoinPhysiNode(param->joinType, param->subType, param->cond, param->filter, param->asc);    
-  createDummyBlkList(10, 10, 10, 10, 2);
+  createDummyBlkList(10, 10, 10, 10, 3);
   
   while (contLoop) {
     rerunBlockedHere();
@@ -1803,7 +1803,7 @@ void runSingleTest(char* caseName, SJoinTestParam* param) {
 }
 
 void handleCaseEnd() {
-  taosMemoryFree(jtCtx.rightFinMatch);
+  taosMemoryFreeClear(jtCtx.rightFinMatch);
   jtCtx.rightFinMatchNum = 0;
 }
 
@@ -1911,7 +1911,7 @@ TEST(leftOuterJoin, fullCondTest) {
 #endif
 #endif
 
-#if 0
+#if 1
 TEST(fullOuterJoin, noCondTest) {
   SJoinTestParam param;
   char* caseName = "fullOuterJoin:noCondTest";
@@ -1936,7 +1936,7 @@ TEST(fullOuterJoin, noCondTest) {
 }
 #endif
 
-#if 0
+#if 1
 TEST(fullOuterJoin, eqCondTest) {
   SJoinTestParam param;
   char* caseName = "fullOuterJoin:eqCondTest";

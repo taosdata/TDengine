@@ -19,10 +19,17 @@
 extern "C" {
 #endif
 
+#if 0
 #define MJOIN_DEFAULT_BLK_ROWS_NUM 2 //4096
-#define MJOIN_HJOIN_CART_THRESHOLD 1024 //16
+#define MJOIN_HJOIN_CART_THRESHOLD 16
 #define MJOIN_BLK_SIZE_LIMIT 0 //10485760
 #define MJOIN_ROW_BITMAP_SIZE (2 * 1048576)
+#else
+#define MJOIN_DEFAULT_BLK_ROWS_NUM 4096
+#define MJOIN_HJOIN_CART_THRESHOLD 16
+#define MJOIN_BLK_SIZE_LIMIT 10485760
+#define MJOIN_ROW_BITMAP_SIZE (2 * 1048576)
+#endif
 
 struct SMJoinOperatorInfo;
 
@@ -94,6 +101,7 @@ typedef struct SMJoinTableCtx {
   SMJoinColMap*  finCols;
   
   int32_t        keyNum;
+  int32_t        keyNullSize;
   SMJoinColInfo* keyCols;
   char*          keyBuf;
   char*          keyData;
@@ -212,7 +220,7 @@ typedef struct SMJoinOperatorInfo {
 #define MJOIN_DS_NEED_INIT(_pOp, _tbctx) (MJOIN_DS_REQ_INIT(_pOp) && (!(_tbctx)->dsInitDone))
 #define MJOIN_TB_LOW_BLK(_tbctx) ((_tbctx)->blkNum <= 0 || ((_tbctx)->blkNum == 1 && (_tbctx)->pHeadBlk->cloned))
 
-#define REACH_HJOIN_THRESHOLD(_prb, _bld) ((_prb)->grpTotalRows * (_bld)->grpTotalRows >= MJOIN_HJOIN_CART_THRESHOLD)
+#define REACH_HJOIN_THRESHOLD(_prb, _bld) ((_bld)->grpTotalRows >= MJOIN_HJOIN_CART_THRESHOLD)
 
 #define SET_SAME_TS_GRP_HJOIN(_pair, _octx) ((_pair)->hashJoin = (_octx)->hashCan && REACH_HJOIN_THRESHOLD(_pair))
 
