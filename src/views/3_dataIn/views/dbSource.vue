@@ -212,9 +212,9 @@ export default {
             this.currentName = "sourceConfig";
             this.tagName = "kafka";
             break;
-          case "historian":
+          case "avevaHistorian":
             this.currentName = 'sourceConfig';
-            this.tagName = 'historian';
+            this.tagName = 'avevaHistorian';
         }
       } else {
         switch (id) {
@@ -266,9 +266,9 @@ export default {
             this.tagName = "kafka";
 
             break;
-            case "historian":
+            case "avevaHistorian":
               this.currentName = 'sourceConfig';
-              this.tagName = 'historian';
+              this.tagName = 'avevaHistorian';
             break;
         }
 
