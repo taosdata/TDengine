@@ -38,9 +38,10 @@ if command -v sudo > /dev/null; then
 fi
 
 function kill_client() {
-  if [ -n "$(ps aux | grep -v grep | grep ${clientName})" ]; then
-    ${csudo}kill -9 $pid   || :
-  fi
+    pid=$(ps -ef | grep "${clientName2}" | grep -v "grep" | grep -v "{$uninstallScript2}" | awk '{print $2}')
+    if [ -n "$(ps aux | grep -v grep | grep ${clientName})" ]; then
+        ${csudo}kill -9 $pid || :
+    fi
 }
 
 function clean_bin() {
