@@ -482,6 +482,11 @@ typedef struct STaskUpdateInfo {
   int32_t   transId;
 } STaskUpdateInfo;
 
+typedef struct SScanWalInfo {
+  int32_t scanCounter;
+  tmr_h   scanTimer;
+} SScanWalInfo;
+
 // meta
 typedef struct SStreamMeta {
   char*           path;
@@ -499,7 +504,7 @@ typedef struct SStreamMeta {
   bool            sendMsgBeforeClosing; // send hb to mnode before close all tasks when switch to follower.
   STaskStartInfo  startInfo;
   TdThreadRwlock  lock;
-  int32_t         walScanCounter;
+  SScanWalInfo    scanInfo;
   void*           streamBackend;
   int64_t         streamBackendRid;
   SHashObj*       pTaskDbUnique;

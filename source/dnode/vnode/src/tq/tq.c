@@ -19,12 +19,24 @@
 
 // 0: not init
 // 1: already inited
-// 2: wait to be inited or cleaup
+// 2: wait to be inited or cleanup
 static int32_t tqInitialize(STQ* pTq);
 
 static FORCE_INLINE bool tqIsHandleExec(STqHandle* pHandle) { return TMQ_HANDLE_STATUS_EXEC == pHandle->status; }
 static FORCE_INLINE void tqSetHandleExec(STqHandle* pHandle) { pHandle->status = TMQ_HANDLE_STATUS_EXEC; }
 static FORCE_INLINE void tqSetHandleIdle(STqHandle* pHandle) { pHandle->status = TMQ_HANDLE_STATUS_IDLE; }
+
+int32_t tqTimerInit() {
+  tqTimer = taosTmrInit(100, 100, 1000, "TQ");
+  if (tqTimer == NULL) {
+    return -1;
+  }
+  return 0;
+}
+
+void tqTimerCleanUp() {
+  taosTmrCleanUp(tqTimer);
+}
 
 void tqDestroyTqHandle(void* data) {
   STqHandle* pData = (STqHandle*)data;
@@ -106,6 +118,7 @@ int32_t tqInitialize(STQ* pTq) {
     return -1;
   }
 
+  tqTimerInit();
   return 0;
 }
 
@@ -136,6 +149,8 @@ void tqClose(STQ* pTq) {
   taosMemoryFree(pTq->path);
   tqMetaClose(pTq);
   streamMetaClose(pTq->pStreamMeta);
+  tqTimerCleanUp();
+
   qDebug("end to close tq");
   taosMemoryFree(pTq);
 }
@@ -1055,7 +1070,8 @@ int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg) {
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTaskRunReq* pReq = pMsg->pCont;
 
-  if (pReq->reqType == STREAM_EXEC_T_EXTRACT_WAL_DATA) {  // all tasks are extracted submit data from the wal
+  // extracted submit data from wal files for all tasks
+  if (pReq->reqType == STREAM_EXEC_T_EXTRACT_WAL_DATA) {
     tqScanWal(pTq);
     return 0;
   }
@@ -1351,14 +1367,8 @@ int32_t tqProcessTaskDropHTask(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   taosThreadMutexLock(&pTask->lock);
-  ETaskStatus status = streamTaskGetStatus(pTask)->state;
-//  if (status == TASK_STATUS__STREAM_SCAN_HISTORY) {
-//    streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
-//  }
-
   SStreamTaskId id = {.streamId = pTask->hTaskInfo.id.streamId, .taskId = pTask->hTaskInfo.id.taskId};
   streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &id);
-
   taosThreadMutexUnlock(&pTask->lock);
 
   // clear the scheduler status

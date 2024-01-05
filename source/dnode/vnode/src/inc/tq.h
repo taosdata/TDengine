@@ -42,6 +42,7 @@ extern "C" {
 // clang-format on
 
 typedef struct STqOffsetStore STqOffsetStore;
+extern void* tqTimer;
 
 #define IS_OFFSET_RESET_TYPE(_t)  ((_t) < 0)
 
