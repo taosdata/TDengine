@@ -8,10 +8,12 @@ use thiserror::Error;
 use tracing::{error, instrument};
 
 use crate::{
-    plugins::transform::MessageArrowRecords, sink::DEFAULT_MAX_RETRIES_FOR_CONNECTION,
-    utils::trace::RequestID, METRIC_RECORD_FAILS, METRIC_STABLE_CREATED,
-    METRIC_WRITE_RAW_BLOCK_FAILS,
+    core_metrics::TaosXMetrics, plugins::transform::MessageArrowRecords,
+    sink::DEFAULT_MAX_RETRIES_FOR_CONNECTION, utils::trace::RequestID, METRIC_RECORD_FAILS,
+    METRIC_STABLE_CREATED, METRIC_WRITE_RAW_BLOCK_FAILS,
 };
+
+use super::ipc_metric::IpcMetrics;
 
 /// All the messages should be in the same stable.
 fn message_to_sql(
@@ -343,6 +345,7 @@ pub async fn flat_write_with_sql(
     target_precision: taos::Precision,
     req_id: &RequestID,
     messages: Vec<MessageArrowRecords>,
+    metrics: &IpcMetrics,
 ) -> anyhow::Result<usize> {
     let mut count = 0;
     // Split messages into different stales.
@@ -357,9 +360,13 @@ pub async fn flat_write_with_sql(
                 match write_stable_with_sql(pool, taos, req_id, &records).await {
                     Ok(n) => {
                         count += n;
+                        metrics.add_inserted_sqls(1 as u64);
+                        metrics.add_written_rows(n as u64);
+                        metrics.add_written_points(records.points as u64);
                         break;
                     }
                     Err(err) => {
+                        metrics.add_failed_sqls(1 as u64);
                         error!(
                             stable = stable.as_deref().unwrap_or("unknown"),
                             "write stable with sql error: {err:#}"
@@ -754,13 +761,14 @@ mod tests {
             .unwrap()
             .exec("drop stable if exists meters")
             .await?;
-
+        let metrics = IpcMetrics::default();
         flat_write_with_sql(
             &pool,
             &mut taos,
             taos::Precision::Millisecond,
             &req_id,
             messages,
+            &metrics,
         )
         .await?;
 

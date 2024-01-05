@@ -1414,8 +1414,15 @@ async fn consume_flat_record(
                     .sum::<usize>()
                     / message.len();
                 if factor < 100 {
-                    *count +=
-                        flat_write_with_sql(pool, taos, target_precision, &req_id, message).await?;
+                    *count += flat_write_with_sql(
+                        pool,
+                        taos,
+                        target_precision,
+                        &req_id,
+                        message,
+                        metrics,
+                    )
+                    .await?;
                     continue;
                 }
                 for records in message {
