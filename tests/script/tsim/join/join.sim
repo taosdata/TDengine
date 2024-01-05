@@ -60,6 +60,7 @@ sql insert into ctb24 using st2 tags(4) values('2023-10-16 09:10:14', 110224, 11
 run tsim/join/inner_join.sim
 run tsim/join/left_join.sim
 run tsim/join/right_join.sim
+run tsim/join/full_join.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -69,5 +70,6 @@ print ================== server restart completed
 run tsim/join/inner_join.sim
 run tsim/join/left_join.sim
 run tsim/join/right_join.sim
+run tsim/join/full_join.sim
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

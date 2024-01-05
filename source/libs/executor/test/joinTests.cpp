@@ -1777,7 +1777,7 @@ void runSingleTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
   SSortMergeJoinPhysiNode* pNode = createDummySortMergeJoinPhysiNode(param->joinType, param->subType, param->cond, param->filter, param->asc);    
-  createDummyBlkList(10, 10, 10, 10, 3);
+  createDummyBlkList(20000, 20000, 20000, 20000, 4096);
   
   while (contLoop) {
     rerunBlockedHere();

@@ -906,7 +906,10 @@ static int32_t mFullJoinHandleMergeGrpRemains(SMJoinMergeCtx* pCtx) {
     }
 
     if (pGrpRows->rowMatchNum <= 0 || pGrpRows->allRowsNMatch) {
-      pGrpRows->allRowsNMatch = true;
+      if (pGrpRows->rowMatchNum <= 0) {
+        pGrpRows->allRowsNMatch = true;
+        pNMatch->rowIdx = pGrpRows->beginIdx;
+      }
       
       MJ_ERR_RET(mFullJoinOutputMergeGrpRows(pCtx, pGrpRows, pNMatch, &grpDone));
 
@@ -1033,7 +1036,9 @@ SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator) {
       } else {
         MJOIN_GET_TB_CUR_TS(pProbeCol, probeTs, pJoin->probe);
       }
-    } else if (pCtx->lastEqGrp && pJoin->build->rowBitmapSize > 0) {
+    }
+
+    if (pCtx->lastEqGrp && pJoin->build->rowBitmapSize > 0) {
       MJ_ERR_JRET(mFullJoinHandleBuildTableRemains(pCtx));
       if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
         return pCtx->finBlk;
@@ -1051,14 +1056,14 @@ SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator) {
         MJOIN_GET_TB_COL_TS(pBuildCol, buildTs, pJoin->build);
         MJOIN_GET_TB_COL_TS(pProbeCol, probeTs, pJoin->probe);
 
-        continue;
-      }
-
-      if (pCtx->lastEqGrp && pJoin->build->rowBitmapSize > 0) {
-        MJ_ERR_JRET(mFullJoinHandleBuildTableRemains(pCtx));
-        if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
-          return pCtx->finBlk;
+        if (!FJOIN_PROBE_TB_ROWS_DONE(pJoin->probe) && probeTs != pCtx->lastEqTs && pJoin->build->rowBitmapSize > 0) {
+          MJ_ERR_JRET(mFullJoinHandleBuildTableRemains(pCtx));
+          if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
+            return pCtx->finBlk;
+          }
         }
+
+        continue;
       }
 
       if (PROBE_TS_UNREACH(pCtx->ascTs, probeTs, buildTs)) {
@@ -1073,6 +1078,13 @@ SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator) {
     }
 
     if (pJoin->build->dsFetchDone && !FJOIN_PROBE_TB_ROWS_DONE(pJoin->probe)) {
+      if (pCtx->lastEqGrp && pJoin->build->rowBitmapSize > 0) {
+        MJ_ERR_JRET(mFullJoinHandleBuildTableRemains(pCtx));
+        if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
+          return pCtx->finBlk;
+        }
+      }
+      
       pCtx->probeNEqGrp.blk = pJoin->probe->blk;
       pCtx->probeNEqGrp.beginIdx = pJoin->probe->blkRowIdx;
       pCtx->probeNEqGrp.readIdx = pCtx->probeNEqGrp.beginIdx;
@@ -1087,6 +1099,13 @@ SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator) {
     }
 
     if (pJoin->probe->dsFetchDone && !MJOIN_BUILD_TB_ROWS_DONE(pJoin->build)) {
+      if (pCtx->lastEqGrp && pJoin->build->rowBitmapSize > 0) {
+        MJ_ERR_JRET(mFullJoinHandleBuildTableRemains(pCtx));
+        if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
+          return pCtx->finBlk;
+        }
+      }
+
       pCtx->buildNEqGrp.blk = pJoin->build->blk;
       pCtx->buildNEqGrp.beginIdx = pJoin->build->blkRowIdx;
       pCtx->buildNEqGrp.readIdx = pCtx->buildNEqGrp.beginIdx;
