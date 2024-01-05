@@ -6209,10 +6209,9 @@ static int32_t translateCreateFullTextIndex(STranslateContext* pCxt, SCreateInde
 
 static int32_t translateCreateNormalIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
   int32_t     code = 0;
-  SName       name;
   STableMeta* pMeta = NULL;
 
-  code = getTargetMeta(pCxt, toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name), &pMeta, false);
+  code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pMeta);
   if (code) {
     taosMemoryFree(pMeta);
     return code;
