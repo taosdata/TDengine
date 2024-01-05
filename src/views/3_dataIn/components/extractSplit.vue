@@ -71,13 +71,13 @@
         ></el-button>
       </div>
     </div>
-    <ul class="col-list" v-if='tableColumns.length>0'>
+    <ul class="col-list" v-if="tableColumns.length > 0">
       <li v-for="(item, index) in tableColumns.slice(0, 9)" :key="index">
         <template v-if="item.value">
           <el-tooltip
             class="item"
             effect="light"
-            :content="$t('datasource.transformer.sampleval')+':' + item.value"
+            :content="$t('datasource.transformer.sampleval') + ':' + item.value"
             placement="top-start"
           >
             <span>{{ item.name }}</span>
@@ -85,13 +85,13 @@
         </template>
         <span v-else>{{ item.name }}</span>
       </li>
-      <li v-if="tableColumns.length > 0" @click="showResultTable">
+      <li v-if="tableColumns.length > 9" @click="showResultTable">
         <el-tooltip
           :content="$t('datasource.transformer.viewmore')"
           placement="top"
           effect="light"
         >
-          <span ><i class="el-icon-more"></i></span>
+          <span><i class="el-icon-more"></i></span>
         </el-tooltip>
       </li>
     </ul>
@@ -182,15 +182,15 @@ export default {
     //提交验证
     validateExtreact() {},
     async showResultTable() {
-      await this.submitExtract();
+      // await this.submitExtract();
       await this.submitExtract(true);
       this.$nextTick(() => {
-          if (document.querySelector(".transdescription")) {
-            let dom = document.querySelector(".transdescription");
-            let top = dom.offsetTop + document.body.scrollHeight;
-            this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
-          }
-        });
+        if (document.querySelector(".transdescription")) {
+          let dom = document.querySelector(".transdescription");
+          let top = 2200//dom.offsetTop + document.body.scrollHeight;
+          this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
+        }
+      });
       this.$store.commit("app/SET_TRANS_RESULT_NAME", this.itemData.columnname);
     },
     changeExtractExpr(val) {
@@ -232,7 +232,18 @@ export default {
           // this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
           await this.submitExtract();
           await this.submitExtract(true);
-          Message.success(this.$t('datasource.successtip'))
+          this.$nextTick(() => {
+            if (document.querySelector(".transdescription")) {
+              let dom = document.querySelector(".transdescription");
+              let top = 2200//dom.offsetTop + document.body.scrollHeight;
+              this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
+            }
+          });
+          this.$store.commit(
+            "app/SET_TRANS_RESULT_NAME",
+            this.itemData.columnname
+          );
+          Message.success(this.$t("datasource.successtip"));
           //执行完之后选中的列才能不会再被选中
 
           return true;
@@ -317,8 +328,7 @@ export default {
             transformerColumns
           );
           //获取全部的extract or split参数
-          // this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
-          // return;
+          this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
           return;
         }
         this.$store.commit(
@@ -340,7 +350,10 @@ export default {
         });
         // this.tableColumns = colLists;
         this.tableData = tbdata;
-        this.$store.commit("app/SET_TRANS_RESULT_TABLE", this.tableData);
+        this.$store.commit('app/SET_ACTIVE_COLS',Object.keys(tbdata[0]))
+        let pageindex=this.tableData.findIndex(item=>item['Name']==Object.keys(tbdata[0])[0])
+        this.$store.commit('app/SET_RESULT_PAGE',pageindex)
+        // this.$store.commit("app/SET_TRANS_RESULT_TABLE", this.tableData);
       } catch (error) {
         console.log(error);
       }
@@ -496,13 +509,18 @@ export default {
         },
 
         input: this.$parent.isCSV
-          ?isall?this.$store.state.app.csvTransformerParser?.inputList: this.$store.state.app.csvTransformerParser?.inputList.map(item=>{
-            if(Object.keys(item).includes(this.itemData.columnname)){
-              return {
-                [this.itemData.columnname]:item[this.itemData.columnname]
-              }
-            }
-          })
+          ? isall
+            ? this.$store.state.app.csvTransformerParser?.inputList
+            : this.$store.state.app.csvTransformerParser?.inputList.map(
+                (item) => {
+                  if (Object.keys(item).includes(this.itemData.columnname)) {
+                    return {
+                      [this.itemData.columnname]:
+                        item[this.itemData.columnname],
+                    };
+                  }
+                }
+              )
           : inputList,
       };
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);

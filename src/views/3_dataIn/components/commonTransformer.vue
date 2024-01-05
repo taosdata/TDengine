@@ -134,7 +134,7 @@
           </el-tooltip>
         </div>
         <ul class="col-list">
-          <li v-for="(item, index) in columnsArr" :key="index">
+          <li v-for="(item, index) in columnsArr.slice(0,9)" :key="index">
             <el-tooltip
               class="item"
               effect="light"
@@ -144,6 +144,15 @@
               <span>{{ item.name }}</span>
             </el-tooltip>
           </li>
+          <li v-if="columnsArr.length > 9">
+        <el-tooltip
+          :content="$t('datasource.transformer.viewmore')"
+          placement="top"
+          effect="light"
+        >
+          <span ><i class="el-icon-more"></i></span>
+        </el-tooltip>
+      </li>
         </ul>
       </section>
       <section class="extract">
@@ -336,7 +345,7 @@
             </el-table>
             <div class="block-page">
               <el-pagination
-                :class="['pagination', pageCount < 10 ? 'hide' : '']"
+                :class="['pagination', pageCount < 20 ? 'hide' : '']"
                 :page-size="pageSize"
                 layout="total,prev, pager, next, jumper"
                 :total="pageCount"
@@ -415,7 +424,6 @@ export default {
       subrule: {
         subname: "",
       },
-
       activeName: "first",
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
@@ -434,7 +442,7 @@ export default {
         ],
       },
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
-      pageSize: 10,
+      pageSize: 20,
       pageCount: 10,
       currentPage: 1,
       tempColumns: [],
@@ -684,10 +692,9 @@ export default {
         if (this.filterArr.length > 0) {
           this.$refs.filter[0].submitFilter();
         }
-        // else {
-        // if (this.extractArr.length > 0) {
-        //   // this.$refs.extract[0].submitExtract(true);
-        // } else {
+        if(this.extractArr.length>0){
+          this.$refs.extract[0].submitExtract(true)
+        }
         this.$store.commit("app/SET_TOP_PARSE", topparser);
         let result = await getParser(topparser);
         if (result.message) {
@@ -741,7 +748,9 @@ export default {
           );
         });
         this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
-
+        this.$store.commit('app/SET_ACTIVE_COLS',Object.keys(tbdata[0]))
+        this.$store.commit('app/SET_RESULT_PAGE',1)
+console.log(tbdata,'tbdata---result');
         this.columnsArr = (
           this.$store.state.app.currentDBType == "csv"
             ? result[0].fields

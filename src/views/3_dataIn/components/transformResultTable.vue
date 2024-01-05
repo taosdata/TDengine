@@ -1,16 +1,17 @@
 <template>
-  <div class="result-table" v-if="showtable">
+  <div class="result-table" v-if="showtable" ref='result'>
     <div class="title-block">
       <span class="title">{{
         $store.state.app.transresultname + $t("datasource.transformer.resulttb")
       }}</span>
       <!-- <span class='el-icon-close'></span> -->
     </div>
-    <el-table border style="width: 100%" :data="pageTableData">
+    <el-table border style="width: 100%" :data="pageTableData" :row-class-name="tableRowClassName">
       <el-table-column
         v-for="item in columns"
         :key="item"
         :prop="item"
+        :sortable="item == 'Name' ? true : false"
         show-overflow-tooltip
         :label="item"
       ></el-table-column>
@@ -30,7 +31,7 @@
 <script>
 export default {
   name: "ResultTable",
-  props:{
+  props: {
     isEditable: {
       type: Boolean,
       default: false,
@@ -38,6 +39,7 @@ export default {
   },
   data() {
     return {
+        isFixed:false,
       columns: ["Name", "Output1", "Output2", "Output3"],
       tableData: [],
       pageTableData: [],
@@ -50,12 +52,40 @@ export default {
     };
   },
   mounted() {
-    if (this.$store.state.app.transformresulttable.length > 0&&!this.isEditable&&this.$store.state.app.transresultname) {
+    if (
+      this.$store.state.app.transformresulttable.length > 0 &&
+      !this.isEditable &&
+      this.$store.state.app.transresultname
+    ) {
       this.getResultData(this.$store.state.app.transformresulttable);
       this.showtable = true;
     }
+    window.addEventListener('scroll',this.handleScroll)
+  },
+  destroy(){
+    window.removeEventListener('scroll',this.handleScroll)
   },
   methods: {
+    tableRowClassName({row,rowIndex}){
+        if(this.$store.state.app.activeColumns.includes(row['Name'])){
+            return 'active-row'
+        }
+        console.log(row,rowIndex,'kkkk---shezhi设置颜色',this.$store.state.app.activeColumns);
+    },
+    getOffsetTop(obj) {
+      let offsettop = 0;
+      while (obj != window.document.body && obj != null) {
+        offsettop += obj.offsetTop;
+        obj = obj.offsetParent;
+      }
+      return offsettop;
+    },
+    handleScroll() {
+        let scrollTop=window.pageYOffset || document.documentElement.scrollTop||document.body.scrollTop
+        let offsetTop=this.getOffsetTop(this.$refs.result)
+        this.isFixed=scrollTop>offsetTop
+        console.log(scrollTop,offsetTop,'高度');
+    },
     setPageTableData() {
       this.$set(
         this,
@@ -105,7 +135,7 @@ export default {
       deep: true,
       handler(val) {
         if (val) {
-          this.showtable = true;
+        //   this.showtable = true;
           this.getResultData(this.$store.state.app.transformresulttable);
           this.$nextTick(() => {
             let dom = document.querySelector(".result-table");
@@ -113,17 +143,19 @@ export default {
               dom.style.top = this.$store.state.app.transformTableHeight + "px";
             }
           });
-        }else{
-            this.showtable = false
-            this.$store.commit("app/SET_TRANS_RESULT_TABLE", []);
+        } else {
+        //   this.showtable = false;
+          this.$store.commit("app/SET_TRANS_RESULT_TABLE", []);
         }
       },
     },
     "$store.state.app.transformresulttable": {
       deep: true,
       handler(val) {
-        if (val && val.length > 0&&this.$store.state.app.transresultname) {
-            this.getResultData(val);
+        this.showtable = true;
+        if (val && val.length > 0 && this.$store.state.app.transresultname) {
+            
+          this.getResultData(val);
         }
       },
     },
@@ -164,5 +196,14 @@ export default {
       cursor: pointer;
     }
   }
+  ::v-deep {
+    .el-table .el-table__cell {
+      padding: 6px 0px;
+    }
+    .el-table .active-row {
+    background: #ecf2fe;
+  }
+  }
+ 
 }
 </style>

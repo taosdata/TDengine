@@ -225,6 +225,12 @@ export default {
     }
     this.getDBLists();
   },
+  mounted(){
+    window.addEventListener('scroll',this.handleScroll,true)
+    window.onscroll=function(){
+      console.log('滚动终');
+    }
+  },
   computed: {
     rules() {
       return {
@@ -380,6 +386,12 @@ export default {
     },
   },
   methods: {
+    handleScroll() {
+        let scrollTop=window.pageYOffset || document.documentElement.scrollTop||document.body.scrollTop
+        // let offsetTop=this.getOffsetTop(this.$refs.result)
+        // this.isFixed=scrollTop>offsetTop
+        console.log(scrollTop,'高度',document.body.scrollHeight);
+    },
     async getDataSourceDetail() {
       await getDataSourceDetail(this.editId)
         .then((data) => {
