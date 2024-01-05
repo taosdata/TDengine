@@ -26,6 +26,7 @@
 #include "mndTrans.h"
 
 #define MND_COMPACT_VER_NUMBER 1
+#define MND_COMPACT_ID_LEN 11
 
 static int32_t mndProcessCompactTimer(SRpcMsg *pReq);
 
@@ -451,7 +452,7 @@ int32_t mndProcessKillCompactReq(SRpcMsg *pReq){
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj[10] = {0};
+  char obj[MND_COMPACT_ID_LEN] = {0};
   sprintf(obj, "%d", pCompact->compactId);
 
   auditRecord(pReq, pMnode->clusterId, "killCompact", pCompact->dbname, obj, killCompactReq.sql, killCompactReq.sqlLen);
