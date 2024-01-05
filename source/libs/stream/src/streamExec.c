@@ -107,12 +107,6 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
       return 0;
     }
 
-    if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
-      stWarn("s-task:%s downstream task inputQ blocked, idle for 1sec and retry exec task", pTask->id.idStr);
-      taosMsleep(1000);
-      continue;
-    }
-
     SSDataBlock* output = NULL;
     uint64_t     ts = 0;
     if ((code = qExecTask(pExecutor, &output, &ts)) < 0) {
@@ -561,6 +555,11 @@ static void setTaskSchedInfo(SStreamTask* pTask, int32_t idleTime) {
   pStatus->lastExecTs = taosGetTimestampMs();
 }
 
+static void clearTaskSchedInfo(SStreamTask* pTask) {
+  SStreamStatus* pStatus = &pTask->status;
+  pStatus->schedIdleTime = 0;
+}
+
 /**
  * todo: the batch of blocks should be tuned dynamic, according to the total elapsed time of each batch of blocks, the
  * appropriate batch of blocks should be handled in 5 to 10 sec.
@@ -584,6 +583,12 @@ int32_t doStreamExecTask(SStreamTask* pTask) {
       stWarn("s-task:%s outputQ is full, idle for 500ms and retry", id);
       setTaskSchedInfo(pTask, 500);
       break;
+    }
+
+    if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
+      stWarn("s-task:%s downstream task inputQ blocked, idle for 1sec and retry", pTask->id.idStr);
+      setTaskSchedInfo(pTask, 1000);
+      continue;
     }
 
     /*int32_t code = */ streamTaskGetDataFromInputQ(pTask, &pInput, &numOfBlocks, &blockSize);
@@ -737,7 +742,7 @@ static void doStreamExecTaskHelper(void* param, void* tmrId) {
   tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &msg);
 
   // release the task ref count
-  pTask->status.schedIdleTime = 0; // clear the idle time
+  clearTaskSchedInfo(pTask);
   streamMetaReleaseTask(pTask->pMeta, pTask);
 }
 
@@ -747,6 +752,7 @@ static int32_t schedTaskInFuture(SStreamTask* pTask) {
           pTask->status.schedIdleTime, ref);
 
   // add one ref count for task
+  // todo this may be failed, and add ref may be failed.
   SStreamTask* pAddRefTask = streamMetaAcquireTask(pTask->pMeta, pTask->id.streamId, pTask->id.taskId);
 
   if (pTask->schedInfo.pIdleTimer == NULL) {

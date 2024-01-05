@@ -736,16 +736,17 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
   } else if (type == STREAM_EXEC_T_STOP_ALL_TASKS) {
     streamMetaStopAllTasks(pMeta);
     return 0;
-  } else if (type == STREAM_EXEC_T_RESUME_TASK) {
-    // task resume to run after idle for a while
+  } else if (type == STREAM_EXEC_T_RESUME_TASK) { // task resume to run after idle for a while
     SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
     if (pTask != NULL) {
       ASSERT(streamTaskReadyToRun(pTask, NULL));
-      tqDebug("s-task:%s task resume to run after idle for a while", pTask->id.idStr);
-      streamResumeTask(pTask);
-    }
+      int64_t execTs = pTask->status.lastExecTs;
+      int32_t idle = taosGetTimestampMs() - execTs;
+      tqDebug("s-task:%s task resume to run after idle for:%dms from:%" PRId64, pTask->id.idStr, idle, execTs);
 
-    streamMetaReleaseTask(pMeta, pTask);
+      streamResumeTask(pTask);
+      streamMetaReleaseTask(pMeta, pTask);
+    }
     return 0;
   }
 
