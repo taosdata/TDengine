@@ -200,6 +200,7 @@ function run_thread() {
         if [ -z "$case_file" ]; then
             continue
         fi
+        case_sql_file="$exec_dir/${case_file}.sql"
         case_file="$exec_dir/${case_file}.${index}.${thread_no}.${count}"
         count=$(( count + 1 ))
         local case_path=`dirname "$case_file"`
@@ -324,11 +325,14 @@ function run_thread() {
             cmd="$tarcmd sh -c \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
             $cmd
             local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
+            local remote_case_sql_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${case_sql_file)"
             scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
             if [ -z ${passwords[index]} ]; then
                 scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
             fi
             cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
+            $cmd
+            cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
             $cmd
             # backup source code (disabled)
             source_tar_dir=$log_dir/TDengine_${hosts[index]}
