@@ -2274,10 +2274,10 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
 
 void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr) {
   if (!pBlock) {
-    qDebug("%s===stream===%s: Block is Null", taskIdStr, flag);
+    qDebug("%s===stream===%s %s: Block is Null", taskIdStr, flag, opStr);
     return;
   } else if (pBlock->info.rows == 0) {
-    qDebug("%s===stream===%s: Block is Empty. type:%d", taskIdStr, flag, pBlock->info.type);
+    qDebug("%s===stream===%s %s: Block is Empty. block type %d", taskIdStr, flag, opStr, pBlock->info.type);
     return;
   }
   if (qDebugFlag & DEBUG_DEBUG) {
