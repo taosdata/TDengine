@@ -632,13 +632,10 @@ export default {
   .upload-flex .item {
     z-index: 101;
   }
-  ::v-deep .block-title {
-    margin-bottom: 10px;
-    span {
-      font-size: 16px;
-      color: #4259ce;
-      font-weight: 600;
-    }
+  .custom-placeholder {
+    color: $color-description;
+    font-size: 14px;
+    margin-top: 10px;
   }
 }
 </style>
