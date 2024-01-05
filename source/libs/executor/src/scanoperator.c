@@ -3429,9 +3429,9 @@ int32_t startDurationForGroupTableMergeScan(SOperatorInfo* pOperator) {
     pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
                                                pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
     int32_t memSize = 512 * 1024 * 1024;
-    int32_t rowBytes = blockDataGetRowSize(pInfo->pResBlock) + taosArrayGetSize(pInfo->pResBlock->pDataBlock) + sizeof(int32_t);
-    int32_t pageSize = TMAX(memSize/numOfTable, rowBytes);
-    tsortSetSortByRowId(pInfo->pSortHandle, pageSize, memSize);
+    // int32_t rowBytes = blockDataGetRowSize(pInfo->pResBlock) + taosArrayGetSize(pInfo->pResBlock->pDataBlock) + sizeof(int32_t);
+    // int32_t pageSize = TMAX(memSize/numOfTable, rowBytes);
+    tsortSetSortByRowId(pInfo->pSortHandle, pInfo->bufPageSize, memSize);
   } else {
     pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
                                                pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
