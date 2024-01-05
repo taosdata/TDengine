@@ -134,15 +134,10 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     return rsp.code;
   }
 
-//  streamMetaWUnLock(pMeta);
-
   // todo for test purpose
   // the following two functions should not be executed within the scope of meta lock to avoid deadlock
   streamTaskUpdateEpsetInfo(pTask, req.pNodeList);
   streamTaskResetStatus(pTask);
-
-  // continue after lock the meta again
-//  streamMetaWLock(pMeta);
 
   SStreamTask** ppHTask = NULL;
   if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
@@ -157,6 +152,8 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     }
   }
 
+  tqDebug("s-task:%s start to save task", pTask->id.idStr);
+
   {
     streamMetaSaveTask(pMeta, pTask);
     if (ppHTask != NULL) {
@@ -167,6 +164,8 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
       //     persist to disk
     }
   }
+
+  tqDebug("s-task:%s start to stop task after save task", pTask->id.idStr);
 
   streamTaskStop(pTask);
 
