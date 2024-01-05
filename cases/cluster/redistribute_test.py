@@ -187,6 +187,7 @@ class VnodeRedistribute(TDCase):
                 time.sleep(self.show_vnodes_interval)
             else:
                 return False
+        self.show_transactions()
 
     def disorder_update_delete_data(self):
         self._remote._logger.info(f"------------ in disorder-update-delete schedular ------------")
@@ -258,6 +259,10 @@ class VnodeRedistribute(TDCase):
     def get_vgid_list(self):
         self.tdSql.query(f'show {self.dbname}.vgroups')
         return list(map(lambda x:x[0], self.tdSql.query_data))
+
+    def show_transactions(self):
+        self.tdSql.query('show transactions')
+        self._remote._logger.info(pd.DataFrame(self.tdSql.query_data))
 
     def redistribute_vnode_in_base_dnode(self):
         if self.redistribute_status == 0:
