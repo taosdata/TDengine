@@ -326,7 +326,7 @@ alter_table_clause(A) ::=
 alter_table_clause(A) ::= 
   full_table_name(B) RENAME TAG column_name(C) column_name(D).                    { A = createAlterTableRenameCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_TAG_NAME, &C, &D); }
 alter_table_clause(A) ::=
-  full_table_name(B) SET TAG column_name(C) NK_EQ signed_literal(D).              { A = createAlterTableSetTag(pCxt, B, &C, D); }
+  full_table_name(B) SET TAG column_name(C) NK_EQ tags_literal(D).              { A = createAlterTableSetTag(pCxt, B, &C, D); }
 
 %type multi_create_clause                                                         { SNodeList* }
 %destructor multi_create_clause                                                   { nodesDestroyList($$); }

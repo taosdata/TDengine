@@ -653,7 +653,7 @@ static int32_t parseBoundTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStm
 int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SSchema* pTagSchema, SToken* pToken,
                       SArray* pTagName, SArray* pTagVals, STag** pTag) {
   bool isNull = isNullValue(pTagSchema->type, pToken);
-  if (!isNull) {
+  if (!isNull && pTagName) {
     taosArrayPush(pTagName, pTagSchema->name);
   }
 
