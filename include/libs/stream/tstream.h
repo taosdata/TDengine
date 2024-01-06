@@ -56,6 +56,7 @@ extern "C" {
 #define STREAM_EXEC_T_RESTART_ALL_TASKS   (-4)
 #define STREAM_EXEC_T_STOP_ALL_TASKS      (-5)
 #define STREAM_EXEC_T_RESUME_TASK         (-6)
+#define STREAM_EXEC_T_UPDATE_TASK_EPSET   (-7)
 
 typedef struct SStreamTask   SStreamTask;
 typedef struct SStreamQueue  SStreamQueue;

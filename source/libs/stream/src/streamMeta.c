@@ -1472,6 +1472,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
     // fill-history task can only be launched by related stream tasks.
     STaskExecStatisInfo* pInfo = &pTask->execInfo;
     if (pTask->info.fillHistory == 1) {
+      stDebug("s-task:%s fill-history task wait related stream task start", pTask->id.idStr);
       streamMetaReleaseTask(pMeta, pTask);
       continue;
     }
