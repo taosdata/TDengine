@@ -206,7 +206,7 @@ char * strendG(const char* pstr) {
     return NULL;
   }
 
-  char * p = pstr + len - 2
+  char * p = (char *)pstr + len - 2;
   if (strcmp(p, "\\G") == 0) {
     return p;
   }
