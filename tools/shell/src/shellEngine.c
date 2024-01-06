@@ -202,12 +202,17 @@ char * strendG(const char* pstr) {
   }
 
   size_t len = strlen(pstr);
-  if(len < 3) {
+  if(len < 4) {
     return NULL;
   }
 
   char * p = (char *)pstr + len - 2;
   if (strcmp(p, "\\G") == 0) {
+    return p;
+  }
+ 
+  p = (char *)pstr + len - 3;
+  if (strcmp(p, "\\G;") == 0 ){
     return p;
   }
 
