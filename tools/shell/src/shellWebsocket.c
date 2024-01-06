@@ -238,6 +238,7 @@ static int shellDumpWebsocket(WS_RES *wres, char *fname,
   return numOfRows;
 }
 
+char * strendG(const char* pstr);
 void shellRunSingleCommandWebsocketImp(char *command) {
   int64_t st, et;
   char   *sptr = NULL;
@@ -256,7 +257,7 @@ void shellRunSingleCommandWebsocketImp(char *command) {
     }
   }
 
-  if ((sptr = strstr(command, "\\G")) != NULL) {
+  if ((sptr = strendG(command)) != NULL) {
     *sptr = '\0';
     printMode = true;  // When output to a file, the switch does not work.
   }
