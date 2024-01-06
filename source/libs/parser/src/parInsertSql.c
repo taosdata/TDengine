@@ -230,7 +230,13 @@ static int parseTimestampOrInterval(const char** end, SToken* pToken, int16_t ti
   } else {  // parse the RFC-3339/ISO-8601 timestamp format string
     *isTs = true;
     if (taosParseTime(pToken->z, ts, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
-      return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
+      if (pToken->type == TK_NK_STRING) {
+        if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, ts)) {
+          return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
+        }
+      } else {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
+      }
     }
   }
 
