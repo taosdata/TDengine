@@ -134,7 +134,6 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     return rsp.code;
   }
 
-  // todo for test purpose
   // the following two functions should not be executed within the scope of meta lock to avoid deadlock
   streamTaskUpdateEpsetInfo(pTask, req.pNodeList);
   streamTaskResetStatus(pTask);
@@ -159,9 +158,11 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
       streamMetaSaveTask(pMeta, *ppHTask);
     }
 
+#if 0
     if (streamMetaCommit(pMeta) < 0) {
       //     persist to disk
     }
+#endif
   } else {
     tqDebug("s-task:%s vgId:%d not save since restore not finish", pTask->id.idStr, vgId);
   }
