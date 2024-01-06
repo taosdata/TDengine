@@ -8767,8 +8767,14 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
     code = tTagNew(pTagArray, 1, false, ppTag);
   }
 
-  taosMemoryFree(pTokenBuf);
+  for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
+    STagVal* p = (STagVal*)taosArrayGet(pTagArray, i);
+    if (IS_VAR_DATA_TYPE(p->type)) {
+      taosMemoryFreeClear(p->pData);
+    }
+  }
   taosArrayDestroy(pTagArray);
+  taosMemoryFree(pTokenBuf);
   return code;
 }
 
@@ -8837,8 +8843,14 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
     code = tTagNew(pTagArray, 1, false, ppTag);
   }
 
-  taosMemoryFree(pTokenBuf);
+  for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
+    STagVal* p = (STagVal*)taosArrayGet(pTagArray, i);
+    if (IS_VAR_DATA_TYPE(p->type)) {
+      taosMemoryFreeClear(p->pData);
+    }
+  }
   taosArrayDestroy(pTagArray);
+  taosMemoryFree(pTokenBuf);
   return code;
 }
 
@@ -9216,7 +9228,6 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
 
         // data and length are seperated for new tag format STagVal
         if (IS_VAR_DATA_TYPE(pStmt->pVal->node.resType.type)) {
-          assert(pSchema->type == pStmt->pVal->node.resType.type);
           pReq->nTagVal = varDataLen(pReq->pTagVal);
           pReq->pTagVal = varDataVal(pReq->pTagVal);
         }
