@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndProfile.h"
+#include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
@@ -25,7 +26,6 @@
 #include "mndUser.h"
 #include "tglobal.h"
 #include "tversion.h"
-#include "audit.h"
 
 typedef struct {
   uint32_t id;
@@ -769,8 +769,9 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
  * @param offset skip [offset] queries in pConn
  * @param rowsToPack at most rows to pack
  * @return rows packed
-*/
-static int32_t packQueriesIntoBlock(SShowObj* pShow, SConnObj* pConn, SSDataBlock* pBlock, uint32_t offset, uint32_t rowsToPack) {
+ */
+static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBlock *pBlock, uint32_t offset,
+                                    uint32_t rowsToPack) {
   int32_t cols = 0;
   taosRLockLatch(&pConn->queryLock);
   int32_t numOfQueries = taosArrayGetSize(pConn->pQueries);
@@ -781,7 +782,7 @@ static int32_t packQueriesIntoBlock(SShowObj* pShow, SConnObj* pConn, SSDataBloc
 
   int32_t i = offset;
   for (; i < numOfQueries && (i - offset) < rowsToPack; ++i) {
-    int32_t curRowIndex = pBlock->info.rows;
+    int32_t     curRowIndex = pBlock->info.rows;
     SQueryDesc *pQuery = taosArrayGet(pConn->pQueries, i);
     cols = 0;
 
@@ -832,14 +833,19 @@ static int32_t packQueriesIntoBlock(SShowObj* pShow, SConnObj* pConn, SSDataBloc
     colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->subPlanNum, false);
 
     char    subStatus[TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE] = {0};
+    int32_t reserve = 64;
     int32_t strSize = sizeof(subStatus);
     int32_t offset = VARSTR_HEADER_SIZE;
-    for (int32_t i = 0; i < pQuery->subPlanNum && offset < strSize; ++i) {
+    for (int32_t i = 0; i < pQuery->subPlanNum && offset + reserve < strSize; ++i) {
       if (i) {
-        offset += snprintf(subStatus + offset, strSize - offset - 1, ",");
+        offset += sprintf(subStatus + offset, ",");
       }
-      SQuerySubDesc *pDesc = taosArrayGet(pQuery->subDesc, i);
-      offset += snprintf(subStatus + offset, strSize - offset - 1, "%" PRIu64 ":%s", pDesc->tid, pDesc->status);
+      if (offset + reserve < strSize) {
+        SQuerySubDesc *pDesc = taosArrayGet(pQuery->subDesc, i);
+        offset += sprintf(subStatus + offset, "%" PRIu64 ":%s", pDesc->tid, pDesc->status);
+      } else {
+        break;
+      }
     }
     varDataLen(subStatus) = strlen(&subStatus[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -858,8 +864,8 @@ static int32_t packQueriesIntoBlock(SShowObj* pShow, SConnObj* pConn, SSDataBloc
 }
 
 static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode *  pMnode = pReq->info.node;
-  SSdb *    pSdb = pMnode->pSdb;
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
   SConnObj *pConn = NULL;
 
