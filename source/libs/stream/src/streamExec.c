@@ -588,7 +588,7 @@ int32_t doStreamExecTask(SStreamTask* pTask) {
     if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
       stWarn("s-task:%s downstream task inputQ blocked, idle for 1sec and retry", pTask->id.idStr);
       setTaskSchedInfo(pTask, 1000);
-      continue;
+      break;
     }
 
     /*int32_t code = */ streamTaskGetDataFromInputQ(pTask, &pInput, &numOfBlocks, &blockSize);
