@@ -145,7 +145,8 @@ FAIL:
 }
 
 int32_t sndInit(SSnode *pSnode) {
-  tqStreamTaskResetStatus(pSnode->pMeta);
+  int32_t numOfTasks = 0;
+  tqStreamTaskResetStatus(pSnode->pMeta, &numOfTasks);
   streamMetaStartAllTasks(pSnode->pMeta);
   return 0;
 }

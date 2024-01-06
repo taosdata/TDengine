@@ -706,16 +706,16 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
   return 0;
 }
 
-int32_t tqStreamTaskResetStatus(SStreamMeta* pMeta) {
+int32_t tqStreamTaskResetStatus(SStreamMeta* pMeta, int32_t* numOfTasks) {
   int32_t vgId = pMeta->vgId;
-  int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+  *numOfTasks = taosArrayGetSize(pMeta->pTaskList);
 
-  tqDebug("vgId:%d reset all %d stream task(s) status to be uninit", vgId, numOfTasks);
-  if (numOfTasks == 0) {
+  tqDebug("vgId:%d reset all %d stream task(s) status to be uninit", vgId, *numOfTasks);
+  if (*numOfTasks == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  for (int32_t i = 0; i < numOfTasks; ++i) {
+  for (int32_t i = 0; i < (*numOfTasks); ++i) {
     SStreamTaskId* pTaskId = taosArrayGet(pMeta->pTaskList, i);
 
     STaskId       id = {.streamId = pTaskId->streamId, .taskId = pTaskId->taskId};
@@ -767,8 +767,10 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   }
 
   if (isLeader && !tsDisableStream) {
-    tqStreamTaskResetStatus(pMeta);
+    int32_t numOfTasks = 0;
+    tqStreamTaskResetStatus(pMeta, &numOfTasks);
     streamMetaWUnLock(pMeta);
+
     streamMetaStartAllTasks(pMeta);
   } else {
     streamMetaResetStartInfo(&pMeta->startInfo);
