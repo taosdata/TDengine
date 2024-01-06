@@ -23,6 +23,7 @@ extern "C" {
 #include "catalog.h"
 #include "os.h"
 #include "parser.h"
+#include "parToken.h"
 #include "query.h"
 
 #define parserFatal(param, ...) qFatal("PARSER: " param, ##__VA_ARGS__)
@@ -34,6 +35,32 @@ extern "C" {
 
 #define ROWTS_PSEUDO_COLUMN_NAME "_rowts"
 #define C0_PSEUDO_COLUMN_NAME    "_c0"
+
+#define NEXT_TOKEN_WITH_PREV(pSql, token)           \
+  do {                                              \
+    int32_t index = 0;                              \
+    token = tStrGetToken(pSql, &index, true, NULL); \
+    pSql += index;                                  \
+  } while (0)
+
+#define NEXT_TOKEN_WITH_PREV_EXT(pSql, token, pIgnoreComma) \
+  do {                                                      \
+    int32_t index = 0;                                      \
+    token = tStrGetToken(pSql, &index, true, pIgnoreComma); \
+    pSql += index;                                          \
+  } while (0)
+
+#define NEXT_TOKEN_KEEP_SQL(pSql, token, index)      \
+  do {                                               \
+    token = tStrGetToken(pSql, &index, false, NULL); \
+  } while (0)
+
+#define NEXT_VALID_TOKEN(pSql, token)           \
+  do {                                          \
+    (token).n = tGetToken(pSql, &(token).type); \
+    (token).z = (char*)pSql;                    \
+    pSql += (token).n;                          \
+  } while (TK_NK_SPACE == (token).type)
 
 typedef struct SMsgBuf {
   int32_t len;
@@ -88,6 +115,9 @@ int32_t getTableTypeFromTableNode(SNode *pTable);
 
 int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen);
 int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName);
+int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf);
+int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SSchema* pTagSchema, SToken* pToken,
+                      SArray* pTagName, SArray* pTagVals, STag** pTag);
 
 int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq);
 int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache);

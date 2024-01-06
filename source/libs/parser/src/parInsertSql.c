@@ -20,32 +20,6 @@
 #include "ttime.h"
 #include "geosWrapper.h"
 
-#define NEXT_TOKEN_WITH_PREV(pSql, token)           \
-  do {                                              \
-    int32_t index = 0;                              \
-    token = tStrGetToken(pSql, &index, true, NULL); \
-    pSql += index;                                  \
-  } while (0)
-
-#define NEXT_TOKEN_WITH_PREV_EXT(pSql, token, pIgnoreComma) \
-  do {                                                      \
-    int32_t index = 0;                                      \
-    token = tStrGetToken(pSql, &index, true, pIgnoreComma); \
-    pSql += index;                                          \
-  } while (0)
-
-#define NEXT_TOKEN_KEEP_SQL(pSql, token, index)      \
-  do {                                               \
-    token = tStrGetToken(pSql, &index, false, NULL); \
-  } while (0)
-
-#define NEXT_VALID_TOKEN(pSql, token)           \
-  do {                                          \
-    (token).n = tGetToken(pSql, &(token).type); \
-    (token).z = (char*)pSql;                    \
-    pSql += (token).n;                          \
-  } while (TK_NK_SPACE == (token).type)
-
 typedef struct SInsertParseContext {
   SParseContext* pComCxt;
   SMsgBuf        msg;
@@ -674,8 +648,8 @@ static int32_t parseBoundTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStm
   return parseBoundColumns(pCxt, &pStmt->pSql, true, getTableTagSchema(pStmt->pTableMeta), &pCxt->tags);
 }
 
-static int32_t parseTagValue(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SSchema* pTagSchema, SToken* pToken,
-                             SArray* pTagName, SArray* pTagVals, STag** pTag) {
+int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SSchema* pTagSchema, SToken* pToken,
+                      SArray* pTagName, SArray* pTagVals, STag** pTag) {
   bool isNull = isNullValue(pTagSchema->type, pToken);
   if (!isNull) {
     taosArrayPush(pTagName, pTagSchema->name);
@@ -683,21 +657,20 @@ static int32_t parseTagValue(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStm
 
   if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
     if (pToken->n > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
-      return buildSyntaxErrMsg(&pCxt->msg, "json string too long than 4095", pToken->z);
+      return buildSyntaxErrMsg(pMsgBuf, "json string too long than 4095", pToken->z);
     }
 
     if (isNull) {
       return tTagNew(pTagVals, 1, true, pTag);
     } else {
-      return parseJsontoTagData(pToken->z, pTagVals, pTag, &pCxt->msg);
+      return parseJsontoTagData(pToken->z, pTagVals, pTag, pMsgBuf);
     }
   }
 
   if (isNull) return 0;
 
   STagVal val = {0};
-  int32_t code =
-      parseTagToken(&pStmt->pSql, pToken, pTagSchema, pStmt->pTableMeta->tableInfo.precision, &val, &pCxt->msg);
+  int32_t code = parseTagToken(pSql, pToken, pTagSchema, precision, &val, pMsgBuf);
   if (TSDB_CODE_SUCCESS == code) {
     taosArrayPush(pTagVals, &val);
   }
@@ -720,7 +693,7 @@ static int32_t buildCreateTbReq(SVnodeModifyOpStmt* pStmt, STag* pTag, SArray* p
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf) {
+int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf) {
   if ((pToken->type != TK_NOW && pToken->type != TK_TODAY && pToken->type != TK_NK_INTEGER &&
        pToken->type != TK_NK_STRING && pToken->type != TK_NK_FLOAT && pToken->type != TK_NK_BOOL &&
        pToken->type != TK_NULL && pToken->type != TK_NK_HEX && pToken->type != TK_NK_OCT &&
@@ -878,6 +851,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   SSchema* pSchema = getTableTagSchema(pStmt->pTableMeta);
   SArray*  pTagVals = taosArrayInit(pCxt->tags.numOfBound, sizeof(STagVal));
   SArray*  pTagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
+  uint8_t  precision = pStmt->pTableMeta->tableInfo.precision;
   SToken   token;
   bool     isParseBindParam = false;
   bool     isJson = false;
@@ -904,10 +878,10 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     isJson = pTagSchema->type == TSDB_DATA_TYPE_JSON;
     code = checkAndTrimValue(&token, pCxt->tmpTokenBuf, &pCxt->msg);
     if (TK_NK_VARIABLE == token.type) {
-      code = buildSyntaxErrMsg(&pCxt->msg, "not expected tags values ", token.z);
+      code = buildSyntaxErrMsg(&pCxt->msg, "not expected tags values", token.z);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = parseTagValue(pCxt, pStmt, pTagSchema, &token, pTagName, pTagVals, &pTag);
+      code = parseTagValue(&pCxt->msg, &pStmt->pSql, precision, pTagSchema, &token, pTagName, pTagVals, &pTag);
     }
   }
 

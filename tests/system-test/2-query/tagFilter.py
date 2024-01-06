@@ -1,3 +1,4 @@
+import datetime
 from util.log import *
 from util.sql import *
 from util.cases import *
@@ -53,55 +54,200 @@ class TDTestCase:
         tdSql.checkRows(0)
 
     def __ts4421(self, dbname="db", stbname='stb4421', ctbname='ctb4421'):
-        TAG_TYPE   = ['varchar', 'nchar']
-        TAG_LEN    = [2, 8, 200]
-        TAG_VAL    = [0, -200, 123456789]
-        TAG_RESULT = [True,False,False,True,True,False,True,True,True,True,False,False,True,True,False,True,True,True]
+        TAG_BIND             = [True, False]
+        TAG_TYPE             = ['varchar', 'nchar']
+        TAG_LEN              = [2, 8, 200]
+        TAG_VAL_INT          = [0, -200, 123456789]
+        TAG_VAL_STR          = ["noW()", "now", "'now'", "todAy()", "today", "\"today\"" ]
+        TAG_VAL_BOOL_INT     = [ -1, 1, 0, -0]
+        TAG_VAL_BOOL_STR     = ["TrUe", "\"true\"","fALse", "'FALSE'"]
+        TAG_VAL_TIMESTAMP    = ["now()", "NoW", "'now'", "\"now()\"", "toDay()", "toDaY", "'today'", "\"today()\"", "\"2200-01-01 08:00:00\"", "'2200-01-02'","\"2200-01-02T00:00:00.000Z\"", "'2200-01-02T00:00:00.000'", "2200-01-01 08:00:00",  "\"2200-01-02'", "2200-01-02T00:00:00.000Z"]
+        TAG_RESULT_INT       = [True,False,False,True,True,False,True,True,True,True,False,False,True,True,False,True,True,True]
+        TAG_RESULT_STR       = [False,False,False,False,False,False,False,True,True,False,True,True,False,True,True,False,True,True,False,False,False,False,False,False,False,True,True,False,True,True,False,True,True,False,True,True]
+        TAG_RESULT_BOOL      = ["True","True","False","False"]
+        TAG_RESULT_TIMESTAMP = [True, True, False, False, True, True, False, False, True, True, True, True, False, False, False]        
 
+        # check int for vartype(one tag)
         nTagCtb = 0
         for tagType in TAG_TYPE:
             for tagLen in TAG_LEN:
-                tdSql.execute(f'create stable {dbname}.{stbname}(ts timestamp, f1 int) tags(t1 %s(%d))'%(tagType, tagLen))
-                for tagVal in TAG_VAL:
-                    if TAG_RESULT[nTagCtb] == False:
-                        tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} tags(%d)'%(tagVal))
-                        tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags(%d) values(now,1)'%(tagVal))
-                        tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} tags("%d")'%(tagVal))
-                        tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags("%d") values(now,1)'%(tagVal))
-                        tdSql.error(f"create table {dbname}.{ctbname} using {dbname}.{stbname} tags('%d')"%(tagVal))
-                        tdSql.error(f"insert into {dbname}.{ctbname} using {dbname}.{stbname} tags('%d') values(now,1)"%(tagVal))
-                    else:
-                        # integer as tag value
-                        tdSql.execute(f'create table {dbname}.{ctbname} using {dbname}.stb4421 tags(%d)'%(tagVal))
-                        tdSql.execute(f'insert into {dbname}.{ctbname} values(now,1)')
-                        tdSql.query(f'select * from {dbname}.{ctbname} where t1="%s"'%(tagVal))
-                        tdSql.checkRows(1)
-                        tdSql.execute(f'drop table {dbname}.{ctbname}')
-                        tdSql.execute(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags(%d) values(now,1)'%(tagVal))
-                        tdSql.query(f"select * from {dbname}.{ctbname} where t1='%s'"%(tagVal))
-                        tdSql.checkRows(1)
-                        tdSql.execute(f'drop table {dbname}.{ctbname}')
-                        # string as tag value
-                        tdSql.execute(f'create table {dbname}.{ctbname} using {dbname}.stb4421 tags("%d")'%(tagVal))
-                        tdSql.execute(f'insert into {dbname}.{ctbname} values(now,1)')
-                        tdSql.query(f'select * from {dbname}.{ctbname} where t1="%s"'%(tagVal))
-                        tdSql.checkRows(1)
-                        tdSql.execute(f'drop table {dbname}.{ctbname}')
-                        tdSql.execute(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} tags("%d") values(now,1)'%(tagVal))
-                        tdSql.query(f'select * from {dbname}.{ctbname} where t1="%s"'%(tagVal))
-                        tdSql.checkRows(1)
-                        tdSql.execute(f'drop table {dbname}.{ctbname}')
-                        tdSql.execute(f"create table {dbname}.{ctbname} using {dbname}.stb4421 tags('%d')"%(tagVal))
-                        tdSql.execute(f"insert into {dbname}.{ctbname} values(now,1)")
-                        tdSql.query(f"select * from {dbname}.{ctbname} where t1='%s'"%(tagVal))
-                        tdSql.checkRows(1)
-                        tdSql.execute(f"drop table {dbname}.{ctbname}")
-                        tdSql.execute(f"insert into {dbname}.{ctbname} using {dbname}.{stbname} tags('%d') values(now,1)"%(tagVal))
-                        tdSql.query(f'select * from {dbname}.{ctbname} where t1="%s"'%(tagVal))
-                        tdSql.checkRows(1)
-                        tdSql.execute(f"drop table {dbname}.{ctbname}")
+                tdSql.execute(f'create stable {dbname}.{stbname}(ts timestamp, f1 int) tags(t1 %s(%d))'%(tagType,tagLen))
+                for tagVal in TAG_VAL_INT:
+                    for tagBind in TAG_BIND:
+                        if tagBind == True:
+                            bindStr = "(t1)"
+                        else:
+                            bindStr = ""
+                        tdLog.info(f'nTagCtb={nTagCtb}, tagType={tagType}, tagLen = {tagLen}, tagVal = {tagVal}, tagBind={tagBind}')
+                        if TAG_RESULT_INT[nTagCtb] == False:
+                            tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags(%d)'%(bindStr,tagVal))
+                            tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} %s tags(%d) values(now,1)'%(bindStr,tagVal))
+                            tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags("%d")'%(bindStr,tagVal))
+                            tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} %s tags("%d") values(now,1)'%(bindStr,tagVal))
+                            tdSql.error(f"create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags('%d')"%(bindStr,tagVal))
+                            tdSql.error(f"insert into {dbname}.{ctbname} using {dbname}.{stbname} %s tags('%d') values(now,1)"%(bindStr,tagVal))
+                        else:
+                            # integer as tag value
+                            tdSql.execute(f'create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags(%d)'%(bindStr,tagVal))
+                            tdSql.execute(f'insert into {dbname}.{ctbname} values(now,1)')
+                            tdSql.execute(f'insert into {dbname}.{ctbname}t using {dbname}.{stbname} %s tags(%d) values(now,1)'%(bindStr,tagVal))
+                            tdSql.query(f'select * from {dbname}.{stbname} where t1="%d"'%(tagVal))
+                            tdSql.checkRows(2)
+                            tdSql.execute(f'drop table {dbname}.{ctbname}')
+                            tdSql.execute(f'drop table {dbname}.{ctbname}t')
+                            # string as tag value
+                            tdSql.execute(f'create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags("%d")'%(bindStr,tagVal))
+                            tdSql.execute(f'insert into {dbname}.{ctbname} values(now,1)')
+                            tdSql.execute(f'insert into {dbname}.{ctbname}t using {dbname}.{stbname} %s tags("%d") values(now,1)'%(bindStr,tagVal))
+                            tdSql.query(f'select * from {dbname}.{stbname} where t1="%d"'%(tagVal))
+                            tdSql.checkRows(2)
+                            tdSql.execute(f'drop table {dbname}.{ctbname}')
+                            tdSql.execute(f'drop table {dbname}.{ctbname}t')
+                            tdSql.execute(f"create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags('%d')"%(bindStr,tagVal))
+                            tdSql.execute(f"insert into {dbname}.{ctbname} values(now,1)")
+                            tdSql.execute(f"insert into {dbname}.{ctbname}t using {dbname}.{stbname} %s tags('%d') values(now,1)"%(bindStr,tagVal))
+                            tdSql.query(f"select * from {dbname}.{stbname} where t1='%d'"%(tagVal))
+                            tdSql.checkRows(2)
+                            tdSql.execute(f'drop table {dbname}.{ctbname}')
+                            tdSql.execute(f'drop table {dbname}.{ctbname}t')
                     nTagCtb += 1
                 tdSql.execute(f'drop table {dbname}.{stbname}')
+    
+        # check int for vartype(two tags/bind tags)
+        nTagCtb = 0
+        for tagType in TAG_TYPE:
+            for tagLen in TAG_LEN:
+                tdSql.execute(f'create stable {dbname}.{stbname}(ts timestamp, f1 int) tags(t1 %s(%d),t2 %s(%d) )'%(tagType,tagLen,tagType,tagLen))
+                for tagVal in TAG_VAL_INT:
+                    for tagBind in TAG_BIND:
+                        if tagBind == True:
+                            bindStr = "(t1,t2)"
+                        else:
+                            bindStr = ""
+                        if TAG_RESULT_INT[nTagCtb] == False:
+                            tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags(%d,%d)'%(bindStr,tagVal,tagVal))
+                            tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} %s tags(%d,%d) values(now,1)'%(bindStr,tagVal,tagVal))
+                            tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags("%d","%d")'%(bindStr,tagVal,tagVal))
+                            tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} %s tags("%d","%d") values(now,1)'%(bindStr,tagVal,tagVal))
+                            tdSql.error(f"create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags('%d','%d')"%(bindStr,tagVal,tagVal))
+                            tdSql.error(f"insert into {dbname}.{ctbname} using {dbname}.{stbname} %s tags('%d','%d') values(now,1)"%(bindStr,tagVal,tagVal))
+                        else:
+                            # integer as tag value
+                            tdSql.execute(f'create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags(%d,%d)'%(bindStr,tagVal,tagVal))
+                            tdSql.execute(f'insert into {dbname}.{ctbname} values(now,1)')
+                            tdSql.execute(f'insert into {dbname}.{ctbname}t using {dbname}.{stbname} %s tags(%d,%d) values(now,1)'%(bindStr,tagVal,tagVal))
+                            tdSql.query(f"select * from {dbname}.{stbname} where t1='%d' and t2='%d'"%(tagVal,tagVal))
+                            tdSql.checkRows(2)
+                            tdSql.execute(f'drop table {dbname}.{ctbname}')
+                            tdSql.execute(f'drop table {dbname}.{ctbname}t')
+                            # string as tag value
+                            tdSql.execute(f'create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags("%d","%d")'%(bindStr,tagVal,tagVal))
+                            tdSql.execute(f'insert into {dbname}.{ctbname} values(now,1)')
+                            tdSql.execute(f'insert into {dbname}.{ctbname}t using {dbname}.{stbname} %s tags("%d","%d") values(now,1)'%(bindStr,tagVal,tagVal))
+                            tdSql.query(f'select * from {dbname}.{stbname} where t1="%d" and t2="%d"'%(tagVal,tagVal))
+                            tdSql.checkRows(2)
+                            tdSql.execute(f'drop table {dbname}.{ctbname}')
+                            tdSql.execute(f'drop table {dbname}.{ctbname}t')
+                            tdSql.execute(f"create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags('%d','%d')"%(bindStr,tagVal,tagVal))
+                            tdSql.execute(f"insert into {dbname}.{ctbname} values(now,1)")
+                            tdSql.execute(f"insert into {dbname}.{ctbname}t using {dbname}.{stbname} %s tags('%d','%d') values(now,1)"%(bindStr,tagVal,tagVal))
+                            tdSql.query(f"select * from {dbname}.{stbname} where t1='%d' and t2='%d'"%(tagVal,tagVal))
+                            tdSql.checkRows(2)
+                            tdSql.execute(f'drop table {dbname}.{ctbname}')
+                            tdSql.execute(f'drop table {dbname}.{ctbname}t')
+                    nTagCtb += 1
+                tdSql.execute(f'drop table {dbname}.{stbname}')
+
+        # check now/today for vartype
+        nTagCtb = 0
+        for tagType in TAG_TYPE:
+            for tagLen in TAG_LEN:
+                tdSql.execute(f'create stable {dbname}.{stbname}(ts timestamp, f1 int) tags(t1 %s(%d))'%(tagType,tagLen))
+                for tagVal in TAG_VAL_STR:
+                    for tagBind in TAG_BIND:
+                        if tagBind == True:
+                            bindStr = "(t1)"
+                        else:
+                            bindStr = ""
+                        if TAG_RESULT_STR[nTagCtb] == False:
+                            tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags(%s)'%(bindStr,tagVal))
+                            tdSql.error(f'insert into {dbname}.{ctbname} using {dbname}.{stbname} %s tags(%s) values(now,1)'%(bindStr,tagVal))
+                        else:
+                            tdSql.execute(f'create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags(%s)'%(bindStr,tagVal))
+                            tdSql.execute(f'insert into {dbname}.{ctbname} values(now,1)')
+                            tdSql.execute(f'insert into {dbname}.{ctbname}t using {dbname}.{stbname} %s tags(%s) values(now,1)'%(bindStr,tagVal))
+                            if tagVal.startswith("'") or tagVal.startswith("\""):
+                                tdSql.query(f'select * from {dbname}.{stbname} where t1=%s'%(tagVal))
+                            else:
+                                tdSql.query(f'select * from {dbname}.{stbname} where t1=\"%s\"'%(tagVal))
+                            tdSql.checkRows(2)
+                            tdSql.execute(f'drop table {dbname}.{ctbname}')
+                            tdSql.execute(f'drop table {dbname}.{ctbname}t')
+                    nTagCtb += 1
+                tdSql.execute(f'drop table {dbname}.{stbname}')
+
+        # check int for bool
+        nTagCtb = 0
+        tdSql.execute(f'create stable {dbname}.{stbname}(ts timestamp, f1 int) tags(t1 bool)')
+        for tagVal in TAG_VAL_BOOL_INT:
+            for tagBind in TAG_BIND:
+                if tagBind == True:
+                    bindStr = "(t1)"
+                else:
+                    bindStr = ""
+                tdSql.execute(f'create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags(%d)'%(bindStr,tagVal))
+                tdSql.execute(f'insert into {dbname}.{ctbname} values(now,1)')
+                tdSql.execute(f'insert into {dbname}.{ctbname}t using {dbname}.{stbname} %s tags(%d) values(now,1)'%(bindStr,tagVal))
+                tdSql.query(f'select * from {dbname}.{stbname} where t1=%s'%(TAG_RESULT_BOOL[nTagCtb]))
+                tdSql.checkRows(2)
+                tdSql.execute(f'drop table {dbname}.{ctbname}')
+                tdSql.execute(f'drop table {dbname}.{ctbname}t')
+            nTagCtb += 1
+        tdSql.execute(f'drop table {dbname}.{stbname}')
+
+        # check str for bool
+        nTagCtb = 0
+        tdSql.execute(f'create stable {dbname}.{stbname}(ts timestamp, f1 int) tags(t1 bool)')
+        for tagVal in TAG_VAL_BOOL_STR:
+            for tagBind in TAG_BIND:
+                if tagBind == True:
+                    bindStr = "(t1)"
+                else:
+                    bindStr = ""
+                tdSql.execute(f'create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags(%s)'%(bindStr,tagVal))
+                tdSql.execute(f'insert into {dbname}.{ctbname} values(now,1)')
+                tdSql.execute(f'insert into {dbname}.{ctbname}t using {dbname}.{stbname} %s tags(%s) values(now,1)'%(bindStr,tagVal))
+                tdSql.query(f'select * from {dbname}.{stbname} where t1=%s'%(TAG_RESULT_BOOL[nTagCtb]))
+                tdSql.checkRows(2)
+                tdSql.execute(f'drop table {dbname}.{ctbname}')
+                tdSql.execute(f'drop table {dbname}.{ctbname}t')
+            nTagCtb += 1
+        tdSql.execute(f'drop table {dbname}.{stbname}')
+
+        # check misc for timestamp
+        nTagCtb = 0
+        tdSql.execute(f'create stable {dbname}.{stbname}(ts timestamp, f1 int) tags(t1 timestamp)')
+        checkTS = datetime.datetime.today() - datetime.timedelta(days=1)
+        for tagVal in TAG_VAL_TIMESTAMP:
+            for tagBind in TAG_BIND:
+                if tagBind == True:
+                    bindStr = "(t1)"
+                else:
+                    bindStr = ""
+                if TAG_RESULT_TIMESTAMP[nTagCtb] == False:
+                    tdSql.error(f'create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags(%s)'%(bindStr,tagVal))
+                    tdSql.error(f'insert into {dbname}.{ctbname}t using {dbname}.{stbname} %s tags(%s) values(now,1)'%(bindStr,tagVal))                
+                else:
+                    tdSql.execute(f'create table {dbname}.{ctbname} using {dbname}.{stbname} %s tags(%s)'%(bindStr,tagVal))
+                    tdSql.execute(f'insert into {dbname}.{ctbname} values(now,1)')
+                    tdSql.execute(f'insert into {dbname}.{ctbname}t using {dbname}.{stbname} %s tags(%s) values(now,1)'%(bindStr,tagVal))
+                    tdSql.query(f'select * from {dbname}.{stbname} where t1>"{checkTS}"')
+                    tdSql.checkRows(2)
+                    tdSql.execute(f'drop table {dbname}.{ctbname}')
+                    tdSql.execute(f'drop table {dbname}.{ctbname}t')
+            nTagCtb += 1
+        tdSql.execute(f'drop table {dbname}.{stbname}')
+
 
     def run(self):
         tdLog.printNoPrefix("==========step1:create table")
