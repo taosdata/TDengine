@@ -139,8 +139,8 @@ if $data03 != 0 then
 endi
 
 ### bool:
-sql create table stx using mt2 tags ('NULL', '123aBc', 104, '123')
-sql create table sty using mt2 tags ('NULL', '123aBc', 104, 'xtz')
+sql_error create table stx using mt2 tags ('NULL', '123aBc', 104, '123')
+sql_error create table sty using mt2 tags ('NULL', '123aBc', 104, 'xtz')
 sql create table st4 using mt2 tags ('NULL', '123aBc', 104, 'NULL')
 sql insert into st4 (ts, col1) values(now, 1)
 sql select tag1,tag2,tag3,tag5 from st4
@@ -156,7 +156,7 @@ endi
 if $data02 != 104 then
   return -1
 endi
-if $data03 != 0 then
+if $data03 != NULL then
   print ==6== expect: NULL, actually: $data03
   return -1
 endi
@@ -306,7 +306,7 @@ if $data02 != NULL then
   print ==10== expect: NULL, actually: $data02
   return -1
 endi
-sql_error alter table st41 set tag tag_int = 'NULL'
+sql alter table st41 set tag tag_int = 'NULL'
 sql alter table st41 set tag tag_int = ''
 sql_error alter table st41 set tag tag_int = abc379
 
@@ -333,8 +333,8 @@ if $data03 != 1 then
 endi
 sql alter table st41 set tag tag_bool = 'NULL'
 sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
-if $data03 != 0 then
-  print ==14== expect: 0, actually: $data03
+if $data03 != NULL then
+  print ==14== expect: NULL, actually: $data03
   return -1
 endi
 sql alter table st41 set tag tag_bool = NULL
@@ -343,8 +343,8 @@ if $data03 != NULL then
   return -1
 endi
 
-sql alter table st41 set tag tag_bool = '123'
-sql alter table st41 set tag tag_bool = ''
+sql_error alter table st41 set tag tag_bool = '123'
+sql_error alter table st41 set tag tag_bool = ''
 sql_error alter table st41 set tag tag_bool = abc379
 
 ################### float
@@ -380,8 +380,8 @@ if $data04 != NULL then
 endi
 sql alter table st41 set tag tag_float = 'NULL'
 sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
-if $data04 != 0.00000 then
-  print ==17== expect: 0.00000, actually : $data04
+if $data04 != NULL then
+  print ==17== expect: NULL, actually : $data04
   return -1
 endi
 sql alter table st41 set tag tag_float = '54.123456'
@@ -398,8 +398,8 @@ if $data04 != -54.12346 then
 endi
 sql alter table st41 set tag tag_float = ''
 
-sql alter table st41 set tag tag_float = 'abc'
-sql alter table st41 set tag tag_float = '123abc'
+sql_error alter table st41 set tag tag_float = 'abc'
+sql_error alter table st41 set tag tag_float = '123abc'
 sql_error alter table st41 set tag tag_float = abc
 
 ################### double
@@ -428,14 +428,15 @@ if $data05 != NULL then
 endi
 sql alter table st41 set tag tag_double = 'NULL'
 sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
-if $data05 != 0.000000000 then
-  print ==20== expect: 0.000000000, actually : $data05
+if $data05 != NULL then
+  print ==20== expect: NULL, actually : $data05
   return -1
 endi
 
 sql alter table st41 set tag tag_double = ''
-sql alter table st41 set tag tag_double = 'abc'
-sql alter table st41 set tag tag_double = '123abc'
+sql alter table st41 set tag tag_double = '123'
+sql_error alter table st41 set tag tag_double = 'abc'
+sql_error alter table st41 set tag tag_double = '123abc'
 sql_error alter table st41 set tag tag_double = abc
 
 ################### bigint smallint tinyint
@@ -459,7 +460,7 @@ if $data00 != -9223372036854775807 then
 endi
 sql alter table st51 set tag tag_bigint = -9223372036854775808
 
-sql_error alter table st51 set tag tag_bigint = 'NULL'
+sql alter table st51 set tag tag_bigint = 'NULL'
 sql alter table st51 set tag tag_bigint = ''
 sql_error alter table st51 set tag tag_bigint = abc379
 
@@ -480,7 +481,7 @@ if $data01 != -32767 then
 endi
 sql alter table st51 set tag tag_smallint = -32768
 
-sql_error alter table st51 set tag tag_smallint = 'NULL'
+sql alter table st51 set tag tag_smallint = 'NULL'
 sql alter table st51 set tag tag_smallint = ''
 sql_error alter table st51 set tag tag_smallint = abc379
 
@@ -499,7 +500,7 @@ if $data02 != -127 then
 endi
 sql alter table st51 set tag tag_tinyint = '-128'
 sql_error alter table st51 set tag tag_tinyint = 128
-sql_error alter table st51 set tag tag_tinyint = 'NULL'
+sql alter table st51 set tag tag_tinyint = 'NULL'
 sql alter table st51 set tag tag_tinyint = ''
 sql_error alter table st51 set tag tag_tinyint = abc379
 

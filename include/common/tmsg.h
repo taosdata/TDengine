@@ -2733,6 +2733,7 @@ typedef struct {
   int8_t   tagType;
   uint32_t nTagVal;
   uint8_t* pTagVal;
+  SArray*  pTagArray;
   // TSDB_ALTER_TABLE_UPDATE_OPTIONS
   int8_t  updateTTL;
   int32_t newTTL;

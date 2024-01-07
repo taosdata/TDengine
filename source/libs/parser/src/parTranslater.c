@@ -9176,6 +9176,10 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
   if (NULL == pReq->tagName) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pReq->pTagArray = taosArrayInit(1, sizeof(STagVal));
+  if (NULL == pReq->pTagArray) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   pReq->colId = pSchema->colId;
   pReq->tagType = pSchema->type;
 
@@ -9185,13 +9189,7 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
   SToken  token;
   char    tokenBuf[128];
   char*   pTokenBuf = NULL;
-  bool    isJson = pSchema->type == TSDB_DATA_TYPE_JSON;
-  uint8_t precision = pTableMeta->tableInfo.precision;
-  SArray* pTagArray = taosArrayInit(1, sizeof(STagVal));
-  if (NULL == pTagArray) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  const char* tagStr = ((SValueNode*)pStmt->pVal)->literal;
+  const char* tagStr = pStmt->pVal->literal;
   NEXT_TOKEN_WITH_PREV(tagStr, token);
   if (TK_NK_STRING == token.type && token.n > tListLen(tokenBuf)) {
     pTokenBuf = taosMemoryMalloc(token.n);
@@ -9205,7 +9203,8 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pSchema, &token, NULL, pTagArray, &pTag);
+    code = parseTagValue(&pCxt->msgBuf, &tagStr, pTableMeta->tableInfo.precision, pSchema, &token, NULL,
+                         pReq->pTagArray, &pTag);
   }
   if (TSDB_CODE_SUCCESS == code && tagStr) {
     NEXT_VALID_TOKEN(tagStr, token);
@@ -9215,27 +9214,27 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    if (isJson) {
+    if (pSchema->type == TSDB_DATA_TYPE_JSON) {
       pReq->nTagVal = pTag->len;
       pReq->pTagVal = (uint8_t*)pTag;
       pStmt->pVal->datum.p = (char*)pTag;  // for free
     } else {
-      pReq->isNull = pStmt->pVal->isNull;
-      STagVal* pTagVal = taosArrayGet(pTagArray, 0);
+      STagVal* pTagVal = taosArrayGet(pReq->pTagArray, 0);
       if (pTagVal) {
-        pReq->nTagVal = pTagVal->nData;
-        pReq->pTagVal = pTagVal->pData;
-
-        // data and length are seperated for new tag format STagVal
-        if (IS_VAR_DATA_TYPE(pStmt->pVal->node.resType.type)) {
-          pReq->nTagVal = varDataLen(pReq->pTagVal);
-          pReq->pTagVal = varDataVal(pReq->pTagVal);
+        pReq->isNull = false;
+        if (IS_VAR_DATA_TYPE(pSchema->type)) {
+          pReq->nTagVal = pTagVal->nData;
+          pReq->pTagVal = pTagVal->pData;
+        } else {
+          pReq->nTagVal = pSchema->bytes;
+          pReq->pTagVal = (uint8_t*)&pTagVal->i64;
         }
+      } else {
+        pReq->isNull = true;
       }
     }
   }
 
-  taosArrayDestroy(pTagArray);
   return code;
 }
 
@@ -9460,6 +9459,13 @@ static void destoryAlterTbReq(SVAlterTbReq* pReq) {
   taosMemoryFree(pReq->colNewName);
   taosMemoryFree(pReq->tagName);
   taosMemoryFree(pReq->newComment);
+  for (int i = 0; i < taosArrayGetSize(pReq->pTagArray); ++i) {
+    STagVal* p = (STagVal*)taosArrayGet(pReq->pTagArray, i);
+    if (IS_VAR_DATA_TYPE(p->type)) {
+      taosMemoryFreeClear(p->pData);
+    }
+  }
+  taosArrayDestroy(pReq->pTagArray);
 }
 
 static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,

@@ -29,10 +29,26 @@ if $data05 != NULL then
   return -1
 endi
 
-sql_error create table st_tinyint_2  using mt_tinyint tags ('NULL')
-sql_error create table st_tinyint_3  using mt_tinyint tags ('NULL')
-sql_error create table st_tinyint_4  using mt_tinyint tags ("NULL")
-sql_error create table st_tinyint_5  using mt_tinyint tags ("NULL")
+sql create table st_tinyint_2  using mt_tinyint tags ('NULL')
+sql show tags from  st_tinyint_2
+if $data05 != NULL then
+  return -1
+endi
+sql create table st_tinyint_3  using mt_tinyint tags ('NULL')
+sql show tags from  st_tinyint_3
+if $data05 != NULL then
+  return -1
+endi
+sql create table st_tinyint_4  using mt_tinyint tags ("NULL")
+sql show tags from  st_tinyint_4
+if $data05 != NULL then
+  return -1
+endi
+sql create table st_tinyint_5  using mt_tinyint tags ("NULL")
+sql show tags from  st_tinyint_5
+if $data05 != NULL then
+  return -1
+endi
 
 sql create table st_tinyint_6  using mt_tinyint tags (-127)
 sql show tags from  st_tinyint_6
@@ -97,6 +113,40 @@ endi
 if $data01 != NULL then
   return -1
 endi
+
+sql insert into st_tinyint_2  values (now, NULL)
+sql select * from st_tinyint_2
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_tinyint_3  values (now, NULL)
+sql select * from st_tinyint_3
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_tinyint_4  values (now, NULL)
+sql select * from st_tinyint_4
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql insert into st_tinyint_5  values (now, NULL)
+sql select * from st_tinyint_5
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+
 sql insert into st_tinyint_6  values (now, 127)
 sql select * from st_tinyint_6
 if $rows != 1 then

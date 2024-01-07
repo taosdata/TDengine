@@ -29,22 +29,22 @@ if $data05 != NULL then
 endi
 sql create table st_float_2  using mt_float tags ('NULL')
 sql show tags from  st_float_2
-if $data05 != 0.00000 then
+if $data05 != NULL then
   return -1
 endi
 sql create table st_float_3  using mt_float tags ('NULL')
 sql show tags from  st_float_3
-if $data05 != 0.00000 then
+if $data05 != NULL then
   return -1
 endi
 sql create table st_float_4  using mt_float tags ("NULL")
 sql show tags from  st_float_4
-if $data05 != 0.00000 then
+if $data05 != NULL then
   return -1
 endi
 sql create table st_float_5  using mt_float tags ("NULL")
 sql show tags from  st_float_5
-if $data05 != 0.00000 then
+if $data05 != NULL then
   return -1
 endi
 sql create table st_float_6  using mt_float tags (-123.321)

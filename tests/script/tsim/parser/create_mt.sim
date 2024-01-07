@@ -187,7 +187,7 @@ sql_error create table $tb using $mt tags (abc)
 sql_error create table $tb using $mt tags ('abc')
 sql drop table if exists $tb
 sql reset query cache
-sql_error create table $tb using $mt tags (1e1)
+sql create table $tb using $mt tags (1e1)
 
 sql_error create table $tb using $mt tags ('1e1')
 sql_error create table $tb using $mt tags (2147483649)

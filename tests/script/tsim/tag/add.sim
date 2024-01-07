@@ -391,7 +391,7 @@ sql alter table $mt add tag tgcol6 bool
 sql reset query cache
 sql alter table $tb set tag tgcol4=4
 sql alter table $tb set tag tgcol5='5'
-sql alter table $tb set tag tgcol6='1'
+sql_error alter table $tb set tag tgcol6='1'
 sql reset query cache
 
 sql select * from $mt where tgcol5 = '5'
@@ -409,7 +409,7 @@ endi
 if $data03 != 5 then
   return -1
 endi
-if $data04 != 0 then
+if $data04 != NULL then
   return -1
 endi
 
