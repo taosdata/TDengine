@@ -195,6 +195,30 @@ int32_t shellRunCommand(char *command, bool recordHistory) {
   return shellRunSingleCommand(cmd);
 }
 
+
+char * strendG(const char* pstr) {
+  if(pstr == NULL) {
+    return NULL;
+  }
+
+  size_t len = strlen(pstr);
+  if(len < 4) {
+    return NULL;
+  }
+
+  char * p = (char *)pstr + len - 2;
+  if (strcmp(p, "\\G") == 0 ){
+    return p;
+  }
+
+  p = (char *)pstr + len - 3;
+  if (strcmp(p, "\\G;") == 0) {
+    return p;
+  }
+
+  return NULL;
+}
+
 void shellRunSingleCommandImp(char *command) {
   int64_t st, et;
   char   *sptr = NULL;
@@ -213,7 +237,7 @@ void shellRunSingleCommandImp(char *command) {
     }
   }
 
-  if ((sptr = strstr(command, "\\G")) != NULL) {
+  if ((sptr = strendG(command)) != NULL) {
     *sptr = '\0';
     printMode = true;  // When output to a file, the switch does not work.
   }
