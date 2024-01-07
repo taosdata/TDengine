@@ -16,6 +16,7 @@ import TabItem from '@theme/TabItem';
 
 - JDBC 原生连接：Java 应用在物理节点 1（pnode1）上使用 TSDBDriver 直接调用客户端驱动（libtaos.so 或 taos.dll）的 API 将写入和查询请求发送到位于物理节点 2（pnode2）上的 taosd 实例。
 - JDBC REST 连接：Java 应用通过 RestfulDriver 将 SQL 封装成一个 REST 请求，发送给物理节点 2 的 REST 服务器（taosAdapter），通过 REST 服务器请求 taosd 并返回结果。
+- JDBC WebSocket 连接 : 是JDBC REST 连接的一种扩展形式.JDBC Rest使用http协议,JDBC WebSocket使用WebSocket协议.使用JDBC WebSocket可以进行一些JDBC Rest不支持的操作
 
 使用 REST 连接，不依赖 TDengine 客户端驱动，可以跨平台，更加方便灵活。
 
@@ -1417,6 +1418,123 @@ public static void main(String[] args) throws Exception {
 ```
 
 > 更多 druid 使用问题请查看[官方说明](https://github.com/alibaba/druid)。
+
+### 使用连接池整合tio-boot框架
+#### tio-boot讲解
+tio-boot是一个高性能的网络框架,本章节是使用连接池和tio-boot框架整合来管理数据库连接的示例
+
+#### TDUtils 存储 DataSource
+```java
+package com.litongjava.tio.web.hello.config.utils;
+
+import javax.sql.DataSource;
+
+public class TDUtils {
+
+  public static DataSource ds;
+
+  public static void setDataSource(DataSource ds) {
+    TDUtils.ds = ds;
+  }
+}
+
+```
+- `TDUtils` 类用于全局存储和访问 `DataSource` 实例。
+- 通过 `setDataSource` 方法，可以设置一个 `DataSource` 实例，这通常是在应用启动时完成的。
+
+#### 创建配置类
+```java
+package com.litongjava.tio.web.hello.config;
+
+import com.litongjava.jfinal.aop.annotation.ABean;
+import com.litongjava.jfinal.aop.annotation.AConfiguration;
+import com.litongjava.tio.web.hello.config.utils.TDUtils;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+
+import javax.sql.DataSource;
+
+@AConfiguration
+public class TdEngineDataSourceConfig {
+
+  @ABean(destroyMethod = "close", priority = 10)
+  public DataSource hikariDataSource() {
+    HikariConfig config = new HikariConfig();
+    // jdbc properties
+    String host = "192.168.3.9";
+    int port = 6041;
+    String user = "root";
+    String pswd = "taosdata";
+    String dbName = "test_ws_parabind";
+    String driverClassName = "com.taosdata.jdbc.rs.RestfulDriver";
+    // String driverClassName = "com.taosdata.jdbc.TSDBDriver";
+
+    String jdbcUrl = getJdbcUrl(host, port, user, pswd, dbName);
+    config.setJdbcUrl(jdbcUrl);
+    config.setDriverClassName(driverClassName);
+    // connection pool configurations
+    config.setMinimumIdle(10); // minimum number of idle connection
+    config.setMaximumPoolSize(10); // maximum number of connection in the pool
+    config.setConnectionTimeout(30000); // maximum wait milliseconds for get connection from pool
+    config.setMaxLifetime(0); // maximum life time for each connection
+    config.setIdleTimeout(0); // max idle time for recycle idle connection
+    config.setConnectionTestQuery("select server_status()"); // validation query
+
+    HikariDataSource ds = new HikariDataSource(config); // create datasource
+    TDUtils.setDataSource(ds);
+    return ds;
+  }
+
+  private String getJdbcUrl(String host, int port, String user, String pswd, String dbName) {
+    // 添加batchfetch=true属性后得到的Websocket连接
+    return "jdbc:TAOS-RS://" + host + ":" + port + "/" + dbName + "?user=" + user + "&password=" + pswd
+      + "&batchfetch=true";
+  }
+}
+```
+- 这是一个配置类，用于创建和配置 `HikariDataSource`。
+- 使用了 `HikariConfig` 来设置数据库连接的详细信息，如主机名、端口、用户、密码等。
+- 配置了连接池的参数，如最小空闲连接数、最大连接数、连接超时时间等。
+- `hikariDataSource` 方法创建了 `HikariDataSource` 的实例，并使用 `TDUtils.setDataSource` 方法存储它。
+
+#### 测试获取连接
+```java
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.List;
+import java.util.Random;
+
+import com.litongjava.jfinal.plugin.activerecord.Record;
+import com.litongjava.tio.http.server.annotation.RequestPath;
+import com.litongjava.tio.web.hello.config.utils.TDUtils;
+import com.taosdata.jdbc.ws.TSWSPreparedStatement;
+
+import lombok.Cleanup;
+
+@RequestPath("/tdeingien/test")
+public class TbEngineTestController {
+
+  public String connection() throws SQLException {
+    @Cleanup
+    Connection connection = TDUtils.ds.getConnection();
+    String string = connection.toString();
+    return string;
+  }
+}
+```
+- `TbEngineTestController` 类用于测试数据库连接。
+- `connection` 方法从 `TDUtils` 获取一个 `DataSource` 实例，然后从中获取一个连接，并将连接对象的字符串表示返回。
+- `@Cleanup` 用于在操作完成后自动关闭 Connection
+
+#### 完整的代码示例
+[示例1](https://github.com/litongjava/java-ee-tio-boot-study/tree/main/tio-boot-latest-study/tio-boot-jfinal-plugins-tdengine-study)
+[示例2](https://github.com/litongjava/java-ee-tio-boot-study/tree/main/tio-boot-latest-study/tio-boot-mybatis-plus-tdengine-study)
+
+
+
 
 ### 更多示例程序
 
