@@ -65,6 +65,8 @@ typedef struct SMetaSnapReader    SMetaSnapReader;
 typedef struct SMetaSnapWriter    SMetaSnapWriter;
 typedef struct STsdbSnapReader    STsdbSnapReader;
 typedef struct STsdbSnapWriter    STsdbSnapWriter;
+typedef struct STsdbSnapRAWReader STsdbSnapRAWReader;
+typedef struct STsdbSnapRAWWriter STsdbSnapRAWWriter;
 typedef struct STqSnapReader      STqSnapReader;
 typedef struct STqSnapWriter      STqSnapWriter;
 typedef struct STqOffsetReader    STqOffsetReader;
@@ -91,7 +93,7 @@ typedef struct SQueryNode         SQueryNode;
 #define VNODE_RSMA2_DIR "rsma2"
 #define VNODE_TQ_STREAM "stream"
 
-#if SUSPEND_RESUME_TEST        // only for test purpose
+#if SUSPEND_RESUME_TEST  // only for test purpose
 #define VNODE_BUFPOOL_SEGMENTS 1
 #else
 #define VNODE_BUFPOOL_SEGMENTS 3
@@ -211,8 +213,6 @@ int32_t tsdbBegin(STsdb* pTsdb);
 // int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbCacheCommit(STsdb* pTsdb);
 int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
-// int32_t tsdbFinishCommit(STsdb* pTsdb);
-// int32_t tsdbRollbackCommit(STsdb* pTsdb);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
@@ -305,6 +305,15 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
 int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, SSnapDataHdr* pHdr);
 int32_t tsdbSnapWriterPrepareClose(STsdbSnapWriter* pWriter);
 int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback);
+// STsdbSnapRAWReader ========================================
+int32_t tsdbSnapRAWReaderOpen(STsdb* pTsdb, int64_t ever, int8_t type, STsdbSnapRAWReader** ppReader);
+int32_t tsdbSnapRAWReaderClose(STsdbSnapRAWReader** ppReader);
+int32_t tsdbSnapRAWRead(STsdbSnapRAWReader* pReader, uint8_t** ppData);
+// STsdbSnapRAWWriter ========================================
+int32_t tsdbSnapRAWWriterOpen(STsdb* pTsdb, int64_t ever, STsdbSnapRAWWriter** ppWriter);
+int32_t tsdbSnapRAWWrite(STsdbSnapRAWWriter* pWriter, SSnapDataHdr* pHdr);
+int32_t tsdbSnapRAWWriterPrepareClose(STsdbSnapRAWWriter* pWriter);
+int32_t tsdbSnapRAWWriterClose(STsdbSnapRAWWriter** ppWriter, int8_t rollback);
 // STqSnapshotReader ==
 int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapReader** ppReader);
 int32_t tqSnapReaderClose(STqSnapReader** ppReader);
@@ -511,6 +520,8 @@ enum {
   SNAP_DATA_STREAM_TASK_CHECKPOINT = 10,
   SNAP_DATA_STREAM_STATE = 11,
   SNAP_DATA_STREAM_STATE_BACKEND = 12,
+  SNAP_DATA_TQ_CHECKINFO = 13,
+  SNAP_DATA_RAW = 14,
 };
 
 struct SSnapDataHdr {

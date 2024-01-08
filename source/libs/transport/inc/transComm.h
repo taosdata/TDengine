@@ -19,15 +19,11 @@ extern "C" {
 #endif
 
 #include <uv.h>
-#include "os.h"
-#include "taoserror.h"
 #include "theap.h"
-#include "tmisce.h"
 #include "transLog.h"
 #include "transportInt.h"
 #include "trpc.h"
 #include "ttrace.h"
-#include "tutil.h"
 
 typedef void* queue[2];
 /* Private macros. */
@@ -112,13 +108,19 @@ typedef SRpcConnInfo STransHandleInfo;
 
 // ref mgt handle
 typedef struct SExHandle {
-  void*   handle;
-  int64_t refId;
-  void*   pThrd;
+  void*    handle;
+  int64_t  refId;
+  void*    pThrd;
+  queue    q;
+  int8_t   inited;
+  SRWLatch latch;
+
 } SExHandle;
 
 typedef struct {
   STransMsg* pRsp;
+  SEpSet     epSet;
+  int8_t     hasEpSet;
   tsem_t*    pSem;
   int8_t     inited;
   SRWLatch   latch;
@@ -314,7 +316,8 @@ int transReleaseSrvHandle(void* handle);
 
 int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
 int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
-int transSendRecvWithTimeout(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp, int32_t timeoutMs);
+int transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp, int8_t* epUpdated,
+                             int32_t timeoutMs);
 int transSendResponse(const STransMsg* msg);
 int transRegisterMsg(const STransMsg* msg);
 int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);

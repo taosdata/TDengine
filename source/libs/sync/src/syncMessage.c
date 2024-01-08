@@ -216,42 +216,6 @@ int32_t syncBuildHeartbeatReply(SRpcMsg* pMsg, int32_t vgId) {
   return 0;
 }
 
-#if 0
-int32_t syncBuildPreSnapshot(SRpcMsg* pMsg, int32_t vgId) {
-  int32_t bytes = sizeof(SyncPreSnapshot);
-  pMsg->pCont = rpcMallocCont(bytes);
-  pMsg->msgType = TDMT_SYNC_PRE_SNAPSHOT;
-  pMsg->contLen = bytes;
-  if (pMsg->pCont == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  SyncPreSnapshot* pPreSnapshot = pMsg->pCont;
-  pPreSnapshot->bytes = bytes;
-  pPreSnapshot->msgType = TDMT_SYNC_PRE_SNAPSHOT;
-  pPreSnapshot->vgId = vgId;
-  return 0;
-}
-
-int32_t syncBuildPreSnapshotReply(SRpcMsg* pMsg, int32_t vgId) {
-  int32_t bytes = sizeof(SyncPreSnapshotReply);
-  pMsg->pCont = rpcMallocCont(bytes);
-  pMsg->msgType = TDMT_SYNC_PRE_SNAPSHOT_REPLY;
-  pMsg->contLen = bytes;
-  if (pMsg->pCont == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  SyncPreSnapshotReply* pPreSnapshotReply = pMsg->pCont;
-  pPreSnapshotReply->bytes = bytes;
-  pPreSnapshotReply->msgType = TDMT_SYNC_PRE_SNAPSHOT_REPLY;
-  pPreSnapshotReply->vgId = vgId;
-  return 0;
-}
-#endif
-
 int32_t syncBuildSnapshotSend(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId) {
   int32_t bytes = sizeof(SyncSnapshotSend) + dataLen;
   pMsg->pCont = rpcMallocCont(bytes);
@@ -270,8 +234,8 @@ int32_t syncBuildSnapshotSend(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId) {
   return 0;
 }
 
-int32_t syncBuildSnapshotSendRsp(SRpcMsg* pMsg, int32_t vgId) {
-  int32_t bytes = sizeof(SyncSnapshotRsp);
+int32_t syncBuildSnapshotSendRsp(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId) {
+  int32_t bytes = sizeof(SyncSnapshotRsp) + dataLen;
   pMsg->pCont = rpcMallocCont(bytes);
   pMsg->msgType = TDMT_SYNC_SNAPSHOT_RSP;
   pMsg->contLen = bytes;

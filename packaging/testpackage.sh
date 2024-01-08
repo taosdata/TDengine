@@ -20,7 +20,7 @@ scriptDir=$(dirname $(readlink -f $0))
 version="3.0.1.7"
 originversion="3.0.1.7"
 testFile="server"
-verMode="communtity"
+verMode="community"
 sourcePath="nas"
 cpuType="x64"
 lite="true"
@@ -79,7 +79,11 @@ GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
 if [[ ${verMode} = "enterprise" ]];then
-    prePackage="TDengine-enterprise-${testFile}"
+    if [ "${testFile}" == "server" ];then
+        prePackage="TDengine-enterprise"
+    elif [ "${testFile}" == "client" ];then
+        prePackage="TDengine-enterprise-client"
+    fi
 elif [ ${verMode} = "community" ];then
     prePackage="TDengine-${testFile}"
 fi
@@ -105,9 +109,9 @@ elif [ ${testFile} = "client" ];then
 elif [ ${testFile} = "tools" ];then
     tdPath="taosTools-${version}"
     originTdpPath="taosTools-${originversion}"
-    packageName="${tdPath}-Linux-${cpuType}${packageLite}.${packageType}"
+    packageName="${tdPath}-Linux-${cpuType}${packageLite}-comp3.${packageType}"
     originPackageName="${originTdpPath}-Linux-${cpuType}${packageLite}.${packageType}"    
-    installCmd="install-taostools.sh"
+    installCmd="install-tools.sh"
 fi
 
 
@@ -145,41 +149,35 @@ elif [ ${color} = 'BD' ];then
 fi
 }
 
-
-
 function wgetFile {
+    file=$1
+    versionPath=$2
+    sourceP=$3
+    nasServerIP="192.168.1.213"
+    packagePath="/nas/TDengine/v${versionPath}/${verMode}"
+    if [ -f  ${file}  ];then
+        echoColor  YD "${file} already exists ,it will delete it and download  it again "
+        rm -rf ${file}
+    fi
 
-file=$1
-versionPath=$2
-sourceP=$3
-nasServerIP="192.168.1.213"
-packagePath="/nas/TDengine/v${versionPath}/${verMode}"
-if [ -f  ${file}  ];then
-    echoColor  YD "${file} already exists ,it will delete it and download  it again "
-    rm -rf ${file}
-fi
-
-if [[ ${sourceP} = 'web' ]];then
-    echoColor  BD "====download====:wget https://www.taosdata.com/assets-download/3.0/${file}"
-    wget https://www.taosdata.com/assets-download/3.0/${file}
-elif [[ ${sourceP} = 'nas' ]];then
-    echoColor  BD "====download====:scp root@${nasServerIP}:${packagePath}/${file} ."
-    scp root@${nasServerIP}:${packagePath}/${file} .
-fi
-
+    if [[ ${sourceP} = 'web' ]];then
+        echoColor  BD "====download====:wget https://www.taosdata.com/assets-download/3.0/${file}"
+        wget https://www.taosdata.com/assets-download/3.0/${file}
+    elif [[ ${sourceP} = 'nas' ]];then
+        echoColor  BD "====download====:scp root@${nasServerIP}:${packagePath}/${file} ."
+        scp root@${nasServerIP}:${packagePath}/${file} .
+    fi
 }
 
 function newPath {
+    buildPath=$1
 
-buildPath=$1
-
-if [ ! -d ${buildPath} ] ;then
-    echoColor BD "mkdir -p ${buildPath}"
-    mkdir -p ${buildPath}
-else  
-    echoColor YD "${buildPath} already exists"
-fi
-
+    if [ ! -d ${buildPath} ] ;then
+        echoColor BD "mkdir -p ${buildPath}"
+        mkdir -p ${buildPath}
+    else  
+        echoColor YD "${buildPath} already exists"
+    fi
 }
 
 
@@ -193,10 +191,25 @@ echoColor G "===== Uninstall all components of TDeingne ====="
 
 if command -v rmtaos ;then
     echoColor YD "uninstall all components of TDeingne:rmtaos"
-    rmtaos 
+    echo "n" | rmtaos 
 else 
      echoColor YD "os doesn't include TDengine"
 fi
+
+if [[ -e /etc/os-release ]]; then
+  osinfo=$(cat /etc/os-release | grep "NAME" | cut -d '"' -f2) || :
+else
+  osinfo=""
+fi
+
+if echo $osinfo | grep -qwi "ubuntu"; then
+  #  echo "This is ubuntu system"
+  apt remove tdengine -y
+elif echo $osinfo | grep -qwi "centos"; then
+  #  echo "This is centos system"
+  yum remove tdengine -y
+fi
+
 
 if command -v rmtaostools ;then
     echoColor YD "uninstall all components of TDeingne:rmtaostools"
@@ -205,11 +218,8 @@ else
     echoColor YD "os doesn't include rmtaostools "
 fi
 
-
-if [[ ${packageName} =~ "server" ]] ;then
-    echoColor BD " pkill -9 taosd "
-    pkill -9 taosd
-fi
+echoColor BD " pkill -9 taosd "
+pkill -9 taosd
 
 
 echoColor G "===== new workroom path ====="
@@ -329,25 +339,25 @@ cd ${installPath}
 if [[ ${packageName} =~ "Lite" ]]  ||   ([[ ${packageName} =~ "x64" ]] && [[ ${packageName} =~ "client" ]]) ||  ([[ ${packageName} =~ "deb" ]] && [[ ${packageName} =~ "server" ]])  || ([[ ${packageName} =~ "rpm" ]] && [[ ${packageName} =~ "server" ]]) ;then
     echoColor G "===== install taos-tools when package is lite or client ====="
     cd ${installPath}
-    if [ ! -f "taosTools-2.1.3-Linux-x64.tar.gz " ];then
-        wgetFile taosTools-2.1.3-Linux-x64.tar.gz v2.1.3 web
-        tar xf taosTools-2.1.3-Linux-x64.tar.gz  
+    if [ ! -f "taosTools-2.5.4-Linux-x64.tar.gz " ];then
+        wgetFile taosTools-2.5.3-Linux-x64-comp3.tar.gz v2.5.3 web
+        tar xf taosTools-2.5.3-Linux-x64-comp3.tar.gz  
     fi
-    cd taosTools-2.1.3 && bash install-taostools.sh
+    cd taosTools-2.5.3 && bash install-tools.sh
 elif  ([[ ${packageName} =~ "arm64" ]] && [[ ${packageName} =~ "client" ]]);then
     echoColor G "===== install taos-tools arm when package is arm64-client ====="
     cd ${installPath}
-    if [ ! -f "taosTools-2.1.3-Linux-x64.tar.gz " ];then
-        wgetFile taosTools-2.1.3-Linux-arm64.tar.gz v2.1.3 web
-        tar xf taosTools-2.1.3-Linux-arm64.tar.gz
+    if [ ! -f "taosTools-2.5.3-Linux-x64-comp3.tar.gz " ];then
+        wgetFile taosTools-2.5.3-Linux-arm64-comp3.tar.gz v2.5.3 web
+        tar xf taosTools-2.5.3-Linux-arm64-comp3.tar.gz
     fi    
     
-    cd taosTools-2.1.3 && bash install-taostools.sh
+    cd taosTools-2.5.3 && bash install-tools.sh
 fi
 
 echoColor G  "===== start TDengine ====="
 
-if [[ ${packageName} =~ "server" ]] ;then
+if [[ ! ${packageName} =~ "client" ]] ;then
     echoColor BD " rm -rf /var/lib/taos/* &&  systemctl restart taosd "
     rm -rf /var/lib/taos/*
     systemctl restart taosd

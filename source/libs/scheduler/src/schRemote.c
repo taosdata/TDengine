@@ -1174,7 +1174,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       qMsg.queryId = pJob->queryId;
       qMsg.taskId = pTask->taskId;
       qMsg.refId = pJob->refId;
-      qMsg.execId = pTask->execId;
+      qMsg.execId = *(int32_t*)param;
 
       msgSize = tSerializeSTaskDropReq(NULL, 0, &qMsg);
       if (msgSize < 0) {

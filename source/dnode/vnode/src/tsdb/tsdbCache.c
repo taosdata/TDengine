@@ -814,9 +814,17 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   int32_t               code = 0;
   rocksdb_writebatch_t *wb = NULL;
   SArray               *pTmpColArray = NULL;
-  int                   num_keys = TARRAY_SIZE(remainCols);
-  int16_t              *aCols = taosMemoryMalloc(num_keys * sizeof(int16_t));
-  int16_t              *slotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
+
+  SIdxKey *idxKey = taosArrayGet(remainCols, 0);
+  if (idxKey->key.cid != PRIMARYKEY_TIMESTAMP_COL_ID) {
+    SLastKey *key = &(SLastKey){.ltype = ltype, .uid = uid, .cid = PRIMARYKEY_TIMESTAMP_COL_ID};
+
+    taosArrayInsert(remainCols, 0, &(SIdxKey){0, *key});
+  }
+
+  int      num_keys = TARRAY_SIZE(remainCols);
+  int16_t *aCols = taosMemoryMalloc(num_keys * sizeof(int16_t));
+  int16_t *slotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
 
   for (int i = 0; i < num_keys; ++i) {
     SIdxKey *idxKey = taosArrayGet(remainCols, i);
@@ -960,6 +968,7 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
   taosMemoryFree(values_list_sizes);
 
   if (TARRAY_SIZE(remainCols) > 0) {
+    // tsdbTrace("tsdb/cache: vgId: %d, load %" PRId64 " from raw", TD_VID(pTsdb->pVnode), uid);
     code = tsdbCacheLoadFromRaw(pTsdb, uid, pLastArray, remainCols, pr, ltype);
   }
 
@@ -1019,6 +1028,7 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
       }
     }
 
+    // tsdbTrace("tsdb/cache: vgId: %d, load %" PRId64 " from rocks", TD_VID(pTsdb->pVnode), uid);
     code = tsdbCacheLoadFromRocks(pTsdb, uid, pLastArray, remainCols, pr, ltype);
 
     taosThreadMutexUnlock(&pTsdb->lruMutex);
@@ -1098,15 +1108,21 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
 
     // taosThreadMutexLock(&pTsdb->lruMutex);
 
+    bool       erase = false;
     LRUHandle *h = taosLRUCacheLookup(pTsdb->lruCache, keys_list[i], klen);
     if (h) {
       SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pTsdb->lruCache, h);
       if (pLastCol->dirty) {
         pLastCol->dirty = 0;
       }
+      if (pLastCol->ts <= eKey && pLastCol->ts >= sKey) {
+        erase = true;
+      }
       taosLRUCacheRelease(pTsdb->lruCache, h, true);
     }
-    taosLRUCacheErase(pTsdb->lruCache, keys_list[i], klen);
+    if (erase) {
+      taosLRUCacheErase(pTsdb->lruCache, keys_list[i], klen);
+    }
 
     h = taosLRUCacheLookup(pTsdb->lruCache, keys_list[num_keys + i], klen);
     if (h) {
@@ -1114,10 +1130,14 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
       if (pLastCol->dirty) {
         pLastCol->dirty = 0;
       }
+      if (pLastCol->ts <= eKey && pLastCol->ts >= sKey) {
+        erase = true;
+      }
       taosLRUCacheRelease(pTsdb->lruCache, h, true);
     }
-    taosLRUCacheErase(pTsdb->lruCache, keys_list[num_keys + i], klen);
-
+    if (erase) {
+      taosLRUCacheErase(pTsdb->lruCache, keys_list[num_keys + i], klen);
+    }
     // taosThreadMutexUnlock(&pTsdb->lruMutex);
   }
   for (int i = 0; i < num_keys; ++i) {
@@ -1774,7 +1794,7 @@ static int32_t lastIterOpen(SFSLastIter *iter, STFileSet *pFileSet, STsdb *pTsdb
       .suid = suid,
       .pTsdb = pTsdb,
       .timewindow = (STimeWindow){.skey = lastTs, .ekey = TSKEY_MAX},
-      .verRange = (SVersionRange){.minVer = 0, .maxVer = UINT64_MAX},
+      .verRange = (SVersionRange){.minVer = 0, .maxVer = INT64_MAX},
       .strictTimeRange = false,
       .pSchema = pTSchema,
       .pCurrentFileset = pFileSet,
@@ -2651,6 +2671,13 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
           break;
         }
         SLastCol *pCol = taosArrayGet(pColArray, iCol);
+        if (slotIds[iCol] > pTSchema->numOfCols - 1) {
+          if (!setNoneCol) {
+            noneCol = iCol;
+            setNoneCol = true;
+          }
+          continue;
+        }
         if (pCol->colVal.cid != pTSchema->columns[slotIds[iCol]].colId) {
           continue;
         }
@@ -2825,6 +2852,9 @@ static int32_t mergeLastRowCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray,
         break;
       }
       SLastCol *pCol = taosArrayGet(pColArray, iCol);
+      if (slotIds[iCol] > pTSchema->numOfCols - 1) {
+        continue;
+      }
       if (pCol->colVal.cid != pTSchema->columns[slotIds[iCol]].colId) {
         continue;
       }

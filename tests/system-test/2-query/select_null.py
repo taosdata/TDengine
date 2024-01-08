@@ -401,7 +401,29 @@ class TDTestCase:
         tdSql.execute(sql) 
         sql = "select * from %s.`12345` order by `567` desc limit 2;"%(database)
         tdSql.error(sql) 
-                            
+
+    def td_27939(self,database): 
+        sql = "create table %s.`test1eq2` (`ts` timestamp, id int);"%(database)
+        tdSql.execute(sql)
+
+        sql = "insert into %s.test1eq2 values (now,1);"%(database)
+        tdSql.execute(sql) 
+        
+        sql = "insert into %s.`test1eq2` values (now,2);"%(database)
+        tdSql.execute(sql) 
+
+        sql = "select * from %s.`test1eq2` where 1=2;"%(database)
+        tdSql.query(sql) 
+        tdSql.checkRows(0)
+
+        sql = "select * from (select * from %s.`test1eq2` where 1=2);"%(database)
+        tdSql.query(sql) 
+        tdSql.checkRows(0)
+
+        sql = "drop table %s.`test1eq2` ;"%(database)
+        tdSql.execute(sql)
+
+
     def run(self):    
         startTime = time.time()  
                   
@@ -418,6 +440,8 @@ class TDTestCase:
         self.ts_3110("%s" %self.db)
         self.ts_23505("%s" %self.db)
         self.ts_3036("%s" %self.db)
+
+        self.td_27939("%s" %self.db)
         
         tdSql.query("flush database %s" %self.db) 
         
@@ -430,8 +454,9 @@ class TDTestCase:
         self.ts_3110("%s" %self.db)
         self.ts_23505("%s" %self.db)
         self.ts_3036("%s" %self.db)
-            
-            
+
+        self.td_27939("%s" %self.db)
+
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
     

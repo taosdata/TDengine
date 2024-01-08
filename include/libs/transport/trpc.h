@@ -41,7 +41,7 @@ typedef struct {
 
 typedef struct SRpcHandleInfo {
   // rpc info
-  void   *handle;         // rpc handle returned to app
+  void *  handle;         // rpc handle returned to app
   int64_t refId;          // refid, used by server
   int8_t  noResp;         // has response or not(default 0, 0: resp, 1: no resp)
   int8_t  persistHandle;  // persist handle or not
@@ -54,7 +54,7 @@ typedef struct SRpcHandleInfo {
   void *node;     // node mgmt handle
 
   // resp info
-  void   *rsp;
+  void *  rsp;
   int32_t rspLen;
 
   STraceId traceId;
@@ -64,7 +64,7 @@ typedef struct SRpcHandleInfo {
 
 typedef struct SRpcMsg {
   tmsg_t         msgType;
-  void          *pCont;
+  void *         pCont;
   int32_t        contLen;
   int32_t        code;
   SRpcHandleInfo info;
@@ -79,7 +79,7 @@ typedef void (*RpcDfp)(void *ahandle);
 typedef struct SRpcInit {
   char     localFqdn[TSDB_FQDN_LEN];
   uint16_t localPort;     // local port
-  char    *label;         // for debug purpose
+  char *   label;         // for debug purpose
   int32_t  numOfThreads;  // number of threads to handle connections
   int32_t  sessions;      // number of sessions allowed
   int8_t   connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
@@ -119,7 +119,7 @@ typedef struct SRpcInit {
   int32_t timeToGetConn;
   int8_t  supportBatch;  // 0: no batch, 1. batch
   int32_t batchSize;
-  void   *parent;
+  void *  parent;
 } SRpcInit;
 
 typedef struct {
@@ -129,12 +129,12 @@ typedef struct {
 
 typedef struct {
   int32_t msgType;
-  void   *val;
+  void *  val;
   int32_t (*clone)(void *src, void **dst);
 } SRpcBrokenlinkVal;
 
 typedef struct {
-  SHashObj         *args;
+  SHashObj *        args;
   SRpcBrokenlinkVal brokenVal;
   void (*freeFunc)(const void *arg);
 } SRpcCtx;
@@ -160,9 +160,12 @@ int rpcReleaseHandle(void *handle, int8_t type);  // just release conn to rpc in
 // These functions will not be called in the child process
 int   rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);
 int   rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
-int   rpcSendRecvWithTimeout(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp, int32_t timeoutMs);
+int   rpcSendRecvWithTimeout(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp, int8_t *epUpdated,
+                             int32_t timeoutMs);
 int   rpcSetDefaultAddr(void *thandle, const char *ip, const char *fqdn);
 void *rpcAllocHandle();
+
+int32_t rpcCvtErrCode(int32_t code);
 
 #ifdef __cplusplus
 }

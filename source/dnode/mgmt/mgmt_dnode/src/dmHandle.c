@@ -121,19 +121,25 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
                     .msgType = TDMT_MND_STATUS,
                     .info.ahandle = (void *)0x9527,
                     .info.refId = 0,
-                    .info.noResp = 0};
+                    .info.noResp = 0,
+                    .info.handle = 0};
   SRpcMsg rpcRsp = {0};
 
   dTrace("send status req to mnode, dnodeVer:%" PRId64 " statusSeq:%d", req.dnodeVer, req.statusSeq);
 
+  int8_t epUpdated = 0;
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
-  rpcSendRecvWithTimeout(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp, 5000);
+  rpcSendRecvWithTimeout(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, 5000);
   if (rpcRsp.code != 0) {
     dmRotateMnodeEpSet(pMgmt->pData);
-    char tbuf[256];
+    char tbuf[512] = {0};
     dmEpSetToStr(tbuf, sizeof(tbuf), &epSet);
     dError("failed to send status req since %s, epSet:%s, inUse:%d", tstrerror(rpcRsp.code), tbuf, epSet.inUse);
+  } else {
+    if (epUpdated == 1) {
+      dmSetMnodeEpSet(pMgmt->pData, &epSet);
+    }
   }
   dmProcessStatusRsp(pMgmt, &rpcRsp);
 }
@@ -161,7 +167,8 @@ void dmSendNotifyReq(SDnodeMgmt *pMgmt) {
                     .msgType = TDMT_MND_NOTIFY,
                     .info.ahandle = (void *)0x9527,
                     .info.refId = 0,
-                    .info.noResp = 1};
+                    .info.noResp = 1,
+                    .info.handle = 0};
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
