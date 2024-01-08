@@ -1318,9 +1318,7 @@ int32_t shellExecute() {
  if(shell.args.is_bi_mode) { 
   // need set bi mode
   printf("Set BI mode is true.\n");
-#ifdef WEBSOCKET
-    //ws_taos_set_conn_mode(shell.ws_conn, TAOS_CONN_MODE_BI, 1);
-#else
+#ifndef WEBSOCKET
     taos_set_conn_mode(shell.conn, TAOS_CONN_MODE_BI, 1);
 #endif
  }
