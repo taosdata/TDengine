@@ -4513,15 +4513,6 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
       SExprNode* pExpr = (SExprNode*)pProject;
       SNode* activeNode = pProject;
       if (0 == strcmp(((SColumnRefNode*)*pNode)->colName, pExpr->aliasName)) {
-        if(QUERY_NODE_FUNCTION == pProject->type && strcmp(((SFunctionNode*)pProject)->functionName, "_select_value") == 0) {
-          SNode*     paramNode = NULL;
-          FOREACH(paramNode, ((SFunctionNode*)pProject)->pParameterList) {
-            SExprNode* pExpr2 = (SExprNode*)pProject;
-            if (0 == strcmp(((SColumnRefNode*)*pNode)->colName, pExpr2->aliasName)) {
-              activeNode = paramNode;
-            }
-          }
-        }
         SNode* pNew = nodesCloneNode(activeNode);
         if (NULL == pNew) {
           pCxt->pTranslateCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;

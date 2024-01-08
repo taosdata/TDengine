@@ -1477,6 +1477,16 @@ void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
         SValueNode* pvn = (SValueNode*)p1;
         pExp->base.pParam[j].type = FUNC_PARAM_TYPE_VALUE;
         nodesValueNodeToVariant(pvn, &pExp->base.pParam[j].param);
+      } else if (p1->type == QUERY_NODE_FUNCTION) {
+        if (strcmp(((SFunctionNode*)p1)->functionName, "_select_value") == 0 &&
+          ((SFunctionNode*)p1)->pParameterList->length == 1 &&
+          ((SFunctionNode*)p1)->pParameterList->pHead->pNode->type == QUERY_NODE_COLUMN) {
+            SColumnNode* pcn = (SColumnNode*)(((SFunctionNode*)p1)->pParameterList->pHead->pNode);
+            SValueNode* pvn = (SValueNode*)p1;
+            pExp->base.pParam[j].type = FUNC_PARAM_TYPE_COLUMN;
+            pExp->base.pParam[j].pCol =
+              createColumn(pcn->dataBlockId, pcn->slotId, pcn->colId, &pcn->node.resType, pcn->colType);
+        }
       }
     }
   } else if (type == QUERY_NODE_OPERATOR) {
