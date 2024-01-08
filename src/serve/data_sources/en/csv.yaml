@@ -27,15 +27,30 @@ groups:
         hint:
           type: integer
           min: 0
-      
-  - name: Write Options
-    display_order: 2
-    description: Writing options
-    params:
-      - name: batch_size
-        display: Batch Size
-        value: 1000
-        description: Batch size of records.
-        hint:
-          type: integer
-          min: 1
+
+advanced:
+  name: Advanced Options
+  collapsible: true
+  description: |
+    Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave
+    these options as default to use the recommended settings.
+  params:
+    - name: read_concurrency
+      display: Read Concurrency
+      hidden: true
+      description: |
+        The number of concurrent read requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.
+      value: 0
+      hint:
+        type: integer
+        min: 0
+        max: 1000
+    - name: batch_size
+      display: Batch Size
+      description: |
+        The number of data points to be written in a single request. The default value is 1000. If the data source is slow to respond, you can reduce this value appropriately.
+      value: 1000
+      hint:
+        type: integer
+        min: 1
+        max: 100000
