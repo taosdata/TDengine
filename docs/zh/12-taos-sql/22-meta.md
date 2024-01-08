@@ -98,8 +98,8 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 10  |        buffer        | INT              | 每个 vnode 写缓存的内存块大小，单位 MB。需要注意，`buffer` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。           |
 | 11  |       pagesize       | INT              | 每个 VNODE 中元数据存储引擎的页大小，单位为 KB。需要注意，`pagesize` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。   |
 | 12  |        pages         | INT              | 每个 vnode 元数据存储引擎的缓存页个数。需要注意，`pages` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。            |
-| 13  |       minrows        | INT              | 文件块中记录的最大条数。需要注意，`minrows` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                           |
-| 14  |       maxrows        | INT              | 文件块中记录的最小条数。需要注意，`maxrows` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                           |
+| 13  |       minrows        | INT              | 文件块中记录的最小条数。需要注意，`minrows` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                           |
+| 14  |       maxrows        | INT              | 文件块中记录的最大条数。需要注意，`maxrows` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                           |
 | 15  |         comp         | INT              | 数据压缩方式。需要注意，`comp` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                     |
 | 16  |      precision       | VARCHAR(2)       | 时间分辨率。需要注意，`precision` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                       |
 | 17  |        status        | VARCHAR(10)      | 数据库状态                                       |
