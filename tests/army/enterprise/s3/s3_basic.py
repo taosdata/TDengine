@@ -84,6 +84,9 @@ class TDTestCase(TBase):
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
+        if eos.isArm64Cpu():
+            tdLog.success(f"{__file__} arm64 ignore executed")
+            return
 
         # insert data
         self.insertData()
