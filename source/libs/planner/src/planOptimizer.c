@@ -4622,8 +4622,9 @@ static void tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* pSc
 
   // add head tsma if possible
   if (!isSkeyAlignedWithTsma) {
-    scanRange.ekey = TMIN(scanRange.ekey, taosTimeAdd(startOfSkeyFirstWin, pInterval->interval * 1,
-                                                      pInterval->intervalUnit, pTsmaOptCtx->precision));
+    scanRange.ekey = TMIN(
+        scanRange.ekey,
+        taosTimeAdd(startOfSkeyFirstWin, pInterval->interval * 1, pInterval->intervalUnit, pTsmaOptCtx->precision) - 1);
     const STSMAOptUsefulTsma* pTsmaFound = tsmaOptFindUsefulTsma(
         pTsmaOptCtx->pUsefulTsmas, tsmaStartIdx + 1, pScanRange->skey - startOfSkeyFirstWin, pTsmaOptCtx->precision);
     STSMAOptUsefulTsma usefulTsma = {.pTsma = pTsmaFound ? pTsmaFound->pTsma : NULL,

@@ -2045,7 +2045,7 @@ static int32_t createMergePhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildre
     if (TSDB_CODE_SUCCESS == code) {
       for (int32_t j = 0; j < pMergeLogicNode->numOfSubplans; ++j) {
         for (int32_t i = 0; i < pMerge->numOfChannels; ++i) {
-          code = createExchangePhysiNodeByMerge(pMerge, 0);
+          code = createExchangePhysiNodeByMerge(pMerge, j);
           if (TSDB_CODE_SUCCESS != code) {
             break;
           }
