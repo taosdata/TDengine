@@ -122,10 +122,11 @@ class VnodeSplit(TDCase):
             }
         ]
         if "cluster_common_insert.yaml" in " ".join(sys.argv):
+            self.fill_history_rows = 5000
             self.insert_rows = 10000
             self.thread_count = 20
             self.trying_interval = 30000
-            self.childtable_count = 3000
+            self.childtable_count = 2500
         self.start_split_row_count = self.fill_history_rows * self.childtable_count
 
     def desc(self):
