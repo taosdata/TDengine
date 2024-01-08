@@ -1448,7 +1448,7 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   pCxt->pCreateStreamReq->fillNullCols = NULL;
   pCxt->pCreateStreamReq->igUpdate = 0;
   // TODO what's this tiemstamp?
-  pCxt->pCreateStreamReq->lastTs = 1685959190000;
+  pCxt->pCreateStreamReq->lastTs = 1704442278000;
   pCxt->pCreateStreamReq->ast = strdup(pCxt->pCreateSmaReq->ast);
   pCxt->pCreateStreamReq->sql = strdup(pCxt->pCreateSmaReq->sql);
 
