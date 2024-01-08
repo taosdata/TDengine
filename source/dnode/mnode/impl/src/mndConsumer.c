@@ -885,7 +885,7 @@ static void updateConsumerStatus(SMqConsumerObj *pConsumer) {
   if (taosArrayGetSize(pConsumer->rebNewTopics) == 0 && taosArrayGetSize(pConsumer->rebRemovedTopics) == 0) {
     if (status == MQ_CONSUMER_STATUS_REBALANCE) {
       pConsumer->status = MQ_CONSUMER_STATUS_READY;
-    } else if (status == MQ_CONSUMER_STATUS_READY) {
+    } else if (status == MQ_CONSUMER_STATUS_READY && taosArrayGetSize(pConsumer->currentTopics) == 0) {
       pConsumer->status = MQ_CONSUMER_STATUS_LOST;
     }
   }
