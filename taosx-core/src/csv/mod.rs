@@ -286,7 +286,7 @@ impl CsvSource {
             .context("Invalid batch_size value")?;
         let concurrent: usize = dsn
             .params
-            .remove("concurrent")
+            .remove("read_concurrency")
             .unwrap_or("2".to_string())
             .parse()
             .context("Invalid concurrent value")?;
@@ -364,6 +364,7 @@ impl CsvSource {
 
         Ok(samples)
     }
+
     fn is_same_header(
         old_header: &Vec<String>,
         new_header: &Vec<String>,
@@ -724,15 +725,9 @@ async fn test_csv_source() -> anyhow::Result<()> {
 */
 
 pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
-    if let Err(err) = CsvSource::new(&mut from.clone(), 0) {
-        return DataSourceValidation::invalid("csv".to_string(), err.to_string());
+    return if let Err(err) = CsvSource::new(&mut from.clone(), 0) {
+        DataSourceValidation::invalid("csv".to_string(), err.to_string())
     } else {
-        return DataSourceValidation {
-            valid: true,
-            support: true,
-            data_source: "csv".to_string(),
-            version: None,
-            message: None,
-        };
-    }
+        DataSourceValidation::valid("csv".to_string(), None)
+    };
 }

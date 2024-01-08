@@ -26,16 +26,28 @@ groups:
         hint:
           type: integer
           min: 0
-      
-  - name: CSV 写入配置
-    display_order: 2
-    description: CSV 写入参数设置
-    params:
-      - name: batch_size
-        display: 批次写入量
-        value: 1000
-        short_description: 批次写入量。
-        description: 批次写入量。
-        hint:
-          type: integer
-          min: 1
+
+advanced:
+  name: 高级选项
+  collapsible: true
+  description: |
+    对数据源性能、日志等其他参数进行调整，可修改以下选项。
+  params:
+    - name: read_concurrency
+      display: 最大读取并发数
+      description: |
+        数据源连接数或读取线程数限制，当默认参数不满足需要或需要调整资源使用量时修改此参数。
+      value: 0
+      hint:
+        type: integer
+        min: 0
+        max: 1000
+    - name: batch_size
+      display: 批次大小
+      description: |
+        单次发送的最大消息数或行数。
+      value: 1000
+      hint:
+        type: integer
+        min: 1
+        max: 100000
