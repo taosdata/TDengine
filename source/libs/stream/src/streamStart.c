@@ -154,8 +154,7 @@ int32_t streamTaskStartScanHistory(SStreamTask* pTask) {
   int32_t     level = pTask->info.taskLevel;
   ETaskStatus status = streamTaskGetStatus(pTask)->state;
 
-  ASSERT(pTask->status.downstreamReady == 1 &&
-         ((status == TASK_STATUS__SCAN_HISTORY)/* || (status == TASK_STATUS__STREAM_SCAN_HISTORY)*/));
+  ASSERT((pTask->status.downstreamReady == 1) && (status == TASK_STATUS__SCAN_HISTORY));
 
   if (level == TASK_LEVEL__SOURCE) {
     return doStartScanHistoryTask(pTask);
@@ -546,7 +545,11 @@ int32_t streamSetParamForScanHistory(SStreamTask* pTask) {
 
 int32_t streamResetParamForScanHistory(SStreamTask* pTask) {
   stDebug("s-task:%s reset operator option for scan-history data", pTask->id.idStr);
-  return qResetStreamOperatorOptionForScanHistory(pTask->exec.pExecutor);
+  if (pTask->exec.pExecutor != NULL) {
+    return qResetStreamOperatorOptionForScanHistory(pTask->exec.pExecutor);
+  } else {
+    return TSDB_CODE_SUCCESS;
+  }
 }
 
 int32_t streamRestoreParam(SStreamTask* pTask) {
