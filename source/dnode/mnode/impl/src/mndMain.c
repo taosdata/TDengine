@@ -287,7 +287,7 @@ static void *mndThreadFp(void *param) {
     if (lastTime % 10 != 0) continue;
 
     int64_t sec = lastTime / 10;
-    if (sec % tsTtlPushIntervalSec == 0) {
+    if (tsTtlPushIntervalSec != 0 && sec % tsTtlPushIntervalSec == 0) {
       mndPullupTtl(pMnode);
     }
 

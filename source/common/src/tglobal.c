@@ -254,7 +254,7 @@ int32_t tsStreamCheckpointInterval = 60;
 float   tsSinkDataRate = 2.0;
 int32_t tsStreamNodeCheckInterval = 15;
 int32_t tsTtlUnit = 86400;
-int32_t tsTtlPushIntervalSec = 10;
+int32_t tsTtlPushIntervalSec = 0;  // interval of drop table by ttl in all vgroups. if 0, mnd will not push drop req
 int32_t tsTrimVDbIntervalSec = 60 * 60;  // interval of trimming db in all vgroups
 int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
@@ -718,7 +718,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
       0)
     return -1;
   if (cfgAddInt32(pCfg, "ttlUnit", tsTtlUnit, 1, 86400 * 365, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
-  if (cfgAddInt32(pCfg, "ttlPushInterval", tsTtlPushIntervalSec, 1, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
+  if (cfgAddInt32(pCfg, "ttlPushInterval", tsTtlPushIntervalSec, 0, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
     return -1;
   if (cfgAddInt32(pCfg, "ttlBatchDropNum", tsTtlBatchDropNum, 0, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
     return -1;
