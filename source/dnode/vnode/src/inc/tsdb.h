@@ -390,6 +390,7 @@ struct STbData {
   tb_uid_t     uid;
   TSKEY        minKey;
   TSKEY        maxKey;
+  SRWLatch     lock;
   SDelData    *pHead;
   SDelData    *pTail;
   SMemSkipList sl;
