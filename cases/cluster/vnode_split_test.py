@@ -37,9 +37,7 @@ class VnodeSplit(TDCase):
             self.env_setting["settings"], "taosd"
         )
         self.cfg = self.tdCom.Boundary.DB_PARAM_VGROUPS_CONFIG
-        # self.base_dnode_list = self.taosd_setting["spec"]["dnodes"]
         self.reserve_dnode_list = self.taosd_setting["spec"]["reserve_dnodes"]
-        self.result_file_name = ""
         self._tmp_dir: str = os.path.join(self.run_log_dir, "tmp")
         self.replica = int(os.environ["DATABASE_REPLICAS"]) if "DATABASE_REPLICAS" in os.environ else 1
         self.vgroups = 2
@@ -109,13 +107,7 @@ class VnodeSplit(TDCase):
         # * not support
         self.use_stream = False
         self.use_tmq = True
-        self.topic_name = "tp_name"
         self.tmq_status = 0
-        self.offset_value = "earliest"
-        self.commit_value = "true"
-        self.tbname_value = "true"
-        self.group_id = "tq_1"
-        self.auto_commit_interval = "100"
         self.consumer_ip = self.taosd_setting["spec"]["config"]["firstEP"].split(":")[0]
         self.queryString = f"select ts, log(c0), ceil(pow(c0,3)) from {self.dbname}.{self.stbname} where c0 % 7 >= 0"
         self.column_info_list = [
