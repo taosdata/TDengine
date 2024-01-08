@@ -726,23 +726,27 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
       nodesDestroyList(pMergeKeys);
     }
   }
+  SLogicSubplan* pSplitSubPlan = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    pSplitSubPlan = splCreateScanSubplan(pCxt, pPartWindow, SPLIT_FLAG_STABLE_SPLIT);
+    if (!pSplitSubPlan) code = TSDB_CODE_OUT_OF_MEMORY;
+  }
   if (code == TSDB_CODE_SUCCESS) {
     SNode* pNode;
     SMergeLogicNode* pMerge = (SMergeLogicNode*)pInfo->pSplitNode->pChildren->pHead->pNode;
     FOREACH(pNode, pInfo->pSubplan->pChildren) {
-      SLogicSubplan*   pSubplan = (SLogicSubplan*)pNode;
+      ++(pCxt->groupId);
+      SLogicSubplan* pSubplan = (SLogicSubplan*)pNode;
       pSubplan->id.groupId = pCxt->groupId;
       pSubplan->id.queryId = pCxt->queryId;
       pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
       splSetSubplanVgroups(pSubplan, pSubplan->pNode);
     }
+    pMerge->numOfSubplans = LIST_LENGTH(pInfo->pSubplan->pChildren) + 1;
+    pMerge->srcEndGroupId = pCxt->groupId;
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,
-                                     (SNode*)splCreateScanSubplan(pCxt, pPartWindow, SPLIT_FLAG_STABLE_SPLIT));
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    ((SMergeLogicNode*)pInfo->pSplitNode->pChildren->pHead->pNode)->numOfSubplans = pInfo->pSubplan->pChildren->length;
+  if (code == TSDB_CODE_SUCCESS) {
+    code = nodesListMakePushFront(&pInfo->pSubplan->pChildren, (SNode*)pSplitSubPlan);
   }
   pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
   ++(pCxt->groupId);
