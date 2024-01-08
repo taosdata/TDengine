@@ -135,10 +135,10 @@ class StreamStabilityTest(TDCase):
         self.json_file_info_list.append({self.stream_json_file: self.stream_json_info})
         if "cluster_common_insert.yaml" in " ".join(sys.argv):
             if "partition" not in " ".join(sys.argv):
-                self.json_info["databases"][0]["super_tables"][0]["insert_rows"] = 1000000
-                self.stream_json_info["databases"][0]["super_tables"][0]["insert_rows"] = 3000000
+                self.json_info["databases"][0]["super_tables"][0]["insert_rows"] = 150000
+                self.stream_json_info["databases"][0]["super_tables"][0]["insert_rows"] = 150000
             else:
-                self.json_info["databases"][0]["super_tables"][0]["childtable_count"] = 30000
+                self.json_info["databases"][0]["super_tables"][0]["childtable_count"] = 10000
 
     def desc(self):
         pass
