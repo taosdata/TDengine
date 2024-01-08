@@ -74,6 +74,18 @@ groups:
         value: "*"
         hint:
           type: str
+      - name: tagListSize
+        display: 标签组大小
+        description: >
+          当 `table` 为 `Runtime.dbo.History` 且 `tags` 中的 TagName 超过 `tagListSize` 时，tags 被按照每组 tagListSize 个进行划分。
+          使用 `tagListSize` 划分 TagName 是为了提高数据迁移/同步时的查询效率。`tagListSize` 默认值为 10。
+        required: false
+        placeholder: 10
+        value: 10
+        hint:
+          type: integer
+          min: 1
+          max: 1000
       - name: beginDateTime
         display: 任务开始时间
         description: >
@@ -167,31 +179,10 @@ advanced:
   description: |
     对数据源性能、日志等其他参数进行调整，可修改以下选项。
   params:
-    - name: log_level
-      display: 日志级别
-      description: 根据需要调整数据源的日志级别，此参数不总是生效。
-      value: info
-      hint:
-        type: str
-        choices:
-          - error
-          - warn
-          - info
-          - debug
-          - trace
     - name: read_concurrency
       display: 最大读取并发数
       description: |
         数据源连接数或读取线程数限制，当默认参数不满足需要或需要调整资源使用量时修改此参数。
-      value: 0
-      hint:
-        type: integer
-        min: 0
-        max: 1000
-    - name: write_concurrency
-      display: 最大写入并发数
-      description: |
-        写入 taosX 的最大并发数限制，当默认参数性能不足时，可增大此参数。
       value: 0
       hint:
         type: integer
@@ -206,15 +197,6 @@ advanced:
         type: integer
         min: 1
         max: 100000
-    - name: batch_timeout
-      display: 批次延时
-      description: |
-        单次读取最大延时（单位为毫秒），当超时结束时，只要有数据，即使不满足 Batch Size，也立即发送。
-      value: 1
-      hint:
-        type: integer
-        min: 1
-        max: 60
     - name: keep_raw_data
       display: 保存原始数据
       description: |

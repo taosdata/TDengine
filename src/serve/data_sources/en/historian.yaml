@@ -75,6 +75,19 @@ groups:
         value: "*"
         hint:
           type: str
+      - name: tagListSize
+        display: Tag List Size
+        description: >
+          When `table` is `Runtime.dbo.History` and TagName in `tags` exceeds the `tagListSize`, tags are divided according to each group of `tagListSize`.
+          The `tagListSize` is used to partition TagName to improve query efficiency during data migration/synchronization. 
+          The default value of `tagListSize` is 10.
+        required: false
+        placeholder: 10
+        value: 10
+        hint:
+          type: integer
+          min: 1
+          max: 1000
       - name: beginDateTime
         display: Begin Time
         description: The start time of the task is in rfc3339 format.
@@ -117,36 +130,8 @@ groups:
 parser:
   display: Data Mapping
   description: |
-    Historian source, when synchronizing/migrating the Runtime.dbo.History table, uploads the following fields:<br>
-
-    - **DateTime**: The timestamp of the returned value.<br>
-    - **TagName**: The unique name of the tag.<br>
-    - **Value**: The value of the tag at the timestamp. The value is always NULL for string tags.<br>
-    - **vValue**: The value of the analog, discrete, or string tag stored as a sql_variant.<br>
-    - **Quality**: The basic data quality indicator associated with the data value.<br>
-    - **QualityDetail**: An internal representation of data quality.<br>
-    - **wwTagKey**: The unique numerical identifier of a tag.<br>
-    - **wwResolution**: The sampling rate, in milliseconds, for retrieving the data in cyclic mode.<br>
-    - **StartDateTime**: Start time of the retrieval cycle for which this row is returned.<br>
-    - **SourceTag**: The name of the source tag for a replicated tag at the time this point was stored.<br>
-    - **SourceServer**: The name of the server for this replicated tag at the time this point was stored.<br>
-
-    when synchronizing/migrating the Runtime.dbo.Live table, uploads the following fields:<br>
-
-    - **DateTime**: The timestamp of the returned value.<br>
-    - **TagName**: The unique name of the tag.<br>
-    - **Value**: The value of the tag at the timestamp. The value is always NULL for string tags.<br>
-    - **vValue**: The value of the analog, discrete, or string tag stored as a sql_variant.<br>
-    - **Quality**: The basic data quality indicator associated with the data value.<br>
-    - **QualityDetail**: An internal representation of data quality.<br>
-    - **OPCQuality**: The quality value received from the data source.<br>
-    - **wwTagKey**: The unique numerical identifier of a tag.<br>
-    - **SourceTag**: The name of the source tag for a replicated tag at the time this point was stored.<br>
-    - **SourceServer**: The name of the server for this replicated tag at the time this point was stored.<br>
-
     taosX could let users to specify the data model in the database, for example, the table name pattern <br>
     and stable name pattern, field names as tags or field names as columns.
-
   fields:
     - name: DateTime
       description: The timestamp of the returned value.
@@ -193,32 +178,11 @@ advanced:
     Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave
     these options as default to use the recommended settings.
   params:
-    - name: log_level
-      display: Log Level
-      description: Adjust the log level of the data source as required. This parameter does not always take effect.
-      value: info
-      hint:
-        type: str
-        choices:
-          - error
-          - warn
-          - info
-          - debug
-          - trace
     - name: read_concurrency
       display: Read Concurrency
       hidden: true
       description: |
         The number of concurrent read requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.
-      value: 0
-      hint:
-        type: integer
-        min: 0
-        max: 1000
-    - name: write_concurrency
-      display: Write Concurrency
-      description: |
-        The number of concurrent write requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.
       value: 0
       hint:
         type: integer
@@ -233,15 +197,6 @@ advanced:
         type: integer
         min: 1
         max: 100000
-    - name: batch_timeout
-      display: Batch Timeout
-      description: |
-        The maximum time(in seconds) to wait before sending a batch of data points. The default value is 1s. If the data source is slow to respond, you can increase this value appropriately.
-      value: 1
-      hint:
-        type: integer
-        min: 1
-        max: 60
     - name: keep_raw_data
       display: Keep Raw Data
       description: |
