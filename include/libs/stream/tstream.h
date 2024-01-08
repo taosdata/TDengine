@@ -825,6 +825,7 @@ int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 
 // common
 int32_t streamRestoreParam(SStreamTask* pTask);
+int32_t streamResetParamForScanHistory(SStreamTask* pTask);
 void    streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta);
 void    streamTaskResume(SStreamTask* pTask);
 int32_t streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask);
