@@ -3425,7 +3425,7 @@ int32_t startDurationForGroupTableMergeScan(SOperatorInfo* pOperator) {
   pInfo->sortBufSize = 2048 * pInfo->bufPageSize;
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
 
-  if (pInfo->bSortRowId) {
+  if (pInfo->bSortRowId && numOfTable != 1) {
     pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
                                                pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
     tsortSetSortByRowId(pInfo->pSortHandle, pInfo->bufPageSize, 512*1024*1024);
