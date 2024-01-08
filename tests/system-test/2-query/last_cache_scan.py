@@ -181,7 +181,7 @@ class TDTestCase:
         select_items = [
                 "last(ts), ts", "last(ts), c1", "last(ts), c2", "last(ts), c3",\
                 "last(ts), c4", "last(ts), tbname", "last(ts), t1", "last(ts), ts, ts"]
-        has_last_row_scan_res = [1, 0, 0, 0, 0, 0, 0, 1]
+        has_last_row_scan_res = [1, 0, 0, 0, 0, 1, 1, 1]
         res_expect = [
                 ["2018-11-25 19:30:00.000", "2018-11-25 19:30:00.000"],
                 None, None, None, None, None, None,
@@ -193,7 +193,7 @@ class TDTestCase:
 
         select_items = ["last(c1),ts", "last(c1), c1", "last(c1), c2", "last(c1), c3",\
                 "last(c1), c4", "last(c1), tbname", "last(c1), t1", "last(c1), ts, ts", "last(c1), c1, c1"]
-        has_last_row_scan_res = [1, 1, 0, 0, 0, 0, 0, 1, 1]
+        has_last_row_scan_res = [1, 1, 0, 0, 0, 1, 1, 1, 1]
         res_expect = [
                 [999, "2018-11-25 19:30:00.000"],
                 [999, 999], None, None, None, None, None,
@@ -207,7 +207,7 @@ class TDTestCase:
         sql_template = 'select %s from t1'
         select_items = ["last(c4),ts", "last(c4), c1", "last(c4), c2", "last(c4), c3",\
                 "last(c4), c4", "last(c4), tbname", "last(c4), t1"]
-        has_last_row_scan_res = [1, 0, 0, 0, 1, 0, 0]
+        has_last_row_scan_res = [1, 0, 0, 0, 1, 1, 1]
         res_expect = [
                 [4999.000000000000000, "2018-11-25 19:30:00.000"],
                 None,None,None,
@@ -220,7 +220,7 @@ class TDTestCase:
         sql_template = 'select %s from meters'
         select_items = ["last(c8), ts", "last(c8), c1", "last(c8), c8", "last(c8), tbname", \
                 "last(c8), t1", "last(c8), c8, c8", "last(c8), ts, ts"]
-        has_last_row_scan_res = [1, 0, 1, 0, 0, 1, 1]
+        has_last_row_scan_res = [1, 0, 1, 1, 1, 1, 1]
         res_expect = [
                 ["binary9999", "2018-11-25 19:30:00.000"],
                 None,
