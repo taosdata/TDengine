@@ -101,7 +101,7 @@ class TDTestCase:
         # check ts interval is correct
         sql = "select * from ( select diff(_wstart) as tsdif from sta ) where tsdif != 10;"
         tdSql.query(sql)
-        tdSql.checkRows(1)
+        tdSql.checkRows(0)
 
     # stop
     def stop(self):
