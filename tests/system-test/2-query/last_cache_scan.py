@@ -394,7 +394,7 @@ class TDTestCase:
         tdSql.query('select last(c2), c2, ts from meters', queryTimes=1)
         print(str(tdSql.queryResult))
         tdSql.checkRows(1)
-        tdSql.checkCols(5)
+        tdSql.checkCols(3)
         tdSql.checkData(0, 0, None)
         tdSql.checkData(0, 1, None)    
 
