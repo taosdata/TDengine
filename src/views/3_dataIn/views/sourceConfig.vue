@@ -127,7 +127,6 @@
   </div>
 </template>
 <script>
-import DataTarget from "./dataTarget.vue";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import CsvData from "../components/csvData.vue";
 import {
@@ -163,7 +162,6 @@ export default {
   components: {
     DatePicker,
     DialogCreateDb,
-    DataTarget,
     Result,
     BlockHeader,
     DocsContent,
@@ -172,16 +170,6 @@ export default {
     ResultTable,
   },
   props: {
-    dbsource: {
-      type: Array,
-      default() {
-        return [];
-      },
-    },
-    tagName: {
-      type: String,
-      default: "datasource",
-    },
     isEditable: {
       type: Boolean,
       default: false,
@@ -304,10 +292,12 @@ export default {
         this.$nextTick(()=>{
           this.$refs.form.clearValidate();
         })
-        
+        if (this.isEditable) {
+          this.getDataSourceDetail();
+        }
       },
     },
-    dbsource: {
+    definitionsList: {
       deep: true,
       handler(val) {
         if (!this.isEditable && !this.sourceForm.type) {
@@ -471,7 +461,7 @@ export default {
               return;
             }
             this.$parent.changeEditable(false);
-            this.$parent.toggleComponent("tmqtable");
+            this.$parent.currentName = "dbsource";
             this.$refs.form.resetFields();
           } else {
             let result = await AddSource(params);
@@ -481,7 +471,7 @@ export default {
             }
             this.$refs.form.resetFields();
             this.$parent.changeEditable(false);
-            this.$parent.toggleComponent("tmqtable");
+            this.$parent.currentName = "dbsource";
           }
         } else {
           this.$nextTick(() => {
