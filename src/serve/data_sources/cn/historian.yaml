@@ -121,34 +121,7 @@ groups:
 parser:
   display: 数据映射
   description: |
-    Historian 数据源，同步/迁移 Runtime.dbo.History表时，上传以下字段：<br>
-
-    - **DateTime**: 值对应的时间戳。<br>
-    - **TagName**: 测点名称。<br>
-    - **Value**: 标记在时间戳处的值。对于字符串tag，该值始终为NULL。<br>
-    - **vValue**: 字符串形式的值，在查询中使用此列允许您使用混合数据类型的值。<br>
-    - **Quality**: 与数据值相关联的基本数据质量指标。<br>
-    - **QualityDetail**: 数据质量的内部表示。<br>
-    - **wwTagKey**: 单个AVEVA历史记录中tag的唯一数字标识符。<br>
-    - **wwResolution**: 在循环模式下检索数据的采样率，以毫秒为单位。<br>
-    - **StartDateTime**: 返回该行的检索周期的开始时间。<br>
-    - **SourceTag**: 在存储该点时复制标记的源标记的名称。<br>
-    - **SourceServer**: 在存储该点时复制标记的服务器的名称。<br>
-
-    同步/迁移 Runtime.dbo.Live表时，上传以下字段：<br>
-
-    - **DateTime**: 值对应的时间戳。<br>
-    - **TagName**: 测点名称。<br>
-    - **Value**: 标记在时间戳处的值。对于字符串tag，该值始终为NULL。<br>
-    - **vValue**: 字符串形式的值，在查询中使用此列允许您使用混合数据类型的值。<br>
-    - **Quality**: 与数据值相关联的基本数据质量指标。<br>
-    - **QualityDetail**: 数据质量的内部表示。<br>
-    - **OPCQuality**: 从数据源接收到的质量值。<br>
-    - **wwTagKey**: 单个AVEVA历史记录中tag的唯一数字标识符。<br>
-    - **SourceTag**: 在存储该点时复制标记的源标记的名称。<br>
-    - **SourceServer**: 在存储该点时复制标记的服务器的名称。<br>
-
-    taosX 允许用户在数据库中指定数据模型，包括：指定表名称和超级表名，设置普通列会标签列等
+    taosX 允许用户在数据库中指定数据模型，包括：指定表名称和超级表名，设置普通列和标签列等
   fields:
     - name: DateTime
       description: 值对应的时间戳。
