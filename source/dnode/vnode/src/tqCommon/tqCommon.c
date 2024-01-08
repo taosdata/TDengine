@@ -205,9 +205,8 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     streamTaskStop(*ppHTask);
 
     int64_t now = taosGetTimestampMs();
-    tqDebug("s-task:%s vgId:%d task nodeEp update completed, streamTask and related fill-history task closed, elapsed:%" PRId64
-            " ms",
-            pTask->id.idStr, vgId, now-st);
+    tqDebug("s-task:%s vgId:%d task nodeEp update completed, streamTask/fill-history closed, elapsed:%" PRId64 " ms",
+            pTask->id.idStr, vgId, now - st);
     taosHashPut(pMeta->updateInfo.pTasks, &(*ppHTask)->id, sizeof(pTask->id), NULL, 0);
   } else {
     int64_t now = taosGetTimestampMs();
