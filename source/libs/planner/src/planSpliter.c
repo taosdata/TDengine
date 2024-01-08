@@ -958,7 +958,7 @@ static int32_t stbSplSplitWindowForPartTable(SSplitContext* pCxt, SStableSplitIn
 
 static int32_t stbSplSplitWindowNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   if (isPartTableWinodw((SWindowLogicNode*)pInfo->pSplitNode) &&
-      (pInfo->pSubplan->pChildren && LIST_LENGTH(pInfo->pSubplan->pChildren) > 0)) {
+      (pInfo->pSubplan->pChildren && LIST_LENGTH(pInfo->pSubplan->pChildren) == 0)) {
     return stbSplSplitWindowForPartTable(pCxt, pInfo);
   } else {
     return stbSplSplitWindowForCrossTable(pCxt, pInfo);
