@@ -73,7 +73,7 @@ export function getUaAndDaData(data) {
 export function refreshTask(id) {
     return request({
         baseURL: process.env.VUE_APP_X_API,
-        url: `/tasks/${id}?detail=true&lang=${language}`,
+        url: `/tasks/${id}?detail=true&lang=${i18n.locale}`,
         method: 'get',
         headers: {
             "Content-Type": "application/json"

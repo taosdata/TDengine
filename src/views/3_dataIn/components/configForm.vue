@@ -37,7 +37,11 @@
             v-bind="item"
           /> -->
           
-          <CommonTransformer v-if="item.type == 'parser'&&constmqttCols.length>0" ref='transform' :parserColumns="constmqttCols"></CommonTransformer>
+          <CommonTransformer 
+            v-if="item.type == 'parser' && constmqttCols.length > 0" 
+            ref='transform' 
+            :parserColumns="constmqttCols"
+          ></CommonTransformer>
           <ConnectivityCheck
             v-else-if="item.type == 'checkConnectivity'"
             :data="data[item.field]"
