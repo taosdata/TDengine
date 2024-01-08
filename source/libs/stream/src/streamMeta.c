@@ -201,7 +201,7 @@ int32_t streamMetaCvtDbFormat(SStreamMeta* pMeta) {
     void* key = taosHashGetKey(pIter, NULL);
     code = streamStateCvtDataFormat(pMeta->path, key, *(void**)pIter);
     if (code != 0) {
-      qError("failed to cvt data");
+      stError("failed to cvt data");
       goto _EXIT;
     }
 
@@ -225,11 +225,11 @@ int32_t streamMetaMayCvtDbFormat(SStreamMeta* pMeta) {
   if (compatible == STREAM_STATA_COMPATIBLE) {
     return 0;
   } else if (compatible == STREAM_STATA_NEED_CONVERT) {
-    qInfo("stream state need covert backend format");
+    stInfo("stream state need covert backend format");
 
     return streamMetaCvtDbFormat(pMeta);
   } else if (compatible == STREAM_STATA_NO_COMPATIBLE) {
-    qError(
+    stError(
         "stream read incompatible data, rm %s/vnode/vnode*/tq/stream if taosd cannot start, and rebuild stream "
         "manually",
         tsDataDir);
