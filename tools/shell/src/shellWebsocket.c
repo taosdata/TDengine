@@ -30,7 +30,16 @@ int shell_conn_ws_server(bool first) {
   fprintf(stdout, "trying to connect %s****** ", cuttedDsn);
   fflush(stdout);
   for (int i = 0; i < shell.args.timeout; i++) {
-    shell.ws_conn = ws_connect_with_dsn(shell.args.dsn);
+    if(shell.args.is_bi_mode) {
+      size_t len = strlen(shell.args.dsn);
+      char * dsn = taosMemoryMalloc(len + 32);
+      sprintf(dsn, "%s&conn_mode=1", shell.args.dsn);
+      shell.ws_conn = ws_connect_with_dsn(dsn);
+      taosMemoryFree(dsn);
+    } else {
+      shell.ws_conn = ws_connect_with_dsn(shell.args.dsn);
+    }
+
     if (NULL == shell.ws_conn) {
       int errNo = ws_errno(NULL);
       if (0xE001 == errNo) {
