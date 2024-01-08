@@ -1517,6 +1517,8 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
   if (pTask == NULL) {
     stError("vgId:%d failed to acquire task:0x%x during start tasks", pMeta->vgId, taskId);
     streamMetaUpdateTaskDownstreamStatus(pMeta, streamId, taskId, 0, taosGetTimestampMs(), false);
+
+    streamMetaReleaseTask(pMeta, pTask);
     return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
   }
 
@@ -1542,5 +1544,6 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
     }
   }
 
+  streamMetaReleaseTask(pMeta, pTask);
   return ret;
 }
