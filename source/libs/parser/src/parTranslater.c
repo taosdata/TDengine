@@ -2757,7 +2757,7 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   if (!pSelect->isDistinct) {
     nodesRewriteExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
   }
-  if (1 == pSelect->selectFuncNum && !pSelect->hasOtherVectorFunc) {
+  if (0 < pSelect->selectFuncNum && !pSelect->hasOtherVectorFunc) {
     return rewriteColsToSelectValFunc(pCxt, pSelect);
   }
   if (cxt.existCol) {
@@ -3436,6 +3436,12 @@ static int32_t checkOrderByAggForGroupBy(STranslateContext* pCxt, SSelectStmt* p
   if (NULL != getGroupByList(pCxt) || NULL != pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
   }
+  SNode* pProject = NULL;
+  FOREACH(pProject, pSelect->pProjectionList) {
+    if(isAggFunc(pProject)) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
   SNode* pNode = NULL;
   WHERE_EACH(pNode, pOrderByList) {
     SNode* pExpr = ((SOrderByExprNode*)pNode)->pExpr;
@@ -3501,9 +3507,9 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (TSDB_CODE_SUCCESS == code) {
     code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
   }
-  // if (other && TSDB_CODE_SUCCESS == code) {
-  //   code = checkOrderByAggForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
-  // }
+  if (other && TSDB_CODE_SUCCESS == code) {
+    code = checkOrderByAggForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
+  }
   return code;
 }
 
@@ -4505,8 +4511,18 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
     SNode*     pProject = NULL;
     FOREACH(pProject, pProjectionList) {
       SExprNode* pExpr = (SExprNode*)pProject;
+      SNode* activeNode = pProject;
       if (0 == strcmp(((SColumnRefNode*)*pNode)->colName, pExpr->aliasName)) {
-        SNode* pNew = nodesCloneNode(pProject);
+        if(QUERY_NODE_FUNCTION == pProject->type && strcmp(((SFunctionNode*)pProject)->functionName, "_select_value") == 0) {
+          SNode*     paramNode = NULL;
+          FOREACH(paramNode, ((SFunctionNode*)pProject)->pParameterList) {
+            SExprNode* pExpr2 = (SExprNode*)pProject;
+            if (0 == strcmp(((SColumnRefNode*)*pNode)->colName, pExpr2->aliasName)) {
+              activeNode = paramNode;
+            }
+          }
+        }
+        SNode* pNew = nodesCloneNode(activeNode);
         if (NULL == pNew) {
           pCxt->pTranslateCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
           return DEAL_RES_ERROR;

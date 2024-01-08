@@ -276,6 +276,14 @@ class TDTestCase:
         sql2 = "select count(*) as a, count(c2) as b, max(c2) as c, min(c2) as d, sum(c2) as e  from st;"
         self.queryResultSame(sql1, sql2)
 
+    def queryOrderByAgg(self):
+
+        tdSql.error(f"SELECT * FROM t1 order by last(ts)")
+
+        tdSql.query(f"SELECT last(ts) FROM t1 order by last(ts)")
+
+        tdSql.query(f"SELECT last(ts), ts FROM t1 order by last(ts)")
+
     # run
     def run(self):
         # prepare env
@@ -286,6 +294,9 @@ class TDTestCase:
 
         # advance
         self.queryAdvance()
+
+        # agg
+        self.queryOrderByAgg()
 
 
     # stop
