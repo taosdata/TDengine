@@ -46,7 +46,7 @@ static bool ttlMgrNeedFlush(STtlManger *pTtlMgr);
 const char *ttlTbname = "ttl.idx";
 const char *ttlV1Tbname = "ttlv1.idx";
 
-int ttlMgrOpen(STtlManger **ppTtlMgr, TDB *pEnv, int8_t rollback, const char *logPrefix, int32_t flushThreshold) {
+int ttlMgrOpen(STtlManger **ppTtlMgr, TDB *pEnv, int8_t rollback, const char *logPrefix) {
   int     ret = TSDB_CODE_SUCCESS;
   int64_t startNs = taosGetTimestampNs();
 
@@ -62,7 +62,6 @@ int ttlMgrOpen(STtlManger **ppTtlMgr, TDB *pEnv, int8_t rollback, const char *lo
   }
   strcpy(logBuffer, logPrefix);
   pTtlMgr->logPrefix = logBuffer;
-  pTtlMgr->flushThreshold = flushThreshold;
 
   ret = tdbTbOpen(ttlV1Tbname, TDB_VARIANT_LEN, TDB_VARIANT_LEN, ttlIdxKeyV1Cmpr, pEnv, &pTtlMgr->pTtlIdx, rollback);
   if (ret < 0) {
@@ -397,7 +396,7 @@ _out:
 }
 
 static bool ttlMgrNeedFlush(STtlManger *pTtlMgr) {
-  return pTtlMgr->flushThreshold > 0 && taosHashGetSize(pTtlMgr->pDirtyUids) > pTtlMgr->flushThreshold;
+  return tsTtlFlushThreshold > 0 && taosHashGetSize(pTtlMgr->pDirtyUids) > tsTtlFlushThreshold;
 }
 
 int ttlMgrFlush(STtlManger *pTtlMgr, TXN *pTxn) {

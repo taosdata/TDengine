@@ -38,7 +38,6 @@ typedef struct STtlManger {
   TTB*      pTtlIdx;     // btree<{deleteTime, tuid}, ttl>
 
   char*   logPrefix;
-  int32_t flushThreshold;  // max dirty entry number in memory. if -1, flush will not be triggered by write-ops
 } STtlManger;
 
 typedef struct {
@@ -85,7 +84,7 @@ typedef struct {
   TXN*     pTxn;
 } STtlDelTtlCtx;
 
-int  ttlMgrOpen(STtlManger** ppTtlMgr, TDB* pEnv, int8_t rollback, const char* logPrefix, int32_t flushThreshold);
+int  ttlMgrOpen(STtlManger** ppTtlMgr, TDB* pEnv, int8_t rollback, const char* logPrefix);
 void ttlMgrClose(STtlManger* pTtlMgr);
 
 bool ttlMgrNeedUpgrade(TDB* pEnv);
