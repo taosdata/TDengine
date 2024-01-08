@@ -100,7 +100,7 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
     w = getAlignQueryTimeWindow(pInterval, pBlockInfo->window.skey);
     ASSERT(w.ekey >= pBlockInfo->window.skey);
 
-    if (w.ekey < pBlockInfo->window.ekey) {
+    if (w.skey <= pBlockInfo->window.ekey) {
       return true;
     }
 
@@ -119,7 +119,7 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
     w = getAlignQueryTimeWindow(pInterval, pBlockInfo->window.ekey);
     ASSERT(w.skey <= pBlockInfo->window.ekey);
 
-    if (w.skey > pBlockInfo->window.skey) {
+    if (w.ekey >=  pBlockInfo->window.skey) {
       return true;
     }
 
