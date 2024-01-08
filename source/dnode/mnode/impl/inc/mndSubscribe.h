@@ -36,9 +36,12 @@ static FORCE_INLINE int32_t mndMakePartitionKey(char *key, const char *cgroup, c
   return snprintf(key, TSDB_PARTITION_KEY_LEN, "%d:%s:%s", vgId, cgroup, topicName);
 }
 
-int32_t mndDropSubByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topic);
 int32_t mndSetDropSubCommitLogs(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj *pSub);
+
+bool mndRebTryStart();
+void mndRebCntInc();
+void mndRebCntDec();
 
 #ifdef __cplusplus
 }
