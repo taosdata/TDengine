@@ -4718,14 +4718,69 @@ static int32_t tsmaOptRewriteTag(const STSMAOptCtx* pTsmaOptCtx, const STSMAOptU
   return 0;
 }
 
-static int32_t tsmaOptRewriteTbname(const STSMAOptCtx* pTsmaOptCtx, SNode** pTbNameNode, bool withTsma) {
+static int32_t tsmaOptRewriteTbname(const STSMAOptCtx* pTsmaOptCtx, SNode** pTbNameNode,
+                                    const STSMAOptUsefulTsma* pTsma) {
   int32_t code = 0;
-  if (withTsma) {
-    // TODO test child tbname too long
-    // if with tsma, we replace func tbname with concat(tbname, '')
-  } else {
-    // if no tsma, we replace func tbname with concat('dbname_tsmaname', tbname)
+  SFunctionNode* pRewrittenFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  SValueNode*    pValue = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  if (!pRewrittenFunc || !pValue) code = TSDB_CODE_OUT_OF_MEMORY;
+  if (code == TSDB_CODE_SUCCESS) {
+    pRewrittenFunc->node.resType = ((SExprNode*)(*pTbNameNode))->resType;
+    pValue->translate = true;
   }
+
+  if (pTsma && code == TSDB_CODE_SUCCESS) {
+    // TODO test child tbname too long
+    // if with tsma, we replace func tbname with substr(tbname, 34)
+    pRewrittenFunc->funcId = fmGetFuncId("substr");
+    snprintf(pRewrittenFunc->functionName, TSDB_FUNC_NAME_LEN, "substr(tbname, 34)");
+    pValue->node.resType.type = TSDB_DATA_TYPE_INT;
+    pValue->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
+    pValue->literal = taosMemoryCalloc(1, 16);
+    pValue->datum.i = 34;
+    if (!pValue->literal) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (code == TSDB_CODE_SUCCESS) {
+      sprintf(pValue->literal, "%d", 34);
+      code = nodesListMakeAppend(&pRewrittenFunc->pParameterList, *pTbNameNode);
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      code = nodesListAppend(pRewrittenFunc->pParameterList, (SNode*)pValue);
+    }
+  } else if (code == TSDB_CODE_SUCCESS){
+    // if no tsma, we replace func tbname with concat('', tbname)
+    pRewrittenFunc->funcId = fmGetFuncId("concat");
+    snprintf(pRewrittenFunc->functionName, TSDB_FUNC_NAME_LEN, "concat('', tbname)");
+
+    pValue->node.resType = ((SExprNode*)(*pTbNameNode))->resType;
+    pValue->literal = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + 1);
+    pValue->datum.p = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + 1 + VARSTR_HEADER_SIZE);
+    if (!pValue->literal || !pValue->datum.p) code = TSDB_CODE_OUT_OF_MEMORY;
+
+    if (0 && code == TSDB_CODE_SUCCESS) {
+      sprintf(pValue->literal, "%s.%s", pTsma->pTsma->dbFName, pTsma->pTsma->name);
+      int32_t len = taosCreateMD5Hash(pValue->literal, strlen(pValue->literal));
+      pValue->literal[len] = '_';
+      strcpy(pValue->datum.p, pValue->literal);
+      pValue->node.resType.bytes = len + 1;
+      varDataSetLen(pValue->datum.p, pValue->node.resType.bytes);
+      strncpy(pValue->datum.p, pValue->literal, pValue->node.resType.bytes);
+      pRewrittenFunc->node.resType.bytes += pValue->node.resType.bytes;
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      code = nodesListMakeAppend(&pRewrittenFunc->pParameterList, (SNode*)pValue);
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      code = nodesListStrictAppend(pRewrittenFunc->pParameterList, *pTbNameNode);
+    }
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    *pTbNameNode = (SNode*)pRewrittenFunc;
+  } else {
+    nodesDestroyNode((SNode*)pRewrittenFunc);
+    nodesDestroyNode((SNode*)pValue);
+  }
+
   return code;
 }
 
@@ -4743,11 +4798,11 @@ EDealRes tsmaOptRewriter(SNode** ppNode, void* ctx) {
   struct TsmaOptRewriteCtx* pCtx = ctx;
   if (pCtx->rewriteTag && nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->colType == COLUMN_TYPE_TAG) {
     code = tsmaOptRewriteTag(pCtx->pTsmaOptCtx, pCtx->pTsma, (SColumnNode*)pNode);
-  } else if (pCtx->rewriteTbname && nodeType(pNode) == QUERY_NODE_FUNCTION){
-    SFunctionNode* pFunc = (SFunctionNode*)pNode;
-    if (pFunc->funcType == FUNCTION_TYPE_TBNAME) {
-      code = tsmaOptRewriteTbname(pCtx->pTsmaOptCtx, ppNode, pCtx->pTsma);
-    }
+  } else if (pCtx->rewriteTbname &&
+             ((nodeType(pNode) == QUERY_NODE_FUNCTION && ((SFunctionNode*)pNode)->funcType == FUNCTION_TYPE_TBNAME) ||
+              (nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->colType == COLUMN_TYPE_TBNAME))) {
+    code = tsmaOptRewriteTbname(pCtx->pTsmaOptCtx, ppNode, pCtx->pTsma);
+    if (code == TSDB_CODE_SUCCESS) return DEAL_RES_IGNORE_CHILD;
   }
   if (code) {
     pCtx->code = code;
@@ -4886,11 +4941,13 @@ static int32_t tsmaOptRevisePlan(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent, 
     SFunctionNode* pStateFunc = (SFunctionNode*)pStateFuncNode;
     SFunctionNode* pAggFunc = (SFunctionNode*)pAggFuncNode;
     if (fmIsGroupKeyFunc(pAggFunc->funcId)) {
-      ASSERT(pAggFunc->pParameterList->length == 1);
-      SNode* pParamNode = pAggFunc->pParameterList->pHead->pNode;
-      if (nodeType(pParamNode) == QUERY_NODE_COLUMN) {
-        SColumnNode* pTagCol = (SColumnNode*)pParamNode;
-        if (pTagCol->colType == COLUMN_TYPE_TAG) tsmaOptRewriteTag(pTsmaOptCtx, pTsma, pTagCol);
+      struct TsmaOptRewriteCtx ctx = {
+        .pTsmaOptCtx = pTsmaOptCtx, .pTsma = pTsma, .rewriteTag = true, .rewriteTbname = true, .code = 0};
+      nodesRewriteExpr(&pAggFuncNode, tsmaOptRewriter, &ctx);
+      if (ctx.code) {
+        code = ctx.code;
+      } else {
+        REPLACE_LIST2_NODE(pAggFuncNode);
       }
       continue;
     } else if (fmIsPseudoColumnFunc(pStateFunc->funcId)) {
