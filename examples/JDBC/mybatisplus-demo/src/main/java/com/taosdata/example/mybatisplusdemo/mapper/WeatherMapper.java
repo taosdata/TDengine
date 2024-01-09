@@ -15,4 +15,10 @@ public interface WeatherMapper extends BaseMapper<Weather> {
 
     @Update("drop table if exists weather")
     void dropTable();
+
+    @Insert("INSERT INTO meters(tbname, location, groupId, ts, current, voltage,phase) \n" +
+            "    values('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:34.630', 10.2, 219, 0.32) \n" +
+            "    ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:35.779', 10.15, 217, 0.33)\n" +
+            "    ('d31002', NULL, 2, '2021-07-13 14:06:34.255', 10.15, 217, 0.33)")
+    int test();
 }

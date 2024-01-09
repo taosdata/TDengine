@@ -25,17 +25,24 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 
 ## 连接器建立连接的方式
 
-连接器建立连接的方式，TDengine 提供两种:
+连接器建立连接的方式，TDengine 提供三种:
 
-1. 通过 taosAdapter 组件提供的 REST API 建立与 taosd 的连接，这种连接方式下文中简称“REST 连接”
-2. 通过客户端驱动程序 taosc 直接与服务端程序 taosd 建立连接，这种连接方式下文中简称“原生连接”。
+1. 通过客户端驱动程序 taosc 直接与服务端程序 taosd 建立连接，这种连接方式下文中简称 “原生连接”。
+2. 通过 taosAdapter 组件提供的 REST API 建立与 taosd 的连接，这种连接方式下文中简称 “REST 连接”
+3. 通过 taosAdapter 组件提供的 Websocket API 建立与 taosd 的连接，这种连接方式下文中简称 “Websocket 连接”
+
+![TDengine connection type](connection-type-zh.webp)
 
 无论使用何种方式建立连接，连接器都提供了相同或相似的 API 操作数据库，都可以执行 SQL 语句，只是初始化连接的方式稍有不同，用户在使用上不会感到什么差别。
 
 关键不同点在于：
 
-1. 使用 REST 连接，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但性能要下降 30% 左右。
-2. 使用原生连接可以体验 TDengine 的全部功能，如[参数绑定接口](../../connector/cpp/#参数绑定-api)、[订阅](../../connector/cpp/#订阅和消费-api)等等。
+1. 使用 原生连接，需要保证客户端的驱动程序 taosc 和服务端的 TDengine 版本配套。
+2. 使用 REST 连接 无法体验数据订阅等功能，也无法支持二进制数据类型。
+3. 使用 REST 连接 或 Websocket 连接，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但性能要下降 30% 左右。
+4. 连接云服务实例，必须使用 REST 连接 或 Websocket 连接。
+
+对于一般用户，我们建议使用 **Websocket 连接**。
 
 ## 安装客户端驱动 taosc
 
@@ -82,7 +89,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.2.4</version>
+  <version>3.2.7</version>
 </dependency>
 ```
 

@@ -88,6 +88,12 @@ public class WeatherMapperTest {
     }
 
     @Test
+    public void tt() {
+        int count = mapper.test();
+        System.out.println(count);
+    }
+
+    @Test
     public void testSelectPage() {
         IPage page = new Page(1, 2);
         IPage<Weather> weatherIPage = mapper.selectPage(page, null);

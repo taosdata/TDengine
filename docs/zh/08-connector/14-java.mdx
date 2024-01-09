@@ -7,17 +7,9 @@ description: TDengine Java 连接器基于标准 JDBC API 实现, 并提供原�
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import RequestId from "./_request_id.mdx";
 
-`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器，Java 开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口，并提供两种形式的连接器。一种是通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能，一种是通过 taosAdapter 提供的 REST 接口连接 TDengine 实例。REST 连接实现的功能集合和原生连接有少量不同。
-
-![TDengine Database Connector Java](tdengine-jdbc-connector.webp)
-
-上图显示了两种 Java 应用使用连接器访问 TDengine 的两种方式：
-
-- JDBC 原生连接：Java 应用在物理节点 1（pnode1）上使用 TSDBDriver 直接调用客户端驱动（libtaos.so 或 taos.dll）的 API 将写入和查询请求发送到位于物理节点 2（pnode2）上的 taosd 实例。
-- JDBC REST 连接：Java 应用通过 RestfulDriver 将 SQL 封装成一个 REST 请求，发送给物理节点 2 的 REST 服务器（taosAdapter），通过 REST 服务器请求 taosd 并返回结果。
-
-使用 REST 连接，不依赖 TDengine 客户端驱动，可以跨平台，更加方便灵活。
+`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器，Java 开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口.
 
 :::info
 TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致，但 TDengine 与关系对象型数据库的使用场景和技术特征存在差异，所以`taos-jdbcdriver` 与传统的 JDBC driver 也存在一定差异。在使用时需要注意以下几点：
@@ -26,6 +18,19 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 - 目前不支持事务操作。
 
 :::
+
+## 连接方式
+`taos-jdbcdriver`主要提供两种形式的连接器。
+- **原生连接**，通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。
+- **Websocket连接**，通过 taosAdapter 提供的 Websocket 接口连接 TDengine 实例。WebSocket 连接实现的功能集合和原生连接有少量不同。
+- `taos-jdbcdriver`还支持 REST 连接，但是我们更推荐使用 Websocket 连接方式。  
+
+连接方式的详细介绍和区别请参考：[连接器建立连接的方式](../../develop/connect/#连接器建立连接的方式)
+
+## JDBC和JRE兼容性
+
+- JDBC: 主要兼容 JDBC 4.2 版本，部分功能如数据订阅单独提供  
+- JRE: 支持JRE 8 及以上版本  
 
 ## 支持的平台
 
@@ -436,7 +441,7 @@ while(resultSet.next()){
 
 ### 执行带有 reqId 的 SQL
 
-此 reqId 可用于请求链路追踪。
+<RequestId />
 
 ```java
 AbstractStatement aStmt = (AbstractStatement) connection.createStatement();
