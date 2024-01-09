@@ -74,6 +74,7 @@ extern int64_t tsRpcQueueMemoryAllowed;
 extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
 extern int32_t tsHeartbeatTimeout;
+extern int32_t tsSnapReplicationMsgNLimit;
 
 // vnode
 extern int64_t tsVndCommitMaxIntervalMs;
