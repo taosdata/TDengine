@@ -1561,7 +1561,7 @@ static void grantStatusCheckImpl(SMnode *pMnode) {
 _exit:
   if (nGrant == 0) {
     char *ts = grantSecondsToString(*grantHandle.lastCheck);
-    uWarn("grant reset because official grants not received since %s", ts);
+    uDebug("grant reset because official grants not received since %s", ts);
     taosMemoryFree(ts);
     grantResetMaster(pMnode);
   }
