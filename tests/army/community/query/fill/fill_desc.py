@@ -44,13 +44,11 @@ class TDTestCase(TBase):
         tdLog.printNoPrefix("==========step3:fill data")
 
         tdSql.query(f"select wstart as ts, first(point_value) as pointValue from {dbname}.{tbname} where wstart between '2023-12-26 10:35:00' and '2023-12-26 10:40:00' interval(1M) fill(prev) order by wstart desc limit 100")
-        tdSql.checkRows(6)
-        tdSql.checkData(0, 1, 5)
-        tdSql.checkData(1, 1, 5)
-        tdSql.checkData(2, 1, 5)
-        tdSql.checkData(3, 1, 5)
-        tdSql.checkData(4, 1, 5)
-        tdSql.checkData(5, 1, 5)
+        data = []
+        for i in : range(6)  # 将csv 文件中的数据保存到data中
+           row = [i, 1, 5]
+           data.append(row)  # 选择某一列加入到data数组中
+        tdSql.checkDataMem(data)
 
     def stop(self):
         tdSql.close()
