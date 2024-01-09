@@ -668,12 +668,12 @@ function handleGroups(groups, paramsConfig) {
           if (!currentData.table) return true;
           if (currentData.mode == historianSynchronizeMode) {
             if (currentData.table == historianLiveTable) {
-              return !['beginDateTime','endDateTime','timeWindow'].includes(name)
+              return ['mode','table','tags','retrieveInterval'].includes(name)
             } else {
               return !['endDateTime'].includes(name)
             }
           } else {
-            return !['retrieveInterval','tolerance'].includes(name)
+            return !['table','retrieveInterval','tolerance'].includes(name)
           }
         },
         placeholder,
