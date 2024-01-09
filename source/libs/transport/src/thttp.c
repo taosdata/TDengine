@@ -198,10 +198,10 @@ static void httpMayDiscardMsg(SHttpModule* http, SAsyncItem* item) {
     queue* h = QUEUE_HEAD(&item->qmsg);
     QUEUE_REMOVE(h);
     msg = QUEUE_DATA(h, SHttpMsg, q);
-    if (!msg->quit) {
-      httpDestroyMsg(msg);
-    } else {
+    if (msg->quit) {
       quitMsg = msg;
+    } else {
+      httpDestroyMsg(msg);
     }
   }
   if (quitMsg != NULL) {
@@ -495,6 +495,8 @@ void transHttpEnvDestroy() {
     return;
   }
   SHttpModule* load = taosAcquireRef(httpRefMgt, httpRef);
+  if (load == NULL) return;
+
   atomic_store_8(&load->quit, 1);
   httpSendQuit();
   taosThreadJoin(load->thread, NULL);
