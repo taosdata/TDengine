@@ -342,6 +342,21 @@ static int32_t fileDataBlockOrderCompar(const void* pLeft, const void* pRight, v
   return pLeftBlock->offset > pRightBlock->offset ? 1 : -1;
 }
 
+static void recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record){
+  pBlockInfo->uid = record->uid;
+  pBlockInfo->firstKey = record->firstKey;
+  pBlockInfo->lastKey = record->lastKey;
+  pBlockInfo->minVer = record->minVer;
+  pBlockInfo->maxVer = record->maxVer;
+  pBlockInfo->blockOffset = record->blockOffset;
+  pBlockInfo->smaOffset = record->smaOffset;
+  pBlockInfo->blockSize = record->blockSize;
+  pBlockInfo->blockKeySize = record->blockKeySize;
+  pBlockInfo->smaSize = record->smaSize;
+  pBlockInfo->numRow = record->numRow;
+  pBlockInfo->count = record->count;
+}
+
 int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int32_t numOfBlocks, SArray* pTableList) {
   bool asc = ASCENDING_TRAVERSE(pReader->info.order);
 
@@ -399,8 +414,9 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
       pTableScanInfo->pBlockIdxList = taosArrayInit(numOfBlocks, sizeof(STableDataBlockIdx));
     }
     for (int32_t i = 0; i < numOfBlocks; ++i) {
-      SFileDataBlockInfo blockInfo = {.uid = sup.pDataBlockInfo[0][i].uid, .tbBlockIdx = i};
-      blockInfo.record = *(SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[0][i].pInfo->pBlockList, i);
+      SFileDataBlockInfo blockInfo = {.tbBlockIdx = i};
+      SBrinRecord* record = (SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[0][i].pInfo->pBlockList, i);
+      recordToBlockInfo(&blockInfo, record);
 
       taosArrayPush(pBlockIter->blockList, &blockInfo);
 
@@ -435,8 +451,9 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     int32_t pos = tMergeTreeGetChosenIndex(pTree);
     int32_t index = sup.indexPerTable[pos]++;
 
-    SFileDataBlockInfo blockInfo = {.uid = sup.pDataBlockInfo[pos][index].uid, .tbBlockIdx = index};
-    blockInfo.record = *(SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[pos][index].pInfo->pBlockList, index);
+    SFileDataBlockInfo blockInfo = {.tbBlockIdx = index};
+    SBrinRecord* record = (SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[pos][index].pInfo->pBlockList, index);
+    recordToBlockInfo(&blockInfo, record);
 
     taosArrayPush(pBlockIter->blockList, &blockInfo);
     STableBlockScanInfo *pTableScanInfo = sup.pDataBlockInfo[pos][index].pInfo;
