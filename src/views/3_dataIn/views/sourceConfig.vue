@@ -51,7 +51,7 @@
               @click="createAgent"
               type="primary"
               size="small"
-              class="ml"
+              class="ml15"
               icon="el-icon-plus"
               >{{ $t("dataIn.createNewAgent") }}</el-button
             >
@@ -74,7 +74,7 @@
               @click="createDb"
               type="primary"
               size="small"
-              class="ml"
+              class="ml15"
               icon="el-icon-plus"
               >{{ $t("data.createDatabase") }}</el-button
             >
@@ -88,13 +88,9 @@
           parent="data."
           :level="1"
           ref="configform"
+          :isEditable="isEditable"
         />
       </el-form>
-      <CsvData
-        v-if="currentDefinition?.id == 'csv'"
-        ref="csvdata"
-        :isEditable="isEditable"
-      ></CsvData>
       <section class="bottom">
         <el-button
           v-if="isShowEditBtn"
@@ -128,7 +124,6 @@
 </template>
 <script>
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import CsvData from "../components/csvData.vue";
 import {
   AddSource,
   EditSource,
@@ -166,7 +161,6 @@ export default {
     BlockHeader,
     DocsContent,
     ConfigForm,
-    CsvData,
     ResultTable,
   },
   props: {
@@ -423,7 +417,7 @@ export default {
       this.$refs.form.validate(async (valid) => {
         if (valid) {
           if (this.sourceForm.type == "csv") {
-            let flag=this.$refs.csvdata.submitUpload()
+            let flag=this.$refs.configform.$refs.csvdata[0].submitUpload()
             if(!flag)return
           }
           const dsn = getDsnData(this.sourceForm.data, this.currentDefinition);
@@ -445,8 +439,8 @@ export default {
             params["via"] = this.sourceForm.agent;
           }
           if (this.sourceForm.type == "csv") {
-            await this.$refs.csvdata.$refs.transform.getTransformerParams();
-            if (this.$refs.csvdata.$refs.transform.isbreak) return;
+            await this.$refs.configform.$refs.csvdata[0].$refs.transform.getTransformerParams();
+            if (this.$refs.configform.$refs.csvdata[0].$refs.transform.isbreak) return;
             params.parser = this.$store.state.app.transformerfullparams;
           }
           if (this.sourceForm.data.parser) {

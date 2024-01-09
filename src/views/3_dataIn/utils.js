@@ -110,6 +110,7 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
       handleConnectivityCheck(connectivityCheck=true,paramsConfig)
     }
     handleParser(parser, paramsConfig, parserValue);
+    handleCsvData(id,paramsConfig);
     handleAdvanced(advanced, paramsConfig)
     // 先处理protocol
     if(id=='csv'){
@@ -366,7 +367,16 @@ function handleOptions(options, paramsConfig) {
   });
   formSort(children);
 }
-
+// 处理 csv parser
+function handleCsvData(id, paramsConfig) {
+  if (id != 'csv') return;
+  paramsConfig.push({
+    label: '',
+    field: 'csvData',
+    type: 'csvData',
+    children: []
+  });
+}
 // 处理parser
 /**
  * {
