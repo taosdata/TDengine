@@ -45,9 +45,9 @@ class TDTestCase(TBase):
 
         tdSql.query(f"select wstart as ts, first(point_value) as pointValue from {dbname}.{tbname} where wstart between '2023-12-26 10:35:00' and '2023-12-26 10:40:00' interval(1M) fill(prev) order by wstart desc limit 100")
         data = []
-        for i in : range(6)  # 将csv 文件中的数据保存到data中
+        for i in range(6):
            row = [i, 1, 5]
-           data.append(row)  # 选择某一列加入到data数组中
+           data.append(row)
         tdSql.checkDataMem(data)
 
     def stop(self):
