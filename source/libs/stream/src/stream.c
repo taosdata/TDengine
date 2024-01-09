@@ -21,13 +21,18 @@ void* streamTimer = NULL;
 int32_t streamTimerInit() {
   streamTimer = taosTmrInit(1000, 100, 10000, "STREAM");
   if (streamTimer == NULL) {
+    stError("init stream timer failed, code:%s", tstrerror(terrno));
     return -1;
   }
+
+  stInfo("init stream timer, %p", streamTimer);
   return 0;
 }
 
 void streamTimerCleanUp() {
+  stInfo("cleanup stream timer, %p", streamTimer);
   taosTmrCleanUp(streamTimer);
+  streamTimer = NULL;
 }
 
 char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {

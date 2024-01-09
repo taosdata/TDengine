@@ -42,7 +42,6 @@ extern "C" {
 // clang-format on
 
 typedef struct STqOffsetStore STqOffsetStore;
-extern void* tqTimer;
 
 #define IS_OFFSET_RESET_TYPE(_t)  ((_t) < 0)
 
@@ -108,6 +107,7 @@ struct STQ {
   TTB*            pExecStore;
   TTB*            pCheckStore;
   SStreamMeta*    pStreamMeta;
+  void*           tqTimer;
 };
 
 int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);

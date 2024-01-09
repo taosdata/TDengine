@@ -92,6 +92,9 @@ extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;
 extern int32_t taskDbWrapperId;
 
+int32_t streamTimerInit();
+void    streamTimerCleanUp();
+
 void    streamRetryDispatchData(SStreamTask* pTask, int64_t waitDuration);
 int32_t streamDispatchStreamBlock(SStreamTask* pTask);
 void    destroyDispatchMsg(SStreamDispatchReq* pReq, int32_t numOfVgroups);

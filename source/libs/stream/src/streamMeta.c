@@ -23,7 +23,7 @@
 #include "ttimer.h"
 #include "wal.h"
 
-static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
+TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
 
 int32_t streamBackendId = 0;
 int32_t streamBackendCfWrapperId = 0;
@@ -61,9 +61,10 @@ static void streamMetaEnvInit() {
   streamMetaId = taosOpenRef(64, streamMetaCloseImpl);
 
   metaRefMgtInit();
+  streamTimerInit();
 }
 
-void streamMetaInit() { taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit); }
+void streamMetaInit() { /*taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit);*/ streamMetaEnvInit();}
 
 void streamMetaCleanup() {
   taosCloseRef(streamBackendId);
@@ -71,6 +72,7 @@ void streamMetaCleanup() {
   taosCloseRef(streamMetaId);
 
   metaRefMgtCleanup();
+  streamTimerCleanUp();
 }
 
 void metaRefMgtInit() {
@@ -391,7 +393,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   memcpy(pRid, &pMeta->rid, sizeof(pMeta->rid));
   metaRefMgtAdd(pMeta->vgId, pRid);
 
-  pMeta->pHbInfo->hbTmr = taosTmrStart(metaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamTimer);
+//  pMeta->pHbInfo->hbTmr = taosTmrStart(metaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamTimer);
   pMeta->pHbInfo->tickCounter = 0;
   pMeta->pHbInfo->stopFlag = 0;
   pMeta->qHandle = taosInitScheduler(32, 1, "stream-chkp", NULL);
@@ -1202,7 +1204,7 @@ void metaHbToMnode(void* param, void* tmrId) {
   }
 
   if (!waitForEnoughDuration(pMeta->pHbInfo)) {
-    taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr);
+//    taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr);
     taosReleaseRef(streamMetaId, rid);
     return;
   }
@@ -1212,7 +1214,7 @@ void metaHbToMnode(void* param, void* tmrId) {
   metaHeartbeatToMnodeImpl(pMeta);
   streamMetaRUnLock(pMeta);
 
-  taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr);
+//  taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr);
   taosReleaseRef(streamMetaId, rid);
 }
 
@@ -1262,11 +1264,11 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
 
   // wait for the stream meta hb function stopping
   if (pMeta->role == NODE_ROLE_LEADER) {
-    pMeta->pHbInfo->stopFlag = STREAM_META_WILL_STOP;
-    while (pMeta->pHbInfo->stopFlag != STREAM_META_OK_TO_STOP) {
-      taosMsleep(100);
-      stDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
-    }
+//    pMeta->pHbInfo->stopFlag = STREAM_META_WILL_STOP;
+//    while (pMeta->pHbInfo->stopFlag != STREAM_META_OK_TO_STOP) {
+//      taosMsleep(100);
+//      stDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
+//    }
   }
 
   stDebug("vgId:%d start to check all tasks", vgId);
@@ -1285,7 +1287,7 @@ void streamMetaStartHb(SStreamMeta* pMeta) {
   int64_t* pRid = taosMemoryMalloc(sizeof(int64_t));
   metaRefMgtAdd(pMeta->vgId, pRid);
   *pRid = pMeta->rid;
-  metaHbToMnode(pRid, NULL);
+//  metaHbToMnode(pRid, NULL);
 }
 
 void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
