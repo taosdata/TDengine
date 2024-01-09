@@ -745,8 +745,7 @@ static int32_t mndProcessGrantRsp(SRpcMsg *pRsp) {
 
 _exit:
   if (code != 0) {
-    uWarn("receive grant msg from dnode:%d, %s:%" PRIu16 ", nReq:%d, nRsp:%d with error:%s, gtid:%s",
-          grantMsgRsp.dnodeId, pDnodeInfo->ep.fqdn, pDnodeInfo->ep.port, grantHandle.nGrantReq, nGrantRsp,
+    uWarn("receive grant msg from dnode, nReq:%d, nRsp:%d with error:%s, gtid:%s", grantHandle.nGrantReq, nGrantRsp,
           tstrerror(code), tbuf);
   }
   if (nGrantRsp >= grantHandle.nGrantReq) {
@@ -1562,7 +1561,7 @@ static void grantStatusCheckImpl(SMnode *pMnode) {
 _exit:
   if (nGrant == 0) {
     char *ts = grantSecondsToString(*grantHandle.lastCheck);
-    uWarn("grant reset because official grants not received since %s", ts);
+    uDebug("grant reset because official grants not received since %s", ts);
     taosMemoryFree(ts);
     grantResetMaster(pMnode);
   }
