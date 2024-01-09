@@ -45,6 +45,19 @@ settings:
             logkeepDays: 2
             numOfLogLines: 300000000
             checkpointInterval: 60
+        - endpoint: u1-59:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            supportVnodes: 128
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            mdebugflag: 135
+            stdebugflag: 135
+            tqDebugFlag: 135
+            asyncLog: 0
+            logkeepDays: 2
+            numOfLogLines: 300000000
+            checkpointInterval: 60
       reserve_dnodes:
         - endpoint: u1-54:6030
           config_dir: /etc/taos
