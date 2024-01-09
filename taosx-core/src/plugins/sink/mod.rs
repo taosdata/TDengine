@@ -507,7 +507,7 @@ async fn consume_lush_record(
                 }
                 *records += record.num_rows();
                 let data = record.to_column_views();
-                let cols = data.len();
+                let cols = columns.len();
                 // RawBlock
                 // taos.write_raw_block()
                 let sqls = record.generate_insert_sql_from_tablename(&data, columns);
