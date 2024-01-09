@@ -498,12 +498,12 @@ export default {
 }
 .csv-data {
   // width: 600px;
-  padding: 5px;
-  box-sizing: border-box;
-  border: 1px solid #e3e4e6;
-  margin-bottom: 20px;
-  border-radius: 12px;
-  padding: 15px;
+  // padding: 5px;
+  // box-sizing: border-box;
+  // border: 1px solid #e3e4e6;
+  // margin-bottom: 20px;
+  // border-radius: 12px;
+  // padding: 15px;
   .upload-file {
     display: flex;
     margin-bottom: 18px;
