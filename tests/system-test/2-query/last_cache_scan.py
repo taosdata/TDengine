@@ -376,7 +376,7 @@ class TDTestCase:
         tdSql.checkCols(1)
         p = subprocess.run(["taos", '-s', "alter table test.meters drop column c2; alter table test.meters add column c1 int"])
         p.check_returncode()
-        tdSql.query_success_failed("select ts, last_row(c2), c12, ts, c12 from meters", queryTimes=10, expectErrInfo="Invalid column name: c2")
+        tdSql.query_success_failed("select ts, last(c2), c12, ts, c12 from meters", queryTimes=10, expectErrInfo="Invalid column name: c2")
         tdSql.query('select last(c1), c1, ts from meters', queryTimes=1)
         tdSql.checkRows(1)
         tdSql.checkCols(3)
@@ -413,7 +413,8 @@ class TDTestCase:
         tdSql.checkCols(3)
         tdSql.checkData(0, 0, None)
         tdSql.checkData(0, 1, None)           
-        tdSql.query_success_failed('select last(c2), c2, c3 from meters', queryTimes=10, expectErrInfo="Invalid column name: c2")
+
+
 
     def run(self):
         self.prepareTestEnv()

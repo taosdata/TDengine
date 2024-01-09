@@ -20,7 +20,7 @@ class TDTestCase:
         self.replicaVar = int(replicaVar)
         ## add for TD-6672
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
 
     def insertData(self, tb_name):
         insert_sql_list = [f'insert into {tb_name} values ("2021-01-01 12:00:00", 1, 1, 1, 3, 1.1, 1.1, "binary", "nchar", true, 1, 2, 3, 4)',
