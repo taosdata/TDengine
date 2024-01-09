@@ -32,9 +32,9 @@ impl HistorianQuery {
         Ok(Self { client })
     }
 
-    #[allow(dead_code)]
-    pub async fn get_tags(&mut self) -> anyhow::Result<Vec<TagMeta>> {
-        let tags_query = "select * from Runtime.dbo.Tag where TagName NOT like 'Sys%'".to_string();
+    pub async fn get_tags(&mut self, tag_conditions: Vec<String>) -> anyhow::Result<Vec<TagMeta>> {
+        let tags_query = select_tag_query(tag_conditions);
+
         let mut response = self.client.query(tags_query, &[]).await?;
 
         let mut tag_meta: Vec<TagMeta> = Vec::new();
@@ -114,6 +114,45 @@ impl HistorianQuery {
     }
 }
 
+/// parameter: tag_conditions like: ["tag1", "tag2", "HD*", "ABC*"]
+/// return: select * from Runtime.dbo.Tag where TagName NOT like 'Sys%' and (TagName in ('tag1', 'tag2') or TagName like 'HD%' or TagName like 'ABC%')
+fn select_tag_query(tag_conditions: Vec<String>) -> String {
+    let mut tags_query =
+        String::from("select * from Runtime.dbo.Tag where TagName NOT like 'Sys%'");
+
+    let conditions = tag_conditions
+        .iter()
+        .group_by(|t| t.contains('*'))
+        .into_iter()
+        .map(|(contain_wildcard, group)| {
+            if contain_wildcard {
+                group
+                    .map(|t| {
+                        let tag = t.clone();
+                        let condition = tag.replace("*", "%");
+                        format!("TagName like '{}'", condition)
+                    })
+                    .collect::<Vec<String>>()
+            } else {
+                let tags = group.map(|t| t.clone()).join("','");
+                vec![format!("TagName in ('{}')", tags)]
+            }
+        })
+        .flatten()
+        .collect::<Vec<String>>()
+        .join(" or ");
+    // .map(|conditions| conditions.join(" or "))
+    // .join(" or ");
+
+    if !conditions.is_empty() {
+        tags_query.push_str(" and (");
+        tags_query.push_str(conditions.as_str());
+        tags_query.push_str(")");
+    }
+
+    tags_query
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -125,6 +164,47 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn test_select_tag_query() {
+        let tag_conditions = vec![
+            "tag1".to_string(),
+            "tag2".to_string(),
+            "HD*".to_string(),
+            "ABC*".to_string(),
+        ];
+        let sql = select_tag_query(tag_conditions);
+        assert_eq!(
+            sql,
+            "select * from Runtime.dbo.Tag where TagName NOT like 'Sys%' and (TagName in ('tag1','tag2') or TagName like 'HD%' or TagName like 'ABC%')"
+        );
+
+        let tag_conditions = vec!["*".to_string()];
+        let sql = select_tag_query(tag_conditions);
+        assert_eq!(
+            sql,
+            "select * from Runtime.dbo.Tag where TagName NOT like 'Sys%' and (TagName like '%')"
+        );
+
+        let tag_conditions = vec!["HD*".to_string()];
+        let sql = select_tag_query(tag_conditions);
+        assert_eq!(
+            sql,
+            "select * from Runtime.dbo.Tag where TagName NOT like 'Sys%' and (TagName like 'HD%')"
+        );
+
+        let tag_conditions = vec![
+            "HD*".to_string(),
+            "020401021*".to_string(),
+            "02040111320002_018".to_string(),
+            "02040111320005_015".to_string(),
+        ];
+        let sql = select_tag_query(tag_conditions);
+        assert_eq!(
+            sql,
+            "select * from Runtime.dbo.Tag where TagName NOT like 'Sys%' and (TagName like 'HD%' or TagName like '020401021%' or TagName in ('02040111320002_018','02040111320005_015'))"
+        );
+    }
+
     #[tokio::test]
     #[ignore]
     async fn test_query_tag_meta() {
@@ -132,7 +212,7 @@ mod tests {
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
 
         let mut client = HistorianQuery::try_new(config).await.unwrap();
-        let tag_meta = client.get_tags().await.unwrap();
+        let tag_meta = client.get_tags(vec!["*".to_string()]).await.unwrap();
         dbg!(tag_meta);
     }
 

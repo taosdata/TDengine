@@ -152,15 +152,19 @@ pub async fn historian_to_taos(
 }
 
 async fn exec_task(task_id: Option<i64>, mut config: TaskConfig) -> anyhow::Result<()> {
-    let mut tags = config.tags.clone();
-    if !tags.is_empty() && tags.len() == 1 && tags.get(0).unwrap() == "*" {
+    let tag_conditions = config.tags.clone();
+    let contains_wildcard = tag_conditions.iter().any(|t| t.contains('*'));
+    let tags = if !contains_wildcard {
+        tag_conditions
+    } else {
         let mut client = HistorianQuery::try_new(config.connect.clone()).await?;
-        let tag_meta = client.get_tags().await?;
-        tags = tag_meta
+        let tag_meta = client.get_tags(tag_conditions).await?;
+        tag_meta
             .iter()
             .map(|meta| meta.name.clone())
-            .collect::<Vec<_>>();
-    }
+            .collect::<Vec<_>>()
+    };
+
     if tags.is_empty() {
         anyhow::bail!("tags cannot be empty");
     }
