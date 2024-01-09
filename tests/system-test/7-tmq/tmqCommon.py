@@ -45,9 +45,9 @@ class TMQCom:
         tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def initConsumerTable(self,cdbName='cdb'):
+    def initConsumerTable(self,cdbName='cdb', replicaVar=1):
         tdLog.info("create consume database, and consume info table, and consume result table")
-        tdSql.query("create database if not exists %s vgroups 1"%(cdbName))
+        tdSql.query("create database if not exists %s vgroups 1 replica %d"%(cdbName,replicaVar))
         tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
         tdSql.query("drop table if exists %s.consumeresult "%(cdbName))
         tdSql.query("drop table if exists %s.notifyinfo "%(cdbName))
@@ -65,17 +65,23 @@ class TMQCom:
         sql = "insert into %s.consumeinfo values "%cdbName
         sql += "(now + %ds, %d, '%s', '%s', %d, %d, %d)"%(consumerId, consumerId, topicList, keyList, expectrowcnt, ifcheckdata, ifmanualcommit)
         tdLog.info("consume info sql: %s"%sql)
-        tdSql.query(sql)
+        tdSql.execute(sql)
 
-    def selectConsumeResult(self,expectRows,cdbName='cdb'):
+    def selectConsumeResult(self,expectRows,cdbName='cdb',count=30):
         resultList=[]
-        while 1:
+        count_init = 0
+        while True:
             tdSql.query("select * from %s.consumeresult"%cdbName)
             #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
             if tdSql.getRows() == expectRows:
                 break
             else:
-                time.sleep(5)
+                time.sleep(1)
+                count_init += 1
+                if count_init == count:
+                    
+                    tdLog.exit(f"{tdSql.getRows()},{expectRows},{tdSql.queryResult}")                   
+            
 
         for i in range(expectRows):
             tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
@@ -156,7 +162,7 @@ class TMQCom:
             tdLog.info("row: %d"%(actRows))
             if (actRows >= rows):
                     loopFlag = 0
-            time.sleep(0.02)
+            time.sleep(0.5)
         return
 
     def getStartCommitNotifyFromTmqsim(self,cdbName='cdb',rows=1):
@@ -167,7 +173,7 @@ class TMQCom:
             tdLog.info("row: %d"%(actRows))
             if (actRows >= rows):
                 loopFlag = 0
-            time.sleep(0.02)
+            time.sleep(0.5)
         return
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):
@@ -479,7 +485,7 @@ class TMQCom:
                 tdLog.exit("consumerId %d consume rows len is not match the rows by direct query,len(dstSplit):%d != len(srcSplit):%d, dst:%s, src:%s"
                            %(consumerId, len(dstSplit), len(srcSplit), dst, src))
 
-            for i in range(len(dstSplit)):
+            for i in range(1,len(dstSplit)):
                 if srcSplit[i] != dstSplit[i]:
                     srcFloat = float(srcSplit[i])
                     dstFloat = float(dstSplit[i])

@@ -13,6 +13,9 @@ from util.cases import *
 from util.dnodes import *
 from util.common import *
 from util.cluster import *
+sys.path.append("./6-cluster")
+
+from clusterCommonCheck import *
 
 sys.path.append("./7-tmq")
 from tmqCommon import *
@@ -144,92 +147,114 @@ class TDTestCase:
                     'dropFlag':   1,
                     'event':      '',
                     'vgroups':    4,
-                    'stbName':    'stb',
+                    'stbName':    'meters',
                     'colPrefix':  'c',
                     'tagPrefix':  't',
                     'colSchema':   [{'type': 'INT', 'count':2}, {'type': 'binary', 'len':20, 'count':1}, {'type': 'TIMESTAMP', 'count':1}],
                     'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'ctbPrefix':  'ctb',
-                    'ctbNum':     10,
-                    'rowsPerTbl': 40000,
+                    'ctbNum':     400,
+                    'rowsPerTbl': 4000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  30,
+                    'pollDelay':  2,
                     'showMsg':    1,
                     'showRow':    1}
         
-        if self.replicaVar == 3:
-            paraDict["rowsPerTbl"] = 20000
+
+        ctbNum = paraDict["ctbNum"]
+        rowsPerTbl = paraDict['rowsPerTbl']
+        os.system(f"taosBenchmark -t {rowsPerTbl} -n {ctbNum} -a 3 -d 'db1' -v 4 -y ")
 
         topicNameList = ['topic1']
         expectRowsList = []
         tmqCom.initConsumerTable()
-        tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=4,replica=self.replicaVar)
-        tdLog.info("create stb")
-        tdCom.create_stable(tdSql, dbname=paraDict["dbName"],stbname=paraDict["stbName"], column_elm_list=paraDict['colSchema'], tag_elm_list=paraDict['tagSchema'])
-        tdLog.info("create ctb")
-        tdCom.create_ctable(tdSql, dbname=paraDict["dbName"],stbname=paraDict["stbName"],tag_elm_list=paraDict['tagSchema'],count=paraDict["ctbNum"], default_ctbname_prefix=paraDict['ctbPrefix'])
+        # tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=self.replicaVar)
+        # tdLog.info("create stb")
+        # tdCom.create_stable(tdSql, dbname=paraDict["dbName"],stbname=paraDict["stbName"], column_elm_list=paraDict['colSchema'], tag_elm_list=paraDict['tagSchema'])
+        # tdLog.info("create ctb")
+        # tdCom.create_ctable(tdSql, dbname=paraDict["dbName"],stbname=paraDict["stbName"],tag_elm_list=paraDict['tagSchema'],count=paraDict["ctbNum"], default_ctbname_prefix=paraDict['ctbPrefix'])
         tdLog.info("async insert data")
-        pThread = tmqCom.asyncInsertData(paraDict)
+        # pThread = tmqCom.asyncInsertData(paraDict)
 
         tdLog.info("create topics from stb with filter")
         # queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s where c1 %% 7 == 0" %(paraDict['dbName'], paraDict['stbName'])
         
-        queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s" %(paraDict['dbName'], paraDict['stbName'])
+        queryString = "select ts, log(voltage), ceil(pow(current,3)) from %s.%s" %(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
+        # pThread.join()
 
         # init consume info, and start tmq_sim, then check consume result
         tdLog.info("insert consume info to consume processor")
-        consumerId   = 0
-        expectrowcnt = paraDict["rowsPerTbl"] * paraDict["ctbNum"] * 2   # because taosd switch, may be consume duplication data
+        consumerId0  = 0
+        consumerId1  = 1
+
+        expectrowcnt = rowsPerTbl * ctbNum * 2   # because taosd switch, may be consume duplication data
         topicList    = topicNameList[0]
         ifcheckdata  = 1
         ifManualCommit = 1
         keyList      = 'group.id:cgrp1, enable.auto.commit:false, auto.commit.interval.ms:6000, auto.offset.reset:earliest'
-        tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
-
+        tmqCom.insertConsumerInfo(consumerId0, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'])
 
-        tdLog.info("wait the notify info of start consume")
-        tmqCom.getStartConsumeNotifyFromTmqsim()
 
+        tdLog.info("wait the notify info of start consume")
+        tmqCom.getStartConsumeNotifyFromTmqsim(rows=1)
+        
         tdLog.info("start switch mnode ................")
         tdDnodes = cluster.dnodes
-
-        tdLog.info("1. stop dnode 0")
+        tdLog.info("1. restart dnode 1")
         tdDnodes[0].stoptaosd()
-        time.sleep(10)
-        self.check3mnode1off()
-
-        tdLog.info("2. start dnode 0")
         tdDnodes[0].starttaosd()
-        self.check3mnode()
 
-        tdLog.info("3. stop dnode 2")
+
+
+        tmqCom.insertConsumerInfo(1, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
+        tmqCom.insertConsumerInfo(2, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
+        tmqCom.insertConsumerInfo(3, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
+        tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'],alias=1)
+        tdLog.info("2. restart dnode 3")
+        
+        tdDnodes[1].stoptaosd()
+        tdDnodes[1].starttaosd()
         tdDnodes[2].stoptaosd()
-        time.sleep(10)
-        self.check3mnode1off()
+        tdDnodes[2].starttaosd()
+        tdDnodes[0].stoptaosd()
+        tdDnodes[0].starttaosd()
+        tdDnodes[1].stoptaosd()
+        tdDnodes[1].starttaosd()
+        tdDnodes[2].stoptaosd()
+        tdDnodes[2].starttaosd()
+        tdDnodes[0].stoptaosd()
+        tdDnodes[0].starttaosd()
+        tdDnodes[1].stoptaosd()
+        tdDnodes[1].starttaosd()
+        tdDnodes[2].stoptaosd()
+        tdDnodes[2].starttaosd()
+
+
+        
+        clusterComCheck.checkMnodeStatus(3)
 
         tdLog.info("switch end and wait insert data end ................")
-        pThread.join()
 
         tdLog.info("check the consume result")
         tdSql.query(queryString)
         expectRowsList.append(tdSql.getRows())
 
-        expectRows = 1
+        expectRows = 5
         resultList = tmqCom.selectConsumeResult(expectRows)
 
         tdLog.info("expect consume rows: %d should less/equal than act consume rows: %d"%(expectRowsList[0], resultList[0]))
         if expectRowsList[0] > resultList[0]:
             tdLog.exit("0 tmq consume rows error!")
 
-        # querySqlString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s order by ts,tbname " %(paraDict['dbName'], paraDict['stbName'])
         # if expectRowsList[0] == resultList[0]:
-        #     tmqCom.checkFileContent(consumerId, queryString)
+        #     querytestString = "select ts, log(voltage), ceil(pow(current,3)) from  %s.%s order by ts,tbname" %(paraDict['dbName'], paraDict['stbName'])
+        #     tmqCom.checkFileContent(consumerId0, querytestString)
 
         time.sleep(10)
         for i in range(len(topicNameList)):
