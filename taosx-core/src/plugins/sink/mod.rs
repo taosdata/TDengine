@@ -344,7 +344,6 @@ async fn consume_lush_record(
     trace_id_str: &str,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<()> {
-    metrics.add_processed_batches(1);
     let req_id = RequestID::new(data_trace_id);
     match record {
         LushMessage::Tables(tables) => {
@@ -506,7 +505,6 @@ async fn consume_lush_record(
                 if record.num_rows() == 0 {
                     continue;
                 }
-                metrics.add_processed_records(record.num_rows() as u64);
                 *records += record.num_rows();
                 let data = record.to_column_views();
                 let cols = data.len();
@@ -705,7 +703,6 @@ async fn consume_point_record(
 ) -> anyhow::Result<usize> {
     let mut points = 0;
     let req_id = RequestID::new(data_trace_id);
-    metrics.add_processed_batches(1);
     for message in record.records() {
         let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(
             message.record(),
@@ -804,7 +801,6 @@ async fn consume_point_record(
         > = HashMap::new();
         let mut child_table_create_sql_map = HashMap::new();
         for i in 0..id_cv.len() {
-            metrics.add_processed_records(1);
             let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
             let code = id_code_map.get(&id);
             if code.is_none() {
@@ -1399,7 +1395,6 @@ async fn consume_flat_record(
     let mut max_lengths = HashMap::new();
     let req_id = RequestID::new(data_trace_id);
     for message in record.records() {
-        metrics.add_processed_batches(1);
         let batch = message.record();
 
         let batch = parser.parse_message_from_records(batch)?;
@@ -1429,7 +1424,6 @@ async fn consume_flat_record(
                     if records.records.num_rows() == 0 {
                         continue;
                     }
-                    metrics.add_processed_records(records.records.num_rows() as u64);
                     if records.records.column(0).null_count() > 0 {
                         bail!("Timestamp field contains null or invalid values");
                     }
@@ -1914,6 +1908,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     static mut ACKS: AtomicUsize = AtomicUsize::new(0);
     // let mut taos = Some(taos);
     while let Some(record) = stream.try_next().await.context("next item error")? {
+        metrics.add_received_batches(1);
         let taos = pool.get().await?;
         let mut taos = Some(taos);
         batches += 1;
@@ -1924,6 +1919,12 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
         .unwrap();
+        metrics.add_processed_batches(1);
+        if let LushMessage::Insert(record) = &record {
+            for record in record {
+                metrics.add_processed_records(record.num_rows() as _);
+            }
+        }
         let last = count;
         if let Err(err) = consume_lush_record(
             pool,
@@ -2024,6 +2025,10 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
         .unwrap();
+        metrics.add_processed_batches(1);
+        for record in record.records() {
+            metrics.add_processed_records(record.record().num_rows() as _);
+        }
         let n = consume_point_record(
             pool,
             &mut taos,
@@ -2060,6 +2065,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             let metrics_arc_clone = metrics_arc.clone();
             async move {
                 let metrics = metrics_arc_clone.ipc();
+                metrics.add_received_batches(1);
                 let n = parse(context, record, data_trace_id, &data_trace_id_str, metrics).await;
                 match n {
                     Ok(n) => {
@@ -2108,12 +2114,15 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
     // });
     let mut taos = Some(pool.get().await?);
     while let Some(record) = stream.try_next().await? {
+        metrics.add_received_batches(1);
         let data_trace_id = create_data_trace_id(stream_trace_id, batches);
         let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
         let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
         .unwrap();
+        metrics.add_processed_batches(1);
+        metrics.add_processed_records(record.num_rows() as _);
         info!(
             trace.id = data_trace_id_str,
             record.rows = record.num_rows(),
@@ -2560,6 +2569,8 @@ impl IpcStreamWorker {
         trace_id_str: &str,
         metrics: &IpcMetrics,
     ) -> anyhow::Result<usize> {
+        metrics.add_processed_batches(1);
+        metrics.add_processed_records(record.num_rows() as _);
         let taos = self.pool.get().await?;
         let target_precision = get_current_precision(&taos).await?;
         match self.parser.metadata().stream_type() {
