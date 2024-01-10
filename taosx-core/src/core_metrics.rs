@@ -314,14 +314,14 @@ pub fn clear_metrics(task_id: i64) {
     }
 }
 
-pub fn init_task_metrics(from: Dsn, to: Dsn, task_id: i64) -> Arc<CoreMetrics> {
+pub fn init_task_metrics(from: Dsn, to: Dsn, task_id: i64) -> Option<Arc<CoreMetrics>> {
     match (from.driver.as_str(), to.driver.as_str()) {
         ("taos", "taos") => {
             let metrics = try_get_metrics::<LegacyToTaosMetrics>(task_id);
             if let Some(metrics) = metrics {
                 tracing::info!("reset metrics for task {}", task_id);
                 metrics.legacy().reset();
-                metrics
+                Some(metrics)
             } else {
                 tracing::info!("create new metrics for task {}", task_id);
                 let metrics = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::new(task_id)));
@@ -329,7 +329,7 @@ pub fn init_task_metrics(from: Dsn, to: Dsn, task_id: i64) -> Arc<CoreMetrics> {
                     .lock()
                     .unwrap()
                     .insert(task_id, metrics.clone());
-                metrics
+                Some(metrics)
             }
         }
         ("tmq", "taos" | "local") => {
@@ -337,7 +337,7 @@ pub fn init_task_metrics(from: Dsn, to: Dsn, task_id: i64) -> Arc<CoreMetrics> {
             if let Some(metrics) = metrics {
                 tracing::info!("reset metrics for task {}", task_id);
                 metrics.tmq().reset();
-                metrics
+                Some(metrics)
             } else {
                 tracing::info!("create new metrics for task {}", task_id);
                 let metrics = Arc::new(CoreMetrics::TMQ(TmqMetrics::new(task_id)));
@@ -345,7 +345,7 @@ pub fn init_task_metrics(from: Dsn, to: Dsn, task_id: i64) -> Arc<CoreMetrics> {
                     .lock()
                     .unwrap()
                     .insert(task_id, metrics.clone());
-                metrics
+                Some(metrics)
             }
         }
         (
@@ -366,7 +366,7 @@ pub fn init_task_metrics(from: Dsn, to: Dsn, task_id: i64) -> Arc<CoreMetrics> {
             if let Some(metrics) = metrics {
                 tracing::info!("reset metrics for task {}", task_id);
                 metrics.ipc().reset();
-                metrics
+                Some(metrics)
             } else {
                 tracing::info!("create new metrics for task {}", task_id);
                 let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(task_id)));
@@ -374,12 +374,16 @@ pub fn init_task_metrics(from: Dsn, to: Dsn, task_id: i64) -> Arc<CoreMetrics> {
                     .lock()
                     .unwrap()
                     .insert(task_id, metrics.clone());
-                metrics
+                Some(metrics)
             }
         }
         _ => {
-            tracing::error!("unsupported datasource");
-            panic!("unsupported datasource")
+            tracing::warn!(
+                "no metrics defined for datasource from={}, to={}",
+                from.driver,
+                to.driver
+            );
+            None
         }
     }
 }
