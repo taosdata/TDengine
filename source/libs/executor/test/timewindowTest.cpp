@@ -164,6 +164,11 @@ TEST(testCase, timewindow_natural) {
   int32_t precision = TSDB_TIME_PRECISION_MILLI;
 
   SInterval interval2 = createInterval(17, 17, 13392000000, 'n', 'n', 0, precision);
+  int64_t key = 1648970865984;
+  STimeWindow w0 = getAlignQueryTimeWindow(&interval2, key);
+  printTimeWindow(&w0, precision, key);
+  ASSERT_GE(w0.ekey, key);
+
   int64_t key1 = 1633446027072;
   STimeWindow w1 = {0};
   getInitialStartTimeWindow(&interval2, key1, &w1, true);
