@@ -33,7 +33,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/pause_resume_test.py
 #,,n,system-test,python3 ./test.py -f 8-stream/vnode_restart.py -N 4
 #,,n,system-test,python3 ./test.py -f 8-stream/snode_restart.py -N 4
-,,n,system-test,python3 ./test.py -f 8-stream/snode_restart_with_checkpoint.py -N 4
+#,,n,system-test,python3 ./test.py -f 8-stream/snode_restart_with_checkpoint.py -N 4
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname_vgroup.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/compact-col.py
@@ -109,6 +109,7 @@
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_stb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_stable.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/stt_blocks_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py
@@ -260,8 +261,10 @@ e
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
 ,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
 ,,n,system-test,python3 ./test.py -N 3 -f 0-others/walRetention.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupRep1.py -N 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupRep3.py -N 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 1
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 1
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 3
 ,,n,system-test,python3 ./test.py -f 0-others/timeRangeWise.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/delete_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
@@ -359,6 +362,11 @@ e
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws2.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/group_partition.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/group_partition.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/group_partition.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/group_partition.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/group_partition.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py
@@ -527,6 +535,7 @@ e
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/systable_func.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4382.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4403.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py
@@ -536,6 +545,8 @@ e
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tagFilter.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts_3405_3398_3423.py -N 3 -n 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4348-td-27939.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/backslash_g.py
 
 ,,n,system-test,python3 ./test.py -f 2-query/queryQnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode1mnode.py

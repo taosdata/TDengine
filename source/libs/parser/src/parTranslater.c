@@ -2083,6 +2083,7 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
   if (NULL != pCurrStmt && QUERY_NODE_SELECT_STMT == nodeType(pCurrStmt)) {
     SSelectStmt* pSelect = (SSelectStmt*)pCurrStmt;
     pSelect->hasAggFuncs = pSelect->hasAggFuncs ? true : fmIsAggFunc(pFunc->funcId);
+    pSelect->hasCountFunc = pSelect->hasCountFunc ? true : (FUNCTION_TYPE_COUNT == pFunc->funcType);
     pSelect->hasRepeatScanFuncs = pSelect->hasRepeatScanFuncs ? true : fmIsRepeatScanFunc(pFunc->funcId);
 
     if (fmIsIndefiniteRowsFunc(pFunc->funcId)) {
@@ -6929,11 +6930,37 @@ static int32_t translateCreateFullTextIndex(STranslateContext* pCxt, SCreateInde
 }
 
 static int32_t translateCreateNormalIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
+  int32_t     code = 0;
+  SName       name;
+  STableMeta* pMeta = NULL;
+
+  code = getTargetMeta(pCxt, toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name), &pMeta, false);
+  if (code) {
+    taosMemoryFree(pMeta);
+    return code;
+  }
+
+  if (LIST_LENGTH(pStmt->pCols) != 1) {
+    taosMemoryFree(pMeta);
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_NUM, "Only one tag is allowed");
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pStmt->pCols) {
+    const SSchema* pSchema = getTagSchema(pMeta, ((SColumnNode*)pNode)->colName);
+    if (!pSchema) {
+      taosMemoryFree(pMeta);
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, ((SColumnNode*)pNode)->colName);
+    }
+  }
+
   SCreateTagIndexReq createTagIdxReq = {0};
-  int32_t            code = buildCreateTagIndexReq(pCxt, pStmt, &createTagIdxReq);
+  code = buildCreateTagIndexReq(pCxt, pStmt, &createTagIdxReq);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_INDEX, (FSerializeFunc)tSerializeSCreateTagIdxReq, &createTagIdxReq);
   }
+_exit:
+  taosMemoryFree(pMeta);
   return code;
 }
 
@@ -7446,7 +7473,7 @@ static int32_t addTagsToCreateStreamQuery(STranslateContext* pCxt, SCreateStream
       }
     }
     if (!found) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, ((SColumnDefNode*)pTag)->colName);
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, getTagNameForCreateStreamTag(pTag));
     }
   }
   return TSDB_CODE_SUCCESS;

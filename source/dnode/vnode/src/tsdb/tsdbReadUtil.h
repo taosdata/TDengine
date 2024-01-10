@@ -175,9 +175,22 @@ typedef struct SFilesetIter {
 
 typedef struct SFileDataBlockInfo {
   // index position in STableBlockScanInfo in order to check whether neighbor block overlaps with it
-  uint64_t    uid;
-  int32_t     tbBlockIdx;
-  SBrinRecord record;
+  //  int64_t suid;
+  int64_t uid;
+  int64_t firstKey;
+//  int64_t firstKeyVer;
+  int64_t lastKey;
+//  int64_t lastKeyVer;
+  int64_t minVer;
+  int64_t maxVer;
+  int64_t blockOffset;
+  int64_t smaOffset;
+  int32_t blockSize;
+  int32_t blockKeySize;
+  int32_t smaSize;
+  int32_t numRow;
+  int32_t count;
+  int32_t tbBlockIdx;
 } SFileDataBlockInfo;
 
 typedef struct SDataBlockIter {

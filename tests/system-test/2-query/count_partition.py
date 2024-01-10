@@ -66,9 +66,9 @@ class TDTestCase:
         tdSql.checkRows(self.row_nums+1)
 
         tdSql.query(f"select count(c1) , count(t2) from {dbname}.stb where abs(c1+t2)=1 partition by tbname")
-        tdSql.checkRows(2)
+        tdSql.checkRows(10)
         tdSql.query(f"select count(c1) from {dbname}.stb where abs(c1+t2)=1 partition by tbname")
-        tdSql.checkRows(2)
+        tdSql.checkRows(10)
 
         tdSql.query(f"select tbname , count(c1) from {dbname}.stb partition by tbname order by tbname")
         tdSql.checkRows(self.tb_nums)

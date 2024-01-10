@@ -30,7 +30,7 @@ class TDTestCase:
         self.tb3 = "t3"
         self.once = 1000
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
 
     def prepare_db(self):
         tdSql.execute(f"drop database if exists {self.database}")
