@@ -345,16 +345,17 @@ int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask) {
   SStreamTaskState* p = streamTaskGetStatus(pTask);
   ASSERT(p->state == TASK_STATUS__READY);
 
+  int8_t schedStatus = pTask->status.schedStatus;
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     int64_t startVer = walReaderGetCurrentVer(pTask->exec.pWalReader);
     if (startVer == -1) {
       startVer = pTask->chkInfo.nextProcessVer;
     }
 
-    stDebug("s-task:%s no need to scan-history data, status:%s, sched-status:%d, ready for data from wal ver:%" PRId64,
-            id, p->name, pTask->status.schedStatus, startVer);
+    stDebug("s-task:%s status:%s, sched-status:%d, ready for data from wal ver:%" PRId64, id, p->name, schedStatus,
+            startVer);
   } else {
-    stDebug("s-task:%s level:%d status:%s sched-status:%d", id, pTask->info.taskLevel, p->name, pTask->status.schedStatus);
+    stDebug("s-task:%s level:%d status:%s sched-status:%d", id, pTask->info.taskLevel, p->name, schedStatus);
   }
 
   return TSDB_CODE_SUCCESS;

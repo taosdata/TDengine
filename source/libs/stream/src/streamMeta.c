@@ -23,7 +23,7 @@
 #include "ttimer.h"
 #include "wal.h"
 
-TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
+static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
 
 int32_t streamBackendId = 0;
 int32_t streamBackendCfWrapperId = 0;
@@ -64,7 +64,7 @@ static void streamMetaEnvInit() {
   streamTimerInit();
 }
 
-void streamMetaInit() { /*taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit);*/ streamMetaEnvInit();}
+void streamMetaInit() { taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit);}
 
 void streamMetaCleanup() {
   taosCloseRef(streamBackendId);
@@ -393,7 +393,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   memcpy(pRid, &pMeta->rid, sizeof(pMeta->rid));
   metaRefMgtAdd(pMeta->vgId, pRid);
 
-//  pMeta->pHbInfo->hbTmr = taosTmrStart(metaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamTimer);
+  pMeta->pHbInfo->hbTmr = taosTmrStart(metaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamTimer);
   pMeta->pHbInfo->tickCounter = 0;
   pMeta->pHbInfo->stopFlag = 0;
   pMeta->qHandle = taosInitScheduler(32, 1, "stream-chkp", NULL);
@@ -1204,7 +1204,7 @@ void metaHbToMnode(void* param, void* tmrId) {
   }
 
   if (!waitForEnoughDuration(pMeta->pHbInfo)) {
-//    taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr);
+    taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr);
     taosReleaseRef(streamMetaId, rid);
     return;
   }
@@ -1214,7 +1214,7 @@ void metaHbToMnode(void* param, void* tmrId) {
   metaHeartbeatToMnodeImpl(pMeta);
   streamMetaRUnLock(pMeta);
 
-//  taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr);
+  taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr);
   taosReleaseRef(streamMetaId, rid);
 }
 

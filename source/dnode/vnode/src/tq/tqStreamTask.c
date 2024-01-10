@@ -19,8 +19,6 @@
 #define MAX_REPEAT_SCAN_THRESHOLD  3
 #define SCAN_WAL_IDLE_DURATION     100
 
-void* tqTimer = NULL;
-
 static int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle);
 static int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId);
 static bool    handleFillhistoryScanComplete(SStreamTask* pTask, int64_t ver);
@@ -98,9 +96,9 @@ int32_t tqScanWalInFuture(STQ* pTq, int32_t numOfTasks, int32_t idleDuration) {
   pParam->pTq = pTq;
   pParam->numOfTasks = numOfTasks;
   if (pMeta->scanInfo.scanTimer == NULL) {
-    pMeta->scanInfo.scanTimer = taosTmrStart(doStartScanWal, idleDuration, pParam, tqTimer);
+    pMeta->scanInfo.scanTimer = taosTmrStart(doStartScanWal, idleDuration, pParam, pTq->tqTimer);
   } else {
-    taosTmrReset(doStartScanWal, idleDuration, pParam, tqTimer, &pMeta->scanInfo.scanTimer);
+    taosTmrReset(doStartScanWal, idleDuration, pParam, pTq->tqTimer, &pMeta->scanInfo.scanTimer);
   }
 
   return TSDB_CODE_SUCCESS;
