@@ -149,7 +149,7 @@ tracing-subscriber = { version = "0.3", features = [
   "local-time",
   "env-filter",
 ] }
-tracing-appender = "0.2"
+tracing-appender = "0.2.3"
 tracing = { version = "0.1", features = ["log"] }
 atty = "*"
 file-rotate = "0.7.5"
