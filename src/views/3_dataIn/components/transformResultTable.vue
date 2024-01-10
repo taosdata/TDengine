@@ -1,12 +1,16 @@
 <template>
-  <div class="result-table" v-if="showtable" ref='result'>
+  <div class="result-table" v-if="showtable" ref="result">
     <div class="title-block">
-      <span class="title">{{
-        $store.state.app.transresultname + $t("datasource.transformer.resulttb")
-      }}</span>
+      <span class="title">{{ $t("datasource.transformer.resulttb") }}</span>
       <!-- <span class='el-icon-close'></span> -->
     </div>
-    <el-table border style="width: 100%" :data="pageTableData" :row-class-name="tableRowClassName">
+    <el-table
+      border
+      style="width: 100%"
+      max-height="600"
+      :data="pageTableData"
+      :row-class-name="tableRowClassName"
+    >
       <el-table-column
         v-for="item in columns"
         :key="item"
@@ -20,6 +24,7 @@
       <el-pagination
         :class="['pagination', totalCount < 10 ? 'hide' : '']"
         :page-size="pageSize"
+        :current-page.sync="currentPage"
         layout="total,prev, pager, next, jumper"
         :total="totalCount"
         @current-change="handleCurrentChange"
@@ -39,11 +44,11 @@ export default {
   },
   data() {
     return {
-        isFixed:false,
+      isFixed: false,
       columns: ["Name", "Output1", "Output2", "Output3"],
       tableData: [],
       pageTableData: [],
-      pageSize: 10,
+      pageSize: 20,
       totalCount: 10,
       currentPage: 1,
       showtable: false,
@@ -59,32 +64,34 @@ export default {
     ) {
       this.getResultData(this.$store.state.app.transformresulttable);
       this.showtable = true;
+      this.handleScroll();
     }
-    window.addEventListener('scroll',this.handleScroll)
-  },
-  destroy(){
-    window.removeEventListener('scroll',this.handleScroll)
+    const mainDom = document.querySelector(".main_content");
+    mainDom.addEventListener("scroll", this.handleScroll);
+    this.$once("hook:beforeDestroy", () => {
+      mainDom.removeEventListener("scroll", this.handleScroll);
+    });
   },
   methods: {
-    tableRowClassName({row,rowIndex}){
-        if(this.$store.state.app.activeColumns.includes(row['Name'])){
-            return 'active-row'
-        }
-        console.log(row,rowIndex,'kkkk---shezhi设置颜色',this.$store.state.app.activeColumns);
-    },
-    getOffsetTop(obj) {
-      let offsettop = 0;
-      while (obj != window.document.body && obj != null) {
-        offsettop += obj.offsetTop;
-        obj = obj.offsetParent;
+    tableRowClassName({ row, rowIndex }) {
+      if (this.$store.state.app.activeColumns.includes(row["Name"])) {
+        return "active-row";
       }
-      return offsettop;
     },
     handleScroll() {
-        let scrollTop=window.pageYOffset || document.documentElement.scrollTop||document.body.scrollTop
-        let offsetTop=this.getOffsetTop(this.$refs.result)
-        this.isFixed=scrollTop>offsetTop
-        console.log(scrollTop,offsetTop,'高度');
+      this.$nextTick(() => {
+        let dom = document.querySelector(".transdescription");
+        if (dom) {
+          const mainDom = document.querySelector(".main_content");
+          const scrollTop = mainDom.scrollTop;
+          let top = scrollTop >= dom.offsetTop ? scrollTop : dom.offsetTop;
+          this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
+          if (this.$refs.result) {
+            this.$refs.result.style.top = top - 200 + "px";
+            // this.$refs.result.style.bottom=70+'px'
+          }
+        }
+      });
     },
     setPageTableData() {
       this.$set(
@@ -103,7 +110,16 @@ export default {
     },
     getResultData(data) {
       let totalData = [];
-      let columns = Object.keys(data[0]);
+      let hiddenCols = [];
+      if (this.$store.state.app.currentDBType == "mqtt") {
+        hiddenCols = this.mqttDefaultCols;
+      }
+      if (this.$store.state.app.currentDBType == "kafka") {
+        hiddenCols = this.kafkaDefaultCols;
+      }
+      let columns = Object.keys(data[0]).filter((item) => {
+        return !hiddenCols.includes(item);
+      });
       this.totalCount = columns.length;
       this.tableData = columns
         .map((key) => {
@@ -127,34 +143,35 @@ export default {
           });
           return final;
         });
+      this.$nextTick(() => {
+        const targetRow = document.querySelector("tr.el-table__row.active-row");
+        if (targetRow) {
+            const bound = targetRow.getBoundingClientRect()
+            const y = bound.y
+            this.$el.querySelector('.el-table__body-wrapper').scrollTo(0, y)
+        }
+      });
       this.setPageTableData();
     },
   },
   watch: {
-    "$store.state.app.transresultname": {
+    "$store.state.app.resultCurrentPage": {
       deep: true,
       handler(val) {
-        if (val) {
-        //   this.showtable = true;
-          this.getResultData(this.$store.state.app.transformresulttable);
-          this.$nextTick(() => {
-            let dom = document.querySelector(".result-table");
-            if (dom) {
-              dom.style.top = this.$store.state.app.transformTableHeight + "px";
-            }
-          });
+        if (val > 20) {
+          this.handleCurrentChange(Math.floor(val / this.pageSize) + 1);
         } else {
-        //   this.showtable = false;
-          this.$store.commit("app/SET_TRANS_RESULT_TABLE", []);
+          this.handleCurrentChange(1);
         }
       },
     },
     "$store.state.app.transformresulttable": {
       deep: true,
       handler(val) {
-        this.showtable = true;
+        this.showtable = false;
         if (val && val.length > 0 && this.$store.state.app.transresultname) {
-            
+          this.showtable = true;
+          this.handleScroll();
           this.getResultData(val);
         }
       },
@@ -197,13 +214,32 @@ export default {
     }
   }
   ::v-deep {
-    .el-table .el-table__cell {
-      padding: 6px 0px;
+    .el-table {
+      thead tr th {
+        background-color: #f5f7fa;
+      }
+
+      //   .el-table--border{
+      //     border-color: transparent !important;
+      //   }
+      .el-table--group::after,
+      .el-table--border::after,
+      .el-table::before {
+        border-color: transparent !important;
+      }
+      //   .el-table__column-resize-proxy {
+      //     display: none !important;
+      //   }
+      &.el-table__cell {
+        padding: 6px 0px;
+      }
+      .active-row {
+        background: #ecf2fe !important;
+      }
+      &::before {
+        background-color: transparent;
+      }
     }
-    .el-table .active-row {
-    background: #ecf2fe;
   }
-  }
- 
 }
 </style>

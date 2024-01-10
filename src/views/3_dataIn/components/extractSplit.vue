@@ -1,5 +1,5 @@
 <template>
-  <div class="extract-split">
+  <div :class="['extract-split',itemData.columnname&&itemData.columnname==$store.state.app.transresultname?'active':'']">
     <div class="extract-item">
       <el-form :model="ruleForm" :rules="rules" size="small" ref="extractForm">
         <el-form-item prop="col_name">
@@ -187,7 +187,7 @@ export default {
       this.$nextTick(() => {
         if (document.querySelector(".transdescription")) {
           let dom = document.querySelector(".transdescription");
-          let top = 2200//dom.offsetTop + document.body.scrollHeight;
+          let top = 2200; //dom.offsetTop + document.body.scrollHeight;
           this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
         }
       });
@@ -229,22 +229,12 @@ export default {
       }
       this.$refs.extractForm.validate(async (valid) => {
         if (valid) {
-          // this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
-          await this.submitExtract();
-          await this.submitExtract(true);
-          this.$nextTick(() => {
-            if (document.querySelector(".transdescription")) {
-              let dom = document.querySelector(".transdescription");
-              let top = 2200//dom.offsetTop + document.body.scrollHeight;
-              this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
-            }
-          });
           this.$store.commit(
             "app/SET_TRANS_RESULT_NAME",
             this.itemData.columnname
           );
-          Message.success(this.$t("datasource.successtip"));
-          //执行完之后选中的列才能不会再被选中
+          await this.submitExtract();
+          await this.submitExtract(true);
 
           return true;
         } else {
@@ -329,6 +319,10 @@ export default {
           );
           //获取全部的extract or split参数
           this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
+          let pageindex = Object.keys(this.$store.state.app.transformresulttable[0]).findIndex(
+            (item) => item== Object.keys(this.tableData[0])[0]
+          );
+          this.$store.commit("app/SET_RESULT_PAGE", pageindex);
           return;
         }
         this.$store.commit(
@@ -348,12 +342,8 @@ export default {
           obj.value = finalVal.join("") ? finalVal.join(" ; ") : "";
           return obj;
         });
-        // this.tableColumns = colLists;
         this.tableData = tbdata;
-        this.$store.commit('app/SET_ACTIVE_COLS',Object.keys(tbdata[0]))
-        let pageindex=this.tableData.findIndex(item=>item['Name']==Object.keys(tbdata[0])[0])
-        this.$store.commit('app/SET_RESULT_PAGE',pageindex)
-        // this.$store.commit("app/SET_TRANS_RESULT_TABLE", this.tableData);
+        this.$store.commit("app/SET_ACTIVE_COLS", Object.keys(tbdata[0]));
       } catch (error) {
         console.log(error);
       }
@@ -524,7 +514,6 @@ export default {
           : inputList,
       };
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);
-      this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
 
       await this.getParserData(parser, isall);
     },
@@ -551,8 +540,24 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
+@keyframes heart{
+  0% {
+    box-shadow: 0 0 5px #4259ce;
+  };
+  // 50%{
+  //   box-shadow: 0 0 20px #4259ce;
+  // }
+  100%{
+    box-shadow: 0 0 5px #4259ce;
+  }
+}
 .extract-split {
   margin-top: 20px;
+  // &.active{
+  //   padding: 20px;
+  //   border-radius:6px;
+  //   animation:heart 5s linear infinite;
+  // }
   .extract-item {
     display: flex;
     flex-wrap: nowrap;
