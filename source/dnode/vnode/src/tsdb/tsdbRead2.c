@@ -2085,13 +2085,13 @@ static bool initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
           ASCENDING_TRAVERSE(pReader->info.order) ? pScanInfo->sttWindow.skey : pScanInfo->sttWindow.ekey;
       hasData = true;
     } else {  // not clean stt blocks
-      INIT_TIMEWINDOW(pScanInfo->sttWindow);  //reset the time window
+      INIT_TIMEWINDOW(&pScanInfo->sttWindow);  //reset the time window
       pScanInfo->sttBlockReturned = false;
       hasData = nextRowFromSttBlocks(pSttBlockReader, pScanInfo, &pReader->info.verRange);
     }
   } else {
     pScanInfo->cleanSttBlocks = false;
-    INIT_TIMEWINDOW(pScanInfo->sttWindow);  //reset the time window
+    INIT_TIMEWINDOW(&pScanInfo->sttWindow);  //reset the time window
     pScanInfo->sttBlockReturned = false;
     hasData = nextRowFromSttBlocks(pSttBlockReader, pScanInfo, &pReader->info.verRange);
   }
