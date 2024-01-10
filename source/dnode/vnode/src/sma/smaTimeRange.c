@@ -188,7 +188,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
       pDeleteReq->suid = suid;
       pDeleteReq->deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
-      code = tqBuildDeleteReq(pVnode->pTq, stbFullName, pDataBlock, pDeleteReq, "");
+      code = tqBuildDeleteReq(pVnode->pTq, stbFullName, pDataBlock, pDeleteReq, "", true);
       TSDB_CHECK_CODE(code, lino, _exit);
       continue;
     }

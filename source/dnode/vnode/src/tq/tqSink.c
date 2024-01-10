@@ -44,7 +44,7 @@ static void    setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSData
                                    int64_t gid, bool newSubTableRule);
 
 int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
-                         const char* pIdStr) {
+                         const char* pIdStr, bool newSubTableRule) {
   int32_t          totalRows = pDataBlock->info.rows;
   SColumnInfoData* pStartTsCol = taosArrayGet(pDataBlock->pDataBlock, START_TS_COLUMN_INDEX);
   SColumnInfoData* pEndTsCol = taosArrayGet(pDataBlock->pDataBlock, END_TS_COLUMN_INDEX);
@@ -68,6 +68,11 @@ int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* p
     if (varTbName != NULL && varTbName != (void*)-1) {
       name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
       memcpy(name, varDataVal(varTbName), varDataLen(varTbName));
+      if(newSubTableRule &&
+         !isAutoTableName(name) &&
+         !alreadyAddGroupId(name)) {
+        buildCtbNameAddGruopId(name, groupId);
+      }
     } else if (stbFullName) {
       name = buildCtbNameByGroupId(stbFullName, groupId);
     } else {
@@ -365,7 +370,8 @@ int32_t doBuildAndSendDeleteMsg(SVnode* pVnode, char* stbFullName, SSDataBlock* 
                                 int64_t suid) {
   SBatchDeleteReq deleteReq = {.suid = suid, .deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq))};
 
-  int32_t code = tqBuildDeleteReq(pVnode->pTq, stbFullName, pDataBlock, &deleteReq, pTask->id.idStr);
+  int32_t code = tqBuildDeleteReq(pVnode->pTq, stbFullName, pDataBlock, &deleteReq, pTask->id.idStr,
+                                  pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -645,6 +651,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
       tqDebug("s-task:%s vgId:%d, gropuId:%" PRIu64 " datablock table name is null, set name:%s", id, vgId, groupId,
               dstTableName);
     } else {
+      tstrncpy(dstTableName, pTableSinkInfo->name.data, pTableSinkInfo->name.len + 1);
       if (pTableSinkInfo->uid != 0) {
         tqDebug("s-task:%s write %d rows into groupId:%" PRIu64 " dstTable:%s(uid:%" PRIu64 ")", id, numOfRows, groupId,
                 dstTableName, pTableSinkInfo->uid);
@@ -666,7 +673,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
     }
 
     int32_t nameLen = strlen(dstTableName);
-    pTableSinkInfo = taosMemoryCalloc(1, sizeof(STableSinkInfo) + nameLen);
+    pTableSinkInfo = taosMemoryCalloc(1, sizeof(STableSinkInfo) + nameLen + 1);
     if (pTableSinkInfo == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
