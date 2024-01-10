@@ -152,7 +152,8 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
             global_sender.send_task_activity(activity);
         }
     });
-    let metrics_arc = init_task_metrics(opts.from.clone(), opts.to.clone(), task_id);
+    let metrics_arc = init_task_metrics(opts.from.clone(), opts.to.clone(), task_id)
+        .expect("no metrics defined for current datasource");
     let (_sender, close_signal) = oneshot::channel::<()>();
     auto_save_task_metrics(metrics_arc, close_signal);
     let res = opts.run(&global.port_pool).in_current_span().await;
