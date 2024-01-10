@@ -15,10 +15,8 @@
 
 #include "streamSnapshot.h"
 #include "query.h"
-#include "rocksdb/c.h"
 #include "streamBackendRocksdb.h"
 #include "streamInt.h"
-#include "tcommon.h"
 
 enum SBackendFileType {
   ROCKSDB_OPTIONS_TYPE = 1,
@@ -158,7 +156,7 @@ void snapFileDebugInfo(SBackendSnapFile2* pSnapFile) {
     }
     sprintf(buf + strlen(buf) - 1, "]");
 
-    qInfo("%s %" PRId64 "-%" PRId64 " get file list: %s", STREAM_STATE_TRANSFER, pSnapFile->snapInfo.streamId,
+    stInfo("%s %" PRId64 "-%" PRId64 " get file list: %s", STREAM_STATE_TRANSFER, pSnapFile->snapInfo.streamId,
           pSnapFile->snapInfo.taskId, buf);
     taosMemoryFree(buf);
   }
@@ -203,7 +201,7 @@ int32_t snapFileGenMeta(SBackendSnapFile2* pSnapFile) {
 int32_t snapFileReadMeta(SBackendSnapFile2* pSnapFile) {
   TdDirPtr pDir = taosOpenDir(pSnapFile->path);
   if (NULL == pDir) {
-    qError("%s failed to open %s", STREAM_STATE_TRANSFER, pSnapFile->path);
+    stError("%s failed to open %s", STREAM_STATE_TRANSFER, pSnapFile->path);
     return -1;
   }
 
@@ -397,7 +395,7 @@ _NEXT:
   }
   item = taosArrayGet(pSnapFile->pFileList, pSnapFile->currFileIdx);
 
-  qDebug("%s start to read file %s, current offset:%" PRId64 ", size:%" PRId64
+  stDebug("%s start to read file %s, current offset:%" PRId64 ", size:%" PRId64
          ", file no.%d, total set:%d, current set idx: %d",
          STREAM_STATE_TRANSFER, item->name, (int64_t)pSnapFile->offset, item->size, pSnapFile->currFileIdx,
          (int)taosArrayGetSize(pHandle->pDbSnapSet), pHandle->currIdx);
@@ -515,7 +513,7 @@ int32_t streamSnapWriteImpl(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t
       stError("%s failed to write snap, file name:%s, reason:%s", STREAM_STATE_TRANSFER, pHdr->name, tstrerror(code));
       return code;
     } else {
-      qInfo("succ to write data %s", pItem->name);
+      stInfo("succ to write data %s", pItem->name);
     }
     pSnapFile->offset += bytes;
   } else {
@@ -538,7 +536,7 @@ int32_t streamSnapWriteImpl(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t
     }
 
     taosPWriteFile(pSnapFile->fd, pHdr->data, pHdr->size, pSnapFile->offset);
-    qInfo("succ to write data %s", pItem->name);
+    stInfo("succ to write data %s", pItem->name);
     pSnapFile->offset += pHdr->size;
   }
   code = 0;
@@ -563,7 +561,7 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
             "checkpoint", snapInfo.chkpId);
     if (!taosIsDir(path)) {
       code = taosMulMkDir(path);
-      qInfo("%s mkdir %s", STREAM_STATE_TRANSFER, path);
+      stInfo("%s mkdir %s", STREAM_STATE_TRANSFER, path);
       ASSERT(code == 0);
     }
 

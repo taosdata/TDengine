@@ -48,9 +48,9 @@ class TDSql:
         self.queryCols = 0
         self.affectedRows = 0
 
-    def init(self, cursor, log=False):
+    def init(self, cursor, log=True):
         self.cursor = cursor
-
+        print(f"sqllog is :{log}")
         if (log):
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             self.cursor.log(caller.filename + ".sql")

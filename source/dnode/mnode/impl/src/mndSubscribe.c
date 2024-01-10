@@ -737,8 +737,6 @@ static int32_t mndCheckConsumer(SRpcMsg *pMsg, SHashObj* rebSubHash) {
   SMqConsumerObj *pConsumer;
   void           *pIter = NULL;
 
-  mInfo("start to process mq timer");
-
   // iterate all consumers, find all modification
   while (1) {
     pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
@@ -852,6 +850,8 @@ void mndRebCntDec() {
 
 static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
   int code = 0;
+  mInfo("start to process mq timer");
+
   if (!mndRebTryStart()) {
     mInfo("mq rebalance already in progress, do nothing");
     return code;

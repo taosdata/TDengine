@@ -189,6 +189,7 @@
 ./test.sh -f tsim/query/unionall_as_table.sim
 ./test.sh -f tsim/query/multi_order_by.sim
 ./test.sh -f tsim/query/sys_tbname.sim
+./test.sh -f tsim/query/sort-pre-cols.sim
 ./test.sh -f tsim/query/groupby.sim
 ./test.sh -f tsim/query/groupby_distinct.sim
 ./test.sh -f tsim/query/event.sim

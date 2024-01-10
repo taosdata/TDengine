@@ -14,7 +14,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
         self.tb_nums = 10
         self.row_nums = 20
         self.ts = 1434938400000
@@ -209,7 +209,7 @@ class TDTestCase:
         tdSql.error(f"select irate(c1), abs(c1) from {dbname}.ct4 ")
 
         # agg functions mix with agg functions
-        tdSql.query(f"select irate(c1), count(c5) from {dbname}.stb1 partition by tbname order by tbname")
+        tdSql.query(f"select irate(c1), count(c5) from {dbname}.stb1 partition by tbname having count(c5)>0 order by tbname")
         tdSql.checkData(0, 0, 0.000000000)
         tdSql.checkData(1, 0, 0.000000000)
         tdSql.checkData(0, 1, 13)
