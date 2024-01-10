@@ -387,7 +387,7 @@ class TDSql:
         # row, col, data
         for row, rowData in enumerate(mem):
             for col, colData in enumerate(rowData):
-                self.checkData(row, colData[1], colData[2])
+                self.checkData(row, col, colData)
         tdLog.info("check successfully")
 
     def checkDataCsv(self, csvfilePath):
