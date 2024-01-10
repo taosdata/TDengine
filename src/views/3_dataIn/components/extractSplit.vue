@@ -1,5 +1,5 @@
 <template>
-  <div class="extract-split">
+  <div :class="['extract-split',itemData.columnname&&itemData.columnname==$store.state.app.transresultname?'active':'']">
     <div class="extract-item">
       <el-form :model="ruleForm" :rules="rules" size="small" ref="extractForm">
         <el-form-item prop="col_name">
@@ -71,13 +71,13 @@
         ></el-button>
       </div>
     </div>
-    <ul class="col-list" v-if='tableColumns.length>0'>
+    <ul class="col-list" v-if="tableColumns.length > 0">
       <li v-for="(item, index) in tableColumns.slice(0, 9)" :key="index">
         <template v-if="item.value">
           <el-tooltip
             class="item"
             effect="light"
-            :content="$t('datasource.transformer.sampleval')+':' + item.value"
+            :content="$t('datasource.transformer.sampleval') + ':' + item.value"
             placement="top-start"
           >
             <span>{{ item.name }}</span>
@@ -85,13 +85,13 @@
         </template>
         <span v-else>{{ item.name }}</span>
       </li>
-      <li v-if="tableColumns.length > 0" @click="showResultTable">
+      <li v-if="tableColumns.length > 9" @click="showResultTable">
         <el-tooltip
           :content="$t('datasource.transformer.viewmore')"
           placement="top"
           effect="light"
         >
-          <span ><i class="el-icon-more"></i></span>
+          <span><i class="el-icon-more"></i></span>
         </el-tooltip>
       </li>
     </ul>
@@ -182,15 +182,15 @@ export default {
     //提交验证
     validateExtreact() {},
     async showResultTable() {
-      await this.submitExtract();
+      // await this.submitExtract();
       await this.submitExtract(true);
       this.$nextTick(() => {
-          if (document.querySelector(".transdescription")) {
-            let dom = document.querySelector(".transdescription");
-            let top = dom.offsetTop + document.body.scrollHeight;
-            this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
-          }
-        });
+        if (document.querySelector(".transdescription")) {
+          let dom = document.querySelector(".transdescription");
+          let top = 2200; //dom.offsetTop + document.body.scrollHeight;
+          this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
+        }
+      });
       this.$store.commit("app/SET_TRANS_RESULT_NAME", this.itemData.columnname);
     },
     changeExtractExpr(val) {
@@ -229,11 +229,12 @@ export default {
       }
       this.$refs.extractForm.validate(async (valid) => {
         if (valid) {
-          // this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
+          this.$store.commit(
+            "app/SET_TRANS_RESULT_NAME",
+            this.itemData.columnname
+          );
           await this.submitExtract();
           await this.submitExtract(true);
-          Message.success(this.$t('datasource.successtip'))
-          //执行完之后选中的列才能不会再被选中
 
           return true;
         } else {
@@ -317,8 +318,11 @@ export default {
             transformerColumns
           );
           //获取全部的extract or split参数
-          // this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
-          // return;
+          this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
+          let pageindex = Object.keys(this.$store.state.app.transformresulttable[0]).findIndex(
+            (item) => item== Object.keys(this.tableData[0])[0]
+          );
+          this.$store.commit("app/SET_RESULT_PAGE", pageindex);
           return;
         }
         this.$store.commit(
@@ -338,9 +342,8 @@ export default {
           obj.value = finalVal.join("") ? finalVal.join(" ; ") : "";
           return obj;
         });
-        // this.tableColumns = colLists;
         this.tableData = tbdata;
-        this.$store.commit("app/SET_TRANS_RESULT_TABLE", this.tableData);
+        this.$store.commit("app/SET_ACTIVE_COLS", Object.keys(tbdata[0]));
       } catch (error) {
         console.log(error);
       }
@@ -496,17 +499,21 @@ export default {
         },
 
         input: this.$parent.isCSV
-          ?isall?this.$store.state.app.csvTransformerParser?.inputList: this.$store.state.app.csvTransformerParser?.inputList.map(item=>{
-            if(Object.keys(item).includes(this.itemData.columnname)){
-              return {
-                [this.itemData.columnname]:item[this.itemData.columnname]
-              }
-            }
-          })
+          ? isall
+            ? this.$store.state.app.csvTransformerParser?.inputList
+            : this.$store.state.app.csvTransformerParser?.inputList.map(
+                (item) => {
+                  if (Object.keys(item).includes(this.itemData.columnname)) {
+                    return {
+                      [this.itemData.columnname]:
+                        item[this.itemData.columnname],
+                    };
+                  }
+                }
+              )
           : inputList,
       };
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);
-      this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
 
       await this.getParserData(parser, isall);
     },
@@ -533,8 +540,24 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
+@keyframes heart{
+  0% {
+    box-shadow: 0 0 5px #4259ce;
+  };
+  // 50%{
+  //   box-shadow: 0 0 20px #4259ce;
+  // }
+  100%{
+    box-shadow: 0 0 5px #4259ce;
+  }
+}
 .extract-split {
   margin-top: 20px;
+  // &.active{
+  //   padding: 20px;
+  //   border-radius:6px;
+  //   animation:heart 5s linear infinite;
+  // }
   .extract-item {
     display: flex;
     flex-wrap: nowrap;

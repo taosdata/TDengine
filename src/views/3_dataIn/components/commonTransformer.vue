@@ -133,8 +133,16 @@
             >
           </el-tooltip>
         </div>
-        <ul class="col-list">
-          <li v-for="(item, index) in columnsArr" :key="index">
+        <ul
+          :class="[
+            'col-list',
+            $store.state.app.transresultname ==
+            $t('datasource.transformer.identified')
+              ? 'active'
+              : '',
+          ]"
+        >
+          <li v-for="(item, index) in columnsArr.slice(0, 9)" :key="index">
             <el-tooltip
               class="item"
               effect="light"
@@ -142,6 +150,15 @@
               placement="top-start"
             >
               <span>{{ item.name }}</span>
+            </el-tooltip>
+          </li>
+          <li v-if="columnsArr.length > 9">
+            <el-tooltip
+              :content="$t('datasource.transformer.viewmore')"
+              placement="top"
+              effect="light"
+            >
+              <span><i class="el-icon-more"></i></span>
             </el-tooltip>
           </li>
         </ul>
@@ -262,7 +279,7 @@
                   v-if="item === 'Expression'"
                   :key="index"
                   :prop="item"
-                  show-overflow-tooltip
+                  :show-overflow-tooltip="item === 'Expression' ? false : true"
                   :label="item"
                   width="320px"
                 >
@@ -278,6 +295,7 @@
                         ref="subtb"
                         :model="subrule"
                         :rules="subnameRule"
+                        @submit.native.prevent
                       >
                         <el-form-item prop="subname">
                           <el-input
@@ -336,7 +354,7 @@
             </el-table>
             <div class="block-page">
               <el-pagination
-                :class="['pagination', pageCount < 10 ? 'hide' : '']"
+                :class="['pagination', pageCount < 20 ? 'hide' : '']"
                 :page-size="pageSize"
                 layout="total,prev, pager, next, jumper"
                 :total="pageCount"
@@ -386,7 +404,6 @@ import { parsinginZone } from "@/utils";
 import CreateSTB from "./createSTB.vue";
 import { createStableReq } from "@/api/gateway/data/stables";
 import SplitExpression from "./splitExpression.vue";
-import ResultTable from "./transformResultTable.vue";
 export default {
   name: "CommonTransformer",
   components: {
@@ -394,7 +411,6 @@ export default {
     FilterExpression,
     CreateSTB,
     SplitExpression,
-    ResultTable,
   },
   props: {
     parent: {
@@ -415,7 +431,6 @@ export default {
       subrule: {
         subname: "",
       },
-
       activeName: "first",
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
@@ -434,7 +449,7 @@ export default {
         ],
       },
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
-      pageSize: 10,
+      pageSize: 20,
       pageCount: 10,
       currentPage: 1,
       tempColumns: [],
@@ -605,7 +620,8 @@ export default {
         this.$nextTick(() => {
           if (document.querySelector(".transdescription")) {
             let dom = document.querySelector(".transdescription");
-            let top = dom.offsetTop + document.body.scrollHeight;
+            const mainDom = document.querySelector(".main_content");
+            let top = dom.offsetTop + mainDom.scrollHeight;
             this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
           }
         });
@@ -655,6 +671,9 @@ export default {
           Message.warning(this.$t("datasource.transformer.msgbodytip"));
           return;
         }
+        if(this.$store.state.app.currentDBType == "csv"){
+          console.log(this.$store.state.app.csvTransformerParser,'csv的----9999');
+        }
         let topparser = {
           parser: {
             parse: {
@@ -681,13 +700,7 @@ export default {
               ? this.$store.state.app.csvTransformerParser.inputList
               : [].concat(this.generateInput()),
         };
-        if (this.filterArr.length > 0) {
-          this.$refs.filter[0].submitFilter();
-        }
-        // else {
-        // if (this.extractArr.length > 0) {
-        //   // this.$refs.extract[0].submitExtract(true);
-        // } else {
+        
         this.$store.commit("app/SET_TOP_PARSE", topparser);
         let result = await getParser(topparser);
         if (result.message) {
@@ -741,7 +754,15 @@ export default {
           );
         });
         this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
-
+        if (this.filterArr.length > 0) {
+          this.$refs.filter[0].submitFilter();
+        }
+        if (this.extractArr.length > 0) {
+          this.$refs.extract[0].submitExtract(true);
+        }
+        this.$store.commit("app/SET_ACTIVE_COLS", Object.keys(tbdata[0]));
+        this.$store.commit("app/SET_RESULT_PAGE", 1);
+        
         this.columnsArr = (
           this.$store.state.app.currentDBType == "csv"
             ? result[0].fields
@@ -978,7 +999,6 @@ export default {
             });
           break;
       }
-      // this.$set(this, "columnsArr", finalCol);
     },
     validateTransform() {
       let msgflag = this.validateMsgBody();
@@ -1016,7 +1036,6 @@ export default {
     async caculateMappingResult() {
       if (!this.validateTransform()) {
         this.isbreak = true;
-        console.log(this.isbreak,'this.isbreak');
         return;
       }
       if (!this.validateSubName()) {
@@ -1490,7 +1509,7 @@ export default {
           return;
         }
         if (this.extractArr.length > 0) {
-          await this.getAllExtract(true);
+          // await this.getAllExtract(true);
         }
 
         if (this.$store.state.app.transformerMapCloumns) {
@@ -1585,7 +1604,7 @@ export default {
         let ind = this.filterArr.findIndex((val) => val.key == key);
         this.filterArr.splice(ind, 1);
         this.$store.commit("app/SET_FILTER_PARSE_DATA", null);
-        // this.submitParse();
+        this.submitParse();
       });
     },
     deleteExtract(index, name) {
@@ -1716,6 +1735,17 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
+@keyframes heart {
+  0% {
+    box-shadow: 0 0 5px #4259ce;
+  }
+  50% {
+    box-shadow: 0 0 20px #4259ce;
+  }
+  100% {
+    box-shadow: 0 0 5px #4259ce;
+  }
+}
 ::v-deep i {
   font-size: 16px;
 }
@@ -1753,6 +1783,10 @@ export default {
   row-gap: 20px;
   max-height: 200px;
   overflow-y: auto;
+  // &.active {
+  //   padding: 20px;
+  //   animation: heart 5s linear infinite;
+  // }
   li {
     color: #4259ce;
     background: #ecf2fe;
@@ -1796,11 +1830,28 @@ export default {
     display: flex;
     justify-content: flex-end;
   }
-  .el-table {
-    thead tr th:first-child {
-      div {
-        visibility: hidden;
+  ::v-deep {
+    .el-table {
+      
+      thead tr th {
+        background-color: #f5f7fa;
       }
+      .el-table__cell {
+        padding: 6px 0 !important;
+      }
+      tbody tr:first-child {
+        .cell {
+          padding-bottom: 16px!important;
+        }
+      }
+    }
+    .cell.el-tooltip {
+      height: 40px;
+      padding-right: 20px;
+    }
+    .el-form-item {
+      margin-bottom: 0px;
+      margin-right: 10px;
     }
   }
 }
@@ -1824,6 +1875,7 @@ export default {
 .transdescription {
   color: $color-description;
   margin-bottom: 15px;
+  white-space: normal !important;
 }
 ::v-deep .el-input-group__prepend {
   padding: 0 4px;
@@ -1887,4 +1939,13 @@ export default {
 .extract-table {
   margin-top: 20px;
 }
+.block-title {
+      margin-bottom: 10px;
+      span {
+        font-size: 16px;
+        color: #4259ce;
+        font-weight: 600;
+      }
+    }
+
 </style>
