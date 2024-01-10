@@ -93,6 +93,9 @@ int32_t dmInitDnode(SDnode *pDnode) {
   indexInit(tsNumOfCommitThreads);
   streamMetaInit();
 
+  dmInitStatusClient(pDnode);
+  dmInitSyncClient(pDnode);  
+
   dmReportStartup("dnode-transport", "initialized");
   dDebug("dnode is created, ptr:%p", pDnode);
   code = 0;
@@ -112,7 +115,9 @@ void dmCleanupDnode(SDnode *pDnode) {
 
   dmCleanupClient(pDnode);
   dmCleanupStatusClient(pDnode);
+  dmCleanupSyncClient(pDnode);
   dmCleanupServer(pDnode);
+
   dmClearVars(pDnode);
   rpcCleanup();
   streamMetaCleanup();
