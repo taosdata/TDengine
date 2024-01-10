@@ -20,12 +20,12 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 :::
 
 ## 连接方式
-`taos-jdbcdriver`主要提供两种形式的连接器。
-- **原生连接**，通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。
-- **Websocket连接**，通过 taosAdapter 提供的 Websocket 接口连接 TDengine 实例。WebSocket 连接实现的功能集合和原生连接有少量不同。
-- `taos-jdbcdriver`还支持 REST 连接，但是我们更推荐使用 Websocket 连接方式。  
+`taos-jdbcdriver`主要提供三种形式的连接器。一般我们推荐使用 **Websocket 连接**。
+- **原生连接**，通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、数据订阅、schemaless 接口和参数绑定接口等功能。
+- **REST 连接**，通过 taosAdapter 提供的 HTTP 接口连接 TDengine 实例，不支持 schemaless 和数据订阅等特性。
+- **Websocket 连接**，通过 taosAdapter 提供的 Websocket 接口连接 TDengine 实例，WebSocket 连接实现的功能集合和原生连接有少量不同。
 
-连接方式的详细介绍和区别请参考：[连接器建立连接的方式](../../develop/connect/#连接器建立连接的方式)
+连接方式的详细介绍请参考：[连接器建立连接的方式](../../develop/connect/#连接器建立连接的方式)
 
 ## JDBC和JRE兼容性
 

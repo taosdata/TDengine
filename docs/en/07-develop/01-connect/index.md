@@ -38,12 +38,12 @@ For these ways of connections, client libraries provide similar APIs for perform
 
 Key differences:
 
-1. For native connection, the client driver taosc and the server TDengine version must be compatible.
-2. For REST connection, you cannot experience functions such as data subscription and binary data types.
-3. For REST or Websocket connection, users do not need to install the client driver taosc, which has the advantage of cross-platform ease of use, but the performance is reduced by about 30%.
+1. For a Native connection, the client driver taosc and the server TDengine version must be compatible.
+2. For a REST connection, users do not need to install the client driver taosc, providing the advantage of cross-platform ease of use. However, functions such as data subscription and binary data types are not available. Additionally, compared to Native and Websocket connections, a REST connection has the worst performance.
+3. For a Websocket connection, users also do not need to install the client driver taosc. However, compared to a Native connection, the performance is reduced by about 30%.
 4. To connect to a cloud service instance, you need to use the REST connection or Websocket connection.
    
-For normal users, we recommend using **Websocket connection**.
+Normally we recommend using **Websocket connection**.
 
 ## Install Client Driver taosc
 
