@@ -108,7 +108,7 @@ bool    tsEnableTelem = true;
 int32_t  tsTelemInterval = 43200;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
 uint16_t tsTelemPort = 80;
-char *   tsTelemUri = "/report";
+char    *tsTelemUri = "/report";
 
 #ifdef TD_ENTERPRISE
 bool tsEnableCrashReport = false;
@@ -1376,7 +1376,7 @@ void taosCleanupCfg() {
 
 typedef struct {
   const char *optionName;
-  void *      optionVar;
+  void       *optionVar;
 } OptionNameAndVar;
 
 static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, SConfigItem *pItem, bool isDebugflag) {
@@ -1389,7 +1389,7 @@ static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, 
     switch (pItem->dtype) {
       case CFG_DTYPE_BOOL: {
         int32_t flag = pItem->i32;
-        bool *  pVar = pOptions[d].optionVar;
+        bool   *pVar = pOptions[d].optionVar;
         uInfo("%s set from %d to %d", optName, *pVar, flag);
         *pVar = flag;
         terrno = TSDB_CODE_SUCCESS;
@@ -1758,7 +1758,7 @@ static void taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag
 void taosSetAllDebugFlag(int32_t flag) {
   if (flag <= 0) return;
 
-  SArray *     noNeedToSetVars = NULL;
+  SArray      *noNeedToSetVars = NULL;
   SConfigItem *pItem = cfgGetItem(tsCfg, "debugFlag");
   if (pItem != NULL) {
     pItem->i32 = flag;
