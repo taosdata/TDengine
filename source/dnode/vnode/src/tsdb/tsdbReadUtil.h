@@ -26,6 +26,12 @@ extern "C" {
 
 #define ASCENDING_TRAVERSE(o) (o == TSDB_ORDER_ASC)
 
+#define INIT_TIMEWINDOW(_w) \
+  do {                      \
+    (_w)->skey = INT64_MAX; \
+    (_w)->ekey = INT64_MIN; \
+  } while (0);
+
 typedef enum {
   READER_STATUS_SUSPEND = 0x1,
   READER_STATUS_NORMAL = 0x2,
