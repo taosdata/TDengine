@@ -1066,21 +1066,21 @@ void streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta) {
 }
 
 void streamTaskResume(SStreamTask* pTask) {
-  SStreamTaskState* p = streamTaskGetStatus(pTask);
+  SStreamTaskState prevState = *streamTaskGetStatus(pTask);
   SStreamMeta* pMeta = pTask->pMeta;
 
-  if (p->state == TASK_STATUS__PAUSE || p->state == TASK_STATUS__HALT) {
+  if (prevState.state == TASK_STATUS__PAUSE || prevState.state == TASK_STATUS__HALT) {
     streamTaskRestoreStatus(pTask);
 
     char* pNew = streamTaskGetStatus(pTask)->name;
-    if (p->state == TASK_STATUS__PAUSE) {
+    if (prevState.state == TASK_STATUS__PAUSE) {
       int32_t num = atomic_sub_fetch_32(&pMeta->numOfPausedTasks, 1);
-      stInfo("s-task:%s status:%s resume from %s, paused task(s):%d", pTask->id.idStr, pNew, p->name, num);
+      stInfo("s-task:%s status:%s resume from %s, paused task(s):%d", pTask->id.idStr, pNew, prevState.name, num);
     } else {
-      stInfo("s-task:%s status:%s resume from %s", pTask->id.idStr, pNew, p->name);
+      stInfo("s-task:%s status:%s resume from %s", pTask->id.idStr, pNew, prevState.name);
     }
   } else {
-    stDebug("s-task:%s status:%s not in pause/halt status, no need to resume", pTask->id.idStr, p->name);
+    stDebug("s-task:%s status:%s not in pause/halt status, no need to resume", pTask->id.idStr, prevState.name);
   }
 }
 
