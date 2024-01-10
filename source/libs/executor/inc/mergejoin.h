@@ -19,9 +19,9 @@
 extern "C" {
 #endif
 
-#if 0
+#if 1
 #define MJOIN_DEFAULT_BLK_ROWS_NUM 2 //4096
-#define MJOIN_HJOIN_CART_THRESHOLD 16
+#define MJOIN_HJOIN_CART_THRESHOLD 2
 #define MJOIN_BLK_SIZE_LIMIT 0 //10485760
 #define MJOIN_ROW_BITMAP_SIZE (2 * 1048576)
 #else
@@ -114,6 +114,8 @@ typedef struct SMJoinTableCtx {
   
   int64_t        grpTotalRows;
   int32_t        grpIdx;
+  bool           noKeepEqGrpRows;
+  bool           multiEqGrpRows;
   SArray*        eqGrps;
   SArray*        createdBlks;
 
@@ -122,6 +124,7 @@ typedef struct SMJoinTableCtx {
   int32_t        grpArrayIdx;
   SArray*        pGrpArrays;
 
+  bool               multiRowsGrp;
   int32_t            grpRowIdx;
   SArray*            pHashCurGrp;
   SMJoinHashGrpRows* pHashGrpRows;
@@ -168,9 +171,9 @@ typedef struct SMJoinMergeCtx {
   joinCartFp          mergeCartFp;
 } SMJoinMergeCtx;
 
-typedef struct SMJoinWinCtx {
+typedef struct SMJoinWindowCtx {
 
-} SMJoinWinCtx;
+} SMJoinWindowCtx;
 
 
 typedef struct SMJoinFlowFlags {
@@ -183,8 +186,8 @@ typedef struct SMJoinFlowFlags {
 typedef struct SMJoinCtx {
   SMJoinFlowFlags* pFlags;
   union {
-    SMJoinMergeCtx mergeCtx;
-    SMJoinWinCtx   winCtx;
+    SMJoinMergeCtx  mergeCtx;
+    SMJoinWindowCtx windowCtx;
   };
 
 } SMJoinCtx;
@@ -279,6 +282,8 @@ int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJ
 SSDataBlock* mInnerJoinDo(struct SOperatorInfo* pOperator);
 SSDataBlock* mLeftJoinDo(struct SOperatorInfo* pOperator);
 SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator);
+SSDataBlock* mSemiJoinDo(struct SOperatorInfo* pOperator);
+SSDataBlock* mAntiJoinDo(struct SOperatorInfo* pOperator);
 bool mJoinRetrieveImpl(SMJoinOperatorInfo* pJoin, int32_t* pIdx, SSDataBlock** ppBlk, SMJoinTableCtx* pTb);
 void mJoinSetDone(SOperatorInfo* pOperator);
 bool mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen);
@@ -299,6 +304,8 @@ int32_t mJoinFilterAndMarkHashRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo
 int32_t mJoinGetRowBitmapOffset(SMJoinTableCtx* pTable, int32_t rowNum, int32_t *rowBitmapOffset);
 int32_t mJoinProcessUnreachGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs);
 int32_t mJoinProcessOverGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs);
+int32_t mJoinFilterAndKeepSingleRow(SSDataBlock* pBlock, SFilterInfo* pFilterInfo);
+int32_t mJoinFilterAndNoKeepRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo);
 
 #ifdef __cplusplus
 }

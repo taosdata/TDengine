@@ -642,7 +642,7 @@ static bool mInnerJoinRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* pJo
     buildGot = mJoinRetrieveImpl(pJoin, &pJoin->build->blkRowIdx, &pJoin->build->blk, pJoin->build);
   }
   
-  if (!probeGot || !buildGot) {
+  if (!probeGot) {
     mJoinSetDone(pOperator);
     return false;
   }
@@ -684,11 +684,14 @@ SSDataBlock* mInnerJoinDo(struct SOperatorInfo* pOperator) {
         return pCtx->finBlk;
       }
 
-      if (MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe)) {
+      if (MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe) || MJOIN_BUILD_TB_ROWS_DONE(pJoin->build)) {
         continue;
-      } else {
-        MJOIN_GET_TB_CUR_TS(pProbeCol, probeTs, pJoin->probe);
-      }
+      } 
+
+      MJOIN_GET_TB_CUR_TS(pProbeCol, probeTs, pJoin->probe);
+    } else if (MJOIN_BUILD_TB_ROWS_DONE(pJoin->build)) {
+      mJoinSetDone(pOperator);
+      break;
     }
 
     do {
@@ -706,7 +709,9 @@ SSDataBlock* mInnerJoinDo(struct SOperatorInfo* pOperator) {
         MJOIN_GET_TB_COL_TS(pBuildCol, buildTs, pJoin->build);
         MJOIN_GET_TB_COL_TS(pProbeCol, probeTs, pJoin->probe);
         continue;
-      } else if (PROBE_TS_UNREACH(pCtx->ascTs, probeTs, buildTs)) {
+      }
+
+      if (PROBE_TS_UNREACH(pCtx->ascTs, probeTs, buildTs)) {
         if (++pJoin->probe->blkRowIdx < pJoin->probe->blk->info.rows) {
           MJOIN_GET_TB_CUR_TS(pProbeCol, probeTs, pJoin->probe);
           continue;
@@ -759,8 +764,6 @@ static int32_t mFullJoinMergeCart(SMJoinMergeCtx* pCtx) {
   return (NULL == pCtx->pJoin->pFPreFilter) ? mOuterJoinMergeFullCart(pCtx) : mOuterJoinMergeSeqCart(pCtx);
 }
 
-const uint8_t lowest_bit_bitmap[] = {32, 7, 6, 32, 5, 3, 32, 0, 4, 1, 2};
-
 static FORCE_INLINE int32_t mFullJoinOutputHashRow(SMJoinMergeCtx* pCtx, SMJoinHashGrpRows* pGrpRows, int32_t idx) {
   SMJoinGrpRows grp = {0};
   SMJoinRowPos* pPos = taosArrayGet(pGrpRows->pRows, idx);
@@ -785,6 +788,7 @@ static int32_t mFullJoinOutputHashGrpRows(SMJoinMergeCtx* pCtx, SMJoinHashGrpRow
 }
 
 static int32_t mFullJoinHandleHashGrpRemains(SMJoinMergeCtx* pCtx) {
+  static const uint8_t lowest_bit_bitmap[] = {32, 7, 6, 32, 5, 3, 32, 0, 4, 1, 2};
   SMJoinTableCtx* build = pCtx->pJoin->build;
   SMJoinNMatchCtx* pNMatch = &build->nMatchCtx;
   if (NULL == pNMatch->pGrp) {
@@ -891,6 +895,7 @@ static int32_t mFullJoinOutputMergeGrpRows(SMJoinMergeCtx* pCtx, SMJoinGrpRows* 
 
 
 static int32_t mFullJoinHandleMergeGrpRemains(SMJoinMergeCtx* pCtx) {
+  static const uint8_t lowest_bit_bitmap[] = {32, 7, 6, 32, 5, 3, 32, 0, 4, 1, 2};
   SMJoinTableCtx* build = pCtx->pJoin->build;
   SMJoinNMatchCtx* pNMatch = &build->nMatchCtx;
   bool grpDone = false;
@@ -906,7 +911,7 @@ static int32_t mFullJoinHandleMergeGrpRemains(SMJoinMergeCtx* pCtx) {
     }
 
     if (pGrpRows->rowMatchNum <= 0 || pGrpRows->allRowsNMatch) {
-      if (pGrpRows->rowMatchNum <= 0) {
+      if (!pGrpRows->allRowsNMatch) {
         pGrpRows->allRowsNMatch = true;
         pNMatch->rowIdx = pGrpRows->beginIdx;
       }
@@ -952,10 +957,14 @@ static int32_t mFullJoinHandleMergeGrpRemains(SMJoinMergeCtx* pCtx) {
           break;
         }
       }
+
+      if (BLK_IS_FULL(pCtx->finBlk)) {
+        break;
+      }
     }
 
     if (BLK_IS_FULL(pCtx->finBlk)) {
-      if (pNMatch->bitIdx == bitBytes) {
+      if (pNMatch->bitIdx >= bitBytes) {
         ++pNMatch->grpIdx;
         pNMatch->bitIdx = 0;
       }
@@ -1132,6 +1141,583 @@ _return:
 }
 
 
+static int32_t mSemiJoinHashGrpCartFilter(SMJoinMergeCtx* pCtx, SMJoinGrpRows* probeGrp) {
+  SMJoinTableCtx* probe = pCtx->pJoin->probe;
+  SMJoinTableCtx* build = pCtx->pJoin->build;
+  
+  do {
+    blockDataCleanup(pCtx->midBlk);
+
+    mJoinHashGrpCart(pCtx->midBlk, probeGrp, true, probe, build);
+
+    if (pCtx->midBlk->info.rows > 0) {
+      MJ_ERR_RET(mJoinFilterAndKeepSingleRow(pCtx->midBlk, pCtx->pJoin->pPreFilter));
+    }
+
+    if (pCtx->midBlk->info.rows <= 0) {
+      if (build->grpRowIdx < 0) {
+        break;
+      }
+      
+      continue;
+    }
+
+    ASSERT(1 == pCtx->midBlk->info.rows);
+    MJ_ERR_RET(mJoinCopyMergeMidBlk(pCtx, &pCtx->midBlk, &pCtx->finBlk));
+    ASSERT(false == pCtx->midRemains);
+    
+    break;
+  } while (true);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t mSemiJoinHashSeqCart(SMJoinMergeCtx* pCtx) {
+  SMJoinTableCtx* probe = pCtx->pJoin->probe;
+  SMJoinTableCtx* build = pCtx->pJoin->build;
+  SMJoinGrpRows* probeGrp = taosArrayGet(probe->eqGrps, 0);
+
+  size_t bufLen = 0;
+  int32_t probeEndIdx = probeGrp->endIdx;
+  for (; !GRP_DONE(probeGrp) && !BLK_IS_FULL(pCtx->finBlk); probeGrp->readIdx++) {
+    if (mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen)) {
+      continue;
+    }
+
+    void* pGrp = tSimpleHashGet(build->pGrpHash, probe->keyData, bufLen);
+    if (NULL == pGrp) {
+      continue;
+    }
+
+    build->pHashCurGrp = *(SArray**)pGrp;
+    build->grpRowIdx = 0;
+
+    probeGrp->endIdx = probeGrp->readIdx;      
+    MJ_ERR_RET(mSemiJoinHashGrpCartFilter(pCtx, probeGrp));
+    probeGrp->endIdx = probeEndIdx;
+  }
+
+  pCtx->grpRemains = probeGrp->readIdx <= probeGrp->endIdx;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t mSemiJoinHashFullCart(SMJoinMergeCtx* pCtx) {
+  SMJoinTableCtx* probe = pCtx->pJoin->probe;
+  SMJoinTableCtx* build = pCtx->pJoin->build;
+  SMJoinGrpRows* probeGrp = taosArrayGet(probe->eqGrps, probe->grpIdx);
+  size_t bufLen = 0;
+
+  for (; !GRP_DONE(probeGrp) && !BLK_IS_FULL(pCtx->finBlk); ++probeGrp->readIdx) {
+    if (mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen)) {
+      continue;
+    }
+
+    void* pGrp = tSimpleHashGet(build->pGrpHash, probe->keyData, bufLen);
+    if (NULL == pGrp) {
+      continue;
+    }
+
+    build->pHashCurGrp = *(SArray**)pGrp;
+    ASSERT(1 == taosArrayGetSize(build->pHashCurGrp));
+    build->grpRowIdx = 0;
+    mJoinHashGrpCart(pCtx->finBlk, probeGrp, true, probe, build);
+    ASSERT(build->grpRowIdx < 0);
+  }
+
+  pCtx->grpRemains = probeGrp->readIdx <= probeGrp->endIdx;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t mSemiJoinMergeSeqCart(SMJoinMergeCtx* pCtx) {
+  SMJoinTableCtx* probe = pCtx->pJoin->probe;
+  SMJoinTableCtx* build = pCtx->pJoin->build;
+  SMJoinGrpRows* probeGrp = taosArrayGet(probe->eqGrps, probe->grpIdx);
+  SMJoinGrpRows* buildGrp = NULL;
+  int32_t buildGrpNum = taosArrayGetSize(build->eqGrps);
+  int32_t probeEndIdx = probeGrp->endIdx;
+  int32_t rowsLeft = pCtx->midBlk->info.capacity;  
+
+  do {
+    for (; !GRP_DONE(probeGrp) && !BLK_IS_FULL(pCtx->finBlk); 
+      ++probeGrp->readIdx, probeGrp->endIdx = probeEndIdx, build->grpIdx = 0) {
+      probeGrp->endIdx = probeGrp->readIdx;
+      
+      rowsLeft = pCtx->midBlk->info.capacity;
+
+      blockDataCleanup(pCtx->midBlk);      
+      for (; build->grpIdx < buildGrpNum && rowsLeft > 0; ++build->grpIdx) {
+        buildGrp = taosArrayGet(build->eqGrps, build->grpIdx);
+
+        if (rowsLeft >= GRP_REMAIN_ROWS(buildGrp)) {
+          MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->midBlk, true, probeGrp, buildGrp));
+          rowsLeft -= GRP_REMAIN_ROWS(buildGrp);
+          buildGrp->readIdx = buildGrp->beginIdx;
+          continue;
+        }
+        
+        int32_t buildEndIdx = buildGrp->endIdx;
+        buildGrp->endIdx = buildGrp->readIdx + rowsLeft - 1;
+        ASSERT(buildGrp->endIdx >= buildGrp->readIdx);
+        MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->midBlk, true, probeGrp, buildGrp));
+        buildGrp->readIdx += rowsLeft;
+        buildGrp->endIdx = buildEndIdx;
+        rowsLeft = 0;
+        break;
+      }
+
+      if (pCtx->midBlk->info.rows > 0) {
+        MJ_ERR_RET(mJoinFilterAndKeepSingleRow(pCtx->midBlk, pCtx->pJoin->pFPreFilter));
+      } 
+
+      if (0 == pCtx->midBlk->info.rows) {
+        if (build->grpIdx == buildGrpNum) {
+          continue;
+        }
+      } else {
+        ASSERT(1 == pCtx->midBlk->info.rows);
+        MJ_ERR_RET(mJoinCopyMergeMidBlk(pCtx, &pCtx->midBlk, &pCtx->finBlk));
+        ASSERT(false == pCtx->midRemains);
+
+        if (build->grpIdx == buildGrpNum) {
+          continue;
+        }
+
+        buildGrp->readIdx = buildGrp->beginIdx;        
+        continue;
+      }
+
+      //need break
+
+      probeGrp->endIdx = probeEndIdx;
+      break;
+    }
+
+    if (GRP_DONE(probeGrp) || BLK_IS_FULL(pCtx->finBlk)) {
+      break;
+    }
+  } while (true);
+
+  pCtx->grpRemains = probeGrp->readIdx <= probeGrp->endIdx;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t mSemiJoinMergeFullCart(SMJoinMergeCtx* pCtx) {
+  int32_t rowsLeft = pCtx->finBlk->info.capacity - pCtx->finBlk->info.rows;
+  SMJoinTableCtx* probe = pCtx->pJoin->probe;
+  SMJoinTableCtx* build = pCtx->pJoin->build;
+  SMJoinGrpRows* probeGrp = taosArrayGet(probe->eqGrps, 0);
+  SMJoinGrpRows* buildGrp = taosArrayGet(build->eqGrps, 0);
+  int32_t probeRows = GRP_REMAIN_ROWS(probeGrp);
+  int32_t probeEndIdx = probeGrp->endIdx;
+
+  ASSERT(1 == taosArrayGetSize(build->eqGrps));
+  ASSERT(buildGrp->beginIdx == buildGrp->endIdx);
+
+  if (probeRows <= rowsLeft) {
+    MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, buildGrp));
+
+    pCtx->grpRemains = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  probeGrp->endIdx = probeGrp->readIdx + rowsLeft - 1;
+  MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, buildGrp));
+  probeGrp->readIdx = probeGrp->endIdx + 1; 
+  probeGrp->endIdx = probeEndIdx;
+
+  pCtx->grpRemains = true;
+  
+  return TSDB_CODE_SUCCESS;  
+}
+
+
+static int32_t mSemiJoinHashCart(SMJoinMergeCtx* pCtx) {
+  return (NULL == pCtx->pJoin->pPreFilter) ? mSemiJoinHashFullCart(pCtx) : mSemiJoinHashSeqCart(pCtx);
+}
+
+static int32_t mSemiJoinMergeCart(SMJoinMergeCtx* pCtx) {
+  return (NULL == pCtx->pJoin->pFPreFilter) ? mSemiJoinMergeFullCart(pCtx) : mSemiJoinMergeSeqCart(pCtx);
+}
+
+static FORCE_INLINE int32_t mSemiJoinHandleGrpRemains(SMJoinMergeCtx* pCtx) {
+  return (pCtx->hashJoin) ? (*pCtx->hashCartFp)(pCtx) : (*pCtx->mergeCartFp)(pCtx);
+}
+
+
+SSDataBlock* mSemiJoinDo(struct SOperatorInfo* pOperator) {
+  SMJoinOperatorInfo* pJoin = pOperator->info;
+  SMJoinMergeCtx* pCtx = &pJoin->ctx.mergeCtx;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t probeTs = 0;
+  int64_t buildTs = 0;
+  SColumnInfoData* pBuildCol = NULL;
+  SColumnInfoData* pProbeCol = NULL;
+
+  blockDataCleanup(pCtx->finBlk);
+
+  if (pCtx->grpRemains) {
+    MJ_ERR_JRET(mSemiJoinHandleGrpRemains(pCtx));
+    if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
+      return pCtx->finBlk;
+    }
+    pCtx->grpRemains = false;
+  }
+
+  do {
+    if (!mInnerJoinRetrieve(pOperator, pJoin, pCtx)) {
+      break;
+    }
+
+    MJOIN_GET_TB_COL_TS(pBuildCol, buildTs, pJoin->build);
+    MJOIN_GET_TB_COL_TS(pProbeCol, probeTs, pJoin->probe);
+    
+    if (probeTs == pCtx->lastEqTs) {
+      MJ_ERR_JRET(mJoinProcessEqualGrp(pCtx, probeTs, true));
+      if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
+        return pCtx->finBlk;
+      }
+
+      if (MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe) || MJOIN_BUILD_TB_ROWS_DONE(pJoin->build)) {
+        continue;
+      } 
+
+      MJOIN_GET_TB_CUR_TS(pProbeCol, probeTs, pJoin->probe);
+    } else if (MJOIN_BUILD_TB_ROWS_DONE(pJoin->build)) {
+      mJoinSetDone(pOperator);
+      break;
+    }
+
+    do {
+      if (probeTs == buildTs) {
+        pCtx->lastEqTs = probeTs;
+        MJ_ERR_JRET(mJoinProcessEqualGrp(pCtx, probeTs, false));
+        if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
+          return pCtx->finBlk;
+        }
+
+        if (MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe) || MJOIN_BUILD_TB_ROWS_DONE(pJoin->build)) {
+          break;
+        }
+        
+        MJOIN_GET_TB_COL_TS(pBuildCol, buildTs, pJoin->build);
+        MJOIN_GET_TB_COL_TS(pProbeCol, probeTs, pJoin->probe);
+        continue;
+      }
+
+      if (PROBE_TS_UNREACH(pCtx->ascTs, probeTs, buildTs)) {
+        if (++pJoin->probe->blkRowIdx < pJoin->probe->blk->info.rows) {
+          MJOIN_GET_TB_CUR_TS(pProbeCol, probeTs, pJoin->probe);
+          continue;
+        }
+      } else {
+        if (++pJoin->build->blkRowIdx < pJoin->build->blk->info.rows) {
+          MJOIN_GET_TB_CUR_TS(pBuildCol, buildTs, pJoin->build);
+          continue;
+        }
+      }
+      
+      break;
+    } while (true);
+  } while (true);
+
+_return:
+
+  if (code) {
+    pJoin->errCode = code;
+    return NULL;
+  }
+
+  return pCtx->finBlk;
+}
+
+
+static FORCE_INLINE int32_t mAntiJoinHandleGrpRemains(SMJoinMergeCtx* pCtx) {
+  if (pCtx->lastEqGrp) {
+    return (pCtx->hashJoin) ? (*pCtx->hashCartFp)(pCtx) : (*pCtx->mergeCartFp)(pCtx);
+  }
+  
+  return mJoinNonEqCart(pCtx, &pCtx->probeNEqGrp, true);
+}
+
+static int32_t mAntiJoinHashFullCart(SMJoinMergeCtx* pCtx) {
+  SMJoinTableCtx* probe = pCtx->pJoin->probe;
+  SMJoinTableCtx* build = pCtx->pJoin->build;
+  SMJoinGrpRows* probeGrp = taosArrayGet(probe->eqGrps, probe->grpIdx);
+  size_t bufLen = 0;
+  int32_t probeEndIdx = probeGrp->endIdx;
+
+  for (; !GRP_DONE(probeGrp) && !BLK_IS_FULL(pCtx->finBlk); ++probeGrp->readIdx) {
+    if (mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen)) {
+      probeGrp->endIdx = probeGrp->readIdx;
+      MJ_ERR_RET(mJoinNonEqGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, true));
+      probeGrp->endIdx = probeEndIdx;
+      continue;
+    }
+
+    void* pGrp = tSimpleHashGet(build->pGrpHash, probe->keyData, bufLen);
+    if (NULL == pGrp) {
+      probeGrp->endIdx = probeGrp->readIdx;
+      MJ_ERR_RET(mJoinNonEqGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, true));
+      probeGrp->endIdx = probeEndIdx;
+    }
+  }
+
+  pCtx->grpRemains = probeGrp->readIdx <= probeGrp->endIdx;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t mAntiJoinHashGrpCartFilter(SMJoinMergeCtx* pCtx, SMJoinGrpRows* probeGrp) {
+  SMJoinTableCtx* probe = pCtx->pJoin->probe;
+  SMJoinTableCtx* build = pCtx->pJoin->build;
+  
+  do {
+    blockDataCleanup(pCtx->midBlk);
+
+    mJoinHashGrpCart(pCtx->midBlk, probeGrp, true, probe, build);
+
+    if (pCtx->midBlk->info.rows > 0) {
+      MJ_ERR_RET(mJoinFilterAndNoKeepRows(pCtx->midBlk, pCtx->pJoin->pPreFilter));
+    } 
+
+    if (pCtx->midBlk->info.rows) {
+      break;
+    }
+    
+    if (build->grpRowIdx < 0) {
+      MJ_ERR_RET(mJoinNonEqGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, true));
+      break;
+    }
+    
+    continue;
+  } while (true);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t mAntiJoinHashSeqCart(SMJoinMergeCtx* pCtx) {
+  SMJoinTableCtx* probe = pCtx->pJoin->probe;
+  SMJoinTableCtx* build = pCtx->pJoin->build;
+  SMJoinGrpRows* probeGrp = taosArrayGet(probe->eqGrps, 0);
+  size_t bufLen = 0;
+  int32_t probeEndIdx = probeGrp->endIdx;
+
+  for (; !GRP_DONE(probeGrp) && !BLK_IS_FULL(pCtx->finBlk); probeGrp->readIdx++) {
+    if (mJoinCopyKeyColsDataToBuf(probe, probeGrp->readIdx, &bufLen)) {
+      probeGrp->endIdx = probeGrp->readIdx;
+      MJ_ERR_RET(mJoinNonEqGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, true));
+      probeGrp->endIdx = probeEndIdx;
+      continue;
+    }
+
+    void* pGrp = tSimpleHashGet(build->pGrpHash, probe->keyData, bufLen);
+    if (NULL == pGrp) {
+      probeGrp->endIdx = probeGrp->readIdx;
+      MJ_ERR_RET(mJoinNonEqGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, true));
+      probeGrp->endIdx = probeEndIdx;
+      continue;
+    }
+
+    build->pHashCurGrp = *(SArray**)pGrp;
+    build->grpRowIdx = 0;
+
+    probeGrp->endIdx = probeGrp->readIdx;      
+    MJ_ERR_RET(mAntiJoinHashGrpCartFilter(pCtx, probeGrp));
+    probeGrp->endIdx = probeEndIdx;
+  }
+
+  pCtx->grpRemains = probeGrp->readIdx <= probeGrp->endIdx;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mAntiJoinMergeFullCart(SMJoinMergeCtx* pCtx) {
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mAntiJoinMergeSeqCart(SMJoinMergeCtx* pCtx) {
+  SMJoinTableCtx* probe = pCtx->pJoin->probe;
+  SMJoinTableCtx* build = pCtx->pJoin->build;
+  SMJoinGrpRows* probeGrp = taosArrayGet(probe->eqGrps, probe->grpIdx);
+  SMJoinGrpRows* buildGrp = NULL;
+  int32_t buildGrpNum = taosArrayGetSize(build->eqGrps);
+  int32_t probeEndIdx = probeGrp->endIdx;
+  int32_t rowsLeft = pCtx->midBlk->info.capacity;  
+
+  do {
+    for (; !GRP_DONE(probeGrp) && !BLK_IS_FULL(pCtx->finBlk); 
+      ++probeGrp->readIdx, probeGrp->endIdx = probeEndIdx, build->grpIdx = 0) {
+      probeGrp->endIdx = probeGrp->readIdx;
+      
+      rowsLeft = pCtx->midBlk->info.capacity;
+
+      blockDataCleanup(pCtx->midBlk);      
+      for (; build->grpIdx < buildGrpNum && rowsLeft > 0; ++build->grpIdx) {
+        buildGrp = taosArrayGet(build->eqGrps, build->grpIdx);
+        if (rowsLeft >= GRP_REMAIN_ROWS(buildGrp)) {
+          MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->midBlk, true, probeGrp, buildGrp));
+          rowsLeft -= GRP_REMAIN_ROWS(buildGrp);
+          buildGrp->readIdx = buildGrp->beginIdx;
+          continue;
+        }
+        
+        int32_t buildEndIdx = buildGrp->endIdx;
+        buildGrp->endIdx = buildGrp->readIdx + rowsLeft - 1;
+        ASSERT(buildGrp->endIdx >= buildGrp->readIdx);
+        MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->midBlk, true, probeGrp, buildGrp));
+        buildGrp->readIdx += rowsLeft;
+        buildGrp->endIdx = buildEndIdx;
+        rowsLeft = 0;
+        break;
+      }
+
+      if (pCtx->midBlk->info.rows > 0) {
+        MJ_ERR_RET(mJoinFilterAndNoKeepRows(pCtx->midBlk, pCtx->pJoin->pFPreFilter));
+      } 
+
+      if (pCtx->midBlk->info.rows > 0) {
+        if (build->grpIdx < buildGrpNum) {
+          buildGrp->readIdx = buildGrp->beginIdx;        
+        }
+
+        continue;
+      }
+      
+      if (build->grpIdx >= buildGrpNum) {
+        MJ_ERR_RET(mJoinNonEqGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, true));
+        continue;
+      }
+
+      //need break
+
+      probeGrp->endIdx = probeEndIdx;
+      break;
+    }
+
+    if (GRP_DONE(probeGrp) || BLK_IS_FULL(pCtx->finBlk)) {
+      break;
+    }
+  } while (true);
+
+  pCtx->grpRemains = probeGrp->readIdx <= probeGrp->endIdx;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t mAntiJoinHashCart(SMJoinMergeCtx* pCtx) {
+  return (NULL == pCtx->pJoin->pPreFilter) ? mAntiJoinHashFullCart(pCtx) : mAntiJoinHashSeqCart(pCtx);
+}
+
+static int32_t mAntiJoinMergeCart(SMJoinMergeCtx* pCtx) {
+  return (NULL == pCtx->pJoin->pFPreFilter) ? mAntiJoinMergeFullCart(pCtx) : mAntiJoinMergeSeqCart(pCtx);
+}
+
+SSDataBlock* mAntiJoinDo(struct SOperatorInfo* pOperator) {
+  SMJoinOperatorInfo* pJoin = pOperator->info;
+  SMJoinMergeCtx* pCtx = &pJoin->ctx.mergeCtx;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t probeTs = 0;
+  int64_t buildTs = 0;
+  SColumnInfoData* pBuildCol = NULL;
+  SColumnInfoData* pProbeCol = NULL;
+
+  blockDataCleanup(pCtx->finBlk);
+
+  if (pCtx->grpRemains) {
+    MJ_ERR_JRET(mAntiJoinHandleGrpRemains(pCtx));
+    if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
+      return pCtx->finBlk;
+    }
+    pCtx->grpRemains = false;
+  }
+
+  do {
+    if (!mLeftJoinRetrieve(pOperator, pJoin, pCtx)) {
+      break;
+    }
+
+    MJOIN_GET_TB_COL_TS(pBuildCol, buildTs, pJoin->build);
+    MJOIN_GET_TB_COL_TS(pProbeCol, probeTs, pJoin->probe);
+    
+    if (probeTs == pCtx->lastEqTs) {
+      MJ_ERR_JRET(mJoinProcessEqualGrp(pCtx, probeTs, true));
+      if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
+        return pCtx->finBlk;
+      }
+
+      if (MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe)) {
+        continue;
+      } else {
+        MJOIN_GET_TB_CUR_TS(pProbeCol, probeTs, pJoin->probe);
+      }
+    }
+
+    while (!MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe) && !MJOIN_BUILD_TB_ROWS_DONE(pJoin->build)) {
+      if (probeTs == buildTs) {
+        pCtx->lastEqTs = probeTs;
+        MJ_ERR_JRET(mJoinProcessEqualGrp(pCtx, probeTs, false));
+        if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
+          return pCtx->finBlk;
+        }
+
+        MJOIN_GET_TB_COL_TS(pBuildCol, buildTs, pJoin->build);
+        MJOIN_GET_TB_COL_TS(pProbeCol, probeTs, pJoin->probe);
+      } else if (PROBE_TS_UNREACH(pCtx->ascTs, probeTs, buildTs)) {
+        MJ_ERR_JRET(mJoinProcessUnreachGrp(pCtx, pJoin->probe, pProbeCol, &probeTs, &buildTs));
+        if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
+          return pCtx->finBlk;
+        }
+      } else {
+        while (++pJoin->build->blkRowIdx < pJoin->build->blk->info.rows) {
+          MJOIN_GET_TB_CUR_TS(pBuildCol, buildTs, pJoin->build);
+          if (PROBE_TS_OVER(pCtx->ascTs, probeTs, buildTs)) {
+            continue;
+          }
+          
+          break;
+        }
+      }
+    }
+
+    if (!MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe) && pJoin->build->dsFetchDone) {
+      pCtx->probeNEqGrp.blk = pJoin->probe->blk;
+      pCtx->probeNEqGrp.beginIdx = pJoin->probe->blkRowIdx;
+      pCtx->probeNEqGrp.readIdx = pCtx->probeNEqGrp.beginIdx;
+      pCtx->probeNEqGrp.endIdx = pJoin->probe->blk->info.rows - 1;
+      
+      pJoin->probe->blkRowIdx = pJoin->probe->blk->info.rows;
+            
+      MJ_ERR_JRET(mJoinNonEqCart(pCtx, &pCtx->probeNEqGrp, true));
+      if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
+        return pCtx->finBlk;
+      }
+    }
+  } while (true);
+
+_return:
+
+  if (code) {
+    pJoin->errCode = code;
+    return NULL;
+  }
+
+  return pCtx->finBlk;
+}
+
+int32_t mJoinInitWindowCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode) {
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode) {
   SMJoinMergeCtx* pCtx = &pJoin->ctx.mergeCtx;
 
@@ -1151,7 +1737,7 @@ int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJ
     blockDataEnsureCapacity(pCtx->midBlk, pCtx->finBlk->info.capacity);
   }
 
-  pCtx->blkThreshold = pCtx->finBlk->info.capacity * 0.5;
+  pCtx->blkThreshold = pCtx->finBlk->info.capacity * 0.9;
 
   switch (pJoin->joinType) {
     case JOIN_TYPE_INNER:
@@ -1159,10 +1745,25 @@ int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJ
       pCtx->mergeCartFp = (joinCartFp)mInnerJoinMergeCart;
       break;
     case JOIN_TYPE_LEFT:
-    case JOIN_TYPE_RIGHT:
-      pCtx->hashCartFp = (joinCartFp)mLeftJoinHashCart;
-      pCtx->mergeCartFp = (joinCartFp)mLeftJoinMergeCart;
+    case JOIN_TYPE_RIGHT: {
+      switch (pJoin->subType) {
+        case JOIN_STYPE_OUTER:          
+          pCtx->hashCartFp = (joinCartFp)mLeftJoinHashCart;
+          pCtx->mergeCartFp = (joinCartFp)mLeftJoinMergeCart;
+          break;
+        case JOIN_STYPE_SEMI: 
+          pCtx->hashCartFp = (joinCartFp)mSemiJoinHashCart;
+          pCtx->mergeCartFp = (joinCartFp)mSemiJoinMergeCart;
+          break;
+        case JOIN_STYPE_ANTI:
+          pCtx->hashCartFp = (joinCartFp)mAntiJoinHashCart;
+          pCtx->mergeCartFp = (joinCartFp)mAntiJoinMergeCart;
+          break;
+        default:
+          break;
+      }
       break;
+    }
     case JOIN_TYPE_FULL:
       pCtx->hashCartFp = (joinCartFp)mFullJoinHashCart;
       pCtx->mergeCartFp = (joinCartFp)mFullJoinMergeCart;

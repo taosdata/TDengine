@@ -28,6 +28,155 @@
 #include "mergejoin.h"
 
 
+void mJoinTrimKeepOneRow(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList) {
+  //  int32_t totalRows = pBlock->info.rows;
+  int32_t bmLen = BitmapLen(totalRows);
+  char*   pBitmap = NULL;
+  int32_t maxRows = 0;
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
+    // it is a reserved column for scalar function, and no data in this column yet.
+    if (pDst->pData == NULL || (IS_VAR_DATA_TYPE(pDst->info.type) && pDst->varmeta.length == 0)) {
+      continue;
+    }
+
+    int32_t numOfRows = 0;
+    if (IS_VAR_DATA_TYPE(pDst->info.type)) {
+      int32_t j = 0;
+      pDst->varmeta.length = 0;
+
+      while (j < totalRows) {
+        if (pBoolList[j] == 0) {
+          j += 1;
+          continue;
+        }
+
+        if (colDataIsNull_var(pDst, j)) {
+          colDataSetNull_var(pDst, numOfRows);
+        } else {
+          // fix address sanitizer error. p1 may point to memory that will change during realloc of colDataSetVal, first
+          // copy it to p2
+          char*   p1 = colDataGetVarData(pDst, j);
+          int32_t len = 0;
+          if (pDst->info.type == TSDB_DATA_TYPE_JSON) {
+            len = getJsonValueLen(p1);
+          } else {
+            len = varDataTLen(p1);
+          }
+          char* p2 = taosMemoryMalloc(len);
+          memcpy(p2, p1, len);
+          colDataSetVal(pDst, numOfRows, p2, false);
+          taosMemoryFree(p2);
+        }
+        numOfRows += 1;
+        j += 1;
+        break;
+      }
+
+      if (maxRows < numOfRows) {
+        maxRows = numOfRows;
+      }
+    } else {
+      if (pBitmap == NULL) {
+        pBitmap = taosMemoryCalloc(1, bmLen);
+      }
+
+      memcpy(pBitmap, pDst->nullbitmap, bmLen);
+      memset(pDst->nullbitmap, 0, bmLen);
+
+      int32_t j = 0;
+
+      switch (pDst->info.type) {
+        case TSDB_DATA_TYPE_BIGINT:
+        case TSDB_DATA_TYPE_UBIGINT:
+        case TSDB_DATA_TYPE_DOUBLE:
+        case TSDB_DATA_TYPE_TIMESTAMP:
+          while (j < totalRows) {
+            if (pBoolList[j] == 0) {
+              j += 1;
+              continue;
+            }
+
+            if (colDataIsNull_f(pBitmap, j)) {
+              colDataSetNull_f(pDst->nullbitmap, numOfRows);
+            } else {
+              ((int64_t*)pDst->pData)[numOfRows] = ((int64_t*)pDst->pData)[j];
+            }
+            numOfRows += 1;
+            j += 1;
+            break;
+          }
+          break;
+        case TSDB_DATA_TYPE_FLOAT:
+        case TSDB_DATA_TYPE_INT:
+        case TSDB_DATA_TYPE_UINT:
+          while (j < totalRows) {
+            if (pBoolList[j] == 0) {
+              j += 1;
+              continue;
+            }
+            if (colDataIsNull_f(pBitmap, j)) {
+              colDataSetNull_f(pDst->nullbitmap, numOfRows);
+            } else {
+              ((int32_t*)pDst->pData)[numOfRows] = ((int32_t*)pDst->pData)[j];
+            }
+            numOfRows += 1;
+            j += 1;
+            break;
+          }
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+        case TSDB_DATA_TYPE_USMALLINT:
+          while (j < totalRows) {
+            if (pBoolList[j] == 0) {
+              j += 1;
+              continue;
+            }
+            if (colDataIsNull_f(pBitmap, j)) {
+              colDataSetNull_f(pDst->nullbitmap, numOfRows);
+            } else {
+              ((int16_t*)pDst->pData)[numOfRows] = ((int16_t*)pDst->pData)[j];
+            }
+            numOfRows += 1;
+            j += 1;
+            break;
+          }
+          break;
+        case TSDB_DATA_TYPE_BOOL:
+        case TSDB_DATA_TYPE_TINYINT:
+        case TSDB_DATA_TYPE_UTINYINT:
+          while (j < totalRows) {
+            if (pBoolList[j] == 0) {
+              j += 1;
+              continue;
+            }
+            if (colDataIsNull_f(pBitmap, j)) {
+              colDataSetNull_f(pDst->nullbitmap, numOfRows);
+            } else {
+              ((int8_t*)pDst->pData)[numOfRows] = ((int8_t*)pDst->pData)[j];
+            }
+            numOfRows += 1;
+            j += 1;
+            break;
+          }
+          break;
+      }
+    }
+
+    if (maxRows < numOfRows) {
+      maxRows = numOfRows;
+    }
+  }
+
+  pBlock->info.rows = maxRows;
+  if (pBitmap != NULL) {
+    taosMemoryFree(pBitmap);
+  }
+}
+
+
 int32_t mJoinFilterAndMarkHashRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SMJoinTableCtx* build, int32_t startRowIdx) {
   if (pFilterInfo == NULL || pBlock->info.rows == 0) {
     return TSDB_CODE_SUCCESS;
@@ -138,6 +287,71 @@ _err:
   return code;
 }
 
+int32_t mJoinFilterAndKeepSingleRow(SSDataBlock* pBlock, SFilterInfo* pFilterInfo) {
+  if (pFilterInfo == NULL || pBlock->info.rows == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
+  SColumnInfoData*   p = NULL;
+
+  int32_t code = filterSetDataFromSlotId(pFilterInfo, &param1);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _err;
+  }
+
+  int32_t status = 0;
+  code = filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _err;
+  }
+  
+  if (status == FILTER_RESULT_ALL_QUALIFIED) {
+    pBlock->info.rows = 1;
+  } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
+    pBlock->info.rows = 0;
+  } else if (status == FILTER_RESULT_PARTIAL_QUALIFIED) {
+    mJoinTrimKeepOneRow(pBlock, pBlock->info.rows, (bool*)p->pData);
+  }
+
+  code = TSDB_CODE_SUCCESS;
+
+_err:
+  colDataDestroy(p);
+  taosMemoryFree(p);
+  return code;
+}
+
+int32_t mJoinFilterAndNoKeepRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo) {
+  if (pFilterInfo == NULL || pBlock->info.rows == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
+  SColumnInfoData*   p = NULL;
+
+  int32_t code = filterSetDataFromSlotId(pFilterInfo, &param1);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _err;
+  }
+
+  int32_t status = 0;
+  code = filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _err;
+  }
+  
+  if (status == FILTER_RESULT_NONE_QUALIFIED) {
+    pBlock->info.rows = 0;
+  }
+
+  code = TSDB_CODE_SUCCESS;
+
+_err:
+  colDataDestroy(p);
+  taosMemoryFree(p);
+  return code;
+}
 
 
 int32_t mJoinCopyMergeMidBlk(SMJoinMergeCtx* pCtx, SSDataBlock** ppMid, SSDataBlock** ppFin) {
@@ -545,6 +759,12 @@ static int32_t mJoinInitTableInfo(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysi
         return TSDB_CODE_OUT_OF_MEMORY;
       }
     }
+
+    pTable->noKeepEqGrpRows = (JOIN_STYPE_ANTI == pJoin->subType && NULL == pJoin->pFPreFilter);
+    pTable->multiEqGrpRows = !((JOIN_STYPE_SEMI == pJoin->subType || JOIN_STYPE_ANTI == pJoin->subType) && NULL == pJoin->pFPreFilter);
+    pTable->multiRowsGrp = !((JOIN_STYPE_SEMI == pJoin->subType || JOIN_STYPE_ANTI == pJoin->subType) && NULL == pJoin->pPreFilter);
+  } else {
+    pTable->multiEqGrpRows = true;
   }
   
   return TSDB_CODE_SUCCESS;
@@ -586,16 +806,11 @@ static void mJoinSetBuildAndProbeTable(SMJoinOperatorInfo* pInfo, SSortMergeJoin
 }
 
 static int32_t mJoinInitCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode) {
-#if 0
-  pJoin->joinFps = &gMJoinFps[pJoin->joinType][pJoin->subType];
-
-  int32_t code = (*pJoin->joinFps->initJoinCtx)(pOperator, pJoin);
-  if (code) {
-    return code;
+  if (JOIN_STYPE_ASOF == pJoin->subType || JOIN_STYPE_WIN == pJoin->subType) {
+    //return mJoinInitWindowCtx(pJoin, pJoinNode);
   }
-#else
+  
   return mJoinInitMergeCtx(pJoin, pJoinNode);
-#endif
 }
 
 void mJoinSetDone(SOperatorInfo* pOperator) {
@@ -675,7 +890,7 @@ int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* whol
   SColumnInfoData* pCol = taosArrayGet(pTable->blk->pDataBlock, pTable->primCol->srcSlot);
   SMJoinGrpRows* pGrp = NULL;
 
-  if (*(int64_t*)colDataGetData(pCol, pTable->blkRowIdx) != timestamp) {
+  if (*(int64_t*)colDataGetNumData(pCol, pTable->blkRowIdx) != timestamp) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -690,22 +905,46 @@ int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* whol
   pGrp->endIdx = pGrp->beginIdx;
   pGrp->readMatch = false;
   pGrp->blk = pTable->blk;
-  
-  for (; pTable->blkRowIdx < pTable->blk->info.rows; ++pTable->blkRowIdx) {
-    char* pNextVal = colDataGetData(pCol, pTable->blkRowIdx);
-    if (timestamp == *(int64_t*)pNextVal) {
-      pGrp->endIdx++;
-      continue;
-    }
 
-    goto _return;
+  char* pEndVal = colDataGetNumData(pCol, pTable->blk->info.rows - 1);
+  if (timestamp == *(int64_t*)pEndVal) {
+    if (pTable->multiEqGrpRows) {
+      pGrp->endIdx = pTable->blk->info.rows - 1;
+    } else {
+      pGrp->endIdx = pGrp->beginIdx;
+    }
+    
+    pTable->blkRowIdx = pTable->blk->info.rows;
+  } else {
+    for (; pTable->blkRowIdx < pTable->blk->info.rows; ++pTable->blkRowIdx) {
+      char* pNextVal = colDataGetNumData(pCol, pTable->blkRowIdx);
+      if (timestamp == *(int64_t*)pNextVal) {
+        pGrp->endIdx++;
+        continue;
+      }
+
+      if (!pTable->multiEqGrpRows) {
+        pGrp->endIdx = pGrp->beginIdx;
+      }
+      
+      goto _return;
+    }
   }
 
-  if (wholeBlk) {
+  if (wholeBlk && (pTable->multiEqGrpRows || restart)) {
     *wholeBlk = true;
-    if (0 == pGrp->beginIdx) {
+    
+    if (pTable->noKeepEqGrpRows) {
+      goto _return;
+    }
+    
+    if (0 == pGrp->beginIdx && pTable->multiEqGrpRows) {
       pGrp->blk = createOneDataBlock(pTable->blk, true);
     } else {
+      if (!pTable->multiEqGrpRows) {
+        pGrp->endIdx = pGrp->beginIdx;
+      }
+
       pGrp->blk = blockDataExtractBlock(pTable->blk, pGrp->beginIdx, pGrp->endIdx - pGrp->beginIdx + 1);
       pGrp->endIdx -= pGrp->beginIdx;
       pGrp->beginIdx = 0;
@@ -716,8 +955,12 @@ int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* whol
 
 _return:
 
-  pTable->grpTotalRows += pGrp->endIdx - pGrp->beginIdx + 1;  
-
+  if (pTable->noKeepEqGrpRows || (!pTable->multiEqGrpRows && !restart)) {
+    taosArrayPop(pTable->eqGrps);
+  } else {
+    pTable->grpTotalRows += pGrp->endIdx - pGrp->beginIdx + 1;  
+  }
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -835,7 +1078,7 @@ static int32_t mJoinAddRowToHash(SMJoinOperatorInfo* pJoin, size_t keyLen, SSDat
 
     taosArrayPush(pNewGrp, &pos);
     tSimpleHashPut(pBuild->pGrpHash, pBuild->keyData, keyLen, &pNewGrp, POINTER_BYTES);
-  } else {
+  } else if (pBuild->multiRowsGrp) {
     taosArrayPush(*pGrpRows, &pos);
   }
 
@@ -1076,9 +1319,22 @@ int32_t mJoinSetImplFp(SMJoinOperatorInfo* pJoin) {
       pJoin->joinFp = mInnerJoinDo;
       break;
     case JOIN_TYPE_LEFT:
-    case JOIN_TYPE_RIGHT:
-      pJoin->joinFp = mLeftJoinDo;
+    case JOIN_TYPE_RIGHT: {
+      switch (pJoin->subType) {
+        case JOIN_STYPE_OUTER:          
+          pJoin->joinFp = mLeftJoinDo;
+          break;
+        case JOIN_STYPE_SEMI: 
+          pJoin->joinFp = mSemiJoinDo;
+          break;
+        case JOIN_STYPE_ANTI:
+          pJoin->joinFp = mAntiJoinDo;
+          break;
+        default:
+          break;
+      }
       break;
+    }      
     case JOIN_TYPE_FULL:
       pJoin->joinFp = mFullJoinDo;
       break;
