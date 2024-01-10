@@ -1070,7 +1070,7 @@ async fn consume_point_record(
                                     .await
                                 {
                                     Ok(_) => {
-                                        metrics.add_created_tables(1);
+                                        metrics.add_created_stables(1);
                                     }
                                     Err(err) => {
                                         let code: i32 = err.code().into();
