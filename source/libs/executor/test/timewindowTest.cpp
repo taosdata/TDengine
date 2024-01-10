@@ -158,4 +158,27 @@ TEST(testCase, timewindow_gen) {
 
 }
 
+TEST(testCase, timewindow_natural) {
+  osSetTimezone("CST");
+
+  int32_t precision = TSDB_TIME_PRECISION_MILLI;
+
+  SInterval interval2 = createInterval(17, 17, 13392000000, 'n', 'n', 0, precision);
+  int64_t key1 = 1633446027072;
+  STimeWindow w1 = {0};
+  getInitialStartTimeWindow(&interval2, key1, &w1, true);
+  printTimeWindow(&w1, precision, key1);
+  STimeWindow w3 = getAlignQueryTimeWindow(&interval2, key1);
+  printf("%ld win %ld, %ld\n", key1, w3.skey, w3.ekey);  
+
+  int64_t key2 = 1648758398208;
+  STimeWindow w2 = {0};
+  getInitialStartTimeWindow(&interval2, key2, &w2, true);
+  printTimeWindow(&w2, precision, key2);
+  STimeWindow w4 = getAlignQueryTimeWindow(&interval2, key2);
+  printf("%ld win %ld, %ld\n", key2, w3.skey, w3.ekey);
+
+  ASSERT_EQ(w3.skey, w4.skey);
+  ASSERT_EQ(w3.ekey, w4.ekey);  
+}
 #pragma GCC diagnostic pop
