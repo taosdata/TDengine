@@ -2111,6 +2111,34 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
     FOREACH(pn, pCxt->pFuncs) {
       if (nodesEqualNode(pn, pNode)) {
         bFound = true;
+        break;
+      }
+    }
+    if (!bFound) {
+      pCxt->errCode = nodesListStrictAppend(pCxt->pFuncs, nodesCloneNode(pNode));
+    }
+    return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static EDealRes collectSelectFuncs(SNode* pNode, void* pContext) {
+  SCollectFuncsCxt* pCxt = (SCollectFuncsCxt*)pContext;
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId)) {   
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (FUNCTION_TYPE_TBNAME == pFunc->funcType && pCxt->tableAlias) {
+      SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
+      if (pVal && strcmp(pVal->literal, pCxt->tableAlias)) {
+        return DEAL_RES_CONTINUE;
+      }
+    }
+    SExprNode* pExpr = (SExprNode*)pNode;
+    bool bFound = false;
+    SNode* pn = NULL;
+    FOREACH(pn, pCxt->pFuncs) {
+      if (nodesEqualNode(pn, pNode)) {
+        bFound = true;
+        break;
       }
     }
     if (!bFound) {
@@ -2133,6 +2161,33 @@ static int32_t funcNodeEqual(const void* pLeft, const void* pRight, size_t len) 
   return nodesEqualNode(*(const SNode**)pLeft, *(const SNode**)pRight) ? 0 : 1;
 }
 
+int32_t nodesCollectSelectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList** pFuncs) {
+  if (NULL == pSelect || NULL == pFuncs) {
+    return TSDB_CODE_FAILED;
+  }
+
+  SCollectFuncsCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
+                          .classifier = classifier,
+                          .tableAlias = tableAlias,
+                          .pFuncs = *pFuncs};
+  if (NULL == cxt.pFuncs) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  nodesWalkSelectStmt(pSelect, clause, collectFuncs, &cxt);
+  if (TSDB_CODE_SUCCESS == cxt.errCode) {
+    if (LIST_LENGTH(cxt.pFuncs) > 0) {
+      *pFuncs = cxt.pFuncs;
+    } else {
+      nodesDestroyList(cxt.pFuncs);
+    }
+  } else {
+    nodesDestroyList(cxt.pFuncs);
+  }
+
+  return cxt.errCode;
+}
+
 int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList** pFuncs) {
   if (NULL == pSelect || NULL == pFuncs) {
     return TSDB_CODE_FAILED;
@@ -2152,9 +2207,11 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAl
       *pFuncs = cxt.pFuncs;
     } else {
       nodesDestroyList(cxt.pFuncs);
+      *pFuncs = NULL;
     }
   } else {
     nodesDestroyList(cxt.pFuncs);
+    *pFuncs = NULL;
   }
 
   return cxt.errCode;

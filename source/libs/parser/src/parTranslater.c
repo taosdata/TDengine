@@ -2744,6 +2744,24 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static int32_t reCalSelectFuncNum(SSelectStmt* pSelect) {
+  pSelect->selectFuncNum = 0;
+  SNodeList* pNodeList = nodesMakeList();
+  int32_t    code = TSDB_CODE_SUCCESS;
+  for (ESqlClause clause = SQL_CLAUSE_FROM; clause < SQL_CLAUSE_ORDER_BY; clause++) {
+    code = nodesCollectSelectFuncs(pSelect, clause, NULL, fmIsSelectFunc, &pNodeList);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+  SNode* pNode = NULL;
+  FOREACH(pNode, pNodeList) {
+    pSelect->selectFuncNum = calcSelectFuncNum((SFunctionNode*)pNode, pSelect->selectFuncNum);
+  }
+  nodesDestroyList(pNodeList);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL != pSelect->pGroupByList || NULL != pSelect->pWindow ||
       (!pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc && !pSelect->hasInterpFunc)) {
@@ -2757,7 +2775,8 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   if (!pSelect->isDistinct) {
     nodesRewriteExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
   }
-  if (0 < pSelect->selectFuncNum && !pSelect->hasOtherVectorFunc) {
+  if (((!cxt.existCol && 0 < pSelect->selectFuncNum) || (cxt.existCol && 1 == pSelect->selectFuncNum) ) 
+    && !pSelect->hasOtherVectorFunc) {
     return rewriteColsToSelectValFunc(pCxt, pSelect);
   }
   if (cxt.existCol) {
@@ -4597,6 +4616,7 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateOrderBy(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    reCalSelectFuncNum(pSelect);
     code = checkAggColCoexist(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
