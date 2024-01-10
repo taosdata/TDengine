@@ -853,7 +853,7 @@ int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* m
   STaskId*     pHTaskId = &pTask->hTaskInfo.id;
   SStreamTask* pHistoryTask = streamMetaAcquireTask(pMeta, pHTaskId->streamId, pHTaskId->taskId);
   if (pHistoryTask) {
-    code = tqProcessTaskResumeImpl(pMeta, pHistoryTask, sversion, pReq->igUntreated, fromVnode);
+    code = tqProcessTaskResumeImpl(handle, pHistoryTask, sversion, pReq->igUntreated, fromVnode);
   }
 
   return code;
