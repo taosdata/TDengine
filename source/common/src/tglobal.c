@@ -71,7 +71,7 @@ int32_t tsPQSortMemThreshold = 16;      // M
 int32_t tsElectInterval = 25 * 1000;
 int32_t tsHeartbeatInterval = 1000;
 int32_t tsHeartbeatTimeout = 20 * 1000;
-int32_t tsSnapReplicationMsgNLimit = 128;
+int32_t tsSnapReplMaxWaitN = 128;
 
 // vnode
 int64_t tsVndCommitMaxIntervalMs = 600 * 1000;
@@ -608,7 +608,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
     return -1;
   if (cfgAddInt32(pCfg, "syncHeartbeatTimeout", tsHeartbeatTimeout, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER) != 0)
     return -1;
-  if (cfgAddInt32(pCfg, "syncSnapReplicationMsgNLimit", tsSnapReplicationMsgNLimit, 16,
+  if (cfgAddInt32(pCfg, "syncSnapReplMaxWaitN", tsSnapReplMaxWaitN, 16,
                   (TSDB_SYNC_SNAP_BUFFER_SIZE >> 2), CFG_SCOPE_SERVER) != 0)
     return -1;
 
@@ -1067,7 +1067,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsElectInterval = cfgGetItem(pCfg, "syncElectInterval")->i32;
   tsHeartbeatInterval = cfgGetItem(pCfg, "syncHeartbeatInterval")->i32;
   tsHeartbeatTimeout = cfgGetItem(pCfg, "syncHeartbeatTimeout")->i32;
-  tsSnapReplicationMsgNLimit = cfgGetItem(pCfg, "syncSnapReplicationMsgNLimit")->i32;
+  tsSnapReplMaxWaitN = cfgGetItem(pCfg, "syncSnapReplMaxWaitN")->i32;
 
   tsVndCommitMaxIntervalMs = cfgGetItem(pCfg, "vndCommitMaxInterval")->i64;
 
