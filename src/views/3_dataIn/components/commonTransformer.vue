@@ -1841,7 +1841,7 @@ export default {
       }
       tbody tr:first-child {
         .cell {
-          padding: 4px 0px 16px 0px !important;
+          padding-bottom: 16px!important;
         }
       }
     }
@@ -1875,6 +1875,7 @@ export default {
 .transdescription {
   color: $color-description;
   margin-bottom: 15px;
+  white-space: normal !important;
 }
 ::v-deep .el-input-group__prepend {
   padding: 0 4px;
@@ -1938,4 +1939,13 @@ export default {
 .extract-table {
   margin-top: 20px;
 }
+.block-title {
+      margin-bottom: 10px;
+      span {
+        font-size: 16px;
+        color: #4259ce;
+        font-weight: 600;
+      }
+    }
+
 </style>
