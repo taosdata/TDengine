@@ -36,13 +36,13 @@ fn message_to_sql(
         slice: &[(
             String, // One table values SQL
             usize,  // One table records
-            usize,  // One table points
+            usize,  // One table columns
         )],
     ) -> Option<(
         String, // SQL to insert into.
         usize,  // number of tables
         usize,  // number of records
-        usize,  // number of points
+        usize,  // number of columns
     )> {
         if slice.len() == 1 {
             return Some((
@@ -93,9 +93,9 @@ fn message_to_sql(
                 .flat_map(|m| {
                     m.sql_insert_part(precision, with_meta).map(|sql| {
                         (
-                            sql,                                            // SQL to insert into.
-                            m.records.num_rows(),                           // number of records
-                            m.records.num_rows() * m.records.num_columns(), // number of points
+                            sql,                     // SQL to insert into.
+                            m.records.num_rows(),    // number of records
+                            m.records.num_columns(), // number of columns
                         )
                     })
                 })
@@ -105,12 +105,12 @@ fn message_to_sql(
             values_to_sqls(&values)
                 .into_iter()
                 .zip(stable_name_iter)
-                .map(|((sql, tables, records, points), stable)| Records {
+                .map(|((sql, tables, records, cols), stable)| Records {
                     stable: stable.map(|s| s.to_string()),
                     sql,
                     tables,
                     records,
-                    points,
+                    cols,
                 })
         })
         .flatten()
@@ -126,7 +126,7 @@ struct Records {
     sql: String,
     tables: usize,
     records: usize,
-    points: usize,
+    cols: usize,
 }
 impl Records {
     fn sql(&self) -> &str {
@@ -362,7 +362,7 @@ pub async fn flat_write_with_sql(
                         count += n;
                         metrics.add_inserted_sqls(1 as u64);
                         metrics.add_written_rows(n as u64);
-                        metrics.add_written_points(records.points as u64);
+                        metrics.add_written_points((n * records.cols) as u64);
                         break;
                     }
                     Err(err) => {
