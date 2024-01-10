@@ -2161,7 +2161,7 @@ static int32_t funcNodeEqual(const void* pLeft, const void* pRight, size_t len) 
   return nodesEqualNode(*(const SNode**)pLeft, *(const SNode**)pRight) ? 0 : 1;
 }
 
-int32_t nodesCollectSelectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList** pFuncs) {
+int32_t nodesCollectSelectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList* pFuncs) {
   if (NULL == pSelect || NULL == pFuncs) {
     return TSDB_CODE_FAILED;
   }
@@ -2169,22 +2169,12 @@ int32_t nodesCollectSelectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* t
   SCollectFuncsCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
                           .classifier = classifier,
                           .tableAlias = tableAlias,
-                          .pFuncs = *pFuncs};
+                          .pFuncs = pFuncs};
   if (NULL == cxt.pFuncs) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   nodesWalkSelectStmt(pSelect, clause, collectFuncs, &cxt);
-  if (TSDB_CODE_SUCCESS == cxt.errCode) {
-    if (LIST_LENGTH(cxt.pFuncs) > 0) {
-      *pFuncs = cxt.pFuncs;
-    } else {
-      nodesDestroyList(cxt.pFuncs);
-    }
-  } else {
-    nodesDestroyList(cxt.pFuncs);
-  }
-
   return cxt.errCode;
 }
 
