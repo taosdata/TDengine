@@ -33,6 +33,11 @@ int32_t sendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   return -1;
 }
 
+int32_t sendSyncReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
+  terrno = TSDB_CODE_INVALID_PTR;
+  return -1;
+}
+
 char *i642str(int64_t val) {
   static char str[24] = {0};
   snprintf(str, sizeof(str), "%" PRId64, val);
@@ -586,6 +591,7 @@ void mndDumpSdb() {
   SMsgCb msgCb = {0};
   msgCb.reportStartupFp = reportStartup;
   msgCb.sendReqFp = sendReq;
+  msgCb.sendSyncReqFp = sendSyncReq;
   msgCb.sendRspFp = sendRsp;
   msgCb.mgmt = (SMgmtWrapper *)(&msgCb);  // hack
   tmsgSetDefault(&msgCb);
@@ -623,7 +629,7 @@ void mndDumpSdb() {
   char     *pCont = tjsonToString(json);
   int32_t   contLen = strlen(pCont);
   char      file[] = "sdb.json";
-  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC| TD_FILE_WRITE_THROUGH);
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to write %s since %s", file, terrstr());
