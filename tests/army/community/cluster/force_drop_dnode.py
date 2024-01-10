@@ -16,22 +16,25 @@ class TDTestCase(TBase):
         tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def run(self):
-        id = 0
+        id = None
         tdSql.execute('create dnode \'u1_176:6239\';')
-        sql = 'show dnodes'
-        param_list = self.query(sql, row_tag=True)
+        sql = 'show dnodes;'
+
+        param_list = tdSql.query(sql, row_tag=True)
         for param in param_list:
-            if param[2] == 0:
+            if param[3] == 0 and param[4] == 'offline':
+                tdLog.debug("drop dnode id %d"%(param[0]))
                 id = param[0]
-                tdLog.debug("drop dnode id %d"%(id))
+
+        if id is None:
+            tdLog.exit("drop failed: no find drop id")
 
         tdSql.execute(f''' drop dnode {id} force; ''')
 
         sql = 'show dnodes'
-        param_list = self.query(sql, row_tag=True)
+        param_list = tdSql.query(sql, row_tag=True)
         for param in param_list:
             if param[0] == id:
-                tdLog.("drop dnode id %d"%(id))
                 tdLog.exit("drop failed: id:%d" % id)
 
     def stop(self):
