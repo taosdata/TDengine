@@ -95,6 +95,6 @@ class TestPI37(TDCase):
         json_data_list.append(json_info1)
         self.tdCom.put_file(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, self.run_log_dir)
         self.tdCom.threads_run_taosBenchmark(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, taosBenchmark_env_setting, self.run_log_dir)
-        self.tdSql.query(f'select count(*) from stb')
+        self.tdSql.query(f'select count(*) from {self.dbname}.stb')
         self.tdSql.checkEqual(self.tdSql.query_row, self.childtable_count*self.insert_rows)
 
