@@ -26,6 +26,7 @@ taos-query = { version = "0.10.25", default-features = false, features = [
 
 [workspace.package]
 version = "1.4.0"
+rust-version = "1.75.0"
 
 [package]
 name = "taosx"
@@ -35,6 +36,7 @@ edition = "2021"
 exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
 homepage = "https://taosdata.com"
 description = "taosX - TDengine data integration tool"
+rust-version = { workspace = true }
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
