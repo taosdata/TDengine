@@ -1296,7 +1296,7 @@ export default {
       filterdesc: `<strong>taosX supports a powerful expression engine to filter records. <em>false</em> records will be removed directly.</strong><br/>
       - <strong>Bool value</strong>: bool_value if bool_value is true/false.<br/>
       - <strong>Compare oprations</strong>: a > b with a and b fields exist, or c == "value" d > 1.1 and so on.<br/>
-      - String functions is also supported: s.contains("abc") .<br/>`,
+      - <strong>String functions is also supported</strong>: s.contains("abc") .<br/>`,
       uploadexe: "Please upload the csv file and execute the next step",
       sp: "Please select the target super table",
       septip: "Please enter the separator",

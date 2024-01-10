@@ -1873,7 +1873,7 @@ export default {
   }
 }
 .transdescription {
-  color: #acaab2;
+  color: $color-description;
   margin-bottom: 15px;
 }
 ::v-deep .el-input-group__prepend {

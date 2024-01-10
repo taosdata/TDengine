@@ -15,7 +15,7 @@
       :label-width="labelWidth"
       :required="required(config)"
       :class="classMark"
-      :rules="timeFormats.includes(field) ? [...timeRules,...rules] : rules"
+      :rules="timeFormats.includes(field) ? [...timeRules, ...rules] : rules"
       :prop="parent + field"
     >
       <el-input
@@ -97,15 +97,9 @@
         :data="data"
         :parentConfigList="parentConfigList"
       />
-      <div
-        v-if="config.info"
-        slot="label"
-        >{{ config.label }}
-        <el-tooltip
-          class="item"
-          effect="light"
-          placement="top"
-        >
+      <div v-if="config.info" slot="label">
+        {{ config.label }}
+        <el-tooltip class="item" effect="light" placement="top">
           <div
             v-dompurify-html="parseMarked(config.description)"
             slot="content"
@@ -129,12 +123,12 @@
         :style="docsStyle"
         :content="config.description"
       />
-      <TabFormItem
+      <!-- <TabFormItem
         v-if="config.type == 'tab'"
         :config="config"
         :disabled="disabled()"
         :data="data"
-      />
+      /> -->
       <!-- <OpcTable
         v-if="config.type == 'opcTable'"
         :data="data[field]"
@@ -146,50 +140,49 @@
 </template>
 
 <script>
-import { hasOwn, marked } from '@/utils/util';
+import { hasOwn } from "@/utils/util";
+import { marked } from "marked";
 import { parsinginZone } from "@/utils/index";
-import { TimeFormats, getGroupsObj, getFieldClassMarkName } from '../utils'
+import { TimeFormats, getGroupsObj, getFieldClassMarkName } from "../utils";
 
 export default {
   props: {
     config: {
       type: Object,
-      default: () => {}
+      default: () => {},
     },
     data: {
       type: Object,
-      default: () => {}
+      default: () => {},
     },
     parent: {
       type: String,
-      default: ''
+      default: "",
     },
     parentConfigList: {
       type: Array,
-      default: () => []
+      default: () => [],
     },
   },
-  name: 'FormItem',
-  inject: ['sourceParent'],
+  name: "FormItem",
+  inject: ["sourceParent"],
   components: {
-    DocsContent: () => import('@/views/support/components/editorContentDisplay.vue'),
-    // TabFormItem: () => import('../components/tabFormItem.vue'),
-    // OpcTable: () => import('./opcTable.vue'),
-    // UploadCsv: () => import('./uploadCsv.vue'),
-    Dataset: () => import('./dataset.vue'),
-    TimezoneDatePicker: () => import('@/components/date-picker'),
-    PibackfillTime: () => import('./pibackfillTime.vue'),
-    Bucket: () => import('./bucket.vue'),
-    Mode: () => import('./mode.vue')
+    DocsContent: () => import("@/views/support/components/editorContentDisplay.vue"),
+    UploadCsv: () => import("./uploadCsv.vue"),
+    Dataset: () => import("./dataset.vue"),
+    TimezoneDatePicker: () => import("@/components/date-picker"),
+    PibackfillTime: () => import("./pibackfillTime.vue"),
+    Bucket: () => import("./bucket.vue"),
+    Mode: () => import("./mode.vue"),
   },
   data() {
-    this.inputType = ['input', 'textarea', 'password'];
+    this.inputType = ["input", "textarea", "password"];
     return {
-      noLabelType: ['tab', 'opcTable'],
+      noLabelType: ["tab", "opcTable"],
       files: [],
       selectOptions: [],
       date1: 0,
-      date2: 0
+      date2: 0,
     };
   },
   computed: {
@@ -197,36 +190,62 @@ export default {
       return this.config.valueField || this.config.field;
     },
     labelWidth() {
-      return this.config.labelWidth || '';
+      return this.config.labelWidth || "";
     },
     labelText() {
-      return this.config.labelShow !== false ? this.config.label : '';
+      return this.config.labelShow !== false ? this.config.label : "";
     },
     nolabel() {
       return !this.config.type || this.noLabelType.includes(this.config.type);
     },
     display() {
       if (this.nolabel) return false;
-      if (!hasOwn(this.config, 'if')) return true;
-      if (typeof this.config.if === 'function') return this.config.if(this.data, this.sourceParent.sourceForm.data);
+      if (!hasOwn(this.config, "if")) return true;
+      if (typeof this.config.if === "function") {
+        return this.config.if(this.data, this.sourceParent.sourceForm.data);
+      }
       return this.config.if;
     },
     doscShow() {
       return this.config.description && !this.config.info;
     },
     docsStyle() {
-      const isTab = this.config.type == 'tab';
-      const marginKey = isTab ? 'marginBottom' : 'marginTop';
+      const isTab = this.config.type == "tab";
+      const marginKey = isTab ? "marginBottom" : "marginTop";
       return {
-        [marginKey]: '5px'
+        [marginKey]: "5px",
       };
     },
     rules() {
-      if (typeof this.config.required === 'function') return this.config.required() ? [{ required: true, message: this.$t('required', [this.config.label ?? this.config.field]) }] : [];
-      return this.config.required ? [{ required: true, message: this.$t('required', [this.config.label ?? this.config.field]) }] : [];
+      if (typeof this.config.required === "function") {
+        return this.config.required(
+          this.data,
+          this.sourceParent.sourceForm.data,
+          this.sourceParent.currentDefinition
+        )
+          ? [
+              {
+                required: true,
+                message: this.$t("required", [
+                  this.config.label ?? this.config.field,
+                ]),
+              },
+            ]
+          : [];
+      }
+      return this.config.required
+        ? [
+            {
+              required: true,
+              message: this.$t("required", [
+                this.config.label ?? this.config.field,
+              ]),
+            },
+          ]
+        : [];
     },
     timeRules() {
-      return [{ validator: this.compareTime, trigger: "blur", }]
+      return [{ validator: this.compareTime, trigger: "blur" }];
     },
     meta() {
       return this.config.meta || {};
@@ -236,64 +255,78 @@ export default {
       return this.sourceParent.isEdit;
     },
     timeFormats() {
-      return TimeFormats
+      return TimeFormats;
     },
     classMark() {
       return getFieldClassMarkName(this.parent + this.field);
-    }
+    },
   },
   watch: {},
   created() {},
   mounted() {},
   methods: {
     disabled() {
-      if (!hasOwn(this.config, 'disabled')) return false;
-      if (typeof this.config.disabled === 'function') return this.config.disabled(this.data, this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition);
+      if (!hasOwn(this.config, "disabled")) return false;
+      if (typeof this.config.disabled === "function") {
+        return this.config.disabled(
+          this.data,
+          this.sourceParent.sourceForm.data,
+          this.sourceParent.currentDefinition
+        );
+      }
       return this.config.disabled;
     },
     parseMarked(desc) {
       return marked.parse(desc);
     },
     required() {
-      if (typeof this.config.required === 'function') return this.config.required();
+      if (typeof this.config.required === "function") {
+        return this.config.required(
+          this.data,
+          this.sourceParent.sourceForm.data,
+          this.sourceParent.currentDefinition
+        );
+      }
       return this.config.required;
     },
     changeSwith() {
-      if (this.config.field === 'use_csv_config') {
-        this.$emit('csv-enable', this.data[this.field]);
+      if (this.config.field === "use_csv_config") {
+        this.$emit("csv-enable", this.data[this.field]);
       }
     },
     getOptions() {
-      if (typeof this.config.options === 'function') return this.config.options(this);
+      if (typeof this.config.options === "function") {
+        return this.config.options(this);
+      }
       return this.config.options;
     },
     compareTime(info, value, callback) {
-      const type = this.sourceParent.sourceForm.type
-      let groupsData = getGroupsObj(this.sourceParent.sourceForm.data)
+      const type = this.sourceParent.sourceForm.type;
+      let groupsData = getGroupsObj(this.sourceParent.sourceForm.data);
       switch (type) {
-        case 'taos':
-          this.date1 = new Date(groupsData?.start) ?? 0
-          this.date2 = new Date(groupsData?.end) ?? 0
+        case "taos":
+          this.date1 = new Date(groupsData?.start) ?? 0;
+          this.date2 = new Date(groupsData?.end) ?? 0;
           break;
-        case 'historian':
-        this.date1 = new Date(groupsData?.beginDateTime) ?? 0
-        this.date2 = new Date(groupsData?.endDateTime) ?? 0
-        break;
-        case 'influxdb':
-        case 'opentsdb':
-        this.date1 = new Date(groupsData?.beginTime) ?? 0
-        this.date2 = new Date(groupsData?.endTime) ?? 0
-        break;
+        case "avevaHistorian":
+          this.date1 = new Date(groupsData?.beginDateTime) ?? 0;
+          this.date2 = new Date(groupsData?.endDateTime) ?? 0;
+          break;
+        case "influxdb":
+        case "opentsdb":
+          this.date1 = new Date(groupsData?.beginTime) ?? 0;
+          this.date2 = new Date(groupsData?.endTime) ?? 0;
+          break;
         default:
           break;
       }
       if (this.date1 && this.date2 && this.date1 > this.date2) {
-        return callback(new Error(this.$t('dataIn.timeTip')));
+        return callback(new Error(this.$t("dataIn.timeTip")));
       } else {
-        callback()
+        callback();
       }
-      },
-  }
+    },
+  },
 };
 </script>
 
@@ -302,7 +335,7 @@ export default {
   p {
     font-size: 14px;
   }
-  color: #a6adbc;
+  color: $color-description;
 }
 .ds-select {
   width: 100%;

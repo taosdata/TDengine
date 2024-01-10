@@ -51,7 +51,7 @@
               @click="createAgent"
               type="primary"
               size="small"
-              class="ml"
+              class="ml15"
               icon="el-icon-plus"
               >{{ $t("dataIn.createNewAgent") }}</el-button
             >
@@ -74,7 +74,7 @@
               @click="createDb"
               type="primary"
               size="small"
-              class="ml"
+              class="ml15"
               icon="el-icon-plus"
               >{{ $t("data.createDatabase") }}</el-button
             >
@@ -88,13 +88,9 @@
           parent="data."
           :level="1"
           ref="configform"
+          :isEditable="isEditable"
         />
       </el-form>
-      <CsvData
-        v-if="currentDefinition?.id == 'csv'"
-        ref="csvdata"
-        :isEditable="isEditable"
-      ></CsvData>
       <section class="bottom">
         <el-button
           v-if="isShowEditBtn"
@@ -127,9 +123,7 @@
   </div>
 </template>
 <script>
-import DataTarget from "./dataTarget.vue";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import CsvData from "../components/csvData.vue";
 import {
   AddSource,
   EditSource,
@@ -163,25 +157,13 @@ export default {
   components: {
     DatePicker,
     DialogCreateDb,
-    DataTarget,
     Result,
     BlockHeader,
     DocsContent,
     ConfigForm,
-    CsvData,
     ResultTable,
   },
   props: {
-    dbsource: {
-      type: Array,
-      default() {
-        return [];
-      },
-    },
-    tagName: {
-      type: String,
-      default: "datasource",
-    },
     isEditable: {
       type: Boolean,
       default: false,
@@ -304,10 +286,12 @@ export default {
         this.$nextTick(()=>{
           this.$refs.form.clearValidate();
         })
-        
+        if (this.isEditable) {
+          this.getDataSourceDetail();
+        }
       },
     },
-    dbsource: {
+    definitionsList: {
       deep: true,
       handler(val) {
         if (!this.isEditable && !this.sourceForm.type) {
@@ -433,7 +417,7 @@ export default {
       this.$refs.form.validate(async (valid) => {
         if (valid) {
           if (this.sourceForm.type == "csv") {
-            let flag=this.$refs.csvdata.submitUpload()
+            let flag=this.$refs.configform.$refs.csvdata[0].submitUpload()
             if(!flag)return
           }
           const dsn = getDsnData(this.sourceForm.data, this.currentDefinition);
@@ -455,8 +439,8 @@ export default {
             params["via"] = this.sourceForm.agent;
           }
           if (this.sourceForm.type == "csv") {
-            await this.$refs.csvdata.$refs.transform.getTransformerParams();
-            if (this.$refs.csvdata.$refs.transform.isbreak) return;
+            await this.$refs.configform.$refs.csvdata[0].$refs.transform.getTransformerParams();
+            if (this.$refs.configform.$refs.csvdata[0].$refs.transform.isbreak) return;
             params.parser = this.$store.state.app.transformerfullparams;
           }
           if (this.sourceForm.data.parser) {
@@ -471,7 +455,7 @@ export default {
               return;
             }
             this.$parent.changeEditable(false);
-            this.$parent.toggleComponent("tmqtable");
+            this.$parent.currentName = "dbsource";
             this.$refs.form.resetFields();
           } else {
             let result = await AddSource(params);
@@ -481,7 +465,7 @@ export default {
             }
             this.$refs.form.resetFields();
             this.$parent.changeEditable(false);
-            this.$parent.toggleComponent("tmqtable");
+            this.$parent.currentName = "dbsource";
           }
         } else {
           this.$nextTick(() => {
@@ -632,13 +616,10 @@ export default {
   .upload-flex .item {
     z-index: 101;
   }
-  ::v-deep .block-title {
-    margin-bottom: 10px;
-    span {
-      font-size: 16px;
-      color: #4259ce;
-      font-weight: 600;
-    }
+  .custom-placeholder {
+    color: $color-description;
+    font-size: 14px;
+    margin-top: 10px;
   }
 }
 </style>

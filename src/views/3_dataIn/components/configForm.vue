@@ -37,7 +37,16 @@
             v-bind="item"
           /> -->
           
-          <CommonTransformer v-if="item.type == 'parser'&&constmqttCols.length>0" ref='transform' :parserColumns="constmqttCols"></CommonTransformer>
+          <CommonTransformer 
+            v-if="item.type == 'parser' && constmqttCols.length > 0" 
+            ref='transform' 
+            :parserColumns="constmqttCols"
+          ></CommonTransformer>
+          <CsvData
+            v-else-if="item.type == 'csvData'"
+            ref="csvdata"
+            :isEditable="isEditable"
+          ></CsvData>
           <ConnectivityCheck
             v-else-if="item.type == 'checkConnectivity'"
             :data="data[item.field]"
@@ -136,6 +145,7 @@ import ConnectivityCheck from '../components/connectivityCheck.vue'
 import { getBrowserLang } from '@/utils';
 import { hasOwn } from '@/utils/util';
 import CommonTransformer from './commonTransformer.vue'
+import CsvData from "./csvData.vue";
 
 export default {
   props: {
@@ -158,13 +168,16 @@ export default {
     level: {
       type: Number,
       default: 0
+    },
+    isEditable: {
+      type: Boolean
     }
   },
   name: 'ConfigForm',
   inject: ['sourceParent'],
-  components: { FormItem, DocsContent, BlockHeader, ConnectivityCheck, ParserComp,CommonTransformer },
+  components: { FormItem, DocsContent, BlockHeader, ConnectivityCheck, ParserComp, CommonTransformer, CsvData },
   data() {
-    this.mb10Type = ['opcTable', 'parser', 'tabs', 'advanced', 'collapse'];
+    this.mb10Type = ['opcTable', 'parser', 'tabs', 'advanced', 'collapse', 'csvData'];
     return {
       constmqttCols:[]
     };
@@ -216,7 +229,7 @@ export default {
     cursor: not-allowed;
   }
   .docs-content {
-    color: #acaab2;
+    color: $color-description;
     font-size: 14px;
   }
   &:deep(.el-tabs__item) {

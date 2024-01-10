@@ -3,7 +3,7 @@
     class="upload-csv"
     ref="upload"
     :data="uploadData"
-    accept=".csv"
+    :accept="accept"
     :on-remove="handleRemove"
     :on-preview="handlePreview"
     :action="uploadUrl"
@@ -54,6 +54,9 @@ export default {
     },
     formDisabled() {
       return this.sourceParent.formDisabled;
+    },
+    accept() {
+      return this.config.accept || ''
     }
   },
   watch: {},

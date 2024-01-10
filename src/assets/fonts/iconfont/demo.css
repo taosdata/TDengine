@@ -368,6 +368,10 @@
   color: #333333;
 }
 
+.hljs-subst, .hljs-tag {
+  color: #333333;
+}
+
 .hljs-title,
 .hljs-attr,
 .hljs-selector-id,
