@@ -107,7 +107,7 @@ static void *mndBuildCheckpointTickMsg(int32_t *pContLen, int64_t sec) {
 static void mndPullupTrans(SMnode *pMnode) {
   mTrace("pullup trans msg");
   int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
+  void *  pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS_TIMER, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
@@ -117,7 +117,7 @@ static void mndPullupTrans(SMnode *pMnode) {
 static void mndPullupCompacts(SMnode *pMnode) {
   mTrace("pullup compact timer msg");
   int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
+  void *  pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_COMPACT_TIMER, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
@@ -127,7 +127,7 @@ static void mndPullupCompacts(SMnode *pMnode) {
 static void mndPullupTtl(SMnode *pMnode) {
   mTrace("pullup ttl");
   int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
+  void *  pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TTL_TIMER, .pCont = pReq, .contLen = contLen};
   tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
 }
@@ -135,14 +135,14 @@ static void mndPullupTtl(SMnode *pMnode) {
 static void mndPullupTrimDb(SMnode *pMnode) {
   mTrace("pullup trim");
   int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
+  void *  pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRIM_DB_TIMER, .pCont = pReq, .contLen = contLen};
   tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
 }
 
 static void mndCalMqRebalance(SMnode *pMnode) {
   int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
+  void *  pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TMQ_TIMER, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
@@ -151,7 +151,7 @@ static void mndCalMqRebalance(SMnode *pMnode) {
 
 static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
   int32_t contLen = 0;
-  void   *pReq = mndBuildCheckpointTickMsg(&contLen, sec);
+  void *  pReq = mndBuildCheckpointTickMsg(&contLen, sec);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_CHECKPOINT_TIMER, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
@@ -160,7 +160,7 @@ static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
 
 static void mndStreamCheckpointRemain(SMnode *pMnode) {
   int32_t contLen = 0;
-  void   *pReq = mndBuildCheckpointTickMsg(&contLen, 0);
+  void *  pReq = mndBuildCheckpointTickMsg(&contLen, 0);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_CHECKPOINT_CANDIDITATE, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
@@ -169,7 +169,7 @@ static void mndStreamCheckpointRemain(SMnode *pMnode) {
 
 static void mndStreamCheckNode(SMnode *pMnode) {
   int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
+  void *  pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_NODECHECK_TIMER, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
@@ -179,7 +179,7 @@ static void mndStreamCheckNode(SMnode *pMnode) {
 static void mndPullupTelem(SMnode *pMnode) {
   mTrace("pullup telem msg");
   int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
+  void *  pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TELEM_TIMER, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
@@ -189,7 +189,7 @@ static void mndPullupTelem(SMnode *pMnode) {
 static void mndPullupGrant(SMnode *pMnode) {
   mTrace("pullup grant msg");
   int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
+  void *  pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {
         .msgType = TDMT_MND_GRANT_HB_TIMER, .pCont = pReq, .contLen = contLen, .info.ahandle = (void *)0x9527};
@@ -200,7 +200,7 @@ static void mndPullupGrant(SMnode *pMnode) {
 static void mndIncreaseUpTime(SMnode *pMnode) {
   mTrace("increate uptime");
   int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
+  void *  pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {
         .msgType = TDMT_MND_UPTIME_TIMER, .pCont = pReq, .contLen = contLen, .info.ahandle = (void *)0x9528};
@@ -254,7 +254,7 @@ static void mndCheckDnodeOffline(SMnode *pMnode) {
   mTrace("check dnode offline");
   if (mndAcquireRpc(pMnode) != 0) return;
 
-  SSdb   *pSdb = pMnode->pSdb;
+  SSdb *  pSdb = pMnode->pSdb;
   int64_t curMs = taosGetTimestampMs();
 
   void *pIter = NULL;
@@ -299,14 +299,14 @@ static bool mnodeIsNotLeader(SMnode *pMnode) {
 }
 
 static int32_t minCronTime() {
-  int64_t min = INT64_MAX;
+  int32_t min = INT32_MAX;
   min = TMIN(min, tsTtlPushIntervalSec);
   min = TMIN(min, tsTrimVDbIntervalSec);
   min = TMIN(min, tsTransPullupInterval);
   min = TMIN(min, tsCompactPullupInterval);
   min = TMIN(min, tsMqRebalanceInterval);
   min = TMIN(min, tsStreamCheckpointInterval);
-  min = TMIN(min, 5);  // checkpointRemain
+  min = TMIN(min, 6);  // checkpointRemain
   min = TMIN(min, tsStreamNodeCheckInterval);
 
   int64_t telemInt = TMIN(60, (tsTelemInterval - 1));
@@ -386,7 +386,8 @@ static void *mndThreadFp(void *param) {
     int64_t minCron = minCronTime();
     if (sec % minCron == 0 && mnodeIsNotLeader(pMnode)) {
       // not leader, do nothing
-      mTrace("timer not process since mnode is not leader, reason: %s", tstrerror(terrno)) terrno = 0;
+      mTrace("timer not process since mnode is not leader, reason: %s", tstrerror(terrno));
+      terrno = 0;
       continue;
     }
     mndDoTimerPullupTask(pMnode, sec);
@@ -700,7 +701,7 @@ void mndStop(SMnode *pMnode) {
 }
 
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
-  SMnode    *pMnode = pMsg->info.node;
+  SMnode *   pMnode = pMsg->info.node;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
   const STraceId *trace = &pMsg->info.traceId;
@@ -802,7 +803,7 @@ _OVER:
 }
 
 int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
-  SMnode         *pMnode = pMsg->info.node;
+  SMnode *        pMnode = pMsg->info.node;
   const STraceId *trace = &pMsg->info.traceId;
 
   MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(pMsg->msgType)];
@@ -857,7 +858,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
                           SMonStbInfo *pStbInfo, SMonGrantInfo *pGrantInfo) {
   if (mndAcquireRpc(pMnode) != 0) return -1;
 
-  SSdb   *pSdb = pMnode->pSdb;
+  SSdb *  pSdb = pMnode->pSdb;
   int64_t ms = taosGetTimestampMs();
 
   pClusterInfo->dnodes = taosArrayInit(sdbGetSize(pSdb, SDB_DNODE), sizeof(SMonDnodeDesc));
@@ -941,7 +942,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     pGrantInfo->timeseries_used += pVgroup->numOfTimeSeries;
     tstrncpy(desc.status, "unsynced", sizeof(desc.status));
     for (int32_t i = 0; i < pVgroup->replica; ++i) {
-      SVnodeGid     *pVgid = &pVgroup->vnodeGid[i];
+      SVnodeGid *    pVgid = &pVgroup->vnodeGid[i];
       SMonVnodeDesc *pVnDesc = &desc.vnodes[i];
       pVnDesc->dnode_id = pVgid->dnodeId;
       tstrncpy(pVnDesc->vnode_role, syncStr(pVgid->syncState), sizeof(pVnDesc->vnode_role));

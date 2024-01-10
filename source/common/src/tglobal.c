@@ -95,9 +95,9 @@ int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 
 // audit
-bool     tsEnableAudit = true;
-bool     tsEnableAuditCreateTable = true;
-int32_t  tsAuditInterval = 5000;
+bool    tsEnableAudit = true;
+bool    tsEnableAuditCreateTable = true;
+int32_t tsAuditInterval = 5000;
 
 // telem
 #ifdef TD_ENTERPRISE
@@ -252,7 +252,7 @@ int32_t tsCompactPullupInterval = 10;
 int32_t tsMqRebalanceInterval = 2;
 int32_t tsStreamCheckpointInterval = 60;
 float   tsSinkDataRate = 2.0;
-int32_t tsStreamNodeCheckInterval = 15;
+int32_t tsStreamNodeCheckInterval = 16;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushIntervalSec = 10;
 int32_t tsTrimVDbIntervalSec = 60 * 60;  // interval of trimming db in all vgroups
@@ -282,7 +282,7 @@ int32_t tsS3BlockCacheSize = 16;   // number of blocks
 int32_t tsS3PageCacheSize = 4096;  // number of pages
 int32_t tsS3UploadDelaySec = 60 * 60 * 24;
 
-bool    tsExperimental = true;
+bool tsExperimental = true;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -691,8 +691,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddBool(pCfg, "audit", tsEnableAudit, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
   if (cfgAddBool(pCfg, "auditCreateTable", tsEnableAuditCreateTable, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
-  if (cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 500, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
-    return -1;
+  if (cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 500, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "telemetryReporting", tsEnableTelem, CFG_SCOPE_BOTH, CFG_DYN_ENT_SERVER) != 0) return -1;
@@ -711,8 +710,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
       0)
     return -1;
-  if (cfgAddInt32(pCfg, "compactPullupInterval", tsCompactPullupInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
-      0)
+  if (cfgAddInt32(pCfg, "compactPullupInterval", tsCompactPullupInterval, 1, 10000, CFG_SCOPE_SERVER,
+                  CFG_DYN_ENT_SERVER) != 0)
     return -1;
   if (cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
       0)
@@ -1465,40 +1464,38 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
         {"stDebugFlag", &stDebugFlag},   {"sndDebugFlag", &sndDebugFlag},
     };
 
-    static OptionNameAndVar options[] = {
-        {"audit", &tsEnableAudit},
-        {"asynclog", &tsAsyncLog},
-        {"disableStream", &tsDisableStream},
-        {"enableWhiteList", &tsEnableWhiteList},
-        {"telemetryReporting", &tsEnableTelem},
-        {"monitor", &tsEnableMonitor},
+    static OptionNameAndVar options[] = {{"audit", &tsEnableAudit},
+                                         {"asynclog", &tsAsyncLog},
+                                         {"disableStream", &tsDisableStream},
+                                         {"enableWhiteList", &tsEnableWhiteList},
+                                         {"telemetryReporting", &tsEnableTelem},
+                                         {"monitor", &tsEnableMonitor},
 
-        {"mndSdbWriteDelta", &tsMndSdbWriteDelta},
-        {"minDiskFreeSize", &tsMinDiskFreeSize},
+                                         {"mndSdbWriteDelta", &tsMndSdbWriteDelta},
+                                         {"minDiskFreeSize", &tsMinDiskFreeSize},
 
-        {"cacheLazyLoadThreshold", &tsCacheLazyLoadThreshold},
-        {"checkpointInterval", &tsStreamCheckpointInterval},
-        {"keepAliveIdle", &tsKeepAliveIdle},
-        {"logKeepDays", &tsLogKeepDays},
-        {"maxStreamBackendCache", &tsMaxStreamBackendCache},
-        {"mqRebalanceInterval", &tsMqRebalanceInterval},
-        {"numOfLogLines", &tsNumOfLogLines},
-        {"queryRspPolicy", &tsQueryRspPolicy},
-        {"timeseriesThreshold", &tsTimeSeriesThreshold},
-        {"tmqMaxTopicNum", &tmqMaxTopicNum},
-        {"transPullupInterval", &tsTransPullupInterval},
-        {"compactPullupInterval", &tsCompactPullupInterval},
-        {"trimVDbIntervalSec", &tsTrimVDbIntervalSec},
-        {"ttlBatchDropNum", &tsTtlBatchDropNum},
-        {"ttlFlushThreshold", &tsTtlFlushThreshold},
-        {"ttlPushInterval", &tsTtlPushIntervalSec},
-        //{"s3BlockSize", &tsS3BlockSize},
-        {"s3BlockCacheSize", &tsS3BlockCacheSize},
-        {"s3PageCacheSize", &tsS3PageCacheSize},
-        {"s3UploadDelaySec", &tsS3UploadDelaySec},
-        {"supportVnodes", &tsNumOfSupportVnodes},
-        {"experimental", &tsExperimental}
-    };
+                                         {"cacheLazyLoadThreshold", &tsCacheLazyLoadThreshold},
+                                         {"checkpointInterval", &tsStreamCheckpointInterval},
+                                         {"keepAliveIdle", &tsKeepAliveIdle},
+                                         {"logKeepDays", &tsLogKeepDays},
+                                         {"maxStreamBackendCache", &tsMaxStreamBackendCache},
+                                         {"mqRebalanceInterval", &tsMqRebalanceInterval},
+                                         {"numOfLogLines", &tsNumOfLogLines},
+                                         {"queryRspPolicy", &tsQueryRspPolicy},
+                                         {"timeseriesThreshold", &tsTimeSeriesThreshold},
+                                         {"tmqMaxTopicNum", &tmqMaxTopicNum},
+                                         {"transPullupInterval", &tsTransPullupInterval},
+                                         {"compactPullupInterval", &tsCompactPullupInterval},
+                                         {"trimVDbIntervalSec", &tsTrimVDbIntervalSec},
+                                         {"ttlBatchDropNum", &tsTtlBatchDropNum},
+                                         {"ttlFlushThreshold", &tsTtlFlushThreshold},
+                                         {"ttlPushInterval", &tsTtlPushIntervalSec},
+                                         //{"s3BlockSize", &tsS3BlockSize},
+                                         {"s3BlockCacheSize", &tsS3BlockCacheSize},
+                                         {"s3PageCacheSize", &tsS3PageCacheSize},
+                                         {"s3UploadDelaySec", &tsS3UploadDelaySec},
+                                         {"supportVnodes", &tsNumOfSupportVnodes},
+                                         {"experimental", &tsExperimental}};
 
     if (taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true) != 0) {
       taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -1692,36 +1689,34 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         {"cDebugFlag", &cDebugFlag},     {"dDebugFlag", &dDebugFlag},     {"fsDebugFlag", &fsDebugFlag},
         {"idxDebugFlag", &idxDebugFlag}, {"jniDebugFlag", &jniDebugFlag}, {"qDebugFlag", &qDebugFlag},
         {"rpcDebugFlag", &rpcDebugFlag}, {"smaDebugFlag", &smaDebugFlag}, {"tmrDebugFlag", &tmrDebugFlag},
-        {"uDebugFlag", &uDebugFlag}, {"simDebugFlag", &simDebugFlag},
+        {"uDebugFlag", &uDebugFlag},     {"simDebugFlag", &simDebugFlag},
     };
 
-    static OptionNameAndVar options[] = {
-        {"asyncLog", &tsAsyncLog},
-        {"assert", &tsAssert},
-        {"compressMsgSize", &tsCompressMsgSize},
-        {"countAlwaysReturnValue", &tsCountAlwaysReturnValue},
-        {"crashReporting", &tsEnableCrashReport},
-        {"enableCoreFile", &tsAsyncLog},
-        {"enableQueryHb", &tsEnableQueryHb},
-        {"keepColumnName", &tsKeepColumnName},
-        {"keepAliveIdle", &tsKeepAliveIdle},
-        {"logKeepDays", &tsLogKeepDays},
-        {"maxInsertBatchRows", &tsMaxInsertBatchRows},
-        {"maxRetryWaitTime", &tsMaxRetryWaitTime},
-        {"minSlidingTime", &tsMinSlidingTime},
-        {"minIntervalTime", &tsMinIntervalTime},
-        {"numOfLogLines", &tsNumOfLogLines},
-        {"querySmaOptimize", &tsQuerySmaOptimize},
-        {"queryPolicy", &tsQueryPolicy},
-        {"queryPlannerTrace", &tsQueryPlannerTrace},
-        {"queryNodeChunkSize", &tsQueryNodeChunkSize},
-        {"queryUseNodeAllocator", &tsQueryUseNodeAllocator},
-        {"smlDot2Underline", &tsSmlDot2Underline},
-        {"shellActivityTimer", &tsShellActivityTimer},
-        {"slowLogThreshold", &tsSlowLogThreshold},
-        {"useAdapter", &tsUseAdapter},
-        {"experimental", &tsExperimental}
-    };
+    static OptionNameAndVar options[] = {{"asyncLog", &tsAsyncLog},
+                                         {"assert", &tsAssert},
+                                         {"compressMsgSize", &tsCompressMsgSize},
+                                         {"countAlwaysReturnValue", &tsCountAlwaysReturnValue},
+                                         {"crashReporting", &tsEnableCrashReport},
+                                         {"enableCoreFile", &tsAsyncLog},
+                                         {"enableQueryHb", &tsEnableQueryHb},
+                                         {"keepColumnName", &tsKeepColumnName},
+                                         {"keepAliveIdle", &tsKeepAliveIdle},
+                                         {"logKeepDays", &tsLogKeepDays},
+                                         {"maxInsertBatchRows", &tsMaxInsertBatchRows},
+                                         {"maxRetryWaitTime", &tsMaxRetryWaitTime},
+                                         {"minSlidingTime", &tsMinSlidingTime},
+                                         {"minIntervalTime", &tsMinIntervalTime},
+                                         {"numOfLogLines", &tsNumOfLogLines},
+                                         {"querySmaOptimize", &tsQuerySmaOptimize},
+                                         {"queryPolicy", &tsQueryPolicy},
+                                         {"queryPlannerTrace", &tsQueryPlannerTrace},
+                                         {"queryNodeChunkSize", &tsQueryNodeChunkSize},
+                                         {"queryUseNodeAllocator", &tsQueryUseNodeAllocator},
+                                         {"smlDot2Underline", &tsSmlDot2Underline},
+                                         {"shellActivityTimer", &tsShellActivityTimer},
+                                         {"slowLogThreshold", &tsSlowLogThreshold},
+                                         {"useAdapter", &tsUseAdapter},
+                                         {"experimental", &tsExperimental}};
 
     if (taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true) != 0) {
       taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -1763,7 +1758,7 @@ static void taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag
 void taosSetAllDebugFlag(int32_t flag) {
   if (flag <= 0) return;
 
-  SArray      *noNeedToSetVars = NULL;
+  SArray *     noNeedToSetVars = NULL;
   SConfigItem *pItem = cfgGetItem(tsCfg, "debugFlag");
   if (pItem != NULL) {
     pItem->i32 = flag;
@@ -1798,7 +1793,7 @@ void taosSetAllDebugFlag(int32_t flag) {
   taosArrayClear(noNeedToSetVars);  // reset array
 
   uInfo("all debug flag are set to %d", flag);
-  if (terrno == TSDB_CODE_CFG_NOT_FOUND) terrno = TSDB_CODE_SUCCESS; // ignore not exist
+  if (terrno == TSDB_CODE_CFG_NOT_FOUND) terrno = TSDB_CODE_SUCCESS;  // ignore not exist
 }
 
 int8_t taosGranted() { return atomic_load_8(&tsGrant); }
