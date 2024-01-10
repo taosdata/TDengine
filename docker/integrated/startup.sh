@@ -44,6 +44,35 @@ for _ in $(seq 1 20); do
     sleep 0.5
 done
 
+# if has mnode ep set or the host is first ep or not for cluster, just start.
+if [ -f "$DATA_DIR/dnode/mnodeEpSet.json" ] || [ "$TAOS_FQDN" = "$FIRST_EP_HOST" ]; then
+    $@
+# others will first wait the first ep ready.
+else
+    if [ "$TAOS_FIRST_EP" = "" ]; then
+        echo "run TDengine with single node."
+        $@
+    fi
+    while true; do
+        es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)
+        echo "Try to connect to first ep with return: ${es}"
+        if [ "${es%%:*}" -eq 2 ]; then
+            echo "execute to create dnode after connected to first ep"
+            ENDPOINT=$FQDN:$SERVER_PORT
+            taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$ENDPOINT\";"
+            DNODETmp=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "set max_binary_display_width 2000;show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
+            DNODEID=$(echo "$DNODETmp" | sed -e 's/^[[:space:]]*//')
+            if [[ "$DNODEID" != "" ]]; then
+                taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create mnode on dnode $DNODEID;"
+                echo "Created the mnode for dnode $DNODEID"
+                break
+            fi
+        fi
+        sleep 1s
+    done
+    $@
+fi
+
 # startup taosx
 /usr/bin/taosx serve -c $TAOSX_CONFIG &
 # wait for 6050 port ready
