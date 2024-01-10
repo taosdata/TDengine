@@ -26,17 +26,24 @@ Any application running on any platform can access TDengine through the REST API
 
 ## Establish Connection
 
-There are two ways for a client library to establish connections to TDengine:
+There are three ways for a client library to establish connections to TDengine:
 
-1. REST connection through the REST API provided by the taosAdapter component.
-2. Native connection through the TDengine client driver (taosc).
+1. Native connection through the TDengine client driver (taosc).
+2. REST connection through the REST API provided by the taosAdapter component.
+3. Websocket connection provided by the taosAdapter component.
 
-For REST and native connections, client libraries provide similar APIs for performing operations and running SQL statements on your databases. The main difference is the method of establishing the connection, which is not visible to users.
+![TDengine connection type](connection-type-en.webp)
+
+For these ways of connections, client libraries provide similar APIs for performing operations and running SQL statements on your databases. The main difference is the method of establishing the connection, which is not visible to users.
 
 Key differences:
 
-3. The REST connection is more accessible with cross-platform support, however it results in a 30% performance downgrade.
-1. The TDengine client driver (taosc) has the highest performance with all the features of TDengine like [Parameter Binding](../../client-libraries/cpp#parameter-binding-api), [Subscription](../../client-libraries/cpp#subscription-and-consumption-api), etc.
+1. For a Native connection, the client driver taosc and the server TDengine version must be compatible.
+2. For a REST connection, users do not need to install the client driver taosc, providing the advantage of cross-platform ease of use. However, functions such as data subscription and binary data types are not available. Additionally, compared to Native and Websocket connections, a REST connection has the worst performance.
+3. For a Websocket connection, users also do not need to install the client driver taosc. However, compared to a Native connection, the performance is reduced by about 30%.
+4. To connect to a cloud service instance, you need to use the REST connection or Websocket connection.
+   
+Normally we recommend using **Websocket connection**.
 
 ## Install Client Driver taosc
 
@@ -83,7 +90,7 @@ If `maven` is used to manage the projects, what needs to be done is only adding 
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.2.4</version>
+  <version>3.2.7</version>
 </dependency>
 ```
 
