@@ -677,6 +677,10 @@ int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* durati
   return getDuration(*duration, *unit, duration, timePrecision);
 }
 
+static bool taosIsLeapYear(int32_t year) {
+  return (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
+}
+
 int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
   if (duration == 0) {
     return t;
@@ -696,7 +700,13 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
   int32_t mon = tm.tm_year * 12 + tm.tm_mon + (int32_t)numOfMonth;
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
-
+  int daysOfMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  if (taosIsLeapYear(1900 + tm.tm_year)) {
+    daysOfMonth[1] = 29;
+  }
+  if (tm.tm_mday > daysOfMonth[tm.tm_mon]) {
+    tm.tm_mday = daysOfMonth[tm.tm_mon];
+  }
   return (int64_t)(taosMktime(&tm) * TSDB_TICK_PER_SECOND(precision) + fraction);
 }
 
