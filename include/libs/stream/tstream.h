@@ -685,18 +685,18 @@ typedef struct STaskStatusEntry {
   int32_t statusLastDuration;  // to record the last duration of current status
   int64_t stage;
   int32_t nodeId;
-  int64_t verStart;         // start version in WAL, only valid for source task
-  int64_t verEnd;           // end version in WAL, only valid for source task
-  int64_t processedVer;     // only valid for source task
+  int64_t verStart;            // start version in WAL, only valid for source task
+  int64_t verEnd;              // end version in WAL, only valid for source task
+  int64_t processedVer;        // only valid for source task
   int64_t activeCheckpointId;     // current active checkpoint id
-  int32_t chkpointTransId;  // checkpoint trans id
-  bool    checkpointFailed; // denote if the checkpoint is failed or not
-  bool    inputQChanging;   // inputQ is changing or not
+  int32_t chkpointTransId;     // checkpoint trans id
+  bool    checkpointFailed;    // denote if the checkpoint is failed or not
+  bool    inputQChanging;      // inputQ is changing or not
   int64_t inputQUnchangeCounter;
-  double  inputQUsed;       // in MiB
+  double  inputQUsed;          // in MiB
   double  inputRate;
-  double  sinkQuota;     // existed quota size for sink task
-  double  sinkDataSize;  // sink to dst data size
+  double  sinkQuota;           // existed quota size for sink task
+  double  sinkDataSize;        // sink to dst data size
 } STaskStatusEntry;
 
 typedef struct SStreamHbMsg {

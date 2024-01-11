@@ -113,7 +113,7 @@ bool mndStreamTransConflictCheck(SMnode* pMnode, int64_t streamUid, const char* 
   return false;
 }
 
-int32_t mndStreamGetRelCheckpointTrans(SMnode* pMnode, int64_t streamUid) {
+int32_t mndStreamGetRelTrans(SMnode* pMnode, int64_t streamUid) {
   taosThreadMutexLock(&execInfo.lock);
   int32_t num = taosHashGetSize(execInfo.transMgmt.pDBTrans);
   if (num <= 0) {
@@ -127,7 +127,7 @@ int32_t mndStreamGetRelCheckpointTrans(SMnode* pMnode, int64_t streamUid) {
     SStreamTransInfo tInfo = *pEntry;
     taosThreadMutexUnlock(&execInfo.lock);
 
-    if (strcmp(tInfo.name, MND_STREAM_CHECKPOINT_NAME) == 0) {
+    if (strcmp(tInfo.name, MND_STREAM_CHECKPOINT_NAME) == 0 || strcmp(tInfo.name, MND_STREAM_TASK_UPDATE_NAME) == 0) {
       return tInfo.transId;
     }
   } else {

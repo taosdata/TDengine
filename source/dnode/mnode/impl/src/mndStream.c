@@ -81,7 +81,7 @@ static void    removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExe
 static void    saveStreamTasksInfo(SStreamObj *pStream, SStreamExecInfo *pExecNode);
 static int32_t removeExpirednodeEntryAndTask(SArray *pNodeSnapshot);
 static int32_t doKillCheckpointTrans(SMnode *pMnode, const char *pDbName, size_t len);
-static void    killCheckpointTransImpl(SMnode *pMnode, int32_t transId, const char *pDbName);
+static void    killTransImpl(SMnode *pMnode, int32_t transId, const char *pDbName);
 
 static int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList);
 static void    freeCheckpointCandEntry(void *);
@@ -94,9 +94,6 @@ SSdbRow *      mndStreamSeqActionDecode(SSdbRaw *pRaw);
 static int32_t mndStreamSeqActionInsert(SSdb *pSdb, SStreamSeq *pStream);
 static int32_t mndStreamSeqActionDelete(SSdb *pSdb, SStreamSeq *pStream);
 static int32_t mndStreamSeqActionUpdate(SSdb *pSdb, SStreamSeq *pOldStream, SStreamSeq *pNewStream);
-
-static SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
-static SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
 
 int32_t mndInitStream(SMnode *pMnode) {
   SSdbTable table = {
@@ -1455,9 +1452,10 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   }
 
   // kill the related checkpoint trans
-  int32_t transId = mndStreamGetRelCheckpointTrans(pMnode, pStream->uid);
+  int32_t transId = mndStreamGetRelTrans(pMnode, pStream->uid);
   if (transId != 0) {
-    killCheckpointTransImpl(pMnode, transId, pStream->sourceDb);
+    mDebug("drop active related transId:%d due to stream:%s dropped", transId, pStream->name);
+    killTransImpl(pMnode, transId, pStream->sourceDb);
   }
 
   removeStreamTasksInBuf(pStream, &execInfo);
@@ -1502,9 +1500,10 @@ int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
 #endif
 
         // kill the related checkpoint trans
-        int32_t transId = mndStreamGetRelCheckpointTrans(pMnode, pStream->uid);
+        int32_t transId = mndStreamGetRelTrans(pMnode, pStream->uid);
         if (transId != 0) {
-          killCheckpointTransImpl(pMnode, transId, pStream->sourceDb);
+          mDebug("drop active related transId:%d due to stream:%s dropped", transId, pStream->name);
+          killTransImpl(pMnode, transId, pStream->sourceDb);
         }
 
         // drop the stream obj in execInfo
@@ -1728,7 +1727,7 @@ static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SS
   colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
 
   // output queue
-  //        sprintf(buf, queueInfoStr, pe->outputQUsed, pe->outputRate);
+//          sprintf(buf, queueInfoStr, pe->outputQUsed, pe->outputRate);
   //        STR_TO_VARSTR(vbuf, buf);
 
   //        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -2836,10 +2835,10 @@ int32_t createStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
-void killCheckpointTransImpl(SMnode* pMnode, int32_t transId, const char* pDbName) {
+void killTransImpl(SMnode* pMnode, int32_t transId, const char* pDbName) {
   STrans *pTrans = mndAcquireTrans(pMnode, transId);
   if (pTrans != NULL) {
-    mInfo("kill checkpoint transId:%d in Db:%s", transId, pDbName);
+    mInfo("kill active transId:%d in Db:%s", transId, pDbName);
     mndKillTrans(pMnode, pTrans);
     mndReleaseTrans(pMnode, pTrans);
   }
@@ -2859,7 +2858,7 @@ int32_t doKillCheckpointTrans(SMnode *pMnode, const char *pDBName, size_t len) {
   }
 
   char* pDupDBName = strndup(pDBName, len);
-  killCheckpointTransImpl(pMnode, pTransInfo->transId, pDupDBName);
+  killTransImpl(pMnode, pTransInfo->transId, pDupDBName);
   taosMemoryFree(pDupDBName);
 
   return TSDB_CODE_SUCCESS;
