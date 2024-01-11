@@ -449,13 +449,7 @@ STimeWindow getAlignQueryTimeWindow(const SInterval* pInterval, int64_t key) {
    * if the realSkey > INT64_MAX - pInterval->interval, the query duration between
    * realSkey and realEkey must be less than one interval.Therefore, no need to adjust the query ranges.
    */
-  if (pInterval->offset > 0) {
-    int64_t slideStart = taosTimeAdd(win.skey, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision);
-    int64_t slideEnd = taosTimeAdd(slideStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
-    win.ekey = taosTimeAdd(slideEnd, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
-  } else {
-    win.ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
-  }
+  win.ekey = taosTimeGetIntervalEnd(win.skey, pInterval);
   if (win.ekey < win.skey) {
     win.ekey = INT64_MAX;
   }
