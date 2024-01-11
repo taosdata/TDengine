@@ -1100,108 +1100,11 @@ int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen) {
 }
 
 int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-  SVPauseStreamTaskReq* pReq = (SVPauseStreamTaskReq*)msg;
-
-  SStreamMeta* pMeta = pTq->pStreamMeta;
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
-  if (pTask == NULL) {
-    tqError("vgId:%d process pause req, failed to acquire task:0x%x, it may have been dropped already", pMeta->vgId,
-            pReq->taskId);
-    // since task is in [STOP|DROPPING] state, it is safe to assume the pause is active
-    return TSDB_CODE_SUCCESS;
-  }
-
-  tqDebug("s-task:%s receive pause msg from mnode", pTask->id.idStr);
-  streamTaskPause(pTask, pMeta);
-
-  SStreamTask* pHistoryTask = NULL;
-  if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
-    pHistoryTask = streamMetaAcquireTask(pMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId);
-    if (pHistoryTask == NULL) {
-      tqError("vgId:%d process pause req, failed to acquire fill-history task:0x%" PRIx64
-              ", it may have been dropped already",
-              pMeta->vgId, pTask->hTaskInfo.id.taskId);
-      streamMetaReleaseTask(pMeta, pTask);
-
-      // since task is in [STOP|DROPPING] state, it is safe to assume the pause is active
-      return TSDB_CODE_SUCCESS;
-    }
-
-    tqDebug("s-task:%s fill-history task handle paused along with related stream task", pHistoryTask->id.idStr);
-
-    streamTaskPause(pHistoryTask, pMeta);
-    streamMetaReleaseTask(pMeta, pHistoryTask);
-  }
-
-  streamMetaReleaseTask(pMeta, pTask);
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, int8_t igUntreated) {
-  int32_t vgId = pTq->pStreamMeta->vgId;
-  if (pTask == NULL) {
-    return -1;
-  }
-
-  streamTaskResume(pTask);
-  ETaskStatus status = streamTaskGetStatus(pTask)->state;
-
-  int32_t level = pTask->info.taskLevel;
-  if (level == TASK_LEVEL__SINK) {
-    if (status == TASK_STATUS__UNINIT) {
-    }
-    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-    return 0;
-  }
-
-  if (status == TASK_STATUS__READY || status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__CK) {
-    // no lock needs to secure the access of the version
-    if (igUntreated && level == TASK_LEVEL__SOURCE && !pTask->info.fillHistory) {
-      // discard all the data  when the stream task is suspended.
-      walReaderSetSkipToVersion(pTask->exec.pWalReader, sversion);
-      tqDebug("vgId:%d s-task:%s resume to exec, prev paused version:%" PRId64 ", start from vnode ver:%" PRId64
-              ", schedStatus:%d",
-              vgId, pTask->id.idStr, pTask->chkInfo.nextProcessVer, sversion, pTask->status.schedStatus);
-    } else {  // from the previous paused version and go on
-      tqDebug("vgId:%d s-task:%s resume to exec, from paused ver:%" PRId64 ", vnode ver:%" PRId64 ", schedStatus:%d",
-              vgId, pTask->id.idStr, pTask->chkInfo.nextProcessVer, sversion, pTask->status.schedStatus);
-    }
-
-    if (level == TASK_LEVEL__SOURCE && pTask->info.fillHistory && status == TASK_STATUS__SCAN_HISTORY) {
-      streamStartScanHistoryAsync(pTask, igUntreated);
-    } else if (level == TASK_LEVEL__SOURCE && (streamQueueGetNumOfItems(pTask->inputq.queue) == 0)) {
-      tqScanWalAsync(pTq, false);
-    } else {
-      streamSchedExec(pTask);
-    }
-  } else if (status == TASK_STATUS__UNINIT) {
-    // todo: fill-history task init ?
-    if (pTask->info.fillHistory == 0) {
-      EStreamTaskEvent event = TASK_EVENT_INIT;
-      streamTaskHandleEvent(pTask->status.pSM, event);
-    }
-  }
-
-  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-  return 0;
+  return tqStreamTaskProcessTaskPauseReq(pTq->pStreamMeta, msg);
 }
 
 int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-  SVResumeStreamTaskReq* pReq = (SVResumeStreamTaskReq*)msg;
-
-  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->streamId, pReq->taskId);
-  int32_t      code = tqProcessTaskResumeImpl(pTq, pTask, sversion, pReq->igUntreated);
-  if (code != 0) {
-    return code;
-  }
-
-  STaskId*     pHTaskId = &pTask->hTaskInfo.id;
-  SStreamTask* pHistoryTask = streamMetaAcquireTask(pTq->pStreamMeta, pHTaskId->streamId, pHTaskId->taskId);
-  if (pHistoryTask) {
-    code = tqProcessTaskResumeImpl(pTq, pHistoryTask, sversion, pReq->igUntreated);
-  }
-
-  return code;
+  return tqStreamTaskProcessTaskResumeReq(pTq, sversion, msg, true);
 }
 
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg) {

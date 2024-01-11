@@ -194,7 +194,7 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
     case TDMT_STREAM_TASK_DEPLOY: {
       void *  pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
       int32_t len = pMsg->contLen - sizeof(SMsgHead);
-      return tqStreamTaskProcessDeployReq(pSnode->pMeta, &pSnode->msgCb, -1, pReq, len, true, true);
+      return tqStreamTaskProcessDeployReq(pSnode->pMeta, pMsg->info.conn.applyIndex, pReq, len, true, true);
     }
 
     case TDMT_STREAM_TASK_DROP:
@@ -203,6 +203,10 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
       return tqStreamTaskProcessUpdateReq(pSnode->pMeta, &pSnode->msgCb, pMsg, true);
     case TDMT_VND_STREAM_TASK_RESET:
       return tqStreamTaskProcessTaskResetReq(pSnode->pMeta, pMsg);
+    case TDMT_STREAM_TASK_PAUSE:
+      return tqStreamTaskProcessTaskPauseReq(pSnode->pMeta, pMsg->pCont);
+    case TDMT_STREAM_TASK_RESUME:
+      return tqStreamTaskProcessTaskResumeReq(pSnode->pMeta, pMsg->info.conn.applyIndex, pMsg->pCont, false);
     default:
       ASSERT(0);
   }

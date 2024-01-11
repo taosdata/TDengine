@@ -22,12 +22,6 @@
 #include "tsdbUtil2.h"
 #include "tsimplehash.h"
 
-#define INIT_TIMEWINDOW(_w) \
-  do {                      \
-    (_w)->skey = INT64_MAX; \
-    (_w)->ekey = INT64_MIN; \
-  } while (0);
-
 static bool overlapWithDelSkylineWithoutVer(STableBlockScanInfo* pBlockScanInfo, const SBrinRecord* pRecord,
                                             int32_t order);
 
@@ -164,6 +158,9 @@ SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf
     pScanInfo->uid = idList[j].uid;
     INIT_TIMEWINDOW(&pScanInfo->sttWindow);
     INIT_TIMEWINDOW(&pScanInfo->filesetWindow);
+
+    pScanInfo->cleanSttBlocks = false;
+    pScanInfo->sttBlockReturned = false;
 
     pUidList->tableUidList[j] = idList[j].uid;
 
