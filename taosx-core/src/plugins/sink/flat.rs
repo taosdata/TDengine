@@ -36,40 +36,30 @@ fn message_to_sql(
         slice: &[(
             String, // One table values SQL
             usize,  // One table records
-            usize,  // One table columns
         )],
     ) -> Option<(
         String, // SQL to insert into.
         usize,  // number of tables
         usize,  // number of records
-        usize,  // number of columns
     )> {
         if slice.len() == 1 {
-            return Some((
-                format!("INSERT INTO {}", slice[0].0),
-                1,
-                slice[0].1,
-                slice[0].2,
-            ));
+            return Some((format!("INSERT INTO {}", slice[0].0), 1, slice[0].1));
         }
-        let len = slice.iter().map(|(sql, _, _)| sql.len()).sum::<usize>();
+        let len = slice.iter().map(|(sql, _)| sql.len()).sum::<usize>();
         if len < MAX_SQL_LENGTH {
             let mut sql = String::with_capacity(len + 12);
             sql.push_str("INSERT INTO ");
-            let (sql, records, points) =
-                slice
-                    .iter()
-                    .fold((sql, 0, 0), |(mut sql, records, points), (s, n, p)| {
-                        sql.push_str(s);
-                        (sql, records + n, points + p)
-                    });
-            Some((sql, slice.len(), records, points))
+            let (sql, records) = slice.iter().fold((sql, 0), |(mut sql, records), (s, n)| {
+                sql.push_str(s);
+                (sql, records + n)
+            });
+            Some((sql, slice.len(), records))
         } else {
             None
         }
     }
 
-    fn values_to_sqls(slice: &[(String, usize, usize)]) -> Vec<(String, usize, usize, usize)> {
+    fn values_to_sqls(slice: &[(String, usize)]) -> Vec<(String, usize, usize)> {
         if slice.len() == 0 {
             return vec![];
         }
@@ -93,9 +83,8 @@ fn message_to_sql(
                 .flat_map(|m| {
                     m.sql_insert_part(precision, with_meta).map(|sql| {
                         (
-                            sql,                     // SQL to insert into.
-                            m.records.num_rows(),    // number of records
-                            m.records.num_columns(), // number of columns
+                            sql,                  // SQL to insert into.
+                            m.records.num_rows(), // number of records
                         )
                     })
                 })
@@ -105,12 +94,11 @@ fn message_to_sql(
             values_to_sqls(&values)
                 .into_iter()
                 .zip(stable_name_iter)
-                .map(|((sql, tables, records, cols), stable)| Records {
+                .map(|((sql, tables, records), stable)| Records {
                     stable: stable.map(|s| s.to_string()),
                     sql,
                     tables,
                     records,
-                    cols,
                 })
         })
         .flatten()
@@ -126,7 +114,6 @@ struct Records {
     sql: String,
     tables: usize,
     records: usize,
-    cols: usize,
 }
 impl Records {
     fn sql(&self) -> &str {
@@ -291,12 +278,6 @@ async fn write_stable_with_sql(
                 write_retries += 1;
                 tracing::warn!("flat message write sql encountered unrecoverable err: {err:#}");
                 if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
-                    counter!(METRIC_WRITE_RAW_BLOCK_FAILS, 1);
-                    counter!(METRIC_RECORD_FAILS, records.records() as u64);
-                    // counter!(
-                    //     METRIC_POINT_FAILS,
-                    //     (raw.nrows() * raw.column_views().len()) as u64
-                    // );
                     break Err(err)
                         .context("Write flat stream with SQL error: Retries exceeded")
                         .map_err(Into::into);
@@ -321,12 +302,6 @@ async fn write_stable_with_sql(
                         taos.replace(pool.get().await?);
                     }
                     _ => {
-                        counter!(METRIC_WRITE_RAW_BLOCK_FAILS, 1);
-                        counter!(METRIC_RECORD_FAILS, records.records() as u64);
-                        // counter!(
-                        //     METRIC_POINT_FAILS,
-                        //     (raw.nrows() * raw.column_views().len()) as u64
-                        // );
                         break Err(err)
                             .context("flat message write sql error")
                             .map_err(Into::into);
@@ -349,13 +324,13 @@ pub async fn flat_write_with_sql(
 ) -> anyhow::Result<usize> {
     let mut count = 0;
     // Split messages into different stales.
+    let cols = messages[0].records.num_columns();
     let groups = messages
         .into_iter()
         .into_group_map_by(|m| m.stable_name().map(|s| s.to_string()));
     for (stable, group) in groups.into_iter() {
         let messages = group.into_iter().collect_vec();
         let sqls = message_to_sql(&messages, target_precision, true);
-        tracing::debug!("sqls: {:#?}", sqls); // debug
         for records in sqls {
             loop {
                 match write_stable_with_sql(pool, taos, req_id, &records).await {
@@ -363,11 +338,13 @@ pub async fn flat_write_with_sql(
                         count += n;
                         metrics.add_inserted_sqls(1 as u64);
                         metrics.add_written_rows(n as u64);
-                        metrics.add_written_points((n * records.cols) as u64);
+                        metrics.add_written_points((n * cols) as u64);
                         break;
                     }
                     Err(err) => {
                         metrics.add_failed_sqls(1 as u64);
+                        metrics.add_failed_rows(records.records() as u64);
+                        metrics.add_failed_points((records.records() * cols) as u64);
                         error!(
                             stable = stable.as_deref().unwrap_or("unknown"),
                             "write stable with sql error: {err:#}"

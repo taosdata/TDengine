@@ -1390,7 +1390,6 @@ async fn consume_flat_record(
     trace_id_str: &str,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<()> {
-    tracing::debug!("record: {record:#?}"); // debug
     let parser = parser.ok_or_else(|| anyhow::anyhow!("Parser should be set with flat stream"))?;
     // let stmt = Stmt::init(taos.as_ref().unwrap())?;
     let mut max_lengths = HashMap::new();
