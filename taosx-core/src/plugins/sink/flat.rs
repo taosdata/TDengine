@@ -355,6 +355,7 @@ pub async fn flat_write_with_sql(
     for (stable, group) in groups.into_iter() {
         let messages = group.into_iter().collect_vec();
         let sqls = message_to_sql(&messages, target_precision, true);
+        tracing::debug!("sqls: {:#?}", sqls); // debug
         for records in sqls {
             loop {
                 match write_stable_with_sql(pool, taos, req_id, &records).await {
