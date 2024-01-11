@@ -226,7 +226,7 @@ function lcovFunc {
 
     # push result to coveralls.io
     echo "push result to coveralls.io"
-    /usr/local/bin/coveralls-lcov coverage.info -b 3.0 -t o7uY02qEAgKyJHrkxLGiCOTfL3IGQR2zm | tee -a $TDENGINE_COVERAGE_REPORT
+    /usr/local/bin/coveralls-lcov coverage.info -b $branch -t o7uY02qEAgKyJHrkxLGiCOTfL3IGQR2zm | tee -a $TDENGINE_COVERAGE_REPORT
 
     #/root/pxiao/checkCoverageFile.sh -s $TDENGINE_DIR/source -f $TDENGINE_COVERAGE_REPORT
     #cat /root/pxiao/fileListNoCoverage.log | tee -a $TDENGINE_COVERAGE_REPORT
