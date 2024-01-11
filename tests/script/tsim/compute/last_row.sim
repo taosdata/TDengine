@@ -245,7 +245,6 @@ endi
 
 sql alter database db cachemodel 'none';
 sql reset query cache;
-sql select tbname,last_row(c0, ts) from db.stb;
 
 if $rows != 1 then
   return -1

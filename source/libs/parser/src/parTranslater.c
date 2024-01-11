@@ -3523,7 +3523,7 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
     code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
   }
   if (other && TSDB_CODE_SUCCESS == code) {
-    code = checkOrderByAggForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
+    // code = checkOrderByAggForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
   }
   return code;
 }
