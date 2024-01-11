@@ -873,16 +873,15 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
   if (pInterval->offset > 0) {
     // try to move current window to the left-hande-side, due to the offset effect.
-    int64_t end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision) - 1;
-    int64_t newe = end;
-    int64_t slidingEnd = end;
+    int64_t newe = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+    int64_t slidingStart = start;
     while (newe >= ts) {
-      end = slidingEnd;
-      slidingEnd = taosTimeAdd(slidingEnd, -pInterval->sliding, pInterval->slidingUnit, precision);
+      start = slidingStart;
+      slidingStart = taosTimeAdd(slidingStart, -pInterval->sliding, pInterval->slidingUnit, precision);
+      int64_t slidingEnd = taosTimeAdd(slidingStart, pInterval->interval, pInterval->intervalUnit, precision) - 1;
       newe = taosTimeAdd(slidingEnd, pInterval->offset, pInterval->offsetUnit, precision);
     }
-    int64_t slidingStart = taosTimeAdd(end, -pInterval->interval, pInterval->intervalUnit, precision) + 1;
-    start = taosTimeAdd(slidingStart, pInterval->offset, pInterval->offsetUnit, precision);
+    start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision);
   }
 
   return start;
@@ -892,8 +891,8 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval) {
   if (pInterval->offset > 0) {
     int64_t slideStart = taosTimeAdd(intervalStart, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision);
-    int64_t end = taosTimeAdd(slideStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
-    int64_t result = taosTimeAdd(end, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
+    int64_t slideEnd = taosTimeAdd(slideStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+    int64_t result = taosTimeAdd(slideEnd, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
     return result;
   } else {
     int64_t result = taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
