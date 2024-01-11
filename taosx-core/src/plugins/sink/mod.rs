@@ -2129,7 +2129,6 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
             batch_id = batches,
             "Writing batch",
         );
-        batches += 1;
         let last = count;
         if let Err(err) = consume_flat_record(
             pool,
@@ -2185,6 +2184,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
             batch_id = batches,
             "IPC write batch finished"
         );
+        batches += 1;
     }
     // may not reached when the task was stopped by user forcely
     info!("IPC processing done, written totally {count} records");

@@ -21,7 +21,7 @@ use tokio::task::JoinHandle;
 use taosx_ipc::prelude::{AckReaderBuilder, ArrowDataType};
 use taosx_ipc::types::dsv::DataSourceValidation;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, instrument, warn, Span};
+use tracing::{debug, info, instrument, warn, Instrument, Span};
 
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, utils, Parser, Transferred};
@@ -131,18 +131,21 @@ pub async fn csv_to_taos(
     let mut source = CsvSource::new(&mut from, port)?;
     metrics::counter!(METRIC_CSV_FILES, source.readers.len() as u64);
     info!("spawn CSV worker");
-    let worker = tokio::spawn(async move {
-        info!(
-            "Reading CSV with config(concurrent: {}, batch_size: {})",
-            source.concurrent, source.batch_size
-        );
-        let handlers = source.read().await?;
-        for handler in handlers {
-            tokio::task::yield_now().await;
-            handler.await??;
+    let worker = tokio::spawn(
+        async move {
+            info!(
+                "Reading CSV with config(concurrent: {}, batch_size: {})",
+                source.concurrent, source.batch_size
+            );
+            let handlers = source.read().await?;
+            for handler in handlers {
+                tokio::task::yield_now().await;
+                handler.await??;
+            }
+            Ok::<_, anyhow::Error>(())
         }
-        Ok::<_, anyhow::Error>(())
-    });
+        .instrument(Span::current()),
+    );
     info!("CSV worker spawned");
     let abort_handle = worker.abort_handle();
 
@@ -385,13 +388,16 @@ impl CsvSource {
         while let Some(reader) = self.readers.pop() {
             let permit = semaphore.clone().acquire_owned().await?;
 
-            let future = tokio::spawn(async move {
-                info!("Deal with csv reader");
-                let res = CsvSource::deal_file(reader, port, batch_size).await?;
+            let future = tokio::spawn(
+                async move {
+                    info!("Deal with csv reader");
+                    let res = CsvSource::deal_file(reader, port, batch_size).await?;
 
-                drop(permit);
-                Ok(res)
-            });
+                    drop(permit);
+                    Ok(res)
+                }
+                .instrument(Span::current()),
+            );
 
             futures.push(future);
         }
