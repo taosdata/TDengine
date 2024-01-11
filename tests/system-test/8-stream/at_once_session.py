@@ -167,15 +167,19 @@ class TDTestCase:
             for c1_value in tdSql.queryResult:
                 if c1_value[1] is not None:
                     if partition == "c1":
-                        tdSql.query(f'select count(*) from `{self.ctb_name}_{self.tdCom.subtable_prefix}{c1_value[1]}{self.tdCom.subtable_suffix}`;')
+                        tbname = self.tdCom.get_subtable_wait(f'{self.ctb_name}_{self.tdCom.subtable_prefix}{c1_value[1]}{self.tdCom.subtable_suffix}')
+                        tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition == "abs(c1)":
                         if subtable:
                             abs_c1_value = abs(c1_value[1])
-                            tdSql.query(f'select count(*) from `{self.ctb_name}_{self.tdCom.subtable_prefix}{abs_c1_value}{self.tdCom.subtable_suffix}`;')
+                            tbname = self.tdCom.get_subtable_wait(f'{self.ctb_name}_{self.tdCom.subtable_prefix}{abs_c1_value}{self.tdCom.subtable_suffix}')
+                            tdSql.query(f'select count(*) from `{tbname}`')
                         else:
-                            tdSql.query(f'select count(*) from `{self.ctb_name}_{self.tdCom.subtable_prefix}{partition_elm_alias}{self.tdCom.subtable_suffix}`;')
+                            tbname = self.tdCom.get_subtable_wait(f'{self.ctb_name}_{self.tdCom.subtable_prefix}{partition_elm_alias}{self.tdCom.subtable_suffix}')
+                            tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition == "tbname" and ptn_counter == 0:
-                        tdSql.query(f'select count(*) from `{self.ctb_name}_{self.tdCom.subtable_prefix}{self.ctb_name}{self.tdCom.subtable_suffix}`;')
+                        tbname = self.tdCom.get_subtable_wait(f'{self.ctb_name}_{self.tdCom.subtable_prefix}{self.ctb_name}{self.tdCom.subtable_suffix}')
+                        tdSql.query(f'select count(*) from `{tbname}`')
                         ptn_counter += 1
                     tdSql.checkEqual(tdSql.queryResult[0][0] > 0, True)
 
@@ -184,15 +188,19 @@ class TDTestCase:
             for c1_value in tdSql.queryResult:
                 if c1_value[1] is not None:
                     if partition == "c1":
-                        tdSql.query(f'select count(*) from `{self.tb_name}_{self.tdCom.subtable_prefix}{c1_value[1]}{self.tdCom.subtable_suffix}`;')
+                        tbname = self.tdCom.get_subtable_wait(f'{self.tb_name}_{self.tdCom.subtable_prefix}{c1_value[1]}{self.tdCom.subtable_suffix}')
+                        tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition == "abs(c1)":
                         if subtable:
                             abs_c1_value = abs(c1_value[1])
-                            tdSql.query(f'select count(*) from `{self.tb_name}_{self.tdCom.subtable_prefix}{abs_c1_value}{self.tdCom.subtable_suffix}`;')
+                            tbname = self.tdCom.get_subtable_wait(f'{self.tb_name}_{self.tdCom.subtable_prefix}{abs_c1_value}{self.tdCom.subtable_suffix}')
+                            tdSql.query(f'select count(*) from `{tbname}`')
                         else:
-                            tdSql.query(f'select count(*) from `{self.tb_name}_{self.tdCom.subtable_prefix}{partition_elm_alias}{self.tdCom.subtable_suffix}`;')
+                            tbname = self.tdCom.get_subtable_wait(f'{self.tb_name}_{self.tdCom.subtable_prefix}{partition_elm_alias}{self.tdCom.subtable_suffix}')
+                            tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition == "tbname" and ptn_counter == 0:
-                        tdSql.query(f'select count(*) from `{self.tb_name}_{self.tdCom.subtable_prefix}{self.tb_name}{self.tdCom.subtable_suffix}`;')
+                        tbname = self.tdCom.get_subtable_wait(f'{self.tb_name}_{self.tdCom.subtable_prefix}{self.tb_name}{self.tdCom.subtable_suffix}')
+                        tdSql.query(f'select count(*) from `{tbname}`')
                         ptn_counter += 1
 
                     tdSql.checkEqual(tdSql.queryResult[0][0] > 0, True)
