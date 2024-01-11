@@ -364,7 +364,7 @@ int32_t dmInitClient(SDnode *pDnode) {
 
   SRpcInit rpcInit = {0};
   rpcInit.label = "DND-C";
-  rpcInit.numOfThreads = tsNumOfRpcThreads;
+  rpcInit.numOfThreads = tsNumOfRpcThreads / 2;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
@@ -383,7 +383,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.failFastThreshold = 3;    // failed threshold
   rpcInit.ffp = dmFailFastFp;
 
-  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
+  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3) / 2;
   connLimitNum = TMAX(connLimitNum, 10);
   connLimitNum = TMIN(connLimitNum, 500);
 
@@ -453,7 +453,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
 
   SRpcInit rpcInit = {0};
   rpcInit.label = "DND-SYNC";
-  rpcInit.numOfThreads = tsNumOfRpcThreads;
+  rpcInit.numOfThreads = tsNumOfRpcThreads / 2;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
@@ -472,7 +472,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.failFastThreshold = 3;    // failed threshold
   rpcInit.ffp = dmFailFastFp;
 
-  int32_t connLimitNum = 100;
+  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3) / 2;
   connLimitNum = TMAX(connLimitNum, 10);
   connLimitNum = TMIN(connLimitNum, 500);
 
