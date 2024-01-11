@@ -189,17 +189,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            try {
-                if (influxDBClient != null) {
-                    if (LocalConfig.isInfluxDBCloud) {
-                        influxDBClient.close();
-                    } else {
-                        influxdbPool.getPool().returnObject(influxDBClient);
-                    }
-                }
-            } catch (Exception e) {
-                logger.error("An exception occurred during the recycling of connection", e);
-            }
+            closeInfluxDBClient(influxDBClient);
         }
     }
 
@@ -259,17 +249,108 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            try {
-                if (influxDBClient != null) {
-                    if (LocalConfig.isInfluxDBCloud) {
-                        influxDBClient.close();
-                    } else {
-                        influxdbPool.getPool().returnObject(influxDBClient);
-                    }
+            closeInfluxDBClient(influxDBClient);
+        }
+    }
+
+    /**
+     * 获取指定bucket、measurement的所有字段
+     *
+     * @param bucket
+     * @param measurement
+     * @return
+     * @throws ArtificialException
+     */
+    @Override
+    public Map<String, String> selectAllFields(String bucket, String measurement) throws ArtificialException {
+        switch (influxdbConfig.getVersion()) {
+            case "1.7":
+            case "1.8": {
+                // influxdb客户端
+                InfluxDB influxDB = null;
+                try {
+                    // 连接池中获取客户端
+                    influxDB = influxdbV1Pool.getPool().borrowObject();
+                    // 返回查询结果
+                    return getFieldsV1(influxDB, bucket, measurement);
+                } catch (Exception e) {
+                    handlerException(e);
+                    throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
+                } finally {
+                    closeInfluxDB(influxDB);
                 }
-            } catch (Exception e) {
-                logger.error("An exception occurred during the recycling of connection", e);
             }
+        }
+        // influxdb客户端
+        InfluxDBClient influxDBClient = null;
+        try {
+            if (LocalConfig.isInfluxDBCloud) {
+                // 使用url与token建立连接
+                influxDBClient = InfluxDBClientFactory.create(influxdbConfig.getUrl(), influxdbConfig.getToken().toCharArray());
+            } else {
+                // 连接池中获取客户端
+                influxDBClient = influxdbPool.getPool().borrowObject();
+            }
+            // 返回查询结果
+            return getFieldsV2(influxDBClient, bucket, measurement);
+        } catch (Exception e) {
+            handlerException(e);
+            throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
+        } finally {
+            closeInfluxDBClient(influxDBClient);
+        }
+    }
+
+    /**
+     * 获取指定bucket、measurement与时间段内的第一个时间戳
+     *
+     * @param orgId
+     * @param bucket
+     * @param measurement
+     * @param startTime
+     * @return
+     * @throws ArtificialException
+     */
+    @Override
+    public Instant getFirstTimestampInRange(String orgId, String bucket, String measurement, String startTime) throws ArtificialException {
+        switch (influxdbConfig.getVersion()) {
+            case "1.7":
+            case "1.8":
+                return getFirstTimestampInRangeV1(bucket, measurement, startTime);
+        }
+        // influxdb客户端
+        InfluxDBClient influxDBClient = null;
+        try {
+            if (LocalConfig.isInfluxDBCloud) {
+                // 使用url与token建立连接
+                influxDBClient = InfluxDBClientFactory.create(influxdbConfig.getUrl(), influxdbConfig.getToken().toCharArray());
+            } else {
+                // 连接池中获取客户端
+                influxDBClient = influxdbPool.getPool().borrowObject();
+            }
+            // 查询语句
+            String sql = "from(bucket: \"" + bucket + "\")" +
+                    "|> range(start: " + startTime + ")" +
+                    "|> filter(fn: (r) => r._measurement == \"" + measurement + "\")" +
+                    "|> first()";
+            // 执行查询
+            List<FluxTable> tables = influxDBClient.getQueryApi().query(sql, orgId);
+            // 遍历结果集进行封装
+            for (FluxTable fluxTable : tables) {
+                // 记录
+                for (FluxRecord fluxRecord : fluxTable.getRecords()) {
+                    // 获取字段及对应值
+                    Map<String, Object> map = fluxRecord.getValues();
+                    // 返回结果
+                    return (Instant) map.getOrDefault("_time", null);
+                }
+            }
+            return null;
+        } catch (Exception e) {
+            handlerException(e);
+            throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
+        } finally {
+            closeInfluxDBClient(influxDBClient);
         }
     }
 
@@ -279,6 +360,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
      * @param orgId
      * @param bucket
      * @param measurement
+     * @param field
      * @param startTime
      * @param stopTime
      * @param batch
@@ -287,7 +369,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
      * @throws ArtificialException
      */
     @Override
-    public List<InfluxdbBucketDataEntity> selectBucketData(String orgId, String bucket, String measurement, String startTime, String stopTime, long batch, long offset) throws ArtificialException {
+    public List<InfluxdbBucketDataEntity> selectBucketData(String orgId, String bucket, String measurement, String field, String startTime, String stopTime, long batch, long offset) throws ArtificialException {
         switch (influxdbConfig.getVersion()) {
             case "1.7":
             case "1.8":
@@ -310,7 +392,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             // 查询语句
             String sql = "from(bucket: \"" + bucket + "\")" +
                     "|> range(start: " + startTime + ", stop: " + stopTime + ")" +
-                    "|> filter(fn: (r) => r._measurement == \"" + measurement + "\")" +
+                    "|> filter(fn: (r) => r._measurement == \"" + measurement + "\" and r._field == \"" + field + "\")" +
                     "|> limit(n: " + batch + ", offset: " + offset + ")";
             // 执行查询
             List<FluxTable> tables = influxDBClient.getQueryApi().query(sql, orgId);
@@ -365,17 +447,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             logger.error("update query limit from {} to {}", batch, BucketCache.getQueryLimit(BucketCache.generateBucketDataThreadKey(bucket, measurement)));
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            try {
-                if (influxDBClient != null) {
-                    if (LocalConfig.isInfluxDBCloud) {
-                        influxDBClient.close();
-                    } else {
-                        influxdbPool.getPool().returnObject(influxDBClient);
-                    }
-                }
-            } catch (Exception e) {
-                logger.error("An exception occurred during the recycling of connection", e);
-            }
+            closeInfluxDBClient(influxDBClient);
         }
     }
 
@@ -431,13 +503,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            try {
-                if (influxDB != null) {
-                    influxdbV1Pool.getPool().returnObject(influxDB);
-                }
-            } catch (Exception e) {
-                logger.error("An exception occurred during the recycling of connection", e);
-            }
+            closeInfluxDB(influxDB);
         }
     }
 
@@ -486,13 +552,67 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            try {
-                if (influxDB != null) {
-                    influxdbV1Pool.getPool().returnObject(influxDB);
-                }
-            } catch (Exception e) {
-                logger.error("An exception occurred during the recycling of connection", e);
+            closeInfluxDB(influxDB);
+        }
+    }
+
+    /**
+     * 获取指定bucket、measurement与时间段内的第一个时间戳，适用于v1.7/1.8
+     *
+     * @param bucket
+     * @param measurement
+     * @param startTime
+     * @return
+     * @throws ArtificialException
+     */
+    private Instant getFirstTimestampInRangeV1(String bucket, String measurement, String startTime) throws ArtificialException {
+        // influxdb客户端
+        InfluxDB influxDB = null;
+        try {
+            // 连接池中获取客户端
+            influxDB = influxdbV1Pool.getPool().borrowObject();
+            // 查询语句
+            String sql = "select first() from \"" + measurement + "\" where time >= '" + startTime + "'";
+            // 执行查询
+            QueryResult queryResult = influxDB.query(new Query(sql, bucket));
+            // 结果空则返回空
+            if (queryResult == null) {
+                return null;
             }
+            // 遍历结果集进行封装
+            for (QueryResult.Result result : queryResult.getResults()) {
+                // 结果空则跳过
+                if (result == null || result.getSeries() == null) {
+                    continue;
+                }
+                // 记录
+                for (QueryResult.Series series : result.getSeries()) {
+                    // 结果空则跳过
+                    if (series == null) {
+                        continue;
+                    }
+                    // 获取字段与对应的值
+                    List<String> columns = series.getColumns() != null ? series.getColumns() : new ArrayList<>();
+                    List<List<Object>> values = series.getValues() != null ? series.getValues() : new ArrayList<>();
+                    // 遍历并按照v2.7格式封装
+                    for (List<Object> record : values) {
+                        for (int i = 0; i < record.size(); i++) {
+                            // 取对应的列名
+                            String column = columns.size() > i ? columns.get(i) : "";
+                            // 获取时间戳
+                            if ("time".equalsIgnoreCase(column)) {
+                                return Instant.parse(record.get(i).toString());
+                            }
+                        }
+                    }
+                }
+            }
+            return null;
+        } catch (Exception e) {
+            handlerException(e);
+            throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
+        } finally {
+            closeInfluxDB(influxDB);
         }
     }
 
@@ -589,13 +709,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
-            try {
-                if (influxDB != null) {
-                    influxdbV1Pool.getPool().returnObject(influxDB);
-                }
-            } catch (Exception e) {
-                logger.error("An exception occurred during the recycling of connection", e);
-            }
+            closeInfluxDB(influxDB);
         }
     }
 
@@ -908,5 +1022,39 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             }
         }
         return tagSet;
+    }
+
+    /**
+     * 回收 InfluxDB v1.x 连接
+     *
+     * @param influxDB
+     */
+    private void closeInfluxDB(InfluxDB influxDB) {
+        try {
+            if (influxDB != null) {
+                influxdbV1Pool.getPool().returnObject(influxDB);
+            }
+        } catch (Exception e) {
+            logger.error("An exception occurred during the recycling of connection", e);
+        }
+    }
+
+    /**
+     * 回收 InfluxDB v2.x 连接
+     *
+     * @param influxDBClient
+     */
+    private void closeInfluxDBClient(InfluxDBClient influxDBClient) {
+        try {
+            if (influxDBClient != null) {
+                if (LocalConfig.isInfluxDBCloud) {
+                    influxDBClient.close();
+                } else {
+                    influxdbPool.getPool().returnObject(influxDBClient);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("An exception occurred during the recycling of connection", e);
+        }
     }
 }

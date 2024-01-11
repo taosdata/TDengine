@@ -55,7 +55,7 @@ performance:
     pushInterval: 0
     pushEmptyInterval: 10
     # BucketThread线程
-    createBucketInterval: 5
+    createBucketInterval: 1
     createBucketFullInterval: 200
     # BucketDataThread线程
     readBucketBatch: 1000
