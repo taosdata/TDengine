@@ -1088,18 +1088,16 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
   FOREACH(pNode, pProjectionList) {
     SExprNode* pExpr = (SExprNode*)pNode;
     if (0 == strcmp((*pCol)->colName, pExpr->userAlias)) {
-      SColumnRefNode* pColRef = (SColumnRefNode*)nodesMakeNode(QUERY_NODE_COLUMN_REF);
-      if (NULL == pColRef) {
-        pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
-        return DEAL_RES_ERROR;
-      }
-      strcpy(pColRef->colName, pExpr->aliasName);
-      pColRef->resType = pExpr->resType;
-      nodesDestroyNode(*(SNode**)pCol);
-      *(SNode**)pCol = (SNode*)pColRef;
-      *pFound = true;
-      return DEAL_RES_CONTINUE;
-    }
+      SNode* pNew = nodesCloneNode(pNode);
+        if (NULL == pNew) {
+          pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+          return DEAL_RES_ERROR;
+        }
+        nodesDestroyNode(*(SNode**)pCol);
+        *(SNode**)pCol = (SNode*)pNew;
+        *pFound = true;
+        return DEAL_RES_CONTINUE;
+    }   
   }
   *pFound = false;
   return DEAL_RES_CONTINUE;
@@ -1316,7 +1314,7 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
   } else {
     bool found = false;
     if (SQL_CLAUSE_ORDER_BY == pCxt->currClause) {
-      // res = translateColumnUseAlias(pCxt, pCol, &found);
+      res = translateColumnUseAlias(pCxt, pCol, &found);
     }
     if (DEAL_RES_ERROR != res && !found) {
       if (isSetOperator(pCxt->pCurrStmt)) {

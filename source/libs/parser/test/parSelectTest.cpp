@@ -431,7 +431,7 @@ TEST_F(ParserSelectTest, semanticCheck) {
 
   run("SELECT ts, last(ts) FROM t1 order by last(ts)");
 
-  run("SELECT first(ts), c2 FROM t1 order by last(c1)");
+  run("SELECT first(ts), c2 FROM t1 order by last(c1)", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
 
   run("SELECT c1 FROM t1 order by concat(c2, 'abc')");
 
