@@ -6,15 +6,25 @@ description: This document describes taospy, the TDengine Python client library.
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
+import RequestId from "./_request_id.mdx";
 
-`taospy` is the official Python client library for TDengine. taospy provides a rich API that makes it easy for Python applications to use TDengine. `taospy` wraps both the [native interface](../cpp) and [REST interface](../../reference/rest-api) of TDengine, which correspond to the `taos` and `taosrest` modules of the `taospy` package, respectively.
+`taospy` is the official Python client library for TDengine. taospy provides a rich API that makes it easy for Python applications to use TDengine. 
+
+The source code for the Python client library is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
+
+## Connection types
+
+`taospy` mainly provides 3 connection types, among which we recommend using **websocket connection**.
+- **Native connection**, which correspond to the `taos` modules of the `taospy` package, connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface.   
+- **REST connection**, which correspond to the `taosrest` modules of the `taospy` package, which is implemented through taosAdapter. Some features like schemaless and subscriptions are not supported. 
+- **Websocket connection** `taos-ws-py` is an optional package to enable using WebSocket to connect TDengine, which is implemented through taosAdapter. The set of features implemented by the WebSocket connection differs slightly from those implemented by the native connection.   
+
+For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#Establish-Connection)
+
 In addition to wrapping the native and REST interfaces, `taospy` also provides a set of programming interfaces that conforms to the [Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/). It is easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
-
-`taos-ws-py` is an optional package to enable using WebSocket to connect TDengine.
 
 The direct connection to the server using the native interface provided by the client driver is referred to hereinafter as a "native connection"; the connection to the server using the REST or WebSocket interface provided by taosAdapter is referred to hereinafter as a "REST connection" or "WebSocket connection".
 
-The source code for the Python client library is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
 ## Supported platforms
 
 - The [supported platforms](../#supported-platforms) for the native connection are the same as the ones supported by the TDengine client.
@@ -524,7 +534,7 @@ The `query` method of the `TaosConnection` class can be used to query data and r
 
 ### Execute SQL with reqId
 
-By using the optional req_id parameter, you can specify a request ID that can be used for tracing.
+<RequestId />
 
 <Tabs defaultValue="rest">
 <TabItem value="native" label="native connection">
