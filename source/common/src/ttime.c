@@ -888,6 +888,18 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
   return start;
 }
 
+// used together with taosTimeTruncate. when offset is great than zero, slide-start/slide-end is the anchor point
+int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval) {
+  if (pInterval->offset > 0) {
+    int64_t slideStart = taosTimeAdd(intervalStart, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision);
+    int64_t end = taosTimeAdd(slideStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+    int64_t result = taosTimeAdd(end, pInterval->offset, pInterval->offsetUnit, pInterval->precision);
+    return result;
+  } else {
+    int64_t result = taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+    return result;
+  }
+}
 // internal function, when program is paused in debugger,
 // one can call this function from debugger to print a
 // timestamp as human readable string, for example (gdb):
