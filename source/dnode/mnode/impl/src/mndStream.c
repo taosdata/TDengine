@@ -1728,7 +1728,7 @@ static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SS
   colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
 
   // output queue
-  //        sprintf(buf, queueInfoStr, pe->outputQUsed, pe->outputRate);
+//          sprintf(buf, queueInfoStr, pe->outputQUsed, pe->outputRate);
   //        STR_TO_VARSTR(vbuf, buf);
 
   //        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
