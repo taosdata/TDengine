@@ -21,13 +21,18 @@ void* streamTimer = NULL;
 int32_t streamTimerInit() {
   streamTimer = taosTmrInit(1000, 100, 10000, "STREAM");
   if (streamTimer == NULL) {
+    stError("init stream timer failed, code:%s", tstrerror(terrno));
     return -1;
   }
+
+  stInfo("init stream timer, %p", streamTimer);
   return 0;
 }
 
 void streamTimerCleanUp() {
+  stInfo("cleanup stream timer, %p", streamTimer);
   taosTmrCleanUp(streamTimer);
+  streamTimer = NULL;
 }
 
 char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
@@ -49,7 +54,7 @@ static void streamSchedByTimer(void* param, void* tmrId) {
     return;
   }
 
-  if (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__CK) {
+  if (streamTaskGetStatus(pTask)->state == TASK_STATUS__CK) {
     stDebug("s-task:%s in checkpoint procedure, not retrieve result, next:%dms", id, nextTrigger);
   } else {
     if (status == TASK_TRIGGER_STATUS__ACTIVE) {
@@ -57,7 +62,7 @@ static void streamSchedByTimer(void* param, void* tmrId) {
       if (pTrigger == NULL) {
         stError("s-task:%s failed to prepare retrieve data trigger, code:%s, try again in %dms", id, "out of memory",
                 nextTrigger);
-        taosTmrReset(streamSchedByTimer, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pTimer);
+        taosTmrReset(streamSchedByTimer, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pDelayTimer);
         return;
       }
 
@@ -68,7 +73,7 @@ static void streamSchedByTimer(void* param, void* tmrId) {
 
         stError("s-task:%s failed to prepare retrieve data trigger, code:%s, try again in %dms", id, "out of memory",
                 nextTrigger);
-        taosTmrReset(streamSchedByTimer, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pTimer);
+        taosTmrReset(streamSchedByTimer, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pDelayTimer);
         return;
       }
 
@@ -77,7 +82,7 @@ static void streamSchedByTimer(void* param, void* tmrId) {
 
       int32_t code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTrigger);
       if (code != TSDB_CODE_SUCCESS) {
-        taosTmrReset(streamSchedByTimer, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pTimer);
+        taosTmrReset(streamSchedByTimer, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pDelayTimer);
         return;
       }
 
@@ -85,17 +90,17 @@ static void streamSchedByTimer(void* param, void* tmrId) {
     }
   }
 
-  taosTmrReset(streamSchedByTimer, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pTimer);
+  taosTmrReset(streamSchedByTimer, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pDelayTimer);
 }
 
 int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
   if (pTask->info.triggerParam != 0 && pTask->info.fillHistory == 0) {
     int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
-    ASSERT(ref == 2 && pTask->schedInfo.pTimer == NULL);
+    ASSERT(ref == 2 && pTask->schedInfo.pDelayTimer == NULL);
 
     stDebug("s-task:%s setup scheduler trigger, delay:%" PRId64 " ms", pTask->id.idStr, pTask->info.triggerParam);
 
-    pTask->schedInfo.pTimer = taosTmrStart(streamSchedByTimer, (int32_t)pTask->info.triggerParam, pTask, streamTimer);
+    pTask->schedInfo.pDelayTimer = taosTmrStart(streamSchedByTimer, (int32_t)pTask->info.triggerParam, pTask, streamTimer);
     pTask->schedInfo.status = TASK_TRIGGER_STATUS__INACTIVE;
   }
 
@@ -247,7 +252,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   }
 
   // disable the data from upstream tasks
-  if (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__HALT) {
+  if (streamTaskGetStatus(pTask)->state == TASK_STATUS__HALT) {
     status = TASK_INPUT_STATUS__BLOCKED;
   }
 

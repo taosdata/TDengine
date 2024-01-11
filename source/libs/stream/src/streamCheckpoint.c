@@ -187,7 +187,7 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
   int32_t      code = TSDB_CODE_SUCCESS;
 
   // set task status
-  if (streamTaskGetStatus(pTask, NULL) != TASK_STATUS__CK) {
+  if (streamTaskGetStatus(pTask)->state != TASK_STATUS__CK) {
     pTask->chkInfo.checkpointingId = checkpointId;
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_GEN_CHECKPOINT);
     if (code != TSDB_CODE_SUCCESS) {
@@ -309,8 +309,7 @@ int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId) {
   p->chkInfo.checkpointVer = p->chkInfo.processedVer;
 
   streamTaskClearCheckInfo(p, false);
-  char* str = NULL;
-  streamTaskGetStatus(p, &str);
+  SStreamTaskState* pState = streamTaskGetStatus(p);
 
   code = streamTaskHandleEvent(p->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
   taosThreadMutexUnlock(&p->lock);
@@ -322,7 +321,7 @@ int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId) {
 
   stDebug("vgId:%d s-task:%s level:%d open upstream inputQ, save status after checkpoint, checkpointId:%" PRId64
           ", Ver(saved):%" PRId64 " currentVer:%" PRId64 ", status: normal, prev:%s",
-          vgId, id, p->info.taskLevel, checkpointId, p->chkInfo.checkpointVer, p->chkInfo.nextProcessVer, str);
+          vgId, id, p->info.taskLevel, checkpointId, p->chkInfo.checkpointVer, p->chkInfo.nextProcessVer, pState->name);
 
   // save the task if not sink task
   if (p->info.taskLevel != TASK_LEVEL__SINK) {

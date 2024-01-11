@@ -24,12 +24,12 @@
 static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask);
 
 bool streamTaskShouldStop(const SStreamTask* pTask) {
-  ETaskStatus s = streamTaskGetStatus(pTask, NULL);
-  return (s == TASK_STATUS__STOP) || (s == TASK_STATUS__DROPPING);
+  SStreamTaskState* pState = streamTaskGetStatus(pTask);
+  return (pState->state == TASK_STATUS__STOP) || (pState->state == TASK_STATUS__DROPPING);
 }
 
 bool streamTaskShouldPause(const SStreamTask* pTask) {
-  return (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__PAUSE);
+  return (streamTaskGetStatus(pTask)->state == TASK_STATUS__PAUSE);
 }
 
 static int32_t doOutputResultBlockImpl(SStreamTask* pTask, SStreamDataBlock* pBlock) {
@@ -105,12 +105,6 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
     if (streamTaskShouldStop(pTask)) {
       taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
       return 0;
-    }
-
-    if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
-      stWarn("s-task:%s downstream task inputQ blocked, idle for 1sec and retry exec task", pTask->id.idStr);
-      taosMsleep(1000);
-      continue;
     }
 
     SSDataBlock* output = NULL;
@@ -344,11 +338,14 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
     streamMetaWUnLock(pMeta);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   } else {
-    stDebug("s-task:%s fill-history task end, update related stream task:%s info, transfer exec state", id,
-           pStreamTask->id.idStr);
+    double el = (taosGetTimestampMs() - pTask->execInfo.step2Start) / 1000.;
+    stDebug(
+        "s-task:%s fill-history task end, scal wal elapsed time:%.2fSec,update related stream task:%s info, transfer "
+        "exec state",
+        id, el, pStreamTask->id.idStr);
   }
 
-  ETaskStatus status = streamTaskGetStatus(pStreamTask, NULL);
+  ETaskStatus status = streamTaskGetStatus(pStreamTask)->state;
   STimeWindow* pTimeWindow = &pStreamTask->dataRange.window;
 
   // It must be halted for a source stream task, since when the related scan-history-data task start scan the history
@@ -374,8 +371,10 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   // In case of sink tasks, no need to halt them.
   // In case of source tasks and agg tasks, we should HALT them, and wait for them to be idle. And then, it's safe to
   // start the task state transfer procedure.
-  char* p = NULL;
-  status = streamTaskGetStatus(pStreamTask, &p);
+//  char* p = NULL;
+  SStreamTaskState* pState = streamTaskGetStatus(pStreamTask);
+  status = pState->state;
+  char* p = pState->name;
   if (status == TASK_STATUS__STOP || status == TASK_STATUS__DROPPING) {
     stError("s-task:%s failed to transfer state from fill-history task:%s, status:%s", id, pStreamTask->id.idStr, p);
     streamMetaReleaseTask(pMeta, pStreamTask);
@@ -409,7 +408,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
 
   // 5. save to disk
-  pStreamTask->status.taskStatus = streamTaskGetStatus(pStreamTask, NULL);
+  pStreamTask->status.taskStatus = streamTaskGetStatus(pStreamTask)->state;
 
   // 6. add empty delete block
   if ((pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) && taosQueueEmpty(pStreamTask->inputq.queue->pQueue)) {
@@ -549,6 +548,18 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
   return code;
 }
 
+static void setTaskSchedInfo(SStreamTask* pTask, int32_t idleTime) {
+  SStreamStatus* pStatus = &pTask->status;
+
+  pStatus->schedIdleTime = idleTime;
+  pStatus->lastExecTs = taosGetTimestampMs();
+}
+
+static void clearTaskSchedInfo(SStreamTask* pTask) {
+  SStreamStatus* pStatus = &pTask->status;
+  pStatus->schedIdleTime = 0;
+}
+
 /**
  * todo: the batch of blocks should be tuned dynamic, according to the total elapsed time of each batch of blocks, the
  * appropriate batch of blocks should be handled in 5 to 10 sec.
@@ -563,8 +574,20 @@ int32_t doStreamExecTask(SStreamTask* pTask) {
     int32_t           blockSize = 0;
     int32_t           numOfBlocks = 0;
     SStreamQueueItem* pInput = NULL;
-    if (streamTaskShouldStop(pTask) || (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__UNINIT)) {
+    if (streamTaskShouldStop(pTask) || (streamTaskGetStatus(pTask)->state == TASK_STATUS__UNINIT)) {
       stDebug("s-task:%s stream task is stopped", id);
+      break;
+    }
+
+    if (streamQueueIsFull(pTask->outputq.queue)) {
+      stWarn("s-task:%s outputQ is full, idle for 500ms and retry", id);
+      setTaskSchedInfo(pTask, 500);
+      break;
+    }
+
+    if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
+      stWarn("s-task:%s downstream task inputQ blocked, idle for 1sec and retry", pTask->id.idStr);
+      setTaskSchedInfo(pTask, 1000);
       break;
     }
 
@@ -582,7 +605,7 @@ int32_t doStreamExecTask(SStreamTask* pTask) {
       continue;
     }
 
-    if (pInput->type == STREAM_INPUT__TRANS_STATE) {
+    if (type == STREAM_INPUT__TRANS_STATE) {
       streamProcessTranstateBlock(pTask, (SStreamDataBlock*)pInput);
       continue;
     }
@@ -634,10 +657,9 @@ int32_t doStreamExecTask(SStreamTask* pTask) {
     if (type == STREAM_INPUT__CHECKPOINT) {
 
       // todo add lock
-      char* p = NULL;
-      ETaskStatus s = streamTaskGetStatus(pTask, &p);
-      if (s == TASK_STATUS__CK) {
-        stDebug("s-task:%s checkpoint block received, set status:%s", pTask->id.idStr, p);
+      SStreamTaskState* pState = streamTaskGetStatus(pTask);
+      if (pState->state == TASK_STATUS__CK) {
+        stDebug("s-task:%s checkpoint block received, set status:%s", pTask->id.idStr, pState->name);
         streamTaskBuildCheckpoint(pTask);
       } else {
         // todo refactor
@@ -665,15 +687,112 @@ int32_t doStreamExecTask(SStreamTask* pTask) {
 // the task may be set dropping/stopping, while it is still in the task queue, therefore, the sched-status can not
 // be updated by tryExec function, therefore, the schedStatus will always be the TASK_SCHED_STATUS__WAITING.
 bool streamTaskIsIdle(const SStreamTask* pTask) {
-  ETaskStatus status = streamTaskGetStatus(pTask, NULL);
+  ETaskStatus status = streamTaskGetStatus(pTask)->state;
   return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE || status == TASK_STATUS__STOP ||
           status == TASK_STATUS__DROPPING);
 }
 
 bool streamTaskReadyToRun(const SStreamTask* pTask, char** pStatus) {
-  ETaskStatus st = streamTaskGetStatus(pTask, NULL);
-  return (st == TASK_STATUS__READY || st == TASK_STATUS__SCAN_HISTORY/* || st == TASK_STATUS__STREAM_SCAN_HISTORY*/ ||
-          st == TASK_STATUS__CK);
+  SStreamTaskState* pState = streamTaskGetStatus(pTask);
+
+  ETaskStatus st = pState->state;
+  if (pStatus != NULL) {
+    *pStatus = pState->name;
+  }
+
+  return (st == TASK_STATUS__READY || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__CK);
+}
+
+static void doStreamExecTaskHelper(void* param, void* tmrId) {
+  SStreamTask* pTask = (SStreamTask*)param;
+
+  SStreamTaskState* p = streamTaskGetStatus(pTask);
+  if (p->state == TASK_STATUS__DROPPING || p->state == TASK_STATUS__STOP) {
+    streamTaskSetSchedStatusInactive(pTask);
+
+    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+    stDebug("s-task:%s status:%s not resume task, ref:%d", pTask->id.idStr, p->name, ref);
+
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
+  // task resume running
+  SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
+  if (pRunReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    /*int8_t status = */streamTaskSetSchedStatusInactive(pTask);
+
+    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+    stError("failed to create msg to resume s-task:%s, reason out of memory, ref:%d", pTask->id.idStr, ref);
+
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
+  pRunReq->head.vgId = pTask->info.nodeId;
+  pRunReq->streamId = pTask->id.streamId;
+  pRunReq->taskId = pTask->id.taskId;
+  pRunReq->reqType = STREAM_EXEC_T_RESUME_TASK;
+
+  int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+  stDebug("trigger to resume s-task:%s after being idled for %dms, ref:%d", pTask->id.idStr, pTask->status.schedIdleTime, ref);
+
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
+  tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &msg);
+
+  // release the task ref count
+  clearTaskSchedInfo(pTask);
+  streamMetaReleaseTask(pTask->pMeta, pTask);
+}
+
+static int32_t schedTaskInFuture(SStreamTask* pTask) {
+  int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
+  stDebug("s-task:%s task should idle, add into timer to retry in %dms, ref:%d", pTask->id.idStr,
+          pTask->status.schedIdleTime, ref);
+
+  // add one ref count for task
+  // todo this may be failed, and add ref may be failed.
+  SStreamTask* pAddRefTask = streamMetaAcquireTask(pTask->pMeta, pTask->id.streamId, pTask->id.taskId);
+
+  if (pTask->schedInfo.pIdleTimer == NULL) {
+    pTask->schedInfo.pIdleTimer = taosTmrStart(doStreamExecTaskHelper, pTask->status.schedIdleTime, pTask, streamTimer);
+  } else {
+    taosTmrReset(doStreamExecTaskHelper, pTask->status.schedIdleTime, pTask, streamTimer, &pTask->schedInfo.pIdleTimer);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamResumeTask(SStreamTask* pTask) {
+  ASSERT(pTask->status.schedStatus == TASK_SCHED_STATUS__ACTIVE);
+  const char* id = pTask->id.idStr;
+
+  while (1) {
+    /*int32_t code = */doStreamExecTask(pTask);
+    taosThreadMutexLock(&pTask->lock);
+
+    // check if this task needs to be idle for a while
+    if (pTask->status.schedIdleTime > 0) {
+      stDebug("s-task:%s idled, and will be invoked in %dms", id, pTask->status.schedIdleTime);
+      schedTaskInFuture(pTask);
+
+      taosThreadMutexUnlock(&pTask->lock);
+      return 0;
+    } else {
+      int32_t numOfItems = streamQueueGetNumOfItems(pTask->inputq.queue);
+      if ((numOfItems == 0) || streamTaskShouldStop(pTask) || streamTaskShouldPause(pTask)) {
+        atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+        taosThreadMutexUnlock(&pTask->lock);
+
+        char* p = streamTaskGetStatus(pTask)->name;
+        stDebug("s-task:%s exec completed, status:%s, sched-status:%d", id, p, pTask->status.schedStatus);
+        return 0;
+      }
+    }
+
+    taosThreadMutexUnlock(&pTask->lock);
+  }
 }
 
 int32_t streamExecTask(SStreamTask* pTask) {
@@ -682,29 +801,9 @@ int32_t streamExecTask(SStreamTask* pTask) {
 
   int8_t schedStatus = streamTaskSetSchedStatusActive(pTask);
   if (schedStatus == TASK_SCHED_STATUS__WAITING) {
-    while (1) {
-      int32_t code = doStreamExecTask(pTask);
-      if (code < 0) {  // todo this status should be removed
-        atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__FAILED);
-        return -1;
-      }
-
-      taosThreadMutexLock(&pTask->lock);
-      if ((streamQueueGetNumOfItems(pTask->inputq.queue) == 0) || streamTaskShouldStop(pTask) ||
-          streamTaskShouldPause(pTask)) {
-        atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
-        taosThreadMutexUnlock(&pTask->lock);
-
-        char* p = NULL;
-        streamTaskGetStatus(pTask, &p);
-        stDebug("s-task:%s exec completed, status:%s, sched-status:%d", id, p, pTask->status.schedStatus);
-        return 0;
-      }
-      taosThreadMutexUnlock(&pTask->lock);
-    }
+    streamResumeTask(pTask);
   } else {
-    char* p = NULL;
-    streamTaskGetStatus(pTask, &p);
+    char* p = streamTaskGetStatus(pTask)->name;
     stDebug("s-task:%s already started to exec by other thread, status:%s, sched-status:%d", id, p,
             pTask->status.schedStatus);
   }

@@ -71,7 +71,8 @@ int32_t     mndPersistStream(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream
 
 int32_t mndStreamRegisterTrans(STrans* pTrans, const char* pTransName, int64_t streamUid);
 int32_t mndAddtoCheckpointWaitingList(SStreamObj *pStream, int64_t checkpointId);
-bool    streamTransConflictOtherTrans(SMnode *pMnode, int64_t streamUid, const char *pTransName, bool lock);
+bool    mndStreamTransConflictCheck(SMnode *pMnode, int64_t streamUid, const char *pTransName, bool lock);
+int32_t mndStreamGetRelCheckpointTrans(SMnode *pMnode, int64_t streamUid);
 
 // for sma
 // TODO refactor

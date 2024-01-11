@@ -61,9 +61,10 @@ static void streamMetaEnvInit() {
   streamMetaId = taosOpenRef(64, streamMetaCloseImpl);
 
   metaRefMgtInit();
+  streamTimerInit();
 }
 
-void streamMetaInit() { taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit); }
+void streamMetaInit() { taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit);}
 
 void streamMetaCleanup() {
   taosCloseRef(streamBackendId);
@@ -71,6 +72,7 @@ void streamMetaCleanup() {
   taosCloseRef(streamMetaId);
 
   metaRefMgtCleanup();
+  streamTimerCleanUp();
 }
 
 void metaRefMgtInit() {
@@ -359,7 +361,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     goto _err;
   }
 
-  pMeta->walScanCounter = 0;
+  pMeta->scanInfo.scanCounter = 0;
   pMeta->vgId = vgId;
   pMeta->ahandle = ahandle;
   pMeta->expandFunc = expandFunc;
@@ -452,7 +454,7 @@ void streamMetaClear(SStreamMeta* pMeta) {
     // release the ref by timer
     if (p->info.triggerParam != 0 && p->info.fillHistory == 0) {  // one more ref in timer
       stDebug("s-task:%s stop schedTimer, and (before) desc ref:%d", p->id.idStr, p->refCnt);
-      taosTmrStop(p->schedInfo.pTimer);
+      taosTmrStop(p->schedInfo.pDelayTimer);
       p->info.triggerParam = 0;
       streamMetaReleaseTask(pMeta, p);
     }
@@ -467,6 +469,7 @@ void streamMetaClear(SStreamMeta* pMeta) {
   taosArrayClear(pMeta->pTaskList);
   taosArrayClear(pMeta->chkpSaved);
   taosArrayClear(pMeta->chkpInUse);
+
   pMeta->numOfStreamTasks = 0;
   pMeta->numOfPausedTasks = 0;
 
@@ -730,7 +733,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
 
     if (pTask->info.triggerParam != 0 && pTask->info.fillHistory == 0) {
       stDebug("s-task:%s stop schedTimer, and (before) desc ref:%d", pTask->id.idStr, pTask->refCnt);
-      taosTmrStop(pTask->schedInfo.pTimer);
+      taosTmrStop(pTask->schedInfo.pDelayTimer);
       pTask->info.triggerParam = 0;
       streamMetaReleaseTask(pMeta, pTask);
     }
@@ -1093,7 +1096,7 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
 
     STaskStatusEntry entry = {
         .id = *pId,
-        .status = streamTaskGetStatus(*pTask, NULL),
+        .status = streamTaskGetStatus(*pTask)->state,
         .nodeId = hbMsg.vgId,
         .stage = pMeta->stage,
         .inputQUsed = SIZE_IN_MiB(streamQueueGetItemSize((*pTask)->inputq.queue)),
@@ -1262,11 +1265,11 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
 
   // wait for the stream meta hb function stopping
   if (pMeta->role == NODE_ROLE_LEADER) {
-    pMeta->pHbInfo->stopFlag = STREAM_META_WILL_STOP;
-    while (pMeta->pHbInfo->stopFlag != STREAM_META_OK_TO_STOP) {
-      taosMsleep(100);
-      stDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
-    }
+//    pMeta->pHbInfo->stopFlag = STREAM_META_WILL_STOP;
+//    while (pMeta->pHbInfo->stopFlag != STREAM_META_OK_TO_STOP) {
+//      taosMsleep(100);
+//      stDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
+//    }
   }
 
   stDebug("vgId:%d start to check all tasks", vgId);
@@ -1362,13 +1365,13 @@ SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta) {
     }
 
     taosThreadMutexLock(&pTask->lock);
-    char* p = NULL;
-    ETaskStatus s = streamTaskGetStatus(pTask, &p);
-    if (s == TASK_STATUS__CK) {
+
+    SStreamTaskState* pState = streamTaskGetStatus(pTask);
+    if (pState->state == TASK_STATUS__CK) {
       streamTaskSetCheckpointFailedId(pTask);
       stDebug("s-task:%s mark the checkpoint:%"PRId64" failed", pTask->id.idStr, pTask->chkInfo.checkpointingId);
     } else {
-      stDebug("s-task:%s status:%s not reset the checkpoint", pTask->id.idStr, p);
+      stDebug("s-task:%s status:%s not reset the checkpoint", pTask->id.idStr, pState->name);
     }
 
     taosThreadMutexUnlock(&pTask->lock);
@@ -1467,9 +1470,12 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
+    // todo: may be we should find the related fill-history task and set it failed.
+
     // fill-history task can only be launched by related stream tasks.
     STaskExecStatisInfo* pInfo = &pTask->execInfo;
     if (pTask->info.fillHistory == 1) {
+      stDebug("s-task:%s fill-history task wait related stream task start", pTask->id.idStr);
       streamMetaReleaseTask(pMeta, pTask);
       continue;
     }
@@ -1486,13 +1492,16 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
-    EStreamTaskEvent event = /*(HAS_RELATED_FILLHISTORY_TASK(pTask)) ? TASK_EVENT_INIT_STREAM_SCANHIST : */TASK_EVENT_INIT;
-    int32_t          ret = streamTaskHandleEvent(pTask->status.pSM, event);
+    int32_t ret = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
     if (ret != TSDB_CODE_SUCCESS) {
-      stError("vgId:%d failed to handle event:%d", pMeta->vgId, event);
+      stError("vgId:%d failed to handle event:%d", pMeta->vgId, TASK_EVENT_INIT);
       code = ret;
 
       streamMetaUpdateTaskDownstreamStatus(pMeta, pTaskId->streamId, pTaskId->taskId, pInfo->init, pInfo->start, false);
+      if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
+        STaskId* pId = &pTask->hTaskInfo.id;
+        streamMetaUpdateTaskDownstreamStatus(pMeta, pId->streamId, pId->taskId, pInfo->init, pInfo->start, false);
+      }
     }
 
     streamMetaReleaseTask(pMeta, pTask);
@@ -1501,4 +1510,43 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
   stInfo("vgId:%d start tasks completed", pMeta->vgId);
   taosArrayDestroy(pTaskList);
   return code;
+}
+
+int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
+  int32_t vgId = pMeta->vgId;
+  stInfo("vgId:%d start to task:0x%x by checking downstream status", vgId, taskId);
+
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, streamId, taskId);
+  if (pTask == NULL) {
+    stError("vgId:%d failed to acquire task:0x%x during start tasks", pMeta->vgId, taskId);
+    streamMetaUpdateTaskDownstreamStatus(pMeta, streamId, taskId, 0, taosGetTimestampMs(), false);
+
+    streamMetaReleaseTask(pMeta, pTask);
+    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+  }
+
+  // todo: may be we should find the related fill-history task and set it failed.
+
+  // fill-history task can only be launched by related stream tasks.
+  STaskExecStatisInfo* pInfo = &pTask->execInfo;
+  if (pTask->info.fillHistory == 1) {
+    streamMetaReleaseTask(pMeta, pTask);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  ASSERT(pTask->status.downstreamReady == 0);
+
+  int32_t ret = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
+  if (ret != TSDB_CODE_SUCCESS) {
+    stError("vgId:%d failed to handle event:%d", pMeta->vgId, TASK_EVENT_INIT);
+
+    streamMetaUpdateTaskDownstreamStatus(pMeta, streamId, taskId, pInfo->init, pInfo->start, false);
+    if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
+      STaskId* pId = &pTask->hTaskInfo.id;
+      streamMetaUpdateTaskDownstreamStatus(pMeta, pId->streamId, pId->taskId, pInfo->init, pInfo->start, false);
+    }
+  }
+
+  streamMetaReleaseTask(pMeta, pTask);
+  return ret;
 }

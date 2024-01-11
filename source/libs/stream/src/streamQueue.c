@@ -157,6 +157,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
   *numOfBlocks = 0;
   *blockSize = 0;
 
+  // todo remove it
   // no available token in bucket for sink task, let's wait for a little bit
   if (taskLevel == TASK_LEVEL__SINK && (!streamTaskExtractAvailableToken(pTask->outputInfo.pTokenBucket, pTask->id.idStr))) {
     stDebug("s-task:%s no available token in bucket for sink data, wait for 10ms", id);
@@ -174,6 +175,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
     if (qItem == NULL) {
       if ((taskLevel == TASK_LEVEL__SOURCE  || taskLevel == TASK_LEVEL__SINK) && (++retryTimes) < MAX_RETRY_TIMES) {
         taosMsleep(WAIT_FOR_DURATION);
+        // todo remove it
         continue;
       }
 
@@ -343,6 +345,7 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
 int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBlock) {
   STaosQueue* pQueue = pTask->outputq.queue->pQueue;
 
+#if 0
   // wait for the output queue is available for new data to dispatch
   while (streamQueueIsFull(pTask->outputq.queue)) {
     if (streamTaskShouldStop(pTask)) {
@@ -358,6 +361,7 @@ int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBloc
 
     taosMsleep(OUTPUT_QUEUE_FULL_WAIT_DURATION);
   }
+#endif
 
   int32_t code = taosWriteQitem(pQueue, pBlock);
 
@@ -367,7 +371,14 @@ int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBloc
     stError("s-task:%s failed to put res into outputQ, outputQ items:%d, size:%.2fMiB code:%s, result lost",
            pTask->id.idStr, total + 1, size, tstrerror(code));
   } else {
-    stDebug("s-task:%s data put into outputQ, outputQ items:%d, size:%.2fMiB", pTask->id.idStr, total, size);
+    if (streamQueueIsFull(pTask->outputq.queue)) {
+      stWarn(
+          "s-task:%s outputQ is full(outputQ items:%d, size:%.2fMiB), set the output status BLOCKING, wait for 500ms "
+          "after handle this batch of blocks",
+          pTask->id.idStr, total, size);
+    } else {
+      stDebug("s-task:%s data put into outputQ, outputQ items:%d, size:%.2fMiB", pTask->id.idStr, total, size);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
