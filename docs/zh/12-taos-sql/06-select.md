@@ -91,13 +91,15 @@ Hints 是用户控制单个语句查询优化的一种手段，当 Hint 不适�
 | :-----------: | -------------- | -------------------------- | -----------------------------|
 | BATCH_SCAN    | 无             | 采用批量读表的方式         | 超级表 JOIN 语句             |
 | NO_BATCH_SCAN | 无             | 采用顺序读表的方式         | 超级表 JOIN 语句             |
-| SORT_FOR_GROUP| 无             | 采用sort方式进行分组       | partition by 列表有普通列时  |
+| SORT_FOR_GROUP| 无             | 采用sort方式进行分组, 与PARTITION_FIRST冲突  | partition by 列表有普通列时  |
+| PARTITION_FIRST| 无             | 在聚合之前使用PARTITION计算分组, 与SORT_FOR_GROUP冲突 | partition by 列表有普通列时  |
 
 举例： 
 
 ```sql
 SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
 SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
+SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
 ```
 
 ## 列表
