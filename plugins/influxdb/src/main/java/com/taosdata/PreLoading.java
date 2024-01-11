@@ -44,6 +44,7 @@ import org.tomlj.TomlArray;
 import org.tomlj.TomlParseResult;
 
 import javax.annotation.Resource;
+import java.time.Instant;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -478,6 +479,17 @@ public class PreLoading implements CommandLineRunner {
                     // 放入缓存中
                     for (InfluxdbMeasurementEntity influxdbMeasurementEntity : influxdbMeasurementEntityList) {
                         BucketCache.measurementMap.put(BucketCache.generateBucketDataThreadKey(influxdbMeasurementEntity.getBucket(), influxdbMeasurementEntity.getMeasurement()), influxdbMeasurementEntity);
+                    }
+                    // 通过first函数获取每个measurement的最早时间戳
+                    for (InfluxdbMeasurementEntity influxdbMeasurementEntity : influxdbMeasurementEntityList) {
+                        try {
+                            Instant firstTimestamp = influxdbService.getFirstTimestampInRange(influxdbConfig.getOrgId(), influxdbMeasurementEntity.getBucket(), influxdbMeasurementEntity.getMeasurement(), taskConfig.getBeginTime());
+                            // 写入内存中
+                            BucketCache.measurementFirstTimestampMap.put(BucketCache.generateBucketDataThreadKey(influxdbMeasurementEntity.getBucket(), influxdbMeasurementEntity.getMeasurement()), firstTimestamp);
+                            logger.info("Auto update startTime: bucket: {}, measurement: {}, first: {}", influxdbMeasurementEntity.getBucket(), influxdbMeasurementEntity.getMeasurement(), firstTimestamp);
+                        } catch (Exception e) {
+                            logger.error("An exception occurred during getting first  timestamp", e);
+                        }
                     }
                     // 启动BucketThread
                     BucketThread bucket = new BucketThread(influxdbConfig.getOrgId(), influxdbBucketEntity.getBucketName());

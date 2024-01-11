@@ -31,7 +31,7 @@ public class ThreadConfig {
     /**
      * BucketThread线程
      */
-    private long createBucketInterval = 5;
+    private long createBucketInterval = 1;
     private long createBucketFullInterval = 200;
 
     /**

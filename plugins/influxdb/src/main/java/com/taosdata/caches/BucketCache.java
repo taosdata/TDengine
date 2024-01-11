@@ -4,6 +4,7 @@ import com.taosdata.model.entity.InfluxdbBucketEntity;
 import com.taosdata.model.entity.InfluxdbMeasurementEntity;
 import com.taosdata.threads.BucketDataThread;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -27,6 +28,11 @@ public class BucketCache {
     public static LinkedHashMap<String, InfluxdbMeasurementEntity> measurementMap = new LinkedHashMap<>();
 
     /**
+     * BucketName,Measurement-firstTimestamp
+     */
+    public static LinkedHashMap<String, Instant> measurementFirstTimestampMap = new LinkedHashMap<>();
+
+    /**
      * BucketName,Measurement-读取数据任务队列
      */
     private static ConcurrentHashMap<String, Queue<BucketDataThread>> bucketDataThreadQueueMap = new ConcurrentHashMap<>();
@@ -37,7 +43,12 @@ public class BucketCache {
     private static ConcurrentHashMap<String, Boolean> bucketDataThreadBlockedMap = new ConcurrentHashMap<>();
 
     /**
-     * BucketName,Measurement-根据“子表数量*列数量”计算得到的limit数量
+     * BucketName,Measurement-子表数量
+     */
+    private static ConcurrentHashMap<String, Integer> measurementSubtableAmountMap = new ConcurrentHashMap<>();
+
+    /**
+     * BucketName,Measurement-根据“子表数量”计算得到的limit数量
      */
     private static ConcurrentHashMap<String, Long> measurementQueryLimitMap = new ConcurrentHashMap<>();
 
@@ -157,8 +168,11 @@ public class BucketCache {
      * @return
      */
     public static void updateQueryLimit(String key, int subtableAmount, long queueSizeLimit, long defaultLimit) {
-        if (subtableAmount != 0) {
-            long queryLimit = (queueSizeLimit / 2) / subtableAmount;
+        if (subtableAmount > measurementSubtableAmountMap.getOrDefault(key, 0)) {
+            // 更新子表数量
+            measurementSubtableAmountMap.put(key, subtableAmount);
+            // 更新查询limit
+            long queryLimit = queueSizeLimit / subtableAmount;
             if (queryLimit < 1) {
                 measurementQueryLimitMap.put(key, 1L);
             } else if (queryLimit > defaultLimit) {

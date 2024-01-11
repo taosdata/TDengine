@@ -11,6 +11,7 @@ import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.service.InfluxdbService;
 import com.taosdata.service.impl.InfluxdbServiceImpl;
 import com.taosdata.utils.DateUtils;
+import com.taosdata.utils.exception.ArtificialException;
 import com.taosdata.utils.flux.FluxEnums;
 import com.taosdata.utils.flux.FluxManager;
 import lombok.Getter;
@@ -19,6 +20,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Bucket数据读取线程
@@ -97,24 +100,39 @@ public class BucketDataThread implements Runnable {
                 }
                 logger.debug(this.name + "#Thread Start#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
                 // 判断内存中数据队列大小
-                if (BucketDataCache.getBucketDataQueueTotalSize() >= performanceConfig.getQueueSizeD()) {
+                if (BucketDataCache.getBucketDataQueueTotalSize() + BucketDataCache.getBucketDataQueueSize() >= performanceConfig.getQueueSizeD()) {
                     // 睡眠后继续
                     sleep(performanceConfig.getThread().getReadBucketFullInterval(), start, StatusEnums.NORMAL);
                     continue;
                 }
                 // 获取计算后的读取限制
                 long queryLimit = BucketCache.getQueryLimit(BucketCache.generateBucketDataThreadKey(this.bucket, this.measurement));
-                // 读取数据
-                List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = influxdbService.selectBucketData(this.orgId, this.bucket, this.measurement, this.startTime, this.stopTime, queryLimit, this.offset);
-                // 更新速度
-                FluxManager.getInstance().getFluxControl(FluxEnums.ReadData.getCode()).cycleCheck(influxdbBucketDataEntityList.size(), -1);
-                // 判断数据长度
-                if (influxdbBucketDataEntityList != null && influxdbBucketDataEntityList.size() > 0) {
-                    // 写入数据队列
-                    BucketDataCache.addBucketData(influxdbBucketDataEntityList);
-                    // 记录统计信息
-                    StatisticCache.totalRead.addAndGet(influxdbBucketDataEntityList.size());
-                    // 更新offset，如果未读满batch，说明没数据了，所以可以不考虑
+                // 获取所有字段
+                Map<String, String> fieldMap = influxdbService.selectAllFields(this.bucket, this.measurement);
+                // 数据量
+                AtomicLong amount = new AtomicLong();
+                // 遍历字段，使查询条件更精细化，提高整体响应速度
+                fieldMap.keySet().forEach(field -> {
+                    try {
+                        // 读取数据
+                        List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = influxdbService.selectBucketData(this.orgId, this.bucket, this.measurement, field, this.startTime, this.stopTime, queryLimit, this.offset);
+                        // 判断数据长度
+                        if (influxdbBucketDataEntityList != null && influxdbBucketDataEntityList.size() > 0) {
+                            // 写入数据队列
+                            BucketDataCache.addBucketData(influxdbBucketDataEntityList);
+                            // 更新速度
+                            FluxManager.getInstance().getFluxControl(FluxEnums.ReadData.getCode()).cycleCheck(influxdbBucketDataEntityList.size(), -1);
+                            // 记录统计信息
+                            StatisticCache.totalRead.addAndGet(influxdbBucketDataEntityList.size());
+                            // 累加本次数据量
+                            amount.addAndGet(influxdbBucketDataEntityList.size());
+                        }
+                    } catch (ArtificialException ae) {
+                        logger.error("querying data from InfluxDB occurred error, {}:{}:{}:{}-{}", this.bucket, this.measurement, field, this.startTime, this.stopTime, ae);
+                    }
+                });
+                if (amount.get() > 0) {
+                    // 更新offset
                     this.offset += queryLimit;
                 } else {
                     // 记录任务完成信息
@@ -176,7 +194,7 @@ public class BucketDataThread implements Runnable {
      */
     private void exit() {
         // 线程结束
-        logger.debug(this.name + "#Thread completed and exited, timeRange=[{}-{}]#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15) + "", startTime, stopTime);
+        logger.info(this.name + "#Thread completed and exited, timeRange=[{}-{}]#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15) + "", startTime, stopTime);
         // 清除线程信息
         StatusCache.forgetThread(this.name);
         // 释放阻塞
