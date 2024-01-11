@@ -73,8 +73,7 @@ function buildTDengine() {
     echo "$makecmd"
     $makecmd
 
-    make -j 8
-    make install
+    make -j 8 install
 }
 
 function runCasesOneByOne () {
@@ -84,7 +83,7 @@ function runCasesOneByOne () {
             if [[ "$2" == "sim" ]] && [[ $line == *"script"* ]]; then
                 case=`echo $cmd | cut -d' ' -f 3`
                 start_time=`date +%s`
-                date +%F\ %T | tee -a  $TDENGINE_COVERAGE_REPORT  && timeout 30m $cmd > /dev/null 2>&1 && \
+                date +%F\ %T | tee -a  $TDENGINE_COVERAGE_REPORT  && timeout 20m $cmd > /dev/null 2>&1 && \
                 echo -e "${GREEN}$case success${NC}" | tee -a  $TDENGINE_COVERAGE_REPORT \
                 || echo -e "${RED}$case failed${NC}" | tee -a  $TDENGINE_COVERAGE_REPORT
                 end_time=`date +%s`
@@ -95,7 +94,7 @@ function runCasesOneByOne () {
                 fi
                 case=`echo $cmd | cut -d' ' -f 4-20`
                 start_time=`date +%s`
-                date +%F\ %T | tee -a $TDENGINE_COVERAGE_REPORT && timeout 30m $cmd > /dev/null 2>&1 && \
+                date +%F\ %T | tee -a $TDENGINE_COVERAGE_REPORT && timeout 20m $cmd > /dev/null 2>&1 && \
                 echo -e "${GREEN}$case success${NC}" | tee -a $TDENGINE_COVERAGE_REPORT || \
                 echo -e "${RED}$case failed${NC}" | tee -a $TDENGINE_COVERAGE_REPORT
                 end_time=`date +%s`
@@ -207,7 +206,7 @@ function lcovFunc {
     lcov --capture -d $TDENGINE_DIR -b $TDENGINE_DIR -o coverage.info --ignore-errors negative,mismatch,inconsistent,source --branch-coverage --function-coverage --no-external
 
     # remove exclude paths
-    lcov --remove coverage1.info \
+    lcov --remove coverage.info \
         '*/contrib/*' '*/tests/*' '*/test/*' '*/packaging/*' '*/taos-tools/*' '*/taosadapter/*' '*/TSZ/*' \
         '*/AccessBridgeCalls.c' '*/ttszip.c' '*/dataInserter.c' '*/tlinearhash.c' '*/tsimplehash.c' '*/tsdbDiskData.c'\
         '*/texpr.c' '*/runUdf.c' '*/schDbg.c' '*/syncIO.c' '*/tdbOs.c' '*/pushServer.c' '*/osLz4.c'\
