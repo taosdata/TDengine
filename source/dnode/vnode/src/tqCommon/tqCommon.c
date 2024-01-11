@@ -947,7 +947,7 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
   }
 
   streamTaskResume(pTask);
-  ETaskStatus status = streamTaskGetStatus(pTask, NULL);
+  ETaskStatus status = streamTaskGetStatus(pTask)->state;
 
   int32_t level = pTask->info.taskLevel;
   if (level == TASK_LEVEL__SINK) {
