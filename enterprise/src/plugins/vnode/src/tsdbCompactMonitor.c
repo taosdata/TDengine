@@ -100,6 +100,11 @@ int32_t tsdbStopAllCompTask(STsdb *tsdb) {
 
   taosThreadMutexLock(&tsdb->mutex);
 
+  if (tsdb->pCompMonitor == NULL) {
+    taosThreadMutexUnlock(&tsdb->mutex);
+    return 0;
+  }
+
   if (tsdb->pVnode->config.sttTrigger == 1) {
     async = vnodeAsyncHandle[0];
   } else {
