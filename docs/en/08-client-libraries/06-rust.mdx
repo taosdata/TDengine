@@ -320,7 +320,7 @@ async fn main() -> anyhow::Result<()> {
 
 ### execute SQL with req_id
 
-This req_id can be used to request link tracing.
+<RequestId />
 
 ```rust
 let rs = taos.query_with_req_id("select * from stable where tag1 is null", 1)?;
