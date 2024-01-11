@@ -1287,7 +1287,7 @@ void streamMetaStartHb(SStreamMeta* pMeta) {
   int64_t* pRid = taosMemoryMalloc(sizeof(int64_t));
   metaRefMgtAdd(pMeta->vgId, pRid);
   *pRid = pMeta->rid;
-//  metaHbToMnode(pRid, NULL);
+  metaHbToMnode(pRid, NULL);
 }
 
 void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
