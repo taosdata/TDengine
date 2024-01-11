@@ -729,9 +729,9 @@ int32_t tqStreamTaskResetStatus(SStreamMeta* pMeta, int32_t* numOfTasks) {
     SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     streamTaskResetStatus(*pTask);
 
-    if ((*pTask)->info.fillHistory == 1) {
-      streamResetParamForScanHistory(*pTask);
-    }
+//    if ((*pTask)->info.fillHistory == 1) {
+//      streamResetParamForScanHistory(*pTask);
+//    }
   }
 
   return 0;
@@ -764,9 +764,18 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   }
 
   streamMetaWLock(pMeta);
+  streamMetaClear(pMeta);
 
   int64_t el = taosGetTimestampMs() - st;
   tqInfo("vgId:%d close&reload state elapsed time:%.3fs", vgId, el / 1000.);
+
+  code = streamMetaLoadAllTasks(pMeta);
+  if (code != TSDB_CODE_SUCCESS) {
+    tqError("vgId:%d failed to load stream tasks, code:%s", vgId, tstrerror(terrno));
+    streamMetaWUnLock(pMeta);
+    code = terrno;
+    return code;
+  }
 
   {
     STaskStartInfo* pStartInfo = &pMeta->startInfo;
