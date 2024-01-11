@@ -3116,19 +3116,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
     if (p->status != TASK_STATUS__READY) {
       mDebug("received s-task:0x%" PRIx64 " not in ready status:%s", p->id.taskId, streamTaskGetStatusStr(p->status));
-
-//      if (p->status == TASK_STATUS__STREAM_SCAN_HISTORY) {
-//        bool drop = needDropRelatedFillhistoryTask(pTaskEntry, &execInfo);
-//        if (drop) {
-//          SStreamObj *pStreamObj = mndGetStreamObj(pMnode, pTaskEntry->id.streamId);
-//          if (pStreamObj == NULL) {
-//            mError("failed to acquire the streamObj:0x%" PRIx64 " it may have been dropped", pStreamObj->uid);
-//          } else {
-//            mndDropRelatedFillhistoryTask(pMnode, pTaskEntry, pStreamObj);
-//            mndReleaseStream(pMnode, pStreamObj);
-//          }
-//        }
-//      }
     }
   }
 
