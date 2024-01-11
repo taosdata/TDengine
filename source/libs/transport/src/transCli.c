@@ -1941,7 +1941,7 @@ static void* cliWorkThread(void* arg) {
 
   char    threadName[TSDB_LABEL_LEN] = {0};
   STrans* pInst = pThrd->pTransInst;
-  strntolower(threadName, pInst->label, sizeof(threadName));
+  strtolower(threadName, pInst->label);
   setThreadName(threadName);
 
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
