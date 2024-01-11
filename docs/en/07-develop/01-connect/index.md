@@ -130,18 +130,18 @@ require github.com/taosdata/driver-go/v3 latest
 </TabItem>
 <TabItem label="Rust" value="rust">
 
-Just need to add `libtaos` dependency in `Cargo.toml`.
+Just need to add `taos` dependency in `Cargo.toml`.
 
 ```toml title=Cargo.toml
 [dependencies]
-libtaos = { version = "0.4.2"}
+taos = { version = "*"}
 ```
 
 :::info
-Rust client library uses different features to distinguish the way to establish connection. To establish REST connection, please enable `rest` feature.
+Rust client library uses different features to distinguish the way to establish connection. To establish Websocket connection, please enable `ws` feature.
 
 ```toml
-libtaos = { version = "*", features = ["rest"] }
+taos = { version = "*", default-features = false, features = ["ws"] }
 ```
 
 :::
