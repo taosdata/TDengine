@@ -363,7 +363,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
-  rpcInit.label = "DND-CLI";
+  rpcInit.label = "DNODE-CLI";
   rpcInit.numOfThreads = tsNumOfRpcThreads / 2;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = 1024;
