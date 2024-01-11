@@ -407,7 +407,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
-  rpcInit.label = "DND-STATUS-CLI";
+  rpcInit.label = "DNODE-STA-CLI";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = 1024;
@@ -452,7 +452,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
-  rpcInit.label = "DND-SYNC-CLI";
+  rpcInit.label = "DNODE-SYNC-CLI";
   rpcInit.numOfThreads = tsNumOfRpcThreads / 2;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = 1024;
