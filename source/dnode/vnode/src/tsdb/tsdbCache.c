@@ -885,9 +885,17 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   int32_t               code = 0;
   rocksdb_writebatch_t *wb = NULL;
   SArray               *pTmpColArray = NULL;
-  int                   num_keys = TARRAY_SIZE(remainCols);
-  int16_t              *aCols = taosMemoryMalloc(num_keys * sizeof(int16_t));
-  int16_t              *slotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
+
+  SIdxKey *idxKey = taosArrayGet(remainCols, 0);
+  if (idxKey->key.cid != PRIMARYKEY_TIMESTAMP_COL_ID) {
+    SLastKey *key = &(SLastKey){.ltype = ltype, .uid = uid, .cid = PRIMARYKEY_TIMESTAMP_COL_ID};
+
+    taosArrayInsert(remainCols, 0, &(SIdxKey){0, *key});
+  }
+
+  int      num_keys = TARRAY_SIZE(remainCols);
+  int16_t *aCols = taosMemoryMalloc(num_keys * sizeof(int16_t));
+  int16_t *slotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
 
   for (int i = 0; i < num_keys; ++i) {
     SIdxKey *idxKey = taosArrayGet(remainCols, i);
@@ -1175,8 +1183,10 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
     LRUHandle *h = taosLRUCacheLookup(pTsdb->lruCache, keys_list[i], klen);
     if (h) {
       SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pTsdb->lruCache, h);
-      if (pLastCol->dirty && (pLastCol->ts <= eKey && pLastCol->ts >= sKey)) {
+      if (pLastCol->dirty) {
         pLastCol->dirty = 0;
+      }
+      if (pLastCol->ts <= eKey && pLastCol->ts >= sKey) {
         erase = true;
       }
       taosLRUCacheRelease(pTsdb->lruCache, h, erase);
@@ -1189,8 +1199,10 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
     h = taosLRUCacheLookup(pTsdb->lruCache, keys_list[num_keys + i], klen);
     if (h) {
       SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pTsdb->lruCache, h);
-      if (pLastCol->dirty && (pLastCol->ts <= eKey && pLastCol->ts >= sKey)) {
+      if (pLastCol->dirty) {
         pLastCol->dirty = 0;
+      }
+      if (pLastCol->ts <= eKey && pLastCol->ts >= sKey) {
         erase = true;
       }
       taosLRUCacheRelease(pTsdb->lruCache, h, erase);
@@ -1943,6 +1955,7 @@ typedef struct SFSNextRowIter {
   SArray                  *pIndexList;
   int32_t                  iBrinIndex;
   SBrinBlock               brinBlock;
+  SBrinBlock              *pBrinBlock;
   int32_t                  iBrinRecord;
   SBrinRecord              brinRecord;
   SBlockData               blockData;
@@ -2131,6 +2144,11 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
       pBrinBlk = taosArrayGet(state->pIndexList, state->iBrinIndex);
     }
 
+    if (!state->pBrinBlock) {
+      state->pBrinBlock = &state->brinBlock;
+    } else {
+      tBrinBlockClear(&state->brinBlock);
+    }
     code = tsdbDataFileReadBrinBlock(state->pr->pFileReader, pBrinBlk, &state->brinBlock);
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
@@ -2406,6 +2424,16 @@ int32_t clearNextRowFromFS(void *iter) {
   if (state->pBlockData) {
     tBlockDataDestroy(state->pBlockData);
     state->pBlockData = NULL;
+  }
+
+  if (state->pBrinBlock) {
+    tBrinBlockDestroy(state->pBrinBlock);
+    state->pBrinBlock = NULL;
+  }
+
+  if (state->pIndexList) {
+    taosArrayDestroy(state->pIndexList);
+    state->pIndexList = NULL;
   }
 
   if (state->pTSRow) {

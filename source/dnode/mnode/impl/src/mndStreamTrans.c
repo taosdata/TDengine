@@ -90,16 +90,20 @@ bool streamTransConflictOtherTrans(SMnode* pMnode, int64_t streamUid, const char
 
     if (strcmp(tInfo.name, MND_STREAM_CHECKPOINT_NAME) == 0) {
       if (strcmp(pTransName, MND_STREAM_DROP_NAME) != 0) {
-        mWarn("conflict with other transId:%d streamUid:%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamUid,
+        mWarn("conflict with other transId:%d streamUid:0x%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamUid,
               tInfo.name);
         return true;
+      } else {
+        mDebug("not conflict with checkpoint trans, name:%s, continue create trans", pTransName);
       }
-    } else if ((strcmp(tInfo.name, MND_STREAM_CREATE_NAME) == 0) ||
-               (strcmp(tInfo.name, MND_STREAM_DROP_NAME) == 0)) {
-      mWarn("conflict with other transId:%d streamUid:%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamUid,
+    } else if ((strcmp(tInfo.name, MND_STREAM_CREATE_NAME) == 0) || (strcmp(tInfo.name, MND_STREAM_DROP_NAME) == 0) ||
+               (strcmp(tInfo.name, MND_STREAM_TASK_RESET_NAME) == 0)) {
+      mWarn("conflict with other transId:%d streamUid:0x%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamUid,
             tInfo.name);
       return true;
     }
+  } else {
+    mDebug("stream:0x%"PRIx64" no conflict trans existed, continue create trans", streamUid);
   }
 
   if (lock) {

@@ -60,7 +60,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
         self.taos_cfg_path = tdDnodes.dnodes[0].cfgPath
         self.taos_data_dir = tdDnodes.dnodes[0].dataDir
 

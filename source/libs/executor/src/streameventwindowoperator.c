@@ -480,18 +480,18 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
       return resBlock;
     }
 
+    if (pInfo->recvGetAll) {
+      pInfo->recvGetAll = false;
+      resetUnCloseSessionWinInfo(pInfo->streamAggSup.pResultRows);
+    }
+
     if (pInfo->reCkBlock) {
       pInfo->reCkBlock = false;
       printDataBlock(pInfo->pCheckpointRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
       return pInfo->pCheckpointRes;
     }
 
-    if (pInfo->recvGetAll) {
-      pInfo->recvGetAll = false;
-      resetUnCloseSessionWinInfo(pInfo->streamAggSup.pResultRows);
-    }
-
-    setOperatorCompleted(pOperator);
+    setStreamOperatorCompleted(pOperator);
     return NULL;
   }
 
@@ -561,7 +561,7 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
   if (resBlock != NULL) {
     return resBlock;
   }
-  setOperatorCompleted(pOperator);
+  setStreamOperatorCompleted(pOperator);
   return NULL;
 }
 
@@ -622,6 +622,7 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
     }
     setEventWindowFlag(pAggSup, &curInfo);
     if (!curInfo.pWinFlag->startFlag || curInfo.pWinFlag->endFlag) {
+      saveSessionOutputBuf(pAggSup, &curInfo.winInfo);
       continue;
     }
 
@@ -653,6 +654,7 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
   if (downstream->fpSet.reloadStreamStateFn) {
     downstream->fpSet.reloadStreamStateFn(downstream);
   }
+  reloadAggSupFromDownStream(downstream, &pInfo->streamAggSup);
 }
 
 SOperatorInfo* createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,

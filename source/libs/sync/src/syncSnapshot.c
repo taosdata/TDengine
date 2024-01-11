@@ -806,6 +806,13 @@ static int32_t syncNodeOnSnapshotBegin(SSyncNode *pSyncNode, SyncSnapshotSend *p
     goto _SEND_REPLY;
   }
 
+  SyncIndex beginIndex = syncNodeGetSnapBeginIndex(pSyncNode);
+  if (pReceiver->snapshotParam.start != beginIndex) {
+    sRError(pReceiver, "snapshot begin index is changed unexpectedly. sver:%" PRId64 ", beginIndex:%" PRId64,
+            pReceiver->snapshotParam.start, beginIndex);
+    goto _SEND_REPLY;
+  }
+
   code = 0;
 _SEND_REPLY:
   if (code != 0 && terrno != 0) {
@@ -994,6 +1001,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
     sRError(pReceiver, "reject snap replication with smaller term. msg term:%" PRId64 ", seq:%d", pMsg->term,
             pMsg->seq);
     terrno = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
+    syncSnapSendRsp(pReceiver, pMsg, NULL, 0, 0, terrno);
     return -1;
   }
 
@@ -1087,7 +1095,10 @@ static int32_t syncSnapSenderExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshotSe
 
 // sender
 static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSender *pSender, SyncSnapshotRsp *pMsg) {
+  int32_t   code = -1;
   SSnapshot snapshot = {0};
+
+  taosThreadMutexLock(&pSender->pSndBuf->mutex);
   pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
 
   // prepare <begin, end>
@@ -1103,20 +1114,24 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
   // start reader
   if (pMsg->payloadType == TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
     if (syncSnapSenderExchgSnapInfo(pSyncNode, pSender, pMsg) != 0) {
-      return -1;
+      goto _out;
     }
   }
 
-  int32_t code = pSyncNode->pFsm->FpSnapshotStartRead(pSyncNode->pFsm, &pSender->snapshotParam, &pSender->pReader);
+  code = pSyncNode->pFsm->FpSnapshotStartRead(pSyncNode->pFsm, &pSender->snapshotParam, &pSender->pReader);
   if (code != 0) {
     sSError(pSender, "prepare snapshot failed since %s", terrstr());
-    return -1;
+    goto _out;
   }
 
   // update next index
   syncIndexMgrSetIndex(pSyncNode->pNextIndex, &pMsg->srcId, snapshot.lastApplyIndex + 1);
 
-  return snapshotSend(pSender);
+  code = snapshotSend(pSender);
+
+_out:
+  taosThreadMutexUnlock(&pSender->pSndBuf->mutex);
+  return code;
 }
 
 static int32_t snapshotSenderSignatureCmp(SSyncSnapshotSender *pSender, SyncSnapshotRsp *pMsg) {

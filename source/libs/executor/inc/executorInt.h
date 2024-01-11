@@ -217,6 +217,13 @@ enum {
   TABLE_SCAN__BLOCK_ORDER = 2,
 };
 
+typedef enum ETableCountState {
+  TABLE_COUNT_STATE_NONE = 0,      // before start scan
+  TABLE_COUNT_STATE_SCAN = 1,      // cur group scanning
+  TABLE_COUNT_STATE_PROCESSED = 2, // cur group processed
+  TABLE_COUNT_STATE_END = 3,       // finish or noneed to process
+} ETableCountState;
+
 typedef struct SAggSupporter {
   SSHashObj*     pResultRowHashTable;  // quick locate the window object for each result
   char*          keyBuf;               // window key buffer
@@ -263,14 +270,16 @@ typedef struct STableScanInfo {
   SSDataBlock*    pResBlock;
   SHashObj*       pIgnoreTables;
   SSampleExecInfo sample;  // sample execution info
-  int32_t         currentGroupId;
-  int32_t         currentTable;
+  int32_t         tableStartIndex;    // current group scan start
+  int32_t         tableEndIndex;      // current group scan end
+  int32_t         currentGroupIndex;  // current group index of groupOffset
   int8_t          scanMode;
   int8_t          assignBlockUid;
+  uint8_t         countState;     // empty table count state
   bool            hasGroupByTag;
   bool            countOnly;
-  //  TsdReader    readerAPI;
   bool            filesetDelimited;
+  bool            needCountEmptyTable;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
@@ -298,7 +307,8 @@ typedef struct STableMergeScanInfo {
   SHashObj*        mSkipTables;
   int64_t          mergeLimit;
   SSortExecInfo   sortExecInfo;
-
+  bool             needCountEmptyTable;
+  bool             bGroupProcessed;    // the group return data means processed
   bool             filesetDelimited;
   bool             bNewFilesetEvent;
   bool             bNextDurationBlockEvent;
@@ -845,6 +855,8 @@ void     resetWinRange(STimeWindow* winRange);
 bool     checkExpiredData(SStateStore* pAPI, SUpdateInfo* pUpdateInfo, STimeWindowAggSupp* pTwSup, uint64_t tableId, TSKEY ts);
 int64_t  getDeleteMark(SWindowPhysiNode* pWinPhyNode, int64_t interval);
 void     resetUnCloseSessionWinInfo(SSHashObj* winMap);
+void    setStreamOperatorCompleted(struct SOperatorInfo* pOperator);
+void     reloadAggSupFromDownStream(struct SOperatorInfo* downstream, SStreamAggSupporter* pAggSup);
 
 int32_t encodeSSessionKey(void** buf, SSessionKey* key);
 void*   decodeSSessionKey(void* buf, SSessionKey* key);

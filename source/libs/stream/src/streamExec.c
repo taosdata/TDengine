@@ -356,9 +356,16 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     ASSERT(status == TASK_STATUS__HALT || status == TASK_STATUS__DROPPING || status == TASK_STATUS__STOP);
   } else {
-    ASSERT(status == TASK_STATUS__READY|| status == TASK_STATUS__DROPPING || status == TASK_STATUS__STOP);
-    streamTaskHandleEvent(pStreamTask->status.pSM, TASK_EVENT_HALT);
-    stDebug("s-task:%s halt by related fill-history task:%s", pStreamTask->id.idStr, id);
+    ASSERT(status == TASK_STATUS__READY || status == TASK_STATUS__DROPPING || status == TASK_STATUS__STOP);
+    int32_t code = streamTaskHandleEvent(pStreamTask->status.pSM, TASK_EVENT_HALT);
+    if (code != TSDB_CODE_SUCCESS) {
+      stError("s-task:%s halt stream task:%s failed, code:%s not transfer state to stream task", id,
+              pStreamTask->id.idStr, tstrerror(code));
+      streamMetaReleaseTask(pMeta, pStreamTask);
+      return code;
+    } else {
+      stDebug("s-task:%s halt by related fill-history task:%s", pStreamTask->id.idStr, id);
+    }
   }
 
   // wait for the stream task to handle all in the inputQ, and to be idle
@@ -625,10 +632,29 @@ int32_t doStreamExecTask(SStreamTask* pTask) {
     // todo other thread may change the status
     // do nothing after sync executor state to storage backend, untill the vnode-level checkpoint is completed.
     if (type == STREAM_INPUT__CHECKPOINT) {
+
+      // todo add lock
       char* p = NULL;
-      streamTaskGetStatus(pTask, &p);
-      stDebug("s-task:%s checkpoint block received, set status:%s", pTask->id.idStr, p);
-      streamTaskBuildCheckpoint(pTask);
+      ETaskStatus s = streamTaskGetStatus(pTask, &p);
+      if (s == TASK_STATUS__CK) {
+        stDebug("s-task:%s checkpoint block received, set status:%s", pTask->id.idStr, p);
+        streamTaskBuildCheckpoint(pTask);
+      } else {
+        // todo refactor
+        int32_t code = 0;
+        if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+          code = streamTaskSendCheckpointSourceRsp(pTask);
+        } else {
+          code = streamTaskSendCheckpointReadyMsg(pTask);
+        }
+
+        if (code != TSDB_CODE_SUCCESS) {
+          // todo: let's retry send rsp to upstream/mnode
+          stError("s-task:%s failed to send checkpoint rsp to upstream, checkpointId:%d, code:%s", pTask->id.idStr,
+                  0, tstrerror(code));
+        }
+      }
+
       return 0;
     }
   }
@@ -646,7 +672,7 @@ bool streamTaskIsIdle(const SStreamTask* pTask) {
 
 bool streamTaskReadyToRun(const SStreamTask* pTask, char** pStatus) {
   ETaskStatus st = streamTaskGetStatus(pTask, NULL);
-  return (st == TASK_STATUS__READY || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__STREAM_SCAN_HISTORY ||
+  return (st == TASK_STATUS__READY || st == TASK_STATUS__SCAN_HISTORY/* || st == TASK_STATUS__STREAM_SCAN_HISTORY*/ ||
           st == TASK_STATUS__CK);
 }
 

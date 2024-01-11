@@ -259,11 +259,6 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver) {
   int64_t contLen;
   bool    seeked = false;
 
-  wDebug("vgId:%d, try to fetch ver %" PRId64 ", first ver:%" PRId64 ", commit ver:%" PRId64 ", last ver:%" PRId64
-         ", applied ver:%" PRId64", 0x%"PRIx64,
-         pRead->pWal->cfg.vgId, ver, pRead->pWal->vers.firstVer, pRead->pWal->vers.commitVer, pRead->pWal->vers.lastVer,
-         pRead->pWal->vers.appliedVer, pRead->readerId);
-
   // TODO: valid ver
   if (ver > pRead->pWal->vers.commitVer) {
     return -1;

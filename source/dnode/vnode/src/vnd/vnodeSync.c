@@ -220,8 +220,8 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
             isWeak, isBlock, msg, numOfMsgs, arrayPos, pMsg->info.handle);
 
     if (!pVnode->restored) {
-      vGError("vgId:%d, msg:%p failed to process since restore not finished, type:%s", vgId, pMsg,
-              TMSG_INFO(pMsg->msgType));
+      vGWarn("vgId:%d, msg:%p failed to process since restore not finished, type:%s", vgId, pMsg,
+             TMSG_INFO(pMsg->msgType));
       terrno = TSDB_CODE_SYN_RESTORING;
       vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
       rpcFreeCont(pMsg->pCont);
@@ -284,8 +284,8 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
             vnodeIsMsgBlock(pMsg->msgType), msg, numOfMsgs, pMsg->info.handle);
 
     if (!pVnode->restored) {
-      vGError("vgId:%d, msg:%p failed to process since restore not finished, type:%s", vgId, pMsg,
-              TMSG_INFO(pMsg->msgType));
+      vGWarn("vgId:%d, msg:%p failed to process since restore not finished, type:%s", vgId, pMsg,
+             TMSG_INFO(pMsg->msgType));
       vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
       rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
@@ -567,17 +567,29 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   if (vnodeIsRoleLeader(pVnode)) {
     // start to restore all stream tasks
     if (tsDisableStream) {
+      streamMetaWUnLock(pMeta);
       vInfo("vgId:%d, sync restore finished, not launch stream tasks, since stream tasks are disabled", vgId);
     } else {
       vInfo("vgId:%d sync restore finished, start to launch stream tasks", pVnode->config.vgId);
-      resetStreamTaskStatus(pVnode->pTq->pStreamMeta);
-      tqStreamTaskStartAsync(pMeta, &pVnode->msgCb, false);
+      tqStreamTaskResetStatus(pVnode->pTq->pStreamMeta);
+
+      {
+        if (pMeta->startInfo.taskStarting == 1) {
+          pMeta->startInfo.restartCount += 1;
+          tqDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, remaining restart:%d", vgId,
+                  pMeta->startInfo.restartCount);
+          streamMetaWUnLock(pMeta);
+        } else {
+          pMeta->startInfo.taskStarting = 1;
+          streamMetaWUnLock(pMeta);
+          tqStreamTaskStartAsync(pMeta, &pVnode->msgCb, false);
+        }
+      }
     }
   } else {
+    streamMetaWUnLock(pMeta);
     vInfo("vgId:%d, sync restore finished, not launch stream tasks since not leader", vgId);
   }
-
-  streamMetaWUnLock(pMeta);
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
@@ -594,7 +606,7 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
 
   if (pVnode->pTq) {
     tqUpdateNodeStage(pVnode->pTq, false);
-    tqStopStreamTasks(pVnode->pTq);
+    tqStopStreamTasksAsync(pVnode->pTq);
   }
 }
 

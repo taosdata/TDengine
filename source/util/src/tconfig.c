@@ -307,6 +307,34 @@ static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value,
   return 0;
 }
 
+static int32_t cfgUpdateDebugFlagItem(SConfig *pCfg, const char *name, bool resetArray) {
+  SConfigItem *pDebugFlagItem = cfgGetItem(pCfg, "debugFlag");
+  if (resetArray) {
+      // reset
+      if (pDebugFlagItem == NULL) return -1;
+
+      // logflag names that should 'not' be set by 'debugFlag'
+      if (pDebugFlagItem->array == NULL) {
+        pDebugFlagItem->array = taosArrayInit(16, sizeof(SLogVar));
+        if (pDebugFlagItem->array == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          return -1;
+        }
+      }
+      taosArrayClear(pDebugFlagItem->array);
+      return 0;
+  }
+
+  // update
+  if (pDebugFlagItem == NULL) return -1;
+  if (pDebugFlagItem->array != NULL) {
+    SLogVar logVar = {0};
+    strncpy(logVar.name, name, TSDB_LOG_VAR_LEN - 1);
+    taosArrayPush(pDebugFlagItem->array, &logVar);
+  }
+  return 0;
+}
+
 int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype) {
   GRANT_CFG_SET;
   SConfigItem *pItem = cfgGetItem(pCfg, name);
@@ -661,7 +689,6 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
     SConfigItem *pItem = taosArrayGet(pCfg->array, i);
     if (tsc && pItem->scope == CFG_SCOPE_SERVER) continue;
     if (dump && strcmp(pItem->name, "scriptDir") == 0) continue;
-    if (dump && strcmp(pItem->name, "simDebugFlag") == 0) continue;
     tstrncpy(src, cfgStypeStr(pItem->stype), CFG_SRC_PRINT_LEN);
     for (int32_t j = 0; j < CFG_SRC_PRINT_LEN; ++j) {
       if (src[j] == 0) src[j] = ' ';
@@ -929,6 +956,14 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
 
     if (strcasecmp(name, "dataDir") == 0) {
       code = cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_CFG_FILE);
+      if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
+    }
+
+    size_t       len = strlen(name);
+    const char  *debugFlagStr = "debugFlag";
+    const size_t debugFlagLen = strlen(debugFlagStr);
+    if (len >= debugFlagLen && strcasecmp(name + len - debugFlagLen, debugFlagStr) == 0) {
+      code = cfgUpdateDebugFlagItem(pConfig, name, len == debugFlagLen);
       if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
     }
   }

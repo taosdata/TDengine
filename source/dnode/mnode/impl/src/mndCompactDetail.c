@@ -290,7 +290,7 @@ int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* p
 
   SSdbRaw *pVgRaw = mndCompactDetailActionEncode(&compactDetail);
   if (pVgRaw == NULL) return -1;
-  if (mndTransAppendRedolog(pTrans, pVgRaw) != 0) {
+  if (mndTransAppendCommitlog(pTrans, pVgRaw) != 0) {
     sdbFreeRaw(pVgRaw);
     return -1;
   }

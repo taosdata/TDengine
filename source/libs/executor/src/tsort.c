@@ -475,6 +475,7 @@ static void appendOneRowToDataBlock(SSDataBlock* pBlock, const SSDataBlock* pSou
     if (isNull) {
       colDataSetVal(pColInfo, pBlock->info.rows, NULL, true);
     } else {
+      if (!pSrcColInfo->pData) continue;
       char* pData = colDataGetData(pSrcColInfo, *rowIndex);
       colDataSetVal(pColInfo, pBlock->info.rows, pData, false);
     }
@@ -877,6 +878,9 @@ static int32_t blockCompareTsFn(const void* pLeft, const void* pRight, void* par
 static int32_t appendDataBlockToPageBuf(SSortHandle* pHandle, SSDataBlock* blk, SArray* aPgId) {
   int32_t pageId = -1;
   void*   pPage = getNewBufPage(pHandle->pBuf, &pageId);
+  if (pPage == NULL) {
+    return terrno;
+  }
   taosArrayPush(aPgId, &pageId);
 
   int32_t size = blockDataGetSize(blk) + sizeof(int32_t) + taosArrayGetSize(blk->pDataBlock) * sizeof(int32_t);
@@ -900,7 +904,7 @@ static int32_t getPageBufIncForRow(SSDataBlock* blk, int32_t row, int32_t rowIdx
     for (int32_t i = 0; i < numCols; ++i) {
       SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(blk->pDataBlock, i);
       if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-        if (pColInfoData->varmeta.offset[row] != -1) {
+        if ((pColInfoData->varmeta.offset[row] != -1) && (pColInfoData->pData)) {
           char* p = colDataGetData(pColInfoData, row);
           sz += varDataTLen(p);
         }
@@ -943,16 +947,15 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SBlockO
     totalRows += blk->info.rows;
   }
 
-  SArray* aPgId = taosArrayInit(8, sizeof(int32_t));
-
   SMultiwayMergeTreeInfo* pTree = NULL;        
   code = tMergeTreeCreate(&pTree, taosArrayGetSize(aBlk), &sup, blockCompareTsFn);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(sup.aRowIdx);
     taosMemoryFree(sup.aTs);
-    
     return code;
   }
+
+  SArray* aPgId = taosArrayInit(8, sizeof(int32_t));
   int32_t nRows = 0;
   int32_t nMergedRows = 0;
   bool mergeLimitReached = false;
@@ -968,9 +971,15 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SBlockO
     if (blkPgSz <= pHandle->pageSize && blkPgSz + bufInc > pHandle->pageSize) {
         SColumnInfoData* tsCol = taosArrayGet(pHandle->pDataBlock->pDataBlock, order->slotId);
         lastPageBufTs = ((int64_t*)tsCol->pData)[pHandle->pDataBlock->info.rows - 1];
-        appendDataBlockToPageBuf(pHandle, pHandle->pDataBlock, aPgId);
+        code = appendDataBlockToPageBuf(pHandle, pHandle->pDataBlock, aPgId);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosMemoryFree(pTree);
+          taosArrayDestroy(aPgId);
+          taosMemoryFree(sup.aRowIdx);
+          taosMemoryFree(sup.aTs);
+          return code;
+        }
         nMergedRows += pHandle->pDataBlock->info.rows;
-
         blockDataCleanup(pHandle->pDataBlock);
         blkPgSz = pgHeaderSz;
         bufInc = getPageBufIncForRow(minBlk, minRow, 0);
@@ -1001,7 +1010,14 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SBlockO
     if (!mergeLimitReached) {
       SColumnInfoData* tsCol = taosArrayGet(pHandle->pDataBlock->pDataBlock, order->slotId);
       lastPageBufTs = ((int64_t*)tsCol->pData)[pHandle->pDataBlock->info.rows - 1];
-      appendDataBlockToPageBuf(pHandle, pHandle->pDataBlock, aPgId);
+      code = appendDataBlockToPageBuf(pHandle, pHandle->pDataBlock, aPgId);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(aPgId);
+        taosMemoryFree(pTree);
+        taosMemoryFree(sup.aRowIdx);
+        taosMemoryFree(sup.aTs);
+        return code;
+      }      
       nMergedRows += pHandle->pDataBlock->info.rows;
       if ((pHandle->mergeLimit != -1) && (nMergedRows >= pHandle->mergeLimit)) {
           mergeLimitReached = true;

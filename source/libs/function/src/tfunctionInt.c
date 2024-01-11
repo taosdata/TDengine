@@ -27,33 +27,3 @@
 #include "tpercentile.h"
 #include "ttszip.h"
 #include "tudf.h"
-
-int32_t getNumOfResult(SqlFunctionCtx* pCtx, int32_t num, SSDataBlock* pResBlock) {
-  int32_t maxRows = 0;
-
-  for (int32_t j = 0; j < num; ++j) {
-    SResultRowEntryInfo* pResInfo = GET_RES_INFO(&pCtx[j]);
-    if (pResInfo != NULL && maxRows < pResInfo->numOfRes) {
-      maxRows = pResInfo->numOfRes;
-    }
-  }
-
-  blockDataEnsureCapacity(pResBlock, maxRows);
-  for (int32_t i = 0; i < num; ++i) {
-    SColumnInfoData* pCol = taosArrayGet(pResBlock->pDataBlock, i);
-
-    SResultRowEntryInfo* pResInfo = GET_RES_INFO(&pCtx[i]);
-    if (pResInfo->numOfRes == 0) {
-      for (int32_t j = 0; j < pResInfo->numOfRes; ++j) {
-        colDataSetVal(pCol, j, NULL, true);  // TODO add set null data api
-      }
-    } else {
-      for (int32_t j = 0; j < pResInfo->numOfRes; ++j) {
-        colDataSetVal(pCol, j, GET_ROWCELL_INTERBUF(pResInfo), false);
-      }
-    }
-  }
-
-  pResBlock->info.rows = maxRows;
-  return maxRows;
-}

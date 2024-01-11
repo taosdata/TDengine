@@ -39,7 +39,7 @@ int32_t tqScanWal(STQ* pTq) {
     bool shouldIdle = true;
     doScanWalForAllTasks(pTq->pStreamMeta, &shouldIdle);
 
-    if (shouldIdle) {
+//    if (shouldIdle) {
       streamMetaWLock(pMeta);
       int32_t times = (--pMeta->walScanCounter);
       ASSERT(pMeta->walScanCounter >= 0);
@@ -50,7 +50,7 @@ int32_t tqScanWal(STQ* pTq) {
       } else {
         tqDebug("vgId:%d scan wal for stream tasks for %d times in %dms", vgId, times, SCAN_WAL_IDLE_DURATION);
       }
-    }
+//    }
 
     taosMsleep(SCAN_WAL_IDLE_DURATION);
   }
@@ -109,8 +109,8 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
     return -1;
   }
 
-  tqDebug("vgId:%d create msg to start wal scan to launch stream tasks, numOfTasks:%d, restored:%d", vgId, numOfTasks,
-          alreadyRestored);
+  tqDebug("vgId:%d create msg to start wal scan to launch stream tasks, numOfTasks:%d, vnd restored:%d", vgId,
+          numOfTasks, alreadyRestored);
 
   pRunReq->head.vgId = vgId;
   pRunReq->streamId = 0;
@@ -123,33 +123,25 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
   return 0;
 }
 
-int32_t tqStopStreamTasks(STQ* pTq) {
+int32_t tqStopStreamTasksAsync(STQ* pTq) {
   SStreamMeta* pMeta = pTq->pStreamMeta;
-  int32_t      vgId = TD_VID(pTq->pVnode);
-  int32_t      numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+  int32_t      vgId = pMeta->vgId;
 
-  tqDebug("vgId:%d stop all %d stream task(s)", vgId, numOfTasks);
-  if (numOfTasks == 0) {
-    return TSDB_CODE_SUCCESS;
+  SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
+  if (pRunReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    tqError("vgId:%d failed to create msg to stop tasks, code:%s", vgId, terrstr());
+    return -1;
   }
 
-  SArray* pTaskList = NULL;
-  streamMetaWLock(pMeta);
-  pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
-  streamMetaWUnLock(pMeta);
+  tqDebug("vgId:%d create msg to stop tasks", vgId);
 
-  for (int32_t i = 0; i < numOfTasks; ++i) {
-    SStreamTaskId*   pTaskId = taosArrayGet(pTaskList, i);
-    SStreamTask* pTask = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId);
-    if (pTask == NULL) {
-      continue;
-    }
+  pRunReq->head.vgId = vgId;
+  pRunReq->streamId = 0;
+  pRunReq->taskId = STREAM_EXEC_STOP_ALL_TASKS_ID;
 
-    streamTaskStop(pTask);
-    streamMetaReleaseTask(pMeta, pTask);
-  }
-
-  taosArrayDestroy(pTaskList);
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
+  tmsgPutToQueue(&pTq->pVnode->msgCb, STREAM_QUEUE, &msg);
   return 0;
 }
 

@@ -423,7 +423,7 @@ int32_t taosAddClientLogCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "asyncLog", tsAsyncLog, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
   if (cfgAddInt32(pCfg, "logKeepDays", 0, -365000, 365000, CFG_SCOPE_BOTH, CFG_DYN_ENT_BOTH) != 0) return -1;
   if (cfgAddInt32(pCfg, "debugFlag", 0, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
-  if (cfgAddInt32(pCfg, "simDebugFlag", 143, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddInt32(pCfg, "simDebugFlag", simDebugFlag, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
   if (cfgAddInt32(pCfg, "tmrDebugFlag", tmrDebugFlag, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
   if (cfgAddInt32(pCfg, "uDebugFlag", uDebugFlag, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
   if (cfgAddInt32(pCfg, "rpcDebugFlag", rpcDebugFlag, 0, 255, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
@@ -497,7 +497,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "maxRetryWaitTime", tsMaxRetryWaitTime, 0, 86400000, CFG_SCOPE_BOTH, CFG_DYN_CLIENT) != 0)
     return -1;
   if (cfgAddBool(pCfg, "useAdapter", tsUseAdapter, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0) return -1;
-  if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, CFG_SCOPE_SERVER, CFG_DYN_CLIENT) != 0) return -1;
+  if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0) return -1;
   if (cfgAddInt64(pCfg, "queryMaxConcurrentTables", tsQueryMaxConcurrentTables, INT64_MIN, INT64_MAX, CFG_SCOPE_CLIENT,
                   CFG_DYN_NONE) != 0)
     return -1;
@@ -789,7 +789,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "s3PageCacheSize", tsS3PageCacheSize, 4, 1024 * 1024 * 1024, CFG_SCOPE_SERVER,
                   CFG_DYN_ENT_SERVER) != 0)
     return -1;
-  if (cfgAddInt32(pCfg, "s3UploadDelaySec", tsS3UploadDelaySec, 60 * 10, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER,
+  if (cfgAddInt32(pCfg, "s3UploadDelaySec", tsS3UploadDelaySec, 60 * 1, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER,
                   CFG_DYN_ENT_SERVER) != 0)
     return -1;
 
@@ -962,6 +962,7 @@ static void taosSetClientLogCfg(SConfig *pCfg) {
   rpcDebugFlag = cfgGetItem(pCfg, "rpcDebugFlag")->i32;
   qDebugFlag = cfgGetItem(pCfg, "qDebugFlag")->i32;
   cDebugFlag = cfgGetItem(pCfg, "cDebugFlag")->i32;
+  simDebugFlag = cfgGetItem(pCfg, "simDebugFlag")->i32;
 }
 
 static void taosSetServerLogCfg(SConfig *pCfg) {
@@ -1278,7 +1279,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
     taosSetServerLogCfg(pCfg);
   }
 
-  taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32, false);
+  taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32);
 
   if (taosMulModeMkDir(tsLogDir, 0777, true) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1356,6 +1357,8 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
   taosSetSystemCfg(tsCfg);
   if (taosSetFileHandlesLimit() != 0) return -1;
 
+  taosSetAllDebugFlag(cfgGetItem(tsCfg, "debugFlag")->i32);
+
   cfgDumpCfg(tsCfg, tsc, false);
 
   if (taosCheckGlobalCfg() != 0) {
@@ -1399,7 +1402,7 @@ static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, 
         *pVar = flag;
 
         if (isDebugflag) {
-          taosSetDebugFlag(pOptions[d].optionVar, optName, flag, true);
+          taosSetDebugFlag(pOptions[d].optionVar, optName, flag);
         }
         terrno = TSDB_CODE_SUCCESS;
       } break;
@@ -1432,6 +1435,13 @@ static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, 
 static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
   terrno = TSDB_CODE_SUCCESS;
 
+  if (strcasecmp(name, "resetlog") == 0) {
+    // trigger, no item in cfg
+    taosResetLog();
+    cfgDumpCfg(tsCfg, 0, false);
+    return 0;
+  }
+
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (!pItem || (pItem->dynScope & CFG_DYN_SERVER) == 0) {
     uError("failed to config:%s, not support", name);
@@ -1440,14 +1450,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
   }
 
   if (strncasecmp(name, "debugFlag", 9) == 0) {
-    int32_t flag = pItem->i32;
-    taosSetAllDebugFlag(flag, true);
-    return 0;
-  }
-
-  if (strcasecmp(name, "resetlog") == 0) {
-    taosResetLog();
-    cfgDumpCfg(tsCfg, 0, false);
+    taosSetAllDebugFlag(pItem->i32);
     return 0;
   }
 
@@ -1459,7 +1462,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, char *name) {
         {"smaDebugFlag", &smaDebugFlag}, {"idxDebugFlag", &idxDebugFlag}, {"tdbDebugFlag", &tdbDebugFlag},
         {"tmrDebugFlag", &tmrDebugFlag}, {"uDebugFlag", &uDebugFlag},     {"smaDebugFlag", &smaDebugFlag},
         {"rpcDebugFlag", &rpcDebugFlag}, {"qDebugFlag", &qDebugFlag},     {"metaDebugFlag", &metaDebugFlag},
-        {"jniDebugFlag", &jniDebugFlag}, {"stDebugFlag", &stDebugFlag},   {"sndDebugFlag", &sndDebugFlag},
+        {"stDebugFlag", &stDebugFlag},   {"sndDebugFlag", &sndDebugFlag},
     };
 
     static OptionNameAndVar options[] = {
@@ -1523,8 +1526,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
   switch (lowcaseName[0]) {
     case 'd': {
       if (strcasecmp("debugFlag", name) == 0) {
-        int32_t flag = pItem->i32;
-        taosSetAllDebugFlag(flag, true);
+        taosSetAllDebugFlag(pItem->i32);
         matched = true;
       }
       break;
@@ -1690,7 +1692,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, char *name) {
         {"cDebugFlag", &cDebugFlag},     {"dDebugFlag", &dDebugFlag},     {"fsDebugFlag", &fsDebugFlag},
         {"idxDebugFlag", &idxDebugFlag}, {"jniDebugFlag", &jniDebugFlag}, {"qDebugFlag", &qDebugFlag},
         {"rpcDebugFlag", &rpcDebugFlag}, {"smaDebugFlag", &smaDebugFlag}, {"tmrDebugFlag", &tmrDebugFlag},
-        {"uDebugFlag", &uDebugFlag},
+        {"uDebugFlag", &uDebugFlag}, {"simDebugFlag", &simDebugFlag},
     };
 
     static OptionNameAndVar options[] = {
@@ -1735,9 +1737,9 @@ int32_t taosCfgDynamicOptions(SConfig *pCfg, char *name, bool forServer) {
   return taosCfgDynamicOptionsForClient(pCfg, name);
 }
 
-void taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal, bool rewrite) {
+void taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal) {
   SConfigItem *pItem = cfgGetItem(tsCfg, flagName);
-  if (pItem != NULL && (rewrite || pItem->i32 == 0)) {
+  if (pItem != NULL) {
     pItem->i32 = flagVal;
   }
   if (pFlagPtr != NULL) {
@@ -1745,33 +1747,58 @@ void taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal, 
   }
 }
 
-void taosSetAllDebugFlag(int32_t flag, bool rewrite) {
+static int taosLogVarComp(void const *lp, void const *rp) {
+  SLogVar *lpVar = (SLogVar *)lp;
+  SLogVar *rpVar = (SLogVar *)rp;
+  return strcasecmp(lpVar->name, rpVar->name);
+}
+
+static void taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag, SArray *noNeedToSetVars) {
+  if (noNeedToSetVars != NULL && taosArraySearch(noNeedToSetVars, name, taosLogVarComp, TD_EQ) != NULL) {
+    return;
+  }
+  taosSetDebugFlag(pFlagPtr, name, flag);
+}
+
+void taosSetAllDebugFlag(int32_t flag) {
   if (flag <= 0) return;
 
-  taosSetDebugFlag(NULL, "debugFlag", flag, rewrite);
-  taosSetDebugFlag(NULL, "simDebugFlag", flag, rewrite);
-  taosSetDebugFlag(NULL, "tmrDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&uDebugFlag, "uDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&rpcDebugFlag, "rpcDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&jniDebugFlag, "jniDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&qDebugFlag, "qDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&cDebugFlag, "cDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&dDebugFlag, "dDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&vDebugFlag, "vDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&mDebugFlag, "mDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&wDebugFlag, "wDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&sDebugFlag, "sDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&tsdbDebugFlag, "tsdbDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&tqDebugFlag, "tqDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&fsDebugFlag, "fsDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&udfDebugFlag, "udfDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&smaDebugFlag, "smaDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&idxDebugFlag, "idxDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&tdbDebugFlag, "tdbDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&stDebugFlag, "stDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&sndDebugFlag, "sndDebugFlag", flag, rewrite);
+  SArray      *noNeedToSetVars = NULL;
+  SConfigItem *pItem = cfgGetItem(tsCfg, "debugFlag");
+  if (pItem != NULL) {
+    pItem->i32 = flag;
+    noNeedToSetVars = pItem->array;
+  }
+
+  taosCheckAndSetDebugFlag(&simDebugFlag, "simDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&tmrDebugFlag, "tmrDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&uDebugFlag, "uDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&rpcDebugFlag, "rpcDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&qDebugFlag, "qDebugFlag", flag, noNeedToSetVars);
+
+  taosCheckAndSetDebugFlag(&jniDebugFlag, "jniDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&cDebugFlag, "cDebugFlag", flag, noNeedToSetVars);
+
+  taosCheckAndSetDebugFlag(&dDebugFlag, "dDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&vDebugFlag, "vDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&mDebugFlag, "mDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&wDebugFlag, "wDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&sDebugFlag, "sDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&tsdbDebugFlag, "tsdbDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&tqDebugFlag, "tqDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&fsDebugFlag, "fsDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&udfDebugFlag, "udfDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&smaDebugFlag, "smaDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&idxDebugFlag, "idxDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&tdbDebugFlag, "tdbDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&stDebugFlag, "stDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&sndDebugFlag, "sndDebugFlag", flag, noNeedToSetVars);
+
+  taosArrayClear(noNeedToSetVars);  // reset array
+
   uInfo("all debug flag are set to %d", flag);
+  if (terrno == TSDB_CODE_CFG_NOT_FOUND) terrno = TSDB_CODE_SUCCESS; // ignore not exist
 }
 
 int8_t taosGranted() { return atomic_load_8(&tsGrant); }

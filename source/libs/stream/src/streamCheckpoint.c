@@ -25,6 +25,7 @@ typedef struct {
 
   SStreamTask* pTask;
 } SAsyncUploadArg;
+
 int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
@@ -34,6 +35,7 @@ int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckp
   if (tEncodeSEpSet(pEncoder, &pReq->mgmtEps) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->mnodeId) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->expireTime) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->transId) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
@@ -47,6 +49,7 @@ int32_t tDecodeStreamCheckpointSourceReq(SDecoder* pDecoder, SStreamCheckpointSo
   if (tDecodeSEpSet(pDecoder, &pReq->mgmtEps) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->mnodeId) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->expireTime) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->transId) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
 }
@@ -111,6 +114,7 @@ static int32_t streamAlignCheckpoint(SStreamTask* pTask) {
   return atomic_sub_fetch_32(&pTask->chkInfo.downstreamAlignNum, 1);
 }
 
+// todo handle down the transId of checkpoint to sink/agg tasks.
 static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpointType) {
   SStreamDataBlock* pChkpoint = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock));
   if (pChkpoint == NULL) {
@@ -149,6 +153,7 @@ int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSo
   // 1. set task status to be prepared for check point, no data are allowed to put into inputQ.
   streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_GEN_CHECKPOINT);
 
+  pTask->chkInfo.transId = pReq->transId;
   pTask->chkInfo.checkpointingId = pReq->checkpointId;
   pTask->chkInfo.checkpointNotReadyTasks = streamTaskGetNumOfDownstream(pTask);
   pTask->chkInfo.startTs = taosGetTimestampMs();
@@ -273,8 +278,9 @@ void streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg) {
   pTask->chkInfo.failedId = 0;
   pTask->chkInfo.startTs = 0;  // clear the recorded start time
   pTask->chkInfo.checkpointNotReadyTasks = 0;
-  // pTask->chkInfo.checkpointAlignCnt = 0;
+  pTask->chkInfo.transId = 0;
   pTask->chkInfo.dispatchCheckpointTrigger = false;
+
   streamTaskOpenAllUpstreamInput(pTask);  // open inputQ for all upstream tasks
   if (clearChkpReadyMsg) {
     streamClearChkptReadyMsg(pTask);
@@ -341,9 +347,8 @@ int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId) {
   return code;
 }
 
-void streamTaskSetFailedId(SStreamTask* pTask) {
+void streamTaskSetCheckpointFailedId(SStreamTask* pTask) {
   pTask->chkInfo.failedId = pTask->chkInfo.checkpointingId;
-  pTask->chkInfo.checkpointId = pTask->chkInfo.checkpointingId;
 }
 
 int32_t getChkpMeta(char* id, char* path, SArray* list) {
@@ -485,7 +490,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
     taosThreadMutexUnlock(&pTask->lock);
 
-    streamTaskSetFailedId(pTask);
+    streamTaskSetCheckpointFailedId(pTask);
     stDebug("s-task:%s clear checkpoint flag since gen checkpoint failed, checkpointId:%" PRId64, pTask->id.idStr,
             ckId);
   }

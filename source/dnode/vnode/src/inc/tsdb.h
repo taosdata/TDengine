@@ -256,31 +256,8 @@ void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]);
 // tsdbFS.c ==============================================================================================
 int32_t tsdbFSOpen(STsdb *pTsdb, int8_t rollback);
 int32_t tsdbFSClose(STsdb *pTsdb);
-int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS);
-void    tsdbFSDestroy(STsdbFS *pFS);
-int32_t tDFileSetCmprFn(const void *p1, const void *p2);
-int32_t tsdbFSCommit(STsdb *pTsdb);
-int32_t tsdbFSRollback(STsdb *pTsdb);
-int32_t tsdbFSPrepareCommit(STsdb *pTsdb, STsdbFS *pFS);
-int32_t tsdbFSRef(STsdb *pTsdb, STsdbFS *pFS);
-void    tsdbFSUnref(STsdb *pTsdb, STsdbFS *pFS);
 void    tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t);
-
-int32_t tsdbFSUpsertFSet(STsdbFS *pFS, SDFileSet *pSet);
-int32_t tsdbFSUpsertDelFile(STsdbFS *pFS, SDelFile *pDelFile);
 // tsdbReaderWriter.c ==============================================================================================
-// SDataFWriter
-int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet);
-int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync);
-int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter);
-int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx);
-int32_t tsdbWriteDataBlk(SDataFWriter *pWriter, SMapData *mDataBlk, SBlockIdx *pBlockIdx);
-int32_t tsdbWriteSttBlk(SDataFWriter *pWriter, SArray *aSttBlk);
-int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo,
-                           int8_t cmprAlg, int8_t toLast);
-int32_t tsdbWriteDiskData(SDataFWriter *pWriter, const SDiskData *pDiskData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo);
-
-int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo);
 // SDataFReader
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet);
 int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
@@ -292,12 +269,6 @@ int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pBlock, SBlockData *p
 int32_t tsdbReadDataBlockEx(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData *pBlockData);
 int32_t tsdbReadSttBlock(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk, SBlockData *pBlockData);
 int32_t tsdbReadSttBlockEx(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk, SBlockData *pBlockData);
-// SDelFWriter
-int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb);
-int32_t tsdbDelFWriterClose(SDelFWriter **ppWriter, int8_t sync);
-int32_t tsdbWriteDelData(SDelFWriter *pWriter, SArray *aDelData, SDelIdx *pDelIdx);
-int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SArray *aDelIdx);
-int32_t tsdbUpdateDelFileHdr(SDelFWriter *pWriter);
 // SDelFReader
 int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb);
 int32_t tsdbDelFReaderClose(SDelFReader **ppReader);
@@ -426,6 +397,7 @@ struct STbData {
   tb_uid_t     uid;
   TSKEY        minKey;
   TSKEY        maxKey;
+  SRWLatch     lock;
   SDelData    *pHead;
   SDelData    *pTail;
   SMemSkipList sl;
@@ -737,7 +709,6 @@ struct STsdbReadSnap {
   SMemTable     *pIMem;
   SQueryNode    *pINode;
   TFileSetArray *pfSetArray;
-  STsdbFS        fs;
 };
 
 struct SDataFWriter {
@@ -796,16 +767,16 @@ typedef struct {
 } SSttTableRowsInfo;
 
 typedef struct SSttBlockLoadInfo {
-  SBlockDataInfo  blockData[2];  // buffered block data
-  SArray         *aSttBlk;
-  int32_t         currentLoadBlockIndex;
-  STSchema       *pSchema;
-  int16_t        *colIds;
-  int32_t         numOfCols;
-  bool            checkRemainingRow;  // todo: no assign value?
-  bool            isLast;
-  bool            sttBlockLoaded;
-  SSttTableRowsInfo info;
+  SBlockDataInfo        blockData[2];  // buffered block data
+  SArray               *aSttBlk;
+  int32_t               currentLoadBlockIndex;
+  STSchema             *pSchema;
+  int16_t              *colIds;
+  int32_t               numOfCols;
+  bool                  checkRemainingRow;  // todo: no assign value?
+  bool                  isLast;
+  bool                  sttBlockLoaded;
+  SSttTableRowsInfo     info;
   SSttBlockLoadCostInfo cost;
 } SSttBlockLoadInfo;
 
@@ -894,15 +865,15 @@ typedef struct {
   _load_tomb_fn loadTombFn;
   void         *pReader;
   void         *idstr;
-  bool          rspRows;         // response the rows in stt-file, if possible
+  bool          rspRows;  // response the rows in stt-file, if possible
 } SMergeTreeConf;
 
 typedef struct SSttDataInfoForTable {
-  SArray* pTimeWindowList;
+  SArray *pTimeWindowList;
   int64_t numOfRows;
 } SSttDataInfoForTable;
 
-int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoForTable* pTableInfo);
+int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoForTable *pTableInfo);
 void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool    tMergeTreeNext(SMergeTree *pMTree);
 void    tMergeTreePinSttBlock(SMergeTree *pMTree);
