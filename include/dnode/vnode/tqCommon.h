@@ -33,5 +33,7 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
 int32_t tqStreamTaskResetStatus(SStreamMeta* pMeta);
 int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta);
 int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, SRpcMsg* pMsg);
+int32_t tqStreamTaskProcessTaskPauseReq(SStreamMeta* pMeta, char* pMsg);
+int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* pMsg, bool fromVnode);
 
 #endif  // TDENGINE_TQ_COMMON_H

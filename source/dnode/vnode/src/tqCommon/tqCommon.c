@@ -753,3 +753,108 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   streamMetaReleaseTask(pMeta, pTask);
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t tqStreamTaskProcessTaskPauseReq(SStreamMeta* pMeta, char* pMsg){
+  SVPauseStreamTaskReq* pReq = (SVPauseStreamTaskReq*)pMsg;
+
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
+  if (pTask == NULL) {
+    tqError("vgId:%d process pause req, failed to acquire task:0x%x, it may have been dropped already", pMeta->vgId,
+            pReq->taskId);
+    // since task is in [STOP|DROPPING] state, it is safe to assume the pause is active
+    return TSDB_CODE_SUCCESS;
+  }
+
+  tqDebug("s-task:%s receive pause msg from mnode", pTask->id.idStr);
+  streamTaskPause(pTask, pMeta);
+
+  SStreamTask* pHistoryTask = NULL;
+  if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
+    pHistoryTask = streamMetaAcquireTask(pMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId);
+    if (pHistoryTask == NULL) {
+      tqError("vgId:%d process pause req, failed to acquire fill-history task:0x%" PRIx64
+                  ", it may have been dropped already",
+              pMeta->vgId, pTask->hTaskInfo.id.taskId);
+      streamMetaReleaseTask(pMeta, pTask);
+
+      // since task is in [STOP|DROPPING] state, it is safe to assume the pause is active
+      return TSDB_CODE_SUCCESS;
+    }
+
+    tqDebug("s-task:%s fill-history task handle paused along with related stream task", pHistoryTask->id.idStr);
+
+    streamTaskPause(pHistoryTask, pMeta);
+    streamMetaReleaseTask(pMeta, pHistoryTask);
+  }
+
+  streamMetaReleaseTask(pMeta, pTask);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t sversion, int8_t igUntreated, bool fromVnode) {
+  SStreamMeta *pMeta = fromVnode ? ((STQ*)handle)->pStreamMeta : handle;
+  int32_t vgId = pMeta->vgId;
+  if (pTask == NULL) {
+    return -1;
+  }
+
+  streamTaskResume(pTask);
+  ETaskStatus status = streamTaskGetStatus(pTask, NULL);
+
+  int32_t level = pTask->info.taskLevel;
+  if (level == TASK_LEVEL__SINK) {
+    if (status == TASK_STATUS__UNINIT) {
+    }
+    streamMetaReleaseTask(pMeta, pTask);
+    return 0;
+  }
+
+  if (status == TASK_STATUS__READY || status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__CK) {
+    // no lock needs to secure the access of the version
+    if (igUntreated && level == TASK_LEVEL__SOURCE && !pTask->info.fillHistory) {
+      // discard all the data  when the stream task is suspended.
+      walReaderSetSkipToVersion(pTask->exec.pWalReader, sversion);
+      tqDebug("vgId:%d s-task:%s resume to exec, prev paused version:%" PRId64 ", start from vnode ver:%" PRId64
+                  ", schedStatus:%d",
+              vgId, pTask->id.idStr, pTask->chkInfo.nextProcessVer, sversion, pTask->status.schedStatus);
+    } else {  // from the previous paused version and go on
+      tqDebug("vgId:%d s-task:%s resume to exec, from paused ver:%" PRId64 ", vnode ver:%" PRId64 ", schedStatus:%d",
+              vgId, pTask->id.idStr, pTask->chkInfo.nextProcessVer, sversion, pTask->status.schedStatus);
+    }
+
+    if (level == TASK_LEVEL__SOURCE && pTask->info.fillHistory && status == TASK_STATUS__SCAN_HISTORY) {
+      streamStartScanHistoryAsync(pTask, igUntreated);
+    } else if (level == TASK_LEVEL__SOURCE && (streamQueueGetNumOfItems(pTask->inputq.queue) == 0)) {
+      tqScanWalAsync((STQ*)handle, false);
+    } else {
+      streamSchedExec(pTask);
+    }
+  } else if (status == TASK_STATUS__UNINIT) {
+    // todo: fill-history task init ?
+    if (pTask->info.fillHistory == 0) {
+      EStreamTaskEvent event = /*HAS_RELATED_FILLHISTORY_TASK(pTask) ? TASK_EVENT_INIT_STREAM_SCANHIST : */TASK_EVENT_INIT;
+      streamTaskHandleEvent(pTask->status.pSM, event);
+    }
+  }
+
+  streamMetaReleaseTask(pMeta, pTask);
+  return 0;
+}
+
+int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* msg, bool fromVnode){
+  SVResumeStreamTaskReq* pReq = (SVResumeStreamTaskReq*)msg;
+  SStreamMeta *pMeta = fromVnode ? ((STQ*)handle)->pStreamMeta : handle;
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
+  int32_t      code = tqProcessTaskResumeImpl(handle, pTask, sversion, pReq->igUntreated, fromVnode);
+  if (code != 0) {
+    return code;
+  }
+
+  STaskId*     pHTaskId = &pTask->hTaskInfo.id;
+  SStreamTask* pHistoryTask = streamMetaAcquireTask(pMeta, pHTaskId->streamId, pHTaskId->taskId);
+  if (pHistoryTask) {
+    code = tqProcessTaskResumeImpl(handle, pHistoryTask, sversion, pReq->igUntreated, fromVnode);
+  }
+
+  return code;
+}
