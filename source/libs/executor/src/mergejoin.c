@@ -932,23 +932,22 @@ static int32_t mFullJoinHandleMergeGrpRemains(SMJoinMergeCtx* pCtx) {
     }
 
     int32_t bitBytes = BitmapLen(pGrpRows->endIdx - pGrpRows->beginIdx + 1);
-    baseIdx = 8 * pNMatch->bitIdx;
     rowNum = pGrpRows->endIdx - pGrpRows->beginIdx + 1;
     for (; pNMatch->bitIdx < bitBytes; ++pNMatch->bitIdx) {
       if (0 == build->pRowBitmap[pGrpRows->rowBitmapOffset + pNMatch->bitIdx]) {
         continue;
       }
 
+      baseIdx = 8 * pNMatch->bitIdx;
       char *v = &build->pRowBitmap[pGrpRows->rowBitmapOffset + pNMatch->bitIdx];
       while (*v && !BLK_IS_FULL(pCtx->finBlk)) {
         uint8_t n = lowest_bit_bitmap[((*v & (*v - 1)) ^ *v) % 11];
-        if (baseIdx + n > pGrpRows->endIdx) {
+        if (pGrpRows->beginIdx + baseIdx + n > pGrpRows->endIdx) {
           MJOIN_SET_ROW_BITMAP(build->pRowBitmap, pGrpRows->rowBitmapOffset + pNMatch->bitIdx, n);
           continue;
         }
         
-        ASSERT(baseIdx + n <= pGrpRows->endIdx);
-        MJ_ERR_RET(mFullJoinOutputMergeRow(pCtx, pGrpRows, baseIdx + n));
+        MJ_ERR_RET(mFullJoinOutputMergeRow(pCtx, pGrpRows, pGrpRows->beginIdx + baseIdx + n));
 
         MJOIN_SET_ROW_BITMAP(build->pRowBitmap, pGrpRows->rowBitmapOffset + pNMatch->bitIdx, n);
         if (++pGrpRows->rowMatchNum == rowNum) {
@@ -1715,6 +1714,10 @@ _return:
 }
 
 int32_t mJoinInitWindowCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode) {
+  SMJoinWindowCtx* pCtx = &pJoin->ctx.windowCtx;
+  
+  pCtx->pJoin = pJoin;
+
   return TSDB_CODE_SUCCESS;
 }
 

@@ -727,9 +727,22 @@ static int32_t pdcPushDownCondToChild(SOptimizeContext* pCxt, SLogicNode* pChild
 }
 
 static bool pdcJoinIsPrim(SNode* pNode, SSHashObj* pTables) {
-  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode) || QUERY_NODE_FUNCTION != nodeType(pNode)) {
     return false;
   }
+
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (FUNCTION_TYPE_TIMETRUNCATE != pFunc->funcType) {
+      return false;
+    }
+    SListCell* pCell = nodesListGetCell(pFunc->pParameterList, 0);
+    if (NULL == pCell || NULL == pCell->pNode || QUERY_NODE_COLUMN != nodeType(pCell->pNode)) {
+      return false;
+    }
+    pNode = pCell->pNode;
+  }
+
   SColumnNode* pCol = (SColumnNode*)pNode;
   if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId || TSDB_SYSTEM_TABLE == pCol->tableType) {
     return false;
@@ -743,7 +756,7 @@ static bool pdcJoinIsPrimEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
   }
 
   SOperatorNode* pOper = (SOperatorNode*)pCond;
-  if (OP_TYPE_EQUAL != pOper->opType) {
+  if (OP_TYPE_EQUAL != pOper->opType && JOIN_STYPE_ASOF != pJoin->subType) {
     return false;
   }
 

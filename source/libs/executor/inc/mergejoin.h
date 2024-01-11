@@ -20,8 +20,8 @@ extern "C" {
 #endif
 
 #if 1
-#define MJOIN_DEFAULT_BLK_ROWS_NUM 2 //4096
-#define MJOIN_HJOIN_CART_THRESHOLD 2
+#define MJOIN_DEFAULT_BLK_ROWS_NUM 10 //4096
+#define MJOIN_HJOIN_CART_THRESHOLD 10
 #define MJOIN_BLK_SIZE_LIMIT 0 //10485760
 #define MJOIN_ROW_BITMAP_SIZE (2 * 1048576)
 #else
@@ -172,7 +172,15 @@ typedef struct SMJoinMergeCtx {
 } SMJoinMergeCtx;
 
 typedef struct SMJoinWindowCtx {
+  struct SMJoinOperatorInfo* pJoin;
+  int32_t                    asofOp;
+  bool                       asofEqRow;
+  int64_t                    jLimit;
+  SSDataBlock*               finBlk;
 
+  int64_t                    resRowsNum;
+  int32_t                    resRowOffset;
+  SArray*                    resArray;
 } SMJoinWindowCtx;
 
 

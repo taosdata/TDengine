@@ -55,6 +55,19 @@ typedef struct SSysTableShowAdapter {
   const char* pShowCols[2];
 } SSysTableShowAdapter;
 
+typedef struct SCollectJoinCondsContext {
+  bool        inOp;
+
+  int32_t     primCondNum;
+  int32_t     logicAndNum;
+  int32_t     logicOrNum;
+  int32_t     eqCondNum;
+  int32_t     neqCondNum;
+  bool        primDisorder;
+  int32_t     code;
+} SCollectJoinCondsContext;
+
+
 // clang-format off
 static const SSysTableShowAdapter sysTableShowAdapter[] = {
   {
@@ -3156,6 +3169,79 @@ static int32_t translateJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoin
   return code;
 }
 
+EDealRes joinCondsValidater(SNode* pNode, void* pContext) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_CONDITION: {
+      SLogicConditionNode* pLogic = (SLogicConditionNode*)pNode;
+      if (LOGIC_COND_TYPE_AND != pLogic->condType) {
+        break;
+      }
+      return DEAL_RES_CONTINUE;
+    }
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOp = (SOperatorNode*)pNode;
+      if (OP_TYPE_EQUAL < pOp->opType || OP_TYPE_GREATER_THAN > pOp->opType) {
+        break;
+      }
+      if ((QUERY_NODE_COLUMN != nodeType(pOp->pLeft) && QUERY_NODE_FUNCTION != nodeType(pOp->pLeft)) ||
+          (QUERY_NODE_COLUMN != nodeType(pOp->pRight) && QUERY_NODE_FUNCTION != nodeType(pOp->pRight))){
+        break;
+      }
+      if (QUERY_NODE_COLUMN == nodeType(pOp->pLeft)) {
+        SColumnNode* pCol = (SColumnNode*)pOp->pLeft;
+        if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId && OP_TYPE_EQUAL != pOp->opType) {
+          break;
+        }
+      }
+      if (QUERY_NODE_COLUMN == nodeType(pOp->pRight)) {
+        SColumnNode* pCol = (SColumnNode*)pOp->pRight;
+        if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId && OP_TYPE_EQUAL != pOp->opType) {
+          break;
+        }
+      }
+      if (QUERY_NODE_FUNCTION == nodeType(pOp->pLeft) && FUNCTION_TYPE_TIMETRUNCATE == ((SFunctionNode*)pOp->pLeft)->funcType) {
+        SFunctionNode* pFunc = (SFunctionNode*)pOp->pLeft;
+        SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+        if (QUERY_NODE_COLUMN != nodeType(pParam)) {
+          break;
+        }
+        SColumnNode* pCol = (SColumnNode*)pParam;
+        if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId) {
+          break;
+        }
+      }
+      if (QUERY_NODE_FUNCTION == nodeType(pOp->pRight) && FUNCTION_TYPE_TIMETRUNCATE == ((SFunctionNode*)pOp->pRight)->funcType) {
+        SFunctionNode* pFunc = (SFunctionNode*)pOp->pRight;
+        SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+        if (QUERY_NODE_COLUMN != nodeType(pParam)) {
+          break;
+        }
+        SColumnNode* pCol = (SColumnNode*)pParam;
+        if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId) {
+          break;
+        }
+      }
+      return DEAL_RES_IGNORE_CHILD;
+    }  
+    default:
+      break;
+  }
+
+  *(int32_t*)pContext = TSDB_CODE_QRY_INVALID_JOIN_CONDITION;
+  return DEAL_RES_ERROR;
+}
+
+int32_t validateJoinConds(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
+  if (JOIN_STYPE_ASOF != pJoinTable->subType && JOIN_STYPE_WIN != pJoinTable->subType) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = 0;
+  nodesWalkExpr(pJoinTable->pOnCond, joinCondsValidater, &code);
+  
+  return code;
+}
+
 int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinParent) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(*pTable)) {
@@ -3231,6 +3317,8 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinPare
         pJoinTable->table.precision = calcJoinTablePrecision(pJoinTable);
         pJoinTable->table.singleTable = joinTableIsSingleTable(pJoinTable);
         code = translateExpr(pCxt, &pJoinTable->pOnCond);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
         pJoinTable->hasSubQuery = (nodeType(pJoinTable->pLeft) != QUERY_NODE_REAL_TABLE) ||
                                   (nodeType(pJoinTable->pRight) != QUERY_NODE_REAL_TABLE);
         if (nodeType(pJoinTable->pLeft) == QUERY_NODE_JOIN_TABLE) {
@@ -3239,6 +3327,7 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinPare
         if (nodeType(pJoinTable->pRight) == QUERY_NODE_JOIN_TABLE) {
           ((SJoinTableNode*)pJoinTable->pRight)->isLowLevelJoin = true;
         }
+        code = validateJoinConds(pCxt, pJoinTable);
       }
       break;
     }

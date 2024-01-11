@@ -61,6 +61,10 @@ run tsim/join/inner_join.sim
 run tsim/join/left_join.sim
 run tsim/join/right_join.sim
 run tsim/join/full_join.sim
+run tsim/join/left_semi_join.sim
+run tsim/join/right_semi_join.sim
+run tsim/join/left_anti_join.sim
+run tsim/join/right_anti_join.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -71,5 +75,9 @@ run tsim/join/inner_join.sim
 run tsim/join/left_join.sim
 run tsim/join/right_join.sim
 run tsim/join/full_join.sim
+run tsim/join/left_semi_join.sim
+run tsim/join/right_semi_join.sim
+run tsim/join/left_anti_join.sim
+run tsim/join/right_anti_join.sim
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
