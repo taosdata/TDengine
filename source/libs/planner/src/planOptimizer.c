@@ -6356,6 +6356,7 @@ static int32_t tsmaOptRevisePlan(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent, 
                                  const STSMAOptUsefulTsma* pTsma) {
   SNode *           pStateFuncNode, *pAggFuncNode;
   SColumnNode*      pColNode;
+  SListCell*        pScanListCell = NULL;
   int32_t           code = 0;
   SNodeList*        pAggStateFuncs = NULL;
   SNodeList*        pAggFuncs = NULL;
@@ -6378,6 +6379,7 @@ static int32_t tsmaOptRevisePlan(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent, 
   code = fmCreateStateFuncs(pAggStateFuncs);
   if (code) return code;
 
+  pScanListCell = pScan->pScanCols->pHead;
   FORBOTH(pStateFuncNode, pAggStateFuncs, pAggFuncNode, pAggFuncs) {
     SFunctionNode* pStateFunc = (SFunctionNode*)pStateFuncNode;
     SFunctionNode* pAggFunc = (SFunctionNode*)pAggFuncNode;
@@ -6391,11 +6393,12 @@ static int32_t tsmaOptRevisePlan(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent, 
         REPLACE_LIST2_NODE(pAggFuncNode);
       }
       continue;
-    } else if (fmIsPseudoColumnFunc(pStateFunc->funcId)) {
-      if (pStateFunc->funcType == FUNCTION_TYPE_WSTART) hasWStart = true;
+    } else if (fmIsPseudoColumnFunc(pAggFunc->funcId)) {
+      if (pAggFunc->funcType == FUNCTION_TYPE_WSTART) hasWStart = true;
       continue;
     }
-    pColNode = (SColumnNode*)pScan->pScanCols->pHead->pNode;
+    pColNode = (SColumnNode*)pScanListCell->pNode;
+    pScanListCell = pScanListCell->pNext;
     pColNode->node.resType = pStateFunc->node.resType;
 
     nodesDestroyList(pAggFunc->pParameterList);
