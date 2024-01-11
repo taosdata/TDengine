@@ -2721,6 +2721,7 @@ int transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq, STr
     ret = TSDB_CODE_TIMEOUT_ERROR;
   } else {
     memcpy(pRsp, pSyncMsg->pRsp, sizeof(STransMsg));
+    pSyncMsg->pRsp->pCont = NULL;
     if (pSyncMsg->hasEpSet == 1) {
       epsetAssign(pEpSet, &pSyncMsg->epSet);
       *epUpdated = 1;
