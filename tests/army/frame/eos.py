@@ -22,9 +22,30 @@ import datetime
 import platform
 import subprocess
 
+#
+#  platform
+#
+
 # if windows platform return True
 def isWin():
     return platform.system().lower() == 'windows'
+
+def isArm64Cpu():
+    system = platform.system()
+
+    if system == 'Linux':
+        machine = platform.machine().lower()
+
+        # Check for ARM64 architecture on Linux systems
+        return machine in ['aarch64', 'armv8l']
+    elif system == 'Darwin' or system == 'Windows':
+        processor = platform.processor().lower()
+
+        # Check for ARM64 architecture on macOS and Windows systems
+        return processor in ['arm64', 'aarch64']
+    else:
+        print("Unsupported operating system")
+        return False
 
 #
 #  execute programe

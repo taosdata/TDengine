@@ -15,7 +15,7 @@ class TDTestCase:
         self.replicaVar = int(replicaVar)
         self.database = "db1"
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
 
     def prepare_db(self):
         tdSql.execute(f"drop database if exists {self.database}")

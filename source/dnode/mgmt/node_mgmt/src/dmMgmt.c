@@ -90,6 +90,7 @@ int32_t dmInitDnode(SDnode *pDnode) {
     goto _OVER;
   }
 #endif
+
   indexInit(tsNumOfCommitThreads);
   streamMetaInit();
 
@@ -108,7 +109,9 @@ _OVER:
 }
 
 void dmCleanupDnode(SDnode *pDnode) {
-  if (pDnode == NULL) return;
+  if (pDnode == NULL) {
+    return;
+  }
 
   dmCleanupClient(pDnode);
   dmCleanupStatusClient(pDnode);

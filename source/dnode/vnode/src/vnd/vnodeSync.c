@@ -567,29 +567,30 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   if (vnodeIsRoleLeader(pVnode)) {
     // start to restore all stream tasks
     if (tsDisableStream) {
-      streamMetaWUnLock(pMeta);
       vInfo("vgId:%d, sync restore finished, not launch stream tasks, since stream tasks are disabled", vgId);
     } else {
-      vInfo("vgId:%d sync restore finished, start to launch stream tasks", pVnode->config.vgId);
-      tqStreamTaskResetStatus(pVnode->pTq->pStreamMeta);
+      vInfo("vgId:%d sync restore finished, start to launch stream task(s)", pVnode->config.vgId);
+      int32_t numOfTasks = 0;
+      tqStreamTaskResetStatus(pMeta, &numOfTasks);
 
-      {
+      if (numOfTasks > 0) {
         if (pMeta->startInfo.taskStarting == 1) {
           pMeta->startInfo.restartCount += 1;
           tqDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, remaining restart:%d", vgId,
                   pMeta->startInfo.restartCount);
-          streamMetaWUnLock(pMeta);
         } else {
           pMeta->startInfo.taskStarting = 1;
           streamMetaWUnLock(pMeta);
           tqStreamTaskStartAsync(pMeta, &pVnode->msgCb, false);
+          return;
         }
       }
     }
   } else {
-    streamMetaWUnLock(pMeta);
     vInfo("vgId:%d, sync restore finished, not launch stream tasks since not leader", vgId);
   }
+
+  streamMetaWUnLock(pMeta);
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
