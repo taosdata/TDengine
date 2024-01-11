@@ -1,3 +1,4 @@
+from random import randrange
 import taos
 import sys
 import time
@@ -61,9 +62,9 @@ class TDTestCase:
             sql += " %s%d values "%(ctbPrefix,i)
             for j in range(rowsPerTbl):
                 if (i < ctbNum/2):
-                    sql += "(%d, %d, %d, %d,%d,%d,%d,true,'binary%d', 'nchar%d') "%(startTs + j*tsStep, j%10, j%10, j%10, j%10, j%10, j%10, j%10, j%10)
+                    sql += "(%d, %d, %d, %d,%d,%d,%d,true,'binary%d', 'nchar%d') "%(startTs + j*tsStep + randrange(500), j%10, j%10, j%10, j%10, j%10, j%10, j%10, j%10)
                 else:
-                    sql += "(%d, %d, NULL, %d,NULL,%d,%d,true,'binary%d', 'nchar%d') "%(startTs + j*tsStep, j%10, j%10, j%10, j%10, j%10, j%10)
+                    sql += "(%d, %d, NULL, %d,NULL,%d,%d,true,'binary%d', 'nchar%d') "%(startTs + j*tsStep + randrange(500), j%10, j%10, j%10, j%10, j%10, j%10)
                 rowsBatched += 1
                 if ((rowsBatched == batchNum) or (j == rowsPerTbl - 1)):
                     tsql.execute(sql)
@@ -77,7 +78,7 @@ class TDTestCase:
         tdLog.debug("insert data ............ [OK]")
         return
 
-    def prepareTestEnv(self):
+    def init_data(self, ctb_num: int = 10, rows_per_ctb: int = 10000, start_ts : int = 1537146000000 , ts_step : int = 500):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
         paraDict = {'dbName':     'test',
                     'dropFlag':   1,
@@ -89,11 +90,11 @@ class TDTestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'nchar', 'len':20, 'count':1},{'type': 'binary', 'len':20, 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'smallint', 'count':1},{'type': 'DOUBLE', 'count':1}],
                     'ctbPrefix':  't',
                     'ctbStartIdx': 0,
-                    'ctbNum':     100,
-                    'rowsPerTbl': 10000,
+                    'ctbNum':     ctb_num,
+                    'rowsPerTbl': rows_per_ctb,
                     'batchNum':   3000,
-                    'startTs':    1537146000000,
-                    'tsStep':     600000}
+                    'startTs':    start_ts,
+                    'tsStep':     ts_step}
 
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
@@ -115,8 +116,64 @@ class TDTestCase:
                 startTs=paraDict["startTs"],tsStep=paraDict["tsStep"])
         return
 
+    def create_tsma(self, tsma_name: str, db: str, tb: str, func_list: list, col_list: list, interval: str):
+        tdSql.execute('use %s' % db)
+        sql = "create tsma %s on %s.%s function(%s) column(%s) interval(%s)" % (tsma_name, db, tb, ','.join(func_list), ','.join(col_list), interval)
+        tdSql.execute(sql, queryTimes=1)
+
+    def drop_tsma(self, tsma_name: str, db: str):
+        sql = 'drop tsma %s.%s' % (db, tsma_name)
+        tdSql.execute(sql, queryTimes=1)
+
+    def test_explain_query_with_tsma(self):
+        self.init_data()
+        self.create_tsma('tsma1', 'test', 'meters', ['avg'], ['c1', 'c2'], '5m')
+        self.create_tsma('tsma2', 'test', 'meters', ['avg'], ['c1', 'c2'], '30m')
+        self.test_explain_query_with_tsma_interval()
+        self.test_explain_query_with_tsma_agg()
+
+    def test_explain_query_with_tsma_interval(self):
+        self.test_explain_query_with_tsma_interval_no_partition()
+        self.test_explain_query_with_tsma_interval_partition_by_col()
+        self.test_explain_query_with_tsma_interval_partition_by_tbname()
+        self.test_explain_query_with_tsma_interval_partition_by_tag()
+        self.test_explain_query_with_tsma_interval_partition_by_hybrid()
+
+    def test_explain_query_with_tsma_interval_no_partition(self):
+        pass
+
+    def test_explain_query_with_tsma_interval_partition_by_tbname(self):
+        pass
+
+    def test_explain_query_with_tsma_interval_partition_by_tag(self):
+        pass
+
+    def test_explain_query_with_tsma_interval_partition_by_col(self):
+        pass
+
+    def test_explain_query_with_tsma_interval_partition_by_hybrid(self):
+        pass
+
+    def test_explain_query_with_tsma_agg(self):
+        self.test_explain_query_with_tsma_agg_no_group_by()
+        self.test_explain_query_with_tsma_agg_group_by_hybrid()
+        self.test_explain_query_with_tsma_agg_group_by_tbname()
+        self.test_explain_query_with_tsma_agg_group_by_tag()
+
+    def test_explain_query_with_tsma_agg_no_group_by(self):
+        pass
+
+    def test_explain_query_with_tsma_agg_group_by_tbname(self):
+        pass
+
+    def test_explain_query_with_tsma_agg_group_by_tag(self):
+        pass
+
+    def test_explain_query_with_tsma_agg_group_by_hybrid(self):
+        pass
+
     def run(self):
-        self.prepareTestEnv()
+        self.test_explain_query_with_tsma()
         time.sleep(999999)
 
     def stop(self):
