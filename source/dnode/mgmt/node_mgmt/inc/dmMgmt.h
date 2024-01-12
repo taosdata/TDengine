@@ -48,6 +48,8 @@ typedef struct {
 typedef struct {
   void        *serverRpc;
   void        *clientRpc;
+  void        *statusRpc;
+  void        *syncRpc;
   SDnodeHandle msgHandles[TDMT_MAX];
 } SDnodeTrans;
 
@@ -112,6 +114,13 @@ int32_t dmInitServer(SDnode *pDnode);
 void    dmCleanupServer(SDnode *pDnode);
 int32_t dmInitClient(SDnode *pDnode);
 void    dmCleanupClient(SDnode *pDnode);
+
+int32_t dmInitStatusClient(SDnode *pDnode);
+void    dmCleanupStatusClient(SDnode *pDnode);
+
+int32_t dmInitSyncClient(SDnode *pDnode);
+void    dmCleanupSyncClient(SDnode *pDnode);
+
 int32_t dmInitStatusClient(SDnode *pDnode);
 void    dmCleanupStatusClient(SDnode *pDnode);
 SMsgCb  dmGetMsgcb(SDnode *pDnode);
