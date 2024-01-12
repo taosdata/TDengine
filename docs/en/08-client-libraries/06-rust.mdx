@@ -13,14 +13,23 @@ import RustInsert from "../07-develop/03-insert-data/_rust_sql.mdx"
 import RustBind from "../07-develop/03-insert-data/_rust_stmt.mdx"
 import RustSml from "../07-develop/03-insert-data/_rust_schemaless.mdx"
 import RustQuery from "../07-develop/04-query-data/_rust.mdx"
+import RequestId from "./_request_id.mdx";
 
 [![Crates.io](https://img.shields.io/crates/v/taos)](https://crates.io/crates/taos) ![Crates.io](https://img.shields.io/crates/d/taos) [![docs.rs](https://img.shields.io/docsrs/taos)](https://docs.rs/taos)
 
 `taos` is the official Rust client library for TDengine. Rust developers can develop applications to access the TDengine instance data.
 
-`taos` provides two ways to establish connections. One is the **Native Connection**, which connects to TDengine instances via the TDengine client driver (taosc). The other is the **WebSocket connection**, which connects to TDengine instances via the WebSocket interface provided by taosAdapter. You can specify a connection type with Cargo features. By default, both types are supported. The Websocket connection can be used on any platform. The native connection can be used on any platform that the TDengine Client supports.
-
 The source code for the Rust client library is located on [GitHub](https://github.com/taosdata/taos-connector-rust).
+
+## Connection types
+
+`taos` provides two ways to establish connections, among which we recommend using **websocket connection**. 
+- **Native Connection**, which connects to TDengine instances via the TDengine client driver (taosc). 
+- **WebSocket connection**, which connects to TDengine instances via the WebSocket interface provided by taosAdapter. 
+
+You can specify a connection type with Cargo features. By default, both types are supported. 
+
+For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#Establish-Connection)
 
 ## Supported platforms
 
@@ -311,7 +320,7 @@ async fn main() -> anyhow::Result<()> {
 
 ### execute SQL with req_id
 
-This req_id can be used to request link tracing.
+<RequestId />
 
 ```rust
 let rs = taos.query_with_req_id("select * from stable where tag1 is null", 1)?;

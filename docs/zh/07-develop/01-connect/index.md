@@ -129,18 +129,18 @@ driver-go 使用 cgo 封装了 taosc 的 API。cgo 需要使用 GCC 编译 C 的
 </TabItem>
 <TabItem label="Rust" value="rust">
 
-编辑 `Cargo.toml` 添加 `libtaos` 依赖即可。
+编辑 `Cargo.toml` 添加 `taos` 依赖即可。
 
 ```toml title=Cargo.toml
 [dependencies]
-libtaos = { version = "0.4.2"}
+taos = { version = "*"}
 ```
 
 :::info
-Rust 连接器通过不同的特性区分不同的连接方式。如果要建立 REST 连接，需要开启 `rest` 特性：
+Rust 连接器通过不同的特性区分不同的连接方式。默认同时支持原生连接和 Websocket 连接，如果仅需要建立 Websocket 连接，可设置 `ws` 特性：
 
 ```toml
-libtaos = { version = "*", features = ["rest"] }
+taos = { version = "*", default-features = false, features = ["ws"] }
 ```
 
 :::
