@@ -111,6 +111,7 @@ extern bool     tsMonitorComp;
 extern bool     tsEnableAudit;
 extern bool     tsEnableAuditCreateTable;
 extern int32_t  tsAuditInterval;
+extern int32_t  tsAuditBatchCount;
 
 // telem
 extern bool     tsEnableTelem;
