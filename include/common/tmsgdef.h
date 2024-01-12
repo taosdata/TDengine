@@ -26,26 +26,40 @@
 
 #undef TD_NEW_MSG_SEG
 #undef TD_DEF_MSG_TYPE
+#undef TD_CLOSE_MSG_SEG
 #define TD_NEW_MSG_SEG(TYPE) "null",
 #define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP) MSG, MSG "-rsp",
+#define TD_CLOSE_MSG_SEG(TYPE)
 
-char *tMsgInfo[] = {
+  char *tMsgInfo[] = {
 
+#elif defined(TD_MSG_RANGE_CODE_)
+
+  #undef TD_NEW_MSG_SEG
+  #undef TD_DEF_MSG_TYPE
+  #undef TD_CLOSE_MSG_SEG
+  #define TD_NEW_MSG_SEG(TYPE) 
+  #define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP)
+  #define TD_CLOSE_MSG_SEG(TYPE) TYPE,
+  int32_t tMsgRangeDict[] = {
 #elif defined(TD_MSG_NUMBER_)
 
-#undef TD_NEW_MSG_SEG
-#undef TD_DEF_MSG_TYPE
-#define TD_NEW_MSG_SEG(TYPE) TYPE##_NUM,
-#define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP) TYPE##_NUM, TYPE##_RSP_NUM,
-
+ #undef TD_NEW_MSG_SEG
+  #undef TD_DEF_MSG_TYPE
+  #undef TD_CLOSE_MSG_SEG
+  #define TD_NEW_MSG_SEG(TYPE) TYPE##_NUM,
+  #define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP) TYPE##_NUM, TYPE##_RSP_NUM,
+  #define TD_CLOSE_MSG_SEG(TYPE)
 enum {
 
 #elif defined(TD_MSG_DICT_)
 
-#undef TD_NEW_MSG_SEG
-#undef TD_DEF_MSG_TYPE
-#define TD_NEW_MSG_SEG(TYPE) TYPE##_NUM,
-#define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP)
+  #undef TD_NEW_MSG_SEG
+  #undef TD_DEF_MSG_TYPE
+  #undef TD_CLOSE_MSG_SEG
+  #define TD_NEW_MSG_SEG(TYPE) TYPE##_NUM,
+  #define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP)
+  #define TD_CLOSE_MSG_SEG(type)
 
 int32_t tMsgDict[] = {
 
@@ -53,17 +67,20 @@ int32_t tMsgDict[] = {
 
 #undef TD_NEW_MSG_SEG
 #undef TD_DEF_MSG_TYPE
+#undef TD_CLOSE_MSG_SEG
 #define TD_NEW_MSG_SEG(TYPE) TYPE##_SEG_CODE,
 #define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP)
+#define TD_CLOSE_MSG_SEG(TYPE)
 
 enum {
 
 #else
-
 #undef TD_NEW_MSG_SEG
 #undef TD_DEF_MSG_TYPE
+#undef TD_CLOSE_MSG_SEG
 #define TD_NEW_MSG_SEG(TYPE) TYPE = ((TYPE##_SEG_CODE) << 8),
 #define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP) TYPE, TYPE##_RSP,
+#define TD_CLOSE_MSG_SEG(TYPE) TYPE,
 
 enum { // WARN: new msg should be appended to segment tail
 #endif
@@ -82,10 +99,13 @@ enum { // WARN: new msg should be appended to segment tail
   TD_DEF_MSG_TYPE(TDMT_DND_NET_TEST, "net-test", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_CONFIG_DNODE, "config-dnode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_SYSTABLE_RETRIEVE, "dnode-retrieve", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_DND_MAX_MSG, "dnd-max", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_UNUSED_CODE, "dnd-max", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_ALTER_MNODE_TYPE, "dnode-alter-mnode-type", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_ALTER_VNODE_TYPE, "dnode-alter-vnode-type", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_CHECK_VNODE_LEARNER_CATCHUP, "dnode-check-vnode-learner-catchup", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_MAX_MSG, "dnd-max", NULL, NULL)
+  TD_CLOSE_MSG_SEG(TDMT_END_DND_MSG)
+  
 
   TD_NEW_MSG_SEG(TDMT_MND_MSG)
   TD_DEF_MSG_TYPE(TDMT_MND_CONNECT, "connect", NULL, NULL)
@@ -188,6 +208,7 @@ enum { // WARN: new msg should be appended to segment tail
   TD_DEF_MSG_TYPE(TDMT_MND_TRIM_DB_TIMER, "trim-db-tmr", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_GRANT_NOTIFY, "grant-notify", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_MAX_MSG, "mnd-max", NULL, NULL)
+  TD_CLOSE_MSG_SEG(TDMT_END_MND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_VND_MSG)
   TD_DEF_MSG_TYPE(TDMT_VND_SUBMIT, "submit", SSubmitReq, SSubmitRsp)
@@ -237,6 +258,7 @@ enum { // WARN: new msg should be appended to segment tail
   TD_DEF_MSG_TYPE(TDMT_VND_DROP_INDEX, "vnode-drop-index", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_DISABLE_WRITE, "vnode-disable-write", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_MAX_MSG, "vnd-max", NULL, NULL)
+  TD_CLOSE_MSG_SEG(TDMT_END_VND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_SCH_MSG)
   TD_DEF_MSG_TYPE(TDMT_SCH_QUERY, "query", NULL, NULL)
@@ -251,6 +273,7 @@ enum { // WARN: new msg should be appended to segment tail
   TD_DEF_MSG_TYPE(TDMT_SCH_LINK_BROKEN, "link-broken", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_SCH_TASK_NOTIFY, "task-notify", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_SCH_MAX_MSG, "sch-max", NULL, NULL)
+  TD_CLOSE_MSG_SEG(TDMT_END_SCH_MSG)
 
 
   TD_NEW_MSG_SEG(TDMT_STREAM_MSG)
@@ -267,9 +290,11 @@ enum { // WARN: new msg should be appended to segment tail
   TD_DEF_MSG_TYPE(TDMT_STREAM_TASK_RESUME, "stream-task-resume", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_STREAM_TASK_STOP, "stream-task-stop", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_STREAM_MAX_MSG, "stream-max", NULL, NULL)
+  TD_CLOSE_MSG_SEG(TDMT_END_STREAM_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MON_MSG)
   TD_DEF_MSG_TYPE(TDMT_MON_MAX_MSG, "monitor-max", NULL, NULL)
+  TD_CLOSE_MSG_SEG(TDMT_END_MON_MSG)
 
   TD_NEW_MSG_SEG(TDMT_SYNC_MSG)
   TD_DEF_MSG_TYPE(TDMT_SYNC_TIMEOUT, "sync-timer", NULL, NULL)
@@ -301,6 +326,7 @@ enum { // WARN: new msg should be appended to segment tail
   TD_DEF_MSG_TYPE(TDMT_SYNC_PREP_SNAPSHOT_REPLY, "sync-prep-snapshot-reply", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_SYNC_MAX_MSG, "sync-max", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_SYNC_FORCE_FOLLOWER, "sync-force-become-follower", NULL, NULL)
+  TD_CLOSE_MSG_SEG(TDMT_END_SYNC_MSG)
 
   TD_NEW_MSG_SEG(TDMT_VND_STREAM_MSG)
 //  TD_DEF_MSG_TYPE(TDMT_VND_STREAM_TRIGGER, "vnode-stream-trigger", NULL, NULL)
@@ -310,6 +336,7 @@ enum { // WARN: new msg should be appended to segment tail
   TD_DEF_MSG_TYPE(TDMT_VND_STREAM_TASK_UPDATE, "vnode-stream-update", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_STREAM_TASK_CHECK, "vnode-stream-task-check", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_STREAM_MAX_MSG, "vnd-stream-max", NULL, NULL)
+  TD_CLOSE_MSG_SEG(TDMT_END_VND_STREAM_MSG)
 
   TD_NEW_MSG_SEG(TDMT_VND_TMQ_MSG)
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_SUBSCRIBE, "vnode-tmq-subscribe", SMqRebVgReq, SMqRebVgRsp)
@@ -323,6 +350,11 @@ enum { // WARN: new msg should be appended to segment tail
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_VG_WALINFO, "vnode-tmq-vg-walinfo", SMqPollReq, SMqDataBlkRsp)
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_VG_COMMITTEDINFO, "vnode-tmq-committedinfo", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_MAX_MSG, "vnd-tmq-max", NULL, NULL)
+  TD_CLOSE_MSG_SEG(TDMT_END_TMQ_MSG)
+
+
+  TD_NEW_MSG_SEG(TDMT_MAX_MSG)  // msg end mark
+  TD_CLOSE_MSG_SEG(TDMT_END_MAX_MSG) 
 
 
 #if defined(TD_MSG_NUMBER_)
