@@ -30,7 +30,7 @@ class AutoGen:
 
     #  _columns_sql
     def gen_columns_sql(self, pre, cnt, binary_len, nchar_len):
-        types = [ 
+        types = [
             'timestamp',
             'tinyint',
             'smallint',
@@ -58,33 +58,33 @@ class AutoGen:
                 sqls += ","
             sqls += sql
             metas.append(sel)
-        
-        return metas, sqls;    
+
+        return metas, sqls;
 
     # gen tags data
     def gen_data(self, i, marr):
-        datas = ""   
+        datas = ""
         for c in marr:
             data = ""
-            if c == 0 : # timestamp
+            if c == 0:  # timestamp
                 data = "%d" % (self.ts + i)
-            elif c <= 4 : # small
-                data = "%d"%(i%128)
-            elif c <= 8 : # int
+            elif c <= 4:  # small
+                data = "%d" % (i % 128)
+            elif c <= 8:  # int
                 data = f"{i}"
-            elif c <= 10 : # float
-                data = "%f"%(i+i/1000)
-            elif c <= 11 : # bool
-                data = "%d"%(i%2)
-            elif c == 12 : # binary
+            elif c <= 10:  # float
+                data = "%f" % (i + i / 1000)
+            elif c <= 11:  # bool
+                data = "%d" % (i % 2)
+            elif c == 12:  # binary
                 data = '"' + self.random_string(self.bin_len) + '"'
-            elif c == 13 : # binary
+            elif c == 13:  # binary
                 data = '"' + self.random_string(self.nch_len) + '"'
 
             if datas != "":
                 datas += ","
             datas += data
-        
+
         return datas
 
     # generate specail wide random string
@@ -93,11 +93,11 @@ class AutoGen:
         return ''.join(random.choice(letters) for i in range(count))
 
     # create db
-    def create_db(self, dbname, vgroups = 2, replica = 1):
-        self.dbname  = dbname
+    def create_db(self, dbname, vgroups=2, replica=1):
+        self.dbname = dbname
         tdSql.execute(f'create database {dbname} vgroups {vgroups} replica {replica}')
         tdSql.execute(f'use {dbname}')
-        
+
     # create table or stable
     def create_stable(self, stbname, tag_cnt, column_cnt, binary_len, nchar_len):
         self.bin_len = binary_len
@@ -109,7 +109,7 @@ class AutoGen:
         sql = f"create table {stbname} (ts timestamp, {cols}) tags({tags})"
         tdSql.execute(sql)
 
-    # create child table 
+    # create child table
     def create_child(self, stbname, prename, cnt):
         self.child_cnt = cnt
         self.child_name = prename
@@ -120,7 +120,7 @@ class AutoGen:
 
         tdLog.info(f"create child tables {cnt} ok")
 
-    def insert_data_child(self, child_name, cnt, batch_size, step):        
+    def insert_data_child(self, child_name, cnt, batch_size, step):
         values = ""
         print("insert child data")
         ts = self.ts
@@ -130,7 +130,7 @@ class AutoGen:
             value = self.gen_data(i, self.mcols)
             ts += step
             values += f"({ts},{value}) "
-            if batch_size == 1 or (i > 0 and i % batch_size == 0) :
+            if batch_size == 1 or (i > 0 and i % batch_size == 0):
                 sql = f"insert into {child_name} values {values}"
                 tdSql.execute(sql)
                 values = ""
@@ -138,18 +138,25 @@ class AutoGen:
         # end batch
         if values != "":
             sql = f"insert into {child_name} values {values}"
+            tdLog.info(f" insert child data SQL{sql}")
             tdSql.execute(sql)
             tdLog.info(f" insert data i={i}")
             values = ""
 
-        tdLog.info(f" insert child data {child_name} finished, insert rows={cnt}")    
+        tdLog.info(f" insert child data {child_name} finished, insert rows={cnt} last_ts={ts}")
+        return ts
 
-    # insert data 
-    def insert_data(self, cnt):
+    # insert data
+    def insert_data(self, cnt, bContinue=False):
+        if not bContinue:
+            self.ts = 1600000000000
+
+        currTs = 1600000000000
         for i in range(self.child_cnt):
             name = f"{self.child_name}{i}"
-            self.insert_data_child(name, cnt, self.batch_size, 1)
+            currTs = self.insert_data_child(name, cnt, self.batch_size, 1)
 
+        self.ts = currTs
         tdLog.info(f" insert data ok, child table={self.child_cnt} insert rows={cnt}")
 
     # insert same timestamp to all childs
@@ -158,6 +165,4 @@ class AutoGen:
             name = f"{self.child_name}{i}"
             self.insert_data_child(name, cnt, self.batch_size, 0)
 
-        tdLog.info(f" insert same timestamp ok, child table={self.child_cnt} insert rows={cnt}")         
-
-
+        tdLog.info(f" insert same timestamp ok, child table={self.child_cnt} insert rows={cnt}")

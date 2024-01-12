@@ -899,6 +899,11 @@ class TDDnodes:
         dnodesRootDir = "%s/sim" % (self.path)
         return dnodesRootDir
 
+    def getDnodeDir(self, index):
+        self.check(index)
+        dnodesDir = "%s/sim/dnode%d" % (self.path, index)
+        return dnodesDir
+
     def getSimCfgPath(self):
         return self.sim.getCfgDir()
 

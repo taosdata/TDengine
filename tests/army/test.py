@@ -405,11 +405,11 @@ if __name__ == "__main__":
         else :
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
             dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums, mnodeNums=mnodeNums, independentMnode=independentMnode, level=level, disk=disk)
-            tdDnodes = ClusterDnodes(dnodeslist)
-            tdDnodes.init(deployPath, masterIp)
-            tdDnodes.setTestCluster(testCluster)
-            tdDnodes.setValgrind(valgrind)
-            tdDnodes.stopAll()
+            clusterDnodes.init(dnodeslist, deployPath, masterIp)
+            clusterDnodes.setTestCluster(testCluster)
+            clusterDnodes.setValgrind(valgrind)
+            clusterDnodes.setAsan(asan)
+            clusterDnodes.stopAll()
             for dnode in tdDnodes.dnodes:
                 tdDnodes.deploy(dnode.index, updateCfgDict)
             for dnode in tdDnodes.dnodes:
@@ -591,12 +591,11 @@ if __name__ == "__main__":
             print(independentMnode,"independentMnode valuse")
             # create dnode list
             dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums, mnodeNums=mnodeNums, independentMnode=independentMnode, level=level, disk=disk)
-            tdDnodes = ClusterDnodes(dnodeslist)
-            tdDnodes.init(deployPath, masterIp)
-            tdDnodes.setTestCluster(testCluster)
-            tdDnodes.setValgrind(valgrind)
-            tdDnodes.setAsan(asan)
-            tdDnodes.stopAll()
+            clusterDnodes.init(dnodeslist, deployPath, masterIp)
+            clusterDnodes.setTestCluster(testCluster)
+            clusterDnodes.setValgrind(valgrind)
+            clusterDnodes.setAsan(asan)
+            clusterDnodes.stopAll()
             for dnode in tdDnodes.dnodes:
                 tdDnodes.deploy(dnode.index,updateCfgDict)
             for dnode in tdDnodes.dnodes:
