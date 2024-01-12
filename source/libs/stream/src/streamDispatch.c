@@ -548,7 +548,8 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     if (pDataBlock->info.parTbName[0]) {
       if(pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER &&
           !isAutoTableName(pDataBlock->info.parTbName) &&
-          !alreadyAddGroupId(pDataBlock->info.parTbName)){
+          !alreadyAddGroupId(pDataBlock->info.parTbName) &&
+          groupId != 0){
         buildCtbNameAddGruopId(pDataBlock->info.parTbName, groupId);
       }
     } else {
