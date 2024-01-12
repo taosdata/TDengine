@@ -278,7 +278,7 @@ class TDTestCase:
 
     def queryOrderByAgg(self):
 
-        tdSql.error(f"SELECT * FROM t1 order by last(ts)")
+        tdSql.query(f"SELECT * FROM t1 order by last(ts)")
 
         tdSql.query(f"SELECT last(ts) FROM t1 order by last(ts)")
 

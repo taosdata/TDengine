@@ -2742,7 +2742,8 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t reCalSelectFuncNum(SSelectStmt* pSelect) {
+static int32_t resetSelectFuncNumWithoutDup(SSelectStmt* pSelect) {
+  if (pSelect->selectFuncNum <= 1) return TSDB_CODE_SUCCESS;
   pSelect->selectFuncNum = 0;
   SNodeList* pNodeList = nodesMakeList();
   int32_t code = nodesCollectSelectFuncs(pSelect, SQL_CLAUSE_FROM, NULL, fmIsSelectFunc, pNodeList);
@@ -3489,13 +3490,15 @@ static int32_t translateOrderByPosition(STranslateContext* pCxt, SNodeList* pPro
       } else if (0 == pos || pos > LIST_LENGTH(pProjectionList)) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT);
       } else {
-        SColumnRefNode* pCol = (SColumnRefNode*)nodesMakeNode(QUERY_NODE_COLUMN_REF);
-        if (NULL == pCol) {
-          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
-        }
-        strcpy(pCol->colName, ((SExprNode*)nodesListGetNode(pProjectionList, pos - 1))->aliasName);
-        ((SOrderByExprNode*)pNode)->pExpr = (SNode*)pCol;
-        nodesDestroyNode(pExpr);
+        // SColumnRefNode* pCol = (SColumnRefNode*)nodesMakeNode(QUERY_NODE_COLUMN_REF);
+        // if (NULL == pCol) {
+        //   return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
+        // }
+        // strcpy(pCol->colName, ((SExprNode*)nodesListGetNode(pProjectionList, pos - 1))->aliasName);
+
+        // (SExprNode*)nodesListGetNode(pProjectionList, pos - 1);
+        // ((SOrderByExprNode*)pNode)->pExpr = (SNode*)pCol;
+        // nodesDestroyNode(pExpr);
       }
     } else {
       *pOther = true;
@@ -4555,8 +4558,8 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
           return DEAL_RES_ERROR;
         }
         ((SExprNode*)pNew)->orderAlias = true;
-        nodesDestroyNode(*pNode);
-        *pNode = pNew;
+        ((SOrderByExprNode*)*pNode)->pExpr = pNew;
+        nodesDestroyNode(pExpr);
         return DEAL_RES_CONTINUE;
       }
     }
@@ -4634,7 +4637,7 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateOrderBy(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    reCalSelectFuncNum(pSelect);
+    resetSelectFuncNumWithoutDup(pSelect);
     code = checkAggColCoexist(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
