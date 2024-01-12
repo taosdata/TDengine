@@ -417,13 +417,13 @@ TEST_F(ParserSelectTest, semanticCheck) {
 
   run("SELECT COUNT(*) FROM t1 order by last(c2)");
 
-  run("SELECT c1 FROM t1 order by last(ts)", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  run("SELECT c1 FROM t1 order by last(ts)");
 
-  run("SELECT ts FROM t1 order by last(ts)", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  run("SELECT ts FROM t1 order by last(ts)");
 
-  run("SELECT c2 FROM t1 order by last(ts)", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  run("SELECT c2 FROM t1 order by last(ts)");
 
-  run("SELECT * FROM t1 order by last(ts)", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  run("SELECT * FROM t1 order by last(ts)");
 
   run("SELECT last(ts) FROM t1 order by last(ts)");
 
