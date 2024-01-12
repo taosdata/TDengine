@@ -509,26 +509,37 @@ mod tests {
         let a = StringArray::from(vec![Some("11234567890")]);
         let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
 
-
         let expr = Expr::try_new(r#"a.append("abc")"#, true).unwrap();
         let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
         dbg!(&values);
-        assert_eq!(values.as_string::<i32>().iter().collect_vec(), [Some("11234567890abc")]);
+        assert_eq!(
+            values.as_string::<i32>().iter().collect_vec(),
+            [Some("11234567890abc")]
+        );
 
         let expr = Expr::try_new(r#"a.replace("1","2")"#, true).unwrap();
         let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
         dbg!(&values);
-        assert_eq!(values.as_string::<i32>().iter().collect_vec(), [Some("22234567890")]);
+        assert_eq!(
+            values.as_string::<i32>().iter().collect_vec(),
+            [Some("22234567890")]
+        );
 
         let expr = Expr::try_new(r#"a.replace("1","2", 1)"#, true).unwrap();
         let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
         dbg!(&values);
-        assert_eq!(values.as_string::<i32>().iter().collect_vec(), [Some("21234567890")]);
+        assert_eq!(
+            values.as_string::<i32>().iter().collect_vec(),
+            [Some("21234567890")]
+        );
 
         let expr = Expr::try_new(r#"a.truncate(4)"#, true).unwrap();
         let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
         dbg!(&values);
-        assert_eq!(values.as_string::<i32>().iter().collect_vec(), [Some("1123")]);
+        assert_eq!(
+            values.as_string::<i32>().iter().collect_vec(),
+            [Some("1123")]
+        );
     }
     #[test]
     fn test_if_statement() {
