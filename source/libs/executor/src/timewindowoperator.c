@@ -450,7 +450,7 @@ int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBl
       TSKEY next = primaryKeys[startPos];
       if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
         pNext->skey = taosTimeTruncate(next, pInterval);
-        pNext->ekey = taosTimeAdd(pNext->skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+        pNext->ekey = taosTimeGetIntervalEnd(pNext->skey, pInterval);
       } else {
         pNext->ekey += ((next - pNext->ekey + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
         pNext->skey = pNext->ekey - pInterval->interval + 1;
@@ -459,7 +459,7 @@ int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBl
       TSKEY next = primaryKeys[startPos];
       if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
         pNext->skey = taosTimeTruncate(next, pInterval);
-        pNext->ekey = taosTimeAdd(pNext->skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+        pNext->ekey = taosTimeGetIntervalEnd(pNext->skey, pInterval);
       } else {
         pNext->skey -= ((pNext->skey - next + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
         pNext->ekey = pNext->skey + pInterval->interval - 1;
