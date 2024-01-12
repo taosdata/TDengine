@@ -40,15 +40,16 @@ pub struct CollectConfig {
 }
 
 impl CollectConfig {
-    pub async fn new_empty() -> anyhow::Result<Self> {
-        Ok(Self {
+    pub fn new_empty() -> Self {
+        Self {
             interval: None,
             limit: None,
             ua: None,
             da: None,
             dump: None,
-        })
+        }
     }
+
     pub async fn from_dsn(dsn: &Dsn, id: Option<i64>) -> anyhow::Result<Self> {
         let opc_type = OpcType::from_dsn(dsn)?;
         let collect_config = match opc_type {
