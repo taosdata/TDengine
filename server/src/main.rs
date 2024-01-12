@@ -184,7 +184,8 @@ async fn main() -> anyhow::Result<()> {
         String::from("")
     };
 
-    let server = if !certificate.is_empty() && !certificate_key.is_empty() {
+    // error reported when configuring only one file, so change it to '||' @zqsong
+    let server = if !certificate.is_empty() || !certificate_key.is_empty() {
         let cert_file = File::open(certificate).expect("Failed to open certificate file");
         let cert_key_file = File::open(certificate_key).expect("Failed to open private key file");
 
