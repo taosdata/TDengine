@@ -67,7 +67,7 @@ class TMQCom:
         tdLog.info("consume info sql: %s"%sql)
         tdSql.execute(sql)
 
-    def selectConsumeResult(self,expectRows,cdbName='cdb',count=30):
+    def selectConsumeResult(self,expectRows,cdbName='cdb',count=120):
         resultList=[]
         count_init = 0
         while True:
