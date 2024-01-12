@@ -1118,7 +1118,7 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
       if (pLastCol->ts <= eKey && pLastCol->ts >= sKey) {
         erase = true;
       }
-      taosLRUCacheRelease(pTsdb->lruCache, h, true);
+      taosLRUCacheRelease(pTsdb->lruCache, h, erase);
     }
     if (erase) {
       taosLRUCacheErase(pTsdb->lruCache, keys_list[i], klen);
@@ -1133,7 +1133,7 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
       if (pLastCol->ts <= eKey && pLastCol->ts >= sKey) {
         erase = true;
       }
-      taosLRUCacheRelease(pTsdb->lruCache, h, true);
+      taosLRUCacheRelease(pTsdb->lruCache, h, erase);
     }
     if (erase) {
       taosLRUCacheErase(pTsdb->lruCache, keys_list[num_keys + i], klen);
@@ -1904,9 +1904,9 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
 
   if (SFSNEXTROW_FILESET == state->state) {
   _next_fileset:
-    if (--state->iFileSet < 0) {
-      clearLastFileSet(state);
+    clearLastFileSet(state);
 
+    if (--state->iFileSet < 0) {
       *ppRow = NULL;
       return code;
     } else {
@@ -2776,7 +2776,9 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
 
         taosArraySet(pColArray, iCol, &lastCol);
         int32_t aColIndex = taosArraySearchIdx(aColArray, &lastCol.colVal.cid, compareInt16Val, TD_EQ);
-        taosArrayRemove(aColArray, aColIndex);
+        if (aColIndex >= 0) {
+          taosArrayRemove(aColArray, aColIndex);
+        }
       } else if (!COL_VAL_IS_VALUE(tColVal) && !COL_VAL_IS_VALUE(pColVal) && !setNoneCol) {
         noneCol = iCol;
         setNoneCol = true;
