@@ -533,7 +533,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
         );
     }
 
-    let config = OPCConfig::from_dsn_point_mode(dsn).await;
+    let config = OPCConfig::from_dsn_for_validate(dsn);
     match config {
         Err(err) => DataSourceValidation::invalid(
             "opc".to_string(),
