@@ -23,6 +23,25 @@
 #include "cJSON.h"
 #include "queryInt.h"
 
+int32_t getAsofJoinReverseOp(EOperatorType op) {
+  switch (op) {
+    case OP_TYPE_GREATER_THAN:
+      return OP_TYPE_LOWER_THAN;
+    case OP_TYPE_GREATER_EQUAL:
+      return OP_TYPE_LOWER_EQUAL;
+    case OP_TYPE_LOWER_THAN:
+      return OP_TYPE_GREATER_THAN;
+    case OP_TYPE_LOWER_EQUAL:
+      return OP_TYPE_GREATER_EQUAL;
+    case OP_TYPE_EQUAL:
+      return OP_TYPE_EQUAL;
+    default:
+      break;
+  }
+
+  return -1;
+}
+
 const SSchema* tGetTbnameColumnSchema() { 
   static struct SSchema _s = {
       .colId = TSDB_TBNAME_COLUMN_INDEX,

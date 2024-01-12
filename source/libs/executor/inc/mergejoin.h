@@ -52,12 +52,13 @@ typedef struct SMJoinRowPos {
 typedef struct SMJoinColMap {
   int32_t  srcSlot;
   int32_t  dstSlot;
+  bool     vardata;
+  int32_t  bytes;
 } SMJoinColMap;
 
 typedef struct SMJoinColInfo {
   int32_t  srcSlot;
   int32_t  dstSlot;
-  bool     keyCol;
   bool     vardata;
   int32_t* offset;
   int32_t  bytes;
@@ -171,16 +172,32 @@ typedef struct SMJoinMergeCtx {
   joinCartFp          mergeCartFp;
 } SMJoinMergeCtx;
 
+typedef struct SMJoinWinCache {
+  int32_t                    pageLimit;
+  
+  int64_t                    rowsNum;
+  int32_t                    rowOffset;
+  int32_t                    outBlkIdx;
+  int32_t                    outRowOffset;
+
+  int32_t                    colNum;
+  SSDataBlock*               blk;
+} SMJoinWinCache;
+
 typedef struct SMJoinWindowCtx {
   struct SMJoinOperatorInfo* pJoin;
-  int32_t                    asofOp;
+  bool                       ascTs;
+  
+  int32_t                    asofOpType;
+  bool                       asofLowerRow;
   bool                       asofEqRow;
+  bool                       asofGreaterRow;
   int64_t                    jLimit;
+  int32_t                    blkThreshold;
   SSDataBlock*               finBlk;
 
-  int64_t                    resRowsNum;
-  int32_t                    resRowOffset;
-  SArray*                    resArray;
+  bool                       grpRemains;
+  SMJoinWinCache             cache;
 } SMJoinWindowCtx;
 
 
@@ -249,6 +266,10 @@ typedef struct SMJoinOperatorInfo {
 
 #define MJOIN_ROW_BITMAP_SET(_b, _base, _idx) (!colDataIsNull_f((_b + _base), _idx))
 #define MJOIN_SET_ROW_BITMAP(_b, _base, _idx) colDataClearNull_f((_b + _base), _idx)
+
+#define ASOF_EQ_ROW_INCLUDED(_op) (OP_TYPE_GREATER_EQUAL == (_op) || OP_TYPE_LOWER_EQUAL == (_op) || OP_TYPE_EQUAL == (_op))
+#define ASOF_LOWER_ROW_INCLUDED(_op) (OP_TYPE_LOWER_EQUAL == (_op) || OP_TYPE_LOWER_THAN == (_op))
+#define ASOF_GREATER_ROW_INCLUDED(_op) (OP_TYPE_GREATER_EQUAL == (_op) || OP_TYPE_GREATER_THAN == (_op))
 
 
 #define MJOIN_GET_TB_COL_TS(_col, _ts, _tb)                                     \

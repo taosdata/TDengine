@@ -707,9 +707,9 @@ static int32_t mJoinInitKeyColsInfo(SMJoinTableCtx* pTable, SNodeList* pList, bo
 }
 
 
-static int32_t mJoinInitColsMap(int32_t* colNum, SMJoinColMap** pCols, int32_t blkId, SNodeList* pList) {
-  *pCols = taosMemoryMalloc(LIST_LENGTH(pList) * sizeof(SMJoinColMap));
-  if (NULL == *pCols) {
+static int32_t mJoinInitFinColsInfo(SMJoinTableCtx* pTable, SNodeList* pList) {
+  pTable->finCols = taosMemoryMalloc(LIST_LENGTH(pList) * sizeof(SMJoinColMap));
+  if (NULL == pTable->finCols) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   
@@ -718,14 +718,16 @@ static int32_t mJoinInitColsMap(int32_t* colNum, SMJoinColMap** pCols, int32_t b
   FOREACH(pNode, pList) {
     STargetNode* pTarget = (STargetNode*)pNode;
     SColumnNode* pColumn = (SColumnNode*)pTarget->pExpr;
-    if (pColumn->dataBlockId == blkId) {
-      (*pCols)[i].srcSlot = pColumn->slotId;
-      (*pCols)[i].dstSlot = pTarget->slotId;
+    if (pColumn->dataBlockId == pTable->blkId) {
+      pTable->finCols[i].srcSlot = pColumn->slotId;
+      pTable->finCols[i].dstSlot = pTarget->slotId;
+      pTable->finCols[i].bytes = pColumn->node.resType.bytes;
+      pTable->finCols[i].vardata = IS_VAR_DATA_TYPE(pColumn->node.resType.type);
       ++i;
     }
   }  
 
-  *colNum = i;
+  pTable->finNum = i;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -737,7 +739,7 @@ static int32_t mJoinInitTableInfo(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysi
   MJ_ERR_RET(mJoinInitPrimKeyInfo(pTable, (0 == idx) ? pJoinNode->leftPrimSlotId : pJoinNode->rightPrimSlotId));
 
   MJ_ERR_RET(mJoinInitKeyColsInfo(pTable, (0 == idx) ? pJoinNode->pEqLeft : pJoinNode->pEqRight, JOIN_TYPE_FULL == pJoin->joinType));
-  MJ_ERR_RET(mJoinInitColsMap(&pTable->finNum, &pTable->finCols, pTable->blkId, pJoinNode->pTargets));
+  MJ_ERR_RET(mJoinInitFinColsInfo(pTable, pJoinNode->pTargets));
 
   memcpy(&pTable->inputStat, pStat, sizeof(*pStat));
 
@@ -1329,6 +1331,12 @@ int32_t mJoinSetImplFp(SMJoinOperatorInfo* pJoin) {
           break;
         case JOIN_STYPE_ANTI:
           pJoin->joinFp = mAntiJoinDo;
+          break;
+        case JOIN_STYPE_ASOF:
+          pJoin->joinFp = mAsofJoinDo;
+          break;
+        case JOIN_STYPE_WIN:
+          pJoin->joinFp = mWinJoinDo;
           break;
         default:
           break;

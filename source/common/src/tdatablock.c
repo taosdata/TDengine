@@ -1353,13 +1353,13 @@ void blockDataReset(SSDataBlock* pDataBlock) {
  * the all NULL value in this column. It is an internal representation of all NULL value column, and no visible to
  * any users. The length of TSDB_DATA_TYPE_NULL is 0, and it is an special case.
  */
-static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockInfo, uint32_t numOfRows,
+int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockInfo, uint32_t numOfRows,
                                 bool clearPayload) {
-  if (numOfRows <= 0 || numOfRows <= pBlockInfo->capacity) {
+  if (numOfRows <= 0 || pBlockInfo && numOfRows <= pBlockInfo->capacity) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t existedRows = pBlockInfo->rows;
+  int32_t existedRows = pBlockInfo ? pBlockInfo->rows : 0;
 
   if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
     char* tmp = taosMemoryRealloc(pColumn->varmeta.offset, sizeof(int32_t) * numOfRows);

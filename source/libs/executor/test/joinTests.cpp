@@ -2198,7 +2198,7 @@ void runSingleTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
   SSortMergeJoinPhysiNode* pNode = createDummySortMergeJoinPhysiNode(param->joinType, param->subType, param->cond, param->filter, param->asc);    
-  createDummyBlkList(50, 50, 50, 50, 10);
+  createDummyBlkList(200, 200, 200, 200, 20);
   
   while (contLoop) {
     rerunBlockedHere();
@@ -2230,7 +2230,7 @@ void handleCaseEnd() {
 
 }  // namespace
 
-#if 0
+#if 1
 #if 1
 TEST(innerJoin, noCondTest) {
   SJoinTestParam param;
@@ -2333,7 +2333,7 @@ TEST(innerJoin, fullCondTest) {
 #endif
 
 
-#if 0
+#if 1
 #if 1
 TEST(leftOuterJoin, noCondTest) {
   SJoinTestParam param;

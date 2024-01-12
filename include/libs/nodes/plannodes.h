@@ -477,7 +477,9 @@ typedef struct SSortMergeJoinPhysiNode {
   EJoinSubType subType;
   SNode*       pWindowOffset;
   SNode*       pJLimit;
-  int32_t      asofOp;
+  int32_t      asofOpType;
+  SNode*       leftPrimExpr;
+  SNode*       rightPrimExpr;
   int32_t      leftPrimSlotId;
   int32_t      rightPrimSlotId;
   SNodeList*   pEqLeft;
