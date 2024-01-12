@@ -872,7 +872,7 @@ int64_t      streamMetaGetLatestCheckpointId(SStreamMeta* pMeta);
 void         streamMetaNotifyClose(SStreamMeta* pMeta);
 void         streamMetaStartHb(SStreamMeta* pMeta);
 bool         streamMetaTaskInTimer(SStreamMeta* pMeta);
-int32_t      streamMetaUpdateTaskDownstreamStatus(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, int64_t startTs,
+int32_t      streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, int64_t startTs,
                                                   int64_t endTs, bool ready);
 void         streamMetaRLock(SStreamMeta* pMeta);
 void         streamMetaRUnLock(SStreamMeta* pMeta);
