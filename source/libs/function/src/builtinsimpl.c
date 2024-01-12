@@ -549,6 +549,7 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t countInvertFunction(SqlFunctionCtx* pCtx) {
   int64_t numOfElem = getNumOfElems(pCtx);
 
@@ -559,6 +560,7 @@ int32_t countInvertFunction(SqlFunctionCtx* pCtx) {
   SET_VAL(pResInfo, *((int64_t*)buf), 1);
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 int32_t combineFunction(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
@@ -642,6 +644,7 @@ _sum_over:
   return TSDB_CODE_SUCCESS;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t sumInvertFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = 0;
 
@@ -699,6 +702,7 @@ int32_t sumInvertFunction(SqlFunctionCtx* pCtx) {
   SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
@@ -1230,6 +1234,7 @@ int32_t stddevFunctionMerge(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t stddevInvertFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = 0;
 
@@ -1294,6 +1299,7 @@ int32_t stddevInvertFunction(SqlFunctionCtx* pCtx) {
   SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SInputColumnInfoData* pInput = &pCtx->input;
@@ -1576,11 +1582,6 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   colDataSetVal(pCol, currentRow, buf, pResInfo->isNullRes);
 
   return pResInfo->numOfRes;
-}
-
-int32_t leastSQRInvertFunction(SqlFunctionCtx* pCtx) {
-  // TODO
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t leastSQRCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
