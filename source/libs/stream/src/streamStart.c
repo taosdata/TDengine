@@ -1029,6 +1029,11 @@ void streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
           pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
     }
   } else {
+    ASSERT(pTask->info.fillHistory == 0);
+    if (pTask->info.taskLevel >= TASK_LEVEL__AGG) {
+      return;
+    }
+
     int64_t ekey = 0;
     if (pRange->window.ekey < INT64_MAX) {
       ekey = pRange->window.ekey + 1;
@@ -1043,10 +1048,13 @@ void streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
     pRange->range.minVer = 0;
     pRange->range.maxVer = ver;
 
-    stDebug("s-task:%s level:%d related fill-history task exists, update stream calc time window:%" PRId64 " - %" PRId64
+    stDebug("s-task:%s level:%d related fill-history task exists, set stream task timeWindow:%" PRId64 " - %" PRId64
             ", verRang:%" PRId64 " - %" PRId64,
-            pTask->id.idStr, pTask->info.taskLevel, pRange->window.skey, pRange->window.ekey, pRange->range.minVer,
-            pRange->range.maxVer);
+            pTask->id.idStr, pTask->info.taskLevel, pRange->window.skey, pRange->window.ekey, ver, INT64_MAX);
+
+    SVersionRange verRange = {.minVer = ver, .maxVer = INT64_MAX};
+    STimeWindow win = pRange->window;
+    streamSetParamForStreamScannerStep2(pTask, &verRange, &win);
   }
 }
 

@@ -1079,16 +1079,6 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator) {
   return (rows == 0) ? NULL : pBlock;
 }
 
-static void setInverFunction(SqlFunctionCtx* pCtx, int32_t num, EStreamType type) {
-  for (int i = 0; i < num; i++) {
-    if (type == STREAM_INVERT) {
-      fmSetInvertFunc(pCtx[i].functionId, &(pCtx[i].fpSet));
-    } else if (type == STREAM_NORMAL) {
-      fmSetNormalFunc(pCtx[i].functionId, &(pCtx[i].fpSet));
-    }
-  }
-}
-
 static void doClearWindowImpl(SResultRowPosition* p1, SDiskbasedBuf* pResultBuf, SExprSupp* pSup, int32_t numOfOutput) {
   SResultRow* pResult = getResultRowByPos(pResultBuf, p1, false);
   if (NULL == pResult) {

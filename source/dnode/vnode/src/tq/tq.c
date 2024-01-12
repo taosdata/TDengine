@@ -963,7 +963,6 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   // let's decide which step should be executed now
   if (pTask->execInfo.step1Start == 0) {
     int64_t ts = taosGetTimestampMs();
-
     pTask->execInfo.step1Start = ts;
     tqDebug("s-task:%s start scan-history stage(step 1), status:%s, step1 startTs:%" PRId64, id, pStatus, ts);
   } else {
