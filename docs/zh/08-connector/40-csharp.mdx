@@ -6,19 +6,22 @@ title: TDengine C# Connector
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import RequestId from "./_request_id.mdx";
 
 `TDengine.Connector` 是 TDengine 提供的 C# 语言连接器。C# 开发人员可以通过它开发存取 TDengine 集群数据的 C# 应用软件。
 
-`TDengine.Connector` 连接器支持通过 TDengine 客户端驱动（taosc）建立与 TDengine 运行实例的连接，提供数据写入、查询、数据订阅、schemaless 数据写入、参数绑定接口数据写入等功能。 `TDengine.Connector` 自 v3.0.1 起还支持 WebSocket 连接，提供数据写入、查询、参数绑定接口数据写入等功能。
+## 连接方式
 
-本文介绍如何在 Linux 或 Windows 环境中安装 `TDengine.Connector`，并通过 `TDengine.Connector` 连接 TDengine 集群，进行数据写入、查询等基本操作。
+`TDengine.Connector` 提供两种形式的连接器
+* **原生连接**，通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、数据订阅、schemaless 接口和参数绑定接口等功能。
+* **Websocket 连接**，通过 taosAdapter 提供的 Websocket 接口连接 TDengine 实例，WebSocket 连接实现的功能集合和原生连接有少量不同。（自 v3.0.1 起）
 
-:::warning
+连接方式的详细介绍请参考：[连接器建立连接的方式](../../develop/connect/#连接器建立连接的方式)
+
+## 兼容性
+
 * `TDengine.Connector` 3.1.0 版本进行了完整的重构，不再兼容 3.0.2 及以前版本。3.0.2 文档请参考 [nuget](https://www.nuget.org/packages/TDengine.Connector/3.0.2)
 * `TDengine.Connector` 3.x 不兼容 TDengine 2.x，如果在运行 TDengine 2.x 版本的环境下需要使用 C# 连接器请使用 TDengine.Connector 的 1.x 版本。
-:::
-
-`TDengine.Connector` 的源码托管在 [GitHub](https://github.com/taosdata/taos-connector-dotnet/tree/3.0)。
 
 ## 支持的平台
 
@@ -406,6 +409,8 @@ namespace WSQuery
 </Tabs>
 
 ### 执行带有 reqId 的 SQL
+
+<RequestId />
 
 <Tabs defaultValue="native" groupId="connect">
 <TabItem value="native" label="原生连接">

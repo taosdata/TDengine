@@ -14,14 +14,23 @@ import GoInfluxLine from "../07-develop/03-insert-data/_go_line.mdx"
 import GoOpenTSDBTelnet from "../07-develop/03-insert-data/_go_opts_telnet.mdx"
 import GoOpenTSDBJson from "../07-develop/03-insert-data/_go_opts_json.mdx"
 import GoQuery from "../07-develop/04-query-data/_go.mdx"
+import RequestId from "./_request_id.mdx";
 
 `driver-go` 是 TDengine 的官方 Go 语言连接器，实现了 Go 语言 [database/sql](https://golang.org/pkg/database/sql/)  包的接口。Go 开发人员可以通过它开发存取 TDengine 集群数据的应用软件。
 
-`driver-go` 提供两种建立连接的方式。一种是**原生连接**，它通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 运行实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。另外一种是 **REST 连接**，它通过 taosAdapter 提供的 REST 接口连接 TDengine 运行实例。REST 连接实现的功能特性集合和原生连接有少量不同。
+## 连接方式
 
-本文介绍如何安装 `driver-go`，并通过 `driver-go` 连接 TDengine 集群、进行数据查询、数据写入等基本操作。
+`driver-go` 提供三种建立连接的方式。
 
-`driver-go` 的源码托管在 [GitHub](https://github.com/taosdata/driver-go)。
+* **原生连接**，通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、数据订阅、schemaless 接口和参数绑定接口等功能。
+* **REST 连接**，通过 taosAdapter 提供的 HTTP 接口连接 TDengine 实例，不支持 schemaless 和数据订阅等特性。
+* **Websocket 连接**，通过 taosAdapter 提供的 Websocket 接口连接 TDengine 实例，WebSocket 连接实现的功能集合和原生连接有少量不同。
+
+连接方式的详细介绍请参考：[连接器建立连接的方式](../../develop/connect/#连接器建立连接的方式)
+
+## 兼容性
+
+支持最低 Go 版本 1.14，建议使用最新 Go 版本
 
 ## 支持的平台
 
@@ -264,7 +273,7 @@ if err != nil {
 
 ### 执行带有 reqId 的 SQL
 
-此 reqId 可用于请求链路追踪。
+<RequestId />
 
 ```go
 db, err := sql.Open("taosSql", "root:taosdata@tcp(localhost:6030)/")
