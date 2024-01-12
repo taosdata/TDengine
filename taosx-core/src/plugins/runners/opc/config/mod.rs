@@ -99,8 +99,21 @@ impl OPCConfig {
             collect: if dsn.get("csv_config_file").is_some() {
                 CollectConfig::from_dsn(dsn, None).await?
             } else {
-                CollectConfig::new_empty().await?
+                CollectConfig::new_empty()
             },
+            report: ReportConfig::from_dsn(dsn, 0)?,
+            param_mapping: HashMap::new(),
+            opc_table_config: None,
+        })
+    }
+
+    pub fn from_dsn_for_validate(dsn: &Dsn) -> anyhow::Result<Self> {
+        Ok(OPCConfig {
+            opc_type: OpcType::from_dsn(dsn)?,
+            debug: Self::parse_debug(dsn)?,
+            connect: ConnectConfig::from_dsn(dsn)?,
+            points: None,
+            collect: CollectConfig::new_empty(),
             report: ReportConfig::from_dsn(dsn, 0)?,
             param_mapping: HashMap::new(),
             opc_table_config: None,

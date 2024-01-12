@@ -11,7 +11,6 @@ use tracing::{instrument, Span};
 
 use taosx_ipc::types::OptionSet;
 
-use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::opc::config::points::PointsConfig;
@@ -22,6 +21,8 @@ use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
     Transferred,
 };
+
+use super::get_data_dir;
 
 pub mod config;
 mod opc_type;
@@ -538,20 +539,16 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             "opc".to_string(),
             format!("invalid opc dsn: {}, cause: {:?}", dsn.to_string(), err),
         ),
-        Ok(c) => {
-            let valid = validate_opc(c).await;
-            match valid {
-                Err(err) => DataSourceValidation::invalid(
-                    "opc".to_string(),
-                    format!(
-                        "failed to connect to dsn: {}, cause: {}",
-                        dsn.to_string(),
-                        err.to_string()
-                    ),
+        Ok(c) => validate_opc(c).await.unwrap_or_else(|err| {
+            DataSourceValidation::invalid(
+                "opc".to_string(),
+                format!(
+                    "failed to connect to dsn: {}, cause: {}",
+                    dsn.to_string(),
+                    err.to_string()
                 ),
-                Ok(v) => v,
-            }
-        }
+            )
+        }),
     }
 }
 

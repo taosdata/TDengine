@@ -21,7 +21,6 @@ impl ReportConfig {
 
     fn parse_concurrent(dsn: &Dsn) -> anyhow::Result<Option<i64>> {
         Ok(dsn
-            .params
             .get("concurrent")
             .or(dsn.get("write_concurrency"))
             .map(|v| {
