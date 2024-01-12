@@ -147,8 +147,6 @@ const char* streamQueueItemGetTypeStr(int32_t type) {
 
 int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
                                     int32_t* blockSize) {
-  int32_t     retryTimes = 0;
-  int32_t     MAX_RETRY_TIMES = 5;
   const char* id = pTask->id.idStr;
   int32_t     taskLevel = pTask->info.taskLevel;
 

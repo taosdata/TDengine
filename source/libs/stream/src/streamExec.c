@@ -371,7 +371,6 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   // In case of sink tasks, no need to halt them.
   // In case of source tasks and agg tasks, we should HALT them, and wait for them to be idle. And then, it's safe to
   // start the task state transfer procedure.
-//  char* p = NULL;
   SStreamTaskState* pState = streamTaskGetStatus(pStreamTask);
   status = pState->state;
   char* p = pState->name;
@@ -392,8 +391,12 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   }
 
   // 1. expand the query time window for stream task of WAL scanner
-  pTimeWindow->skey = INT64_MIN;
-  qStreamInfoResetTimewindowFilter(pStreamTask->exec.pExecutor);
+  if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+    pTimeWindow->skey = INT64_MIN;
+    qStreamInfoResetTimewindowFilter(pStreamTask->exec.pExecutor);
+  } else {
+    stDebug("s-task:%s non-source task no need to reset filter window", pStreamTask->id.idStr);
+  }
 
   // 2. transfer the ownership of executor state
   streamTaskReleaseState(pTask);
@@ -407,10 +410,13 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   // 4. free it and remove fill-history task from disk meta-store
   streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
 
-  // 5. save to disk
+  // 5. assign the status to the value that will be kept in disk
   pStreamTask->status.taskStatus = streamTaskGetStatus(pStreamTask)->state;
 
-  // 6. add empty delete block
+  // 6. open the inputQ for all upstream tasks
+  streamTaskOpenAllUpstreamInput(pStreamTask);
+
+  // 7. add empty delete block
   if ((pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) && taosQueueEmpty(pStreamTask->inputq.queue->pQueue)) {
     SStreamRefDataBlock* pItem = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
 
@@ -430,6 +436,8 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
 
 int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   int32_t code = TSDB_CODE_SUCCESS;
+  SStreamMeta* pMeta = pTask->pMeta;
+
   ASSERT(pTask->status.appendTranstateBlock == 1);
 
   int32_t level = pTask->info.taskLevel;
@@ -439,8 +447,14 @@ int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
 
   if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SOURCE) {  // do transfer task operator states.
     code = streamDoTransferStateToStreamTask(pTask);
-  } else { // drop fill-history task
-    streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pTask->pMeta->vgId, &pTask->id);
+  } else { // drop fill-history task and open inputQ of sink task
+    SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
+    if (pStreamTask != NULL) {
+      streamTaskOpenAllUpstreamInput(pStreamTask);
+      streamMetaReleaseTask(pMeta, pStreamTask);
+    }
+
+    streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
   }
 
   return code;
@@ -496,16 +510,17 @@ static void doSetStreamInputBlock(SStreamTask* pTask, const void* pInput, int64_
   }
 }
 
-int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) {
+int32_t streamProcessTransstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) {
   const char* id = pTask->id.idStr;
   int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     level = pTask->info.taskLevel;
 
-  int32_t level = pTask->info.taskLevel;
   if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SINK) {
     int32_t remain = streamAlignTransferState(pTask);
+
     if (remain > 0) {
       streamFreeQitem((SStreamQueueItem*)pBlock);
-      stDebug("s-task:%s receive upstream transfer state msg, remain:%d", id, remain);
+      stDebug("s-task:%s receive upstream trans-state msg, not sent remain:%d", id, remain);
       return 0;
     }
   }
@@ -536,7 +551,7 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
     }
   } else {  // non-dispatch task, do task state transfer directly
     streamFreeQitem((SStreamQueueItem*)pBlock);
-    stDebug("s-task:%s non-dispatch task, level:%d start to transfer state directly", id, pTask->info.taskLevel);
+    stDebug("s-task:%s non-dispatch task, level:%d start to transfer state directly", id, level);
     ASSERT(pTask->info.fillHistory == 1);
 
     code = streamTransferStateToStreamTask(pTask);
@@ -604,7 +619,7 @@ int32_t doStreamExecTask(SStreamTask* pTask) {
     }
 
     if (type == STREAM_INPUT__TRANS_STATE) {
-      streamProcessTranstateBlock(pTask, (SStreamDataBlock*)pInput);
+      streamProcessTransstateBlock(pTask, (SStreamDataBlock*)pInput);
       continue;
     }
 
