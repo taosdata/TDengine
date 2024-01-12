@@ -828,12 +828,12 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
       } else {
         checkFillhistoryTaskStatus(pTask, pHTask);
         streamMetaReleaseTask(pMeta, pHTask);
-      }
 
-      // not in timer anymore
-      int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
-      stDebug("s-task:0x%x fill-history task launch completed, retry times:%d, ref:%d", (int32_t)pInfo->id.taskId,
-              pHTaskInfo->retryTimes, ref);
+        // not in timer anymore
+        int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+        stDebug("s-task:0x%x fill-history task launch completed, retry times:%d, ref:%d", (int32_t)pInfo->id.taskId,
+                pHTaskInfo->retryTimes, ref);
+      }
     }
 
     streamMetaReleaseTask(pMeta, pTask);
