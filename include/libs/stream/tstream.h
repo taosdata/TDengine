@@ -562,6 +562,7 @@ struct SStreamDispatchReq {
   int32_t upstreamTaskId;
   int32_t upstreamChildId;
   int32_t upstreamNodeId;
+  int32_t upstreamRelTaskId;
   int32_t blockNum;
   int64_t totalLen;
   SArray* dataLen;  // SArray<int32_t>
