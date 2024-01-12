@@ -165,11 +165,28 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting server at {addr}:{port}");
 
-    let server = if args.ssl.certificate.is_some() && args.ssl.certificate_key.is_some() {
-        let cert_file =
-            File::open(args.ssl.certificate.unwrap()).expect("Failed to open certificate file");
-        let cert_key_file =
-            File::open(args.ssl.certificate_key.unwrap()).expect("Failed to open private key file");
+    let certificate = if args.ssl.is_some() {
+        args.ssl
+            .clone()
+            .unwrap()
+            .certificate
+            .unwrap_or(String::from(""))
+    } else {
+        String::from("")
+    };
+    let certificate_key = if args.ssl.is_some() {
+        args.ssl
+            .clone()
+            .unwrap()
+            .certificate_key
+            .unwrap_or(String::from(""))
+    } else {
+        String::from("")
+    };
+
+    let server = if !certificate.is_empty() && !certificate_key.is_empty() {
+        let cert_file = File::open(certificate).expect("Failed to open certificate file");
+        let cert_key_file = File::open(certificate_key).expect("Failed to open private key file");
 
         let cert = certs(&mut BufReader::new(cert_file))
             .map(|result| Certificate(result.unwrap().to_vec()))
@@ -594,7 +611,7 @@ struct Args {
     profile: Profile,
 
     #[clap(flatten)]
-    ssl: Ssl,
+    ssl: Option<Ssl>,
 }
 
 #[derive(Parser, Debug, Clone, Deserialize, Serialize, Default)]
