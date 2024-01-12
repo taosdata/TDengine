@@ -269,13 +269,14 @@ typedef struct STableScanInfo {
   int32_t         scanTimes;
   SSDataBlock*    pResBlock;
   SHashObj*       pIgnoreTables;
+  SHashObj*       pRemainTables;  // remain table to process
   SSampleExecInfo sample;  // sample execution info
-  int32_t         tableStartIndex;    // current group scan start
-  int32_t         tableEndIndex;      // current group scan end
-  int32_t         currentGroupIndex;  // current group index of groupOffset
+  int32_t         currentGroupId;
+  int32_t         currentTable;
   int8_t          scanMode;
   int8_t          assignBlockUid;
   uint8_t         countState;     // empty table count state
+  bool            isSameGroup;    // whether all tables are in the same group this scan
   bool            hasGroupByTag;
   bool            countOnly;
   bool            filesetDelimited;

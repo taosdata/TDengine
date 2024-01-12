@@ -655,46 +655,45 @@ void setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, 
   colDataDestroy(&infoData);
 }
 
-
-static void initNextGroupScan(STableScanInfo* pInfo, STableKeyInfo** pKeyInfo, int32_t* size) {
-  pInfo->tableStartIndex = pInfo->tableEndIndex + 1;
-
-  STableListInfo* pTableListInfo = pInfo->base.pTableListInfo;
-  int32_t numOfTables = tableListGetSize(pTableListInfo);
-  STableKeyInfo* pStart = (STableKeyInfo*)tableListGetInfo(pTableListInfo, pInfo->tableStartIndex);
-
-  if (pTableListInfo->oneTableForEachGroup) {
-    pInfo->tableEndIndex = pInfo->tableStartIndex;
-  } else if (pTableListInfo->groupOffset) {
-    pInfo->currentGroupIndex++;
-    if (pInfo->currentGroupIndex + 1 < pTableListInfo->numOfOuputGroups) {
-      pInfo->tableEndIndex = pTableListInfo->groupOffset[pInfo->currentGroupIndex + 1] - 1;
-    } else {
-      pInfo->tableEndIndex = numOfTables - 1;
+static int32_t initTableCountEnv(STableScanInfo* pTableScanInfo, const STableKeyInfo* pList, int32_t num) {
+  if (!pTableScanInfo->needCountEmptyTable) {
+    pTableScanInfo->countState = TABLE_COUNT_STATE_END;
+    return TSDB_CODE_SUCCESS;
+  }
+  pTableScanInfo->isSameGroup = true;
+  if (NULL == pTableScanInfo->pRemainTables) {
+    int32_t tableNum = taosArrayGetSize(pTableScanInfo->base.pTableListInfo->pTableList);
+    pTableScanInfo->pRemainTables =
+        taosHashInit(tableNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    if (NULL == pTableScanInfo->pRemainTables) {
+      pTableScanInfo->countState = TABLE_COUNT_STATE_END;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
-  } else {
-    pInfo->tableEndIndex = numOfTables - 1;
   }
-
-  if (!pInfo->needCountEmptyTable) {
-    pInfo->countState = TABLE_COUNT_STATE_END;
-  } else {
-    pInfo->countState = TABLE_COUNT_STATE_SCAN;
+  uint64_t groupId = pList->groupId;
+  for (int32_t i = 0; i < num; i++) {
+    const STableKeyInfo* pInfo = pList + i;
+    if (pTableScanInfo->isSameGroup && groupId != pInfo->groupId) {
+      pTableScanInfo->isSameGroup = false;
+    }
+    taosHashPut(pTableScanInfo->pRemainTables, &(pInfo->uid), sizeof(pInfo->uid), &(pInfo->groupId), sizeof(pInfo->groupId));
   }
-
-  *pKeyInfo = pStart;
-  *size = pInfo->tableEndIndex - pInfo->tableStartIndex + 1;
+  pTableScanInfo->countState = TABLE_COUNT_STATE_SCAN;
+  return TSDB_CODE_SUCCESS;
 }
 
-void markGroupProcessed(STableScanInfo* pInfo, uint64_t groupId) {
-  if (pInfo->countState ==  TABLE_COUNT_STATE_END) {
+static void markTableProcessed(STableScanInfo* pTableScanInfo, uint64_t uid) {
+  // case0 group scanning, mark
+  // case1 stream scan: no need to mark
+  if (pTableScanInfo->countState > TABLE_COUNT_STATE_SCAN) {
     return;
   }
-  if (pInfo->base.pTableListInfo->oneTableForEachGroup || pInfo->base.pTableListInfo->groupOffset) {
-    pInfo->countState = TABLE_COUNT_STATE_PROCESSED;
-  } else {
-    taosHashRemove(pInfo->base.pTableListInfo->remainGroups, &groupId, sizeof(groupId));
+  // case2 if all table in same group, process only once
+  if (pTableScanInfo->isSameGroup) {
+    pTableScanInfo->countState = TABLE_COUNT_STATE_END;
+    return;
   }
+  taosHashRemove(pTableScanInfo->pRemainTables, &uid, sizeof(uid));
 }
 
 static SSDataBlock* getOneRowResultBlock(SExecTaskInfo* pTaskInfo, STableScanBase* pBase, SSDataBlock* pBlock,
@@ -792,7 +791,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
   return NULL;
 }
 
-static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
+static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator, const STableKeyInfo* pList, int32_t num) {
   STableScanInfo* pTableScanInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
@@ -802,11 +801,15 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
     return NULL;
   }
 
+  if (TABLE_COUNT_STATE_NONE == pTableScanInfo->countState) {
+    initTableCountEnv(pTableScanInfo, pList, num);
+  }
+
   // do the ascending order traverse in the first place.
   while (pTableScanInfo->scanTimes < pTableScanInfo->scanInfo.numOfAsc) {
     SSDataBlock* p = doTableScanImpl(pOperator);
     if (p != NULL) {
-      markGroupProcessed(pTableScanInfo, p->info.id.groupId);
+      markTableProcessed(pTableScanInfo, p->info.id.uid);
       return p;
     }
 
@@ -835,7 +838,7 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
     while (pTableScanInfo->scanTimes < total) {
       SSDataBlock* p = doTableScanImpl(pOperator);
       if (p != NULL) {
-        markGroupProcessed(pTableScanInfo, p->info.id.groupId);
+        markTableProcessed(pTableScanInfo, p->info.id.uid);
         return p;
       }
 
@@ -853,32 +856,29 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
   }
 
   if (pTableScanInfo->countState < TABLE_COUNT_STATE_END) {
-    STableListInfo* pTableListInfo = pTableScanInfo->base.pTableListInfo;
-    if (pTableListInfo->oneTableForEachGroup || pTableListInfo->groupOffset) { // group by tbname, group by tag + sort
-      if (pTableScanInfo->countState < TABLE_COUNT_STATE_PROCESSED) {
-        pTableScanInfo->countState = TABLE_COUNT_STATE_PROCESSED;
-        STableKeyInfo* pStart =
-            (STableKeyInfo*)tableListGetInfo(pTableScanInfo->base.pTableListInfo, pTableScanInfo->tableStartIndex);
-        return getBlockForEmptyTable(pOperator, pStart);
-      }
-    } else { // group by tag + no sort
-      int32_t numOfTables = tableListGetSize(pTableListInfo);
-      if (pTableScanInfo->tableEndIndex + 1 >= numOfTables) {
-        // get empty group, mark processed & rm from hash
-        void* pIte = taosHashIterate(pTableListInfo->remainGroups, NULL);
+    int32_t tb_cnt = taosHashGetSize(pTableScanInfo->pRemainTables);
+    if (tb_cnt) {
+      if (!pTableScanInfo->isSameGroup) {
+        // get first empty table uid, mark processed & rm from hash
+        void *pIte = taosHashIterate(pTableScanInfo->pRemainTables, NULL);
         if (pIte != NULL) {
-          size_t        keySize = 0;
-          uint64_t*     pGroupId = taosHashGetKey(pIte, &keySize);
-          STableKeyInfo info = {.uid = *(uint64_t*)pIte, .groupId = *pGroupId};
-          taosHashCancelIterate(pTableListInfo->remainGroups, pIte);
-          markGroupProcessed(pTableScanInfo, *pGroupId);
+          size_t keySize = 0;
+          uint64_t* pUid = taosHashGetKey(pIte, &keySize);
+          STableKeyInfo info = {.uid = *pUid, .groupId = *(uint64_t*)pIte};
+          taosHashCancelIterate(pTableScanInfo->pRemainTables, pIte);
+          markTableProcessed(pTableScanInfo, *pUid);
           return getBlockForEmptyTable(pOperator, &info);
         }
+      } else {
+        // output one table for this group
+        pTableScanInfo->countState = TABLE_COUNT_STATE_END;
+        return getBlockForEmptyTable(pOperator, pList);
       }
     }
     pTableScanInfo->countState = TABLE_COUNT_STATE_END;
   }
 
+  taosHashClear(pTableScanInfo->pRemainTables);
   return NULL;
 }
 
@@ -938,8 +938,8 @@ static SSDataBlock* startNextGroupScan(SOperatorInfo* pOperator) {
   STableScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
-  int32_t numOfTables = tableListGetSize(pInfo->base.pTableListInfo);
-  if (pInfo->tableEndIndex + 1 >= numOfTables) {
+
+  if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
     setOperatorCompleted(pOperator);
     if (pOperator->dynamicTask) {
       taosArrayClear(pInfo->base.pTableListInfo->pTableList);
@@ -954,13 +954,14 @@ static SSDataBlock* startNextGroupScan(SOperatorInfo* pOperator) {
   
   int32_t        num = 0;
   STableKeyInfo* pList = NULL;
-  initNextGroupScan(pInfo, &pList, &num);
+  tableListGetGroupList(pInfo->base.pTableListInfo, pInfo->currentGroupId, &pList, &num);
+  pInfo->countState = TABLE_COUNT_STATE_NONE;
 
   pAPI->tsdReader.tsdSetQueryTableList(pInfo->base.dataReader, pList, num);
   pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
   pInfo->scanTimes = 0;
   
-  SSDataBlock* result = doGroupedTableScan(pOperator);
+  SSDataBlock* result = doGroupedTableScan(pOperator, pList, num);
   if (result != NULL) {
     if (pOperator->dynamicTask) {
       result->info.id.groupId = result->info.id.uid;
@@ -978,14 +979,15 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
   int32_t        num = 0;
   STableKeyInfo* pList = NULL;
 
-  if (pInfo->tableEndIndex == -1) {
+  if (pInfo->currentGroupId == -1) {
     int32_t numOfTables = tableListGetSize(pInfo->base.pTableListInfo);
-    if (pInfo->tableEndIndex + 1 == numOfTables) {
+    if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo) || numOfTables == 0) {
       setOperatorCompleted(pOperator);
       return NULL;
     }
   
-    initNextGroupScan(pInfo, &pList, &num);
+    tableListGetGroupList(pInfo->base.pTableListInfo, pInfo->currentGroupId, &pList, &num);
+    pInfo->countState = TABLE_COUNT_STATE_NONE;
     ASSERT(pInfo->base.dataReader == NULL);
   
     int32_t code = pAPI->tsdReader.tsdReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, pList, num, pInfo->pResBlock,
@@ -999,9 +1001,11 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
     if (pInfo->pResBlock->info.capacity > pOperator->resultInfo.capacity) {
       pOperator->resultInfo.capacity = pInfo->pResBlock->info.capacity;
     }
+  } else {
+    tableListGetGroupList(pInfo->base.pTableListInfo, pInfo->currentGroupId, &pList, &num);
   }
 
-  SSDataBlock* result = doGroupedTableScan(pOperator);
+  SSDataBlock* result = doGroupedTableScan(pOperator, pList, num);
   if (result != NULL) {
     if (pOperator->dynamicTask) {
       result->info.id.groupId = result->info.id.uid;
@@ -1034,7 +1038,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
     if (pOperator->status == OP_EXEC_DONE) {
-      pInfo->tableEndIndex = -1;
+      pInfo->currentGroupId = -1;
       pOperator->status = OP_OPENED;
       SSDataBlock* result = NULL;
       while (true) {
@@ -1053,29 +1057,29 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
     pInfo->countState = TABLE_COUNT_STATE_END;
 
     while (1) {
-      SSDataBlock* result = doGroupedTableScan(pOperator);
+      SSDataBlock* result = doGroupedTableScan(pOperator, NULL, 0);
       if (result || (pOperator->status == OP_EXEC_DONE) || isTaskKilled(pTaskInfo)) {
         return result;
       }
 
       // if no data, switch to next table and continue scan
-      pInfo->tableEndIndex++;
+      pInfo->currentTable++;
 
       taosRLockLatch(&pTaskInfo->lock);
       numOfTables = tableListGetSize(pInfo->base.pTableListInfo);
 
-      if (pInfo->tableEndIndex >= numOfTables) {
+      if (pInfo->currentTable >= numOfTables) {
         qDebug("all table checked in table list, total:%d, return NULL, %s", numOfTables, GET_TASKID(pTaskInfo));
         taosRUnLockLatch(&pTaskInfo->lock);
         return NULL;
       }
 
-      tInfo = *(STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->tableEndIndex);
+      tInfo = *(STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->currentTable);
       taosRUnLockLatch(&pTaskInfo->lock);
 
       pAPI->tsdReader.tsdSetQueryTableList(pInfo->base.dataReader, &tInfo, 1);
       qDebug("set uid:%" PRIu64 " into scanner, total tables:%d, index:%d/%d %s", tInfo.uid, numOfTables,
-             pInfo->tableEndIndex, numOfTables, GET_TASKID(pTaskInfo));
+             pInfo->currentTable, numOfTables, GET_TASKID(pTaskInfo));
 
       pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
       pInfo->scanTimes = 0;
@@ -1113,6 +1117,7 @@ static void destroyTableScanOperatorInfo(void* param) {
   STableScanInfo* pTableScanInfo = (STableScanInfo*)param;
   blockDataDestroy(pTableScanInfo->pResBlock);
   taosHashCleanup(pTableScanInfo->pIgnoreTables);
+  taosHashCleanup(pTableScanInfo->pRemainTables);
   destroyTableScanBase(&pTableScanInfo->base, &pTableScanInfo->base.readerAPI);
   taosMemoryFreeClear(param);
 }
@@ -1168,8 +1173,6 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
     goto _error;
   }
 
-  pInfo->tableEndIndex = -1;
-  pInfo->currentGroupIndex = -1;
   pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
   pInfo->hasGroupByTag = pTableScanNode->pGroupTags ? true : false;
 
@@ -1264,7 +1267,7 @@ void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin, uint6
   pTableScanInfo->base.cond.startVersion = 0;
   pTableScanInfo->base.cond.endVersion = ver;
   pTableScanInfo->scanTimes = 0;
-  pTableScanInfo->tableEndIndex = -1;
+  pTableScanInfo->currentGroupId = -1;
   pTableScanInfo->base.readerAPI.tsdReaderClose(pTableScanInfo->base.dataReader);
   pTableScanInfo->base.dataReader = NULL;
 }
@@ -2167,7 +2170,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     pInfo->pTableScanOp->status = OP_OPENED;
 
     pTSInfo->scanTimes = 0;
-    pTSInfo->tableEndIndex = -1;
+    pTSInfo->currentGroupId = -1;
   }
 
   if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN1) {
