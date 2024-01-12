@@ -1386,10 +1386,12 @@ void streamIntervalReloadState(SOperatorInfo* pOperator) {
     void*                        pBuf = NULL;
     int32_t code = pInfo->stateStore.streamStateGetInfo(pInfo->pState, STREAM_INTERVAL_OP_STATE_NAME,
                                                         strlen(STREAM_INTERVAL_OP_STATE_NAME), &pBuf, &size);
-    TSKEY   ts = *(TSKEY*)pBuf;
-    taosMemoryFree(pBuf);
-    pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, ts);
-    pInfo->stateStore.streamStateReloadInfo(pInfo->pState, ts);
+    if (code == 0) {
+      TSKEY   ts = *(TSKEY*)pBuf;
+      taosMemoryFree(pBuf);
+      pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, ts);
+      pInfo->stateStore.streamStateReloadInfo(pInfo->pState, ts);
+    }
   }
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (downstream->fpSet.reloadStreamStateFn) {
