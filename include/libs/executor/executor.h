@@ -210,6 +210,7 @@ void* qExtractReaderFromStreamScanner(void* scanner);
 int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
 
 int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo);
+int32_t qResetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo);
 int32_t qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow);
 int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow);
 int32_t qStreamRecoverFinish(qTaskInfo_t tinfo);

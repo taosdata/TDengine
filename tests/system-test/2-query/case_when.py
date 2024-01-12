@@ -28,7 +28,7 @@ class TDTestCase:
     
     def init(self, conn, logSql, replicaVar):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+        tdSql.init(conn.cursor())
 
         self.testcasePath = os.path.split(__file__)[0]
         self.testcaseFilename = os.path.split(__file__)[-1]

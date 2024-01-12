@@ -427,6 +427,7 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
+#ifdef BUILD_NO_CALL
 static bool allInvertible(SqlFunctionCtx* pFCtx, int32_t numOfCols) {
   for (int32_t i = 0; i < numOfCols; i++) {
     if (fmIsUserDefinedFunc(pFCtx[i].functionId) || !fmIsInvertible(pFCtx[i].functionId)) {
@@ -435,6 +436,7 @@ static bool allInvertible(SqlFunctionCtx* pFCtx, int32_t numOfCols) {
   }
   return true;
 }
+#endif
 
 void reloadFromDownStream(SOperatorInfo* downstream, SStreamIntervalOperatorInfo* pInfo) {
   SStateStore* pAPI = &downstream->pTaskInfo->storageAPI.stateStore;
@@ -2761,6 +2763,18 @@ void getSessionWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, 
   }
 }
 
+void reloadAggSupFromDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup) {
+  SStateStore* pAPI = &downstream->pTaskInfo->storageAPI.stateStore;
+
+  if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    reloadAggSupFromDownStream(downstream->pDownstream[0], pAggSup);
+    return;
+  }
+
+  SStreamScanInfo* pScanInfo = downstream->info;
+  pAggSup->pUpdateInfo = pScanInfo->pUpdateInfo;
+}
+
 void streamSessionSemiReloadState(SOperatorInfo* pOperator) {
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
   SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
@@ -2792,6 +2806,7 @@ void streamSessionSemiReloadState(SOperatorInfo* pOperator) {
   if (downstream->fpSet.reloadStreamStateFn) {
     downstream->fpSet.reloadStreamStateFn(downstream);
   }
+  reloadAggSupFromDownStream(downstream, &pInfo->streamAggSup);
 }
 
 void streamSessionReloadState(SOperatorInfo* pOperator) {
@@ -2844,6 +2859,7 @@ void streamSessionReloadState(SOperatorInfo* pOperator) {
   if (downstream->fpSet.reloadStreamStateFn) {
     downstream->fpSet.reloadStreamStateFn(downstream);
   }
+  reloadAggSupFromDownStream(downstream, &pInfo->streamAggSup);
 }
 
 SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
@@ -3726,6 +3742,7 @@ void streamStateReloadState(SOperatorInfo* pOperator) {
   if (downstream->fpSet.reloadStreamStateFn) {
     downstream->fpSet.reloadStreamStateFn(downstream);
   }
+  reloadAggSupFromDownStream(downstream, &pInfo->streamAggSup);
 }
 
 SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
@@ -3831,6 +3848,7 @@ _error:
   return NULL;
 }
 
+#ifdef BUILD_NO_CALL
 static void setInverFunction(SqlFunctionCtx* pCtx, int32_t num, EStreamType type) {
   for (int i = 0; i < num; i++) {
     if (type == STREAM_INVERT) {
@@ -3840,6 +3858,7 @@ static void setInverFunction(SqlFunctionCtx* pCtx, int32_t num, EStreamType type
     }
   }
 }
+#endif
 
 static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   SStreamIntervalOperatorInfo* pInfo = pOperator->info;
@@ -3932,9 +3951,11 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     // caller. Note that all the time window are not close till now.
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pSup, pBlock, TSDB_ORDER_ASC, MAIN_SCAN, true);
+#ifdef BUILD_NO_CALL
     if (pInfo->invertible) {
       setInverFunction(pSup->pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.type);
     }
+#endif
 
     doStreamIntervalAggImpl(pOperator, pBlock, pBlock->info.id.groupId, pInfo->pUpdatedMap);
     pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, pBlock->info.window.ekey);

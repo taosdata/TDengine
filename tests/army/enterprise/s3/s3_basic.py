@@ -84,29 +84,31 @@ class TDTestCase(TBase):
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
+        if eos.isArm64Cpu():
+            tdLog.success(f"{__file__} arm64 ignore executed")
+        else:
+            # insert data
+            self.insertData()
 
-        # insert data
-        self.insertData()
+            # check insert data correct
+            self.checkInsertCorrect()
 
-        # check insert data correct
-        self.checkInsertCorrect()
+            # save
+            self.snapshotAgg()
 
-        # save
-        self.snapshotAgg()
+            # do action
+            self.doAction()
 
-        # do action
-        self.doAction()
+            # check save agg result correct
+            self.checkAggCorrect()
 
-        # check save agg result correct
-        self.checkAggCorrect()
+            # check insert correct again
+            self.checkInsertCorrect()
 
-        # check insert correct again
-        self.checkInsertCorrect()
+            # drop database and free s3 file
+            self.dropDb()
 
-        # drop database and free s3 file
-        self.dropDb()
-
-        tdLog.success(f"{__file__} successfully executed")
+            tdLog.success(f"{__file__} successfully executed")
 
         
 

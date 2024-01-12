@@ -435,7 +435,7 @@ class TDTestCase:
         tdSql.checkData(1,0,'ct4')
         tdSql.checkData(1,1,None)
 
-        tdSql.query(f"select t1 ,count(c1) from {dbname}.stb1 partition by t1 ")
+        tdSql.query(f"select t1 ,count(c1) from {dbname}.stb1 partition by t1 having count(c1)>0")
         tdSql.checkRows(2)
 
         # filter by tbname

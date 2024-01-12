@@ -1955,6 +1955,7 @@ typedef struct SFSNextRowIter {
   SArray                  *pIndexList;
   int32_t                  iBrinIndex;
   SBrinBlock               brinBlock;
+  SBrinBlock              *pBrinBlock;
   int32_t                  iBrinRecord;
   SBrinRecord              brinRecord;
   SBlockData               blockData;
@@ -1989,9 +1990,9 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
 
   if (SFSNEXTROW_FILESET == state->state) {
   _next_fileset:
-    if (--state->iFileSet < 0) {
-      clearLastFileSet(state);
+    clearLastFileSet(state);
 
+    if (--state->iFileSet < 0) {
       *ppRow = NULL;
       return code;
     } else {
@@ -2143,6 +2144,11 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
       pBrinBlk = taosArrayGet(state->pIndexList, state->iBrinIndex);
     }
 
+    if (!state->pBrinBlock) {
+      state->pBrinBlock = &state->brinBlock;
+    } else {
+      tBrinBlockClear(&state->brinBlock);
+    }
     code = tsdbDataFileReadBrinBlock(state->pr->pFileReader, pBrinBlk, &state->brinBlock);
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
@@ -2418,6 +2424,16 @@ int32_t clearNextRowFromFS(void *iter) {
   if (state->pBlockData) {
     tBlockDataDestroy(state->pBlockData);
     state->pBlockData = NULL;
+  }
+
+  if (state->pBrinBlock) {
+    tBrinBlockDestroy(state->pBrinBlock);
+    state->pBrinBlock = NULL;
+  }
+
+  if (state->pIndexList) {
+    taosArrayDestroy(state->pIndexList);
+    state->pIndexList = NULL;
   }
 
   if (state->pTSRow) {
@@ -2846,7 +2862,9 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
 
         taosArraySet(pColArray, iCol, &lastCol);
         int32_t aColIndex = taosArraySearchIdx(aColArray, &lastCol.colVal.cid, compareInt16Val, TD_EQ);
-        taosArrayRemove(aColArray, aColIndex);
+        if (aColIndex >= 0) {
+          taosArrayRemove(aColArray, aColIndex);
+        }
       } else if (!COL_VAL_IS_VALUE(tColVal) && !COL_VAL_IS_VALUE(pColVal) && !setNoneCol) {
         noneCol = iCol;
         setNoneCol = true;
