@@ -47,7 +47,7 @@ class srvCtl:
 
     # taos.cfg position
     def dnodeCfgPath(self, idx):
-        return tdDnodes.tdDnodes[idx-1].cfgPath
+        return tdDnodes.dnodes[idx-1].cfgPath
     
 
 sc = srvCtl()

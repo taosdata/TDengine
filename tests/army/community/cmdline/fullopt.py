@@ -16,7 +16,7 @@ import time
 import random
 
 import taos
-import frame
+import frame.etool
 
 from frame.log import *
 from frame.sql import *
@@ -30,7 +30,6 @@ class TDTestCase(TBase):
     def insertData(self):
         tdLog.info(f"insert data.")
 
-        tdSql.execute(f"use {self.db}")
         # set insert data information
         self.childtable_count = 10
         self.insert_rows      = 10000
@@ -44,7 +43,7 @@ class TDTestCase(TBase):
         tdLog.info(f"do action.")
         
         # dump out sdb
-        sdb = epath.binFile("sdb.json")
+        sdb = "./sdb.json"
         eos.delFile(sdb)
 
         cfg = sc.dnodeCfgPath(1)
