@@ -61,9 +61,9 @@ def exeNoWait(file):
 
 
 # run return output and error
-def run(command):
+def run(command, timeout = 10):
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    process.wait(3)
+    process.wait(timeout)
 
     output = process.stdout.read().decode(encoding="gbk")
     error = process.stderr.read().decode(encoding="gbk")
@@ -72,8 +72,8 @@ def run(command):
 
 
 # return list after run
-def runRetList(command):
-    output,error = run(command)
+def runRetList(command, timeout=10):
+    output,error = run(command, timeout)
     return output.splitlines()
 
 

@@ -36,8 +36,11 @@ class TDTestCase(TBase):
         self.timestamp_step   = 1000
 
         # taosBenchmark run
-        etool.runBenchmark(command = f"-d {self.db} -t {self.childtable_count} -n {self.insert_rows} -v 2 -y")
-        
+        etool.benchMark(command = f"-d {self.db} -t {self.childtable_count} -n {self.insert_rows} -v 2 -y")
+
+    def doTaos(self):
+        tdLog.info(f"check taos command options...")
+
 
     def doTaosd(self):
         tdLog.info(f"check taosd command options...")
@@ -72,11 +75,11 @@ class TDTestCase(TBase):
         etool.runBinFile("taosd", f"-dm -c {cfg}")
         sc.dnodeStop(idx)
         etool.runBinFile("taosd", "-a http://192.168.1.10")
-        etool.runBinFile("taosd", f"-E abc -c {cfg}")
-        etool.runBinFile("taosd", f"-e abc -c {cfg}")
 
-    def doTaos(self):
-        tdLog.info(f"check taos command options...")
+        #exe 
+        etool.exeBinFile("taosd", f"-E abc -c {cfg}")
+        sc.dnodeStop(idx)
+        etool.exeBinFile("taosd", f"-e def -c {cfg}")
 
 
     # run
@@ -86,11 +89,12 @@ class TDTestCase(TBase):
         # insert data
         self.insertData()
 
+        # do taos
+        self.doTaos()
+
         # do action
         self.doTaosd()
 
-        # do taos
-        self.doTaos()
 
         tdLog.success(f"{__file__} successfully executed")
 
