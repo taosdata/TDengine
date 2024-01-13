@@ -76,8 +76,6 @@ def runRetList(command, timeout=10):
     output,error = run(command, timeout)
     return output.splitlines()
 
-
-
 #
 #   file 
 #

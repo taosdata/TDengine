@@ -52,7 +52,7 @@ def runBinFile(fname, command):
     if frame.eos.isWin():
         binFile += ".exe"
 
-    frame.eos.runRetList(f"{binFile} {command}")
+    return frame.eos.runRetList(f"{binFile} {command}")
 
 # exe build/bin file
 def exeBinFile(fname, command):

@@ -66,15 +66,15 @@ class TDTestCase(TBase):
         self.checkListNotEmpty(rets)
 
         # except input
-        etool.runBinFile("taosd", "-c")
-        etool.runBinFile("taosd", "-e")
+        etool.exeBinFile("taosd", "-c")
+        etool.exeBinFile("taosd", "-e")
 
         # stop taosd
         sc.dnodeStop(idx)
         # other
-        etool.runBinFile("taosd", f"-dm -c {cfg}")
+        etool.exeBinFile("taosd", f"-dm -c {cfg}")
         sc.dnodeStop(idx)
-        etool.runBinFile("taosd", "-a http://192.168.1.10")
+        etool.exeBinFile("taosd", "-a http://192.168.1.10")
 
         #exe 
         etool.exeBinFile("taosd", f"-E abc -c {cfg}")
