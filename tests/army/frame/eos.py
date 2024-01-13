@@ -73,6 +73,14 @@ def run(command):
 
 # return list after run
 def runRetList(command):
-    lines = []
     output,error = run(command)
     return output.splitlines()
+
+
+
+#
+#   file 
+#
+
+def delFile(file):
+    return exe(f"rm -rf {file}")

@@ -188,3 +188,8 @@ class TBase:
             time.sleep(interval)
         
         return False    
+
+     # check file exist
+    def checkFileExist(self, pathFile):
+        if os.path.exists(pathFile) == False:
+            tdLog.exit(f"file not exist {pathFile}")

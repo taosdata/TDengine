@@ -16,7 +16,9 @@ import os
 import time
 import datetime
 
+from frame.server.dnode  import *
 from frame.server.dnodes import *
+
 
 class srvCtl:
     def __init__(self):
@@ -38,7 +40,14 @@ class srvCtl:
     def dnodeDataFiles(self, idx):
         files = []
         return files
+    
+    #
+    # get dnodes information
+    #
 
+    # taos.cfg position
+    def dnodeCfgPath(self, idx):
+        return tdDnodes.tdDnodes[idx-1].cfgPath
     
 
 sc = srvCtl()

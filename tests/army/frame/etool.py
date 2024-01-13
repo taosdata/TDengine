@@ -44,3 +44,12 @@ def runBenchmark(command = "", json = "") :
 # get current directory file name
 def curFile(fullPath, filename):
     return os.path.dirname(fullPath) + "/" + filename
+
+
+# run build/bin file
+def runBinFile(fname, command):
+    binFile = frame.epath.binFile(fname)
+    if frame.eos.isWin():
+        binFile += ".exe"
+
+    frame.eos.runRetList(f"{binFile} {command}")
