@@ -55,9 +55,12 @@ def runBinFile(fname, command):
     return frame.eos.runRetList(f"{binFile} {command}")
 
 # exe build/bin file
-def exeBinFile(fname, command):
+def exeBinFile(fname, command, wait=True):
     binFile = frame.epath.binFile(fname)
     if frame.eos.isWin():
         binFile += ".exe"
 
-    return frame.eos.exe(f"{binFile} {command}")
+    if wait:
+        return frame.eos.exe(f"{binFile} {command}")
+    else:
+        return frame.eos.exeNoWait(f"{binFile} {command}")

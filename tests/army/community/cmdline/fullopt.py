@@ -72,15 +72,14 @@ class TDTestCase(TBase):
         # stop taosd
         sc.dnodeStop(idx)
         # other
-        etool.exeBinFile("taosd", f"-dm -c {cfg}")
+        etool.exeBinFile("taosd", f"-dm -c {cfg}", False)
         sc.dnodeStop(idx)
         etool.exeBinFile("taosd", "-a http://192.168.1.10")
 
         #exe 
-        etool.exeBinFile("taosd", f"-E abc -c {cfg}")
+        etool.exeBinFile("taosd", f"-E abc -c {cfg}", False)
         sc.dnodeStop(idx)
-        etool.exeBinFile("taosd", f"-e def -c {cfg}")
-
+        etool.exeBinFile("taosd", f"-e def -c {cfg}", False)
 
     # run
     def run(self):

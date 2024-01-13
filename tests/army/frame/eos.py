@@ -57,8 +57,11 @@ def exe(file):
 
 # execute file and return immediately
 def exeNoWait(file):
-    print("exe no wait")
-
+    if isWin():
+        cmd = f"mintty -h never {file}"
+    else:
+        cmd = f"nohup {file} > /dev/null 2>&1 & "
+    return exe(file)
 
 # run return output and error
 def run(command, timeout = 10):
