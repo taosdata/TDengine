@@ -60,4 +60,4 @@ def exeBinFile(fname, command):
     if frame.eos.isWin():
         binFile += ".exe"
 
-    frame.eos.exe(f"{binFile} {command}")
+    return frame.eos.exe(f"{binFile} {command}")
