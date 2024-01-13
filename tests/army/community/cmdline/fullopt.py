@@ -36,20 +36,48 @@ class TDTestCase(TBase):
         self.timestamp_step   = 1000
 
         # taosBenchmark run
-        etool.runBenchmark(command = f"-d {self.db} -t {self.childtable_count} -n {self.insert_rows} -y")
+        etool.runBenchmark(command = f"-d {self.db} -t {self.childtable_count} -n {self.insert_rows} -v 2 -y")
         
 
-    def doAction(self):
-        tdLog.info(f"do action.")
+    def doTaosd(self):
+        tdLog.info(f"check taosd command options...")
+        idx = 1 # dnode1
+        cfg = sc.dnodeCfgPath(idx)
         
-        # dump out sdb
+        # -s
         sdb = "./sdb.json"
         eos.delFile(sdb)
-
-        cfg = sc.dnodeCfgPath(1)
         etool.runBinFile("taosd", f"-s -c {cfg}")
         self.checkFileExist(sdb)
-        
+
+        # -C
+        etool.runBinFile("taosd", "-C")
+        # -k 
+        rets = etool.runBinFile("taosd", "-C")
+        self.checkListNotEmpty(rets)
+        # -V
+        rets = etool.runBinFile("taosd", "-V")
+        self.checkListNotEmpty(rets)
+        # --help
+        rets = etool.runBinFile("taosd", "--help")
+        self.checkListNotEmpty(rets)
+
+        # except input
+        etool.runBinFile("taosd", "-c")
+        etool.runBinFile("taosd", "-e")
+
+        # stop taosd
+        sc.dnodeStop(idx)
+        # other
+        etool.runBinFile("taosd", f"-dm -c {cfg}")
+        sc.dnodeStop(idx)
+        etool.runBinFile("taosd", "-a http://192.168.1.10")
+        etool.runBinFile("taosd", f"-E abc -c {cfg}")
+        etool.runBinFile("taosd", f"-e abc -c {cfg}")
+
+    def doTaos(self):
+        tdLog.info(f"check taos command options...")
+
 
     # run
     def run(self):
@@ -59,7 +87,10 @@ class TDTestCase(TBase):
         self.insertData()
 
         # do action
-        self.doAction()
+        self.doTaosd()
+
+        # do taos
+        self.doTaos()
 
         tdLog.success(f"{__file__} successfully executed")
 

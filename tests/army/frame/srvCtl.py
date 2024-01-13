@@ -29,6 +29,19 @@ class srvCtl:
         self.mLevelDisk = 0
 
     #
+    #  control server
+    #
+
+    # start
+    def dnodeStart(self, idx):
+        return tdDnodes.starttaosd(idx)
+
+    # stop
+    def dnodeStop(self, idx):
+        return tdDnodes.stoptaosd(idx)
+
+
+    #
     #  about path
     #
 
