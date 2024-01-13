@@ -48,6 +48,14 @@ int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) {
   }
   return code;
 }
+int32_t tmsgSendSyncReq(const SEpSet* epSet, SRpcMsg* pMsg) {
+  int32_t code = (*defaultMsgCb.sendSyncReqFp)(epSet, pMsg);
+  if (code != 0) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
+  }
+  return code;
+}
 
 void tmsgSendRsp(SRpcMsg* pMsg) {
 #if 1

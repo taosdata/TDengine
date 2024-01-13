@@ -214,8 +214,9 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
 }
 
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
-  int32_t     status = 0;
-  const char* id = pTask->id.idStr;
+  int32_t      status = 0;
+  SStreamMeta* pMeta = pTask->pMeta;
+  const char*  id = pTask->id.idStr;
 
   stDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64 ", msgId:%d", id,
           pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen, pReq->msgId);
@@ -223,7 +224,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, pReq->upstreamTaskId);
   ASSERT(pInfo != NULL);
 
-  if (pTask->pMeta->role == NODE_ROLE_FOLLOWER) {
+  if (pMeta->role == NODE_ROLE_FOLLOWER) {
     stError("s-task:%s task on follower received dispatch msgs, dispatch msg rejected", id);
     status = TASK_INPUT_STATUS__REFUSED;
   } else {
@@ -244,6 +245,22 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
           atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
           streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
           stDebug("s-task:%s close inputQ for upstream:0x%x, msgId:%d", id, pReq->upstreamTaskId, pReq->msgId);
+        } else if (pReq->type == STREAM_INPUT__TRANS_STATE) {
+          atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
+          streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
+
+          // disable the related stream task here to avoid it to receive the newly arrived data after the transfer-state
+          STaskId* pRelTaskId = &pTask->streamTaskId;
+          SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pRelTaskId->streamId, pRelTaskId->taskId);
+          if (pStreamTask != NULL) {
+            atomic_add_fetch_32(&pStreamTask->upstreamInfo.numOfClosed, 1);
+            streamTaskCloseUpstreamInput(pStreamTask, pReq->upstreamRelTaskId);
+            streamMetaReleaseTask(pMeta, pStreamTask);
+          }
+
+          stDebug("s-task:%s close inputQ for upstream:0x%x since trans-state msgId:%d recv, rel stream-task:0x%" PRIx64
+                  " close inputQ for upstream:0x%x",
+                  id, pReq->upstreamTaskId, pReq->msgId, pTask->streamTaskId.taskId, pReq->upstreamRelTaskId);
         }
 
         status = streamTaskAppendInputBlocks(pTask, pReq);
@@ -252,9 +269,9 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   }
 
   // disable the data from upstream tasks
-  if (streamTaskGetStatus(pTask)->state == TASK_STATUS__HALT) {
-    status = TASK_INPUT_STATUS__BLOCKED;
-  }
+//  if (streamTaskGetStatus(pTask)->state == TASK_STATUS__HALT) {
+//    status = TASK_INPUT_STATUS__BLOCKED;
+//  }
 
   {
     // do send response with the input status
@@ -295,6 +312,7 @@ void streamTaskOpenAllUpstreamInput(SStreamTask* pTask) {
   }
 
   pTask->upstreamInfo.numOfClosed = 0;
+  stDebug("s-task:%s opening up inputQ from upstream tasks", pTask->id.idStr);
 }
 
 void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {

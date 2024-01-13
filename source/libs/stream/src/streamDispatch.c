@@ -58,6 +58,7 @@ int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* p
   if (tEncodeI32(pEncoder, pReq->upstreamTaskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->upstreamChildId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->upstreamNodeId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->upstreamRelTaskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->blockNum) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->totalLen) < 0) return -1;
   ASSERT(taosArrayGetSize(pReq->data) == pReq->blockNum);
@@ -84,6 +85,7 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
   if (tDecodeI32(pDecoder, &pReq->upstreamTaskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->upstreamChildId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->upstreamNodeId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->upstreamRelTaskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->blockNum) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->totalLen) < 0) return -1;
 
@@ -114,6 +116,7 @@ static int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTas
   pReq->upstreamTaskId = pTask->id.taskId;
   pReq->upstreamChildId = pTask->info.selfChildId;
   pReq->upstreamNodeId = pTask->info.nodeId;
+  pReq->upstreamRelTaskId = pTask->streamTaskId.taskId;
   pReq->blockNum = numOfBlocks;
   pReq->taskId = dstTaskId;
   pReq->type = type;
