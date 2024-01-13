@@ -61,7 +61,7 @@ def exeNoWait(file):
         cmd = f"mintty -h never {file}"
     else:
         cmd = f"nohup {file} > /dev/null 2>&1 & "
-    return exe(file)
+    return exe(cmd)
 
 # run return output and error
 def run(command, timeout = 10):

@@ -40,6 +40,40 @@ class TDTestCase(TBase):
 
     def doTaos(self):
         tdLog.info(f"check taos command options...")
+        # help
+        rets = etool.runBinFile("taos", "--help")
+        self.checkListNotEmpty(rets)
+        # b r w s 
+        sql = f"select * from {self.db}.{self.stb} limit 10"
+        rets = etool.runBinFile("taos", f'-B -r -w -s "{sql}" ')
+        self.checkListNotEmpty(rets)
+        # -C
+        rets = etool.runBinFile("taos", "-C")
+        self.checkListNotEmpty(rets)
+        # -t
+        rets = etool.runBinFile("taos", "-t")
+        self.checkListNotEmpty(rets)
+        # -v
+        rets = etool.runBinFile("taos", "-V")
+        self.checkListNotEmpty(rets)
+        # -?
+        rets = etool.runBinFile("taos", "-?")
+        self.checkListNotEmpty(rets)
+
+        # TSDB_FQDN_LEN = 128
+        lname = "testhostnamelength"
+        lname.rjust(130, 'a')
+
+        # invalid
+        sql = f"show vgroups;"
+        etool.exeBinFile("taos", f'-h {lname} -s "{sql}" ', wait=False)
+        etool.exeBinFile("taos", f'-u {lname} -s "{sql}" ', wait=False)
+        etool.exeBinFile("taos", f'-d {lname} -s "{sql}" ', wait=False)
+        etool.exeBinFile("taos", f'-a {lname} -s "{sql}" ', wait=False)
+        etool.exeBinFile("taos", f'-p{lname}  -s "{sql}" ', wait=False)
+
+        etool.exeBinFile("taos", f'-N 200 -l 2048 -s "{sql}" ', wait=False)
+        etool.exeBinFile("taos", f'-n server', wait=False)
 
 
     def doTaosd(self):
@@ -81,6 +115,10 @@ class TDTestCase(TBase):
         sc.dnodeStop(idx)
         etool.exeBinFile("taosd", f"-e def -c {cfg}", False)
 
+        # stop taosd test taos as server
+        sc.dnodeStop(idx)
+        etool.exeBinFile("taos", f'-n server', wait=False)
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -93,6 +131,8 @@ class TDTestCase(TBase):
 
         # do action
         self.doTaosd()
+
+        
 
 
         tdLog.success(f"{__file__} successfully executed")
