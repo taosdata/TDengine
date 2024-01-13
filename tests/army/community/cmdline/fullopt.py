@@ -45,7 +45,7 @@ class TDTestCase(TBase):
         self.checkListNotEmpty(rets)
         # b r w s 
         sql = f"select * from {self.db}.{self.stb} limit 10"
-        rets = etool.runBinFile("taos", f'-B -r -w -s "{sql}" ')
+        rets = etool.runBinFile("taos", f'-B -r -w 100 -s "{sql}" ')
         self.checkListNotEmpty(rets)
         # -C
         rets = etool.runBinFile("taos", "-C")
@@ -64,14 +64,16 @@ class TDTestCase(TBase):
         lname = "testhostnamelength"
         lname.rjust(130, 'a')
 
-        # invalid
+        # except test
         sql = f"show vgroups;"
         etool.exeBinFile("taos", f'-h {lname} -s "{sql}" ', wait=False)
         etool.exeBinFile("taos", f'-u {lname} -s "{sql}" ', wait=False)
         etool.exeBinFile("taos", f'-d {lname} -s "{sql}" ', wait=False)
         etool.exeBinFile("taos", f'-a {lname} -s "{sql}" ', wait=False)
         etool.exeBinFile("taos", f'-p{lname}  -s "{sql}" ', wait=False)
+        etool.exeBinFile("taos", f'-w -s "{sql}" ', wait=False)
 
+        # others
         etool.exeBinFile("taos", f'-N 200 -l 2048 -s "{sql}" ', wait=False)
         etool.exeBinFile("taos", f'-n server', wait=False)
 

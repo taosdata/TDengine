@@ -47,20 +47,28 @@ def curFile(fullPath, filename):
 
 
 # run build/bin file
-def runBinFile(fname, command):
+def runBinFile(fname, command, show=True):
     binFile = frame.epath.binFile(fname)
     if frame.eos.isWin():
         binFile += ".exe"
 
-    return frame.eos.runRetList(f"{binFile} {command}")
+    cmd = f"{binFile} {command}"
+    if show:
+        tdLog.info(cmd)
+    return frame.eos.runRetList(cmd)
 
 # exe build/bin file
-def exeBinFile(fname, command, wait=True):
+def exeBinFile(fname, command, wait=True, show=True):
     binFile = frame.epath.binFile(fname)
     if frame.eos.isWin():
         binFile += ".exe"
 
+    cmd = f"{binFile} {command}"
     if wait:
+        if show:
+            tdLog.info("wait exe:" + cmd)
         return frame.eos.exe(f"{binFile} {command}")
     else:
-        return frame.eos.exeNoWait(f"{binFile} {command}")
+        if show:
+            tdLog.info("no wait exe:" + cmd)
+        return frame.eos.exeNoWait(cmd)
