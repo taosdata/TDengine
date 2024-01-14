@@ -507,7 +507,7 @@ class TDTestCase:
         tdSql.query(f"select last(*), last_row(*),last(c1), last_row(c1) from {dbname}.stb1 ")
         tdSql.query(f"select last(*), last_row(*),last(c1), last_row(c1) from {dbname}.ct1 ")
         tdSql.query(f"select last(*), last_row(*),last(c1+1)*max(c1), last_row(c1+2)/2 from {dbname}.t1 ")
-        # tdSql.query(f"select last_row(*) ,abs(c1/2)+100 from {dbname}.stb1 where tbname =\"ct1\" ")
+        tdSql.query(f"select last_row(*) ,abs(c1/2)+100 from {dbname}.stb1 where tbname =\"ct1\" ")
         tdSql.query(f"select c1, last_row(c5) from {dbname}.ct1 ")
         tdSql.error(f"select c1, last_row(c5) ,last(c1) from {dbname}.stb1 ")
 

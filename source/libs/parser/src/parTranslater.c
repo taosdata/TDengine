@@ -3448,30 +3448,6 @@ static int32_t getPositionValue(const SValueNode* pVal) {
   return -1;
 }
 
-static int32_t checkOrderByAggForGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect, SNodeList* pOrderByList) {
-  if (NULL != getGroupByList(pCxt) || NULL != pSelect->pWindow) {
-    return TSDB_CODE_SUCCESS;
-  }
-  SNode* pProject = NULL;
-  FOREACH(pProject, pSelect->pProjectionList) {
-    if(isAggFunc(pProject)) {
-      return TSDB_CODE_SUCCESS;
-    }
-  }
-  SNode* pNode = NULL;
-  WHERE_EACH(pNode, pOrderByList) {
-    SNode* pExpr = ((SOrderByExprNode*)pNode)->pExpr;
-    if ((QUERY_NODE_FUNCTION == nodeType(pExpr))) {
-      SFunctionNode* pFunc = (SFunctionNode*)pExpr;
-      if (fmIsAggFunc(pFunc->funcId)) {
-        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SINGLE_GROUP);
-      }
-    }
-    WHERE_NEXT;
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t translateOrderByPosition(STranslateContext* pCxt, SNodeList* pProjectionList, SNodeList* pOrderByList,
                                         bool* pOther) {
   *pOther = false;
@@ -3490,15 +3466,7 @@ static int32_t translateOrderByPosition(STranslateContext* pCxt, SNodeList* pPro
       } else if (0 == pos || pos > LIST_LENGTH(pProjectionList)) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT);
       } else {
-        // SColumnRefNode* pCol = (SColumnRefNode*)nodesMakeNode(QUERY_NODE_COLUMN_REF);
-        // if (NULL == pCol) {
-        //   return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
-        // }
-        // strcpy(pCol->colName, ((SExprNode*)nodesListGetNode(pProjectionList, pos - 1))->aliasName);
-
-        // (SExprNode*)nodesListGetNode(pProjectionList, pos - 1);
-        // ((SOrderByExprNode*)pNode)->pExpr = (SNode*)pCol;
-        // nodesDestroyNode(pExpr);
+        // No longer using SColumnRefNode, processing in replaceOrderByAliasImpl function
       }
     } else {
       *pOther = true;
@@ -3524,9 +3492,6 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
-  }
-  if (other && TSDB_CODE_SUCCESS == code) {
-    // code = checkOrderByAggForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
   }
   return code;
 }
