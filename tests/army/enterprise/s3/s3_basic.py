@@ -90,7 +90,7 @@ class TDTestCase(TBase):
     def checkStreamCorrect(self):
         sql = f"select count(*) from {self.db}.stm1"
         count = 0
-        for i in range(30):
+        for i in range(120):
             tdSql.query(sql)
             count = tdSql.getData(0, 0)
             if count == 100000 or count == 100001:
