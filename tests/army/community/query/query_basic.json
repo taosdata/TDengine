@@ -7,7 +7,8 @@
     "password": "taosdata",
     "connection_pool_size": 8,
     "num_of_records_per_req": 4000,
-    "thread_count": 2,
+    "prepared_rand": 1000,
+    "thread_count": 3,
     "create_table_thread_count": 1,
     "confirm_parameter_prompt": "no",
     "databases": [

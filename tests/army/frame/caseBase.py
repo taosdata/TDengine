@@ -170,13 +170,13 @@ class TBase:
         # order by asc limit 1 with first
         sql = f"select last({col}) from {self.stb}"
         expect = tdSql.getFirstValue(sql)
-        sql = f"select {col} from {self.stb} order by {col} desc limit 1"
+        sql = f"select {col} from {self.stb} order by _c0 desc limit 1"
         tdSql.checkFirstValue(sql, expect)
 
         # order by desc limit 1 with last
         sql = f"select first({col}) from {self.stb}"
         expect = tdSql.getFirstValue(sql)
-        sql = f"select {col} from {self.stb} order by {col} asc limit 1"
+        sql = f"select {col} from {self.stb} order by _c0 asc limit 1"
         tdSql.checkFirstValue(sql, expect)
 
 #
