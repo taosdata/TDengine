@@ -14,11 +14,12 @@ import time
 # Auto Gen class
 #
 class AutoGen:
-    def __init__(self):
+    def __init__(self, fillOne=False):
         self.ts = 1600000000000
         self.batch_size = 100
         seed = time.time() % 10000
         random.seed(seed)
+        self.fillOne = fillOne
 
     # set start ts
     def set_start_ts(self, ts):
@@ -87,6 +88,23 @@ class AutoGen:
         
         return datas
 
+    # fill one data
+    def fillone_data(self, i, marr):
+        datas = ""
+        for c in marr:
+            if datas != "":
+                datas += ","
+
+            if c == 0:
+                datas += "%d" % (self.ts + i)
+            elif c == 12 or c == 13: # binary
+                datas += '"1"'
+            else:
+                datas += '1'
+        
+        return datas
+
+
     # generate specail wide random string
     def random_string(self, count):
         letters = string.ascii_letters
@@ -127,7 +145,10 @@ class AutoGen:
 
         # loop do
         for i in range(cnt):
-            value = self.gen_data(i, self.mcols)
+            if self.fillOne :
+                value = self.fillone_data(i, self.mcols)
+            else:
+                value = self.gen_data(i, self.mcols)
             ts += step
             values += f"({ts},{value}) "
             if batch_size == 1 or (i > 0 and i % batch_size == 0) :
