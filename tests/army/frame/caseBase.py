@@ -153,6 +153,31 @@ class TBase:
         tdSql.checkAgg(self.sqlFirst, self.first)
         tdSql.checkAgg(self.sqlLast,  self.last)
 
+    # self check 
+    def checkConsistency(self, col):
+        # top with max
+        sql = f"select max({col}) from {self.stb}"
+        expect = tdSql.getFirstValue(sql)
+        sql = f"select top({col}, 5) from {self.stb}"
+        tdSql.checkFirstValue(sql, expect)
+
+        #bottom with min
+        sql = f"select min({col}) from {self.stb}"
+        expect = tdSql.getFirstValue(sql)
+        sql = f"select bottom({col}, 5) from {self.stb}"
+        tdSql.checkFirstValue(sql, expect)
+
+        # order by asc limit 1 with first
+        sql = f"select last({col}) from {self.stb}"
+        expect = tdSql.getFirstValue(sql)
+        sql = f"select {col} from {self.stb} order by {col} desc limit 1"
+        tdSql.checkFirstValue(sql, expect)
+
+        # order by desc limit 1 with last
+        sql = f"select first({col}) from {self.stb}"
+        expect = tdSql.getFirstValue(sql)
+        sql = f"select {col} from {self.stb} order by {col} asc limit 1"
+        tdSql.checkFirstValue(sql, expect)
 
 #
 #   get db information

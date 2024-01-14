@@ -228,7 +228,7 @@ class TDTestCase:
 
             # query
             col = f"c{i}"
-            sql = f"select count({col}), sum({col}), avg({col}), max({col}), min({col}) from stb"
+            sql = f"select count({col}), sum({col}), avg({col}), max({col}), min({col}), stddev({col}, leastsquares({col},1,9)) from stb"
             tdSql.query(sql)
             # sum
             tdSql.checkData(0, 0, 4*10000, True)
@@ -240,6 +240,9 @@ class TDTestCase:
             tdSql.checkData(0, 3, 1, True)
             # min
             tdSql.checkData(0, 4, 1, True)
+            # stddev
+            tdSql.checkData(0, 5, 0, True)
+
             i += 1
 
 
