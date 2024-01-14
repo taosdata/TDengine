@@ -2170,9 +2170,6 @@ int32_t nodesCollectSelectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* t
                           .classifier = classifier,
                           .tableAlias = tableAlias,
                           .pFuncs = pFuncs};
-  if (NULL == cxt.pFuncs) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
 
   nodesWalkSelectStmt(pSelect, clause, collectFuncs, &cxt);
   return cxt.errCode;
@@ -2197,11 +2194,9 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAl
       *pFuncs = cxt.pFuncs;
     } else {
       nodesDestroyList(cxt.pFuncs);
-      *pFuncs = NULL;
     }
   } else {
     nodesDestroyList(cxt.pFuncs);
-    *pFuncs = NULL;
   }
 
   return cxt.errCode;

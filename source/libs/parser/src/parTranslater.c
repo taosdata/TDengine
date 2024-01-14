@@ -4526,7 +4526,7 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
   SReplaceOrderByAliasCxt* pCxt = pContext;
   SNodeList* pProjectionList = pCxt->pProjectionList;
   SNode*     pProject = NULL;
-  if (QUERY_NODE_COLUMN == nodeType(*pNode) || QUERY_NODE_FUNCTION == nodeType(*pNode)) {
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
     FOREACH(pProject, pProjectionList) {
       SExprNode* pExpr = (SExprNode*)pProject;
       if (0 == strcmp(((SColumnRefNode*)*pNode)->colName, pExpr->userAlias)
