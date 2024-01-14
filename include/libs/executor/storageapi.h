@@ -189,7 +189,8 @@ typedef struct TsdReader {
 
 typedef struct SStoreCacheReader {
   int32_t  (*openReader)(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
-                         SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr);
+                         SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr,
+                         SArray *pFuncTypeList);
   void    *(*closeReader)(void *pReader);
   int32_t  (*retrieveRows)(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
                            SArray *pTableUidList);

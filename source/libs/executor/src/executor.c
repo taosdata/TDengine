@@ -621,6 +621,10 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   } else {
     pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
   }
+
+  if(pRes == NULL) {
+    st = taosGetTimestampUs();
+  }
   
   int32_t rowsThreshold = pTaskInfo->pSubplan->rowsThreshold;
   if (!pTaskInfo->pSubplan->dynamicRowThreshold || 4096 <= pTaskInfo->pSubplan->rowsThreshold) {

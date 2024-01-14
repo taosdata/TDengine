@@ -674,6 +674,8 @@ static void destroyTableCfg(STableCfg* pCfg) {
 
 static void destroySmaIndex(void* pIndex) { taosMemoryFree(((STableIndexInfo*)pIndex)->expr); }
 
+static void destroyFuncParam(void* pValue) { taosMemoryFree(((SFunctParam*)pValue)->pCol); }
+
 static void destroyHintValue(EHintOption option, void* value) {
   switch (option) {
     default:
@@ -1173,6 +1175,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pGroupTags);
       nodesDestroyList(pLogicNode->pTags);
       nodesDestroyNode(pLogicNode->pSubtable);
+      taosArrayDestroyEx(pLogicNode->pFuncTypes, destroyFuncParam);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
@@ -1300,6 +1303,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       nodesDestroyList(pPhyNode->pGroupTags);
       nodesDestroyList(pPhyNode->pTargets);
+      taosArrayDestroy(pPhyNode->pFuncTypes);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
