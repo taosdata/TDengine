@@ -69,6 +69,10 @@ class TDTestCase(TBase):
         sql2 = "select UNIQUE(uti) from d0 order by uti asc;"
         self.checkSameResult(sql1, sql2)
 
+        # top
+        sql1 = "select top(bi,10) from stb;"
+        sql2 = "select bi from stb where bi is not null order by bi desc limit 10;"
+        self.checkSameResult(sql1, sql2)
 
     # run
     def run(self):
