@@ -39,6 +39,28 @@ pub struct AddTag {
     pub len: usize,
 }
 
+impl AddTag {
+    pub fn entry(&self) -> (Field, &str) {
+        (self.field(), self.value())
+    }
+    pub fn field(&self) -> Field {
+        let len = match self.len {
+            0 => 100,
+            16374.. => 16374,
+            a => a,
+        };
+        Field::new(&self.name, Ty::VarChar, len as u32)
+    }
+    pub fn value(&self) -> &str {
+        match &self.opts {
+            AddTagOpts::Value { value } => value,
+            AddTagOpts::Template { template: _ } => {
+                todo!("template not supported yet in add-tag action")
+            }
+        }
+    }
+}
+
 #[derive(thiserror::Error, Debug)]
 pub enum AddTagParseError {
     #[error("Empty AddTag option")]
