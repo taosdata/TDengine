@@ -99,7 +99,7 @@ export default () => [
   {
     name: 'PowerBI',
     icon: 'powerbilogo',
-    desc: i18n.t('docs.tools.powerbi.desc'),
+    desc: 'Power BI' + i18n.t('docs.tools.powerbi.desc'),
     docs: {
       zh: mdx.powerbiDoc,
       en: mdx.powerbiDoc
