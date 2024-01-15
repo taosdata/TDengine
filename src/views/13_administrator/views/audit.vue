@@ -232,14 +232,14 @@ export default {
     },
     async getAllAuditData() {
       let countRes = await sendSQLReq(
-        `select count(*) from audit.operations_v2 ${
+        `select count(*) from audit.operations ${
           this.conditions ? "where" + this.conditions : ""
         }`
       );
       let pageSize = countRes?.code == 0 ? countRes.data[0][0] : 0;
       
       let res = await sendSQLReq(
-        `select * from audit.operations_v2 ${
+        `select * from audit.operations ${
           this.conditions ? "where" + this.conditions : ""
         }`
       );
