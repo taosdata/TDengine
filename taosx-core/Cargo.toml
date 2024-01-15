@@ -76,8 +76,8 @@ deadpool = "0.10"
 actix-cors = "0.6.4"
 actix-web = "4"
 serde_json = { version = "1.0", features = ["raw_value"] }
-# utoipa = { version = "3", features = ["actix_extras", "chrono"] }
-# utoipa-swagger-ui = { version = "3.0.2", features = ["actix-web"] }
+utoipa = { version = "4.0.0", features = ["actix_extras", "chrono"] }
+utoipa-swagger-ui = { version = "4.0.0", features = ["actix-web"] }
 
 # lru = "0.7.5"
 cfg-if = "1.0.0"
