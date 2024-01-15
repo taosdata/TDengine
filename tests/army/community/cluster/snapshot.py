@@ -72,8 +72,8 @@ class TDTestCase(TBase):
 
         # check count always return value
         sql = f"select count(*) from {self.db}.ta"
-        tdSql.waitedQuery(sql, 0, 2)        
-
+        tdSql.query()
+        tdSql.checkRows(0) # countAlwaysReturnValue is false
 
     # run
     def run(self):

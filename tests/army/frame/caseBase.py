@@ -132,8 +132,9 @@ class TBase:
         tdSql.checkAgg(sql, self.childtable_count)
 
         # check step
-        sql = f"select count(*) from (select diff(ts) as dif from {self.stb} partition by tbname) where dif != {self.timestamp_step}"
-        tdSql.checkAgg(sql, 0)
+        sql = f"select * from (select diff(ts) as dif from {self.stb} partition by tbname) where dif != {self.timestamp_step}"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
 
     # save agg result
     def snapshotAgg(self):        
