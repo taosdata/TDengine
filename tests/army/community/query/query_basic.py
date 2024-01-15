@@ -50,9 +50,24 @@ class TDTestCase(TBase):
     def doQuery(self):
         tdLog.info(f"do query.")
         
-        # top bottom
-        sql = f"select top(uti, 5) from {self.stb} "
+        # __group_key
+        sql = f"select count(*),_group_key(uti),uti from {self.stb} partition by uti;"
         tdSql.execute(sql)
+        tdSql.checkRows(251)
+
+        sql = f"select count(*),_group_key(usi) from {self.stb} group by usi;"
+        tdSql.execute(sql)
+        tdSql.checkRows(997)
+
+        # tail
+        sql1 = "select ts,ui from d0 order by ts desc limit 5 offset 2;"
+        sql2 = "select ts,tail(ui,5,2) from d0;"
+        self.checkSameResult(sql1, sql2)
+
+        # uninqe
+        sql1 = "select distinct uti from d0 order by uti;"
+        sql2 = "select UNIQUE(uti) from d0 order by uti asc;"
+        self.checkSameResult(sql1, sql2)
 
 
     # run
