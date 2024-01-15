@@ -145,7 +145,7 @@ static void mndCalMqRebalance(SMnode *pMnode) {
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TMQ_TIMER, .pCont = pReq, .contLen = contLen};
-    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
 }
 
@@ -299,14 +299,14 @@ static bool mnodeIsNotLeader(SMnode *pMnode) {
 }
 
 static int32_t minCronTime() {
-  int64_t min = INT64_MAX;
+  int32_t min = INT32_MAX;
   min = TMIN(min, tsTtlPushIntervalSec);
   min = TMIN(min, tsTrimVDbIntervalSec);
   min = TMIN(min, tsTransPullupInterval);
   min = TMIN(min, tsCompactPullupInterval);
   min = TMIN(min, tsMqRebalanceInterval);
   min = TMIN(min, tsStreamCheckpointInterval);
-  min = TMIN(min, 5);  // checkpointRemain
+  min = TMIN(min, 6);  // checkpointRemain
   min = TMIN(min, tsStreamNodeCheckInterval);
 
   int64_t telemInt = TMIN(60, (tsTelemInterval - 1));
@@ -386,7 +386,8 @@ static void *mndThreadFp(void *param) {
     int64_t minCron = minCronTime();
     if (sec % minCron == 0 && mnodeIsNotLeader(pMnode)) {
       // not leader, do nothing
-      mTrace("timer not process since mnode is not leader, reason: %s", tstrerror(terrno)) terrno = 0;
+      mTrace("timer not process since mnode is not leader, reason: %s", tstrerror(terrno));
+      terrno = 0;
       continue;
     }
     mndDoTimerPullupTask(pMnode, sec);

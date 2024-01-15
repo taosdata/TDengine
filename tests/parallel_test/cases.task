@@ -11,6 +11,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f enterprise/multi-level/mlevel_basic.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f enterprise/s3/s3_basic.py -L 3 -D 1
 ,,y,army,./pytest.sh python3 ./test.py -f community/cluster/snapshot.py -N 3 -L 3 -D 2
+,,n,army,python3 ./test.py -f community/cmdline/fullopt.py
 
 
 #
@@ -36,6 +37,7 @@
 #,,n,system-test,python3 ./test.py -f 8-stream/snode_restart_with_checkpoint.py -N 4
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname_vgroup.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_interval.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/compact-col.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 2

@@ -169,6 +169,16 @@ class TDTestCase:
         self.check_explain_res_has_row("Partition on", self.explain_sql(sql))
         self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
 
+        sql = 'select count(*), c1 from meters partition by c1'
+        sql_hint = 'select /*+ sort_for_group() partition_first()*/ count(*), c1 from meters partition by c1'
+        self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
+        sql_hint = 'select /*+ partition_first()*/ count(*), c1 from meters partition by c1'
+        self.check_explain_res_has_row("Partition on", self.explain_sql(sql_hint))
+        sql_hint = 'select /*+ partition_first() sort_for_group()*/ count(*), c1 from meters partition by c1'
+        self.check_explain_res_has_row("Partition on", self.explain_sql(sql_hint))
+        sql_hint = 'select /*+ sort_for_group() partition_first()*/ count(*), c1 from meters partition by c1'
+        self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
+
     def add_order_by(self, sql: str, order_by: str, select_list: str = "*") -> str:
         return "select %s from (%s)t order by %s" % (select_list, sql, order_by)
 

@@ -482,6 +482,11 @@ class TDSql:
                 time.sleep(1)
                 pass
 
+    # execute many sql
+    def executes(self, sqls, queryTimes=30, show=False):
+        for sql in sqls:
+            self.execute(sql, queryTimes, show)
+
     def checkAffectedRows(self, expectAffectedRows):
         if self.affectedRows != expectAffectedRows:
             caller = inspect.getframeinfo(inspect.stack()[1][0])

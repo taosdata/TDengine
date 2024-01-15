@@ -3997,7 +3997,8 @@ static int32_t partitionColsOpt(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       }
     }
     return code;
-  } else if (pNode->node.pParent && nodeType(pNode->node.pParent) == QUERY_NODE_LOGIC_PLAN_AGG) {
+  } else if (pNode->node.pParent && nodeType(pNode->node.pParent) == QUERY_NODE_LOGIC_PLAN_AGG &&
+             !getOptHint(pRootNode->pHint, HINT_PARTITION_FIRST)) {
     // Check if we can delete partition node
     SAggLogicNode* pAgg = (SAggLogicNode*)pNode->node.pParent;
     FOREACH(node, pNode->pPartitionKeys) {
