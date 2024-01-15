@@ -9,7 +9,7 @@ description: 'taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine
 
 taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能的工具。taosBenchmark 可以测试 TDengine 的插入、查询和订阅等功能的性能，它可以模拟由大量设备产生的大量数据，还可以灵活地控制数据库、超级表、标签列的数量和类型、数据列的数量和类型、子表的数量、每张子表的数据量、插入数据的时间间隔、taosBenchmark 的工作线程数量、是否以及如何插入乱序数据等。为了兼容过往用户的使用习惯，安装包提供 了 taosdemo 作为 taosBenchmark 的软链接。
 
-:::note IMPORTANT
+:::note 非常重要
 在使用 TDengine Cloud 的时候，请注意，没有授权的用户是没有办法通过任何工具包括 taosBenchmark 来创建数据库的。只能通过 TDengine Cloud 的数据浏览器来创建数据库。这个文档中提到的任何创建数据库的内容请忽略，并在 TDengine Cloud 里面手动创建数据库。
 :::
 
@@ -60,10 +60,6 @@ taosBenchmark -f <json file>
 {
 	"filetype": "insert",
 	"cfgdir": "/etc/taos",
-	"host": "127.0.0.1",
-	"port": 6030,
-	"user": "root",
-	"password": "taosdata",
 	"connection_pool_size": 8,
 	"thread_count": 4,
 	"create_table_thread_count": 7,
@@ -148,7 +144,7 @@ taosBenchmark -f <json file>
 
 ```
 
-#### 查询场景 JSON 配置文件示例
+<!-- #### 查询场景 JSON 配置文件示例
 
 ```json
 {
@@ -189,7 +185,7 @@ taosBenchmark -f <json file>
 	}
 }
 
-```
+``` -->
 
 ## 配置文件参数详解
 
@@ -200,13 +196,13 @@ taosBenchmark -f <json file>
 - **filetype** ：要测试的功能，可选值为 `insert`, `query` 和 `subscribe`。分别对应插入、查询和订阅功能。每个配置文件中只能指定其中之一。
 - **cfgdir** ：TDengine 客户端配置文件所在的目录，默认路径是 /etc/taos 。
 
-- **host** ：指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost。
+<!-- - **host** ：指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost。
 
 - **port** ：要连接的 TDengine 服务器的端口号，默认值为 6030。
 
 - **user** ：用于连接 TDengine 服务端的用户名，默认为 root。
 
-- **password** ：用于连接 TDengine 服务端的密码，默认值为 taosdata。
+- **password** ：用于连接 TDengine 服务端的密码，默认值为 taosdata。 -->
 
 ### 插入场景配置参数
 

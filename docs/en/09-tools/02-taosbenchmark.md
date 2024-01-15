@@ -62,10 +62,6 @@ taosBenchmark -f json-file
 {
 	"filetype": "insert",
 	"cfgdir": "/etc/taos",
-	"host": "127.0.0.1",
-	"port": 6030,
-	"user": "root",
-	"password": "taosdata",
 	"connection_pool_size": 8,
 	"thread_count": 4,
 	"create_table_thread_count": 7,
@@ -150,7 +146,7 @@ taosBenchmark -f json-file
 
 ```
 
-#### Query Scenario JSON Profile Example
+<!-- #### Query Scenario JSON Profile Example
 
 ```json
 {
@@ -191,7 +187,7 @@ taosBenchmark -f json-file
 	}
 }
 
-```
+``` -->
 
 ## Configuration file parameters in detailed
 
