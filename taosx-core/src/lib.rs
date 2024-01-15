@@ -13,12 +13,6 @@ use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
-// use crate::plugins::transform::*;
-use crate::runners::historian::historian_to_taos;
-use crate::runners::influxdb::influxdb_to_taos;
-use crate::runners::kafka::kafka_to_taos;
-use crate::tmq_to_kafka::clean_task;
-pub use crate::tmq_to_kafka::tmq_to_kafka;
 pub use csv::*;
 pub use legacy::*;
 pub use local_to_taos::local_to_taos;
@@ -28,6 +22,13 @@ pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::{tmq_offsets, tmq_to_td};
 pub use transform::Action;
 use utils::port_pool::PortPool;
+
+// use crate::plugins::transform::*;
+use crate::runners::historian::historian_to_taos;
+use crate::runners::influxdb::influxdb_to_taos;
+use crate::runners::kafka::kafka_to_taos;
+use crate::tmq_to_kafka::clean_task;
+pub use crate::tmq_to_kafka::tmq_to_kafka;
 
 pub mod csv;
 mod fake;
@@ -43,7 +44,7 @@ pub mod types;
 pub mod transform;
 pub mod utils;
 
-mod plugins;
+pub mod plugins;
 mod tmq_to_kafka;
 
 pub mod core_metrics;
@@ -506,6 +507,7 @@ impl TaskOpts {
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
+
     use taos::Dsn;
 
     use super::*;

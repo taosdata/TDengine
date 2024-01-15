@@ -27,13 +27,23 @@ use taos::{
     },
     JsonMeta, RawBlock, Ty, Value,
 };
-
-mod select;
+use thiserror::Error;
+use tinytemplate::TinyTemplate;
 
 pub use select::Select;
 use taosx_ipc::prelude::IpcDataType;
-use thiserror::Error;
-use tinytemplate::TinyTemplate;
+
+use crate::plugins::transform::parse::ArrayForTaos;
+
+use super::expr;
+
+use self::{
+    modeler::{ModeledRecordBatch, Modeler},
+    mutate::Mutate,
+    parse::{FieldParser, ParserImpl},
+};
+
+mod select;
 
 // mod json;
 pub mod constants;
@@ -46,16 +56,7 @@ mod map;
 
 mod modeler;
 mod mutate;
-
-use crate::plugins::transform::parse::ArrayForTaos;
-
-use self::{
-    modeler::{ModeledRecordBatch, Modeler},
-    mutate::Mutate,
-    parse::{FieldParser, ParserImpl},
-};
-
-use super::expr;
+pub mod sample;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Pipeline {

@@ -7,6 +7,7 @@ use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
 use crate::plugins::raw_data::RawDataLogger;
+use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::historian::config::connect::ConnectConfig;
 use crate::runners::historian::config::{HistorianTable, TaskConfig, TaskMode};
 use crate::runners::historian::query::HistorianQuery;
@@ -48,6 +49,10 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             }
         }
     }
+}
+
+pub async fn get_sample(dsn: Dsn) -> anyhow::Result<DsSampleIn> {
+    todo!()
 }
 
 pub async fn historian_to_taos(

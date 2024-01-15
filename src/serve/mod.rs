@@ -2,18 +2,15 @@ use std::{sync::Arc, time::Duration};
 
 use actix_cors::Cors;
 use actix_multipart::form::MultipartFormConfig;
-use anyhow::Result;
-
-use clap::Parser;
-use clap_verbosity_flag::{InfoLevel, Verbosity};
-
 use actix_web::web;
 use actix_web::{
     middleware::Compat,
     web::{resource, Data, PayloadConfig, ServiceConfig},
     App, HttpServer,
 };
-
+use anyhow::Result;
+use clap::Parser;
+use clap_verbosity_flag::{InfoLevel, Verbosity};
 use metrics_tracing_context::TracingContextLayer;
 use metrics_util::layers::{FanoutBuilder, Layer};
 use serde::{Deserialize, Serialize};
@@ -22,25 +19,11 @@ use tracing_actix_web::TracingLogger;
 use utoipa::{OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 
-use task::*;
-
-mod agent;
-mod controller;
-mod data_sources;
-mod metrics;
-mod middleware;
-mod routes;
-mod rpc;
-#[allow(unused)]
-mod scheduler;
-pub(crate) mod task;
-#[cfg(test)]
-pub mod tests;
-
-pub use task::check_parser_timestamp_precision;
-
 use controller::*;
 use data_sources::*;
+use taosx_core::plugins::transform::sample::DsSampleIn;
+pub use task::check_parser_timestamp_precision;
+use task::*;
 
 use crate::serve::controller::agent::{
     Activity, ActivityOrder, Agent, AgentActivityFilter, AgentConnectors, AgentProps, AgentStatus,
@@ -57,6 +40,19 @@ use self::{
         TaskScheduler,
     },
 };
+
+mod agent;
+mod controller;
+mod data_sources;
+mod metrics;
+mod middleware;
+mod routes;
+mod rpc;
+#[allow(unused)]
+mod scheduler;
+pub(crate) mod task;
+#[cfg(test)]
+pub mod tests;
 
 #[derive(Deserialize, Clone, Debug, Hash, PartialEq, Eq, ToSchema)]
 pub struct DataSetsReq {
