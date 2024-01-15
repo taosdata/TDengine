@@ -3158,7 +3158,11 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable) {
             ((SSelectStmt*)pTempTable->pSubquery)->isEmptyResult && isSelectStmt(pCxt->pCurrStmt)) {
           ((SSelectStmt*)pCxt->pCurrStmt)->isEmptyResult = true;
         }
-
+        if (QUERY_NODE_SELECT_STMT == nodeType(pTempTable->pSubquery) && isSelectStmt(pCxt->pCurrStmt)) {
+          SSelectStmt* pSubStmt = (SSelectStmt*)pTempTable->pSubquery;
+          SSelectStmt* pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
+          pCurrSmt->timeLineResMode = pSubStmt->timeLineResMode;
+        }
         pTempTable->table.precision = getStmtPrecision(pTempTable->pSubquery);
         pTempTable->table.singleTable = stmtIsSingleTable(pTempTable->pSubquery);
         code = addNamespace(pCxt, pTempTable);
