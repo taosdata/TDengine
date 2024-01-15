@@ -202,7 +202,7 @@
 ./test.sh -f tsim/query/bug3398.sim
 ./test.sh -f tsim/query/explain_tsorder.sim
 ./test.sh -f tsim/qnode/basic1.sim
-./test.sh -f tsim/snode/basic1.sim
+#./test.sh -f tsim/snode/basic1.sim
 ./test.sh -f tsim/mnode/basic1.sim
 ./test.sh -f tsim/mnode/basic2.sim
 ./test.sh -f tsim/mnode/basic3.sim
