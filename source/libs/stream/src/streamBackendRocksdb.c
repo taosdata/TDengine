@@ -382,6 +382,99 @@ int32_t rebuildFromRemoteChkp(char* key, char* chkpPath, int64_t chkpId, char* d
   return -1;
 }
 
+int32_t copyFiles_create(char* src, char* dst, int8_t type) {
+  // create and copy file
+  return taosCopyFile(src, dst);
+}
+int32_t copyFiles_hardlink(char* src, char* dst, int8_t type) {
+  // same fs and hard link
+  return taosLinkFile(src, dst);
+}
+
+int32_t backendFileCopyFilesImpl(char* src, char* dst) {
+  int32_t code = 0;
+  int32_t sLen = strlen(src);
+  int32_t dLen = strlen(dst);
+  char*   srcName = taosMemoryCalloc(1, sLen + 64);
+  char*   dstName = taosMemoryCalloc(1, dLen + 64);
+  // copy file to dst
+
+  TdDirPtr pDir = taosOpenDir(src);
+  if (pDir == NULL) {
+    taosMemoryFree(srcName);
+    taosMemoryFree(dstName);
+    return -1;
+  }
+  TdDirEntryPtr de = NULL;
+  while ((de = taosReadDir(pDir)) != NULL) {
+    char* name = taosGetDirEntryName(de);
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+
+    sprintf(srcName, "%s%s%s", src, TD_DIRSEP, name);
+    sprintf(dstName, "%s%s%s", dst, TD_DIRSEP, name);
+
+    if (strcmp(name, "CURRENT") == 0) {
+      code = copyFiles_create(srcName, dstName, 0);
+    } else {
+      code = copyFiles_hardlink(srcName, dstName, 0);
+    }
+    if (code != 0) {
+      goto _ERROR;
+    }
+    memset(srcName, 0, sLen + 64);
+    memset(dstName, 0, dLen + 64);
+  }
+
+  taosCloseDir(&pDir);
+  return 0;
+_ERROR:
+  taosMemoryFreeClear(srcName);
+  taosMemoryFreeClear(dstName);
+  taosCloseDir(&pDir);
+  return -1;
+}
+int32_t backendCopyFiles(char* src, char* dst) {
+  return backendFileCopyFilesImpl(src, dst);
+  // // opt later, just hard link
+  // int32_t sLen = strlen(src);
+  // int32_t dLen = strlen(dst);
+  // char*   srcName = taosMemoryCalloc(1, sLen + 64);
+  // char*   dstName = taosMemoryCalloc(1, dLen + 64);
+
+  // TdDirPtr pDir = taosOpenDir(src);
+  // if (pDir == NULL) {
+  //   taosMemoryFree(srcName);
+  //   taosMemoryFree(dstName);
+  //   return -1;
+  // }
+
+  // TdDirEntryPtr de = NULL;
+  // while ((de = taosReadDir(pDir)) != NULL) {
+  //   char* name = taosGetDirEntryName(de);
+  //   if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+
+  //   sprintf(srcName, "%s%s%s", src, TD_DIRSEP, name);
+  //   sprintf(dstName, "%s%s%s", dst, TD_DIRSEP, name);
+  //   // if (!taosDirEntryIsDir(de)) {
+  //   //   // code = taosCopyFile(srcName, dstName);
+  //   //   if (code == -1) {
+  //   //     goto _err;
+  //   //   }
+  //   // }
+  //   return backendFileCopyFilesImpl(src, dst);
+
+  //   memset(srcName, 0, sLen + 64);
+  //   memset(dstName, 0, dLen + 64);
+  // }
+
+  // _err:
+  //   taosMemoryFreeClear(srcName);
+  //   taosMemoryFreeClear(dstName);
+  //   taosCloseDir(&pDir);
+  //   return code >= 0 ? 0 : -1;
+
+  // return 0;
+}
 int32_t rebuildFromLocalChkp(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
   int32_t code = -1;
   int32_t len = strlen(defaultPath) + 32;
@@ -396,7 +489,7 @@ int32_t rebuildFromLocalChkp(char* key, char* chkpPath, int64_t chkpId, char* de
       taosRemoveDir(tmp);
     }
     taosMkDir(defaultPath);
-    code = copyFiles(chkpPath, defaultPath);
+    code = backendCopyFiles(chkpPath, defaultPath);
     if (code != 0) {
       stError("failed to restart stream backend from %s, reason: %s", chkpPath, tstrerror(TAOS_SYSTEM_ERROR(errno)));
     } else {
