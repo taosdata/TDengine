@@ -13,17 +13,6 @@ class TDTestCase:
         tdSql.init(conn.cursor(), True)
 
     def run(self):
-        """
-        timestamp输入插入规则：
-        对于插入的字段类型为timestamp类型的字段，只允许这么几种情况：
-        timestamp
-        timestamp +/- interval
-        interval + timestamp
-        timestamp可以是字符串譬如："2023-12-05 00:00:00.000", 也可以是int型， 譬如：1701619200000
-        interval支持：b, u, a, s, m, h, d, w 不支持n, y,譬如：1h, 2d
-
-        仅支持2元表达式，譬如：timestamp  + 2h， 不支持2元以上表达，譬如timestamp + 2h + 1d
-        """
 
         tdSql.execute("create database test_insert_timestamp PRECISION 'ns';")
         tdSql.execute("use test_insert_timestamp;")
@@ -31,7 +20,7 @@ class TDTestCase:
         tdSql.execute("create table test_t using st tags(1);")
 
         expectErrInfo = "syntax error"
-        # 异常场景：timestamp + timestamp
+        # abnormal scenario:timestamp + timestamp
         tdSql.error("insert into test_t values(now + today(), 1 );", expectErrInfo=expectErrInfo, fullMatched=False)
         tdSql.error("insert into test_t values(now - today(), 1 );", expectErrInfo=expectErrInfo, fullMatched=False)
         tdSql.error("insert into test_t values(today() + now(), 1 ); ", expectErrInfo=expectErrInfo, fullMatched=False)
@@ -40,24 +29,24 @@ class TDTestCase:
         tdSql.error("insert into test_t values('2023-11-28 00:00:00.000' + 1701111600000, 1 ); ", expectErrInfo=expectErrInfo, fullMatched=False)
         tdSql.error("insert into test_t values(1701111500000 + 1701111600000, 1 ); ", expectErrInfo=expectErrInfo, fullMatched=False)
 
-        # 异常场景：timestamp + interval + interval
+        # abnormal scenario:timestamp + interval + interval
         tdSql.error("insert into test_t values(today() + 1d + 1s, 1);", expectErrInfo=expectErrInfo, fullMatched=False)
 
-        # 异常场景：interval - timestamp
+        # abnormal scenario:interval - timestamp
         tdSql.error("insert into test_t values(2h - now(), 1 ); ", expectErrInfo=expectErrInfo, fullMatched=False)
         tdSql.error("insert into test_t values(2h - today(), 1 ); ", expectErrInfo=expectErrInfo, fullMatched=False)
 
-        # 异常场景：interval + interval
+        # abnormal scenario:interval + interval
         tdSql.error("insert into test_t values(2h - 1h, 1 ); ", expectErrInfo=expectErrInfo, fullMatched=False)
         tdSql.error("insert into test_t values(2h + 1h, 1 ); ", expectErrInfo=expectErrInfo, fullMatched=False)
 
-        # 异常场景：非法interval类型n
+        # abnormal scenario:non-support n
         tdSql.error("insert into test_t values(today() + 2n, 7); ", expectErrInfo=expectErrInfo, fullMatched=False)
 
-        # 异常场景：非法interval类型y
+        # abnormal scenario:non-support y
         tdSql.error("insert into test_t values(today() - 2y, 8);", expectErrInfo=expectErrInfo, fullMatched=False)
 
-        # 异常场景：数据类型不对
+        # abnormal scenario:incorrect datatype
         tdSql.error("insert into test_t values('a1701619200000', 8);", expectErrInfo=expectErrInfo, fullMatched=False)
         tdSql.error("insert into test_t values('ss2023-12-05 00:00:00.000' + '1701619200000', 1);", expectErrInfo=expectErrInfo, fullMatched=False)
         tdSql.error("insert into test_t values(123456, 1);", expectErrInfo="Timestamp data out of range")
@@ -66,31 +55,31 @@ class TDTestCase:
         tdSql.error("insert into test_t values(None, 1);", expectErrInfo=expectErrInfo, fullMatched=False)
         tdSql.error("insert into test_t values(null, 1);", expectErrInfo=expectErrInfo, fullMatched=False)
 
-        # 异常场景：格式不对
+        # abnormal scenario:incorrect format
         tdSql.error("insert into test_t values('2023-122-05 00:00:00.000' + '1701619200000', 1);", expectErrInfo=expectErrInfo, fullMatched=False)
         tdSql.error("insert into test_t values('2023-12--05 00:00:00.000' + '1701619200000', 1);", expectErrInfo=expectErrInfo, fullMatched=False)
         tdSql.error("insert into test_t values('12/12/2023' + 10a, 1);", expectErrInfo=expectErrInfo, fullMatched=False)
         tdSql.error("insert into test_t values(1701619200000111, 1);", expectErrInfo="Timestamp data out of range", fullMatched=False)
 
-        # 正常场景：timestamp + interval
+        # normal scenario:timestamp + interval
         tdSql.execute("insert into test_t values(today() + 2b, 1);")
         tdSql.execute("insert into test_t values(1701619200000000000 + 2u, 2);")
         tdSql.execute("insert into test_t values(today + 2a, 3);")
         tdSql.execute("insert into test_t values('2023-12-05 23:59:59.999' + 2a, 4);")
         tdSql.execute("insert into test_t values(1701921599000000000 + 3a, 5);")
 
-        # 正常场景：timestamp - interval
+        # normal scenario:timestamp - interval
         tdSql.execute("insert into test_t values(today() - 2s, 6);")
         tdSql.execute("insert into test_t values(now() - 2m, 7);")
         tdSql.execute("insert into test_t values(today - 2h, 8);")
         tdSql.execute("insert into test_t values('2023-12-05 00:00:00.000000000' - 2a, 9);")
         tdSql.execute("insert into test_t values(1701669000000000000 - 2a, 10);")
 
-        # 正常场景：interval + timestamp
+        # normal scenario:interval + timestamp
         tdSql.execute("insert into test_t values(2d + now, 11);")
         tdSql.execute("insert into test_t values(2w + today, 12);")
 
-        # 正常场景：timestamp
+        # normal scenario:timestamp
         tdSql.execute("insert into test_t values('2023-12-05 00:00:00.000', 13);")
         tdSql.execute("insert into test_t values(1701629100000000000, 14);")
         tdSql.execute("insert into test_t values(now() + 2s, 15);")
@@ -102,7 +91,7 @@ class TDTestCase:
         tdSql.execute("insert into test_t values(1701619200000000000, -5);")
         tdSql.execute("insert into test_t values('2023-12-05 12:12:12' + 10a, 19);")
 
-        # 验证数据
+        # data verification
         tdSql.query(f'select ts,c1  from test_t order by c1;')
         tdSql.checkRows(22)
         tdSql.checkEqual(tdSql.queryResult[0][0], 1699977600000000000)     # c1=-15
@@ -133,12 +122,10 @@ class TDTestCase:
         tdSql.execute("drop database if exists test_insert_timestamp;")
 
     def __convert_ts_to_date(self, ts: int) -> str:
-        # 创建datetime对象并进行转换
         dt_object = datetime.datetime.fromtimestamp(ts / 1e9)
 
-        # 格式化日期字符串
         formatted_date = dt_object.strftime('%Y-%m-%d')
-        # print("转换后的日期为：", formatted_date)
+
         return formatted_date
 
     def __get_today_ts(self) -> int:
