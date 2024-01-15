@@ -40,7 +40,7 @@ messages_of_data: 本次运行通过 TMQ 收到的 Data 和 MetaData 类型的�
 write_raw_fails: 本次运行写入 Raw Meta 失败次数
 total_received_batches: 通过 IPC Stream 收到的数据总批数
 total_processed_batches: 已经处理的总批数
-total_processed_records: 已经处理的总行数（等于包含数据的 batch 包含的数据行数之和）
+total_processed_rows: 已经处理的总行数（等于包含数据的 batch 包含的数据行数之和）
 total_inserted_sqls: 执行的 INSERT SQL 总条数
 total_failed_sqls: 执行失败的 INSERT SQL 总条数
 total_created_stables: 尝试创建超级表总数（可能大于实际值）
@@ -51,7 +51,7 @@ total_written_raw_blocks: 写入成功的 raw block 总数
 total_failed_raw_blocks: 写入失败的 raw block 总数
 received_batches: 本次运行此任务通过 IPC Stream 收到的数据总批数
 processed_batches: 本次运行此任务已经处理的批数
-processed_records: 本次处理的总行数（等于包含数据的 batch 包含的数据行数之和）
+processed_rows: 本次处理的总行数（等于包含数据的 batch 包含的数据行数之和）
 inserted_sqls: 本次运行此任务执行的 INSERT SQL 总条数
 failed_sqls: 本次运行此任务执行失败的 INSERT SQL 总条数
 created_stables: 本次运行此任务尝试创建超级表数（可能大于实际值）
