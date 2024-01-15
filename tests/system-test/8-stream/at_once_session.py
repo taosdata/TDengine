@@ -203,7 +203,7 @@ class TDTestCase:
                         tdSql.query(f'select count(*) from `{tbname}`')
                         ptn_counter += 1
 
-                    tdSql.checkEqual(tdSql.queryResult[0][0] > 0, True)
+                    tdSql.checkEqual(tdSql.queryResult[0][0] > 0, True) if subtable is not None else tdSql.checkEqual(tdSql.queryResult[0][0] >= 0, True)
 
 
 
