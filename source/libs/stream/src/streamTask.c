@@ -848,3 +848,7 @@ void streamTaskResume(SStreamTask* pTask) {
     stDebug("s-task:%s status:%s not in pause/halt status, no need to resume", pTask->id.idStr, prevState.name);
   }
 }
+
+bool streamTaskIsSinkTask(const SStreamTask* pTask) {
+  return pTask->info.taskLevel == TASK_LEVEL__SINK;
+}

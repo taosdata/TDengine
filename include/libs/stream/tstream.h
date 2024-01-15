@@ -837,6 +837,7 @@ int32_t streamTaskReloadState(SStreamTask* pTask);
 void    streamTaskCloseAllUpstreamInput(SStreamTask* pTask, int32_t taskId);
 void    streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 int32_t streamTaskSetDb(SStreamMeta* pMeta, void* pTask, char* key);
+bool    streamTaskIsSinkTask(const SStreamTask* pTask);
 
 void streamTaskStatusInit(STaskStatusEntry* pEntry, const SStreamTask* pTask);
 void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc);
