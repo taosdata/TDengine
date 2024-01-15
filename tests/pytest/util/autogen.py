@@ -114,6 +114,7 @@ class AutoGen:
     def create_db(self, dbname, vgroups = 2, replica = 1):
         self.dbname  = dbname
         tdSql.execute(f'create database {dbname} vgroups {vgroups} replica {replica}')
+        tdSql.execute(f"use {dbname}")
         
     # create table or stable
     def create_stable(self, stbname, tag_cnt, column_cnt, binary_len, nchar_len):
