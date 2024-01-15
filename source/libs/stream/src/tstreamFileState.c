@@ -26,6 +26,7 @@
 #define FLUSH_NUM                      4
 #define DEFAULT_MAX_STREAM_BUFFER_SIZE (128 * 1024 * 1024)
 #define MIN_NUM_OF_ROW_BUFF            10240
+#define MIN_NUM_OF_RECOVER_ROW_BUFF    128
 
 #define TASK_KEY                       "streamFileState"
 #define STREAM_STATE_INFO_NAME         "StreamStateCheckPoint"
@@ -660,7 +661,7 @@ int32_t recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
   if (pCur == NULL) {
     return -1;
   }
-  int32_t recoverNum = TMIN(MIN_NUM_OF_ROW_BUFF, pFileState->maxRowCount);
+  int32_t recoverNum = TMIN(MIN_NUM_OF_RECOVER_ROW_BUFF, pFileState->maxRowCount);
   while (code == TSDB_CODE_SUCCESS) {
     if (pFileState->curRowCount >= recoverNum) {
       break;
@@ -694,7 +695,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
   if (pCur == NULL) {
     return -1;
   }
-  int32_t recoverNum = TMIN(MIN_NUM_OF_ROW_BUFF, pFileState->maxRowCount);
+  int32_t recoverNum = TMIN(MIN_NUM_OF_RECOVER_ROW_BUFF, pFileState->maxRowCount);
   while (code == TSDB_CODE_SUCCESS) {
     if (pFileState->curRowCount >= recoverNum) {
       break;

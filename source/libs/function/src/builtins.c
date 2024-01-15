@@ -2382,7 +2382,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = countFunction,
     .sprocessFunc = countScalarFunction,
     .finalizeFunc = functionFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = countInvertFunction,
+#endif
     .combineFunc  = combineFunction,
     .pPartialFunc = "count",
     .pMergeFunc   = "sum"
@@ -2398,7 +2400,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = sumFunction,
     .sprocessFunc = sumScalarFunction,
     .finalizeFunc = functionFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = sumInvertFunction,
+#endif
     .combineFunc  = sumCombine,
     .pPartialFunc = "sum",
     .pMergeFunc   = "sum"
@@ -2443,7 +2447,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = stddevFunction,
     .sprocessFunc = stddevScalarFunction,
     .finalizeFunc = stddevFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = stddevInvertFunction,
+#endif
     .combineFunc  = stddevCombine,
     .pPartialFunc = "_stddev_partial",
     .pMergeFunc   = "_stddev_merge"
@@ -2457,7 +2463,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = stddevFunctionSetup,
     .processFunc  = stddevFunction,
     .finalizeFunc = stddevPartialFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = stddevInvertFunction,
+#endif
     .combineFunc  = stddevCombine,
   },
   {
@@ -2469,7 +2477,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = stddevFunctionSetup,
     .processFunc  = stddevFunctionMerge,
     .finalizeFunc = stddevFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = stddevInvertFunction,
+#endif
     .combineFunc  = stddevCombine,
   },
   {
@@ -2482,7 +2492,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = leastSQRFunction,
     .sprocessFunc = leastSQRScalarFunction,
     .finalizeFunc = leastSQRFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
+#endif
     .combineFunc  = leastSQRCombine,
   },
   {
@@ -2496,7 +2508,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = avgFunction,
     .sprocessFunc = avgScalarFunction,
     .finalizeFunc = avgFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = avgInvertFunction,
+#endif
     .combineFunc  = avgCombine,
     .pPartialFunc = "_avg_partial",
     .pMiddleFunc  = "_avg_middle",
@@ -2512,7 +2526,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = avgFunctionSetup,
     .processFunc  = avgFunction,
     .finalizeFunc = avgPartialFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = avgInvertFunction,
+#endif
     .combineFunc  = avgCombine,
   },
   {
@@ -2524,7 +2540,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = avgFunctionSetup,
     .processFunc  = avgFunctionMerge,
     .finalizeFunc = avgFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = avgInvertFunction,
+#endif
     .combineFunc  = avgCombine,
   },
   {
@@ -2538,7 +2556,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = percentileFunction,
     .sprocessFunc = percentileScalarFunction,
     .finalizeFunc = percentileFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
+#endif
     .combineFunc  = NULL,
   },
   {
@@ -2551,7 +2571,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = apercentileFunction,
     .sprocessFunc = apercentileScalarFunction,
     .finalizeFunc = apercentileFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
+#endif
     .combineFunc  = apercentileCombine,
     .pPartialFunc = "_apercentile_partial",
     .pMergeFunc   = "_apercentile_merge",
@@ -2566,7 +2588,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = apercentileFunctionSetup,
     .processFunc  = apercentileFunction,
     .finalizeFunc = apercentilePartialFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
+#endif
     .combineFunc = apercentileCombine,
   },
   {
@@ -2578,7 +2602,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = apercentileFunctionSetup,
     .processFunc  = apercentileFunctionMerge,
     .finalizeFunc = apercentileFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
+#endif
     .combineFunc = apercentileCombine,
   },
   {
@@ -2624,7 +2650,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = spreadFunction,
     .sprocessFunc = spreadScalarFunction,
     .finalizeFunc = spreadFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
+#endif
     .combineFunc  = spreadCombine,
     .pPartialFunc = "_spread_partial",
     .pMergeFunc   = "_spread_merge"
@@ -2639,7 +2667,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunction,
     .finalizeFunc = spreadPartialFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
+#endif
     .combineFunc  = spreadCombine,
   },
   {
@@ -2652,7 +2682,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunctionMerge,
     .finalizeFunc = spreadFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
+#endif
     .combineFunc  = spreadCombine,
   },
   {
@@ -2666,7 +2698,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = elapsedFunctionSetup,
     .processFunc  = elapsedFunction,
     .finalizeFunc = elapsedFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
+#endif
     .combineFunc  = elapsedCombine,
   },
   {
@@ -2679,7 +2713,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = elapsedFunctionSetup,
     .processFunc  = elapsedFunction,
     .finalizeFunc = elapsedPartialFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
+#endif
     .combineFunc  = elapsedCombine,
   },
   {
@@ -2692,7 +2728,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = elapsedFunctionSetup,
     .processFunc  = elapsedFunctionMerge,
     .finalizeFunc = elapsedFinalize,
+  #ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
+  #endif
     .combineFunc  = elapsedCombine,
   },
   {
@@ -2922,7 +2960,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = histogramFunction,
     .sprocessFunc = histogramScalarFunction,
     .finalizeFunc = histogramFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
+#endif
     .combineFunc  = histogramCombine,
     .pPartialFunc = "_histogram_partial",
     .pMergeFunc   = "_histogram_merge",
@@ -2936,7 +2976,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = histogramFunctionSetup,
     .processFunc  = histogramFunctionPartial,
     .finalizeFunc = histogramPartialFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
+#endif
     .combineFunc  = histogramCombine,
   },
   {
@@ -2948,7 +2990,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = histogramFunctionMerge,
     .finalizeFunc = histogramFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
+#endif
     .combineFunc  = histogramCombine,
   },
   {
@@ -2961,7 +3005,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = hllFunction,
     .sprocessFunc = hllScalarFunction,
     .finalizeFunc = hllFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
+#endif
     .combineFunc  = hllCombine,
     .pPartialFunc = "_hyperloglog_partial",
     .pMergeFunc   = "_hyperloglog_merge"
@@ -2975,7 +3021,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = hllFunction,
     .finalizeFunc = hllPartialFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
+#endif
     .combineFunc  = hllCombine,
   },
   {
@@ -2987,7 +3035,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = hllFunctionMerge,
     .finalizeFunc = hllFinalize,
+#ifdef BUILD_NO_CALL
     .invertFunc   = NULL,
+#endif
     .combineFunc  = hllCombine,
   },
   {

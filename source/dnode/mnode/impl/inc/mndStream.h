@@ -44,12 +44,11 @@ typedef struct SStreamTransMgmt {
 } SStreamTransMgmt;
 
 typedef struct SStreamExecInfo {
-  SArray *         pNodeList;
+  SArray          *pNodeList;
   int64_t          ts;  // snapshot ts
   SStreamTransMgmt transMgmt;
-  int64_t          activeCheckpoint;  // active check point id
-  SHashObj *       pTaskMap;
-  SArray *         pTaskList;
+  SHashObj        *pTaskMap;
+  SArray          *pTaskList;
   TdThreadMutex    lock;
 } SStreamExecInfo;
 
@@ -72,7 +71,8 @@ int32_t     mndPersistStream(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream
 
 int32_t mndStreamRegisterTrans(STrans* pTrans, const char* pTransName, int64_t streamUid);
 int32_t mndAddtoCheckpointWaitingList(SStreamObj *pStream, int64_t checkpointId);
-bool    streamTransConflictOtherTrans(SMnode *pMnode, int64_t streamUid, const char *pTransName, bool lock);
+bool    mndStreamTransConflictCheck(SMnode *pMnode, int64_t streamUid, const char *pTransName, bool lock);
+int32_t mndStreamGetRelTrans(SMnode *pMnode, int64_t streamUid);
 
 // for sma
 // TODO refactor

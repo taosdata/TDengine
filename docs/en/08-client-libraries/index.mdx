@@ -1,0 +1,118 @@
+---
+title: Client Libraries
+description: This document describes the client libraries that TDengine provides to interface with various programming languages.
+---
+
+TDengine provides a rich set of APIs (application development interface). To facilitate users to develop their applications quickly, TDengine supports client libraries for multiple programming languages, including official libraries for C/C++, Java, Python, Go, Node.js, C#, and Rust. These client libraries support connecting to TDengine clusters using both native interfaces (taosc) and REST interfaces (not supported in a few languages yet). Community developers have also contributed several unofficial client libraries, such as the ADO.NET, Lua, and PHP libraries.
+
+![TDengine client library connections](./connector.webp)
+
+## Supported platforms
+
+Currently, TDengine's native interface client libraries can support platforms such as x64 and ARM hardware platforms and Linux/Windows/macOS development environments. The comparison matrix is as follows.
+
+| **CPU**        | **OS**    | **Java** | **Python** | **Go** | **Node.js** | **C#** | **Rust** | C/C++ |
+| -------------- | --------- | -------- | ---------- | ------ | ----------- | ------ | -------- | ----- |
+| **X86 64bit**  | **Linux** | ●        | ●          | ●      | ●           | ●      | ●        | ●     |
+| **X86 64bit**  | **Win64** | ●        | ●          | ●      | ●           | ●      | ●        | ●     |
+| **X86 64bit**  | **macOS** | ○        | ●          | ●      | ○           | ○      | ●        | ●     |
+| **ARM64**      | **Linux** | ●        | ●          | ●      | ●           | ○      | ○        | ●     |
+| **ARM64**      | **macOS** | ○        | ●          | ●      | ○           | ○      | ●        | ●     |
+
+Where ● means the official test verification passed, ○ means the unofficial test verification passed, -- means no assurance.
+
+Using REST connection can support a broader range of operating systems as it does not rely on client drivers.
+
+## Version support
+
+TDengine version updates often add new features, and the client library versions in the list are the best-fit versions of the library.
+
+| **TDengine Versions**       | **Java**       | **Python**     | **Go**         | **C#**        | **Node.js**     | **Rust**        |
+| --------------------------- | -------------- | -------------- | -------------- | ------------- | --------------- | --------------- |
+| **3.0.0.0 and later**       | 3.0.2 +        | latest version | 3.0 branch     | 3.0.0         | 3.0.0           | current version |
+| **2.4.0.14 and up **        | 2.0.38         | latest version | develop branch | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | current version |
+| **2.4.0.4 - 2.4.0.13 **     | 2.0.37         | latest version | develop branch | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | current version |
+| **2.2.x.x **                | 2.0.36         | latest version | master branch  | n/a           | 2.0.7 - 2.0.9   | current version |
+| **2.0.x.x **                | 2.0.34         | latest version | master branch  | n/a           | 2.0.1 - 2.0.6   | current version |
+
+## Functional Features
+
+Comparing the client library support for TDengine functional features as follows.
+
+### Using the native interface (taosc)
+
+| **Functional Features**       | **Java**      | **Python** | **Go**        | **C#**        | **Node.js**   | **Rust**      |
+| ----------------------------- | ------------- | ---------- | ------------- | ------------- | ------------- | ------------- |
+| **Connection Management**     | Support       | Support    | Support       | Support       | Support       | Support       |
+| **Regular Query**             | Support       | Support    | Support       | Support       | Support       | Support       |
+| **Parameter Binding**         | Support       | Support    | Support       | Support       | Support       | Support       |
+| **Subscription (TMQ)**        | Support       | Support    | Support       | Support       | Support       | Support       |
+| **Schemaless**                | Support       | Support    | Support       | Support       | Support       | Support       |
+
+:::info
+The different database framework specifications for various programming languages do not mean that all C/C++ interfaces need a wrapper.
+:::
+
+### Use HTTP Interfaces (REST or WebSocket)
+
+| **Functional Features**                | **Java**      | **Python**      | **Go**        | **C#**        | **Node.js**   | **Rust**      |
+| -------------------------------------- | ------------- | --------------- | ------------- | ------------- | ------------- | ------------- |
+| **Connection Management**              | Support       | Support         | Support       | Support       | Support       | Support       |
+| **Regular Query**                      | Support       | Support         | Support       | Support       | Support       | Support       |
+| **Parameter Binding**                  | Supported     | Supported       | Support       | Support       | Not Supported | Support       |
+| **Subscription (TMQ) **                | Supported     | Support         | Support       | Not Supported | Not Supported | Support       |
+| **Schemaless**                         | Supported     | Supported       | Supported | Not Supported | Not Supported | Not Supported |
+| **Bulk Pulling (based on WebSocket) ** | Support       | Support         | Support       | Support       | Support       | Support       |
+
+:::warning
+
+- Regardless of the programming language chosen for the client library, TDengine versions 2.0 and above recommend that each thread of a database application create a separate connection. Or create a connection pool based on threads to avoid interference between threads with the "USE statement" state within a connection (but the connection's query and write operations are thread-safe).
+
+:::
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import InstallOnLinux from "./_linux_install.mdx";
+import InstallOnWindows from "./_windows_install.mdx";
+import InstallOnMacOS from "./_macos_install.mdx";
+import VerifyWindows from "./_verify_windows.mdx";
+import VerifyLinux from "./_verify_linux.mdx";
+import VerifyMacOS from "./_verify_macos.mdx";
+
+## Install Client Driver
+
+:::info
+The client driver needs to be installed if you use the native interface connection on a system that does not have the TDengine server software installed.
+
+:::
+
+### Install
+
+<Tabs defaultValue="linux" groupId="os">
+  <TabItem value="linux" label="Linux">
+    <InstallOnLinux />
+  </TabItem>
+  <TabItem value="windows" label="Windows">
+    <InstallOnWindows />
+  </TabItem>
+  <TabItem value="macos" label="MacOS">
+    <InstallOnMacOS />
+  </TabItem>
+</Tabs>
+
+### Verify
+
+After completing the above installation and configuration and you have confirmed that the TDengine service is up and running, you can execute the TDengine CLI tool to log in.
+
+<Tabs defaultValue="linux" groupId="os">
+  <TabItem value="linux" label="Linux">
+    <VerifyLinux />
+  </TabItem>
+  <TabItem value="windows" label="Windows">
+    <VerifyWindows />
+  </TabItem>
+  <TabItem value="macos" label="MacOS">
+    <VerifyMacOS />
+  </TabItem>
+</Tabs>
+

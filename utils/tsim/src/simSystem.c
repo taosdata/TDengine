@@ -21,7 +21,6 @@ SScript *simScriptList[MAX_MAIN_SCRIPT_NUM];
 SCommand simCmdList[SIM_CMD_END];
 int32_t  simScriptPos = -1;
 int32_t  simScriptSucceed = 0;
-int32_t  simDebugFlag = 143;
 void     simCloseTaosdConnect(SScript *script);
 char     simScriptDir[PATH_MAX] = {0};
 
@@ -32,7 +31,6 @@ int32_t simInitCfg() {
   taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1);
 
   SConfig *pCfg = taosGetCfg();
-  simDebugFlag = cfgGetItem(pCfg, "simDebugFlag")->i32;
   tstrncpy(simScriptDir, cfgGetItem(pCfg, "scriptDir")->str, PATH_MAX);
   return 0;
 }

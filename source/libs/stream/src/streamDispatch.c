@@ -58,6 +58,7 @@ int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* p
   if (tEncodeI32(pEncoder, pReq->upstreamTaskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->upstreamChildId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->upstreamNodeId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->upstreamRelTaskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->blockNum) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->totalLen) < 0) return -1;
   ASSERT(taosArrayGetSize(pReq->data) == pReq->blockNum);
@@ -84,6 +85,7 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
   if (tDecodeI32(pDecoder, &pReq->upstreamTaskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->upstreamChildId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->upstreamNodeId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->upstreamRelTaskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->blockNum) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->totalLen) < 0) return -1;
 
@@ -114,6 +116,7 @@ static int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTas
   pReq->upstreamTaskId = pTask->id.taskId;
   pReq->upstreamChildId = pTask->info.selfChildId;
   pReq->upstreamNodeId = pTask->info.nodeId;
+  pReq->upstreamRelTaskId = pTask->streamTaskId.taskId;
   pReq->blockNum = numOfBlocks;
   pReq->taskId = dstTaskId;
   pReq->type = type;
@@ -374,6 +377,7 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
             return code;
           }
 
+          // it's a new vnode to receive dispatch msg, so add one
           if (pReqs[j].blockNum == 0) {
             atomic_add_fetch_32(&pTask->outputInfo.shuffleDispatcher.waitingRspCnt, 1);
           }
@@ -394,8 +398,15 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
     pTask->msgInfo.pData = pReqs;
   }
 
-  stDebug("s-task:%s build dispatch msg success, msgId:%d, stage:%" PRId64, pTask->id.idStr, pTask->execInfo.dispatch,
-          pTask->pMeta->stage);
+  if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
+    stDebug("s-task:%s build dispatch msg success, msgId:%d, stage:%" PRId64 " %p", pTask->id.idStr,
+            pTask->execInfo.dispatch, pTask->pMeta->stage, pTask->msgInfo.pData);
+  } else {
+    stDebug("s-task:%s build dispatch msg success, msgId:%d, stage:%" PRId64 " dstVgNum:%d %p", pTask->id.idStr,
+            pTask->execInfo.dispatch, pTask->pMeta->stage, pTask->outputInfo.shuffleDispatcher.waitingRspCnt,
+            pTask->msgInfo.pData);
+  }
+
   return code;
 }
 
@@ -417,9 +428,11 @@ static int32_t sendDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pDispatch
     SArray* vgInfo = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
     int32_t numOfVgroups = taosArrayGetSize(vgInfo);
 
-    stDebug("s-task:%s (child taskId:%d) start to shuffle-dispatch blocks to %d vgroup(s), msgId:%d", id,
-            pTask->info.selfChildId, numOfVgroups, msgId);
+    int32_t actualVgroups = pTask->outputInfo.shuffleDispatcher.waitingRspCnt;
+    stDebug("s-task:%s (child taskId:%d) start to shuffle-dispatch blocks to %d/%d vgroup(s), msgId:%d", id,
+            pTask->info.selfChildId, actualVgroups, numOfVgroups, msgId);
 
+    int32_t numOfSend = 0;
     for (int32_t i = 0; i < numOfVgroups; i++) {
       if (pDispatchMsg[i].blockNum > 0) {
         SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
@@ -428,6 +441,11 @@ static int32_t sendDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pDispatch
 
         code = doSendDispatchMsg(pTask, &pDispatchMsg[i], pVgInfo->vgId, &pVgInfo->epSet);
         if (code < 0) {
+          break;
+        }
+
+        // no need to try remain, all already send.
+        if (++numOfSend == actualVgroups) {
           break;
         }
       }
@@ -703,10 +721,9 @@ int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask) {
     int32_t numOfVgs = taosArrayGetSize(vgInfo);
     pTask->notReadyTasks = numOfVgs;
 
-    char* p = NULL;
-    streamTaskGetStatus(pTask, &p);
+    SStreamTaskState* pState = streamTaskGetStatus(pTask);
     stDebug("s-task:%s send scan-history data complete msg to downstream (shuffle-dispatch) %d tasks, status:%s",
-            pTask->id.idStr, numOfVgs, p);
+            pTask->id.idStr, numOfVgs, pState->name);
     for (int32_t i = 0; i < numOfVgs; i++) {
       SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
       req.downstreamTaskId = pVgInfo->taskId;
@@ -753,7 +770,7 @@ int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask) {
     taosArrayClear(pTask->pReadyMsgList);
     stDebug("s-task:%s level:%d source checkpoint completed msg sent to mnode", pTask->id.idStr, pTask->info.taskLevel);
   } else {
-    stDebug("s-task:%s level:%d already send rsp to mnode", pTask->id.idStr, pTask->info.taskLevel);
+    stDebug("s-task:%s level:%d already send rsp checkpoint success to mnode", pTask->id.idStr, pTask->info.taskLevel);
   }
 
   taosThreadMutexUnlock(&pTask->lock);
@@ -826,9 +843,9 @@ int32_t doDispatchScanHistoryFinishMsg(SStreamTask* pTask, const SStreamScanHist
   initRpcMsg(&msg, TDMT_VND_STREAM_SCAN_HISTORY_FINISH, buf, tlen + sizeof(SMsgHead));
 
   tmsgSendReq(pEpSet, &msg);
-  char* p = NULL;
-  streamTaskGetStatus(pTask, &p);
-  stDebug("s-task:%s status:%s dispatch scan-history finish msg to taskId:0x%x (vgId:%d)", pTask->id.idStr, p,
+
+  SStreamTaskState* pState = streamTaskGetStatus(pTask);
+  stDebug("s-task:%s status:%s dispatch scan-history finish msg to taskId:0x%x (vgId:%d)", pTask->id.idStr, pState->name,
           pReq->downstreamTaskId, vgId);
   return 0;
 }
@@ -1103,6 +1120,7 @@ int32_t streamNotifyUpstreamContinue(SStreamTask* pTask) {
 
 // this message has been sent successfully, let's try next one.
 static int32_t handleDispatchSuccessRsp(SStreamTask* pTask, int32_t downstreamId) {
+  stDebug("s-task:%s destroy dispatch msg:%p", pTask->id.idStr, pTask->msgInfo.pData);
   destroyDispatchMsg(pTask->msgInfo.pData, getNumOfDispatchBranch(pTask));
 
   bool delayDispatch = (pTask->msgInfo.dispatchMsgType == STREAM_INPUT__CHECKPOINT_TRIGGER);

@@ -18,6 +18,9 @@
 #include "tcoding.h"
 
 // todo refactor API
+#define BOUNDARY_SIZE 1024*1024*1024   // 1G
+#define BOUNDARY_SMALL_FACTOR 1.2
+#define BOUNDARY_BIG_FACTOR 2
 
 SArray* taosArrayInit(size_t size, size_t elemSize) {
   if (elemSize == 0) {
@@ -85,9 +88,13 @@ static int32_t taosArrayResize(SArray* pArray) {
 
 int32_t taosArrayEnsureCap(SArray* pArray, size_t newCap) {
   if (newCap > pArray->capacity) {
-    size_t tsize = (pArray->capacity << 1u);
+    float factor = BOUNDARY_BIG_FACTOR;
+    if(newCap * pArray->elemSize > BOUNDARY_SIZE){
+      factor = BOUNDARY_SMALL_FACTOR;
+    }
+    size_t tsize = (pArray->capacity * factor);
     while (newCap > tsize) {
-      tsize = (tsize << 1u);
+      tsize = (tsize * factor);
     }
 
     pArray->pData = taosMemoryRealloc(pArray->pData, tsize * pArray->elemSize);

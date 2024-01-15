@@ -65,7 +65,7 @@ int32_t clearFinishedTrans(SMnode* pMnode) {
   return 0;
 }
 
-bool streamTransConflictOtherTrans(SMnode* pMnode, int64_t streamUid, const char* pTransName, bool lock) {
+bool mndStreamTransConflictCheck(SMnode* pMnode, int64_t streamUid, const char* pTransName, bool lock) {
   if (lock) {
     taosThreadMutexLock(&execInfo.lock);
   }
@@ -90,16 +90,22 @@ bool streamTransConflictOtherTrans(SMnode* pMnode, int64_t streamUid, const char
 
     if (strcmp(tInfo.name, MND_STREAM_CHECKPOINT_NAME) == 0) {
       if (strcmp(pTransName, MND_STREAM_DROP_NAME) != 0) {
-        mWarn("conflict with other transId:%d streamUid:%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamUid,
+        mWarn("conflict with other transId:%d streamUid:0x%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamUid,
               tInfo.name);
+        terrno = TSDB_CODE_MND_TRANS_CONFLICT;
         return true;
+      } else {
+        mDebug("not conflict with checkpoint trans, name:%s, continue create trans", pTransName);
       }
-    } else if ((strcmp(tInfo.name, MND_STREAM_CREATE_NAME) == 0) ||
-               (strcmp(tInfo.name, MND_STREAM_DROP_NAME) == 0)) {
-      mWarn("conflict with other transId:%d streamUid:%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamUid,
+    } else if ((strcmp(tInfo.name, MND_STREAM_CREATE_NAME) == 0) || (strcmp(tInfo.name, MND_STREAM_DROP_NAME) == 0) ||
+               (strcmp(tInfo.name, MND_STREAM_TASK_RESET_NAME) == 0)) {
+      mWarn("conflict with other transId:%d streamUid:0x%" PRIx64 ", trans:%s", tInfo.transId, tInfo.streamUid,
             tInfo.name);
+      terrno = TSDB_CODE_MND_TRANS_CONFLICT;
       return true;
     }
+  } else {
+    mDebug("stream:0x%"PRIx64" no conflict trans existed, continue create trans", streamUid);
   }
 
   if (lock) {
@@ -107,6 +113,30 @@ bool streamTransConflictOtherTrans(SMnode* pMnode, int64_t streamUid, const char
   }
 
   return false;
+}
+
+int32_t mndStreamGetRelTrans(SMnode* pMnode, int64_t streamUid) {
+  taosThreadMutexLock(&execInfo.lock);
+  int32_t num = taosHashGetSize(execInfo.transMgmt.pDBTrans);
+  if (num <= 0) {
+    taosThreadMutexUnlock(&execInfo.lock);
+    return 0;
+  }
+
+  clearFinishedTrans(pMnode);
+  SStreamTransInfo* pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, &streamUid, sizeof(streamUid));
+  if (pEntry != NULL) {
+    SStreamTransInfo tInfo = *pEntry;
+    taosThreadMutexUnlock(&execInfo.lock);
+
+    if (strcmp(tInfo.name, MND_STREAM_CHECKPOINT_NAME) == 0 || strcmp(tInfo.name, MND_STREAM_TASK_UPDATE_NAME) == 0) {
+      return tInfo.transId;
+    }
+  } else {
+    taosThreadMutexUnlock(&execInfo.lock);
+  }
+
+  return 0;
 }
 
 int32_t mndAddtoCheckpointWaitingList(SStreamObj* pStream, int64_t checkpointId) {

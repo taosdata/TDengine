@@ -482,6 +482,11 @@ class TDSql:
                 time.sleep(1)
                 pass
 
+    # execute many sql
+    def executes(self, sqls, queryTimes=30, show=False):
+        for sql in sqls:
+            self.execute(sql, queryTimes, show)
+
     def checkAffectedRows(self, expectAffectedRows):
         if self.affectedRows != expectAffectedRows:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -534,6 +539,16 @@ class TDSql:
             args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
             tdLog.info("%s(%d) failed: sql:%s, elm:%s == expect_elm:%s" % args)
             raise Exception
+
+    # check like select count(*) ...  sql
+    def checkAgg(self, sql, expectCnt):
+        self.query(sql)
+        self.checkData(0, 0, expectCnt)
+
+    # get first value
+    def getFirstValue(self, sql) :
+        self.query(sql)
+        return self.getData(0, 0)
 
     def get_times(self, time_str, precision="ms"):
         caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -602,6 +617,7 @@ class TDSql:
         if self.cursor.istype(col, "BIGINT UNSIGNED"):
             return "BIGINT UNSIGNED"
 
+    '''
     def taosdStatus(self, state):
         tdLog.sleep(5)
         pstate = 0
@@ -630,6 +646,7 @@ class TDSql:
             tdLog.exit("taosd state is %d != expect:%d" %args)
         pass
 
+    
     def haveFile(self, dir, state):
         if os.path.exists(dir) and os.path.isdir(dir):
             if not os.listdir(dir):
@@ -644,6 +661,7 @@ class TDSql:
                     tdLog.exit("dir: %s is not empty, expect: empty" %dir)
         else:
             tdLog.exit("dir: %s doesn't exist" %dir)
+
     def createDir(self, dir):
         if os.path.exists(dir):
             shrmtree(dir)
@@ -651,5 +669,6 @@ class TDSql:
         os.makedirs( dir, 755 )
         tdLog.info("dir: %s is created" %dir)
         pass
+'''        
 
 tdSql = TDSql()

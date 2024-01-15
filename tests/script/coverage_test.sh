@@ -9,10 +9,15 @@ else
         exit 1
 fi
 
+# work main path
+TDENGINE_DIR=/root/TDinternal/community
+if [ x$2 != x ];then
+  TDENGINE_DIR=$2
+fi
+
+echo "TDENGINE_DIR=$TDENGINE_DIR"
 today=`date +"%Y%m%d"`
-TDENGINE_DIR=/root/TDengine
 JDBC_DIR=/root/taos-connector-jdbc
-TAOSKEEPER_DIR=/root/taoskeeper
 TDENGINE_COVERAGE_REPORT=$TDENGINE_DIR/tests/coverage-report-$today.log
 
 # Color setting
@@ -23,287 +28,249 @@ GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
 function buildTDengine() {
-	echo "check if TDengine need build"
-	cd $TDENGINE_DIR
-  	git remote prune origin > /dev/null
-	git remote update > /dev/null
-	REMOTE_COMMIT=`git rev-parse --short remotes/origin/$branch`
-	LOCAL_COMMIT=`git rev-parse --short @`
-	echo " LOCAL: $LOCAL_COMMIT"
-	echo "REMOTE: $REMOTE_COMMIT"
+    echo "check if TDengine need build"
+    
+    # pull parent code
+    cd "$TDENGINE_DIR/../"
+    echo "git pull parent code..."
+    git remote prune origin > /dev/null
+    git remote update > /dev/null
 
-	# reset counter
-	lcov -d . --zerocounters
+    # pull tdengine code
+    cd $TDENGINE_DIR
+    echo "git pull tdengine code..."
+    git remote prune origin > /dev/null
+    git remote update > /dev/null
+    REMOTE_COMMIT=`git rev-parse --short remotes/origin/$branch`
+    LOCAL_COMMIT=`git rev-parse --short @`
+    echo " LOCAL: $LOCAL_COMMIT"
+    echo "REMOTE: $REMOTE_COMMIT"
 
-	if [ "$LOCAL_COMMIT" == "$REMOTE_COMMIT" ]; then
-		echo "repo up-to-date"
-	else
-		echo "repo need to pull"
-	fi
+    # reset counter
+    lcov -d . --zerocounters
 
-	git reset --hard
-	git checkout -- .
-	git checkout $branch
-	git checkout -- .
-	git clean -dfx
-	git pull    
- 	
-  	[ -d $TDENGINE_DIR/debug ] || mkdir $TDENGINE_DIR/debug
-  	cd $TDENGINE_DIR/debug
+    if [ "$LOCAL_COMMIT" == "$REMOTE_COMMIT" ]; then
+        echo "repo up-to-date"
+    else
+        echo "repo need to pull"
+    fi
+
+    git reset --hard
+    git checkout -- .
+    git checkout $branch
+    git checkout -- .
+    git clean -dfx
+    git pull
+
+      [ -d $TDENGINE_DIR/debug ] || mkdir $TDENGINE_DIR/debug
+      cd $TDENGINE_DIR/debug
 
     echo "rebuild.."
-	LOCAL_COMMIT=`git rev-parse --short @`
+    LOCAL_COMMIT=`git rev-parse --short @`
 
-	rm -rf *
-	if [ "$branch" == "3.0" ]; then
-		echo "3.0 ============="
-		cmake -DCOVER=true -DBUILD_TEST=true -DBUILD_HTTP=false -DBUILD_TOOLS=true .. > /dev/null
-	else
-		cmake -DCOVER=true -DBUILD_TEST=true -DBUILD_TOOLS=true -DBUILD_HTTP=false .. > /dev/null
-	fi
-	make -j
-	make install
+    rm -rf *
+    makecmd="cmake -DCOVER=true -DBUILD_TEST=true -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_CONTRIB=true ../../"
+    echo "$makecmd"
+    $makecmd
+
+    make -j 8 install
 }
 
 function runCasesOneByOne () {
-	while read -r line; do
-		if [[ "$line" != "#"* ]]; then
-			cmd=`echo $line | cut -d',' -f 5`
+    while read -r line; do
+        if [[ "$line" != "#"* ]]; then
+            cmd=`echo $line | cut -d',' -f 5`
             if [[ "$2" == "sim" ]] && [[ $line == *"script"* ]]; then
                 case=`echo $cmd | cut -d' ' -f 3`
                 start_time=`date +%s`
-                date +%F\ %T | tee -a  $TDENGINE_COVERAGE_REPORT  && $cmd > /dev/null 2>&1 && \
+                date +%F\ %T | tee -a  $TDENGINE_COVERAGE_REPORT  && timeout 20m $cmd > /dev/null 2>&1 && \
                 echo -e "${GREEN}$case success${NC}" | tee -a  $TDENGINE_COVERAGE_REPORT \
                 || echo -e "${RED}$case failed${NC}" | tee -a  $TDENGINE_COVERAGE_REPORT
                 end_time=`date +%s`
                 echo execution time of $case was `expr $end_time - $start_time`s. | tee -a $TDENGINE_COVERAGE_REPORT
-            elif [[ "$2" == "system-test" ]] && [[ $line == *"system-test"* ]]; then
+            elif [[ "$line" == *"$2"* ]]; then
                 if [[ "$cmd" == *"pytest.sh"* ]]; then
                     cmd=`echo $cmd | cut -d' ' -f 2-20`
                 fi
                 case=`echo $cmd | cut -d' ' -f 4-20`
                 start_time=`date +%s`
-                date +%F\ %T | tee -a $TDENGINE_COVERAGE_REPORT && $cmd > /dev/null 2>&1 && \
-                echo -e "${GREEN}$case success${NC}" | tee -a $TDENGINE_COVERAGE_REPORT || \
-                echo -e "${RED}$case failed${NC}" | tee -a $TDENGINE_COVERAGE_REPORT
-                end_time=`date +%s`
-                echo execution time of $case was `expr $end_time - $start_time`s. | tee -a $TDENGINE_COVERAGE_REPORT
-            elif [[ "$2" == "develop-test" ]] && [[ $line == *"develop-test"* ]]; then
-                if [[ "$cmd" == *"pytest.sh"* ]]; then
-                    cmd=`echo $cmd | cut -d' ' -f 2-20`
-                fi
-                case=`echo $cmd | cut -d' ' -f 4-20`
-                start_time=`date +%s`
-                date +%F\ %T | tee -a $TDENGINE_COVERAGE_REPORT && $cmd > /dev/null 2>&1 && \
+                date +%F\ %T | tee -a $TDENGINE_COVERAGE_REPORT && timeout 20m $cmd > /dev/null 2>&1 && \
                 echo -e "${GREEN}$case success${NC}" | tee -a $TDENGINE_COVERAGE_REPORT || \
                 echo -e "${RED}$case failed${NC}" | tee -a $TDENGINE_COVERAGE_REPORT
                 end_time=`date +%s`
                 echo execution time of $case was `expr $end_time - $start_time`s. | tee -a $TDENGINE_COVERAGE_REPORT
             fi
         fi
-	done < $1
+    done < $1
 }
 
 function runUnitTest() {
-	echo "=== Run unit test case ==="
-	echo " $TDENGINE_DIR/debug"
-	cd $TDENGINE_DIR/debug
-	ctest -j12
-
-	echo " $TDENGINE_DIR/tests/script/api"
-	cd $TDENGINE_DIR/tests/script/api
-	make clean && make
-	
-	stopTaosd
-	stopTaosadapter
-
-	nohup taosd -c /etc/taos >> /dev/null 2>&1 &
-	./batchprepare 127.0.0.1
-	./dbTableRoute 127.0.0.1
-	./stopquery 127.0.0.1 demo t1
-	
-	echo "3.0 unit test done"
+    echo "=== Run unit test case ==="
+    echo " $TDENGINE_DIR/debug"
+    cd $TDENGINE_DIR/debug
+    ctest -j12
+    echo "3.0 unit test done"
 }
 
 function runSimCases() {
-	echo "=== Run sim cases ==="
-	
-	cd $TDENGINE_DIR/tests/script
-	runCasesOneByOne ../parallel_test/cases.task sim
-	
-	totalSuccess=`grep 'sim success' $TDENGINE_COVERAGE_REPORT | wc -l`
-	if [ "$totalSuccess" -gt "0" ]; then
-		echo "### Total $totalSuccess SIM test case(s) succeed! ###" | tee -a $TDENGINE_COVERAGE_REPORT
-	fi
+    echo "=== Run sim cases ==="
 
-	totalFailed=`grep 'sim failed\|fault' $TDENGINE_COVERAGE_REPORT | wc -l`
-	if [ "$totalFailed" -ne "0" ]; then
-		echo "### Total $totalFailed SIM test case(s) failed! ###" | tee -a $TDENGINE_COVERAGE_REPORT
-	fi
+    cd $TDENGINE_DIR/tests/script
+    runCasesOneByOne $TDENGINE_DIR/tests/parallel_test/cases.task sim
+
+    totalSuccess=`grep 'sim success' $TDENGINE_COVERAGE_REPORT | wc -l`
+    if [ "$totalSuccess" -gt "0" ]; then
+        echo "### Total $totalSuccess SIM test case(s) succeed! ###" | tee -a $TDENGINE_COVERAGE_REPORT
+    fi
+
+    totalFailed=`grep 'sim failed\|fault' $TDENGINE_COVERAGE_REPORT | wc -l`
+    if [ "$totalFailed" -ne "0" ]; then
+        echo "### Total $totalFailed SIM test case(s) failed! ###" | tee -a $TDENGINE_COVERAGE_REPORT
+    fi
 }
 
 function runPythonCases() {
-	echo "=== Run python cases ==="
+    echo "=== Run python cases ==="
 
-	cd $TDENGINE_DIR/tests/parallel_test
-	sed -i '/compatibility.py/d' cases.task
-		
-	cd $TDENGINE_DIR/tests/system-test
-	runCasesOneByOne ../parallel_test/cases.task system-test
+    cd $TDENGINE_DIR/tests/parallel_test
+    sed -i '/compatibility.py/d' cases.task
 
-	cd $TDENGINE_DIR/tests/develop-test
-	runCasesOneByOne ../parallel_test/cases.task develop-test
+    # army
+    cd $TDENGINE_DIR/tests/army
+    runCasesOneByOne ../parallel_test/cases.task army
 
-	totalSuccess=`grep 'py success' $TDENGINE_COVERAGE_REPORT | wc -l`
-	if [ "$totalSuccess" -gt "0" ]; then
-		echo "### Total $totalSuccess python test case(s) succeed! ###" | tee -a $TDENGINE_COVERAGE_REPORT
-	fi
+    # system-test
+    cd $TDENGINE_DIR/tests/system-test
+    runCasesOneByOne ../parallel_test/cases.task system-test
 
-	totalFailed=`grep 'py failed\|fault' $TDENGINE_COVERAGE_REPORT | wc -l`
-	if [ "$totalFailed" -ne "0" ]; then
-		echo "### Total $totalFailed python test case(s) failed! ###" | tee -a $TDENGINE_COVERAGE_REPORT
-	fi
+    # develop-test
+    cd $TDENGINE_DIR/tests/develop-test
+    runCasesOneByOne ../parallel_test/cases.task develop-test
+
+    totalSuccess=`grep 'py success' $TDENGINE_COVERAGE_REPORT | wc -l`
+    if [ "$totalSuccess" -gt "0" ]; then
+        echo "### Total $totalSuccess python test case(s) succeed! ###" | tee -a $TDENGINE_COVERAGE_REPORT
+    fi
+
+    totalFailed=`grep 'py failed\|fault' $TDENGINE_COVERAGE_REPORT | wc -l`
+    if [ "$totalFailed" -ne "0" ]; then
+        echo "### Total $totalFailed python test case(s) failed! ###" | tee -a $TDENGINE_COVERAGE_REPORT
+    fi
 }
 
 function runJDBCCases() {
-	echo "=== Run JDBC cases ==="
+    echo "=== Run JDBC cases ==="
 
-	cd $JDBC_DIR
-	git checkout -- .
-	git reset --hard HEAD
-	git checkout main
-	git pull
+    cd $JDBC_DIR
+    git checkout -- .
+    git reset --hard HEAD
+    git checkout main
+    git pull
 
-	stopTaosd
-	stopTaosadapter
+    stopTaosd
+    stopTaosadapter
 
-	nohup taosd -c /etc/taos >> /dev/null 2>&1 &
-	nohup taosadapter >> /dev/null 2>&1 &
+    nohup $TDENGINE_DIR/debug/build/bin/taosd -c /etc/taos >> /dev/null 2>&1 &
+    nohup taosadapter >> /dev/null 2>&1 &
 
-	mvn clean test > result.txt 2>&1
-	summary=`grep "Tests run:" result.txt | tail -n 1`		
-	echo -e "### JDBC test result: $summary ###" | tee -a $TDENGINE_COVERAGE_REPORT
-}
-
-function runTaosKeeperCases() {
-	echo "=== Run taoskeeper cases ==="
-
-	cd $TAOSKEEPER_DIR
-	git checkout -- .
-	git reset --hard HEAD
-	git checkout master
-	git pull
-
-	stopTaosd
-	stopTaosadapter
-
-	taosd -c /etc/taos >> /dev/null 2>&1 &
-	taosadapter >> /dev/null 2>&1 &
-
-	go mod tidy && go test -v ./...
+    mvn clean test > result.txt 2>&1
+    summary=`grep "Tests run:" result.txt | tail -n 1`
+    echo -e "### JDBC test result: $summary ###" | tee -a $TDENGINE_COVERAGE_REPORT
 }
 
 function runTest() {
-	echo "run Test"
-	
-	cd $TDENGINE_DIR
-	[ -d sim ] && rm -rf sim
+    echo "run Test"
+
+    cd $TDENGINE_DIR
+    [ -d sim ] && rm -rf sim
     [ -f $TDENGINE_COVERAGE_REPORT ] && rm $TDENGINE_COVERAGE_REPORT
 
-	runUnitTest
-	runSimCases
-	runPythonCases
-	runJDBCCases
-	runTaosKeeperCases
-	
-	stopTaosd	
-	cd $TDENGINE_DIR/tests/script
-	find . -name '*.sql' | xargs rm -f
+    runUnitTest
+    runSimCases
+    runPythonCases
+    runJDBCCases
 
-	cd $TDENGINE_DIR/tests/pytest
-	find . -name '*.sql' | xargs rm -f
+    stopTaosd
+    cd $TDENGINE_DIR/tests/script
+    find . -name '*.sql' | xargs rm -f
+
+    cd $TDENGINE_DIR/tests/pytest
+    find . -name '*.sql' | xargs rm -f
 }
 
 function lcovFunc {
-	echo "collect data by lcov"
-	cd $TDENGINE_DIR
+    echo "collect data by lcov"
+    cd $TDENGINE_DIR
 
-	# collect data
-	lcov -d . --capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info
+    # collect data
+    lcov --capture -d $TDENGINE_DIR -b $TDENGINE_DIR -o coverage.info --ignore-errors negative,mismatch,inconsistent,source --branch-coverage --function-coverage --no-external
 
-	# remove exclude paths
-	if [ "$branch" == "main" ] ; then
-		lcov --remove coverage.info \
-			'*/contrib/*' '*/tests/*' '*/test/*' '*/tools/*' '*/libs/sync/*'\
-			'*/AccessBridgeCalls.c' '*/ttszip.c' '*/dataInserter.c' '*/tlinearhash.c' '*/tsimplehash.c' '*/tsdbDiskData.c'\
-			'*/texpr.c' '*/runUdf.c' '*/schDbg.c' '*/syncIO.c' '*/tdbOs.c' '*/pushServer.c' '*/osLz4.c'\
-			'*/tbase64.c' '*/tbuffer.c' '*/tdes.c' '*/texception.c' '*/tidpool.c' '*/tmempool.c'\
-			'*/clientJniConnector.c' '*/clientTmqConnector.c' '*/version.c' '*/shellAuto.c' '*/shellTire.c'\
-			'*/tthread.c' '*/tversion.c' '*/ctgDbg.c' '*/schDbg.c' '*/qwDbg.c' '*/tencode.h' '*/catalog.c'\
-			'*/tqSnapshot.c' '*/tsdbSnapshot.c''*/metaSnapshot.c' '*/smaSnapshot.c' '*/tqOffsetSnapshot.c'\
-			'*/vnodeSnapshot.c' '*/metaSnapshot.c' '*/tsdbSnapshot.c' '*/mndGrant.c' '*/mndSnode.c' '*/streamRecover.c'\
-			'*/osAtomic.c' '*/osDir.c' '*/osFile.c' '*/osMath.c' '*/osSignal.c' '*/osSleep.c' '*/osString.c' '*/osSystem.c'\
-			'*/osThread.c' '*/osTime.c' '*/osTimezone.c' \
-		       	--rc lcov_branch_coverage=1 -o coverage.info
-	else	
-		lcov --remove coverage.info \
-    		'*/tests/*' '*/test/*' '*/deps/*' '*/plugins/*' '*/taosdef.h' '*/ttype.h' '*/tarithoperator.c' '*/TSDBJNIConnector.c' '*/taosdemo.c' '*/clientJniConnector.c'\
-    		--rc lcov_branch_coverage=1 -o coverage.info
-	fi
+    # remove exclude paths
+    lcov --remove coverage.info \
+        '*/contrib/*' '*/tests/*' '*/test/*' '*/packaging/*' '*/taos-tools/*' '*/taosadapter/*' '*/TSZ/*' \
+        '*/AccessBridgeCalls.c' '*/ttszip.c' '*/dataInserter.c' '*/tlinearhash.c' '*/tsimplehash.c' '*/tsdbDiskData.c'\
+        '*/texpr.c' '*/runUdf.c' '*/schDbg.c' '*/syncIO.c' '*/tdbOs.c' '*/pushServer.c' '*/osLz4.c'\
+        '*/tbase64.c' '*/tbuffer.c' '*/tdes.c' '*/texception.c' '*/examples/*' '*/tidpool.c' '*/tmempool.c'\
+        '*/clientJniConnector.c' '*/clientTmqConnector.c' '*/version.c'\
+        '*/tthread.c' '*/tversion.c'  '*/ctgDbg.c' '*/schDbg.c' '*/qwDbg.c' '*/tencode.h' \
+        '*/shellAuto.c' '*/shellTire.c' '*/shellCommand.c'\
+        '*/sql.c' '*/sql.y'\
+         --branch-coverage --function-coverage -o coverage.info
 
+    # generate result
+    echo "generate result"
+    lcov -l --branch-coverage --function-coverage coverage.info | tee -a $TDENGINE_COVERAGE_REPORT
 
-	# generate result
-	echo "generate result"
-	lcov -l --rc lcov_branch_coverage=1 coverage.info | tee -a $TDENGINE_COVERAGE_REPORT
+    sed -i 's/\/root\/TDengine\/sql.c/\/root\/TDengine\/source\/libs\/parser\/inc\/sql.c/g' coverage.info
+    sed -i 's/\/root\/TDengine\/sql.y/\/root\/TDengine\/source\/libs\/parser\/inc\/sql.y/g' coverage.info
 
-	# push result to coveralls.io
-	echo "push result to coveralls.io"
-	/usr/local/bin/coveralls-lcov coverage.info -t o7uY02qEAgKyJHrkxLGiCOTfL3IGQR2zm | tee -a $TDENGINE_COVERAGE_REPORT
+    # push result to coveralls.io
+    echo "push result to coveralls.io"
+    /usr/local/bin/coveralls-lcov coverage.info -b $branch -t o7uY02qEAgKyJHrkxLGiCOTfL3IGQR2zm | tee -a $TDENGINE_COVERAGE_REPORT
 
-	#/root/pxiao/checkCoverageFile.sh -s $TDENGINE_DIR/source -f $TDENGINE_COVERAGE_REPORT
-	#cat /root/pxiao/fileListNoCoverage.log | tee -a $TDENGINE_COVERAGE_REPORT
-	cat $TDENGINE_COVERAGE_REPORT | grep "| 0.0%" | awk -F "%" '{print $1}' | awk -F "|" '{if($2==0.0)print $1}' | tee -a $TDENGINE_COVERAGE_REPORT
-	
+    #/root/pxiao/checkCoverageFile.sh -s $TDENGINE_DIR/source -f $TDENGINE_COVERAGE_REPORT
+    #cat /root/pxiao/fileListNoCoverage.log | tee -a $TDENGINE_COVERAGE_REPORT
+    cat $TDENGINE_COVERAGE_REPORT | grep "| 0.0%" | awk -F "%" '{print $1}' | awk -F "|" '{if($2==0.0)print $1}' | tee -a $TDENGINE_COVERAGE_REPORT
 }
 
 function sendReport {
-	echo "send report"
-	receiver="develop@taosdata.com"
-	mimebody="MIME-Version: 1.0\nContent-Type: text/html; charset=utf-8\n"
+    echo "send report"
+    receiver="develop@taosdata.com"
+    mimebody="MIME-Version: 1.0\nContent-Type: text/html; charset=utf-8\n"
 
-	cd $TDENGINE_DIR
+    cd $TDENGINE_DIR
 
-	sed -i 's/\x1b\[[0-9;]*m//g' $TDENGINE_COVERAGE_REPORT
-	BODY_CONTENT=`cat $TDENGINE_COVERAGE_REPORT`
-	echo -e "from: <support@taosdata.com>\nto: ${receiver}\nsubject: Coverage test report ${branch} ${today}, commit ID: ${LOCAL_COMMIT}\n\n${today}:\n${BODY_CONTENT}" | \
-	(cat - && uuencode $TDENGINE_COVERAGE_REPORT coverage-report-$today.log) | \
-	/usr/sbin/ssmtp "${receiver}" && echo "Report Sent!"
+    sed -i 's/\x1b\[[0-9;]*m//g' $TDENGINE_COVERAGE_REPORT
+    BODY_CONTENT=`cat $TDENGINE_COVERAGE_REPORT`
+    echo -e "from: <support@taosdata.com>\nto: ${receiver}\nsubject: Coverage test report ${branch} ${today}, commit ID: ${LOCAL_COMMIT}\n\n${today}:\n${BODY_CONTENT}" | \
+    (cat - && uuencode $TDENGINE_COVERAGE_REPORT coverage-report-$today.log) | \
+    /usr/sbin/ssmtp "${receiver}" && echo "Report Sent!"
 }
 
 function stopTaosd {
-	echo "Stop taosd start"
+    echo "Stop taosd start"
         systemctl stop taosd
-  	PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
-	while [ -n "$PID" ]
-	do
+      PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+    while [ -n "$PID" ]
+    do
     pkill -TERM -x taosd
     sleep 1
-  	PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
-	done
-	echo "Stop tasod end"
+      PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+    done
+    echo "Stop tasod end"
 }
 
 function stopTaosadapter {
-	echo "Stop taosadapter"
-	systemctl stop taosadapter.service
-	PID=`ps -ef|grep -w taosadapter | grep -v grep | awk '{print $2}'`
-	while [ -n "$PID" ]
-	do
-		pkill -TERM -x taosadapter
-		sleep 1
-		PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
-	done
-	echo "Stop tasoadapter end"
+    echo "Stop taosadapter"
+    systemctl stop taosadapter.service
+    PID=`ps -ef|grep -w taosadapter | grep -v grep | awk '{print $2}'`
+    while [ -n "$PID" ]
+    do
+        pkill -TERM -x taosadapter
+        sleep 1
+        PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+    done
+    echo "Stop tasoadapter end"
 
 }
 
@@ -318,7 +285,7 @@ buildTDengine
 runTest
 lcovFunc
 
-sendReport
+#sendReport
 stopTaosd
 
 date >> $WORK_DIR/cron.log

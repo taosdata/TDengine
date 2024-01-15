@@ -14,7 +14,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
 
     def case1(self):
         tdSql.execute("create database if not exists dbms precision 'ms'")
@@ -52,7 +52,7 @@ class TDTestCase:
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, i + 1)
             tdSql.checkData(0, 1, 'debugFlag')
-            tdSql.checkData(0, 2, 0)
+            tdSql.checkData(0, 2, 131)
 
         tdSql.query("show dnode 1 variables like '%debugFlag'")
         tdSql.checkRows(23)

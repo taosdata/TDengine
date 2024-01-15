@@ -157,9 +157,9 @@ INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/c
 Automatically creating table and the table name is specified through the `tbname` column
 
 ```sql
-INSERT INTO meters(tbname, location, groupId, ts, current, phase) 
-                values('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:34.630', 10.2, 0.32) 
-                ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:35.779', 10.15, 0.33)
-                ('d31002', NULL, 2, '2021-07-13 14:06:34.255', 10.15, 0.33)        
+INSERT INTO meters(tbname, location, groupId, ts, current, voltage, phase) 
+                values('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:34.630', 10.2, 219, 0.32) 
+                ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:35.779', 10.15, 217, 0.33)
+                ('d31002', NULL, 2, '2021-07-13 14:06:34.255', 10.15, 217, 0.33)        
 ```
 
