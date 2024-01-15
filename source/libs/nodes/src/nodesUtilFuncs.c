@@ -2122,33 +2122,6 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static EDealRes collectSelectFuncs(SNode* pNode, void* pContext) {
-  SCollectFuncsCxt* pCxt = (SCollectFuncsCxt*)pContext;
-  if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId)) {   
-    SFunctionNode* pFunc = (SFunctionNode*)pNode;
-    if (FUNCTION_TYPE_TBNAME == pFunc->funcType && pCxt->tableAlias) {
-      SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
-      if (pVal && strcmp(pVal->literal, pCxt->tableAlias)) {
-        return DEAL_RES_CONTINUE;
-      }
-    }
-    SExprNode* pExpr = (SExprNode*)pNode;
-    bool bFound = false;
-    SNode* pn = NULL;
-    FOREACH(pn, pCxt->pFuncs) {
-      if (nodesEqualNode(pn, pNode)) {
-        bFound = true;
-        break;
-      }
-    }
-    if (!bFound) {
-      pCxt->errCode = nodesListStrictAppend(pCxt->pFuncs, nodesCloneNode(pNode));
-    }
-    return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
-  }
-  return DEAL_RES_CONTINUE;
-}
-
 static uint32_t funcNodeHash(const char* pKey, uint32_t len) {
   SExprNode* pExpr = *(SExprNode**)pKey;
   return MurmurHash3_32(pExpr->aliasName, strlen(pExpr->aliasName));

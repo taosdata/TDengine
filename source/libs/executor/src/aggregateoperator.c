@@ -282,7 +282,7 @@ int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
       }
 
       if ((&pCtx[k])->input.pData[0] == NULL) {
-        code = TSDB_CODE_PAR_NOT_SINGLE_GROUP;
+        code = TSDB_CODE_PAR_INTERNAL_ERROR;
         qError("%s aggregate function error happens, input data is NULL.", GET_TASKID(pOperator->pTaskInfo));
       } else {
         code = pCtx[k].fpSet.process(&pCtx[k]);
@@ -570,7 +570,7 @@ void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pC
       int32_t code = TSDB_CODE_SUCCESS;
       if (functionNeedToExecute(&pCtx[k]) && pCtx[k].fpSet.process != NULL) {
         if ((&pCtx[k])->input.pData[0] == NULL) {
-          code = TSDB_CODE_PAR_NOT_SINGLE_GROUP;
+          code = TSDB_CODE_PAR_INTERNAL_ERROR;
           qError("%s apply functions error, input data is NULL.", GET_TASKID(taskInfo));
         } else {
           code = pCtx[k].fpSet.process(&pCtx[k]);
