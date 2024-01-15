@@ -2642,6 +2642,10 @@ static bool mergeProjectsMayBeOptimized(SLogicNode* pNode) {
       NULL != pChild->pConditions || NULL != pChild->pLimit || NULL != pChild->pSlimit) {
     return false;
   }
+  if (false == ((SProjectLogicNode*)pChild)->ignoreGroupId) {
+    qError("internal error, child project output does not ignore group id");
+    return false;
+  }
   return true;
 }
 
@@ -2698,6 +2702,7 @@ static int32_t mergeProjectsOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     NODES_CLEAR_LIST(pChild->pChildren);
   }
   nodesDestroyNode((SNode*)pChild);
+  ((SProjectLogicNode*)pSelfNode)->inputIgnoreGroup = true;
   pCxt->optimized = true;
   return code;
 }
