@@ -211,9 +211,11 @@ class TDTestCase:
     def testAllTypes(self):
         # create stable and insert
         tdLog.info("test all types")
+        dbname  = "sumdb"
         stbname = "stb"
         colnum = 16
         self.autoGen.set_batch_size(1000)
+        self.autoGen.create_db(dbname)
         self.autoGen.create_stable(stbname, 16, colnum, 8, 16)
         self.autoGen.create_child(stbname, "d", 4)
         self.autoGen.insert_data(10000)
@@ -228,7 +230,7 @@ class TDTestCase:
 
             # query
             col = f"c{i}"
-            sql = f"select count({col}), sum({col}), avg({col}), max({col}), min({col}), stddev({col}), leastsquares({col},1,9)) from stb"
+            sql = f"select count({col}), sum({col}), avg({col}), max({col}), min({col}), stddev({col}), leastsquares({col},1,9) from {dbname}.{stbname}"
             tdSql.query(sql)
             # sum
             tdSql.checkData(0, 0, 4*10000, True)
