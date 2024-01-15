@@ -1518,6 +1518,23 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
   return 0;
 }
 
+bool streamMetaAllTasksReady(const SStreamMeta* pMeta) {
+  int32_t num = taosArrayGetSize(pMeta->pTaskList);
+  for(int32_t i = 0; i < num; ++i) {
+    STaskId* pTaskId = taosArrayGet(pMeta->pTaskList, i);
+    SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, pTaskId, sizeof(*pTaskId));
+    if (ppTask == NULL) {
+      continue;
+    }
+
+    if ((*ppTask)->status.downstreamReady == 0) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
   int32_t vgId = pMeta->vgId;
   stInfo("vgId:%d start to task:0x%x by checking downstream status", vgId, taskId);

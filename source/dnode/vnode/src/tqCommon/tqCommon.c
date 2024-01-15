@@ -833,23 +833,31 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
 
 int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
   STaskStartInfo* pStartInfo = &pMeta->startInfo;
-  int32_t vgId = pMeta->vgId;
+  int32_t         vgId = pMeta->vgId;
 
   streamMetaWLock(pMeta);
   if (pStartInfo->taskStarting == 1) {
     tqDebug("vgId:%d already in start tasks procedure in other thread, restartCounter:%d, do nothing", vgId,
             pMeta->startInfo.restartCount);
   } else {  // not in starting procedure
-    if (pStartInfo->restartCount > 0) {
+    bool allReady = streamMetaAllTasksReady(pMeta);
+
+    if ((pStartInfo->restartCount > 0) && (!allReady)) {
+      // if all tasks are ready now, do NOT restart again, and reset the value of pStartInfo->restartCount
       pStartInfo->restartCount -= 1;
       tqDebug("vgId:%d role:%d need to restart all tasks again, restartCounter:%d", vgId, pMeta->role,
               pStartInfo->restartCount);
-
       streamMetaWUnLock(pMeta);
+
       restartStreamTasks(pMeta, (pMeta->role == NODE_ROLE_LEADER));
       return TSDB_CODE_SUCCESS;
     } else {
-      tqDebug("vgId:%d start all tasks completed in callbackFn", pMeta->vgId);
+      if (pStartInfo->restartCount == 0) {
+        tqDebug("vgId:%d start all tasks completed in callbackFn, restartCount is 0", pMeta->vgId);
+      } else if (allReady) {
+        pStartInfo->restartCount = 0;
+        tqDebug("vgId:%d all tasks are ready, reset restartCounter 0, not restart tasks", vgId);
+      }
     }
   }
 
