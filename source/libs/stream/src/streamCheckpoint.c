@@ -295,7 +295,7 @@ int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId) {
   SCheckpointInfo* pCKInfo = &p->chkInfo;
 
   // fill-history task, rsma task, and sink task will not generate the checkpoint
-  if ((p->info.fillHistory == 1) || (p->info.taskLevel >= TASK_LEVEL__SINK)) {
+  if ((p->info.fillHistory == 1) || (p->info.taskLevel > TASK_LEVEL__SINK)) {
     return code;
   }
 
