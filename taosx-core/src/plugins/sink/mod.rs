@@ -506,6 +506,7 @@ async fn consume_lush_record(
                     continue;
                 }
                 *records += record.num_rows();
+                metrics.add_processed_rows(record.num_rows() as u64);
                 let data = record.to_column_views();
                 let cols = columns.len();
                 // RawBlock
@@ -1362,6 +1363,7 @@ async fn consume_point_record(
                 }
             }
         }
+        metrics.add_processed_rows(message.record().num_rows() as u64);
     }
     Ok(points)
 }
@@ -1396,7 +1398,7 @@ async fn consume_flat_record(
     let req_id = RequestID::new(data_trace_id);
     for message in record.records() {
         let batch = message.record();
-
+        let num_rows = batch.num_rows();
         let batch = parser.parse_message_from_records(batch)?;
         match batch {
             crate::plugins::transform::Message::Raw(_) => todo!(),
@@ -1418,12 +1420,14 @@ async fn consume_flat_record(
                         metrics,
                     )
                     .await?;
+                    metrics.add_processed_rows(num_rows as u64);
                     continue;
                 }
                 for records in message {
                     if records.records.num_rows() == 0 {
                         continue;
                     }
+                    metrics.add_processed_rows(records.records.num_rows() as u64);
                     if records.records.column(0).null_count() > 0 {
                         bail!("Timestamp field contains null or invalid values");
                     }
@@ -1919,12 +1923,6 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
         .unwrap();
-        metrics.add_processed_batches(1);
-        if let LushMessage::Insert(record) = &record {
-            for record in record {
-                metrics.add_processed_records(record.num_rows() as _);
-            }
-        }
         let last = count;
         if let Err(err) = consume_lush_record(
             pool,
@@ -1980,6 +1978,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             tracing::info!(acks = unsafe { ACKS.load(Ordering::SeqCst) }, "ack done");
         }
         unsafe { ACKS.fetch_add(1, Ordering::SeqCst) };
+        metrics.add_processed_batches(1);
         drop(taos);
     }
     println!("finished, totally {count} rows");
@@ -2025,10 +2024,6 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
         .unwrap();
-        metrics.add_processed_batches(1);
-        for record in record.records() {
-            metrics.add_processed_records(record.record().num_rows() as _);
-        }
         let n = consume_point_record(
             pool,
             &mut taos,
@@ -2041,6 +2036,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             metrics,
         )
         .await?;
+        metrics.add_processed_batches(1);
         Ok(n)
     }
 
@@ -2121,8 +2117,6 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
         .unwrap();
-        metrics.add_processed_batches(1);
-        metrics.add_processed_records(record.num_rows() as _);
         info!(
             trace.id = data_trace_id_str,
             record.rows = record.num_rows(),
@@ -2185,6 +2179,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
             "IPC write batch finished"
         );
         batches += 1;
+        metrics.add_processed_batches(1);
     }
     // may not reached when the task was stopped by user forcely
     info!("IPC processing done, written totally {count} records");
@@ -2569,8 +2564,6 @@ impl IpcStreamWorker {
         trace_id_str: &str,
         metrics: &IpcMetrics,
     ) -> anyhow::Result<usize> {
-        metrics.add_processed_batches(1);
-        metrics.add_processed_records(record.num_rows() as _);
         let taos = self.pool.get().await?;
         let target_precision = get_current_precision(&taos).await?;
         match self.parser.metadata().stream_type() {
@@ -2599,6 +2592,7 @@ impl IpcStreamWorker {
                     metrics,
                 )
                 .await?;
+                metrics.add_processed_batches(1);
                 Ok(count)
             }
             StreamType::Lush => {
@@ -2633,6 +2627,7 @@ impl IpcStreamWorker {
                     metrics,
                 )
                 .await?;
+                metrics.add_processed_batches(1);
                 Ok(count)
             }
             StreamType::Point => {
@@ -2660,6 +2655,7 @@ impl IpcStreamWorker {
                 if let Some(transferred) = &self.transferred {
                     transferred.points.fetch_add(_n as _, Ordering::SeqCst);
                 }
+                metrics.add_processed_batches(1);
                 Ok(count)
             }
         }
