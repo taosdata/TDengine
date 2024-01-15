@@ -49,7 +49,7 @@ To better use Power BI to analyze the data stored in TDengine, you need to under
 5. Time Serie: When curve plotting or aggregating data based on time lines, date is normally required. Data or time can be imported from Excel, or retrieved from TDengine using SQL statement like select _wstart date, count(*) cnt from test.meters where ts between A and B interval(1d) fill(0), in which the fill() subclause indicates the fill mode when there is data missing, pseudo column \_wstart indicates the date to retrieve.
 6. Correlation: Indicates how to correlate data. Dimentions and Metrics can be correlated by tbname, dates and metrics can be correlated by date. All these can cooperate to form visual reports.
 
-## 智能电表样例
+## Smart Meters Example
 
 TDengine has its own specific data model, which uses supertable as template and creates a specific table for each device. Each table can have maximum 4,096 data columns and 128 tags. In the example of meters, assume each meter generates one record per second, then there will be 86,400 records each day and 31,536,000 records every year, then only 1,000 meters will occupy 500GB disk space. So, the common usage of Power BI should be mapping tags to dimention columns, mapping the aggregation of data columns to metric columns, to provide indicators for decision makers.
 
