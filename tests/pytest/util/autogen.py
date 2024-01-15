@@ -132,7 +132,7 @@ class AutoGen:
         self.child_name = prename
         for i in range(cnt):
             tags_data = self.gen_data(i, self.mtags)
-            sql = f"create table {self.dbname}.{prename}{i} using {stbname} tags({tags_data})"
+            sql = f"create table {self.dbname}.{prename}{i} using {self.dbname}.{stbname} tags({tags_data})"
             tdSql.execute(sql)
 
         tdLog.info(f"create child tables {cnt} ok")
