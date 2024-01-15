@@ -9,8 +9,8 @@ use tracing::{error, instrument};
 
 use crate::{
     core_metrics::TaosXMetrics, plugins::transform::MessageArrowRecords,
-    sink::DEFAULT_MAX_RETRIES_FOR_CONNECTION, utils::trace::RequestID, METRIC_RECORD_FAILS,
-    METRIC_STABLE_CREATED, METRIC_WRITE_RAW_BLOCK_FAILS,
+    sink::DEFAULT_MAX_RETRIES_FOR_CONNECTION, utils::trace::RequestID, METRIC_STABLE_CREATED,
+    METRIC_WRITE_RAW_BLOCK_FAILS,
 };
 
 use super::ipc_metric::IpcMetrics;
