@@ -275,49 +275,52 @@ _OVER:
 }
 
 static int32_t mndProcessCreateSnodeReq(SRpcMsg *pReq) {
-  SMnode          *pMnode = pReq->info.node;
-  int32_t          code = -1;
-  SSnodeObj       *pObj = NULL;
-  SDnodeObj       *pDnode = NULL;
-  SMCreateSnodeReq createReq = {0};
+//  SMnode          *pMnode = pReq->info.node;
+//  int32_t          code = -1;
+//  SSnodeObj       *pObj = NULL;
+//  SDnodeObj       *pDnode = NULL;
+//  SMCreateSnodeReq createReq = {0};
 
-  if (tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
-
-  mInfo("snode:%d, start to create", createReq.dnodeId);
-  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_SNODE) != 0) {
-    goto _OVER;
-  }
-
-  pObj = mndAcquireSnode(pMnode, createReq.dnodeId);
-  if (pObj != NULL) {
-    terrno = TSDB_CODE_MND_SNODE_ALREADY_EXIST;
-    goto _OVER;
-  } else if (terrno != TSDB_CODE_MND_SNODE_NOT_EXIST) {
-    goto _OVER;
-  }
-
-  pDnode = mndAcquireDnode(pMnode, createReq.dnodeId);
-  if (pDnode == NULL) {
-    terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
-    goto _OVER;
-  }
-
-  code = mndCreateSnode(pMnode, pReq, pDnode, &createReq);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-
-_OVER:
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("snode:%d, failed to create since %s", createReq.dnodeId, terrstr());
-    return -1;
-  }
-
-  mndReleaseSnode(pMnode, pObj);
-  mndReleaseDnode(pMnode, pDnode);
-  tFreeSMCreateQnodeReq(&createReq);
-  return code;
+  terrno = TSDB_CODE_MND_SNODE_ALREADY_EXIST;
+  return terrno;
+//
+//  if (tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+//    terrno = TSDB_CODE_INVALID_MSG;
+//    goto _OVER;
+//  }
+//
+//  mInfo("snode:%d, start to create", createReq.dnodeId);
+//  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_SNODE) != 0) {
+//    goto _OVER;
+//  }
+//
+//  pObj = mndAcquireSnode(pMnode, createReq.dnodeId);
+//  if (pObj != NULL) {
+//    terrno = TSDB_CODE_MND_SNODE_ALREADY_EXIST;
+//    goto _OVER;
+//  } else if (terrno != TSDB_CODE_MND_SNODE_NOT_EXIST) {
+//    goto _OVER;
+//  }
+//
+//  pDnode = mndAcquireDnode(pMnode, createReq.dnodeId);
+//  if (pDnode == NULL) {
+//    terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+//    goto _OVER;
+//  }
+//
+//  code = mndCreateSnode(pMnode, pReq, pDnode, &createReq);
+//  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+//
+//_OVER:
+//  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+//    mError("snode:%d, failed to create since %s", createReq.dnodeId, terrstr());
+//    return -1;
+//  }
+//
+//  mndReleaseSnode(pMnode, pObj);
+//  mndReleaseDnode(pMnode, pDnode);
+//  tFreeSMCreateQnodeReq(&createReq);
+//  return code;
 }
 
 static int32_t mndSetDropSnodeRedoLogs(STrans *pTrans, SSnodeObj *pObj) {
