@@ -148,7 +148,9 @@ typedef enum {
   SDB_DB = 19,
   SDB_FUNC = 20,
   SDB_IDX = 21,
-  SDB_MAX = 22
+  SDB_COMPACT = 22,
+  SDB_COMPACT_DETAIL = 23,
+  SDB_MAX = 24
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -201,14 +203,14 @@ typedef struct SSdbIter {
 } SSdbIter;
 
 typedef struct {
-  ESdbType    sdbType;
-  EKeyType    keyType;
-  SdbDeployFp deployFp;
-  SdbEncodeFp encodeFp;
-  SdbDecodeFp decodeFp;
-  SdbInsertFp insertFp;
-  SdbUpdateFp updateFp;
-  SdbDeleteFp deleteFp;
+  ESdbType      sdbType;
+  EKeyType      keyType;
+  SdbDeployFp   deployFp;
+  SdbEncodeFp   encodeFp;
+  SdbDecodeFp   decodeFp;
+  SdbInsertFp   insertFp;
+  SdbUpdateFp   updateFp;
+  SdbDeleteFp   deleteFp;
   SdbValidateFp validateFp;
 } SSdbTable;
 

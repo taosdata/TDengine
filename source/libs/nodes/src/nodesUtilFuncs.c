@@ -14,6 +14,7 @@
  */
 
 #include "cmdnodes.h"
+#include "functionMgt.h"
 #include "nodesUtil.h"
 #include "plannodes.h"
 #include "querynodes.h"
@@ -22,7 +23,6 @@
 #include "tdatablock.h"
 #include "thash.h"
 #include "tref.h"
-#include "functionMgt.h"
 
 typedef struct SNodeMemChunk {
   int32_t               availableSize;
@@ -451,10 +451,15 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SShowCreateTableStmt));
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       return makeNode(type, sizeof(SShowTableDistributedStmt));
+    case QUERY_NODE_SHOW_COMPACTS_STMT:
+      return makeNode(type, sizeof(SShowCompactsStmt));
+    case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
+      return makeNode(type, sizeof(SShowCompactDetailsStmt));
     case QUERY_NODE_KILL_QUERY_STMT:
       return makeNode(type, sizeof(SKillQueryStmt));
     case QUERY_NODE_KILL_TRANSACTION_STMT:
     case QUERY_NODE_KILL_CONNECTION_STMT:
+    case QUERY_NODE_KILL_COMPACT_STMT:
       return makeNode(type, sizeof(SKillStmt));
     case QUERY_NODE_DELETE_STMT:
       return makeNode(type, sizeof(SDeleteStmt));
@@ -1055,6 +1060,13 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pDnodeId);
       nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pLikePattern);
       break;
+    case QUERY_NODE_SHOW_COMPACTS_STMT:
+      break;
+    case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT: {
+      SShowCompactDetailsStmt* pStmt = (SShowCompactDetailsStmt*)pNode;
+      nodesDestroyNode(pStmt->pCompactId);
+      break;
+    }
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       taosMemoryFreeClear(((SShowCreateDatabaseStmt*)pNode)->pCfg);
       break;
@@ -1067,6 +1079,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_KILL_CONNECTION_STMT:         // no pointer field
     case QUERY_NODE_KILL_QUERY_STMT:              // no pointer field
     case QUERY_NODE_KILL_TRANSACTION_STMT:        // no pointer field
+    case QUERY_NODE_KILL_COMPACT_STMT:            // no pointer field
       break;
     case QUERY_NODE_DELETE_STMT: {
       SDeleteStmt* pStmt = (SDeleteStmt*)pNode;
@@ -1102,10 +1115,10 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pQuery->pPrepareRoot);
       break;
     }
-    case QUERY_NODE_RESTORE_DNODE_STMT:   // no pointer field
-    case QUERY_NODE_RESTORE_QNODE_STMT:   // no pointer field
-    case QUERY_NODE_RESTORE_MNODE_STMT:   // no pointer field
-    case QUERY_NODE_RESTORE_VNODE_STMT:   // no pointer field
+    case QUERY_NODE_RESTORE_DNODE_STMT:  // no pointer field
+    case QUERY_NODE_RESTORE_QNODE_STMT:  // no pointer field
+    case QUERY_NODE_RESTORE_MNODE_STMT:  // no pointer field
+    case QUERY_NODE_RESTORE_VNODE_STMT:  // no pointer field
       break;
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pLogicNode = (SScanLogicNode*)pNode;
@@ -1282,7 +1295,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pOnRight);
       nodesDestroyNode(pPhyNode->pFilterConditions);
       nodesDestroyList(pPhyNode->pTargets);
-      
+
       nodesDestroyNode(pPhyNode->pPrimKeyCond);
       nodesDestroyNode(pPhyNode->pColEqCond);
       nodesDestroyNode(pPhyNode->pTagEqCond);
@@ -1923,7 +1936,8 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
 static bool isCollectType(ECollectColType collectType, EColumnType colType) {
   return COLLECT_COL_TYPE_ALL == collectType
              ? true
-             : (COLLECT_COL_TYPE_TAG == collectType ? COLUMN_TYPE_TAG == colType : (COLUMN_TYPE_TAG != colType && COLUMN_TYPE_TBNAME != colType));
+             : (COLLECT_COL_TYPE_TAG == collectType ? COLUMN_TYPE_TAG == colType
+                                                    : (COLUMN_TYPE_TAG != colType && COLUMN_TYPE_TBNAME != colType));
 }
 
 static EDealRes collectColumns(SNode* pNode, void* pContext) {
@@ -2041,7 +2055,8 @@ static int32_t funcNodeEqual(const void* pLeft, const void* pRight, size_t len) 
   return nodesEqualNode(*(const SNode**)pLeft, *(const SNode**)pRight) ? 0 : 1;
 }
 
-int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList** pFuncs) {
+int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier,
+                          SNodeList** pFuncs) {
   if (NULL == pSelect || NULL == pFuncs) {
     return TSDB_CODE_FAILED;
   }
