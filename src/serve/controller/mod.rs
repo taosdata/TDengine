@@ -671,8 +671,7 @@ impl TaskController {
         self.validate_enterprise_license(&from, &to).await?;
 
         match from.driver.as_str() {
-            "opcua" | "opcda" | "influxdb" | "opentsdb" | "pi" | "kafka" | AVEVA_HISTORIAN_ID
-            | "mqtt" => {
+            "opcua" | "opcda" | "influxdb" | "pi" | "kafka" | "mqtt" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
@@ -934,8 +933,7 @@ impl TaskController {
         self.validate_enterprise_license(&from, &to).await?;
 
         match from.driver.as_str() {
-            "opcua" | "opcda" | "influxdb" | "opentsdb" | "pi" | "kafka" | AVEVA_HISTORIAN_ID
-            | "mqtt" => {
+            "opcua" | "opcda" | "influxdb" | "pi" | "kafka" | "mqtt" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
