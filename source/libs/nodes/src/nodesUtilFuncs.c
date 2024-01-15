@@ -2029,6 +2029,20 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+int32_t nodesCollectSelectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList* pFuncs) {
+  if (NULL == pSelect || NULL == pFuncs) {
+    return TSDB_CODE_FAILED;
+  }
+
+  SCollectFuncsCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
+                          .classifier = classifier,
+                          .tableAlias = tableAlias,
+                          .pFuncs = pFuncs};
+
+  nodesWalkSelectStmt(pSelect, clause, collectFuncs, &cxt);
+  return cxt.errCode;
+}
+
 static uint32_t funcNodeHash(const char* pKey, uint32_t len) {
   SExprNode* pExpr = *(SExprNode**)pKey;
   return MurmurHash3_32(pExpr->aliasName, strlen(pExpr->aliasName));
