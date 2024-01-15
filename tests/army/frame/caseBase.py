@@ -72,6 +72,9 @@ class TBase:
     def dropDb(self, show = False):
         tdSql.execute(f"drop database {self.db}", show = show)
 
+    def dropStream(self, sname, show = False):
+        tdSql.execute(f"drop stream {sname}", show = show)
+
     def splitVGroups(self):
         vgids = self.getVGroup(self.db)
         selid = random.choice(vgids)

@@ -91,13 +91,15 @@ The list of currently supported Hints is as follows:
 | :-----------: | -------------- | -------------------------- | -----------------------------------|
 | BATCH_SCAN    | None           | Batch table scan           | JOIN statment for stable           |
 | NO_BATCH_SCAN | None           | Sequential table scan      | JOIN statment for stable           |
-| SORT_FOR_GROUP| None           | Use sort for partition     | With normal column in partition by list |
+| SORT_FOR_GROUP| None           | Use sort for partition, conflict with PARTITION_FIRST     | With normal column in partition by list |
+| PARTITION_FIRST| None          | Use Partition before aggregate, conflict with SORT_FOR_GROUP | With normal column in partition by list |
 
 For example:
 
 ```sql
 SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
 SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
+SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
 ```
 
 ## Lists
