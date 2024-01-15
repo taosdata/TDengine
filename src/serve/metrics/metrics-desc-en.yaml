@@ -22,7 +22,7 @@ points_per_second: Average number of points written per second for this task run
 read_concurrency: Number of data workers concurrently reading data sources
 total_stables: Total super tables to migrate
 total_updated_tags: Total updated tag count
-total_created_tables: Total number of child tables created
+total_created_tables: Total number of child tables created using sql.(not include auto created child tables)
 total_tables: Total tables to migrate
 total_finished_tables: Total number of sub-tables successfully migrated. (may greater than the actual value if task was resumed from break point)
 total_success_blocks: Total number of data blocks successfully written
@@ -47,7 +47,7 @@ total_processed_records: Total number of rows processed. (equal to the sum of th
 total_inserted_sqls: Total number of INSERT SQLs executed by taosx
 total_failed_sqls: Total number of INSERT SQLs failed to execute by taosx
 total_created_stables: Total number of super tables that taosX try to created. (may greater than successfully created super tables)
-total_created_tables: Total number of child tables that taosX try to created
+total_created_tables: Total number of child tables that taosX try to created.(not include auto created child tables)
 total_failed_rows: Total number of rows failed to write
 total_failed_points: Total number of points failed to write
 total_written_raw_blocks: Total number of raw blocks successfully written
