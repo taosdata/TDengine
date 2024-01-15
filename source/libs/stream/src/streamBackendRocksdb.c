@@ -419,6 +419,7 @@ int32_t backendFileCopyFilesImpl(char* src, char* dst) {
       code = copyFiles_hardlink(srcName, dstName, 0);
     }
     if (code != 0) {
+      stError("failed to copy file, reason: %s", tstrerror(TAOS_SYSTEM_ERROR(code)));
       goto _ERROR;
     }
     memset(srcName, 0, sLen + 64);
