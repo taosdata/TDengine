@@ -1310,7 +1310,7 @@ class TDTestCase:
         ts = ts + 20
         tdSql.query(f"select tbname,count(*) from nested.stable_null_childtable group by tbname order by tbname;")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 52);
+        tdSql.checkData(0, 1, 52)
         
         
         #stables
@@ -1347,16 +1347,16 @@ class TDTestCase:
         
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(6)
-        tdSql.checkData(0, 1, 162);
-        tdSql.checkData(1, 1, 200);
+        tdSql.checkData(0, 1, 162)
+        tdSql.checkData(1, 1, 200)
         
         tdSql.query(f"select tbname,count(*) from nested.stable_null_data group by tbname order by tbname;")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 62);
+        tdSql.checkData(0, 1, 62)
         
         tdSql.query(f"select tbname,count(*) from nested.stable_null_childtable group by tbname order by tbname;")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 62);
+        tdSql.checkData(0, 1, 62)
         
         #test special character
 
@@ -1366,25 +1366,25 @@ class TDTestCase:
         
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(7)
-        tdSql.checkData(0, 1, 1);
-        tdSql.checkData(1, 1, 162);
-        tdSql.checkData(2, 1, 200);
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 162)
+        tdSql.checkData(2, 1, 200)
         tdSql.query(f"select count(*) from nested.stable_1 where tbname ='!@!@$$^$' ;")
-        tdSql.checkData(0, 0, 1);
+        tdSql.checkData(0, 0, 1)
         
         tdSql.query(f"select tbname,count(*) from nested.stable_null_data group by tbname order by tbname;")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 1);
-        tdSql.checkData(1, 1, 62);
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 62)
         tdSql.query(f"select count(*) from nested.stable_null_data where tbname ='%^$^&^&' ;")
-        tdSql.checkData(0, 0, 1);
+        tdSql.checkData(0, 0, 1)
         
         tdSql.query(f"select tbname,count(*) from nested.stable_null_childtable group by tbname order by tbname;")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 1);
-        tdSql.checkData(1, 1, 62);
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 62)
         tdSql.query(f"select count(*) from nested.stable_null_childtable where tbname ='$^%$%^&' ;")
-        tdSql.checkData(0, 0, 1);
+        tdSql.checkData(0, 0, 1)
         
         #test csv
         sql1 = "select tbname,ts,q_int,q_binary from nested.stable_1 >>'%s/stable_1.csv';" %self.testcasePath
@@ -1404,31 +1404,31 @@ class TDTestCase:
         
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(7)
-        tdSql.checkData(0, 1, 1);
-        tdSql.checkData(1, 1, 162);
-        tdSql.checkData(2, 1, 200);
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 162)
+        tdSql.checkData(2, 1, 200)
         tdSql.query(f"select count(*) from nested.stable_1 where tbname ='!@!@$$^$' ;")
-        tdSql.checkData(0, 0, 1);
+        tdSql.checkData(0, 0, 1)
         tdSql.query(f"select count(q_bool) from nested.stable_1;")
-        tdSql.checkData(0, 0, 0);
+        tdSql.checkData(0, 0, 0)
         
         tdSql.query(f"select tbname,count(*) from nested.stable_null_data group by tbname order by tbname;")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 1);
-        tdSql.checkData(1, 1, 62);
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 62)
         tdSql.query(f"select count(*) from nested.stable_null_data where tbname ='%^$^&^&' ;")
-        tdSql.checkData(0, 0, 1);
+        tdSql.checkData(0, 0, 1)
         tdSql.query(f"select count(q_bool) from nested.stable_null_data;")
-        tdSql.checkData(0, 0, 0);
+        tdSql.checkData(0, 0, 0)
         
         tdSql.query(f"select tbname,count(*) from nested.stable_null_childtable group by tbname order by tbname;")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 1);
-        tdSql.checkData(1, 1, 62);
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 62)
         tdSql.query(f"select count(*) from nested.stable_null_childtable where tbname ='$^%$%^&' ;")
-        tdSql.checkData(0, 0, 1);
+        tdSql.checkData(0, 0, 1)
         tdSql.query(f"select count(q_bool) from nested.stable_null_childtable;")
-        tdSql.checkData(0, 0, 0);
+        tdSql.checkData(0, 0, 0)
         
         
         tdSql.query(f"delete from nested.stable_1;")
@@ -1440,31 +1440,36 @@ class TDTestCase:
         
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(7)
-        tdSql.checkData(0, 1, 1);
-        tdSql.checkData(1, 1, 162);
-        tdSql.checkData(2, 1, 200);
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 162)
+        tdSql.checkData(2, 1, 200)
         tdSql.query(f"select count(*) from nested.stable_1 where tbname ='!@!@$$^$' ;")
-        tdSql.checkData(0, 0, 1);
+        tdSql.checkData(0, 0, 1)
         tdSql.query(f"select count(q_bool) from nested.stable_1;")
-        tdSql.checkData(0, 0, 0);
+        tdSql.checkData(0, 0, 0)
         
         tdSql.query(f"select tbname,count(*) from nested.stable_null_data group by tbname order by tbname;")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 1);
-        tdSql.checkData(1, 1, 62);
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 62)
         tdSql.query(f"select count(*) from nested.stable_null_data where tbname ='%^$^&^&' ;")
-        tdSql.checkData(0, 0, 1);
+        tdSql.checkData(0, 0, 1)
         tdSql.query(f"select count(q_bool) from nested.stable_null_data;")
-        tdSql.checkData(0, 0, 0);
+        tdSql.checkData(0, 0, 0)
         
         tdSql.query(f"select tbname,count(*) from nested.stable_null_childtable group by tbname order by tbname;")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 1);
-        tdSql.checkData(1, 1, 62);
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 62)
         tdSql.query(f"select count(*) from nested.stable_null_childtable where tbname ='$^%$%^&' ;")
-        tdSql.checkData(0, 0, 1);
+        tdSql.checkData(0, 0, 1)
         tdSql.query(f"select count(q_bool) from nested.stable_null_childtable;")
-        tdSql.checkData(0, 0, 0);
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f"select tbname,count(*) from nested.stable_1 where ts is not null group by tbname order by tbname;")
+        tdSql.checkRows(7)
+        tdSql.query(f"select tbname,count(*) from nested.stable_1 where ts is null group by tbname order by tbname;")
+        tdSql.checkRows(7)
         
         #test stable 
 
