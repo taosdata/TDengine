@@ -66,6 +66,9 @@ export default {
       if(name=='Google Data Studio'){
           name='gdStudio'
         }
+      if (name == '永洪 BI' || name == 'PowerBI') {
+        return require(`@/assets/images/${icon || name}.png`);
+      }
       try {
           return require(`@/assets/images/${icon || name}.svg`);
         } catch (err) {
