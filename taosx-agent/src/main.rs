@@ -1,4 +1,5 @@
 use std::{path::PathBuf, time::Duration};
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
 
 use chrono::{Local, Utc};
 use clap::{CommandFactory, Parser};
@@ -6,11 +7,6 @@ use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
 use thiserror::Error;
 
-use file_rotate::{
-    compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
-};
 use time::macros::format_description;
 use time::UtcOffset;
 use tracing_subscriber::{
@@ -330,20 +326,13 @@ fn main() -> anyhow::Result<()> {
     log_path.push(LOG_FILE);
 
     let log_keep_days = get_log_keep_days();
-    let log_rotation = FileRotate::new(
-        &log_path,
-        AppendTimestamp::with_format(
-            "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::days(log_keep_days)),
-            DateFrom::DateYesterday,
-        ),
-        ContentLimit::Time(TimeFrequency::Daily),
-        Compression::OnRotate(2),
-        #[cfg(unix)]
-        None,
-    );
-
-    let (non_blocking, _guard) = tracing_appender::non_blocking(log_rotation);
+    let rolling_file_appender = RollingFileAppender::builder()
+        .max_log_files((log_keep_days + 1) as usize)
+        .filename_prefix(LOG_FILE)
+        .rotation(Rotation::DAILY)
+        .build(get_log_dir(""))
+        .expect("failed to initialize rolling file appender");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(rolling_file_appender);
 
     // let timer = LocalTime::new(format_description!(
     //     "[month]/[day] [hour]:[minute]:[second].[subsecond digits:6]"
