@@ -114,7 +114,6 @@ class AutoGen:
     def create_db(self, dbname, vgroups = 2, replica = 1):
         self.dbname  = dbname
         tdSql.execute(f'create database {dbname} vgroups {vgroups} replica {replica}')
-        tdSql.execute(f'use {dbname}')
         
     # create table or stable
     def create_stable(self, stbname, tag_cnt, column_cnt, binary_len, nchar_len):
@@ -124,7 +123,7 @@ class AutoGen:
         self.mtags, tags = self.gen_columns_sql("t", tag_cnt, binary_len, nchar_len)
         self.mcols, cols = self.gen_columns_sql("c", column_cnt - 1, binary_len, nchar_len)
 
-        sql = f"create table {stbname} (ts timestamp, {cols}) tags({tags})"
+        sql = f"create table {self.dbname}.{stbname} (ts timestamp, {cols}) tags({tags})"
         tdSql.execute(sql)
 
     # create child table 
@@ -133,7 +132,7 @@ class AutoGen:
         self.child_name = prename
         for i in range(cnt):
             tags_data = self.gen_data(i, self.mtags)
-            sql = f"create table {prename}{i} using {stbname} tags({tags_data})"
+            sql = f"create table {self.dbname}.{prename}{i} using {self.dbname}.{stbname} tags({tags_data})"
             tdSql.execute(sql)
 
         tdLog.info(f"create child tables {cnt} ok")
@@ -152,13 +151,13 @@ class AutoGen:
             ts += step
             values += f"({ts},{value}) "
             if batch_size == 1 or (i > 0 and i % batch_size == 0) :
-                sql = f"insert into {child_name} values {values}"
+                sql = f"insert into {self.dbname}.{child_name} values {values}"
                 tdSql.execute(sql)
                 values = ""
 
         # end batch
         if values != "":
-            sql = f"insert into {child_name} values {values}"
+            sql = f"insert into {self.dbname}.{child_name} values {values}"
             tdSql.execute(sql)
             tdLog.info(f" insert data i={i}")
             values = ""
@@ -180,5 +179,3 @@ class AutoGen:
             self.insert_data_child(name, cnt, self.batch_size, 0)
 
         tdLog.info(f" insert same timestamp ok, child table={self.child_cnt} insert rows={cnt}")         
-
-

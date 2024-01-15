@@ -151,7 +151,7 @@ class AutoGen:
             ts += step
             values += f"({ts},{value}) "
             if batch_size == 1 or (i > 0 and i % batch_size == 0) :
-                sql = f"insert into {child_name} values {values}"
+                sql = f"insert into {self.dbname}.{child_name} values {values}"
                 tdSql.execute(sql)
                 values = ""
 
