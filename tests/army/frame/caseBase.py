@@ -72,6 +72,9 @@ class TBase:
     def dropDb(self, show = False):
         tdSql.execute(f"drop database {self.db}", show = show)
 
+    def dropStream(self, sname, show = False):
+        tdSql.execute(f"drop stream {sname}", show = show)
+
     def splitVGroups(self):
         vgids = self.getVGroup(self.db)
         selid = random.choice(vgids)
@@ -188,3 +191,14 @@ class TBase:
             time.sleep(interval)
         
         return False    
+
+    # check file exist
+    def checkFileExist(self, pathFile):
+        if os.path.exists(pathFile) == False:
+            tdLog.exit(f"file not exist {pathFile}")
+
+    # check list not exist
+    def checkListNotEmpty(self, lists, tips=""):
+        if len(lists) == 0:
+            tdLog.exit(f"list is empty {tips}")
+

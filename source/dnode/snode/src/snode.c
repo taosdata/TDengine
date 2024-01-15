@@ -91,9 +91,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer
             pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer);
   }
 
-  char *p = NULL;
-  streamTaskGetStatus(pTask, &p);
-
+  char* p = streamTaskGetStatus(pTask)->name;
   if (pTask->info.fillHistory) {
     sndInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
             " nextProcessVer:%" PRId64
@@ -147,7 +145,8 @@ FAIL:
 }
 
 int32_t sndInit(SSnode *pSnode) {
-  tqStreamTaskResetStatus(pSnode->pMeta);
+  int32_t numOfTasks = 0;
+  tqStreamTaskResetStatus(pSnode->pMeta, &numOfTasks);
   streamMetaStartAllTasks(pSnode->pMeta);
   return 0;
 }
@@ -195,7 +194,7 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
     case TDMT_STREAM_TASK_DEPLOY: {
       void *  pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
       int32_t len = pMsg->contLen - sizeof(SMsgHead);
-      return tqStreamTaskProcessDeployReq(pSnode->pMeta, pMsg->info.conn.applyIndex, pReq, len, true, true);
+      return tqStreamTaskProcessDeployReq(pSnode->pMeta, &pSnode->msgCb,pMsg->info.conn.applyIndex, pReq, len, true, true);
     }
 
     case TDMT_STREAM_TASK_DROP:

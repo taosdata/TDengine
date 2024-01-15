@@ -126,6 +126,7 @@ typedef enum EHintOption {
   HINT_NO_BATCH_SCAN = 1,
   HINT_BATCH_SCAN,
   HINT_SORT_FOR_GROUP,
+  HINT_PARTITION_FIRST,
 } EHintOption;
 
 typedef struct SHintNode {

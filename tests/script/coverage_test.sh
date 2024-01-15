@@ -9,8 +9,14 @@ else
         exit 1
 fi
 
+# work main path
+TDENGINE_DIR=/root/TDinternal/community
+if [ x$2 != x ];then
+  TDENGINE_DIR=$2
+fi
+
+echo "TDENGINE_DIR=$TDENGINE_DIR"
 today=`date +"%Y%m%d"`
-TDENGINE_DIR=/root/TDengine
 JDBC_DIR=/root/taos-connector-jdbc
 TDENGINE_COVERAGE_REPORT=$TDENGINE_DIR/tests/coverage-report-$today.log
 
@@ -23,7 +29,16 @@ NC='\033[0m'
 
 function buildTDengine() {
     echo "check if TDengine need build"
+    
+    # pull parent code
+    cd "$TDENGINE_DIR/../"
+    echo "git pull parent code..."
+    git remote prune origin > /dev/null
+    git remote update > /dev/null
+
+    # pull tdengine code
     cd $TDENGINE_DIR
+    echo "git pull tdengine code..."
     git remote prune origin > /dev/null
     git remote update > /dev/null
     REMOTE_COMMIT=`git rev-parse --short remotes/origin/$branch`
@@ -54,14 +69,11 @@ function buildTDengine() {
     LOCAL_COMMIT=`git rev-parse --short @`
 
     rm -rf *
-    if [ "$branch" == "3.0" ]; then
-        echo "3.0 ============="
-        cmake -DCOVER=true -DBUILD_TEST=true -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_CONTRIB=true ..
-    else
-        cmake -DCOVER=true -DBUILD_TOOLS=true -DBUILD_HTTP=false .. > /dev/null
-    fi
-    make -j
-    make install
+    makecmd="cmake -DCOVER=true -DBUILD_TEST=true -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_GEOS=true -DBUILD_CONTRIB=true ../../"
+    echo "$makecmd"
+    $makecmd
+
+    make -j 8 install
 }
 
 function runCasesOneByOne () {
@@ -71,18 +83,18 @@ function runCasesOneByOne () {
             if [[ "$2" == "sim" ]] && [[ $line == *"script"* ]]; then
                 case=`echo $cmd | cut -d' ' -f 3`
                 start_time=`date +%s`
-                date +%F\ %T | tee -a  $TDENGINE_COVERAGE_REPORT  && $cmd > /dev/null 2>&1 && \
+                date +%F\ %T | tee -a  $TDENGINE_COVERAGE_REPORT  && timeout 20m $cmd > /dev/null 2>&1 && \
                 echo -e "${GREEN}$case success${NC}" | tee -a  $TDENGINE_COVERAGE_REPORT \
                 || echo -e "${RED}$case failed${NC}" | tee -a  $TDENGINE_COVERAGE_REPORT
                 end_time=`date +%s`
                 echo execution time of $case was `expr $end_time - $start_time`s. | tee -a $TDENGINE_COVERAGE_REPORT
-            elif [$line == *"$2"* ]; then
+            elif [[ "$line" == *"$2"* ]]; then
                 if [[ "$cmd" == *"pytest.sh"* ]]; then
                     cmd=`echo $cmd | cut -d' ' -f 2-20`
                 fi
                 case=`echo $cmd | cut -d' ' -f 4-20`
                 start_time=`date +%s`
-                date +%F\ %T | tee -a $TDENGINE_COVERAGE_REPORT && $cmd > /dev/null 2>&1 && \
+                date +%F\ %T | tee -a $TDENGINE_COVERAGE_REPORT && timeout 20m $cmd > /dev/null 2>&1 && \
                 echo -e "${GREEN}$case success${NC}" | tee -a $TDENGINE_COVERAGE_REPORT || \
                 echo -e "${RED}$case failed${NC}" | tee -a $TDENGINE_COVERAGE_REPORT
                 end_time=`date +%s`
@@ -178,7 +190,7 @@ function runTest() {
     runPythonCases
     runJDBCCases
 
-    stopTaosd  
+    stopTaosd
     cd $TDENGINE_DIR/tests/script
     find . -name '*.sql' | xargs rm -f
 
@@ -191,7 +203,7 @@ function lcovFunc {
     cd $TDENGINE_DIR
 
     # collect data
-    lcov --ignore-errors negative --ignore-errors mismatch -d . --capture --rc lcov_branch_coverage=1 --rc branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info
+    lcov --capture -d $TDENGINE_DIR -b $TDENGINE_DIR -o coverage.info --ignore-errors negative,mismatch,inconsistent,source --branch-coverage --function-coverage --no-external
 
     # remove exclude paths
     lcov --remove coverage.info \
@@ -202,23 +214,23 @@ function lcovFunc {
         '*/clientJniConnector.c' '*/clientTmqConnector.c' '*/version.c'\
         '*/tthread.c' '*/tversion.c'  '*/ctgDbg.c' '*/schDbg.c' '*/qwDbg.c' '*/tencode.h' \
         '*/shellAuto.c' '*/shellTire.c' '*/shellCommand.c'\
-         --rc branch_coverage=1 -o coverage.info
+        '*/sql.c' '*/sql.y'\
+         --branch-coverage --function-coverage -o coverage.info
 
     # generate result
     echo "generate result"
-    lcov -l --rc branch_coverage=1 coverage.info | tee -a $TDENGINE_COVERAGE_REPORT
+    lcov -l --branch-coverage --function-coverage coverage.info | tee -a $TDENGINE_COVERAGE_REPORT
 
     sed -i 's/\/root\/TDengine\/sql.c/\/root\/TDengine\/source\/libs\/parser\/inc\/sql.c/g' coverage.info
     sed -i 's/\/root\/TDengine\/sql.y/\/root\/TDengine\/source\/libs\/parser\/inc\/sql.y/g' coverage.info
 
     # push result to coveralls.io
     echo "push result to coveralls.io"
-    /usr/local/bin/coveralls-lcov coverage.info -t o7uY02qEAgKyJHrkxLGiCOTfL3IGQR2zm | tee -a $TDENGINE_COVERAGE_REPORT
+    /usr/local/bin/coveralls-lcov coverage.info -b $branch -t o7uY02qEAgKyJHrkxLGiCOTfL3IGQR2zm | tee -a $TDENGINE_COVERAGE_REPORT
 
     #/root/pxiao/checkCoverageFile.sh -s $TDENGINE_DIR/source -f $TDENGINE_COVERAGE_REPORT
     #cat /root/pxiao/fileListNoCoverage.log | tee -a $TDENGINE_COVERAGE_REPORT
     cat $TDENGINE_COVERAGE_REPORT | grep "| 0.0%" | awk -F "%" '{print $1}' | awk -F "|" '{if($2==0.0)print $1}' | tee -a $TDENGINE_COVERAGE_REPORT
-
 }
 
 function sendReport {

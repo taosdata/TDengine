@@ -34,7 +34,7 @@ class TDTestCase(TBase):
         tdLog.info(f"insert data.")
         # taosBenchmark run
         jfile = etool.curFile(__file__, "snapshot.json")
-        etool.runBenchmark(json=jfile)
+        etool.benchMark(json=jfile)
 
         tdSql.execute(f"use {self.db}")
         # set insert data information

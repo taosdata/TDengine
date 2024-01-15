@@ -47,28 +47,29 @@ static void *dmStatusThreadFp(void *param) {
 }
 
 SDmNotifyHandle dmNotifyHdl = {.state = 0};
-static void    *dmNotifyThreadFp(void *param) {
-     SDnodeMgmt *pMgmt = param;
-     setThreadName("dnode-notify");
 
-     if (tsem_init(&dmNotifyHdl.sem, 0, 0) != 0) {
-       return NULL;
+static void *dmNotifyThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  setThreadName("dnode-notify");
+
+  if (tsem_init(&dmNotifyHdl.sem, 0, 0) != 0) {
+    return NULL;
   }
 
-     bool wait = true;
-     while (1) {
-       if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+  bool wait = true;
+  while (1) {
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
     if (wait) tsem_wait(&dmNotifyHdl.sem);
     atomic_store_8(&dmNotifyHdl.state, 1);
-       dmSendNotifyReq(pMgmt);
-       if (1 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 0)) {
-         wait = true;
-         continue;
+    dmSendNotifyReq(pMgmt);
+    if (1 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 0)) {
+      wait = true;
+      continue;
     }
-       wait = false;
+    wait = false;
   }
 
-     return NULL;
+  return NULL;
 }
 
 static void *dmMonitorThreadFp(void *param) {
