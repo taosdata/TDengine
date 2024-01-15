@@ -135,8 +135,9 @@ class TBase:
         tdSql.checkAgg(sql, self.childtable_count)
 
         # check step
-        sql = f"select count(*) from (select diff(ts) as dif from {self.stb} partition by tbname) where dif != {self.timestamp_step}"
-        tdSql.checkAgg(sql, 0)
+        sql = f"select * from (select diff(ts) as dif from {self.stb} partition by tbname) where dif != {self.timestamp_step}"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
 
     # save agg result
     def snapshotAgg(self):        
@@ -156,6 +157,31 @@ class TBase:
         tdSql.checkAgg(self.sqlFirst, self.first)
         tdSql.checkAgg(self.sqlLast,  self.last)
 
+    # self check 
+    def checkConsistency(self, col):
+        # top with max
+        sql = f"select max({col}) from {self.stb}"
+        expect = tdSql.getFirstValue(sql)
+        sql = f"select top({col}, 5) from {self.stb}"
+        tdSql.checkFirstValue(sql, expect)
+
+        #bottom with min
+        sql = f"select min({col}) from {self.stb}"
+        expect = tdSql.getFirstValue(sql)
+        sql = f"select bottom({col}, 5) from {self.stb}"
+        tdSql.checkFirstValue(sql, expect)
+
+        # order by asc limit 1 with first
+        sql = f"select last({col}) from {self.stb}"
+        expect = tdSql.getFirstValue(sql)
+        sql = f"select {col} from {self.stb} order by _c0 desc limit 1"
+        tdSql.checkFirstValue(sql, expect)
+
+        # order by desc limit 1 with last
+        sql = f"select first({col}) from {self.stb}"
+        expect = tdSql.getFirstValue(sql)
+        sql = f"select {col} from {self.stb} order by _c0 asc limit 1"
+        tdSql.checkFirstValue(sql, expect)
 
 #
 #   get db information

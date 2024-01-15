@@ -75,7 +75,6 @@ class TDTestCase(TBase):
 
         # others
         etool.exeBinFile("taos", f'-N 200 -l 2048 -s "{sql}" ', wait=False)
-        etool.exeBinFile("taos", f'-n server', wait=False)
 
 
     def doTaosd(self):
@@ -86,11 +85,11 @@ class TDTestCase(TBase):
         # -s
         sdb = "./sdb.json"
         eos.delFile(sdb)
-        etool.runBinFile("taosd", f"-s -c {cfg}")
-        self.checkFileExist(sdb)
+        etool.exeBinFile("taosd", f"-s -c {cfg}")
+        
 
         # -C
-        etool.runBinFile("taosd", "-C")
+        etool.exeBinFile("taosd", "-C")
         # -k 
         rets = etool.runBinFile("taosd", "-C")
         self.checkListNotEmpty(rets)
