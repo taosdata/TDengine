@@ -4405,7 +4405,8 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (TSDB_CODE_SUCCESS == code) {
     code = getQueryTimeRange(pCxt, pSelect->pWhere, &pSelect->timeRange);
   }
-  if (TSDB_CODE_SUCCESS == code && pSelect->timeRange.skey > pSelect->timeRange.ekey) {
+  if (TSDB_CODE_SUCCESS == code && pSelect->timeRange.skey > pSelect->timeRange.ekey
+    && (pSelect->pGroupByList == NULL || pSelect->pGroupByList->length == 0)) {
     pSelect->isEmptyResult = true;
   }
   if (pSelect->pWhere != NULL) {
