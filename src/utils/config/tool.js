@@ -95,5 +95,21 @@ export default () => [
       {title: i18n.t("docs.virtual.gds.step2"), dom: "connector-configuration"},
       {title: i18n.t("docs.virtual.gds.step3"), dom: "create-report-or-dashboard"},
     ]
-  }
+  },
+  {
+    name: 'PowerBI',
+    desc: i18n.t('docs.tools.powerbi.desc'),
+    docs: {
+      zh: mdx.powerbiDoc,
+      en: mdx.powerbiDoc
+    },
+    version: '>=3.2.2.0',
+    steps: [
+      { title: i18n.t('docs.tools.powerbi.step1'), dom: 'powerbi-repare' },
+      { title: i18n.t('docs.tools.powerbi.step2'), dom: 'powerbi-install' },
+      { title: i18n.t('docs.tools.powerbi.step3'), dom: 'powerbi-config' },
+      { title: i18n.t('docs.tools.powerbi.step4'), dom: 'powerbi-import' },
+      { title: i18n.t('docs.tools.powerbi.step5'), dom: 'powerbi-example' }
+    ]
+  },
 ];
