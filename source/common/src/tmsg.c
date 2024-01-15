@@ -8405,7 +8405,6 @@ int32_t tDecodeMqDataRspCommon(SDecoder *pDecoder, SMqDataRsp *pRsp) {
       }
     }
   }
-  if (tDecodeI64(pDecoder, &pRsp->sleepTime) < 0) return -1;
 
   return 0;
 }
