@@ -885,6 +885,7 @@ int32_t      streamMetaLoadAllTasks(SStreamMeta* pMeta);
 int32_t      streamMetaStartAllTasks(SStreamMeta* pMeta);
 int32_t      streamMetaStopAllTasks(SStreamMeta* pMeta);
 int32_t      streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
+bool         streamMetaAllTasksReady(const SStreamMeta* pMeta);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
