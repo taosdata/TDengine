@@ -31,45 +31,45 @@ class TDTestCase(TBase):
         autoGen.create_db(self.db, 2, 3)
         autoGen.create_stable(self.stb, 5, 10, 8, 8)
         autoGen.create_child(self.stb, "d", self.childtable_count)
-        autoGen.insert_data(1)
+        autoGen.insert_data(1000)
         tdSql.execute(f"flush database {self.db}")
         clusterDnodes.stoptaosd(3)
-        clusterDnodes.stoptaosd(1)
-        clusterDnodes.starttaosd(3)
-        time.sleep(5)
-        clusterDnodes.stoptaosd(2)
-        clusterDnodes.starttaosd(1)
-        time.sleep(5)
-        autoGen.insert_data(10, 1600000000001)
-        # tdSql.execute(f"flush database {self.db}")
+        # clusterDnodes.stoptaosd(1)
+        # clusterDnodes.starttaosd(3)
+        # time.sleep(5)
+        # clusterDnodes.stoptaosd(2)
+        # clusterDnodes.starttaosd(1)
+        # time.sleep(5)
+        autoGen.insert_data(5000, 1600000000001)
+        tdSql.execute(f"flush database {self.db}")
 
-        sql = 'show vnodes;'
-        while True:
-            bFinish = True
-            param_list = tdSql.query(sql, row_tag=True)
-            for param in param_list:
-                if param[3] == 'leading' or param[3] == 'following':
-                    bFinish = False
-                    break
-            if bFinish:
-                break
+        # sql = 'show vnodes;'
+        # while True:
+        #     bFinish = True
+        #     param_list = tdSql.query(sql, row_tag=True)
+        #     for param in param_list:
+        #         if param[3] == 'leading' or param[3] == 'following':
+        #             bFinish = False
+        #             break
+        #     if bFinish:
+        #         break
         self.snapshotAgg()
-
+        time.sleep(10)
         clusterDnodes.stopAll()
-        # for i in range(1, 4):
-        #     path = clusterDnodes.getDnodeDir(i)
-        #     dnodesRootDir = os.path.join(path,"data","vnode", "vnode*")
-        #     dirs = glob.glob(dnodesRootDir)
-        #     for dir in dirs:
-        #         if os.path.isdir(dir):
-        #             tdLog.debug("delete dir: %s " % (dnodesRootDir))
-        #             self.remove_directory(os.path.join(dir, "wal"))
+        for i in range(1, 4):
+            path = clusterDnodes.getDnodeDir(i)
+            dnodesRootDir = os.path.join(path,"data","vnode", "vnode*")
+            dirs = glob.glob(dnodesRootDir)
+            for dir in dirs:
+                if os.path.isdir(dir):
+                    tdLog.debug("delete dir: %s " % (dnodesRootDir))
+                    self.remove_directory(os.path.join(dir, "wal"))
 
         clusterDnodes.starttaosd(1)
         clusterDnodes.starttaosd(2)
         clusterDnodes.starttaosd(3)
 
-        time.sleep(3)
+        time.sleep(10)
         while True:
             bFinish = True
             param_list = tdSql.query(sql, row_tag=True)
