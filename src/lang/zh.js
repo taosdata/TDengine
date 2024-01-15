@@ -1315,6 +1315,36 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
         step31desc: '首先按照下面程序加载 JDBC 驱动程序：',
         step32desc: '然后您可以执行下面程序创建和 TDengine Cloud 实例连接：'
       },
+      odbc: {
+        desc: 'TDengine ODBC 是为 TDengine 实现的 ODBC 驱动程序，支持 Windows 系统的应用（如 ',
+        desc1: ' 等）通过 ODBC 标准接口可以轻松访问 TDengine Cloud 的实例。',
+        step1: '安装',
+        step1full: '安装 ODBC 连接器',
+        step11desc1: '从 TDengine 官网下载最新的 ',
+        step11desc2: 'Windows X64 客户端驱动程序',
+        step11desc3: '，并安装在 PowerBI 运行的机器上。',
+        step12desc1: 'Windows X64 ODBC 连接器',
+        step12desc2: '，并安装在 PowerBI 运行的机器上，安装成功后可在“ODBC 数据源（64 位）管理工具”中看到“TAOS_ODBC_DSN 驱动程序”',
+        step2: '配置',
+        step2full: '配置 ODBC 数据源',
+        step21desc: 'Windows 操作系统的【开始】菜单搜索打开【ODBC 数据源(64 位)】管理工具（注意不要选择 ODBC 数据源(32 位)）。',
+        step22desc: '选中【用户 DSN】标签页，通过【添加(D)】按钮进入"创建数据源"界面。',
+        step23desc: '选择想要添加的数据源，然后选择【TAOS_ODBC_DRIVER】，点击完成，进入 TDengine ODBC 数据源配置页面，填写如下必要信息：',
+        step23desc1: '【DSN】：',
+        step23desc2: '数据源名称，必填，比如“MyTDengine”。',
+        step23desc3: '【连接类型】：',
+        step23desc4: '选择 TDengine ODBC 的实现，这里选择【Native Driver(taos)】原生连接',
+        step23desc5: '【URL】：',
+        step23desc6: '【数据库】：',
+        step23desc7: '可选，填写需要连接的数据库，比如“test”',
+        step23desc8: '【服务地址】',
+        step23desc9: '输入 TDengine 的服务地址，例如 192.168.1.100:6030（暂不支持云服务）',
+        step23desc10: '【用户名】',
+        step23desc11: '输入用户名，如果不填，默认为 root',
+        step23desc12: '【密码】',
+        step23desc13: '输入用户密码，如果不填，默认为 taosdata',
+        step24desc: '点击【测试连接】按钮测试连接情况，如果成功，会提示“成功连接"。'
+      }
     },
     party: {
       prometheus: {
@@ -1825,7 +1855,50 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
         step4desc4: 'TDengine 支持多数据列，您可以使用 Seeq 变量为每一列生成一个时间序列。更多关于 Seeq 变量的信息，请查阅 ',
         step4desc41: 'Seeq 文档',
         step4desc42: '。'
-      }
+      },
+      powerbi: {
+        desc: ' 是由 Microsoft 提供的一种商业分析工具。通过配置使用 ODBC 连接器，Power BI 可以快速的访问 TDengine。您可以将标签数据、原始时序数据或按时间聚合后的时序数据从 TDengine 导入到 Power BI，制作报表或仪表盘，整个过程不需要任何的代码编写过程。',
+        step1: '前置',
+        step1full: '前置条件',
+        step1desc: '安装完成 Power BI Desktop 软件并可以运行（如未安装，请从',
+        step1desc1: '官方地址',
+        step1desc2: '下载最新的 Windows X64 版本）。',
+        step1desc3: 'TDengine 服务端软件已经安装并运行。',
+        step2: '安装 ODBC',
+        step2full: '安装 ODBC 连接器',
+        step3: '配置 ODBC',
+        step3full: '配置 ODBC 数据源',
+        step4: '导入数据',
+        step4full: '导入 TDengine 数据到 Powner BI',
+        step4desc: '打开 Power BI 并登录后，通过如下步骤添加数据源，“主页” -> “获取数据” -> “其他” -> “ODBC” -> “连接”。',
+        step4desc1:
+          '选择刚才创建的数据源名称，比如“MyTDengine”，点击“确定”按钮。在弹出的“ODBC 驱动程序”对话框中，在左边的菜单里面选择“默认或自定义”，点击“连接”按钮，可以连接到配置好的数据源。在进入“导航器”后，可以浏览对应数据库的数据表并加载。',
+        step4desc2: '如果需要输入 SQL 语句，可以点击“高级选项”，在展开的对话框中输入并加载数据。',
+        step4desc3: '为了更好的使用 Power BI 分析 TDengine 中的数据，您需要理解维度、度量、时序、相关性的概念，然后通过自定义的 SQL 语句导入数据。',
+        step4desc4:
+          '维度：通常是分类（文本）数据，描述设备、测点、型号等类别信息。在 TDengine 的超级表中，使用标签列存储数据的维度信息，可以通过形如 select distinct tbname, tag1, tag2 from supertable 的 SQL 语法快速获得维度信息。',
+        step4desc5:
+          '度量：可以用于进行计算的定量（数值）字段， 常见计算有求和、平均值和最小值等。如果测点的采集频率为秒，那么一年就有 31,536,000 条记录，把这些数据全部导入 Power BI 会严重影响其执行效率。在 TDengine 中，您可以使用数据切分查询、窗口切分查询等语法，结合与窗口相关的伪列，把降采样后的数据导入到 Power BI 中，具体语法参考 ',
+        step4desc6: 'TDengine 特色查询功能介绍',
+        step4desc7: '。',
+        step4desc8:
+          '窗口切分查询：比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值，这种场景下可以使用窗口子句来获得需要的降采样查询结果，对应的 SQL 语句形如 select tbname, _wstart date，avg(temperature) temp from table interval(10m) ，其中 _wstart 是伪列，表示时间窗口起始时间，10m 表示时间窗口的持续时间，avg(temperature) 表示时间窗口内的聚合值。',
+        step4desc9:
+          '数据切分查询：如果需要同时获取很多温度传感器的聚合数值，可对数据进行切分然后在切分出的数据空间内再进行一系列的计算，对应的 SQL 语法参考 partition by part_list。数据切分子句最常见的用法就是在超级表查询中，按标签将子表数据进行切分，将每个子表的数据独立出来，形成一条条独立的时间序列，方便各种时序场景的统计分析。',
+        step4desc10:
+          '时序：在绘制曲线或者按照时间聚合数据时，通常需要引入日期表。日期表可以从 Excel 表格中导入，也可以在 TDengine 中执行 SQL 语句获取，例如 select _wstart date, count(*) cnt from test.meters where ts between A and B interval(1d) fill(0)，其中 fill 字句表示数据缺失情况下的填充模式，伪列_wstart 则为要获取的日期列。',
+        step4desc11: '相关性：告诉数据之间如何关联，度量和维度可以通过 tbname 列关联在一起，日期表和度量则可以通过 date 列关联，配合形成可视化报表。',
+        step5: '样例',
+        step5full: '智能电表样例',
+        step5desc:
+          'TDengine 有自己独特的数据模型，它使用超级表作为模板，为每个设备创建一个表，每个表最多可创建 4096 个数据列和 128 个标签列。在智能电表样例中，假如一个电表每秒产生一条记录，一天就有 86,400 条记录，一年就有 31,536,000 条记录，1000 个电表将占用 600 GB 原始磁盘空间。因此，Power BI 更多的应用方式是将标签列映射为维度列，数据列的聚合结果导入为度量列，最终为关键决策制定者提供所需的指标。',
+        step5desc1: '导入维度数据：在 Power BI 中导入表的标签列，取名为 tags，SQL 如下：',
+        step5desc2: '导入度量数据：在 Power BI 中，按照 1 小时的时间窗口，导入每个电表的电流均值、电压均值、相位均值，取名为 data，SQL 如下：',
+        step5desc3:
+          '建立维度和度量的关联关系：在 Power BI 中，打开模型视图，建立表 tags 和 data 的关联关系，将 tbname 设置为关联数据列。之后，就可以在柱状图、饼图等控件中使用这些数据。更多有关 Power BI 构建视觉效果的信息，请查询 ',
+        step5desc4: 'Power BI 文档',
+        step5desc5: '。'
+      },
     }
   },
   health: {
