@@ -76,33 +76,6 @@ int32_t tqStreamOneTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t stream
   return 0;
 }
 
-int32_t tqUpdateNodeEpsetAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t streamId, int32_t taskId) {
-  int32_t vgId = pMeta->vgId;
-
-  int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
-  if (numOfTasks == 0) {
-    tqDebug("vgId:%d no stream tasks existed to run", vgId);
-    return 0;
-  }
-
-  SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
-  if (pRunReq == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tqError("vgId:%d failed to create msg to start task:0x%x, code:%s", vgId, taskId, terrstr());
-    return -1;
-  }
-
-  tqDebug("vgId:%d update s-task:0x%x nodeEpset async", vgId, taskId);
-  pRunReq->head.vgId = vgId;
-  pRunReq->streamId = streamId;
-  pRunReq->taskId = taskId;
-  pRunReq->reqType = STREAM_EXEC_T_UPDATE_TASK_EPSET;
-
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
-  tmsgPutToQueue(cb, STREAM_QUEUE, &msg);
-  return 0;
-}
-
 int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored) {
   int32_t vgId = pMeta->vgId;
   char*   msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
@@ -728,10 +701,6 @@ int32_t tqStreamTaskResetStatus(SStreamMeta* pMeta, int32_t* numOfTasks) {
     STaskId       id = {.streamId = pTaskId->streamId, .taskId = pTaskId->taskId};
     SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     streamTaskResetStatus(*pTask);
-
-//    if ((*pTask)->info.fillHistory == 1) {
-//      streamResetParamForScanHistory(*pTask);
-//    }
   }
 
   return 0;
@@ -922,7 +891,7 @@ int32_t tqStreamTaskProcessTaskPauseReq(SStreamMeta* pMeta, char* pMsg){
   }
 
   tqDebug("s-task:%s receive pause msg from mnode", pTask->id.idStr);
-  streamTaskPause(pTask, pMeta);
+  streamTaskPause(pMeta, pTask);
 
   SStreamTask* pHistoryTask = NULL;
   if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
@@ -939,7 +908,7 @@ int32_t tqStreamTaskProcessTaskPauseReq(SStreamMeta* pMeta, char* pMsg){
 
     tqDebug("s-task:%s fill-history task handle paused along with related stream task", pHistoryTask->id.idStr);
 
-    streamTaskPause(pHistoryTask, pMeta);
+    streamTaskPause(pMeta, pHistoryTask);
     streamMetaReleaseTask(pMeta, pHistoryTask);
   }
 

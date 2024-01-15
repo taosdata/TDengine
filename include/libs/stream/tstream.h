@@ -801,7 +801,7 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
                               int64_t* oldStage);
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
 void    streamTaskResetUpstreamStageInfo(SStreamTask* pTask);
-bool    streamTaskAllUpstreamClosed(SStreamTask* pTask);
+bool    streamTaskIsAllUpstreamClosed(SStreamTask* pTask);
 bool    streamTaskSetSchedStatusWait(SStreamTask* pTask);
 int8_t  streamTaskSetSchedStatusActive(SStreamTask* pTask);
 int8_t  streamTaskSetSchedStatusInactive(SStreamTask* pTask);
@@ -826,8 +826,7 @@ int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 
 // common
 int32_t streamRestoreParam(SStreamTask* pTask);
-int32_t streamResetParamForScanHistory(SStreamTask* pTask);
-void    streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta);
+void    streamTaskPause(SStreamMeta* pMeta, SStreamTask* pTask);
 void    streamTaskResume(SStreamTask* pTask);
 int32_t streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask);
 void    streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
@@ -835,7 +834,7 @@ void    streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const
 void    streamTaskSetFixedDownstreamInfo(SStreamTask* pTask, const SStreamTask* pDownstreamTask);
 int32_t streamTaskReleaseState(SStreamTask* pTask);
 int32_t streamTaskReloadState(SStreamTask* pTask);
-void    streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
+void    streamTaskCloseAllUpstreamInput(SStreamTask* pTask, int32_t taskId);
 void    streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 int32_t streamTaskSetDb(SStreamMeta* pMeta, void* pTask, char* key);
 

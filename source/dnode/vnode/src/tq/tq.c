@@ -742,8 +742,6 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
     return code;
   }
 
-  streamTaskOpenAllUpstreamInput(pTask);
-
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     STaskId taskId = {0};
     if (pTask->info.fillHistory) {
