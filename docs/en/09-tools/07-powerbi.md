@@ -13,7 +13,11 @@ Power BI Desktop has been installed and running. (If not, please download and in
 ## Install ODBC connector
 
 1. Only support Windows operation system. And you need to install [VC Runtime Library](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170) first. If already installed, please ignore this step.
-2. Install TDengine Windows client installation package（[Windows](https://www.tdengine.com/assets-download/3.0/TDengine-enterprise-client-3.2.2.0-Windows-x64.exe)）.
+2. Install TDengine Windows client installation package as the following.
+
+:::note IMPORTANT
+Please login [TDengine Cloud](https://cloud.taosdata.com) and select "PowerBI" card of the "Tools" page. In the opened opage, please download the selected TDengine Cloud instance's TDengine Windows client in the "Install ODBC connector" part.
+:::
 
 ## Configure ODBC DataSource
 
@@ -26,6 +30,10 @@ Power BI Desktop has been installed and running. (If not, please download and in
     \[Database\]: optional field, the default database to access, such as "test"
 4. Click "Test Connection" to test whether the data source can be connectted; if successful, it will prompt "Successfully connected to the URL".
 
+:::note IMPORTANT
+Please log in [TDengine Cloud](https://cloud.taosdata.com) and select "PowerBI" card of the "Tools" page. In the opened opage, please copy the value in the "URL" field of the "Configure ODBC DataSource" part.
+:::
+
 ## Import Data from TDengine to Power BI
 
 1. Open Power BI and logon, add data source following steps "Home Page" -> "Get Data" -> "Others" -> "ODBC" -> "Connect".
@@ -35,7 +43,7 @@ Power BI Desktop has been installed and running. (If not, please download and in
 To better use Power BI to analyze the data stored in TDengine, you need to understand the concepts of dimention, metric, time serie, correlation, and use your own SQL to import data:
 
 1. Dimention: it's normally category (text) data to describe such information as device, collection point, model. In the supertable template of TDengine, we use tag columns to store the dimention information. You can use SQL like select distinct tbname, tag1, tag2 from supertable to get dimentions.
-2. Metric: quantitive (numeric) fileds that can be calculated, like SUM, AVERAGE, MINIMUM. If the collecting frequency is 1 second, then there are 31,536,000 records in one year, it will be too low efficient to import so big data into Power BI. In TDengine, you can use data partition query, window partition query, in combination with pseudo columns related to window, to import downsampled data into Power BI. For more details, please refer to [TDengine Specialized Queries](https://docs.tdengine.com/taos-sql/distinguished/).
+2. Metric: quantitive (numeric) fileds that can be calculated, like SUM, AVERAGE, MINIMUM. If the collecting frequency is 1 second, then there are 31,536,000 records in one year, it will be too low efficient to import so big data into Power BI. In TDengine, you can use data partition query, window partition query, in combination with pseudo columns related to window, to import downsampled data into Power BI. For more details, please refer to [TDengine Specialized Queries](https://docs.tdengine.com/cloud/taos-sql/distinguished/).
 3. Window partition query: for example, thermal meters collect one data per second, but you need to query the average temperature every 10 minutes, you can use window subclause to get the downsampling data you need. The corresponding SQL is like select tbname, _wstart date，avg(temperature) temp from table interval(10m), in which \_wstart is a pseudo column indicting the start time of a widow, 10m is the duration of the window, avg(temperature) indicates the aggregate value inside a window.
 4. Data partition query: If you want to get the aggregate value of a lot of thermal meters, you can first partition the data and then perform a series of calculation in the partitioned data spaces. The SQL you need to use is partition by part_list. The most common of data partition usage is that when querying a supertable, you can partition data by subtable according to tags to form the data of each subtable into a single time serie to facilitate analytical processing of time series data.
 5. Time Serie: When curve plotting or aggregating data based on time lines, date is normally required. Data or time can be imported from Excel, or retrieved from TDengine using SQL statement like select _wstart date, count(*) cnt from test.meters where ts between A and B interval(1d) fill(0), in which the fill() subclause indicates the fill mode when there is data missing, pseudo column \_wstart indicates the date to retrieve.

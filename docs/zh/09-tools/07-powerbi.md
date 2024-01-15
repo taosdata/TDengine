@@ -13,7 +13,11 @@ Power BI 是由 Microsoft 提供的一种商业分析工具。通过配置使用
 ## 安装 ODBC 连接器
 
 1. 仅支持 Windows 平台。Windows 上需要安装过 VC 运行时库，可在此下载安装 [VC运行时库](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170) 如果已经安装VS开发工具可忽略。
-2. 下载和安装TDengine Windows 客户端安装包（[Windows](https://www.tdengine.com/assets-download/3.0/TDengine-enterprise-client-3.2.2.0-Windows-x64.exe)）, 最小支持版本是 3.2.2.0。
+2. 下载和安装 TDengine Windows 客户端安装包，请参考下面的注意内容。
+
+:::note 非常重要
+请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”工具“菜单，然后选择”PowerBI“，在“安装 ODBC 连接器”下载选中的 TDengine Cloud 实例对应的客户端。
+:::
 
 ## 配置 ODBC 数据源
 
@@ -22,9 +26,13 @@ Power BI 是由 Microsoft 提供的一种商业分析工具。通过配置使用
 3. 选择想要添加的数据源，然后选择【TDengine】，点击完成，进入 TDengine ODBC 数据源配置页面，填写如下必要信息：
     【DSN】：数据源名称，必填，比如“MyTDengine”。
     【接类型】：选中 【Websocket】
-    【URL】：获取实际的 URL，请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的“工具”菜单，然后选择“PowerBI”，找到相应的步骤复制 URL 的值。
+    【URL】：获取实际的 URL，请参考下面的注意内容。
     【数据库】：可选，填写需要连接的数据库，比如“test”
 4. 点击【测试连接】按钮测试连接情况，如果成功，会提示“成功连接到该URL"。
+
+:::note 非常重要
+获取真实的 `URL` 的值，请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”工具“菜单，然后选择”永红 BI“，在“配置 TDengine JDBC 数据源”部分复制当前 TDengine Cloud 实例的 URL 值。
+:::
 
 ## 导入 TDengine 数据到 Powner BI
 
@@ -35,7 +43,7 @@ Power BI 是由 Microsoft 提供的一种商业分析工具。通过配置使用
 为了更好的使用 Power BI 分析 TDengine 中的数据，您需要理解维度、度量、时序、相关性的概念，然后通过自定义的 SQL 语句导入数据。
 
 1. 维度：通常是分类（文本）数据，描述设备、测点、型号等类别信息。在 TDengine 的超级表中，使用标签列存储数据的维度信息，可以通过形如 select distinct tbname, tag1, tag2 from supertable 的 SQL 语法快速获得维度信息。
-2. 度量：可以用于进行计算的定量（数值）字段， 常见计算有求和、平均值和最小值等。如果测点的采集频率为秒，那么一年就有 31,536,000 条记录，把这些数据全部导入 Power BI 会严重影响其执行效率。在 TDengine 中，您可以使用数据切分查询、窗口切分查询等语法，结合与窗口相关的伪列，把降采样后的数据导入到 Power BI 中，具体语法参考 [TDengine 特色查询功能介绍](https://docs.taosdata.com/taos-sql/distinguished/)。
+2. 度量：可以用于进行计算的定量（数值）字段， 常见计算有求和、平均值和最小值等。如果测点的采集频率为秒，那么一年就有 31,536,000 条记录，把这些数据全部导入 Power BI 会严重影响其执行效率。在 TDengine 中，您可以使用数据切分查询、窗口切分查询等语法，结合与窗口相关的伪列，把降采样后的数据导入到 Power BI 中，具体语法参考 [TDengine 特色查询功能介绍](https://docs.taosdata.com/cloud/taos-sql/distinguished/)。
 3. 窗口切分查询：比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值，这种场景下可以使用窗口子句来获得需要的降采样查询结果，对应的 SQL 语句形如 select tbname, _wstart date，avg(temperature) temp from table interval(10m) ，其中 \_wstart 是伪列，表示时间窗口起始时间，10m 表示时间窗口的持续时间，avg(temperature) 表示时间窗口内的聚合值。
 4. 数据切分查询：如果需要同时获取很多温度传感器的聚合数值，可对数据进行切分然后在切分出的数据空间内再进行一系列的计算，对应的 SQL 语法参考 partition by part_list。数据切分子句最常见的用法就是在超级表查询中，按标签将子表数据进行切分，将每个子表的数据独立出来，形成一条条独立的时间序列，方便各种时序场景的统计分析。
 5. 时序：在绘制曲线或者按照时间聚合数据时，通常需要引入日期表。日期表可以从 Excel 表格中导入，也可以在 TDengine 中执行 SQL 语句获取，例如 select _wstart date, count(*) cnt from test.meters where ts between A and B interval(1d) fill(0)，其中 fill 字句表示数据缺失情况下的填充模式，伪列 \_wstart 则为要获取的日期列。
