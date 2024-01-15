@@ -243,18 +243,18 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
         // blocked. Note that there is no race condition here.
         if (pReq->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
           atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
-          streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
+          streamTaskCloseAllUpstreamInput(pTask, pReq->upstreamTaskId);
           stDebug("s-task:%s close inputQ for upstream:0x%x, msgId:%d", id, pReq->upstreamTaskId, pReq->msgId);
         } else if (pReq->type == STREAM_INPUT__TRANS_STATE) {
           atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
-          streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
+          streamTaskCloseAllUpstreamInput(pTask, pReq->upstreamTaskId);
 
           // disable the related stream task here to avoid it to receive the newly arrived data after the transfer-state
           STaskId* pRelTaskId = &pTask->streamTaskId;
           SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pRelTaskId->streamId, pRelTaskId->taskId);
           if (pStreamTask != NULL) {
             atomic_add_fetch_32(&pStreamTask->upstreamInfo.numOfClosed, 1);
-            streamTaskCloseUpstreamInput(pStreamTask, pReq->upstreamRelTaskId);
+            streamTaskCloseAllUpstreamInput(pStreamTask, pReq->upstreamRelTaskId);
             streamMetaReleaseTask(pMeta, pStreamTask);
           }
 
@@ -299,28 +299,6 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, S
 }
 
 void streamTaskInputFail(SStreamTask* pTask) { atomic_store_8(&pTask->inputq.status, TASK_INPUT_STATUS__FAILED); }
-
-void streamTaskOpenAllUpstreamInput(SStreamTask* pTask) {
-  int32_t num = taosArrayGetSize(pTask->upstreamInfo.pList);
-  if (num == 0) {
-    return;
-  }
-
-  for (int32_t i = 0; i < num; ++i) {
-    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
-    pInfo->dataAllowed = true;
-  }
-
-  pTask->upstreamInfo.numOfClosed = 0;
-  stDebug("s-task:%s opening up inputQ from upstream tasks", pTask->id.idStr);
-}
-
-void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
-  SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
-  if (pInfo != NULL) {
-    pInfo->dataAllowed = false;
-  }
-}
 
 SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId) {
   int32_t num = taosArrayGetSize(pTask->upstreamInfo.pList);
