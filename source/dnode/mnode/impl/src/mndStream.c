@@ -687,6 +687,7 @@ _OVER:
 static int32_t extractNodeEpset(SMnode *pMnode, SEpSet *pEpSet, bool* hasEpset, int32_t taskId, int32_t nodeId) {
   *hasEpset = false;
 
+  pEpSet->numOfEps = 0;
   if (nodeId == SNODE_HANDLE) {
     SSnodeObj *pObj = NULL;
     void      *pIter = NULL;
@@ -1823,7 +1824,8 @@ static int32_t mndPauseStreamTask(SMnode *pMnode, STrans *pTrans, SStreamTask *p
   pReq->taskId = pTask->id.taskId;
   pReq->streamId = pTask->id.streamId;
 
-  SEpSet  epset;
+  SEpSet  epset = {0};
+  mDebug("pause node:%d, epset:%d", pTask->info.nodeId, epset.numOfEps);
   bool    hasEpset = false;
   int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1989,7 +1991,7 @@ static int32_t mndResumeStreamTask(STrans *pTrans, SMnode *pMnode, SStreamTask *
   pReq->streamId = pTask->id.streamId;
   pReq->igUntreated = igUntreated;
 
-  SEpSet  epset;
+  SEpSet  epset = {0};
   bool    hasEpset = false;
   int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2790,7 +2792,7 @@ int32_t createStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
       pReq->taskId = pTask->id.taskId;
       pReq->streamId = pTask->id.streamId;
 
-      SEpSet epset;
+      SEpSet epset = {0};
       bool hasEpset = false;
       int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
       if (code != TSDB_CODE_SUCCESS) {
@@ -2973,7 +2975,7 @@ static int32_t mndDropRelatedFillhistoryTask(SMnode *pMnode, STaskStatusEntry *p
 
   mDebug("build and send drop related fill-history task for task:0x%x", pTask->id.taskId);
 
-  SEpSet  epset;
+  SEpSet  epset = {0};
   bool    hasEpset = false;
   int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
   if (code != TSDB_CODE_SUCCESS) {
