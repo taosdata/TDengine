@@ -657,33 +657,17 @@ void setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, 
 
 
 static void initNextGroupScan(STableScanInfo* pInfo, STableKeyInfo** pKeyInfo, int32_t* size) {
-  pInfo->tableStartIndex = pInfo->tableEndIndex + 1;
+  tableListGetGroupList(pInfo->base.pTableListInfo, pInfo->currentGroupId, pKeyInfo, size);
 
-  STableListInfo* pTableListInfo = pInfo->base.pTableListInfo;
-  int32_t numOfTables = tableListGetSize(pTableListInfo);
-  STableKeyInfo* pStart = (STableKeyInfo*)tableListGetInfo(pTableListInfo, pInfo->tableStartIndex);
+  pInfo->tableStartIndex = TARRAY_ELEM_IDX(pInfo->base.pTableListInfo->pTableList, *pKeyInfo);
 
-  if (pTableListInfo->oneTableForEachGroup) {
-    pInfo->tableEndIndex = pInfo->tableStartIndex;
-  } else if (pTableListInfo->groupOffset) {
-    pInfo->currentGroupIndex++;
-    if (pInfo->currentGroupIndex + 1 < pTableListInfo->numOfOuputGroups) {
-      pInfo->tableEndIndex = pTableListInfo->groupOffset[pInfo->currentGroupIndex + 1] - 1;
-    } else {
-      pInfo->tableEndIndex = numOfTables - 1;
-    }
-  } else {
-    pInfo->tableEndIndex = numOfTables - 1;
-  }
+  pInfo->tableEndIndex = (pInfo->tableStartIndex + (*size) - 1);
 
   if (!pInfo->needCountEmptyTable) {
     pInfo->countState = TABLE_COUNT_STATE_END;
   } else {
     pInfo->countState = TABLE_COUNT_STATE_SCAN;
   }
-
-  *pKeyInfo = pStart;
-  *size = pInfo->tableEndIndex - pInfo->tableStartIndex + 1;
 }
 
 void markGroupProcessed(STableScanInfo* pInfo, uint64_t groupId) {
@@ -984,7 +968,8 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
       setOperatorCompleted(pOperator);
       return NULL;
     }
-  
+
+
     initNextGroupScan(pInfo, &pList, &num);
     ASSERT(pInfo->base.dataReader == NULL);
   
@@ -1006,16 +991,28 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
     if (pOperator->dynamicTask) {
       result->info.id.groupId = result->info.id.uid;
     }
+    uInfo("slzhou 1 %lu, %lu, %lu", result->info.id.groupId, result->info.id.uid, result->info.rows);
     return result;
   }
 
   while (true) {
     result = startNextGroupScan(pOperator);
     if (result || pOperator->status == OP_EXEC_DONE) {
+      if (result) {
+        uInfo("slzhou 2 %lu, %lu, %lu", result->info.id.groupId, result->info.id.uid, result->info.rows);
+      }
+      else {
+        uInfo("slzhou 2 null block" );
+      }
       return result;
     }
   }
-
+      if (result) {
+        uInfo("slzhou 3 %lu, %lu, %lu", result->info.id.groupId, result->info.id.uid, result->info.rows);
+      }
+      else {
+        uInfo("slzhou 3 null block" );
+      }
   return result;
 }
 
