@@ -2370,7 +2370,7 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
     sdbRelease(pSdb, pStream);
 
     if (conflict) {
-      mWarn("nodeUpdate trans in progress, current nodeUpdate ignored");
+      mError("nodeUpdate conflict with other trans, current nodeUpdate ignored");
       sdbCancelFetch(pSdb, pIter);
       return -1;
     }
@@ -2584,14 +2584,22 @@ int32_t removeExpirednodeEntryAndTask(SArray *pNodeSnapshot) {
 
 // kill all trans in the dst DB
 static void killAllCheckpointTrans(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo) {
+  mDebug("start to clear checkpoints in all Dbs");
+
   void *pIter = NULL;
   while ((pIter = taosHashIterate(pChangeInfo->pDBMap, pIter)) != NULL) {
     char *pDb = (char *)pIter;
 
     size_t len = 0;
-    void * pKey = taosHashGetKey(pDb, &len);
+    void  *pKey = taosHashGetKey(pDb, &len);
+    char  *p = strndup(pKey, len);
+
+    mDebug("clear checkpoint trans in Db:%s", p);
     doKillCheckpointTrans(pMnode, pKey, len);
+    taosMemoryFree(p);
   }
+
+  mDebug("complete clear checkpoints in Dbs");
 }
 
 // this function runs by only one thread, so it is not multi-thread safe
@@ -2646,7 +2654,7 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
       execInfo.pNodeList = pNodeSnapshot;
       execInfo.ts = ts;
     } else {
-      mDebug("unexpect code during create nodeUpdate trans, code:%s", tstrerror(code));
+      mError("unexpected code during create nodeUpdate trans, code:%s", tstrerror(code));
       taosArrayDestroy(pNodeSnapshot);
     }
   } else {
