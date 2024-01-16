@@ -690,6 +690,10 @@ func (c *UAClient) handleSubCallback(sub *opcua.Subscription, ch chan *opcua.Pub
 	}()
 }
 
+func (c *UAClient) Namespaces() []string {
+	return c.conn.Namespaces()
+}
+
 func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error) {
 	if c.conn == nil {
 		return nil, fmt.Errorf("opc ua client is nil")
