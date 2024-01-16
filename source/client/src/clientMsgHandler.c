@@ -646,7 +646,7 @@ int32_t processCompactDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
-    pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
   } else {
     tsem_post(&pRequest->body.rspSem);
   }
