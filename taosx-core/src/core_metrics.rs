@@ -462,7 +462,6 @@ pub fn auto_save_task_metrics(
                             break;
                         }
                         oneshot::error::TryRecvError::Empty => {
-                            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
                             match save_metrics(metrics_arc.clone()) {
                                 Ok(_) => {
                                     tracing::debug!("auto-save metrics success")
@@ -471,6 +470,7 @@ pub fn auto_save_task_metrics(
                                     tracing::error!("auto-save metrics failed. {}", err);
                                 }
                             }
+                            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
                         }
                     },
                 }
