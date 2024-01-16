@@ -1919,7 +1919,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         batches += 1;
         let data_trace_id = create_data_trace_id(stream_trace_id, batches);
         let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
-        info!("Start consuming lush record batch {}", data_trace_id_str);
+        info!("Writing batch {}", data_trace_id_str);
         let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
@@ -1940,9 +1940,9 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         )
         .await
         {
-            tracing::error!("write batch {data_trace_id_str} error: {err:#}");
+            metrics.add_failed_batches(1);
+            tracing::error!("Writing batch {data_trace_id_str} error: {err:#}");
             let written = count - last;
-
             if ipc_error_strategy.will_stop() {
                 bail!("write batch error: {err:#}");
             }
@@ -2037,7 +2037,6 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             metrics,
         )
         .await?;
-        metrics.add_processed_batches(1);
         Ok(n)
     }
 
@@ -2058,7 +2057,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
             let data_trace_id = create_data_trace_id(stream_trace_id, batch_number);
             let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
-            info!("Start writing batch {}", data_trace_id_str);
+            info!("Writing batch {}", data_trace_id_str);
             let metrics_arc_clone = metrics_arc.clone();
             async move {
                 let metrics = metrics_arc_clone.ipc();
@@ -2066,11 +2065,13 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
                 let n = parse(context, record, data_trace_id, &data_trace_id_str, metrics).await;
                 match n {
                     Ok(n) => {
+                        metrics.add_processed_batches(1);
                         let _ = ipc_ack_writer.lock().await.write_ok();
                         count.fetch_add(n, Ordering::SeqCst);
                     }
                     Err(err) => {
-                        tracing::warn!("Receive IPC item error: {err:#}");
+                        metrics.add_failed_batches(1);
+                        tracing::warn!("Writing batch {} error: {:#}", &data_trace_id_str, err);
                         let _ = notifier.send(crate::TaskNotify::Error(format!("{:#}", err)));
                         let _ = ipc_ack_writer.lock().await.ack(LushAck {
                             code: 0,
@@ -2119,10 +2120,8 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
         })
         .unwrap();
         info!(
-            trace.id = data_trace_id_str,
-            record.rows = record.num_rows(),
-            batch_id = batches,
-            "Writing batch",
+            num.rows = record.num_rows(),
+            "Writing batch {data_trace_id_str}"
         );
         let last = count;
         if let Err(err) = consume_flat_record(
@@ -2140,7 +2139,8 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
         )
         .await
         {
-            error!("write batch {batches} error: {err:#}");
+            metrics.add_failed_batches(1);
+            error!("Writing batch {batches} error: {err:#}");
             let written = count - last;
             let _ = ipc_ack_writer.ack(LushAck {
                 code: 0,
@@ -2160,6 +2160,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
                 bail!("write batch error: {err:#}");
             }
         } else {
+            metrics.add_processed_batches(1);
             let _ = ipc_ack_writer
                 .ack(LushAck {
                     code: 0,
@@ -2180,7 +2181,6 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write>(
             "IPC write batch finished"
         );
         batches += 1;
-        metrics.add_processed_batches(1);
     }
     // may not reached when the task was stopped by user forcely
     info!("IPC processing done, written totally {count} records");
@@ -2593,7 +2593,6 @@ impl IpcStreamWorker {
                     metrics,
                 )
                 .await?;
-                metrics.add_processed_batches(1);
                 Ok(count)
             }
             StreamType::Lush => {
@@ -2628,7 +2627,6 @@ impl IpcStreamWorker {
                     metrics,
                 )
                 .await?;
-                metrics.add_processed_batches(1);
                 Ok(count)
             }
             StreamType::Point => {
@@ -2656,7 +2654,6 @@ impl IpcStreamWorker {
                 if let Some(transferred) = &self.transferred {
                     transferred.points.fetch_add(_n as _, Ordering::SeqCst);
                 }
-                metrics.add_processed_batches(1);
                 Ok(count)
             }
         }

@@ -222,8 +222,8 @@ impl PutStream {
                 .unwrap_or(48);
             stream.map(|(record, trace_id)| {
                 let trace_id_str = get_data_trace_id_str(trace_id);
-                tracing::info!("Writing batch {trace_id_str}");
-                tracing::debug!(columns = ?record.columns(), num.rows = record.num_rows(), num.columns = record.num_columns());
+                tracing::info!(num.rows = record.num_rows(), num.columns = record.num_columns(), "Writing batch {trace_id_str}");
+                tracing::debug!(columns = ?record.columns());
                 anyhow::Ok((record, trace_id, worker.clone(), parser.clone(), notify_sender.clone(), tx.clone(), abort_message_tx.clone()))
             }).try_for_each_concurrent(limit, |(record, trace_id, worker, parser, notify_sender, tx, abort_message_tx)| async move {
                 if let Err(err) = worker
@@ -237,11 +237,12 @@ impl PutStream {
                     .in_current_span()
                     .await
                 {
+                    metrics.add_failed_batches(1);
                     tracing::warn!(
                         trace_id = %get_data_trace_id_str(trace_id),
                         error = format!("{:#}", err),
                         backtrace = %err.backtrace(),
-                        "Can't write batch {} to database",
+                        "Writing batch {} error",
                         get_data_trace_id_str(trace_id),
                     );
                     let _ = notify_sender.send(
@@ -263,6 +264,8 @@ impl PutStream {
                         bail!("{err:#}");
                     }
                     tx.send_async((record, trace_id)).await?;
+                } else {
+                    metrics.add_processed_batches(1);
                 }
                 Ok(())
             }).await?;
