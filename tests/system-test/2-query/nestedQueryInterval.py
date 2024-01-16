@@ -1470,6 +1470,10 @@ class TDTestCase:
         tdSql.checkRows(7)
         tdSql.query(f"select tbname,count(*) from nested.stable_1 where ts is null group by tbname order by tbname;")
         tdSql.checkRows(7)
+        tdSql.query(f"select tbname,last(*) from nested.stable_1 where ts is not null group by tbname order by tbname;")
+        tdSql.checkRows(3)
+        tdSql.query(f"select tbname,last(*) from nested.stable_1 where ts is null group by tbname order by tbname;")
+        tdSql.checkRows(0)
         
         #test stable 
 

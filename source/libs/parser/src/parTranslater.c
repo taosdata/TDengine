@@ -2744,6 +2744,14 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static int32_t checkIsEmptyResult(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (pSelect->timeRange.skey > pSelect->timeRange.ekey
+    && !pSelect->hasCountFunc) {
+    pSelect->isEmptyResult = true;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL != pSelect->pGroupByList || NULL != pSelect->pWindow ||
       (!pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc && !pSelect->hasInterpFunc)) {
@@ -4405,10 +4413,6 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (TSDB_CODE_SUCCESS == code) {
     code = getQueryTimeRange(pCxt, pSelect->pWhere, &pSelect->timeRange);
   }
-  // skip optimization, because need result meta info.(tbname，colname and so on) 
-  // if (TSDB_CODE_SUCCESS == code && pSelect->timeRange.skey > pSelect->timeRange.ekey) {
-  //   pSelect->isEmptyResult = true;
-  // }
   if (pSelect->pWhere != NULL) {
     setTableVgroupsFromEqualTbnameCond(pCxt, pSelect);
   }
@@ -4572,6 +4576,9 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateOrderBy(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkIsEmptyResult(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAggColCoexist(pCxt, pSelect);
