@@ -989,8 +989,5 @@ int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* m
 }
 
 int32_t tqStreamTasksGetTotalNum(SStreamMeta* pMeta) {
-  streamMetaRLock(pMeta);
-  int32_t num = taosArrayGetSize(pMeta->pTaskList);
-  streamMetaRUnLock(pMeta);
-  return num;
+  return taosArrayGetSize(pMeta->pTaskList);
 }
