@@ -424,7 +424,7 @@ typedef struct SProjectPhysiNode {
   SNodeList* pProjections;
   bool       mergeDataBlock;
   bool       ignoreGroupId;
-  bool       inputIgnoreGroupId;
+  bool       inputIgnoreGroup;
 } SProjectPhysiNode;
 
 typedef struct SIndefRowsFuncPhysiNode {

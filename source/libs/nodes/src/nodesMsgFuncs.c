@@ -2338,7 +2338,8 @@ enum {
   PHY_PROJECT_CODE_BASE_NODE = 1,
   PHY_PROJECT_CODE_PROJECTIONS,
   PHY_PROJECT_CODE_MERGE_DATA_BLOCK,
-  PHY_PROJECT_CODE_IGNORE_GROUP_ID
+  PHY_PROJECT_CODE_IGNORE_GROUP_ID,
+  PHY_PROJECT_CODE_INPUT_IGNORE_GROUP
 };
 
 static int32_t physiProjectNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2353,6 +2354,9 @@ static int32_t physiProjectNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_PROJECT_CODE_IGNORE_GROUP_ID, pNode->ignoreGroupId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_PROJECT_CODE_INPUT_IGNORE_GROUP, pNode->inputIgnoreGroup);
   }
 
   return code;
@@ -2376,6 +2380,9 @@ static int32_t msgToPhysiProjectNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_PROJECT_CODE_IGNORE_GROUP_ID:
         code = tlvDecodeBool(pTlv, &pNode->ignoreGroupId);
+        break;
+      case PHY_PROJECT_CODE_INPUT_IGNORE_GROUP:
+        code = tlvDecodeBool(pTlv, &pNode->inputIgnoreGroup);
         break;
       default:
         break;

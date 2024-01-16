@@ -2642,10 +2642,7 @@ static bool mergeProjectsMayBeOptimized(SLogicNode* pNode) {
       NULL != pChild->pConditions || NULL != pChild->pLimit || NULL != pChild->pSlimit) {
     return false;
   }
-  if (false == ((SProjectLogicNode*)pChild)->ignoreGroupId) {
-    qError("internal error, child project output does not ignore group id");
-    return false;
-  }
+
   return true;
 }
 
@@ -2684,7 +2681,12 @@ static EDealRes mergeProjectionsExpr(SNode** pNode, void* pContext) {
 
 static int32_t mergeProjectsOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SLogicNode* pSelfNode) {
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pSelfNode->pChildren, 0);
-
+  if (false == ((SProjectLogicNode*)pChild)->ignoreGroupId) {
+    qError("internal error, child project output does not ignore group when merge projects");
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  } else {
+    ((SProjectLogicNode*)pSelfNode)->inputIgnoreGroup = true;
+  }
   SMergeProjectionsContext cxt = {.pChildProj = (SProjectLogicNode*)pChild, .errCode = TSDB_CODE_SUCCESS};
   nodesRewriteExprs(((SProjectLogicNode*)pSelfNode)->pProjections, mergeProjectionsExpr, &cxt);
   int32_t code = cxt.errCode;
@@ -2702,7 +2704,6 @@ static int32_t mergeProjectsOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     NODES_CLEAR_LIST(pChild->pChildren);
   }
   nodesDestroyNode((SNode*)pChild);
-  ((SProjectLogicNode*)pSelfNode)->inputIgnoreGroup = true;
   pCxt->optimized = true;
   return code;
 }
