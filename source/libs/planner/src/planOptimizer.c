@@ -2681,10 +2681,7 @@ static EDealRes mergeProjectionsExpr(SNode** pNode, void* pContext) {
 
 static int32_t mergeProjectsOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SLogicNode* pSelfNode) {
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pSelfNode->pChildren, 0);
-  if (false == ((SProjectLogicNode*)pChild)->ignoreGroupId) {
-    qError("internal error, child project output does not ignore group when merge projects");
-    return TSDB_CODE_PLAN_INTERNAL_ERROR;
-  } else {
+  if (((SProjectLogicNode*)pChild)->ignoreGroupId) {
     ((SProjectLogicNode*)pSelfNode)->inputIgnoreGroup = true;
   }
   SMergeProjectionsContext cxt = {.pChildProj = (SProjectLogicNode*)pChild, .errCode = TSDB_CODE_SUCCESS};
