@@ -445,6 +445,8 @@ int32_t backendFileCopyFilesImpl(char* src, char* dst) {
     memset(dstName, 0, dLen + 64);
   }
 
+  taosMemoryFreeClear(srcName);
+  taosMemoryFreeClear(dstName);
   taosCloseDir(&pDir);
   errno = 0;
   return 0;
