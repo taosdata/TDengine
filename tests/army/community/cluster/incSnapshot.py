@@ -40,7 +40,7 @@ class TDTestCase(TBase):
         # clusterDnodes.stoptaosd(2)
         # clusterDnodes.starttaosd(1)
         # time.sleep(5)
-        autoGen.insert_data(5000, 1600000000001)
+        autoGen.insert_data(5000, True)
         tdSql.execute(f"flush database {self.db}")
 
         # sql = 'show vnodes;'
