@@ -1,7 +1,7 @@
 ---
-sidebar_label: PowerBI
-title: 使用 PowerBI
-description: 使用 PowerBI 获取 TDengine Cloud 实例的数据
+sidebar_label: Power BI
+title: 使用 Power BI
+description: 使用 Power BI 获取 TDengine Cloud 实例的数据
 ---
 
 Power BI 是由 Microsoft 提供的一种商业分析工具。通过配置使用 ODBC 连接器，Power BI 可以快速的访问 TDengine Cloud 的实例。您可以将标签数据、原始时序数据或按时间聚合后的时序数据从 TDengine Cloud 导入到 Power BI，制作报表或仪表盘，整个过程不需要任何的代码编写过程。最小支持的 TDengine 版本是 3.2.2.0。

@@ -1,7 +1,7 @@
 ---
-sidebar_label: PowerBI
-title: Use PowerBI
-description: This document describes how to integrate TDengine Cloud with Microsoft PowerBI for data visualization.
+sidebar_label: Power BI
+title: Use Power BI
+description: This document describes how to integrate TDengine Cloud with Microsoft Power BI for data visualization.
 ---
 
 Power BI is a business analytics tool provided by Microsoft. With TDengine ODBC driver, PowerBI can access time series data stored in the TDengine Cloud instance. You can import tag data, original time series data, or aggregated data into Power BI from a TDengine Cloud instance, to create reports or dashboard without any coding effort. The minimize TDengine version is 3.2.2.0.
