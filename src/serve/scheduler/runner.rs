@@ -1174,7 +1174,6 @@ impl TaskJob {
                 if !should_stop {
                     should_stop = opts.stop_condition.should_stop();
                 }
-                save_task_metrics_finally(task_id);
                 let state_guard: tokio::sync::RwLockReadGuard<'_, Option<LastState>> =
                     opts.last_state.read().await;
                 let state = state_guard.as_ref().expect("task should have a last state");
