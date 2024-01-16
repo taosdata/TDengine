@@ -801,7 +801,7 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
                               int64_t* oldStage);
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
 void    streamTaskResetUpstreamStageInfo(SStreamTask* pTask);
-bool    streamTaskAllUpstreamClosed(SStreamTask* pTask);
+bool    streamTaskIsAllUpstreamClosed(SStreamTask* pTask);
 bool    streamTaskSetSchedStatusWait(SStreamTask* pTask);
 int8_t  streamTaskSetSchedStatusActive(SStreamTask* pTask);
 int8_t  streamTaskSetSchedStatusInactive(SStreamTask* pTask);
@@ -826,8 +826,7 @@ int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 
 // common
 int32_t streamRestoreParam(SStreamTask* pTask);
-int32_t streamResetParamForScanHistory(SStreamTask* pTask);
-void    streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta);
+void    streamTaskPause(SStreamMeta* pMeta, SStreamTask* pTask);
 void    streamTaskResume(SStreamTask* pTask);
 int32_t streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask);
 void    streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet);
@@ -838,6 +837,7 @@ int32_t streamTaskReloadState(SStreamTask* pTask);
 void    streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
 void    streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 int32_t streamTaskSetDb(SStreamMeta* pMeta, void* pTask, char* key);
+bool    streamTaskIsSinkTask(const SStreamTask* pTask);
 
 void streamTaskStatusInit(STaskStatusEntry* pEntry, const SStreamTask* pTask);
 void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc);
@@ -885,6 +885,7 @@ int32_t      streamMetaLoadAllTasks(SStreamMeta* pMeta);
 int32_t      streamMetaStartAllTasks(SStreamMeta* pMeta);
 int32_t      streamMetaStopAllTasks(SStreamMeta* pMeta);
 int32_t      streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
+bool         streamMetaAllTasksReady(const SStreamMeta* pMeta);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);

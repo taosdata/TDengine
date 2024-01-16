@@ -29,51 +29,31 @@ from frame import *
 
 class TDTestCase(TBase):
     updatecfgDict = {
-        "countAlwaysReturnValue" : "0"
+        "keepColumnName" : "1",
+        "ttlChangeOnWrite" : "1",
+        "querySmaOptimize": "1"
     }
 
     def insertData(self):
         tdLog.info(f"insert data.")
         # taosBenchmark run
-        jfile = etool.curFile(__file__, "snapshot.json")
+        jfile = etool.curFile(__file__, "query_basic.json")
         etool.benchMark(json=jfile)
 
         tdSql.execute(f"use {self.db}")
         # set insert data information
-        self.childtable_count = 10
+        self.childtable_count = 6
         self.insert_rows      = 100000
-        self.timestamp_step   = 10000
+        self.timestamp_step   = 30000
 
-        # create count check table
-        sql = f"create table {self.db}.ta(ts timestamp, age int) tags(area int)"
+
+    def doQuery(self):
+        tdLog.info(f"do query.")
+        
+        # top bottom
+        sql = f"select top(uti, 5) from {self.stb} "
         tdSql.execute(sql)
 
-    def doAction(self):
-        tdLog.info(f"do action.")
-        self.flushDb()
-
-        # split vgroups
-        self.splitVGroups()
-        self.trimDb()
-        self.checkAggCorrect()
-
-        # balance vgroups
-        self.balanceVGroupLeader()
-
-        # replica to 1
-        self.alterReplica(1)
-        self.checkAggCorrect()
-        self.compactDb()
-        self.alterReplica(3)
-
-        vgids = self.getVGroup(self.db)
-        selid = random.choice(vgids)
-        self.balanceVGroupLeaderOn(selid)
-
-        # check count always return value
-        sql = f"select count(*) from {self.db}.ta"
-        tdSql.query(sql)
-        tdSql.checkRows(0) # countAlwaysReturnValue is false
 
     # run
     def run(self):
@@ -85,17 +65,11 @@ class TDTestCase(TBase):
         # check insert data correct
         self.checkInsertCorrect()
 
-        # save
-        self.snapshotAgg()
+        # check 
+        self.checkConsistency("usi")
 
         # do action
-        self.doAction()
-
-        # check save agg result correct
-        self.checkAggCorrect()
-
-        # check insert correct again
-        self.checkInsertCorrect()
+        self.doQuery()
 
         tdLog.success(f"{__file__} successfully executed")
 

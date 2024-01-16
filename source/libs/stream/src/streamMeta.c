@@ -47,6 +47,12 @@ struct SMetaHbInfo {
   int64_t hbStart;
 };
 
+typedef struct STaskInitTs {
+  int64_t start;
+  int64_t end;
+  bool    success;
+} STaskInitTs;
+
 SMetaRefMgt gMetaRefMgt;
 
 void    metaRefMgtInit();
@@ -581,7 +587,7 @@ int32_t streamMetaRemoveTask(SStreamMeta* pMeta, STaskId* pTaskId) {
 int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask, bool* pAdded) {
   *pAdded = false;
 
-  STaskId id = streamTaskExtractKey(pTask);
+  STaskId id = streamTaskGetTaskId(pTask);
   void*   p = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (p != NULL) {
     return 0;
@@ -871,7 +877,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       int32_t taskId = pTask->id.taskId;
       tFreeStreamTask(pTask);
 
-      STaskId id = streamTaskExtractKey(pTask);
+      STaskId id = streamTaskGetTaskId(pTask);
       taosArrayPush(pRecycleList, &id);
 
       int32_t total = taosArrayGetSize(pRecycleList);
@@ -1302,28 +1308,28 @@ void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
 }
 
 void streamMetaRLock(SStreamMeta* pMeta) {
-  stTrace("vgId:%d meta-rlock", pMeta->vgId);
+//  stTrace("vgId:%d meta-rlock", pMeta->vgId);
   taosThreadRwlockRdlock(&pMeta->lock);
 }
 
 void streamMetaRUnLock(SStreamMeta* pMeta) {
-  stTrace("vgId:%d meta-runlock", pMeta->vgId);
+//  stTrace("vgId:%d meta-runlock", pMeta->vgId);
   int32_t code = taosThreadRwlockUnlock(&pMeta->lock);
   if (code != TSDB_CODE_SUCCESS) {
     stError("vgId:%d meta-runlock failed, code:%d", pMeta->vgId, code);
   } else {
-    stDebug("vgId:%d meta-runlock completed", pMeta->vgId);
+//    stDebug("vgId:%d meta-runlock completed", pMeta->vgId);
   }
 }
 
 void streamMetaWLock(SStreamMeta* pMeta) {
-  stTrace("vgId:%d meta-wlock", pMeta->vgId);
+//  stTrace("vgId:%d meta-wlock", pMeta->vgId);
   taosThreadRwlockWrlock(&pMeta->lock);
-  stTrace("vgId:%d meta-wlock completed", pMeta->vgId);
+//  stTrace("vgId:%d meta-wlock completed", pMeta->vgId);
 }
 
 void streamMetaWUnLock(SStreamMeta* pMeta) {
-  stTrace("vgId:%d meta-wunlock", pMeta->vgId);
+//  stTrace("vgId:%d meta-wunlock", pMeta->vgId);
   taosThreadRwlockUnlock(&pMeta->lock);
 }
 
@@ -1407,37 +1413,6 @@ void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader)
   }
 }
 
-int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
-  streamMetaRLock(pMeta);
-
-  int32_t num = taosArrayGetSize(pMeta->pTaskList);
-  stDebug("vgId:%d stop all %d stream task(s)", pMeta->vgId, num);
-  if (num == 0) {
-    streamMetaRUnLock(pMeta);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  // send hb msg to mnode before closing all tasks.
-  SArray* pTaskList = streamMetaSendMsgBeforeCloseTasks(pMeta);
-  int32_t numOfTasks = taosArrayGetSize(pTaskList);
-
-  for (int32_t i = 0; i < numOfTasks; ++i) {
-    SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
-    SStreamTask*   pTask = streamMetaAcquireTaskNoLock(pMeta, pTaskId->streamId, pTaskId->taskId);
-    if (pTask == NULL) {
-      continue;
-    }
-
-    streamTaskStop(pTask);
-    streamMetaReleaseTask(pMeta, pTask);
-  }
-
-  taosArrayDestroy(pTaskList);
-
-  streamMetaRUnLock(pMeta);
-  return 0;
-}
-
 int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t vgId = pMeta->vgId;
@@ -1512,6 +1487,54 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
   return code;
 }
 
+int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
+  streamMetaRLock(pMeta);
+
+  int32_t num = taosArrayGetSize(pMeta->pTaskList);
+  stDebug("vgId:%d stop all %d stream task(s)", pMeta->vgId, num);
+  if (num == 0) {
+    streamMetaRUnLock(pMeta);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // send hb msg to mnode before closing all tasks.
+  SArray* pTaskList = streamMetaSendMsgBeforeCloseTasks(pMeta);
+  int32_t numOfTasks = taosArrayGetSize(pTaskList);
+
+  for (int32_t i = 0; i < numOfTasks; ++i) {
+    SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
+    SStreamTask*   pTask = streamMetaAcquireTaskNoLock(pMeta, pTaskId->streamId, pTaskId->taskId);
+    if (pTask == NULL) {
+      continue;
+    }
+
+    streamTaskStop(pTask);
+    streamMetaReleaseTask(pMeta, pTask);
+  }
+
+  taosArrayDestroy(pTaskList);
+
+  streamMetaRUnLock(pMeta);
+  return 0;
+}
+
+bool streamMetaAllTasksReady(const SStreamMeta* pMeta) {
+  int32_t num = taosArrayGetSize(pMeta->pTaskList);
+  for(int32_t i = 0; i < num; ++i) {
+    STaskId* pTaskId = taosArrayGet(pMeta->pTaskList, i);
+    SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, pTaskId, sizeof(*pTaskId));
+    if (ppTask == NULL) {
+      continue;
+    }
+
+    if ((*ppTask)->status.downstreamReady == 0) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
   int32_t vgId = pMeta->vgId;
   stInfo("vgId:%d start to task:0x%x by checking downstream status", vgId, taskId);
@@ -1547,4 +1570,74 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
 
   streamMetaReleaseTask(pMeta, pTask);
   return ret;
+}
+
+static void displayStatusInfo(SStreamMeta* pMeta, SHashObj* pTaskSet, bool succ) {
+  int32_t vgId = pMeta->vgId;
+  void*   pIter = NULL;
+  size_t  keyLen = 0;
+
+  stInfo("vgId:%d %d tasks check-downstream completed %s", vgId, taosHashGetSize(pTaskSet),
+         succ ? "success" : "failed");
+
+  while ((pIter = taosHashIterate(pTaskSet, pIter)) != NULL) {
+    STaskInitTs* pInfo = pIter;
+    void*        key = taosHashGetKey(pIter, &keyLen);
+
+    SStreamTask** pTask1 = taosHashGet(pMeta->pTasksMap, key, sizeof(STaskId));
+    if (pTask1 == NULL) {
+      stInfo("s-task:0x%x is dropped already, %s", (int32_t)((STaskId*)key)->taskId, succ ? "success" : "failed");
+    } else {
+      stInfo("s-task:%s level:%d vgId:%d, init:%" PRId64 ", initEnd:%" PRId64 ", %s", (*pTask1)->id.idStr,
+             (*pTask1)->info.taskLevel, vgId, pInfo->start, pInfo->end, pInfo->success ? "success" : "failed");
+    }
+  }
+}
+
+int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, int64_t startTs,
+                                      int64_t endTs, bool ready) {
+  STaskStartInfo* pStartInfo = &pMeta->startInfo;
+  STaskId         id = {.streamId = streamId, .taskId = taskId};
+
+  streamMetaWLock(pMeta);
+
+  if (pStartInfo->taskStarting != 1) {
+    int64_t el = endTs - startTs;
+    qDebug("vgId:%d not start all task(s), not record status, s-task:0x%x launch succ:%d elapsed time:%" PRId64 "ms",
+           pMeta->vgId, taskId, ready, el);
+    streamMetaWUnLock(pMeta);
+    return 0;
+  }
+
+  SHashObj* pDst = ready ? pStartInfo->pReadyTaskSet : pStartInfo->pFailedTaskSet;
+
+  STaskInitTs initTs = {.start = startTs, .end = endTs, .success = ready};
+  taosHashPut(pDst, &id, sizeof(id), &initTs, sizeof(STaskInitTs));
+
+  int32_t numOfTotal = streamMetaGetNumOfTasks(pMeta);
+  int32_t numOfRecv = taosHashGetSize(pStartInfo->pReadyTaskSet) + taosHashGetSize(pStartInfo->pFailedTaskSet);
+
+  if (numOfRecv == numOfTotal) {
+    pStartInfo->readyTs = taosGetTimestampMs();
+    pStartInfo->elapsedTime = (pStartInfo->startTs != 0) ? pStartInfo->readyTs - pStartInfo->startTs : 0;
+
+    stDebug("vgId:%d all %d task(s) check downstream completed, last completed task:0x%x (succ:%d) startTs:%" PRId64
+                ", readyTs:%" PRId64 " total elapsed time:%.2fs",
+            pMeta->vgId, numOfTotal, taskId, ready, pStartInfo->startTs, pStartInfo->readyTs,
+            pStartInfo->elapsedTime / 1000.0);
+
+    // print the initialization elapsed time and info
+    displayStatusInfo(pMeta, pStartInfo->pReadyTaskSet, true);
+    displayStatusInfo(pMeta, pStartInfo->pFailedTaskSet, false);
+    streamMetaResetStartInfo(pStartInfo);
+    streamMetaWUnLock(pMeta);
+
+    pStartInfo->completeFn(pMeta);
+  } else {
+    streamMetaWUnLock(pMeta);
+    stDebug("vgId:%d recv check downstream results, s-task:0x%x succ:%d, received:%d, total:%d", pMeta->vgId, taskId,
+            ready, numOfRecv, numOfTotal);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }

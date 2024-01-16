@@ -2,6 +2,7 @@ from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
+from util.autogen import *
 
 
 INT_COL     = "c1"
@@ -23,11 +24,11 @@ TS_TYPE_COL = [TS_COL]
 DBNAME = "db"
 
 class TDTestCase:
-
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
+        self.autoGen = AutoGen(True)
 
     def __sum_condition(self):
         sum_condition = []
@@ -207,8 +208,50 @@ class TDTestCase:
             '''
         )
 
+    def testAllTypes(self):
+        # create stable and insert
+        tdLog.info("test all types")
+        dbname  = "sumdb"
+        stbname = "stb"
+        colnum = 16
+        self.autoGen.set_batch_size(1000)
+        self.autoGen.create_db(dbname)
+        self.autoGen.create_stable(stbname, 16, colnum, 8, 16)
+        self.autoGen.create_child(stbname, "d", 4)
+        self.autoGen.insert_data(10000)
+
+        # check correct
+        i = 0
+        for c in self.autoGen.mcols:
+
+            if c in [0, 11, 12, 13]:
+                i += 1
+                continue
+
+            # query
+            col = f"c{i}"
+            sql = f"select count({col}), sum({col}), avg({col}), max({col}), min({col}), stddev({col}), leastsquares({col},1,9) from {dbname}.{stbname}"
+            tdSql.query(sql)
+            # sum
+            tdSql.checkData(0, 0, 4*10000, True)
+            # sum
+            tdSql.checkData(0, 1, 4*10000, True)
+            # avg
+            tdSql.checkData(0, 2, 1, True)
+            # max
+            tdSql.checkData(0, 3, 1, True)
+            # min
+            tdSql.checkData(0, 4, 1, True)
+            # stddev
+            tdSql.checkData(0, 5, 0, True)
+
+            i += 1
+
+
     def run(self):
         tdSql.prepare()
+
+        self.testAllTypes()
 
         tdLog.printNoPrefix("==========step1:create table")
         self.__create_tb()

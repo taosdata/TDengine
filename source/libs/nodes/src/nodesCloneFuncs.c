@@ -241,6 +241,29 @@ static SVgroupsInfo* vgroupsInfoClone(const SVgroupsInfo* pSrc) {
   return pDst;
 }
 
+static SArray* functParamClone(const SArray* pSrc) {
+  int32_t       len = sizeof(SArray) + pSrc->capacity * pSrc->elemSize;
+
+  SArray* pDst = taosArrayInit(pSrc->capacity, pSrc->elemSize);
+  if (NULL == pDst) {
+    return NULL;
+  }
+  for (int i = 0; i < TARRAY_SIZE(pSrc); ++i) {
+    SFunctParam* pFunctParam = taosArrayGet(pSrc, i);
+    SFunctParam* pNewFunctParam = (SFunctParam*)taosArrayPush(pDst, pFunctParam);
+
+    if (NULL == pNewFunctParam) {
+      return NULL;
+    }
+    pNewFunctParam->type = pFunctParam->type;
+    pNewFunctParam->pCol = taosMemoryCalloc(1, sizeof(SColumn));
+    memcpy(pNewFunctParam->pCol, pFunctParam->pCol, sizeof(SColumn));
+  }
+
+  return pDst;
+}
+
+
 static int32_t realTableNodeCopy(const SRealTableNode* pSrc, SRealTableNode* pDst) {
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
   CLONE_OBJECT_FIELD(pMeta, tableMetaClone);
@@ -425,6 +448,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(onlyMetaCtbIdx);
   COPY_SCALAR_FIELD(filesetDelimited);
   COPY_SCALAR_FIELD(isCountByTag);
+  CLONE_OBJECT_FIELD(pFuncTypes, functParamClone);
   return TSDB_CODE_SUCCESS;
 }
 

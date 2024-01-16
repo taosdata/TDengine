@@ -1343,7 +1343,6 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
       c.colId = pColNode->colId;
       c.srcSlotId = pColNode->slotId;
       c.dstSlotId = pNode->slotId;
-      c.dataType = pColNode->node.resType;
       taosArrayPush(pList, &c);
     }
   }

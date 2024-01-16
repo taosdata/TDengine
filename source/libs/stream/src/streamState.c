@@ -435,7 +435,6 @@ int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void*
 
 int32_t streamStateReleaseBuf(SStreamState* pState, void* pVal, bool used) {
   // todo refactor
-  stDebug("streamStateReleaseBuf");
   if (!pVal) {
     return 0;
   }

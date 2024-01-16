@@ -120,6 +120,7 @@ typedef struct SScanLogicNode {
   bool          onlyMetaCtbIdx; // for tag scan with no tbname
   bool          filesetDelimited; // returned blocks delimited by fileset
   bool          isCountByTag;  // true if selectstmt hasCountFunc & part by tag/tbname
+  SArray*       pFuncTypes; // for last, last_row
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -401,6 +402,7 @@ typedef struct SLastRowScanPhysiNode {
   bool           groupSort;
   bool           ignoreNull;
   SNodeList*     pTargets;
+  SArray*        pFuncTypes;
 } SLastRowScanPhysiNode;
 
 typedef SLastRowScanPhysiNode STableCountScanPhysiNode;
