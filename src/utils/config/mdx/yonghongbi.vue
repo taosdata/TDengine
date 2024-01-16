@@ -134,8 +134,7 @@ export default {
   computed: {
     jdbcURL() {
       // jdbc:TAOS-RS://192.168.1.98:7541/?user=root&password=taosdata&batchfetch=true&conmode=1
-      return 'jdbc:TAOS-RS://' + this.url.replace(/https?:\/\//, '') + '&user=' + this.user + '&password' + this.password + '&useSSL=' +
-        this.url.startsWith("https") + '&batchfetch=true&conmode=1';
+      return 'jdbc:TAOS-RS://' + this.url.replace(/https?:\/\//, '') + '?user=' + this.user + '&password=' + this.password;
     },
     docsPart() {
       return this.$i18n.locale.includes('en') ? 'docs-en' : 'docs'
