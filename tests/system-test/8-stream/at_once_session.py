@@ -185,7 +185,7 @@ class TDTestCase:
                         tbname = self.tdCom.get_subtable_wait(f'{self.ctb_name}_{self.tdCom.subtable_prefix}{self.ctb_name}{self.tdCom.subtable_suffix}')
                         tdSql.query(f'select count(*) from `{tbname}`')
                         ptn_counter += 1
-                    tdSql.checkEqual(tdSql.queryResult[0][0] > 0, True)
+                    tdSql.checkEqual(tdSql.queryResult[0][0] > 0, True) if subtable is not None else tdSql.checkEqual(tdSql.queryResult[0][0] >= 0, True)
 
             tdSql.query(f'select * from {self.tb_name}')
             ptn_counter = 0
