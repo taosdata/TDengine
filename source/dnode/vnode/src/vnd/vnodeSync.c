@@ -14,11 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tq.h"
 #include "sync.h"
+#include "tq.h"
+#include "tqCommon.h"
 #include "tsdb.h"
 #include "vnd.h"
-#include "tqCommon.h"
 
 #define BATCH_ENABLE 0
 
@@ -411,7 +411,7 @@ static int32_t vnodeSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
 }
 
 static int32_t vnodeSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
-  int32_t code = tmsgSendReq(pEpSet, pMsg);
+  int32_t code = tmsgSendSyncReq(pEpSet, pMsg);
   if (code != 0) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
@@ -477,8 +477,8 @@ static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta
 }
 
 static int32_t vnodeSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void **ppReader) {
-  SVnode         *pVnode = pFsm->data;
-  int32_t         code = vnodeSnapReaderOpen(pVnode, (SSnapshotParam *)pParam, (SVSnapReader **)ppReader);
+  SVnode *pVnode = pFsm->data;
+  int32_t code = vnodeSnapReaderOpen(pVnode, (SSnapshotParam *)pParam, (SVSnapReader **)ppReader);
   return code;
 }
 
@@ -555,7 +555,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   walApplyVer(pVnode->pWal, commitIdx);
   pVnode->restored = true;
 
-  SStreamMeta* pMeta = pVnode->pTq->pStreamMeta;
+  SStreamMeta *pMeta = pVnode->pTq->pStreamMeta;
   streamMetaWLock(pMeta);
 
   if (pMeta->startInfo.tasksWillRestart) {

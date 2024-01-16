@@ -57,13 +57,16 @@ def exe(file):
 
 # execute file and return immediately
 def exeNoWait(file):
-    print("exe no wait")
-
+    if isWin():
+        cmd = f"mintty -h never {file}"
+    else:
+        cmd = f"nohup {file} > /dev/null 2>&1 & "
+    return exe(cmd)
 
 # run return output and error
-def run(command):
+def run(command, timeout = 10):
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    process.wait(3)
+    process.wait(timeout)
 
     output = process.stdout.read().decode(encoding="gbk")
     error = process.stderr.read().decode(encoding="gbk")
@@ -72,7 +75,13 @@ def run(command):
 
 
 # return list after run
-def runRetList(command):
-    lines = []
-    output,error = run(command)
+def runRetList(command, timeout=10):
+    output,error = run(command, timeout)
     return output.splitlines()
+
+#
+#   file 
+#
+
+def delFile(file):
+    return exe(f"rm -rf {file}")

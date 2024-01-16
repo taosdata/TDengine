@@ -238,6 +238,7 @@ typedef struct SReaderStatus {
   int64_t               prevFilesetStartKey;
   int64_t               prevFilesetEndKey;
   bool                  bProcMemFirstFileset;
+  bool                  processingMemPreFileSet;
   STableUidList         procMemUidList;
   STableBlockScanInfo** pProcMemTableIter;
 } SReaderStatus;
@@ -347,6 +348,7 @@ typedef struct SCacheRowsReader {
   STsdbReadSnap*          pReadSnap;
   char*                   idstr;
   int64_t                 lastTs;
+  SArray*                 pFuncTypeList;
 } SCacheRowsReader;
 
 int32_t tsdbCacheGetBatch(STsdb* pTsdb, tb_uid_t uid, SArray* pLastArray, SCacheRowsReader* pr, int8_t ltype);

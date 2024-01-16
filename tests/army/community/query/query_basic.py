@@ -13,10 +13,12 @@
 
 import sys
 import time
+import random
 
 import taos
 import frame
 import frame.etool
+
 
 from frame.log import *
 from frame.cases import *
@@ -26,25 +28,32 @@ from frame import *
 
 
 class TDTestCase(TBase):
-        
+    updatecfgDict = {
+        "keepColumnName" : "1",
+        "ttlChangeOnWrite" : "1",
+        "querySmaOptimize": "1"
+    }
 
     def insertData(self):
         tdLog.info(f"insert data.")
         # taosBenchmark run
-        json = etool.curFile(__file__, "mlevel_basic.json")
-        etool.benchMark(json=json)
+        jfile = etool.curFile(__file__, "query_basic.json")
+        etool.benchMark(json=jfile)
 
         tdSql.execute(f"use {self.db}")
         # set insert data information
-        self.childtable_count = 4
-        self.insert_rows = 1000000
-        self.timestamp_step = 1000
+        self.childtable_count = 6
+        self.insert_rows      = 100000
+        self.timestamp_step   = 30000
 
-    def doAction(self):
-        tdLog.info(f"do action.")
-        self.flushDb()
-        self.trimDb()
-        self.compactDb()
+
+    def doQuery(self):
+        tdLog.info(f"do query.")
+        
+        # top bottom
+        sql = f"select top(uti, 5) from {self.stb} "
+        tdSql.execute(sql)
+
 
     # run
     def run(self):
@@ -56,17 +65,11 @@ class TDTestCase(TBase):
         # check insert data correct
         self.checkInsertCorrect()
 
-        # save
-        self.snapshotAgg()
+        # check 
+        self.checkConsistency("usi")
 
         # do action
-        self.doAction()
-
-        # check save agg result correct
-        self.checkAggCorrect()
-
-        # check insert correct again
-        self.checkInsertCorrect()
+        self.doQuery()
 
         tdLog.success(f"{__file__} successfully executed")
 

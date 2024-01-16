@@ -1314,36 +1314,36 @@ class TDTestCase:
         
         
         #stables
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_int) values(now,'stable_1_1',1) \
-                      nested.stable_1 (ts,tbname,q_bigint) values(now+1a,'stable_1_1',1)\
-                      nested.stable_1 (ts,tbname,q_smallint) values(now+2a,'stable_1_1',1)\
-                      nested.stable_1 (ts,tbname,q_tinyint) values(now+3a,'stable_1_1',1)\
-                      nested.stable_1 (ts,tbname,q_float) values(now+4a,'stable_1_1',1)\
-                      nested.stable_1 (ts,tbname,q_double) values(now+5a,'stable_1_1',1)\
-                      nested.stable_1 (ts,tbname,q_bool) values(now+6a,'stable_1_1',1)\
-                      nested.stable_1 (ts,tbname,q_binary) values(now+7a,'stable_1_1',1)\
-                      nested.stable_1 (ts,tbname,q_nchar) values(now+8a,'stable_1_1',1)\
-                      nested.stable_1 (ts,tbname,q_ts) values(now+9a,'stable_1_1',1)\
-                      nested.stable_null_data (ts,tbname,q_int) values(now,'stable_null_data_1',1) \
-                      nested.stable_null_data (ts,tbname,q_bigint) values(now+1a,'stable_null_data_1',1)\
-                      nested.stable_null_data (ts,tbname,q_smallint) values(now+2a,'stable_null_data_1',1)\
-                      nested.stable_null_data (ts,tbname,q_tinyint) values(now+3a,'stable_null_data_1',1)\
-                      nested.stable_null_data (ts,tbname,q_float) values(now+4a,'stable_null_data_1',1)\
-                      nested.stable_null_data (ts,tbname,q_double) values(now+5a,'stable_null_data_1',1)\
-                      nested.stable_null_data (ts,tbname,q_bool) values(now+6a,'stable_null_data_1',1)\
-                      nested.stable_null_data (ts,tbname,q_binary) values(now+7a,'stable_null_data_1',1)\
-                      nested.stable_null_data (ts,tbname,q_nchar) values(now+8a,'stable_null_data_1',1)\
-                      nested.stable_null_data (ts,tbname,q_ts) values(now+9a,'stable_null_data_1',1)\
-                      nested.stable_null_childtable (ts,tbname,q_int) values(now,'stable_null_childtable_1',1) \
-                      nested.stable_null_childtable (ts,tbname,q_bigint) values(now+1a,'stable_null_childtable_1',1)\
-                      nested.stable_null_childtable (ts,tbname,q_smallint) values(now+2a,'stable_null_childtable_1',1)\
-                      nested.stable_null_childtable (ts,tbname,q_tinyint) values(now+3a,'stable_null_childtable_1',1)\
-                      nested.stable_null_childtable (ts,tbname,q_float) values(now+4a,'stable_null_childtable_1',1)\
-                      nested.stable_null_childtable (ts,tbname,q_double) values(now+5a,'stable_null_childtable_1',1)\
-                      nested.stable_null_childtable (ts,tbname,q_bool) values(now+6a,'stable_null_childtable_1',1)\
-                      nested.stable_null_childtable (ts,tbname,q_binary) values(now+7a,'stable_null_childtable_1',1)\
-                      nested.stable_null_childtable (ts,tbname,q_nchar) values(now+8a,'stable_null_childtable_1',1)\
-                      nested.stable_null_childtable (ts,tbname,q_ts) values(now+9a,'stable_null_childtable_1',1);")
+        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_int) values({ts},'stable_1_1',1) \
+                      nested.stable_1 (ts,tbname,q_bigint) values({ts}+1a,'stable_1_1',1)\
+                      nested.stable_1 (ts,tbname,q_smallint) values({ts}+2a,'stable_1_1',1)\
+                      nested.stable_1 (ts,tbname,q_tinyint) values({ts}+3a,'stable_1_1',1)\
+                      nested.stable_1 (ts,tbname,q_float) values({ts}+4a,'stable_1_1',1)\
+                      nested.stable_1 (ts,tbname,q_double) values({ts}+5a,'stable_1_1',1)\
+                      nested.stable_1 (ts,tbname,q_bool) values({ts}+6a,'stable_1_1',1)\
+                      nested.stable_1 (ts,tbname,q_binary) values({ts}+7a,'stable_1_1',1)\
+                      nested.stable_1 (ts,tbname,q_nchar) values({ts}+8a,'stable_1_1',1)\
+                      nested.stable_1 (ts,tbname,q_ts) values({ts}+9a,'stable_1_1',1)\
+                      nested.stable_null_data (ts,tbname,q_int) values({ts},'stable_null_data_1',1) \
+                      nested.stable_null_data (ts,tbname,q_bigint) values({ts}+1a,'stable_null_data_1',1)\
+                      nested.stable_null_data (ts,tbname,q_smallint) values({ts}+2a,'stable_null_data_1',1)\
+                      nested.stable_null_data (ts,tbname,q_tinyint) values({ts}+3a,'stable_null_data_1',1)\
+                      nested.stable_null_data (ts,tbname,q_float) values({ts}+4a,'stable_null_data_1',1)\
+                      nested.stable_null_data (ts,tbname,q_double) values({ts}+5a,'stable_null_data_1',1)\
+                      nested.stable_null_data (ts,tbname,q_bool) values({ts}+6a,'stable_null_data_1',1)\
+                      nested.stable_null_data (ts,tbname,q_binary) values({ts}+7a,'stable_null_data_1',1)\
+                      nested.stable_null_data (ts,tbname,q_nchar) values({ts}+8a,'stable_null_data_1',1)\
+                      nested.stable_null_data (ts,tbname,q_ts) values({ts}+9a,'stable_null_data_1',1)\
+                      nested.stable_null_childtable (ts,tbname,q_int) values({ts},'stable_null_childtable_1',1) \
+                      nested.stable_null_childtable (ts,tbname,q_bigint) values({ts}+1a,'stable_null_childtable_1',1)\
+                      nested.stable_null_childtable (ts,tbname,q_smallint) values({ts}+2a,'stable_null_childtable_1',1)\
+                      nested.stable_null_childtable (ts,tbname,q_tinyint) values({ts}+3a,'stable_null_childtable_1',1)\
+                      nested.stable_null_childtable (ts,tbname,q_float) values({ts}+4a,'stable_null_childtable_1',1)\
+                      nested.stable_null_childtable (ts,tbname,q_double) values({ts}+5a,'stable_null_childtable_1',1)\
+                      nested.stable_null_childtable (ts,tbname,q_bool) values({ts}+6a,'stable_null_childtable_1',1)\
+                      nested.stable_null_childtable (ts,tbname,q_binary) values({ts}+7a,'stable_null_childtable_1',1)\
+                      nested.stable_null_childtable (ts,tbname,q_nchar) values({ts}+8a,'stable_null_childtable_1',1)\
+                      nested.stable_null_childtable (ts,tbname,q_ts) values({ts}+9a,'stable_null_childtable_1',1);")
         
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(6)
@@ -1360,9 +1360,9 @@ class TDTestCase:
         
         #test special character
 
-        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_int) values(now+10a,'!@!@$$^$',1) \
-                      nested.stable_null_data (ts,tbname,q_int) values(now+10a,'%^$^&^&',1) \
-                      nested.stable_null_childtable (ts,tbname,q_int) values(now+10a,'$^%$%^&',1);")
+        tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_int) values({ts}+10a,'!@!@$$^$',1) \
+                      nested.stable_null_data (ts,tbname,q_int) values({ts}+10a,'%^$^&^&',1) \
+                      nested.stable_null_childtable (ts,tbname,q_int) values({ts}+10a,'$^%$%^&',1);")
         
         tdSql.query(f"select tbname,count(*) from nested.stable_1 group by tbname order by tbname;")
         tdSql.checkRows(7)
@@ -1468,9 +1468,9 @@ class TDTestCase:
         
         #test stable 
 
-        tdSql.error(f"insert into nested.stable_1 (ts,tbname,q_int) values(now,'stable_1',1) \
-                      nested.stable_null_data (ts,tbname,q_int) values(now,'stable_null_data',1) \
-                      nested.stable_null_childtable (ts,tbname,q_int) values(now,'stable_null_childtable',1);")
+        tdSql.error(f"insert into nested.stable_1 (ts,tbname,q_int) values({ts},'stable_1',1) \
+                      nested.stable_null_data (ts,tbname,q_int) values({ts},'stable_null_data',1) \
+                      nested.stable_null_childtable (ts,tbname,q_int) values({ts},'stable_null_childtable',1);")
         
     
     def stop(self):
