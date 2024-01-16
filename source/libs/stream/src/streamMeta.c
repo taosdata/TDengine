@@ -1308,28 +1308,28 @@ void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
 }
 
 void streamMetaRLock(SStreamMeta* pMeta) {
-  stTrace("vgId:%d meta-rlock", pMeta->vgId);
+//  stTrace("vgId:%d meta-rlock", pMeta->vgId);
   taosThreadRwlockRdlock(&pMeta->lock);
 }
 
 void streamMetaRUnLock(SStreamMeta* pMeta) {
-  stTrace("vgId:%d meta-runlock", pMeta->vgId);
+//  stTrace("vgId:%d meta-runlock", pMeta->vgId);
   int32_t code = taosThreadRwlockUnlock(&pMeta->lock);
   if (code != TSDB_CODE_SUCCESS) {
     stError("vgId:%d meta-runlock failed, code:%d", pMeta->vgId, code);
   } else {
-    stDebug("vgId:%d meta-runlock completed", pMeta->vgId);
+//    stDebug("vgId:%d meta-runlock completed", pMeta->vgId);
   }
 }
 
 void streamMetaWLock(SStreamMeta* pMeta) {
-  stTrace("vgId:%d meta-wlock", pMeta->vgId);
+//  stTrace("vgId:%d meta-wlock", pMeta->vgId);
   taosThreadRwlockWrlock(&pMeta->lock);
-  stTrace("vgId:%d meta-wlock completed", pMeta->vgId);
+//  stTrace("vgId:%d meta-wlock completed", pMeta->vgId);
 }
 
 void streamMetaWUnLock(SStreamMeta* pMeta) {
-  stTrace("vgId:%d meta-wunlock", pMeta->vgId);
+//  stTrace("vgId:%d meta-wunlock", pMeta->vgId);
   taosThreadRwlockUnlock(&pMeta->lock);
 }
 

@@ -185,6 +185,11 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
   int64_t      checkpointId = pDataBlock->info.version;
   const char*  id = pTask->id.idStr;
   int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      vgId = pTask->pMeta->vgId;
+
+  stDebug("s-task:%s vgId:%d start to handle the checkpoint block, checkpointId:%" PRId64 " ver:%" PRId64
+          ", current checkpointingId:%" PRId64,
+          id, vgId, pTask->chkInfo.checkpointId, pTask->chkInfo.checkpointVer, checkpointId);
 
   // set task status
   if (streamTaskGetStatus(pTask)->state != TASK_STATUS__CK) {

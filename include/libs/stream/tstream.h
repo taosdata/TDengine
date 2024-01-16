@@ -834,7 +834,7 @@ void    streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const
 void    streamTaskSetFixedDownstreamInfo(SStreamTask* pTask, const SStreamTask* pDownstreamTask);
 int32_t streamTaskReleaseState(SStreamTask* pTask);
 int32_t streamTaskReloadState(SStreamTask* pTask);
-void    streamTaskCloseAllUpstreamInput(SStreamTask* pTask, int32_t taskId);
+void    streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
 void    streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 int32_t streamTaskSetDb(SStreamMeta* pMeta, void* pTask, char* key);
 bool    streamTaskIsSinkTask(const SStreamTask* pTask);

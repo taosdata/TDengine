@@ -243,18 +243,18 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
         // blocked. Note that there is no race condition here.
         if (pReq->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
           atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
-          streamTaskCloseAllUpstreamInput(pTask, pReq->upstreamTaskId);
+          streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
           stDebug("s-task:%s close inputQ for upstream:0x%x, msgId:%d", id, pReq->upstreamTaskId, pReq->msgId);
         } else if (pReq->type == STREAM_INPUT__TRANS_STATE) {
           atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
-          streamTaskCloseAllUpstreamInput(pTask, pReq->upstreamTaskId);
+          streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
 
           // disable the related stream task here to avoid it to receive the newly arrived data after the transfer-state
           STaskId* pRelTaskId = &pTask->streamTaskId;
           SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pRelTaskId->streamId, pRelTaskId->taskId);
           if (pStreamTask != NULL) {
             atomic_add_fetch_32(&pStreamTask->upstreamInfo.numOfClosed, 1);
-            streamTaskCloseAllUpstreamInput(pStreamTask, pReq->upstreamRelTaskId);
+            streamTaskCloseUpstreamInput(pStreamTask, pReq->upstreamRelTaskId);
             streamMetaReleaseTask(pMeta, pStreamTask);
           }
 

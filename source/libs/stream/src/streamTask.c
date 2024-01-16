@@ -684,7 +684,7 @@ void streamTaskOpenAllUpstreamInput(SStreamTask* pTask) {
   stDebug("s-task:%s opening up inputQ for %d upstream tasks", pTask->id.idStr, num);
 }
 
-void streamTaskCloseAllUpstreamInput(SStreamTask* pTask, int32_t taskId) {
+void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
   SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
   if (pInfo != NULL) {
     pInfo->dataAllowed = false;
