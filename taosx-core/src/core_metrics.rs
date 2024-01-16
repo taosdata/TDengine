@@ -309,8 +309,13 @@ pub fn clear_metrics(task_id: i64) {
     let mut metrics = GLOBAL_METRICS.lock().unwrap();
     let _ = metrics.remove(&task_id);
     let store = MetricsStore::new(task_id.to_string().as_str());
-    if let Err(err) = store.clear() {
-        tracing::error!("clear metrics failed: {:?}", err);
+    match store.clear() {
+        Ok(_) => {
+            tracing::info!("clear metrics success");
+        }
+        Err(err) => {
+            tracing::error!("clear metrics failed: {:?}", err);
+        }
     }
 }
 

@@ -1226,8 +1226,11 @@ impl TaskController {
         task.backport_labels();
         let task_out = task.clone();
         let pool = self.pool.clone();
+        let scheduler = self.scheduler.clone();
         tokio::spawn(
             async move {
+                scheduler.wait_task(task.id).await;
+                tracing::info!("task {id} successfully stopped");
                 if let Some(topic) = task.oneshot_topic.as_deref() {
                     let mut dsn: Dsn = task.from.parse()?;
                     let _ = dsn.subject.take();
