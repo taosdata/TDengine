@@ -94,7 +94,7 @@ typedef struct SConfigItem {
     int64_t imax;
     double  fmax;
   };
-  SArray *array;  // SDiskCfg
+  SArray *array;  // SDiskCfg/SLogVar
 } SConfigItem;
 
 typedef struct {

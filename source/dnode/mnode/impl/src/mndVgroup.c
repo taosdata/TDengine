@@ -1831,10 +1831,12 @@ static int32_t mndAddIncVgroupReplicaToTrans(SMnode *pMnode, STrans *pTrans, SDb
                                              int32_t newDnodeId) {
   mInfo("vgId:%d, will add 1 vnode, replica:%d dnode:%d", pVgroup->vgId, pVgroup->replica, newDnodeId);
 
+  // assoc dnode
   SVnodeGid *pGid = &pVgroup->vnodeGid[pVgroup->replica];
   pVgroup->replica++;
   pGid->dnodeId = newDnodeId;
   pGid->syncState = TAOS_SYNC_STATE_OFFLINE;
+  pGid->nodeRole = TAOS_SYNC_ROLE_LEARNER;
 
   SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroup);
   if (pVgRaw == NULL) return -1;
@@ -1844,10 +1846,20 @@ static int32_t mndAddIncVgroupReplicaToTrans(SMnode *pMnode, STrans *pTrans, SDb
   }
   (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
 
+  // learner
   for (int32_t i = 0; i < pVgroup->replica - 1; ++i) {
     if (mndAddAlterVnodeReplicaAction(pMnode, pTrans, pDb, pVgroup, pVgroup->vnodeGid[i].dnodeId) != 0) return -1;
   }
   if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pGid) != 0) return -1;
+
+  // voter
+  pGid->nodeRole = TAOS_SYNC_ROLE_VOTER;
+  if (mndAddAlterVnodeTypeAction(pMnode, pTrans, pDb, pVgroup, pGid->dnodeId) != 0) return -1;
+  for (int32_t i = 0; i < pVgroup->replica - 1; ++i) {
+    if (mndAddAlterVnodeReplicaAction(pMnode, pTrans, pDb, pVgroup, pVgroup->vnodeGid[i].dnodeId) != 0) return -1;
+  }
+
+  // confirm
   if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, pVgroup) != 0) return -1;
 
   return 0;
@@ -2707,8 +2719,16 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
 
   if (newVg1.replica == 1) {
     if (mndAddVnodeToVgroup(pMnode, pTrans, &newVg1, pArray) != 0) goto _OVER;
+
+    newVg1.vnodeGid[1].nodeRole = TAOS_SYNC_ROLE_LEARNER;
     if (mndAddAlterVnodeReplicaAction(pMnode, pTrans, pDb, &newVg1, newVg1.vnodeGid[0].dnodeId) != 0) goto _OVER;
     if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, &newVg1, &newVg1.vnodeGid[1]) != 0) goto _OVER;
+
+    newVg1.vnodeGid[1].nodeRole = TAOS_SYNC_ROLE_VOTER;
+    if (mndAddAlterVnodeTypeAction(pMnode, pTrans, pDb, &newVg1, newVg1.vnodeGid[1].dnodeId) != 0) goto _OVER;
+    if (mndAddAlterVnodeReplicaAction(pMnode, pTrans, pDb, &newVg1, newVg1.vnodeGid[0].dnodeId) != 0) goto _OVER;
+
+    if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, &newVg1) != 0) goto _OVER;
   } else if (newVg1.replica == 3) {
     SVnodeGid del1 = {0};
     if (mndRemoveVnodeFromVgroup(pMnode, pTrans, &newVg1, pArray, &del1) != 0) goto _OVER;

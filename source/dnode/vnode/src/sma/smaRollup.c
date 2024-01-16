@@ -750,6 +750,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
         }
         tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
         taosMemoryFree(pReq);
+        pReq = NULL;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
 

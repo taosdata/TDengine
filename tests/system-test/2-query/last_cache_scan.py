@@ -181,7 +181,7 @@ class TDTestCase:
         select_items = [
                 "last(ts), ts", "last(ts), c1", "last(ts), c2", "last(ts), c3",\
                 "last(ts), c4", "last(ts), tbname", "last(ts), t1", "last(ts), ts, ts"]
-        has_last_row_scan_res = [1, 0, 0, 0, 0, 0, 0, 1]
+        has_last_row_scan_res = [1, 0, 0, 0, 0, 1, 1, 1]
         res_expect = [
                 ["2018-11-25 19:30:00.000", "2018-11-25 19:30:00.000"],
                 None, None, None, None, None, None,
@@ -193,7 +193,7 @@ class TDTestCase:
 
         select_items = ["last(c1),ts", "last(c1), c1", "last(c1), c2", "last(c1), c3",\
                 "last(c1), c4", "last(c1), tbname", "last(c1), t1", "last(c1), ts, ts", "last(c1), c1, c1"]
-        has_last_row_scan_res = [1, 1, 0, 0, 0, 0, 0, 1, 1]
+        has_last_row_scan_res = [1, 1, 0, 0, 0, 1, 1, 1, 1]
         res_expect = [
                 [999, "2018-11-25 19:30:00.000"],
                 [999, 999], None, None, None, None, None,
@@ -207,7 +207,7 @@ class TDTestCase:
         sql_template = 'select %s from t1'
         select_items = ["last(c4),ts", "last(c4), c1", "last(c4), c2", "last(c4), c3",\
                 "last(c4), c4", "last(c4), tbname", "last(c4), t1"]
-        has_last_row_scan_res = [1, 0, 0, 0, 1, 0, 0]
+        has_last_row_scan_res = [1, 0, 0, 0, 1, 1, 1]
         res_expect = [
                 [4999.000000000000000, "2018-11-25 19:30:00.000"],
                 None,None,None,
@@ -220,7 +220,7 @@ class TDTestCase:
         sql_template = 'select %s from meters'
         select_items = ["last(c8), ts", "last(c8), c1", "last(c8), c8", "last(c8), tbname", \
                 "last(c8), t1", "last(c8), c8, c8", "last(c8), ts, ts"]
-        has_last_row_scan_res = [1, 0, 1, 0, 0, 1, 1]
+        has_last_row_scan_res = [1, 0, 1, 1, 1, 1, 1]
         res_expect = [
                 ["binary9999", "2018-11-25 19:30:00.000"],
                 None,
@@ -250,7 +250,7 @@ class TDTestCase:
                 "last_row(c1), last(c1)",
                 "last_row(c1), c1,c3, ts"
                 ]
-        has_last_row_scan_res = [0,0,1]
+        has_last_row_scan_res = [1,1,1]
         sqls = self.format_sqls(sql_template, select_items)
         self.explain_and_check_res(sqls, has_last_row_scan_res)
         #res_expect = [None, None, [999, 999, 499, "2018-11-25 19:30:00.000"]]
@@ -376,7 +376,7 @@ class TDTestCase:
         tdSql.checkCols(1)
         p = subprocess.run(["taos", '-s', "alter table test.meters drop column c2; alter table test.meters add column c1 int"])
         p.check_returncode()
-        tdSql.query_success_failed("select ts, last_row(c2), c12, ts, c12 from meters", queryTimes=10, expectErrInfo="Invalid column name: c2")
+        tdSql.query_success_failed("select ts, last(c2), c12, ts, c12 from meters", queryTimes=10, expectErrInfo="Invalid column name: c2")
         tdSql.query('select last(c1), c1, ts from meters', queryTimes=1)
         tdSql.checkRows(1)
         tdSql.checkCols(3)
@@ -387,7 +387,7 @@ class TDTestCase:
         tdSql.query('select last(c1) from meters partition by t1')
         print(str(tdSql.queryResult))
         tdSql.checkCols(1)
-        tdSql.checkRows(2)
+        tdSql.checkRows(5)
         p = subprocess.run(["taos", '-s', "alter table test.meters drop column c1; alter table test.meters add column c2 int"])
         p.check_returncode()
         tdSql.query_success_failed('select last(c1) from meters partition by t1',  queryTimes=10, expectErrInfo="Invalid column name: c1")

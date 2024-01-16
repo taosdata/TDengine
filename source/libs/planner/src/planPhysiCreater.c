@@ -562,9 +562,36 @@ static int32_t createLastRowScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSu
 
   pScan->groupSort = pScanLogicNode->groupSort;
   pScan->ignoreNull = pScanLogicNode->igLastNull;
+
   vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
 
-  return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
+  int32_t code = createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
+
+  if (TSDB_CODE_SUCCESS == code && pScanLogicNode->pFuncTypes != NULL) {
+    pScan->pFuncTypes = taosArrayInit(taosArrayGetSize(pScanLogicNode->pFuncTypes), sizeof(int32_t));
+    if (NULL == pScan->pFuncTypes) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    SNode* pTargetNode = NULL;
+    int funcTypeIndex = 0;
+    FOREACH(pTargetNode, ((SScanPhysiNode*)pScan)->pScanCols) {
+      if (((STargetNode*)pTargetNode)->pExpr->type != QUERY_NODE_COLUMN) {
+        continue;
+      }
+      SColumnNode* pColNode = (SColumnNode*)((STargetNode*)pTargetNode)->pExpr;
+
+      for (int i = 0; i < TARRAY_SIZE(pScanLogicNode->pFuncTypes); ++i) {
+        SFunctParam* pFunctParam = taosArrayGet(pScanLogicNode->pFuncTypes, i);
+        if (pColNode->colId == pFunctParam->pCol->colId &&
+             0 == strncmp(pColNode->colName, pFunctParam->pCol->name, strlen(pColNode->colName))) {
+          taosArrayInsert(pScan->pFuncTypes, funcTypeIndex, &pFunctParam->type);
+          break;
+        }
+      }
+      funcTypeIndex++;
+    }
+  }
+  return code;
 }
 
 static int32_t createTableCountScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan,
@@ -623,6 +650,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->igCheckUpdate = pScanLogicNode->igCheckUpdate;
   pTableScan->assignBlockUid = pCxt->pPlanCxt->rSmaQuery ? true : false;
   pTableScan->filesetDelimited = pScanLogicNode->filesetDelimited;
+  pTableScan->needCountEmptyTable = pScanLogicNode->isCountByTag;
 
   int32_t code = createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);
   if (TSDB_CODE_SUCCESS == code) {

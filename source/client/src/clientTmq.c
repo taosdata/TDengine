@@ -1028,11 +1028,16 @@ static void tmqMgmtInit(void) {
   }
 }
 
+#define SET_ERROR_MSG(MSG) if(errstr!=NULL)snprintf(errstr,errstrLen,MSG);
 tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
-  if(conf == NULL) return NULL;
+  if(conf == NULL) {
+    SET_ERROR_MSG("configure is null")
+    return NULL;
+  }
   taosThreadOnce(&tmqInit, tmqMgmtInit);
   if (tmqInitRes != 0) {
     terrno = tmqInitRes;
+    SET_ERROR_MSG("tmq timer init error")
     return NULL;
   }
 
@@ -1040,6 +1045,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   if (pTmq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tscError("failed to create consumer, groupId:%s, code:%s", conf->groupId, terrstr());
+    SET_ERROR_MSG("malloc tmq failed")
     return NULL;
   }
 
@@ -1055,6 +1061,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
       conf->groupId[0] == 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tscError("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
+    SET_ERROR_MSG("malloc tmq element failed or group is empty")
     goto _failed;
   }
 
@@ -1086,6 +1093,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   if (tsem_init(&pTmq->rspSem, 0, 0) != 0) {
     tscError("consumer:0x %" PRIx64 " setup failed since %s, consumer group %s", pTmq->consumerId, terrstr(),
              pTmq->groupId);
+    SET_ERROR_MSG("init t_sem failed")
     goto _failed;
   }
 
@@ -1094,11 +1102,13 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   if (pTmq->pTscObj == NULL) {
     tscError("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
     tsem_destroy(&pTmq->rspSem);
+    SET_ERROR_MSG("init tscObj failed")
     goto _failed;
   }
 
   pTmq->refId = taosAddRef(tmqMgmt.rsetId, pTmq);
   if (pTmq->refId < 0) {
+    SET_ERROR_MSG("add tscObj ref failed")
     goto _failed;
   }
 
@@ -1958,7 +1968,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
   void*   rspObj = NULL;
   int64_t startTime = taosGetTimestampMs();
 
-  tscInfo("consumer:0x%" PRIx64 " start to poll at %" PRId64 ", timeout:%" PRId64, tmq->consumerId, startTime,
+  tscDebug("consumer:0x%" PRIx64 " start to poll at %" PRId64 ", timeout:%" PRId64, tmq->consumerId, startTime,
            timeout);
 
   // in no topic status, delayed task also need to be processed
@@ -2005,7 +2015,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
       int64_t currentTime = taosGetTimestampMs();
       int64_t elapsedTime = currentTime - startTime;
       if (elapsedTime > timeout) {
-        tscInfo("consumer:0x%" PRIx64 " (epoch %d) timeout, no rsp, start time %" PRId64 ", current time %" PRId64,
+        tscDebug("consumer:0x%" PRIx64 " (epoch %d) timeout, no rsp, start time %" PRId64 ", current time %" PRId64,
                  tmq->consumerId, tmq->epoch, startTime, currentTime);
         return NULL;
       }

@@ -107,6 +107,7 @@ struct STQ {
   TTB*            pExecStore;
   TTB*            pCheckStore;
   SStreamMeta*    pStreamMeta;
+  void*           tqTimer;
 };
 
 int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);

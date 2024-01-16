@@ -1,4 +1,5 @@
 python3 ./test.py -f 2-query/tbname_vgroup.py
+python3 ./test.py -f 2-query/compact-col.py
 python3 ./test.py -f 2-query/stbJoin.py
 python3 ./test.py -f 2-query/stbJoin.py -Q 2
 python3 ./test.py -f 2-query/stbJoin.py -Q 3
@@ -153,7 +154,7 @@ python3 ./test.py -f 7-tmq/tmqDropNtb-snapshot1.py
 python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py
 python3 ./test.py -f 7-tmq/dataFromTsdbNWal.py
 python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
-python3 ./test.py -f 7-tmq/tmq_taosx.py
+# python3 ./test.py -f 7-tmq/tmq_taosx.py
 python3 ./test.py -f 7-tmq/tmq_replay.py
 python3 ./test.py -f 7-tmq/tmqSeekAndCommit.py
 python3 ./test.py -f 7-tmq/tmq_offset.py
@@ -167,6 +168,7 @@ python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 2 -n 1
 python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 6 -n 3
 python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select.py -N 2 -n 1
 python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-duplicatedata.py -N 3 -n 3
+python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-duplicatedata-false.py -N 3 -n 3
 python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select.py -N 3 -n 3
 python3 test.py -f 7-tmq/tmqVnodeSplit-stb.py -N 3 -n 3
 python3 test.py -f 7-tmq/tmqVnodeSplit-column.py -N 3 -n 3
@@ -200,14 +202,18 @@ python3 ./test.py -f 0-others/ttlChangeOnWrite.py
 python3 ./test.py -f 0-others/compress_tsz1.py
 python3 ./test.py -f 0-others/compress_tsz2.py
 python3 ./test.py -f 0-others/view/non_marterial_view/test_view.py
+python3 ./test.py -f 0-others/test_show_table_distributed.py
 python3 ./test.py -f 0-others/compatibility.py
 python3 ./test.py -f 0-others/tag_index_basic.py
 python3 ./test.py -N 3 -f 0-others/walRetention.py
-python3 ./test.py -f 0-others/splitVGroupRep1.py -N 3
-python3 ./test.py -f 0-others/splitVGroupRep3.py -N 3
+python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 1
+python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 1
+python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 3
+python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 3
 python3 ./test.py -f 0-others/timeRangeWise.py -N 3
 python3 ./test.py -f 0-others/delete_check.py
 python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
+python3 ./test.py -f 1-insert/insert_double.py
 python3 ./test.py -f 1-insert/alter_database.py
 python3 ./test.py -f 1-insert/alter_replica.py -N 3
 python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
@@ -256,6 +262,10 @@ python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 4
 python3 ./test.py -f 1-insert/precisionUS.py
 python3 ./test.py -f 1-insert/precisionNS.py
 python3 ./test.py -f 1-insert/test_ts4219.py
+python3 ./test.py -f 1-insert/ts-4272.py
+python3 ./test.py -f 1-insert/test_ts4295.py
+python3 ./test.py -f 1-insert/test_td27388.py
+python3 ./test.py -f 1-insert/insert_timestamp.py
 python3 ./test.py -f 0-others/show.py
 python3 ./test.py -f 0-others/show_tag_index.py
 python3 ./test.py -f 0-others/information_schema.py
@@ -460,6 +470,7 @@ python3 ./test.py -f 2-query/concat2.py
 python3 ./test.py -f 2-query/json_tag.py
 python3 ./test.py -f 2-query/nestedQueryInterval.py
 python3 ./test.py -f 2-query/systable_func.py
+python3 ./test.py -f 2-query/test_ts4382.py
 python3 ./test.py -f 2-query/stablity.py
 python3 ./test.py -f 2-query/stablity_1.py
 python3 ./test.py -f 2-query/elapsed.py
@@ -799,6 +810,7 @@ python3 ./test.py -f 2-query/blockSMA.py -Q 4
 python3 ./test.py -f 2-query/projectionDesc.py -Q 4
 python3 ./test.py -f 2-query/odbc.py
 python3 ./test.py -f 2-query/fill_with_group.py
+python3 ./test.py -f 2-query/state_window.py -Q 3
 python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
 python3 ./test.py -f 99-TDcase/TD-20582.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/insertMix.py -N 3
