@@ -414,6 +414,7 @@ void cliHandleResp(SCliConn* conn) {
   // buf's mem alread translated to transMsg.pCont
   if (!CONN_NO_PERSIST_BY_APP(conn)) {
     transMsg.info.handle = (void*)conn->refId;
+    transMsg.info.refId = (int64_t)(void*)conn->refId;
     tDebug("%s conn %p ref by app", CONN_GET_INST_LABEL(conn), conn);
   }
 

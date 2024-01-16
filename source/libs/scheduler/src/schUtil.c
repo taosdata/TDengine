@@ -42,7 +42,7 @@ char *schDumpEpSet(SEpSet *pEpSet) {
   }
 
   int32_t maxSize = 1024;
-  char *str = taosMemoryMalloc(maxSize);
+  char   *str = taosMemoryMalloc(maxSize);
   if (NULL == str) {
     return NULL;
   }
@@ -73,7 +73,7 @@ char *schGetOpStr(SCH_OP_TYPE type) {
 }
 
 void schFreeHbTrans(SSchHbTrans *pTrans) {
-  rpcReleaseHandle(pTrans->trans.pHandle, TAOS_CONN_CLIENT);
+  rpcReleaseHandle((void *)pTrans->trans.pHandleId, TAOS_CONN_CLIENT);
 
   schFreeRpcCtx(&pTrans->rpcCtx);
 }
@@ -209,7 +209,7 @@ int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
   if (!tsEnableQueryHb) {
     return TSDB_CODE_SUCCESS;
   }
-  
+
   SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
   SQueryNodeEpId  epId = {0};
 
@@ -234,7 +234,8 @@ int32_t schUpdateHbConnection(SQueryNodeEpId *epId, SSchTrans *trans) {
   hb = taosHashGet(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId));
   if (NULL == hb) {
     SCH_UNLOCK(SCH_READ, &schMgmt.hbLock);
-    qInfo("taosHashGet hb connection not exists, nodeId:%d, fqdn:%s, port:%d", epId->nodeId, epId->ep.fqdn, epId->ep.port);
+    qInfo("taosHashGet hb connection not exists, nodeId:%d, fqdn:%s, port:%d", epId->nodeId, epId->ep.fqdn,
+          epId->ep.port);
     SCH_ERR_RET(TSDB_CODE_APP_ERROR);
   }
 
