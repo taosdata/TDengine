@@ -939,7 +939,7 @@ static SSDataBlock* startNextGroupScan(SOperatorInfo* pOperator) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
   int32_t numOfTables = tableListGetSize(pInfo->base.pTableListInfo);
-  if (pInfo->tableEndIndex + 1 >= numOfTables) {
+  if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
     setOperatorCompleted(pOperator);
     if (pOperator->dynamicTask) {
       taosArrayClear(pInfo->base.pTableListInfo->pTableList);
@@ -978,9 +978,9 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
   int32_t        num = 0;
   STableKeyInfo* pList = NULL;
 
-  if (pInfo->tableEndIndex == -1) {
+  if (pInfo->currentGroupId == -1) {
     int32_t numOfTables = tableListGetSize(pInfo->base.pTableListInfo);
-    if (pInfo->tableEndIndex + 1 == numOfTables) {
+    if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
       setOperatorCompleted(pOperator);
       return NULL;
     }
@@ -1034,7 +1034,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
     if (pOperator->status == OP_EXEC_DONE) {
-      pInfo->tableEndIndex = -1;
+      pInfo->currentGroupId = -1;
       pOperator->status = OP_OPENED;
       SSDataBlock* result = NULL;
       while (true) {
@@ -1059,23 +1059,24 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
       }
 
       // if no data, switch to next table and continue scan
+      pInfo->currentTable++;
       pInfo->tableEndIndex++;
 
       taosRLockLatch(&pTaskInfo->lock);
       numOfTables = tableListGetSize(pInfo->base.pTableListInfo);
 
-      if (pInfo->tableEndIndex >= numOfTables) {
+      if (pInfo->currentTable >= numOfTables) {
         qDebug("all table checked in table list, total:%d, return NULL, %s", numOfTables, GET_TASKID(pTaskInfo));
         taosRUnLockLatch(&pTaskInfo->lock);
         return NULL;
       }
 
-      tInfo = *(STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->tableEndIndex);
+      tInfo = *(STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->currentTable);
       taosRUnLockLatch(&pTaskInfo->lock);
 
       pAPI->tsdReader.tsdSetQueryTableList(pInfo->base.dataReader, &tInfo, 1);
       qDebug("set uid:%" PRIu64 " into scanner, total tables:%d, index:%d/%d %s", tInfo.uid, numOfTables,
-             pInfo->tableEndIndex, numOfTables, GET_TASKID(pTaskInfo));
+             pInfo->currentTable, numOfTables, GET_TASKID(pTaskInfo));
 
       pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
       pInfo->scanTimes = 0;
@@ -1167,6 +1168,8 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
+  
+  pInfo->currentGroupId = -1;
 
   pInfo->tableEndIndex = -1;
   pInfo->currentGroupIndex = -1;
@@ -1264,6 +1267,7 @@ void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin, uint6
   pTableScanInfo->base.cond.startVersion = 0;
   pTableScanInfo->base.cond.endVersion = ver;
   pTableScanInfo->scanTimes = 0;
+  pTableScanInfo->currentGroupId = -1;
   pTableScanInfo->tableEndIndex = -1;
   pTableScanInfo->base.readerAPI.tsdReaderClose(pTableScanInfo->base.dataReader);
   pTableScanInfo->base.dataReader = NULL;
@@ -2167,6 +2171,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     pInfo->pTableScanOp->status = OP_OPENED;
 
     pTSInfo->scanTimes = 0;
+    pTSInfo->currentGroupId = -1;
     pTSInfo->tableEndIndex = -1;
   }
 

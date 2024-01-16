@@ -1264,6 +1264,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
           STableKeyInfo* pTableInfo = tableListGetInfo(pTableListInfo, 0);
           uid = pTableInfo->uid;
           ts = INT64_MIN;
+          pScanInfo->currentTable = 0;
           pScanInfo->tableEndIndex = 0;
         } else {
           taosRUnLockLatch(&pTaskInfo->lock);
@@ -1278,16 +1279,17 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       pInfo->pTableScanOp->resultInfo.totalRows = 0;
 
       // start from current accessed position
-      // we cannot start from the pScanInfo->tableEndIndex, since the commit offset may cause the rollback of the start
+      // we cannot start from the pScanInfo->currentTable, since the commit offset may cause the rollback of the start
       // position, let's find it from the beginning.
       index = tableListFind(pTableListInfo, uid, 0);
       taosRUnLockLatch(&pTaskInfo->lock);
 
       if (index >= 0) {
+        pScanInfo->currentTable = index;
         pScanInfo->tableEndIndex = index;
       } else {
         qError("vgId:%d uid:%" PRIu64 " not found in table list, total:%d, index:%d %s", pTaskInfo->id.vgId, uid,
-               numOfTables, pScanInfo->tableEndIndex, id);
+               numOfTables, pScanInfo->currentTable, id);
         terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
         return -1;
       }
@@ -1310,12 +1312,12 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
         }
 
         qDebug("tsdb reader created with offset(snapshot) uid:%" PRId64 " ts:%" PRId64 " table index:%d, total:%d, %s",
-               uid, pScanBaseInfo->cond.twindows.skey, pScanInfo->tableEndIndex, numOfTables, id);
+               uid, pScanBaseInfo->cond.twindows.skey, pScanInfo->currentTable, numOfTables, id);
       } else {
         pTaskInfo->storageAPI.tsdReader.tsdSetQueryTableList(pScanBaseInfo->dataReader, &keyInfo, 1);
         pTaskInfo->storageAPI.tsdReader.tsdReaderResetStatus(pScanBaseInfo->dataReader, &pScanBaseInfo->cond);
         qDebug("tsdb reader offset seek snapshot to uid:%" PRId64 " ts %" PRId64 "  table index:%d numOfTable:%d, %s",
-               uid, pScanBaseInfo->cond.twindows.skey, pScanInfo->tableEndIndex, numOfTables, id);
+               uid, pScanBaseInfo->cond.twindows.skey, pScanInfo->currentTable, numOfTables, id);
       }
 
       // restore the key value
