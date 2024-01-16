@@ -1388,15 +1388,13 @@ int32_t taosSetFileHandlesLimit() {
 }
 
 int32_t taosLinkFile(char *src, char *dst) {
-#ifdef WINDOWS
-  // don nothing
-  return 0;
-#endif
+#ifndef WINDOWS
   if (link(src, dst) != 0) {
     if (errno == EXDEV || errno == ENOTSUP) {
       return -1;
     }
     return errno;
   }
+#endif
   return 0;
 }
