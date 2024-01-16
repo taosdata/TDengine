@@ -10,6 +10,7 @@ pub struct IpcMetrics {
     pub com: CommonMetrics,
     pub total_received_batches: AtomicU64,
     pub total_processed_batches: AtomicU64,
+    pub total_failed_batcheds: AtomicU64,
     pub total_processed_rows: AtomicU64,
     pub total_inserted_sqls: AtomicU64,
     pub total_failed_sqls: AtomicU64,
@@ -21,6 +22,7 @@ pub struct IpcMetrics {
     pub total_failed_raw_blocks: AtomicU64,
     pub received_batches: AtomicU64,
     pub processed_batches: AtomicU64,
+    pub failed_batcheds: AtomicU64,
     pub processed_rows: AtomicU64,
     pub inserted_sqls: AtomicU64,
     pub failed_sqls: AtomicU64,
@@ -38,6 +40,7 @@ impl Default for IpcMetrics {
             com: CommonMetrics::default(),
             total_received_batches: AtomicU64::new(0),
             total_processed_batches: AtomicU64::new(0),
+            total_failed_batcheds: AtomicU64::new(0),
             total_processed_rows: AtomicU64::new(0),
             total_inserted_sqls: AtomicU64::new(0),
             total_failed_sqls: AtomicU64::new(0),
@@ -49,6 +52,7 @@ impl Default for IpcMetrics {
             total_failed_raw_blocks: AtomicU64::new(0),
             received_batches: AtomicU64::new(0),
             processed_batches: AtomicU64::new(0),
+            failed_batcheds: AtomicU64::new(0),
             processed_rows: AtomicU64::new(0),
             inserted_sqls: AtomicU64::new(0),
             failed_sqls: AtomicU64::new(0),
@@ -68,6 +72,7 @@ impl IpcMetrics {
             com: CommonMetrics::new(task_id),
             total_received_batches: AtomicU64::new(0),
             total_processed_batches: AtomicU64::new(0),
+            total_failed_batcheds: AtomicU64::new(0),
             total_processed_rows: AtomicU64::new(0),
             total_inserted_sqls: AtomicU64::new(0),
             total_failed_sqls: AtomicU64::new(0),
@@ -79,6 +84,7 @@ impl IpcMetrics {
             total_failed_raw_blocks: AtomicU64::new(0),
             received_batches: AtomicU64::new(0),
             processed_batches: AtomicU64::new(0),
+            failed_batcheds: AtomicU64::new(0),
             processed_rows: AtomicU64::new(0),
             inserted_sqls: AtomicU64::new(0),
             failed_sqls: AtomicU64::new(0),
@@ -154,6 +160,12 @@ impl IpcMetrics {
     pub fn add_failed_raw_blocks(&self, n: u64) {
         self.total_failed_raw_blocks.fetch_add(n, SeqCst);
         self.failed_raw_blocks.fetch_add(n, SeqCst);
+    }
+
+    #[inline]
+    pub fn add_failed_batches(&self, n: u64) {
+        self.total_failed_batcheds.fetch_add(n, SeqCst);
+        self.failed_batcheds.fetch_add(n, SeqCst);
     }
 }
 
