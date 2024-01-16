@@ -74,19 +74,11 @@ export default {
     },
     connect() {
       this.disconnect();
-      const { location } = window;
-      const proto = location.protocol.startsWith("https") ? "wss" : "ws";
-      console.log('location',location);
-      let host = location.host;
-      const wsUri = `${proto}://${host}/api/x/metrics/task/${this.taskId}`;
-
-      // dev 环境测试用
-      // const x_api = process.env.VUE_APP_X_API
-      // const proto = x_api.startsWith('https') ? 'wss' : 'ws'
-      // let host = proto == 'wss'
-      //   ? x_api.replace('https',proto)
-      //   : x_api.replace('http',proto);
-      // const wsUri = `${host}/metrics/task/${this.taskId}`
+      
+      const base_api = process.env.VUE_APP_BASE_URL
+      const proto = base_api.startsWith('https') ? 'wss' : 'ws'
+      let host = base_api.replace(/https?:\/\//, '')
+      const wsUri = `${proto}://${host}/api/x/metrics/task/${this.taskId}`
 
       this.socket = new WebSocket(wsUri);
       console.log("Connecting...");
@@ -111,6 +103,7 @@ export default {
     disconnect() {
       if (this.socket) {
         console.log("Disconnecting...");
+        this.datas = []
         this.socket.close();
         this.socket = null;
       }
