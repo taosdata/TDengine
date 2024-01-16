@@ -570,9 +570,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
       vInfo("vgId:%d, sync restore finished, not launch stream tasks, since stream tasks are disabled", vgId);
     } else {
       vInfo("vgId:%d sync restore finished, start to launch stream task(s)", pVnode->config.vgId);
-      int32_t numOfTasks = 0;
-      tqStreamTaskResetStatus(pMeta, &numOfTasks);
-
+      int32_t numOfTasks = tqStreamTasksGetTotalNum(pMeta);
       if (numOfTasks > 0) {
         if (pMeta->startInfo.taskStarting == 1) {
           pMeta->startInfo.restartCount += 1;
@@ -580,6 +578,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
                   pMeta->startInfo.restartCount);
         } else {
           pMeta->startInfo.taskStarting = 1;
+
           streamMetaWUnLock(pMeta);
           tqStreamTaskStartAsync(pMeta, &pVnode->msgCb, false);
           return;
