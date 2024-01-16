@@ -37,7 +37,7 @@ advanced:
   params:
     - name: read_concurrency
       display: Read Concurrency
-      hidden: true
+      hidden: false
       description: |
         The number of concurrent read requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.
       value: 0
@@ -47,6 +47,7 @@ advanced:
         max: 1000
     - name: batch_size
       display: Batch Size
+      hidden: false
       description: |
         The number of data points to be written in a single request. The default value is 1000. If the data source is slow to respond, you can reduce this value appropriately.
       value: 1000
