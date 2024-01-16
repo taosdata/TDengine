@@ -410,10 +410,10 @@ if __name__ == "__main__":
             clusterDnodes.setValgrind(valgrind)
             clusterDnodes.setAsan(asan)
             clusterDnodes.stopAll()
-            for dnode in tdDnodes.dnodes:
-                tdDnodes.deploy(dnode.index, updateCfgDict)
-            for dnode in tdDnodes.dnodes:
-                tdDnodes.starttaosd(dnode.index)
+            for dnode in clusterDnodes.dnodes:
+                clusterDnodes.deploy(dnode.index, updateCfgDict)
+            for dnode in clusterDnodes.dnodes:
+                clusterDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
                             
             if restful or websocket:
@@ -596,10 +596,10 @@ if __name__ == "__main__":
             clusterDnodes.setValgrind(valgrind)
             clusterDnodes.setAsan(asan)
             clusterDnodes.stopAll()
-            for dnode in tdDnodes.dnodes:
-                tdDnodes.deploy(dnode.index,updateCfgDict)
-            for dnode in tdDnodes.dnodes:
-                tdDnodes.starttaosd(dnode.index)
+            for dnode in clusterDnodes.dnodes:
+                clusterDnodes.deploy(dnode.index,updateCfgDict)
+            for dnode in clusterDnodes.dnodes:
+                clusterDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
 
             if restful or websocket:
