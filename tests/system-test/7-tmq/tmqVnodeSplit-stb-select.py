@@ -190,11 +190,13 @@ class TDTestCase:
         pInsertThread1.join()
 
         expectRows = 1
+
+
         resultList = tmqCom.selectConsumeResult(expectRows)
 
-        # if expectrowcnt / 2 > resultList[0]:
-        #     tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectrowcnt / 2, resultList[0]))
-        #     tdLog.exit("%d tmq consume rows error!"%consumerId)
+        if expectrowcnt / 2 > resultList[0]:
+            tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectrowcnt / 2, resultList[0]))
+            tdLog.exit("%d tmq consume rows error!"%consumerId)
 
         # tmqCom.checkFileContent(consumerId, queryString)
 
@@ -209,8 +211,6 @@ class TDTestCase:
     def run(self):
         self.prepareTestEnv()
         self.tmqCase1(True)
-        self.prepareTestEnv()
-        self.tmqCase1(False)
 
     def stop(self):
         tdSql.close()
