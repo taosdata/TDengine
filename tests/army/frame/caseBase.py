@@ -28,7 +28,7 @@ class TBase:
 #          
 
     # init
-    def init(self, conn, logSql, replicaVar=1):
+    def init(self, conn, logSql, replicaVar=1, db="db", stb="stb", checkColName="ic"):
         # save param
         self.replicaVar = int(replicaVar)
         tdSql.init(conn.cursor(), True)
@@ -40,14 +40,14 @@ class TBase:
         self.mLevelDisk = 0
 
         # test case information
-        self.db     = "db"
-        self.stb    = "stb"
+        self.db     = db
+        self.stb    = stb
 
         # sql 
-        self.sqlSum = f"select sum(ic) from {self.stb}"
-        self.sqlMax = f"select max(ic) from {self.stb}"
-        self.sqlMin = f"select min(ic) from {self.stb}"
-        self.sqlAvg = f"select avg(ic) from {self.stb}"
+        self.sqlSum = f"select sum({checkColName}) from {self.stb}"
+        self.sqlMax = f"select max({checkColName}) from {self.stb}"
+        self.sqlMin = f"select min({checkColName}) from {self.stb}"
+        self.sqlAvg = f"select avg({checkColName}) from {self.stb}"
         self.sqlFirst = f"select first(ts) from {self.stb}"
         self.sqlLast  = f"select last(ts) from {self.stb}"
 

@@ -13,23 +13,24 @@ from frame.common import *
 
 class ClusterDnodes(TDDnodes):
     """rewrite TDDnodes and make MyDdnodes as TDDnodes child class"""
-    def __init__(self ,dnodes_lists):
-
+    def __init__(self):
         super(ClusterDnodes,self).__init__()
-        self.dnodes = dnodes_lists  # dnode must be TDDnode instance
         self.simDeployed = False
         self.testCluster = False
         self.valgrind = 0
         self.killValgrind = 1
+    def init(self, dnodes_lists, deployPath, masterIp):
+        self.dnodes = dnodes_lists  # dnode must be TDDnode instance
+        super(ClusterDnodes, self).init(deployPath, masterIp)
 
+clusterDnodes = ClusterDnodes()
 
 class ConfigureyCluster:
     """This will create defined number of dnodes and create a cluster.
        at the same time, it will return TDDnodes list:  dnodes, """
     hostname = socket.gethostname()
-
     def __init__(self):
-        self.dnodes = []      
+        self.dnodes = []
         self.dnodeNums = 5
         self.independent = True
         self.startPort = 6030
