@@ -45,7 +45,7 @@ total_received_batches: Total number of data batches received via IPC Stream
 total_processed_batches: Total number of data batches successfully processed by taosx
 total_failed_batches: Total number of data batches failed to process
 total_processed_rows: Total number of rows successfully processed. (equal to the sum of the number of data rows contained in the batch containing data)
-total_inserted_sqls: Total number of INSERT SQLs executed by taosx
+total_inserted_sqls: Total number of INSERT SQLs successfully executed by taosx
 total_failed_sqls: Total number of INSERT SQLs failed to execute by taosx
 total_created_stables: Total number of super tables that taosX try to created. (may greater than successfully created super tables)
 total_created_tables: Total number of child tables that taosX try to created.(not include auto created child tables)
@@ -57,7 +57,7 @@ received_batches: Number of data batches received via IPC Stream in this task ru
 processed_batches: Number of data batches successfully processed by taosx in this task run
 failed_batches: Number of data batches failed to process in this task run
 processed_rows: Number of rows successfully processed in this task run. (equal to the sum of the number of data rows contained in the batch containing data)
-inserted_sqls: Number of INSERT SQLs execute by taosx in this task run
+inserted_sqls: Number of INSERT SQLs successfully execute by taosx in this task run
 failed_sqls: Number of INSERT SQLs failed to execute by taosx in this task run
 created_stables: Number of super tables that taosX try to created in this task run.(may greater than successfully created super tables)
 created_tables: Number of child tables that taosX try to created in this task run
