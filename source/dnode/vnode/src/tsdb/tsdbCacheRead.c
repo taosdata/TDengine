@@ -391,7 +391,10 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               if (!COL_VAL_IS_VALUE(&p->colVal)) {
                 hasNotNullRow = false;
               }
-              continue;
+              // For all of cols is null, the last null col of last table will be save 
+              if (i != pr->numOfTables - 1 || k != pr->numOfCols - 1 || hasRes) {
+                continue;
+              }
             }
 
             hasRes = true;
