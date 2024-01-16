@@ -2841,6 +2841,8 @@ void killTransImpl(SMnode* pMnode, int32_t transId, const char* pDbName) {
     mInfo("kill active transId:%d in Db:%s", transId, pDbName);
     mndKillTrans(pMnode, pTrans);
     mndReleaseTrans(pMnode, pTrans);
+  } else {
+    mError("failed to acquire trans in Db:%s, transId:%d", pDbName, transId);
   }
 }
 
@@ -2866,15 +2868,7 @@ int32_t doKillCheckpointTrans(SMnode *pMnode, const char *pDBName, size_t len) {
 
 static int32_t mndResetStatusFromCheckpoint(SMnode *pMnode, int64_t streamId, int32_t transId) {
   int32_t code = TSDB_CODE_SUCCESS;
-
-  STrans *pTrans = mndAcquireTrans(pMnode, transId);
-  if (pTrans != NULL) {
-    mInfo("kill checkpoint transId:%d to reset task status", transId);
-    mndKillTrans(pMnode, pTrans);
-    mndReleaseTrans(pMnode, pTrans);
-  } else {
-    mError("failed to acquire checkpoint trans:%d", transId);
-  }
+  killTransImpl(pMnode, transId, "");
 
   SStreamObj *pStream = mndGetStreamObj(pMnode, streamId);
   if (pStream == NULL) {
@@ -3100,7 +3094,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
         }
 
         if (p->checkpointFailed) {
-          mError("stream task:0x%" PRIx64 " checkpointId:%" PRIx64 " failed, transId:%d, kill it", p->id.taskId,
+          mError("stream task:0x%" PRIx64 " checkpointId:%" PRIx64 " transId:%d failed, kill it", p->id.taskId,
                  p->checkpointId, p->chkpointTransId);
 
           checkpointFailed = p->checkpointFailed;
