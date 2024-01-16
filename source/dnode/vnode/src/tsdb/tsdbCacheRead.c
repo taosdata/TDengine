@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "functionMgt.h"
 #include "taoserror.h"
 #include "tarray.h"
 #include "tcommon.h"
@@ -33,31 +34,69 @@ static void setFirstLastResColToNull(SColumnInfoData* pCol, int32_t row) {
   taosMemoryFree(buf);
 }
 
+static void saveOneRowForLastRaw(SLastCol* pColVal, SCacheRowsReader* pReader, const int32_t slotId,
+                                 SColumnInfoData* pColInfoData, int32_t numOfRows) {
+  SColVal*  pVal = &pColVal->colVal;
+
+  // allNullRow = false;
+  if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
+    if (!COL_VAL_IS_VALUE(&pColVal->colVal)) {
+      colDataSetNULL(pColInfoData, numOfRows);
+    } else {
+      varDataSetLen(pReader->transferBuf[slotId], pVal->value.nData);
+
+      memcpy(varDataVal(pReader->transferBuf[slotId]), pVal->value.pData, pVal->value.nData);
+      colDataSetVal(pColInfoData, numOfRows, pReader->transferBuf[slotId], false);
+    }
+  } else {
+    colDataSetVal(pColInfoData, numOfRows, (const char*)&pVal->value.val, !COL_VAL_IS_VALUE(pVal));
+  }
+  return;
+}
+
 static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pReader, const int32_t* slotIds,
                           const int32_t* dstSlotIds, void** pRes, const char* idStr) {
   int32_t numOfRows = pBlock->info.rows;
   // bool    allNullRow = true;
 
   if (HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST)) {
+
     uint64_t ts = TSKEY_MIN;
     SFirstLastRes* p = NULL;
     col_id_t colId = -1;
+
+    SArray* funcTypeBlockArray = taosArrayInit(pReader->numOfCols, sizeof(int32_t));
     for (int32_t i = 0; i < pReader->numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotIds[i]);
+      int32_t funcType = FUNCTION_TYPE_CACHE_LAST;
+      if (pReader->pFuncTypeList != NULL && taosArrayGetSize(pReader->pFuncTypeList) > i) {
+        funcType = *(int32_t*)taosArrayGet(pReader->pFuncTypeList, i);
+      }
+      taosArrayInsert(funcTypeBlockArray, dstSlotIds[i], taosArrayGet(pReader->pFuncTypeList, i));
+
       if (slotIds[i] == -1) {
+        if (FUNCTION_TYPE_CACHE_LAST_ROW == funcType) {
+          colDataSetNULL(pColInfoData, numOfRows);
+          continue;
+        }
         setFirstLastResColToNull(pColInfoData, numOfRows);
         continue;
       }
       int32_t   slotId = slotIds[i];
       SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, i);
       colId = pColVal->colVal.cid;
+
+      if (FUNCTION_TYPE_CACHE_LAST_ROW == funcType) {
+        saveOneRowForLastRaw(pColVal, pReader, slotId, pColInfoData, numOfRows);
+        continue;
+      }
+
       p = (SFirstLastRes*)varDataVal(pRes[i]);
 
       p->ts = pColVal->ts;
       ts = p->ts;
       p->isNull = !COL_VAL_IS_VALUE(&pColVal->colVal);
       // allNullRow = p->isNull & allNullRow;
-
       if (!p->isNull) {
         if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
           varDataSetLen(p->buf, pColVal->colVal.value.nData);
@@ -77,6 +116,13 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
     }
     for (int32_t idx = 0; idx < taosArrayGetSize(pBlock->pDataBlock); ++idx) {
       SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, idx);
+      if (idx < funcTypeBlockArray->size) {
+			  int32_t funcType = *(int32_t*)taosArrayGet(funcTypeBlockArray, idx);
+        if (FUNCTION_TYPE_CACHE_LAST_ROW == funcType) {
+          continue;
+        }
+      }
+
       if (pCol->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID && pCol->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
         if (ts == TSKEY_MIN) {
           colDataSetNULL(pCol, numOfRows);
@@ -95,6 +141,7 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
 
     // pBlock->info.rows += allNullRow ? 0 : 1;
     ++pBlock->info.rows;
+    taosArrayDestroy(funcTypeBlockArray);
   } else if (HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST_ROW)) {
     for (int32_t i = 0; i < pReader->numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotIds[i]);
@@ -105,21 +152,8 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
         continue;
       }
       SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, i);
-      SColVal*  pVal = &pColVal->colVal;
 
-      // allNullRow = false;
-      if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
-        if (!COL_VAL_IS_VALUE(&pColVal->colVal)) {
-          colDataSetNULL(pColInfoData, numOfRows);
-        } else {
-          varDataSetLen(pReader->transferBuf[slotId], pVal->value.nData);
-
-          memcpy(varDataVal(pReader->transferBuf[slotId]), pVal->value.pData, pVal->value.nData);
-          colDataSetVal(pColInfoData, numOfRows, pReader->transferBuf[slotId], false);
-        }
-      } else {
-        colDataSetVal(pColInfoData, numOfRows, (const char*)&pVal->value.val, !COL_VAL_IS_VALUE(pVal));
-      }
+      saveOneRowForLastRaw(pColVal, pReader, slotId, pColInfoData, numOfRows);
     }
 
     // pBlock->info.rows += allNullRow ? 0 : 1;
@@ -175,7 +209,8 @@ int32_t tsdbReuseCacherowsReader(void* reader, void* pTableIdList, int32_t numOf
 }
 
 int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, int32_t numOfTables, int32_t numOfCols,
-                                SArray* pCidList, int32_t* pSlotIds, uint64_t suid, void** pReader, const char* idstr) {
+                                SArray* pCidList, int32_t* pSlotIds, uint64_t suid, void** pReader, const char* idstr,
+                                SArray* pFuncTypeList) {
   *pReader = NULL;
   SCacheRowsReader* p = taosMemoryCalloc(1, sizeof(SCacheRowsReader));
   if (p == NULL) {
@@ -190,6 +225,7 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
   p->numOfCols = numOfCols;
   p->pCidList = pCidList;
   p->pSlotIds = pSlotIds;
+  p->pFuncTypeList = pFuncTypeList;
 
   if (numOfTables == 0) {
     *pReader = p;

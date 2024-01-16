@@ -250,7 +250,7 @@ class TDTestCase:
                 "last_row(c1), last(c1)",
                 "last_row(c1), c1,c3, ts"
                 ]
-        has_last_row_scan_res = [0,0,1]
+        has_last_row_scan_res = [1,1,1]
         sqls = self.format_sqls(sql_template, select_items)
         self.explain_and_check_res(sqls, has_last_row_scan_res)
         #res_expect = [None, None, [999, 999, 499, "2018-11-25 19:30:00.000"]]

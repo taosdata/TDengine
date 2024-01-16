@@ -82,6 +82,7 @@ typedef struct SColMatchItem {
   int32_t   dstSlotId;
   bool      needOutput;
   SDataType dataType;
+  int32_t   funcType;
 } SColMatchItem;
 
 typedef struct SColMatchInfo {

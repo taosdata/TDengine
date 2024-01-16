@@ -2127,7 +2127,7 @@ bool getGroupKeyFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
 }
 
 static FORCE_INLINE TSKEY getRowPTs(SColumnInfoData* pTsColInfo, int32_t rowIndex) {
-  if (pTsColInfo == NULL) {
+  if (pTsColInfo == NULL || pTsColInfo->pData == NULL) {
     return 0;
   }
 
