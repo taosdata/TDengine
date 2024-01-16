@@ -1,3 +1,5 @@
+use linked_hash_map::LinkedHashMap;
+use serde_json::json;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -51,8 +53,35 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     }
 }
 
-pub async fn get_sample(dsn: Dsn) -> anyhow::Result<DsSampleIn> {
-    todo!()
+pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
+    let table = TaskConfig::parse_table(dsn)?;
+    let connect_config = ConnectConfig::from_dsn(dsn)?;
+    let mut client = HistorianQuery::try_new(connect_config).await?;
+
+    let table_meta = client.get_table_meta(table).await?;
+
+    let mut input_sample = LinkedHashMap::new();
+    let mut parse_sample = LinkedHashMap::new();
+    for col in table_meta.columns {
+        input_sample.insert(col.name.clone(), json!(""));
+        parse_sample.insert(col.name.clone(), json!({"as": col.data_type}));
+    }
+
+    let sample_json = json!({
+        "input": vec![input_sample],
+        "parser": {
+            "parse": parse_sample,
+        }
+    });
+
+    let ds_sample_in: DsSampleIn = serde_json::from_value(sample_json.clone()).map_err(|err| {
+        anyhow::anyhow!(
+            "failed to parse sample data, cause: {}, value: {:?}",
+            err.to_string(),
+            sample_json
+        )
+    })?;
+    Ok(ds_sample_in)
 }
 
 pub async fn historian_to_taos(
@@ -240,6 +269,24 @@ mod tests {
         assert_eq!(false, res.support);
         assert_eq!("historian", res.data_source);
         assert_eq!("failed to connect to dsn: historian://aaAdmin:aaAdmin@127.0.0.1, cause: Connection refused (os error 61)", res.message.unwrap());
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_get_sample() {
+        let dsn = Dsn::from_str(
+            "historian://aaAdmin:aaAdmin@192.168.3.40:1433?mode=synchronize&table=Runtime.dbo.History",
+        )
+            .unwrap();
+        let actual: DsSampleIn = get_sample(&dsn).await.unwrap();
+        println!("{}", serde_json::to_string_pretty(&actual).unwrap());
+
+        let dsn = Dsn::from_str(
+            "historian://aaAdmin:aaAdmin@192.168.3.40:1433?mode=synchronize&table=Runtime.dbo.Live",
+        )
+        .unwrap();
+        let actual: DsSampleIn = get_sample(&dsn).await.unwrap();
+        println!("{}", serde_json::to_string_pretty(&actual).unwrap());
     }
 
     #[ignore]

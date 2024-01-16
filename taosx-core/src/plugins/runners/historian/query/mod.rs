@@ -1,3 +1,6 @@
+use std::str::FromStr;
+
+use anyhow::bail;
 use chrono::{DateTime, Local, Utc};
 use itertools::Itertools;
 use tiberius::{AuthMethod, Client, Config, QueryItem, QueryStream};
@@ -5,9 +8,14 @@ use tokio::net::TcpStream;
 use tokio_stream::StreamExt;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
+use taosx_ipc::prelude::IpcDataType;
+
 use crate::runners::historian::config::connect::ConnectConfig;
+use crate::runners::historian::config::HistorianTable;
+use crate::runners::historian::query::table::{ColumnMeta, TableMeta};
 use crate::runners::historian::query::tag::TagMeta;
 
+mod table;
 mod tag;
 
 pub struct HistorianQuery {
@@ -48,6 +56,32 @@ impl HistorianQuery {
         }
 
         Ok(tag_meta)
+    }
+
+    pub async fn get_table_meta(&mut self, table: HistorianTable) -> anyhow::Result<TableMeta> {
+        let sql = match table {
+            HistorianTable::History => "exec sp_columns History".to_string(),
+            HistorianTable::Live => "exec sp_columns Live".to_string(),
+        };
+        let mut rows = self.client.query(sql, &[]).await?.into_row_stream();
+
+        let mut columns = Vec::new();
+        while let Some(row) = rows.try_next().await? {
+            let name = row.try_get::<&str, _>("COLUMN_NAME")?.unwrap();
+            let data_type = row.try_get::<&str, _>("TYPE_NAME")?.unwrap();
+            let precision = row.try_get::<i32, _>("PRECISION")?.unwrap();
+
+            let col = ColumnMeta {
+                name: name.to_string(),
+                data_type: to_ipc_data_type(data_type, precision)?,
+            };
+            columns.push(col);
+        }
+
+        Ok(TableMeta {
+            name: table.to_string(),
+            columns,
+        })
     }
 
     pub async fn query_live(&mut self, tags: Vec<String>) -> anyhow::Result<QueryStream> {
@@ -112,6 +146,30 @@ impl HistorianQuery {
 
         Ok(client)
     }
+}
+
+fn to_ipc_data_type(data_type: &str, precision: i32) -> anyhow::Result<IpcDataType> {
+    let db_type = match data_type {
+        "datetime2" => "timestamp(ms)".to_string(),
+        "nvarchar" => format!("varchar({})", precision).to_string(),
+        "tinyint" => "tinyint".to_string(),
+        "int" => "int".to_string(),
+        "float" => "double".to_string(),
+        _ => bail!(
+            "unsupported data type: {}, precision: {}",
+            data_type,
+            precision
+        ),
+    };
+
+    IpcDataType::from_str(db_type.as_str()).map_err(|err| {
+        anyhow::anyhow!(
+            "failed to convert data type: {}, precision: {}, cause: {}",
+            data_type,
+            precision,
+            err.to_string()
+        )
+    })
 }
 
 /// parameter: tag_conditions like: ["tag1", "tag2", "HD*", "ABC*"]
@@ -214,6 +272,33 @@ mod tests {
         let mut client = HistorianQuery::try_new(config).await.unwrap();
         let tag_meta = client.get_tags(vec!["*".to_string()]).await.unwrap();
         dbg!(tag_meta);
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_query_table_meta() {
+        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433").unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let mut client = HistorianQuery::try_new(config).await.unwrap();
+        let table_meta = client
+            .get_table_meta(HistorianTable::History)
+            .await
+            .unwrap();
+        assert_eq!("Runtime.dbo.History", table_meta.name);
+        assert_eq!(33, table_meta.columns.len());
+        assert_eq!("DateTime", table_meta.columns[0].name);
+        assert_eq!("timestamp", table_meta.columns[0].data_type.to_string());
+        assert_eq!("TagName", table_meta.columns[1].name);
+        assert_eq!("varchar(256)", table_meta.columns[1].data_type.to_string());
+
+        let table_meta = client.get_table_meta(HistorianTable::Live).await.unwrap();
+        assert_eq!("Runtime.dbo.Live", table_meta.name);
+        assert_eq!(18, table_meta.columns.len());
+        assert_eq!("DateTime", table_meta.columns[0].name);
+        assert_eq!("timestamp", table_meta.columns[0].data_type.to_string());
+        assert_eq!("TagName", table_meta.columns[1].name);
+        assert_eq!("varchar(256)", table_meta.columns[1].data_type.to_string());
     }
 
     #[tokio::test]
