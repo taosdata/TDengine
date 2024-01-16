@@ -3026,11 +3026,11 @@ static void updateStageInfo(STaskStatusEntry *pTaskEntry, int64_t stage) {
 }
 
 int32_t mndProcessStreamHb(SRpcMsg *pReq) {
-  SMnode *     pMnode = pReq->info.node;
+  SMnode      *pMnode = pReq->info.node;
   SStreamHbMsg req = {0};
 
   bool    checkpointFailed = false;
-  int64_t activeCheckpointId = 0;
+  int64_t checkpointId = 0;
   int64_t streamId = 0;
   int32_t transId = 0;
 
@@ -3092,14 +3092,17 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       }
 
       streamTaskStatusCopy(pTaskEntry, p);
-      if (p->activeCheckpointId != 0) {
-        if (activeCheckpointId != 0) {
-          ASSERT(activeCheckpointId == p->activeCheckpointId);
+      if (p->checkpointId != 0) {
+        if (checkpointId != 0) {
+          ASSERT(checkpointId == p->checkpointId);
         } else {
-          activeCheckpointId = p->activeCheckpointId;
+          checkpointId = p->checkpointId;
         }
 
         if (p->checkpointFailed) {
+          mError("stream task:0x%" PRIx64 " checkpointId:%" PRIx64 " failed, transId:%d, kill it", p->id.taskId,
+                 p->checkpointId, p->chkpointTransId);
+
           checkpointFailed = p->checkpointFailed;
           streamId = p->id.streamId;
           transId = p->chkpointTransId;
@@ -3121,17 +3124,17 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   // current checkpoint is failed, rollback from the checkpoint trans
   // kill the checkpoint trans and then set all tasks status to be normal
-  if (checkpointFailed && activeCheckpointId != 0) {
+  if (checkpointFailed && checkpointId != 0) {
     bool    allReady = true;
     SArray *p = mndTakeVgroupSnapshot(pMnode, &allReady);
     taosArrayDestroy(p);
 
     if (allReady || snodeChanged) {
       // if the execInfo.activeCheckpoint == 0, the checkpoint is restoring from wal
-      mInfo("checkpointId:%" PRId64 " failed, issue task-reset trans to reset all tasks status", activeCheckpointId);
+      mInfo("checkpointId:%" PRId64 " failed, issue task-reset trans to reset all tasks status", checkpointId);
       mndResetStatusFromCheckpoint(pMnode, streamId, transId);
     } else {
-      mInfo("not all vgroups are ready, wait for next HB from stream tasks");
+      mInfo("not all vgroups are ready, wait for next HB from stream tasks to reset the task status");
     }
   }
 
@@ -3145,6 +3148,7 @@ void freeCheckpointCandEntry(void *param) {
   SCheckpointCandEntry *pEntry = param;
   taosMemoryFreeClear(pEntry->pName);
 }
+
 SStreamObj *mndGetStreamObj(SMnode *pMnode, int64_t streamId) {
   void *      pIter = NULL;
   SSdb *      pSdb = pMnode->pSdb;

@@ -360,6 +360,8 @@ int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId) {
 
 void streamTaskSetCheckpointFailedId(SStreamTask* pTask) {
   pTask->chkInfo.failedId = pTask->chkInfo.checkpointingId;
+  stDebug("s-task:%s mark the checkpointId:%" PRId64 " (transId:%d) failed", pTask->id.idStr,
+          pTask->chkInfo.checkpointingId, pTask->chkInfo.transId);
 }
 
 int32_t getChkpMeta(char* id, char* path, SArray* list) {
