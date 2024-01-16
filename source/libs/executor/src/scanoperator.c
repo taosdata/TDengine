@@ -1057,7 +1057,6 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
       // if no data, switch to next table and continue scan
       pInfo->currentTable++;
-      pInfo->tableEndIndex++;
 
       taosRLockLatch(&pTaskInfo->lock);
       numOfTables = tableListGetSize(pInfo->base.pTableListInfo);
@@ -1169,7 +1168,6 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->currentGroupId = -1;
 
   pInfo->tableEndIndex = -1;
-  pInfo->currentGroupIndex = -1;
   pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
   pInfo->hasGroupByTag = pTableScanNode->pGroupTags ? true : false;
 
@@ -2169,7 +2167,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
     pTSInfo->scanTimes = 0;
     pTSInfo->currentGroupId = -1;
-    pTSInfo->tableEndIndex = -1;
   }
 
   if (pStreamInfo->recoverStep == STREAM_RECOVER_STEP__SCAN1) {

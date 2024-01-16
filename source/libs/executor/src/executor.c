@@ -1265,7 +1265,6 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
           uid = pTableInfo->uid;
           ts = INT64_MIN;
           pScanInfo->currentTable = 0;
-          pScanInfo->tableEndIndex = 0;
         } else {
           taosRUnLockLatch(&pTaskInfo->lock);
           qError("no table in table list, %s", id);
@@ -1286,7 +1285,6 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
       if (index >= 0) {
         pScanInfo->currentTable = index;
-        pScanInfo->tableEndIndex = index;
       } else {
         qError("vgId:%d uid:%" PRIu64 " not found in table list, total:%d, index:%d %s", pTaskInfo->id.vgId, uid,
                numOfTables, pScanInfo->currentTable, id);
