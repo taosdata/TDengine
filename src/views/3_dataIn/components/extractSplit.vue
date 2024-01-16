@@ -73,7 +73,7 @@
     </div>
     <ul class="col-list" v-if="tableColumns.length > 0">
       <li v-for="(item, index) in tableColumns.slice(0, 9)" :key="index">
-        <template v-if="item.value">
+        <!-- <template v-if="item.value">
           <el-tooltip
             class="item"
             effect="light"
@@ -82,8 +82,8 @@
           >
             <span>{{ item.name }}</span>
           </el-tooltip>
-        </template>
-        <span v-else>{{ item.name }}</span>
+        </template> -->
+        <span>{{ item.name }}</span>
       </li>
       <li v-if="tableColumns.length > 9" @click="showResultTable">
         <el-tooltip
@@ -180,17 +180,37 @@ export default {
   },
   methods: {
     //提交验证
-    validateExtreact() {},
+    validateExtreact() {
+      let isbreak=false
+      if (this.ruleForm.filter_name == "split") {
+        this.$refs.splitExpression.submit();
+        if (!this.$refs.splitExpression.isValid) {
+          isbreak=true;
+        }
+      }else{
+        if(this.ruleForm.filter_expres){
+          this.$refs.extractForm.validate(valid=>{
+            if(valid){
+              return true
+            }else{
+              return false
+            }
+          })
+          isbreak=true
+        }
+      }
+      return isbreak
+    },
     async showResultTable() {
       // await this.submitExtract();
       await this.submitExtract(true);
-      this.$nextTick(() => {
-        if (document.querySelector(".transdescription")) {
-          let dom = document.querySelector(".transdescription");
-          let top = 2200; //dom.offsetTop + document.body.scrollHeight;
-          this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
-        }
-      });
+      // this.$nextTick(() => {
+      //   if (document.querySelector(".transdescription")) {
+      //     let dom = document.querySelector(".transdescription");
+      //     let top = 2200; //dom.offsetTop + document.body.scrollHeight;
+      //     this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
+      //   }
+      // });
       this.$store.commit("app/SET_TRANS_RESULT_NAME", this.itemData.columnname);
     },
     changeExtractExpr(val) {
@@ -318,6 +338,7 @@ export default {
             transformerColumns
           );
           //获取全部的extract or split参数
+          this.$store.commit('app/SET_RESULTTB_SHOW',true)
           this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
           let pageindex = Object.keys(this.$store.state.app.transformresulttable[0]).findIndex(
             (item) => item== Object.keys(this.tableData[0])[0]
@@ -451,6 +472,12 @@ export default {
       this.extractParseData = {
         extract: {},
       };
+      let currentextractArr=deepClone(this.$parent.extractArr)
+      if(this.tableColumns.length>0){
+        //有列说明已经请求过需要区分split和regex，作为api参数
+      }else{
+        // api参数需要过滤掉
+      }
       deepClone(this.$parent.extractArr)
         .map((item) => {
           let splitobj = Object.fromEntries(
@@ -513,6 +540,7 @@ export default {
               )
           : inputList,
       };
+      console.log(this.$store.state.app.topParse.parser.parse,'top-----parse');
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);
 
       await this.getParserData(parser, isall);

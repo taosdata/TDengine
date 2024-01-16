@@ -101,7 +101,7 @@
               <el-input
                 v-else
                 v-model="parseruleForm.expression"
-                :placeholder="$t('datasource.transformer.expre_input')"
+                :placeholder="parseruleForm.type=='json'?$t('datasource.transformer.expre_input'):'(?<y>[0-9]{4})-(?<m>[0-9]{2})-(?<d>[0-9]{2})'"
                 size="small"
               ></el-input>
               <!-- :disabled="$parent.$parent.$parent.isEditable" -->
@@ -143,14 +143,14 @@
           ]"
         >
           <li v-for="(item, index) in columnsArr.slice(0, 9)" :key="index">
-            <el-tooltip
+            <!-- <el-tooltip
               class="item"
               effect="light"
               :content="item.value"
               placement="top-start"
-            >
+            > -->
               <span>{{ item.name }}</span>
-            </el-tooltip>
+            <!-- </el-tooltip> -->
           </li>
           <li v-if="columnsArr.length > 9">
             <el-tooltip
@@ -616,6 +616,8 @@ export default {
       return flag;
     },
     showIndentifyResulttb() {
+      this.$store.commit('app/SET_RESULTTB_SHOW',true)
+      console.log(this.$store.state.app.showresulttb,'现实与否');
       if (this.$store.state.app.currentDBType == "csv") {
         this.$nextTick(() => {
           if (document.querySelector(".transdescription")) {
@@ -674,6 +676,10 @@ export default {
         if(this.$store.state.app.currentDBType == "csv"){
           console.log(this.$store.state.app.csvTransformerParser,'csv的----9999');
         }
+        // if (this.filterArr.length > 0) {
+        // }
+        // if (this.extractArr.length > 0) {
+        // }
         let topparser = {
           parser: {
             parse: {
@@ -753,16 +759,17 @@ export default {
               .filter((f) => !hiddenCols.includes(f[0]))
           );
         });
+        
         this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
         if (this.filterArr.length > 0) {
-          this.$refs.filter[0].submitFilter();
+         await this.$refs.filter[0].submitFilter();
         }
         if (this.extractArr.length > 0) {
-          this.$refs.extract[0].submitExtract(true);
+         await this.$refs.extract[0].submitExtract(true);
         }
-        this.$store.commit("app/SET_ACTIVE_COLS", Object.keys(tbdata[0]));
+        this.$store.commit("app/SET_ACTIVE_COLS", []);
         this.$store.commit("app/SET_RESULT_PAGE", 1);
-        
+        console.log(this.$store.state.app.activeColumns,'高亮的列集合');
         this.columnsArr = (
           this.$store.state.app.currentDBType == "csv"
             ? result[0].fields
@@ -856,7 +863,8 @@ export default {
       this.parseruleForm.type = Object.keys(
         value.parser.parse[tagKey]
       ).toString();
-      this.parseruleForm.expression = Object.values(value.parser.parse[tagKey])
+      this.parseruleForm.expression =this.parseruleForm.type=='regex'?Object.values(value.parser.parse[tagKey])
+        .toString(): Object.values(value.parser.parse[tagKey])
         .toString()
         .replace(",", ";");
       await this.submitParse();
@@ -1307,6 +1315,7 @@ export default {
           resultMsgbody = this.msgForm.msgbody.split(";");
         }
       }
+      console.log(resultMsgbody,'resultMsgbody');
       inputList = resultMsgbody.map((msg) => {
         let inputobj = {};
         this.indentifiedColumns.forEach((item) => {
@@ -1332,6 +1341,7 @@ export default {
         });
         return inputobj;
       });
+      console.log(inputList,'inputList');
       return inputList;
     },
     submitSuper(data) {
