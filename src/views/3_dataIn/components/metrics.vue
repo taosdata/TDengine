@@ -76,9 +76,18 @@ export default {
       this.disconnect();
       
       const base_api = process.env.VUE_APP_BASE_URL
-      const proto = base_api.startsWith('https') ? 'wss' : 'ws'
-      let host = base_api.replace(/https?:\/\//, '')
-      const wsUri = `${proto}://${host}/api/x/metrics/task/${this.taskId}`
+      let proto = ''
+      let host = ''
+      let wsUri = ''
+      if (base_api) {
+        proto = base_api.startsWith('https') ? 'wss' : 'ws';
+        host = base_api.replace(/https?:\/\//, '')
+      } else {
+        const { location } = window;
+        proto = location.protocol.startsWith("https") ? "wss" : "ws";
+        host = location.host;
+      }
+      wsUri = `${proto}://${host}/api/x/metrics/task/${this.taskId}`
 
       this.socket = new WebSocket(wsUri);
       console.log("Connecting...");
