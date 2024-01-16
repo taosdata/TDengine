@@ -68,7 +68,7 @@ class TDTestCase(TBase):
         clusterDnodes.starttaosd(1)
         clusterDnodes.starttaosd(2)
         clusterDnodes.starttaosd(3)
-
+        sql = "show vnodes;"
         time.sleep(10)
         while True:
             bFinish = True
