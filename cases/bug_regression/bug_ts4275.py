@@ -37,6 +37,7 @@ class TestTs4275(TDCase):
         for tag in tag_list:
             self.tdSql.query(f'select time,`tag` from {self.dbname}.{self.stbname} where `tag`="{tag}"')
             print(f'---\n{pd.DataFrame(self.tdSql.query_data).to_string(index=False, header=False)}\n---\n')
+
     def cleanup(self):
         pass
 
