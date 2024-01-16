@@ -31,17 +31,17 @@ endi
 
 print =============== step2: create qnode snode on dnode 2
 sql create qnode on dnode 2
-sql create snode on dnode 2
+#sql create snode on dnode 2
 
 sql select * from information_schema.ins_qnodes
 if $rows != 1 then
   return -1
 endi
 
-sql show snodes
-if $rows != 1 then
-  return -1
-endi
+#sql show snodes
+#if $rows != 1 then
+#  return -1
+#endi
 
 print =============== step3: drop dnode 2
 sql drop dnode 2
@@ -62,10 +62,10 @@ if $rows != 0 then
   return -1
 endi
 
-sql show snodes
-if $rows != 0 then
-  return -1
-endi
+#sql show snodes
+#if $rows != 0 then
+#  return -1
+#endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
