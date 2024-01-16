@@ -95,7 +95,8 @@ const state = {
   transformerfullparams:null,
   transresultname:'',
   activeColumns:[],
-  resultCurrentPage:1
+  resultCurrentPage:1,
+  showresulttb:false
   
 };
 const saveKey = encodeURIComponent("appId");
@@ -123,6 +124,9 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_RESULTTB_SHOW:(state,data)=>{
+    state.showresulttb=data
+  },
   SET_RESULT_PAGE:(state,data)=>{
     state.resultCurrentPage=data
   },

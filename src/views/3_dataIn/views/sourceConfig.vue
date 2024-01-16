@@ -322,6 +322,7 @@ export default {
           this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
           this.$store.commit("app/SET_TRANS_FULL_PARAMS", null);
           this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", 0);
+          this.$store.commit('app/SET_RESULTTB_SHOW',false)
         }
         if (val == "kafka" || val == "mqtt") {
           // this.$set(this, "constmqttCols", []);

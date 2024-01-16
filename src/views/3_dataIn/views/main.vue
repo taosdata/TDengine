@@ -5,7 +5,6 @@
         <el-tab-pane
           name="datasource"
           :label="$t('topic.datasource')"
-          v-if="!isOem"
         >
           <DbSource ref="dbsource"></DbSource>
         </el-tab-pane>
@@ -50,6 +49,7 @@ export default {
   },
   methods: {
     async clickTab() {
+      console.log(this.$refs.dbsource,'this.$refs.dbsource----333');
       this.$refs.dbsource.currentName = "dbsource";
       if (this.active == "datasource") {
         await this.$refs.dbsource.getData();

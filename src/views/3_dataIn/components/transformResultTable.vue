@@ -44,6 +44,7 @@ export default {
   },
   data() {
     return {
+      loading: true,
       isFixed: false,
       columns: ["Name", "Output1", "Output2", "Output3"],
       tableData: [],
@@ -63,7 +64,7 @@ export default {
       this.$store.state.app.transresultname
     ) {
       this.getResultData(this.$store.state.app.transformresulttable);
-      this.showtable = true;
+
       this.handleScroll();
     }
     const mainDom = document.querySelector(".main_content");
@@ -87,7 +88,12 @@ export default {
           let top = scrollTop >= dom.offsetTop ? scrollTop : dom.offsetTop;
           this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
           if (this.$refs.result) {
-            this.$refs.result.style.top = top - 200 + "px";
+            if(this.$store.state.app.currentDBType=='csv'){
+                this.$refs.result.style.top = top +"px";
+            }else{
+                this.$refs.result.style.top = top - 200 + "px";
+            }
+            
             // this.$refs.result.style.bottom=70+'px'
           }
         }
@@ -143,14 +149,21 @@ export default {
           });
           return final;
         });
-      this.$nextTick(() => {
-        const targetRow = document.querySelector("tr.el-table__row.active-row");
+      const timer = setTimeout(() => {
+        clearTimeout(timer)
+        const targetRow =
+          this.$store.state.app.activeColumns.length > 0
+            ? document.querySelector("tr.el-table__row.active-row")
+            : document.querySelector("tr.el-table__row");
         if (targetRow) {
-            const bound = targetRow.getBoundingClientRect()
-            const y = bound.y
-            this.$el.querySelector('.el-table__body-wrapper').scrollTo(0, y)
+          if (this.$store.state.app.activeColumns.length > 0) {
+            const y = targetRow.offsetTop;
+            this.$el.querySelector(".el-table__body-wrapper").scrollTo(0, y);
+          } else {
+            this.$el.querySelector(".el-table__body-wrapper").scrollTo(0, 0);
+          }
         }
-      });
+      }, 200);
       this.setPageTableData();
     },
   },
@@ -165,14 +178,21 @@ export default {
         }
       },
     },
+    "$store.state.app.showresulttb": {
+      deep: true,
+      handler(val, oldval) {
+        this.showtable = val;
+      },
+    },
     "$store.state.app.transformresulttable": {
       deep: true,
       handler(val) {
-        this.showtable = false;
         if (val && val.length > 0 && this.$store.state.app.transresultname) {
-          this.showtable = true;
           this.handleScroll();
           this.getResultData(val);
+        } else {
+          this.$set(this, "pageTableData", []);
+          this.$set(this, "tableData", []);
         }
       },
     },

@@ -1078,7 +1078,7 @@ export default {
       3. <strong>Regex</strong>: 用户可以在正则表达式模式中使用命名捕获组来从任何字符串（文本）字段中提取多个字段。例如，正则表达式模式<em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em>将提取3个字段 y、m 和 d。更多的命名捕获组（named capture groups）的说明和测试可以在这里得到：<em>http://regex101.com/</em> （使用 Rust 实现）<br/>`,
       filterdesc: `<strong>taosX 内置一个功能丰富的表达式引擎。Filter 过滤器使用布尔类型进行过滤判断。当表达式为 false 的行将被过滤掉。</strong><br/>
       - <strong>布尔类型</strong>： bool_value 可直接使用 BOOL 类型的变量名作为表达式。<br/>
-      - <strong>比较</strong>： 当 a b 字段都不为空时，可以进行  a > b 等比较操作，支持 > >= < <= && || 等操作。<br/>
+      - <strong>比较</strong>： 当 a b 字段都不为空时，可以进行  a > b 等比较操作，支持 >、 >=、 < 、<= && || 等操作。<br/>
       - <strong>函数</strong>：支持返回值为布尔类型的函数，如字符串包含：s.contains("abc") 。<br/>`,
       uploadexe: "请上传csv文件并执行下一步操作",
       sp: "请选则目标超级表",
