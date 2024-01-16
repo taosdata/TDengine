@@ -239,7 +239,6 @@ impl PutStream {
                 {
                     metrics.add_failed_batches(1);
                     tracing::warn!(
-                        trace_id = %get_data_trace_id_str(trace_id),
                         error = format!("{:#}", err),
                         backtrace = %err.backtrace(),
                         "Writing batch {} error",
