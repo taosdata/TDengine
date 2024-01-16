@@ -41,6 +41,7 @@ class TDTestCase(TBase):
         etool.benchMark(json=jfile)
 
         tdSql.execute(f"use {self.db}")
+        tdSql.execute("select database();")
         # set insert data information
         self.childtable_count = 6
         self.insert_rows      = 100000
