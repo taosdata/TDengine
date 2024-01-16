@@ -21,14 +21,13 @@
       <li>
         <span class="odbc-span">
           {{ $t('docs.connector.odbc.step11desc1') }}
-          <a :href="`https://docs.${urlPart}.com/releases/tdengine/`">{{ $t('docs.connector.odbc.step11desc2') }}</a
+          <a :href="`https://learn.microsoft.com${biURLPart}/cpp/windows/latest-supported-vc-redist?view=msvc-170`">{{ $t('docs.connector.odbc.step11desc2') }}</a
           >{{ $t('docs.connector.odbc.step11desc3') }}
         </span>
       </li>
       <li>
         <span class="odbc-span">
-          {{ $t('docs.connector.odbc.step11desc1') }}
-          <a :href="`https://docs.${urlPart}.com/releases/tdengine/`">{{ $t('docs.connector.odbc.step12desc1') }}</a
+          {{ $t('docs.connector.odbc.step12desc1') }}<a :href="`https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-${TDengineVersion}-Windows-x64.exe`">Windows</a
           >{{ $t('docs.connector.odbc.step12desc2') }}
         </span>
       </li>
@@ -53,7 +52,11 @@
         </div>
         <div class="gf-input">
           <div class="gf-input-label">{{ $t('docs.connector.odbc.step23desc8') }}</div>
-          <div class="gf-input-value">{{ $t('docs.connector.odbc.step23desc9') }}</div>
+          <CopyText
+            :text="endpoint"
+            :isShowBtnText="true"
+            class="gf-input-value"
+          />
         </div>
         <div class="gf-input">
           <div class="gf-input-label">{{ $t('docs.connector.odbc.step23desc6') }}</div>
@@ -67,13 +70,6 @@
           <div class="gf-input-label">{{ $t('docs.connector.odbc.step23desc12') }}</div>
           <div class="gf-input-value">{{ $t('docs.connector.odbc.step23desc13') }}</div>
         </div>
-        <!-- <div class="gf-input">
-          <div class="gf-input-label">{{ $t('docs.connector.odbc.step23desc5') }}</div>
-          <CopyText
-            :text="endpoint"
-            class="gf-input-value"
-          />
-        </div> -->
       </li>
       <li>
         <span class="odbc-span">{{ $t('docs.connector.odbc.step24desc', [endpoint]) }}</span>
@@ -155,20 +151,20 @@ export default {
   },
   computed: {
     endpoint() {
-      return `${this.url}?token=${this.token}`;
+      return `taos://${this.url.replace(/https?:\/\//, '')}`;
     },
     urlPart() {
       return this.$i18n.locale.includes('en') ?"tdengine": "taosdata";
     },
     TDengineVersion() {
-      return this.$store.state.app.current_cluster?.image_version;
+      return localStorage.getItem('agent_version')
     },
     biURLPart() {
       return this.$i18n.locale.includes('en') ? '/en-us' : '/zh-cn';
     },
     docsPart() {
       return this.$i18n.locale.includes('en') ? 'docs-en' : 'docs'
-    }
+    },
   }
 };
 </script>
