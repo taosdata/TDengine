@@ -1354,6 +1354,7 @@ async fn consume_point_record(
                                 taos.replace(pool.get().await?);
                                 retry += 1;
                             } else {
+                                metrics.add_failed_sqls(1);
                                 Err(err)?;
                                 break;
                             }
