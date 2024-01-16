@@ -15,7 +15,7 @@ from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.components import TaosD
 from taostest.util.remote import Remote
-import taos
+import pandas as pd
 
 class TestTs4275(TDCase):
     def init(self):
@@ -35,8 +35,9 @@ class TestTs4275(TDCase):
         self.tdSql.query(f'select `tag` from (select count(*) as cc,`tag` from {self.dbname}.{self.stbname} partition by `tag`) where cc>=2; ')
         tag_list = list(map(lambda x:x[0], self.tdSql.query_data))
         for tag in tag_list:
-            self.tdSql.query(f'select time,`tag` from {self.dbname}.{self.stbname} where `tag`={tag}')
-            print(self.tdSql.query_data)
+            self.tdSql.query(f'select time,`tag` from {self.dbname}.{self.stbname} where `tag`="{tag}"')
+            print(f'---\n{pd.DataFrame(self.tdSql.query_data).to_string(index=False, header=False)}\n---\n')
+
     def cleanup(self):
         pass
 
