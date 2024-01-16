@@ -1053,7 +1053,9 @@ pub async fn sync_super_table_schema(
                     from.exec(format!("desc `{target_name}`")).await?;
                     continue;
                 }
-                0x2600 => {
+                0x2600 | 0x2601 => {
+                    // 0x2600: Syntax error
+                    // 0x2601: Incomplete SQL statement
                     sync_super_table_schema_only_fallback(from, name, to, remap, actions).await?;
                     break;
                 }
@@ -1373,12 +1375,18 @@ fn transform_sql_with_actions(
                     sql.push_str(&format!(", `{}` VARCHAR({}))", action.name, len));
                 }
                 Action::RenameTable(action) => {
-                    let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name)?);
+                    let new = sql.replace(
+                        &format!("`{table_name}`",),
+                        &format!("`{}`", action.apply(table_name)?),
+                    );
                     sql.clear();
                     sql.extend(new.chars());
                 }
                 Action::RenameSuperTable(action) => {
-                    let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name)?);
+                    let new = sql.replace(
+                        &format!("`{table_name}`",),
+                        &format!("`{}`", action.apply(table_name)?),
+                    );
                     sql.clear();
                     sql.extend(new.chars());
                 }
@@ -1489,7 +1497,7 @@ async fn sync_normal_table_schema(
         .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS");
 
     if let Err(err) = from.exec(&sql).await {
-        if err.code() == 0x2600 {
+        if err.code() == 0x2600 || err.code() == 0x2601 {
             let desc = from.describe(name).await?;
             sql = desc.to_create_table_sql(name);
         }
@@ -1506,7 +1514,7 @@ async fn sync_normal_table_schema(
                 0x000B => {
                     break;
                 }
-                0x2600 => {
+                0x2600 | 0x2601 => {
                     sync_normal_table_schema_fallback(from, name, actions, remap, to).await?;
                     break;
                 }
@@ -3514,5 +3522,62 @@ mod tests {
 
         assert_eq!(get_precision(String::from("PRECISION 'ms' REPLICA 1")), get_precision(String::from("CREATE DATABASE `test2` REPLICA 1 QUORUM 1 DAYS 10 KEEP 3650 CACHE 16 BLOCKS 6 MINROWS 100 MAXROWS 4096 WAL 1 FSYNC 3000 COMP 2 CACHELAST 0 PRECISION 'ms' UPDATE 0")));
         assert_ne!(get_precision(String::from("CREATE DATABASE `test2` REPLICA 1 QUORUM 1 DAYS 10 KEEP 3650 CACHE 16 BLOCKS 6 MINROWS 100 MAXROWS 4096 WAL 1 FSYNC 3000 COMP 2 CACHELAST 0 PRECISION 'us' UPDATE 0")), get_precision(String::from("CREATE DATABASE `test2` REPLICA 1 QUORUM 1 DAYS 10 KEEP 3650 CACHE 16 BLOCKS 6 MINROWS 100 MAXROWS 4096 WAL 1 FSYNC 3000 COMP 2 CACHELAST 0 PRECISION 'ms' UPDATE 0")));
+    }
+
+    #[tokio::test]
+    async fn test_incomplete_sqls() -> anyhow::Result<()> {
+        let sqls = [
+            (0x2600, "CREATE STABLE `sTb1` (`ts` TIME"),
+            (0x2601, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, "),
+            (0x2600, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `"),
+            (0x2600, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1"),
+            (0x2601, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1`"),
+            (0x2600, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` I"),
+            (0x2601, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT"),
+            (0x2601, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT)"),
+            (0x2600, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) T"),
+            (0x2601, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS"),
+            (0x2601, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS("),
+            (0x2600, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS(`"),
+            (0x2600, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS(`t1"),
+            (0x2601, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS(`t1`"),
+            (0x2600, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS(`t1` I"),
+            (0x2600, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS(`t1` IN"),
+            (0x2601, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS(`t1` INT"),
+            (0x2601, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS(`t1` INT,"),
+            (0x2600, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS(`t1` INT, `"),
+            (0x2600, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS(`t1` INT, `t2` INT U"),
+            (0x2601, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS(`t1` INT, `t2` INT UNSIGNED"),
+            (0x2600, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS(`t1` INT, `t2` INT UNSIGNED, `t3` VAR"),
+            (0x2601, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS(`t1` INT, `t2` INT UNSIGNED, `t3` VARCHAR"),
+            (0x2601, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS(`t1` INT, `t2` INT UNSIGNED, `t3` VARCHAR("),
+            (0x2601, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS(`t1` INT, `t2` INT UNSIGNED, `t3` VARCHAR(1"),
+            (0x2601, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS(`t1` INT, `t2` INT UNSIGNED, `t3` VARCHAR(100)"),
+            (0, "CREATE STABLE `sTb1` (`ts` TIMESTAMP, `v1` INT) TAGS(`t1` INT, `t2` INT UNSIGNED, `t3` VARCHAR(100))"),
+        ];
+
+        tracing_subscriber::fmt::fmt().with_level(true).init();
+        // prepare
+        let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
+        let db2 = "test_incomplete_sqls";
+        taos.exec_many([
+            format!("drop database if exists `{db2}`"),
+            format!("create database `{db2}`"),
+            format!("use {db2}"),
+        ])
+        .await?;
+        for (idx, (code, sql)) in sqls.iter().enumerate() {
+            match taos.exec(sql).await {
+                Ok(_) => {
+                    tracing::info!("{}: {}", idx, sql);
+                    assert!(*code == 0, "[{idx}] SQL({sql}) must run ok");
+                }
+                Err(e) => {
+                    tracing::info!("{}: {}", idx, e);
+                    assert!(e.code() == *code, "[{idx}] SQL({sql}) must run err");
+                }
+            }
+        }
+        Ok(())
     }
 }
