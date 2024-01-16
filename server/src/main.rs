@@ -3,7 +3,15 @@ use anyhow::Context;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use http_auth_basic::Credentials;
 use log::LevelFilter;
-use std::{fmt::Display, fs::File, io::Read, path::PathBuf, time::Duration};
+use rustls::{server::ServerConfig, Certificate, PrivateKey};
+use rustls_pemfile::{certs, private_key};
+use std::{
+    fmt::Display,
+    fs::File,
+    io::{BufReader, Read},
+    path::PathBuf,
+    time::Duration,
+};
 use taos::*;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{info, instrument, Level};
@@ -101,13 +109,7 @@ async fn main() -> anyhow::Result<()> {
                 .allow_any_header()
         } else {
             Cors::default()
-                .allowed_origin_fn(|origin, req_head| {
-                    req_head
-                        .headers()
-                        .get("Host")
-                        .map(|host| origin.as_bytes().ends_with(host.as_bytes()))
-                        .unwrap_or(false)
-                })
+                .allow_any_origin()
                 .allow_any_method()
                 .allow_any_header()
                 .max_age(3600)
@@ -163,16 +165,70 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting server at {addr}:{port}");
 
-    let server = server
-        .bind((addr, port))
-        .with_context(|| format!("Bind address {addr}:{port} error"))?;
-
-    let server = if let Some(ipv6) = args.ipv6.as_deref() {
-        server
-            .bind((ipv6, port))
-            .with_context(|| format!("Bind IPv6 address [{ipv6}]:{port} error"))?
+    let certificate = if args.ssl.is_some() {
+        args.ssl
+            .clone()
+            .unwrap()
+            .certificate
+            .unwrap_or(String::from(""))
     } else {
-        server
+        String::from("")
+    };
+    let certificate_key = if args.ssl.is_some() {
+        args.ssl
+            .clone()
+            .unwrap()
+            .certificate_key
+            .unwrap_or(String::from(""))
+    } else {
+        String::from("")
+    };
+
+    // error reported when configuring only one file, so change it to '||' @zqsong
+    let server = if !certificate.is_empty() || !certificate_key.is_empty() {
+        let cert_file = File::open(certificate).expect("Failed to open certificate file");
+        let cert_key_file = File::open(certificate_key).expect("Failed to open private key file");
+
+        let cert = certs(&mut BufReader::new(cert_file))
+            .map(|result| Certificate(result.unwrap().to_vec()))
+            .collect_vec();
+        let cert_key = PrivateKey(
+            private_key(&mut BufReader::new(cert_key_file))
+                .unwrap()
+                .unwrap()
+                .secret_der()
+                .to_vec(),
+        );
+
+        let config = ServerConfig::builder()
+            .with_safe_defaults()
+            .with_no_client_auth()
+            .with_single_cert(cert, cert_key)
+            .expect("bad certificate/key");
+
+        let server = server
+            .bind_rustls((addr, port), config.clone())
+            .with_context(|| format!("Bind address {addr}:{port} error"))?;
+
+        if let Some(ipv6) = args.ipv6.as_deref() {
+            server
+                .bind_rustls((ipv6, port), config.clone())
+                .with_context(|| format!("Bind IPv6 address [{ipv6}]:{port} error"))?
+        } else {
+            server
+        }
+    } else {
+        let server = server
+            .bind((addr, port))
+            .with_context(|| format!("Bind address {addr}:{port} error"))?;
+
+        if let Some(ipv6) = args.ipv6.as_deref() {
+            server
+                .bind((ipv6, port))
+                .with_context(|| format!("Bind IPv6 address [{ipv6}]:{port} error"))?
+        } else {
+            server
+        }
     };
 
     server.run().await?;
@@ -554,6 +610,21 @@ struct Args {
     #[clap(flatten)]
     #[serde(flatten)]
     profile: Profile,
+
+    #[clap(flatten)]
+    ssl: Option<Ssl>,
+}
+
+#[derive(Parser, Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(default)]
+struct Ssl {
+    /// SSL certificate
+    #[clap(long, global = true, env = "CERTIFICATE")]
+    certificate: Option<String>,
+
+    /// SSL certificate key
+    #[clap(long, global = true, env = "CERTIFICATE_KEY")]
+    certificate_key: Option<String>,
 }
 
 impl Args {

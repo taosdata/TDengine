@@ -95,5 +95,40 @@ export default () => [
       {title: i18n.t("docs.virtual.gds.step2"), dom: "connector-configuration"},
       {title: i18n.t("docs.virtual.gds.step3"), dom: "create-report-or-dashboard"},
     ]
+  },
+  {
+    name: 'PowerBI',
+    icon: 'powerbilogo',
+    desc: 'Power BI' + i18n.t('docs.tools.powerbi.desc'),
+    docs: {
+      zh: mdx.powerbiDoc,
+      en: mdx.powerbiDoc
+    },
+    version: '>=3.2.2.0',
+    steps: [
+      { title: i18n.t('docs.tools.powerbi.step1'), dom: 'powerbi-repare' },
+      { title: i18n.t('docs.tools.powerbi.step2'), dom: 'powerbi-install' },
+      { title: i18n.t('docs.tools.powerbi.step3'), dom: 'powerbi-config' },
+      { title: i18n.t('docs.tools.powerbi.step4'), dom: 'powerbi-import' },
+      { title: i18n.t('docs.tools.powerbi.step5'), dom: 'powerbi-example' }
+    ]
+  },
+  {
+    name: '永洪 BI',
+    icon: 'yonghonglogo',
+    desc: i18n.t('docs.tools.yonghongbi.desc') + i18n.t('docs.tools.yonghongbi.desc1'),
+    docs: {
+      zh: mdx.yonghongbiDoc,
+      en: mdx.yonghongbiDoc
+    },
+    version: '>=3.2.2.0',
+    isAli: true,
+    steps: [
+      { title: i18n.t('docs.tools.yonghongbi.step1'), dom: 'yonghongbi-repare' },
+      { title: i18n.t('docs.tools.yonghongbi.step2'), dom: 'yonghongbi-install' },
+      { title: i18n.t('docs.tools.yonghongbi.step3'), dom: 'yonghongbi-config' },
+      { title: i18n.t('docs.tools.yonghongbi.step4'), dom: 'yonghongbi-createds' },
+      { title: i18n.t('docs.tools.yonghongbi.step5'), dom: 'yonghongbi-report' }
+    ]
   }
 ];
