@@ -60,10 +60,11 @@ pub mod sample;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Pipeline {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     parse: Option<ParserImpl>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     mutate: Vec<Mutate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     model: Option<Modeler>,
 }
 

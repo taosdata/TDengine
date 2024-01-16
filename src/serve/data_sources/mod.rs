@@ -18,6 +18,8 @@ use utoipa::*;
 pub use definition::*;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
+use taosx_core::runners::historian;
+use taosx_core::runners::historian::AVEVA_HISTORIAN_ID;
 use taosx_core::{list_datasets_from, validate_dsn, DataSetsReq};
 
 use crate::serve::TaskController;
@@ -301,7 +303,7 @@ pub(super) async fn data_source_collection(
 }
 
 #[derive(Deserialize, Debug, ToSchema, IntoParams)]
-pub struct DsnValidationQuery {
+pub struct DsnAgentQuery {
     #[param(allow_reserved)]
     dsn: String,
     via: Option<i64>,
@@ -319,13 +321,13 @@ pub struct DsnValidationQuery {
     params(
         ("dsn" = String, description = "dsn string"),
         ("via" = String, description = "agent id"),
-        ("timeout" = Option<String>, description = "timeout seconds, use default 5s when not set")
+        ("timeout" = Option<String>, description = "timeout seconds, use default 20s when not set")
     ),
 )]
 #[get("/ds/in/validate")]
 pub(super) async fn data_source_is_valid(
     controller: Data<TaskControllerRef>,
-    query: Query<DsnValidationQuery>,
+    query: Query<DsnAgentQuery>,
 ) -> impl Responder {
     const DEFAULT_TIMEOUT: u64 = 20; // 20 seconds
     let query = query.into_inner();
@@ -347,7 +349,7 @@ pub(super) async fn data_source_is_valid(
 
 pub(crate) async fn is_valid(
     controller: Data<TaskControllerRef>,
-    query: DsnValidationQuery,
+    query: DsnAgentQuery,
 ) -> DataSourceValidation {
     let dsn = query.dsn.into_dsn();
     match dsn {
@@ -362,6 +364,62 @@ pub(crate) async fn is_valid(
             }
         }
     }
+}
+
+/// get sample data from data source
+#[utoipa::path(
+    get,
+    path = "/ds/in/sample",
+    responses(
+        (status = 200, description = "sample data from data source", body = DsSampleIn),
+        (status = 500, description = "get sample data failed", body = Failed),
+    ),
+    params(
+        ("dsn" = String, description = "dsn string"),
+        ("via" = String, description = "agent id"),
+        ("timeout" = Option<String>, description = "timeout seconds, use default 20s when not set")
+    ),
+)]
+#[get("/ds/in/sample")]
+pub(super) async fn get_sample(
+    controller: Data<TaskControllerRef>,
+    query: Query<DsnAgentQuery>,
+) -> impl Responder {
+    const DEFAULT_TIMEOUT: u64 = 20; // 20 seconds
+    let query = query.into_inner();
+    let timeout_sec = query.timeout.unwrap_or(DEFAULT_TIMEOUT);
+
+    let result = timeout(
+        Duration::from_secs(timeout_sec),
+        get_sample_data(controller, query),
+    )
+    .await;
+
+    match result {
+        Ok(Ok(sample)) => Ok(HttpResponse::Ok().json(sample)),
+        Ok(Err(err)) => Err(Failed {
+            code: Code::FAILED,
+            message: format!("failed to get sample from data source, cause: {:#}", err),
+        }),
+        Err(err) => Err(Failed {
+            code: Code::FAILED,
+            message: format!("get sample from data source timeout, cause: {:#}", err),
+        }),
+    }
+}
+
+pub(crate) async fn get_sample_data(
+    controller: Data<TaskControllerRef>,
+    query: DsnAgentQuery,
+) -> anyhow::Result<DsSampleIn> {
+    let dsn = query.dsn.into_dsn()?;
+    return if dsn.driver == AVEVA_HISTORIAN_ID {
+        historian::get_sample(&dsn).await
+    } else {
+        Err(anyhow::anyhow!(
+            "get sample from data source is unsupported"
+        ))
+    };
 }
 
 #[utoipa::path(
