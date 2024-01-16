@@ -84,7 +84,7 @@ class TDTestCase(TBase):
                 break
 
         self.timestamp_step = 1
-        self.insert_rows = 11
+        self.insert_rows = 6000
         self.checkInsertCorrect()
         self.checkAggCorrect()
 
