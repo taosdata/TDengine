@@ -106,14 +106,18 @@ class TDTestCase:
                 ptn_counter = 0
                 for c1_value in tdSql.queryResult:
                     if partition == "c1":
-                        tdSql.query(f'select count(*) from `{tname}_{self.tdCom.subtable_prefix}{abs(c1_value[1])}{self.tdCom.subtable_suffix}`;')
+                        tbname = self.tdCom.get_subtable_wait(f'{tname}_{self.tdCom.subtable_prefix}{abs(c1_value[1])}{self.tdCom.subtable_suffix}')
+                        tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition is None:
-                        tdSql.query(f'select count(*) from `{tname}_{self.tdCom.subtable_prefix}no_partition{self.tdCom.subtable_suffix}`;')
+                        tbname = self.tdCom.get_subtable_wait(f'{tname}_{self.tdCom.subtable_prefix}no_partition{self.tdCom.subtable_suffix}')
+                        tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition == "abs(c1)":
                         abs_c1_value = abs(c1_value[1])
-                        tdSql.query(f'select count(*) from `{tname}_{self.tdCom.subtable_prefix}{abs_c1_value}{self.tdCom.subtable_suffix}`;')
+                        tbname = self.tdCom.get_subtable_wait(f'{tname}_{self.tdCom.subtable_prefix}{abs_c1_value}{self.tdCom.subtable_suffix}')
+                        tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition == "tbname" and ptn_counter == 0:
-                        tdSql.query(f'select count(*) from `{tname}_{self.tdCom.subtable_prefix}{self.ctb_name}{self.tdCom.subtable_suffix}`;')
+                        tbname = self.tdCom.get_subtable_wait(f'{tname}_{self.tdCom.subtable_prefix}{self.ctb_name}{self.tdCom.subtable_suffix}')
+                        tdSql.query(f'select count(*) from `{tbname}`')
                         ptn_counter += 1
                     tdSql.checkEqual(tdSql.queryResult[0][0] > 0, True)
 
@@ -121,14 +125,18 @@ class TDTestCase:
             ptn_counter = 0
             for c1_value in tdSql.queryResult:
                 if partition == "c1":
-                    tdSql.query(f'select count(*) from `{self.tb_name}_{self.tdCom.subtable_prefix}{abs(c1_value[1])}{self.tdCom.subtable_suffix}`;')
+                    tbname = self.tdCom.get_subtable_wait(f'{self.tb_name}_{self.tdCom.subtable_prefix}{abs(c1_value[1])}{self.tdCom.subtable_suffix}')
+                    tdSql.query(f'select count(*) from `{tbname}`')
                 elif partition is None:
-                    tdSql.query(f'select count(*) from `{self.tb_name}_{self.tdCom.subtable_prefix}no_partition{self.tdCom.subtable_suffix}`;')
+                    tbname = self.tdCom.get_subtable_wait(f'{self.tb_name}_{self.tdCom.subtable_prefix}no_partition{self.tdCom.subtable_suffix}')
+                    tdSql.query(f'select count(*) from `{tbname}`')
                 elif partition == "abs(c1)":
                     abs_c1_value = abs(c1_value[1])
-                    tdSql.query(f'select count(*) from `{self.tb_name}_{self.tdCom.subtable_prefix}{abs_c1_value}{self.tdCom.subtable_suffix}`;')
+                    tbname = self.tdCom.get_subtable_wait(f'{self.tb_name}_{self.tdCom.subtable_prefix}{abs_c1_value}{self.tdCom.subtable_suffix}')
+                    tdSql.query(f'select count(*) from `{tbname}`')
                 elif partition == "tbname" and ptn_counter == 0:
-                    tdSql.query(f'select count(*) from `{self.tb_name}_{self.tdCom.subtable_prefix}{self.tb_name}{self.tdCom.subtable_suffix}`;')
+                    tbname = self.tdCom.get_subtable_wait(f'{self.tb_name}_{self.tdCom.subtable_prefix}{self.tb_name}{self.tdCom.subtable_suffix}')
+                    tdSql.query(f'select count(*) from `{tbname}`')
                     ptn_counter += 1
 
                 tdSql.checkEqual(tdSql.queryResult[0][0] > 0, True)
@@ -208,8 +216,8 @@ class TDTestCase:
         self.at_once_interval(interval=random.randint(10, 15), partition=None, delete=True)
         self.at_once_interval(interval=random.randint(10, 15), partition=self.tdCom.stream_case_when_tbname, case_when=f'case when {self.tdCom.stream_case_when_tbname} = tbname then {self.tdCom.partition_tbname_alias} else tbname end')
         self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_history_value=1, fill_value="NULL")
-        # for fill_value in ["NULL", "PREV", "NEXT", "LINEAR", "VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11"]:
-        for fill_value in ["PREV", "NEXT", "LINEAR", "VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11"]:
+        for fill_value in ["NULL", "PREV", "NEXT", "LINEAR", "VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11"]:
+        # for fill_value in ["PREV", "NEXT", "LINEAR", "VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11"]:
             self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value=fill_value)
             self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value=fill_value, delete=True)
 

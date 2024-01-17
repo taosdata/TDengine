@@ -180,10 +180,8 @@ int32_t streamMetaCheckBackendCompatible(SStreamMeta* pMeta) {
     }
     if (info.msgVer <= SSTREAM_TASK_INCOMPATIBLE_VER) {
       ret = STREAM_STATA_NO_COMPATIBLE;
-    } else if (info.msgVer == SSTREAM_TASK_NEED_CONVERT_VER) {
+    } else if (info.msgVer >= SSTREAM_TASK_NEED_CONVERT_VER) {
       ret = STREAM_STATA_NEED_CONVERT;
-    } else if (info.msgVer == SSTREAM_TASK_VER) {
-      ret = STREAM_STATA_COMPATIBLE;
     }
     tDecoderClear(&decoder);
     break;
