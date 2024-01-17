@@ -4142,8 +4142,11 @@ void tsdbReaderClose2(STsdbReader* pReader) {
   taosMemoryFreeClear(pReader->status.uidList.tableUidList);
 
   qTrace("tsdb/reader-close: %p, untake snapshot", pReader);
-  tsdbUntakeReadSnap2(pReader, pReader->pReadSnap, true);
-  pReader->pReadSnap = NULL;
+
+  void* p = pReader->pReadSnap;
+  atomic_val_compare_exchange_ptr(pReader->pReadSnap, p, NULL);
+
+  tsdbUntakeReadSnap2(pReader, p, true);
 
   tsem_destroy(&pReader->resumeAfterSuspend);
   tsdbReleaseReader(pReader);
@@ -4217,8 +4220,10 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
     doSuspendCurrentReader(pReader);
   }
 
-  tsdbUntakeReadSnap2(pReader, pReader->pReadSnap, false);
-  pReader->pReadSnap = NULL;
+  void* p = pReader->pReadSnap;
+  atomic_val_compare_exchange_ptr(pReader->pReadSnap, p, NULL);
+
+  tsdbUntakeReadSnap2(pReader, p, false);
   pReader->flag = READER_STATUS_SUSPEND;
 
   if (pReader->type == TIMEWINDOW_RANGE_EXTERNAL) {
