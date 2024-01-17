@@ -4121,9 +4121,9 @@ void tsdbReaderClose2(STsdbReader* pReader) {
 
   qTrace("tsdb/reader-close: %p, untake snapshot", pReader);
   void* p = pReader->pReadSnap;
-  atomic_val_compare_exchange_ptr(pReader->pReadSnap, p, NULL);
-
-  tsdbUntakeReadSnap2(pReader, p, true);
+  if ((p == atomic_val_compare_exchange_ptr((void**)&pReader->pReadSnap, p, NULL)) && (p != NULL)) {
+    tsdbUntakeReadSnap2(pReader, p, true);
+  }
 
   tsem_destroy(&pReader->resumeAfterSuspend);
   tsdbReleaseReader(pReader);
@@ -4197,9 +4197,11 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
     doSuspendCurrentReader(pReader);
   }
 
+  // make sure only release once
   void* p = pReader->pReadSnap;
-  atomic_val_compare_exchange_ptr(pReader->pReadSnap, p, NULL);
-  tsdbUntakeReadSnap2(pReader, p, false);
+  if ((p == atomic_val_compare_exchange_ptr((void**)&pReader->pReadSnap, p, NULL)) && (p != NULL)) {
+    tsdbUntakeReadSnap2(pReader, p, false);
+  }
 
   if (pReader->bFilesetDelimited) {
     pReader->status.memTableMinKey = INT64_MAX;
