@@ -332,76 +332,51 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 async fn validate_source_influxdb(
     config: ConnectionConfig,
 ) -> anyhow::Result<DataSourceValidation> {
-    // 连接器路径
-    let connector_path = influxdb_jar_path()?;
     // get the version of jdk
     let _ = tokio::process::Command::new("java")
         .arg("-version")
         .output()
         .await
         .context("Get JDK version error")?;
-    // startup the connector
-    let mut command = tokio::process::Command::new("java");
-    // 查询命令
-    let output;
-    // 不同版本不同参数
-    if INFLUXDB_V1.contains(&config.version.as_str()) {
-        // 查询命令
-        output = command
-            .arg("-jar")
-            .arg(&connector_path)
-            .arg("-check")
-            .arg(config.version)
-            .arg(config.url)
-            .arg(config.username.unwrap())
-            .arg(config.password.unwrap())
-            .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::piped())
-            .output()
-            .await
-            .with_context(|| "Start InfluxDB collector error")?;
-    } else {
-        output = command
-            .arg("-jar")
-            .arg(&connector_path)
-            .arg("-check")
-            .arg(config.version)
-            .arg(config.url)
-            .arg(config.token.unwrap())
-            .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::piped())
-            .output()
-            .await
-            .with_context(|| "Start InfluxDB collector error")?;
-    }
-    if output.status.success() {
-        let result: serde_json::Value =
-            serde_json::from_slice(&output.stdout).with_context(|| {
-                format!(
-                    "Deserialize influxdb validation result error: {}",
-                    String::from_utf8_lossy(&output.stdout)
-                )
-            })?;
+    // http 客户端
+    let client = reqwest::Client::new();
+    // 发送请求，获取结果
+    let result = client.get(config.url).send().await;
+    // 请求成功
+    if result.is_ok() {
+        let response = result.unwrap();
+        let headers = response.headers();
+        // 获取版本
+        let version = format!(
+            "{} - {}",
+            headers
+                .get("x-influxdb-build")
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string(),
+            headers
+                .get("x-influxdb-version")
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string()
+        );
         // 组装结果
         Ok(DataSourceValidation {
-            valid: result["valid"].as_bool().unwrap_or(false),
-            support: result["support"].as_bool().unwrap_or(false),
+            valid: true,
+            support: true,
             data_source: String::from("influxdb"),
-            version: result["version"].as_str().map(|s| s.to_string()),
-            message: result["message"].as_str().map(|s| s.to_string()),
+            version: Some(version.clone()),
+            message: Some(format!("Your data source is available, its version is {}, which is supported, you can proceed to transfer your data to TDengine.", version.clone())),
         })
     } else {
-        let msg = match output.status.code() {
-            Some(1) => String::from("The input parameters are incorrect"),
-            Some(3) => String::from("Failed to connect"),
-            _ => String::from("Unknown exit code, maybe failed to connect, ip or port error"),
-        };
         Ok(DataSourceValidation {
             valid: false,
             support: false,
             data_source: String::from("influxdb"),
             version: None,
-            message: Some(msg),
+            message: Some(result.err().unwrap().to_string()),
         })
     }
 }
