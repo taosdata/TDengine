@@ -300,28 +300,6 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, S
 
 void streamTaskInputFail(SStreamTask* pTask) { atomic_store_8(&pTask->inputq.status, TASK_INPUT_STATUS__FAILED); }
 
-void streamTaskOpenAllUpstreamInput(SStreamTask* pTask) {
-  int32_t num = taosArrayGetSize(pTask->upstreamInfo.pList);
-  if (num == 0) {
-    return;
-  }
-
-  for (int32_t i = 0; i < num; ++i) {
-    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
-    pInfo->dataAllowed = true;
-  }
-
-  pTask->upstreamInfo.numOfClosed = 0;
-  stDebug("s-task:%s opening up inputQ from upstream tasks", pTask->id.idStr);
-}
-
-void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
-  SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
-  if (pInfo != NULL) {
-    pInfo->dataAllowed = false;
-  }
-}
-
 SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId) {
   int32_t num = taosArrayGetSize(pTask->upstreamInfo.pList);
   for (int32_t i = 0; i < num; ++i) {

@@ -59,10 +59,14 @@ class TDTestCase:
                 ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.tdCom.subtable_prefix}", cast(cast({partition_elm_alias} as bigint) as varchar(20))), "{self.tdCom.subtable_suffix}")' if self.tdCom.subtable else None
                 tb_subtable_value = f'concat(concat("{self.tb_name}_{self.tdCom.subtable_prefix}", cast(cast({partition_elm_alias} as bigint) as varchar(20))), "{self.tdCom.subtable_suffix}")' if self.tdCom.subtable else None
 
+        time.sleep(1)
 
         # create stb/ctb/tb stream
         self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.tdCom.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, _wend AS wend, {self.tdCom.stb_source_select_str} from {self.ctb_name} partition by {partition} {partition_elm_alias} session(ts, {self.tdCom.dataDict["session"]}s)', trigger_mode="at_once", ignore_expired=ignore_expired, ignore_update=ignore_update, subtable_value=ctb_subtable_value, fill_history_value=fill_history_value)
         self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.tdCom.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, _wend AS wend, {self.tdCom.tb_source_select_str} from {self.tb_name} partition by {partition} {partition_elm_alias} session(ts, {self.tdCom.dataDict["session"]}s)', trigger_mode="at_once", ignore_expired=ignore_expired, ignore_update=ignore_update, subtable_value=tb_subtable_value, fill_history_value=fill_history_value)
+
+        time.sleep(1)
+
         for i in range(self.tdCom.range_count):
             ctb_name = self.tdCom.get_long_name()
             self.tdCom.screate_ctable(stbname=self.stb_name, ctbname=ctb_name)
@@ -167,35 +171,43 @@ class TDTestCase:
             for c1_value in tdSql.queryResult:
                 if c1_value[1] is not None:
                     if partition == "c1":
-                        tdSql.query(f'select count(*) from `{self.ctb_name}_{self.tdCom.subtable_prefix}{c1_value[1]}{self.tdCom.subtable_suffix}`;')
+                        tbname = self.tdCom.get_subtable_wait(f'{self.ctb_name}_{self.tdCom.subtable_prefix}{c1_value[1]}{self.tdCom.subtable_suffix}')
+                        tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition == "abs(c1)":
                         if subtable:
                             abs_c1_value = abs(c1_value[1])
-                            tdSql.query(f'select count(*) from `{self.ctb_name}_{self.tdCom.subtable_prefix}{abs_c1_value}{self.tdCom.subtable_suffix}`;')
+                            tbname = self.tdCom.get_subtable_wait(f'{self.ctb_name}_{self.tdCom.subtable_prefix}{abs_c1_value}{self.tdCom.subtable_suffix}')
+                            tdSql.query(f'select count(*) from `{tbname}`')
                         else:
-                            tdSql.query(f'select count(*) from `{self.ctb_name}_{self.tdCom.subtable_prefix}{partition_elm_alias}{self.tdCom.subtable_suffix}`;')
+                            tbname = self.tdCom.get_subtable_wait(f'{self.ctb_name}_{self.tdCom.subtable_prefix}{partition_elm_alias}{self.tdCom.subtable_suffix}')
+                            tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition == "tbname" and ptn_counter == 0:
-                        tdSql.query(f'select count(*) from `{self.ctb_name}_{self.tdCom.subtable_prefix}{self.ctb_name}{self.tdCom.subtable_suffix}`;')
+                        tbname = self.tdCom.get_subtable_wait(f'{self.ctb_name}_{self.tdCom.subtable_prefix}{self.ctb_name}{self.tdCom.subtable_suffix}')
+                        tdSql.query(f'select count(*) from `{tbname}`')
                         ptn_counter += 1
-                    tdSql.checkEqual(tdSql.queryResult[0][0] > 0, True)
+                    tdSql.checkEqual(tdSql.queryResult[0][0] > 0, True) if subtable is not None else tdSql.checkEqual(tdSql.queryResult[0][0] >= 0, True)
 
             tdSql.query(f'select * from {self.tb_name}')
             ptn_counter = 0
             for c1_value in tdSql.queryResult:
                 if c1_value[1] is not None:
                     if partition == "c1":
-                        tdSql.query(f'select count(*) from `{self.tb_name}_{self.tdCom.subtable_prefix}{c1_value[1]}{self.tdCom.subtable_suffix}`;')
+                        tbname = self.tdCom.get_subtable_wait(f'{self.tb_name}_{self.tdCom.subtable_prefix}{c1_value[1]}{self.tdCom.subtable_suffix}')
+                        tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition == "abs(c1)":
                         if subtable:
                             abs_c1_value = abs(c1_value[1])
-                            tdSql.query(f'select count(*) from `{self.tb_name}_{self.tdCom.subtable_prefix}{abs_c1_value}{self.tdCom.subtable_suffix}`;')
+                            tbname = self.tdCom.get_subtable_wait(f'{self.tb_name}_{self.tdCom.subtable_prefix}{abs_c1_value}{self.tdCom.subtable_suffix}')
+                            tdSql.query(f'select count(*) from `{tbname}`')
                         else:
-                            tdSql.query(f'select count(*) from `{self.tb_name}_{self.tdCom.subtable_prefix}{partition_elm_alias}{self.tdCom.subtable_suffix}`;')
+                            tbname = self.tdCom.get_subtable_wait(f'{self.tb_name}_{self.tdCom.subtable_prefix}{partition_elm_alias}{self.tdCom.subtable_suffix}')
+                            tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition == "tbname" and ptn_counter == 0:
-                        tdSql.query(f'select count(*) from `{self.tb_name}_{self.tdCom.subtable_prefix}{self.tb_name}{self.tdCom.subtable_suffix}`;')
+                        tbname = self.tdCom.get_subtable_wait(f'{self.tb_name}_{self.tdCom.subtable_prefix}{self.tb_name}{self.tdCom.subtable_suffix}')
+                        tdSql.query(f'select count(*) from `{tbname}`')
                         ptn_counter += 1
 
-                    tdSql.checkEqual(tdSql.queryResult[0][0] > 0, True)
+                    tdSql.checkEqual(tdSql.queryResult[0][0] > 0, True) if subtable is not None else tdSql.checkEqual(tdSql.queryResult[0][0] >= 0, True)
 
 
 

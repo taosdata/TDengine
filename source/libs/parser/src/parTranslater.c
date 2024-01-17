@@ -1088,17 +1088,16 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
   FOREACH(pNode, pProjectionList) {
     SExprNode* pExpr = (SExprNode*)pNode;
     if (0 == strcmp((*pCol)->colName, pExpr->userAlias)) {
-      SColumnRefNode* pColRef = (SColumnRefNode*)nodesMakeNode(QUERY_NODE_COLUMN_REF);
-      if (NULL == pColRef) {
-        pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
-        return DEAL_RES_ERROR;
-      }
-      strcpy(pColRef->colName, pExpr->aliasName);
-      nodesDestroyNode(*(SNode**)pCol);
-      *(SNode**)pCol = (SNode*)pColRef;
-      *pFound = true;
-      return DEAL_RES_CONTINUE;
-    }
+      SNode* pNew = nodesCloneNode(pNode);
+        if (NULL == pNew) {
+          pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+          return DEAL_RES_ERROR;
+        }
+        nodesDestroyNode(*(SNode**)pCol);
+        *(SNode**)pCol = (SNode*)pNew;
+        *pFound = true;
+        return DEAL_RES_CONTINUE;
+    }   
   }
   *pFound = false;
   return DEAL_RES_CONTINUE;
@@ -2744,6 +2743,31 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static int32_t checkIsEmptyResult(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (pSelect->timeRange.skey > pSelect->timeRange.ekey
+    && !pSelect->hasCountFunc) {
+    pSelect->isEmptyResult = true;
+  }
+    return TSDB_CODE_SUCCESS;
+}
+
+static int32_t resetSelectFuncNumWithoutDup(SSelectStmt* pSelect) {
+  if (pSelect->selectFuncNum <= 1) return TSDB_CODE_SUCCESS;
+  pSelect->selectFuncNum = 0;
+  SNodeList* pNodeList = nodesMakeList();
+  int32_t code = nodesCollectSelectFuncs(pSelect, SQL_CLAUSE_FROM, NULL, fmIsSelectFunc, pNodeList);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyList(pNodeList);
+    return code;
+  }
+  SNode* pNode = NULL;
+  FOREACH(pNode, pNodeList) {
+    pSelect->selectFuncNum = calcSelectFuncNum((SFunctionNode*)pNode, pSelect->selectFuncNum);
+  }
+  nodesDestroyList(pNodeList);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL != pSelect->pGroupByList || NULL != pSelect->pWindow ||
       (!pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc && !pSelect->hasInterpFunc)) {
@@ -2757,7 +2781,8 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   if (!pSelect->isDistinct) {
     nodesRewriteExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
   }
-  if (1 == pSelect->selectFuncNum && !pSelect->hasOtherVectorFunc) {
+  if (((!cxt.existCol && 0 < pSelect->selectFuncNum) || (cxt.existCol && 1 == pSelect->selectFuncNum) ) 
+    && !pSelect->hasOtherVectorFunc) {
     return rewriteColsToSelectValFunc(pCxt, pSelect);
   }
   if (cxt.existCol) {
@@ -3454,13 +3479,7 @@ static int32_t translateOrderByPosition(STranslateContext* pCxt, SNodeList* pPro
       } else if (0 == pos || pos > LIST_LENGTH(pProjectionList)) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT);
       } else {
-        SColumnRefNode* pCol = (SColumnRefNode*)nodesMakeNode(QUERY_NODE_COLUMN_REF);
-        if (NULL == pCol) {
-          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
-        }
-        strcpy(pCol->colName, ((SExprNode*)nodesListGetNode(pProjectionList, pos - 1))->aliasName);
-        ((SOrderByExprNode*)pNode)->pExpr = (SNode*)pCol;
-        nodesDestroyNode(pExpr);
+        // No longer using SColumnRefNode, processing in replaceOrderByAliasImpl function
       }
     } else {
       *pOther = true;
@@ -4405,9 +4424,6 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (TSDB_CODE_SUCCESS == code) {
     code = getQueryTimeRange(pCxt, pSelect->pWhere, &pSelect->timeRange);
   }
-  if (TSDB_CODE_SUCCESS == code && pSelect->timeRange.skey > pSelect->timeRange.ekey) {
-    pSelect->isEmptyResult = true;
-  }
   if (pSelect->pWhere != NULL) {
     setTableVgroupsFromEqualTbnameCond(pCxt, pSelect);
   }
@@ -4483,12 +4499,13 @@ typedef struct SReplaceOrderByAliasCxt {
 
 static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
   SReplaceOrderByAliasCxt* pCxt = pContext;
-  if (QUERY_NODE_COLUMN_REF == nodeType(*pNode)) {
-    SNodeList* pProjectionList = pCxt->pProjectionList;
-    SNode*     pProject = NULL;
+  SNodeList* pProjectionList = pCxt->pProjectionList;
+  SNode*     pProject = NULL;
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
     FOREACH(pProject, pProjectionList) {
       SExprNode* pExpr = (SExprNode*)pProject;
-      if (0 == strcmp(((SColumnRefNode*)*pNode)->colName, pExpr->aliasName)) {
+      if (0 == strcmp(((SColumnRefNode*)*pNode)->colName, pExpr->userAlias)
+        && nodeType(*pNode) == nodeType(pProject)) {
         SNode* pNew = nodesCloneNode(pProject);
         if (NULL == pNew) {
           pCxt->pTranslateCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
@@ -4500,7 +4517,29 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
         return DEAL_RES_CONTINUE;
       }
     }
+  } else if (QUERY_NODE_ORDER_BY_EXPR == nodeType(*pNode)) {
+    STranslateContext* pTransCxt = pCxt->pTranslateCxt;
+    SNode* pExpr = ((SOrderByExprNode*)*pNode)->pExpr;
+        if (QUERY_NODE_VALUE == nodeType(pExpr)) {
+      SValueNode* pVal = (SValueNode*)pExpr;
+      if (DEAL_RES_ERROR == translateValue(pTransCxt, pVal)) {
+        return pTransCxt->errCode;
+      }
+      int32_t pos = getPositionValue(pVal);
+      if ( 0 < pos && pos <= LIST_LENGTH(pProjectionList)) {
+        SNode* pNew = nodesCloneNode(nodesListGetNode(pProjectionList, pos - 1));
+        if (NULL == pNew) {
+          pCxt->pTranslateCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+          return DEAL_RES_ERROR;
+        }
+        ((SExprNode*)pNew)->orderAlias = true;
+        ((SOrderByExprNode*)*pNode)->pExpr = pNew;
+        nodesDestroyNode(pExpr);
+        return DEAL_RES_CONTINUE;
+      }
+    }
   }
+
   return DEAL_RES_CONTINUE;
 }
 
@@ -4573,6 +4612,10 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateOrderBy(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = checkIsEmptyResult(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    resetSelectFuncNumWithoutDup(pSelect);
     code = checkAggColCoexist(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {

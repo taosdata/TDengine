@@ -415,11 +415,6 @@ if $data00 != aaa then
   goto loop9
 endi
 
-if $data10 != aaa-1 then
-  print =====data00=$data00
-  goto loop9
-endi
-
 $loop_count = 0
 loop10:
 

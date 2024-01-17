@@ -295,7 +295,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_LEFT_VALUE:
       return makeNode(type, sizeof(SLeftValueNode));
     case QUERY_NODE_COLUMN_REF:
-      return makeNode(type, sizeof(SColumnDefNode));
+      return makeNode(type, sizeof(SColumnRefNode));
     case QUERY_NODE_WHEN_THEN:
       return makeNode(type, sizeof(SWhenThenNode));
     case QUERY_NODE_CASE_WHEN:
@@ -675,6 +675,8 @@ static void destroyTableCfg(STableCfg* pCfg) {
 }
 
 static void destroySmaIndex(void* pIndex) { taosMemoryFree(((STableIndexInfo*)pIndex)->expr); }
+
+static void destroyFuncParam(void* pValue) { taosMemoryFree(((SFunctParam*)pValue)->pCol); }
 
 static void destroyHintValue(EHintOption option, void* value) {
   switch (option) {
@@ -1177,6 +1179,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pGroupTags);
       nodesDestroyList(pLogicNode->pTags);
       nodesDestroyNode(pLogicNode->pSubtable);
+      taosArrayDestroyEx(pLogicNode->pFuncTypes, destroyFuncParam);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
@@ -1304,6 +1307,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       nodesDestroyList(pPhyNode->pGroupTags);
       nodesDestroyList(pPhyNode->pTargets);
+      taosArrayDestroy(pPhyNode->pFuncTypes);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
@@ -2115,6 +2119,7 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
     FOREACH(pn, pCxt->pFuncs) {
       if (nodesEqualNode(pn, pNode)) {
         bFound = true;
+        break;
       }
     }
     if (!bFound) {
@@ -2135,6 +2140,20 @@ static int32_t funcNodeEqual(const void* pLeft, const void* pRight, size_t len) 
   //   return 1;
   // }
   return nodesEqualNode(*(const SNode**)pLeft, *(const SNode**)pRight) ? 0 : 1;
+}
+
+int32_t nodesCollectSelectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList* pFuncs) {
+  if (NULL == pSelect || NULL == pFuncs) {
+    return TSDB_CODE_FAILED;
+  }
+
+  SCollectFuncsCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
+                          .classifier = classifier,
+                          .tableAlias = tableAlias,
+                          .pFuncs = pFuncs};
+
+  nodesWalkSelectStmt(pSelect, clause, collectFuncs, &cxt);
+  return cxt.errCode;
 }
 
 int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier, SNodeList** pFuncs) {

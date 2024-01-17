@@ -29,51 +29,51 @@ from frame import *
 
 class TDTestCase(TBase):
     updatecfgDict = {
-        "countAlwaysReturnValue" : "0"
+        "keepColumnName" : "1",
+        "ttlChangeOnWrite" : "1",
+        "querySmaOptimize": "1"
     }
 
     def insertData(self):
         tdLog.info(f"insert data.")
         # taosBenchmark run
-        jfile = etool.curFile(__file__, "snapshot.json")
+        jfile = etool.curFile(__file__, "query_basic.json")
         etool.benchMark(json=jfile)
 
         tdSql.execute(f"use {self.db}")
+        tdSql.execute("select database();")
         # set insert data information
-        self.childtable_count = 10
+        self.childtable_count = 6
         self.insert_rows      = 100000
-        self.timestamp_step   = 10000
+        self.timestamp_step   = 30000
 
-        # create count check table
-        sql = f"create table {self.db}.ta(ts timestamp, age int) tags(area int)"
+
+    def doQuery(self):
+        tdLog.info(f"do query.")
+        
+        # __group_key
+        sql = f"select count(*),_group_key(uti),uti from {self.stb} partition by uti;"
         tdSql.execute(sql)
+        tdSql.checkRows(251)
 
-    def doAction(self):
-        tdLog.info(f"do action.")
-        self.flushDb()
+        sql = f"select count(*),_group_key(usi) from {self.stb} group by usi;"
+        tdSql.execute(sql)
+        tdSql.checkRows(997)
 
-        # split vgroups
-        self.splitVGroups()
-        self.trimDb()
-        self.checkAggCorrect()
+        # tail
+        sql1 = "select ts,ui from d0 order by ts desc limit 5 offset 2;"
+        sql2 = "select ts,tail(ui,5,2) from d0;"
+        self.checkSameResult(sql1, sql2)
 
-        # balance vgroups
-        self.balanceVGroupLeader()
+        # uninqe
+        sql1 = "select distinct uti from d0 order by uti;"
+        sql2 = "select UNIQUE(uti) from d0 order by uti asc;"
+        self.checkSameResult(sql1, sql2)
 
-        # replica to 1
-        self.alterReplica(1)
-        self.checkAggCorrect()
-        self.compactDb()
-        self.alterReplica(3)
-
-        vgids = self.getVGroup(self.db)
-        selid = random.choice(vgids)
-        self.balanceVGroupLeaderOn(selid)
-
-        # check count always return value
-        sql = f"select count(*) from {self.db}.ta"
-        tdSql.query(sql)
-        tdSql.checkRows(0) # countAlwaysReturnValue is false
+        # top
+        sql1 = "select top(bi,10) from stb;"
+        sql2 = "select bi from stb where bi is not null order by bi desc limit 10;"
+        self.checkSameResult(sql1, sql2)
 
     # run
     def run(self):
@@ -85,17 +85,11 @@ class TDTestCase(TBase):
         # check insert data correct
         self.checkInsertCorrect()
 
-        # save
-        self.snapshotAgg()
+        # check 
+        self.checkConsistency("usi")
 
         # do action
-        self.doAction()
-
-        # check save agg result correct
-        self.checkAggCorrect()
-
-        # check insert correct again
-        self.checkInsertCorrect()
+        self.doQuery()
 
         tdLog.success(f"{__file__} successfully executed")
 

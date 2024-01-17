@@ -4100,9 +4100,9 @@ void tsdbReaderClose2(STsdbReader* pReader) {
   size_t numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
   if (pReader->status.pTableMap != NULL) {
     destroyAllBlockScanInfo(pReader->status.pTableMap);
-    clearBlockScanInfoBuf(&pReader->blockInfoBuf);
     pReader->status.pTableMap = NULL;
   }
+  clearBlockScanInfoBuf(&pReader->blockInfoBuf);
 
   if (pReader->pFileReader != NULL) {
     tsdbDataFileReaderClose(&pReader->pFileReader);

@@ -285,8 +285,8 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
 
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
-  int8_t biMode = atomic_load_8(&pRequest->pTscObj->biMode);
-  int32_t            code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, biMode);
+  int8_t             biMode = atomic_load_8(&pRequest->pTscObj->biMode);
+  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, biMode);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
   }
@@ -324,7 +324,8 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     return;
   }
 
-  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, atomic_load_8(&pRequest->pTscObj->biMode));
+  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp,
+                              atomic_load_8(&pRequest->pTscObj->biMode));
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
   }
@@ -492,7 +493,8 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
     pResInfo->userFields[i].bytes = pSchema[i].bytes;
     pResInfo->userFields[i].type = pSchema[i].type;
 
-    if (pSchema[i].type == TSDB_DATA_TYPE_VARCHAR || pSchema[i].type == TSDB_DATA_TYPE_VARBINARY || pSchema[i].type == TSDB_DATA_TYPE_GEOMETRY) {
+    if (pSchema[i].type == TSDB_DATA_TYPE_VARCHAR || pSchema[i].type == TSDB_DATA_TYPE_VARBINARY ||
+        pSchema[i].type == TSDB_DATA_TYPE_GEOMETRY) {
       pResInfo->userFields[i].bytes -= VARSTR_HEADER_SIZE;
     } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR || pSchema[i].type == TSDB_DATA_TYPE_JSON) {
       pResInfo->userFields[i].bytes = (pResInfo->userFields[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
@@ -1103,9 +1105,9 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                                  SSqlCallbackWrapper* pWrapper) {
   int32_t code = TSDB_CODE_SUCCESS;
   pRequest->type = pQuery->msgType;
-  SArray* pMnodeList = NULL;
-  SQueryPlan* pDag = NULL;  
-  int64_t st = taosGetTimestampUs();
+  SArray*     pMnodeList = NULL;
+  SQueryPlan* pDag = NULL;
+  int64_t     st = taosGetTimestampUs();
 
   if (!pRequest->parseOnly) {
     pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
@@ -1278,7 +1280,7 @@ int32_t removeMeta(STscObj* pTscObj, SArray* tbList, bool isView) {
   if (isView) {
     for (int32_t i = 0; i < tbNum; ++i) {
       SName* pViewName = taosArrayGet(tbList, i);
-      char dbFName[TSDB_DB_FNAME_LEN];
+      char   dbFName[TSDB_DB_FNAME_LEN];
       tNameGetFullDbName(pViewName, dbFName);
       catalogRemoveViewMeta(pCatalog, dbFName, 0, pViewName->tname, 0);
     }
@@ -1510,8 +1512,12 @@ int32_t doProcessMsgFromServer(void* param) {
 
   updateTargetEpSet(pSendInfo, pTscObj, pMsg, pEpSet);
 
-  SDataBuf buf = {
-      .msgType = pMsg->msgType, .len = pMsg->contLen, .pData = NULL, .handle = pMsg->info.handle, .pEpSet = pEpSet};
+  SDataBuf buf = {.msgType = pMsg->msgType,
+                  .len = pMsg->contLen,
+                  .pData = NULL,
+                  .handle = pMsg->info.handle,
+                  .handleRefId = pMsg->info.refId,
+                  .pEpSet = pEpSet};
 
   if (pMsg->contLen > 0) {
     buf.pData = taosMemoryCalloc(1, pMsg->contLen);
@@ -2538,13 +2544,13 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     pRequest->code = code;
     taosMemoryFreeClear(pResultInfo->pData);
-    pRequest->body.fetchFp(((SSyncQueryParam *)pRequest->body.interParam)->userParam, pRequest, 0);
+    pRequest->body.fetchFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, 0);
     return;
   }
 
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     taosMemoryFreeClear(pResultInfo->pData);
-    pRequest->body.fetchFp(((SSyncQueryParam *)pRequest->body.interParam)->userParam, pRequest, 0);
+    pRequest->body.fetchFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, 0);
     return;
   }
 
@@ -2565,12 +2571,12 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
     atomic_add_fetch_64((int64_t*)&pActivity->fetchBytes, pRequest->body.resInfo.payloadLen);
   }
 
-  pRequest->body.fetchFp(((SSyncQueryParam *)pRequest->body.interParam)->userParam, pRequest, pResultInfo->numOfRows);
+  pRequest->body.fetchFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, pResultInfo->numOfRows);
 }
 
 void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param) {
   pRequest->body.fetchFp = fp;
-  ((SSyncQueryParam *)pRequest->body.interParam)->userParam = param;
+  ((SSyncQueryParam*)pRequest->body.interParam)->userParam = param;
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
 
@@ -2611,7 +2617,7 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   pRequest->inCallback = true;
   int64_t this = pRequest->self;
-  pRequest->body.queryFp(((SSyncQueryParam *)pRequest->body.interParam)->userParam, pRequest, code);
+  pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
   SRequestObj* pReq = acquireRequest(this);
   if (pReq != NULL) {
     pReq->inCallback = false;
@@ -2619,11 +2625,11 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   }
 }
 
-int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effectiveUser, SParseSqlRes* pRes) {
+int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effectiveUser,
+                       SParseSqlRes* pRes) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_SUCCESS;
 #else
   return clientParseSqlImpl(param, dbName, sql, parseOnly, effectiveUser, pRes);
 #endif
 }
-
