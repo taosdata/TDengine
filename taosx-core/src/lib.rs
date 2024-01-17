@@ -1,8 +1,8 @@
+use std::sync::OnceLock;
 use std::sync::{
     atomic::{AtomicU32, AtomicU64},
     Arc,
 };
-use std::sync::OnceLock;
 
 use anyhow::Context;
 use chrono::NaiveDate;
