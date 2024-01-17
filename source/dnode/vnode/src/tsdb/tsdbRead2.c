@@ -4144,7 +4144,7 @@ void tsdbReaderClose2(STsdbReader* pReader) {
   qTrace("tsdb/reader-close: %p, untake snapshot", pReader);
 
   void* p = pReader->pReadSnap;
-  if ((p == atomic_val_compare_exchange_ptr(pReader->pReadSnap, p, NULL)) && (p != NULL)) {
+  if ((p == atomic_val_compare_exchange_ptr((void**)&pReader->pReadSnap, p, NULL)) && (p != NULL)) {
     tsdbUntakeReadSnap2(pReader, p, true);
   }
 
@@ -4221,7 +4221,7 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
   }
 
   void* p = pReader->pReadSnap;
-  if ((p == atomic_val_compare_exchange_ptr(pReader->pReadSnap, p, NULL)) && (p != NULL)) {
+  if ((p == atomic_val_compare_exchange_ptr((void**)&pReader->pReadSnap, p, NULL)) && (p != NULL)) {
     tsdbUntakeReadSnap2(pReader, p, false);
   }
 
