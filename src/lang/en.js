@@ -1277,7 +1277,7 @@ export default {
         type1: "Copy and Paste",
         type2: "Retrieve From Server",
         type3: "Upload File",
-        retrieve: "Retrieve",
+        retrieve: "Retrieve From Server",
       },
       filterexecuted: "Filter condition triggered",
       filterunexe:
