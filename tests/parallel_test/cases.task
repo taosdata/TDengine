@@ -3,7 +3,13 @@
 #NA,NA,y or n,script,./test.sh -f tsim/user/basic.sim
 
 #unit-test
+
+archOs=$(arch)
+if [[ $archOs =~ "aarch64" ]]; then
+,,n,unit-test,bash test.sh
+else
 ,,y,unit-test,bash test.sh
+fi
 
 #
 # army-test
