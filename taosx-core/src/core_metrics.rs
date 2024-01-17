@@ -15,7 +15,7 @@ use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::cell::Cell;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -237,7 +237,26 @@ pub fn get_task_metrics_string(running: bool, metrics: Arc<CoreMetrics>) -> Stri
     map.remove("task_id");
     compute_total_avg_speed(common_metrics, &mut map);
     compute_avg_speed(common_metrics, &mut map, running);
-    serde_json::to_string(&map).unwrap()
+    let result = split_to_total_and_current(&map);
+    serde_json::to_string(&result).unwrap()
+}
+
+fn split_to_total_and_current(
+    map: &serde_json::Map<String, serde_json::Value>,
+) -> serde_json::Value {
+    let mut total_map = BTreeMap::new();
+    let mut current_map = BTreeMap::new();
+    for (k, v) in map {
+        if k.starts_with("total_") {
+            total_map.insert(k.to_string(), v);
+        } else {
+            current_map.insert(k.to_string(), v);
+        }
+    }
+    serde_json::json!({
+        "total": total_map,
+        "current": current_map
+    })
 }
 
 #[inline]
