@@ -665,7 +665,7 @@ pub fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMet
         | "mqtt"
         | "influxdb"
         | "opentsdb"
-        | "kafka"
+        | runners::kafka::KAFKA_ID
         | runners::historian::AVEVA_HISTORIAN_ID
         | "csv" => try_get_metrics::<IpcMetrics>(task_id),
         _ => None,

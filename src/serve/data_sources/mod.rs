@@ -310,6 +310,8 @@ pub struct DsnAgentQuery {
     timeout: Option<u64>,
 }
 
+const DEFAULT_REQUEST_TIMEOUT: u64 = 20; // 20 seconds
+
 /// check data source validation by dsn
 #[utoipa::path(
     get,
@@ -329,13 +331,12 @@ pub(super) async fn data_source_is_valid(
     controller: Data<TaskControllerRef>,
     query: Query<DsnAgentQuery>,
 ) -> impl Responder {
-    const DEFAULT_TIMEOUT: u64 = 20; // 20 seconds
     let query = query.into_inner();
-    let timeout_sec = query.timeout.unwrap_or(DEFAULT_TIMEOUT);
+    let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
 
     let result = timeout(
         Duration::from_secs(timeout_sec),
-        is_valid(controller, query),
+        is_valid_impl(controller, query),
     )
     .await;
     match result {
@@ -347,7 +348,7 @@ pub(super) async fn data_source_is_valid(
     }
 }
 
-pub(crate) async fn is_valid(
+pub(crate) async fn is_valid_impl(
     controller: Data<TaskControllerRef>,
     query: DsnAgentQuery,
 ) -> DataSourceValidation {
@@ -385,13 +386,12 @@ pub(super) async fn get_sample(
     controller: Data<TaskControllerRef>,
     query: Query<DsnAgentQuery>,
 ) -> impl Responder {
-    const DEFAULT_TIMEOUT: u64 = 20; // 20 seconds
     let query = query.into_inner();
-    let timeout_sec = query.timeout.unwrap_or(DEFAULT_TIMEOUT);
+    let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
 
     let result = timeout(
         Duration::from_secs(timeout_sec),
-        get_sample_data(controller, query),
+        get_sample_impl(controller, query),
     )
     .await;
 
@@ -408,18 +408,18 @@ pub(super) async fn get_sample(
     }
 }
 
-pub(crate) async fn get_sample_data(
+pub(crate) async fn get_sample_impl(
     controller: Data<TaskControllerRef>,
     query: DsnAgentQuery,
 ) -> anyhow::Result<DsSampleIn> {
     let dsn = query.dsn.into_dsn()?;
-    return if dsn.driver == AVEVA_HISTORIAN_ID {
-        historian::get_sample(&dsn).await
-    } else {
-        Err(anyhow::anyhow!(
+
+    match dsn.driver.as_str() {
+        AVEVA_HISTORIAN_ID => historian::get_sample(&dsn).await,
+        _ => Err(anyhow::anyhow!(
             "get sample from data source is unsupported"
-        ))
-    };
+        )),
+    }
 }
 
 #[utoipa::path(

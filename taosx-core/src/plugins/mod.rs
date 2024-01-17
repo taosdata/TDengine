@@ -211,7 +211,7 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
                 // TODO: clickhouse
                 runners::historian::AVEVA_HISTORIAN_ID => runners::historian::is_valid(&dsn).await,
                 "influxdb" => runners::influxdb::is_valid(&dsn).await,
-                "kafka" => runners::kafka::is_valid(&dsn).await,
+                runners::kafka::KAFKA_ID => runners::kafka::is_valid(&dsn).await,
                 "mqtt" => runners::mqtt::is_valid(&dsn).await,
                 "opc" | "opcda" | "opcua" => runners::opc::is_valid(&dsn).await,
                 "opentsdb" => runners::opentsdb::is_valid(&dsn).await,
