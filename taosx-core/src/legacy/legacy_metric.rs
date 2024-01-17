@@ -10,17 +10,27 @@ use std::sync::atomic::Ordering::SeqCst;
 pub struct LegacyToTaosMetrics {
     #[serde(flatten)]
     pub com: CommonMetrics,
+    #[serde(default)]
     pub read_concurrency: AtomicU32,
+    #[serde(default)]
     pub total_stables: AtomicU32,
+    #[serde(default)]
     pub total_tables: AtomicU32,
+    #[serde(default)]
     pub total_finished_tables: AtomicU32,
+    #[serde(default)]
     pub total_success_blocks: AtomicU64,
+    #[serde(default)]
     pub total_updated_tags: AtomicU32,
+    #[serde(default)]
     pub total_created_tables: AtomicU32,
     #[serde(skip)]
     pub finished_tables: AtomicU32,
+    #[serde(default)]
     pub success_blocks: AtomicU64,
+    #[serde(default)]
     pub updated_tags: AtomicU32,
+    #[serde(default)]
     pub created_tables: AtomicU32,
 }
 

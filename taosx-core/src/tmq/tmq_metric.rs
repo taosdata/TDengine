@@ -11,17 +11,29 @@ use tracing;
 pub struct TmqMetrics {
     #[serde(flatten)]
     pub com: CommonMetrics,
+    #[serde(default)]
     pub topics: AtomicU16,
+    #[serde(default)]
     pub consumers: AtomicU16,
+    #[serde(default)]
     pub total_messages: AtomicU64,
+    #[serde(default)]
     pub total_messages_of_meta: AtomicU64,
+    #[serde(default)]
     pub total_messages_of_data: AtomicU64,
+    #[serde(default)]
     pub total_write_raw_fails: AtomicU64,
+    #[serde(default)]
     pub total_success_blocks: AtomicU64,
+    #[serde(default)]
     pub messages: AtomicU64,
+    #[serde(default)]
     pub messages_of_meta: AtomicU64,
+    #[serde(default)]
     pub messages_of_data: AtomicU64,
+    #[serde(default)]
     pub write_raw_fails: AtomicU64,
+    #[serde(default)]
     pub success_blocks: AtomicU64,
 }
 
