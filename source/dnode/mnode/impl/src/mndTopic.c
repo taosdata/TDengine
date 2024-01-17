@@ -564,10 +564,6 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     return code;
   }
 
-  if ((terrno = grantCheck(TSDB_GRANT_TOPIC)) < 0) {
-    goto _OVER;
-  }
-
   if (tDeserializeSCMCreateTopicReq(pReq->pCont, pReq->contLen, &createTopicReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
