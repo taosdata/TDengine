@@ -33,7 +33,7 @@ arrow = { workspace = true, features = ["chrono-tz"] }
 arrow-flight = { workspace = true }
 chrono = { workspace = true }
 chrono-tz = { workspace = true }
-tonic = { workspace = true }
+tonic = { workspace = true, features=["gzip"] }
 shadow-rs = { workspace = true }
 
 futures = "0.3"
