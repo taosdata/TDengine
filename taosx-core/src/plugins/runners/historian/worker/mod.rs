@@ -134,7 +134,7 @@ pub async fn sync_history(task_config: TaskConfig, logger: Sender<String>) -> an
         for tags in &tags_group {
             tracing::debug!("sync history:{} query rows", count);
             let mut rows = query
-                .query_history(tags.clone(), window_start, window_end)
+                .select_from_history(tags.clone(), window_start, window_end)
                 .await?
                 .into_row_stream();
 
@@ -223,7 +223,7 @@ pub async fn sync_live(task_config: TaskConfig, logger: Sender<String>) -> anyho
             Local::now().to_string()
         );
         let mut rows = query
-            .query_live(task_config.tags.clone())
+            .select_from_live(task_config.tags.clone())
             .await?
             .into_row_stream();
 
