@@ -2428,8 +2428,12 @@ int32_t leastSQRScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPa
     matrix12 /= matrix[1][1];
 
     char   buf[64] = {0};
-    size_t len = snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%.6lf, intercept:%.6lf}", matrix02,
-                          matrix12);
+    size_t len = 0;
+    if (fabs(matrix02) > 1e6 || fabs(matrix12) > 1e6) {
+      len = snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%.6e, intercept:%.6e}", matrix02, matrix12);
+    } else {
+      len = snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%.6lf, intercept:%.6lf}", matrix02, matrix12);
+    }
     varDataSetLen(buf, len);
     colDataSetVal(pOutputData, 0, buf, false);
   }
