@@ -690,9 +690,9 @@ typedef struct STaskStatusEntry {
   int64_t verStart;            // start version in WAL, only valid for source task
   int64_t verEnd;              // end version in WAL, only valid for source task
   int64_t processedVer;        // only valid for source task
-  int64_t activeCheckpointId;     // current active checkpoint id
+  int64_t checkpointId;     // current active checkpoint id
   int32_t chkpointTransId;     // checkpoint trans id
-  bool    checkpointFailed;    // denote if the checkpoint is failed or not
+  int8_t  checkpointFailed;    // denote if the checkpoint is failed or not
   bool    inputQChanging;      // inputQ is changing or not
   int64_t inputQUnchangeCounter;
   double  inputQUsed;          // in MiB
@@ -875,6 +875,8 @@ void         streamMetaStartHb(SStreamMeta* pMeta);
 bool         streamMetaTaskInTimer(SStreamMeta* pMeta);
 int32_t      streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, int64_t startTs,
                                                   int64_t endTs, bool ready);
+int32_t      streamMetaResetTaskStatus(SStreamMeta* pMeta);
+
 void         streamMetaRLock(SStreamMeta* pMeta);
 void         streamMetaRUnLock(SStreamMeta* pMeta);
 void         streamMetaWLock(SStreamMeta* pMeta);
