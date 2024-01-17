@@ -2831,7 +2831,11 @@ static bool pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimitPu
     }
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       if (nodeType(pNodeWithLimit) == QUERY_NODE_LOGIC_PLAN_PROJECT && pNodeWithLimit->pLimit) {
-        swapLimit(pNodeWithLimit, pNodeLimitPushTo);
+        if (((SProjectLogicNode*)pNodeWithLimit)->inputIgnoreGroup) {
+          cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT);
+        } else {
+          swapLimit(pNodeWithLimit, pNodeLimitPushTo);
+        }
         return true;
       }
     default:
