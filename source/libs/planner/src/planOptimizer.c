@@ -5776,7 +5776,6 @@ static bool tsmaOptMayBeOptimized(SLogicNode* pNode) {
     SNode*          pConds = pScan->node.pConditions;
 
     if (pScan->scanType != SCAN_TYPE_TABLE || !pParent || pConds) return false;
-
     if (!pScan->pTsmas || pScan->pTsmas->size <= 0) {
       return false;
     }
