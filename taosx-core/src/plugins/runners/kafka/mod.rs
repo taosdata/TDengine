@@ -30,11 +30,13 @@ use crate::{build_ipc, Action, Parser, Transferred};
 
 mod config;
 
+pub const KAFKA_ID: &str = "kafka";
+
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = KafkaTaskConfig::from_dsn(dsn);
     match config {
         Err(err) => DataSourceValidation::invalid(
-            "kafka".to_string(),
+            KAFKA_ID.to_string(),
             format!(
                 "invalid dsn: {}, cause: {}",
                 dsn.to_string(),
@@ -45,9 +47,9 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             let mut client = KafkaClient::new(c.connect.bootstrap_servers);
             let result = client.load_metadata_all();
             match result {
-                Ok(()) => DataSourceValidation::valid("kafka".to_string(), None),
+                Ok(()) => DataSourceValidation::valid(KAFKA_ID.to_string(), None),
                 Err(err) => DataSourceValidation::invalid(
-                    "kafka".to_string(),
+                    KAFKA_ID.to_string(),
                     format!("failed to connect to kafka, cause: {}", err.to_string()),
                 ),
             }
@@ -86,7 +88,7 @@ pub async fn kafka_to_taos(
         &socket,
         parser,
         &to,
-        Some("kafka"),
+        Some(KAFKA_ID),
         None,
         &cancel,
         with_agent,
@@ -515,7 +517,7 @@ mod tests {
         let result = is_valid(&dsn).await;
         assert_eq!(false, result.valid);
         assert_eq!(false, result.support);
-        assert_eq!("kafka", result.data_source);
+        assert_eq!(KAFKA_ID, result.data_source);
         assert_eq!(
             "failed to connect to kafka, cause: No host reachable",
             result.message.unwrap()
@@ -529,21 +531,21 @@ mod tests {
         let dsv = is_valid(&dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
-        assert_eq!("kafka", dsv.data_source);
+        assert_eq!(KAFKA_ID, dsv.data_source);
         assert_eq!(None, dsv.version);
 
         let dsn = Dsn::from_str("kafka://192.168.1.92:9092,jf92:9092").unwrap();
         let dsv = is_valid(&dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
-        assert_eq!("kafka", dsv.data_source);
+        assert_eq!(KAFKA_ID, dsv.data_source);
         assert_eq!(None, dsv.version);
 
         let dsn = Dsn::from_str("kafka://127.0.0.1:9092,jf92:9092").unwrap();
         let dsv = is_valid(&dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
-        assert_eq!("kafka", dsv.data_source);
+        assert_eq!(KAFKA_ID, dsv.data_source);
         assert_eq!(None, dsv.version);
     }
 }

@@ -362,7 +362,7 @@ pub fn init_task_metrics(from: Dsn, to: Dsn, task_id: i64) -> Option<Arc<CoreMet
             | "mqtt"
             | "influxdb"
             | "opentsdb"
-            | "kafka"
+            | runners::kafka::KAFKA_ID
             | runners::historian::AVEVA_HISTORIAN_ID
             | "csv",
             "taos",

@@ -406,14 +406,14 @@ impl TaskOpts {
                     )
                     .await?;
                 }
-                ("tmq", "kafka") => {
+                ("tmq", runners::kafka::KAFKA_ID) => {
                     let mut from = from.clone();
                     if let Some(task_id) = task_id.clone() {
                         from.params.insert("topic_suffix".parse()?, task_id);
                     }
                     tmq_to_kafka(from, to.clone(), cancel.clone()).await?;
                 }
-                ("kafka", "taos") => {
+                (runners::kafka::KAFKA_ID, "taos") => {
                     let mut dsn = from.clone();
                     if !dsn.params.contains_key("group") {
                         let group_id = task_id
@@ -480,7 +480,7 @@ impl TaskOpts {
     pub async fn delete_task(&self) -> Result<(), anyhow::Error> {
         let Self { from, to, .. } = &self;
         match (from.driver.as_str(), to.driver.as_str()) {
-            ("tmq", "kafka") => {
+            ("tmq", runners::kafka::KAFKA_ID) => {
                 let mut from = from.clone();
                 if let Some(task_id) = self.task_id.clone() {
                     from.params.insert("topic_suffix".parse()?, task_id);

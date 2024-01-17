@@ -30,7 +30,6 @@ use uuid::Uuid;
 
 use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
-use taosx_core::runners::historian::AVEVA_HISTORIAN_ID;
 use taosx_core::utils::breakpoints::breakpoints_get_all;
 use taosx_core::{
     get_data_dir, validate_dsn, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts,
@@ -671,7 +670,12 @@ impl TaskController {
         self.validate_enterprise_license(&from, &to).await?;
 
         match from.driver.as_str() {
-            "opcua" | "opcda" | "influxdb" | "pi" | "kafka" | "mqtt" => {
+            "opcua"
+            | "opcda"
+            | "influxdb"
+            | "pi"
+            | taosx_core::runners::kafka::KAFKA_ID
+            | "mqtt" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
@@ -790,8 +794,10 @@ impl TaskController {
             "influxdb" => "influxdb",
             "opentsdb" => "opentsdb",
             "pi" => "pi",
-            "kafka" => "kafka",
-            AVEVA_HISTORIAN_ID => AVEVA_HISTORIAN_ID,
+            taosx_core::runners::kafka::KAFKA_ID => taosx_core::runners::kafka::KAFKA_ID,
+            taosx_core::runners::historian::AVEVA_HISTORIAN_ID => {
+                taosx_core::runners::historian::AVEVA_HISTORIAN_ID
+            }
             "mqtt" => "mqtt",
             _ => unreachable!(),
         };
@@ -933,7 +939,12 @@ impl TaskController {
         self.validate_enterprise_license(&from, &to).await?;
 
         match from.driver.as_str() {
-            "opcua" | "opcda" | "influxdb" | "pi" | "kafka" | "mqtt" => {
+            "opcua"
+            | "opcda"
+            | "influxdb"
+            | "pi"
+            | taosx_core::runners::kafka::KAFKA_ID
+            | "mqtt" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
