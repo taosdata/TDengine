@@ -260,12 +260,12 @@ static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo, const 
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t len = strlen(id);
+  int32_t len = strlen(id) + 1;
   for (int32_t i = 0; i < numOfSources; ++i) {
     SSourceDataInfo dataInfo = {0};
     dataInfo.status = EX_SOURCE_DATA_NOT_READY;
     dataInfo.taskId = taosMemoryCalloc(1, len);
-    memcpy(dataInfo.taskId, id, len);
+    strncpy(dataInfo.taskId, id, len);
     dataInfo.index = i;
     SSourceDataInfo* pDs = taosArrayPush(pInfo->pSourceDataInfo, &dataInfo);
     if (pDs == NULL) {
@@ -786,9 +786,9 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
     SSourceDataInfo dataInfo = {0};
     dataInfo.status = EX_SOURCE_DATA_NOT_READY;
     char* pTaskId = GET_TASKID(pOperator->pTaskInfo);
-    int32_t len = strlen(pTaskId);
+    int32_t len = strlen(pTaskId) + 1;
     dataInfo.taskId = taosMemoryCalloc(1, len);
-    memcpy(dataInfo.taskId, pTaskId, len);
+    strncpy(dataInfo.taskId, pTaskId, len);
     dataInfo.index = pIdx->srcIdx;
     dataInfo.pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
     dataInfo.srcOpType = pBasicParam->srcOpType;
