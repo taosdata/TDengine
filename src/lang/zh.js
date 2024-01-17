@@ -1064,7 +1064,7 @@ export default {
         type1: "复制粘贴",
         type2: "从服务器检索",
         type3: "上传文件",
-        retrieve: "检索",
+        retrieve: "从服务器检索",
       },
       filterexecuted: "筛选条件已触发",
       filterunexe: "筛选条件尚未触发，按Enter键触发",

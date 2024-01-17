@@ -7,12 +7,13 @@
         </div>
         <el-tabs v-model="activeName">
           <el-tab-pane
+            :disabled="$store.state.app.currentDBType !== 'avevaHistorian'||$store.state.app.currentDBType !== 'csv'"
             :label="$t('datasource.transformer.msgbodytypes.type1')"
             name="first"
           >
           </el-tab-pane>
           <el-tab-pane
-            :disabled="true"
+            :disabled="$store.state.app.currentDBType !== 'avevaHistorian'"
             :label="$t('datasource.transformer.msgbodytypes.type2')"
             name="second"
           >
@@ -58,6 +59,7 @@
           <el-form-item prop="msgbody">
             <div id="jsoneditor"></div>
             <el-input
+              :disabled="$store.state.app.currentDBType == 'avevaHistorian'"
               class="msgbody"
               v-model="msgForm.msgbody"
               size="small"
@@ -575,6 +577,9 @@ export default {
     },
   },
   mounted() {
+    if(this.$store.state.app.currentDBType == 'avevaHistorian'){
+      this.activeName='second'
+    }
     if (this.parserColumns) {
       this.initColumnLists(this.parserColumns);
     }
@@ -1741,6 +1746,14 @@ export default {
         this.initColumnLists(val);
       },
     },
+    "$store.state.app.currentDBType":{
+      deep:true,
+      handler(val){
+        if(val=='avevaHistorian'){
+          this.activeName='second'
+        }
+      }
+    }
   },
 };
 </script>
