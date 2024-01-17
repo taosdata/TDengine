@@ -37,7 +37,7 @@ typedef struct SSourceDataInfo {
   int64_t            startTime;
   int32_t            code;
   EX_SOURCE_STATUS   status;
-  const char*        taskId;
+  char*              taskId;
   SArray*            pSrcUidList;
   int32_t            srcOpType;
   bool               tableSeq;
@@ -260,14 +260,16 @@ static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo, const 
     return TSDB_CODE_SUCCESS;
   }
 
+  int32_t len = strlen(id);
   for (int32_t i = 0; i < numOfSources; ++i) {
     SSourceDataInfo dataInfo = {0};
     dataInfo.status = EX_SOURCE_DATA_NOT_READY;
-    dataInfo.taskId = id;
+    dataInfo.taskId = taosMemoryCalloc(1, len);
+    memcpy(dataInfo.taskId, id, len);
     dataInfo.index = i;
     SSourceDataInfo* pDs = taosArrayPush(pInfo->pSourceDataInfo, &dataInfo);
     if (pDs == NULL) {
-      taosArrayDestroy(pInfo->pSourceDataInfo);
+      taosArrayDestroyEx(pInfo->pSourceDataInfo, freeSourceDataInfo);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
@@ -368,6 +370,7 @@ void freeBlock(void* pParam) {
 void freeSourceDataInfo(void* p) {
   SSourceDataInfo* pInfo = (SSourceDataInfo*)p;
   taosMemoryFreeClear(pInfo->pRsp);
+  taosMemoryFreeClear(pInfo->taskId);
 }
 
 void doDestroyExchangeOperatorInfo(void* param) {
@@ -782,7 +785,10 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
   if (pIdx->inUseIdx < 0) {
     SSourceDataInfo dataInfo = {0};
     dataInfo.status = EX_SOURCE_DATA_NOT_READY;
-    dataInfo.taskId = GET_TASKID(pOperator->pTaskInfo);
+    char* pTaskId = GET_TASKID(pOperator->pTaskInfo);
+    int32_t len = strlen(pTaskId);
+    dataInfo.taskId = taosMemoryCalloc(1, len);
+    memcpy(dataInfo.taskId, pTaskId, len);
     dataInfo.index = pIdx->srcIdx;
     dataInfo.pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
     dataInfo.srcOpType = pBasicParam->srcOpType;
