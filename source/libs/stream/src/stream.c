@@ -35,6 +35,10 @@ void streamTimerCleanUp() {
   streamTimer = NULL;
 }
 
+tmr_h streamTimerGetInstance() {
+  return streamTimer;
+}
+
 char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
   char buf[128] = {0};
   sprintf(buf, "0x%" PRIx64 "-0x%x", streamId, taskId);
