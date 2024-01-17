@@ -213,7 +213,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
 
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pTask->ver) < 0) return -1;
-  if (pTask->ver != SSTREAM_TASK_VER) return -1;
+  if (pTask->ver <= SSTREAM_TASK_INCOMPATIBLE_VER) return -1;
 
   if (tDecodeI64(pDecoder, &pTask->id.streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->id.taskId) < 0) return -1;
@@ -300,7 +300,7 @@ int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo)
 
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pChkpInfo->msgVer) < 0) return -1;
-  // if (ver != SSTREAM_TASK_VER) return -1;
+  // if (ver <= SSTREAM_TASK_INCOMPATIBLE_VER) return -1;
 
   if (tDecodeI64(pDecoder, &skip64) < 0) return -1;
   if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
@@ -328,7 +328,7 @@ int32_t tDecodeStreamTaskId(SDecoder* pDecoder, STaskId* pTaskId) {
   int64_t ver;
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &ver) < 0) return -1;
-  if (ver != SSTREAM_TASK_VER) return -1;
+  if (ver <= SSTREAM_TASK_INCOMPATIBLE_VER) return -1;
 
   if (tDecodeI64(pDecoder, &pTaskId->streamId) < 0) return -1;
 
