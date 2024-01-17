@@ -2354,11 +2354,11 @@ int32_t leastSQRScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPa
     char interceptBuf[64] = {0};
     int  n = snprintf(slopBuf, 64, "%.6lf", matrix02);
     if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
-      snprintf(slopBuf, 64, "%.", DOUBLE_PRECISION_DIGITS, matrix02);
+      snprintf(slopBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix02);
     }
     n = snprintf(interceptBuf, 64, "%.6lf", matrix12);
     if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
-      snprintf(interceptBuf, 64, "%.", DOUBLE_PRECISION_DIGITS, matrix12);
+      snprintf(interceptBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix12);
     }
     size_t len =
         snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%s, intercept:%s}", slopBuf, interceptBuf);
