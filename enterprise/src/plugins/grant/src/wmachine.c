@@ -23,9 +23,9 @@ void grantActiveSystem(const char *inputCfgFile, SGrantObj *pObj, SGrantConnObj 
   grantObj.limitDnodes = GRANT_UNIQ_UNLIMITED;
   grantObj.limitTimeSeries = GRANT_UNIQ_UNLIMITED;
   grantObj.limitStreams = GRANT_UNIQ_UNLIMITED;
-  grantObj.limitTopics = GRANT_UNIQ_UNLIMITED;
+  grantObj.limitSubscriptions = GRANT_UNIQ_UNLIMITED;
   grantObj.streamExpireDay = GRANT_UNIQ_UNLIMITED;
-  grantObj.topicExpireDay = GRANT_UNIQ_UNLIMITED;
+  grantObj.subscr ExpireDay = GRANT_UNIQ_UNLIMITED;
   grantObj.multiTierExpireDay = GRANT_UNIQ_UNLIMITED;
   grantObj.auditExpireDay = GRANT_UNIQ_UNLIMITED;
   grantObj.csvExpireDay = GRANT_UNIQ_UNLIMITED;

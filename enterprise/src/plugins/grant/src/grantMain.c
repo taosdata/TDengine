@@ -135,18 +135,18 @@
     colDataSetVal(pColInfo, numOfRows, tmp, false);                              \
   } while (0)
 
-#define GRANT_DATA_IN_SHOW(appType)                                                                                    \
-  do {                                                                                                                 \
-    ++cols;                                                                                                            \
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);                                                                 \
-    pDataIn = GRANT_DATA_IN(&gStatus, (appType));                                                                      \
-    grantSecondsToString((int64_t)pDataIn->expire * 86400, ts);                                                        \
-    sprintf(tmp1,                                                                                                      \
-            "{\"type\":\"%s\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\", \"expireTime\":\"%s\"}", \
-            gConnName[(appType)], pDataIn->number, pDataIn->speed, pDataIn->expire, ts);                               \
-    STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));                                                                  \
-    colDataSetVal(pColInfo, numOfRows, tmp, false);                                                                    \
-  } while (0)
+// #define GRANT_DATA_IN_SHOW(appType)                                                                                    \
+//   do {                                                                                                                 \
+//     ++cols;                                                                                                            \
+//     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);                                                                 \
+//     pDataIn = GRANT_DATA_IN(&gStatus, (appType));                                                                      \
+//     grantSecondsToString((int64_t)pDataIn->expire * 86400, ts);                                                        \
+//     sprintf(tmp1,                                                                                                      \
+//             "{\"type\":\"%s\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\", \"expireTime\":\"%s\"}", \
+//             gConnName[(appType)], pDataIn->number, pDataIn->speed, pDataIn->expire, ts);                               \
+//     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));                                                                  \
+//     colDataSetVal(pColInfo, numOfRows, tmp, false);                                                                    \
+//   } while (0)
 
 #define GRANT_VALUE_CONVERT(from, to, factor, dft) \
   do {                                             \
@@ -182,7 +182,7 @@
 #define GRANT_GET_DIST(p, idx) (((SGrantDistInfo *)TARRAY_GET_ELEM((p), (idx)))->dist)
 #define GRANT_CONN_DIST(p, idx) (((SGrantDistInfo *)TARRAY_GET_ELEM((p), (idx)))->connDist)
 // uniq grant
-#define GRANT_DATA_IN(s, i) ((s)->ins + i)
+// #define GRANT_DATA_IN(s, i) ((s)->ins + i)
 #define GRANT_IN_PROGRESS() (atomic_load_8(&grantHbLock) != 0)
 #define GRANT_IS_IVLD_MACHINE() ((grantHandle.info & 0x01) != 0)
 #define GRANT_SET_IVLD_MACHINE() (grantHandle.info |= 0x01)
@@ -191,8 +191,13 @@
 #define GRANT_DIST_TOLERENCE 86400  // seconds
 #define GRANT_TS_SEC_LEN 20
 
-static const char *gConnName[CONN_TYPE_MAX] = {"OPC_DA", "OPC_UA",         "Pi",       "Kafka",       "InfluxDB",
-                                               "MQTT",   "avevaHistorian", "OpenTSDB", "TDengine2.6", "TDengine3.0"};
+static const char gConnName[CONN_TYPE_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
+    "opc_da",         "opc_ua",   "pi",    "kafka", "influxdb",  "mqtt",
+    "avevahistorian", "opentsdb", "td2.6", "td3.0", "clickhouse"};
+
+static const char *gConnDisplay[CONN_TYPE_DYN_MAX] = {
+    "OPC_DA",         "OPC_UA",   "Pi",          "Kafka",       "InfluxDB",  "MQTT",
+    "avevaHistorian", "OpenTSDB", "TDengine2.6", "TDengine3.0", "ClickHouse"};
 
 SGrantStatus     grantStatus = {0};
 SGrantUniqStatus grantUniqStatus = {
@@ -201,9 +206,9 @@ SGrantUniqStatus grantUniqStatus = {
     .limitTimeSeries = GRANT_UNIQ_UNLIMITED,
     .limitCpuCores = GRANT_UNIQ_UNLIMITED,
     .limitStreams = GRANT_UNIQ_UNLIMITED,
-    .limitTopics = GRANT_UNIQ_UNLIMITED,
+    .limitSubscriptions = GRANT_UNIQ_UNLIMITED,
     .streamExpireSec = GRANT_UNIQ_UNLIMITED,
-    .topicExpireSec = GRANT_UNIQ_UNLIMITED,
+    .subscriptionExpireSec = GRANT_UNIQ_UNLIMITED,
     .multiTierExpireSec = GRANT_UNIQ_UNLIMITED,
     .auditExpireSec = GRANT_UNIQ_UNLIMITED,
     .csvExpireSec = GRANT_UNIQ_UNLIMITED,
@@ -247,7 +252,7 @@ static void    mndCancelGetNextGrant(SMnode *pMnode, void *pIter);
 static int32_t tGrantConnItemsNum(int8_t version);
 static int32_t tSerializeGrantConnMsg(SEncoder *encoder, SGrantConnMsg *pMsg);
 static int32_t tDeserializeGrantConnMsg(SDecoder *decoder, SGrantConnMsg *pMsg);
-static void    grantDataInsSetDefault(SGrantDataIns *pIns, int32_t num);
+static void    grantDataInsSetDefault(int32_t *pDataIns, int32_t num);
 static int32_t tSerializeGrantDataIns(SEncoder *encoder, SGrantDataIns *pIns);
 static int32_t tDeserializeGrantDataIns(SDecoder *decoder, SGrantDataIns *pIns);
 
@@ -669,6 +674,8 @@ _err:
 }
 
 static int32_t genUniqActiveFromLegacy(SGrantUniqObj *pObj, SGrantStatus *pStatus) {
+
+#if 0
   pObj->version = 0;
   pObj->granted = 0;
   pObj->distribute = GRANT_DIST_MIN;
@@ -728,10 +735,10 @@ static int32_t genUniqActiveFromLegacy(SGrantUniqObj *pObj, SGrantStatus *pStatu
   SGrantUniqObj *uniqObj = taosMemoryCalloc(1, sizeof(SGrantUniqObj));
   memcpy(uniqObj->active, pObj->active, GRANT_UNIQ_ACTIVE_KEY_LEN);
   memcpy(uniqObj->clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
-  ASSERTS(true == grantUniqParseActiveCode(uniqObj, NULL), "invalid parse uniq active");
+  ASSERTS(0 == grantUniqParseActiveCode(uniqObj, NULL), "invalid parse uniq active");
 
   taosMemoryFreeClear(uniqObj);
-
+#endif
   return 0;
 }
 
@@ -787,7 +794,7 @@ static int32_t mndProcessGrantRsp(SRpcMsg *pRsp) {
   char    tbuf[40] = {0};
   TRACE_TO_STR(&pRsp->info.traceId, tbuf);
 
-  int32_t nGrantRsp = atomic_add_fetch_32(&grantHandle.nGrantRsp, 1);
+  int16_t nGrantRsp = atomic_add_fetch_16(&grantHandle.nGrantRsp, 1);
 
   if (!pRsp->pCont || pRsp->contLen <= 0 || pRsp->code != 0) {
     code = pRsp->code != 0 ? pRsp->code : TSDB_CODE_INVALID_MSG_LEN;
@@ -806,15 +813,15 @@ static int32_t mndProcessGrantRsp(SRpcMsg *pRsp) {
   ASSERTS(pDnodeInfo, "pDnodeInfo is NULL for %d", grantMsgRsp.dnodeId);
 
   if (pDnodeInfo) {
-    uDebug("succeed to receive grant msg from dnode:%d, %s:%" PRIu16 ", nReq:%d, nRsp:%d, gtid:%s", grantMsgRsp.dnodeId,
-           pDnodeInfo->ep.fqdn, pDnodeInfo->ep.port, grantHandle.nGrantReq, nGrantRsp, tbuf);
+    uDebug("succeed to receive grant msg from dnode:%d, %s:%" PRIu16 ", nReq:%" PRIi16 ", nRsp:%" PRIi16 ", gtid:%s",
+           grantMsgRsp.dnodeId, pDnodeInfo->ep.fqdn, pDnodeInfo->ep.port, grantHandle.nGrantReq, nGrantRsp, tbuf);
     mndProcessDnodeSGrantMsg(grantHandle.pMnode, pDnodeInfo, &grantMsgRsp, &gStatus);
   }
 
 _exit:
   if (code != 0) {
-    uWarn("receive grant msg from dnode, nReq:%d, nRsp:%d with error:%s, gtid:%s", grantHandle.nGrantReq, nGrantRsp,
-          tstrerror(code), tbuf);
+    uWarn("receive grant msg from dnode, nReq:%" PRIi16 ", nRsp:%" PRIi16 " with error:%s, gtid:%s",
+          grantHandle.nGrantReq, nGrantRsp, tstrerror(code), tbuf);
   }
   if (nGrantRsp >= grantHandle.nGrantReq) {
     mndProcessGrantStatusCheck();
@@ -852,30 +859,29 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
   char active[GRANT_UNIQ_ACTIVE_KEY_LEN + 1] = "\0";
   mndGetClusterActive(pMnode, active);
   if (active[0] != 0) {
-    if (!grantUniqParseActiveCode(&grantObj, NULL)) {
+    if (0 != grantUniqParseActiveCode(&grantObj, NULL)) {
       grantResetMaster(pMnode);
     } else if (type == 0) {
       // transfer grantObj to gStatus
       int32_t dftExpireDay = ceil((double)grantClusterEpoch / 86400) + GRANT_UNIQ_DFT_BASIC_EXPIRE;
       gStatus.officialVersion = grantObj.officialVersion;
-      GRANT_VALUE_CONVERT(grantObj.basicExpireDay, gStatus.basicExpireSec, 86400, dftExpireDay);
+      GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_BASIC], gStatus.basicExpireSec, 86400, dftExpireDay);
       GRANT_VALUE_CONVERT(grantObj.limitTimeSeries, gStatus.limitTimeSeries, 1, GRANT_UNIQ_DFT_BASIC_TIMESERIES);
       GRANT_VALUE_CONVERT(grantObj.limitDnodes, gStatus.limitDnodes, 1, GRANT_UNIQ_DFT_BASIC_DNODES);
       GRANT_VALUE_CONVERT(grantObj.limitCpuCores, gStatus.limitCpuCores, 1, GRANT_UNIQ_DFT_BASIC_CPU);
-      GRANT_VALUE_CONVERT(grantObj.streamExpireDay, gStatus.streamExpireSec, 86400, dftExpireDay);
+      GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_STREAM], gStatus.streamExpireSec, 86400, dftExpireDay);
       GRANT_VALUE_CONVERT(grantObj.limitStreams, gStatus.limitStreams, 1, GRANT_UNIQ_DFT_STREAM_NUM);
-      GRANT_VALUE_CONVERT(grantObj.topicExpireDay, gStatus.topicExpireSec, 86400, dftExpireDay);
-      GRANT_VALUE_CONVERT(grantObj.limitTopics, gStatus.limitTopics, 1, GRANT_UNIQ_DFT_TOPIC_NUM);
-      GRANT_VALUE_CONVERT(grantObj.multiTierExpireDay, gStatus.multiTierExpireSec,86400,dftExpireDay);
-      GRANT_VALUE_CONVERT(grantObj.auditExpireDay, gStatus.auditExpireSec,86400, dftExpireDay);
-      GRANT_VALUE_CONVERT(grantObj.csvExpireDay, gStatus.csvExpireSec, 86400, dftExpireDay);
-      GRANT_VALUE_CONVERT(grantObj.bakRstExpireDay, gStatus.bakRstExpireSec, 86400, dftExpireDay);
-      for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
-        SGrantDataIns *pFrom = grantObj.ins + i;
-        SGrantDataIns *pTo = gStatus.ins + i;
-        GRANT_VALUE_CONVERT(pFrom->expire, pTo->expire, 1, dftExpireDay);
-        GRANT_VALUE_CONVERT(pFrom->speed, pTo->speed, 1, GRANT_UNIQ_DFT_DATAIN_SPEED);
-        GRANT_VALUE_CONVERT(pFrom->number, pTo->number, 1, GRANT_UNIQ_DFT_DATAIN_NUM);
+      GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_SUBSCRIPTION], gStatus.subscriptionExpireSec, 86400,
+                          dftExpireDay);
+      GRANT_VALUE_CONVERT(grantObj.limitSubscriptions, gStatus.limitSubscriptions, 1, GRANT_UNIQ_DFT_TOPIC_NUM);
+      GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_STORAGE], gStatus.multiTierExpireSec, 86400, dftExpireDay);
+      GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_AUDIT], gStatus.auditExpireSec, 86400, dftExpireDay);
+      GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_CSV], gStatus.csvExpireSec, 86400, dftExpireDay);
+      GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_DATA_BAK_RST], gStatus.bakRstExpireSec, 86400, dftExpireDay);
+      for (int32_t i = 0; i < GRANT_UNIQ_KNOWN_DATAIN_VALS; i += 3) {
+        GRANT_VALUE_CONVERT(grantObj.dataIns[i], gStatus.dataIns[i], 1, dftExpireDay);                         // expire
+        GRANT_VALUE_CONVERT(grantObj.dataIns[i + 1], gStatus.dataIns[i + 1], 1, GRANT_UNIQ_DFT_DATAIN_SPEED);  // speed
+        GRANT_VALUE_CONVERT(grantObj.dataIns[i + 2], gStatus.dataIns[i + 2], 1, GRANT_UNIQ_DFT_DATAIN_NUM);    // number
       }
     }
     gStatus.uniqActive = 1;
@@ -942,7 +948,7 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
       continue;
     }
     if (0 == mndSendGrantStatusToDnode(pMnode, info, clusterTime)) {
-      ++grantHandle.nGrantReq;
+      atomic_add_fetch_16(&grantHandle.nGrantReq, 1);
     }
   }
 
@@ -1014,7 +1020,7 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
         continue;
       }
       if (0 == mndSendGrantStatusToDnode(pMnode, info, clusterTime)) {
-        ++grantHandle.nGrantReq;
+        atomic_add_fetch_16(&grantHandle.nGrantReq, 1);
       }
     }
 
@@ -1240,7 +1246,7 @@ static void grantRetrieveGrantInfo(SMnode *pMnode) {
   gStatus.curDnodes = grantGetClusterCurDnodes(pMnode);
   gStatus.curCpuCores = grantGetClusterCurCores(pMnode);
   gStatus.curStreams = grantGetClusterCurStreams(pMnode);
-  gStatus.curTopics = grantGetClusterCurTopics(pMnode);
+  gStatus.curSubscriptions = grantGetClusterCurTopics(pMnode);
 }
 
 static int32_t tSerializeGrantNotify(void *buf, int32_t bufLen, GrantNotify *pNotify) {
@@ -1354,8 +1360,8 @@ static void grantResetMaster(SMnode *pMnode) {
     gStatus.multiTierExpired = gStatus.basicExpired;
     gStatus.streamExpireSec = gStatus.basicExpireSec;
     gStatus.streamExpired = gStatus.basicExpired;
-    gStatus.topicExpireSec = gStatus.basicExpireSec;
-    gStatus.topicExpired = gStatus.basicExpired;
+    gStatus.subscriptionExpireSec = gStatus.basicExpireSec;
+    gStatus.subscriptionExpired = gStatus.basicExpired;
     gStatus.auditExpireSec = gStatus.basicExpireSec;
     gStatus.auditExpired = gStatus.basicExpired;
     gStatus.csvExpireSec = gStatus.basicExpireSec;
@@ -1369,17 +1375,19 @@ static void grantResetMaster(SMnode *pMnode) {
           gStatus.curTimeSeries);
   }
 #endif
-  grantDataInsSetDefault(gStatus.ins, CONN_TYPE_MAX);
+  grantDataInsSetDefault(&gStatus.dataIns[0], GRANT_UNIQ_KNOWN_DATAIN_VALS);
 }
 
-static void grantDataInsSetDefault(SGrantDataIns *pIns, int32_t num) {
+static void grantDataInsSetDefault(int32_t *pDataIns, int32_t num) {
   if (grantClusterEpoch <= 0) grantClusterEpoch = grantGetClusterCreateTime(grantHandle.pMnode);
-  SGrantDataIns in = {.number = GRANT_UNIQ_DFT_DATAIN_NUM,
-                      .speed = GRANT_UNIQ_DFT_DATAIN_SPEED,
-                      .expire = ceil((double)grantClusterEpoch / 86400) + GRANT_UNIQ_DFT_DATAIN_EXPIRE};
+  // SGrantDataIns in = {.number = GRANT_UNIQ_DFT_DATAIN_NUM,
+  //                     .speed = GRANT_UNIQ_DFT_DATAIN_SPEED,
+  int32_t expire = ceil((double)grantClusterEpoch / 86400) + GRANT_UNIQ_DFT_DATAIN_EXPIRE;
 
-  for (int32_t i = 0; i < num; ++i) {
-    *(pIns + i) = in;
+  for (int32_t i = 0; i < num; i += 3) {
+    *(pDataIns + i) = expire;                           // expire
+    *(pDataIns + i + 1) = GRANT_UNIQ_DFT_DATAIN_SPEED;  // speed
+    *(pDataIns + i + 2) = GRANT_UNIQ_DFT_DATAIN_NUM;    // number
   }
 }
 
@@ -1473,14 +1481,14 @@ static int32_t grantCheckStreams() {
          (int64_t)gStatus.streamExpireSec, (int32_t)gStatus.curStreams);
   return TSDB_CODE_GRANT_STREAM_LIMITED;
 }
-static int32_t grantCheckTopics() {
-  ASSERTS(gStatus.limitTopics != GRANT_UNIQ_UNDEFINED, "limitTopics is %d", GRANT_UNIQ_UNDEFINED);
-  if (!gStatus.topicExpired &&
-      (gStatus.limitTopics == GRANT_UNIQ_UNLIMITED || gStatus.curTopics < gStatus.limitTopics)) {
+static int32_t grantCheckSubscriptions() {
+  ASSERTS(gStatus.limitSubscriptions != GRANT_UNIQ_UNDEFINED, "limitSubscription is %d", GRANT_UNIQ_UNDEFINED);
+  if (!gStatus.subscriptionExpired &&
+      (gStatus.limitSubscriptions == GRANT_UNIQ_UNLIMITED || gStatus.curSubscriptions < gStatus.limitSubscriptions)) {
     return 0;
   }
   uError("grant failed to check topic, expire:%" PRIi64 ", num:%d, reason:topic limited",
-         (int64_t)gStatus.topicExpireSec, (int32_t)gStatus.curTopics);
+         (int64_t)gStatus.subscriptionExpireSec, (int32_t)gStatus.curSubscriptions);
   return TSDB_CODE_GRANT_STREAM_LIMITED;  // TODO
 }
 
@@ -1524,12 +1532,12 @@ int32_t grantCheck(EGrantType grant) {
       return grantCheckStreams();
     case TSDB_GRANT_CPU_CORES:
       return grantCheckCpuCores();
-    case TSDB_GRANT_TOPIC:
-      return grantCheckTopics();
+    case TSDB_GRANT_SUBSCRIPTION:
+      return grantCheckSubscriptions();
     case TSDB_GRANT_STREAM_EXPIRE:
       return GRANT_EXPIRED(gStatus.streamExpired);
-    case TSDB_GRANT_TOPIC_EXPIRE:
-      return GRANT_EXPIRED(gStatus.topicExpired);
+    case TSDB_GRANT_SUBSCRIPTION_EXPIRE:
+      return GRANT_EXPIRED(gStatus.subscriptionExpired);
     case TSDB_GRANT_AUDIT_EXPIRE:
       return GRANT_EXPIRED(gStatus.auditExpired);
     case TSDB_GRANT_CSV_EXPIRE:
@@ -1829,9 +1837,9 @@ int32_t grantAlterActiveCode(const char *active, char** newActive) {
   }
   if (active) memcpy(obj.active, active, GRANT_UNIQ_ACTIVE_KEY_LEN);
   SActiveCodeInfo info = {0};
-  grantUniqParseActiveCode(&obj, &info);
-  if (!obj.granted) {
-    code = terrno != 0 ? terrno : TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
+  code = grantUniqParseActiveCode(&obj, &info);
+  if (code != 0 || !obj.granted) {
+    code = TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
     goto _exit;
   }
 
@@ -1886,7 +1894,7 @@ int32_t grantAlterActiveCode(const char *active, char** newActive) {
 
   // no active code in SClusterObj
   if (gStatus.uniqActive == 0) {
-    if (obj.basicExpireDay == GRANT_UNIQ_UNDEFINED || obj.limitTimeSeries == GRANT_UNIQ_UNDEFINED ||
+    if (obj.expireDays[GRANT_OPT_BASIC] == GRANT_UNIQ_UNDEFINED || obj.limitTimeSeries == GRANT_UNIQ_UNDEFINED ||
         obj.limitDnodes == GRANT_UNIQ_UNDEFINED || obj.limitCpuCores == GRANT_UNIQ_UNDEFINED) {
       code = TSDB_CODE_GRANT_LACK_OF_BASIC;
       goto _exit;
@@ -1933,20 +1941,20 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     GRANT_ITEM_SHOW(gStatus.curTimeSeries, gStatus.limitTimeSeries, 64);
     GRANT_ITEM_SHOW(gStatus.curDnodes, gStatus.limitDnodes, 16);
     GRANT_ITEM_SHOW(gStatus.curStreams, gStatus.limitStreams, 16);
-    GRANT_ITEM_SHOW(gStatus.curTopics, gStatus.limitTopics, 16);
+    GRANT_ITEM_SHOW(gStatus.curSubscriptions, gStatus.limitSubscriptions, 16);
     GRANT_ITEM_SHOW(gStatus.curCpuCores, gStatus.limitCpuCores, 32);
 
     GRANT_EXPIRE_SHOW(gStatus.multiTierExpireSec);
     GRANT_EXPIRE_SHOW(gStatus.streamExpireSec);
-    GRANT_EXPIRE_SHOW(gStatus.topicExpireSec);
+    GRANT_EXPIRE_SHOW(gStatus.subscriptionExpireSec);
     GRANT_EXPIRE_SHOW(gStatus.auditExpireSec);
     GRANT_EXPIRE_SHOW(gStatus.csvExpireSec);
     GRANT_EXPIRE_SHOW(gStatus.bakRstExpireSec);
 
     // connectors
-    for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
-      GRANT_DATA_IN_SHOW(i);
-    }
+    // for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
+    //   GRANT_DATA_IN_SHOW(i);
+    // }
 
     numOfRows++;
   }
@@ -1997,7 +2005,7 @@ static int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pSt
   if (tEncodeI32v(&encoder, pStatus->limitCpuCores) < 0) goto _exit;
   if (tEncodeI32v(&encoder, pStatus->curCpuCores) < 0) goto _exit;
 
-  if (tSerializeGrantDataIns(&encoder, pStatus->ins) < 0) goto _exit;  // optional
+  // if (tSerializeGrantDataIns(&encoder, pStatus->ins) < 0) goto _exit;  // optional
 
   if (tEncodeI64v(&encoder, clusterTime) < 0) goto _exit;
   if (tEncodeI32v(&encoder, pInfo->id) < 0) goto _exit;
@@ -2038,7 +2046,7 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
   if (tDecodeI32v(&decoder, &pStatus->limitCpuCores) < 0) goto _exit;
   if (tDecodeI32v(&decoder, &pStatus->curCpuCores) < 0) goto _exit;
 
-  if (tDeserializeGrantDataIns(&decoder, pStatus->ins) < 0) goto _exit; // optional
+  // if (tDeserializeGrantDataIns(&decoder, pStatus->ins) < 0) goto _exit; // optional
 
   if (tDecodeI64v(&decoder, clusterTime) < 0) goto _exit;
   if (tDecodeI32v(&decoder, &pInfo->id) < 0) goto _exit;
@@ -2175,7 +2183,7 @@ static int32_t tDeserializeGrantDataIns(SDecoder *decoder, SGrantDataIns *pIns) 
     if (tDecodeI32v(decoder, &pIn->expire) < 0) return -1;
   }
   if (nIns < CONN_TYPE_MAX) {
-    grantDataInsSetDefault(pIns + nIns, CONN_TYPE_MAX - nIns);
+    // grantDataInsSetDefault(pIns + nIns, CONN_TYPE_MAX - nIns);
   }
   return 0;
 }

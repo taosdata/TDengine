@@ -18,6 +18,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "tarray.h"
 #include "tgrant.h"
 
 #ifdef GRANT_VALUE
@@ -75,10 +76,11 @@
 #define GRANT_STABLE_LIMITS        4102416000
 #define GRANT_TABLE_LIMITS         4102416000
 
+#define GRANT_ITEM_NAME_LEN        32
+
 // specific for connectors
 #define GRANT_CONN_ACTIVE_MAJOR_VER    2 // increase if the definition of data structure or active code changes, history value 1:2
 #define GRANT_CONN_ACTIVE_MINOR_VER    1
-#define GRANT_CONN_NAME_LEN 32
 #define GRANT_CONN_NUM_V1              32
 #define GRANT_CONN_NUM                 GRANT_CONN_NUM_V1
 #define GRANT_CONN_ACTIVE_KEY_LEN      108
@@ -95,17 +97,21 @@
 
 // uniq grant
 #define GRANT_UNIQ_ACTIVE_VER            1
+#define GRANT_UNIQ_ACTIVE_MAX_LEN        1024
 #define GRANT_UNIQ_ACTIVE_KEY_LEN        248
 #define GRANT_UNIQ_ACTIVE_RAW_LEN        184
 #define GRANT_UNIQ_ACTIVE_ENCRYPT_LEN    176
 #define GRANT_UNIQ_HASH_LEN              8
+#define GRANT_UNIQ_HEAD_LEN              14
 
 #define GRANT_UNIQ_UNLIMITED             (-1)
 #define GRANT_UNIQ_UNDEFINED             (-2)
+#define GRANT_UNIQ_UNUTILIZED            (-3)
 #define GRANT_UNIQ_UNLIMITED_S           "unlimited"
 #define GRANT_UNIQ_UNDEFINED_S           "undef"
 
 #define GRANT_UNIQ_MAX_EXPIRE_SECOND     (31556995200)  // second: 1970 + 1000 year
+#define GRANT_UNIQ_KNOWN_DATAIN_VALS     120
 
 #ifndef GRANTS_CFG
 #define GRANT_UNIQ_DFT_BASIC_EXPIRE      GRANT_EXPIRE_DAY
@@ -218,7 +224,7 @@ typedef struct {
   uint32_t limitCpuCores;
   union {
     uint32_t reserveKey1;
-    uint32_t distribute;      // distribute date since 3.1.0.0
+    uint32_t distribute;  // distribute date since 3.1.0.0
   };
   uint32_t reserveKey2;
 
@@ -227,45 +233,72 @@ typedef struct {
 // uniq grant
 typedef enum {
   GRANT_OPT_BASIC = 0,
-  GRANT_OPT_STREAM = 1,
-  GRANT_OPT_TOPIC = 2,
-  GRANT_OPT_STORAGE = 3,
-  GRANT_OPT_AUDIT = 4,
-  GRANT_OPT_DATA_BAK_RST = 5,
-  GRANT_OPT_DATA_REPLICA = 6,
-  GRANT_OPT_DATA_IN = 7,
+  GRANT_OPT_SERVICE = 1,
+  GRANT_OPT_STREAM = 2,
+  GRANT_OPT_SUBSCRIPTION = 3,
+  GRANT_OPT_STORAGE = 4,
+  GRANT_OPT_VIEW = 4,
+  GRANT_OPT_AUDIT = 5,
+  GRANT_OPT_CSV = 6,
+  GRANT_OPT_DATA_BAK_RST = 7,
   GRANT_OPT_MAX,
 } SGrantOpt;
 
 typedef struct {
-  char    name[GRANT_CONN_NAME_LEN];
+  char    name[GRANT_ITEM_NAME_LEN];
   int32_t number;  // number of connections
   int32_t speed;   // transfer speed, unit: MB
   int32_t expire;  // unit: day
 } SGrantDataIns;
 
 typedef struct {
-  char          clusterId[GRANT_CLUSTER_ID_LEN + 1];
-  char          active[GRANT_UNIQ_ACTIVE_KEY_LEN + 1];
-  int64_t       distribute : 40;  // unit: second
-  int64_t       granted : 8;
-  int64_t       version : 8;
-  int64_t       officialVersion : 8;
-  int32_t       basicExpireDay;
-  int16_t       limitDnodes;
-  int16_t       reserve0;
-  int64_t       limitTimeSeries;
-  int32_t       limitCpuCores;
-  int16_t       limitStreams;
-  int16_t       limitTopics;
-  int32_t       streamExpireDay;
-  int32_t       topicExpireDay;
-  int32_t       multiTierExpireDay;
-  int32_t       auditExpireDay;
-  int32_t       csvExpireDay;
-  int32_t       bakRstExpireDay;
-  SGrantDataIns ins[GRANT_CONN_NUM];
+  char    name[GRANT_ITEM_NAME_LEN];
+  int32_t expire;
+  int32_t number;
+} SGrantItem32;
+
+typedef struct {
+  char    name[GRANT_ITEM_NAME_LEN];
+  int32_t expire;
+  int64_t number;
+} SGrantItem64;
+
+typedef struct {
+  char    *active;
+  int16_t  activeLen;
+  char     clusterId[GRANT_CLUSTER_ID_LEN + 1];
+  uint32_t flags;
+  uint32_t checksum[4];  // last active + 3 mnodes
+  union {
+    uint64_t u0;
+    struct {
+      uint64_t distribute : 36;  // second
+      uint64_t granted : 1;
+      uint64_t officialVersion : 1;
+      uint64_t padding : 2;
+      uint64_t validDays : 8;
+      uint64_t version : 16;
+    };
+  };
+  int64_t limitTimeSeries;
+  int32_t limitCpuCores;
+  int16_t limitDnodes;
+  int16_t limitStreams;
+  int16_t limitSubscriptions;
+  int16_t reserve;
+  int32_t limitViews;
+  int32_t expireDays[GRANT_OPT_MAX];
+  int32_t dataIns[GRANT_UNIQ_KNOWN_DATAIN_VALS];  // known dataIns: 3 * sizeof(int32_t) * CONN_TYPE_MAX
+
+  // variant fields
+  SArray *pDataIns;  // SGrantDataIns
+  SArray *pItem32;   // SGrantItem32
+  SArray *pItem64;   // SGrantItem64
 } SGrantUniqObj;
+
+// taosGrant -> obj(init 0/-2/-1/...) -> fetch inputs and fill into obj -> encodeLen -> malloc(encodeLen+HeadLen(8+6))
+// -> encode+md5 -> zip -> base64 encode -> finish
+// -> base64 decode -> unzip -> decode and fill obj -> fill into grantStatus -> finish
 
 typedef struct {
   union {
@@ -276,7 +309,7 @@ typedef struct {
       int64_t basicExpired : 1;
       int64_t multiTierExpired : 1;
       int64_t streamExpired : 1;
-      int64_t topicExpired : 1;
+      int64_t subscriptionExpired : 1;
       int64_t auditExpired : 1;
       int64_t csvExpired : 1;
       int64_t uniqActive : 1;
@@ -295,8 +328,8 @@ typedef struct {
   union {
     int64_t p3;
     struct {
-      int64_t topicExpireSec : 40;
-      int64_t limitTopics : 16;
+      int64_t subscriptionExpireSec : 40;
+      int64_t limitSubscriptions : 16;
       int64_t reserve1 : 8;
     };
   };
@@ -320,7 +353,7 @@ typedef struct {
     int64_t p6;
     struct {
       int64_t csvExpireSec : 40;
-      int64_t curTopics : 16;
+      int64_t curSubscriptions : 16;
       int64_t reserve4 : 8;
     };
   };
@@ -331,11 +364,15 @@ typedef struct {
       int64_t reserve5 : 24;
     };
   };
-  int64_t       limitTimeSeries;
-  int64_t       curTimeSeries;
-  int32_t       limitCpuCores;
-  int32_t       curCpuCores;
-  SGrantDataIns ins[CONN_TYPE_MAX];
+  int64_t limitTimeSeries;
+  int64_t curTimeSeries;
+  int32_t limitCpuCores;
+  int32_t curCpuCores;
+  int32_t dataIns[GRANT_UNIQ_KNOWN_DATAIN_VALS];  // known dataIns: 3 * sizeof(int32_t) * CONN_TYPE_MAX
+  // variants
+  SArray *pDataIns;  // SGrantDataIns
+  SArray *pItem32;
+  SArray *pItem64;
 } SGrantUniqStatus;
 
 // uniq grant
@@ -420,8 +457,8 @@ void  grantActiveSystem(const char *cfgFile, SGrantObj *pObj, SGrantConnObj *pCo
 bool  grantExplainActiveCode(SGrantObj *grant, SActiveCodeInfo *info);
 bool  grantConnExplainActiveCode(SGrantConnObj *grant, SActiveCodeInfo *info);
 
-bool  grantUniqGenActiveCode(SGrantUniqObj *grant);
-bool  grantUniqParseActiveCode(SGrantUniqObj *grant, SActiveCodeInfo *info);
-char *grantUniqMergeActiveCode(SGrantUniqObj *new, SGrantUniqObj *old, char** newActive);
+int32_t grantUniqGenActiveCode(SGrantUniqObj *grant);
+int32_t grantUniqParseActiveCode(SGrantUniqObj *grant, SActiveCodeInfo *info);
+char   *grantUniqMergeActiveCode(SGrantUniqObj *new, SGrantUniqObj *old, char **newActive);
 
 #endif
