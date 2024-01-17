@@ -2155,6 +2155,8 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
       return code;
     }
 
+    if (pScanNode->groupOrderScan) pTableListInfo->numOfOuputGroups = taosArrayGetSize(pTableListInfo->pTableList);
+
     if (groupSort || pScanNode->groupOrderScan) {
       code = sortTableGroup(pTableListInfo);
     }
