@@ -1576,13 +1576,9 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   param12 /= param[1][1];
 
-  char   buf[64] = {0};
-  size_t len = 0;
-  if (fabs(param02) > 1e6 || fabs(param12) > 1e6) {
-    len = snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%.6e, intercept:%.6e}", param02, param12);
-  } else {
-    len = snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%.6lf, intercept:%.6lf}", param02, param12);
-  }
+  char   buf[512] = {0};
+  size_t len =
+      snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%.6lf, intercept:%.6lf}", param02, param12);
   varDataSetLen(buf, len);
 
   colDataSetVal(pCol, currentRow, buf, pResInfo->isNullRes);
