@@ -9232,6 +9232,11 @@ static int32_t translateCreateTSMA(STranslateContext* pCxt, SCreateTSMAStmt* pSt
   if (code == TSDB_CODE_SUCCESS) {
     code = buildCreateTSMAReq(pCxt, pStmt, &smaReq);
   }
+  if ( TSDB_CODE_SUCCESS == code) {
+    SName name;
+    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
+    code = collectUseTable(&name, pCxt->pTargetTables);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     // TODO replace with tsma serialization func
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_TSMA, (FSerializeFunc)tSerializeSMCreateSmaReq, &smaReq);

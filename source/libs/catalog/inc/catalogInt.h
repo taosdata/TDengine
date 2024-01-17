@@ -582,6 +582,7 @@ typedef struct SCtgDropTbTSMAMsg {
   uint64_t  tsmaId;
   uint64_t  dbId;
   uint64_t  tbId;
+  bool      dropAllForTb;
 } SCtgDropTbTSMAMsg;
 
 

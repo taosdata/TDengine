@@ -341,7 +341,7 @@ static int32_t hbprocessTSMARsp(void* value, int32_t valueLen, struct SCatalog* 
     STableTSMAInfo* pTsmaInfo = taosArrayGetP(hbRsp.pTsmas, i);
 
     if (!pTsmaInfo->pFuncs) {
-      tscDebug("hb to remote tsma: %s.%s", pTsmaInfo->dbFName, pTsmaInfo->name);
+      tscDebug("hb to remove tsma: %s.%s", pTsmaInfo->dbFName, pTsmaInfo->name);
       catalogRemoveTSMA(pCatalog, pTsmaInfo);
       tFreeAndClearTableTSMAInfo(pTsmaInfo);
     } else {
