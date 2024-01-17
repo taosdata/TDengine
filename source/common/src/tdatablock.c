@@ -2196,7 +2196,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
 
   // todo extract method
   int32_t* version = (int32_t*)data;
-  *version = 1;
+  *version = 2;
   data += sizeof(int32_t);
 
   int32_t* actualLen = (int32_t*)data;
@@ -2277,7 +2277,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
       data += colSizes[col];
     }
 
-    colSizes[col] = htonl(colSizes[col]);
+//    colSizes[col] = htonl(colSizes[col]);
     //    uError("blockEncode col bytes:%d, type:%d, size:%d, htonl size:%d", pColRes->info.bytes, pColRes->info.type,
     //    htonl(colSizes[col]), colSizes[col]);
   }
