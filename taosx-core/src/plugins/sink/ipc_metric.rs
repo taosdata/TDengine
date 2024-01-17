@@ -213,6 +213,7 @@ impl TaosXMetrics for IpcMetrics {
         self.failed_points.store(0, SeqCst);
         self.written_raw_blocks.store(0, SeqCst);
         self.failed_raw_blocks.store(0, SeqCst);
+        self.failed_batches.store(0, SeqCst);
     }
 
     fn com(&self) -> &CommonMetrics {
