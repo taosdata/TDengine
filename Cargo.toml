@@ -116,7 +116,7 @@ utoipa-swagger-ui = { version = "4.0.0", features = ["actix-web"] }
 # tonic version is restricted by arrow-flight
 socket2 = "0.5"
 tokio-stream = { version = "0.1", features = ["net"] }
-tonic = { workspace = true, features = ["tls", "tls-roots"] }
+tonic = { workspace = true, features = ["tls", "tls-roots", "gzip"] }
 
 # lru = "0.7.5"
 const_format = "0.2.30"

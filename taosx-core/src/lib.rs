@@ -1,3 +1,4 @@
+use std::sync::OnceLock;
 use std::sync::{
     atomic::{AtomicU32, AtomicU64},
     Arc,
@@ -49,6 +50,9 @@ mod tmq_to_kafka;
 
 pub mod core_metrics;
 mod extensions;
+
+// 全局定义的是否开启 agent 压缩的标志位
+pub static AGENT_COMPRESSION: OnceLock<bool> = OnceLock::new();
 
 shadow_rs::shadow!(build);
 

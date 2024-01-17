@@ -971,6 +971,7 @@ impl RpcConfig {
         };
         let flight_service = FlightServiceServer::new(service);
         let flight_service = flight_service
+            .accept_compressed(tonic::codec::CompressionEncoding::Gzip)
             .max_decoding_message_size(std::usize::MAX)
             .max_encoding_message_size(std::usize::MAX);
         if let Some(tcp) = self.tcp {

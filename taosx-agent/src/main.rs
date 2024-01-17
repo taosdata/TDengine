@@ -22,7 +22,7 @@ use taosx_core::{
 };
 use taosx_core::{
     get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
-    set_env_plugins_home_dir, Activity, RespAction,
+    set_env_plugins_home_dir, Activity, RespAction, AGENT_COMPRESSION,
 };
 use tracing::{log::LevelFilter, Level};
 
@@ -111,6 +111,9 @@ pub struct ConfigArgs {
     #[clap(short = 't', long)]
     token: Option<String>,
 
+    #[clap(long)]
+    compression: Option<bool>,
+
     /// For verbosity logging.
     #[clap(flatten)]
     #[serde(skip)]
@@ -188,6 +191,7 @@ impl Args {
             logs_home,
             endpoint,
             token,
+            compression,
             log_level,
             verbose,
             log_keep_days,
@@ -199,6 +203,9 @@ impl Args {
                 .or(verbose.clone().map(|v| v.log_level_filter()))
                 .unwrap_or(log::LevelFilter::Info),
         );
+
+        AGENT_COMPRESSION.set(compression.unwrap_or(false)).unwrap();
+
         Ok(Args {
             plugins_home,
             data_dir,

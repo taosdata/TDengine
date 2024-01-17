@@ -14,7 +14,7 @@ use std::{
 
 use anyhow::{bail, Context};
 use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions, record_batch::RecordBatch};
-use arrow_flight::FlightClient;
+use arrow_flight::{flight_service_client::FlightServiceClient, FlightClient};
 use async_backtrace::framed;
 use bytes::Bytes;
 use deadpool::managed::Timeouts;
@@ -27,7 +27,7 @@ use taos::{
 };
 use tokio::sync::{Mutex, Notify, OnceCell};
 use tokio_util::sync::CancellationToken;
-use tonic::transport::Channel;
+use tonic::{codec::CompressionEncoding, transport::Channel};
 use tracing::{debug, error, info, instrument, Instrument, Span};
 
 use taosx_ipc::{
@@ -55,6 +55,7 @@ use crate::{
 use self::ipc_metric::IpcMetrics;
 use crate::core_metrics::get_metrics_arc_from_i64;
 
+use super::super::AGENT_COMPRESSION;
 use super::*;
 
 pub mod flat;
@@ -160,7 +161,16 @@ async fn ipc_tcp_forward(
             }
         };
         let alive = std::time::Instant::now();
-        let mut client = FlightClient::new(channel);
+
+        let mut client;
+        if *(AGENT_COMPRESSION.get().unwrap_or(&false)) {
+            let client_inner = FlightServiceClient::new(channel);
+            client = FlightClient::new_from_inner(
+                client_inner.send_compressed(CompressionEncoding::Gzip),
+            );
+        } else {
+            client = FlightClient::new(channel);
+        }
         client.add_header("x-task-id", &task_id.to_string())?;
         client.add_header("x-token", &token)?;
         client.add_header("x-version", crate::build::PKG_VERSION)?;
