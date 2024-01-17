@@ -2427,9 +2427,19 @@ int32_t leastSQRScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPa
 
     matrix12 /= matrix[1][1];
 
-    char   buf[64] = {0};
-    size_t len = snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%.6lf, intercept:%.6lf}", matrix02,
-                          matrix12);
+    char buf[LEASTSQUARES_BUFF_LENGTH] = {0};
+    char slopBuf[64] = {0};
+    char interceptBuf[64] = {0};
+    int  n = snprintf(slopBuf, 64, "%.6lf", matrix02);
+    if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
+      snprintf(slopBuf, 64, "%.16e", matrix02);
+    }
+    n = snprintf(interceptBuf, 64, "%.6lf", matrix12);
+    if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
+      snprintf(interceptBuf, 64, "%.16e", matrix12);
+    }
+    size_t len =
+        snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%s, intercept:%s}", slopBuf, interceptBuf);
     varDataSetLen(buf, len);
     colDataSetVal(pOutputData, 0, buf, false);
   }
