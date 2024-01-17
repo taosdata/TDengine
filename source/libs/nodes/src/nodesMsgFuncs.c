@@ -3203,6 +3203,40 @@ static int32_t msgToPhysiEventWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
+enum { PHY_COUNT_CODE_WINDOW = 1, PHY_COUNT_CODE_WINDOW_COUNT };
+
+static int32_t physiCountWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SCountWinodwPhysiNode* pNode = (const SCountWinodwPhysiNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, PHY_COUNT_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PHY_COUNT_CODE_WINDOW_COUNT, pNode->windowCount);
+  }
+
+  return code;
+}
+
+static int32_t msgToPhysiCountWindowNode(STlvDecoder* pDecoder, void* pObj) {
+  SCountWinodwPhysiNode* pNode = (SCountWinodwPhysiNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case PHY_COUNT_CODE_WINDOW:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiWindowNode, &pNode->window);
+        break;
+      case PHY_COUNT_CODE_WINDOW_COUNT:
+        code = tlvDecodeI64(pTlv, &pNode->windowCount);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
 enum {
   PHY_PARTITION_CODE_BASE_NODE = 1,
   PHY_PARTITION_CODE_EXPR,
@@ -4181,6 +4215,10 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
       code = physiEventWindowNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
+      code = physiCountWindowNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       code = physiPartitionNodeToMsg(pObj, pEncoder);
       break;
@@ -4334,6 +4372,10 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
       code = msgToPhysiEventWindowNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
+      code = msgToPhysiCountWindowNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       code = msgToPhysiPartitionNode(pDecoder, pObj);

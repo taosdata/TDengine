@@ -278,6 +278,12 @@ typedef struct SEventWindowNode {
   SNode*    pEndCond;
 } SEventWindowNode;
 
+typedef struct SCountWindowNode {
+  ENodeType type;  // QUERY_NODE_EVENT_WINDOW
+  SNode*    pCol;  // timestamp primary key
+  int64_t   windowCount;
+} SCountWindowNode;
+
 typedef enum EFillMode {
   FILL_MODE_NONE = 1,
   FILL_MODE_VALUE,

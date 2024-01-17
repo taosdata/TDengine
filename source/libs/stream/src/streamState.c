@@ -752,6 +752,12 @@ int32_t streamStateSessionDel(SStreamState* pState, const SSessionKey* key) {
 #endif
 }
 
+int32_t streamStateSessionReset(SStreamState* pState, void* pVal) {
+  int32_t len = getRowStateRowSize(pState->pFileState);
+  memset(pVal, 0, len);
+  return TSDB_CODE_SUCCESS;
+}
+
 SStreamStateCur* streamStateSessionSeekKeyCurrentPrev(SStreamState* pState, const SSessionKey* key) {
 #ifdef USE_ROCKSDB
   return sessionWinStateSeekKeyCurrentPrev(pState->pFileState, key);
@@ -1135,90 +1141,7 @@ SStreamStateCur* createStreamStateCursor() {
   return pCur;
 }
 
-#if 0
-char* streamStateSessionDump(SStreamState* pState) {
-  SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
-  if (pCur == NULL) {
-    return NULL;
-  }
-  pCur->number = pState->number;
-  if (tdbTbcOpen(pState->pTdbState->pSessionStateDb, &pCur->pCur, NULL) < 0) {
-    streamStateFreeCur(pCur);
-    return NULL;
-  }
-  tdbTbcMoveToFirst(pCur->pCur);
-
-  SSessionKey key = {0};
-  void*       buf = NULL;
-  int32_t     bufSize = 0;
-  int32_t     code = streamStateSessionGetKVByCur(pCur, &key, &buf, &bufSize);
-  if (code != 0) {
-    streamStateFreeCur(pCur);
-    return NULL;
-  }
-
-  int32_t size = 2048;
-  char*   dumpBuf = taosMemoryCalloc(size, 1);
-  int64_t len = 0;
-  len += snprintf(dumpBuf + len, size - len, "||s:%15" PRId64 ",", key.win.skey);
-  len += snprintf(dumpBuf + len, size - len, "e:%15" PRId64 ",", key.win.ekey);
-  len += snprintf(dumpBuf + len, size - len, "g:%15" PRId64 "||", key.groupId);
-  while (1) {
-    tdbTbcMoveToNext(pCur->pCur);
-    key = (SSessionKey){0};
-    code = streamStateSessionGetKVByCur(pCur, &key, NULL, 0);
-    if (code != 0) {
-      streamStateFreeCur(pCur);
-      return dumpBuf;
-    }
-    len += snprintf(dumpBuf + len, size - len, "||s:%15" PRId64 ",", key.win.skey);
-    len += snprintf(dumpBuf + len, size - len, "e:%15" PRId64 ",", key.win.ekey);
-    len += snprintf(dumpBuf + len, size - len, "g:%15" PRId64 "||", key.groupId);
-  }
-  streamStateFreeCur(pCur);
-  return dumpBuf;
+// count window
+int32_t streamStateCountWinAddIfNotExist(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** ppVal, int32_t* pVLen) {
+  return getCountWinResultBuff(pState->pFileState, pKey, winCount, ppVal, pVLen);
 }
-
-char* streamStateIntervalDump(SStreamState* pState) {
-  SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
-  if (pCur == NULL) {
-    return NULL;
-  }
-  pCur->number = pState->number;
-  if (tdbTbcOpen(pState->pTdbState->pStateDb, &pCur->pCur, NULL) < 0) {
-    streamStateFreeCur(pCur);
-    return NULL;
-  }
-  tdbTbcMoveToFirst(pCur->pCur);
-
-  SWinKey key = {0};
-  void*       buf = NULL;
-  int32_t     bufSize = 0;
-  int32_t     code = streamStateGetKVByCur(pCur, &key, (const void **)&buf, &bufSize);
-  if (code != 0) {
-    streamStateFreeCur(pCur);
-    return NULL;
-  }
-
-  int32_t size = 2048;
-  char*   dumpBuf = taosMemoryCalloc(size, 1);
-  int64_t len = 0;
-  len += snprintf(dumpBuf + len, size - len, "||s:%15" PRId64 ",", key.ts);
-  // len += snprintf(dumpBuf + len, size - len, "e:%15" PRId64 ",", key.win.ekey);
-  len += snprintf(dumpBuf + len, size - len, "g:%15" PRId64 "||", key.groupId);
-  while (1) {
-    tdbTbcMoveToNext(pCur->pCur);
-    key = (SWinKey){0};
-    code = streamStateGetKVByCur(pCur, &key, NULL, 0);
-    if (code != 0) {
-      streamStateFreeCur(pCur);
-      return dumpBuf;
-    }
-    len += snprintf(dumpBuf + len, size - len, "||s:%15" PRId64 ",", key.ts);
-    // len += snprintf(dumpBuf + len, size - len, "e:%15" PRId64 ",", key.win.ekey);
-    len += snprintf(dumpBuf + len, size - len, "g:%15" PRId64 "||", key.groupId);
-  }
-  streamStateFreeCur(pCur);
-  return dumpBuf;
-}
-#endif

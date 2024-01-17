@@ -3955,6 +3955,15 @@ static int32_t translateEventWindow(STranslateContext* pCxt, SSelectStmt* pSelec
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
+      !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
+                                   "COUNT_WINDOW requires valid time series input");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   switch (nodeType(pSelect->pWindow)) {
     case QUERY_NODE_STATE_WINDOW:
@@ -3965,6 +3974,8 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
       return translateIntervalWindow(pCxt, pSelect);
     case QUERY_NODE_EVENT_WINDOW:
       return translateEventWindow(pCxt, pSelect);
+    case QUERY_NODE_COUNT_WINDOW:
+      return translateCountWindow(pCxt, pSelect);
     default:
       break;
   }
@@ -7682,6 +7693,32 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                    "The trigger mode of non window query can only be AT_ONCE");
   }
+
+  if (pSelect->pWindow != NULL && pSelect->pWindow->type == QUERY_NODE_COUNT_WINDOW) {
+    if ( (SRealTableNode*)pSelect->pFromTable && ((SRealTableNode*)pSelect->pFromTable)->pMeta
+      && TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType
+      && !hasPartitionByTbname(pSelect->pPartitionByList) ) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                    "Count window for stream on super table must patitioned by table name");
+    }
+
+    int64_t watermark = 0;
+    if (pStmt->pOptions->pWatermark) {
+      translateValue(pCxt, (SValueNode*)pStmt->pOptions->pWatermark);
+      watermark =((SValueNode*)pStmt->pOptions->pWatermark)->datum.i;
+    }
+    if (watermark <= 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                    "Watermark of Count window must exceed 0.");
+    }
+
+    if (pStmt->pOptions->ignoreExpired != 1) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                    "Ignore expired data of Count window must be 1.");
+    }    
+
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 

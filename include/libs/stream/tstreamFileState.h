@@ -98,6 +98,9 @@ int32_t sessionWinStateGetKeyByRange(SStreamFileState* pFileState, const SSessio
 int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, char* pKeyData, int32_t keyDataLen,
                              state_key_cmpr_fn fn, void** pVal, int32_t* pVLen);
 
+// count window
+int32_t getCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal, int32_t* pVLen);
+
 #ifdef __cplusplus
 }
 #endif

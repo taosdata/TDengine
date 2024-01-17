@@ -179,11 +179,14 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateSessionPut = streamStateSessionPut;
   pStore->streamStateSessionGet = streamStateSessionGet;
   pStore->streamStateSessionDel = streamStateSessionDel;
+  pStore->streamStateSessionReset = streamStateSessionReset;
   pStore->streamStateSessionClear = streamStateSessionClear;
   pStore->streamStateSessionGetKVByCur = streamStateSessionGetKVByCur;
   pStore->streamStateStateAddIfNotExist = streamStateStateAddIfNotExist;
   pStore->streamStateSessionGetKeyByRange = streamStateSessionGetKeyByRange;
   pStore->streamStateSessionAllocWinBuffByNextPosition = streamStateSessionAllocWinBuffByNextPosition;
+
+  pStore->streamStateCountWinAddIfNotExist = streamStateCountWinAddIfNotExist;
 
   pStore->updateInfoInit = updateInfoInit;
   pStore->updateInfoFillBlockData = updateInfoFillBlockData;

@@ -28,6 +28,12 @@ int sessionStateKeyCompare(const SSessionKey* pWin1, const void* pDatas, int pos
   return sessionWinKeyCmpr(pWin1, pWin2);
 }
 
+int sessionStateRangeKeyCompare(const SSessionKey* pWin1, const void* pDatas, int pos) {
+  SRowBuffPos* pPos2 = taosArrayGetP(pDatas, pos);
+  SSessionKey* pWin2 = (SSessionKey*)pPos2->pKey;
+  return sessionRangeKeyCmpr(pWin1, pWin2);
+}
+
 int32_t binarySearch(void* keyList, int num, const void* key, __session_compare_fn_t cmpFn) {
   int firstPos = 0, lastPos = num - 1, midPos = -1;
   int numOfRows = 0;
@@ -416,7 +422,7 @@ SStreamStateCur* sessionWinStateSeekKeyCurrentNext(SStreamFileState* pFileState,
   int32_t          index = -1;
   SStreamStateCur* pCur = seekKeyCurrentPrev_buff(pFileState, pWinKey, &pWinStates, &index);
   if (pCur) {
-    if (sessionStateKeyCompare(pWinKey, pWinStates, index) > 0) {
+    if (sessionStateRangeKeyCompare(pWinKey, pWinStates, index) > 0) {
       sessionWinStateMoveToNext(pCur);
     }
     return pCur;
@@ -627,6 +633,90 @@ int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, ch
     goto _end;
   }
   (*pVal) = insertNewSessionWindow(pFileState, pWinStates, key, index + 1);
+  code = TSDB_CODE_FAILED;
+
+_end:
+  return code;
+}
+
+int32_t getCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, COUNT_TYPE winCount, void** pVal, int32_t* pVLen) {
+  SSessionKey* pWinKey = pKey;
+  const TSKEY gap = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+  SSHashObj* pSessionBuff = getRowStateBuff(pFileState);
+  SArray* pWinStates = NULL;
+  void** ppBuff = tSimpleHashGet(pSessionBuff, &pWinKey->groupId, sizeof(uint64_t));
+  if (ppBuff) {
+    pWinStates = (SArray*)(*ppBuff);
+  } else {
+    pWinStates = taosArrayInit(16, POINTER_BYTES);
+    tSimpleHashPut(pSessionBuff, &pWinKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
+  }
+
+  TSKEY startTs = pWinKey->win.skey;
+  TSKEY endTs = pWinKey->win.ekey;
+
+  int32_t size = taosArrayGetSize(pWinStates);
+  if (size == 0) {
+    void*   pFileStore = getStateFileStore(pFileState);
+    void*   p = NULL;
+    int32_t code_file = streamStateSessionAddIfNotExist_rocksdb(pFileStore, pWinKey, gap, &p, pVLen);
+    if (code_file == TSDB_CODE_SUCCESS || isFlushedState(pFileState, endTs, 0)) {
+      (*pVal) = createSessionWinBuff(pFileState, pWinKey, p, pVLen);
+      code = code_file;
+      qDebug("===stream===0 get state win:%" PRId64 ",%" PRId64 " from disc, res %d", pWinKey->win.skey, pWinKey->win.ekey, code_file);
+    } else {
+      (*pVal) = addNewSessionWindow(pFileState, pWinStates, pWinKey);
+      code = TSDB_CODE_FAILED;
+      taosMemoryFree(p);
+    }
+    goto _end;
+  }
+
+  // find the first position which is smaller than the pWinKey
+  int32_t      index = binarySearch(pWinStates, size, pWinKey, sessionStateKeyCompare);
+  SRowBuffPos* pPos = NULL;
+  int32_t      valSize = *pVLen;
+
+  if (index >= 0) {
+    pPos = taosArrayGetP(pWinStates, index);
+    COUNT_TYPE* pWinStateCout = (COUNT_TYPE*)( (char*)(pPos->pRowBuff) + (valSize - sizeof(COUNT_TYPE)) );
+    if (inSessionWindow(pPos->pKey, startTs, gap) || (index == size - 1 && (*pWinStateCout) < winCount) ) {
+      (*pVal) = pPos;
+      SSessionKey* pDestWinKey = (SSessionKey*)pPos->pKey;
+      pPos->beUsed = true;
+      *pWinKey = *pDestWinKey;
+      goto _end;
+    }
+  }
+
+  if (index == -1) {
+    if (!isDeteled(pFileState, endTs)) {
+      void*   p = NULL;
+      void*   pFileStore = getStateFileStore(pFileState);
+      int32_t code_file =
+          streamStateSessionAddIfNotExist_rocksdb(pFileStore, pWinKey, gap, &p, pVLen);
+      if (code_file == TSDB_CODE_SUCCESS) {
+        (*pVal) = createSessionWinBuff(pFileState, pWinKey, p, pVLen);
+        code = code_file;
+        qDebug("===stream===1 get state win:%" PRId64 ",%" PRId64 " from disc, res %d", pWinKey->win.skey, pWinKey->win.ekey, code_file);
+        goto _end;
+      } else {
+        taosMemoryFree(p);
+      }
+    }
+  }
+
+  if (index + 1 < size) {
+    pPos = taosArrayGetP(pWinStates, index + 1);
+    (*pVal) = pPos;
+    SSessionKey* pDestWinKey = (SSessionKey*)pPos->pKey;
+    pPos->beUsed = true;
+    *pWinKey = *pDestWinKey;
+    goto _end;
+  }
+
+  (*pVal) = addNewSessionWindow(pFileState, pWinStates, pWinKey);
   code = TSDB_CODE_FAILED;
 
 _end:

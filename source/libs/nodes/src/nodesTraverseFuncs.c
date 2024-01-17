@@ -176,6 +176,11 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       }
       break;
     }
+    case QUERY_NODE_COUNT_WINDOW: {
+      SCountWindowNode* pEvent = (SCountWindowNode*)pNode;
+      res = walkExpr(pEvent->pCol, order, walker, pContext);
+      break;
+    }
     default:
       break;
   }
@@ -364,6 +369,11 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pEvent->pEndCond, order, rewriter, pContext);
       }
+      break;
+    }
+    case QUERY_NODE_COUNT_WINDOW: {
+      SCountWindowNode* pEvent = (SCountWindowNode*)pNode;
+      res = rewriteExpr(&pEvent->pCol, order, rewriter, pContext);
       break;
     }
     default:

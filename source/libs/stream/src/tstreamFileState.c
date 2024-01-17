@@ -480,6 +480,15 @@ int32_t deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t ke
   return TSDB_CODE_FAILED;
 }
 
+int32_t resetRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen) {
+  int32_t code_buff = pFileState->stateBuffRemoveFn(pFileState->rowStateBuff, pKey, keyLen);
+  int32_t code_file = pFileState->stateFileRemoveFn(pFileState, pKey);
+  if (code_buff == TSDB_CODE_SUCCESS || code_file == TSDB_CODE_SUCCESS) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return TSDB_CODE_FAILED;
+}
+
 static void recoverSessionRowBuff(SStreamFileState* pFileState, SRowBuffPos* pPos) {
   int32_t len = 0;
   void*   pBuff = NULL;

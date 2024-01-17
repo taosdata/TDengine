@@ -243,7 +243,8 @@ typedef enum EWindowType {
   WINDOW_TYPE_INTERVAL = 1,
   WINDOW_TYPE_SESSION,
   WINDOW_TYPE_STATE,
-  WINDOW_TYPE_EVENT
+  WINDOW_TYPE_EVENT,
+  WINDOW_TYPE_COUNT
 } EWindowType;
 
 typedef enum EWindowAlgorithm {
@@ -280,6 +281,7 @@ typedef struct SWindowLogicNode {
   int8_t           igCheckUpdate;
   EWindowAlgorithm windowAlgo;
   bool             isPartTb;
+  int64_t          windowCount;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -626,6 +628,13 @@ typedef struct SEventWinodwPhysiNode {
 } SEventWinodwPhysiNode;
 
 typedef SEventWinodwPhysiNode SStreamEventWinodwPhysiNode;
+
+typedef struct SCountWinodwPhysiNode {
+  SWindowPhysiNode window;
+  int64_t          windowCount;
+} SCountWinodwPhysiNode;
+
+typedef SCountWinodwPhysiNode SStreamCountWinodwPhysiNode;
 
 typedef struct SSortPhysiNode {
   SPhysiNode node;
