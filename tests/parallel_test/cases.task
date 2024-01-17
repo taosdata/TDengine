@@ -480,6 +480,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/S_last.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/S_last.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4348-td-27939.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py
 
 ,,n,system-test,python3 ./test.py -f 2-query/queryQnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode1mnode.py
