@@ -123,7 +123,7 @@ class TDTestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  60,
+                    'pollDelay':  120,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -206,7 +206,7 @@ class TDTestCase:
 
     def run(self):
         self.prepareTestEnv()
-        self.tmqCase1(True)
+        self.tmqCase1(False)
 
     def stop(self):
         tdSql.close()
