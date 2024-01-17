@@ -1091,7 +1091,10 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
     SExprNode* pExpr = (SExprNode*)pNode;
     if (0 == strcmp((*pCol)->colName, pExpr->userAlias)) {
       if (true == *pFound) {
-        pCxt->errCode = TSDB_CODE_PAR_ORDERBY_AMBIGUOUS;
+        if(nodesEqualNode(pFoundNode, pNode)) {
+          continue;
+        }
+        pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ORDERBY_AMBIGUOUS, (*pCol)->colName);
         return DEAL_RES_ERROR;
       }
       *pFound = true;
