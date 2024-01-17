@@ -97,7 +97,7 @@ impl Consumer {
             );
             let mut rows = self
                 .query
-                .query_history(task.tags, start, end)
+                .select_from_history(task.tags, start, end)
                 .await?
                 .into_row_stream();
 

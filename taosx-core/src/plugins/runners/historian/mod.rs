@@ -1,9 +1,12 @@
+use chrono::Local;
 use linked_hash_map::LinkedHashMap;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::sync::Arc;
 use std::time::Duration;
 
 use taos::Dsn;
+use taosx_ipc::prelude::IpcDataType;
+use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
@@ -12,7 +15,7 @@ use crate::plugins::raw_data::RawDataLogger;
 use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::historian::config::connect::ConnectConfig;
 use crate::runners::historian::config::{HistorianTable, TaskConfig, TaskMode};
-use crate::runners::historian::query::HistorianQuery;
+use crate::runners::historian::query::{to_ipc_data_type, HistorianQuery};
 use crate::runners::historian::worker::{migrate_history, sync_history, sync_live};
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, Action, Parser, Transferred};
@@ -58,13 +61,20 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     let connect_config = ConnectConfig::from_dsn(dsn)?;
     let mut client = HistorianQuery::try_new(connect_config).await?;
 
-    let table_meta = client.get_table_meta(table).await?;
+    let mut rows = client.describe_table(table).await?.into_row_stream();
 
     let mut input_sample = LinkedHashMap::new();
     let mut parse_sample = LinkedHashMap::new();
-    for col in table_meta.columns {
-        input_sample.insert(col.name.clone(), json!(""));
-        parse_sample.insert(col.name.clone(), json!({"as": col.data_type}));
+
+    while let Some(row) = rows.try_next().await? {
+        let col_name = row.try_get::<&str, _>("COLUMN_NAME")?.unwrap();
+        let col_type = row.try_get::<&str, _>("TYPE_NAME")?.unwrap();
+        let col_precision = row.try_get::<i32, _>("PRECISION")?.unwrap();
+
+        let data_type = to_ipc_data_type(col_type, col_precision)?;
+
+        input_sample.insert(col_name.to_string(), fake_data(data_type.clone()));
+        parse_sample.insert(col_name.to_string(), json!({"as": data_type}));
     }
 
     let sample_json = json!({
@@ -82,6 +92,16 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
         )
     })?;
     Ok(ds_sample_in)
+}
+
+fn fake_data(data_type: IpcDataType) -> Value {
+    match data_type {
+        IpcDataType::Timestamp(unit) => json!(Local::now().to_rfc3339()),
+        IpcDataType::Float64 => json!(3.14),
+        IpcDataType::Int32 => json!(1),
+        IpcDataType::VarChar(_) => json!("abc"),
+        _ => json!(""),
+    }
 }
 
 pub async fn historian_to_taos(
@@ -192,11 +212,19 @@ async fn exec_task(task_id: Option<i64>, mut config: TaskConfig) -> anyhow::Resu
         tag_conditions
     } else {
         let mut client = HistorianQuery::try_new(config.connect.clone()).await?;
-        let tag_meta = client.get_tags(tag_conditions).await?;
-        tag_meta
-            .iter()
-            .map(|meta| meta.name.clone())
-            .collect::<Vec<_>>()
+        let mut rows = client
+            .select_from_tag(tag_conditions)
+            .await?
+            .into_row_stream();
+
+        let mut tag_names = Vec::new();
+        while let Some(row) = rows.try_next().await? {
+            let tag_name = row
+                .try_get::<&str, _>("TagName")?
+                .ok_or(anyhow::anyhow!("TagName cannot be None"))?;
+            tag_names.push(tag_name.to_string());
+        }
+        tag_names
     };
 
     if tags.is_empty() {
