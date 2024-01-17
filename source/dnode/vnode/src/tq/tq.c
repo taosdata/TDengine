@@ -26,18 +26,6 @@ static FORCE_INLINE bool tqIsHandleExec(STqHandle* pHandle) { return TMQ_HANDLE_
 static FORCE_INLINE void tqSetHandleExec(STqHandle* pHandle) { pHandle->status = TMQ_HANDLE_STATUS_EXEC; }
 static FORCE_INLINE void tqSetHandleIdle(STqHandle* pHandle) { pHandle->status = TMQ_HANDLE_STATUS_IDLE; }
 
-static int32_t tqTimerInit(STQ* pTq) {
-  pTq->tqTimer = taosTmrInit(100, 100, 1000, "TQ");
-  if (pTq->tqTimer == NULL) {
-    return -1;
-  }
-  return 0;
-}
-
-static void tqTimerCleanUp(STQ* pTq) {
-  taosTmrCleanUp(pTq->tqTimer);
-}
-
 void tqDestroyTqHandle(void* data) {
   STqHandle* pData = (STqHandle*)data;
   qDestroyTask(pData->execHandle.task);
@@ -118,7 +106,6 @@ int32_t tqInitialize(STQ* pTq) {
     return -1;
   }
 
-  tqTimerInit(pTq);
   return 0;
 }
 
@@ -149,7 +136,6 @@ void tqClose(STQ* pTq) {
   taosMemoryFree(pTq->path);
   tqMetaClose(pTq);
   streamMetaClose(pTq->pStreamMeta);
-  tqTimerCleanUp(pTq);
 
   qDebug("end to close tq");
   taosMemoryFree(pTq);
