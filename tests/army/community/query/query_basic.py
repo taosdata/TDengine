@@ -53,12 +53,12 @@ class TDTestCase(TBase):
         
         # __group_key
         sql = f"select count(*),_group_key(uti),uti from {self.stb} partition by uti"
-        tdSql.execute(sql)
+        tdSql.query(sql)
         # column index 1 value same with 2
         tdSql.checkSameColumn(1, 2)
 
-        sql = f"select count(*),_group_key(usi) from {self.stb} group by usi;"
-        tdSql.execute(sql)
+        sql = f"select count(*),_group_key(usi),usi from {self.stb} group by usi limit 100;"
+        tdSql.query(sql)
         tdSql.checkSameColumn(1, 2)
 
         # tail

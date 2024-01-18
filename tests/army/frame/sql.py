@@ -572,7 +572,7 @@ class TDSql:
         for i in range(self.queryRows):
             if self.res[i][c1] != self.res[i][c2]:
                 tdLog.exit(f"Not same. row={i} col1={c1} col2={c2}. {self.res[i][c1]}!={self.res[i][c2]}")
-        tdLog.info(f"check {self.queryRows} rows. column{c1} value equal tp column{c2}")
+        tdLog.info(f"check {self.queryRows} rows two column value same. column index [{c1},{c2}]")
 
     #
     # others session
