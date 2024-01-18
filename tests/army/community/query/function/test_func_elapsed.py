@@ -394,7 +394,6 @@ class TDTestCase(TBase):
         tdSql.error("select elapsed(max(ts), 1s) from st1 group by tbname order by ts;")
         tdSql.error("select elapsed(first(ts), 1s) from st1 group by tbname order by ts;")
         tdSql.error("select elapsed(last(ts), 1s) from st1 group by tbname order by ts;")
-
         # other error
         tdSql.error("select elapsed(ts, 1s) from t1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:40.000' interval(10s) fill(next) union select elapsed(ts, 1s) from st2 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:49.000' interval(5s) fill(prev) group by tbname;")
         tdSql.error("select elapsed(time ,1s) from (select elapsed(ts,1s) time from st1);")
