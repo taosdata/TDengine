@@ -31,7 +31,7 @@ description: 使用永洪 BI 获取 TDengine Cloud 实例的数据
 
 ## 创建 TDengine 数据集
 
-1. 在 BI 工具中点击“添加数据集”，展开刚刚创建的数据源“tdengine”，并浏览 TDengine 中的超级表。
+1. 在 BI 工具中点击“添加数据集”，展开刚创建的数据源，并浏览 TDengine 中的超级表。
 2. 您可以将超级表的数据全部加载到 BI 工具中，也可以通过自定义 SQL 语句导入部分数据。
 3. 当勾选“数据库内计算”时，BI 工具将不再缓存 TDengine 的时序数据，并在处理查询时将 SQL 请求发送给 TDengine 直接处理。
 
