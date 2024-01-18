@@ -4,15 +4,15 @@ members = ["taosx-ipc", "taosx-core", "taosx-agent"]
 [workspace.dependencies]
 chrono = { version = "0.4.26" }
 chrono-tz = { version = "0.8.3" }
-shadow-rs = { version = "0.24" }
+shadow-rs = { version = "0.26.0" }
 
 clap = { version = "4.4.7", features = ["default", "derive"] }
 
 regex = { version = "1.9" }
-arrow = { version = "48.0.0", features = ["chrono-tz"] }
-arrow-flight = { version = "48.0.0" }
-arrow-schema = { version = "48.0.0", features = ["serde"] }
-parquet = "48.0.0"
+arrow = { version = "50.0.0", features = ["chrono-tz"] }
+arrow-flight = { version = "50.0.0" }
+arrow-schema = { version = "50.0.0", features = ["serde"] }
+parquet = "50.0.0"
 
 tonic = "0.10"
 
@@ -44,13 +44,13 @@ arrow-flight = { workspace = true }
 
 shadow-rs = { workspace = true }
 strum = { version = "0.25", features = ["derive"] }
-multi_index_map = "0.9"
+multi_index_map = "0.11.0"
 semver = "1"
 
-twelf = { version = "0.12.0", default-features = false, features = [
-  "toml",
-  "env",
-  "clap",
+twelf = { version = "0.13.0", default-features = false, features = [
+    "toml",
+    "env",
+    "clap",
 ] }
 
 async-compression = { version = "*", features = ["all"] }
@@ -64,7 +64,7 @@ convert_case = "0.6.0"
 csv-async = { version = "1.2.4", features = ["tokio"] }
 dashmap = "5.4.0"
 futures = "0.3"
-itertools = "0.11.0"
+itertools = "0.12.0"
 lazy_static = "1.4"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 log = { version = "0.4", features = ["serde"] }
@@ -76,24 +76,24 @@ serde_yaml = "0.9.19"
 sha2 = "0.10"
 thiserror = "1"
 tokio = { version = "1", features = [
-  "rt",
-  "rt-multi-thread",
-  "io-util",
-  "io-std",
-  "net",
-  "time",
-  "process",
-  "macros",
-  "sync",
-  "signal",
-  "fs",
+    "rt",
+    "rt-multi-thread",
+    "io-util",
+    "io-std",
+    "net",
+    "time",
+    "process",
+    "macros",
+    "sync",
+    "signal",
+    "fs",
 ] }
 tokio-util = { version = "0.7" }
 toml = "0.8.5"
 zstd = "0.13.0"
 csv = "1.2"
 
-actix-cors = "0.6.4"
+actix-cors = "0.7.0"
 actix-web = "4"
 actix-ws = "0.2.5"
 actix-multipart = "0.6.0"
@@ -101,15 +101,15 @@ actix-files = "0.6.2"
 base64 = "0.21.2"
 cfg-if = "1.0.0"
 uuid = { version = "1.4.0", features = [
-  "v4",
-  "fast-rng",
-  "macro-diagnostics",
-  "serde",
+    "v4",
+    "fast-rng",
+    "macro-diagnostics",
+    "serde",
 ] }
 serde_json = { version = "1.0", features = ["raw_value"] }
 sqlx = { version = "0.7", features = ["sqlite", "chrono", "json"] }
-utoipa = { version = "4.0.0", features = ["actix_extras", "chrono"] }
-utoipa-swagger-ui = { version = "4.0.0", features = ["actix-web"] }
+utoipa = { version = "4.2.0", features = ["actix_extras", "chrono"] }
+utoipa-swagger-ui = { version = "6.0.0", features = ["actix-web"] }
 
 # tonic version is restricted by arrow-flight
 socket2 = "0.5"
@@ -122,7 +122,9 @@ metrics = "0.21.0"
 metrics-exporter-prometheus = { version = "0.12.0", default-features = false, features = [
   "push-gateway",
 ] }
-sysinfo = "0.29.0"
+metrics-tracing-context = "0.14.0"
+metrics-util = "0.15.1"
+sysinfo = "0.30.5"
 
 async-backtrace = "0.2.2"
 dotenv = "0.15.0"
@@ -143,26 +145,21 @@ rand = "0.8"
 
 time = { version = "0.3", features = ["formatting", "macros"] }
 tracing-subscriber = { version = "0.3", features = [
-  "time",
-  "local-time",
-  "env-filter",
+    "time",
+    "local-time",
+    "env-filter",
 ] }
 tracing-appender = "0.2"
 tracing = { version = "0.1", features = ["log"] }
-atty = "*"
+atty = "0.2.14"
 file-rotate = "0.7.5"
-opentelemetry = { version = "0.20.0", features = [
-  "rt-tokio",
-  "rt-tokio-current-thread",
-] }
-opentelemetry-otlp = { version = "0.13" }
-tracing-opentelemetry = { version = "0.21.0" }
+opentelemetry = { version = "0.21.0" }
+opentelemetry_sdk = { version = "0.21.0" }
+opentelemetry-otlp = { version = "0.14.0" }
+tracing-opentelemetry = { version = "0.22.0" }
 tracing-actix-web = "0.7"
-metrics-tracing-context = "0.14.0"
-metrics-util = "0.15.1"
-console-subscriber = { version = "*", optional = true }
-
-reqwest = "0.11.15"
+console-subscriber = { version = "0.2.0", optional = true }
+reqwest = "0.11.23"
 taosx-ipc = { path = "./taosx-ipc" }
 md5 = "0.7.0"
 
@@ -171,12 +168,6 @@ taosx-core = { path = "./taosx-core", default-features = false }
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator = { version = "0.5", optional = true }
-
-[target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["processthreadsapi"] }
-
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
 
 [build-dependencies]
 sqlx = { version = "0.7", features = ["sqlite", "chrono"] }
@@ -195,15 +186,15 @@ sys = ["taos/native", "taosx-core/sys"]
 jemallocator = ["tikv-jemallocator"]
 rustls = ["sqlx/runtime-tokio-rustls", "taos/ws-rustls", "taosx-core/rustls"]
 native-tls = [
-  "sqlx/runtime-tokio-native-tls",
-  "taos/ws-native-tls",
-  "taosx-core/native-tls",
+    "sqlx/runtime-tokio-native-tls",
+    "taos/ws-native-tls",
+    "taosx-core/native-tls",
 ]
 disable-enterprise-only-validation = [
-  "taosx-core/disable-enterprise-only-validation",
+    "taosx-core/disable-enterprise-only-validation",
 ]
 disable-enterprise-connector-validation = [
-  "taosx-core/disable-enterprise-connector-validation",
+    "taosx-core/disable-enterprise-connector-validation",
 ]
 
 tokio-tracing = ["tokio/tracing", "console-subscriber"]

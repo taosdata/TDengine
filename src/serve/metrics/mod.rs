@@ -55,7 +55,10 @@ pub fn process_metrics(sys: &mut sysinfo::System) -> anyhow::Result<()> {
     gauge!(METRIC_SYS_TOTAL_MEMORY, sys.total_memory() as f64);
     gauge!(METRIC_SYS_USED_MEMORY, sys.used_memory() as f64);
     gauge!(METRIC_SYS_AVAILABLE_MEMORY, sys.available_memory() as f64);
-    gauge!(METRIC_SYS_UPTIME_IN_SECONDS, sys.uptime() as f64);
+    gauge!(
+        METRIC_SYS_UPTIME_IN_SECONDS,
+        sysinfo::System::uptime() as f64
+    );
 
     let pid = get_current_pid();
     if pid.is_err() {
@@ -72,7 +75,7 @@ pub fn process_metrics(sys: &mut sysinfo::System) -> anyhow::Result<()> {
         gauge!(METRIC_PROCESS_MEM_PERCENT, mem);
 
         #[cfg(target_os = "linux")]
-        gauge!(METRIC_PROCESS_TASKS, ps.tasks.len() as f64);
+        gauge!(METRIC_PROCESS_TASKS, ps.tasks().unwrap().len() as f64);
 
         let disk = ps.disk_usage();
         gauge!(METRIC_PROCESS_IO_READ_BYTES, disk.read_bytes as f64);
@@ -106,7 +109,6 @@ impl Metrics {
         // let recorder = exporter.build_recorder();
         process_metrics_init();
         std::thread::spawn(move || {
-            use sysinfo::SystemExt;
             let mut sys = sysinfo::System::new_all();
             loop {
                 let _ = process_metrics(&mut sys);

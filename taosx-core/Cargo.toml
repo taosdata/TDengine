@@ -15,17 +15,17 @@ arrow = { workspace = true }
 arrow-schema = { workspace = true, features = ["serde"] }
 arrow-flight = { workspace = true }
 parquet = { workspace = true }
-tonic = { workspace = true }
+tonic = { workspace = true, features = ["gzip"] }
 
 regex = { workspace = true }
 
-arrow-cast-guess-precision = "0.2.0"
+arrow-cast-guess-precision = "0.4.0"
 
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bytes = "1"
 bitflags = "2"
-rhai ={ version = "1.16.3", features = ["sync"] }
+rhai = { version = "1.16.3", features = ["sync"] }
 paste = "1"
 half = "2.3"
 
@@ -45,17 +45,17 @@ serde_yaml = "0.9.19"
 sha2 = "0.10"
 thiserror = "1"
 tokio = { version = "1", features = [
-  "rt",
-  "rt-multi-thread",
-  "io-util",
-  "io-std",
-  "net",
-  "time",
-  "process",
-  "macros",
-  "sync",
-  "signal",
-  "fs",
+    "rt",
+    "rt-multi-thread",
+    "io-util",
+    "io-std",
+    "net",
+    "time",
+    "process",
+    "macros",
+    "sync",
+    "signal",
+    "fs",
 ] }
 tokio-util = { version = "0.7", features = ["full"] }
 tokio-stream = "0.1.14"
@@ -84,7 +84,7 @@ cfg-if = "1.0.0"
 const_format = "0.2.30"
 metrics = "0.21.0"
 metrics-exporter-prometheus = { version = "0.12.0", default-features = false, features = [
-	"push-gateway",
+    "push-gateway",
 ] }
 # palaver = "0.2.8"
 sysinfo = "0.29.0"
@@ -115,10 +115,10 @@ kafka = "0.10.0"
 rand = "0.8"
 base64 = "0.21.2"
 tiberius = { version = "0.12.2", default-features = false, features = [
-	"chrono",
-	"tds73",
-	"time",
-	"winauth",
+    "chrono",
+    "tds73",
+    "time",
+    "winauth",
 ] }
 
 sled = "0.34.7"
