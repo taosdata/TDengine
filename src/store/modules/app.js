@@ -96,7 +96,9 @@ const state = {
   transresultname:'',
   activeColumns:[],
   resultCurrentPage:1,
-  showresulttb:false
+  showresulttb:false,
+  historiandsn:'',
+  historianechodata:null
   
 };
 const saveKey = encodeURIComponent("appId");
@@ -124,6 +126,12 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_HISTORIAN_ECHODATA:(state,data)=>{
+    state.historianechodata=data
+  },
+  SET_HISTORIAN_DSN:(state,data)=>{
+    state.historiandsn=data
+  },
   SET_RESULTTB_SHOW:(state,data)=>{
     state.showresulttb=data
   },

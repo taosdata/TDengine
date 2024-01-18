@@ -7,7 +7,10 @@
         </div>
         <el-tabs v-model="activeName">
           <el-tab-pane
-            :disabled="$store.state.app.currentDBType !== 'avevaHistorian'||$store.state.app.currentDBType !== 'csv'"
+            :disabled="
+              $store.state.app.currentDBType !== 'avevaHistorian' ||
+              $store.state.app.currentDBType !== 'csv'
+            "
             :label="$t('datasource.transformer.msgbodytypes.type1')"
             name="first"
           >
@@ -21,6 +24,7 @@
               type="primary"
               size="small"
               style="margin-bottom: 15px"
+              @click="getMsgBody"
               >{{
                 $t("datasource.transformer.msgbodytypes.retrieve")
               }}</el-button
@@ -56,7 +60,10 @@
           :rules="msgRules"
           ref="msgForm"
         >
-          <el-form-item prop="msgbody">
+          <el-form-item
+            prop="msgbody"
+            v-if="$store.state.app.currentDBType !== 'avevaHistorian'"
+          >
             <div id="jsoneditor"></div>
             <el-input
               :disabled="$store.state.app.currentDBType == 'avevaHistorian'"
@@ -74,12 +81,16 @@
           <span>{{ $t("datasource.transformer.parse") }}</span>
         </div>
         <div
+          v-if="$store.state.app.currentDBType !== 'avevaHistorian'"
           class="transdescription"
           v-html="$t('datasource.transformer.extractdesc')"
         ></div>
         <div
           class="extrac-parse"
-          v-if="$store.state.app.currentDBType !== 'csv'"
+          v-if="
+            $store.state.app.currentDBType !== 'csv' &&
+            $store.state.app.currentDBType !== 'avevaHistorian'
+          "
         >
           <el-form :rules="parseRules" :model="parseruleForm">
             <el-form-item prop="type">
@@ -103,7 +114,11 @@
               <el-input
                 v-else
                 v-model="parseruleForm.expression"
-                :placeholder="parseruleForm.type=='json'?$t('datasource.transformer.expre_input'):'(?<y>[0-9]{4})-(?<m>[0-9]{2})-(?<d>[0-9]{2})'"
+                :placeholder="
+                  parseruleForm.type == 'json'
+                    ? $t('datasource.transformer.expre_input')
+                    : '(?<y>[0-9]{4})-(?<m>[0-9]{2})-(?<d>[0-9]{2})'
+                "
                 size="small"
               ></el-input>
               <!-- :disabled="$parent.$parent.$parent.isEditable" -->
@@ -151,7 +166,7 @@
               :content="item.value"
               placement="top-start"
             > -->
-              <span>{{ item.name }}</span>
+            <span>{{ item.name }}</span>
             <!-- </el-tooltip> -->
           </li>
           <li v-if="columnsArr.length > 9">
@@ -159,15 +174,23 @@
               :content="$t('datasource.transformer.viewmore')"
               placement="top"
               effect="light"
-            >
-              <span><i class="el-icon-more"></i></span>
+              ><span @click='showIndentifyResulttb'><i class="el-icon-more"></i></span>
             </el-tooltip>
           </li>
         </ul>
       </section>
       <section class="extract">
-        <div class="block-title sub">
+        <div
+          class="block-title sub"
+          style="justify-content: flex-start; align-items: baseline"
+        >
           <span>{{ $t("datasource.transformer.extract") }}</span>
+          <el-tooltip placement="top" effect="light">
+            <template slot="content">
+              <div v-html="$t('datasource.transformer.subextractdesc')"></div>
+            </template>
+            <span style='margin-left:6px;'><i class="el-icon-warning"></i></span>
+          </el-tooltip>
         </div>
         <template v-for="(item, index) in extractArr">
           <ExtractSplit
@@ -399,13 +422,14 @@
 <script>
 import ExtractSplit from "./extractSplit.vue";
 import FilterExpression from "./filterExpression.vue";
-import { getParser } from "@/api/explorer/datain";
+import { getParser, getHistorianMsgbody } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import { parsinginZone } from "@/utils";
 import CreateSTB from "./createSTB.vue";
 import { createStableReq } from "@/api/gateway/data/stables";
 import SplitExpression from "./splitExpression.vue";
+import { getDsnData } from "../utils.js";
 export default {
   name: "CommonTransformer",
   components: {
@@ -577,8 +601,8 @@ export default {
     },
   },
   mounted() {
-    if(this.$store.state.app.currentDBType == 'avevaHistorian'){
-      this.activeName='second'
+    if (this.$store.state.app.currentDBType == "avevaHistorian") {
+      this.activeName = "second";
     }
     if (this.parserColumns) {
       this.initColumnLists(this.parserColumns);
@@ -602,6 +626,30 @@ export default {
     this.getInitStables();
   },
   methods: {
+    async getMsgBody() {
+      this.$parent.$parent.$parent.validateRetrieve();
+      let flag = false;
+      await this.$nextTick(() => {
+        const dom = document.querySelector(".source-ui .left-ui .is-error");
+        if (dom) {
+          dom.scrollIntoView();
+          flag = true;
+        }
+      });
+      if (flag) {
+        return;
+      }
+      let dsn = getDsnData(
+        this.$parent.$parent.$parent.sourceForm.data,
+        this.$parent.$parent.$parent.currentDefinition
+      );
+      let result = await getHistorianMsgbody(
+        this.$store.state.app.currentDBType,
+        encodeURIComponent(dsn)
+      );
+      this.msgForm.msgbody = JSON.stringify(result);
+      await this.submitParse();
+    },
     changeSubname(val) {
       this.subrule.subname = val;
     },
@@ -621,8 +669,7 @@ export default {
       return flag;
     },
     showIndentifyResulttb() {
-      this.$store.commit('app/SET_RESULTTB_SHOW',true)
-      console.log(this.$store.state.app.showresulttb,'现实与否');
+      this.$store.commit("app/SET_RESULTTB_SHOW", true);
       if (this.$store.state.app.currentDBType == "csv") {
         this.$nextTick(() => {
           if (document.querySelector(".transdescription")) {
@@ -678,40 +725,48 @@ export default {
           Message.warning(this.$t("datasource.transformer.msgbodytip"));
           return;
         }
-        if(this.$store.state.app.currentDBType == "csv"){
-          console.log(this.$store.state.app.csvTransformerParser,'csv的----9999');
+        if (this.$store.state.app.currentDBType == "csv") {
+          console.log(
+            this.$store.state.app.csvTransformerParser,
+            "csv的----9999"
+          );
         }
         // if (this.filterArr.length > 0) {
         // }
         // if (this.extractArr.length > 0) {
         // }
-        let topparser = {
-          parser: {
-            parse: {
-              [this.$store.state.app.currentDBType == "mqtt"
-                ? "payload"
-                : "value"]: {
-                [`${this.parseruleForm.type}`]:
-                  this.parseruleForm.type == "regex"
-                    ? this.parseruleForm.expression
-                    : this.parseruleForm.type == "split"
-                    ? this.$store.state.app.splitExpresList
-                    : this.parseruleForm.expression
-                    ? this.parseruleForm.expression
-                        .split(";")
-                        .toString()
-                        .split(",")
-                        .map((item) => item.trim())
-                    : this.parseruleForm.expression,
+        let topparser = null;
+        if (this.$store.state.app.currentDBType == "avevaHistorian") {
+          topparser = JSON.parse(this.msgForm.msgbody);
+        } else {
+          topparser = {
+            parser: {
+              parse: {
+                [this.$store.state.app.currentDBType == "mqtt"
+                  ? "payload"
+                  : "value"]: {
+                  [`${this.parseruleForm.type}`]:
+                    this.parseruleForm.type == "regex"
+                      ? this.parseruleForm.expression
+                      : this.parseruleForm.type == "split"
+                      ? this.$store.state.app.splitExpresList
+                      : this.parseruleForm.expression
+                      ? this.parseruleForm.expression
+                          .split(";")
+                          .toString()
+                          .split(",")
+                          .map((item) => item.trim())
+                      : this.parseruleForm.expression,
+                },
               },
             },
-          },
-          input:
-            this.$store.state.app.currentDBType == "csv"
-              ? this.$store.state.app.csvTransformerParser.inputList
-              : [].concat(this.generateInput()),
-        };
-        
+            input:
+              this.$store.state.app.currentDBType == "csv"
+                ? this.$store.state.app.csvTransformerParser.inputList
+                : [].concat(this.generateInput()),
+          };
+        }
+
         this.$store.commit("app/SET_TOP_PARSE", topparser);
         let result = await getParser(topparser);
         if (result.message) {
@@ -764,17 +819,15 @@ export default {
               .filter((f) => !hiddenCols.includes(f[0]))
           );
         });
-        
         this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
         if (this.filterArr.length > 0) {
-         await this.$refs.filter[0].submitFilter();
+          await this.$refs.filter[0].submitFilter();
         }
         if (this.extractArr.length > 0) {
-         await this.$refs.extract[0].submitExtract(true);
+          await this.$refs.extract[0].submitExtract(true);
         }
         this.$store.commit("app/SET_ACTIVE_COLS", []);
         this.$store.commit("app/SET_RESULT_PAGE", 1);
-        console.log(this.$store.state.app.activeColumns,'高亮的列集合');
         this.columnsArr = (
           this.$store.state.app.currentDBType == "csv"
             ? result[0].fields
@@ -788,6 +841,8 @@ export default {
                   this.$store.state.app.currentDBType == "kafka" &&
                   !this.kafkaDefaultCols.includes(item.name)
                 ) {
+                  return item;
+                } else {
                   return item;
                 }
               })
@@ -806,8 +861,6 @@ export default {
               (finalVal.join("") ? finalVal.join(" ; ") : ""),
           };
         });
-        // }
-        // }
         if (!this.$store.state.app.transresultname) {
           this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
         }
@@ -833,48 +886,61 @@ export default {
 
     //编辑回显数据--编辑状态不自动显示result table
     async echoParser(value) {
-      let csvechoTransData = null;
-      this.currentPage = value.format.currentPage;
-      if (this.$store.state.app.currentDBType == "csv") {
-        this.isCSV = true;
-        csvechoTransData = this.$store.state.app.csvTransformerParser;
-        let columns = csvechoTransData.columns.map((item) => {
-          return {
-            description: item,
-            name: item,
-            type: "varchar",
-            value: "",
-          };
-        });
-        this.initColumnLists(columns);
+      if (this.$store.state.app.currentDBType == "avevaHistorian") {
+        let dsn = this.$store.state.app.historiandsn;
+        let result = await getHistorianMsgbody(
+          this.$store.state.app.currentDBType,
+          encodeURIComponent(dsn)
+        );
+        this.msgForm.msgbody = JSON.stringify(result);
+        value = this.$store.state.app.historianechodata;
+      } else {
+        let csvechoTransData = null;
+        this.currentPage = value?.format?.currentPage;
+        if (this.$store.state.app.currentDBType == "csv") {
+          this.isCSV = true;
+          csvechoTransData = this.$store.state.app.csvTransformerParser;
+          let columns = csvechoTransData.columns.map((item) => {
+            return {
+              description: item,
+              name: item,
+              type: "varchar",
+              value: "",
+            };
+          });
+          this.initColumnLists(columns);
+        }
+
+        this.msgForm.msgbody =
+          this.$store.state.app.currentDBType == "mqtt"
+            ? value.input.map((item) => item.payload).join(" ")
+            : this.isCSV
+            ? csvechoTransData.msgBody
+            : value.input.map((item) => item.value).join(" ");
+
+        let tagKey = "";
+        switch (this.$store.state.app.currentDBType) {
+          case "mqtt":
+            tagKey = "payload";
+            break;
+          default:
+            tagKey = "value";
+            break;
+        }
+        this.parseruleForm.type = Object.keys(
+          value.parser.parse[tagKey]
+        ).toString();
+        this.parseruleForm.expression =
+          this.parseruleForm.type == "regex"
+            ? Object.values(value.parser.parse[tagKey]).toString()
+            : Object.values(value.parser.parse[tagKey])
+                .toString()
+                .replace(",", ";");
       }
 
-      this.msgForm.msgbody =
-        this.$store.state.app.currentDBType == "mqtt"
-          ? value.input.map((item) => item.payload).join(" ")
-          : this.isCSV
-          ? csvechoTransData.msgBody
-          : value.input.map((item) => item.value).join(" ");
-
-      let tagKey = "";
-      switch (this.$store.state.app.currentDBType) {
-        case "mqtt":
-          tagKey = "payload";
-          break;
-        default:
-          tagKey = "value";
-          break;
-      }
-      this.parseruleForm.type = Object.keys(
-        value.parser.parse[tagKey]
-      ).toString();
-      this.parseruleForm.expression =this.parseruleForm.type=='regex'?Object.values(value.parser.parse[tagKey])
-        .toString(): Object.values(value.parser.parse[tagKey])
-        .toString()
-        .replace(",", ";");
       await this.submitParse();
 
-      let identifiedColObj = value.parser.mutate.filter((item) => {
+      let identifiedColObj = value?.parser.mutate.filter((item) => {
         if (Object.keys(item).toString() == "extract") {
           return item;
         }
@@ -964,6 +1030,7 @@ export default {
         this.subrule.subname = value.parser.model.name;
         await this.getSTbaleList();
         await this.echoFetchMap();
+        this.$store.commit("app/SET_RESULTTB_SHOW", false);
         this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
       });
     },
@@ -1149,6 +1216,8 @@ export default {
         },
         input: this.isCSV
           ? this.$store.state.app.csvTransformerParser.inputList
+          : this.$store.state.app.currentDBType == "avevaHistorian"
+          ? this.$store.state.app.topParse.input
           : [].concat(this.generateInput()),
         format: {
           pageCount: this.pageCount,
@@ -1219,6 +1288,8 @@ export default {
 
         input: this.isCSV
           ? this.$store.state.app.csvTransformerParser.inputList
+          : this.$store.state.app.currentDBType == "avevaHistorian"
+          ? this.$store.state.app.topParse.input
           : [].concat(this.generateInput()),
         format: {
           pageCount: this.pageCount,
@@ -1320,7 +1391,6 @@ export default {
           resultMsgbody = this.msgForm.msgbody.split(";");
         }
       }
-      console.log(resultMsgbody,'resultMsgbody');
       inputList = resultMsgbody.map((msg) => {
         let inputobj = {};
         this.indentifiedColumns.forEach((item) => {
@@ -1346,7 +1416,6 @@ export default {
         });
         return inputobj;
       });
-      console.log(inputList,'inputList');
       return inputList;
     },
     submitSuper(data) {
@@ -1746,14 +1815,14 @@ export default {
         this.initColumnLists(val);
       },
     },
-    "$store.state.app.currentDBType":{
-      deep:true,
-      handler(val){
-        if(val=='avevaHistorian'){
-          this.activeName='second'
+    "$store.state.app.currentDBType": {
+      deep: true,
+      handler(val) {
+        if (val == "avevaHistorian") {
+          this.activeName = "second";
         }
-      }
-    }
+      },
+    },
   },
 };
 </script>
@@ -1855,7 +1924,6 @@ export default {
   }
   ::v-deep {
     .el-table {
-      
       thead tr th {
         background-color: #f5f7fa;
       }
@@ -1864,7 +1932,7 @@ export default {
       }
       tbody tr:first-child {
         .cell {
-          padding-bottom: 16px!important;
+          padding-bottom: 16px !important;
         }
       }
     }
@@ -1963,12 +2031,11 @@ export default {
   margin-top: 20px;
 }
 .block-title {
-      margin-bottom: 10px;
-      span {
-        font-size: 16px;
-        color: #4259ce;
-        font-weight: 600;
-      }
-    }
-
+  margin-bottom: 10px;
+  span {
+    font-size: 16px;
+    color: #4259ce;
+    font-weight: 600;
+  }
+}
 </style>
