@@ -15,9 +15,14 @@
     computed: {
       routeTitle() {
         let result = this.$t("route.tool");
+        let YonghongBI = this.$t('docs.tools.yonghongbi.name')
 
         if (this.$route.params?.lang) {
-          result += " - " + this.$route.params.lang;
+          if (['YonghongBI'].includes(this.$route.params.lang)) {
+            result += " - " + YonghongBI;
+          } else {
+            result += " - " + this.$route.params.lang;
+          }
         }
         return result;
       },
