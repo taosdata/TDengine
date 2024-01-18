@@ -30,6 +30,55 @@ static int32_t addToTaskset(SArray* pArray, SStreamTask* pTask) {
   return 0;
 }
 
+static int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEpSet) {
+  char buf[512] = {0};
+
+  if (pTask->info.nodeId == nodeId) {  // execution task should be moved away
+    epsetAssign(&pTask->info.epSet, pEpSet);
+    EPSET_TO_STR(pEpSet, buf)
+    stDebug("s-task:0x%x (vgId:%d) self node epset is updated %s", pTask->id.taskId, nodeId, buf);
+  }
+
+  // check for the dispath info and the upstream task info
+  int32_t level = pTask->info.taskLevel;
+  if (level == TASK_LEVEL__SOURCE) {
+    streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
+  } else if (level == TASK_LEVEL__AGG) {
+    streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
+    streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
+  } else {  // TASK_LEVEL__SINK
+    streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
+  }
+
+  return 0;
+}
+
+static void freeItem(void* p) {
+  SStreamContinueExecInfo* pInfo = p;
+  rpcFreeCont(pInfo->msg.pCont);
+}
+
+static void freeUpstreamItem(void* p) {
+  SStreamChildEpInfo** pInfo = p;
+  taosMemoryFree(*pInfo);
+}
+
+static SStreamChildEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
+  SStreamChildEpInfo* pEpInfo = taosMemoryMalloc(sizeof(SStreamChildEpInfo));
+  if (pEpInfo == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pEpInfo->childId = pTask->info.selfChildId;
+  pEpInfo->epSet = pTask->info.epSet;
+  pEpInfo->nodeId = pTask->info.nodeId;
+  pEpInfo->taskId = pTask->id.taskId;
+  pEpInfo->stage = -1;
+
+  return pEpInfo;
+}
+
 SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, bool fillHistory, int64_t triggerParam,
                             SArray* pTaskList, bool hasFillhistory) {
   SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
@@ -164,7 +213,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
 
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pTask->ver) < 0) return -1;
-  if (pTask->ver != SSTREAM_TASK_VER) return -1;
+  if (pTask->ver <= SSTREAM_TASK_INCOMPATIBLE_VER) return -1;
 
   if (tDecodeI64(pDecoder, &pTask->id.streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->id.taskId) < 0) return -1;
@@ -251,7 +300,7 @@ int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo)
 
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pChkpInfo->msgVer) < 0) return -1;
-  // if (ver != SSTREAM_TASK_VER) return -1;
+  // if (ver <= SSTREAM_TASK_INCOMPATIBLE_VER) return -1;
 
   if (tDecodeI64(pDecoder, &skip64) < 0) return -1;
   if (tDecodeI32(pDecoder, &skip32) < 0) return -1;
@@ -279,7 +328,7 @@ int32_t tDecodeStreamTaskId(SDecoder* pDecoder, STaskId* pTaskId) {
   int64_t ver;
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &ver) < 0) return -1;
-  if (ver != SSTREAM_TASK_VER) return -1;
+  if (ver <= SSTREAM_TASK_INCOMPATIBLE_VER) return -1;
 
   if (tDecodeI64(pDecoder, &pTaskId->streamId) < 0) return -1;
 
@@ -291,16 +340,6 @@ int32_t tDecodeStreamTaskId(SDecoder* pDecoder, STaskId* pTaskId) {
   return 0;
 }
 
-static void freeItem(void* p) {
-  SStreamContinueExecInfo* pInfo = p;
-  rpcFreeCont(pInfo->msg.pCont);
-}
-
-static void freeUpstreamItem(void* p) {
-  SStreamChildEpInfo** pInfo = p;
-  taosMemoryFree(*pInfo);
-}
-
 void tFreeStreamTask(SStreamTask* pTask) {
   char*                p = NULL;
   int32_t              taskId = pTask->id.taskId;
@@ -309,7 +348,9 @@ void tFreeStreamTask(SStreamTask* pTask) {
   ETaskStatus status1 = TASK_STATUS__UNINIT;
   taosThreadMutexLock(&pTask->lock);
   if (pTask->status.pSM != NULL) {
-    status1 = streamTaskGetStatus(pTask, &p);
+    SStreamTaskState* pStatus = streamTaskGetStatus(pTask);
+    p = pStatus->name;
+    status1 = pStatus->state;
   }
   taosThreadMutexUnlock(&pTask->lock);
 
@@ -328,9 +369,9 @@ void tFreeStreamTask(SStreamTask* pTask) {
     taosMsleep(100);
   }
 
-  if (pTask->schedInfo.pTimer != NULL) {
-    taosTmrStop(pTask->schedInfo.pTimer);
-    pTask->schedInfo.pTimer = NULL;
+  if (pTask->schedInfo.pDelayTimer != NULL) {
+    taosTmrStop(pTask->schedInfo.pDelayTimer);
+    pTask->schedInfo.pDelayTimer = NULL;
   }
 
   if (pTask->hTaskInfo.pTimer != NULL) {
@@ -473,14 +514,6 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   }
 
   taosThreadMutexInit(&pTask->lock, &attr);
-  // if (pTask->info.fillHistory == 1) {
-  //   // 
-  // } else {
-
-  // }
-  // if (streamTaskSetDb(pMeta, pTask) != 0) {
-  //   return -1;
-  // }
   streamTaskOpenAllUpstreamInput(pTask);
 
   pTask->outputInfo.pDownstreamUpdateList = taosArrayInit(4, sizeof(SDownstreamTaskEpset));
@@ -505,22 +538,6 @@ int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask) {
       return taosArrayGetSize(vgInfo);
     }
   }
-}
-
-static SStreamChildEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
-  SStreamChildEpInfo* pEpInfo = taosMemoryMalloc(sizeof(SStreamChildEpInfo));
-  if (pEpInfo == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  pEpInfo->childId = pTask->info.selfChildId;
-  pEpInfo->epSet = pTask->info.epSet;
-  pEpInfo->nodeId = pTask->info.nodeId;
-  pEpInfo->taskId = pTask->id.taskId;
-  pEpInfo->stage = -1;
-
-  return pEpInfo;
 }
 
 int32_t streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask) {
@@ -620,29 +637,6 @@ int32_t streamTaskStop(SStreamTask* pTask) {
   return 0;
 }
 
-int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEpSet) {
-  char buf[512] = {0};
-
-  if (pTask->info.nodeId == nodeId) {  // execution task should be moved away
-    epsetAssign(&pTask->info.epSet, pEpSet);
-    EPSET_TO_STR(pEpSet, buf)
-    stDebug("s-task:0x%x (vgId:%d) self node epset is updated %s", pTask->id.taskId, nodeId, buf);
-  }
-
-  // check for the dispath info and the upstream task info
-  int32_t level = pTask->info.taskLevel;
-  if (level == TASK_LEVEL__SOURCE) {
-    streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
-  } else if (level == TASK_LEVEL__AGG) {
-    streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
-    streamTaskUpdateDownstreamInfo(pTask, nodeId, pEpSet);
-  } else {  // TASK_LEVEL__SINK
-    streamTaskUpdateUpstreamInfo(pTask, nodeId, pEpSet);
-  }
-
-  return 0;
-}
-
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList) {
   STaskExecStatisInfo* p = &pTask->execInfo;
 
@@ -675,7 +669,29 @@ void streamTaskResetUpstreamStageInfo(SStreamTask* pTask) {
   stDebug("s-task:%s reset all upstream tasks stage info", pTask->id.idStr);
 }
 
-bool streamTaskAllUpstreamClosed(SStreamTask* pTask) {
+void streamTaskOpenAllUpstreamInput(SStreamTask* pTask) {
+  int32_t num = taosArrayGetSize(pTask->upstreamInfo.pList);
+  if (num == 0) {
+    return;
+  }
+
+  for (int32_t i = 0; i < num; ++i) {
+    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
+    pInfo->dataAllowed = true;
+  }
+
+  pTask->upstreamInfo.numOfClosed = 0;
+  stDebug("s-task:%s opening up inputQ for %d upstream tasks", pTask->id.idStr, num);
+}
+
+void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
+  SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
+  if (pInfo != NULL) {
+    pInfo->dataAllowed = false;
+  }
+}
+
+bool streamTaskIsAllUpstreamClosed(SStreamTask* pTask) {
   return pTask->upstreamInfo.numOfClosed == taosArrayGetSize(pTask->upstreamInfo.pList);
 }
 
@@ -758,7 +774,7 @@ int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskI
   return code;
 }
 
-STaskId streamTaskExtractKey(const SStreamTask* pTask) {
+STaskId streamTaskGetTaskId(const SStreamTask* pTask) {
   STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
   return id;
 }
@@ -794,8 +810,45 @@ void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc) 
   pDst->verEnd = pSrc->verEnd;
   pDst->sinkQuota = pSrc->sinkQuota;
   pDst->sinkDataSize = pSrc->sinkDataSize;
-  pDst->activeCheckpointId = pSrc->activeCheckpointId;
+  pDst->checkpointId = pSrc->checkpointId;
   pDst->checkpointFailed = pSrc->checkpointFailed;
   pDst->chkpointTransId = pSrc->chkpointTransId;
 }
 
+void streamTaskPause(SStreamMeta* pMeta, SStreamTask* pTask) {
+  streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_PAUSE);
+
+  int32_t num = atomic_add_fetch_32(&pMeta->numOfPausedTasks, 1);
+  stInfo("vgId:%d s-task:%s pause stream task. pause task num:%d", pMeta->vgId, pTask->id.idStr, num);
+
+  // in case of fill-history task, stop the tsdb file scan operation.
+  if (pTask->info.fillHistory == 1) {
+    void* pExecutor = pTask->exec.pExecutor;
+    qKillTask(pExecutor, TSDB_CODE_SUCCESS);
+  }
+
+  stDebug("vgId:%d s-task:%s set pause flag and pause task", pMeta->vgId, pTask->id.idStr);
+}
+
+void streamTaskResume(SStreamTask* pTask) {
+  SStreamTaskState prevState = *streamTaskGetStatus(pTask);
+  SStreamMeta* pMeta = pTask->pMeta;
+
+  if (prevState.state == TASK_STATUS__PAUSE || prevState.state == TASK_STATUS__HALT) {
+    streamTaskRestoreStatus(pTask);
+
+    char* pNew = streamTaskGetStatus(pTask)->name;
+    if (prevState.state == TASK_STATUS__PAUSE) {
+      int32_t num = atomic_sub_fetch_32(&pMeta->numOfPausedTasks, 1);
+      stInfo("s-task:%s status:%s resume from %s, paused task(s):%d", pTask->id.idStr, pNew, prevState.name, num);
+    } else {
+      stInfo("s-task:%s status:%s resume from %s", pTask->id.idStr, pNew, prevState.name);
+    }
+  } else {
+    stDebug("s-task:%s status:%s not in pause/halt status, no need to resume", pTask->id.idStr, prevState.name);
+  }
+}
+
+bool streamTaskIsSinkTask(const SStreamTask* pTask) {
+  return pTask->info.taskLevel == TASK_LEVEL__SINK;
+}

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "cos.h"
+#include "functionMgt.h"
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
 #include "tsdbReadUtil.h"
@@ -894,19 +895,56 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   }
 
   int      num_keys = TARRAY_SIZE(remainCols);
-  int16_t *aCols = taosMemoryMalloc(num_keys * sizeof(int16_t));
   int16_t *slotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
+
+  int16_t *lastColIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
+  int16_t *lastSlotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
+  int16_t *lastrowColIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
+  int16_t *lastrowSlotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
+  SArray* lastTmpColArray = NULL;
+  SArray* lastTmpIndexArray = NULL;
+  SArray* lastrowTmpColArray = NULL;
+  SArray* lastrowTmpIndexArray = NULL;
+
+  int lastIndex = 0;
+  int lastrowIndex = 0;
 
   for (int i = 0; i < num_keys; ++i) {
     SIdxKey *idxKey = taosArrayGet(remainCols, i);
-    aCols[i] = idxKey->key.cid;
     slotIds[i] = pr->pSlotIds[idxKey->idx];
+    if (idxKey->key.ltype == CACHESCAN_RETRIEVE_LAST >> 3) {
+      if(NULL == lastTmpIndexArray) {
+        lastTmpIndexArray = taosArrayInit(num_keys, sizeof(int32_t));
+      }
+      taosArrayPush(lastTmpIndexArray, &(i));
+      lastColIds[lastIndex] = idxKey->key.cid;
+      lastSlotIds[lastIndex] = pr->pSlotIds[idxKey->idx];
+      lastIndex++;
+    } else {
+      if(NULL == lastrowTmpIndexArray) {
+        lastrowTmpIndexArray = taosArrayInit(num_keys, sizeof(int32_t));
+      }
+      taosArrayPush(lastrowTmpIndexArray, &(i));
+      lastrowColIds[lastrowIndex] = idxKey->key.cid;
+      lastrowSlotIds[lastrowIndex] = pr->pSlotIds[idxKey->idx];
+      lastrowIndex++;
+    }
   }
 
-  if (ltype) {
-    mergeLastCid(uid, pTsdb, &pTmpColArray, pr, aCols, num_keys, slotIds);
-  } else {
-    mergeLastRowCid(uid, pTsdb, &pTmpColArray, pr, aCols, num_keys, slotIds);
+  pTmpColArray = taosArrayInit(lastIndex + lastrowIndex, sizeof(SLastCol));
+
+  if(lastTmpIndexArray != NULL) {
+    mergeLastCid(uid, pTsdb, &lastTmpColArray, pr, lastColIds, lastIndex, lastSlotIds);
+    for(int i = 0; i < taosArrayGetSize(lastTmpColArray); i++) {
+      taosArrayInsert(pTmpColArray, *(int32_t*)taosArrayGet(lastTmpIndexArray, i), taosArrayGet(lastTmpColArray, i));
+    }
+  }
+
+  if(lastrowTmpIndexArray != NULL) {
+    mergeLastCid(uid, pTsdb, &lastrowTmpColArray, pr, lastrowColIds, lastrowIndex, lastrowSlotIds);
+    for(int i = 0; i < taosArrayGetSize(lastrowTmpColArray); i++) {
+      taosArrayInsert(pTmpColArray, *(int32_t*)taosArrayGet(lastrowTmpIndexArray, i), taosArrayGet(lastrowTmpColArray, i));
+    }
   }
 
   SLRUCache *pCache = pTsdb->lruCache;
@@ -965,9 +1003,18 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     rocksMayWrite(pTsdb, false, true, false);
   }
 
+  taosArrayDestroy(lastrowTmpIndexArray);
+  taosArrayDestroy(lastrowTmpColArray);
+  taosArrayDestroy(lastTmpIndexArray);
+  taosArrayDestroy(lastTmpColArray);
+
+  taosMemoryFree(lastColIds);
+  taosMemoryFree(lastSlotIds);
+  taosMemoryFree(lastrowColIds);
+  taosMemoryFree(lastrowSlotIds);
+
   taosArrayDestroy(pTmpColArray);
 
-  taosMemoryFree(aCols);
   taosMemoryFree(slotIds);
 
   return code;
@@ -1057,6 +1104,15 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
     int16_t cid = ((int16_t *)TARRAY_DATA(pCidList))[i];
 
     SLastKey *key = &(SLastKey){.ltype = ltype, .uid = uid, .cid = cid};
+    // for select last_row, last case
+    int32_t funcType = FUNCTION_TYPE_CACHE_LAST;
+    if (pr->pFuncTypeList != NULL && taosArrayGetSize(pr->pFuncTypeList) > i) {
+      funcType = ((int32_t *)TARRAY_DATA(pr->pFuncTypeList))[i];
+    }
+    if (((pr->type & CACHESCAN_RETRIEVE_LAST) == CACHESCAN_RETRIEVE_LAST) && FUNCTION_TYPE_CACHE_LAST_ROW == funcType) {
+      int8_t tempType = CACHESCAN_RETRIEVE_LAST_ROW | (pr->type ^ CACHESCAN_RETRIEVE_LAST);
+      key->ltype = (tempType & CACHESCAN_RETRIEVE_LAST) >> 3;
+    }
 
     LRUHandle *h = taosLRUCacheLookup(pCache, key, ROCKS_KEY_LEN);
     if (h) {
@@ -1990,9 +2046,9 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
 
   if (SFSNEXTROW_FILESET == state->state) {
   _next_fileset:
-    if (--state->iFileSet < 0) {
-      clearLastFileSet(state);
+    clearLastFileSet(state);
 
+    if (--state->iFileSet < 0) {
       *ppRow = NULL;
       return code;
     } else {
@@ -2862,7 +2918,9 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
 
         taosArraySet(pColArray, iCol, &lastCol);
         int32_t aColIndex = taosArraySearchIdx(aColArray, &lastCol.colVal.cid, compareInt16Val, TD_EQ);
-        taosArrayRemove(aColArray, aColIndex);
+        if (aColIndex >= 0) {
+          taosArrayRemove(aColArray, aColIndex);
+        }
       } else if (!COL_VAL_IS_VALUE(tColVal) && !COL_VAL_IS_VALUE(pColVal) && !setNoneCol) {
         noneCol = iCol;
         setNoneCol = true;

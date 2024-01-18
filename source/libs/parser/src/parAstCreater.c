@@ -370,6 +370,18 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   return (SNode*)val;
 }
 
+static bool hasHint(SNodeList* pHintList, EHintOption hint) {
+  if (!pHintList) return false;
+  SNode* pNode;
+  FOREACH(pNode, pHintList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == hint) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOption opt, SToken* paramList,
                        int32_t paramNum) {
   void* value = NULL;
@@ -383,6 +395,10 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
     }
     case HINT_SORT_FOR_GROUP:
       if (paramNum > 0) return true;
+      if (hasHint(*ppHintList, HINT_PARTITION_FIRST)) return true;
+      break;
+    case HINT_PARTITION_FIRST:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_SORT_FOR_GROUP)) return true;
       break;
     default:
       return true;
@@ -453,6 +469,14 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
           break;
         }
         opt = HINT_SORT_FOR_GROUP;
+        break;
+      case TK_PARTITION_FIRST:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_PARTITION_FIRST;
         break;
       case TK_NK_LP:
         lastComma = false;

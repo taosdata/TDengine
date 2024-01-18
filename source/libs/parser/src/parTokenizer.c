@@ -177,6 +177,7 @@ static SKeyword keywordTable[] = {
     {"PAGES",                TK_PAGES},
     {"PAGESIZE",             TK_PAGESIZE},
     {"PARTITION",            TK_PARTITION},
+    {"PARTITION_FIRST",      TK_PARTITION_FIRST},
     {"PASS",                 TK_PASS},
     {"PORT",                 TK_PORT},
     {"PPS",                  TK_PPS},

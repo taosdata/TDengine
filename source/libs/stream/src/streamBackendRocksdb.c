@@ -41,6 +41,8 @@ void            destroyRocksdbCfInst(RocksdbCfInst* inst);
 int32_t         getCfIdx(const char* cfName);
 STaskDbWrapper* taskDbOpenImpl(char* key, char* statePath, char* dbPath);
 
+int32_t backendCopyFiles(char* src, char* dst);
+
 void        destroyCompactFilteFactory(void* arg);
 void        destroyCompactFilte(void* arg);
 const char* compactFilteFactoryName(void* arg);
@@ -218,7 +220,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
         taosRemoveDir(state);
       }
       taosMkDir(state);
-      code = copyFiles(chkp, state);
+      code = backendCopyFiles(chkp, state);
       stInfo("copy snap file from %s to %s", chkp, state);
       if (code != 0) {
         stError("failed to restart stream backend from %s, reason: %s", chkp, tstrerror(TAOS_SYSTEM_ERROR(errno)));
@@ -334,7 +336,7 @@ int32_t rebuildFromRemoteChkp_rsync(char* key, char* chkpPath, int64_t chkpId, c
   if (code != 0) {
     return code;
   }
-  code = copyFiles(chkpPath, defaultPath);
+  code = backendCopyFiles(chkpPath, defaultPath);
 
   return code;
 }
@@ -359,7 +361,7 @@ int32_t rebuildFromRemoteChkp_s3(char* key, char* chkpPath, int64_t chkpId, char
 
   if (code == 0) {
     taosMkDir(defaultPath);
-    code = copyFiles(chkpPath, defaultPath);
+    code = backendCopyFiles(chkpPath, defaultPath);
   }
 
   if (code != 0) {
@@ -382,35 +384,143 @@ int32_t rebuildFromRemoteChkp(char* key, char* chkpPath, int64_t chkpId, char* d
   return -1;
 }
 
-int32_t rebuildFromLocalChkp(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
-  int32_t code = -1;
-  int32_t len = strlen(defaultPath) + 32;
-  char*   tmp = taosMemoryCalloc(1, len);
-  sprintf(tmp, "%s%s", defaultPath, "_tmp");
+int32_t copyFiles_create(char* src, char* dst, int8_t type) {
+  // create and copy file
+  int32_t err = taosCopyFile(src, dst);
 
-  if (taosIsDir(tmp)) taosRemoveDir(tmp);
-  if (taosIsDir(defaultPath)) taosRenameFile(defaultPath, tmp);
+  if (errno == EXDEV || errno == ENOTSUP) {
+    errno = 0;
+    return 0;
+  }
+  return 0;
+}
+int32_t copyFiles_hardlink(char* src, char* dst, int8_t type) {
+  // same fs and hard link
+  return taosLinkFile(src, dst);
+}
 
-  if (taosIsDir(chkpPath) && isValidCheckpoint(chkpPath)) {
-    if (taosIsDir(tmp)) {
-      taosRemoveDir(tmp);
+int32_t backendFileCopyFilesImpl(char* src, char* dst) {
+  const char* current = "CURRENT";
+  size_t      currLen = strlen(current);
+
+  int32_t code = 0;
+  int32_t sLen = strlen(src);
+  int32_t dLen = strlen(dst);
+  char*   srcName = taosMemoryCalloc(1, sLen + 64);
+  char*   dstName = taosMemoryCalloc(1, dLen + 64);
+  // copy file to dst
+
+  TdDirPtr pDir = taosOpenDir(src);
+  if (pDir == NULL) {
+    taosMemoryFree(srcName);
+    taosMemoryFree(dstName);
+    errno = 0;
+    return -1;
+  }
+
+  TdDirEntryPtr de = NULL;
+  while ((de = taosReadDir(pDir)) != NULL) {
+    char* name = taosGetDirEntryName(de);
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+
+    sprintf(srcName, "%s%s%s", src, TD_DIRSEP, name);
+    sprintf(dstName, "%s%s%s", dst, TD_DIRSEP, name);
+
+    if (strncmp(name, current, strlen(name) <= currLen ? strlen(name) : currLen) == 0) {
+      code = copyFiles_create(srcName, dstName, 0);
+      if (code != 0) {
+        stError("failed to copy file, detail: %s to %s reason: %s", srcName, dstName,
+                tstrerror(TAOS_SYSTEM_ERROR(code)));
+        goto _ERROR;
+      }
+    } else {
+      code = copyFiles_hardlink(srcName, dstName, 0);
+      if (code != 0) {
+        stError("failed to hard line file, detail: %s to %s, reason: %s", srcName, dstName,
+                tstrerror(TAOS_SYSTEM_ERROR(code)));
+        goto _ERROR;
+      }
     }
+    memset(srcName, 0, sLen + 64);
+    memset(dstName, 0, dLen + 64);
+  }
+
+  taosMemoryFreeClear(srcName);
+  taosMemoryFreeClear(dstName);
+  taosCloseDir(&pDir);
+  errno = 0;
+  return 0;
+_ERROR:
+  taosMemoryFreeClear(srcName);
+  taosMemoryFreeClear(dstName);
+  taosCloseDir(&pDir);
+  errno = 0;
+  return -1;
+}
+int32_t backendCopyFiles(char* src, char* dst) {
+  return backendFileCopyFilesImpl(src, dst);
+  // // opt later, just hard link
+  // int32_t sLen = strlen(src);
+  // int32_t dLen = strlen(dst);
+  // char*   srcName = taosMemoryCalloc(1, sLen + 64);
+  // char*   dstName = taosMemoryCalloc(1, dLen + 64);
+
+  // TdDirPtr pDir = taosOpenDir(src);
+  // if (pDir == NULL) {
+  //   taosMemoryFree(srcName);
+  //   taosMemoryFree(dstName);
+  //   return -1;
+  // }
+
+  // TdDirEntryPtr de = NULL;
+  // while ((de = taosReadDir(pDir)) != NULL) {
+  //   char* name = taosGetDirEntryName(de);
+  //   if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+
+  //   sprintf(srcName, "%s%s%s", src, TD_DIRSEP, name);
+  //   sprintf(dstName, "%s%s%s", dst, TD_DIRSEP, name);
+  //   // if (!taosDirEntryIsDir(de)) {
+  //   //   // code = taosCopyFile(srcName, dstName);
+  //   //   if (code == -1) {
+  //   //     goto _err;
+  //   //   }
+  //   // }
+  //   return backendFileCopyFilesImpl(src, dst);
+
+  //   memset(srcName, 0, sLen + 64);
+  //   memset(dstName, 0, dLen + 64);
+  // }
+
+  // _err:
+  //   taosMemoryFreeClear(srcName);
+  //   taosMemoryFreeClear(dstName);
+  //   taosCloseDir(&pDir);
+  //   return code >= 0 ? 0 : -1;
+
+  // return 0;
+}
+int32_t rebuildFromLocalChkp(char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
+  int32_t code = 0;
+  if (taosIsDir(defaultPath)) {
+    taosRemoveDir(defaultPath);
     taosMkDir(defaultPath);
-    code = copyFiles(chkpPath, defaultPath);
+
+    stInfo("succ to clear stream backend %s", defaultPath);
+  }
+  if (taosIsDir(chkpPath) && isValidCheckpoint(chkpPath)) {
+    code = backendCopyFiles(chkpPath, defaultPath);
     if (code != 0) {
-      stError("failed to restart stream backend from %s, reason: %s", chkpPath, tstrerror(TAOS_SYSTEM_ERROR(errno)));
+      taosRemoveDir(defaultPath);
+      taosMkDir(defaultPath);
+
+      stError("failed to restart stream backend from %s, reason: %s, start to restart from empty path: %s", chkpPath,
+              tstrerror(TAOS_SYSTEM_ERROR(errno)), defaultPath);
+      code = 0;
     } else {
       stInfo("start to restart stream backend at checkpoint path: %s", chkpPath);
     }
   }
-  if (code != 0) {
-    if (taosIsDir(defaultPath)) taosRemoveDir(defaultPath);
-    if (taosIsDir(tmp)) taosRenameFile(tmp, defaultPath);
-  } else {
-    taosRemoveDir(tmp);
-  }
 
-  taosMemoryFree(tmp);
   return code;
 }
 

@@ -149,6 +149,8 @@ void nodesRewriteExprPostOrder(SNode** pNode, FNodeRewriter rewriter, void* pCon
 void nodesRewriteExprsPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
 
 bool nodesEqualNode(const SNode* a, const SNode* b);
+bool nodeListNodeEqual(const SNodeList* a, const SNode* b);
+
 bool nodesMatchNode(const SNode* pSub, const SNode* pNode);
 
 SNode*     nodesCloneNode(const SNode* pNode);

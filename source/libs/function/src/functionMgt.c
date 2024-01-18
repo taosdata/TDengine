@@ -281,6 +281,7 @@ void fmFuncMgtDestroy() {
   }
 }
 
+#ifdef BUILD_NO_CALL
 int32_t fmSetInvertFunc(int32_t funcId, SFuncExecFuncs* pFpSet) {
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return TSDB_CODE_FAILED;
@@ -314,6 +315,7 @@ bool fmIsInvertible(int32_t funcId) {
   }
   return res;
 }
+#endif
 
 // function has same input/output type
 bool fmIsSameInOutType(int32_t funcId) {

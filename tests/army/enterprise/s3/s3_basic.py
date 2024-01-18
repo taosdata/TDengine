@@ -54,16 +54,21 @@ class TDTestCase(TBase):
         tdLog.info(f"insert data.")
         # taosBenchmark run
         json = etool.curFile(__file__, "s3_basic.json")
-        etool.runBenchmark(json=json)
+        etool.benchMark(json=json)
 
         tdSql.execute(f"use {self.db}")
-        # set insert data information
+        # come from s3_basic.json
         self.childtable_count = 4
         self.insert_rows = 1000000
         self.timestamp_step = 1000
 
+    def createStream(self, sname):
+        sql = f"create stream {sname} fill_history 1 into stm1 as select count(*) from {self.db}.{self.stb} interval(10s);"
+        tdSql.execute(sql)
+
     def doAction(self):
         tdLog.info(f"do action.")
+
         self.flushDb()
         self.compactDb()
 
@@ -80,15 +85,32 @@ class TDTestCase(TBase):
             time.sleep(5)
             self.trimDb(True)
             loop += 1
+            tdLog.info(f"loop={loop} wait 5s...")
+
+    def checkStreamCorrect(self):
+        sql = f"select count(*) from {self.db}.stm1"
+        count = 0
+        for i in range(120):
+            tdSql.query(sql)
+            count = tdSql.getData(0, 0)
+            if count == 100000 or count == 100001:
+                return True
+            time.sleep(1)
+            
+        tdLog.exit(f"stream count is not expect . expect = 100000 or 100001 real={count} . sql={sql}")
 
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
+        self.sname = "stream1"
         if eos.isArm64Cpu():
             tdLog.success(f"{__file__} arm64 ignore executed")
         else:
             # insert data
             self.insertData()
+
+            # creat stream
+            self.createStream(self.sname)
 
             # check insert data correct
             self.checkInsertCorrect()
@@ -104,6 +126,12 @@ class TDTestCase(TBase):
 
             # check insert correct again
             self.checkInsertCorrect()
+
+            # check stream correct and drop stream
+            self.checkStreamCorrect()
+
+            # drop stream
+            self.dropStream(self.sname)
 
             # drop database and free s3 file
             self.dropDb()

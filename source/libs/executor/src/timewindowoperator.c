@@ -450,7 +450,7 @@ int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBl
       TSKEY next = primaryKeys[startPos];
       if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
         pNext->skey = taosTimeTruncate(next, pInterval);
-        pNext->ekey = taosTimeAdd(pNext->skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+        pNext->ekey = taosTimeGetIntervalEnd(pNext->skey, pInterval);
       } else {
         pNext->ekey += ((next - pNext->ekey + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
         pNext->skey = pNext->ekey - pInterval->interval + 1;
@@ -459,7 +459,7 @@ int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBl
       TSKEY next = primaryKeys[startPos];
       if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
         pNext->skey = taosTimeTruncate(next, pInterval);
-        pNext->ekey = taosTimeAdd(pNext->skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+        pNext->ekey = taosTimeGetIntervalEnd(pNext->skey, pInterval);
       } else {
         pNext->skey -= ((pNext->skey - next + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
         pNext->ekey = pNext->skey + pInterval->interval - 1;
@@ -1077,16 +1077,6 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator) {
   pOperator->resultInfo.totalRows += rows;
 
   return (rows == 0) ? NULL : pBlock;
-}
-
-static void setInverFunction(SqlFunctionCtx* pCtx, int32_t num, EStreamType type) {
-  for (int i = 0; i < num; i++) {
-    if (type == STREAM_INVERT) {
-      fmSetInvertFunc(pCtx[i].functionId, &(pCtx[i].fpSet));
-    } else if (type == STREAM_NORMAL) {
-      fmSetNormalFunc(pCtx[i].functionId, &(pCtx[i].fpSet));
-    }
-  }
 }
 
 static void doClearWindowImpl(SResultRowPosition* p1, SDiskbasedBuf* pResultBuf, SExprSupp* pSup, int32_t numOfOutput) {

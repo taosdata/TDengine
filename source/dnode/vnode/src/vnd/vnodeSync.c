@@ -14,11 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tq.h"
 #include "sync.h"
+#include "tq.h"
+#include "tqCommon.h"
 #include "tsdb.h"
 #include "vnd.h"
-#include "tqCommon.h"
 
 #define BATCH_ENABLE 0
 
@@ -411,7 +411,7 @@ static int32_t vnodeSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
 }
 
 static int32_t vnodeSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
-  int32_t code = tmsgSendReq(pEpSet, pMsg);
+  int32_t code = tmsgSendSyncReq(pEpSet, pMsg);
   if (code != 0) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
@@ -477,8 +477,8 @@ static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta
 }
 
 static int32_t vnodeSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void **ppReader) {
-  SVnode         *pVnode = pFsm->data;
-  int32_t         code = vnodeSnapReaderOpen(pVnode, (SSnapshotParam *)pParam, (SVSnapReader **)ppReader);
+  SVnode *pVnode = pFsm->data;
+  int32_t code = vnodeSnapReaderOpen(pVnode, (SSnapshotParam *)pParam, (SVSnapReader **)ppReader);
   return code;
 }
 
@@ -555,7 +555,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   walApplyVer(pVnode->pWal, commitIdx);
   pVnode->restored = true;
 
-  SStreamMeta* pMeta = pVnode->pTq->pStreamMeta;
+  SStreamMeta *pMeta = pVnode->pTq->pStreamMeta;
   streamMetaWLock(pMeta);
 
   if (pMeta->startInfo.tasksWillRestart) {
@@ -567,29 +567,29 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   if (vnodeIsRoleLeader(pVnode)) {
     // start to restore all stream tasks
     if (tsDisableStream) {
-      streamMetaWUnLock(pMeta);
       vInfo("vgId:%d, sync restore finished, not launch stream tasks, since stream tasks are disabled", vgId);
     } else {
-      vInfo("vgId:%d sync restore finished, start to launch stream tasks", pVnode->config.vgId);
-      tqStreamTaskResetStatus(pVnode->pTq->pStreamMeta);
-
-      {
+      vInfo("vgId:%d sync restore finished, start to launch stream task(s)", pVnode->config.vgId);
+      int32_t numOfTasks = tqStreamTasksGetTotalNum(pMeta);
+      if (numOfTasks > 0) {
         if (pMeta->startInfo.taskStarting == 1) {
           pMeta->startInfo.restartCount += 1;
           tqDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, remaining restart:%d", vgId,
                   pMeta->startInfo.restartCount);
-          streamMetaWUnLock(pMeta);
         } else {
           pMeta->startInfo.taskStarting = 1;
+
           streamMetaWUnLock(pMeta);
           tqStreamTaskStartAsync(pMeta, &pVnode->msgCb, false);
+          return;
         }
       }
     }
   } else {
-    streamMetaWUnLock(pMeta);
     vInfo("vgId:%d, sync restore finished, not launch stream tasks since not leader", vgId);
   }
+
+  streamMetaWUnLock(pMeta);
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {

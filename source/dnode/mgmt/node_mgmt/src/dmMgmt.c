@@ -90,8 +90,12 @@ int32_t dmInitDnode(SDnode *pDnode) {
     goto _OVER;
   }
 #endif
+
   indexInit(tsNumOfCommitThreads);
   streamMetaInit();
+
+  dmInitStatusClient(pDnode);
+  dmInitSyncClient(pDnode);  
 
   dmReportStartup("dnode-transport", "initialized");
   dDebug("dnode is created, ptr:%p", pDnode);
@@ -108,11 +112,15 @@ _OVER:
 }
 
 void dmCleanupDnode(SDnode *pDnode) {
-  if (pDnode == NULL) return;
+  if (pDnode == NULL) {
+    return;
+  }
 
   dmCleanupClient(pDnode);
   dmCleanupStatusClient(pDnode);
+  dmCleanupSyncClient(pDnode);
   dmCleanupServer(pDnode);
+
   dmClearVars(pDnode);
   rpcCleanup();
   streamMetaCleanup();
