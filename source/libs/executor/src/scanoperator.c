@@ -991,28 +991,16 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
     if (pOperator->dynamicTask) {
       result->info.id.groupId = result->info.id.uid;
     }
-    uInfo("slzhou 1 %lu, %lu, %lu", result->info.id.groupId, result->info.id.uid, result->info.rows);
     return result;
   }
 
   while (true) {
     result = startNextGroupScan(pOperator);
     if (result || pOperator->status == OP_EXEC_DONE) {
-      if (result) {
-        uInfo("slzhou 2 %lu, %lu, %lu", result->info.id.groupId, result->info.id.uid, result->info.rows);
-      }
-      else {
-        uInfo("slzhou 2 null block" );
-      }
       return result;
     }
   }
-      if (result) {
-        uInfo("slzhou 3 %lu, %lu, %lu", result->info.id.groupId, result->info.id.uid, result->info.rows);
-      }
-      else {
-        uInfo("slzhou 3 null block" );
-      }
+
   return result;
 }
 
