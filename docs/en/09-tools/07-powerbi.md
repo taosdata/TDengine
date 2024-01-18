@@ -8,7 +8,7 @@ Power BI is a business analytics tool provided by Microsoft. With TDengine ODBC 
 
 ## Prerequisite
 
-Power BI Desktop has been installed and running (If not, please download and install the latest Windows X64 version from [PowerBI](https://www.microsoft.com/download/details.aspx?id=58494)).
+Power BI Desktop has been installed and running (If not, please download and install the latest Windows X64 version from [Power BI](https://www.microsoft.com/download/details.aspx?id=58494)).
 
 ## Install ODBC connector
 
@@ -16,7 +16,7 @@ Power BI Desktop has been installed and running (If not, please download and ins
 2. Install TDengine Windows client installation package as the following.
 
 :::note IMPORTANT
-Please login [TDengine Cloud](https://cloud.taosdata.com) and select "PowerBI" card of the "Tools" page. In the opened page, please download the selected TDengine Cloud instance's TDengine Windows client in the "Install ODBC connector" part.
+Please login [TDengine Cloud](https://cloud.taosdata.com) and select "Power BI" card of the "Tools" page. In the opened page, please download the selected TDengine Cloud instance's TDengine Windows client in the "Install ODBC connector" part.
 :::
 
 ## Configure ODBC DataSource

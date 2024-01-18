@@ -8,7 +8,7 @@ description: 使用永洪 BI 获取 TDengine Cloud 实例的数据
 
 ## 前置条件
 
-1. Yonghong Desktop Basic 已经安装并运行（如果未安装，请到[永洪科技官方下载页面](https://www.yonghongtech.com/cp/desktop/)下载）。
+1. Yonghong Desktop Basic 已经安装并运行（如果未安装，请到 [永洪科技官方下载页面](https://www.yonghongtech.com/cp/desktop/) 下载）。
 2. TDengine Cloud 的实例是正常运行状态。
 
 ## 安装 JDBC 连接器
@@ -26,7 +26,7 @@ description: 使用永洪 BI 获取 TDengine Cloud 实例的数据
 7. 点击“保存”按钮，输入“MyTDengine”来保存 TDengine 数据源。
 
 :::note 非常重要
-获取真实的 `URL` 的值，请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”工具“菜单，然后选择”永洪 BI“，在“配置 TDengine JDBC 数据源”部分复制当前 TDengine Cloud 实例的 URL 值。
+获取真实的 `URL` 的值，请登录 [TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”工具“菜单，然后选择”永洪 BI“，在“配置 TDengine JDBC 数据源”部分复制当前 TDengine Cloud 实例的 URL 值。
 :::
 
 ## 创建 TDengine 数据集
@@ -51,4 +51,4 @@ description: 使用永洪 BI 获取 TDengine Cloud 实例的数据
 2. 拖动可视化组件到画布中，例如“表格组件”。
 3. 在“数据集”侧边栏中选择待绑定的数据集，将数据列中的“维度”和“度量”按需绑定到“表格组件”。
 4. 点击“保存”后，即可查看报告。
-5. 更多有关永洪 BI 工具的信息，请查询其[帮助文档](https://www.yonghongtech.com/help/Z-Suite/10.0/ch/)。
+5. 更多有关永洪 BI 工具的信息，请查询其 [帮助文档](https://www.yonghongtech.com/help/Z-Suite/10.0/ch/)。

@@ -8,7 +8,8 @@ Power BI 是由 Microsoft 提供的一种商业分析工具。通过配置使用
 
 ## 前置条件
 
-安装完成 Power BI Desktop 软件并可以运行（如未安装，请从 [官方地址](https://www.microsoft.com/zh-cn/download/details.aspx?id=58494)下载最新的 Windows X64 版本）。
+1. 安装完成 Power BI Desktop 软件并可以运行（如未安装，请从 [官方地址](https://www.microsoft.com/zh-cn/download/details.aspx?id=58494) 下载最新的 Windows X64 版本）。
+2. TDengine Cloud 的实例是正常运行状态。
 
 ## 安装 ODBC 连接器
 
@@ -16,7 +17,7 @@ Power BI 是由 Microsoft 提供的一种商业分析工具。通过配置使用
 2. 下载和安装 TDengine Windows 客户端安装包，请参考下面的注意内容。
 
 :::note 非常重要
-请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”工具“菜单，然后选择”PowerBI“，在“安装 ODBC 连接器”下载选中的 TDengine Cloud 实例对应的客户端。
+请登录 [TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”工具“菜单，然后选择”Power BI“，在“安装 ODBC 连接器”下载选中的 TDengine Cloud 实例对应的客户端。
 :::
 
 ## 配置 ODBC 数据源
@@ -31,7 +32,7 @@ Power BI 是由 Microsoft 提供的一种商业分析工具。通过配置使用
 4. 点击【测试连接】按钮测试连接情况，如果成功，会提示“成功连接到该 URL”。
 
 :::note 非常重要
-获取真实的 `URL` 的值，请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”工具“菜单，然后选择”永红 BI“，在“配置 TDengine JDBC 数据源”部分复制当前 TDengine Cloud 实例的 URL 值。
+获取真实的 `URL` 的值，请登录 [TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”工具“菜单，然后选择”永红 BI“，在“配置 TDengine JDBC 数据源”部分复制当前 TDengine Cloud 实例的 URL 值。
 :::
 
 ## 导入 TDengine 数据到 Powner BI
