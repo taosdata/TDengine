@@ -245,7 +245,7 @@ export default {
         },
         input: this.$parent.isCSV
           ? this.$store.state.app.csvTransformerParser.inputList
-          : inputList,
+          :this.$store.state.app.currentDBType == "avevaHistorian"?this.$store.state.app.topParse.input: inputList,
       };
 
       this.$store.commit("app/SET_FILTER_PARSE_DATA", {

@@ -91,7 +91,7 @@
           placement="top"
           effect="light"
         >
-          <span><i class="el-icon-more"></i></span>
+          <span @click='submit'><i class="el-icon-more"></i></span>
         </el-tooltip>
       </li>
     </ul>
@@ -313,6 +313,8 @@ export default {
                     !this.kafkaDefaultCols.includes(val)
                   ) {
                     return val;
+                  }else{
+                    return val
                   }
                 });
         tbdata = result[0].columns.map((data) => {
@@ -344,6 +346,7 @@ export default {
             (item) => item== Object.keys(this.tableData[0])[0]
           );
           this.$store.commit("app/SET_RESULT_PAGE", pageindex);
+          
           return;
         }
         this.$store.commit(
@@ -519,9 +522,14 @@ export default {
                 this.extractParseData["extract"][this.itemData.columnname],
             },
           });
+          
       let parser = {
         parser: {
-          parse: this.$store.state.app.topParse.parser.parse,
+          parse:
+          // this.$store.state.app.currentDBType == "avevaHistorian" ? isall?this.$store.state.app.topParse.parser.parse:{
+          //   [`${this.itemData.columnname}`]:this.$store.state.app.topParse.parser.parse[this.itemData.columnname]
+          // }: 
+          this.$store.state.app.topParse.parser.parse,
           mutate: topparse["parser"]["mutate"],
         },
 
@@ -538,9 +546,11 @@ export default {
                   }
                 }
               )
-          : inputList,
+          :this.$store.state.app.currentDBType == "avevaHistorian"?isall?this.$store.state.app.topParse.input:[].concat({
+            [`${this.itemData.columnname}`]:this.$store.state.app.topParse.input[0][this.itemData.columnname]
+          }): inputList,
       };
-      console.log(this.$store.state.app.topParse.parser.parse,'top-----parse');
+
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);
 
       await this.getParserData(parser, isall);

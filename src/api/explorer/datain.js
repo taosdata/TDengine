@@ -177,3 +177,11 @@ export function getMetricsDesc(data) {
         method: 'get',
     })
 }
+
+export function getHistorianMsgbody(datatype,data,agentid){
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/ds/in/sample?dsn=${datatype}${data}` + (agentid ? `&via=${agentid}` : ''),
+        method: 'get',
+    })
+}
