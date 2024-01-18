@@ -593,7 +593,6 @@ void transPrintEpSet(SEpSet* pEpSet) {
     tTrace("%s, inUse:%d", buf, pEpSet->inUse);
   }
 }
-}
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
   if (a->numOfEps != b->numOfEps || a->inUse != b->inUse) {
     return false;
