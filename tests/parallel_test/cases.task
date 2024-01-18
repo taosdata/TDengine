@@ -12,6 +12,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f enterprise/s3/s3_basic.py -L 3 -D 1
 ,,y,army,./pytest.sh python3 ./test.py -f community/cluster/snapshot.py -N 3 -L 3 -D 2
 ,,n,army,python3 ./test.py -f community/cmdline/fullopt.py
+,,y,army,python3 ./test.py -f community/query/function/test_fun_elapsed.py
 
 
 #
