@@ -1233,35 +1233,3 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg) {
   return tqStreamTaskProcessTaskResetReq(pTq->pStreamMeta, pMsg);
 }
-
-// NOTE: here we may receive this message more than once, so need to handle this case
-int32_t tqProcessTaskDropHTask(STQ* pTq, SRpcMsg* pMsg) {
-  SVDropHTaskReq* pReq = (SVDropHTaskReq*)pMsg->pCont;
-
-  SStreamMeta* pMeta = pTq->pStreamMeta;
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
-  if (pTask == NULL) {
-    tqError("vgId:%d process drop fill-history task req, failed to acquire task:0x%x, it may have been dropped already",
-            pMeta->vgId, pReq->taskId);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  tqDebug("s-task:%s receive drop fill-history msg from mnode", pTask->id.idStr);
-  if (pTask->hTaskInfo.id.taskId == 0) {
-    tqError("vgId:%d s-task:%s not have related fill-history task", pMeta->vgId, pTask->id.idStr);
-    streamMetaReleaseTask(pMeta, pTask);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  taosThreadMutexLock(&pTask->lock);
-  SStreamTaskId id = {.streamId = pTask->hTaskInfo.id.streamId, .taskId = pTask->hTaskInfo.id.taskId};
-  streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &id);
-  taosThreadMutexUnlock(&pTask->lock);
-
-  // clear the scheduler status
-  streamTaskSetSchedStatusInactive(pTask);
-  tqDebug("s-task:%s set scheduler status:%d after drop fill-history task", pTask->id.idStr, pTask->status.schedStatus);
-  streamMetaReleaseTask(pMeta, pTask);
-  return TSDB_CODE_SUCCESS;
-}
-
