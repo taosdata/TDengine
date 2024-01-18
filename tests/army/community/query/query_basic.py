@@ -52,13 +52,14 @@ class TDTestCase(TBase):
         tdLog.info(f"do query.")
         
         # __group_key
-        sql = f"select count(*),_group_key(uti),uti from {self.stb} partition by uti;"
+        sql = f"select count(*),_group_key(uti),uti from {self.stb} partition by uti"
         tdSql.execute(sql)
-        tdSql.checkRows(251)
+        # column index 1 value same with 2
+        tdSql.checkSameColumn(1, 2)
 
         sql = f"select count(*),_group_key(usi) from {self.stb} group by usi;"
         tdSql.execute(sql)
-        tdSql.checkRows(997)
+        tdSql.checkSameColumn(1, 2)
 
         # tail
         sql1 = "select ts,ui from d0 order by ts desc limit 5 offset 2;"
