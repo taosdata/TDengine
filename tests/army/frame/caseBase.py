@@ -193,10 +193,10 @@ class TBase:
 
         # sql
         rows1 = tdSql.query(sql1,queryTimes=2)
-        res1 = copy.deepcopy(tdSql.queryResult)
+        res1 = copy.deepcopy(tdSql.res)
 
         tdSql.query(sql2,queryTimes=2)
-        res2 = tdSql.queryResult
+        res2 = tdSql.res
 
         rowlen1 = len(res1)
         rowlen2 = len(res2)

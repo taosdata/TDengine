@@ -560,17 +560,6 @@ if __name__ == "__main__":
                     conn = taosws.connect(f"taosws://root:taosdata@{host}:6041")
                 else:
                     conn = taos.connect(host=f"{host}", config=tdDnodes.getSimCfgPath())
-                # tdSql.init(conn.cursor())
-                # tdSql.execute("create qnode on dnode 1")
-                # tdSql.execute('alter local "queryPolicy" "%d"'%queryPolicy)
-                # tdSql.query("show local variables;")
-                # for i in range(tdSql.queryRows):
-                #     if tdSql.queryResult[i][0] == "queryPolicy" :
-                #         if int(tdSql.queryResult[i][1]) == int(queryPolicy):
-                #             tdLog.info('alter queryPolicy to %d successfully'%queryPolicy)
-                #         else :
-                #             tdLog.debug(tdSql.queryResult)
-                #             tdLog.exit("alter queryPolicy to  %d failed"%queryPolicy)
 
                 cursor = conn.cursor()
                 cursor.execute("create qnode on dnode 1")
