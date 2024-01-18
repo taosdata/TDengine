@@ -124,7 +124,7 @@ bool adminProcessGrantRequest(HttpContext* pContext) {
 #ifndef _GRANT
   httpSendSuccResp(pContext, "not support");
 #else
-  extern SGrantObj grantObj;
+  extern SGrantBasicObj grantObj;
   extern SGrantStatus grantStatus;
 
   char       buf[64] = {0};

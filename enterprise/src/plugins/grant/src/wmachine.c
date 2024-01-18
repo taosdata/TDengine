@@ -11,12 +11,12 @@
 //version 2.0.4.0
 
 #define _DEFAULT_SOURCE
-#include "os.h"
 #include "machine.h"
+#include "os.h"
 
 SGrantUniqObj grantObj;
 
-void grantActiveSystem(const char *inputCfgFile, SGrantObj *pObj, SGrantConnObj *pConnObj) {
+void grantActiveSystem(const char *inputCfgFile, SGrantBasicObj *pObj, SGrantConnObj *pConnObj) {
   grantObj.granted = 1;
   grantObj.officialVersion = 1;
   grantObj.basicExpireDay = GRANT_UNIQ_UNLIMITED;

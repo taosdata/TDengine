@@ -247,6 +247,10 @@ static void     grantStatusCheck(SMnode *pMnode, uint32_t curTime, SDnodeInfo *p
 
 static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextGrant(SMnode *pMnode, void *pIter);
+static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static void    mndCancelGetNextGrantFull(SMnode *pMnode, void *pIter);
+static int32_t mndRetrieveGrantLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static void    mndCancelGetNextGrantLog(SMnode *pMnode, void *pIter);
 
 // connectors
 static int32_t tGrantConnItemsNum(int8_t version);
@@ -296,6 +300,25 @@ int32_t mndInitGrant(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_RSP, mndProcessGrantRsp);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndCancelGetNextGrant);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_FULL, mndRetrieveGrantFull);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_FULL, mndCancelGetNextGrantFull);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_LOG, mndRetrieveGrantLog);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_LOG, mndCancelGetNextGrantLog);
+
+  SSdbTable table = {
+      .sdbType = SDB_GRANT,
+      .keyType = SDB_KEY_BINARY,
+      .encodeFp = (SdbEncodeFp)mndGrantActionEncode,
+      .decodeFp = (SdbDecodeFp)mndGrantActionDecode,
+      .insertFp = (SdbInsertFp)mndGrantActionInsert,
+      .updateFp = (SdbUpdateFp)mndGrantActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndGrantActionDelete,
+  };
+
+  if (sdbSetTable(pMnode->pSdb, table) != 0) {
+    goto _exit;
+  }
+
   grantSetClusterInfo(pMnode);
   if (!(grantHandle.pOfficials = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UINT), true, true))) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -318,7 +341,7 @@ int32_t mndInitGrant(SMnode *pMnode) {
 _exit:
   if (terrno != 0) {
     uError("grant data initialize failed since %s", tstrerror(terrno));
-    mndCleanupGrant();
+    mndCleanupGrant(pMnode);
   } else {
     uDebug("grant data is initialized");
   }
@@ -326,7 +349,7 @@ _exit:
   return terrno;
 }
 
-void mndCleanupGrant() {
+void mndCleanupGrant(SMnode *pMnode) {
   taosHashCleanup(grantHandle.pOfficials);
   taosHashCleanup(grantHandle.pMachines);
   taosArrayDestroy(grantHandle.pDistInfo);
@@ -377,7 +400,7 @@ static FORCE_INLINE void grantSetClusterId(SMnode *pMnode, char *pClusterId) {
   }
 }
 
-static void grantSetActiveCodes(SDnodeInfo *pInfo, SGrantObj *pObj, SGrantConnObj *pConnObj) {
+static void grantSetActiveCodes(SDnodeInfo *pInfo, SGrantBasicObj *pObj, SGrantConnObj *pConnObj) {
   if (0 != pInfo->active[0] && pObj) {
     tstrncpy(pObj->active, pInfo->active, GRANT_ACTIVE_KEY_LEN + 1);
   }
@@ -402,7 +425,6 @@ int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg) {
   }
 
   gStatus.curTimeSeries = grantNotify.curTimeSeries;
-
 
   return TSDB_CODE_SUCCESS;
 _err:
@@ -487,7 +509,7 @@ _err:
   return TSDB_CODE_FAILED;
 }
 
-static void dmRefreshGrantCfg(SGrantObj *pObj, SGrantConnObj *pConnObj) {
+static void dmRefreshGrantCfg(SGrantBasicObj *pObj, SGrantConnObj *pConnObj) {
   char cfgFile[PATH_MAX] = {0};
 #ifdef CUS_PROMPT
   sprintf(cfgFile, "%s/%s.cfg", configDir, CUS_PROMPT);
@@ -549,7 +571,7 @@ static int32_t dmGenerateGrantMsg(SGrantUniqMsg *pGrant, GrantStatus *pGrantStat
     *pItem = item;
   }
 #else
-  SGrantObj     grantObj = {0};
+  SGrantBasicObj grantObj = {0};
   SGrantConnObj grantConnObj = {.machine = &grantObj.machine[0], .clusterId = &grantObj.clusterId[0]};
   grantSetActiveCodes(pInfo, &grantObj, &grantConnObj);
   dmRefreshGrantCfg(&grantObj, &grantConnObj);
@@ -1966,6 +1988,21 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 static void mndCancelGetNextGrant(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
+}
+
+static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
+  return 0;
+}
+static void mndCancelGetNextGrantFull(SMnode *pMnode, void *pIter) {
+  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
+}
+static int32_t mndRetrieveGrantLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
+  return 0;
+}
+static void mndCancelGetNextGrantLog(SMnode *pMnode, void *pIter) {
+  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
 }
 
 static int32_t tDeserializeGrantNotify(void *buf, int32_t bufLen, GrantNotify *pNotify) {

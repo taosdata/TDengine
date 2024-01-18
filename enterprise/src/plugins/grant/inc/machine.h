@@ -236,7 +236,7 @@ typedef struct {
   };
   uint32_t reserveKey2;
 
-} SGrantObj;
+} SGrantBasicObj;
 
 // uniq grant
 typedef enum {
@@ -457,14 +457,14 @@ typedef struct {
 } SActiveCodeInfo;
 
 char *grantGetMachineSerials();
-bool  grantGenActiveCode(SGrantObj *grant);
-bool  grantParseActiveCode(SGrantObj *grant, char **ppKey);
+bool  grantGenActiveCode(SGrantBasicObj *grant);
+bool  grantParseActiveCode(SGrantBasicObj *grant, char **ppKey);
 bool  grantConnGenActiveCode(SGrantConnObj *grant);
 bool  grantConnParseActiveCode(SGrantConnObj *grant, char **ppKey);
-bool  grantCheckMachineCode(SGrantObj *grant);
-bool  grantCheckClusterId(SGrantObj *grant);
-void  grantActiveSystem(const char *cfgFile, SGrantObj *pObj, SGrantConnObj *pConnObj);
-bool  grantExplainActiveCode(SGrantObj *grant, SActiveCodeInfo *info);
+bool  grantCheckMachineCode(SGrantBasicObj *grant);
+bool  grantCheckClusterId(SGrantBasicObj *grant);
+void  grantActiveSystem(const char *cfgFile, SGrantBasicObj *pObj, SGrantConnObj *pConnObj);
+bool  grantExplainActiveCode(SGrantBasicObj *grant, SActiveCodeInfo *info);
 bool  grantConnExplainActiveCode(SGrantConnObj *grant, SActiveCodeInfo *info);
 
 int32_t grantUniqGenActiveCode(SGrantUniqObj *grant);
