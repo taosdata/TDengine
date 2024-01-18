@@ -1505,7 +1505,7 @@ if $data10 != @21-05-05 18:19:21.000@ then
   return -1
 endi
 
-sql select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and (a.c1 < 10 or a.c1 > 30) and (b.u1 < 5 or b.u1 > 5) order by ts;
+sql select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and (a.c1 < 10 or a.c1 > 30) and (b.u1 < 5 or b.u1 > 5) order by a.ts;
 if $rows != 4 then
   return -1
 endi
@@ -1521,8 +1521,9 @@ endi
 if $data30 != @21-05-05 18:19:14.000@ then
   return -1
 endi
+sql_error select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and (a.c1 < 10 or a.c1 > 30) and (b.u1 < 5 or b.u1 > 5) order by ts;
 
-sql select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and a.c1 < 30 and b.u1 > 1 and a.c1 > 10 and b.u1 < 8 and b.u1<>5 order by ts;
+sql select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and a.c1 < 30 and b.u1 > 1 and a.c1 > 10 and b.u1 < 8 and b.u1<>5 order by a.ts;
 if $rows != 3 then
   return -1
 endi
@@ -1535,6 +1536,8 @@ endi
 if $data20 != @21-05-05 18:19:10.000@ then
   return -1
 endi
+sql_error select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and a.c1 < 30 and b.u1 > 1 and a.c1 > 10 and b.u1 < 8 and b.u1<>5 order by ts;
+sql select a.ts,a.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and a.c1 < 30 and b.u1 > 1 and a.c1 > 10 and b.u1 < 8 and b.u1<>5 order by ts;
 
 sql select * from stb1 where c1 is null and c1 is not null;
 if $rows != 0 then
@@ -2469,7 +2472,7 @@ endi
 if $data10 != @21-05-05 18:19:05.000@ then
   return -1
 endi
-sql select tb1.ts,tb1.*,tb2_1.* from tb1, tb2_1 where tb1.ts=tb2_1.ts and tb1.ts > '2021-05-05 18:19:03.000' and tb2_1.u1 < 5 order by ts;
+sql select tb1.ts,tb1.*,tb2_1.* from tb1, tb2_1 where tb1.ts=tb2_1.ts and tb1.ts > '2021-05-05 18:19:03.000' and tb2_1.u1 < 5 order by tb1.ts;
 if $rows != 2 then
   return -1
 endi
@@ -2480,7 +2483,7 @@ if $data10 != @21-05-05 18:19:06.000@ then
   return -1
 endi
 
-sql select tb1.ts,tb1.*,tb2_1.* from tb1, tb2_1 where tb1.ts=tb2_1.ts and tb1.ts >= '2021-05-05 18:19:03.000' and tb1.c7=false and tb2_1.u3>4 order by ts;
+sql select tb1.ts,tb1.*,tb2_1.* from tb1, tb2_1 where tb1.ts=tb2_1.ts and tb1.ts >= '2021-05-05 18:19:03.000' and tb1.c7=false and tb2_1.u3>4 order by tb1.ts;
 if $rows != 2 then
   return -1
 endi
@@ -2491,7 +2494,7 @@ if $data10 != @21-05-05 18:19:07.000@ then
   return -1
 endi
 
-sql select stb1.ts,stb1.c1,stb1.t1,stb2.ts,stb2.u1,stb2.t4 from stb1, stb2 where stb1.ts=stb2.ts and stb1.t1 = stb2.t4 order by ts;
+sql select stb1.ts,stb1.c1,stb1.t1,stb2.ts,stb2.u1,stb2.t4 from stb1, stb2 where stb1.ts=stb2.ts and stb1.t1 = stb2.t4 order by stb1.ts;
 if $rows != 9 then
   return -1
 endi
@@ -2523,7 +2526,7 @@ if $data80 != @21-05-05 18:19:11.000@ then
   return -1
 endi
 
-sql select stb1.ts,stb1.c1,stb1.t1,stb2.ts,stb2.u1,stb2.t4 from stb1, stb2 where stb1.ts=stb2.ts and stb1.t1 = stb2.t4 and stb1.c1 > 2 and stb2.u1 <=4 order by ts;
+sql select stb1.ts,stb1.c1,stb1.t1,stb2.ts,stb2.u1,stb2.t4 from stb1, stb2 where stb1.ts=stb2.ts and stb1.t1 = stb2.t4 and stb1.c1 > 2 and stb2.u1 <=4 order by stb1.ts;
 if $rows != 3 then
   return -1
 endi
@@ -2536,6 +2539,7 @@ endi
 if $data20 != @21-05-05 18:19:06.000@ then
   return -1
 endi
+sql_error select stb1.ts,stb1.c1,stb1.t1,stb2.ts,stb2.u1,stb2.t4 from stb1, stb2 where stb1.ts=stb2.ts and stb1.t1 = stb2.t4 and stb1.c1 > 2 and stb2.u1 <=4 order by ts;
 
 print "column&ts test"
 sql select count(*) from stb1 where ts > 0 or c1 > 0;
