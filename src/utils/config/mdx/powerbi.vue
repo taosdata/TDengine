@@ -113,7 +113,11 @@
       </li>
     </ol>
     <h2 id="powerbi-example">{{ $t('docs.tools.powerbi.step5full') }}</h2>
-    <p>{{ $t('docs.tools.powerbi.step5desc') }}</p>
+    <p>
+      {{ $t('docs.tools.powerbi.step5desc') }}
+      <a :href="`https://docs.${urlPart}.com/concept/`">{{ $t('docs.tools.powerbi.step5full') }}</a>
+      {{ $t('docs.tools.powerbi.step5desc0') }}
+    </p>
     <ol class="odbc-ol">
       <li>
         <span class="odbc-span">{{ $t('docs.tools.powerbi.step5desc1') }}</span>

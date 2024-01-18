@@ -17,14 +17,10 @@
       </li>
     </ol>
     <h2 id="yonghongbi-install">{{ $t('docs.tools.yonghongbi.step2full') }}</h2>
-    <ol class="seeq-ol">
-      <li>
-        <span class="seeq-span"
-          >{{ $t('docs.tools.yonghongbi.step2desc') }}<a href="https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver/versions">maven.org</a>{{ $t('docs.tools.yonghongbi.step2desc1')
-          }}<a href="https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.7/taos-jdbcdriver-3.2.7-dist.jar">3.2.7</a>{{ $t('docs.tools.yonghongbi.step2desc2') }}</span
-        >
-      </li>
-    </ol>
+      <span class="seeq-span"
+        >{{ $t('docs.tools.yonghongbi.step2desc') }}<a href="https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver/versions">maven.org</a>{{ $t('docs.tools.yonghongbi.step2desc1')
+        }}<a href="https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.7/taos-jdbcdriver-3.2.7-dist.jar">3.2.7</a>{{ $t('docs.tools.yonghongbi.step2desc2') }}
+      </span>
     <h2 id="yonghongbi-config">{{ $t('docs.tools.yonghongbi.step3full') }}</h2>
     <ol class="seeq-ol">
       <li>
