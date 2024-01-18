@@ -1264,8 +1264,21 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
   pPartition->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
   pPartition->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
 
-  int32_t code =
-      nodesCollectColumns(pSelect, SQL_CLAUSE_PARTITION_BY, NULL, COLLECT_COL_TYPE_ALL, &pPartition->node.pTargets);
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pPartition->pPartitionKeys = nodesCloneList(pSelect->pPartitionByList);
+    if (NULL == pPartition->pPartitionKeys) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteExprsForSelect(pPartition->pPartitionKeys, pSelect, SQL_CLAUSE_PARTITION_BY, NULL);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCollectColumns(pSelect, SQL_CLAUSE_PARTITION_BY, NULL, COLLECT_COL_TYPE_ALL, &pPartition->node.pTargets);
+  }
   if (TSDB_CODE_SUCCESS == code && NULL == pPartition->node.pTargets) {
     code = nodesListMakeStrictAppend(&pPartition->node.pTargets,
                                      nodesCloneNode(nodesListGetNode(pCxt->pCurrRoot->pTargets, 0)));
@@ -1275,14 +1288,7 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
     code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, NULL, fmIsAggFunc, &pPartition->pAggFuncs);
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
-    pPartition->pPartitionKeys = nodesCloneList(pSelect->pPartitionByList);
-    if (NULL == pPartition->pPartitionKeys) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    }
-  }
-
-  if (keysHasCol(pPartition->pPartitionKeys) && pSelect->pWindow &&
+  if (TSDB_CODE_SUCCESS == code && keysHasCol(pPartition->pPartitionKeys) && pSelect->pWindow &&
       nodeType(pSelect->pWindow) == QUERY_NODE_INTERVAL_WINDOW) {
     pPartition->needBlockOutputTsOrder = true;
     SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pSelect->pWindow;
