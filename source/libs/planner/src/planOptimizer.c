@@ -2642,6 +2642,7 @@ static bool mergeProjectsMayBeOptimized(SLogicNode* pNode) {
       NULL != pChild->pConditions || NULL != pChild->pLimit || NULL != pChild->pSlimit) {
     return false;
   }
+
   return true;
 }
 
@@ -2680,7 +2681,9 @@ static EDealRes mergeProjectionsExpr(SNode** pNode, void* pContext) {
 
 static int32_t mergeProjectsOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SLogicNode* pSelfNode) {
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pSelfNode->pChildren, 0);
-
+  if (((SProjectLogicNode*)pChild)->ignoreGroupId) {
+    ((SProjectLogicNode*)pSelfNode)->inputIgnoreGroup = true;
+  }
   SMergeProjectionsContext cxt = {.pChildProj = (SProjectLogicNode*)pChild, .errCode = TSDB_CODE_SUCCESS};
   nodesRewriteExprs(((SProjectLogicNode*)pSelfNode)->pProjections, mergeProjectionsExpr, &cxt);
   int32_t code = cxt.errCode;
@@ -2828,7 +2831,11 @@ static bool pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimitPu
     }
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       if (nodeType(pNodeWithLimit) == QUERY_NODE_LOGIC_PLAN_PROJECT && pNodeWithLimit->pLimit) {
-        swapLimit(pNodeWithLimit, pNodeLimitPushTo);
+        if (((SProjectLogicNode*)pNodeWithLimit)->inputIgnoreGroup) {
+          cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT);
+        } else {
+          swapLimit(pNodeWithLimit, pNodeLimitPushTo);
+        }
         return true;
       }
     default:
