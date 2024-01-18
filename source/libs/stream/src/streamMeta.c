@@ -1269,11 +1269,11 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
 
   // wait for the stream meta hb function stopping
   if (pMeta->role == NODE_ROLE_LEADER) {
-//    pMeta->pHbInfo->stopFlag = STREAM_META_WILL_STOP;
-//    while (pMeta->pHbInfo->stopFlag != STREAM_META_OK_TO_STOP) {
-//      taosMsleep(100);
-//      stDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
-//    }
+    pMeta->pHbInfo->stopFlag = STREAM_META_WILL_STOP;
+    while (pMeta->pHbInfo->stopFlag != STREAM_META_OK_TO_STOP) {
+      taosMsleep(100);
+      stDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
+    }
   }
 
   stDebug("vgId:%d start to check all tasks", vgId);
