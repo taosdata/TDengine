@@ -67,7 +67,7 @@ static int32_t mndProcessNodeCheck(SRpcMsg *pReq);
 static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg);
 static SArray *extractNodeListFromStream(SMnode *pMnode);
 static SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady);
-
+static int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq);
 static SStreamObj *mndGetStreamObj(SMnode *pMnode, int64_t streamId);
 
 static SVgroupChangeInfo mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pPrevNodeList, const SArray *pNodeList);
@@ -130,6 +130,7 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_CHECK_POINT_SOURCE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_TIMER, mndProcessStreamCheckpointTmr);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_BEGIN_CHECKPOINT, mndProcessStreamDoCheckpoint);
+  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_REQ_CHKPT, mndProcessStreamReqCheckpoint);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_CANDIDITATE, mndProcessStreamCheckpointInCandid);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_HEARTBEAT, mndProcessStreamHb);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_REPORT_CHECKPOINT, mndTransProcessRsp);
@@ -980,22 +981,6 @@ static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
   return 0;
 }
 
-static int32_t mndProcessStreamRemainChkptTmr(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
-  SSdb   *pSdb = pMnode->pSdb;
-  if (sdbGetSize(pSdb, SDB_STREAM) <= 0) {
-    return 0;
-  }
-
-  SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
-  pMsg->checkpointId = 0;
-
-  int32_t size = sizeof(SMStreamDoCheckpointMsg);
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_CHECKPOINT_CANDIDITATE, .pCont = pMsg, .contLen = size};
-  tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
-  return 0;
-}
-
 static int32_t mndBuildStreamCheckpointSourceReq2(void **pBuf, int32_t *pLen, int32_t nodeId, int64_t checkpointId,
                                                   int64_t streamId, int32_t taskId, int32_t transId) {
   SStreamCheckpointSourceReq req = {0};
@@ -1005,6 +990,7 @@ static int32_t mndBuildStreamCheckpointSourceReq2(void **pBuf, int32_t *pLen, in
   req.streamId = streamId;  // pTask->id.streamId;
   req.taskId = taskId;      // pTask->id.taskId;
   req.transId = transId;
+  req.mndTrigger = 1;
 
   int32_t code;
   int32_t blen;
@@ -3092,4 +3078,27 @@ SStreamObj *mndGetStreamObj(SMnode *pMnode, int64_t streamId) {
   }
 
   return NULL;
+}
+
+int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+
+  SStreamTaskCheckpointReq req = {0};
+
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, pReq->pCont, pReq->contLen);
+
+  if (tDecodeStreamTaskCheckpointReq(&decoder, &req)) {
+    tDecoderClear(&decoder);
+    terrno = TSDB_CODE_INVALID_MSG;
+    mError("invalid task checkpoint req msg received");
+    return -1;
+  }
+  tDecoderClear(&decoder);
+
+  mDebug("receive stream task checkpoint req msg, vgId:%d, s-task:0x%x", req.nodeId, req.taskId);
+
+  // register to the stream task done map, if all tasks has sent this kinds of message, start the checkpoint trans.
+
+  return 0;
 }

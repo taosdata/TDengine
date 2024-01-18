@@ -36,6 +36,7 @@ int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckp
   if (tEncodeI32(pEncoder, pReq->mnodeId) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->expireTime) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->transId) < 0) return -1;
+  if (tEncodeI8(pEncoder, pReq->mndTrigger) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
@@ -50,6 +51,7 @@ int32_t tDecodeStreamCheckpointSourceReq(SDecoder* pDecoder, SStreamCheckpointSo
   if (tDecodeI32(pDecoder, &pReq->mnodeId) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->expireTime) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->transId) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pReq->mndTrigger) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
 }

@@ -852,3 +852,41 @@ void streamTaskResume(SStreamTask* pTask) {
 bool streamTaskIsSinkTask(const SStreamTask* pTask) {
   return pTask->info.taskLevel == TASK_LEVEL__SINK;
 }
+
+int32_t streamTaskSendCheckpointReq(SStreamTask* pTask) {
+  int32_t  code;
+  int32_t  tlen = 0;
+  int32_t  vgId = pTask->pMeta->vgId;
+  const char* id = pTask->id.idStr;
+
+  SStreamTaskCheckpointReq req = {0};
+  tEncodeSize(tEncodeStreamTaskCheckpointReq, &req, tlen, code);
+  if (code < 0) {
+    stError("s-task:%s vgId:%d encode stream task req checkpoint failed, code:%s", id, vgId, tstrerror(code));
+    return -1;
+  }
+
+  void* buf = rpcMallocCont(tlen);
+  if (buf == NULL) {
+    stError("s-task:%s vgId:%d encode stream task req checkpoint msg failed, code:%s", id, vgId,
+            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return -1;
+  }
+
+  SEncoder encoder;
+  tEncoderInit(&encoder, buf, tlen);
+  if ((code = tEncodeStreamTaskCheckpointReq(&encoder, &req)) < 0) {
+    rpcFreeCont(buf);
+    stError("s-task:%s vgId:%d encode stream task req checkpoint msg failed, code:%s", id, vgId, tstrerror(code));
+    return -1;
+  }
+  tEncoderClear(&encoder);
+
+  SRpcMsg msg = {.info.noResp = 1};
+  initRpcMsg(&msg, TDMT_MND_STREAM_REQ_CHKPT, buf, tlen);
+
+  stDebug("s-task:%s vgId:%d build and send task checkpoint req", id, vgId);
+
+  tmsgSendReq(&pTask->info.mnodeEpset, &msg);
+  return 0;
+}

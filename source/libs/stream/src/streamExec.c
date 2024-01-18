@@ -398,13 +398,14 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   streamTaskReleaseState(pTask);
   streamTaskReloadState(pStreamTask);
 
-  // 3. resume the state of stream task, after this function, the stream task will run immediately.
-  streamTaskResume(pStreamTask);
+  // 3. send msg to mnode to launch a checkpoint to keep the state for current stream
+  streamTaskSendCheckpointReq(pStreamTask);
+//  streamTaskResume(pStreamTask);
 
-  stDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", id);
+//  stDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", id);
 
   // 4. free it and remove fill-history task from disk meta-store
-  streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
+//  streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
 
   // 5. assign the status to the value that will be kept in disk
   pStreamTask->status.taskStatus = streamTaskGetStatus(pStreamTask)->state;
@@ -412,20 +413,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   // 6. open the inputQ for all upstream tasks
   streamTaskOpenAllUpstreamInput(pStreamTask);
 
-  // 7. add empty delete block
-  if ((pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) && taosQueueEmpty(pStreamTask->inputq.queue->pQueue)) {
-    SStreamRefDataBlock* pItem = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
-
-    SSDataBlock* pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
-    pDelBlock->info.rows = 0;
-    pDelBlock->info.version = 0;
-    pItem->type = STREAM_INPUT__REF_DATA_BLOCK;
-    pItem->pBlock = pDelBlock;
-    int32_t code = streamTaskPutDataIntoInputQ(pStreamTask, (SStreamQueueItem*)pItem);
-    stDebug("s-task:%s append dummy delete block,res:%d", pStreamTask->id.idStr, code);
-  }
-
-  streamSchedExec(pStreamTask);
+//  streamSchedExec(pStreamTask);
   streamMetaReleaseTask(pMeta, pStreamTask);
   return TSDB_CODE_SUCCESS;
 }
@@ -443,7 +431,7 @@ int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
 
   if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SOURCE) {  // do transfer task operator states.
     code = streamDoTransferStateToStreamTask(pTask);
-  } else { // drop fill-history task and open inputQ of sink task
+  } else { // no state transfer for sink tasks, and drop fill-history task, followed by opening inputQ of sink task.
     SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
     if (pStreamTask != NULL) {
       streamTaskOpenAllUpstreamInput(pStreamTask);
