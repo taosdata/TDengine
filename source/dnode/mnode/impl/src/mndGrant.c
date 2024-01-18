@@ -57,6 +57,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
 static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) { return 0; }
 static int32_t mndRetrieveGrantLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) { return 0; }
+static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) { return 0; }
 
 static int32_t mndProcessGrantHB(SRpcMsg *pReq) { return TSDB_CODE_SUCCESS; }
 
@@ -64,6 +65,7 @@ int32_t mndInitGrant(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_FULL, mndRetrieveGrantFull);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_LOG, mndRetrieveGrantLog);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_MACHINES, mndRetrieveMachines);
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_HB_TIMER, mndProcessGrantHB);
   return 0;
 }

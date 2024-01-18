@@ -365,6 +365,11 @@ static const SSysDbTableSchema useGrantsLogSchema[] = {
     {.name = "machine", .bytes = 6016 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
+static const SSysDbTableSchema useMachinesSchema[] = {
+    {.name = "id", .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "machine", .bytes = 6016 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+};
+
 static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_DNODES, dnodesSchema, tListLen(dnodesSchema), true},
     {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema), true},
@@ -396,6 +401,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_COMPACT_DETAILS, userCompactsDetailSchema, tListLen(userCompactsDetailSchema), false},
     {TSDB_INS_TABLE_GRANTS_FULL, useGrantsFullSchema, tListLen(useGrantsFullSchema), false},
     {TSDB_INS_TABLE_GRANTS_LOG, useGrantsLogSchema, tListLen(useGrantsLogSchema), false},
+    {TSDB_INS_TABLE_MACHINES, useMachinesSchema, tListLen(useMachinesSchema), false},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {

@@ -269,6 +269,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowGrantsFullStmt";
     case QUERY_NODE_SHOW_GRANTS_LOG_STMT:
       return "ShowGrantsLogStmt";
+    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
+      return "ShowClusterMachinesStmt";
     case QUERY_NODE_DELETE_STMT:
       return "DeleteStmt";
     case QUERY_NODE_INSERT_STMT:
@@ -6585,7 +6587,11 @@ static int32_t jsonToShowGrantsFullStmt(const SJson* pJson, void* pObj) { return
 
 static int32_t showGrantsLogStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
 
+static int32_t showClusterMachinesStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+
 static int32_t jsonToShowGrantsLogStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+
+static int32_t jsonToShowClusterMachinesStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
 
 static const char* jkShowDnodeVariablesStmtDnodeId = "DnodeId";
 static const char* jkShowDnodeVariablesStmtLikePattern = "LikePattern";
@@ -7078,6 +7084,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showGrantsFullStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_GRANTS_LOG_STMT:
       return showGrantsLogStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
+      return showClusterMachinesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       return showDnodeVariablesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
@@ -7407,6 +7415,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowGrantsFullStmt(pJson, pObj);
     case QUERY_NODE_SHOW_GRANTS_LOG_STMT:
       return jsonToShowGrantsLogStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
+      return jsonToShowClusterMachinesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       return jsonToShowDnodeVariablesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:

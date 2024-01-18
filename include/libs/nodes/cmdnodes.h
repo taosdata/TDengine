@@ -423,7 +423,7 @@ typedef struct SDropCGroupStmt {
 typedef struct SAlterClusterStmt {
   ENodeType type;
   char      config[TSDB_DNODE_CONFIG_LEN];
-  char      value[TSDB_DNODE_VALUE_LEN];
+  char      value[TSDB_CLUSTER_VALUE_LEN];
 } SAlterClusterStmt;
 
 typedef struct SAlterLocalStmt {

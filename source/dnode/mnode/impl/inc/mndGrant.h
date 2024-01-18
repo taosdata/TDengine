@@ -29,13 +29,10 @@
   void    grantAdd(EGrantType grant, uint64_t value);
   void    grantRestore(EGrantType grant, uint64_t value);
 
-
 #ifdef TD_ENTERPRISE
 
-  // void initDynGrantVersion(void);
-
   SGrantObj *mndAcquireGrant(SMnode * pMnode, int32_t id);
-  void      mndReleaseGrant(SMnode * pMnode, SGrantObj *pGrant);
+  void       mndReleaseGrant(SMnode * pMnode, SGrantObj * pGrant);
 
   SSdbRaw *mndGrantActionEncode(SGrantObj * pGrant);
   SSdbRow *mndGrantActionDecode(SSdbRaw * pRaw);
@@ -47,6 +44,9 @@
   int32_t mndProcessUpdStateReqImpl(void *pState, SRpcMsg *pReq);
   int32_t mndProcessUpdActiveReqImpl(void *pActive, SRpcMsg *pReq);
   int32_t mndRetrieveGrantImpl(SRpcMsg * pReq, SShowObj * pShow, SSDataBlock * pBlock, int32_t rows);
+
+  int32_t mndProcessConfigClusterReq(SRpcMsg * pReq);
+  int32_t mndProcessConfigClusterRsp(SRpcMsg * pReq);
 
 #endif
 

@@ -830,7 +830,8 @@ typedef struct {
   int64_t      updateTime;
   SGrantState  state[GRANT_STATE_NUM];
   SGrantActive active[GRANT_ACTIVE_NUM];
-  SArray       *pMachines;  // SGrantMachines
+  char*        pActive;
+  SArray*      pMachines;  // SGrantMachines
   SRWLatch     lock;
 } SGrantObj;
 

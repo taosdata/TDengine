@@ -275,9 +275,15 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-  { .showType = QUERY_NODE_SHOW_GRANTS_FULL_STMT,
+  { .showType = QUERY_NODE_SHOW_GRANTS_LOG_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_GRANTS_LOG,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  { .showType = QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_MACHINES,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
@@ -10650,6 +10656,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_VIEWS_STMT:
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
     case QUERY_NODE_SHOW_GRANTS_LOG_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_VGROUPS_STMT:

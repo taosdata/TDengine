@@ -127,6 +127,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_GRANTS_FULL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_LOG, len) == 0) {
     type = TSDB_MGMT_TABLE_GRANTS_LOG;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_MACHINES, len) == 0) {
+    type = TSDB_MGMT_TABLE_MACHINES;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }

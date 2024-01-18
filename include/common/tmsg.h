@@ -149,6 +149,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_COMPACT_DETAIL,
   TSDB_MGMT_TABLE_GRANTS_FULL,
   TSDB_MGMT_TABLE_GRANTS_LOG,
+  TSDB_MGMT_TABLE_MACHINES,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -364,6 +365,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_COMPACT_DETAILS_STMT,
   QUERY_NODE_SHOW_GRANTS_FULL_STMT,
   QUERY_NODE_SHOW_GRANTS_LOG_STMT,
+  QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -2031,7 +2033,7 @@ void    tFreeSExplainRsp(SExplainRsp* pRsp);
 
 typedef struct {
   char    config[TSDB_DNODE_CONFIG_LEN];
-  char    value[TSDB_DNODE_VALUE_LEN];
+  char    value[TSDB_CLUSTER_VALUE_LEN];
   int32_t sqlLen;
   char*   sql;
 } SMCfgClusterReq;
