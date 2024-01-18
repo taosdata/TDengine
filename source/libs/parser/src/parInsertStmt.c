@@ -409,7 +409,7 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool reset) {
+int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool reset, bool copyMeta) {
   int32_t code = 0;
 
   *pDst = taosMemoryCalloc(1, sizeof(STableDataCxt));
@@ -423,13 +423,18 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
   pNewCxt->pValues = NULL;
 
   if (pCxt->pMeta) {
-    void* pNewMeta = taosMemoryMalloc(TABLE_META_SIZE(pCxt->pMeta));
-    if (NULL == pNewMeta) {
-      insDestroyTableDataCxt(*pDst);
-      return TSDB_CODE_OUT_OF_MEMORY;
+    if (copyMeta) {
+      void* pNewMeta = taosMemoryMalloc(TABLE_META_SIZE(pCxt->pMeta));
+      if (NULL == pNewMeta) {
+        insDestroyTableDataCxt(*pDst);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      memcpy(pNewMeta, pCxt->pMeta, TABLE_META_SIZE(pCxt->pMeta));
+      pNewCxt->pMeta = pNewMeta;
+    } else {
+      pNewCxt->pMeta = pCxt->pMeta;
+      pNewCxt->metaPointer = true;
     }
-    memcpy(pNewMeta, pCxt->pMeta, TABLE_META_SIZE(pCxt->pMeta));
-    pNewCxt->pMeta = pNewMeta;
   }
 
   memcpy(&pNewCxt->boundColsInfo, &pCxt->boundColsInfo, sizeof(pCxt->boundColsInfo));
@@ -474,7 +479,7 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
 
 int32_t qRebuildStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_t uid, uint64_t suid, int32_t vgId,
                               bool rebuildCreateTb) {
-  int32_t code = qCloneStmtDataBlock(pDst, pSrc, false);
+  int32_t code = qCloneStmtDataBlock(pDst, pSrc, false, true);
   if (code) {
     return code;
   }
