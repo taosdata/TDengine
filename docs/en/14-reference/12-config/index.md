@@ -226,9 +226,10 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 | Attribute     | Description                                                                                                     |
 | ------------- | --------------------------------------------------------------------------------------------------------------- |
 | Applicable    | Client only                                                                                                     |
-| Meaning       | When the Last, First, LastRow function is queried, whether the returned column name contains the function name. |
-| Value Range   | 0 means including the function name, 1 means not including the function name.                                   |
-| Default Value | 0                                                                                                               |
+| Meaning       | When the Last, First, and LastRow functions are queried and no alias is specified, the alias is automatically set to the column name (excluding the function name). Therefore, if the order by clause refers to the column name, it will automatically refer to the function corresponding to the column. |
+| Value Range   | 1 means automatically setting the alias to the column name (excluding the function name), 0 means not automatically setting the alias.                                   |
+| Default Value | 0          |
+| Notes | When multiple of the above functions act on the same column at the same time and no alias is specified, if the order by clause refers to the column name, column selection ambiguous will occur because the aliases of multiple columns are the same. |
 
 ## Locale Parameters
 
