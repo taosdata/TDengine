@@ -9,6 +9,8 @@ pub struct DataSourceValidation {
     pub version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub namespaces: Option<Vec<String>>,
 }
 
 impl DataSourceValidation {
@@ -19,6 +21,7 @@ impl DataSourceValidation {
             data_source,
             version,
             message: None,
+            namespaces: None,
         }
     }
 
@@ -29,6 +32,7 @@ impl DataSourceValidation {
             data_source,
             version: None,
             message: Option::from(message),
+            namespaces: None,
         }
     }
 
@@ -39,6 +43,7 @@ impl DataSourceValidation {
             data_source: "unknown".to_string(),
             version: None,
             message: Option::from("unknown data source".to_string()),
+            namespaces: None,
         }
     }
 
@@ -92,6 +97,7 @@ mod tests {
             data_source: "kafka".to_string(),
             version: None,
             message: None,
+            namespaces: None,
         };
         let json = serde_json::to_string(&dsv).unwrap();
         print!("{}", json);

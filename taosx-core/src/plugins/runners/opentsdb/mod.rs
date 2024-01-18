@@ -356,6 +356,7 @@ async fn validate_source_opentsdb(
             data_source: String::from("opentsdb"),
             version: Some(version.clone()),
             message: Some(format!("Your data source is available, its version is {}, which is supported, you can proceed to transfer your data to TDengine.", version.clone())),
+            namespaces: None,
         })
     } else {
         Ok(DataSourceValidation {
@@ -364,6 +365,7 @@ async fn validate_source_opentsdb(
             data_source: String::from("opentsdb"),
             version: None,
             message: Some(result.err().unwrap().to_string()),
+            namespaces: None,
         })
     }
 }

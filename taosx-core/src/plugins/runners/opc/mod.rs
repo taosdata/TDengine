@@ -584,6 +584,9 @@ async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>
             data_source: "opc".to_string(),
             version: result["version"].as_str().map(|s| s.to_string()),
             message: result["message"].as_str().map(|s| s.to_string()),
+            namespaces: result["namespaces"]
+                .as_array()
+                .map(|v| v.iter().map(|v| v.as_str().unwrap_or("").to_string()).collect()),
         })
     } else {
         Ok(DataSourceValidation::invalid(

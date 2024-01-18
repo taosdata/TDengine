@@ -738,6 +738,7 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
                     data_source: "tmq".to_string(),
                     version: Some(version.to_string()),
                     message: None,
+                    namespaces: None,
                 },
             }
         }
