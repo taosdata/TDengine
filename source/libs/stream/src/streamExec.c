@@ -340,7 +340,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   } else {
     double el = (taosGetTimestampMs() - pTask->execInfo.step2Start) / 1000.;
     stDebug(
-        "s-task:%s fill-history task end, scal wal elapsed time:%.2fSec,update related stream task:%s info, transfer "
+        "s-task:%s fill-history task end, scan wal elapsed time:%.2fSec,update related stream task:%s info, transfer "
         "exec state",
         id, el, pStreamTask->id.idStr);
   }
@@ -380,22 +380,18 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
     return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
   }
 
+  // 1. expand the query time window for stream task of WAL scanner
   if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     // update the scan data range for source task.
     stDebug("s-task:%s level:%d stream task window %" PRId64 " - %" PRId64 " update to %" PRId64 " - %" PRId64
             ", status:%s, sched-status:%d",
             pStreamTask->id.idStr, TASK_LEVEL__SOURCE, pTimeWindow->skey, pTimeWindow->ekey, INT64_MIN,
             pTimeWindow->ekey, p, pStreamTask->status.schedStatus);
-  } else {
-    stDebug("s-task:%s no need to update time window for non-source task", pStreamTask->id.idStr);
-  }
 
-  // 1. expand the query time window for stream task of WAL scanner
-  if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     pTimeWindow->skey = INT64_MIN;
     qStreamInfoResetTimewindowFilter(pStreamTask->exec.pExecutor);
   } else {
-    stDebug("s-task:%s non-source task no need to reset filter window", pStreamTask->id.idStr);
+    stDebug("s-task:%s no need to update/reset filter time window for non-source tasks", pStreamTask->id.idStr);
   }
 
   // 2. transfer the ownership of executor state
