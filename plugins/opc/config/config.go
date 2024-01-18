@@ -55,10 +55,16 @@ type PointsConfig struct {
 	Limit int            `json:"limit,omitempty" yaml:"limit" toml:"limit"`
 	Regex string         `json:"regex,omitempty" yaml:"regex" toml:"regex"`
 	Ua    UaPointsConfig `json:"ua,omitempty" yaml:"ua" toml:"ua"`
+	Da    DaPointsConfig `json:"da,omitempty" yaml:"da" toml:"da"`
 }
 
 type UaPointsConfig struct {
-	Root string `json:"root,omitempty" yaml:"root" toml:"root"` // root path for points, default is 'i=85'
+	Root       string   `json:"root,omitempty" yaml:"root" toml:"root"` // root path for points, default is 'i=85'
+	Namespaces []uint16 `json:"namespaces,omitempty" yaml:"namespaces" toml:"namespaces"`
+}
+
+type DaPointsConfig struct {
+	AccessPath []string `json:"access_path,omitempty" yaml:"access_path" toml:"access_path"`
 }
 
 type CollectConfig struct {
