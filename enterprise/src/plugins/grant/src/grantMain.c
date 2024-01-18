@@ -251,6 +251,8 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 static void    mndCancelGetNextGrantFull(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveGrantLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextGrantLog(SMnode *pMnode, void *pIter);
+static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static void    mndCancelGetNextMachines(SMnode *pMnode, void *pIter);
 
 // connectors
 static int32_t tGrantConnItemsNum(int8_t version);
@@ -298,12 +300,17 @@ int32_t mndInitGrant(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_HB_TIMER, mndProcessGrantHB);
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_RSP, mndProcessGrantRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_CLUSTER, mndProcessConfigClusterReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_CLUSTER_RSP, mndProcessConfigClusterRsp);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndCancelGetNextGrant);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_FULL, mndRetrieveGrantFull);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_FULL, mndCancelGetNextGrantFull);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_LOG, mndRetrieveGrantLog);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_LOG, mndCancelGetNextGrantLog);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_MACHINES, mndRetrieveMachines);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_MACHINES, mndCancelGetNextMachines);
+
 
   SSdbTable table = {
       .sdbType = SDB_GRANT,
@@ -2002,6 +2009,13 @@ static int32_t mndRetrieveGrantLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
   return 0;
 }
 static void mndCancelGetNextGrantLog(SMnode *pMnode, void *pIter) {
+  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
+}
+static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
+  return 0;
+}
+static void mndCancelGetNextMachines(SMnode *pMnode, void *pIter) {
   printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
 }
 

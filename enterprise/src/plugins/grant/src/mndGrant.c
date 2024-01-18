@@ -24,6 +24,97 @@
 
 void tFreeGrantObj(SGrantObj *pGrant) { taosArrayDestroy(pGrant->pMachines); }
 
+int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
+#if 0
+  SMnode         *pMnode = pReq->info.node;
+  SMCfgClusterReq cfgReq = {0};
+  if (tDeserializeSMCfgClusterReq(pReq->pCont, pReq->contLen, &cfgReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  int32_t code = 0;
+  mInfo("cluster: start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_CLUSTER) != 0) {
+    code = terrno != 0 ? terrno : TSDB_CODE_MND_NO_RIGHTS;
+    goto _exit;
+  }
+
+  SClusterObj  clusterObj = {0};
+  void        *pIter = NULL;
+  SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
+  if (!pCluster || pCluster->id <= 0) {
+    code = TSDB_CODE_APP_IS_STARTING;
+    if (pCluster) mndReleaseCluster(pMnode, pCluster, pIter);
+    goto _exit;
+  }
+  memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
+  mndReleaseCluster(pMnode, pCluster, pIter);
+
+  if (strncmp(cfgReq.config, GRANT_ACTIVE_CODE, 11) == 0) {
+#ifdef TD_ENTERPRISE
+    if (strlen(cfgReq.config) >= TSDB_DNODE_CONFIG_LEN) {
+      code = TSDB_CODE_INVALID_CFG;
+      goto _exit;
+    }
+    if (strlen(cfgReq.value) >= TSDB_DNODE_VALUE_LEN) {
+      code = TSDB_CODE_INVALID_CFG_VALUE;
+      goto _exit;
+    }
+    char *newActive = NULL;
+    if ((code = grantAlterActiveCode(cfgReq.value, &newActive)) != 0) {
+      goto _exit;
+    }
+#else
+    code = TSDB_CODE_OPS_NOT_SUPPORT;
+    goto _exit;
+#endif
+  }
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-cluster");
+  if (pTrans == NULL) return -1;
+
+  SSdbRaw *pCommitRaw = mndClusterActionEncode(&clusterObj);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    code = terrno;
+    goto _exit;
+  }
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    code = terrno;
+    goto _exit;
+  }
+
+  mndTransDrop(pTrans);
+
+  {  // audit
+    auditRecord(pReq, pMnode->clusterId, "alterCluster", "", "", cfgReq.sql, cfgReq.sqlLen);
+  }
+_exit:
+  tFreeSMCfgClusterReq(&cfgReq);
+  if (code != 0) {
+    terrno = code;
+    mError("cluster: failed to config:%s %s since %s", cfgReq.config, cfgReq.value, terrstr());
+  } else {
+    mInfo("cluster: success to config:%s %s", cfgReq.config, cfgReq.value);
+  }
+  return code;
+#endif
+  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
+  return 0;
+}
+
+int32_t mndProcessConfigClusterRsp(SRpcMsg *pRsp) {
+  mInfo("config rsp from cluster");
+  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
+  return 0;
+}
+
 int32_t mndRetrieveGrantLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
 #if 0
   SMnode *pMnode = pReq->info.node;
