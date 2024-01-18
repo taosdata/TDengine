@@ -1323,7 +1323,7 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
         step11desc1: '仅支持 Windows 平台。Windows 上需要安装过 VC 运行时库，可在此下载安装 ',
         step11desc2: 'VC 运行时库',
         step11desc3: '。如果已经安装 VS 开发工具可忽略。',
-        step12desc1: '下载和安装TDengine Windows 客户端安装包（',
+        step12desc1: '下载和安装 TDengine Windows 客户端安装包（',
         step12desc2: '）。',
         step2: '配置',
         step2full: '配置 ODBC 数据源',
@@ -1884,14 +1884,15 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
         step4desc8:
           '窗口切分查询：比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值，这种场景下可以使用窗口子句来获得需要的降采样查询结果，对应的 SQL 语句形如 select tbname, _wstart date，avg(temperature) temp from table interval(10m) ，其中 _wstart 是伪列，表示时间窗口起始时间，10m 表示时间窗口的持续时间，avg(temperature) 表示时间窗口内的聚合值。',
         step4desc9:
-          '数据切分查询：如果需要同时获取很多温度传感器的聚合数值，可对数据进行切分然后在切分出的数据空间内再进行一系列的计算，对应的 SQL 语法参考 partition by part_list。数据切分子句最常见的用法就是在超级表查询中，按标签将子表数据进行切分，将每个子表的数据独立出来，形成一条条独立的时间序列，方便各种时序场景的统计分析。',
+          '数据切分查询：如果需要同时获取很多温度传感器的聚合数值，可对数据进行切分，然后在切分出的数据空间内再进行一系列的计算，对应的 SQL 语法参考 partition by part_list。数据切分子句最常见的用法就是在超级表查询中，按标签将子表数据进行切分，将每个子表的数据独立出来，形成一条条独立的时间序列，方便各种时序场景的统计分析。',
         step4desc10:
           '时序：在绘制曲线或者按照时间聚合数据时，通常需要引入日期表。日期表可以从 Excel 表格中导入，也可以在 TDengine 中执行 SQL 语句获取，例如 select _wstart date, count(*) cnt from test.meters where ts between A and B interval(1d) fill(0)，其中 fill 字句表示数据缺失情况下的填充模式，伪列_wstart 则为要获取的日期列。',
         step4desc11: '相关性：告诉数据之间如何关联，度量和维度可以通过 tbname 列关联在一起，日期表和度量则可以通过 date 列关联，配合形成可视化报表。',
         step5: '样例',
         step5full: '智能电表样例',
         step5desc:
-          'TDengine 有自己独特的数据模型，它使用超级表作为模板，为每个设备创建一个表，每个表最多可创建 4096 个数据列和 128 个标签列。在智能电表样例中，假如一个电表每秒产生一条记录，一天就有 86,400 条记录，一年就有 31,536,000 条记录，1000 个电表将占用 600 GB 原始磁盘空间。因此，Power BI 更多的应用方式是将标签列映射为维度列，数据列的聚合结果导入为度量列，最终为关键决策制定者提供所需的指标。',
+          'TDengine 有自己独特的数据模型，它使用超级表作为模板，为每个设备创建一个表，每个表最多可创建 4096 个数据列和 128 个标签列。在',
+        step5desc0: '中，假如一个电表每秒产生一条记录，一天就有 86,400 条记录，一年就有 31,536,000 条记录，1000 个电表将占用 600 GB 原始磁盘空间。因此，Power BI 更多的应用方式是将标签列映射为维度列，数据列的聚合结果导入为度量列，最终为关键决策制定者提供所需的指标。',
         step5desc1: '导入维度数据：在 Power BI 中导入表的标签列，取名为 tags，SQL 如下：',
         step5desc2: '导入度量数据：在 Power BI 中，按照 1 小时的时间窗口，导入每个电表的电流均值、电压均值、相位均值，取名为 data，SQL 如下：',
         step5desc3:
@@ -1900,6 +1901,7 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
         step5desc5: '。'
       },
       yonghongbi: {
+        name: '永洪 BI',
         desc: '永洪一站式大数据 BI 平台',
         desc1:
           ' 为各种规模的企业提供灵活易用的全业务链的大数据分析解决方案，让每一位用户都能使用这一平台轻松发掘大数据价值，获取深度洞察力。TDengine 可以通过 JDBC 连接器作为数据源添加到永洪 BI 中。完成数据源配置后，永洪 BI 就能从 TDengine 中读取数据，并提供数据展示、分析和预测等功能。',
@@ -1917,9 +1919,9 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
         step3full: '配置 TDengine JDBC 数据源',
         step31desc: '在打开的 Yonghong Desktop BI 工具中点击“添加数据源”，选择 SQL 数据源中的“GENERIC”类型。',
         step32desc:
-          '点击“选择自定义驱动”，在“驱动管理”对话框中，点击“驱动列表”旁边的“+”，输入名称“tdengine”。然后点击“上传文件”按钮上传刚刚下载的 TDengine JDBC 连接器文件"taos-jdbcdriver-3.2.7-dist.jar"，并选择“com.taosdata.jdbc.rs.RestfulDriver”驱动，最后点击“确定”按钮完成驱动添加。',
+          '点击“选择自定义驱动”，在“驱动管理”对话框中，点击“驱动列表”旁边的“+”，输入名称“MyTDengine”。然后点击“上传文件”按钮上传刚刚下载的 TDengine JDBC 连接器文件"taos-jdbcdriver-3.2.7-dist.jar"，并选择“com.taosdata.jdbc.rs.RestfulDriver”驱动，最后点击“确定”按钮完成驱动添加。',
         step33desc: '然后请复制下面的内容到“URL”字段：',
-        step34desc: '接着在“认证方式”那里选择“无身份认证”。',
+        step34desc: '接着在“认证方式”选择“无身份认证”。',
         step35desc: '在数据源的高级设置中，修改“Quote符号”的值为反引号“`”。',
         step36desc: '点击“测试连接”，弹出“测试成功”的对话框。点击“保存”按钮，输入“tdengine”来保存 TDengine 数据源。',
         step4: '创建数据集',
@@ -1945,7 +1947,7 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
         step52desc: '拖动可视化组件到画布中，例如“表格组件”。',
         step53desc: '在“数据集”侧边栏中选择待绑定的数据集，将数据列中的“维度”和“度量”按需绑定到“表格组件”。',
         step54desc: '点击“保存”后，即可查看报告。',
-        step55desc: '更多有关永洪 BI 工具 的信息，请查询其 ',
+        step55desc: '更多有关永洪 BI 工具的信息，请查询其 ',
         step55desc1: ' 帮助文档',
         step55desc2: ' 。'
       }
