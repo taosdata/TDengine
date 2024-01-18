@@ -1085,21 +1085,31 @@ static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNod
 static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** pCol, bool* pFound) {
   SNodeList* pProjectionList = getProjectListFromCurrStmt(pCxt->pCurrStmt);
   SNode*     pNode;
+  SNode*     pFoundNode = NULL;
+  *pFound = false;
   FOREACH(pNode, pProjectionList) {
     SExprNode* pExpr = (SExprNode*)pNode;
     if (0 == strcmp((*pCol)->colName, pExpr->userAlias)) {
-      SNode* pNew = nodesCloneNode(pNode);
-        if (NULL == pNew) {
-          pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
-          return DEAL_RES_ERROR;
+      if (true == *pFound) {
+        if(nodesEqualNode(pFoundNode, pNode)) {
+          continue;
         }
-        nodesDestroyNode(*(SNode**)pCol);
-        *(SNode**)pCol = (SNode*)pNew;
-        *pFound = true;
-        return DEAL_RES_CONTINUE;
-    }   
+        pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ORDERBY_AMBIGUOUS, (*pCol)->colName);
+        return DEAL_RES_ERROR;
+      }
+      *pFound = true;
+      pFoundNode = pNode;
+    }
   }
-  *pFound = false;
+  if (*pFound) {
+    SNode* pNew = nodesCloneNode(pFoundNode);
+    if (NULL == pNew) {
+      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+      return DEAL_RES_ERROR;
+    }
+    nodesDestroyNode(*(SNode**)pCol);
+    *(SNode**)pCol = (SNode*)pNew;
+  }
   return DEAL_RES_CONTINUE;
 }
 
@@ -4499,13 +4509,12 @@ typedef struct SReplaceOrderByAliasCxt {
 
 static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
   SReplaceOrderByAliasCxt* pCxt = pContext;
-  SNodeList* pProjectionList = pCxt->pProjectionList;
-  SNode*     pProject = NULL;
+  SNodeList*               pProjectionList = pCxt->pProjectionList;
+  SNode*                   pProject = NULL;
   if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
     FOREACH(pProject, pProjectionList) {
       SExprNode* pExpr = (SExprNode*)pProject;
-      if (0 == strcmp(((SColumnRefNode*)*pNode)->colName, pExpr->userAlias)
-        && nodeType(*pNode) == nodeType(pProject)) {
+      if (0 == strcmp(((SColumnRefNode*)*pNode)->colName, pExpr->userAlias) && nodeType(*pNode) == nodeType(pProject)) {
         SNode* pNew = nodesCloneNode(pProject);
         if (NULL == pNew) {
           pCxt->pTranslateCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
@@ -4519,14 +4528,14 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
     }
   } else if (QUERY_NODE_ORDER_BY_EXPR == nodeType(*pNode)) {
     STranslateContext* pTransCxt = pCxt->pTranslateCxt;
-    SNode* pExpr = ((SOrderByExprNode*)*pNode)->pExpr;
-        if (QUERY_NODE_VALUE == nodeType(pExpr)) {
+    SNode*             pExpr = ((SOrderByExprNode*)*pNode)->pExpr;
+    if (QUERY_NODE_VALUE == nodeType(pExpr)) {
       SValueNode* pVal = (SValueNode*)pExpr;
       if (DEAL_RES_ERROR == translateValue(pTransCxt, pVal)) {
         return pTransCxt->errCode;
       }
       int32_t pos = getPositionValue(pVal);
-      if ( 0 < pos && pos <= LIST_LENGTH(pProjectionList)) {
+      if (0 < pos && pos <= LIST_LENGTH(pProjectionList)) {
         SNode* pNew = nodesCloneNode(nodesListGetNode(pProjectionList, pos - 1));
         if (NULL == pNew) {
           pCxt->pTranslateCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
