@@ -1,7 +1,7 @@
 ---
-sidebar_label: 永红 BI
-title: 使用永红 BI
-description: 使用永红 BI 获取 TDengine Cloud 实例的数据
+sidebar_label: 永洪 BI
+title: 使用永洪 BI
+description: 使用永洪 BI 获取 TDengine Cloud 实例的数据
 ---
 
 [永洪一站式大数据](https://www.yonghongtech.com) BI 平台为各种规模的企业提供灵活易用的全业务链的大数据分析解决方案，让每一位用户都能使用这一平台轻松发掘大数据价值，获取深度洞察力。TDengine Cloud 的实例可以通过 JDBC 连接器作为数据源添加到永洪 BI 中。完成数据源配置后，永洪 BI 就能从 TDengine 读取数据，并提供数据展示、分析和预测等功能。
@@ -18,15 +18,15 @@ description: 使用永红 BI 获取 TDengine Cloud 实例的数据
 ## 配置 TDengine JDBC 数据源
 
 1. 在 BI 工具中点击“添加数据源”，选择 SQL 数据源中的“GENERIC”类型
-2. 点击“选择自定义驱动”，在“驱动管理”对话框中，点击“驱动列表”旁边的“+”，输入名称“tdengine”。然后点击“上传文件”按钮上传刚刚下载的 TDengine JDBC 连接器文件"taos-jdbcdriver-3.2.7-dist.jar"，并选择“com.taosdata.jdbc.rs.RestfulDriver”驱动，最后点击“确定”按钮完成驱动添加。
+2. 点击“选择自定义驱动”，在“驱动管理”对话框中，点击“驱动列表”旁边的“+”，输入名称“MyTDengine”。然后点击“上传文件”按钮上传刚刚下载的 TDengine JDBC 连接器文件"taos-jdbcdriver-3.2.7-dist.jar"，并选择“com.taosdata.jdbc.rs.RestfulDriver”驱动，最后点击“确定”按钮完成驱动添加。
 3. 在“URL”输入框填入正确的 URL 值，详情请参考下面的注意部分
-4. 在“认证方式”那里选择“无身份认证”。
+4. 在“认证方式”中选择“无身份认证”。
 5. 在数据源的高级设置中，修改“Quote符号”的值为反引号“`”。
 6. 点击“测试连接”，弹出“测试成功”的对话框。
-7. 点击“保存”按钮，输入“tdengine”来保存 TDengine 数据源。
+7. 点击“保存”按钮，输入“MyTDengine”来保存 TDengine 数据源。
 
 :::note 非常重要
-获取真实的 `URL` 的值，请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”工具“菜单，然后选择”永红 BI“，在“配置 TDengine JDBC 数据源”部分复制当前 TDengine Cloud 实例的 URL 值。
+获取真实的 `URL` 的值，请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”工具“菜单，然后选择”永洪 BI“，在“配置 TDengine JDBC 数据源”部分复制当前 TDengine Cloud 实例的 URL 值。
 :::
 
 ## 创建 TDengine 数据集
@@ -51,4 +51,4 @@ description: 使用永红 BI 获取 TDengine Cloud 实例的数据
 2. 拖动可视化组件到画布中，例如“表格组件”。
 3. 在“数据集”侧边栏中选择待绑定的数据集，将数据列中的“维度”和“度量”按需绑定到“表格组件”。
 4. 点击“保存”后，即可查看报告。
-5. 更多有关永洪 BI 工具 的信息，请查询其[帮助文档](https://www.yonghongtech.com/help/Z-Suite/10.0/ch/)。
+5. 更多有关永洪 BI 工具的信息，请查询其[帮助文档](https://www.yonghongtech.com/help/Z-Suite/10.0/ch/)。
