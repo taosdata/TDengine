@@ -419,7 +419,7 @@ static FORCE_INLINE int32_t mLeftJoinHandleGrpRemains(SMJoinMergeCtx* pCtx) {
     return (pCtx->hashJoin) ? (*pCtx->hashCartFp)(pCtx) : (*pCtx->mergeCartFp)(pCtx);
   }
   
-  return mJoinNonEqCart(pCtx, &pCtx->probeNEqGrp, true);
+  return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true);
 }
 
 SSDataBlock* mLeftJoinDo(struct SOperatorInfo* pOperator) {
@@ -505,7 +505,7 @@ SSDataBlock* mLeftJoinDo(struct SOperatorInfo* pOperator) {
       
       pJoin->probe->blkRowIdx = pJoin->probe->blk->info.rows;
             
-      MJ_ERR_JRET(mJoinNonEqCart(pCtx, &pCtx->probeNEqGrp, true));
+      MJ_ERR_JRET(mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true));
       if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
         return pCtx->finBlk;
       }
@@ -742,7 +742,7 @@ static FORCE_INLINE int32_t mFullJoinHandleGrpRemains(SMJoinMergeCtx* pCtx) {
     return (pCtx->hashJoin) ? (*pCtx->hashCartFp)(pCtx) : (*pCtx->mergeCartFp)(pCtx);
   }
   
-  return pCtx->lastProbeGrp ? mJoinNonEqCart(pCtx, &pCtx->probeNEqGrp, true) : mJoinNonEqCart(pCtx, &pCtx->buildNEqGrp, false);
+  return pCtx->lastProbeGrp ? mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true) : mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->buildNEqGrp, false);
 }
 
 static bool mFullJoinRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* pJoin) {
@@ -1100,7 +1100,7 @@ SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator) {
       
       pJoin->probe->blkRowIdx = pJoin->probe->blk->info.rows;
             
-      MJ_ERR_JRET(mJoinNonEqCart(pCtx, &pCtx->probeNEqGrp, true));
+      MJ_ERR_JRET(mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true));
       if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
         return pCtx->finBlk;
       }
@@ -1121,7 +1121,7 @@ SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator) {
       
       pJoin->build->blkRowIdx = pJoin->build->blk->info.rows;
             
-      MJ_ERR_JRET(mJoinNonEqCart(pCtx, &pCtx->buildNEqGrp, false));
+      MJ_ERR_JRET(mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->buildNEqGrp, false));
       if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
         return pCtx->finBlk;
       }
@@ -1442,7 +1442,7 @@ static FORCE_INLINE int32_t mAntiJoinHandleGrpRemains(SMJoinMergeCtx* pCtx) {
     return (pCtx->hashJoin) ? (*pCtx->hashCartFp)(pCtx) : (*pCtx->mergeCartFp)(pCtx);
   }
   
-  return mJoinNonEqCart(pCtx, &pCtx->probeNEqGrp, true);
+  return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true);
 }
 
 static int32_t mAntiJoinHashFullCart(SMJoinMergeCtx* pCtx) {
@@ -1696,7 +1696,7 @@ SSDataBlock* mAntiJoinDo(struct SOperatorInfo* pOperator) {
       
       pJoin->probe->blkRowIdx = pJoin->probe->blk->info.rows;
             
-      MJ_ERR_JRET(mJoinNonEqCart(pCtx, &pCtx->probeNEqGrp, true));
+      MJ_ERR_JRET(mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true));
       if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
         return pCtx->finBlk;
       }
@@ -1787,7 +1787,7 @@ int32_t mAsofJoinBuildEqGrp(SMJoinTableCtx* pTable, int64_t timestamp, bool* who
         continue;
       }
 
-      return TSDB_CODE_SUCCESS
+      return TSDB_CODE_SUCCESS;
     }
   }
 
@@ -1801,29 +1801,6 @@ int32_t mAsofJoinBuildEqGrp(SMJoinTableCtx* pTable, int64_t timestamp, bool* who
   return TSDB_CODE_SUCCESS;
 }
 
-
-
-int32_t mAsofJoinProcessGreaterGrp(SMJoinWindowCtx* pCtx, SMJoinOperatorInfo* pJoin, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs) {
-  pCtx->buildGrp.beginIdx = pJoin->build->blkRowIdx;
-  pCtx->buildGrp.readIdx = pCtx->buildGrp.beginIdx;
-  pCtx->buildGrp.endIdx = pCtx->buildGrp.beginIdx;
-  
-  while (++pJoin->build->blkRowIdx < pJoin->build->blk->info.rows) {
-    MJOIN_GET_TB_CUR_TS(pCol, *buildTs, pJoin->build);
-    if (PROBE_TS_GREATER(pCtx->ascTs, *probeTs, *buildTs)) {
-      pCtx->buildGrp.endIdx = pJoin->build->blkRowIdx;
-      continue;
-    }
-    
-    break;
-  }
-
-  pCtx->probeGrp.beginIdx = pJoin->probe->blkRowIdx;
-  pCtx->probeGrp.readIdx = pCtx->probeGrp.beginIdx;
-  pCtx->probeGrp.endIdx = pCtx->probeGrp.beginIdx;
-
-  return mAsofJoinHandleProbeGreater(pCtx);  
-}
 
 int32_t mAsofJoinAddEqRowsToCache(struct SOperatorInfo* pOperator, SMJoinWindowCtx* pCtx, SMJoinTableCtx* pTable, int64_t timestamp) {
   int64_t eqRowsNum = 0;
@@ -1881,12 +1858,10 @@ int32_t mAsofJoinAddEqRowsToCache(struct SOperatorInfo* pOperator, SMJoinWindowC
 
 int32_t mAsofLowerDumpGrpCache(SMJoinWindowCtx* pCtx) {
   if (pCtx->cache.outBlk->info.rows <= 0) {
-    return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, probeGrp, true);
+    return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeGrp, true);
   }
 
   int32_t rowsLeft = pCtx->finBlk->info.capacity - pCtx->finBlk->info.rows;
-  SMJoinTableCtx* probe = pCtx->pJoin->probe;
-  SMJoinTableCtx* build = pCtx->pJoin->build;
   SMJoinGrpRows* probeGrp = &pCtx->probeGrp;
   SMJoinGrpRows buildGrp = {.blk = pCtx->cache.outBlk, .readIdx = pCtx->cache.outRowIdx, .endIdx = pCtx->cache.outBlk->info.rows - 1};
   int32_t probeRows = GRP_REMAIN_ROWS(probeGrp);
@@ -1906,7 +1881,7 @@ int32_t mAsofLowerDumpGrpCache(SMJoinWindowCtx* pCtx) {
     MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, &buildGrp));
     if (++probeGrp->readIdx <= probeEndIdx) {
       probeGrp->endIdx = probeEndIdx;
-      buildGrp->readIdx = 0;
+      buildGrp.readIdx = 0;
       MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, &buildGrp));
     }
     
@@ -1920,7 +1895,7 @@ int32_t mAsofLowerDumpGrpCache(SMJoinWindowCtx* pCtx) {
       if (grpNum > 0) {
         probeGrp->endIdx = probeGrp->readIdx + grpNum - 1;
         buildGrp.readIdx = 0;
-        MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, buildGrp));
+        MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, &buildGrp));
         rowsLeft -= grpNum * pCtx->cache.outBlk->info.rows;
         pCtx->cache.outRowIdx = 0;
         probeGrp->readIdx += grpNum;
@@ -1933,14 +1908,14 @@ int32_t mAsofLowerDumpGrpCache(SMJoinWindowCtx* pCtx) {
     
     int32_t grpRemainRows = pCtx->cache.outBlk->info.rows - pCtx->cache.outRowIdx;
     if (rowsLeft >= grpRemainRows) {
-      MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, buildGrp));
+      MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, &buildGrp));
       rowsLeft -= grpRemainRows;
       pCtx->cache.outRowIdx = 0;
       continue;
     }
     
-    buildGrp->endIdx = buildGrp->readIdx + rowsLeft - 1;
-    mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, buildGrp);
+    buildGrp.endIdx = buildGrp.readIdx + rowsLeft - 1;
+    mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, &buildGrp);
     pCtx->cache.outRowIdx += rowsLeft;
     break;
   }
@@ -1980,7 +1955,7 @@ int32_t mAsofLowerProcessEqualGrp(SMJoinWindowCtx* pCtx, int64_t timestamp, bool
   pCtx->lastEqGrp = true;
   pCtx->eqPostDone = false;
 
-  MJ_ERR_RET(mAsofJoinBuildEqGrp(pJoin->probe, timestamp, &pCtx->probeGrp));
+  MJ_ERR_RET(mAsofJoinBuildEqGrp(pJoin->probe, timestamp, NULL, &pCtx->probeGrp));
 
   return mAsofLowerDumpUpdateEqRows(pCtx, pJoin, lastBuildGrp);
 }
@@ -2116,7 +2091,7 @@ SSDataBlock* mAsofLowerJoinDo(struct SOperatorInfo* pOperator) {
       if (PROBE_TS_LOWER(pCtx->ascTs, probeTs, buildTs)) {
         MJ_ERR_JRET(mAsofLowerProcessLowerGrp(pCtx, pJoin, pProbeCol, &probeTs, &buildTs));
       } else {
-        MJ_ERR_JRET(mAsofLowerProcessGreaterGrp(pCtx, pJoin->build, pBuildCol, &probeTs, &buildTs));
+        MJ_ERR_JRET(mAsofLowerProcessGreaterGrp(pCtx, pJoin, pBuildCol, &probeTs, &buildTs));
       }
 
       if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
@@ -2283,7 +2258,7 @@ int32_t mAsofGreaterSkipEqRows(SMJoinTableCtx* pTable, int64_t timestamp, bool* 
         continue;
       }
   
-      return TSDB_CODE_SUCCESS
+      return TSDB_CODE_SUCCESS;
     }
   }
 
@@ -2341,7 +2316,7 @@ int32_t mAsofGreaterProcessEqualGrp(SMJoinWindowCtx* pCtx, int64_t timestamp, bo
   pCtx->lastEqGrp = true;
   pCtx->cache.grpIdx = 0;
 
-  MJ_ERR_RET(mAsofJoinBuildEqGrp(pJoin->probe, timestamp, &pCtx->probeGrp));
+  MJ_ERR_RET(mAsofJoinBuildEqGrp(pJoin->probe, timestamp, NULL, &pCtx->probeGrp));
 
   return mAsofGreaterUpdateDumpEqRows(pCtx, timestamp, lastBuildGrp);
 }
@@ -2492,7 +2467,7 @@ SSDataBlock* mAsofGreaterJoinDo(struct SOperatorInfo* pOperator) {
       if (PROBE_TS_LOWER(pCtx->ascTs, probeTs, buildTs)) {
         MJ_ERR_JRET(mAsofGreaterProcessLowerGrp(pCtx, pJoin, pProbeCol, &probeTs, &buildTs));
       } else {
-        MJ_ERR_JRET(mAsofGreaterProcessGreaterGrp(pCtx, pJoin->build, pBuildCol, &probeTs, &buildTs));
+        MJ_ERR_JRET(mAsofGreaterProcessGreaterGrp(pCtx, pJoin, pBuildCol, &probeTs, &buildTs));
       }
 
       if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
@@ -2554,6 +2529,12 @@ int32_t mJoinInitWindowCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* p
   pCtx->asofLowerRow = ASOF_LOWER_ROW_INCLUDED(pCtx->asofOpType);
   pCtx->asofGreaterRow = ASOF_GREATER_ROW_INCLUDED(pCtx->asofOpType);
   pCtx->jLimit = pJoinNode->pJLimit ? ((SLimitNode*)pJoinNode->pJLimit)->limit : 1;
+
+  if (pCtx->asofLowerRow) {
+    pJoin->joinFp = mAsofLowerJoinDo;
+  } else if (pCtx->asofGreaterRow) {
+    pJoin->joinFp = mAsofGreaterJoinDo;
+  }
 
   if (pJoinNode->node.inputTsOrder != ORDER_DESC) {
     pCtx->ascTs = true;

@@ -588,7 +588,7 @@ int32_t mJoinProcessEqualGrp(SMJoinMergeCtx* pCtx, int64_t timestamp, bool lastB
   return (*pCtx->mergeCartFp)(pCtx);
 }
 
-int32_t mJoinProcessUnreachGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs) {
+int32_t mJoinProcessLowerGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs) {
   pCtx->probeNEqGrp.blk = pTb->blk;
   pCtx->probeNEqGrp.beginIdx = pTb->blkRowIdx;
   pCtx->probeNEqGrp.readIdx = pCtx->probeNEqGrp.beginIdx;
@@ -604,7 +604,7 @@ int32_t mJoinProcessUnreachGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColum
     break;
   }
 
-  return mJoinNonEqCart(pCtx, &pCtx->probeNEqGrp, true);  
+  return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeNEqGrp, true);  
 }
 
 int32_t mJoinProcessGreaterGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs) {
@@ -623,7 +623,7 @@ int32_t mJoinProcessGreaterGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColum
     break;
   }
 
-  return mJoinNonEqCart(pCtx, &pCtx->buildNEqGrp, false);  
+  return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->buildNEqGrp, false);  
 }
 
 
@@ -1365,11 +1365,8 @@ int32_t mJoinSetImplFp(SMJoinOperatorInfo* pJoin) {
         case JOIN_STYPE_ANTI:
           pJoin->joinFp = mAntiJoinDo;
           break;
-        case JOIN_STYPE_ASOF:
-          pJoin->joinFp = mAsofJoinDo;
-          break;
         case JOIN_STYPE_WIN:
-          pJoin->joinFp = mWinJoinDo;
+          //pJoin->joinFp = mWinJoinDo;
           break;
         default:
           break;
@@ -1410,8 +1407,8 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 0, &pJoinNode->inputStat[0]);
   mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 1, &pJoinNode->inputStat[1]);
 
-  MJ_ERR_JRET(mJoinSetImplFp(pInfo));
   MJ_ERR_JRET(mJoinInitCtx(pInfo, pJoinNode));
+  MJ_ERR_JRET(mJoinSetImplFp(pInfo));
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, mJoinMainProcess, NULL, destroyMergeJoinOperator, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 

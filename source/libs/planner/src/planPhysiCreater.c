@@ -792,10 +792,10 @@ static int32_t setColEqCond(SNode* pEqCond, int32_t subType, int16_t leftBlkId, 
         if (leftBlkId == pCol->dataBlockId) {
           pJoin->leftPrimSlotId = pCol->slotId;
           pJoin->asofOpType = pOp->opType;
-          pJoin->leftPrimExpr = nodesCloneNode(pFunc);
+          pJoin->leftPrimExpr = nodesCloneNode((SNode*)pFunc);
         } else if (rightBlkId == pCol->dataBlockId) {
           pJoin->rightPrimSlotId = pCol->slotId;
-          pJoin->rightPrimExpr = nodesCloneNode(pFunc);
+          pJoin->rightPrimExpr = nodesCloneNode((SNode*)pFunc);
         } else {
           planError("invalid primary key col equal cond, leftBlockId:%d", pCol->dataBlockId);
           return TSDB_CODE_PLAN_INTERNAL_ERROR;
@@ -836,10 +836,10 @@ static int32_t setColEqCond(SNode* pEqCond, int32_t subType, int16_t leftBlkId, 
         if (leftBlkId == pCol->dataBlockId) {
           pJoin->leftPrimSlotId = pCol->slotId;
           pJoin->asofOpType = getAsofJoinReverseOp(pOp->opType);
-          pJoin->leftPrimExpr = nodesCloneNode(pFunc);
+          pJoin->leftPrimExpr = nodesCloneNode((SNode*)pFunc);
         } else if (rightBlkId == pCol->dataBlockId) {
           pJoin->rightPrimSlotId = pCol->slotId;
-          pJoin->rightPrimExpr = nodesCloneNode(pFunc);
+          pJoin->rightPrimExpr = nodesCloneNode((SNode*)pFunc);
         } else {
           planError("invalid primary key col equal cond, rightBlockId:%d", pCol->dataBlockId);
           return TSDB_CODE_PLAN_INTERNAL_ERROR;

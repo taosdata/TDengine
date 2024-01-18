@@ -231,7 +231,6 @@ typedef struct SMJoinWindowCtx {
   bool                       asofLowerRow;
   bool                       asofEqRow;
   bool                       asofGreaterRow;
-  int64_t                    jLimit;
 
   bool                       eqPostDone;
   int64_t                    lastTs;
@@ -314,8 +313,8 @@ typedef struct SMJoinOperatorInfo {
 
 #define MJOIN_PUSH_BLK_TO_CACHE(_cache, _blk)                                   \
   do {                                                                          \
-    ASSERT(taosArrayGetSize(_cache)->grps <= 1);                                \
-    SMJoinGrpRows* pGrp = (SMJoinGrpRows*)taosArrayReserve(_cache)->grps, 1);   \
+    ASSERT(taosArrayGetSize((_cache)->grps) <= 1);                                \
+    SMJoinGrpRows* pGrp = (SMJoinGrpRows*)taosArrayReserve((_cache)->grps, 1);   \
     (_cache)->rowNum += (_blk)->info.rows;                                       \
     pGrp->blk = (_blk);                                                         \
     pGrp->beginIdx = 0;                                        \
@@ -379,6 +378,7 @@ typedef struct SMJoinOperatorInfo {
   } while (0)
 
 
+int32_t mJoinInitWindowCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode);
 int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode);
 SSDataBlock* mInnerJoinDo(struct SOperatorInfo* pOperator);
 SSDataBlock* mLeftJoinDo(struct SOperatorInfo* pOperator);
@@ -398,7 +398,7 @@ bool mJoinHashGrpCart(SSDataBlock* pBlk, SMJoinGrpRows* probeGrp, bool append, S
 int32_t mJoinMergeGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool append, SMJoinGrpRows* pFirst, SMJoinGrpRows* pSecond);
 int32_t mJoinHandleMidRemains(SMJoinMergeCtx* pCtx);
 int32_t mJoinNonEqGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool append, SMJoinGrpRows* pGrp, bool probeGrp);
-int32_t mJoinNonEqCart(SMJoinMergeCtx* pCtx, SMJoinGrpRows* pGrp, bool probeGrp);
+int32_t mJoinNonEqCart(SMJoinCommonCtx* pCtx, SMJoinGrpRows* pGrp, bool probeGrp);
 int32_t mJoinCopyMergeMidBlk(SMJoinMergeCtx* pCtx, SSDataBlock** ppMid, SSDataBlock** ppFin);
 int32_t mJoinFilterAndMarkRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SMJoinTableCtx* build, int32_t startGrpIdx, int32_t startRowIdx);
 int32_t mJoinFilterAndMarkHashRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SMJoinTableCtx* build, int32_t startRowIdx);
