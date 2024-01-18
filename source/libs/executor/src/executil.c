@@ -1862,7 +1862,7 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
   STimeWindow w = {0};
   if (pResultRowInfo->cur.pageId == -1) {  // the first window, from the previous stored value
     getInitialStartTimeWindow(pInterval, ts, &w, (order == TSDB_ORDER_ASC));
-    w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+    w.ekey = taosTimeGetIntervalEnd(w.skey, pInterval);
     return w;
   }
 
