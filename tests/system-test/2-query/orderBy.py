@@ -330,9 +330,6 @@ class TDTestCase:
         # td-28332
         self.queryOrderByAmbiguousName()
 
-        # td-28332
-        self.queryOrderByAmbiguousName()
-
     # stop
     def stop(self):
         tdSql.close()
