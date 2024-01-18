@@ -144,7 +144,7 @@
         if(name=='Google Data Studio'){
           name='gdStudio'
         }
-        if (name == '永洪 BI' || name == 'PowerBI') {
+        if (name == 'YonghongBI' || name == 'PowerBI') {
           return require(`@/assets/images/${icon || name}.png`);
         }
         try {

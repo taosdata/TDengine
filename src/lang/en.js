@@ -2260,7 +2260,8 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         step5: 'Example',
         step5full: 'Example - Meters',
         step5desc:
-          'TDengine has its own specific data model, which uses supertable as template and creates a specific table for each device. Each table can have maximum 4,096 data columns and 128 tags. In the example of meters, assume each meter generates one record per second, then there will be 86,400 records each day and 31,536,000 records every year, then only 1,000 meters will occupy 500GB disk space. So, the common usage of Power BI should be mapping tags to dimention columns, mapping the aggregation of data columns to metric columns, to provide indicators for decision makers.',
+          'TDengine has its own specific data model, which uses supertable as template and creates a specific table for each device. Each table can have maximum 4,096 data columns and 128 tags. In the ',
+        step5desc0: ', assume each meter generates one record per second, then there will be 86,400 records each day and 31,536,000 records every year, then only 1,000 meters will occupy 500GB disk space. So, the common usage of Power BI should be mapping tags to dimention columns, mapping the aggregation of data columns to metric columns, to provide indicators for decision makers.',
         step5desc1: 'Import Dimentions: Import the tags of tables in PowerBI, and name as "tags", the SQL is as the following:',
         step5desc2: 'Import Metrics: In Power BI, import the average current, average voltage, average phase with 1 hour window, and name it as "data", the SQL is as the following:',
         step5desc3:
@@ -2269,6 +2270,7 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         step5desc5: '.'
       },
       yonghongbi: {
+        name: 'Yonghong BI',
         desc: 'Yonghong one-stop big data BI platform',
         desc1:
           ' to provide enterprises of all sizes with flexible and easy-to-use whole-business chain big data analysis solutions, so that every user can use this platform to easily discover the value of big data and obtain deep insight. TDengine can be added to Yonghong BI as a data source via a JDBC connector. Once the data source is configured, Yonghong BI can read data from TDengine and provide functions such as data presentation, analysis and prediction.',
@@ -2287,7 +2289,7 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         step3full: 'Configure the TDengine JDBC data source',
         step31desc: 'In the Yonghong Desktop BI tool, click "Add data source" and select the "GENERIC" type in the SQL data source.',
         step32desc:
-          'Click "Select Custom Driver", in the "Driver Management" dialog box, click "+" next to "Driver List", enter the name "tdengine". Then click the "upload file" button to upload just download TDengine JDBC connector file "taos - jdbcdriver - 3.2.7 - dist. Jar", and select "com. Taosdata. JDBC. Rs. RestfulDriver" drive, Finally, click the "OK" button to complete the driver addition.',
+          'Click "Select Custom Driver", in the "Driver Management" dialog box, click "+" next to "Driver List", enter the name "MyTDengine". Then click the "upload file" button to upload just download TDengine JDBC connector file "taos - jdbcdriver - 3.2.7 - dist. Jar", and select "com. Taosdata. JDBC. Rs. RestfulDriver" drive, Finally, click the "OK" button to complete the driver addition.',
         step33desc: 'Then copy the following into the "URL" field.',
         step34desc: 'Then select "No identity Authentication" under "Authentication Mode".',
         step35desc: 'In the advanced Settings of the data source, change the value of the Quote symbol to the backquote "`".',
