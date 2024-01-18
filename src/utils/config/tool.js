@@ -115,6 +115,7 @@ export default () => [
   },
   {
     name: 'YonghongBI',
+    title: i18n.t('docs.tools.yonghongbi.name'),
     icon: 'yonghonglogo',
     desc: i18n.t('docs.tools.yonghongbi.desc') + i18n.t('docs.tools.yonghongbi.desc1'),
     docs: {
