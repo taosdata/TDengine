@@ -115,6 +115,47 @@ class TDSql:
 
             return self.error_info
 
+    def errors(self, sql_list, expected_error_id_list=None, expected_error_info_list=None):
+        """Execute the sql query and check the error info, expected error id or info should keep the same order with sql list,
+        expected_error_id_list or expected_error_info_list is None, then the error info will not be checked.
+        :param sql_list: the sql list to be executed.
+        :param expected_error_id: the expected error number.
+        :param expected_error_info: the expected error info.
+        :return: None
+        """
+        try:
+            if len(sql_list) > 0:
+                for i in range(len(sql_list)):
+                    if expected_error_id_list and expected_error_info_list:
+                        self.error(sql_list[i], expected_error_id_list[i], expected_error_info_list[i])
+                    elif expected_error_id_list:
+                        self.error(sql_list[i], expectedErrno=expected_error_id_list[i])
+                    elif expected_error_info_list:
+                        self.error(sql_list[i], expectErrInfo=expected_error_info_list[i])
+                    else:
+                        self.error(sql_list[i])
+            else:
+                tdLog.exit("sql list is empty")
+        except Exception as ex:
+            tdLog.exit("Failed to execute sql list: %s, error: %s" % (sql_list, ex))
+
+    def queryAndCheckResult(self, sql_list, expect_result_list):
+        """Execute the sql query and check the result.
+        :param sql_list: the sql list to be executed.
+        :param expect_result_list: the expected result list.
+        :return: None
+        """
+        try:
+            for index in range(len(sql_list)):
+                self.query(sql_list[index])
+                if len(expect_result_list[index]) == 0:
+                    self.checkRows(0)
+                else:
+                    self.checkRows(len(expect_result_list[index]))
+                    assert(self.queryResult == expect_result_list[index])
+        except Exception as ex:
+            raise(ex)
+
     def query(self, sql, row_tag=None, queryTimes=10, count_expected_res=None):
         self.sql = sql
         i=1

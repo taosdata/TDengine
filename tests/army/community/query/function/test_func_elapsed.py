@@ -25,18 +25,18 @@ class TDTestCase(TBase):
 
     def prepareData(self):
         # db
-        tdSql.execute("create database {};".format(self.dbname))
-        tdSql.execute("use {};".format(self.dbname))
-        tdLog.debug("Create database %s" % self.dbname)
+        tdSql.execute(f"create database {self.dbname};")
+        tdSql.execute(f"use {self.dbname};")
+        tdLog.debug(f"Create database {self.dbname}")
 
         # commont table
         for common_table in self.table_dic["common_table"]:
-            tdSql.execute("create table {} (ts timestamp, c_ts timestamp, c_int int, c_bigint bigint, c_double double, c_nchar nchar(16));".format(common_table))
+            tdSql.execute(f"create table {common_table} (ts timestamp, c_ts timestamp, c_int int, c_bigint bigint, c_double double, c_nchar nchar(16));")
             tdLog.debug("Create common table %s" % common_table)
 
         # super table
         for super_table in self.table_dic["super_table"]:
-            tdSql.execute("create stable {} (ts timestamp, c_ts timestamp, c_int int, c_bigint bigint, c_double double, c_nchar nchar(16)) tags (t1 timestamp, t2 int, t3 binary(16));".format(super_table))
+            tdSql.execute(f"create stable {super_table} (ts timestamp, c_ts timestamp, c_int int, c_bigint bigint, c_double double, c_nchar nchar(16)) tags (t1 timestamp, t2 int, t3 binary(16));")
             tdLog.debug("Create super table %s" % super_table)
 
         # child table
@@ -59,38 +59,44 @@ class TDTestCase(TBase):
     def test_normal_query(self):
         # only one timestamp
         tdSql.query("select elapsed(ts) from t1 group by c_ts;")
-        assert(len(tdSql.queryResult) == self.row_num and tdSql.queryResult[0][0] == 0)
+        tdSql.checkRows(self.row_num)
+        tdSql.checkData(0, 0, 0)
 
         tdSql.query("select elapsed(ts, 1m) from t1 group by c_ts;")
-        assert(len(tdSql.queryResult) == self.row_num and tdSql.queryResult[0][0] == 0)
+        tdSql.checkRows(self.row_num)
+        tdSql.checkData(0, 0, 0)
 
         # child table with group by
         tdSql.query("select elapsed(ts) from ct1_2 group by tbname;")
-        assert(len(tdSql.queryResult) == 1 and tdSql.queryResult[0][0] == 99000)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 99000)
 
         # empty super table
         tdSql.query("select elapsed(ts, 1s) from st_empty group by tbname;")
-        assert(len(tdSql.queryResult) == 0)
+        tdSql.checkRows(0)
 
         # empty child table
         tdSql.query("select elapsed(ts, 1s) from ct1_empty group by tbname;")
-        assert(len(tdSql.queryResult) == 0)
+        tdSql.checkRows(0)
 
         # empty common table
         tdSql.query("select elapsed(ts, 1s) from t_empty group by tbname;")
-        assert(len(tdSql.queryResult) == 0)
+        tdSql.checkRows(0)
 
         # unit as second
         tdSql.query("select elapsed(ts, 1s) from st2 group by tbname;")
-        assert(len(tdSql.queryResult) == 2 and tdSql.queryResult[0][0] == 99)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 99)
 
         # unit as minute
         tdSql.query("select elapsed(ts, 1m) from st2 group by tbname;")
-        assert(len(tdSql.queryResult) == 2 and tdSql.queryResult[0][0] == 1.65)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1.65)
 
         # unit as hour
         tdSql.query("select elapsed(ts, 1h) from st2 group by tbname;")
-        assert(len(tdSql.queryResult) == 2 and tdSql.queryResult[0][0] == 0.0275)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 0.0275)
 
     def test_query_with_filter(self):
         end_ts = 1677654000000 + 1000 * 99
@@ -176,12 +182,17 @@ class TDTestCase(TBase):
                 "res": [(99,)]
             }
         ]
-        for q in query_list:
-            tdSql.query(q["sql"])
-            if len(q["res"]) == 0:
-                assert(len(tdSql.queryResult) == len(q["res"]))
-            else:
-                assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
+        sql_list = []
+        res_list = []
+        for item in query_list:
+            sql_list.append(item["sql"])
+            res_list.append(item["res"])
+        tdSql.queryAndCheckResult(sql_list, res_list)
+        # tdSql.query(q["sql"])
+        # if len(q["res"]) == 0:
+        #     assert(len(tdSql.queryResult) == len(q["res"]))
+        # else:
+        #     assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
 
     def test_query_with_other_function(self):
         query_list = [
@@ -194,9 +205,15 @@ class TDTestCase(TBase):
                 "res": [(3.248833500000000e+06,)]
             }
         ]
-        for q in query_list:
-            tdSql.query(q["sql"])
-            assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
+        sql_list = []
+        res_list = []
+        for item in query_list:
+            sql_list.append(item["sql"])
+            res_list.append(item["res"])
+        tdSql.queryAndCheckResult(sql_list, res_list)
+        # for q in query_list:
+        #     tdSql.query(q["sql"])
+        #     assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
 
     def test_query_with_join(self):
         query_list = [
@@ -245,10 +262,15 @@ class TDTestCase(TBase):
                 "res": []
             }
         ]
-        
-        for q in query_list:
-            tdSql.query(q["sql"])
-            assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
+        sql_list = []
+        res_list = []
+        for item in query_list:
+            sql_list.append(item["sql"])
+            res_list.append(item["res"])
+        tdSql.queryAndCheckResult(sql_list, res_list)
+        # for q in query_list:
+        #     tdSql.query(q["sql"])
+        #     assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
 
     def test_query_with_union(self):
         query_list = [
@@ -305,10 +327,16 @@ class TDTestCase(TBase):
                 "res": [(99,)]
             }
         ]
-        for q in query_list:
-            tdSql.query(q["sql"])
-            tdLog.debug(q["sql"] + " with res: " + str(tdSql.queryResult))
-            assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
+        sql_list = []
+        res_list = []
+        for item in query_list:
+            sql_list.append(item["sql"])
+            res_list.append(item["res"])
+        tdSql.queryAndCheckResult(sql_list, res_list)
+        # for q in query_list:
+        #     tdSql.query(q["sql"])
+        #     tdLog.debug(q["sql"] + " with res: " + str(tdSql.queryResult))
+        #     assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
 
     def test_query_with_window(self):
         query_list = [
@@ -329,9 +357,15 @@ class TDTestCase(TBase):
                 "res": []
             }
         ]
-        for q in query_list:
-            tdSql.query(q["sql"])
-            assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
+        sql_list = []
+        res_list = []
+        for item in query_list:
+            sql_list.append(item["sql"])
+            res_list.append(item["res"])
+        tdSql.queryAndCheckResult(sql_list, res_list)
+        # for q in query_list:
+        #     tdSql.query(q["sql"])
+        #     assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
 
     def test_nested_query(self):
         query_list = [
@@ -356,10 +390,16 @@ class TDTestCase(TBase):
                 "res": []
             }
         ]
-        for q in query_list:
-            tdSql.query(q["sql"])
-            tdLog.debug(q["sql"] + " with res: " + str(tdSql.queryResult))
-            assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
+        sql_list = []
+        res_list = []
+        for item in query_list:
+            sql_list.append(item["sql"])
+            res_list.append(item["res"])
+        tdSql.queryAndCheckResult(sql_list, res_list)
+        # for q in query_list:
+        #     tdSql.query(q["sql"])
+        #     tdLog.debug(q["sql"] + " with res: " + str(tdSql.queryResult))
+        #     assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
 
     def test_abnormal_query(self):
         # incorrect parameter
@@ -375,7 +415,7 @@ class TDTestCase(TBase):
                 tdSql.error("select elapsed{} from {} group by ".format(param, table))
 
         # query with unsupported function, like leastsquares、diff、derivative、top、bottom、last_row、interp
-        tdSql.error(" select elapsed(leastsquares(c_int, 1, 2)) from st1 group by tbname;")
+        tdSql.error("select elapsed(leastsquares(c_int, 1, 2)) from st1 group by tbname;")
         tdSql.error("select elapsed(diff(ts)) from st1;")
         tdSql.error("select elapsed(derivative(ts, 1s, 1)) from st1 group by tbname order by ts;")
         tdSql.error("select elapsed(top(ts, 5)) from st1 group by tbname order by ts;")
