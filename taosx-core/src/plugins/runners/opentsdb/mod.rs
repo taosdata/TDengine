@@ -1,6 +1,7 @@
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
+use chrono::Local;
 use itertools::Itertools;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
@@ -144,9 +145,32 @@ pub async fn opentsdb_to_taos(
     let mut command = tokio::process::Command::new("java");
     let child;
 
+    // generate report or not
+    let enable_coverage = if let Ok(val) = std::env::var("ENABLE_COVERAGE") {
+        val.to_lowercase() == "true"
+    } else {
+        false
+    };
+    // command line additional arg
+    let arg_coverage = {
+        let coverage_report_file = format!(
+            "/data/coverage/opentsdb/jacoco_test_report_{}.exec",
+            Local::now().format("%Y%m%d%H%M%S%3f").to_string()
+        );
+        format!(
+            "-javaagent:/data/coverage/jacocoagent.jar=destfile={},output=file",
+            coverage_report_file
+        )
+    };
+    let args = if enable_coverage {
+        vec!["-jar", &arg_coverage]
+    } else {
+        vec!["-jar"]
+    };
+
     if jdk_version.contains("build 1.") {
         child = command
-            .arg("-jar")
+            .args(&args)
             .arg(&connector_path)
             .arg(&config_path)
             .stdout(std::process::Stdio::inherit())
@@ -154,7 +178,7 @@ pub async fn opentsdb_to_taos(
     } else {
         child = command
             .arg("--add-opens=java.base/java.nio=ALL-UNNAMED")
-            .arg("-jar")
+            .args(&args)
             .arg(&connector_path)
             .arg(&config_path)
             .kill_on_drop(true)
