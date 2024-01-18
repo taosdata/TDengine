@@ -279,7 +279,7 @@ class TDTestCase:
         self.init_data()
         self.create_tsma('tsma1', 'test', 'meters', ['avg'], ['c1', 'c2'], '5m')
         self.create_tsma('tsma2', 'test', 'meters', ['avg'], ['c1', 'c2'], '30m')
-        #time.sleep(9999999)
+        time.sleep(9999999)
         self.test_query_with_tsma_interval()
         self.test_query_with_tsma_agg()
 

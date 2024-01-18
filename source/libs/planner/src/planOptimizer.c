@@ -4633,7 +4633,7 @@ static void tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* pSc
   }
 
   // the main tsma
-  if (endOfSkeyFirstWin < startOfEkeyFirstWin) {
+  if (endOfSkeyFirstWin <= startOfEkeyFirstWin) {
     scanRange.ekey = TMIN(pScanRange->ekey, startOfEkeyFirstWin - 1);
     if (!isSkeyAlignedWithTsma) {
       scanRange.skey = endOfSkeyFirstWin;
