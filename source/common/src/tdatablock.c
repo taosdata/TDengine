@@ -2293,7 +2293,6 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
 
   int32_t version = *(int32_t*)pStart;
   pStart += sizeof(int32_t);
-  ASSERT(version == 1);
 
   // total length sizeof(int32_t)
   int32_t dataLen = *(int32_t*)pStart;
@@ -2339,7 +2338,9 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
   pStart += sizeof(int32_t) * numOfCols;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    colLen[i] = htonl(colLen[i]);
+    if(version == 1){
+      colLen[i] = htonl(colLen[i]);
+    }
     ASSERT(colLen[i] >= 0);
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
