@@ -302,6 +302,17 @@ class TDTestCase:
 
         tdSql.error(f"SELECT last(ts) as t2, ts FROM t1 order by last(t2)")
 
+    def queryOrderByAmbiguousName(self):
+        tdSql.error("select c1 as name, c2 as name, c3 from t1 order by name")
+
+        tdSql.error('select c1, c2 as c1, c3 from t1 order by c1')
+
+        tdSql.error('select last(ts), last(c1) as name ,last(c2) as name,last(c3) from test1 order by name')
+
+        tdSql.query('select c1 as name from (select c1, c2 as name from st) order by name')
+
+
+
     # run
     def run(self):
         # prepare env
@@ -315,6 +326,9 @@ class TDTestCase:
 
         # agg
         self.queryOrderByAgg()
+
+        # td-28332
+        self.queryOrderByAmbiguousName()
 
 
     # stop
