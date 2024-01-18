@@ -239,7 +239,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
     syncGetRetryEpSet(pMnode->syncMgmt.sync, pEpSet);
     return;
   }
-  pEpSet->inUse = -1;
+  pEpSet->inUse = 0;
   void *pIter = NULL;
   while (1) {
     SMnodeObj *pObj = NULL;
@@ -250,7 +250,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
       if (mndIsLeader(pMnode)) {
         pEpSet->inUse = pEpSet->numOfEps;
       } else {
-        // pEpSet->inUse = (pEpSet->numOfEps + 1) % totalMnodes;
+        pEpSet->inUse = 0;
       }
     }
     if (pObj->pDnode != NULL) {
@@ -264,7 +264,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
   }
 
   if (pEpSet->inUse >= pEpSet->numOfEps) {
-    pEpSet->inUse = -1;
+    pEpSet->inUse = 0;
   }
 }
 
