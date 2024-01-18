@@ -278,19 +278,19 @@ class TDTestCase:
 
     def queryOrderByAgg(self):
 
-        tdSql.query("SELECT COUNT(*) FROM t1 order by COUNT(*)")
+        tdSql.no_error("SELECT COUNT(*) FROM t1 order by COUNT(*)")
 
-        tdSql.query("SELECT COUNT(*) FROM t1 order by last(c2)")
+        tdSql.no_error("SELECT COUNT(*) FROM t1 order by last(c2)")
 
-        tdSql.query("SELECT c1 FROM t1 order by last(ts)")
+        tdSql.no_error("SELECT c1 FROM t1 order by last(ts)")
 
-        tdSql.query("SELECT ts FROM t1 order by last(ts)")
+        tdSql.no_error("SELECT ts FROM t1 order by last(ts)")
 
-        tdSql.query("SELECT last(ts), ts, c1 FROM t1 order by 2")
+        tdSql.no_error("SELECT last(ts), ts, c1 FROM t1 order by 2")
 
-        tdSql.query("SELECT ts, last(ts) FROM t1 order by last(ts)")
+        tdSql.no_error("SELECT ts, last(ts) FROM t1 order by last(ts)")
 
-        tdSql.query(f"SELECT * FROM t1 order by last(ts)")
+        tdSql.no_error(f"SELECT * FROM t1 order by last(ts)")
 
         tdSql.query(f"SELECT last(ts) as t2, ts FROM t1 order by 1")
         tdSql.checkRows(1)
@@ -313,6 +313,17 @@ class TDTestCase:
 
 
 
+    def queryOrderByAmbiguousName(self):
+        tdSql.error(sql="select c1 as name, c2 as name, c3 from t1 order by name", expectErrInfo='ambiguous', fullMatched=False)
+
+        tdSql.error(sql="select c1, c2 as c1, c3 from t1 order by c1", expectErrInfo='ambiguous', fullMatched=False)
+
+        tdSql.error(sql='select last(ts), last(c1) as name ,last(c2) as name,last(c3) from t1 order by name', expectErrInfo='ambiguous', fullMatched=False)
+
+        tdSql.no_error("select c1 as name, c2 as c1, c3 from t1 order by c1")
+
+        tdSql.no_error('select c1 as name from (select c1, c2 as name from st) order by name')
+
     # run
     def run(self):
         # prepare env
@@ -330,6 +341,8 @@ class TDTestCase:
         # td-28332
         self.queryOrderByAmbiguousName()
 
+        # td-28332
+        self.queryOrderByAmbiguousName()
 
     # stop
     def stop(self):
