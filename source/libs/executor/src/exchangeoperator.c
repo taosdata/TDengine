@@ -263,14 +263,17 @@ static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo, const 
     return TSDB_CODE_SUCCESS;
   }
 
+  int32_t len = strlen(id) + 1;
+  pInfo->pTaskId = taosMemoryCalloc(1, len);
+  strncpy(pInfo->pTaskId, id, len);
   for (int32_t i = 0; i < numOfSources; ++i) {
     SSourceDataInfo dataInfo = {0};
     dataInfo.status = EX_SOURCE_DATA_NOT_READY;
-    dataInfo.taskId = id;
+    dataInfo.taskId = pInfo->pTaskId;
     dataInfo.index = i;
     SSourceDataInfo* pDs = taosArrayPush(pInfo->pSourceDataInfo, &dataInfo);
     if (pDs == NULL) {
-      taosArrayDestroy(pInfo->pSourceDataInfo);
+      taosArrayDestroyEx(pInfo->pSourceDataInfo, freeSourceDataInfo);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
@@ -386,6 +389,8 @@ void doDestroyExchangeOperatorInfo(void* param) {
   tSimpleHashCleanup(pExInfo->pHashSources);
 
   tsem_destroy(&pExInfo->ready);
+  taosMemoryFreeClear(pExInfo->pTaskId);
+
   taosMemoryFreeClear(param);
 }
 
@@ -785,7 +790,7 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
   if (pIdx->inUseIdx < 0) {
     SSourceDataInfo dataInfo = {0};
     dataInfo.status = EX_SOURCE_DATA_NOT_READY;
-    dataInfo.taskId = GET_TASKID(pOperator->pTaskInfo);
+    dataInfo.taskId = pExchangeInfo->pTaskId;
     dataInfo.index = pIdx->srcIdx;
     dataInfo.pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
     dataInfo.srcOpType = pBasicParam->srcOpType;
