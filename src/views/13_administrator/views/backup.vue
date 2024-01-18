@@ -392,8 +392,12 @@ export default {
     async editBakcup(id) {
       //哪一项修改传参只传哪一项
       try {
+        const scheduleStr = this.ruleForm.cycle;
+        const [key, value] = scheduleStr.split(':');
+        const scheduleObj = { [key]: value };
+        
         let params = {
-          trigger: this.ruleForm.cycle,
+          trigger: scheduleObj,
         };
         await editBackup(id, params).then((res) => {
           this.getBackData();
@@ -405,13 +409,17 @@ export default {
     },
     async addBackup() {
       try {
+        const scheduleStr = this.ruleForm.cycle;
+        const [key, value] = scheduleStr.split(':');
+        const scheduleObj = { [key]: value };
+
         let params = {
-          name: "bakcup",
+          // name: "bakcup",
           labels: [
             "type::backup",
             `cluster-id::${localStorage.getItem("local_clusterID")}`,
           ],
-          trigger: this.ruleForm.cycle,
+          trigger: scheduleObj,
           to: `local:${this.ruleForm.directory}`,
           from: `tmq+${localStorage.getItem("base_url")}/${this.ruleForm.db}`,
         };
