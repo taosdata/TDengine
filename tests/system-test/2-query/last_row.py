@@ -866,11 +866,12 @@ class TDTestCase:
         create_db_sql = f"create database if not exists {dbname} keep 3650 duration 1000 cachemodel 'NONE' REPLICA 1"
         tdSql.execute(create_db_sql)
 
+        time.sleep(3)
         tdSql.execute(f"use {dbname}")
         tdSql.execute(f'create stable {dbname}.st(ts timestamp, v_int int, v_float float) TAGS (ctname varchar(32))')
 
-        tdSql.execute(f"create table {dbname}.ct1 using st tags('ct1')")
-        tdSql.execute(f"create table {dbname}.ct2 using st tags('ct2')")
+        tdSql.execute(f"create table {dbname}.ct1 using {dbname}.st tags('ct1')")
+        tdSql.execute(f"create table {dbname}.ct2 using {dbname}.st tags('ct2')")
 
         tdSql.execute(f"insert into {dbname}.st(tbname,ts,v_float, v_int) values('ct1',1630000000000,86,86)")
         tdSql.execute(f"insert into {dbname}.st(tbname,ts,v_float, v_int) values('ct1',1630000021255,59,59)")
