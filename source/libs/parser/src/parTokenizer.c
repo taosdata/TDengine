@@ -109,6 +109,8 @@ static SKeyword keywordTable[] = {
     {"GEOMETRY",             TK_GEOMETRY},
     {"GRANT",                TK_GRANT},
     {"GRANTS",               TK_GRANTS},
+    {"FULL",                 TK_FULL},
+    {"LOG",                  TK_LOG},
     {"GROUP",                TK_GROUP},
     {"HAVING",               TK_HAVING},
     {"HOST",                 TK_HOST},

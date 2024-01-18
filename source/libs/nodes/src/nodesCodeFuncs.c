@@ -6579,6 +6579,14 @@ static int32_t showVariablesStmtToJson(const void* pObj, SJson* pJson) { return 
 
 static int32_t jsonToShowVariablesStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
 
+static int32_t showGrantsFullStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+
+static int32_t jsonToShowGrantsFullStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+
+static int32_t showGrantsLogStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+
+static int32_t jsonToShowGrantsLogStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+
 static const char* jkShowDnodeVariablesStmtDnodeId = "DnodeId";
 static const char* jkShowDnodeVariablesStmtLikePattern = "LikePattern";
 
@@ -7066,6 +7074,10 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showConsumersStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_VARIABLES_STMT:
       return showVariablesStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
+      return showGrantsFullStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_GRANTS_LOG_STMT:
+      return showGrantsLogStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       return showDnodeVariablesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
@@ -7391,6 +7403,10 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowConsumersStmt(pJson, pObj);
     case QUERY_NODE_SHOW_VARIABLES_STMT:
       return jsonToShowVariablesStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
+      return jsonToShowGrantsFullStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_GRANTS_LOG_STMT:
+      return jsonToShowGrantsLogStmt(pJson, pObj);
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       return jsonToShowDnodeVariablesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
