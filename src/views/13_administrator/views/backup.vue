@@ -77,8 +77,8 @@
       <el-table-column :label="$t('taosuser.operation')" width="200">
         <template slot-scope="scope">
           <el-switch
-            :value="scope.row.status.toLowerCase() == 'running'"
-            active-color="rgb(66, 89, 206)"
+            :value="scope.row.status.toLowerCase() != 'stopped'"
+            active-color="#13ce66"
             inactive-color="#dcdfe6"
             @change="switchOperation($event, scope.row)"
           >
@@ -303,11 +303,18 @@ export default {
         }
       ).then(async () => {
         await excuteDel(data.id).then((res) => {
-          Message({
-            type: "success",
-            message: this.$t('delSucc'),
-          });
-          this.getBackData();
+          if (res && Object.hasOwnProperty.call(res, "id")) {
+            Message({
+              type: "success",
+              message: this.$t('delSucc'),
+            });
+            this.getBackData();
+          } else {
+            Message({
+              type: 'error',
+              message: res.message
+            })
+          }
         });
       });
     },
@@ -489,6 +496,8 @@ export default {
           if (res && Object.hasOwnProperty.call(res, "id")) {
             Message.success(this.$t('operateSucc'));
             this.getBackData();
+          } else {
+            Message.error(res?.message)
           }
         });
       } catch (err) {
