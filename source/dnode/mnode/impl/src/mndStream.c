@@ -151,6 +151,8 @@ int32_t mndInitStream(SMnode *pMnode) {
   execInfo.pTaskMap = taosHashInit(64, fn, true, HASH_NO_LOCK);
   execInfo.transMgmt.pDBTrans = taosHashInit(32, fn, true, HASH_NO_LOCK);
   execInfo.transMgmt.pWaitingList = taosHashInit(32, fn, true, HASH_NO_LOCK);
+  execInfo.pTransferStateStreams = taosHashInit(32, fn, true, HASH_NO_LOCK);
+
   taosHashSetFreeFp(execInfo.transMgmt.pWaitingList, freeCheckpointCandEntry);
 
   if (sdbSetTable(pMnode->pSdb, table) != 0) {
