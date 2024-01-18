@@ -264,7 +264,11 @@ const char* nodesNodeName(ENodeType type) {
     case QUERY_NODE_SHOW_COMPACTS_STMT:
       return "ShowCompactsStmt";
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
-      return "ShowCompactDetailsStmt";      
+      return "ShowCompactDetailsStmt";     
+    case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
+      return "ShowGrantsFullStmt";
+    case QUERY_NODE_SHOW_GRANTS_LOG_STMT:
+      return "ShowGrantsLogStmt";
     case QUERY_NODE_DELETE_STMT:
       return "DeleteStmt";
     case QUERY_NODE_INSERT_STMT:

@@ -123,6 +123,10 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_COMPACT;
   } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, len) == 0) {
     type = TSDB_MGMT_TABLE_COMPACT_DETAIL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_FULL, len) == 0) {
+    type = TSDB_MGMT_TABLE_GRANTS_FULL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_LOG, len) == 0) {
+    type = TSDB_MGMT_TABLE_GRANTS_LOG;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }

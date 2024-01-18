@@ -52,6 +52,8 @@ extern "C" {
 #define TSDB_INS_TABLE_VIEWS             "ins_views"
 #define TSDB_INS_TABLE_COMPACTS          "ins_compacts"
 #define TSDB_INS_TABLE_COMPACT_DETAILS   "ins_compact_details"
+#define TSDB_INS_TABLE_GRANTS_FULL       "ins_grants_full"
+#define TSDB_INS_TABLE_GRANTS_LOG        "ins_grants_log"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB   "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS        "perf_smas"

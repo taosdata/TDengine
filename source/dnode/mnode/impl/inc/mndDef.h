@@ -768,6 +768,72 @@ typedef struct {
   SArray* compactDetail;
 } SCompactObj;
 
+// SGrantObj
+typedef enum {
+  GRANT_STATE_UNGRANTED = 0,
+  GRANT_STATE_GRANTED = 1,
+  GRANT_STATE_EXPIRED = 2,
+  GRANT_STATE_REVOKED = 3,
+} EGrantState;
+
+typedef enum {
+  GRANT_STATE_REASON_ALTER = 0,     // alter activeCode 'revoked' or 'xxx'
+  GRANT_STATE_REASON_MISMATCH = 1,  // dnode machine mismatch
+  GRANT_STATE_REASON_EXPIRE = 2,    // expire
+} EGrantStateReason;
+
+#define GRANT_STATE_NUM  30
+#define GRANT_ACTIVE_NUM 10
+#define GRANT_ACTIVE_LEN 30
+
+typedef struct {
+  union {
+    int64_t u0;
+    struct {
+      int64_t ts : 36;
+      int64_t reserve : 4;
+      int64_t lastState : 8;
+      int64_t state : 8;
+      int64_t reason : 8;
+    };
+  };
+} SGrantState;
+
+typedef struct {
+  union {
+    int64_t u0;
+    struct {
+      int64_t ts : 36;
+      int64_t reserve : 28;
+    };
+  };
+  char active[GRANT_ACTIVE_LEN + 1];
+} SGrantActive;
+
+typedef struct {
+  union {
+    int64_t u0;
+    struct {
+      int64_t ts : 36;
+      int64_t reserve : 4;
+      int64_t id : 24;
+    };
+  };
+  uint16_t port;
+  char     fqdn[TSDB_FQDN_LEN];
+  char     machine[TSDB_MACHINE_ID_LEN + 1];
+} SGrantMachine;
+
+typedef struct {
+  int32_t      id;
+  int64_t      createTime;
+  int64_t      updateTime;
+  SGrantState  state[GRANT_STATE_NUM];
+  SGrantActive active[GRANT_ACTIVE_NUM];
+  SArray       *pMachines;  // SGrantMachines
+  SRWLatch     lock;
+} SGrantObj;
+
 #ifdef __cplusplus
 }
 #endif

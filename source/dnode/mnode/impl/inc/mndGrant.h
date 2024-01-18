@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_GTANT_H
-#define TDENGINE_GTANT_H
+#ifndef _TD_MND_GRANT_H_
+#define _TD_MND_GRANT_H_
 
 #ifdef __cplusplus
 "C" {
@@ -23,11 +23,32 @@
 #include "mndInt.h"
 
   int32_t mndInitGrant(SMnode * pMnode);
-  void    mndCleanupGrant();
+  void    mndCleanupGrant(SMnode * pMnode);
   void    grantParseParameter();
   void    grantReset(SMnode * pMnode, EGrantType grant, uint64_t value);
   void    grantAdd(EGrantType grant, uint64_t value);
   void    grantRestore(EGrantType grant, uint64_t value);
+
+
+#ifdef TD_ENTERPRISE
+
+  // void initDynGrantVersion(void);
+
+  SGrantObj *mndAcquireGrant(SMnode * pMnode, int32_t id);
+  void      mndReleaseGrant(SMnode * pMnode, SGrantObj *pGrant);
+
+  SSdbRaw *mndGrantActionEncode(SGrantObj * pGrant);
+  SSdbRow *mndGrantActionDecode(SSdbRaw * pRaw);
+  int32_t  mndGrantActionInsert(SSdb * pSdb, SGrantObj * pGrant);
+  int32_t  mndGrantActionDelete(SSdb * pSdb, SGrantObj * pGrant);
+  int32_t  mndGrantActionUpdate(SSdb * pSdb, SGrantObj * pOldGrant, SGrantObj * pNewGrant);
+
+  int32_t mndProcessUpdMachineReqImpl(void *pMachine, SRpcMsg *pReq);
+  int32_t mndProcessUpdStateReqImpl(void *pState, SRpcMsg *pReq);
+  int32_t mndProcessUpdActiveReqImpl(void *pActive, SRpcMsg *pReq);
+  int32_t mndRetrieveGrantImpl(SRpcMsg * pReq, SShowObj * pShow, SSDataBlock * pBlock, int32_t rows);
+
+#endif
 
 #ifdef __cplusplus
 }
