@@ -419,7 +419,7 @@ int32_t mJoinNonEqGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool app
 }
 
 
-int32_t mJoinNonEqCart(SMJoinMergeCtx* pCtx, SMJoinGrpRows* pGrp, bool probeGrp) {
+int32_t mJoinNonEqCart(SMJoinCommonCtx* pCtx, SMJoinGrpRows* pGrp, bool probeGrp) {
   pCtx->lastEqGrp = false;
   pCtx->lastProbeGrp = probeGrp;
 
@@ -596,7 +596,7 @@ int32_t mJoinProcessUnreachGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColum
   
   while (++pTb->blkRowIdx < pTb->blk->info.rows) {
     MJOIN_GET_TB_CUR_TS(pCol, *probeTs, pTb);
-    if (PROBE_TS_UNREACH(pCtx->ascTs, *probeTs, *buildTs)) {
+    if (PROBE_TS_LOWER(pCtx->ascTs, *probeTs, *buildTs)) {
       pCtx->probeNEqGrp.endIdx = pTb->blkRowIdx;
       continue;
     }
@@ -607,7 +607,7 @@ int32_t mJoinProcessUnreachGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColum
   return mJoinNonEqCart(pCtx, &pCtx->probeNEqGrp, true);  
 }
 
-int32_t mJoinProcessOverGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs) {
+int32_t mJoinProcessGreaterGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs) {
   pCtx->buildNEqGrp.blk = pTb->blk;
   pCtx->buildNEqGrp.beginIdx = pTb->blkRowIdx;
   pCtx->buildNEqGrp.readIdx = pCtx->buildNEqGrp.beginIdx;
@@ -615,7 +615,7 @@ int32_t mJoinProcessOverGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnIn
   
   while (++pTb->blkRowIdx < pTb->blk->info.rows) {
     MJOIN_GET_TB_CUR_TS(pCol, *buildTs, pTb);
-    if (PROBE_TS_OVER(pCtx->ascTs, *probeTs, *buildTs)) {
+    if (PROBE_TS_GREATER(pCtx->ascTs, *probeTs, *buildTs)) {
       pCtx->buildNEqGrp.endIdx = pTb->blkRowIdx;
       continue;
     }
@@ -765,6 +765,9 @@ static int32_t mJoinInitTableInfo(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysi
     pTable->noKeepEqGrpRows = (JOIN_STYPE_ANTI == pJoin->subType && NULL == pJoin->pFPreFilter);
     pTable->multiEqGrpRows = !((JOIN_STYPE_SEMI == pJoin->subType || JOIN_STYPE_ANTI == pJoin->subType) && NULL == pJoin->pFPreFilter);
     pTable->multiRowsGrp = !((JOIN_STYPE_SEMI == pJoin->subType || JOIN_STYPE_ANTI == pJoin->subType) && NULL == pJoin->pPreFilter);
+    if (JOIN_STYPE_ASOF == pJoin->subType) {
+      pTable->eqRowLimit = pJoinNode->pJLimit ? ((SLimitNode*)pJoinNode->pJLimit)->limit : 1;
+    }
   } else {
     pTable->multiEqGrpRows = true;
   }
@@ -808,8 +811,9 @@ static void mJoinSetBuildAndProbeTable(SMJoinOperatorInfo* pInfo, SSortMergeJoin
 }
 
 static int32_t mJoinInitCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode) {
-  if (JOIN_STYPE_ASOF == pJoin->subType || JOIN_STYPE_WIN == pJoin->subType) {
-    //return mJoinInitWindowCtx(pJoin, pJoinNode);
+  if ((JOIN_STYPE_ASOF == pJoin->subType && (ASOF_LOWER_ROW_INCLUDED(pJoinNode->asofOpType) || ASOF_GREATER_ROW_INCLUDED(pJoinNode->asofOpType))) 
+       || JOIN_STYPE_WIN == pJoin->subType) {
+    return mJoinInitWindowCtx(pJoin, pJoinNode);
   }
   
   return mJoinInitMergeCtx(pJoin, pJoinNode);
@@ -880,6 +884,7 @@ int32_t mJoinGetRowBitmapOffset(SMJoinTableCtx* pTable, int32_t rowNum, int32_t 
 void mJoinResetForBuildTable(SMJoinTableCtx* pTable) {
   pTable->grpTotalRows = 0;
   pTable->grpIdx = 0;
+  pTable->eqRowNum = 0;
   mJoinDestroyCreatedBlks(pTable->createdBlks);
   taosArrayClear(pTable->eqGrps);
   if (pTable->rowBitmapSize > 0) {
@@ -900,6 +905,7 @@ int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* whol
     mJoinResetForBuildTable(pTable);
   }
 
+  bool keepGrp = true;
   pGrp = taosArrayReserve(pTable->eqGrps, 1);
 
   pGrp->beginIdx = pTable->blkRowIdx++;
@@ -927,6 +933,14 @@ int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* whol
 
       if (!pTable->multiEqGrpRows) {
         pGrp->endIdx = pGrp->beginIdx;
+      } else if (0 == pTable->eqRowLimit) {
+        // DO NOTHING
+      } else if (pTable->eqRowLimit == pTable->eqRowNum) {
+        keepGrp = false;
+      } else {
+        int64_t rowNum = TMIN(pGrp->endIdx - pGrp->beginIdx + 1, pTable->eqRowLimit - pTable->eqRowNum);
+        pGrp->endIdx = pGrp->beginIdx + rowNum - 1;
+        pTable->eqRowNum += rowNum;
       }
       
       goto _return;
@@ -936,28 +950,47 @@ int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* whol
   if (wholeBlk && (pTable->multiEqGrpRows || restart)) {
     *wholeBlk = true;
     
-    if (pTable->noKeepEqGrpRows) {
+    if (pTable->noKeepEqGrpRows || !keepGrp) {
       goto _return;
     }
     
-    if (0 == pGrp->beginIdx && pTable->multiEqGrpRows) {
+    if (0 == pGrp->beginIdx && pTable->multiEqGrpRows && 0 == pTable->eqRowLimit) {
       pGrp->blk = createOneDataBlock(pTable->blk, true);
+      taosArrayPush(pTable->createdBlks, &pGrp->blk);
     } else {
       if (!pTable->multiEqGrpRows) {
         pGrp->endIdx = pGrp->beginIdx;
       }
 
-      pGrp->blk = blockDataExtractBlock(pTable->blk, pGrp->beginIdx, pGrp->endIdx - pGrp->beginIdx + 1);
-      pGrp->endIdx -= pGrp->beginIdx;
-      pGrp->beginIdx = 0;
-      pGrp->readIdx = 0;
+      int64_t rowNum = 0;
+      if (!pTable->multiEqGrpRows) {
+        rowNum = 1;
+        pGrp->endIdx = pGrp->beginIdx;
+      } else if (0 == pTable->eqRowLimit) {
+        rowNum = pGrp->endIdx - pGrp->beginIdx + 1;
+      } else if (pTable->eqRowLimit == pTable->eqRowNum) {
+        keepGrp = false;
+      } else {
+        rowNum = TMIN(pGrp->endIdx - pGrp->beginIdx + 1, pTable->eqRowLimit - pTable->eqRowNum);
+        pGrp->endIdx = pGrp->beginIdx + rowNum - 1;
+      }
+
+      if (keepGrp && rowNum > 0) {
+        pTable->eqRowNum += rowNum;
+
+        pGrp->blk = blockDataExtractBlock(pTable->blk, pGrp->beginIdx, rowNum);
+        pGrp->endIdx -= pGrp->beginIdx;
+        pGrp->beginIdx = 0;
+        pGrp->readIdx = 0;
+        taosArrayPush(pTable->createdBlks, &pGrp->blk);
+      }
     }
-    taosArrayPush(pTable->createdBlks, &pGrp->blk);
+    
   }
 
 _return:
 
-  if (pTable->noKeepEqGrpRows || (!pTable->multiEqGrpRows && !restart)) {
+  if (pTable->noKeepEqGrpRows || !keepGrp || (!pTable->multiEqGrpRows && !restart)) {
     taosArrayPop(pTable->eqGrps);
   } else {
     pTable->grpTotalRows += pGrp->endIdx - pGrp->beginIdx + 1;  

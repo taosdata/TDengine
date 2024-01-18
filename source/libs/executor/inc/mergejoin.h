@@ -117,6 +117,8 @@ typedef struct SMJoinTableCtx {
   int32_t        grpIdx;
   bool           noKeepEqGrpRows;
   bool           multiEqGrpRows;
+  int64_t        eqRowLimit;
+  int64_t        eqRowNum;
   SArray*        eqGrps;
   SArray*        createdBlks;
 
@@ -150,20 +152,37 @@ typedef struct SMJoinGrpRows {
   bool         readMatch;
 } SMJoinGrpRows;
 
+#define MJOIN_COMMON_CTX \
+  struct SMJoinOperatorInfo* pJoin; \
+  bool                       ascTs; \
+  bool                  grpRemains; \
+  SSDataBlock*              finBlk; \
+  bool                   lastEqGrp; \
+  bool                lastProbeGrp; \
+  int32_t             blkThreshold; \
+  int64_t                   jLimit
+
+typedef struct SMJoinCommonCtx {
+  MJOIN_COMMON_CTX;
+} SMJoinCommonCtx;
 
 typedef struct SMJoinMergeCtx {
+  // KEEP IT FIRST
   struct SMJoinOperatorInfo* pJoin;
-  bool                ascTs;
-  bool                hashCan;
-  bool                keepOrder;
-  bool                grpRemains;
-  bool                midRemains;
-  bool                nmatchRemains;
-  bool                lastEqGrp;
+  bool                       ascTs;
+  bool                  grpRemains;
+  SSDataBlock*              finBlk;
+  bool                   lastEqGrp;
   bool                lastProbeGrp;
   int32_t             blkThreshold;
+  int64_t                   jLimit;
+  // KEEP IT FIRST
+  
+  bool                hashCan;
+  bool                keepOrder;
+  bool                midRemains;
+  bool                nmatchRemains;
   SSDataBlock*        midBlk;
-  SSDataBlock*        finBlk;
   int64_t             lastEqTs;
   SMJoinGrpRows       probeNEqGrp;
   SMJoinGrpRows       buildNEqGrp;
@@ -172,31 +191,53 @@ typedef struct SMJoinMergeCtx {
   joinCartFp          mergeCartFp;
 } SMJoinMergeCtx;
 
+typedef enum {
+  E_CACHE_NONE = 0,
+  E_CACHE_OUTBLK,
+  E_CACHE_INBLK
+} SMJoinCacheMode;
+
+typedef struct SAsofJoinGrpRows {
+  SSDataBlock* blk;
+  bool         clonedBlk;
+  int32_t      blkRowIdx;
+  int32_t      readIdx;
+} SAsofJoinGrpRows;
+
+
 typedef struct SMJoinWinCache {
   int32_t                    pageLimit;
-  
-  int64_t                    rowsNum;
-  int32_t                    rowOffset;
-  int32_t                    outBlkIdx;
-  int32_t                    outRowOffset;
-
+  int32_t                    outRowIdx;
   int32_t                    colNum;
-  SSDataBlock*               blk;
+  int32_t                    rowNum;
+  int8_t                     grpIdx;
+  SArray*                    grps;
+  SSDataBlock*               outBlk;
 } SMJoinWinCache;
 
 typedef struct SMJoinWindowCtx {
+  // KEEP IT FIRST
   struct SMJoinOperatorInfo* pJoin;
   bool                       ascTs;
+  bool                  grpRemains;
+  SSDataBlock*              finBlk;
+  bool                   lastEqGrp;
+  bool                lastProbeGrp;
+  int32_t             blkThreshold;
+  int64_t                   jLimit;
+  // KEEP IT FIRST
   
   int32_t                    asofOpType;
   bool                       asofLowerRow;
   bool                       asofEqRow;
   bool                       asofGreaterRow;
   int64_t                    jLimit;
-  int32_t                    blkThreshold;
-  SSDataBlock*               finBlk;
 
-  bool                       grpRemains;
+  bool                       eqPostDone;
+  int64_t                    lastTs;
+  bool                       rowRemains;
+  SMJoinGrpRows              probeGrp;
+  SMJoinGrpRows              buildGrp;
   SMJoinWinCache             cache;
 } SMJoinWindowCtx;
 
@@ -252,8 +293,8 @@ typedef struct SMJoinOperatorInfo {
 
 #define SET_SAME_TS_GRP_HJOIN(_pair, _octx) ((_pair)->hashJoin = (_octx)->hashCan && REACH_HJOIN_THRESHOLD(_pair))
 
-#define PROBE_TS_UNREACH(_order, _pts, _bts) ((_order) && (_pts) < (_bts)) || (!(_order) && (_pts) > (_bts))
-#define PROBE_TS_OVER(_order, _pts, _bts) ((_order) && (_pts) > (_bts)) || (!(_order) && (_pts) < (_bts))
+#define PROBE_TS_LOWER(_order, _pts, _bts) ((_order) && (_pts) < (_bts)) || (!(_order) && (_pts) > (_bts))
+#define PROBE_TS_GREATER(_order, _pts, _bts) ((_order) && (_pts) > (_bts)) || (!(_order) && (_pts) < (_bts))
 
 #define GRP_REMAIN_ROWS(_grp) ((_grp)->endIdx - (_grp)->readIdx + 1)
 #define GRP_DONE(_grp) ((_grp)->readIdx > (_grp)->endIdx)
@@ -268,13 +309,44 @@ typedef struct SMJoinOperatorInfo {
 #define MJOIN_SET_ROW_BITMAP(_b, _base, _idx) colDataClearNull_f((_b + _base), _idx)
 
 #define ASOF_EQ_ROW_INCLUDED(_op) (OP_TYPE_GREATER_EQUAL == (_op) || OP_TYPE_LOWER_EQUAL == (_op) || OP_TYPE_EQUAL == (_op))
-#define ASOF_LOWER_ROW_INCLUDED(_op) (OP_TYPE_LOWER_EQUAL == (_op) || OP_TYPE_LOWER_THAN == (_op))
-#define ASOF_GREATER_ROW_INCLUDED(_op) (OP_TYPE_GREATER_EQUAL == (_op) || OP_TYPE_GREATER_THAN == (_op))
+#define ASOF_LOWER_ROW_INCLUDED(_op) (OP_TYPE_GREATER_EQUAL == (_op) || OP_TYPE_GREATER_THAN == (_op))
+#define ASOF_GREATER_ROW_INCLUDED(_op) (OP_TYPE_LOWER_EQUAL == (_op) || OP_TYPE_LOWER_THAN == (_op))
 
+#define MJOIN_PUSH_BLK_TO_CACHE(_cache, _blk)                                   \
+  do {                                                                          \
+    ASSERT(taosArrayGetSize(_cache)->grps <= 1);                                \
+    SMJoinGrpRows* pGrp = (SMJoinGrpRows*)taosArrayReserve(_cache)->grps, 1);   \
+    (_cache)->rowNum += (_blk)->info.rows;                                       \
+    pGrp->blk = (_blk);                                                         \
+    pGrp->beginIdx = 0;                                        \
+  } while (0)
+
+#define MJOIN_RESTORE_TB_BLK(_cache, _tb)                                         \
+  do {                                                                          \
+    SMJoinGrpRows* pGrp = taosArrayGet((_cache)->grps, 0);              \
+    if (NULL != pGrp) {         \
+      (_tb)->blk = pGrp->blk;    \
+      (_tb)->blkRowIdx = pGrp->beginIdx;                      \
+    } else {                                                                    \
+      (_tb)->blk = NULL;    \
+      (_tb)->blkRowIdx = 0;                    \
+    }                                                                           \
+  } while (0)
+
+#define MJOIN_POP_TB_BLK(_cache)                                           \
+  do {                                                                          \
+    SMJoinGrpRows* pGrp = taosArrayGet((_cache)->grps, 0);              \
+    if (NULL != pGrp) {         \
+      if (pGrp->blk == (_cache)->outBlk) {                                              \
+        blockDataCleanup(pGrp->blk);                                 \
+      }                                                               \
+      taosArrayPopFrontBatch((_cache)->grps, 1);                    \
+    }                                                               \
+  } while (0)
 
 #define MJOIN_GET_TB_COL_TS(_col, _ts, _tb)                                     \
   do {                                                                          \
-    if (NULL != (_tb)->blk && (_tb)->blkRowIdx < (_tb)->blk->info.rows) {                                                   \
+    if (NULL != (_tb)->blk && (_tb)->blkRowIdx < (_tb)->blk->info.rows) {       \
       (_col) = taosArrayGet((_tb)->blk->pDataBlock, (_tb)->primCol->srcSlot);   \
       (_ts) = *((int64_t*)(_col)->pData + (_tb)->blkRowIdx);                    \
     } else {                                                                    \
@@ -331,8 +403,8 @@ int32_t mJoinCopyMergeMidBlk(SMJoinMergeCtx* pCtx, SSDataBlock** ppMid, SSDataBl
 int32_t mJoinFilterAndMarkRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SMJoinTableCtx* build, int32_t startGrpIdx, int32_t startRowIdx);
 int32_t mJoinFilterAndMarkHashRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SMJoinTableCtx* build, int32_t startRowIdx);
 int32_t mJoinGetRowBitmapOffset(SMJoinTableCtx* pTable, int32_t rowNum, int32_t *rowBitmapOffset);
-int32_t mJoinProcessUnreachGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs);
-int32_t mJoinProcessOverGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs);
+int32_t mJoinProcessLowerGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs);
+int32_t mJoinProcessGreaterGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs);
 int32_t mJoinFilterAndKeepSingleRow(SSDataBlock* pBlock, SFilterInfo* pFilterInfo);
 int32_t mJoinFilterAndNoKeepRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo);
 
