@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndMnode.h"
+#include "audit.h"
 #include "mndCluster.h"
 #include "mndDnode.h"
 #include "mndPrivilege.h"
@@ -22,7 +23,6 @@
 #include "mndSync.h"
 #include "mndTrans.h"
 #include "tmisce.h"
-#include "audit.h"
 
 #define MNODE_VER_NUMBER   2
 #define MNODE_RESERVE_SIZE 64
@@ -168,7 +168,7 @@ static SSdbRow *mndMnodeActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pObj->id, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pObj->createdTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pObj->updateTime, _OVER)
-  if(sver >=2){
+  if (sver >= 2) {
     SDB_GET_INT32(pRaw, dataPos, &pObj->role, _OVER)
     SDB_GET_INT64(pRaw, dataPos, &pObj->lastIndex, _OVER)
   }
@@ -239,7 +239,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
     syncGetRetryEpSet(pMnode->syncMgmt.sync, pEpSet);
     return;
   }
-
+  pEpSet->inUse = -1;
   void *pIter = NULL;
   while (1) {
     SMnodeObj *pObj = NULL;
@@ -250,7 +250,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
       if (mndIsLeader(pMnode)) {
         pEpSet->inUse = pEpSet->numOfEps;
       } else {
-        pEpSet->inUse = (pEpSet->numOfEps + 1) % totalMnodes;
+        // pEpSet->inUse = (pEpSet->numOfEps + 1) % totalMnodes;
       }
     }
     if (pObj->pDnode != NULL) {
@@ -264,7 +264,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
   }
 
   if (pEpSet->inUse >= pEpSet->numOfEps) {
-    pEpSet->inUse = 0;
+    pEpSet->inUse = -1;
   }
 }
 
@@ -320,8 +320,8 @@ static int32_t mndBuildCreateMnodeRedoAction(STrans *pTrans, SDCreateMnodeReq *p
   return 0;
 }
 
-static int32_t mndBuildAlterMnodeTypeRedoAction(STrans *pTrans,
-                    SDAlterMnodeTypeReq *pAlterMnodeTypeReq, SEpSet *pAlterMnodeTypeEpSet) {
+static int32_t mndBuildAlterMnodeTypeRedoAction(STrans *pTrans, SDAlterMnodeTypeReq *pAlterMnodeTypeReq,
+                                                SEpSet *pAlterMnodeTypeEpSet) {
   int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, pAlterMnodeTypeReq);
   void   *pReq = taosMemoryMalloc(contLen);
   tSerializeSDCreateMnodeReq(pReq, contLen, pAlterMnodeTypeReq);
@@ -396,13 +396,12 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
     pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pMObj);
     if (pIter == NULL) break;
 
-    if(pMObj->role == TAOS_SYNC_ROLE_VOTER){
+    if (pMObj->role == TAOS_SYNC_ROLE_VOTER) {
       createReq.replicas[numOfReplicas].id = pMObj->id;
       createReq.replicas[numOfReplicas].port = pMObj->pDnode->port;
       memcpy(createReq.replicas[numOfReplicas].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
       numOfReplicas++;
-    }
-    else{
+    } else {
       createReq.learnerReplicas[numOfLearnerReplicas].id = pMObj->id;
       createReq.learnerReplicas[numOfLearnerReplicas].port = pMObj->pDnode->port;
       memcpy(createReq.learnerReplicas[numOfLearnerReplicas].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
@@ -441,18 +440,17 @@ int32_t mndSetRestoreCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
     pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pMObj);
     if (pIter == NULL) break;
 
-    if(pMObj->id == pDnode->id) {
+    if (pMObj->id == pDnode->id) {
       sdbRelease(pSdb, pMObj);
       continue;
     }
 
-    if(pMObj->role == TAOS_SYNC_ROLE_VOTER){
+    if (pMObj->role == TAOS_SYNC_ROLE_VOTER) {
       createReq.replicas[createReq.replica].id = pMObj->id;
       createReq.replicas[createReq.replica].port = pMObj->pDnode->port;
       memcpy(createReq.replicas[createReq.replica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
       createReq.replica++;
-    }
-    else{
+    } else {
       createReq.learnerReplicas[createReq.learnerReplica].id = pMObj->id;
       createReq.learnerReplicas[createReq.learnerReplica].port = pMObj->pDnode->port;
       memcpy(createReq.learnerReplicas[createReq.learnerReplica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
@@ -480,23 +478,22 @@ int32_t mndSetRestoreCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
 }
 
 static int32_t mndSetAlterMnodeTypeRedoActions(SMnode *pMnode, STrans *pTrans, SDnodeObj *pDnode, SMnodeObj *pObj) {
-  SSdb            *pSdb = pMnode->pSdb;
-  void            *pIter = NULL;
-  SDAlterMnodeTypeReq  alterReq = {0};
-  SEpSet           createEpset = {0};
+  SSdb               *pSdb = pMnode->pSdb;
+  void               *pIter = NULL;
+  SDAlterMnodeTypeReq alterReq = {0};
+  SEpSet              createEpset = {0};
 
   while (1) {
     SMnodeObj *pMObj = NULL;
     pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pMObj);
     if (pIter == NULL) break;
 
-    if(pMObj->role == TAOS_SYNC_ROLE_VOTER){
+    if (pMObj->role == TAOS_SYNC_ROLE_VOTER) {
       alterReq.replicas[alterReq.replica].id = pMObj->id;
       alterReq.replicas[alterReq.replica].port = pMObj->pDnode->port;
       memcpy(alterReq.replicas[alterReq.replica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
       alterReq.replica++;
-    }
-    else{
+    } else {
       alterReq.learnerReplicas[alterReq.learnerReplica].id = pMObj->id;
       alterReq.learnerReplicas[alterReq.learnerReplica].port = pMObj->pDnode->port;
       memcpy(alterReq.learnerReplicas[alterReq.learnerReplica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
@@ -524,28 +521,27 @@ static int32_t mndSetAlterMnodeTypeRedoActions(SMnode *pMnode, STrans *pTrans, S
 }
 
 int32_t mndSetRestoreAlterMnodeTypeRedoActions(SMnode *pMnode, STrans *pTrans, SDnodeObj *pDnode, SMnodeObj *pObj) {
-  SSdb            *pSdb = pMnode->pSdb;
-  void            *pIter = NULL;
-  SDAlterMnodeTypeReq  alterReq = {0};
-  SEpSet           createEpset = {0};
+  SSdb               *pSdb = pMnode->pSdb;
+  void               *pIter = NULL;
+  SDAlterMnodeTypeReq alterReq = {0};
+  SEpSet              createEpset = {0};
 
   while (1) {
     SMnodeObj *pMObj = NULL;
     pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pMObj);
     if (pIter == NULL) break;
 
-    if(pMObj->id == pDnode->id) {
+    if (pMObj->id == pDnode->id) {
       sdbRelease(pSdb, pMObj);
       continue;
     }
 
-    if(pMObj->role == TAOS_SYNC_ROLE_VOTER){
+    if (pMObj->role == TAOS_SYNC_ROLE_VOTER) {
       alterReq.replicas[alterReq.replica].id = pMObj->id;
       alterReq.replicas[alterReq.replica].port = pMObj->pDnode->port;
       memcpy(alterReq.replicas[alterReq.replica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
       alterReq.replica++;
-    }
-    else{
+    } else {
       alterReq.learnerReplicas[alterReq.learnerReplica].id = pMObj->id;
       alterReq.learnerReplicas[alterReq.learnerReplica].port = pMObj->pDnode->port;
       memcpy(alterReq.learnerReplicas[alterReq.learnerReplica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
@@ -959,8 +955,11 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
   void      *pIter = NULL;
   int32_t    updatingMnodes = 0;
   int32_t    readyMnodes = 0;
-  SSyncCfg   cfg = {.myIndex = -1, .lastIndex = 0,};
-  SyncIndex  maxIndex = 0;
+  SSyncCfg   cfg = {
+        .myIndex = -1,
+        .lastIndex = 0,
+  };
+  SyncIndex maxIndex = 0;
 
   while (1) {
     pIter = sdbFetchAll(pSdb, SDB_MNODE, pIter, (void **)&pObj, &objStatus, false);
@@ -986,17 +985,17 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
       if (pObj->pDnode->id == pMnode->selfDnodeId) {
         cfg.myIndex = cfg.totalReplicaNum;
       }
-      if(pNode->nodeRole == TAOS_SYNC_ROLE_VOTER){
+      if (pNode->nodeRole == TAOS_SYNC_ROLE_VOTER) {
         cfg.replicaNum++;
       }
       cfg.totalReplicaNum++;
-      if(pObj->lastIndex > cfg.lastIndex){
+      if (pObj->lastIndex > cfg.lastIndex) {
         cfg.lastIndex = pObj->lastIndex;
       }
     }
 
     if (objStatus == SDB_STATUS_DROPPING) {
-      if(pObj->lastIndex > cfg.lastIndex){
+      if (pObj->lastIndex > cfg.lastIndex) {
         cfg.lastIndex = pObj->lastIndex;
       }
     }
@@ -1006,10 +1005,10 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
     sdbReleaseLock(pSdb, pObj, false);
   }
 
-  //if (readyMnodes <= 0 || updatingMnodes <= 0) {
-  //  mInfo("vgId:1, mnode sync not reconfig since readyMnodes:%d updatingMnodes:%d", readyMnodes, updatingMnodes);
-  //  return;
-  //}
+  // if (readyMnodes <= 0 || updatingMnodes <= 0) {
+  //   mInfo("vgId:1, mnode sync not reconfig since readyMnodes:%d updatingMnodes:%d", readyMnodes, updatingMnodes);
+  //   return;
+  // }
 
   if (cfg.myIndex == -1) {
 #if 1
@@ -1023,8 +1022,8 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
   }
 
   if (pMnode->syncMgmt.sync > 0) {
-    mInfo("vgId:1, mnode sync reconfig, totalReplica:%d replica:%d myIndex:%d",
-                                        cfg.totalReplicaNum, cfg.replicaNum, cfg.myIndex);
+    mInfo("vgId:1, mnode sync reconfig, totalReplica:%d replica:%d myIndex:%d", cfg.totalReplicaNum, cfg.replicaNum,
+          cfg.myIndex);
 
     for (int32_t i = 0; i < cfg.totalReplicaNum; ++i) {
       SNodeInfo *pNode = &cfg.nodeInfo[i];
