@@ -22,7 +22,10 @@
 
 #define MND_GRANT_VER_NUMBER 1
 
-void tFreeGrantObj(SGrantObj *pGrant) { taosArrayDestroy(pGrant->pMachines); }
+void tFreeGrantObj(SGrantObj *pGrant) { 
+  taosArrayDestroy(pGrant->pMachines);
+  taosMemoryFree(pGrant->active);
+}
 
 int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
 #if 0
@@ -176,156 +179,143 @@ void    mndCancelGetNextGrantLog(SMnode *pMnode, void *pIter) {
 }
 
 int32_t tSerializeSGrantObj(void *buf, int32_t bufLen, const SGrantObj *pObj) {
-
-#if 0
+  int32_t  code = TSDB_CODE_OUT_OF_MEMORY;
+  int32_t  tlen = 0;
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
 
-  if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeCStr(&encoder, pObj->fullname) < 0) return -1;
-  if (tEncodeCStr(&encoder, pObj->name) < 0) return -1;
-  if (tEncodeCStr(&encoder, pObj->dbFName) < 0) return -1;
-  if (tEncodeCStr(&encoder, pObj->user) < 0) return -1;
-  if (tEncodeCStr(&encoder, pObj->querySql) < 0) return -1;
-  if (NULL != pObj->parameters) {
-    if (tEncodeI8(&encoder, 1) < 0) return -1;
-    if (tEncodeCStr(&encoder, pObj->parameters) < 0) return -1;
-  } else {
-    if (tEncodeI8(&encoder, 0) < 0) return -1;
+  if (tStartEncode(&encoder) < 0) goto _exit;
+
+  if (tEncodeI32v(&encoder, pObj->id) < 0) goto _exit;
+  if (tEncodeI64v(&encoder, pObj->createTime) < 0) goto _exit;
+  if (tEncodeI64v(&encoder, pObj->updateTime) < 0) goto _exit;
+  for (int32_t i = 0; i < GRANT_STATE_NUM; ++i) {
+    if (tEncodeI64v(&encoder, pObj->state[i].u0) < 0) goto _exit;
   }
-  if (NULL != pObj->defaultValues) {
-    if (tEncodeI8(&encoder, 1) < 0) return -1;
-    //TODO
-  } else {
-    if (tEncodeI8(&encoder, 0) < 0) return -1;
+  for (int32_t i = 0; i < GRANT_ACTIVE_NUM; ++i) {
+    if (tEncodeI64v(&encoder, pObj->active[i].u0) < 0) goto _exit;
+    if (tEncodeCStr(&encoder, pObj->active[i].active) < 0) goto _exit;
   }
-  if (NULL != pObj->targetTable) {
-    if (tEncodeI8(&encoder, 1) < 0) return -1;
-    if (tEncodeCStr(&encoder, pObj->targetTable) < 0) return -1;
-  } else {
-    if (tEncodeI8(&encoder, 0) < 0) return -1;
+  int32_t activeLen = 0;
+  if (pObj->pActive) {
+    activeLen = strlen(pObj->pActive);
   }
-  if (tEncodeU64(&encoder, pObj->viewId) < 0) return -1;
-  if (tEncodeU64(&encoder, pObj->dbId) < 0) return -1;
-  if (tEncodeI64(&encoder, pObj->createdTime) < 0) return -1;
-  if (tEncodeI32(&encoder, pObj->version) < 0) return -1;
-  if (tEncodeI8(&encoder, pObj->precision) < 0) return -1;
-  if (tEncodeI8(&encoder, pObj->type) < 0) return -1;
-  if (tEncodeI32(&encoder, pObj->numOfCols) < 0) return -1;
-  for (int32_t i = 0; i < pObj->numOfCols; ++i) {
-    SSchema *pSchema = &pObj->pSchema[i];
-    if (tEncodeSSchema(&encoder, pSchema) < 0) return -1;
+  if (tEncodeI32v(&encoder, activeLen) < 0) goto _exit;
+  if (activeLen > 0) {
+    if (tEncodeBinary(&encoder, pObj->pActive, activeLen) < 0) goto _exit;
+  }
+
+  int32_t nMachines = taosArrayGetSize(pObj->pMachines);
+  if (tEncodeI32v(&encoder, activeLen) < 0) goto _exit;
+  for (int32_t i = 0; i < nMachines; ++i) {
+    SGrantMachine *pMachine = TARRAY_GET_ELEM(pObj->pMachines, i);
+    if (tEncodeI64v(&encoder, pMachine->u0) < 0) goto _exit;
+    if (tEncodeBinary(&encoder, pMachine->machine, TSDB_MACHINE_ID_LEN) < 0) goto _exit;
   }
 
   tEndEncode(&encoder);
 
-  int32_t tlen = encoder.pos;
+  tlen = encoder.pos;
+  code = 0;
+_exit:
   tEncoderClear(&encoder);
-
-  return tlen;
-#endif
   printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
-  return 0;
+  return code == 0 ? tlen : code;
 }
 
 int32_t tDeserializeSGrantObj(void *buf, int32_t bufLen, SGrantObj *pObj) {
-#if 0
-  int8_t ex = 0;
+  int32_t  code = TSDB_CODE_OUT_OF_MEMORY;
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pObj->fullname) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pObj->name) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pObj->dbFName) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pObj->user) < 0) return -1;
-  if (tDecodeCStrAlloc(&decoder, &pObj->querySql) < 0) return -1;
-  if (tDecodeI8(&decoder, &ex) < 0) return -1;
-  if (0 != ex) {
-    if (tDecodeCStrAlloc(&decoder, &pObj->parameters) < 0) return -1;
-  } else {
-    pObj->parameters = NULL;
-  }
-  if (tDecodeI8(&decoder, &ex) < 0) return -1;
-  if (0 != ex) {
-    //TODO
-  } else {
-    pObj->defaultValues = NULL;
-  }
-  if (tDecodeI8(&decoder, &ex) < 0) return -1;
-  if (0 != ex) {
-    if (tDecodeCStrAlloc(&decoder, &pObj->targetTable) < 0) return -1;
-  } else {
-    pObj->targetTable = NULL;
-  }
-  if (tDecodeU64(&decoder, &pObj->viewId) < 0) return -1;
-  if (tDecodeU64(&decoder, &pObj->dbId) < 0) return -1;
-  if (tDecodeI64(&decoder, &pObj->createdTime) < 0) return -1;
-  if (tDecodeI32(&decoder, &pObj->version) < 0) return -1;
-  if (tDecodeI8(&decoder, &pObj->precision) < 0) return -1;
-  if (tDecodeI8(&decoder, &pObj->type) < 0) return -1;
-  if (tDecodeI32(&decoder, &pObj->numOfCols) < 0) return -1;
+  if (tStartDecode(&decoder) < 0) goto _exit;
 
-  if (pObj->numOfCols > 0) {
-    pObj->pSchema = taosMemoryCalloc(pObj->numOfCols, sizeof(SSchema));
-    if (pObj->pSchema == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
+  if (tDecodeI32v(&decoder, &pObj->id) < 0) goto _exit;
+  if (tDecodeI64v(&decoder, &pObj->createTime) < 0) goto _exit;
+  if (tDecodeI64v(&decoder, &pObj->updateTime) < 0) goto _exit;
+  for (int32_t i = 0; i < GRANT_STATE_NUM; ++i) {
+    SGrantState *state = &pObj->state[i];
+    if (tDecodeI64v(&decoder, &state->u0) < 0) goto _exit;
+  }
+  for (int32_t i = 0; i < GRANT_ACTIVE_NUM; ++i) {
+    SGrantActive *active = &pObj->active[i];
+    if (tDecodeI64v(&decoder, &active->u0) < 0) goto _exit;
+    char *pGrantActive = &active->active[0];
+    if (tDecodeBinary(&decoder, (uint8_t **)&pGrantActive, NULL) < 0) return -1;
+  }
+  int32_t activeLen = 0;
+  if (tDecodeI32v(&decoder, &activeLen) < 0) goto _exit;
+  if (activeLen > 0) {
+    if (!(pObj->pActive = taosMemoryMalloc(activeLen + 1))) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
     }
-
-    for (int32_t i = 0; i < pObj->numOfCols; ++i) {
-      SSchema* pSchema = pObj->pSchema + i;
-      if (tDecodeSSchema(&decoder, pSchema) < 0) return -1;
+    if (tDecodeCStrTo(&decoder, pObj->pActive) < 0) return -1;
+  }
+  int32_t nMachines = 0;
+  if (tDecodeI32v(&decoder, &nMachines) < 0) goto _exit;
+  if (nMachines > 0) {
+    if (!(pObj->pMachines = taosArrayInit(nMachines, sizeof(SGrantMachine)))) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
     }
+    if (!taosArrayPush(pObj->pMachines, &(SGrantMachine){0})) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+    SGrantMachine *pLast = taosArrayGetLast(pObj->pMachines);
+    if (tDecodeI64v(&decoder, &pLast->u0) < 0) goto _exit;
+    char *pGrantMachine = &pLast->machine[0];
+    if (tDecodeBinary(&decoder, (uint8_t **)&pGrantMachine, NULL) < 0) goto _exit;
   }
 
-  tEndDecode(&decoder);
-
-  tDecoderClear(&decoder);
-#endif
+  code = 0;
+_exit:
   printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
-  return 0;
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  if (code != 0) {
+    tFreeGrantObj(pObj);
+    mError("grant, %s failed since %s, row:%p", __func__, tstrerror(code), pObj);
+  }
+  return code;
 }
 
-
-
 SSdbRaw *mndGrantActionEncode(SGrantObj *pGrant) {
-#if 0
   terrno = TSDB_CODE_SUCCESS;
   void *buf = NULL;
   SSdbRaw *pRaw = NULL;
   int32_t tlen = tSerializeSGrantObj(NULL, 0, pGrant);
   if (tlen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto VIEW_ENCODE_OVER;
+    goto _exit;
   }
   
   int32_t  size = sizeof(int32_t) + tlen;
-  pRaw = sdbAllocRaw(SDB_VIEW, MND_GRANT_VER_NUMBER, size);
+  pRaw = sdbAllocRaw(SDB_GRANT, MND_GRANT_VER_NUMBER, size);
   if (pRaw == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto VIEW_ENCODE_OVER;
+    goto _exit;
   }
 
   buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto VIEW_ENCODE_OVER;
+    goto _exit;
   }
 
-  tlen = tSerializeSGrantObj(buf, tlen, pView);
+  tlen = tSerializeSGrantObj(buf, tlen, pGrant);
   if (tlen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto VIEW_ENCODE_OVER;
+    goto _exit;
   }
 
   int32_t dataPos = 0;
-  SDB_SET_INT32(pRaw, dataPos, tlen, VIEW_ENCODE_OVER);
-  SDB_SET_BINARY(pRaw, dataPos, buf, tlen, VIEW_ENCODE_OVER);
-  SDB_SET_DATALEN(pRaw, dataPos, VIEW_ENCODE_OVER);
+  SDB_SET_INT32(pRaw, dataPos, tlen, _exit);
+  SDB_SET_BINARY(pRaw, dataPos, buf, tlen, _exit);
+  SDB_SET_DATALEN(pRaw, dataPos, _exit);
 
-
-VIEW_ENCODE_OVER:
+_exit:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("grant, failed to encode to raw:%p since %s", pRaw, terrstr());
@@ -334,14 +324,11 @@ VIEW_ENCODE_OVER:
   }
 
   mTrace("grant, encode to raw:%p, row:%p", pRaw, pGrant);
-  return pRaw;
-#endif
   printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
-  return NULL;
+  return pRaw;
 }
 
 SSdbRow *mndGrantActionDecode(SSdbRaw *pRaw) {
-#if 0
   SSdbRow    *pRow = NULL;
   SGrantObj   *pGrant = NULL;
   void       *buf = NULL;
@@ -349,26 +336,24 @@ SSdbRow *mndGrantActionDecode(SSdbRaw *pRaw) {
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
-    goto VIEW_DECODE_OVER;
+    goto _exit;
   }
 
   if (sver != MND_GRANT_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    mError("grant read invalid ver, data ver: %d, curr ver: %d", sver, MND_GARNT_VER_NUMBER);
+    mError("grant read invalid ver, data ver: %d, curr ver: %d", sver, MND_GRANT_VER_NUMBER);
     goto _exit;
   }
 
-  pRow = sdbAllocRow(sizeof(SGrantObj));
-  if (pRow == NULL) {
+  if (!(pRow = sdbAllocRow(sizeof(SGrantObj)))) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
 
-  pView = sdbGetRowObj(pRow);
-  if (pView == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
-  }
+  if (!(pGrant = sdbGetRowObj(pRow))) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  goto _exit;
+}
 
   int32_t tlen;
   int32_t dataPos = 0;
@@ -394,12 +379,9 @@ _exit:
     taosMemoryFreeClear(pRow);
     return NULL;
   }
-
+  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
   mTrace("view, decode from raw:%p, row:%p", pRaw, pGrant);
   return pRow;
-#endif
-  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
-  return NULL;
 }
 
 int32_t mndGrantActionInsert(SSdb *pSdb, SGrantObj *pGrant) {
@@ -435,11 +417,11 @@ int32_t mndGrantActionUpdate(SSdb *pSdb, SGrantObj *pOldGrant, SGrantObj *pNewGr
 
 SGrantObj *mndAcquireGrant(SMnode *pMnode, int32_t id) {
   SSdb       *pSdb = pMnode->pSdb;
-  SGrantObj   *pView = sdbAcquire(pSdb, SDB_GRANT, &id);
-  if (pView == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
+  SGrantObj   *pObj = sdbAcquire(pSdb, SDB_GRANT, &id);
+  if (pObj == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
     terrno = TSDB_CODE_SUCCESS;
   }
-  return pView;
+  return pObj;
 }
 
 void mndReleaseGrant(SMnode *pMnode, SGrantObj *pGrant) {
