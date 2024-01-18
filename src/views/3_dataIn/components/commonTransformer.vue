@@ -8,8 +8,7 @@
         <el-tabs v-model="activeName">
           <el-tab-pane
             :disabled="
-              $store.state.app.currentDBType !== 'avevaHistorian' ||
-              $store.state.app.currentDBType !== 'csv'
+              $store.state.app.currentDBType == 'avevaHistorian'
             "
             :label="$t('datasource.transformer.msgbodytypes.type1')"
             name="first"
@@ -66,7 +65,7 @@
           >
             <div id="jsoneditor"></div>
             <el-input
-              :disabled="$store.state.app.currentDBType == 'avevaHistorian'"
+              :disabled="$store.state.app.currentDBType == 'avevaHistorian'||$store.state.app.currentDBType == 'csv'"
               class="msgbody"
               v-model="msgForm.msgbody"
               size="small"
@@ -81,7 +80,7 @@
           <span>{{ $t("datasource.transformer.parse") }}</span>
         </div>
         <div
-          v-if="$store.state.app.currentDBType !== 'avevaHistorian'"
+          v-if="$store.state.app.currentDBType !== 'avevaHistorian'&&$store.state.app.currentDBType !== 'csv'"
           class="transdescription"
           v-html="$t('datasource.transformer.extractdesc')"
         ></div>
@@ -603,6 +602,8 @@ export default {
   mounted() {
     if (this.$store.state.app.currentDBType == "avevaHistorian") {
       this.activeName = "second";
+    }else{
+      this.activeName = "first";
     }
     if (this.parserColumns) {
       this.initColumnLists(this.parserColumns);
