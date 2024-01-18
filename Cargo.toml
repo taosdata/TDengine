@@ -1,5 +1,5 @@
 [workspace]
-members = ["taosx-ipc", "taosx-core", "taosx-agent"]
+members = ["taosx-ipc", "taosx-core", "taosx-agent", "taosx-metrics"]
 
 [workspace.dependencies]
 chrono = { version = "0.4.26" }
