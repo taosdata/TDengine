@@ -663,9 +663,12 @@ export default {
     failTip:
       "Your data source is not reachable, please check your configuration, make sure everything is correctly input and your network is fine.",
     errorMessage: "Error message: ",
-    metrics: "Current Metrics",
-    metricName: "Metrics Name",
-    metricValue: "Metrics Value",
+    metrics: "Metrics",
+    currentMetrics: 'Current',
+    totalMetrics: 'Total',
+    metricsName: "Metrics Name",
+    metricsDesc: 'Description',
+    metricsValue: "Metrics Value",
     check: "Check Connection",
     resume: "Scheduling strategy",
     resumeTip:

@@ -272,9 +272,12 @@ export default {
     failTip:
       "数据源不可用，请检查您的配置，确保所有内容都正确输入，并且您的网络正常。",
     errorMessage: "错误原因：",
-    metrics: "当前指标",
-    metricName: "指标名称",
-    metricValue: "指标值",
+    metrics: "指标",
+    currentMetrics: '当前指标',
+    totalMetrics: '累计指标',
+    metricsName: "指标名称",
+    metricsDesc: '描述',
+    metricsValue: "指标值",
     check: "检查连通性",
     resume: "调度策略",
     resumeTip:
