@@ -770,31 +770,33 @@ typedef struct {
 
 // SGrantObj
 typedef enum {
-  GRANT_STATE_UNGRANTED = 0,
-  GRANT_STATE_GRANTED = 1,
-  GRANT_STATE_EXPIRED = 2,
-  GRANT_STATE_REVOKED = 3,
+  GRANT_STATE_UNKNOWN = 0,
+  GRANT_STATE_UNGRANTED = 1,
+  GRANT_STATE_GRANTED = 2,
+  GRANT_STATE_EXPIRED = 3,
+  GRANT_STATE_REVOKED = 4,
 } EGrantState;
 
 typedef enum {
-  GRANT_STATE_REASON_ALTER = 0,     // alter activeCode 'revoked' or 'xxx'
-  GRANT_STATE_REASON_MISMATCH = 1,  // dnode machine mismatch
-  GRANT_STATE_REASON_EXPIRE = 2,    // expire
+  GRANT_STATE_REASON_UNKNOWN = 0,
+  GRANT_STATE_REASON_ALTER = 1,     // alter activeCode 'revoked' or 'xxx'
+  GRANT_STATE_REASON_MISMATCH = 2,  // dnode machine mismatch
+  GRANT_STATE_REASON_EXPIRE = 3,    // expire
 } EGrantStateReason;
 
 #define GRANT_STATE_NUM  30
 #define GRANT_ACTIVE_NUM 10
-#define GRANT_ACTIVE_LEN 30
+#define GRANT_ACTIVE_HEAD_LEN 30
 
 typedef struct {
   union {
     int64_t u0;
     struct {
-      int64_t ts : 36;
-      int64_t reserve : 4;
-      int64_t lastState : 8;
-      int64_t state : 8;
+      int64_t ts : 40;
+      int64_t lastState : 4;
+      int64_t state : 4;
       int64_t reason : 8;
+      int64_t reserve : 8;
     };
   };
 } SGrantState;
@@ -803,24 +805,23 @@ typedef struct {
   union {
     int64_t u0;
     struct {
-      int64_t ts : 36;
-      int64_t reserve : 28;
+      int64_t ts : 40;
+      int64_t reserve : 24;
     };
   };
-  char active[GRANT_ACTIVE_LEN + 1];
+  char active[GRANT_ACTIVE_HEAD_LEN + 1];
 } SGrantActive;
 
 typedef struct {
   union {
     int64_t u0;
     struct {
-      int64_t ts : 36;
-      int64_t reserve : 4;
+      int64_t ts : 40;
       int64_t id : 24;
     };
   };
-  uint16_t port;
-  char     fqdn[TSDB_FQDN_LEN];
+  // uint16_t port;
+  // char     fqdn[TSDB_FQDN_LEN];
   char     machine[TSDB_MACHINE_ID_LEN + 1];
 } SGrantMachine;
 
