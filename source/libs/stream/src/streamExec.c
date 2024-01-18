@@ -713,7 +713,13 @@ bool streamTaskReadyToRun(const SStreamTask* pTask, char** pStatus) {
     *pStatus = pState->name;
   }
 
-  return (st == TASK_STATUS__READY || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__CK);
+  // pause & halt will still run for sink tasks.
+  if (streamTaskIsSinkTask(pTask)) {
+    return (st == TASK_STATUS__READY || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__CK ||
+            st == TASK_STATUS__PAUSE || st == TASK_STATUS__HALT);
+  } else {
+    return (st == TASK_STATUS__READY || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__CK);
+  }
 }
 
 static void doStreamExecTaskHelper(void* param, void* tmrId) {

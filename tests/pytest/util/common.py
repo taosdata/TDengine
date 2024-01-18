@@ -1845,6 +1845,23 @@ class TDCom:
                 if i == 1:
                     self.record_history_ts = ts_value
 
+    def get_subtable(self, tbname_pre):
+        tdSql.query(f'show tables')
+        tbname_list = list(map(lambda x:x[0], tdSql.queryResult))
+        for tbname in tbname_list:
+            if tbname_pre in tbname:
+                return tbname
+
+    def get_subtable_wait(self, tbname_pre):
+        tbname = self.get_subtable(tbname_pre)
+        latency = 0
+        while tbname is None:
+            tbname = self.get_subtable(tbname_pre)
+            if latency < self.stream_timeout:
+                latency += 1
+                time.sleep(1)
+        return tbname
+
 def is_json(msg):
     if isinstance(msg, str):
         try:
