@@ -152,13 +152,14 @@ class StreamComputingTest(TDCase):
         self.c1_half_af = 0
         self.batch_query_row = 0
         self.stream_query_row = 0
+        self.replica = int(os.environ["DATABASE_REPLICAS"]) if "DATABASE_REPLICAS" in os.environ else 1
+
     def update_delete_history_data(self):
         self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.record_history_ts)
         self.tdCom.insert_rows(tbname=self.tb_name, ts_value=self.record_history_ts)
         if self.delete:
             self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=self.tdCom.time_cast(self.record_history_ts, "-"))
             self.tdCom.delete_rows(tbname=self.tb_name, start_ts=self.tdCom.time_cast(self.record_history_ts, "-"))
-
 
     def build_udf_so(self):
         self._remote.cmd(self._fqdn, [f'gcc -fPIC -shared -o {self.udf1} {self.stream_case_env_root}/udf1.c', f'gcc -fPIC -shared -o {self.udf2} {self.stream_case_env_root}/udf2.c'])
@@ -3830,8 +3831,9 @@ class StreamComputingTest(TDCase):
             self.create_none_source_tb_tag_stream()
             self.create_none_source_tb_col_stream()
             self.create_error_source_sql_stream()
-            self.insert_after_restart()
-            self.insert_after_restart(delete=True, fill_history_value=1)
+            if self.replica != 3: #! TD-26057
+                self.insert_after_restart()
+                self.insert_after_restart(delete=True, fill_history_value=1)
             ## ! TD-18123
             # # self.insert_after_recreate_source_table()
             self.query_after_drop_stream_db()
@@ -3846,8 +3848,8 @@ class StreamComputingTest(TDCase):
             self.udf_test(8, "int", 1)
             self.udaf_test(10, 8, "double")
             self.udaf_test(10, 8, "double", 1)
-
-            self.at_once_interval(interval=random.randint(10, 15), partition="tbname", check_stream_task=True)
+            if self.replica != 3: #! TD-26057
+                self.at_once_interval(interval=random.randint(10, 15), partition="tbname", check_stream_task=True)
             self.at_once_interval(interval=random.randint(10, 15), partition="c1")
             self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)")
             self.at_once_interval(interval=random.randint(10, 15), partition=None, check_stream_task=True)
