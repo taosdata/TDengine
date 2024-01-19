@@ -1334,24 +1334,18 @@ int hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId, in
 }
 
 void hbDeregisterConn(STscObj *pTscObj, SClientHbKey connKey) {
-  SClientHbReq *pReq = NULL;
   taosThreadMutexLock(&clientHbMgr.lock);
   SAppHbMgr *pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, pTscObj->appHbMgrIdx);
   if (pAppHbMgr) {
-    pReq = taosHashAcquire(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
+    SClientHbReq *pReq = taosHashAcquire(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
     if (pReq) {
       tFreeClientHbReq(pReq);
       taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
       taosHashRelease(pAppHbMgr->activeInfo, pReq);
+      atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);
     }
   }
   taosThreadMutexUnlock(&clientHbMgr.lock);
-
-  if (NULL == pReq) {
-    return;
-  }
-
-  atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);
 }
 
 // set heart beat thread quit mode , if quicByKill 1 then kill thread else quit from inner
