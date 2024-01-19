@@ -247,13 +247,13 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
     if (NULL == pTableCxt->pData) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     } else {
-      pTableCxt->pData->flags = NULL != *pCreateTbReq ? SUBMIT_REQ_AUTO_CREATE_TABLE : 0;
+      pTableCxt->pData->flags = (pCreateTbReq != NULL && NULL != *pCreateTbReq) ? SUBMIT_REQ_AUTO_CREATE_TABLE : 0;
       pTableCxt->pData->flags |= colMode ? SUBMIT_REQ_COLUMN_DATA_FORMAT : 0;
       pTableCxt->pData->suid = pTableMeta->suid;
       pTableCxt->pData->uid = pTableMeta->uid;
       pTableCxt->pData->sver = pTableMeta->sversion;
-      pTableCxt->pData->pCreateTbReq = *pCreateTbReq;
-      *pCreateTbReq = NULL;
+      pTableCxt->pData->pCreateTbReq = pCreateTbReq != NULL ? *pCreateTbReq : NULL;
+      if(pCreateTbReq != NULL) *pCreateTbReq = NULL;
       if (pTableCxt->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
         pTableCxt->pData->aCol = taosArrayInit(128, sizeof(SColData));
         if (NULL == pTableCxt->pData->aCol) {
