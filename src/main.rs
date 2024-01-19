@@ -457,13 +457,13 @@ async fn init_tracing_layers(
             .tracing()
             .with_exporter(opentelemetry_otlp::new_exporter().tonic())
             .with_trace_config(
-                opentelemetry::sdk::trace::config()
-                    .with_sampler(opentelemetry::sdk::trace::Sampler::AlwaysOn)
-                    .with_id_generator(opentelemetry::sdk::trace::RandomIdGenerator::default())
+                opentelemetry_sdk::trace::config()
+                    .with_sampler(opentelemetry_sdk::trace::Sampler::AlwaysOn)
+                    .with_id_generator(opentelemetry_sdk::trace::RandomIdGenerator::default())
                     .with_max_events_per_span(64)
                     .with_max_attributes_per_span(16)
                     .with_max_events_per_span(16)
-                    .with_resource(opentelemetry::sdk::Resource::new(vec![
+                    .with_resource(opentelemetry_sdk::Resource::new(vec![
                         opentelemetry::KeyValue::new("service.name", build::CUS_CLI_NAME),
                     ])),
             )
