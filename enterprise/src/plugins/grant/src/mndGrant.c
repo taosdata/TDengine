@@ -63,7 +63,18 @@ static int32_t mndGrantObjAppendActive(SGrantObj *pObj, const char *active) {
 }
 
 static int32_t mndGrantObjAppendMachine(SGrantObj *pObj, const char *active) { return 0; }
-static int32_t mndGrantObjAppendState(SGrantObj *pObj, const char *active) { return 0; }
+
+static int32_t mndGrantObjAppendState(SGrantObj *pObj, SGrantState *pState) {
+  int8_t idx = pObj->nStates;
+  if (idx >= GRANT_STATE_NUM) {
+    memmove(&pObj->states[0], &pObj->states[1], sizeof(pObj->states) - sizeof(pObj->states[0]));
+    idx = GRANT_STATE_NUM - 1;
+  } else {
+    ++pObj->nStates;
+  }
+  pObj->states[idx] = *pState;
+  return 0;
+}
 
 int32_t mndProcessConfigGrantReq(SRpcMsg *pReq, SMCfgClusterReq *pCfg) {
   int32_t   code = 0;
@@ -89,6 +100,8 @@ int32_t mndProcessConfigGrantReq(SRpcMsg *pReq, SMCfgClusterReq *pCfg) {
     goto _exit;
   }
   memcpy(&grantObj, pGrant, sizeof(SGrantObj));
+  grantObj.pMachines = NULL;
+  grantObj.active = NULL;
   if (pGrant->active) {
     int32_t activeLen = strlen(pGrant->active);
     if (!(grantObj.active = taosMemoryMalloc(activeLen + 1))) {
@@ -118,7 +131,10 @@ int32_t mndProcessConfigGrantReq(SRpcMsg *pReq, SMCfgClusterReq *pCfg) {
   mndGrantObjAppendActive(&grantObj, pCfg->value);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-cluster-active");
-  if (pTrans == NULL) return -1;
+  if (pTrans == NULL) {
+    code = terrno;
+    return -1;
+  }
 
   SSdbRaw *pCommitRaw = mndGrantActionEncode(&grantObj);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
@@ -146,9 +162,9 @@ int32_t mndProcessUpdMachineReq(SRpcMsg *pReq, SArray *pMachines) {
   int32_t   code = 0;
   SMnode   *pMnode = pReq->info.node;
   SGrantObj grantObj = {0};
-#if 0
+  int32_t   nMachines = taosArrayGetSize(pMachines);
 
-  if (taosArrayGetSize(pMachines) <= 0) {
+  if (nMachines <= 0) {
     code = TSDB_CODE_INVALID_PARA;
     goto _exit;
   }
@@ -161,6 +177,8 @@ int32_t mndProcessUpdMachineReq(SRpcMsg *pReq, SArray *pMachines) {
     goto _exit;
   }
   memcpy(&grantObj, pGrant, sizeof(SGrantObj));
+  grantObj.pMachines = NULL;
+  grantObj.active = NULL;
   if (pGrant->active) {
     int32_t activeLen = strlen(pGrant->active);
     if (!(grantObj.active = taosMemoryMalloc(activeLen + 1))) {
@@ -169,28 +187,22 @@ int32_t mndProcessUpdMachineReq(SRpcMsg *pReq, SArray *pMachines) {
     }
     tstrncpy(grantObj.active, pGrant->active, activeLen + 1);
   }
-  int32_t nMachines = taosArrayGetSize(pGrant->pMachines);
-  if (nMachines) {
-    if (!(grantObj.pMachines = taosArrayInit(nMachines, sizeof(SGrantMachine)))) {
+  int32_t totalMachines = taosArrayGetSize(pGrant->pMachines) + nMachines;
+  if (totalMachines > 0) {
+    if (!(grantObj.pMachines = taosArrayInit(totalMachines, sizeof(SGrantMachine)))) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
     taosArrayAddAll(grantObj.pMachines, pGrant->pMachines);
+    taosArrayAddAll(grantObj.pMachines, pMachines);
   }
   mndReleaseGrant(pMnode, pGrant, pIter);
 
-  char *newActive = NULL;
-  if ((code = grantAlterActiveCode(pCfg->value, &newActive)) != 0) {
-    goto _exit;
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-grant-machine");
+  if (pTrans == NULL) {
+    code = terrno;
+    return -1;
   }
-  if (newActive) {
-    tstrncpy(pCfg->value, newActive, TSDB_CLUSTER_VALUE_LEN);
-    taosMemoryFreeClear(newActive);
-  }
-  mndGrantObjAppendActive(&grantObj, pCfg->value);
-
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-cluster-active");
-  if (pTrans == NULL) return -1;
 
   SSdbRaw *pCommitRaw = mndGrantActionEncode(&grantObj);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
@@ -209,11 +221,93 @@ int32_t mndProcessUpdMachineReq(SRpcMsg *pReq, SArray *pMachines) {
   }
 
   mndTransDrop(pTrans);
-#endif
 _exit:
   return code;
 }
-int32_t mndProcessUpdStateReq(SRpcMsg *pReq, SGrantState *pState) { return 0; }
+
+int32_t mndProcessUpdStateReq(SRpcMsg *pReq, SGrantState *pState) {
+  int32_t   code = 0;
+  SMnode   *pMnode = pReq->info.node;
+  SGrantObj grantObj = {0};
+
+  void      *pIter = NULL;
+  SGrantObj *pGrant = mndAcquireGrant(pMnode, &pIter);
+  if (!pGrant || pGrant->id <= 0) {
+    code = TSDB_CODE_APP_IS_STARTING;
+    if (pGrant) mndReleaseGrant(pMnode, pGrant, pIter);
+    goto _exit;
+  }
+  memcpy(&grantObj, pGrant, sizeof(SGrantObj));
+  grantObj.pMachines = NULL;
+  grantObj.active = NULL;
+  if (pGrant->active) {
+    int32_t activeLen = strlen(pGrant->active);
+    if (!(grantObj.active = taosMemoryMalloc(activeLen + 1))) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+    tstrncpy(grantObj.active, pGrant->active, activeLen + 1);
+  }
+  int32_t nMachines = taosArrayGetSize(pGrant->pMachines);
+  if (nMachines > 0) {
+    if (!(grantObj.pMachines = taosArrayInit(nMachines, sizeof(SGrantMachine)))) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+    taosArrayAddAll(grantObj.pMachines, pGrant->pMachines);
+  }
+  
+  mndReleaseGrant(pMnode, pGrant, pIter);
+
+  mndGrantObjAppendState(&grantObj, pState);
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-grant-state");
+  if (pTrans == NULL) {
+    code = terrno;
+    return -1;
+  }
+
+  SSdbRaw *pCommitRaw = mndGrantActionEncode(&grantObj);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    code = terrno;
+    goto _exit;
+  }
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    code = terrno;
+    goto _exit;
+  }
+
+  mndTransDrop(pTrans);
+_exit:
+  tFreeGrantObj(&grantObj);
+  return code;
+}
+
+int32_t mndGrantGetLastState(SMnode *pMnode, SGrantState *pState) {
+  int32_t    code = 0;
+  void      *pIter = NULL;
+  SGrantObj *pGrant = mndAcquireGrant(pMnode, &pIter);
+  if (!pGrant || pGrant->id <= 0) {
+    code = TSDB_CODE_APP_IS_STARTING;
+    if (pGrant) mndReleaseGrant(pMnode, pGrant, pIter);
+    goto _exit;
+  }
+
+  if (pGrant->nStates > 0) {
+    *pState = pGrant->states[pGrant->nState - 1];
+  } else {
+    code = TSDB_CODE_GRANT_OBJ_NOT_EXIST;
+  }
+  mndReleaseGrant(pMnode, pGrant, pIter);
+_exit:
+  return code;
+}
 
 int32_t mndRetrieveGrantLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
 #if 0
@@ -289,7 +383,7 @@ int32_t tSerializeSGrantObj(void *buf, int32_t bufLen, const SGrantObj *pObj) {
   if (tEncodeI64v(&encoder, pObj->createTime) < 0) goto _exit;
   if (tEncodeI64v(&encoder, pObj->updateTime) < 0) goto _exit;
   for (int32_t i = 0; i < GRANT_STATE_NUM; ++i) {
-    if (tEncodeI64v(&encoder, pObj->stats[i].u0) < 0) goto _exit;
+    if (tEncodeI64v(&encoder, pObj->states[i].u0) < 0) goto _exit;
   }
   for (int32_t i = 0; i < GRANT_ACTIVE_NUM; ++i) {
     if (tEncodeI64v(&encoder, pObj->actives[i].u0) < 0) goto _exit;
@@ -335,7 +429,7 @@ int32_t tDeserializeSGrantObj(void *buf, int32_t bufLen, SGrantObj *pObj) {
   if (tDecodeI64v(&decoder, &pObj->createTime) < 0) goto _exit;
   if (tDecodeI64v(&decoder, &pObj->updateTime) < 0) goto _exit;
   for (int32_t i = 0; i < GRANT_STATE_NUM; ++i) {
-    SGrantState *state = &pObj->stats[i];
+    SGrantState *state = &pObj->states[i];
     if (tDecodeI64v(&decoder, &state->u0) < 0) goto _exit;
   }
   for (int32_t i = 0; i < GRANT_ACTIVE_NUM; ++i) {
@@ -506,7 +600,7 @@ int32_t mndGrantActionUpdate(SSdb *pSdb, SGrantObj *pOldGrant, SGrantObj *pNewGr
   pOldGrant->id = pNewGrant->id;
   pOldGrant->createTime = pNewGrant->createTime;
   pOldGrant->updateTime = pNewGrant->updateTime;
-  TSWAP(pOldGrant->stats, pNewGrant->stats);
+  TSWAP(pOldGrant->states, pNewGrant->states);
   TSWAP(pOldGrant->actives, pNewGrant->actives);
   TSWAP(pOldGrant->active, pNewGrant->active);
   taosArrayClear(pOldGrant->pMachines);
