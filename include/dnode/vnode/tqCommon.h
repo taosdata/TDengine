@@ -32,8 +32,9 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
                                      bool isLeader, bool restored);
 int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen);
 int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLeader);
-int32_t tqStreamTaskResetStatus(SStreamMeta* pMeta, int32_t* numOfTasks);
+int32_t tqStreamTaskResetStatus(SStreamMeta* pMeta);
 int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta);
+int32_t tqStreamTasksGetTotalNum(SStreamMeta* pMeta);
 int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, SRpcMsg* pMsg);
 int32_t tqStreamTaskProcessTaskPauseReq(SStreamMeta* pMeta, char* pMsg);
 int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* pMsg, bool fromVnode);
