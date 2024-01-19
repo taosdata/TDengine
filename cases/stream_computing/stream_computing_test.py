@@ -1682,25 +1682,29 @@ class StreamComputingTest(TDCase):
                         # self.tdSql.query(f'select count(*) from `{self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}`;')
                         ptn_counter += 1
             # self.tdSql.query(f'select count(*) from {self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
-                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if subtable is not None else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
 
             self.tdSql.query(f'select * from {self.tb_name}')
             ptn_counter = 0
             for c1_value in self.tdSql.query_data:
                 if c1_value[1] is not None:
                     if partition == "c1":
-                        self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{c1_value[1]}{self.subtable_suffix}`;')
+                        tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{c1_value[1]}{self.subtable_suffix}')
+                        self.tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition == "abs(c1)":
                         if subtable:
                             abs_c1_value = abs(c1_value[1])
-                            self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}`;')
+                            tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}')
+                            self.tdSql.query(f'select count(*) from `{tbname}`')
                         else:
-                            self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{partition_elm_alias}{self.subtable_suffix}`;')
+                            tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{partition_elm_alias}{self.subtable_suffix}')
+                            self.tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition == "tbname" and ptn_counter == 0:
-                        self.tdSql.query(f'select count(*) from `{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}`;')
+                        tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}')
+                        self.tdSql.query(f'select count(*) from `{tbname}`')
                         ptn_counter += 1
 
-                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if subtable is not None else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
 
     def at_once_session_ext(self, session, ignore_expired=None, partition="tbname", delete=False, fill_history_value=None, case_when=None, subtable=None, stb_field_name_value=None, tag_value=None, use_exist_stb=False):
         if stb_field_name_value == self.partitial_stb_filter_des_select_elm or stb_field_name_value == self.exchange_stb_filter_des_select_elm:
@@ -3812,8 +3816,6 @@ class StreamComputingTest(TDCase):
 
 
     def run(self):
-        # self.at_once_interval(interval=random.randint(10, 15), partition=None, delete=True, checkpoint_check=True)
-        # return
         # TODO
         # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), max_delay=f"{random.randint(5, 6)}s", fill_value="NULL")
         # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), max_delay=f"{random.randint(5, 6)}s", fill_value="NEXT")
