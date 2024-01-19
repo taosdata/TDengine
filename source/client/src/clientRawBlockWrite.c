@@ -1818,13 +1818,12 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       tstrncpy(fields[i].name, pSW->pSchema[i].name, tListLen(pSW->pSchema[i].name));
     }
     void* rawData = getRawDataFromRes(pRetrieve);
-    code = rawBlockBindData(pQuery, pTableMeta, rawData, pCreateReqDst, fields, pSW->nCols, true);
+    code = rawBlockBindData(pQuery, pTableMeta, rawData, &pCreateReqDst, fields, pSW->nCols, true);
     taosMemoryFree(fields);
     if (code != TSDB_CODE_SUCCESS) {
       uError("WriteRaw:rawBlockBindData failed");
       goto end;
     }
-    pCreateReqDst = NULL;
     taosMemoryFreeClear(pTableMeta);
   }
 

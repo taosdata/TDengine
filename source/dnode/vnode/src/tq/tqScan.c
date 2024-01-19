@@ -23,7 +23,7 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t
   }
 
   SRetrieveTableRspForTmq* pRetrieve = (SRetrieveTableRspForTmq*)buf;
-  pRetrieve->version = 0;
+  pRetrieve->version = 1;
   pRetrieve->precision = precision;
   pRetrieve->compressed = 0;
   pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
