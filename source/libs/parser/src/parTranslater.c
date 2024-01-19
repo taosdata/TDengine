@@ -355,8 +355,13 @@ static int32_t collectUseTable(const SName* pName, SHashObj* pTable) {
 }
 
 static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STableMeta** pMeta) {
+  int32_t        code = TSDB_CODE_SUCCESS;
   SParseContext* pParCxt = pCxt->pParseCxt;
-  int32_t        code = collectUseDatabase(pName, pCxt->pDbs);
+  if (!pParCxt->enableSysInfo && IS_SYS_DBNAME(pName->dbname)) {
+    code = TSDB_CODE_PAR_PERMISSION_DENIED;
+    return code;
+  }
+  code = collectUseDatabase(pName, pCxt->pDbs);
   if (TSDB_CODE_SUCCESS == code) {
     code = collectUseTable(pName, pCxt->pTables);
   }
