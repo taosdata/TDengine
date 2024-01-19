@@ -7,12 +7,15 @@
         </div>
         <el-tabs v-model="activeName">
           <el-tab-pane
+            :disabled="
+              $store.state.app.currentDBType == 'avevaHistorian'
+            "
             :label="$t('datasource.transformer.msgbodytypes.type1')"
             name="first"
           >
           </el-tab-pane>
           <el-tab-pane
-            :disabled="true"
+            :disabled="$store.state.app.currentDBType !== 'avevaHistorian'"
             :label="$t('datasource.transformer.msgbodytypes.type2')"
             name="second"
           >
@@ -20,6 +23,7 @@
               type="primary"
               size="small"
               style="margin-bottom: 15px"
+              @click="getMsgBody"
               >{{
                 $t("datasource.transformer.msgbodytypes.retrieve")
               }}</el-button
@@ -55,9 +59,13 @@
           :rules="msgRules"
           ref="msgForm"
         >
-          <el-form-item prop="msgbody">
+          <el-form-item
+            prop="msgbody"
+            v-if="$store.state.app.currentDBType !== 'avevaHistorian'"
+          >
             <div id="jsoneditor"></div>
             <el-input
+              :disabled="$store.state.app.currentDBType == 'avevaHistorian'||$store.state.app.currentDBType == 'csv'"
               class="msgbody"
               v-model="msgForm.msgbody"
               size="small"
@@ -72,12 +80,16 @@
           <span>{{ $t("datasource.transformer.parse") }}</span>
         </div>
         <div
+          v-if="$store.state.app.currentDBType !== 'avevaHistorian'&&$store.state.app.currentDBType !== 'csv'"
           class="transdescription"
           v-html="$t('datasource.transformer.extractdesc')"
         ></div>
         <div
           class="extrac-parse"
-          v-if="$store.state.app.currentDBType !== 'csv'"
+          v-if="
+            $store.state.app.currentDBType !== 'csv' &&
+            $store.state.app.currentDBType !== 'avevaHistorian'
+          "
         >
           <el-form :rules="parseRules" :model="parseruleForm">
             <el-form-item prop="type">
@@ -101,7 +113,11 @@
               <el-input
                 v-else
                 v-model="parseruleForm.expression"
-                :placeholder="$t('datasource.transformer.expre_input')"
+                :placeholder="
+                  parseruleForm.type == 'json'
+                    ? $t('datasource.transformer.expre_input')
+                    : '(?<y>[0-9]{4})-(?<m>[0-9]{2})-(?<d>[0-9]{2})'
+                "
                 size="small"
               ></el-input>
               <!-- :disabled="$parent.$parent.$parent.isEditable" -->
@@ -133,22 +149,47 @@
             >
           </el-tooltip>
         </div>
-        <ul class="col-list">
-          <li v-for="(item, index) in columnsArr" :key="index">
-            <el-tooltip
+        <ul
+          :class="[
+            'col-list',
+            $store.state.app.transresultname ==
+            $t('datasource.transformer.identified')
+              ? 'active'
+              : '',
+          ]"
+        >
+          <li v-for="(item, index) in columnsArr.slice(0, 9)" :key="index">
+            <!-- <el-tooltip
               class="item"
               effect="light"
               :content="item.value"
               placement="top-start"
-            >
-              <span>{{ item.name }}</span>
+            > -->
+            <span>{{ item.name }}</span>
+            <!-- </el-tooltip> -->
+          </li>
+          <li v-if="columnsArr.length > 9">
+            <el-tooltip
+              :content="$t('datasource.transformer.viewmore')"
+              placement="top"
+              effect="light"
+              ><span @click='showIndentifyResulttb'><i class="el-icon-more"></i></span>
             </el-tooltip>
           </li>
         </ul>
       </section>
       <section class="extract">
-        <div class="block-title sub">
+        <div
+          class="block-title sub"
+          style="justify-content: flex-start; align-items: baseline"
+        >
           <span>{{ $t("datasource.transformer.extract") }}</span>
+          <el-tooltip placement="top" effect="light">
+            <template slot="content">
+              <div v-html="$t('datasource.transformer.subextractdesc')"></div>
+            </template>
+            <span style='margin-left:6px;'><i class="el-icon-warning"></i></span>
+          </el-tooltip>
         </div>
         <template v-for="(item, index) in extractArr">
           <ExtractSplit
@@ -262,7 +303,7 @@
                   v-if="item === 'Expression'"
                   :key="index"
                   :prop="item"
-                  show-overflow-tooltip
+                  :show-overflow-tooltip="item === 'Expression' ? false : true"
                   :label="item"
                   width="320px"
                 >
@@ -278,6 +319,7 @@
                         ref="subtb"
                         :model="subrule"
                         :rules="subnameRule"
+                        @submit.native.prevent
                       >
                         <el-form-item prop="subname">
                           <el-input
@@ -336,7 +378,7 @@
             </el-table>
             <div class="block-page">
               <el-pagination
-                :class="['pagination', pageCount < 10 ? 'hide' : '']"
+                :class="['pagination', pageCount < 20 ? 'hide' : '']"
                 :page-size="pageSize"
                 layout="total,prev, pager, next, jumper"
                 :total="pageCount"
@@ -379,14 +421,14 @@
 <script>
 import ExtractSplit from "./extractSplit.vue";
 import FilterExpression from "./filterExpression.vue";
-import { getParser } from "@/api/explorer/datain";
+import { getParser, getHistorianMsgbody } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import { parsinginZone } from "@/utils";
 import CreateSTB from "./createSTB.vue";
 import { createStableReq } from "@/api/gateway/data/stables";
 import SplitExpression from "./splitExpression.vue";
-import ResultTable from "./transformResultTable.vue";
+import { getDsnData } from "../utils.js";
 export default {
   name: "CommonTransformer",
   components: {
@@ -394,7 +436,6 @@ export default {
     FilterExpression,
     CreateSTB,
     SplitExpression,
-    ResultTable,
   },
   props: {
     parent: {
@@ -415,7 +456,6 @@ export default {
       subrule: {
         subname: "",
       },
-
       activeName: "first",
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
@@ -434,7 +474,7 @@ export default {
         ],
       },
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
-      pageSize: 10,
+      pageSize: 20,
       pageCount: 10,
       currentPage: 1,
       tempColumns: [],
@@ -560,6 +600,11 @@ export default {
     },
   },
   mounted() {
+    if (this.$store.state.app.currentDBType == "avevaHistorian") {
+      this.activeName = "second";
+    }else{
+      this.activeName = "first";
+    }
     if (this.parserColumns) {
       this.initColumnLists(this.parserColumns);
     }
@@ -582,6 +627,30 @@ export default {
     this.getInitStables();
   },
   methods: {
+    async getMsgBody() {
+      this.$parent.$parent.$parent.validateRetrieve();
+      let flag = false;
+      await this.$nextTick(() => {
+        const dom = document.querySelector(".source-ui .left-ui .is-error");
+        if (dom) {
+          dom.scrollIntoView();
+          flag = true;
+        }
+      });
+      if (flag) {
+        return;
+      }
+      let dsn = getDsnData(
+        this.$parent.$parent.$parent.sourceForm.data,
+        this.$parent.$parent.$parent.currentDefinition
+      );
+      let result = await getHistorianMsgbody(
+        this.$store.state.app.currentDBType,
+        encodeURIComponent(dsn)
+      );
+      this.msgForm.msgbody = JSON.stringify(result);
+      await this.submitParse();
+    },
     changeSubname(val) {
       this.subrule.subname = val;
     },
@@ -601,11 +670,13 @@ export default {
       return flag;
     },
     showIndentifyResulttb() {
+      this.$store.commit("app/SET_RESULTTB_SHOW", true);
       if (this.$store.state.app.currentDBType == "csv") {
         this.$nextTick(() => {
           if (document.querySelector(".transdescription")) {
             let dom = document.querySelector(".transdescription");
-            let top = dom.offsetTop + document.body.scrollHeight;
+            const mainDom = document.querySelector(".main_content");
+            let top = dom.offsetTop + mainDom.scrollHeight;
             this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
           }
         });
@@ -655,39 +726,48 @@ export default {
           Message.warning(this.$t("datasource.transformer.msgbodytip"));
           return;
         }
-        let topparser = {
-          parser: {
-            parse: {
-              [this.$store.state.app.currentDBType == "mqtt"
-                ? "payload"
-                : "value"]: {
-                [`${this.parseruleForm.type}`]:
-                  this.parseruleForm.type == "regex"
-                    ? this.parseruleForm.expression
-                    : this.parseruleForm.type == "split"
-                    ? this.$store.state.app.splitExpresList
-                    : this.parseruleForm.expression
-                    ? this.parseruleForm.expression
-                        .split(";")
-                        .toString()
-                        .split(",")
-                        .map((item) => item.trim())
-                    : this.parseruleForm.expression,
+        if (this.$store.state.app.currentDBType == "csv") {
+          console.log(
+            this.$store.state.app.csvTransformerParser,
+            "csv的----9999"
+          );
+        }
+        // if (this.filterArr.length > 0) {
+        // }
+        // if (this.extractArr.length > 0) {
+        // }
+        let topparser = null;
+        if (this.$store.state.app.currentDBType == "avevaHistorian") {
+          topparser = JSON.parse(this.msgForm.msgbody);
+        } else {
+          topparser = {
+            parser: {
+              parse: {
+                [this.$store.state.app.currentDBType == "mqtt"
+                  ? "payload"
+                  : "value"]: {
+                  [`${this.parseruleForm.type}`]:
+                    this.parseruleForm.type == "regex"
+                      ? this.parseruleForm.expression
+                      : this.parseruleForm.type == "split"
+                      ? this.$store.state.app.splitExpresList
+                      : this.parseruleForm.expression
+                      ? this.parseruleForm.expression
+                          .split(";")
+                          .toString()
+                          .split(",")
+                          .map((item) => item.trim())
+                      : this.parseruleForm.expression,
+                },
               },
             },
-          },
-          input:
-            this.$store.state.app.currentDBType == "csv"
-              ? this.$store.state.app.csvTransformerParser.inputList
-              : [].concat(this.generateInput()),
-        };
-        if (this.filterArr.length > 0) {
-          this.$refs.filter[0].submitFilter();
+            input:
+              this.$store.state.app.currentDBType == "csv"
+                ? this.$store.state.app.csvTransformerParser.inputList
+                : [].concat(this.generateInput()),
+          };
         }
-        // else {
-        // if (this.extractArr.length > 0) {
-        //   // this.$refs.extract[0].submitExtract(true);
-        // } else {
+
         this.$store.commit("app/SET_TOP_PARSE", topparser);
         let result = await getParser(topparser);
         if (result.message) {
@@ -741,7 +821,14 @@ export default {
           );
         });
         this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
-
+        if (this.filterArr.length > 0) {
+          await this.$refs.filter[0].submitFilter();
+        }
+        if (this.extractArr.length > 0) {
+          await this.$refs.extract[0].submitExtract(true);
+        }
+        this.$store.commit("app/SET_ACTIVE_COLS", []);
+        this.$store.commit("app/SET_RESULT_PAGE", 1);
         this.columnsArr = (
           this.$store.state.app.currentDBType == "csv"
             ? result[0].fields
@@ -755,6 +842,8 @@ export default {
                   this.$store.state.app.currentDBType == "kafka" &&
                   !this.kafkaDefaultCols.includes(item.name)
                 ) {
+                  return item;
+                } else {
                   return item;
                 }
               })
@@ -773,8 +862,6 @@ export default {
               (finalVal.join("") ? finalVal.join(" ; ") : ""),
           };
         });
-        // }
-        // }
         if (!this.$store.state.app.transresultname) {
           this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
         }
@@ -800,47 +887,61 @@ export default {
 
     //编辑回显数据--编辑状态不自动显示result table
     async echoParser(value) {
-      let csvechoTransData = null;
-      this.currentPage = value.format.currentPage;
-      if (this.$store.state.app.currentDBType == "csv") {
-        this.isCSV = true;
-        csvechoTransData = this.$store.state.app.csvTransformerParser;
-        let columns = csvechoTransData.columns.map((item) => {
-          return {
-            description: item,
-            name: item,
-            type: "varchar",
-            value: "",
-          };
-        });
-        this.initColumnLists(columns);
+      if (this.$store.state.app.currentDBType == "avevaHistorian") {
+        let dsn = this.$store.state.app.historiandsn;
+        let result = await getHistorianMsgbody(
+          this.$store.state.app.currentDBType,
+          encodeURIComponent(dsn)
+        );
+        this.msgForm.msgbody = JSON.stringify(result);
+        value = this.$store.state.app.historianechodata;
+      } else {
+        let csvechoTransData = null;
+        this.currentPage = value?.format?.currentPage;
+        if (this.$store.state.app.currentDBType == "csv") {
+          this.isCSV = true;
+          csvechoTransData = this.$store.state.app.csvTransformerParser;
+          let columns = csvechoTransData.columns.map((item) => {
+            return {
+              description: item,
+              name: item,
+              type: "varchar",
+              value: "",
+            };
+          });
+          this.initColumnLists(columns);
+        }
+
+        this.msgForm.msgbody =
+          this.$store.state.app.currentDBType == "mqtt"
+            ? value.input.map((item) => item.payload).join(" ")
+            : this.isCSV
+            ? csvechoTransData.msgBody
+            : value.input.map((item) => item.value).join(" ");
+
+        let tagKey = "";
+        switch (this.$store.state.app.currentDBType) {
+          case "mqtt":
+            tagKey = "payload";
+            break;
+          default:
+            tagKey = "value";
+            break;
+        }
+        this.parseruleForm.type = Object.keys(
+          value.parser.parse[tagKey]
+        ).toString();
+        this.parseruleForm.expression =
+          this.parseruleForm.type == "regex"
+            ? Object.values(value.parser.parse[tagKey]).toString()
+            : Object.values(value.parser.parse[tagKey])
+                .toString()
+                .replace(",", ";");
       }
 
-      this.msgForm.msgbody =
-        this.$store.state.app.currentDBType == "mqtt"
-          ? value.input.map((item) => item.payload).join(" ")
-          : this.isCSV
-          ? csvechoTransData.msgBody
-          : value.input.map((item) => item.value).join(" ");
-
-      let tagKey = "";
-      switch (this.$store.state.app.currentDBType) {
-        case "mqtt":
-          tagKey = "payload";
-          break;
-        default:
-          tagKey = "value";
-          break;
-      }
-      this.parseruleForm.type = Object.keys(
-        value.parser.parse[tagKey]
-      ).toString();
-      this.parseruleForm.expression = Object.values(value.parser.parse[tagKey])
-        .toString()
-        .replace(",", ";");
       await this.submitParse();
 
-      let identifiedColObj = value.parser.mutate.filter((item) => {
+      let identifiedColObj = value?.parser.mutate.filter((item) => {
         if (Object.keys(item).toString() == "extract") {
           return item;
         }
@@ -930,6 +1031,7 @@ export default {
         this.subrule.subname = value.parser.model.name;
         await this.getSTbaleList();
         await this.echoFetchMap();
+        this.$store.commit("app/SET_RESULTTB_SHOW", false);
         this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
       });
     },
@@ -978,7 +1080,6 @@ export default {
             });
           break;
       }
-      // this.$set(this, "columnsArr", finalCol);
     },
     validateTransform() {
       let msgflag = this.validateMsgBody();
@@ -1016,7 +1117,6 @@ export default {
     async caculateMappingResult() {
       if (!this.validateTransform()) {
         this.isbreak = true;
-        console.log(this.isbreak,'this.isbreak');
         return;
       }
       if (!this.validateSubName()) {
@@ -1117,6 +1217,8 @@ export default {
         },
         input: this.isCSV
           ? this.$store.state.app.csvTransformerParser.inputList
+          : this.$store.state.app.currentDBType == "avevaHistorian"
+          ? this.$store.state.app.topParse.input
           : [].concat(this.generateInput()),
         format: {
           pageCount: this.pageCount,
@@ -1187,6 +1289,8 @@ export default {
 
         input: this.isCSV
           ? this.$store.state.app.csvTransformerParser.inputList
+          : this.$store.state.app.currentDBType == "avevaHistorian"
+          ? this.$store.state.app.topParse.input
           : [].concat(this.generateInput()),
         format: {
           pageCount: this.pageCount,
@@ -1490,7 +1594,7 @@ export default {
           return;
         }
         if (this.extractArr.length > 0) {
-          await this.getAllExtract(true);
+          // await this.getAllExtract(true);
         }
 
         if (this.$store.state.app.transformerMapCloumns) {
@@ -1585,7 +1689,7 @@ export default {
         let ind = this.filterArr.findIndex((val) => val.key == key);
         this.filterArr.splice(ind, 1);
         this.$store.commit("app/SET_FILTER_PARSE_DATA", null);
-        // this.submitParse();
+        this.submitParse();
       });
     },
     deleteExtract(index, name) {
@@ -1712,10 +1816,29 @@ export default {
         this.initColumnLists(val);
       },
     },
+    "$store.state.app.currentDBType": {
+      deep: true,
+      handler(val) {
+        if (val == "avevaHistorian") {
+          this.activeName = "second";
+        }
+      },
+    },
   },
 };
 </script>
 <style lang="scss" scoped>
+@keyframes heart {
+  0% {
+    box-shadow: 0 0 5px #4259ce;
+  }
+  50% {
+    box-shadow: 0 0 20px #4259ce;
+  }
+  100% {
+    box-shadow: 0 0 5px #4259ce;
+  }
+}
 ::v-deep i {
   font-size: 16px;
 }
@@ -1753,6 +1876,10 @@ export default {
   row-gap: 20px;
   max-height: 200px;
   overflow-y: auto;
+  // &.active {
+  //   padding: 20px;
+  //   animation: heart 5s linear infinite;
+  // }
   li {
     color: #4259ce;
     background: #ecf2fe;
@@ -1796,11 +1923,27 @@ export default {
     display: flex;
     justify-content: flex-end;
   }
-  .el-table {
-    thead tr th:first-child {
-      div {
-        visibility: hidden;
+  ::v-deep {
+    .el-table {
+      thead tr th {
+        background-color: #f5f7fa;
       }
+      .el-table__cell {
+        padding: 6px 0 !important;
+      }
+      tbody tr:first-child {
+        .cell {
+          padding-bottom: 16px !important;
+        }
+      }
+    }
+    .cell.el-tooltip {
+      height: 40px;
+      padding-right: 20px;
+    }
+    .el-form-item {
+      margin-bottom: 0px;
+      margin-right: 10px;
     }
   }
 }
@@ -1824,6 +1967,7 @@ export default {
 .transdescription {
   color: $color-description;
   margin-bottom: 15px;
+  white-space: normal !important;
 }
 ::v-deep .el-input-group__prepend {
   padding: 0 4px;
@@ -1886,5 +2030,13 @@ export default {
 }
 .extract-table {
   margin-top: 20px;
+}
+.block-title {
+  margin-bottom: 10px;
+  span {
+    font-size: 16px;
+    color: #4259ce;
+    font-weight: 600;
+  }
 }
 </style>

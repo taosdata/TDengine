@@ -80,7 +80,6 @@ export default {
   methods: {
     submit() {
       this.$refs.splitForm.validate((valid) => {
-        console.log(valid,'====split====',this.ruleForm);
         if (valid) {
           this.isValid = true;
           let splitExpre = {};
@@ -111,7 +110,6 @@ export default {
     },
   },
   mounted() {
-    console.log(this.ruleForm,'split');
     if (this.$store.state.app.splitExpresList) {
       let middleobj = deepClone(this.$store.state.app.splitExpresList);
       if (

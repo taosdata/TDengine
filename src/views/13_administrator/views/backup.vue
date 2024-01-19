@@ -77,8 +77,8 @@
       <el-table-column :label="$t('taosuser.operation')" width="200">
         <template slot-scope="scope">
           <el-switch
-            :value="scope.row.status.toLowerCase() == 'running'"
-            active-color="rgb(66, 89, 206)"
+            :value="scope.row.status.toLowerCase() != 'stopped'"
+            active-color="#13ce66"
             inactive-color="#dcdfe6"
             @change="switchOperation($event, scope.row)"
           >
@@ -303,11 +303,18 @@ export default {
         }
       ).then(async () => {
         await excuteDel(data.id).then((res) => {
-          Message({
-            type: "success",
-            message: this.$t('delSucc'),
-          });
-          this.getBackData();
+          if (res && Object.hasOwnProperty.call(res, "id")) {
+            Message({
+              type: "success",
+              message: this.$t('delSucc'),
+            });
+            this.getBackData();
+          } else {
+            Message({
+              type: 'error',
+              message: res.message
+            })
+          }
         });
       });
     },
@@ -393,8 +400,12 @@ export default {
     async editBakcup(id) {
       //哪一项修改传参只传哪一项
       try {
+        const scheduleStr = this.ruleForm.cycle;
+        const [key, value] = scheduleStr.split(':');
+        const scheduleObj = { [key]: value };
+        
         let params = {
-          trigger: this.ruleForm.cycle,
+          trigger: scheduleObj,
         };
         await editBackup(id, params).then((res) => {
           this.getBackData();
@@ -406,13 +417,17 @@ export default {
     },
     async addBackup() {
       try {
+        const scheduleStr = this.ruleForm.cycle;
+        const [key, value] = scheduleStr.split(':');
+        const scheduleObj = { [key]: value };
+
         let params = {
-          name: "bakcup",
+          // name: "bakcup",
           labels: [
             "type::backup",
             `cluster-id::${localStorage.getItem("local_clusterID")}`,
           ],
-          trigger: this.ruleForm.cycle,
+          trigger: scheduleObj,
           to: `local:${this.ruleForm.directory}`,
           from: `tmq+${localStorage.getItem("base_url")}/${this.ruleForm.db}`,
         };
@@ -481,6 +496,8 @@ export default {
           if (res && Object.hasOwnProperty.call(res, "id")) {
             Message.success(this.$t('operateSucc'));
             this.getBackData();
+          } else {
+            Message.error(res?.message)
           }
         });
       } catch (err) {

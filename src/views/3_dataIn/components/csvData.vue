@@ -266,7 +266,6 @@ export default {
       this.$store.commit("app/SET_CSV_FILES", this.fileList);
     },
     submitUpload() {
-      console.log(this.showTransformer,'验证');
       let isbreak=true
       if (this.activeName == "first") {
         if (this.fileList.length == 0) {
@@ -376,7 +375,6 @@ export default {
             return item.slice(0, localcolumns.length);
           });
         }
-
         this.formatCsvTransformerData(this.csvColumns, this.sample_values);
         this.showConfig = true;
 

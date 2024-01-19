@@ -502,6 +502,10 @@ export default {
           this.$store.commit("app/SET_MQTT_PARSER", data.parser);
           this.$parent.parserobj = deepClone(data.parser);
         }
+        if(data.from_detail.id=='avevaHistorian'){
+          this.$store.commit('app/SET_HISTORIAN_ECHODATA',data.parser)
+          this.$store.commit('app/SET_HISTORIAN_DSN','://'+data.from.split('://')[1])
+        }
         // if (data.from_expand && data.from_expand.id == "kafka") {
         //   let payload = deepClone(data.parser.parse.value);
         //   let parser = {

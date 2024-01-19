@@ -1,16 +1,21 @@
 <template>
-  <div class="result-table" v-if="showtable">
+  <div class="result-table" v-if="showtable" ref="result">
     <div class="title-block">
-      <span class="title">{{
-        $store.state.app.transresultname + $t("datasource.transformer.resulttb")
-      }}</span>
+      <span class="title">{{ $t("datasource.transformer.resulttb") }}</span>
       <!-- <span class='el-icon-close'></span> -->
     </div>
-    <el-table border style="width: 100%" :data="pageTableData">
+    <el-table
+      border
+      style="width: 100%"
+      max-height="600"
+      :data="pageTableData"
+      :row-class-name="tableRowClassName"
+    >
       <el-table-column
         v-for="item in columns"
         :key="item"
         :prop="item"
+        :sortable="item == 'Name' ? true : false"
         show-overflow-tooltip
         :label="item"
       ></el-table-column>
@@ -19,6 +24,7 @@
       <el-pagination
         :class="['pagination', totalCount < 10 ? 'hide' : '']"
         :page-size="pageSize"
+        :current-page.sync="currentPage"
         layout="total,prev, pager, next, jumper"
         :total="totalCount"
         @current-change="handleCurrentChange"
@@ -30,7 +36,7 @@
 <script>
 export default {
   name: "ResultTable",
-  props:{
+  props: {
     isEditable: {
       type: Boolean,
       default: false,
@@ -38,10 +44,12 @@ export default {
   },
   data() {
     return {
+      loading: true,
+      isFixed: false,
       columns: ["Name", "Output1", "Output2", "Output3"],
       tableData: [],
       pageTableData: [],
-      pageSize: 10,
+      pageSize: 20,
       totalCount: 10,
       currentPage: 1,
       showtable: false,
@@ -50,12 +58,47 @@ export default {
     };
   },
   mounted() {
-    if (this.$store.state.app.transformresulttable.length > 0&&!this.isEditable&&this.$store.state.app.transresultname) {
+    if (
+      this.$store.state.app.transformresulttable.length > 0 &&
+      !this.isEditable &&
+      this.$store.state.app.transresultname
+    ) {
       this.getResultData(this.$store.state.app.transformresulttable);
-      this.showtable = true;
+
+      this.handleScroll();
     }
+    const mainDom = document.querySelector(".main_content");
+    mainDom.addEventListener("scroll", this.handleScroll);
+    this.$once("hook:beforeDestroy", () => {
+      mainDom.removeEventListener("scroll", this.handleScroll);
+    });
   },
   methods: {
+    tableRowClassName({ row, rowIndex }) {
+      if (this.$store.state.app.activeColumns.includes(row["Name"])) {
+        return "active-row";
+      }
+    },
+    handleScroll() {
+      this.$nextTick(() => {
+        let dom = document.querySelector(".transdescription");
+        if (dom) {
+          const mainDom = document.querySelector(".main_content");
+          const scrollTop = mainDom.scrollTop;
+          let top = scrollTop >= dom.offsetTop ? scrollTop : dom.offsetTop;
+          this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
+          if (this.$refs.result) {
+            if(this.$store.state.app.currentDBType=='csv'){
+                this.$refs.result.style.top = top +"px";
+            }else{
+                this.$refs.result.style.top = top - 200 + "px";
+            }
+            
+            // this.$refs.result.style.bottom=70+'px'
+          }
+        }
+      });
+    },
     setPageTableData() {
       this.$set(
         this,
@@ -73,7 +116,16 @@ export default {
     },
     getResultData(data) {
       let totalData = [];
-      let columns = Object.keys(data[0]);
+      let hiddenCols = [];
+      if (this.$store.state.app.currentDBType == "mqtt") {
+        hiddenCols = this.mqttDefaultCols;
+      }
+      if (this.$store.state.app.currentDBType == "kafka") {
+        hiddenCols = this.kafkaDefaultCols;
+      }
+      let columns = Object.keys(data[0]).filter((item) => {
+        return !hiddenCols.includes(item);
+      });
       this.totalCount = columns.length;
       this.tableData = columns
         .map((key) => {
@@ -97,33 +149,50 @@ export default {
           });
           return final;
         });
+      const timer = setTimeout(() => {
+        clearTimeout(timer)
+        const targetRow =
+          this.$store.state.app.activeColumns.length > 0
+            ? document.querySelector("tr.el-table__row.active-row")
+            : document.querySelector("tr.el-table__row");
+        if (targetRow) {
+          if (this.$store.state.app.activeColumns.length > 0) {
+            const y = targetRow.offsetTop;
+            this.$el.querySelector(".el-table__body-wrapper").scrollTo(0, y);
+          } else {
+            this.$el.querySelector(".el-table__body-wrapper").scrollTo(0, 0);
+          }
+        }
+      }, 200);
       this.setPageTableData();
     },
   },
   watch: {
-    "$store.state.app.transresultname": {
+    "$store.state.app.resultCurrentPage": {
       deep: true,
       handler(val) {
-        if (val) {
-          this.showtable = true;
-          this.getResultData(this.$store.state.app.transformresulttable);
-          this.$nextTick(() => {
-            let dom = document.querySelector(".result-table");
-            if (dom) {
-              dom.style.top = this.$store.state.app.transformTableHeight + "px";
-            }
-          });
-        }else{
-            this.showtable = false
-            this.$store.commit("app/SET_TRANS_RESULT_TABLE", []);
+        if (val > 20) {
+          this.handleCurrentChange(Math.floor(val / this.pageSize) + 1);
+        } else {
+          this.handleCurrentChange(1);
         }
+      },
+    },
+    "$store.state.app.showresulttb": {
+      deep: true,
+      handler(val, oldval) {
+        this.showtable = val;
       },
     },
     "$store.state.app.transformresulttable": {
       deep: true,
       handler(val) {
-        if (val && val.length > 0&&this.$store.state.app.transresultname) {
-            this.getResultData(val);
+        if (val && val.length > 0 && this.$store.state.app.transresultname) {
+          this.handleScroll();
+          this.getResultData(val);
+        } else {
+          this.$set(this, "pageTableData", []);
+          this.$set(this, "tableData", []);
         }
       },
     },
@@ -162,6 +231,34 @@ export default {
     }
     .el-icon-close {
       cursor: pointer;
+    }
+  }
+  ::v-deep {
+    .el-table {
+      thead tr th {
+        background-color: #f5f7fa;
+      }
+
+      //   .el-table--border{
+      //     border-color: transparent !important;
+      //   }
+      .el-table--group::after,
+      .el-table--border::after,
+      .el-table::before {
+        border-color: transparent !important;
+      }
+      //   .el-table__column-resize-proxy {
+      //     display: none !important;
+      //   }
+      &.el-table__cell {
+        padding: 6px 0px;
+      }
+      .active-row {
+        background: #ecf2fe !important;
+      }
+      &::before {
+        background-color: transparent;
+      }
     }
   }
 }

@@ -5,7 +5,6 @@
         <el-tab-pane
           name="datasource"
           :label="$t('topic.datasource')"
-          v-if="!isOem"
         >
           <DbSource ref="dbsource"></DbSource>
         </el-tab-pane>

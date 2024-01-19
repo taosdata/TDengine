@@ -132,7 +132,8 @@ export default {
             })
           );
         });
-        // this.$store.commit("app/SET_TRANS_RESULT_TABLE", this.tableData);
+        this.$store.commit('app/SET_RESULTTB_SHOW',true)
+        this.$store.commit("app/SET_TRANS_RESULT_TABLE", this.tableData);
         let transformerColumns = [
           {
             value: "expression",
@@ -159,6 +160,10 @@ export default {
           "app/SET_TRANSFORMER_MAPCOLUMNS",
           transformerColumns
         );
+        this.$store.commit(
+        "app/SET_TRANS_RESULT_NAME",
+        'filter'
+      );
       } catch (error) {
         console.log(error);
       }
@@ -230,14 +235,17 @@ export default {
       let parser = {
         parser: {
           parse: this.$store.state.app.topParse.parser.parse,
-          mutate: [].concat({
+          mutate:this.$store.state.app.transformExtractParseData? [].concat({
             filter: this.ruleForm.filter_name.trim(),
             
-          }).concat(this.$store.state.app.transformExtractParseData,),
+          }).concat(this.$store.state.app.transformExtractParseData):[].concat({
+            filter: this.ruleForm.filter_name.trim(),
+            
+          }),
         },
         input: this.$parent.isCSV
           ? this.$store.state.app.csvTransformerParser.inputList
-          : inputList,
+          :this.$store.state.app.currentDBType == "avevaHistorian"?this.$store.state.app.topParse.input: inputList,
       };
 
       this.$store.commit("app/SET_FILTER_PARSE_DATA", {

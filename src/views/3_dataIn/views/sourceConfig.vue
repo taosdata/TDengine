@@ -128,7 +128,7 @@ import {
   AddSource,
   EditSource,
   validateTask,
-  refreshTask as getDataSourceDetail,
+  refreshTask as getDataSourceDetail
 } from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";
 import { Message } from "element-ui";
@@ -322,6 +322,9 @@ export default {
           this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
           this.$store.commit("app/SET_TRANS_FULL_PARAMS", null);
           this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", 0);
+          this.$store.commit('app/SET_RESULTTB_SHOW',false)
+          this.$store.commit('app/SET_HISTORIAN_ECHODATA',null)
+          this.$store.commit('app/SET_HISTORIAN_DSN','')
         }
         if (val == "kafka" || val == "mqtt") {
           // this.$set(this, "constmqttCols", []);
@@ -412,7 +415,16 @@ export default {
         this.submit(true);
       }
     },
-
+    //验证从服务器检索
+    validateRetrieve(){
+      this.$refs.form.validate(async (valid) => {
+        if(valid){
+          return true
+        }else{
+          return false
+        }
+      })
+    },
     async submit() {
       this.$refs.form.validate(async (valid) => {
         if (valid) {
@@ -448,6 +460,7 @@ export default {
             if (this.$refs.configform.$refs.transform[0].isbreak) return;
             params.parser = this.$store.state.app.transformerfullparams;
           }
+          
           if (this.isEditable && this.editId && !this.isCopyable) {
             let result = await EditSource(params, this.editId);
             if (result.message) {
