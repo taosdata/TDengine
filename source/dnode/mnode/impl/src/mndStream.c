@@ -169,6 +169,7 @@ void mndCleanupStream(SMnode *pMnode) {
   taosHashCleanup(execInfo.pTaskMap);
   taosHashCleanup(execInfo.transMgmt.pDBTrans);
   taosHashCleanup(execInfo.transMgmt.pWaitingList);
+  taosHashCleanup(execInfo.pTransferStateStreams);
   taosThreadMutexDestroy(&execInfo.lock);
   mDebug("mnd stream exec info cleanup");
 }
@@ -3077,7 +3078,9 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
       int32_t code = mndProcessStreamCheckpointTrans(pMnode, pStream, checkpointId, 0, false);
 
       // remove this entry
+      taosArrayDestroy(*(SArray**)pReqTaskList);
       taosHashRemove(execInfo.pTransferStateStreams, &req.streamId, sizeof(int64_t));
+
       int32_t numOfStreams = taosHashGetSize(execInfo.pTransferStateStreams);
       mDebug("stream:0x%" PRIx64 " removed, remain streams:%d fill-history not completed", pStream->uid, numOfStreams);
     } else {
