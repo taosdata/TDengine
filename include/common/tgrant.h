@@ -62,7 +62,6 @@ typedef struct {
 } SGrantedInfo;
 
 int32_t grantCheck(EGrantType grant);
-int32_t grantAlterActiveCode(const char* active, char** newActive);
 char*   grantGetMachineId();
 
 #ifndef GRANTS_CFG

@@ -30,24 +30,17 @@
   void    grantRestore(EGrantType grant, uint64_t value);
 
 #ifdef TD_ENTERPRISE
-
-  SGrantObj *mndAcquireGrant(SMnode * pMnode, int32_t id);
-  void       mndReleaseGrant(SMnode * pMnode, SGrantObj * pGrant);
-
   SSdbRaw *mndGrantActionEncode(SGrantObj * pGrant);
   SSdbRow *mndGrantActionDecode(SSdbRaw * pRaw);
   int32_t  mndGrantActionInsert(SSdb * pSdb, SGrantObj * pGrant);
   int32_t  mndGrantActionDelete(SSdb * pSdb, SGrantObj * pGrant);
   int32_t  mndGrantActionUpdate(SSdb * pSdb, SGrantObj * pOldGrant, SGrantObj * pNewGrant);
 
-  int32_t mndProcessUpdMachineReqImpl(void *pMachine, SRpcMsg *pReq);
-  int32_t mndProcessUpdStateReqImpl(void *pState, SRpcMsg *pReq);
-  int32_t mndProcessUpdActiveReqImpl(void *pActive, SRpcMsg *pReq);
-  int32_t mndRetrieveGrantImpl(SRpcMsg * pReq, SShowObj * pShow, SSDataBlock * pBlock, int32_t rows);
+  int32_t grantAlterActiveCode(const char *active, char **newActive);
 
-  int32_t mndProcessConfigClusterReq(SRpcMsg * pReq);
-  int32_t mndProcessConfigClusterRsp(SRpcMsg * pReq);
-
+  int32_t mndProcessConfigGrantReq(SRpcMsg * pReq, SMCfgClusterReq * pCfg);
+  int32_t mndProcessUpdMachineReq(SRpcMsg * pReq, SArray *pMachines);
+  int32_t mndProcessUpdStateReq(SRpcMsg * pReq, SGrantState *pState);
 #endif
 
 #ifdef __cplusplus
