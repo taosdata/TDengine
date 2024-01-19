@@ -241,7 +241,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
   }
 
   void *pIter = NULL;
-  pEpSet->inUse = 0;
+  // pEpSet->inUse = 0;
   while (1) {
     SMnodeObj *pObj = NULL;
     pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pObj);
@@ -251,7 +251,8 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
       if (mndIsLeader(pMnode)) {
         pEpSet->inUse = pEpSet->numOfEps;
       } else {
-        // pEpSet->inUse = (pEpSet->numOfEps + 1) % totalMnodes;
+        pEpSet->inUse = (pEpSet->numOfEps + 1) % totalMnodes;
+        pEpSet->inUse = 0;
       }
     }
     if (pObj->pDnode != NULL) {
