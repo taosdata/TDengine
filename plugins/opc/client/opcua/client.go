@@ -651,6 +651,11 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 	if err != nil {
 		return nil, err
 	}
+	nss := conf.Ua.Namespaces
+	nsMap := make(map[uint16]struct{}, len(nss))
+	for _, ns := range nss {
+		nsMap[ns] = struct{}{}
+	}
 	rootNode := c.conn.Node(rootId)
 	ctx := c.ctx
 	bfsList := []*opcua.Node{rootNode}
@@ -681,14 +686,14 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 		for i := 0; i < operation; i++ {
 			go func(i int) {
 				defer wg.Done()
-				points := c.getPoints(ctx, c.conn, bfsList[i*maxNodePerGetPoints:(i+1)*maxNodePerGetPoints], reg)
+				points := c.getPoints(ctx, c.conn, bfsList[i*maxNodePerGetPoints:(i+1)*maxNodePerGetPoints], reg, nsMap)
 				availablePoints[i] = points
 			}(i)
 		}
 		if more {
 			go func() {
 				defer wg.Done()
-				points := c.getPoints(ctx, c.conn, bfsList[operation*maxNodePerGetPoints:], reg)
+				points := c.getPoints(ctx, c.conn, bfsList[operation*maxNodePerGetPoints:], reg, nsMap)
 				availablePoints[operation] = points
 			}()
 		}
@@ -713,9 +718,9 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 			if points != nil {
 				for _, point := range points {
 					result = append(result, *point)
-				}
-				if conf.Limit > 0 && len(result) >= conf.Limit {
-					return result, nil
+					if conf.Limit > 0 && len(result) >= conf.Limit {
+						return result, nil
+					}
 				}
 			}
 		}
@@ -762,11 +767,17 @@ var attributeNames = []string{
 	"BrowseName",
 }
 
-func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcua.Node, reg *regexp.Regexp) []*common.Point {
+func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcua.Node, reg *regexp.Regexp, nsMap map[uint16]struct{}) []*common.Point {
 	nodes := make([]*opcua.Node, 0, len(ns))
 	for i := 0; i < len(ns); i++ {
-		if ns[i].ID.Namespace() == 0 {
-			continue
+		if len(nsMap) == 0 {
+			if ns[i].ID.Namespace() == 0 {
+				continue
+			}
+		} else {
+			if _, ok := nsMap[ns[i].ID.Namespace()]; !ok {
+				continue
+			}
 		}
 		nodes = append(nodes, ns[i])
 	}
