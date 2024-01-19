@@ -283,8 +283,10 @@ impl TaskOpts {
                     )
                     .await?;
                 }
-                ("local", "taos") => {
-                    local_to_taos(from.clone(), to.clone(), *jobs, *force)
+                ("local", "taos" | "tmq") => {
+                    let mut to = to.clone();
+                    to.driver = "taos".to_string();
+                    local_to_taos(from.clone(), to, *jobs, *force)
                         .in_current_span()
                         .await?;
                 }
