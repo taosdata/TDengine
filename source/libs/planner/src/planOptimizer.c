@@ -727,7 +727,7 @@ static int32_t pdcPushDownCondToChild(SOptimizeContext* pCxt, SLogicNode* pChild
 }
 
 static bool pdcJoinIsPrim(SNode* pNode, SSHashObj* pTables) {
-  if (QUERY_NODE_COLUMN != nodeType(pNode) || QUERY_NODE_FUNCTION != nodeType(pNode)) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode) && QUERY_NODE_FUNCTION != nodeType(pNode)) {
     return false;
   }
 

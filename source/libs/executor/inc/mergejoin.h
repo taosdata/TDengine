@@ -318,6 +318,7 @@ typedef struct SMJoinOperatorInfo {
     (_cache)->rowNum += (_blk)->info.rows;                                       \
     pGrp->blk = (_blk);                                                         \
     pGrp->beginIdx = 0;                                        \
+    pGrp->endIdx = (_blk)->info.rows - 1;                       \
   } while (0)
 
 #define MJOIN_RESTORE_TB_BLK(_cache, _tb)                                         \
@@ -331,6 +332,15 @@ typedef struct SMJoinOperatorInfo {
       (_tb)->blkRowIdx = 0;                    \
     }                                                                           \
   } while (0)
+
+#define MJOIN_SAVE_TB_BLK(_cache, _tb)                                         \
+  do {                                                                          \
+    ASSERT(taosArrayGetSize((_cache)->grps) >= 1);                                \
+    SMJoinGrpRows* pGrp = taosArrayGet((_cache)->grps, 0);              \
+    ASSERT(pGrp->blk == (_tb)->blk);                                  \
+    pGrp->beginIdx = (_tb)->blkRowIdx;                              \
+    pGrp->readIdx = pGrp->beginIdx;                                       \
+  } while (0)  
 
 #define MJOIN_POP_TB_BLK(_cache)                                           \
   do {                                                                          \
@@ -378,6 +388,9 @@ typedef struct SMJoinOperatorInfo {
   } while (0)
 
 
+
+void mJoinDestroyMergeCtx(SMJoinOperatorInfo* pJoin);
+void mJoinDestroyWindowCtx(SMJoinOperatorInfo* pJoin);
 int32_t mJoinInitWindowCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode);
 int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode);
 SSDataBlock* mInnerJoinDo(struct SOperatorInfo* pOperator);
@@ -407,6 +420,7 @@ int32_t mJoinProcessLowerGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnI
 int32_t mJoinProcessGreaterGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs);
 int32_t mJoinFilterAndKeepSingleRow(SSDataBlock* pBlock, SFilterInfo* pFilterInfo);
 int32_t mJoinFilterAndNoKeepRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo);
+
 
 #ifdef __cplusplus
 }

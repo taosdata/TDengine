@@ -744,7 +744,7 @@ static int32_t mJoinInitTableInfo(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysi
   memcpy(&pTable->inputStat, pStat, sizeof(*pStat));
 
   pTable->eqGrps = taosArrayInit(8, sizeof(SMJoinGrpRows));
-  taosArrayReserve(pTable->eqGrps, 1);
+  //taosArrayReserve(pTable->eqGrps, 1);
   
   if (E_JOIN_TB_BUILD == pTable->type) {
     pTable->createdBlks = taosArrayInit(8, POINTER_BYTES);
@@ -765,7 +765,7 @@ static int32_t mJoinInitTableInfo(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysi
     pTable->noKeepEqGrpRows = (JOIN_STYPE_ANTI == pJoin->subType && NULL == pJoin->pFPreFilter);
     pTable->multiEqGrpRows = !((JOIN_STYPE_SEMI == pJoin->subType || JOIN_STYPE_ANTI == pJoin->subType) && NULL == pJoin->pFPreFilter);
     pTable->multiRowsGrp = !((JOIN_STYPE_SEMI == pJoin->subType || JOIN_STYPE_ANTI == pJoin->subType) && NULL == pJoin->pPreFilter);
-    if (JOIN_STYPE_ASOF == pJoin->subType) {
+    if (JOIN_STYPE_ASOF == pJoinNode->subType) {
       pTable->eqRowLimit = pJoinNode->pJLimit ? ((SLimitNode*)pJoinNode->pJLimit)->limit : 1;
     }
   } else {
@@ -817,6 +817,14 @@ static int32_t mJoinInitCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* 
   }
   
   return mJoinInitMergeCtx(pJoin, pJoinNode);
+}
+
+static void mJoinDestroyCtx(SMJoinOperatorInfo* pJoin) {
+  if (JOIN_STYPE_ASOF == pJoin->subType || JOIN_STYPE_WIN == pJoin->subType) {
+    return mJoinDestroyWindowCtx(pJoin);
+  }
+  
+  return mJoinDestroyMergeCtx(pJoin);
 }
 
 void mJoinSetDone(SOperatorInfo* pOperator) {
@@ -1290,8 +1298,8 @@ void destroyMergeJoinTableCtx(SMJoinTableCtx* pTable) {
 
 void destroyMergeJoinOperator(void* param) {
   SMJoinOperatorInfo* pJoin = (SMJoinOperatorInfo*)param;
-  pJoin->ctx.mergeCtx.finBlk = blockDataDestroy(pJoin->ctx.mergeCtx.finBlk);
-  pJoin->ctx.mergeCtx.midBlk = blockDataDestroy(pJoin->ctx.mergeCtx.midBlk);
+
+  mJoinDestroyCtx(pJoin);
 
   if (pJoin->pFPreFilter != NULL) {
     filterFreeInfo(pJoin->pFPreFilter);

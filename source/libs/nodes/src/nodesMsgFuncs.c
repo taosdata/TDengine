@@ -2427,6 +2427,9 @@ enum {
   PHY_SORT_MERGE_JOIN_CODE_SUB_TYPE,
   PHY_SORT_MERGE_JOIN_CODE_WINDOW_OFFSET,
   PHY_SORT_MERGE_JOIN_CODE_JOIN_LIMIT,
+  PHY_SORT_MERGE_JOIN_CODE_ASOF_OP,
+  PHY_SORT_MERGE_JOIN_CODE_LEFT_PRIM_EXPR,  
+  PHY_SORT_MERGE_JOIN_CODE_RIGHT_PRIM_EXPR,  
   PHY_SORT_MERGE_JOIN_CODE_LEFT_PRIM_SLOT_ID,  
   PHY_SORT_MERGE_JOIN_CODE_RIGHT_PRIM_SLOT_ID,
   PHY_SORT_MERGE_JOIN_CODE_LEFT_EQ_COLS,  
@@ -2456,6 +2459,15 @@ static int32_t physiMergeJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_JOIN_LIMIT, nodeToMsg, pNode->pJLimit);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_SORT_MERGE_JOIN_CODE_ASOF_OP, pNode->asofOpType);
+  }  
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_LEFT_PRIM_EXPR, nodeToMsg, pNode->leftPrimExpr);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_RIGHT_PRIM_EXPR, nodeToMsg, pNode->rightPrimExpr);
+  }  
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, PHY_SORT_MERGE_JOIN_CODE_LEFT_PRIM_SLOT_ID, pNode->leftPrimSlotId);
   }  
@@ -2514,6 +2526,15 @@ static int32_t msgToPhysiMergeJoinNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_SORT_MERGE_JOIN_CODE_JOIN_LIMIT:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pJLimit);
+        break;
+      case PHY_SORT_MERGE_JOIN_CODE_ASOF_OP:
+        code = tlvDecodeI32(pTlv, &pNode->asofOpType);
+        break;
+      case PHY_SORT_MERGE_JOIN_CODE_LEFT_PRIM_EXPR:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->leftPrimExpr);
+        break;
+      case PHY_SORT_MERGE_JOIN_CODE_RIGHT_PRIM_EXPR:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->rightPrimExpr);
         break;
       case PHY_SORT_MERGE_JOIN_CODE_LEFT_PRIM_SLOT_ID:
         code = tlvDecodeI32(pTlv, &pNode->leftPrimSlotId);

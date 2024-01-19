@@ -77,6 +77,7 @@ enum {
 #define RIGHT_TABLE_COLS  0x2
 #define ALL_TABLE_COLS    (LEFT_TABLE_COLS | RIGHT_TABLE_COLS)
 
+#define JT_MAX_JLIMIT     3
 #define JT_KEY_SOLT_ID    (MAX_SLOT_NUM - 1)
 int32_t jtInputColType[MAX_SLOT_NUM] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_BIGINT};
 
@@ -112,6 +113,7 @@ typedef struct {
   int32_t colCond;
   int32_t joinType;
   int32_t subType;
+  int64_t jLimit;
 
   int32_t leftTotalRows;
   int32_t rightTotalRows;
@@ -175,6 +177,8 @@ typedef struct {
 typedef struct {
   EJoinType joinType;
   EJoinSubType subType;
+  int32_t asofOp;
+  int64_t jLimit;
   int32_t cond;
   bool    filter;
   bool    asc;
@@ -773,26 +777,33 @@ void createBlockDescNode(SDataBlockDescNode** ppNode) {
   *ppNode = pDesc;
 }
 
-SSortMergeJoinPhysiNode* createDummySortMergeJoinPhysiNode(EJoinType type, EJoinSubType sub, int32_t cond, bool filter, bool asc) {
+SSortMergeJoinPhysiNode* createDummySortMergeJoinPhysiNode(SJoinTestParam* param) {
   SSortMergeJoinPhysiNode* p = (SSortMergeJoinPhysiNode*)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN);
-  p->joinType = type;
-  p->subType = sub;
+  p->joinType = param->joinType;
+  p->subType = param->subType;
+  p->asofOpType = param->asofOp;
+  if (param->jLimit > 1 || taosRand() % 2) {
+    SLimitNode* limitNode = (SLimitNode*)nodesMakeNode(QUERY_NODE_LIMIT);
+    limitNode->limit = param->jLimit;
+    p->pJLimit = (SNode*)limitNode;
+  }
   p->leftPrimSlotId = 0;
   p->rightPrimSlotId = 0;
-  p->node.inputTsOrder = asc ? ORDER_ASC : ORDER_DESC;
+  p->node.inputTsOrder = param->asc ? ORDER_ASC : ORDER_DESC;
 
-  jtCtx.joinType = type;
-  jtCtx.subType = sub;
-  jtCtx.asc = asc;
-  jtCtx.leftColOnly = (JOIN_TYPE_LEFT == type && JOIN_STYPE_SEMI == sub);
-  jtCtx.rightColOnly = (JOIN_TYPE_RIGHT == type && JOIN_STYPE_SEMI == sub);
+  jtCtx.joinType = param->joinType;
+  jtCtx.subType = param->subType;
+  jtCtx.asc = param->asc;
+  jtCtx.jLimit = param->jLimit;
+  jtCtx.leftColOnly = (JOIN_TYPE_LEFT == param->joinType && JOIN_STYPE_SEMI == param->subType);
+  jtCtx.rightColOnly = (JOIN_TYPE_RIGHT == param->joinType && JOIN_STYPE_SEMI == param->subType);
 
-  createColCond(p, cond);
-  createFilterStart(p, filter);
+  createColCond(p, param->cond);
+  createFilterStart(p, param->filter);
   createTargetSlotList(p);
   createColEqCondEnd(p);
   createColOnCondEnd(p);
-  createFilterEnd(p, filter);
+  createFilterEnd(p, param->filter);
   updateColRowInfo();
   createBlockDescNode(&p->node.pOutputDataBlockDesc);
 
@@ -2197,7 +2208,7 @@ void handleTestDone() {
 void runSingleTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
-  SSortMergeJoinPhysiNode* pNode = createDummySortMergeJoinPhysiNode(param->joinType, param->subType, param->cond, param->filter, param->asc);    
+  SSortMergeJoinPhysiNode* pNode = createDummySortMergeJoinPhysiNode(param);    
   createDummyBlkList(200, 200, 200, 200, 20);
   
   while (contLoop) {
@@ -2740,6 +2751,62 @@ TEST(leftAntiJoin, fullCondTest) {
   
   printStatInfo(caseName);   
   taosMemoryFree(pTask);
+}
+#endif
+#endif
+
+#if 1
+#if 1
+TEST(leftAsofJoin, noCondGreaterThanTest) {
+  SJoinTestParam param;
+  char* caseName = "leftAntiJoin:noCondGreaterThanTest";
+  SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
+
+  param.pTask = pTask;
+  param.joinType = JOIN_TYPE_LEFT;
+  param.subType = JOIN_STYPE_ASOF;
+  param.cond = TEST_NO_COND;
+  param.asofOp = OP_TYPE_GREATER_THAN;
+  param.asc = true;
+  
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.jLimit = taosRand() % 2 ? (1 + (taosRand() % JT_MAX_JLIMIT)) : 1;
+    
+    param.filter = false;
+    runSingleTest(caseName, &param);
+
+    param.filter = true;
+    runSingleTest(caseName, &param);
+  }
+
+  printStatInfo(caseName); 
+  taosMemoryFree(pTask);
+}
+#endif
+
+#if 1
+TEST(leftAsofJoin, eqCondTest) {
+  SJoinTestParam param;
+  char* caseName = "leftAntiJoin:eqCondTest";
+  SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
+
+  param.pTask = pTask;
+  param.joinType = JOIN_TYPE_LEFT;
+  param.subType = JOIN_STYPE_ANTI;
+  param.cond = TEST_EQ_COND;
+  param.asc = true;
+  
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.filter = false;
+    runSingleTest(caseName, &param);
+
+    param.filter = true;
+    runSingleTest(caseName, &param);
+  }
+  
+  printStatInfo(caseName); 
+  taosMemoryFree(pTask);
+  handleCaseEnd();
 }
 #endif
 #endif

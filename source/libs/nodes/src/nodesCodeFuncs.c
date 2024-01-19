@@ -2119,6 +2119,9 @@ static const char* jkJoinPhysiPlanJoinType = "JoinType";
 static const char* jkJoinPhysiPlanSubType = "SubType";
 static const char* jkJoinPhysiPlanWinOffset = "WindowOffset";
 static const char* jkJoinPhysiPlanJoinLimit = "JoinLimit";
+static const char* jkJoinPhysiPlanAsofOp = "AsofOp";
+static const char* jkJoinPhysiPlanLeftPrimExpr = "LeftPrimExpr";
+static const char* jkJoinPhysiPlanRightPrimExpr = "RightPrimExpr";
 static const char* jkJoinPhysiPlanLeftPrimSlotId = "LeftPrimSlotId";
 static const char* jkJoinPhysiPlanRightPrimSlotId = "RightPrimSlotId";
 static const char* jkJoinPhysiPlanLeftEqCols = "LeftEqCols";
@@ -2150,6 +2153,15 @@ static int32_t physiMergeJoinNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkJoinPhysiPlanJoinLimit, nodeToJson, pNode->pJLimit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkJoinPhysiPlanAsofOp, pNode->asofOpType);
+  }  
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkJoinPhysiPlanLeftPrimExpr, nodeToJson, pNode->leftPrimExpr);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkJoinPhysiPlanRightPrimExpr, nodeToJson, pNode->rightPrimExpr);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkJoinPhysiPlanLeftPrimSlotId, pNode->leftPrimSlotId);
@@ -2203,6 +2215,15 @@ static int32_t jsonToPhysiMergeJoinNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkJoinPhysiPlanJoinLimit, &pNode->pJLimit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkJoinPhysiPlanAsofOp, pNode->asofOpType, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkJoinPhysiPlanLeftPrimExpr, &pNode->leftPrimExpr);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkJoinPhysiPlanRightPrimExpr, &pNode->rightPrimExpr);
   }
   if (TSDB_CODE_SUCCESS == code) {
     tjsonGetNumberValue(pJson, jkJoinPhysiPlanLeftPrimSlotId, pNode->leftPrimSlotId, code);
