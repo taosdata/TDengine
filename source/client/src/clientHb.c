@@ -30,7 +30,7 @@ typedef struct {
   };
 } SHbParam;
 
-static SClientHbMgr clientHbMgr = {0};
+SClientHbMgr clientHbMgr = {0};
 
 static int32_t hbCreateThread();
 static void    hbStopThread();
@@ -1294,9 +1294,8 @@ void hbMgrCleanUp() {
 
   taosThreadMutexLock(&clientHbMgr.lock);
   appHbMgrCleanup();
-  taosArrayDestroy(clientHbMgr.appHbMgrs);
+  clientHbMgr.appHbMgrs = taosArrayDestroy(clientHbMgr.appHbMgrs);
   taosThreadMutexUnlock(&clientHbMgr.lock);
-  clientHbMgr.appHbMgrs = NULL;
 }
 
 int hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, int64_t clusterId) {
@@ -1335,13 +1334,18 @@ int hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId, in
 }
 
 void hbDeregisterConn(STscObj *pTscObj, SClientHbKey connKey) {
-  SAppHbMgr    *pAppHbMgr = pTscObj->pAppInfo->pAppHbMgr;
-  SClientHbReq *pReq = taosHashAcquire(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
-  if (pReq) {
-    tFreeClientHbReq(pReq);
-    taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
-    taosHashRelease(pAppHbMgr->activeInfo, pReq);
+  SClientHbReq *pReq = NULL;
+  taosThreadMutexLock(&clientHbMgr.lock);
+  SAppHbMgr *pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, pTscObj->appHbMgrIdx);
+  if (pAppHbMgr) {
+    pReq = taosHashAcquire(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
+    if (pReq) {
+      tFreeClientHbReq(pReq);
+      taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
+      taosHashRelease(pAppHbMgr->activeInfo, pReq);
+    }
   }
+  taosThreadMutexUnlock(&clientHbMgr.lock);
 
   if (NULL == pReq) {
     return;

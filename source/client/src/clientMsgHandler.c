@@ -26,6 +26,8 @@
 #include "tname.h"
 #include "tversion.h"
 
+extern SClientHbMgr clientHbMgr;
+
 static void setErrno(SRequestObj* pRequest, int32_t code) {
   pRequest->code = code;
   terrno = code;
@@ -63,11 +65,20 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   STscObj* pTscObj = pRequest->pTscObj;
 
-  if (NULL == pTscObj->pAppInfo || NULL == pTscObj->pAppInfo->pAppHbMgr) {
+  if (NULL == pTscObj->pAppInfo) {
     setErrno(pRequest, TSDB_CODE_TSC_DISCONNECTED);
     tsem_post(&pRequest->body.rspSem);
     goto End;
   }
+
+  taosThreadMutexLock(&clientHbMgr.lock);
+  if (NULL == taosArrayGetP(clientHbMgr.appHbMgrs, pTscObj->appHbMgrIdx)) {
+    taosThreadMutexUnlock(&clientHbMgr.lock);
+    setErrno(pRequest, TSDB_CODE_TSC_DISCONNECTED);
+    tsem_post(&pRequest->body.rspSem);
+    goto End;
+  }
+  taosThreadMutexUnlock(&clientHbMgr.lock);
 
   SConnectRsp connectRsp = {0};
   if (tDeserializeSConnectRsp(pMsg->pData, pMsg->len, &connectRsp) != 0) {
@@ -142,7 +153,12 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   pTscObj->authVer = connectRsp.authVer;
   pTscObj->whiteListInfo.ver = connectRsp.whiteListVer;
 
-  hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, pTscObj->id, connectRsp.clusterId, connectRsp.connType);
+  taosThreadMutexLock(&clientHbMgr.lock);
+  SAppHbMgr* pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, pTscObj->appHbMgrIdx);
+  if (pAppHbMgr) {
+    hbRegisterConn(pAppHbMgr, pTscObj->id, connectRsp.clusterId, connectRsp.connType);
+  }
+  taosThreadMutexUnlock(&clientHbMgr.lock);
 
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, connectRsp.clusterId,
            pTscObj->pAppInfo->numOfConns);
