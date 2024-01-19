@@ -229,9 +229,9 @@ class TBase:
 #
 
     # get vgroups
-    def getVGroup(self, db_name):
+    def getVGroup(self, dbName):
         vgidList = []
-        sql = f"select vgroup_id from information_schema.ins_vgroups where db_name='{db_name}'"
+        sql = f"select vgroup_id from information_schema.ins_vgroups where db_name='{dbName}'"
         res = tdSql.getResult(sql)
         rows = len(res)
         for i in range(rows):
@@ -239,6 +239,29 @@ class TBase:
 
         return vgidList
     
+    # get distributed rows
+    def getDistributed(self, tbName):
+        sql = f"show table distributed {tbName}"
+        tdSql.query(sql)
+        dics = {}
+        i = 0
+        for i in range(tdSql.getRows()):
+            row = tdSql.getData(i, 0)
+            #print(row)
+            row = row.replace('[', '').replace(']', '')
+            #print(row)
+            items = row.split(' ')
+            #print(items)
+            for item in items:
+                #print(item)
+                v = item.split('=')
+                #print(v)
+                if len(v) == 2:
+                    dics[v[0]] = v[1]
+            if i > 5:
+                break
+        print(dics)
+        return dics
 
 
 #

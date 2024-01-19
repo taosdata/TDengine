@@ -76,12 +76,26 @@ class TDTestCase(TBase):
         sql2 = "select bi from stb where bi is not null order by bi desc limit 10;"
         self.checkSameResult(sql1, sql2)
 
+        # distributed expect values
+        expects = {
+            "Block_Rows"     : 6*100000,
+            "Total_Tables"   : 6,
+            "Total_Vgroups"  : 3
+        }
+        self.waitTransactionZero()
+        reals = self.getDistributed(self.stb)
+        for k in expects.keys():
+            v = expects[k]
+            if int(reals[k]) != v:
+                tdLog.exit(f"distribute {k} expect: {v} real: {reals[k]}")
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
 
         # insert data
         self.insertData()
+        self.flushDb()
 
         # check insert data correct
         self.checkInsertCorrect()
