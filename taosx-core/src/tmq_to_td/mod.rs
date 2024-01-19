@@ -216,10 +216,10 @@ async fn write_data(
                         || errstr.contains("[0x0603]")
                         || errstr.contains("[0x03C7]")
                     {
-                        counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
+                        // counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
                         tracing::warn!("[{id}] {errstr}");
                     } else {
-                        counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
+                        // counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
                         bail!("write raw data error: {err}");
                     }
                 }

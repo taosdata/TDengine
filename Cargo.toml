@@ -171,6 +171,7 @@ md5 = "0.7.0"
 
 taos = { workspace = true }
 taosx-core = { path = "./taosx-core", default-features = false }
+taosx-metrics = { path = "./taosx-metrics"}
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator = { version = "0.5", optional = true }

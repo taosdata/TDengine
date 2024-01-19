@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use arrow::array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array};
+use arrow::array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array, UInt8Array};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use arrow_flight::FlightClient;
@@ -331,6 +331,25 @@ impl Client {
                         .unwrap()]));
                     let action: ArrayRef =
                         Arc::new(StringArray::from_iter_values(["task-activity".to_string()]));
+                    let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+                    let item = RecordBatch::try_from_iter(vec![
+                        ("ts", val),
+                        ("action", action),
+                        ("context", context),
+                        ("req_id", req_id),
+                    ]);
+                    item
+                }
+                RespAction::Metrics(metrics_event) => {
+                    let val = Arc::new(TimestampMillisecondArray::from_iter_values([
+                        Utc::now().timestamp_millis()
+                    ])) as ArrayRef;
+                    let action: ArrayRef =
+                        Arc::new(StringArray::from_iter_values(
+                            ["metrics-events".to_string()],
+                        ));
+                    let context: ArrayRef =
+                        Arc::new(UInt8Array::from_iter_values(metrics_event.to_vec_u8()));
                     let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
                     let item = RecordBatch::try_from_iter(vec![
                         ("ts", val),

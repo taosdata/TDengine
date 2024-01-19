@@ -54,6 +54,7 @@ tokio-util = { version = "0.7" }
 tracing = { version = "0.1", features = ["log"] }
 
 taosx-core = { path = "../taosx-core" }
+taosx-metrics = { path = "../taosx-metrics" }
 
 time = { version = "0.3", features = ["formatting", "macros"] }
 tracing-subscriber = { version = "0.3", features = ["time", "local-time"] }

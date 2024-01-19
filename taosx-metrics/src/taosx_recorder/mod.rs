@@ -88,7 +88,7 @@ impl Inner {
     }
 }
 
-struct TaosXRecorder {
+pub struct TaosXRecorder {
     inner: Arc<Inner>,
 }
 

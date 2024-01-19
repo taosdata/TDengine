@@ -8,7 +8,7 @@ use std::{
 
 use anyhow::Context;
 use arrow::{
-    array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array},
+    array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array, UInt8Array},
     datatypes::{Field, Fields, Schema},
     record_batch::RecordBatch,
 };
@@ -30,17 +30,6 @@ use tokio::sync::RwLock;
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::{transport::Server, Request, Response, Status, Streaming};
 
-use arrow_flight::{
-    decode::FlightDataDecoder,
-    encode::FlightDataEncoderBuilder,
-    error::FlightError,
-    flight_service_server::{FlightService, FlightServiceServer},
-    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
-    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
-};
-use tracing::{info, instrument, warn};
-use uuid::Uuid;
-
 use crate::serve::{
     controller::{
         agent::{Activity, AgentToken, LevelFilter},
@@ -49,6 +38,17 @@ use crate::serve::{
     rpc::put::PutStream,
     scheduler::agent::AgentNotify,
 };
+use arrow_flight::{
+    decode::FlightDataDecoder,
+    encode::FlightDataEncoderBuilder,
+    error::FlightError,
+    flight_service_server::{FlightService, FlightServiceServer},
+    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
+    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
+};
+use taosx_metrics::MetricsEvents;
+use tracing::{info, instrument, warn};
+use uuid::Uuid;
 
 use super::{
     controller::{AgentAction, AgentDataSetsSender, DsvSender, Task, TaskControllerRef},
@@ -598,11 +598,6 @@ impl FlightService for FlightServiceImpl {
                                 .as_any()
                                 .downcast_ref::<StringArray>()
                                 .unwrap();
-                            let context = res
-                                .column(2)
-                                .as_any()
-                                .downcast_ref::<StringArray>()
-                                .unwrap();
                             let req_id = res
                                 .column(3)
                                 .as_any()
@@ -612,18 +607,23 @@ impl FlightService for FlightServiceImpl {
                             const ORDER: Ordering = Ordering::Relaxed;
 
                             for _ in 0..rows {
-                                let (ts, action, context, _req_id) = (
+                                let (ts, action, _req_id) = (
                                     ts.value_as_datetime_with_tz(
                                         0,
                                         ts.timezone().unwrap_or("UTC").parse().unwrap(),
                                     )
                                     .unwrap(),
                                     action.value(0),
-                                    context.value(0),
                                     req_id.value(0),
                                 );
                                 match action {
                                     "list" => {
+                                        let context = res
+                                        .column(2)
+                                        .as_any()
+                                        .downcast_ref::<StringArray>()
+                                        .unwrap();
+                                        let context = context.value(0);
                                         let resp: ListResponse =
                                             serde_json::from_str(&context).unwrap();
 
@@ -650,6 +650,12 @@ impl FlightService for FlightServiceImpl {
                                         });
                                     }
                                     "check" => {
+                                        let context = res
+                                        .column(2)
+                                        .as_any()
+                                        .downcast_ref::<StringArray>()
+                                        .unwrap();
+                                        let context = context.value(0);
                                         let resp: CheckResponse =
                                             serde_json::from_str(&context).unwrap();
 
@@ -676,6 +682,12 @@ impl FlightService for FlightServiceImpl {
                                         });
                                     }
                                     "agent-activity" => {
+                                        let context = res
+                                        .column(2)
+                                        .as_any()
+                                        .downcast_ref::<StringArray>()
+                                        .unwrap();
+                                        let context = context.value(0);
                                         let activity: Activity = serde_json::from_str(&context)
                                             .map_err(|err| {
                                                 anyhow::format_err!(
@@ -690,6 +702,12 @@ impl FlightService for FlightServiceImpl {
                                             .send(AgentNotify::AgentActivity(agent_id, activity));
                                     }
                                     "task-activity" => {
+                                        let context = res
+                                        .column(2)
+                                        .as_any()
+                                        .downcast_ref::<StringArray>()
+                                        .unwrap();
+                                        let context = context.value(0);
                                         let activity: TaskActivity = serde_json::from_str(&context)
                                             .map_err(|err| {
                                                 anyhow::format_err!(
@@ -705,6 +723,12 @@ impl FlightService for FlightServiceImpl {
                                         });
                                     }
                                     "heartbeat-ok" => {
+                                        let context = res
+                                        .column(2)
+                                        .as_any()
+                                        .downcast_ref::<StringArray>()
+                                        .unwrap();
+                                        let context = context.value(0);
                                         let resp: HeartbeatResponse =
                                             serde_json::from_str(&context).unwrap();
                                         let delay = resp.duration();
@@ -756,6 +780,24 @@ impl FlightService for FlightServiceImpl {
                                         // tracing::info!("Send heartbeat response");
                                         let _ = tx.send_async(item).await;
                                         // return std::task::Poll::Ready(Some(item));
+                                    }
+                                    "metrics-events" => {
+                                        tracing::trace!("Received metrics events");
+                                        let context = res
+                                        .column(2)
+                                        .as_any()
+                                        .downcast_ref::<UInt8Array>()
+                                        .unwrap();
+                                        match MetricsEvents::from_slice(context.values()) {
+                                            Ok(events) => {
+                                                // debug
+                                                tracing::info!(?events, "Received metrics events");
+                                            }
+                                            Err(err) => {
+                                                tracing::warn!(?err, "Invalid metrics events");
+                                            }
+                                        }
+
                                     }
                                     action => {
                                         warn!("Unknown action: {action}");
