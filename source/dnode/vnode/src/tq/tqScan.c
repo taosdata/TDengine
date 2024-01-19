@@ -16,21 +16,20 @@
 #include "tq.h"
 
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision) {
-  int32_t dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+  int32_t dataStrLen = sizeof(SRetrieveTableRspForTmq) + blockGetEncodeSize(pBlock);
   void*   buf = taosMemoryCalloc(1, dataStrLen);
   if (buf == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
-  pRetrieve->useconds = 0;
+  SRetrieveTableRspForTmq* pRetrieve = (SRetrieveTableRspForTmq*)buf;
+  pRetrieve->version = 0;
   pRetrieve->precision = precision;
   pRetrieve->compressed = 0;
-  pRetrieve->completed = 1;
   pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
 
   int32_t actualLen = blockEncode(pBlock, pRetrieve->data, numOfCols);
-  actualLen += sizeof(SRetrieveTableRsp);
+  actualLen += sizeof(SRetrieveTableRspForTmq);
   taosArrayPush(pRsp->blockDataLen, &actualLen);
   taosArrayPush(pRsp->blockData, &buf);
 

@@ -1435,6 +1435,18 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
   return taos_write_raw_block_with_reqid(taos, rows, pData, tbname, 0);
 }
 
+static void* getRawDataFromRes(void *pRetrieve){
+  void* rawData = NULL;
+  // deal with compatibility
+  if(*(int64_t*)pRetrieve == 0){
+    rawData = ((SRetrieveTableRsp*)pRetrieve)->data;
+  }else if(*(int64_t*)pRetrieve == 1){
+    rawData = ((SRetrieveTableRspForTmq*)pRetrieve)->data;
+  }
+  ASSERT(rawData != NULL);
+  return rawData;
+}
+
 int taos_write_raw_block_with_reqid(TAOS* taos, int rows, char* pData, const char* tbname, int64_t reqid) {
   if (!taos || !pData || !tbname) {
     return TSDB_CODE_INVALID_PARA;
@@ -1575,7 +1587,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   uDebug("tmqWriteRawDataImpl raw data block num:%d", rspObj.rsp.blockNum);
   while (++rspObj.resIter < rspObj.rsp.blockNum) {
-    SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(rspObj.rsp.blockData, rspObj.resIter);
+    void* pRetrieve = taosArrayGetP(rspObj.rsp.blockData, rspObj.resIter);
     if (!rspObj.rsp.withSchema) {
       uError("WriteRaw:no schema, iter:%d", rspObj.resIter);
       goto end;
@@ -1626,7 +1638,8 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
       fields[i].bytes = pSW->pSchema[i].bytes;
       tstrncpy(fields[i].name, pSW->pSchema[i].name, tListLen(pSW->pSchema[i].name));
     }
-    code = rawBlockBindData(pQuery, pTableMeta, pRetrieve->data, NULL, fields, pSW->nCols, true);
+    void* rawData = getRawDataFromRes(pRetrieve);
+    code = rawBlockBindData(pQuery, pTableMeta, rawData, NULL, fields, pSW->nCols, true);
     taosMemoryFree(fields);
     if (code != TSDB_CODE_SUCCESS) {
       uError("WriteRaw:rawBlockBindData failed");
@@ -1711,7 +1724,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
 
   uDebug("tmqWriteRawMetaDataImpl raw data block num:%d", rspObj.rsp.blockNum);
   while (++rspObj.resIter < rspObj.rsp.blockNum) {
-    SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(rspObj.rsp.blockData, rspObj.resIter);
+    void* pRetrieve = taosArrayGetP(rspObj.rsp.blockData, rspObj.resIter);
     if (!rspObj.rsp.withSchema) {
       uError("WriteRaw:no schema, iter:%d", rspObj.resIter);
       goto end;
@@ -1804,7 +1817,8 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       fields[i].bytes = pSW->pSchema[i].bytes;
       tstrncpy(fields[i].name, pSW->pSchema[i].name, tListLen(pSW->pSchema[i].name));
     }
-    code = rawBlockBindData(pQuery, pTableMeta, pRetrieve->data, pCreateReqDst, fields, pSW->nCols, true);
+    void* rawData = getRawDataFromRes(pRetrieve);
+    code = rawBlockBindData(pQuery, pTableMeta, rawData, pCreateReqDst, fields, pSW->nCols, true);
     taosMemoryFree(fields);
     if (code != TSDB_CODE_SUCCESS) {
       uError("WriteRaw:rawBlockBindData failed");

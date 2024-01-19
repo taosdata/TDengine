@@ -1839,6 +1839,14 @@ typedef struct {
 } SRetrieveTableRsp;
 
 typedef struct {
+  int64_t version;
+  int64_t numOfRows;
+  int8_t  compressed;
+  int8_t  precision;
+  char    data[];
+} SRetrieveTableRspForTmq;
+
+typedef struct {
   int64_t handle;
   int64_t useconds;
   int8_t  completed;  // all results are returned to client
