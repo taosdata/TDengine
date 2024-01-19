@@ -2,6 +2,7 @@ use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
 
 use anyhow::{bail, Context, Result};
 use taos::*;
+use taosx_ipc::types::dsv::DataSourceValidation;
 use tokio::sync::Semaphore;
 
 use crate::{taoz::ZCodec, tmq_to_local::LocalConfig};
@@ -284,6 +285,42 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
         handle.await??;
     }
     Ok(())
+}
+
+pub async fn is_local_valid(dsn: &Dsn) -> DataSourceValidation {
+    if dsn.driver != "local" {
+        return DataSourceValidation::invalid(
+            "local".to_string(),
+            "backup data source".to_string(),
+        );
+    }
+    if dsn.path.is_none() {
+        return DataSourceValidation::invalid(
+            "local".to_string(),
+            "No backup directory specified".to_string(),
+        );
+    }
+    let path: &Path = dsn.path.as_ref().unwrap().as_ref();
+    if !path.exists() {
+        return DataSourceValidation::invalid(
+            "local".to_string(),
+            "Backup directory does not exist".to_string(),
+        );
+    }
+    let config_path = path.join("local.toml");
+    if !config_path.exists() {
+        return DataSourceValidation::invalid(
+            "local".to_string(),
+            "Backup directory may not be correct".to_string(),
+        );
+    }
+    return DataSourceValidation {
+        valid: true,
+        support: true,
+        data_source: "local".to_string(),
+        version: None,
+        message: None,
+    };
 }
 
 #[tokio::test]
