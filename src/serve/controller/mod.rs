@@ -1759,7 +1759,6 @@ impl AgentFilter {
     Deserialize,
     ToSchema,
     Clone,
-    Copy,
     Debug,
     PartialEq,
     Eq,
@@ -1770,6 +1769,7 @@ impl AgentFilter {
 )]
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Status {
     /// Created by API.
     Created,
@@ -1811,6 +1811,21 @@ pub enum Status {
     Resumed,
     /// Waken
     Waken,
+    /// Task is in unknown state.
+    #[strum(default)]
+    #[serde(untagged)]
+    __NonExhaustive(String),
+}
+
+impl PartialEq<str> for Status {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+impl PartialEq<Status> for &Status {
+    fn eq(&self, other: &Status) -> bool {
+        *self == other
+    }
 }
 
 impl Status {
@@ -2407,8 +2422,8 @@ impl TaskDetail {
         }
     }
 
-    pub(super) fn status(&self) -> Status {
-        self.task.status
+    pub(super) fn status(&self) -> &Status {
+        &self.task.status
     }
 
     pub fn expand_detail(self, lang: Option<String>) -> Self {
