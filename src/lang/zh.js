@@ -1430,7 +1430,7 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
         step23desc11: '输入用户名，如果不填，默认为 root',
         step23desc12: '【密码】：',
         step23desc13: '输入用户密码，如果不填，默认为 taosdata',
-        step24desc: '点击【测试连接】按钮测试连接情况，如果成功，会提示“成功连接到\n{0}"。'
+        step24desc: '点击【测试连接】按钮测试连接情况，如果成功，会提示“成功连接到\n{0}”。'
       }
     },
     party: {
