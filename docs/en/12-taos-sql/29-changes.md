@@ -71,7 +71,7 @@ The following data types can be used in the schema for standard tables.
 | 44 | SHOW STREAMS	| Modified | This statement previously showed continuous queries. The continuous query feature has been replaced with the stream processing feature. This statement now shows streams that have been created.
 | 45 | SHOW SUBSCRIPTIONS | Added | Shows all subscriptions in the current database.
 | 46 | SHOW TABLES | Modified | Only shows table names.
-| 47 | SHOW TABLE DISTRIBUTED | Added | Shows how table data is distributed. This replaces the `SELECT _block_dist() FROM { tb_name | stb_name }` command.
+| 47 | SHOW TABLE DISTRIBUTED | Added | Shows how table data is distributed. This replaces the `SELECT _block_dist() FROM &lcub; tb_name | stb_name &rcub;` command.
 | 48 | SHOW TOPICS | Added | Shows all subscribed topics in the current database.
 | 49 | SHOW TRANSACTIONS | Added | Shows all running transactions in the system.
 | 50 | SHOW DNODE VARIABLES | Added | Shows the configuration of the specified dnode.

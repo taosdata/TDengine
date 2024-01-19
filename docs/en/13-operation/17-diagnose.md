@@ -15,7 +15,7 @@ Diagnostic steps:
 2. On the server side, execute command `taos -n server -P <port> -l <pktlen>` to monitor the port range starting from the port specified by `-P` parameter with the role of "server".
 3. On the client side, execute command `taos -n client -h <fqdn of server> -P <port> -l <pktlen>` to send a testing package to the specified server and port.
 
--l <pktlen\>: The size of the testing package, in bytes. The value range is [11, 64,000] and default value is 1,000.
+-l &lt;pktlen&gt;: The size of the testing package, in bytes. The value range is [11, 64,000] and default value is 1,000.
 Please note that the package length must be same in the above 2 commands executed on server side and client side respectively.
 
 Output of the server side for the example is below:
@@ -63,7 +63,7 @@ Once this parameter is set to 135 or 143, the log file grows very quickly especi
 
 ## Client Log
 
-An independent log file, named as "taoslog+<seq num\>" is generated for each client program, i.e. a client process. The parameter `debugFlag` is used to control the log level. The default value is 131. For debugging and tracing, it needs to be set to either 135 or 143 respectively.
+An independent log file, named as "taoslog+&lt;seq num&gt;" is generated for each client program, i.e. a client process. The parameter `debugFlag` is used to control the log level. The default value is 131. For debugging and tracing, it needs to be set to either 135 or 143 respectively.
 
 The default value of `debugFlag` is also 131 and only logs at level of INFO/ERROR/WARNING are recorded. As stated above, for debugging and tracing, it needs to be changed to 135 or 143 respectively, so that logs at DEBUG or TRACE level can be recorded.
 
