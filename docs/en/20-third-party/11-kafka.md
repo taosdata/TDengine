@@ -406,7 +406,7 @@ The following configuration items apply to TDengine Sink Connector and TDengine 
 ### TDengine Sink Connector specific configuration
 
 1. `connection.database`: The name of the target database. If the specified database does not exist, it will be created automatically. The time precision used for automatic library building is nanoseconds. The default value is null. When it is NULL, refer to the description of the `connection.database.prefix` parameter for the naming rules of the target database
-2. `connection.database.prefix`: When `connection.database` is null, the prefix of the target database. Can contain placeholder '${topic}'. For example, kafka_${topic}, for topic 'orders' will be written to database 'kafka_orders'. Default null. When null, the name of the target database is the same as the name of the topic.
+2. `connection.database.prefix`: When `connection.database` is null, the prefix of the target database. Can contain placeholder '$&lcub;topic&rcub;'. For example, kafka_$&lcub;topic&rcub;, for topic 'orders' will be written to database 'kafka_orders'. Default null. When null, the name of the target database is the same as the name of the topic.
 3. `batch.size`: Write the number of records in each batch in batches. When the data received by the sink connector at one time is larger than this value, it will be written in some batches.
 4. `max.retries`: The maximum number of retries when an error occurs. Defaults to 1.
 5. `retry.backoff.ms`: The time interval for retry when sending an error. The unit is milliseconds. The default is 3000.

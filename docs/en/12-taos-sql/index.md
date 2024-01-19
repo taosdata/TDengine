@@ -9,7 +9,7 @@ TDengine SQL is the major interface for users to write data into or query from T
 
 Syntax Specifications used in this chapter:
 
-- The content inside <\> needs to be input by the user, excluding <\> itself.
+- The content inside &lt;&gt; needs to be input by the user, excluding &lt;&gt; itself.
 - \[ \] means optional input, excluding [] itself.
 - | means one of a few options, excluding | itself.
 - … means the item prior to it can be repeated multiple times.
