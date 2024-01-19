@@ -96,6 +96,7 @@ SRowBuffPos* createSessionWinBuff(SStreamFileState* pFileState, SSessionKey* pKe
   SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
   memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));
   pNewPos->needFree = true;
+  pNewPos->beFlushed = true;
   memcpy(pNewPos->pRowBuff, p, *pVLen);
   taosMemoryFree(p);
   return pNewPos;
@@ -223,6 +224,7 @@ int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, v
   SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
   memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));
   pNewPos->needFree = true;
+  pNewPos->beFlushed = true;
   void*   pBuff = NULL;
   int32_t code = streamStateSessionGet_rocksdb(getStateFileStore(pFileState), pKey, &pBuff, pVLen);
   if (code != TSDB_CODE_SUCCESS) {
@@ -313,6 +315,7 @@ int32_t allocSessioncWinBuffByNextPosition(SStreamFileState* pFileState, SStream
     }
     pNewPos = getNewRowPosForWrite(pFileState);
     pNewPos->needFree = true;
+    pNewPos->beFlushed = true;
   }
 
 _end:
@@ -488,6 +491,7 @@ int32_t sessionWinStateGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, void
       SRowBuffPos* pNewPos = getNewRowPosForWrite(pCur->pStreamFileState);
       memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));
       pNewPos->needFree = true;
+      pNewPos->beFlushed = true;
       memcpy(pNewPos->pRowBuff, pData, *pVLen);
       (*pVal) = pNewPos;
     }
