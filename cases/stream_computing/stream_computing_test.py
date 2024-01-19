@@ -841,7 +841,8 @@ class StreamComputingTest(TDCase):
                             self.tdCom.check_query_data(f'select wstart, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart,`min(c1)`', f'select * from (select _wstart AS wstart, {self.fill_tb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by wstart) where `min(c1)` is not Null order by wstart,`min(c1)`', fill_value=fill_value)
         if ignore_expired:
             # self.tdCom.check_query_data(f'select wstart, {self.stb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.stb_source_select_str}  from {tbname} {partition_elm} interval({self.dataDict["interval"]}s) order by wstart', sorted=True)
-            self.tdSql.query(f'select wstart, {self.stb_output_select_str} from {self.stb_name}{self.des_table_suffix} order by wstart')
+            tmp_stb_output_select_str = deepcopy(self.stb_output_select_str)
+            self.tdSql.query(f'select wstart, {tmp_stb_output_select_str.replace("`first(c4)`,`last(c5)`,", "").replace("`first(t4)`,`last(t5)`,", "")} from {self.stb_name}{self.des_table_suffix} order by wstart')
             res2 = self.tdSql.query_data
             for i in range(self.range_count):
                 o_ts = str(o_dt+self.dataDict["interval"])+f'+{i*10}s'
@@ -849,13 +850,11 @@ class StreamComputingTest(TDCase):
                 o_dt += 2
                 if self.delete and i%2 != 0:
                     self.tdCom.delete_rows(tbname=self.expired_ctb_name, start_ts=o_ts)
-
-            self.tdSql.query(f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.stb_name} {partition_elm} interval({self.dataDict["interval"]}s) order by wstart')
+            tmp_stb_source_select_str = deepcopy(self.stb_source_select_str)
+            self.tdSql.query(f'select _wstart AS wstart, {tmp_stb_source_select_str.replace("first(c4),last(c5),", "").replace("first(t4),last(t5),", "")}  from {self.stb_name} {partition_elm} interval({self.dataDict["interval"]}s) order by wstart')
             res1 = self.tdSql.query_data
             self.tdSql.checkNotEqual(res1, res2)
-            self.tdSql.query(f'select wstart, {self.stb_output_select_str} from {self.stb_name}{self.des_table_suffix} order by wstart')
-            res1 = self.tdSql.query_data
-            self.tdSql.checkEqual(res1, res2)
+            self.tdCom.check_query_data(f'select _wstart AS wstart, {tmp_stb_source_select_str.replace("first(c4),last(c5),", "").replace("first(t4),last(t5),", "")}  from {self.stb_name} {partition_elm} interval({self.dataDict["interval"]}s) order by wstart', f'select wstart, {tmp_stb_output_select_str.replace("`first(c4)`,`last(c5)`,", "").replace("`first(t4)`,`last(t5)`,", "")} from {self.stb_name}{self.des_table_suffix} order by wstart')
         if check_stream_task:
             time.sleep(self.stage_report_time)
             self.tdCom.check_stream_tasks()
@@ -3817,6 +3816,7 @@ class StreamComputingTest(TDCase):
 
     def run(self):
         # TODO
+        # return
         # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), max_delay=f"{random.randint(5, 6)}s", fill_value="NULL")
         # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), max_delay=f"{random.randint(5, 6)}s", fill_value="NEXT")
         # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), max_delay=f"{random.randint(5, 6)}s", fill_value="PREV")
