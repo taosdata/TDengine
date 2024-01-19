@@ -402,8 +402,6 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   streamTaskSendCheckpointReq(pStreamTask);
 //  streamTaskResume(pStreamTask);
 
-//  stDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", id);
-
   // 4. free it and remove fill-history task from disk meta-store
 //  streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
 
@@ -413,7 +411,6 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   // 6. open the inputQ for all upstream tasks
   streamTaskOpenAllUpstreamInput(pStreamTask);
 
-//  streamSchedExec(pStreamTask);
   streamMetaReleaseTask(pMeta, pStreamTask);
   return TSDB_CODE_SUCCESS;
 }
@@ -434,11 +431,21 @@ int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   } else { // no state transfer for sink tasks, and drop fill-history task, followed by opening inputQ of sink task.
     SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
     if (pStreamTask != NULL) {
+      // halt the related stream sink task
+      code = streamTaskHandleEvent(pStreamTask->status.pSM, TASK_EVENT_HALT);
+      if (code != TSDB_CODE_SUCCESS) {
+        stError("s-task:%s halt stream task:%s failed, code:%s not transfer state to stream task", pTask->id.idStr,
+                pStreamTask->id.idStr, tstrerror(code));
+        streamMetaReleaseTask(pMeta, pStreamTask);
+        return code;
+      } else {
+        stDebug("s-task:%s halt by related fill-history task:%s", pStreamTask->id.idStr, pTask->id.idStr);
+      }
+
       streamTaskOpenAllUpstreamInput(pStreamTask);
+      streamTaskSendCheckpointReq(pStreamTask);
       streamMetaReleaseTask(pMeta, pStreamTask);
     }
-
-    streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
   }
 
   return code;
@@ -702,7 +709,8 @@ bool streamTaskReadyToRun(const SStreamTask* pTask, char** pStatus) {
     return (st == TASK_STATUS__READY || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__CK ||
             st == TASK_STATUS__PAUSE || st == TASK_STATUS__HALT);
   } else {
-    return (st == TASK_STATUS__READY || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__CK);
+    return (st == TASK_STATUS__READY || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__CK ||
+            st == TASK_STATUS__HALT);
   }
 }
 

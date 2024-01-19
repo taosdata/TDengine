@@ -31,8 +31,12 @@ SStreamTaskState StreamTaskStatusList[9] = {
     {.state = TASK_STATUS__HALT, .name = "halt"},
     {.state = TASK_STATUS__PAUSE, .name = "paused"},
     {.state = TASK_STATUS__CK, .name = "checkpoint"},
-//    {.state = TASK_STATUS__STREAM_SCAN_HISTORY, .name = "stream-scan-history"},
 };
+
+typedef struct SStreamEventInfo {
+  EStreamTaskEvent event;
+  const char*      name;
+} SStreamEventInfo;
 
 SStreamEventInfo StreamTaskEventList[12] = {
     {.event = 0, .name = ""},  // dummy event, place holder
@@ -402,6 +406,10 @@ SStreamTaskState* streamTaskGetStatus(const SStreamTask* pTask) {
   return &pTask->status.pSM->current;  // copy one obj in case of multi-thread environment
 }
 
+ETaskStatus streamTaskGetPrevStatus(const SStreamTask* pTask) {
+  return pTask->status.pSM->prev.state.state;
+}
+
 const char* streamTaskGetStatusStr(ETaskStatus status) {
   return StreamTaskStatusList[status].name;
 }
@@ -496,6 +504,8 @@ void doInitStateTransferTable(void) {
 
   // checkpoint related event
   trans = createStateTransform(TASK_STATUS__READY, TASK_STATUS__CK, TASK_EVENT_GEN_CHECKPOINT, NULL, streamTaskDoCheckpoint, NULL, true);
+  taosArrayPush(streamTaskSMTrans, &trans);
+  trans = createStateTransform(TASK_STATUS__HALT, TASK_STATUS__CK, TASK_EVENT_GEN_CHECKPOINT, NULL, streamTaskDoCheckpoint, NULL, true);
   taosArrayPush(streamTaskSMTrans, &trans);
   trans = createStateTransform(TASK_STATUS__CK, TASK_STATUS__READY, TASK_EVENT_CHECKPOINT_DONE, NULL, NULL, NULL, true);
   taosArrayPush(streamTaskSMTrans, &trans);

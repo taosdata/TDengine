@@ -798,11 +798,12 @@ bool    streamTaskShouldPause(const SStreamTask* pStatus);
 bool    streamTaskIsIdle(const SStreamTask* pTask);
 bool    streamTaskReadyToRun(const SStreamTask* pTask, char** pStatus);
 
-char*            createStreamTaskIdStr(int64_t streamId, int32_t taskId);
+char*             createStreamTaskIdStr(int64_t streamId, int32_t taskId);
 SStreamTaskState* streamTaskGetStatus(const SStreamTask* pTask);
-const char*      streamTaskGetStatusStr(ETaskStatus status);
-void             streamTaskResetStatus(SStreamTask* pTask);
-void             streamTaskSetStatusReady(SStreamTask* pTask);
+const char*       streamTaskGetStatusStr(ETaskStatus status);
+void              streamTaskResetStatus(SStreamTask* pTask);
+void              streamTaskSetStatusReady(SStreamTask* pTask);
+ETaskStatus       streamTaskGetPrevStatus(const SStreamTask* pTask);
 
 void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen);
 

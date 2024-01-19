@@ -1169,18 +1169,22 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   taosThreadMutexLock(&pTask->lock);
   ETaskStatus status = streamTaskGetStatus(pTask)->state;
 
-  if (status == TASK_STATUS__HALT || status == TASK_STATUS__PAUSE) {
-    tqError("s-task:%s not ready for checkpoint, since it is halt, ignore this checkpoint:%" PRId64 ", set it failure",
-            pTask->id.idStr, req.checkpointId);
+  if (req.mndTrigger == 1) {
+    if (status == TASK_STATUS__HALT || status == TASK_STATUS__PAUSE) {
+      tqError("s-task:%s not ready for checkpoint, since it is halt, ignore checkpoint:%" PRId64 ", set it failure",
+              pTask->id.idStr, req.checkpointId);
 
-    taosThreadMutexUnlock(&pTask->lock);
-    streamMetaReleaseTask(pMeta, pTask);
+      taosThreadMutexUnlock(&pTask->lock);
+      streamMetaReleaseTask(pMeta, pTask);
 
-    SRpcMsg rsp = {0};
-    buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
-    tmsgSendRsp(&rsp);  // error occurs
+      SRpcMsg rsp = {0};
+      buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
+      tmsgSendRsp(&rsp);  // error occurs
 
-    return TSDB_CODE_SUCCESS;
+      return TSDB_CODE_SUCCESS;
+    }
+  } else {
+    ASSERT(status == TASK_STATUS__HALT);
   }
 
   // check if the checkpoint msg already sent or not.

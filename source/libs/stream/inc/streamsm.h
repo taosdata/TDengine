@@ -56,13 +56,6 @@ struct SStreamTaskSM {
   SArray* pWaitingEventList;
 };
 
-typedef struct SStreamEventInfo {
-  EStreamTaskEvent event;
-  const char*      name;
-} SStreamEventInfo;
-
-// SStreamTaskSM* streamCreateStateMachine(SStreamTask* pTask);
-// void* streamDestroyStateMachine(SStreamTaskSM* pSM);
 #ifdef __cplusplus
 }
 #endif

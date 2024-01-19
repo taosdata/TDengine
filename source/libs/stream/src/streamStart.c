@@ -1059,6 +1059,7 @@ int32_t tEncodeStreamTaskCheckpointReq(SEncoder* pEncoder, const SStreamTaskChec
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->nodeId) < 0) return -1;
+  tEndEncode(pEncoder);
   return 0;
 }
 

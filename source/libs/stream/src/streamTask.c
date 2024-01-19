@@ -854,12 +854,12 @@ bool streamTaskIsSinkTask(const SStreamTask* pTask) {
 }
 
 int32_t streamTaskSendCheckpointReq(SStreamTask* pTask) {
-  int32_t  code;
-  int32_t  tlen = 0;
-  int32_t  vgId = pTask->pMeta->vgId;
+  int32_t     code;
+  int32_t     tlen = 0;
+  int32_t     vgId = pTask->pMeta->vgId;
   const char* id = pTask->id.idStr;
 
-  SStreamTaskCheckpointReq req = {0};
+  SStreamTaskCheckpointReq req = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId, .nodeId = vgId};
   tEncodeSize(tEncodeStreamTaskCheckpointReq, &req, tlen, code);
   if (code < 0) {
     stError("s-task:%s vgId:%d encode stream task req checkpoint failed, code:%s", id, vgId, tstrerror(code));

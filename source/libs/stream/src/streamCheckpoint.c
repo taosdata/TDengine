@@ -153,7 +153,8 @@ int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSo
 
   // todo this status may not be set here.
   // 1. set task status to be prepared for check point, no data are allowed to put into inputQ.
-  streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_GEN_CHECKPOINT);
+  int32_t code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_GEN_CHECKPOINT);
+  ASSERT(code == TSDB_CODE_SUCCESS);
 
   pTask->chkInfo.transId = pReq->transId;
   pTask->chkInfo.checkpointingId = pReq->checkpointId;
@@ -162,8 +163,7 @@ int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSo
   pTask->execInfo.checkpoint += 1;
 
   // 2. Put the checkpoint block into inputQ, to make sure all blocks with less version have been handled by this task
-  int32_t code = appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT_TRIGGER);
-  return code;
+  return appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT_TRIGGER);
 }
 
 static int32_t continueDispatchCheckpointBlock(SStreamDataBlock* pBlock, SStreamTask* pTask) {
@@ -461,6 +461,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   int64_t     startTs = pTask->chkInfo.startTs;
   int64_t     ckId = pTask->chkInfo.checkpointingId;
   const char* id = pTask->id.idStr;
+  bool        dropRelHTask = (streamTaskGetPrevStatus(pTask) == TASK_STATUS__HALT);
 
   // sink task do not need to save the status, and generated the checkpoint
   if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
@@ -497,6 +498,16 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
     } else {
       stError("s-task:%s commit taskInfo failed, checkpoint:%" PRId64 " failed, code:%s", id, ckId, tstrerror(code));
     }
+  }
+
+  if ((code == TSDB_CODE_SUCCESS) && dropRelHTask) {
+    // transferred from the halt status, it is done the fill-history procedure and finish with the checkpoint
+    // free it and remove fill-history task from disk meta-store
+    ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask));
+    SStreamTaskId hTaskId = {.streamId = pTask->hTaskInfo.id.streamId, .taskId = pTask->hTaskInfo.id.taskId};
+
+    stDebug("s-task:%s fill-history finish checkpoint done, drop related fill-history task:0x%x", id, hTaskId.taskId);
+    streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pTask->pMeta->vgId, &hTaskId);
   }
 
   // clear the checkpoint info if failed
