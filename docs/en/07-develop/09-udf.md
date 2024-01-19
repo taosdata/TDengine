@@ -104,7 +104,7 @@ Replace `aggfn` with the name of your function.
 
 ### UDF Interface Definition in C
 
-There are strict naming conventions for interface functions. The names of the start, finish, init, and destroy interfaces must be <udf-name\>_start, <udf-name\>_finish, <udf-name\>_init, and <udf-name\>_destroy, respectively. Replace `scalarfn`, `aggfn`, and `udf` with the name of your user-defined function.
+There are strict naming conventions for interface functions. The names of the start, finish, init, and destroy interfaces must be &lt;udf-name&gt;_start, &lt;udf-name&gt;_finish, &lt;udf-name&gt;_init, and &lt;udf-name&gt;_destroy, respectively. Replace `scalarfn`, `aggfn`, and `udf` with the name of your user-defined function.
 
 Interface functions return a value that indicates whether the operation was successful. If an operation fails, the interface function returns an error code. Otherwise, it returns TSDB_CODE_SUCCESS. The error codes are defined in `taoserror.h` and in the common API error codes in `taos.h`. For example, TSDB_CODE_UDF_INVALID_INPUT indicates invalid input. TSDB_CODE_OUT_OF_MEMORY indicates insufficient memory.
 
@@ -194,7 +194,7 @@ typedef struct SUdfInterBuf {
 ```
 The data structure is described as follows:
 
-- The SUdfDataBlock block includes the number of rows (numOfRows) and the number of columns (numCols). udfCols[i] (0 <= i <= numCols-1) indicates that each column is of type SUdfColumn.
+- The SUdfDataBlock block includes the number of rows (numOfRows) and the number of columns (numCols). udfCols[i] (0 &lt;= i &lt;= numCols-1) indicates that each column is of type SUdfColumn.
 - SUdfColumn includes the definition of the data type of the column (colMeta) and the data in the column (colData).
 - The member definitions of SUdfColumnMeta are the same as the data type definitions in `taos.h`.
 - The data in SUdfColumnData can become longer. varLenCol indicates variable-length data, and fixLenCol indicates fixed-length data.
