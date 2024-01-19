@@ -30,7 +30,7 @@ class TDTestCase:
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
-        self.deletedDataSql= '''drop database if exists deldata;create database deldata duration 300 stt_trigger 4; ;use deldata;
+        self.deletedDataSql= '''drop database if exists deldata;create database deldata duration 300 stt_trigger 1; ;use deldata;
                             create table deldata.stb1 (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp) tags (t1 int);
                             create table deldata.ct1 using deldata.stb1 tags ( 1 );
                             insert into deldata.ct1 values ( now()-0s, 0, 0, 0, 0, 0.0, 0.0, 0, 'binary0', 'nchar0', now()+0a ) ( now()-10s, 1, 11111, 111, 11, 1.11, 11.11, 1, 'binary1', 'nchar1', now()+1a ) ( now()-20s, 2, 22222, 222, 22, 2.22, 22.22, 0, 'binary2', 'nchar2', now()+2a ) ( now()-30s, 3, 33333, 333, 33, 3.33, 33.33, 1, 'binary3', 'nchar3', now()+3a );
@@ -63,6 +63,7 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        self.projPath = projPath
         for root, dirs, files in os.walk(projPath):
             if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
@@ -130,7 +131,6 @@ class TDTestCase:
         cPath = self.getCfgPath()
         dbname = "test"
         stb = f"{dbname}.meters"
-        self.installTaosd(bPath,cPath)
         os.system("echo 'debugFlag 143' > /etc/taos/taos.cfg ")
         tableNumbers=100
         recordNumbers1=100
@@ -149,60 +149,17 @@ class TDTestCase:
         # baseVersion = "3.0.1.8"
 
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{BASEVERSION}")
-        tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
-        os.system(f"LD_LIBRARY_PATH=/usr/lib taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database test '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/com_alltypedata.json -y")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database curdb '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select count(*) from curdb.meters '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select sum(fc) from curdb.meters '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select avg(ic) from curdb.meters '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select min(ui) from curdb.meters '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select max(bi) from curdb.meters '")
-
-        # os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s 'use test;create stream current_stream into current_stream_output_stb as select _wstart as `start`, _wend as wend, max(current) as max_current from meters where voltage <= 220 interval (5s);' ")
-        # os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;create stream power_stream into power_stream_output_stb as select ts, concat_ws(\\".\\", location, tbname) as meter_location, current*voltage*cos(phase) as active_power, current*voltage*sin(phase) as reactive_power from meters partition by tbname;" ')
-        # os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show streams;" ')
-        os.system(f"sed -i 's/\/etc\/taos/{cPath}/' 0-others/tmqBasic.json ")
-        # os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/tmqBasic.json -y ")
-        os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists tmq_test_topic  as select  current,voltage,phase from test.meters where voltage <= 106 and current <= 5;" ')
-        os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show topics;" ')
-
-        tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y  ")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -f 0-others/TS-3131.tsql")
-
-        # add deleted  data
-        os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s "{self.deletedDataSql}" ')
+        os.system(f"rm -rf {cPath}/../data")
+        print(self.projPath)
+        # this data file is special for coverage test in 192.168.1.96
+        os.system("cp -r  f{self.projPath}/../comp_testdata/data/ {self.projPath}/sim/dnode1")
+        tdDnodes.stop(1) 
+        tdDnodes.start(1) 
 
 
-        cmd = f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taos -h localhost ;"
-        tdLog.info(f"new  client version  connect to old version taosd, commad return value:{cmd}")
-        if os.system(cmd) == 0:
-            raise Exception("failed to execute system command. cmd: %s" % cmd)
-                
-        os.system("pkill  taosd")   # make sure all the data are saved in disk.
-        self.checkProcessPid("taosd")
-
-
-        tdLog.printNoPrefix("==========step2:update new version ")
-        self.buildTaosd(bPath)
-        tdDnodes.start(1)
-        sleep(1)
         tdsql=tdCom.newTdSql()
-        print(tdsql)
-        cmd = f" LD_LIBRARY_PATH=/usr/lib  taos -h localhost ;"
-        if os.system(cmd) == 0:
-            raise Exception("failed to execute system command. cmd: %s" % cmd)
-        
         tdsql.query(f"SELECT SERVER_VERSION();")
         nowServerVersion=tdsql.queryResult[0][0]
-        tdLog.info(f"New server version is {nowServerVersion}")
-        tdsql.query(f"SELECT CLIENT_VERSION();")
-        nowClientVersion=tdsql.queryResult[0][0]
-        tdLog.info(f"New client version is {nowClientVersion}")
-
         tdLog.printNoPrefix(f"==========step3:prepare and check data in new version-{nowServerVersion}")
         tdsql.query(f"select count(*) from {stb}")
         tdsql.checkData(0,0,tableNumbers*recordNumbers1)
