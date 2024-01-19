@@ -482,7 +482,6 @@ export default {
     async restorBackup(row) {
       try {
         let params = {
-          name: "restore",
           labels: [
             "type::restore",
             `cluster-id::${localStorage.getItem("local_clusterID")}`,
