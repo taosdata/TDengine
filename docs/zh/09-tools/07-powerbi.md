@@ -35,7 +35,7 @@ Power BI 是由 Microsoft 提供的一种商业分析工具。通过配置使用
 获取真实的 `URL` 的值，请登录 [TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”工具“菜单，然后选择”永红 BI“，在“配置 TDengine JDBC 数据源”部分复制当前 TDengine Cloud 实例的 URL 值。
 :::
 
-## 导入 TDengine 数据到 Powner BI
+## 导入 TDengine 数据到 Power BI
 
 1. 打开 Power BI 并登录后，通过如下步骤添加数据源，“主页” -> “获取数据” -> “其他” -> “ODBC” -> “连接”。
 2. 选择刚才创建的数据源名称，比如“MyTDengine”，点击“确定”按钮。在弹出的“ODBC 驱动程序”对话框中，在左边的菜单里面选择“默认或自定义”，点击“连接”按钮，可以连接到配置好的数据源。在进入“导航器”后，可以浏览对应数据库的数据表并加载。
