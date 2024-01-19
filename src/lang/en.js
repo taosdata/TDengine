@@ -2291,26 +2291,21 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         name: 'Yonghong BI',
         desc: 'Yonghong one-stop big data BI platform',
         desc1:
-          " to provide enterprises of all sizes with flexible and easy-to-use whole-business chain big data analysis solutions, so that every user can use this platform to easily discover the value of big data and obtain deep insight. TDengine can be added to Yonghong BI as a data source via a JDBC connector. Once the data source is configured, Yonghong BI can read data from TDengine and provide functions such as data presentation, analysis and prediction.",
-        step1: "Prerequisite",
-        step11desc:
-          "Yonghong Desktop Basic is installed and running (if not,please go to",
-        step11desc1: " official download page of Yonghong Technology",
-        step11desc2: " download).",
-        step12desc:
-          "The TDengine is installed and running, and ensure that the taosadapter service is started on the TDengine server side.",
-        step2: "Install JDBC",
-        step2full: "Installing the JDBC Connector",
+          ' to provide enterprises of all sizes with flexible and easy-to-use whole-business chain big data analysis solutions, so that every user can use this platform to easily discover the value of big data and obtain deep insight. TDengine can be added to Yonghong BI as a data source via a JDBC connector. Once the data source is configured, Yonghong BI can read data from TDengine and provide functions such as data presentation, analysis and prediction.',
+        step1: 'Prerequisite',
+        step11desc: 'Yonghong Desktop Basic is installed and running (if not,please go to',
+        step11desc1: ' official download page of Yonghong Technology',
+        step11desc2: ' download).',
+        step12desc: 'The TDengine is installed and running, and ensure that the taosadapter service is started on the TDengine server side.',
+        step2: 'Install JDBC',
+        step2full: 'Install JDBC Connector',
         // Download the latest TDengine JDBC connector from maven.org
-        step2desc: "Go to ",
-        step2desc1:
-          " download the latest TDengine JDBC connector (current version ",
-        step2desc2:
-          ") and install it on the machine where the BI tool is running.",
-        step3: "Configure JDBC",
-        step3full: "Configure the TDengine JDBC data source",
-        step31desc:
-          'In the Yonghong Desktop BI tool, click "Add data source" and select the "GENERIC" type in the SQL data source.',
+        step2desc: 'Go to ',
+        step2desc1: ' download the latest TDengine JDBC connector (current version ',
+        step2desc2: ') and install it on the machine where the BI tool is running.',
+        step3: 'Configure JDBC',
+        step3full: 'Configure JDBC DataSource',
+        step31desc: 'In the Yonghong Desktop BI tool, click "Add data source" and select the "GENERIC" type in the SQL data source.',
         step32desc:
           'Click "Select Custom Driver", in the "Driver Management" dialog box, click "+" next to "Driver List", enter the name "MyTDengine". Then click the "upload file" button to upload just download TDengine JDBC connector file "taos - jdbcdriver - 3.2.7 - dist. Jar", and select "com. Taosdata. JDBC. Rs. RestfulDriver" drive, Finally, click the "OK" button to complete the driver addition.',
         step33desc: 'Then copy the following into the "URL" field.',
@@ -2335,25 +2330,18 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
           ".By using these featured queries, BI tools can greatly improve data access speed and reduce network transmission bandwidth when they send SQL queries to TDengine databases. ",
         step45desc:
           'In BI tools, you can create "parameters" and use them in SQL statements, which can be dynamically executed manually and periodically to achieve a visual report refresh effect.The following SQL statement: ',
-        step45desc0: "Data can be read in real time from TDengine, where: ",
-        step45desc1: ": Indicates the start time of the time window.",
-        step45desc2: ": Indicates the aggregate value in the time window.",
-        step45desc3:
-          ": indicates that the parameter interval is introduced into the SQL statement. When the BI tool queries data, it assigns a value to the parameter interval. If the value is 1m, the sampling data is reduced based on a 1-minute time window.",
-        step45desc4:
-          ": This parameter is used to specify the name of the data table to be queried. When the ID of a drop-down parameter component is set as metric in the BI tool, the selected items of the drop-down parameter component are bound to this parameter to achieve dynamic selection.",
-        step45desc5:
-          ": These two parameters are used to represent the time range of the query data set and can be bound with the Text Parameter Component.",
-        step45desc6:
-          'You can modify the data type, data range, and default values of parameters in the "Edit Parameters" dialog box of the BI tool, and dynamically set the values of these parameters in the "Visual Report". ',
-        step5: "Make a report",
-        step5full: "Create a visual report",
-        step51desc:
-          'Click "Make Report" in Yonghong BI tool to create a canvas.',
-        step52desc:
-          "Drag visual components, such as Table Components, onto the canvas.",
-        step53desc:
-          "Select the data set to be bound in the Data Set sidebar, and bind Dimensions and Measures in the data column to Table Components as needed.",
+        step45desc0: 'Data can be read in real time from TDengine, where: ',
+        step45desc1: ': Indicates the start time of the time window.',
+        step45desc2: ': Indicates the aggregate value in the time window.',
+        step45desc3: ': Indicates that the parameter interval is introduced into the SQL statement. When the BI tool queries data, it assigns a value to the parameter interval. If the value is 1m, the sampling data is reduced based on a 1-minute time window.',
+        step45desc4: ': This parameter is used to specify the name of the data table to be queried. When the ID of a drop-down parameter component is set as metric in the BI tool, the selected items of the drop-down parameter component are bound to this parameter to achieve dynamic selection.',
+        step45desc5: ': These two parameters are used to represent the time range of the query data set and can be bound with the Text Parameter Component.',
+        step45desc6: 'You can modify the data type, data range, and default values of parameters in the "Edit Parameters" dialog box of the BI tool, and dynamically set the values of these parameters in the "Visual Report". ',
+        step5: 'Make a report',
+        step5full: 'Create a visual report',
+        step51desc: 'Click "Make Report" in Yonghong BI tool to create a canvas.',
+        step52desc: 'Drag visual components, such as Table Components, onto the canvas.',
+        step53desc: 'Select the data set to be bound in the Data Set sidebar, and bind Dimensions and Measures in the data column to Table Components as needed.',
         step54desc: 'Click "Save" to view the report.',
         step55desc:
           "For more information about Yonghong BI tools, please consult them ",
