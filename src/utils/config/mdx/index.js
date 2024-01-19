@@ -25,3 +25,5 @@ export {default as dashboardDoc} from './dashboard.vue'
 export {default as taosDumpDoc} from './taosdump.vue'
 export { default as seeqDoc} from './seeq.vue'
 export { default as rDoc } from './connector/r.vue';
+export { default as powerbiDoc } from './powerbi.vue';
+export { default as yonghongbiDoc } from './yonghongbi.vue'

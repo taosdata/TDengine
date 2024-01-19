@@ -7,7 +7,7 @@
           <h2 class="title">
             
             <img class="image" :src="getImg(item.name, item.icon)" alt="" />
-            <span>{{ item.name }}</span>
+            <span>{{ item.title || item.name }}</span>
           </h2>
           <p class="desc nowrap">
             {{ item.desc }}
