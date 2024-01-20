@@ -34,23 +34,158 @@ class TDTestCase(TBase):
         "querySmaOptimize": "1"
     }
 
+
     def insertData(self):
         tdLog.info(f"insert data.")
         # taosBenchmark run
         jfile = etool.curFile(__file__, "query_basic.json")
-        etool.benchMark(json=jfile)
+        etool.benchMark(json = jfile)
 
         tdSql.execute(f"use {self.db}")
         tdSql.execute("select database();")
-        # set insert data information
+        # come from query_basic.json
         self.childtable_count = 6
         self.insert_rows      = 100000
         self.timestamp_step   = 30000
+        self.start_timestamp  = 1700000000000
+
+
+    def genTime(self, preCnt, cnt):
+        start = self.start_timestamp + preCnt * self.timestamp_step
+        end = start + self.timestamp_step * cnt
+        return (start, end)
+
+
+    def doWindowQuery(self):
+        pre = f"select count(ts) from {self.stb} "
+        # case1 operator "in" "and" is same
+        cnt = 6000
+        s,e = self.genTime(12000, cnt)
+        sql1 = f"{pre} where ts between {s} and {e} "
+        sql2 = f"{pre} where ts >= {s} and ts <={e} "
+        expectCnt = (cnt + 1) * self.childtable_count
+        tdSql.checkFirstValue(sql1, expectCnt)
+        tdSql.checkFirstValue(sql2, expectCnt)
+
+        # case2 no overloap "or" left
+        cnt1 = 120
+        s1, e1 = self.genTime(4000, cnt1)
+        cnt2 = 3000
+        s2, e2 = self.genTime(10000, cnt2)
+        sql = f"{pre} where (ts >= {s1} and ts < {e1}) or (ts >= {s2} and ts < {e2})"
+        expectCnt = (cnt1 + cnt2) * self.childtable_count
+        tdSql.checkFirstValue(sql, expectCnt)
+
+        # case3 overloap "or" right
+        cnt1 = 300
+        s1, e1 = self.genTime(17000, cnt1)
+        cnt2 = 8000
+        s2, e2 = self.genTime(70000, cnt2)
+        sql = f"{pre} where (ts > {s1} and ts <= {e1}) or (ts > {s2} and ts <= {e2})"
+        expectCnt = (cnt1 + cnt2) * self.childtable_count
+        tdSql.checkFirstValue(sql, expectCnt)
+
+        # case4 overloap "or" 
+        cnt1 = 1000
+        s1, e1 = self.genTime(9000, cnt1)
+        cnt2 = 1000
+        s2, e2 = self.genTime(9000 + 500 , cnt2)
+        sql = f"{pre} where (ts > {s1} and ts <= {e1}) or (ts > {s2} and ts <= {e2})"
+        expectCnt = (cnt1 + 500) * self.childtable_count # expect=1500
+        tdSql.checkFirstValue(sql, expectCnt)
+
+        # case5 overloap "or" boundary hollow->solid
+        cnt1 = 3000
+        s1, e1 = self.genTime(45000, cnt1)
+        cnt2 = 2000
+        s2, e2 = self.genTime(45000 + cnt1 , cnt2)
+        sql = f"{pre} where (ts > {s1} and ts <= {e1}) or (ts > {s2} and ts <= {e2})"
+        expectCnt = (cnt1+cnt2) * self.childtable_count
+        tdSql.checkFirstValue(sql, expectCnt)
+
+        # case6 overloap "or" boundary solid->solid
+        cnt1 = 300
+        s1, e1 = self.genTime(55000, cnt1)
+        cnt2 = 500
+        s2, e2 = self.genTime(55000 + cnt1 , cnt2)
+        sql = f"{pre} where (ts >= {s1} and ts <= {e1}) or (ts >= {s2} and ts <= {e2})"
+        expectCnt = (cnt1+cnt2+1) * self.childtable_count
+        tdSql.checkFirstValue(sql, expectCnt)
+
+        # case7 overloap "and" 
+        cnt1 = 1000
+        s1, e1 = self.genTime(40000, cnt1)
+        cnt2 = 1000
+        s2, e2 = self.genTime(40000 + 500 , cnt2)
+        sql = f"{pre} where (ts > {s1} and ts <= {e1}) and (ts > {s2} and ts <= {e2})"
+        expectCnt = cnt1/2 * self.childtable_count
+        tdSql.checkFirstValue(sql, expectCnt)
+
+        # case8 overloap "and" boundary hollow->solid solid->hollow
+        cnt1 = 3000
+        s1, e1 = self.genTime(45000, cnt1)
+        cnt2 = 2000
+        s2, e2 = self.genTime(45000 + cnt1 , cnt2)
+        sql = f"{pre} where (ts > {s1} and ts <= {e1}) and (ts >= {s2} and ts < {e2})"
+        expectCnt = 1 * self.childtable_count
+        tdSql.checkFirstValue(sql, expectCnt)
+
+        # case9 no overloap "and" 
+        cnt1 = 6000
+        s1, e1 = self.genTime(20000, cnt1)
+        cnt2 = 300
+        s2, e2 = self.genTime(70000, cnt2)
+        sql = f"{pre} where (ts > {s1} and ts <= {e1}) and (ts >= {s2} and ts <= {e2})"
+        expectCnt = 0
+        tdSql.checkFirstValue(sql, expectCnt)
+
+        # case10 cnt1 contain cnt2 and
+        cnt1 = 5000
+        s1, e1 = self.genTime(25000, cnt1)
+        cnt2 = 400
+        s2, e2 = self.genTime(28000, cnt2)
+        sql = f"{pre} where (ts > {s1} and ts <= {e1}) and (ts >= {s2} and ts < {e2})"
+        expectCnt = cnt2 * self.childtable_count
+        tdSql.checkFirstValue(sql, expectCnt)
+
+
+    def queryMax(self, colname):
+        sql = f"select max({colname}) from {self.stb}"
+        tdSql.query(sql)
+        return tdSql.getData(0, 0)
+
+
+    def checkMax(self):
+        # max for tsdbRetrieveDatablockSMA2 coverage
+        colname = "ui"
+        max = self.queryMax(colname)
+
+        # insert over max
+        sql = f"insert into d0(ts, {colname}) values"
+        for i in range(1, 5):
+            sql += f" (now + {i}s, {max+i})"
+        tdSql.execute(sql)
+        self.flushDb()
+
+        expectMax = max + 4
+        for i in range(1, 5):
+            realMax = self.queryMax(colname)
+            if realMax != expectMax:
+                tdLog.exit(f"Max value not expect. expect:{expectMax} real:{realMax}")
+            sql = f"delete from d0 where ui={expectMax}"
+            tdSql.execute(sql)
+            expectMax -= 1
+
+        self.checkInsertCorrect()    
 
 
     def doQuery(self):
         tdLog.info(f"do query.")
-        
+        self.doWindowQuery()
+
+        # max
+        self.checkMax()
+
         # __group_key
         sql = f"select count(*),_group_key(uti),uti from {self.stb} partition by uti"
         tdSql.query(sql)
@@ -88,6 +223,7 @@ class TDTestCase(TBase):
             v = expects[k]
             if int(reals[k]) != v:
                 tdLog.exit(f"distribute {k} expect: {v} real: {reals[k]}")
+
 
     # run
     def run(self):
