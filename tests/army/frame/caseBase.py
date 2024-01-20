@@ -292,3 +292,15 @@ class TBase:
         if len(lists) == 0:
             tdLog.exit(f"list is empty {tips}")
 
+
+#
+#  str util
+#
+    # covert list to sql format string
+    def listSql(self, lists, sepa = ","):
+        strs = ""
+        for ls in lists:
+            if strs != "":
+                strs += sepa
+            strs += f"'{ls}'"
+        return strs
