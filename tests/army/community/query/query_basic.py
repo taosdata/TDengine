@@ -172,7 +172,14 @@ class TDTestCase(TBase):
             realMax = self.queryMax(colname)
             if realMax != expectMax:
                 tdLog.exit(f"Max value not expect. expect:{expectMax} real:{realMax}")
-            sql = f"delete from d0 where ui={expectMax}"
+
+            # query ts list
+            sql = f"select ts from d0 where ui={expectMax}"
+            tdSql.query(sql)
+            tss = tdSql.getColData(0)
+            strts = ",".join(tss)
+            # delete
+            sql = f"delete from d0 where ts in ({strts})"
             tdSql.execute(sql)
             expectMax -= 1
 
