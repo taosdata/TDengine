@@ -467,17 +467,15 @@ class TDSql:
         data = []
         try:
             with open(csvfilePath) as csvfile:
-                csv_reader = csv.reader(csvfile)  # 使用csv.reader读取csvfile中的文件
-                # header = next(csv_reader)        # 读取第一行每一列的标题
-                for row in csv_reader:  # 将csv 文件中的数据保存到data中
-                    data.append(row)  # 选择某一列加入到data数组中
+                csv_reader = csv.reader(csvfile)  # csv.reader read csvfile\
+                # header = next(csv_reader)        # Read the header of each column in the first row
+                for row in csv_reader:  # csv file save to data
+                    data.append(row)
         except FileNotFoundError:
-            # 当文件不存在时会引发FileNotFoundError异常
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, csvfilePath)
             tdLog.exit("%s(%d) failed: sql:%s, expect csvfile not find error:%s" % args)
         except Exception as e:
-            # 其他任意类型的异常都将被捕获并输出相应信息
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, csvfilePath, str(e))
             tdLog.exit("%s(%d) failed: sql:%s, expect csvfile path:%s, read error:%s" % args)
