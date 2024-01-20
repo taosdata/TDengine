@@ -526,6 +526,11 @@ class TDSql:
                 time.sleep(1)
                 pass
 
+    # execute many sql
+    def executes(self, sqls, queryTimes=30, show=False):
+        for sql in sqls:
+            self.execute(sql, queryTimes, show)
+
     def checkAffectedRows(self, expectAffectedRows):
         if self.affectedRows != expectAffectedRows:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -588,6 +593,12 @@ class TDSql:
     def getFirstValue(self, sql) :
         self.query(sql)
         return self.getData(0, 0)
+    
+    # expect first value
+    def checkFirstValue(self, sql, expect):
+        self.query(sql)
+        self.checkData(0, 0, expect)
+        
 
     def get_times(self, time_str, precision="ms"):
         caller = inspect.getframeinfo(inspect.stack()[1][0])

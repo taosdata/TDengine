@@ -48,9 +48,9 @@ class TDSql:
         self.queryCols = 0
         self.affectedRows = 0
 
-    def init(self, cursor, log=False):
+    def init(self, cursor, log=True):
         self.cursor = cursor
-
+        print(f"sqllog is :{log}")
         if (log):
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             self.cursor.log(caller.filename + ".sql")
@@ -88,7 +88,7 @@ class TDSql:
                 self.affectedRows = self.cursor.execute(sql)
                 return self.affectedRows
             except Exception as e:
-                tdLog.notice("Try to execute sql again, query times: %d "%i)
+                tdLog.notice("Try to execute sql again, execute times: %d "%i)
                 if i == queryTimes:
                     caller = inspect.getframeinfo(inspect.stack()[1][0])
                     args = (caller.filename, caller.lineno, sql, repr(e))

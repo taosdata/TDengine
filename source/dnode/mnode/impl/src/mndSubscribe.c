@@ -737,8 +737,6 @@ static int32_t mndCheckConsumer(SRpcMsg *pMsg, SHashObj* rebSubHash) {
   SMqConsumerObj *pConsumer;
   void           *pIter = NULL;
 
-  mInfo("start to process mq timer");
-
   // iterate all consumers, find all modification
   while (1) {
     pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
@@ -749,7 +747,7 @@ static int32_t mndCheckConsumer(SRpcMsg *pMsg, SHashObj* rebSubHash) {
     int32_t hbStatus = atomic_add_fetch_32(&pConsumer->hbStatus, 1);
     int32_t status = atomic_load_32(&pConsumer->status);
 
-    mInfo("check for consumer:0x%" PRIx64 " status:%d(%s), sub-time:%" PRId64 ", createTime:%" PRId64 ", hbstatus:%d",
+    mDebug("check for consumer:0x%" PRIx64 " status:%d(%s), sub-time:%" PRId64 ", createTime:%" PRId64 ", hbstatus:%d",
           pConsumer->consumerId, status, mndConsumerStatusName(status), pConsumer->subscribeTime, pConsumer->createTime,
           hbStatus);
 
@@ -852,6 +850,8 @@ void mndRebCntDec() {
 
 static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
   int code = 0;
+  mInfo("start to process mq timer");
+
   if (!mndRebTryStart()) {
     mInfo("mq rebalance already in progress, do nothing");
     return code;

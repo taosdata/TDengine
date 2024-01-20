@@ -61,6 +61,7 @@ class MndTestTrans2 : public ::testing::Test {
     static SMsgCb msgCb = {0};
     msgCb.reportStartupFp = reportStartup;
     msgCb.sendReqFp = sendReq;
+    msgCb.sendSyncReqFp = sendSyncReq;
     msgCb.sendRspFp = sendRsp;
     msgCb.queueFps[SYNC_QUEUE] = putToQueue;
     msgCb.queueFps[WRITE_QUEUE] = putToQueue;

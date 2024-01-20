@@ -195,7 +195,8 @@ int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t 
   int64_t committedVer = walGetCommittedVer(pHandle->pWalReader->pWal);
   int64_t appliedVer = walGetAppliedVer(pHandle->pWalReader->pWal);
 
-  wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64 ", applied index:%" PRId64", 0x%"PRIx64,
+  wDebug("vgId:%d, start to fetch wal, index:%" PRId64 ", last:%" PRId64 " commit:%" PRId64 ", applied:%" PRId64
+         ", 0x%" PRIx64,
          vgId, offset, lastVer, committedVer, appliedVer, id);
 
   while (offset <= appliedVer) {
@@ -595,10 +596,12 @@ static int32_t doSetVal(SColumnInfoData* pColumnInfoData, int32_t rowIndex, SCol
 
   if (IS_STR_DATA_TYPE(pColVal->type)) {
     char val[65535 + 2] = {0};
-    if (pColVal->value.pData != NULL) {
-      memcpy(varDataVal(val), pColVal->value.pData, pColVal->value.nData);
+    if(COL_VAL_IS_VALUE(pColVal)){
+      if (pColVal->value.pData != NULL) {
+        memcpy(varDataVal(val), pColVal->value.pData, pColVal->value.nData);
+      }
       varDataSetLen(val, pColVal->value.nData);
-      code = colDataSetVal(pColumnInfoData, rowIndex, val, !COL_VAL_IS_VALUE(pColVal));
+      code = colDataSetVal(pColumnInfoData, rowIndex, val, false);
     } else {
       colDataSetNULL(pColumnInfoData, rowIndex);
     }
@@ -868,22 +871,8 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
           sourceIdx++;
         } else if (pCol->cid == pColData->info.colId) {
           tColDataGetValue(pCol, i, &colVal);
-
-          if (IS_STR_DATA_TYPE(colVal.type)) {
-            if (colVal.value.pData != NULL) {
-              char val[65535 + 2];
-              memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
-              varDataSetLen(val, colVal.value.nData);
-              if (colDataSetVal(pColData, curRow - lastRow, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
-                goto FAIL;
-              }
-            } else {
-              colDataSetNULL(pColData, curRow - lastRow);
-            }
-          } else {
-            if (colDataSetVal(pColData, curRow - lastRow, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
-              goto FAIL;
-            }
+	  if(doSetVal(pColData, curRow - lastRow, &colVal) != TDB_CODE_SUCCESS){
+            goto FAIL;
           }
           sourceIdx++;
           targetIdx++;
@@ -966,23 +955,10 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
         if (colVal.cid < pColData->info.colId) {
           sourceIdx++;
         } else if (colVal.cid == pColData->info.colId) {
-          if (IS_STR_DATA_TYPE(colVal.type)) {
-            if (colVal.value.pData != NULL) {
-              char val[65535 + 2];
-              memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
-              varDataSetLen(val, colVal.value.nData);
-              if (colDataSetVal(pColData, curRow - lastRow, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
-                goto FAIL;
-              }
-            } else {
-              colDataSetNULL(pColData, curRow - lastRow);
-            }
-          } else {
-            if (colDataSetVal(pColData, curRow - lastRow, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
-              goto FAIL;
-            }
+          if(doSetVal(pColData, curRow - lastRow, &colVal) != TDB_CODE_SUCCESS){
+            goto FAIL;
           }
-          sourceIdx++;
+	  sourceIdx++;
           targetIdx++;
         }
       }

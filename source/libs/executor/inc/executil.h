@@ -82,6 +82,7 @@ typedef struct SColMatchItem {
   int32_t   dstSlotId;
   bool      needOutput;
   SDataType dataType;
+  int32_t   funcType;
 } SColMatchItem;
 
 typedef struct SColMatchInfo {
@@ -105,6 +106,7 @@ typedef struct STableListInfo {
   int32_t*         groupOffset;       // keep the offset value for each group in the tableList
   SArray*          pTableList;
   SHashObj*        map;     // speedup acquire the tableQueryInfo by table uid
+  SHashObj*        remainGroups; // remaining group has not yet processed the empty group
   STableListIdInfo idInfo;  // this maybe the super table or ordinary table
 } STableListInfo;
 

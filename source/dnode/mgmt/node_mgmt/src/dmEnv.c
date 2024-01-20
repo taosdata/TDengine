@@ -28,9 +28,6 @@
     }                                \
   } while (0)
 
-extern int32_t streamTimerInit();
-extern void    streamTimerCleanUp();
-
 static SDnode globalDnode = {0};
 
 SDnode *dmInstance() { return &globalDnode; }
@@ -169,7 +166,6 @@ int32_t dmInit() {
 #if defined(USE_S3)
   if (s3Begin() != 0) return -1;
 #endif
-  if (streamTimerInit() != 0) return -1;
 
   dInfo("dnode env is initialized");
   return 0;
@@ -196,10 +192,10 @@ void dmCleanup() {
   udfStopUdfd();
   taosStopCacheRefreshWorker();
   dmDiskClose();
+
 #if defined(USE_S3)
   s3End();
 #endif
-  streamTimerCleanUp();
 
   dInfo("dnode env is cleaned up");
 

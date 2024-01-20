@@ -273,6 +273,7 @@ SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
 }
 
 int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
+  int32_t code = TSDB_CODE_SUCCESS;
   for (int32_t k = 0; k < pOperator->exprSupp.numOfExprs; ++k) {
     if (functionNeedToExecute(&pCtx[k])) {
       // todo add a dummy funtion to avoid process check
@@ -280,7 +281,13 @@ int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
         continue;
       }
 
-      int32_t code = pCtx[k].fpSet.process(&pCtx[k]);
+      if ((&pCtx[k])->input.pData[0] == NULL) {
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        qError("%s aggregate function error happens, input data is NULL.", GET_TASKID(pOperator->pTaskInfo));
+      } else {
+        code = pCtx[k].fpSet.process(&pCtx[k]);
+      }
+
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s aggregate function error happens, code: %s", GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
         return code;
@@ -562,7 +569,12 @@ void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pC
     } else {
       int32_t code = TSDB_CODE_SUCCESS;
       if (functionNeedToExecute(&pCtx[k]) && pCtx[k].fpSet.process != NULL) {
-        code = pCtx[k].fpSet.process(&pCtx[k]);
+        if ((&pCtx[k])->input.pData[0] == NULL) {
+          code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+          qError("%s apply functions error, input data is NULL.", GET_TASKID(taskInfo));
+        } else {
+          code = pCtx[k].fpSet.process(&pCtx[k]);
+        }
 
         if (code != TSDB_CODE_SUCCESS) {
           qError("%s apply functions error, code: %s", GET_TASKID(taskInfo), tstrerror(code));

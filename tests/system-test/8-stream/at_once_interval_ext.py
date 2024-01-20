@@ -153,12 +153,15 @@ class TDTestCase:
                 ptn_counter = 0
                 for c1_value in tdSql.queryResult:
                     if partition == "c1":
-                        tdSql.query(f'select count(*) from `{tname}_{self.tdCom.subtable_prefix}{abs(c1_value[1])}{self.tdCom.subtable_suffix}`;')
+                        tbname = self.tdCom.get_subtable_wait(f'{tname}_{self.tdCom.subtable_prefix}{abs(c1_value[1])}{self.tdCom.subtable_suffix}')
+                        tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition == "abs(c1)":
                         abs_c1_value = abs(c1_value[1])
-                        tdSql.query(f'select count(*) from `{tname}_{self.tdCom.subtable_prefix}{abs_c1_value}{self.tdCom.subtable_suffix}`;')
+                        tbname = self.tdCom.get_subtable_wait(f'{tname}_{self.tdCom.subtable_prefix}{abs_c1_value}{self.tdCom.subtable_suffix}')
+                        tdSql.query(f'select count(*) from `{tbname}`')
                     elif partition == "tbname" and ptn_counter == 0:
-                        tdSql.query(f'select count(*) from `{tname}_{self.tdCom.subtable_prefix}{self.ctb_name}{self.tdCom.subtable_suffix}`;')
+                        tbname = self.tdCom.get_subtable_wait(f'{tname}_{self.tdCom.subtable_prefix}{self.ctb_name}{self.tdCom.subtable_suffix}')
+                        tdSql.query(f'select count(*) from `{tbname}`')
                         ptn_counter += 1
                     else:
                         tdSql.query(f'select cast(cast(cast({c1_value[1]} as int unsigned) as bigint) as varchar(100))')
@@ -166,7 +169,8 @@ class TDTestCase:
                         if subtable == "constant":
                             return
                         else:
-                            tdSql.query(f'select count(*) from `{tname}_{self.tdCom.subtable_prefix}{subtable_value}{self.tdCom.subtable_suffix}`;')
+                            tbname = self.tdCom.get_subtable_wait(f'{tname}_{self.tdCom.subtable_prefix}{subtable_value}{self.tdCom.subtable_suffix}')
+                            tdSql.query(f'select count(*) from `{tbname}`')
                     tdSql.checkEqual(tdSql.queryResult[0][0] > 0, True)
 
     def run(self):
