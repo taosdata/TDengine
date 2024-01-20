@@ -34,12 +34,21 @@ class TDTestCase(TBase):
             f'''create table if not exists {dbname}.{tbname} using {dbname}.{stbname} tags("California.SanFrancisco", 2)'''
         )
 
-        tdSql.execute(f"insert into {dbname}.{tbname} values('2023-12-26 10:35:00.000', 5.0)")
-        tdSql.execute(f"insert into {dbname}.{tbname} values('2023-12-26 10:36:00.000', 5.0)")
-        tdSql.execute(f"insert into {dbname}.{tbname} values('2023-12-26 10:37:00.000', 5.0)")
-        tdSql.execute(f"insert into {dbname}.{tbname} values('2023-12-26 10:38:00.000', null)")
-        tdSql.execute(f"insert into {dbname}.{tbname} values('2023-12-26 10:39:00.000', 5.0)")
-        tdSql.execute(f"insert into {dbname}.{tbname} values('2023-12-26 10:40:00.000', null)")
+        sqls = []
+        for i in range(35, 41):
+            if i == 38 or i == 40:
+                sqls.append(f"insert into {dbname}.{tbname} values('2023-12-26 10:{i}:00.000', null)")
+            else:
+                sqls.append(f"insert into {dbname}.{tbname} values('2023-12-26 10:{i}:00.000', 5.0)")
+
+        # sqls.append(f"insert into {dbname}.{tbname} values('2023-12-26 10:36:00.000', 5.0)")
+        # sqls.append(f"insert into {dbname}.{tbname} values('2023-12-26 10:37:00.000', 5.0)")
+        # sqls.append(f"insert into {dbname}.{tbname} values('2023-12-26 10:38:00.000', null)")
+        # sqls.append(f"insert into {dbname}.{tbname} values('2023-12-26 10:39:00.000', 5.0)")
+        # sqls.append(f"insert into {dbname}.{tbname} values('2023-12-26 10:40:00.000', null)")
+
+
+        tdSql.executes(sqls)
 
         tdLog.printNoPrefix("==========step3:fill data")
 
