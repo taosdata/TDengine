@@ -245,6 +245,10 @@ class TDTestCase:
             # stddev
             tdSql.checkData(0, 5, 0, True)
 
+            sql = f"select twa({col}) from {dbname}.d0"
+            tdSql.query(sql)
+            tdSql.checkData(0, 0, 1, True)
+
             i += 1
 
 

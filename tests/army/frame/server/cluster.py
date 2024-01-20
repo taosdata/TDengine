@@ -87,10 +87,9 @@ class ConfigureyCluster:
         count=0
         while count < 5:
             tdSql.query("select * from information_schema.ins_dnodes")
-            # tdLog.debug(tdSql.queryResult)
             status=0
             for i in range(self.dnodeNums):
-                if tdSql.queryResult[i][4] == "ready":
+                if tdSql.res[i][4] == "ready":
                     status+=1
             # tdLog.debug(status)
             

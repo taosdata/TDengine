@@ -547,25 +547,21 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
       memcpy(pDataBlock->info.parTbName, pBln->parTbName, strlen(pBln->parTbName));
     }
   } else {
-    char* ctbName = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
-    if (ctbName == NULL) {
-      return -1;
-    }
-
+    char ctbName[TSDB_TABLE_FNAME_LEN] = {0};
     if (pDataBlock->info.parTbName[0]) {
-      snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->outputInfo.shuffleDispatcher.dbInfo.db,
-               pDataBlock->info.parTbName);
+      if(pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER &&
+          !isAutoTableName(pDataBlock->info.parTbName) &&
+          !alreadyAddGroupId(pDataBlock->info.parTbName) &&
+          groupId != 0){
+        buildCtbNameAddGruopId(pDataBlock->info.parTbName, groupId);
+      }
     } else {
       buildCtbNameByGroupIdImpl(pTask->outputInfo.shuffleDispatcher.stbFullName, groupId, pDataBlock->info.parTbName);
-      snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->outputInfo.shuffleDispatcher.dbInfo.db,
-               pDataBlock->info.parTbName);
     }
-
+    snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->outputInfo.shuffleDispatcher.dbInfo.db, pDataBlock->info.parTbName);
     /*uint32_t hashValue = MurmurHash3_32(ctbName, strlen(ctbName));*/
     SUseDbRsp* pDbInfo = &pTask->outputInfo.shuffleDispatcher.dbInfo;
-    hashValue =
-        taosGetTbHashVal(ctbName, strlen(ctbName), pDbInfo->hashMethod, pDbInfo->hashPrefix, pDbInfo->hashSuffix);
-    taosMemoryFree(ctbName);
+    hashValue = taosGetTbHashVal(ctbName, strlen(ctbName), pDbInfo->hashMethod, pDbInfo->hashPrefix, pDbInfo->hashSuffix);
     SBlockName bln = {0};
     bln.hashValue = hashValue;
     memcpy(bln.parTbName, pDataBlock->info.parTbName, strlen(pDataBlock->info.parTbName));

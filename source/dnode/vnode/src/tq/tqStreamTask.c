@@ -95,10 +95,14 @@ int32_t tqScanWalInFuture(STQ* pTq, int32_t numOfTasks, int32_t idleDuration) {
 
   pParam->pTq = pTq;
   pParam->numOfTasks = numOfTasks;
+
+  tmr_h pTimer = streamTimerGetInstance();
+  ASSERT(pTimer);
+
   if (pMeta->scanInfo.scanTimer == NULL) {
-    pMeta->scanInfo.scanTimer = taosTmrStart(doStartScanWal, idleDuration, pParam, pTq->tqTimer);
+    pMeta->scanInfo.scanTimer = taosTmrStart(doStartScanWal, idleDuration, pParam, pTimer);
   } else {
-    taosTmrReset(doStartScanWal, idleDuration, pParam, pTq->tqTimer, &pMeta->scanInfo.scanTimer);
+    taosTmrReset(doStartScanWal, idleDuration, pParam, pTimer, &pMeta->scanInfo.scanTimer);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -175,11 +179,11 @@ int32_t tqStopStreamTasksAsync(STQ* pTq) {
   SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
   if (pRunReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tqError("vgId:%d failed to create msg to stop tasks, code:%s", vgId, terrstr());
+    tqError("vgId:%d failed to create msg to stop tasks async, code:%s", vgId, terrstr());
     return -1;
   }
 
-  tqDebug("vgId:%d create msg to stop tasks", vgId);
+  tqDebug("vgId:%d create msg to stop all tasks async", vgId);
 
   pRunReq->head.vgId = vgId;
   pRunReq->streamId = 0;

@@ -88,7 +88,7 @@ class TDSql:
                 self.affectedRows = self.cursor.execute(sql)
                 return self.affectedRows
             except Exception as e:
-                tdLog.notice("Try to execute sql again, query times: %d "%i)
+                tdLog.notice("Try to execute sql again, execute times: %d "%i)
                 if i == queryTimes:
                     caller = inspect.getframeinfo(inspect.stack()[1][0])
                     args = (caller.filename, caller.lineno, sql, repr(e))
@@ -97,7 +97,24 @@ class TDSql:
                 i+=1
                 time.sleep(1)
                 pass
-            
+
+    def no_error(self, sql):
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
+        expectErrOccurred = False
+
+        try:
+            self.cursor.execute(sql)
+        except BaseException as e:
+            expectErrOccurred = True
+            self.errno = e.errno
+            error_info = repr(e)
+            self.error_info = ','.join(error_info[error_info.index('(') + 1:-1].split(",")[:-1]).replace("'", "")
+
+        if expectErrOccurred:
+            tdLog.exit("%s(%d) failed: sql:%s, unexpect error '%s' occurred" % (caller.filename, caller.lineno, sql, self.error_info))
+        else:
+            tdLog.info("sql:%s, check passed, no ErrInfo occurred" % (sql))
+
     def error(self, sql, expectedErrno = None, expectErrInfo = None, fullMatched = True):
         caller = inspect.getframeinfo(inspect.stack()[1][0])
         expectErrNotOccured = True
@@ -126,9 +143,9 @@ class TDSql:
 
                 if expectErrInfo != None:
                     if expectErrInfo == self.error_info:
-                        tdLog.info("sql:%s, expected expectErrInfo '%s' occured" % (sql, expectErrInfo))
+                        tdLog.info("sql:%s, expected ErrInfo '%s' occured" % (sql, expectErrInfo))
                     else:
-                        tdLog.exit("%s(%d) failed: sql:%s, expectErrInfo '%s' occured, but not expected expectErrInfo '%s'" % (caller.filename, caller.lineno, sql, self.error_info, expectErrInfo))
+                        tdLog.exit("%s(%d) failed: sql:%s, ErrInfo '%s' occured, but not expected ErrInfo '%s'" % (caller.filename, caller.lineno, sql, self.error_info, expectErrInfo))
             else:
                 if expectedErrno != None:
                     if expectedErrno in self.errno:
@@ -138,9 +155,9 @@ class TDSql:
 
                 if expectErrInfo != None:
                     if expectErrInfo in self.error_info:
-                        tdLog.info("sql:%s, expected expectErrInfo '%s' occured" % (sql, expectErrInfo))
+                        tdLog.info("sql:%s, expected ErrInfo '%s' occured" % (sql, expectErrInfo))
                     else:
-                        tdLog.exit("%s(%d) failed: sql:%s, expectErrInfo %s occured, but not expected expectErrInfo '%s'" % (caller.filename, caller.lineno, sql, self.error_info, expectErrInfo))
+                        tdLog.exit("%s(%d) failed: sql:%s, ErrInfo %s occured, but not expected ErrInfo '%s'" % (caller.filename, caller.lineno, sql, self.error_info, expectErrInfo))
 
             return self.error_info
 

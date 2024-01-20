@@ -21,6 +21,8 @@ sys.path.append("./6-cluster")
 from clusterCommonCreate import *
 from clusterCommonCheck import clusterComCheck
 
+
+
 class TDTestCase:
     def __init__(self):
         self.vgroups    = 1
@@ -123,7 +125,7 @@ class TDTestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  60,
+                    'pollDelay':  180,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -136,8 +138,8 @@ class TDTestCase:
         # expectRowsList = []
         tmqCom.initConsumerTable()
 
-        tdLog.info("create topics from stb ")
-        queryString = "stable %s.%s"%(paraDict['dbName'], paraDict['stbName'])
+        tdLog.info("create topics from stb with filter")
+        queryString = "select * from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
         # sqlString = "create topic %s as stable %s" %(topicNameList[0], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
@@ -188,6 +190,8 @@ class TDTestCase:
         pInsertThread1.join()
 
         expectRows = 1
+
+
         resultList = tmqCom.selectConsumeResult(expectRows)
 
         if expectrowcnt / 2 > resultList[0]:
@@ -206,7 +210,7 @@ class TDTestCase:
 
     def run(self):
         self.prepareTestEnv()
-        self.tmqCase1(True)
+        self.tmqCase1(False)
 
     def stop(self):
         tdSql.close()

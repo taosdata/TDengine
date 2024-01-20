@@ -41,6 +41,7 @@ class TDTestCase(TBase):
         etool.benchMark(json=jfile)
 
         tdSql.execute(f"use {self.db}")
+        tdSql.execute("select database();")
         # set insert data information
         self.childtable_count = 6
         self.insert_rows      = 100000
@@ -50,10 +51,30 @@ class TDTestCase(TBase):
     def doQuery(self):
         tdLog.info(f"do query.")
         
-        # top bottom
-        sql = f"select top(uti, 5) from {self.stb} "
-        tdSql.execute(sql)
+        # __group_key
+        sql = f"select count(*),_group_key(uti),uti from {self.stb} partition by uti"
+        tdSql.query(sql)
+        # column index 1 value same with 2
+        tdSql.checkSameColumn(1, 2)
 
+        sql = f"select count(*),_group_key(usi),usi from {self.stb} group by usi limit 100;"
+        tdSql.query(sql)
+        tdSql.checkSameColumn(1, 2)
+
+        # tail
+        sql1 = "select ts,ui from d0 order by ts desc limit 5 offset 2;"
+        sql2 = "select ts,tail(ui,5,2) from d0;"
+        self.checkSameResult(sql1, sql2)
+
+        # uninqe
+        sql1 = "select distinct uti from d0 order by uti;"
+        sql2 = "select UNIQUE(uti) from d0 order by uti asc;"
+        self.checkSameResult(sql1, sql2)
+
+        # top
+        sql1 = "select top(bi,10) from stb;"
+        sql2 = "select bi from stb where bi is not null order by bi desc limit 10;"
+        self.checkSameResult(sql1, sql2)
 
     # run
     def run(self):

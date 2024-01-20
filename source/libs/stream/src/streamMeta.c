@@ -180,10 +180,8 @@ int32_t streamMetaCheckBackendCompatible(SStreamMeta* pMeta) {
     }
     if (info.msgVer <= SSTREAM_TASK_INCOMPATIBLE_VER) {
       ret = STREAM_STATA_NO_COMPATIBLE;
-    } else if (info.msgVer == SSTREAM_TASK_NEED_CONVERT_VER) {
+    } else if (info.msgVer >= SSTREAM_TASK_NEED_CONVERT_VER) {
       ret = STREAM_STATA_NEED_CONVERT;
-    } else if (info.msgVer == SSTREAM_TASK_VER) {
-      ret = STREAM_STATA_COMPATIBLE;
     }
     tDecoderClear(&decoder);
     break;
@@ -962,7 +960,7 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeI64(pEncoder, ps->processedVer) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->verStart) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->verEnd) < 0) return -1;
-    if (tEncodeI64(pEncoder, ps->activeCheckpointId) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->checkpointId) < 0) return -1;
     if (tEncodeI8(pEncoder, ps->checkpointFailed) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->chkpointTransId) < 0) return -1;
   }
@@ -1001,8 +999,8 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     if (tDecodeI64(pDecoder, &entry.processedVer) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.verStart) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.verEnd) < 0) return -1;
-    if (tDecodeI64(pDecoder, &entry.activeCheckpointId) < 0) return -1;
-    if (tDecodeI8(pDecoder, (int8_t*)&entry.checkpointFailed) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.checkpointId) < 0) return -1;
+    if (tDecodeI8(pDecoder, &entry.checkpointFailed) < 0) return -1;
     if (tDecodeI32(pDecoder, &entry.chkpointTransId) < 0) return -1;
 
     entry.id.taskId = taskId;
@@ -1115,8 +1113,8 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
     }
 
     if ((*pTask)->chkInfo.checkpointingId != 0) {
-      entry.checkpointFailed = ((*pTask)->chkInfo.failedId >= (*pTask)->chkInfo.checkpointingId);
-      entry.activeCheckpointId = (*pTask)->chkInfo.checkpointingId;
+      entry.checkpointFailed = ((*pTask)->chkInfo.failedId >= (*pTask)->chkInfo.checkpointingId)? 1:0;
+      entry.checkpointId = (*pTask)->chkInfo.checkpointingId;
       entry.chkpointTransId = (*pTask)->chkInfo.transId;
 
       if (entry.checkpointFailed) {
@@ -1375,7 +1373,6 @@ SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta) {
     SStreamTaskState* pState = streamTaskGetStatus(pTask);
     if (pState->state == TASK_STATUS__CK) {
       streamTaskSetCheckpointFailedId(pTask);
-      stDebug("s-task:%s mark the checkpoint:%"PRId64" failed", pTask->id.idStr, pTask->chkInfo.checkpointingId);
     } else {
       stDebug("s-task:%s status:%s not reset the checkpoint", pTask->id.idStr, pState->name);
     }
@@ -1413,39 +1410,49 @@ void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader)
   }
 }
 
+static SArray* prepareBeforeStartTasks(SStreamMeta* pMeta) {
+  streamMetaWLock(pMeta);
+
+  SArray* pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
+  taosHashClear(pMeta->startInfo.pReadyTaskSet);
+  taosHashClear(pMeta->startInfo.pFailedTaskSet);
+  pMeta->startInfo.startTs = taosGetTimestampMs();
+
+  streamMetaResetTaskStatus(pMeta);
+  streamMetaWUnLock(pMeta);
+
+  return pTaskList;
+}
+
 int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t vgId = pMeta->vgId;
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
   stInfo("vgId:%d start to check all %d stream task(s) downstream status", vgId, numOfTasks);
+
   if (numOfTasks == 0) {
     stInfo("vgId:%d start tasks completed", pMeta->vgId);
     return TSDB_CODE_SUCCESS;
   }
 
-  SArray* pTaskList = NULL;
-  streamMetaWLock(pMeta);
-  pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
-  taosHashClear(pMeta->startInfo.pReadyTaskSet);
-  taosHashClear(pMeta->startInfo.pFailedTaskSet);
-  pMeta->startInfo.startTs = taosGetTimestampMs();
-  streamMetaWUnLock(pMeta);
-
-  // broadcast the check downstream tasks msg
   int64_t now = taosGetTimestampMs();
 
+  SArray* pTaskList = prepareBeforeStartTasks(pMeta);
+  numOfTasks = taosArrayGetSize(pTaskList);
+
+  // broadcast the check downstream tasks msg
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
 
+    // todo: may be we should find the related fill-history task and set it failed.
+    // todo: use hashTable instead
     SStreamTask* pTask = streamMetaAcquireTask(pMeta, pTaskId->streamId, pTaskId->taskId);
     if (pTask == NULL) {
       stError("vgId:%d failed to acquire task:0x%x during start tasks", pMeta->vgId, pTaskId->taskId);
       streamMetaAddTaskLaunchResult(pMeta, pTaskId->streamId, pTaskId->taskId, 0, now, false);
       continue;
     }
-
-    // todo: may be we should find the related fill-history task and set it failed.
 
     // fill-history task can only be launched by related stream tasks.
     STaskExecStatisInfo* pInfo = &pTask->execInfo;
@@ -1493,9 +1500,12 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
   int32_t num = taosArrayGetSize(pMeta->pTaskList);
   stDebug("vgId:%d stop all %d stream task(s)", pMeta->vgId, num);
   if (num == 0) {
+    stDebug("vgId:%d stop all %d task(s) completed, elapsed time:0 Sec.", pMeta->vgId, num);
     streamMetaRUnLock(pMeta);
     return TSDB_CODE_SUCCESS;
   }
+
+  int64_t st = taosGetTimestampMs();
 
   // send hb msg to mnode before closing all tasks.
   SArray* pTaskList = streamMetaSendMsgBeforeCloseTasks(pMeta);
@@ -1513,6 +1523,9 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
   }
 
   taosArrayDestroy(pTaskList);
+
+  double el = (taosGetTimestampMs() - st) / 1000.0;
+  stDebug("vgId:%d stop all %d task(s) completed, elapsed time:%.2f Sec.", pMeta->vgId, num, el);
 
   streamMetaRUnLock(pMeta);
   return 0;
@@ -1640,4 +1653,23 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamMetaResetTaskStatus(SStreamMeta* pMeta) {
+  int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+
+  stDebug("vgId:%d reset all %d stream task(s) status to be uninit", pMeta->vgId, numOfTasks);
+  if (numOfTasks == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < numOfTasks; ++i) {
+    SStreamTaskId* pTaskId = taosArrayGet(pMeta->pTaskList, i);
+
+    STaskId       id = {.streamId = pTaskId->streamId, .taskId = pTaskId->taskId};
+    SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
+    streamTaskResetStatus(*pTask);
+  }
+
+  return 0;
 }
