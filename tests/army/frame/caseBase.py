@@ -136,7 +136,7 @@ class TBase:
         tdSql.checkAgg(sql, self.childtable_count)
 
         # check step
-        sql = f"select * from (select diff(ts) as dif from {self.stb} partition by tbname) where dif != {self.timestamp_step}"
+        sql = f"select * from (select diff(ts) as dif from {self.stb} partition by tbname order by ts desc) where dif != {self.timestamp_step}"
         tdSql.query(sql)
         tdSql.checkRows(0)
 
