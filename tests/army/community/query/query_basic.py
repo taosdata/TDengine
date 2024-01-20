@@ -49,6 +49,11 @@ class TDTestCase(TBase):
         self.timestamp_step   = 30000
         self.start_timestamp  = 1700000000000
 
+        # write again disorder
+        self.flushDb()
+        jfile = etool.curFile(__file__, "cquery_basic.json")
+        etool.benchMark(json = jfile)
+        
 
     def genTime(self, preCnt, cnt):
         start = self.start_timestamp + preCnt * self.timestamp_step
@@ -238,7 +243,6 @@ class TDTestCase(TBase):
 
         # insert data
         self.insertData()
-        self.flushDb()
 
         # check insert data correct
         self.checkInsertCorrect()
