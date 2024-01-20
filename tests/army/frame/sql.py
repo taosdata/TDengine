@@ -223,6 +223,12 @@ class TDSql:
     def getData(self, row, col):
         self.checkRowCol(row, col)
         return self.res[row][col]
+    
+    def getColData(self, col):
+        colDatas = []
+        for i in range(self.queryRows):
+            colDatas.append(self.res[i][col])
+        return colDatas
 
     def getResult(self, sql):
         self.sql = sql
