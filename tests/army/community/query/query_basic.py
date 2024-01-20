@@ -177,7 +177,7 @@ class TDTestCase(TBase):
             sql = f"select ts from d0 where ui={expectMax}"
             tdSql.query(sql)
             tss = tdSql.getColData(0)
-            strts = ",".join(tss)
+            strts = ",".join(map(str,tss))
             # delete
             sql = f"delete from d0 where ts in ({strts})"
             tdSql.execute(sql)
