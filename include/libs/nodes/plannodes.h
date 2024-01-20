@@ -156,6 +156,7 @@ typedef struct SProjectLogicNode {
   SNodeList* pProjections;
   char       stmtName[TSDB_TABLE_NAME_LEN];
   bool       ignoreGroupId;
+  bool       inputIgnoreGroup;
 } SProjectLogicNode;
 
 typedef struct SIndefRowsFuncLogicNode {
@@ -449,6 +450,7 @@ typedef struct SProjectPhysiNode {
   SNodeList* pProjections;
   bool       mergeDataBlock;
   bool       ignoreGroupId;
+  bool       inputIgnoreGroup;
 } SProjectPhysiNode;
 
 typedef struct SIndefRowsFuncPhysiNode {
