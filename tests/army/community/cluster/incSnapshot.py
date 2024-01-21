@@ -29,6 +29,7 @@ class TDTestCase(TBase):
         tdSql.prepare()
         autoGen = AutoGen()
         autoGen.create_db(self.db, 2, 3)
+        tdSql.execute(f"use {self.db}")
         autoGen.create_stable(self.stb, 5, 10, 8, 8)
         autoGen.create_child(self.stb, "d", self.childtable_count)
         autoGen.insert_data(1000)
