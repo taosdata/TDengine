@@ -47,6 +47,7 @@ class TDDnodes:
         self.valgrind = 0
         self.asan = False
         self.killValgrind = 0
+        self.model = "dnode"
 
     def init(self, path, remoteIP = ""):
         binPath = self.dnodes[0].getPath() + "/../../../"
@@ -267,6 +268,14 @@ class TDDnodes:
 
     def getAsan(self):
         return self.asan
+
+    def getModel(self):
+        return self.model
+
+    def getDnodeCfgPath(self, index):
+        self.check(index)
+        return self.dnodes[index - 1].cfgPath
+
 
     def setLevelDisk(self, level, disk):
         for i in range(len(self.dnodes)):
