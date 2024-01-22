@@ -24,10 +24,10 @@ Please login [TDengine Cloud](https://cloud.taosdata.com) and select "Power BI" 
 1. Click the "Start" Menu, and Search for "ODBC", and choose "ODBC Data Source (64-bit)" (Note: Don't choose 32-bit).
 2. Select the "User DSN" tab, and click "Add" button to enter the page for "Create Data Source".
 3. Choose the data source to be added, here we choose "TDengine" and click "Finish", and enter the configuration page for "TDengine ODBC Data Source", fill in required fields as the following:
-    - \[DSN\]: Data Source Name, required field, such as "MyTDengine".
-    - \[Connection Type\]: required field, we choose "WebSocket".
-    - \[URL\]: To obtain the URL, please login [TDengine Cloud](https://cloud.tdengine.com) and click "Tools", select "PowerBI" and then copy the related value of URL.
-    - \[Database\]: optional field, the default database to access, such as "test".
+    - \[DSN\]: Data Source Name, required field, such as "MyTDengine"
+    - \[Connection Type\]: required field, we choose "WebSocket"
+    - \[URL\]: To obtain the URL, please login [TDengine Cloud](https://cloud.tdengine.com) and click "Tools", select "PowerBI" and then copy the related value of URL
+    - \[Database\]: optional field, the default database to access, such as "test"
 4. Click "Test Connection" to test whether the data source can be connectted; if successful, it will prompt "Successfully connected to the URL".
 
 :::note IMPORTANT
