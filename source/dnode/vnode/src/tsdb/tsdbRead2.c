@@ -4100,9 +4100,9 @@ void tsdbReaderClose2(STsdbReader* pReader) {
   size_t numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
   if (pReader->status.pTableMap != NULL) {
     destroyAllBlockScanInfo(pReader->status.pTableMap);
-    clearBlockScanInfoBuf(&pReader->blockInfoBuf);
     pReader->status.pTableMap = NULL;
   }
+  clearBlockScanInfoBuf(&pReader->blockInfoBuf);
 
   if (pReader->pFileReader != NULL) {
     tsdbDataFileReaderClose(&pReader->pFileReader);
@@ -4120,8 +4120,10 @@ void tsdbReaderClose2(STsdbReader* pReader) {
   taosMemoryFreeClear(pReader->status.uidList.tableUidList);
 
   qTrace("tsdb/reader-close: %p, untake snapshot", pReader);
-  tsdbUntakeReadSnap2(pReader, pReader->pReadSnap, true);
-  pReader->pReadSnap = NULL;
+  void* p = pReader->pReadSnap;
+  if ((p == atomic_val_compare_exchange_ptr((void**)&pReader->pReadSnap, p, NULL)) && (p != NULL)) {
+    tsdbUntakeReadSnap2(pReader, p, true);
+  }
 
   tsem_destroy(&pReader->resumeAfterSuspend);
   tsdbReleaseReader(pReader);
@@ -4195,8 +4197,12 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
     doSuspendCurrentReader(pReader);
   }
 
-  tsdbUntakeReadSnap2(pReader, pReader->pReadSnap, false);
-  pReader->pReadSnap = NULL;
+  // make sure only release once
+  void* p = pReader->pReadSnap;
+  if ((p == atomic_val_compare_exchange_ptr((void**)&pReader->pReadSnap, p, NULL)) && (p != NULL)) {
+    tsdbUntakeReadSnap2(pReader, p, false);
+  }
+
   if (pReader->bFilesetDelimited) {
     pReader->status.memTableMinKey = INT64_MAX;
     pReader->status.memTableMaxKey = INT64_MIN;

@@ -26,18 +26,6 @@ static FORCE_INLINE bool tqIsHandleExec(STqHandle* pHandle) { return TMQ_HANDLE_
 static FORCE_INLINE void tqSetHandleExec(STqHandle* pHandle) { pHandle->status = TMQ_HANDLE_STATUS_EXEC; }
 static FORCE_INLINE void tqSetHandleIdle(STqHandle* pHandle) { pHandle->status = TMQ_HANDLE_STATUS_IDLE; }
 
-static int32_t tqTimerInit(STQ* pTq) {
-  pTq->tqTimer = taosTmrInit(100, 100, 1000, "TQ");
-  if (pTq->tqTimer == NULL) {
-    return -1;
-  }
-  return 0;
-}
-
-static void tqTimerCleanUp(STQ* pTq) {
-  taosTmrCleanUp(pTq->tqTimer);
-}
-
 void tqDestroyTqHandle(void* data) {
   STqHandle* pData = (STqHandle*)data;
   qDestroyTask(pData->execHandle.task);
@@ -118,7 +106,6 @@ int32_t tqInitialize(STQ* pTq) {
     return -1;
   }
 
-  tqTimerInit(pTq);
   return 0;
 }
 
@@ -149,7 +136,6 @@ void tqClose(STQ* pTq) {
   taosMemoryFree(pTq->path);
   tqMetaClose(pTq);
   streamMetaClose(pTq->pStreamMeta);
-  tqTimerCleanUp(pTq);
 
   qDebug("end to close tq");
   taosMemoryFree(pTq);
@@ -742,8 +728,6 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
     return code;
   }
 
-  streamTaskOpenAllUpstreamInput(pTask);
-
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     STaskId taskId = {0};
     if (pTask->info.fillHistory) {
@@ -1126,6 +1110,19 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   pRsp->info.handle = NULL;
 
   SStreamCheckpointSourceReq req = {0};
+  SDecoder decoder;
+  tDecoderInit(&decoder, (uint8_t*)msg, len);
+  if (tDecodeStreamCheckpointSourceReq(&decoder, &req) < 0) {
+    code = TSDB_CODE_MSG_DECODE_ERROR;
+    tDecoderClear(&decoder);
+    tqError("vgId:%d failed to decode checkpoint-source msg, code:%s", vgId, tstrerror(code));
+    SRpcMsg rsp = {0};
+    buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
+    tmsgSendRsp(&rsp);  // error occurs
+    return code;
+  }
+  tDecoderClear(&decoder);
+
   if (!vnodeIsRoleLeader(pTq->pVnode)) {
     tqDebug("vgId:%d not leader, ignore checkpoint-source msg, s-task:0x%x", vgId, req.taskId);
     SRpcMsg rsp = {0};
@@ -1141,19 +1138,6 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
     tmsgSendRsp(&rsp);  // error occurs
     return TSDB_CODE_SUCCESS;
   }
-
-  SDecoder decoder;
-  tDecoderInit(&decoder, (uint8_t*)msg, len);
-  if (tDecodeStreamCheckpointSourceReq(&decoder, &req) < 0) {
-    code = TSDB_CODE_MSG_DECODE_ERROR;
-    tDecoderClear(&decoder);
-    tqError("vgId:%d failed to decode checkpoint-source msg, code:%s", vgId, tstrerror(code));
-    SRpcMsg rsp = {0};
-    buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
-    tmsgSendRsp(&rsp);  // error occurs
-    return code;
-  }
-  tDecoderClear(&decoder);
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.taskId);
   if (pTask == NULL) {

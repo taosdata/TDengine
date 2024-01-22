@@ -435,7 +435,6 @@ int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void*
 
 int32_t streamStateReleaseBuf(SStreamState* pState, void* pVal, bool used) {
   // todo refactor
-  stDebug("streamStateReleaseBuf");
   if (!pVal) {
     return 0;
   }
@@ -699,6 +698,7 @@ int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void
       stDebug("===stream===save skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64 ".code:%d", key->win.skey,
               key->win.ekey, key->groupId, code);
     } else {
+      pos->beFlushed = false;
       code = putSessionWinResultBuff(pState->pFileState, value);
     }
   }

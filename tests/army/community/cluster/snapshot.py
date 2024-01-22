@@ -28,7 +28,9 @@ from frame import *
 
 
 class TDTestCase(TBase):
-        
+    updatecfgDict = {
+        "countAlwaysReturnValue" : "0"
+    }
 
     def insertData(self):
         tdLog.info(f"insert data.")
@@ -41,6 +43,10 @@ class TDTestCase(TBase):
         self.childtable_count = 10
         self.insert_rows      = 100000
         self.timestamp_step   = 10000
+
+        # create count check table
+        sql = f"create table {self.db}.ta(ts timestamp, age int) tags(area int)"
+        tdSql.execute(sql)
 
     def doAction(self):
         tdLog.info(f"do action.")
@@ -64,7 +70,10 @@ class TDTestCase(TBase):
         selid = random.choice(vgids)
         self.balanceVGroupLeaderOn(selid)
 
-        
+        # check count always return value
+        sql = f"select count(*) from {self.db}.ta"
+        tdSql.query(sql)
+        tdSql.checkRows(0) # countAlwaysReturnValue is false
 
     # run
     def run(self):

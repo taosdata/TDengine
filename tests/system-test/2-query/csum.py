@@ -162,6 +162,16 @@ class TDTestCase:
         case6 =  {"col": "c9"}
         self.checkcsum(**case6)
 
+        # unsigned check
+        case61 =  {"col": "c11"}
+        self.checkcsum(**case61)        
+        case62 =  {"col": "c12"}
+        self.checkcsum(**case62)        
+        case63 =  {"col": "c13"}
+        self.checkcsum(**case63)        
+        case64 =  {"col": "c14"}
+        self.checkcsum(**case64)
+
         # case7~8: nested query
         case7 = {"table_expr": "(select ts,c1 from db.stb1 order by ts, tbname )"}
         self.checkcsum(**case7)
@@ -317,14 +327,14 @@ class TDTestCase:
                     f"insert into t{i} values ("
                     f"{basetime + (j+1)*10 + i * msec_per_min}, {random.randint(-200, -1)}, {random.uniform(200, -1)}, {basetime + random.randint(-200, -1)}, "
                     f"'binary_{j}', {random.uniform(-200, -1)}, {random.choice([0,1])}, {random.randint(-200,-1)}, "
-                    f"{random.randint(-200, -1)}, {random.randint(-127, -1)}, 'nchar_{j}' )"
+                    f"{random.randint(-200, -1)}, {random.randint(-127, -1)}, 'nchar_{j}', {j},{j},{j},{j} )"
                 )
 
                 tdSql.execute(
                     f"insert into t{i} values ("
                     f"{basetime - (j+1) * 10 + i * msec_per_min}, {random.randint(1, 200)}, {random.uniform(1, 200)}, {basetime - random.randint(1, 200)}, "
                     f"'binary_{j}_1', {random.uniform(1, 200)}, {random.choice([0, 1])}, {random.randint(1,200)}, "
-                    f"{random.randint(1,200)}, {random.randint(1,127)}, 'nchar_{j}_1' )"
+                    f"{random.randint(1,200)}, {random.randint(1,127)}, 'nchar_{j}_1', {j*2},{j*2},{j*2},{j*2} )"
                 )
                 tdSql.execute(
                     f"insert into tt{i} values ( {basetime-(j+1) * 10 + i * msec_per_min}, {random.randint(1, 200)} )"
@@ -340,8 +350,8 @@ class TDTestCase:
         tdSql.execute(
             "create stable db.stb1 (\
                 ts timestamp, c1 int, c2 float, c3 timestamp, c4 binary(16), c5 double, c6 bool, \
-                c7 bigint, c8 smallint, c9 tinyint, c10 nchar(16)\
-                ) \
+                c7 bigint, c8 smallint, c9 tinyint, c10 nchar(16),\
+                c11 int unsigned, c12 smallint unsigned, c13 tinyint unsigned, c14 bigint unsigned) \
             tags(st1 int)"
         )
         tdSql.execute(
@@ -373,10 +383,10 @@ class TDTestCase:
 
         tdLog.printNoPrefix("######## insert data in the range near the max(bigint/double):")
         self.csum_test_table(tbnum)
-        tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 1) * 10 + i * msec_per_min}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
-        tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 2) * 10 + i * msec_per_min}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
+        tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7,c11) values "
+                      f"({nowtime - (per_table_rows + 1) * 10 + i * msec_per_min}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1}, 128)")
+        tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7,c11) values "
+                      f"({nowtime - (per_table_rows + 2) * 10 + i * msec_per_min}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1}, 129)")
         self.csum_current_query()
         self.csum_error_query()
 
@@ -460,7 +470,7 @@ class TDTestCase:
         tdSql.checkRows(40)
 
         # bug need fix
-        tdSql.query("select tbname , csum(c1) from db.stb1 partition by tbname")
+        tdSql.query("select tbname , csum(c1), csum(c12) from db.stb1 partition by tbname")
         tdSql.checkRows(40)
         tdSql.query("select tbname , csum(st1) from db.stb1 partition by tbname")
         tdSql.checkRows(70)
@@ -468,7 +478,7 @@ class TDTestCase:
         tdSql.checkRows(7)
 
         # partition by tags
-        tdSql.query("select st1 , csum(c1) from db.stb1 partition by st1")
+        tdSql.query("select st1 , csum(c1), csum(c13) from db.stb1 partition by st1")
         tdSql.checkRows(40)
         tdSql.query("select csum(c1) from db.stb1 partition by st1")
         tdSql.checkRows(40)

@@ -194,3 +194,21 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
 
   return false;
 }
+
+ bool nodeListNodeEqual(const SNodeList* a, const SNode* b) {
+  if (NULL == a || NULL == b) {
+    return false;
+  }
+
+  if (LIST_LENGTH(a) < 1) {
+    return false;
+  }
+
+  SNode *na;
+  FOREACH(na, a) {
+    if (nodesEqualNode(na, b)) {
+      return true;
+    }
+  }
+  return false;
+}

@@ -832,6 +832,7 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return code;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t setNullSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t rowIndex) {
   if (pCtx->subsidiaries.num <= 0) {
     return TSDB_CODE_SUCCESS;
@@ -847,6 +848,7 @@ int32_t setNullSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32
 
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 int32_t setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STuplePos* pTuplePos, int32_t rowIndex) {
   if (pCtx->subsidiaries.num <= 0) {
@@ -1574,9 +1576,19 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   param12 /= param[1][1];
 
-  char   buf[512] = {0};
+  char buf[LEASTSQUARES_BUFF_LENGTH] = {0};
+  char slopBuf[64] = {0};
+  char interceptBuf[64] = {0};
+  int  n = snprintf(slopBuf, 64, "%.6lf", param02);
+  if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
+    snprintf(slopBuf, 64, "%." DOUBLE_PRECISION_DIGITS, param02);
+  }
+  n = snprintf(interceptBuf, 64, "%.6lf", param12);
+  if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
+    snprintf(interceptBuf, 64, "%." DOUBLE_PRECISION_DIGITS, param12);
+  }
   size_t len =
-      snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%.6lf, intercept:%.6lf}", param02, param12);
+      snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%s, intercept:%s}", slopBuf, interceptBuf);
   varDataSetLen(buf, len);
 
   colDataSetVal(pCol, currentRow, buf, pResInfo->isNullRes);
@@ -2125,7 +2137,7 @@ bool getGroupKeyFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
 }
 
 static FORCE_INLINE TSKEY getRowPTs(SColumnInfoData* pTsColInfo, int32_t rowIndex) {
-  if (pTsColInfo == NULL) {
+  if (pTsColInfo == NULL || pTsColInfo->pData == NULL) {
     return 0;
   }
 
