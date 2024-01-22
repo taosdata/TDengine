@@ -252,7 +252,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
         pEpSet->inUse = pEpSet->numOfEps;
       } else {
         pEpSet->inUse = (pEpSet->numOfEps + 1) % totalMnodes;
-        pEpSet->inUse = 0;
+        //pEpSet->inUse = 0;
       }
     }
     if (pObj->pDnode != NULL) {
