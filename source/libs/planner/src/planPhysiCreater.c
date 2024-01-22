@@ -1722,39 +1722,6 @@ static int32_t createStateWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
   return code;
 }
 
-static EDealRes collectWindowsPseudocolumns(SNode* pNode, void* pContext) {
-  SNodeList* pCols = (SNodeList*)pContext;
-  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
-    SFunctionNode* pFunc = (SFunctionNode*)pNode;
-    if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType ||
-        FUNCTION_TYPE_WDURATION == pFunc->funcType) {
-      nodesListStrictAppend(pCols, nodesCloneNode(pNode));
-    }
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-static int32_t checkWindowsConditonValid(SWindowLogicNode* pWindowLogicNode) {
-  int32_t    code = TSDB_CODE_SUCCESS;
-  SNodeList* pCols = nodesMakeList();
-  if (NULL == pCols) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  nodesWalkExpr(pWindowLogicNode->pStartCond, collectWindowsPseudocolumns, pCols);
-  if (pCols->length > 0) {
-    code = TSDB_CODE_QRY_INVALID_WINDOW_CONDITION;
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    nodesWalkExpr(pWindowLogicNode->pEndCond, collectWindowsPseudocolumns, pCols);
-    if (pCols->length > 0) {
-      code = TSDB_CODE_QRY_INVALID_WINDOW_CONDITION;
-    }
-  }
-
-  nodesDestroyList(pCols);
-  return code;
-}
-
 static int32_t createEventWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                           SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   SEventWinodwPhysiNode* pEvent = (SEventWinodwPhysiNode*)makePhysiNode(
@@ -1764,13 +1731,8 @@ static int32_t createEventWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  int32_t code = checkWindowsConditonValid(pWindowLogicNode);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
-  }
-
   SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
-  code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pWindowLogicNode->pStartCond, &pEvent->pStartCond);
+  int32_t code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pWindowLogicNode->pStartCond, &pEvent->pStartCond);
   if (TSDB_CODE_SUCCESS == code) {
     code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pWindowLogicNode->pEndCond, &pEvent->pEndCond);
   }
