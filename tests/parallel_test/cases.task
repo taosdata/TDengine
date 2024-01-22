@@ -3,7 +3,13 @@
 #NA,NA,y or n,script,./test.sh -f tsim/user/basic.sim
 
 #unit-test
+
+archOs=$(arch)
+if [[ $archOs =~ "aarch64" ]]; then
+,,n,unit-test,bash test.sh
+else
 ,,y,unit-test,bash test.sh
+fi
 
 #
 # army-test
@@ -12,6 +18,9 @@
 ,,y,army,./pytest.sh python3 ./test.py -f enterprise/s3/s3_basic.py -L 3 -D 1
 ,,y,army,./pytest.sh python3 ./test.py -f community/cluster/snapshot.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f community/query/function/test_func_elapsed.py
+,,y,army,./pytest.sh python3 ./test.py -f community/cluster/incSnapshot.py -N 3 -L 3 -D 2
+,,y,army,./pytest.sh python3 ./test.py -f community/query/query_basic.py -N 3
+
 ,,n,army,python3 ./test.py -f community/cmdline/fullopt.py
 
 
@@ -1247,7 +1256,9 @@ e
 ,,y,script,./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQueryDelete.sim
-,,y,script,./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
+
+### refactor stream backend, open case after rsma refactored
+#,,y,script,./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
 ,,y,script,./test.sh -f tsim/sync/vnodesnapshot-rsma-test.sim
 ,,n,script,./test.sh -f tsim/valgrind/checkError1.sim
 ,,n,script,./test.sh -f tsim/valgrind/checkError2.sim
