@@ -3690,9 +3690,8 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (TSDB_CODE_SUCCESS == code) {
     code = translateSpecificWindow(pCxt, pSelect);
   }
-  code = checkWindowsConditonValid(pSelect->pWindow);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkWindowsConditonValid(pSelect->pWindow);
   }
   return code;
 }
