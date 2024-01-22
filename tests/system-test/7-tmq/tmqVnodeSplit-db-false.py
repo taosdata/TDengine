@@ -134,8 +134,8 @@ class TDTestCase:
         # expectRowsList = []
         tmqCom.initConsumerTable()
 
-        tdLog.info("create topics from stb with filter")
-        queryString = "select * from %s.%s where c2 >= 0 "%(paraDict['dbName'], paraDict['stbName'])
+        tdLog.info("create topics from db")
+        queryString = "database %s"%(paraDict['dbName'])
         # sqlString = "create topic %s as stable %s" %(topicNameList[0], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
@@ -163,6 +163,7 @@ class TDTestCase:
         
         tdLog.info("create ctb2")
         paraDict2 = paraDict.copy()
+
         paraDict2['ctbPrefix'] = "ctb2"
         tmqCom.create_ctable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict2['ctbPrefix'],
                              ctbNum=paraDict["ctbNum"],ctbStartIdx=paraDict['ctbStartIdx'])
@@ -205,7 +206,7 @@ class TDTestCase:
 
     def run(self):
         self.prepareTestEnv()
-        self.tmqCase1(True)
+        self.tmqCase1(False)
 
     def stop(self):
         tdSql.close()
