@@ -32,7 +32,7 @@
         :props="props"
         :height="height"
         :default-expanded-keys="defaultExpandedKeys"
-        @node-collapse="expandChange"
+        @node-collapse="collapseChange"
         @node-expand="expandChange"
       >
         <el-tooltip
@@ -452,9 +452,24 @@ export default {
       this.$store.state.console.currentComponent = "DatabaseCreate";
     },
 
+    collapseChange(data,node) {},
+
     // 这里由于有默认打开的key，所以其他同层已经打开的结构并不会触发收起回调
-    async expandChange(data) {
+    async expandChange(data,node) {
       // 由于点击展开图标不会触发节点点击时间所以使用展开触发
+      let result = [];
+      if (node.expanded) {
+        result.push(node.data["node-key"]);
+      }
+      let parentNode = node.parent;
+      while (parentNode && parentNode.data) {
+        result.push(node.data["node-key"]);
+        result.push(parentNode.data["node-key"]);
+        result = [...new Set(result)]
+        parentNode = parentNode.parent;
+      }
+      this.defaultExpandedKeys = result.reverse();
+
       switch (data.typeName) {
         case "table":
           await this.$store
@@ -511,7 +526,7 @@ export default {
               ),
               max_delay: "",
               name: item === 1 ? "STables" : "Tables",
-              "node-key": item === 1 ? "stable" : "ntable" + Math.random(),
+              "node-key": item === 1 ? "stable" : "ntable",
               parent: node.data.name,
               rollup: "",
               stable_name: "STables",
@@ -611,19 +626,19 @@ export default {
         default:
           break;
       }
-      if (!node) return;
-      let result = [];
-      // 判断当前节点是否为展开状态,后续父节点不需要判断
-      if (node.expanded) {
-        result.push(node.data["node-key"]);
-      }
-      let currentNode = node.parent;
-      while (currentNode && currentNode.data) {
-        result.push(currentNode.data["node-key"]);
-        currentNode = currentNode.parent;
-      }
-      // 处理默认展开的key
-      this.defaultExpandedKeys = result.reverse();
+      // if (!node) return;
+      // let result = [];
+      // // 判断当前节点是否为展开状态,后续父节点不需要判断
+      // if (node.expanded) {
+      //   result.push(node.data["node-key"]);
+      // }
+      // let currentNode = node.parent;
+      // while (currentNode && currentNode.data) {
+      //   result.push(currentNode.data["node-key"]);
+      //   currentNode = currentNode.parent;
+      // }
+      // // 处理默认展开的key
+      // this.defaultExpandedKeys = result.reverse();
     },
     async add(data, node) {
       await this.handleVar(data, node);
