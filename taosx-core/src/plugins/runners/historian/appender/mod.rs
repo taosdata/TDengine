@@ -8,7 +8,8 @@ use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
 use chrono::{Local, NaiveDateTime, TimeZone};
 use itertools::Itertools;
-use tiberius::Row;
+use serde_json::json;
+use tiberius::{ColumnType, Row};
 
 use taosx_ipc::prelude::ArrowDataType;
 
@@ -357,6 +358,26 @@ impl ArrowDataAppender {
     pub fn schema(&self) -> &Schema {
         &self.schema
     }
+}
+
+pub fn to_json_value(
+    row: &Row,
+    idx: usize,
+    col_type: ColumnType,
+) -> anyhow::Result<serde_json::Value> {
+    let col_val = match col_type {
+        ColumnType::Datetime2 => json!(row.try_get::<NaiveDateTime, _>(idx)?),
+        ColumnType::Int1 => json!(row.try_get::<u8, _>(idx)?),
+        ColumnType::Int4 => json!(row.try_get::<i32, _>(idx)?),
+        ColumnType::Intn => json!(row.try_get::<i32, _>(idx)?),
+        ColumnType::Floatn => json!(row.try_get::<f64, _>(idx)?),
+        ColumnType::NVarchar => json!(row.try_get::<&str, _>(idx)?),
+        _ => {
+            return Err(anyhow::anyhow!("Unsupported column type: {:?}", col_type));
+        }
+    };
+
+    Ok(col_val)
 }
 
 #[cfg(test)]

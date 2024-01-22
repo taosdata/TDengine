@@ -1,21 +1,23 @@
-use chrono::Local;
-use linked_hash_map::LinkedHashMap;
-use serde_json::{json, Value};
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use futures_util::TryStreamExt;
+use linked_hash_map::LinkedHashMap;
+use serde_json::{json, Value};
 use taos::Dsn;
-use taosx_ipc::prelude::IpcDataType;
-use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
+
+use taosx_ipc::prelude::IpcDataType;
 
 use crate::dsv::DataSourceValidation;
 use crate::plugins::raw_data::RawDataLogger;
 use crate::plugins::transform::sample::DsSampleIn;
+use crate::runners::historian::appender::to_json_value;
 use crate::runners::historian::config::connect::ConnectConfig;
 use crate::runners::historian::config::{HistorianTable, TaskConfig, TaskMode};
-use crate::runners::historian::query::{to_ipc_data_type, HistorianQuery};
+use crate::runners::historian::query::HistorianQuery;
 use crate::runners::historian::worker::{migrate_history, sync_history, sync_live};
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, Action, Parser, Transferred};
@@ -56,34 +58,59 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     }
 }
 
+/// get sample data from historian
+/// # Arguments
+/// * `dsn` - historian dsn
+/// # Returns
+/// * `DsSampleIn` - {
+///     "input": [{ "col_name": "xxx", ... }],
+///     "parser": {"parse": {
+///         "col_name": { "as": col_type }, ...
+///     }}
+/// }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
-    let table = TaskConfig::parse_table(dsn)?;
-    let connect_config = ConnectConfig::from_dsn(dsn)?;
-    let mut client = HistorianQuery::try_new(connect_config).await?;
+    let config = TaskConfig::from_dsn(dsn)?;
+    let mut client = HistorianQuery::try_new(config.connect).await?;
 
-    let mut rows = client.describe_table(table).await?.into_row_stream();
+    // input: get top N record from table
+    let mut input_sample: Vec<LinkedHashMap<String, Value>> = Vec::new();
+    let mut rows = client
+        .top_n(3, config.table, config.begin_datetime, config.end_datetime)
+        .await?
+        .into_row_stream();
+    while let Some(row) = rows.try_next().await? {
+        let mut sample_map: LinkedHashMap<String, Value> = LinkedHashMap::new();
+        for (idx, col) in row.columns().into_iter().enumerate() {
+            let col_name = col.name();
+            let col_type = col.column_type();
+            let col_val = to_json_value(&row, idx, col_type)?;
 
-    let mut input_sample = LinkedHashMap::new();
+            sample_map.insert(col_name.to_string(), col_val);
+        }
+
+        input_sample.push(sample_map);
+    }
+    drop(rows);
+
+    // parser.parse: describe table
+    let mut rows = client.describe_table(config.table).await?.into_row_stream();
     let mut parse_sample = LinkedHashMap::new();
-
     while let Some(row) = rows.try_next().await? {
         let col_name = row.try_get::<&str, _>("COLUMN_NAME")?.unwrap();
         let col_type = row.try_get::<&str, _>("TYPE_NAME")?.unwrap();
         let col_precision = row.try_get::<i32, _>("PRECISION")?.unwrap();
 
         let data_type = to_ipc_data_type(col_type, col_precision)?;
-
-        input_sample.insert(col_name.to_string(), fake_data(data_type.clone()));
         parse_sample.insert(col_name.to_string(), json!({"as": data_type}));
     }
+    drop(rows);
 
     let sample_json = json!({
-        "input": vec![input_sample],
+        "input": input_sample,
         "parser": {
             "parse": parse_sample,
         }
     });
-
     let ds_sample_in: DsSampleIn = serde_json::from_value(sample_json.clone()).map_err(|err| {
         anyhow::anyhow!(
             "failed to parse sample data, cause: {}, value: {:?}",
@@ -91,17 +118,52 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
             sample_json
         )
     })?;
+
     Ok(ds_sample_in)
 }
 
-fn fake_data(data_type: IpcDataType) -> Value {
-    match data_type {
-        IpcDataType::Timestamp(unit) => json!(Local::now().to_rfc3339()),
-        IpcDataType::Float64 => json!(3.14),
-        IpcDataType::Int32 => json!(1),
-        IpcDataType::VarChar(_) => json!("abc"),
-        _ => json!(""),
+async fn get_tag_names(
+    client: &mut HistorianQuery,
+    tag_conditions: Vec<String>,
+) -> anyhow::Result<Vec<String>> {
+    let mut rows = client
+        .select_from_tag(tag_conditions)
+        .await?
+        .into_row_stream();
+
+    let mut tag_names = Vec::new();
+    while let Some(row) = rows.try_next().await? {
+        let tag_name = row
+            .try_get::<&str, _>("TagName")?
+            .ok_or(anyhow::anyhow!("TagName cannot be None"))?;
+        tag_names.push(tag_name.to_string());
     }
+
+    Ok(tag_names)
+}
+
+fn to_ipc_data_type(data_type: &str, precision: i32) -> anyhow::Result<IpcDataType> {
+    let db_type = match data_type {
+        "datetime2" => "timestamp(ms)".to_string(),
+        "nvarchar" => format!("varchar({})", precision).to_string(),
+        "tinyint" => "tinyint".to_string(),
+        "int" => "int".to_string(),
+        "float" => "double".to_string(),
+        _ => anyhow::bail!(
+            "unsupported data type: {}, precision: {}",
+            data_type,
+            precision
+        ),
+    };
+
+    IpcDataType::from_str(db_type.as_str()).map_err(|err| {
+        anyhow::anyhow!(
+            "failed to convert data type: {}, precision: {}, cause: {}",
+            data_type,
+            precision,
+            err.to_string()
+        )
+    })
 }
 
 pub async fn historian_to_taos(
@@ -206,31 +268,14 @@ pub async fn historian_to_taos(
 }
 
 async fn exec_task(task_id: Option<i64>, mut config: TaskConfig) -> anyhow::Result<()> {
-    let tag_conditions = config.tags.clone();
-    let contains_wildcard = tag_conditions.iter().any(|t| t.contains('*'));
-    let tags = if !contains_wildcard {
-        tag_conditions
-    } else {
-        let mut client = HistorianQuery::try_new(config.connect.clone()).await?;
-        let mut rows = client
-            .select_from_tag(tag_conditions)
-            .await?
-            .into_row_stream();
+    let mut client = HistorianQuery::try_new(config.connect.clone()).await?;
 
-        let mut tag_names = Vec::new();
-        while let Some(row) = rows.try_next().await? {
-            let tag_name = row
-                .try_get::<&str, _>("TagName")?
-                .ok_or(anyhow::anyhow!("TagName cannot be None"))?;
-            tag_names.push(tag_name.to_string());
-        }
-        tag_names
-    };
-
-    if tags.is_empty() {
-        anyhow::bail!("tags cannot be empty");
+    let tag_list = get_tag_names(&mut client, config.tags.clone()).await?;
+    if tag_list.is_empty() {
+        anyhow::bail!("valid TagName is None, tags: {:?}", config.tags.clone());
     }
 
+    // keep_raw_data log
     let (logger_tx, logger_rx) = flume::bounded(0);
     let logger = RawDataLogger::new(
         task_id.unwrap_or(0),
@@ -251,11 +296,11 @@ async fn exec_task(task_id: Option<i64>, mut config: TaskConfig) -> anyhow::Resu
 
     match (config.mode, config.table) {
         (TaskMode::Migrate, HistorianTable::History) => {
-            config.tags = tags;
+            config.tags = tag_list;
             migrate_history(config.clone(), logger_tx).await?;
         }
         (TaskMode::Synchronize, HistorianTable::History) => {
-            config.tags = tags;
+            config.tags = tag_list;
             sync_history(config.clone(), logger_tx).await?;
         }
         (TaskMode::Synchronize, HistorianTable::Live) => {
@@ -301,6 +346,17 @@ mod tests {
 
     #[ignore]
     #[tokio::test]
+    async fn test_valid() {
+        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433/").unwrap();
+        let res = is_valid(&dsn).await;
+        assert_eq!(true, res.valid);
+        assert_eq!(true, res.support);
+        assert_eq!("historian", res.data_source);
+        assert_eq!(None, res.version);
+    }
+
+    #[ignore]
+    #[tokio::test]
     async fn test_get_sample() {
         let dsn = Dsn::from_str(
             "historian://aaAdmin:aaAdmin@192.168.3.40:1433?mode=synchronize&table=Runtime.dbo.History",
@@ -317,21 +373,10 @@ mod tests {
         println!("{}", serde_json::to_string_pretty(&actual).unwrap());
     }
 
-    #[ignore]
-    #[tokio::test]
-    async fn test_valid() {
-        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433/").unwrap();
-        let res = is_valid(&dsn).await;
-        assert_eq!(true, res.valid);
-        assert_eq!(true, res.support);
-        assert_eq!("historian", res.data_source);
-        assert_eq!(None, res.version);
-    }
-
-    #[ignore]
-    #[tokio::test]
     /// generate test data, Only for local test
-    async fn generate_tag_csv() -> anyhow::Result<()> {
+    #[ignore]
+    #[tokio::test]
+    async fn generate_historian_tag_csv() -> anyhow::Result<()> {
         let tag_index = 8;
         let total_records = 10359;
         let gap_sec = 2;
