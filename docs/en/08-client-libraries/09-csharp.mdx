@@ -7,19 +7,23 @@ toc_max_heading_level: 4
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import RequestId from "./_request_id.mdx";
 
 `TDengine.Connector` is the C# language connector provided by TDengine. C# developers can use it to develop C# application software that accesses TDengine cluster data.
 
-The `TDengine.Connector` connector supports establishing a connection with the TDengine running instance through the TDengine client driver (taosc), and provides functions such as data writing, query, data subscription, schemaless data writing, and parameter binding interface data writing. `TDengine.Connector` also supports WebSocket since v3.0.1, establishes WebSocket connection, and provides functions such as data writing, query, and parameter binding interface data writing.
+## Connection types
 
-This article introduces how to install `TDengine.Connector` in a Linux or Windows environment, and connect to the TDengine cluster through `TDengine.Connector` to perform basic operations such as data writing and querying.
+`TDengine.Connector` provides 2 connection types.
 
-:::warning
+* **Native connection**, which connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface.
+* **Websocket connection** which is implemented through taosAdapter. The set of features implemented by the WebSocket connection differs slightly from those implemented by the native connection.(since v3.0.1)
+
+For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#Establish-Connection)
+
+## Compatibility
+
 * `TDengine.Connector` version 3.1.0 has been completely refactored and is no longer compatible with 3.0.2 and previous versions. For 3.0.2 documents, please refer to [nuget](https://www.nuget.org/packages/TDengine.Connector/3.0.2)
 * `TDengine.Connector` 3.x is not compatible with TDengine 2.x. If you need to use the C# connector in an environment running TDengine 2.x version, please use the 1.x version of TDengine.Connector.
-:::
-
-The source code of `TDengine.Connector` is hosted on [GitHub](https://github.com/taosdata/taos-connector-dotnet/tree/3.0).
 
 ## Supported platforms
 
@@ -406,6 +410,8 @@ namespace WSQuery
 </Tabs>
 
 ### execute SQL with reqId
+
+<RequestId />
 
 <Tabs defaultValue="native" groupId="connect">
 <TabItem value="native" label="native connection">
