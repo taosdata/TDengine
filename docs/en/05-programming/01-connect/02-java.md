@@ -65,7 +65,7 @@ Alternatively, you can set environment variable in your IDE's run configurations
 <!-- exclude -->
 
 :::note IMPORTANT
-Replace <jdbcURL\> with real JDBC URL, it will seems like: `jdbc:TAOS-RS://example.com?useSSL=true&token=xxxx`.
+Replace &lt;jdbcURL&gt; with real JDBC URL, it will seems like: `jdbc:TAOS-RS://example.com?useSSL=true&token=xxxx`.
 
 To obtain the value of JDBC URL, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on the left menu, then select "Java".
 :::
