@@ -1239,11 +1239,15 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     return NULL;
   } else {
     if (!IS_FINAL_INTERVAL_OP(pOperator)) {
-      doBuildDeleteResult(pInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
-      if (pInfo->pDelRes->info.rows != 0) {
-        // process the rest of the data
-        printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-        return pInfo->pDelRes;
+      SSDataBlock* resBlock = buildIntervalResult(pOperator);
+      if (resBlock != NULL) {
+        return resBlock;
+      }
+
+      if (pInfo->recvRetrive) {
+        pInfo->recvRetrive = false;
+        printDataBlock(pInfo->pPullDataRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+        return pInfo->pPullDataRes;
       }
     }
   }
@@ -1317,9 +1321,11 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       pInfo->recvGetAll = true;
       getAllIntervalWindow(pInfo->aggSup.pResultRowHashTable, pInfo->pUpdatedMap);
       continue;
-    } else if (pBlock->info.type == STREAM_RETRIEVE && !IS_FINAL_INTERVAL_OP(pOperator)) {
-      doDeleteWindows(pOperator, &pInfo->interval, pBlock, NULL, pInfo->pUpdatedMap);
-      if (taosArrayGetSize(pInfo->pUpdated) > 0) {
+    } else if (pBlock->info.type == STREAM_RETRIEVE) {
+      if(!IS_FINAL_INTERVAL_OP(pOperator)) {
+        pInfo->recvRetrive = true;
+        copyDataBlock(pInfo->pPullDataRes, pBlock);
+        doDeleteWindows(pOperator, &pInfo->interval, pBlock, NULL, pInfo->pUpdatedMap);
         break;
       }
       continue;
@@ -1362,7 +1368,18 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
   pInfo->pUpdated = NULL;
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
 
-  return buildIntervalResult(pOperator);
+  SSDataBlock* resBlock = buildIntervalResult(pOperator);
+  if (resBlock != NULL) {
+    return resBlock;
+  }
+
+  if (pInfo->recvRetrive) {
+    pInfo->recvRetrive = false;
+    printDataBlock(pInfo->pPullDataRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    return pInfo->pPullDataRes;
+  }
+
+  return NULL;
 }
 
 int64_t getDeleteMark(SWindowPhysiNode* pWinPhyNode, int64_t interval) {
@@ -1532,6 +1549,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->recvGetAll = false;
   pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
+  pInfo->recvRetrive = false;
 
   pOperator->operatorType = pPhyNode->type;
   if (!IS_FINAL_INTERVAL_OP(pOperator) || numOfChild == 0) {
@@ -4288,6 +4306,9 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
       pAPI->stateStore.streamStateCommit(pInfo->pState);
       doStreamIntervalSaveCheckpoint(pOperator);
       copyDataBlock(pInfo->pCheckpointRes, pBlock);
+      continue;
+    } else if (pBlock->info.type == STREAM_RETRIEVE) {
+      doDeleteWindows(pOperator, &pInfo->interval, pBlock, NULL, pInfo->pUpdatedMap);
       continue;
     } else {
       ASSERTS(pBlock->info.type == STREAM_INVALID, "invalid SSDataBlock type");
