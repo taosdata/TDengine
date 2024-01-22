@@ -197,7 +197,6 @@ typedef struct {
   int64_t createdTime;
   int64_t updateTime;
   int32_t upTime;
-  int64_t grantedTime;
   char    active[TSDB_UNIQ_ACTIVE_KEY_LEN];
 } SClusterObj;
 
@@ -770,7 +769,7 @@ typedef struct {
 
 // SGrantObj
 typedef enum {
-  GRANT_STATE_UNKNOWN = 0,
+  GRANT_STATE_INIT = 0,
   GRANT_STATE_UNGRANTED = 1,
   GRANT_STATE_GRANTED = 2,
   GRANT_STATE_EXPIRED = 3,
@@ -778,7 +777,7 @@ typedef enum {
 } EGrantState;
 
 typedef enum {
-  GRANT_STATE_REASON_UNKNOWN = 0,
+  GRANT_STATE_REASON_INIT = 0,
   GRANT_STATE_REASON_ALTER = 1,     // alter activeCode 'revoked' or 'xxx'
   GRANT_STATE_REASON_MISMATCH = 2,  // dnode machine mismatch
   GRANT_STATE_REASON_EXPIRE = 3,    // expire

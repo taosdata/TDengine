@@ -38,11 +38,13 @@
 
   int32_t grantAlterActiveCode(const char *active, char **newActive);
 
-  int32_t mndProcessConfigGrantReq(SRpcMsg * pReq, SMCfgClusterReq * pCfg);
-  int32_t mndProcessUpdMachineReq(SRpcMsg * pReq, SArray *pMachines);
-  int32_t mndProcessUpdStateReq(SRpcMsg * pReq, SGrantState *pState);
+  int32_t mndProcessConfigGrantReq(SMnode * pMnode, SRpcMsg * pReq, SMCfgClusterReq * pCfg);
+  int32_t mndProcessUpdMachineReq(SMnode * pMnode, SRpcMsg * pReq, SArray * pMachines);
+  int32_t mndProcessUpdStateReq(SMnode * pMnode, SRpcMsg * pReq, SGrantState * pState);
 
-  int32_t mndGrantGetLastState(SMnode * pMnode, SGrantState * pState);
+  int32_t    mndGrantGetLastState(SMnode * pMnode, SGrantState * pState);
+  SGrantObj *mndAcquireGrant(SMnode * pMnode, void **ppIter);
+  void       mndReleaseGrant(SMnode * pMnode, SGrantObj * pGrant, void *pIter);
 #endif
 
 #ifdef __cplusplus

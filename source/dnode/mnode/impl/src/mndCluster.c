@@ -21,7 +21,7 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 
-#define CLUSTER_VER_NUMBE    2
+#define CLUSTER_VER_NUMBE    1
 #define CLUSTER_RESERVE_SIZE 60
 int64_t tsExpireTime = 0;
 
@@ -107,30 +107,6 @@ int64_t mndGetClusterId(SMnode *pMnode) {
   return clusterId;
 }
 
-int32_t mndGetClusterGrantedInfo(SMnode *pMnode, SGrantedInfo *pInfo) {
-  void        *pIter = NULL;
-  SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
-  if (pCluster != NULL) {
-    pInfo->grantedTime = pCluster->grantedTime;
-    mndReleaseCluster(pMnode, pCluster, pIter);
-    return 0;
-  }
-
-  return -1;
-}
-
-int32_t mndGetClusterActive(SMnode *pMnode, char *active) {
-  void        *pIter = NULL;
-  SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
-  if (pCluster) {
-    if (active) strncpy(active, pCluster->active, TSDB_UNIQ_ACTIVE_KEY_LEN);
-    mndReleaseCluster(pMnode, pCluster, pIter);
-    return 0;
-  }
-
-  return -1;
-}
-
 int64_t mndGetClusterCreateTime(SMnode *pMnode) {
   int64_t      createTime = 0;
   void        *pIter = NULL;
@@ -177,8 +153,6 @@ static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {
   SDB_SET_INT64(pRaw, dataPos, pCluster->updateTime, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pCluster->upTime, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pCluster->grantedTime, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pCluster->active, TSDB_UNIQ_ACTIVE_KEY_LEN, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, CLUSTER_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER);
 
@@ -203,7 +177,7 @@ static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
-  if (sver < 0 || sver > CLUSTER_VER_NUMBE) {
+  if (sver != CLUSTER_VER_NUMBE) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto _OVER;
   }
@@ -220,11 +194,6 @@ static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pCluster->updateTime, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pCluster->upTime, _OVER)
-
-  if (sver > 1) {
-    SDB_GET_INT64(pRaw, dataPos, &pCluster->grantedTime, _OVER)
-    SDB_GET_BINARY(pRaw, dataPos, pCluster->active, TSDB_UNIQ_ACTIVE_KEY_LEN, _OVER)
-  }
   SDB_GET_RESERVE(pRaw, dataPos, CLUSTER_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -348,16 +317,6 @@ static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *
       colDataSetVal(pColInfo, numOfRows, (const char *)&tsExpireTime, false);
     }
 
-#ifdef TD_ENTERPRISE
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pCluster->grantedTime, false);
-
-    char active[TSDB_UNIQ_ACTIVE_KEY_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(active, pCluster->active, pShow->pMeta->pSchemas[cols].bytes);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&active, false);
-#endif
-
     sdbRelease(pSdb, pCluster);
     numOfRows++;
   }
@@ -437,7 +396,7 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
 
   if (strncmp(cfgReq.config, GRANT_ACTIVE_CODE, TSDB_DNODE_CONFIG_LEN) == 0) {
 #ifdef TD_ENTERPRISE
-    if (0 != (code = mndProcessConfigGrantReq(pReq, &cfgReq))) {
+    if (0 != (code = mndProcessConfigGrantReq(pMnode, pReq, &cfgReq))) {
       goto _exit;
     }
 #else
