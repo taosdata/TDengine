@@ -223,11 +223,12 @@ STREAM_ENCODE_OVER:
 
 SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   SSdbRow    *pRow = NULL;
   SStreamObj *pStream = NULL;
   void       *buf = NULL;
+  int8_t      sver = 0;
 
-  int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
     goto STREAM_DECODE_OVER;
   }
@@ -242,13 +243,19 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   if (pRow == NULL) goto STREAM_DECODE_OVER;
 
   pStream = sdbGetRowObj(pRow);
-  if (pStream == NULL) goto STREAM_DECODE_OVER;
+  if (pStream == NULL) {
+    goto STREAM_DECODE_OVER;
+  }
 
   int32_t tlen;
   int32_t dataPos = 0;
   SDB_GET_INT32(pRaw, dataPos, &tlen, STREAM_DECODE_OVER);
+
   buf = taosMemoryMalloc(tlen + 1);
-  if (buf == NULL) goto STREAM_DECODE_OVER;
+  if (buf == NULL) {
+    goto STREAM_DECODE_OVER;
+  }
+
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, STREAM_DECODE_OVER);
 
   SDecoder decoder;
@@ -264,13 +271,13 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
 STREAM_DECODE_OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("stream:%s, failed to decode from raw:%p since %s", pStream == NULL ? "null" : pStream->name, pRaw,
-           terrstr());
+    char* p = (pStream == NULL) ? "null" : pStream->name;
+    mError("stream:%s, failed to decode from raw:%p since %s", p, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
 
-  mTrace("stream:%s, decode from raw:%p, row:%p, checkpoint:%" PRId64 "", pStream->name, pRaw, pStream,
+  mTrace("stream:%s, decode from raw:%p, row:%p, checkpoint:%" PRId64, pStream->name, pRaw, pStream,
          pStream->checkpointId);
   return pRow;
 }
@@ -1120,7 +1127,7 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
   }
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != TSDB_CODE_SUCCESS) {
-    mError("failed to prepare trans rebalance since %s", terrstr());
+    mError("failed to prepare checkpoint trans since %s", terrstr());
     goto _ERR;
   }
 
