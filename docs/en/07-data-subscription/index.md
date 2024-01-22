@@ -194,7 +194,7 @@ $env:TDENGINE_CLOUD_TMQ='<TDENGINE_CLOUD_TMQ>'
 </Tabs>
 
 :::note IMPORTANT
-Replace <TDENGINE_CLOUD_TMQ> with the real value, the format should be `wss://<cloud_endpoint>)/rest/tmq?token=<token>`.
+Replace &lt;TDENGINE_CLOUD_TMQ&gt; with the real value, the format should be `wss://<cloud_endpoint>)/rest/tmq?token=<token>`.
 To obtain the value of `TDENGINE_CLOUD_TMQ`, please log in [TDengine Cloud](https://cloud.tdengine.com) and click **Topcis** on the left menu, then click **Sample Code** action of the each topic to **Example** part.
 :::
 
@@ -228,7 +228,7 @@ $env:TDENGINE_CLOUD_TOKEN='<TDENGINE_CLOUD_TOKEN>'
 </Tabs>
 
 :::note IMPORTANT
-Replace <TDENGINE_CLOUD_ENDPOINT> and <TDENGINE_CLOUD_TOKEN> with the real values. To obtain the value of these, please log in [TDengine Cloud](https://cloud.tdengine.com) and click **Topcis** on the left menu, then click **Sample Code** action of the each topic to the **Python** tab of the **Example** part.
+Replace &lt;TDENGINE_CLOUD_ENDPOINT&gt; and &lt;TDENGINE_CLOUD_TOKEN&gt; with the real values. To obtain the value of these, please log in [TDengine Cloud](https://cloud.tdengine.com) and click **Topcis** on the left menu, then click **Sample Code** action of the each topic to the **Python** tab of the **Example** part.
 :::
 
 Last, for Java, you need to set the following variables:
@@ -258,7 +258,7 @@ $env:TDENGINE_JDBC_URL='<TDENGINE_JDBC_URL>'
 </Tabs>
 
 :::note IMPORTANT
-Replace <TDENGINE_JDBC_URL> with the real value, the format should be `jdbc:TAOS-RS://<cloud_endpoint>)?useSSL=false&token=<token>`. To obtain the value of these, please log in [TDengine Cloud](https://cloud.tdengine.com) and click **Topcis** on the left menu, then click **Sample Code** action of the each topic to the **Java** tab of the **Example** part.
+Replace &lt;TDENGINE_JDBC_URL&gt; with the real value, the format should be `jdbc:TAOS-RS://<cloud_endpoint>)?useSSL=false&token=<token>`. To obtain the value of these, please log in [TDengine Cloud](https://cloud.tdengine.com) and click **Topcis** on the left menu, then click **Sample Code** action of the each topic to the **Java** tab of the **Example** part.
 :::
 
 ### Create a Consumer from Instance
@@ -408,7 +408,7 @@ consumer.subscribe(Collections.singletonList("<TDC_TOPIC>"));
 
 :::note IMPORTANT
 
-Replace <TDC_TOPIC\> with the real value. To obtain the value of `TDC_TOPIC`, please log in [TDengine Cloud](https://cloud.tdengine.com) and click **Topcis** on the left menu, then copy the topic name you want to consume.
+Replace &lt;TDC_TOPIC&gt; with the real value. To obtain the value of `TDC_TOPIC`, please log in [TDengine Cloud](https://cloud.tdengine.com) and click **Topcis** on the left menu, then copy the topic name you want to consume.
 
 :::
 

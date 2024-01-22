@@ -59,7 +59,7 @@ $env:TDENGINE_CLOUD_DSN='<DSN>'
 
 <!-- exclude -->
 :::note IMPORTANT
-Replace  <DSN\> with real TDengine cloud DSN. To obtain the real value, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on the left menu, then select "Rust".
+Replace  &lt;DSN&gt; with real TDengine cloud DSN. To obtain the real value, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on the left menu, then select "Rust".
 
 :::
 <!-- exclude-end -->

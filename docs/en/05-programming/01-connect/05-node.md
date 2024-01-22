@@ -46,7 +46,7 @@ $env:TDENGINE_CLOUD_URL='<url>'
 
 <!-- exclude -->
 :::note IMPORTANT
-Replace  <token\> and <url\> with cloud token and URL.
+Replace  &lt;token&gt; and &lt;url&gt; with cloud token and URL.
 To obtain the value of cloud token and URL, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on left menu, then select "Node.js".
 
 :::

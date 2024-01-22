@@ -21,7 +21,7 @@ There is an additional charge for extracting OPC UA . The charge depends on your
 
 1. In TDengine Cloud, open **Data In** page. On the **Data Sources** tab, click **Add Data Source** button to open the new data source page. In the **Name** input, fill in the name of the data source and select the type of **OPC-DA**, and in the **Agent** selection, select the agent you have already created, or if you have not created a agent, click the **Create New Agent** button to create it.
 2. In the **Target DB**, select the database of the current TDengine Cloud instance as the target database.
-3. In the **Service endpoint** field, you need to configure the address of the OPC DA server, 127.0.0.1<,localhost>/Matrikon.OPC.Simulation.
+3. In the **Service endpoint** field, you need to configure the address of the OPC DA server, 127.0.0.1&lt;,localhost&gt;/Matrikon.OPC.Simulation.
 4. You can click the **Connectivity Check** button to check whether the communication between the Cloud instance and the OPC DA server is available.
 5. In the **DataSet CSV config file** field, configure whether to enable the CSV config. If enabled, copy the specifics of the CSV profile to configure the dataset information, and the **Data Sets** and **Table Config** will no longer take effect.
 6. in the **Connection** part, configure the Connection Timeout Interval and Acquisition Timeout Interval (in seconds), the default value is 10 seconds.
