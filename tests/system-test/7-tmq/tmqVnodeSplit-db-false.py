@@ -15,8 +15,6 @@ from util.common import *
 from util.cluster import *
 sys.path.append("./7-tmq")
 from tmqCommon import *
-
-from util.cluster import *
 sys.path.append("./6-cluster")
 from clusterCommonCreate import *
 from clusterCommonCheck import clusterComCheck
@@ -123,7 +121,7 @@ class TDTestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  120,
+                    'pollDelay':  60,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -136,8 +134,8 @@ class TDTestCase:
         # expectRowsList = []
         tmqCom.initConsumerTable()
 
-        tdLog.info("create topics from stb ")
-        queryString = "stable %s.%s"%(paraDict['dbName'], paraDict['stbName'])
+        tdLog.info("create topics from db")
+        queryString = "database %s"%(paraDict['dbName'])
         # sqlString = "create topic %s as stable %s" %(topicNameList[0], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
@@ -165,6 +163,7 @@ class TDTestCase:
         
         tdLog.info("create ctb2")
         paraDict2 = paraDict.copy()
+
         paraDict2['ctbPrefix'] = "ctb2"
         tmqCom.create_ctable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict2['ctbPrefix'],
                              ctbNum=paraDict["ctbNum"],ctbStartIdx=paraDict['ctbStartIdx'])
@@ -202,6 +201,7 @@ class TDTestCase:
 
         if deleteWal == True:
             clusterComCheck.check_vgroups_status(vgroup_numbers=2,db_replica=self.replicaVar,db_name="dbt",count_number=240)   
+
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def run(self):
