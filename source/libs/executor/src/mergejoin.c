@@ -1837,7 +1837,7 @@ int32_t mAsofLowerAddEqRowsToCache(struct SOperatorInfo* pOperator, SMJoinWindow
 }
 
 int32_t mAsofLowerDumpGrpCache(SMJoinWindowCtx* pCtx) {
-  if (pCtx->cache.outBlk->info.rows <= 0) {
+  if (NULL == pCtx->cache.outBlk || pCtx->cache.outBlk->info.rows <= 0) {
     return mJoinNonEqCart((SMJoinCommonCtx*)pCtx, &pCtx->probeGrp, true);
   }
 
