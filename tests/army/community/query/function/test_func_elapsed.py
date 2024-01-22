@@ -188,11 +188,6 @@ class TDTestCase(TBase):
             sql_list.append(item["sql"])
             res_list.append(item["res"])
         tdSql.queryAndCheckResult(sql_list, res_list)
-        # tdSql.query(q["sql"])
-        # if len(q["res"]) == 0:
-        #     assert(len(tdSql.queryResult) == len(q["res"]))
-        # else:
-        #     assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
 
     def test_query_with_other_function(self):
         query_list = [
@@ -211,9 +206,6 @@ class TDTestCase(TBase):
             sql_list.append(item["sql"])
             res_list.append(item["res"])
         tdSql.queryAndCheckResult(sql_list, res_list)
-        # for q in query_list:
-        #     tdSql.query(q["sql"])
-        #     assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
 
     def test_query_with_join(self):
         query_list = [
@@ -268,9 +260,6 @@ class TDTestCase(TBase):
             sql_list.append(item["sql"])
             res_list.append(item["res"])
         tdSql.queryAndCheckResult(sql_list, res_list)
-        # for q in query_list:
-        #     tdSql.query(q["sql"])
-        #     assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
 
     def test_query_with_union(self):
         query_list = [
@@ -333,10 +322,6 @@ class TDTestCase(TBase):
             sql_list.append(item["sql"])
             res_list.append(item["res"])
         tdSql.queryAndCheckResult(sql_list, res_list)
-        # for q in query_list:
-        #     tdSql.query(q["sql"])
-        #     tdLog.debug(q["sql"] + " with res: " + str(tdSql.queryResult))
-        #     assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
 
     def test_query_with_window(self):
         query_list = [
@@ -363,9 +348,6 @@ class TDTestCase(TBase):
             sql_list.append(item["sql"])
             res_list.append(item["res"])
         tdSql.queryAndCheckResult(sql_list, res_list)
-        # for q in query_list:
-        #     tdSql.query(q["sql"])
-        #     assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
 
     def test_nested_query(self):
         query_list = [
@@ -396,10 +378,6 @@ class TDTestCase(TBase):
             sql_list.append(item["sql"])
             res_list.append(item["res"])
         tdSql.queryAndCheckResult(sql_list, res_list)
-        # for q in query_list:
-        #     tdSql.query(q["sql"])
-        #     tdLog.debug(q["sql"] + " with res: " + str(tdSql.queryResult))
-        #     assert(len(tdSql.queryResult) == len(q["res"]) and tdSql.queryResult == q["res"])
 
     def test_abnormal_query(self):
         # incorrect parameter
@@ -415,32 +393,42 @@ class TDTestCase(TBase):
                 tdSql.error("select elapsed{} from {} group by ".format(param, table))
 
         # query with unsupported function, like leastsquares、diff、derivative、top、bottom、last_row、interp
-        tdSql.error("select elapsed(leastsquares(c_int, 1, 2)) from st1 group by tbname;")
-        tdSql.error("select elapsed(diff(ts)) from st1;")
-        tdSql.error("select elapsed(derivative(ts, 1s, 1)) from st1 group by tbname order by ts;")
-        tdSql.error("select elapsed(top(ts, 5)) from st1 group by tbname order by ts;")
-        tdSql.error("select top(elapsed(ts), 5) from st1 group by tbname order by ts;")
-        tdSql.error("select elapsed(bottom(ts)) from st1 group by tbname order by ts;")
-        tdSql.error("select bottom(elapsed(ts)) from st1 group by tbname order by ts;")
-        tdSql.error("select elapsed(last_row(ts)) from st1 group by tbname order by ts;")
-        tdSql.error("select elapsed(interp(ts, 0)) from st1 group by tbname order by ts;")
+        unsupported_sql_list = [
+            "select elapsed(leastsquares(c_int, 1, 2)) from st1 group by tbname;",
+            "select elapsed(diff(ts)) from st1;",
+            "select elapsed(derivative(ts, 1s, 1)) from st1 group by tbname order by ts;",
+            "select elapsed(top(ts, 5)) from st1 group by tbname order by ts;",
+            "select top(elapsed(ts), 5) from st1 group by tbname order by ts;",
+            "select elapsed(bottom(ts)) from st1 group by tbname order by ts;",
+            "select bottom(elapsed(ts)) from st1 group by tbname order by ts;",
+            "select elapsed(last_row(ts)) from st1 group by tbname order by ts;",
+            "select elapsed(interp(ts, 0)) from st1 group by tbname order by ts;"
+        ]
+        tdSql.errors(unsupported_sql_list)
 
         # nested aggregate function
-        tdSql.error("select avg(elapsed(ts, 1s)) from st1 group by tbname order by ts;")
-        tdSql.error("select elapsed(avg(ts), 1s) from st1 group by tbname order by ts;")
-        tdSql.error("select elapsed(sum(ts), 1s) from st1 group by tbname order by ts;")
-        tdSql.error("select elapsed(count(ts), 1s) from st1 group by tbname order by ts;")
-        tdSql.error("select elapsed(min(ts), 1s) from st1 group by tbname order by ts;")
-        tdSql.error("select elapsed(max(ts), 1s) from st1 group by tbname order by ts;")
-        tdSql.error("select elapsed(first(ts), 1s) from st1 group by tbname order by ts;")
-        tdSql.error("select elapsed(last(ts), 1s) from st1 group by tbname order by ts;")
+        nested_sql_list = [
+            "select avg(elapsed(ts, 1s)) from st1 group by tbname order by ts;",
+            "select elapsed(avg(ts), 1s) from st1 group by tbname order by ts;",
+            "select elapsed(sum(ts), 1s) from st1 group by tbname order by ts;",
+            "select elapsed(count(ts), 1s) from st1 group by tbname order by ts;",
+            "select elapsed(min(ts), 1s) from st1 group by tbname order by ts;",
+            "select elapsed(max(ts), 1s) from st1 group by tbname order by ts;",
+            "select elapsed(first(ts), 1s) from st1 group by tbname order by ts;",
+            "select elapsed(last(ts), 1s) from st1 group by tbname order by ts;"
+        ]
+        tdSql.errors(nested_sql_list)
+
         # other error
-        tdSql.error("select elapsed(ts, 1s) from t1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:40.000' interval(10s) fill(next) union select elapsed(ts, 1s) from st2 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:49.000' interval(5s) fill(prev) group by tbname;")
-        tdSql.error("select elapsed(time ,1s) from (select elapsed(ts,1s) time from st1);")
-        tdSql.error("select elapsed(ts, 1s) from (select elapsed(ts, 1s) ts from st2);")
-        tdSql.error("select elapsed(time, 1s) from (select elapsed(ts, 1s) time from st1 group by tbname);")
-        tdSql.error("select elapsed(ts , 1s) from (select elapsed(ts, 1s) ts from st2 group by tbname);")
-        tdSql.error("select elapsed(ts, 1s) from (select * from st1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:40.000' interval(10s) fill(next)) where c_int > 10;")
+        other_sql_list = [
+            "select elapsed(ts, 1s) from t1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:40.000' interval(10s) fill(next) union select elapsed(ts, 1s) from st2 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:49.000' interval(5s) fill(prev) group by tbname;",
+            "select elapsed(time ,1s) from (select elapsed(ts,1s) time from st1);",
+            "select elapsed(ts , 1s) from (select elapsed(ts, 1s) ts from st2);",
+            "select elapsed(time, 1s) from (select elapsed(ts, 1s) time from st1 group by tbname);",
+            "select elapsed(ts , 1s) from (select elapsed(ts, 1s) ts from st2 group by tbname);",
+            "select elapsed(ts, 1s) from (select * from st1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:40.000' interval(10s) fill(next)) where c_int > 10;"
+        ]
+        tdSql.errors(other_sql_list)
 
     def run(self):
         self.prepareData()
