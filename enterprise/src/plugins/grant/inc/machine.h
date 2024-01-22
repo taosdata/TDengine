@@ -273,9 +273,9 @@ typedef struct {
 
 typedef struct {
   char    *active;
-  char    *historicalActive;
-  SArray  *pMachines;  // 24 bits string
-  int16_t  activeLen;
+  char    *historicalActive;  // fixed len: GRANT_ACTIVE_HEAD_LEN + 1
+  SArray  *pMachines;         // 24 bits string
+  int16_t  activeBufLen;
   char     clusterId[GRANT_CLUSTER_ID_LEN + 1];
   uint32_t flags;
   uint32_t token[GRANT_UNIQ_TOKEN_NUM];  // last active + dnodes machine
@@ -471,6 +471,8 @@ bool  grantConnExplainActiveCode(SGrantConnObj *grant, SActiveCodeInfo *info);
 int32_t grantUniqGenActiveCode(SGrantUniqObj *grant);
 int32_t grantUniqGenMachinesChksum(SArray *pMachines, uint32_t *pChecksum);
 int32_t grantUniqParseActiveCode(SGrantUniqObj *grant, SActiveCodeInfo *info);
-char   *grantUniqMergeActiveCode(SGrantUniqObj *new, SGrantUniqObj *old, char **newActive);
+int32_t grantUniqMergeActiveCode(SGrantUniqObj *new, SGrantUniqObj *old, char **mergeActive);
+void    tDestroyGrantUniqObj(SGrantUniqObj *pObj);
+void    tResetGrantUniqObj(SGrantUniqObj *pObj);
 
 #endif

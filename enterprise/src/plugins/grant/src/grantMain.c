@@ -330,7 +330,7 @@ int32_t mndInitGrant(SMnode *pMnode) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  if (!(grantHandle.pMachines = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, true))) {
+  if (!(grantHandle.pMachines = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, true))) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
@@ -355,6 +355,24 @@ _exit:
   return terrno;
 }
 
+void tDestroyGrantUniqObj(SGrantUniqObj *pObj) {
+  taosMemoryFreeClear(grantObj.active);
+  taosMemoryFreeClear(grantObj.historicalActive);
+  grantObj.pMachines = taosArrayDestroy(grantObj.pMachines);
+  grantObj.pMachines = taosArrayDestroy(grantObj.pDataIns);
+  grantObj.pItem32 = taosArrayDestroy(grantObj.pItem32);
+  grantObj.pItem64 = taosArrayDestroy(grantObj.pItem64);
+}
+
+void tResetGrantUniqObj(SGrantUniqObj *pObj) {
+  if (grantObj.active) grantObj.active[0] = 0;
+  if (grantObj.historicalActive) grantObj.historicalActive[0] = 0;
+  taosArrayClear(grantObj.pMachines);
+  taosArrayClear(grantObj.pDataIns);
+  taosArrayClear(grantObj.pItem32);
+  taosArrayClear(grantObj.pItem64);
+}
+
 void mndCleanupGrant(SMnode *pMnode) {
   taosHashCleanup(grantHandle.pOfficials);
   taosHashCleanup(grantHandle.pMachines);
@@ -365,6 +383,8 @@ void mndCleanupGrant(SMnode *pMnode) {
   grantHandle.pDistInfo = NULL;
   grantHandle.pDnodeInfo = NULL;
   grantHandle.pMnode = NULL;
+
+  tDestroyGrantUniqObj(&grantObj);
 }
 
 static void grantObjInit(SGrantUniqObj *pObj, bool official) {
@@ -985,22 +1005,31 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
   grantObjInit(&grantObj, false);
 
   int16_t activeLen = pGrant->active ? strlen(pGrant->active) : 0;
-  if (grantObj.activeLen < activeLen && 0 < activeLen) {
+  if (!grantObj.active) {
     char *tmp = taosMemoryRealloc(grantObj.active, activeLen + 1);
     if (!tmp) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
     grantObj.active = tmp;
+    grantObj.activeBufLen = activeLen + 1;
+  } else if (grantObj.activeBufLen < activeLen + 1) {
+    char *tmp = taosMemoryRealloc(grantObj.active, activeLen + 1);
+    if (!tmp) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+    grantObj.active = tmp;
+    grantObj.activeBufLen = activeLen + 1;
   }
+
   if (activeLen > 0) {
     if (0 != strncmp(grantObj.active, pGrant->active, activeLen + 1)) {
       tstrncpy(grantObj.active, pGrant->active, activeLen + 1);
     }
-  } else if (grantObj.active) {
+  } else {
     grantObj.active[0] = 0;
   }
-  grantObj.activeLen = activeLen;
 
   if (grantObj.active && grantObj.active[0] != 0) {
     if (0 != grantUniqParseActiveCode(&grantObj, NULL)) {
@@ -1964,97 +1993,113 @@ static int32_t mndCfgDnodeReq(SDnodeInfo *pDnodeInfo, const char *cfg, const cha
 }
 
 // mnode-write thread
-int32_t grantAlterActiveCode(const char *active, char** newActive) {
+int32_t grantAlterActiveCode(SMnode *pMnode, const char *oldActive, const char *newActive, char **mergeActive) {
   int32_t       code = 0;
-  SGrantUniqObj obj = {0};
-  SMnode       *pMnode = grantHandle.pMnode;
+  SGrantUniqObj newObj = {0};
+  SGrantUniqObj oldObj = {0};
+  SHashObj     *pMachines = NULL;
 
-  if (!active) {
+  // step 1: basic judgement and init
+  if (!newActive || newActive[0] == 0) {
     code = TSDB_CODE_INVALID_PTR;
     goto _exit;
   }
 
-  // clear the activeCode
-  if (active[0] == 0) {
-    grantResetMaster(pMnode);
-    goto _exit;
-  }
-
-  // parse active code
-  if (grantObj.clusterId[0] != 0) {
-    memcpy(obj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
-  } else {
-    grantSetClusterId(pMnode, obj.clusterId);
-  }
-  if (active) memcpy(obj.active, active, GRANT_UNIQ_ACTIVE_KEY_LEN);
-  SActiveCodeInfo info = {0};
-  code = grantUniqParseActiveCode(&obj, &info);
-  if (code != 0 || !obj.granted) {
-    code = TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
-    goto _exit;
-  }
-
-  // sync grant info
-  if (!GRANT_IN_PROGRESS()) {
-    if (mndProcessGrantHBImpl(pMnode, 1) != 0) {
-      code = terrno != 0 ? terrno : TSDB_CODE_APP_IS_STARTING;
+  if (grantObj.clusterId[0] == 0) {
+    grantSetClusterId(pMnode, grantObj.clusterId);
+    if (grantObj.clusterId[0] == 0) {
+      code = TSDB_CODE_APP_IS_STARTING;
       goto _exit;
     }
   }
-  int32_t nLoops = 0;
-  int64_t startMs = taosGetTimestampMs();
-  int64_t elapse = 0;
-  while (GRANT_IN_PROGRESS()) {
-    if (++nLoops > 1024) {
-      if (taosGetTimestampMs() - startMs > 1500) {
-        code = TSDB_CODE_TIMEOUT_ERROR;
-        goto _exit;
-      }
-      sched_yield();
-      nLoops = 0;
-    }
-  }
-  elapse = taosGetTimestampMs() - startMs;
-  uInfo("alter active: %" PRIi64 " ms used to sync grant info", elapse);
 
-  // check grantItems of basic function
-  if ((obj.limitTimeSeries > GRANT_UNIQ_UNLIMITED) && (gStatus.curTimeSeries > obj.limitTimeSeries)) {
+  if (!(pMachines = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, true))) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  grantGetClusterMachines(pMnode, pMachines);
+
+  // step 2: parse new
+  memcpy(newObj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
+  grantObjInit(&newObj, 0);
+  int32_t newActiveLen = strlen(newActive);
+  if (!(newObj.active = taosMemoryMalloc(newActiveLen + 1))) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  newObj.activeBufLen = newActiveLen + 1;
+  tstrncpy(newObj.active, newActive, newActiveLen + 1);
+
+  code = grantUniqParseActiveCode(&newObj, NULL);
+  if (code != 0 || !newObj.granted) {
+    code = code != 0 ? code : TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
+    goto _exit;
+  }
+
+  grantRetrieveGrantInfo(pMnode);
+  //  check grantItems of basic function
+  if ((newObj.limitTimeSeries > GRANT_UNIQ_UNLIMITED) && (gStatus.curTimeSeries > newObj.limitTimeSeries)) {
     code = TSDB_CODE_GRANT_TIMESERIES_LIMITED;
     goto _exit;
   }
-  if ((obj.limitDnodes > GRANT_UNIQ_UNLIMITED) && (gStatus.curDnodes > obj.limitDnodes)) {
+  if ((newObj.limitDnodes > GRANT_UNIQ_UNLIMITED) && (gStatus.curDnodes > newObj.limitDnodes)) {
     code = TSDB_CODE_GRANT_DNODE_LIMITED;
     goto _exit;
   }
-  if ((obj.limitCpuCores > GRANT_UNIQ_UNLIMITED) && (gStatus.curCpuCores > obj.limitCpuCores)) {
+  if ((newObj.limitCpuCores > GRANT_UNIQ_UNLIMITED) && (gStatus.curCpuCores > newObj.limitCpuCores)) {
     code = TSDB_CODE_GRANT_CPU_LIMITED;
     goto _exit;
   }
 
-  // check machineIds
-  if (GRANT_IS_IVLD_MACHINE()) {
-    code = TSDB_CODE_GRANT_UNLICENSED_CLUSTER;
-    goto _exit;
+  // step 3: parse old
+  memcpy(oldObj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
+  grantObjInit(&oldObj, 0);
+  if (oldActive) {
+    int32_t oldActiveLen = strlen(oldActive);
+    if (!(oldObj.active = taosMemoryMalloc(oldActiveLen + 1))) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+    oldObj.activeBufLen = oldActiveLen + 1;
+    tstrncpy(oldObj.active, oldActive, oldActiveLen + 1);
+    code = grantUniqParseActiveCode(&oldObj, NULL);
+    if (code != 0 || !oldObj.granted) {
+      code = code != 0 ? code : TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
+      if ((newObj.flags & 0x40)) {  // skip if old active parse failed
+        uInfo("old active parse failed since %s, continue to alter as new flags:0x%x", tstrerror(code), oldObj.flags);
+        code = 0;
+      } else {
+        code = code != 0 ? code : TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
+        goto _exit;
+      }
+    }
   }
 
-  // no active code in SClusterObj
-  if (gStatus.uniqActive == 0) {
-    if (obj.expireDays[GRANT_OPT_BASIC] == GRANT_UNIQ_UNDEFINED || obj.limitTimeSeries == GRANT_UNIQ_UNDEFINED ||
-        obj.limitDnodes == GRANT_UNIQ_UNDEFINED || obj.limitCpuCores == GRANT_UNIQ_UNDEFINED) {
+  // check machineIds
+  // if (GRANT_IS_IVLD_MACHINE()) {
+  //   code = TSDB_CODE_GRANT_UNLICENSED_CLUSTER;
+  //   goto _exit;
+  // }
+
+  if (oldObj.granted == 0) {
+    if (newObj.expireDays[GRANT_OPT_BASIC] == GRANT_UNIQ_UNDEFINED || newObj.limitTimeSeries == GRANT_UNIQ_UNDEFINED ||
+        newObj.limitDnodes == GRANT_UNIQ_UNDEFINED || newObj.limitCpuCores == GRANT_UNIQ_UNDEFINED) {
       code = TSDB_CODE_GRANT_LACK_OF_BASIC;
       goto _exit;
     }
-    goto _exit; // utilized active directly since 
   }
 
-  // merge active code
-  grantUniqMergeActiveCode(&obj, &grantObj, newActive);
+  // step 4: merge active code
+  if(0 != (code = grantUniqMergeActiveCode(&oldObj, &newObj, mergeActive))) {
+    goto _exit;
+  }
 
-  // char active[GRANT_UNIQ_ACTIVE_KEY_LEN + 1] = "\0";
-  // mndGetClusterActive(pMnode, active);
   uInfo("succeed to alter grant info");
 
 _exit:
+  taosHashCleanup(pMachines);
+  tDestroyGrantUniqObj(&newObj);
+  tDestroyGrantUniqObj(&oldObj);
   return code;
 }
 
