@@ -240,7 +240,9 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   }
 
   pRow = sdbAllocRow(sizeof(SStreamObj));
-  if (pRow == NULL) goto STREAM_DECODE_OVER;
+  if (pRow == NULL) {
+    goto STREAM_DECODE_OVER;
+  }
 
   pStream = sdbGetRowObj(pRow);
   if (pStream == NULL) {
@@ -2820,10 +2822,10 @@ static int32_t mndResetStatusFromCheckpoint(SMnode *pMnode, int64_t streamId, in
       mDebug("stream:%s (0x%" PRIx64 ") reset checkpoint procedure, transId:%d, create reset trans", pStream->name,
              pStream->uid, transId);
       code = createStreamResetStatusTrans(pMnode, pStream);
-      mndReleaseStream(pMnode, pStream);
     }
   }
 
+  mndReleaseStream(pMnode, pStream);
   return code;
 }
 
@@ -3025,6 +3027,7 @@ SStreamObj *mndGetStreamObj(SMnode *pMnode, int64_t streamId) {
       sdbCancelFetch(pSdb, pIter);
       return pStream;
     }
+    sdbRelease(pSdb, pStream);
   }
 
   return NULL;
@@ -3097,5 +3100,6 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
 
   mndReleaseStream(pMnode, pStream);
   taosThreadMutexUnlock(&execInfo.lock);
+
   return 0;
 }
