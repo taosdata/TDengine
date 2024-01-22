@@ -338,7 +338,7 @@ static void scanPathOptSetScanOrder(EScanOrder scanOrder, SScanLogicNode* pScan)
   if (pScan->sortPrimaryKey || pScan->scanSeq[0] > 1 || pScan->scanSeq[1] > 1) {
     return;
   }
-  pScan->node.outputTsOrder = scanOrder;
+  pScan->node.outputTsOrder = (SCAN_ORDER_ASC == scanOrder) ? ORDER_ASC : ORDER_DESC;
   switch (scanOrder) {
     case SCAN_ORDER_ASC:
       pScan->scanSeq[0] = 1;
@@ -1467,12 +1467,12 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
       case SCAN_ORDER_ASC:
         pScan->scanSeq[0] = 0;
         pScan->scanSeq[1] = 1;
-        pScan->node.outputTsOrder = SCAN_ORDER_DESC;
+        pScan->node.outputTsOrder = ORDER_DESC;
         goto _return;
       case SCAN_ORDER_DESC:
         pScan->scanSeq[0] = 1;
         pScan->scanSeq[1] = 0;
-        pScan->node.outputTsOrder = SCAN_ORDER_ASC;
+        pScan->node.outputTsOrder = ORDER_ASC;
         goto _return;
       default:
         break;
