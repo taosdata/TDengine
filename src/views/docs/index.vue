@@ -90,7 +90,7 @@
       });
       let fn = debounce(e => {
         let top = e.target.scrollTop;
-        let currentTop = Math.ceil(top + elementHeight);
+        let currentTop = Math.floor(top + elementHeight);
 
         this.activeTab =
           this.getOffsetTop().findLastIndex(item => {

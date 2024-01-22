@@ -141,7 +141,7 @@
         } else {
           this.$refs.wizard.handleSendSQL()
         }
-        this.$store.commit("console/CHANGE_TREE_KEY");
+        // this.$store.commit("console/CHANGE_TREE_KEY");
         this.requestIng = false;
       },
       async toggleFavorite() {
