@@ -1577,16 +1577,24 @@ SMqRspObj* tmqBuildRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqClientVg* pVg,
   pRspObj->resInfo.totalRows = 0;
   pRspObj->resInfo.precision = TSDB_TIME_PRECISION_MILLI;
 
-  if (!pWrapper->dataRsp.withSchema) {
-    setResSchemaInfo(&pRspObj->resInfo, pWrapper->topicHandle->schema.pSchema, pWrapper->topicHandle->schema.nCols);
+  bool needTransformSchema = !pRspObj->rsp.withSchema;
+  if (!pRspObj->rsp.withSchema) {  // withSchema is false if subscribe subquery, true if subscribe db or stable
+    pRspObj->rsp.withSchema = true;
+    pRspObj->rsp.blockSchema = taosArrayInit(pRspObj->rsp.blockNum, sizeof(void*));
   }
-
-  // extract the rows in this data packet
+    // extract the rows in this data packet
   for (int32_t i = 0; i < pRspObj->rsp.blockNum; ++i) {
-    SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(pRspObj->rsp.blockData, i);
+    SRetrieveTableRspForTmq* pRetrieve = (SRetrieveTableRspForTmq*)taosArrayGetP(pRspObj->rsp.blockData, i);
     int64_t            rows = htobe64(pRetrieve->numOfRows);
     pVg->numOfRows += rows;
     (*numOfRows) += rows;
+
+    if (needTransformSchema) { //withSchema is false if subscribe subquery, true if subscribe db or stable
+      SSchemaWrapper *schema = tCloneSSchemaWrapper(&pWrapper->topicHandle->schema);
+      if(schema){
+        taosArrayPush(pRspObj->rsp.blockSchema, &schema);
+      }
+    }
   }
 
   return pRspObj;
@@ -1603,13 +1611,10 @@ SMqTaosxRspObj* tmqBuildTaosxRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqClie
 
   pRspObj->resInfo.totalRows = 0;
   pRspObj->resInfo.precision = TSDB_TIME_PRECISION_MILLI;
-  if (!pWrapper->taosxRsp.withSchema) {
-    setResSchemaInfo(&pRspObj->resInfo, pWrapper->topicHandle->schema.pSchema, pWrapper->topicHandle->schema.nCols);
-  }
 
   // extract the rows in this data packet
   for (int32_t i = 0; i < pRspObj->rsp.blockNum; ++i) {
-    SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(pRspObj->rsp.blockData, i);
+    SRetrieveTableRspForTmq* pRetrieve = (SRetrieveTableRspForTmq*)taosArrayGetP(pRspObj->rsp.blockData, i);
     int64_t            rows = htobe64(pRetrieve->numOfRows);
     pVg->numOfRows += rows;
     (*numOfRows) += rows;
@@ -2548,7 +2553,7 @@ SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4) {
   pRspObj->resIter++;
 
   if (pRspObj->resIter < pRspObj->rsp.blockNum) {
-    SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(pRspObj->rsp.blockData, pRspObj->resIter);
+    SRetrieveTableRspForTmq* pRetrieveTmq = (SRetrieveTableRspForTmq*)taosArrayGetP(pRspObj->rsp.blockData, pRspObj->resIter);
     if (pRspObj->rsp.withSchema) {
       SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(pRspObj->rsp.blockSchema, pRspObj->resIter);
       setResSchemaInfo(&pRspObj->resInfo, pSW->pSchema, pSW->nCols);
@@ -2559,7 +2564,16 @@ SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4) {
       taosMemoryFreeClear(pRspObj->resInfo.convertJson);
     }
 
-    setQueryResultFromRsp(&pRspObj->resInfo, pRetrieve, convertUcs4, false);
+    pRspObj->resInfo.pData = (void*)pRetrieveTmq->data;
+    pRspObj->resInfo.numOfRows = htobe64(pRetrieveTmq->numOfRows);
+    pRspObj->resInfo.current = 0;
+    pRspObj->resInfo.precision = pRetrieveTmq->precision;
+
+    // TODO handle the compressed case
+    pRspObj->resInfo.totalRows += pRspObj->resInfo.numOfRows;
+    setResultDataPtr(&pRspObj->resInfo, pRspObj->resInfo.fields, pRspObj->resInfo.numOfCols, pRspObj->resInfo.numOfRows,
+                            convertUcs4);
+
     return &pRspObj->resInfo;
   }
 

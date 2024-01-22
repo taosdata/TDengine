@@ -119,6 +119,8 @@ class TDTestCase(TBase):
         # stop taosd test taos as server
         sc.dnodeStop(idx)
         etool.exeBinFile("taos", f'-n server', wait=False)
+        time.sleep(3)
+        eos.exe("pkill -9 taos")
 
     # run
     def run(self):
