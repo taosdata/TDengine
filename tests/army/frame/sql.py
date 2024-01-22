@@ -490,6 +490,48 @@ class TDSql:
         if(show):         
             tdLog.info("check successfully")
 
+    def checkDataMem(self, mem):
+        if not isinstance(mem, list):
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql)
+            tdLog.exit("%s(%d) failed: sql:%s, expect data is error, must is array[][]" % args)
+
+        if len(mem) != self.queryRows:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, len(mem), self.queryRows)
+            tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
+        # row, col, data
+        for row, rowData in enumerate(mem):
+            for col, colData in enumerate(rowData):
+                self.checkData(row, col, colData)
+        tdLog.info("check successfully")
+
+    def checkDataCsv(self, csvfilePath):
+        if not isinstance(csvfilePath, str) or len(csvfilePath) == 0:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, csvfilePath)
+            tdLog.exit("%s(%d) failed: sql:%s, expect csvfile path error:%s" % args)
+
+        tdLog.info("read csvfile read begin")
+        data = []
+        try:
+            with open(csvfilePath) as csvfile:
+                csv_reader = csv.reader(csvfile)  # csv.reader read csvfile\
+                # header = next(csv_reader)        # Read the header of each column in the first row
+                for row in csv_reader:  # csv file save to data
+                    data.append(row)
+        except FileNotFoundError:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, csvfilePath)
+            tdLog.exit("%s(%d) failed: sql:%s, expect csvfile not find error:%s" % args)
+        except Exception as e:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, csvfilePath, str(e))
+            tdLog.exit("%s(%d) failed: sql:%s, expect csvfile path:%s, read error:%s" % args)
+
+        tdLog.info("read csvfile read successfully")
+        self.checkDataMem(data)
+
     # return true or false replace exit, no print out
     def checkRowColNoExit(self, row, col):
         caller = inspect.getframeinfo(inspect.stack()[2][0])

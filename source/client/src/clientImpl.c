@@ -1795,6 +1795,7 @@ int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols) {
 
 static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, int32_t numOfRows) {
   char* p = (char*)pResultInfo->pData;
+  int32_t blockVersion = *(int32_t*)p;
 
   // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
   // length |
@@ -1810,7 +1811,7 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, i
 
   char* pStart = p + len;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    int32_t colLen = htonl(colLength[i]);
+    int32_t colLen = (blockVersion == 1) ? htonl(colLength[i]) : colLength[i];
 
     if (pResultInfo->fields[i].type == TSDB_DATA_TYPE_JSON) {
       int32_t* offset = (int32_t*)pStart;
@@ -1873,6 +1874,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
   tscDebug("start to convert form json format string");
 
   char*   p = (char*)pResultInfo->pData;
+  int32_t blockVersion = *(int32_t*)p;
   int32_t dataLen = estimateJsonLen(pResultInfo, numOfCols, numOfRows);
   if (dataLen <= 0) {
     return TSDB_CODE_TSC_INTERNAL_ERROR;
@@ -1908,8 +1910,8 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
   char* pStart = p;
   char* pStart1 = p1;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    int32_t colLen = htonl(colLength[i]);
-    int32_t colLen1 = htonl(colLength1[i]);
+    int32_t colLen = (blockVersion == 1) ? htonl(colLength[i]) : colLength[i];
+    int32_t colLen1 = (blockVersion == 1) ? htonl(colLength1[i]) : colLength1[i];
     if (ASSERT(colLen < dataLen)) {
       tscError("doConvertJson error: colLen:%d >= dataLen:%d", colLen, dataLen);
       return TSDB_CODE_TSC_INTERNAL_ERROR;
@@ -1968,7 +1970,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
       }
       colLen1 = len;
       totalLen += colLen1;
-      colLength1[i] = htonl(len);
+      colLength1[i] = (blockVersion == 1) ? htonl(len) : len;
     } else if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
       len = numOfRows * sizeof(int32_t);
       memcpy(pStart1, pStart, len);
@@ -2057,7 +2059,9 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
 
   char* pStart = p;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    colLength[i] = htonl(colLength[i]);
+    if(blockVersion == 1){
+      colLength[i] = htonl(colLength[i]);
+    }
     if (colLength[i] >= dataLen) {
       tscError("invalid colLength %d, dataLen %d", colLength[i], dataLen);
       return TSDB_CODE_TSC_INTERNAL_ERROR;
