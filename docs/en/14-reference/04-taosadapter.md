@@ -157,8 +157,8 @@ See [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/bl
 - Compatible with InfluxDB v1 write interface
   [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
 - Compatible with OpenTSDB JSON and telnet format writes
-  - <http://opentsdb.net/docs/build/html/api_http/put.html>
-  - <http://opentsdb.net/docs/build/html/api_telnet/put.html>
+  - [http://opentsdb.net/docs/build/html/api_http/put.html](http://opentsdb.net/docs/build/html/api_http/put.html)
+  - [http://opentsdb.net/docs/build/html/api_telnet/put.html](http://opentsdb.net/docs/build/html/api_telnet/put.html)
 - Seamless connection to collectd
   collectd is a system statistics collection daemon, please visit [https://collectd.org/](https://collectd.org/) for more information.
 - Seamless connection with StatsD
