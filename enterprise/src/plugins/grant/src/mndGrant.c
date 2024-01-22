@@ -27,7 +27,7 @@ void tFreeGrantObj(SGrantObj *pGrant) {
   taosMemoryFree(pGrant->active);
 }
 
-static SGrantObj *mndAcquireGrant(SMnode *pMnode, void **ppIter) {
+ SGrantObj *mndAcquireGrant(SMnode *pMnode, void **ppIter) {
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
 
@@ -43,7 +43,7 @@ static SGrantObj *mndAcquireGrant(SMnode *pMnode, void **ppIter) {
   return NULL;
 }
 
-static void mndReleaseGrant(SMnode *pMnode, SGrantObj *pGrant, void *pIter) {
+ void mndReleaseGrant(SMnode *pMnode, SGrantObj *pGrant, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
   sdbRelease(pSdb, pGrant);
@@ -66,6 +66,12 @@ static int32_t mndGrantObjAppendMachine(SGrantObj *pObj, const char *active) { r
 
 static int32_t mndGrantObjAppendState(SGrantObj *pObj, SGrantState *pState) {
   int8_t idx = pObj->nStates;
+
+  if (pState->lastState == GRANT_STATE_INIT) {
+    if (idx > 0) return 0;
+    pObj->createTime = pState->ts;
+    pObj->updateTime = pObj->createTime;
+  }
   if (idx >= GRANT_STATE_NUM) {
     memmove(&pObj->states[0], &pObj->states[1], sizeof(pObj->states) - sizeof(pObj->states[0]));
     idx = GRANT_STATE_NUM - 1;
@@ -76,9 +82,8 @@ static int32_t mndGrantObjAppendState(SGrantObj *pObj, SGrantState *pState) {
   return 0;
 }
 
-int32_t mndProcessConfigGrantReq(SRpcMsg *pReq, SMCfgClusterReq *pCfg) {
+int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *pCfg) {
   int32_t   code = 0;
-  SMnode   *pMnode = pReq->info.node;
   SGrantObj grantObj = {0};
 
   if (strlen(pCfg->config) >= TSDB_DNODE_CONFIG_LEN) {
@@ -158,9 +163,8 @@ _exit:
   return code;
 }
 
-int32_t mndProcessUpdMachineReq(SRpcMsg *pReq, SArray *pMachines) {
+int32_t mndProcessUpdMachineReq(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines) {
   int32_t   code = 0;
-  SMnode   *pMnode = pReq->info.node;
   SGrantObj grantObj = {0};
   int32_t   nMachines = taosArrayGetSize(pMachines);
 
@@ -225,39 +229,40 @@ _exit:
   return code;
 }
 
-int32_t mndProcessUpdStateReq(SRpcMsg *pReq, SGrantState *pState) {
+int32_t mndProcessUpdStateReq(SMnode *pMnode, SRpcMsg *pReq, SGrantState *pState) {
   int32_t   code = 0;
-  SMnode   *pMnode = pReq->info.node;
   SGrantObj grantObj = {0};
+  void     *pIter = NULL;
 
-  void      *pIter = NULL;
   SGrantObj *pGrant = mndAcquireGrant(pMnode, &pIter);
-  if (!pGrant || pGrant->id <= 0) {
+  if (!pGrant && pState->lastState != GRANT_STATE_INIT) {
     code = TSDB_CODE_APP_IS_STARTING;
-    if (pGrant) mndReleaseGrant(pMnode, pGrant, pIter);
     goto _exit;
   }
-  memcpy(&grantObj, pGrant, sizeof(SGrantObj));
-  grantObj.pMachines = NULL;
-  grantObj.active = NULL;
-  if (pGrant->active) {
-    int32_t activeLen = strlen(pGrant->active);
-    if (!(grantObj.active = taosMemoryMalloc(activeLen + 1))) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
+
+  if (pGrant) {
+    memcpy(&grantObj, pGrant, sizeof(SGrantObj));
+    grantObj.pMachines = NULL;
+    grantObj.active = NULL;
+    if (pGrant->active) {
+      int32_t activeLen = strlen(pGrant->active);
+      if (!(grantObj.active = taosMemoryMalloc(activeLen + 1))) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exit;
+      }
+      tstrncpy(grantObj.active, pGrant->active, activeLen + 1);
     }
-    tstrncpy(grantObj.active, pGrant->active, activeLen + 1);
-  }
-  int32_t nMachines = taosArrayGetSize(pGrant->pMachines);
-  if (nMachines > 0) {
-    if (!(grantObj.pMachines = taosArrayInit(nMachines, sizeof(SGrantMachine)))) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
+    int32_t nMachines = taosArrayGetSize(pGrant->pMachines);
+    if (nMachines > 0) {
+      if (!(grantObj.pMachines = taosArrayInit(nMachines, sizeof(SGrantMachine)))) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exit;
+      }
+      taosArrayAddAll(grantObj.pMachines, pGrant->pMachines);
     }
-    taosArrayAddAll(grantObj.pMachines, pGrant->pMachines);
+
+    mndReleaseGrant(pMnode, pGrant, pIter);
   }
-  
-  mndReleaseGrant(pMnode, pGrant, pIter);
 
   mndGrantObjAppendState(&grantObj, pState);
 
@@ -300,7 +305,7 @@ int32_t mndGrantGetLastState(SMnode *pMnode, SGrantState *pState) {
   }
 
   if (pGrant->nStates > 0) {
-    *pState = pGrant->states[pGrant->nState - 1];
+    *pState = pGrant->states[pGrant->nStates - 1];
   } else {
     code = TSDB_CODE_GRANT_OBJ_NOT_EXIST;
   }

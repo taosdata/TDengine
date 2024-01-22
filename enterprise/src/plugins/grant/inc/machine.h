@@ -41,7 +41,7 @@
 #define GRANT_TOLERENCE      86400  //86400
 #define GRANT_CHK_TOLERENCE  604800 //604800seconds
 #define GRANT_CHECK_INTERVAL 3600   //3600seconds
-#define GRANT_HEART_BEAT_MSG 60     //60seconds
+#define GRANT_HEART_BEAT_MSG 5     //60seconds
 #else
 #define GRANT_DEFAULT        60
 #define GRANT_TOLERENCE      60
@@ -323,7 +323,7 @@ typedef struct {
       int64_t auditExpired : 1;
       int64_t csvExpired : 1;
       int64_t uniqActive : 1;
-      int64_t reserve0 : 1;
+      int64_t expired : 1;
     };
   };
   union {
@@ -340,7 +340,7 @@ typedef struct {
     struct {
       int64_t subscriptionExpireSec : 40;
       int64_t limitSubscriptions : 16;
-      int64_t reserve1 : 8;
+      int64_t grantState : 8;
     };
   };
   union {
@@ -371,7 +371,7 @@ typedef struct {
     int64_t p7;
     struct {
       int64_t bakRstExpireSec : 40;
-      int64_t reserve5 : 24;
+      int64_t curViews : 24;
     };
   };
   int64_t limitTimeSeries;
@@ -379,6 +379,7 @@ typedef struct {
   int32_t limitCpuCores;
   int32_t curCpuCores;
   int32_t dataIns[GRANT_UNIQ_KNOWN_DATAIN_VALS];  // known dataIns: 3 * sizeof(int32_t) * CONN_TYPE_MAX
+  int64_t revokedExpireSec;
   // variants
   SArray *pDataIns;  // SGrantDataIns
   SArray *pItem32;

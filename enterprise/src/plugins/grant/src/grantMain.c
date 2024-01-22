@@ -228,6 +228,7 @@ static void     dmRefreshGrantCfg();
 static void     grantRetrieveGrantInfo(SMnode *pMnode);
 static void     grantResetMaster(SMnode *pMnode);
 static void     grantSetClusterInfo(SMnode *pMnode);
+static void     grantObjInit(SGrantUniqObj *pObj, bool official);
 static int64_t  grantGetClusterCreateTime(SMnode *pMnode);
 static int32_t  mndProcessGrantHB(SRpcMsg *pReq);
 static int32_t  mndProcessGrantRsp(SRpcMsg *pRsp);
@@ -290,7 +291,6 @@ static int64_t      grantNotifyCnt = 0;
 static int64_t      grantNotifyTimeSeries = INT64_MAX;
 static int64_t      grantClusterEpoch = 0;
 static SGrantHandle grantHandle = {.lastCheck = INT64_MIN};
-SGrantedInfo        grantedInfo = {0};
 
 #define gStatus grantUniqStatus
 
@@ -325,11 +325,12 @@ int32_t mndInitGrant(SMnode *pMnode) {
   }
 
   grantSetClusterInfo(pMnode);
+
   if (!(grantHandle.pOfficials = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UINT), true, true))) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  if (!(grantHandle.pMachines = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UINT), true, true))) {
+  if (!(grantHandle.pMachines = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, true))) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
@@ -364,6 +365,35 @@ void mndCleanupGrant(SMnode *pMnode) {
   grantHandle.pDistInfo = NULL;
   grantHandle.pDnodeInfo = NULL;
   grantHandle.pMnode = NULL;
+}
+
+static void grantObjInit(SGrantUniqObj *pObj, bool official) {
+  pObj->flags = 0;
+  for (int32_t i = 0; i < GRANT_UNIQ_TOKEN_NUM; ++i) {
+    pObj->token[i] = 0;
+  }
+  pObj->distribute = 0;
+  pObj->granted = 0;
+  pObj->officialVersion = official ? 1 : 0;
+  pObj->validDays = GRANT_UNIQ_UNDEFINED;
+  pObj->version = GRANT_UNIQ_ACTIVE_VER;
+  pObj->limitTimeSeries = GRANT_UNIQ_UNDEFINED;
+  pObj->limitCpuCores = GRANT_UNIQ_UNDEFINED;
+  pObj->limitDnodes = GRANT_UNIQ_UNDEFINED;
+  pObj->limitStreams = GRANT_UNIQ_UNDEFINED;
+  pObj->limitSubscriptions = GRANT_UNIQ_UNDEFINED;
+  pObj->reserve = 0;
+  pObj->limitViews = GRANT_UNIQ_UNDEFINED;
+  for (int32_t i = GRANT_OPT_BASIC; i < GRANT_OPT_MAX; ++i) {
+    pObj->expireDays[i] = GRANT_UNIQ_UNDEFINED;
+  }
+  for (int32_t i = 0; i < GRANT_UNIQ_KNOWN_DATAIN_VALS; ++i) {
+    pObj->dataIns[i] = GRANT_UNIQ_UNDEFINED;
+  }
+  taosArrayClear(pObj->pDataIns);
+  taosArrayClear(pObj->pItem32);
+  taosArrayClear(pObj->pItem64);
+  taosArrayClear(pObj->pMachines);
 }
 
 static int64_t grantGetExpireSec(int64_t expireSec) {
@@ -876,16 +906,103 @@ static int32_t grantCheckClusterInfo(SMnode *pMnode) {
   return code;
 }
 
-static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
-  if ((terrno = grantCheckClusterInfo(pMnode)) != 0) {
-    return -1;
+static int32_t grantGetClusterMachines(SMnode *pMnode, SHashObj *pRes) {
+  SSdb      *pSdb = pMnode->pSdb;
+  SDnodeObj *pDnode = NULL;
+  void      *pIter = NULL;
+
+  while ((pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode))) {
+    int32_t klen = strlen(pDnode->machineId);
+    if (klen == TSDB_MACHINE_ID_LEN) {
+      taosHashPut(pRes, pDnode->machineId, klen, &pDnode->id, sizeof(pDnode->id));
+    }
+    sdbRelease(pSdb, pDnode);
   }
+
+  return 0;
+}
+
+static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int64_t curTime = taosGetTimestampMs() / 1000;
+
+  code = grantCheckClusterInfo(pMnode);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   grantRetrieveGrantInfo(pMnode);
 
-  char active[GRANT_UNIQ_ACTIVE_KEY_LEN + 1] = "\0";
-  mndGetClusterActive(pMnode, active);
-  if (active[0] != 0) {
+  grantGetClusterMachines(pMnode, grantHandle.pMachines);
+
+  ASSERTS(taosHashGetSize(grantHandle.pMachines) > 0, "nMachines is %d", taosHashGetSize(grantHandle.pMachines));
+
+  void      *pIter = NULL;
+  SGrantObj *pGrant = mndAcquireGrant(pMnode, &pIter);
+  if (!pGrant) {
+    SGrantState grantState = {.ts = curTime,
+                              .lastState = GRANT_STATE_INIT,
+                              .state = GRANT_STATE_UNGRANTED,
+                              .reason = GRANT_STATE_REASON_INIT};
+
+    code = mndProcessUpdStateReq(pMnode, NULL, &grantState);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    goto _exit;
+  }
+
+  SGrantState *pLastState = pGrant->nStates > 0 ? &pGrant->states[pGrant->nStates - 1] : NULL;
+  if (!pLastState) {
+    mndReleaseGrant(pMnode, pGrant, pIter);
+    SGrantState grantState = {.ts = curTime,
+                              .lastState = GRANT_STATE_INIT,
+                              .state = GRANT_STATE_UNGRANTED,
+                              .reason = GRANT_STATE_REASON_INIT};
+
+    code = mndProcessUpdStateReq(pMnode, NULL, &grantState);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    goto _exit;
+  }
+
+  if (pLastState->state == GRANT_STATE_REVOKED) {
+    gStatus.grantState = pLastState->state;
+    gStatus.revokedExpireSec = pLastState->ts;
+
+    char ts[GRANT_TS_SEC_LEN] = {0};
+    grantSecondsToString(gStatus.revokedExpireSec, ts);
+
+    int64_t grantCurTime = TMAX(curTime, GRANT_CUR_TIME);
+    if (gStatus.revokedExpireSec > grantCurTime) {
+      if (gStatus.expired) {
+        gStatus.expired = 0;
+      }
+    } else {
+      gStatus.expired = 1;
+      uWarn("grant cluster expired at %s %u, curtime: %u, set to un-grant state", ts, gStatus.revokedExpireSec,
+            grantCurTime);
+    }
+    goto _exit;
+  }
+
+  grantObjInit(&grantObj, false);
+
+  int16_t activeLen = pGrant->active ? strlen(pGrant->active) : 0;
+  if (grantObj.activeLen < activeLen && 0 < activeLen) {
+    char *tmp = taosMemoryRealloc(grantObj.active, activeLen + 1);
+    if (!tmp) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+    grantObj.active = tmp;
+  }
+  if (activeLen > 0) {
+    if (0 != strncmp(grantObj.active, pGrant->active, activeLen + 1)) {
+      tstrncpy(grantObj.active, pGrant->active, activeLen + 1);
+    }
+  } else if (grantObj.active) {
+    grantObj.active[0] = 0;
+  }
+  grantObj.activeLen = activeLen;
+
+  if (grantObj.active && grantObj.active[0] != 0) {
     if (0 != grantUniqParseActiveCode(&grantObj, NULL)) {
       grantResetMaster(pMnode);
     } else if (type == 0) {
@@ -915,11 +1032,13 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
   } else {
     gStatus.uniqActive = 0;
   }
+  
 
   // set cluster info after parse uniq active
   grantSetClusterInfo(pMnode);
-
-  return 0;
+  mndReleaseGrant(pMnode, pGrant, pIter);
+_exit:
+  return code;
 }
 
 static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
@@ -1249,19 +1368,34 @@ static int16_t grantGetClusterCurStreams(SMnode *pMnode) {
   return numOfStreams;
 }
 
-static int16_t grantGetClusterCurTopics(SMnode *pMnode) {
-  SSdb        *pSdb = pMnode->pSdb;
-  SMqTopicObj *pTopic = NULL;
-  void        *pIter = NULL;
-  int16_t      numOfTopics = 0;
+static int16_t grantGetClusterCurSubscriptions(SMnode *pMnode) {
+  SSdb            *pSdb = pMnode->pSdb;
+  SMqSubscribeObj *pSubscribe = NULL;
+  void            *pIter = NULL;
+  int16_t          numOfSubscriptions = 0;
 
-  while ((pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic))) {
-    ++numOfTopics;
-    sdbRelease(pSdb, pTopic);
+  while ((pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pIter, (void **)&pSubscribe))) {
+    ++numOfSubscriptions;
+    sdbRelease(pSdb, pSubscribe);
   }
 
-  return numOfTopics;
+  return numOfSubscriptions;
 }
+
+static int32_t grantGetClusterCurViews(SMnode *pMnode) {
+  SSdb     *pSdb = pMnode->pSdb;
+  SViewObj *pView = NULL;
+  void     *pIter = NULL;
+  int32_t   numOfViews = 0;
+
+  while ((pIter = sdbFetch(pSdb, SDB_VIEW, pIter, (void **)&pView))) {
+    ++numOfViews;
+    sdbRelease(pSdb, pView);
+  }
+
+  return numOfViews;
+}
+
 
 /**
  * @brief retrieve the statis info
@@ -1273,7 +1407,8 @@ static void grantRetrieveGrantInfo(SMnode *pMnode) {
   gStatus.curDnodes = grantGetClusterCurDnodes(pMnode);
   gStatus.curCpuCores = grantGetClusterCurCores(pMnode);
   gStatus.curStreams = grantGetClusterCurStreams(pMnode);
-  gStatus.curSubscriptions = grantGetClusterCurTopics(pMnode);
+  gStatus.curSubscriptions = grantGetClusterCurSubscriptions(pMnode);
+  gStatus.curViews = grantGetClusterCurViews(pMnode);
 }
 
 static int32_t tSerializeGrantNotify(void *buf, int32_t bufLen, GrantNotify *pNotify) {
@@ -1747,18 +1882,7 @@ static void grantStatusCheck(SMnode *pMnode, uint32_t curTime, SDnodeInfo *pDnod
 static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, SGrantUniqMsg *pGrantMsg,
                                         GrantStatus *pGrantStatus) {
   uint32_t curTime = taosGetTimestampMs() / 1000;
-  if (pGrantMsg->machine[0] != 0) {
-    const char *val = taosHashGet(grantHandle.pMachines, &pDnodeInfo->id, sizeof(pDnodeInfo->id));
-    if (!val || 0 != strncmp(val, pGrantMsg->machine, GRANT_MACHINE_KEY_LEN + 1)) {
-      taosHashPut(grantHandle.pMachines, &pDnodeInfo->id, sizeof(pDnodeInfo->id), &pGrantMsg->machine,
-                  strlen(pGrantMsg->machine));
-    }
-    if ((pDnodeInfo->machineId[0] != 0) &&
-        (strncmp(pDnodeInfo->machineId, pGrantMsg->machine, GRANT_MACHINE_KEY_LEN + 1) != 0)) {
-      ++grantHandle.nServer;
-      uInfo("dnode:%d, %s not equal to %s", pDnodeInfo->id, pDnodeInfo->machineId, pGrantMsg->machine);
-    }
-  }
+
 
   if (pGrantMsg->pLegacy) {
     SGrantMsg *pLegacy = pGrantMsg->pLegacy;
@@ -1867,12 +1991,6 @@ int32_t grantAlterActiveCode(const char *active, char** newActive) {
   code = grantUniqParseActiveCode(&obj, &info);
   if (code != 0 || !obj.granted) {
     code = TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
-    goto _exit;
-  }
-
-  // check dist
-  if (info.dist < grantedInfo.grantedTime) {
-    code = TSDB_CODE_GRANT_PAR_IVLD_DIST;
     goto _exit;
   }
 
