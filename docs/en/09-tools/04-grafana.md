@@ -10,7 +10,7 @@ You can learn more about using the TDengine plugin on [GitHub](https://github.co
 
 ## Install Grafana
 
-TDengine currently supports Grafana versions 7.5 and above. Users can go to the Grafana official website to download the installation package and execute the installation according to the current operating system. The download address is as follows: <https://grafana.com/grafana/download>.
+TDengine currently supports Grafana versions 7.5 and above. Users can go to the Grafana official website to download the installation package and execute the installation according to the current operating system. The download address is as follows: [https://grafana.com/grafana/download](https://grafana.com/grafana/download).
 
 ## Install TDengine plugin
 

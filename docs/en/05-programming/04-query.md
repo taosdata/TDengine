@@ -12,7 +12,7 @@ import TabItem from '@theme/TabItem';
 SQL is used by TDengine as its query language. Application programs can send SQL statements to TDengine through REST API or client libraries. TDengine's CLI `taos` can also be used to execute ad hoc SQL queries. Here is the list of major query functionalities supported by TDengine：
 
 - Query on single column or multiple columns
-- Filter on tags or data columns：>, <, =, <\>, like
+- Filter on tags or data columns: &gt;, &lt;, =, &lt;&gt;, like
 - Grouping of results: `Group By`
 - Sorting of results: `Order By`
 - Limit the number of results: `Limit/Offset`
