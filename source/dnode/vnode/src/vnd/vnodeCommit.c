@@ -157,7 +157,8 @@ int vnodeShouldCommit(SVnode *pVnode, bool atExit) {
   taosThreadMutexLock(&pVnode->mutex);
   if (pVnode->inUse && diskAvail) {
     needCommit = (pVnode->inUse->size > pVnode->inUse->node.size) ||
-                 (atExit && (pVnode->inUse->size > 0 || pVnode->pMeta->changed));
+                 (atExit && (pVnode->inUse->size > 0 || pVnode->pMeta->changed ||
+                             pVnode->state.applied - pVnode->state.committed > 4096));
   }
   taosThreadMutexUnlock(&pVnode->mutex);
   return needCommit;
