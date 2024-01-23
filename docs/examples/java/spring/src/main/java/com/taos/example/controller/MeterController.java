@@ -2,7 +2,6 @@ package com.taos.example.controller;
 
 import com.taos.example.dao.Meter;
 import com.taos.example.service.MeterService;
-import com.taos.example.service.TemplateService;
 import java.util.List;
 import java.util.Random;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,9 +16,6 @@ public class MeterController {
 
   @Autowired
   private MeterService meterService;
-
-  @Autowired
-  private TemplateService templateService;
 
   @GetMapping("/list")
   public List<Meter> list() {
@@ -64,8 +60,4 @@ public class MeterController {
     return meterService.lastRow(tableName);
   }
 
-  @GetMapping("/test")
-  public void test() {
-    templateService.someMethod();
-  }
 }

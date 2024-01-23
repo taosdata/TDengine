@@ -41,10 +41,6 @@
       <artifactId>mybatis-spring-boot-starter</artifactId>
       <version>${mybatis.version}</version>
     </dependency>
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-jdbc</artifactId>
-    </dependency>
     <!--connection pool-->
     <dependency>
       <groupId>com.alibaba</groupId>
