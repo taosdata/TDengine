@@ -3,6 +3,10 @@ from util.log import *
 from util.sql import *
 from util.cases import *
 from util.sqlset import *
+from util.assertion import Assert
+from util.taosc import *
+from util.command import *
+import datetime
 import platform
 import os
 if platform.system().lower() == 'windows':
@@ -112,10 +116,57 @@ class TDTestCase:
         self.data_check(timezone,self.stbname,'stable')
         for i in range(self.tbnum):
             self.data_check(timezone,f'{self.stbname}_{i}','child_table')
+
+    def ts_4454(self):
+        # modify system timezone to America/New_York
+        os.system("timedatectl set-timezone 'America/New_York'")
+
+        # get time and timezone info by td
+        ret1 = tdClient.execute_sql(sql='select now()')
+        db_time = ret1.split('\r\n')[-2][0: -1].strip()
+        db_time = datetime.datetime.strptime(db_time, '%Y-%m-%d %H:%M:%S.%f')
+        ret2 = tdClient.execute_sql(sql='select timezone()')
+        db_timezone = ret2.split('\r\n')[-2][0: -1].strip()
+
+        # get time and timezone info by timedatectl
+        datetime_info = tdCmd.run_command(command='timedatectl')
+        local_time_zone = datetime_info.split('\n')[-4].split(':')[1].strip()
+        local_time = datetime_info.split('\n')[0].split(' ')[3] + " " + datetime_info.split('\n')[0].split(' ')[4]
+        local_time = datetime.datetime.strptime(local_time, '%Y-%m-%d %H:%M:%S')
+        print('local time:' + str(local_time))
+        print('local timezone:' + str(local_time_zone))
+
+        # check the time and timezone values
+        Assert.str_contain(str=db_timezone, sub_str='America/New_York')  # TD-28448
+        Assert.time_equals(datetime1=local_time, datetime2=db_time, deviation=5)
+
+        # modify system timezone to Asia/Shanghai
+        os.system("timedatectl set-timezone 'Asia/Shanghai'")
+
+        # get time and timezone info by td
+        ret1 = tdClient.execute_sql(sql='select now()')
+        db_time = ret1.split('\r\n')[-2][0: -1].strip()
+        db_time = datetime.datetime.strptime(db_time, '%Y-%m-%d %H:%M:%S.%f')
+        ret2 = tdClient.execute_sql(sql='select timezone()')
+        db_timezone = ret2.split('\r\n')[-2][0: -1].strip()
+
+        # get time and timezone info by timedatectl
+        datetime_info = tdCmd.run_command(command='timedatectl')
+        local_time_zone = datetime_info.split('\n')[-4].split(':')[1].strip()
+        local_time = datetime_info.split('\n')[0].split(' ')[3] + " " + datetime_info.split('\n')[0].split(' ')[4]
+        local_time = datetime.datetime.strptime(local_time, '%Y-%m-%d %H:%M:%S')
+        print('local time:' + str(local_time))
+        print('local timezone:' + str(local_time_zone))
+
+        Assert.str_equals(str1=db_timezone, str2=local_time_zone)
+        Assert.time_equals(datetime1=local_time, datetime2=db_time, deviation=5)
+
     def run(self):  # sourcery skip: extract-duplicate-method
         timezone = self.get_system_timezone()
         self.timezone_check_ntb(timezone)
         self.timezone_check_stb(timezone)
+        if platform.system().lower() != 'windows':
+            self.ts_4454()
 
     def stop(self):
         tdSql.close()
