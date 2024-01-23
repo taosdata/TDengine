@@ -2245,7 +2245,7 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         step1full: 'Prerequisite',
         step1desc: 'Power BI Desktop has been installed and running (If not, please download and install the latest Windows X64 version from ',
         step1desc1: 'PowerBI',
-        step1desc2: '.)',
+        step1desc2: ').',
         step1desc3: 'TDengine server software is installed and running.',
         step2: 'Install ODBC',
         step2full: 'Install ODBC connector',
@@ -2259,9 +2259,9 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         step4desc2:
           'If you want to input some specific SQL, click "Advanced Options", and input your SQL in the open dialogue box and load the data.',
         step4desc3:
-          'To better use Power BI to analyze the data stored in TDengine, you need to understand the concepts of dimention, metric, time series, correlation, and use your own SQL to import data:',
+          'To better use Power BI to analyze the data stored in TDengine, you need to understand the concepts of dimension, metric, time series, correlation, and use your own SQL to import data:',
         step4desc4:
-          "Dimention: it's normally category (text) data to describe such information as device, collection point, model. In the supertable template of TDengine, we use tag columns to store the dimention information. You can use SQL like select distinct tbname, tag1, tag2 from supertable to get dimentions.",
+          "Dimension: it's normally category (text) data to describe such information as device, collection point, model. In the supertable template of TDengine, we use tag columns to store the dimension information. You can use SQL like select distinct tbname, tag1, tag2 from supertable to get dimensions.",
         step4desc5:
           "Metric: quantitive (numeric) fileds that can be calculated, like SUM, AVERAGE, MINIMUM. If the collecting frequency is 1 second, then there are 31,536,000 records in one year, it will be too low efficient to import so big data into Power BI. In TDengine, you can use data partition query, window partition query, in combination with pseudo columns related to window, to import downsampled data into Power BI. For more details, please refer to ",
         step4desc6: "TDengine Specialized Queries",
@@ -2273,17 +2273,17 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         step4desc10:
           "Time Serie: When curve plotting or aggregating data based on time lines, date is normally required. Data or time can be imported from Excel, or retrieved from TDengine using SQL statement like select _wstart date, count(*) cnt from test.meters where ts between A and B interval(1d) fill(0), in which the fill() subclause indicates the fill mode when there is data missing, pseudo column _wstart indicates the date to retrieve.",
         step4desc11:
-          'Correlation: Indicates how to correlate data. Dimentions and Metrics can be correlated by tbname, dates and metrics can be correlated by date. All these can cooperate to form visual reports.',
+          'Correlation: Indicates how to correlate data. Dimensions and Metrics can be correlated by tbname, dates and metrics can be correlated by date. All these can cooperate to form visual reports.',
         step5: 'Example',
         step5full: 'Example - Meters',
         step5desc01: 'the example of meters',
         step5desc:
           'TDengine has its own specific data model, which uses supertable as template and creates a specific table for each device. Each table can have maximum 4,096 data columns and 128 tags. In ',
-        step5desc0: ', assume each meter generates one record per second, then there will be 86,400 records each day and 31,536,000 records every year, then only 1,000 meters will occupy 500GB disk space. So, the common usage of Power BI should be mapping tags to dimention columns, mapping the aggregation of data columns to metric columns, to provide indicators for decision makers.',
-        step5desc1: 'Import Dimentions: Import the tags of tables in PowerBI, and name as "tags", the SQL is as the following:',
+        step5desc0: ', assume each meter generates one record per second, then there will be 86,400 records each day and 31,536,000 records every year, then only 1,000 meters will occupy 500GB disk space. So, the common usage of Power BI should be mapping tags to dimension columns, mapping the aggregation of data columns to metric columns, to provide indicators for decision makers.',
+        step5desc1: 'Import Dimensions: Import the tags of tables in PowerBI, and name as "tags", the SQL is as the following:',
         step5desc2: 'Import Metrics: In Power BI, import the average current, average voltage, average phase with 1 hour window, and name it as "data", the SQL is as the following:',
         step5desc3:
-          'Correlate Dimentions and Metrics: In Power BI, open model view, correlate "tags" and "data", and set "tabname" as the correlation column, then you can use the data in histogram, pie chart, etc. For more information about building visual reports in PowerBI, please refer to ',
+          'Correlate Dimensions and Metrics: In Power BI, open model view, correlate "tags" and "data", and set "tabname" as the correlation column, then you can use the data in histogram, pie chart, etc. For more information about building visual reports in PowerBI, please refer to ',
         step5desc4: "Power BI",
         step5desc5: ".",
       },
