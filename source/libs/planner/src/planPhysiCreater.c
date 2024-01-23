@@ -2335,6 +2335,7 @@ static int32_t createMergePhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildre
             break;
           }
         }
+        if (code) break;
       }
     }
 
