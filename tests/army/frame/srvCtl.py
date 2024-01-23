@@ -18,6 +18,7 @@ import datetime
 
 from frame.server.dnode  import *
 from frame.server.dnodes import *
+from frame.server.cluster import *
 
 
 class srvCtl:
@@ -34,19 +35,32 @@ class srvCtl:
 
     # start
     def dnodeStart(self, idx):
+        if clusterDnodes.getModel() == 'cluster':
+            return clusterDnodes.starttaosd(idx)
+
         return tdDnodes.starttaosd(idx)
 
     # stop
     def dnodeStop(self, idx):
+        if clusterDnodes.getModel() == 'cluster':
+            return clusterDnodes.stoptaosd(idx)
+
         return tdDnodes.stoptaosd(idx)
 
+    def dnodeStopAll(self):
+        if clusterDnodes.getModel() == 'cluster':
+            return clusterDnodes.stopAll()
 
+        return tdDnodes.stopAll()
     #
     #  about path
     #
 
     # get cluster root path like /root/TDinternal/sim/ 
     def clusterRootPath(self):
+        if clusterDnodes.getModel() == 'cluster':
+            return clusterDnodes.getDnodesRootDir()
+
         return tdDnodes.getDnodesRootDir()
 
     # return dnode data files list
@@ -60,7 +74,9 @@ class srvCtl:
 
     # taos.cfg position
     def dnodeCfgPath(self, idx):
-        return tdDnodes.dnodes[idx-1].cfgPath
+        if clusterDnodes.getModel() == 'cluster':
+            return clusterDnodes.getDnodeCfgPath(idx)
+        return tdDnodes.getDnodeCfgPath(idx)
     
 
 sc = srvCtl()
