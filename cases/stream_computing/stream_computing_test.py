@@ -3857,7 +3857,6 @@ class StreamComputingTest(TDCase):
             self.at_once_interval(interval=random.randint(10, 15), partition="c1", delete=True)
             self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
             self.at_once_interval(interval=random.randint(10, 15), partition=None, delete=True)
-            self.at_once_interval(interval=random.randint(10, 15), partition=None, delete=True, checkpoint_check=True)
             self.at_once_session(session=random.randint(10, 15),subtable=None, partition="abs(c1)")
             self.at_once_event_window(partition="c1")
             self.at_once_event_window(partition="abs(c1)")
@@ -3994,6 +3993,9 @@ class StreamComputingTest(TDCase):
             self.at_once_event_window(partition="tbname", fill_value="NULL", use_except=True)
             self.at_once_event_window_ext(partition=f'{self.tag_filter_des_select_elm}', subtable=None, stb_field_name_value=None, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True, constant_col="c1", use_except=True)
             self.at_once_event_window_ext(partition=None, subtable=None, stb_field_name_value=self.tb_filter_des_select_elm, tag_value="t1", use_exist_stb=True, constant_col="c1", use_except=True)
+
+            # * not stable and put them last
+            self.at_once_interval(interval=random.randint(10, 15), partition=None, delete=True, checkpoint_check=True)
 
             # ! TD-23905
             # self.json_function(partition="tbname", delete=True, fill_history_value=1)
