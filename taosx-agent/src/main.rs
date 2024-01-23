@@ -1,4 +1,7 @@
+use flume::{Receiver, Sender};
+use futures::stream::AbortHandle;
 use std::{path::PathBuf, time::Duration};
+use tokio::task::JoinHandle;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 
 use chrono::{Local, Utc};
@@ -263,7 +266,9 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
             let ret: anyhow::Result<()>;
             loop {
                 let sender = sender.clone();
+                let hb_handle = spawn_heartbeat_task(resp_tx.clone());
                 if let Err(err) = client.wait_tasks(sender, resp_tx.clone(), resp_rx.clone()).await {
+                    hb_handle.abort();
                     let err_str = format!("{err:#}");
                     if err_str.contains("code: Aborted") {
                         tracing::info!("Connection aborted, error: {err:?}");
@@ -272,7 +277,6 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
                     } else {
                         tracing::error!("Connection closed, error: {err:?}. Retry in 5 seconds");
                     }
-                    // tracing::error!("Connection closed, error: {err}. Retry in 5 seconds");
                 }
                 tokio::time::sleep(Duration::from_secs(5)).await;
             }
@@ -304,6 +308,20 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+fn spawn_heartbeat_task(resp_tx: Sender<RespAction>) -> JoinHandle<()> {
+    tracing::trace!("Spawn heartbeat task");
+    tokio::spawn(async move {
+        let mut heart_beat_interval = tokio::time::interval(Duration::from_secs(61));
+        loop {
+            heart_beat_interval.tick().await;
+            if resp_tx.send(RespAction::Heartbeat).is_err() {
+                tracing::warn!("Send heartbeat action error");
+                break;
+            }
+        }
+    })
 }
 
 #[rustfmt::skip]

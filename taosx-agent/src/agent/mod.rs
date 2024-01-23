@@ -212,19 +212,6 @@ impl Client {
             )])),
         );
 
-        let resp_tx_cloned = resp_tx.clone();
-
-        tokio::spawn(async move {
-            let mut heart_beat_interval = tokio::time::interval(Duration::from_secs(61));
-
-            loop {
-                heart_beat_interval.tick().await;
-                if resp_tx_cloned.send(RespAction::Heartbeat).is_err() {
-                    break;
-                }
-            }
-        });
-
         fn resp_action_to_arrow(
             action: RespAction,
             req_id: u64,
@@ -366,7 +353,6 @@ impl Client {
             )
             .map(|v| v.unwrap());
         let mut stream = self.client.do_exchange(req).await?;
-
         while let Some(res) = stream.try_next().await? {
             // dbg!(&res);
             let rows = res.num_rows();
