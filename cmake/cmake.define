@@ -181,12 +181,12 @@ ELSE ()
         ENDIF()
         MESSAGE(STATUS "SIMD instructions (FMA/AVX/AVX2) is ACTIVATED")
 
-#        IF (COMPILER_SUPPORT_AVX512F AND COMPILER_SUPPORT_AVX512BMI)
-#            SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mavx512f -mavx512vbmi")
-#            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx512f -mavx512vbmi")
-#            MESSAGE(STATUS "avx512f/avx512bmi supported by compiler")
-#        ENDIF()
-#
+        IF (COMPILER_SUPPORT_AVX512F AND COMPILER_SUPPORT_AVX512BMI)
+            SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mavx512f -mavx512vbmi")
+            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx512f -mavx512vbmi")
+            MESSAGE(STATUS "avx512f/avx512bmi supported by compiler")
+        ENDIF()
+
 #        IF (COMPILER_SUPPORT_AVX512VL)
 #            SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mavx512vl")
 #            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx512vl")
