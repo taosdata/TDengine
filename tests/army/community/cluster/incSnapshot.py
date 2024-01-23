@@ -9,11 +9,12 @@ import time
 from frame.log import *
 from frame.cases import *
 from frame.sql import *
+from frame.srvCtl import *
 from frame.caseBase import *
 from frame import *
 from frame.autogen import *
-from frame.server.dnodes import *
-from frame.server.cluster import *
+# from frame.server.dnodes import *
+# from frame.server.cluster import *
 
 
 class TDTestCase(TBase):
@@ -34,7 +35,7 @@ class TDTestCase(TBase):
         autoGen.create_child(self.stb, "d", self.childtable_count)
         autoGen.insert_data(1000)
         tdSql.execute(f"flush database {self.db}")
-        clusterDnodes.stoptaosd(3)
+        sc.dnodeStop(3)
         # clusterDnodes.stoptaosd(1)
         # clusterDnodes.starttaosd(3)
         # time.sleep(5)
@@ -56,7 +57,7 @@ class TDTestCase(TBase):
         #         break
         self.snapshotAgg()
         time.sleep(10)
-        clusterDnodes.stopAll()
+        sc.dnodeStopAll()
         for i in range(1, 4):
             path = clusterDnodes.getDnodeDir(i)
             dnodesRootDir = os.path.join(path,"data","vnode", "vnode*")
@@ -66,9 +67,9 @@ class TDTestCase(TBase):
                     tdLog.debug("delete dir: %s " % (dnodesRootDir))
                     self.remove_directory(os.path.join(dir, "wal"))
 
-        clusterDnodes.starttaosd(1)
-        clusterDnodes.starttaosd(2)
-        clusterDnodes.starttaosd(3)
+        sc.dnodeStart(1)
+        sc.dnodeStart(2)
+        sc.dnodeStart(3)
         sql = "show vnodes;"
         time.sleep(10)
         while True:
