@@ -19,6 +19,7 @@ settings:
             rpcDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
+            checkpointInterval: 60
         - endpoint: node230:6031
           config_dir: /root/jayden/config/dnode2
           config: # will write into taos.cfg
@@ -32,6 +33,7 @@ settings:
             rpcDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
+            checkpointInterval: 60
         - endpoint: node230:6032
           config_dir: /root/jayden/config/dnode3
           config: # will write into taos.cfg
@@ -45,6 +47,7 @@ settings:
             rpcDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
+            checkpointInterval: 60
         - endpoint: node230:6033
           config_dir: /root/jayden/config/dnode4
           config: # will write into taos.cfg
@@ -58,6 +61,7 @@ settings:
             rpcDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
+            checkpointInterval: 60
       reserve_dnodes:
         - endpoint: node230:6034
           config_dir: /root/jayden/config/dnode5
@@ -72,6 +76,7 @@ settings:
             rpcDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
+            checkpointInterval: 60
         - endpoint: node230:6035
           config_dir: /root/jayden/config/dnode6
           config: # will write into taos.cfg
@@ -85,6 +90,7 @@ settings:
             rpcDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
+            checkpointInterval: 60
         - endpoint: node230:6036
           config_dir: /root/jayden/config/dnode7
           config: # will write into taos.cfg
@@ -98,6 +104,7 @@ settings:
             rpcDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
+            checkpointInterval: 60
   - name: taosBenchmark
     fqdn: [node230]
     spec:

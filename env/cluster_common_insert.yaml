@@ -19,6 +19,7 @@ settings:
             tqDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
+            checkpointInterval: 60
         - endpoint: u1-53:6031
           config_dir: /root/jayden/config/dnode2
           config: # will write into taos.cfg
@@ -32,6 +33,7 @@ settings:
             tqDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
+            checkpointInterval: 60
       reserve_dnodes:
         - endpoint: u1-53:6035
           config_dir: /root/jayden/config/dnode6
@@ -46,6 +48,7 @@ settings:
             tqDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
+            checkpointInterval: 60
   - name: taosBenchmark
     fqdn: [u1-53]
     spec:
