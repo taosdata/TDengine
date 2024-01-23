@@ -241,7 +241,6 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
   }
 
   void *pIter = NULL;
-  // pEpSet->inUse = 0;
   while (1) {
     SMnodeObj *pObj = NULL;
     pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pObj);
@@ -252,7 +251,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
         pEpSet->inUse = pEpSet->numOfEps;
       } else {
         pEpSet->inUse = (pEpSet->numOfEps + 1) % totalMnodes;
-        //pEpSet->inUse = 0;
+        // pEpSet->inUse = 0;
       }
     }
     if (pObj->pDnode != NULL) {
@@ -268,6 +267,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
   if (pEpSet->inUse >= pEpSet->numOfEps) {
     pEpSet->inUse = 0;
   }
+  epsetSort(pEpSet);
 }
 
 static int32_t mndSetCreateMnodeRedoLogs(SMnode *pMnode, STrans *pTrans, SMnodeObj *pObj) {

@@ -82,6 +82,13 @@ void epsetSort(SEpSet* pDst) {
   if (pDst->numOfEps <= 1) {
     return;
   }
+  int validIdx = false;
+  SEp ep = {0};
+  if (pDst->inUse >= 0 && pDst->inUse < pDst->numOfEps) {
+    validIdx = true;
+    epAssign(&ep, &pDst->eps[pDst->inUse]);
+  }
+
   for (int i = 0; i < pDst->numOfEps - 1; i++) {
     for (int j = 0; j < pDst->numOfEps - 1 - i; j++) {
       SEp* f = &pDst->eps[j];
@@ -95,6 +102,14 @@ void epsetSort(SEpSet* pDst) {
       }
     }
   }
+  if (validIdx == true)
+    for (int i = 0; i < pDst->numOfEps; i++) {
+      int cmp = strncmp(ep.fqdn, pDst->eps[i].fqdn, sizeof(ep.fqdn));
+      if (cmp == 0 && ep.port == pDst->eps[i].port) {
+        pDst->inUse = i;
+        break;
+      }
+    }
 }
 
 void updateEpSet_s(SCorEpSet* pEpSet, SEpSet* pNewEpSet) {

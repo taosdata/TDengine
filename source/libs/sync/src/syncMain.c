@@ -36,6 +36,7 @@
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
 #include "tglobal.h"
+#include "tmisce.h"
 #include "tref.h"
 
 static void    syncNodeEqPingTimer(void* param, void* tmrId);
@@ -593,6 +594,7 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
     pEpSet->inUse = (pSyncNode->raftCfg.cfg.myIndex + 1) % pEpSet->numOfEps;
     pEpSet->inUse = 0;
   }
+  epsetSort(pEpSet);
 
   sInfo("vgId:%d, sync get retry epset numOfEps:%d inUse:%d", pSyncNode->vgId, pEpSet->numOfEps, pEpSet->inUse);
   syncNodeRelease(pSyncNode);
