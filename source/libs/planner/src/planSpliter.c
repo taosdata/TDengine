@@ -737,6 +737,11 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
       pSubplan->id.queryId = pCxt->queryId;
       pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
       splSetSubplanVgroups(pSubplan, pSubplan->pNode);
+      code = stbSplCreatePartWindowNode((SWindowLogicNode*)pSubplan->pNode, &pPartWindow);
+      if (TSDB_CODE_SUCCESS == code) {
+        nodesDestroyNode((SNode*)pSubplan->pNode);
+        pSubplan->pNode = pPartWindow;
+      }
     }
     pMerge->numOfSubplans = LIST_LENGTH(pInfo->pSubplan->pChildren) + 1;
     pMerge->srcEndGroupId = pCxt->groupId;
@@ -1133,17 +1138,71 @@ static int32_t stbSplAggNodeCreateMerge(SSplitContext* pCtx, SStableSplitInfo* p
   return code;
 }
 
+static int32_t stbSplSplitAggNodeForCrossTableMulSubplan(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+  SLogicNode*      pPartAgg = NULL;
+  bool             hasExchange = false;
+  SMergeLogicNode* pMergeNode = NULL;
+  SLogicSubplan*   pFirstScanSubplan = NULL;
+  int32_t          code = stbSplCreatePartAggNode((SAggLogicNode*)pInfo->pSplitNode, &pPartAgg);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pInfo->pSplitNode->forceCreateNonBlockingOptr) {
+      code = stbSplAggNodeCreateMerge(pCxt, pInfo, pPartAgg);
+    } else {
+      hasExchange = true;
+      code = stbSplCreateMergeNode(pCxt, NULL, pInfo->pSplitNode, NULL, pPartAgg, false, false);
+    }
+    pMergeNode =
+        (SMergeLogicNode*)nodesListGetNode(pInfo->pSplitNode->pChildren, LIST_LENGTH(pInfo->pSplitNode->pChildren) - 1);
+  } else {
+    nodesDestroyNode((SNode*)pPartAgg);
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    pFirstScanSubplan = splCreateScanSubplan(pCxt, pPartAgg, SPLIT_FLAG_STABLE_SPLIT);
+    if (!pFirstScanSubplan) code = TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    SNode* pNode;
+    FOREACH(pNode, pInfo->pSubplan->pChildren) {
+      ++(pCxt->groupId);
+      SLogicSubplan* pSubplan = (SLogicSubplan*)pNode;
+      pSubplan->id.groupId = pCxt->groupId;
+      pSubplan->id.queryId = pCxt->queryId;
+      pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
+      splSetSubplanVgroups(pSubplan, pSubplan->pNode);
+      code = stbSplCreatePartAggNode((SAggLogicNode*)pSubplan->pNode, &pPartAgg);
+      if (code) break;
+      nodesDestroyNode((SNode*)pSubplan->pNode);
+      pSubplan->pNode = pPartAgg;
+    }
+    pMergeNode->numOfSubplans = LIST_LENGTH(pInfo->pSubplan->pChildren) + 1;
+    pMergeNode->srcEndGroupId = pCxt->groupId;
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    code = nodesListMakeAppend(&pInfo->pSubplan->pChildren, (SNode*)pFirstScanSubplan);
+  }
+
+  if (code && pFirstScanSubplan) {
+    nodesDestroyNode((SNode*)pFirstScanSubplan);
+  }
+
+  pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
+  ++(pCxt->groupId);
+  return code;
+}
+
 static int32_t stbSplSplitAggNodeForCrossTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   SLogicNode* pPartAgg = NULL;
   int32_t     code = stbSplCreatePartAggNode((SAggLogicNode*)pInfo->pSplitNode, &pPartAgg);
-  bool hasExchange = false;
   if (TSDB_CODE_SUCCESS == code) {
     // if slimit was pushed down to agg, agg will be pipelined mode, add sort merge before parent agg
     if (pInfo->pSplitNode->forceCreateNonBlockingOptr)
       code = stbSplAggNodeCreateMerge(pCxt, pInfo, pPartAgg); //TODO test slimit
     else {
       code = stbSplCreateExchangeNode(pCxt, pInfo->pSplitNode, pPartAgg);
-      hasExchange = true;
     }
   } else {
     nodesDestroyNode((SNode*)pPartAgg);
@@ -1153,18 +1212,6 @@ static int32_t stbSplSplitAggNodeForCrossTable(SSplitContext* pCxt, SStableSplit
   if (TSDB_CODE_SUCCESS == code) {
     pScanSubplan = splCreateScanSubplan(pCxt, pPartAgg, SPLIT_FLAG_STABLE_SPLIT);
     if (!pScanSubplan) code = TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  if (code == TSDB_CODE_SUCCESS) {
-    SNode* pNode;
-    FOREACH(pNode, pInfo->pSubplan->pChildren) {
-      SLogicSubplan* pSubplan = (SLogicSubplan*)pNode;
-      pSubplan->id.groupId = pCxt->groupId;
-      pSubplan->id.queryId = pCxt->queryId;
-      pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
-      splSetSubplanVgroups(pSubplan, pSubplan->pNode);
-      code = stbSplCreateExchangeNode(pCxt, pInfo->pSplitNode, pSubplan->pNode);
-    }
   }
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -1179,6 +1226,9 @@ static int32_t stbSplSplitAggNodeForCrossTable(SSplitContext* pCxt, SStableSplit
 static int32_t stbSplSplitAggNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   if (isPartTableAgg((SAggLogicNode*)pInfo->pSplitNode)) {
     return stbSplSplitAggNodeForPartTable(pCxt, pInfo);
+  }
+  if (pInfo->pSubplan->pChildren && LIST_LENGTH(pInfo->pSubplan->pChildren) > 0) {
+    return stbSplSplitAggNodeForCrossTableMulSubplan(pCxt, pInfo);
   }
   return stbSplSplitAggNodeForCrossTable(pCxt, pInfo);
 }
