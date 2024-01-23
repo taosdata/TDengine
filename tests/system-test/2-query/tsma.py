@@ -1,5 +1,4 @@
 from random import randrange
-from pandas import tseries
 import taos
 import time
 import threading
@@ -27,8 +26,8 @@ class UsedTsma:
 
     def __init__(self) -> None:
         self.name = '' ## tsma name or table name
-        self.time_range_start = UsedTsma.TS_MIN
-        self.time_range_end = UsedTsma.TS_MAX
+        self.time_range_start: float = float(UsedTsma.TS_MIN)
+        self.time_range_end: float = float(UsedTsma.TS_MAX)
         self.is_tsma_ = False
 
     def __eq__(self, __value: object) -> bool:
@@ -39,6 +38,15 @@ class UsedTsma:
                     and self.is_tsma_ == __value.is_tsma_
         else:
             return False
+
+    def __ne__(self, __value: object) -> bool:
+        return not self.__eq__(__value)
+
+    def __str__(self) -> str:
+        return "%s: from %s to %s is_tsma: %d" % (self.name, self.time_range_start, self.time_range_end, self.is_tsma_)
+
+    def __repr__(self) -> str:
+        return self.__str__()
 
 class TSMAQueryContext:
     def __init__(self) -> None:
@@ -55,6 +63,9 @@ class TSMAQueryContext:
             return True
         else:
             return False
+
+    def __ne__(self, __value: object) -> bool:
+        return self.__eq__(__value)
 
     def __str__(self) -> str:
         return str(self.used_tsmas)
@@ -75,12 +86,19 @@ class TSMAQueryContextBuilder:
     def with_sql(self, sql: str):
         self.ctx.sql = sql
         return self
+    
+    def to_timestamp(self, ts: str) -> float:
+        if ts == UsedTsma.TS_MAX or ts == UsedTsma.TS_MIN:
+            return float(ts)
+        tdSql.query("select to_timestamp('%s', 'yyyy-mm-dd hh24-mi-ss.ms')" % (ts))
+        res = tdSql.queryResult[0][0]
+        return res.timestamp() * 1000
 
     def should_query_with_table(self, tb_name: str, ts_begin: str, ts_end: str) -> 'TSMAQueryContextBuilder':
         used_tsma: UsedTsma = UsedTsma()
         used_tsma.name = tb_name
-        used_tsma.time_range_start = ts_begin
-        used_tsma.time_range_end = ts_end
+        used_tsma.time_range_start = self.to_timestamp(ts_begin)
+        used_tsma.time_range_end = self.to_timestamp(ts_end)
         used_tsma.is_tsma_ = False
         self.ctx.used_tsmas.append(used_tsma)
         return self
@@ -88,8 +106,8 @@ class TSMAQueryContextBuilder:
     def should_query_with_tsma(self, tsma_name: str, ts_begin: str, ts_end: str) -> 'TSMAQueryContextBuilder':
         used_tsma: UsedTsma = UsedTsma()
         used_tsma.name = tsma_name + '_tsma_res_stb'
-        used_tsma.time_range_start = ts_begin
-        used_tsma.time_range_end = ts_end
+        used_tsma.time_range_start = self.to_timestamp(ts_begin)
+        used_tsma.time_range_end = self.to_timestamp(ts_end)
         used_tsma.is_tsma_ = True
         self.ctx.used_tsmas.append(used_tsma)
         return self
@@ -129,10 +147,20 @@ class TSMATestContext:
                     row = row[idx:].split('[')[1]
                     row = row.split(']')[0]
                     words = row.split(',')
-                    used_tsma.time_range_start = words[0].strip()
-                    used_tsma.time_range_end = words[1].strip()
+                    used_tsma.time_range_start = float(words[0].strip())
+                    used_tsma.time_range_end = float(words[1].strip())
                     query_ctx.used_tsmas.append(used_tsma)
                     used_tsma = UsedTsma()
+
+        deduplicated_tsmas: list[UsedTsma] = []
+        if len(query_ctx.used_tsmas) > 0:
+            deduplicated_tsmas.append(query_ctx.used_tsmas[0])
+            for tsma in query_ctx.used_tsmas:
+                if tsma == deduplicated_tsmas[-1]:
+                    continue
+                else:
+                    deduplicated_tsmas.append(tsma)
+            query_ctx.used_tsmas = deduplicated_tsmas
 
         return query_ctx
 
@@ -142,7 +170,21 @@ class TSMATestContext:
             tdLog.exit('check explain failed for sql: %s \nexpect: %s \nactual: %s' % (sql, str(expect), str(query_ctx)))
 
     def check_result(self, sql: str):
-        pass
+        #tdSql.execute("alter local 'querySmaOptimize' '1'")
+        tsma_res = tdSql.getResult(sql)
+
+        tdSql.execute("alter local 'querySmaOptimize' '0'")
+        no_tsma_res = tdSql.getResult(sql)
+
+        if no_tsma_res is None or tsma_res is None:
+            if no_tsma_res != tsma_res:
+                tdLog.exit("comparing tsma res for: %s got different rows of result: with tsma: %s, with tsma: %s" % (sql, no_tsma_res, tsma_res))
+
+        if len(no_tsma_res) != len(tsma_res):
+            tdLog.exit("comparing tsma res for: %s got differnt rows of result: without tsma: %d, with tsma: %d" % (sql, len(no_tsma_res), len(tsma_res)))
+        for row_no_tsma, row_tsma in zip(no_tsma_res, tsma_res):
+            if row_no_tsma != row_tsma:
+                tdLog.exit("comparing tsma res for: %s got different row data: no tsma row: %s, tsma row: %s" % (sql, str(row_no_tsma), str(row_tsma)))
 
     def check_sql(self, sql: str, expect: TSMAQueryContext):
         self.check_explain(sql, expect=expect)
@@ -274,74 +316,122 @@ class TDTestCase:
                 break
         if not plan_found:
             tdLog.exit("plan: %s not found in res: [%s]" % (plan_str_expect, str(explain_output)))
+    
+    def check(self, func):
+        for ctx in func():
+            self.test_ctx.check_sql(ctx.sql, ctx)
 
     def test_query_with_tsma(self):
         self.init_data()
         self.create_tsma('tsma1', 'test', 'meters', ['avg'], ['c1', 'c2'], '5m')
         self.create_tsma('tsma2', 'test', 'meters', ['avg'], ['c1', 'c2'], '30m')
+        time.sleep(5)
         time.sleep(9999999)
         self.test_query_with_tsma_interval()
         self.test_query_with_tsma_agg()
 
     def test_query_with_tsma_interval(self):
-        self.test_query_with_tsma_interval_no_partition()
-        self.test_query_with_tsma_interval_partition_by_col()
-        self.test_query_with_tsma_interval_partition_by_tbname()
-        self.test_query_with_tsma_interval_partition_by_tag()
-        self.test_query_with_tsma_interval_partition_by_hybrid()
+        self.check(self.test_query_with_tsma_interval_no_partition)
+        self.check(self.test_query_with_tsma_interval_partition_by_col)
+        self.check(self.test_query_with_tsma_interval_partition_by_tbname)
+        self.check(self.test_query_with_tsma_interval_partition_by_tag)
+        self.check(self.test_query_with_tsma_interval_partition_by_hybrid)
 
-    def test_query_with_tsma_interval_no_partition(self):
-        pass
+    def test_query_with_tsma_interval_no_partition(self) -> List[TSMAQueryContext]:
+        ctxs: List[TSMAQueryContext] = []
+        sql = 'select avg(c1), avg(c2) from meters interval(5m)'
+        ctxs.append(TSMAQueryContextBuilder().with_sql(sql) \
+                    .should_query_with_tsma('tsma1', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_ctx())
+
+        sql = 'select avg(c1), avg(c2) from meters interval(10m)'
+        ctxs.append(TSMAQueryContextBuilder().with_sql(sql) \
+                    .should_query_with_tsma('tsma1', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_ctx())
+        sql = 'select avg(c1), avg(c2) from meters interval(30m)'
+        ctxs.append(TSMAQueryContextBuilder().with_sql(sql) \
+                    .should_query_with_tsma('tsma2', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_ctx())
+        sql = 'select avg(c1), avg(c2) from meters interval(60m)'
+        ctxs.append(TSMAQueryContextBuilder().with_sql(sql) \
+                    .should_query_with_tsma('tsma2', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_ctx())
+        
+        sql = "select avg(c1), avg(c2) from meters where ts >= '2018-09-17 09:00:00.009' and ts < '2018-09-17 10:23:19.665' interval(30m)"
+        ctxs.append(TSMAQueryContextBuilder().with_sql(sql) \
+                    .should_query_with_table('meters', '2018-09-17 09:00:00.009','2018-09-17 09:29:59.999') \
+                        .should_query_with_tsma('tsma2', '2018-09-17 09:30:00','2018-09-17 09:59:59.999') \
+                            .should_query_with_table('meters', '2018-09-17 10:00:00.000','2018-09-17 10:23:19.664').get_ctx())
+        return ctxs
 
     def test_query_with_tsma_interval_partition_by_tbname(self):
-        pass
+        return []
 
     def test_query_with_tsma_interval_partition_by_tag(self):
-        pass
+        return []
 
     def test_query_with_tsma_interval_partition_by_col(self):
-        pass
+        return []
 
     def test_query_with_tsma_interval_partition_by_hybrid(self):
-        pass
+        return []
 
     def test_query_with_tsma_agg(self):
-        self.test_query_with_tsma_agg_no_group_by()
-        self.test_query_with_tsma_agg_group_by_hybrid()
-        self.test_query_with_tsma_agg_group_by_tbname()
-        self.test_query_with_tsma_agg_group_by_tag()
+        self.check(self.test_query_with_tsma_agg_no_group_by)
+        self.check(self.test_query_with_tsma_agg_group_by_hybrid)
+        self.check(self.test_query_with_tsma_agg_group_by_tbname)
+        self.check(self.test_query_with_tsma_agg_group_by_tag)
 
     def test_query_with_tsma_agg_no_group_by(self):
         ctxs: List[TSMAQueryContext] = []
-        ctxs.append(TSMAQueryContextBuilder().with_sql('select avg(c1), avg(c2) from meters').should_query_with_tsma('tsma2', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_ctx())
-        ctxs.append(TSMAQueryContextBuilder().with_sql('select avg(c1), avg(c2) from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"')\
-                    .should_query_with_table('meters', '','').get_ctx())
-        tsma_sqls = [
-                'select avg(c1), avg(c2) from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
-                'select avg(c1) + avg(c2), avg(c2) from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
-                'select avg(c1) + avg(c2), avg(c2) + 1 from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
-                'select avg(c1) + avg(c2), from meters where tbname like "%t1%"'
-                ]
-        non_tsma_sqls = [
-                'select avg(c1), avg(c2) from meters where c1 is not NULL',
-                'select avg(c1), avg(c2), spread(c4) from meters',
-                ]
+        sql = 'select avg(c1), avg(c2) from meters'
+        ctxs.append(TSMAQueryContextBuilder().with_sql(sql).should_query_with_tsma('tsma2', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_ctx())
 
-        for ctx in ctxs:
-            self.test_ctx.check_sql(ctx.sql, ctx)
+        sql = 'select avg(c1), avg(c2) from meters where ts between "2018-09-17 09:00:00.000" and "2018-09-17 10:00:00.000"'
+        ctxs.append(TSMAQueryContextBuilder().with_sql(sql) \
+                    .should_query_with_tsma('tsma2', '2018-09-17 09:00:00','2018-09-17 09:59:59:999') \
+                        .should_query_with_table("meters", '2018-09-17 10:00:00','2018-09-17 10:00:00').get_ctx())
+
+        sql = 'select avg(c1), avg(c2) from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
+        ctxs.append(TSMAQueryContextBuilder().with_sql(sql) \
+                    .should_query_with_table('meters', '2018-09-17 09:00:00.200','2018-09-17 09:29:59:999') \
+                        .should_query_with_tsma('tsma2', '2018-09-17 09:30:00','2018-09-17 09:59:59.999') \
+                            .should_query_with_table('meters', '2018-09-17 10:00:00.000','2018-09-17 10:23:19.800').get_ctx())
+
+        sql = 'select avg(c1) + avg(c2), avg(c2) from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
+        ctxs.append(TSMAQueryContextBuilder().with_sql(sql) \
+                    .should_query_with_table('meters', '2018-09-17 09:00:00.200','2018-09-17 09:29:59:999') \
+                        .should_query_with_tsma('tsma2', '2018-09-17 09:30:00','2018-09-17 09:59:59.999') \
+                            .should_query_with_table('meters', '2018-09-17 10:00:00.000','2018-09-17 10:23:19.800').get_ctx())
+
+        sql = 'select avg(c1) + avg(c2), avg(c2) + 1 from meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
+        ctxs.append(TSMAQueryContextBuilder().with_sql(sql) \
+                    .should_query_with_table('meters', '2018-09-17 09:00:00.200','2018-09-17 09:29:59:999') \
+                        .should_query_with_tsma('tsma2', '2018-09-17 09:30:00','2018-09-17 09:59:59.999') \
+                            .should_query_with_table('meters', '2018-09-17 10:00:00.000','2018-09-17 10:23:19.800').get_ctx())
+        
+        sql = 'select avg(c1) + avg(c2) from meters where tbname like "%t1%"'
+        ctxs.append(TSMAQueryContextBuilder().with_sql(sql) \
+                    .should_query_with_tsma('tsma2', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_ctx())
+
+        sql = 'select avg(c1), avg(c2) from meters where c1 is not NULL'
+        ctxs.append(TSMAQueryContextBuilder().with_sql(sql) \
+                    .should_query_with_table('meters', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_ctx())
+
+        sql = 'select avg(c1), avg(c2), spread(c4) from meters'
+        ctxs.append(TSMAQueryContextBuilder().with_sql(sql) \
+                    .should_query_with_table('meters', UsedTsma.TS_MIN,UsedTsma.TS_MAX).get_ctx())
+        
+        return ctxs
 
     def test_query_with_tsma_agg_group_by_tbname(self):
-        pass
+        return []
 
     def test_query_with_tsma_agg_group_by_tag(self):
-        pass
+        return []
 
     def test_query_with_tsma_agg_group_by_hybrid(self):
-        pass
+        return []
 
     def run(self):
         self.test_query_with_tsma()
-        time.sleep(999999)
+        #time.sleep(999999)
 
     def stop(self):
         tdSql.close()
