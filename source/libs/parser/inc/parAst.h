@@ -246,7 +246,8 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, STokenPair*
                         SNode* pTagCond);
 SNode* createDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere);
 SNode* createInsertStmt(SAstCreateContext* pCxt, SNode* pTable, SNodeList* pCols, SNode* pQuery);
-
+SNode* createShowCompactDetailsStmt(SAstCreateContext* pCxt, SNode* pCompactIdNode);
+SNode* createShowCompactsStmt(SAstCreateContext* pCxt, ENodeType type);
 #ifdef __cplusplus
 }
 #endif

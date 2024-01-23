@@ -105,9 +105,9 @@ int32_t  tsAuditInterval = 5000;
 
 // telem
 #ifdef TD_ENTERPRISE
-bool     tsEnableTelem = false;
+bool tsEnableTelem = false;
 #else
-bool     tsEnableTelem = true;
+bool    tsEnableTelem = true;
 #endif
 int32_t  tsTelemInterval = 43200;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
@@ -115,9 +115,9 @@ uint16_t tsTelemPort = 80;
 char    *tsTelemUri = "/report";
 
 #ifdef TD_ENTERPRISE
-bool  tsEnableCrashReport = false;
+bool tsEnableCrashReport = false;
 #else
-bool  tsEnableCrashReport = true;
+bool    tsEnableCrashReport = true;
 #endif
 char *tsClientCrashReportUri = "/ccrashreport";
 char *tsSvrCrashReportUri = "/dcrashreport";
@@ -251,6 +251,7 @@ int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
 
 // internal
 int32_t tsTransPullupInterval = 2;
+int32_t tsCompactPullupInterval = 10;
 int32_t tsMqRebalanceInterval = 2;
 int32_t tsStreamCheckpointTickInterval = 600;
 int32_t tsStreamNodeCheckInterval = 10;
@@ -340,16 +341,24 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
   char cfgFile[PATH_MAX + 100] = {0};
 
   taosExpandDir(inputCfgDir, cfgDir, PATH_MAX);
-  char lastC = cfgDir[strlen(cfgDir) - 1];
+  char  lastC = cfgDir[strlen(cfgDir) - 1];
   char *tdDirsep = TD_DIRSEP;
   if (lastC == '\\' || lastC == '/') {
     tdDirsep = "";
   }
   if (taosIsDir(cfgDir)) {
 #ifdef CUS_PROMPT
-    snprintf(cfgFile, sizeof(cfgFile), "%s" "%s" "%s.cfg", cfgDir, tdDirsep, CUS_PROMPT);
+    snprintf(cfgFile, sizeof(cfgFile),
+             "%s"
+             "%s"
+             "%s.cfg",
+             cfgDir, tdDirsep, CUS_PROMPT);
 #else
-    snprintf(cfgFile, sizeof(cfgFile), "%s" "%s" "taos.cfg", cfgDir, tdDirsep);
+    snprintf(cfgFile, sizeof(cfgFile),
+             "%s"
+             "%s"
+             "taos.cfg",
+             cfgDir, tdDirsep);
 #endif
   } else {
     tstrncpy(cfgFile, cfgDir, sizeof(cfgDir));
@@ -631,8 +640,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "auditFqdn", tsAuditFqdn, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "auditPort", tsAuditPort, 1, 65056, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddBool(pCfg, "auditCreateTable", tsEnableAuditCreateTable, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 500, 200000, CFG_SCOPE_SERVER) != 0)
-    return -1;
+  if (cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 500, 200000, CFG_SCOPE_SERVER) != 0) return -1;
 
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddBool(pCfg, "telemetryReporting", tsEnableTelem, CFG_SCOPE_BOTH) != 0) return -1;
@@ -643,6 +651,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "tmqMaxTopicNum", tmqMaxTopicNum, 1, 10000, CFG_SCOPE_SERVER) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "compactPullupInterval", tsCompactPullupInterval, 1, 10000, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "ttlUnit", tsTtlUnit, 1, 86400 * 365, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "ttlPushInterval", tsTtlPushIntervalSec, 1, 100000, CFG_SCOPE_SERVER) != 0) return -1;
@@ -1053,6 +1062,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tmqMaxTopicNum = cfgGetItem(pCfg, "tmqMaxTopicNum")->i32;
 
   tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
+  tsCompactPullupInterval = cfgGetItem(pCfg, "compactPullupInterval")->i32;
   tsMqRebalanceInterval = cfgGetItem(pCfg, "mqRebalanceInterval")->i32;
   tsTtlUnit = cfgGetItem(pCfg, "ttlUnit")->i32;
   tsTtlPushIntervalSec = cfgGetItem(pCfg, "ttlPushInterval")->i32;
