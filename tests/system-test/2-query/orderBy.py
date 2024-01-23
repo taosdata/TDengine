@@ -302,6 +302,11 @@ class TDTestCase:
 
         tdSql.error(f"SELECT last(ts) as t2, ts FROM t1 order by last(t2)")
 
+        tdSql.execute(f"alter local 'keepColumnName' '1'")
+        tdSql.no_error(f"SELECT last(ts), first(ts) FROM t1 order by last(ts)")
+        tdSql.no_error(f"SELECT last(c1), first(c1) FROM t1 order by last(c1)")
+        tdSql.error(f"SELECT last(ts) as t, first(ts) as t FROM t1 order by last(t)")
+
     def queryOrderByAmbiguousName(self):
         tdSql.error(sql="select c1 as name, c2 as name, c3 from t1 order by name", expectErrInfo='ambiguous', fullMatched=False)
 
