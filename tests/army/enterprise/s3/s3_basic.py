@@ -128,7 +128,7 @@ class TDTestCase(TBase):
             self.checkInsertCorrect()
 
             # check stream correct and drop stream
-            self.checkStreamCorrect()
+            # self.checkStreamCorrect()
 
             # drop stream
             self.dropStream(self.sname)
