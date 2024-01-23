@@ -940,7 +940,7 @@ static int32_t translateLeastSQR(SFunctionNode* pFunc, char* pErrBuf, int32_t le
     }
   }
 
-  pFunc->node.resType = (SDataType){.bytes = 64, .type = TSDB_DATA_TYPE_BINARY};
+  pFunc->node.resType = (SDataType){.bytes = LEASTSQUARES_BUFF_LENGTH, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
 

@@ -26,6 +26,8 @@
 #include "tname.h"
 #include "tversion.h"
 
+extern SClientHbMgr clientHbMgr;
+
 static void setErrno(SRequestObj* pRequest, int32_t code) {
   pRequest->code = code;
   terrno = code;
@@ -63,8 +65,9 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   STscObj* pTscObj = pRequest->pTscObj;
 
-  if (NULL == pTscObj->pAppInfo || NULL == pTscObj->pAppInfo->pAppHbMgr) {
-    setErrno(pRequest, TSDB_CODE_TSC_DISCONNECTED);
+  if (NULL == pTscObj->pAppInfo) {
+    code = TSDB_CODE_TSC_DISCONNECTED;
+    setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
     goto End;
   }
@@ -95,7 +98,8 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (connectRsp.epSet.numOfEps == 0) {
-    setErrno(pRequest, TSDB_CODE_APP_ERROR);
+    code = TSDB_CODE_APP_ERROR;
+    setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
     goto End;
   }
@@ -141,7 +145,18 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   pTscObj->passInfo.ver = connectRsp.passVer;
   pTscObj->authVer = connectRsp.authVer;
 
-  hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, pTscObj->id, connectRsp.clusterId, connectRsp.connType);
+  taosThreadMutexLock(&clientHbMgr.lock);
+  SAppHbMgr* pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, pTscObj->appHbMgrIdx);
+  if (pAppHbMgr) {
+    hbRegisterConn(pAppHbMgr, pTscObj->id, connectRsp.clusterId, connectRsp.connType);
+  } else {
+    taosThreadMutexUnlock(&clientHbMgr.lock);
+    code = TSDB_CODE_TSC_DISCONNECTED;
+    setErrno(pRequest, code);
+    tsem_post(&pRequest->body.rspSem);
+    goto End;
+  }
+  taosThreadMutexUnlock(&clientHbMgr.lock);
 
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, connectRsp.clusterId,
            pTscObj->pAppInfo->numOfConns);

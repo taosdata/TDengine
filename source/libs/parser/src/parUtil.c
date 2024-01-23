@@ -186,6 +186,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid usage of expr: %s";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
+    case TSDB_CODE_PAR_ORDERBY_AMBIGUOUS:
+      return "ORDER BY \"%s\" is ambiguous";
     default:
       return "Unknown error";
   }

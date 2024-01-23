@@ -87,7 +87,7 @@ void    qCleanupKeywordsTable();
 
 int32_t     qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash);
 int32_t     qResetStmtDataBlock(STableDataCxt* block, bool keepBuf);
-int32_t     qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool reset);
+int32_t     qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool reset, bool copyMeta);
 int32_t     qRebuildStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_t uid, uint64_t suid, int32_t vgId,
                                   bool rebuildCreateTb);
 void        qDestroyStmtDataBlock(STableDataCxt* pBlock);
@@ -119,7 +119,7 @@ int32_t smlBindData(SQuery* handle, bool dataFormat, SArray* tags, SArray* colsS
                     STableMeta* pTableMeta, char* tableName, const char* sTableName, int32_t sTableNameLen, int32_t ttl,
                     char* msgBuf, int32_t msgBufLen);
 int32_t smlBuildOutput(SQuery* handle, SHashObj* pVgHash);
-int     rawBlockBindData(SQuery *query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, TAOS_FIELD *fields, int numFields, bool needChangeLength);
+int     rawBlockBindData(SQuery *query, STableMeta* pTableMeta, void* data, SVCreateTbReq** pCreateTb, TAOS_FIELD *fields, int numFields, bool needChangeLength);
 
 int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);
 SArray* serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap);

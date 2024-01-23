@@ -27,6 +27,7 @@ typedef struct SProjectOperatorInfo {
   SLimitInfo     limitInfo;
   bool           mergeDataBlocks;
   SSDataBlock*   pFinalRes;
+  bool           inputIgnoreGroup;
 } SProjectOperatorInfo;
 
 typedef struct SIndefOperatorInfo {
@@ -109,7 +110,8 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   pInfo->pFinalRes = createOneDataBlock(pResBlock, false);
   pInfo->binfo.inputTsOrder = pProjPhyNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pProjPhyNode->node.outputTsOrder;
-
+  pInfo->inputIgnoreGroup = pProjPhyNode->inputIgnoreGroup;
+  
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
     pInfo->mergeDataBlocks = false;
   } else {
@@ -296,6 +298,10 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
           pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_CREATE_CHILD_TABLE ||
           pBlock->info.type == STREAM_CHECKPOINT) {
         return pBlock;
+      }
+
+      if (pProjectInfo->inputIgnoreGroup) {
+        pBlock->info.id.groupId = 0;
       }
 
       int32_t status = discardGroupDataBlock(pBlock, pLimitInfo);
