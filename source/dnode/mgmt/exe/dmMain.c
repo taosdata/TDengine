@@ -169,7 +169,16 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
         return -1;
       }
     } else if (strcmp(argv[i], "-a") == 0) {
-      tstrncpy(global.apolloUrl, argv[++i], PATH_MAX);
+      if(i < argc - 1) {
+        if (strlen(argv[++i]) >= PATH_MAX) {
+          printf("apollo url overflow");
+          return -1;
+        }
+        tstrncpy(global.apolloUrl, argv[i], PATH_MAX);
+      } else {
+        printf("'-a' requires a parameter\n");
+        return -1;
+      }
     } else if (strcmp(argv[i], "-s") == 0) {
       global.dumpSdb = true;
     } else if (strcmp(argv[i], "-E") == 0) {
