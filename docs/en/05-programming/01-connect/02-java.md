@@ -99,7 +99,7 @@ Create a meterMapper.xml file under src/main/resources/mapper, and add the follo
 {{#include docs/examples/java/spring/src/main/resources/mapper/meterMapper.xml}}
 ```
 
-For more details about how to write or query data from TDEngine Cloud, please refer to: <https://github.com/taosdata/TDengine/blob/docs-cloud/docs/examples/java/spring/>
+For more details about how to write or query data from TDEngine Cloud, please refer to: <https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring/>
 
 </TabItem>
 </Tabs>

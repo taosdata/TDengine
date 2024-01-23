@@ -103,7 +103,7 @@ $env:TDENGINE_JDBC_URL='<jdbcURL>'
 {{#include docs/examples/java/spring/src/main/resources/mapper/meterMapper.xml}}
 ```
 
-更多查询和插入 TDEngine 云服务示例代码，请参考：<https://github.com/taosdata/TDengine/blob/docs-cloud/docs/examples/java/spring/>
+更多查询和插入 TDEngine 云服务示例代码，请参考：<https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring/>
 
 </TabItem>
 </Tabs>
