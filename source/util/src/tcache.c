@@ -994,6 +994,12 @@ void *taosCacheIterGetKey(const SCacheIter *pIter, size_t *len) {
 }
 
 void taosCacheDestroyIter(SCacheIter *pIter) {
+  for (int32_t i = 0; i < pIter->numOfObj; ++i) {
+    if (!pIter->pCurrent[i]) continue;
+    char *p = pIter->pCurrent[i]->data;
+    taosCacheRelease(pIter->pCacheObj, (void **)&p, false);
+    pIter->pCurrent[i] = NULL;
+  }
   taosMemoryFreeClear(pIter->pCurrent);
   taosMemoryFreeClear(pIter);
 }
