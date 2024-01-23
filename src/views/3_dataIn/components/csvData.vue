@@ -536,7 +536,6 @@ export default {
   }
   .nextbtn {
     width: 100%;
-    margin-top: 20px;
     margin-bottom: 20px;
   }
   .csv-config {

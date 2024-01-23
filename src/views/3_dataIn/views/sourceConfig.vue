@@ -344,11 +344,11 @@ export default {
         this.getDataSource();
         this.$nextTick(() => {
           this.$refs.form.clearValidate();
-          if (document.querySelector(".transdescription")) {
-            let dom = document.querySelector(".transdescription");
-            let top = dom.offsetTop + dom.getBoundingClientRect().height;
-            this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
-          }
+          // if (document.querySelector(".block-title.top")) {
+          //   let dom = document.querySelector(".block-title.top");
+          //   let top = dom.offsetTop + dom.getBoundingClientRect().height;
+          //   this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
+          // }
         });
       },
       immediate: true,

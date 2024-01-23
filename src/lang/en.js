@@ -1272,11 +1272,14 @@ export default {
     // opc_alias:'Alias',
     // opc_type:'Type',
     transformer: {
-      sampleval: "Smaple Value",
+      sampleval: "Sample message body collection timestamp",
       resulttb: "Result Display",
       nexttip: "Please proceed the next step first",
       addExtract: "Add Extract/Split",
       addfilter: "Add Filter",
+      coltip:'Please select the column',
+      valuetip:'Please enter a constant',
+      configuredcount:'Configured',
       msgbodytypes: {
         type1: "Copy and Paste",
         type2: "Retrieve From Server",
@@ -1287,15 +1290,15 @@ export default {
       filterunexe:
         "The filtering condition has not been triggered yet, press the enter key to trigger it",
       parsefirst: "Please excute the parse,extract or split first",
-      parse: "Parse",
+      parse: "1. Parse",
       jsontip: "Please enter the correct JSON format",
       mappingvaildtip:
         "Please fill in the correct primary key, column, and tag",
+        // 2. <strong>Split</strong>: User could use a sep separator to split specific columns out of the field, set the column size with n and use names by a ,-separated name list. For example, use sep = -, n = 3, names = a,b,c, it will split  1-2-3 text string into three columns with values: a = 1, b = 2, c = 3.<br/>
       extractdesc: `
       <strong>taosX supports three kinds of extractor</strong>:<br/>
 1. <strong>JSON</strong>: User could use object name such as: name , or [JSON Path]<em>(https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-20.html)</em> query such as $.field.sub=new_name to extract multiple fields from one string(json) field.<br/>
-2. <strong>Split</strong>: User could use a sep separator to split specific columns out of the field, set the column size with n and use names by a ,-separated name list. For example, use sep = -, n = 3, names = a,b,c, it will split  1-2-3 text string into three columns with values: a = 1, b = 2, c = 3.<br/>
-3. <strong>Regex</strong>: User could use named capture groups in regex pattern to extract multiple fields from any string(text) field. For example: a regex patten <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. You can use <em>http://regex101.com/</em>  test your regex with Rust flavor.<br/>
+2. <strong>Regex</strong>: User could use named capture groups in regex pattern to extract multiple fields from any string(text) field. For example: a regex patten <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. You can use <em>http://regex101.com/</em>  test your regex with Rust flavor.<br/>
       `,
       subextractdesc:`
       <strong>taosX supports two kinds of extractor</strong>:<br/>
@@ -1312,14 +1315,14 @@ export default {
       sepntip: "Please enter the separator number",
       csvtip:
         "The number of custom columns must be equal to the number of CSV columns",
-      identified: "Column Identified",
+      identified: "1. Column Identified",
       preview: "Preview",
       previewmore: "Preview Result",
       more: "More",
       viewmore: "View More",
       extract: "Extract or Split From A column",
-      filter: "Filter",
-      superconfig: "Mapping",
+      filter: "2. Filter",
+      superconfig: "3. Mapping",
       target: "Target Super Table",
       mapping: "Mapping",
       createstb: "Create STable",
@@ -1334,9 +1337,9 @@ export default {
       targetSt: "Target Super Table",
       mutiple: "Multiple addition queries separated by semicolons",
       msgbody: "Sample Message Body",
-      msgbodytip: "Please enter the message body first",
+      msgbodytip: "Please enter the sample message body ",
       searchSResult: "Press the enter key to query after completion",
-      tablenametip: "Please enter the table name expression first",
+      tablenametip: "Please the table name ",
       mapcalculate: "Please calculate mapping first",
       calculate: "Caculate",
     },

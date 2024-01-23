@@ -7,7 +7,7 @@
     <el-table
       border
       style="width: 100%"
-      max-height="600"
+      max-height="510"
       :data="pageTableData"
       :row-class-name="tableRowClassName"
     >
@@ -81,20 +81,22 @@ export default {
     },
     handleScroll() {
       this.$nextTick(() => {
-        let dom = document.querySelector(".transdescription");
+        let dom = document.querySelector(".block-title.top");
         if (dom) {
           const mainDom = document.querySelector(".main_content");
+
           const scrollTop = mainDom.scrollTop;
           let top = scrollTop >= dom.offsetTop ? scrollTop : dom.offsetTop;
           this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
           if (this.$refs.result) {
             if(this.$store.state.app.currentDBType=='csv'){
-                this.$refs.result.style.top = top +"px";
+              const csvdom=document.querySelector(".csv-data")
+              let csvtop = top >= (csvdom.offsetTop+dom.offsetTop) ? top : (csvdom.offsetTop+dom.offsetTop+25);
+                this.$refs.result.style.top =csvtop +"px";
             }else{
-                this.$refs.result.style.top = top - 200 + "px";
+              let commomtop=scrollTop >= dom.offsetTop ? scrollTop -160 : dom.offsetTop;
+                this.$refs.result.style.top = commomtop + "px";
             }
-            
-            // this.$refs.result.style.bottom=70+'px'
           }
         }
       });
@@ -158,9 +160,9 @@ export default {
         if (targetRow) {
           if (this.$store.state.app.activeColumns.length > 0) {
             const y = targetRow.offsetTop;
-            this.$el.querySelector(".el-table__body-wrapper").scrollTo(0, y);
+            this.$el?.querySelector(".el-table__body-wrapper").scrollTo(0, y);
           } else {
-            this.$el.querySelector(".el-table__body-wrapper").scrollTo(0, 0);
+            this.$el?.querySelector(".el-table__body-wrapper").scrollTo(0, 0);
           }
         }
       }, 200);
@@ -251,7 +253,7 @@ export default {
       //     display: none !important;
       //   }
       &.el-table__cell {
-        padding: 6px 0px;
+        padding: 6px 0px!important;
       }
       .active-row {
         background: #ecf2fe !important;

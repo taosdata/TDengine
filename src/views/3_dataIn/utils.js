@@ -109,7 +109,7 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
     if (id == 'kafka' || id == 'mqtt') {
       handleConnectivityCheck(connectivityCheck=true,paramsConfig)
     }
-    handleParser(parser, paramsConfig, parserValue);
+    handleParser(parser, paramsConfig, parserValue,id);
     handleCsvData(id,paramsConfig);
     handleAdvanced(advanced, paramsConfig)
     // 先处理protocol
@@ -121,7 +121,6 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
       paramsConfig.splice(index,1)
     }
     formConfig[id] = config;
-    
    
     return formConfig;
   }, {});
@@ -404,12 +403,12 @@ function handleCsvData(id, paramsConfig) {
 }
  */
 
-function handleParser(parser, paramsConfig, value = cloneDeep(DefaultParserValue)) {
+function handleParser(parser, paramsConfig, value = cloneDeep(DefaultParserValue),id) {
   if (!parser) return;
   const { display, description, fields } = parser;
   paramsConfig.push({
     label: display,
-    description,
+    description:['mqtt','kafka'].includes(id)?'':description,
     field: 'parser',
     type: 'parser',
     fields: fields,//fields.filter(item => item.name != 'payload'),

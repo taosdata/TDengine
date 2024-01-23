@@ -1059,10 +1059,14 @@ export default {
   datasource: {
     transformer: {
       resulttb: "结果展示",
-      sampleval: "示例值",
+      sampleval: "示例消息体采集时间戳",
       nexttip:"请先执行下一步操作",
       addExtract:'新增提取/拆分',
       addfilter:'新增过滤',
+      coltip:'请选择列',
+      valuetip:'请输入常量',
+      configuredcount:'已配置',
+      unit:'条',
       msgbodytypes: {
         type1: "复制粘贴",
         type2: "从服务器检索",
@@ -1072,13 +1076,13 @@ export default {
       filterexecuted: "筛选条件已触发",
       filterunexe: "筛选条件尚未触发，按Enter键触发",
       parsefirst: "请先执行解析,提取或者拆分操作",
-      parse: "解析",
+      parse: "1. 解析",
       jsontip: "请输入正确JSON格式",
       mappingvaildtip: "请填写正确的主键，列和tag",
-      extractdesc: `<strong>taosX 支持 JSON 或正则表达式解析文本</strong>：<br/>
+      // 2. <strong>Split</strong>: 用户可以使用分隔符将简单字符串分割为多列，其中 sep 表示分隔符，n 表示分割后的数量，names 是以 , （ 英文逗号 ）分隔的列名字符串。使用 - 作为分隔符，n 为 3，names 为 a,b,c ，可将字符串 1-2-3 分割为三列，分别是：a = 1, b = 2, c = 3。<br/>
+      extractdesc: `<strong>taosX 支持 JSON 或正则表达式解析消息体文本</strong>：<br/>
       1. <strong>JSON</strong>: 用户使用多个 ; 分隔的字段名（如： name ）或  [JSON Path]<em>(https://www.ietf.org/archive/id/draft-ietf-jsonpath-base-20.html)</em> 提取表达式（形如 "$.path=new_name"，如： $.field.sub=new_name ）从 JSON 对象中提取出多列。<br/>
-      2. <strong>Split</strong>: 用户可以使用分隔符将简单字符串分割为多列，其中 sep 表示分隔符，n 表示分割后的数量，names 是以 , （ 英文逗号 ）分隔的列名字符串。使用 - 作为分隔符，n 为 3，names 为 a,b,c ，可将字符串 1-2-3 分割为三列，分别是：a = 1, b = 2, c = 3。<br/>
-      3. <strong>Regex</strong>: 用户可以在正则表达式模式中使用命名捕获组来从任何字符串（文本）字段中提取多个字段。例如，正则表达式模式<em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em>将提取3个字段 y、m 和 d。更多的命名捕获组（named capture groups）的说明和测试可以在这里得到：<em>http://regex101.com/</em> （使用 Rust 实现）<br/>`,
+      2. <strong>Regex</strong>: 用户可以在正则表达式模式中使用命名捕获组来从任何字符串（文本）字段中提取多个字段。例如，正则表达式模式<em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em>将提取3个字段 y、m 和 d。更多的命名捕获组（named capture groups）的说明和测试可以在这里得到：<em>http://regex101.com/</em> （使用 Rust 实现）<br/>`,
       filterdesc: `<strong>taosX 内置一个功能丰富的表达式引擎。Filter 过滤器使用布尔类型进行过滤判断。当表达式为 false 的行将被过滤掉。</strong><br/>
       - <strong>布尔类型</strong>： bool_value 可直接使用 BOOL 类型的变量名作为表达式。<br/>
       - <strong>比较</strong>： 当 a b 字段都不为空时，可以进行  a > b 等比较操作，支持 >、 >=、 < 、<= && || 等操作。<br/>
@@ -1091,16 +1095,16 @@ export default {
       septip: "请输入分隔符",
       sepntip: "请输入分隔符个数",
       csvtip: "自定义列数必须等于csv列数",
-      identified: "识别的列",
+      identified: "1. 识别的列",
       preview:'预览',
       previewmore:'预览结果',
       more:'更多',
       viewmore:'查看更多',
       extract: "从列中提取或拆分",
-      filter: "过滤",
-      superconfig: "映射",
+      filter: "2. 过滤",
+      superconfig: "3. 映射",
       target: "目标超级表",
-      mapping: "映射",
+      mapping: "3. 映射",
       createstb: "创建超级表",
       payload: "负载格式",
       upload: "上传样本数据",
@@ -1113,9 +1117,9 @@ export default {
       targetSt: "目标超级表",
       mutiple: "多条件查询以分号分隔",
       msgbody: "示例消息体",
-      msgbodytip: "请先输入消息体",
+      msgbodytip: "请输入示例消息体",
       searchSResult: "输入完后按enter键查询",
-      tablenametip: "请先输入表名表达式",
+      tablenametip: "请输入表名称",
       mapcalculate: "请先计算mapping值",
       calculate: "计算",
     },
