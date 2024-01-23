@@ -592,7 +592,7 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
   }
   if (pEpSet->numOfEps > 0) {
     pEpSet->inUse = (pSyncNode->raftCfg.cfg.myIndex + 1) % pEpSet->numOfEps;
-    pEpSet->inUse = 0;
+    // pEpSet->inUse = 0;
   }
   epsetSort(pEpSet);
 
