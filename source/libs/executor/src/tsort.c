@@ -1085,7 +1085,7 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
 
     int64_t p = taosGetTimestampUs();
     bool bExtractedBlock = false;
-    if (pBlk != NULL && pHandle->mergeLimit != -1) {
+    if (pBlk != NULL && pHandle->mergeLimit > 0) {
       pBlk = getRowsBlockWithinMergeLimit(pHandle, mTableNumRows, pBlk, &bExtractedBlock);
     }
 
