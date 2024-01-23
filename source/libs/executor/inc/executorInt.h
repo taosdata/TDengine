@@ -42,6 +42,7 @@ extern "C" {
 // #include "tstream.h"
 // #include "tstreamUpdate.h"
 #include "tlrucache.h"
+#include "tdatablock.h"
 
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
@@ -284,6 +285,34 @@ typedef struct STableScanInfo {
   bool            needCountEmptyTable;
 } STableScanInfo;
 
+typedef enum ESubTableInputType {
+  SUB_TABLE_MEM_BLOCK,
+  SUB_TABLE_EXT_PAGES,
+} ESubTableInputType;
+
+typedef struct STmsSubTableInput {
+  STsdbReader* pReader;
+  ESubTableInputType type;
+  SSDataBlock* pBlock;
+  SArray* aBlockPages;
+
+  int32_t pageIdx;
+  int32_t rowIdx;
+  int64_t* aTs;
+} STmsSubTableInput;
+
+typedef struct STmsSubTablesMergeInfo {
+  SBlockOrderInfo* pOrderInfo;
+
+  int32_t numSubTables;
+  STmsSubTableInput* aInputs;
+  SMultiwayMergeTreeInfo* pTree;
+  int32_t numTablesCompleted;
+
+  int32_t        numTableBlocksInMem;
+  SDiskbasedBuf* pBlocksBuf;
+} STmsSubTablesMergeInfo;
+
 typedef struct STableMergeScanInfo {
   int32_t         tableStartIndex;
   int32_t         tableEndIndex;
@@ -318,6 +347,9 @@ typedef struct STableMergeScanInfo {
   SSDataBlock*     nextDurationBlocks[2];
   bool             rtnNextDurationBlocks;
   int32_t          nextDurationBlocksIdx;
+
+
+  STmsSubTablesMergeInfo* pSubTablesMergeInfo;
 } STableMergeScanInfo;
 
 typedef struct STagScanFilterContext {
