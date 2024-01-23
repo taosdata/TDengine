@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.taos.example.dao.MeterMapper">
+  <resultMap id="Meter" type="com.taos.example.dao.Meter">
+    <result column="ts" property="ts"/>
+    <result column="current" property="current"/>
+    <result column="voltage" property="voltage"/>
+    <result column="phase" property="phase"/>
+    <result column="groupId" property="groupid"/>
+    <result column="location" property="location"/>
+  </resultMap>
+
+  <insert id="create">
+    CREATE TABLE IF NOT EXISTS #{tableName, jdbcType=VARCHAR} USING meters TAGS
+    (#{meter.groupId, jdbcType=INTEGER}, #{meter.location, jdbcType=VARCHAR})
+  </insert>
+
+  <insert id="save">
+    INSERT INTO #{tableName} VALUES (#{meter.ts}, #{meter.current}, #{meter.voltage}, #{meter.phase}) ;
+  </insert>
+
+  <select id="lastRow" resultMap="Meter">
+    SELECT last_row(*) FROM meters;
+  </select>
+</mapper>

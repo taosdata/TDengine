@@ -21,12 +21,10 @@ import TabItem from '@theme/TabItem';
 ```
 
 </TabItem>
-<TabItem value="gradel" label="Gradle">
+<TabItem value="spring" label="Spring">
 
-```groovy title="build.gradle"
-dependencies {
-  implementation 'com.taosdata.jdbc:taos-jdbcdriver:3.2.7'
-}
+```xml
+{{#include docs/examples/java/spring/pom.xml:spring}}
 ```
 
 </TabItem>
@@ -34,7 +32,7 @@ dependencies {
 
 ## 配置
 
-在您的终端里面执行下面的命令设置 JDBC URL 为环境变量：
+在您的终端里面执行下面的命令设置 JDBC URL 为环境变量。如果是 spring 应用，您可以使用如下 Spring 的配置：
 
 <Tabs defaultValue="bash">
 <TabItem value="bash" label="Bash">
@@ -58,6 +56,13 @@ $env:TDENGINE_JDBC_URL='<jdbcURL>'
 ```
 
 </TabItem>
+<TabItem value="spring" label="Spring">
+
+```yml
+{{#include docs/examples/java/spring/src/main/resources/application.yml}}
+```
+
+</TabItem>
 </Tabs>
 
 另外，您也可以在您的 IDE 的运行配置里设置环境变量
@@ -74,11 +79,34 @@ $env:TDENGINE_JDBC_URL='<jdbcURL>'
 
 ## 建立连接
 
+<Tabs defaultValue="java">
+<TabItem value="java" label="Java">
+
 下面的代码是先从环境变量里面创建 JDBC URL ，然后创建 `Connection` 这个 JDBC 连接标准对象。
 
 ```java
 {{#include docs/examples/java/src/main/java/com/taos/example/ConnectCloudExample.java:connect}}
 ```
+
+</TabItem>
+<TabItem value="spring" label="Spring">
+
+定义一个名为 MeterMapper 的接口，它使用 MyBatis 框架在 Java 和 TDEngine 数据库之间进行映射。
+
+```
+{{#include docs/examples/java/spring/src/main/java/com/taos/example/dao/MeterMapper.java}}
+```
+
+在`src/main/resources/mapper`中创建 MeterMapper.xml，文件中添加以下 SQL 映射
+
+```
+{{#include docs/examples/java/spring/src/main/resources/mapper/meterMapper.xml}}
+```
+
+更多查询和插入 TDEngine 云服务示例代码，请参考：<https://github.com/taosdata/TDengine/blob/docs-cloud/docs/examples/java/spring/>
+
+</TabItem>
+</Tabs>
 
 客户端连接建立连接以后，想了解更多写入数据和查询数据的内容，请参考 <https://docs.taosdata.com/cloud/programming/insert/> and <https://docs.taosdata.com/cloud/programming/query/>.
 
