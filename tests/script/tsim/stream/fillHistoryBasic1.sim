@@ -18,6 +18,7 @@ sql use test;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 
 sql create stream stream1 trigger at_once fill_history 1 IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s);
+sleep 1000
 
 sql insert into t1 values(1648791213000,1,2,3,1.0);
 sql insert into t1 values(1648791223001,2,2,3,1.1);
@@ -224,53 +225,53 @@ endi
 
 # row 2
 if $data21 != 1 then
-  print ======$data21
+  print ======$data21, expect  1
   goto loop01
 endi
 
 if $data22 != 1 then
-  print ======$data22
+  print ======$data22 , expect 1
   goto loop01
 endi
 
 if $data23 != 3 then
-  print ======$data23
+  print ======$data23 , expect 3
   goto loop01
 endi
 
 if $data24 != 2 then
-  print ======$data24
+  print ======$data24 , expect 2
   goto loop01
 endi
 
 if $data25 != 3 then
-  print ======$data25
+  print ======$data25 , expect 3
   goto loop01
 endi
 
 # row 3
 if $data31 != 1 then
-  print ======$data31
+  print ======$data31 , expect 1
   goto loop01
 endi
 
 if $data32 != 1 then
-  print ======$data32
+  print ======$data32 , expect 1
   goto loop01
 endi
 
 if $data33 != 4 then
-  print ======$data33
+  print ======$data33 , expect 4
   goto loop01
 endi
 
 if $data34 != 2 then
-  print ======$data34
+  print ======$data34 , expect 2
   goto loop01
 endi
 
 if $data35 != 3 then
-  print ======$data35
+  print ======$data35 , expect 3
   goto loop01
 endi
 

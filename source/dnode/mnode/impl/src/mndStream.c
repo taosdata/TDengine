@@ -3033,7 +3033,7 @@ SStreamObj *mndGetStreamObj(SMnode *pMnode, int64_t streamId) {
   return NULL;
 }
 
-static void doAddTaskId(SArray* pList, int32_t taskId) {
+static void doAddTaskId(SArray* pList, int32_t taskId, int64_t uid, int32_t numOfTotal) {
   int32_t num = taosArrayGetSize(pList);
   for(int32_t i = 0; i < num; ++i) {
     int32_t* pId = taosArrayGet(pList, i);
@@ -3043,6 +3043,9 @@ static void doAddTaskId(SArray* pList, int32_t taskId) {
   }
 
   taosArrayPush(pList, &taskId);
+
+  int32_t numOfTasks = taosArrayGetSize(pList);
+  mDebug("stream:0x%" PRIx64 " receive %d reqs for checkpoint, remain:%d", uid, numOfTasks, numOfTotal - numOfTasks);
 }
 
 int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
@@ -3067,35 +3070,33 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
   taosThreadMutexLock(&execInfo.lock);
 
   SStreamObj *pStream = mndGetStreamObj(pMnode, req.streamId);
-  int32_t numOfTasks = mndGetNumOfStreamTasks(pStream);
+  int32_t     numOfTasks = mndGetNumOfStreamTasks(pStream);
 
-  void **pReqTaskList = taosHashGet(execInfo.pTransferStateStreams, &req.streamId, sizeof(req.streamId));
+  SArray **pReqTaskList = (SArray**)taosHashGet(execInfo.pTransferStateStreams, &req.streamId, sizeof(req.streamId));
   if (pReqTaskList == NULL) {
     SArray *pList = taosArrayInit(4, sizeof(int32_t));
-    doAddTaskId(pList, req.taskId);
+    doAddTaskId(pList, req.taskId, pStream->uid, numOfTasks);
     taosHashPut(execInfo.pTransferStateStreams, &req.streamId, sizeof(int64_t), &pList, sizeof(void *));
-    mDebug("stream:0x%" PRIx64 " receive %d reqs for checkpoint, remain:%d", pStream->uid, 1, numOfTasks - 1);
 
+    pReqTaskList = (SArray**)taosHashGet(execInfo.pTransferStateStreams, &req.streamId, sizeof(req.streamId));
   } else {
-    doAddTaskId(*pReqTaskList, req.taskId);
+    doAddTaskId(*pReqTaskList, req.taskId, pStream->uid, numOfTasks);
+  }
 
-    int32_t total = taosArrayGetSize(*pReqTaskList);
-    if (total == numOfTasks) { // all tasks has send the reqs
-      int64_t checkpointId = mndStreamGenChkpId(pMnode);
-      mDebug("stream:0x%" PRIx64 " all tasks req, start checkpointId:%" PRId64, pStream->uid, checkpointId);
+  int32_t total = taosArrayGetSize(*pReqTaskList);
+  if (total == numOfTasks) {  // all tasks has send the reqs
+    int64_t checkpointId = mndStreamGenChkpId(pMnode);
+    mDebug("stream:0x%" PRIx64 " all tasks req, start checkpointId:%" PRId64, pStream->uid, checkpointId);
 
-      // TODO:handle error
-      int32_t code = mndProcessStreamCheckpointTrans(pMnode, pStream, checkpointId, 0, false);
+    // TODO:handle error
+    int32_t code = mndProcessStreamCheckpointTrans(pMnode, pStream, checkpointId, 0, false);
 
-      // remove this entry
-      taosArrayDestroy(*(SArray**)pReqTaskList);
-      taosHashRemove(execInfo.pTransferStateStreams, &req.streamId, sizeof(int64_t));
+    // remove this entry
+    taosArrayDestroy(*pReqTaskList);
+    taosHashRemove(execInfo.pTransferStateStreams, &req.streamId, sizeof(int64_t));
 
-      int32_t numOfStreams = taosHashGetSize(execInfo.pTransferStateStreams);
-      mDebug("stream:0x%" PRIx64 " removed, remain streams:%d fill-history not completed", pStream->uid, numOfStreams);
-    } else {
-      mDebug("stream:0x%" PRIx64 " receive %d reqs for checkpoint, remain:%d", pStream->uid, total, numOfTasks - total);
-    }
+    int32_t numOfStreams = taosHashGetSize(execInfo.pTransferStateStreams);
+    mDebug("stream:0x%" PRIx64 " removed, remain streams:%d fill-history not completed", pStream->uid, numOfStreams);
   }
 
   mndReleaseStream(pMnode, pStream);
