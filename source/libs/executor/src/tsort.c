@@ -870,7 +870,7 @@ static int32_t appendDataBlockToPageBuf(SSortHandle* pHandle, SSDataBlock* blk, 
 
   int32_t size = blockDataGetSize(blk) + sizeof(int32_t) + taosArrayGetSize(blk->pDataBlock) * sizeof(int32_t);
   ASSERT(size <= getBufPageSize(pHandle->pBuf));
-
+  
   blockDataToBuf(pPage, blk);
 
   setBufPageDirty(pPage, true);
@@ -1026,7 +1026,6 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SBlockO
 }
 
 static SSDataBlock* getRowsBlockWithinMergeLimit(const SSortHandle* pHandle, SSHashObj* mTableNumRows, SSDataBlock* pOrigBlk, bool* pExtractedBlock) {
-  int64_t keepRows = pOrigBlk->info.rows;
   int64_t nRows = 0;
   int64_t prevRows = 0;
   void*   pNum = tSimpleHashGet(mTableNumRows, &pOrigBlk->info.id.uid, sizeof(pOrigBlk->info.id.uid));
@@ -1040,15 +1039,18 @@ static SSDataBlock* getRowsBlockWithinMergeLimit(const SSortHandle* pHandle, SSH
     nRows = *(int64_t*)pNum;
   }
 
+  int64_t keepRows = pOrigBlk->info.rows;
   if (nRows >= pHandle->mergeLimit) {
     keepRows = pHandle->mergeLimit - prevRows;
   }
+  
   SSDataBlock* pBlock = NULL;
   if (keepRows != pOrigBlk->info.rows) {
     pBlock = blockDataExtractBlock(pOrigBlk, 0, keepRows);
     *pExtractedBlock = true;
   } else {
     *pExtractedBlock = false;
+    pBlock = pOrigBlk;
   }
   return pBlock;
 }
