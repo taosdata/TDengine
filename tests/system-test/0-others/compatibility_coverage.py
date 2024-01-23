@@ -152,7 +152,7 @@ class TDTestCase:
         os.system(f"rm -rf {cPath}/../data")
         print(self.projPath)
         # this data file is special for coverage test in 192.168.1.96
-        os.system("cp -r  f{self.projPath}/../comp_testdata/data/ {self.projPath}/sim/dnode1")
+        os.system(f"cp -r  {self.projPath}/../comp_testdata/data/ {self.projPath}/community/sim/dnode1")
         tdDnodes.stop(1) 
         tdDnodes.start(1) 
 
