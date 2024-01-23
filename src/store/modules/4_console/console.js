@@ -94,6 +94,7 @@ const actions = {
     return sendSQLReq(sql)
       .then(res => {
         handleSuccess(res, state, commit, rootState, sql, startTime);
+        updateTree(res, commit)
       })
       .catch(res => {
         handleFail(res, state, commit, rootState, sql, startTime);
@@ -114,6 +115,14 @@ const actions = {
       .catch(() => (state.sharedFavorites = []));
   },
 };
+
+function updateTree(res, commit) {
+  // 有 affected_rows 这个字段，并且等于0，才去刷新
+  let metaIndex = res.column_meta[0].findIndex(item => item == 'affected_rows')
+  if (metaIndex != -1 && res.data[0][metaIndex] == 0) {
+    commit("CHANGE_TREE_KEY")
+  }
+}
 function handleSuccess(res, state, commit, rootState, sql, startTime) {
   // 记录执行成功历史
   let data = res.data.map(item => item.map(val => val + ""));
