@@ -895,10 +895,10 @@ int32_t tsDecompressFloatImp(const char *const input, const int32_t nelements, c
     return nelements * FLOAT_BYTES;
   }
 
-  if (tsSIMDEnable && tsAVX2Enable) {
-    tsDecompressFloatImplAvx2(input, nelements, output);
-  } else if (tsSIMDEnable && tsAVX512Enable) {
+  if (tsSIMDEnable && tsAVX512Enable ) {
     tsDecompressFloatImplAvx512(input, nelements, output);
+  } else if (tsSIMDEnable && tsAVX2Enable) {
+    tsDecompressFloatImplAvx2(input, nelements, output);
   } else { // alternative implementation without SIMD instructions.
     tsDecompressFloatHelper(input, nelements, (float*)output);
   }

@@ -317,7 +317,97 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
 
 int32_t tsDecompressFloatImplAvx512(const char *const input, const int32_t nelements, char *const output) {
 #if __AVX512F__
-    // todo add it
+  int32_t remain = nelements;
+  uint8_t* p_data_vec;
+  uint8_t flags_rslt = 0;
+  uint8_t nbytes = 0;
+  int32_t batch = nelements/16;
+  int32_t  ipos = 1;
+  remain = nelements%16;
+  int32_t dis = 0;
+  uint32_t prev_value = 0;
+  float *ostream = (float *)output;
+  __m512i flags_vec_mask = _mm512_set_epi32 (0, 0, 0, 0xff00, 0, 0xff0000, 0, 0xff000000,
+          0xff, 0, 0xff00, 0, 0xff0000, 0, 0xff000000, 0xff);
+
+  __m512i flags_vec_cmp = _mm512_set_epi32 (0, 0, 0, 0x2200, 0, 0x220000, 0, 0x22000000,
+          0x22, 0, 0x2200, 0, 0x220000, 0, 0x22000000, 0x22);
+
+  __m512i data_idx = _mm512_set_epi8( 0, 55, 54, 53, 0, 52, 51, 50,
+        0, 48, 47, 46, 0, 45, 44, 43,
+        0, 41, 40, 39, 0, 38, 37, 36,
+        0, 34, 33, 32, 0, 31, 30, 29,
+        0, 27, 26, 25, 0, 24, 23, 22,
+        0, 20, 19, 18, 0, 17, 16, 15,
+        0, 13, 12, 11, 0, 10,  9,  8,
+        0,  6,  5,  4, 0,  3,  2,  1);
+  __m512i diff_mask1 = _mm512_set_epi32 (14, 14, 12, 12, 10, 10,  8,  8, 6, 6, 4, 4, 2, 2, 0, 0);
+  __m512i diff_mask2 = _mm512_set_epi32 (13, 13, 13, 13,  9,  9,  9,  9, 5, 5, 5, 5, 1, 1, 1, 1);
+  __m512i diff_mask3 = _mm512_set_epi32 (11, 11, 11, 11, 11, 11, 11, 11, 3, 3, 3, 3, 3, 3, 3, 3);
+  __m512i diff_mask4 = _mm512_set_epi32 ( 7,  7,  7,  7,  7,  7,  7,  7, 7, 7, 7, 7, 7, 7, 7, 7);
+  __m512i prev_value_vec = _mm512_set1_epi32(prev_value);
+
+
+  //Below debug data is for the data validation check
+  __m512i data_test = _mm512_set_epi8(0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0x30, 0x22,
+                                     0x2f, 0x2e, 0x2d, 0x2c, 0x2b, 0x2a, 0x22, 0x29,
+                                     0x28, 0x27, 0x26, 0x25, 0x24, 0x22, 0x23, 0x22,
+                                     0x21, 0x20, 0x1f, 0x1e, 0x22, 0x1d, 0x1c, 0x1b,
+                                     0x1a, 0x19, 0x18, 0x22, 0x17, 0x16, 0x15, 0x14,
+                                     0x13, 0x12, 0x22, 0x11, 0x10, 0x0f, 0x0e, 0x0d,
+                                     0x0c, 0x22, 0x0b, 0x0a, 0x09, 0x08, 0x07, 0x06,
+                                     0x22, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00, 0x22);
+
+  //original test data -- data_test
+  //D0:0x02010022  D1:0x22050403   D2:0x09080706    D3:0x0c220b0a    D4:0x100f0e0d    D5:0x13122211   D6:0x17161514  D7:0x1a191822
+  //D8:0x221d1c1b  D9:0x21201f1e  D10:0x24222322   D11:0x28272625   D12:0x2b2a2229   D13:0x2f2e2d2c  D14:0x32313022  D15: 0x36353433
+
+  //Reserve data after remove flags 0x22 -- data_after_vec
+  //D0: 0x020100   D1: 0x050403    D2: 0x080706    D3: 0x0b0a09    D4: 0x0e0d0c    D5: 0x11100f    D6: 0x141312    D7: 0x171615
+  //D8: 0x1a1918   D9: 0x1d1c1b   D10: 0x201f1e   D11: 0x232221   D12: 0x262524   D13: 0x292827   D14: 0x2c2b2a   D15: 0x2f2e2d
+
+  //Every 32bit byte final diff value after xor - diff_vec
+  //D0: 0x20100   D1: 0x70503     D2: 0xf0205     D3: 0x4080c     D4: 0xa0500     D5: 0x1b150f    D6: 0xf061d     D7: 0x181008
+  //D8: 0x20910   D9: 0x1f150b    D10: 0x3f0a15   D11: 0x1c2834   D12: 0x3a0d10   D13: 0x132537   D14: 0x3f0e1d   D15: 0x102030
+
+
+
+  for (int32_t j = 0; j < batch; j++) {
+
+  //check 8 flags == 0x22
+  __m512i data_vec = _mm512_loadu_si512 ((__m512i *)&input[ipos]);
+  __mmask16 flag_cmp_res = _mm512_mask_cmpeq_epi32_mask (0xffff, _mm512_and_si512(data_vec, flags_vec_mask), flags_vec_cmp);
+
+  if (flag_cmp_res == 0xffff)
+  {	//handle 8 set of flags
+    __m512i data_after_vec = _mm512_maskz_permutexvar_epi8 (0x7777777777777777, data_idx, data_vec);
+    //flag = 2, so no shift
+    ipos +=56;	//1 flags includes 7 bytes
+                //make 16 elements xor paralell
+    //    D15      D14      D13      D12      D11      D10      D9      D8      D7      D6      D5      D4      D3      D2      D1      D0
+    //XOR D14       0       D12       0       D10       0       D8      0       D6      0       D4      0       D2      0       D0      0
+    //    D15~D14  D14      D13~D12  D12      D11~D10  D10      D9~D8   D8      D7~D6   D6      D5~D4   D4      D3~D2   D2      D1~D0   D0
+    //XOR D13~D12  D13~D12  0        0        D9~D8    D9~D8    0       0       D5~D4   D5~D4   0       0       D1~D0   D1~D0   0       0
+    //    D15~D12  D14~D12  D13~D12  D12      D11~D8   D10~D8   D9~D8   D8      D7~D4   D6~D4   D5~D4   D4      D3~D0   D2~D0   D1~D0   D0
+    //XOR D11~D8   D11~D8   D11~D8   D11~D8   0        0        0       0       D3~D0   D3~D0   D3~D0   D3~D0   0       0       0       0
+    //    D15~D8   D14~D8   D13~D8   D12~D8   D11~D8   D10~D8   D9~D8   D8      D7~D0   D6~D0   D5~D0   D4~D0   D3~D0   D2~D0   D1~D0   D0
+    //XOR D7~D0    D7~D0    D7~D0    D7~D0    D7~D0    D7~D0    D7~D0   D7~D0   0       0       0       0       0       0       0       0
+    //    D15~D0   D14~D0   D13~D0   D12~D0   D11~D0   D10~D0   D9~D0   D8~D0   D7~D0   D6~D0   D5~D0   D4~D0   D3~D0   D2~D0   D1~D0   D0
+    __m512i diff_vec = _mm512_xor_epi32(_mm512_maskz_permutexvar_epi32(0xaaaa, diff_mask1, data_after_vec), data_after_vec);
+    diff_vec = _mm512_xor_epi32(_mm512_maskz_permutexvar_epi32(0xcccc, diff_mask2, diff_vec), diff_vec);
+    diff_vec = _mm512_xor_epi32(_mm512_maskz_permutexvar_epi32(0xf0f0, diff_mask3, diff_vec), diff_vec);
+    diff_vec = _mm512_xor_epi32(_mm512_maskz_permutexvar_epi32(0xff00, diff_mask4, diff_vec), diff_vec);
+    __m512i data_vec_final =  _mm512_xor_si512(prev_value_vec, diff_vec);
+
+    int32_t* p_data_vec_final = (int32_t*)&data_vec_final;
+
+    __m512 data_float = _mm512_cvtepi32_ps(data_vec_final);
+    _mm512_storeu_ps(ostream, data_float);
+    ostream += 16;
+    prev_value_vec = _mm512_set1_epi32(p_data_vec_final[15]);
+
+  }
+}
 #endif
   return 0;
 }
