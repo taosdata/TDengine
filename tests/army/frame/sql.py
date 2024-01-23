@@ -83,6 +83,49 @@ class TDSql:
     #  do execute
     #
 
+    def errors(self, sql_list, expected_error_id_list=None, expected_error_info_list=None):
+        """Execute the sql query and check the error info, expected error id or info should keep the same order with sql list,
+        expected_error_id_list or expected_error_info_list is None, then the error info will not be checked.
+        :param sql_list: the sql list to be executed.
+        :param expected_error_id: the expected error number.
+        :param expected_error_info: the expected error info.
+        :return: None
+        """
+        try:
+            if len(sql_list) > 0:
+                for i in range(len(sql_list)):
+                    if expected_error_id_list and expected_error_info_list:
+                        self.error(sql_list[i], expected_error_id_list[i], expected_error_info_list[i])
+                    elif expected_error_id_list:
+                        self.error(sql_list[i], expectedErrno=expected_error_id_list[i])
+                    elif expected_error_info_list:
+                        self.error(sql_list[i], expectErrInfo=expected_error_info_list[i])
+                    else:
+                        self.error(sql_list[i])
+            else:
+                tdLog.exit("sql list is empty")
+        except Exception as ex:
+            tdLog.exit("Failed to execute sql list: %s, error: %s" % (sql_list, ex))
+
+    def queryAndCheckResult(self, sql_list, expect_result_list):
+        """Execute the sql query and check the result.
+        :param sql_list: the sql list to be executed.
+        :param expect_result_list: the expected result list.
+        :return: None
+        """
+        try:
+            for index in range(len(sql_list)):
+                self.query(sql_list[index])
+                if len(expect_result_list[index]) == 0:
+                    self.checkRows(0)
+                else:
+                    self.checkRows(len(expect_result_list[index]))
+                    for row in range(len(expect_result_list[index])):
+                        for col in range(len(expect_result_list[index][row])):
+                            self.checkData(row, col, expect_result_list[index][row][col])
+        except Exception as ex:
+            raise(ex)
+
     def query(self, sql, row_tag=None, queryTimes=10, count_expected_res=None):
         self.sql = sql
         i=1
@@ -223,6 +266,12 @@ class TDSql:
     def getData(self, row, col):
         self.checkRowCol(row, col)
         return self.res[row][col]
+    
+    def getColData(self, col):
+        colDatas = []
+        for i in range(self.queryRows):
+            colDatas.append(self.res[i][col])
+        return colDatas
 
     def getResult(self, sql):
         self.sql = sql
@@ -440,6 +489,48 @@ class TDSql:
                 tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
         if(show):         
             tdLog.info("check successfully")
+
+    def checkDataMem(self, mem):
+        if not isinstance(mem, list):
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql)
+            tdLog.exit("%s(%d) failed: sql:%s, expect data is error, must is array[][]" % args)
+
+        if len(mem) != self.queryRows:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, len(mem), self.queryRows)
+            tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
+        # row, col, data
+        for row, rowData in enumerate(mem):
+            for col, colData in enumerate(rowData):
+                self.checkData(row, col, colData)
+        tdLog.info("check successfully")
+
+    def checkDataCsv(self, csvfilePath):
+        if not isinstance(csvfilePath, str) or len(csvfilePath) == 0:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, csvfilePath)
+            tdLog.exit("%s(%d) failed: sql:%s, expect csvfile path error:%s" % args)
+
+        tdLog.info("read csvfile read begin")
+        data = []
+        try:
+            with open(csvfilePath) as csvfile:
+                csv_reader = csv.reader(csvfile)  # csv.reader read csvfile\
+                # header = next(csv_reader)        # Read the header of each column in the first row
+                for row in csv_reader:  # csv file save to data
+                    data.append(row)
+        except FileNotFoundError:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, csvfilePath)
+            tdLog.exit("%s(%d) failed: sql:%s, expect csvfile not find error:%s" % args)
+        except Exception as e:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, csvfilePath, str(e))
+            tdLog.exit("%s(%d) failed: sql:%s, expect csvfile path:%s, read error:%s" % args)
+
+        tdLog.info("read csvfile read successfully")
+        self.checkDataMem(data)
 
     # return true or false replace exit, no print out
     def checkRowColNoExit(self, row, col):

@@ -15,7 +15,7 @@
         {
             "dbinfo": {
                 "name": "db",
-                "drop": "yes",
+                "drop": "no",
                 "vgroups": 3,
                 "replica": 3,
                 "duration":"3d",
@@ -26,12 +26,12 @@
             "super_tables": [
                 {
                     "name": "stb",
-                    "child_table_exists": "no",
+                    "child_table_exists": "yes",
                     "childtable_count": 6,
-                    "insert_rows": 100000,
+                    "insert_rows": 50000,
                     "childtable_prefix": "d",
                     "insert_mode": "taosc",
-                    "timestamp_step": 30000,
+                    "timestamp_step": 60000,
                     "start_timestamp":1700000000000,
                     "columns": [
                         { "type": "bool",        "name": "bc"},
