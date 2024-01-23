@@ -278,19 +278,19 @@ class TDTestCase:
 
     def queryOrderByAgg(self):
 
-        tdSql.query("SELECT COUNT(*) FROM t1 order by COUNT(*)")
+        tdSql.no_error("SELECT COUNT(*) FROM t1 order by COUNT(*)")
 
-        tdSql.query("SELECT COUNT(*) FROM t1 order by last(c2)")
+        tdSql.no_error("SELECT COUNT(*) FROM t1 order by last(c2)")
 
-        tdSql.query("SELECT c1 FROM t1 order by last(ts)")
+        tdSql.no_error("SELECT c1 FROM t1 order by last(ts)")
 
-        tdSql.query("SELECT ts FROM t1 order by last(ts)")
+        tdSql.no_error("SELECT ts FROM t1 order by last(ts)")
 
-        tdSql.query("SELECT last(ts), ts, c1 FROM t1 order by 2")
+        tdSql.no_error("SELECT last(ts), ts, c1 FROM t1 order by 2")
 
-        tdSql.query("SELECT ts, last(ts) FROM t1 order by last(ts)")
+        tdSql.no_error("SELECT ts, last(ts) FROM t1 order by last(ts)")
 
-        tdSql.query(f"SELECT * FROM t1 order by last(ts)")
+        tdSql.no_error(f"SELECT * FROM t1 order by last(ts)")
 
         tdSql.query(f"SELECT last(ts) as t2, ts FROM t1 order by 1")
         tdSql.checkRows(1)
@@ -302,6 +302,51 @@ class TDTestCase:
 
         tdSql.error(f"SELECT last(ts) as t2, ts FROM t1 order by last(t2)")
 
+    def queryOrderByAmbiguousName(self):
+        tdSql.error(sql="select c1 as name, c2 as name, c3 from t1 order by name", expectErrInfo='ambiguous',
+                    fullMatched=False)
+
+        tdSql.error(sql="select c1, c2 as c1, c3 from t1 order by c1", expectErrInfo='ambiguous', fullMatched=False)
+
+        tdSql.error(sql='select last(ts), last(c1) as name ,last(c2) as name,last(c3) from t1 order by name',
+                    expectErrInfo='ambiguous', fullMatched=False)
+
+        tdSql.no_error("select c1 as name, c2 as c1, c3 from t1 order by c1")
+
+        tdSql.no_error('select c1 as name from (select c1, c2 as name from st) order by name')
+
+    def queryOrderBySameCol(self):
+        tdLog.info("query OrderBy same col ....")
+        tdSql.execute(f"create stable sta (ts timestamp, col1 int) tags(t1 int);")
+        tdSql.execute(f"create table tba1 using sta tags(1);")
+        tdSql.execute(f"create table tba2 using sta tags(2);")
+
+        pd = datetime.datetime.now()
+        ts = int(datetime.datetime.timestamp(pd)*1000*1000)
+        tdSql.execute(f"insert into tba1 values ({ts}, 1);")
+        tdSql.execute(f"insert into tba1 values ({ts+2}, 3);")
+        tdSql.execute(f"insert into tba1 values ({ts+3}, 4);")
+        tdSql.execute(f"insert into tba1 values ({ts+4}, 5);")
+        tdSql.execute(f"insert into tba2 values ({ts}, 2);")
+        tdSql.execute(f"insert into tba2 values ({ts+1}, 3);")
+        tdSql.execute(f"insert into tba2 values ({ts+3}, 5);")
+        tdSql.execute(f"insert into tba2 values ({ts+5}, 7);")
+        tdSql.query(f"select a.col1, b.col1 from sta a inner join sta b on a.ts = b.ts and a.ts < {ts+2} order by a.col1, b.col1;")
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(1, 1, 2)
+        tdSql.query(f"select a.col1, b.col1 from sta a inner join sta b on a.ts = b.ts and a.ts < {ts+2} order by a.col1, b.col1 desc;")
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(1, 1, 1)
+
+        tdSql.query(f"select a.col1, b.col1 from sta a inner join sta b on a.ts = b.ts and a.ts < {ts+2} order by a.col1 desc, b.col1 desc;")
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(1, 1, 2)
+        tdSql.checkData(2, 0, 2)
+        tdSql.checkData(2, 1, 1)
 
     # run
     def run(self):
@@ -317,6 +362,10 @@ class TDTestCase:
         # agg
         self.queryOrderByAgg()
 
+        # td-28332
+        self.queryOrderByAmbiguousName()
+
+        self.queryOrderBySameCol()
 
     # stop
     def stop(self):
