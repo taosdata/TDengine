@@ -85,7 +85,7 @@
         </template> -->
         <span>{{ item.name }}</span>
       </li>
-      <li v-if="tableColumns.length > 9" @click="showResultTable">
+      <li v-if="tableColumns.length > 9" >
         <el-tooltip
           :content="$t('datasource.transformer.viewmore')"
           placement="top"
@@ -202,15 +202,7 @@ export default {
       return isbreak
     },
     async showResultTable() {
-      // await this.submitExtract();
       await this.submitExtract(true);
-      // this.$nextTick(() => {
-      //   if (document.querySelector(".transdescription")) {
-      //     let dom = document.querySelector(".transdescription");
-      //     let top = 2200; //dom.offsetTop + document.body.scrollHeight;
-      //     this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
-      //   }
-      // });
       this.$store.commit("app/SET_TRANS_RESULT_NAME", this.itemData.columnname);
     },
     changeExtractExpr(val) {
@@ -224,7 +216,6 @@ export default {
     selectCol() {
       this.disabled = true;
       this.$emit("selectColumn", this.index, this.ruleForm.col_name);
-      // this.$emit("setExtractName", this.index, this.ruleForm.col_name);
     },
     changeExtractType() {
       let index = this.$parent.extractArr.findIndex(
@@ -313,7 +304,7 @@ export default {
                     !this.kafkaDefaultCols.includes(val)
                   ) {
                     return val;
-                  }else{
+                  }else if(this.$store.state.app.currentDBType == "avevaHistorian"){
                     return val
                   }
                 });
@@ -342,10 +333,10 @@ export default {
           //获取全部的extract or split参数
           this.$store.commit('app/SET_RESULTTB_SHOW',true)
           this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
-          let pageindex = Object.keys(this.$store.state.app.transformresulttable[0]).findIndex(
-            (item) => item== Object.keys(this.tableData[0])[0]
-          );
-          this.$store.commit("app/SET_RESULT_PAGE", pageindex);
+          // let pageindex = Object.keys(this.$store.state.app.transformresulttable[0]).findIndex(
+          //   (item) => item== Object.keys(this.tableData[0])[0]
+          // );
+          // this.$store.commit("app/SET_RESULT_PAGE", pageindex);
           
           return;
         }
@@ -552,8 +543,22 @@ export default {
       };
 
       this.$store.commit("app/SET_EXTRACT_PARSE_DATA", this.extractParseData);
-
+      if(!isall){
+        switch(this.$store.state.app.currentDBType){
+          case 'mqtt':
+            if(Object.hasOwnProperty.call(parser.parser.parse.payload,'json')){
+              parser.parser.parse.payload.json=''
+            }
+            break
+          case 'kafka':
+          if(Object.hasOwnProperty.call(parser.parser.parse.value,'json')){
+              parser.parser.parse.value.json=''
+            }
+            break
+        }
+      }
       await this.getParserData(parser, isall);
+      
     },
     deleteExtract() {
       this.$emit("deleteExtract", this.index, this.ruleForm.col_name);
@@ -639,7 +644,7 @@ export default {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
   column-gap: 15px;
-  row-gap: 20px;
+  row-gap: 15px;
   max-height: 80px;
   overflow-y: hidden;
   li {

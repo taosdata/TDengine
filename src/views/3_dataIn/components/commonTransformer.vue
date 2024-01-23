@@ -1,14 +1,18 @@
 <template>
   <div class="common-transformer">
     <template>
-      <section>
-        <div class="block-title">
+      <section class="msg_sec">
+        <div
+          class="block-title"
+          v-if="$store.state.app.currentDBType == 'avevaHistorian'"
+        >
           <span>{{ $t("datasource.transformer.msgbody") }}</span>
         </div>
-        <el-tabs v-model="activeName">
+        <el-tabs v-model="activeName" v-if="$store.state.app.currentDBType !== 'csv'">
           <el-tab-pane
             :disabled="
-              $store.state.app.currentDBType == 'avevaHistorian'
+              $store.state.app.currentDBType == 'avevaHistorian' ||
+              $store.state.app.currentDBType == 'csv'
             "
             :label="$t('datasource.transformer.msgbodytypes.type1')"
             name="first"
@@ -22,7 +26,6 @@
             <el-button
               type="primary"
               size="small"
-              style="margin-bottom: 15px"
               @click="getMsgBody"
               >{{
                 $t("datasource.transformer.msgbodytypes.retrieve")
@@ -65,9 +68,13 @@
           >
             <div id="jsoneditor"></div>
             <el-input
-              :disabled="$store.state.app.currentDBType == 'avevaHistorian'||$store.state.app.currentDBType == 'csv'"
+              :disabled="
+                $store.state.app.currentDBType == 'avevaHistorian' ||
+                $store.state.app.currentDBType == 'csv'
+              "
               class="msgbody"
               v-model="msgForm.msgbody"
+              :placeholder="$t('datasource.transformer.msgbodytip')"
               size="small"
               type="textarea"
               :autosize="{ minRows: 5, maxRows: 5 }"
@@ -76,11 +83,11 @@
         </el-form>
       </section>
       <section class="extract">
-        <div class="block-title">
-          <span>{{ $t("datasource.transformer.parse") }}</span>
+        <div class="block-title top">
+          <span>{{$store.state.app.currentDBType=='csv'||$store.state.app.currentDBType == 'avevaHistorian'? $t("datasource.transformer.identified"):$t("datasource.transformer.parse") }}</span>
         </div>
         <div
-          v-if="$store.state.app.currentDBType !== 'avevaHistorian'&&$store.state.app.currentDBType !== 'csv'"
+          v-if="$store.state.app.currentDBType !== 'avevaHistorian'&& $store.state.app.currentDBType !=='csv'"
           class="transdescription"
           v-html="$t('datasource.transformer.extractdesc')"
         ></div>
@@ -133,8 +140,8 @@
           </el-form>
         </div>
       </section>
-      <section>
-        <div class="block-title sub">
+      <section v-if="columnsArr.length > 0">
+        <!-- <div class="block-title sub">
           <span>{{ $t("datasource.transformer.identified") }}</span>
           <el-tooltip
             :content="$t('datasource.transformer.previewmore')"
@@ -148,7 +155,7 @@
               >{{ $t("datasource.transformer.preview") }}</span
             >
           </el-tooltip>
-        </div>
+        </div> -->
         <ul
           :class="[
             'col-list',
@@ -158,22 +165,36 @@
               : '',
           ]"
         >
-          <li v-for="(item, index) in columnsArr.slice(0, 9)" :key="index">
+          <el-tooltip
+            class="item"
+            effect="light"
+            :content="$t('datasource.transformer.sampleval')"
+            placement="top-start"
+          >
+            <li :class="['col', columnsArr[0]?.name == 'ts' ? 'origin' : '']">
+              <span>{{ columnsArr[0]?.name }}</span>
+            </li>
+          </el-tooltip>
+          <li v-for="(item, index) in columnsArr.slice(1, 9)" :key="index">
             <!-- <el-tooltip
               class="item"
               effect="light"
               :content="item.value"
               placement="top-start"
-            > -->
+              v-if="item.name == 'ts' && index == 0"
+            >
+              <span>{{ item.name }}</span>
+            </el-tooltip> -->
             <span>{{ item.name }}</span>
-            <!-- </el-tooltip> -->
           </li>
           <li v-if="columnsArr.length > 9">
             <el-tooltip
               :content="$t('datasource.transformer.viewmore')"
               placement="top"
               effect="light"
-              ><span @click='showIndentifyResulttb'><i class="el-icon-more"></i></span>
+              ><span @click="showIndentifyResulttb"
+                ><i class="el-icon-more"></i
+              ></span>
             </el-tooltip>
           </li>
         </ul>
@@ -188,7 +209,9 @@
             <template slot="content">
               <div v-html="$t('datasource.transformer.subextractdesc')"></div>
             </template>
-            <span style='margin-left:6px;'><i class="el-icon-warning"></i></span>
+            <span style="margin-left: 6px"
+              ><i class="el-icon-warning"></i
+            ></span>
           </el-tooltip>
         </div>
         <template v-for="(item, index) in extractArr">
@@ -289,31 +312,43 @@
             </el-button>
           </div>
           <div class="table-detail" v-if="tableData.length > 0">
-            <div class="mapping"></div>
             <el-table :data="pageTableData" border style="width: 100%">
               <template v-for="(item, index) in st_columnLists">
-                <!-- <el-table-column :key="index" :prop="item"
+                <el-table-column
+                  :key="index"
+                  prop="Name"
                   show-overflow-tooltip
                   :label="item"
-                v-if='params_tags.includes(item)'
+                  v-if="item == 'Name'"
                 >
-              
-              </el-table-column> -->
+                  <template slot-scope="scope">
+                    <div style="display: flex; align-items: end">
+                      <i
+                        class="el-icon-success"
+                        style="color: rgb(56, 155, 255); margin-right: 2px"
+                        v-if="scope.row.Expression.toString()"
+                      ></i>
+                      <Icon
+                        :name="'tag'"
+                        class="console-tree-icon"
+                        style="width: 20px; height: 20px"
+                        v-if="params_tags.includes(scope.row['Name'])"
+                      ></Icon>
+
+                      <span>{{ scope.row["Name"] }}</span>
+                    </div>
+                  </template>
+                </el-table-column>
                 <el-table-column
-                  v-if="item === 'Expression'"
+                  v-else-if="item === 'Expression'"
                   :key="index"
                   :prop="item"
                   :show-overflow-tooltip="item === 'Expression' ? false : true"
                   :label="item"
                   width="320px"
+                  :class="['normal', item.exprname == 'join' ? 'joincol' : '']"
                 >
                   <template slot-scope="scope">
-                    <!-- <template v-if="params_tags.includes(scope.row['Name'])">
-                      <Icon
-                name="tag"
-                class="console-tree-icon"
-              ></Icon>
-                    </template> -->
                     <template v-if="scope.row['Name'] == 'SubTableName'">
                       <el-form
                         ref="subtb"
@@ -325,13 +360,28 @@
                           <el-input
                             size="small"
                             v-model="scope.row.Expression"
+                            :placeholder='exprformat'
                             @input="changeSubname"
                           ></el-input>
                         </el-form-item>
                       </el-form>
                     </template>
                     <template v-else>
-                      <el-cascader
+                      <el-select
+                        size="small"
+                        v-model="scope.row.exprname"
+                        style="width: 100px; margin-right: 10px"
+                        @change="changeCurrentMapExpr(scope)"
+                      >
+                        <el-option
+                          v-for="item in mappingTypes"
+                          :key="item"
+                          :label="item"
+                          :value="item"
+                          >{{ item }}</el-option
+                        >
+                      </el-select>
+                      <!-- <el-cascader
                         size="small"
                         style="width: 100px; margin-right: 10px"
                         :show-all-levels="false"
@@ -339,30 +389,75 @@
                         v-if="scope.row['Type'] != 'Tablename'"
                         @change="changeMapColumn(scope)"
                         :options="options"
-                      ></el-cascader>
-                      <el-input
-                        slot="reference"
-                        :style="
-                          scope.row.maptype[1].includes('join')
-                            ? { width: '80px' }
-                            : { width: '180px' }
+                      ></el-cascader> -->
+                      <template
+                        v-if="
+                          ['mapping', 'sum', 'join'].includes(
+                            scope.row.exprname
+                          )
                         "
-                        v-model="scope.row.Expression"
-                        size="small"
-                        :disabled="
-                          scope.row['Type'] == 'TIMESTAMP' && !enable
-                            ? true
-                            : false
-                        "
-                      ></el-input>
-                      <el-input
-                        v-if="scope.row.maptype[1].includes('join')"
-                        size="small"
-                        style="width: 100px"
-                        v-model="joinwith"
                       >
-                        <template slot="prepend">with</template>
-                      </el-input>
+                        <el-select
+                          v-model="scope.row.Expression"
+                          :placeholder="$t('datasource.transformer.coltip')"
+                          :clearable="scope.row.exprname == 'mapping'"
+                          size="small"
+                          filterable
+                          :key="Math.random()"
+                          @change="changeMappingExpr(scope)"
+                          style="width: 180px"
+                          :multiple="scope.row.exprname != 'mapping'"
+                        >
+                          <el-option
+                            v-for="val in mappingcolumns"
+                            :key="val.label"
+                            :value="val.value"
+                            :label="val.label"
+                          ></el-option>
+                        </el-select>
+                        <el-input
+                          v-if="scope.row.exprname == 'join'"
+                          size="small"
+                          :key="'exprjoin'"
+                          style="width: 100px; margin-top: 6px"
+                          v-model="joinwith"
+                        >
+                          <template slot="prepend">with</template>
+                        </el-input>
+                      </template>
+                      <template v-else>
+                        <el-input
+                          slot="reference"
+                          :key="'expr'"
+                          :style="
+                            scope.row.maptype[1].includes('join')
+                              ? { width: '80px' }
+                              : { width: '180px' }
+                          "
+                          @change="statisticCol"
+                          v-model="scope.row.Expression"
+                          :placeholder="
+                            scope.row.exprname == 'format'
+                              ? exprformat
+                              : scope.row.exprname == 'expr'
+                              ? exprexpression
+                              : scope.row.exprname == 'value'
+                              ? $t('datasource.transformer.valuetip')
+                              : ''
+                          "
+                          size="small"
+                          :disabled="scope.row['exprname'] == 'generator'"
+                        ></el-input>
+                        <!-- <span><i class="el-icon-warning"></i></span> -->
+                        <!-- <el-input
+                          v-if="scope.row.exprname=='join'"
+                          size="small"
+                          style="width: 100px"
+                          v-model="joinwith"
+                        >
+                          <template slot="prepend">with</template>
+                        </el-input> -->
+                      </template>
                     </template>
                   </template>
                 </el-table-column>
@@ -380,11 +475,20 @@
               <el-pagination
                 :class="['pagination', pageCount < 20 ? 'hide' : '']"
                 :page-size="pageSize"
-                layout="total,prev, pager, next, jumper"
+                layout="total,prev, pager, next, jumper,slot"
                 :total="pageCount"
                 @current-change="handleCurrentChange"
               >
+              <div key="1">
+                <span style='color:#16191f;font-weight:400;margin-left:6px;'
+                  >  {{ $t("datasource.transformer.configuredcount") }}
+                  {{ configuredCount }}
+                  {{ $t("datasource.transformer.unit") }}</span
+                >
+              </div>
               </el-pagination>
+              
+
               <el-button
                 type="primary"
                 @click="caculateMappingResult"
@@ -460,10 +564,13 @@ export default {
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
       parseTypes: ["regex", "json"],
+      exprformat: "${c1}-${c2}:${c3}",
+      exprexpression: "centigrade * 1.8 + 32",
       parseruleForm: {
         type: "json",
         expression: "",
       },
+      configuredCount: 0,
       parseRules: {
         type: [
           {
@@ -493,6 +600,7 @@ export default {
       enable: true, //只针对ts的expression的input
       timestampExpr: "",
       options: [],
+      mappingcolumns: [],
       msgForm: {
         msgbody: "",
       },
@@ -509,7 +617,15 @@ export default {
       params_tags: [],
       mapType: "value",
       extractAddStatus: false,
-      mappingTypes: ["value", "generator", "join", "format", "sum", "expr"],
+      mappingTypes: [
+        "mapping",
+        "value",
+        "generator",
+        "join",
+        "format",
+        "sum",
+        "expr",
+      ],
       st_columnLists: ["Name", "Type", "Expression", "Output1", "Output2"],
 
       dialogForm: {
@@ -599,10 +715,10 @@ export default {
       };
     },
   },
-  mounted() {
+  async mounted() {
     if (this.$store.state.app.currentDBType == "avevaHistorian") {
       this.activeName = "second";
-    }else{
+    } else {
       this.activeName = "first";
     }
     if (this.parserColumns) {
@@ -615,18 +731,33 @@ export default {
         Object.hasOwn(this.$store.state.app.csvParser, "parser"))
     ) {
       // 编辑状态
-      this.echoParser(this.$store.state.app.transformerParserData);
+     await this.echoParser(this.$store.state.app.transformerParserData);
     }
     if (this.$store.state.app.csvTransformerParser) {
       //CSV新增
       this.isCSV = true;
       this.msgForm.msgbody = this.$store.state.app.csvTransformerParser.msgBody;
-      this.submitParse();
+     await  this.submitParse();
       // this.formatCSVExtract(this.$store.state.app.csvTransformerParser.columns);
     }
-    this.getInitStables();
+    await this.getInitStables();
+    this.statisticCol()
   },
   methods: {
+    statisticCol() {
+      this.configuredCount=this.tableData.filter((item) => item["Expression"] != "").length
+    },
+    changeMappingExpr(scope) {
+      this.$set(this.mappingcolumns[scope.$index], "Expression", "");
+    },
+    changeCurrentMapExpr(scope) {
+      this.$nextTick(() => {
+        this.$set(this.pageTableData[scope.$index], "Expression", "");
+        if (scope.row.exprname == "generator") {
+          this.$set(this.pageTableData[scope.$index], "Expression", "now");
+        }
+      });
+    },
     async getMsgBody() {
       this.$parent.$parent.$parent.validateRetrieve();
       let flag = false;
@@ -673,8 +804,8 @@ export default {
       this.$store.commit("app/SET_RESULTTB_SHOW", true);
       if (this.$store.state.app.currentDBType == "csv") {
         this.$nextTick(() => {
-          if (document.querySelector(".transdescription")) {
-            let dom = document.querySelector(".transdescription");
+          if (document.querySelector(".block-title.top")) {
+            let dom = document.querySelector(".block-title.top");
             const mainDom = document.querySelector(".main_content");
             let top = dom.offsetTop + mainDom.scrollHeight;
             this.$store.commit("app/SET_TRANS_TABLE_HEIGHT", top);
@@ -686,7 +817,6 @@ export default {
         "app/SET_TRANS_RESULT_NAME",
         this.$t("datasource.transformer.identified")
       );
-      this.submitParse();
     },
     handleRemove(file, fileList) {
       console.log(file, fileList);
@@ -725,12 +855,6 @@ export default {
         if (!this.msgForm.msgbody) {
           Message.warning(this.$t("datasource.transformer.msgbodytip"));
           return;
-        }
-        if (this.$store.state.app.currentDBType == "csv") {
-          console.log(
-            this.$store.state.app.csvTransformerParser,
-            "csv的----9999"
-          );
         }
         // if (this.filterArr.length > 0) {
         // }
@@ -843,7 +967,9 @@ export default {
                   !this.kafkaDefaultCols.includes(item.name)
                 ) {
                   return item;
-                } else {
+                } else if (
+                  this.$store.state.app.currentDBType == "avevaHistorian"
+                ) {
                   return item;
                 }
               })
@@ -865,6 +991,7 @@ export default {
         if (!this.$store.state.app.transresultname) {
           this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
         }
+        this.showIndentifyResulttb();
       } catch (error) {
         console.log(error);
       }
@@ -1157,18 +1284,12 @@ export default {
           if (this.params_tags.includes(item["Name"])) {
             tags.push(item["Name"]);
           }
-          let key = Array.isArray(item.maptype[1])
-            ? item.maptype[1][0] == "mapping"
-              ? "cast"
-              : item.maptype[1][1].toString().trim()
-            : !this.mapExpressionList.includes(item.maptype[1])
-            ? "cast"
-            : item.maptype[1].toString().trim(); //此处处理了编辑回显
-          if (item.maptype[1] != "string") {
+          let key = item.exprname == "mapping" ? "cast" : item.exprname; //此处处理了编辑回显
+          if (item["Type"] !== "Tablename") {
             //排除第一行的tablename
             let expreitem = {
               [`${key}`]: ["sum", "join"].includes(key)
-                ? item["Expression"].split(",").map((val) => val.trim())
+                ? item["Expression"]
                 : item["Expression"].toString().trim(),
               as: item["Type"],
             };
@@ -1181,6 +1302,7 @@ export default {
           }
         }
       });
+
       mutates.forEach((item) => {
         Object.assign(mutateMap, item);
       });
@@ -1555,7 +1677,13 @@ export default {
                   ? echoData.tableData[idx].expression
                   : echoData.tableData[idx].type
               );
-            item["Expression"] = echoData.tableData[idx].expression.toString();
+            item.exprname =
+              echoData.tableData[idx].type == "cast"
+                ? "mapping"
+                : echoData.tableData[idx].type;
+            item["Expression"] = ["sum", "join"].includes(item.exprname)
+              ? echoData.tableData[idx].expression
+              : echoData.tableData[idx].expression.toString();
           }
           return item;
         });
@@ -1569,19 +1697,6 @@ export default {
     },
     async getSTbaleList() {
       try {
-        // if (!this.$store.state.app.currentDBName) {
-        //   Message.warning(this.$t("datasource.selecttargetdb"));
-        //   this.sruleForm.s_name = "";
-        //   return;
-        // }
-        // if (this.options.length == 0) {
-        //   Message.warning(this.$t("datasource.transformer.parsefirst"));
-        //   this.sruleForm.s_name = "";
-        //   return;
-        // }
-        // if (this.filterArr.length == 0 || !this.filterArr[0].expression) {
-        //   await this.getAllExtract(true);
-        // }
         this.currentPage = 1;
         let res = await sendSQLReq(
           `desc \`${this.$store.state.app.currentDBName}\`.\`${this.sruleForm.s_name}\``
@@ -1596,18 +1711,40 @@ export default {
         if (this.extractArr.length > 0) {
           // await this.getAllExtract(true);
         }
-
         if (this.$store.state.app.transformerMapCloumns) {
           this.$set(
             this,
             "options",
             this.$store.state.app.transformerMapCloumns
           );
+          this.$set(
+            this,
+            "mappingcolumns",
+            this.$store.state.app.transformerMapCloumns
+              .filter((item) => item.value == "mapping")[0]
+              .children.filter((val) => {
+                if (
+                  this.$store.state.app.currentDBType == "mqtt" &&
+                  !this.mqttDefaultCols.includes(val.value)
+                ) {
+                  return val;
+                }
+                if (
+                  this.$store.state.app.currentDBType == "kafka" &&
+                  !this.kafkaDefaultCols.includes(val.value)
+                ) {
+                  return val;
+                } else if (
+                  this.$store.state.app.currentDBType == "avevaHistorian"
+                ) {
+                  return val;
+                }
+              })
+          );
         }
         let defaultmap = this.options
           .filter((item) => item.value == "mapping")[0]
           .children.map((label) => label.label);
-
         this.params_columns.splice(0, this.params_columns.length - 1);
         this.params_tags.splice(0, this.params_tags.length - 1);
         this.pageCount = res.data.length + 1;
@@ -1621,13 +1758,13 @@ export default {
           let equalindex = defaultmap.findIndex(
             (item) => item.toLowerCase() == val[0].toLowerCase()
           );
-
           return {
             Name: val[0],
             Type:
               val[1] == "TIMESTAMP"
                 ? val[1] + "(" + precision.data[0][0] + ")"
                 : val[1],
+            exprname: "mapping",
             maptype:
               equalindex > -1
                 ? ["mapping", `${defaultmap[equalindex]}`]
@@ -1641,6 +1778,7 @@ export default {
         this.tableData.unshift({
           Name: "SubTableName", //this.sruleForm.s_name,
           Type: "Tablename",
+          exprname: "mapping",
           maptype: ["expression", "string"],
           Expression: "",
           Output1: "",
@@ -1765,6 +1903,12 @@ export default {
     },
   },
   watch: {
+    tableData:{
+      deep:true,
+      handler(val){
+        this.statisticCol()
+      }
+    },
     "$i18n.locale": {
       deep: true,
       handler(val) {
@@ -1821,6 +1965,8 @@ export default {
       handler(val) {
         if (val == "avevaHistorian") {
           this.activeName = "second";
+        } else {
+          this.activeName = "first";
         }
       },
     },
@@ -1838,6 +1984,9 @@ export default {
   100% {
     box-shadow: 0 0 5px #4259ce;
   }
+}
+.msg_sec {
+  margin-bottom: 25px;
 }
 ::v-deep i {
   font-size: 16px;
@@ -1870,10 +2019,11 @@ export default {
 }
 .col-list {
   margin-top: 15px;
+  margin-bottom:20px;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
   column-gap: 15px;
-  row-gap: 20px;
+  row-gap: 15px;
   max-height: 200px;
   overflow-y: auto;
   // &.active {
@@ -1886,6 +2036,10 @@ export default {
     border-radius: 14px;
     border: 1px solid #f6f8fa;
     text-align: center;
+  }
+  .col.origin {
+    background: #409eff;
+    color: #fff;
   }
 }
 .filter {
@@ -1925,6 +2079,9 @@ export default {
   }
   ::v-deep {
     .el-table {
+      .cell {
+        // display: flex;
+      }
       thead tr th {
         background-color: #f5f7fa;
       }
@@ -1933,12 +2090,18 @@ export default {
       }
       tbody tr:first-child {
         .cell {
-          padding-bottom: 16px !important;
+          // padding-bottom: 16px !important;
+          
         }
+        
       }
+      .el-form-item__error{
+          top:30%;
+          left:130px;
+        }
     }
     .cell.el-tooltip {
-      height: 40px;
+      // height: 40px;
       padding-right: 20px;
     }
     .el-form-item {
@@ -1979,6 +2142,7 @@ export default {
 }
 .pagination {
   margin-top: 0px !important;
+  display:flex;
   &.hide {
     ::v-deep {
       .el-pagination__jump,
@@ -2027,6 +2191,9 @@ export default {
 }
 .extract-btns {
   display: flex;
+  .el-button{
+    margin-top:10px;
+  }
 }
 .extract-table {
   margin-top: 20px;

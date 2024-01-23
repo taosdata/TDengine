@@ -134,6 +134,7 @@
         this.$refs.wizard.resetWizard()
       },
        handleSendSQL() {
+        console.log('执行sql语句');
         if (this.requestIng) return;
         this.requestIng = true;
         if (this.$store.state.console.partActive == 'sql') {
