@@ -21,7 +21,10 @@ jobs:
     name: CentOS 7 Latest
     runs-on: [self-hosted, linux, x64]
     permissions:
+      contents: read
+      packages: write
       pull-requests: read
+      repository-projects: write
     steps:
       - uses: actions/checkout@v3
         with:

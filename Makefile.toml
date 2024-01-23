@@ -301,12 +301,31 @@ docker build -f docker/dev/Dockerfile -t taosx/dev .
 """
 
 [tasks.build-centos7-release]
+dependencies = ["build-docker-dev"]
 script = """
 echo Build taosX release binaries with taosx/dev image.
-docker run -i --rm \
+mkdir -p target/centos7
+docker run -it --rm \
   -v $HOME/.cargo/registry:/root/.cargo/registry \
   -v $HOME/.cargo/git:/root/.cargo/git \
-  -v $(pwd):/app -v $(pwd):$(pwd) -v $(pwd)/targets/centos7:/app/target/ \
+  -v $(pwd):/app -v $(pwd):$(pwd) \
+  -v $(pwd)/target/sccache:/root/.cache/sccache \
+  -v $(pwd)/target/centos7:/app/target/ \
   taosx/dev \
-  cargo build --release
+  cargo build --release -p taosx -p taosx-agent
+"""
+
+[tasks.build-centos7-production]
+dependencies = ["build-docker-dev"]
+script = """
+echo Build taosX release binaries with taosx/dev image.
+mkdir -p target/centos7
+docker run -it --rm \
+  -v $HOME/.cargo/registry:/root/.cargo/registry \
+  -v $HOME/.cargo/git:/root/.cargo/git \
+  -v $(pwd):/app -v $(pwd):$(pwd) \
+  -v $(pwd)/target/sccache:/root/.cache/sccache \
+  -v $(pwd)/target/centos7:/app/target/ \
+  taosx/dev \
+  cargo build --profile production -p taosx -p taosx-agent
 """
