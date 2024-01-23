@@ -217,8 +217,8 @@ class ClusterComCreate:
     def alterStbMetaData(self,tsql,dbName,stbName,ctbNum,rowsPerTbl,batchNum,startTs=None):
         
         tdLog.debug("alter Stb column ............")
-        tdLog.debug(f"describe STABLE {dbName}.{stbName} ")     
-        tsql.execute(f"describe STABLE {dbName}.{stbName} ;")           
+        tdLog.debug(f"describe  {dbName}.{stbName} ")     
+        tsql.execute(f"describe  {dbName}.{stbName} ;")           
         tdLog.debug(f"ALTER STABLE {dbName}.{stbName} MODIFY COLUMN c3 binary(20);")
         tsql.execute(f" ALTER STABLE {dbName}.{stbName} MODIFY COLUMN c3 binary(20);")
         tdLog.debug(f"ALTER STABLE {dbName}.{stbName} ADD COLUMN c4 DOUBLE;")
