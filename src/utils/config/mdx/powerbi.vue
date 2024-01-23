@@ -27,8 +27,9 @@
       </li>
       <li>
         <span class="odbc-span">
-          {{ $t('docs.connector.odbc.step12desc1') }}<a :href="`https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-${TDengineVersion}-Windows-x64.exe`">Windows</a
-          >{{ $t('docs.connector.odbc.step12desc2') }}
+          {{ $t('docs.connector.odbc.step12desc1') }}<a :href="`https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-${TDengineVersion}-Windows-x64.exe`">
+            {{ $t('docs.connector.odbc.step12desc2') }}</a
+          >{{ $t('docs.connector.odbc.step12desc3') }}
         </span>
       </li>
     </ol>
@@ -72,7 +73,7 @@
         </div>
       </li>
       <li>
-        <span class="odbc-span">{{ $t('docs.connector.odbc.step24desc', [endpoint]) }}</span>
+        <span class="odbc-span">{{ $t('docs.connector.odbc.step24desc', [successEndpoint]) }}</span>
       </li>
     </ol>
     <h2 id="powerbi-import">{{ $t('docs.tools.powerbi.step4full') }}</h2>
@@ -115,7 +116,7 @@
     <h2 id="powerbi-example">{{ $t('docs.tools.powerbi.step5full') }}</h2>
     <p>
       {{ $t('docs.tools.powerbi.step5desc') }}
-      <a :href="`https://docs.${urlPart}.com/concept/`">{{ $t('docs.tools.powerbi.step5full') }}</a>
+      <a :href="`https://docs.${urlPart}.com/concept/`">{{ $t('docs.tools.powerbi.step5desc01') }}</a>
       {{ $t('docs.tools.powerbi.step5desc0') }}
     </p>
     <ol class="odbc-ol">
@@ -148,6 +149,14 @@ export default {
     url: {
       type: String,
       default: ''
+    },
+    user: {
+      type: String,
+      default: ''
+    },
+    password: {
+      type: String,
+      default: ''
     }
   },
   data() {
@@ -156,6 +165,9 @@ export default {
   computed: {
     endpoint() {
       return `taos://${this.url.replace(/https?:\/\//, '')}`;
+    },
+    successEndpoint() {
+      return `taos://${this.user}:${this.password}@${this.url.replace(/https?:\/\//, '')}`;
     },
     urlPart() {
       return this.$i18n.locale.includes('en') ?"tdengine": "taosdata";

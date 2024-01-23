@@ -90,7 +90,7 @@
       });
       let fn = debounce(e => {
         let top = e.target.scrollTop;
-        let currentTop = Math.ceil(top + elementHeight);
+        let currentTop = Math.floor(top + elementHeight);
 
         this.activeTab =
           this.getOffsetTop().findLastIndex(item => {
@@ -143,9 +143,6 @@
         }
         if(name=='Google Data Studio'){
           name='gdStudio'
-        }
-        if (name == 'YonghongBI' || name == 'PowerBI') {
-          return require(`@/assets/images/${icon || name}.png`);
         }
         try {
           return require(`@/assets/images/${icon || name}.svg`);

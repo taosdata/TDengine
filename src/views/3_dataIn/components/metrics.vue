@@ -93,6 +93,7 @@ export default {
     connect() {
       this.disconnect();
       this.loading = true;
+      this.activeName = 'current'
       const base_api = process.env.VUE_APP_BASE_URL
       let proto = ''
       let host = ''

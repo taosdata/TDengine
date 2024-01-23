@@ -1603,44 +1603,36 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
           "Then execute the following script to create the connection with TDengine  instance:",
       },
       odbc: {
-        desc: "TDengine ODBC driver is a driver specifically designed for TDengine based on the ODBC standard. It can be used by ODBC based applications on Windows to access  TDengine Cloud instance, like ",
-        desc1: ".",
-        step1: "Install",
-        step1full: "Install ODBC connector",
-        step11desc1:
-          "Only support Windows operation system. And you need to install ",
-        step11desc2: "VC Runtime Library",
-        step11desc3: " first. If already installed, please ignore this step.",
-        step12desc1: "Install TDengine Windows client installation package (",
-        step12desc2: ").",
-        step2: "Configure",
-        step2full: "Configure ODBC DataSource",
-        step21desc:
-          'Click the "Start" Menu, and Search for "ODBC", and choose "ODBC Data Source (64-bit)" (Note: Don\'t choose 32-bit).',
-        step22desc:
-          'Select "User DSN" tab, and click "Add" to enter the page for "Create Data Source".',
+        desc: 'TDengine ODBC driver is a driver specifically designed for TDengine based on the ODBC standard. It can be used by ODBC based applications on Windows to access  TDengine Cloud instance, like ',
+        desc1: '.',
+        step1: 'Install',
+        step1full: 'Install ODBC connector',
+        step11desc1: 'Only support Windows operation system. And you need to install ',
+        step11desc2: 'VC Runtime Library',
+        step11desc3: ' first. If already installed, please ignore this step.',
+        step12desc1: 'Install ',
+        step12desc2: 'TDengine Windows client installation package',
+        step12desc3: ' .',
+        step2: 'Configure',
+        step2full: 'Configure ODBC DataSource',
+        step21desc: 'Click the "Start" Menu, and Search for "ODBC", and choose "ODBC Data Source (64-bit)" (Note: Don\'t choose 32-bit).',
+        step22desc: 'Select the "User DSN" tab, and click "Add" button to enter the page for "Create Data Source".',
         step23desc:
           'Choose the data source to be added, here we choose "TDengine" and click "Finish", and enter the configuration page for "TDengine ODBC Data Source", fill in required fields as the following:',
         step23desc1: "[DSN]:",
         step23desc2: 'Data Source Name, required field, such as "MyTDengine"',
         step23desc3: "[Connection Type]:",
         step23desc4: 'required field, we choose "WebSocket"',
-        step23desc5: "[URL]:",
-        step23desc6: "[Database]:",
-        step23desc7:
-          'optional field, the default database to access, such as "test"',
-        step23desc8: "[Server]:",
-        step23desc9:
-          "Enter the service address of TDengine, for example, 192.168.1.100:6041 (Cloud services are not supported).",
-        step23desc10: "[UserID]:",
-        step23desc11:
-          "Enter the user name. If this parameter is not specified, the user name is root by default",
-        step23desc12: "[Password]:",
-        step23desc13:
-          "Enter the user password. If not, the default is taosdata",
-        step24desc:
-          'Click "Test Connection" to test whether the data source can be connectted; if successful, it will prompt "Successfully".',
-      },
+        step23desc6: '[Database]:',
+        step23desc7: 'optional field, the default database to access, such as "test"',
+        step23desc8: '[URL]:',
+        step23desc9: 'Enter the service address of TDengine, for example, 192.168.1.100:6041 (Cloud services are not supported).',
+        step23desc10: '[UserID]:',
+        step23desc11: 'Enter the user name. If this parameter is not specified, the user name is root by default',
+        step23desc12: '[Password]:',
+        step23desc13: 'Enter the user password. If not, the default is taosdata',
+        step24desc: 'Click "Test Connection" to test whether the data source can be connectted; if successful, it will prompt "Successfully connected to {0}".'
+      }
     },
     party: {
       prometheus: {
@@ -2251,51 +2243,50 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         step4desc42: ".",
       },
       powerbi: {
-        desc: " is a business analytics tool provided by Microsoft. With TDengine ODBC driver, PowerBI can access time series data stored in the TDengine. You can import tag data, original time series data, or aggregated data into Power BI from a TDengine, to create reports or dashboard without any coding effort.",
-        step1: "Prerequisite",
-        step1full: "Prerequisite",
-        step1desc:
-          "Power BI Desktop has been installed and running. (If not, please download and install latest Windows X64 version from ",
-        step1desc1: "PowerBI",
-        step1desc2: ".)",
-        step1desc3: "TDengine server software is installed and running.",
-        step2: "Install ODBC",
-        step2full: "Install ODBC connector",
-        step3: "Configure ODBC",
-        step3full: "Configure ODBC DataSource",
-        step4: "Import Data",
-        step4full: "Import Data from TDengine to Power BI",
-        step4desc:
-          'Open Power BI and logon, add data source following steps "Home" -> "Get data" -> "Other" -> "ODBC" -> "Connect".',
+        desc: ' is a business analytics tool provided by Microsoft. With TDengine ODBC driver, PowerBI can access time series data stored in the TDengine. You can import tag data, original time series data, or aggregated data into Power BI from a TDengine, to create reports or dashboard without any coding effort.',
+        step1: 'Prerequisite',
+        step1full: 'Prerequisite',
+        step1desc: 'Power BI Desktop has been installed and running (If not, please download and install the latest Windows X64 version from ',
+        step1desc1: 'PowerBI',
+        step1desc2: ').',
+        step1desc3: 'TDengine server software is installed and running.',
+        step2: 'Install ODBC',
+        step2full: 'Install ODBC connector',
+        step3: 'Configure ODBC',
+        step3full: 'Configure ODBC DataSource',
+        step4: 'Import Data',
+        step4full: 'Import Data from TDengine to Power BI',
+        step4desc: 'Open Power BI and logon, add data source following steps "Home" -> "Get data" -> "Other" -> "ODBC" -> "Connect".',
         step4desc1:
           'Choose the created data source name, such as "MyTDengine", then click "OK" button to open the "ODBC Driver" dialog. In the dialog, select "Default or Custom" left menu and then click "Connect" button to connect to the configured data source. After go to the "Nativator", browse tables of the selected database and load data.',
         step4desc2:
           'If you want to input some specific SQL, click "Advanced Options", and input your SQL in the open dialogue box and load the data.',
         step4desc3:
-          "To better use Power BI to analyze the data stored in TDengine, you need to understand the concepts of dimention, metric, time serie, correlation, and use your own SQL to import data:",
+          'To better use Power BI to analyze the data stored in TDengine, you need to understand the concepts of dimension, metric, time series, correlation, and use your own SQL to import data:',
         step4desc4:
-          "Dimention: it's normally category (text) data to describe such information as device, collection point, model. In the supertable template of TDengine, we use tag columns to store the dimention information. You can use SQL like select distinct tbname, tag1, tag2 from supertable to get dimentions.",
+          "Dimension: it's normally category (text) data to describe such information as device, collection point, model. In the supertable template of TDengine, we use tag columns to store the dimension information. You can use SQL like select distinct tbname, tag1, tag2 from supertable to get dimensions.",
         step4desc5:
           "Metric: quantitive (numeric) fileds that can be calculated, like SUM, AVERAGE, MINIMUM. If the collecting frequency is 1 second, then there are 31,536,000 records in one year, it will be too low efficient to import so big data into Power BI. In TDengine, you can use data partition query, window partition query, in combination with pseudo columns related to window, to import downsampled data into Power BI. For more details, please refer to ",
         step4desc6: "TDengine Specialized Queries",
         step4desc7: ".",
         step4desc8:
-          "Window partition query: for example, thermal meters collect one data per second, but you need to query the average temperature every 10 minutes, you can use window subclause to get the downsampling data you need. The corresponding SQL is like select tbname, _wstart date，avg(temperature) temp from table interval(10m), in which _wstart is a pseudo column indicting the start time of a widow, 10m is the duration of the window, avg(temperature) indicates the aggregate value inside a window.",
+          'Window partition query: for example, thermal meters collect one data per second, but you need to query the average temperature every 10 minutes, you can use window subclause to get the downsampling data you need. The corresponding SQL is like select tbname, _wstart date，avg(temperature) temp from table interval(10m), in which _wstart is a pseudo column indicating the start time of a window, 10m is the duration of the window, avg(temperature) indicates the aggregate value inside a window.',
         step4desc9:
-          "Data partition query: If you want to get the aggregate value of a lot of thermal meters, you can first partition the data and then perform a series of calculation in the partitioned data spaces. The SQL you need to use is partition by part_list. The most common of data partition usage is that when querying a supertable, you can partition data by subtable according to tags to form the data of each subtable into a single time serie to facilitate analytical processing of time series data.",
+          'Data partition query: If you want to get the aggregate value of a lot of thermal meters, you can first partition the data and then perform a series of calculation in the partitioned data spaces. The SQL you need to use is partitoned by part_list. The most common of data partition usage is that when querying a supertable, you can partition data by subtable according to tags to form the data of each subtable into a single time serie to facilitate analytical processing of time series data.',
         step4desc10:
           "Time Serie: When curve plotting or aggregating data based on time lines, date is normally required. Data or time can be imported from Excel, or retrieved from TDengine using SQL statement like select _wstart date, count(*) cnt from test.meters where ts between A and B interval(1d) fill(0), in which the fill() subclause indicates the fill mode when there is data missing, pseudo column _wstart indicates the date to retrieve.",
         step4desc11:
-          "Correlation: Indicates how to correlate data. Dimentions and Metrics can be correlated by tbname, dates and metrics can be correlated by date. All these can cooperate to form visual reports.",
-        step5: "Example",
-        step5full: "Example - Meters",
+          'Correlation: Indicates how to correlate data. Dimensions and Metrics can be correlated by tbname, dates and metrics can be correlated by date. All these can cooperate to form visual reports.',
+        step5: 'Example',
+        step5full: 'Example - Meters',
+        step5desc01: 'the example of meters',
         step5desc:
-          'TDengine has its own specific data model, which uses supertable as template and creates a specific table for each device. Each table can have maximum 4,096 data columns and 128 tags. In the ',
-        step5desc0: ', assume each meter generates one record per second, then there will be 86,400 records each day and 31,536,000 records every year, then only 1,000 meters will occupy 500GB disk space. So, the common usage of Power BI should be mapping tags to dimention columns, mapping the aggregation of data columns to metric columns, to provide indicators for decision makers.',
-        step5desc1: 'Import Dimentions: Import the tags of tables in PowerBI, and name as "tags", the SQL is as the following:',
+          'TDengine has its own specific data model, which uses supertable as template and creates a specific table for each device. Each table can have maximum 4,096 data columns and 128 tags. In ',
+        step5desc0: ', assume each meter generates one record per second, then there will be 86,400 records each day and 31,536,000 records every year, then only 1,000 meters will occupy 500GB disk space. So, the common usage of Power BI should be mapping tags to dimension columns, mapping the aggregation of data columns to metric columns, to provide indicators for decision makers.',
+        step5desc1: 'Import Dimensions: Import the tags of tables in PowerBI, and name as "tags", the SQL is as the following:',
         step5desc2: 'Import Metrics: In Power BI, import the average current, average voltage, average phase with 1 hour window, and name it as "data", the SQL is as the following:',
         step5desc3:
-          'Correlate Dimentions and Metrics: In Power BI, open model view, correlate "tags" and "data", and set "tabname" as the correlation column, then you can use the data in histogram, pie chart, etc. For more information about building visual reports in PowerBI, please refer to ',
+          'Correlate Dimensions and Metrics: In Power BI, open model view, correlate "tags" and "data", and set "tabname" as the correlation column, then you can use the data in histogram, pie chart, etc. For more information about building visual reports in PowerBI, please refer to ',
         step5desc4: "Power BI",
         step5desc5: ".",
       },
@@ -2303,26 +2294,21 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         name: 'Yonghong BI',
         desc: 'Yonghong one-stop big data BI platform',
         desc1:
-          " to provide enterprises of all sizes with flexible and easy-to-use whole-business chain big data analysis solutions, so that every user can use this platform to easily discover the value of big data and obtain deep insight. TDengine can be added to Yonghong BI as a data source via a JDBC connector. Once the data source is configured, Yonghong BI can read data from TDengine and provide functions such as data presentation, analysis and prediction.",
-        step1: "Prerequisite",
-        step11desc:
-          "Yonghong Desktop Basic is installed and running (if not,please go to",
-        step11desc1: " official download page of Yonghong Technology",
-        step11desc2: " download).",
-        step12desc:
-          "The TDengine is installed and running, and ensure that the taosadapter service is started on the TDengine server side.",
-        step2: "Install JDBC",
-        step2full: "Installing the JDBC Connector",
+          ' to provide enterprises of all sizes with flexible and easy-to-use whole-business chain big data analysis solutions, so that every user can use this platform to easily discover the value of big data and obtain deep insight. TDengine can be added to Yonghong BI as a data source via a JDBC connector. Once the data source is configured, Yonghong BI can read data from TDengine and provide functions such as data presentation, analysis and prediction.',
+        step1: 'Prerequisite',
+        step11desc: 'Yonghong Desktop Basic is installed and running (if not,please go to',
+        step11desc1: ' official download page of Yonghong Technology',
+        step11desc2: ' download).',
+        step12desc: 'The TDengine is installed and running, and ensure that the taosadapter service is started on the TDengine server side.',
+        step2: 'Install JDBC',
+        step2full: 'Install JDBC Connector',
         // Download the latest TDengine JDBC connector from maven.org
-        step2desc: "Go to ",
-        step2desc1:
-          " download the latest TDengine JDBC connector (current version ",
-        step2desc2:
-          ") and install it on the machine where the BI tool is running.",
-        step3: "Configure JDBC",
-        step3full: "Configure the TDengine JDBC data source",
-        step31desc:
-          'In the Yonghong Desktop BI tool, click "Add data source" and select the "GENERIC" type in the SQL data source.',
+        step2desc: 'Go to ',
+        step2desc1: ' download the latest TDengine JDBC connector (current version ',
+        step2desc2: ') and install it on the machine where the BI tool is running.',
+        step3: 'Configure JDBC',
+        step3full: 'Configure JDBC DataSource',
+        step31desc: 'In the Yonghong Desktop BI tool, click "Add data source" and select the "GENERIC" type in the SQL data source.',
         step32desc:
           'Click "Select Custom Driver", in the "Driver Management" dialog box, click "+" next to "Driver List", enter the name "MyTDengine". Then click the "upload file" button to upload just download TDengine JDBC connector file "taos - jdbcdriver - 3.2.7 - dist. Jar", and select "com. Taosdata. JDBC. Rs. RestfulDriver" drive, Finally, click the "OK" button to complete the driver addition.',
         step33desc: 'Then copy the following into the "URL" field.',
@@ -2347,25 +2333,18 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
           ".By using these featured queries, BI tools can greatly improve data access speed and reduce network transmission bandwidth when they send SQL queries to TDengine databases. ",
         step45desc:
           'In BI tools, you can create "parameters" and use them in SQL statements, which can be dynamically executed manually and periodically to achieve a visual report refresh effect.The following SQL statement: ',
-        step45desc0: "Data can be read in real time from TDengine, where: ",
-        step45desc1: ": Indicates the start time of the time window.",
-        step45desc2: ": Indicates the aggregate value in the time window.",
-        step45desc3:
-          ": indicates that the parameter interval is introduced into the SQL statement. When the BI tool queries data, it assigns a value to the parameter interval. If the value is 1m, the sampling data is reduced based on a 1-minute time window.",
-        step45desc4:
-          ": This parameter is used to specify the name of the data table to be queried. When the ID of a drop-down parameter component is set as metric in the BI tool, the selected items of the drop-down parameter component are bound to this parameter to achieve dynamic selection.",
-        step45desc5:
-          ": These two parameters are used to represent the time range of the query data set and can be bound with the Text Parameter Component.",
-        step45desc6:
-          'You can modify the data type, data range, and default values of parameters in the "Edit Parameters" dialog box of the BI tool, and dynamically set the values of these parameters in the "Visual Report". ',
-        step5: "Make a report",
-        step5full: "Create a visual report",
-        step51desc:
-          'Click "Make Report" in Yonghong BI tool to create a canvas.',
-        step52desc:
-          "Drag visual components, such as Table Components, onto the canvas.",
-        step53desc:
-          "Select the data set to be bound in the Data Set sidebar, and bind Dimensions and Measures in the data column to Table Components as needed.",
+        step45desc0: 'Data can be read in real time from TDengine, where: ',
+        step45desc1: ': Indicates the start time of the time window.',
+        step45desc2: ': Indicates the aggregate value in the time window.',
+        step45desc3: ': Indicates that the parameter interval is introduced into the SQL statement. When the BI tool queries data, it assigns a value to the parameter interval. If the value is 1m, the sampling data is reduced based on a 1-minute time window.',
+        step45desc4: ': This parameter is used to specify the name of the data table to be queried. When the ID of a drop-down parameter component is set as metric in the BI tool, the selected items of the drop-down parameter component are bound to this parameter to achieve dynamic selection.',
+        step45desc5: ': These two parameters are used to represent the time range of the query data set and can be bound with the Text Parameter Component.',
+        step45desc6: 'You can modify the data type, data range, and default values of parameters in the "Edit Parameters" dialog box of the BI tool, and dynamically set the values of these parameters in the "Visual Report". ',
+        step5: 'Make a report',
+        step5full: 'Create a visual report',
+        step51desc: 'Click "Make Report" in Yonghong BI tool to create a canvas.',
+        step52desc: 'Drag visual components, such as Table Components, onto the canvas.',
+        step53desc: 'Select the data set to be bound in the Data Set sidebar, and bind Dimensions and Measures in the data column to Table Components as needed.',
         step54desc: 'Click "Save" to view the report.',
         step55desc:
           "For more information about Yonghong BI tools, please consult them ",

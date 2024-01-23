@@ -32,6 +32,11 @@
               <span>{{ row[index] }}</span>
             </el-tooltip>
           </template>
+          <template slot="header">
+            <el-tooltip :content="item" placement="top-start">
+              <span>{{ item }}</span>
+            </el-tooltip>
+          </template>
         </el-table-column>
       </template>
     </el-table>

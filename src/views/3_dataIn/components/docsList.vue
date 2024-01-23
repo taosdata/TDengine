@@ -7,7 +7,7 @@
           <h2 class="title">
             
             <img class="image" :src="getImg(item.name, item.icon)" alt="" />
-            <span>{{ item.name }}</span>
+            <span>{{ item.title || item.name }}</span>
           </h2>
           <p class="desc nowrap">
             {{ item.desc }}
@@ -66,9 +66,6 @@ export default {
       if(name=='Google Data Studio'){
           name='gdStudio'
         }
-      if (name == 'YonghongBI' || name == 'PowerBI') {
-        return require(`@/assets/images/${icon || name}.png`);
-      }
       try {
           return require(`@/assets/images/${icon || name}.svg`);
         } catch (err) {
