@@ -3343,7 +3343,7 @@ static int32_t subTblRowCompareFn(const void* pLeft, const void* pRight, void* p
 }
 
 static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSubTableInput* pInput, bool* pHasNext) {
-  const STableMergeScanInfo* pInfo = pOperator->info;
+  STableMergeScanInfo* pInfo = pOperator->info;
   STmsSubTablesMergeInfo* pSubTblsInfo = pInfo->pSubTablesMergeInfo;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
   const SStorageAPI* pAPI= &pTaskInfo->storageAPI;
@@ -3480,7 +3480,7 @@ static int32_t stopSubTablesTms(SOperatorInfo* pOperator) {
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
   SReadHandle* pHandle = &pInfo->base.readHandle;
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
-  tMergeTreeDestroy(pSubTblsInfo->pTree);
+  tMergeTreeDestroy(&pSubTblsInfo->pTree);
   for (int32_t i = 0; i <= pSubTblsInfo->numSubTables; ++i) {
     STmsSubTableInput* pInput =  pSubTblsInfo->aInputs + i;
 
