@@ -34,7 +34,11 @@ taos_metric_t *taos_metric_new(taos_metric_type_t metric_type, const char *name,
   int r = 0;
   taos_metric_t *self = (taos_metric_t *)taos_malloc(sizeof(taos_metric_t));
   self->type = metric_type;
-  self->name = name;
+  int len = strlen(name) + 1;
+  self->name = taos_malloc(len);
+  memset(self->name, 0, len);
+  strcpy(self->name, name);
+  //self->name = name;
   self->help = help;
 
   const char **k = (const char **)taos_malloc(sizeof(const char *) * label_key_count);
@@ -110,6 +114,9 @@ int taos_metric_destroy(taos_metric_t *self) {
   }
   taos_free(self->label_keys);
   self->label_keys = NULL;
+
+  taos_free(self->name);
+  self->name = NULL;
 
   taos_free(self);
   self = NULL;

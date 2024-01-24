@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#include <stdatomic.h>
+
 
 // Public
 #include "taos_alloc.h"
@@ -25,10 +25,14 @@
 #include "taos_metric_sample_i.h"
 #include "taos_metric_sample_t.h"
 
-#define ALLOW_FORBID_FUNC
+#define DOUBLE_ATOMIC
 
-#include "tdef.h"
+#ifdef DOUBLE_ATOMIC
+#include <stdatomic.h>
+#else
+#define ALLOW_FORBID_FUNC
 #include "osAtomic.h"
+#endif
 
 taos_metric_sample_t *taos_metric_sample_new(taos_metric_type_t type, const char *l_value, double r_value) {
   taos_metric_sample_t *self = (taos_metric_sample_t *)taos_malloc(sizeof(taos_metric_sample_t));
@@ -67,7 +71,8 @@ int taos_metric_sample_add(taos_metric_sample_t *self, double r_value) {
   if (r_value < 0) {
     return 1;
   }
-  /*
+  
+#ifdef DOUBLE_ATOMIC
   _Atomic double old = atomic_load(&self->r_value);
 
   for (;;) {
@@ -76,8 +81,10 @@ int taos_metric_sample_add(taos_metric_sample_t *self, double r_value) {
       return 0;
     }
   }
-  */
+#else
   atomic_fetch_add_64(&self->r_value, r_value);
+#endif
+
   return 0;
 }
 
@@ -87,7 +94,8 @@ int taos_metric_sample_sub(taos_metric_sample_t *self, double r_value) {
     TAOS_LOG(TAOS_METRIC_INCORRECT_TYPE);
     return 1;
   }
-  /*
+
+#ifdef DOUBLE_ATOMIC
   _Atomic double old = atomic_load(&self->r_value);
   for (;;) {
     _Atomic double new = ATOMIC_VAR_INIT(old - r_value);
@@ -95,8 +103,10 @@ int taos_metric_sample_sub(taos_metric_sample_t *self, double r_value) {
       return 0;
     }
   }
-  */
+#else
   atomic_fetch_sub_64(&self->r_value, r_value);
+#endif
+
   return 0;
 }
 
@@ -105,9 +115,34 @@ int taos_metric_sample_set(taos_metric_sample_t *self, double r_value) {
     TAOS_LOG(TAOS_METRIC_INCORRECT_TYPE);
     return 1;
   }
-  /*
+
+#ifdef DOUBLE_ATOMIC
   atomic_store(&self->r_value, r_value);
-  */
+#else
   atomic_store_64(&self->r_value, r_value);
+#endif  
+  
+  return 0;
+}
+
+int taos_metric_sample_exchange(taos_metric_sample_t *self, double r_value, double* old_value) {
+  if (self->type != TAOS_GAUGE && self->type != TAOS_COUNTER) {
+    TAOS_LOG(TAOS_METRIC_INCORRECT_TYPE);
+    return 1;
+  }
+
+#ifdef DOUBLE_ATOMIC
+  _Atomic double new = ATOMIC_VAR_INIT(r_value);
+  for (;;) {
+    _Atomic double old = atomic_load(&self->r_value);
+    *old_value = old;
+    if (atomic_compare_exchange_weak(&self->r_value, &old, new)) {
+      return 0;
+    }
+  }
+#else
+  *old_value = atomic_exchange_64(&self->r_value, r_value);
+#endif   
+  
   return 0;
 }

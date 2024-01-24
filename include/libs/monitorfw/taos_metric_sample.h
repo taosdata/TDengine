@@ -56,4 +56,6 @@ int taos_metric_sample_sub(taos_metric_sample_t *self, double r_value);
  */
 int taos_metric_sample_set(taos_metric_sample_t *self, double r_value);
 
+int taos_metric_sample_exchange(taos_metric_sample_t *self, double r_value, double* old_value);
+
 #endif  // TAOS_METRIC_SAMPLE_H

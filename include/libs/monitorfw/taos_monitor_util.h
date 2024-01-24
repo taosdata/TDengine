@@ -13,22 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TAOS_METRIC_SAMPLE_T_H
-#define TAOS_METRIC_SAMPLE_T_H
+/**
+ * @file taos_monitor_util.h
+ * @brief Functions for retrieving metric samples from metrics given an ordered set of labels
+ */
 
-#include "taos_metric_sample.h"
-#include "taos_metric_t.h"
+#ifndef TAOS_MONITOR_UTIL_H
+#define TAOS_MONITOR_UTIL_H
 
-#define DOUBLE_ATOMIC
+#include "taos_metric.h"
+#include "tjson.h"
 
-struct taos_metric_sample {
-  taos_metric_type_t type; /**< type is the metric type for the sample */
-  char *l_value;           /**< l_value is the full metric name and label set represeted as a string */
-#ifdef DOUBLE_ATOMIC
-  _Atomic double r_value;  /**< r_value is the value of the metric sample */
-#else
-  int64_t r_value;  /**< r_value is the value of the metric sample */
-#endif  
-};
+void taos_monitor_split_str(char** arr, char* str, const char* del);
+void taos_monitor_split_str_metric(char** arr, taos_metric_t* metric, const char* del, char** buf);
+char* taos_monitor_get_metric_name(taos_metric_t* metric);
 
-#endif  // TAOS_METRIC_SAMPLE_T_H
+#endif  // TAOS_MONITOR_UTIL_H

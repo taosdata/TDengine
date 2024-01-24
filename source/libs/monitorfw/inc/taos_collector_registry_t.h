@@ -34,7 +34,7 @@ struct taos_collector_registry {
   taos_string_builder_t *string_builder;     /**< Enables string building */
   taos_metric_formatter_t *metric_formatter; /**< metric formatter for metric exposition on bridge call */
   pthread_rwlock_t *lock;                    /**< mutex for safety against concurrent registration */
-  taos_string_builder_t *out;
+  taos_string_builder_t *string_builder_batch;
 };
 
 #endif  // TAOS_REGISTRY_T_H

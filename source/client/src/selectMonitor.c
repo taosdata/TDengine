@@ -16,7 +16,7 @@
 #include "clientMonitor.h"
 #include "clientLog.h"
 
-const char* selectMonitorName = "slow_query";
+const char* selectMonitorName = "slow_query:slow_query_metric";
 const char* selectMonitorHelp = "slow query log when cost > 3s";
 const int   selectMonitorLabelCount = 1;
 const char* selectMonitorLabels[] = {"default"};

@@ -81,6 +81,7 @@ static void    *dmNotifyThreadFp(void *param) {
 static void *dmMonitorThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
+  int64_t     lastTimeForBasic = taosGetTimestampMs();
   setThreadName("dnode-monitor");
 
   while (1) {
@@ -88,11 +89,21 @@ static void *dmMonitorThreadFp(void *param) {
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
+
     if (curTime < lastTime) lastTime = curTime;
     float interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsMonitorInterval) {
       (*pMgmt->sendMonitorReportFp)();
       lastTime = curTime;
+    }
+    
+    if(tsMonitorForceV2){
+      if (curTime < lastTimeForBasic) lastTimeForBasic = curTime;
+      float intervalForBasic = (curTime - lastTimeForBasic) / 1000.0f;
+      if (intervalForBasic >= tsMonitorIntervalForBasic) {
+        (*pMgmt->sendMonitorReportFpBasic)();
+        lastTimeForBasic = curTime;
+      }
     }
   }
 

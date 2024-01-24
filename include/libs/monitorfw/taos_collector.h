@@ -76,6 +76,8 @@ int taos_collector_destroy_generic(void *gen);
  */
 int taos_collector_add_metric(taos_collector_t *self, taos_metric_t *metric);
 
+taos_metric_t* taos_collector_get_metric(taos_collector_t *self, char *metric_name);
+
 /**
  * @brief The collect function is responsible for doing any work involving a set of metrics and then returning them
  *        for metric exposition.

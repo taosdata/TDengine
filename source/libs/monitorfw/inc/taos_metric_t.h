@@ -42,7 +42,7 @@ extern char *taos_metric_type_map[4];
  */
 struct taos_metric {
   taos_metric_type_t type;            /**< metric_type      The type of metric */
-  const char *name;                   /**< name             The name of the metric */
+  char *name;                   /**< name             The name of the metric */
   const char *help;                   /**< help             The help output for the metric */
   taos_map_t *samples;                /**< samples          Map comprised of samples for the given metric */
   size_t label_key_count;             /**< label_keys_count The count of labe_keys*/

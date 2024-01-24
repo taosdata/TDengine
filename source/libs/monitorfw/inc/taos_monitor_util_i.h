@@ -13,22 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TAOS_METRIC_SAMPLE_T_H
-#define TAOS_METRIC_SAMPLE_T_H
+#ifndef TAOS_MONITOR_UTIL_I_H
+#define TAOS_MONITOR_UTIL_I_H
 
-#include "taos_metric_sample.h"
-#include "taos_metric_t.h"
+#include <stdint.h>
 
-#define DOUBLE_ATOMIC
+void taos_monitor_split_str(char** arr, char* str, const char* del);
+int  taos_monitor_count_occurrences(char *str, char *toSearch);
+void taos_monitor_strip(char *s);
+bool taos_monitor_is_match(const SJson* tags, char** pairs, int32_t count);
 
-struct taos_metric_sample {
-  taos_metric_type_t type; /**< type is the metric type for the sample */
-  char *l_value;           /**< l_value is the full metric name and label set represeted as a string */
-#ifdef DOUBLE_ATOMIC
-  _Atomic double r_value;  /**< r_value is the value of the metric sample */
-#else
-  int64_t r_value;  /**< r_value is the value of the metric sample */
-#endif  
-};
-
-#endif  // TAOS_METRIC_SAMPLE_T_H
+#endif  // TAOS_MONITOR_UTIL_I_H

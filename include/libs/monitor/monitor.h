@@ -100,6 +100,7 @@ typedef struct {
   int32_t mnode_id;
   char    mnode_ep[TSDB_EP_LEN];
   char    role[MON_ROLE_LEN];
+  int32_t syncState;
 } SMonMnodeDesc;
 
 typedef struct {
@@ -125,6 +126,7 @@ typedef struct {
 typedef struct {
   int32_t dnode_id;
   char    vnode_role[MON_ROLE_LEN];
+  int32_t syncState;
 } SMonVnodeDesc;
 
 typedef struct {
@@ -221,9 +223,8 @@ void    monSetVmInfo(SMonVmInfo *pInfo);
 void    monSetQmInfo(SMonQmInfo *pInfo);
 void    monSetSmInfo(SMonSmInfo *pInfo);
 void    monSetBmInfo(SMonBmInfo *pInfo);
-void    monSendReport();
-void    monSendPromReport();
-void    monSendContent(char *pCont);
+void    monGenAndSendReport();
+void    monGenAndSendReportBasic();
 
 void tFreeSMonMmInfo(SMonMmInfo *pInfo);
 void tFreeSMonVmInfo(SMonVmInfo *pInfo);

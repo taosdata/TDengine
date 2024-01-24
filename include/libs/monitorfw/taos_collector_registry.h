@@ -86,6 +86,8 @@ taos_metric_t *taos_collector_registry_must_register_metric(taos_metric_t *metri
  */
 int taos_collector_registry_register_metric(taos_metric_t *metric);
 
+taos_metric_t *taos_collector_registry_get_metric(char* metric_name);
+
 /**
  * @brief Register a collector with the given registry. Returns a non-zero integer value on failure.
  * @param self The target taos_collector_registry_t*
@@ -105,7 +107,9 @@ int taos_collector_registry_register_collector(taos_collector_registry_t *self, 
  */
 const char *taos_collector_registry_bridge(taos_collector_registry_t *self, char *ts, char *format);
 
-int taos_collector_registry_clear_out(taos_collector_registry_t *self);
+int taos_collector_registry_clear_batch(taos_collector_registry_t *self);
+
+const char *taos_collector_registry_bridge_new(taos_collector_registry_t *self, char *ts, char *format, char** prom_str);
 
 /**
  *@brief Validates that the given metric name complies with the specification:

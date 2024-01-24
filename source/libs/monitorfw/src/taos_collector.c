@@ -107,3 +107,9 @@ int taos_collector_add_metric(taos_collector_t *self, taos_metric_t *metric) {
   }
   return taos_map_set(self->metrics, metric->name, metric);
 }
+
+taos_metric_t* taos_collector_get_metric(taos_collector_t *self, char *metric_name){
+  TAOS_ASSERT(self != NULL);
+  if (self == NULL) return NULL;
+  return taos_map_get(self->metrics, metric_name);
+}

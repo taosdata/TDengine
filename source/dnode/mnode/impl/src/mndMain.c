@@ -859,8 +859,10 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
       pClusterInfo->master_uptime = (float)mndGetClusterUpTime(pMnode) / 86400.0f;
       // pClusterInfo->master_uptime = (ms - pObj->stateStartTime) / (86400000.0f);
       tstrncpy(desc.role, syncStr(TAOS_SYNC_STATE_LEADER), sizeof(desc.role));
+      desc.syncState = TAOS_SYNC_STATE_LEADER;
     } else {
       tstrncpy(desc.role, syncStr(pObj->syncState), sizeof(desc.role));
+      desc.syncState = pObj->syncState;
     }
     taosArrayPush(pClusterInfo->mnodes, &desc);
     sdbRelease(pSdb, pObj);
@@ -891,6 +893,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
       SMonVnodeDesc *pVnDesc = &desc.vnodes[i];
       pVnDesc->dnode_id = pVgid->dnodeId;
       tstrncpy(pVnDesc->vnode_role, syncStr(pVgid->syncState), sizeof(pVnDesc->vnode_role));
+      pVnDesc->syncState = pVgid->syncState;
       if (pVgid->syncState == TAOS_SYNC_STATE_LEADER) {
         tstrncpy(desc.status, "ready", sizeof(desc.status));
         pClusterInfo->vgroups_alive++;

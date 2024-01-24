@@ -18,6 +18,7 @@
 #include "clientLog.h"
 #include "functionMgt.h"
 #include "os.h"
+#include "osSleep.h"
 #include "query.h"
 #include "qworker.h"
 #include "scheduler.h"
@@ -82,6 +83,8 @@ static void deregisterRequest(SRequestObj *pRequest) {
   int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
   int32_t reqType = SLOW_LOG_TYPE_OTHERS;
 
+  //taosSsleep(3);
+
   int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
   tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", reqId:0x%" PRIx64
            " elapsed:%.2f ms, "
@@ -107,6 +110,8 @@ static void deregisterRequest(SRequestObj *pRequest) {
       reqType = SLOW_LOG_TYPE_QUERY;
     }
   }
+
+  duration = 7000000;
 
   if (duration >= (tsSlowLogThreshold * 1000000UL)) {
     atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
