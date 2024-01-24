@@ -1092,7 +1092,7 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
     res = translateColumnWithPrefix(pCxt, pCol);
   } else {
     bool found = false;
-    if (SQL_CLAUSE_ORDER_BY == pCxt->currClause) {
+    if (SQL_CLAUSE_ORDER_BY == pCxt->currClause && !(*pCol)->node.asParam) {
       res = translateColumnUseAlias(pCxt, pCol, &found);
     }
     if (DEAL_RES_ERROR != res && !found) {
@@ -1101,6 +1101,10 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
       } else {
         res = translateColumnWithoutPrefix(pCxt, pCol);
       }
+    }
+    if(SQL_CLAUSE_ORDER_BY == pCxt->currClause && !(*pCol)->node.asParam
+      && res != DEAL_RES_CONTINUE && res != DEAL_RES_END) {
+        res = translateColumnUseAlias(pCxt, pCol, &found);
     }
   }
   return res;

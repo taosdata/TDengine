@@ -214,14 +214,15 @@ void nodesWalkExprsPostOrder(SNodeList* pList, FNodeWalker walker, void* pContex
   (void)walkExprs(pList, TRAVERSAL_POSTORDER, walker, pContext);
 }
 
-static void checkParamIsFunc(SFunctionNode *pFunc) {
+static void checkParamIsFunc(SFunctionNode* pFunc) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
-  if (numOfParams > 1) {
-    for (int32_t i = 0; i < numOfParams; ++i) {
-      SNode* pPara = nodesListGetNode(pFunc->pParameterList, i);
-      if (nodeType(pPara) == QUERY_NODE_FUNCTION) {
-        ((SFunctionNode *)pPara)->node.asParam = true;
-      }
+  for (int32_t i = 0; i < numOfParams; ++i) {
+    SNode* pPara = nodesListGetNode(pFunc->pParameterList, i);
+    if (numOfParams > 1 && nodeType(pPara) == QUERY_NODE_FUNCTION) {
+      ((SFunctionNode*)pPara)->node.asParam = true;
+    }
+    if (nodeType(pPara) == QUERY_NODE_COLUMN) {
+      ((SColumnNode*)pPara)->node.asParam = true;
     }
   }
 }
