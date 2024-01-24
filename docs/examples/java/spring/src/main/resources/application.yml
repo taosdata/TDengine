@@ -1,0 +1,23 @@
+# spring server
+server:
+  port: 8088
+
+spring:
+  datasource:
+    driver-class-name: com.taosdata.jdbc.rs.RestfulDriver
+    url: jdbc:TAOS-RS://example.com?useSSL=true&token=xxxx
+    # using connection pools
+    type: com.alibaba.druid.pool.DruidDataSource
+    druid:
+      initial-size: 5
+      min-idle: 5
+      max-active: 20
+      max-wait: 60000
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 300000
+      validation-query: SELECT 1
+      pool-prepared-statements: true
+      max-pool-prepared-statement-per-connection-size: 20
+# mybatis
+mybatis:
+  mapper-locations: classpath:mapper/*.xml

@@ -21,12 +21,12 @@ import TabItem from '@theme/TabItem';
 ```
 
 </TabItem>
-<TabItem value="gradel" label="Gradle">
+<TabItem value="spring" label="Spring">
 
-```groovy title="build.gradle"
-dependencies {
-  implementation 'com.taosdata.jdbc:taos-jdbcdriver:3.2.7'
-}
+In the "pom.xml" file, please add the Spring Boot and TDengine Java connector dependencies:
+
+```xml
+{{#include docs/examples/java/spring/pom.xml:spring}}
 ```
 
 </TabItem>
@@ -34,7 +34,7 @@ dependencies {
 
 ## Config
 
-Run this command in your terminal to save the JDBC URL as variable:
+Run this command in your terminal to save the JDBC URL as variable, or if it is a Spring application, you can use the Spring configuration:
 
 <Tabs defaultValue="bash">
 <TabItem value="bash" label="Bash">
@@ -58,9 +58,14 @@ $env:TDENGINE_JDBC_URL='<jdbcURL>'
 ```
 
 </TabItem>
-</Tabs>
+<TabItem value="spring" label="Spring">
 
-Alternatively, you can set environment variable in your IDE's run configurations.
+```yml
+{{#include docs/examples/java/spring/src/main/resources/application.yml}}
+```
+
+</TabItem>
+</Tabs>
 
 <!-- exclude -->
 
@@ -74,11 +79,32 @@ To obtain the value of JDBC URL, please log in [TDengine Cloud](https://cloud.td
 
 ## Connect
 
+<Tabs defaultValue="java">
+<TabItem value="java" label="Java">
 Code bellow get JDBC URL from environment variables first and then create a `Connection` object, which is a standard JDBC Connection object.
 
 ```java
 {{#include docs/examples/java/src/main/java/com/taos/example/ConnectCloudExample.java:connect}}
 ```
+
+</TabItem>
+<TabItem value="spring" label="Spring">
+1. Define an interface called "meterMapper", which uses the MyBatis framework to map from TDengine database super table to Java object:
+
+```
+{{#include docs/examples/java/spring/src/main/java/com/taos/example/dao/MeterMapper.java:mybatis}}
+```
+
+2. Create a 'meterMapper.xml' file under 'src/main/resources/mapper', and add the following SQL mapping:
+
+```
+{{#include docs/examples/java/spring/src/main/resources/mapper/meterMapper.xml}}
+```
+
+3. For more details about how to write or query data from TDngine Cloud instance through Spring, please refer to: <https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring/>
+
+</TabItem>
+</Tabs>
 
 The client connection is then established. For how to write data and query data, please refer to [Data In](https://docs.tdengine.com/cloud/data-in/) and [Tools](https://docs.tdengine.com/cloud/tools/).
 
