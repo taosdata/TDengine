@@ -2222,7 +2222,16 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
       if (!IS_IDX_ON(pTagColumn)) continue;
 
       STagVal tagVal = {.cid = pTagColumn->colId};
-      tTagGet((const STag *)pCtbEntry->ctbEntry.pTags, &tagVal);
+      if (!tTagGet((const STag *)pCtbEntry->ctbEntry.pTags, &tagVal)) {
+        ret = -1;
+        goto end;
+      } else {
+        if (tagVal.type != pTagColumn->type || tagVal.cid != pTagColumn->colId) {
+          ret = -1;
+          goto end;
+        }
+      }
+
       if (IS_VAR_DATA_TYPE(pTagColumn->type)) {
         pTagData = tagVal.pData;
         nTagData = (int32_t)tagVal.nData;
