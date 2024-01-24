@@ -326,7 +326,6 @@ typedef struct STableMergeScanInfo {
   SSDataBlock*    pSortInputBlock;
   SSDataBlock*    pReaderBlock;
   int64_t         startTs;  // sort start time
-  SArray*         sortSourceParams;
   SLimitInfo      limitInfo;
   int64_t         numOfRows;
   SScanInfo       scanInfo;
@@ -347,7 +346,6 @@ typedef struct STableMergeScanInfo {
   SSDataBlock*     nextDurationBlocks[2];
   bool             rtnNextDurationBlocks;
   int32_t          nextDurationBlocksIdx;
-
 
   STmsSubTablesMergeInfo* pSubTablesMergeInfo;
 } STableMergeScanInfo;
