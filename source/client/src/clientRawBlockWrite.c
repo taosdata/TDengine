@@ -1005,6 +1005,9 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
     }
   }
 
+  if (taosHashGetSize(pVgroupHashmap) == 0) {
+    goto end;
+  }
   SArray* pBufArray = serializeVgroupsCreateTableBatch(pVgroupHashmap);
   if (NULL == pBufArray) {
     code = TSDB_CODE_OUT_OF_MEMORY;
