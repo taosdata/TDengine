@@ -192,12 +192,34 @@
 #define GRANT_TS_SEC_LEN 20
 
 static const char gConnName[CONN_TYPE_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
-    "opc_da",         "opc_ua",   "pi",    "kafka", "influxdb",  "mqtt",
-    "avevahistorian", "opentsdb", "td2.6", "td3.0", "clickhouse"};
+    "opc_da", "opc_ua", "pi", "kafka", "influxdb", "mqtt", "avevahistorian", "opentsdb", "td2.6", "td3.0"};
 
 static const char *gConnDisplay[CONN_TYPE_DYN_MAX] = {
-    "OPC_DA",         "OPC_UA",   "Pi",          "Kafka",       "InfluxDB",  "MQTT",
-    "avevaHistorian", "OpenTSDB", "TDengine2.6", "TDengine3.0", "ClickHouse"};
+    "OPC_DA", "OPC_UA", "Pi", "Kafka", "InfluxDB", "MQTT", "avevaHistorian", "OpenTSDB", "TDengine2.6", "TDengine3.0"};
+
+static const char gGrantName[GRANT_OPT_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
+    "basic", "service", "stream", "subscription", "audit", "csv", "view", "storage", "backup_restore"};
+
+static const char *gGrantDisplay[GRANT_OPT_DYN_MAX] = {
+    "basic", "service", "stream", "subscription", "audit", "csv", "view", "multi_tier_storage", "backup_restore"};
+
+static const char *tGetConnDisplay(const char *name) {
+  for (int32_t i = CONN_TYPE_MAX; i < CONN_TYPE_DYN_MAX; ++i) {
+    if (strncasecmp(gConnName[i], name, GRANT_ITEM_NAME_LEN) == 0) {
+      return gConnDisplay[i];
+    }
+  }
+  return "";
+}
+
+static const char *tGetGrantDisplay(const char *name) {
+  for (int32_t i = GRANT_OPT_MAX; i < GRANT_OPT_DYN_MAX; ++i) {
+    if (strncasecmp(gGrantName[i], name, GRANT_ITEM_NAME_LEN) == 0) {
+      return gGrantDisplay[i];
+    }
+  }
+  return "";
+}
 
 SGrantStatus     grantStatus = {0};
 SGrantUniqStatus grantUniqStatus = {
@@ -1998,6 +2020,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, const char *oldActive, const char *
   SGrantUniqObj newObj = {0};
   SGrantUniqObj oldObj = {0};
   SHashObj     *pMachines = NULL;
+  bool          revoked = false;
 
   // step 1: basic judgement and init
   if (!newActive || newActive[0] == 0) {
@@ -2013,8 +2036,17 @@ int32_t grantAlterActiveCode(SMnode *pMnode, const char *oldActive, const char *
     }
   }
 
+  SGrantState lastState = {0};
+  if (0 != (code = mndGrantGetLastState(pMnode, &lastState))) {
+    if (code != TSDB_CODE_GRANT_OBJ_NOT_EXIST) {
+      goto _exit;
+    }
+  } else if (lastState.state == GRANT_STATE_REVOKED) {
+    revoked = true;
+  }
+
   if (!(pMachines = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, true))) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
   grantGetClusterMachines(pMnode, pMachines);
@@ -2075,12 +2107,6 @@ int32_t grantAlterActiveCode(SMnode *pMnode, const char *oldActive, const char *
     }
   }
 
-  // check machineIds
-  // if (GRANT_IS_IVLD_MACHINE()) {
-  //   code = TSDB_CODE_GRANT_UNLICENSED_CLUSTER;
-  //   goto _exit;
-  // }
-
   if (oldObj.granted == 0) {
     if (newObj.expireDays[GRANT_OPT_BASIC] == GRANT_UNIQ_UNDEFINED || newObj.limitTimeSeries == GRANT_UNIQ_UNDEFINED ||
         newObj.limitDnodes == GRANT_UNIQ_UNDEFINED || newObj.limitCpuCores == GRANT_UNIQ_UNDEFINED) {
@@ -2113,7 +2139,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   char    ts[GRANT_TS_SEC_LEN] = {0};
 
   if (pShow->numOfRows < 1) {
-    SGrantDataIns *pDataIn = NULL;
+    // SGrantDataIns *pDataIn = NULL;
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     const char      *src = GRANT_VERSION;
@@ -2158,26 +2184,273 @@ static void mndCancelGetNextGrant(SMnode *pMnode, void *pIter) {
   sdbCancelFetch(pSdb, pIter);
 }
 
-static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
+static int32_t mndRetrieveGrantFullItem(SSDataBlock *pBlock, int32_t *numOfRows, const char *name, const char *display,
+                                        int64_t expire, int64_t curVal, int64_t limit, bool isDataIn) {
+  int32_t cols = 0;
+  char    tmp[192];
+  char   *pBuf = &tmp[0];
+  char   *qBuf = NULL;
+  char    ts[GRANT_TS_SEC_LEN] = {0};
+
+  SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+  qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+  snprintf(qBuf, 192, name);
+  varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
+  colDataSetVal(pColInfo, *numOfRows, pBuf, false);
+
+  ++cols;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+  qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+  snprintf(qBuf, 192, display);
+  varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
+  colDataSetVal(pColInfo, *numOfRows, pBuf, false);
+
+  ++cols;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+  qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+  if (expire == GRANT_UNIQ_UNLIMITED) {
+    snprintf(qBuf, 192, GRANT_UNIQ_UNLIMITED_S);
+  } else {
+    grantSecondsToString(expire, ts);
+    snprintf(qBuf, 192, ts);
+  }
+  varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
+  colDataSetVal(pColInfo, *numOfRows, pBuf, false);
+
+  ++cols;
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+  qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+  if (isDataIn) {
+    grantSecondsToString(expire * 86400, ts);
+    snprintf(qBuf, 192, "{\"number\":%" PRIi64 ", speed:%" PRIi64 ", expire:\"%" PRIi64 "\", expireTime:\"%s\"}",
+             curVal, limit, expire, ts);
+  } else if (limit == GRANT_UNIQ_UNLIMITED) {
+    snprintf(qBuf, 192, GRANT_UNIQ_UNLIMITED_S);
+  } else if (limit != GRANT_UNIQ_UNUTILIZED) {
+    snprintf(qBuf, 192, "%" PRIi64 "/%" PRIi64, curVal, limit);
+  } else {
+    qBuf[0] = 0;
+  }
+  varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
+  colDataSetVal(pColInfo, *numOfRows, pBuf, false);
+
+  ++(*numOfRows);
   return 0;
 }
+
+static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode           *pMnode = pReq->info.node;
+  int32_t           numOfRows = 0;
+  SGrantUniqStatus *pStatus = &gStatus;
+
+  if (pShow->numOfRows < 1) {
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_STREAM], gGrantDisplay[GRANT_OPT_STREAM],
+                             pStatus->streamExpireSec, pStatus->curStreams, pStatus->limitStreams, false);
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_SUBSCRIPTION],
+                             gGrantDisplay[GRANT_OPT_SUBSCRIPTION], pStatus->subscriptionExpireSec,
+                             pStatus->curSubscriptions, pStatus->limitSubscriptions, false);
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_AUDIT], gGrantDisplay[GRANT_OPT_AUDIT],
+                             pStatus->auditExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false);
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_CSV], gGrantDisplay[GRANT_OPT_CSV],
+                             pStatus->csvExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false);
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_VIEW], gGrantDisplay[GRANT_OPT_VIEW],
+                             pStatus->streamExpireSec, pStatus->curViews, pStatus->limitViews, false);
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_STORAGE], gGrantDisplay[GRANT_OPT_STORAGE],
+                             pStatus->streamExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false);
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_DATA_BAK_RST],
+                             gGrantDisplay[GRANT_OPT_DATA_BAK_RST], pStatus->streamExpireSec, 0, GRANT_UNIQ_UNUTILIZED,
+                             false);
+    int32_t nDynamic = taosArrayGetSize(pStatus->pItem32);
+    for (int32_t i = 0; i < nDynamic; ++i) {
+      SGrantItem32 *pItem = TARRAY_GET_ELEM(pStatus->pItem32, i);
+      mndRetrieveGrantFullItem(pBlock, &numOfRows, pItem->name, tGetGrantDisplay(pItem->name),
+                               (int64_t)pItem->expire * 86400, 0, pItem->number, false);
+    }
+    nDynamic = taosArrayGetSize(pStatus->pItem64);
+    for (int32_t i = 0; i < nDynamic; ++i) {
+      SGrantItem64 *pItem = TARRAY_GET_ELEM(pStatus->pItem64, i);
+      mndRetrieveGrantFullItem(pBlock, &numOfRows, pItem->name, tGetGrantDisplay(pItem->name),
+                               (int64_t)pItem->expire * 86400, 0, pItem->number, false);
+    }
+
+    for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
+      mndRetrieveGrantFullItem(pBlock, &numOfRows, gConnName[i], gConnDisplay[i], pStatus->dataIns[3 * i],
+                               pStatus->dataIns[3 * i + 1], pStatus->dataIns[3 * i + 2], true);
+    }
+    nDynamic = taosArrayGetSize(pStatus->pDataIns);
+    for (int32_t i = 0; i < nDynamic; ++i) {
+      SGrantDataIns *pDataIn = TARRAY_GET_ELEM(pStatus->pDataIns, i);
+      mndRetrieveGrantFullItem(pBlock, &numOfRows, pDataIn->name, tGetConnDisplay(pDataIn->name), pDataIn->expire,
+                               pDataIn->number, pDataIn->speed, true);
+    }
+  }
+
+  pShow->numOfRows += numOfRows;
+
+  return numOfRows;
+}
+
 static void mndCancelGetNextGrantFull(SMnode *pMnode, void *pIter) {
   printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
 }
 static int32_t mndRetrieveGrantLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
-  return 0;
+  SMnode *pMnode = pReq->info.node;
+  int32_t numOfRows = 0;
+  int32_t cols = 0;
+  char   *pBuf = NULL;
+  char   *qBuf = NULL;
+  char    tmp[50];
+  int32_t tmpLen = 0;
+  int32_t bufLen = 0;
+  int32_t nMachines = 0;
+  void   *pIter = NULL;
+
+  SGrantObj *pGrant = mndAcquireGrant(pMnode, &pIter);
+  if (!pGrant) {
+    return 0;
+  }
+  nMachines = taosArrayGetSize(pGrant->pMachines);
+  bufLen = nMachines * 37;  // max len of machine
+  if (bufLen < 840) bufLen = 840;   // max len of state: 28*30=840
+
+  bufLen += VARSTR_HEADER_SIZE;
+
+  if (!(pBuf = taosMemoryCalloc(1, bufLen))) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return 0;
+  }
+
+  if (pShow->numOfRows < 1) {
+    cols = 0;
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+    for (int32_t i = 0; i < pGrant->nStates; ++i) {
+      SGrantState *pState = &pGrant->states[i];
+      if (i == 0) {
+        snprintf(tmp, 50, "%" PRIi64 ",%d,%d,%d", pState->ts, pState->reason, pState->lastState, pState->state);
+      } else {
+        snprintf(tmp, 50, ";%" PRIi64 ",%d,%d,%d", pState->ts, pState->reason, pState->lastState, pState->state);
+      }
+      tmpLen = strlen(tmp);
+      memcpy(qBuf, tmp, tmpLen);
+      qBuf += tmpLen;
+    }
+    qBuf[0] = 0;
+    varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
+    colDataSetVal(pColInfo, numOfRows, pBuf, false);
+
+    ++cols;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+    for (int32_t i = 0; i < pGrant->nActives; ++i) {
+      SGrantActive *pActive = &pGrant->actives[i];
+      if (i == 0) {
+        snprintf(tmp, 50, "%" PRIi64 ",%s", pActive->ts, pActive->active);
+      } else {
+        snprintf(tmp, 50, ";%" PRIi64 ",%s", pActive->ts, pActive->active);
+      }
+      tmpLen = strlen(tmp);
+      memcpy(qBuf, tmp, tmpLen);
+      qBuf += tmpLen;
+    }
+    qBuf[0] = 0;
+    varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
+    colDataSetVal(pColInfo, numOfRows, pBuf, false);
+
+    ++cols;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+    for (int32_t i = 0; i < nMachines ; ++i) {
+      SGrantMachine * pMachine = TARRAY_GET_ELEM(pGrant->pMachines, i);
+      if (i == 0) {
+        snprintf(tmp, 50, "%" PRIi64 ",%s", pMachine->ts, pMachine->machine);
+      } else {
+        snprintf(tmp, 50, ";%" PRIi64 ",%s", pMachine->ts, pMachine->machine);
+      }
+      tmpLen = strlen(tmp);
+      memcpy(qBuf, tmp, tmpLen);
+      qBuf += tmpLen;
+    }
+    qBuf[0] = 0;
+    varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
+    colDataSetVal(pColInfo, numOfRows, pBuf, false);
+
+    ++numOfRows;
+  }
+  mndReleaseGrant(pMnode, pGrant, pIter);
+
+  pShow->numOfRows += numOfRows;
+
+  taosMemoryFree(pBuf);
+  return numOfRows;
 }
+
 static void mndCancelGetNextGrantLog(SMnode *pMnode, void *pIter) {
-  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetch(pSdb, pIter);
 }
 static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
-  return 0;
+  SMnode *pMnode = pReq->info.node;
+  int32_t numOfRows = 0;
+  int32_t cols = 0;
+  char   *pBuf = NULL;
+  char   *qBuf = NULL;
+  char    tmp[50];
+  int32_t tmpLen = 0;
+  int32_t bufLen = 0;
+  int32_t nMachines = mndGetDnodeSize(pMnode);
+  void   *pIter = NULL;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  bufLen = VARSTR_HEADER_SIZE + TSDB_CLUSTER_ID_LEN + 1 + nMachines * (TSDB_MACHINE_ID_LEN + 1);
+  if (!(pBuf = taosMemoryCalloc(1, bufLen))) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return 0;
+  }
+
+  if (pShow->numOfRows < 1) {
+    cols = 0;
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+    snprintf(qBuf, TSDB_CLUSTER_ID_LEN + 1, "%s", grantObj.clusterId);
+    varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
+    colDataSetVal(pColInfo, numOfRows, pBuf, false);
+
+    ++cols;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+    snprintf(qBuf, TSDB_CLUSTER_ID_LEN + 2, "%s;", grantObj.clusterId);
+    qBuf += strlen(qBuf);
+
+    SDnodeObj *pDnode = NULL;
+    bool       first = true;
+    while ((pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode))) {
+      if (pDnode->machineId[0] == 0) continue;
+      if (first) {
+        snprintf(qBuf, TSDB_MACHINE_ID_LEN + 1, "%s", pDnode->machineId);
+        first = false;
+        qBuf += TSDB_MACHINE_ID_LEN;
+      } else {
+        snprintf(qBuf, TSDB_MACHINE_ID_LEN + 2, ",%s", pDnode->machineId);
+        qBuf += (TSDB_MACHINE_ID_LEN + 1);
+      }
+      sdbRelease(pSdb, pDnode);
+    }
+    varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
+    colDataSetVal(pColInfo, numOfRows, pBuf, false);
+
+    ++numOfRows;
+  }
+
+  pShow->numOfRows += numOfRows;
+
+  taosMemoryFree(pBuf);
+  return numOfRows;
 }
+
 static void mndCancelGetNextMachines(SMnode *pMnode, void *pIter) {
-  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetch(pSdb, pIter);
 }
 
 static int32_t tDeserializeGrantNotify(void *buf, int32_t bufLen, GrantNotify *pNotify) {

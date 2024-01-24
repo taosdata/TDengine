@@ -244,12 +244,14 @@ typedef enum {
   GRANT_OPT_SERVICE = 1,
   GRANT_OPT_STREAM = 2,
   GRANT_OPT_SUBSCRIPTION = 3,
-  GRANT_OPT_STORAGE = 4,
-  GRANT_OPT_VIEW = 4,
-  GRANT_OPT_AUDIT = 5,
-  GRANT_OPT_CSV = 6,
-  GRANT_OPT_DATA_BAK_RST = 7,
-  GRANT_OPT_MAX,
+  GRANT_OPT_AUDIT = 4,
+  GRANT_OPT_CSV = 5,
+  GRANT_OPT_VIEW = 6,
+  GRANT_OPT_STORAGE = 7,
+  GRANT_OPT_DATA_BAK_RST = 8,
+  GRANT_OPT_MAX = 9,
+  // add future grant items here
+  GRANT_OPT_DYN_MAX,
 } SGrantOpt;
 
 typedef struct {
@@ -371,13 +373,15 @@ typedef struct {
     int64_t p7;
     struct {
       int64_t bakRstExpireSec : 40;
-      int64_t curViews : 24;
+      int64_t reserve5 : 24;
     };
   };
   int64_t limitTimeSeries;
   int64_t curTimeSeries;
   int32_t limitCpuCores;
   int32_t curCpuCores;
+  int32_t limitViews;
+  int32_t curViews;
   int32_t dataIns[GRANT_UNIQ_KNOWN_DATAIN_VALS];  // known dataIns: 3 * sizeof(int32_t) * CONN_TYPE_MAX
   int64_t revokedExpireSec;
   // variants
