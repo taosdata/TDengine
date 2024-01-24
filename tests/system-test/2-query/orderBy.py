@@ -313,6 +313,39 @@ class TDTestCase:
 
         tdSql.no_error('select c1 as name from (select c1, c2 as name from st) order by name')
 
+    def queryOrderBySameCol(self):
+        tdLog.info("query OrderBy same col ....")
+        tdSql.execute(f"create stable sta (ts timestamp, col1 int) tags(t1 int);")
+        tdSql.execute(f"create table tba1 using sta tags(1);")
+        tdSql.execute(f"create table tba2 using sta tags(2);")
+
+        pd = datetime.datetime.now()
+        ts = int(datetime.datetime.timestamp(pd)*1000*1000)
+        tdSql.execute(f"insert into tba1 values ({ts}, 1);")
+        tdSql.execute(f"insert into tba1 values ({ts+2}, 3);")
+        tdSql.execute(f"insert into tba1 values ({ts+3}, 4);")
+        tdSql.execute(f"insert into tba1 values ({ts+4}, 5);")
+        tdSql.execute(f"insert into tba2 values ({ts}, 2);")
+        tdSql.execute(f"insert into tba2 values ({ts+1}, 3);")
+        tdSql.execute(f"insert into tba2 values ({ts+3}, 5);")
+        tdSql.execute(f"insert into tba2 values ({ts+5}, 7);")
+        tdSql.query(f"select a.col1, b.col1 from sta a inner join sta b on a.ts = b.ts and a.ts < {ts+2} order by a.col1, b.col1;")
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(1, 1, 2)
+        tdSql.query(f"select a.col1, b.col1 from sta a inner join sta b on a.ts = b.ts and a.ts < {ts+2} order by a.col1, b.col1 desc;")
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(1, 1, 1)
+
+        tdSql.query(f"select a.col1, b.col1 from sta a inner join sta b on a.ts = b.ts and a.ts < {ts+2} order by a.col1 desc, b.col1 desc;")
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(1, 1, 2)
+        tdSql.checkData(2, 0, 2)
+        tdSql.checkData(2, 1, 1)
+
     # run
     def run(self):
         # prepare env
@@ -329,6 +362,8 @@ class TDTestCase:
 
         # td-28332
         self.queryOrderByAmbiguousName()
+
+        self.queryOrderBySameCol()
 
     # stop
     def stop(self):
