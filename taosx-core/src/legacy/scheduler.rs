@@ -851,8 +851,19 @@ async fn sync_sparse_stable(
                         contains += 1;
                         tmp.clear();
                     }
-                    while let Some(row) = rows.next().await {
-                        let row = row?;
+                    while let Some(row) = rows.next().await.and_then(|r| match r {
+                        Ok(r) => Some(Ok(r)),
+                        Err(err) => {
+                            if err.message().contains("result is nil") {
+                                // taosAdapter returns `result is nil` error when polled too fast after end.
+                                // We should ignore this error and treat as end of stream.
+                                None
+                            } else {
+                                Some(Err(err))
+                            }
+                        }
+                    }) {
+                        let row = row.map_err(|err| err.context("sparse row view error"))?;
                         // dbg!(&row);
                         let values = row.collect_vec();
                         let name = match &values[0].1 {
