@@ -3700,7 +3700,7 @@ SSDataBlock* doTableMergeScanSubTables(SOperatorInfo* pOperator) {
       return pBlock;
     } else {
       // Data of this group are all dumped, let's try the next group
-      stopSubTablesTableMergeScan(pOperator);
+      stopSubTablesTableMergeScan(pInfo);
       if (pInfo->tableEndIndex >= tableListSize - 1) {
         setOperatorCompleted(pOperator);
         break;
