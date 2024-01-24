@@ -98,7 +98,9 @@ int32_t streamTaskSendTransSuccessMsg(SStreamTask* pTask) {
 }
 
 int32_t streamTaskKeepCurrentVerInWal(SStreamTask* pTask) {
-  ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask));
+  if (!HAS_RELATED_FILLHISTORY_TASK(pTask)) {
+    stError("s-task:%s no related fill-history task, since it may have been dropped already", pTask->id.idStr);
+  }
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     pTask->hTaskInfo.haltVer = walReaderGetCurrentVer(pTask->exec.pWalReader);

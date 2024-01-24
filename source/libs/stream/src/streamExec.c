@@ -402,13 +402,10 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   streamTaskSendCheckpointReq(pStreamTask);
 //  streamTaskResume(pStreamTask);
 
-  // 4. free it and remove fill-history task from disk meta-store
-//  streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
-
-  // 5. assign the status to the value that will be kept in disk
+  // 4. assign the status to the value that will be kept in disk
   pStreamTask->status.taskStatus = streamTaskGetStatus(pStreamTask)->state;
 
-  // 6. open the inputQ for all upstream tasks
+  // 5. open the inputQ for all upstream tasks
   streamTaskOpenAllUpstreamInput(pStreamTask);
 
   streamMetaReleaseTask(pMeta, pStreamTask);
