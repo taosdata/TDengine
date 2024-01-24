@@ -2285,6 +2285,7 @@ lazy_static::lazy_static! {
                 let yaml = yaml
                     .replace("taosX", crate::build::CUS_APP_NAME)
                     .replace("TDengine", crate::build::CUS_NAME)
+                    .replace("taosdata", crate::build::CUS_PROMPT)
                     .replace("taosAdapter",const_format::concatcp!(crate::build::CUS_PROMPT, "Adapter"));
                 def.push(serde_yaml::from_str(yaml.as_str()).unwrap());
             };
@@ -2314,6 +2315,7 @@ lazy_static::lazy_static! {
                 let yaml = yaml
                     .replace("taosX", crate::build::CUS_APP_NAME)
                     .replace("TDengine", crate::build::CUS_NAME)
+                    .replace("taosdata", crate::build::CUS_PROMPT)
                     .replace("taosAdapter",const_format::concatcp!(crate::build::CUS_PROMPT, "Adapter"));
                 def.push(serde_yaml::from_str(yaml.as_str()).unwrap());
             };

@@ -500,6 +500,10 @@ def init_explorer_code(explorer_path):
     else:
         os.chdir(os.path.join(taosx_dir, ".."))
         os.system('git clone git@github.com:taosdata/explorer.git')
+    
+    if release_info.TdengineVersion is not None and release_info.TdengineVersion != "":
+        os.chdir(explorer_path)
+        os.system(f'git checkout ver-{release_info.TdengineVersion}')
 
 def build_taos_explorer(explorer_path, mode):
     init_explorer_code(explorer_path)
