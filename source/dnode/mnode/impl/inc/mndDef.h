@@ -210,6 +210,7 @@ typedef struct {
   int32_t    numOfVnodes;
   int32_t    numOfOtherNodes;
   int32_t    numOfSupportVnodes;
+  int32_t    numOfDiskCfg;
   float      numOfCores;
   int64_t    memTotal;
   int64_t    memAvail;

@@ -193,7 +193,7 @@ static void mndPullupGrant(SMnode *pMnode) {
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {
         .msgType = TDMT_MND_GRANT_HB_TIMER, .pCont = pReq, .contLen = contLen, .info.ahandle = (void *)0x9527};
-    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
 }
 
@@ -596,14 +596,6 @@ static void mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   memcpy(pMnode->syncMgmt.nodeRoles, pOption->nodeRoles, sizeof(pOption->nodeRoles));
 }
 
-static void mndDestroyRefInfo(void *pInfo) {
-  SMnodeRefInfo *pRefInfo = pInfo;
-  if (pRefInfo && pRefInfo->freeFp) {
-    (*pRefInfo->freeFp)(pInfo);
-  }
-  taosMemoryFree(pInfo);
-}
-
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   mInfo("start to open mnode in %s", path);
 
@@ -628,16 +620,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
-  int32_t code = 0;
-  if ((pMnode->refMgmt = taosOpenRef(200, mndDestroyRefInfo)) < 0) {
-    code = terrno;
-    mError("failed to open mnode since %s", terrstr());
-    mndClose(pMnode);
-    terrno = code;
-    return NULL;
-  }
-
-  code = mndCreateDir(pMnode, path);
+  int32_t code = mndCreateDir(pMnode, path);
   if (code != 0) {
     code = terrno;
     mError("failed to open mnode since %s", terrstr());
@@ -680,7 +663,6 @@ void mndClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     mInfo("start to close mnode");
     mndCleanupSteps(pMnode, -1);
-    taosCloseRef(pMnode->refMgmt);
     taosMemoryFreeClear(pMnode->path);
     taosMemoryFreeClear(pMnode);
     mInfo("mnode is closed");

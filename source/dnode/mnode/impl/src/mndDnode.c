@@ -58,13 +58,6 @@ enum {
   DND_DROP,
 };
 
-typedef struct {
-  SMnodeRefInfo refInfo;
-  int64_t       refId;
-  tsem_t        sem;
-  char          machineId[TSDB_MACHINE_ID_LEN + 1];
-} SMachineInfo;
-
 static int32_t  mndCreateDefaultDnode(SMnode *pMnode);
 static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode);
 static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw);
@@ -78,7 +71,6 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
-static int32_t mndProcessGetMachineRsp(SRpcMsg *pRsp);
 static int32_t mndProcessStatusReq(SRpcMsg *pReq);
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq);
 static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
@@ -112,7 +104,6 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_DNODE, mndProcessDropDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_DNODE, mndProcessConfigDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CONFIG_DNODE_RSP, mndProcessConfigDnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_GET_MACHINE_RSP, mndProcessGetMachineRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STATUS, mndProcessStatusReq);
   mndSetMsgHandle(pMnode, TDMT_MND_NOTIFY, mndProcessNotifyReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DNODE_LIST, mndProcessDnodeListReq);
@@ -145,7 +136,7 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   tstrncpy(dnodeObj.fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   dnodeObj.fqdn[TSDB_FQDN_LEN - 1] = 0;
   snprintf(dnodeObj.ep, TSDB_EP_LEN - 1, "%s:%u", tsLocalFqdn, tsServerPort);
-  char *machineId = grantGetMachineId();
+  char *machineId = tGetMachineId();
   if (machineId) {
     memcpy(dnodeObj.machineId, machineId, TSDB_MACHINE_ID_LEN);
     taosMemoryFreeClear(machineId);
@@ -677,8 +668,12 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->rebootTime = statusReq.rebootTime;
     pDnode->numOfCores = statusReq.numOfCores;
     pDnode->numOfSupportVnodes = statusReq.numOfSupportVnodes;
+    pDnode->numOfDiskCfg = statusReq.numOfDiskCfg;
     pDnode->memAvail = statusReq.memAvail;
     pDnode->memTotal = statusReq.memTotal;
+    if (pDnode->machineId[0] == 0 && statusReq.machineId[0] != 0) {
+      tstrncpy(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN + 1);
+    }
 
     SStatusRsp statusRsp = {0};
     statusRsp.statusSeq++;
@@ -748,25 +743,10 @@ _OVER:
   return code;
 }
 
-static int32_t mndSendGetMachineToDnode(SMnode *pMnode, SDnodeObj *pObj, SMachineInfo *pInfo) {
-  SRpcMsg rpcMsg = {.pCont = NULL, .contLen = 0, .msgType = TDMT_MND_GET_MACHINE, .info.ahandle = (void*)pInfo->refId};
-  SEpSet  epSet = {.numOfEps = 1};
-  strncpy(epSet.eps[0].fqdn, pObj->fqdn, TSDB_FQDN_LEN);
-  epSet.eps[0].port = pObj->port;
-  return tmsgSendReq(&epSet, &rpcMsg);
-}
-
-static void mndDestroyMachineInfo(void *pInfo) {
-  if (pInfo) {
-    tsem_destroy(&((SMachineInfo *)pInfo)->sem);
-  }
-}
-
 static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pCreate) {
   int32_t       code = -1;
   SSdbRaw      *pRaw = NULL;
   STrans       *pTrans = NULL;
-  SMachineInfo *pInfo = NULL;
 
   SDnodeObj dnodeObj = {0};
   dnodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_DNODE);
@@ -775,29 +755,6 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   dnodeObj.port = pCreate->port;
   tstrncpy(dnodeObj.fqdn, pCreate->fqdn, TSDB_FQDN_LEN);
   snprintf(dnodeObj.ep, TSDB_EP_LEN - 1, "%s:%u", pCreate->fqdn, pCreate->port);
-  #if 0
-  if (!(pInfo = taosMemoryCalloc(1, sizeof(*pInfo)))) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
-  }
-  pInfo->refInfo.freeFp = mndDestroyMachineInfo;
-  tsem_init(&pInfo->sem, 0, 0);
-  if((pInfo->refId = taosAddRef(pMnode->refMgmt, pInfo)) < 0) {
-    goto _OVER;
-  }
-  if ((terrno = mndSendGetMachineToDnode(pMnode, &dnodeObj, pInfo)) != 0) {
-    goto _OVER;
-  }
-  if (tsem_timewait(&pInfo->sem, 1000) < 0) {
-    terrno = TSDB_CODE_DNODE_OFFLINE;
-    goto _OVER;
-  }
-  if (strlen(pInfo->machineId) == TSDB_MACHINE_ID_LEN) {
-    memcpy(dnodeObj.machineId, pInfo->machineId, TSDB_MACHINE_ID_LEN);
-  } else {
-    mWarn("Invalid machineId:%s to create dnode:%s", pInfo->machineId, dnodeObj.fqdn);
-  }
-  #endif
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_GLOBAL, pReq, "create-dnode");
   if (pTrans == NULL) goto _OVER;
   mInfo("trans:%d, used to create dnode:%s", pTrans->id, dnodeObj.ep);
@@ -815,9 +772,6 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
 _OVER:
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
-  if (pInfo) {
-    taosRemoveRef(pMnode->refMgmt, pInfo->refId);
-  }
   return code;
 }
 
@@ -1315,27 +1269,6 @@ _err_out:
 
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp) {
   mInfo("config rsp from dnode");
-  return 0;
-}
-
-static int32_t mndProcessGetMachineRsp(SRpcMsg *pRsp) {
-  if (pRsp->code != 0 || pRsp->contLen != TSDB_MACHINE_ID_LEN || pRsp->pCont == NULL) {
-    mError("failed to get machine since %s", tstrerror(pRsp->code ? pRsp->code : TSDB_CODE_INVALID_MSG));
-    return -1;
-  }
-
-  SMnode *pMnode = pRsp->info.node;
-  int64_t refId = (int64_t)pRsp->info.ahandle;
-
-  if (pMnode) {
-    SMachineInfo *pInfo = taosAcquireRef(pMnode->refMgmt, refId);
-    if (pInfo) {
-      memcpy(pInfo->machineId, pRsp->pCont, TSDB_MACHINE_ID_LEN);
-      tsem_post(&pInfo->sem);
-      taosReleaseRef(pMnode->refMgmt, refId);
-    }
-  }
-
   return 0;
 }
 

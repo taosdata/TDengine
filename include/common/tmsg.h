@@ -1564,9 +1564,11 @@ typedef struct {
   int64_t     updateTime;
   float       numOfCores;
   int32_t     numOfSupportVnodes;
+  int32_t     numOfDiskCfg;
   int64_t     memTotal;
   int64_t     memAvail;
   char        dnodeEp[TSDB_EP_LEN];
+  char        machineId[TSDB_MACHINE_ID_LEN + 1];
   SMnodeLoad  mload;
   SQnodeLoad  qload;
   SClusterCfg clusterCfg;

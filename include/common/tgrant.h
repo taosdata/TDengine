@@ -57,9 +57,8 @@ typedef enum {
   TSDB_GRANT_BACKUP_RESTORE_EXPIRE,
 } EGrantType;
 
-
 int32_t grantCheck(EGrantType grant);
-char*   grantGetMachineId();
+char*   tGetMachineId();
 
 #ifndef GRANTS_CFG
 #ifdef TD_ENTERPRISE
