@@ -22,6 +22,7 @@ import sys, getopt
 from taostest.util.msg import Msg, TaosBenchmark
 import getpass
 import socket
+import random
 import time
 
 class StreamStabilityTest(TDCase):
@@ -55,6 +56,7 @@ class StreamStabilityTest(TDCase):
         self.FILE_WEB_SERVER=f'http://{self.local_ip}:8081/'
         self.pause_resume_interval = 300
         self.schedu_interval = 800
+        self.vgid_list = self.tdCom.get_vgid_list(self.dbname)
 
     def help(self):
         print("case parameters:")
@@ -163,6 +165,8 @@ class StreamStabilityTest(TDCase):
         time.sleep(self.pause_resume_interval)
         self._remote._logger.info(f'resume stream {self.stream_name}')
         self.tdCom.resume_stream(self.stream_name)
+        self.tdSql.execute(f'balance vgroup leader on {random.choice(self.vgid_list)}')
+        self.tdCom.check_transactions(self._remote)
 
     def run(self):
         ret = self.parse_case_param()
