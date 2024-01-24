@@ -340,10 +340,15 @@ int32_t tDecodeStreamTaskId(SDecoder* pDecoder, STaskId* pTaskId) {
   return 0;
 }
 
-void tFreeStreamTask(SStreamTask* pTask) {
+void tFreeStreamTask(SStreamTask* pTask, bool metaLock) {
   char*                p = NULL;
   int32_t              taskId = pTask->id.taskId;
   STaskExecStatisInfo* pStatis = &pTask->execInfo;
+
+  // check for mnode
+  if (pTask->pMeta != NULL && ) {
+    streamTaskClearHTaskAttr(pTask, metaLock);
+  }
 
   ETaskStatus status1 = TASK_STATUS__UNINIT;
   taosThreadMutexLock(&pTask->lock);
@@ -733,20 +738,30 @@ int8_t streamTaskSetSchedStatusInactive(SStreamTask* pTask) {
   return status;
 }
 
-int32_t streamTaskClearHTaskAttr(SStreamTask* pTask) {
-  SStreamMeta* pMeta = pTask->pMeta;
+int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, bool metaLock) {
+  SStreamMeta*  pMeta = pTask->pMeta;
+  STaskId       sTaskId = {.streamId = pTask->streamTaskId.streamId, .taskId = pTask->streamTaskId.taskId};
   if (pTask->info.fillHistory == 0) {
-    return TSDB_CODE_SUCCESS;
+    return 0;
   }
 
-  STaskId       sTaskId = {.streamId = pTask->streamTaskId.streamId, .taskId = pTask->streamTaskId.taskId};
-  SStreamTask** ppStreamTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &sTaskId, sizeof(sTaskId));
+  if (metaLock) {
+    streamMetaWLock(pTask->pMeta);
+  }
 
+  SStreamTask** ppStreamTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &sTaskId, sizeof(sTaskId));
   if (ppStreamTask != NULL) {
+    taosThreadMutexLock(&(*ppStreamTask)->lock);
     CLEAR_RELATED_FILLHISTORY_TASK((*ppStreamTask));
     streamMetaSaveTask(pMeta, *ppStreamTask);
+    taosThreadMutexUnlock(&(*ppStreamTask)->lock);
+
     stDebug("s-task:%s clear the related stream task:0x%x attr to fill-history task", pTask->id.idStr,
             (int32_t)sTaskId.taskId);
+  }
+
+  if (metaLock) {
+    streamMetaWUnLock(pTask->pMeta);
   }
 
   return TSDB_CODE_SUCCESS;

@@ -617,7 +617,7 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   if (code < 0) {
     tqError("failed to add s-task:0x%x into vgId:%d meta, total:%d, code:%s", vgId, taskId, numOfTasks,
             tstrerror(code));
-    tFreeStreamTask(pTask);
+    tFreeStreamTask(pTask, true);
     return code;
   }
 
@@ -645,7 +645,7 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
     }
   } else {
     tqWarn("vgId:%d failed to add s-task:0x%x, since already exists in meta store", vgId, taskId);
-    tFreeStreamTask(pTask);
+    tFreeStreamTask(pTask, true);
   }
 
   return code;
@@ -663,7 +663,8 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
     if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
       STaskId* pHTaskId = &pTask->hTaskInfo.id;
       streamMetaUnregisterTask(pMeta, pHTaskId->streamId, pHTaskId->taskId);
-      tqDebug("vgId:%d drop fill-history task:0x%x dropped firstly", vgId, (int32_t)pHTaskId->taskId);
+      tqDebug("s-task:0x%x vgId:%d drop fill-history task:0x%x firstly", pReq->taskId, vgId,
+              (int32_t)pHTaskId->taskId);
     }
     streamMetaReleaseTask(pMeta, pTask);
   }

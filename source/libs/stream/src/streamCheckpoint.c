@@ -503,11 +503,16 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   if ((code == TSDB_CODE_SUCCESS) && dropRelHTask) {
     // transferred from the halt status, it is done the fill-history procedure and finish with the checkpoint
     // free it and remove fill-history task from disk meta-store
-    ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask));
-    SStreamTaskId hTaskId = {.streamId = pTask->hTaskInfo.id.streamId, .taskId = pTask->hTaskInfo.id.taskId};
+    taosThreadMutexLock(&pTask->lock);
+    if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
+      SStreamTaskId hTaskId = {.streamId = pTask->hTaskInfo.id.streamId, .taskId = pTask->hTaskInfo.id.taskId};
 
-    stDebug("s-task:%s fill-history finish checkpoint done, drop related fill-history task:0x%x", id, hTaskId.taskId);
-    streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pTask->pMeta->vgId, &hTaskId);
+      stDebug("s-task:%s fill-history finish checkpoint done, drop related fill-history task:0x%x", id, hTaskId.taskId);
+      streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pTask->pMeta->vgId, &hTaskId);
+    } else {
+      stWarn("s-task:%s related fill-history task:0x%x is erased", id, (int32_t)pTask->hTaskInfo.id.taskId);
+    }
+    taosThreadMutexUnlock(&pTask->lock);
   }
 
   // clear the checkpoint info if failed

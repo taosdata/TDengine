@@ -1214,7 +1214,7 @@ static int32_t mndCheckNodeStatus(SMnode *pMnode) {
 
     if (pEntry->status != TASK_STATUS__READY) {
       mDebug("s-task:0x%" PRIx64 "-0x%x (nodeId:%d) status:%s not ready, checkpoint msg not issued",
-             pEntry->id.streamId, (int32_t)pEntry->id.taskId, 0, streamTaskGetStatusStr(pEntry->status));
+             pEntry->id.streamId, (int32_t)pEntry->id.taskId, pEntry->nodeId, streamTaskGetStatusStr(pEntry->status));
       ready = false;
       break;
     }
@@ -2893,14 +2893,33 @@ static void updateStageInfo(STaskStatusEntry *pTaskEntry, int64_t stage) {
   }
 }
 
+typedef struct SFailedCheckpointInfo {
+  int64_t streamUid;
+  int64_t checkpointId;
+  int32_t transId;
+} SFailedCheckpointInfo;
+
+static void addIntoCheckpointList(SArray* pList, const SFailedCheckpointInfo* pInfo) {
+  int32_t num = taosArrayGetSize(pList);
+  for(int32_t i = 0; i < num; ++i) {
+    SFailedCheckpointInfo* p = taosArrayGet(pList, i);
+    if (p->transId == pInfo->transId) {
+      return;
+    }
+  }
+
+  taosArrayPush(pList, pInfo);
+}
+
 int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   SStreamHbMsg req = {0};
 
-  bool    checkpointFailed = false;
-  int64_t checkpointId = 0;
-  int64_t streamId = 0;
-  int32_t transId = 0;
+//  bool    checkpointFailed = false;
+//  int64_t checkpointId = 0;
+//  int64_t streamId = 0;
+//  int32_t transId = 0;
+  SArray* pList = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
 
   SDecoder decoder = {0};
   tDecoderInit(&decoder, pReq->pCont, pReq->contLen);
@@ -2961,19 +2980,13 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
       streamTaskStatusCopy(pTaskEntry, p);
       if (p->checkpointId != 0) {
-        if (checkpointId != 0) {
-          ASSERT(checkpointId == p->checkpointId);
-        } else {
-          checkpointId = p->checkpointId;
-        }
-
         if (p->checkpointFailed) {
           mError("stream task:0x%" PRIx64 " checkpointId:%" PRIx64 " transId:%d failed, kill it", p->id.taskId,
                  p->checkpointId, p->chkpointTransId);
 
-          checkpointFailed = p->checkpointFailed;
-          streamId = p->id.streamId;
-          transId = p->chkpointTransId;
+          SFailedCheckpointInfo info = {
+              .transId = p->chkpointTransId, .checkpointId = p->checkpointId, .streamUid = p->id.streamId};
+          addIntoCheckpointList(pList, &info);
         }
       }
     }
@@ -2992,15 +3005,20 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   // current checkpoint is failed, rollback from the checkpoint trans
   // kill the checkpoint trans and then set all tasks status to be normal
-  if (checkpointFailed && checkpointId != 0) {
+  if (taosArrayGetSize(pList) > 0) {
     bool    allReady = true;
     SArray *p = mndTakeVgroupSnapshot(pMnode, &allReady);
     taosArrayDestroy(p);
 
     if (allReady || snodeChanged) {
       // if the execInfo.activeCheckpoint == 0, the checkpoint is restoring from wal
-      mInfo("checkpointId:%" PRId64 " failed, issue task-reset trans to reset all tasks status", checkpointId);
-      mndResetStatusFromCheckpoint(pMnode, streamId, transId);
+      for(int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
+        SFailedCheckpointInfo *pInfo = taosArrayGet(pList, i);
+        mInfo("checkpointId:%" PRId64 " transId:%d failed, issue task-reset trans to reset all tasks status",
+              pInfo->checkpointId, pInfo->transId);
+
+        mndResetStatusFromCheckpoint(pMnode, pInfo->streamUid, pInfo->transId);
+      }
     } else {
       mInfo("not all vgroups are ready, wait for next HB from stream tasks to reset the task status");
     }
@@ -3009,6 +3027,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   taosThreadMutexUnlock(&execInfo.lock);
   streamMetaClearHbMsg(&req);
 
+  taosArrayDestroy(pList);
   return TSDB_CODE_SUCCESS;
 }
 

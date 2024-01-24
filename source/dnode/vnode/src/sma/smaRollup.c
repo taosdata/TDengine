@@ -97,7 +97,7 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo) {
       }
 
       if (pItem->pStreamTask) {
-        tFreeStreamTask(pItem->pStreamTask);
+        tFreeStreamTask(pItem->pStreamTask, true);
       }
       taosArrayDestroy(pItem->pResList);
       tdRSmaQTaskInfoFree(&pInfo->taskInfo[i], SMA_VID(pSma), i + 1);

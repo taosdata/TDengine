@@ -182,7 +182,7 @@ void *freeStreamTasks(SArray *pTaskLevel) {
     int32_t taskSz = taosArrayGetSize(pLevel);
     for (int32_t j = 0; j < taskSz; j++) {
       SStreamTask *pTask = taosArrayGetP(pLevel, j);
-      tFreeStreamTask(pTask);
+      tFreeStreamTask(pTask, true);
     }
 
     taosArrayDestroy(pLevel);

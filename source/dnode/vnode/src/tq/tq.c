@@ -1202,16 +1202,8 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   streamProcessCheckpointSourceReq(pTask, &req);
   taosThreadMutexUnlock(&pTask->lock);
 
-  int32_t total = 0;
-  streamMetaWLock(pMeta);
-
-  // set the initial value for generating check point
-  // set the mgmt epset info according to the checkout source msg from mnode, todo update mgmt epset if needed
-  total = pMeta->numOfStreamTasks;
-  streamMetaWUnLock(pMeta);
-
-  qInfo("s-task:%s (vgId:%d) level:%d receive checkpoint-source msg chkpt:%" PRId64 ", total checkpoint reqs:%d",
-        pTask->id.idStr, vgId, pTask->info.taskLevel, req.checkpointId, total);
+  qInfo("s-task:%s (vgId:%d) level:%d receive checkpoint-source msg chkpt:%" PRId64 ", transId:%d",
+        pTask->id.idStr, vgId, pTask->info.taskLevel, req.checkpointId, req.transId);
 
   code = streamAddCheckpointSourceRspMsg(&req, &pMsg->info, pTask, 1);
   if (code != TSDB_CODE_SUCCESS) {
