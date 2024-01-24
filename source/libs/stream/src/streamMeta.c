@@ -467,7 +467,6 @@ void streamMetaClear(SStreamMeta* pMeta) {
   }
 
   taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
-
   taosHashClear(pMeta->pTasksMap);
 
   taosArrayClear(pMeta->pTaskList);
@@ -505,7 +504,9 @@ void streamMetaCloseImpl(void* arg) {
     return;
   }
 
+  streamMetaWLock(pMeta);
   streamMetaClear(pMeta);
+  streamMetaWUnLock(pMeta);
 
   tdbAbort(pMeta->db, pMeta->txn);
   tdbTbClose(pMeta->pTaskDb);
@@ -519,7 +520,6 @@ void streamMetaCloseImpl(void* arg) {
   taosHashCleanup(pMeta->pTasksMap);
   taosHashCleanup(pMeta->pTaskDbUnique);
   taosHashCleanup(pMeta->pUpdateTaskSet);
-  // taosHashCleanup(pMeta->pTaskBackendUnique);
   taosHashCleanup(pMeta->updateInfo.pTasks);
   taosHashCleanup(pMeta->startInfo.pReadyTaskSet);
   taosHashCleanup(pMeta->startInfo.pFailedTaskSet);
@@ -534,6 +534,8 @@ void streamMetaCloseImpl(void* arg) {
   bkdMgtDestroy(pMeta->bkdChkptMgt);
 
   pMeta->role = NODE_ROLE_UNINIT;
+  taosThreadRwlockDestroy(&pMeta->lock);
+
   taosMemoryFree(pMeta);
   stDebug("end to close stream meta");
 }
@@ -731,6 +733,9 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
 
     // it is an fill-history task, remove the related stream task's id that points to it
     atomic_sub_fetch_32(&pMeta->numOfStreamTasks, 1);
+    if (pTask->info.fillHistory == 1) {
+      streamTaskClearHTaskAttr(pTask, false);
+    }
 
     taosHashRemove(pMeta->pTasksMap, &id, sizeof(id));
     doRemoveIdFromList(pMeta, (int32_t)taosArrayGetSize(pMeta->pTaskList), &pTask->id);

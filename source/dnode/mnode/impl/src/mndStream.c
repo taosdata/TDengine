@@ -85,6 +85,7 @@ static void    killTransImpl(SMnode *pMnode, int32_t transId, const char *pDbNam
 
 static int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList);
 static void    freeCheckpointCandEntry(void *);
+static void    freeTaskList(void *param);
 
 static SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
 static SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
@@ -154,6 +155,7 @@ int32_t mndInitStream(SMnode *pMnode) {
   execInfo.pTransferStateStreams = taosHashInit(32, fn, true, HASH_NO_LOCK);
 
   taosHashSetFreeFp(execInfo.transMgmt.pWaitingList, freeCheckpointCandEntry);
+  taosHashSetFreeFp(execInfo.pTransferStateStreams, freeTaskList);
 
   if (sdbSetTable(pMnode->pSdb, table) != 0) {
     return -1;
@@ -3036,6 +3038,11 @@ void freeCheckpointCandEntry(void *param) {
   taosMemoryFreeClear(pEntry->pName);
 }
 
+void freeTaskList(void* param) {
+  SArray** pList = (SArray **)param;
+  taosArrayDestroy(*pList);
+}
+
 SStreamObj *mndGetStreamObj(SMnode *pMnode, int64_t streamId) {
   void       *pIter = NULL;
   SSdb       *pSdb = pMnode->pSdb;
@@ -3111,7 +3118,6 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
     int32_t code = mndProcessStreamCheckpointTrans(pMnode, pStream, checkpointId, 0, false);
 
     // remove this entry
-    taosArrayDestroy(*pReqTaskList);
     taosHashRemove(execInfo.pTransferStateStreams, &req.streamId, sizeof(int64_t));
 
     int32_t numOfStreams = taosHashGetSize(execInfo.pTransferStateStreams);

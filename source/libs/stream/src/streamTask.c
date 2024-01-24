@@ -346,9 +346,9 @@ void tFreeStreamTask(SStreamTask* pTask, bool metaLock) {
   STaskExecStatisInfo* pStatis = &pTask->execInfo;
 
   // check for mnode
-  if (pTask->pMeta != NULL) {
-    streamTaskClearHTaskAttr(pTask, metaLock);
-  }
+//  if (pTask->pMeta != NULL) {
+//    streamTaskClearHTaskAttr(pTask, metaLock);
+//  }
 
   ETaskStatus status1 = TASK_STATUS__UNINIT;
   taosThreadMutexLock(&pTask->lock);
@@ -751,13 +751,13 @@ int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, bool metaLock) {
 
   SStreamTask** ppStreamTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &sTaskId, sizeof(sTaskId));
   if (ppStreamTask != NULL) {
+    stDebug("s-task:%s clear the related stream task:0x%x attr to fill-history task", pTask->id.idStr,
+            (int32_t)sTaskId.taskId);
+
     taosThreadMutexLock(&(*ppStreamTask)->lock);
     CLEAR_RELATED_FILLHISTORY_TASK((*ppStreamTask));
     streamMetaSaveTask(pMeta, *ppStreamTask);
     taosThreadMutexUnlock(&(*ppStreamTask)->lock);
-
-    stDebug("s-task:%s clear the related stream task:0x%x attr to fill-history task", pTask->id.idStr,
-            (int32_t)sTaskId.taskId);
   }
 
   if (metaLock) {

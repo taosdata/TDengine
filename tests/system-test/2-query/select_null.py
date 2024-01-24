@@ -24,7 +24,8 @@ from util.dnodes import tdDnodes
 from util.dnodes import *
 
 class TDTestCase:
-    
+    updatecfgDict = {'debugflag':0,'stdebugFlag': 143 ,"tqDebugflag":135}
+
     def init(self, conn, logSql, replicaVar):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
