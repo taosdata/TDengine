@@ -955,7 +955,6 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
     if (code != TSDB_CODE_SUCCESS) {
       goto end;
     }
-    taosArrayPush(pRequest->tableList, &pName);
 
     pCreateReq->flags |= TD_CREATE_IF_NOT_EXISTS;
     // change tag cid to new cid
@@ -989,6 +988,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
       }
       taosMemoryFreeClear(pTableMeta);
     }
+    taosArrayPush(pRequest->tableList, &pName);
 
     SVgroupCreateTableBatch* pTableBatch = taosHashGet(pVgroupHashmap, &pInfo.vgId, sizeof(pInfo.vgId));
     if (pTableBatch == NULL) {
