@@ -647,6 +647,12 @@ SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t
   return p;
 }
 
+SStreamTask* streamMetaAcquireOneTask(SStreamTask* pTask) {
+  int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
+  stTrace("s-task:%s acquire task, ref:%d", pTask->id.idStr, ref);
+  return pTask;
+}
+
 void streamMetaReleaseTask(SStreamMeta* UNUSED_PARAM(pMeta), SStreamTask* pTask) {
   int32_t ref = atomic_sub_fetch_32(&pTask->refCnt, 1);
   if (ref > 0) {

@@ -763,8 +763,7 @@ static int32_t schedTaskInFuture(SStreamTask* pTask) {
           pTask->status.schedIdleTime, ref);
 
   // add one ref count for task
-  // todo this may be failed, and add ref may be failed.
-  SStreamTask* pAddRefTask = streamMetaAcquireTask(pTask->pMeta, pTask->id.streamId, pTask->id.taskId);
+  /*SStreamTask* pAddRefTask = */streamMetaAcquireOneTask(pTask);
 
   if (pTask->schedInfo.pIdleTimer == NULL) {
     pTask->schedInfo.pIdleTimer = taosTmrStart(doStreamExecTaskHelper, pTask->status.schedIdleTime, pTask, streamTimer);
