@@ -134,7 +134,7 @@ container_id=docker run \
     --ulimit core=-1 -d taos_test:v1.0 /sbin/init
 
 docker exec -it ${container_id} sh -c "$CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
-
+echo docker exec -it ${container_id} sh -c "$CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
 ret=$?
 exit $ret
 
