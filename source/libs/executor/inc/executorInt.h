@@ -292,8 +292,10 @@ typedef enum ESubTableInputType {
 typedef struct STmsSubTableInput {
   STsdbReader* pReader;
   ESubTableInputType type;
-  SSDataBlock* pBlock;
+  SSDataBlock* pReaderBlock;
+
   SArray* aBlockPages;
+  SSDataBlock* pPageBlock;
 
   int32_t pageIdx;
   int32_t rowIdx;
