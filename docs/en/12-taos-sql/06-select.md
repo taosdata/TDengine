@@ -300,12 +300,12 @@ Logical operations in below table can be used in the `where` clause to filter th
 
 | **Operation** | **Note**                 | **Applicable Data Types**                 |
 | ------------- | ------------------------ | ----------------------------------------- |
-| >             | larger than              | all types except bool                     |
-| <             | smaller than             | all types except bool                     |
-| >=            | larger than or equal to  | all types except bool                     |
-| <=            | smaller than or equal to | all types except bool                     |
+| &gt;          | larger than              | all types except bool                     |
+| &lt;          | smaller than             | all types except bool                     |
+| &gt;=         | larger than or equal to  | all types except bool                     |
+| &lt;=         | smaller than or equal to | all types except bool                     |
 | =             | equal to                 | all types                                 |
-| <\>           | not equal to             | all types                                 |
+| &lt;&gt;      | not equal to             | all types                                 |
 | is [not] null | is null or is not null   | all types                                 |
 | between and   | within a certain range   | all types except bool                     |
 | in            | match any value in a set | all types except first column `timestamp` |

@@ -282,14 +282,14 @@ SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_nam
 
     - "user_input": "[1, 3, 5, 7]":  User specified bin values.
 
-    - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
+    - "linear_bin": "&lcub;"start": 0.0, "width": 5.0, "count": 5, "infinity": true&rcub;"
        "start" - bin starting point.
        "width" - bin offset.
        "count" - number of bins generated.
        "infinity" - whether to add（-inf, inf）as start/end point in generated set of bins.
        The above "linear_bin" descriptor generates a set of bins: [-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf].
 
-    - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
+    - "log_bin": "&lcub;"start":1.0, "factor": 2.0, "count": 5, "infinity": true&rcub;"
        "start" - bin starting point.
        "factor" - exponential factor of bin offset.
        "count" - number of bins generated.
@@ -693,7 +693,7 @@ SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] [ 
 
 - `INTERP` is used to get the value that matches the specified time slice from a column. If no such value exists an interpolation value will be returned based on `FILL` parameter.
 - The input data of `INTERP` is the value of the specified column and a `where` clause can be used to filter the original data. If no `where` condition is specified then all original data is the input.
-- The output time range of `INTERP` is specified by `RANGE(timestamp1,timestamp2)` parameter, with timestamp1<=timestamp2. timestamp1 is the starting point of the output time range and must be specified. timestamp2 is the ending point of the output time range and must be specified. If `RANGE` is not specified, then the timestamp of the first row that matches the filter condition is treated as timestamp1, the timestamp of the last row that matches the filter condition is treated as timestamp2.
+- The output time range of `INTERP` is specified by `RANGE(timestamp1,timestamp2)` parameter, with timestamp1&lt;=timestamp2. timestamp1 is the starting point of the output time range and must be specified. timestamp2 is the ending point of the output time range and must be specified. If `RANGE` is not specified, then the timestamp of the first row that matches the filter condition is treated as timestamp1, the timestamp of the last row that matches the filter condition is treated as timestamp2.
 - The number of rows in the result set of `INTERP` is determined by the parameter `EVERY`. Starting from timestamp1, one interpolation is performed for every time interval specified `EVERY` parameter. If `EVERY` parameter is not used, the time windows will be considered as no ending timestamp, i.e. there is only one time window from timestamp1.
 - Interpolation is performed based on `FILL` parameter. No interpolation is performed if `FILL` is not used, that means either the original data that matches is returned or nothing is returned.
 - `INTERP` can only be used to interpolate in single timeline. So it must be used with `group by tbname` when it's used on a STable. It can't be used with `GROUP BY` when it's used in the inner query of a nested query.
