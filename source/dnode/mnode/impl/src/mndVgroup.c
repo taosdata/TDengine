@@ -877,6 +877,7 @@ SEpSet mndGetVgroupEpset(SMnode *pMnode, const SVgObj *pVgroup) {
     addEpIntoEpSet(&epset, pDnode->fqdn, pDnode->port);
     mndReleaseDnode(pMnode, pDnode);
   }
+  epsetSort(&epset);
 
   return epset;
 }
