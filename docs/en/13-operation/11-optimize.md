@@ -43,27 +43,27 @@ The above SQL statement creates a database named `demo`, in which each data file
 
 Once a database is created, only some parameters can be changed and be effective immediately while others are can't.
 
-| **Parameter** | **Alterable** | **Value Range**  | **Syntax**                             |
-| ------------- | ------------- | ---------------- | -------------------------------------- |
-| name          |               |                  |                                        |
-| create time   |               |                  |                                        |
-| ntables       |               |                  |                                        |
-| vgroups       |               |                  |                                        |
-| replica       | **YES**       | 1-3              | ALTER DATABASE <dbname\> REPLICA _n_   |
-| quorum        | **YES**       | 1-2              | ALTER DATABASE <dbname\> QUORUM _n_    |
-| days          |               |                  |                                        |
-| keep          | **YES**       | days-365000      | ALTER DATABASE <dbname\> KEEP _n_      |
-| cache         |               |                  |                                        |
-| blocks        | **YES**       | 3-1000           | ALTER DATABASE <dbname\> BLOCKS _n_    |
-| minrows       |               |                  |                                        |
-| maxrows       |               |                  |                                        |
-| wal           |               |                  |                                        |
-| fsync         |               |                  |                                        |
-| comp          | **YES**       | 0-2              | ALTER DATABASE <dbname\> COMP _n_      |
-| precision     |               |                  |                                        |
-| status        |               |                  |                                        |
-| update        |               |                  |                                        |
-| cachelast     | **YES**       | 0 \| 1 \| 2 \| 3 | ALTER DATABASE <dbname\> CACHELAST _n_ |
+| **Parameter** | **Alterable** | **Value Range**  | **Syntax**                                  |
+| ------------- | ------------- | ---------------- | ------------------------------------------- |
+| name          |               |                  |                                             |
+| create time   |               |                  |                                             |
+| ntables       |               |                  |                                             |
+| vgroups       |               |                  |                                             |
+| replica       | **YES**       | 1-3              | ALTER DATABASE &lt;dbname&gt; REPLICA _n_   |
+| quorum        | **YES**       | 1-2              | ALTER DATABASE &lt;dbname&gt; QUORUM _n_    |
+| days          |               |                  |                                             |
+| keep          | **YES**       | days-365000      | ALTER DATABASE &lt;dbname&gt; KEEP _n_      |
+| cache         |               |                  |                                             |
+| blocks        | **YES**       | 3-1000           | ALTER DATABASE &lt;dbname&gt; BLOCKS _n_    |
+| minrows       |               |                  |                                             |
+| maxrows       |               |                  |                                             |
+| wal           |               |                  |                                             |
+| fsync         |               |                  |                                             |
+| comp          | **YES**       | 0-2              | ALTER DATABASE &lt;dbname&gt; COMP _n_      |
+| precision     |               |                  |                                             |
+| status        |               |                  |                                             |
+| update        |               |                  |                                             |
+| cachelast     | **YES**       | 0 \| 1 \| 2 \| 3 | ALTER DATABASE &lt;dbname&gt; CACHELAST _n_ |
 
 **Explanation：** Prior to version 2.1.3.0, `taosd` server process needs to be restarted for these parameters to take in effect if they are changed using `ALTER DATABASE`.
 
