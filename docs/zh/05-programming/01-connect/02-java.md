@@ -34,7 +34,7 @@ import TabItem from '@theme/TabItem';
 
 ## 配置
 
-在您的终端里面执行下面的命令设置 JDBC URL 为环境变量。如果是 spring 应用，您可以使用如下 Spring 的配置：
+在您的终端里面执行下面的命令设置 JDBC URL 为环境变量。如果是 Spring 应用，您可以使用如下 Spring 的配置：
 
 <Tabs defaultValue="bash">
 <TabItem value="bash" label="Bash">
