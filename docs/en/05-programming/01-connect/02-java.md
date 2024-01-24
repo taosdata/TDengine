@@ -23,6 +23,8 @@ import TabItem from '@theme/TabItem';
 </TabItem>
 <TabItem value="spring" label="Spring">
 
+In the "pom.xml" file, please add the Spring Boot and TDengine Java connector dependencies:
+
 ```xml
 {{#include docs/examples/java/spring/pom.xml:spring}}
 ```
@@ -87,19 +89,19 @@ Code bellow get JDBC URL from environment variables first and then create a `Con
 
 </TabItem>
 <TabItem value="spring" label="Spring">
-Define an interface called meterMapper, which uses the mybatis framework to map between java and TDEngine database.
+1. Define an interface called "meterMapper", which uses the MyBatis framework to map from TDengine database super table to Java object.
 
 ```
-{{#include docs/examples/java/spring/src/main/java/com/taos/example/dao/MeterMapper.java}}
+{{#include docs/examples/java/spring/src/main/java/com/taos/example/dao/MeterMapper.java:mybatis}}
 ```
 
-Create a meterMapper.xml file under src/main/resources/mapper, and add the following SQL mapping
+2. Create a 'meterMapper.xml' file under 'src/main/resources/mapper', and add the following SQL mapping
 
 ```
 {{#include docs/examples/java/spring/src/main/resources/mapper/meterMapper.xml}}
 ```
 
-For more details about how to write or query data from TDEngine Cloud, please refer to: <https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring/>
+3. For more details about how to write or query data from TDngine Cloud instance through Spring, please refer to: <https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring/>
 
 </TabItem>
 </Tabs>

@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+// ANCHOR: mybatis
 @Mapper
 public interface MeterMapper {
 
@@ -17,3 +18,4 @@ public interface MeterMapper {
 
   Meter lastRow(@Param("tableName")String tableName);
 }
+// ANCHOR_END: mybatis

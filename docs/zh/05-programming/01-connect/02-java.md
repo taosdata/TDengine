@@ -91,19 +91,19 @@ $env:TDENGINE_JDBC_URL='<jdbcURL>'
 </TabItem>
 <TabItem value="spring" label="Spring">
 
-定义一个名为 MeterMapper 的接口，它使用 MyBatis 框架在 Java 和 TDEngine 数据库之间进行映射。
+1. 定义一个名为 MeterMapper 的接口，它使用 MyBatis 框架在 TDengine 数据库的超级表和 Java 对象之间进行映射。
 
 ```
-{{#include docs/examples/java/spring/src/main/java/com/taos/example/dao/MeterMapper.java}}
+{{#include docs/examples/java/spring/src/main/java/com/taos/example/dao/MeterMapper.java:mybatis}}
 ```
 
-在`src/main/resources/mapper`中创建 MeterMapper.xml，文件中添加以下 SQL 映射
+2. 在“src/main/resources/mapper”中创建 “MeterMapper.xml”，文件中添加以下 SQL 映射
 
 ```
 {{#include docs/examples/java/spring/src/main/resources/mapper/meterMapper.xml}}
 ```
 
-更多查询和插入 TDEngine 云服务示例代码，请参考：<https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring/>
+3. 使用 Spring 进行更多查询和插入 TDengine Cloud 实例的示例代码，请参考：<https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring/>
 
 </TabItem>
 </Tabs>
