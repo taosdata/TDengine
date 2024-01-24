@@ -22,6 +22,7 @@ class ClusterDnodes(TDDnodes):
     def init(self, dnodes_lists, deployPath, masterIp):
         self.dnodes = dnodes_lists  # dnode must be TDDnode instance
         super(ClusterDnodes, self).init(deployPath, masterIp)
+        self.model = "cluster"
 
 clusterDnodes = ClusterDnodes()
 

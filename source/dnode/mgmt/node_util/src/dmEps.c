@@ -223,7 +223,7 @@ int32_t dmWriteEps(SDnodeData *pData) {
 
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  if((code == dmInitDndInfo(pData)) != 0) goto _OVER;
+  if ((code == dmInitDndInfo(pData)) != 0) goto _OVER;
   pJson = tjsonCreateObject();
   if (pJson == NULL) goto _OVER;
   pData->engineVer = tsVersion;
@@ -289,6 +289,7 @@ static void dmResetEps(SDnodeData *pData, SArray *dnodeEps) {
     pData->mnodeEps.eps[mIndex] = pDnodeEp->ep;
     mIndex++;
   }
+  epsetSort(&pData->mnodeEps);
 
   for (int32_t i = 0; i < numOfEps; i++) {
     SDnodeEp *pDnodeEp = taosArrayGet(dnodeEps, i);
