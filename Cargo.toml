@@ -206,7 +206,8 @@ tokio-tracing = ["tokio/tracing", "console-subscriber"]
 [profile.sani]
 inherits = "release"
 
-[profile.release]
+[profile.production]
+inherits = "release"
 codegen-units = 1
 debug = 2
 split-debuginfo = "packed"

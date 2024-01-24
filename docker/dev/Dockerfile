@@ -1,4 +1,4 @@
-FROM centos:7
+FROM centos:7 as base
 
 # 1.0. Use tuna mirrors as base mirror
 RUN sed -e 's|^mirrorlist=|#mirrorlist=|g' \
@@ -16,11 +16,20 @@ RUN yum install -y \
   autoconf make automake cmake openssl-devel curl wget \
   git236-all \
   perl-IPC-Cmd libatomic \
-  devtoolset-11-gcc devtoolset-11-gcc-c++
+  devtoolset-11-gcc devtoolset-11-gcc-c++ cmake3
 
-RUN ln -s /opt/rh/devtoolset-11/enable /etc/profile.d/devtoolset-11.sh
-WORKDIR /app
-RUN git config --global --add safe.directory /app
+RUN wget -c https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.6/llvm-project-14.0.6.src.tar.xz \
+  && tar -xvf llvm-project-14.0.6.src.tar.xz \
+	&& cd llvm-project-14.0.6.src \
+	&& mkdir build \
+	&& . /opt/rh/devtoolset-11/enable \
+	&& cmake3 -S llvm -B build -G 'Unix Makefiles' \
+      -DLLVM_ENABLE_PROJECTS='clang;lld' \
+      -DCMAKE_BUILD_TYPE=Release \
+  && cmake3 --build build -j20 \
+	&& cmake3 --install build \
+	&& cd .. \
+	&& rm -rf llvm-project-14.0.6.src llvm-project-14.0.6.src.tar.xz
 
 # Rust
 ENV RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
@@ -29,12 +38,27 @@ ENV RUST_VERSION=1.75.0
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --verbose --profile minimal --default-toolchain nightly
 ENV PATH=/root/.cargo/bin:$PATH
 
-# Compile llvm/clang
-# https://gist.github.com/liweitianux/90f900c9a4565d0135851d8a473bd9bc
-
 ENV TINI_VERSION v0.19.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+RUN wget https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini -O /tini
 RUN chmod +x /tini
+
+ENV MOLD_VERSION 2.4.0
+RUN wget https://github.com/rui314/mold/releases/download/v${MOLD_VERSION}/mold-${MOLD_VERSION}-x86_64-linux.tar.gz \
+  && tar -xvf mold-${MOLD_VERSION}-x86_64-linux.tar.gz \
+	&& cp mold-${MOLD_VERSION}-x86_64-linux/bin/mold /usr/bin/mold \
+	&& rm -rf mold-${MOLD_VERSION}-x86_64-linux.tar.gz mold-${MOLD_VERSION}-x86_64-linux/
+
+ENV SCCACHE_VERSION v0.7.6
+RUN wget https://github.com/mozilla/sccache/releases/download/${SCCACHE_VERSION}/sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz \
+  && tar -xvf sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz \
+  && cp sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl/sccache /usr/bin/sccache \
+  && rm -rf sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl/
+
+ENV RUSTC_WRAPPER=/usr/bin/sccache
+
+WORKDIR /app
+RUN git config --global --add safe.directory /app
+RUN ln -s /opt/rh/devtoolset-11/enable /etc/profile.d/devtoolset-11.sh
 
 ADD docker/dev/entrypoint.sh /sbin/entrypoint.sh
 ADD docker/dev/cargo.toml /root/.cargo/config
