@@ -348,7 +348,7 @@ _OVER:
   return code;
 }
 
-//alter replica doesn't use this, but restore dnode still use this
+// alter replica doesn't use this, but restore dnode still use this
 int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SAlterVnodeTypeReq req = {0};
   if (tDeserializeSAlterVnodeReplicaReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
@@ -389,8 +389,8 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dInfo("node:%s, catched up leader, continue to process alter-node-type-request", pMgmt->name);
 
   int32_t vgId = req.vgId;
-  dInfo("vgId:%d, start to alter vnode type replica:%d selfIndex:%d strict:%d changeVersion:%d", 
-        vgId, req.replica, req.selfIndex, req.strict, req.changeVersion);
+  dInfo("vgId:%d, start to alter vnode type replica:%d selfIndex:%d strict:%d changeVersion:%d", vgId, req.replica,
+        req.selfIndex, req.strict, req.changeVersion);
   for (int32_t i = 0; i < req.replica; ++i) {
     SReplica *pReplica = &req.replicas[i];
     dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->id);
@@ -450,7 +450,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     dError("vgId:%d, failed to open vnode at %s since %s", vgId, path, terrstr());
     return -1;
   }
-  
+
   if (vmOpenVnode(pMgmt, &wrapperCfg, pImpl) != 0) {
     dError("vgId:%d, failed to open vnode mgmt since %s", vgId, terrstr());
     return -1;
@@ -473,12 +473,12 @@ int32_t vmProcessCheckLearnCatchupReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  if(req.learnerReplicas == 0){
+  if (req.learnerReplicas == 0) {
     req.learnerSelfIndex = -1;
   }
 
-  dInfo("vgId:%d, vnode management handle msgType:%s, start to process check-learner-catchup-request",
-          req.vgId, TMSG_INFO(pMsg->msgType));
+  dInfo("vgId:%d, vnode management handle msgType:%s, start to process check-learner-catchup-request", req.vgId,
+        TMSG_INFO(pMsg->msgType));
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
   if (pVnode == NULL) {
@@ -489,7 +489,7 @@ int32_t vmProcessCheckLearnCatchupReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   ESyncRole role = vnodeGetRole(pVnode->pImpl);
   dInfo("vgId:%d, checking node role:%d", req.vgId, role);
-  if(role == TAOS_SYNC_ROLE_VOTER){
+  if (role == TAOS_SYNC_ROLE_VOTER) {
     dError("vgId:%d, failed to alter vnode type since node already is role:%d", req.vgId, role);
     terrno = TSDB_CODE_VND_ALREADY_IS_VOTER;
     vmReleaseVnode(pMgmt, pVnode);
@@ -497,7 +497,7 @@ int32_t vmProcessCheckLearnCatchupReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("vgId:%d, checking node catch up", req.vgId);
-  if(vnodeIsCatchUp(pVnode->pImpl) != 1){
+  if (vnodeIsCatchUp(pVnode->pImpl) != 1) {
     terrno = TSDB_CODE_VND_NOT_CATCH_UP;
     vmReleaseVnode(pMgmt, pVnode);
     return -1;
@@ -507,9 +507,9 @@ int32_t vmProcessCheckLearnCatchupReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   vmReleaseVnode(pMgmt, pVnode);
 
-  dInfo("vgId:%d, vnode management handle msgType:%s, end to process check-learner-catchup-request",
-          req.vgId, TMSG_INFO(pMsg->msgType));
-  
+  dInfo("vgId:%d, vnode management handle msgType:%s, end to process check-learner-catchup-request", req.vgId,
+        TMSG_INFO(pMsg->msgType));
+
   return 0;
 }
 
@@ -805,6 +805,8 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_SCH_QUERY_HEARTBEAT, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_CREATE_INDEX, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_DROP_INDEX, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_QUERY_COMPACT_PROGRESS, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_KILL_COMPACT, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DEPLOY, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DROP, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
@@ -817,7 +819,7 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_SCAN_HISTORY_FINISH_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_CHECK, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_CHECK_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
-//  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TRIGGER, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
+  //  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TRIGGER, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_PAUSE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_RESUME, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_STOP, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;

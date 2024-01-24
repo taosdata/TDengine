@@ -946,7 +946,7 @@ static int32_t stbSplCreateMergeKeys(SNodeList* pSortKeys, SNodeList* pTargets, 
     SNode*            pTarget = NULL;
     bool              found = false;
     FOREACH(pTarget, pTargets) {
-      if ((QUERY_NODE_COLUMN == nodeType(pSortExpr) && nodesEqualNode((SNode*)pSortExpr, pTarget)) ||
+      if ((QUERY_NODE_COLUMN == nodeType(pSortExpr) && nodesEqualNode((SNode*)pSortExpr, pTarget)) || 
           (0 == strcmp(pSortExpr->aliasName, ((SColumnNode*)pTarget)->colName))) {
         code = nodesListMakeStrictAppend(&pMergeKeys, stbSplCreateOrderByExpr(pSortKey, pTarget));
         if (TSDB_CODE_SUCCESS != code) {

@@ -315,6 +315,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TARGET_TABLE,     "Cannot write the same
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "index already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_NOT_EXIST,            "index not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SMA_OPTION,       "Invalid sma index option")
+//mnode-compact
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_COMPACT_ID,       "Invalid compact id")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")
@@ -413,6 +415,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_IN_GROUP_ERROR,      "Json not support in g
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JOB_NOT_EXIST,            "Job not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_QWORKER_QUIT,             "Vnode/Qnode is quitting")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_GEO_NOT_SUPPORT_ERROR,    "Geometry not support in this operator")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_WINDOW_CONDITION, "The time pseudo column is illegally used in the condition of the event window.")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR,  "Executor internal error")
 
 // grant
