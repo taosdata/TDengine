@@ -20,6 +20,8 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 
+extern int8_t grantHbLock;
+
 #define MND_GRANT_VER_NUMBER 1
 
 #define RETURN_WITH_CODE(cond, v) \

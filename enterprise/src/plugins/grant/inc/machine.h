@@ -203,12 +203,6 @@ typedef struct {
   SGrantConnItem items[GRANT_CONN_NUM];
 } SGrantConnStatus;
 
-typedef struct {
-  uint8_t        officialVersion;
-  uint32_t       distribute;
-  SGrantConnItem items[CONN_TYPE_MAX];
-} SGrantConnMsg;
-
 // server
 typedef struct {
   char     machine[GRANT_MACHINE_KEY_LEN + 1];
@@ -388,73 +382,11 @@ typedef struct {
   SArray *pDataIns;  // SGrantDataIns
   SArray *pItem32;
   SArray *pItem64;
-} SGrantUniqStatus;
-
-// uniq grant
-typedef struct {
-  bool           officialVersion;
-  bool           expired;
-  int8_t         flag;  // version 2 since 3.0.5.0
-  uint32_t       expireTimeSec;
-  uint64_t       curStorage;
-  uint64_t       limitStorage;
-  uint64_t       curTimeSeries;
-  uint64_t       limitTimeSeries;
-  uint32_t       lastCheck;
-  uint32_t       curSpeed;
-  uint32_t       limitSpeed;
-  uint32_t       curQueryTime;
-  uint32_t       limitQueryTime;
-  uint32_t       curDbs;
-  uint32_t       limitDbs;
-  uint32_t       curUsers;
-  uint32_t       limitUsers;
-  uint32_t       limitConns;
-  uint32_t       limitStreams;
-  uint32_t       curAccts;
-  uint32_t       limitAccts;
-  uint32_t       curDnodes;
-  uint32_t       limitDnodes;
-  uint32_t       limitCpuCores;
-  uint32_t       curCpuCores;  // version 2 since 3.0.5.0
-  SGrantConnMsg  connectors;   // version 2 since 3.0.5.0
 } SGrantStatus;
 
 typedef struct {
   uint64_t curTimeSeries;
 } SGrantNotify;
-
-typedef struct {
-  bool     officialVersion;
-  int8_t   flag;
-  int32_t  dnodeId;
-  uint32_t expireTimeSec;
-  uint32_t limitStorage;
-  uint32_t limitSpeed;
-  uint64_t limitTimeSeries;
-  uint32_t limitQueryTime;
-  uint32_t limitDbs;
-  uint32_t limitUsers;
-  uint32_t limitConns;
-  uint32_t limitStreams;
-  uint32_t limitAccts;
-  uint32_t limitDnodes;
-  uint32_t limitCpuCores;
-  union {
-    uint32_t reserveKey1;
-    uint32_t distribute;  // distribute date since 3.1.0.0
-  };
-  uint32_t      reserveKey2;
-  SGrantConnMsg connectors;
-} SGrantMsg;
-
-typedef struct {
-  int8_t     flag;
-  int32_t    dnodeId;
-  int32_t    diskCfgNum;
-  char       machine[TSDB_MACHINE_ID_LEN + 1];
-  SGrantMsg *pLegacy;
-} SGrantUniqMsg;
 
 typedef struct {
   int64_t dist;
