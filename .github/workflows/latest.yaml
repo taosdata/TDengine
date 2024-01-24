@@ -21,10 +21,9 @@ jobs:
     name: CentOS 7 Latest
     runs-on: [self-hosted, linux, x64]
     permissions:
-      contents: read
+      contents: write
       packages: write
-      pull-requests: read
-      repository-projects: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v3
         with:
@@ -43,11 +42,11 @@ jobs:
 
       - name: Build taosx in container taosx/dev
         run: |
-          cargo make build-centos7-release
+          cargo make build-centos7-production
 
       - name: Test taosx
         run: |
-          ./targets/centos7/release/taosx --version
+          ./target/centos7/production/taosx --version
 
       - uses: rickstaa/action-create-tag@v1
         if: ${{ github.ref == 'refs/heads/main' }}
@@ -64,5 +63,7 @@ jobs:
           name: Latest
           tag_name: latest
           files: |
-            targets/centos7/release/taosx
-            targets/centos7/release/taosx.dwp
+            target/centos7/production/taosx
+            target/centos7/production/taosx.dwp
+            target/centos7/production/taosx-agent
+            target/centos7/production/taosx-agent.dwp
