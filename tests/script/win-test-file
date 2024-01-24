@@ -280,7 +280,6 @@
 ./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
 ./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 ./test.sh -f tsim/sma/rsmaCreateInsertQueryDelete.sim
-
 ### refactor stream backend, open case after rsma refactored
 #./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
 ./test.sh -f tsim/sync/vnodesnapshot-rsma-test.sim

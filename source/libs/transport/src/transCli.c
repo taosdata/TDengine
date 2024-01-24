@@ -2205,7 +2205,9 @@ FORCE_INLINE bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
 
   pResp->pCont = buf;
   pResp->contLen = len;
-
+  if (epset.inUse == -1) {
+    epset.inUse = 0;
+  }
   epsetAssign(dst, &epset);
   return true;
 }
@@ -2229,6 +2231,7 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
           EPSET_FORWARD_INUSE(&pCtx->epSet);
         }
       } else {
+        if (epSet.inUse == -1) epSet.inUse = 0;
         if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
           tDebug("epset not equal, retry new epset1");
           transPrintEpSet(&pCtx->epSet);
@@ -2256,6 +2259,9 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
         EPSET_FORWARD_INUSE(&pCtx->epSet);
       }
     } else {
+      if (epSet.inUse == -1) {
+        epSet.inUse = 0;
+      }
       if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
         tDebug("epset not equal, retry new epset2");
         transPrintEpSet(&pCtx->epSet);
@@ -2267,7 +2273,11 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
           noDelay = false;
         } else {
           tDebug("epset equal, continue");
-          EPSET_FORWARD_INUSE(&pCtx->epSet);
+          if (pCtx->epSet.inUse == -1) {
+            pCtx->epSet.inUse = 0;
+          } else {
+            EPSET_FORWARD_INUSE(&pCtx->epSet);
+          }
         }
       }
     }
