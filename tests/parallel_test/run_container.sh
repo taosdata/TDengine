@@ -122,7 +122,7 @@ MOUNT_DIR="$TMP_DIR/thread_volume/$thread_no/$exec_dir:$CONTAINER_TESTDIR/tests/
 echo "$thread_no -> ${exec_dir}:$cmd"
 coredump_dir=`cat /proc/sys/kernel/core_pattern | xargs dirname`
 
-docker run \
+container_id=docker run \
     -v $REP_MOUNT_PARAM \
     -v $REP_MOUNT_DEBUG \
     -v $REP_MOUNT_LIB \
@@ -131,7 +131,10 @@ docker run \
     -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
     --privileged=true \
-    --rm --ulimit core=-1 taos_test:v1.0 $CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
+    --ulimit core=-1 -d taos_test:v1.0 /sbin/init
+
+docker exec -it ${container_id} sh -c "$CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
+
 ret=$?
 exit $ret
 
