@@ -4,9 +4,9 @@
 
 
 
-
 #
 # system test
 #
-,,n,system-test, python3 ./test.py -f 2-query/timezone.py
+,,n,system-test,./pytest.sh python3 ./test.py -f 2-query/timezone.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timezone.py -R
 
