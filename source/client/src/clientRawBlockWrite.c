@@ -966,6 +966,12 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
       //      pCreateReq->ctb.suid = processSuid(pCreateReq->ctb.suid, pRequest->pDb);
       toName(pTscObj->acctId, pRequest->pDb, pCreateReq->ctb.stbName, &sName);
       code = catalogGetTableMeta(pCatalog, &conn, &sName, &pTableMeta);
+      if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+        code = TSDB_CODE_SUCCESS;
+        taosMemoryFreeClear(pTableMeta);
+        continue;
+      }
+
       if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
