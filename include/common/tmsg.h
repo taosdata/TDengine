@@ -139,6 +139,8 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_APPS,
   TSDB_MGMT_TABLE_STREAM_TASKS,
   TSDB_MGMT_TABLE_PRIVILEGES,
+  TSDB_MGMT_TABLE_COMPACT,
+  TSDB_MGMT_TABLE_COMPACT_DETAIL,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -301,6 +303,7 @@ typedef enum ENodeType {
   QUERY_NODE_SYNCDB_STMT,
   QUERY_NODE_GRANT_STMT,
   QUERY_NODE_REVOKE_STMT,
+  // the order of following constants must match that of variable sysTableShowAdapter 
   QUERY_NODE_SHOW_DNODES_STMT,
   QUERY_NODE_SHOW_MNODES_STMT,
   QUERY_NODE_SHOW_MODULES_STMT,
@@ -329,6 +332,9 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT,
   QUERY_NODE_SHOW_VNODES_STMT,
   QUERY_NODE_SHOW_USER_PRIVILEGES_STMT,
+  QUERY_NODE_SHOW_COMPACTS_STMT,
+  QUERY_NODE_SHOW_COMPACT_DETAILS_STMT,
+  // end of order
   QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
   QUERY_NODE_SHOW_CREATE_TABLE_STMT,
   QUERY_NODE_SHOW_CREATE_STABLE_STMT,
@@ -339,6 +345,8 @@ typedef enum ENodeType {
   QUERY_NODE_KILL_CONNECTION_STMT,
   QUERY_NODE_KILL_QUERY_STMT,
   QUERY_NODE_KILL_TRANSACTION_STMT,
+  QUERY_NODE_KILL_COMPACT_STMT,
+
   QUERY_NODE_DELETE_STMT,
   QUERY_NODE_INSERT_STMT,
   QUERY_NODE_QUERY,
@@ -1316,6 +1324,24 @@ int32_t tDeserializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq
 void    tFreeSCompactDbReq(SCompactDbReq* pReq);
 
 typedef struct {
+  int32_t compactId;
+  int8_t  bAccepted;
+} SCompactDbRsp;
+
+int32_t tSerializeSCompactDbRsp(void* buf, int32_t bufLen, SCompactDbRsp* pRsp);
+int32_t tDeserializeSCompactDbRsp(void* buf, int32_t bufLen, SCompactDbRsp* pRsp);
+
+typedef struct {
+  int32_t compactId;
+  int32_t sqlLen;
+  char*   sql;
+} SKillCompactReq;
+
+int32_t tSerializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
+int32_t tDeserializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
+void    tFreeSKillCompactReq(SKillCompactReq* pReq);
+
+typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
   int8_t  igExists;
   int8_t  funcType;
@@ -1590,6 +1616,26 @@ int32_t tDeserializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* 
 int32_t tFreeSCreateVnodeReq(SCreateVnodeReq* pReq);
 
 typedef struct {
+  int32_t compactId;
+  int32_t vgId;
+  int32_t dnodeId;
+} SQueryCompactProgressReq;
+
+int32_t tSerializeSQueryCompactProgressReq(void* buf, int32_t bufLen, SQueryCompactProgressReq* pReq);
+int32_t tDeserializeSQueryCompactProgressReq(void* buf, int32_t bufLen, SQueryCompactProgressReq* pReq);
+
+typedef struct {
+  int32_t compactId;
+  int32_t vgId;
+  int32_t dnodeId;
+  int32_t numberFileset;
+  int32_t finished;
+} SQueryCompactProgressRsp;
+
+int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
+int32_t tDeserializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
+
+typedef struct {
   int32_t vgId;
   int32_t dnodeId;
   int64_t dbUid;
@@ -1616,10 +1662,20 @@ typedef struct {
   char        db[TSDB_DB_FNAME_LEN];
   int64_t     compactStartTime;
   STimeWindow tw;
+  int32_t     compactId;
 } SCompactVnodeReq;
 
 int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
 int32_t tDeserializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
+
+typedef struct {
+  int32_t compactId;
+  int32_t vgId;
+  int32_t dnodeId;
+} SVKillCompactReq;
+
+int32_t tSerializeSVKillCompactReq(void* buf, int32_t bufLen, SVKillCompactReq* pReq);
+int32_t tDeserializeSVKillCompactReq(void* buf, int32_t bufLen, SVKillCompactReq* pReq);
 
 typedef struct {
   int32_t vgVersion;
@@ -1809,6 +1865,7 @@ typedef struct {
   char    user[TSDB_USER_LEN];
   char    filterTb[TSDB_TABLE_NAME_LEN];
   int64_t showId;
+  int64_t compactId;  // for compact
 } SRetrieveTableReq;
 
 typedef struct SSysTableSchema {
@@ -1837,6 +1894,14 @@ typedef struct {
   char    parTbName[TSDB_TABLE_NAME_LEN];  // for stream
   char    data[];
 } SRetrieveTableRsp;
+
+typedef struct {
+  int64_t version;
+  int64_t numOfRows;
+  int8_t  compressed;
+  int8_t  precision;
+  char    data[];
+} SRetrieveTableRspForTmq;
 
 typedef struct {
   int64_t handle;

@@ -21,6 +21,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/partition_interval.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/pause_resume_test.py
 
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_expr.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_interval.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/project_group.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py
@@ -1025,6 +1026,7 @@
 ,,y,script,./test.sh -f tsim/query/udf_with_const.sim
 ,,y,script,./test.sh -f tsim/query/join_interval.sim
 ,,y,script,./test.sh -f tsim/query/join_pk.sim
+,,y,script,./test.sh -f tsim/query/join_order.sim
 ,,y,script,./test.sh -f tsim/query/count_spread.sim
 ,,y,script,./test.sh -f tsim/query/unionall_as_table.sim
 ,,y,script,./test.sh -f tsim/query/multi_order_by.sim

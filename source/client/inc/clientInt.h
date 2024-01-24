@@ -148,6 +148,7 @@ typedef struct STscObj {
   int8_t         dropped;
   int32_t        acctId;
   uint32_t       connId;
+  int32_t        appHbMgrIdx;
   int64_t        id;         // ref ID returned by taosAddRef
   TdThreadMutex  mutex;      // used to protect the operation on db
   int32_t        numOfReqs;  // number of sqlObj bound to this connection
@@ -285,6 +286,9 @@ void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
 void    setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
 int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4,
                               bool freeAfterUse);
+int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows,
+                         bool convertUcs4);
+
 void    setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
 void    doFreeReqResultInfo(SReqResultInfo* pResInfo);
 int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq);

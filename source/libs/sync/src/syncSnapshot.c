@@ -22,6 +22,7 @@
 #include "syncRaftStore.h"
 #include "syncReplication.h"
 #include "syncUtil.h"
+#include "tglobal.h"
 
 static SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths);
 
@@ -1186,7 +1187,7 @@ static int32_t syncSnapBufferSend(SSyncSnapshotSender *pSender, SyncSnapshotRsp 
     pSndBuf->start = ack + 1;
   }
 
-  while (pSender->seq != SYNC_SNAPSHOT_SEQ_END && pSender->seq - pSndBuf->start < (pSndBuf->size >> 2)) {
+  while (pSender->seq != SYNC_SNAPSHOT_SEQ_END && pSender->seq - pSndBuf->start < tsSnapReplMaxWaitN) {
     if (snapshotSend(pSender) != 0) {
       code = terrno;
       goto _out;
