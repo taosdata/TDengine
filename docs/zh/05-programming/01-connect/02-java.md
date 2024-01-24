@@ -23,6 +23,8 @@ import TabItem from '@theme/TabItem';
 </TabItem>
 <TabItem value="spring" label="Spring">
 
+在 “pom.xml” 文件中添加 Spring Boot 和 TDengine Java connector 的依赖：
+
 ```xml
 {{#include docs/examples/java/spring/pom.xml:spring}}
 ```
