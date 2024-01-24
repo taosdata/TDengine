@@ -74,6 +74,9 @@ struct SSortHandle {
 
   bool (*abortCheckFn)(void* param);
   void* abortCheckParam;
+
+  void (*mergeLimitReachedFn)(uint64_t tableUid, void* param);
+  void* mergeLimitReachedParam;
 };
 
 void tsortSetSingleTableMerge(SSortHandle* pHandle) {
@@ -1041,6 +1044,9 @@ static SSDataBlock* getRowsBlockWithinMergeLimit(const SSortHandle* pHandle, SSH
 
   int64_t keepRows = pOrigBlk->info.rows;
   if (nRows >= pHandle->mergeLimit) {
+    if (pHandle->mergeLimitReachedFn) {
+      pHandle->mergeLimitReachedFn(pOrigBlk->info.id.uid, pHandle->mergeLimitReachedParam);
+    }
     keepRows = pHandle->mergeLimit - prevRows;
   }
   
@@ -1623,4 +1629,9 @@ SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
   }
 
   return info;
+}
+
+void tsortSetMergeLimitReachedFp(SSortHandle* pHandle, void (*mergeLimitReachedCb)(uint64_t tableUid, void* param), void* param) {
+  pHandle->mergeLimitReachedFn = mergeLimitReachedCb;
+  pHandle->mergeLimitReachedParam = param;
 }
