@@ -346,7 +346,7 @@ void tFreeStreamTask(SStreamTask* pTask, bool metaLock) {
   STaskExecStatisInfo* pStatis = &pTask->execInfo;
 
   // check for mnode
-  if (pTask->pMeta != NULL && ) {
+  if (pTask->pMeta != NULL) {
     streamTaskClearHTaskAttr(pTask, metaLock);
   }
 
