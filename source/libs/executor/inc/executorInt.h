@@ -42,7 +42,6 @@ extern "C" {
 // #include "tstream.h"
 // #include "tstreamUpdate.h"
 #include "tlrucache.h"
-#include "tdatablock.h"
 
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
@@ -301,13 +300,14 @@ typedef struct STmsSubTableInput {
   int64_t* aTs;
 } STmsSubTableInput;
 
+typedef struct SBlockOrderInfo SBlockOrderInfo;
 typedef struct STmsSubTablesMergeInfo {
   SBlockOrderInfo* pOrderInfo;
 
   int32_t numSubTables;
   STmsSubTableInput* aInputs;
   SMultiwayMergeTreeInfo* pTree;
-  int32_t numTablesCompleted;
+  int32_t numSubTablesCompleted;
 
   int32_t        numTableBlocksInMem;
   SDiskbasedBuf* pBlocksBuf;
