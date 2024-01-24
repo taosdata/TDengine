@@ -34,7 +34,7 @@ In the "pom.xml" file, please add the Spring Boot and TDengine Java connector de
 
 ## Config
 
-Run this command in your terminal to save the JDBC URL as variable, or if it is a spring application, you can use the spring configuration:
+Run this command in your terminal to save the JDBC URL as variable, or if it is a Spring application, you can use the Spring configuration:
 
 <Tabs defaultValue="bash">
 <TabItem value="bash" label="Bash">
@@ -89,13 +89,13 @@ Code bellow get JDBC URL from environment variables first and then create a `Con
 
 </TabItem>
 <TabItem value="spring" label="Spring">
-1. Define an interface called "meterMapper", which uses the MyBatis framework to map from TDengine database super table to Java object.
+1. Define an interface called "meterMapper", which uses the MyBatis framework to map from TDengine database super table to Java object:
 
 ```
 {{#include docs/examples/java/spring/src/main/java/com/taos/example/dao/MeterMapper.java:mybatis}}
 ```
 
-2. Create a 'meterMapper.xml' file under 'src/main/resources/mapper', and add the following SQL mapping
+2. Create a 'meterMapper.xml' file under 'src/main/resources/mapper', and add the following SQL mapping:
 
 ```
 {{#include docs/examples/java/spring/src/main/resources/mapper/meterMapper.xml}}
