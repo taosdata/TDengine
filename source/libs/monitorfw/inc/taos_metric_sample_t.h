@@ -21,6 +21,10 @@
 
 #define DOUBLE_ATOMIC
 
+#ifdef DOUBLE_ATOMIC
+#include <stdatomic.h>
+#endif
+
 struct taos_metric_sample {
   taos_metric_type_t type; /**< type is the metric type for the sample */
   char *l_value;           /**< l_value is the full metric name and label set represeted as a string */

@@ -25,8 +25,6 @@
 #include "taos_metric_sample_i.h"
 #include "taos_metric_sample_t.h"
 
-#define DOUBLE_ATOMIC
-
 #ifdef DOUBLE_ATOMIC
 #include <stdatomic.h>
 #else
