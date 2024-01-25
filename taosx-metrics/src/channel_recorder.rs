@@ -6,9 +6,7 @@ use std::sync::Arc;
 
 use bincode::{config, Decode, Encode};
 use flume::Sender;
-use metrics::{
-    Counter, CounterFn, Gauge, GaugeFn, Histogram, HistogramFn, IntoLabels, Key, Recorder,
-};
+use metrics::{Counter, CounterFn, Gauge, GaugeFn, Histogram, HistogramFn, Key, Recorder};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Clone, Encode, Decode, Deserialize, Serialize)]

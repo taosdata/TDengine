@@ -102,12 +102,14 @@ impl Monitor {
 
 pub fn update_metrics(_sys: &mut sysinfo::System) -> anyhow::Result<()> {
     tracing::info!("update_metrics");
+    // TODO: update metrics
     Ok(())
 }
 
-pub fn send_metrics_to_taoskeeper(recorder_handle: &TaosXRecorderHandle) -> anyhow::Result<()> {
+pub fn send_metrics_to_taoskeeper(_recorder_handle: &TaosXRecorderHandle) -> anyhow::Result<()> {
     tracing::info!("send_metrics_to_taoskeeper");
-    let snapshot = recorder_handle.snapshot();
-    println!("{:?}", snapshot);
+    // TODO: send metrics to taosKeeper
+    // let snapshot = recorder_handle.snapshot();
+    // println!("{:?}", snapshot);
     Ok(())
 }

@@ -1,7 +1,5 @@
 use anyhow::Context;
 use lazy_static::lazy_static;
-use metrics::*;
-
 use taos::{taos_query::Manager, AsyncQueryable, Itertools, TaosBuilder, TaosPool, Ty};
 use thiserror::Error;
 
@@ -9,8 +7,7 @@ use tracing::{error, instrument};
 
 use crate::{
     core_metrics::TaosXMetrics, plugins::transform::MessageArrowRecords,
-    sink::DEFAULT_MAX_RETRIES_FOR_CONNECTION, utils::trace::RequestID, METRIC_STABLE_CREATED,
-    METRIC_WRITE_RAW_BLOCK_FAILS,
+    sink::DEFAULT_MAX_RETRIES_FOR_CONNECTION, utils::trace::RequestID,
 };
 
 use super::ipc_metric::IpcMetrics;
@@ -169,7 +166,8 @@ async fn assert_create_stable(
             write_retries += 1;
             tracing::warn!(sql = sql, "Exec SQL error: {err:#}");
             if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
-                counter!(METRIC_STABLE_CREATED, 1);
+                // counter!(METRIC_STABLE_CREATED, 1);
+                // TODO: add metrics
                 break Err(err)
                     .context("Exec SQL error: Retries exceeded")
                     .map_err(Into::into);
@@ -217,7 +215,8 @@ async fn assert_exec_sql(
             write_retries += 1;
             tracing::warn!(sql = sql, "Exec SQL error: {err:#}");
             if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
-                counter!(METRIC_WRITE_RAW_BLOCK_FAILS, 1);
+                // counter!(METRIC_WRITE_RAW_BLOCK_FAILS, 1);
+                // TODO: add metrics
                 break Err(err)
                     .context("Exec SQL error: Retries exceeded")
                     .map_err(Into::into);
@@ -244,7 +243,8 @@ async fn assert_exec_sql(
                     taos.replace(pool.get().await?);
                 }
                 _ => {
-                    counter!(METRIC_WRITE_RAW_BLOCK_FAILS, 1);
+                    // counter!(METRIC_WRITE_RAW_BLOCK_FAILS, 1);
+                    // TODO: add metrics
                     break Err(err)
                         .context("flat message write sql error")
                         .map_err(Into::into);
