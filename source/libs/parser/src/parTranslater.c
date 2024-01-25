@@ -5700,6 +5700,9 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray) {
     if (pCol->sma) {
       field.flags |= COL_SMA_ON;
     }
+    if (pCol->is_pk) {
+      field.flags != COL_IS_KEY;
+    }
     taosArrayPush(*pArray, &field);
   }
   return TSDB_CODE_SUCCESS;
@@ -5799,6 +5802,9 @@ static int32_t checkTableTagsSchema(STranslateContext* pCxt, SHashObj* pHash, SN
     if (NULL != taosHashGet(pHash, pTag->colName, len)) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
     }
+    if (TSDB_CODE_SUCCESS == code && pTag->is_pk) {
+      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TAG_IS_PRIMARY_KEY, pTag->colName);
+    }
     if (TSDB_CODE_SUCCESS == code && pTag->dataType.type == TSDB_DATA_TYPE_JSON && ntags > 1) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
     }
@@ -5854,6 +5860,9 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
       if (TSDB_DATA_TYPE_TIMESTAMP != pCol->dataType.type) {
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FIRST_COLUMN);
       }
+    }
+    if (TSDB_CODE_SUCCESS == code && pCol->is_pk && colIndex != 1) {
+      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SECOND_COL_PK);
     }
     if (TSDB_CODE_SUCCESS == code && pCol->dataType.type == TSDB_DATA_TYPE_JSON) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COL_JSON);
@@ -6072,6 +6081,9 @@ static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchem
   int8_t flags = 0;
   if (pCol->sma) {
     flags |= COL_SMA_ON;
+  }
+  if (pCol->is_pk) {
+    flags != COL_IS_KEY;
   }
   pSchema->colId = colId;
   pSchema->type = pCol->dataType.type;
