@@ -133,6 +133,19 @@ container_id=docker run \
     --privileged=true \
     --ulimit core=-1 -d taos_test:v1.0 /sbin/init
 
+echo docker run
+echo -v $REP_MOUNT_PARAM
+echo -v $REP_MOUNT_DEBUG
+echo -v $REP_MOUNT_LIB
+echo -v $MOUNT_DIR
+echo -v ${SOURCEDIR}:/usr/local/src/
+echo -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}"
+echo -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir
+echo --privileged=true
+echo --ulimit core=-1 -d taos_test:v1.0 /sbin/init
+
+echo container_id=${container_id}
+
 docker exec -it ${container_id} sh -c "$CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
 echo docker exec -it ${container_id} sh -c "$CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
 docker stop ${container_id}
