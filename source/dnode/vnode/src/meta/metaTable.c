@@ -548,6 +548,10 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
         pTagData = &(tagVal.i64);
         nTagData = tDataTypes[pCol->type].bytes;
       }
+    } else {
+      if (!IS_VAR_DATA_TYPE(pCol->type)) {
+        nTagData = tDataTypes[pCol->type].bytes;
+      }
     }
     rc = metaCreateTagIdxKey(suid, pCol->colId, pTagData, nTagData, pCol->type, table->uid, &pTagIdxKey, &nTagIdxKey);
     tdbFree(pKey);
@@ -678,6 +682,10 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
         nTagData = (int32_t)tagVal.nData;
       } else {
         pTagData = &(tagVal.i64);
+        nTagData = tDataTypes[pCol->type].bytes;
+      }
+    } else {
+      if (!IS_VAR_DATA_TYPE(pCol->type)) {
         nTagData = tDataTypes[pCol->type].bytes;
       }
     }
@@ -1140,6 +1148,10 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
                 nTagData = (int32_t)tagVal.nData;
               } else {
                 pTagData = &(tagVal.i64);
+                nTagData = tDataTypes[pTagColumn->type].bytes;
+              }
+            } else {
+              if (!IS_VAR_DATA_TYPE(pTagColumn->type)) {
                 nTagData = tDataTypes[pTagColumn->type].bytes;
               }
             }
@@ -1861,6 +1873,10 @@ static int metaAddTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTb
         pTagData = &(tagVal.i64);
         nTagData = tDataTypes[pCol->type].bytes;
       }
+    } else {
+      if (!IS_VAR_DATA_TYPE(pCol->type)) {
+        nTagData = tDataTypes[pCol->type].bytes;
+      }
     }
     if (metaCreateTagIdxKey(suid, pCol->colId, pTagData, nTagData, pCol->type, uid, &pTagIdxKey, &nTagIdxKey) < 0) {
       tdbFree(pKey);
@@ -2234,6 +2250,10 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
           nTagData = (int32_t)tagVal.nData;
         } else {
           pTagData = &(tagVal.i64);
+          nTagData = tDataTypes[pTagColumn->type].bytes;
+        }
+      } else {
+        if (!IS_VAR_DATA_TYPE(pTagColumn->type)) {
           nTagData = tDataTypes[pTagColumn->type].bytes;
         }
       }
