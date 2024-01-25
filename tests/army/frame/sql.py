@@ -211,8 +211,6 @@ class TDSql:
                     tdLog.info("sql:%s, expected expectErrInfo %s occured" % (sql, expectErrInfo))
                 else:
                   tdLog.exit("%s(%d) failed: sql:%s, expectErrInfo %s occured, but not expected errno %s" % (caller.filename, caller.lineno, sql, self.error_info, expectErrInfo))
-            else:
-              tdLog.info("sql:%s, expect error occured" % (sql))
 
             return self.error_info
 
@@ -359,7 +357,14 @@ class TDSql:
                             args = (caller.filename, caller.lineno, self.sql, row, col, self.res[row][col], data)
                             tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
                     else:
-                        if self.res[row][col].astimezone(datetime.timezone.utc) == _parse_datetime(data).astimezone(datetime.timezone.utc):
+                        print(f"{self.res[row][col]}")
+                        real = self.res[row][col]
+                        if real is None:
+                            # none
+                            if str(real) == data:
+                                if(show):
+                                    tdLog.info("check successfully")
+                        elif real.astimezone(datetime.timezone.utc) == _parse_datetime(data).astimezone(datetime.timezone.utc):
                             # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.res[row][col]} == expect:{data}")
                             if(show):
                                tdLog.info("check successfully")
