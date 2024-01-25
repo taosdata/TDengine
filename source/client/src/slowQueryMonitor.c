@@ -17,7 +17,7 @@
 #include "clientLog.h"
 #include "tglobal.h"
 
-const char* slowQueryName = "slow_query:slow_query_metric";
+const char* slowQueryName = "slow_query";
 const char* slowQueryHelp = "slow query log when cost > 3s";
 const int   slowQueryLabelCount = 1;
 const char* slowQueryLabels[] = {"cost"};
