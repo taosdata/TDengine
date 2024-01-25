@@ -13,14 +13,18 @@ arrow = { version = "50.0.0", features = ["chrono-tz"] }
 arrow-flight = { version = "50.0.0" }
 arrow-schema = { version = "50.0.0", features = ["serde"] }
 parquet = "50.0.0"
+metrics = "0.21.0"
+metrics-exporter-prometheus = { version = "0.12.0", default-features = false }
+metrics-tracing-context = "0.14.0"
+metrics-util = "0.15.1"
 
 tonic = "0.10"
 
-taos = { version = "0.10.25", default-features = false, features = [
+taos = { version = "0.11.1", default-features = false, features = [
     "ws",
     "deadpool",
 ] }
-taos-query = { version = "0.10.25", default-features = false, features = [
+taos-query = { version = "0.11.1", default-features = false, features = [
     "deadpool",
 ] }
 
@@ -120,12 +124,12 @@ tonic = { workspace = true, features = ["tls", "tls-roots", "gzip"] }
 
 # lru = "0.7.5"
 const_format = "0.2.30"
-metrics = "0.21.0"
-metrics-exporter-prometheus = { version = "0.12.0", default-features = false, features = [
-  "push-gateway",
+metrics = { workspace = true }
+metrics-exporter-prometheus = { workspace = true, default-features = false, features = [
+    "push-gateway",
 ] }
-metrics-tracing-context = "0.14.0"
-metrics-util = "0.15.1"
+metrics-tracing-context = { workspace = true }
+metrics-util = { workspace = true }
 sysinfo = "0.30.5"
 
 async-backtrace = "0.2.2"
@@ -203,3 +207,10 @@ tokio-tracing = ["tokio/tracing", "console-subscriber"]
 
 [profile.sani]
 inherits = "release"
+
+[profile.production]
+inherits = "release"
+codegen-units = 1
+debug = 2
+split-debuginfo = "packed"
+strip = "debuginfo"

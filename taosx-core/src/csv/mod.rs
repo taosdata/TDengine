@@ -287,12 +287,15 @@ impl CsvSource {
             .unwrap_or("1".to_string())
             .parse()
             .context("Invalid batch_size value")?;
-        let concurrent: usize = dsn
+        let mut concurrent: usize = dsn
             .params
             .remove("read_concurrency")
             .unwrap_or("2".to_string())
             .parse()
             .context("Invalid concurrent value")?;
+        if concurrent == 0 {
+            concurrent = paths.len();
+        }
 
         if !has_header && headers.len() == 0 {
             return Err(anyhow!("csv header is null"));

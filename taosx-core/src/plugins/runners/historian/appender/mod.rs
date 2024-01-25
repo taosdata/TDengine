@@ -8,8 +8,7 @@ use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
 use chrono::{Local, NaiveDateTime, TimeZone};
 use itertools::Itertools;
-use serde_json::json;
-use tiberius::{ColumnType, Row};
+use tiberius::Row;
 
 use taosx_ipc::prelude::ArrowDataType;
 
