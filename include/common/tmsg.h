@@ -446,6 +446,7 @@ typedef struct SField {
   uint8_t type;
   int8_t  flags;
   int32_t bytes;
+  int8_t  is_pk;
 } SField;
 
 typedef struct SRetention {
@@ -523,6 +524,7 @@ struct SSchema {
   int8_t   flags;
   col_id_t colId;
   int32_t  bytes;
+  int8_t   is_pk;
   char     name[TSDB_COL_NAME_LEN];
 };
 

@@ -192,6 +192,10 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Out of memory";
     case TSDB_CODE_PAR_ORDERBY_AMBIGUOUS:
       return "ORDER BY \"%s\" is ambiguous";
+    case TSDB_CODE_PAR_TAG_IS_PRIMARY_KEY:
+      return "tag %s can not be primary key";
+    case TSDB_CODE_PAR_SECOND_COL_PK:
+      return "primary key column must be second column";
     default:
       return "Unknown error";
   }

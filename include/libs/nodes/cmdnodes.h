@@ -168,7 +168,7 @@ typedef struct SColumnDefNode {
   SDataType dataType;
   char      comments[TSDB_TB_COMMENT_LEN];
   bool      sma;
-  bool      isPK;
+  bool      is_pk;
 } SColumnDefNode;
 
 typedef struct SCreateTableStmt {

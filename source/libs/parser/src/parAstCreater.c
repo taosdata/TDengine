@@ -1479,7 +1479,7 @@ SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType 
     trimString(pComment->z, pComment->n, pCol->comments, sizeof(pCol->comments));
   }
   pCol->sma = true;
-  pCol->isPK = bPrimaryKey;
+  pCol->is_pk = bPrimaryKey;
   return (SNode*)pCol;
 }
 

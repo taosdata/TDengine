@@ -5695,7 +5695,7 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray) {
   SNode* pNode;
   FOREACH(pNode, pList) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
-    SField          field = {.type = pCol->dataType.type, .bytes = calcTypeBytes(pCol->dataType)};
+    SField          field = {.type = pCol->dataType.type, .bytes = calcTypeBytes(pCol->dataType), .is_pk = pCol->is_pk};
     strcpy(field.name, pCol->colName);
     if (pCol->sma) {
       field.flags |= COL_SMA_ON;
@@ -5799,6 +5799,9 @@ static int32_t checkTableTagsSchema(STranslateContext* pCxt, SHashObj* pHash, SN
     if (NULL != taosHashGet(pHash, pTag->colName, len)) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
     }
+    if (TSDB_CODE_SUCCESS == code && pTag->is_pk) {
+      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TAG_IS_PRIMARY_KEY, pTag->colName);
+    }
     if (TSDB_CODE_SUCCESS == code && pTag->dataType.type == TSDB_DATA_TYPE_JSON && ntags > 1) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
     }
@@ -5854,6 +5857,9 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
       if (TSDB_DATA_TYPE_TIMESTAMP != pCol->dataType.type) {
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FIRST_COLUMN);
       }
+    }
+    if (TSDB_CODE_SUCCESS == code && pCol->is_pk && colIndex != 1) {
+      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SECOND_COL_PK);
     }
     if (TSDB_CODE_SUCCESS == code && pCol->dataType.type == TSDB_DATA_TYPE_JSON) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COL_JSON);
@@ -6077,6 +6083,7 @@ static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchem
   pSchema->type = pCol->dataType.type;
   pSchema->bytes = calcTypeBytes(pCol->dataType);
   pSchema->flags = flags;
+  pSchema->is_pk = pCol->is_pk;
   strcpy(pSchema->name, pCol->colName);
 }
 
