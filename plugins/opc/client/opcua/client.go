@@ -377,16 +377,20 @@ func (c *UAClient) readValueBatch(base int, nodes []*ua.NodeID) {
 			c.logger.WithField("id", c.dataCache[base+i].Identifier).WithError(r.Status).Error("read value batch status error")
 			c.dataCache[base+i].Value = nil
 		} else {
-			c.dataCache[base+i].Value = r.Value.Value()
-			if r.Value.ArrayLength() > 0 || r.Value.ArrayDimensions() != nil {
-				c.logger.WithField("id", c.dataCache[base+i].Identifier).Warn("skip node: read value is array")
-				continue
-			}
-			exists := false
-			c.dataCache[base+i].ValueType, exists = convertType[r.Value.Type()]
-			if !exists {
-				c.logger.WithField("id", c.dataCache[base+i].Identifier).WithField("valueType", r.Value.Type()).Warn("skip node: read value type is not supported")
-				continue
+			if r.Value != nil {
+				c.dataCache[base+i].Value = r.Value.Value()
+				if r.Value.ArrayLength() > 0 || r.Value.ArrayDimensions() != nil {
+					c.logger.WithField("id", c.dataCache[base+i].Identifier).Warn("skip node: read value is array")
+					continue
+				}
+				exists := false
+				c.dataCache[base+i].ValueType, exists = convertType[r.Value.Type()]
+				if !exists {
+					c.logger.WithField("id", c.dataCache[base+i].Identifier).WithField("valueType", r.Value.Type()).Warn("skip node: read value type is not supported")
+					continue
+				}
+			} else {
+				c.dataCache[base+i].Value = nil
 			}
 		}
 		var ts time.Time
@@ -579,7 +583,11 @@ func (c *UAClient) handleSubCallback(sub *opcua.Subscription, ch chan *opcua.Pub
 							c.logger.WithField("identifier", identifier).WithField("item", item).Error("observe opc ua item is nil")
 							continue
 						}
-						c.dataCache[handle].Value = item.Value.Value.Value()
+						if item.Value.Value != nil {
+							c.dataCache[handle].Value = item.Value.Value.Value()
+						} else {
+							c.dataCache[handle].Value = nil
+						}
 						var ts time.Time
 						if !item.Value.SourceTimestamp.IsZero() {
 							ts = item.Value.SourceTimestamp
@@ -802,7 +810,7 @@ func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcu
 	for i := 0; i < len(nodes); i++ {
 		index := i * len(attributes)
 		err = res.Results[index].Status
-		if !errors.Is(err, ua.StatusOK) && !errors.Is(err, ua.StatusBadSecurityModeInsufficient) {
+		if !errors.Is(err, ua.StatusOK) {
 			c.logger.WithError(err).WithField("nodeID", nodes[i].ID.String()).Errorf("get node attribute %s error", attributeNames[0])
 			continue
 		}
