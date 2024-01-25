@@ -155,6 +155,7 @@ typedef struct {
   char           db[TSDB_DB_FNAME_LEN];
   SArray*        vgs;  // SArray<SMqClientVg>
   SSchemaWrapper schema;
+  int8_t         noPrivilege;
 } SMqClientTopic;
 
 typedef struct {
@@ -739,6 +740,29 @@ void tmqAssignDelayedCommitTask(void* param, void* tmrId) {
 
 int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (pMsg) {
+    SMqHbRsp rsp = {0};
+    tDeserializeSMqHbRsp(pMsg->pData, pMsg->len, &rsp);
+
+    int64_t refId = *(int64_t*)param;
+    tmq_t*  tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
+    if (tmq != NULL) {
+      taosWLockLatch(&tmq->lock);
+      for(int32_t i = 0; i < taosArrayGetSize(rsp.topicPrivileges); i++){
+        STopicPrivilege* privilege = taosArrayGet(rsp.topicPrivileges, i);
+        if(privilege->noPrivilege == 1){
+          int32_t topicNumCur = taosArrayGetSize(tmq->clientTopics);
+          for (int32_t j = 0; j < topicNumCur; j++) {
+            SMqClientTopic* pTopicCur = taosArrayGet(tmq->clientTopics, j);
+            if(strcmp(pTopicCur->topicName, privilege->topic) == 0){
+              tscInfo("consumer:0x%" PRIx64 ", has no privilege, topic:%s", tmq->consumerId, privilege->topic);
+              pTopicCur->noPrivilege = 1;
+            }
+          }
+        }
+      }
+      taosWUnLockLatch(&tmq->lock);
+    }
+
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
   }
@@ -809,7 +833,9 @@ void tmqSendHbReq(void* param, void* tmrId) {
 
   sendInfo->requestId = generateRequestId();
   sendInfo->requestObjRefId = 0;
-  sendInfo->param = NULL;
+  sendInfo->paramFreeFp = taosMemoryFree;
+  sendInfo->param = taosMemoryMalloc(sizeof(int64_t));
+  *(int64_t *)sendInfo->param = refId;
   sendInfo->fp = tmqHbCb;
   sendInfo->msgType = TDMT_MND_TMQ_HB;
 
@@ -1705,7 +1731,10 @@ static int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
   for (int i = 0; i < numOfTopics; i++) {
     SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
     int32_t         numOfVg = taosArrayGetSize(pTopic->vgs);
-
+    if(pTopic->noPrivilege){
+      tscDebug("consumer:0x%" PRIx64 " has no privilegr for topic:%s", tmq->consumerId, pTopic->topicName);
+      continue;
+    }
     for (int j = 0; j < numOfVg; j++) {
       SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
       if (taosGetTimestampMs() - pVg->emptyBlockReceiveTs < EMPTY_BLOCK_POLL_IDLE_DURATION) {  // less than 10ms

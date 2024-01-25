@@ -6139,6 +6139,55 @@ int32_t tDeserializeSMqAskEpReq(void *buf, int32_t bufLen, SMqAskEpReq *pReq) {
   return 0;
 }
 
+int32_t tDeatroySMqHbRsp(SMqHbRsp *pRsp) {
+  taosArrayDestroy(pRsp->topicPrivileges);
+  return 0;
+}
+
+int32_t tSerializeSMqHbRsp(void *buf, int32_t bufLen, SMqHbRsp *pRsp) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  int32_t sz = taosArrayGetSize(pRsp->topicPrivileges);
+  if (tEncodeI32(&encoder, sz) < 0) return -1;
+  for (int32_t i = 0; i < sz; ++i) {
+    STopicPrivilege *privilege = (STopicPrivilege *)taosArrayGet(pRsp->topicPrivileges, i);
+    if (tEncodeCStr(&encoder, privilege->topic) < 0) return -1;
+    if (tEncodeI8(&encoder, privilege->noPrivilege) < 0) return -1;
+  }
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+
+  return tlen;
+}
+
+int32_t tDeserializeSMqHbRsp(void *buf, int32_t bufLen, SMqHbRsp *pRsp) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, (char *)buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  int32_t sz = 0;
+  if (tDecodeI32(&decoder, &sz) < 0) return -1;
+  if (sz > 0) {
+    pRsp->topicPrivileges = taosArrayInit(sz, sizeof(STopicPrivilege));
+    if (NULL == pRsp->topicPrivileges) return -1;
+    for (int32_t i = 0; i < sz; ++i) {
+      STopicPrivilege *data = taosArrayReserve(pRsp->topicPrivileges, 1);
+      if (tDecodeCStrTo(&decoder, data->topic) < 0) return -1;
+      if (tDecodeI8(&decoder, &data->noPrivilege) < 0) return -1;
+    }
+  }
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
 int32_t tDeatroySMqHbReq(SMqHbReq *pReq) {
   for (int i = 0; i < taosArrayGetSize(pReq->topics); i++) {
     TopicOffsetRows *vgs = taosArrayGet(pReq->topics, i);
@@ -6194,7 +6243,7 @@ int32_t tDeserializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq) {
     if (NULL == pReq->topics) return -1;
     for (int32_t i = 0; i < sz; ++i) {
       TopicOffsetRows *data = taosArrayReserve(pReq->topics, 1);
-      tDecodeCStrTo(&decoder, data->topicName);
+      if (tDecodeCStrTo(&decoder, data->topicName) < 0) return -1;
       int32_t szVgs = 0;
       if (tDecodeI32(&decoder, &szVgs) < 0) return -1;
       if (szVgs > 0) {
@@ -7753,36 +7802,6 @@ static int32_t tDecodeSVSubmitBlk(SDecoder *pCoder, SVSubmitBlk *pBlock, int32_t
   return 0;
 }
 
-int32_t tEncodeSVSubmitReq(SEncoder *pCoder, const SVSubmitReq *pReq) {
-  int32_t nBlocks = taosArrayGetSize(pReq->pArray);
-
-  if (tStartEncode(pCoder) < 0) return -1;
-
-  if (tEncodeI32v(pCoder, pReq->flags) < 0) return -1;
-  if (tEncodeI32v(pCoder, nBlocks) < 0) return -1;
-  for (int32_t iBlock = 0; iBlock < nBlocks; iBlock++) {
-    if (tEncodeSVSubmitBlk(pCoder, (SVSubmitBlk *)taosArrayGet(pReq->pArray, iBlock), pReq->flags) < 0) return -1;
-  }
-
-  tEndEncode(pCoder);
-  return 0;
-}
-
-int32_t tDecodeSVSubmitReq(SDecoder *pCoder, SVSubmitReq *pReq) {
-  if (tStartDecode(pCoder) < 0) return -1;
-
-  if (tDecodeI32v(pCoder, &pReq->flags) < 0) return -1;
-  if (tDecodeI32v(pCoder, &pReq->nBlocks) < 0) return -1;
-  pReq->pBlocks = tDecoderMalloc(pCoder, sizeof(SVSubmitBlk) * pReq->nBlocks);
-  if (pReq->pBlocks == NULL) return -1;
-  for (int32_t iBlock = 0; iBlock < pReq->nBlocks; iBlock++) {
-    if (tDecodeSVSubmitBlk(pCoder, pReq->pBlocks + iBlock, pReq->flags) < 0) return -1;
-  }
-
-  tEndDecode(pCoder);
-  return 0;
-}
-
 static int32_t tEncodeSSubmitBlkRsp(SEncoder *pEncoder, const SSubmitBlkRsp *pBlock) {
   if (tStartEncode(pEncoder) < 0) return -1;
 
@@ -8914,6 +8933,7 @@ int32_t tSerializeSMResumeStreamReq(void *buf, int32_t bufLen, const SMResumeStr
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igUntreated) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->suspend) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -8928,6 +8948,7 @@ int32_t tDeserializeSMResumeStreamReq(void *buf, int32_t bufLen, SMResumeStreamR
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igNotExists) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igUntreated) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->suspend) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);

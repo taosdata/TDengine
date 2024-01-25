@@ -48,6 +48,7 @@ typedef enum {
   TSDB_GRANT_CPU_CORES,
   TSDB_GRANT_STABLE,
   TSDB_GRANT_TABLE,
+  TSDB_GRANT_SUBSCRIBE,
 } EGrantType;
 
 int32_t grantCheck(EGrantType grant);

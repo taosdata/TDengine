@@ -808,6 +808,11 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   int32_t     sqlLen = 0;
   terrno = TSDB_CODE_SUCCESS;
 
+  if(grantCheck(TSDB_GRANT_STREAMS) < 0){
+    terrno = TSDB_CODE_GRANT_STREAM_LIMITED;
+    return -1;
+  }
+
   SCMCreateStreamReq createStreamReq = {0};
   if (tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, &createStreamReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -2034,17 +2039,22 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
 
-  SMResumeStreamReq pauseReq = {0};
-  if (tDeserializeSMResumeStreamReq(pReq->pCont, pReq->contLen, &pauseReq) < 0) {
+  if(grantCheck(TSDB_GRANT_STREAMS) < 0){
+    terrno = TSDB_CODE_GRANT_EXPIRED;
+    return -1;
+  }
+
+  SMResumeStreamReq resumeReq = {0};
+  if (tDeserializeSMResumeStreamReq(pReq->pCont, pReq->contLen, &resumeReq) < 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
-  pStream = mndAcquireStream(pMnode, pauseReq.name);
+  pStream = mndAcquireStream(pMnode, resumeReq.name);
 
   if (pStream == NULL) {
-    if (pauseReq.igNotExists) {
-      mInfo("stream:%s, not exist, if exist is set", pauseReq.name);
+    if (resumeReq.igNotExists) {
+      mInfo("stream:%s, not exist, if exist is set", resumeReq.name);
       sdbRelease(pMnode->pSdb, pStream);
       return 0;
     } else {
@@ -2072,12 +2082,12 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, MND_STREAM_RESUME_NAME);
   if (pTrans == NULL) {
-    mError("stream:%s, failed to resume stream since %s", pauseReq.name, terrstr());
+    mError("stream:%s, failed to resume stream since %s", resumeReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     return -1;
   }
 
-  mInfo("trans:%d used to resume stream:%s", pTrans->id, pauseReq.name);
+  mInfo("trans:%d used to resume stream:%s", pTrans->id, resumeReq.name);
 
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetSTbName);
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
@@ -2089,8 +2099,8 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   int32_t code = mndStreamRegisterTrans(pTrans, MND_STREAM_RESUME_NAME, pStream->uid);
 
   // resume all tasks
-  if (mndResumeAllStreamTasks(pTrans, pMnode, pStream, pauseReq.igUntreated) < 0) {
-    mError("stream:%s, failed to drop task since %s", pauseReq.name, terrstr());
+  if (mndResumeAllStreamTasks(pTrans, pMnode, pStream, resumeReq.igUntreated) < 0) {
+    mError("stream:%s, failed to drop task since %s", resumeReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return -1;
@@ -3030,6 +3040,39 @@ static void updateStageInfo(STaskStatusEntry *pTaskEntry, int64_t stage) {
   }
 }
 
+int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo* info){
+  SSdb       *pSdb = pMnode->pSdb;
+  SStreamObj *pStream = NULL;
+  void* pIter = NULL;
+  while(1) {
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) break;
+
+    if(pStream->status != STREAM_STATUS__PAUSE){
+      SMPauseStreamReq *reqPause = rpcMallocCont(sizeof(SMPauseStreamReq));
+      if (reqPause == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        sdbRelease(pSdb, pStream);
+        return -1;
+      }
+      strcpy(reqPause->name, pStream->name);
+      reqPause->igNotExists = 1;
+
+      SRpcMsg rpcMsg = {
+          .msgType = TDMT_MND_PAUSE_STREAM,
+          .pCont = reqPause,
+          .contLen = sizeof(SMPauseStreamReq),
+          .info = *info,
+      };
+
+      tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+    }
+
+    sdbRelease(pSdb, pStream);
+  }
+  return 0;
+}
+
 int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   SStreamHbMsg req = {0};
@@ -3038,6 +3081,12 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   int64_t checkpointId = 0;
   int64_t streamId = 0;
   int32_t transId = 0;
+
+  if(grantCheck(TSDB_GRANT_STREAMS) < 0){
+    if(suspendAllStreams(pMnode, &pReq->info) < 0){
+      return -1;
+    }
+  }
 
   SDecoder decoder = {0};
   tDecoderInit(&decoder, pReq->pCont, pReq->contLen);

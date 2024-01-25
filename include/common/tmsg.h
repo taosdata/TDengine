@@ -3360,6 +3360,7 @@ typedef struct {
   char   name[TSDB_STREAM_FNAME_LEN];
   int8_t igNotExists;
   int8_t igUntreated;
+  int8_t suspend;
 } SMResumeStreamReq;
 
 int32_t tSerializeSMResumeStreamReq(void* buf, int32_t bufLen, const SMResumeStreamReq* pReq);
@@ -3754,7 +3755,12 @@ typedef struct {
 } SMqHbReq;
 
 typedef struct {
-  int8_t reserved;
+  char           topic[TSDB_TOPIC_FNAME_LEN];
+  int8_t         noPrivilege;
+} STopicPrivilege;
+
+typedef struct {
+  SArray* topicPrivileges;   // SArray<STopicPrivilege>
 } SMqHbRsp;
 
 typedef struct {
@@ -3772,18 +3778,6 @@ typedef struct {
   uint8_t*      pData;
   SVCreateTbReq cTbReq;
 } SVSubmitBlk;
-
-typedef struct {
-  int32_t flags;
-  int32_t nBlocks;
-  union {
-    SArray*      pArray;
-    SVSubmitBlk* pBlocks;
-  };
-} SVSubmitReq;
-
-int32_t tEncodeSVSubmitReq(SEncoder* pCoder, const SVSubmitReq* pReq);
-int32_t tDecodeSVSubmitReq(SDecoder* pCoder, SVSubmitReq* pReq);
 
 typedef struct {
   SMsgHead header;
@@ -3892,6 +3886,10 @@ int32_t tDeserializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
 int32_t tSerializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 int32_t tDeserializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 int32_t tDeatroySMqHbReq(SMqHbReq* pReq);
+
+int32_t tSerializeSMqHbRsp(void* buf, int32_t bufLen, SMqHbRsp* pRsp);
+int32_t tDeserializeSMqHbRsp(void* buf, int32_t bufLen, SMqHbRsp* pRsp);
+int32_t tDeatroySMqHbRsp(SMqHbRsp* pRsp);
 
 int32_t tSerializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);

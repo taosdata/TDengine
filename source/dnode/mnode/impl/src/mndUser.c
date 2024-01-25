@@ -1925,6 +1925,7 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
       return -1;
     }
     taosHashPut(pNewUser->topics, pTopic->name, len, pTopic->name, TSDB_TOPIC_FNAME_LEN);
+    mndReleaseTopic(pMnode, pTopic);
   }
 
   if (ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(pAlterReq->alterType, pAlterReq->privileges)) {
@@ -1935,6 +1936,7 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
       return -1;
     }
     taosHashRemove(pNewUser->topics, pAlterReq->objname, len);
+    mndReleaseTopic(pMnode, pTopic);
   }
 
   return TSDB_CODE_SUCCESS;

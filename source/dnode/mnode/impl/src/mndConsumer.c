@@ -102,7 +102,8 @@ static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *
     }
 
     if (mndCheckTopicPrivilege(pMnode, pUser, MND_OPER_SUBSCRIBE, pTopic) != 0) {
-      code = -1;
+      code = TSDB_CODE_MND_NO_RIGHTS;
+      terrno = TSDB_CODE_MND_NO_RIGHTS;
       goto FAILED;
     }
 
@@ -220,22 +221,52 @@ FAIL:
   return -1;
 }
 
+static int32_t checkPrivilege(SMnode  *pMnode, SMqConsumerObj *pConsumer, SMqHbRsp *rsp, char* user){
+  rsp->topicPrivileges = taosArrayInit(taosArrayGetSize(pConsumer->currentTopics), sizeof(STopicPrivilege));
+  if(rsp->topicPrivileges == NULL){
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
+  }
+  for(int32_t i = 0; i < taosArrayGetSize(pConsumer->currentTopics); i++){
+    char *topic = taosArrayGetP(pConsumer->currentTopics, i);
+    SMqTopicObj* pTopic = mndAcquireTopic(pMnode, topic);
+    if (pTopic == NULL) {  // terrno has been set by callee function
+      continue;
+    }
+    STopicPrivilege *data = taosArrayReserve(rsp->topicPrivileges, 1);
+    if (mndCheckTopicPrivilege(pMnode, user, MND_OPER_SUBSCRIBE, pTopic) != 0 || grantCheck(TSDB_GRANT_SUBSCRIBE) < 0) {
+      data->noPrivilege = 1;
+    } else{
+      data->noPrivilege = 0;
+    }
+    mndReleaseTopic(pMnode, pTopic);
+  }
+  return 0;
+}
+
 static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   int32_t code = 0;
   SMnode  *pMnode = pMsg->info.node;
   SMqHbReq req = {0};
+  SMqHbRsp rsp = {0};
+  SMqConsumerObj *pConsumer = NULL;
 
-  if ((code = tDeserializeSMqHbReq(pMsg->pCont, pMsg->contLen, &req)) < 0) {
+  if (tDeserializeSMqHbReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
 
   int64_t         consumerId = req.consumerId;
-  SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, consumerId);
+  pConsumer = mndAcquireConsumer(pMnode, consumerId);
   if (pConsumer == NULL) {
     mError("consumer:0x%" PRIx64 " not exist", consumerId);
     terrno = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
-    code = -1;
+    code = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
+    goto end;
+  }
+  code = checkPrivilege(pMnode, pConsumer, &rsp, pMsg->info.conn.user);
+  if(code != 0){
     goto end;
   }
 
@@ -280,9 +311,22 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
     mndReleaseSubscribe(pMnode, pSub);
   }
 
-  mndReleaseConsumer(pMnode, pConsumer);
+  // encode rsp
+  int32_t tlen = tSerializeSMqHbRsp(NULL, 0, &rsp);
+  void   *buf = rpcMallocCont(tlen);
+  if (buf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
+  }
+
+  tSerializeSMqHbRsp(&buf, tlen, &rsp);
+  pMsg->info.rsp = buf;
+  pMsg->info.rspLen = tlen;
 
 end:
+  tDeatroySMqHbRsp(&rsp);
+  mndReleaseConsumer(pMnode, pConsumer);
   tDeatroySMqHbReq(&req);
   return code;
 }
@@ -499,6 +543,11 @@ static void freeItem(void *param) {
 int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   SMnode *pMnode = pMsg->info.node;
   char   *msgStr = pMsg->pCont;
+
+  if(grantCheck(TSDB_GRANT_SUBSCRIBE) < 0){
+    terrno = TSDB_CODE_GRANT_EXPIRED;
+    return -1;
+  }
 
   SCMSubscribeReq subscribe = {0};
   tDeserializeSCMSubscribeReq(msgStr, &subscribe);
