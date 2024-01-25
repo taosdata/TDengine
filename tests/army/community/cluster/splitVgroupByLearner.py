@@ -29,38 +29,58 @@ from frame import *
 from frame.autogen import *
 from frame.srvCtl import *
 
+
 class TDTestCase(TBase):
-    def configJsonFile(self, fileName, dbName, vgroups, replica, newFileName='', insert_rows=10000000, timestamp_step=10000):
-        with open(fileName, 'r') as f:
+
+    def init(self, conn, logSql, replicaVar=1):
+        tdLog.debug(f"start to init {__file__}")
+        self.replicaVar = int(replicaVar)
+        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        self.configJsonFile('splitVgroupByLearner.json', 'db', 1, 1, 'splitVgroupByLearner.json', 100000)
+
+    def configJsonFile(self, fileName, dbName, vgroups, replica, newFileName='', insert_rows=100000,
+                       timestamp_step=10000):
+        tdLog.debug(f"configJsonFile {fileName}")
+        filePath = etool.curFile(__file__, fileName)
+        with open(filePath, 'r') as f:
             data = json.load(f)
+
         if len(newFileName) == 0:
             newFileName = fileName
 
-        data['databases']['dbinfo']['name'] = dbName
-        data['databases']['dbinfo']['vgroups'] = vgroups
-        data['databases']['dbinfo']['replica'] = replica
-        data['databases']['dbinfo']['replica'] = replica
-        data['databases']['super_tables']['insert_rows'] = insert_rows
-        data['databases']['super_tables']['timestamp_step'] = timestamp_step
+        data['databases'][0]['dbinfo']['name'] = dbName
+        data['databases'][0]['dbinfo']['vgroups'] = vgroups
+        data['databases'][0]['dbinfo']['replica'] = replica
+        data['databases'][0]['super_tables'][0]['insert_rows'] = insert_rows
+        data['databases'][0]['super_tables'][0]['timestamp_step'] = timestamp_step
         json_data = json.dumps(data)
-        with open(newFileName, "w") as file:
+        filePath = etool.curFile(__file__, newFileName)
+        with open(filePath, "w") as file:
             file.write(json_data)
+
+        tdLog.debug(f"configJsonFile {json_data}")
 
     def splitVgroupThread(self, configFile, event):
         # self.insertData(configFile)
         event.wait()
-        tdSql.execute('ALTER DATABASE db1 REPLICA 3')
         time.sleep(5)
-        param_list = tdSql.query('show vgroups')
-        vgroupId = None
-        for param in param_list:
-           vgroupId = param[0]
-        tdSql.execute(f"split vgroup {vgroupId}")
-        # self.configJsonFile(configFile, 'db1', 1, 1, configFile, 100000000)
+        tdLog.debug("splitVgroupThread start")
+        tdSql.execute('ALTER DATABASE db REPLICA 3')
+        time.sleep(5)
+        tdSql.execute('use db')
+        rowLen = tdSql.query('show vgroups')
+        if rowLen > 0:
+            vgroupId = tdSql.getData(0, 0)
+            tdLog.debug(f"splitVgroupThread vgroupId:{vgroupId}")
+            tdSql.execute(f"split vgroup {vgroupId}")
+        else:
+            tdLog.exit("get vgroupId fail!")
+            # self.configJsonFile(configFile, 'db1', 1, 1, configFile, 100000000)
         # self.insertData(configFile)
 
     def dnodeNodeStopThread(self, event):
         event.wait()
+        tdLog.debug("dnodeNodeStopThread start")
         time.sleep(10)
         on = 2
         for i in range(5):
@@ -73,32 +93,32 @@ class TDTestCase(TBase):
             sc.dnodeStart(on)
             time.sleep(5)
 
-
     def dbInsertThread(self, configFile, event):
-        self.insertData(configFile)
-        event.set()
-        self.configJsonFile(configFile, 'db', 2, 3, configFile, 100000000)
+        tdLog.debug(f"dbInsertThread start {configFile}")
         self.insertData(configFile)
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
-        self.configJsonFile('splitVgroupByLearner.json', 'db', 1, 1, 'splitVgroupByLearner.json', 1000000)
+        event.set()
+        tdLog.debug(f"dbInsertThread first end {event}")
+        self.configJsonFile(configFile, 'db', 2, 3, configFile, 100000)
+        self.insertData(configFile)
 
     def insertData(self, configFile):
         tdLog.info(f"insert data.")
         # taosBenchmark run
         jfile = etool.curFile(__file__, configFile)
-        etool.benchMark(json = jfile)
+        etool.benchMark(json=jfile)
 
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
-        event = threading.Event
-        t1 = threading.Thread(target=self.splitVgroupThread, args=('splitVgroupByLearner1.json', event))
-        t2 = threading.Thread(target=self.dbInsertThread, args=('splitVgroupByLearner.json'))
+        event = threading.Event()
+        t1 = threading.Thread(target=self.splitVgroupThread, args=('splitVgroupByLearner.json', event))
+        t2 = threading.Thread(target=self.dbInsertThread, args=('splitVgroupByLearner.json', event))
         t3 = threading.Thread(target=self.dnodeNodeStopThread, args=(event))
+        t1.start()
+        t2.start()
+        t3.start()
+        tdLog.debug("threading started!!!!!")
         t1.join()
         t2.join()
         t3.join()
@@ -107,6 +127,7 @@ class TDTestCase(TBase):
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
+
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())
