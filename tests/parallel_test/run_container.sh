@@ -122,7 +122,7 @@ MOUNT_DIR="$TMP_DIR/thread_volume/$thread_no/$exec_dir:$CONTAINER_TESTDIR/tests/
 echo "$thread_no -> ${exec_dir}:$cmd"
 coredump_dir=`cat /proc/sys/kernel/core_pattern | xargs dirname`
 
-docker run \
+container_id=$(docker run \
     -v $REP_MOUNT_PARAM \
     -v $REP_MOUNT_DEBUG \
     -v $REP_MOUNT_LIB \
@@ -130,7 +130,26 @@ docker run \
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    --rm --ulimit core=-1 taos_test:v1.0 $CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
+    --privileged=true \
+    --rm --ulimit core=-1 taos_test:v1.0)
+
+echo docker run \
+echo -v $REP_MOUNT_PARAM \
+echo -v $REP_MOUNT_DEBUG \
+echo -v $REP_MOUNT_LIB \
+echo -v $MOUNT_DIR \
+echo -v ${SOURCEDIR}:/usr/local/src/ \
+echo -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
+echo -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
+echo --privileged=true \
+echo --rm --ulimit core=-1 taos_test:v1.0
+
+echo container_id=${container_id}
+
+echo docker exec -it ${container_id} sh -c "$CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
+docker exec -it ${container_id} sh -c "$CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
 ret=$?
+
+docker rm -f ${container_id}
 exit $ret
 
