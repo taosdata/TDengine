@@ -142,7 +142,7 @@ echo -v ${SOURCEDIR}:/usr/local/src/
 echo -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}"
 echo -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir
 echo --privileged=true
-echo --rm --ulimit core=-1 taos_test:v1.0
+echo --ulimit core=-1 -d taos_test:v1.0 /sbin/init
 
 echo container_id=${container_id}
 
