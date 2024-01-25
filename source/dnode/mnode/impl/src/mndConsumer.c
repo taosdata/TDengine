@@ -234,6 +234,7 @@ static int32_t checkPrivilege(SMnode  *pMnode, SMqConsumerObj *pConsumer, SMqHbR
       continue;
     }
     STopicPrivilege *data = taosArrayReserve(rsp->topicPrivileges, 1);
+    strcpy(data->topic, topic);
     if (mndCheckTopicPrivilege(pMnode, user, MND_OPER_SUBSCRIBE, pTopic) != 0 || grantCheck(TSDB_GRANT_SUBSCRIBE) < 0) {
       data->noPrivilege = 1;
     } else{
@@ -320,7 +321,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
     goto end;
   }
 
-  tSerializeSMqHbRsp(&buf, tlen, &rsp);
+  tSerializeSMqHbRsp(buf, tlen, &rsp);
   pMsg->info.rsp = buf;
   pMsg->info.rspLen = tlen;
 

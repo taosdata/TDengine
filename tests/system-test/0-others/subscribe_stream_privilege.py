@@ -22,6 +22,8 @@ from util.sqlset import *
 
 
 class TDTestCase:
+    clientCfgDict = {'debugFlag': 135}
+    updatecfgDict = {'debugFlag': 135, 'clientCfg':clientCfgDict}
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
@@ -61,7 +63,7 @@ class TDTestCase:
 
     def prepare_data(self):
         for db in self.dbnames:
-            tdSql.execute(f"create database {db}")
+            tdSql.execute(f"create database {db} vgroups 1")
             tdSql.execute(f"use {db}")
             tdSql.execute(self.setsql.set_create_stable_sql(self.stbname, self.column_dict, self.tag_dict))
             for i in range(self.tbnum):
@@ -110,11 +112,9 @@ class TDTestCase:
                         tdLog.exit(f"grant privilege, should get res")
                 elif cnt == 2:
                     if res:
-                        time.sleep(1000)
                         tdLog.exit(f"revoke privilege, should get NULL")
-
-                else:
-                    break
+                    else:
+                        break
 
                 tdLog.debug("test subscribe topic privilege revoked by other user")
                 tdSql.execute(f'revoke subscribe on {self.topic_name} from {self.user_name}')
@@ -122,7 +122,6 @@ class TDTestCase:
 
         finally:
             consumer.close()
-        time.sleep(1000)
 
     def create_user(self):
         tdSql.execute(f'create topic {self.topic_name} as database {self.dbnames[0]}')
