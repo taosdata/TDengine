@@ -5695,10 +5695,13 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray) {
   SNode* pNode;
   FOREACH(pNode, pList) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
-    SField          field = {.type = pCol->dataType.type, .bytes = calcTypeBytes(pCol->dataType), .is_pk = pCol->is_pk};
+    SField          field = {.type = pCol->dataType.type, .bytes = calcTypeBytes(pCol->dataType)};
     strcpy(field.name, pCol->colName);
     if (pCol->sma) {
       field.flags |= COL_SMA_ON;
+    }
+    if (pCol->is_pk) {
+      field.flags != COL_IS_KEY;
     }
     taosArrayPush(*pArray, &field);
   }
@@ -6079,11 +6082,13 @@ static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchem
   if (pCol->sma) {
     flags |= COL_SMA_ON;
   }
+  if (pCol->is_pk) {
+    flags != COL_IS_KEY;
+  }
   pSchema->colId = colId;
   pSchema->type = pCol->dataType.type;
   pSchema->bytes = calcTypeBytes(pCol->dataType);
   pSchema->flags = flags;
-  pSchema->is_pk = pCol->is_pk;
   strcpy(pSchema->name, pCol->colName);
 }
 

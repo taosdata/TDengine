@@ -446,7 +446,6 @@ typedef struct SField {
   uint8_t type;
   int8_t  flags;
   int32_t bytes;
-  int8_t  is_pk;
 } SField;
 
 typedef struct SRetention {
@@ -524,7 +523,6 @@ struct SSchema {
   int8_t   flags;
   col_id_t colId;
   int32_t  bytes;
-  int8_t   is_pk;
   char     name[TSDB_COL_NAME_LEN];
 };
 
@@ -582,6 +580,7 @@ void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 
 #define COL_SMA_ON     ((int8_t)0x1)
 #define COL_IDX_ON     ((int8_t)0x2)
+#define COL_IS_KEY     ((int8_t)0x4)
 #define COL_SET_NULL   ((int8_t)0x10)
 #define COL_SET_VAL    ((int8_t)0x20)
 #define COL_IS_SYSINFO ((int8_t)0x40)
