@@ -103,6 +103,10 @@ class TDTestCase:
             f"select statecount(c1 ,'GT',1) , min(c1) from {dbname}.t1",
             f"select statecount(c1 ,'GT',1) , spread(c1) from {dbname}.t1",
             f"select statecount(c1 ,'GT',1) , diff(c1) from {dbname}.t1",
+            f"select statecount(c1 ,'GTA',1) , diff(c1) from {dbname}.t1",
+            f"select statecount(c1 ,'EQA',1) , diff(c1) from {dbname}.t1",
+            f"select statecount(c1 ,'',1) , diff(c1) from {dbname}.t1",
+            f"select statecount(c1 ,'E',1) , diff(c1) from {dbname}.t1",
         ]
         for error_sql in error_sql_lists:
             tdSql.error(error_sql)
