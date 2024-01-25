@@ -3740,7 +3740,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
 #ifdef BUILD_NO_CALL
     .sprocessFunc = qTbUidFunction,
 #else
-    .sprocessFunc = qVgIdFunction,
+    .sprocessFunc = NULL,
 #endif
     .finalizeFunc = NULL
   },
@@ -3754,7 +3754,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
 #ifdef BUILD_NO_CALL
     .sprocessFunc = qVgIdFunction,
 #else
-    .sprocessFunc = qVgIdFunction,
+    .sprocessFunc = NULL,
 #endif
     .finalizeFunc = NULL
   },
