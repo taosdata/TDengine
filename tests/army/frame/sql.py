@@ -447,7 +447,8 @@ class TDSql:
         if(show):         
             tdLog.info("check successfully")
 
-    def checkDataMem(self, mem):
+    def checkDataMem(self, sql, mem):
+        self.query(sql)
         if not isinstance(mem, list):
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql)
@@ -463,7 +464,7 @@ class TDSql:
                 self.checkData(row, col, colData)
         tdLog.info("check successfully")
 
-    def checkDataCsv(self, csvfilePath):
+    def checkDataCsv(self, sql, csvfilePath):
         if not isinstance(csvfilePath, str) or len(csvfilePath) == 0:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, csvfilePath)
@@ -487,7 +488,7 @@ class TDSql:
             tdLog.exit("%s(%d) failed: sql:%s, expect csvfile path:%s, read error:%s" % args)
 
         tdLog.info("read csvfile read successfully")
-        self.checkDataMem(data)
+        self.checkDataMem(sql, data)
 
     # return true or false replace exit, no print out
     def checkRowColNoExit(self, row, col):

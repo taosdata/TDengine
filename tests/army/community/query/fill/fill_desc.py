@@ -52,12 +52,12 @@ class TDTestCase(TBase):
 
         tdLog.printNoPrefix("==========step3:fill data")
 
-        tdSql.query(f"select first(point_value) as pointValue from {dbname}.{tbname} where wstart between '2023-12-26 10:35:00' and '2023-12-26 10:40:00' interval(1M) fill(prev) order by wstart desc limit 100")
+        sql = f"select first(point_value) as pointValue from {dbname}.{tbname} where wstart between '2023-12-26 10:35:00' and '2023-12-26 10:40:00' interval(1M) fill(prev) order by wstart desc limit 100"
         data = []
         for i in range(6):
            row = [5]
            data.append(row)
-        tdSql.checkDataMem(data)
+        tdSql.checkDataMem(sql, data)
 
     def stop(self):
         tdSql.close()

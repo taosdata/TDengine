@@ -53,7 +53,7 @@ class TDTestCase(TBase):
         self.flushDb()
         jfile = etool.curFile(__file__, "cquery_basic.json")
         etool.benchMark(json = jfile)
-        
+
 
     def genTime(self, preCnt, cnt):
         start = self.start_timestamp + preCnt * self.timestamp_step
@@ -236,6 +236,142 @@ class TDTestCase(TBase):
             if int(reals[k]) != v:
                 tdLog.exit(f"distribute {k} expect: {v} real: {reals[k]}")
 
+    def checkNull(self):
+        # abs unique concat_ws
+        ts = self.start_timestamp + 1
+        sql = f"insert into {self.db}.d0(ts) values({ts})"
+        tdSql.execute(sql)
+        sql = f"select abs(fc),
+                       unique(ic),
+                       concat_ws(',',bin,nch),
+                       timetruncate(bi,1s,0),
+                       timediff(ic,bi,1s),
+                       to_timestamp(nch,'yyyy-mm-dd hh:mi:ss.ms.us.ns')
+                from {self.db}.d0 where ts={ts}"
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, "None")
+        tdSql.checkData(0, 1, "None")
+        tdSql.checkData(0, 2, "None")
+        tdSql.checkData(0, 3, "None")
+        tdSql.checkData(0, 4, "None")
+        
+
+        # substr from 0 start
+        sql1 = f"select substr(bin,0) from {self.db}.d0 order by ts desc limit 100"
+        sql2 = f"select bin from {self.db}.d0 order by ts desc limit 100"
+        self.checkSameResult(sql1, sql2)
+
+        # cast
+        nch = 99
+        sql = f"insert into {self.db}.d0(ts, nch) values({ts, '{nch}'})"
+        tdSql.execute(sql)
+        sql = f"select cast(nch as tinyint), 
+                       cast(nch as tinyint unsigned), 
+                       cast(nch as smallint),
+                       cast(nch as smallint unsigned),
+                       cast(nch as int unsigned),
+                       cast(nch as bigint unsigned),
+                       cast(nch as float),
+                       cast(nch as double),
+                       cast(nch as bool),
+                from {self.db}.d0 where ts={ts}"
+        row = [nch, nch, nch, nch, nch, nch, nch, nch, True]
+        tdSql.checkDataMem(sql, [row])
+
+        ts += 1
+        sql = f"insert into {self.db}.d0(ts, nch) values({ts, 'abcd'})"
+        tdSql.execute(sql)
+        sql = f"select cast(nch as tinyint) from {self.db}.d0 where ts={ts}"
+        tdSql.checkFirstValue(sql, 0)
+
+        # iso8601
+        sql = f'select ts,to_iso8601(ts,"Z"),to_iso8601(ts,"+08"),to_iso8601(ts,"-08") from {self.db}.d0 where ts={self.start_timestamp}'
+        row = ['2023-11-15 06:13:20.000','2023-11-14T22:13:20.000Z','2023-11-15T06:13:20.000+08','2023-11-14T14:13:20.000-08']
+        tdSql.checkDataMem(sql, [row])
+
+        # constant expr funciton
+        
+        # count
+        sql = f"select count(1),count(null) from {self.db}.d0"
+        tdSql.checkDataMem(sql, [[self.insert_rows, 0]])
+        
+        row = [10, 10.0, "None", 2]
+        # sum
+        sql = "select sum(1+9),sum(1.1 + 9.9),sum(null),sum(4/2);"
+        tdSql.checkDataMem(sql, [row])
+        # min
+        sql = "select min(1+9),min(1.1 + 9.9),min(null),min(4/2);"
+        tdSql.checkDataMem(sql, [row])
+        # max
+        sql = "select max(1+9),max(1.1 + 9.9),max(null),max(4/2);"
+        tdSql.checkDataMem(sql, [row])
+        # avg
+        sql = "select max(1+9),max(1.1 + 9.9),max(null),max(4/2);"
+        tdSql.checkDataMem(sql, [row])
+        # avg
+        sql = "select least(1+9),max(1.1 + 9.9),max(null),max(4/2);"
+        tdSql.checkDataMem(sql, [row])
+        # stddev
+        sql = "select stddev(1+9),stddev(1.1 + 9.9),stddev(null),stddev(4/2);"
+        tdSql.checkDataMem(sql, [[0, 0.0, "None", 0]])
+        # leastsquares
+        sql = "select leastsquares(100+2,2*2,1), leastsquares(100.2,2.1,1);"
+        tdSql.query(sql)
+        # derivative
+        sql = "select derivative(190999,38.3,1);"
+        tdSql.checkFirstValue(sql, 0.0)
+        # irate
+        sql = "select irate(0);"
+        tdSql.checkFirstValue(sql, 0.0)
+        # diff
+        sql = "select diff(0);"
+        tdSql.checkFirstValue(sql, 0.0)
+        # twa
+        sql = "select twa(10);"
+        tdSql.checkFirstValue(sql, 10.0)
+        # mavg
+        sql = "select mavg(5,10);"
+        tdSql.checkFirstValue(sql, 5)
+        # mavg
+        sql = "select mavg(5,10);"
+        tdSql.checkFirstValue(sql, 5)
+        # mavg
+        sql = "select csum(4+9);"
+        tdSql.checkFirstValue(sql, 13)
+
+        ops  = ['GE', 'GT', 'LE', 'LT', 'EQ', 'NE']
+        vals = [-1,   -1,    1,    1,    -1,   1]
+        for i in len(ops):
+            # statecount
+            sql = f"select statecount(99,'{ops[i]}',100);"
+            tdSql.checkFirstValue(sql, vals[i])
+            sql = f"select statecount(9.9,'{ops[i]}',11.1);"
+            tdSql.checkFirstValue(sql, vals[i])
+            # stateduration
+            sql = f"select stateduration(99,'{ops[i]}',100,1s);"
+            tdSql.checkFirstValue(sql, vals[i])
+            sql = f"select stateduration(9.9,'{ops[i]}',11.1,1s);"
+            tdSql.checkFirstValue(sql, vals[i])
+
+        # histogram check crash
+        sqls = [
+            'select histogram(200,"user_input","[10,  50, 200]",0);',
+            'select histogram(22.2,"user_input","[1.01,  5.01, 200.1]",0);',
+            'select histogram(200,"linear_bin",\'{"start": 0.0,"width": 5.0, "count": 5, "infinity": true}\',0)',
+            'select histogram(200.2,"linear_bin",\'{"start": 0.0,"width": 5.01, "count": 5, "infinity": true}\',0)',
+            'select histogram(200,"log_bin",\'{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}\',0)',
+            'select histogram(200.2,"log_bin",\'{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}\',0)'
+        ]
+        tdSql.executes(sqls)
+        # errors check
+        sql = 'select histogram(200.2,"log_bin",\'start":1.0, "factor: 2.0, "count": 5, "infinity": true}\',0)'
+        tdSql.error(sql)
+        sql = 'select histogram("200.2","log_bin",\'start":1.0, "factor: 2.0, "count": 5, "infinity": true}\',0)'
+        tdSql.error(sql)
+
+        # first last
+        sql = "select first(100-90-1),last(2*5),top(11,2),bottom(10*5/5+2,2),sample(20/2+3,3),tail(20-6,1);"
+        tdSql.checkDataMem(sql, [[9, 10, 11, 12, 13, 14]])
 
     # run
     def run(self):
@@ -252,6 +388,9 @@ class TDTestCase(TBase):
 
         # do action
         self.doQuery()
+
+        # check null
+        self.checkNull()
 
         tdLog.success(f"{__file__} successfully executed")
 
