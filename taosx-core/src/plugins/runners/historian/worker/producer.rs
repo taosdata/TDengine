@@ -77,7 +77,7 @@ mod tests {
             "historian://aaAdmin:aaAdmin@192.168.3.40:1433/?mode={}&table={}&tags={}&tagListSize={}&beginDateTime={}&endDateTime={}&timeWindow={}",
             "migrate",
             "Runtime.dbo.History",
-            "*",
+            "tag0,tag1,tag2,tag3,tag4,tag5,tag6,tag7,tag8,tag9",
             "3",
             "2021-08-01T00:00:00Z",
             "2021-08-04T12:00:00Z",

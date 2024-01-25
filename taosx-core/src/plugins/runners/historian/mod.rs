@@ -1,3 +1,6 @@
+use arrow_schema::DataType;
+use arrow_schema::TimeUnit::Nanosecond;
+use chrono::NaiveDateTime;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -6,6 +9,7 @@ use futures_util::TryStreamExt;
 use linked_hash_map::LinkedHashMap;
 use serde_json::{json, Value};
 use taos::Dsn;
+use tiberius::{ColumnType, Row};
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
@@ -14,7 +18,6 @@ use taosx_ipc::prelude::IpcDataType;
 use crate::dsv::DataSourceValidation;
 use crate::plugins::raw_data::RawDataLogger;
 use crate::plugins::transform::sample::DsSampleIn;
-use crate::runners::historian::appender::to_json_value;
 use crate::runners::historian::config::connect::ConnectConfig;
 use crate::runners::historian::config::{HistorianTable, TaskConfig, TaskMode};
 use crate::runners::historian::query::HistorianQuery;
@@ -30,6 +33,7 @@ mod worker;
 pub const AVEVA_HISTORIAN_ID: &str = "avevaHistorian";
 pub const AVEVA_HISTORIAN_NAME: &str = "AVEVA Historian";
 
+/// check historian dsn is valid
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = ConnectConfig::from_dsn(dsn);
     match config {
@@ -122,28 +126,28 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     Ok(ds_sample_in)
 }
 
-async fn get_tag_names(
-    client: &mut HistorianQuery,
-    tag_conditions: Vec<String>,
-) -> anyhow::Result<Vec<String>> {
-    let mut rows = client
-        .select_from_tag(tag_conditions)
-        .await?
-        .into_row_stream();
+pub fn to_json_value(
+    row: &Row,
+    idx: usize,
+    col_type: ColumnType,
+) -> anyhow::Result<serde_json::Value> {
+    let col_val = match col_type {
+        ColumnType::Datetime2 => json!(row.try_get::<NaiveDateTime, _>(idx)?),
+        ColumnType::Int1 => json!(row.try_get::<u8, _>(idx)?),
+        ColumnType::Int4 => json!(row.try_get::<i32, _>(idx)?),
+        ColumnType::Intn => json!(row.try_get::<i32, _>(idx)?),
+        ColumnType::Floatn => json!(row.try_get::<f64, _>(idx)?),
+        ColumnType::NVarchar => json!(row.try_get::<&str, _>(idx)?),
+        _ => {
+            return Err(anyhow::anyhow!("Unsupported column type: {:?}", col_type));
+        }
+    };
 
-    let mut tag_names = Vec::new();
-    while let Some(row) = rows.try_next().await? {
-        let tag_name = row
-            .try_get::<&str, _>("TagName")?
-            .ok_or(anyhow::anyhow!("TagName cannot be None"))?;
-        tag_names.push(tag_name.to_string());
-    }
-
-    Ok(tag_names)
+    Ok(col_val)
 }
 
-fn to_ipc_data_type(data_type: &str, precision: i32) -> anyhow::Result<IpcDataType> {
-    let db_type = match data_type {
+fn to_ipc_data_type(type_name: &str, precision: i32) -> anyhow::Result<IpcDataType> {
+    let db_type = match type_name {
         "datetime2" => "timestamp(ms)".to_string(),
         "nvarchar" => format!("varchar({})", precision).to_string(),
         "tinyint" => "tinyint".to_string(),
@@ -151,7 +155,7 @@ fn to_ipc_data_type(data_type: &str, precision: i32) -> anyhow::Result<IpcDataTy
         "float" => "double".to_string(),
         _ => anyhow::bail!(
             "unsupported data type: {}, precision: {}",
-            data_type,
+            type_name,
             precision
         ),
     };
@@ -159,7 +163,7 @@ fn to_ipc_data_type(data_type: &str, precision: i32) -> anyhow::Result<IpcDataTy
     IpcDataType::from_str(db_type.as_str()).map_err(|err| {
         anyhow::anyhow!(
             "failed to convert data type: {}, precision: {}, cause: {}",
-            data_type,
+            type_name,
             precision,
             err.to_string()
         )
@@ -270,8 +274,19 @@ pub async fn historian_to_taos(
 async fn exec_task(task_id: Option<i64>, mut config: TaskConfig) -> anyhow::Result<()> {
     let mut client = HistorianQuery::try_new(config.connect.clone()).await?;
 
-    let tag_list = get_tag_names(&mut client, config.tags.clone()).await?;
-    if tag_list.is_empty() {
+    let conditions = config.tags.clone();
+    let mut rows = client.select_from_tag(conditions).await?.into_row_stream();
+
+    let mut tag_name_list = Vec::new();
+    while let Some(row) = rows.try_next().await? {
+        let tag_name = row
+            .try_get::<&str, _>("TagName")?
+            .ok_or(anyhow::anyhow!("TagName cannot be None"))?;
+        tag_name_list.push(tag_name.to_string());
+    }
+    drop(rows);
+
+    if tag_name_list.is_empty() {
         anyhow::bail!("valid TagName is None, tags: {:?}", config.tags.clone());
     }
 
@@ -296,11 +311,11 @@ async fn exec_task(task_id: Option<i64>, mut config: TaskConfig) -> anyhow::Resu
 
     match (config.mode, config.table) {
         (TaskMode::Migrate, HistorianTable::History) => {
-            config.tags = tag_list;
+            config.tags = tag_name_list;
             migrate_history(config.clone(), logger_tx).await?;
         }
         (TaskMode::Synchronize, HistorianTable::History) => {
-            config.tags = tag_list;
+            config.tags = tag_name_list;
             sync_history(config.clone(), logger_tx).await?;
         }
         (TaskMode::Synchronize, HistorianTable::Live) => {
@@ -310,6 +325,24 @@ async fn exec_task(task_id: Option<i64>, mut config: TaskConfig) -> anyhow::Resu
     }
 
     Ok(())
+}
+
+pub fn to_arrow_data_type(col_type: ColumnType) -> anyhow::Result<DataType> {
+    let data_type = match col_type {
+        ColumnType::Bit => DataType::Boolean,
+        ColumnType::Int1 => DataType::UInt8,
+        ColumnType::Int4 => DataType::Int32,
+        ColumnType::Int8 => DataType::Int64,
+        ColumnType::Float4 => DataType::Float32,
+        ColumnType::Float8 => DataType::Float64,
+        ColumnType::Intn => DataType::Int32,
+        ColumnType::Floatn => DataType::Float64,
+        ColumnType::Datetime2 => DataType::Timestamp(Nanosecond, None),
+        ColumnType::NVarchar => DataType::Utf8,
+        _ => Err(anyhow::anyhow!("Unsupported column type: {:?}", col_type))?,
+    };
+
+    Ok(data_type)
 }
 
 #[cfg(test)]
