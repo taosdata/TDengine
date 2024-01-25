@@ -1,13 +1,15 @@
 package com.taosdata.model.dto.bum;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 内存队列信息
  *
  * @author ZYP
  */
-@Data
+@Getter
+@Setter
 public class QueueInfo {
 
     /**

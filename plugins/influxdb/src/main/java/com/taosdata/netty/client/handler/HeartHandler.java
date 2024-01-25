@@ -4,7 +4,6 @@ import com.taosdata.caches.StatusCache;
 import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.netty.client.NettyClient;
 import com.taosdata.netty.client.config.NettyClientConfig;
-import com.taosdata.utils.IdUtils;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import org.slf4j.Logger;
@@ -31,7 +30,7 @@ public class HeartHandler extends ChannelInboundHandlerAdapter {
     /**
      * 序列号工具类
      */
-    private IdUtils idUtils;
+    /*private IdUtils idUtils;*/
 
     /**
      * 发送心跳时间
@@ -46,7 +45,7 @@ public class HeartHandler extends ChannelInboundHandlerAdapter {
     public HeartHandler(NettyClientConfig nettyConfig, NettyClient nettyClient) {
         this.nettyConfig = nettyConfig;
         this.nettyClient = nettyClient;
-        this.idUtils = new IdUtils();
+        /*this.idUtils = new IdUtils();*/
     }
 
     @Override

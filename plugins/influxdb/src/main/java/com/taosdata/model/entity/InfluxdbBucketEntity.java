@@ -1,7 +1,8 @@
 package com.taosdata.model.entity;
 
 import com.alibaba.fastjson.JSONObject;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.Date;
 
@@ -10,7 +11,8 @@ import java.util.Date;
  *
  * @author ZYP
  */
-@Data
+@Getter
+@Setter
 public class InfluxdbBucketEntity {
 
     private String bucketId;
