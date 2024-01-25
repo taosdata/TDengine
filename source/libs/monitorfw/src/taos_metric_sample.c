@@ -71,7 +71,7 @@ int taos_metric_sample_add(taos_metric_sample_t *self, double r_value) {
   }
   
 #ifdef DOUBLE_ATOMIC
-  _Atomic double old = atomic_load(&self->r_value);
+  /*_Atomic*/ double old = atomic_load(&self->r_value);
 
   for (;;) {
     _Atomic double new = ATOMIC_VAR_INIT(old + r_value);
@@ -94,7 +94,7 @@ int taos_metric_sample_sub(taos_metric_sample_t *self, double r_value) {
   }
 
 #ifdef DOUBLE_ATOMIC
-  _Atomic double old = atomic_load(&self->r_value);
+  /*_Atomic*/ double old = atomic_load(&self->r_value);
   for (;;) {
     _Atomic double new = ATOMIC_VAR_INIT(old - r_value);
     if (atomic_compare_exchange_weak(&self->r_value, &old, new)) {
@@ -130,7 +130,7 @@ int taos_metric_sample_exchange(taos_metric_sample_t *self, double r_value, doub
   }
 
 #ifdef DOUBLE_ATOMIC
-  _Atomic double new = ATOMIC_VAR_INIT(r_value);
+  /*_Atomic*/ double new = ATOMIC_VAR_INIT(r_value);
   for (;;) {
     _Atomic double old = atomic_load(&self->r_value);
     *old_value = old;
