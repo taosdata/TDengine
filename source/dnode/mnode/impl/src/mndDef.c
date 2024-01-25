@@ -17,6 +17,8 @@
 #include "mndDef.h"
 #include "mndConsumer.h"
 
+static void *freeStreamTasks(SArray *pTaskLevel);
+
 int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeCStr(pEncoder, pObj->name) < 0) return -1;
@@ -121,11 +123,18 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   if (tDecodeCStrAlloc(pDecoder, &pObj->ast) < 0) return -1;
   if (tDecodeCStrAlloc(pDecoder, &pObj->physicalPlan) < 0) return -1;
 
-  pObj->tasks = NULL;
+  if (pObj->tasks != NULL) {
+    pObj->tasks = freeStreamTasks(pObj->tasks);
+  }
+
   int32_t sz;
-  if (tDecodeI32(pDecoder, &sz) < 0) return -1;
+  if (tDecodeI32(pDecoder, &sz) < 0) {
+    return -1;
+  }
+
   if (sz != 0) {
     pObj->tasks = taosArrayInit(sz, sizeof(void *));
+
     for (int32_t i = 0; i < sz; i++) {
       int32_t innerSz;
       if (tDecodeI32(pDecoder, &innerSz) < 0) return -1;
@@ -165,14 +174,15 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   return 0;
 }
 
-static void *freeStreamTasks(SArray *pTaskLevel) {
+void *freeStreamTasks(SArray *pTaskLevel) {
   int32_t numOfLevel = taosArrayGetSize(pTaskLevel);
+
   for (int32_t i = 0; i < numOfLevel; i++) {
     SArray *pLevel = taosArrayGetP(pTaskLevel, i);
     int32_t taskSz = taosArrayGetSize(pLevel);
     for (int32_t j = 0; j < taskSz; j++) {
       SStreamTask *pTask = taosArrayGetP(pLevel, j);
-      tFreeStreamTask(pTask);
+      tFreeStreamTask(pTask, true);
     }
 
     taosArrayDestroy(pLevel);

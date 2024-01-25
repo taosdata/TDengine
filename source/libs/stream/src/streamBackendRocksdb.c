@@ -1768,8 +1768,8 @@ void taskDbInitOpt(STaskDbWrapper* pTaskDb) {
   rocksdb_options_set_recycle_log_file_num(opts, 6);
   rocksdb_options_set_max_write_buffer_number(opts, 3);
   rocksdb_options_set_info_log_level(opts, 1);
-  rocksdb_options_set_db_write_buffer_size(opts, 64 << 20);
-  rocksdb_options_set_write_buffer_size(opts, 32 << 20);
+  rocksdb_options_set_db_write_buffer_size(opts, 256 << 20);
+  rocksdb_options_set_write_buffer_size(opts, 128 << 20);
   rocksdb_options_set_atomic_flush(opts, 1);
 
   pTaskDb->dbOpt = opts;
@@ -1780,6 +1780,7 @@ void taskDbInitOpt(STaskDbWrapper* pTaskDb) {
   rocksdb_options_set_compaction_filter_factory(pTaskDb->dbOpt, pTaskDb->filterFactory);
   pTaskDb->readOpt = rocksdb_readoptions_create();
   pTaskDb->writeOpt = rocksdb_writeoptions_create();
+  rocksdb_writeoptions_disable_WAL(pTaskDb->writeOpt, 1);
 
   size_t nCf = sizeof(ginitDict) / sizeof(ginitDict[0]);
   pTaskDb->pCf = taosMemoryCalloc(nCf, sizeof(rocksdb_column_family_handle_t*));

@@ -50,6 +50,7 @@ typedef struct SStreamExecInfo {
   SHashObj        *pTaskMap;
   SArray          *pTaskList;
   TdThreadMutex    lock;
+  SHashObj        *pTransferStateStreams;
 } SStreamExecInfo;
 
 #define MND_STREAM_CREATE_NAME      "stream-create"
