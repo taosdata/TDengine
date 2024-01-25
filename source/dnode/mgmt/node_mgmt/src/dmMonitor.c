@@ -19,7 +19,13 @@
 #include "audit.h"
 
 static void dmGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
-  //pInfo->protocol = 1;
+  pInfo->protocol = 1;
+  pInfo->dnode_id = pDnode->data.dnodeId;
+  pInfo->cluster_id = pDnode->data.clusterId;
+  tstrncpy(pInfo->dnode_ep, tsLocalEp, TSDB_EP_LEN);
+}
+
+static void dmGetMonitorBasicInfoBasic(SDnode *pDnode, SMonBasicInfo *pInfo) {
   pInfo->protocol = 2;
   pInfo->dnode_id = pDnode->data.dnodeId;
   pInfo->cluster_id = pDnode->data.clusterId;
@@ -42,6 +48,12 @@ static void dmGetDmMonitorInfo(SDnode *pDnode) {
   dmGetMonitorBasicInfo(pDnode, &dmInfo.basic);
   dmGetMonitorDnodeInfo(pDnode, &dmInfo.dnode);
   dmGetMonitorSystemInfo(&dmInfo.sys);
+  monSetDmInfo(&dmInfo);
+}
+
+static void dmGetDmMonitorInfoBasic(SDnode *pDnode) {
+  SMonDmInfo dmInfo = {0};
+  dmGetMonitorBasicInfoBasic(pDnode, &dmInfo.basic);
   monSetDmInfo(&dmInfo);
 }
 
@@ -115,11 +127,8 @@ void dmSendMonitorReportBasic() {
   dTrace("send monitor report to %s:%u", tsMonitorFqdn, tsMonitorPort);
 
   SDnode *pDnode = dmInstance();
-  dmGetDmMonitorInfo(pDnode);
+  dmGetDmMonitorInfoBasic(pDnode);
   dmGetMmMonitorInfo(pDnode);
-  //dmGetVmMonitorInfo(pDnode);
-  //dmGetQmMonitorInfo(pDnode);
-  //dmGetSmMonitorInfo(pDnode);
   monGenAndSendReportBasic();
 }
 
