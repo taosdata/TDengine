@@ -31,7 +31,7 @@ static int32_t metaInitLock(SMeta *pMeta) {
   TdThreadRwlockAttr attr;
   taosThreadRwlockAttrInit(&attr);
   taosThreadRwlockAttrSetKindNP(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
-  taosThreadRwlockInit(&pMeta->lock, NULL);
+  taosThreadRwlockInit(&pMeta->lock, &attr);
   taosThreadRwlockAttrDestroy(&attr);
   return 0;
 }
