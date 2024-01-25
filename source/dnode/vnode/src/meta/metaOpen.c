@@ -27,7 +27,14 @@ static int taskIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int k
 static int btimeIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int ncolIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
-static int32_t metaInitLock(SMeta *pMeta) { return taosThreadRwlockInit(&pMeta->lock, NULL); }
+static int32_t metaInitLock(SMeta *pMeta) {
+  TdThreadRwlockAttr attr;
+  taosThreadRwlockAttrInit(&attr);
+  taosThreadRwlockAttrSetKindNP(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+  taosThreadRwlockInit(&pMeta->lock, NULL);
+  taosThreadRwlockAttrDestroy(&attr);
+  return 0;
+}
 static int32_t metaDestroyLock(SMeta *pMeta) { return taosThreadRwlockDestroy(&pMeta->lock); }
 
 static void metaCleanup(SMeta **ppMeta);
