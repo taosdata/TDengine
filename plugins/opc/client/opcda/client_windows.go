@@ -89,11 +89,7 @@ func NewDAClient(ctx context.Context, connectConfig config.DaConnectConfig, coll
 func (c *DAClient) Connect() error {
 	c.logger.Info("opcda start to connect")
 	var err error
-	if len(c.tags) == 0 {
-		c.conn, err = opc.NewConnection(c.server, c.nodes, []string{})
-	} else {
-		c.conn, err = opc.NewConnection(c.server, c.nodes, c.tags)
-	}
+	c.conn, err = opc.NewConnection(c.server, c.nodes, []string{})
 	if err != nil {
 		c.logger.WithError(err).Error("opcda connect error")
 		return err
@@ -116,6 +112,19 @@ func (c *DAClient) Collect() error {
 	if len(c.tags) == 0 {
 		c.logger.Error("opcda collect error: tags is empty")
 		return errors.New("opcda collect error: tags is empty")
+	}
+	addedCount := 0
+	for _, tag := range c.tags {
+		err := c.conn.Add(tag)
+		if err != nil {
+			c.logger.WithError(err).WithField("tag", tag).Error("opcda add tag error")
+		} else {
+			addedCount += 1
+		}
+	}
+	if addedCount == 0 {
+		c.logger.Error("no tag added")
+		return errors.New("no tag added")
 	}
 	c.closeChan = make(chan struct{})
 	c.finishChan = make(chan struct{})
@@ -230,7 +239,24 @@ func (c *DAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 	if err != nil {
 		return nil, fmt.Errorf("get all tags error. create browser error %v", err)
 	}
-	tags := c.browse(tree, reg, conf.Limit)
+	root := tree
+	if len(conf.Da.AccessPath) > 0 {
+		for _, s := range conf.Da.AccessPath {
+			found := false
+			for _, branch := range root.Branches {
+				if branch.Name == s {
+					root = branch
+					found = true
+					break
+				}
+			}
+			if !found {
+				return nil, fmt.Errorf("get all tags error. access path not found %s", s)
+			}
+		}
+	}
+
+	tags := c.browse(root, reg, conf.Limit)
 	return tags, nil
 }
 

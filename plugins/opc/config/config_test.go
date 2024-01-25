@@ -23,7 +23,7 @@ opc_type = "opcua"
 debug = false
 
 [connect.ua]
-endpoint = "opc.tcp://max:53530/OPCUA/SimulationServer"
+endpoint = "opc.tcp://127.0.0.1:4840"
 connect_timeout = 10
 request_timeout = 10
 security_policy = "None"
@@ -63,7 +63,7 @@ opc_type = "opcua"
 debug = false
 
 [connect.ua]
-endpoint = "opc.tcp://max:53530/OPCUA/SimulationServer"
+endpoint = "opc.tcp://127.0.0.1:4840"
 connect_timeout = 10
 request_timeout = 10
 security_policy = "None"
@@ -89,13 +89,13 @@ batch_timeout = 10
 collect_mode = "observe" # observe or subscribe. default is observe
 
 [[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
-id = "ns=3;i=1001"
+id = "ns=2;i=1001"
 
 [[collect.ua.nodes]]
-id = "ns=3;i=1002"
+id = "ns=2;i=1002"
 
 [[collect.ua.nodes]]
-id = "ns=3;i=1003"
+id = "ns=2;i=1003"
 `
 
 const CollectUASubscribeConfig = `
@@ -103,7 +103,7 @@ opc_type = "opcua"
 debug = false
 
 [connect.ua]
-endpoint = "opc.tcp://max:53530/OPCUA/SimulationServer"
+endpoint = "opc.tcp://127.0.0.1:4840"
 connect_timeout = 10
 request_timeout = 10
 security_policy = "None"
@@ -129,13 +129,13 @@ batch_timeout = 10
 collect_mode = "subscribe" # observe or subscribe. default is observe
 
 [[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
-id = "ns=3;i=1001"
+id = "ns=2;i=1001"
 
 [[collect.ua.nodes]]
-id = "ns=3;i=1002"
+id = "ns=2;i=1002"
 
 [[collect.ua.nodes]]
-id = "ns=3;i=1003"
+id = "ns=2;i=1003"
 `
 
 const PointsDAConfig = `
@@ -157,7 +157,7 @@ opc_type = "opcua"
 debug = false
 
 [connect.ua]
-endpoint = "opc.tcp://max:53530/OPCUA/SimulationServer"
+endpoint = "opc.tcp://127.0.0.1:4840"
 connect_timeout = 10
 request_timeout = 10
 security_policy = "None"
@@ -171,6 +171,7 @@ regex = ".*" # regex for point name
 
 [points.ua]
 root = "i=85"
+namespaces = [3,4,5]
 `
 
 func TestDaConnectConfig_Validate(t *testing.T) {

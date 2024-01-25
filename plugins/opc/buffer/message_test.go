@@ -264,10 +264,11 @@ func TestMessageListHungry(t *testing.T) {
 	t.Log("1")
 	length := messages.Length()
 	assert.Equal(t, 6, length)
+	//wait for first signal is ignored
+	time.Sleep(time.Second)
 	timer := time.NewTimer(time.Second * 1)
 	addDone := make(chan struct{}, 1)
 	go func() {
-		time.Sleep(time.Millisecond * 10)
 		messages.Add([]*common.NodeValue{
 			{
 				Identifier: "test7",
