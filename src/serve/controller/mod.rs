@@ -14,7 +14,6 @@ use dashmap::DashMap;
 use flume::Sender;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
-use metrics::counter;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::pool::PoolOptions;
@@ -711,8 +710,6 @@ impl TaskController {
 
         let span = tracing::trace_span!("request_tasks", "url" = "GET /tasks");
         let _guard = span.enter();
-        counter!("tasks", tasks.len() as u64);
-
         tasks.iter_mut().for_each(|task| {
             task.backport_labels();
         });

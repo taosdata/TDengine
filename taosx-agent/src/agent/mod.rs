@@ -5,7 +5,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use arrow::array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array, UInt8Array};
+use arrow::array::{
+    ArrayRef, BinaryArray, StringArray, TimestampMillisecondArray, UInt64Array, UInt8Array,
+};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use arrow_flight::FlightClient;
@@ -15,6 +17,7 @@ use chrono::{DateTime, Utc};
 use flume::{Receiver, Sender};
 use futures::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
+use taosx_metrics::{MetricEvent, MetricsEvents};
 use tonic::transport::Channel;
 use tonic::transport::Endpoint;
 use tracing::info;
@@ -188,6 +191,35 @@ impl Client {
         Ok(())
     }
 
+    pub async fn get_taosx_monitor_config(&mut self) -> Option<HashMap<String, String>> {
+        tracing::info!("Get monitor config from server");
+        let action = arrow_flight::Action::new("GetMonitorConfig", "GetMonitorConfig");
+        let result = self.client.do_action(action).await;
+        if let Err(err) = result {
+            tracing::error!("Can't get monitor config from server: {err:#}");
+            return None;
+        }
+        let result: std::prelude::v1::Result<Vec<bytes::Bytes>, arrow_flight::error::FlightError> =
+            result.unwrap().try_collect().await;
+        if let Err(err) = result {
+            tracing::error!("Can't get monitor config from server: {err:#}");
+            return None;
+        }
+        let resp = result.unwrap();
+        if resp.is_empty() {
+            tracing::error!("Can't get monitor config from server");
+            return None;
+        }
+        let config = serde_json::from_slice::<HashMap<String, String>>(&resp[0]);
+        if let Err(err) = config {
+            tracing::error!("Can't deserialize response data: {err:#}");
+            return None;
+        }
+        let config = config.unwrap();
+        tracing::info!("Got config from server: {:?}", &config);
+        Some(config)
+    }
+
     pub async fn wait_tasks(
         &mut self,
         sender: flume::Sender<Action>,
@@ -225,6 +257,7 @@ impl Client {
                         Arc::new(StringArray::from_iter([Option::<String>::None]));
                     let action: ArrayRef =
                         Arc::new(StringArray::from_iter_values(["heartbeat".to_string()]));
+                    tracing::info!("Send heartbeat request: {req_id}");
                     let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
                     let item = RecordBatch::try_from_iter(vec![
                         ("ts", val),
@@ -232,7 +265,6 @@ impl Client {
                         ("context", context),
                         ("req_id", req_id),
                     ]);
-                    tracing::info!("{item:?}");
                     item
                 }
                 RespAction::HeartbeatOk(resp) => {
@@ -246,6 +278,7 @@ impl Client {
                         .unwrap()]));
                     let action: ArrayRef =
                         Arc::new(StringArray::from_iter_values(["heartbeat-ok".to_string()]));
+                    tracing::info!("Send heartbeat response: {req_id}");
                     let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
                     let item = RecordBatch::try_from_iter(vec![
                         ("ts", val),
@@ -253,7 +286,6 @@ impl Client {
                         ("context", context),
                         ("req_id", req_id),
                     ]);
-                    tracing::info!("Send heartbeat response: {item:?}");
                     item
                 }
                 RespAction::TaskError(_) => unreachable!(),
@@ -349,7 +381,10 @@ impl Client {
                             ["metrics-events".to_string()],
                         ));
                     let context: ArrayRef =
-                        Arc::new(UInt8Array::from_iter_values(metrics_event.to_vec_u8()));
+                        Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                            &metrics_event,
+                        )
+                        .unwrap()]));
                     let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
                     let item = RecordBatch::try_from_iter(vec![
                         ("ts", val),

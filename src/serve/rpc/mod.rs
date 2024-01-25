@@ -1,14 +1,6 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    net::SocketAddr,
-    path::PathBuf,
-    pin::Pin,
-    sync::{atomic::Ordering, Arc},
-};
-
 use anyhow::Context;
 use arrow::{
-    array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array, UInt8Array},
+    array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array},
     datatypes::{Field, Fields, Schema},
     record_batch::RecordBatch,
 };
@@ -17,10 +9,17 @@ use base64::{engine::general_purpose, Engine};
 use chrono::Utc;
 use futures::{Stream, TryStreamExt};
 use linked_hash_map::LinkedHashMap;
-use metrics::atomics::AtomicU64;
+use metrics::{atomics::AtomicU64, counter, gauge, histogram, IntoLabels};
 use semver::VersionReq;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::{
+    collections::{BTreeMap, HashMap},
+    net::SocketAddr,
+    path::PathBuf,
+    pin::Pin,
+    sync::{atomic::Ordering, Arc},
+};
 use taos::IntoDsn;
 use taosx_core::{get_data_dir, CheckResponse, HeartbeatResponse, ListResponse};
 #[cfg(unix)]
@@ -52,6 +51,7 @@ use uuid::Uuid;
 
 use super::{
     controller::{AgentAction, AgentDataSetsSender, DsvSender, Task, TaskControllerRef},
+    monitor::MonitorCfg,
     scheduler::agent::{AgentActionsReceiver, AgentId, AgentNotifySender},
 };
 
@@ -85,6 +85,7 @@ pub(super) struct FlightServiceImpl {
     request_id: Arc<AtomicU64>,
     datasets_senders: Arc<RwLock<LinkedHashMap<u64, AgentDataSetsSender>>>,
     dsv_senders: Arc<RwLock<LinkedHashMap<u64, DsvSender>>>,
+    monitor_cfg: MonitorCfg,
 }
 
 async fn action_to_arrow(
@@ -348,6 +349,32 @@ impl FlightServiceImpl {
         });
         (tx, rx)
     }
+
+    fn replay_metrics_events_from_agent(metrics_events: MetricsEvents) {
+        for event in metrics_events.events().to_owned() {
+            let labels = event.lables.into_labels();
+            match event.operation {
+                taosx_metrics::MetricOperation::IncrementCounter(value) => {
+                    counter!(event.key, labels).increment(value);
+                }
+                taosx_metrics::MetricOperation::SetCounter(value) => {
+                    counter!(event.key, labels).absolute(value);
+                }
+                taosx_metrics::MetricOperation::IncrementGauge(value) => {
+                    gauge!(event.key, labels).increment(value);
+                }
+                taosx_metrics::MetricOperation::DecrementGauge(value) => {
+                    gauge!(event.key, labels).decrement(value);
+                }
+                taosx_metrics::MetricOperation::SetGauge(value) => {
+                    gauge!(event.key, labels).set(value);
+                }
+                taosx_metrics::MetricOperation::RecordHistogram(value) => {
+                    histogram!(event.key, labels).record(value);
+                }
+            }
+        }
+    }
 }
 
 // impl FlightServiceImpl {
@@ -607,7 +634,7 @@ impl FlightService for FlightServiceImpl {
                             const ORDER: Ordering = Ordering::Relaxed;
 
                             for _ in 0..rows {
-                                let (ts, action, _req_id) = (
+                                let (ts, action, _req_id, context) = (
                                     ts.value_as_datetime_with_tz(
                                         0,
                                         ts.timezone().unwrap_or("UTC").parse().unwrap(),
@@ -615,15 +642,14 @@ impl FlightService for FlightServiceImpl {
                                     .unwrap(),
                                     action.value(0),
                                     req_id.value(0),
-                                );
-                                match action {
-                                    "list" => {
-                                        let context = res
+                                    res
                                         .column(2)
                                         .as_any()
                                         .downcast_ref::<StringArray>()
-                                        .unwrap();
-                                        let context = context.value(0);
+                                        .unwrap().value(0),
+                                );
+                                match action {
+                                    "list" => {
                                         let resp: ListResponse =
                                             serde_json::from_str(&context).unwrap();
 
@@ -650,12 +676,6 @@ impl FlightService for FlightServiceImpl {
                                         });
                                     }
                                     "check" => {
-                                        let context = res
-                                        .column(2)
-                                        .as_any()
-                                        .downcast_ref::<StringArray>()
-                                        .unwrap();
-                                        let context = context.value(0);
                                         let resp: CheckResponse =
                                             serde_json::from_str(&context).unwrap();
 
@@ -682,12 +702,6 @@ impl FlightService for FlightServiceImpl {
                                         });
                                     }
                                     "agent-activity" => {
-                                        let context = res
-                                        .column(2)
-                                        .as_any()
-                                        .downcast_ref::<StringArray>()
-                                        .unwrap();
-                                        let context = context.value(0);
                                         let activity: Activity = serde_json::from_str(&context)
                                             .map_err(|err| {
                                                 anyhow::format_err!(
@@ -702,12 +716,6 @@ impl FlightService for FlightServiceImpl {
                                             .send(AgentNotify::AgentActivity(agent_id, activity));
                                     }
                                     "task-activity" => {
-                                        let context = res
-                                        .column(2)
-                                        .as_any()
-                                        .downcast_ref::<StringArray>()
-                                        .unwrap();
-                                        let context = context.value(0);
                                         let activity: TaskActivity = serde_json::from_str(&context)
                                             .map_err(|err| {
                                                 anyhow::format_err!(
@@ -723,12 +731,6 @@ impl FlightService for FlightServiceImpl {
                                         });
                                     }
                                     "heartbeat-ok" => {
-                                        let context = res
-                                        .column(2)
-                                        .as_any()
-                                        .downcast_ref::<StringArray>()
-                                        .unwrap();
-                                        let context = context.value(0);
                                         let resp: HeartbeatResponse =
                                             serde_json::from_str(&context).unwrap();
                                         let delay = resp.duration();
@@ -783,15 +785,11 @@ impl FlightService for FlightServiceImpl {
                                     }
                                     "metrics-events" => {
                                         tracing::trace!("Received metrics events");
-                                        let context = res
-                                        .column(2)
-                                        .as_any()
-                                        .downcast_ref::<UInt8Array>()
-                                        .unwrap();
-                                        match MetricsEvents::from_slice(context.values()) {
+                                        match serde_json::from_str::<MetricsEvents>(context) {
                                             Ok(events) => {
-                                                // debug
-                                                tracing::info!(?events, "Received metrics events");
+                                                tokio::spawn(async move {
+                                                    Self::replay_metrics_events_from_agent(events);
+                                                });
                                             }
                                             Err(err) => {
                                                 tracing::warn!(?err, "Invalid metrics events");
@@ -915,6 +913,16 @@ impl FlightService for FlightServiceImpl {
                 //     .map_err(|err| Status::internal(err.to_string()))?;
                 Ok(Response::new(Box::pin(futures::stream::iter([]))))
             }
+            "GetMonitorConfig" => {
+                let config = self.monitor_cfg.as_map();
+                let message = serde_json::to_vec(&config).unwrap();
+                Ok(Response::new(Box::pin(futures::stream::iter([Ok(
+                    arrow_flight::Result {
+                        body: message.into(),
+                        ..Default::default()
+                    },
+                )]))))
+            }
             s => Err(Status::unimplemented(format!("Unknown action: {}", s))),
         }
     }
@@ -999,6 +1007,7 @@ impl RpcConfig {
         self,
         controller: TaskControllerRef,
         channel: AgentRpcChannel,
+        monitor_cfg: MonitorCfg,
     ) -> Result<(), anyhow::Error> {
         let max_frame_size: Option<u32> = Some((1 << 24) - 1 as u32);
         let activity_receiver = channel.agent_activity_receiver;
@@ -1010,6 +1019,7 @@ impl RpcConfig {
             dsv_senders: Arc::new(RwLock::new(LinkedHashMap::new())),
             request_id: Arc::new(AtomicU64::new(0)),
             agent_connections: Arc::new(RwLock::new(HashMap::new())),
+            monitor_cfg,
         };
         let flight_service = FlightServiceServer::new(service);
         let flight_service = flight_service

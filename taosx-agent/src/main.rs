@@ -1,14 +1,14 @@
-use flume::{Receiver, Sender};
-use futures::stream::AbortHandle;
-use std::{path::PathBuf, time::Duration};
-use tokio::task::JoinHandle;
-use tracing_appender::rolling::{RollingFileAppender, Rotation};
-
 use chrono::{Local, Utc};
 use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
+use flume::{Receiver, Sender};
+use metrics::counter;
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
+use taosx_metrics::{MetricEvent, MetricsEvents};
 use thiserror::Error;
+use tokio::task::JoinHandle;
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
 
 use time::macros::format_description;
 use time::UtcOffset;
@@ -238,6 +238,18 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     let (runner, tasks, sender, status) =
         runner::spawn_runner(agent.id, &args.endpoint, &args.token, resp_tx.clone());
 
+    let (metrics_tx, metrics_rx) = flume::bounded(1000);
+    taosx_metrics::ChannelRecorder::new(Arc::new(metrics_tx)).install();
+
+    let monitor_config = client.get_taosx_monitor_config().await;
+    let monitor_enabled: bool = get_monitor_enabled(monitor_config.as_ref());
+    let monitor_interval: u64 = get_monitor_interval(monitor_config.as_ref());
+
+    if monitor_enabled {
+        start_collect_agent_metrics(monitor_interval);
+        export_metrics(metrics_rx.clone(), resp_tx.clone());
+    }
+
     tokio::select! {
         _ = ctrl_c => {
             tracing::info!("SIGINT triggered");
@@ -266,9 +278,10 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
             let ret: anyhow::Result<()>;
             loop {
                 let sender = sender.clone();
-                let hb_handle = spawn_heartbeat_task(resp_tx.clone());
+                let heartbeat = spawn_heartbeat_task(resp_tx.clone());
                 if let Err(err) = client.wait_tasks(sender, resp_tx.clone(), resp_rx.clone()).await {
-                    hb_handle.abort();
+                    heartbeat.abort();
+                    tracing::debug!("Heartbeat task aborted");
                     let err_str = format!("{err:#}");
                     if err_str.contains("code: Aborted") {
                         tracing::info!("Connection aborted, error: {err:?}");
@@ -310,8 +323,45 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn get_monitor_interval(taosx_config: Option<&HashMap<String, String>>) -> u64 {
+    if taosx_config.is_none() {
+        return 30;
+    } else {
+        let taosx_config = taosx_config.unwrap();
+        if let Some(interval) = taosx_config.get("monitor_interval") {
+            if let Ok(interval) = interval.parse::<u64>() {
+                return interval;
+            }
+        }
+        return 30;
+    }
+}
+
+fn get_monitor_enabled(monitor_config: Option<&HashMap<String, String>>) -> bool {
+    if monitor_config.is_none() {
+        return false;
+    } else {
+        let taosx_config = monitor_config.unwrap();
+        if taosx_config.get("fqdn").is_some() {
+            return true;
+        }
+        return false;
+    }
+}
+
+fn start_collect_agent_metrics(monitor_interval: u64) {
+    tracing::info!("Start collect agent metrics");
+    tokio::spawn(async move {
+        let mut collect_interval = tokio::time::interval(Duration::from_secs(monitor_interval));
+        loop {
+            counter!("hello-taosx", "version" => "0.1").increment(1);
+            collect_interval.tick().await;
+        }
+    });
+}
+
 fn spawn_heartbeat_task(resp_tx: Sender<RespAction>) -> JoinHandle<()> {
-    tracing::trace!("Spawn heartbeat task");
+    tracing::debug!("Spawn heartbeat task");
     tokio::spawn(async move {
         let mut heart_beat_interval = tokio::time::interval(Duration::from_secs(61));
         loop {
@@ -320,6 +370,32 @@ fn spawn_heartbeat_task(resp_tx: Sender<RespAction>) -> JoinHandle<()> {
                 tracing::warn!("Send heartbeat action error");
                 break;
             }
+        }
+    })
+}
+
+fn export_metrics(
+    metrics_rx: Receiver<MetricEvent>,
+    resp_tx: Sender<RespAction>,
+) -> JoinHandle<()> {
+    tracing::debug!("Start export metrics via rpc");
+    tokio::spawn(async move {
+        let mut export_interval = tokio::time::interval(Duration::from_secs(1));
+        loop {
+            let mut metrics_events = MetricsEvents::new();
+            loop {
+                match metrics_rx.try_recv() {
+                    Ok(event) => metrics_events.push(event),
+                    Err(_) => break,
+                }
+            }
+            if !metrics_events.is_empty() {
+                if let Err(err) = resp_tx.send(RespAction::Metrics(metrics_events)) {
+                    tracing::warn!("Send metrics action error: {err}");
+                    break;
+                }
+            }
+            export_interval.tick().await;
         }
     })
 }
@@ -388,7 +464,7 @@ fn main() -> anyhow::Result<()> {
     if atty::is(atty::Stream::Stdout) {
         cfg_if::cfg_if! {
             if #[cfg(windows)] {
-               let ansi = false;
+               let ansi = true;
             } else {
                let ansi = true;
             }

@@ -6,9 +6,12 @@ use std::sync::Arc;
 
 use bincode::{config, Decode, Encode};
 use flume::Sender;
-use metrics::{Counter, CounterFn, Gauge, GaugeFn, Histogram, HistogramFn, Key, Recorder};
+use metrics::{
+    Counter, CounterFn, Gauge, GaugeFn, Histogram, HistogramFn, IntoLabels, Key, Recorder,
+};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Clone, Encode, Decode, Deserialize, Serialize)]
 pub enum MetricOperation {
     IncrementCounter(u64),
     SetCounter(u64),
@@ -18,7 +21,7 @@ pub enum MetricOperation {
     RecordHistogram(f64),
 }
 
-#[derive(Debug, PartialEq, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Clone, Encode, Decode, Deserialize, Serialize)]
 pub struct MetricEvent {
     pub key: String,
     pub lables: Vec<(String, String)>,
@@ -39,7 +42,7 @@ impl MetricEvent {
 }
 
 /// 为了支持批量序列化和反序列化 metrics
-#[derive(Debug, PartialEq, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Clone, Encode, Decode, Deserialize, Serialize)]
 pub struct MetricsEvents(Vec<MetricEvent>);
 static BINCODE_CONFIG: config::Configuration = config::standard();
 
@@ -47,6 +50,10 @@ impl MetricsEvents {
     pub fn new() -> MetricsEvents {
         let vec = Vec::new();
         MetricsEvents(vec)
+    }
+
+    pub fn events(&self) -> &Vec<MetricEvent> {
+        &self.0
     }
 
     pub fn from_slice(src: &[u8]) -> Result<MetricsEvents, bincode::error::DecodeError> {
