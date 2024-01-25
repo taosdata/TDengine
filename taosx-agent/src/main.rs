@@ -323,12 +323,12 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn get_monitor_interval(taosx_config: Option<&HashMap<String, String>>) -> u64 {
-    if taosx_config.is_none() {
+fn get_monitor_interval(monitor_config: Option<&HashMap<String, String>>) -> u64 {
+    if monitor_config.is_none() {
         return 30;
     } else {
-        let taosx_config = taosx_config.unwrap();
-        if let Some(interval) = taosx_config.get("monitor_interval") {
+        let monitor_config = monitor_config.unwrap();
+        if let Some(interval) = monitor_config.get("interval") {
             if let Ok(interval) = interval.parse::<u64>() {
                 return interval;
             }
