@@ -135,6 +135,8 @@ container_id=docker run \
 
 docker exec -it ${container_id} sh -c "$CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
 echo docker exec -it ${container_id} sh -c "$CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
+docker stop ${container_id}
+docker rm ${container_id}
 ret=$?
 exit $ret
 
