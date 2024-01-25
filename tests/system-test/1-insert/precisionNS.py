@@ -225,12 +225,12 @@ class TDTestCase:
         self.checkExpect(sql, val)
 
         # timetruncate check
-        sql = f"select ts,timetruncate(ts,1u),
+        sql = '''select ts,timetruncate(ts,1u),
                           timetruncate(ts,1b),
                           timetruncate(ts,1m),
                           timetruncate(ts,1h),
                           timetruncate(ts,1w)
-               from t0 order by ts desc limit 1;"
+               from t0 order by ts desc limit 1;'''
         tdSql.query(sql)
         tdSql.checkData(0,1, "2023-03-28 18:40:00.000009000")
         tdSql.checkData(0,2, "2023-03-28 18:40:00.000009999")
@@ -239,7 +239,7 @@ class TDTestCase:
         tdSql.checkData(0,5, "2023-03-23 00:00:00.000000000")
 
         # timediff
-        sql = f"select ts,timediff(ts,ts+1b,1b),
+        sql = '''select ts,timediff(ts,ts+1b,1b),
                           timediff(ts,ts+1u,1u),
                           timediff(ts,ts+1a,1a),
                           timediff(ts,ts+1s,1s),
@@ -247,7 +247,7 @@ class TDTestCase:
                           timediff(ts,ts+1h,1h),
                           timediff(ts,ts+1d,1d),
                           timediff(ts,ts+1w,1w)
-               from t0 order by ts desc limit 1;"
+               from t0 order by ts desc limit 1;'''
         tdSql.query(sql)
         tdSql.checkData(0,1, 1)
         tdSql.checkData(0,2, 1)

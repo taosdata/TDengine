@@ -219,11 +219,11 @@ class TDTestCase:
         self.checkExpect(sql, expectVal)
 
         # timetruncate check
-        sql = f"select ts,timetruncate(ts,1b),
+        sql = '''select ts,timetruncate(ts,1b),
                           timetruncate(ts,1m),
                           timetruncate(ts,1h),
                           timetruncate(ts,1w)
-                from t0 order by ts desc limit 1;"
+                from t0 order by ts desc limit 1;'''
         tdSql.query(sql)
         tdSql.checkData(0,1, "2023-03-28 18:40:00.000009999")
         tdSql.checkData(0,2, "2023-03-28 18:40:00.000000000")
