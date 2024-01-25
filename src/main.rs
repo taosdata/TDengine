@@ -259,8 +259,8 @@ impl Args {
 
         let configurable_opts = ConfigurableOpts::with_layers(&layers)?;
         args.global.merge_from(configurable_opts.global);
-        if let Some(moniter_cfg) = configurable_opts.monitor.as_ref() {
-            args.monitor.merge_from(moniter_cfg);
+        if let Some(monitor_cfg) = configurable_opts.monitor.as_ref() {
+            args.monitor.merge_from(monitor_cfg);
         }
         args.global.jobs = executor_worker_threads(args.global.jobs);
         let matches = Args::command().get_matches();

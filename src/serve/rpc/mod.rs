@@ -352,7 +352,7 @@ impl FlightServiceImpl {
 
     fn replay_metrics_events_from_agent(metrics_events: MetricsEvents) {
         for event in metrics_events.events().to_owned() {
-            let labels = event.lables.into_labels();
+            let labels = event.labels.into_labels();
             match event.operation {
                 taosx_metrics::MetricOperation::IncrementCounter(value) => {
                     counter!(event.key, labels).increment(value);

@@ -22,7 +22,7 @@ pub enum MetricOperation {
 #[derive(Debug, PartialEq, Clone, Encode, Decode, Deserialize, Serialize)]
 pub struct MetricEvent {
     pub key: String,
-    pub lables: Vec<(String, String)>,
+    pub labels: Vec<(String, String)>,
     pub operation: MetricOperation,
 }
 
@@ -30,7 +30,7 @@ impl MetricEvent {
     pub fn new(key: Key, operation: MetricOperation) -> MetricEvent {
         MetricEvent {
             key: key.name().to_string(),
-            lables: key
+            labels: key
                 .labels()
                 .map(|label| (label.key().to_string(), label.value().to_string()))
                 .collect(),
@@ -254,7 +254,7 @@ mod tests {
         for i in 1..7 {
             let event = rx.recv().unwrap();
             assert_eq!(event.key, "test");
-            for label in event.lables {
+            for label in event.labels {
                 assert_eq!(label.0, "pid");
                 assert_eq!(label.1, "100");
             }
