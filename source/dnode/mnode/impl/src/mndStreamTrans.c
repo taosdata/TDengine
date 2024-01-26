@@ -256,7 +256,7 @@ int32_t mndPersistTransLog(SStreamObj *pStream, STrans *pTrans, int32_t status) 
 }
 
 int32_t setTransAction(STrans *pTrans, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset,
-                          int32_t retryCode) {
+                       int32_t retryCode) {
   STransAction action = {.epSet = *pEpset, .contLen = contLen, .pCont = pCont, .msgType = msgType, .retryCode = retryCode};
   return mndTransAppendRedoAction(pTrans, &action);
 }
@@ -354,8 +354,8 @@ static int32_t doBuildStreamTaskUpdateMsg(void **pBuf, int32_t *pLen, SVgroupCha
 
 // todo extract method: traverse stream tasks
 // build trans to update the epset
-int32_t createStreamUpdateTrans(SStreamObj *pStream, SVgroupChangeInfo *pInfo, STrans *pTrans) {
-  mDebug("start to build stream:0x%" PRIx64 " tasks epset update", pStream->uid);
+int32_t mndStreamSetUpdateEpsetAction(SStreamObj *pStream, SVgroupChangeInfo *pInfo, STrans *pTrans) {
+  mDebug("stream:0x%" PRIx64 " set tasks epset update action", pStream->uid);
 
   taosWLockLatch(&pStream->lock);
   int32_t numOfLevels = taosArrayGetSize(pStream->tasks);

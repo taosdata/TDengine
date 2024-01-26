@@ -1577,21 +1577,6 @@ static void mndCancelGetNextStreamTask(SMnode *pMnode, void *pIter) {
   sdbCancelFetch(pSdb, pIter);
 }
 
-static int32_t mndPersistStreamLog(STrans *pTrans, SStreamObj *pStream, int8_t status) {
-  taosWLockLatch(&pStream->lock);
-  pStream->status = status;
-  SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
-
-  taosWUnLockLatch(&pStream->lock);
-  if (pCommitRaw == NULL) return -1;
-  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("stream trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    return -1;
-  }
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-  return 0;
-}
-
 static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
@@ -1647,7 +1632,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
   int32_t code = mndStreamRegisterTrans(pTrans, MND_STREAM_PAUSE_NAME, pStream->uid);
 
   // if nodeUpdate happened, not send pause trans
-  if (mndPauseStreamTasks(pMnode, pTrans, pStream) < 0) {
+  if (mndStreamSetPauseAction(pMnode, pTrans, pStream) < 0) {
     mError("stream:%s, failed to pause task since %s", pauseReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
@@ -1655,11 +1640,17 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
   }
 
   // pause stream
-  if (mndPersistStreamLog(pTrans, pStream, STREAM_STATUS__PAUSE) < 0) {
+  taosWLockLatch(&pStream->lock);
+  pStream->status = STREAM_STATUS__PAUSE;
+  if (mndPersistTransLog(pStream, pTrans,SDB_STATUS_READY) < 0) {
+    taosWUnLockLatch(&pStream->lock);
+
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return -1;
   }
+
+  taosWUnLockLatch(&pStream->lock);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare pause stream trans since %s", pTrans->id, terrstr());
@@ -1724,7 +1715,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   int32_t code = mndStreamRegisterTrans(pTrans, MND_STREAM_RESUME_NAME, pStream->uid);
 
   // resume all tasks
-  if (mndResumeStreamTasks(pTrans, pMnode, pStream, pauseReq.igUntreated) < 0) {
+  if (mndStreamSetResumeAction(pTrans, pMnode, pStream, pauseReq.igUntreated) < 0) {
     mError("stream:%s, failed to drop task since %s", pauseReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
@@ -1732,12 +1723,17 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   }
 
   // resume stream
-  if (mndPersistStreamLog(pTrans, pStream, STREAM_STATUS__NORMAL) < 0) {
+  taosWLockLatch(&pStream->lock);
+  pStream->status = STREAM_STATUS__NORMAL;
+  if (mndPersistTransLog(pStream, pTrans, SDB_STATUS_READY) < 0) {
+    taosWUnLockLatch(&pStream->lock);
+
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return -1;
   }
 
+  taosWUnLockLatch(&pStream->lock);
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare pause stream trans since %s", pTrans->id, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
@@ -1862,7 +1858,7 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
     mDebug("stream:0x%" PRIx64 " %s involved node changed, create update trans, transId:%d", pStream->uid,
            pStream->name, pTrans->id);
 
-    int32_t code = createStreamUpdateTrans(pStream, pChangeInfo, pTrans);
+    int32_t code = mndStreamSetUpdateEpsetAction(pStream, pChangeInfo, pTrans);
 
     // todo: not continue, drop all and retry again
     if (code != TSDB_CODE_SUCCESS) {

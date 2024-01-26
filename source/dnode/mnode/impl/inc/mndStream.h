@@ -110,15 +110,15 @@ STrans     *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, co
 int32_t     mndPersistTransLog(SStreamObj *pStream, STrans *pTrans, int32_t status);
 SSdbRaw    *mndStreamActionEncode(SStreamObj *pStream);
 void        killAllCheckpointTrans(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo);
-int32_t     createStreamUpdateTrans(SStreamObj *pStream, SVgroupChangeInfo *pInfo, STrans *pTrans);
+int32_t     mndStreamSetUpdateEpsetAction(SStreamObj *pStream, SVgroupChangeInfo *pInfo, STrans *pTrans);
 
 SStreamObj *mndGetStreamObj(SMnode *pMnode, int64_t streamId);
 int32_t     extractNodeEpset(SMnode *pMnode, SEpSet *pEpSet, bool *hasEpset, int32_t taskId, int32_t nodeId);
 int32_t     mndProcessStreamHb(SRpcMsg *pReq);
 void        saveStreamTasksInfo(SStreamObj *pStream, SStreamExecInfo *pExecNode);
 int32_t     initStreamNodeList(SMnode *pMnode);
-int32_t     mndResumeStreamTasks(STrans *pTrans, SMnode *pMnode, SStreamObj* pStream, int8_t igUntreated);
-int32_t     mndPauseStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
+int32_t     mndStreamSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamObj* pStream, int8_t igUntreated);
+int32_t     mndStreamSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 
 
 #ifdef __cplusplus
