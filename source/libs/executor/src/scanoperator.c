@@ -3344,6 +3344,23 @@ static int32_t subTblRowCompareFn(const void* pLeft, const void* pRight, void* p
   return ret;
 }
 
+static void blockDataDeepCleanup(SSDataBlock* pDataBlock) {
+  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
+    taosMemoryFreeClear(p->pData);
+    if (IS_VAR_DATA_TYPE(p->info.type)) {
+      taosMemoryFreeClear(p->varmeta.offset);
+      p->varmeta.length = 0;
+      p->varmeta.allocLen = 0;
+    } else {
+      taosMemoryFreeClear(p->nullbitmap);
+    }
+  }
+  pDataBlock->info.capacity = 0;
+  pDataBlock->info.rows = 0;
+}
+
 int32_t dumpQueryTableCond(const SQueryTableDataCond* src, SQueryTableDataCond* dst) {
   memcpy((void*)dst, (void*)src, sizeof(SQueryTableDataCond));
   dst->colList = taosMemoryCalloc(src->numOfCols, sizeof(SColumnInfo));
@@ -3362,7 +3379,7 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
   const SStorageAPI* pAPI= &pTaskInfo->storageAPI;
 
-  blockDataCleanup(pInput->pReaderBlock);
+  blockDataDeepCleanup(pInput->pReaderBlock);
   if (!pInput->bInMemReader) {
     code = pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInput->tblCond, pInput->pKeyInfo, 1, pInput->pReaderBlock,
                                         (void**)&pInput->pReader, GET_TASKID(pTaskInfo), NULL);
@@ -3452,7 +3469,7 @@ static int32_t saveSubTableBlock(const STableMergeScanInfo* pInfo, STmsSubTables
     blockDataDestroy(p);
     start = stop + 1;
   }
-  blockDataCleanup(pInput->pReaderBlock);
+  blockDataDeepCleanup(pInput->pReaderBlock);
   return TSDB_CODE_SUCCESS;
 }
 
