@@ -188,6 +188,35 @@ impl Client {
         Ok(())
     }
 
+    pub async fn get_taosx_monitor_config(&mut self) -> Option<HashMap<String, String>> {
+        tracing::info!("Get monitor config from server");
+        let action = arrow_flight::Action::new("GetMonitorConfig", "GetMonitorConfig");
+        let result = self.client.do_action(action).await;
+        if let Err(err) = result {
+            tracing::error!("Can't get monitor config from server: {err:#}");
+            return None;
+        }
+        let result: std::prelude::v1::Result<Vec<bytes::Bytes>, arrow_flight::error::FlightError> =
+            result.unwrap().try_collect().await;
+        if let Err(err) = result {
+            tracing::error!("Can't get monitor config from server: {err:#}");
+            return None;
+        }
+        let resp = result.unwrap();
+        if resp.is_empty() {
+            tracing::error!("Can't get monitor config from server");
+            return None;
+        }
+        let config = serde_json::from_slice::<HashMap<String, String>>(&resp[0]);
+        if let Err(err) = config {
+            tracing::error!("Can't deserialize response data: {err:#}");
+            return None;
+        }
+        let config = config.unwrap();
+        tracing::info!("Got config from server: {:?}", &config);
+        Some(config)
+    }
+
     pub async fn wait_tasks(
         &mut self,
         sender: flume::Sender<Action>,
@@ -225,6 +254,7 @@ impl Client {
                         Arc::new(StringArray::from_iter([Option::<String>::None]));
                     let action: ArrayRef =
                         Arc::new(StringArray::from_iter_values(["heartbeat".to_string()]));
+                    tracing::info!("Send heartbeat request: {req_id}");
                     let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
                     let item = RecordBatch::try_from_iter(vec![
                         ("ts", val),
@@ -232,7 +262,6 @@ impl Client {
                         ("context", context),
                         ("req_id", req_id),
                     ]);
-                    tracing::info!("{item:?}");
                     item
                 }
                 RespAction::HeartbeatOk(resp) => {
@@ -246,6 +275,7 @@ impl Client {
                         .unwrap()]));
                     let action: ArrayRef =
                         Arc::new(StringArray::from_iter_values(["heartbeat-ok".to_string()]));
+                    tracing::info!("Send heartbeat response: {req_id}");
                     let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
                     let item = RecordBatch::try_from_iter(vec![
                         ("ts", val),
@@ -253,7 +283,6 @@ impl Client {
                         ("context", context),
                         ("req_id", req_id),
                     ]);
-                    tracing::info!("Send heartbeat response: {item:?}");
                     item
                 }
                 RespAction::TaskError(_) => unreachable!(),
@@ -331,6 +360,28 @@ impl Client {
                         .unwrap()]));
                     let action: ArrayRef =
                         Arc::new(StringArray::from_iter_values(["task-activity".to_string()]));
+                    let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+                    let item = RecordBatch::try_from_iter(vec![
+                        ("ts", val),
+                        ("action", action),
+                        ("context", context),
+                        ("req_id", req_id),
+                    ]);
+                    item
+                }
+                RespAction::Metrics(metrics_event) => {
+                    let val = Arc::new(TimestampMillisecondArray::from_iter_values([
+                        Utc::now().timestamp_millis()
+                    ])) as ArrayRef;
+                    let action: ArrayRef =
+                        Arc::new(StringArray::from_iter_values(
+                            ["metrics-events".to_string()],
+                        ));
+                    let context: ArrayRef =
+                        Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                            &metrics_event,
+                        )
+                        .unwrap()]));
                     let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
                     let item = RecordBatch::try_from_iter(vec![
                         ("ts", val),

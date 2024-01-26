@@ -1,5 +1,5 @@
 [workspace]
-members = ["taosx-ipc", "taosx-core", "taosx-agent"]
+members = ["taosx-ipc", "taosx-core", "taosx-agent", "taosx-metrics"]
 
 [workspace.dependencies]
 chrono = { version = "0.4.26" }
@@ -13,11 +13,8 @@ arrow = { version = "50.0.0", features = ["chrono-tz"] }
 arrow-flight = { version = "50.0.0" }
 arrow-schema = { version = "50.0.0", features = ["serde"] }
 parquet = "50.0.0"
-metrics = "0.21.0"
 metrics-exporter-prometheus = { version = "0.12.0", default-features = false }
-metrics-tracing-context = "0.14.0"
-metrics-util = "0.15.1"
-
+metrics-tracing-context = "0.15.0"
 tonic = "0.10"
 
 taos = { version = "0.11.1", default-features = false, features = [
@@ -27,6 +24,10 @@ taos = { version = "0.11.1", default-features = false, features = [
 taos-query = { version = "0.11.1", default-features = false, features = [
     "deadpool",
 ] }
+
+metrics = "0.22.0"
+metrics-util = "0.16.0"
+bytes = "1.4.0"
 
 [workspace.package]
 version = "1.4.0"
@@ -125,11 +126,11 @@ tonic = { workspace = true, features = ["tls", "tls-roots", "gzip"] }
 # lru = "0.7.5"
 const_format = "0.2.30"
 metrics = { workspace = true }
-metrics-exporter-prometheus = { workspace = true, default-features = false, features = [
-    "push-gateway",
+metrics-util = { workspace = true }
+metrics-exporter-prometheus = { version = "0.12.0", default-features = false, features = [
+  "push-gateway",
 ] }
 metrics-tracing-context = { workspace = true }
-metrics-util = { workspace = true }
 sysinfo = "0.30.5"
 
 async-backtrace = "0.2.2"
@@ -145,7 +146,7 @@ bitvec = "1"
 mimalloc = { version = "0.1.39", default-features = false, optional = true }
 tempfile = "3"
 
-bytes = "1.4.0"
+bytes = { workspace = true }
 jsonwebtoken = "9.1.0"
 rand = "0.8"
 
@@ -171,6 +172,7 @@ md5 = "0.7.0"
 
 taos = { workspace = true }
 taosx-core = { path = "./taosx-core", default-features = false }
+taosx-metrics = { path = "./taosx-metrics"}
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator = { version = "0.5", optional = true }

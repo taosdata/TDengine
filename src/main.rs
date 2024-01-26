@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use serve::monitor::MonitorCfg;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 
 use anyhow::{bail, Result};
@@ -7,7 +8,6 @@ use chrono::Local;
 use clap::{parser::ValueSource, CommandFactory, Parser, Subcommand};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
-use metrics_tracing_context::MetricsLayer;
 #[cfg(feature = "mimalloc")]
 use mimalloc::MiMalloc;
 use opentelemetry::trace::Tracer;
@@ -36,7 +36,6 @@ use taosx_core::{
 #[cfg(feature = "tikv_jemallocator")]
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
-
 #[cfg(feature = "tikv_jemallocator")]
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -121,6 +120,9 @@ struct ConfigurableOpts {
 
     #[clap(flatten)]
     serve: Option<serve::Cli>,
+
+    #[clap(flatten)]
+    monitor: Option<MonitorCfg>,
 }
 
 #[derive(Parser, Debug, Deserialize, Serialize, Default)]
@@ -168,6 +170,8 @@ struct Args {
     opt_args: OptArgs,
     #[clap(flatten)]
     global: Global,
+    #[clap(flatten)]
+    monitor: MonitorCfg,
 }
 
 #[derive(Debug, Error)]
@@ -255,8 +259,10 @@ impl Args {
 
         let configurable_opts = ConfigurableOpts::with_layers(&layers)?;
         args.global.merge_from(configurable_opts.global);
+        if let Some(monitor_cfg) = configurable_opts.monitor.as_ref() {
+            args.monitor.merge_from(monitor_cfg);
+        }
         args.global.jobs = executor_worker_threads(args.global.jobs);
-
         let matches = Args::command().get_matches();
 
         match &mut args.commands {
@@ -430,10 +436,6 @@ async fn init_tracing_layers(
         );
     }
 
-    // Add layer for tracing-metrics
-    let metrics_layer = MetricsLayer::new().boxed();
-    layers.push(metrics_layer);
-
     // Create event subscriber
     let layered = tracing_subscriber::registry().with(layers);
 
@@ -606,10 +608,11 @@ fn main() -> Result<()> {
             let ctl = runtime.block_on(serve.controller(scheduler, max_activities_per_entity))?;
             let api_ctl = ctl.clone();
             let serve_api = serve.clone();
-            let grpc_handle = grpc_rt.spawn(serve_api.grpc(ctl.clone(), agent_rpc_channel));
+            let grpc_handle =
+                grpc_rt.spawn(serve_api.grpc(ctl.clone(), agent_rpc_channel, args.monitor.clone()));
             runtime.block_on(async move {
                 // rest api
-                serve.api(api_ctl, grpc_handle).await
+                serve.api(api_ctl, grpc_handle, args.monitor.clone()).await
             })?;
         }
         Commands::External(_) => bail!("unknown subcommand"),
