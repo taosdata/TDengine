@@ -16,7 +16,7 @@ Power BI Desktop has been installed and running (If not, please download and ins
 2. Install TDengine Windows client installation package as the following.
 
 :::note IMPORTANT
-Please login [TDengine Cloud](https://cloud.taosdata.com) and select "Power BI" card of the "Tools" page. In the opened page, please download the selected TDengine Cloud instance's TDengine Windows client in the "Install ODBC connector" part.
+Please login [TDengine Cloud](https://cloud.tdengine.com) and select "Power BI" card of the "Tools" page. In the opened page, please download the selected TDengine Cloud instance's TDengine Windows client in the "Install ODBC connector" part.
 :::
 
 ## Configure ODBC DataSource
@@ -31,7 +31,7 @@ Please login [TDengine Cloud](https://cloud.taosdata.com) and select "Power BI" 
 4. Click "Test Connection" to test whether the data source can be connectted; if successful, it will prompt "Successfully connected to the URL".
 
 :::note IMPORTANT
-Please log in [TDengine Cloud](https://cloud.taosdata.com) and select "PowerBI" card of the "Tools" page. In the opened opage, please copy the value in the "URL" field of the "Configure ODBC DataSource" part.
+Please log in [TDengine Cloud](https://cloud.tdengine.com) and select "PowerBI" card of the "Tools" page. In the opened opage, please copy the value in the "URL" field of the "Configure ODBC DataSource" part.
 :::
 
 ## Import Data from TDengine to Power BI
