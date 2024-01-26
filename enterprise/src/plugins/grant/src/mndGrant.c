@@ -485,7 +485,7 @@ _return:
   tDecoderClear(&decoder);
   if (code != 0) {
     tDestroyGrantObj(pObj);
-    mError("grant, %s failed at line %d since %s, row:%p", __func__, tstrerror(code), lino, pObj);
+    mError("grant, %s failed at line %d since %s, row:%p", __func__, lino, tstrerror(code), pObj);
   }
   return code;
 }

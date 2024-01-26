@@ -370,6 +370,13 @@ typedef struct {
       int64_t reserve5 : 24;
     };
   };
+  union {
+    int64_t p8;
+    struct {
+      int64_t serviceExpireSec : 40;
+      int64_t reserve6 : 24;
+    };
+  };
   int64_t limitTimeSeries;
   int64_t curTimeSeries;
   int32_t limitCpuCores;
