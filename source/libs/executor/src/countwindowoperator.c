@@ -179,7 +179,7 @@ SOperatorInfo* createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
 
 _error:
   if (pInfo != NULL) {
-    destroyEWindowOperatorInfo(pInfo);
+    destroyCountWindowOperatorInfo(pInfo);
   }
 
   taosMemoryFreeClear(pOperator);
