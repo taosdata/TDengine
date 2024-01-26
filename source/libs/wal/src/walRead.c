@@ -305,7 +305,7 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver) {
 }
 
 int32_t walSkipFetchBody(SWalReader *pRead) {
-  wDebug("vgId:%d, skip fetch body:%" PRId64 ", first:%" PRId64 ", commit:%" PRId64 ", last:%" PRId64
+  wDebug("vgId:%d, skip:%" PRId64 ", first:%" PRId64 ", commit:%" PRId64 ", last:%" PRId64
          ", applied:%" PRId64 ", 0x%" PRIx64,
          pRead->pWal->cfg.vgId, pRead->pHead->head.version, pRead->pWal->vers.firstVer, pRead->pWal->vers.commitVer,
          pRead->pWal->vers.lastVer, pRead->pWal->vers.appliedVer, pRead->readerId);

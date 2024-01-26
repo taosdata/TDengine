@@ -886,7 +886,8 @@ static void doStartFillhistoryStep2(SStreamTask* pTask, SStreamTask* pStreamTask
   pTask->execInfo.step2Start = taosGetTimestampMs();
 
   if (done) {
-    qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, 0.0);
+    qDebug("s-task:%s scan wal(step 2) verRange:%" PRId64 "-%" PRId64 " ended, elapsed time:%.2fs", id, pRange->minVer,
+           pRange->maxVer, 0.0);
     streamTaskPutTranstateIntoInputQ(pTask);
     streamExecTask(pTask);  // exec directly
   } else {
@@ -1141,8 +1142,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.taskId);
   if (pTask == NULL) {
-    tqError("vgId:%d failed to find s-task:0x%x, ignore checkpoint msg. it may have been destroyed already", vgId,
-            req.taskId);
+    tqError("vgId:%d failed to find s-task:0x%x, ignore checkpoint msg. it may have been destroyed", vgId, req.taskId);
     SRpcMsg rsp = {0};
     buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
     tmsgSendRsp(&rsp);  // error occurs
@@ -1169,18 +1169,22 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   taosThreadMutexLock(&pTask->lock);
   ETaskStatus status = streamTaskGetStatus(pTask)->state;
 
-  if (status == TASK_STATUS__HALT || status == TASK_STATUS__PAUSE) {
-    tqError("s-task:%s not ready for checkpoint, since it is halt, ignore this checkpoint:%" PRId64 ", set it failure",
-            pTask->id.idStr, req.checkpointId);
+  if (req.mndTrigger == 1) {
+    if (status == TASK_STATUS__HALT || status == TASK_STATUS__PAUSE) {
+      tqError("s-task:%s not ready for checkpoint, since it is halt, ignore checkpoint:%" PRId64 ", set it failure",
+              pTask->id.idStr, req.checkpointId);
 
-    taosThreadMutexUnlock(&pTask->lock);
-    streamMetaReleaseTask(pMeta, pTask);
+      taosThreadMutexUnlock(&pTask->lock);
+      streamMetaReleaseTask(pMeta, pTask);
 
-    SRpcMsg rsp = {0};
-    buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
-    tmsgSendRsp(&rsp);  // error occurs
+      SRpcMsg rsp = {0};
+      buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
+      tmsgSendRsp(&rsp);  // error occurs
 
-    return TSDB_CODE_SUCCESS;
+      return TSDB_CODE_SUCCESS;
+    }
+  } else {
+    ASSERT(status == TASK_STATUS__HALT);
   }
 
   // check if the checkpoint msg already sent or not.
@@ -1198,16 +1202,8 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   streamProcessCheckpointSourceReq(pTask, &req);
   taosThreadMutexUnlock(&pTask->lock);
 
-  int32_t total = 0;
-  streamMetaWLock(pMeta);
-
-  // set the initial value for generating check point
-  // set the mgmt epset info according to the checkout source msg from mnode, todo update mgmt epset if needed
-  total = pMeta->numOfStreamTasks;
-  streamMetaWUnLock(pMeta);
-
-  qInfo("s-task:%s (vgId:%d) level:%d receive checkpoint-source msg chkpt:%" PRId64 ", total checkpoint reqs:%d",
-        pTask->id.idStr, vgId, pTask->info.taskLevel, req.checkpointId, total);
+  qInfo("s-task:%s (vgId:%d) level:%d receive checkpoint-source msg chkpt:%" PRId64 ", transId:%d",
+        pTask->id.idStr, vgId, pTask->info.taskLevel, req.checkpointId, req.transId);
 
   code = streamAddCheckpointSourceRspMsg(&req, &pMsg->info, pTask, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1233,35 +1229,3 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg) {
   return tqStreamTaskProcessTaskResetReq(pTq->pStreamMeta, pMsg);
 }
-
-// NOTE: here we may receive this message more than once, so need to handle this case
-int32_t tqProcessTaskDropHTask(STQ* pTq, SRpcMsg* pMsg) {
-  SVDropHTaskReq* pReq = (SVDropHTaskReq*)pMsg->pCont;
-
-  SStreamMeta* pMeta = pTq->pStreamMeta;
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
-  if (pTask == NULL) {
-    tqError("vgId:%d process drop fill-history task req, failed to acquire task:0x%x, it may have been dropped already",
-            pMeta->vgId, pReq->taskId);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  tqDebug("s-task:%s receive drop fill-history msg from mnode", pTask->id.idStr);
-  if (pTask->hTaskInfo.id.taskId == 0) {
-    tqError("vgId:%d s-task:%s not have related fill-history task", pMeta->vgId, pTask->id.idStr);
-    streamMetaReleaseTask(pMeta, pTask);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  taosThreadMutexLock(&pTask->lock);
-  SStreamTaskId id = {.streamId = pTask->hTaskInfo.id.streamId, .taskId = pTask->hTaskInfo.id.taskId};
-  streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &id);
-  taosThreadMutexUnlock(&pTask->lock);
-
-  // clear the scheduler status
-  streamTaskSetSchedStatusInactive(pTask);
-  tqDebug("s-task:%s set scheduler status:%d after drop fill-history task", pTask->id.idStr, pTask->status.schedStatus);
-  streamMetaReleaseTask(pMeta, pTask);
-  return TSDB_CODE_SUCCESS;
-}
-
