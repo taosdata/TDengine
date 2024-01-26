@@ -2203,8 +2203,15 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
   taosThreadMutexLock(&execInfo.lock);
 
   SStreamObj *pStream = mndGetStreamObj(pMnode, req.streamId);
-  int32_t     numOfTasks = mndGetNumOfStreamTasks(pStream);
+  if (pStream == NULL) {
+    mError("failed to find the stream:0x%"PRIx64" not handle the checkpoint req", req.streamId);
+    terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
+    taosThreadMutexUnlock(&execInfo.lock);
 
+    return -1;
+  }
+
+  int32_t  numOfTasks = mndGetNumOfStreamTasks(pStream);
   SArray **pReqTaskList = (SArray**)taosHashGet(execInfo.pTransferStateStreams, &req.streamId, sizeof(req.streamId));
   if (pReqTaskList == NULL) {
     SArray *pList = taosArrayInit(4, sizeof(int32_t));
