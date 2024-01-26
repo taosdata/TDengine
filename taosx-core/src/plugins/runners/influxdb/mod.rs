@@ -393,6 +393,7 @@ async fn validate_source_influxdb(
             data_source: String::from("influxdb"),
             version: Some(version.clone()),
             message: Some(format!("Your data source is available, its version is {}, which is supported, you can proceed to transfer your data to TDengine.", version.clone())),
+            namespaces: None,
         })
     } else {
         Ok(DataSourceValidation {
@@ -401,6 +402,7 @@ async fn validate_source_influxdb(
             data_source: String::from("influxdb"),
             version: None,
             message: Some(result.err().unwrap().to_string()),
+            namespaces: None,
         })
     }
 }

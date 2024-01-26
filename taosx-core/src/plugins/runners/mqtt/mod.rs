@@ -279,6 +279,7 @@ async fn validate_mqtt(config: MqttConfig) -> anyhow::Result<DataSourceValidatio
             data_source: "mqtt".to_string(),
             version: result["version"].as_str().map(|s| s.to_string()),
             message: result["message"].as_str().map(|s| s.to_string()),
+            namespaces: None,
         })
     } else {
         Ok(DataSourceValidation::invalid(
