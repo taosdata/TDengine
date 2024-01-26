@@ -1,7 +1,8 @@
 package com.taosdata.model.entity;
 
 import com.alibaba.fastjson.JSONObject;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -12,7 +13,8 @@ import java.util.Map;
  *
  * @author ZYP
  */
-@Data
+@Getter
+@Setter
 public class InfluxdbBucketDataEntity implements Cloneable {
 
     private InfluxdbMeasurementEntity influxdbMeasurementEntity;

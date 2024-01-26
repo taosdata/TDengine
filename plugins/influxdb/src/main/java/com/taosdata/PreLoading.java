@@ -3,7 +3,6 @@ package com.taosdata;
 import com.alibaba.fastjson.JSONObject;
 import com.influxdb.client.domain.HealthCheck;
 import com.taosdata.caches.BucketCache;
-import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.config.InfluxdbConfig;
@@ -11,7 +10,6 @@ import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.config.TaskConfig;
 import com.taosdata.model.dto.bum.ThreadInfo;
-import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import com.taosdata.model.entity.InfluxdbBucketEntity;
 import com.taosdata.model.entity.InfluxdbMeasurementEntity;
 import com.taosdata.model.enums.StatusEnums;
@@ -331,7 +329,7 @@ public class PreLoading implements CommandLineRunner {
     /**
      * 处理工作模式：普通、恢复
      */
-    private void initMode() {
+    /*private void initMode() {
         // 断点续传，需要本地的“读取记录”与“内存队列持久化”两个文件
         if ("resume".equals(this.taskConfig.getMode())) {
             try {
@@ -358,7 +356,7 @@ public class PreLoading implements CommandLineRunner {
                 logger.error("Failed to read breakpoint, task will be executed in normal mode.", e);
             }
         }
-    }
+    }*/
 
     /**
      * 检查influxdb连通性
@@ -626,7 +624,7 @@ public class PreLoading implements CommandLineRunner {
     /**
      * 处理退出信号
      */
-    private void processShutdown() {
+    /*private void processShutdown() {
         // 停止BucketThread、ScheduleThread线程（在ScheduleThread中停止所有BucketDataThread）
         LocalConfig.isRunBucketThread = false;
         LocalConfig.isRunScheduleThread = false;
@@ -671,5 +669,5 @@ public class PreLoading implements CommandLineRunner {
             logger.error("Failed to save read records during system security exit.", e);
         }
         logger.info("The system has executed a secure exit.");
-    }
+    }*/
 }
