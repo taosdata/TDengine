@@ -7,7 +7,7 @@
     <el-table
       border
       style="width: 100%"
-      :height="defaultHeight-99"
+      :max-height="defaultHeight-99"
       :data="pageTableData"
       :row-class-name="tableRowClassName"
       ref='table'
