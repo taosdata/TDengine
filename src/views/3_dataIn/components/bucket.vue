@@ -7,6 +7,7 @@
       class="mr20"
       :disabled="loading"
       :placeholder="config.placeholder"
+      :multiple="config.multiple"
       clearable
       filterable
       @change="change"

@@ -666,7 +666,7 @@ function handleGroups(groups, paramsConfig) {
     }
     children.push(config);
     params.forEach(param => {
-      const { display, description, short_description, name, hint, placeholder = '', required = false, value, conflicts_with } = param;
+      const { display, description, short_description, name, hint, placeholder = '', required = false, value, conflicts_with, multiple } = param;
       const paramConfig = {
         label: display,
         description: short_description ?? description,
@@ -687,7 +687,8 @@ function handleGroups(groups, paramsConfig) {
         },
         placeholder,
         defaultValue: value,
-        required
+        required,
+        multiple
       };
       handleHintType(paramConfig, hint, value);
       if (isArray(conflicts_with)) {
