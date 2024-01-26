@@ -172,8 +172,8 @@ class TDTestCase:
     def run(self):
         self.prepare_data()
         self.create_user()
-        #self.consumeTest()
-        self.streamTest()
+        self.consumeTest()
+        # self.streamTest()
 
     def stop(self):
         tdSql.close()

@@ -18,14 +18,6 @@
 
 #ifndef _GRANT
 
-int32_t grantCheck(EGrantType grant) {
-  if(taosGetTimestampMs() < 1706254434000) {
-    uError("receivee no expired");
-    return 0;
-  } else{
-    uError("receivee expired");
-    return -1;
-  }
-}
+int32_t grantCheck(EGrantType grant) {return TSDB_CODE_SUCCESS;}
 
 #endif
