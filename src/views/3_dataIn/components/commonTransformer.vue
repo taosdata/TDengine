@@ -8,7 +8,10 @@
         >
           <span>{{ $t("datasource.transformer.msgbody") }}</span>
         </div>
-        <el-tabs v-model="activeName" v-if="$store.state.app.currentDBType !== 'csv'">
+        <el-tabs
+          v-model="activeName"
+          v-if="$store.state.app.currentDBType !== 'csv'"
+        >
           <el-tab-pane
             :disabled="
               $store.state.app.currentDBType == 'avevaHistorian' ||
@@ -23,20 +26,15 @@
             :label="$t('datasource.transformer.msgbodytypes.type2')"
             name="second"
           >
-            <el-button
-              type="primary"
-              size="small"
-              @click="getMsgBody"
-              >{{
-                $t("datasource.transformer.msgbodytypes.retrieve")
-              }}</el-button
-            >
+            <el-button type="primary" size="small" @click="getMsgBody">{{
+              $t("datasource.transformer.msgbodytypes.retrieve")
+            }}</el-button>
           </el-tab-pane>
 
           <el-tab-pane
-            :disabled="true"
             :label="$t('datasource.transformer.msgbodytypes.type3')"
             name="third"
+            :disabled="true"
           >
             <el-upload
               class="upload-demo"
@@ -44,8 +42,8 @@
               :on-preview="handlePreview"
               :on-remove="handleRemove"
               :before-remove="beforeRemove"
-              multiple
-              :limit="3"
+              :on-change="handleChange"
+              accept=".csv,.json"
               :on-exceed="handleExceed"
               :file-list="fileList"
               style="margin-bottom: 15px"
@@ -66,7 +64,7 @@
             prop="msgbody"
             v-if="$store.state.app.currentDBType !== 'avevaHistorian'"
           >
-            <div id="jsoneditor"></div>
+            <!-- <JsonEditor></JsonEditor> -->
             <el-input
               :disabled="
                 $store.state.app.currentDBType == 'avevaHistorian' ||
@@ -84,10 +82,18 @@
       </section>
       <section class="extract">
         <div class="block-title top">
-          <span>{{$store.state.app.currentDBType=='csv'||$store.state.app.currentDBType == 'avevaHistorian'? $t("datasource.transformer.identified"):$t("datasource.transformer.parse") }}</span>
+          <span>{{
+            $store.state.app.currentDBType == "csv" ||
+            $store.state.app.currentDBType == "avevaHistorian"
+              ? $t("datasource.transformer.identified")
+              : $t("datasource.transformer.parse")
+          }}</span>
         </div>
         <div
-          v-if="$store.state.app.currentDBType !== 'avevaHistorian'&& $store.state.app.currentDBType !=='csv'"
+          v-if="
+            $store.state.app.currentDBType !== 'avevaHistorian' &&
+            $store.state.app.currentDBType !== 'csv'
+          "
           class="transdescription"
           v-html="$t('datasource.transformer.extractdesc')"
         ></div>
@@ -165,7 +171,7 @@
               : '',
           ]"
         >
-          <el-tooltip
+          <!-- <el-tooltip
             class="item"
             effect="light"
             :content="$t('datasource.transformer.sampleval')"
@@ -174,8 +180,8 @@
             <li :class="['col', columnsArr[0]?.name == 'ts' ? 'origin' : '']">
               <span>{{ columnsArr[0]?.name }}</span>
             </li>
-          </el-tooltip>
-          <li v-for="(item, index) in columnsArr.slice(1, 9)" :key="index">
+          </el-tooltip> -->
+          <li v-for="(item, index) in columnsArr" :key="index">
             <!-- <el-tooltip
               class="item"
               effect="light"
@@ -360,7 +366,7 @@
                           <el-input
                             size="small"
                             v-model="scope.row.Expression"
-                            :placeholder='exprformat'
+                            :placeholder="exprformat"
                             @input="changeSubname"
                           ></el-input>
                         </el-form-item>
@@ -479,15 +485,16 @@
                 :total="pageCount"
                 @current-change="handleCurrentChange"
               >
-              <div key="1">
-                <span style='color:#16191f;font-weight:400;margin-left:6px;'
-                  >  {{ $t("datasource.transformer.configuredcount") }}
-                  {{ configuredCount }}
-                  {{ $t("datasource.transformer.unit") }}</span
-                >
-              </div>
+                <div key="1">
+                  <span
+                    style="color: #16191f; font-weight: 400; margin-left: 6px"
+                  >
+                    {{ $t("datasource.transformer.configuredcount") }}
+                    {{ configuredCount }}
+                    {{ $t("datasource.transformer.unit") }}</span
+                  >
+                </div>
               </el-pagination>
-              
 
               <el-button
                 type="primary"
@@ -533,6 +540,8 @@ import CreateSTB from "./createSTB.vue";
 import { createStableReq } from "@/api/gateway/data/stables";
 import SplitExpression from "./splitExpression.vue";
 import { getDsnData } from "../utils.js";
+import Papa from "papaparse";
+import JsonEditor from "./jsonEditor.vue";
 export default {
   name: "CommonTransformer",
   components: {
@@ -540,6 +549,7 @@ export default {
     FilterExpression,
     CreateSTB,
     SplitExpression,
+    JsonEditor,
   },
   props: {
     parent: {
@@ -722,7 +732,12 @@ export default {
       this.activeName = "first";
     }
     if (this.parserColumns) {
-      this.initColumnLists(this.parserColumns);
+      if(this.$store.state.app.currentDBType == "mqtt"||this.$store.state.app.currentDBType == "kafka"){
+        this.initColumnLists(this.parserColumns.filter(item=>item.name!='ts'));
+      }else{
+        this.initColumnLists(this.parserColumns);
+      }
+      
     }
 
     if (
@@ -731,21 +746,23 @@ export default {
         Object.hasOwn(this.$store.state.app.csvParser, "parser"))
     ) {
       // 编辑状态
-     await this.echoParser(this.$store.state.app.transformerParserData);
+      await this.echoParser(this.$store.state.app.transformerParserData);
     }
     if (this.$store.state.app.csvTransformerParser) {
       //CSV新增
       this.isCSV = true;
       this.msgForm.msgbody = this.$store.state.app.csvTransformerParser.msgBody;
-     await  this.submitParse();
+      await this.submitParse();
       // this.formatCSVExtract(this.$store.state.app.csvTransformerParser.columns);
     }
     await this.getInitStables();
-    this.statisticCol()
+    this.statisticCol();
   },
   methods: {
     statisticCol() {
-      this.configuredCount=this.tableData.filter((item) => item["Expression"] != "").length
+      this.configuredCount = this.tableData.filter(
+        (item) => item["Expression"] != ""
+      ).length;
     },
     changeMappingExpr(scope) {
       this.$set(this.mappingcolumns[scope.$index], "Expression", "");
@@ -822,14 +839,24 @@ export default {
       console.log(file, fileList);
     },
     handlePreview(file) {
-      console.log(file);
+      console.log(file, "文件");
     },
     handleExceed(files, fileList) {
+      console.log(files, fileList, "上传文件");
       this.$message.warning(
         `当前限制选择 3 个文件，本次选择了 ${files.length} 个文件，共选择了 ${
           files.length + fileList.length
         } 个文件`
       );
+    },
+    handleChange(file, fileList) {
+
+      Papa.parse(file.raw, {
+        header: false,
+        complete: (result) => {
+          console.log(result.data.join("\n"), "解析后的结果");
+        },
+      });
     },
     beforeRemove(file, fileList) {
       return this.$confirm(`确定移除 ${file.name}？`);
@@ -1317,24 +1344,30 @@ export default {
             columns: columns,
           },
           mutate: this.$store.state.app.transformerFilterParseData
-            ? []
-                .concat({
-                  filter: Object.values(
-                    this.$store.state.app.transformerFilterParseData
-                  ).toString(),
-                })
-                .concat(this.$store.state.app.transformExtractParseData)
-                .concat({
-                  map: mutateMap,
-                })
-            : this.$store.state.app.transformExtractParseData
-            ? []
-                .concat(this.$store.state.app.transformExtractParseData)
-                .concat({
-                  map: mutateMap,
-                })
-            : [].concat({
+            ? this.$store.state.app.transformExtractParseData
+              ? []
+                  .concat({
+                    filter: Object.values(
+                      this.$store.state.app.transformerFilterParseData
+                    ).toString(),
+                  })
+                  .concat(this.$store.state.app.transformExtractParseData)
+                  .concat({
+                    map: mutateMap,
+                  })
+              :  []
+                  .concat({
+                    filter: Object.values(
+                      this.$store.state.app.transformerFilterParseData
+                    ).toString(),
+                  })
+                  .concat({
+                    map: mutateMap,
+                  })
+            :this.$store.state.app.transformExtractParseData? [].concat(this.$store.state.app.transformExtractParseData).concat({
                 map: mutateMap,
+              }):[].concat({
+                map: mutateMap
               }),
         },
         input: this.isCSV
@@ -1523,7 +1556,7 @@ export default {
             } else {
               inputobj[item.name] =
                 item.type == "timestamp"
-                  ? parsinginZone(new Date())
+                  ? ''//parsinginZone(new Date())
                   : item.name;
             }
           } else if (this.$store.state.app.currentDBType == "kafka") {
@@ -1532,7 +1565,7 @@ export default {
             } else {
               inputobj[item.name] =
                 item.type == "timestamp"
-                  ? parsinginZone(new Date())
+                  ? ''//parsinginZone(new Date())
                   : item.name;
             }
           }
@@ -1722,16 +1755,16 @@ export default {
             "mappingcolumns",
             this.$store.state.app.transformerMapCloumns
               .filter((item) => item.value == "mapping")[0]
-              .children.filter((val) => {
+              .children.filter((val, index) => {
                 if (
                   this.$store.state.app.currentDBType == "mqtt" &&
-                  !this.mqttDefaultCols.includes(val.value)
+                  !this.mqttDefaultCols.includes(val.value )
                 ) {
                   return val;
                 }
                 if (
                   this.$store.state.app.currentDBType == "kafka" &&
-                  !this.kafkaDefaultCols.includes(val.value)
+                  !this.kafkaDefaultCols.includes(val.value) 
                 ) {
                   return val;
                 } else if (
@@ -1903,11 +1936,11 @@ export default {
     },
   },
   watch: {
-    tableData:{
-      deep:true,
-      handler(val){
-        this.statisticCol()
-      }
+    tableData: {
+      deep: true,
+      handler(val) {
+        this.statisticCol();
+      },
     },
     "$i18n.locale": {
       deep: true,
@@ -1945,6 +1978,17 @@ export default {
       deep: true,
       handler(val) {
         this.$set(this, "options", val);
+        this.$set(this,'mappingcolumns',val.filter(item=>item.value=='mapping')[0].children)
+        let newmappings=this.mappingcolumns.map(item=>item.label)
+        this.tableData.map(item=>{
+          if(item.exprname=='mapping'&&item['Type']!='Tablename'){
+            if(!newmappings.includes(item['Expression'])){
+              item['Expression']=''
+            }
+            return item
+          }
+          
+        })
       },
     },
 
@@ -1957,7 +2001,12 @@ export default {
     parserColumns: {
       deep: true,
       handler(val) {
+        if(this.$store.state.app.currentDBType == "mqtt"||this.$store.state.app.currentDBType == "kafka"){
+        this.initColumnLists(val.filter(item=>item.name!='ts'));
+      }else{
         this.initColumnLists(val);
+      }
+        
       },
     },
     "$store.state.app.currentDBType": {
@@ -2019,7 +2068,7 @@ export default {
 }
 .col-list {
   margin-top: 15px;
-  margin-bottom:20px;
+  margin-bottom: 20px;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
   column-gap: 15px;
@@ -2091,14 +2140,12 @@ export default {
       tbody tr:first-child {
         .cell {
           // padding-bottom: 16px !important;
-          
         }
-        
       }
-      .el-form-item__error{
-          top:30%;
-          left:130px;
-        }
+      .el-form-item__error {
+        top: 30%;
+        left: 130px;
+      }
     }
     .cell.el-tooltip {
       // height: 40px;
@@ -2142,7 +2189,7 @@ export default {
 }
 .pagination {
   margin-top: 0px !important;
-  display:flex;
+  display: flex;
   &.hide {
     ::v-deep {
       .el-pagination__jump,
@@ -2191,8 +2238,8 @@ export default {
 }
 .extract-btns {
   display: flex;
-  .el-button{
-    margin-top:10px;
+  .el-button {
+    margin-top: 10px;
   }
 }
 .extract-table {

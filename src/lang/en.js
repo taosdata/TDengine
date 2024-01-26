@@ -1308,7 +1308,8 @@ export default {
       filterdesc: `<strong>taosX supports a powerful expression engine to filter records. <em>false</em> records will be removed directly.</strong><br/>
       - <strong>Bool value</strong>: bool_value if bool_value is true/false.<br/>
       - <strong>Compare oprations</strong>: a > b with a and b fields exist, or c == "value" d > 1.1 and so on.<br/>
-      - <strong>String functions is also supported</strong>: s.contains("abc") .<br/>`,
+      - <strong>String functions is also supported</strong>: s.contains("abc") .<br/>
+      - <strong>Mutil condition query is supported</strong>: && or || .` ,
       uploadexe: "Please upload the csv file and execute the next step",
       sp: "Please select the target super table",
       septip: "Please enter the separator",
@@ -1329,7 +1330,7 @@ export default {
       payload: "Payload Format",
       upload: "Upload Sample Data",
       col_select: "Please select the column",
-      filter_type: "Please select the filter type",
+      filter_type: "Please select  parse type",
       expre_input: "exp1;exp2;exp3",
       filter_input: "Please enter the filter expression",
       st_input: "Please enter the super table name",

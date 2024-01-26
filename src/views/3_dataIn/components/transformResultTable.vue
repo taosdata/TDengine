@@ -1,5 +1,5 @@
 <template>
-  <div class="result-table" v-if="showtable" ref="result">
+  <div class="result-table" v-if="showtable" ref="result" :style="{'max-height':defaultHeight}">
     <div class="title-block">
       <span class="title">{{ $t("datasource.transformer.resulttb") }}</span>
       <!-- <span class='el-icon-close'></span> -->
@@ -7,9 +7,10 @@
     <el-table
       border
       style="width: 100%"
-      max-height="510"
+      :height="defaultHeight-99"
       :data="pageTableData"
       :row-class-name="tableRowClassName"
+      ref='table'
     >
       <el-table-column
         v-for="item in columns"
@@ -55,6 +56,7 @@ export default {
       showtable: false,
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
+      defaultHeight:510
     };
   },
   mounted() {
@@ -68,6 +70,10 @@ export default {
       this.handleScroll();
     }
     const mainDom = document.querySelector(".main_content");
+    this.$nextTick(()=>{
+      let height=mainDom.offsetHeight
+      this.defaultHeight=height-100
+    })
     mainDom.addEventListener("scroll", this.handleScroll);
     this.$once("hook:beforeDestroy", () => {
       mainDom.removeEventListener("scroll", this.handleScroll);
@@ -190,11 +196,13 @@ export default {
       deep: true,
       handler(val) {
         if (val && val.length > 0 && this.$store.state.app.transresultname) {
+          this.showtable=true
           this.handleScroll();
           this.getResultData(val);
         } else {
           this.$set(this, "pageTableData", []);
           this.$set(this, "tableData", []);
+          this.totalCount=0
         }
       },
     },
@@ -236,6 +244,12 @@ export default {
     }
   }
   ::v-deep {
+    .el-pagination__jump{
+      display:none;
+    }
+    .pagination{
+      margin-top:15px;
+    }
     .el-table {
       thead tr th {
         background-color: #f5f7fa;
@@ -244,9 +258,7 @@ export default {
       //   .el-table--border{
       //     border-color: transparent !important;
       //   }
-      .el-table--group::after,
-      .el-table--border::after,
-      .el-table::before {
+      .el-table--group::after{
         border-color: transparent !important;
       }
       //   .el-table__column-resize-proxy {
