@@ -19,9 +19,9 @@
 int32_t tPutHeadFile(uint8_t *p, SHeadFile *pHeadFile) {
   int32_t n = 0;
 
-  n += tPutI64v(p ? p + n : p, pHeadFile->commitID);
-  n += tPutI64v(p ? p + n : p, pHeadFile->size);
-  n += tPutI64v(p ? p + n : p, pHeadFile->offset);
+  n += tPutI64v(p ? p + n : p, pHeadFile->commitID, true);
+  n += tPutI64v(p ? p + n : p, pHeadFile->size, true);
+  n += tPutI64v(p ? p + n : p, pHeadFile->offset, true);
 
   return n;
 }
@@ -29,9 +29,9 @@ int32_t tPutHeadFile(uint8_t *p, SHeadFile *pHeadFile) {
 static int32_t tGetHeadFile(uint8_t *p, SHeadFile *pHeadFile) {
   int32_t n = 0;
 
-  n += tGetI64v(p + n, &pHeadFile->commitID);
-  n += tGetI64v(p + n, &pHeadFile->size);
-  n += tGetI64v(p + n, &pHeadFile->offset);
+  n += tGetI64v(p + n, &pHeadFile->commitID, true);
+  n += tGetI64v(p + n, &pHeadFile->size, true);
+  n += tGetI64v(p + n, &pHeadFile->offset, true);
 
   return n;
 }
@@ -39,8 +39,8 @@ static int32_t tGetHeadFile(uint8_t *p, SHeadFile *pHeadFile) {
 int32_t tPutDataFile(uint8_t *p, SDataFile *pDataFile) {
   int32_t n = 0;
 
-  n += tPutI64v(p ? p + n : p, pDataFile->commitID);
-  n += tPutI64v(p ? p + n : p, pDataFile->size);
+  n += tPutI64v(p ? p + n : p, pDataFile->commitID, true);
+  n += tPutI64v(p ? p + n : p, pDataFile->size, true);
 
   return n;
 }
@@ -48,8 +48,8 @@ int32_t tPutDataFile(uint8_t *p, SDataFile *pDataFile) {
 static int32_t tGetDataFile(uint8_t *p, SDataFile *pDataFile) {
   int32_t n = 0;
 
-  n += tGetI64v(p + n, &pDataFile->commitID);
-  n += tGetI64v(p + n, &pDataFile->size);
+  n += tGetI64v(p + n, &pDataFile->commitID, true);
+  n += tGetI64v(p + n, &pDataFile->size, true);
 
   return n;
 }
@@ -57,9 +57,9 @@ static int32_t tGetDataFile(uint8_t *p, SDataFile *pDataFile) {
 int32_t tPutSttFile(uint8_t *p, SSttFile *pSttFile) {
   int32_t n = 0;
 
-  n += tPutI64v(p ? p + n : p, pSttFile->commitID);
-  n += tPutI64v(p ? p + n : p, pSttFile->size);
-  n += tPutI64v(p ? p + n : p, pSttFile->offset);
+  n += tPutI64v(p ? p + n : p, pSttFile->commitID, true);
+  n += tPutI64v(p ? p + n : p, pSttFile->size, true);
+  n += tPutI64v(p ? p + n : p, pSttFile->offset, true);
 
   return n;
 }
@@ -67,9 +67,9 @@ int32_t tPutSttFile(uint8_t *p, SSttFile *pSttFile) {
 static int32_t tGetSttFile(uint8_t *p, SSttFile *pSttFile) {
   int32_t n = 0;
 
-  n += tGetI64v(p + n, &pSttFile->commitID);
-  n += tGetI64v(p + n, &pSttFile->size);
-  n += tGetI64v(p + n, &pSttFile->offset);
+  n += tGetI64v(p + n, &pSttFile->commitID, true);
+  n += tGetI64v(p + n, &pSttFile->size, true);
+  n += tGetI64v(p + n, &pSttFile->offset, true);
 
   return n;
 }
@@ -77,8 +77,8 @@ static int32_t tGetSttFile(uint8_t *p, SSttFile *pSttFile) {
 int32_t tPutSmaFile(uint8_t *p, SSmaFile *pSmaFile) {
   int32_t n = 0;
 
-  n += tPutI64v(p ? p + n : p, pSmaFile->commitID);
-  n += tPutI64v(p ? p + n : p, pSmaFile->size);
+  n += tPutI64v(p ? p + n : p, pSmaFile->commitID, true);
+  n += tPutI64v(p ? p + n : p, pSmaFile->size, true);
 
   return n;
 }
@@ -86,18 +86,18 @@ int32_t tPutSmaFile(uint8_t *p, SSmaFile *pSmaFile) {
 static int32_t tGetSmaFile(uint8_t *p, SSmaFile *pSmaFile) {
   int32_t n = 0;
 
-  n += tGetI64v(p + n, &pSmaFile->commitID);
-  n += tGetI64v(p + n, &pSmaFile->size);
+  n += tGetI64v(p + n, &pSmaFile->commitID, true);
+  n += tGetI64v(p + n, &pSmaFile->size, true);
 
   return n;
 }
 
 // EXPOSED APIS ==================================================
-static char* getFileNamePrefix(STsdb *pTsdb, SDiskID did, int32_t fid, uint64_t commitId, char fname[]) {
-  const char* p1 = tfsGetDiskPath(pTsdb->pVnode->pTfs, did);
-  int32_t len = strlen(p1);
+static char *getFileNamePrefix(STsdb *pTsdb, SDiskID did, int32_t fid, uint64_t commitId, char fname[]) {
+  const char *p1 = tfsGetDiskPath(pTsdb->pVnode->pTfs, did);
+  int32_t     len = strlen(p1);
 
-  char* p = memcpy(fname, p1, len);
+  char *p = memcpy(fname, p1, len);
   p += len;
 
   *(p++) = TD_DIRSEP[0];
@@ -125,25 +125,25 @@ static char* getFileNamePrefix(STsdb *pTsdb, SDiskID did, int32_t fid, uint64_t 
 }
 
 void tsdbHeadFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SHeadFile *pHeadF, char fname[]) {
-  char* p = getFileNamePrefix(pTsdb, did, fid, pHeadF->commitID, fname);
+  char *p = getFileNamePrefix(pTsdb, did, fid, pHeadF->commitID, fname);
   memcpy(p, ".head", 5);
   p[5] = 0;
 }
 
 void tsdbDataFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SDataFile *pDataF, char fname[]) {
-  char* p = getFileNamePrefix(pTsdb, did, fid, pDataF->commitID, fname);
+  char *p = getFileNamePrefix(pTsdb, did, fid, pDataF->commitID, fname);
   memcpy(p, ".data", 5);
   p[5] = 0;
 }
 
 void tsdbSttFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSttFile *pSttF, char fname[]) {
-  char* p = getFileNamePrefix(pTsdb, did, fid, pSttF->commitID, fname);
+  char *p = getFileNamePrefix(pTsdb, did, fid, pSttF->commitID, fname);
   memcpy(p, ".stt", 4);
   p[4] = 0;
 }
 
 void tsdbSmaFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSmaFile *pSmaF, char fname[]) {
-  char* p = getFileNamePrefix(pTsdb, did, fid, pSmaF->commitID, fname);
+  char *p = getFileNamePrefix(pTsdb, did, fid, pSmaF->commitID, fname);
   memcpy(p, ".sma", 4);
   p[4] = 0;
 }
@@ -221,9 +221,9 @@ _err:
 int32_t tPutDFileSet(uint8_t *p, SDFileSet *pSet) {
   int32_t n = 0;
 
-  n += tPutI32v(p ? p + n : p, pSet->diskId.level);
-  n += tPutI32v(p ? p + n : p, pSet->diskId.id);
-  n += tPutI32v(p ? p + n : p, pSet->fid);
+  n += tPutI32v(p ? p + n : p, pSet->diskId.level, true);
+  n += tPutI32v(p ? p + n : p, pSet->diskId.id, true);
+  n += tPutI32v(p ? p + n : p, pSet->fid, true);
 
   // data
   n += tPutHeadFile(p ? p + n : p, pSet->pHeadF);
@@ -231,7 +231,7 @@ int32_t tPutDFileSet(uint8_t *p, SDFileSet *pSet) {
   n += tPutSmaFile(p ? p + n : p, pSet->pSmaF);
 
   // stt
-  n += tPutU8(p ? p + n : p, pSet->nSttF);
+  n += tPutU8(p ? p + n : p, pSet->nSttF, true);
   for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) {
     n += tPutSttFile(p ? p + n : p, pSet->aSttF[iStt]);
   }
@@ -242,9 +242,9 @@ int32_t tPutDFileSet(uint8_t *p, SDFileSet *pSet) {
 int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
   int32_t n = 0;
 
-  n += tGetI32v(p + n, &pSet->diskId.level);
-  n += tGetI32v(p + n, &pSet->diskId.id);
-  n += tGetI32v(p + n, &pSet->fid);
+  n += tGetI32v(p + n, &pSet->diskId.level, true);
+  n += tGetI32v(p + n, &pSet->diskId.id, true);
+  n += tGetI32v(p + n, &pSet->fid, true);
 
   // head
   pSet->pHeadF = (SHeadFile *)taosMemoryCalloc(1, sizeof(SHeadFile));
@@ -271,7 +271,7 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
   n += tGetSmaFile(p + n, pSet->pSmaF);
 
   // stt
-  n += tGetU8(p + n, &pSet->nSttF);
+  n += tGetU8(p + n, &pSet->nSttF, true);
   for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) {
     pSet->aSttF[iStt] = (SSttFile *)taosMemoryCalloc(1, sizeof(SSttFile));
     if (pSet->aSttF[iStt] == NULL) {
@@ -298,9 +298,9 @@ void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]) {
 int32_t tPutDelFile(uint8_t *p, SDelFile *pDelFile) {
   int32_t n = 0;
 
-  n += tPutI64v(p ? p + n : p, pDelFile->commitID);
-  n += tPutI64v(p ? p + n : p, pDelFile->size);
-  n += tPutI64v(p ? p + n : p, pDelFile->offset);
+  n += tPutI64v(p ? p + n : p, pDelFile->commitID, true);
+  n += tPutI64v(p ? p + n : p, pDelFile->size, true);
+  n += tPutI64v(p ? p + n : p, pDelFile->offset, true);
 
   return n;
 }
@@ -308,9 +308,9 @@ int32_t tPutDelFile(uint8_t *p, SDelFile *pDelFile) {
 int32_t tGetDelFile(uint8_t *p, SDelFile *pDelFile) {
   int32_t n = 0;
 
-  n += tGetI64v(p + n, &pDelFile->commitID);
-  n += tGetI64v(p + n, &pDelFile->size);
-  n += tGetI64v(p + n, &pDelFile->offset);
+  n += tGetI64v(p + n, &pDelFile->commitID, true);
+  n += tGetI64v(p + n, &pDelFile->size, true);
+  n += tGetI64v(p + n, &pDelFile->offset, true);
 
   return n;
 }

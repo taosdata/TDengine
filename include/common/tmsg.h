@@ -1393,7 +1393,7 @@ void    tFreeSCompactDbReq(SCompactDbReq* pReq);
 
 typedef struct {
   int32_t compactId;
-  int8_t bAccepted;
+  int8_t  bAccepted;
 } SCompactDbRsp;
 
 int32_t tSerializeSCompactDbRsp(void* buf, int32_t bufLen, SCompactDbRsp* pRsp);
@@ -1407,7 +1407,7 @@ typedef struct {
 
 int32_t tSerializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
 int32_t tDeserializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
-void    tFreeSKillCompactReq(SKillCompactReq *pReq);
+void    tFreeSKillCompactReq(SKillCompactReq* pReq);
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
@@ -1741,9 +1741,9 @@ int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* 
 int32_t tDeserializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
 
 typedef struct {
-  int32_t     compactId;
-  int32_t     vgId;
-  int32_t     dnodeId;
+  int32_t compactId;
+  int32_t vgId;
+  int32_t dnodeId;
 } SVKillCompactReq;
 
 int32_t tSerializeSVKillCompactReq(void* buf, int32_t bufLen, SVKillCompactReq* pReq);
@@ -1944,9 +1944,9 @@ typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   char    tb[TSDB_TABLE_NAME_LEN];
   char    user[TSDB_USER_LEN];
-  char    filterTb[TSDB_TABLE_NAME_LEN]; // for ins_columns
+  char    filterTb[TSDB_TABLE_NAME_LEN];  // for ins_columns
   int64_t showId;
-  int64_t compactId; // for compact
+  int64_t compactId;  // for compact
 } SRetrieveTableReq;
 
 typedef struct SSysTableSchema {

@@ -444,6 +444,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_VARBINARY_LEN TSDB_MAX_FIELD_LEN  // 16384-8:65519
 
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
+#define PRIMARYKEY_COL_ID              2  // for another primary key column in addition to timestamp
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
 
 #ifdef WINDOWS

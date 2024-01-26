@@ -27,7 +27,6 @@
 extern "C" {
 #endif
 
-typedef struct SBuffer  SBuffer;
 typedef struct SSchema  SSchema;
 typedef struct SSchema2 SSchema2;
 typedef struct STColumn STColumn;
@@ -39,10 +38,12 @@ typedef struct SRowIter SRowIter;
 typedef struct STagVal  STagVal;
 typedef struct STag     STag;
 typedef struct SColData SColData;
+typedef struct SRowKey  SRowKey;
 
-#define HAS_NONE  ((uint8_t)0x1)
-#define HAS_NULL  ((uint8_t)0x2)
-#define HAS_VALUE ((uint8_t)0x4)
+#define HAS_NONE      ((uint8_t)0x1)
+#define HAS_NULL      ((uint8_t)0x2)
+#define HAS_VALUE     ((uint8_t)0x4)
+#define HAS_MULTI_KEY ((uint8_t)0x8)
 
 // bitmap ================================
 const static uint8_t BIT1_MAP[8] = {0b11111110, 0b11111101, 0b11111011, 0b11110111,
@@ -78,19 +79,6 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
   } while (0)
 #define GET_BIT2(p, i) (((p)[DIV_4(i)] >> MOD_4_TIME_2(i)) & THREE)
 
-// SBuffer ================================
-struct SBuffer {
-  int64_t  nBuf;
-  uint8_t *pBuf;
-};
-
-#define tBufferCreate() \
-  (SBuffer) { .nBuf = 0, .pBuf = NULL }
-void    tBufferDestroy(SBuffer *pBuffer);
-int32_t tBufferInit(SBuffer *pBuffer, int64_t size);
-int32_t tBufferPut(SBuffer *pBuffer, const void *pData, int64_t nData);
-int32_t tBufferReserve(SBuffer *pBuffer, int64_t nData, void **ppData);
-
 // SColVal ================================
 #define CV_FLAG_VALUE ((int8_t)0x0)
 #define CV_FLAG_NONE  ((int8_t)0x1)
@@ -111,6 +99,8 @@ void    tRowDestroy(SRow *pRow);
 int32_t tRowSort(SArray *aRowP);
 int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
 int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag);
+void    tRowGetKey(SRow *pRow, SRowKey *key);
+int32_t tRowKeyCmpr(const void *p1, const void *p2);
 
 // SRowIter ================================
 int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
@@ -134,7 +124,7 @@ int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, voi
 // SColData ================================
 typedef void *(*xMallocFn)(void *, int32_t);
 void    tColDataDestroy(void *ph);
-void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn);
+void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t cflag);
 void    tColDataClear(SColData *pColData);
 void    tColDataDeepClear(SColData *pColData);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
@@ -172,6 +162,15 @@ struct STSchema {
   STColumn columns[];
 };
 
+/*
+ * 1. Tuple format:
+ *      SRow + [bit map +] fix-length data + [var-length data +] [(type + offset) * numPrimaryKeyCols + fixedLen +
+ * numOfCols + numPrimaryKeyCols]
+ *
+ * 2. K-V format:
+ *      SRow + numColsNotNone + u8/u16/u32 * numColsNotNone + ([-]cid [+ data]) * numColsNotNone + [(type + index) *
+ * numPrimaryKeyCols + numPrimaryKeyCols】
+ */
 struct SRow {
   uint8_t  flag;
   uint8_t  rsv;
@@ -191,6 +190,18 @@ struct SValue {
   };
 };
 
+#define TD_MAX_PRIMARY_KEY_COL 8
+typedef struct {
+  int8_t type;
+  SValue value;
+} STypeValue;
+
+struct SRowKey {
+  TSKEY      ts;
+  uint8_t    numOfKeys;
+  STypeValue keys[TD_MAX_PRIMARY_KEY_COL];
+};
+
 struct SColVal {
   int16_t cid;
   int8_t  type;
@@ -201,7 +212,7 @@ struct SColVal {
 struct SColData {
   int16_t  cid;
   int8_t   type;
-  int8_t   smaOn;
+  int8_t   cflag;
   int32_t  numOfNone;   // # of none
   int32_t  numOfNull;   // # of null
   int32_t  numOfValue;  // # of vale

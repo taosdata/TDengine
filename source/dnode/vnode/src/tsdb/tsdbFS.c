@@ -23,16 +23,16 @@ static int32_t tsdbFSToBinary(uint8_t *p, STsdbFS *pFS) {
   uint32_t nSet = taosArrayGetSize(pFS->aDFileSet);
 
   // version
-  n += tPutI8(p ? p + n : p, 0);
+  n += tPutI8(p ? p + n : p, 0, true);
 
   // SDelFile
-  n += tPutI8(p ? p + n : p, hasDel);
+  n += tPutI8(p ? p + n : p, hasDel, true);
   if (hasDel) {
     n += tPutDelFile(p ? p + n : p, pFS->pDelFile);
   }
 
   // SArray<SDFileSet>
-  n += tPutU32v(p ? p + n : p, nSet);
+  n += tPutU32v(p ? p + n : p, nSet, true);
   for (uint32_t iSet = 0; iSet < nSet; iSet++) {
     n += tPutDFileSet(p ? p + n : p, (SDFileSet *)taosArrayGet(pFS->aDFileSet, iSet));
   }
@@ -45,11 +45,11 @@ static int32_t tsdbBinaryToFS(uint8_t *pData, int64_t nData, STsdbFS *pFS) {
   int32_t n = 0;
 
   // version
-  n += tGetI8(pData + n, NULL);
+  n += tGetI8(pData + n, NULL, true);
 
   // SDelFile
   int8_t hasDel = 0;
-  n += tGetI8(pData + n, &hasDel);
+  n += tGetI8(pData + n, &hasDel, true);
   if (hasDel) {
     pFS->pDelFile = (SDelFile *)taosMemoryCalloc(1, sizeof(SDelFile));
     if (pFS->pDelFile == NULL) {
@@ -66,7 +66,7 @@ static int32_t tsdbBinaryToFS(uint8_t *pData, int64_t nData, STsdbFS *pFS) {
   // aDFileSet
   taosArrayClear(pFS->aDFileSet);
   uint32_t nSet = 0;
-  n += tGetU32v(pData + n, &nSet);
+  n += tGetU32v(pData + n, &nSet, true);
   for (uint32_t iSet = 0; iSet < nSet; iSet++) {
     SDFileSet fSet = {0};
 

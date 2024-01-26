@@ -75,6 +75,7 @@ typedef struct SBlkInfo         SBlkInfo;
 typedef struct STsdbDataIter2   STsdbDataIter2;
 typedef struct STsdbFilterInfo  STsdbFilterInfo;
 typedef struct STFileSystem     STFileSystem;
+typedef struct STsdbRowKey      STsdbRowKey;
 
 #define TSDBROW_ROW_FMT ((int8_t)0x0)
 #define TSDBROW_COL_FMT ((int8_t)0x1)
@@ -163,19 +164,20 @@ int32_t tCmprBlockL(void const *lhs, void const *rhs);
 #define tBlockDataLastKey(PBLOCKDATA)              TSDBROW_KEY(&tBlockDataLastRow(PBLOCKDATA))
 #define tBlockDataGetColDataByIdx(PBLOCKDATA, IDX) (&(PBLOCKDATA)->aColData[IDX])
 
-int32_t tBlockDataCreate(SBlockData *pBlockData);
-void    tBlockDataDestroy(SBlockData *pBlockData);
-int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema, int16_t *aCid, int32_t nCid);
-void    tBlockDataReset(SBlockData *pBlockData);
-int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);
-int32_t tBlockDataUpdateRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
-int32_t tBlockDataTryUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, int64_t uid);
-int32_t tBlockDataUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);
-void    tBlockDataClear(SBlockData *pBlockData);
-void    tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData);
-int32_t tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, int32_t *szOut, uint8_t *aBuf[],
-                       int32_t aBufN[]);
-int32_t tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uint8_t *aBuf[]);
+int32_t   tBlockDataCreate(SBlockData *pBlockData);
+void      tBlockDataDestroy(SBlockData *pBlockData);
+int32_t   tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema, int16_t *aCid, int32_t nCid);
+void      tBlockDataReset(SBlockData *pBlockData);
+int32_t   tBlockDataAddColData(SBlockData *pBlockData, int16_t cid, int8_t type, int8_t cflag, SColData **ppColData);
+int32_t   tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);
+int32_t   tBlockDataUpdateRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
+int32_t   tBlockDataTryUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, int64_t uid);
+int32_t   tBlockDataUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);
+void      tBlockDataClear(SBlockData *pBlockData);
+SColData *tBlockDataGetColData(SBlockData *pBlockData, int16_t cid);
+int32_t   tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, int32_t *szOut, uint8_t *aBuf[],
+                         int32_t aBufN[]);
+int32_t   tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uint8_t *aBuf[]);
 // SDiskDataHdr
 int32_t tPutDiskDataHdr(uint8_t *p, const SDiskDataHdr *pHdr);
 int32_t tGetDiskDataHdr(uint8_t *p, void *ph);
@@ -288,14 +290,6 @@ typedef struct {
 
 int32_t tsdbMerge(void *arg);
 
-// tsdbDiskData ==============================================================================================
-int32_t tDiskDataBuilderCreate(SDiskDataBuilder **ppBuilder);
-void   *tDiskDataBuilderDestroy(SDiskDataBuilder *pBuilder);
-int32_t tDiskDataBuilderInit(SDiskDataBuilder *pBuilder, STSchema *pTSchema, TABLEID *pId, uint8_t cmprAlg,
-                             uint8_t calcSma);
-int32_t tDiskDataBuilderClear(SDiskDataBuilder *pBuilder);
-int32_t tDiskDataAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTSchema, TABLEID *pId);
-int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, const SDiskData **ppDiskData, const SBlkInfo **ppBlkInfo);
 // tsdbDataIter.c ==============================================================================================
 #define TSDB_MEM_TABLE_DATA_ITER 0
 #define TSDB_DATA_FILE_DATA_ITER 1
@@ -436,6 +430,11 @@ struct TSDBROW {
   };
 };
 
+struct STsdbRowKey {
+  SRowKey rowkey;
+  int64_t version;
+};
+
 struct SBlockIdx {
   int64_t suid;
   int64_t uid;
@@ -453,7 +452,7 @@ struct SMapData {
 struct SBlockCol {
   int16_t cid;
   int8_t  type;
-  int8_t  smaOn;
+  int8_t  cflag;
   int8_t  flag;      // HAS_NONE|HAS_NULL|HAS_VALUE
   int32_t szOrigin;  // original column value size (only save for variant data type)
   int32_t szBitmap;  // bitmap size, 0 only for flag == HAS_VAL
@@ -561,6 +560,7 @@ struct SDiskDataHdr {
   int32_t  szBlkCol;
   int32_t  nRow;
   int8_t   cmprAlg;
+  int8_t   numPrimaryKeyCols;
 };
 
 struct SDelFile {

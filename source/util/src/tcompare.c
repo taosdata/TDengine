@@ -17,13 +17,13 @@
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 #include "tcompare.h"
+#include "osString.h"
 #include "regex.h"
 #include "tdef.h"
 #include "thash.h"
 #include "tlog.h"
 #include "tutil.h"
 #include "types.h"
-#include "osString.h"
 
 int32_t setChkInBytes1(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;
@@ -209,11 +209,11 @@ int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
   int32_t len1 = varDataLen(pLeft);
   int32_t len2 = varDataLen(pRight);
 
-  int32_t ret = tasoUcs4Compare((TdUcs4 *)varDataVal(pLeft), (TdUcs4 *)varDataVal(pRight), len1>len2 ? len2:len1);
+  int32_t ret = tasoUcs4Compare((TdUcs4 *)varDataVal(pLeft), (TdUcs4 *)varDataVal(pRight), len1 > len2 ? len2 : len1);
   if (ret == 0) {
     if (len1 > len2)
       return 1;
-    else if(len1 < len2)
+    else if (len1 < len2)
       return -1;
     else
       return 0;
@@ -242,9 +242,7 @@ int32_t compareLenBinaryVal(const void *pLeft, const void *pRight) {
   }
 }
 
-int32_t compareLenBinaryValDesc(const void *pLeft, const void *pRight) {
-  return compareLenBinaryVal(pRight, pLeft);
-}
+int32_t compareLenBinaryValDesc(const void *pLeft, const void *pRight) { return compareLenBinaryVal(pRight, pLeft); }
 
 // string > number > bool > null
 // ref: https://dev.mysql.com/doc/refman/8.0/en/json.html#json-comparison
@@ -328,7 +326,7 @@ int32_t compareInt8Uint16(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt8Uint32(const void *pLeft, const void *pRight) {
-  int8_t   left = GET_INT8_VAL(pLeft);
+  int8_t left = GET_INT8_VAL(pLeft);
   if (left < 0) return -1;
   uint32_t right = GET_UINT32_VAL(pRight);
   if ((uint32_t)left > right) return 1;
@@ -337,7 +335,7 @@ int32_t compareInt8Uint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt8Uint64(const void *pLeft, const void *pRight) {
-  int8_t   left = GET_INT8_VAL(pLeft);
+  int8_t left = GET_INT8_VAL(pLeft);
   if (left < 0) return -1;
   uint64_t right = GET_UINT64_VAL(pRight);
   if ((uint64_t)left > right) return 1;
@@ -402,7 +400,7 @@ int32_t compareInt16Uint16(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt16Uint32(const void *pLeft, const void *pRight) {
-  int16_t  left = GET_INT16_VAL(pLeft);
+  int16_t left = GET_INT16_VAL(pLeft);
   if (left < 0) return -1;
   uint32_t right = GET_UINT32_VAL(pRight);
   if ((uint32_t)left > right) return 1;
@@ -411,7 +409,7 @@ int32_t compareInt16Uint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt16Uint64(const void *pLeft, const void *pRight) {
-  int16_t  left = GET_INT16_VAL(pLeft);
+  int16_t left = GET_INT16_VAL(pLeft);
   if (left < 0) return -1;
   uint64_t right = GET_UINT64_VAL(pRight);
   if ((uint64_t)left > right) return 1;
@@ -476,7 +474,7 @@ int32_t compareInt32Uint16(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt32Uint32(const void *pLeft, const void *pRight) {
-  int32_t  left = GET_INT32_VAL(pLeft);
+  int32_t left = GET_INT32_VAL(pLeft);
   if (left < 0) return -1;
   uint32_t right = GET_UINT32_VAL(pRight);
   if ((uint32_t)left > right) return 1;
@@ -485,7 +483,7 @@ int32_t compareInt32Uint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt32Uint64(const void *pLeft, const void *pRight) {
-  int32_t  left = GET_INT32_VAL(pLeft);
+  int32_t left = GET_INT32_VAL(pLeft);
   if (left < 0) return -1;
   uint64_t right = GET_UINT64_VAL(pRight);
   if ((uint64_t)left > right) return 1;
@@ -558,7 +556,7 @@ int32_t compareInt64Uint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt64Uint64(const void *pLeft, const void *pRight) {
-  int64_t  left = GET_INT64_VAL(pLeft);
+  int64_t left = GET_INT64_VAL(pLeft);
   if (left < 0) return -1;
   uint64_t right = GET_UINT64_VAL(pRight);
   if ((uint64_t)left > right) return 1;

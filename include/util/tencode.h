@@ -468,272 +468,217 @@ static FORCE_INLINE void* tDecoderMalloc(SDecoder* pCoder, int32_t size) {
 }
 
 // ===========================================
-#define tPutV(p, v)                    \
-  do {                                 \
-    int32_t n = 0;                     \
-    for (;;) {                         \
-      if (v <= 0x7f) {                 \
-        if (p) p[n] = v;               \
-        n++;                           \
-        break;                         \
-      }                                \
-      if (p) p[n] = (v & 0x7f) | 0x80; \
-      n++;                             \
-      v >>= 7;                         \
-    }                                  \
-    return n;                          \
+#define TPUT(TYPE, BUF, VAL, FORWARD)           \
+  do {                                          \
+    if (BUF) {                                  \
+      if (FORWARD) {                            \
+        *(TYPE*)(BUF) = (VAL);                  \
+      } else {                                  \
+        *(TYPE*)((BUF) - sizeof(TYPE)) = (VAL); \
+      }                                         \
+    }                                           \
+    return sizeof(TYPE);                        \
+  } while (0)
+
+#define TGET(TYPE, BUF, VAL, FORWARD)                 \
+  do {                                                \
+    if (FORWARD) {                                    \
+      *(TYPE*)(VAL) = *(TYPE*)(BUF);                  \
+    } else {                                          \
+      *(TYPE*)(VAL) = *(TYPE*)((BUF) - sizeof(TYPE)); \
+    }                                                 \
+    return sizeof(TYPE);                              \
+  } while (0)
+
+#define TPUTV(BUF, VAL, FORWARD)                   \
+  do {                                             \
+    int32_t n = 0;                                 \
+    for (;;) {                                     \
+      if ((VAL) < 0x80) {                          \
+        if (BUF) {                                 \
+          if (FORWARD) {                           \
+            (BUF)[n] = (VAL);                      \
+          } else {                                 \
+            (BUF)[-(n + 1)] = (VAL);               \
+          }                                        \
+        }                                          \
+        n++;                                       \
+        break;                                     \
+      } else {                                     \
+        if (BUF) {                                 \
+          if (FORWARD) {                           \
+            (BUF)[n] = ((VAL)&0x7f) | 0x80;        \
+          } else {                                 \
+            (BUF)[-(n + 1)] = ((VAL)&0x7f) | 0x80; \
+          }                                        \
+        }                                          \
+        n++;                                       \
+        (VAL) >>= 7;                               \
+      }                                            \
+    }                                              \
+    return n;                                      \
+  } while (0)
+
+#define TGETV(BUF, VAL, FORWARD)                           \
+  do {                                                     \
+    int32_t n = 0;                                         \
+    if (VAL) {                                             \
+      *(VAL) = 0;                                          \
+    }                                                      \
+    for (;;) {                                             \
+      if (FORWARD) {                                       \
+        if (VAL) {                                         \
+          (*(VAL)) |= ((BUF)[n] & 0x7f) << (7 * n);        \
+        }                                                  \
+        if ((BUF)[n++] < 0x80) break;                      \
+      } else {                                             \
+        if (VAL) {                                         \
+          (*(VAL)) |= ((BUF)[-(n + 1)] & 0x7f) << (7 * n); \
+        }                                                  \
+        if ((BUF)[-(n++)] < 0x80) break;                   \
+      }                                                    \
+    }                                                      \
+    return n;                                              \
   } while (0)
 
 // PUT
-static FORCE_INLINE int32_t tPutU8(uint8_t* p, uint8_t v) {
-  if (p) ((uint8_t*)p)[0] = v;
-  return sizeof(uint8_t);
-}
+static FORCE_INLINE int32_t tPutU8(uint8_t* p, uint8_t v, bool forward) { TPUT(uint8_t, p, v, forward); }
+static FORCE_INLINE int32_t tPutI8(uint8_t* p, int8_t v, bool forward) { TPUT(int8_t, p, v, forward); }
+static FORCE_INLINE int32_t tPutU16(uint8_t* p, uint16_t v, bool forward) { TPUT(uint16_t, p, v, forward); }
+static FORCE_INLINE int32_t tPutI16(uint8_t* p, int16_t v, bool forward) { TPUT(int16_t, p, v, forward); }
+static FORCE_INLINE int32_t tPutU32(uint8_t* p, uint32_t v, bool forward) { TPUT(uint32_t, p, v, forward); }
+static FORCE_INLINE int32_t tPutI32(uint8_t* p, int32_t v, bool forward) { TPUT(int32_t, p, v, forward); }
+static FORCE_INLINE int32_t tPutU64(uint8_t* p, uint64_t v, bool forward) { TPUT(uint64_t, p, v, forward); }
+static FORCE_INLINE int32_t tPutI64(uint8_t* p, int64_t v, bool forward) { TPUT(int64_t, p, v, forward); }
 
-static FORCE_INLINE int32_t tPutI8(uint8_t* p, int8_t v) {
-  if (p) ((int8_t*)p)[0] = v;
-  return sizeof(int8_t);
-}
-
-static FORCE_INLINE int32_t tPutU16(uint8_t* p, uint16_t v) {
-  if (p) ((uint16_t*)p)[0] = v;
-  return sizeof(uint16_t);
-}
-
-static FORCE_INLINE int32_t tPutI16(uint8_t* p, int16_t v) {
-  if (p) ((int16_t*)p)[0] = v;
-  return sizeof(int16_t);
-}
-
-static FORCE_INLINE int32_t tPutU32(uint8_t* p, uint32_t v) {
-  if (p) ((uint32_t*)p)[0] = v;
-  return sizeof(uint32_t);
-}
-
-static FORCE_INLINE int32_t tPutI32(uint8_t* p, int32_t v) {
-  if (p) ((int32_t*)p)[0] = v;
-  return sizeof(int32_t);
-}
-
-static FORCE_INLINE int32_t tPutU64(uint8_t* p, uint64_t v) {
-  if (p) ((uint64_t*)p)[0] = v;
-  return sizeof(uint64_t);
-}
-
-static FORCE_INLINE int32_t tPutI64(uint8_t* p, int64_t v) {
-  if (p) ((int64_t*)p)[0] = v;
-  return sizeof(int64_t);
-}
-
-static FORCE_INLINE int32_t tPutFloat(uint8_t* p, float f) {
+static FORCE_INLINE int32_t tPutFloat(uint8_t* p, float f, bool forward) {
   union {
     uint32_t ui;
     float    f;
-  } v;
-  v.f = f;
-
-  return tPutU32(p, v.ui);
+  } v = {.f = f};
+  return tPutU32(p, v.ui, forward);
 }
 
-static FORCE_INLINE int32_t tPutDouble(uint8_t* p, double d) {
+static FORCE_INLINE int32_t tPutDouble(uint8_t* p, double d, bool forward) {
   union {
     uint64_t ui;
     double   d;
-  } v;
-  v.d = d;
-
-  return tPutU64(p, v.ui);
+  } v = {.d = d};
+  return tPutU64(p, v.ui, forward);
 }
 
-static FORCE_INLINE int32_t tPutU16v(uint8_t* p, uint16_t v) { tPutV(p, v); }
-
-static FORCE_INLINE int32_t tPutI16v(uint8_t* p, int16_t v) { return tPutU16v(p, ZIGZAGE(int16_t, v)); }
-
-static FORCE_INLINE int32_t tPutU32v(uint8_t* p, uint32_t v) { tPutV(p, v); }
-
-static FORCE_INLINE int32_t tPutI32v(uint8_t* p, int32_t v) { return tPutU32v(p, ZIGZAGE(int32_t, v)); }
-
-static FORCE_INLINE int32_t tPutU64v(uint8_t* p, uint64_t v) { tPutV(p, v); }
-
-static FORCE_INLINE int32_t tPutI64v(uint8_t* p, int64_t v) { return tPutU64v(p, ZIGZAGE(int64_t, v)); }
+static FORCE_INLINE int32_t tPutU16v(uint8_t* p, uint16_t v, bool forward) { TPUTV(p, v, forward); }
+static FORCE_INLINE int32_t tPutI16v(uint8_t* p, int16_t v, bool forward) {
+  return tPutU16v(p, ZIGZAGE(int16_t, v), forward);
+}
+static FORCE_INLINE int32_t tPutU32v(uint8_t* p, uint32_t v, bool forward) { TPUTV(p, v, forward); }
+static FORCE_INLINE int32_t tPutI32v(uint8_t* p, int32_t v, bool forward) {
+  return tPutU32v(p, ZIGZAGE(int32_t, v), forward);
+}
+static FORCE_INLINE int32_t tPutU64v(uint8_t* p, uint64_t v, bool forward) { TPUTV(p, v, forward); }
+static FORCE_INLINE int32_t tPutI64v(uint8_t* p, int64_t v, bool forward) {
+  return tPutU64v(p, ZIGZAGE(int64_t, v), forward);
+}
 
 // GET
-static FORCE_INLINE int32_t tGetU8(uint8_t* p, uint8_t* v) {
-  if (v) *v = ((uint8_t*)p)[0];
-  return sizeof(uint8_t);
-}
-
-static FORCE_INLINE int32_t tGetI8(uint8_t* p, int8_t* v) {
-  if (v) *v = ((int8_t*)p)[0];
-  return sizeof(int8_t);
-}
-
-static FORCE_INLINE int32_t tGetU16(uint8_t* p, uint16_t* v) {
-  if (v) *v = ((uint16_t*)p)[0];
-  return sizeof(uint16_t);
-}
-
-static FORCE_INLINE int32_t tGetI16(uint8_t* p, int16_t* v) {
-  if (v) *v = ((int16_t*)p)[0];
-  return sizeof(int16_t);
-}
-
-static FORCE_INLINE int32_t tGetU32(uint8_t* p, uint32_t* v) {
-  if (v) *v = ((uint32_t*)p)[0];
-  return sizeof(uint32_t);
-}
-
-static FORCE_INLINE int32_t tGetI32(uint8_t* p, int32_t* v) {
-  if (v) *v = ((int32_t*)p)[0];
-  return sizeof(int32_t);
-}
-
-static FORCE_INLINE int32_t tGetU64(uint8_t* p, uint64_t* v) {
-  if (v) *v = ((uint64_t*)p)[0];
-  return sizeof(uint64_t);
-}
-
-static FORCE_INLINE int32_t tGetI64(uint8_t* p, int64_t* v) {
-  if (v) *v = ((int64_t*)p)[0];
-  return sizeof(int64_t);
-}
-
-static FORCE_INLINE int32_t tGetU16v(uint8_t* p, uint16_t* v) {
-  int32_t n = 0;
-
-  if (v) *v = 0;
-  for (;;) {
-    if (p[n] <= 0x7f) {
-      if (v) (*v) |= (((uint16_t)p[n]) << (7 * n));
-      n++;
-      break;
-    }
-    if (v) (*v) |= (((uint16_t)(p[n] & 0x7f)) << (7 * n));
-    n++;
-  }
-
-  return n;
-}
-
-static FORCE_INLINE int32_t tGetI16v(uint8_t* p, int16_t* v) {
-  int32_t  n;
+static FORCE_INLINE int32_t tGetU8(uint8_t* p, uint8_t* v, bool forward) { TGET(uint8_t, p, v, forward); }
+static FORCE_INLINE int32_t tGetI8(uint8_t* p, int8_t* v, bool forward) { TGET(int8_t, p, v, forward); }
+static FORCE_INLINE int32_t tGetU16(uint8_t* p, uint16_t* v, bool forward) { TGET(uint16_t, p, v, forward); }
+static FORCE_INLINE int32_t tGetI16(uint8_t* p, int16_t* v, bool forward) { TGET(int16_t, p, v, forward); }
+static FORCE_INLINE int32_t tGetU32(uint8_t* p, uint32_t* v, bool forward) { TGET(uint32_t, p, v, forward); }
+static FORCE_INLINE int32_t tGetI32(uint8_t* p, int32_t* v, bool forward) { TGET(int32_t, p, v, forward); }
+static FORCE_INLINE int32_t tGetU64(uint8_t* p, uint64_t* v, bool forward) { TGET(uint64_t, p, v, forward); }
+static FORCE_INLINE int32_t tGetI64(uint8_t* p, int64_t* v, bool forward) { TGET(int64_t, p, v, forward); }
+static FORCE_INLINE int32_t tGetU16v(uint8_t* p, uint16_t* v, bool forward) { TGETV(p, v, forward); }
+static FORCE_INLINE int32_t tGetI16v(uint8_t* p, int16_t* v, bool forward) {
   uint16_t tv;
-
-  n = tGetU16v(p, &tv);
-  if (v) *v = ZIGZAGD(int16_t, tv);
-
-  return n;
-}
-
-static FORCE_INLINE int32_t tGetU32v(uint8_t* p, uint32_t* v) {
-  int32_t n = 0;
-
-  if (v) *v = 0;
-  for (;;) {
-    if (p[n] <= 0x7f) {
-      if (v) (*v) |= (((uint32_t)p[n]) << (7 * n));
-      n++;
-      break;
-    }
-    if (v) (*v) |= (((uint32_t)(p[n] & 0x7f)) << (7 * n));
-    n++;
+  int32_t  n = tGetU16v(p, &tv, forward);
+  if (v) {
+    *v = ZIGZAGD(int16_t, tv);
   }
-
   return n;
 }
-
-static FORCE_INLINE int32_t tGetI32v(uint8_t* p, int32_t* v) {
-  int32_t  n;
+static FORCE_INLINE int32_t tGetU32v(uint8_t* p, uint32_t* v, bool forward) { TGETV(p, v, forward); }
+static FORCE_INLINE int32_t tGetI32v(uint8_t* p, int32_t* v, bool forward) {
   uint32_t tv;
-
-  n = tGetU32v(p, &tv);
-  if (v) *v = ZIGZAGD(int32_t, tv);
-
-  return n;
-}
-
-static FORCE_INLINE int32_t tGetU64v(uint8_t* p, uint64_t* v) {
-  int32_t n = 0;
-
-  if (v) *v = 0;
-  for (;;) {
-    if (p[n] <= 0x7f) {
-      if (v) (*v) |= (((uint64_t)p[n]) << (7 * n));
-      n++;
-      break;
-    }
-    if (v) (*v) |= (((uint64_t)(p[n] & 0x7f)) << (7 * n));
-    n++;
+  int32_t  n = tGetU32v(p, &tv, forward);
+  if (v) {
+    *v = ZIGZAGD(int32_t, tv);
   }
-
   return n;
 }
-
-static FORCE_INLINE int32_t tGetI64v(uint8_t* p, int64_t* v) {
-  int32_t  n;
+static FORCE_INLINE int32_t tGetU64v(uint8_t* p, uint64_t* v, bool forward) { TGETV(p, v, forward); }
+static FORCE_INLINE int32_t tGetI64v(uint8_t* p, int64_t* v, bool forward) {
   uint64_t tv;
-
-  n = tGetU64v(p, &tv);
-  if (v) *v = ZIGZAGD(int64_t, tv);
-
+  int32_t  n = tGetU64v(p, &tv, forward);
+  if (v) {
+    *v = ZIGZAGD(int64_t, tv);
+  }
   return n;
 }
-
-static FORCE_INLINE int32_t tGetFloat(uint8_t* p, float* f) {
-  int32_t n = 0;
-
+static FORCE_INLINE int32_t tGetFloat(uint8_t* p, float* f, bool forward) {
   union {
     uint32_t ui;
     float    f;
   } v;
 
-  n = tGetU32(p, &v.ui);
-
-  *f = v.f;
+  int32_t n = tGetU32(p, &v.ui, forward);
+  if (f) {
+    *f = v.f;
+  }
   return n;
 }
 
-static FORCE_INLINE int32_t tGetDouble(uint8_t* p, double* d) {
-  int32_t n = 0;
-
+static FORCE_INLINE int32_t tGetDouble(uint8_t* p, double* d, bool forward) {
   union {
     uint64_t ui;
     double   d;
   } v;
 
-  n = tGetU64(p, &v.ui);
-
-  *d = v.d;
+  int32_t n = tGetU64(p, &v.ui, forward);
+  if (d) {
+    *d = v.d;
+  }
   return n;
 }
 
 // =====================
-static FORCE_INLINE int32_t tPutBinary(uint8_t* p, uint8_t* pData, uint32_t nData) {
-  int n = 0;
-
-  n += tPutU32v(p ? p + n : p, nData);
-  if (p) memcpy(p + n, pData, nData);
+static FORCE_INLINE int32_t tPutBinary(uint8_t* p, uint8_t* pData, uint32_t nData, bool forward) {
+  int32_t n = tPutU32v(p, nData, forward);
+  if (p) {
+    if (forward) {
+      memcpy(p + n, pData, nData);
+    } else {
+      memcpy(p - n - nData, pData, nData);
+    }
+  }
   n += nData;
 
   return n;
 }
 
-static FORCE_INLINE int32_t tGetBinary(uint8_t* p, uint8_t** ppData, uint32_t* nData) {
-  int32_t  n = 0;
+static FORCE_INLINE int32_t tGetBinary(uint8_t* p, uint8_t** ppData, uint32_t* nData, bool forward) {
   uint32_t nt;
-
-  n += tGetU32v(p, &nt);
-  if (nData) *nData = nt;
-  if (ppData) *ppData = p + n;
-  n += nt;
-
-  return n;
+  int32_t  n = tGetU32v(p, &nt, forward);
+  if (nData) {
+    *nData = nt;
+  }
+  if (ppData) {
+    if (forward) {
+      *ppData = p + n;
+    } else {
+      *ppData = p - n - nt;
+    }
+  }
+  return n + nt;
 }
 
-static FORCE_INLINE int32_t tPutCStr(uint8_t* p, char* pData) {
-  return tPutBinary(p, (uint8_t*)pData, strlen(pData) + 1);
+static FORCE_INLINE int32_t tPutCStr(uint8_t* p, char* pData, bool forward) {
+  return tPutBinary(p, (uint8_t*)pData, strlen(pData) + 1, forward);
 }
-static FORCE_INLINE int32_t tGetCStr(uint8_t* p, char** ppData) { return tGetBinary(p, (uint8_t**)ppData, NULL); }
+static FORCE_INLINE int32_t tGetCStr(uint8_t* p, char** ppData, bool forward) {
+  return tGetBinary(p, (uint8_t**)ppData, NULL, forward);
+}
 
 #ifdef __cplusplus
 }

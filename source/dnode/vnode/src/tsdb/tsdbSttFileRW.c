@@ -191,35 +191,156 @@ _exit:
   return code;
 }
 
+extern int32_t tBlockColAndColumnCmpr(const void *p1, const void *p2);
+
 int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *sttBlk, SBlockData *bData,
                                          STSchema *pTSchema, int16_t cids[], int32_t ncid) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t      code = 0;
+  int32_t      lino = 0;
+  int32_t      n = 0;
+  SDiskDataHdr hdr;
+  SBlockCol    primaryKeyBlockCols[TD_MAX_PRIMARY_KEY_COL];
 
-  TABLEID tbid = {.suid = sttBlk->suid};
-  if (tbid.suid == 0) {
-    tbid.uid = sttBlk->minUid;
-  } else {
-    tbid.uid = 0;
-  }
-
-  code = tBlockDataInit(bData, &tbid, pTSchema, cids, ncid);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  // uid + version + tskey
+  // load key part
   code = tRealloc(&reader->config->bufArr[0], sttBlk->bInfo.szKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tsdbReadFile(reader->fd, sttBlk->bInfo.offset, reader->config->bufArr[0], sttBlk->bInfo.szKey, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  // decode header
+  n += tGetDiskDataHdr(reader->config->bufArr[0] + n, &hdr);
+
+  ASSERT(hdr.delimiter == TSDB_FILE_DLMT);
+
+  // set data container
+  tBlockDataReset(bData);
+  bData->suid = hdr.suid;
+  bData->uid = (sttBlk->suid == 0) ? sttBlk->minUid : 0;
+  bData->nRow = hdr.nRow;
+
+  // decode primary key column indices
+  for (int32_t i = 0; i < hdr.numPrimaryKeyCols; i++) {
+    n += tGetBlockCol(reader->config->bufArr[0] + n, primaryKeyBlockCols + i);
+  }
+
+  // uid
+  if (hdr.uid == 0) {
+    ASSERT(hdr.szUid);
+    code = tsdbDecmprData(reader->config->bufArr[0] + n, hdr.szUid, TSDB_DATA_TYPE_BIGINT, hdr.cmprAlg,
+                          (uint8_t **)&bData->aUid, sizeof(int64_t) * hdr.nRow, &reader->config->bufArr[1]);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else {
+    ASSERT(hdr.szUid == 0);
+  }
+  n += hdr.szUid;
+
+  // version
+  code = tsdbDecmprData(reader->config->bufArr[0] + n, hdr.szVer, TSDB_DATA_TYPE_BIGINT, hdr.cmprAlg,
+                        (uint8_t **)&bData->aVersion, sizeof(int64_t) * hdr.nRow, &reader->config->bufArr[1]);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  n += hdr.szVer;
+
+  // ts
+  code = tsdbDecmprData(reader->config->bufArr[0] + n, hdr.szKey, TSDB_DATA_TYPE_TIMESTAMP, hdr.cmprAlg,
+                        (uint8_t **)&bData->aTSKEY, sizeof(TSKEY) * hdr.nRow, &reader->config->bufArr[1]);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  n += hdr.szKey;
+
+  // decode primary key columns
+  for (int32_t i = 0; i < hdr.numPrimaryKeyCols; i++) {
+    SColData *pColData;
+
+    code = tBlockDataAddColData(bData, primaryKeyBlockCols[i].cid, primaryKeyBlockCols[i].type,
+                                primaryKeyBlockCols[i].cflag, &pColData);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = tsdbDecmprColData(reader->config->bufArr[0] + n, &primaryKeyBlockCols[i], hdr.cmprAlg, hdr.nRow, pColData,
+                             &reader->config->bufArr[1]);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    n += (primaryKeyBlockCols[i].szBitmap + primaryKeyBlockCols[i].szOffset + primaryKeyBlockCols[i].szValue);
+  }
+
+  ASSERT(n == sttBlk->bInfo.szKey);
+
+  // regular columns load
+  bool      blockColLoaded = false;
+  int32_t   decodedBufferSize = 0;
+  SBlockCol blockCol = {.cid = 0};
+  for (int32_t i = 0; i < ncid; i++) {
+    SColData *pColData = tBlockDataGetColData(bData, cids[i]);
+    if (pColData != NULL) continue;
+
+    // load the column index if not loaded yet
+    if (!blockColLoaded) {
+      if (hdr.szBlkCol > 0) {
+        code = tRealloc(&reader->config->bufArr[0], hdr.szBlkCol);
+        TSDB_CHECK_CODE(code, lino, _exit);
+
+        code = tsdbReadFile(reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey, reader->config->bufArr[0],
+                            hdr.szBlkCol, 0);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+      blockColLoaded = true;
+    }
+
+    // search the column index
+    for (;;) {
+      if (blockCol.cid >= cids[i]) {
+        break;
+      }
+
+      if (decodedBufferSize >= hdr.szBlkCol) {
+        blockCol.cid = INT16_MAX;
+        break;
+      }
+
+      decodedBufferSize += tGetBlockCol(reader->config->bufArr[0] + decodedBufferSize, &blockCol);
+    }
+
+    STColumn *pTColumn =
+        taosbsearch(&blockCol, pTSchema->columns, pTSchema->numOfCols, sizeof(STSchema), tBlockColAndColumnCmpr, TD_EQ);
+    ASSERT(pTColumn != NULL);
+
+    code = tBlockDataAddColData(bData, cids[i], pTColumn->type, pTColumn->flags, &pColData);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    // fill the column data
+    if (blockCol.cid > cids[i]) {
+      // set as all NONE
+      for (int32_t iRow = 0; iRow < hdr.nRow; iRow++) {  // all NONE
+        code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid, pColData->type));
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+    } else if (blockCol.flag == HAS_NULL) {  // all NULL
+      for (int32_t iRow = 0; iRow < hdr.nRow; iRow++) {
+        code = tColDataAppendValue(pColData, &COL_VAL_NULL(blockCol.cid, blockCol.type));
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+    } else {
+      int32_t size1 = blockCol.szBitmap + blockCol.szOffset + blockCol.szValue;
+
+      code = tRealloc(&reader->config->bufArr[1], size1);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      code = tsdbReadFile(reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey + hdr.szBlkCol + blockCol.offset,
+                          reader->config->bufArr[1], size1, 0);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      code = tsdbDecmprColData(reader->config->bufArr[1], &blockCol, hdr.cmprAlg, hdr.nRow, pColData,
+                               &reader->config->bufArr[2]);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+  }
+
+#if 0
   // hdr
   SDiskDataHdr hdr[1];
   int32_t      size = 0;
 
   size += tGetDiskDataHdr(reader->config->bufArr[0] + size, hdr);
 
-  ASSERT(hdr->delimiter == TSDB_FILE_DLMT);
 
   bData->nRow = hdr->nRow;
   bData->uid = hdr->uid;
@@ -307,6 +428,7 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
       }
     }
   }
+#endif
 
 _exit:
   if (code) {
