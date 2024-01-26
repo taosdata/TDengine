@@ -33,6 +33,11 @@ typedef struct SStreamTransInfo {
   int32_t     transId;
 } SStreamTransInfo;
 
+typedef struct SVgroupChangeInfo {
+  SHashObj *pDBMap;
+  SArray   *pUpdateNodeList;  // SArray<SNodeUpdateInfo>
+} SVgroupChangeInfo;
+
 // time to generated the checkpoint, if now() - checkpointTs >= tsCheckpointInterval, this checkpoint will be discard
 // to avoid too many checkpoints for a taskk in the waiting list
 typedef struct SCheckpointCandEntry {
@@ -94,18 +99,19 @@ int32_t mndStreamGetRelTrans(SMnode *pMnode, int64_t streamUid);
 
 // for sma
 // TODO refactor
-int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
-int32_t mndPersistDropStreamLog(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
-
+int32_t     mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t     mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams);
 int32_t     mndGetNumOfStreamTasks(const SStreamObj *pStream);
 SArray     *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady);
 void        mndKillTransImpl(SMnode *pMnode, int32_t transId, const char *pDbName);
-void        initTransAction(STransAction *pAction, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset,
-                            int32_t retryCode);
+int32_t     setTransAction(STrans *pTrans, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset,
+                           int32_t retryCode);
 STrans     *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, const char *name, const char *pMsg);
 int32_t     mndPersistTransLog(SStreamObj *pStream, STrans *pTrans, int32_t status);
 SSdbRaw    *mndStreamActionEncode(SStreamObj *pStream);
+void        killAllCheckpointTrans(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo);
+int32_t     createStreamUpdateTrans(SStreamObj *pStream, SVgroupChangeInfo *pInfo, STrans *pTrans);
+
 SStreamObj *mndGetStreamObj(SMnode *pMnode, int64_t streamId);
 int32_t     extractNodeEpset(SMnode *pMnode, SEpSet *pEpSet, bool *hasEpset, int32_t taskId, int32_t nodeId);
 int32_t     mndProcessStreamHb(SRpcMsg *pReq);
@@ -113,6 +119,7 @@ void        saveStreamTasksInfo(SStreamObj *pStream, SStreamExecInfo *pExecNode)
 int32_t     initStreamNodeList(SMnode *pMnode);
 int32_t     mndResumeStreamTasks(STrans *pTrans, SMnode *pMnode, SStreamObj* pStream, int8_t igUntreated);
 int32_t     mndPauseStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
+
 
 #ifdef __cplusplus
 }

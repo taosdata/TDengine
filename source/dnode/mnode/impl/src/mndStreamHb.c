@@ -92,19 +92,13 @@ static int32_t createStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream)
       SEpSet  epset = {0};
       bool    hasEpset = false;
       int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
-      if (code != TSDB_CODE_SUCCESS) {
+      if (code != TSDB_CODE_SUCCESS || !hasEpset) {
         taosMemoryFree(pReq);
         continue;
       }
 
-      if (!hasEpset) {
-        taosMemoryFree(pReq);
-        continue;
-      }
-
-      STransAction action = {0};
-      initTransAction(&action, pReq, sizeof(SVResetStreamTaskReq), TDMT_VND_STREAM_TASK_RESET, &epset, 0);
-      if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+      code = setTransAction(pTrans, pReq, sizeof(SVResetStreamTaskReq), TDMT_VND_STREAM_TASK_RESET, &epset, 0);
+      if (code != 0) {
         taosMemoryFree(pReq);
         taosWUnLockLatch(&pStream->lock);
         mndTransDrop(pTrans);

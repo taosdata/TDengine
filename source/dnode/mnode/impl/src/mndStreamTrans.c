@@ -169,7 +169,7 @@ STrans *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, const 
     return NULL;
   }
 
-  mDebug("s-task:0x%" PRIx64 " start to build trans %s", pStream->uid, pMsg);
+  mInfo("s-task:0x%" PRIx64 " start to build trans %s, transId:%d", pStream->uid, pMsg, pTrans->id);
 
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetSTbName);
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
@@ -255,11 +255,132 @@ int32_t mndPersistTransLog(SStreamObj *pStream, STrans *pTrans, int32_t status) 
   return 0;
 }
 
-void initTransAction(STransAction *pAction, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset,
-                     int32_t retryCode) {
-  pAction->epSet = *pEpset;
-  pAction->contLen = contLen;
-  pAction->pCont = pCont;
-  pAction->msgType = msgType;
-  pAction->retryCode = retryCode;
+int32_t setTransAction(STrans *pTrans, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset,
+                          int32_t retryCode) {
+  STransAction action = {.epSet = *pEpset, .contLen = contLen, .pCont = pCont, .msgType = msgType, .retryCode = retryCode};
+  return mndTransAppendRedoAction(pTrans, &action);
+}
+
+int32_t doKillCheckpointTrans(SMnode *pMnode, const char *pDBName, size_t len) {
+  // data in the hash table will be removed automatically, no need to remove it here.
+  SStreamTransInfo *pTransInfo = taosHashGet(execInfo.transMgmt.pDBTrans, pDBName, len);
+  if (pTransInfo == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // not checkpoint trans, ignore
+  if (strcmp(pTransInfo->name, MND_STREAM_CHECKPOINT_NAME) != 0) {
+    mDebug("not checkpoint trans, not kill it, name:%s, transId:%d", pTransInfo->name, pTransInfo->transId);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char *pDupDBName = strndup(pDBName, len);
+  mndKillTransImpl(pMnode, pTransInfo->transId, pDupDBName);
+  taosMemoryFree(pDupDBName);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// kill all trans in the dst DB
+void killAllCheckpointTrans(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo) {
+  mDebug("start to clear checkpoints in all Dbs");
+
+  void *pIter = NULL;
+  while ((pIter = taosHashIterate(pChangeInfo->pDBMap, pIter)) != NULL) {
+    char *pDb = (char *)pIter;
+
+    size_t len = 0;
+    void  *pKey = taosHashGetKey(pDb, &len);
+    char  *p = strndup(pKey, len);
+
+    mDebug("clear checkpoint trans in Db:%s", p);
+    doKillCheckpointTrans(pMnode, pKey, len);
+    taosMemoryFree(p);
+  }
+
+  mDebug("complete clear checkpoints in Dbs");
+}
+
+static void initNodeUpdateMsg(SStreamTaskNodeUpdateMsg *pMsg, const SVgroupChangeInfo *pInfo, SStreamTaskId *pId,
+                              int32_t transId) {
+  pMsg->streamId = pId->streamId;
+  pMsg->taskId = pId->taskId;
+  pMsg->transId = transId;
+  pMsg->pNodeList = taosArrayInit(taosArrayGetSize(pInfo->pUpdateNodeList), sizeof(SNodeUpdateInfo));
+  taosArrayAddAll(pMsg->pNodeList, pInfo->pUpdateNodeList);
+}
+
+static int32_t doBuildStreamTaskUpdateMsg(void **pBuf, int32_t *pLen, SVgroupChangeInfo *pInfo, int32_t nodeId,
+                                          SStreamTaskId *pId, int32_t transId) {
+  SStreamTaskNodeUpdateMsg req = {0};
+  initNodeUpdateMsg(&req, pInfo, pId, transId);
+
+  int32_t code = 0;
+  int32_t blen;
+
+  tEncodeSize(tEncodeStreamTaskUpdateMsg, &req, blen, code);
+  if (code < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosArrayDestroy(req.pNodeList);
+    return -1;
+  }
+
+  int32_t tlen = sizeof(SMsgHead) + blen;
+
+  void *buf = taosMemoryMalloc(tlen);
+  if (buf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosArrayDestroy(req.pNodeList);
+    return -1;
+  }
+
+  void    *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+  SEncoder encoder;
+  tEncoderInit(&encoder, abuf, tlen);
+  tEncodeStreamTaskUpdateMsg(&encoder, &req);
+
+  SMsgHead *pMsgHead = (SMsgHead *)buf;
+  pMsgHead->contLen = htonl(tlen);
+  pMsgHead->vgId = htonl(nodeId);
+
+  tEncoderClear(&encoder);
+
+  *pBuf = buf;
+  *pLen = tlen;
+
+  taosArrayDestroy(req.pNodeList);
+  return TSDB_CODE_SUCCESS;
+}
+
+// todo extract method: traverse stream tasks
+// build trans to update the epset
+int32_t createStreamUpdateTrans(SStreamObj *pStream, SVgroupChangeInfo *pInfo, STrans *pTrans) {
+  mDebug("start to build stream:0x%" PRIx64 " tasks epset update", pStream->uid);
+
+  taosWLockLatch(&pStream->lock);
+  int32_t numOfLevels = taosArrayGetSize(pStream->tasks);
+
+  for (int32_t j = 0; j < numOfLevels; ++j) {
+    SArray *pLevel = taosArrayGetP(pStream->tasks, j);
+
+    int32_t numOfTasks = taosArrayGetSize(pLevel);
+    for (int32_t k = 0; k < numOfTasks; ++k) {
+      SStreamTask *pTask = taosArrayGetP(pLevel, k);
+
+      void   *pBuf = NULL;
+      int32_t len = 0;
+      streamTaskUpdateEpsetInfo(pTask, pInfo->pUpdateNodeList);
+      doBuildStreamTaskUpdateMsg(&pBuf, &len, pInfo, pTask->info.nodeId, &pTask->id, pTrans->id);
+
+      int32_t code = setTransAction(pTrans, pBuf, len, TDMT_VND_STREAM_TASK_UPDATE, &pTask->info.epSet, 0);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosMemoryFree(pBuf);
+        taosWUnLockLatch(&pStream->lock);
+        return -1;
+      }
+    }
+  }
+
+  taosWUnLockLatch(&pStream->lock);
+  return 0;
 }

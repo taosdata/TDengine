@@ -160,15 +160,14 @@ static int32_t doResumeStreamTask(STrans *pTrans, SMnode *pMnode, SStreamTask *p
   SEpSet  epset = {0};
   bool    hasEpset = false;
   int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS || (!hasEpset)) {
     terrno = code;
     taosMemoryFree(pReq);
     return -1;
   }
 
-  STransAction action = {0};
-  initTransAction(&action, pReq, sizeof(SVResumeStreamTaskReq), TDMT_STREAM_TASK_RESUME, &epset, 0);
-  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+  code = setTransAction(pTrans, pReq, sizeof(SVResumeStreamTaskReq), TDMT_STREAM_TASK_RESUME, &epset, 0);
+  if (code != 0) {
     taosMemoryFree(pReq);
     return -1;
   }
@@ -233,25 +232,18 @@ static int32_t doPauseStreamTask(SMnode *pMnode, STrans *pTrans, SStreamTask *pT
   pReq->taskId = pTask->id.taskId;
   pReq->streamId = pTask->id.streamId;
 
-  SEpSet epset = {0};
-  mDebug("pause node:%d, epset:%d", pTask->info.nodeId, epset.numOfEps);
+  SEpSet  epset = {0};
   bool    hasEpset = false;
   int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS || !hasEpset) {
     terrno = code;
     taosMemoryFree(pReq);
-    return -1;
+    return code;
   }
 
-  // no valid epset, return directly without redoAction
-  if (!hasEpset) {
-    taosMemoryFree(pReq);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  STransAction action = {0};
-  initTransAction(&action, pReq, sizeof(SVPauseStreamTaskReq), TDMT_STREAM_TASK_PAUSE, &epset, 0);
-  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+  mDebug("pause node:%d, epset:%d", pTask->info.nodeId, epset.numOfEps);
+  code = setTransAction(pTrans, pReq, sizeof(SVPauseStreamTaskReq), TDMT_STREAM_TASK_PAUSE, &epset, 0);
+  if (code != 0) {
     taosMemoryFree(pReq);
     return -1;
   }
