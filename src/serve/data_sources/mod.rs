@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use actix_files::NamedFile;
 use actix_web::{
     get,
     http::header::ContentType,
@@ -15,15 +14,14 @@ use taos::{Code, IntoDsn};
 use tokio::time::timeout;
 use utoipa::*;
 
+use crate::serve::{controller::TaskControllerRef, task::Failed};
 pub use definition::*;
+pub use point_loader::*;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::runners::historian;
 use taosx_core::runners::historian::AVEVA_HISTORIAN_ID;
 use taosx_core::{list_datasets_from, validate_dsn, DataSetsReq};
-
-use crate::serve::TaskController;
-use crate::serve::{controller::TaskControllerRef, task::Failed};
 
 mod definition;
 
@@ -422,6 +420,8 @@ pub(crate) async fn get_sample_impl(
     }
 }
 
+mod point_loader;
+
 #[utoipa::path(
     tag = "data sources",
     // request_body = DataSetsReq,
@@ -447,91 +447,64 @@ pub(super) async fn download_all_data_set_file(
     }
 }
 
-#[derive(Debug, Deserialize, ToSchema, IntoParams)]
-pub struct DownloadAllPointsParams {
-    from: String,
-    via: Option<i64>,
-    categories: String,
-}
-
-async fn download_all_point_csv_file(
+#[utoipa::path(
+    tag = "data sources",
+    responses(
+        (status = 200, description = "init download opc file task successfully", body = String),
+        (status = 500, description = "task start error", body = Failed),
+    ),
+)]
+#[get("/ds/in/point/file/download/task")]
+pub(super) async fn init_download_file_task(
     controller: Data<TaskControllerRef>,
-    // data: Query<DataSetsReq>,
     params: Query<DownloadAllPointsParams>,
-) -> anyhow::Result<NamedFile> {
-    let params = params.into_inner();
-    let data = get_all_points(
-        params.from,
-        params.via,
-        params.categories,
-        controller.into_inner().as_ref(),
-    )
-    .await?;
-
-    let mut config_file = tempfile::NamedTempFile::new()?;
-    tracing::debug!(
-        "temp file path: {}",
-        &config_file.path().to_str().unwrap_or("")
-    );
-    use std::io::Write;
-    write!(config_file, "{}", &data)?;
-    Ok(NamedFile::open(config_file.path().to_path_buf())?)
+) -> impl Responder {
+    match arrange_point_file_download_task(controller, params).await {
+        Ok(task_id) => Ok(HttpResponse::Ok().json(TaskTicket::new_task(task_id))),
+        Err(err) => Err(Failed {
+            code: 0xFFFF.into(),
+            message: format!("{:#}", err),
+        }),
+    }
 }
 
-pub(crate) async fn get_all_points(
-    from: String,
-    via: Option<i64>,
-    categories: String,
-    controller: &TaskController,
-) -> anyhow::Result<String> {
-    let from = from.into_dsn()?;
-    let pattern;
-    match from.driver.as_str() {
-        "pi" | "pibackfill" => {
-            pattern = Some(String::from("*"));
+#[utoipa::path(
+    tag = "data sources",
+    responses(
+        (status = 200, description = "check opc file ready", body = String),
+        (status = 500, description = "check opc file error", body = Failed),
+    ),
+)]
+#[get("/ds/in/point/file/are/you/ready")]
+pub(super) async fn check_point_file_ready(params: Query<TaskTicket>) -> impl Responder {
+    match check_task_complete(params.ticket.clone()).await {
+        Ok(complete) => {
+            Ok(HttpResponse::Ok().json(TaskTicket::complete(params.ticket.clone(), complete)))
         }
-        _ => {
-            pattern = Some(String::from(".*"));
-        }
+        Err(err) => Err(Failed {
+            code: 0xFFFF.into(),
+            message: format!("{:#}", err),
+        }),
     }
-    let limit = usize::MAX / 2 - 1; // cause usize::MAX out of range i64 type when exec toml::to_string()
-    let data = DataSetsReq {
-        from: from.to_string(),
-        categories: vec![categories],
-        via,
-        offset: 0,
-        pattern,
-        limit,
-        lang: None,
-    };
-    match if let Some(agent) = data.via {
-        controller.list_datasets_via_agent(agent, data).await
-    } else {
-        list_datasets_from(&data).await
-    } {
-        Ok(data) => {
-            let data = match from.driver.as_str() {
-                "pi" | "pibackfill" => data.into_iter().map(|set| set.id).join("\n"),
-                "opcua" | "opcda" => {
-                    // generate opc template csv
-                    let mut result = String::new();
-                    result.push_str("Point Code(Required and will be point child table name),OPC Point Id (Required)\ntbname,point_id\n");
-                    let data = if from.driver.eq("opcua") {
-                        data.into_iter()
-                            .map(|set| format!("Meter_{{ns}}_{{id}},{}", set.id))
-                            .join("\n")
-                    } else {
-                        data.into_iter()
-                            .map(|set| format!("Meter_{{TagName}},{}", set.id))
-                            .join("\n")
-                    };
-                    result.push_str(data.as_str());
-                    result
-                }
-                _ => unimplemented!(),
-            };
-            Ok(data)
-        }
-        Err(err) => Err(err),
+}
+
+#[utoipa::path(
+    tag = "data sources",
+    responses(
+        (status = 200, description = "check opc file ready", body = String),
+        (status = 500, description = "check opc file error", body = Failed),
+    ),
+)]
+#[get("/ds/in/point/file/async")]
+pub(super) async fn download_point_file(
+    params: Query<TaskTicket>,
+    req: HttpRequest,
+) -> impl Responder {
+    match load_point_file(&params.ticket, false).await {
+        Ok(named_file) => Ok(named_file.into_response(&req)),
+        Err(err) => Err(Failed {
+            code: 0xFFFF.into(),
+            message: format!("{:#}", err),
+        }),
     }
 }

@@ -332,13 +332,14 @@ pub fn executor_worker_threads(jobs: usize) -> usize {
 }
 
 fn build_runtime(
+    thread_name: &str,
     worker_threads: usize,
 ) -> std::result::Result<tokio::runtime::Runtime, std::io::Error> {
     tokio::runtime::Builder::new_multi_thread()
         .rng_seed(tokio::runtime::RngSeed::from_bytes(b"taosx rng seed"))
         .global_queue_interval(61)
         .max_blocking_threads(4096)
-        .thread_name("taosx")
+        .thread_name(thread_name)
         .worker_threads(worker_threads)
         .enable_all()
         .build()
@@ -568,7 +569,7 @@ fn main() -> Result<()> {
 
     let span_events = args.opt_args.tracing_events.clone();
     let worker_threads = args.global.jobs.clone();
-    let runtime = build_runtime(worker_threads)?;
+    let runtime = build_runtime("taosx", worker_threads)?;
     let log_dir = get_log_dir("");
     let rolling_file_appender = create_rolling_file_appender(&log_dir);
     let (non_blocking, _guard) = tracing_appender::non_blocking(rolling_file_appender);
@@ -591,7 +592,7 @@ fn main() -> Result<()> {
         }
         Commands::Serve(serve) => {
             let _ = tracing::info_span!("serve").entered();
-            let scheduler_rt = build_runtime(worker_threads * 2)?;
+            let scheduler_rt = build_runtime("taosx-server", worker_threads * 2)?;
 
             let (agent_integration_channel, agent_rpc_channel, scheduler_notifier) =
                 scheduler_rt.block_on(serve.channels());
@@ -599,7 +600,7 @@ fn main() -> Result<()> {
             let scheduler = scheduler_rt
                 .block_on(serve.scheduler(scheduler_notifier, agent_integration_channel))?;
 
-            let grpc_rt = build_runtime(worker_threads)?;
+            let grpc_rt = build_runtime("grpc-server", worker_threads)?;
 
             // let api_rt = build_runtime(worker_threads)?;
             let max_activities_per_entity = args.global.max_activities_per_entity.unwrap_or(100);
