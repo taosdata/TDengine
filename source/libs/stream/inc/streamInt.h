@@ -123,8 +123,6 @@ int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t
 STaskId streamTaskGetTaskId(const SStreamTask* pTask);
 void    streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo);
 void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
-int32_t streamTaskBuildScanhistoryRspMsg(SStreamTask* pTask, SStreamScanHistoryFinishReq* pReq, void** pBuffer,
-                                         int32_t* pLen);
 int32_t streamTaskFillHistoryFinished(SStreamTask* pTask);
 
 void              streamClearChkptReadyMsg(SStreamTask* pTask);
@@ -134,10 +132,7 @@ int32_t           streamQueueItemGetSize(const SStreamQueueItem* pItem);
 void              streamQueueItemIncSize(const SStreamQueueItem* pItem, int32_t size);
 const char*       streamQueueItemGetTypeStr(int32_t type);
 SStreamQueueItem* streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem);
-
-int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo, SStreamScanHistoryFinishReq* pReq);
-int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
-int32_t streamTransferStateToStreamTask(SStreamTask* pTask);
+int32_t           streamTransferStateToStreamTask(SStreamTask* pTask);
 
 SStreamQueue* streamQueueOpen(int64_t cap);
 void          streamQueueClose(SStreamQueue* pQueue, int32_t taskId);

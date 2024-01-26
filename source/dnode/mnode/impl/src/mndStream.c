@@ -29,6 +29,10 @@
 
 #define MND_STREAM_MAX_NUM      60
 
+typedef struct SMStreamNodeCheckMsg {
+  int8_t placeHolder;  // // to fix windows compile error, define place holder
+} SMStreamNodeCheckMsg;
+
 static int32_t  mndNodeCheckSentinel = 0;
 SStreamExecInfo execInfo;
 
@@ -55,13 +59,11 @@ static int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq);
 
 static SVgroupChangeInfo mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pPrevNodeList, const SArray *pNodeList);
 
-static void    removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
-static int32_t removeExpirednodeEntryAndTask(SArray *pNodeSnapshot);
-static int32_t doKillCheckpointTrans(SMnode *pMnode, const char *pDbName, size_t len);
-
-static void    freeCheckpointCandEntry(void *);
-static void    freeTaskList(void *param);
-
+static void     removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
+static int32_t  removeExpirednodeEntryAndTask(SArray *pNodeSnapshot);
+static int32_t  doKillCheckpointTrans(SMnode *pMnode, const char *pDbName, size_t len);
+static void     freeCheckpointCandEntry(void *);
+static void     freeTaskList(void *param);
 static SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
 
 SSdbRaw       *mndStreamSeqActionEncode(SStreamObj *pStream);
@@ -1708,7 +1710,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
 
   int32_t code = mndStreamRegisterTrans(pTrans, MND_STREAM_RESUME_NAME, pStream->uid);
 
-  // resume all tasks
+  // set the resume action
   if (mndStreamSetResumeAction(pTrans, pMnode, pStream, pauseReq.igUntreated) < 0) {
     mError("stream:%s, failed to drop task since %s", pauseReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
@@ -2080,10 +2082,6 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
   atomic_store_32(&mndNodeCheckSentinel, 0);
   return 0;
 }
-
-typedef struct SMStreamNodeCheckMsg {
-  int8_t placeHolder;  // // to fix windows compile error, define place holder
-} SMStreamNodeCheckMsg;
 
 static int32_t mndProcessNodeCheck(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;

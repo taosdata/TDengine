@@ -592,108 +592,6 @@ int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamAggUpstreamScanHistoryFinish(SStreamTask* pTask) {
-  void* exec = pTask->exec.pExecutor;
-  if (pTask->info.fillHistory && qRestoreStreamOperatorOption(exec) < 0) {
-    return -1;
-  }
-
-  if (qStreamRecoverFinish(exec) < 0) {
-    return -1;
-  }
-  return 0;
-}
-
-int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistoryFinishReq* pReq,
-                                          SRpcHandleInfo* pRpcInfo) {
-  int32_t taskLevel = pTask->info.taskLevel;
-  ASSERT(taskLevel == TASK_LEVEL__AGG || taskLevel == TASK_LEVEL__SINK);
-
-  const char* id = pTask->id.idStr;
-  SStreamTaskState* p = streamTaskGetStatus(pTask);
-
-  if (p->state != TASK_STATUS__SCAN_HISTORY) {
-    stError("s-task:%s not in scan-history status, status:%s return upstream:0x%x scan-history finish directly", id,
-            p->name, pReq->upstreamTaskId);
-
-    void*   pBuf = NULL;
-    int32_t len = 0;
-    streamTaskBuildScanhistoryRspMsg(pTask, pReq, &pBuf, &len);
-
-    SRpcMsg msg = {.info = *pRpcInfo};
-    initRpcMsg(&msg, 0, pBuf, sizeof(SMsgHead) + len);
-
-    tmsgSendRsp(&msg);
-    stDebug("s-task:%s level:%d notify upstream:0x%x(vgId:%d) to continue process data in WAL", id, taskLevel,
-            pReq->upstreamTaskId, pReq->upstreamNodeId);
-    return 0;
-  }
-
-  // sink tasks do not send end of scan history msg to its upstream, which is agg task.
-  streamAddEndScanHistoryMsg(pTask, pRpcInfo, pReq);
-
-  int32_t left = atomic_sub_fetch_32(&pTask->numOfWaitingUpstream, 1);
-  ASSERT(left >= 0);
-
-  if (left == 0) {
-    int32_t numOfTasks = taosArrayGetSize(pTask->upstreamInfo.pList);
-    if (taskLevel == TASK_LEVEL__AGG) {
-      stDebug(
-          "s-task:%s all %d upstream tasks finish scan-history data, set param for agg task for stream data processing "
-          "and send rsp to all upstream tasks",
-          id, numOfTasks);
-      streamAggUpstreamScanHistoryFinish(pTask);
-    } else {
-      stDebug("s-task:%s all %d upstream task(s) finish scan-history data, and rsp to all upstream tasks", id,
-              numOfTasks);
-    }
-
-    // all upstream tasks have completed the scan-history task in the stream time window, let's start to extract data
-    // from the WAL files, which contains the real time stream data.
-    streamNotifyUpstreamContinue(pTask);
-
-    // mnode will not send the pause/resume message to the sink task, so no need to enable the pause for sink tasks.
-    if (taskLevel == TASK_LEVEL__AGG) {
-      /*int32_t code = */ streamTaskScanHistoryDataComplete(pTask);
-    } else {  // for sink task, set normal
-      streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
-    }
-  } else {
-    stDebug("s-task:%s receive scan-history data finish msg from upstream:0x%x(index:%d), unfinished:%d", id,
-            pReq->upstreamTaskId, pReq->childId, left);
-  }
-
-  return 0;
-}
-
-int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
-  ETaskStatus status = streamTaskGetStatus(pTask)->state;
-
-  // task restart now, not handle the scan-history finish rsp
-  if (status == TASK_STATUS__UNINIT) {
-    return TSDB_CODE_INVALID_MSG;
-  }
-
-  ASSERT(status == TASK_STATUS__SCAN_HISTORY/* || status == TASK_STATUS__STREAM_SCAN_HISTORY*/);
-  SStreamMeta* pMeta = pTask->pMeta;
-
-  // execute in the scan history complete call back msg, ready to process data from inputQ
-  int32_t code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
-  streamTaskSetSchedStatusInactive(pTask);
-
-  streamMetaWLock(pMeta);
-  streamMetaSaveTask(pMeta, pTask);
-  streamMetaCommit(pMeta);
-  streamMetaWUnLock(pMeta);
-
-  // for source tasks, let's continue execute.
-  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    streamSchedExec(pTask);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static void checkFillhistoryTaskStatus(SStreamTask* pTask, SStreamTask* pHTask) {
   SDataRange* pRange = &pHTask->dataRange;
 
@@ -946,29 +844,6 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
   }
 }
 
-int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask) {
-  if (streamTaskGetStatus(pTask)->state == TASK_STATUS__DROPPING) {
-    return 0;
-  }
-
-  // restore param
-  int32_t code = 0;
-  if (pTask->info.fillHistory) {
-    code = streamRestoreParam(pTask);
-    if (code < 0) {
-      return -1;
-    }
-  }
-
-  // dispatch scan-history finish req to all related downstream task
-  code = streamDispatchScanHistoryFinishMsg(pTask);
-  if (code < 0) {
-    return -1;
-  }
-
-  return 0;
-}
-
 int32_t streamTaskFillHistoryFinished(SStreamTask* pTask) {
   void* exec = pTask->exec.pExecutor;
   return qStreamInfoResetTimewindowFilter(exec);
@@ -1068,28 +943,6 @@ int32_t tDecodeStreamTaskCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpoint
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->nodeId) < 0) return -1;
-  tEndDecode(pDecoder);
-  return 0;
-}
-
-int32_t tEncodeStreamScanHistoryFinishReq(SEncoder* pEncoder, const SStreamScanHistoryFinishReq* pReq) {
-  if (tStartEncode(pEncoder) < 0) return -1;
-  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->upstreamTaskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->upstreamNodeId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->downstreamTaskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pReq->childId) < 0) return -1;
-  tEndEncode(pEncoder);
-  return pEncoder->pos;
-}
-
-int32_t tDecodeStreamScanHistoryFinishReq(SDecoder* pDecoder, SStreamScanHistoryFinishReq* pReq) {
-  if (tStartDecode(pDecoder) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->upstreamTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->upstreamNodeId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->downstreamTaskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pReq->childId) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
 }

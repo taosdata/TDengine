@@ -707,13 +707,6 @@ int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
 int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj, int32_t sver);
 void    tFreeStreamObj(SStreamObj* pObj);
 
-// typedef struct {
-//   char    streamName[TSDB_STREAM_FNAME_LEN];
-//   int64_t uid;
-//   int64_t streamUid;
-//   SArray* childInfo;  // SArray<SStreamChildEpInfo>
-// } SStreamCheckpointObj;
-
 #define VIEW_TYPE_UPDATABLE    (1 << 0)
 #define VIEW_TYPE_MATERIALIZED (1 << 1)
 
