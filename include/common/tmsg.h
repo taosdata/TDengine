@@ -3360,7 +3360,6 @@ typedef struct {
   char   name[TSDB_STREAM_FNAME_LEN];
   int8_t igNotExists;
   int8_t igUntreated;
-  int8_t suspend;
 } SMResumeStreamReq;
 
 int32_t tSerializeSMResumeStreamReq(void* buf, int32_t bufLen, const SMResumeStreamReq* pReq);

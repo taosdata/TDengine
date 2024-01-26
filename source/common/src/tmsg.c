@@ -8933,7 +8933,6 @@ int32_t tSerializeSMResumeStreamReq(void *buf, int32_t bufLen, const SMResumeStr
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igUntreated) < 0) return -1;
-  if (tEncodeI8(&encoder, pReq->suspend) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -8948,7 +8947,6 @@ int32_t tDeserializeSMResumeStreamReq(void *buf, int32_t bufLen, SMResumeStreamR
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igNotExists) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igUntreated) < 0) return -1;
-  if (tDecodeI8(&decoder, &pReq->suspend) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
