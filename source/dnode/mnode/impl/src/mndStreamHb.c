@@ -65,6 +65,8 @@ static int32_t createStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream)
     return terrno;
   }
 
+  /*int32_t code = */mndStreamRegisterTrans(pTrans, MND_STREAM_TASK_RESET_NAME, pStream->uid);
+
   taosWLockLatch(&pStream->lock);
   int32_t numOfLevels = taosArrayGetSize(pStream->tasks);
 
