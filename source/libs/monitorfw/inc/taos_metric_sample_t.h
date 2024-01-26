@@ -19,7 +19,9 @@
 #include "taos_metric_sample.h"
 #include "taos_metric_t.h"
 
+#if !defined(WINDOWS)
 #define DOUBLE_ATOMIC
+#endif 
 
 #ifdef DOUBLE_ATOMIC
 #include <stdatomic.h>
