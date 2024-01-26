@@ -122,7 +122,7 @@ If you want to start your application in a container, you need to add the corres
 FROM ubuntu:20.04
 RUN apt-get update && apt-get install -y wget
 ENV TDENGINE_VERSION=2.4.0.0
-RUN wget -c https://www.taosdata.com/assets-download/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
+RUN wget -c https://tdengine.com/assets-download/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && tar xvf TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && cd TDengine-client-${TDENGINE_VERSION} \
    && ./install_client.sh \
@@ -223,7 +223,7 @@ Here is the full Dockerfile:
 ```docker
 FROM golang:1.17.6-buster as builder
 ENV TDENGINE_VERSION=2.4.0.0
-RUN wget -c https://www.taosdata.com/assets-download/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
+RUN wget -c https://tdengine.com/assets-download/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && tar xvf TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && cd TDengine-client-${TDENGINE_VERSION} \
    && ./install_client.sh \
@@ -239,7 +239,7 @@ RUN go build
 FROM ubuntu:20.04
 RUN apt-get update && apt-get install -y wget
 ENV TDENGINE_VERSION=2.4.0.0
-RUN wget -c https://www.taosdata.com/assets-download/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
+RUN wget -c https://tdengine.com/assets-download/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && tar xvf TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && cd TDengine-client-${TDENGINE_VERSION} \
    && ./install_client.sh \
