@@ -1085,8 +1085,9 @@ export default {
       2. <strong>Regex</strong>: 用户可以在正则表达式模式中使用命名捕获组来从任何字符串（文本）字段中提取多个字段。例如，正则表达式模式<em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em>将提取3个字段 y、m 和 d。更多的命名捕获组（named capture groups）的说明和测试可以在这里得到：<em>http://regex101.com/</em> （使用 Rust 实现）<br/>`,
       filterdesc: `<strong>taosX 内置一个功能丰富的表达式引擎。Filter 过滤器使用布尔类型进行过滤判断。当表达式为 false 的行将被过滤掉。</strong><br/>
       - <strong>布尔类型</strong>： bool_value 可直接使用 BOOL 类型的变量名作为表达式。<br/>
-      - <strong>比较</strong>： 当 a b 字段都不为空时，可以进行  a > b 等比较操作，支持 >、 >=、 < 、<= && || 等操作。<br/>
-      - <strong>函数</strong>：支持返回值为布尔类型的函数，如字符串包含：s.contains("abc") 。<br/>`,
+      - <strong>比较</strong>： 当 a b 字段都不为空时，可以进行  a > b 等比较操作，支持 >、 >=、 < 、<= 等操作。<br/>
+      - <strong>函数</strong>：支持返回值为布尔类型的函数，如字符串包含：s.contains("abc") 。<br/>
+      - <strong>多条件组合</strong>：支持 && 或 || 多条件组合过滤。 `,
       subextractdesc: `<strong>taosX 支持 Split 或正则表达式解析列</strong>：<br/>
       1. <strong>Split</strong>: 用户可以使用分隔符将简单字符串分割为多列，其中 sep 表示分隔符，n 表示分割后的数量，names 是以 , （ 英文逗号 ）分隔的列名字符串。使用 - 作为分隔符，n 为 3，names 为 a,b,c ，可将字符串 1-2-3 分割为三列，分别是：a = 1, b = 2, c = 3。<br/>
       2. <strong>Regex</strong>: 用户可以在正则表达式模式中使用命名捕获组来从任何字符串（文本）字段中提取多个字段。例如，正则表达式模式<em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em>将提取3个字段 y、m 和 d。更多的命名捕获组（named capture groups）的说明和测试可以在这里得到：<em>http://regex101.com/</em> （使用 Rust 实现）<br/>`,
@@ -1109,7 +1110,7 @@ export default {
       payload: "负载格式",
       upload: "上传样本数据",
       col_select: "请选择列",
-      filter_type: "请选择筛选方式",
+      filter_type: "请选择解析规则",
       expre_input: "exp1;exp2;exp3",
       filter_input: "请输入筛选表达式",
       st_input: "请输入超级表名称",

@@ -8,7 +8,7 @@
           size="small"
           v-model="ruleForm.sep"
         >
-          <template slot="prepend">sep</template>
+          <template slot="prepend">seperator</template>
         </el-input>
       </el-form-item>
       <el-form-item prop="n">
@@ -19,10 +19,10 @@
           type="number"
           v-model="ruleForm.n"
         >
-          <template slot="prepend">n</template>
+          <template slot="prepend">number</template>
         </el-input>
       </el-form-item>
-      <el-form-item prop="names">
+      <el-form-item prop="names" style='display:none;'>
         <el-input
           placeholder="value1,value2,value3"
           class="split-item"
@@ -140,7 +140,7 @@ export default {
 .split-expression {
   .el-form {
     display: grid;
-    grid-template-columns: 1fr 1fr 3fr;
+    grid-template-columns: 1fr 1fr ;
     column-gap: 0px !important;
     ::v-deep {
       .el-input-group__prepend {
