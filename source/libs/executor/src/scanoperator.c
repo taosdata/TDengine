@@ -3602,7 +3602,8 @@ static int32_t appendChosenRowToDataBlock(STmsSubTablesMergeInfo* pSubTblsInfo, 
       colDataSetVal(pColInfo, pBlock->info.rows, pData, false);
     }
   }
-
+  pBlock->info.dataLoad = 1;
+  pBlock->info.scanFlag = pInputBlock->info.scanFlag;
   pBlock->info.rows += 1;
   return TSDB_CODE_SUCCESS;
 }
