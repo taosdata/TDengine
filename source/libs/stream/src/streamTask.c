@@ -340,15 +340,10 @@ int32_t tDecodeStreamTaskId(SDecoder* pDecoder, STaskId* pTaskId) {
   return 0;
 }
 
-void tFreeStreamTask(SStreamTask* pTask, bool metaLock) {
+void tFreeStreamTask(SStreamTask* pTask) {
   char*                p = NULL;
   int32_t              taskId = pTask->id.taskId;
   STaskExecStatisInfo* pStatis = &pTask->execInfo;
-
-  // check for mnode
-//  if (pTask->pMeta != NULL) {
-//    streamTaskClearHTaskAttr(pTask, metaLock);
-//  }
 
   ETaskStatus status1 = TASK_STATUS__UNINIT;
   taosThreadMutexLock(&pTask->lock);

@@ -317,8 +317,9 @@ int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId) {
     pCKInfo->checkpointVer = pCKInfo->processedVer;
 
     streamTaskClearCheckInfo(p, false);
-    code = streamTaskHandleEvent(p->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
     taosThreadMutexUnlock(&p->lock);
+
+    code = streamTaskHandleEvent(p->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
   } else {
     stDebug("s-task:%s vgId:%d status:%s not keep the checkpoint metaInfo, checkpoint:%" PRId64 " failed", id, vgId,
             pStatus->name, pCKInfo->checkpointingId);

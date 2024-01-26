@@ -617,7 +617,7 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   if (code < 0) {
     tqError("failed to add s-task:0x%x into vgId:%d meta, total:%d, code:%s", vgId, taskId, numOfTasks,
             tstrerror(code));
-    tFreeStreamTask(pTask, true);
+    tFreeStreamTask(pTask);
     return code;
   }
 
@@ -645,7 +645,7 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
     }
   } else {
     tqWarn("vgId:%d failed to add s-task:0x%x, since already exists in meta store", vgId, taskId);
-    tFreeStreamTask(pTask, true);
+    tFreeStreamTask(pTask);
   }
 
   return code;
