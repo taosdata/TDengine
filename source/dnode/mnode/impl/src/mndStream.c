@@ -3050,24 +3050,23 @@ int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo* info){
     if (pIter == NULL) break;
 
     if(pStream->status != STREAM_STATUS__PAUSE){
-      SMPauseStreamReq *reqPause = rpcMallocCont(sizeof(SMPauseStreamReq));
-      if (reqPause == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        sdbRelease(pSdb, pStream);
-        return -1;
-      }
-      strcpy(reqPause->name, pStream->name);
-      reqPause->igNotExists = 1;
+      SMPauseStreamReq reqPause = {0};
+      strcpy(reqPause.name, pStream->name);
+      reqPause.igNotExists = 1;
+
+      int32_t contLen = tSerializeSMPauseStreamReq(NULL, 0, &reqPause);
+      void *  pHead = rpcMallocCont(contLen);
+      tSerializeSMPauseStreamReq(pHead, contLen, &reqPause);
 
       SRpcMsg rpcMsg = {
           .msgType = TDMT_MND_PAUSE_STREAM,
-          .pCont = reqPause,
-          .contLen = sizeof(SMPauseStreamReq),
+          .pCont = pHead,
+          .contLen = contLen,
           .info = *info,
       };
 
       tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
-      mInfo("receivee pause stream:%s, %s, %p, because grant expired", pStream->name, reqPause->name, reqPause->name);
+      mInfo("receivee pause stream:%s, %s, %p, because grant expired", pStream->name, reqPause.name, reqPause.name);
     }
 
     sdbRelease(pSdb, pStream);

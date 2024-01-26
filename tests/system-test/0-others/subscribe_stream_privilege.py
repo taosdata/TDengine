@@ -92,7 +92,7 @@ class TDTestCase:
         print(time.time())
         while 1:
             t = time.time()
-            if t > 1706252996 :
+            if t > 1706254434 :
                 break
             else:
                 print("time:%d" %(t))
@@ -100,11 +100,15 @@ class TDTestCase:
 
 
         tdSql.error("create stream s11 trigger at_once fill_history 1 into so1 as select ts,abs(col2) from stb partition by tbname")
+
+        time.sleep(10)
         tdSql.query("select * from information_schema.ins_stream_tasks")
-        tdSql.checkData(0, 5, 'pause')
+        tdSql.checkData(0, 5, 'paused')
         tdSql.execute("insert into stb_0(ts,col2) values(now, 3232)")
         tdSql.query("select * from so1")
         tdSql.checkRows(5)
+
+        tdSql.error("resume stream s1")
 
     def consumeTest(self):
         consumer_dict = {
