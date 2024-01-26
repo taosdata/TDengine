@@ -3516,8 +3516,8 @@ static int32_t initSubTablesMergeInfo(STableMergeScanInfo* pInfo) {
   int32_t inMemSize = (pSubTblsInfo->numSubTables - pSubTblsInfo->numTableBlocksInMem) * bufPageSize;
   createDiskbasedBuf(&pSubTblsInfo->pBlocksBuf, pInfo->bufPageSize, inMemSize, "blocksExternalBuf", tsTempDir);
 
-  pSubTblsInfo->numTableBlocksInMem = pSubTblsInfo->numSubTables;
-  pSubTblsInfo->numInMemReaders = pSubTblsInfo->numSubTables;
+  pSubTblsInfo->numTableBlocksInMem = 0;
+  pSubTblsInfo->numInMemReaders = 0;
   return TSDB_CODE_SUCCESS;
 } 
 
