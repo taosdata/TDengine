@@ -1,3 +1,6 @@
+//go:build windows
+// +build windows
+
 package opcda
 
 import (
@@ -734,6 +737,87 @@ func TestDAClient_GetAllPoints1(t *testing.T) {
 			}
 			assert.Equalf(t, tt.want, got, "GetAllPoints(%v)", tt.args.conf)
 		})
+	}
+}
+
+func TestDAClient_GetAllPointsAccessPath(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var onmessage client.OnMessage = func(message []*common.NodeValue) {
+		t.Log(message)
+	}
+	connConf := config.DaConnectConfig{
+		Server: "Graybox.Simulator.1",
+		Nodes:  []string{"localhost"},
+	}
+	c, err := NewDAClient(ctx, connConf, config.CollectConfig{}, 0, logrus.New().WithField("test", "test"), onmessage)
+	assert.NoError(t, err)
+	err = c.Connect()
+	assert.NoError(t, err)
+	points, err := c.GetAllPoints(config.PointsConfig{Da: config.DaPointsConfig{
+		AccessPath: []string{"numeric"},
+	}})
+	assert.NoError(t, err)
+	assert.NotNil(t, points)
+	err = c.Close()
+	assert.NoError(t, err)
+	expectIDs := []string{
+		"numeric.saw.uint8",
+		"numeric.saw.int8",
+		"numeric.saw.uint16",
+		"numeric.saw.int16",
+		"numeric.saw.uint32",
+		"numeric.saw.int32",
+		"numeric.saw.uint64",
+		"numeric.saw.int64",
+		"numeric.saw.float",
+		"numeric.saw.double",
+		"numeric.sin.uint8",
+		"numeric.sin.int8",
+		"numeric.sin.uint16",
+		"numeric.sin.int16",
+		"numeric.sin.uint32",
+		"numeric.sin.int32",
+		"numeric.sin.uint64",
+		"numeric.sin.int64",
+		"numeric.sin.float",
+		"numeric.sin.double",
+		"numeric.triangle.uint8",
+		"numeric.triangle.int8",
+		"numeric.triangle.uint16",
+		"numeric.triangle.int16",
+		"numeric.triangle.uint32",
+		"numeric.triangle.int32",
+		"numeric.triangle.uint64",
+		"numeric.triangle.int64",
+		"numeric.triangle.float",
+		"numeric.triangle.double",
+		"numeric.square.uint8",
+		"numeric.square.int8",
+		"numeric.square.uint16",
+		"numeric.square.int16",
+		"numeric.square.uint32",
+		"numeric.square.int32",
+		"numeric.square.uint64",
+		"numeric.square.int64",
+		"numeric.square.float",
+		"numeric.square.double",
+		"numeric.square.bool",
+		"numeric.random.uint8",
+		"numeric.random.int8",
+		"numeric.random.uint16",
+		"numeric.random.int16",
+		"numeric.random.uint32",
+		"numeric.random.int32",
+		"numeric.random.uint64",
+		"numeric.random.int64",
+		"numeric.random.float",
+		"numeric.random.double",
+		"numeric.random.bool",
+	}
+	assert.Equal(t, len(expectIDs), len(points))
+	for i, point := range points {
+		assert.Equal(t, expectIDs[i], point.ID)
 	}
 }
 

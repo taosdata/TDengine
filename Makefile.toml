@@ -97,6 +97,8 @@ ln -f ../taosx-$version.tar.gz ../taosx-latest.tar.gz
 
 [tasks.dev-install-plugins]
 script = """
+plugins=/usr/local/taos/plugins
+sudo mkdir -p $plugins/opc $plugins/mqtt $plugins/influxdb $plugins/opentsdb
 sudo cp plugins/influxdb/target/taosx-influxdb.jar /usr/local/taos/plugins/influxdb/
 sudo cp plugins/opentsdb/target/taosx-opentsdb.jar /usr/local/taos/plugins/opentsdb/
 sudo cp plugins/mqtt/dist/taosx-mqtt /usr/local/taos/plugins/mqtt/

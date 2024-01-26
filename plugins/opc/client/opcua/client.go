@@ -6,7 +6,6 @@ import (
 	"collector/config"
 	"collector/log"
 	"collector/types"
-	"container/list"
 	"context"
 	"crypto/rsa"
 	"crypto/tls"
@@ -35,8 +34,9 @@ type UAClient struct {
 	readInterval  time.Duration
 	connectConfig config.UaConnectConfig
 
-	maxNodePreRead           uint64
-	maxMonitoredItemsPreCall uint64
+	maxNodesPerRead          uint64
+	maxMonitoredItemsPerCall uint64
+	maxNodesPerBrowse        uint64
 	containsBad              bool
 	closeChan                chan struct{}
 	once                     sync.Once
@@ -84,8 +84,8 @@ func NewUAClient(ctx context.Context, connectConfig config.UaConnectConfig, coll
 		logger:                   opcLogger,
 		readInterval:             time.Duration(interval) * time.Second,
 		connectConfig:            connectConfig,
-		maxMonitoredItemsPreCall: 0,
-		maxNodePreRead:           0,
+		maxMonitoredItemsPerCall: 0,
+		maxNodesPerRead:          0,
 		dataCache:                dataCache,
 		containsBad:              collectConfig.ContainsBad,
 		closeChan:                make(chan struct{}),
@@ -204,13 +204,15 @@ func (c *UAClient) Connect() error {
 }
 
 func (c *UAClient) getServerLimit() error {
-	maxReadID, _ := ua.ParseNodeID("i=11705")
-	maxItemID, _ := ua.ParseNodeID("i=11714")
+	maxReadID, _ := ua.ParseNodeID("i=11705")         //MaxNodesPerRead
+	maxItemID, _ := ua.ParseNodeID("i=11714")         //MaxMonitoredItemsPerCall
+	maxNodesPerBrowse, _ := ua.ParseNodeID("i=11710") //MaxNodesPerBrowse
 	req := &ua.ReadRequest{
 		MaxAge: 2000,
 		NodesToRead: []*ua.ReadValueID{
 			{NodeID: maxReadID},
 			{NodeID: maxItemID},
+			{NodeID: maxNodesPerBrowse},
 		},
 		TimestampsToReturn: ua.TimestampsToReturnNeither,
 	}
@@ -219,32 +221,44 @@ func (c *UAClient) getServerLimit() error {
 		return err
 	}
 	if resp.Results[0].Status == ua.StatusOK {
-		c.maxNodePreRead = resp.Results[0].Value.Uint()
-		if c.maxNodePreRead == 0 {
-			c.maxNodePreRead = uint64(resp.Results[0].Value.Int())
+		c.maxNodesPerRead = resp.Results[0].Value.Uint()
+		if c.maxNodesPerRead == 0 {
+			c.maxNodesPerRead = uint64(resp.Results[0].Value.Int())
 		}
-		c.logger.Info("get max node pre read success ", c.maxNodePreRead)
+		c.logger.Info("get max node per read success ", c.maxNodesPerRead)
 	} else {
-		c.logger.Warn("get max node pre read fail, set to 1")
-		c.maxNodePreRead = 1
+		c.logger.Warn("get max node per read fail, set to 1")
+		c.maxNodesPerRead = 1
 	}
-	if c.maxNodePreRead == 0 {
-		c.logger.Warn("get max node pre read 0, set to 1")
-		c.maxNodePreRead = 1
+	if c.maxNodesPerRead == 0 {
+		c.logger.Warn("get max node per read 0, set to 1")
+		c.maxNodesPerRead = 1
 	}
 	if resp.Results[1].Status == ua.StatusOK {
-		c.maxMonitoredItemsPreCall = resp.Results[1].Value.Uint()
-		if c.maxMonitoredItemsPreCall == 0 {
-			c.maxMonitoredItemsPreCall = uint64(resp.Results[1].Value.Int())
+		c.maxMonitoredItemsPerCall = resp.Results[1].Value.Uint()
+		if c.maxMonitoredItemsPerCall == 0 {
+			c.maxMonitoredItemsPerCall = uint64(resp.Results[1].Value.Int())
 		}
-		c.logger.Info("get max monitored items pre call success, ", c.maxMonitoredItemsPreCall)
+		c.logger.Info("get max monitored items per call success, ", c.maxMonitoredItemsPerCall)
 	} else {
-		c.logger.Warn("get max monitored items pre call fail, set to 1")
-		c.maxMonitoredItemsPreCall = 1
+		c.logger.Warn("get max monitored items per call fail, set to 1")
+		c.maxMonitoredItemsPerCall = 1
 	}
-	if c.maxMonitoredItemsPreCall == 0 {
-		c.logger.Warn("get max monitored items pre call 0, set to 1")
-		c.maxMonitoredItemsPreCall = 1
+	if c.maxMonitoredItemsPerCall == 0 {
+		c.logger.Warn("get max monitored items per call 0, set to 1")
+		c.maxMonitoredItemsPerCall = 1
+	}
+
+	if resp.Results[2].Status == ua.StatusOK {
+		c.maxNodesPerBrowse = resp.Results[2].Value.Uint()
+		if c.maxNodesPerBrowse == 0 {
+			c.maxNodesPerBrowse = uint64(resp.Results[2].Value.Int())
+		}
+		c.logger.Info("get max nodes per browse success, ", c.maxNodesPerBrowse)
+	}
+	if c.maxNodesPerBrowse == 0 {
+		c.logger.Warn("get max nodes per browse fail, set to maxMonitoredItemsPerCall")
+		c.maxNodesPerBrowse = c.maxMonitoredItemsPerCall
 	}
 	return nil
 }
@@ -287,126 +301,65 @@ func (c *UAClient) initNodeNameAndValue() error {
 		return err
 	}
 	// read names
-	err = c.readAllNames()
-	if err != nil {
-		return err
-	}
+	c.readAllNames()
 	// read value
-	err = c.readAllValue()
+	c.readAllValue()
 	return nil
 }
 
-func (c *UAClient) readAllTypes() error {
-	maxOperations := uint(c.maxNodePreRead)
+func (c *UAClient) readAllNames() {
+	maxOperations := uint(c.maxNodesPerRead)
 	operationTimes := uint(len(c.nodes)) / maxOperations
 	for i := uint(0); i < operationTimes; i++ {
 		base := i * maxOperations
 		nodes := c.nodes[base : base+maxOperations]
-		err := c.readTypesBatch(int(base), nodes)
-		if err != nil {
-			return err
-		}
+		c.readNameBatch(int(base), nodes)
 	}
 	if len(c.nodes)%int(maxOperations) != 0 {
 		base := operationTimes * maxOperations
 		nodes := c.nodes[base:]
-		err := c.readTypesBatch(int(base), nodes)
-		if err != nil {
-			return err
-		}
+		c.readNameBatch(int(base), nodes)
 	}
-	return nil
+
 }
 
-func (c *UAClient) readAllNames() error {
-	maxOperations := uint(c.maxNodePreRead)
+func (c *UAClient) readAllValue() {
+	maxOperations := uint(c.maxNodesPerRead)
 	operationTimes := uint(len(c.nodes)) / maxOperations
 	for i := uint(0); i < operationTimes; i++ {
 		base := i * maxOperations
 		nodes := c.nodes[base : base+maxOperations]
-		err := c.readNameBatch(int(base), nodes)
-		if err != nil {
-			return err
-		}
+		c.readValueBatch(int(base), nodes)
 	}
 	if len(c.nodes)%int(maxOperations) != 0 {
 		base := operationTimes * maxOperations
 		nodes := c.nodes[base:]
-		err := c.readNameBatch(int(base), nodes)
-		if err != nil {
-			return err
-		}
+		c.readValueBatch(int(base), nodes)
 	}
-	return nil
 }
 
-func (c *UAClient) readAllValue() error {
-	maxOperations := uint(c.maxNodePreRead)
-	operationTimes := uint(len(c.nodes)) / maxOperations
-	for i := uint(0); i < operationTimes; i++ {
-		base := i * maxOperations
-		nodes := c.nodes[base : base+maxOperations]
-		err := c.readValueBatch(int(base), nodes)
-		if err != nil {
-			return err
-		}
-	}
-	if len(c.nodes)%int(maxOperations) != 0 {
-		base := operationTimes * maxOperations
-		nodes := c.nodes[base:]
-		err := c.readValueBatch(int(base), nodes)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (c *UAClient) readTypesBatch(base int, nodes []*ua.NodeID) error {
-	reqs := make([]*ua.ReadValueID, 0, len(nodes))
-	for _, node := range nodes {
-		reqs = append(reqs, &ua.ReadValueID{NodeID: node, AttributeID: ua.AttributeIDDataType})
-	}
-	resp, err := c.conn.Read(c.ctx, &ua.ReadRequest{NodesToRead: reqs})
-	if err != nil {
-		return err
-	}
-	for i, r := range resp.Results {
-		if r.Status != ua.StatusOK {
-			c.logger.WithError(err).Error("read types error")
-			return fmt.Errorf("read types for node %s failed: %w", nodes[uint(i)].String(), r.Status)
-		}
-		nt := r.Value.NodeID().IntID()
-		vt, ok := convertType[ua.TypeID(nt)]
-		if !ok {
-			c.logger.WithField("type", nt).WithField("node", nodes[uint(i)].String()).Error("invalid node type")
-			return fmt.Errorf("invalid node type, node: '%s' type: %d", nodes[uint(i)].String(), nt)
-		}
-		c.dataCache[base+i].ValueType = vt
-	}
-	return nil
-}
-
-func (c *UAClient) readNameBatch(base int, nodes []*ua.NodeID) error {
+func (c *UAClient) readNameBatch(base int, nodes []*ua.NodeID) {
 	reqs := make([]*ua.ReadValueID, 0, len(nodes))
 	for _, node := range nodes {
 		reqs = append(reqs, &ua.ReadValueID{NodeID: node, AttributeID: ua.AttributeIDBrowseName})
 	}
 	resp, err := c.conn.Read(c.ctx, &ua.ReadRequest{NodesToRead: reqs})
 	if err != nil {
-		return err
+		c.logger.WithError(err).Error("read names error")
+		return
 	}
 	for i, r := range resp.Results {
 		if r.Status != ua.StatusOK {
 			c.logger.WithError(err).Error("read names error")
-			return fmt.Errorf("read names for node %s failed: %w", nodes[uint(i)].String(), r.Status)
+			continue
+			//return fmt.Errorf("read names for node %s failed: %w", nodes[uint(i)].String(), r.Status)
 		}
 		c.dataCache[base+i].Name = r.Value.String()
 	}
-	return nil
+	return
 }
 
-func (c *UAClient) readValueBatch(base int, nodes []*ua.NodeID) error {
+func (c *UAClient) readValueBatch(base int, nodes []*ua.NodeID) {
 	valueReqs := make([]*ua.ReadValueID, 0, len(nodes))
 	for _, node := range nodes {
 		valueReqs = append(valueReqs, &ua.ReadValueID{NodeID: node, AttributeID: ua.AttributeIDValue})
@@ -414,25 +367,30 @@ func (c *UAClient) readValueBatch(base int, nodes []*ua.NodeID) error {
 	start := time.Now()
 	resp, err := c.conn.Read(c.ctx, &ua.ReadRequest{MaxAge: 2000, TimestampsToReturn: ua.TimestampsToReturnBoth, NodesToRead: valueReqs})
 	if err != nil {
-		return err
+		c.logger.WithError(err).Error("read value batch error")
+		return
 	}
 	end := time.Now()
 	c.logger.WithField("time", end.Sub(start)).Debug("read value spend")
 	for i, r := range resp.Results {
 		if r.Status != ua.StatusOK {
-			c.logger.WithError(r.Status).Error("read value error")
+			c.logger.WithField("id", c.dataCache[base+i].Identifier).WithError(r.Status).Error("read value batch status error")
 			c.dataCache[base+i].Value = nil
 		} else {
-			c.dataCache[base+i].Value = r.Value.Value()
-			if r.Value.ArrayLength() > 0 || r.Value.ArrayDimensions() != nil {
-				c.logger.WithField("id", c.dataCache[base+i].Identifier).Warn("skip node: read value is array")
-				continue
-			}
-			exists := false
-			c.dataCache[base+i].ValueType, exists = convertType[r.Value.Type()]
-			if !exists {
-				c.logger.WithField("id", c.dataCache[base+i].Identifier).WithField("valueType", r.Value.Type()).Warn("skip node: read value type is not supported")
-				continue
+			if r.Value != nil {
+				c.dataCache[base+i].Value = r.Value.Value()
+				if r.Value.ArrayLength() > 0 || r.Value.ArrayDimensions() != nil {
+					c.logger.WithField("id", c.dataCache[base+i].Identifier).Warn("skip node: read value is array")
+					continue
+				}
+				exists := false
+				c.dataCache[base+i].ValueType, exists = convertType[r.Value.Type()]
+				if !exists {
+					c.logger.WithField("id", c.dataCache[base+i].Identifier).WithField("valueType", r.Value.Type()).Warn("skip node: read value type is not supported")
+					continue
+				}
+			} else {
+				c.dataCache[base+i].Value = nil
 			}
 		}
 		var ts time.Time
@@ -448,7 +406,6 @@ func (c *UAClient) readValueBatch(base int, nodes []*ua.NodeID) error {
 		c.dataCache[base+i].StartTime = start
 		c.dataCache[base+i].Status = int64(r.Status)
 	}
-	return nil
 }
 
 func (c *UAClient) observe() error {
@@ -465,17 +422,16 @@ func (c *UAClient) observe() error {
 				return
 			case <-ticker.C:
 				start := time.Now()
-				err := c.readAllValue()
+				c.readAllValue()
 				spent := time.Since(start)
 				if spent > c.readInterval {
 					c.logger.WithField("spent", spent).WithField("interval", c.readInterval).Warn("read value spend too much time")
 				}
-				if err != nil {
-					c.logger.WithError(err).Error("read value error")
-					continue
-				}
 				values := make([]*common.NodeValue, 0, len(c.dataCache))
 				for _, data := range c.dataCache {
+					if data.Name == "" {
+						continue
+					}
 					if ua.StatusCode(data.Status) != ua.StatusOK {
 						c.logger.WithField("id", data.Identifier).WithField("status", ua.StatusCode(data.Status)).Warn("read value status is not ok")
 						if !c.containsBad {
@@ -516,7 +472,27 @@ func (c *UAClient) subscribe() error {
 	if err != nil {
 		return err
 	}
-	maxOperations := uint(c.maxMonitoredItemsPreCall)
+	needSubTimes := uint64(len(c.nodes)) / c.maxNodesPerBrowse
+	for subTimes := uint64(0); subTimes < needSubTimes; subTimes++ {
+		err = c.doSubBatch(uint(subTimes*c.maxNodesPerBrowse), c.nodes[subTimes*c.maxNodesPerBrowse:(subTimes+1)*c.maxNodesPerBrowse])
+		if err != nil {
+			c.logger.WithError(err).Error("subscribe error")
+			return err
+		}
+	}
+	if len(c.nodes)%int(c.maxNodesPerBrowse) != 0 {
+		err = c.doSubBatch(uint(needSubTimes*c.maxNodesPerBrowse), c.nodes[needSubTimes*c.maxNodesPerBrowse:])
+		if err != nil {
+			c.logger.WithError(err).Error("subscribe error")
+			return err
+		}
+	}
+	c.logger.Info("add monitored items success")
+	return err
+}
+
+func (c *UAClient) doSubBatch(base uint, nodes []*ua.NodeID) error {
+	maxOperations := uint(c.maxMonitoredItemsPerCall)
 	ch := make(chan *opcua.PublishNotificationData, 1)
 	sub, err := c.conn.Subscribe(c.ctx, &opcua.SubscriptionParameters{}, ch)
 	if err != nil {
@@ -524,27 +500,26 @@ func (c *UAClient) subscribe() error {
 		return err
 	}
 	c.logger.Info("start to add monitored items")
-	subTimes := uint(len(c.nodes)) / maxOperations
+	subItemTimes := uint(len(nodes)) / maxOperations
 
-	for i := uint(0); i < subTimes; i++ {
-		base := i * maxOperations
-		nodes := c.nodes[base : base+maxOperations]
-		err = c.doSubItems(int(base), nodes, sub)
+	for i := uint(0); i < subItemTimes; i++ {
+		indexBase := i * maxOperations
+		subNodes := nodes[indexBase : indexBase+maxOperations]
+		err = c.doSubItems(int(indexBase+base), subNodes, sub)
 		if err != nil {
 			return err
 		}
 	}
-	if len(c.nodes)%int(maxOperations) != 0 {
-		base := subTimes * maxOperations
-		nodes := c.nodes[base:]
-		err = c.doSubItems(int(base), nodes, sub)
+	if len(nodes)%int(maxOperations) != 0 {
+		indexBase := subItemTimes * maxOperations
+		subNodes := nodes[indexBase:]
+		err = c.doSubItems(int(indexBase+base), subNodes, sub)
 		if err != nil {
 			return err
 		}
 	}
-	c.logger.Info("add monitored items success")
 	c.handleSubCallback(sub, ch)
-	return err
+	return nil
 }
 
 func (c *UAClient) doSubItems(base int, nodes []*ua.NodeID, sub *opcua.Subscription) error {
@@ -605,10 +580,14 @@ func (c *UAClient) handleSubCallback(sub *opcua.Subscription, ch chan *opcua.Pub
 						identifier := nodeID.String()
 
 						if item == nil || item.Value == nil {
-							c.logger.Error("observe opc ua item is nil", "identifier", identifier, "item", item)
+							c.logger.WithField("identifier", identifier).WithField("item", item).Error("observe opc ua item is nil")
 							continue
 						}
-						c.dataCache[handle].Value = item.Value.Value.Value()
+						if item.Value.Value != nil {
+							c.dataCache[handle].Value = item.Value.Value.Value()
+						} else {
+							c.dataCache[handle].Value = nil
+						}
 						var ts time.Time
 						if !item.Value.SourceTimestamp.IsZero() {
 							ts = item.Value.SourceTimestamp
@@ -622,7 +601,7 @@ func (c *UAClient) handleSubCallback(sub *opcua.Subscription, ch chan *opcua.Pub
 						c.dataCache[handle].StartTime = now
 						c.dataCache[handle].Status = int64(item.Value.Status)
 						if item.Value.Status != ua.StatusOK {
-							c.logger.Warn("read value status is not ok", "id", identifier, "status", item.Value.Status)
+							c.logger.WithField("status", item.Value.Status).WithField("identifier", identifier).Warn("read value status is not ok")
 							if !c.containsBad {
 								continue
 							}
@@ -656,6 +635,15 @@ func (c *UAClient) handleSubCallback(sub *opcua.Subscription, ch chan *opcua.Pub
 	}()
 }
 
+func (c *UAClient) Namespaces() []string {
+	return c.conn.Namespaces()
+}
+
+type childrenResp struct {
+	index    int
+	children []*opcua.Node
+}
+
 func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error) {
 	if c.conn == nil {
 		return nil, fmt.Errorf("opc ua client is nil")
@@ -671,40 +659,91 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 	if err != nil {
 		return nil, err
 	}
+	nss := conf.Ua.Namespaces
+	nsMap := make(map[uint16]struct{}, len(nss))
+	for _, ns := range nss {
+		nsMap[ns] = struct{}{}
+	}
 	rootNode := c.conn.Node(rootId)
 	ctx := c.ctx
-	bfsList := list.New()
-	bfsList.PushBack(rootNode)
+	bfsList := []*opcua.Node{rootNode}
 	var result []common.Point
-	m := make(map[string]struct{})
+	m := sync.Map{}
+	wg := sync.WaitGroup{}
 	// bfs
 	for {
-		if bfsList.Len() == 0 {
+		if len(bfsList) == 0 {
 			break
 		}
-		item := bfsList.Front()
-		bfsList.Remove(item)
-		n := item.Value.(*opcua.Node)
-		point, err := getPoint(ctx, n, reg)
-		if err != nil {
-			c.logger.WithError(err).Error("get point error")
+		nodeCount := len(bfsList)
+		childrenChannels := make(chan *childrenResp, nodeCount)
+		maxNodePerGetPoints := 1
+		if c.maxNodesPerRead > 3 {
+			maxNodePerGetPoints = int(c.maxNodesPerRead) / 3
 		}
-		if point != nil {
-			result = append(result, *point)
+		operation := nodeCount / maxNodePerGetPoints
+		getTimes := operation
+
+		more := false
+		if nodeCount%maxNodePerGetPoints != 0 {
+			more = true
+			getTimes += 1
 		}
-		if conf.Limit > 0 && len(result) >= conf.Limit {
-			return result, nil
+		wg.Add(getTimes)
+		availablePoints := make([][]*common.Point, getTimes)
+		for i := 0; i < operation; i++ {
+			go func(i int) {
+				defer wg.Done()
+				points := c.getPoints(ctx, c.conn, bfsList[i*maxNodePerGetPoints:(i+1)*maxNodePerGetPoints], reg, nsMap)
+				availablePoints[i] = points
+			}(i)
 		}
-		children, err := getChildren(ctx, n)
-		if err != nil {
-			c.logger.WithError(err).Error("get children error")
+		if more {
+			go func() {
+				defer wg.Done()
+				points := c.getPoints(ctx, c.conn, bfsList[operation*maxNodePerGetPoints:], reg, nsMap)
+				availablePoints[operation] = points
+			}()
 		}
-		for _, child := range children {
-			//avoid nested loops
-			_, ok := m[child.String()]
-			if !ok {
-				bfsList.PushBack(child)
-				m[child.String()] = struct{}{}
+		wg.Wait()
+		wg.Add(nodeCount)
+		for i, node := range bfsList {
+			go func(index int, n *opcua.Node) {
+				defer wg.Done()
+				children, err := getChildren(ctx, n)
+				if err != nil {
+					c.logger.WithError(err).Error("get children error")
+				}
+				m.LoadOrStore(n.String(), struct{}{})
+				childrenChannels <- &childrenResp{
+					index:    index,
+					children: children,
+				}
+			}(i, node)
+		}
+		wg.Wait()
+		for _, points := range availablePoints {
+			if points != nil {
+				for _, point := range points {
+					result = append(result, *point)
+					if conf.Limit > 0 && len(result) >= conf.Limit {
+						return result, nil
+					}
+				}
+			}
+		}
+		bfsList = bfsList[:0]
+		for i := 0; i < nodeCount; i++ {
+			select {
+			case resp := <-childrenChannels:
+				for _, child := range resp.children {
+					//avoid nested loops
+					_, ok := m.Load(child.String())
+					if !ok {
+						bfsList = append(bfsList, child)
+						m.Store(child.String(), struct{}{})
+					}
+				}
 			}
 		}
 	}
@@ -727,52 +766,75 @@ var convertType = map[ua.TypeID]types.ValueType{
 	ua.TypeIDDateTime: types.TIMESTAMP,
 }
 
-func getPoint(ctx context.Context, n *opcua.Node, reg *regexp.Regexp) (*common.Point, error) {
-	attrs, err := n.Attributes(ctx, ua.AttributeIDNodeClass, ua.AttributeIDBrowseName, ua.AttributeIDDataType)
+var attributes = []ua.AttributeID{
+	ua.AttributeIDNodeClass,
+	ua.AttributeIDBrowseName,
+}
+var attributeNames = []string{
+	"NodeClass",
+	"BrowseName",
+}
+
+func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcua.Node, reg *regexp.Regexp, nsMap map[uint16]struct{}) []*common.Point {
+	nodes := make([]*opcua.Node, 0, len(ns))
+	for i := 0; i < len(ns); i++ {
+		if len(nsMap) == 0 {
+			if ns[i].ID.Namespace() == 0 {
+				continue
+			}
+		} else {
+			if _, ok := nsMap[ns[i].ID.Namespace()]; !ok {
+				continue
+			}
+		}
+		nodes = append(nodes, ns[i])
+	}
+	req := &ua.ReadRequest{NodesToRead: make([]*ua.ReadValueID, 0, len(nodes)*len(attributes))}
+	for _, node := range nodes {
+		for i := 0; i < len(attributes); i++ {
+			req.NodesToRead = append(req.NodesToRead, &ua.ReadValueID{
+				NodeID:      node.ID,
+				AttributeID: attributes[i],
+			})
+		}
+	}
+	if len(req.NodesToRead) == 0 {
+		return nil
+	}
+	res, err := conn.Read(ctx, req)
 	if err != nil {
-		return nil, err
+		c.logger.WithError(err).Error("get points properties error")
+		return nil
 	}
-	err = attrs[0].Status
-	if err != ua.StatusOK {
-		if err == ua.StatusBadSecurityModeInsufficient {
-			return nil, nil
+	var result []*common.Point
+	for i := 0; i < len(nodes); i++ {
+		index := i * len(attributes)
+		err = res.Results[index].Status
+		if !errors.Is(err, ua.StatusOK) {
+			c.logger.WithError(err).WithField("nodeID", nodes[i].ID.String()).Errorf("get node attribute %s error", attributeNames[0])
+			continue
 		}
-		return nil, err
-	}
-	nodeClass := ua.NodeClass(attrs[0].Value.Int())
-	if nodeClass != ua.NodeClassVariable {
-		return nil, nil
-	}
-	err = attrs[1].Status
-	if err != ua.StatusOK {
-		return nil, err
-	}
-	browseName := attrs[1].Value.String()
-	err = attrs[2].Status
-	switch err {
-	case ua.StatusOK:
-		dataType := attrs[2].Value.NodeID().IntID()
-		_, exist := convertType[ua.TypeID(dataType)]
-		if !exist {
-			return nil, nil
+		nodeClass := ua.NodeClass(res.Results[index].Value.Int())
+		if nodeClass != ua.NodeClassVariable {
+			continue
 		}
-	case ua.StatusBadAttributeIDInvalid:
-		return nil, nil
-	default:
-		return nil, err
+		err = res.Results[index+1].Status
+		if !errors.Is(err, ua.StatusOK) {
+			c.logger.WithError(err).WithField("nodeID", nodes[i].ID.String()).Errorf("get node attribute %s error", attributeNames[1])
+			continue
+		}
+		browseName := res.Results[index+1].Value.String()
+		point := &common.Point{
+			ID:   nodes[i].ID.String(),
+			Name: browseName,
+		}
+		if !regMatched(reg, point) {
+			continue
+		} else {
+			result = append(result, point)
+		}
 	}
-	if err != ua.StatusOK {
-		return nil, err
-	}
-	point := &common.Point{
-		ID:   n.ID.String(),
-		Name: browseName,
-	}
-	if regMatched(reg, point) {
-		return point, nil
-	} else {
-		return nil, nil
-	}
+	return result
 }
 
 func regMatched(reg *regexp.Regexp, point *common.Point) bool {
@@ -785,20 +847,14 @@ func regMatched(reg *regexp.Regexp, point *common.Point) bool {
 	return false
 }
 
-var refTypes = []uint32{
-	id.Organizes,
-}
-
 func getChildren(ctx context.Context, n *opcua.Node) ([]*opcua.Node, error) {
 	children := make([]*opcua.Node, 0)
-	for _, refType := range refTypes {
-		refs, err := n.ReferencedNodes(ctx, refType, ua.BrowseDirectionForward, ua.NodeClassAll, true)
-		if err != nil {
-			return nil, fmt.Errorf("References: %d: %s", refType, err)
-		}
-		if len(refs) > 0 {
-			children = append(children, refs...)
-		}
+	refs, err := n.ReferencedNodes(ctx, id.HierarchicalReferences, ua.BrowseDirectionForward, ua.NodeClassAll, true)
+	if err != nil {
+		return nil, fmt.Errorf("reference: %d: %s", id.HierarchicalReferences, err)
+	}
+	if len(refs) > 0 {
+		children = append(children, refs...)
 	}
 	return children, nil
 }
