@@ -291,6 +291,9 @@ typedef enum ESubTableInputType {
 
 typedef struct STmsSubTableInput {
   STsdbReader* pReader;
+  SQueryTableDataCond tblCond;
+  STableKeyInfo* pKeyInfo;
+  bool bInMemReader;
   ESubTableInputType type;
   SSDataBlock* pReaderBlock;
 
@@ -313,6 +316,8 @@ typedef struct STmsSubTablesMergeInfo {
 
   int32_t        numTableBlocksInMem;
   SDiskbasedBuf* pBlocksBuf;
+
+  int32_t numInMemReaders;
 } STmsSubTablesMergeInfo;
 
 typedef struct STableMergeScanInfo {
