@@ -573,6 +573,7 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
   for (int32_t j = startIndex; j < numOfRows; ++j) {
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(pBlock->pDataBlock, i);
+      if (pColInfoData->pData == NULL) continue;
       if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
         if (pColInfoData->varmeta.offset[j] != -1) {
           char* p = colDataGetData(pColInfoData, j);
@@ -631,7 +632,7 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
     SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, i);
-
+    if (pColData->pData == NULL) continue;
     for (int32_t j = startIndex; j < (startIndex + rowCount); ++j) {
       bool isNull = false;
       if (pBlock->pBlockAgg == NULL) {
