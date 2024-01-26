@@ -25,7 +25,12 @@ sql_error create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 
 # All
 sql_error create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select  _wstart as s, count(*) c1,  sum(b), max(c) from st count_window(3);
 
+#2~INT32_MAX
+sql_error create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 into streamt as select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(1);
+sql_error create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 into streamt as select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(2147483648);
 
+sql create stream streams2 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 10s into streamt2 as select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(2);
+sql create stream streams3 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 10s into streamt3 as select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(2147483647);
 
 print count1 end
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

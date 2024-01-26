@@ -7772,6 +7772,22 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
                                     "Ignore expired data of Count window must be 1.");
     }    
 
+    SCountWindowNode* pCountWin = (SCountWindowNode*)pSelect->pWindow;
+    if (pCountWin->windowCount <= 1) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Size of Count window must exceed 1.");
+    }
+
+    if (pCountWin->windowSliding <= 1) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Size of Count window must exceed 1.");
+    }
+
+    if (pCountWin->windowCount > INT32_MAX) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Size of Count window must less than 2147483647(INT32_MAX).");
+    }
+
   }
 
   return TSDB_CODE_SUCCESS;

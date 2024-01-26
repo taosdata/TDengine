@@ -498,6 +498,7 @@ SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhys
     goto _error;
   }
   pInfo->streamAggSup.windowCount = pCountNode->windowCount;
+  pInfo->streamAggSup.windowSliding = pCountNode->windowSliding;
 
   pInfo->twAggSup = (STimeWindowAggSupp){
       .waterMark = pCountNode->window.watermark,

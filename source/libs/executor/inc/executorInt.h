@@ -373,6 +373,7 @@ typedef struct SStreamAggSupporter {
   SStorageAPI*        pSessionAPI;
   struct SUpdateInfo* pUpdateInfo;
   int32_t             windowCount;
+  int32_t             windowSliding;
 } SStreamAggSupporter;
 
 typedef struct SWindowSupporter {

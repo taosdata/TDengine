@@ -283,6 +283,7 @@ typedef struct SWindowLogicNode {
   EWindowAlgorithm windowAlgo;
   bool             isPartTb;
   int64_t          windowCount;
+  int64_t          windowSliding;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -634,6 +635,7 @@ typedef SEventWinodwPhysiNode SStreamEventWinodwPhysiNode;
 typedef struct SCountWinodwPhysiNode {
   SWindowPhysiNode window;
   int64_t          windowCount;
+  int64_t          windowSliding;
 } SCountWinodwPhysiNode;
 
 typedef SCountWinodwPhysiNode SStreamCountWinodwPhysiNode;

@@ -1758,6 +1758,7 @@ static int32_t createCountWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pCount->windowCount = pWindowLogicNode->windowCount;
+  pCount->windowSliding = pWindowLogicNode->windowSliding;
 
   int32_t  code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pCount->window, pWindowLogicNode);
   if (TSDB_CODE_SUCCESS == code) {

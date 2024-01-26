@@ -1546,7 +1546,7 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t generateCountScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock, EStreamScanMode mode) {
+static int32_t generateCountScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock, EStreamType mode) {
   blockDataCleanup(pDestBlock);
   if (pSrcBlock->info.rows == 0) {
     return TSDB_CODE_SUCCESS;

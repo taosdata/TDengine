@@ -1022,6 +1022,7 @@ static int32_t createWindowLogicNodeByCount(SLogicPlanContext* pCxt, SCountWindo
   pWindow->node.resultDataOrder =
       pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_GLOBAL : pWindow->node.requireDataOrder;
   pWindow->windowCount = pCount->windowCount;
+  pWindow->windowSliding = pCount->windowSliding;
   pWindow->pTspk = nodesCloneNode(pCount->pCol);
   if (NULL == pWindow->pTspk) {
     nodesDestroyNode((SNode*)pWindow);

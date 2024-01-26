@@ -1153,7 +1153,9 @@ twindow_clause_opt(A) ::=
 twindow_clause_opt(A) ::=
   EVENT_WINDOW START WITH search_condition(B) END WITH search_condition(C).       { A = createEventWindowNode(pCxt, B, C); }
 twindow_clause_opt(A) ::=
-  COUNT_WINDOW NK_LP NK_INTEGER(B) NK_RP.                                                       { A = createCountWindowNode(pCxt, &B); }
+  COUNT_WINDOW NK_LP NK_INTEGER(B) NK_RP.                                         { A = createCountWindowNode(pCxt, &B, &B); }
+twindow_clause_opt(A) ::=
+  COUNT_WINDOW NK_LP NK_INTEGER(B) NK_COMMA NK_INTEGER(C) NK_RP.                  { A = createCountWindowNode(pCxt, &B, &C); }
 
 sliding_opt(A) ::= .                                                              { A = NULL; }
 sliding_opt(A) ::= SLIDING NK_LP interval_sliding_duration_literal(B) NK_RP.      { A = releaseRawExprNode(pCxt, B); }

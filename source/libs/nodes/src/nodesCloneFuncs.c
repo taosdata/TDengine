@@ -332,6 +332,7 @@ static int32_t eventWindowNodeCopy(const SEventWindowNode* pSrc, SEventWindowNod
 static int32_t countWindowNodeCopy(const SCountWindowNode* pSrc, SCountWindowNode* pDst) {
   CLONE_NODE_FIELD(pCol);
   COPY_SCALAR_FIELD(windowCount);
+  COPY_SCALAR_FIELD(windowSliding);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -558,6 +559,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(igCheckUpdate);
   COPY_SCALAR_FIELD(windowAlgo);
   COPY_SCALAR_FIELD(windowCount);
+  COPY_SCALAR_FIELD(windowSliding);
   return TSDB_CODE_SUCCESS;
 }
 

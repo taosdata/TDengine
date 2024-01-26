@@ -2742,6 +2742,7 @@ static int32_t jsonToPhysiEventWindowNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkCountWindowPhysiPlanWindowCount = "WindowCount";
+static const char* jkCountWindowPhysiPlanWindowSliding = "WindowSliding";
 
 static int32_t physiCountWindowNodeToJson(const void* pObj, SJson* pJson) {
   const SCountWinodwPhysiNode* pNode = (const SCountWinodwPhysiNode*)pObj;
@@ -2749,6 +2750,9 @@ static int32_t physiCountWindowNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = physiWindowNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkCountWindowPhysiPlanWindowCount, pNode->windowCount);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkCountWindowPhysiPlanWindowSliding, pNode->windowSliding);
   }
   return code;
 }
@@ -2759,6 +2763,9 @@ static int32_t jsonToPhysiCountWindowNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToPhysiWindowNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkCountWindowPhysiPlanWindowCount, &pNode->windowCount);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkCountWindowPhysiPlanWindowSliding, &pNode->windowSliding);
   }
 
   return code;
@@ -4415,6 +4422,7 @@ static int32_t jsonToEventWindowNode(const SJson* pJson, void* pObj) {
 
 static const char* jkCountWindowTsPrimaryKey = "CountTsPrimaryKey";
 static const char* jkCountWindowCount = "CountWindowCount";
+static const char* jkCountWindowSliding = "CountWindowSliding";
 
 static int32_t countWindowNodeToJson(const void* pObj, SJson* pJson) {
   const SCountWindowNode* pNode = (const SCountWindowNode*)pObj;
@@ -4422,6 +4430,9 @@ static int32_t countWindowNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = tjsonAddObject(pJson, jkCountWindowTsPrimaryKey, nodeToJson, pNode->pCol);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkCountWindowCount, pNode->windowCount);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkCountWindowSliding, pNode->windowSliding);
   }
   return code;
 }
@@ -4432,6 +4443,9 @@ static int32_t jsonToCountWindowNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToNodeObject(pJson, jkCountWindowTsPrimaryKey, &pNode->pCol);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkCountWindowCount, &pNode->windowCount);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkCountWindowSliding, &pNode->windowSliding);
   }
   return code;
 }
