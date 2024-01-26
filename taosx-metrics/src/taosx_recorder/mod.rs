@@ -20,6 +20,7 @@
 //! metrics::gauge!("test_gauge").set(10.0);
 //! ```
 //!
+mod formatting;
 mod registry;
 
 use metrics::Key;
@@ -177,6 +178,26 @@ pub struct TaosXRecorderHandle {
 impl TaosXRecorderHandle {
     pub fn snapshot(&self) -> Snapshot {
         self.inner.get_recent_metrics()
+    }
+
+    pub fn render(&self) -> String {
+        let snapshot = self.snapshot();
+        let mut output = String::new();
+        for (key, value) in snapshot.0 {
+            let (name, labels) = key.into_parts();
+            let name = name.as_str();
+            match value {
+                DebugValue::Counter(v) => {
+                    formatting::write_type_line(&mut output, name, "counter");
+                    formatting::write_metric_line::<&str, u64>(&mut output, name, None, labels, v);
+                }
+                DebugValue::Gauge(v) => {
+                    formatting::write_type_line(&mut output, name, "gauge");
+                    formatting::write_metric_line::<&str, f64>(&mut output, name, None, labels, v);
+                }
+            }
+        }
+        output
     }
 }
 #[cfg(test)]

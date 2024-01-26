@@ -14,7 +14,7 @@ arrow-flight = { version = "50.0.0" }
 arrow-schema = { version = "50.0.0", features = ["serde"] }
 parquet = "50.0.0"
 metrics-exporter-prometheus = { version = "0.12.0", default-features = false }
-metrics-tracing-context = "0.14.0"
+metrics-tracing-context = "0.15.0"
 tonic = "0.10"
 
 taos = { version = "0.11.1", default-features = false, features = [

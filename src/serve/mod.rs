@@ -1,5 +1,3 @@
-use std::{sync::Arc, time::Duration};
-
 use actix_cors::Cors;
 use actix_multipart::form::MultipartFormConfig;
 use actix_web::web;
@@ -12,6 +10,7 @@ use anyhow::Result;
 use clap::Parser;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use serde::{Deserialize, Serialize};
+use std::{sync::Arc, time::Duration};
 use tracing::info;
 use tracing_actix_web::TracingLogger;
 use utoipa::{OpenApi, ToSchema};
@@ -128,7 +127,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(get_task_offsets_by_id)
             .service(start_task)
             .service(stop_task)
-            // .service(metrics::metrics_exporter)
+            .service(metrics::metrics_exporter)
             .service(metrics::metrics_desc)
             .service(get_sample)
             .service(data_source_is_valid)
@@ -339,6 +338,10 @@ impl Cli {
         let store = Data::new(controller);
         assert!(!controller::DATA_SOURCE_DEFINITIONS.is_empty());
         let openapi = ApiDoc::openapi();
+        let monitor = monitor::Monitor::new(monitor_cfg);
+        let handle = monitor.init();
+        let recorder = Data::new(handle);
+
         let addr = self.get_listen_address();
         let addr = addr.as_str();
         let server = HttpServer::new(move || {
@@ -350,6 +353,7 @@ impl Cli {
             App::new()
                 .wrap(cors)
                 .wrap(Compat::new(TracingLogger::<TaosXRootSpanBuilder>::new()))
+                .app_data(recorder.clone())
                 .app_data(PayloadConfig::new(std::usize::MAX))
                 .app_data(
                     MultipartFormConfig::default()
@@ -369,9 +373,6 @@ impl Cli {
         .bind(addr)
         .map_err(|err| anyhow::format_err!("Start HTTP server error: {err} (addr: {addr})"))?
         .run();
-
-        let monitor = monitor::Monitor::new(monitor_cfg);
-        monitor.init();
 
         tokio::select! {
             _ = server => {

@@ -1,14 +1,13 @@
 use crate::serve::data_sources::LangQuery;
 use actix_web::{get, web::Query, HttpResponse, Responder};
 use std::collections::BTreeMap;
+use taosx_metrics::TaosXRecorderHandle;
 use tracing::instrument;
 
 pub(crate) mod ws;
 
-//
-// use metrics::{describe_gauge, gauge};
+// use std::time::Duration;
 // use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, PrometheusRecorder};
-// use  time::Duration
 // #[derive(Debug, Default)]
 // pub struct Metrics {
 //     push: Option<String>,
@@ -97,7 +96,7 @@ pub(crate) mod ws;
 //         //     exporter = exporter.with_http_listener(listen);
 //         // }
 //         let recorder = if let Some(push) = self.push {
-//             let interval = self.push_interval.unwrap_or(Duration::from_secs(30));
+//             let interval = self.push_interval.unwrap_or(dur);
 //             exporter = exporter.with_push_gateway(push, interval, None, None)?;
 
 //             let (recorder, exporter) = exporter.build()?;
@@ -108,14 +107,14 @@ pub(crate) mod ws;
 //         };
 
 //         // let recorder = exporter.build_recorder();
-//         process_metrics_init();
-//         std::thread::spawn(move || {
-//             let mut sys = sysinfo::System::new_all();
-//             loop {
-//                 let _ = process_metrics(&mut sys);
-//                 std::thread::sleep(dur);
-//             }
-//         });
+//         // process_metrics_init();
+//         // std::thread::spawn(move || {
+//         //     let mut sys = sysinfo::System::new_all();
+//         //     loop {
+//         //         let _ = process_metrics(&mut sys);
+//         //         std::thread::sleep(dur);
+//         //     }
+//         // });
 //         Ok(recorder)
 //     }
 
@@ -124,16 +123,16 @@ pub(crate) mod ws;
 //     }
 // }
 /// Metrics like node-exporter.
-// #[utoipa::path(
-//     responses(
-//         (status = 200, description = "Export all metrics", body = String),
-//     )
-// )]
-// #[get("/metrics")]
-// async fn metrics_exporter(handle: actix_web::web::Data<PrometheusHandle>) -> impl Responder {
-//     let output = handle.render();
-//     output
-// }
+#[utoipa::path(
+    responses(
+        (status = 200, description = "Export all metrics", body = String),
+    )
+)]
+#[get("/metrics")]
+async fn metrics_exporter(handle: actix_web::web::Data<TaosXRecorderHandle>) -> impl Responder {
+    let output = handle.render();
+    output
+}
 
 #[utoipa::path(
     responses(

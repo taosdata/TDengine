@@ -1,5 +1,6 @@
 use anyhow::Ok;
 use clap::Parser;
+use metrics::gauge;
 use serde::Deserialize;
 use serde::Serialize;
 use std::time::Duration;
@@ -67,16 +68,12 @@ impl Monitor {
     }
 
     #[instrument(skip_all)]
-    pub fn init(&self) {
-        if self.cfg.fqdn.is_none() {
-            tracing::info!("nonitor is not enabled");
-            return;
-        }
-        // TODO: check if taosKeeper fqdn is valid
+    pub fn init(&self) -> TaosXRecorderHandle {
         let monitor_interval = self.cfg.interval;
         let idle_timeout = Duration::from_secs(monitor_interval * 2);
         let recorder = TaosXRecorder::new(Some(idle_timeout));
         let recorder_handle: TaosXRecorderHandle = recorder.handle();
+        let handle_clone = recorder_handle.clone();
         recorder.install();
         // Update metrics
         tokio::spawn(async move {
@@ -88,21 +85,36 @@ impl Monitor {
                 let _ = update_metrics(&mut sys);
             }
         });
-        // Sent metrics to taosKeeper
-        tokio::spawn(async move {
-            tracing::info!("start send metrics task");
-            let mut interval = tokio::time::interval(Duration::from_secs(monitor_interval));
-            loop {
-                interval.tick().await;
-                let _ = send_metrics_to_taoskeeper(&recorder_handle);
-            }
-        });
+
+        if let Some(_fqdn) = &self.cfg.fqdn {
+            tracing::info!("nonitor is enabled");
+            // Sent metrics to taosKeeper
+            tokio::spawn(async move {
+                tracing::info!("start send metrics task");
+                let mut interval = tokio::time::interval(Duration::from_secs(monitor_interval));
+                loop {
+                    interval.tick().await;
+                    let _ = send_metrics_to_taoskeeper(&recorder_handle);
+                }
+            });
+        }
+        handle_clone
     }
 }
 
-pub fn update_metrics(_sys: &mut sysinfo::System) -> anyhow::Result<()> {
+pub const METRIC_SYS_CPUS: &str = "taosx_sys_cpus";
+pub const METRIC_SYS_TOTAL_MEMORY: &str = "taosx_sys_total_memory";
+pub const METRIC_SYS_USED_MEMORY: &str = "taosx_sys_used_memory";
+pub const METRIC_SYS_AVAILABLE_MEMORY: &str = "taosx_sys_available_memory";
+
+pub fn update_metrics(sys: &mut sysinfo::System) -> anyhow::Result<()> {
     tracing::info!("update_metrics");
-    // TODO: update metrics
+    sys.refresh_all();
+
+    gauge!(METRIC_SYS_CPUS, "lable1" => "value1").set(sys.cpus().len() as f64); // test
+    gauge!(METRIC_SYS_TOTAL_MEMORY, "label2" => "value2").set(sys.total_memory() as f64); // test
+    gauge!(METRIC_SYS_USED_MEMORY).set(sys.used_memory() as f64);
+    gauge!(METRIC_SYS_AVAILABLE_MEMORY).set(sys.available_memory() as f64);
     Ok(())
 }
 
