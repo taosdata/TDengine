@@ -223,14 +223,6 @@ int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId) {
       // append the data for the stream
       tqDebug("vgId:%d s-task:%s wal reader initial seek to ver:%" PRId64, vgId, pTask->id.idStr,
               pTask->chkInfo.nextProcessVer);
-    } else if (currentVer != pTask->chkInfo.nextProcessVer) {
-      int32_t code = walReaderSeekVer(pTask->exec.pWalReader, pTask->chkInfo.nextProcessVer);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-
-      tqDebug("vgId:%d s-task:%s wal reader seek back to ver:%" PRId64, vgId, pTask->id.idStr,
-              pTask->chkInfo.nextProcessVer);
     }
   }
 
@@ -312,17 +304,17 @@ bool doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems
   const char* id = pTask->id.idStr;
   int32_t     numOfNewItems = 0;
 
-  while(1) {
+  while (1) {
     if ((pTask->info.fillHistory == 1) && pTask->status.appendTranstateBlock) {
       *numOfItems += numOfNewItems;
       return numOfNewItems > 0;
     }
 
     SStreamQueueItem* pItem = NULL;
-    int32_t code = extractMsgFromWal(pTask->exec.pWalReader, (void**)&pItem, maxVer, id);
+    int32_t           code = extractMsgFromWal(pTask->exec.pWalReader, (void**)&pItem, maxVer, id);
     if (code != TSDB_CODE_SUCCESS || pItem == NULL) {  // failed, continue
       int64_t currentVer = walReaderGetCurrentVer(pTask->exec.pWalReader);
-      bool itemInFillhistory = handleFillhistoryScanComplete(pTask, currentVer);
+      bool    itemInFillhistory = handleFillhistoryScanComplete(pTask, currentVer);
       if (itemInFillhistory) {
         numOfNewItems += 1;
       }
@@ -342,7 +334,9 @@ bool doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems
           break;
         }
       } else {
-        tqError("s-task:%s append input queue failed, code: too many items, ver:%" PRId64, id, pTask->chkInfo.nextProcessVer);
+        walReaderSeekVer(pTask->exec.pWalReader, pTask->chkInfo.nextProcessVer);
+        tqError("s-task:%s append input queue failed, code:too many items, ver:%" PRId64, id,
+                pTask->chkInfo.nextProcessVer);
         break;
       }
     }

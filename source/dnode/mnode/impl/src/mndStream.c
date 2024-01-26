@@ -1583,9 +1583,10 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
 
   if (pStream == NULL) {
     if (pauseReq.igNotExists) {
-      mInfo("stream:%s, not exist, if exist is set", pauseReq.name);
+      mInfo("stream:%s, not exist, not pause stream", pauseReq.name);
       return 0;
     } else {
+      mError("stream:%s not exist, failed to pause stream", pauseReq.name);
       terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
       return -1;
     }
@@ -1671,10 +1672,11 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
 
   if (pStream == NULL) {
     if (pauseReq.igNotExists) {
-      mInfo("stream:%s, not exist, if exist is set", pauseReq.name);
+      mInfo("stream:%s not exist, not resume stream", pauseReq.name);
       sdbRelease(pMnode->pSdb, pStream);
       return 0;
     } else {
+      mError("stream:%s not exist, failed to resume stream", pauseReq.name);
       terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
       return -1;
     }
