@@ -462,7 +462,6 @@ struct SStreamTask {
   struct SStreamMeta* pMeta;
   SSHashObj*          pNameMap;
   void*               pBackend;
-  int64_t             backendRefId;
   char                reserve[256];
 };
 
@@ -640,6 +639,7 @@ typedef struct {
 int32_t tEncodeStreamScanHistoryFinishReq(SEncoder* pEncoder, const SStreamScanHistoryFinishReq* pReq);
 int32_t tDecodeStreamScanHistoryFinishReq(SDecoder* pDecoder, SStreamScanHistoryFinishReq* pReq);
 
+// mndTrigger: denote if this checkpoint is triggered by mnode or as requested from tasks when transfer-state finished
 typedef struct {
   int64_t streamId;
   int64_t checkpointId;
@@ -648,6 +648,7 @@ typedef struct {
   SEpSet  mgmtEps;
   int32_t mnodeId;
   int32_t transId;
+  int8_t  mndTrigger;
   int64_t expireTime;
 } SStreamCheckpointSourceReq;
 
@@ -770,6 +771,15 @@ int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq);
 void    tDeleteStreamRetrieveReq(SStreamRetrieveReq* pReq);
 void    tDeleteStreamDispatchReq(SStreamDispatchReq* pReq);
 
+typedef struct SStreamTaskCheckpointReq {
+  int64_t streamId;
+  int32_t taskId;
+  int32_t nodeId;
+} SStreamTaskCheckpointReq;
+
+int32_t tEncodeStreamTaskCheckpointReq(SEncoder* pEncoder, const SStreamTaskCheckpointReq* pReq);
+int32_t tDecodeStreamTaskCheckpointReq(SDecoder* pDecoder, SStreamTaskCheckpointReq* pReq);
+
 int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
 
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
@@ -787,11 +797,12 @@ bool    streamTaskShouldPause(const SStreamTask* pStatus);
 bool    streamTaskIsIdle(const SStreamTask* pTask);
 bool    streamTaskReadyToRun(const SStreamTask* pTask, char** pStatus);
 
-char*            createStreamTaskIdStr(int64_t streamId, int32_t taskId);
+char*             createStreamTaskIdStr(int64_t streamId, int32_t taskId);
 SStreamTaskState* streamTaskGetStatus(const SStreamTask* pTask);
-const char*      streamTaskGetStatusStr(ETaskStatus status);
-void             streamTaskResetStatus(SStreamTask* pTask);
-void             streamTaskSetStatusReady(SStreamTask* pTask);
+const char*       streamTaskGetStatusStr(ETaskStatus status);
+void              streamTaskResetStatus(SStreamTask* pTask);
+void              streamTaskSetStatusReady(SStreamTask* pTask);
+ETaskStatus       streamTaskGetPrevStatus(const SStreamTask* pTask);
 
 void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen);
 
@@ -806,7 +817,7 @@ bool    streamTaskIsAllUpstreamClosed(SStreamTask* pTask);
 bool    streamTaskSetSchedStatusWait(SStreamTask* pTask);
 int8_t  streamTaskSetSchedStatusActive(SStreamTask* pTask);
 int8_t  streamTaskSetSchedStatusInactive(SStreamTask* pTask);
-int32_t streamTaskClearHTaskAttr(SStreamTask* pTask);
+int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, bool metaLock);
 
 int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event);
 int32_t streamTaskHandleEventAsync(SStreamTaskSM* pSM, EStreamTaskEvent event, void* pFn);
@@ -839,6 +850,7 @@ void    streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
 void    streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 int32_t streamTaskSetDb(SStreamMeta* pMeta, void* pTask, char* key);
 bool    streamTaskIsSinkTask(const SStreamTask* pTask);
+int32_t streamTaskSendCheckpointReq(SStreamTask* pTask);
 
 void streamTaskStatusInit(STaskStatusEntry* pEntry, const SStreamTask* pTask);
 void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc);
@@ -866,6 +878,7 @@ int32_t      streamMetaGetNumOfTasks(SStreamMeta* pMeta);
 SStreamTask* streamMetaAcquireTaskNoLock(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
+SStreamTask* streamMetaAcquireOneTask(SStreamTask* pTask);
 void         streamMetaClear(SStreamMeta* pMeta);
 void         streamMetaInitBackend(SStreamMeta* pMeta);
 int32_t      streamMetaCommit(SStreamMeta* pMeta);
