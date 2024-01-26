@@ -674,7 +674,6 @@ struct ModifyStructForPointMessage {
 async fn consume_point_record(
     pool: &TaosPool,
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
-    _: &mut Stmt,
     record: &PointMessage,
     count: &mut usize,
     config: &OpcTableConfig,
@@ -2029,7 +2028,6 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
         let pool = &context.pool;
         let taos = context.pool.get().await?;
         let mut count = 0;
-        let mut stmt = Stmt::init_with_req_id(&taos, data_trace_id).await?;
         let mut taos = Some(taos);
         let record = *Box::<dyn Any>::downcast::<PointMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
@@ -2038,7 +2036,6 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
         let n = consume_point_record(
             pool,
             &mut taos,
-            &mut stmt,
             &record,
             &mut count,
             context.config.as_ref().unwrap(),
@@ -2642,7 +2639,6 @@ impl IpcStreamWorker {
                 let _n = consume_point_record(
                     &self.pool,
                     &mut taos,
-                    stmt,
                     &record,
                     &mut count,
                     self.opc_table_config.get().ok_or_else(|| {
