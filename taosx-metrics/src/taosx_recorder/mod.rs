@@ -196,6 +196,7 @@ impl TaosXRecorderHandle {
                     formatting::write_metric_line::<&str, f64>(&mut output, name, None, labels, v);
                 }
             }
+            output.push('\n');
         }
         output
     }

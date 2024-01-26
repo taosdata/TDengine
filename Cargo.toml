@@ -173,6 +173,7 @@ md5 = "0.7.0"
 taos = { workspace = true }
 taosx-core = { path = "./taosx-core", default-features = false }
 taosx-metrics = { path = "./taosx-metrics"}
+gethostname = "0.4.3"
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator = { version = "0.5", optional = true }
@@ -182,7 +183,6 @@ sqlx = { version = "0.7", features = ["sqlite", "chrono"] }
 dotenv = "0.15.0"
 
 shadow-rs = { workspace = true }
-
 
 [dev-dependencies]
 tower = "0.4"

@@ -337,12 +337,14 @@ impl Cli {
 
         let store = Data::new(controller);
         assert!(!controller::DATA_SOURCE_DEFINITIONS.is_empty());
+
         let openapi = ApiDoc::openapi();
-        let monitor = monitor::Monitor::new(monitor_cfg);
+        let addr = self.get_listen_address();
+        let port = addr.split(':').last().unwrap();
+        let monitor = monitor::Monitor::new(monitor_cfg, port);
         let handle = monitor.init();
         let recorder = Data::new(handle);
 
-        let addr = self.get_listen_address();
         let addr = addr.as_str();
         let server = HttpServer::new(move || {
             let cors = Cors::default()
