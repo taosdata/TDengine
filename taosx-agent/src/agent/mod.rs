@@ -5,9 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use arrow::array::{
-    ArrayRef, BinaryArray, StringArray, TimestampMillisecondArray, UInt64Array, UInt8Array,
-};
+use arrow::array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use arrow_flight::FlightClient;
@@ -17,7 +15,6 @@ use chrono::{DateTime, Utc};
 use flume::{Receiver, Sender};
 use futures::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
-use taosx_metrics::{MetricEvent, MetricsEvents};
 use tonic::transport::Channel;
 use tonic::transport::Endpoint;
 use tracing::info;

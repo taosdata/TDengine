@@ -111,7 +111,7 @@ pub fn update_metrics(sys: &mut sysinfo::System) -> anyhow::Result<()> {
     tracing::info!("update_metrics");
     sys.refresh_all();
 
-    gauge!(METRIC_SYS_CPUS, "lable1" => "value1").set(sys.cpus().len() as f64); // test
+    gauge!(METRIC_SYS_CPUS, "label1" => "value1").set(sys.cpus().len() as f64); // test
     gauge!(METRIC_SYS_TOTAL_MEMORY, "label2" => "value2").set(sys.total_memory() as f64); // test
     gauge!(METRIC_SYS_USED_MEMORY).set(sys.used_memory() as f64);
     gauge!(METRIC_SYS_AVAILABLE_MEMORY).set(sys.available_memory() as f64);
