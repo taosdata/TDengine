@@ -617,11 +617,10 @@ static int32_t mndPersistTaskDropReq(SMnode *pMnode, STrans *pTrans, SStreamTask
   pReq->taskId = pTask->id.taskId;
   pReq->streamId = pTask->id.streamId;
 
-  SEpSet       epset = {0};
-  bool         hasEpset = false;
-
+  SEpSet  epset = {0};
+  bool    hasEpset = false;
   int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
-  if (code != TSDB_CODE_SUCCESS || !hasEpset) { // no valid epset, return directly without redoAction
+  if (code != TSDB_CODE_SUCCESS || !hasEpset) {  // no valid epset, return directly without redoAction
     terrno = code;
     return -1;
   }
@@ -940,17 +939,10 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
       for (int32_t j = 0; j < sz; j++) {
         SStreamTask *pTask = taosArrayGetP(pLevel, j);
 
-        SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->info.nodeId);
-        if (pVgObj == NULL) {
-          taosWUnLockLatch(&pStream->lock);
-          goto _ERR;
-        }
-
         void   *buf;
         int32_t tlen;
         if (mndBuildStreamCheckpointSourceReq(&buf, &tlen, pTask->info.nodeId, checkpointId, pTask->id.streamId,
-                                               pTask->id.taskId, pTrans->id, mndTrigger) < 0) {
-          mndReleaseVgroup(pMnode, pVgObj);
+                                              pTask->id.taskId, pTrans->id, mndTrigger) < 0) {
           taosWUnLockLatch(&pStream->lock);
           goto _ERR;
         }

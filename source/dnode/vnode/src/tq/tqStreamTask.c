@@ -23,7 +23,7 @@ static int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle);
 static int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId);
 static bool    handleFillhistoryScanComplete(SStreamTask* pTask, int64_t ver);
 static bool    taskReadyForDataFromWal(SStreamTask* pTask);
-static bool    doPutDataIntoInputQFromWal(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems);
+static bool    doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems);
 static int32_t tqScanWalInFuture(STQ* pTq, int32_t numOfTasks, int32_t idleDuration);
 
 // extract data blocks(submit/delete) from WAL, and add them into the input queue for all the sources tasks.
@@ -223,6 +223,14 @@ int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId) {
       // append the data for the stream
       tqDebug("vgId:%d s-task:%s wal reader initial seek to ver:%" PRId64, vgId, pTask->id.idStr,
               pTask->chkInfo.nextProcessVer);
+    } else if (currentVer != pTask->chkInfo.nextProcessVer) {
+      int32_t code = walReaderSeekVer(pTask->exec.pWalReader, pTask->chkInfo.nextProcessVer);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
+      tqDebug("vgId:%d s-task:%s wal reader seek back to ver:%" PRId64, vgId, pTask->id.idStr,
+              pTask->chkInfo.nextProcessVer);
     }
   }
 
@@ -300,7 +308,7 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
   return true;
 }
 
-bool doPutDataIntoInputQFromWal(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems) {
+bool doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfItems) {
   const char* id = pTask->id.idStr;
   int32_t     numOfNewItems = 0;
 
@@ -399,7 +407,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    bool hasNewData = doPutDataIntoInputQFromWal(pTask, maxVer, &numOfItems);
+    bool hasNewData = doPutDataIntoInputQ(pTask, maxVer, &numOfItems);
     taosThreadMutexUnlock(&pTask->lock);
 
     if ((numOfItems > 0) || hasNewData) {
