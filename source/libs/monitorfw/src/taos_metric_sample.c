@@ -29,6 +29,7 @@
 #include <stdatomic.h>
 #else
 #define ALLOW_FORBID_FUNC
+#include "tdef.h"
 #include "osAtomic.h"
 #endif
 
