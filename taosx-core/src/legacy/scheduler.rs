@@ -11,9 +11,9 @@ use anyhow::Context as _;
 use chrono::{DateTime, Utc};
 use flume::{Receiver, Sender};
 use futures::FutureExt;
+use futures_util::{StreamExt, TryStreamExt};
 use itertools::Itertools;
-
-use taos::{AsyncQueryable, Taos, TaosPool};
+use taos::{AsyncFetchable, AsyncQueryable, AsyncRows, BorrowedValue, ResultSet, Taos, TaosPool};
 use tokio::{
     sync::oneshot,
     task::{JoinError, JoinHandle},
@@ -22,10 +22,10 @@ use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
 use crate::{
-    core_metrics::CoreMetrics,
+    core_metrics::{CoreMetrics, TaosXMetrics},
     legacy::{
         split_table_into_time_range_chunks, sync_single_table_partial, sync_super_table_schema,
-        transform_sql_with_remap,
+        transform_sql_with_remap, transform_tbname_with_actions,
     },
     utils::breakpoints,
     Action, QueryOpts, TargetOpts, TimeRange,
@@ -33,19 +33,18 @@ use crate::{
 
 use super::{sync_normal_table_schema, sync_super_table_schema_with_subs};
 
+type TodoResp = oneshot::Sender<anyhow::Result<()>>;
 pub enum Todo {
-    STable(Arc<String>, oneshot::Sender<anyhow::Result<()>>),
-    Meta(
-        Option<Arc<String>>,
-        Vec<String>,
-        Option<oneshot::Sender<anyhow::Result<()>>>,
-    ),
+    STable(Arc<String>, TodoResp),
+    Meta(Option<Arc<String>>, Vec<String>, Option<TodoResp>),
     Data(
         Option<Arc<String>>,
         Arc<String>,
         TimeRange,
-        Option<oneshot::Sender<anyhow::Result<()>>>,
+        Option<TodoResp>,
     ),
+    /// Multiple-tables-low-frequency kind of todo item.
+    Sparse(Arc<String>, TimeRange, Option<TodoResp>),
 }
 
 /// Legacy table synchronization scheduler.
@@ -501,6 +500,114 @@ async fn worker(
                     }
                 }
             }
+
+            Todo::Sparse(table, time_range, sender) => {
+                let query = QueryOpts {
+                    time_range,
+                    unit: query.unit,
+                    limit: query.limit,
+                    select_from_stable: query.select_from_stable,
+                    smooth_init: query.smooth_init,
+                };
+                let mut retries = MAX_WS_RETRIES;
+
+                let remap = opts
+                    .remap
+                    .as_ref()
+                    .and_then(|v| v.get(table.as_str()).map(Clone::clone));
+                let mut chunk_err: Option<String> = None;
+                loop {
+                    let partial_metrics = metrics_arc.clone();
+                    match sync_sparse_stable(
+                        source.clone(),
+                        target.clone(),
+                        &from,
+                        &table,
+                        &to,
+                        &actions,
+                        &query,
+                        remap.as_ref(),
+                        &opts,
+                        target_is_v3,
+                        partial_metrics,
+                    )
+                    .await
+                    {
+                        Ok(_) => {
+                            // metrics
+                            log::debug!(
+                                            "sync table {table} time_range {time_range} total metrics: {metrics:#}",
+                                            table = table.as_str(),
+                                            time_range = query.time_range,
+                                            metrics = metrics,
+                                        );
+
+                            break;
+                        }
+                        Err(err) => {
+                            let err_string = err.to_string();
+                            // tracing::error!("err_string: {err_string}");
+                            if (err_string.contains("0xE00")
+                                || err_string.contains("channel closed"))
+                                && retries > 0
+                            {
+                                from = source.get().await?;
+                                to = target.get().await?;
+                                retries -= 1;
+                                tracing::warn!(
+                                    "[worker:{worker}] sync table {table} error: {err}, retrying ... {retries} times left"
+                                );
+                                continue;
+                            } else if err_string.contains("0x263F")
+                                || err_string.contains("Column does not exist")
+                            {
+                                tracing::info!(
+                                    "[worker:{worker}] sync table {table} err 0x263F: {err:?}, add column"
+                                );
+                                sync_add_column(&from, &to, &table, remap.as_ref()).await?;
+                                continue;
+                            }
+
+                            tracing::error!(
+                                "[worker:{worker}] sync table {table} error: {err:?}, continue next"
+                                        );
+                            if let Some(path) = opts.fails_to.as_ref() {
+                                path.lock().unwrap().write_fmt(format_args!(
+                                    "data\t{}\t{:?}\t{}\n",
+                                    table.as_str(),
+                                    query.time_range,
+                                    format!("{err:?}").replace("\n", " ")
+                                ))?;
+                            } else {
+                                println!(
+                                    "data\t{}\t{:?}\t{}",
+                                    table.as_str(),
+                                    query.time_range,
+                                    format!("{err:?}").replace("\n", " ")
+                                );
+
+                                chunk_err = Some(format!("{err:?}").to_string());
+                            }
+                            break;
+                        }
+                    };
+                }
+
+                match chunk_err {
+                    Some(err) => {
+                        if let Some(sender) = sender {
+                            let _ = sender
+                                .send(Err(anyhow::format_err!("Syncing table failed: {err}",)));
+                        }
+                    }
+                    None => {
+                        metrics.add_finished_tables(1);
+                        if let Some(sender) = sender {
+                            let _ = sender.send(Ok(()));
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -551,10 +658,11 @@ impl Scheduler {
         target_is_v3: bool,
         task_id: Option<String>,
         cancellation: CancellationToken,
+        file_mutex: Arc<std::sync::Mutex<()>>,
     ) -> Self {
         let workers = std::cmp::max(1, workers);
         let (sender, receiver) = flume::bounded((workers * 4) as usize);
-        let file_mutex = Arc::new(std::sync::Mutex::new(()));
+
         let handles = (0..workers)
             .map(|i| {
                 let cancellation = cancellation.clone();
@@ -630,4 +738,306 @@ impl std::future::Future for Scheduler {
         }
         Poll::Ready(Ok(()))
     }
+}
+
+#[async_backtrace::framed]
+async fn sync_sparse_stable(
+    _source: TaosPool,
+    target: TaosPool,
+    from: &Taos,
+    table: &Arc<String>,
+    _to: &Taos,
+    actions: &Vec<Action>,
+    opts: &QueryOpts,
+    remap: Option<&Arc<HashMap<String, String>>>,
+    target_opts: &TargetOpts,
+    _target_is_v3: bool,
+    metrics: Arc<CoreMetrics>,
+) -> anyhow::Result<()> {
+    tracing::info!(
+        "Syncing sparse table {table} with range: {}",
+        opts.time_range
+    );
+    let stable_schema = from.describe(table).await?;
+    debug_assert!(
+        { stable_schema.iter().any(|f| f.is_tag()) },
+        "{table} must be a stable"
+    );
+    let sql = if opts.is_none() {
+        format!("SELECT tbname, * FROM `{table}`")
+    } else {
+        format!("SELECT tbname, * FROM `{table}` WHERE {opts}")
+    };
+    let tag_idx = stable_schema
+        .iter()
+        .position(|f| f.is_tag())
+        .expect("stable must have a tag");
+
+    // let mut blocks = res.blocks();
+    let new_table_name = if actions.is_empty() {
+        table.clone()
+    } else {
+        Arc::new(transform_tbname_with_actions(&table, actions, true)?.to_string())
+    };
+
+    let mut res = from
+        .query(&sql)
+        .await
+        .context(format!("query with {sql}"))?;
+
+    let concurrent_limit = target_opts.concurrent_limit.get();
+
+    const MAX_SQL_LEN: usize = 1000 * 1000; // 800kb.
+    let max_sql_length = target_opts.max_sql_length.unwrap_or(MAX_SQL_LEN);
+    {
+        let (add_tag_names, add_tag_values) = {
+            actions
+                .iter()
+                .filter(|a| matches!(a, Action::AddTag(_)))
+                .fold(
+                    (String::new(), String::new()),
+                    |(mut names, mut values), a| {
+                        if let Action::AddTag(n) = a {
+                            let (_, value) = n.entry();
+                            names.push(',');
+                            names.push('`');
+                            names.push_str(n.name.as_str());
+                            names.push('`');
+
+                            values.push(',');
+                            values.push('\'');
+                            values.push_str(value);
+                            values.push('\'');
+                        }
+                        (names, values)
+                    },
+                )
+        };
+        let sqls = futures::stream::unfold(
+            Some((
+                res.rows(),
+                new_table_name.clone(),
+                add_tag_names,
+                add_tag_values,
+                actions,
+                remap.clone(),
+                String::with_capacity(1024),
+            )),
+            |context| async move {
+                type TaosRows<'a> = AsyncRows<'a, ResultSet>;
+
+                let (mut rows, new_table_name, add_tag_names, add_tag_values, actions, remap, tmp) =
+                    context?;
+
+                let mut sql = String::with_capacity(MAX_SQL_LEN);
+                sql.push_str("INSERT INTO");
+
+                async fn yield_sql_from<'a>(
+                    rows: &mut TaosRows<'a>,
+                    mut sql: String,
+                    mut tmp: String,
+                    stable: &str,
+
+                    add_tag_names: &str,
+                    add_tag_values: &str,
+                    tag_idx: usize,
+                    max_sql_length: usize,
+                    actions: &Vec<Action>,
+                    remap: Option<&Arc<HashMap<String, String>>>,
+                ) -> Result<Option<(usize, String, String)>, taos::Error> {
+                    let mut contains = 0;
+                    if !tmp.is_empty() {
+                        sql.push_str(tmp.as_str());
+                        contains += 1;
+                        tmp.clear();
+                    }
+                    while let Some(row) = rows.next().await.and_then(|r| match r {
+                        Ok(r) => Some(Ok(r)),
+                        Err(err) => {
+                            if err.message().contains("result is nil") {
+                                // taosAdapter returns `result is nil` error when polled too fast after end.
+                                // We should ignore this error and treat as end of stream.
+                                None
+                            } else {
+                                Some(Err(err))
+                            }
+                        }
+                    }) {
+                        let row = row.map_err(|err| err.context("sparse row view error"))?;
+                        // dbg!(&row);
+                        let values = row.collect_vec();
+                        let name = match &values[0].1 {
+                            BorrowedValue::VarChar(s) => *s,
+                            _ => unreachable!(),
+                        };
+                        let name = transform_tbname_with_actions(&name, actions, false)?;
+                        tmp.push_str(&format!(" `{}` using `{}` ", name, stable));
+
+                        let tags = &values[tag_idx + 1..];
+                        let values = &values[1..=tag_idx];
+                        if let Some(remap) = remap {
+                            if add_tag_names.is_empty() {
+                                tmp.push_str(&format!(
+                                    "({}) tags({}) ({}) values({})",
+                                    tags.iter()
+                                        .map(|(n, _)| format!(
+                                            "`{}`",
+                                            remap.get(*n).map(|s| s.as_str()).unwrap_or(n)
+                                        ))
+                                        .join(","),
+                                    tags.iter().map(|(_, v)| v.to_sql_value()).join(","),
+                                    values
+                                        .iter()
+                                        .map(|(n, _)| format!(
+                                            "`{}`",
+                                            remap.get(*n).map(|s| s.as_str()).unwrap_or(n)
+                                        ))
+                                        .join(","),
+                                    values.iter().map(|(_, v)| v.to_sql_value()).join(","),
+                                ));
+                            } else {
+                                tmp.push_str(&format!(
+                                    "({}{}) tags({}{}) ({}) values({})",
+                                    tags.iter()
+                                        .map(|(n, _)| format!(
+                                            "`{}`",
+                                            remap.get(*n).map(|s| s.as_str()).unwrap_or(n)
+                                        ))
+                                        .join(","),
+                                    add_tag_names,
+                                    tags.iter().map(|(_, v)| v.to_sql_value()).join(","),
+                                    add_tag_values,
+                                    values
+                                        .iter()
+                                        .map(|(n, _)| format!(
+                                            "`{}`",
+                                            remap.get(*n).map(|s| s.as_str()).unwrap_or(n)
+                                        ))
+                                        .join(","),
+                                    values.iter().map(|(_, v)| v.to_sql_value()).join(","),
+                                ));
+                            }
+                        } else {
+                            if add_tag_names.is_empty() {
+                                tmp.push_str(&format!(
+                                    "({}) tags({}) ({}) values({})",
+                                    tags.iter().map(|(n, _)| format!("`{}`", n)).join(","),
+                                    tags.iter().map(|(_, v)| v.to_sql_value()).join(","),
+                                    values.iter().map(|(n, _)| format!("`{}`", n)).join(","),
+                                    values.iter().map(|(_, v)| v.to_sql_value()).join(","),
+                                ));
+                            } else {
+                                tmp.push_str(&format!(
+                                    "({}{}) tags({}{}) ({}) values({})",
+                                    tags.iter().map(|(n, _)| format!("`{}`", n)).join(","),
+                                    add_tag_names,
+                                    tags.iter().map(|(_, v)| v.to_sql_value()).join(","),
+                                    add_tag_values,
+                                    values.iter().map(|(n, _)| format!("`{}`", n)).join(","),
+                                    values.iter().map(|(_, v)| v.to_sql_value()).join(","),
+                                ));
+                            }
+                        }
+
+                        if sql.len() + tmp.len() > max_sql_length {
+                            debug_assert!(contains > 0);
+                            return Ok(Some((contains, sql, tmp)));
+                        } else {
+                            sql.push_str(tmp.as_str());
+                            contains += 1;
+                            tmp.clear();
+                        }
+                    }
+                    if contains > 0 {
+                        Ok(Some((contains, sql, tmp)))
+                    } else {
+                        Ok(None)
+                    }
+                }
+                yield_sql_from(
+                    &mut rows,
+                    sql,
+                    tmp,
+                    &new_table_name,
+                    &add_tag_names,
+                    &add_tag_values,
+                    tag_idx,
+                    max_sql_length,
+                    actions,
+                    remap,
+                )
+                .await
+                .transpose()
+                .and_then(|v| match v {
+                    Ok((records, sql, tmp)) => {
+                        if records == 0 {
+                            None
+                        } else {
+                            Some((
+                                Ok((records, sql)),
+                                Some((
+                                    rows,
+                                    new_table_name,
+                                    add_tag_names,
+                                    add_tag_values,
+                                    actions,
+                                    remap,
+                                    tmp,
+                                )),
+                            ))
+                        }
+                    }
+                    Err(err) => Some((Err(err), None)),
+                })
+            },
+        );
+        tokio::pin!(sqls);
+
+        async fn sparse_concurrent_runner(
+            target: TaosPool,
+            tag_idx: usize,
+            recv: flume::Receiver<(usize, String)>,
+            metrics: Arc<CoreMetrics>,
+        ) -> anyhow::Result<()> {
+            let metrics = metrics.legacy();
+            let to = target.get().await?;
+            while let Ok((records, sql)) = recv.recv_async().await {
+                to.exec(sql.as_str()).await?;
+                metrics.add_success_blocks(1);
+                metrics.add_written_rows(records as _);
+                metrics.add_written_points(records as u64 * tag_idx as u64);
+            }
+            Ok(())
+        }
+
+        let mut set = tokio::task::JoinSet::new();
+
+        let (tx, rx) = flume::bounded(concurrent_limit as usize * 8);
+        for _ in 0..concurrent_limit {
+            set.spawn(sparse_concurrent_runner(
+                target.clone(),
+                tag_idx,
+                rx.clone(),
+                metrics.clone(),
+            ));
+        }
+
+        sqls.try_for_each_concurrent(concurrent_limit, |(records, sql)| {
+            tx.send_async((records, sql)).map(|_| Ok(()))
+        })
+        .await?;
+        drop(tx);
+
+        while let Some(res) = set.join_next().await {
+            res??;
+        }
+    }
+    let (blocks, rows) = res.summary();
+    tracing::info!(
+        "Synced sparse table {table} with {blocks} blocks, {rows} rows",
+        table = table.as_str(),
+        blocks = blocks,
+        rows = rows
+    );
+    Ok(())
 }

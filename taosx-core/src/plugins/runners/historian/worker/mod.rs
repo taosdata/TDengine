@@ -18,6 +18,7 @@ use crate::runners::set_tcp_keepalive;
 mod consumer;
 mod producer;
 
+/// migrate data
 pub async fn migrate_history(config: TaskConfig, logger: Sender<String>) -> anyhow::Result<()> {
     tracing::info!("migrate history start, config: {:?}", config);
 
@@ -27,17 +28,17 @@ pub async fn migrate_history(config: TaskConfig, logger: Sender<String>) -> anyh
     let mut consumers = Vec::new();
     for _ in 1..=concurrency {
         let receiver = rx.clone();
-
-        let query = HistorianQuery::try_new(config.connect.clone()).await?;
         let ipc_port = config
             .ipc_port
             .ok_or(anyhow::anyhow!("ipc_port cannot be None"))?;
-
         let logger_tx = logger.clone();
+        let connect_config = config.connect.clone();
+
         let c = tokio::spawn(async move {
-            let mut consumer = Consumer::new(query, ipc_port);
+            let mut consumer = Consumer::new(connect_config, ipc_port);
             consumer.consume(receiver, logger_tx).await
         });
+
         consumers.push(c);
     }
     // produce task
@@ -109,7 +110,7 @@ pub async fn sync_history(task_config: TaskConfig, logger: Sender<String>) -> an
 
     // query database and send to writer
     let tags_group = split_tags(task_config.tags.clone(), task_config.tag_list_size);
-    let mut query = HistorianQuery::try_new(task_config.connect.clone()).await?;
+    let mut client = HistorianQuery::try_new(task_config.connect.clone()).await?;
 
     // sync-history start from now + retrieve_interval + tolerance
     tokio::time::sleep(
@@ -133,7 +134,7 @@ pub async fn sync_history(task_config: TaskConfig, logger: Sender<String>) -> an
 
         for tags in &tags_group {
             tracing::debug!("sync history:{} query rows", count);
-            let mut rows = query
+            let mut rows = client
                 .select_from_history(tags.clone(), window_start, window_end)
                 .await?
                 .into_row_stream();
@@ -152,6 +153,7 @@ pub async fn sync_history(task_config: TaskConfig, logger: Sender<String>) -> an
                 logger.send_async(raw_data.to_string()).await?;
             }
 
+            drop(rows);
             tracing::debug!("sync history:{} batch finish", count);
             let batch = appender.finish()?;
             tracing::debug!("sync history:{} send batch to writer", count);
@@ -213,7 +215,7 @@ pub async fn sync_live(task_config: TaskConfig, logger: Sender<String>) -> anyho
         Ok(())
     });
 
-    let mut query = HistorianQuery::try_new(task_config.clone().connect).await?;
+    let mut client = HistorianQuery::try_new(task_config.clone().connect).await?;
 
     let mut count: u64 = 1;
     loop {
@@ -222,7 +224,7 @@ pub async fn sync_live(task_config: TaskConfig, logger: Sender<String>) -> anyho
             count,
             Local::now().to_string()
         );
-        let mut rows = query
+        let mut rows = client
             .select_from_live(task_config.tags.clone())
             .await?
             .into_row_stream();
@@ -237,6 +239,7 @@ pub async fn sync_live(task_config: TaskConfig, logger: Sender<String>) -> anyho
             earliest = cmp::min(ts, earliest);
             latest = cmp::max(ts, latest);
         }
+        drop(rows);
 
         tracing::debug!(
             "sync live:{} batch finish, earliest: {}({}), latest: {}({})",

@@ -10,7 +10,6 @@ use crate::{
 use anyhow::{bail, Context, Result};
 use dashmap::DashMap;
 use linked_hash_map::LinkedHashMap;
-use metrics::counter;
 use std::sync::atomic::Ordering::SeqCst;
 use taos::taos_query::tmq::Assignment;
 use taos::{Consumer, *};
@@ -48,7 +47,7 @@ async fn write_data(
                     // fallback to block-by-block method.
                 }
                 _ => {
-                    counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
+                    metrics.add_write_raw_fails(1);
                     Err(err).context("Write raw data into target error")?;
                 }
             }
@@ -216,10 +215,10 @@ async fn write_data(
                         || errstr.contains("[0x0603]")
                         || errstr.contains("[0x03C7]")
                     {
-                        counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
+                        // counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
                         tracing::warn!("[{id}] {errstr}");
                     } else {
-                        counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
+                        // counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
                         bail!("write raw data error: {err}");
                     }
                 }

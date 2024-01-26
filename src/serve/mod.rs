@@ -1,5 +1,3 @@
-use std::{sync::Arc, time::Duration};
-
 use actix_cors::Cors;
 use actix_multipart::form::MultipartFormConfig;
 use actix_web::web;
@@ -11,9 +9,8 @@ use actix_web::{
 use anyhow::Result;
 use clap::Parser;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
-use metrics_tracing_context::TracingContextLayer;
-use metrics_util::layers::{FanoutBuilder, Layer};
 use serde::{Deserialize, Serialize};
+use std::{sync::Arc, time::Duration};
 use tracing::info;
 use tracing_actix_web::TracingLogger;
 use utoipa::{OpenApi, ToSchema};
@@ -46,6 +43,7 @@ mod controller;
 mod data_sources;
 mod metrics;
 mod middleware;
+pub mod monitor;
 mod routes;
 mod rpc;
 #[allow(unused)]
@@ -241,6 +239,7 @@ impl Cli {
         self,
         controller: TaskControllerRef,
         grpc_handle: tokio::task::JoinHandle<Result<()>>,
+        monitor_cfg: monitor::MonitorCfg,
     ) -> Result<()> {
         let span = tracing::info_span!("server", addr = self.listen).entered();
         let store_cloned = controller.clone();
@@ -311,11 +310,8 @@ impl Cli {
                 task::upload_files,
                 task::filemeta,
                 task::download_files,
-
-                metrics::metrics_exporter,
                 metrics::profile,
                 metrics::metrics_desc,
-
                 data_source_is_valid,
                 data_sources_in,
                 data_sources_in_one,
@@ -346,30 +342,12 @@ impl Cli {
         struct ApiDoc;
 
         let store = Data::new(controller);
-
         assert!(!controller::DATA_SOURCE_DEFINITIONS.is_empty());
-
         let openapi = ApiDoc::openapi();
-
-        let metrics_recorder = metrics::Metrics::default().init()?;
-        let handle = metrics_recorder.handle();
-
-        let debugging_recorder = metrics_util::debugging::DebuggingRecorder::new();
-        let snapshotter = Data::new(debugging_recorder.snapshotter());
-
-        let metrics_allowed_labels = ["task.id", "client.address"];
-        let recorder =
-            TracingContextLayer::only_allow(&metrics_allowed_labels).layer(metrics_recorder);
-        let debugging =
-            TracingContextLayer::only_allow(&metrics_allowed_labels).layer(debugging_recorder);
-
-        let fanout = FanoutBuilder::default()
-            .add_recorder(recorder)
-            .add_recorder(debugging)
-            .build();
-        ::metrics::set_boxed_recorder(Box::new(fanout))?;
-
+        let monitor = monitor::Monitor::new(monitor_cfg);
+        let handle = monitor.init();
         let recorder = Data::new(handle);
+
         let addr = self.get_listen_address();
         let addr = addr.as_str();
         let server = HttpServer::new(move || {
@@ -382,7 +360,6 @@ impl Cli {
                 .wrap(cors)
                 .wrap(Compat::new(TracingLogger::<TaosXRootSpanBuilder>::new()))
                 .app_data(recorder.clone())
-                .app_data(snapshotter.clone())
                 .app_data(PayloadConfig::new(std::usize::MAX))
                 .app_data(
                     MultipartFormConfig::default()
@@ -426,6 +403,7 @@ impl Cli {
         self,
         controller: TaskControllerRef,
         channel: AgentRpcChannel,
+        monitor_cfg: monitor::MonitorCfg,
     ) -> Result<()> {
         let mut flight = rpc::RpcConfig::default();
         if let Some(grpc) = self.grpc.as_ref() {
@@ -433,7 +411,9 @@ impl Cli {
             flight.tcp.replace(addr);
         }
 
-        flight.serve_with_controller(controller, channel).await?;
+        flight
+            .serve_with_controller(controller, channel, monitor_cfg)
+            .await?;
         Ok(())
     }
 }

@@ -21,7 +21,7 @@ arrow = { workspace = true }
 taos-query = { workspace = true }
 tonic = { workspace = true }
 shadow-rs = { workspace = true }
-
+taosx-metrics = { path = "../taosx-metrics" }
 metrics = "0.21.0"
 [dev-dependencies]
 actix-web = "4"

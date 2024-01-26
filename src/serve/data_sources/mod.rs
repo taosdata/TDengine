@@ -407,7 +407,7 @@ pub(super) async fn get_sample(
 }
 
 pub(crate) async fn get_sample_impl(
-    controller: Data<TaskControllerRef>,
+    _controller: Data<TaskControllerRef>,
     query: DsnAgentQuery,
 ) -> anyhow::Result<DsSampleIn> {
     let dsn = query.dsn.into_dsn()?;

@@ -5,18 +5,19 @@ use futures_util::TryStreamExt;
 use taosx_ipc::ack::AckReaderBuilder;
 
 use crate::runners::historian::appender::ArrowDataAppender;
+use crate::runners::historian::config::connect::ConnectConfig;
 use crate::runners::historian::config::{HistorianTable, TaskConfig};
 use crate::runners::historian::query::HistorianQuery;
 use crate::runners::set_tcp_keepalive;
 
 pub struct Consumer {
-    query: HistorianQuery,
+    connect: ConnectConfig,
     ipc_port: u16,
 }
 
 impl Consumer {
-    pub fn new(query: HistorianQuery, ipc_port: u16) -> Self {
-        Self { query, ipc_port }
+    pub fn new(connect: ConnectConfig, ipc_port: u16) -> Self {
+        Self { connect, ipc_port }
     }
 
     pub async fn consume(
@@ -24,6 +25,8 @@ impl Consumer {
         receiver: Receiver<TaskConfig>,
         logger_tx: Sender<String>,
     ) -> anyhow::Result<()> {
+        let mut client = HistorianQuery::try_new(self.connect.clone()).await?;
+
         let mut appender = ArrowDataAppender::try_new(HistorianTable::History)?;
         let schema = appender.schema().clone();
 
@@ -95,8 +98,7 @@ impl Consumer {
                 start,
                 end
             );
-            let mut rows = self
-                .query
+            let mut rows = client
                 .select_from_history(task.tags, start, end)
                 .await?
                 .into_row_stream();
@@ -130,6 +132,7 @@ impl Consumer {
                     row_count = 0;
                 }
             }
+            drop(rows);
 
             let batch = appender.finish()?;
             tracing::debug!(

@@ -129,7 +129,7 @@ pub async fn csv_to_taos(
     .await?;
 
     let mut source = CsvSource::new(&mut from, port)?;
-    metrics::counter!(METRIC_CSV_FILES, source.readers.len() as u64);
+    // metrics::counter!(METRIC_CSV_FILES, source.readers.len() as u64);
     info!("spawn CSV worker");
     let worker = tokio::spawn(
         async move {
@@ -287,12 +287,15 @@ impl CsvSource {
             .unwrap_or("1".to_string())
             .parse()
             .context("Invalid batch_size value")?;
-        let concurrent: usize = dsn
+        let mut concurrent: usize = dsn
             .params
             .remove("read_concurrency")
             .unwrap_or("2".to_string())
             .parse()
             .context("Invalid concurrent value")?;
+        if concurrent == 0 {
+            concurrent = paths.len();
+        }
 
         if !has_header && headers.len() == 0 {
             return Err(anyhow!("csv header is null"));
@@ -468,16 +471,16 @@ impl CsvSource {
                     CsvSource::write_to_stream(&headers, &mut writer, &records)?;
                     records.iter_mut().for_each(Vec::clear);
                     batches += 1;
-                    metrics::counter!(CSV_READ_RECORDS, batch_size as u64);
-                    metrics::counter!(CSV_READ_RECORD_BATCHES, 1);
+                    // metrics::counter!(CSV_READ_RECORDS, batch_size as u64);
+                    // metrics::counter!(CSV_READ_RECORD_BATCHES, 1);
                 }
             }
 
             if records[0].len() > 0 {
                 CsvSource::write_to_stream(&headers, &mut writer, &records)?;
                 batches += 1;
-                metrics::counter!(CSV_READ_RECORDS, records[0].len() as u64);
-                metrics::counter!(CSV_READ_RECORD_BATCHES, 1);
+                // metrics::counter!(CSV_READ_RECORDS, records[0].len() as u64);
+                // metrics::counter!(CSV_READ_RECORD_BATCHES, 1);
             }
 
             let _ = writer.finish();

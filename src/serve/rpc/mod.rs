@@ -1,11 +1,3 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    net::SocketAddr,
-    path::PathBuf,
-    pin::Pin,
-    sync::{atomic::Ordering, Arc},
-};
-
 use anyhow::Context;
 use arrow::{
     array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array},
@@ -17,10 +9,17 @@ use base64::{engine::general_purpose, Engine};
 use chrono::Utc;
 use futures::{Stream, TryStreamExt};
 use linked_hash_map::LinkedHashMap;
-use metrics::atomics::AtomicU64;
+use metrics::{atomics::AtomicU64, counter, gauge, histogram, IntoLabels};
 use semver::VersionReq;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::{
+    collections::{BTreeMap, HashMap},
+    net::SocketAddr,
+    path::PathBuf,
+    pin::Pin,
+    sync::{atomic::Ordering, Arc},
+};
 use taos::IntoDsn;
 use taosx_core::{get_data_dir, CheckResponse, HeartbeatResponse, ListResponse};
 #[cfg(unix)]
@@ -30,17 +29,6 @@ use tokio::sync::RwLock;
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::{transport::Server, Request, Response, Status, Streaming};
 
-use arrow_flight::{
-    decode::FlightDataDecoder,
-    encode::FlightDataEncoderBuilder,
-    error::FlightError,
-    flight_service_server::{FlightService, FlightServiceServer},
-    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
-    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
-};
-use tracing::{info, instrument, warn};
-use uuid::Uuid;
-
 use crate::serve::{
     controller::{
         agent::{Activity, AgentToken, LevelFilter},
@@ -49,9 +37,21 @@ use crate::serve::{
     rpc::put::PutStream,
     scheduler::agent::AgentNotify,
 };
+use arrow_flight::{
+    decode::FlightDataDecoder,
+    encode::FlightDataEncoderBuilder,
+    error::FlightError,
+    flight_service_server::{FlightService, FlightServiceServer},
+    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
+    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
+};
+use taosx_metrics::MetricsEvents;
+use tracing::{info, instrument, warn};
+use uuid::Uuid;
 
 use super::{
     controller::{AgentAction, AgentDataSetsSender, DsvSender, Task, TaskControllerRef},
+    monitor::MonitorCfg,
     scheduler::agent::{AgentActionsReceiver, AgentId, AgentNotifySender},
 };
 
@@ -85,6 +85,7 @@ pub(super) struct FlightServiceImpl {
     request_id: Arc<AtomicU64>,
     datasets_senders: Arc<RwLock<LinkedHashMap<u64, AgentDataSetsSender>>>,
     dsv_senders: Arc<RwLock<LinkedHashMap<u64, DsvSender>>>,
+    monitor_cfg: MonitorCfg,
 }
 
 async fn action_to_arrow(
@@ -348,6 +349,32 @@ impl FlightServiceImpl {
         });
         (tx, rx)
     }
+
+    fn replay_metrics_events_from_agent(metrics_events: MetricsEvents) {
+        for event in metrics_events.events().to_owned() {
+            let labels = event.labels.into_labels();
+            match event.operation {
+                taosx_metrics::MetricOperation::IncrementCounter(value) => {
+                    counter!(event.key, labels).increment(value);
+                }
+                taosx_metrics::MetricOperation::SetCounter(value) => {
+                    counter!(event.key, labels).absolute(value);
+                }
+                taosx_metrics::MetricOperation::IncrementGauge(value) => {
+                    gauge!(event.key, labels).increment(value);
+                }
+                taosx_metrics::MetricOperation::DecrementGauge(value) => {
+                    gauge!(event.key, labels).decrement(value);
+                }
+                taosx_metrics::MetricOperation::SetGauge(value) => {
+                    gauge!(event.key, labels).set(value);
+                }
+                taosx_metrics::MetricOperation::RecordHistogram(value) => {
+                    histogram!(event.key, labels).record(value);
+                }
+            }
+        }
+    }
 }
 
 // impl FlightServiceImpl {
@@ -598,11 +625,6 @@ impl FlightService for FlightServiceImpl {
                                 .as_any()
                                 .downcast_ref::<StringArray>()
                                 .unwrap();
-                            let context = res
-                                .column(2)
-                                .as_any()
-                                .downcast_ref::<StringArray>()
-                                .unwrap();
                             let req_id = res
                                 .column(3)
                                 .as_any()
@@ -612,15 +634,19 @@ impl FlightService for FlightServiceImpl {
                             const ORDER: Ordering = Ordering::Relaxed;
 
                             for _ in 0..rows {
-                                let (ts, action, context, _req_id) = (
+                                let (ts, action, _req_id, context) = (
                                     ts.value_as_datetime_with_tz(
                                         0,
                                         ts.timezone().unwrap_or("UTC").parse().unwrap(),
                                     )
                                     .unwrap(),
                                     action.value(0),
-                                    context.value(0),
                                     req_id.value(0),
+                                    res
+                                        .column(2)
+                                        .as_any()
+                                        .downcast_ref::<StringArray>()
+                                        .unwrap().value(0),
                                 );
                                 match action {
                                     "list" => {
@@ -757,6 +783,20 @@ impl FlightService for FlightServiceImpl {
                                         let _ = tx.send_async(item).await;
                                         // return std::task::Poll::Ready(Some(item));
                                     }
+                                    "metrics-events" => {
+                                        tracing::trace!("Received metrics events");
+                                        match serde_json::from_str::<MetricsEvents>(context) {
+                                            Ok(events) => {
+                                                tokio::spawn(async move {
+                                                    Self::replay_metrics_events_from_agent(events);
+                                                });
+                                            }
+                                            Err(err) => {
+                                                tracing::warn!(?err, "Invalid metrics events");
+                                            }
+                                        }
+
+                                    }
                                     action => {
                                         warn!("Unknown action: {action}");
                                     }
@@ -873,6 +913,16 @@ impl FlightService for FlightServiceImpl {
                 //     .map_err(|err| Status::internal(err.to_string()))?;
                 Ok(Response::new(Box::pin(futures::stream::iter([]))))
             }
+            "GetMonitorConfig" => {
+                let config = self.monitor_cfg.as_map();
+                let message = serde_json::to_vec(&config).unwrap();
+                Ok(Response::new(Box::pin(futures::stream::iter([Ok(
+                    arrow_flight::Result {
+                        body: message.into(),
+                        ..Default::default()
+                    },
+                )]))))
+            }
             s => Err(Status::unimplemented(format!("Unknown action: {}", s))),
         }
     }
@@ -957,6 +1007,7 @@ impl RpcConfig {
         self,
         controller: TaskControllerRef,
         channel: AgentRpcChannel,
+        monitor_cfg: MonitorCfg,
     ) -> Result<(), anyhow::Error> {
         let max_frame_size: Option<u32> = Some((1 << 24) - 1 as u32);
         let activity_receiver = channel.agent_activity_receiver;
@@ -968,6 +1019,7 @@ impl RpcConfig {
             dsv_senders: Arc::new(RwLock::new(LinkedHashMap::new())),
             request_id: Arc::new(AtomicU64::new(0)),
             agent_connections: Arc::new(RwLock::new(HashMap::new())),
+            monitor_cfg,
         };
         let flight_service = FlightServiceServer::new(service);
         let flight_service = flight_service

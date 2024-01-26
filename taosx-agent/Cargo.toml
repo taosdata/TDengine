@@ -17,12 +17,12 @@ log = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["serde"] }
 
 thiserror = "1"
-twelf = { version = "0.12.0", default-features = false, features = [
+twelf = { version = "0.13.0", default-features = false, features = [
   "toml",
   "env",
   "clap",
 ] }
-itertools = "0.11.0"
+itertools = "0.12.0"
 
 dashmap = "5.4.0"
 flume = "0.11.0"
@@ -35,7 +35,7 @@ chrono = { workspace = true }
 chrono-tz = { workspace = true }
 tonic = { workspace = true, features=["gzip"] }
 shadow-rs = { workspace = true }
-
+metrics = { workspace = true }
 futures = "0.3"
 tokio = { version = "1", features = [
   "rt",
@@ -54,12 +54,14 @@ tokio-util = { version = "0.7" }
 tracing = { version = "0.1", features = ["log"] }
 
 taosx-core = { path = "../taosx-core" }
+taosx-metrics = { path = "../taosx-metrics" }
 
 time = { version = "0.3", features = ["formatting", "macros"] }
 tracing-subscriber = { version = "0.3", features = ["time", "local-time"] }
 tracing-appender = "0.2"
 
 file-rotate = "0.7.5"
+bytes = { workspace = true }
 
 [build-dependencies]
 dotenv = "0.15.0"

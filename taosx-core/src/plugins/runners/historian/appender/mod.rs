@@ -63,8 +63,24 @@ impl ArrowDataAppender {
         fields.push(Field::new("vValue", ArrowDataType::Utf8, true));
         fields.push(Field::new("Quality", ArrowDataType::UInt8, false));
         fields.push(Field::new("QualityDetail", ArrowDataType::Int32, true));
+        fields.push(Field::new("OPCQuality", ArrowDataType::Int32, true));
         fields.push(Field::new("wwTagKey", ArrowDataType::Int32, false));
+        fields.push(Field::new("wwRowCount", ArrowDataType::Int32, true));
         fields.push(Field::new("wwResolution", ArrowDataType::Int32, true));
+        fields.push(Field::new("wwEdgeDetection", ArrowDataType::Utf8, true));
+        fields.push(Field::new("wwRetrievalMode", ArrowDataType::Utf8, true));
+        fields.push(Field::new("wwTimeDeadband", ArrowDataType::Int32, true));
+        fields.push(Field::new("wwValueDeadband", ArrowDataType::Float64, true));
+        fields.push(Field::new("wwTimeZone", ArrowDataType::Utf8, true));
+        fields.push(Field::new("wwVersion", ArrowDataType::Utf8, true));
+        fields.push(Field::new("wwCycleCount", ArrowDataType::Int32, true));
+        fields.push(Field::new("wwTimeStampRule", ArrowDataType::Utf8, true));
+        fields.push(Field::new("wwInterpolationType", ArrowDataType::Utf8, true));
+        fields.push(Field::new("wwQualityRule", ArrowDataType::Utf8, true));
+        fields.push(Field::new("wwStateCalc", ArrowDataType::Utf8, true));
+        fields.push(Field::new("StateTime", ArrowDataType::Float64, true));
+        fields.push(Field::new("PercentGood", ArrowDataType::Float64, true));
+        fields.push(Field::new("wwParameters", ArrowDataType::Utf8, true));
         fields.push(Field::new(
             "StartDateTime",
             ArrowDataType::Timestamp(Nanosecond, None),
@@ -72,6 +88,12 @@ impl ArrowDataAppender {
         ));
         fields.push(Field::new("SourceTag", ArrowDataType::Utf8, true));
         fields.push(Field::new("SourceServer", ArrowDataType::Utf8, true));
+        fields.push(Field::new("wwFilter", ArrowDataType::Utf8, true));
+        fields.push(Field::new("wwValueSelector", ArrowDataType::Utf8, false));
+        fields.push(Field::new("wwMaxStates", ArrowDataType::Int32, true));
+        fields.push(Field::new("wwOption", ArrowDataType::Utf8, true));
+        fields.push(Field::new("wwExpression", ArrowDataType::Utf8, true));
+        fields.push(Field::new("wwUnit", ArrowDataType::Utf8, true));
 
         fields
     }
@@ -91,8 +113,16 @@ impl ArrowDataAppender {
         fields.push(Field::new("QualityDetail", ArrowDataType::Int32, true));
         fields.push(Field::new("OPCQuality", ArrowDataType::Int32, true));
         fields.push(Field::new("wwTagKey", ArrowDataType::Int32, false));
+        fields.push(Field::new("wwRetrievalMode", ArrowDataType::Utf8, true));
+        fields.push(Field::new("wwTimeDeadband", ArrowDataType::Int32, true));
+        fields.push(Field::new("wwValueDeadband", ArrowDataType::Float64, true));
+        fields.push(Field::new("wwTimeZone", ArrowDataType::Utf8, true));
+        fields.push(Field::new("wwParameters", ArrowDataType::Utf8, true));
         fields.push(Field::new("SourceTag", ArrowDataType::Utf8, true));
         fields.push(Field::new("SourceServer", ArrowDataType::Utf8, true));
+        fields.push(Field::new("wwValueSelector", ArrowDataType::Utf8, false));
+        fields.push(Field::new("wwExpression", ArrowDataType::Utf8, true));
+        fields.push(Field::new("wwUnit", ArrowDataType::Utf8, true));
 
         fields
     }
@@ -108,15 +138,40 @@ impl ArrowDataAppender {
             .append_uint8(row, "Quality", 4)?
             .ok_or(anyhow::anyhow!("Quality cannot be None"))?;
         let quality_detail = self.append_int32(row, "QualityDetail", 5)?;
+        let opc_quality = self.append_int32(row, "OPCQuality", 6)?;
         let ww_tag_key = self
-            .append_int32(row, "wwTagKey", 6)?
+            .append_int32(row, "wwTagKey", 7)?
             .ok_or(anyhow::anyhow!("wwTagKey cannot be None"))?;
-        let ww_resolution = self.append_int32(row, "wwResolution", 7)?;
+        let ww_row_count = self.append_int32(row, "wwRowCount", 8)?;
+        let ww_resolution = self.append_int32(row, "wwResolution", 9)?;
+        let ww_edge_detection = self.append_string(row, "wwEdgeDetection", 10)?;
+
+        let ww_retrieval_mode = self.append_string(row, "wwRetrievalMode", 11)?;
+        let ww_time_dead_band = self.append_int32(row, "wwTimeDeadband", 12)?;
+        let ww_value_dead_band = self.append_float64(row, "wwValueDeadband", 13)?;
+        let ww_time_zone = self.append_string(row, "wwTimeZone", 14)?;
+        let ww_version = self.append_string(row, "wwVersion", 15)?;
+        let ww_cycle_count = self.append_int32(row, "wwCycleCount", 16)?;
+        let ww_time_stamp_rule = self.append_string(row, "wwTimeStampRule", 17)?;
+        let ww_interpolation_type = self.append_string(row, "wwInterpolationType", 18)?;
+        let ww_quality_rule = self.append_string(row, "wwQualityRule", 19)?;
+        let ww_state_calc = self.append_string(row, "wwStateCalc", 20)?;
+        let state_time = self.append_float64(row, "StateTime", 21)?;
+        let percent_good = self.append_float64(row, "PercentGood", 22)?;
+        let ww_parameters = self.append_string(row, "wwParameters", 23)?;
         let start_datetime = self
-            .append_timestamp(row, "StartDateTime", 8)?
+            .append_timestamp(row, "StartDateTime", 24)?
             .ok_or(anyhow::anyhow!("StartDateTime cannot be None"))?;
-        let source_tag = self.append_string(row, "SourceTag", 9)?;
-        let source_server = self.append_string(row, "SourceServer", 10)?;
+        let source_tag = self.append_string(row, "SourceTag", 25)?;
+        let source_server = self.append_string(row, "SourceServer", 26)?;
+        let ww_filter = self.append_string(row, "wwFilter", 27)?;
+        let ww_value_selector = self
+            .append_string(row, "wwValueSelector", 28)?
+            .ok_or(anyhow::anyhow!("wwValueSelector cannot be None"))?;
+        let ww_max_states = self.append_int32(row, "wwMaxStates", 29)?;
+        let ww_option = self.append_string(row, "wwOption", 30)?;
+        let ww_expression = self.append_string(row, "wwExpression", 31)?;
+        let ww_unit = self.append_string(row, "wwUnit", 32)?;
 
         Ok(History {
             datetime,
@@ -125,11 +180,33 @@ impl ArrowDataAppender {
             v_value,
             quality,
             quality_detail,
+            opc_quality,
             ww_tag_key,
+            ww_row_count,
             ww_resolution,
+            ww_edge_detection,
+            ww_retrieval_mode,
+            ww_time_dead_band,
+            ww_value_dead_band,
+            ww_time_zone,
+            ww_version,
+            ww_cycle_count,
+            ww_time_stamp_rule,
+            ww_interpolation_type,
+            ww_quality_rule,
+            ww_state_calc,
+            state_time,
+            percent_good,
+            ww_parameters,
             start_datetime,
             source_tag,
             source_server,
+            ww_filter,
+            ww_value_selector,
+            ww_max_states,
+            ww_option,
+            ww_expression,
+            ww_unit,
         })
     }
 
@@ -148,8 +225,19 @@ impl ArrowDataAppender {
         let ww_tag_key = self
             .append_int32(row, "wwTagKey", 7)?
             .ok_or(anyhow::anyhow!("wwTagKey cannot be None"))?;
-        let source_tag = self.append_string(row, "SourceTag", 8)?;
-        let source_server = self.append_string(row, "SourceServer", 9)?;
+        let ww_retrieval_mode = self.append_string(row, "wwRetrievalMode", 8)?;
+        let ww_time_dead_band = self.append_int32(row, "wwTimeDeadband", 9)?;
+        let ww_value_dead_band = self.append_float64(row, "wwValueDeadband", 10)?;
+        let ww_time_zone = self.append_string(row, "wwTimeZone", 11)?;
+        let ww_parameters = self.append_string(row, "wwParameters", 12)?;
+
+        let source_tag = self.append_string(row, "SourceTag", 13)?;
+        let source_server = self.append_string(row, "SourceServer", 14)?;
+        let ww_value_selector = self
+            .append_string(row, "wwValueSelector", 15)?
+            .ok_or(anyhow::anyhow!("wwValueSelector cannot be None"))?;
+        let ww_expression = self.append_string(row, "wwExpression", 16)?;
+        let ww_unit = self.append_string(row, "wwUnit", 17)?;
 
         Ok(Live {
             datetime,
@@ -160,9 +248,44 @@ impl ArrowDataAppender {
             quality_detail,
             opc_quality,
             ww_tag_key,
+            ww_retrieval_mode,
+            ww_time_dead_band,
+            ww_value_dead_band,
+            ww_time_zone,
+            ww_parameters,
             source_tag,
             source_server,
+            ww_value_selector,
+            ww_expression,
+            ww_unit,
         })
+    }
+
+    fn append_tag_name(
+        &mut self,
+        row: &Row,
+        column_name: &str,
+        index: usize,
+    ) -> anyhow::Result<String> {
+        let val = row.try_get::<&str, _>(column_name)?;
+        let tag_name = match val {
+            None => {
+                return Err(anyhow::anyhow!("TagName cannot be None"));
+            }
+            Some(val) => {
+                let new_tag_name = val.replace(".", "_").replace("`", "_");
+
+                self.data_builders[index]
+                    .as_any_mut()
+                    .downcast_mut::<array::StringBuilder>()
+                    .unwrap()
+                    .append_value(new_tag_name.clone());
+
+                new_tag_name
+            }
+        };
+
+        Ok(tag_name)
     }
 
     fn append_timestamp(
@@ -199,33 +322,6 @@ impl ArrowDataAppender {
             }
         };
         Ok(ts)
-    }
-
-    fn append_tag_name(
-        &mut self,
-        row: &Row,
-        column_name: &str,
-        index: usize,
-    ) -> anyhow::Result<String> {
-        let val = row.try_get::<&str, _>(column_name)?;
-        let tag_name = match val {
-            None => {
-                return Err(anyhow::anyhow!("TagName cannot be None"));
-            }
-            Some(val) => {
-                let new_tag_name = val.replace(".", "_").replace("`", "_");
-
-                self.data_builders[index]
-                    .as_any_mut()
-                    .downcast_mut::<array::StringBuilder>()
-                    .unwrap()
-                    .append_value(new_tag_name.clone());
-
-                new_tag_name
-            }
-        };
-
-        Ok(tag_name)
     }
 
     fn append_string(

@@ -14,7 +14,6 @@ use dashmap::DashMap;
 use flume::Sender;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
-use metrics::counter;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::pool::PoolOptions;
@@ -711,8 +710,6 @@ impl TaskController {
 
         let span = tracing::trace_span!("request_tasks", "url" = "GET /tasks");
         let _guard = span.enter();
-        counter!("tasks", tasks.len() as u64);
-
         tasks.iter_mut().for_each(|task| {
             task.backport_labels();
         });
@@ -1781,7 +1778,6 @@ impl AgentFilter {
     Deserialize,
     ToSchema,
     Clone,
-    Copy,
     Debug,
     PartialEq,
     Eq,
@@ -1792,6 +1788,7 @@ impl AgentFilter {
 )]
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Status {
     /// Created by API.
     Created,
@@ -1833,6 +1830,21 @@ pub enum Status {
     Resumed,
     /// Waken
     Waken,
+    /// Task is in unknown state.
+    #[strum(default)]
+    #[serde(untagged)]
+    __NonExhaustive(String),
+}
+
+impl PartialEq<str> for Status {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+impl PartialEq<Status> for &Status {
+    fn eq(&self, other: &Status) -> bool {
+        *self == other
+    }
 }
 
 impl Status {
@@ -2270,6 +2282,7 @@ lazy_static::lazy_static! {
                 let yaml = yaml
                     .replace("taosX", crate::build::CUS_APP_NAME)
                     .replace("TDengine", crate::build::CUS_NAME)
+                    .replace("taosdata", crate::build::CUS_PROMPT)
                     .replace("taosAdapter",const_format::concatcp!(crate::build::CUS_PROMPT, "Adapter"));
                 def.push(serde_yaml::from_str(yaml.as_str()).unwrap());
             };
@@ -2299,6 +2312,7 @@ lazy_static::lazy_static! {
                 let yaml = yaml
                     .replace("taosX", crate::build::CUS_APP_NAME)
                     .replace("TDengine", crate::build::CUS_NAME)
+                    .replace("taosdata", crate::build::CUS_PROMPT)
                     .replace("taosAdapter",const_format::concatcp!(crate::build::CUS_PROMPT, "Adapter"));
                 def.push(serde_yaml::from_str(yaml.as_str()).unwrap());
             };
@@ -2430,8 +2444,8 @@ impl TaskDetail {
         }
     }
 
-    pub(super) fn status(&self) -> Status {
-        self.task.status
+    pub(super) fn status(&self) -> &Status {
+        &self.task.status
     }
 
     pub fn expand_detail(self, lang: Option<String>) -> Self {
