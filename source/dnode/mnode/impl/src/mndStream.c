@@ -1907,9 +1907,10 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
 
   if (pStream == NULL) {
     if (pauseReq.igNotExists) {
-      mInfo("stream:%s, not exist, if exist is set", pauseReq.name);
+      mInfo("stream:%s, not exist 1, if exist is set", pauseReq.name);
       return 0;
     } else {
+      mInfo("stream:%s, not exist 2, if exist is set,%p,%d,%p", pauseReq.name, pReq->pCont, pReq->contLen, pReq);
       terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
       return -1;
     }
@@ -3066,6 +3067,7 @@ int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo* info){
       };
 
       tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+      mInfo("receivee pause stream:%s, %s, %p, because grant expired", pStream->name, reqPause->name, reqPause->name);
     }
 
     sdbRelease(pSdb, pStream);
@@ -3099,7 +3101,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   }
   tDecoderClear(&decoder);
 
-  mTrace("receive stream-meta hb from vgId:%d, active numOfTasks:%d", req.vgId, req.numOfTasks);
+  mDebug("receivee stream-meta hb from vgId:%d, active numOfTasks:%d", req.vgId, req.numOfTasks);
 
   taosThreadMutexLock(&execInfo.lock);
 

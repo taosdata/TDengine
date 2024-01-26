@@ -101,7 +101,7 @@ static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *
       goto FAILED;
     }
 
-    if (mndCheckTopicPrivilege(pMnode, pUser, MND_OPER_SUBSCRIBE, pTopic) != 0) {
+    if (mndCheckTopicPrivilege(pMnode, pUser, MND_OPER_SUBSCRIBE, pTopic) != 0 || grantCheck(TSDB_GRANT_SUBSCRIBE) < 0) {
       code = TSDB_CODE_MND_NO_RIGHTS;
       terrno = TSDB_CODE_MND_NO_RIGHTS;
       goto FAILED;

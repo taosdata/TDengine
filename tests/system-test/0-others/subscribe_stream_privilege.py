@@ -23,7 +23,7 @@ from util.sqlset import *
 
 class TDTestCase:
     clientCfgDict = {'debugFlag': 135}
-    updatecfgDict = {'debugFlag': 135, 'clientCfg':clientCfgDict}
+    updatecfgDict = {'debugFlag': 143, 'clientCfg':clientCfgDict}
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
@@ -71,6 +71,41 @@ class TDTestCase:
                 for j in self.values_list:
                     tdSql.execute(f'insert into {self.stbname}_{i} values({j})')
 
+    def checkUserPrivileges(self, rowCnt):
+        tdSql.query("show user privileges")
+        tdSql.checkRows(rowCnt)
+
+    def streamTest(self):
+        tdSql.execute("create stream s1 trigger at_once fill_history 1 into so1 as select ts,abs(col2) from stb partition by tbname")
+        time.sleep(2)
+        tdSql.query("select * from so1")
+        tdSql.checkRows(4)
+        tdSql.execute("insert into stb_0(ts,col2) values(now, 332)")
+        time.sleep(2)
+        tdSql.query("select * from so1")
+        tdSql.checkRows(5)
+
+        time.sleep(2)
+        tdSql.query("select * from information_schema.ins_stream_tasks")
+        tdSql.checkData(0, 5, 'ready')
+
+        print(time.time())
+        while 1:
+            t = time.time()
+            if t > 1706252996 :
+                break
+            else:
+                print("time:%d" %(t))
+                time.sleep(1)
+
+
+        tdSql.error("create stream s11 trigger at_once fill_history 1 into so1 as select ts,abs(col2) from stb partition by tbname")
+        tdSql.query("select * from information_schema.ins_stream_tasks")
+        tdSql.checkData(0, 5, 'pause')
+        tdSql.execute("insert into stb_0(ts,col2) values(now, 3232)")
+        tdSql.query("select * from so1")
+        tdSql.checkRows(5)
+
     def consumeTest(self):
         consumer_dict = {
             "group.id": "g1",
@@ -90,8 +125,10 @@ class TDTestCase:
         if not exceptOccured:
             tdLog.exit(f"has no privilege, should except")
 
+        checkUserPrivileges(1)
         tdLog.debug("test subscribe topic privilege granted by other user")
         tdSql.execute(f'grant subscribe on {self.topic_name} to {self.user_name}')
+        checkUserPrivileges(2)
 
         exceptOccured = False
         try:
@@ -118,6 +155,7 @@ class TDTestCase:
 
                 tdLog.debug("test subscribe topic privilege revoked by other user")
                 tdSql.execute(f'revoke subscribe on {self.topic_name} from {self.user_name}')
+                checkUserPrivileges(1)
                 time.sleep(5)
 
         finally:
@@ -130,8 +168,9 @@ class TDTestCase:
     def run(self):
         self.prepare_data()
         self.create_user()
-        self.consumeTest()
-                
+        #self.consumeTest()
+        self.streamTest()
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
