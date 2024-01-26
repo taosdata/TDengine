@@ -3379,7 +3379,7 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
   const SStorageAPI* pAPI= &pTaskInfo->storageAPI;
 
-  blockDataDeepCleanup(pInput->pReaderBlock);
+  blockDataCleanup(pInput->pReaderBlock);
   if (!pInput->bInMemReader) {
     code = pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInput->tblCond, pInput->pKeyInfo, 1, pInput->pReaderBlock,
                                         (void**)&pInput->pReader, GET_TASKID(pTaskInfo), NULL);
@@ -3469,7 +3469,11 @@ static int32_t saveSubTableBlock(const STableMergeScanInfo* pInfo, STmsSubTables
     blockDataDestroy(p);
     start = stop + 1;
   }
-  blockDataDeepCleanup(pInput->pReaderBlock);
+  if (!pInput->bInMemReader) {
+    blockDataDeepCleanup(pInput->pReaderBlock);
+  } else {
+    blockDataCleanup(pInput->pReaderBlock);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3533,8 +3537,8 @@ static int32_t initSubTablesMergeInfo(STableMergeScanInfo* pInfo) {
   int32_t inMemSize = (pSubTblsInfo->numSubTables - pSubTblsInfo->numTableBlocksInMem) * bufPageSize;
   createDiskbasedBuf(&pSubTblsInfo->pBlocksBuf, pInfo->bufPageSize, inMemSize, "blocksExternalBuf", tsTempDir);
 
-  pSubTblsInfo->numTableBlocksInMem = 0;
-  pSubTblsInfo->numInMemReaders = 0;
+  pSubTblsInfo->numTableBlocksInMem = pSubTblsInfo->numSubTables;
+  pSubTblsInfo->numInMemReaders = pSubTblsInfo->numSubTables;
   return TSDB_CODE_SUCCESS;
 } 
 
