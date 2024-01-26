@@ -3740,7 +3740,11 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateTbUidColumn,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
+#ifdef BUILD_NO_CALL
     .sprocessFunc = qTbUidFunction,
+#else
+    .sprocessFunc = NULL,
+#endif
     .finalizeFunc = NULL
   },
   {
@@ -3750,7 +3754,11 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateVgIdColumn,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
+#ifdef BUILD_NO_CALL
     .sprocessFunc = qVgIdFunction,
+#else
+    .sprocessFunc = NULL,
+#endif
     .finalizeFunc = NULL
   },
   {
