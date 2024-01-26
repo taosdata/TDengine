@@ -663,7 +663,8 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
     if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
       STaskId* pHTaskId = &pTask->hTaskInfo.id;
       streamMetaUnregisterTask(pMeta, pHTaskId->streamId, pHTaskId->taskId);
-      tqDebug("vgId:%d drop fill-history task:0x%x dropped firstly", vgId, (int32_t)pHTaskId->taskId);
+      tqDebug("s-task:0x%x vgId:%d drop fill-history task:0x%x firstly", pReq->taskId, vgId,
+              (int32_t)pHTaskId->taskId);
     }
     streamMetaReleaseTask(pMeta, pTask);
   }

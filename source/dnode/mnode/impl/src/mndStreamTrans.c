@@ -160,3 +160,106 @@ int32_t mndAddtoCheckpointWaitingList(SStreamObj* pStream, int64_t checkpointId)
 
   return TSDB_CODE_SUCCESS;
 }
+
+STrans *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, const char *name, const char *pMsg) {
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, name);
+  if (pTrans == NULL) {
+    mError("failed to build trans:%s, reason: %s", name, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  mDebug("s-task:0x%" PRIx64 " start to build trans %s", pStream->uid, pMsg);
+
+  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetSTbName);
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
+    terrno = TSDB_CODE_MND_TRANS_CONFLICT;
+    mError("failed to build trans:%s for stream:0x%" PRIx64 " code:%s", name, pStream->uid, tstrerror(terrno));
+    mndTransDrop(pTrans);
+    return NULL;
+  }
+
+  terrno = 0;
+  return pTrans;
+}
+
+SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  void *buf = NULL;
+
+  SEncoder encoder;
+  tEncoderInit(&encoder, NULL, 0);
+  if (tEncodeSStreamObj(&encoder, pStream) < 0) {
+    tEncoderClear(&encoder);
+    goto STREAM_ENCODE_OVER;
+  }
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+
+  int32_t  size = sizeof(int32_t) + tlen + MND_STREAM_RESERVE_SIZE;
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_STREAM, MND_STREAM_VER_NUMBER, size);
+  if (pRaw == NULL) goto STREAM_ENCODE_OVER;
+
+  buf = taosMemoryMalloc(tlen);
+  if (buf == NULL) goto STREAM_ENCODE_OVER;
+
+  tEncoderInit(&encoder, buf, tlen);
+  if (tEncodeSStreamObj(&encoder, pStream) < 0) {
+    tEncoderClear(&encoder);
+    goto STREAM_ENCODE_OVER;
+  }
+  tEncoderClear(&encoder);
+
+  int32_t dataPos = 0;
+  SDB_SET_INT32(pRaw, dataPos, tlen, STREAM_ENCODE_OVER);
+  SDB_SET_BINARY(pRaw, dataPos, buf, tlen, STREAM_ENCODE_OVER);
+  SDB_SET_DATALEN(pRaw, dataPos, STREAM_ENCODE_OVER);
+
+  terrno = TSDB_CODE_SUCCESS;
+
+  STREAM_ENCODE_OVER:
+  taosMemoryFreeClear(buf);
+  if (terrno != TSDB_CODE_SUCCESS) {
+    mError("stream:%s, failed to encode to raw:%p since %s", pStream->name, pRaw, terrstr());
+    sdbFreeRaw(pRaw);
+    return NULL;
+  }
+
+  mTrace("stream:%s, encode to raw:%p, row:%p, checkpoint:%" PRId64 "", pStream->name, pRaw, pStream,
+         pStream->checkpointId);
+  return pRaw;
+}
+
+int32_t mndPersistTransLog(SStreamObj *pStream, STrans *pTrans, int32_t status) {
+  SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
+  if (pCommitRaw == NULL) {
+    mError("failed to encode stream since %s", terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("stream trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    sdbFreeRaw(pCommitRaw);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  if (sdbSetRawStatus(pCommitRaw, status) != 0) {
+    mError("stream trans:%d failed to set raw status:%d since %s", pTrans->id, status, terrstr());
+    sdbFreeRaw(pCommitRaw);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  return 0;
+}
+
+void initTransAction(STransAction *pAction, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset,
+                     int32_t retryCode) {
+  pAction->epSet = *pEpset;
+  pAction->contLen = contLen;
+  pAction->pCont = pCont;
+  pAction->msgType = msgType;
+  pAction->retryCode = retryCode;
+}

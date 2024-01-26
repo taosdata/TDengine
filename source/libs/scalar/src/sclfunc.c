@@ -1788,6 +1788,7 @@ bool getTimePseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv
   return true;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t qStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   colDataSetInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 0));
   return TSDB_CODE_SUCCESS;
@@ -1797,6 +1798,7 @@ int32_t qEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   colDataSetInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 1));
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 int32_t winDurFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   colDataSetInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 2));
@@ -1824,7 +1826,7 @@ int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
   pOutput->numOfRows += pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
-
+#ifdef BUILD_NO_CALL
 int32_t qTbUidFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   char* p = colDataGetNumData(pInput->columnData, 0);
 
@@ -1848,7 +1850,7 @@ int32_t qVgIdFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   pOutput->numOfRows += pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
-
+#endif
 
 /** Aggregation functions **/
 int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {

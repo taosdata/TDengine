@@ -17,10 +17,14 @@
 #define _TD_MND_STREAM_H_
 
 #include "mndInt.h"
+#include "mndTrans.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define MND_STREAM_RESERVE_SIZE 64
+#define MND_STREAM_VER_NUMBER   4
 
 typedef struct SStreamTransInfo {
   int64_t     startTime;
@@ -50,7 +54,21 @@ typedef struct SStreamExecInfo {
   SHashObj        *pTaskMap;
   SArray          *pTaskList;
   TdThreadMutex    lock;
+  SHashObj        *pTransferStateStreams;
 } SStreamExecInfo;
+
+typedef struct SNodeEntry {
+  int32_t nodeId;
+  bool    stageUpdated;  // the stage has been updated due to the leader/follower change or node reboot.
+  SEpSet  epset;         // compare the epset to identify the vgroup tranferring between different dnodes.
+  int64_t hbTimestamp;   // second
+} SNodeEntry;
+
+typedef struct SFailedCheckpointInfo {
+  int64_t streamUid;
+  int64_t checkpointId;
+  int32_t transId;
+} SFailedCheckpointInfo;
 
 #define MND_STREAM_CREATE_NAME      "stream-create"
 #define MND_STREAM_CHECKPOINT_NAME  "stream-checkpoint"
@@ -67,7 +85,7 @@ void        mndCleanupStream(SMnode *pMnode);
 SStreamObj *mndAcquireStream(SMnode *pMnode, char *streamName);
 void        mndReleaseStream(SMnode *pMnode, SStreamObj *pStream);
 int32_t     mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
-int32_t     mndPersistStream(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
+int32_t     mndPersistStream(STrans *pTrans, SStreamObj *pStream);
 
 int32_t mndStreamRegisterTrans(STrans* pTrans, const char* pTransName, int64_t streamUid);
 int32_t mndAddtoCheckpointWaitingList(SStreamObj *pStream, int64_t checkpointId);
@@ -79,7 +97,22 @@ int32_t mndStreamGetRelTrans(SMnode *pMnode, int64_t streamUid);
 int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t mndPersistDropStreamLog(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 
-int32_t mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams);
+int32_t     mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams);
+int32_t     mndGetNumOfStreamTasks(const SStreamObj *pStream);
+SArray     *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady);
+void        mndKillTransImpl(SMnode *pMnode, int32_t transId, const char *pDbName);
+void        initTransAction(STransAction *pAction, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset,
+                            int32_t retryCode);
+STrans     *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, const char *name, const char *pMsg);
+int32_t     mndPersistTransLog(SStreamObj *pStream, STrans *pTrans, int32_t status);
+SSdbRaw    *mndStreamActionEncode(SStreamObj *pStream);
+SStreamObj *mndGetStreamObj(SMnode *pMnode, int64_t streamId);
+int32_t     extractNodeEpset(SMnode *pMnode, SEpSet *pEpSet, bool *hasEpset, int32_t taskId, int32_t nodeId);
+int32_t     mndProcessStreamHb(SRpcMsg *pReq);
+void        saveStreamTasksInfo(SStreamObj *pStream, SStreamExecInfo *pExecNode);
+int32_t     initStreamNodeList(SMnode *pMnode);
+int32_t     mndResumeStreamTasks(STrans *pTrans, SMnode *pMnode, SStreamObj* pStream, int8_t igUntreated);
+int32_t     mndPauseStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 
 #ifdef __cplusplus
 }
