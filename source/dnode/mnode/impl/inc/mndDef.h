@@ -775,6 +775,7 @@ typedef enum {
   GRANT_STATE_GRANTED = 2,
   GRANT_STATE_EXPIRED = 3,
   GRANT_STATE_REVOKED = 4,
+  GRANT_STATE_MAX,
 } EGrantState;
 
 typedef enum {
@@ -782,6 +783,7 @@ typedef enum {
   GRANT_STATE_REASON_ALTER = 1,     // alter activeCode 'revoked' or 'xxx'
   GRANT_STATE_REASON_MISMATCH = 2,  // dnode machine mismatch
   GRANT_STATE_REASON_EXPIRE = 3,    // expire
+  GRANT_STATE_REASON_MAX,
 } EGrantStateReason;
 
 #define GRANT_STATE_NUM  30

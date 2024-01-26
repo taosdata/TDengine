@@ -19,11 +19,11 @@
 
 #ifndef _GRANT
 
-#define GRANT_ITEM_SHOW()                              \
+#define GRANT_ITEM_SHOW(display)                       \
   do {                                                 \
     cols++;                                            \
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols); \
-    src = "unlimited";                                 \
+    src = (display);                                   \
     STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);          \
     colDataSetVal(pColInfo, numOfRows, tmp, false);    \
   } while (0)
@@ -40,15 +40,15 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataSetVal(pColInfo, numOfRows, tmp, false);
 
-    GRANT_ITEM_SHOW();
-    GRANT_ITEM_SHOW();
-    GRANT_ITEM_SHOW();
-    GRANT_ITEM_SHOW();
-    GRANT_ITEM_SHOW();
-    GRANT_ITEM_SHOW();
-    GRANT_ITEM_SHOW();
+    GRANT_ITEM_SHOW("unlimited");
+    GRANT_ITEM_SHOW("unlimited");
+    GRANT_ITEM_SHOW("limited");
+    GRANT_ITEM_SHOW("ungranted");
+    GRANT_ITEM_SHOW("unlimited");
+    GRANT_ITEM_SHOW("unlimited");
+    GRANT_ITEM_SHOW("unlimited");
 
-    numOfRows++;
+    ++numOfRows;
   }
 
   pShow->numOfRows += numOfRows;

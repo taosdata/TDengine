@@ -25,6 +25,9 @@ extern "C" {
 uint8_t *base64_decode(const char *value, int32_t inlen, int32_t *outlen);
 char    *base64_encode(const uint8_t *value, int32_t vlen);
 
+uint8_t *base58_decode(const char *value, size_t inlen, int32_t *outlen);
+char    *base58_encode(const uint8_t *value, int32_t vlen);
+
 #ifdef __cplusplus
 }
 #endif

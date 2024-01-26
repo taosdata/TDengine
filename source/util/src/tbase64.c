@@ -15,6 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "tbase64.h"
+#include <math.h>
+#include <stdbool.h>
 
 static char basis_64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -97,5 +99,128 @@ base64_decode_error:
   result = 0;
   *outlen = 0;
 
+  return result;
+}
+
+#define BASE_BUF_SIZE 256
+static const char *basis_58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+char *base58_encode(const uint8_t *value, int32_t vlen) {
+  const uint8_t *pb = value;
+  const uint8_t *pe = pb + vlen;
+  uint8_t        buf[BASE_BUF_SIZE] = {0};
+  uint8_t       *pBuf = &buf[0];
+  bool           isFree = false;
+  int32_t        nz = 0;
+
+  while (pb != pe && *pb == 0) {
+    ++pb;
+    ++nz;
+  }
+
+  size_t size = (pe - pb) * 69 / 50 + 1;
+  if (size > BASE_BUF_SIZE) {
+    if (!(pBuf = taosMemoryCalloc(1, size))) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+    isFree = true;
+  }
+
+  int32_t len = 0;
+  while (pb != pe) {
+    int32_t num = *pb;
+    int32_t i = 0;
+    for (int32_t it = (int32_t)size - 1; (num != 0 || i < len) && it >= 0; --it, ++i) {
+      num += ((int32_t)buf[it]) << 8;
+      pBuf[it] = num % 58;
+      num /= 58;
+    }
+    len = i;
+    ++pb;
+  }
+
+  const uint8_t *iter = pBuf + (size - len);
+  while (iter != pBuf + size && *iter == 0) ++iter;
+
+  uint8_t *result = taosMemoryCalloc(1, size + 1);
+  memset(result, '1', nz);
+  while (iter != pBuf + size) result[nz++] = basis_58[*iter++];
+
+  if (isFree) taosMemoryFree(pBuf);
+
+  return result;
+}
+
+static const signed char index_58[256] = {
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0,  1,  2,  3,  4,  5,  6,  7,  8,
+    -1, -1, -1, -1, -1, -1, -1, 9,  10, 11, 12, 13, 14, 15, 16, -1, 17, 18, 19, 20, 21, -1, 22, 23, 24, 25, 26, 27, 28,
+    29, 30, 31, 32, -1, -1, -1, -1, -1, -1, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, -1, 44, 45, 46, 47, 48, 49, 50,
+    51, 52, 53, 54, 55, 56, 57, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+};
+
+uint8_t *base58_decode(const char *value, size_t inlen, int32_t *outlen) {
+  const char *pe = value + inlen;
+  uint8_t     buf[BASE_BUF_SIZE] = {0};
+  uint8_t    *pBuf = &buf[0];
+  bool        isFree = false;
+  int32_t     nz = 0;
+  int32_t     len = 0;
+
+  while (*value && isspace(*value)) ++value;
+  while (*value++ == '1') ++nz;
+
+  int32_t size = (int32_t)(pe - value) * 733 / 1000 + 1;
+  if (size > BASE_BUF_SIZE) {
+    if (!(pBuf = taosMemoryCalloc(1, size))) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+    isFree = true;
+  }
+
+  while (*value && !isspace(*value)) {
+    int32_t num = index_58[(uint8_t)*value];
+    if (num == -1) {
+      if (isFree) taosMemoryFree(pBuf);
+      return NULL;
+    }
+    int32_t i = 0;
+    for (int32_t it = size - 1; (num != 0 || i < len) && (it >= 0); --it, ++i) {
+      num += 58 * pBuf[it];
+      pBuf[it] = num % 256;
+      num /= 256;
+    }
+    len = i;
+    ++value;
+  }
+
+  while (isspace(*value)) ++value;
+  if (*value != 0) {
+    if (isFree) taosMemoryFree(pBuf);
+    return NULL;
+  }
+  const uint8_t *it = pBuf + (size - len);
+  while (it != pBuf + size && *it == 0) ++it;
+
+  uint8_t *result = taosMemoryCalloc(1, size + 1);
+  if (!result) {
+    if (isFree) taosMemoryFree(pBuf);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  uint8_t *po = (uint8_t *)result;
+  memset(po, 0, nz);
+  while (it != pBuf + size) po[nz++] = *it++;
+
+  if (outlen) *outlen = nz;
+
+  if (isFree) taosMemoryFree(pBuf);
   return result;
 }
