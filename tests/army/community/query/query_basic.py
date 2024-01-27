@@ -404,7 +404,7 @@ class TDTestCase(TBase):
 
         # spread
         sql = "select spread(12);"
-        tdSql.checkFirstValue(sql, 12)
+        tdSql.checkFirstValue(sql, 0)
 
         # percentile
         sql = "select percentile(10.1,100);"
