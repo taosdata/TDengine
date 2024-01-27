@@ -396,6 +396,9 @@ class TDTestCase(TBase):
         sql = "select first(100-90-1),last(2*5),first(11.1),last(22.2)"
         tdSql.checkDataMem(sql, [[9, 10, 11.1, 22.2]])
 
+        sql = "select sample(6, 1);"
+        tdSql.checkFirstValue(sql, 6)
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
