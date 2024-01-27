@@ -398,8 +398,25 @@ class TDTestCase(TBase):
         sql = "select first(100-90-1),last(2*5),first(11.1),last(22.2)"
         tdSql.checkDataMem(sql, [[9, 10, 11.1, 22.2]])
 
+        # sample
         sql = "select sample(6, 1);"
         tdSql.checkFirstValue(sql, 6)
+
+        # spread
+        sql = "select spread(12);"
+        tdSql.checkFirstValue(sql, 12)
+
+        # percentile
+        sql = "select percentile(10.1,100);"
+        tdSql.checkFirstValue(sql, 10.1)
+        sql = "select percentile(10, 0);"
+        tdSql.checkFirstValue(sql, 10)
+        sql = "select percentile(100, 60, 70, 80);"
+        tdSql.execute(sql)
+
+        # apercentile
+        sql = "select apercentile(10.1,100);"
+        tdSql.checkFirstValue(sql, 10.1)
 
     # run
     def run(self):
