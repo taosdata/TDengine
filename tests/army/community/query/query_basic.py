@@ -375,6 +375,8 @@ class TDTestCase(TBase):
             sql = f"select stateduration(9.9,'{ops[i]}',11.1,1s);"
             #tdSql.checkFirstValue(sql, vals[i]) bug need fix
             tdSql.execute(sql)
+        sql = "select statecount(9,'EQAAAA',10);"
+        tdSql.error(sql)    
 
         # histogram check crash
         sqls = [
