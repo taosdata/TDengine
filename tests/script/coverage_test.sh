@@ -219,7 +219,7 @@ function lcovFunc {
 
     # generate result
     echo "generate result"
-    lcov -l --branch-coverage --function-coverage coverage.info | tee -a $TDENGINE_COVERAGE_REPORT
+    lcov -l coverage.info --branch-coverage --function-coverage | tee -a $TDENGINE_COVERAGE_REPORT
 
     sed -i 's/\/root\/TDengine\/sql.c/\/root\/TDengine\/source\/libs\/parser\/inc\/sql.c/g' coverage.info
     sed -i 's/\/root\/TDengine\/sql.y/\/root\/TDengine\/source\/libs\/parser\/inc\/sql.y/g' coverage.info
