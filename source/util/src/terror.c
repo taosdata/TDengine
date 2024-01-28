@@ -456,6 +456,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_GEN_ENC_IVLD_KLEN,      "Invalid klen to encod
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_PAR_IVLD_DIST,          "Invalid dist to parse active code")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_UNLICENSED_CLUSTER,     "Illegal operation, the license is being used by an unlicensed cluster")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_LACK_OF_BASIC,          "Lack of basic functions in active code")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_OBJ_NOT_EXIST,          "Grant object not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_LAST_ACTIVE_NOT_FOUND,  "Last active not found in cluster")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_MACHINES_MISMATCH,      "Cluster machines mismatch with active code")
 
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TIMEOUT,                  "Sync timeout")
