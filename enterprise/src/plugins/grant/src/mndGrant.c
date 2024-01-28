@@ -155,7 +155,7 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
     mndGrantObjAppendState(&grantObj, &(SGrantState){.state = GRANT_STATE_REVOKED, .reason = GRANT_STATE_REASON_ALTER});
   } else {
     char *mergeActive = NULL;
-    if ((code = grantAlterActiveCode(pMnode, grantObj.active, pCfg->value, &mergeActive)) != 0) {
+    if ((code = grantAlterActiveCode(pMnode, &grantObj, grantObj.active, pCfg->value, &mergeActive)) != 0) {
       goto _exit;
     }
     // merge or newActive utilized

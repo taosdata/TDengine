@@ -30,6 +30,7 @@
 #include "os.h"
 #include "sdb.h"
 #include "tdataformat.h"
+#include "tchecksum.h"
 #include "tglobal.h"
 #include "tlog.h"
 #include "trpc.h"
@@ -273,12 +274,12 @@ static int32_t tSerializeGrantDataIns(SEncoder *encoder, SGrantDataIns *pIns);
 static int32_t tDeserializeGrantDataIns(SDecoder *decoder, SGrantDataIns *pIns);
 
 typedef struct {
-  SHashObj *pMachines;
-  SArray   *pDnodeInfo;
-  SMnode   *pMnode;
-  int64_t   lastCheck;
-  int16_t   nServer;
-  uint8_t   info;
+  SSHashObj *pMachines;
+  SArray    *pDnodeInfo;
+  SMnode    *pMnode;
+  int64_t    lastCheck;
+  int16_t    nServer;
+  uint8_t    info;
 } SGrantHandle;
 
 static bool         recheckClusterTime = true;
@@ -319,7 +320,7 @@ int32_t mndInitGrant(SMnode *pMnode) {
 
   grantSetClusterInfo(pMnode);
 
-  if (!(grantHandle.pMachines = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, true))) {
+  if (!(grantHandle.pMachines = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY)))) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
@@ -350,7 +351,7 @@ void tResetGrantUniqObj(SGrantUniqObj *pObj) {
 }
 
 void mndCleanupGrant(SMnode *pMnode) {
-  taosHashCleanup(grantHandle.pMachines);
+  tSimpleHashCleanup(grantHandle.pMachines);
   taosArrayDestroy(grantHandle.pDnodeInfo);
   grantHandle.pMachines = NULL;
   grantHandle.pDnodeInfo = NULL;
@@ -612,7 +613,7 @@ static int32_t grantCheckClusterInfo(SMnode *pMnode) {
   return code;
 }
 
-static int32_t grantGetClusterMachines(SMnode *pMnode, SHashObj *pRes) {
+static int32_t grantGetClusterMachines(SMnode *pMnode, SSHashObj *pRes) {
   SSdb      *pSdb = pMnode->pSdb;
   SDnodeObj *pDnode = NULL;
   void      *pIter = NULL;
@@ -620,7 +621,7 @@ static int32_t grantGetClusterMachines(SMnode *pMnode, SHashObj *pRes) {
   while ((pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode))) {
     int32_t klen = strlen(pDnode->machineId);
     if (klen == TSDB_MACHINE_ID_LEN) {
-      taosHashPut(pRes, pDnode->machineId, klen, &pDnode->id, sizeof(pDnode->id));
+      tSimpleHashPut(pRes, pDnode->machineId, klen, &pDnode->id, sizeof(pDnode->id));
     }
     sdbRelease(pSdb, pDnode);
   }
@@ -640,7 +641,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
 
   grantGetClusterMachines(pMnode, grantHandle.pMachines);
 
-  ASSERTS(taosHashGetSize(grantHandle.pMachines) > 0, "nMachines is %d", taosHashGetSize(grantHandle.pMachines));
+  ASSERTS(tSimpleHashGetSize(grantHandle.pMachines) > 0, "nMachines is %d", tSimpleHashGetSize(grantHandle.pMachines));
 
   void      *pIter = NULL;
   SGrantObj *pGrant = mndAcquireGrant(pMnode, &pIter);
@@ -768,7 +769,7 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
 
   // reset grantHandle and send gStatus to all dnodes, no resp needed
   taosArrayClear(grantHandle.pDnodeInfo);
-  taosHashClear(grantHandle.pMachines);
+  tSimpleHashClear(grantHandle.pMachines);
   grantHandle.nServer = 0;
 
   mndGetDnodeData(pMnode, grantHandle.pDnodeInfo);
@@ -1439,12 +1440,15 @@ static int32_t mndCfgDnodeReq(SDnodeInfo *pDnodeInfo, const char *cfg, const cha
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t machineCmprFn(const void *p1, const void *p2) { return memcmp(p1, p2, TSDB_MACHINE_ID_LEN); }
+
 // mnode-write thread
-int32_t grantAlterActiveCode(SMnode *pMnode, const char *oldActive, const char *newActive, char **mergeActive) {
+int32_t grantAlterActiveCode(SMnode *pMnode, SGrantObj *pObj, const char *oldActive, const char *newActive, char **mergeActive) {
   int32_t       code = 0;
   SGrantUniqObj newObj = {0};
   SGrantUniqObj oldObj = {0};
-  SHashObj     *pMachines = NULL;
+  SSHashObj    *pMachineHash = NULL;
+  SArray       *pMachines = NULL;
   bool          revoked = false;
 
   // step 1: basic judgement and init
@@ -1470,11 +1474,11 @@ int32_t grantAlterActiveCode(SMnode *pMnode, const char *oldActive, const char *
     revoked = true;
   }
 
-  if (!(pMachines = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, true))) {
+  if (!(pMachineHash =  tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY)))) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  grantGetClusterMachines(pMnode, pMachines);
+  grantGetClusterMachines(pMnode, pMachineHash);
 
   // step 2: parse new
   memcpy(newObj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
@@ -1491,6 +1495,46 @@ int32_t grantAlterActiveCode(SMnode *pMnode, const char *oldActive, const char *
   if (code != 0 || !newObj.granted) {
     code = code != 0 ? code : TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
     goto _exit;
+  }
+
+  if (newObj.token[0] > 0) {  // check last active
+    bool   found = false;
+    int8_t nActive = pObj->nActives;
+    while (--nActive >= 0) {
+      TSCKSUM chksum = taosCalcChecksum(0, pObj->actives[nActive].active, GRANT_ACTIVE_HEAD_LEN);
+      if (chksum == newObj.token[0]) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      code = TSDB_CODE_GRANT_LAST_ACTIVE_NOT_FOUND;
+      goto _exit;
+    }
+  }
+
+  if (newObj.token[1] > 0) {  // check machines
+    if (!(pMachines = taosArrayInit(tSimpleHashGetSize(pMachineHash), TSDB_MACHINE_ID_LEN))) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+    void   *pe = NULL;
+    int32_t iter = 0;
+    while ((pe = tSimpleHashIterate(pMachineHash, pe, &iter)) != NULL) {
+      void *key = tSimpleHashGetKey(pe, NULL);
+      taosArrayPush(pMachines, key);
+    }
+    int32_t nFinalMachine = taosArrayGetSize(pMachines);
+    taosArraySort(pMachines, machineCmprFn);
+
+    TSCKSUM machineChksum = 0;
+    if (nFinalMachine > 0) {
+      machineChksum = taosCalcChecksum(0, TARRAY_GET_ELEM(pMachines, 0), nFinalMachine * TSDB_MACHINE_ID_LEN);
+    }
+    if (machineChksum != newObj.token[1]) {
+      code = TSDB_CODE_GRANT_MACHINES_MISMATCH;
+      goto _exit;
+    }
   }
 
   grantRetrieveGrantInfo(pMnode);
@@ -1548,7 +1592,8 @@ int32_t grantAlterActiveCode(SMnode *pMnode, const char *oldActive, const char *
   uInfo("succeed to alter grant active");
 
 _exit:
-  taosHashCleanup(pMachines);
+  taosArrayDestroy(pMachines);
+  tSimpleHashCleanup(pMachineHash);
   tDestroyGrantUniqObj(&newObj);
   tDestroyGrantUniqObj(&oldObj);
   if (code != 0) {
