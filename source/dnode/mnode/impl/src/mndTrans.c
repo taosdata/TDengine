@@ -1119,7 +1119,10 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
 
 static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf) {
   if (pAction->msgSent) return 0;
-  if (mndCannotExecuteTransAction(pMnode, topHalf)) return TSDB_CODE_MND_TRANS_CTX_SWITCH;
+  if (mndCannotExecuteTransAction(pMnode, topHalf)) {
+    terrno = TSDB_CODE_MND_TRANS_CTX_SWITCH;
+    return TSDB_CODE_MND_TRANS_CTX_SWITCH;
+  }
 
   int64_t signature = pTrans->id;
   signature = (signature << 32);

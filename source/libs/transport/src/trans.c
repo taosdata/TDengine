@@ -169,8 +169,9 @@ int rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, in
 int rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
   return transSendRecv(shandle, pEpSet, pMsg, pRsp);
 }
-int rpcSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp, int32_t timeoutMs) {
-  return transSendRecvWithTimeout(shandle, pEpSet, pMsg, pRsp, timeoutMs);
+int rpcSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp, int8_t* epUpdated,
+                           int32_t timeoutMs) {
+  return transSendRecvWithTimeout(shandle, pEpSet, pMsg, pRsp, epUpdated, timeoutMs);
 }
 
 int rpcSendResponse(const SRpcMsg* pMsg) { return transSendResponse(pMsg); }
@@ -195,6 +196,13 @@ void* rpcAllocHandle() { return (void*)transAllocHandle(); }
 int32_t rpcUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) { return transUtilSIpRangeToStr(pRange, buf); }
 int32_t rpcUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf) {
   return transUtilSWhiteListToStr(pWhiteList, ppBuf);
+}
+
+int32_t rpcCvtErrCode(int32_t code) {
+  if (code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    return TSDB_CODE_RPC_NETWORK_ERROR;
+  }
+  return code;
 }
 
 int32_t rpcInit() {

@@ -21,6 +21,7 @@
 #include "tmsg.h"
 
 #include "executorInt.h"
+#include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
 #include "tcompare.h"
@@ -44,6 +45,7 @@ typedef struct SCacheRowsScanInfo {
   SArray*         pCidList;
   int32_t         indexOfBufferedRes;
   STableListInfo* pTableList;
+  SArray*         pFuncTypeList;
 } SCacheRowsScanInfo;
 
 static SSDataBlock* doScanCache(SOperatorInfo* pOperator);
@@ -105,9 +107,15 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   }
 
   SArray* pCidList = taosArrayInit(numOfCols, sizeof(int16_t));
+  pInfo->pFuncTypeList = taosArrayInit(taosArrayGetSize(pScanNode->pFuncTypes), sizeof(int32_t));
+  taosArrayAddAll(pInfo->pFuncTypeList, pScanNode->pFuncTypes);
+
   for (int i = 0; i < TARRAY_SIZE(pInfo->matchInfo.pList); ++i) {
     SColMatchItem* pColInfo = taosArrayGet(pInfo->matchInfo.pList, i);
     taosArrayPush(pCidList, &pColInfo->colId);
+    if (pInfo->pFuncTypeList != NULL && taosArrayGetSize(pInfo->pFuncTypeList) > i) {
+      pColInfo->funcType = *(int32_t*)taosArrayGet(pInfo->pFuncTypeList, i);
+    }
   }
   pInfo->pCidList = pCidList;
 
@@ -132,7 +140,7 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
     uint64_t suid = tableListGetSuid(pTableListInfo);
     code = pInfo->readHandle.api.cacheFn.openReader(pInfo->readHandle.vnode, pInfo->retrieveType, pList, totalTables,
                                                     taosArrayGetSize(pInfo->matchInfo.pList), pCidList, pInfo->pSlotIds,
-                                                    suid, &pInfo->pLastrowReader, pTaskInfo->id.str);
+                                                    suid, &pInfo->pLastrowReader, pTaskInfo->id.str, pScanNode->pFuncTypes);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -274,7 +282,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       if (NULL == pInfo->pLastrowReader) {
         code = pInfo->readHandle.api.cacheFn.openReader(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
                                        taosArrayGetSize(pInfo->matchInfo.pList), pInfo->pCidList, pInfo->pSlotIds, suid, &pInfo->pLastrowReader,
-                                       pTaskInfo->id.str);
+                                       pTaskInfo->id.str, pInfo->pFuncTypeList);
         if (code != TSDB_CODE_SUCCESS) {
           pInfo->currentGroupIndex += 1;
           taosArrayClear(pInfo->pUidList);
@@ -333,6 +341,7 @@ void destroyCacheScanOperator(void* param) {
   taosMemoryFree(pInfo->pSlotIds);
   taosMemoryFree(pInfo->pDstSlotIds);
   taosArrayDestroy(pInfo->pCidList);
+  taosArrayDestroy(pInfo->pFuncTypeList);
   taosArrayDestroy(pInfo->pUidList);
   taosArrayDestroy(pInfo->matchInfo.pList);
   tableListDestroy(pInfo->pTableList);
@@ -404,6 +413,8 @@ int32_t removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColMatchInfo* pC
 
     SSlotDescNode* pDesc = (SSlotDescNode*)nodesListGetNode(pList, slotId);
     if (pDesc->dataType.type != TSDB_DATA_TYPE_TIMESTAMP) {
+      taosArrayPush(pMatchInfo, pColInfo);
+    } else if (FUNCTION_TYPE_CACHE_LAST_ROW == pColInfo->funcType){
       taosArrayPush(pMatchInfo, pColInfo);
     }
   }

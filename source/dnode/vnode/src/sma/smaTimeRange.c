@@ -188,7 +188,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
       pDeleteReq->suid = suid;
       pDeleteReq->deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
-      code = tqBuildDeleteReq(pVnode->pTq, stbFullName, pDataBlock, pDeleteReq, "");
+      code = tqBuildDeleteReq(pVnode->pTq, stbFullName, pDataBlock, pDeleteReq, "", true);
       TSDB_CHECK_CODE(code, lino, _exit);
       continue;
     }
@@ -196,7 +196,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     SSubmitTbData tbData = {.suid = suid, .uid = 0, .sver = pTSchema->version, .flags = SUBMIT_REQ_AUTO_CREATE_TABLE,};
 
     int32_t cid = taosArrayGetSize(pDataBlock->pDataBlock) + 1;
-    tbData.pCreateTbReq = buildAutoCreateTableReq(stbFullName, suid, cid, pDataBlock, tagArray);
+    tbData.pCreateTbReq = buildAutoCreateTableReq(stbFullName, suid, cid, pDataBlock, tagArray, true);
 
     {
       uint64_t groupId = pDataBlock->info.id.groupId;

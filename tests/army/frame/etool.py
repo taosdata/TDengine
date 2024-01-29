@@ -24,7 +24,7 @@ import frame.eos
 from frame.log import *
 
 # run taosBenchmark with command or json file mode
-def runBenchmark(command = "", json = "") :
+def benchMark(command = "", json = "") :
     # get taosBenchmark path
     bmFile = frame.epath.binFile("taosBenchmark")
     if frame.eos.isWin():
@@ -44,3 +44,31 @@ def runBenchmark(command = "", json = "") :
 # get current directory file name
 def curFile(fullPath, filename):
     return os.path.dirname(fullPath) + "/" + filename
+
+
+# run build/bin file
+def runBinFile(fname, command, show=True):
+    binFile = frame.epath.binFile(fname)
+    if frame.eos.isWin():
+        binFile += ".exe"
+
+    cmd = f"{binFile} {command}"
+    if show:
+        tdLog.info(cmd)
+    return frame.eos.runRetList(cmd)
+
+# exe build/bin file
+def exeBinFile(fname, command, wait=True, show=True):
+    binFile = frame.epath.binFile(fname)
+    if frame.eos.isWin():
+        binFile += ".exe"
+
+    cmd = f"{binFile} {command}"
+    if wait:
+        if show:
+            tdLog.info("wait exe:" + cmd)
+        return frame.eos.exe(f"{binFile} {command}")
+    else:
+        if show:
+            tdLog.info("no wait exe:" + cmd)
+        return frame.eos.exeNoWait(cmd)

@@ -19,10 +19,7 @@
 #include "rocksdb/c.h"
 //#include "streamInt.h"
 #include "streamState.h"
-#include "tcoding.h"
 #include "tcommon.h"
-#include "tcompare.h"
-#include "ttimer.h"
 
 typedef struct SCfComparator {
   rocksdb_comparator_t** comp;

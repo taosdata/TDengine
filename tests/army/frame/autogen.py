@@ -14,11 +14,12 @@ import time
 # Auto Gen class
 #
 class AutoGen:
-    def __init__(self):
+    def __init__(self, fillOne=False):
         self.ts = 1600000000000
         self.batch_size = 100
         seed = time.time() % 10000
         random.seed(seed)
+        self.fillOne = fillOne
 
     # set start ts
     def set_start_ts(self, ts):
@@ -87,6 +88,23 @@ class AutoGen:
         
         return datas
 
+    # fill one data
+    def fillone_data(self, i, marr):
+        datas = ""
+        for c in marr:
+            if datas != "":
+                datas += ","
+
+            if c == 0:
+                datas += "%d" % (self.ts + i)
+            elif c == 12 or c == 13: # binary
+                datas += '"1"'
+            else:
+                datas += '1'
+        
+        return datas
+
+
     # generate specail wide random string
     def random_string(self, count):
         letters = string.ascii_letters
@@ -96,7 +114,6 @@ class AutoGen:
     def create_db(self, dbname, vgroups = 2, replica = 1):
         self.dbname  = dbname
         tdSql.execute(f'create database {dbname} vgroups {vgroups} replica {replica}')
-        tdSql.execute(f'use {dbname}')
         
     # create table or stable
     def create_stable(self, stbname, tag_cnt, column_cnt, binary_len, nchar_len):
@@ -106,7 +123,7 @@ class AutoGen:
         self.mtags, tags = self.gen_columns_sql("t", tag_cnt, binary_len, nchar_len)
         self.mcols, cols = self.gen_columns_sql("c", column_cnt - 1, binary_len, nchar_len)
 
-        sql = f"create table {stbname} (ts timestamp, {cols}) tags({tags})"
+        sql = f"create table {self.dbname}.{stbname} (ts timestamp, {cols}) tags({tags})"
         tdSql.execute(sql)
 
     # create child table 
@@ -115,7 +132,7 @@ class AutoGen:
         self.child_name = prename
         for i in range(cnt):
             tags_data = self.gen_data(i, self.mtags)
-            sql = f"create table {prename}{i} using {stbname} tags({tags_data})"
+            sql = f"create table {self.dbname}.{prename}{i} using {self.dbname}.{stbname} tags({tags_data})"
             tdSql.execute(sql)
 
         tdLog.info(f"create child tables {cnt} ok")
@@ -127,29 +144,37 @@ class AutoGen:
 
         # loop do
         for i in range(cnt):
-            value = self.gen_data(i, self.mcols)
+            if self.fillOne :
+                value = self.fillone_data(i, self.mcols)
+            else:
+                value = self.gen_data(i, self.mcols)
             ts += step
             values += f"({ts},{value}) "
             if batch_size == 1 or (i > 0 and i % batch_size == 0) :
-                sql = f"insert into {child_name} values {values}"
+                sql = f"insert into {self.dbname}.{child_name} values {values}"
                 tdSql.execute(sql)
                 values = ""
 
         # end batch
         if values != "":
-            sql = f"insert into {child_name} values {values}"
+            sql = f"insert into {self.dbname}.{child_name} values {values}"
             tdSql.execute(sql)
             tdLog.info(f" insert data i={i}")
             values = ""
 
-        tdLog.info(f" insert child data {child_name} finished, insert rows={cnt}")    
+        tdLog.info(f" insert child data {child_name} finished, insert rows={cnt}")
+        return ts
 
-    # insert data 
-    def insert_data(self, cnt):
+    def insert_data(self, cnt, bContinue=False):
+        if not bContinue:
+            self.ts = 1600000000000
+
+        currTs = 1600000000000
         for i in range(self.child_cnt):
             name = f"{self.child_name}{i}"
-            self.insert_data_child(name, cnt, self.batch_size, 1)
+            currTs = self.insert_data_child(name, cnt, self.batch_size, 1)
 
+        self.ts = currTs
         tdLog.info(f" insert data ok, child table={self.child_cnt} insert rows={cnt}")
 
     # insert same timestamp to all childs
@@ -159,5 +184,3 @@ class AutoGen:
             self.insert_data_child(name, cnt, self.batch_size, 0)
 
         tdLog.info(f" insert same timestamp ok, child table={self.child_cnt} insert rows={cnt}")         
-
-

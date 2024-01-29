@@ -48,8 +48,8 @@ extern "C" {
 #define stError(...) do { if (stDebugFlag & DEBUG_ERROR) { taosPrintLog("STM ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
 #define stWarn(...)  do { if (stDebugFlag & DEBUG_WARN)  { taosPrintLog("STM WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
 #define stInfo(...)  do { if (stDebugFlag & DEBUG_INFO)  { taosPrintLog("STM ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define stDebug(...) do { if (stDebugFlag & DEBUG_DEBUG) { taosPrintLog("STM ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
-#define stTrace(...) do { if (stDebugFlag & DEBUG_TRACE) { taosPrintLog("STM ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
+#define stDebug(...) do { if (stDebugFlag & DEBUG_DEBUG) { taosPrintLog("STM ", DEBUG_DEBUG, stDebugFlag, __VA_ARGS__); }} while(0)
+#define stTrace(...) do { if (stDebugFlag & DEBUG_TRACE) { taosPrintLog("STM ", DEBUG_TRACE, stDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
 typedef struct {
@@ -92,6 +92,9 @@ extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;
 extern int32_t taskDbWrapperId;
 
+int32_t streamTimerInit();
+void    streamTimerCleanUp();
+
 void    streamRetryDispatchData(SStreamTask* pTask, int64_t waitDuration);
 int32_t streamDispatchStreamBlock(SStreamTask* pTask);
 void    destroyDispatchMsg(SStreamDispatchReq* pReq, int32_t numOfVgroups);
@@ -117,11 +120,9 @@ int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask);
 void    streamTaskSetCheckpointFailedId(SStreamTask* pTask);
 int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask);
 int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate, const char*);
-STaskId streamTaskExtractKey(const SStreamTask* pTask);
+STaskId streamTaskGetTaskId(const SStreamTask* pTask);
 void    streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo);
 void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
-int32_t streamTaskBuildScanhistoryRspMsg(SStreamTask* pTask, SStreamScanHistoryFinishReq* pReq, void** pBuffer,
-                                         int32_t* pLen);
 int32_t streamTaskFillHistoryFinished(SStreamTask* pTask);
 
 void              streamClearChkptReadyMsg(SStreamTask* pTask);
@@ -131,10 +132,7 @@ int32_t           streamQueueItemGetSize(const SStreamQueueItem* pItem);
 void              streamQueueItemIncSize(const SStreamQueueItem* pItem, int32_t size);
 const char*       streamQueueItemGetTypeStr(int32_t type);
 SStreamQueueItem* streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem);
-
-int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo, SStreamScanHistoryFinishReq* pReq);
-int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
-int32_t streamTransferStateToStreamTask(SStreamTask* pTask);
+int32_t           streamTransferStateToStreamTask(SStreamTask* pTask);
 
 SStreamQueue* streamQueueOpen(int64_t cap);
 void          streamQueueClose(SStreamQueue* pQueue, int32_t taskId);

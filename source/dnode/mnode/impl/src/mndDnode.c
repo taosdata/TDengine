@@ -1094,6 +1094,32 @@ _OVER:
   return code;
 }
 
+static bool mndIsEmptyDnode(SMnode *pMnode, int32_t dnodeId) {
+  bool       isEmpty = false;
+  SMnodeObj *pMObj = NULL;
+  SQnodeObj *pQObj = NULL;
+  SSnodeObj *pSObj = NULL;
+
+  pQObj = mndAcquireQnode(pMnode, dnodeId);
+  if (pQObj) goto _OVER;
+
+  pSObj = mndAcquireSnode(pMnode, dnodeId);
+  if (pSObj) goto _OVER;
+
+  pMObj = mndAcquireMnode(pMnode, dnodeId);
+  if (pMObj) goto _OVER;
+
+  int32_t numOfVnodes = mndGetVnodesNum(pMnode, dnodeId);
+  if (numOfVnodes > 0) goto _OVER;
+
+  isEmpty = true;
+_OVER:
+  mndReleaseMnode(pMnode, pMObj);
+  mndReleaseQnode(pMnode, pQObj);
+  mndReleaseSnode(pMnode, pSObj);
+  return isEmpty;
+}
+
 static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   int32_t       code = -1;
@@ -1155,7 +1181,8 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (!isonline && !force) {
+  bool isEmpty = mndIsEmptyDnode(pMnode, pDnode->id);
+  if (!isonline && !force && !isEmpty) {
     terrno = TSDB_CODE_DNODE_OFFLINE;
     mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
            numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);

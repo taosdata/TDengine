@@ -621,6 +621,10 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   } else {
     pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
   }
+
+  if(pRes == NULL) {
+    st = taosGetTimestampUs();
+  }
   
   int32_t rowsThreshold = pTaskInfo->pSubplan->rowsThreshold;
   if (!pTaskInfo->pSubplan->dynamicRowThreshold || 4096 <= pTaskInfo->pSubplan->rowsThreshold) {
@@ -922,8 +926,8 @@ int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRan
   pStreamInfo->fillHistoryWindow = *pWindow;
   pStreamInfo->recoverStep = STREAM_RECOVER_STEP__PREPARE2;
 
-  qDebug("%s step 2. set param for stream scanner for scan-history data, verRange:%" PRId64 " - %" PRId64
-         ", window:%" PRId64 " - %" PRId64,
+  qDebug("%s step 2. set param for stream scanner scan wal, verRange:%" PRId64 " - %" PRId64 ", window:%" PRId64
+         " - %" PRId64,
          GET_TASKID(pTaskInfo), pStreamInfo->fillHistoryVer.minVer, pStreamInfo->fillHistoryVer.maxVer, pWindow->skey,
          pWindow->ekey);
   return 0;
@@ -1078,7 +1082,7 @@ int32_t qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   STimeWindow* pWindow = &pTaskInfo->streamInfo.fillHistoryWindow;
 
-  qDebug("%s remove scan-history filter window:%" PRId64 "-%" PRId64 ", set new window:%" PRId64 "-%" PRId64,
+  qDebug("%s remove timeWindow filter:%" PRId64 "-%" PRId64 ", set new window:%" PRId64 "-%" PRId64,
          GET_TASKID(pTaskInfo), pWindow->skey, pWindow->ekey, INT64_MIN, INT64_MAX);
 
   pWindow->skey = INT64_MIN;

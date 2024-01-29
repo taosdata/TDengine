@@ -22,10 +22,8 @@ static void *dmStatusThreadFp(void *param) {
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-status");
 
-  const static int16_t TRIM_FREQ = 30;
-  int32_t              trimCount = 0;
-  int32_t              upTimeCount = 0;
-  int64_t              upTime = 0;
+  int32_t upTimeCount = 0;
+  int64_t upTime = 0;
 
   while (1) {
     taosMsleep(200);
@@ -38,11 +36,6 @@ static void *dmStatusThreadFp(void *param) {
       dmSendStatusReq(pMgmt);
       lastTime = curTime;
 
-      trimCount = (trimCount + 1) % TRIM_FREQ;
-      if (trimCount == 0) {
-        taosMemoryTrim(0);
-      }
-
       if ((upTimeCount = ((upTimeCount + 1) & 63)) == 0) {
         upTime = taosGetOsUptime() - tsDndStartOsUptime;
         tsDndUpTime = TMAX(tsDndUpTime, upTime);
@@ -54,7 +47,8 @@ static void *dmStatusThreadFp(void *param) {
 }
 
 SDmNotifyHandle dmNotifyHdl = {.state = 0};
-static void    *dmNotifyThreadFp(void *param) {
+
+static void *dmNotifyThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   setThreadName("dnode-notify");
 
@@ -83,6 +77,9 @@ static void *dmMonitorThreadFp(void *param) {
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-monitor");
 
+  static int32_t TRIM_FREQ = 20;
+  int32_t        trimCount = 0;
+
   while (1) {
     taosMsleep(200);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
@@ -93,6 +90,11 @@ static void *dmMonitorThreadFp(void *param) {
     if (interval >= tsMonitorInterval) {
       (*pMgmt->sendMonitorReportFp)();
       lastTime = curTime;
+
+      trimCount = (trimCount + 1) % TRIM_FREQ;
+      if (trimCount == 0) {
+        taosMemoryTrim(0);
+      }
     }
   }
 
@@ -126,14 +128,15 @@ static void *dmCrashReportThreadFp(void *param) {
   setThreadName("dnode-crashReport");
   char filepath[PATH_MAX] = {0};
   snprintf(filepath, sizeof(filepath), "%s%s.taosdCrashLog", tsLogDir, TD_DIRSEP);
-  char *pMsg = NULL;
-  int64_t msgLen = 0;
+  char     *pMsg = NULL;
+  int64_t   msgLen = 0;
   TdFilePtr pFile = NULL;
-  bool truncateFile = false;
-  int32_t sleepTime = 200;
-  int32_t reportPeriodNum = 3600 * 1000 / sleepTime;;
+  bool      truncateFile = false;
+  int32_t   sleepTime = 200;
+  int32_t   reportPeriodNum = 3600 * 1000 / sleepTime;
+  ;
   int32_t loopTimes = reportPeriodNum;
-  
+
   while (1) {
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
     if (loopTimes++ < reportPeriodNum) {
@@ -167,13 +170,13 @@ static void *dmCrashReportThreadFp(void *param) {
       pMsg = NULL;
       continue;
     }
-    
+
     if (pFile) {
       taosReleaseCrashLogFile(pFile, truncateFile);
       pFile = NULL;
       truncateFile = false;
     }
-    
+
     taosMsleep(sleepTime);
     loopTimes = 0;
   }

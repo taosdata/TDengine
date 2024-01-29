@@ -639,7 +639,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   if (mndSetUpdateSmaStbCommitLogs(pMnode, pTrans, pStb) != 0) goto _OVER;
   if (mndSetCreateSmaVgroupRedoActions(pMnode, pTrans, pDb, &streamObj.fixedSinkVg, &smaObj) != 0) goto _OVER;
   if (mndScheduleStream(pMnode, &streamObj, 1685959190000) != 0) goto _OVER;
-  if (mndPersistStream(pMnode, pTrans, &streamObj) != 0) goto _OVER;
+  if (mndPersistStream(pTrans, &streamObj) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   mInfo("sma:%s, uid:%" PRIi64 " create on stb:%" PRIi64 ", dstSuid:%" PRIi64 " dstTb:%s dstVg:%d", pCreate->name,
@@ -872,7 +872,7 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
     }
 
     // drop stream
-    if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
+    if (mndPersistTransLog(pStream, pTrans, SDB_STATUS_DROPPED) < 0) {
       mError("stream:%s, failed to drop log since %s", pStream->name, terrstr());
       sdbRelease(pMnode->pSdb, pStream);
       goto _OVER;
@@ -923,7 +923,7 @@ int32_t mndDropSmasByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
           goto _OVER;
         }
 
-        if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
+        if (mndPersistTransLog(pStream, pTrans, SDB_STATUS_DROPPED) < 0) {
           mndReleaseStream(pMnode, pStream);
           goto _OVER;
         }
