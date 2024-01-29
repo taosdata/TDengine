@@ -31,7 +31,7 @@ public class ThreadConfig {
     /**
      * MetricThread线程
      */
-    private long createMetricInterval = 5;
+    private long createMetricInterval = 1;
     private long createMetricFullInterval = 200;
 
     /**
