@@ -156,14 +156,14 @@ public class ArrowUtils {
     }
 
     /**
-     * 将实体类列表转换为apache-arrow的字节流
+     * 将 subtable 转换为apache-arrow的字节流
      *
-     * @param opentsdbDataEntityList
+     * @param subtableMap
      * @param first
      * @return
      * @throws IOException
      */
-    public byte[] transform(List<OpentsdbDataEntity> opentsdbDataEntityList, boolean first) throws IOException {
+    public byte[] transformSubtable(Map<String, Map<String, Object>> subtableMap, boolean first) throws IOException {
         // 分配1G内存
         RootAllocator rootAllocator = new RootAllocator(1_000_000_000);
         // 创建arrow数据结构体
@@ -182,44 +182,90 @@ public class ArrowUtils {
             ListVector tableVector = (ListVector) vectorSchemaRoot.getVector("__tables__");
             StructVector attrVector = (StructVector) vectorSchemaRoot.getVector("__attrs__");
             ListVector recordVector = (ListVector) vectorSchemaRoot.getVector("__records__");
-            // 如果首次提交，需要写Tables数据与Insert数据，其后只写Insert数据
-            if (first) {
-                // 第一阶段提交type=2与tableVector数据
-                typeVector.reset();
-                tableVector.reset();
-                attrVector.reset();
-                recordVector.reset();
-                /* __type__ */
-                typeVector.setSafe(0, 2);
-                // 设置tableVector写数据开始
-                tableVector.startNewValue(0);
-                // 计数
-                int amount = 0;
-                // 遍历数据
-                for (int i = 0; i < opentsdbDataEntityList.size(); i++) {
-                    OpentsdbDataEntity opentsdbDataEntity = opentsdbDataEntityList.get(i);
-                    // 数据点
-                    List<OpentsdbDataPointEntity> opentsdbDataPointEntityList = opentsdbDataEntity.getDps();
-                    for (int j = 0; j < opentsdbDataPointEntityList.size(); j++) {
-                        /* __tables__ */
-                        StructVector tableDataVector = (StructVector) tableVector.getChildrenFromFields().get(0);
-                        // 2023.04.17 使用setIndexDefined解决了StructVector=null的问题！！！
-                        tableDataVector.setIndexDefined(amount);
-                        // edit at 2023.08.16 replace `.` to `_`
-                        setData(tableDataVector, "__table_name__", opentsdbDataEntity.getTable().replaceAll("\\.", "_"), "string", amount);
-                        for (String tagName : opentsdbDataEntity.getTags().keySet()) {
-                            setData(tableDataVector, tagName, opentsdbDataEntity.getTags().get(tagName), "string", amount);
-                        }
-                        amount++;
-                    }
+            /** 提交type=2与tableVector数据 */
+            typeVector.reset();
+            tableVector.reset();
+            attrVector.reset();
+            recordVector.reset();
+            /* __type__ */
+            typeVector.setSafe(0, 2);
+            // 设置tableVector写数据开始
+            tableVector.startNewValue(0);
+            // 序号
+            int index = 0;
+            // 遍历数据
+            for (String subtable : subtableMap.keySet()) {
+                /* __tables__ */
+                StructVector tableDataVector = (StructVector) tableVector.getChildrenFromFields().get(0);
+                // 2023.04.17 使用setIndexDefined解决了StructVector=null的问题！！！
+                tableDataVector.setIndexDefined(index);
+                // edit at 2023.08.16 replace `.` to `_`
+                setData(tableDataVector, "__table_name__", subtable.replaceAll("\\.", "_"), "string", index);
+                for (String tagName : subtableMap.get(subtable).keySet()) {
+                    setData(tableDataVector, tagName, subtableMap.get(subtable).get(tagName), "string", index);
                 }
-                // 设置tableVector写数据结束
-                tableVector.endValue(0, amount);
-                // 这里固定传1
-                vectorSchemaRoot.setRowCount(1);
-                writer.writeBatch();
+                index++;
             }
-            // 第二阶段提交type=3与attrVector&recordVector数据
+            // 设置tableVector写数据结束
+            tableVector.endValue(0, subtableMap.size());
+            // 这里固定传1
+            vectorSchemaRoot.setRowCount(1);
+            writer.writeBatch();
+            // 为了连续发送，此处不写结束信号
+            // writer.end();
+            // 如果首次提交，返回完整字节流，其后只提交RecordBatch
+            if (first) {
+                return outputStream.toByteArray();
+            } else {
+                // 2023.04.21 使用ArrowRecordBatch解决了后续数据无法传输的问题！！！
+                // 创建新的输出流
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                // 获取RecordBatch
+                ArrowRecordBatch arrowRecordBatch = new VectorUnloader(vectorSchemaRoot).getRecordBatch();
+                // 序列化到输出流中
+                MessageSerializer.serialize(new WriteChannel(Channels.newChannel(out)), arrowRecordBatch, IpcOption.DEFAULT);
+                // 关闭RecordBatch，否则执行rootAllocator.close()时会内存溢出
+                arrowRecordBatch.close();
+                // 返回字节流
+                return out.toByteArray();
+            }
+        } catch (Exception e) {
+            throw e;
+        } finally {
+            outputStream.close();
+            vectorSchemaRoot.close();
+            rootAllocator.close();
+        }
+    }
+
+    /**
+     * 将实体类列表转换为apache-arrow的字节流
+     *
+     * @param opentsdbDataEntityList
+     * @param first
+     * @return
+     * @throws IOException
+     */
+    public byte[] transformData(List<OpentsdbDataEntity> opentsdbDataEntityList, boolean first) throws IOException {
+        // 分配1G内存
+        RootAllocator rootAllocator = new RootAllocator(1_000_000_000);
+        // 创建arrow数据结构体
+        VectorSchemaRoot vectorSchemaRoot = VectorSchemaRoot.create(this.schema, rootAllocator);
+        // 输出字节流，完整结构体的字节流
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        try {
+            // 创建字典
+            DictionaryProvider.MapDictionaryProvider dictProvider = new DictionaryProvider.MapDictionaryProvider();
+            // 用于将数据写入Arrow格式的二进制流中，它接受一个VectorSchemaRoot对象作为输入，该对象包含要写入流中的Schema和矢量数据。在向这些矢量添加数据后，可以调用ArrowStreamWriter的writeBatch方法来刷新数据到输出流中
+            ArrowStreamWriter writer = new ArrowStreamWriter(vectorSchemaRoot, dictProvider, outputStream);
+            // 开始写入
+            writer.start();
+            // 获取各值域
+            UInt1Vector typeVector = (UInt1Vector) vectorSchemaRoot.getVector("__type__");
+            ListVector tableVector = (ListVector) vectorSchemaRoot.getVector("__tables__");
+            StructVector attrVector = (StructVector) vectorSchemaRoot.getVector("__attrs__");
+            ListVector recordVector = (ListVector) vectorSchemaRoot.getVector("__records__");
+            // 提交type=3与attrVector&recordVector数据
             typeVector.reset();
             tableVector.reset();
             attrVector.reset();
@@ -258,28 +304,42 @@ public class ArrowUtils {
             StatisticCache.totalRecordBatch.incrementAndGet();
             // 为了连续发送，此处不写结束信号
             // writer.end();
-            // 如果首次提交，返回完整字节流，其后只提交RecordBatch
-            if (first) {
-                return outputStream.toByteArray();
-            } else {
-                // 2023.04.21 使用ArrowRecordBatch解决了后续数据无法传输的问题！！！
-                // 创建新的输出流
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
-                // 获取RecordBatch
-                ArrowRecordBatch arrowRecordBatch = new VectorUnloader(vectorSchemaRoot).getRecordBatch();
-                // 序列化到输出流中
-                MessageSerializer.serialize(new WriteChannel(Channels.newChannel(out)), arrowRecordBatch, IpcOption.DEFAULT);
-                // 关闭RecordBatch，否则执行rootAllocator.close()时会内存溢出
-                arrowRecordBatch.close();
-                // 返回字节流
-                return out.toByteArray();
-            }
+            // 2023.04.21 使用ArrowRecordBatch解决了后续数据无法传输的问题！！！
+            // 创建新的输出流
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            // 获取RecordBatch
+            ArrowRecordBatch arrowRecordBatch = new VectorUnloader(vectorSchemaRoot).getRecordBatch();
+            // 序列化到输出流中
+            MessageSerializer.serialize(new WriteChannel(Channels.newChannel(out)), arrowRecordBatch, IpcOption.DEFAULT);
+            // 关闭RecordBatch，否则执行rootAllocator.close()时会内存溢出
+            arrowRecordBatch.close();
+            // 返回字节流
+            return out.toByteArray();
         } catch (Exception e) {
             throw e;
         } finally {
             outputStream.close();
             vectorSchemaRoot.close();
             rootAllocator.close();
+        }
+    }
+
+    /**
+     * 数据流关闭信号
+     *
+     * @return
+     * @throws IOException
+     */
+    public byte[] closeArrow() throws IOException {
+        // 输出字节流，完整结构体的字节流
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        try {
+            ArrowStreamWriter.writeEndOfStream(new WriteChannel(Channels.newChannel(outputStream)), IpcOption.DEFAULT);
+            return outputStream.toByteArray();
+        } catch (Exception e) {
+            throw e;
+        } finally {
+            outputStream.close();
         }
     }
 

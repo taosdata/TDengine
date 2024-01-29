@@ -1,6 +1,7 @@
 package com.taosdata.model.dto.bum;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.Date;
 import java.util.concurrent.ConcurrentHashMap;
@@ -10,7 +11,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * @author ZYP
  */
-@Data
+@Getter
+@Setter
 public class NettyInfo {
 
     /**
@@ -23,7 +25,8 @@ public class NettyInfo {
      */
     private ConcurrentHashMap<String, Connection> connectionMap;
 
-    @Data
+    @Getter
+    @Setter
     public class Connection {
 
         /**

@@ -1,6 +1,7 @@
 package com.taosdata.model.dto.bum;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.Date;
 
@@ -9,7 +10,8 @@ import java.util.Date;
  *
  * @author ZYP
  */
-@Data
+@Getter
+@Setter
 public class ThreadInfo {
 
     /**
