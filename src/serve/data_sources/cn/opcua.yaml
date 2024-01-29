@@ -20,7 +20,52 @@ options:
       OPC-UA 服务器端点，如：`127.0.0.1:6666/OPCUA/ServerPath`。
       如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。
     placeholder: 127.0.0.1:6666/OPCUA/ServerPath
+  security_mode:
+    name: security_mode
+    display: 安全模式
+    description: |
+      Security mode（安全模式）是OPC UA协议中用于保护通信安全的一种机制。安全模式定义了如何加密和验证通信数据，以防止未经授权的访问和篡改。
 
+      OPC UA支持以下几种安全模式：
+      - **None（无）**: 不进行任何加密或身份验证，通信数据以明文形式传输。这种模式只适用于测试和开发环境，不建议在生产环境中使用。
+      - **Sign（签名）**: 使用数字签名对通信数据进行验证，以确保数据的完整性和真实性，但不进行加密。这种模式适用于需要保护数据完整性的场景，如数据采集和监控。
+      - **SingAndEncrypt（签名和加密）**: 使用数字签名对通信数据进行验证，并使用加密算法对数据进行加密，以保证数据的完整性、真实性和保密性。这种模式适用于需要保护数据完整性和保密性的场景，如敏感数据的传输和存储。
+    hint:
+      type: str
+      choices:
+        - None
+        - Sign
+        - SignAndEncrypt
+  security_policy:
+    name: security_policy
+    display: 安全策略
+    description: |
+      Security Policy（安全策略）是OPC UA协议中用于定义安全机制的一种机制。安全策略定义了如何实现安全模式中的加密和验证机制，包括使用的加密算法、密钥长度、数字证书等。
+
+      OPC UA支持以下几种安全策略：
+      1. **None**（无）：不进行任何加密或身份验证，通信数据以明文形式传输。这种策略只适用于测试和开发环境，不建议在生产环境中使用。
+      2. **Basic128Rsa15**：使用RSA算法和128位的密钥长度对通信数据进行加密和身份验证。这种策略适用于需要保护数据完整性和真实性的场景，如数据采集和监控。
+      3. **Basic256**：使用AES算法和256位的密钥长度对通信数据进行加密和身份验证。这种策略适用于需要保护数据完整性和真实性的场景，如数据采集和监控。
+      4. **Basic256Sha256**：使用AES算法和256位的密钥长度，并使用SHA-256算法对数字签名进行加密，以保证数据的完整性、真实性和保密性。这种策略适用于需要保护数据完整性和保密性的场景，如敏感数据的传输和存储。
+
+    hint:
+      type: str
+      choices:
+        - None
+        - Basic128Rsa15
+        - Basic256
+        - Basic256Sha256
+  connect_timeout:
+    name: connect_timeout
+    display: 连接超时
+    description: |-
+      连接超时间隔，单位为：秒 (s)。
+    placeholder: "10"
+    value: "10"
+    hint:
+      type: integer
+      min: 1
+      max: 60
 strict: false
 
 authentication:
@@ -51,40 +96,6 @@ authentication:
       display: 证书访问
       description: 使用私钥及证书反问 OPC 服务器。
       params:
-
-        - name: security_mode
-          display: 安全模式
-          description: |
-            Security mode（安全模式）是OPC UA协议中用于保护通信安全的一种机制。安全模式定义了如何加密和验证通信数据，以防止未经授权的访问和篡改。
-
-            OPC UA支持以下几种安全模式：
-            - **None（无）**: 不进行任何加密或身份验证，通信数据以明文形式传输。这种模式只适用于测试和开发环境，不建议在生产环境中使用。
-            - **Sign（签名）**: 使用数字签名对通信数据进行验证，以确保数据的完整性和真实性，但不进行加密。这种模式适用于需要保护数据完整性的场景，如数据采集和监控。
-            - **SingAndEncrypt（签名和加密）**: 使用数字签名对通信数据进行验证，并使用加密算法对数据进行加密，以保证数据的完整性、真实性和保密性。这种模式适用于需要保护数据完整性和保密性的场景，如敏感数据的传输和存储。
-          hint:
-            type: str
-            choices:
-              - None
-              - Sign
-              - SignAndEncrypt
-        - name: security_policy
-          display: 安全策略
-          description: |
-            Security Policy（安全策略）是OPC UA协议中用于定义安全机制的一种机制。安全策略定义了如何实现安全模式中的加密和验证机制，包括使用的加密算法、密钥长度、数字证书等。
-
-            OPC UA支持以下几种安全策略：
-            1. **None**（无）：不进行任何加密或身份验证，通信数据以明文形式传输。这种策略只适用于测试和开发环境，不建议在生产环境中使用。
-            2. **Basic128Rsa15**：使用RSA算法和128位的密钥长度对通信数据进行加密和身份验证。这种策略适用于需要保护数据完整性和真实性的场景，如数据采集和监控。
-            3. **Basic256**：使用AES算法和256位的密钥长度对通信数据进行加密和身份验证。这种策略适用于需要保护数据完整性和真实性的场景，如数据采集和监控。
-            4. **Basic256Sha256**：使用AES算法和256位的密钥长度，并使用SHA-256算法对数字签名进行加密，以保证数据的完整性、真实性和保密性。这种策略适用于需要保护数据完整性和保密性的场景，如敏感数据的传输和存储。
-
-          hint:
-            type: str
-            choices:
-              - None
-              - Basic128Rsa15
-              - Basic256
-              - Basic256Sha256
         - name: certificate
           display: 证书文件内容
           # description: 证书文件。当 security mode or policy isn't "None".
@@ -144,32 +155,8 @@ datasets:
           type: str
 
 groups:
-  - name: 连接配置
-    display_order: 1
-    description: OPC 连接相关配置
-    params:
-      - name: connect_timeout
-        display: 连接超时
-        description: |-
-          连接超时间隔，单位为：秒 (s)。
-        placeholder: 10
-        value: 10
-        hint:
-          type: integer
-          min: 1
-          max: 60
-      - name: request_timeout
-        display: 采集超时
-        hint:
-          type: integer
-          min: 1
-          max: 60
-        description: 数据采集请求超时间隔，单位为：秒 (s)。
-        placeholder: 10
-        value: 10
-
   - name: 采集配置
-    display_order: 2
+    display_order: 1
     description: 数据采集相关配置项。
     params:
       - name: interval
@@ -193,7 +180,16 @@ groups:
             - observe
             - subscribe
         value: subscribe
-
+        
+      - name: request_timeout
+        display: 采集超时
+        hint:
+          type: integer
+          min: 1
+          max: 60
+        description: 数据采集请求超时间隔，单位为：秒 (s)。
+        placeholder: 10
+        value: 10
 
 advanced:
   name: 高级选项

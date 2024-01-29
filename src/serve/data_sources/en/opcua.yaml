@@ -20,6 +20,44 @@ options:
       OPC-UA server endpoint, such as `127.0.0.1:6666/OPCUA/ServerPath`.
       If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
     placeholder: 127.0.0.1:6666/OPCUA/ServerPath
+  security_mode:
+    name: security_mode
+    display: Security Mode
+    description: |
+      Available value is one of None / Sign / SignAndEncrypt.
+
+      - **None**:
+      - **Sign**:
+      - **SingAndEncrypt**:
+    hint:
+      type: str
+      choices:
+        - None
+        - Sign
+        - SignAndEncrypt
+  security_policy:
+    name: security_policy
+    display: Security Policy
+    description: |
+      Available value is one of None/Basic128Rsa15/Basic256/Basic256Sha256.
+    hint:
+      type: str
+      choices:
+        - None
+        - Basic128Rsa15
+        - Basic256
+        - Basic256Sha256
+  connect_timeout:
+    name: connect_timeout
+    display: Connect Timeout
+    description: |-
+      Timeout for connect to endpoint in seconds
+    placeholder: "10"
+    value: "10"
+    hint:
+      type: integer
+      min: 1
+      max: 60
 
 strict: false
 
@@ -52,31 +90,6 @@ authentication:
       display: Certificates
       description: Use certificate file and private key.
       params:
-        - name: security_mode
-          display: Security Mode
-          description: |
-            Available value is one of None / Sign / SignAndEncrypt.
-
-            - **None**:
-            - **Sign**:
-            - **SingAndEncrypt**:
-          hint:
-            type: str
-            choices:
-              - None
-              - Sign
-              - SignAndEncrypt
-        - name: security_policy
-          display: Security Policy
-          description: |
-            Available value is one of None/Basic128Rsa15/Basic256/Basic256Sha256.
-          hint:
-            type: str
-            choices:
-              - None
-              - Basic128Rsa15
-              - Basic256
-              - Basic256Sha256
         - name: certificate
           display: Certificate file content
           # description: Path to cert.pem. Required when security mode or policy isn't "None".
@@ -139,33 +152,8 @@ datasets:
         required: true
 
 groups:
-  - name: Connection
-    display_order: 1
-    description: Configuration used in OPC connection
-    params:
-      - name: connect_timeout
-        display: Connect Timeout
-        description: |-
-          Timeout for connect to endpoint in seconds
-        placeholder: 10
-        value: 1
-        hint:
-          type: integer
-          min: 1
-          max: 60
-
-      - name: request_timeout
-        display: Request Timeout
-        description: Timeout for a request to endpoint in seconds
-        placeholder: 10
-        value: 1
-        hint:
-          type: integer
-          min: 1
-          max: 60
-
   - name: Collect
-    display_order: 2
+    display_order: 1
     description: Configurations for collecting data from OPC
     params:
       - name: interval
@@ -189,6 +177,16 @@ groups:
           choices:
             - observe
             - subscribe
+
+      - name: request_timeout
+        display: Request Timeout
+        description: Timeout for a request to endpoint in seconds
+        placeholder: 10
+        value: 1
+        hint:
+          type: integer
+          min: 1
+          max: 60
 
 advanced:
   name: Advanced Options
