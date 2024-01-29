@@ -399,7 +399,9 @@ static void mergeJoinJoinLeftRight(struct SOperatorInfo* pOperator, SSDataBlock*
       colDataSetNULL(pDst, currRow);
     } else {
       char* p = colDataGetData(pSrc, rowIndex);
-      colDataSetVal(pDst, currRow, p, false);
+      if (p != NULL) {
+        colDataSetVal(pDst, currRow, p, false);
+      }
     }
   }
 }
