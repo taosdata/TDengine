@@ -1,5 +1,6 @@
 #!/bin/bash
-
+# shellcheck disable=SC2009
+# shellcheck disable=SC2086
 # if [ $# != 4 || $# != 5 ]; then
 # echo "argument list need input : "
 # echo "  -n nodeName"

@@ -9,24 +9,24 @@ function usage() {
 ent=1
 while getopts "eh" opt; do
     case $opt in
-        e)
-            ent=1
-            ;;
-        h)
-            usage
-            exit 0
-            ;;
-        \?)
-            echo "Invalid option: -$OPTARG"
-            usage
-            exit 0
-            ;;
+    e)
+        ent=1
+        ;;
+    h)
+        usage
+        exit 0
+        ;;
+    \?)
+        echo "Invalid option: -$OPTARG"
+        usage
+        exit 0
+        ;;
     esac
 done
 
-script_dir=`dirname $0`
+script_dir=$(dirname $0)
 cd ${script_dir}
-PWD=`pwd`
+PWD=$(pwd)
 
 if [ $ent -eq 0 ]; then
     cd ../../debug
@@ -36,12 +36,11 @@ fi
 
 set -e
 
-pgrep taosd || taosd >> /dev/null 2>&1 &
+pgrep taosd || taosd >>/dev/null 2>&1 &
 
 sleep 10
 
-ctest -E "smlTest|funcTest|profileTest|sdbTest|showTest|geomTest|idxFstUtilUT|idxTest|idxUtilUT|idxFstUT|parserTest|plannerTest|transUT|transUtilUt" -j8
+ctest -j8
 
 ret=$?
 exit $ret
-

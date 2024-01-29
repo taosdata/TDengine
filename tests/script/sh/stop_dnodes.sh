@@ -1,5 +1,6 @@
 #!/bin/sh
-
+# shellcheck disable=SC2009
+# shellcheck disable=SC2086
 set +e
 #set -x
 
@@ -7,52 +8,30 @@ unset LD_PRELOAD
 UNAME_BIN=$(which uname)
 OS_TYPE=$($UNAME_BIN)
 
-PID=$(pgrep taosd  | grep -v defunct )
-if [ -n "$PID" ]; then
+kill_process() {
+    PID=$(ps -ef|grep "$1" | grep -v grep | grep -v defunct |  awk '{print $2}')
+    while [ -n "$PID" ]; do
+      # shellcheck disable=SC2086
+      echo "killing $1 processes, pid: $PID"
+      kill -9 $PID
+      if [ "$1" = "taosd" ]; then
+        if [ "$OS_TYPE" != "Darwin" ]; then
+          fuser -k -n tcp 6030
+        else
+          lsof -nti:6030 | xargs kill -9
+        fi
+      fi
+      PID=$(ps -ef|grep "$1" | grep -v grep | grep -v defunct |  awk '{print $2}')
+    done
+}
+
+PID1=$(ps -ef|grep /usr/bin/taosd | grep -v grep | grep -v defunct |  awk '{print $2}')
+if [ -n "$PID1" ]; then
   echo systemctl stop taosd
   systemctl stop taosd
 fi
 
-PID=$(pgrep taosd | grep -v defunct )
-while [ -n "$PID" ]; do
-  echo kill -9 "$PID"
-  #pkill -9 taosd
-  # shellcheck disable=SC2086
-  kill -9 $PID
-  echo "Killing taosd processes"
-  if [ "$OS_TYPE" != "Darwin" ]; then
-    fuser -k -n tcp 6030
-  else
-    lsof -nti:6030 | xargs kill -9
-  fi
-  PID=$(pgrep taosd | grep -v defunct )
-done
-
-PID=$(pgrep taos | grep -v defunct )
-while [ -n "$PID" ]; do
-  echo kill -9 "$PID"
-  #pkill -9 taos
-  # shellcheck disable=SC2086
-  kill -9 $PID
-  echo "Killing taos processes"
-  if [ "$OS_TYPE" != "Darwin" ]; then
-    fuser -k -n tcp 6030
-  else
-    lsof -nti:6030 | xargs kill -9
-  fi
-  PID=$(pgrep taos | grep -v defunct )
-done
-
-PID=$(pgrep tmq_sim | grep -v defunct )
-while [ -n "$PID" ]; do
-  echo kill -9 "$PID"
-  # shellcheck disable=SC2086
-  kill -9 $PID
-  echo "Killing tmq_sim processes"
-  if [ "$OS_TYPE" != "Darwin" ]; then
-    fuser -k -n tcp 6030
-  else
-    lsof -nti:6030 | xargs kill -9
-  fi
-  PID=$(pgrep tmq_sim | grep -v defunct )
-done
+kill_process taosd
+kill_process taos
+kill_process taosadapter
+kill_process tmq_sim

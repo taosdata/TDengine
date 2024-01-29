@@ -76,7 +76,7 @@ echo "CODE_DIR : $CODE_DIR"
 echo "CFG_DIR  : $CFG_DIR"
 echo "ASAN_DIR  : $ASAN_DIR"
 
-rm -rf $SIM_DIR/*
+rm -rf "${SIM_DIR:?}"/*
 rm -rf $LOG_DIR
 rm -rf $CFG_DIR
 rm -rf $ASAN_DIR
@@ -139,7 +139,7 @@ if [ -n "$FILE_NAME" ]; then
     fi
 
     if [ $result -eq 0 ]; then
-      $CODE_DIR/sh/sigint_stop_dnodes.sh
+      $CODE_DIR/sh/stop_dnodes.sh
       $CODE_DIR/sh/checkAsan.sh
     else
       echo "TSIM has asan errors"
