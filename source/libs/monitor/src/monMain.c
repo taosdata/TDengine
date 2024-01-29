@@ -23,7 +23,8 @@
 
 SMonitor tsMonitor = {0};
 char* tsMonUri = "/report";
-char* tsMonFwUri = "/td_metric";
+char* tsMonFwUri = "/general-metric";
+char* tsMonFwBasicUri = "/taosd-cluster-basic";
 
 void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
   taosThreadMutexLock(&tsMonitor.lock);
@@ -554,7 +555,7 @@ static void monGenLogJson(SMonInfo *pMonitor) {
 void monSendReport(SMonInfo *pMonitor){
   char *pCont = tjsonToString(pMonitor->pJson);
   if(tsMonitorLogProtocol){
-    uInfoL("report cont basic:\n%s", pCont);
+    uInfoL("report cont:\n%s", pCont);
   }
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
@@ -597,6 +598,20 @@ void monGenAndSendReport() {
   monCleanupMonitorInfo(pMonitor);
 }
 
+void monSendReportBasic(SMonInfo *pMonitor){
+  char *pCont = tjsonToString(pMonitor->pJson);
+  if(tsMonitorLogProtocol){
+    uInfoL("report cont basic:\n%s", pCont);
+  }
+  if (pCont != NULL) {
+    EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
+    if (taosSendHttpReport(tsMonitor.cfg.server, tsMonFwBasicUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
+      uError("failed to send monitor msg");
+    }
+    taosMemoryFree(pCont);
+  }
+}
+
 void monGenAndSendReportBasic() {
   SMonInfo *pMonitor = monCreateMonitorInfo();
   if (pMonitor == NULL) return;
@@ -605,7 +620,7 @@ void monGenAndSendReportBasic() {
   monGenBasicJsonBasic(pMonitor);
   monGenClusterJsonBasic(pMonitor);
 
-  monSendReport(pMonitor);
+  monSendReportBasic(pMonitor);
 
   monCleanupMonitorInfo(pMonitor);
 }
