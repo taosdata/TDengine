@@ -686,7 +686,7 @@ function handleGroups(groups, paramsConfig) {
           }
         },
         placeholder,
-        defaultValue: multiple ? value.split(',') : value,
+        defaultValue: multiple ? value?.split(',') : value,
         required,
         multiple
       };
