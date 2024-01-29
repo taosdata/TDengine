@@ -139,7 +139,7 @@ class TDCom:
         self.stream_suffix = "_stream"
         self.range_count = 5
         self.default_interval = 5
-        self.stream_timeout = 12
+        self.stream_timeout = 60
         self.create_stream_sleep = 0.5
         self.record_history_ts = str()
         self.precision = "ms"
@@ -1688,8 +1688,8 @@ class TDCom:
                     res1 = self.round_handle(res1)
                     res2 = self.round_handle(res2)
                 if latency < self.stream_timeout:
-                    latency += 0.2
-                    time.sleep(0.2)
+                    latency += 0.5
+                    time.sleep(0.5)
                 else:
                     if latency == 0:
                         return False
