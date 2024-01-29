@@ -111,7 +111,7 @@
 #define GRANT_UNIQ_UNDEFINED_S           "undef"
 
 #define GRANT_UNIQ_MAX_EXPIRE_SECOND     (31556995200)  // second: 1970 + 1000 year
-#define GRANT_UNIQ_KNOWN_DATAIN_VALS     120
+#define GRANT_UNIQ_KNOWN_DATAIN_VALS     30
 #define GRANT_UNIQ_TOKEN_NUM 2
 
 #ifndef GRANTS_CFG
@@ -414,7 +414,7 @@ bool  grantConnExplainActiveCode(SGrantConnObj *grant, SActiveCodeInfo *info);
 int32_t grantUniqGenActiveCode(SGrantUniqObj *grant);
 int32_t grantUniqGenMachinesChksum(SArray *pMachines, uint32_t *pChecksum);
 int32_t grantUniqParseActiveCode(SGrantUniqObj *grant, SActiveCodeInfo *info);
-int32_t grantUniqMergeActiveCode(SGrantUniqObj *new, SGrantUniqObj *old, char **mergeActive);
+int32_t grantUniqMergeActiveCode(SGrantUniqObj *new, SGrantUniqObj *old, SGrantUniqObj *merge, int8_t type);
 void    tDestroyGrantUniqObj(SGrantUniqObj *pObj);
 void    tResetGrantUniqObj(SGrantUniqObj *pObj);
 
