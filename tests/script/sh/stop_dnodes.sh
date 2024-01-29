@@ -9,7 +9,7 @@ UNAME_BIN=$(which uname)
 OS_TYPE=$($UNAME_BIN)
 
 kill_process() {
-    PID=$(ps -ef|grep "$1" | grep -v grep | grep -v defunct |  awk '{print $2}')
+    PID=$(ps -ef|grep -w "$1" | grep -v grep | grep -v defunct |  awk '{print $2}')
     while [ -n "$PID" ]; do
       # shellcheck disable=SC2086
       echo "killing $1 processes, pid: $PID"
