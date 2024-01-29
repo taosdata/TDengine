@@ -686,7 +686,7 @@ function handleGroups(groups, paramsConfig) {
           }
         },
         placeholder,
-        defaultValue: value,
+        defaultValue: multiple ? value?.split(',') : value,
         required,
         multiple
       };
@@ -1165,7 +1165,11 @@ function getQueryParamValue(value) {
   let result = value;
   try {
     if (value && typeof value == 'object') {
-      result = JSON.stringify(value);
+      if (value instanceof Array) {
+        result = value.toString();
+      } else {
+        result = JSON.stringify(value);
+      }
     } else {
       result = encodeURIComponentECO(value);
     }
