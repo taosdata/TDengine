@@ -120,6 +120,14 @@ int32_t     mndStreamSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamObj*
 int32_t     mndStreamSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t     mndStreamSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t     mndStreamSetDropActionFromList(SMnode *pMnode, STrans *pTrans, SArray *pList);
+int32_t     mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
+
+typedef struct SStreamTaskIter SStreamTaskIter;
+
+SStreamTaskIter *createTaskIter(SStreamObj *pStream);
+bool             taskIterNextTask(SStreamTaskIter *pIter);
+SStreamTask     *taskIterGetCurrent(SStreamTaskIter *pIter);
+void             destroyTaskIter(SStreamTaskIter *pIter);
 
 #ifdef __cplusplus
 }
