@@ -207,6 +207,10 @@ void tsortAppendTupleToBlock(SSortHandle* pHandle, SSDataBlock* pBlock, STupleHa
  */
 int32_t tsortCompAndBuildKeys(const SArray* pSortCols, char* keyBuf, int32_t* keyLen, const STupleHandle* pTuple);
 
+/**
+ * @brief set the merge limit reached callback. it calls mergeLimitReached param with tableUid and param
+*/
+void tsortSetMergeLimitReachedFp(SSortHandle* pHandle, void (*mergeLimitReached)(uint64_t tableUid, void* param), void* param);
 #ifdef __cplusplus
 }
 #endif

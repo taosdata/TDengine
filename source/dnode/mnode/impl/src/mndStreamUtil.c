@@ -18,6 +18,66 @@
 #include "tmisce.h"
 #include "mndVgroup.h"
 
+typedef struct SStreamTaskIter {
+  SStreamObj  *pStream;
+  int32_t      level;
+  int32_t      ordinalIndex;
+  int32_t      totalLevel;
+  SStreamTask *pTask;
+} SStreamTaskIter;
+
+SStreamTaskIter* createTaskIter(SStreamObj* pStream) {
+  SStreamTaskIter* pIter = taosMemoryCalloc(1, sizeof(SStreamTaskIter));
+  if (pIter == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pIter->level = -1;
+  pIter->ordinalIndex = 0;
+  pIter->pStream = pStream;
+  pIter->totalLevel = taosArrayGetSize(pStream->tasks);
+  pIter->pTask = NULL;
+
+  return pIter;
+}
+
+bool taskIterNextTask(SStreamTaskIter* pIter) {
+  if (pIter->level >= pIter->totalLevel) {
+    pIter->pTask = NULL;
+    return false;
+  }
+
+  if (pIter->level == -1) {
+    pIter->level += 1;
+  }
+
+  while(pIter->level < pIter->totalLevel) {
+    SArray *pList = taosArrayGetP(pIter->pStream->tasks, pIter->level);
+    if (pIter->ordinalIndex >= taosArrayGetSize(pList)) {
+      pIter->level += 1;
+      pIter->ordinalIndex = 0;
+      pIter->pTask = NULL;
+      continue;
+    }
+
+    pIter->pTask = taosArrayGetP(pList, pIter->ordinalIndex);
+    pIter->ordinalIndex += 1;
+    return true;
+  }
+
+  pIter->pTask = NULL;
+  return false;
+}
+
+SStreamTask* taskIterGetCurrent(SStreamTaskIter* pIter) {
+  return pIter->pTask;
+}
+
+void destroyTaskIter(SStreamTaskIter* pIter) {
+  taosMemoryFree(pIter);
+}
+
 SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
@@ -251,24 +311,103 @@ static int32_t doSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTa
 }
 
 int32_t mndStreamSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
-  SArray *tasks = pStream->tasks;
+  SStreamTaskIter *pIter = createTaskIter(pStream);
 
-  int32_t size = taosArrayGetSize(tasks);
-  for (int32_t i = 0; i < size; i++) {
-    SArray *pTasks = taosArrayGetP(tasks, i);
-    int32_t sz = taosArrayGetSize(pTasks);
-    for (int32_t j = 0; j < sz; j++) {
-      SStreamTask *pTask = taosArrayGetP(pTasks, j);
-
-      if (doSetPauseAction(pMnode, pTrans, pTask) < 0) {
-        return -1;
-      }
-
-      if (atomic_load_8(&pTask->status.taskStatus) != TASK_STATUS__PAUSE) {
-        atomic_store_8(&pTask->status.statusBackup, pTask->status.taskStatus);
-        atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
-      }
+  while (taskIterNextTask(pIter)) {
+    SStreamTask *pTask = taskIterGetCurrent(pIter);
+    if (doSetPauseAction(pMnode, pTrans, pTask) < 0) {
+      destroyTaskIter(pIter);
+      return -1;
     }
+
+    if (atomic_load_8(&pTask->status.taskStatus) != TASK_STATUS__PAUSE) {
+      atomic_store_8(&pTask->status.statusBackup, pTask->status.taskStatus);
+      atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
+    }
+  }
+
+  destroyTaskIter(pIter);
+  return 0;
+}
+
+static int32_t doSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask) {
+  SVDropStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVDropStreamTaskReq));
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  pReq->head.vgId = htonl(pTask->info.nodeId);
+  pReq->taskId = pTask->id.taskId;
+  pReq->streamId = pTask->id.streamId;
+
+  SEpSet  epset = {0};
+  bool    hasEpset = false;
+  int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
+  if (code != TSDB_CODE_SUCCESS || !hasEpset) {  // no valid epset, return directly without redoAction
+    terrno = code;
+    return -1;
+  }
+
+  // The epset of nodeId of this task may have been expired now, let's use the newest epset from mnode.
+  code = setTransAction(pTrans, pReq, sizeof(SVDropStreamTaskReq), TDMT_STREAM_TASK_DROP, &epset, 0);
+  if (code != 0) {
+    taosMemoryFree(pReq);
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t mndStreamSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
+  SStreamTaskIter *pIter = createTaskIter(pStream);
+
+  while(taskIterNextTask(pIter)) {
+    SStreamTask *pTask = taskIterGetCurrent(pIter);
+    if (doSetDropAction(pMnode, pTrans, pTask) < 0) {
+      destroyTaskIter(pIter);
+      return -1;
+    }
+  }
+  destroyTaskIter(pIter);
+  return 0;
+}
+
+static int32_t doSetDropActionFromId(SMnode *pMnode, STrans *pTrans, SOrphanTask* pTask) {
+  SVDropStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVDropStreamTaskReq));
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  pReq->head.vgId = htonl(pTask->nodeId);
+  pReq->taskId = pTask->taskId;
+  pReq->streamId = pTask->streamId;
+
+  SEpSet  epset = {0};
+  bool    hasEpset = false;
+  int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->taskId, pTask->nodeId);
+  if (code != TSDB_CODE_SUCCESS || (!hasEpset)) {  // no valid epset, return directly without redoAction
+    terrno = code;
+    taosMemoryFree(pReq);
+    return -1;
+  }
+
+  // The epset of nodeId of this task may have been expired now, let's use the newest epset from mnode.
+  code = setTransAction(pTrans, pReq, sizeof(SVDropStreamTaskReq), TDMT_STREAM_TASK_DROP, &epset, 0);
+  if (code != 0) {
+    taosMemoryFree(pReq);
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t mndStreamSetDropActionFromList(SMnode *pMnode, STrans *pTrans, SArray* pList) {
+  for(int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
+    SOrphanTask* pTask = taosArrayGet(pList, i);
+    mDebug("add drop task:0x%x action to drop orphan task", pTask->taskId);
+    doSetDropActionFromId(pMnode, pTrans, pTask);
   }
   return 0;
 }
