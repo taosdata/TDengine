@@ -169,11 +169,29 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
         return -1;
       }
     } else if (strcmp(argv[i], "-a") == 0) {
-      tstrncpy(global.apolloUrl, argv[++i], PATH_MAX);
+      if(i < argc - 1) {
+        if (strlen(argv[++i]) >= PATH_MAX) {
+          printf("apollo url overflow");
+          return -1;
+        }
+        tstrncpy(global.apolloUrl, argv[i], PATH_MAX);
+      } else {
+        printf("'-a' requires a parameter\n");
+        return -1;
+      }
     } else if (strcmp(argv[i], "-s") == 0) {
       global.dumpSdb = true;
     } else if (strcmp(argv[i], "-E") == 0) {
-      tstrncpy(global.envFile, argv[++i], PATH_MAX);
+      if(i < argc - 1) {
+        if (strlen(argv[++i]) >= PATH_MAX) {
+          printf("env file path overflow");
+          return -1;
+        }
+        tstrncpy(global.envFile, argv[i], PATH_MAX);
+      } else {
+        printf("'-E' requires a parameter\n");
+        return -1;
+      }
     } else if (strcmp(argv[i], "-k") == 0) {
       global.generateGrant = true;
     } else if (strcmp(argv[i], "-C") == 0) {

@@ -955,7 +955,6 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
     if (code != TSDB_CODE_SUCCESS) {
       goto end;
     }
-    taosArrayPush(pRequest->tableList, &pName);
 
     pCreateReq->flags |= TD_CREATE_IF_NOT_EXISTS;
     // change tag cid to new cid
@@ -966,6 +965,12 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
       //      pCreateReq->ctb.suid = processSuid(pCreateReq->ctb.suid, pRequest->pDb);
       toName(pTscObj->acctId, pRequest->pDb, pCreateReq->ctb.stbName, &sName);
       code = catalogGetTableMeta(pCatalog, &conn, &sName, &pTableMeta);
+      if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+        code = TSDB_CODE_SUCCESS;
+        taosMemoryFreeClear(pTableMeta);
+        continue;
+      }
+
       if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
@@ -983,6 +988,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
       }
       taosMemoryFreeClear(pTableMeta);
     }
+    taosArrayPush(pRequest->tableList, &pName);
 
     SVgroupCreateTableBatch* pTableBatch = taosHashGet(pVgroupHashmap, &pInfo.vgId, sizeof(pInfo.vgId));
     if (pTableBatch == NULL) {
@@ -999,6 +1005,9 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
     }
   }
 
+  if (taosHashGetSize(pVgroupHashmap) == 0) {
+    goto end;
+  }
   SArray* pBufArray = serializeVgroupsCreateTableBatch(pVgroupHashmap);
   if (NULL == pBufArray) {
     code = TSDB_CODE_OUT_OF_MEMORY;
