@@ -3344,23 +3344,6 @@ static int32_t subTblRowCompareFn(const void* pLeft, const void* pRight, void* p
   return ret;
 }
 
-static void blockDataDeepCleanup(SSDataBlock* pDataBlock) {
-  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
-    taosMemoryFreeClear(p->pData);
-    if (IS_VAR_DATA_TYPE(p->info.type)) {
-      taosMemoryFreeClear(p->varmeta.offset);
-      p->varmeta.length = 0;
-      p->varmeta.allocLen = 0;
-    } else {
-      taosMemoryFreeClear(p->nullbitmap);
-    }
-  }
-  pDataBlock->info.capacity = 0;
-  pDataBlock->info.rows = 0;
-}
-
 int32_t dumpQueryTableCond(const SQueryTableDataCond* src, SQueryTableDataCond* dst) {
   memcpy((void*)dst, (void*)src, sizeof(SQueryTableDataCond));
   dst->colList = taosMemoryCalloc(src->numOfCols, sizeof(SColumnInfo));
@@ -3469,11 +3452,7 @@ static int32_t saveSubTableBlock(const STableMergeScanInfo* pInfo, STmsSubTables
     blockDataDestroy(p);
     start = stop + 1;
   }
-  if (!pInput->bInMemReader) {
-    blockDataDeepCleanup(pInput->pReaderBlock);
-  } else {
-    blockDataCleanup(pInput->pReaderBlock);
-  }
+    
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3660,9 +3639,10 @@ static int32_t appendChosenRowToDataBlock(STmsSubTablesMergeInfo* pSubTblsInfo, 
     if (isNull) {
       colDataSetVal(pColInfo, pBlock->info.rows, NULL, true);
     } else {
-      if (!pSrcColInfo->pData) continue;
-      char* pData = colDataGetData(pSrcColInfo, pInput->rowIdx);
-      colDataSetVal(pColInfo, pBlock->info.rows, pData, false);
+      if (pSrcColInfo->pData != NULL) {
+        char* pData = colDataGetData(pSrcColInfo, pInput->rowIdx);
+        colDataSetVal(pColInfo, pBlock->info.rows, pData, false);
+      }
     }
   }
   pBlock->info.dataLoad = 1;
