@@ -69,12 +69,6 @@ typedef struct SNodeEntry {
   int64_t hbTimestamp;   // second
 } SNodeEntry;
 
-typedef struct SFailedCheckpointInfo {
-  int64_t streamUid;
-  int64_t checkpointId;
-  int32_t transId;
-} SFailedCheckpointInfo;
-
 #define MND_STREAM_CREATE_NAME      "stream-create"
 #define MND_STREAM_CHECKPOINT_NAME  "stream-checkpoint"
 #define MND_STREAM_PAUSE_NAME       "stream-pause"
@@ -97,9 +91,14 @@ int32_t mndAddtoCheckpointWaitingList(SStreamObj *pStream, int64_t checkpointId)
 bool    mndStreamTransConflictCheck(SMnode *pMnode, int64_t streamUid, const char *pTransName, bool lock);
 int32_t mndStreamGetRelTrans(SMnode *pMnode, int64_t streamUid);
 
+typedef struct SOrphanTask {
+  int64_t streamId;
+  int32_t taskId;
+  int32_t nodeId;
+} SOrphanTask;
+
 // for sma
 // TODO refactor
-int32_t     mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t     mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams);
 int32_t     mndGetNumOfStreamTasks(const SStreamObj *pStream);
 SArray     *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady);
@@ -119,7 +118,8 @@ void        saveStreamTasksInfo(SStreamObj *pStream, SStreamExecInfo *pExecNode)
 int32_t     initStreamNodeList(SMnode *pMnode);
 int32_t     mndStreamSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamObj* pStream, int8_t igUntreated);
 int32_t     mndStreamSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
-
+int32_t     mndStreamSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
+int32_t     mndStreamSetDropActionFromList(SMnode *pMnode, STrans *pTrans, SArray *pList);
 
 #ifdef __cplusplus
 }
