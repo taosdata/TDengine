@@ -1043,15 +1043,6 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   return code;
 }
 
-// only the agg tasks and the sink tasks will receive this message from upstream tasks
-int32_t tqProcessTaskScanHistoryFinishReq(STQ* pTq, SRpcMsg* pMsg) {
-  return tqStreamTaskProcessScanHistoryFinishReq(pTq->pStreamMeta, pMsg);
-}
-
-int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg) {
-  return tqStreamTaskProcessScanHistoryFinishRsp(pTq->pStreamMeta, pMsg);
-}
-
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTaskRunReq* pReq = pMsg->pCont;
 
