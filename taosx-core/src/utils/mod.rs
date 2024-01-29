@@ -6,6 +6,7 @@ use taos::*;
 pub mod breakpoints;
 pub mod files;
 pub mod metrics_db;
+pub mod monitor_util;
 pub mod port_pool;
 pub mod sql;
 pub mod trace;

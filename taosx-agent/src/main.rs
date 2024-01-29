@@ -3,7 +3,7 @@ use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
 use flume::{Receiver, Sender};
-use metrics::gauge;
+use metrics::{gauge, Label};
 use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 use taosx_metrics::{MetricEvent, MetricsEvents};
 use thiserror::Error;
@@ -373,34 +373,46 @@ fn start_collect_agent_metrics(monitor_interval: u64, taosx_id: &'static str, ag
     let agent_id = agent_id.to_string();
     let agent_id = Box::leak(agent_id.into_boxed_str());
     tokio::spawn(async move {
-        let labels = [
-            ("stable", "taosx-agent"),
-            ("taosx_id", taosx_id),
-            ("agent_id", agent_id),
-        ];
         let mut collect_interval = tokio::time::interval(Duration::from_secs(monitor_interval));
         loop {
-            sys.refresh_all();
-            // sys metrics
-            gauge!("sys_cpu_cores", &labels).set(sys.cpus().len() as f64);
-            gauge!("sys_total_memory", &labels).set(sys.total_memory() as f64);
-            gauge!("sys_used_memory", &labels).set(sys.used_memory() as f64);
-            gauge!("sys_available_memory", &labels).set(sys.available_memory() as f64);
-            // process metrics
-            gauge!("process_id", &labels).set(process_id.as_u32() as f64);
-            if let Some(ps) = sys.process(process_id) {
-                let cpu = ps.cpu_usage();
-                gauge!("process_cpu_percent", &labels).set(cpu as f64);
-                let mem = ps.memory() as f64 / sys.total_memory() as f64 * 100.0;
-                gauge!("process_memory_percent", &labels).set(mem);
-                let disk = ps.disk_usage();
-                gauge!("process_disk_read_bytes", &labels).set(disk.read_bytes as f64);
-                gauge!("process_disk_written_bytes", &labels).set(disk.written_bytes as f64);
-                gauge!("process_uptime", &labels).set(ps.run_time() as f64);
-            }
+            let _ = process_metrics(&mut sys, taosx_id, agent_id, process_id);
             collect_interval.tick().await;
         }
     });
+}
+
+pub fn process_metrics(
+    sys: &mut sysinfo::System,
+    taosx_id: &'static str,
+    agent_id: &'static str,
+    process_id: sysinfo::Pid,
+) -> anyhow::Result<()> {
+    sys.refresh_all();
+    let labels = [
+        ("stable", "taosx-agent"),
+        ("taosx_id", taosx_id),
+        ("agent_id", agent_id),
+    ];
+    // sys metrics
+    gauge!("sys_cpu_cores", &labels).set(sys.cpus().len() as f64);
+    gauge!("sys_total_memory", &labels).set(sys.total_memory() as f64);
+    gauge!("sys_used_memory", &labels).set(sys.used_memory() as f64);
+    gauge!("sys_available_memory", &labels).set(sys.available_memory() as f64);
+    // process metrics
+    gauge!("process_id", &labels).set(process_id.as_u32() as f64);
+    if let Some(ps) = sys.process(process_id) {
+        let cpu = ps.cpu_usage();
+        gauge!("process_cpu_percent", &labels).set(cpu as f64);
+        let mem = ps.memory() as f64 / sys.total_memory() as f64 * 100.0;
+        gauge!("process_memory_percent", &labels).set(mem);
+        let disk = ps.disk_usage();
+        gauge!("process_disk_read_bytes", &labels).set(disk.read_bytes as f64);
+        gauge!("process_disk_written_bytes", &labels).set(disk.written_bytes as f64);
+        gauge!("process_uptime", &labels).set(ps.run_time() as f64);
+    }
+    // connecotor metrics
+
+    Ok(())
 }
 
 fn spawn_heartbeat_task(resp_tx: Sender<RespAction>) -> JoinHandle<()> {
