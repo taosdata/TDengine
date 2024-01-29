@@ -80,7 +80,7 @@ public class MetricDataThread implements Runnable {
                 }
                 logger.debug(this.name + "#Thread Start#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
                 // 判断内存中数据队列大小
-                if (MetricDataCache.getMetricDataQueueTotalSize() >= performanceConfig.getQueueSizeD()) {
+                if (MetricDataCache.getMetricDataQueueTotalSize() + MetricDataCache.getMetricDataQueueSize() >= performanceConfig.getQueueSizeD()) {
                     // 睡眠后继续
                     sleep(performanceConfig.getThread().getReadMetricFullInterval(), start, StatusEnums.NORMAL);
                     continue;
@@ -156,7 +156,7 @@ public class MetricDataThread implements Runnable {
      */
     private void exit() {
         // 线程结束
-        logger.debug(this.name + "#Thread completed and exited, timeRange=[{}-{}]#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15) + "", startTime, stopTime);
+        logger.info(this.name + "#Thread completed and exited, timeRange=[{}-{}]#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15) + "", startTime, stopTime);
         // 清除线程信息
         StatusCache.forgetThread(this.name);
         // 释放阻塞
