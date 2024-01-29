@@ -4038,8 +4038,6 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   int32_t tableStartIdx = pInfo->tableStartIndex;
   int32_t tableEndIdx = pInfo->tableEndIndex;
 
-  tSimpleHashClear(pInfo->mTableNumRows);
-
   int32_t numOfTable = tableEndIdx - tableStartIdx + 1;
   STableKeyInfo* startKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, tableStartIdx);
   pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInfo->base.cond, startKeyInfo, numOfTable, pInfo->pReaderBlock,
@@ -4315,8 +4313,6 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
   //start one reader variable
   pInfo->pSortInputBlock = createOneDataBlock(pInfo->pResBlock, false);
-  pInfo->mTableNumRows = tSimpleHashInit(1024,
-                                         taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
 
   if (!tsExperimental) {
     pInfo->filesetDelimited = false;
