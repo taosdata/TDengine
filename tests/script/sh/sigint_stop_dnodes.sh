@@ -11,9 +11,7 @@ PID=$(pgrep taosd)
 echo "Killing taosd processes " "$PID"
 while [ -n "$PID" ]; do
   #echo "Killing taosd processes" $PID
-  for i in $PID; do
-    kill -9 "$i"
-  done  
+  kill -9 "$PID"
   PID=$(pgrep taosd)
   echo "taosd processes" "$PID"
 done
