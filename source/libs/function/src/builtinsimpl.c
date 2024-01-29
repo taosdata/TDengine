@@ -2338,6 +2338,8 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     return TSDB_CODE_SUCCESS;
   }
 
+  if(pInput->totalRows == 0) return TSDB_CODE_SUCCESS;
+
   SColumnDataAgg* pColAgg = (pInput->colDataSMAIsSet) ? pInput->pColumnDataAgg[0] : NULL;
 
   TSKEY startKey = getRowPTs(pInput->pPTS, 0);
@@ -2647,7 +2649,7 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
   int32_t bytes = pInputCol->info.bytes;
   pInfo->bytes = bytes;
 
-  if (IS_NULL_TYPE(type)) {
+  if (IS_NULL_TYPE(type) || 0 == pInput->totalRows) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -6022,7 +6024,7 @@ int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
     goto _group_key_over;
   }
 
-  if (colDataIsNull_s(pInputCol, startIndex)) {
+  if (pInputCol->pData == NULL || colDataIsNull_s(pInputCol, startIndex)) {
     pInfo->isNull = true;
     pInfo->hasResult = true;
     goto _group_key_over;

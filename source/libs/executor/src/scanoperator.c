@@ -684,7 +684,7 @@ void markGroupProcessed(STableScanInfo* pInfo, uint64_t groupId) {
 static SSDataBlock* getOneRowResultBlock(SExecTaskInfo* pTaskInfo, STableScanBase* pBase, SSDataBlock* pBlock,
                                          const STableKeyInfo* tbInfo) {
   blockDataEmpty(pBlock);
-  pBlock->info.rows = 1;
+  pBlock->info.rows = 0;
   pBlock->info.id.uid = tbInfo->uid;
   pBlock->info.id.groupId = tbInfo->groupId;
 
@@ -696,7 +696,7 @@ static SSDataBlock* getOneRowResultBlock(SExecTaskInfo* pTaskInfo, STableScanBas
   }
 
   // set tag/tbname
-  doSetTagColumnData(pBase, pBlock, pTaskInfo, pBlock->info.rows);
+  doSetTagColumnData(pBase, pBlock, pTaskInfo, 1);
   return pBlock;
 }
 
