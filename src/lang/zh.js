@@ -1058,6 +1058,8 @@ export default {
 
   datasource: {
     transformer: {
+      jsonformat:'JSON格式',
+      textformat:'文本格式',
       resulttb: "结果展示",
       sampleval: "示例消息体采集时间戳",
       nexttip:"请先执行下一步操作",
@@ -1078,6 +1080,7 @@ export default {
       parsefirst: "请先执行解析,提取或者拆分操作",
       parse: "1. 解析",
       jsontip: "请输入正确JSON格式",
+      texttip:"请输入正确格式文本",
       mappingvaildtip: "请填写正确的主键，列和tag",
       // 2. <strong>Split</strong>: 用户可以使用分隔符将简单字符串分割为多列，其中 sep 表示分隔符，n 表示分割后的数量，names 是以 , （ 英文逗号 ）分隔的列名字符串。使用 - 作为分隔符，n 为 3，names 为 a,b,c ，可将字符串 1-2-3 分割为三列，分别是：a = 1, b = 2, c = 3。<br/>
       extractdesc: `<strong>taosX 支持 JSON 或正则表达式解析消息体文本</strong>：<br/>
