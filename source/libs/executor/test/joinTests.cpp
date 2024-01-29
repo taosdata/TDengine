@@ -66,7 +66,7 @@ enum {
 };
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP       30000
+#define JT_MAX_LOOP       5000
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
@@ -858,18 +858,20 @@ void appendAsofLeftEachResGrps(char* leftInRow, int32_t rightOffset, int32_t rig
       memcpy(jtCtx.resColBuf + jtCtx.resColOffset[c], leftInRow + jtCtx.inColOffset[c], tDataTypes[jtInputColType[c]].bytes);
     }
   }
-  
-  for (int32_t r = rightOffset; r < rightRows; ++r) {
-    bool* rightFilterOut = taosArrayGet(jtCtx.rightFilterOut, r);
+
+  int32_t endIdx = TMIN(rightRows, taosArrayGetSize(jtCtx.rightRowsList) - rightOffset) + rightOffset;
+  for (int32_t r = rightOffset; r < endIdx; ++r) {
+    bool* rightFilterOut = (bool*)taosArrayGet(jtCtx.rightFilterOut, r);
     if (*rightFilterOut) {
       continue;
     }
     
-    char* rightResRows = taosArrayGet(jtCtx.rightRowsList, r);
+    char* rightResRows = (char*)taosArrayGet(jtCtx.rightRowsList, r);
     for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
       if (jtCtx.resColList[MAX_SLOT_NUM + c]) {
-        if (*(bool*)(rightResRows + MAX_SLOT_NUM + c)) {
+        if (*(bool*)(rightResRows + c)) {
           *(bool*)(jtCtx.resColBuf + MAX_SLOT_NUM + c) = true;
+          memset(jtCtx.resColBuf + jtCtx.resColOffset[MAX_SLOT_NUM + c], 0, tDataTypes[jtInputColType[c]].bytes);
         } else {
           *(bool*)(jtCtx.resColBuf + MAX_SLOT_NUM + c) = false;
           memcpy(jtCtx.resColBuf + jtCtx.resColOffset[MAX_SLOT_NUM + c], rightResRows + jtCtx.inColOffset[c], tDataTypes[jtInputColType[c]].bytes);
@@ -908,14 +910,16 @@ void appendAllAsofResRows() {
   int32_t leftRows = taosArrayGetSize(jtCtx.leftRowsList);
   int32_t rightRows = taosArrayGetSize(jtCtx.rightRowsList);
   if (rightRows <= 0) {
-    for (int32_t i = 0; i < leftRows; ++i) {
-      char* leftInRow = taosArrayGet(jtCtx.leftRowsList, i);
-      appendAsofLeftNonMatchGrp(leftInRow);
-    }
+    if (0 == jtCtx.rightFilterNum) {
+      for (int32_t i = 0; i < leftRows; ++i) {
+        char* leftInRow = (char*)taosArrayGet(jtCtx.leftRowsList, i);
+        appendAsofLeftNonMatchGrp(leftInRow);
+      }      
+    }    
   } else {
     ASSERT(rightRows <= jtCtx.jLimit);
     for (int32_t i = 0; i < leftRows; ++i) {
-      char* leftInRow = taosArrayGet(jtCtx.leftRowsList, i);
+      char* leftInRow = (char*)taosArrayGet(jtCtx.leftRowsList, i);
       appendAsofLeftEachResGrps(leftInRow, 0, rightRows);
     }
   }
@@ -933,11 +937,11 @@ void chkAppendAsofGreaterResRows(bool forceOut) {
   int32_t leftRows = taosArrayGetSize(jtCtx.leftRowsList);
   int32_t i = 0;
   for (; i < leftRows; ++i) {
-    char* leftRow = taosArrayGet(jtCtx.leftRowsList, i);
+    char* leftRow = (char*)taosArrayGet(jtCtx.leftRowsList, i);
     int64_t* leftTs = (int64_t*)(leftRow + jtCtx.inColOffset[JT_PRIM_TS_SLOT_ID]);
     bool append = false;
     for (int32_t r = rightOffset; r < rightRows; ++r) {
-      char* rightRow = taosArrayGet(jtCtx.rightRowsList, r);
+      char* rightRow = (char*)taosArrayGet(jtCtx.rightRowsList, r);
       int64_t* rightTs = (int64_t*)(rightRow + jtCtx.inColOffset[JT_PRIM_TS_SLOT_ID]);
       if ((*leftTs > *rightTs) || (*leftTs == *rightTs && OP_TYPE_LOWER_THAN == jtCtx.asofOpType)) {
         rightOffset++;
@@ -961,8 +965,10 @@ void chkAppendAsofGreaterResRows(bool forceOut) {
       if (!forceOut) {
         break;
       }
-      
-      appendAsofLeftNonMatchGrp(leftRow);
+
+      if (0 == jtCtx.rightFilterNum) {
+        appendAsofLeftNonMatchGrp(leftRow);
+      }
     }
   }
 
@@ -1000,31 +1006,20 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
   bool keepRes = false;
   bool keepInput = false;
   if (blkId == LEFT_BLK_ID) {
-    if ((jtCtx.joinType == JOIN_TYPE_LEFT || jtCtx.joinType == JOIN_TYPE_FULL) && jtCtx.subType != JOIN_STYPE_SEMI) {
+    if ((jtCtx.joinType == JOIN_TYPE_LEFT || jtCtx.joinType == JOIN_TYPE_FULL) && (jtCtx.subType != JOIN_STYPE_SEMI && jtCtx.subType != JOIN_STYPE_ASOF)) {
       keepRes = true;
     }
     peerOffset = MAX_SLOT_NUM;
   } else {
-    if ((jtCtx.joinType == JOIN_TYPE_RIGHT || jtCtx.joinType == JOIN_TYPE_FULL) && jtCtx.subType != JOIN_STYPE_SEMI) {
+    if ((jtCtx.joinType == JOIN_TYPE_RIGHT || jtCtx.joinType == JOIN_TYPE_FULL) && (jtCtx.subType != JOIN_STYPE_SEMI && jtCtx.subType != JOIN_STYPE_ASOF)) {
       keepRes = true;
     }
     tableOffset = MAX_SLOT_NUM;
   }
 
-  if (JOIN_STYPE_ASOF == jtCtx.subType && jtCtx.asofOpType != OP_TYPE_EQUAL) {
-    keepInput = true;
-    if (blkId == LEFT_BLK_ID) {
-      if (NULL == jtCtx.leftRowsList) {
-        jtCtx.leftRowsList = taosArrayInit(jtCtx.jLimit, jtCtx.inColSize);
-      }
-      pTableRows = jtCtx.leftRowsList;
-    } else {
-      if (NULL == jtCtx.rightRowsList) {
-        jtCtx.rightRowsList = taosArrayInit(jtCtx.jLimit, jtCtx.inColSize);
-        jtCtx.rightFilterOut = taosArrayInit(jtCtx.jLimit, sizeof(bool));
-      }
-      pTableRows = jtCtx.rightRowsList;
-    }
+  if (JOIN_STYPE_ASOF == jtCtx.subType) {
+    keepInput = jtCtx.asofOpType != OP_TYPE_EQUAL ? true : (blkId == LEFT_BLK_ID);
+    pTableRows = (blkId == LEFT_BLK_ID) ? jtCtx.leftRowsList : jtCtx.rightRowsList;
   }
   
   int32_t filterNum = (blkId == LEFT_BLK_ID) ? jtCtx.leftFilterNum : jtCtx.rightFilterNum;
@@ -1049,12 +1044,15 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
       taosArrayPush((blkId == LEFT_BLK_ID) ? jtCtx.leftBlkList : jtCtx.rightBlkList, ppBlk);
     }
 
-    filterOut = (peerFilterNum > 0) ? true : false;
+    filterOut = (peerFilterNum > 0 && jtCtx.subType != JOIN_STYPE_ASOF) ? true : false;
     if (!filterOut) {
       memset(jtCtx.resColBuf, 0, jtCtx.resColSize);
+      if (keepInput) {
+        memset(jtCtx.inColBuf, 0, jtCtx.inColSize);
+      }
     }
 
-    addToRowList = false;
+    addToRowList = true;
     
     for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
       switch (jtInputColType[c]) {
@@ -1071,7 +1069,7 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
             tmpInt = (taosRand() % 2) ? INT_FILTER_VALUE + jtCtx.grpOffset[c] + taosRand() % vRange : INT_FILTER_VALUE - jtCtx.grpOffset[c] - taosRand() % vRange;
             pData = (char*)&tmpInt;
             isNull = false;
-            if (filterNum && filterCol[c] && tmpInt <= INT_FILTER_VALUE) {
+            if (!filterOut && filterNum && filterCol[c] && tmpInt <= INT_FILTER_VALUE) {
               filterOut = true;
             }
           } else {
@@ -1085,7 +1083,7 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
           tmpBigint = (taosRand() % 2) ? BIGINT_FILTER_VALUE + jtCtx.curKeyOffset++ : BIGINT_FILTER_VALUE - jtCtx.curKeyOffset++;
           pData = (char*)&tmpBigint;
           isNull = false;
-          if (filterNum && filterCol[c] && tmpBigint <= BIGINT_FILTER_VALUE) {
+          if (!filterOut && filterNum && filterCol[c] && tmpBigint <= BIGINT_FILTER_VALUE) {
             filterOut = true;
           }
           break;
@@ -1103,7 +1101,8 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
           } else {
             memcpy(jtCtx.inColBuf + jtCtx.inColOffset[c], pData, tDataTypes[jtInputColType[c]].bytes);
           }
-          addToRowList = true;
+        } else {
+          addToRowList = false;
         }
       } else if (keepRes && !filterOut && jtCtx.resColList[tableOffset + c]) {
         if (isNull) {
@@ -1116,8 +1115,10 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
 
     if (keepInput && addToRowList) {
       taosArrayPush(pTableRows, jtCtx.inColBuf);
-      bool fout = filterOut ? true : false;
-      taosArrayPush(jtCtx.rightFilterOut, &fout);
+      if (blkId == RIGHT_BLK_ID) {
+        bool fout = filterOut ? true : false;
+        taosArrayPush(jtCtx.rightFilterOut, &fout);
+      }
     } 
 
     if (keepRes && !filterOut) {
@@ -1134,14 +1135,14 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
   }
 
   if (keepInput) {
-    if (jtCtx.asofOpType == OP_TYPE_GREATER_EQUAL || jtCtx.asofOpType == OP_TYPE_GREATER_THAN) {
+    if (jtCtx.asofOpType == OP_TYPE_GREATER_EQUAL || jtCtx.asofOpType == OP_TYPE_GREATER_THAN || jtCtx.asofOpType == OP_TYPE_EQUAL) {
       if (blkId == LEFT_BLK_ID) {
         appendAllAsofResRows();
       } else {
         trimForAsofJlimit();
       }
     } else {
-      chkAppendAsofGreaterResRows();
+      chkAppendAsofGreaterResRows(false);
     }
   }
 
@@ -1798,7 +1799,7 @@ void addAsofEqInRows(int32_t rowsNum, int64_t tbOffset, bool leftTable) {
     }
   }
 
-  if (!leftTable) {
+  if (!leftTable && (jtCtx.asofOpType == OP_TYPE_GREATER_EQUAL || jtCtx.asofOpType == OP_TYPE_GREATER_THAN || jtCtx.asofOpType == OP_TYPE_EQUAL)) {
     trimForAsofJlimit();
   }
 }
@@ -1833,6 +1834,9 @@ void asofJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
       addAsofEqInRows(leftGrpRows, 0, true);
       addAsofEqInRows(rightGrpRows, rightTbOffset, false);
       chkAppendAsofGreaterResRows(true);
+      taosArrayClear(jtCtx.leftRowsList);
+      taosArrayClear(jtCtx.rightRowsList);
+      taosArrayClear(jtCtx.rightFilterOut);
       break;
     default:
       return;
@@ -2095,6 +2099,10 @@ void createDummyBlkList(int32_t leftMaxRows, int32_t leftMaxGrpRows, int32_t rig
     jtCtx.rightFinMatch = (bool*)taosMemoryRealloc(jtCtx.rightFinMatch, maxGrpRows * sizeof(bool));
   }
 
+  taosArrayClear(jtCtx.leftRowsList);
+  taosArrayClear(jtCtx.rightRowsList);
+  taosArrayClear(jtCtx.rightFilterOut);
+
   createBothBlkRowsData();
 }
 
@@ -2245,6 +2253,23 @@ char* getInputStatStr(char* inputStat) {
   return inputStat;
 }
 
+char* getAsofOpStr() {
+  switch (jtCtx.asofOpType) {
+    case OP_TYPE_GREATER_THAN:
+      return ">";
+    case OP_TYPE_GREATER_EQUAL:
+      return ">=";
+    case OP_TYPE_LOWER_THAN:
+      return "<";
+    case OP_TYPE_LOWER_EQUAL:
+      return "<=";
+    case OP_TYPE_EQUAL:
+      return "=";    
+    default:
+      return "UNKNOWN";
+  }
+}
+
 void printBasicInfo(char* caseName) {
   if (!jtCtrl.printTestInfo) {
     return;
@@ -2257,6 +2282,10 @@ void printBasicInfo(char* caseName) {
     jtCtx.leftMaxGrpRows, jtCtx.rightMaxGrpRows, jtCtx.blkRows, jtColCondStr[jtCtx.colCond], jtJoinTypeStr[jtCtx.joinType],
     jtSubTypeStr[jtCtx.subType], getInputStatStr(inputStat));
     
+  if (JOIN_STYPE_ASOF == jtCtx.subType) {
+    printf("\t asofOp:%s\n\t JLimit:%" PRId64 "\n", getAsofOpStr(), jtCtx.jLimit);
+  }
+  
   printf("Input Info:\n\t totalBlk:left-%d right-%d\n\t totalRows:left-%d right-%d\n\t "
     "blkRowSize:%d\n\t inputCols:left-%s %s %s %s right-%s %s %s %s\n", 
     (int32_t)taosArrayGetSize(jtCtx.leftBlkList), (int32_t)taosArrayGetSize(jtCtx.rightBlkList), 
@@ -2475,7 +2504,11 @@ void initJoinTest() {
     offset += tDataTypes[jtInputColType[i]].bytes;
   }
   jtCtx.inColSize = offset;
-  jtCtx.inColBuf = taosMemoryMalloc(jtCtx.inColSize);
+  jtCtx.inColBuf = (char*)taosMemoryMalloc(jtCtx.inColSize);
+
+  jtCtx.leftRowsList = taosArrayInit(1024, jtCtx.inColSize);
+  jtCtx.rightRowsList = taosArrayInit(1024, jtCtx.inColSize);
+  jtCtx.rightFilterOut = taosArrayInit(1024, sizeof(bool));
 
   jtInitLogFile();
 }
@@ -2506,18 +2539,13 @@ void handleTestDone() {
   jtCtx.resRows = 0;
 
   jtCtx.inputStat = 0;
-
-  taosArrayDestroy(jtCtx.leftRowsList);
-  taosArrayDestroy(jtCtx.rightRowsList);
-  jtCtx.leftRowsList = NULL;
-  jtCtx.rightRowsList = NULL;
 }
 
 void runSingleTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
   SSortMergeJoinPhysiNode* pNode = createDummySortMergeJoinPhysiNode(param);    
-  createDummyBlkList(10, 10, 10, 10, 3);
+  createDummyBlkList(200, 200, 200, 200, 10);
   
   while (contLoop) {
     rerunBlockedHere();
@@ -3093,30 +3121,118 @@ TEST(leftAsofJoin, noCondGreaterThanTest) {
 #endif
 
 #if 1
-TEST(leftAsofJoin, eqCondTest) {
+TEST(leftAsofJoin, noCondGreaterEqTest) {
   SJoinTestParam param;
-  char* caseName = "leftAsofJoin:eqCondTest";
+  char* caseName = "leftAsofJoin:noCondGreaterEqTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
-  param.subType = JOIN_STYPE_ANTI;
-  param.cond = TEST_EQ_COND;
+  param.subType = JOIN_STYPE_ASOF;
+  param.cond = TEST_NO_COND;
+  param.asofOp = OP_TYPE_GREATER_EQUAL;
   param.asc = true;
   
   for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.jLimit = taosRand() % 2 ? (1 + (taosRand() % JT_MAX_JLIMIT)) : 1;
+    
     param.filter = false;
     runSingleTest(caseName, &param);
 
     param.filter = true;
     runSingleTest(caseName, &param);
   }
-  
+
   printStatInfo(caseName); 
   taosMemoryFree(pTask);
-  handleCaseEnd();
 }
 #endif
+
+#if 1
+TEST(leftAsofJoin, noCondEqTest) {
+  SJoinTestParam param;
+  char* caseName = "leftAsofJoin:noCondEqTest";
+  SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
+
+  param.pTask = pTask;
+  param.joinType = JOIN_TYPE_LEFT;
+  param.subType = JOIN_STYPE_ASOF;
+  param.cond = TEST_NO_COND;
+  param.asofOp = OP_TYPE_EQUAL;
+  param.asc = true;
+  
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.jLimit = taosRand() % 2 ? (1 + (taosRand() % JT_MAX_JLIMIT)) : 1;
+    
+    param.filter = false;
+    runSingleTest(caseName, &param);
+
+    param.filter = true;
+    runSingleTest(caseName, &param);
+  }
+
+  printStatInfo(caseName); 
+  taosMemoryFree(pTask);
+}
+#endif
+
+#if 1
+TEST(leftAsofJoin, noCondLowerThanTest) {
+  SJoinTestParam param;
+  char* caseName = "leftAsofJoin:noCondLowerThanTest";
+  SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
+
+  param.pTask = pTask;
+  param.joinType = JOIN_TYPE_LEFT;
+  param.subType = JOIN_STYPE_ASOF;
+  param.cond = TEST_NO_COND;
+  param.asofOp = OP_TYPE_LOWER_THAN;
+  param.asc = true;
+  
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.jLimit = taosRand() % 2 ? (1 + (taosRand() % JT_MAX_JLIMIT)) : 1;
+    
+    param.filter = false;
+    runSingleTest(caseName, &param);
+
+    param.filter = true;
+    runSingleTest(caseName, &param);
+  }
+
+  printStatInfo(caseName); 
+  taosMemoryFree(pTask);
+}
+#endif
+
+
+#if 1
+TEST(leftAsofJoin, noCondLowerEqTest) {
+  SJoinTestParam param;
+  char* caseName = "leftAsofJoin:noCondLowerEqTest";
+  SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
+
+  param.pTask = pTask;
+  param.joinType = JOIN_TYPE_LEFT;
+  param.subType = JOIN_STYPE_ASOF;
+  param.cond = TEST_NO_COND;
+  param.asofOp = OP_TYPE_LOWER_EQUAL;
+  param.asc = true;
+  
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.jLimit = taosRand() % 2 ? (1 + (taosRand() % JT_MAX_JLIMIT)) : 1;
+    
+    param.filter = false;
+    runSingleTest(caseName, &param);
+
+    param.filter = true;
+    runSingleTest(caseName, &param);
+  }
+
+  printStatInfo(caseName); 
+  taosMemoryFree(pTask);
+}
+#endif
+
 #endif
 
 

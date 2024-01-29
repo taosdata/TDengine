@@ -197,14 +197,6 @@ typedef enum {
   E_CACHE_INBLK
 } SMJoinCacheMode;
 
-typedef struct SAsofJoinGrpRows {
-  SSDataBlock* blk;
-  bool         clonedBlk;
-  int32_t      blkRowIdx;
-  int32_t      readIdx;
-} SAsofJoinGrpRows;
-
-
 typedef struct SMJoinWinCache {
   int32_t                    pageLimit;
   int32_t                    outRowIdx;
@@ -228,9 +220,9 @@ typedef struct SMJoinWindowCtx {
   // KEEP IT FIRST
   
   int32_t                    asofOpType;
-  bool                       asofLowerRow;
-  bool                       asofEqRow;
-  bool                       asofGreaterRow;
+  bool                       lowerRowsAcq;
+  bool                       eqRowsAcq;
+  bool                       greaterRowsAcq;
 
   bool                       eqPostDone;
   int64_t                    lastTs;
@@ -335,11 +327,12 @@ typedef struct SMJoinOperatorInfo {
 
 #define MJOIN_SAVE_TB_BLK(_cache, _tb)                                         \
   do {                                                                          \
-    ASSERT(taosArrayGetSize((_cache)->grps) >= 1);                                \
     SMJoinGrpRows* pGrp = taosArrayGet((_cache)->grps, 0);              \
-    ASSERT(pGrp->blk == (_tb)->blk);                                  \
-    pGrp->beginIdx = (_tb)->blkRowIdx;                              \
-    pGrp->readIdx = pGrp->beginIdx;                                       \
+    if (NULL != pGrp) {                                               \
+      ASSERT(pGrp->blk == (_tb)->blk);                                  \
+      pGrp->beginIdx = (_tb)->blkRowIdx;                              \
+      pGrp->readIdx = pGrp->beginIdx;                                       \
+    }                                                                   \
   } while (0)  
 
 #define MJOIN_POP_TB_BLK(_cache)                                           \
