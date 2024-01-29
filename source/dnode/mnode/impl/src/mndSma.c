@@ -865,7 +865,7 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
     sdbRelease(pMnode->pSdb, pStream);
     goto _OVER;
   } else {
-    if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
+    if (mndStreamSetDropAction(pMnode, pTrans, pStream) < 0) {
       mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
       sdbRelease(pMnode->pSdb, pStream);
       goto _OVER;
@@ -917,7 +917,7 @@ int32_t mndDropSmasByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
 
       SStreamObj *pStream = mndAcquireStream(pMnode, streamName);
       if (pStream != NULL && pStream->smaId == pSma->uid) {
-        if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
+        if (mndStreamSetDropAction(pMnode, pTrans, pStream) < 0) {
           mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
           mndReleaseStream(pMnode, pStream);
           goto _OVER;
