@@ -20,6 +20,18 @@
             :label="$t('datasource.transformer.msgbodytypes.type1')"
             name="first"
           >
+            <el-radio-group
+              v-model="radio"
+              @change="changeCopyFormat"
+              style="margin-bottom: 15px"
+            >
+              <el-radio v-model="radio" label="1">{{
+                $t("datasource.transformer.jsonformat")
+              }}</el-radio>
+              <el-radio v-model="radio" label="2">{{
+                $t("datasource.transformer.textformat")
+              }}</el-radio></el-radio-group
+            >
           </el-tab-pane>
           <el-tab-pane
             :disabled="$store.state.app.currentDBType !== 'avevaHistorian'"
@@ -34,7 +46,6 @@
           <el-tab-pane
             :label="$t('datasource.transformer.msgbodytypes.type3')"
             name="third"
-            :disabled="true"
           >
             <el-upload
               class="upload-demo"
@@ -54,17 +65,26 @@
             </el-upload>
           </el-tab-pane>
         </el-tabs>
+        <keep-alive>
+          <JsonEditor
+            v-if="radio == '1' && activeName == 'first'"
+            ref="jsoneditor"
+            @change="getJsonText"
+            :value="jsonvalue"
+          ></JsonEditor>
+        </keep-alive>
+
         <el-form
           @submit.native.prevent
           :model="msgForm"
           :rules="msgRules"
           ref="msgForm"
+          v-if="radio == '2' && activeName == 'first'"
         >
           <el-form-item
             prop="msgbody"
             v-if="$store.state.app.currentDBType !== 'avevaHistorian'"
           >
-            <!-- <JsonEditor></JsonEditor> -->
             <el-input
               :disabled="
                 $store.state.app.currentDBType == 'avevaHistorian' ||
@@ -135,12 +155,21 @@
               ></el-input>
               <!-- :disabled="$parent.$parent.$parent.isEditable" -->
             </el-form-item>
+            <span style="color: red; font-size: 24px"
+              >{{ isjson
+              }}{{ activeName == "first" && radio == "1" && isjson }}</span
+            >
             <el-button
               size="small"
               icon="el-icon-PREVIEW"
               @click="submitParse"
               style="display: flex"
-              :disabled="msgForm.msgbody == ''"
+              :disabled="
+                (activeName == 'first' &&
+                  radio == '2' &&
+                  msgForm.msgbody == '') ||
+                (activeName == 'first' && radio == '1' && !isjson)
+              "
             ></el-button>
             <!-- || $parent.$parent.$parent.isEditable -->
           </el-form>
@@ -566,7 +595,25 @@ export default {
     },
   },
   data() {
+    var validateMsg = (rule, value, callback) => {
+      if (!value) {
+        return callback(new Error(this.$t("datasource.transformer.msgbodytip")));
+      }
+      setTimeout(() => {
+        if (/^{|\[/.test(value)) {
+          
+          callback(new Error(this.$t("datasource.transformer.texttip")));
+        } else {
+          callback();
+        }
+      }, 100);
+    };
     return {
+      radio: "1",
+      isjson: false,
+      jsonvalue: null,
+      jsoneditorcont: null,
+      istext: true,
       subrule: {
         subname: "",
       },
@@ -617,9 +664,8 @@ export default {
       msgRules: {
         msgbody: [
           {
-            required: true,
+            validator: validateMsg,
             trigger: "blur",
-            message: this.$t("datasource.transformer.msgbodytip"),
           },
         ],
       },
@@ -732,12 +778,16 @@ export default {
       this.activeName = "first";
     }
     if (this.parserColumns) {
-      if(this.$store.state.app.currentDBType == "mqtt"||this.$store.state.app.currentDBType == "kafka"){
-        this.initColumnLists(this.parserColumns.filter(item=>item.name!='ts'));
-      }else{
+      if (
+        this.$store.state.app.currentDBType == "mqtt" ||
+        this.$store.state.app.currentDBType == "kafka"
+      ) {
+        this.initColumnLists(
+          this.parserColumns.filter((item) => item.name != "ts")
+        );
+      } else {
         this.initColumnLists(this.parserColumns);
       }
-      
     }
 
     if (
@@ -759,6 +809,18 @@ export default {
     this.statisticCol();
   },
   methods: {
+    getJsonText(data) {
+      if (data instanceof Object) {
+        this.isjson = true;
+        this.$set(this, "jsoneditorcont", data);
+        this.jsoneditorcont = data;
+      } else {
+        this.isjson = false;
+      }
+    },
+    changeCopyFormat() {
+      console.log(this.radio);
+    },
     statisticCol() {
       this.configuredCount = this.tableData.filter(
         (item) => item["Expression"] != ""
@@ -842,7 +904,6 @@ export default {
       console.log(file, "文件");
     },
     handleExceed(files, fileList) {
-      console.log(files, fileList, "上传文件");
       this.$message.warning(
         `当前限制选择 3 个文件，本次选择了 ${files.length} 个文件，共选择了 ${
           files.length + fileList.length
@@ -850,7 +911,6 @@ export default {
       );
     },
     handleChange(file, fileList) {
-
       Papa.parse(file.raw, {
         header: false,
         complete: (result) => {
@@ -879,15 +939,23 @@ export default {
     },
     async submitParse(name) {
       try {
-        if (!this.msgForm.msgbody) {
-          Message.warning(this.$t("datasource.transformer.msgbodytip"));
-          return;
+        let topparser = null;
+        let message = "";
+        if (this.radio == "1") {
+          message = this.jsoneditorcont;
+        } else {
+          if (!this.msgForm.msgbody) {
+            Message.warning(this.$t("datasource.transformer.msgbodytip"));
+            return;
+          }
+          message = this.msgForm.msgbody;
         }
+
         // if (this.filterArr.length > 0) {
         // }
         // if (this.extractArr.length > 0) {
         // }
-        let topparser = null;
+
         if (this.$store.state.app.currentDBType == "avevaHistorian") {
           topparser = JSON.parse(this.msgForm.msgbody);
         } else {
@@ -918,7 +986,9 @@ export default {
                 : [].concat(this.generateInput()),
           };
         }
-
+        if (this.activeName == "first" && this.radio == "2" && !this.istext) {
+          return;
+        }
         this.$store.commit("app/SET_TOP_PARSE", topparser);
         let result = await getParser(topparser);
         if (result.message) {
@@ -1355,7 +1425,7 @@ export default {
                   .concat({
                     map: mutateMap,
                   })
-              :  []
+              : []
                   .concat({
                     filter: Object.values(
                       this.$store.state.app.transformerFilterParseData
@@ -1364,10 +1434,14 @@ export default {
                   .concat({
                     map: mutateMap,
                   })
-            :this.$store.state.app.transformExtractParseData? [].concat(this.$store.state.app.transformExtractParseData).concat({
+            : this.$store.state.app.transformExtractParseData
+            ? []
+                .concat(this.$store.state.app.transformExtractParseData)
+                .concat({
+                  map: mutateMap,
+                })
+            : [].concat({
                 map: mutateMap,
-              }):[].concat({
-                map: mutateMap
               }),
         },
         input: this.isCSV
@@ -1381,6 +1455,9 @@ export default {
           currentPage: this.currentPage,
         },
       };
+      if (this.activeName == "first" && this.radio == "2" && !this.istext) {
+        return;
+      }
       if (tags.length == 0 || columns.length == 0 || !primarykey) {
         Message.warning(this.$t("datasource.transformer.mappingvaildtip"));
         this.isbreak = true;
@@ -1453,6 +1530,9 @@ export default {
           currentPage: this.currentPage,
         },
       };
+      if (this.activeName == "first" && this.radio == "2" && !this.istext) {
+        return;
+      }
       this.$store.commit("app/SET_TRANS_FULL_PARAMS", parserData);
       // this.$emit("getTransformerParams", parserData);
     },
@@ -1518,35 +1598,50 @@ export default {
     generateInput() {
       let inputList = [];
       let resultMsgbody = "";
-      if (this.msgForm.msgbody.replace(/\}\s*\{/g, "}{").includes("}{")) {
-        resultMsgbody = this.msgForm.msgbody
-          .replace(/\}\s*\{/g, "}&${")
-          .split("&$");
+      if (this.radio == "1") {
+        resultMsgbody = Array.isArray(this.jsoneditorcont)
+          ? this.jsoneditorcont.map((item) => JSON.stringify(item))
+          : [].concat(JSON.stringify(this.jsoneditorcont));
       } else {
-        if (
-          /\n/g.test(this.msgForm.msgbody) &&
-          /^[^\{]/.test(this.msgForm.msgbody.trim())
-        ) {
-          //普通文本，目前第一列暂时不能为json格式
-          resultMsgbody = this.msgForm.msgbody
-            .replace(/[\n\s]/g, "*&$*")
-            .split("*&$*");
-        } else {
-          try {
-            if (
-              /^\{/g.test(this.msgForm.msgbody) &&
-              JSON.parse(this.msgForm.msgbody)
-            ) {
-              resultMsgbody = [].concat(this.msgForm.msgbody);
-            }
-          } catch (error) {
-            Message.error(this.$t("datasource.transformer.jsontip"));
-            return;
-          }
-
-          resultMsgbody = this.msgForm.msgbody.split(";");
+        if (/^{|\[/.test(this.msgForm.msgbody)) {
+          // Message.error(this.$t("datasource.transformer.texttip"));
+          this.istext = false;
+          return;
         }
+        this.istext = true;
+        resultMsgbody = this.msgForm.msgbody
+          .replace(/[\n\s]/g, "*&$*")
+          .split("*&$*");
       }
+      // if (this.msgForm.msgbody.replace(/\}\s*\{/g, "}{").includes("}{")) {
+      //   resultMsgbody = this.msgForm.msgbody
+      //     .replace(/\}\s*\{/g, "}&${")
+      //     .split("&$");
+      // } else {
+      //   if (
+      //     /\n/g.test(this.msgForm.msgbody) &&
+      //     /^[^\{]/.test(this.msgForm.msgbody.trim())
+      //   ) {
+      //     //普通文本，目前第一列暂时不能为json格式
+      //     resultMsgbody = this.msgForm.msgbody
+      //       .replace(/[\n\s]/g, "*&$*")
+      //       .split("*&$*");
+      //   } else {
+      //     try {
+      //       if (
+      //         /^\{/g.test(this.msgForm.msgbody) &&
+      //         JSON.parse(this.msgForm.msgbody)
+      //       ) {
+      //         resultMsgbody = [].concat(this.msgForm.msgbody);
+      //       }
+      //     } catch (error) {
+      //       Message.error(this.$t("datasource.transformer.jsontip"));
+      //       return;
+      //     }
+
+      //     resultMsgbody = this.msgForm.msgbody.split(";");
+      //   }
+      // }
       inputList = resultMsgbody.map((msg) => {
         let inputobj = {};
         this.indentifiedColumns.forEach((item) => {
@@ -1556,7 +1651,7 @@ export default {
             } else {
               inputobj[item.name] =
                 item.type == "timestamp"
-                  ? ''//parsinginZone(new Date())
+                  ? "" //parsinginZone(new Date())
                   : item.name;
             }
           } else if (this.$store.state.app.currentDBType == "kafka") {
@@ -1565,7 +1660,7 @@ export default {
             } else {
               inputobj[item.name] =
                 item.type == "timestamp"
-                  ? ''//parsinginZone(new Date())
+                  ? "" //parsinginZone(new Date())
                   : item.name;
             }
           }
@@ -1610,7 +1705,9 @@ export default {
         },
         input: [].concat(this.generateInput()),
       };
-
+      if (this.activeName == "first" && this.radio == "2" && !this.istext) {
+        return;
+      }
       this.getParserData(parserData);
     },
     closeDialog() {
@@ -1758,13 +1855,13 @@ export default {
               .children.filter((val, index) => {
                 if (
                   this.$store.state.app.currentDBType == "mqtt" &&
-                  !this.mqttDefaultCols.includes(val.value )
+                  !this.mqttDefaultCols.includes(val.value)
                 ) {
                   return val;
                 }
                 if (
                   this.$store.state.app.currentDBType == "kafka" &&
-                  !this.kafkaDefaultCols.includes(val.value) 
+                  !this.kafkaDefaultCols.includes(val.value)
                 ) {
                   return val;
                 } else if (
@@ -1978,17 +2075,20 @@ export default {
       deep: true,
       handler(val) {
         this.$set(this, "options", val);
-        this.$set(this,'mappingcolumns',val.filter(item=>item.value=='mapping')[0].children)
-        let newmappings=this.mappingcolumns.map(item=>item.label)
-        this.tableData.map(item=>{
-          if(item.exprname=='mapping'&&item['Type']!='Tablename'){
-            if(!newmappings.includes(item['Expression'])){
-              item['Expression']=''
+        this.$set(
+          this,
+          "mappingcolumns",
+          val.filter((item) => item.value == "mapping")[0].children
+        );
+        let newmappings = this.mappingcolumns.map((item) => item.label);
+        this.tableData.map((item) => {
+          if (item.exprname == "mapping" && item["Type"] != "Tablename") {
+            if (!newmappings.includes(item["Expression"])) {
+              item["Expression"] = "";
             }
-            return item
+            return item;
           }
-          
-        })
+        });
       },
     },
 
@@ -2001,12 +2101,14 @@ export default {
     parserColumns: {
       deep: true,
       handler(val) {
-        if(this.$store.state.app.currentDBType == "mqtt"||this.$store.state.app.currentDBType == "kafka"){
-        this.initColumnLists(val.filter(item=>item.name!='ts'));
-      }else{
-        this.initColumnLists(val);
-      }
-        
+        if (
+          this.$store.state.app.currentDBType == "mqtt" ||
+          this.$store.state.app.currentDBType == "kafka"
+        ) {
+          this.initColumnLists(val.filter((item) => item.name != "ts"));
+        } else {
+          this.initColumnLists(val);
+        }
       },
     },
     "$store.state.app.currentDBType": {

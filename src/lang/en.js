@@ -1272,6 +1272,8 @@ export default {
     // opc_alias:'Alias',
     // opc_type:'Type',
     transformer: {
+      jsonformat:'JSON Format',
+      textformat:'Text Format',
       sampleval: "Sample message body collection timestamp",
       resulttb: "Result Display",
       nexttip: "Please proceed the next step first",
@@ -1292,6 +1294,7 @@ export default {
       parsefirst: "Please excute the parse,extract or split first",
       parse: "1. Parse",
       jsontip: "Please enter the correct JSON format",
+      texttip:"Please enter correct text format",
       mappingvaildtip:
         "Please fill in the correct primary key, column, and tag",
         // 2. <strong>Split</strong>: User could use a sep separator to split specific columns out of the field, set the column size with n and use names by a ,-separated name list. For example, use sep = -, n = 3, names = a,b,c, it will split  1-2-3 text string into three columns with values: a = 1, b = 2, c = 3.<br/>

@@ -1,5 +1,5 @@
 <template>
-  <div style="width: 400px; height: 400px"></div>
+  <div ></div>
 </template>
 
 <script>
@@ -16,26 +16,7 @@ export default {
     value: {
       type: [String, Object, Array],
       default: () => {
-        return [
-          {
-            timestamp: 1699324881000,
-            groupid: "5",
-            location: "Beijing",
-            deviceid: 3750,
-            current: 7.5,
-            voltage: 181,
-            phase: 0.1539,
-          },
-          {
-            timestamp: 1699324882000,
-            groupid: "6",
-            location: "上海",
-            deviceid: 3790,
-            current: 9,
-            voltage: 200,
-            phase: 0.1902,
-          },
-        ];
+        return ''
       },
     },
   },
@@ -47,15 +28,15 @@ export default {
   },
   mounted() {
     let initJson = "";
-    if (this.value) {
-      if (typeof this.value === "string") {
+    // if (this.value) {
+      if (this.value&&typeof this.value === "string") {
         this.isStrValue = true;
         initJson = JSON.parse(this.value);
       } else {
         initJson = this.value;
       }
       this.initEditor(initJson);
-    }
+    // }
   },
   methods: {
     initEditor(initJson) {
@@ -67,11 +48,18 @@ export default {
           mainMenuBar: false,
           search: true,
           onChange: () => {
-            console.log('editor文本变化');
             if (this.isStrValue) {
               this.$emit("change", this.editor.getText());
             } else {
-              this.$emit("change", this.editor.get());
+                let iserror=false
+                try {
+                    this.editor.get()
+                    iserror=true
+                    this.$emit("change", this.editor.get());
+                } catch (error) {
+                    this.$emit("change", null);
+                }
+              
             }
           },
           onBlur: () => {
