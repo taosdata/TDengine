@@ -440,14 +440,14 @@ static int32_t parseVarbinary(SToken* pToken, uint8_t **pData, uint32_t *nData, 
     return TSDB_CODE_PAR_INVALID_VARBINARY;
   }
 
-  if(isHex(pToken->z, pToken->n)){
-    if(!isValidateHex(pToken->z, pToken->n)){
+  if(isHex(pToken->z + 1, pToken->n - 2)){
+    if(!isValidateHex(pToken->z + 1, pToken->n - 2)){
       return TSDB_CODE_PAR_INVALID_VARBINARY;
     }
 
     void* data = NULL;
     uint32_t size = 0;
-    if(taosHex2Ascii(pToken->z, pToken->n, &data, &size) < 0){
+    if(taosHex2Ascii(pToken->z + 1, pToken->n - 2, &data, &size) < 0){
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
