@@ -407,14 +407,14 @@ static int32_t parseVarbinary(SToken* pToken, uint8_t **pData, uint32_t *nData, 
     return TSDB_CODE_PAR_INVALID_VARBINARY;
   }
 
-  if(isHex(pToken->z, pToken->n)){
-    if(!isValidateHex(pToken->z, pToken->n)){
+  if(isHex(pToken->z + 1, pToken->n - 2)){
+    if(!isValidateHex(pToken->z + 1, pToken->n - 2)){
       return TSDB_CODE_PAR_INVALID_VARBINARY;
     }
 
     void* data = NULL;
     uint32_t size = 0;
-    if(taosHex2Ascii(pToken->z, pToken->n, &data, &size) < 0){
+    if(taosHex2Ascii(pToken->z + 1, pToken->n - 2, &data, &size) < 0){
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
@@ -425,11 +425,13 @@ static int32_t parseVarbinary(SToken* pToken, uint8_t **pData, uint32_t *nData, 
     *pData = data;
     *nData = size;
   }else{
-    if (pToken->n + VARSTR_HEADER_SIZE > bytes) {
+    *pData = taosMemoryCalloc(1, pToken->n);
+    int32_t len = trimString(pToken->z, pToken->n, *pData, pToken->n);
+    *nData = len;
+
+    if (*nData + VARSTR_HEADER_SIZE > bytes) {
       return TSDB_CODE_PAR_VALUE_TOO_LONG;
     }
-    *pData = taosStrdup(pToken->z);
-    *nData = pToken->n;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -720,7 +722,7 @@ static int32_t buildCreateTbReq(SVnodeModifyOpStmt* pStmt, STag* pTag, SArray* p
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf) {
+static int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf, int8_t type) {
   if ((pToken->type != TK_NOW && pToken->type != TK_TODAY && pToken->type != TK_NK_INTEGER &&
        pToken->type != TK_NK_STRING && pToken->type != TK_NK_FLOAT && pToken->type != TK_NK_BOOL &&
        pToken->type != TK_NULL && pToken->type != TK_NK_HEX && pToken->type != TK_NK_OCT &&
@@ -730,7 +732,7 @@ static int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMs
   }
 
   // Remove quotation marks
-  if (TK_NK_STRING == pToken->type) {
+  if (TK_NK_STRING == pToken->type && type != TSDB_DATA_TYPE_VARBINARY) {
     if (pToken->n >= TSDB_MAX_BYTES_PER_ROW) {
       return buildSyntaxErrMsg(pMsgBuf, "too long string", pToken->z);
     }
@@ -902,7 +904,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
 
     SSchema* pTagSchema = &pSchema[pCxt->tags.pColIndex[i]];
     isJson = pTagSchema->type == TSDB_DATA_TYPE_JSON;
-    code = checkAndTrimValue(&token, pCxt->tmpTokenBuf, &pCxt->msg);
+    code = checkAndTrimValue(&token, pCxt->tmpTokenBuf, &pCxt->msg, pTagSchema->type);
     if (TK_NK_VARIABLE == token.type) {
       code = buildSyntaxErrMsg(&pCxt->msg, "not expected tags values ", token.z);
     }
@@ -1590,7 +1592,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
 
 static int32_t parseValueToken(SInsertParseContext* pCxt, const char** pSql, SToken* pToken, SSchema* pSchema,
                                int16_t timePrec, SColVal* pVal) {
-  int32_t code = checkAndTrimValue(pToken, pCxt->tmpTokenBuf, &pCxt->msg);
+  int32_t code = checkAndTrimValue(pToken, pCxt->tmpTokenBuf, &pCxt->msg, pSchema->type);
   if (TSDB_CODE_SUCCESS == code && isNullValue(pSchema->type, pToken)) {
     if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
       return buildSyntaxErrMsg(&pCxt->msg, "primary timestamp should not be null", pToken->z);
