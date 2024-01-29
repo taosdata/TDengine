@@ -14,3 +14,4 @@ quanta = { version = "0.12", default-features = true}
 indexmap = { version = "1", default-features = true }
 bincode = "2.0.0-rc.3"
 serde = { version = "1", features = ["derive"] }
+sysinfo = {workspace = true }

@@ -236,7 +236,7 @@ impl Cli {
         self,
         controller: TaskControllerRef,
         grpc_handle: tokio::task::JoinHandle<Result<()>>,
-        monitor_cfg: monitor::MonitorCfg,
+        monitor: monitor::Monitor,
     ) -> Result<()> {
         let span = tracing::info_span!("server", addr = self.listen).entered();
         let store_cloned = controller.clone();
@@ -339,12 +339,9 @@ impl Cli {
         assert!(!controller::DATA_SOURCE_DEFINITIONS.is_empty());
 
         let openapi = ApiDoc::openapi();
-        let addr = self.get_listen_address();
-        let port = addr.split(':').last().unwrap();
-        let monitor = monitor::Monitor::new(monitor_cfg, port);
         let handle = monitor.init();
         let recorder = Data::new(handle);
-
+        let addr = self.get_listen_address();
         let addr = addr.as_str();
         let server = HttpServer::new(move || {
             let cors = Cors::default()
@@ -399,7 +396,7 @@ impl Cli {
         self,
         controller: TaskControllerRef,
         channel: AgentRpcChannel,
-        monitor_cfg: monitor::MonitorCfg,
+        monitor: monitor::Monitor,
     ) -> Result<()> {
         let mut flight = rpc::RpcConfig::default();
         if let Some(grpc) = self.grpc.as_ref() {
@@ -408,7 +405,7 @@ impl Cli {
         }
 
         flight
-            .serve_with_controller(controller, channel, monitor_cfg)
+            .serve_with_controller(controller, channel, monitor)
             .await?;
         Ok(())
     }

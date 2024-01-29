@@ -51,7 +51,7 @@ use uuid::Uuid;
 
 use super::{
     controller::{AgentAction, AgentDataSetsSender, DsvSender, Task, TaskControllerRef},
-    monitor::MonitorCfg,
+    monitor::Monitor,
     scheduler::agent::{AgentActionsReceiver, AgentId, AgentNotifySender},
 };
 
@@ -85,7 +85,7 @@ pub(super) struct FlightServiceImpl {
     request_id: Arc<AtomicU64>,
     datasets_senders: Arc<RwLock<LinkedHashMap<u64, AgentDataSetsSender>>>,
     dsv_senders: Arc<RwLock<LinkedHashMap<u64, DsvSender>>>,
-    monitor_cfg: MonitorCfg,
+    monitor: Monitor,
 }
 
 async fn action_to_arrow(
@@ -914,7 +914,8 @@ impl FlightService for FlightServiceImpl {
                 Ok(Response::new(Box::pin(futures::stream::iter([]))))
             }
             "GetMonitorConfig" => {
-                let config = self.monitor_cfg.as_map();
+                let mut config = self.monitor.cfg.as_map();
+                config.insert("taosx_id".to_string(), self.monitor.taosx_id.to_string());
                 let message = serde_json::to_vec(&config).unwrap();
                 Ok(Response::new(Box::pin(futures::stream::iter([Ok(
                     arrow_flight::Result {
@@ -1007,7 +1008,7 @@ impl RpcConfig {
         self,
         controller: TaskControllerRef,
         channel: AgentRpcChannel,
-        monitor_cfg: MonitorCfg,
+        monitor: Monitor,
     ) -> Result<(), anyhow::Error> {
         let max_frame_size: Option<u32> = Some((1 << 24) - 1 as u32);
         let activity_receiver = channel.agent_activity_receiver;
@@ -1019,7 +1020,7 @@ impl RpcConfig {
             dsv_senders: Arc::new(RwLock::new(LinkedHashMap::new())),
             request_id: Arc::new(AtomicU64::new(0)),
             agent_connections: Arc::new(RwLock::new(HashMap::new())),
-            monitor_cfg,
+            monitor,
         };
         let flight_service = FlightServiceServer::new(service);
         let flight_service = flight_service

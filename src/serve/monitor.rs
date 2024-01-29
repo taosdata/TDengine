@@ -9,7 +9,6 @@ use std::time::Duration;
 use taosx_metrics::TaosXRecorder;
 use taosx_metrics::TaosXRecorderHandle;
 use tracing::instrument;
-
 #[derive(Parser, Debug, Deserialize, Serialize, Default, Clone)]
 #[serde(default)]
 pub struct MonitorCfg {
@@ -60,9 +59,10 @@ impl MonitorCfg {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Monitor {
-    cfg: MonitorCfg,
-    taosx_id: &'static str,
+    pub cfg: MonitorCfg,
+    pub taosx_id: &'static str,
 }
 
 impl Monitor {
@@ -76,7 +76,6 @@ impl Monitor {
             }
         };
         let taosx_id = hostname.to_string() + ":" + taosx_port;
-        // make taosx_id static
         let taosx_id = Box::leak(taosx_id.into_boxed_str());
         tracing::info!("taosx_id: {}", taosx_id);
         Self { cfg, taosx_id }

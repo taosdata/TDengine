@@ -36,6 +36,8 @@ use taosx_core::{
 #[cfg(feature = "tikv_jemallocator")]
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
+
+use crate::serve::monitor;
 #[cfg(feature = "tikv_jemallocator")]
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -593,6 +595,9 @@ fn main() -> Result<()> {
         }
         Commands::Serve(serve) => {
             let _ = tracing::info_span!("serve").entered();
+            let addr = serve.get_listen_address();
+            let port = addr.split(':').last().unwrap();
+            let monitor = monitor::Monitor::new(args.monitor.clone(), port);
             let scheduler_rt = build_runtime(worker_threads * 2)?;
 
             let (agent_integration_channel, agent_rpc_channel, scheduler_notifier) =
@@ -609,10 +614,10 @@ fn main() -> Result<()> {
             let api_ctl = ctl.clone();
             let serve_api = serve.clone();
             let grpc_handle =
-                grpc_rt.spawn(serve_api.grpc(ctl.clone(), agent_rpc_channel, args.monitor.clone()));
+                grpc_rt.spawn(serve_api.grpc(ctl.clone(), agent_rpc_channel, monitor.clone()));
             runtime.block_on(async move {
                 // rest api
-                serve.api(api_ctl, grpc_handle, args.monitor.clone()).await
+                serve.api(api_ctl, grpc_handle, monitor).await
             })?;
         }
         Commands::External(_) => bail!("unknown subcommand"),
