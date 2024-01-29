@@ -203,8 +203,24 @@ class TDTestCase:
         tdSql.error(f"select * from {self.dbname}.{self.stable} group by t2")
         tdSql.error(f"select t2, count(*) from {self.dbname}.{self.stable} group by t2 where t2 = 1")
         tdSql.error(f"select t2, count(*) from {self.dbname}.{self.stable} group by t2 interval(1d)")
+    
+    def test_nested_query(self):        
+        tdSql.query(f"select * from (select ts, c1 from {self.dbname}.{self.stable} partition by tbname) limit 3")
+        tdSql.checkRows(3)
+        
+        tdSql.query(f"select * from (select ts, c1 from {self.dbname}.{self.stable} partition by tbname slimit 2) limit 3")
+        tdSql.checkRows(3)
+        
+        tdSql.error(f"select * from (select ts, c1 from {self.dbname}.{self.stable} partition by tbname slimit 2) slimit 3")
 
-  
+        tdSql.query(f"select * from (select sum(c1), t2 from {self.dbname}.{self.stable} group by t2) limit 2")
+        tdSql.checkRows(2)
+        
+        tdSql.query(f"select * from (select sum(c1), t2 from {self.dbname}.{self.stable} group by t2 slimit 3) limit 2")
+        tdSql.checkRows(2)
+        
+        tdSql.error(f"select * from (select sum(c1), t2 from {self.dbname}.{self.stable} group by t2 slimit 3) slimit 2")
+        
     def run(self):
         tdSql.prepare()
         self.prepare_db()
@@ -234,6 +250,7 @@ class TDTestCase:
         # self.test_groupby('group', 5, 5)
 
         self.test_error()
+        self.test_nested_query()
 
 
     def stop(self):
