@@ -201,7 +201,8 @@ static const char gGrantName[GRANT_OPT_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
 static const char *gGrantDisplay[GRANT_OPT_DYN_MAX] = {
     "basic", "service", "stream", "subscription", "audit", "csv", "view", "multi_tier_storage", "backup_restore"};
 
-static const char *gGrantState[GRANT_STATE_MAX] = {"ungranted", "ungranted", "granted", "expired", "revoked"};
+static const char *gGrantState[GRANT_STATE_MAX] = {"ungranted", "ungranted", "granted", "expired",
+                                                   "revoked"};  // keep 0/1 ungranted
 
 static const char *tGetConnDisplay(const char *name) {
   for (int32_t i = CONN_TYPE_MAX; i < CONN_TYPE_DYN_MAX; ++i) {
@@ -637,6 +638,10 @@ static int32_t grantCheckClusterInfo(SMnode *pMnode) {
       code = TSDB_CODE_APP_IS_STARTING;
     }
   }
+_exit:
+  if (code != 0) {
+    recheckClusterTime = true;
+  }
   return code;
 }
 
@@ -675,6 +680,21 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
     GRANT_VALUE_CONVERT(grantObj.dataIns[i], gStatus.dataIns[i], 1, dftExpireDay);                         // expire
     GRANT_VALUE_CONVERT(grantObj.dataIns[i + 1], gStatus.dataIns[i + 1], 1, GRANT_UNIQ_DFT_DATAIN_SPEED);  // speed
     GRANT_VALUE_CONVERT(grantObj.dataIns[i + 2], gStatus.dataIns[i + 2], 1, GRANT_UNIQ_DFT_DATAIN_NUM);    // number
+  }
+
+  int64_t curTime = taosGetTimestampMs() / 1000;
+  char    ts[GRANT_TS_SEC_LEN] = {0};
+  grantSecondsToString(gStatus.basicExpireSec, ts);
+
+  int64_t grantCurTime = TMAX(curTime, GRANT_CUR_TIME);
+  if (gStatus.basicExpireSec > grantCurTime) {
+    if (gStatus.expired) {
+      gStatus.expired = 0;
+    }
+  } else {
+    gStatus.expired = 1;
+    uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64 ", set to un-grant state", ts,
+          (int64_t)gStatus.basicExpireSec, grantCurTime);
   }
 
   // add rwlock since retrieve would access simultaneously
@@ -748,10 +768,11 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     code = mndProcessUpdStateReq(pMnode, NULL, &grantState);
     TSDB_CHECK_CODE(code, lino, _exit);
     goto _exit;
+  } else {
+    gStatus.grantState = pLastState->state;
   }
 
   if (pLastState->state == GRANT_STATE_REVOKED) {
-    gStatus.grantState = pLastState->state;
     gStatus.revokedExpireSec = pLastState->ts;
 
     char ts[GRANT_TS_SEC_LEN] = {0};
@@ -1621,6 +1642,9 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantObj *pObj, const char *oldAct
       code = TSDB_CODE_GRANT_MACHINES_MISMATCH;
       goto _exit;
     }
+  } else if (revoked) {
+    code = TSDB_CODE_GRANT_UNLICENSED_CLUSTER;
+    goto _exit;
   }
 
   grantRetrieveGrantInfo(pMnode);
@@ -1675,7 +1699,6 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantObj *pObj, const char *oldAct
   // step 4: merge active code
   
   if (0 != (code = grantUniqMergeActiveCode(&oldObj, &newObj, &mergeObj, 1))) {
-
     goto _exit;
   }
 

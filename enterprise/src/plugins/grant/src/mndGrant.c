@@ -15,12 +15,14 @@
 
 #include "mndGrant.h"
 #include "audit.h"
+#include "machine.h"
 #include "mndDb.h"
 #include "mndPrivilege.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 
-extern int8_t grantHbLock;
+extern int8_t       grantHbLock;
+extern SGrantStatus grantUniqStatus;
 
 #define MND_GRANT_VER_NUMBER 1
 
@@ -92,17 +94,23 @@ static int32_t mndGrantObjAppendState(SGrantObj *pObj, SGrantState *pState) {
     ++idx;
   }
 
-  pState->lastState = pObj->states[idx - 1].state;
-  pState->ts = ts;
+  if (pState->state != GRANT_STATE_UNGRANTED) {
+    pState->lastState = pObj->states[idx - 1].state;
+    pState->ts = ts;
 
-  if (idx >= GRANT_STATE_NUM) {
-    memmove(&pObj->states[0], &pObj->states[1], sizeof(pObj->states) - sizeof(pObj->states[0]));
-    idx = GRANT_STATE_NUM - 1;
-    pObj->nStates = GRANT_STATE_NUM;
-  } else {
-    ++pObj->nStates;
+    if (idx >= GRANT_STATE_NUM) {
+      memmove(&pObj->states[0], &pObj->states[1], sizeof(pObj->states) - sizeof(pObj->states[0]));
+      idx = GRANT_STATE_NUM - 1;
+      pObj->nStates = GRANT_STATE_NUM;
+    } else {
+      ++pObj->nStates;
+    }
+    pObj->states[idx] = *pState;
+
+    // sync the state to gStatus at once
+    grantUniqStatus.grantState = pState->state;
   }
-  pObj->states[idx] = *pState;
+
   return 0;
 }
 
@@ -126,6 +134,7 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
 
   if (strncasecmp(pCfg->value, "revoked", 8) == 0) {
     revoked = true;
+    // duplicated operation, return 0 directly
     if (pGrant->nStates > 0 && pGrant->states[pGrant->nStates - 1].state == GRANT_STATE_REVOKED) goto _exit;
   }
 
@@ -136,15 +145,17 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
     int32_t activeLen = strlen(pGrant->active);
     if (!(grantObj.active = taosMemoryMalloc(activeLen + 1))) {
       code = TSDB_CODE_OUT_OF_MEMORY;
+      mndReleaseGrant(pMnode, pGrant, pIter);
       goto _exit;
     }
     tstrncpy(grantObj.active, pGrant->active, activeLen + 1);
   }
-  
+
   int32_t nMachines = taosArrayGetSize(pGrant->pMachines);
   if (nMachines > 0) {
     if (!(grantObj.pMachines = taosArrayInit(nMachines, sizeof(SGrantMachine)))) {
       code = TSDB_CODE_OUT_OF_MEMORY;
+      mndReleaseGrant(pMnode, pGrant, pIter);
       goto _exit;
     }
     taosArrayAddAll(grantObj.pMachines, pGrant->pMachines);
@@ -158,6 +169,20 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
     if ((code = grantAlterActiveCode(pMnode, &grantObj, grantObj.active, pCfg->value, &mergeActive)) != 0) {
       goto _exit;
     }
+
+    SGrantState state = {0};
+    if (grantUniqStatus.expired == 0) {
+      state.state = GRANT_STATE_GRANTED;
+      state.reason = GRANT_STATE_REASON_ALTER;
+    } else {
+      state.state = GRANT_STATE_EXPIRED;
+      state.reason = GRANT_STATE_REASON_EXPIRE;
+    }
+
+    if (pGrant->nStates == 0 || (pGrant->nStates > 0 && pGrant->states[pGrant->nStates - 1].state != state.state)) {
+      mndGrantObjAppendState(&grantObj, &state);
+    }
+
     // merge or newActive utilized
     char   *finalActive = NULL;
     int32_t finalActiveLen = 0;
