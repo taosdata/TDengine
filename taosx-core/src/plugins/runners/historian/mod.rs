@@ -1,10 +1,9 @@
-use arrow_schema::DataType;
-use arrow_schema::TimeUnit::Nanosecond;
-use chrono::NaiveDateTime;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use arrow_schema::DataType;
+use arrow_schema::TimeUnit::Nanosecond;
+use chrono::NaiveDateTime;
 use futures_util::TryStreamExt;
 use linked_hash_map::LinkedHashMap;
 use serde_json::{json, Value};
@@ -13,11 +12,10 @@ use tiberius::{ColumnType, Row};
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
-use taosx_ipc::prelude::IpcDataType;
-
 use crate::dsv::DataSourceValidation;
 use crate::plugins::raw_data::RawDataLogger;
 use crate::plugins::transform::sample::DsSampleIn;
+use crate::runners::historian::appender::column_meta::ColumnMeta;
 use crate::runners::historian::config::connect::ConnectConfig;
 use crate::runners::historian::config::{HistorianTable, TaskConfig, TaskMode};
 use crate::runners::historian::query::HistorianQuery;
@@ -100,12 +98,9 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     let mut rows = client.describe_table(config.table).await?.into_row_stream();
     let mut parse_sample = LinkedHashMap::new();
     while let Some(row) = rows.try_next().await? {
-        let col_name = row.try_get::<&str, _>("COLUMN_NAME")?.unwrap();
-        let col_type = row.try_get::<&str, _>("TYPE_NAME")?.unwrap();
-        let col_precision = row.try_get::<i32, _>("PRECISION")?.unwrap();
-
-        let data_type = to_ipc_data_type(col_type, col_precision)?;
-        parse_sample.insert(col_name.to_string(), json!({"as": data_type}));
+        let column_meta = ColumnMeta::try_new(&row)?;
+        let ipc_type = column_meta.get_ipc_type()?;
+        parse_sample.insert(column_meta.column_name, json!({"as": ipc_type}));
     }
     drop(rows);
 
@@ -144,30 +139,6 @@ pub fn to_json_value(
     };
 
     Ok(col_val)
-}
-
-fn to_ipc_data_type(type_name: &str, precision: i32) -> anyhow::Result<IpcDataType> {
-    let db_type = match type_name {
-        "datetime2" => "timestamp(ms)".to_string(),
-        "nvarchar" => format!("varchar({})", precision).to_string(),
-        "tinyint" => "tinyint".to_string(),
-        "int" => "int".to_string(),
-        "float" => "double".to_string(),
-        _ => anyhow::bail!(
-            "unsupported data type: {}, precision: {}",
-            type_name,
-            precision
-        ),
-    };
-
-    IpcDataType::from_str(db_type.as_str()).map_err(|err| {
-        anyhow::anyhow!(
-            "failed to convert data type: {}, precision: {}, cause: {}",
-            type_name,
-            precision,
-            err.to_string()
-        )
-    })
 }
 
 pub async fn historian_to_taos(
