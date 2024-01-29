@@ -91,8 +91,7 @@ class TDTestCase(TBase):
         # -C
         etool.exeBinFile("taosd", "-C")
         # -k 
-        rets = etool.runBinFile("taosd", "-C")
-        self.checkListNotEmpty(rets)
+        etool.exeBinFile("taosd", "-k", False)
         # -V
         rets = etool.runBinFile("taosd", "-V")
         self.checkListNotEmpty(rets)

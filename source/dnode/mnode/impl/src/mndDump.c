@@ -545,6 +545,7 @@ void dumpHeader(SSdb *pSdb, SJson *json) {
   SJson *maxIdsJson = tjsonCreateObject();
   tjsonAddItemToObject(json, "maxIds", maxIdsJson);
   for (int32_t i = 0; i < SDB_MAX; ++i) {
+    if(i == 5) continue;
     int64_t maxId = 0;
     if (i < SDB_MAX) {
       maxId = pSdb->maxId[i];
