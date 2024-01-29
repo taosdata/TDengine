@@ -1,7 +1,8 @@
 package com.taosdata.utils.arrow;
 
 import com.alibaba.fastjson.JSONObject;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.List;
 
@@ -10,7 +11,8 @@ import java.util.List;
  *
  * @author ZYP
  */
-@Data
+@Getter
+@Setter
 public class ArrowInitDto {
 
     private String name;
@@ -49,7 +51,8 @@ public class ArrowInitDto {
         }
     }
 
-    @Data
+    @Getter
+    @Setter
     class Column {
         private String name;
         private String type;
@@ -60,7 +63,8 @@ public class ArrowInitDto {
         }
     }
 
-    @Data
+    @Getter
+    @Setter
     class Tag {
         private String name;
         private String type;
