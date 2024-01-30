@@ -412,12 +412,12 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         anyhow::bail!("categories is empty");
     }
 
-    let points_config = PointsConfig {
-        limit: req.limit,
-        regex: req.pattern.clone(),
-    };
+    // let points_config = PointsConfig {
+    //     limit: req.limit,
+    //     regex: req.pattern.clone(),
+    // };
     let mut config = OPCConfig::from_dsn_point_mode(&from).await?;
-    config.points = Some(points_config);
+    config.points = PointsConfig::from_dsn(&from);
     let toml =
         toml::to_string(&config).with_context(|| format!("toml to_string error encountered"))?;
     let mut config_file = tempfile::NamedTempFile::new()?;
@@ -488,14 +488,6 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         // regex.is_match(text)
         let res = res
             .into_iter()
-            .filter(|set| {
-                regex.is_match(&set.id)
-                    || set
-                        .name
-                        .as_deref()
-                        .map(|s| regex.is_match(s))
-                        .unwrap_or(false)
-            })
             .map(|mut set| {
                 set.category = Some(req.categories[0].clone());
                 set.options = Some(options.clone());
