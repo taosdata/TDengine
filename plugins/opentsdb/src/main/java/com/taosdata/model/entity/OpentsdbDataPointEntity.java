@@ -1,14 +1,16 @@
 package com.taosdata.model.entity;
 
 import com.alibaba.fastjson.JSONObject;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * opentsdb data实体类
  *
  * @author ZYP
  */
-@Data
+@Getter
+@Setter
 public class OpentsdbDataPointEntity {
 
     private long timestamp;
