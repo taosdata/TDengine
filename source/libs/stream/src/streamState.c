@@ -670,7 +670,6 @@ void streamStateFreeCur(SStreamStateCur* pCur) {
   if (!pCur) {
     return;
   }
-  qDebug("streamStateFreeCur");
   streamStateResetCur(pCur);
   taosMemoryFree(pCur);
 }

@@ -1080,7 +1080,7 @@ bool qStreamScanhistoryFinished(qTaskInfo_t tinfo) {
 
 int32_t qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  STimeWindow* pWindow = &pTaskInfo->streamInfo.fillHistoryWindow;
+  STimeWindow*   pWindow = &pTaskInfo->streamInfo.fillHistoryWindow;
 
   qDebug("%s remove timeWindow filter:%" PRId64 "-%" PRId64 ", set new window:%" PRId64 "-%" PRId64,
          GET_TASKID(pTaskInfo), pWindow->skey, pWindow->ekey, INT64_MIN, INT64_MAX);

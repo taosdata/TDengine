@@ -324,12 +324,13 @@ typedef struct SStreamStatus {
   int8_t         taskStatus;
   int8_t         downstreamReady;  // downstream tasks are all ready now, if this flag is set
   int8_t         schedStatus;
-  int32_t        schedIdleTime;    // idle time before invoke again
-  int64_t        lastExecTs;       // last exec time stamp
   int8_t         statusBackup;
-  bool           appendTranstateBlock;  // has append the transfer state data block already
-  int32_t        timerActive;           // timer is active
+  int32_t        schedIdleTime;  // idle time before invoke again
+  int32_t        timerActive;    // timer is active
+  int64_t        lastExecTs;     // last exec time stamp
   int32_t        inScanHistorySentinel;
+  bool           appendTranstateBlock;  // has append the transfer state data block already
+  bool           supplementaryWalscan;  // complete the supplementary wal scan or not
 } SStreamStatus;
 
 typedef struct SDataRange {
