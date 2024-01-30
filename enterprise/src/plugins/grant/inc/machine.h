@@ -41,7 +41,7 @@
 #define GRANT_TOLERENCE      86400  //86400
 #define GRANT_CHK_TOLERENCE  604800 //604800seconds
 #define GRANT_CHECK_INTERVAL 3600   //3600seconds
-#define GRANT_HEART_BEAT_MSG 5     //60seconds
+#define GRANT_HEART_BEAT_MSG 10     //60seconds
 #else
 #define GRANT_DEFAULT        60
 #define GRANT_TOLERENCE      60
@@ -126,7 +126,7 @@
 #define GRANT_UNIQ_DFT_SUBSCRIPTION_EXPIRE GRANT_EXPIRE_DAY
 #define GRANT_UNIQ_DFT_SUBSCRIPTION_NUM    8
 #define GRANT_UNIQ_DFT_VIEW_EXPIRE         GRANT_EXPIRE_DAY
-#define GRANT_UNIQ_DFT_VIEW_NUM 8
+#define GRANT_UNIQ_DFT_VIEW_NUM            8
 #define GRANT_UNIQ_DFT_STORAGE_EXPIRE      GRANT_EXPIRE_DAY
 #define GRANT_UNIQ_DFT_AUDIT_EXPIRE        GRANT_EXPIRE_DAY
 #define GRANT_UNIQ_DFT_BAKRST_EXPIRE       GRANT_EXPIRE_DAY
@@ -318,7 +318,7 @@ typedef struct {
       int64_t subscriptionExpired : 1;
       int64_t auditExpired : 1;
       int64_t csvExpired : 1;
-      int64_t uniqActive : 1;
+      int64_t viewExpired : 1;
       int64_t expired : 1;
     };
   };
@@ -375,6 +375,13 @@ typedef struct {
     struct {
       int64_t serviceExpireSec : 40;
       int64_t reserve6 : 24;
+    };
+  };
+  union {
+    int64_t p9;
+    struct {
+      int64_t viewExpireSec : 40;
+      int64_t reserve7 : 24;
     };
   };
   int64_t limitTimeSeries;
