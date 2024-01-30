@@ -182,7 +182,39 @@ static int32_t mndDropOrphanTasks(SMnode* pMnode, SArray* pList) {
     mndTransDrop(pTrans);
     return -1;
   }
+  return 0;
+}
 
+int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo* info){
+  SSdb       *pSdb = pMnode->pSdb;
+  SStreamObj *pStream = NULL;
+  void* pIter = NULL;
+  while(1) {
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) break;
+
+    if(pStream->status != STREAM_STATUS__PAUSE){
+      SMPauseStreamReq reqPause = {0};
+      strcpy(reqPause.name, pStream->name);
+      reqPause.igNotExists = 1;
+
+      int32_t contLen = tSerializeSMPauseStreamReq(NULL, 0, &reqPause);
+      void *  pHead = rpcMallocCont(contLen);
+      tSerializeSMPauseStreamReq(pHead, contLen, &reqPause);
+
+      SRpcMsg rpcMsg = {
+          .msgType = TDMT_MND_PAUSE_STREAM,
+          .pCont = pHead,
+          .contLen = contLen,
+          .info = *info,
+      };
+
+      tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+      mInfo("receivee pause stream:%s, %s, %p, because grant expired", pStream->name, reqPause.name, reqPause.name);
+    }
+
+    sdbRelease(pSdb, pStream);
+  }
   return 0;
 }
 
@@ -191,6 +223,12 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SStreamHbMsg req = {0};
   SArray      *pFailedTasks = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
   SArray      *pOrphanTasks = taosArrayInit(3, sizeof(SOrphanTask));
+
+  if(grantCheck(TSDB_GRANT_STREAMS) < 0){
+    if(suspendAllStreams(pMnode, &pReq->info) < 0){
+      return -1;
+    }
+  }
 
   SDecoder decoder = {0};
   tDecoderInit(&decoder, pReq->pCont, pReq->contLen);
