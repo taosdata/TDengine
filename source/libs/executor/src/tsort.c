@@ -78,6 +78,7 @@ struct SSortHandle {
 
   bool           bSortByRowId;
   SDiskbasedBuf* pExtRowsBuf;
+  int32_t        extRowBytes;
   int32_t        extRowsPageSize;
   int32_t        extRowsMemSize;
   int32_t        srcTsSlotId;
@@ -1006,7 +1007,7 @@ static int32_t blockRowToBuf(SSDataBlock* pBlock, int32_t rowIdx, char* buf) {
 
 static int32_t saveBlockRowToExtRowsBuf(SSortHandle* pHandle, SSDataBlock* pBlock, int32_t rowIdx, int32_t* pPageId, int32_t* pOffset, int32_t* pLength) {
   SDiskbasedBuf* pResultBuf = pHandle->pExtRowsBuf;
-  int32_t rowBytes = blockDataGetRowSize(pBlock) + taosArrayGetSize(pBlock->pDataBlock) + sizeof(int32_t);
+  int32_t rowBytes = pHandle->extRowBytes;
   int32_t pageId = -1;
   SFilePage* pFilePage = NULL;
   int32_t code = getPageFromExtSrcRowsBuf(pResultBuf, rowBytes, &pageId, &pFilePage);
@@ -1082,6 +1083,7 @@ static void initRowIdSort(SSortHandle* pHandle) {
 int32_t tsortSetSortByRowId(SSortHandle* pHandle, int32_t extRowsPageSize, int32_t extRowsMemSize) {
   int32_t code = createDiskbasedBuf(&pHandle->pExtRowsBuf, extRowsPageSize, extRowsMemSize, "sort-ext-rows", tsTempDir);
   dBufSetPrintInfo(pHandle->pExtRowsBuf);
+  pHandle->extRowBytes = blockDataGetRowSize(pHandle->pDataBlock) + taosArrayGetSize(pHandle->pDataBlock->pDataBlock) + sizeof(int32_t);
   pHandle->extRowsPageSize = extRowsPageSize;
   pHandle->extRowsMemSize = extRowsMemSize;
   SBlockOrderInfo* pOrder = taosArrayGet(pHandle->pSortInfo, 0);
