@@ -26,7 +26,7 @@ struct SStreamTaskIter {
   SStreamTask *pTask;
 };
 
-SStreamTaskIter* createTaskIter(SStreamObj* pStream) {
+SStreamTaskIter* createStreamTaskIter(SStreamObj* pStream) {
   SStreamTaskIter* pIter = taosMemoryCalloc(1, sizeof(SStreamTaskIter));
   if (pIter == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -42,7 +42,7 @@ SStreamTaskIter* createTaskIter(SStreamObj* pStream) {
   return pIter;
 }
 
-bool taskIterNextTask(SStreamTaskIter* pIter) {
+bool streamTaskIterNextTask(SStreamTaskIter* pIter) {
   if (pIter->level >= pIter->totalLevel) {
     pIter->pTask = NULL;
     return false;
@@ -70,11 +70,11 @@ bool taskIterNextTask(SStreamTaskIter* pIter) {
   return false;
 }
 
-SStreamTask* taskIterGetCurrent(SStreamTaskIter* pIter) {
+SStreamTask* streamTaskIterGetCurrent(SStreamTaskIter* pIter) {
   return pIter->pTask;
 }
 
-void destroyTaskIter(SStreamTaskIter* pIter) {
+void destroyStreamTaskIter(SStreamTaskIter* pIter) {
   taosMemoryFree(pIter);
 }
 
@@ -235,16 +235,16 @@ static int32_t doSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamTask *pT
 }
 
 SStreamTask *mndGetStreamTask(STaskId *pId, SStreamObj *pStream) {
-  SStreamTaskIter *pIter = createTaskIter(pStream);
-  while (taskIterNextTask(pIter)) {
-    SStreamTask *pTask = taskIterGetCurrent(pIter);
+  SStreamTaskIter *pIter = createStreamTaskIter(pStream);
+  while (streamTaskIterNextTask(pIter)) {
+    SStreamTask *pTask = streamTaskIterGetCurrent(pIter);
     if (pTask->id.taskId == pId->taskId) {
-      destroyTaskIter(pIter);
+      destroyStreamTaskIter(pIter);
       return pTask;
     }
   }
 
-  destroyTaskIter(pIter);
+  destroyStreamTaskIter(pIter);
   return NULL;
 }
 
@@ -259,12 +259,12 @@ int32_t mndGetNumOfStreamTasks(const SStreamObj *pStream) {
 }
 
 int32_t mndStreamSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamObj *pStream, int8_t igUntreated) {
-  SStreamTaskIter *pIter = createTaskIter(pStream);
+  SStreamTaskIter *pIter = createStreamTaskIter(pStream);
 
-  while (taskIterNextTask(pIter)) {
-    SStreamTask *pTask = taskIterGetCurrent(pIter);
+  while (streamTaskIterNextTask(pIter)) {
+    SStreamTask *pTask = streamTaskIterGetCurrent(pIter);
     if (doSetResumeAction(pTrans, pMnode, pTask, igUntreated) < 0) {
-      destroyTaskIter(pIter);
+      destroyStreamTaskIter(pIter);
       return -1;
     }
 
@@ -272,7 +272,7 @@ int32_t mndStreamSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamObj *pSt
       atomic_store_8(&pTask->status.taskStatus, pTask->status.statusBackup);
     }
   }
-  destroyTaskIter(pIter);
+  destroyStreamTaskIter(pIter);
   return 0;
 }
 
@@ -308,12 +308,12 @@ static int32_t doSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTa
 }
 
 int32_t mndStreamSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
-  SStreamTaskIter *pIter = createTaskIter(pStream);
+  SStreamTaskIter *pIter = createStreamTaskIter(pStream);
 
-  while (taskIterNextTask(pIter)) {
-    SStreamTask *pTask = taskIterGetCurrent(pIter);
+  while (streamTaskIterNextTask(pIter)) {
+    SStreamTask *pTask = streamTaskIterGetCurrent(pIter);
     if (doSetPauseAction(pMnode, pTrans, pTask) < 0) {
-      destroyTaskIter(pIter);
+      destroyStreamTaskIter(pIter);
       return -1;
     }
 
@@ -323,7 +323,7 @@ int32_t mndStreamSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStr
     }
   }
 
-  destroyTaskIter(pIter);
+  destroyStreamTaskIter(pIter);
   return 0;
 }
 
@@ -357,16 +357,16 @@ static int32_t doSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTas
 }
 
 int32_t mndStreamSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
-  SStreamTaskIter *pIter = createTaskIter(pStream);
+  SStreamTaskIter *pIter = createStreamTaskIter(pStream);
 
-  while(taskIterNextTask(pIter)) {
-    SStreamTask *pTask = taskIterGetCurrent(pIter);
+  while(streamTaskIterNextTask(pIter)) {
+    SStreamTask *pTask = streamTaskIterGetCurrent(pIter);
     if (doSetDropAction(pMnode, pTrans, pTask) < 0) {
-      destroyTaskIter(pIter);
+      destroyStreamTaskIter(pIter);
       return -1;
     }
   }
-  destroyTaskIter(pIter);
+  destroyStreamTaskIter(pIter);
   return 0;
 }
 
@@ -480,18 +480,18 @@ int32_t mndStreamSetUpdateEpsetAction(SStreamObj *pStream, SVgroupChangeInfo *pI
   mDebug("stream:0x%" PRIx64 " set tasks epset update action", pStream->uid);
   taosWLockLatch(&pStream->lock);
 
-  SStreamTaskIter *pIter = createTaskIter(pStream);
-  while (taskIterNextTask(pIter)) {
-    SStreamTask *pTask = taskIterGetCurrent(pIter);
+  SStreamTaskIter *pIter = createStreamTaskIter(pStream);
+  while (streamTaskIterNextTask(pIter)) {
+    SStreamTask *pTask = streamTaskIterGetCurrent(pIter);
     int32_t      code = doSetUpdateTaskAction(pTrans, pTask, pInfo);
     if (code != TSDB_CODE_SUCCESS) {
-      destroyTaskIter(pIter);
+      destroyStreamTaskIter(pIter);
       taosWUnLockLatch(&pStream->lock);
       return -1;
     }
   }
 
-  destroyTaskIter(pIter);
+  destroyStreamTaskIter(pIter);
   taosWUnLockLatch(&pStream->lock);
   return 0;
 }
@@ -528,18 +528,18 @@ static int32_t doSetResetAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTa
 int32_t mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
   taosWLockLatch(&pStream->lock);
 
-  SStreamTaskIter *pIter = createTaskIter(pStream);
-  while (taskIterNextTask(pIter)) {
-    SStreamTask *pTask = taskIterGetCurrent(pIter);
+  SStreamTaskIter *pIter = createStreamTaskIter(pStream);
+  while (streamTaskIterNextTask(pIter)) {
+    SStreamTask *pTask = streamTaskIterGetCurrent(pIter);
     int32_t      code = doSetResetAction(pMnode, pTrans, pTask);
     if (code != TSDB_CODE_SUCCESS) {
-      destroyTaskIter(pIter);
+      destroyStreamTaskIter(pIter);
       taosWUnLockLatch(&pStream->lock);
       return -1;
     }
   }
 
-  destroyTaskIter(pIter);
+  destroyStreamTaskIter(pIter);
   taosWUnLockLatch(&pStream->lock);
   return 0;
 }

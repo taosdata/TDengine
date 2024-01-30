@@ -476,16 +476,16 @@ int32_t mndPersistTaskDeployReq(STrans *pTrans, SStreamTask *pTask) {
 }
 
 int32_t mndPersistStreamTasks(STrans *pTrans, SStreamObj *pStream) {
-  SStreamTaskIter *pIter = createTaskIter(pStream);
-  while (taskIterNextTask(pIter)) {
-    SStreamTask *pTask = taskIterGetCurrent(pIter);
+  SStreamTaskIter *pIter = createStreamTaskIter(pStream);
+  while (streamTaskIterNextTask(pIter)) {
+    SStreamTask *pTask = streamTaskIterGetCurrent(pIter);
     if (mndPersistTaskDeployReq(pTrans, pTask) < 0) {
-      destroyTaskIter(pIter);
+      destroyStreamTaskIter(pIter);
       return -1;
     }
   }
 
-  destroyTaskIter(pIter);
+  destroyStreamTaskIter(pIter);
 
   // persistent stream task for already stored ts data
   if (pStream->conf.fillHistory) {
@@ -1506,9 +1506,9 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     }
 
     // add row for each task
-    SStreamTaskIter *pIter = createTaskIter(pStream);
-    while (taskIterNextTask(pIter)) {
-      SStreamTask *pTask = taskIterGetCurrent(pIter);
+    SStreamTaskIter *pIter = createStreamTaskIter(pStream);
+    while (streamTaskIterNextTask(pIter)) {
+      SStreamTask *pTask = streamTaskIterGetCurrent(pIter);
 
       int32_t code = setTaskAttrInResBlock(pStream, pTask, pBlock, numOfRows);
       if (code == TSDB_CODE_SUCCESS) {
@@ -1516,7 +1516,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
     }
 
-    destroyTaskIter(pIter);
+    destroyStreamTaskIter(pIter);
     taosRUnLockLatch(&pStream->lock);
 
     sdbRelease(pSdb, pStream);
@@ -1859,16 +1859,16 @@ static SArray *extractNodeListFromStream(SMnode *pMnode) {
 
     taosWLockLatch(&pStream->lock);
 
-    SStreamTaskIter *pTaskIter = createTaskIter(pStream);
-    while (taskIterNextTask(pTaskIter)) {
-      SStreamTask *pTask = taskIterGetCurrent(pTaskIter);
+    SStreamTaskIter *pTaskIter = createStreamTaskIter(pStream);
+    while (streamTaskIterNextTask(pTaskIter)) {
+      SStreamTask *pTask = streamTaskIterGetCurrent(pTaskIter);
 
       SNodeEntry entry = {.hbTimestamp = -1, .nodeId = pTask->info.nodeId};
       epsetAssign(&entry.epset, &pTask->info.epSet);
       taosHashPut(pHash, &entry.nodeId, sizeof(entry.nodeId), &entry, sizeof(entry));
     }
 
-    destroyTaskIter(pTaskIter);
+    destroyStreamTaskIter(pTaskIter);
     taosWUnLockLatch(&pStream->lock);
 
     sdbRelease(pSdb, pStream);
@@ -2056,9 +2056,9 @@ static int32_t mndProcessNodeCheck(SRpcMsg *pReq) {
 }
 
 void saveStreamTasksInfo(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
-  SStreamTaskIter *pIter = createTaskIter(pStream);
-  while (taskIterNextTask(pIter)) {
-    SStreamTask *pTask = taskIterGetCurrent(pIter);
+  SStreamTaskIter *pIter = createStreamTaskIter(pStream);
+  while (streamTaskIterNextTask(pIter)) {
+    SStreamTask *pTask = streamTaskIterGetCurrent(pIter);
 
     STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
     void   *p = taosHashGet(pExecNode->pTaskMap, &id, sizeof(id));
@@ -2073,13 +2073,13 @@ void saveStreamTasksInfo(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
     }
   }
 
-  destroyTaskIter(pIter);
+  destroyStreamTaskIter(pIter);
 }
 
 void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
-  SStreamTaskIter *pIter = createTaskIter(pStream);
-  while (taskIterNextTask(pIter)) {
-    SStreamTask *pTask = taskIterGetCurrent(pIter);
+  SStreamTaskIter *pIter = createStreamTaskIter(pStream);
+  while (streamTaskIterNextTask(pIter)) {
+    SStreamTask *pTask = streamTaskIterGetCurrent(pIter);
 
     STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
     void   *p = taosHashGet(pExecNode->pTaskMap, &id, sizeof(id));
@@ -2099,7 +2099,7 @@ void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
     }
   }
 
-  destroyTaskIter(pIter);
+  destroyStreamTaskIter(pIter);
   ASSERT(taosHashGetSize(pExecNode->pTaskMap) == taosArrayGetSize(pExecNode->pTaskList));
 }
 
