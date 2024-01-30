@@ -42,7 +42,7 @@
 
 <style scoped lang="scss">
   .copy-wrapper {
-    display: inline;
+    // display: inline;
     position: relative;
     line-height: 40px;
     // font-size: 26px;

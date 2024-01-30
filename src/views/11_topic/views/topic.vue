@@ -9,11 +9,21 @@
     <el-table style="margin-top: 20px" :data="topicList" size="mini" row-key="topic_name">
       <el-table-column width="150" :label="$t('topic.topicName')" prop="topic_name"></el-table-column>
       <el-table-column width="150" :label="$t('topic.DBName')" prop="db_name"></el-table-column>
-      <el-table-column min-width="200" label="SQL" prop="sql" show-overflow-tooltip>
+      <el-table-column min-width="200" label="SQL" prop="sql">
         <template slot-scope="scope">
-          <pre v-highlight class="nowrap sql-code pre-code" slot="reference">
-          <code class="language-sql" style="overflow:hidden">{{ scope.row.sql }} </code>
-        </pre>
+          <el-tooltip
+            placement="left-start"
+            :content="scope.row.sql"
+            popper-class="my-popper"
+            :open-delay="1000"
+          >
+          <span>
+            <pre v-highlight class="nowrap sql-code pre-code" slot="reference">
+            <code class="language-sql" style="overflow:hidden">{{ scope.row.sql }} </code>
+          </pre>
+
+          </span>
+        </el-tooltip>
         </template>
       </el-table-column>
       <el-table-column min-width="200" label="DSN" prop="dsn" show-overflow-tooltip>
@@ -265,5 +275,14 @@
   }
   .language-sql {
     white-space: inherit !important;
+  }
+</style>
+
+<style lang="scss"> 
+   .my-popper {
+    max-width: 600px;
+    max-height: 600px;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 </style>
