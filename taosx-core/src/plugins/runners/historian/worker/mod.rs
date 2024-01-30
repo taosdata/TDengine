@@ -189,16 +189,20 @@ pub async fn sync_live(task_config: TaskConfig, logger: Sender<String>) -> anyho
 
     let mut client = HistorianQuery::try_new(task_config.clone().connect).await?;
 
+    let mut fields = Vec::new();
     let mut rows = client
         .describe_table(HistorianTable::Live)
         .await?
         .into_row_stream();
-    let mut fields = Vec::new();
     while let Some(row) = rows.try_next().await? {
         let col_meta = appender::column_meta::ColumnMeta::try_new(&row)?;
         fields.push(col_meta);
     }
     drop(rows);
+
+    if fields.is_empty() {
+        anyhow::bail!("live table cannot be empty")
+    }
     let schema = appender::column_meta::to_schema(fields)?;
 
     // write batch to ipc
@@ -272,8 +276,9 @@ fn split_tags(tags: Vec<String>, size: usize) -> Vec<Vec<String>> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use chrono::{NaiveDateTime, TimeZone};
+
+    use super::*;
 
     #[test]
     fn test_convert_datetime() {
