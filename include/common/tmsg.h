@@ -3771,7 +3771,12 @@ typedef struct {
 } SMqHbReq;
 
 typedef struct {
-  int8_t reserved;
+  char           topic[TSDB_TOPIC_FNAME_LEN];
+  int8_t         noPrivilege;
+} STopicPrivilege;
+
+typedef struct {
+  SArray* topicPrivileges;   // SArray<STopicPrivilege>
 } SMqHbRsp;
 
 typedef struct {
@@ -3908,6 +3913,10 @@ int32_t tDeserializeSMqAskEpReq(void* buf, int32_t bufLen, SMqAskEpReq* pReq);
 int32_t tSerializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 int32_t tDeserializeSMqHbReq(void* buf, int32_t bufLen, SMqHbReq* pReq);
 int32_t tDeatroySMqHbReq(SMqHbReq* pReq);
+
+int32_t tSerializeSMqHbRsp(void* buf, int32_t bufLen, SMqHbRsp* pRsp);
+int32_t tDeserializeSMqHbRsp(void* buf, int32_t bufLen, SMqHbRsp* pRsp);
+int32_t tDeatroySMqHbRsp(SMqHbRsp* pRsp);
 
 int32_t tSerializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
