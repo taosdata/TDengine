@@ -98,7 +98,7 @@ Code bellow get JDBC URL from environment variables first and then create a `Con
 2. Create a 'meterMapper.xml' file under 'src/main/resources/mapper', and add the following SQL mapping:
 
 ```
-{{#include docs/examples/java/spring/src/main/resources/mapper/meterMapper.xml}}
+{{#include docs/examples/java/spring/src/main/resources/mapper/MeterMapper.xml}}
 ```
 
 3. For more details about how to write or query data from TDngine Cloud instance through Spring, please refer to: <https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring/>
