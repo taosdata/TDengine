@@ -102,7 +102,7 @@ $env:TDENGINE_JDBC_URL='<jdbcURL>'
 2. 在“src/main/resources/mapper”中创建 “MeterMapper.xml”，文件中添加以下 SQL 映射
 
 ```
-{{#include docs/examples/java/spring/src/main/resources/mapper/meterMapper.xml}}
+{{#include docs/examples/java/spring/src/main/resources/mapper/MeterMapper.xml}}
 ```
 
 3. 使用 Spring 进行更多查询和插入 TDengine Cloud 实例的示例代码，请参考：<https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring/>
