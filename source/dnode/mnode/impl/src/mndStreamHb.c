@@ -65,61 +65,24 @@ static void addIntoCheckpointList(SArray* pList, const SFailedCheckpointInfo* pI
   taosArrayPush(pList, pInfo);
 }
 
-static int32_t createStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
+int32_t createStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
   STrans *pTrans = doCreateTrans(pMnode, pStream, NULL, MND_STREAM_TASK_RESET_NAME, " reset from failed checkpoint");
   if (pTrans == NULL) {
     return terrno;
   }
 
   /*int32_t code = */mndStreamRegisterTrans(pTrans, MND_STREAM_TASK_RESET_NAME, pStream->uid);
-
-  taosWLockLatch(&pStream->lock);
-  int32_t numOfLevels = taosArrayGetSize(pStream->tasks);
-
-  for (int32_t j = 0; j < numOfLevels; ++j) {
-    SArray *pLevel = taosArrayGetP(pStream->tasks, j);
-
-    int32_t numOfTasks = taosArrayGetSize(pLevel);
-    for (int32_t k = 0; k < numOfTasks; ++k) {
-      SStreamTask *pTask = taosArrayGetP(pLevel, k);
-
-      // todo extract method, with pause stream task
-      SVResetStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVResetStreamTaskReq));
-      if (pReq == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        mError("failed to malloc in reset stream, size:%" PRIzu ", code:%s", sizeof(SVResetStreamTaskReq),
-               tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-        taosWUnLockLatch(&pStream->lock);
-        return terrno;
-      }
-
-      pReq->head.vgId = htonl(pTask->info.nodeId);
-      pReq->taskId = pTask->id.taskId;
-      pReq->streamId = pTask->id.streamId;
-
-      SEpSet  epset = {0};
-      bool    hasEpset = false;
-      int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
-      if (code != TSDB_CODE_SUCCESS || !hasEpset) {
-        taosMemoryFree(pReq);
-        continue;
-      }
-
-      code = setTransAction(pTrans, pReq, sizeof(SVResetStreamTaskReq), TDMT_VND_STREAM_TASK_RESET, &epset, 0);
-      if (code != 0) {
-        taosMemoryFree(pReq);
-        taosWUnLockLatch(&pStream->lock);
-        mndTransDrop(pTrans);
-        return terrno;
-      }
-    }
+  int32_t code = mndStreamSetResetTaskAction(pMnode, pTrans, pStream);
+  if (code != 0) {
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return code;
   }
 
-  taosWUnLockLatch(&pStream->lock);
-
-  int32_t code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_READY);
+  code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_READY);
   if (code != TSDB_CODE_SUCCESS) {
     sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
     return -1;
   }
 
