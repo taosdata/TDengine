@@ -17,5 +17,20 @@ jobs:
           clean: false
 
       - name: Build taosx-opentsdb
-        run: |
-          cargo make taosx-opentsdb
+        working-directory: plugins/opentsdb
+        run: mvn clean test
+
+      - name: Generate jacoco report
+        working-directory: plugins/opentsdb
+        run: mvn jacoco:report
+
+      - name: Save Jacoco report as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage report of taosx-opentsdb
+          path: plugins/opentsdb/target/site/jacoco/*
+
+      - name: Generate JaCoCo badge
+        uses: cicirello/jacoco-badge-generator@v2
+        with:
+          jacoco-csv-file: plugins/opentsdb/target/site/jacoco/jacoco.csv

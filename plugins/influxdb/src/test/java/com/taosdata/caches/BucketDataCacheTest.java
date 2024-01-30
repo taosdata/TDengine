@@ -22,9 +22,7 @@ class BucketDataCacheTest {
     @BeforeEach
     void clearBucketDataCache() {
         BucketDataCache.getBucketData(BucketDataCache.getBucketDataQueueSize());
-        BucketDataCache.getBucketDataKeySet().forEach(key -> {
-            BucketDataCache.removeBucketDataKey(key);
-        });
+        BucketDataCache.getBucketDataKeySet().forEach(key -> BucketDataCache.removeBucketDataKey(key));
     }
 
     @Test
@@ -37,11 +35,8 @@ class BucketDataCacheTest {
 
     @Test
     void addBucketData_List() {
-        List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = new ArrayList<>();
-        influxdbBucketDataEntityList.add(this.influxdbBucketDataEntity);
-        influxdbBucketDataEntityList.add(this.influxdbBucketDataEntity);
         // 添加元素，队列长度 2
-        Assertions.assertEquals(2, BucketDataCache.addBucketData(influxdbBucketDataEntityList));
+        Assertions.assertEquals(2, BucketDataCache.addBucketData(Arrays.asList(this.influxdbBucketDataEntity, this.influxdbBucketDataEntity)));
     }
 
     @Test
