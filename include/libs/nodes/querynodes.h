@@ -207,6 +207,7 @@ typedef struct SViewNode {
 } SViewNode;
 
 #define IS_INNER_NONE_JOIN(_type, _stype) ((_type) == JOIN_TYPE_INNER && (_stype) == JOIN_STYPE_NONE)
+#define IS_WINDOW_JOIN(_stype) ((_stype) == JOIN_STYPE_WIN)
 
 typedef enum EJoinType { 
   JOIN_TYPE_INNER = 0,

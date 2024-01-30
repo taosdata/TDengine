@@ -2560,6 +2560,289 @@ _return:
   return pCtx->finBlk;
 }
 
+static bool mWinJoinRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* pJoin, SMJoinWindowCtx* pCtx) {
+  bool probeGot = mJoinRetrieveImpl(pJoin, &pJoin->probe->blkRowIdx, &pJoin->probe->blk, pJoin->probe);
+  bool buildGot = false;
+
+  do {
+    if (probeGot || MJOIN_DS_NEED_INIT(pOperator, pJoin->build)) { 
+      buildGot = mJoinRetrieveImpl(pJoin, &pJoin->build->blkRowIdx, &pJoin->build->blk, pJoin->build);
+    }
+    
+    if (!probeGot) {
+      mJoinSetDone(pOperator);
+      return false;
+    }
+
+    if (buildGot && !pCtx->lowerRowsAcq) {
+      SColumnInfoData* pProbeCol = taosArrayGet(pJoin->probe->blk->pDataBlock, pJoin->probe->primCol->srcSlot);
+      SColumnInfoData* pBuildCol = taosArrayGet(pJoin->build->blk->pDataBlock, pJoin->build->primCol->srcSlot);
+      if (*((int64_t*)pProbeCol->pData + pJoin->probe->blkRowIdx) > *((int64_t*)pBuildCol->pData + pJoin->build->blk->info.rows - 1)) {
+        pJoin->build->blkRowIdx = pJoin->build->blk->info.rows;
+        continue;
+      }
+    }
+    
+    break;
+  } while (true);
+
+  return true;
+}
+
+int32_t mWinJoinAddWinBeginBlk(SMJoinWindowCtx* pCtx, SMJoinWinCache* pCache, SMJoinTableCtx* build, bool* winEnd) {
+  SSDataBlock* pBlk = build->blk;
+  SColumnInfoData* pCol = taosArrayGet(pBlk->pDataBlock, build->primCol->srcSlot);
+  if (*((int64_t*)pCol->pData + pBlk->info.rows - 1) >= pCtx->winBeginTs) {
+    for (; build->blkRowIdx < pBlk->info.rows; build->blkRowIdx++) {
+      if (*((int64_t*)pCol->pData + build->blkRowIdx) < pCtx->winBeginTs) {
+        continue;
+      }
+  
+      if (*((int64_t*)pCol->pData + build->blkRowIdx) <= pCtx->winEndTs) {
+        SMJoinGrpRows grp = {.blk = pBlk, .beginIdx = build->blkRowIdx};
+        SMJoinGrpRows* pGrp = taosArrayPush(pCache->grps, &grp);
+  
+        pGrp->readIdx = pGrp->beginIdx;
+        pGrp->endIdx = pGrp->beginIdx;
+  
+        build->blk = NULL;
+        return TSDB_CODE_SUCCESS;
+      }
+
+      *winEnd = true;  
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  *winEnd = false;
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t mWinJoinAddWinEndBlk(SMJoinWindowCtx* pCtx, SMJoinWinCache* pCache, SMJoinTableCtx* build, bool* winEnd) {
+  SSDataBlock* pBlk = build->blk;
+  SColumnInfoData* pCol = taosArrayGet(pBlk->pDataBlock, build->primCol->srcSlot);
+  if (*((int64_t*)pCol->pData + pBlk->info.rows - 1) <= pCtx->winEndTs) {
+    SMJoinGrpRows grp = {.blk = pBlk, .beginIdx = build->blkRowIdx};
+    SMJoinGrpRows* pGrp = taosArrayPush(pCache->grps, &grp);
+    
+    pGrp->readIdx = pGrp->beginIdx;
+    pGrp->endIdx = pBlk->info.rows - 1;
+    
+    build->blk = NULL;
+    *winEnd = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SMJoinGrpRows grp = {.blk = pBlk, .beginIdx = build->blkRowIdx};
+  
+  for (; build->blkRowIdx < pBlk->info.rows; build->blkRowIdx++) {
+    if (*((int64_t*)pCol->pData + build->blkRowIdx) <= pCtx->winEndTs) {
+      continue;
+    }
+
+    SMJoinGrpRows* pGrp = taosArrayPush(pCache->grps, &grp);
+    
+    pGrp->readIdx = pGrp->beginIdx;
+    pGrp->endIdx = build->blkRowIdx - 1;
+    
+    build->blk = NULL;
+    *winEnd = true;  
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t mWinJoinMoveWinBegin(SMJoinWindowCtx* pCtx) {
+  SMJoinWinCache* pCache = &pCtx->cache;
+  do {
+    int32_t grpNum = taosArrayGetSize(pCache->grps);
+    for (int32_t i = 0; i < grpNum; ++i) {
+      SMJoinGrpRows* pGrp = taosArrayGet(pCache->grps, i);
+      SColumnInfoData* pCol = taosArrayGet(pGrp->blk->pDataBlock, pCtx->pJoin->build->primCol->srcSlot);
+      if (*((int64_t*)pCol->pData + pGrp->blk->info.rows - 1) < pCtx->winBeginTs) {
+        blockDataDestroy(pGrp->blk);
+        taosArrayPopFrontBatch(pCache->grps, 1);
+        grpNum--;
+        i--;
+        continue;
+      }
+
+      for (; pGrp->beginIdx < pGrp->blk->info.rows; pGrp->beginIdx++) {
+        if (*((int64_t*)pCol->pData + pGrp->beginIdx) < pCtx->winBeginTs) {
+          continue;
+        }
+
+        if (*((int64_t*)pCol->pData + pGrp->beginIdx) <= pCtx->winEndTs) {
+          return TSDB_CODE_SUCCESS;
+        }
+
+        pGrp->endIdx = pGrp->beginIdx;
+        TSWAP(pCache->grps, pCache->grpsQueue);
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+
+    if (NULL != pCache->grpsQueue) {
+      pCache->grps = pCache->grpsQueue;
+      pCache->grpsQueue = NULL;
+      continue;
+    }
+
+    break;
+  } while (true);
+
+  SMJoinTableCtx* build = pCtx->pJoin->build;
+  bool winEnd = false;
+  if (NULL != build->blk) {
+    MJ_ERR_RET(mWinJoinAddWinBeginBlk(pCtx, &pCtx->cache, build, &winEnd));
+    if (winEnd || taosArrayGetSize(pCache->grps) > 0) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  do {
+    build->blk = getNextBlockFromDownstreamRemain(pCtx->pJoin->pOperator, pCtx->pJoin->build->downStreamIdx);
+    qDebug("%s merge join %s table got block to start win, rows:%" PRId64, GET_TASKID(pCtx->pJoin->pOperator->pTaskInfo), MJOIN_TBTYPE(build->type), build->blk ? build->blk->info.rows : 0);
+    
+    build->blkRowIdx = 0;
+    
+    if (NULL == build->blk) {
+      build->dsFetchDone = true;
+      break;
+    }
+
+    MJ_ERR_RET(mWinJoinAddWinBeginBlk(pCtx, &pCtx->cache, build, &winEnd));
+    if (winEnd || taosArrayGetSize(pCache->grps) > 0) {
+      return TSDB_CODE_SUCCESS;
+    }
+  } while (true);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t mWinJoinMoveWinEnd(SMJoinWindowCtx* pCtx) {
+  SMJoinWinCache* pCache = &pCtx->cache;
+  int32_t grpNum = taosArrayGetSize(pCache->grps);
+  if (grpNum <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  SMJoinGrpRows* pGrp = taosArrayGetLast(pCache->grps);
+  SColumnInfoData* pCol = taosArrayGet(pGrp->blk->pDataBlock, pCtx->pJoin->build->primCol->srcSlot);
+  if (*((int64_t*)pCol->pData + pGrp->blk->info.rows - 1) <= pCtx->winEndTs) {
+    pGrp->endIdx = pGrp->blk->info.rows - 1;
+  } else {
+    for (; pGrp->endIdx < pGrp->blk->info.rows; pGrp->endIdx++) {
+      if (*((int64_t*)pCol->pData + pGrp->endIdx) <= pCtx->winEndTs) {
+        continue;
+      }
+
+      pGrp->endIdx--;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  SMJoinTableCtx* build = pCtx->pJoin->build;
+  bool winEnd = false;
+  if (NULL != build->blk) {
+    MJ_ERR_RET(mWinJoinAddWinEndBlk(pCtx, &pCtx->cache, build, &winEnd));
+    if (winEnd) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  do {
+    build->blk = getNextBlockFromDownstreamRemain(pCtx->pJoin->pOperator, pCtx->pJoin->build->downStreamIdx);
+    qDebug("%s merge join %s table got block to start win, rows:%" PRId64, GET_TASKID(pCtx->pJoin->pOperator->pTaskInfo), MJOIN_TBTYPE(build->type), build->blk ? build->blk->info.rows : 0);
+    
+    build->blkRowIdx = 0;
+    
+    if (NULL == build->blk) {
+      build->dsFetchDone = true;
+      break;
+    }
+
+    MJ_ERR_RET(mWinJoinAddWinEndBlk(pCtx, &pCtx->cache, build, &winEnd));
+    if (winEnd) {
+      return TSDB_CODE_SUCCESS;
+    }
+  } while (true);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t mWinJoinMoveFillWinCache(SMJoinWindowCtx* pCtx) {
+  MJ_ERR_RET(mWinJoinMoveWinBegin(pCtx));
+  MJ_ERR_RET(mWinJoinMoveWinEnd(pCtx));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mWinJoinDumpWinCache(SMJoinWindowCtx* pCtx) {
+  return TSDB_CODE_SUCCESS;
+}
+
+
+SSDataBlock* mWinJoinDo(struct SOperatorInfo* pOperator) {
+  SMJoinOperatorInfo* pJoin = pOperator->info;
+  SMJoinWindowCtx* pCtx = &pJoin->ctx.windowCtx;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t probeTs = 0;
+  int64_t buildTs = 0;
+  SColumnInfoData* pBuildCol = NULL;
+  SColumnInfoData* pProbeCol = NULL;
+
+  blockDataCleanup(pCtx->finBlk);
+
+  if (pCtx->grpRemains) {
+    MJ_ERR_JRET(mWinJoinDumpWinCache(pCtx));
+    if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
+      return pCtx->finBlk;
+    }
+    pCtx->grpRemains = false;
+  }
+
+  do {
+    if (!mWinJoinRetrieve(pOperator, pJoin, pCtx)) {
+      break;
+    }
+
+    MJOIN_GET_TB_COL_TS(pProbeCol, probeTs, pJoin->probe);
+
+    while (!MJOIN_PROBE_TB_ROWS_DONE(pJoin->probe)) {
+      MJ_ERR_JRET(mAsofJoinBuildEqGrp(pJoin->probe, probeTs, NULL, &pCtx->probeGrp));
+      
+      if (probeTs != pCtx->lastTs) {
+        pCtx->lastTs = probeTs;
+        pCtx->winBeginTs = probeTs + pCtx->winBeginOffset;
+        pCtx->winEndTs = probeTs + pCtx->winEndOffset;
+        MJ_ERR_JRET(mWinJoinMoveFillWinCache(pCtx));
+      }
+
+      MJ_ERR_JRET(mWinJoinDumpWinCache(pCtx));
+      
+      if (pCtx->finBlk->info.rows >= pCtx->blkThreshold) {
+        return pCtx->finBlk;
+      }
+
+      MJOIN_GET_TB_CUR_TS(pProbeCol, probeTs, pJoin->probe);
+    }
+  } while (true);
+
+_return:
+
+  if (code) {
+    pJoin->errCode = code;
+    return NULL;
+  }
+
+  return pCtx->finBlk;
+}
 
 int32_t mJoinInitWindowCache(SMJoinWinCache* pCache, SMJoinOperatorInfo* pJoin, SMJoinWindowCtx* pCtx) {
   pCache->pageLimit = MJOIN_BLK_SIZE_LIMIT;
@@ -2602,17 +2885,17 @@ int32_t mJoinInitWindowCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* p
         pJoin->joinFp = mAsofGreaterJoinDo;
       }
       break;
-    case JOIN_STYPE_WIN:
-      pCtx->eqRowsAcq = ASOF_EQ_ROW_INCLUDED(pCtx->asofOpType);
-      pCtx->lowerRowsAcq = (JOIN_TYPE_RIGHT != pJoin->joinType) ? ASOF_LOWER_ROW_INCLUDED(pCtx->asofOpType) : ASOF_GREATER_ROW_INCLUDED(pCtx->asofOpType);
-      pCtx->greaterRowsAcq = (JOIN_TYPE_RIGHT != pJoin->joinType) ? ASOF_GREATER_ROW_INCLUDED(pCtx->asofOpType) : ASOF_LOWER_ROW_INCLUDED(pCtx->asofOpType);
-
-      if (pCtx->lowerRowsAcq) {
-        pJoin->joinFp = mAsofLowerJoinDo;
-      } else if (pCtx->greaterRowsAcq) {
-        pJoin->joinFp = mAsofGreaterJoinDo;
-      }
+    case JOIN_STYPE_WIN: {
+      SWindowOffsetNode* pOffsetNode = (SWindowOffsetNode*)pJoinNode->pWindowOffset;
+      SValueNode* pWinBegin = (SValueNode*)pOffsetNode->pStartOffset;
+      SValueNode* pWinEnd = (SValueNode*)pOffsetNode->pEndOffset;
+      pCtx->winBeginOffset = pWinBegin->datum.i;
+      pCtx->winEndOffset = pWinEnd->datum.i;
+      pCtx->eqRowsAcq = (pCtx->winBeginOffset <= 0 && pCtx->winEndOffset >= 0);
+      pCtx->lowerRowsAcq = pCtx->winBeginOffset < 0;
+      pCtx->greaterRowsAcq = pCtx->winEndOffset > 0;
       break;
+    }
     default:
       break;
   }
@@ -2645,7 +2928,7 @@ int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJ
   pCtx->pJoin = pJoin;
   pCtx->lastEqTs = INT64_MIN;
   pCtx->hashCan = pJoin->probe->keyNum > 0;
-  if (JOIN_STYPE_ASOF == pJoinNode->subType) {
+  if (JOIN_STYPE_ASOF == pJoinNode->subType || JOIN_STYPE_WIN == pJoinNode->subType) {
     pCtx->jLimit = pJoinNode->pJLimit ? ((SLimitNode*)pJoinNode->pJLimit)->limit : 1;
     pJoin->subType = JOIN_STYPE_OUTER;
   } else {

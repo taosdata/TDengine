@@ -204,6 +204,7 @@ typedef struct SMJoinWinCache {
   int32_t                    rowNum;
   int8_t                     grpIdx;
   SArray*                    grps;
+  SArray*                    grpsQueue;
   SSDataBlock*               outBlk;
 } SMJoinWinCache;
 
@@ -220,10 +221,14 @@ typedef struct SMJoinWindowCtx {
   // KEEP IT FIRST
   
   int32_t                    asofOpType;
+  int64_t                    winBeginOffset;
+  int64_t                    winEndOffset;
   bool                       lowerRowsAcq;
   bool                       eqRowsAcq;
   bool                       greaterRowsAcq;
 
+  int64_t                    winBeginTs;
+  int64_t                    winEndTs;
   bool                       eqPostDone;
   int64_t                    lastTs;
   bool                       rowRemains;
@@ -302,6 +307,7 @@ typedef struct SMJoinOperatorInfo {
 #define ASOF_EQ_ROW_INCLUDED(_op) (OP_TYPE_GREATER_EQUAL == (_op) || OP_TYPE_LOWER_EQUAL == (_op) || OP_TYPE_EQUAL == (_op))
 #define ASOF_LOWER_ROW_INCLUDED(_op) (OP_TYPE_GREATER_EQUAL == (_op) || OP_TYPE_GREATER_THAN == (_op))
 #define ASOF_GREATER_ROW_INCLUDED(_op) (OP_TYPE_LOWER_EQUAL == (_op) || OP_TYPE_LOWER_THAN == (_op))
+#define WIN_ONLY_EQ_ROW_INCLUDED(_soff, _eoff) (0 == ((SValueNode*)(_soff))->datum.i && 0 == ((SValueNode*)(_eoff))->datum.i)
 
 #define MJOIN_PUSH_BLK_TO_CACHE(_cache, _blk)                                   \
   do {                                                                          \
@@ -391,6 +397,7 @@ SSDataBlock* mLeftJoinDo(struct SOperatorInfo* pOperator);
 SSDataBlock* mFullJoinDo(struct SOperatorInfo* pOperator);
 SSDataBlock* mSemiJoinDo(struct SOperatorInfo* pOperator);
 SSDataBlock* mAntiJoinDo(struct SOperatorInfo* pOperator);
+SSDataBlock* mWinJoinDo(struct SOperatorInfo* pOperator);
 bool mJoinRetrieveImpl(SMJoinOperatorInfo* pJoin, int32_t* pIdx, SSDataBlock** ppBlk, SMJoinTableCtx* pTb);
 void mJoinSetDone(SOperatorInfo* pOperator);
 bool mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen);

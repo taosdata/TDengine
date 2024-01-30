@@ -812,7 +812,7 @@ static void mJoinSetBuildAndProbeTable(SMJoinOperatorInfo* pInfo, SSortMergeJoin
 
 static int32_t mJoinInitCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode) {
   if ((JOIN_STYPE_ASOF == pJoin->subType && (ASOF_LOWER_ROW_INCLUDED(pJoinNode->asofOpType) || ASOF_GREATER_ROW_INCLUDED(pJoinNode->asofOpType))) 
-       || JOIN_STYPE_WIN == pJoin->subType) {
+       || (JOIN_STYPE_WIN == pJoin->subType && !WIN_ONLY_EQ_ROW_INCLUDED(((SWindowOffsetNode*)pJoinNode->pWindowOffset)->pStartOffset, ((SWindowOffsetNode*)pJoinNode->pWindowOffset)->pEndOffset))) {
     return mJoinInitWindowCtx(pJoin, pJoinNode);
   }
   

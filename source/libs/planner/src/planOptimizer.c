@@ -1181,6 +1181,10 @@ static int32_t pdcJoinAddWhereFilterColsToTarget(SOptimizeContext* pCxt, SJoinLo
 
 static int32_t pdcJoinCheckAllCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (NULL == pJoin->pFullOnCond) {
+    if (IS_WINDOW_JOIN(pJoin->subType)) {
+      return TSDB_CODE_SUCCESS;
+    }
+    
     if ((!IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType)) || NULL == pJoin->node.pConditions) {
       return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN);
     }
@@ -1225,7 +1229,7 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pFullOnCond) {
     code = pdcJoinSplitCond(pJoin, &pJoin->pFullOnCond, NULL, &pLeftChildCond, &pRightChildCond, false);
     if (TSDB_CODE_SUCCESS == code && NULL != pLeftChildCond) {
       code = pdcPushDownCondToChild(pCxt, (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0), &pLeftChildCond);
@@ -1235,7 +1239,7 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pFullOnCond) {
     code = pdcJoinSplitPrimEqCond(pCxt, pJoin);
   }
 

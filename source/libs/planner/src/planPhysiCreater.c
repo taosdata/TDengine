@@ -906,7 +906,7 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
     code = getJoinDataBlockDescNode(pChildren, 1, &pRightDesc);
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pPrimKeyEqCond) {
     code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pPrimKeyEqCond,
                   &pJoin->pPrimKeyCond);
     if (TSDB_CODE_SUCCESS == code) {

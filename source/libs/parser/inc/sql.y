@@ -1072,7 +1072,7 @@ parenthesized_joined_table(A) ::= NK_LP parenthesized_joined_table(B) NK_RP.    
 
 /************************************************ joined_table ********************************************************/
 joined_table(A) ::=
-  table_reference(B) join_type(C) join_subtype(D) JOIN table_reference(E) ON search_condition(F) 
+  table_reference(B) join_type(C) join_subtype(D) JOIN table_reference(E) join_on_clause_opt(F) 
   window_offset_clause_opt(G) jlimit_clause_opt(H).                               { 
                                                                                     A = createJoinTableNode(pCxt, C, D, B, E, F); 
                                                                                     A = addWindowOffsetClause(pCxt, A, G);
@@ -1095,6 +1095,9 @@ join_subtype(A) ::= SEMI.                                                       
 join_subtype(A) ::= ANTI.                                                         { A = JOIN_STYPE_ANTI; }
 join_subtype(A) ::= ASOF.                                                         { A = JOIN_STYPE_ASOF; }
 join_subtype(A) ::= WINDOW.                                                       { A = JOIN_STYPE_WIN; }
+
+join_on_clause_opt(A) ::= .                                                       { A = NULL; }
+join_on_clause_opt(A) ::= ON search_condition(B).                                 { A = B; }
 
 window_offset_clause_opt(A) ::= .                                                 { A = NULL; }
 window_offset_clause_opt(A) ::= WINDOW_OFFSET NK_LP window_offset_literal(B) 
