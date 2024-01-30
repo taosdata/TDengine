@@ -183,6 +183,7 @@ static int32_t mndDropOrphanTasks(SMnode* pMnode, SArray* pList) {
     return -1;
   }
 
+  mndTransDrop(pTrans);
   return 0;
 }
 
