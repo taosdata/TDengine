@@ -129,10 +129,10 @@ class TDTestCase:
         if not exceptOccured:
             tdLog.exit(f"has no privilege, should except")
 
-        checkUserPrivileges(1)
+        self.checkUserPrivileges(1)
         tdLog.debug("test subscribe topic privilege granted by other user")
         tdSql.execute(f'grant subscribe on {self.topic_name} to {self.user_name}')
-        checkUserPrivileges(2)
+        self.checkUserPrivileges(2)
 
         exceptOccured = False
         try:
@@ -159,7 +159,7 @@ class TDTestCase:
 
                 tdLog.debug("test subscribe topic privilege revoked by other user")
                 tdSql.execute(f'revoke subscribe on {self.topic_name} from {self.user_name}')
-                checkUserPrivileges(1)
+                self.checkUserPrivileges(1)
                 time.sleep(5)
 
         finally:
