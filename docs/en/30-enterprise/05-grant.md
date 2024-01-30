@@ -80,9 +80,7 @@ Query OK, 0 row(s) affected (0.001160s)
 You can grant permissions to normal users so that they can perform operations on databases that they do not own. The following SQL statement grants database permissions:
 
 ```sql
-GRANT SUBSCRIBE ON topic_name TO user_name
-
-REVOKE SUBSCRIBE ON topic_name FROM user_name 
+GRANT {ALL | READ | WRITE} ON database_name TO user_name;
 ```
 
 You can specify read and write permissions for a database separately or in a single statement.
@@ -109,7 +107,9 @@ All users can create topics in the databases that they own. The root user can cr
 The following SQL statement grants topic permissions:
 
 ```sql
-GRANT {ALL | SUBSCRIBE} ON topic_name TO user_name; 
+GRANT SUBSCRIBE ON topic_name TO user_name;
+
+REVOKE SUBSCRIBE ON topic_name FROM user_name;
 ```
 
 ### Tag-based Permissions
