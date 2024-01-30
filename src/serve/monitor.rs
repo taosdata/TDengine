@@ -6,6 +6,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::time::Duration;
+use taosx_core::utils::monitor::update_sub_connector_process_metrics;
 use taosx_metrics::TaosXRecorder;
 use taosx_metrics::TaosXRecorderHandle;
 use tracing::instrument;
@@ -135,12 +136,12 @@ pub fn process_metrics(
 ) -> anyhow::Result<()> {
     sys.refresh_all();
     let labels = [("stable", "taosx_sys"), ("taosx_id", taosx_id)];
-    // sys metrics
+    // system metrics
     gauge!("sys_cpu_cores", &labels).set(sys.cpus().len() as f64);
     gauge!("sys_total_memory", &labels).set(sys.total_memory() as f64);
     gauge!("sys_used_memory", &labels).set(sys.used_memory() as f64);
     gauge!("sys_available_memory", &labels).set(sys.available_memory() as f64);
-    // process metrics
+    // current process metrics
     gauge!("process_id", &labels).set(process_id.as_u32() as f64);
     if let Some(ps) = sys.process(process_id) {
         let cpu = ps.cpu_usage();
@@ -152,6 +153,8 @@ pub fn process_metrics(
         gauge!("process_disk_written_bytes", &labels).set(disk.written_bytes as f64);
         gauge!("process_uptime", &labels).set(ps.run_time() as f64);
     }
+    // connector process metrics
+    update_sub_connector_process_metrics(sys, taosx_id.to_string(), process_id);
     Ok(())
 }
 

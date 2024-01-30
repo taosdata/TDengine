@@ -17,6 +17,7 @@ use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::table::{ColumnConfig, TableConfig};
 use crate::runners::opc::config::OPCConfig;
 use crate::runners::opc::opc_type::OpcType;
+use crate::utils::monitor::send_sub_process_info;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
     Transferred,
@@ -178,6 +179,7 @@ pub async fn opc_to_taos(
         .stderr(std::process::Stdio::piped());
 
     let mut child = child.spawn()?;
+    send_sub_process_info(child.id(), task_id);
     const ERROR_BUF_SIZE: usize = 2;
     let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
     let error_buf_producer = error_buf.clone();

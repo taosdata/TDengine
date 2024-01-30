@@ -21,7 +21,7 @@ use twelf::{config, Layer};
 use taosx_core::{
     get_data_dir,
     runners::{get_logs_home_dir, get_plugins_home_dir},
-    utils::trace::TaosXLayer,
+    utils::{monitor::update_sub_connector_process_metrics, trace::TaosXLayer},
 };
 use taosx_core::{
     get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
@@ -393,7 +393,7 @@ pub fn process_metrics(
         ("taosx_id", taosx_id),
         ("agent_id", agent_id),
     ];
-    // sys metrics
+    // system metrics
     gauge!("sys_cpu_cores", &labels).set(sys.cpus().len() as f64);
     gauge!("sys_total_memory", &labels).set(sys.total_memory() as f64);
     gauge!("sys_used_memory", &labels).set(sys.used_memory() as f64);
@@ -410,8 +410,8 @@ pub fn process_metrics(
         gauge!("process_disk_written_bytes", &labels).set(disk.written_bytes as f64);
         gauge!("process_uptime", &labels).set(ps.run_time() as f64);
     }
-    // connecotor metrics
-
+    // connecotor process metrics
+    update_sub_connector_process_metrics(sys, taosx_id.to_string(), process_id);
     Ok(())
 }
 

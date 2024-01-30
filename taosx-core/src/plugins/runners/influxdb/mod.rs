@@ -14,6 +14,7 @@ use crate::dsv::DataSourceValidation;
 use crate::plugins::mask_dsn;
 use crate::runners::influxdb::config::{ConnectionConfig, InfluxdbConfig, INFLUXDB_V1};
 use crate::runners::log_rotation;
+use crate::utils::monitor::send_sub_process_info;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
 };
@@ -183,7 +184,7 @@ pub async fn influxdb_to_taos(
     let port_pool = port_pool.clone();
 
     let mut child = child.spawn().context("Start InfluxDB collector error")?;
-    let pid = child.id();
+    send_sub_process_info(child.id(), task_id);
     const ERROR_BUF_SIZE: usize = 2;
     let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
     let error_buf_producer = error_buf.clone();

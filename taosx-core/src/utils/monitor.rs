@@ -27,16 +27,25 @@ impl SubInfo {
     }
 }
 
-pub fn send_sub_process_info(sub_pid: u32, task_id: i64) {
-    let sub_info = SubInfo::new(sub_pid, task_id);
-    let sender = CHANNEL.0.clone();
-    if let Err(err) = sender.send(sub_info) {
-        tracing::error!("send sub process info error: {}", err);
+pub fn send_sub_process_info(sub_pid: Option<u32>, task_id: Option<i64>) {
+    if task_id.is_none() {
+        tracing::debug!("task id is None");
+        return;
+    }
+    let task_id = task_id.unwrap();
+    if let Some(sub_pid) = sub_pid {
+        let sub_info = SubInfo::new(sub_pid, task_id);
+        let sender = CHANNEL.0.clone();
+        if let Err(err) = sender.send(sub_info) {
+            tracing::error!("send sub process info error: {}", err);
+        }
+    } else {
+        tracing::error!("sub process id is None");
     }
 }
 
 pub fn update_sub_connector_process_metrics(
-    sys: sysinfo::System,
+    sys: &sysinfo::System,
     taosx_id: String,
     parent_process_id: sysinfo::Pid,
 ) {
@@ -70,9 +79,15 @@ pub fn update_sub_connector_process_metrics(
                         continue;
                     }
                 }
+                let stable_key = "stable".to_string();
+                let stable = "taosx_connector".to_string();
                 let taosx_id_key = "taosx_id".to_string();
                 let task_id_key = "task_id".to_string();
-                let labels = vec![(taosx_id_key, taosx_id.clone()), (task_id_key, task_id)];
+                let labels = vec![
+                    (stable_key, stable),
+                    (taosx_id_key, taosx_id.clone()),
+                    (task_id_key, task_id),
+                ];
                 let labels = labels.into_labels();
                 let cpu = sub_process.cpu_usage();
                 gauge!("process_cpu_percent", labels.clone()).set(cpu as f64);
