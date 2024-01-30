@@ -836,7 +836,7 @@ typedef struct {
   SGrantState  states[GRANT_STATE_NUM];
   SGrantActive actives[GRANT_ACTIVE_NUM];
   char*        active;
-  SArray*      pMachines;  // SGrantMachines
+  SArray*      pMachines;  // SGrantMachine
   SRWLatch     lock;
 } SGrantObj;
 

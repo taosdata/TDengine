@@ -36,11 +36,11 @@
   int32_t  mndGrantActionDelete(SSdb * pSdb, SGrantObj * pGrant);
   int32_t  mndGrantActionUpdate(SSdb * pSdb, SGrantObj * pOldGrant, SGrantObj * pNewGrant);
 
-  int32_t grantAlterActiveCode(SMnode *pMnode, SGrantObj *pObj, const char *oldActive, const char *newActive, char **mergeActive);
+  int32_t grantAlterActiveCode(SMnode * pMnode, SGrantObj * pObj, const char *oldActive, const char *newActive,
+                               char **mergeActive);
 
   int32_t mndProcessConfigGrantReq(SMnode * pMnode, SRpcMsg * pReq, SMCfgClusterReq * pCfg);
-  int32_t mndProcessUpdMachineReq(SMnode * pMnode, SRpcMsg * pReq, SArray * pMachines);
-  int32_t mndProcessUpdStateReq(SMnode * pMnode, SRpcMsg * pReq, SGrantState * pState);
+  int32_t mndProcessUpdGrantLog(SMnode * pMnode, SRpcMsg * pReq, SArray * pMachines, SGrantState * pState);
 
   int32_t    mndGrantGetLastState(SMnode * pMnode, SGrantState * pState);
   SGrantObj *mndAcquireGrant(SMnode * pMnode, void **ppIter);
