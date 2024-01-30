@@ -95,21 +95,21 @@ $env:TDENGINE_JDBC_URL='<jdbcURL>'
 
 1. 定义一个名为 MeterMapper 的接口，它使用 MyBatis 框架在 TDengine 数据库的超级表和 Java 对象之间进行映射。
 
-```
-{{#include docs/examples/java/spring/src/main/java/com/taos/example/dao/MeterMapper.java:mybatis}}
-```
+  ```java
+  {{#include docs/examples/java/spring/src/main/java/com/taos/example/dao/MeterMapper.java:mybatis}}
+  ```
 
 2. 在“src/main/resources/mapper”中创建 “MeterMapper.xml”，文件中添加以下 SQL 映射
 
-```
+```xml
 {{#include docs/examples/java/spring/src/main/resources/mapper/MeterMapper.xml}}
 ```
 
-3. 使用 Spring 进行更多查询和插入 TDengine Cloud 实例的示例代码，请参考：<https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring/>
+3. 使用 Spring 进行更多查询和插入 TDengine Cloud 实例的示例代码，请参考 [Spring Example](https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring/)
 
 </TabItem>
 </Tabs>
 
-客户端连接建立连接以后，想了解更多写入数据和查询数据的内容，请参考 <https://docs.taosdata.com/cloud/programming/insert/> and <https://docs.taosdata.com/cloud/programming/query/>.
+客户端连接建立连接以后，想了解更多写入数据和查询数据的内容，请参考 [Insert](https://docs.taosdata.com/cloud/programming/insert/) 和 [Query](https://docs.taosdata.com/cloud/programming/query/).
 
 想知道更多通过 REST 接口写入数据的详情，请参考[REST 接口](https://docs.taosdata.com/cloud/programming/connector/rest-api/).
