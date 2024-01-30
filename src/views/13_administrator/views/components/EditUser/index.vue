@@ -36,7 +36,7 @@
         class="database-item"
       >
         <ul>
-          <li v-for="(item, index) in this.databaseList" :key="index">
+          <li v-for="(item) in this.databaseList" :key="item">
             <label class="db-label">{{ item }}</label>
             <el-checkbox-group
               v-model="selectedDatabasePrivileges[item]"
@@ -56,7 +56,7 @@
         class="database-item"
       >
         <ul>
-          <li v-for="(item, index) in this.topicList" :key="index">
+          <li v-for="(item) in this.topicList" :key="item">
             <label class="db-label">{{ item }}</label>
             <el-checkbox-group
               v-model="selectedTopicPrivileges[item]"
@@ -111,7 +111,7 @@ export default {
   },
   watch: {
     status: {
-      async handler(val) {
+      handler(val) {
         if (val) {
           this.loading = true;
           this.ruleForm.user = this.user;
@@ -119,10 +119,7 @@ export default {
           this.selectedDatabasePrivileges = {};
           this.selectedTopicPrivileges = {};
           this.topicList = [];
-          await this.getDatabaseList();
-          await this.getTopicList();
-          await this.getUserPrivileges();
-          await this.getUserTopics();
+          this.fetchData()
         }
       },
       immediate: true,
@@ -181,113 +178,110 @@ export default {
   },
   methods: {
     changePri() {},
-    getDatabaseList() {
+    async fetchData() {
+      await this.getDatabaseList();
+      await this.getTopicList();
+      await this.getUserPrivileges();
+      await this.getUserTopics();
+    },
+    async getDatabaseList() {
       try {
-        sendSQLReq(`show databases;`)
-          .then((res) => {
-            let databaseList = res.data.map((data) => {
-              return Object.fromEntries(
-                res.column_meta.map((item, index) => {
-                  return [item[0], data[index]];
-                })
-              );
-            });
-            databaseList.forEach((item) => {
-              if (
-                ["performance_schema", "information_schema"].indexOf(
-                  item.name
-                ) < 0
-              ) {
-                this.databaseList.push(item.name);
-                this.$set(this.selectedDatabasePrivileges, item.name, []);
-              }
-            });
-          })
-          .catch((err) => {
-            this.$emit("close");
-            return Promise.reject(err);
-          });
+        let res = await sendSQLReq(`show databases;`)
+        let databaseList = res.data.map((data) => {
+          return Object.fromEntries(
+            res.column_meta.map((item, index) => {
+              return [item[0], data[index]];
+            })
+          );
+        });
+        databaseList.forEach((item) => {
+          if (
+            ["performance_schema", "information_schema"].indexOf(
+              item.name
+            ) < 0
+          ) {
+            this.databaseList.push(item.name);
+            this.$set(this.selectedDatabasePrivileges, item.name, []);
+          }
+        });
+        console.log('1getDatabaseList()');
       } catch (error) {
+        this.$emit("close")
         console.log(error);
       }
     },
-    getTopicList() {
+    async getTopicList() {
       try {
-        sendSQLReq(`show topics;`)
-          .then((res) => {
-            let topicList = res.data.map((data) => {
-              return Object.fromEntries(
-                res.column_meta.map((item, index) => {
-                  return [item[0], data[index]];
-                })
-              );
-            });
-            topicList.forEach((item) => {
-              this.topicList.push(item.topic_name);
-              this.$set(this.selectedTopicPrivileges, item.topic_name, []);
-            });
-          })
-          .catch((err) => {
-            this.$emit("close");
-            // err.desc && Message.error(err.desc);
-            return Promise.reject(err);
-          });
+        let res = await sendSQLReq(`show topics;`)
+        let topicList = res.data.map((data) => {
+          return Object.fromEntries(
+            res.column_meta.map((item, index) => {
+              return [item[0], data[index]];
+            })
+          );
+        });
+        topicList.forEach((item) => {
+          this.topicList.push(item.topic_name);
+          this.$set(this.selectedTopicPrivileges, item.topic_name, []);
+        });
+        console.log('2getTopicList()');
       } catch (error) {
         console.log(error);
+        this.$emit("close");
         // Message.error(error.desc);
       }
     },
-    getUserPrivileges() {
-      sendSQLReq(
-        `select * from information_schema.ins_user_privileges where user_name = '${this.ruleForm.user}' and privilege<>'subscribe';`
-      )
-        .then((res) => {
-          let selectedDatabasePrivileges = {};
-          res.data.map((data) => {
-            if (this.selectedDatabasePrivileges[data[2]] === undefined) {
-              let name = data[2];
-              let pri = data[1].slice(0, 1).toUpperCase() + data[1].slice(1);
-
-              this.$set(this.selectedDatabasePrivileges, name, [pri]);
-              this.$set(this.prevDatabasePrivileges, name, [pri]);
-            } else {
-              let name = data[2];
-              let pri = data[1].slice(0, 1).toUpperCase() + data[1].slice(1);
-              this.selectedDatabasePrivileges[name].push(pri);
-              this.$set(
-                this.selectedDatabasePrivileges,
-                data[2],
-                this.selectedDatabasePrivileges[name]
-              );
-              this.$set(
-                this.prevDatabasePrivileges,
-                data[2],
-                this.selectedDatabasePrivileges[name]
-              );
-            }
-          });
-        })
-        .catch((err) => {
-          this.$emit("close");
-          return Promise.reject(err);
+    async getUserPrivileges() {
+      try {
+        let res = await sendSQLReq(
+          `select * from information_schema.ins_user_privileges where user_name = '${this.ruleForm.user}' and privilege<>'subscribe';`
+        )
+        let selectedDatabasePrivileges = {};
+        res.data.map((data) => {
+          if (this.selectedDatabasePrivileges[data[2]] === undefined) {
+            let name = data[2];
+            let pri = data[1].slice(0, 1).toUpperCase() + data[1].slice(1);
+  
+            this.$set(this.selectedDatabasePrivileges, name, [pri]);
+            this.$set(this.prevDatabasePrivileges, name, [pri]);
+          } else {
+            let name = data[2];
+            let pri = data[1].slice(0, 1).toUpperCase() + data[1].slice(1);
+            this.selectedDatabasePrivileges[name].push(pri);
+            this.$set(
+              this.selectedDatabasePrivileges,
+              data[2],
+              this.selectedDatabasePrivileges[name]
+            );
+            this.$set(
+              this.prevDatabasePrivileges,
+              data[2],
+              this.selectedDatabasePrivileges[name]
+            );
+          }
         });
+        console.log('3getUserPrivileges()');
+      } catch (error) {
+        console.log(error);
+        this.$emit("close");
+      }
+        
     },
-    getUserTopics() {
-      sendSQLReq(
-        `select * from information_schema.ins_user_privileges where user_name = '${this.ruleForm.user}' and privilege = 'subscribe';`
-      )
-        .then((res) => {
-          this.loading = false
-          res.data.map((data) => {
-            this.$set(this.selectedTopicPrivileges, data[2], ["Subscribe"]);
-            this.prevTopicPrivileges = this.selectedTopicPrivileges;
-          });
-        })
-        .catch((err) => {
-          this.loading = false
-          this.$emit("close");
-          return Promise.reject(err);
+    async getUserTopics() {
+      try {
+        let res = await sendSQLReq(
+          `select * from information_schema.ins_user_privileges where user_name = '${this.ruleForm.user}' and privilege = 'subscribe';`
+        )
+        this.loading = false
+        res.data.map((data) => {
+          this.$set(this.selectedTopicPrivileges, data[2], ["Subscribe"]);
+          this.prevTopicPrivileges = this.selectedTopicPrivileges;
         });
+        console.log('4getUserTopics()');
+      } catch (error) {
+        console.log(error);
+        this.$emit("close");
+      } 
     },
     cancel() {
       this.$emit("close");
