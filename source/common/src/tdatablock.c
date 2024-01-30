@@ -224,7 +224,6 @@ static int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t cur
 
 int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, uint32_t numOfRows,
                          bool trimValue) {
-  if (currentRow >= numOfRows) return TSDB_CODE_SUCCESS;
   int32_t len = pColumnInfoData->info.bytes;
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     len = varDataTLen(pData);

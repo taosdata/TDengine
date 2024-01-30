@@ -499,6 +499,9 @@ static int64_t getNumOfElems(SqlFunctionCtx* pCtx) {
    */
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
+  if(1 == pInput->numOfRows && pInput->blankFill) {
+    return 0;
+  }
   if (pInput->colDataSMAIsSet && pInput->totalRows == pInput->numOfRows) {
     numOfElem = pInput->numOfRows - pInput->pColumnDataAgg[0]->numOfNull;
   } else {
@@ -2338,8 +2341,6 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if(pInput->totalRows == 0) return TSDB_CODE_SUCCESS;
-
   SColumnDataAgg* pColAgg = (pInput->colDataSMAIsSet) ? pInput->pColumnDataAgg[0] : NULL;
 
   TSKEY startKey = getRowPTs(pInput->pPTS, 0);
@@ -2649,7 +2650,7 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
   int32_t bytes = pInputCol->info.bytes;
   pInfo->bytes = bytes;
 
-  if (IS_NULL_TYPE(type) || 0 == pInput->totalRows) {
+  if (IS_NULL_TYPE(type)) {
     return TSDB_CODE_SUCCESS;
   }
 

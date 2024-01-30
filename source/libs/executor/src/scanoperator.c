@@ -684,9 +684,10 @@ void markGroupProcessed(STableScanInfo* pInfo, uint64_t groupId) {
 static SSDataBlock* getOneRowResultBlock(SExecTaskInfo* pTaskInfo, STableScanBase* pBase, SSDataBlock* pBlock,
                                          const STableKeyInfo* tbInfo) {
   blockDataEmpty(pBlock);
-  pBlock->info.rows = 0;
+  pBlock->info.rows = 1;
   pBlock->info.id.uid = tbInfo->uid;
   pBlock->info.id.groupId = tbInfo->groupId;
+  pBlock->info.blankFill = true;
 
   // only one row: set all col data to null & hasNull
   int32_t col_num = blockDataGetNumOfCols(pBlock);
