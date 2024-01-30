@@ -1,27 +1,27 @@
 sql connect
 sql use test0;
 
-sql_error select a.col1, b.col1 from sta a left asof join sta b on a.ts = b.ts and a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by a.col1, b.col1;
-sql select a.col1, b.col1 from sta a left asof join sta b on a.ts = b.ts order by a.col1, b.col1;
+sql_error select a.col1, b.col1 from sta a right asof join sta b on a.ts = b.ts and a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by a.col1, b.col1;
+sql select a.col1, b.col1 from sta a right asof join sta b on a.ts = b.ts order by a.col1, b.col1;
 if $rows != 8 then
   return -1
 endi
-sql select a.col1, b.col1 from sta a left asof join sta b on a.ts >= b.ts order by a.col1, b.col1;
+sql select a.col1, b.col1 from sta a right asof join sta b on a.ts >= b.ts order by a.col1, b.col1;
 if $rows != 8 then
   return -1
 endi
-sql select a.col1, b.col1 from sta a left asof join sta b on a.ts = b.ts where a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by a.col1, b.col1;
+sql select a.col1, b.col1 from sta a right asof join sta b on a.ts = b.ts where a.ts < '2023-11-17 16:29:02' and b.ts < '2023-11-17 16:29:01' order by b.col1;
 if $rows != 2 then
   return -1
 endi
-if $data00 != 1 then
+if $data01 != 1 then
   return -1
 endi
-if $data10 != 2 then
+if $data11 != 2 then
   return -1
 endi
 
-sql select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts = b.ts;
+sql select a.ts, b.ts from tba1 a right asof join tba2 b on a.ts = b.ts;
 if $rows != 4 then
   return -1
 endi
@@ -31,10 +31,10 @@ endi
 if $data01 != @23-11-17 16:29:00.000@ then
   return -1
 endi
-if $data10 != @23-11-17 16:29:02.000@ then
+if $data10 != NULL then
   return -1
 endi
-if $data11 != NULL then
+if $data11 != @23-11-17 16:29:01.000@ then
   return -1
 endi
 if $data20 != @23-11-17 16:29:03.000@ then
@@ -43,15 +43,15 @@ endi
 if $data21 != @23-11-17 16:29:03.000@ then
   return -1
 endi
-if $data30 != @23-11-17 16:29:04.000@ then
+if $data30 != NULL then
   return -1
 endi
-if $data31 != NULL then
+if $data31 != @23-11-17 16:29:05.000@ then
   return -1
 endi
 
 
-sql select a.ts, b.ts from tba1 a left asof join tba2 b on b.ts = a.ts;
+sql select a.ts, b.ts from tba1 a right asof join tba2 b on b.ts = a.ts;
 if $rows != 4 then
   return -1
 endi
@@ -61,10 +61,10 @@ endi
 if $data01 != @23-11-17 16:29:00.000@ then
   return -1
 endi
-if $data10 != @23-11-17 16:29:02.000@ then
+if $data10 != NULL then
   return -1
 endi
-if $data11 != NULL then
+if $data11 != @23-11-17 16:29:01.000@ then
   return -1
 endi
 if $data20 != @23-11-17 16:29:03.000@ then
@@ -73,14 +73,14 @@ endi
 if $data21 != @23-11-17 16:29:03.000@ then
   return -1
 endi
-if $data30 != @23-11-17 16:29:04.000@ then
+if $data30 != NULL then
   return -1
 endi
-if $data31 != NULL then
+if $data31 != @23-11-17 16:29:05.000@ then
   return -1
 endi
 
-sql select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts >= b.ts ;
+sql select a.ts, b.ts from tba1 a right asof join tba2 b on a.ts >= b.ts ;
 if $rows != 4 then
   return -1
 endi
@@ -102,14 +102,14 @@ endi
 if $data21 != @23-11-17 16:29:03.000@ then
   return -1
 endi
-if $data30 != @23-11-17 16:29:04.000@ then
+if $data30 != NULL then
   return -1
 endi
-if $data31 != @23-11-17 16:29:03.000@ then
+if $data31 != @23-11-17 16:29:05.000@ then
   return -1
 endi
 
-sql select a.ts, b.ts from tba1 a left asof join tba2 b on b.ts <= a.ts ;
+sql select a.ts, b.ts from tba1 a right asof join tba2 b on b.ts <= a.ts ;
 if $rows != 4 then
   return -1
 endi
@@ -131,21 +131,21 @@ endi
 if $data21 != @23-11-17 16:29:03.000@ then
   return -1
 endi
-if $data30 != @23-11-17 16:29:04.000@ then
+if $data30 != NULL then
   return -1
 endi
-if $data31 != @23-11-17 16:29:03.000@ then
+if $data31 != @23-11-17 16:29:05.000@ then
   return -1
 endi
 
-sql select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts > b.ts ;
+sql select a.ts, b.ts from tba1 a right asof join tba2 b on a.ts > b.ts ;
 if $rows != 4 then
   return -1
 endi
-if $data00 != @23-11-17 16:29:00.000@ then
+if $data00 != @23-11-17 16:29:02.000@ then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != @23-11-17 16:29:00.000@ then
   return -1
 endi
 if $data10 != @23-11-17 16:29:02.000@ then
@@ -154,27 +154,27 @@ endi
 if $data11 != @23-11-17 16:29:01.000@ then
   return -1
 endi
-if $data20 != @23-11-17 16:29:03.000@ then
+if $data20 != @23-11-17 16:29:04.000@ then
   return -1
 endi
-if $data21 != @23-11-17 16:29:01.000@ then
+if $data21 != @23-11-17 16:29:03.000@ then
   return -1
 endi
-if $data30 != @23-11-17 16:29:04.000@ then
+if $data30 != NULL then
   return -1
 endi
-if $data31 != @23-11-17 16:29:03.000@ then
+if $data31 != @23-11-17 16:29:05.000@ then
   return -1
 endi
 
-sql select a.ts, b.ts from tba1 a left asof join tba2 b on b.ts < a.ts ;
+sql select a.ts, b.ts from tba1 a right asof join tba2 b on b.ts < a.ts ;
 if $rows != 4 then
   return -1
 endi
-if $data00 != @23-11-17 16:29:00.000@ then
+if $data00 != @23-11-17 16:29:02.000@ then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != @23-11-17 16:29:00.000@ then
   return -1
 endi
 if $data10 != @23-11-17 16:29:02.000@ then
@@ -183,20 +183,20 @@ endi
 if $data11 != @23-11-17 16:29:01.000@ then
   return -1
 endi
-if $data20 != @23-11-17 16:29:03.000@ then
+if $data20 != @23-11-17 16:29:04.000@ then
   return -1
 endi
-if $data21 != @23-11-17 16:29:01.000@ then
+if $data21 != @23-11-17 16:29:03.000@ then
   return -1
 endi
-if $data30 != @23-11-17 16:29:04.000@ then
+if $data30 != NULL then
   return -1
 endi
-if $data31 != @23-11-17 16:29:03.000@ then
+if $data31 != @23-11-17 16:29:05.000@ then
   return -1
 endi
 
-sql select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts <= b.ts ;
+sql select a.ts, b.ts from tba1 a right asof join tba2 b on a.ts <= b.ts ;
 if $rows != 4 then
   return -1
 endi
@@ -206,10 +206,10 @@ endi
 if $data01 != @23-11-17 16:29:00.000@ then
   return -1
 endi
-if $data10 != @23-11-17 16:29:02.000@ then
+if $data10 != @23-11-17 16:29:00.000@ then
   return -1
 endi
-if $data11 != @23-11-17 16:29:03.000@ then
+if $data11 != @23-11-17 16:29:01.000@ then
   return -1
 endi
 if $data20 != @23-11-17 16:29:03.000@ then
@@ -225,7 +225,7 @@ if $data31 != @23-11-17 16:29:05.000@ then
   return -1
 endi
 
-sql select a.ts, b.ts from tba1 a left asof join tba2 b on b.ts >= a.ts ;
+sql select a.ts, b.ts from tba1 a right asof join tba2 b on b.ts >= a.ts ;
 if $rows != 4 then
   return -1
 endi
@@ -235,10 +235,10 @@ endi
 if $data01 != @23-11-17 16:29:00.000@ then
   return -1
 endi
-if $data10 != @23-11-17 16:29:02.000@ then
+if $data10 != @23-11-17 16:29:00.000@ then
   return -1
 endi
-if $data11 != @23-11-17 16:29:03.000@ then
+if $data11 != @23-11-17 16:29:01.000@ then
   return -1
 endi
 if $data20 != @23-11-17 16:29:03.000@ then
@@ -255,26 +255,26 @@ if $data31 != @23-11-17 16:29:05.000@ then
 endi
 
 
-sql select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts < b.ts ;
+sql select a.ts, b.ts from tba1 a right asof join tba2 b on a.ts < b.ts ;
 if $rows != 4 then
   return -1
 endi
-if $data00 != @23-11-17 16:29:00.000@ then
+if $data00 != NULL then
   return -1
 endi
-if $data01 != @23-11-17 16:29:01.000@ then
+if $data01 != @23-11-17 16:29:00.000@ then
   return -1
 endi
-if $data10 != @23-11-17 16:29:02.000@ then
+if $data10 != @23-11-17 16:29:00.000@ then
   return -1
 endi
-if $data11 != @23-11-17 16:29:03.000@ then
+if $data11 != @23-11-17 16:29:01.000@ then
   return -1
 endi
-if $data20 != @23-11-17 16:29:03.000@ then
+if $data20 != @23-11-17 16:29:02.000@ then
   return -1
 endi
-if $data21 != @23-11-17 16:29:05.000@ then
+if $data21 != @23-11-17 16:29:03.000@ then
   return -1
 endi
 if $data30 != @23-11-17 16:29:04.000@ then
@@ -285,26 +285,26 @@ if $data31 != @23-11-17 16:29:05.000@ then
 endi
 
 
-sql select a.ts, b.ts from tba1 a left asof join tba2 b on b.ts > a.ts ;
+sql select a.ts, b.ts from tba1 a right asof join tba2 b on b.ts > a.ts ;
 if $rows != 4 then
   return -1
 endi
-if $data00 != @23-11-17 16:29:00.000@ then
+if $data00 != NULL then
   return -1
 endi
-if $data01 != @23-11-17 16:29:01.000@ then
+if $data01 != @23-11-17 16:29:00.000@ then
   return -1
 endi
-if $data10 != @23-11-17 16:29:02.000@ then
+if $data10 != @23-11-17 16:29:00.000@ then
   return -1
 endi
-if $data11 != @23-11-17 16:29:03.000@ then
+if $data11 != @23-11-17 16:29:01.000@ then
   return -1
 endi
-if $data20 != @23-11-17 16:29:03.000@ then
+if $data20 != @23-11-17 16:29:02.000@ then
   return -1
 endi
-if $data21 != @23-11-17 16:29:05.000@ then
+if $data21 != @23-11-17 16:29:03.000@ then
   return -1
 endi
 if $data30 != @23-11-17 16:29:04.000@ then
@@ -314,7 +314,7 @@ if $data31 != @23-11-17 16:29:05.000@ then
   return -1
 endi
 
-sql select a.ts, b.ts from tba2 a left asof join tba1 b on a.ts >= b.ts;
+sql select a.ts, b.ts from tba2 a right asof join tba1 b on a.ts >= b.ts;
 if $rows != 4 then
   return -1
 endi
@@ -324,10 +324,10 @@ endi
 if $data01 != @23-11-17 16:29:00.000@ then
   return -1
 endi
-if $data10 != @23-11-17 16:29:01.000@ then
+if $data10 != @23-11-17 16:29:03.000@ then
   return -1
 endi
-if $data11 != @23-11-17 16:29:00.000@ then
+if $data11 != @23-11-17 16:29:02.000@ then
   return -1
 endi
 if $data20 != @23-11-17 16:29:03.000@ then
@@ -343,26 +343,26 @@ if $data31 != @23-11-17 16:29:04.000@ then
   return -1
 endi
 
-sql select a.ts, b.ts from tba2 a left asof join tba1 b on a.ts > b.ts;
+sql select a.ts, b.ts from tba2 a right asof join tba1 b on a.ts > b.ts;
 if $rows != 4 then
   return -1
 endi
-if $data00 != @23-11-17 16:29:00.000@ then
+if $data00 != @23-11-17 16:29:01.000@ then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != @23-11-17 16:29:00.000@ then
   return -1
 endi
-if $data10 != @23-11-17 16:29:01.000@ then
+if $data10 != @23-11-17 16:29:03.000@ then
   return -1
 endi
-if $data11 != @23-11-17 16:29:00.000@ then
+if $data11 != @23-11-17 16:29:02.000@ then
   return -1
 endi
-if $data20 != @23-11-17 16:29:03.000@ then
+if $data20 != @23-11-17 16:29:05.000@ then
   return -1
 endi
-if $data21 != @23-11-17 16:29:02.000@ then
+if $data21 != @23-11-17 16:29:03.000@ then
   return -1
 endi
 if $data30 != @23-11-17 16:29:05.000@ then
@@ -372,7 +372,7 @@ if $data31 != @23-11-17 16:29:04.000@ then
   return -1
 endi
 
-sql select a.ts, b.ts from tba2 a left asof join tba1 b on a.ts <= b.ts;
+sql select a.ts, b.ts from tba2 a right asof join tba1 b on a.ts <= b.ts;
 if $rows != 4 then
   return -1
 endi
@@ -394,21 +394,21 @@ endi
 if $data21 != @23-11-17 16:29:03.000@ then
   return -1
 endi
-if $data30 != @23-11-17 16:29:05.000@ then
+if $data30 != @23-11-17 16:29:03.000@ then
   return -1
 endi
-if $data31 != NULL then
+if $data31 != @23-11-17 16:29:04.000@ then
   return -1
 endi
 
-sql select a.ts, b.ts from tba2 a left asof join tba1 b on a.ts < b.ts;
+sql select a.ts, b.ts from tba2 a right asof join tba1 b on a.ts < b.ts;
 if $rows != 4 then
   return -1
 endi
-if $data00 != @23-11-17 16:29:00.000@ then
+if $data00 != NULL then
   return -1
 endi
-if $data01 != @23-11-17 16:29:02.000@ then
+if $data01 != @23-11-17 16:29:00.000@ then
   return -1
 endi
 if $data10 != @23-11-17 16:29:01.000@ then
@@ -417,30 +417,30 @@ endi
 if $data11 != @23-11-17 16:29:02.000@ then
   return -1
 endi
-if $data20 != @23-11-17 16:29:03.000@ then
+if $data20 != @23-11-17 16:29:01.000@ then
   return -1
 endi
-if $data21 != @23-11-17 16:29:04.000@ then
+if $data21 != @23-11-17 16:29:03.000@ then
   return -1
 endi
-if $data30 != @23-11-17 16:29:05.000@ then
+if $data30 != @23-11-17 16:29:03.000@ then
   return -1
 endi
-if $data31 != NULL then
+if $data31 != @23-11-17 16:29:04.000@ then
   return -1
 endi
 
-sql select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts > b.ts jlimit 2
-if $rows != 7 then
+sql select a.ts, b.ts from tba1 a right asof join tba2 b on a.ts > b.ts jlimit 2
+if $rows != 6 then
   return -1
 endi
-if $data00 != @23-11-17 16:29:00.000@ then
+if $data00 != @23-11-17 16:29:02.000@ then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != @23-11-17 16:29:00.000@ then
   return -1
 endi
-if $data10 != @23-11-17 16:29:02.000@ then
+if $data10 != @23-11-17 16:29:03.000@ then
   return -1
 endi
 if $data11 != @23-11-17 16:29:00.000@ then
@@ -455,25 +455,19 @@ endi
 if $data30 != @23-11-17 16:29:03.000@ then
   return -1
 endi
-if $data31 != @23-11-17 16:29:00.000@ then
+if $data31 != @23-11-17 16:29:01.000@ then
   return -1
 endi
-if $data40 != @23-11-17 16:29:03.000@ then
+if $data40 != @23-11-17 16:29:04.000@ then
   return -1
 endi
-if $data41 != @23-11-17 16:29:01.000@ then
+if $data41 != @23-11-17 16:29:03.000@ then
   return -1
 endi
-if $data50 != @23-11-17 16:29:04.000@ then
+if $data50 != NULL then
   return -1
 endi
-if $data51 != @23-11-17 16:29:01.000@ then
-  return -1
-endi
-if $data60 != @23-11-17 16:29:04.000@ then
-  return -1
-endi
-if $data61 != @23-11-17 16:29:03.000@ then
+if $data51 != @23-11-17 16:29:05.000@ then
   return -1
 endi
 

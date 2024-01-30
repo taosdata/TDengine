@@ -66,7 +66,7 @@ enum {
 };
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP       5000
+#define JT_MAX_LOOP       50000
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
