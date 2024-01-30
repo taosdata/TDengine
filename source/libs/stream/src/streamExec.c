@@ -400,11 +400,8 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   streamTaskReleaseState(pTask);
   streamTaskReloadState(pStreamTask);
 
-  // 3. scan wal file from the beginning till the end version of fill-history task.
-  streamTaskSupplementaryScan(pStreamTask);
-
   // 3. send msg to mnode to launch a checkpoint to keep the state for current stream
-//  streamTaskSendCheckpointReq(pStreamTask);
+  streamTaskSendCheckpointReq(pStreamTask);
 
   // 4. assign the status to the value that will be kept in disk
   pStreamTask->status.taskStatus = streamTaskGetStatus(pStreamTask)->state;
