@@ -519,7 +519,7 @@ class TDDnode:
             toBeKilled = "valgrind.bin"
 
         if self.running != 0:
-            psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs" % toBeKilled
+            psCmd = "ps -ef|grep -w %s| grep -v grep |grep -v defunct  | awk '{print $2}' | xargs" % toBeKilled
             processID = subprocess.check_output(
                 psCmd, shell=True).decode("utf-8").strip()
 
@@ -567,7 +567,7 @@ class TDDnode:
             if platform.system().lower() == 'windows':
                 psCmd = "for /f %%a in ('wmic process where \"name='taosd.exe' and CommandLine like '%%dnode%d%%'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)" % (self.index)
             else:
-                psCmd = "ps -ef|grep -w %s| grep dnode%d|grep -v grep | awk '{print $2}' | xargs" % (toBeKilled,self.index)
+                psCmd = "ps -ef|grep -w %s| grep dnode%d|grep -v grep |grep -v defunct | awk '{print $2}' | xargs" % (toBeKilled,self.index)
             processID = subprocess.check_output(
                 psCmd, shell=True).decode("utf-8").strip()
 
@@ -605,7 +605,7 @@ class TDDnode:
             toBeKilled = "valgrind.bin"
 
         if self.running != 0:
-            psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs" % toBeKilled
+            psCmd = "ps -ef|grep -w %s| grep -v grep |grep -v defunct  | awk '{print $2}' | xargs" % toBeKilled
             processID = subprocess.check_output(
                 psCmd, shell=True).decode("utf-8").strip()
 
@@ -782,10 +782,10 @@ class TDDnodes:
             psCmd = ("wmic process where name=\"%s.exe\" | findstr \"%s.exe\"" % (processerName, processerName))
         else:
             killCmd = (
-                "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
+                "ps -ef|grep -w %s| grep -v grep |grep -v defunct  | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
                 % processerName
             )
-            psCmd = ("ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % processerName)
+            psCmd = ("ps -ef|grep -w %s| grep -v grep |grep -v defunct  | awk '{print $2}'" % processerName)
 
         processID = ""
         
@@ -855,7 +855,7 @@ class TDDnodes:
                 processID = subprocess.check_output(
                     psCmd, shell=True).decode("utf-8").strip()
         if self.killValgrind == 1:
-            psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}' | xargs"
+            psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep |grep -v defunct  | awk '{print $2}' | xargs"
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             while(processID):
                 if platform.system().lower() == 'windows':

@@ -3,6 +3,7 @@ from util.log import *
 from util.sql import *
 from util.cases import *
 from util.sqlset import *
+from util.common import *
 from util.assertion import Assert
 from util.taosc import *
 from util.command import *
