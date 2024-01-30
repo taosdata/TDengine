@@ -123,15 +123,23 @@ export default {
           this.itemData.key,
           this.ruleForm.filter_name
         );
-        this.tableData = result[0].columns.map((data) => {
-          return Object.fromEntries(
-            result[0].fields.map((item, index) => {
-              return [
-                item.name,data[index] ? data[index].toString() : null
-              ];
-            })
-          );
-        });
+        result[0].columns?.length > 0 
+        ? this.tableData = result[0].columns.map((data) => {
+            return Object.fromEntries(
+              result[0].fields.map((item, index) => {
+                return [
+                  item.name,data[index] ? data[index].toString() : null
+                ];
+              })
+            );
+          })
+        : this.tableData = [].concat(
+            Object.fromEntries(
+              this.tableColumns.map((data) => {
+                return [[data], null]
+              })
+            )
+          )
         this.$store.commit('app/SET_RESULTTB_SHOW',true)
         this.$store.commit("app/SET_TRANS_RESULT_TABLE", this.tableData);
         let transformerColumns = [
