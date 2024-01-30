@@ -429,4 +429,6 @@ class VnodeRedistribute(TDCase):
         self.tdSql.execute(f'delete from {self.dbname}.{self.stbname} where ts >= "{self.disorder_start_timestamp}" and ts < "{self.fill_history_start_timestamp}"')
         self.tdSql.query(f'select count(*) from {self.dbname}.{self.stbname} where ts >= "{self.fill_history_start_timestamp}"')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.childtable_count*(self.insert_rows+self.fill_history_rows))
+        taosd_logfile_list = self.tdCom.get_pattern_logfile_list(self.taosd_setting["spec"]["dnodes"][0]["config"]["logDir"], "taosdlog")
+        self.tdSql.checkEqual(self.tdCom.find_log_pat(taosd_logfile_list, "not found in mnode task list"), False)
         # self.tdCom.check_query_data(f"select count(c0) from {self.dbname}.{self.stbname} where c0 % 7 >= 0", f'select count(*) from {self.dbname}.{self.stream_stbname}')

@@ -556,4 +556,6 @@ class CompactTest(TDCase):
 
             self._remote._logger.info(f"------------ mem usage before compact: {self.mem_usage_before_compact}Mb ------------")
             self._remote._logger.info(f"------------ mem usage after compact: {self.mem_usage_after_compact}Mb ------------")
+        taosd_logfile_list = self.tdCom.get_pattern_logfile_list(self.taosd_setting["spec"]["dnodes"][0]["config"]["logDir"], "taosdlog")
+        self.tdSql.checkEqual(self.tdCom.find_log_pat(taosd_logfile_list, "not found in mnode task list"), False)
         
