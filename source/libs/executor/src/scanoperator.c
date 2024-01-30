@@ -663,6 +663,8 @@ static void initNextGroupScan(STableScanInfo* pInfo, STableKeyInfo** pKeyInfo, i
 
   pInfo->tableEndIndex = (pInfo->tableStartIndex + (*size) - 1);
 
+  pInfo->pResBlock->info.blankFill = false;
+
   if (!pInfo->needCountEmptyTable) {
     pInfo->countState = TABLE_COUNT_STATE_END;
   } else {
