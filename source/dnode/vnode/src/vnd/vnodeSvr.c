@@ -183,6 +183,11 @@ static int32_t vnodePreProcessDropTtlMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     ttlReq.pTbUids = tbUids;
   }
 
+  if (ttlReq.nUids == 0) {
+    code = TSDB_CODE_MSG_PREPROCESSED;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
   {  // prepare new content
     int32_t reqLenNew = tSerializeSVDropTtlTableReq(NULL, 0, &ttlReq);
     int32_t contLenNew = reqLenNew + sizeof(SMsgHead);
@@ -207,7 +212,7 @@ static int32_t vnodePreProcessDropTtlMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 _exit:
   taosArrayDestroy(tbUids);
 
-  if (code) {
+  if (code && code != TSDB_CODE_MSG_PREPROCESSED) {
     vError("vgId:%d, %s:%d failed to preprocess drop ttl request since %s, msg type:%s", TD_VID(pVnode), __func__, lino,
            tstrerror(code), TMSG_INFO(pMsg->msgType));
   } else {
@@ -464,7 +469,7 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       break;
   }
 
-  if (code) {
+  if (code && code != TSDB_CODE_MSG_PREPROCESSED) {
     vError("vgId:%d, failed to preprocess write request since %s, msg type:%s", TD_VID(pVnode), tstrerror(code),
            TMSG_INFO(pMsg->msgType));
   }

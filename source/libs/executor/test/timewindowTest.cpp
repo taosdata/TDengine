@@ -19,6 +19,7 @@
 #include "thash.h"
 #include "tsimplehash.h"
 #include "executor.h"
+#include "executorInt.h"
 #include "ttime.h"
 
 #pragma GCC diagnostic push
@@ -185,5 +186,21 @@ TEST(testCase, timewindow_natural) {
 
   ASSERT_EQ(w3.skey, w4.skey);
   ASSERT_EQ(w3.ekey, w4.ekey);  
+}
+
+
+TEST(testCase, timewindow_active) {
+  osSetTimezone("CST");
+  int32_t precision = TSDB_TIME_PRECISION_MILLI;
+  int64_t offset = (int64_t)2*365*24*60*60*1000;
+  SInterval interval = createInterval(10, 10, offset, 'y', 'y', 0, precision);
+  SResultRowInfo dumyInfo = {0};
+  dumyInfo.cur.pageId = -1;
+  int64_t key = (int64_t)1609430400*1000; // 2021-01-01
+  STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, key, &interval, TSDB_ORDER_ASC);
+  printTimeWindow(&win, precision, key);
+  printf("%ld win %ld, %ld\n", key, win.skey, win.ekey);
+  ASSERT_EQ(win.skey, 1325376000000);
+  ASSERT_EQ(win.ekey, 1640908799999);
 }
 #pragma GCC diagnostic pop

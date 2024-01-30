@@ -91,8 +91,7 @@ class TDTestCase(TBase):
         # -C
         etool.exeBinFile("taosd", "-C")
         # -k 
-        rets = etool.runBinFile("taosd", "-C")
-        self.checkListNotEmpty(rets)
+        etool.exeBinFile("taosd", "-k", False)
         # -V
         rets = etool.runBinFile("taosd", "-V")
         self.checkListNotEmpty(rets)
@@ -119,6 +118,8 @@ class TDTestCase(TBase):
         # stop taosd test taos as server
         sc.dnodeStop(idx)
         etool.exeBinFile("taos", f'-n server', wait=False)
+        time.sleep(3)
+        eos.exe("pkill -9 taos")
 
     # run
     def run(self):

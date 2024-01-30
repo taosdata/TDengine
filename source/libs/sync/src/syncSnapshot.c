@@ -345,9 +345,9 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
 
   for (int32_t seq = pSndBuf->cursor + 1; seq < pSndBuf->end; ++seq) {
     SyncSnapBlock *pBlk = pSndBuf->entries[seq % pSndBuf->size];
-    ASSERT(pBlk && !pBlk->acked);
+    ASSERT(pBlk);
     int64_t nowMs = taosGetTimestampMs();
-    if (nowMs < pBlk->sendTimeMs + SYNC_SNAP_RESEND_MS) {
+    if (pBlk->acked || nowMs < pBlk->sendTimeMs + SYNC_SNAP_RESEND_MS) {
       continue;
     }
     if (syncSnapSendMsg(pSender, pBlk->seq, pBlk->pBlock, pBlk->blockLen, 0) != 0) {

@@ -952,7 +952,7 @@ static int32_t translateLeastSQR(SFunctionNode* pFunc, char* pErrBuf, int32_t le
     }
   }
 
-  pFunc->node.resType = (SDataType){.bytes = 64, .type = TSDB_DATA_TYPE_BINARY};
+  pFunc->node.resType = (SDataType){.bytes = LEASTSQUARES_BUFF_LENGTH, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1305,10 +1305,13 @@ static bool validateStateOper(const SValueNode* pVal) {
   if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
     return false;
   }
-  return (
-      0 == strncasecmp(varDataVal(pVal->datum.p), "GT", 2) || 0 == strncasecmp(varDataVal(pVal->datum.p), "GE", 2) ||
-      0 == strncasecmp(varDataVal(pVal->datum.p), "LT", 2) || 0 == strncasecmp(varDataVal(pVal->datum.p), "LE", 2) ||
-      0 == strncasecmp(varDataVal(pVal->datum.p), "EQ", 2) || 0 == strncasecmp(varDataVal(pVal->datum.p), "NE", 2));
+  if (strlen(varDataVal(pVal->datum.p)) == 2) {
+    return (
+        0 == strncasecmp(varDataVal(pVal->datum.p), "GT", 2) || 0 == strncasecmp(varDataVal(pVal->datum.p), "GE", 2) ||
+        0 == strncasecmp(varDataVal(pVal->datum.p), "LT", 2) || 0 == strncasecmp(varDataVal(pVal->datum.p), "LE", 2) ||
+        0 == strncasecmp(varDataVal(pVal->datum.p), "EQ", 2) || 0 == strncasecmp(varDataVal(pVal->datum.p), "NE", 2));
+  }
+  return false;
 }
 
 static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -3737,7 +3740,11 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateTbUidColumn,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
+#ifdef BUILD_NO_CALL
     .sprocessFunc = qTbUidFunction,
+#else
+    .sprocessFunc = NULL,
+#endif
     .finalizeFunc = NULL
   },
   {
@@ -3747,7 +3754,11 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateVgIdColumn,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
+#ifdef BUILD_NO_CALL
     .sprocessFunc = qVgIdFunction,
+#else
+    .sprocessFunc = NULL,
+#endif
     .finalizeFunc = NULL
   },
   {

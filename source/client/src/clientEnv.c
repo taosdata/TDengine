@@ -283,6 +283,7 @@ void *createTscObj(const char *user, const char *auth, const char *db, int32_t c
 
   pObj->connType = connType;
   pObj->pAppInfo = pAppInfo;
+  pObj->appHbMgrIdx = pAppInfo->pAppHbMgr->idx;
   tstrncpy(pObj->user, user, sizeof(pObj->user));
   memcpy(pObj->pass, auth, TSDB_PASSWORD_LEN);
 

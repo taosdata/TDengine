@@ -795,7 +795,7 @@ class TDCom:
     def getOneRow(self, location, containElm):
         res_list = list()
         if 0 <= location < tdSql.queryRows:
-            for row in tdSql.queryResult:
+            for row in tdSql.res:
                 if row[location] == containElm:
                     res_list.append(row)
             return res_list
@@ -943,7 +943,7 @@ class TDCom:
         """drop all streams
         """
         tdSql.query("show streams")
-        stream_name_list = list(map(lambda x: x[0], tdSql.queryResult))
+        stream_name_list = list(map(lambda x: x[0], tdSql.res))
         for stream_name in stream_name_list:
             tdSql.execute(f'drop stream if exists {stream_name};')
 
@@ -962,7 +962,7 @@ class TDCom:
         """drop all databases
         """
         tdSql.query("show databases;")
-        db_list = list(map(lambda x: x[0], tdSql.queryResult))
+        db_list = list(map(lambda x: x[0], tdSql.res))
         for dbname in db_list:
             if dbname not in self.white_list and "telegraf" not in dbname:
                 tdSql.execute(f'drop database if exists `{dbname}`')
@@ -1412,7 +1412,7 @@ class TDCom:
             input_function (str): scalar
         """
         tdSql.query(sql)
-        res = tdSql.queryResult
+        res = tdSql.res
         if input_function in ["acos", "asin", "atan", "cos", "log", "pow", "sin", "sqrt", "tan"]:
             tdSql.checkEqual(res[1][1], "DOUBLE")
             tdSql.checkEqual(res[2][1], "DOUBLE")
@@ -1490,7 +1490,7 @@ class TDCom:
             bigint: bigint-ts
         """
         tdSql.query(f'select cast({str_ts} as bigint)')
-        return tdSql.queryResult[0][0]
+        return tdSql.res[0][0]
 
     def cast_query_data(self, query_data):
         """cast query-result for existed-stb
@@ -1514,7 +1514,7 @@ class TDCom:
                         tdSql.query(f'select cast("{v}" as binary(6))')
                     else:
                         tdSql.query(f'select cast("{v}" as {" ".join(col_tag_type_list[i].strip().split(" ")[1:])})')
-                    query_data_l[i] = tdSql.queryResult[0][0]
+                    query_data_l[i] = tdSql.res[0][0]
                 else:
                     query_data_l[i] = v
             nl.append(tuple(query_data_l))
@@ -1566,9 +1566,9 @@ class TDCom:
         if tag_value_list:
             dvalue = len(self.tag_type_str.split(',')) - defined_tag_count
         tdSql.query(sql1)
-        res1 = tdSql.queryResult
+        res1 = tdSql.res
         tdSql.query(sql2)
-        res2 = self.cast_query_data(tdSql.queryResult) if tag_value_list or use_exist_stb else tdSql.queryResult
+        res2 = self.cast_query_data(tdSql.res) if tag_value_list or use_exist_stb else tdSql.res
         tdSql.sql = sql1
         new_list = list()
         if tag_value_list:
@@ -1601,10 +1601,10 @@ class TDCom:
                 tdLog.info("query retrying ...")
                 new_list = list()
                 tdSql.query(sql1)
-                res1 = tdSql.queryResult
+                res1 = tdSql.res
                 tdSql.query(sql2)
-                # res2 = tdSql.queryResult
-                res2 = self.cast_query_data(tdSql.queryResult) if tag_value_list or use_exist_stb else tdSql.queryResult
+                # res2 = tdSql.res
+                res2 = self.cast_query_data(tdSql.res) if tag_value_list or use_exist_stb else tdSql.res
                 tdSql.sql = sql1
 
                 if tag_value_list:
@@ -1643,10 +1643,10 @@ class TDCom:
                 tdLog.info("query retrying ...")
                 new_list = list()
                 tdSql.query(sql1)
-                res1 = tdSql.queryResult
+                res1 = tdSql.res
                 tdSql.query(sql2)
-                # res2 = tdSql.queryResult
-                res2 = self.cast_query_data(tdSql.queryResult) if tag_value_list or use_exist_stb else tdSql.queryResult
+                # res2 = tdSql.res
+                res2 = self.cast_query_data(tdSql.res) if tag_value_list or use_exist_stb else tdSql.res
                 tdSql.sql = sql1
 
                 if tag_value_list:

@@ -644,6 +644,11 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   int32_t     sqlLen = 0;
   terrno = TSDB_CODE_SUCCESS;
 
+  if(grantCheck(TSDB_GRANT_STREAMS) < 0){
+    terrno = TSDB_CODE_GRANT_STREAM_LIMITED;
+    return -1;
+  }
+
   SCMCreateStreamReq createStreamReq = {0};
   if (tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, &createStreamReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -1624,21 +1629,26 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
 
-  SMResumeStreamReq pauseReq = {0};
-  if (tDeserializeSMResumeStreamReq(pReq->pCont, pReq->contLen, &pauseReq) < 0) {
+  if(grantCheck(TSDB_GRANT_STREAMS) < 0){
+    terrno = TSDB_CODE_GRANT_EXPIRED;
+    return -1;
+  }
+
+  SMResumeStreamReq resumeReq = {0};
+  if (tDeserializeSMResumeStreamReq(pReq->pCont, pReq->contLen, &resumeReq) < 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
-  pStream = mndAcquireStream(pMnode, pauseReq.name);
+  pStream = mndAcquireStream(pMnode, resumeReq.name);
 
   if (pStream == NULL) {
-    if (pauseReq.igNotExists) {
-      mInfo("stream:%s not exist, not resume stream", pauseReq.name);
+    if (resumeReq.igNotExists) {
+      mInfo("stream:%s not exist, not resume stream", resumeReq.name);
       sdbRelease(pMnode->pSdb, pStream);
       return 0;
     } else {
-      mError("stream:%s not exist, failed to resume stream", pauseReq.name);
+      mError("stream:%s not exist, failed to resume stream", resumeReq.name);
       terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
       return -1;
     }
@@ -1663,7 +1673,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
 
   STrans* pTrans = doCreateTrans(pMnode, pStream, pReq, MND_STREAM_RESUME_NAME, "resume the stream");
   if (pTrans == NULL) {
-    mError("stream:%s, failed to resume stream since %s", pauseReq.name, terrstr());
+    mError("stream:%s, failed to resume stream since %s", resumeReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     return -1;
   }
@@ -1671,8 +1681,8 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   int32_t code = mndStreamRegisterTrans(pTrans, MND_STREAM_RESUME_NAME, pStream->uid);
 
   // set the resume action
-  if (mndStreamSetResumeAction(pTrans, pMnode, pStream, pauseReq.igUntreated) < 0) {
-    mError("stream:%s, failed to drop task since %s", pauseReq.name, terrstr());
+  if (mndStreamSetResumeAction(pTrans, pMnode, pStream, resumeReq.igUntreated) < 0) {
+    mError("stream:%s, failed to drop task since %s", resumeReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return -1;
@@ -2130,7 +2140,6 @@ static void doAddTaskId(SArray* pList, int32_t taskId, int64_t uid, int32_t numO
 
 int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
-
   SStreamTaskCheckpointReq req = {0};
 
   SDecoder decoder = {0};
