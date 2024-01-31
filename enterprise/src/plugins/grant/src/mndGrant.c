@@ -346,6 +346,7 @@ int32_t tSerializeSGrantObj(void *buf, int32_t bufLen, const SGrantLogObj *pObj)
   if (tEncodeI8(&encoder, pObj->nActives) < 0) goto _exit;
   if (tEncodeI64v(&encoder, pObj->createTime) < 0) goto _exit;
   if (tEncodeI64v(&encoder, pObj->updateTime) < 0) goto _exit;
+  if (tEncodeI64v(&encoder, pObj->upgradeTime) < 0) goto _exit;
   for (int8_t i = 0; i < pObj->nStates; ++i) {
     if (tEncodeI64v(&encoder, pObj->states[i].u0) < 0) goto _exit;
   }
@@ -397,6 +398,7 @@ int32_t tDeserializeSGrantObj(void *buf, int32_t bufLen, SGrantLogObj *pObj) {
   RETURN_WITH_CODE(tDecodeI8(&decoder, &pObj->nActives), code);
   RETURN_WITH_CODE(tDecodeI64v(&decoder, &pObj->createTime), code);
   RETURN_WITH_CODE(tDecodeI64v(&decoder, &pObj->updateTime), code);
+  RETURN_WITH_CODE(tDecodeI64v(&decoder, &pObj->upgradeTime), code);
 
   for (int8_t i = 0; i < pObj->nStates; ++i) {
     SGrantState *state = &pObj->states[i];

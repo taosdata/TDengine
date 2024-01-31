@@ -251,7 +251,7 @@ extern int64_t       tsExpireTime;
 static int32_t grantSecondsToString(int64_t seconds, char *ts);
 static void    dmRefreshGrantCfg();
 static void    grantRetrieveGrantInfo(SMnode *pMnode);
-static void    grantResetMaster(SMnode *pMnode);
+static void    grantResetMaster(SMnode *pMnode, int64_t baseSeconds);
 static void    grantSetClusterInfo(SMnode *pMnode);
 static void    grantObjInit(SGrantUniqObj *pObj, bool official);
 static void    grantStatusInit(SGrantStatus *pStatus);
@@ -341,7 +341,7 @@ int32_t mndInitGrant(SMnode *pMnode) {
 _exit:
   if (terrno != 0) {
     uError("grant data initialize failed since %s", tstrerror(terrno));
-    mndCleanupGrant(pMnode);
+    mndCleanupGrant();
   } else {
     uDebug("grant data is initialized");
   }
@@ -366,7 +366,7 @@ static void tDestroyGrantStatus(SGrantStatus *pStatus) {
   }
 }
 
-void mndCleanupGrant(SMnode *pMnode) {
+void mndCleanupGrant() {
   tSimpleHashCleanup(grantHandle.pMachines);
   taosArrayDestroy(grantHandle.pDnodeInfo);
   taosThreadRwlockDestroy(&grantHandle.rwLock);
@@ -647,16 +647,24 @@ _exit:
   return code;
 }
 
-static int32_t grantGetClusterMachines(SMnode *pMnode, SSHashObj *pRes) {
+static int32_t grantGetClusterMachines(SMnode *pMnode, SSHashObj *pRes, bool *pLegacy) {
   SSdb      *pSdb = pMnode->pSdb;
   SDnodeObj *pDnode = NULL;
   void      *pIter = NULL;
+
+  if (pLegacy) *pLegacy = false;
 
   while ((pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode))) {
     int32_t klen = strlen(pDnode->machineId);
     if (klen == TSDB_MACHINE_ID_LEN) {
       tSimpleHashPut(pRes, pDnode->machineId, klen, &pDnode->id, sizeof(pDnode->id));
     }
+    if (pLegacy && (false == *pLegacy)) {
+      if (pDnode->active[0] != 0 || pDnode->connActive[0] != 0) {
+        *pLegacy = true;
+      }
+    }
+
     sdbRelease(pSdb, pDnode);
   }
 
@@ -801,6 +809,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
   bool          toRevoked = false;
   bool          granted = false;
   bool          stated = true;
+  bool          legacy = false;
   void         *pIter = NULL;
   SGrantLogObj *pGrant = NULL;
   SArray       *pGrantMachines = NULL;
@@ -810,7 +819,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
 
   grantRetrieveGrantInfo(pMnode);
 
-  grantGetClusterMachines(pMnode, grantHandle.pMachines);
+  grantGetClusterMachines(pMnode, grantHandle.pMachines, &legacy);
 
   pGrant = mndAcquireGrant(pMnode, &pIter);
   if (!pGrant) {
@@ -881,12 +890,17 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
 
   if (grantObj.active && grantObj.active[0] != 0) {
     if (0 != grantUniqParseActiveCode(&grantObj, NULL)) {
-      grantResetMaster(pMnode);
+      grantResetMaster(pMnode, 0);
     } else {
       granted = true;
       code = fillGrantStatusFromObj(&gStatus, &grantObj, toRevoked);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
+  } else {
+    if(pGrant->upgradeTime <= 0){
+      pGrant->upgradeTime = curTime;
+    }
+    grantResetMaster(pMnode, pGrant->upgradeTime);
   }
 
   // check machines
@@ -1351,17 +1365,23 @@ int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
  *
  * @param pMnode
  */
-static void grantResetMaster(SMnode *pMnode) {
+static void grantResetMaster(SMnode *pMnode, int64_t baseSeconds) {
   grantRetrieveGrantInfo(pMnode);
-#ifndef GRANTS_CFG
   int64_t curTime = taosGetTimestampMs() / 1000;
   int64_t grantCurTime = TMAX(curTime, GRANT_CUR_TIME);
-  int64_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
+  int64_t comprSeconds = baseSeconds;
+  int64_t clusterCreateTime = 0;
 
-  if (clusterCreateTime > 0) {
-    COMPARE_SET_VAL(grantClusterEpoch, clusterCreateTime, !=);
-    gStatus.basicExpireSec =
-        clusterCreateTime <= grantCurTime ? (ceil((double)clusterCreateTime / 86400) * 86400 + GRANT_DEFAULT) : 0;
+  if (comprSeconds <= 0) {
+    clusterCreateTime = grantGetClusterCreateTime(pMnode);
+    if (clusterCreateTime > 0) COMPARE_SET_VAL(grantClusterEpoch, clusterCreateTime, !=);
+    comprSeconds = clusterCreateTime;
+  }
+
+  if (comprSeconds > 0) {
+        gStatus.basicExpireSec =
+        comprSeconds <= grantCurTime ? (ceil((double)comprSeconds / 86400) * 86400 + GRANT_DEFAULT) : 0;
+
     gStatus.basicExpired = gStatus.basicExpireSec > grantCurTime ? false : true;
 
     gStatus.multiTierExpireSec = gStatus.basicExpireSec;
@@ -1383,7 +1403,6 @@ static void grantResetMaster(SMnode *pMnode) {
     uInfo("grant expire time reset to %s %" PRIi64 ", current timeseries %" PRIi64, ts, (int64_t)gStatus.basicExpireSec,
           gStatus.curTimeSeries);
   }
-#endif
   grantDataInsSetDefault(&gStatus.dataIns[0], GRANT_UNIQ_KNOWN_DATAIN_VALS);
 }
 
@@ -1403,7 +1422,7 @@ static void grantDataInsSetDefault(int32_t *pDataIns, int32_t num) {
 void grantReset(SMnode *pMnode, EGrantType grant, uint64_t value) {
   switch (grant) {
     case TSDB_GRANT_ALL:
-      grantResetMaster(pMnode);
+      grantResetMaster(pMnode, 0);
       break;
     case TSDB_GRANT_STORAGE:
 #ifdef GRANTS_RESERVE
@@ -1705,7 +1724,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  grantGetClusterMachines(pMnode, pMachineHash);
+  grantGetClusterMachines(pMnode, pMachineHash, NULL);
 
   // step 2: parse new
   memcpy(newObj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
