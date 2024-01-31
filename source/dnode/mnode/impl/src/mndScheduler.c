@@ -559,6 +559,7 @@ static void bindTwoLevel(SArray* tasks, int32_t begin, int32_t end) {
   end = end > taosArrayGetSize(pUpTaskList) ? taosArrayGetSize(pUpTaskList): end;
   for(int i = begin; i < end; i++){
     SStreamTask* pUpTask = taosArrayGetP(pUpTaskList, i);
+    pUpTask->info.selfChildId = i - begin;
     streamTaskSetFixedDownstreamInfo(pUpTask, *pDownTask);
     streamTaskSetUpstreamInfo(*pDownTask, pUpTask);
   }
