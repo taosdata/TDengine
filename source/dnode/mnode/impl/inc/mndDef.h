@@ -756,7 +756,7 @@ typedef struct {
   SArray* compactDetail;
 } SCompactObj;
 
-// SGrantObj
+// SGrantLogObj
 typedef enum {
   GRANT_STATE_INIT = 0,
   GRANT_STATE_UNGRANTED = 1,
@@ -826,7 +826,7 @@ typedef struct {
   char*        active;
   SArray*      pMachines;  // SGrantMachine
   SRWLatch     lock;
-} SGrantObj;
+} SGrantLogObj;
 
 #ifdef __cplusplus
 }
