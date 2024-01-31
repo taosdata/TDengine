@@ -70,7 +70,7 @@ int32_t mndInitGrant(SMnode *pMnode) {
   return 0;
 }
 
-void    mndCleanupGrant(SMnode *pMnode) {}
+void    mndCleanupGrant() {}
 void    grantParseParameter() { mError("can't parsed parameter k"); }
 void    grantReset(SMnode *pMnode, EGrantType grant, uint64_t value) {}
 void    grantAdd(EGrantType grant, uint64_t value) {}
