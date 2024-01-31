@@ -499,6 +499,9 @@ static int64_t getNumOfElems(SqlFunctionCtx* pCtx) {
    */
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
+  if(1 == pInput->numOfRows && pInput->blankFill) {
+    return 0;
+  }
   if (pInput->colDataSMAIsSet && pInput->totalRows == pInput->numOfRows) {
     numOfElem = pInput->numOfRows - pInput->pColumnDataAgg[0]->numOfNull;
   } else {
@@ -6022,7 +6025,7 @@ int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
     goto _group_key_over;
   }
 
-  if (colDataIsNull_s(pInputCol, startIndex)) {
+  if (pInputCol->pData == NULL || colDataIsNull_s(pInputCol, startIndex)) {
     pInfo->isNull = true;
     pInfo->hasResult = true;
     goto _group_key_over;

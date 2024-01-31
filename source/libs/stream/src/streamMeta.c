@@ -1322,7 +1322,7 @@ void streamMetaRUnLock(SStreamMeta* pMeta) {
   if (code != TSDB_CODE_SUCCESS) {
     stError("vgId:%d meta-runlock failed, code:%d", pMeta->vgId, code);
   } else {
-    stDebug("vgId:%d meta-runlock completed", pMeta->vgId);
+//    stTrace("vgId:%d meta-runlock completed", pMeta->vgId);
   }
 }
 

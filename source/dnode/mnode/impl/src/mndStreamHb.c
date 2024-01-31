@@ -182,6 +182,7 @@ static int32_t mndDropOrphanTasks(SMnode* pMnode, SArray* pList) {
     mndTransDrop(pTrans);
     return -1;
   }
+  mndTransDrop(pTrans);
   return 0;
 }
 
@@ -210,7 +211,7 @@ int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo* info){
       };
 
       tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
-      mInfo("receivee pause stream:%s, %s, %p, because grant expired", pStream->name, reqPause.name, reqPause.name);
+      mInfo("receive pause stream:%s, %s, %p, because grant expired", pStream->name, reqPause.name, reqPause.name);
     }
 
     sdbRelease(pSdb, pStream);

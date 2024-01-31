@@ -390,6 +390,8 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
 
     pTimeWindow->skey = INT64_MIN;
     qStreamInfoResetTimewindowFilter(pStreamTask->exec.pExecutor);
+    stDebug("s-task:%s after exceed the threshold:%" PRId64 " and then update the window filter",
+            pStreamTask->id.idStr, pStreamTask->dataRange.range.maxVer);
   } else {
     stDebug("s-task:%s no need to update/reset filter time window for non-source tasks", pStreamTask->id.idStr);
   }
@@ -400,7 +402,6 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
 
   // 3. send msg to mnode to launch a checkpoint to keep the state for current stream
   streamTaskSendCheckpointReq(pStreamTask);
-//  streamTaskResume(pStreamTask);
 
   // 4. assign the status to the value that will be kept in disk
   pStreamTask->status.taskStatus = streamTaskGetStatus(pStreamTask)->state;
@@ -777,6 +778,8 @@ int32_t streamResumeTask(SStreamTask* pTask) {
 
   while (1) {
     /*int32_t code = */ doStreamExecTask(pTask);
+
+    // check if continue
     taosThreadMutexLock(&pTask->lock);
 
     int32_t numOfItems = streamQueueGetNumOfItems(pTask->inputq.queue);
