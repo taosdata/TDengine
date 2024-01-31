@@ -821,6 +821,7 @@ typedef struct {
   int8_t       nActives;
   int64_t      createTime;
   int64_t      updateTime;
+  int64_t      upgradeTime;
   SGrantState  states[GRANT_STATE_NUM];
   SGrantActive actives[GRANT_ACTIVE_NUM];
   char*        active;
