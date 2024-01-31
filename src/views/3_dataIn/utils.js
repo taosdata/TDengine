@@ -1079,13 +1079,22 @@ export function getAuthentications(authentication, params) {
 function getOptionData(data, queryArr, definition) {
   if (!data || !definition) return '';
   let result = '';
-  let { subject, host, port, endpoint, system_configuration, PISystemName } = data;
+  let { subject, host, port, endpoint, system_configuration, PISystemName, security_mode, security_policy, connect_timeout } = data;
   let { id } = definition;
   if (PISystemName) {
     queryArr.push('PISystemName=' + PISystemName);
   }
   if (system_configuration) {
     queryArr.push('system_configuration=' + system_configuration)
+  }
+  if (security_mode) {
+    queryArr.push('security_mode=' + security_mode)
+  } 
+  if (security_policy) {
+    queryArr.push('security_policy=' + security_policy)
+  }
+  if (connect_timeout) {
+    queryArr.push('connect_timeout=' + connect_timeout)
   }
   if (endpoint === undefined&&definition.id!=='csv') {
     result += host.replace(/\w*:\/\//, '');
