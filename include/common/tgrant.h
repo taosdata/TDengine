@@ -62,7 +62,7 @@ char*   tGetMachineId();
 int32_t grantAlterActiveCode(int32_t did, const char* old, const char* newer, char* out, int8_t type);
 #endif
 
-#ifndef GRANTS_CFG
+// #ifndef GRANTS_CFG
 #ifdef TD_ENTERPRISE
 #ifdef TD_UNIQ_GRANT
 #define GRANTS_SCHEMA                                                                             \
@@ -114,14 +114,14 @@ int32_t grantAlterActiveCode(int32_t did, const char* old, const char* newer, ch
       {.name = "cpu_cores", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},    \
   }
 #endif
-#define GRANT_CFG_ADD
-#define GRANT_CFG_SET
-#define GRANT_CFG_GET
-#define GRANT_CFG_CHECK
-#define GRANT_CFG_SKIP
-#define GRANT_CFG_DECLARE
-#define GRANT_CFG_EXTERN
-#endif
+// #define GRANT_CFG_ADD
+// #define GRANT_CFG_SET
+// #define GRANT_CFG_GET
+// #define GRANT_CFG_CHECK
+// #define GRANT_CFG_SKIP
+// #define GRANT_CFG_DECLARE
+// #define GRANT_CFG_EXTERN
+// #endif
 
 #ifdef __cplusplus
 }
