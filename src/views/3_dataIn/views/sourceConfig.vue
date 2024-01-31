@@ -497,7 +497,7 @@ export default {
     async getDBLists() {
       try {
         let data = await getDBListReq();
-        this.dbList = data.filter((v) => v.name !== "audit");
+        this.dbList = data.filter((v) => v.name !== "audit" && v.name !== 'log');
       } catch (error) {
         console.log(error);
       }
