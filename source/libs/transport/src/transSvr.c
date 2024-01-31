@@ -159,7 +159,7 @@ static void uvStartSendResp(SSvrMsg* msg);
 
 static void uvNotifyLinkBrokenToApp(SSvrConn* conn);
 
-static FORCE_INLINE void destroySmsg(SSvrMsg* smsg);
+static FORCE_INLINE void      destroySmsg(SSvrMsg* smsg);
 static FORCE_INLINE SSvrConn* createConn(void* hThrd);
 static FORCE_INLINE void      destroyConn(SSvrConn* conn, bool clear /*clear handle or not*/);
 static FORCE_INLINE void      destroyConnRegArg(SSvrConn* conn);
@@ -1382,7 +1382,7 @@ void uvHandleUpdate(SSvrMsg* msg, SWorkThrd* thrd) {
     tFreeSUpdateIpWhiteReq(req);
     taosMemoryFree(req);
   } else {
-    tInfo("ip-white-list disable on trans");
+    tDebug("ip-white-list disable on trans");
     thrd->enableIpWhiteList = 0;
   }
   taosMemoryFree(msg);
