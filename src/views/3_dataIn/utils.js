@@ -361,7 +361,7 @@ function handleOptions(options, paramsConfig) {
     if (key == 'host') {
       config.display_order = 1;
     }
-    handleHintType(config, options[key]);
+    handleHintType(config, options[key]?.hint);
     children.push(config);
   });
   formSort(children);
@@ -895,7 +895,8 @@ export function handleHintType(config, hint) {
     default:
       if (hint?.choices) {
         config.type = 'select';
-        config.options = hint.choices.map(item => ({
+        // 过滤 --NONE-- 
+        config.options = hint.choices.filter(item => item != '--NONE--').map(item => ({
           label: item,
           value: item
         }));
