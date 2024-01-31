@@ -385,7 +385,6 @@ int32_t streamTaskOnScanhistoryTaskReady(SStreamTask* pTask) {
 
 void doProcessDownstreamReadyRsp(SStreamTask* pTask) {
   EStreamTaskEvent event = (pTask->info.fillHistory == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_SCANHIST;
-
   streamTaskOnHandleEventSuccess(pTask->status.pSM, event);
 
   int64_t initTs = pTask->execInfo.init;
@@ -989,4 +988,3 @@ void streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
     streamSetParamForStreamScannerStep2(pTask, &verRange, &win);
   }
 }
-
