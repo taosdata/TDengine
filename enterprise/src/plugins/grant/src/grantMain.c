@@ -169,10 +169,15 @@
     }                                              \
   } while (0)
 
+#ifdef GRANTS_CFG
+#define GRANT_VERSION ("cloud")
+#else
 #define GRANT_VERSION (gStatus.officialVersion ? "official" : "trial")
+#endif
+
 #define GRANT_EXPIRE (gStatus.basicExpireSec)
 #define GRANT_EXPIRED(exp) (exp) ? TSDB_CODE_GRANT_EXPIRED : TSDB_CODE_SUCCESS
-#define GRANT_EXPIRE_VAL (gStatus.basicExpired | (tsDiskCfgNum > 1 ? (gStatus.multiTierExpired << 1) : 0))
+#define GRANT_EXPIRE_VAL (gStatus.expired | (grantHandle.nDiskCfg > 1 ? gStatus.multiTierExpired : 0))
 #define GRANT_CONN_MAJOR_VER 1
 #define GRANT_CONN_MINOR_VER 1
 #define GRANT_FLAG_TDENGINE ((int8_t)0x01)
@@ -191,10 +196,6 @@
 #define IS_GRANT_CONNECTORS_OFFICIAL(s) GRANT_CONN_OFFICIAL(s)
 // uniq grant
 // #define GRANT_DATA_IN(s, i) ((s)->ins + i)
-#define GRANT_IS_IVLD_MACHINE() ((grantHandle.info & 0x01) != 0)
-#define GRANT_SET_IVLD_MACHINE() (grantHandle.info |= 0x01)
-#define GRANT_SET_VLD_MACHINE() (grantHandle.info |= 0x0)
-
 #define GRANT_DIST_TOLERENCE 86400  // seconds
 #define GRANT_TS_SEC_LEN 20
 
@@ -260,9 +261,8 @@ extern char          tsVersionName[16];
 extern int64_t       tsExpireTime;
 
 static int32_t grantSecondsToString(int64_t seconds, char *ts);
-static void    dmRefreshGrantCfg();
 static void    grantRetrieveGrantInfo(SMnode *pMnode);
-static void    grantResetMaster(SMnode *pMnode, int64_t baseSeconds);
+static void    grantResetMaster(SMnode *pMnode, int64_t upgradeSec);
 static void    grantSetClusterInfo(SMnode *pMnode);
 static void    grantObjInit(SGrantUniqObj *pObj, bool official);
 static void    grantStatusInit(SGrantStatus *pStatus);
@@ -284,8 +284,6 @@ static void    mndCancelGetNextGrantLogs(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextMachines(SMnode *pMnode, void *pIter);
 
-static int32_t tGrantConnItemsNum(int8_t version);
-static void    grantDataInsSetDefault(int32_t *pDataIns, int32_t num);
 static int32_t tSerializeGrantDataIns(SEncoder *encoder, int32_t *pIns);
 static int32_t tDeserializeGrantDataIns(SDecoder *decoder, int32_t *pIns);
 static int32_t tSerializeGrantDynDataIns(SEncoder *encoder, SArray *pIns);
@@ -297,7 +295,6 @@ typedef struct {
   SMnode        *pMnode;
   int64_t        lastCheck;
   int32_t        nDiskCfg;
-  int16_t        nServer;
   uint8_t        info;
   TdThreadRwlock rwLock;
 } SGrantHandle;
@@ -439,7 +436,7 @@ static void grantSetClusterInfo(SMnode *pMnode) {
   if (strncmp(tsVersionName, GRANT_VERSION, tListLen(tsVersionName)) != 0) {
     tstrncpy(tsVersionName, GRANT_VERSION, tListLen(tsVersionName));
   }
-  int64_t expireSec = grantGetExpireSec(GRANT_EXPIRE);
+  int64_t expireSec = grantGetExpireSec(GRANT_EXPIRE); // TODO: -1
   COMPARE_SET_VAL(tsExpireTime, expireSec * 1000, !=);
   COMPARE_SET_VAL(pMnode->grant.expireTimeMS, tsExpireTime, !=);
   COMPARE_SET_VAL(pMnode->grant.timeseriesAllowed, (int64_t)gStatus.limitTimeSeries, !=);
@@ -457,15 +454,6 @@ static FORCE_INLINE void grantSetClusterId(SMnode *pMnode, char *pClusterId) {
     if (clusterId > 0) {
       snprintf(pClusterId, GRANT_CLUSTER_ID_LEN + 1, "%" PRIi64, clusterId);
     }
-  }
-}
-
-static void grantSetActiveCodes(SDnodeInfo *pInfo, SGrantObj *pObj, SGrantConnObj *pConnObj) {
-  if (0 != pInfo->active[0] && pObj) {
-    tstrncpy(pObj->active, pInfo->active, GRANT_ACTIVE_KEY_LEN + 1);
-  }
-  if (0 != pInfo->connActive[0] && pConnObj) {
-    tstrncpy(pConnObj->active, pInfo->connActive, GRANT_CONN_ACTIVE_KEY_LEN + 1);
   }
 }
 
@@ -530,6 +518,10 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
 
   gStatus = grantStatusReq;  // assign directly
 
+  taosArrayDestroy(pDataIns);
+  taosArrayDestroy(pItem32);
+  taosArrayDestroy(pItem64);
+
 #ifndef GRANTS_CFG
   int8_t grantExpireVal = GRANT_EXPIRE_VAL;
   if (grantExpireVal == 0) {
@@ -555,33 +547,6 @@ _err:
   return TSDB_CODE_FAILED;
 }
 
-static void dmRefreshGrantCfg(SGrantObj *pObj, SGrantConnObj *pConnObj) {
-  char cfgFile[PATH_MAX] = {0};
-#ifdef CUS_PROMPT
-  sprintf(cfgFile, "%s/%s.cfg", configDir, CUS_PROMPT);
-#else
-  sprintf(cfgFile, "%s/taos.cfg", configDir);
-#endif
-  grantActiveSystem(cfgFile, pObj, pConnObj);
-}
-
-static void grantConnActiveFillUndef(SMnode *pMnode, SGrantConnItem *pItems) {
-  if (grantClusterEpoch <= 0) {
-    grantClusterEpoch = grantGetClusterCreateTime(pMnode);
-  }
-
-  SGrantConnItem defaultItem = {.number = GRANT_CONN_NUM_DEFAULT,
-                                .speed = GRANT_CONN_SPEED_DEFAULT,
-                                .expire = ceil((double)grantClusterEpoch / 86400) + GRANT_CONN_EXPIRE_DEFAULT};
-
-  for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
-    SGrantConnItem *pItem = pItems + i;
-    if (GRANT_CONN_ITEM_UNDEF(pItem)) {
-      *pItem = defaultItem;
-    }
-  }
-}
-
 static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo, int32_t contLen, void *pCont) {
   // send grant status to dnode
   SRpcMsg rpcMsg = {
@@ -601,35 +566,34 @@ _err:
   return TSDB_CODE_FAILED;
 }
 
-static void mndProcessGrantStatusCheck() {
-  grantStatusCheck(grantHandle.pMnode, taosGetTimestampMs() / 1000, NULL);
-  if (grantHandle.nServer > 0) {
-    GRANT_SET_IVLD_MACHINE();
+void mndProcessGrantStatusCheck() {
+  bool    minHbInterval = false;
+  int64_t curTime = taosGetTimestampMs() / 1000;
+  int64_t grantCurTime = TMAX(curTime, GRANT_CUR_TIME);
+  int64_t expireSec = gStatus.grantState == GRANT_STATE_REVOKED ? gStatus.revokedExpireSec : gStatus.basicExpireSec;
+  if (expireSec > grantCurTime) {
+    if (gStatus.expired) {
+      gStatus.expired = 0;
+    }
   } else {
-    GRANT_SET_VLD_MACHINE();
+    gStatus.expired = 1;
+    char ts[GRANT_TS_SEC_LEN] = {0};
+    grantSecondsToString(expireSec, ts);
+    uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64 ", set to %s state", ts, (int64_t)expireSec,
+          grantCurTime, gGrantState[gStatus.grantState]);
   }
 
-  bool   minHbInterval = false;
-  int8_t grantExpireVal = GRANT_EXPIRE_VAL;
-  if (grantExpireVal == 0) {
+  int8_t grantExpired = GRANT_EXPIRE_VAL;
+  if (grantExpired == 0) {
     if (0 == atomic_val_compare_exchange_8(&tsGrant, 0, 1)) {
       minHbInterval = true;
     }
   } else if (0 != atomic_load_8(&tsGrant)) {
+    atomic_store_8(&tsGrant, 0);
     minHbInterval = true;
   }
 
   if (minHbInterval) tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
-}
-
-static int32_t dnodeInfoCmprFn(const void *p1, const void *p2) {
-  SDnodeInfo *pInfo1 = (SDnodeInfo *)p1;
-  SDnodeInfo *pInfo2 = (SDnodeInfo *)p2;
-
-  if (pInfo1->id < pInfo2->id) {
-    return -1;
-  }
-  return pInfo1->id != pInfo2->id ? 1 : 0;
 }
 
 static int32_t grantCheckClusterInfo(SMnode *pMnode) {
@@ -644,12 +608,6 @@ static int32_t grantCheckClusterInfo(SMnode *pMnode) {
     }
   }
 
-  if (recheckClusterTime) {
-    COMPARE_SET_VAL(tsGrantHBInterval, GRANT_HEART_BEAT_MIN, !=);
-  } else {
-    COMPARE_SET_VAL(tsGrantHBInterval, GRANT_HEART_BEAT_MSG, !=);
-  }
-
   if (grantObj.clusterId[0] == 0) {
     grantSetClusterId(pMnode, grantObj.clusterId);
     if (grantObj.clusterId[0] == 0) {
@@ -659,6 +617,11 @@ static int32_t grantCheckClusterInfo(SMnode *pMnode) {
 _exit:
   if (code != 0) {
     recheckClusterTime = true;
+  }
+  if (recheckClusterTime) {
+    COMPARE_SET_VAL(tsGrantHBInterval, GRANT_HEART_BEAT_MIN, !=);
+  } else {
+    COMPARE_SET_VAL(tsGrantHBInterval, GRANT_HEART_BEAT_MSG, !=);
   }
   return code;
 }
@@ -731,8 +694,7 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
   } else {
     gStatus.expired = 1;
     grantSecondsToString(gStatus.basicExpireSec, ts);
-    uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64 ", set to %s state", ts, (int64_t)expireSec,
-          grantCurTime, gGrantState[gStatus.grantState]);
+    uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64, ts, (int64_t)expireSec, grantCurTime);
   }
 
   GRANT_ITEM_EXPIRE_CHECK(gStatus.auditExpireSec, grantCurTime, gStatus.auditExpired);
@@ -843,13 +805,6 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
   SGrantLogObj *pGrant = NULL;
   SArray       *pGrantMachines = NULL;
 
-  code = grantCheckClusterInfo(pMnode);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  grantRetrieveGrantInfo(pMnode);
-
-  grantGetDnodesMiscInfo(pMnode, grantHandle.pMachineHash, &legacy);
-
   pGrant = mndAcquireGrant(pMnode, &pIter);
   if (!pGrant) {
     mndProcessUpdGrantLog(pMnode, NULL, pGrantMachines,
@@ -864,6 +819,15 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     gStatus.grantState = GRANT_STATE_UNGRANTED;
   } else {
     gStatus.grantState = pLastState->state;
+    if (gStatus.grantState == GRANT_STATE_REVOKED) {
+      gStatus.revokedExpireSec = pLastState->ts + GRANT_CHK_TOLERENCE;
+    }
+  }
+
+  grantRetrieveGrantInfo(pMnode);
+  if ((code = grantCheckClusterInfo(pMnode)) != 0) {
+    mndReleaseGrant(pMnode, pGrant, pIter);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   grantObjInit(&grantObj, false);
@@ -897,12 +861,14 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     grantObj.active[0] = 0;
   }
 
+  grantGetDnodesMiscInfo(pMnode, grantHandle.pMachineHash, &legacy);
+
   if (grantObj.active && grantObj.active[0] != 0) {
     if (0 != grantUniqParseActiveCode(&grantObj, NULL)) {
       grantResetMaster(pMnode, 0);
     } else {
       granted = true;
-      code = fillGrantStatusFromObj(&gStatus, &grantObj, toRevoked);
+      code = fillGrantStatusFromObj(&gStatus, &grantObj, gStatus.grantState);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   } else if (legacy) {
@@ -914,24 +880,8 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     grantResetMaster(pMnode, 0);
   }
 
-  if (gStatus.grantState == GRANT_STATE_REVOKED) {
-    gStatus.revokedExpireSec = pLastState->ts + GRANT_CHK_TOLERENCE;
-
-    char ts[GRANT_TS_SEC_LEN] = {0};
-    grantSecondsToString(gStatus.revokedExpireSec, ts);
-
-    int64_t grantCurTime = TMAX(curTime, GRANT_CUR_TIME);
-    if (gStatus.revokedExpireSec > grantCurTime) {
-      if (gStatus.expired) {
-        gStatus.expired = 0;
-      }
-    } else {
-      gStatus.expired = 1;
-      uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64 ", set to %s state", ts,
-            gStatus.revokedExpireSec, grantCurTime, gGrantState[gStatus.grantState]);
-    }
+  if (pLastState->state == GRANT_STATE_REVOKED) {
     mndReleaseGrant(pMnode, pGrant, pIter);
-    // set cluster info after parse uniq active
     grantSetClusterInfo(pMnode);
   } else {
     // check machines
@@ -949,21 +899,8 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
       state.reason = GRANT_STATE_REASON_MISMATCH;
       code = mndProcessUpdGrantLog(pMnode, NULL, pGrantMachines, &state);
       TSDB_CHECK_CODE(code, lino, _exit);
-      int64_t grantCurTime = TMAX(curTime, GRANT_CUR_TIME);
-      int64_t expireSec = gStatus.revokedExpireSec;
-      if (expireSec > grantCurTime) {
-        if (gStatus.expired) {
-          gStatus.expired = 0;
-        }
-      } else {
-        gStatus.expired = 1;
-        char ts[GRANT_TS_SEC_LEN] = {0};
-        grantSecondsToString(expireSec, ts);
-        uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64 ", set to %s state", ts, (int64_t)expireSec,
-              grantCurTime, gGrantState[gStatus.grantState]);
-      }
     } else {
-      int8_t oldState = gStatus.grantState;
+      int8_t oldState = pLastState->state;
       bool   appendState = false;
       if (oldState == GRANT_STATE_UNGRANTED) {
         if (granted) {
@@ -1000,6 +937,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
   }
   // set cluster info after parse uniq active
   grantSetClusterInfo(pMnode);
+  mndProcessGrantStatusCheck();
 _exit:
   taosArrayDestroy(pGrantMachines);
   if (code != 0) {
@@ -1019,7 +957,6 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
   // reset grantHandle and send gStatus to all dnodes, no resp needed
   taosArrayClear(grantHandle.pDnodeInfo);
   tSimpleHashClear(grantHandle.pMachineHash);
-  grantHandle.nServer = 0;
 
   mndGetDnodeData(pMnode, grantHandle.pDnodeInfo);
 
@@ -1028,7 +965,6 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
   int32_t contLen = 0;
   void   *pCont = NULL;
   if (dnodeSize > 1) {
-    // taosArraySort(grantHandle.pDnodeInfo, dnodeInfoCmprFn);
     contLen = tSerializeGrantStatus(NULL, 0, &gStatus, clusterTime);
     pCont = rpcMallocCont(contLen);
     if (!pCont) {
@@ -1392,63 +1328,60 @@ int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
   return 0;
 }
 
+static void grantDataInsSetDefault(int32_t *pDataIns, int32_t num, int32_t expireDay) {
+  for (int32_t i = 0; i < num; i += 3) {
+    *(pDataIns + i) = expireDay;                        // expireDay
+    *(pDataIns + i + 1) = GRANT_UNIQ_DFT_DATAIN_SPEED;  // speed
+    *(pDataIns + i + 2) = GRANT_UNIQ_DFT_DATAIN_NUM;    // number
+  }
+}
+
 /**
  * @brief init the grant status after mnode startup
  *
  * @param pMnode
  */
-static void grantResetMaster(SMnode *pMnode, int64_t baseSeconds) {
+static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
+#ifndef GRANTS_CFG
   grantRetrieveGrantInfo(pMnode);
   int64_t curTime = taosGetTimestampMs() / 1000;
   int64_t grantCurTime = TMAX(curTime, GRANT_CUR_TIME);
-  int64_t comprSeconds = baseSeconds;
+  int64_t baseSeconds = upgradeSec;
   int64_t clusterCreateTime = 0;
 
-  if (comprSeconds <= 0) {
+  if (baseSeconds <= 0) {
     clusterCreateTime = grantGetClusterCreateTime(pMnode);
     if (clusterCreateTime > 0) COMPARE_SET_VAL(grantClusterEpoch, clusterCreateTime, !=);
-    comprSeconds = clusterCreateTime;
+    baseSeconds = clusterCreateTime;
   }
 
-  if (comprSeconds > 0) {
+  if (baseSeconds > 0) {
     gStatus.basicExpireSec =
-        comprSeconds <= grantCurTime ? (ceil((double)comprSeconds / 86400) * 86400 + GRANT_DEFAULT) : 0;
+        baseSeconds <= grantCurTime ? (ceil((double)baseSeconds / 86400) * 86400 + GRANT_DEFAULT) : 0;
 
-    gStatus.basicExpired = gStatus.basicExpireSec > grantCurTime ? false : true;
-
-    gStatus.multiTierExpireSec = gStatus.basicExpireSec;
-    gStatus.multiTierExpired = gStatus.basicExpired;
-    gStatus.streamExpireSec = gStatus.basicExpireSec;
-    gStatus.streamExpired = gStatus.basicExpired;
-    gStatus.subscriptionExpireSec = gStatus.basicExpireSec;
-    gStatus.subscriptionExpired = gStatus.basicExpired;
-    gStatus.auditExpireSec = gStatus.basicExpireSec;
-    gStatus.auditExpired = gStatus.basicExpired;
-    gStatus.csvExpireSec = gStatus.basicExpireSec;
-    gStatus.csvExpired = gStatus.basicExpired;
-    gStatus.bakRstExpireSec = gStatus.basicExpireSec;
-    gStatus.viewExpireSec = gStatus.basicExpireSec;
-    gStatus.viewExpired = gStatus.basicExpired;
-
-    char ts[GRANT_TS_SEC_LEN] = {0};
-    grantSecondsToString(gStatus.basicExpireSec, ts);
-    uInfo("grant expire time reset to %s %" PRIi64 ", current timeseries %" PRIi64, ts, (int64_t)gStatus.basicExpireSec,
-          gStatus.curTimeSeries);
+    int64_t expireSec = gStatus.grantState == GRANT_STATE_REVOKED ? gStatus.revokedExpireSec : gStatus.basicExpireSec;
+    gStatus.expired = expireSec > grantCurTime ? false : true;
+    if (gStatus.expired) {
+      char ts[GRANT_TS_SEC_LEN] = {0};
+      grantSecondsToString(expireSec, ts);
+      uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64, ts, (int64_t)expireSec, grantCurTime);
+    }
+    gStatus.multiTierExpireSec = expireSec;
+    gStatus.multiTierExpired = gStatus.expired;
+    gStatus.streamExpireSec = expireSec;
+    gStatus.streamExpired = gStatus.expired;
+    gStatus.subscriptionExpireSec = expireSec;
+    gStatus.subscriptionExpired = gStatus.expired;
+    gStatus.auditExpireSec = expireSec;
+    gStatus.auditExpired = gStatus.expired;
+    gStatus.csvExpireSec = expireSec;
+    gStatus.csvExpired = gStatus.expired;
+    gStatus.bakRstExpireSec =expireSec;
+    gStatus.viewExpireSec = expireSec;
+    gStatus.viewExpired = gStatus.expired;
+    grantDataInsSetDefault(&gStatus.dataIns[0], GRANT_UNIQ_KNOWN_DATAIN_VALS, expireSec/86400);
   }
-  grantDataInsSetDefault(&gStatus.dataIns[0], GRANT_UNIQ_KNOWN_DATAIN_VALS);
-}
-
-static void grantDataInsSetDefault(int32_t *pDataIns, int32_t num) {
-  if (grantClusterEpoch <= 0) grantClusterEpoch = grantGetClusterCreateTime(grantHandle.pMnode);
-  // SGrantDataIns in = {.number = GRANT_UNIQ_DFT_DATAIN_NUM,
-  //                     .speed = GRANT_UNIQ_DFT_DATAIN_SPEED,
-  int32_t expire = ceil((double)grantClusterEpoch / 86400) + GRANT_UNIQ_DFT_DATAIN_EXPIRE;
-
-  for (int32_t i = 0; i < num; i += 3) {
-    *(pDataIns + i) = expire;                           // expire
-    *(pDataIns + i + 1) = GRANT_UNIQ_DFT_DATAIN_SPEED;  // speed
-    *(pDataIns + i + 2) = GRANT_UNIQ_DFT_DATAIN_NUM;    // number
-  }
+#endif
 }
 
 void grantReset(SMnode *pMnode, EGrantType grant, uint64_t value) {
@@ -1501,7 +1434,6 @@ static int32_t grantCheckUsers() { return 0; }
 static int32_t grantCheckDatabases() { return 0; }
 
 static int32_t grantCheckTimeSeries() {
-  ASSERTS(gStatus.limitTimeSeries != GRANT_UNIQ_UNDEFINED, "limitTimeSeries is %" PRIi64, GRANT_UNIQ_UNDEFINED);
   if (gStatus.limitTimeSeries == GRANT_UNIQ_UNLIMITED || gStatus.curTimeSeries < gStatus.limitTimeSeries) {
     return 0;
   }
@@ -1513,7 +1445,6 @@ static int32_t grantCheckTimeSeries() {
 static int32_t grantCheckAccts() { return 0; }
 
 static int32_t grantCheckDnodes() {
-  ASSERTS(gStatus.limitDnodes != GRANT_UNIQ_UNDEFINED, "limitDnodes is %" PRIi64, GRANT_UNIQ_UNDEFINED);
   if (gStatus.limitDnodes == GRANT_UNIQ_UNLIMITED) {
     return 0;
   }
@@ -1525,28 +1456,26 @@ static int32_t grantCheckDnodes() {
   return TSDB_CODE_GRANT_DNODE_LIMITED;
 }
 
-static int32_t grantCheckStorage() { return 0; }
-
 static int32_t grantCheckGrantSpeed() { return TSDB_CODE_SUCCESS; }
 static int32_t grantCheckQueryTime() { return TSDB_CODE_SUCCESS; }
 static int32_t grantCheckConns() { return TSDB_CODE_SUCCESS; }
-static int32_t grantCheckStreams() {
-  ASSERTS(gStatus.limitStreams != GRANT_UNIQ_UNDEFINED, "limitStreams is %d", GRANT_UNIQ_UNDEFINED);
+static int32_t grantCheckStreams(bool allowEqual) {
   if (!gStatus.streamExpired &&
-      (gStatus.limitStreams == GRANT_UNIQ_UNLIMITED || gStatus.curStreams < gStatus.limitStreams)) {
+      (gStatus.limitStreams == GRANT_UNIQ_UNLIMITED ||
+       (allowEqual ? gStatus.curStreams <= gStatus.limitStreams : gStatus.curStreams < gStatus.limitStreams))) {
     return 0;
   }
   uError("grant failed to check stream, expire:%" PRIi64 ", num:%d, reason:stream limited",
          (int64_t)gStatus.streamExpireSec, (int32_t)gStatus.curStreams);
   return TSDB_CODE_GRANT_STREAM_LIMITED;
 }
-static int32_t grantCheckSubscriptions() {
-  ASSERTS(gStatus.limitSubscriptions != GRANT_UNIQ_UNDEFINED, "limitSubscription is %d", GRANT_UNIQ_UNDEFINED);
-  if (!gStatus.subscriptionExpired &&
-      (gStatus.limitSubscriptions == GRANT_UNIQ_UNLIMITED || gStatus.curSubscriptions < gStatus.limitSubscriptions)) {
+static int32_t grantCheckSubscriptions(bool allowEqual) {
+  if (!gStatus.subscriptionExpired && (gStatus.limitSubscriptions == GRANT_UNIQ_UNLIMITED ||
+                                       (allowEqual ? gStatus.curSubscriptions <= gStatus.limitSubscriptions
+                                                   : gStatus.curSubscriptions < gStatus.limitSubscriptions))) {
     return 0;
   }
-  uError("grant failed to check topic, expire:%" PRIi64 ", num:%d, reason:topic limited",
+  uError("grant failed to check subscription, expire:%" PRIi64 ", num:%d, reason:subscription limited",
          (int64_t)gStatus.subscriptionExpireSec, (int32_t)gStatus.curSubscriptions);
   return TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;  // TODO
 }
@@ -1565,10 +1494,22 @@ static int32_t grantCheckCpuCores() {
   return TSDB_CODE_GRANT_CPU_LIMITED;
 }
 
+int32_t grantCheckLE(EGrantType grant) {
+  switch (grant) {
+    case TSDB_GRANT_STREAMS:
+      return grantCheckStreams(true);
+    case TSDB_GRANT_SUBSCRIPTION:
+      return grantCheckSubscriptions(true);
+    default:
+      break;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t grantCheck(EGrantType grant) {
   switch (grant) {
     case TSDB_GRANT_TIME:
-      return GRANT_EXPIRED(gStatus.basicExpired);
+      return GRANT_EXPIRED(gStatus.expired);
     case TSDB_GRANT_USER:
       return grantCheckUsers();
     case TSDB_GRANT_DB:
@@ -1580,7 +1521,7 @@ int32_t grantCheck(EGrantType grant) {
     case TSDB_GRANT_ACCT:
       return grantCheckAccts();
     case TSDB_GRANT_STORAGE:
-      return grantCheckStorage();
+      return TSDB_CODE_SUCCESS;
     case TSDB_GRANT_SPEED:
       return grantCheckGrantSpeed();
     case TSDB_GRANT_QUERY_TIME:
@@ -1588,20 +1529,16 @@ int32_t grantCheck(EGrantType grant) {
     case TSDB_GRANT_CONNS:
       return grantCheckConns();
     case TSDB_GRANT_STREAMS:
-      return grantCheckStreams();
+      return grantCheckStreams(false);
     case TSDB_GRANT_CPU_CORES:
       return grantCheckCpuCores();
     case TSDB_GRANT_SUBSCRIPTION:
-      return grantCheckSubscriptions();
-    case TSDB_GRANT_STREAM_EXPIRE:
-      return GRANT_EXPIRED(gStatus.streamExpired);
-    case TSDB_GRANT_SUBSCRIPTION_EXPIRE:
-      return GRANT_EXPIRED(gStatus.subscriptionExpired);
-    case TSDB_GRANT_AUDIT_EXPIRE:
+      return grantCheckSubscriptions(false);
+    case TSDB_GRANT_AUDIT:
       return GRANT_EXPIRED(gStatus.auditExpired);
-    case TSDB_GRANT_CSV_EXPIRE:
+    case TSDB_GRANT_CSV:
       return GRANT_EXPIRED(gStatus.csvExpired);
-    case TSDB_GRANT_MULTI_TIER_EXPIRE:
+    case TSDB_GRANT_MULTI_TIER:
       return GRANT_EXPIRED(gStatus.multiTierExpired);
     default:
       break;
@@ -1878,6 +1815,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
     }
   }
 
+  // first activeCode/in revoked or expired state, check basic grant items
   if (oldObj.granted == 0 || lastState.state == GRANT_STATE_REVOKED || lastState.state == GRANT_STATE_EXPIRED) {
     if (newObj.expireDays[GRANT_OPT_BASIC] == GRANT_UNIQ_UNDEFINED || newObj.limitTimeSeries == GRANT_UNIQ_UNDEFINED ||
         newObj.limitDnodes == GRANT_UNIQ_UNDEFINED || newObj.limitCpuCores == GRANT_UNIQ_UNDEFINED) {
@@ -1943,7 +1881,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = gStatus.basicExpired || (gStatus.multiTierExpired && tsDiskCfgNum > 1) ? "true" : "false";
+    src = (gStatus.expired || (gStatus.multiTierExpired && tsDiskCfgNum > 1)) ? "true" : "false";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataSetVal(pColInfo, numOfRows, tmp, false);
 
@@ -2283,18 +2221,22 @@ static int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pSt
   if (tEncodeI64v(&encoder, pStatus->p5) < 0) goto _exit;
   if (tEncodeI64v(&encoder, pStatus->p6) < 0) goto _exit;
   if (tEncodeI64v(&encoder, pStatus->p7) < 0) goto _exit;
+  if (tEncodeI64v(&encoder, pStatus->p8) < 0) goto _exit;
+  if (tEncodeI64v(&encoder, pStatus->p9) < 0) goto _exit;
 
   if (tEncodeI64v(&encoder, pStatus->limitTimeSeries) < 0) goto _exit;
   if (tEncodeI64v(&encoder, pStatus->curTimeSeries) < 0) goto _exit;
   if (tEncodeI32v(&encoder, pStatus->limitCpuCores) < 0) goto _exit;
   if (tEncodeI32v(&encoder, pStatus->curCpuCores) < 0) goto _exit;
-
-  if (tSerializeGrantDataIns(&encoder, pStatus->dataIns) < 0) goto _exit;
-
+  if (tEncodeI32v(&encoder, pStatus->limitViews) < 0) goto _exit;
+  if (tEncodeI32v(&encoder, pStatus->curViews) < 0) goto _exit;
+  
   if (tEncodeI64v(&encoder, clusterTime) < 0) goto _exit;
 
+  if (tSerializeGrantDataIns(&encoder, pStatus->dataIns) < 0) goto _exit;
   if (tSerializeGrantDynDataIns(&encoder, pStatus->pDataIns) < 0) goto _exit;
-
+  // SArray *pItem32; //TODO
+  // SArray *pItem64;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2320,15 +2262,23 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
   if (tDecodeI64v(&decoder, &pStatus->p5) < 0) goto _exit;
   if (tDecodeI64v(&decoder, &pStatus->p6) < 0) goto _exit;
   if (tDecodeI64v(&decoder, &pStatus->p7) < 0) goto _exit;
+  if (tDecodeI64v(&decoder, &pStatus->p8) < 0) goto _exit;
+  if (tDecodeI64v(&decoder, &pStatus->p9) < 0) goto _exit;
 
   if (tDecodeI64v(&decoder, &pStatus->limitTimeSeries) < 0) goto _exit;
   if (tDecodeI64v(&decoder, &pStatus->curTimeSeries) < 0) goto _exit;
   if (tDecodeI32v(&decoder, &pStatus->limitCpuCores) < 0) goto _exit;
   if (tDecodeI32v(&decoder, &pStatus->curCpuCores) < 0) goto _exit;
+if (tDecodeI32v(&decoder, &pStatus->limitViews) < 0) goto _exit;
+if (tDecodeI32v(&decoder, &pStatus->curViews) < 0) goto _exit;
+if (tDecodeI64v(&decoder, &pStatus->revokedExpireSec) < 0) goto _exit;
 
+  // variants
   if (tDecodeI64v(&decoder, clusterTime) < 0) goto _exit;
-
+  if (tDeserializeGrantDataIns(&decoder, &pStatus->dataIns[0]) < 0) goto _exit;
   if (tDeserializeGrantDynDataIns(&decoder, pStatus->pDataIns) < 0) goto _exit;
+  // SArray *pItem32; //TODO
+  // SArray *pItem64;
 
   code = 0;
 _exit:

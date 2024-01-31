@@ -314,14 +314,14 @@ typedef struct {
     struct {
       int64_t basicExpireSec : 40;
       int64_t limitDnodes : 16;
-      int64_t basicExpired : 1;
+      int64_t expired : 1;
       int64_t multiTierExpired : 1;
       int64_t streamExpired : 1;
       int64_t subscriptionExpired : 1;
       int64_t auditExpired : 1;
       int64_t csvExpired : 1;
       int64_t viewExpired : 1;
-      int64_t expired : 1;
+      int64_t reserve1 : 1;
     };
   };
   union {
@@ -383,7 +383,7 @@ typedef struct {
     int64_t p9;
     struct {
       int64_t viewExpireSec : 40;
-      int64_t reserve7 : 24;
+      int64_t version : 24;
     };
   };
   int64_t limitTimeSeries;
