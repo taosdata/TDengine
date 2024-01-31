@@ -267,8 +267,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowCompactDetailsStmt";     
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
       return "ShowGrantsFullStmt";
-    case QUERY_NODE_SHOW_GRANTS_LOG_STMT:
-      return "ShowGrantsLogStmt";
+    case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
+      return "ShowGrantsLogsStmt";
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
       return "ShowClusterMachinesStmt";
     case QUERY_NODE_DELETE_STMT:
@@ -6596,11 +6596,11 @@ static int32_t showGrantsFullStmtToJson(const void* pObj, SJson* pJson) { return
 
 static int32_t jsonToShowGrantsFullStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
 
-static int32_t showGrantsLogStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+static int32_t showGrantsLogsStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
 
 static int32_t showClusterMachinesStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
 
-static int32_t jsonToShowGrantsLogStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+static int32_t jsonToShowGrantsLogsStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
 
 static int32_t jsonToShowClusterMachinesStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
 
@@ -7093,8 +7093,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showVariablesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
       return showGrantsFullStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_GRANTS_LOG_STMT:
-      return showGrantsLogStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
+      return showGrantsLogsStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
       return showClusterMachinesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
@@ -7424,8 +7424,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowVariablesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
       return jsonToShowGrantsFullStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_GRANTS_LOG_STMT:
-      return jsonToShowGrantsLogStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
+      return jsonToShowGrantsLogsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
       return jsonToShowClusterMachinesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:

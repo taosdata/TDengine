@@ -624,8 +624,8 @@ static int32_t collectMetaKeyFromShowGrantsFull(SCollectMetaKeyCxt* pCxt, SShowS
                                  pCxt->pMetaCache);
 }
 
-static int32_t collectMetaKeyFromShowGrantsLog(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
-  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_GRANTS_LOG,
+static int32_t collectMetaKeyFromShowGrantsLogs(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_GRANTS_LOGS,
                                  pCxt->pMetaCache);
 }
 
@@ -856,8 +856,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowCompactDetails(pCxt, (SShowStmt*)pStmt);               
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
       return collectMetaKeyFromShowGrantsFull(pCxt, (SShowStmt*)pStmt);
-    case QUERY_NODE_SHOW_GRANTS_LOG_STMT:
-      return collectMetaKeyFromShowGrantsLog(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
+      return collectMetaKeyFromShowGrantsLogs(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
       return collectMetaKeyFromShowClusterMachines(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:

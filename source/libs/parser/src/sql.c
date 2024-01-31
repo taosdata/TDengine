@@ -5643,7 +5643,7 @@ static YYACTIONTYPE yy_reduce(
 { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_GRANTS_FULL_STMT); }
         break;
       case 263: /* cmd ::= SHOW GRANTS LOGS */
-{ pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_GRANTS_LOG_STMT); }
+{ pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_GRANTS_LOGS_STMT); }
         break;
       case 264: /* cmd ::= SHOW CLUSTER MACHINES */
 { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT); }

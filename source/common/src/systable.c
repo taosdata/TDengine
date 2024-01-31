@@ -355,7 +355,7 @@ static const SSysDbTableSchema useGrantsFullSchema[] = {
     {.name = "limits", .bytes = 512 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
-static const SSysDbTableSchema useGrantsLogSchema[] = {
+static const SSysDbTableSchema useGrantsLogsSchema[] = {
     {.name = "state", .bytes = 1536 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "active", .bytes = 512 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "machine", .bytes = 6016 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
@@ -396,7 +396,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_COMPACTS, userCompactsSchema, tListLen(userCompactsSchema), false},
     {TSDB_INS_TABLE_COMPACT_DETAILS, userCompactsDetailSchema, tListLen(userCompactsDetailSchema), false},
     {TSDB_INS_TABLE_GRANTS_FULL, useGrantsFullSchema, tListLen(useGrantsFullSchema), false},
-    {TSDB_INS_TABLE_GRANTS_LOG, useGrantsLogSchema, tListLen(useGrantsLogSchema), false},
+    {TSDB_INS_TABLE_GRANTS_LOGS, useGrantsLogsSchema, tListLen(useGrantsLogsSchema), false},
     {TSDB_INS_TABLE_MACHINES, useMachinesSchema, tListLen(useMachinesSchema), false},
 };
 
