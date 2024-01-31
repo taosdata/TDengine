@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_BASE64_H_
-#define _TD_UTIL_BASE64_H_
+#ifndef _TD_UTIL_BASE58_H_
+#define _TD_UTIL_BASE58_H_
 
 #include "os.h"
 
@@ -22,11 +22,11 @@
 extern "C" {
 #endif
 
-uint8_t *base64_decode(const char *value, int32_t inlen, int32_t *outlen);
-char    *base64_encode(const uint8_t *value, int32_t vlen);
+uint8_t *base58_decode(const char *value, size_t inlen, int32_t *outlen);
+char    *base58_encode(const uint8_t *value, int32_t vlen);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_UTIL_BASE64_H_*/
+#endif /*_TD_UTIL_BASE58_H_*/
