@@ -1272,7 +1272,7 @@ static const YYCODETYPE yyFallback[] = {
     0,  /*   LICENCES => nothing */
     0,  /*     GRANTS => nothing */
     0,  /*       FULL => nothing */
-    0,  /*        LOG => nothing */
+    0,  /*       LOGS => nothing */
     0,  /*   MACHINES => nothing */
     0,  /*    QUERIES => nothing */
     0,  /*     SCORES => nothing */
@@ -1709,7 +1709,7 @@ static const char *const yyTokenName[] = {
   /*  157 */ "LICENCES",
   /*  158 */ "GRANTS",
   /*  159 */ "FULL",
-  /*  160 */ "LOG",
+  /*  160 */ "LOGS",
   /*  161 */ "MACHINES",
   /*  162 */ "QUERIES",
   /*  163 */ "SCORES",
@@ -2330,7 +2330,7 @@ static const char *const yyRuleName[] = {
  /* 260 */ "cmd ::= SHOW LICENCES",
  /* 261 */ "cmd ::= SHOW GRANTS",
  /* 262 */ "cmd ::= SHOW GRANTS FULL",
- /* 263 */ "cmd ::= SHOW GRANTS LOG",
+ /* 263 */ "cmd ::= SHOW GRANTS LOGS",
  /* 264 */ "cmd ::= SHOW CLUSTER MACHINES",
  /* 265 */ "cmd ::= SHOW CREATE DATABASE db_name",
  /* 266 */ "cmd ::= SHOW CREATE TABLE full_table_name",
@@ -3618,7 +3618,7 @@ static const YYCODETYPE yyRuleInfoLhs[] = {
    350,  /* (260) cmd ::= SHOW LICENCES */
    350,  /* (261) cmd ::= SHOW GRANTS */
    350,  /* (262) cmd ::= SHOW GRANTS FULL */
-   350,  /* (263) cmd ::= SHOW GRANTS LOG */
+   350,  /* (263) cmd ::= SHOW GRANTS LOGS */
    350,  /* (264) cmd ::= SHOW CLUSTER MACHINES */
    350,  /* (265) cmd ::= SHOW CREATE DATABASE db_name */
    350,  /* (266) cmd ::= SHOW CREATE TABLE full_table_name */
@@ -4270,7 +4270,7 @@ static const signed char yyRuleInfoNRhs[] = {
    -2,  /* (260) cmd ::= SHOW LICENCES */
    -2,  /* (261) cmd ::= SHOW GRANTS */
    -3,  /* (262) cmd ::= SHOW GRANTS FULL */
-   -3,  /* (263) cmd ::= SHOW GRANTS LOG */
+   -3,  /* (263) cmd ::= SHOW GRANTS LOGS */
    -3,  /* (264) cmd ::= SHOW CLUSTER MACHINES */
    -4,  /* (265) cmd ::= SHOW CREATE DATABASE db_name */
    -4,  /* (266) cmd ::= SHOW CREATE TABLE full_table_name */
@@ -5642,7 +5642,7 @@ static YYACTIONTYPE yy_reduce(
       case 262: /* cmd ::= SHOW GRANTS FULL */
 { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_GRANTS_FULL_STMT); }
         break;
-      case 263: /* cmd ::= SHOW GRANTS LOG */
+      case 263: /* cmd ::= SHOW GRANTS LOGS */
 { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_GRANTS_LOG_STMT); }
         break;
       case 264: /* cmd ::= SHOW CLUSTER MACHINES */

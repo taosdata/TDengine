@@ -176,7 +176,7 @@
 #define TK_LICENCES                       157
 #define TK_GRANTS                         158
 #define TK_FULL                           159
-#define TK_LOG                            160
+#define TK_LOGS                           160
 #define TK_MACHINES                       161
 #define TK_QUERIES                        162
 #define TK_SCORES                         163
