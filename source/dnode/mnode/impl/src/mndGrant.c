@@ -41,8 +41,8 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     GRANT_ITEM_SHOW("unlimited");
-    GRANT_ITEM_SHOW("unlimited");
     GRANT_ITEM_SHOW("limited");
+    GRANT_ITEM_SHOW("false");
     GRANT_ITEM_SHOW("ungranted");
     GRANT_ITEM_SHOW("unlimited");
     GRANT_ITEM_SHOW("unlimited");
