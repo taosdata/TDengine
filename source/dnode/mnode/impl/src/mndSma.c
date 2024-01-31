@@ -101,6 +101,7 @@ int32_t mndInitSma(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_TSMA, mndProcessCreateTSMAReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_TSMA, mndProcessDropTSMAReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_TABLE_TSMA, mndProcessGetTbTSMAReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_GET_TSMA, mndProcessGetTbTSMAReq);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TSMAS, mndRetrieveTSMA);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TSMAS, mndCancelRetrieveTSMA);
 
@@ -1577,7 +1578,7 @@ static void mndTSMAGenerateOutputName(const char* tsmaName, char* streamName, ch
   SName smaName;
   tNameFromString(&smaName, tsmaName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
   sprintf(streamName, "%d.%s", smaName.acctId, smaName.tname);
-  snprintf(targetStbName, TSDB_TABLE_FNAME_LEN, "%s_tsma_res_stb", tsmaName);
+  snprintf(targetStbName, TSDB_TABLE_FNAME_LEN, "%s"TSMA_RES_STB_POSTFIX, tsmaName);
 }
 
 static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
@@ -1964,15 +1965,65 @@ int32_t dumpTSMAInfoFromSmaObj(const SSmaObj* pSma, const SStbObj* pDestStb, STa
     }
     nodesDestroyNode(pNode);
   }
-  if (code == TSDB_CODE_SUCCESS) {
-    if (pDestStb->numOfTags > 0) {
-      pInfo->pTags = taosArrayInit(pDestStb->numOfTags, sizeof(SSchema));
+  pInfo->ast = taosStrdup(pSma->ast);
+  if (!pInfo->ast) code = TSDB_CODE_OUT_OF_MEMORY;
+
+  if (code == TSDB_CODE_SUCCESS && pDestStb->numOfTags > 0) {
+    pInfo->pTags = taosArrayInit(pDestStb->numOfTags, sizeof(SSchema));
+    if (!pInfo->pTags) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
       for (int32_t i = 0; i < pDestStb->numOfTags; ++i) {
         taosArrayPush(pInfo->pTags, &pDestStb->pTags[i]);
       }
     }
   }
+  if (code == TSDB_CODE_SUCCESS) {
+    pInfo->pUsedCols = taosArrayInit(pDestStb->numOfColumns - 3, sizeof(SSchema));
+    if (!pInfo->pUsedCols)
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    else {
+      // skip _wstart, _wend, _duration
+      for (int32_t i = 1; i < pDestStb->numOfColumns - 2; ++i) {
+        taosArrayPush(pInfo->pUsedCols, &pDestStb->pColumns[i]);
+      }
+    }
+  }
   return code;
+}
+
+static int32_t mndGetTSMA(SMnode *pMnode, char *tsmaFName, STableTSMAInfoRsp *rsp, bool *exist) {
+  int32_t  code = -1;
+  SSmaObj *pSma = NULL;
+  SStbObj *pDstStb = NULL;
+
+  pSma = sdbAcquire(pMnode->pSdb, SDB_SMA, tsmaFName);
+  if (pSma) {
+    pDstStb = mndAcquireStb(pMnode, pSma->dstTbName);
+    if (!pDstStb) {
+      sdbRelease(pMnode->pSdb, pSma);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    STableTSMAInfo *pTsma = taosMemoryCalloc(1, sizeof(STableTSMAInfo));
+    if (!pTsma) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      sdbRelease(pMnode->pSdb, pSma);
+      mndReleaseStb(pMnode, pDstStb);
+      return code;
+    }
+
+    terrno = dumpTSMAInfoFromSmaObj(pSma, pDstStb, pTsma);
+    mndReleaseStb(pMnode, pDstStb);
+    sdbRelease(pMnode->pSdb, pSma);
+    if (terrno) return code;
+    if (NULL == taosArrayPush(rsp->pTsmas, &pTsma)) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      tFreeTableTSMAInfo(pTsma);
+    }
+    *exist = true;
+  }
+  return 0;
 }
 
 static int32_t mndGetTableTSMA(SMnode *pMnode, char *tbFName, STableTSMAInfoRsp *rsp, bool *exist) {
@@ -2011,19 +2062,14 @@ static int32_t mndGetTableTSMA(SMnode *pMnode, char *tbFName, STableTSMAInfoRsp 
     }
     terrno = dumpTSMAInfoFromSmaObj(pSma, pStb, pTsma);
     mndReleaseStb(pMnode, pStb);
-    if (terrno) {
-      sdbRelease(pSdb, pSma);
-      return code;
-    }
+    sdbRelease(pSdb, pSma);
+    if (terrno) return code;
     if (NULL == taosArrayPush(rsp->pTsmas, &pTsma)) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       tFreeTableTSMAInfo(pTsma);
-      sdbRelease(pSdb, pSma);
       return code;
     }
     *exist = true;
-
-    sdbRelease(pSdb, pSma);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2047,7 +2093,11 @@ static int32_t mndProcessGetTbTSMAReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndGetTableTSMA(pMnode, tsmaReq.name, &rsp, &exist);
+  if (tsmaReq.fetchingTsma) {
+    code = mndGetTSMA(pMnode, tsmaReq.name, &rsp, &exist);
+  } else {
+    code = mndGetTableTSMA(pMnode, tsmaReq.name, &rsp, &exist);
+  }
   if (code) {
     goto _OVER;
   }
@@ -2092,6 +2142,7 @@ static int32_t mkNonExistTSMAInfo(const STSMAVersion *pTsmaVer, STableTSMAInfo *
   tstrncpy(pInfo->tb, pTsmaVer->tbName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pInfo->name, pTsmaVer->name, TSDB_TABLE_NAME_LEN);
   pInfo->dbId = pTsmaVer->dbId;
+  pInfo->ast = "dummy";// TODO could be freed
   *ppTsma = pInfo;
   return TSDB_CODE_SUCCESS;
 }

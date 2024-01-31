@@ -282,8 +282,8 @@ SSDataBlock* doNonSortMerge(SOperatorInfo* pOperator) {
       idx = NON_SORT_NEXT_SRC(pNonSortMerge, pNonSortMerge->lastSourceIdx);
       continue;
     }
-    break;
     pNonSortMerge->lastSourceIdx = idx - 1;
+    break;
   }
 
   if (!pBlock) {

@@ -1,3 +1,4 @@
+from os import name
 from random import randrange
 import taos
 import time
@@ -23,6 +24,7 @@ class TSMA:
 class UsedTsma:
     TS_MIN = '-9223372036854775808'
     TS_MAX = '9223372036854775806'
+    TSMA_RES_STB_POSTFIX = '_tsma_res_stb_'
 
     def __init__(self) -> None:
         self.name = '' ## tsma name or table name
@@ -47,6 +49,9 @@ class UsedTsma:
 
     def __repr__(self) -> str:
         return self.__str__()
+    
+    def setIsTsma(self):
+        self.is_tsma_ = self.name.endswith(self.TSMA_RES_STB_POSTFIX)
 
 class TSMAQueryContext:
     def __init__(self) -> None:
@@ -105,7 +110,7 @@ class TSMAQueryContextBuilder:
 
     def should_query_with_tsma(self, tsma_name: str, ts_begin: str, ts_end: str) -> 'TSMAQueryContextBuilder':
         used_tsma: UsedTsma = UsedTsma()
-        used_tsma.name = tsma_name + '_tsma_res_stb'
+        used_tsma.name = tsma_name + UsedTsma.TSMA_RES_STB_POSTFIX
         used_tsma.time_range_start = self.to_timestamp(ts_begin)
         used_tsma.time_range_end = self.to_timestamp(ts_end)
         used_tsma.is_tsma_ = True
@@ -139,8 +144,7 @@ class TSMATestContext:
                 if idx >= 0:
                     words = row[idx:].split(' ')
                     used_tsma.name = words[3]
-                    if used_tsma.name.endswith('tsma_res_stb'):
-                        used_tsma.is_tsma_ = True
+                    used_tsma.setIsTsma()
             else:
                 idx = row.find('Time Range:')
                 if idx >= 0:
@@ -170,7 +174,7 @@ class TSMATestContext:
             tdLog.exit('check explain failed for sql: %s \nexpect: %s \nactual: %s' % (sql, str(expect), str(query_ctx)))
 
     def check_result(self, sql: str):
-        #tdSql.execute("alter local 'querySmaOptimize' '1'")
+        tdSql.execute("alter local 'querySmaOptimize' '1'")
         tsma_res = tdSql.getResult(sql)
 
         tdSql.execute("alter local 'querySmaOptimize' '0'")
@@ -185,6 +189,7 @@ class TSMATestContext:
         for row_no_tsma, row_tsma in zip(no_tsma_res, tsma_res):
             if row_no_tsma != row_tsma:
                 tdLog.exit("comparing tsma res for: %s got different row data: no tsma row: %s, tsma row: %s" % (sql, str(row_no_tsma), str(row_tsma)))
+        tdLog.info('result check succeed for sql: %s. \n   tsma-res: %s. \nno_tsma-res: %s' % (sql, str(tsma_res), str(no_tsma_res)))
 
     def check_sql(self, sql: str, expect: TSMAQueryContext):
         self.check_explain(sql, expect=expect)
@@ -298,13 +303,18 @@ class TDTestCase:
                 startTs=paraDict["startTs"],tsStep=paraDict["tsStep"])
         return
 
-    def create_tsma(self, tsma_name: str, db: str, tb: str, func_list: list, col_list: list, interval: str):
+    def create_tsma(self, tsma_name: str, db: str, tb: str, func_list: list, interval: str):
         tdSql.execute('use %s' % db)
-        sql = "create tsma %s on %s.%s function(%s) column(%s) interval(%s)" % (tsma_name, db, tb, ','.join(func_list), ','.join(col_list), interval)
+        sql = "CREATE TSMA %s ON %s.%s FUNCTION(%s) INTERVAL(%s)" % (tsma_name, db, tb, ','.join(func_list), interval)
+        tdSql.execute(sql, queryTimes=1)
+    
+    def create_recursive_tsma(self, base_tsma_name: str, new_tsma_name: str, db: str, interval: str):
+        tdSql.execute('use %s' % db, queryTimes=1)
+        sql = 'CREATE RECURSIVE TSMA %s ON %s.%s INTERVAL(%s)' % (new_tsma_name, db, base_tsma_name, interval)
         tdSql.execute(sql, queryTimes=1)
 
     def drop_tsma(self, tsma_name: str, db: str):
-        sql = 'drop tsma %s.%s' % (db, tsma_name)
+        sql = 'DROP TSMA %s.%s' % (db, tsma_name)
         tdSql.execute(sql, queryTimes=1)
 
     def check_explain_res_has_row(self, plan_str_expect: str, explain_output):
@@ -323,10 +333,13 @@ class TDTestCase:
 
     def test_query_with_tsma(self):
         self.init_data()
-        self.create_tsma('tsma1', 'test', 'meters', ['avg'], ['c1', 'c2'], '5m')
-        self.create_tsma('tsma2', 'test', 'meters', ['avg'], ['c1', 'c2'], '30m')
+        self.create_tsma('tsma1', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '5m')
+        self.create_tsma('tsma2', 'test', 'meters', ['avg(c1)', 'avg(c2)'], '30m')
+        self.create_recursive_tsma('tsma1', 'tsma3', 'test', '20m')
+        self.create_recursive_tsma('tsma2', 'tsma4', 'test', '1h')
+        ## why need 5s, calculation not finished yet.
         time.sleep(5)
-        time.sleep(9999999)
+        #time.sleep(9999999)
         self.test_query_with_tsma_interval()
         self.test_query_with_tsma_agg()
 

@@ -16,6 +16,8 @@
 #include "parUtil.h"
 #include "cJSON.h"
 #include "querynodes.h"
+#include "tarray.h"
+#include "tlog.h"
 
 #define USER_AUTH_KEY_MAX_LEN TSDB_USER_LEN + TSDB_TABLE_FNAME_LEN + 2
 
@@ -701,6 +703,9 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   if (TSDB_CODE_SUCCESS == code) {
     code = buildTableReqFromDb(pMetaCache->pTableMeta, &pCatalogReq->pTableTSMAs);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildTableReqFromDb(pMetaCache->pTSMAs, &pCatalogReq->pTSMAs);
+  }
 #ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code) {
     code = buildTableReqFromDb(pMetaCache->pTableMeta, &pCatalogReq->pView);
@@ -843,6 +848,9 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMet
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = putDbTableDataToCache(pCatalogReq->pTableTSMAs, pMetaData->pTableTsmas, &pMetaCache->pTableTSMAs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = putDbTableDataToCache(pCatalogReq->pTSMAs, pMetaData->pTsmas, &pMetaCache->pTSMAs);
   }
 #ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code) {
@@ -1118,6 +1126,10 @@ int32_t reserveTableTSMAInfoInCache(int32_t acctId, const char *pDb, const char 
   return reserveTableReqInCache(acctId, pDb, pTable, &pMetaCache->pTableTSMAs);
 }
 
+int32_t reserveTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTsmaName, SParseMetaCache* pMetaCache) {
+  return reserveTableReqInDbCache(acctId, pDb, pTsmaName, &pMetaCache->pTSMAs);
+}
+
 int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes) {
   char fullName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(pName, fullName);
@@ -1135,13 +1147,24 @@ int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, 
 int32_t getTableTsmasFromCache(SParseMetaCache* pMetaCache, const SName* pTbName, SArray** pTsmas) {
   char tbFName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(pTbName, tbFName);
-  STableTSMAInfoRsp *pTsmasRsp = NULL;
-  STableTSMAInfo* pTsma = NULL;
-  int32_t code = getMetaDataFromHash(tbFName, strlen(tbFName), pMetaCache->pTableTSMAs, (void**)&pTsmasRsp);
+  STableTSMAInfoRsp* pTsmasRsp = NULL;
+  int32_t            code = getMetaDataFromHash(tbFName, strlen(tbFName), pMetaCache->pTableTSMAs, (void**)&pTsmasRsp);
   if (TSDB_CODE_SUCCESS == code && pTsmasRsp) {
     *pTsmas = pTsmasRsp->pTsmas;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t getTsmaFromCache(SParseMetaCache* pMetaCache, const SName* pTsmaName, STableTSMAInfo** pTsma) {
+  char tsmaFName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(pTsmaName, tsmaFName);
+  STableTSMAInfoRsp* pTsmaRsp = NULL;
+  int32_t code = getMetaDataFromHash(tsmaFName, strlen(tsmaFName), pMetaCache->pTSMAs, (void**)&pTsmaRsp);
+  if (TSDB_CODE_SUCCESS == code && pTsmaRsp) {
+    ASSERT(pTsmaRsp->pTsmas->size == 1);
+    *pTsma = taosArrayGetP(pTsmaRsp->pTsmas, 0);
+  }
+  return code;
 }
 
 STableCfg* tableCfgDup(STableCfg* pCfg) {
@@ -1216,10 +1239,12 @@ void destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
     destoryParseTablesMetaReqHash(pMetaCache->pTableMeta);
     destoryParseTablesMetaReqHash(pMetaCache->pTableVgroup);
     destoryParseTablesMetaReqHash(pMetaCache->pViews);
+    destoryParseTablesMetaReqHash(pMetaCache->pTSMAs);
   } else {
     taosHashCleanup(pMetaCache->pTableMeta);
     taosHashCleanup(pMetaCache->pTableVgroup);
     taosHashCleanup(pMetaCache->pViews);
+    taosHashCleanup(pMetaCache->pTSMAs);
   }
   taosHashCleanup(pMetaCache->pDbVgroup);
   taosHashCleanup(pMetaCache->pDbCfg);

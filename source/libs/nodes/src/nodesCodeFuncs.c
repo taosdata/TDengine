@@ -7037,9 +7037,6 @@ static int32_t tsmaOptionToJson(const void* pObj, SJson* pJson) {
   const STSMAOptions* pNode = (const STSMAOptions*)pObj;
   int32_t code = nodeListToJson(pJson, jkTSMAOptionFuncs, pNode->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodeListToJson(pJson, jkTSMAOptionCols, pNode->pCols);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkTSMAOptionInterval, nodeToJson, pNode->pInterval);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -7051,9 +7048,6 @@ static int32_t tsmaOptionToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToTSMAOption(const SJson* pJson, void* pObj) {
   STSMAOptions* pNode = (STSMAOptions*)pObj;
   int32_t code = jsonToNodeList(pJson, jkTSMAOptionFuncs, &pNode->pFuncs);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeList(pJson, jkTSMAOptionCols, &pNode->pCols);
-  }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkTSMAOptionInterval, &pNode->pInterval);
   }
