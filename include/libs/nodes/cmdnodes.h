@@ -596,6 +596,7 @@ typedef struct STSMAOptions {
   SNodeList* pCols;
   SNode*     pInterval;
   uint8_t    tsPrecision;
+  bool       recursiveTsma;  // true if create recursive tsma
 } STSMAOptions;
 
 typedef struct SCreateTSMAStmt {
@@ -603,7 +604,7 @@ typedef struct SCreateTSMAStmt {
   bool            ignoreExists;
   char            tsmaName[TSDB_INDEX_NAME_LEN];
   char            dbName[TSDB_DB_NAME_LEN];
-  char            tableName[TSDB_TABLE_NAME_LEN];
+  char            tableName[TSDB_TABLE_NAME_LEN]; // base tb name or base tsma name
   STSMAOptions*   pOptions;
   //SMCreateSmaReq* pReq;
 } SCreateTSMAStmt;

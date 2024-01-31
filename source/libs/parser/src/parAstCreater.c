@@ -2846,7 +2846,19 @@ SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* 
   CHECK_OUT_OF_MEM(pStmt);
 
   pStmt->ignoreExists = ignoreExists;
-  pStmt->pOptions = (STSMAOptions*)pOptions;
+  if (!pOptions) {
+    // recursive tsma
+    pStmt->pOptions = (STSMAOptions*)nodesMakeNode(QUERY_NODE_TSMA_OPTIONS);
+    if (!pStmt->pOptions) {
+      nodesDestroyNode((SNode*)pStmt);
+      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+      snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
+      return NULL;
+    }
+    pStmt->pOptions->recursiveTsma = true;
+  } else {
+    pStmt->pOptions = (STSMAOptions*)pOptions;
+  }
   pStmt->pOptions->pInterval = pInterval;
   COPY_STRING_FORM_ID_TOKEN(pStmt->tsmaName, tsmaName);
 
@@ -2858,7 +2870,7 @@ SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* 
   return (SNode*)pStmt;
 }
 
-SNode* createTSMAOptions(SAstCreateContext* pCxt, SNodeList* pFuncs, SNodeList* pCols) {
+SNode* createTSMAOptions(SAstCreateContext* pCxt, SNodeList* pFuncs) {
   CHECK_PARSER_STATUS(pCxt);
   /*
   SNode *pNode1, *pNode2;
@@ -2888,8 +2900,10 @@ SNode* createTSMAOptions(SAstCreateContext* pCxt, SNodeList* pFuncs, SNodeList* 
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory");
     return NULL;
   }
+  // TODO check duplicate funcs somewhere
+  // TODO check non supported funcs somewhere
   pOptions->pFuncs = pFuncs;
-  pOptions->pCols = pCols;
+  //pOptions->pCols = pCols;
 
   //nodesDestroyList(pFuncs);
   //nodesDestroyList(pCols);

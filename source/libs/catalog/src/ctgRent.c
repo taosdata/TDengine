@@ -268,7 +268,7 @@ void ctgRemoveTSMARent(SCatalog *pCtg, SCtgDBCache *dbCache) {
     CTG_LOCK(CTG_READ, &pCtgCache->tsmaLock);
     int32_t size = pCtgCache ? pCtgCache->pTsmas->size : 0;
     for (int32_t i = 0; i < size; ++i) {
-      STSMACache* pCache = taosArrayGet(pCtgCache->pTsmas, i);
+      STSMACache* pCache = taosArrayGetP(pCtgCache->pTsmas, i);
       if (TSDB_CODE_SUCCESS == ctgMetaRentRemove(&pCtg->tsmaRent, pCache->tsmaId, ctgTSMAVersionSortCompare, ctgTSMAVersionSearchCompare)) {
         ctgDebug("tsma removed from rent, viewId: %" PRIx64 " name: %s.%s.%s", pCache->tsmaId, pCache->dbFName, pCache->tb, pCache->name);
       }

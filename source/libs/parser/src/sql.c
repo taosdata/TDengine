@@ -1712,6 +1712,7 @@ static const YYCODETYPE yyFallback[] = {
     0,  /*     SYSTEM => nothing */
     0,  /*       TSMA => nothing */
     0,  /*   INTERVAL => nothing */
+    0,  /*  RECURSIVE => nothing */
     0,  /*      TSMAS => nothing */
     0,  /*   FUNCTION => nothing */
     0,  /*      INDEX => nothing */

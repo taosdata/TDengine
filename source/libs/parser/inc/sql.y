@@ -582,7 +582,10 @@ db_kind_opt(A) ::= SYSTEM.                                                      
 
 /************************************************ tsma ********************************************************/
 cmd ::= CREATE TSMA not_exists_opt(B) tsma_name(C)
-  ON full_table_name(E) tsma_opt(D) INTERVAL NK_LP duration_literal(F) NK_RP.     { pCxt->pRootNode = createCreateTSMAStmt(pCxt, B, &C, D, E, releaseRawExprNode(pCxt, F)); }
+  ON full_table_name(E) tsma_func_list(D)
+  INTERVAL NK_LP duration_literal(F) NK_RP.                                       { pCxt->pRootNode = createCreateTSMAStmt(pCxt, B, &C, D, E, releaseRawExprNode(pCxt, F)); }
+cmd ::= CREATE RECURSIVE TSMA not_exists_opt(B) tsma_name(C)
+  ON full_table_name(D) INTERVAL NK_LP duration_literal(E) NK_RP.                 { pCxt->pRootNode = createCreateTSMAStmt(pCxt, B, &C, NULL, D, releaseRawExprNode(pCxt, E)); }
 cmd ::= DROP TSMA exists_opt(B) full_tsma_name(C).                                { pCxt->pRootNode = createDropTSMAStmt(pCxt, B, C); }
 cmd ::= SHOW CREATE TSMA full_tsma_name(B).                                       { pCxt->pRootNode = createShowCreateTSMAStmt(pCxt, B); }
 cmd ::= SHOW db_name_cond_opt(B) TSMAS.                                           { pCxt->pRootNode = createShowTSMASStmt(pCxt, B); }
@@ -590,20 +593,9 @@ cmd ::= SHOW db_name_cond_opt(B) TSMAS.                                         
 full_tsma_name(A) ::= tsma_name(B).                                               { A = createRealTableNodeForIndexName(pCxt, NULL, &B); }
 full_tsma_name(A) ::= db_name(B) NK_DOT tsma_name(C).                             { A = createRealTableNodeForIndexName(pCxt, &B, &C); }
 
-%type tsma_opt                                                                    { SNode* }
-%destructor tsma_opt                                                              { nodesDestroyNode($$); }
-tsma_opt(A) ::= .                                                                 { A = createDefaultTSMAOptions(pCxt); }
-tsma_opt(A) ::= FUNCTION NK_LP tsma_func_list(B) NK_RP
-  COLUMN NK_LP col_name_list(C) NK_RP.                                            { A = createTSMAOptions(pCxt, B, C); }
-
-%type tsma_func_list                                                              { SNodeList* }
-%destructor tsma_func_list                                                        { nodesDestroyList($$); }
-tsma_func_list(A) ::= tsma_func_name(B).                                          { A = createNodeList(pCxt, B); }
-tsma_func_list(A) ::= tsma_func_list(B) NK_COMMA tsma_func_name(C).               { A = addNodeToList(pCxt, B, C); }
-
-%type tsma_func_name                                                              { SNode* }
-%destructor tsma_func_name                                                        { nodesDestroyNode($$); }
-tsma_func_name(A) ::= sma_func_name(B).                                           { A = createFunctionNode(pCxt, &B, NULL); }
+%type tsma_func_list                                                              { SNode* }
+%destructor tsma_func_list                                                        { nodesDestroyNode($$); }
+tsma_func_list(A) ::= FUNCTION NK_LP func_list(B) NK_RP.                          { A = createTSMAOptions(pCxt, B); }
 
 /************************************************ create index ********************************************************/
 cmd ::= CREATE SMA INDEX not_exists_opt(D)

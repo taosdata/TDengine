@@ -95,6 +95,7 @@ typedef struct SCatalogReq {
   SArray* pTableTag;      // element is SNAME
   SArray* pView;          // element is STablesReq
   SArray* pTableTSMAs;    // element is STablesReq
+  SArray* pTSMAs;         // element is STablesReq
   bool    qNodeRequired;  // valid qnode
   bool    dNodeRequired;  // valid dnode
   bool    svrVerRequired;
@@ -124,6 +125,7 @@ typedef struct SMetaData {
   SArray*   pDnodeList;   // pRes = SArray<SEpSet>*
   SArray*   pView;        // pRes = SViewMeta*
   SArray*   pTableTsmas;  // pRes = SArray<STableTSMAInfo*>
+  SArray*   pTsmas;       // pRes = SArray<STableTSMAInfo*>
   SMetaRes* pSvrVer;      // pRes = char*
 } SMetaData;
 
@@ -411,6 +413,8 @@ int32_t catalogUpdateTSMA(SCatalog* pCtg, STableTSMAInfo** ppTsma);
 int32_t catalogRemoveTSMA(SCatalog* pCtg, const STableTSMAInfo* pTsma);
 
 int32_t catalogGetTableTsmas(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes);
+
+int32_t catalogGetTsma(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTsmaName, STableTSMAInfo** pTsma);
 
 /**
  * Destroy catalog and relase all resources

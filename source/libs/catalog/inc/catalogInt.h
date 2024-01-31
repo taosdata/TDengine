@@ -129,6 +129,7 @@ typedef enum {
   CTG_TASK_GET_TB_TAG,
   CTG_TASK_GET_VIEW,
   CTG_TASK_GET_TB_TSMA,
+  CTG_TASK_GET_TSMA,
 } CTG_TASK_TYPE;
 
 typedef enum {
@@ -391,6 +392,7 @@ typedef struct SCtgJob {
   int32_t          svrVerNum;
   int32_t          viewNum;
   int32_t          tbTsmaNum;
+  int32_t          tsmaNum; // currently, only 1 is possible
 } SCtgJob;
 
 typedef struct SCtgMsgCtx {
@@ -1116,13 +1118,14 @@ int32_t ctgGetUserCb(SCtgTask* pTask);
 
 int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx, int32_t* fetchIdx, int32_t baseResIdx,
                               SArray* pList);
-int32_t  ctgGetTbTSMAFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SName* name, STableTSMAInfoRsp* out,
-                               SCtgTaskReq* tReq);
-int32_t  ctgUpdateTbTSMAEnqueue(SCatalog* pCtg, STSMACache** pTsma, bool syncOp);
-int32_t  ctgDropTSMAForTbEnqueue(SCatalog* pCtg, SName* pName, bool syncOp);
-int32_t  ctgDropTbTSMAEnqueue(SCatalog* pCtg, const STSMACache* pTsma, bool syncOp);
-int32_t  ctgOpDropTbTSMA(SCtgCacheOperation* operation);
-int32_t  ctgOpUpdateTbTSMA(SCtgCacheOperation* operation);
+int32_t ctgGetTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, SName* pTsmaName);
+int32_t ctgGetTbTSMAFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* name, STableTSMAInfoRsp* out,
+                              SCtgTaskReq* tReq, int32_t reqType);
+int32_t ctgUpdateTbTSMAEnqueue(SCatalog* pCtg, STSMACache** pTsma, bool syncOp);
+int32_t ctgDropTSMAForTbEnqueue(SCatalog* pCtg, SName* pName, bool syncOp);
+int32_t ctgDropTbTSMAEnqueue(SCatalog* pCtg, const STSMACache* pTsma, bool syncOp);
+int32_t ctgOpDropTbTSMA(SCtgCacheOperation* operation);
+int32_t ctgOpUpdateTbTSMA(SCtgCacheOperation* operation);
 uint64_t ctgGetTbTSMACacheSize(STSMACache* pTsmaInfo);
 void     ctgFreeTbTSMAInfo(void* p);
 

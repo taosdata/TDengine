@@ -937,6 +937,7 @@ int32_t cloneCatalogReq(SCatalogReq **ppTarget, SCatalogReq *pSrc) {
     pTarget->pTableTag = taosArrayDup(pSrc->pTableTag, NULL);
     pTarget->pView = taosArrayDup(pSrc->pView, NULL);
     pTarget->pTableTSMAs = taosArrayDup(pSrc->pTableTSMAs, NULL);
+    pTarget->pTSMAs = taosArrayDup(pSrc->pTSMAs, NULL);
     pTarget->qNodeRequired = pSrc->qNodeRequired;
     pTarget->dNodeRequired = pSrc->dNodeRequired;
     pTarget->svrVerRequired = pSrc->svrVerRequired;

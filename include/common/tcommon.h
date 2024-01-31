@@ -414,6 +414,8 @@ typedef struct STUidTagInfo {
 
 int32_t taosGenCrashJsonMsg(int signum, char **pMsg, int64_t clusterId, int64_t startTime);
 
+#define TSMA_RES_STB_POSTFIX "_tsma_res_stb_"
+
 #ifdef __cplusplus
 }
 #endif
