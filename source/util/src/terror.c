@@ -442,7 +442,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CONN_LIMITED,           "Number of connections
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_STREAM_LIMITED,         "Number of streams has reached the licensed upper limit")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_SPEED_LIMITED,          "Write speed has reached the licensed upper limit")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_STORAGE_LIMITED,        "Storage capacity has reached the licensed upper limit")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_QUERYTIME_LIMITED,      "Query time has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED,   "Number of subscriptions has reached the licensed upper limit")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CPU_LIMITED,            "Number of CPU cores has reached the licensed upper limit")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_STABLE_LIMITED,         "Number of stables has reached the licensed upper limit")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TABLE_LIMITED,          "Number of tables has reached the licensed upper limit")

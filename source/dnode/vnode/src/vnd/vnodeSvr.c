@@ -600,11 +600,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
         tqProcessTaskResetReq(pVnode->pTq, pMsg);
       }
     } break;
-    case TDMT_STREAM_HTASK_DROP: {
-      if (pVnode->restored && vnodeIsLeader(pVnode)) {
-        tqProcessTaskDropHTask(pVnode->pTq, pMsg);
-      }
-    } break;
     case TDMT_VND_ALTER_CONFIRM:
       needCommit = pVnode->config.hashChange;
       if (vnodeProcessAlterConfirmReq(pVnode, ver, pReq, len, pRsp) < 0) {
@@ -794,10 +789,6 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskRetrieveRsp(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_SCAN_HISTORY:
       return tqProcessTaskScanHistory(pVnode->pTq, pMsg);
-    case TDMT_VND_STREAM_SCAN_HISTORY_FINISH:
-      return tqProcessTaskScanHistoryFinishReq(pVnode->pTq, pMsg);
-    case TDMT_VND_STREAM_SCAN_HISTORY_FINISH_RSP:
-      return tqProcessTaskScanHistoryFinishRsp(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_CHECKPOINT_READY:
       return tqProcessTaskCheckpointReadyMsg(pVnode->pTq, pMsg);
     default:

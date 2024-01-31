@@ -24,6 +24,7 @@ static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pDa
 static int32_t (*tColDataUpdateValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward);
 
 // SBuffer ================================
+#ifdef BUILD_NO_CALL
 void tBufferDestroy(SBuffer *pBuffer) {
   tFree(pBuffer->pBuf);
   pBuffer->pBuf = NULL;
@@ -55,7 +56,7 @@ int32_t tBufferReserve(SBuffer *pBuffer, int64_t nData, void **ppData) {
 
   return code;
 }
-
+#endif
 // ================================
 static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson);
 
@@ -1148,6 +1149,7 @@ static int tTagValJsonCmprFn(const void *p1, const void *p2) {
   return strcmp(((STagVal *)p1)[0].pKey, ((STagVal *)p2)[0].pKey);
 }
 
+#ifdef TD_DEBUG_PRINT_TAG
 static void debugPrintTagVal(int8_t type, const void *val, int32_t vlen, const char *tag, int32_t ln) {
   switch (type) {
     case TSDB_DATA_TYPE_VARBINARY:
@@ -1239,6 +1241,7 @@ void debugPrintSTag(STag *pTag, const char *tag, int32_t ln) {
   }
   printf("\n");
 }
+#endif
 
 static int32_t tPutTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
   int32_t n = 0;
@@ -2576,6 +2579,7 @@ _exit:
   return code;
 }
 
+#ifdef BUILD_NO_CALL
 static int32_t tColDataSwapValue(SColData *pColData, int32_t i, int32_t j) {
   int32_t code = 0;
 
@@ -2658,6 +2662,7 @@ static void tColDataSwap(SColData *pColData, int32_t i, int32_t j) {
       break;
   }
 }
+#endif
 
 static int32_t tColDataCopyRowCell(SColData *pFromColData, int32_t iFromRow, SColData *pToColData, int32_t iToRow) {
   int32_t code = TSDB_CODE_SUCCESS;
