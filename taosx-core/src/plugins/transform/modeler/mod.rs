@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use arrow::{
+    array::{ArrayRef, StringArray},
     datatypes::{DataType, Field, Schema},
     record_batch::RecordBatch,
 };
@@ -18,7 +19,10 @@ use crate::plugins::{
     },
 };
 
-use super::constants::{META_FIELD_SCOPE, META_FIELD_TYPE};
+use super::{
+    constants::{META_FIELD_SCOPE, META_FIELD_TYPE},
+    TableOptions,
+};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Modeler(#[serde(deserialize_with = "model_serde::deserialize")] Vec<Table>);
@@ -214,8 +218,33 @@ pub struct Table {
     pub columns: Option<Vec<String>>,
     #[serde(default)]
     pub r#where: Option<BooleanExpr>,
+    #[serde(default, with = "once_lock_serde")]
+    pub global: std::sync::OnceLock<Arc<TableOptions>>,
 }
+mod once_lock_serde {
+    use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
 
+    pub fn deserialize<'de, D, T>(deserializer: D) -> Result<std::sync::OnceLock<T>, D::Error>
+    where
+        D: Deserializer<'de>,
+        T: Deserialize<'de>,
+    {
+        let t = Option::<T>::deserialize(deserializer)?;
+        let v = std::sync::OnceLock::new();
+        if let Some(t) = t {
+            let _ = v.set(t);
+        }
+        Ok(v)
+    }
+
+    pub fn serialize<T, S>(value: &std::sync::OnceLock<T>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        T: Serialize,
+        S: Serializer,
+    {
+        value.get().serialize(serializer)
+    }
+}
 impl Table {
     pub fn apply(&self, records: &RecordBatch) -> Result<ModeledRecordBatch, super::Error> {
         // Check if the table has at least two column.
@@ -250,11 +279,21 @@ impl Table {
                 .into_iter()
                 .collect(),
         );
-        let name_array = name_expr.eval_as(&records, DataType::Utf8)?;
 
         fields.push(name_field);
-        columns.push(name_array);
-
+        let name_array = name_expr.eval_as(&records, DataType::Utf8)?;
+        if let Some(global) = self.global.get() {
+            let name_array = name_array
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap()
+                .into_iter()
+                .map(|s| s.map(|s| global.canonical_table_name(s)));
+            let name_array = Arc::new(StringArray::from_iter(name_array)) as ArrayRef;
+            columns.push(name_array);
+        } else {
+            columns.push(name_array);
+        }
         if let Some(using_expr) = self.using.as_deref().map(template_to_expr).transpose()? {
             let using_array = using_expr.eval_as(&records, DataType::Utf8)?;
             let using_field = Field::new(FIELD_NAME_USING, DataType::Utf8, false).with_metadata(
