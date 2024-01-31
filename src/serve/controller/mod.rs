@@ -2260,10 +2260,15 @@ lazy_static::lazy_static! {
         macro_rules! include_ds_yaml {
             ($ds:literal) => {
                 let yaml = include_str!(concat!("../data_sources/en/", $ds, ".yaml"));
-                let yaml = yaml
-                    .replace("taosX", crate::build::CUS_APP_NAME)
-                    .replace("TDengine", crate::build::CUS_NAME)
-                    .replace("taosAdapter",const_format::concatcp!(crate::build::CUS_PROMPT, "Adapter"));
+                let yaml = if crate::build::CUS_NAME != "TDengine" {
+                    yaml
+                        .replace("taosX", crate::build::CUS_APP_NAME)
+                        .replace("TDengine", crate::build::CUS_NAME)
+                        .replace("taosdata", crate::build::CUS_PROMPT)
+                        .replace("taosAdapter",const_format::concatcp!(crate::build::CUS_PROMPT, "Adapter"))
+                }else {
+                    yaml.to_string()
+                };
                 def.push(serde_yaml::from_str(yaml.as_str()).unwrap());
             };
         }
@@ -2288,11 +2293,15 @@ lazy_static::lazy_static! {
         macro_rules! include_ds_yaml {
             ($ds:literal) => {
                 let yaml = include_str!(concat!("../data_sources/cn/", $ds, ".yaml"));
-                let yaml = yaml
-                    .replace("taosX", crate::build::CUS_APP_NAME)
-                    .replace("TDengine", crate::build::CUS_NAME)
-                    .replace("taosdata", crate::build::CUS_PROMPT)
-                    .replace("taosAdapter",const_format::concatcp!(crate::build::CUS_PROMPT, "Adapter"));
+                let yaml = if crate::build::CUS_NAME != "TDengine" {
+                    yaml
+                        .replace("taosX", crate::build::CUS_APP_NAME)
+                        .replace("TDengine", crate::build::CUS_NAME)
+                        .replace("taosdata", crate::build::CUS_PROMPT)
+                        .replace("taosAdapter",const_format::concatcp!(crate::build::CUS_PROMPT, "Adapter"))
+                } else {
+                    yaml.to_string()
+                };
                 def.push(serde_yaml::from_str(yaml.as_str()).unwrap());
             };
         }
