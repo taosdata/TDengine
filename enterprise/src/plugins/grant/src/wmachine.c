@@ -16,7 +16,7 @@
 
 SGrantUniqObj grantObj;
 
-void grantActiveSystem(const char *inputCfgFile, SGrantBasicObj *pObj, SGrantConnObj *pConnObj) {
+void grantActiveSystem(const char *inputCfgFile, SGrantObj *pObj, SGrantConnObj *pConnObj) {
   grantObj.granted = 1;
   grantObj.officialVersion = 1;
   grantObj.basicExpireDay = GRANT_UNIQ_UNLIMITED;

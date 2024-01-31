@@ -444,7 +444,7 @@ static FORCE_INLINE void grantSetClusterId(SMnode *pMnode, char *pClusterId) {
   }
 }
 
-static void grantSetActiveCodes(SDnodeInfo *pInfo, SGrantBasicObj *pObj, SGrantConnObj *pConnObj) {
+static void grantSetActiveCodes(SDnodeInfo *pInfo, SGrantObj *pObj, SGrantConnObj *pConnObj) {
   if (0 != pInfo->active[0] && pObj) {
     tstrncpy(pObj->active, pInfo->active, GRANT_ACTIVE_KEY_LEN + 1);
   }
@@ -539,7 +539,7 @@ _err:
   return TSDB_CODE_FAILED;
 }
 
-static void dmRefreshGrantCfg(SGrantBasicObj *pObj, SGrantConnObj *pConnObj) {
+static void dmRefreshGrantCfg(SGrantObj *pObj, SGrantConnObj *pConnObj) {
   char cfgFile[PATH_MAX] = {0};
 #ifdef CUS_PROMPT
   sprintf(cfgFile, "%s/%s.cfg", configDir, CUS_PROMPT);
@@ -683,7 +683,7 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
   GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_CSV], gStatus.csvExpireSec, 86400, dftExpireDay);
   GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_VIEW], gStatus.viewExpireSec, 86400, dftExpireDay);
   GRANT_VALUE_CONVERT(grantObj.expireDays[GRANT_OPT_DATA_BAK_RST], gStatus.bakRstExpireSec, 86400, dftExpireDay);
-  
+
   for (int32_t i = 0; i < GRANT_UNIQ_KNOWN_DATAIN_VALS; i += 3) {
     GRANT_VALUE_CONVERT(grantObj.dataIns[i], gStatus.dataIns[i], 1, dftExpireDay);                         // expire
     GRANT_VALUE_CONVERT(grantObj.dataIns[i + 1], gStatus.dataIns[i + 1], 1, GRANT_UNIQ_DFT_DATAIN_SPEED);  // speed
@@ -743,14 +743,14 @@ static int32_t grantMachineCmprFn(const void *p1, const void *p2) {
   return memcmp(p1, m2, TSDB_MACHINE_ID_LEN);
 }
 
-static int32_t grantCheckMachines(SGrantObj *pGrant, SArray **pGrantMachines, bool *toRevoked) {
+static int32_t grantCheckMachines(SGrantLogObj *pGrant, SArray **pGrantMachines, bool *toRevoked) {
   int32_t nDnodeLimit = gStatus.limitDnodes >= 0 ? gStatus.limitDnodes : INT32_MAX;
   int32_t nMachines = taosArrayGetSize(pGrant->pMachines);
   void   *pe = NULL;
   int32_t iter = 0;
   if (nMachines > 1 && pGrant->pMachines) taosArraySort(pGrant->pMachines, grantMachineCmprFn);
   if (nMachines < nDnodeLimit) {
-    // append if not exist in SGrantObj, transfer to revoked state if exceeded
+    // append if not exist in SGrantLogObj, transfer to revoked state if exceeded
     int32_t idx = 0;
     void   *machines[128];
     int32_t dnodeIds[128];
@@ -795,15 +795,15 @@ static int32_t grantCheckMachines(SGrantObj *pGrant, SArray **pGrantMachines, bo
 }
 
 static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
-  int32_t    code = 0;
-  int32_t    lino = 0;
-  int64_t    curTime = taosGetTimestampMs() / 1000;
-  bool       toRevoked = false;
-  bool       granted = false;
-  bool       stated = true;
-  void      *pIter = NULL;
-  SGrantObj *pGrant = NULL;
-  SArray    *pGrantMachines = NULL;
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  int64_t       curTime = taosGetTimestampMs() / 1000;
+  bool          toRevoked = false;
+  bool          granted = false;
+  bool          stated = true;
+  void         *pIter = NULL;
+  SGrantLogObj *pGrant = NULL;
+  SArray       *pGrantMachines = NULL;
 
   code = grantCheckClusterInfo(pMnode);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -890,7 +890,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
   }
 
   // check machines
-#ifdef GRANTS_CFG
+#ifndef GRANTS_CFG
   if (!granted || (grantObj.flags & 0x02)) {
     grantCheckMachines(pGrant, &pGrantMachines, &toRevoked);
   }
@@ -1660,7 +1660,7 @@ static int32_t mndCfgDnodeReq(SDnodeInfo *pDnodeInfo, const char *cfg, const cha
 static int32_t machineCmprFn(const void *p1, const void *p2) { return memcmp(p1, p2, TSDB_MACHINE_ID_LEN); }
 
 // mnode-write thread
-int32_t grantAlterActiveCode(SMnode *pMnode, SGrantObj *pObj, const char *oldActive, const char *newActive,
+int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *oldActive, const char *newActive,
                              char **mergeActive) {
   int32_t       code = 0;
   SGrantUniqObj newObj = {0};
@@ -2048,7 +2048,7 @@ static int32_t mndRetrieveGrantLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
   int32_t nMachines = 0;
   void   *pIter = NULL;
 
-  SGrantObj *pGrant = mndAcquireGrant(pMnode, &pIter);
+  SGrantLogObj *pGrant = mndAcquireGrant(pMnode, &pIter);
   if (!pGrant) {
     return 0;
   }

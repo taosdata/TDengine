@@ -35,17 +35,17 @@ extern SGrantStatus gStatus;
     }                             \
   } while (0)
 
-void tDestroyGrantObj(SGrantObj *pGrant) {
+void tDestroyGrantObj(SGrantLogObj *pGrant) {
   taosArrayDestroy(pGrant->pMachines);
   taosMemoryFree(pGrant->active);
 }
 
-SGrantObj *mndAcquireGrant(SMnode *pMnode, void **ppIter) {
+SGrantLogObj *mndAcquireGrant(SMnode *pMnode, void **ppIter) {
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
 
   while (1) {
-    SGrantObj *pGrant = NULL;
+    SGrantLogObj *pGrant = NULL;
     pIter = sdbFetch(pSdb, SDB_GRANT, pIter, (void **)&pGrant);
     if (pIter == NULL) break;
 
@@ -56,13 +56,13 @@ SGrantObj *mndAcquireGrant(SMnode *pMnode, void **ppIter) {
   return NULL;
 }
 
-void mndReleaseGrant(SMnode *pMnode, SGrantObj *pGrant, void *pIter) {
+void mndReleaseGrant(SMnode *pMnode, SGrantLogObj *pGrant, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
   sdbRelease(pSdb, pGrant);
 }
 
-static int32_t mndGrantObjAppendActive(SGrantObj *pObj, const char *active) {
+static int32_t mndGrantObjAppendActive(SGrantLogObj *pObj, const char *active) {
   int8_t idx = pObj->nActives;
   if (idx >= GRANT_ACTIVE_NUM) {
     memmove(&pObj->actives[0], &pObj->actives[1], sizeof(pObj->actives) - sizeof(pObj->actives[0]));
@@ -75,9 +75,9 @@ static int32_t mndGrantObjAppendActive(SGrantObj *pObj, const char *active) {
   return 0;
 }
 
-static int32_t mndGrantObjAppendMachine(SGrantObj *pObj, const char *active) { return 0; }
+static int32_t mndGrantObjAppendMachine(SGrantLogObj *pObj, const char *active) { return 0; }
 
-static int32_t mndGrantObjAppendState(SGrantObj *pObj, SGrantState *pState) {
+static int32_t mndGrantObjAppendState(SGrantLogObj *pObj, SGrantState *pState) {
   int8_t idx = pObj->nStates;
 
   int64_t ts = taosGetTimestampMs() / 1000;
@@ -110,9 +110,9 @@ static int32_t mndGrantObjAppendState(SGrantObj *pObj, SGrantState *pState) {
 }
 
 int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *pCfg) {
-  int32_t   code = 0;
-  SGrantObj grantObj = {0};
-  bool      revoked = false;
+  int32_t      code = 0;
+  SGrantLogObj grantObj = {0};
+  bool         revoked = false;
 
   int32_t valLen = strlen(pCfg->value);
   if (valLen < GRANT_ACTIVE_HEAD_LEN || valLen >= TSDB_CLUSTER_VALUE_LEN) {
@@ -124,8 +124,8 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
     }
   }
 
-  void      *pIter = NULL;
-  SGrantObj *pGrant = mndAcquireGrant(pMnode, &pIter);
+  void         *pIter = NULL;
+  SGrantLogObj *pGrant = mndAcquireGrant(pMnode, &pIter);
   if (!pGrant) {
     code = TSDB_CODE_APP_IS_STARTING;
     goto _exit;
@@ -136,7 +136,7 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
     if (pGrant->nStates > 0 && pGrant->states[pGrant->nStates - 1].state == GRANT_STATE_REVOKED) goto _exit;
   }
 
-  memcpy(&grantObj, pGrant, sizeof(SGrantObj));
+  memcpy(&grantObj, pGrant, sizeof(SGrantLogObj));
   grantObj.pMachines = NULL;
   grantObj.active = NULL;
   if (pGrant->active) {
@@ -239,16 +239,16 @@ _exit:
 }
 
 int32_t mndProcessUpdGrantLog(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines, SGrantState *pState) {
-  int32_t   code = 0;
-  SGrantObj grantObj = {0};
-  int32_t   nMachines = taosArrayGetSize(pMachines);
+  int32_t      code = 0;
+  SGrantLogObj grantObj = {0};
+  int32_t      nMachines = taosArrayGetSize(pMachines);
 
   if (nMachines <= 0 && !pState) {
     goto _exit;
   }
 
-  void      *pIter = NULL;
-  SGrantObj *pGrant = mndAcquireGrant(pMnode, &pIter);
+  void         *pIter = NULL;
+  SGrantLogObj *pGrant = mndAcquireGrant(pMnode, &pIter);
   if (!pGrant && (!pState || pState->reason != GRANT_STATE_REASON_INIT)) {
     code = TSDB_CODE_APP_IS_STARTING;
     if (pGrant) mndReleaseGrant(pMnode, pGrant, pIter);
@@ -256,7 +256,7 @@ int32_t mndProcessUpdGrantLog(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines, 
   }
 
   if (pGrant) {
-    memcpy(&grantObj, pGrant, sizeof(SGrantObj));
+    memcpy(&grantObj, pGrant, sizeof(SGrantLogObj));
     grantObj.pMachines = NULL;
     grantObj.active = NULL;
     if (pGrant->active) {
@@ -314,9 +314,9 @@ _exit:
 }
 
 int32_t mndGrantGetLastState(SMnode *pMnode, SGrantState *pState) {
-  int32_t    code = 0;
-  void      *pIter = NULL;
-  SGrantObj *pGrant = mndAcquireGrant(pMnode, &pIter);
+  int32_t       code = 0;
+  void         *pIter = NULL;
+  SGrantLogObj *pGrant = mndAcquireGrant(pMnode, &pIter);
   if (!pGrant) {
     code = TSDB_CODE_APP_IS_STARTING;
     if (pGrant) mndReleaseGrant(pMnode, pGrant, pIter);
@@ -333,7 +333,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSGrantObj(void *buf, int32_t bufLen, const SGrantObj *pObj) {
+int32_t tSerializeSGrantObj(void *buf, int32_t bufLen, const SGrantLogObj *pObj) {
   int32_t  code = TSDB_CODE_OUT_OF_MEMORY;
   int32_t  tlen = 0;
   SEncoder encoder = {0};
@@ -384,7 +384,7 @@ _exit:
   return code == 0 ? tlen : code;
 }
 
-int32_t tDeserializeSGrantObj(void *buf, int32_t bufLen, SGrantObj *pObj) {
+int32_t tDeserializeSGrantObj(void *buf, int32_t bufLen, SGrantLogObj *pObj) {
   int32_t  code = TSDB_CODE_OUT_OF_MEMORY;
   int32_t  lino = 0;
   SDecoder decoder = {0};
@@ -452,7 +452,7 @@ _return:
   return code;
 }
 
-SSdbRaw *mndGrantActionEncode(SGrantObj *pGrant) {
+SSdbRaw *mndGrantActionEncode(SGrantLogObj *pGrant) {
   terrno = TSDB_CODE_SUCCESS;
   void    *buf = NULL;
   SSdbRaw *pRaw = NULL;
@@ -500,9 +500,9 @@ _exit:
 }
 
 SSdbRow *mndGrantActionDecode(SSdbRaw *pRaw) {
-  SSdbRow   *pRow = NULL;
-  SGrantObj *pGrant = NULL;
-  void      *buf = NULL;
+  SSdbRow      *pRow = NULL;
+  SGrantLogObj *pGrant = NULL;
+  void         *buf = NULL;
   terrno = TSDB_CODE_SUCCESS;
 
   int8_t sver = 0;
@@ -516,7 +516,7 @@ SSdbRow *mndGrantActionDecode(SSdbRaw *pRaw) {
     goto _exit;
   }
 
-  if (!(pRow = sdbAllocRow(sizeof(SGrantObj)))) {
+  if (!(pRow = sdbAllocRow(sizeof(SGrantLogObj)))) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
@@ -555,20 +555,20 @@ _exit:
   return pRow;
 }
 
-int32_t mndGrantActionInsert(SSdb *pSdb, SGrantObj *pGrant) {
+int32_t mndGrantActionInsert(SSdb *pSdb, SGrantLogObj *pGrant) {
   mTrace("grant:%d, perform insert action", pGrant->id);
   printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
   return 0;
 }
 
-int32_t mndGrantActionDelete(SSdb *pSdb, SGrantObj *pGrant) {
+int32_t mndGrantActionDelete(SSdb *pSdb, SGrantLogObj *pGrant) {
   mTrace("grant:%d, perform delete action", pGrant->id);
   printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
   tDestroyGrantObj(pGrant);
   return 0;
 }
 
-int32_t mndGrantActionUpdate(SSdb *pSdb, SGrantObj *pOldGrant, SGrantObj *pNewGrant) {
+int32_t mndGrantActionUpdate(SSdb *pSdb, SGrantLogObj *pOldGrant, SGrantLogObj *pNewGrant) {
   taosWLockLatch(&pOldGrant->lock);
 
   mTrace("grant:%d, perform update action, old row:%p new row:%p", pOldGrant->id, pOldGrant, pNewGrant);
