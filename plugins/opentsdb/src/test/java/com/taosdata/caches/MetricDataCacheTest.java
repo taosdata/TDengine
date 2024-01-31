@@ -111,4 +111,16 @@ class MetricDataCacheTest {
         // 获取集合，非空集合
         Assertions.assertEquals(new HashSet<>(Arrays.asList("metric1", "metric2")), MetricDataCache.getMetricDataKeySet());
     }
+
+    @Test
+    void removeBucketDataKey() {
+        // 添加元素
+        MetricDataCache.addMetricData("metric1", this.opentsdbDataEntity);
+        // 获取集合，非空集合
+        Assertions.assertEquals(new HashSet<>(Arrays.asList("metric1")), MetricDataCache.getMetricDataKeySet());
+        // 删除指定队列记录
+        MetricDataCache.removeMetricDataKey("metric1");
+        // 获取集合，空集合
+        Assertions.assertEquals(new HashSet<>(), MetricDataCache.getMetricDataKeySet());
+    }
 }
