@@ -27,10 +27,10 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 连接方式的详细介绍请参考：[连接器建立连接的方式](../../develop/connect/#连接器建立连接的方式)
 
-## JDBC和JRE兼容性
+## JDBC 和 JRE 兼容性
 
 - JDBC: 主要兼容 JDBC 4.2 版本，部分功能如数据订阅单独提供  
-- JRE: 支持JRE 8 及以上版本  
+- JRE: 支持 JRE 8 及以上版本  
 
 ## 支持的平台
 
@@ -41,7 +41,8 @@ REST 连接支持所有能运行 Java 的平台。
 
 | taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |   TDengine 版本    |
 | :------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------: |
-|        3.2.7         | 支持VARBINARY和GEOMETRY类型，增加native连接的时区设置支持。增加websocket自动重连功能。                                                                                                          | 3.2.0.0 及更高版本 |
+|        3.2.8         | 优化了自动提交, 解决了 websocket 手动提交 bug, 优化 Websocket prepareStatement 使用一个连接, 元数据支持视图                                       |        -         |
+|        3.2.7         | 支持 VARBINARY 和 GEOMETRY 类型，增加 native 连接的时区设置支持。增加 websocket 自动重连功能。                                                                      | 3.2.0.0 及更高版本 |
 |        3.2.5         |                                                      数据订阅增加 committed()、assignment() 方法                                                       | 3.1.0.3 及更高版本 |
 |        3.2.4         |                                   数据订阅在 WebSocket 连接下增加 enable.auto.commit 参数，以及 unsubscribe() 方法。                                   |         -          |
 |        3.2.3         |                                                         修复 ResultSet 在一些情况数据解析失败                                                          |         -          |
@@ -183,7 +184,7 @@ Maven 项目中，在 pom.xml 中添加以下依赖：
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.2.7</version>
+  <version>3.2.8</version>
 </dependency>
 ```
 
