@@ -11,7 +11,6 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 
 @ExtendWith(SpringExtension.class)
 class BucketDataCacheTest {
@@ -23,14 +22,6 @@ class BucketDataCacheTest {
     void clearBucketDataCache() {
         BucketDataCache.getBucketData(BucketDataCache.getBucketDataQueueSize());
         BucketDataCache.getBucketDataKeySet().forEach(key -> BucketDataCache.removeBucketDataKey(key));
-    }
-
-    @Test
-    void addBucketData() {
-        // 添加元素，队列长度 1
-        Assertions.assertEquals(1, BucketDataCache.addBucketData(this.influxdbBucketDataEntity));
-        // 添加元素，队列长度 2
-        Assertions.assertEquals(2, BucketDataCache.addBucketData(this.influxdbBucketDataEntity));
     }
 
     @Test
@@ -52,8 +43,7 @@ class BucketDataCacheTest {
         // 取到队列，空队列
         Assertions.assertEquals(new ArrayList<>(), BucketDataCache.getBucketData(10));
         // 添加元素
-        BucketDataCache.addBucketData(this.influxdbBucketDataEntity);
-        BucketDataCache.addBucketData(this.influxdbBucketDataEntity);
+        BucketDataCache.addBucketData(Arrays.asList(this.influxdbBucketDataEntity, this.influxdbBucketDataEntity));
         // 取到队列，非空队列
         Assertions.assertEquals(Arrays.asList(this.influxdbBucketDataEntity, this.influxdbBucketDataEntity), BucketDataCache.getBucketData(10));
     }
@@ -74,11 +64,11 @@ class BucketDataCacheTest {
         // 获取队列长度 0
         Assertions.assertEquals(0, BucketDataCache.getBucketDataQueueSize());
         // 添加元素
-        BucketDataCache.addBucketData(this.influxdbBucketDataEntity);
+        BucketDataCache.addBucketData(Arrays.asList(this.influxdbBucketDataEntity));
         // 获取队列长度 1
         Assertions.assertEquals(1, BucketDataCache.getBucketDataQueueSize());
         // 添加元素
-        BucketDataCache.addBucketData(this.influxdbBucketDataEntity);
+        BucketDataCache.addBucketData(Arrays.asList(this.influxdbBucketDataEntity));
         // 获取队列长度 2
         Assertions.assertEquals(2, BucketDataCache.getBucketDataQueueSize());
     }
@@ -102,7 +92,7 @@ class BucketDataCacheTest {
         // 获取队列长度 0
         Assertions.assertEquals(0, BucketDataCache.getBucketDataQueueTotalSize());
         // 添加元素
-        BucketDataCache.addBucketData(this.influxdbBucketDataEntity);
+        BucketDataCache.addBucketData(Arrays.asList(this.influxdbBucketDataEntity));
         // 获取队列长度 1
         Assertions.assertEquals(1, BucketDataCache.getBucketDataQueueTotalSize());
         // 添加元素
@@ -136,20 +126,6 @@ class BucketDataCacheTest {
     }
 
     @Test
-    void getBucketDataEmptyKeySet() {
-        // 获取集合，空集合
-        Assertions.assertEquals(new HashSet<>(), BucketDataCache.getBucketDataEmptyKeySet());
-        // 添加元素
-        BucketDataCache.addBucketData("bucket1,measurement1", this.influxdbBucketDataEntity);
-        // 获取集合，空集合
-        Assertions.assertEquals(new HashSet<>(), BucketDataCache.getBucketDataEmptyKeySet());
-        // 取出元素
-        BucketDataCache.getBucketData("bucket1,measurement1", 10);
-        // 获取集合，非空集合
-        Assertions.assertEquals(new HashSet<>(Arrays.asList("bucket1,measurement1")), BucketDataCache.getBucketDataEmptyKeySet());
-    }
-
-    @Test
     void removeBucketDataKey() {
         // 添加元素
         BucketDataCache.addBucketData("bucket1,measurement1", this.influxdbBucketDataEntity);
@@ -158,6 +134,6 @@ class BucketDataCacheTest {
         // 删除指定队列记录
         BucketDataCache.removeBucketDataKey("bucket1,measurement1");
         // 获取集合，空集合
-        Assertions.assertEquals(new HashSet<>(), BucketDataCache.getBucketDataEmptyKeySet());
+        Assertions.assertEquals(new HashSet<>(), BucketDataCache.getBucketDataKeySet());
     }
 }

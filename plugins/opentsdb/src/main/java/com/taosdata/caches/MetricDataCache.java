@@ -179,7 +179,7 @@ public class MetricDataCache {
      *
      * @param key
      */
-    /*public static void removeMetricDataKey(String key) {
+    public static void removeMetricDataKey(String key) {
         metricDataQueueMap.remove(key);
-    }*/
+    }
 }

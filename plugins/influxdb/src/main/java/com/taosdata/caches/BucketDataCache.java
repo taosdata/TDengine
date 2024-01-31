@@ -195,7 +195,7 @@ public class BucketDataCache {
      *
      * @param key
      */
-    /*public static void removeBucketDataKey(String key) {
+    public static void removeBucketDataKey(String key) {
         bucketDataQueueMap.remove(key);
-    }*/
+    }
 }
