@@ -810,8 +810,6 @@ typedef struct {
       int64_t id : 24;
     };
   };
-  // uint16_t port;
-  // char     fqdn[TSDB_FQDN_LEN];
   char     machine[TSDB_MACHINE_ID_LEN + 1];
 } SGrantMachine;
 
