@@ -277,8 +277,8 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 static void    mndCancelGetNextGrant(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextGrantFull(SMnode *pMnode, void *pIter);
-static int32_t mndRetrieveGrantLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
-static void    mndCancelGetNextGrantLog(SMnode *pMnode, void *pIter);
+static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static void    mndCancelGetNextGrantLogs(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextMachines(SMnode *pMnode, void *pIter);
 
@@ -290,7 +290,7 @@ static int32_t tSerializeGrantDynDataIns(SEncoder *encoder, SArray *pIns);
 static int32_t tDeserializeGrantDynDataIns(SDecoder *decoder, SArray *pIns);
 
 typedef struct {
-  SSHashObj     *pMachines;
+  SSHashObj     *pMachineHash;
   SArray        *pDnodeInfo;
   SMnode        *pMnode;
   int64_t        lastCheck;
@@ -316,8 +316,8 @@ int32_t mndInitGrant(SMnode *pMnode) {
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndCancelGetNextGrant);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_FULL, mndRetrieveGrantFull);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_FULL, mndCancelGetNextGrantFull);
-  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_LOG, mndRetrieveGrantLog);
-  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_LOG, mndCancelGetNextGrantLog);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_LOGS, mndRetrieveGrantLogs);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_LOGS, mndCancelGetNextGrantLogs);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_MACHINES, mndRetrieveMachines);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_MACHINES, mndCancelGetNextMachines);
 
@@ -337,7 +337,7 @@ int32_t mndInitGrant(SMnode *pMnode) {
 
   grantSetClusterInfo(pMnode);
 
-  if (!(grantHandle.pMachines = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY)))) {
+  if (!(grantHandle.pMachineHash = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY)))) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
@@ -377,10 +377,10 @@ static void tDestroyGrantStatus(SGrantStatus *pStatus) {
 }
 
 void mndCleanupGrant() {
-  tSimpleHashCleanup(grantHandle.pMachines);
+  tSimpleHashCleanup(grantHandle.pMachineHash);
   taosArrayDestroy(grantHandle.pDnodeInfo);
   taosThreadRwlockDestroy(&grantHandle.rwLock);
-  grantHandle.pMachines = NULL;
+  grantHandle.pMachineHash = NULL;
   grantHandle.pDnodeInfo = NULL;
   grantHandle.pMnode = NULL;
 
@@ -657,7 +657,7 @@ _exit:
   return code;
 }
 
-static int32_t grantGetDnodesMiscInfo(SMnode *pMnode, SSHashObj *pMachines, bool *pLegacy) {
+static int32_t grantGetDnodesMiscInfo(SMnode *pMnode, SSHashObj *pMachineHash, bool *pLegacy) {
   SSdb      *pSdb = pMnode->pSdb;
   SDnodeObj *pDnode = NULL;
   void      *pIter = NULL;
@@ -668,7 +668,7 @@ static int32_t grantGetDnodesMiscInfo(SMnode *pMnode, SSHashObj *pMachines, bool
     // machineCode
     int32_t klen = strlen(pDnode->machineId);
     if (klen == TSDB_MACHINE_ID_LEN) {
-      tSimpleHashPut(pMachines, pDnode->machineId, klen, &pDnode->id, sizeof(pDnode->id));
+      tSimpleHashPut(pMachineHash, pDnode->machineId, klen, &pDnode->id, sizeof(pDnode->id));
     }
     // legacy
     if (pLegacy && (false == *pLegacy)) {
@@ -785,7 +785,7 @@ static int32_t grantCheckMachines(SGrantLogObj *pGrant, SArray **pGrantMachines,
     int32_t idx = 0;
     void   *machines[128];
     int32_t dnodeIds[128];
-    while ((pe = tSimpleHashIterate(grantHandle.pMachines, pe, &iter)) != NULL) {
+    while ((pe = tSimpleHashIterate(grantHandle.pMachineHash, pe, &iter)) != NULL) {
       void *key = tSimpleHashGetKey(pe, NULL);
       if (!pGrant->pMachines || !taosArraySearch(pGrant->pMachines, key, grantMachineCmprFn, TD_EQ)) {
         machines[idx] = key;
@@ -804,13 +804,13 @@ static int32_t grantCheckMachines(SGrantLogObj *pGrant, SArray **pGrantMachines,
       for (int32_t i = 0; i < num; ++i) {
         taosArrayPush(*pGrantMachines, &(SGrantMachine){.id = dnodeIds[i], .ts = curTime});
         SGrantMachine *pLastMachine = taosArrayGetLast(*pGrantMachines);
-        tstrncpy(pLastMachine->machine, machines[i], TSDB_MACHINE_ID_LEN + 1);
+        memcpy(&pLastMachine->machine[0], machines[i], TSDB_MACHINE_ID_LEN);
       }
     }
 
   } else if (nMachines == nDnodeLimit) {
     // if dnode machines all exist in cluster, it's ok; otherwise transfer to revoked state
-    while ((pe = tSimpleHashIterate(grantHandle.pMachines, pe, &iter)) != NULL) {
+    while ((pe = tSimpleHashIterate(grantHandle.pMachineHash, pe, &iter)) != NULL) {
       void *key = tSimpleHashGetKey(pe, NULL);
       if (!pGrant->pMachines || !taosArraySearch(pGrant->pMachines, key, grantMachineCmprFn, TD_EQ)) {
         if (toRevoked) *toRevoked = true;  // mismatch
@@ -842,7 +842,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
 
   grantRetrieveGrantInfo(pMnode);
 
-  grantGetDnodesMiscInfo(pMnode, grantHandle.pMachines, &legacy);
+  grantGetDnodesMiscInfo(pMnode, grantHandle.pMachineHash, &legacy);
 
   pGrant = mndAcquireGrant(pMnode, &pIter);
   if (!pGrant) {
@@ -1012,7 +1012,7 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
 
   // reset grantHandle and send gStatus to all dnodes, no resp needed
   taosArrayClear(grantHandle.pDnodeInfo);
-  tSimpleHashClear(grantHandle.pMachines);
+  tSimpleHashClear(grantHandle.pMachineHash);
   grantHandle.nServer = 0;
 
   mndGetDnodeData(pMnode, grantHandle.pDnodeInfo);
@@ -2080,7 +2080,7 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 static void mndCancelGetNextGrantFull(SMnode *pMnode, void *pIter) {
   printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
 }
-static int32_t mndRetrieveGrantLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->info.node;
   int32_t numOfRows = 0;
   int32_t cols = 0;
@@ -2174,7 +2174,7 @@ static int32_t mndRetrieveGrantLog(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
   return numOfRows;
 }
 
-static void mndCancelGetNextGrantLog(SMnode *pMnode, void *pIter) {
+static void mndCancelGetNextGrantLogs(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
 }

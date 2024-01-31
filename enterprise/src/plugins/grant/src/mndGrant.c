@@ -213,7 +213,7 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-cluster-active");
   if (pTrans == NULL) {
     code = terrno;
-    return -1;
+    goto _exit;
   }
 
   SSdbRaw *pCommitRaw = mndGrantActionEncode(&grantObj);
@@ -289,7 +289,7 @@ int32_t mndProcessUpdGrantLog(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines, 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-grant-log");
   if (pTrans == NULL) {
     code = terrno;
-    return -1;
+    goto _exit;
   }
 
   SSdbRaw *pCommitRaw = mndGrantActionEncode(&grantObj);
@@ -310,6 +310,7 @@ int32_t mndProcessUpdGrantLog(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines, 
 
   mndTransDrop(pTrans);
 _exit:
+  tDestroyGrantObj(&grantObj);
   return code;
 }
 
