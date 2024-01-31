@@ -193,6 +193,9 @@ void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTableTsmas);
   pData->pTableTsmas = NULL;
 
+  taosArrayDestroy(pData->pTsmas);
+  pData->pTsmas = NULL;
+
   taosMemoryFreeClear(pData->pSvrVer);
 }
 
@@ -625,6 +628,7 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       }
       break;
     }
+    case TDMT_MND_GET_TSMA:
     case TDMT_MND_GET_TABLE_TSMA: {
       if (pCtx->out) {
         tFreeTableTSMAInfoRsp(pCtx->out);
@@ -814,6 +818,7 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       *pRes = NULL;  // no need to free it
       break;
     }
+    case CTG_TASK_GET_TSMA:
     case CTG_TASK_GET_TB_TSMA: {
       SArray* pArr = (SArray*)*pRes;
       int32_t num = taosArrayGetSize(pArr);
@@ -986,6 +991,7 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       taosMemoryFreeClear(pTask->taskCtx);
       break;
     }
+    case CTG_TASK_GET_TSMA:
     case CTG_TASK_GET_TB_TSMA: {
       SCtgTbTSMACtx* pTsmaCtx = pTask->taskCtx;
       taosArrayDestroyEx(pTsmaCtx->pResList, ctgFreeTbTSMARes);
@@ -2084,6 +2090,7 @@ void ctgDestroySMetaData(SMetaData* pData) {
   taosArrayDestroyEx(pData->pDnodeList, ctgFreeDnodeList);
   taosArrayDestroyEx(pData->pView, ctgFreeViewMeta);
   taosArrayDestroyEx(pData->pTableTsmas, ctgFreeTbTSMAInfo);
+  taosArrayDestroyEx(pData->pTsmas, ctgFreeTbTSMAInfo);
   taosMemoryFreeClear(pData->pSvrVer);
 }
 

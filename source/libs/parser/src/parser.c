@@ -271,6 +271,7 @@ void destoryCatalogReq(SCatalogReq *pCatalogReq) {
     taosArrayDestroy(pCatalogReq->pView);
 #endif
     taosArrayDestroy(pCatalogReq->pTableTSMAs);
+    taosArrayDestroy(pCatalogReq->pTSMAs);
   } else {
     taosArrayDestroyEx(pCatalogReq->pTableMeta, destoryTablesReq);
     taosArrayDestroyEx(pCatalogReq->pTableHash, destoryTablesReq);
@@ -278,6 +279,7 @@ void destoryCatalogReq(SCatalogReq *pCatalogReq) {
     taosArrayDestroyEx(pCatalogReq->pView, destoryTablesReq);
 #endif  
     taosArrayDestroyEx(pCatalogReq->pTableTSMAs, destoryTablesReq);
+    taosArrayDestroyEx(pCatalogReq->pTSMAs, destoryTablesReq);
   }
   taosArrayDestroy(pCatalogReq->pUdf);
   taosArrayDestroy(pCatalogReq->pIndex);

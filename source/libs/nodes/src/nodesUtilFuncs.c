@@ -843,7 +843,6 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_TSMA_OPTIONS: {
       STSMAOptions* pOptions = (STSMAOptions*)pNode;
-      nodesDestroyList(pOptions->pCols);
       nodesDestroyList(pOptions->pFuncs);
       nodesDestroyNode(pOptions->pInterval);
       break;

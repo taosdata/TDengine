@@ -9752,6 +9752,7 @@ int32_t tSerializeTableTSMAInfoReq(void* buf, int32_t bufLen, const STableTSMAIn
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->fetchingTsma) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -9766,6 +9767,7 @@ int32_t tDeserializeTableTSMAInfoReq(void* buf, int32_t bufLen, STableTSMAInfoRe
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+  if (tDecodeI8(&decoder, (uint8_t*)&pReq->fetchingTsma) < 0) return -1;
 
   tEndDecode(&decoder);
 
@@ -9801,6 +9803,14 @@ static int32_t tEncodeTableTSMAInfo(SEncoder* pEncoder, const STableTSMAInfo* pT
     const SSchema* pSchema = taosArrayGet(pTsmaInfo->pTags, i);
     if (tEncodeSSchema(pEncoder, pSchema) < 0) return -1;
   }
+  size = pTsmaInfo->pUsedCols ? pTsmaInfo->pUsedCols->size : 0;
+  if (tEncodeI32(pEncoder, size) < 0) return -1;
+  for (int32_t i = 0; i < size; ++i) {
+    const SSchema* pSchema = taosArrayGet(pTsmaInfo->pUsedCols, i);
+    if (tEncodeSSchema(pEncoder, pSchema) < 0) return -1;
+  }
+
+  if (tEncodeCStr(pEncoder, pTsmaInfo->ast) < 0) return -1;
   return 0;
 }
 
@@ -9841,6 +9851,18 @@ static int32_t tDecodeTableTSMAInfo(SDecoder* pDecoder, STableTSMAInfo* pTsmaInf
       taosArrayPush(pTsmaInfo->pTags, &schema);
     }
   }
+
+  if (tDecodeI32(pDecoder, &size) < 0) return -1;
+  if (size > 0) {
+    pTsmaInfo->pUsedCols = taosArrayInit(size, sizeof(SSchema));
+    if (!pTsmaInfo->pUsedCols) return -1;
+    for (int32_t i = 0; i < size; ++i) {
+      SSchema schema = {0};
+      if (tDecodeSSchema(pDecoder, &schema) < 0) return -1;
+      taosArrayPush(pTsmaInfo->pUsedCols, &schema);
+    }
+  }
+  if (tDecodeCStrAlloc(pDecoder, &pTsmaInfo->ast) < 0) return -1;
 
   return 0;
 }
@@ -9903,6 +9925,8 @@ void tFreeTableTSMAInfo(void* p) {
   if (pTsmaInfo) {
     taosArrayDestroy(pTsmaInfo->pFuncs);
     taosArrayDestroy(pTsmaInfo->pTags);
+    taosArrayDestroy(pTsmaInfo->pUsedCols);
+    taosMemoryFree(pTsmaInfo->ast);
   }
 }
 
@@ -9925,10 +9949,21 @@ int32_t tCloneTbTSMAInfo(STableTSMAInfo* pInfo, STableTSMAInfo** pRes) {
   *pRet = *pInfo;
   if (pInfo->pFuncs) {
     pRet->pFuncs = taosArrayDup(pInfo->pFuncs, NULL);
+    if (!pRet->pFuncs) code = TSDB_CODE_OUT_OF_MEMORY;
   }
-  if (pInfo->pTags) {
+  if (pInfo->pTags && code == TSDB_CODE_SUCCESS) {
     pRet->pTags = taosArrayDup(pInfo->pTags, NULL);
+    if (!pRet->pTags) code = TSDB_CODE_OUT_OF_MEMORY;
   }
+  if (pInfo->pUsedCols && code == TSDB_CODE_SUCCESS) {
+    pRet->pUsedCols = taosArrayDup(pInfo->pUsedCols, NULL);
+    if (!pRet->pUsedCols) code = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (pInfo->ast && code == TSDB_CODE_SUCCESS) {
+    pRet->ast = taosStrdup(pInfo->ast);
+    if (!pRet->ast) code = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (code) tFreeTableTSMAInfo(pRet);
   *pRes = pRet;
   return code;
 }

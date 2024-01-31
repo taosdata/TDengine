@@ -1832,7 +1832,8 @@ _return:
 
 int32_t ctgGetTbTsmas(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, SArray** ppRes) {
   STableTSMAInfoRsp tsmasRsp = {0};
-  int32_t code = ctgGetTbTSMAFromMnode(pCtg, pConn, pTableName, &tsmasRsp, NULL);
+  //TODO get from cache first
+  int32_t code = ctgGetTbTSMAFromMnode(pCtg, pConn, pTableName, &tsmasRsp, NULL, TDMT_MND_GET_TABLE_TSMA);
   if (code == TSDB_CODE_MND_SMA_NOT_EXIST) {
     code = 0;
     goto _return;
@@ -1867,6 +1868,41 @@ int32_t catalogGetTableTsmas(SCatalog* pCtg, SRequestConnInfo* pConn, const SNam
 
 _return:
 
+  CTG_API_LEAVE(code);
+}
+
+int32_t ctgGetTsma(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTsmaName, STableTSMAInfo** pTsma) {
+  STableTSMAInfoRsp tsmaRsp = {0};
+  int32_t code = ctgGetTbTSMAFromMnode(pCtg, pConn, pTsmaName, &tsmaRsp, NULL, TDMT_MND_GET_TSMA);
+  if (code == TSDB_CODE_MND_SMA_NOT_EXIST) {
+    code = 0;
+    goto _return;
+  }
+
+  CTG_ERR_JRET(code);
+
+  ASSERT(tsmaRsp.pTsmas && tsmaRsp.pTsmas->size == 1);
+  *pTsma = taosArrayGetP(tsmaRsp.pTsmas, 0);
+  taosArrayDestroy(tsmaRsp.pTsmas);
+
+_return:
+  if (tsmaRsp.pTsmas) {
+    tFreeTableTSMAInfoRsp(&tsmaRsp);
+  }
+  CTG_RET(code);
+}
+
+int32_t catalogGetTsma(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTsmaName, STableTSMAInfo** pTsma) {
+  CTG_API_ENTER();
+
+  if (!pCtg || !pConn || !pTsmaName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t code = 0;
+  CTG_ERR_JRET(ctgGetTsma(pCtg, pConn, pTsmaName, pTsma));
+
+_return:
   CTG_API_LEAVE(code);
 }
 

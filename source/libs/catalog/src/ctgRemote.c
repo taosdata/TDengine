@@ -337,6 +337,7 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       qDebug("Got view-meta from mnode, viewFName:%s", target);
       break;
     }
+    case TDMT_MND_GET_TSMA:
     case TDMT_MND_GET_TABLE_TSMA: {
       if (TSDB_CODE_SUCCESS != rspCode) {
         if (TSDB_CODE_MND_SMA_NOT_EXIST != rspCode) {
@@ -1480,11 +1481,10 @@ int32_t ctgGetViewInfoFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SName* 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetTbTSMAFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SName* name, STableTSMAInfoRsp* out,
-                               SCtgTaskReq* tReq) {
+int32_t ctgGetTbTSMAFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* name, STableTSMAInfoRsp* out,
+                               SCtgTaskReq* tReq, int32_t reqType) {
   char*   msg = NULL;
   int32_t msgLen = 0;
-  int32_t reqType = TDMT_MND_GET_TABLE_TSMA;
   SCtgTask* pTask = tReq ? tReq->pTask : NULL;
   void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
   char tbFName[TSDB_TABLE_FNAME_LEN];

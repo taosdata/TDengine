@@ -4729,7 +4729,7 @@ static int32_t tsmaOptRewriteTbname(const STSMAOptCtx* pTsmaOptCtx, SNode** pTbN
     // TODO test child tbname too long
     // if with tsma, we replace func tbname with substr(tbname, 34)
     pRewrittenFunc->funcId = fmGetFuncId("substr");
-    snprintf(pRewrittenFunc->functionName, TSDB_FUNC_NAME_LEN, "substr(tbname, 34)");
+    snprintf(pRewrittenFunc->functionName, TSDB_FUNC_NAME_LEN, "substr");
     pValue->node.resType.type = TSDB_DATA_TYPE_INT;
     pValue->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
     pValue->literal = taosMemoryCalloc(1, 16);
@@ -4745,7 +4745,7 @@ static int32_t tsmaOptRewriteTbname(const STSMAOptCtx* pTsmaOptCtx, SNode** pTbN
   } else if (code == TSDB_CODE_SUCCESS) {
     // if no tsma, we replace func tbname with concat('', tbname)
     pRewrittenFunc->funcId = fmGetFuncId("concat");
-    snprintf(pRewrittenFunc->functionName, TSDB_FUNC_NAME_LEN, "concat('', tbname)");
+    snprintf(pRewrittenFunc->functionName, TSDB_FUNC_NAME_LEN, "concat");
 
     pValue->node.resType = ((SExprNode*)(*pTbNameNode))->resType;
     pValue->literal = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + 1);
@@ -4948,6 +4948,7 @@ static int32_t tsmaOptRevisePlan2(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent,
     pColNode = (SColumnNode*)pScanListCell->pNode;
     pScanListCell = pScanListCell->pNext;
     pColNode->node.resType = pPartial->node.resType;
+    // currently we assume that the first parameter must be the scan column
     nodesListErase(pMerge->pParameterList, pMerge->pParameterList->pHead);
     // TODO STRICT
     nodesListPushFront(pMerge->pParameterList, nodesCloneNode((SNode*)pColNode));

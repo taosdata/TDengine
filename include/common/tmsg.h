@@ -4146,7 +4146,8 @@ int32_t tSerializeSViewMetaRsp(void* buf, int32_t bufLen, const SViewMetaRsp* pR
 int32_t tDeserializeSViewMetaRsp(void* buf, int32_t bufLen, SViewMetaRsp* pRsp);
 void    tFreeSViewMetaRsp(SViewMetaRsp* pRsp);
 typedef struct {
-  char name[TSDB_TABLE_FNAME_LEN];
+  char name[TSDB_TABLE_FNAME_LEN]; // table name or tsma name
+  bool fetchingTsma; // if we are fetching with tsma name
 }STableTSMAInfoReq;
 
 int32_t tSerializeTableTSMAInfoReq(void* buf, int32_t bufLen, const STableTSMAInfoReq* pReq);
@@ -4172,6 +4173,8 @@ typedef struct {
   int8_t   unit;
   SArray*  pFuncs;  // SArray<STableTSMAFuncInfo>
   SArray*  pTags; // SArray<SSchema>
+  SArray*  pUsedCols; // SArray<SSchema>
+  char*    ast;
 } STableTSMAInfo;
 
 typedef struct {
