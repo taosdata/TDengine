@@ -210,8 +210,10 @@ static const char gGrantName[GRANT_OPT_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
 static const char *gGrantDisplay[GRANT_OPT_DYN_MAX] = {
     "basic", "service", "stream", "subscription", "audit", "csv", "view", "multi_tier_storage", "backup_restore"};
 
-static const char *gGrantState[GRANT_STATE_MAX] = {"ungranted", "ungranted", "granted", "expired",
+static const char *gGrantState[GRANT_STATE_MAX] = {"init", "ungranted", "granted", "expired",
                                                    "revoked"};  // keep 0/1 ungranted
+
+static const char *gGrantReason[GRANT_STATE_REASON_MAX] = {"init", "alter", "mismatch", "expire"};
 
 static const char *tGetConnDisplay(const char *name) {
   for (int32_t i = CONN_TYPE_MAX; i < CONN_TYPE_DYN_MAX; ++i) {
@@ -418,6 +420,10 @@ static void grantObjInit(SGrantUniqObj *pObj, bool official) {
 }
 
 static int64_t grantGetExpireSec(int64_t expireSec) {
+  if (gStatus.grantState == GRANT_STATE_REVOKED) {
+    return gStatus.revokedExpireSec;
+  }
+
   if (expireSec >= GRANT_UNIQ_UNLIMITED) {
     return expireSec;
   }
@@ -425,7 +431,7 @@ static int64_t grantGetExpireSec(int64_t expireSec) {
   if (expireSec == GRANT_UNIQ_UNDEFINED) {
     return expireSec = grantClusterEpoch + GRANT_DEFAULT;
   }
-  ASSERTS(0, "invalid expireSec:%" PRIi64, expireSec);
+
   return expireSec = grantClusterEpoch + GRANT_DEFAULT;
 }
 
@@ -860,26 +866,6 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     gStatus.grantState = pLastState->state;
   }
 
-  if (gStatus.grantState == GRANT_STATE_REVOKED) {
-    gStatus.revokedExpireSec = pLastState->ts + GRANT_CHK_TOLERENCE;
-
-    char ts[GRANT_TS_SEC_LEN] = {0};
-    grantSecondsToString(gStatus.revokedExpireSec, ts);
-
-    int64_t grantCurTime = TMAX(curTime, GRANT_CUR_TIME);
-    if (gStatus.revokedExpireSec > grantCurTime) {
-      if (gStatus.expired) {
-        gStatus.expired = 0;
-      }
-    } else {
-      gStatus.expired = 1;
-      uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64 ", set to %s state", ts,
-            gStatus.revokedExpireSec, grantCurTime, gGrantState[gStatus.grantState]);
-    }
-    mndReleaseGrant(pMnode, pGrant, pIter);
-    goto _exit;
-  }
-
   grantObjInit(&grantObj, false);
 
   int16_t activeLen = pGrant->active ? strlen(pGrant->active) : 0;
@@ -928,70 +914,90 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     grantResetMaster(pMnode, 0);
   }
 
-  // check machines
-#ifndef GRANTS_CFG
-  if (!granted || (grantObj.flags & 0x02)) {
-    grantCheckMachines(pGrant, &pGrantMachines, &toRevoked);
-  }
-#endif
+  if (gStatus.grantState == GRANT_STATE_REVOKED) {
+    gStatus.revokedExpireSec = pLastState->ts + GRANT_CHK_TOLERENCE;
 
-  mndReleaseGrant(pMnode, pGrant, pIter);
+    char ts[GRANT_TS_SEC_LEN] = {0};
+    grantSecondsToString(gStatus.revokedExpireSec, ts);
 
-  SGrantState state = {0};
-  if (toRevoked) {
-    state.state = GRANT_STATE_REVOKED;
-    state.reason = GRANT_STATE_REASON_MISMATCH;
-    code = mndProcessUpdGrantLog(pMnode, NULL, pGrantMachines, &state);
-    TSDB_CHECK_CODE(code, lino, _exit);
     int64_t grantCurTime = TMAX(curTime, GRANT_CUR_TIME);
-    int64_t expireSec = gStatus.revokedExpireSec;
-    if (expireSec > grantCurTime) {
+    if (gStatus.revokedExpireSec > grantCurTime) {
       if (gStatus.expired) {
         gStatus.expired = 0;
       }
     } else {
       gStatus.expired = 1;
-      char ts[GRANT_TS_SEC_LEN] = {0};
-      grantSecondsToString(expireSec, ts);
-      uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64 ", set to %s state", ts, (int64_t)expireSec,
-            grantCurTime, gGrantState[gStatus.grantState]);
+      uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64 ", set to %s state", ts,
+            gStatus.revokedExpireSec, grantCurTime, gGrantState[gStatus.grantState]);
     }
+    mndReleaseGrant(pMnode, pGrant, pIter);
+    // set cluster info after parse uniq active
+    grantSetClusterInfo(pMnode);
   } else {
-    int8_t oldState = gStatus.grantState;
-    bool   appendState = false;
-    if (oldState == GRANT_STATE_UNGRANTED) {
-      if (granted) {
+    // check machines
+#ifndef GRANTS_CFG
+    if (!granted || (grantObj.flags & 0x02)) {
+      grantCheckMachines(pGrant, &pGrantMachines, &toRevoked);
+    }
+#endif
+
+    mndReleaseGrant(pMnode, pGrant, pIter);
+
+    SGrantState state = {0};
+    if (toRevoked) {
+      state.state = GRANT_STATE_REVOKED;
+      state.reason = GRANT_STATE_REASON_MISMATCH;
+      code = mndProcessUpdGrantLog(pMnode, NULL, pGrantMachines, &state);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      int64_t grantCurTime = TMAX(curTime, GRANT_CUR_TIME);
+      int64_t expireSec = gStatus.revokedExpireSec;
+      if (expireSec > grantCurTime) {
+        if (gStatus.expired) {
+          gStatus.expired = 0;
+        }
+      } else {
+        gStatus.expired = 1;
+        char ts[GRANT_TS_SEC_LEN] = {0};
+        grantSecondsToString(expireSec, ts);
+        uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64 ", set to %s state", ts, (int64_t)expireSec,
+              grantCurTime, gGrantState[gStatus.grantState]);
+      }
+    } else {
+      int8_t oldState = gStatus.grantState;
+      bool   appendState = false;
+      if (oldState == GRANT_STATE_UNGRANTED) {
+        if (granted) {
+          if (gStatus.expired) {
+            state.state = GRANT_STATE_EXPIRED;
+            state.reason = GRANT_STATE_REASON_EXPIRE;
+            appendState = true;
+          } else {
+            state.state = GRANT_STATE_GRANTED;
+            state.reason = GRANT_STATE_REASON_ALTER;
+            appendState = true;
+          }
+        } else if (stated = false) {
+          state.state = GRANT_STATE_UNGRANTED;
+          state.reason = GRANT_STATE_REASON_INIT;
+          appendState = true;
+        }
+      } else if (oldState == GRANT_STATE_GRANTED) {
         if (gStatus.expired) {
           state.state = GRANT_STATE_EXPIRED;
           state.reason = GRANT_STATE_REASON_EXPIRE;
           appendState = true;
-        } else {
+        }
+      } else if (oldState == GRANT_STATE_EXPIRED) {
+        if (gStatus.expired == false) {
           state.state = GRANT_STATE_GRANTED;
           state.reason = GRANT_STATE_REASON_ALTER;
           appendState = true;
         }
-      } else if (stated = false) {
-        state.state = GRANT_STATE_UNGRANTED;
-        state.reason = GRANT_STATE_REASON_INIT;
-        appendState = true;
       }
-    } else if (oldState == GRANT_STATE_GRANTED) {
-      if (gStatus.expired) {
-        state.state = GRANT_STATE_EXPIRED;
-        state.reason = GRANT_STATE_REASON_EXPIRE;
-        appendState = true;
-      }
-    } else if (oldState == GRANT_STATE_EXPIRED) {
-      if (gStatus.expired == false) {
-        state.state = GRANT_STATE_GRANTED;
-        state.reason = GRANT_STATE_REASON_ALTER;
-        appendState = true;
-      }
+      code = mndProcessUpdGrantLog(pMnode, NULL, pGrantMachines, appendState ? &state : NULL);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
-    code = mndProcessUpdGrantLog(pMnode, NULL, pGrantMachines, appendState ? &state : NULL);
-    TSDB_CHECK_CODE(code, lino, _exit);
   }
-
   // set cluster info after parse uniq active
   grantSetClusterInfo(pMnode);
 _exit:
@@ -1104,6 +1110,7 @@ static int32_t grantSecondsToString(int64_t seconds, char *ts) {
     strftime(ts, GRANT_TS_SEC_LEN, "%Y-%m-%d %H:%M:%S", &ptm);
     return 0;
   }
+  ts[0] = 0;
   return -1;
 }
 
@@ -1404,7 +1411,7 @@ static void grantResetMaster(SMnode *pMnode, int64_t baseSeconds) {
   }
 
   if (comprSeconds > 0) {
-        gStatus.basicExpireSec =
+    gStatus.basicExpireSec =
         comprSeconds <= grantCurTime ? (ceil((double)comprSeconds / 86400) * 86400 + GRANT_DEFAULT) : 0;
 
     gStatus.basicExpired = gStatus.basicExpireSec > grantCurTime ? false : true;
@@ -2086,7 +2093,8 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   int32_t cols = 0;
   char   *pBuf = NULL;
   char   *qBuf = NULL;
-  char    tmp[50];
+  char    tmp[70];
+  char    ts[GRANT_TS_SEC_LEN];
   int32_t tmpLen = 0;
   int32_t bufLen = 0;
   int32_t nMachines = 0;
@@ -2097,8 +2105,8 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     return 0;
   }
   nMachines = taosArrayGetSize(pGrant->pMachines);
-  bufLen = nMachines * 37;         // max len of machine
-  if (bufLen < 840) bufLen = 840;  // max len of state: 28*30=840
+  bufLen = nMachines * 45;           // max len of machine
+  if (bufLen < 1320) bufLen = 1320;  // max len of state: 44*30=1320
 
   bufLen += VARSTR_HEADER_SIZE;
 
@@ -2113,12 +2121,13 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
     for (int32_t i = 0; i < pGrant->nStates; ++i) {
       SGrantState *pState = &pGrant->states[i];
+      grantSecondsToString(pState->ts, ts);
       if (i == 0) {
-        snprintf(tmp, 50, "%" PRIi64 ",%d,%d,%d", (int64_t)pState->ts, pState->reason, pState->lastState,
-                 pState->state);
+        snprintf(tmp, 70, "%s,%s,%s,%s", ts, gGrantReason[pState->reason], gGrantState[pState->lastState],
+                 gGrantState[pState->state]);
       } else {
-        snprintf(tmp, 50, ";%" PRIi64 ",%d,%d,%d", (int64_t)pState->ts, pState->reason, pState->lastState,
-                 pState->state);
+        snprintf(tmp, 70, ";%s,%s,%s,%s", ts, gGrantReason[pState->reason], gGrantState[pState->lastState],
+                 gGrantState[pState->state]);
       }
       tmpLen = strlen(tmp);
       memcpy(qBuf, tmp, tmpLen);
@@ -2133,10 +2142,11 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
     for (int32_t i = 0; i < pGrant->nActives; ++i) {
       SGrantActive *pActive = &pGrant->actives[i];
+      grantSecondsToString(pActive->ts, ts);
       if (i == 0) {
-        snprintf(tmp, 50, "%" PRIi64 ",%s", (int64_t)pActive->ts, pActive->active);
+        snprintf(tmp, 70, "%s,%s", ts, pActive->active);
       } else {
-        snprintf(tmp, 50, ";%" PRIi64 ",%s", (int64_t)pActive->ts, pActive->active);
+        snprintf(tmp, 70, ";%s,%s", ts, pActive->active);
       }
       tmpLen = strlen(tmp);
       memcpy(qBuf, tmp, tmpLen);
@@ -2151,10 +2161,11 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
     for (int32_t i = 0; i < nMachines; ++i) {
       SGrantMachine *pMachine = TARRAY_GET_ELEM(pGrant->pMachines, i);
+      grantSecondsToString(pMachine->ts, ts);
       if (i == 0) {
-        snprintf(tmp, 50, "%" PRIi64 ",%s", (int64_t)pMachine->ts, pMachine->machine);
+        snprintf(tmp, 70, "%s,%d,%s", ts, pMachine->id, pMachine->machine);
       } else {
-        snprintf(tmp, 50, ";%" PRIi64 ",%s", (int64_t)pMachine->ts, pMachine->machine);
+        snprintf(tmp, 70, ";%s,%d,%s", ts, pMachine->id, pMachine->machine);
       }
       tmpLen = strlen(tmp);
       memcpy(qBuf, tmp, tmpLen);

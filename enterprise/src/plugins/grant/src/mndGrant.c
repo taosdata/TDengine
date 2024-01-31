@@ -161,7 +161,9 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
   mndReleaseGrant(pMnode, pGrant, pIter);
 
   if (revoked) {
-    mndGrantObjAppendState(&grantObj, &(SGrantState){.state = GRANT_STATE_REVOKED, .reason = GRANT_STATE_REASON_ALTER});
+    SGrantState state = {.state = GRANT_STATE_REVOKED, .reason = GRANT_STATE_REASON_ALTER};
+    mndGrantObjAppendState(&grantObj, &state);
+    gStatus.revokedExpireSec = state.ts + GRANT_CHK_TOLERENCE;
     gStatus.grantState = GRANT_STATE_REVOKED;
   } else {
     char *mergeActive = NULL;
