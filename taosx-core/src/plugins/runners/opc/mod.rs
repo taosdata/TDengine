@@ -494,6 +494,13 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
                 set.format = format.clone();
                 set
             })
+            .filter(|set| {
+                set.name
+                    .as_deref()
+                    .map(|s| regex.is_match(s))
+                    .map(|b| b || regex.is_match(&set.id))
+                    .unwrap_or_default()
+            })
             .skip(req.offset)
             .take(req.limit)
             .collect_vec();
