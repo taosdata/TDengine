@@ -25,7 +25,6 @@
 #include "tglobal.h"
 #include "tgrant.h"
 #include "tqueue.h"
-#include "tref.h"
 #include "ttime.h"
 #include "version.h"
 #include "wal.h"
@@ -133,10 +132,6 @@ typedef struct SMnode {
   SMsgCb         msgCb;
   int64_t        ipWhiteVer;
 } SMnode;
-
-typedef struct {
-  RefFp freeFp;
-} SMnodeRefInfo;
 
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 int64_t mndGenerateUid(const char *name, int32_t len);

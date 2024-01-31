@@ -188,16 +188,11 @@ typedef struct {
 } STrans;
 
 typedef struct {
-  char id[TSDB_MACHINE_ID_LEN + 1];
-} SMachineId;
-
-typedef struct {
   int64_t id;
   char    name[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
   int64_t updateTime;
   int32_t upTime;
-  char    active[TSDB_UNIQ_ACTIVE_KEY_LEN];
 } SClusterObj;
 
 typedef struct {
