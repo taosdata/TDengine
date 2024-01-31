@@ -46,7 +46,7 @@ extern char* tsMonFwUri;
 #define TIMESERIES_USED CLUSTER_TABLE":timeseries_used"
 #define TIMESERIES_TOTAL CLUSTER_TABLE":timeseries_total"
 
-#define VGROUP_TABLE "taosd_cluster_vgroups_info"
+#define VGROUP_TABLE "taosd_vgroups_info"
 
 #define TABLES_NUM VGROUP_TABLE":tables_num"
 #define STATUS VGROUP_TABLE":status"
