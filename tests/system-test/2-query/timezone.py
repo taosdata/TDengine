@@ -184,7 +184,7 @@ class TDTestCase:
         print('local timezone:' + str(local_time_zone))
 
         # check the time and timezone values
-        Assert.str_contain(str=db_timezone, sub_str='America/New_York')  # TD-28448
+        Assert.str_contain(str=db_timezone, sub_str=local_time_zone)  # TD-28448
         Assert.time_equals(datetime1=local_time, datetime2=db_time, deviation=5)
 
         # modify system timezone to Asia/Shanghai
