@@ -1497,7 +1497,7 @@ static int32_t grantCheckSubscriptions() {
   }
   uError("grant failed to check topic, expire:%" PRIi64 ", num:%d, reason:topic limited",
          (int64_t)gStatus.subscriptionExpireSec, (int32_t)gStatus.curSubscriptions);
-  return TSDB_CODE_GRANT_STREAM_LIMITED;  // TODO
+  return TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;  // TODO
 }
 
 static int32_t grantCheckStreamExpired() { return gStatus.streamExpired ? TSDB_CODE_GRANT_EXPIRED : TSDB_CODE_SUCCESS; }
@@ -1536,7 +1536,7 @@ int32_t grantCheck(EGrantType grant) {
       return grantCheckQueryTime();
     case TSDB_GRANT_CONNS:
       return grantCheckConns();
-    case TSDB_GRANT_STREAM:
+    case TSDB_GRANT_STREAMS:
       return grantCheckStreams();
     case TSDB_GRANT_CPU_CORES:
       return grantCheckCpuCores();
