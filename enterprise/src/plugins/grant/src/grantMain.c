@@ -84,6 +84,15 @@
     }                                             \
   } while (0)
 
+#define GRANT_ITEM_EXPIRE_CHECK(val, now, expired) \
+  do {                                             \
+    if ((val) > (now)) {                           \
+      if ((expired)) (expired) = 0;                \
+    } else {                                       \
+      (expired) = 1;                               \
+    }                                              \
+  } while (0)
+
 #define GRANT_LIMIT_TD_TO_UNIQ(td, uniq, max) \
   do {                                        \
     if ((td) == GRANT_LEGACY_LIMITS) {        \
@@ -285,6 +294,7 @@ typedef struct {
   SArray        *pDnodeInfo;
   SMnode        *pMnode;
   int64_t        lastCheck;
+  int32_t        nDiskCfg;
   int16_t        nServer;
   uint8_t        info;
   TdThreadRwlock rwLock;
@@ -647,7 +657,7 @@ _exit:
   return code;
 }
 
-static int32_t grantGetClusterMachines(SMnode *pMnode, SSHashObj *pRes, bool *pLegacy) {
+static int32_t grantGetDnodesMiscInfo(SMnode *pMnode, SSHashObj *pMachines, bool *pLegacy) {
   SSdb      *pSdb = pMnode->pSdb;
   SDnodeObj *pDnode = NULL;
   void      *pIter = NULL;
@@ -655,14 +665,20 @@ static int32_t grantGetClusterMachines(SMnode *pMnode, SSHashObj *pRes, bool *pL
   if (pLegacy) *pLegacy = false;
 
   while ((pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode))) {
+    // machineCode
     int32_t klen = strlen(pDnode->machineId);
     if (klen == TSDB_MACHINE_ID_LEN) {
-      tSimpleHashPut(pRes, pDnode->machineId, klen, &pDnode->id, sizeof(pDnode->id));
+      tSimpleHashPut(pMachines, pDnode->machineId, klen, &pDnode->id, sizeof(pDnode->id));
     }
+    // legacy
     if (pLegacy && (false == *pLegacy)) {
       if (pDnode->active[0] != 0 || pDnode->connActive[0] != 0) {
         *pLegacy = true;
       }
+    }
+    // nDiskCfg
+    if (pDnode->numOfDiskCfg > grantHandle.nDiskCfg) {
+      grantHandle.nDiskCfg = pDnode->numOfDiskCfg;
     }
 
     sdbRelease(pSdb, pDnode);
@@ -712,6 +728,13 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
     uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64 ", set to %s state", ts, (int64_t)expireSec,
           grantCurTime, gGrantState[gStatus.grantState]);
   }
+
+  GRANT_ITEM_EXPIRE_CHECK(gStatus.auditExpireSec, grantCurTime, gStatus.auditExpired);
+  GRANT_ITEM_EXPIRE_CHECK(gStatus.csvExpireSec, grantCurTime, gStatus.csvExpired);
+  GRANT_ITEM_EXPIRE_CHECK(gStatus.streamExpireSec, grantCurTime, gStatus.streamExpired);
+  GRANT_ITEM_EXPIRE_CHECK(gStatus.subscriptionExpireSec, grantCurTime, gStatus.subscriptionExpired);
+  GRANT_ITEM_EXPIRE_CHECK(gStatus.viewExpireSec, grantCurTime, gStatus.viewExpired);
+  GRANT_ITEM_EXPIRE_CHECK(gStatus.multiTierExpireSec, grantCurTime, gStatus.multiTierExpired);
 
   // add rwlock since retrieve would access simultaneously
   taosThreadRwlockWrlock(&grantHandle.rwLock);
@@ -819,7 +842,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
 
   grantRetrieveGrantInfo(pMnode);
 
-  grantGetClusterMachines(pMnode, grantHandle.pMachines, &legacy);
+  grantGetDnodesMiscInfo(pMnode, grantHandle.pMachines, &legacy);
 
   pGrant = mndAcquireGrant(pMnode, &pIter);
   if (!pGrant) {
@@ -896,11 +919,13 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
       code = fillGrantStatusFromObj(&gStatus, &grantObj, toRevoked);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
-  } else {
-    if(pGrant->upgradeTime <= 0){
+  } else if (legacy) {
+    if (pGrant->upgradeTime <= 0) {
       pGrant->upgradeTime = curTime;
     }
     grantResetMaster(pMnode, pGrant->upgradeTime);
+  } else {
+    grantResetMaster(pMnode, 0);
   }
 
   // check machines
@@ -1724,7 +1749,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  grantGetClusterMachines(pMnode, pMachineHash, NULL);
+  grantGetDnodesMiscInfo(pMnode, pMachineHash, NULL);
 
   // step 2: parse new
   memcpy(newObj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);

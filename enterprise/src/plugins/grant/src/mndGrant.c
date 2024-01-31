@@ -86,8 +86,8 @@ static int32_t mndGrantObjAppendState(SGrantLogObj *pObj, SGrantState *pState) {
     pObj->states[0].state = GRANT_STATE_UNGRANTED;
     pObj->states[0].reason = GRANT_STATE_REASON_INIT;
     pObj->states[0].ts = ts;
-    pObj->createTime = pState->ts;
-    pObj->updateTime = pObj->createTime;
+    pObj->createTime = ts;
+    pObj->updateTime = ts;
     ++pObj->nStates;
     ++idx;
   }
@@ -578,6 +578,7 @@ int32_t mndGrantActionUpdate(SSdb *pSdb, SGrantLogObj *pOldGrant, SGrantLogObj *
   pOldGrant->id = pNewGrant->id;
   pOldGrant->createTime = pNewGrant->createTime;
   pOldGrant->updateTime = taosGetTimestampMs() / 1000;
+  pOldGrant->upgradeTime = pNewGrant->upgradeTime;
   pOldGrant->nStates = pNewGrant->nStates;
   pOldGrant->nActives = pNewGrant->nActives;
   TSWAP(pOldGrant->states, pNewGrant->states);
