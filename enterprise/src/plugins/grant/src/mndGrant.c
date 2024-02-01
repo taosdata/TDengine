@@ -340,9 +340,7 @@ int32_t tSerializeSGrantObj(void *buf, int32_t bufLen, const SGrantLogObj *pObj)
     if (tEncodeI64v(&encoder, pObj->actives[i].u0) < 0) goto _exit;
     if (tEncodeCStr(&encoder, pObj->actives[i].active) < 0) goto _exit;
   }
-  if (pObj->nActives > 0) {
-    assert(strlen(pObj->actives[0].active) == 30);
-  }
+
   int32_t activeLen = 0;
   if (pObj->active) {
     activeLen = strlen(pObj->active);
@@ -354,7 +352,6 @@ int32_t tSerializeSGrantObj(void *buf, int32_t bufLen, const SGrantLogObj *pObj)
 
   int32_t nMachines = taosArrayGetSize(pObj->pMachines);
   if (tEncodeI32v(&encoder, nMachines) < 0) goto _exit;
-  uInfo("%s:%d nMachines = %d\n\n", __func__, __LINE__, nMachines);
   for (int32_t i = 0; i < nMachines; ++i) {
     SGrantMachine *pMachine = TARRAY_GET_ELEM(pObj->pMachines, i);
     if (tEncodeI64v(&encoder, pMachine->u0) < 0) goto _exit;
@@ -410,7 +407,6 @@ int32_t tDeserializeSGrantObj(void *buf, int32_t bufLen, SGrantLogObj *pObj) {
   if (tDecodeI32v(&decoder, &nMachines) < 0) {
     goto _return;
   }
-  uInfo("%s:%d nMachines = %d\n\n", __func__, __LINE__, nMachines);
   if (nMachines > 0) {
     if (!(pObj->pMachines = taosArrayInit(nMachines, sizeof(SGrantMachine)))) {
       code = TSDB_CODE_OUT_OF_MEMORY;
@@ -573,7 +569,6 @@ int32_t mndGrantActionUpdate(SSdb *pSdb, SGrantLogObj *pOldGrant, SGrantLogObj *
 
 #if 0
 int32_t mndValidateGrant(SMnode *pMnode, SGrantVersion *pGrantVersion, void **ppRsp, int32_t *pRspLen) {
-  char        viewFName[TSDB_VIEW_FNAME_LEN] = {0};
   int32_t     rspLen = 0;
   void       *pRsp = NULL;
   int32_t     code = -1;
