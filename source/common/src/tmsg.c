@@ -7418,10 +7418,11 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   if (NULL == pReq) {
     return;
   }
-  taosArrayDestroy(pReq->pTags);
   taosMemoryFreeClear(pReq->sql);
   taosMemoryFreeClear(pReq->ast);
+  taosArrayDestroy(pReq->pTags);
   taosArrayDestroy(pReq->fillNullCols);
+  taosArrayDestroy(pReq->pVgroupVerList);
 }
 
 int32_t tEncodeSRSmaParam(SEncoder *pCoder, const SRSmaParam *pRSmaParam) {
