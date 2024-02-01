@@ -27,7 +27,7 @@
 #include "cus_name.h"
 #endif
 
-GRANT_CFG_DECLARE;
+// GRANT_CFG_DECLARE;
 
 SConfig *tsCfg = NULL;
 
@@ -804,7 +804,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddBool(pCfg, "experimental", tsExperimental, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
 
-  GRANT_CFG_ADD;
+  // GRANT_CFG_ADD;
   return 0;
 }
 
@@ -1229,7 +1229,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsExperimental = cfgGetItem(pCfg, "experimental")->bval;
 
-  GRANT_CFG_GET;
+  // GRANT_CFG_GET;
   return 0;
 }
 
