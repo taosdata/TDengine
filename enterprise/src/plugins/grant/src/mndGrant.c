@@ -367,7 +367,6 @@ int32_t tSerializeSGrantObj(void *buf, int32_t bufLen, const SGrantLogObj *pObj)
   code = 0;
 _exit:
   tEncoderClear(&encoder);
-  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
   return code == 0 ? tlen : code;
 }
 
@@ -430,7 +429,6 @@ int32_t tDeserializeSGrantObj(void *buf, int32_t bufLen, SGrantLogObj *pObj) {
 
   code = 0;
 _return:
-  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   if (code != 0) {
@@ -483,7 +481,6 @@ _exit:
   }
 
   mTrace("grant, encode to raw:%p, row:%p", pRaw, pGrant);
-  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
   return pRaw;
 }
 
@@ -534,24 +531,21 @@ SSdbRow *mndGrantActionDecode(SSdbRaw *pRaw) {
 _exit:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("view, failed to decode from raw:%p since %s", pRaw, terrstr());
+    mError("grant, failed to decode from raw:%p since %s", pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
-  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
-  mTrace("view, decode from raw:%p, row:%p", pRaw, pGrant);
+  mTrace("grant, decode from raw:%p, row:%p", pRaw, pGrant);
   return pRow;
 }
 
 int32_t mndGrantActionInsert(SSdb *pSdb, SGrantLogObj *pGrant) {
   mTrace("grant:%d, perform insert action", pGrant->id);
-  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
   return 0;
 }
 
 int32_t mndGrantActionDelete(SSdb *pSdb, SGrantLogObj *pGrant) {
   mTrace("grant:%d, perform delete action", pGrant->id);
-  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
   tDestroyGrantObj(pGrant);
   return 0;
 }

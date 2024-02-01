@@ -224,7 +224,8 @@ static const char gGrantName[GRANT_OPT_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
 static const char *gGrantDisplay[GRANT_OPT_DYN_MAX] = {
     "basic", "service", "stream", "subscription", "audit", "csv", "view", "multi_tier_storage", "backup_restore"};
 
-static const char *gGrantState[GRANT_STATE_MAX] = {"init", "ungranted", "granted", "expired", "revoked"};
+static const char *gGrantState[GRANT_STATE_MAX] = {"ungranted", "ungranted", "granted", "expired",
+                                                   "revoked"};  // keep 0/1 ungranted
 
 static const char *gGrantReason[GRANT_STATE_REASON_MAX] = {"init", "alter", "mismatch", "expire"};
 
@@ -1376,6 +1377,7 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
       grantSecondsToString(expireSec, ts);
       uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64, ts, (int64_t)expireSec, grantCurTime);
     }
+    gStatus.serviceExpireSec = grantClusterEpoch;
     gStatus.multiTierExpireSec = expireSec;
     gStatus.multiTierExpired = gStatus.expired;
     gStatus.streamExpireSec = expireSec;
@@ -2240,6 +2242,7 @@ static int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pSt
   if (tEncodeI32v(&encoder, pStatus->curCpuCores) < 0) goto _exit;
   if (tEncodeI32v(&encoder, pStatus->limitViews) < 0) goto _exit;
   if (tEncodeI32v(&encoder, pStatus->curViews) < 0) goto _exit;
+  if (tEncodeI64v(&encoder, pStatus->revokedExpireSec) < 0) goto _exit;
 
   if (tEncodeI64v(&encoder, clusterTime) < 0) goto _exit;
 
