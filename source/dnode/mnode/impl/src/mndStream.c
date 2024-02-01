@@ -1843,6 +1843,11 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
     }
   }
 
+  // no need to build the trans to handle the vgroup upddate
+  if (pTrans == NULL) {
+    return 0;
+  }
+
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare update stream trans since %s", pTrans->id, terrstr());
     sdbRelease(pMnode->pSdb, pStream);

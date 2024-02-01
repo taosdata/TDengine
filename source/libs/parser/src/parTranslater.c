@@ -8330,8 +8330,7 @@ static int32_t createStreamReqVersionInfo(SSDataBlock* pBlock, SArray** pArray, 
     SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 2);
 
     for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-      SVgroupVer       v = {.vgId = *(int32_t*)colDataGetData(pCol1, i), .ver = *(int64_t*)colDataGetData(pCol2, i)};
-      parserDebug("-------------%ld, vgId:%d, vgVer:%ld\n", *lastTs, v.vgId, v.ver);
+      SVgroupVer v = {.vgId = *(int32_t*)colDataGetData(pCol1, i), .ver = *(int64_t*)colDataGetData(pCol2, i)};
       taosArrayPush(*pArray, &v);
     }
   } else {
