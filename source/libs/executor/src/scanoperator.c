@@ -3716,7 +3716,7 @@ static int32_t stopSubTablesTableMergeScan(STableMergeScanInfo* pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-SSDataBlock* doTableMergeScanSubTables(SOperatorInfo* pOperator) {
+SSDataBlock* doTableMergeScanSeqBlocksInMem(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
@@ -4304,8 +4304,14 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
                   pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = numOfCols;
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableMergeScanSubTables, NULL, destroyTableMergeScanOperatorInfo,
-                                         optrDefaultBufFn, getTableMergeScanExplainExecInfo, optrDefaultGetNextExtFn, NULL);
+  pOperator->fpSet =
+      createOperatorFpSet(optrDummyOpenFn,
+                          pTableScanNode->seqBlocksSort ? doTableMergeScanSeqBlocksInMem : doTableMergeScan,
+                          NULL,
+                          destroyTableMergeScanOperatorInfo,
+                          optrDefaultBufFn,
+                          getTableMergeScanExplainExecInfo,
+                          optrDefaultGetNextExtFn, NULL);
   pOperator->cost.openCost = 0;
   return pOperator;
 

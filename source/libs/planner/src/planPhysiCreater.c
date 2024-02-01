@@ -651,6 +651,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->assignBlockUid = pCxt->pPlanCxt->rSmaQuery ? true : false;
   pTableScan->filesetDelimited = pScanLogicNode->filesetDelimited;
   pTableScan->needCountEmptyTable = pScanLogicNode->isCountByTag;
+  pTableScan->seqBlocksSort = pScanLogicNode->seqBlocksSort;
 
   int32_t code = createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);
   if (TSDB_CODE_SUCCESS == code) {

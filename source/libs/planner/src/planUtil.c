@@ -455,6 +455,18 @@ bool getOptHint(SNodeList* pList, EHintOption hint) {
   return false;
 }
 
+bool getSeqBlocksSortOptHint(SNodeList* pList) {
+  if (!pList) return false;
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == HINT_SEQ_BLOCKS_SORT) {
+      return true;
+    }
+  }
+  return false;
+}
+
 int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   SLogicNode* pCurr = (SLogicNode*)pNode;

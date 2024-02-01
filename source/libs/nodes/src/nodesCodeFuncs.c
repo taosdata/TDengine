@@ -682,6 +682,7 @@ static const char* jkScanLogicPlanTagCond = "TagCond";
 static const char* jkScanLogicPlanGroupTags = "GroupTags";
 static const char* jkScanLogicPlanOnlyMetaCtbIdx = "OnlyMetaCtbIdx";
 static const char* jkScanLogicPlanFilesetDelimited = "FilesetDelimited";
+static const char* jkScanLogicPlanSeqBlocksSort = "SeqBlocksSort";
 
 static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
   const SScanLogicNode* pNode = (const SScanLogicNode*)pObj;
@@ -728,6 +729,9 @@ static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkScanLogicPlanFilesetDelimited, pNode->filesetDelimited);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkScanLogicPlanFilesetDelimited, pNode->seqBlocksSort);
   }
   return code;
 }
@@ -778,6 +782,9 @@ static int32_t jsonToLogicScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkScanLogicPlanFilesetDelimited, &pNode->filesetDelimited);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkScanLogicPlanFilesetDelimited, &pNode->seqBlocksSort);
   }
   return code;
 }
@@ -1872,6 +1879,7 @@ static const char* jkTableScanPhysiPlanAssignBlockUid = "AssignBlockUid";
 static const char* jkTableScanPhysiPlanIgnoreUpdate = "IgnoreUpdate";
 static const char* jkTableScanPhysiPlanFilesetDelimited = "FilesetDelimited";
 static const char* jkTableScanPhysiPlanNeedCountEmptyTable = "NeedCountEmptyTable";
+static const char* jkTableScanPhysiPlanSeqBlocksSort = "SeqBlocksSort";
 
 static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   const STableScanPhysiNode* pNode = (const STableScanPhysiNode*)pObj;
@@ -1945,6 +1953,9 @@ static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkTableScanPhysiPlanNeedCountEmptyTable, pNode->needCountEmptyTable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkTableScanPhysiPlanSeqBlocksSort, pNode->seqBlocksSort);
   }
   return code;
 }
@@ -2021,6 +2032,9 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkTableScanPhysiPlanNeedCountEmptyTable, &pNode->needCountEmptyTable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkTableScanPhysiPlanSeqBlocksSort, &pNode->seqBlocksSort);
   }
   return code;
 }

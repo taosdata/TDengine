@@ -199,6 +199,7 @@ static SKeyword keywordTable[] = {
     {"SCHEMALESS",           TK_SCHEMALESS},
     {"SCORES",               TK_SCORES},
     {"SELECT",               TK_SELECT},
+    {"SEQ_BLOCKS_SORT",      TK_SEQ_BLOCKS_SORT},
     {"SERVER_STATUS",        TK_SERVER_STATUS},
     {"SERVER_VERSION",       TK_SERVER_VERSION},
     {"SESSION",              TK_SESSION},
