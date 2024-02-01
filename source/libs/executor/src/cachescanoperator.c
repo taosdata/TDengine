@@ -250,7 +250,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
 
       SExprSupp* pSup = &pInfo->pseudoExprSup;
       int32_t    code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pRes,
-                                               pRes->info.rows, GET_TASKID(pTaskInfo), NULL);
+                                               pRes->info.rows, pTaskInfo, NULL);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
         return NULL;
@@ -313,7 +313,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
           if (taosArrayGetSize(pInfo->pUidList) > 0) {
             pInfo->pRes->info.id.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, 0);
             code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes,
-                                          pInfo->pRes->info.rows, GET_TASKID(pTaskInfo), NULL);
+                                          pInfo->pRes->info.rows, pTaskInfo, NULL);
             if (code != TSDB_CODE_SUCCESS) {
               pTaskInfo->code = code;
               return NULL;
