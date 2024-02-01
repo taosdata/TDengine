@@ -238,9 +238,7 @@ pub async fn load_point_file(ticket: &String, remain: bool) -> anyhow::Result<Na
     }
 }
 
-pub async fn load_point_data_page(
-    params: &TaskTicket,
-) -> anyhow::Result<Pagination<OpcPoint>> {
+pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Pagination<OpcPoint>> {
     let map = SHARED_MAP.write().await;
     let page = params.page.unwrap_or(0);
     let page_size = params.page_size.unwrap_or(1000);
