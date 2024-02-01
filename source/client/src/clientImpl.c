@@ -971,6 +971,8 @@ void postSubQueryFetchCb(void* param, TAOS_RES* res, int32_t rowNum) {
     tscError("0x%" PRIx64 ", next req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pRequest->self,
              pRequest->relation.nextRefId, pRequest->requestId);
   }
+
+  blockDataDestroy(pBlock);
 }
 
 void handlePostSubQuery(SSqlCallbackWrapper* pWrapper) {
