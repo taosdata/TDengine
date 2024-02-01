@@ -21,7 +21,6 @@
 #include "querynodes.h"
 #include "systable.h"
 #include "tname.h"
-#include "ttime.h"
 
 #include "tdatablock.h"
 #include "tmsg.h"
@@ -252,7 +251,7 @@ static void doSetTagColumnData(STableScanBase* pTableScanInfo, SSDataBlock* pBlo
     SExprSupp* pSup = &pTableScanInfo->pseudoSup;
 
     int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock, rows,
-                                          GET_TASKID(pTaskInfo), &pTableScanInfo->metaCache);
+                                          pTaskInfo, &pTableScanInfo->metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       T_LONG_JMP(pTaskInfo->env, code);
@@ -295,8 +294,8 @@ bool applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo
 
 static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableScanInfo, SSDataBlock* pBlock,
                              uint32_t* status) {
-  SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
-  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
 
   SFileBlockLoadRecorder* pCost = &pTableScanInfo->readRecorder;
 
@@ -482,23 +481,24 @@ static void doSetNullValue(SSDataBlock* pBlock, const SExprInfo* pExpr, int32_t 
 }
 
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
-                               int32_t rows, const char* idStr, STableMetaCacheInfo* pCache) {
+                               int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache) {
+  int32_t         code = 0;
+  bool            freeReader = false;
+  LRUHandle*      h = NULL;
+  STableCachedVal val = {0};
+  SMetaReader     mr = {0};
+  const char*     idStr = pTask->id.str;
+
   // currently only the tbname pseudo column
   if (numOfExpr <= 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t code = 0;
-  bool    freeReader = false;
+  // todo: opt if only require the vgId and the vgVer;
 
   // backup the rows
   int32_t backupRows = pBlock->info.rows;
   pBlock->info.rows = rows;
-
-  STableCachedVal val = {0};
-
-  SMetaReader mr = {0};
-  LRUHandle*  h = NULL;
 
   // todo refactor: extract method
   // the handling of the null data should be packed in the extracted method
@@ -586,7 +586,14 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
     // this is to handle the tbname
     if (fmIsScanPseudoColumnFunc(functionId)) {
-      setTbNameColData(pBlock, pColInfoData, functionId, val.pName);
+      int32_t fType = pExpr1->pExpr->_function.functionType;
+      if (fType == FUNCTION_TYPE_TBNAME) {
+        setTbNameColData(pBlock, pColInfoData, functionId, val.pName);
+      } else if (fType == FUNCTION_TYPE_VGID) {
+        setVgIdColData(pBlock, pColInfoData, functionId, pTask->id.vgId);
+      } else if (fType == FUNCTION_TYPE_VGVER) {
+        setVgVerColData(pBlock, pColInfoData, functionId, pBlock->info.version);
+      }
     } else {  // these are tags
       STagVal tagVal = {0};
       tagVal.cid = pExpr1->base.pParam[0].pCol->colId;
@@ -655,6 +662,47 @@ void setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, 
   colDataDestroy(&infoData);
 }
 
+void setVgIdColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, int32_t vgId) {
+  struct SScalarFuncExecFuncs fpSet = {0};
+  fmGetScalarFuncExecFuncs(functionId, &fpSet);
+
+  SColumnInfoData infoData = createColumnInfoData(pColInfoData->info.type, pColInfoData->info.bytes, 1);
+
+  colInfoDataEnsureCapacity(&infoData, 1, false);
+  colDataSetVal(&infoData, 0, (const char*)&vgId, false);
+
+  SScalarParam srcParam = {.numOfRows = pBlock->info.rows, .columnData = &infoData};
+  SScalarParam param = {.columnData = pColInfoData};
+
+  if (fpSet.process != NULL) {
+    fpSet.process(&srcParam, 1, &param);
+  } else {
+    qError("failed to get the corresponding callback function, functionId:%d", functionId);
+  }
+
+  colDataDestroy(&infoData);
+}
+
+void setVgVerColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, int64_t vgVer) {
+  struct SScalarFuncExecFuncs fpSet = {0};
+  fmGetScalarFuncExecFuncs(functionId, &fpSet);
+
+  SColumnInfoData infoData = createColumnInfoData(pColInfoData->info.type, pColInfoData->info.bytes, 1);
+
+  colInfoDataEnsureCapacity(&infoData, 1, false);
+  colDataSetVal(&infoData, 0, (const char*)&vgVer, false);
+
+  SScalarParam srcParam = {.numOfRows = pBlock->info.rows, .columnData = &infoData};
+  SScalarParam param = {.columnData = pColInfoData};
+
+  if (fpSet.process != NULL) {
+    fpSet.process(&srcParam, 1, &param);
+  } else {
+    qError("failed to get the corresponding callback function, functionId:%d", functionId);
+  }
+
+  colDataDestroy(&infoData);
+}
 
 static void initNextGroupScan(STableScanInfo* pInfo, STableKeyInfo** pKeyInfo, int32_t* size) {
   tableListGetGroupList(pInfo->base.pTableListInfo, pInfo->currentGroupId, pKeyInfo, size);
@@ -963,12 +1011,10 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
   STableKeyInfo* pList = NULL;
 
   if (pInfo->currentGroupId == -1) {
-    int32_t numOfTables = tableListGetSize(pInfo->base.pTableListInfo);
     if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
       setOperatorCompleted(pOperator);
       return NULL;
     }
-
 
     initNextGroupScan(pInfo, &pList, &num);
     ASSERT(pInfo->base.dataReader == NULL);
@@ -1170,10 +1216,6 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   if (pInfo->base.metaCache.pTableMetaEntryCache == NULL) {
     code = terrno;
     goto _error;
-  }
-
-  if (scanDebug) {
-    pInfo->countOnly = true;
   }
 
   pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
@@ -1901,7 +1943,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   // currently only the tbname pseudo column
   if (pInfo->numOfPseudoExpr > 0) {
     int32_t code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
-                                          pBlockInfo->rows, id, &pTableScanInfo->base.metaCache);
+                                          pBlockInfo->rows, pTaskInfo, &pTableScanInfo->base.metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       blockDataFreeRes((SSDataBlock*)pBlock);
@@ -2134,7 +2176,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       pTSInfo->base.cond.endVersion = pStreamInfo->fillHistoryVer.maxVer;
 
       pTSInfo->base.cond.twindows = pStreamInfo->fillHistoryWindow;
-      qDebug("stream recover step1, verRange:%" PRId64 "-%" PRId64 " window:%"PRId64"-%"PRId64", %s", pTSInfo->base.cond.startVersion,
+      qDebug("stream scan step1, verRange:%" PRId64 "-%" PRId64 " window:%"PRId64"-%"PRId64", %s", pTSInfo->base.cond.startVersion,
              pTSInfo->base.cond.endVersion, pTSInfo->base.cond.twindows.skey, pTSInfo->base.cond.twindows.ekey, id);
       pStreamInfo->recoverStep = STREAM_RECOVER_STEP__SCAN1;
       pStreamInfo->recoverScanFinished = false;

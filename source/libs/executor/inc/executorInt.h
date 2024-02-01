@@ -279,7 +279,6 @@ typedef struct STableScanInfo {
   int8_t          assignBlockUid;
   uint8_t         countState;     // empty table count state
   bool            hasGroupByTag;
-  bool            countOnly;
   bool            filesetDelimited;
   bool            needCountEmptyTable;
 } STableScanInfo;
@@ -757,10 +756,12 @@ extern void doDestroyExchangeOperatorInfo(void* param);
 
 int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo);
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
-                               int32_t rows, const char* idStr, STableMetaCacheInfo* pCache);
+                               int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache);
 
 void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 void setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, const char* name);
+void setVgIdColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, int32_t vgId);
+void setVgVerColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, int64_t vgVer);
 
 void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowEntryInfoOffset);
 void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);

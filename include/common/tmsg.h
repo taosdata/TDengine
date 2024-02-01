@@ -2408,6 +2408,11 @@ typedef struct SColLocation {
   int8_t   type;
 } SColLocation;
 
+typedef struct SVgroupVer {
+  int32_t vgId;
+  int64_t ver;
+} SVgroupVer;
+
 typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];
   char    sourceDB[TSDB_DB_FNAME_LEN];
@@ -2431,6 +2436,7 @@ typedef struct {
   int64_t  deleteMark;
   int8_t   igUpdate;
   int64_t  lastTs;
+  SArray*  pVgroupVerList;
 } SCMCreateStreamReq;
 
 typedef struct {

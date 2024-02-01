@@ -7217,6 +7217,7 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
 
   if (tEncodeI8(&encoder, pReq->createStb) < 0) return -1;
   if (tEncodeU64(&encoder, pReq->targetStbUid) < 0) return -1;
+
   if (tEncodeI32(&encoder, taosArrayGetSize(pReq->fillNullCols)) < 0) return -1;
   for (int32_t i = 0; i < taosArrayGetSize(pReq->fillNullCols); ++i) {
     SColLocation *pCol = taosArrayGet(pReq->fillNullCols, i);
@@ -7224,9 +7225,18 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
     if (tEncodeI16(&encoder, pCol->colId) < 0) return -1;
     if (tEncodeI8(&encoder, pCol->type) < 0) return -1;
   }
+
   if (tEncodeI64(&encoder, pReq->deleteMark) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igUpdate) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->lastTs) < 0) return -1;
+
+  if (tEncodeI32(&encoder, taosArrayGetSize(pReq->pVgroupVerList)) < 0) return -1;
+
+  for(int32_t i = 0; i < taosArrayGetSize(pReq->pVgroupVerList); ++i) {
+    SVgroupVer* p = taosArrayGet(pReq->pVgroupVerList, i);
+    if (tEncodeI32(&encoder, p->vgId) < 0) return -1;
+    if (tEncodeI64(&encoder, p->ver) < 0) return -1;
+  }
 
   tEndEncode(&encoder);
 
@@ -7238,6 +7248,8 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
 int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStreamReq *pReq) {
   int32_t sqlLen = 0;
   int32_t astLen = 0;
+  int32_t numOfFillNullCols = 0;
+  int32_t numOfVgVer = 0;
 
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
@@ -7289,7 +7301,6 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
   }
   if (tDecodeI8(&decoder, &pReq->createStb) < 0) return -1;
   if (tDecodeU64(&decoder, &pReq->targetStbUid) < 0) return -1;
-  int32_t numOfFillNullCols = 0;
   if (tDecodeI32(&decoder, &numOfFillNullCols) < 0) return -1;
   if (numOfFillNullCols > 0) {
     pReq->fillNullCols = taosArrayInit(numOfFillNullCols, sizeof(SColLocation));
@@ -7314,9 +7325,28 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
   if (tDecodeI8(&decoder, &pReq->igUpdate) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->lastTs) < 0) return -1;
 
-  tEndDecode(&decoder);
+  if (tDecodeI32(&decoder, &numOfVgVer) < 0) return -1;
+  if (numOfVgVer > 0) {
+    pReq->pVgroupVerList = taosArrayInit(numOfVgVer, sizeof(SVgroupVer));
+    if (pReq->pVgroupVerList == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
 
+    for (int32_t i = 0; i < numOfVgVer; ++i) {
+      SVgroupVer v = {0};
+      if (tDecodeI32(&decoder, &v.vgId) < 0) return -1;
+      if (tDecodeI64(&decoder, &v.ver) < 0) return -1;
+      if (taosArrayPush(pReq->pVgroupVerList, &v) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+    }
+  }
+
+  tEndDecode(&decoder);
   tDecoderClear(&decoder);
+
   return 0;
 }
 

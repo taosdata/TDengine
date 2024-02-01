@@ -590,11 +590,6 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
     return 0;
   }
 
-  if (pTask->info.fillHistory == 1) {
-    stDebug("s-task:0x%x initial nextProcessVer is set to 1 for fill-history task", pTask->id.taskId);
-    ver = 1;
-  }
-
   if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
     tFreeStreamTask(pTask);
     return -1;

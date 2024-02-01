@@ -2294,6 +2294,7 @@ void updateComposedBlockInfo(STsdbReader* pReader, double el, STableBlockScanInf
 
   pResBlock->info.id.uid = (pBlockScanInfo != NULL) ? pBlockScanInfo->uid : 0;
   pResBlock->info.dataLoad = 1;
+  pResBlock->info.version = pReader->info.verRange.maxVer;
   blockDataUpdateTsWindow(pResBlock, pReader->suppInfo.slotId[0]);
   setComposedBlockFlag(pReader, true);
 
@@ -2799,6 +2800,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
       pInfo->rows = pBlockInfo->numRow;
       pInfo->id.uid = pScanInfo->uid;
       pInfo->dataLoad = 0;
+      pInfo->version = pReader->info.verRange.maxVer;
       pInfo->window = (STimeWindow){.skey = pBlockInfo->firstKey, .ekey = pBlockInfo->lastKey};
       setComposedBlockFlag(pReader, false);
       setBlockAllDumped(&pStatus->fBlockDumpInfo, pBlockInfo->lastKey, pReader->info.order);

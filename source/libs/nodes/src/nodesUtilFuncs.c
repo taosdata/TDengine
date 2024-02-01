@@ -31,7 +31,7 @@ typedef struct SNodeMemChunk {
   struct SNodeMemChunk* pNext;
 } SNodeMemChunk;
 
-typedef struct SNodeAllocator {
+struct SNodeAllocator {
   int64_t        self;
   int64_t        queryId;
   int32_t        chunkSize;
@@ -39,7 +39,7 @@ typedef struct SNodeAllocator {
   SNodeMemChunk* pCurrChunk;
   SNodeMemChunk* pChunks;
   TdThreadMutex  mutex;
-} SNodeAllocator;
+};
 
 static threadlocal SNodeAllocator* g_pNodeAllocator;
 static int32_t                     g_allocatorReqRefPool = -1;
