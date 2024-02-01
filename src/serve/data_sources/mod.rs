@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use actix_web::{
     get,
-    http::header::ContentType,
+    http::header::{ContentDisposition, ContentType},
     post,
     web::{self, Data, Json, Query},
     HttpRequest, HttpResponse, Responder,
@@ -491,8 +491,8 @@ pub(super) async fn check_point_file_ready(params: Query<TaskTicket>) -> impl Re
 #[utoipa::path(
     tag = "data sources",
     responses(
-        (status = 200, description = "check opc file ready", body = String),
-        (status = 500, description = "check opc file error", body = Failed),
+        (status = 200, description = "download opc file successfully", body = String),
+        (status = 500, description = "download opc file error", body = Failed),
     ),
 )]
 #[get("/ds/in/point/file/async")]
@@ -501,7 +501,57 @@ pub(super) async fn download_point_file(
     req: HttpRequest,
 ) -> impl Responder {
     match load_point_file(&params.ticket, false).await {
-        Ok(named_file) => Ok(named_file.into_response(&req)),
+        Ok(named_file) => {
+            let content_disposition = ContentDisposition::attachment("point.csv");
+            Ok(named_file.set_content_disposition(content_disposition).into_response(&req))
+        },
+        Err(err) => Err(Failed {
+            code: 0xFFFF.into(),
+            message: format!("{:#}", err),
+        }),
+    }
+}
+
+#[utoipa::path(
+    tag = "data sources",
+    responses(
+        (status = 200, description = "", body = String),
+        (status = 500, description = "check opc file error", body = Failed),
+    ),
+)]
+#[get("/ds/in/point/data/page")]
+pub(super) async fn page_point_data(
+    params: Query<TaskTicket>,
+) -> impl Responder {
+    match load_point_data_page(&params).await {
+        Ok(page) => {
+            Ok(HttpResponse::Ok().json(R::success(page)))
+        },
+        Err(err) => Err(Failed {
+            code: 0xFFFF.into(),
+            message: format!("{:#}", err),
+        }),
+    }
+}
+
+
+#[utoipa::path(
+    tag = "data sources",
+    responses(
+        (status = 200, description = "download template file", body = String),
+        (status = 500, description = "download template file error", body = Failed),
+    ),
+)]
+#[get("/ds/in/point/file/template")]
+pub(super) async fn download_point_template_file(
+    params: Query<DownloadAllPointsParams>,
+    req: HttpRequest,
+) -> impl Responder {
+    match get_point_file_template(params).await {
+        Ok(named_file) => {
+            let content_disposition = ContentDisposition::attachment("point_template.csv");
+            Ok(named_file.set_content_disposition(content_disposition).into_response(&req))
+        },
         Err(err) => Err(Failed {
             code: 0xFFFF.into(),
             message: format!("{:#}", err),

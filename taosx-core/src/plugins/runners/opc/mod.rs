@@ -1,4 +1,4 @@
-use std::{fs, io::prelude::*, path::PathBuf, str::FromStr, sync::Arc};
+use std::{fs, io::prelude::*, path::PathBuf, sync::Arc};
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -483,34 +483,18 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         required: true,
     }];
     let format = Some("{id}::{code}".to_string());
-    if let Some(pattern) = req.pattern.as_deref() {
-        let regex = regex::Regex::from_str(pattern)?;
-        // regex.is_match(text)
-        let res = res
-            .into_iter()
-            .map(|mut set| {
-                set.category = Some(req.categories[0].clone());
-                set.options = Some(options.clone());
-                set.format = format.clone();
-                set
-            })
-            .skip(req.offset)
-            .take(req.limit)
-            .collect_vec();
-        Ok(res)
-    } else {
-        Ok(res
-            .into_iter()
-            .map(|mut set| {
-                set.category = Some(req.categories[0].clone());
-                set.options = Some(options.clone());
-                set.format = format.clone();
-                set
-            })
-            .skip(req.offset)
-            .take(req.limit)
-            .collect())
-    }
+
+    let res = res
+        .into_iter()
+        .map(|mut set| {
+            set.category = Some(req.categories[0].clone());
+            set.options = Some(options.clone());
+            set.format = format.clone();
+            set
+        })
+        .collect_vec();
+    Ok(res)
+  
 }
 
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
