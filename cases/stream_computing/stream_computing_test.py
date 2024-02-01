@@ -856,7 +856,9 @@ class StreamComputingTest(TDCase):
             res1 = self.tdSql.query_data
             self.tdSql.checkNotEqual(res1, res2)
             self.tdCom.check_query_data(f'select _wstart AS wstart, {tmp_stb_source_select_str.replace("first(c4),last(c5),", "").replace("first(t4),last(t5),", "")}  from {self.stb_name} {partition_elm} interval({self.dataDict["interval"]}s) order by wstart', f'select wstart, {tmp_stb_output_select_str.replace("`first(c4)`,`last(c5)`,", "").replace("`first(t4)`,`last(t5)`,", "")} from {self.stb_name}{self.des_table_suffix} order by wstart')
-        if check_stream_task:
+        self.tdSql.query('desc information_schema.ins_stream_tasks;')
+        field_list = list(map(lambda x:x[0], self.tdSql.query_data))
+        if check_stream_task and "stage" in field_list:
             time.sleep(self.stage_report_time)
             self.tdCom.check_stream_tasks()
             # if fill_value:
