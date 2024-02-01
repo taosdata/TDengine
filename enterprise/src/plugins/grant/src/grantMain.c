@@ -437,21 +437,29 @@ static int64_t grantGetExpireSec(int64_t expireSec) {
     return expireSec;
   }
 
-  if (expireSec == GRANT_UNIQ_UNDEFINED) {
-    return expireSec = grantClusterEpoch + GRANT_DEFAULT;
+  if (expireSec == GRANT_UNIQ_UNLIMITED) {
+    return expireSec = GRANT_UNIQ_MAX_EXPIRE_SECOND;
   }
 
-  return expireSec = grantClusterEpoch + GRANT_DEFAULT;
+  if (expireSec == GRANT_UNIQ_UNDEFINED) {
+    return grantClusterEpoch + GRANT_DEFAULT;
+  }
+
+  return grantClusterEpoch + GRANT_DEFAULT;
 }
 
 static void grantSetClusterInfo(SMnode *pMnode) {
   if (strncmp(tsVersionName, GRANT_VERSION, tListLen(tsVersionName)) != 0) {
     tstrncpy(tsVersionName, GRANT_VERSION, tListLen(tsVersionName));
   }
-  int64_t expireSec = grantGetExpireSec(GRANT_EXPIRE);  // TODO: -1
+  int64_t expireSec = grantGetExpireSec(GRANT_EXPIRE);
   COMPARE_SET_VAL(tsExpireTime, expireSec * 1000, !=);
   COMPARE_SET_VAL(pMnode->grant.expireTimeMS, tsExpireTime, !=);
-  COMPARE_SET_VAL(pMnode->grant.timeseriesAllowed, (int64_t)gStatus.limitTimeSeries, !=);
+  if (gStatus.limitTimeSeries == GRANT_UNIQ_UNLIMITED) {
+    COMPARE_SET_VAL(pMnode->grant.timeseriesAllowed, INT64_MAX, !=);
+  } else {
+    COMPARE_SET_VAL(pMnode->grant.timeseriesAllowed, (int64_t)gStatus.limitTimeSeries, !=);
+  }
 }
 
 static FORCE_INLINE void grantSetClusterIdEx(int64_t clusterId) {
@@ -924,7 +932,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
             state.reason = GRANT_STATE_REASON_ALTER;
             appendState = true;
           }
-        } else if (stated = false) {
+        } else if (false == stated) {
           state.state = GRANT_STATE_UNGRANTED;
           state.reason = GRANT_STATE_REASON_INIT;
           appendState = true;
@@ -936,7 +944,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
           appendState = true;
         }
       } else if (oldState == GRANT_STATE_EXPIRED) {
-        if (gStatus.expired == false) {
+        if (false == gStatus.expired) {
           state.state = GRANT_STATE_GRANTED;
           state.reason = GRANT_STATE_REASON_ALTER;
           appendState = true;
@@ -974,8 +982,9 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
   int32_t dnodeSize = taosArrayGetSize(grantHandle.pDnodeInfo);
   int64_t clusterTime = grantGetClusterCreateTime(pMnode) + mndGetClusterUpTime(pMnode);
   int32_t contLen = 0;
-  void   *pCont = NULL;
   if (dnodeSize > 1) {
+    void *pCont = NULL;
+    void *qCont = NULL;
     contLen = tSerializeGrantStatus(NULL, 0, &gStatus, clusterTime);
     pCont = rpcMallocCont(contLen);
     if (!pCont) {
@@ -990,7 +999,6 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
       return TSDB_CODE_FAILED;
     }
 
-    bool sent = false;
     for (int32_t i = 0; i < dnodeSize; ++i) {
       SDnodeInfo *info = (SDnodeInfo *)TARRAY_GET_ELEM(grantHandle.pDnodeInfo, i);
       if (info->offlineReason == DND_REASON_STATUS_MSG_TIMEOUT ||
@@ -1004,19 +1012,22 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
         continue;
       }
 
-      if (sent == false) {
-        sent = true;
-        mndSendGrantStatusToDnode(pMnode, info, contLen, pCont);
-      } else {
-        void *qCont = rpcMallocCont(contLen);
-        if (!qCont) return TSDB_CODE_FAILED;
+      if (i < dnodeSize - 1) {
+        qCont = rpcMallocCont(contLen);
+        if (!qCont) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          rpcFreeCont(pCont);
+          return TSDB_CODE_FAILED;
+        }
         memcpy(qCont, pCont, contLen);
         mndSendGrantStatusToDnode(pMnode, info, contLen, qCont);
+      } else {
+        mndSendGrantStatusToDnode(pMnode, info, contLen, pCont);
+        pCont = NULL;
       }
     }
-    if (sent == false) {
-      rpcFreeCont(pCont);
-    }
+
+    rpcFreeCont(pCont);
   }
 
   grantHandle.lastCheck = taosGetTimestampMs();
@@ -1489,7 +1500,7 @@ static int32_t grantCheckSubscriptions(bool allowEqual) {
   }
   uError("grant failed to check subscription, expire:%" PRIi64 ", num:%d, reason:subscription limited",
          (int64_t)gStatus.subscriptionExpireSec, (int32_t)gStatus.curSubscriptions);
-  return TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;  // TODO
+  return TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;
 }
 
 static int32_t grantCheckStreamExpired() { return gStatus.streamExpired ? TSDB_CODE_GRANT_EXPIRED : TSDB_CODE_SUCCESS; }
@@ -1513,6 +1524,7 @@ int32_t grantCheckLE(EGrantType grant) {
     case TSDB_GRANT_SUBSCRIPTION:
       return grantCheckSubscriptions(true);
     default:
+      ASSERTS(0, "undefined grant check le:%d", grant);
       break;
   }
   return TSDB_CODE_SUCCESS;
@@ -1553,6 +1565,7 @@ int32_t grantCheck(EGrantType grant) {
     case TSDB_GRANT_MULTI_TIER:
       return GRANT_EXPIRED(gStatus.multiTierExpired);
     default:
+      // ASSERTS(0, "undefined grant check:%d", grant);
       break;
   }
   return TSDB_CODE_SUCCESS;
