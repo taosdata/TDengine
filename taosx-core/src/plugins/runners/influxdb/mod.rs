@@ -1,7 +1,6 @@
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
-
 use chrono::Local;
 use itertools::Itertools;
 use taos::Dsn;
@@ -461,10 +460,12 @@ fn influxdb_jar_path() -> anyhow::Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::env;
     use std::str::FromStr;
+
     use taos::Dsn;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_invalid() {
@@ -497,7 +498,8 @@ mod tests {
         {
             let dsn = Dsn::from_str(
                 "influxdb://192.168.2.13:8088/?version=1.8&username=zqsong&password=Test0102",
-            ).unwrap();
+            )
+            .unwrap();
             let dsv = is_valid(&dsn).await;
             assert_eq!(false, dsv.valid);
             dbg!(dsv.message);
@@ -506,7 +508,8 @@ mod tests {
         {
             let dsn = Dsn::from_str(
                 "influxdb://192.168.2.12:8087/?version=1.8&username=zqsong&password=Test0102",
-            ).unwrap();
+            )
+            .unwrap();
             let dsv = is_valid(&dsn).await;
             assert_eq!(false, dsv.valid);
             dbg!(dsv.message);
@@ -515,7 +518,8 @@ mod tests {
         {
             let dsn = Dsn::from_str(
                 "influxdb://192.168.2.12:8088/?version=1.8&username=zqsong&password=Test0102",
-            ).unwrap();
+            )
+            .unwrap();
             let dsv = is_valid(&dsn).await;
             assert_eq!(true, dsv.valid);
             assert_eq!(true, dsv.support);
