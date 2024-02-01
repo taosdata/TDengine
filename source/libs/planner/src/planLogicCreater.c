@@ -501,7 +501,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   } else {
     nodesDestroyNode((SNode*)pScan);
   }
-  pScan->seqBlocksSort = getSeqBlocksSortHint(pSelect->pHint);
+  pScan->seqBlocksSort = getSeqBlocksSortOptHint(pSelect->pHint);
   pCxt->hasScan = true;
 
   return code;
