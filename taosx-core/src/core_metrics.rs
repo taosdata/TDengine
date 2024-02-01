@@ -59,7 +59,10 @@ impl CoreMetrics {
 /// CommonMetrics is a data structure to store metrics that are common to all task types.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommonMetrics {
+    /// 监控系统对应的超级表名
+    pub stable: String,
     pub task_id: i64,
+    pub task_name: Option<String>,
     pub start_time: TaskStartTime,
     pub total_execute_time: AtomicU64,
     pub total_written_rows: AtomicU64,
@@ -74,7 +77,9 @@ pub struct CommonMetrics {
 impl Default for CommonMetrics {
     fn default() -> Self {
         Self {
+            stable: String::new(),
             task_id: -1,
+            task_name: None,
             start_time: TaskStartTime::default(),
             total_execute_time: AtomicU64::new(0),
             total_written_rows: AtomicU64::new(0),
@@ -88,9 +93,11 @@ impl Default for CommonMetrics {
 }
 
 impl CommonMetrics {
-    pub fn new(task_id: i64) -> Self {
+    pub fn new(stable: String, task_id: i64, task_name: Option<String>) -> Self {
         Self {
+            stable,
             task_id,
+            task_name,
             ..Default::default()
         }
     }
@@ -111,7 +118,7 @@ impl CommonMetrics {
     }
 }
 
-pub trait TaosXMetrics: Into<CoreMetrics> + Serialize {
+pub trait TaskMetrics: Into<CoreMetrics> + Serialize {
     /// Reset all "run metrics"
     fn reset(&self);
 
@@ -208,7 +215,7 @@ pub fn get_metrics_arc_from_i64(task_id: Option<i64>) -> Arc<CoreMetrics> {
 }
 
 /// Try to load metrics from persistence.
-pub fn load_metrics<T: TaosXMetrics>(task_id: &str) -> Option<T> {
+pub fn load_metrics<T: TaskMetrics>(task_id: &str) -> Option<T> {
     let store = MetricsStore::new(task_id);
     if store.path.exists() {
         match store.get_string() {
@@ -235,6 +242,8 @@ pub fn get_task_metrics_string(running: bool, metrics: Arc<CoreMetrics>) -> Stri
     let mut map =
         serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(json.as_str()).unwrap();
     map.remove("task_id");
+    map.remove("stable");
+    map.remove("task_name");
     compute_total_avg_speed(common_metrics, &mut map);
     compute_avg_speed(common_metrics, &mut map, running);
     let result = split_to_total_and_current(&map);
@@ -307,7 +316,7 @@ fn compute_avg_speed(
 
 /// Get metrics from global metrics map first, if not exist, try to load metrics from persistence.
 /// If both failed, return None.
-pub fn try_get_metrics<T: TaosXMetrics>(task_id: i64) -> Option<Arc<CoreMetrics>> {
+pub fn try_get_metrics<T: TaskMetrics>(task_id: i64) -> Option<Arc<CoreMetrics>> {
     if let Some(metrics) = get_metrics(task_id) {
         Some(metrics)
     } else {
@@ -338,8 +347,14 @@ pub fn clear_metrics(task_id: i64) {
     }
 }
 
-pub fn init_task_metrics(from: Dsn, to: Dsn, task_id: i64) -> Option<Arc<CoreMetrics>> {
-    match (from.driver.as_str(), to.driver.as_str()) {
+pub fn init_task_metrics(
+    from: Dsn,
+    to: Dsn,
+    task_id: i64,
+    task_name: Option<String>,
+) -> Option<Arc<CoreMetrics>> {
+    let datasrouce_id = from.driver.as_str();
+    match (datasrouce_id, to.driver.as_str()) {
         ("taos", "taos") => {
             let metrics = try_get_metrics::<LegacyToTaosMetrics>(task_id);
             if let Some(metrics) = metrics {
@@ -348,7 +363,10 @@ pub fn init_task_metrics(from: Dsn, to: Dsn, task_id: i64) -> Option<Arc<CoreMet
                 Some(metrics)
             } else {
                 tracing::info!("create new metrics for task {}", task_id);
-                let metrics = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::new(task_id)));
+                let stable = String::from("taosx_task_tdengine2");
+                let metrics = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::new(
+                    stable, task_id, task_name,
+                )));
                 GLOBAL_METRICS
                     .lock()
                     .unwrap()
@@ -364,7 +382,10 @@ pub fn init_task_metrics(from: Dsn, to: Dsn, task_id: i64) -> Option<Arc<CoreMet
                 Some(metrics)
             } else {
                 tracing::info!("create new metrics for task {}", task_id);
-                let metrics = Arc::new(CoreMetrics::TMQ(TmqMetrics::new(task_id)));
+                let stable = String::from("taosx_task_tdengine");
+                let metrics = Arc::new(CoreMetrics::TMQ(TmqMetrics::new(
+                    stable, task_id, task_name,
+                )));
                 GLOBAL_METRICS
                     .lock()
                     .unwrap()
@@ -393,7 +414,10 @@ pub fn init_task_metrics(from: Dsn, to: Dsn, task_id: i64) -> Option<Arc<CoreMet
                 Some(metrics)
             } else {
                 tracing::info!("create new metrics for task {}", task_id);
-                let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(task_id)));
+                let stable = String::from("taosx_task_") + datasrouce_id;
+                let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(
+                    stable, task_id, task_name,
+                )));
                 GLOBAL_METRICS
                     .lock()
                     .unwrap()
@@ -529,12 +553,14 @@ fn save_metrics(metrics: Arc<CoreMetrics>) -> anyhow::Result<()> {
 mod tests {
     use super::*;
     use crate::get_data_dir;
+    const TEST_STABLE: &'static str = "test_stable";
 
     /// This test case is to verify that the global metrics can be accessed by multiple threads and the metrics can be updated concurrently.
     #[test]
     fn test_global_metrics() {
         let mut metrics = GLOBAL_METRICS.lock().unwrap();
-        let legacy_to_taos_metrics = LegacyToTaosMetrics::new(1);
+
+        let legacy_to_taos_metrics = LegacyToTaosMetrics::new(TEST_STABLE.to_string(), 1, None);
         legacy_to_taos_metrics
             .read_concurrency
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
@@ -593,7 +619,7 @@ mod tests {
     fn test_load_metrics() {
         let task_dir = get_data_dir().join("tasks").join("1024");
         std::fs::create_dir_all(&task_dir).unwrap();
-        let legacy_to_taos_metrics = LegacyToTaosMetrics::new(1024);
+        let legacy_to_taos_metrics = LegacyToTaosMetrics::new(TEST_STABLE.to_string(), 1024, None);
         legacy_to_taos_metrics
             .read_concurrency
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
@@ -618,7 +644,7 @@ mod tests {
         std::fs::create_dir_all(&task_dir).unwrap();
         let db = MetricsStore::new("1024");
 
-        let legacy_to_taos_metrics = LegacyToTaosMetrics::new(1024);
+        let legacy_to_taos_metrics = LegacyToTaosMetrics::new(TEST_STABLE.to_string(), 1024, None);
         legacy_to_taos_metrics
             .read_concurrency
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);

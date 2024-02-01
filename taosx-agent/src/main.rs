@@ -248,7 +248,7 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
 
     if monitor_enabled {
         start_collect_agent_metrics(monitor_interval, taosx_id, agent_id);
-        export_metrics(metrics_rx.clone(), resp_tx.clone());
+        export_metrics(metrics_rx.clone(), resp_tx.clone(), monitor_interval);
     }
 
     tokio::select! {
@@ -389,7 +389,7 @@ pub fn process_metrics(
 ) -> anyhow::Result<()> {
     sys.refresh_all();
     let labels = [
-        ("stable", "taosx-agent"),
+        ("stable", "taosx_agent"),
         ("taosx_id", taosx_id),
         ("agent_id", agent_id),
     ];
@@ -432,10 +432,11 @@ fn spawn_heartbeat_task(resp_tx: Sender<RespAction>) -> JoinHandle<()> {
 fn export_metrics(
     metrics_rx: Receiver<MetricEvent>,
     resp_tx: Sender<RespAction>,
+    monitor_interval: u64,
 ) -> JoinHandle<()> {
-    tracing::debug!("Start export metrics via rpc");
+    tracing::info!("Start export metrics via rpc");
     tokio::spawn(async move {
-        let mut export_interval = tokio::time::interval(Duration::from_secs(1));
+        let mut export_interval = tokio::time::interval(Duration::from_secs(monitor_interval));
         loop {
             let mut metrics_events = MetricsEvents::new();
             loop {
@@ -445,10 +446,13 @@ fn export_metrics(
                 }
             }
             if !metrics_events.is_empty() {
+                tracing::debug!("Export metric events, total: {}", metrics_events.len());
                 if let Err(err) = resp_tx.send(RespAction::Metrics(metrics_events)) {
                     tracing::warn!("Send metrics action error: {err}");
                     break;
                 }
+            } else {
+                tracing::warn!("No metric events to export");
             }
             export_interval.tick().await;
         }

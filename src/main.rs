@@ -529,7 +529,7 @@ fn otel_enabled(args: &Args) -> bool {
 /// Gether all effective environment variables and options, and join them with \n .
 /// This method can only be called after all env variables and options were determined.
 #[rustfmt::skip]
-fn pirnt_effective_config(level_filter: &LevelFilter, args: &Args) {
+fn print_effective_config(level_filter: &LevelFilter, args: &Args) {
     let w = 18;
     let w2 = 22;
     let mut s = String::new();
@@ -542,10 +542,12 @@ fn pirnt_effective_config(level_filter: &LevelFilter, args: &Args) {
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "log_level", level_filter).as_str();
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "log_keep_days", get_log_keep_days()).as_str();
     s += format!("{:<w$}{:<w2$}{}\n", ' ', "jobs", args.global.jobs).as_str();
-    s += format!("{:<w$}{:<w2$}{}\n", ' ', "otel", otel_enabled(args)).as_str();
     if let Commands::Serve(cli) = args.commands.as_ref().unwrap_or(&Commands::Serve(Default::default())) {
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.listen", cli.get_listen_address()).as_str();
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "server.database_url", cli.get_database_url()).as_str();
+        s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.fqdn", args.monitor.fqdn.as_ref().unwrap_or(&"".to_string())).as_str();
+        s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.port", args.monitor.port).as_str();
+        s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.interval", args.monitor.interval).as_str();
     }
     s += "===================================================================================";
     tracing::info!("{}", s);
@@ -585,7 +587,7 @@ fn main() -> Result<()> {
     tracing::info!("taosx version: {version}");
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
-    pirnt_effective_config(&level_filter, &args);
+    print_effective_config(&level_filter, &args);
 
     match args.commands.unwrap_or(Commands::Serve(Default::default())) {
         Commands::Run(cli) => {
@@ -597,9 +599,7 @@ fn main() -> Result<()> {
             let _ = tracing::info_span!("serve").entered();
             let addr = serve.get_listen_address();
             let port = addr.split(':').last().unwrap();
-            let monitor = monitor::Monitor::new(args.monitor.clone(), port);
             let scheduler_rt = build_runtime(worker_threads * 2)?;
-
             let (agent_integration_channel, agent_rpc_channel, scheduler_notifier) =
                 scheduler_rt.block_on(serve.channels());
 
@@ -610,7 +610,9 @@ fn main() -> Result<()> {
 
             // let api_rt = build_runtime(worker_threads)?;
             let max_activities_per_entity = args.global.max_activities_per_entity.unwrap_or(100);
+
             let ctl = runtime.block_on(serve.controller(scheduler, max_activities_per_entity))?;
+            let monitor = monitor::Monitor::new(args.monitor.clone(), port, ctl.clone());
             let api_ctl = ctl.clone();
             let serve_api = serve.clone();
             let grpc_handle =

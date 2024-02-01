@@ -47,6 +47,12 @@ pub enum DebugValue {
     Gauge(f64),
 }
 
+impl Snapshot {
+    pub fn data(self) -> Vec<(Key, DebugValue)> {
+        self.0
+    }
+}
+
 pub(crate) struct Inner {
     registry: Registry<Key, GenerationalAtomicStorage>,
     recency: Recency<Key>,

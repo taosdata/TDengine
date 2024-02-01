@@ -1,7 +1,7 @@
 use std::{ops::Deref, sync::Arc, time::Duration};
 
 use crate::{
-    core_metrics::{get_metrics_arc, CoreMetrics, TaosXMetrics},
+    core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
     legacy_metric::LegacyToTaosMetrics,
     sync_super_table_schema, sync_super_table_schema_with_subs,
     tmq::{tmq_metric::TmqMetrics, *},
@@ -365,7 +365,7 @@ async fn write_meta(
     Ok(())
 }
 
-#[instrument(skip(sender, consumer, taos, cancel, source_pool, metrics_arc))]
+#[instrument(skip_all, fields(task.id = id, table))]
 async fn sync(
     id: usize,
     sender: tokio::sync::mpsc::UnboundedSender<Consumer>,
@@ -376,8 +376,8 @@ async fn sync(
     actions: Vec<Action>,
     cancel: CancellationToken,
     metrics_arc: Arc<CoreMetrics>,
-    offsets: Arc<DashMap<String, Vec<Assignment>>>,
-    version: String,
+    _offsets: Arc<DashMap<String, Vec<Assignment>>>,
+    _version: String,
 ) -> Result<()> {
     tracing::info!("[{id}] task start");
     let mut stream = consumer.stream();

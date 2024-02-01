@@ -36,7 +36,7 @@ use taosx_ipc::{
 };
 
 use crate::{
-    core_metrics::{CoreMetrics, TaosXMetrics},
+    core_metrics::{CoreMetrics, TaskMetrics},
     runners::opc::config::OPCConfig,
 };
 use crate::{plugins::runners::opc::config::table::ColumnConfig, utils::trace::get_stream_id_u64};

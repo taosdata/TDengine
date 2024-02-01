@@ -784,10 +784,10 @@ impl FlightService for FlightServiceImpl {
                                         // return std::task::Poll::Ready(Some(item));
                                     }
                                     "metrics-events" => {
-                                        tracing::trace!("Received metrics events");
                                         match serde_json::from_str::<MetricsEvents>(context) {
                                             Ok(events) => {
                                                 tokio::spawn(async move {
+                                                    tracing::trace!("Received metrics events, total: {}", events.len());
                                                     Self::replay_metrics_events_from_agent(events);
                                                 });
                                             }

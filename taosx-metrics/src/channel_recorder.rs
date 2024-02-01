@@ -72,6 +72,10 @@ impl MetricsEvents {
     pub fn to_vec_u8(&self) -> Vec<u8> {
         bincode::encode_to_vec(&self, BINCODE_CONFIG).unwrap()
     }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
 struct Handle {

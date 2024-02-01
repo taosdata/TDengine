@@ -1725,6 +1725,48 @@ impl TaskController {
                 .await?;
         Ok(vec)
     }
+
+    #[instrument(skip_all)]
+    pub async fn get_task_summaries(&self, interval: u64) -> (i32, i32, i32) {
+        let interval = Duration::from_secs(interval);
+        let finished_at = Utc::now() - interval;
+        let running_tasks_count = sqlx::query_scalar!(
+            "select count(*) from tasks where status = ?",
+            Status::Running
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or_default();
+        // count tasks completed in last 10 seconds
+        let completed_tasks_count = sqlx::query_scalar!(
+            "select count(*) from tasks where status = ? and finished_at > ?",
+            Status::Completed,
+            finished_at,
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or_default();
+        // count failed tasks in last 10 seconds
+        let failed_tasks_count = sqlx::query_scalar!(
+            "select count(*) from tasks where status = ? and finished_at > ?",
+            Status::Failed,
+            finished_at,
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or_default();
+        tracing::debug!(
+            "running_tasks_count: {}, completed_tasks_count: {}, failed_tasks_count: {}",
+            running_tasks_count,
+            completed_tasks_count,
+            failed_tasks_count
+        );
+        (
+            running_tasks_count,
+            completed_tasks_count,
+            failed_tasks_count,
+        )
+    }
 }
 
 #[derive(Debug, Default, Serialize, ToSchema, FromRow)]
@@ -2007,7 +2049,7 @@ pub struct Task {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(read_only, example = "null")]
-    name: Option<String>,
+    pub name: Option<String>,
 
     /// Task trigger events, default will be oneshot.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3249,6 +3291,34 @@ mod tests {
             .fetch_one(&pool)
             .await?;
         assert_eq!(len, 100);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_get_task_summaries() -> anyhow::Result<()> {
+        tracing_subscriber_init()?;
+        let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
+        // let pool = controller.pool.clone();
+        // let res = sqlx::query(
+        //     "INSERT INTO tasks (`name`, `from`, `oneshot_topic`, `to`, `jobs`, `compression_level`, \
+        //          `created_at`, `status`, `after_delete`, `trigger`, `via`, `parser`) \
+        //          VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        // )
+        // .bind("test")
+        // .bind("tmq:///test")
+        // .bind("test")
+        // .bind("taos:///test")
+        // .bind(10u16)
+        // .bind(0u8)
+        // .bind(chrono::Utc::now())
+        // .bind(&Status::Running)
+        // .bind(None::<String>)
+        // .bind(None::<String>)
+        // .bind(None::<i64>)
+        // .bind(None::<serde_json::Value>)
+        // .execute(&pool)
+        // .await?;
+        let _ = controller.get_task_summaries(10).await;
         Ok(())
     }
 }

@@ -15,7 +15,7 @@ use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::{
     core_metrics::{
         auto_save_task_metrics, get_metrics, init_task_metrics, save_task_metrics_finally,
-        try_get_metrics, CoreMetrics, TaosXMetrics, GLOBAL_METRICS,
+        try_get_metrics, CoreMetrics, TaskMetrics, GLOBAL_METRICS,
     },
     dsv::DataSourceValidation,
     sink::ipc_metric::IpcMetrics,
@@ -152,8 +152,13 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
             global_sender.send_task_activity(activity);
         }
     });
-    let metrics_arc = init_task_metrics(opts.from.clone(), opts.to.clone(), task_id)
-        .expect("no metrics defined for current datasource");
+    let metrics_arc = init_task_metrics(
+        opts.from.clone(),
+        opts.to.clone(),
+        task_id,
+        task.name.clone(),
+    )
+    .unwrap();
     let (_sender, close_signal) = oneshot::channel::<()>();
     auto_save_task_metrics(metrics_arc, close_signal);
     let res = opts.run(&global.port_pool).in_current_span().await;
@@ -847,6 +852,7 @@ impl TaskJob {
         let (tx, rx) = tokio::sync::oneshot::channel();
 
         if let Some(agent_id) = opts.task.via {
+            let task_name = self.task.task.name.clone();
             tokio::spawn(async move {
                 #[derive(Debug)]
                 enum AgentTaskState {
@@ -914,16 +920,11 @@ impl TaskJob {
                     .push_action(agent_id, AgentAction::Run(task_id, jid, run_id))
                     .await;
                 tracing::debug!("Command run sending ok");
-                match try_get_metrics::<IpcMetrics>(task_id) {
-                    Some(metrics_arc) => metrics_arc.ipc().reset(),
-                    None => {
-                        let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(task_id)));
-                        GLOBAL_METRICS.lock().unwrap().insert(task_id, metrics);
-                    }
-                }
-                tracing::debug!("Reset metrics ok");
-                // start save metrics task
+                let from_dsn: Dsn = state.task.from.parse().unwrap();
+                let to_dsn = state.task.to.parse().unwrap();
+                let metrics_arc = init_task_metrics(from_dsn, to_dsn, task_id, task_name).unwrap();
                 let (_senter, stop_save_metrics_signal) = oneshot::channel::<()>();
+                // start save metrics task
                 auto_save_task_metrics(get_metrics(task_id).unwrap(), stop_save_metrics_signal);
                 let waiter = state.agent_waiter.as_ref().unwrap();
 
