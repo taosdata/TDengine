@@ -575,6 +575,7 @@ async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>
 #[cfg(test)]
 mod tests {
     use std::env;
+    use std::str::FromStr;
 
     use super::*;
 
