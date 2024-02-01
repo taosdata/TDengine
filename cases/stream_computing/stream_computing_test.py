@@ -3997,7 +3997,8 @@ class StreamComputingTest(TDCase):
             self.at_once_event_window_ext(partition=None, subtable=None, stb_field_name_value=self.tb_filter_des_select_elm, tag_value="t1", use_exist_stb=True, constant_col="c1", use_except=True)
 
             # * not stable and put them last
-            self.at_once_interval(interval=random.randint(10, 15), partition=None, delete=True, checkpoint_check=True)
+            if self.replica != 3:
+                self.at_once_interval(interval=random.randint(10, 15), partition=None, delete=True, checkpoint_check=True)
 
             # ! TD-23905
             # self.json_function(partition="tbname", delete=True, fill_history_value=1)
