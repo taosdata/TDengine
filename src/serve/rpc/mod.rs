@@ -521,22 +521,11 @@ impl FlightService for FlightServiceImpl {
             self.notify_sender.clone(),
         );
 
-        struct ResultStream(Streaming<FlightData>);
-        unsafe impl Sync for ResultStream {}
-        unsafe impl Send for ResultStream {}
-
-        // impl futures::Stream for ResultStream {
-        //     type Item = Result<PutResult, Status>;
-        // }
-
         Ok(Response::new(Box::pin(
             put_stream
                 .into_flight_put_result(String::from(stream_trace_id))
                 .await
                 .map_err(|err| Status::unavailable(err.to_string()))?,
-            // req.map_ok(|v| PutResult {
-            //     app_metadata: v.app_metadata,
-            // }),
         )))
     }
 

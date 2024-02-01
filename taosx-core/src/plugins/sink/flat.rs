@@ -706,6 +706,7 @@ mod tests {
                             .unzip();
                         RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).unwrap()
                     },
+                    opts: Default::default(),
                 })
                 .collect()
         }

@@ -1,14 +1,17 @@
 use std::cmp;
 
+use arrow::array::RecordBatchWriter;
+use arrow::csv::Writer;
 use arrow::ipc::writer::StreamWriter;
-use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc};
+use arrow::record_batch::RecordBatch;
+use chrono::{Local, Utc};
 use flume::Sender;
 use futures_util::TryStreamExt;
 use itertools::Itertools;
 
 use taosx_ipc::ack::AckReaderBuilder;
 
-use crate::runners::historian::appender::ArrowDataAppender;
+use crate::runners::historian::appender;
 use crate::runners::historian::config::{HistorianTable, TaskConfig};
 use crate::runners::historian::query::HistorianQuery;
 use crate::runners::historian::worker::consumer::Consumer;
@@ -93,8 +96,18 @@ pub async fn sync_history(task_config: TaskConfig, logger: Sender<String>) -> an
         Ok(())
     });
 
-    let mut appender = ArrowDataAppender::try_new(HistorianTable::History)?;
-    let schema = appender.schema().clone();
+    let mut client = HistorianQuery::try_new(task_config.connect.clone()).await?;
+    let mut rows = client
+        .describe_table(HistorianTable::History)
+        .await?
+        .into_row_stream();
+    let mut fields = Vec::new();
+    while let Some(row) = rows.try_next().await? {
+        let col_meta = appender::column_meta::ColumnMeta::try_new(&row)?;
+        fields.push(col_meta);
+    }
+    drop(rows);
+    let schema = appender::column_meta::to_schema(fields)?;
 
     // write batch to ipc
     let (tx, rx) = flume::bounded(0);
@@ -110,7 +123,6 @@ pub async fn sync_history(task_config: TaskConfig, logger: Sender<String>) -> an
 
     // query database and send to writer
     let tags_group = split_tags(task_config.tags.clone(), task_config.tag_list_size);
-    let mut client = HistorianQuery::try_new(task_config.connect.clone()).await?;
 
     // sync-history start from now + retrieve_interval + tolerance
     tokio::time::sleep(
@@ -133,31 +145,21 @@ pub async fn sync_history(task_config: TaskConfig, logger: Sender<String>) -> an
         );
 
         for tags in &tags_group {
-            tracing::debug!("sync history:{} query rows", count);
-            let mut rows = client
+            tracing::debug!("sync history: {} query rows", count);
+
+            let stream = client
                 .select_from_history(tags.clone(), window_start, window_end)
-                .await?
-                .into_row_stream();
+                .await?;
+            let batch = appender::to_record_batch(stream).await?;
 
-            tracing::debug!("sync history:{} rows to batch", count);
-            while let Some(row) = rows.try_next().await? {
-                let raw_data = appender.append_history_row(&row).map_err(|err| {
-                    let err_msg = format!(
-                        "sync history:{} append row error: {}",
-                        count,
-                        err.to_string()
-                    );
-                    tracing::error!(err_msg);
-                    anyhow::anyhow!(err_msg)
-                })?;
-                logger.send_async(raw_data.to_string()).await?;
-            }
+            let mut output = Vec::new();
+            let mut writer = Writer::new(&mut output);
+            writer.write(&batch)?;
+            let _ = writer.close();
 
-            drop(rows);
-            tracing::debug!("sync history:{} batch finish", count);
-            let batch = appender.finish()?;
-            tracing::debug!("sync history:{} send batch to writer", count);
-            tx.send_async(batch.clone()).await?;
+            logger.send_async(String::from_utf8(output)?).await?;
+            tracing::debug!("sync history: {} send batch to writer", count);
+            tx.send_async(batch).await?;
 
             count += 1;
         }
@@ -185,8 +187,23 @@ pub async fn sync_live(task_config: TaskConfig, logger: Sender<String>) -> anyho
     set_tcp_keepalive(&ack_stream)?;
     ack_stream.set_read_timeout(None)?;
 
-    let mut appender = ArrowDataAppender::try_new(HistorianTable::Live)?;
-    let schema = appender.schema().clone();
+    let mut client = HistorianQuery::try_new(task_config.clone().connect).await?;
+
+    let mut fields = Vec::new();
+    let mut rows = client
+        .describe_table(HistorianTable::Live)
+        .await?
+        .into_row_stream();
+    while let Some(row) = rows.try_next().await? {
+        let col_meta = appender::column_meta::ColumnMeta::try_new(&row)?;
+        fields.push(col_meta);
+    }
+    drop(rows);
+
+    if fields.is_empty() {
+        anyhow::bail!("live table cannot be empty")
+    }
+    let schema = appender::column_meta::to_schema(fields)?;
 
     // write batch to ipc
     let (tx, rx) = flume::bounded(0);
@@ -215,48 +232,38 @@ pub async fn sync_live(task_config: TaskConfig, logger: Sender<String>) -> anyho
         Ok(())
     });
 
-    let mut client = HistorianQuery::try_new(task_config.clone().connect).await?;
-
     let mut count: u64 = 1;
     loop {
         tracing::debug!(
-            "sync live:{} query rows, now: {}",
+            "sync live: {} query rows, now: {}",
             count,
             Local::now().to_string()
         );
-        let mut rows = client
-            .select_from_live(task_config.tags.clone())
-            .await?
-            .into_row_stream();
 
-        tracing::debug!("sync live:{} traverse rows to batch", count);
-        let mut earliest = i64::MAX;
-        let mut latest = 0;
-        while let Some(row) = rows.try_next().await? {
-            let raw_data = appender.append_live_row(&row)?;
-            let ts = raw_data.datetime;
-            logger.send_async(raw_data.to_string()).await?;
-            earliest = cmp::min(ts, earliest);
-            latest = cmp::max(ts, latest);
-        }
-        drop(rows);
+        let stream = client.select_from_live(task_config.tags.clone()).await?;
+        let batch = appender::to_record_batch(stream).await?;
 
-        tracing::debug!(
-            "sync live:{} batch finish, earliest: {}({}), latest: {}({})",
-            count,
-            to_local_datetime(earliest),
-            earliest,
-            to_local_datetime(latest),
-            latest
-        );
-        let batch = appender.finish()?;
-
-        tracing::debug!("sync live:{} send batch to writer", count);
-        tx.send_async(batch.clone()).await?;
+        logger.send_async(to_csv_string(&batch)?).await?;
+        tracing::debug!("sync live: {} send batch to writer", count);
+        tx.send_async(batch).await?;
 
         count += 1;
         tokio::time::sleep(task_config.retrieve_interval.to_std().unwrap()).await;
     }
+}
+
+pub fn to_csv_string(batch: &RecordBatch) -> anyhow::Result<String> {
+    let mut output = Vec::new();
+    let mut writer = Writer::new(&mut output);
+    writer.write(batch)?;
+    let _ = writer.close();
+
+    String::from_utf8(output).map_err(|err| {
+        anyhow::anyhow!(
+            "failed to convert record batch to csv, cause: {}",
+            err.to_string()
+        )
+    })
 }
 
 fn split_tags(tags: Vec<String>, size: usize) -> Vec<Vec<String>> {
@@ -267,19 +274,19 @@ fn split_tags(tags: Vec<String>, size: usize) -> Vec<Vec<String>> {
         .collect_vec()
 }
 
-fn to_local_datetime(nanos_sec: i64) -> DateTime<Local> {
-    let naive_datetime = NaiveDateTime::from_timestamp_micros(nanos_sec / 1000).unwrap();
-    Local::now().timezone().from_utc_datetime(&naive_datetime)
-}
-
 #[cfg(test)]
 mod tests {
+    use chrono::{NaiveDateTime, TimeZone};
+
     use super::*;
 
     #[test]
     fn test_convert_datetime() {
-        let ts = 10_0000_0000_123_456_789;
-        let datetime = to_local_datetime(ts);
+        let ts_nano = 10_0000_0000_123_456_789;
+
+        let naive_datetime = NaiveDateTime::from_timestamp_micros(ts_nano / 1000).unwrap();
+
+        let datetime = Local::now().timezone().from_utc_datetime(&naive_datetime);
 
         assert_eq!("2001-09-09 09:46:40.123456 +08:00", datetime.to_string());
     }

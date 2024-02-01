@@ -4,10 +4,6 @@ import com.taosdata.caches.StatusCache;
 import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.netty.client.NettyClient;
 import com.taosdata.netty.client.config.NettyClientConfig;
-import com.taosdata.netty.consts.NettyConsts;
-import com.taosdata.netty.model.dto.MessageDto;
-import com.taosdata.netty.model.enums.MessageTypeEnums;
-import com.taosdata.utils.IdUtils;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import org.slf4j.Logger;
@@ -34,7 +30,7 @@ public class HeartHandler extends ChannelInboundHandlerAdapter {
     /**
      * 序列号工具类
      */
-    private IdUtils idUtils;
+    /*private IdUtils idUtils;*/
 
     /**
      * 发送心跳时间
@@ -49,7 +45,7 @@ public class HeartHandler extends ChannelInboundHandlerAdapter {
     public HeartHandler(NettyClientConfig nettyConfig, NettyClient nettyClient) {
         this.nettyConfig = nettyConfig;
         this.nettyClient = nettyClient;
-        this.idUtils = new IdUtils();
+        /*this.idUtils = new IdUtils();*/
     }
 
     @Override
@@ -125,12 +121,12 @@ public class HeartHandler extends ChannelInboundHandlerAdapter {
         // 更新心跳时间
         this.heartTime = System.currentTimeMillis();
         // 封装消息体
-        MessageDto messageDto = new MessageDto();
+        /*MessageDto messageDto = new MessageDto();
         messageDto.setVersion(NettyConsts.VERSION);
         messageDto.setMsgType(MessageTypeEnums.PING.getValue());
         messageDto.setSeq(this.idUtils.nextId());
-        messageDto.setBody(new byte[0]);
+        messageDto.setBody(new byte[0]);*/
         // 发送消息
-        channelHandlerContext.writeAndFlush(messageDto);
+        channelHandlerContext.writeAndFlush(new byte[0]);
     }
 }

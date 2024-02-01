@@ -83,6 +83,10 @@ public class PushPrepareThread implements Runnable {
                 Set<String> metricDataKeySet = MetricDataCache.getMetricDataKeySet();
                 // 遍历，如果不存在线程则新建连接与线程
                 metricDataKeySet.stream().forEach(key -> {
+                    // 判断队列长度与当前连接数
+                    if (MetricDataCache.getMetricDataQueueSize(key) == 0 || (this.performanceConfig.getLimitConnect() > 0 && MetricDataCache.socketMap.size() > this.performanceConfig.getLimitConnect())) {
+                        return;
+                    }
                     // 判断是否存在并且状态正常
                     if (!MetricDataCache.socketMap.containsKey(key) || !MetricDataCache.socketMap.get(key).isOpen()) {
                         // 创建连接并启动推送线程
@@ -184,8 +188,8 @@ public class PushPrepareThread implements Runnable {
         opentsdbDataEntityList.forEach(opentsdbDataEntity -> {
             // 根据Metric与Tags生成表名
             generateTableName(opentsdbDataEntity);
-            // 拆分依据metric,table
-            String key = opentsdbDataEntity.getMetric() + "," + opentsdbDataEntity.getTable();
+            // 拆分依据metric
+            String key = opentsdbDataEntity.getMetric();
             // 写入内存队列
             MetricDataCache.addMetricData(key, opentsdbDataEntity);
         });

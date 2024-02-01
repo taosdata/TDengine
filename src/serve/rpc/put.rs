@@ -184,6 +184,10 @@ impl PutStream {
             stream_trace_id_u64: u64,
         ) -> anyhow::Result<()> {
             // dbg!(&task);
+            notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                agent_id,
+                TaskActivity::ipc_started(task.id),
+            ))?;
             let task_id = task.id;
             let from = task.from.parse().unwrap();
             let taos = pool.get().await?;
@@ -268,6 +272,11 @@ impl PutStream {
                 }
                 Ok(())
             }).await?;
+
+            notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                agent_id,
+                TaskActivity::ipc_finished(task_id),
+            ))?;
             Ok(())
         }
         let notify_sender = self.notify_sender.clone();
@@ -298,6 +307,8 @@ impl PutStream {
                 {
                     tracing::warn!("IPC stream writer stopped, err:{:?}", err);
                 }
+
+                tracing::info!("IPC stream writer stopped successfully");
             }
             .in_current_span(),
         );

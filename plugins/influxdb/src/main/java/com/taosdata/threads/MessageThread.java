@@ -1,17 +1,13 @@
 package com.taosdata.threads;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.taosdata.ApplicationContextProvider;
 import com.taosdata.caches.MessageCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.enums.StatusEnums;
-import com.taosdata.netty.model.dto.MessageBodyDto;
-import com.taosdata.netty.model.dto.MessageBodyInfluxdbDto;
 import com.taosdata.netty.model.dto.MessageDto;
 import com.taosdata.netty.model.enums.MessageTypeEnums;
 import com.taosdata.utils.DateUtils;
-import io.netty.util.CharsetUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +51,7 @@ public class MessageThread implements Runnable {
                     // 睡眠后继续
                     sleep(this.performanceConfig.getThread().getProcessMessageEmptyInterval(), start, StatusEnums.NORMAL);
                     continue;
-                } else if (messageDto.getMsgType() == MessageTypeEnums.MSG_REQ.getValue()) {
+                } /*else if (messageDto.getMsgType() == MessageTypeEnums.MSG_REQ.getValue()) {
                     // 服务端请求序列号
                     long seq = messageDto.getSeq();
                     // 服务端主动请求的数据
@@ -66,7 +62,7 @@ public class MessageThread implements Runnable {
                     } else {
                         logger.error("The server's REQ message is null and will not be processed, Message={}", messageDto.toString());
                     }
-                } else if (messageDto.getMsgType() == MessageTypeEnums.MSG_RES.getValue()) {
+                }*/ else if (messageDto.getMsgType() == MessageTypeEnums.MSG_RES.getValue()) {
                     // 服务端返回的响应数据
                     // TODO
                 }
@@ -135,7 +131,7 @@ public class MessageThread implements Runnable {
      * @param seq
      * @param body
      */
-    private void processMessage(long seq, byte[] body) {
+    /*private void processMessage(long seq, byte[] body) {
         try {
             // 将消息体转换为字符串
             String bodyStr = new String(body, CharsetUtil.UTF_8);
@@ -152,5 +148,5 @@ public class MessageThread implements Runnable {
         } catch (Exception e) {
             logger.error("An exception occurred during the parsing of the message body，body=" + body, e);
         }
-    }
+    }*/
 }

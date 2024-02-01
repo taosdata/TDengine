@@ -1416,6 +1416,9 @@ async fn consume_flat_record(
             crate::plugins::transform::Message::Tables(_) => todo!(),
             crate::plugins::transform::Message::ChildTables(_) => todo!(),
             crate::plugins::transform::Message::Records(message) => {
+                if message.len() == 0 {
+                    continue;
+                }
                 let factor = message
                     .iter()
                     .map(|message| message.records.num_rows())

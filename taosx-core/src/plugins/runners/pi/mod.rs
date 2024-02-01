@@ -578,6 +578,7 @@ async fn validate_pi(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
                 .as_str()
                 .or(result["since"].as_str())
                 .map(|s| s.to_string()),
+            namespaces: None,
         }
     } else {
         DataSourceValidation::invalid(
@@ -670,6 +671,7 @@ async fn validate_pi_backfill(config: PiConfig) -> anyhow::Result<DataSourceVali
                 .as_str()
                 .or(result["since"].as_str())
                 .map(|s| s.to_string()),
+            namespaces: None,
         }
     } else {
         DataSourceValidation::invalid(

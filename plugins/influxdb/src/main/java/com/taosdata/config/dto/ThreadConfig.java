@@ -1,13 +1,15 @@
 package com.taosdata.config.dto;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 线程配置
  *
  * @author ZYP
  */
-@Data
+@Getter
+@Setter
 public class ThreadConfig {
 
     /**

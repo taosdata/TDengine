@@ -136,6 +136,11 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(data_source_collection)
             .service(data_source_sample)
             .service(download_all_data_set_file)
+            .service(download_point_template_file)
+            .service(init_download_file_task)
+            .service(check_point_file_ready)
+            .service(download_point_file)
+            .service(page_point_data)
             .service(create_agent)
             .service(update_agent)
             .service(delete_agent)
@@ -315,6 +320,11 @@ impl Cli {
                 data_source_collection,
                 data_source_sample,
                 download_all_data_set_file,
+                init_download_file_task,
+                check_point_file_ready,
+                download_point_file,
+                download_point_template_file,
+                page_point_data,
 
                 agent::create_agent,
                 agent::update_agent,
