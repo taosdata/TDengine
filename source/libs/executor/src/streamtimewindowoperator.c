@@ -4330,15 +4330,16 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
         } else {
           pInfo->pDelRes->info.type = STREAM_DELETE_RESULT;
         }
+        printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
         return pInfo->pDelRes;
       }
-      break;
+      continue;
     } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
       return pBlock;
     } else if (pBlock->info.type == STREAM_PULL_OVER) {
       processPullOver(pBlock, pInfo->pPullDataMap, pInfo->pFinalPullDataMap, &pInfo->interval, pInfo->pPullWins,
                       pInfo->numOfChild, pOperator);
-      return pBlock;
+      continue;
     } else if (pBlock->info.type == STREAM_CHECKPOINT) {
       pAPI->stateStore.streamStateCommit(pInfo->pState);
       doStreamIntervalSaveCheckpoint(pOperator);
