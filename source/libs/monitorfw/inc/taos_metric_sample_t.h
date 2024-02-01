@@ -33,7 +33,7 @@ struct taos_metric_sample {
 #ifdef DOUBLE_ATOMIC
   _Atomic double r_value;  /**< r_value is the value of the metric sample */
 #else
-  int64_t r_value;  /**< r_value is the value of the metric sample */
+  double r_value; /**< r_value is the value of the metric sample */
 #endif  
 };
 

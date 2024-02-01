@@ -31,6 +31,10 @@
 #define ALLOW_FORBID_FUNC
 #include "tdef.h"
 #include "osAtomic.h"
+typedef union {
+  volatile int64_t i;
+  double           d;
+} double_number;
 #endif
 
 taos_metric_sample_t *taos_metric_sample_new(taos_metric_type_t type, const char *l_value, double r_value) {
@@ -81,7 +85,19 @@ int taos_metric_sample_add(taos_metric_sample_t *self, double r_value) {
     }
   }
 #else
-  atomic_fetch_add_64(&self->r_value, r_value);
+  for (;;) {
+    double_number old_num;
+    old_num.i = *(int64_t *)(&self->r_value);  // current old value
+
+    double_number new_num;
+    new_num.d = old_num.d + r_value;
+
+    int64_t old_value = atomic_val_compare_exchange_64((volatile int64_t *)(&self->r_value), new_num.i, old_num.i);
+
+    if (old_value == old_num.i) return 0;
+  }
+  
+  //atomic_fetch_add_64(&self->r_value, r_value);
 #endif
 
   return 0;
@@ -103,7 +119,19 @@ int taos_metric_sample_sub(taos_metric_sample_t *self, double r_value) {
     }
   }
 #else
-  atomic_fetch_sub_64(&self->r_value, r_value);
+  for (;;) {
+    double_number old_num;
+    old_num.i = *(int64_t *)(&self->r_value);  // current old value
+
+    double_number new_num;
+    new_num.d = old_num.d - r_value;
+
+    int64_t old_value = atomic_val_compare_exchange_64((volatile int64_t *)(&self->r_value), new_num.i, old_num.i);
+
+    if (old_value == old_num.i) return 0;
+  }
+
+  //atomic_fetch_sub_64(&self->r_value, r_value);
 #endif
 
   return 0;
@@ -118,7 +146,16 @@ int taos_metric_sample_set(taos_metric_sample_t *self, double r_value) {
 #ifdef DOUBLE_ATOMIC
   atomic_store(&self->r_value, r_value);
 #else
-  atomic_store_64(&self->r_value, r_value);
+  for (;;) {
+    int64_t iOld = *(int64_t *)(&self->r_value);  // current old value
+
+    int64_t iNew = *(int64_t *)(&r_value);
+
+    int64_t old_value = atomic_val_compare_exchange_64((volatile int64_t *)(&self->r_value), iNew, iOld);
+
+    if (old_value == iOld) return 0;
+  }
+  //atomic_store_64(&self->r_value, r_value);
 #endif  
   
   return 0;
@@ -140,7 +177,20 @@ int taos_metric_sample_exchange(taos_metric_sample_t *self, double r_value, doub
     }
   }
 #else
-  *old_value = atomic_exchange_64(&self->r_value, r_value);
+  for (;;) {
+    int64_t iOld = *(int64_t *)(&self->r_value);  // current old value
+
+    int64_t iNew = *(int64_t *)(&r_value);
+
+    int64_t iold_value = atomic_val_compare_exchange_64((volatile int64_t *)(&self->r_value), iNew, iOld);
+
+    if (iold_value == iOld) {
+      *old_value = *(double *)(&iold_value);
+      return 0;
+    }
+  }
+
+  //*old_value = atomic_exchange_64(&self->r_value, r_value);
 #endif   
   
   return 0;
