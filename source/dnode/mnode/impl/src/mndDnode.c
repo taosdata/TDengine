@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include <stdio.h>
 #include "tjson.h"
 #include "mndDnode.h"
 #include "audit.h"
@@ -500,6 +501,9 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   SStatisReq statisReq = {0};
   int32_t    code = -1;
 
+  char strClusterId[TSDB_CLUSTER_ID_LEN] = {0};
+  sprintf(strClusterId, "%"PRId64, pMnode->clusterId);
+
   if (tDeserializeSStatisReq(pReq->pCont, pReq->contLen, &statisReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
@@ -546,7 +550,20 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
 
           *(sample_labels + j) = taosMemoryMalloc(MONITOR_TAG_VALUE_LEN);
           tjsonGetStringValue(item, "value", *(sample_labels + j));
+          if(strncmp(*(labels + j), "cluster_id", MONITOR_TAG_NAME_LEN) == 0) {
+            strncpy(*(sample_labels + j), strClusterId, MONITOR_TAG_VALUE_LEN);
+          }
         }
+
+        /*
+        *(labels + tagSize) = taosMemoryMalloc(MONITOR_TAG_NAME_LEN);
+        strncpy(*(labels + tagSize), "cluster_id", MONITOR_TAG_NAME_LEN); 
+
+        *(sample_labels + tagSize) = taosMemoryMalloc(MONITOR_TAG_VALUE_LEN);
+        strncpy(*(sample_labels + tagSize), strClusterId, MONITOR_TAG_VALUE_LEN); 
+
+        tagSize++;
+        */
 
         SJson* metrics = tjsonGetObjectItem(item, "metrics");
 
