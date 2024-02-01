@@ -56,7 +56,6 @@ class StreamStabilityTest(TDCase):
         self.FILE_WEB_SERVER=f'http://{self.local_ip}:8081/'
         self.pause_resume_interval = 300
         self.schedu_interval = 800
-        self.vgid_list = self.tdCom.get_vgid_list(self.dbname)
 
     def help(self):
         print("case parameters:")
@@ -135,6 +134,7 @@ class StreamStabilityTest(TDCase):
         self.stream_dbname, self.stream_stbname= self.stream_json_info["streams"][0]["stream_stb"].split(".")
         self.json_file_info_list.append({self.json_file: self.json_info})
         self.json_file_info_list.append({self.stream_json_file: self.stream_json_info})
+        self.vgid_list = self.tdCom.get_vgid_list(self.dbname)
         if "cluster_common_insert.yaml" in " ".join(sys.argv):
             if "partition" not in " ".join(sys.argv):
                 self.json_info["databases"][0]["super_tables"][0]["insert_rows"] = 150000

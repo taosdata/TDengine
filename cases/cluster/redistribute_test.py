@@ -431,5 +431,5 @@ class VnodeRedistribute(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.childtable_count*(self.insert_rows+self.fill_history_rows))
         self.tdSql.execute(f'drop stream if exists {self.stream_name}')
         taosd_logfile_list = self.tdCom.get_pattern_logfile_list(self.taosd_setting["spec"]["dnodes"][0]["config"]["logDir"], "taosdlog")
-        self.tdSql.checkEqual(self.tdCom.find_log_pat(taosd_logfile_list, "not found in mnode task list"), False)
+        self.tdSql.checkNotEqual(self.tdCom.find_log_pat(taosd_logfile_list, "not found in mnode task list"), True)
         # self.tdCom.check_query_data(f"select count(c0) from {self.dbname}.{self.stbname} where c0 % 7 >= 0", f'select count(*) from {self.dbname}.{self.stream_stbname}')
