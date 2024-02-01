@@ -663,6 +663,8 @@ static void initNextGroupScan(STableScanInfo* pInfo, STableKeyInfo** pKeyInfo, i
 
   pInfo->tableEndIndex = (pInfo->tableStartIndex + (*size) - 1);
 
+  pInfo->pResBlock->info.blankFill = false;
+
   if (!pInfo->needCountEmptyTable) {
     pInfo->countState = TABLE_COUNT_STATE_END;
   } else {
@@ -687,6 +689,7 @@ static SSDataBlock* getOneRowResultBlock(SExecTaskInfo* pTaskInfo, STableScanBas
   pBlock->info.rows = 1;
   pBlock->info.id.uid = tbInfo->uid;
   pBlock->info.id.groupId = tbInfo->groupId;
+  pBlock->info.blankFill = true;
 
   // only one row: set all col data to null & hasNull
   int32_t col_num = blockDataGetNumOfCols(pBlock);
@@ -696,7 +699,7 @@ static SSDataBlock* getOneRowResultBlock(SExecTaskInfo* pTaskInfo, STableScanBas
   }
 
   // set tag/tbname
-  doSetTagColumnData(pBase, pBlock, pTaskInfo, pBlock->info.rows);
+  doSetTagColumnData(pBase, pBlock, pTaskInfo, 1);
   return pBlock;
 }
 

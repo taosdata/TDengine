@@ -491,6 +491,8 @@ TO_CHAR(ts, format_str_literal)
 
 **Description**: Convert a ts column to string as the format specified
 
+**Version**: Since ver-3.2.2.0
+
 **Return value type**: VARCHAR
 
 **Applicable column types**: TIMESTAMP
@@ -549,6 +551,8 @@ TO_TIMESTAMP(ts_str_literal, format_str_literal)
 ```
 
 **Description**: Convert a formated timestamp string to a timestamp
+
+**Version**: Since ver-3.2.2.0
 
 **Return value type**: TIMESTAMP
 

@@ -491,6 +491,8 @@ TO_CHAR(ts, format_str_literal)
 
 **功能说明**: 将timestamp类型按照指定格式转换为字符串
 
+**版本**: ver-3.2.2.0
+
 **返回结果数据类型**: VARCHAR
 
 **应用字段**: TIMESTAMP
@@ -549,6 +551,8 @@ TO_TIMESTAMP(ts_str_literal, format_str_literal)
 ```
 
 **功能说明**: 将字符串按照指定格式转化为时间戳.
+
+**版本**: ver-3.2.2.0
 
 **返回结果数据类型**: TIMESTAMP
 
