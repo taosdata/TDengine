@@ -1565,7 +1565,6 @@ int32_t grantCheck(EGrantType grant) {
     case TSDB_GRANT_MULTI_TIER:
       return GRANT_EXPIRED(gStatus.multiTierExpired);
     default:
-      // ASSERTS(0, "undefined grant check:%d", grant);
       break;
   }
   return TSDB_CODE_SUCCESS;
