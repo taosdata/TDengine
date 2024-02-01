@@ -1811,7 +1811,8 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
     if (code != 0 || !oldObj.granted) {
       code = code != 0 ? code : TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
       if ((newObj.flags & 0x40)) {  // skip if old active parse failed
-        uInfo("old active parse failed since %s, continue to alter as new flags:0x%x", tstrerror(code), oldObj.flags);
+        uInfo("old active parse failed since %s, continue to alter as new flags is:0x%x", tstrerror(code),
+              newObj.flags);
         code = 0;
       } else {
         code = code != 0 ? code : TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
@@ -1867,7 +1868,6 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   char    ts[GRANT_TS_SEC_LEN] = {0};
 
   if (pShow->numOfRows < 1) {
-    // SGrantDataIns *pDataIn = NULL;
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     const char      *src = GRANT_VERSION;
@@ -2034,9 +2034,8 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   return numOfRows;
 }
 
-static void mndCancelGetNextGrantFull(SMnode *pMnode, void *pIter) {
-  printf("%s:%d executed\n\n\n\n\n", __func__, __LINE__);
-}
+static void    mndCancelGetNextGrantFull(SMnode *pMnode, void *pIter) { uTrace("%s:%d executed", __func__, __LINE__); }
+
 static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->info.node;
   int32_t numOfRows = 0;
@@ -2156,6 +2155,14 @@ static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
   if (!(pBuf = taosMemoryCalloc(1, bufLen))) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return 0;
+  }
+
+  if (grantObj.clusterId[0] == 0) {
+    grantSetClusterId(pMnode, grantObj.clusterId);
+    if (grantObj.clusterId[0] == 0) {
+      terrno = TSDB_CODE_APP_IS_STARTING;
+      return 0;
+    }
   }
 
   if (pShow->numOfRows < 1) {
