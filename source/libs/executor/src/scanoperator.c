@@ -3387,6 +3387,8 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
     if (!hasNext || isTaskKilled(pTaskInfo)) {
       if (isTaskKilled(pTaskInfo)) {
         pAPI->tsdReader.tsdReaderReleaseDataBlock(pInfo->base.dataReader);
+        pInfo->base.dataReader = NULL;
+        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
       }
       *pSubTableHasBlock = false;
       break;
@@ -3539,6 +3541,11 @@ static int32_t initSubTableInputs(SOperatorInfo* pOperator, STableMergeScanInfo*
     pInput->pPageBlock = createOneDataBlock(pInfo->pResBlock, false);
     STableKeyInfo* keyInfo = tableListGetInfo(pInfo->base.pTableListInfo, i + pInfo->tableStartIndex);
     pInput->pKeyInfo = keyInfo;
+
+    if (isTaskKilled(pTaskInfo)) {
+      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    }
+
     if (i + 1 < pSubTblsInfo->numInMemReaders) {
       pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInput->tblCond, keyInfo, 1, pInput->pReaderBlock,
                                   (void**)&pInput->pReader, GET_TASKID(pTaskInfo), NULL);
@@ -3675,6 +3682,11 @@ static SSDataBlock* getSubTablesSortedBlock(SOperatorInfo* pOperator, SSDataBloc
         break;
       }
     }
+
+    if (isTaskKilled(pTaskInfo)) {
+      T_LONG_JMP(pOperator->pTaskInfo->env, pTaskInfo->code);
+    }
+
     bool limitReached = applyLimitOffset(&pInfo->limitInfo, pResBlock, pTaskInfo);
     if (finished || limitReached || pResBlock->info.rows > 0) {
       break;
@@ -3716,6 +3728,7 @@ static int32_t stopSubTablesTableMergeScan(STableMergeScanInfo* pInfo) {
     taosMemoryFree(pSubTblsInfo);
     pInfo->pSubTablesMergeInfo = NULL;
   }
+  taosMemoryTrim(0);
   return TSDB_CODE_SUCCESS;
 }
 
