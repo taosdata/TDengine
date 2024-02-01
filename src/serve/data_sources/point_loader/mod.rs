@@ -1,6 +1,7 @@
 use actix_files::NamedFile;
 use actix_web::web::{Data, Query};
 use anyhow::anyhow;
+use csv::Reader;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use serde::Deserialize;
@@ -12,7 +13,6 @@ use taos::IntoDsn;
 use tempfile::TempPath;
 use tokio::sync::RwLock;
 use utoipa::*;
-use csv::Reader;
 
 use taosx_core::{list_datasets_from, DataSetsReq};
 
@@ -119,7 +119,6 @@ impl<T> Pagination<T> {
     }
 }
 
-
 // 同步下载所有数据点位
 pub async fn download_all_point_csv_file(
     controller: Data<TaskControllerRef>,
@@ -173,7 +172,7 @@ pub async fn arrange_point_file_download_task(
     }
 
     tokio::spawn(async move {
-        let (data, point_count )= get_all_points(
+        let (data, point_count) = get_all_points(
             params.from,
             params.via,
             params.categories,
@@ -191,7 +190,10 @@ pub async fn arrange_point_file_download_task(
         write!(config_file, "{}", &data).unwrap();
         {
             let mut map = SHARED_MAP.write().await;
-            map.insert(task_id, TaskStatus::Complete((config_file.into_temp_path(), point_count)));
+            map.insert(
+                task_id,
+                TaskStatus::Complete((config_file.into_temp_path(), point_count)),
+            );
         }
     });
 
@@ -230,11 +232,13 @@ pub async fn load_point_file(ticket: &String, remain: bool) -> anyhow::Result<Na
     }
 }
 
-pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Pagination<(String, String)>> {
+pub async fn load_point_data_page(
+    params: &TaskTicket,
+) -> anyhow::Result<Pagination<(String, String)>> {
     let map = SHARED_MAP.write().await;
     let page = params.page.unwrap_or(0);
     let page_size = params.page_size.unwrap_or(1000);
-    
+
     map.get(params.ticket.as_str())
         .map(|status| match status {
             TaskStatus::Running => Err(anyhow!("task is running")),
@@ -242,21 +246,25 @@ pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Paginat
                 let f = NamedFile::open(file_path)?;
                 let mut reader = Reader::from_reader(f.file());
 
-                let data: Vec<(String, String)> = reader.records().into_iter()
+                let data: Vec<(String, String)> = reader
+                    .records()
+                    .into_iter()
                     .skip(page * page_size + 1)
-                    .take(page_size).map(|record| {
-                    let record = record.unwrap();
-                    let id = record.get(1).unwrap_or("").to_string();
-                    let name = record.get(11).unwrap_or("").to_string();
-                    (id, name)
-                }).collect();
-                
-                Ok(Pagination::new(page, page_size).with_total(*point_count).with_data(data))
-               
+                    .take(page_size)
+                    .map(|record| {
+                        let record = record.unwrap();
+                        let id = record.get(1).unwrap_or("").to_string();
+                        let name = record.get(11).unwrap_or("").to_string();
+                        (id, name)
+                    })
+                    .collect();
+
+                Ok(Pagination::new(page, page_size)
+                    .with_total(*point_count)
+                    .with_data(data))
             }
         })
         .unwrap_or(Err(anyhow!("task not found")))
-    
 }
 
 pub async fn get_point_file_template(
@@ -266,12 +274,8 @@ pub async fn get_point_file_template(
 
     let from = params.from.into_dsn()?;
     let template_file_data = match from.driver.as_str() {
-        "opcua" => {
-            get_opcua_csv_header(params.lang, true)
-        }
-        "opcda" => {
-            get_opcda_csv_header(params.lang, true)
-        }
+        "opcua" => get_opcua_csv_header(params.lang, true),
+        "opcda" => get_opcda_csv_header(params.lang, true),
         _ => String::new(),
     };
 
@@ -322,7 +326,7 @@ async fn get_all_points(
                 "pi" | "pibackfill" => data.into_iter().map(|set| set.id).join("\n"),
                 "opcda" => {
                     let mut result = get_opcda_csv_header(lang, false);
-                    
+
                     let mut i = 1;
                     data.iter().for_each(|item| {
                         let data = format!(

@@ -494,7 +494,6 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         })
         .collect_vec();
     Ok(res)
-  
 }
 
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {

@@ -503,8 +503,10 @@ pub(super) async fn download_point_file(
     match load_point_file(&params.ticket, false).await {
         Ok(named_file) => {
             let content_disposition = ContentDisposition::attachment("point.csv");
-            Ok(named_file.set_content_disposition(content_disposition).into_response(&req))
-        },
+            Ok(named_file
+                .set_content_disposition(content_disposition)
+                .into_response(&req))
+        }
         Err(err) => Err(Failed {
             code: 0xFFFF.into(),
             message: format!("{:#}", err),
@@ -520,20 +522,15 @@ pub(super) async fn download_point_file(
     ),
 )]
 #[get("/ds/in/point/data/page")]
-pub(super) async fn page_point_data(
-    params: Query<TaskTicket>,
-) -> impl Responder {
+pub(super) async fn page_point_data(params: Query<TaskTicket>) -> impl Responder {
     match load_point_data_page(&params).await {
-        Ok(page) => {
-            Ok(HttpResponse::Ok().json(R::success(page)))
-        },
+        Ok(page) => Ok(HttpResponse::Ok().json(R::success(page))),
         Err(err) => Err(Failed {
             code: 0xFFFF.into(),
             message: format!("{:#}", err),
         }),
     }
 }
-
 
 #[utoipa::path(
     tag = "data sources",
@@ -550,8 +547,10 @@ pub(super) async fn download_point_template_file(
     match get_point_file_template(params).await {
         Ok(named_file) => {
             let content_disposition = ContentDisposition::attachment("point_template.csv");
-            Ok(named_file.set_content_disposition(content_disposition).into_response(&req))
-        },
+            Ok(named_file
+                .set_content_disposition(content_disposition)
+                .into_response(&req))
+        }
         Err(err) => Err(Failed {
             code: 0xFFFF.into(),
             message: format!("{:#}", err),
