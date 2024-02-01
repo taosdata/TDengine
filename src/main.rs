@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use serve::monitor::MonitorCfg;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use chrono::Local;
 use clap::{parser::ValueSource, CommandFactory, Parser, Subcommand};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
@@ -82,8 +82,6 @@ mod serve;
 enum Commands {
     Run(run::Cli),
     Serve(serve::Cli),
-    #[clap(external_subcommand)]
-    External(Vec<String>),
 }
 
 #[derive(Parser, Debug)]
@@ -616,7 +614,6 @@ fn main() -> Result<()> {
                 serve.api(api_ctl, grpc_handle, args.monitor.clone()).await
             })?;
         }
-        Commands::External(_) => bail!("unknown subcommand"),
     }
     runtime.block_on(async move {
         opentelemetry::global::shutdown_tracer_provider();

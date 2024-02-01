@@ -1639,6 +1639,7 @@ pub enum Message {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct MessageItemDecodedData(Either<JsonMeta, Vec<RawBlock>>);
 
 impl From<JsonMeta> for MessageItemDecodedData {
