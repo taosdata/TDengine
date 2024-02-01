@@ -22,12 +22,12 @@ public class MessageCache {
      * @param messageDto
      * @return
      */
-    public static int addReqMessage(MessageDto messageDto) {
+    /*public static int addReqMessage(MessageDto messageDto) {
         // 放入队列中
         reqMessageQueue.add(messageDto);
         // 返回当前队列大小
         return reqMessageQueue.size();
-    }
+    }*/
 
     /**
      * 添加响应消息并获取队列大小
@@ -35,12 +35,12 @@ public class MessageCache {
      * @param messageDto
      * @return
      */
-    public static int addResMessage(MessageDto messageDto) {
+    /*public static int addResMessage(MessageDto messageDto) {
         // 放入队列中
         resMessageQueue.add(messageDto);
         // 返回当前队列大小
         return resMessageQueue.size();
-    }
+    }*/
 
     /**
      * 获取请求消息
@@ -56,9 +56,9 @@ public class MessageCache {
      *
      * @return
      */
-    public static MessageDto getResMessage() {
+    /*public static MessageDto getResMessage() {
         return resMessageQueue.poll();
-    }
+    }*/
 
     /**
      * 获取请求消息队列大小

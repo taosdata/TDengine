@@ -483,7 +483,6 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         required: true,
     }];
     let format = Some("{id}::{code}".to_string());
-
     let res = res
         .into_iter()
         .map(|mut set| {

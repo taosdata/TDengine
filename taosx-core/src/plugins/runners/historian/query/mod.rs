@@ -35,6 +35,7 @@ impl HistorianQuery {
         let mut config = Config::new();
         config.host(host);
         config.port(port);
+        config.database("Runtime");
         config.authentication(AuthMethod::sql_server(username, password));
         config.trust_cert();
 

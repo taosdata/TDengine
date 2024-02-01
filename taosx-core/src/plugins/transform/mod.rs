@@ -8,7 +8,7 @@
 //! - Convert: fields data into other data types.
 //! - Filter: filter one or more rows in the stream.
 
-use std::{ops::Range, str::FromStr, sync::Arc};
+use std::{borrow::Cow, ops::Range, str::FromStr, sync::Arc};
 
 use arrow::{
     array::{Array, BinaryArray, StringArray},
@@ -60,6 +60,8 @@ pub mod sample;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Pipeline {
+    #[serde(default)]
+    global: Arc<TableOptions>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     parse: Option<ParserImpl>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -101,6 +103,7 @@ impl Pipeline {
                 } else if table.name.contains('.') {
                     return Err(Error::TableNameContainsDot(table.name.clone()));
                 }
+                table.global.get_or_init(|| self.global.clone());
 
                 if let Some(columns) = table.columns.as_ref() {
                     if columns.is_empty() {
@@ -939,6 +942,8 @@ mod pipeline_tests {
 /// ```
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Parser {
+    #[serde(default)]
+    global: Arc<TableOptions>,
     parse: Option<ParserImpl>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     mutate: Vec<Mutate>,
@@ -1156,6 +1161,7 @@ impl Parser {
                 let item = MessageArrowRecords {
                     table: meta,
                     records: batch,
+                    opts: self.global.clone(),
                 };
                 data.push(item);
             }
@@ -1289,6 +1295,53 @@ impl MessageTableMeta {
 pub struct MessageArrowRecords {
     pub table: MessageTableMeta,
     pub records: RecordBatch,
+    pub opts: Arc<TableOptions>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TableOptions {
+    // TODO: support case insensitive identifier, including table name and column name.
+    /// Whether identifier is case insensitive. Not work for now.
+    ///
+    /// Default is `false`, which means identifier is case sensitive.
+    #[serde(skip, default)]
+    pub identifier_case_insensitive: bool,
+    /// Replace dot in table name with this string.
+    ///
+    /// For example, if `replace_dot_in_table_name` is set to `_`, then table name `custom.table` will be converted to `custom_table`.
+    ///
+    /// Without this, table name `custom.table` will cause error 0x2617: "The table name cannot contain '.'".
+    ///
+    /// Default is `_`.
+    #[serde(default)]
+    pub replace_dot_in_table_name: String,
+}
+
+impl Default for TableOptions {
+    fn default() -> Self {
+        Self {
+            identifier_case_insensitive: false,
+            replace_dot_in_table_name: "_".to_string(),
+        }
+    }
+}
+impl TableOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn canonical_table_name<'b>(&self, name: &'b str) -> Cow<'b, str> {
+        let dot = name.contains('.');
+        match (self.identifier_case_insensitive, dot) {
+            (true, true) => Cow::Owned(
+                name.to_lowercase()
+                    .replace('.', &self.replace_dot_in_table_name),
+            ),
+            (true, false) => Cow::Owned(name.to_lowercase()),
+            (false, true) => Cow::Owned(name.replace('.', &self.replace_dot_in_table_name)),
+            (false, false) => Cow::Borrowed(name),
+        }
+    }
 }
 
 trait ArrowFieldExt {
@@ -1519,8 +1572,9 @@ impl MessageArrowRecords {
     pub fn sql_insert_part(&self, precision: taos::Precision, with_meta: bool) -> Option<String> {
         let col_values = crate::utils::sql::sql_values_from_record_batch(&self.records, precision)
             .expect("Sql values should be recognizable")?;
+        let tbname = self.opts.canonical_table_name(self.table.name.as_str());
         if !with_meta || self.table.using.is_none() {
-            return Some(format!("`{}` {}", self.table.name, col_values));
+            return Some(format!("`{}` {}", tbname, col_values));
         }
         let using = self.table.using.as_ref().unwrap();
         let names = self
@@ -1546,7 +1600,7 @@ impl MessageArrowRecords {
 
         Some(format!(
             "`{}` using `{}` ({}) tags({}) {}",
-            self.table.name, using, names, tag_values, col_values
+            tbname, using, names, tag_values, col_values
         ))
     }
 
