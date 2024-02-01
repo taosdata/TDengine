@@ -670,7 +670,6 @@ void streamStateFreeCur(SStreamStateCur* pCur) {
   if (!pCur) {
     return;
   }
-  qDebug("streamStateFreeCur");
   streamStateResetCur(pCur);
   taosMemoryFree(pCur);
 }
@@ -698,6 +697,7 @@ int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void
       stDebug("===stream===save skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64 ".code:%d", key->win.skey,
               key->win.ekey, key->groupId, code);
     } else {
+      pos->beFlushed = false;
       code = putSessionWinResultBuff(pState->pFileState, value);
     }
   }

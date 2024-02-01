@@ -15,6 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "tbase64.h"
+#include <math.h>
+#include <stdbool.h>
 
 static char basis_64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 

@@ -1027,57 +1027,6 @@ int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo) {
   return 0;
 }
 
-int32_t qResetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  SOperatorInfo* pOperator = pTaskInfo->pRoot;
-
-  while (1) {
-    int32_t type = pOperator->operatorType;
-    if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL || type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL ||
-        type == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL) {
-      SStreamIntervalOperatorInfo* pInfo = pOperator->info;
-      STimeWindowAggSupp*          pSup = &pInfo->twAggSup;
-
-      pSup->calTriggerSaved = 0;
-      pSup->deleteMarkSaved = 0;
-      qInfo("reset stream param for interval: %d,  %" PRId64, pSup->calTrigger, pSup->deleteMark);
-
-    } else if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION ||
-               type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION ||
-               type == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
-      SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
-      STimeWindowAggSupp*            pSup = &pInfo->twAggSup;
-
-      pSup->calTriggerSaved = 0;
-      pSup->deleteMarkSaved = 0;
-      qInfo("reset stream param for session: %d,  %" PRId64, pSup->calTrigger, pSup->deleteMark);
-
-    } else if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) {
-      SStreamStateAggOperatorInfo* pInfo = pOperator->info;
-      STimeWindowAggSupp*          pSup = &pInfo->twAggSup;
-
-      pSup->calTriggerSaved = 0;
-      pSup->deleteMarkSaved = 0;
-      qInfo("reset stream param for state: %d,  %" PRId64, pSup->calTrigger, pSup->deleteMark);
-
-    } else if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT) {
-      SStreamEventAggOperatorInfo* pInfo = pOperator->info;
-      STimeWindowAggSupp*          pSup = &pInfo->twAggSup;
-
-      pSup->calTriggerSaved = 0;
-      pSup->deleteMarkSaved = 0;
-      qInfo("save stream param for state: %d,  %" PRId64, pSup->calTrigger, pSup->deleteMark);
-    }
-
-    // iterate operator tree
-    if (pOperator->numOfDownstream != 1 || pOperator->pDownstream[0] == NULL) {
-      return 0;
-    } else {
-      pOperator = pOperator->pDownstream[0];
-    }
-  }
-}
-
 int32_t qRestoreStreamOperatorOption(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   const char*    id = GET_TASKID(pTaskInfo);
@@ -1131,7 +1080,7 @@ bool qStreamScanhistoryFinished(qTaskInfo_t tinfo) {
 
 int32_t qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  STimeWindow* pWindow = &pTaskInfo->streamInfo.fillHistoryWindow;
+  STimeWindow*   pWindow = &pTaskInfo->streamInfo.fillHistoryWindow;
 
   qDebug("%s remove timeWindow filter:%" PRId64 "-%" PRId64 ", set new window:%" PRId64 "-%" PRId64,
          GET_TASKID(pTaskInfo), pWindow->skey, pWindow->ekey, INT64_MIN, INT64_MAX);
@@ -1264,7 +1213,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
           STableKeyInfo* pTableInfo = tableListGetInfo(pTableListInfo, 0);
           uid = pTableInfo->uid;
           ts = INT64_MIN;
-          pScanInfo->tableEndIndex = 0;
+          pScanInfo->currentTable = 0;
         } else {
           taosRUnLockLatch(&pTaskInfo->lock);
           qError("no table in table list, %s", id);
@@ -1278,16 +1227,16 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       pInfo->pTableScanOp->resultInfo.totalRows = 0;
 
       // start from current accessed position
-      // we cannot start from the pScanInfo->tableEndIndex, since the commit offset may cause the rollback of the start
+      // we cannot start from the pScanInfo->currentTable, since the commit offset may cause the rollback of the start
       // position, let's find it from the beginning.
       index = tableListFind(pTableListInfo, uid, 0);
       taosRUnLockLatch(&pTaskInfo->lock);
 
       if (index >= 0) {
-        pScanInfo->tableEndIndex = index;
+        pScanInfo->currentTable = index;
       } else {
         qError("vgId:%d uid:%" PRIu64 " not found in table list, total:%d, index:%d %s", pTaskInfo->id.vgId, uid,
-               numOfTables, pScanInfo->tableEndIndex, id);
+               numOfTables, pScanInfo->currentTable, id);
         terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
         return -1;
       }
@@ -1310,12 +1259,12 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
         }
 
         qDebug("tsdb reader created with offset(snapshot) uid:%" PRId64 " ts:%" PRId64 " table index:%d, total:%d, %s",
-               uid, pScanBaseInfo->cond.twindows.skey, pScanInfo->tableEndIndex, numOfTables, id);
+               uid, pScanBaseInfo->cond.twindows.skey, pScanInfo->currentTable, numOfTables, id);
       } else {
         pTaskInfo->storageAPI.tsdReader.tsdSetQueryTableList(pScanBaseInfo->dataReader, &keyInfo, 1);
         pTaskInfo->storageAPI.tsdReader.tsdReaderResetStatus(pScanBaseInfo->dataReader, &pScanBaseInfo->cond);
         qDebug("tsdb reader offset seek snapshot to uid:%" PRId64 " ts %" PRId64 "  table index:%d numOfTable:%d, %s",
-               uid, pScanBaseInfo->cond.twindows.skey, pScanInfo->tableEndIndex, numOfTables, id);
+               uid, pScanBaseInfo->cond.twindows.skey, pScanInfo->currentTable, numOfTables, id);
       }
 
       // restore the key value

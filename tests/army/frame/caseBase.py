@@ -29,7 +29,7 @@ class TBase:
 #          
 
     # init
-    def init(self, conn, logSql, replicaVar=1):
+    def init(self, conn, logSql, replicaVar=1, db="db", stb="stb", checkColName="ic"):
         # save param
         self.replicaVar = int(replicaVar)
         tdSql.init(conn.cursor(), True)
@@ -41,14 +41,14 @@ class TBase:
         self.mLevelDisk = 0
 
         # test case information
-        self.db     = "db"
-        self.stb    = "stb"
+        self.db     = db
+        self.stb    = stb
 
         # sql 
-        self.sqlSum = f"select sum(ic) from {self.stb}"
-        self.sqlMax = f"select max(ic) from {self.stb}"
-        self.sqlMin = f"select min(ic) from {self.stb}"
-        self.sqlAvg = f"select avg(ic) from {self.stb}"
+        self.sqlSum = f"select sum({checkColName}) from {self.stb}"
+        self.sqlMax = f"select max({checkColName}) from {self.stb}"
+        self.sqlMin = f"select min({checkColName}) from {self.stb}"
+        self.sqlAvg = f"select avg({checkColName}) from {self.stb}"
         self.sqlFirst = f"select first(ts) from {self.stb}"
         self.sqlLast  = f"select last(ts) from {self.stb}"
 
@@ -136,7 +136,7 @@ class TBase:
         tdSql.checkAgg(sql, self.childtable_count)
 
         # check step
-        sql = f"select * from (select diff(ts) as dif from {self.stb} partition by tbname) where dif != {self.timestamp_step}"
+        sql = f"select * from (select diff(ts) as dif from {self.stb} partition by tbname order by ts desc) where dif != {self.timestamp_step}"
         tdSql.query(sql)
         tdSql.checkRows(0)
 
@@ -229,9 +229,9 @@ class TBase:
 #
 
     # get vgroups
-    def getVGroup(self, db_name):
+    def getVGroup(self, dbName):
         vgidList = []
-        sql = f"select vgroup_id from information_schema.ins_vgroups where db_name='{db_name}'"
+        sql = f"select vgroup_id from information_schema.ins_vgroups where db_name='{dbName}'"
         res = tdSql.getResult(sql)
         rows = len(res)
         for i in range(rows):
@@ -239,6 +239,29 @@ class TBase:
 
         return vgidList
     
+    # get distributed rows
+    def getDistributed(self, tbName):
+        sql = f"show table distributed {tbName}"
+        tdSql.query(sql)
+        dics = {}
+        i = 0
+        for i in range(tdSql.getRows()):
+            row = tdSql.getData(i, 0)
+            #print(row)
+            row = row.replace('[', '').replace(']', '')
+            #print(row)
+            items = row.split(' ')
+            #print(items)
+            for item in items:
+                #print(item)
+                v = item.split('=')
+                #print(v)
+                if len(v) == 2:
+                    dics[v[0]] = v[1]
+            if i > 5:
+                break
+        print(dics)
+        return dics
 
 
 #
@@ -269,3 +292,15 @@ class TBase:
         if len(lists) == 0:
             tdLog.exit(f"list is empty {tips}")
 
+
+#
+#  str util
+#
+    # covert list to sql format string
+    def listSql(self, lists, sepa = ","):
+        strs = ""
+        for ls in lists:
+            if strs != "":
+                strs += sepa
+            strs += f"'{ls}'"
+        return strs

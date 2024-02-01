@@ -273,7 +273,8 @@ typedef struct STableScanInfo {
   SSampleExecInfo sample;  // sample execution info
   int32_t         tableStartIndex;    // current group scan start
   int32_t         tableEndIndex;      // current group scan end
-  int32_t         currentGroupIndex;  // current group index of groupOffset
+  int32_t         currentGroupId;
+  int32_t         currentTable;  
   int8_t          scanMode;
   int8_t          assignBlockUid;
   uint8_t         countState;     // empty table count state

@@ -75,6 +75,9 @@ struct SSortHandle {
 
   bool (*abortCheckFn)(void* param);
   void* abortCheckParam;
+
+  void (*mergeLimitReachedFn)(uint64_t tableUid, void* param);
+  void* mergeLimitReachedParam;
 };
 
 void tsortSetSingleTableMerge(SSortHandle* pHandle) {
@@ -885,7 +888,7 @@ static int32_t appendDataBlockToPageBuf(SSortHandle* pHandle, SSDataBlock* blk, 
 
   int32_t size = blockDataGetSize(blk) + sizeof(int32_t) + taosArrayGetSize(blk->pDataBlock) * sizeof(int32_t);
   ASSERT(size <= getBufPageSize(pHandle->pBuf));
-
+  
   blockDataToBuf(pPage, blk);
 
   setBufPageDirty(pPage, true);
@@ -1040,6 +1043,39 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SBlockO
   return 0;
 }
 
+static SSDataBlock* getRowsBlockWithinMergeLimit(const SSortHandle* pHandle, SSHashObj* mTableNumRows, SSDataBlock* pOrigBlk, bool* pExtractedBlock) {
+  int64_t nRows = 0;
+  int64_t prevRows = 0;
+  void*   pNum = tSimpleHashGet(mTableNumRows, &pOrigBlk->info.id.uid, sizeof(pOrigBlk->info.id.uid));
+  if (pNum == NULL) {
+    prevRows = 0;
+    nRows = pOrigBlk->info.rows;
+    tSimpleHashPut(mTableNumRows, &pOrigBlk->info.id.uid, sizeof(pOrigBlk->info.id.uid), &nRows, sizeof(nRows));
+  } else {
+    prevRows = *(int64_t*)pNum;
+    *(int64_t*)pNum = *(int64_t*)pNum + pOrigBlk->info.rows;
+    nRows = *(int64_t*)pNum;
+  }
+
+  int64_t keepRows = pOrigBlk->info.rows;
+  if (nRows >= pHandle->mergeLimit) {
+    if (pHandle->mergeLimitReachedFn) {
+      pHandle->mergeLimitReachedFn(pOrigBlk->info.id.uid, pHandle->mergeLimitReachedParam);
+    }
+    keepRows = pHandle->mergeLimit - prevRows;
+  }
+  
+  SSDataBlock* pBlock = NULL;
+  if (keepRows != pOrigBlk->info.rows) {
+    pBlock = blockDataExtractBlock(pOrigBlk, 0, keepRows);
+    *pExtractedBlock = true;
+  } else {
+    *pExtractedBlock = false;
+    pBlock = pOrigBlk;
+  }
+  return pBlock;
+}
+
 static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
   SBlockOrderInfo* pOrder = taosArrayGet(pHandle->pSortInfo, 0);
   size_t           nSrc = taosArrayGetSize(pHandle->pOrderedSource);
@@ -1062,10 +1098,18 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
     pHandle->currMergeLimitTs = INT64_MIN;
   }
 
+  SSHashObj* mTableNumRows = tSimpleHashInit(8192, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
   SArray* aBlkSort = taosArrayInit(8, POINTER_BYTES);
   SSHashObj* mUidBlk = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
   while (1) {
     SSDataBlock* pBlk = pHandle->fetchfp(pSrc->param);
+
+    int64_t p = taosGetTimestampUs();
+    bool bExtractedBlock = false;
+    if (pBlk != NULL && pHandle->mergeLimit > 0) {
+      pBlk = getRowsBlockWithinMergeLimit(pHandle, mTableNumRows, pBlk, &bExtractedBlock);
+    }
+
     if (pBlk != NULL) {
       SColumnInfoData* tsCol = taosArrayGet(pBlk->pDataBlock, pOrder->slotId);
       int64_t firstRowTs = *(int64_t*)tsCol->pData;
@@ -1074,6 +1118,7 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
             continue;
           }
     }
+
     if (pBlk != NULL) {
       szSort += blockDataGetSize(pBlk);
 
@@ -1081,8 +1126,11 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
       if (ppBlk != NULL) {
         SSDataBlock* tBlk = *(SSDataBlock**)(ppBlk);
         blockDataMerge(tBlk, pBlk);
+        if (bExtractedBlock) {
+          blockDataDestroy(pBlk);
+        }
       } else {
-        SSDataBlock* tBlk = createOneDataBlock(pBlk, true);
+        SSDataBlock* tBlk = (bExtractedBlock) ? pBlk : createOneDataBlock(pBlk, true);
         tSimpleHashPut(mUidBlk, &pBlk->info.id.uid, sizeof(pBlk->info.id.uid), &tBlk, POINTER_BYTES);
         taosArrayPush(aBlkSort, &tBlk);
       }
@@ -1091,7 +1139,6 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
     if ((pBlk != NULL && szSort > maxBufSize) || (pBlk == NULL && szSort > 0)) {
       tSimpleHashClear(mUidBlk);
 
-      int64_t p = taosGetTimestampUs();
       code = sortBlocksToExtSource(pHandle, aBlkSort, pOrder, aExtSrc);
       if (code != TSDB_CODE_SUCCESS) {
         tSimpleHashCleanup(mUidBlk);
@@ -1131,7 +1178,7 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
     taosArrayAddAll(pHandle->pOrderedSource, aExtSrc);
   }
   taosArrayDestroy(aExtSrc);
-
+  tSimpleHashCleanup(mTableNumRows);
   pHandle->type = SORT_SINGLESOURCE_SORT;
   return TSDB_CODE_SUCCESS;
 }
@@ -1287,7 +1334,6 @@ static bool tsortOpenForBufMergeSort(SSortHandle* pHandle) {
 
 int32_t tsortClose(SSortHandle* pHandle) {
   atomic_val_compare_exchange_8(&pHandle->closed, 0, 1);
-  taosMsleep(10);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1609,4 +1655,9 @@ int32_t tsortCompAndBuildKeys(const SArray* pSortCols, char* keyBuf, int32_t* ke
     ret = 1;
   }
   return ret;
+}
+
+void tsortSetMergeLimitReachedFp(SSortHandle* pHandle, void (*mergeLimitReachedCb)(uint64_t tableUid, void* param), void* param) {
+  pHandle->mergeLimitReachedFn = mergeLimitReachedCb;
+  pHandle->mergeLimitReachedParam = param;
 }

@@ -11,7 +11,9 @@ sys.path.append("./7-tmq")
 from tmqCommon import *
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 135}
+    clientCfgDict = {'debugFlag': 135}
+    updatecfgDict = {'debugFlag': 135, 'clientCfg':clientCfgDict}
+
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")

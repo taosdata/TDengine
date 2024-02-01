@@ -268,7 +268,25 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pTableName = TSDB_INS_TABLE_COMPACT_DETAILS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
-  },    
+  },
+  { .showType = QUERY_NODE_SHOW_GRANTS_FULL_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_GRANTS_FULL,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  { .showType = QUERY_NODE_SHOW_GRANTS_LOGS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_GRANTS_LOGS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  { .showType = QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_MACHINES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -1323,7 +1341,7 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
     res = translateColumnWithPrefix(pCxt, pCol);
   } else {
     bool found = false;
-    if (SQL_CLAUSE_ORDER_BY == pCxt->currClause) {
+    if (SQL_CLAUSE_ORDER_BY == pCxt->currClause && !(*pCol)->node.asParam) {
       res = translateColumnUseAlias(pCxt, pCol, &found);
     }
     if (DEAL_RES_ERROR != res && !found) {
@@ -1332,6 +1350,10 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
       } else {
         res = translateColumnWithoutPrefix(pCxt, pCol);
       }
+    }
+    if(SQL_CLAUSE_ORDER_BY == pCxt->currClause && !(*pCol)->node.asParam
+      && res != DEAL_RES_CONTINUE && res != DEAL_RES_END) {
+        res = translateColumnUseAlias(pCxt, pCol, &found);
     }
   }
   return res;
@@ -3981,6 +4003,42 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
   return TSDB_CODE_SUCCESS;
 }
 
+static EDealRes collectWindowsPseudocolumns(SNode* pNode, void* pContext) {
+  SNodeList* pCols = (SNodeList*)pContext;
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType ||
+        FUNCTION_TYPE_WDURATION == pFunc->funcType) {
+      nodesListStrictAppend(pCols, nodesCloneNode(pNode));
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t checkWindowsConditonValid(SNode* pNode) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  if(QUERY_NODE_EVENT_WINDOW != nodeType(pNode)) return code;
+
+  SEventWindowNode* pEventWindowNode = (SEventWindowNode*)pNode;
+  SNodeList* pCols = nodesMakeList();
+  if (NULL == pCols) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  nodesWalkExpr(pEventWindowNode->pStartCond, collectWindowsPseudocolumns, pCols);
+  if (pCols->length > 0) {
+    code = TSDB_CODE_QRY_INVALID_WINDOW_CONDITION;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    nodesWalkExpr(pEventWindowNode->pEndCond, collectWindowsPseudocolumns, pCols);
+    if (pCols->length > 0) {
+      code = TSDB_CODE_QRY_INVALID_WINDOW_CONDITION;
+    }
+  }
+
+  nodesDestroyList(pCols);
+  return code;
+}
+
 static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
@@ -3993,6 +4051,9 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = translateExpr(pCxt, &pSelect->pWindow);
   if (TSDB_CODE_SUCCESS == code) {
     code = translateSpecificWindow(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkWindowsConditonValid(pSelect->pWindow);
   }
   return code;
 }
@@ -4515,6 +4576,9 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
     FOREACH(pProject, pProjectionList) {
       SExprNode* pExpr = (SExprNode*)pProject;
       if (0 == strcmp(((SColumnRefNode*)*pNode)->colName, pExpr->userAlias) && nodeType(*pNode) == nodeType(pProject)) {
+        if (QUERY_NODE_COLUMN == nodeType(pProject) && !nodesEqualNode(*pNode, pProject)) {
+          continue;
+        }
         SNode* pNew = nodesCloneNode(pProject);
         if (NULL == pNew) {
           pCxt->pTranslateCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
@@ -5541,6 +5605,11 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
 
     case TDMT_MND_DROP_STREAM: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropStreamReq, pReq);
+      break;
+    }
+
+    case TDMT_MND_CONFIG_CLUSTER: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCfgClusterReq, pReq);
       break;
     }
     default: {
@@ -6759,6 +6828,16 @@ static int32_t translateRestoreDnode(STranslateContext* pCxt, SRestoreComponentN
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_RESTORE_DNODE, (FSerializeFunc)tSerializeSRestoreDnodeReq, &restoreReq);
   tFreeSRestoreDnodeReq(&restoreReq);
+  return code;
+}
+
+static int32_t translateAlterCluster(STranslateContext* pCxt, SAlterClusterStmt* pStmt) {
+  SMCfgClusterReq cfgReq = {0};
+  strcpy(cfgReq.config, pStmt->config);
+  strcpy(cfgReq.value, pStmt->value);
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CONFIG_CLUSTER, (FSerializeFunc)tSerializeSMCfgClusterReq, &cfgReq);
+  tFreeSMCfgClusterReq(&cfgReq);
   return code;
 }
 
@@ -8781,6 +8860,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       code = translateCompact(pCxt, (SCompactDatabaseStmt*)pNode);
       break;
+    case QUERY_NODE_ALTER_CLUSTER_STMT:
+      code = translateAlterCluster(pCxt, (SAlterClusterStmt*)pNode);
+      break;
     case QUERY_NODE_KILL_CONNECTION_STMT:
       code = translateKillConnection(pCxt, (SKillStmt*)pNode);
       break;
@@ -10627,6 +10709,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_TAGS_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
     case QUERY_NODE_SHOW_VIEWS_STMT:
+    case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
+    case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_VGROUPS_STMT:

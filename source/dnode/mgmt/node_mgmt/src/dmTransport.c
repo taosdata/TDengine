@@ -251,33 +251,6 @@ _OVER:
   dmReleaseWrapper(pWrapper);
 }
 
-#ifdef TD_MODULE_OPTIMIZE
-int32_t dmInitMsgHandle(SDnode *pDnode, SMgmtWrapper *wrappers) {
-  SDnodeTrans *pTrans = &pDnode->trans;
-
-  for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
-    SMgmtWrapper *pWrapper = wrappers + ntype;
-    SArray       *pArray = (*pWrapper->func.getHandlesFp)();
-    if (pArray == NULL) return -1;
-
-    for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
-      SMgmtHandle  *pMgmt = taosArrayGet(pArray, i);
-      SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pMgmt->msgType)];
-      if (pMgmt->needCheckVgId) {
-        pHandle->needCheckVgId = pMgmt->needCheckVgId;
-      }
-      if (!pMgmt->needCheckVgId) {
-        pHandle->defaultNtype = ntype;
-      }
-      pWrapper->msgFps[TMSG_INDEX(pMgmt->msgType)] = pMgmt->msgFp;
-    }
-
-    taosArrayDestroy(pArray);
-  }
-
-  return 0;
-}
-#else
 int32_t dmInitMsgHandle(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
@@ -303,7 +276,6 @@ int32_t dmInitMsgHandle(SDnode *pDnode) {
 
   return 0;
 }
-#endif
 
 static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   SDnode *pDnode = dmInstance();
@@ -350,7 +322,7 @@ static bool rpcRfp(int32_t code, tmsg_t msgType) {
       code == TSDB_CODE_SYN_RESTORING || code == TSDB_CODE_VND_STOPPED || code == TSDB_CODE_APP_IS_STARTING ||
       code == TSDB_CODE_APP_IS_STOPPING) {
     if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH ||
-        msgType == TDMT_SCH_MERGE_FETCH || msgType == TDMT_SCH_TASK_NOTIFY) {
+        msgType == TDMT_SCH_MERGE_FETCH || msgType == TDMT_SCH_TASK_NOTIFY || msgType == TDMT_VND_DROP_TTL_TABLE) {
       return false;
     }
     return true;

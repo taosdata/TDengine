@@ -168,8 +168,37 @@ class TDTestCase:
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9;")
         tdSql.checkRows(nonempty_tb_num)
 
+    def test_event_window(self, nonempty_tb_num):
+        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and 1=1;")
+        tdSql.checkRows(nonempty_tb_num)
 
-  
+        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and 1=0;")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and tbname='sub_{self.stable}_0';")
+        tdSql.checkRows(1)
+
+        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and t2=0;")
+        tdSql.checkRows(1)
+
+        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and _rowts>0;")
+        tdSql.checkRows(nonempty_tb_num)
+
+        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and _qstart>0;")
+        tdSql.checkRows(0)
+        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and _qstart<0;")
+        tdSql.checkRows(0)
+        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and _qstart<_qend;")
+        tdSql.checkRows(0)
+
+        tdSql.error(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and _wstart<q_start;")
+        tdSql.error(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and _wstart - q_start > 0;")
+        tdSql.error(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and _irowts>0;")
+        tdSql.error(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 and _wduration > 5s end with c2 = 9;")
+        tdSql.error(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and _wstart > 1299845454;")
+        tdSql.error(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and _wduration + 1s > 5s;")
+        tdSql.error(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and count(*) > 10;")
+
     def test_error(self):
         tdSql.error(f"select * from {self.dbname}.{self.stable} group by t2")
         tdSql.error(f"select t2, count(*) from {self.dbname}.{self.stable} group by t2 where t2 = 1")
@@ -197,6 +226,7 @@ class TDTestCase:
         self.test_multi_group_key(self.tb_nums, nonempty_tb_num)
         self.test_multi_agg(self.tb_nums, nonempty_tb_num)
         self.test_window(nonempty_tb_num)
+        self.test_event_window(nonempty_tb_num)
 
         ## test old version before changed
         # self.test_groupby('group', 0, 0)

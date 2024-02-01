@@ -27,7 +27,7 @@
 #include "cus_name.h"
 #endif
 
-GRANT_CFG_DECLARE;
+// GRANT_CFG_DECLARE;
 
 SConfig *tsCfg = NULL;
 
@@ -58,7 +58,7 @@ int32_t tsNumOfMnodeQueryThreads = 4;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
 int32_t tsNumOfVnodeQueryThreads = 4;
-float   tsRatioOfVnodeStreamThreads = 1.0;
+float   tsRatioOfVnodeStreamThreads = 0.5F;
 int32_t tsNumOfVnodeFetchThreads = 4;
 int32_t tsNumOfVnodeRsmaThreads = 2;
 int32_t tsNumOfQnodeQueryThreads = 4;
@@ -623,7 +623,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
       0)
     return -1;
 
-  if (cfgAddFloat(pCfg, "ratioOfVnodeStreamThreads", tsRatioOfVnodeStreamThreads, 0.01, 10, CFG_SCOPE_SERVER,
+  if (cfgAddFloat(pCfg, "ratioOfVnodeStreamThreads", tsRatioOfVnodeStreamThreads, 0.01, 4, CFG_SCOPE_SERVER,
                   CFG_DYN_NONE) != 0)
     return -1;
 
@@ -807,7 +807,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddBool(pCfg, "experimental", tsExperimental, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
 
-  GRANT_CFG_ADD;
+  // GRANT_CFG_ADD;
   return 0;
 }
 
@@ -1234,7 +1234,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsExperimental = cfgGetItem(pCfg, "experimental")->bval;
 
-  GRANT_CFG_GET;
+  // GRANT_CFG_GET;
   return 0;
 }
 
