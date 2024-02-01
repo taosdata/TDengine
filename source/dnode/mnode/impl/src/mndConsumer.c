@@ -107,7 +107,7 @@ static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *
       goto FAILED;
     }
 
-    if ((terrno = grantCheck(TSDB_GRANT_SUBSCRIPTION)) < 0) {
+    if ((terrno = grantCheckLE(TSDB_GRANT_SUBSCRIPTION)) < 0) {
       code = terrno;
       goto FAILED;
     }
@@ -240,9 +240,10 @@ static int32_t checkPrivilege(SMnode  *pMnode, SMqConsumerObj *pConsumer, SMqHbR
     }
     STopicPrivilege *data = taosArrayReserve(rsp->topicPrivileges, 1);
     strcpy(data->topic, topic);
-    if (mndCheckTopicPrivilege(pMnode, user, MND_OPER_SUBSCRIBE, pTopic) != 0 || grantCheck(TSDB_GRANT_SUBSCRIPTION) < 0) {
+    if (mndCheckTopicPrivilege(pMnode, user, MND_OPER_SUBSCRIBE, pTopic) != 0 ||
+        grantCheckLE(TSDB_GRANT_SUBSCRIPTION) < 0) {
       data->noPrivilege = 1;
-    } else{
+    } else {
       data->noPrivilege = 0;
     }
     mndReleaseTopic(pMnode, pTopic);

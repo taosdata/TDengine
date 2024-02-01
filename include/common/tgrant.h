@@ -54,7 +54,8 @@ typedef enum {
   TSDB_GRANT_BACKUP_RESTORE,
 } EGrantType;
 
-int32_t grantCheck(EGrantType grant);
+int32_t grantCheck(EGrantType grant);    // less
+int32_t grantCheckLE(EGrantType grant);  // less or equal
 char*   tGetMachineId();
 #ifndef TD_UNIQ_GRANT
 int32_t grantAlterActiveCode(int32_t did, const char* old, const char* newer, char* out, int8_t type);

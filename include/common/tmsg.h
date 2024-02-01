@@ -110,6 +110,7 @@ enum {
   HEARTBEAT_KEY_TMQ,
   HEARTBEAT_KEY_DYN_VIEW,
   HEARTBEAT_KEY_VIEWINFO,
+  HEARTBEAT_KEY_GRANT,
 };
 
 typedef enum _mgmt_table {
@@ -1884,6 +1885,13 @@ typedef struct {
 int32_t tSerializeSViewHbRsp(void* buf, int32_t bufLen, SViewHbRsp* pRsp);
 int32_t tDeserializeSViewHbRsp(void* buf, int32_t bufLen, SViewHbRsp* pRsp);
 void    tFreeSViewHbRsp(SViewHbRsp* pRsp);
+
+typedef struct {
+  uint32_t flags;
+} SGrantHbRsp;
+
+int32_t tSerializeSGrantHbRsp(void* buf, int32_t bufLen, SGrantHbRsp* pRsp);
+int32_t tDeserializeSGrantHbRsp(void* buf, int32_t bufLen, SGrantHbRsp* pRsp);
 
 typedef struct {
   int32_t numOfTables;

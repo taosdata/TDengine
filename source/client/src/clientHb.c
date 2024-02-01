@@ -327,6 +327,37 @@ static int32_t hbProcessViewInfoRsp(void *value, int32_t valueLen, struct SCatal
   return TSDB_CODE_SUCCESS;
 }
 
+#if 0
+static int32_t hbProcessGrantInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
+  int32_t code = 0;
+
+  SGrantHbRsp hbRsp = {0};
+  if (tDeserializeSGrantHbRsp(value, valueLen, &hbRsp) != 0) {
+    taosArrayDestroyEx(hbRsp.pViewRsp, hbFreeSViewMetaInRsp);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  int32_t numOfMeta = taosArrayGetSize(hbRsp.pViewRsp);
+  for (int32_t i = 0; i < numOfMeta; ++i) {
+    SViewMetaRsp *rsp = taosArrayGetP(hbRsp.pViewRsp, i);
+
+    if (rsp->numOfCols < 0) {
+      tscDebug("hb to remove view, db:%s, view:%s", rsp->dbFName, rsp->name);
+      catalogRemoveViewMeta(pCatalog, rsp->dbFName, rsp->dbId, rsp->name, rsp->viewId);
+      tFreeSViewMetaRsp(rsp);
+      taosMemoryFreeClear(rsp);
+    } else {
+      tscDebug("hb to update view, db:%s, view:%s", rsp->dbFName, rsp->name);
+      catalogUpdateViewMeta(pCatalog, rsp);
+    }
+  }
+
+  taosArrayDestroy(hbRsp.pViewRsp);
+  return TSDB_CODE_SUCCESS;
+}
+#endif
+
 
 static void hbProcessQueryRspKvs(int32_t kvNum, SArray* pKvs, struct SCatalog *pCatalog, SAppHbMgr *pAppHbMgr) {
   for (int32_t i = 0; i < kvNum; ++i) {
@@ -376,6 +407,15 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray* pKvs, struct SCatalog *p
         }
 
         hbProcessViewInfoRsp(kv->value, kv->valueLen, pCatalog);
+        break;
+      }
+      case HEARTBEAT_KEY_GRANT: {
+        if (kv->valueLen <= 0 || NULL == kv->value) {
+          tscError("invalid grant info, len:%d, value:%p", kv->valueLen, kv->value);
+          break;
+        }
+
+        // hbProcessGrantInfoRsp(kv->value, kv->valueLen, pCatalog);
         break;
       }
 #endif

@@ -9303,3 +9303,32 @@ void tFreeSViewHbRsp(SViewHbRsp *pRsp) {
 
   taosArrayDestroy(pRsp->pViewRsp);
 }
+
+int32_t tSerializeSGrantHbRsp(void *buf, int32_t bufLen, SGrantHbRsp *pRsp) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  if (tEncodeU32v(&encoder, pRsp->flags) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSGrantHbRsp(void *buf, int32_t bufLen, SGrantHbRsp *pRsp) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  if (tDecodeU32v(&decoder, &pRsp->flags) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}

@@ -2193,6 +2193,10 @@ static int32_t parseFileClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
     return buildInvalidOperationMsg(&pCxt->msg, "proxy mode does not support csv loading");
   }
 
+  // if ((terrno = grantCheck(TSDB_GRANT_CSV)) < 0) {
+  //   return buildInvalidOperationMsg(&pCxt->msg, terrstr());
+  // }
+
   NEXT_TOKEN(pStmt->pSql, *pToken);
   if (0 == pToken->n || (TK_NK_STRING != pToken->type && TK_NK_ID != pToken->type)) {
     return buildSyntaxErrMsg(&pCxt->msg, "file path is required following keyword FILE", pToken->z);
@@ -2754,11 +2758,15 @@ static int32_t parseInsertSqlFromStart(SInsertParseContext* pCxt, SVnodeModifyOp
 }
 
 static int32_t parseInsertSqlFromCsv(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t          code = TSDB_CODE_SUCCESS;
   SRowsDataContext rowsDataCxt;
 
+  // if ((code = grantCheck(TSDB_GRANT_CSV)) < 0) {
+  //   return code;
+  // }
+
   if (!pStmt->stbSyntax) {
-    STableDataCxt*   pTableCxt = NULL;
+    STableDataCxt* pTableCxt = NULL;
     code = getTableDataCxt(pCxt, pStmt, &pTableCxt);
     rowsDataCxt.pTableDataCxt = pTableCxt;
   } else {

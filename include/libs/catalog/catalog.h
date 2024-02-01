@@ -145,6 +145,10 @@ typedef struct SSTableVersion {
   int32_t  smaVer;
 } SSTableVersion;
 
+typedef struct SGrantVersion {
+  int32_t version;
+} SGrantVersion;
+
 typedef struct SDbCacheInfo {
   char    dbFName[TSDB_DB_FNAME_LEN];
   int64_t dbId;

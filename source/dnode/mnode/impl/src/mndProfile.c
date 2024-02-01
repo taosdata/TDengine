@@ -18,6 +18,7 @@
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
+#include "mndGrant.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndQnode.h"
@@ -601,6 +602,16 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         mndValidateViewInfo(pMnode, kv->value, kv->valueLen / sizeof(SViewVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_VIEWINFO, .valueLen = rspLen, .value = rspMsg};
+          taosArrayPush(hbRsp.info, &kv1);
+        }
+        break;
+      }
+      case HEARTBEAT_KEY_GRANT: {
+        void   *rspMsg = NULL;
+        int32_t rspLen = 0;
+        mndValidateGrant(pMnode, kv->value, &rspMsg, &rspLen);
+        if (rspMsg && rspLen > 0) {
+          SKv kv1 = {.key = HEARTBEAT_KEY_GRANT, .valueLen = rspLen, .value = rspMsg};
           taosArrayPush(hbRsp.info, &kv1);
         }
         break;
