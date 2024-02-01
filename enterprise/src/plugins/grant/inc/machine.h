@@ -423,7 +423,7 @@ bool  grantConnExplainActiveCode(SGrantConnObj *grant, SActiveCodeInfo *info);
 int32_t grantUniqGenActiveCode(SGrantUniqObj *grant);
 int32_t grantUniqGenMachinesChksum(SArray *pMachines, uint32_t *pChecksum);
 int32_t grantUniqParseActiveCode(SGrantUniqObj *grant, SActiveCodeInfo *info);
-int32_t grantUniqMergeActiveCode(SGrantUniqObj *new, SGrantUniqObj *old, SGrantUniqObj *merge, int8_t type);
+int32_t grantUniqMergeActiveCode(SGrantUniqObj *new, SGrantUniqObj *old, SGrantUniqObj *merge);
 void    tDestroyGrantUniqObj(SGrantUniqObj *pObj);
 void    tResetGrantUniqObj(SGrantUniqObj *pObj);
 

@@ -162,31 +162,14 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
   mndReleaseGrant(pMnode, pGrant, pIter);
 
   if (revoked) {
-    SGrantState state = {.state = GRANT_STATE_REVOKED, .reason = GRANT_STATE_REASON_ALTER};
-    mndGrantObjAppendState(&grantObj, &state);
-    gStatus.revokedExpireSec = state.ts + GRANT_CHK_TOLERENCE;
-    gStatus.grantState = GRANT_STATE_REVOKED;
+    mndGrantObjAppendState(&grantObj, &(SGrantState){.state = GRANT_STATE_REVOKED, .reason = GRANT_STATE_REASON_ALTER});
   } else {
     char *mergeActive = NULL;
     if ((code = grantAlterActiveCode(pMnode, &grantObj, grantObj.active, pCfg->value, &mergeActive)) != 0) {
       goto _exit;
     }
 
-    SGrantState state = {0};
-    if (gStatus.expired == 0) {
-      state.state = GRANT_STATE_GRANTED;
-      state.reason = GRANT_STATE_REASON_ALTER;
-    } else {
-      state.state = GRANT_STATE_EXPIRED;
-      state.reason = GRANT_STATE_REASON_EXPIRE;
-    }
-
-    if (pGrant->nStates == 0 || (pGrant->nStates > 0 && pGrant->states[pGrant->nStates - 1].state != state.state)) {
-      mndGrantObjAppendState(&grantObj, &state);
-      gStatus.grantState = state.state;
-    }
-
-    mndProcessGrantStatusCheck();
+    mndGrantObjAppendState(&grantObj, &(SGrantState){.state = GRANT_STATE_GRANTED, .reason = GRANT_STATE_REASON_ALTER});
 
     // merge or newActive utilized
     char   *finalActive = NULL;
@@ -238,6 +221,7 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
   }
 
   mndTransDrop(pTrans);
+  tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
 _exit:
   tDestroyGrantObj(&grantObj);
   return code;
@@ -284,10 +268,6 @@ int32_t mndProcessUpdGrantLog(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines, 
   }
   if (pState) {
     mndGrantObjAppendState(&grantObj, pState);
-    gStatus.grantState = pState->state;
-    if (pState->state = GRANT_STATE_REVOKED) {
-      gStatus.revokedExpireSec = pState->ts + GRANT_CHK_TOLERENCE;
-    }
   }
   if (pGrant) mndReleaseGrant(pMnode, pGrant, pIter);
 
