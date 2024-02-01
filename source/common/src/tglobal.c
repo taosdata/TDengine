@@ -95,7 +95,7 @@ int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 bool     tsMonitorLogProtocol = false;
 int32_t  tsMonitorIntervalForBasic = 30;
-bool     tsMonitorForceV2 = false;
+bool     tsMonitorForceV2 = true;
 
 // audit
 bool     tsEnableAudit = true;

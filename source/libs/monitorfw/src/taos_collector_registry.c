@@ -234,6 +234,11 @@ const char *taos_collector_registry_bridge_new(taos_collector_registry_t *self, 
 
   taos_metric_formatter_load_metrics_new(self->metric_formatter, self->collectors, ts, format, array);
 
+  if(tjsonGetArraySize(array) == 0){
+    tjsonDelete(pJson);
+    return NULL;
+  }
+
   //caller free this
   //generate prom protocol for debug
   if(prom_str != NULL){
@@ -245,36 +250,40 @@ const char *taos_collector_registry_bridge_new(taos_collector_registry_t *self, 
   char* old_str = taos_string_builder_str(self->string_builder_batch);
   if(old_str[0] != '\0'){
     r = taos_string_builder_add_str(self->string_builder_batch, ",");
-    if (r) return NULL;
+    if (r) goto _OVER;
   }
   char * item_str = tjsonToString(item);
   r = taos_string_builder_add_str(self->string_builder_batch, item_str);
   taos_free(item_str);
-  if (r) return NULL;
-
-  tjsonDelete(pJson);
+  if (r) goto _OVER;;
   
   //generate final array format result, ie, add [] to str in batch cache
   taos_string_builder_t* tmp_builder = taos_string_builder_new();
 
   r = taos_string_builder_add_str(tmp_builder, "[");
-  if (r) return NULL;
+  if (r) goto _OVER;;
 
   r = taos_string_builder_add_str(tmp_builder, taos_string_builder_str(self->string_builder_batch));
-  if (r) return NULL;
+  if (r) goto _OVER;;
 
   r = taos_string_builder_add_str(tmp_builder, "]");
-  if (r) return NULL;
+  if (r) goto _OVER;;
 
   //caller free this
   char *data = taos_string_builder_dump(tmp_builder);
-  if (data == NULL) return NULL;
+  if (data == NULL) goto _OVER;;
   r = taos_string_builder_clear(tmp_builder);
-  if (r) return NULL;
+  if (r) goto _OVER;;
 
   r = taos_string_builder_destroy(tmp_builder);
   tmp_builder = NULL;
-  if (r) return NULL;
+  if (r) goto _OVER;;
 
+  tjsonDelete(pJson);
   return data;
+
+_OVER:
+  tjsonDelete(pJson);
+
+  return NULL;
 }

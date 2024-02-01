@@ -638,8 +638,13 @@ void monSendPromReport() {
   char* promStr = NULL;
   char* pCont = (char *)taos_collector_registry_bridge_new(TAOS_COLLECTOR_REGISTRY_DEFAULT, ts, "%" PRId64, &promStr);
   if(tsMonitorLogProtocol){
-    uInfoL("report cont:\n%s\n", pCont);
-    uDebugL("report cont prom:\n%s\n", promStr);
+    if(pCont != NULL){
+      uInfoL("report cont:\n%s", pCont);
+      uDebugL("report cont prom:\n%s", promStr);
+    }
+    else{
+      uInfo("report cont is null");
+    }
   }
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;

@@ -601,7 +601,12 @@ void monGenAndSendReport() {
 void monSendReportBasic(SMonInfo *pMonitor){
   char *pCont = tjsonToString(pMonitor->pJson);
   if(tsMonitorLogProtocol){
-    uInfoL("report cont basic:\n%s", pCont);
+    if(pCont != NULL){
+      uInfoL("report cont basic:\n%s", pCont);
+    }
+    else{
+      uInfo("report cont basic is null");
+    }
   }
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
@@ -614,13 +619,13 @@ void monSendReportBasic(SMonInfo *pMonitor){
 
 void monGenAndSendReportBasic() {
   SMonInfo *pMonitor = monCreateMonitorInfo();
-  if (pMonitor == NULL) return;
-  if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
 
   monGenBasicJsonBasic(pMonitor);
   monGenClusterJsonBasic(pMonitor);
 
-  monSendReportBasic(pMonitor);
+  if (pMonitor->mmInfo.cluster.first_ep_dnode_id != 0) {
+    monSendReportBasic(pMonitor);
+  }
 
   monCleanupMonitorInfo(pMonitor);
 }
