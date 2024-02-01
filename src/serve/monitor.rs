@@ -315,7 +315,7 @@ fn records2tables(vec: Vec<Record>) -> Vec<Table> {
     tables.into_iter().map(|(_, v)| v).collect()
 }
 
-/// 将属于统一超级表的子表聚会到一起
+/// 将属于统一超级表的子表聚和到一起
 fn grouptables2stable(vec: Vec<Table>) -> Vec<Stable> {
     let mut stables: HashMap<String, Stable> = HashMap::new();
     for table in vec {
