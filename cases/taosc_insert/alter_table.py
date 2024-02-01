@@ -22,18 +22,29 @@ class TestAlterTag(TDCase):
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
 
+        self.boundary_dict = {
+            "int": self.tdCom.Boundary.INT_BOUNDARY,
+            "smallint": self.tdCom.Boundary.SMALLINT_BOUNDARY,
+            "tinyint": self.tdCom.Boundary.TINYINT_BOUNDARY,
+            "bigint": self.tdCom.Boundary.BIGINT_BOUNDARY,
+            "int unsigned": self.tdCom.Boundary.UINT_BOUNDARY,
+            "smallint unsigned": self.tdCom.Boundary.USMALLINT_BOUNDARY,
+            "tinyint unsigned": self.tdCom.Boundary.UTINYINT_BOUNDARY,
+            "bigint unsigned": self.tdCom.Boundary.UBIGINT_BOUNDARY,
+        }
+
     def alter_tb_tag_check(self):
         '''
         alter tb tag check
         '''
-        tag_tinyint = random.randint(-128,127)
-        tag_int = random.randint(-2147483648,2147483647)
-        tag_smallint = random.randint(-32768,32768)
-        tag_bigint = random.randint(-2147483648,2147483647)
-        tag_untinyint = random.randint(0,256)
-        tag_unsmallint = random.randint(0,65536)
-        tag_unint = random.randint(0,4294967296)
-        tag_unbigint = random.randint(0,2147483647)
+        tag_tinyint = random.randint(self.boundary_dict["tinyint"][0], self.boundary_dict["tinyint"][1])
+        tag_int = random.randint(self.boundary_dict["int"][0], self.boundary_dict["int"][1])
+        tag_smallint = random.randint(self.boundary_dict["smallint"][0], self.boundary_dict["smallint"][1])
+        tag_bigint = random.randint(self.boundary_dict["bigint"][0], self.boundary_dict["bigint"][1])
+        tag_untinyint = random.randint(self.boundary_dict["tinyint unsigned"][0], self.boundary_dict["tinyint unsigned"][1])
+        tag_unsmallint = random.randint(self.boundary_dict["smallint unsigned"][0], self.boundary_dict["smallint unsigned"][1])
+        tag_unint = random.randint(self.boundary_dict["int unsigned"][0], self.boundary_dict["int unsigned"][1])
+        tag_unbigint = random.randint(self.boundary_dict["bigint unsigned"][0], self.boundary_dict["bigint unsigned"][1])
         # tag_float = float('%0.1f'%100.1)
         # tag_double = float('%0.1f'%1000.1)
         tag_binary = self.tdCom.get_long_name()
@@ -149,7 +160,7 @@ class TestAlterTag(TDCase):
         self.tdSql.error(f'alter table {dbname}.{tbname} modify column c1 bool')
         self.tdSql.error(f'alter table {dbname}.{tbname} modify column c1 binary(10)')
         self.tdSql.execute(f'drop database {dbname}')
-        
+
     def run(self) -> bool:
         self.alter_tb_tag_check()
         self.alter_ntb_column_check()
@@ -159,7 +170,7 @@ class TestAlterTag(TDCase):
 
     def desc(self) -> str:
         case_description = """
-            
+
             """
         return case_description
 
@@ -168,6 +179,3 @@ class TestAlterTag(TDCase):
 
     def tags(self):
         return T.Write.TaoscSql.Table.Alter
-
-
-
