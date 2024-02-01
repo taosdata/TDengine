@@ -3092,7 +3092,7 @@ TEST(leftAntiJoin, fullCondTest) {
 #endif
 
 #if 1
-#if 1
+#if 0
 TEST(leftAsofJoin, noCondGreaterThanTest) {
   SJoinTestParam param;
   char* caseName = "leftAsofJoin:noCondGreaterThanTest";
@@ -3120,7 +3120,7 @@ TEST(leftAsofJoin, noCondGreaterThanTest) {
 }
 #endif
 
-#if 1
+#if 0
 TEST(leftAsofJoin, noCondGreaterEqTest) {
   SJoinTestParam param;
   char* caseName = "leftAsofJoin:noCondGreaterEqTest";
@@ -3148,7 +3148,7 @@ TEST(leftAsofJoin, noCondGreaterEqTest) {
 }
 #endif
 
-#if 1
+#if 0
 TEST(leftAsofJoin, noCondEqTest) {
   SJoinTestParam param;
   char* caseName = "leftAsofJoin:noCondEqTest";

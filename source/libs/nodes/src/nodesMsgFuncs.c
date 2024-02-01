@@ -1850,6 +1850,41 @@ static int32_t msgToCaseWhenNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
+enum { WINDOW_OFFSET_CODE_START_OFFSET = 1, WINDOW_OFFSET_CODE_END_OFFSET };
+
+static int32_t windowOffsetNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SWindowOffsetNode* pNode = (const SWindowOffsetNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, WINDOW_OFFSET_CODE_START_OFFSET, nodeToMsg, pNode->pStartOffset);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, WINDOW_OFFSET_CODE_END_OFFSET, nodeToMsg, pNode->pEndOffset);
+  }
+
+  return code;
+}
+
+static int32_t msgToWindowOffsetNode(STlvDecoder* pDecoder, void* pObj) {
+  SWindowOffsetNode* pNode = (SWindowOffsetNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case WINDOW_OFFSET_CODE_START_OFFSET:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pStartOffset);
+        break;
+      case WINDOW_OFFSET_CODE_END_OFFSET:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pEndOffset);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
+
 enum {
   PHY_NODE_CODE_OUTPUT_DESC = 1,
   PHY_NODE_CODE_CONDITIONS,
@@ -4214,6 +4249,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_CASE_WHEN:
       code = caseWhenNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_WINDOW_OFFSET:
+      code = windowOffsetNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       code = physiTagScanNodeToMsg(pObj, pEncoder);
       break;
@@ -4367,6 +4405,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_CASE_WHEN:
       code = msgToCaseWhenNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_WINDOW_OFFSET:
+      code = msgToWindowOffsetNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       code = msgToPhysiTagScanNode(pDecoder, pObj);

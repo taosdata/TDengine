@@ -801,6 +801,9 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoin = (SJoinTableNode*)pNode;
+      nodesDestroyNode(pJoin->pWindowOffset);
+      nodesDestroyNode(pJoin->pJLimit);
+      nodesDestroyNode(pJoin->winPrimCond);
       nodesDestroyNode(pJoin->pLeft);
       nodesDestroyNode(pJoin->pRight);
       nodesDestroyNode(pJoin->pOnCond);
@@ -1260,6 +1263,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyNode(pLogicNode->pWindowOffset);
       nodesDestroyNode(pLogicNode->pJLimit);
+      nodesDestroyNode(pLogicNode->winPrimEqCond);
       nodesDestroyNode(pLogicNode->pPrimKeyEqCond);
       nodesDestroyNode(pLogicNode->pColEqCond);
       nodesDestroyNode(pLogicNode->pColOnCond);

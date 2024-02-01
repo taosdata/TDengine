@@ -468,6 +468,7 @@ static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   COPY_SCALAR_FIELD(joinAlgo);
   CLONE_NODE_FIELD(pWindowOffset);
   CLONE_NODE_FIELD(pJLimit);
+  CLONE_NODE_FIELD(winPrimEqCond);
   CLONE_NODE_FIELD(pPrimKeyEqCond);
   CLONE_NODE_FIELD(pColEqCond);
   CLONE_NODE_FIELD(pColOnCond);

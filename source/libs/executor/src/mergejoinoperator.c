@@ -28,6 +28,38 @@
 #include "mergejoin.h"
 
 
+int32_t mJoinBuildEqGrp(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk, SMJoinGrpRows* pGrp) {
+  SColumnInfoData* pCol = taosArrayGet(pTable->blk->pDataBlock, pTable->primCol->srcSlot);
+
+  pGrp->beginIdx = pTable->blkRowIdx;
+  pGrp->readIdx = pTable->blkRowIdx;
+
+  pTable->blkRowIdx++;
+  char* pEndVal = colDataGetNumData(pCol, pTable->blk->info.rows - 1);
+  if (timestamp != *(int64_t*)pEndVal) {
+    for (; pTable->blkRowIdx < pTable->blk->info.rows; ++pTable->blkRowIdx) {
+      char* pNextVal = colDataGetNumData(pCol, pTable->blkRowIdx);
+      if (timestamp == *(int64_t*)pNextVal) {
+        continue;
+      }
+
+      pGrp->endIdx = pTable->blkRowIdx - 1;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  pGrp->endIdx = pTable->blk->info.rows - 1;
+  pTable->blkRowIdx = pTable->blk->info.rows;
+
+  if (wholeBlk) {
+    *wholeBlk = true;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+
 void mJoinTrimKeepOneRow(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList) {
   //  int32_t totalRows = pBlock->info.rows;
   int32_t bmLen = BitmapLen(totalRows);
@@ -1013,7 +1045,7 @@ int32_t mJoinRetrieveEqGrpRows(SOperatorInfo* pOperator, SMJoinTableCtx* pTable,
   
   mJoinBuildEqGroups(pTable, timestamp, &wholeBlk, true);
   
-  while (wholeBlk) {
+  while (wholeBlk && !pTable->dsFetchDone) {
     pTable->blk = getNextBlockFromDownstreamRemain(pOperator, pTable->downStreamIdx);
     qDebug("%s merge join %s table got block for same ts, rows:%" PRId64, GET_TASKID(pOperator->pTaskInfo), MJOIN_TBTYPE(pTable->type), pTable->blk ? pTable->blk->info.rows : 0);
 
@@ -1374,7 +1406,7 @@ int32_t mJoinSetImplFp(SMJoinOperatorInfo* pJoin) {
           pJoin->joinFp = mAntiJoinDo;
           break;
         case JOIN_STYPE_WIN:
-          //pJoin->joinFp = mWinJoinDo;
+          pJoin->joinFp = mWinJoinDo;
           break;
         default:
           break;

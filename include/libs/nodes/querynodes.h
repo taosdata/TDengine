@@ -208,6 +208,7 @@ typedef struct SViewNode {
 
 #define IS_INNER_NONE_JOIN(_type, _stype) ((_type) == JOIN_TYPE_INNER && (_stype) == JOIN_STYPE_NONE)
 #define IS_WINDOW_JOIN(_stype) ((_stype) == JOIN_STYPE_WIN)
+#define IS_ASOF_JOIN(_stype) ((_stype) == JOIN_STYPE_ASOF)
 
 typedef enum EJoinType { 
   JOIN_TYPE_INNER = 0,
@@ -243,6 +244,7 @@ typedef struct SJoinTableNode {
   EJoinSubType subType;
   SNode*       pWindowOffset;
   SNode*       pJLimit;
+  SNode*       winPrimCond;
   bool         hasSubQuery;
   bool         isLowLevelJoin;
   SNode*       pParent;

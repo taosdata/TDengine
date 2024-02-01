@@ -277,21 +277,24 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
   return SCAN_TYPE_TABLE;
 }
 
-static SNode* createFirstCol(uint64_t tableId, const SSchema* pSchema) {
+static SNode* createFirstCol(SRealTableNode* pTable) {
   SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   if (NULL == pCol) {
     return NULL;
   }
+  SSchema* pSchema = pTable->pMeta->schema;
   pCol->node.resType.type = pSchema->type;
   pCol->node.resType.bytes = pSchema->bytes;
-  pCol->tableId = tableId;
+  pCol->tableId = pTable->pMeta->uid;
   pCol->colId = pSchema->colId;
   pCol->colType = COLUMN_TYPE_COLUMN;
+  strcpy(pCol->tableAlias, pTable->table.tableAlias);
+  strcpy(pCol->tableName, pTable->table.tableName);
   strcpy(pCol->colName, pSchema->name);
   return (SNode*)pCol;
 }
 
-static int32_t addPrimaryKeyCol(uint64_t tableId, const SSchema* pSchema, SNodeList** pCols) {
+static int32_t addPrimaryKeyCol(SRealTableNode* pTable, SNodeList** pCols) {
   bool   found = false;
   SNode* pCol = NULL;
   FOREACH(pCol, *pCols) {
@@ -302,23 +305,23 @@ static int32_t addPrimaryKeyCol(uint64_t tableId, const SSchema* pSchema, SNodeL
   }
 
   if (!found) {
-    return nodesListMakeStrictAppend(pCols, createFirstCol(tableId, pSchema));
+    return nodesListMakeStrictAppend(pCols, createFirstCol(pTable));
   }
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t addSystableFirstCol(uint64_t tableId, const SSchema* pSchema, SNodeList** pCols) {
+static int32_t addSystableFirstCol(SRealTableNode* pTable, SNodeList** pCols) {
   if (LIST_LENGTH(*pCols) > 0) {
     return TSDB_CODE_SUCCESS;
   }
-  return nodesListMakeStrictAppend(pCols, createFirstCol(tableId, pSchema));
+  return nodesListMakeStrictAppend(pCols, createFirstCol(pTable));
 }
 
-static int32_t addDefaultScanCol(const STableMeta* pMeta, SNodeList** pCols) {
-  if (TSDB_SYSTEM_TABLE == pMeta->tableType) {
-    return addSystableFirstCol(pMeta->uid, pMeta->schema, pCols);
+static int32_t addDefaultScanCol(SRealTableNode* pTable, SNodeList** pCols) {
+  if (TSDB_SYSTEM_TABLE == pTable->pMeta->tableType) {
+    return addSystableFirstCol(pTable, pCols);
   }
-  return addPrimaryKeyCol(pMeta->uid, pMeta->schema, pCols);
+  return addPrimaryKeyCol(pTable, pCols);
 }
 
 static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealTable, bool hasRepeatScanFuncs,
@@ -458,7 +461,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   if (TSDB_CODE_SUCCESS == code && needScanDefaultCol(pScan->scanType)) {
-    code = addDefaultScanCol(pRealTable->pMeta, &pScan->pScanCols);
+    code = addDefaultScanCol(pRealTable, &pScan->pScanCols);
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pTags && NULL == pSelect->pPartitionByList) {
@@ -545,6 +548,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pJoin->isLowLevelJoin = pJoinTable->isLowLevelJoin;
   pJoin->pWindowOffset = nodesCloneNode(pJoinTable->pWindowOffset);
   pJoin->pJLimit = nodesCloneNode(pJoinTable->pJLimit);
+  pJoin->winPrimEqCond = nodesCloneNode(pJoinTable->winPrimCond);
   pJoin->node.pChildren = nodesMakeList();
   if (NULL == pJoin->node.pChildren) {
     code = TSDB_CODE_OUT_OF_MEMORY;

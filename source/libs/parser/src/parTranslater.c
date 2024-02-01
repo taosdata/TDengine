@@ -3158,6 +3158,55 @@ static int32_t replaceTbName(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return pRewriteCxt.errCode;
 }
 
+static int32_t addPrimEqCond(SNode** pCond, SRealTableNode* leftTable, SRealTableNode* rightTable) {
+  struct STableMeta* pLMeta = leftTable->pMeta;
+  struct STableMeta* pRMeta = rightTable->pMeta;
+
+  *pCond = nodesMakeNode(QUERY_NODE_OPERATOR);
+  if (NULL == *pCond) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SOperatorNode* pOp = (SOperatorNode*)*pCond;
+  pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  pOp->opType = OP_TYPE_EQUAL;
+
+  SColumnNode* pLeft = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == pLeft) {
+    nodesDestroyNode(*pCond);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pLeft->node.resType.type = pLMeta->schema[0].type;
+  pLeft->node.resType.bytes = pLMeta->schema[0].bytes;
+  pLeft->tableId = pLMeta->uid;
+  pLeft->colId = pLMeta->schema[0].colId;
+  pLeft->colType = COLUMN_TYPE_COLUMN;
+  strcpy(pLeft->tableName, leftTable->table.tableName);
+  strcpy(pLeft->tableAlias, leftTable->table.tableAlias);
+  strcpy(pLeft->colName, pLMeta->schema[0].name);
+
+  pOp->pLeft = (SNode*)pLeft;
+
+  SColumnNode* pRight = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == pRight) {
+    nodesDestroyNode(*pCond);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pRight->node.resType.type = pRMeta->schema[0].type;
+  pRight->node.resType.bytes = pRMeta->schema[0].bytes;
+  pRight->tableId = pRMeta->uid;
+  pRight->colId = pRMeta->schema[0].colId;
+  pRight->colType = COLUMN_TYPE_COLUMN;
+  strcpy(pRight->tableName, rightTable->table.tableName);
+  strcpy(pRight->tableAlias, rightTable->table.tableAlias);
+  strcpy(pRight->colName, pRMeta->schema[0].name);
+
+  pOp->pRight = (SNode*)pRight;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
   if ((QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pLeft) &&
        !isGlobalTimeLineQuery(((STempTableNode*)pJoinTable->pLeft)->pSubquery)) ||
@@ -3166,6 +3215,28 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
                                    "Join requires valid time series input");
   }
+  
+  if (JOIN_STYPE_WIN == pJoinTable->subType) {
+    if (QUERY_NODE_REAL_TABLE != nodeType(pJoinTable->pLeft) || QUERY_NODE_REAL_TABLE != nodeType(pJoinTable->pRight)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+                                     "Only support WINDOW join between tables");
+    }
+
+    SRealTableNode* pLeft = (SRealTableNode*)pJoinTable->pLeft;
+    if (TSDB_SUPER_TABLE != pLeft->pMeta->tableType && TSDB_CHILD_TABLE != pLeft->pMeta->tableType && TSDB_NORMAL_TABLE != pLeft->pMeta->tableType) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+                                     "Unsupported WINDOW join table type");
+    }
+
+    SRealTableNode* pRight = (SRealTableNode*)pJoinTable->pRight;
+    if (TSDB_SUPER_TABLE != pRight->pMeta->tableType && TSDB_CHILD_TABLE != pRight->pMeta->tableType && TSDB_NORMAL_TABLE != pRight->pMeta->tableType) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+                                     "Unsupported WINDOW join table type");
+    }    
+
+    return addPrimEqCond(&pJoinTable->winPrimCond, pLeft, pRight);
+  }
+  
   return TSDB_CODE_SUCCESS;
 }
 

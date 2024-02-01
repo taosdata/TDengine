@@ -140,6 +140,13 @@ typedef struct SMJoinTableCtx {
   SMJoinNMatchCtx  nMatchCtx;
 } SMJoinTableCtx;
 
+typedef struct SMJoinMatchInfo {
+  int32_t      rowBitmapOffset;
+  int32_t      rowMatchNum;
+  bool         allRowsNMatch;
+  bool         allRowsMatch;
+} SMJoinMatchInfo;
+
 typedef struct SMJoinGrpRows {
   SSDataBlock* blk;
   int32_t      beginIdx;
@@ -150,6 +157,7 @@ typedef struct SMJoinGrpRows {
   bool         allRowsNMatch;
   bool         allRowsMatch;
   bool         readMatch;
+  bool         clonedBlk;
 } SMJoinGrpRows;
 
 #define MJOIN_COMMON_CTX \
@@ -223,6 +231,7 @@ typedef struct SMJoinWindowCtx {
   int32_t                    asofOpType;
   int64_t                    winBeginOffset;
   int64_t                    winEndOffset;
+  bool                       winProjection;
   bool                       lowerRowsAcq;
   bool                       eqRowsAcq;
   bool                       greaterRowsAcq;
@@ -407,7 +416,7 @@ int32_t mJoinCreateFullBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pT
 int32_t mJoinCreateBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable);
 int32_t mJoinSetKeyColsData(SSDataBlock* pBlock, SMJoinTableCtx* pTable);
 int32_t mJoinProcessEqualGrp(SMJoinMergeCtx* pCtx, int64_t timestamp, bool lastBuildGrp);
-bool mJoinHashGrpCart(SSDataBlock* pBlk, SMJoinGrpRows* probeGrp, bool append, SMJoinTableCtx* probe, SMJoinTableCtx* build);
+bool    mJoinHashGrpCart(SSDataBlock* pBlk, SMJoinGrpRows* probeGrp, bool append, SMJoinTableCtx* probe, SMJoinTableCtx* build);
 int32_t mJoinMergeGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool append, SMJoinGrpRows* pFirst, SMJoinGrpRows* pSecond);
 int32_t mJoinHandleMidRemains(SMJoinMergeCtx* pCtx);
 int32_t mJoinNonEqGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool append, SMJoinGrpRows* pGrp, bool probeGrp);
@@ -420,6 +429,7 @@ int32_t mJoinProcessLowerGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnI
 int32_t mJoinProcessGreaterGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs);
 int32_t mJoinFilterAndKeepSingleRow(SSDataBlock* pBlock, SFilterInfo* pFilterInfo);
 int32_t mJoinFilterAndNoKeepRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo);
+int32_t mJoinBuildEqGrp(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk, SMJoinGrpRows* pGrp);
 
 
 #ifdef __cplusplus

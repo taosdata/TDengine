@@ -636,6 +636,7 @@ int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc) {
 
 int32_t blockDataMergeNRows(SSDataBlock* pDest, const SSDataBlock* pSrc, int32_t srcIdx, int32_t numOfRows) {
   if (pDest->info.rows + numOfRows > pDest->info.capacity) {
+    ASSERT(0);
     return TSDB_CODE_FAILED;
   }
 

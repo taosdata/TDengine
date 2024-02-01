@@ -1196,7 +1196,13 @@ static int32_t pdcJoinCheckAllCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin
     if (errCond) {
       return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND);
     }
+    if (IS_WINDOW_JOIN(pJoin->subType)) {
+      return TSDB_CODE_SUCCESS;
+    }
+    
     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
+  } else if (IS_WINDOW_JOIN(pJoin->subType)) {
+    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND);
   }
 
   return TSDB_CODE_SUCCESS;

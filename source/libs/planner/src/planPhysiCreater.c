@@ -914,6 +914,16 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
     }
   }
 
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->winPrimEqCond) {
+    SNode* pPrimKeyCond = NULL;
+    code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->winPrimEqCond,
+                  &pPrimKeyCond);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = setColEqCond(pPrimKeyCond, pJoin->subType, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoin);  
+    }
+    nodesDestroyNode(pPrimKeyCond);
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = setListSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->node.pTargets,
                          &pJoin->pTargets);
