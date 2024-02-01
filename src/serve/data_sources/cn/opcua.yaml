@@ -26,10 +26,6 @@ options:
     description: |
       Security mode（安全模式）是OPC UA协议中用于保护通信安全的一种机制。安全模式定义了如何加密和验证通信数据，以防止未经授权的访问和篡改。
 
-      OPC UA支持以下几种安全模式：
-      - **None（无）**: 不进行任何加密或身份验证，通信数据以明文形式传输。这种模式只适用于测试和开发环境，不建议在生产环境中使用。
-      - **Sign（签名）**: 使用数字签名对通信数据进行验证，以确保数据的完整性和真实性，但不进行加密。这种模式适用于需要保护数据完整性的场景，如数据采集和监控。
-      - **SingAndEncrypt（签名和加密）**: 使用数字签名对通信数据进行验证，并使用加密算法对数据进行加密，以保证数据的完整性、真实性和保密性。这种模式适用于需要保护数据完整性和保密性的场景，如敏感数据的传输和存储。
     hint:
       type: str
       choices:
@@ -42,12 +38,6 @@ options:
     description: |
       Security Policy（安全策略）是OPC UA协议中用于定义安全机制的一种机制。安全策略定义了如何实现安全模式中的加密和验证机制，包括使用的加密算法、密钥长度、数字证书等。
 
-      OPC UA支持以下几种安全策略：
-      1. **None**（无）：不进行任何加密或身份验证，通信数据以明文形式传输。这种策略只适用于测试和开发环境，不建议在生产环境中使用。
-      2. **Basic128Rsa15**：使用RSA算法和128位的密钥长度对通信数据进行加密和身份验证。这种策略适用于需要保护数据完整性和真实性的场景，如数据采集和监控。
-      3. **Basic256**：使用AES算法和256位的密钥长度对通信数据进行加密和身份验证。这种策略适用于需要保护数据完整性和真实性的场景，如数据采集和监控。
-      4. **Basic256Sha256**：使用AES算法和256位的密钥长度，并使用SHA-256算法对数字签名进行加密，以保证数据的完整性、真实性和保密性。这种策略适用于需要保护数据完整性和保密性的场景，如敏感数据的传输和存储。
-
     hint:
       type: str
       choices:
@@ -55,6 +45,8 @@ options:
         - Basic128Rsa15
         - Basic256
         - Basic256Sha256
+        - Aes128Sha256RsaOaep
+        - Aes256Sha256RsaPss
   connect_timeout:
     name: connect_timeout
     display: 连接超时
@@ -124,17 +116,35 @@ datasets:
       selectable: true
 
   - category: select_all_points
-    display: 选择所有点位
+    display: 选择数据点位
     description:
     target:
       name: select_all_points
       description: |
-        选择 OPC 服务器上面的所有点位。
+        设置过滤条件，选择 OPC 服务器上满足指定条件的数据点位。
       required: true
       multiple: true
       editable: true
       selectable: true
     params:
+      - name: root
+        display: 查询根节点
+        description: |
+          从该节点开始查询所有子节点。
+        hint:
+          type: str
+      - name: namespaces
+        display: 命名空间
+        description: |
+          支持多选,只查询这些namespace下的数据点位。
+        hint:
+          type: str
+      - name: pattern
+        display: 名称正则
+        description: |
+          数据点位名称需要满足设置的正则表达式。
+        hint:
+          type: str
       - name: table_primary_key
         display: 主键列
         description:
@@ -150,7 +160,7 @@ datasets:
         description: |
           支持 <child table prefix>_{ns}_{id} 格式，如果 NodeId 中不存在 ns 或 id 将置为空
         required: true
-        value: Meter_{ns}_{id}
+        value: t_{ns}_{id}
         hint:
           type: str
 

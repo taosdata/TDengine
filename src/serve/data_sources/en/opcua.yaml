@@ -47,6 +47,8 @@ options:
         - Basic128Rsa15
         - Basic256
         - Basic256Sha256
+        - Aes128Sha256RsaOaep
+        - Aes256Sha256RsaPss
   connect_timeout:
     name: connect_timeout
     display: Connect Timeout
@@ -126,12 +128,31 @@ datasets:
     target:
       name: select_all_points
       description: |
-        Select All Points on OPC Server.
+        Select data points that meet specified conditions on the OPC server.
       required: true
       multiple: true
       editable: true
       selectable: true
     params:
+      - name: root
+        display: root node
+        description: |
+          Query all child nodes starting from this node.
+        hint:
+          type: str
+      - name: namespaces
+        display: namespaces of point
+        description: |
+          Support multiple selections, only query the data points under these namespaces.
+        hint:
+          type: str
+      - name: pattern
+        display: regex pattern for name
+        description: |
+          The data point names need to match the regular expression.
+        hint:
+          type: str
+
       - name: table_primary_key
         display: Primary Key
         description:
@@ -144,7 +165,7 @@ datasets:
             - original_ts
       - name: child_table_expression
         display: Table Name
-        value: meter_{ns}_{id}
+        value: t_{ns}_{id}
         description: |
           Support <child table prefix>_{ns}_{id} pattern
         hint:
