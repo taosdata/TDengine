@@ -136,9 +136,12 @@ datasets:
       - name: namespaces
         display: 命名空间
         description: |
-          支持多选,只查询这些namespace下的数据点位。
+          支持多选,只查询这些 namespace 下的数据点位。
+        multiple: true
         hint:
           type: str
+          choices:
+            - "--NONE--"
       - name: pattern
         display: 名称正则
         description: |

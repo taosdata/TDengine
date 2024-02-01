@@ -65,14 +65,6 @@ pub struct R<T> {
     pub msg: Option<String>,
 }
 impl<T> R<T> {
-    // pub fn ok() -> Self {
-    //     Self {
-    //         code: 0,
-    //         data: None,
-    //         msg: None,
-    //     }
-    // }
-
     pub fn success(data: T) -> Self {
         Self {
             code: 0,
@@ -93,7 +85,7 @@ pub struct Pagination<T> {
     pub total_page: Option<usize>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<Vec<T>>,
+    pub list: Option<Vec<T>>,
 }
 
 impl<T> Pagination<T> {
@@ -103,7 +95,7 @@ impl<T> Pagination<T> {
             page_size,
             total: None,
             total_page: None,
-            data: None,
+            list: None,
         }
     }
 
@@ -113,9 +105,23 @@ impl<T> Pagination<T> {
         self
     }
 
-    pub fn with_data(mut self, data: Vec<T>) -> Self {
-        self.data = Some(data);
+    pub fn with_list(mut self, list: Vec<T>) -> Self {
+        self.list = Some(list);
         self
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OpcPoint {
+    pub id: String,
+    pub name: Option<String>,
+}
+impl OpcPoint {
+    pub fn new(id: String, name: String) -> Self {
+        Self {
+            id,
+            name: Some(name),
+        }
     }
 }
 
@@ -232,9 +238,7 @@ pub async fn load_point_file(ticket: &String, remain: bool) -> anyhow::Result<Na
     }
 }
 
-pub async fn load_point_data_page(
-    params: &TaskTicket,
-) -> anyhow::Result<Pagination<(String, String)>> {
+pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Pagination<OpcPoint>> {
     let map = SHARED_MAP.write().await;
     let page = params.page.unwrap_or(0);
     let page_size = params.page_size.unwrap_or(1000);
@@ -246,7 +250,7 @@ pub async fn load_point_data_page(
                 let f = NamedFile::open(file_path)?;
                 let mut reader = Reader::from_reader(f.file());
 
-                let data: Vec<(String, String)> = reader
+                let data: Vec<OpcPoint> = reader
                     .records()
                     .into_iter()
                     .skip(page * page_size + 1)
@@ -254,14 +258,14 @@ pub async fn load_point_data_page(
                     .map(|record| {
                         let record = record.unwrap();
                         let id = record.get(1).unwrap_or("").to_string();
-                        let name = record.get(11).unwrap_or("").to_string();
-                        (id, name)
+                        let name = record.get(13).unwrap_or("").to_string();
+                        OpcPoint::new(id, name)
                     })
                     .collect();
 
                 Ok(Pagination::new(page, page_size)
                     .with_total(*point_count)
-                    .with_data(data))
+                    .with_list(data))
             }
         })
         .unwrap_or(Err(anyhow!("task not found")))
@@ -347,7 +351,7 @@ async fn get_all_points(
 
                     data.iter().for_each(|item| {
                         let data = format!(
-                            "{},{},1,opc_{{datatype}},t_{{ns}}_{{id}},val,,,quality,ts,rts,,,{}\n",
+                            "{},{},1,opc_{{type}},t_{{ns}}_{{id}},val,,,quality,ts,rts,,,{}\n",
                             i,
                             item.id,
                             item.name.clone().unwrap_or("".to_string())
