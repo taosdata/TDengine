@@ -134,7 +134,6 @@ class StreamStabilityTest(TDCase):
         self.stream_dbname, self.stream_stbname= self.stream_json_info["streams"][0]["stream_stb"].split(".")
         self.json_file_info_list.append({self.json_file: self.json_info})
         self.json_file_info_list.append({self.stream_json_file: self.stream_json_info})
-        self.vgid_list = self.tdCom.get_vgid_list(self.dbname)
         if "cluster_common_insert.yaml" in " ".join(sys.argv):
             if "partition" not in " ".join(sys.argv):
                 self.json_info["databases"][0]["super_tables"][0]["insert_rows"] = 150000
@@ -165,7 +164,8 @@ class StreamStabilityTest(TDCase):
         time.sleep(self.pause_resume_interval)
         self._remote._logger.info(f'resume stream {self.stream_name}')
         self.tdCom.resume_stream(self.stream_name)
-        self.tdSql.execute(f'balance vgroup leader on {random.choice(self.vgid_list)}')
+        vgid_list = self.tdCom.get_vgid_list(self.dbname)
+        self.tdSql.execute(f'balance vgroup leader on {random.choice(vgid_list)}')
         self.tdCom.check_transactions(self._remote)
 
     def run(self):
