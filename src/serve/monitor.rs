@@ -149,7 +149,7 @@ impl Monitor {
                     add_task_metrics_tables(tasks.clone(), &mut tables, taosx_id).await;
                     let stables = grouptables2stable(tables);
                     let body = stable2json(stables);
-                    tracing::trace!("data send to taoskeeper: {}", &body);
+                    tracing::info!("data send to taoskeeper: {}", &body); // debug
                     exporter.push_taoskeeper(body).await;
                 }
             });
@@ -216,9 +216,9 @@ pub async fn process_metrics(
     // task summeries
     let (running_tasks, completed_tasks, failed_tasks) =
         controller.get_task_summaries(duration.as_secs()).await;
-    counter!("running_tasks", &labels).absolute(running_tasks as u64);
-    counter!("completed_tasks", &labels).absolute(completed_tasks as u64);
-    counter!("failed_tasks", &labels).absolute(failed_tasks as u64);
+    gauge!("running_tasks", &labels).set(running_tasks as f64);
+    gauge!("completed_tasks", &labels).set(completed_tasks as f64);
+    gauge!("failed_tasks", &labels).set(failed_tasks as f64);
     // connector process metrics
     update_sub_connector_process_metrics(sys, taosx_id.to_string(), process_id);
     Ok(())
@@ -315,7 +315,7 @@ fn records2tables(vec: Vec<Record>) -> Vec<Table> {
     tables.into_iter().map(|(_, v)| v).collect()
 }
 
-/// 将属于统一超级表的子表聚和到一起
+/// 将属于同一超级表的子表聚合到一起
 fn grouptables2stable(vec: Vec<Table>) -> Vec<Stable> {
     let mut stables: HashMap<String, Stable> = HashMap::new();
     for table in vec {
@@ -408,10 +408,6 @@ impl IntoTags for CommonMetrics {
         vec.push(Tag {
             name: "taosx_id".to_string(),
             value: taosx_id,
-        });
-        vec.push(Tag {
-            name: "stable".to_string(),
-            value: self.stable.clone(),
         });
         vec.push(Tag {
             name: "task_id".to_string(),

@@ -3327,26 +3327,6 @@ mod tests {
     async fn test_get_task_summaries() -> anyhow::Result<()> {
         tracing_subscriber_init()?;
         let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
-        // let pool = controller.pool.clone();
-        // let res = sqlx::query(
-        //     "INSERT INTO tasks (`name`, `from`, `oneshot_topic`, `to`, `jobs`, `compression_level`, \
-        //          `created_at`, `status`, `after_delete`, `trigger`, `via`, `parser`) \
-        //          VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        // )
-        // .bind("test")
-        // .bind("tmq:///test")
-        // .bind("test")
-        // .bind("taos:///test")
-        // .bind(10u16)
-        // .bind(0u8)
-        // .bind(chrono::Utc::now())
-        // .bind(&Status::Running)
-        // .bind(None::<String>)
-        // .bind(None::<String>)
-        // .bind(None::<i64>)
-        // .bind(None::<serde_json::Value>)
-        // .execute(&pool)
-        // .await?;
         let _ = controller.get_task_summaries(10).await;
         Ok(())
     }

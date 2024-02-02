@@ -89,6 +89,7 @@ pub fn update_sub_connector_process_metrics(
                     (task_id_key, task_id),
                 ];
                 let labels = labels.into_labels();
+                gauge!("process_id", labels.clone()).set(sub_info.sub_pid as f64);
                 let cpu = sub_process.cpu_usage();
                 gauge!("process_cpu_percent", labels.clone()).set(cpu as f64);
                 let mem = sub_process.memory() as f64 / sys.total_memory() as f64 * 100.0;
