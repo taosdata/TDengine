@@ -166,3 +166,12 @@ sql select a.ts, b.ts from tba1 a left window join tba2 b window_offset(-1h, 1h)
 if $rows != 16 then
   return -1
 endi
+sql select a.ts, b.ts from tba1 a left window join tba2 b window_offset(1h, -1h);
+if $rows != 16 then
+  return -1
+endi
+
+sql select a.ts, b.ts from tba1 a left window join tba2 b window_offset(1a, -1h);
+if $rows != 9 then
+  return -1
+endi

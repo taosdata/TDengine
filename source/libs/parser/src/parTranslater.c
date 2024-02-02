@@ -3268,6 +3268,13 @@ static int32_t translateJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoin
       return buildInvalidOperationMsg(&pCxt->msgBuf, "WINDOW_OFFSET only supported for WINDOW join");
     }
     code = translateExpr(pCxt, &pJoinTable->pWindowOffset);
+    if (TSDB_CODE_SUCCESS == code) {
+      SValueNode* pStart = (SValueNode*)((SWindowOffsetNode*)pJoinTable->pWindowOffset)->pStartOffset;
+      SValueNode* pEnd = (SValueNode*)((SWindowOffsetNode*)pJoinTable->pWindowOffset)->pEndOffset;
+      if (pStart->datum.i > pEnd->datum.i) {
+        TSWAP(((SWindowOffsetNode*)pJoinTable->pWindowOffset)->pStartOffset, ((SWindowOffsetNode*)pJoinTable->pWindowOffset)->pEndOffset);
+      }
+    }
   } else if (*pSType == JOIN_STYPE_WIN) {
     return buildInvalidOperationMsg(&pCxt->msgBuf, "WINDOW_OFFSET required for WINDOW join");
   }
