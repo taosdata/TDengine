@@ -20,17 +20,17 @@
 #include "taos_metric_t.h"
 
 #if !defined(WINDOWS)
-#define DOUBLE_ATOMIC
+#define C11_ATOMIC
 #endif 
 
-#ifdef DOUBLE_ATOMIC
+#ifdef C11_ATOMIC
 #include <stdatomic.h>
 #endif
 
 struct taos_metric_sample {
   taos_metric_type_t type; /**< type is the metric type for the sample */
   char *l_value;           /**< l_value is the full metric name and label set represeted as a string */
-#ifdef DOUBLE_ATOMIC
+#ifdef C11_ATOMIC
   _Atomic double r_value;  /**< r_value is the value of the metric sample */
 #else
   double r_value; /**< r_value is the value of the metric sample */

@@ -25,7 +25,7 @@
 #include "taos_metric_sample_i.h"
 #include "taos_metric_sample_t.h"
 
-#ifdef DOUBLE_ATOMIC
+#ifdef C11_ATOMIC
 #include <stdatomic.h>
 #else
 #define ALLOW_FORBID_FUNC
@@ -71,7 +71,7 @@ int taos_metric_sample_add(taos_metric_sample_t *self, double r_value) {
     return 1;
   }
   
-#ifdef DOUBLE_ATOMIC
+#ifdef C11_ATOMIC
   /*_Atomic*/ double old = atomic_load(&self->r_value);
 
   for (;;) {
@@ -94,7 +94,7 @@ int taos_metric_sample_sub(taos_metric_sample_t *self, double r_value) {
     return 1;
   }
 
-#ifdef DOUBLE_ATOMIC
+#ifdef C11_ATOMIC
   /*_Atomic*/ double old = atomic_load(&self->r_value);
   for (;;) {
     _Atomic double new = ATOMIC_VAR_INIT(old - r_value);
@@ -115,7 +115,7 @@ int taos_metric_sample_set(taos_metric_sample_t *self, double r_value) {
     return 1;
   }
 
-#ifdef DOUBLE_ATOMIC
+#ifdef C11_ATOMIC
   atomic_store(&self->r_value, r_value);
 #else
   atomic_store_double(&self->r_value, r_value);
@@ -130,7 +130,7 @@ int taos_metric_sample_exchange(taos_metric_sample_t *self, double r_value, doub
     return 1;
   }
 
-#ifdef DOUBLE_ATOMIC
+#ifdef C11_ATOMIC
   _Atomic double new = ATOMIC_VAR_INIT(r_value);
   for (;;) {
     /*_Atomic*/ double old = atomic_load(&self->r_value);

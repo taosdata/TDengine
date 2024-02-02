@@ -346,13 +346,16 @@ void atomic_store_64(int64_t volatile* ptr, int64_t val) {
 
 double  atomic_store_double(double volatile *ptr, double val){
   for (;;) {
-    int64_t iOld = *(int64_t *)ptr;  // current old value
+    double_number old_num = {0};
+    old_num.d = *ptr;  // current old value
 
-    int64_t iNew = *(int64_t *)(&val);
+    double_number new_num = {0};
+    new_num.d = val;
 
-    int64_t old_value = atomic_val_compare_exchange_64((volatile int64_t *)ptr, iOld, iNew);
+    double_number ret_num = {0};
+    ret_num.i = atomic_val_compare_exchange_64((volatile int64_t *)ptr, old_num.i, new_num.i);
 
-    if (old_value == iOld) return old_value;
+    if (ret_num.i == old_num.i) return ret_num.d;
   }
 }
 
@@ -412,14 +415,17 @@ int64_t atomic_exchange_64(int64_t volatile* ptr, int64_t val) {
 
 double  atomic_exchange_double(double volatile *ptr, int64_t val){
   for (;;) {
-    int64_t iOld = *(int64_t *)ptr;  // current old value
+    double_number old_num = {0};
+    old_num.i = *ptr;  // current old value
 
-    int64_t iNew = *(int64_t *)(&val);
+    double_number new_num = {0};
+    int64_t iNew = val;
 
-    int64_t iold_value = atomic_val_compare_exchange_64((volatile int64_t *)ptr, iOld, iNew);
+    double_number ret_num = {0};
+    ret_num.i = atomic_val_compare_exchange_64((volatile int64_t *)ptr, old_num.i, new_num.i);
 
-    if (iold_value == iOld) {
-      return *(double *)(&iold_value);
+    if (ret_num.i == old_num.i) {
+      return ret_num.d;
     }
   }
 }
@@ -585,7 +591,7 @@ int64_t atomic_fetch_add_64(int64_t volatile* ptr, int64_t val) {
 double  atomic_fetch_add_double(double volatile *ptr, double val){
   for (;;) {
     double_number old_num = {0};
-    old_num.i = *(int64_t *)ptr;  // current old value
+    old_num.d = *ptr;  // current old value
 
     double_number new_num = {0};
     new_num.d = old_num.d + val;
@@ -706,7 +712,7 @@ int64_t atomic_fetch_sub_64(int64_t volatile* ptr, int64_t val) {
 double atomic_fetch_sub_double(double volatile *ptr, double val){
   for (;;) {
     double_number old_num = {0};
-    old_num.i = *(int64_t *)ptr;  // current old value
+    old_num.d = *ptr;  // current old value
 
     double_number new_num = {0};
     new_num.d = old_num.d - val;
