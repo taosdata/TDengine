@@ -323,7 +323,7 @@ static bool stbSplNeedSplit(bool streamQuery, SLogicNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return (!stbSplHasGatherExecFunc(((SAggLogicNode*)pNode)->pAggFuncs) ||
               isPartTableAgg((SAggLogicNode*)pNode)) &&
-             stbSplHasMultiTbScan(streamQuery, pNode) && !stbSplIsTableCountQuery(pNode);
+             (stbSplHasMultiTbScan(streamQuery, pNode) && !stbSplIsTableCountQuery(pNode));
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return stbSplNeedSplitWindow(streamQuery, pNode);
     case QUERY_NODE_LOGIC_PLAN_SORT:

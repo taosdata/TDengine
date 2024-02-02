@@ -887,6 +887,7 @@ int32_t tSerializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pReq
   }
   if (tEncodeI64(&encoder, pReq->deleteMark) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->lastTs) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->normSourceTbUid) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -937,6 +938,7 @@ int32_t tDeserializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pR
   }
   if (tDecodeI64(&decoder, &pReq->deleteMark) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->lastTs) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->normSourceTbUid) < 0) return -1;
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
@@ -9752,7 +9754,7 @@ int32_t tSerializeTableTSMAInfoReq(void* buf, int32_t bufLen, const STableTSMAIn
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
-  if (tEncodeI8(&encoder, pReq->fetchingTsma) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->fetchingWithTsmaName) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -9767,7 +9769,7 @@ int32_t tDeserializeTableTSMAInfoReq(void* buf, int32_t bufLen, STableTSMAInfoRe
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
-  if (tDecodeI8(&decoder, (uint8_t*)&pReq->fetchingTsma) < 0) return -1;
+  if (tDecodeI8(&decoder, (uint8_t*)&pReq->fetchingWithTsmaName) < 0) return -1;
 
   tEndDecode(&decoder);
 

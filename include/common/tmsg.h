@@ -3526,6 +3526,7 @@ typedef struct {
   char*   ast;
   int64_t deleteMark;
   int64_t lastTs;
+  int64_t normSourceTbUid; // the Uid of source tb if its a normal table, otherwise 0
 } SMCreateSmaReq;
 
 int32_t tSerializeSMCreateSmaReq(void* buf, int32_t bufLen, SMCreateSmaReq* pReq);
@@ -4147,7 +4148,7 @@ int32_t tDeserializeSViewMetaRsp(void* buf, int32_t bufLen, SViewMetaRsp* pRsp);
 void    tFreeSViewMetaRsp(SViewMetaRsp* pRsp);
 typedef struct {
   char name[TSDB_TABLE_FNAME_LEN]; // table name or tsma name
-  bool fetchingTsma; // if we are fetching with tsma name
+  bool fetchingWithTsmaName; // if we are fetching with tsma name
 }STableTSMAInfoReq;
 
 int32_t tSerializeTableTSMAInfoReq(void* buf, int32_t bufLen, const STableTSMAInfoReq* pReq);

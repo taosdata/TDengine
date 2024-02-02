@@ -1389,14 +1389,14 @@ static void mndCancelRetrieveIdx(SMnode *pMnode, void *pIter) {
 
 static void initSMAObj(SCreateTSMACxt* pCxt) {
   memcpy(pCxt->pSma->name, pCxt->pCreateSmaReq->name, TSDB_TABLE_FNAME_LEN);
-  memcpy(pCxt->pSma->stb, pCxt->pSrcStb->name, TSDB_TABLE_FNAME_LEN);
+  memcpy(pCxt->pSma->stb, pCxt->pCreateSmaReq->stb, TSDB_TABLE_FNAME_LEN);
   memcpy(pCxt->pSma->db, pCxt->pDb->name, TSDB_DB_FNAME_LEN);
   pCxt->pSma->createdTime = taosGetTimestampMs();
   pCxt->pSma->uid = mndGenerateUid(pCxt->pCreateSmaReq->name, TSDB_TABLE_FNAME_LEN);
 
   memcpy(pCxt->pSma->dstTbName, pCxt->targetStbFullName, TSDB_TABLE_FNAME_LEN);
   pCxt->pSma->dstTbUid = 0; // not used
-  pCxt->pSma->stbUid = pCxt->pSrcStb->uid;
+  pCxt->pSma->stbUid = pCxt->pSrcStb ? pCxt->pSrcStb->uid : pCxt->pCreateSmaReq->normSourceTbUid;
   pCxt->pSma->dbUid = pCxt->pDb->uid;
   pCxt->pSma->interval = pCxt->pCreateSmaReq->interval;
   pCxt->pSma->intervalUnit = pCxt->pCreateSmaReq->intervalUnit;
@@ -1442,7 +1442,7 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   pCxt->pCreateStreamReq->fillHistory = STREAM_FILL_HISTORY_ON;
   pCxt->pCreateStreamReq->maxDelay = 10000;
   pCxt->pCreateStreamReq->watermark = 0;
-  pCxt->pCreateStreamReq->numOfTags = pCxt->pSrcStb->numOfTags;
+  pCxt->pCreateStreamReq->numOfTags = pCxt->pSrcStb ? pCxt->pSrcStb->numOfTags : 0;
   pCxt->pCreateStreamReq->checkpointFreq = 0;
   pCxt->pCreateStreamReq->createStb = 1;
   pCxt->pCreateStreamReq->targetStbUid = 0;
@@ -1454,15 +1454,17 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   pCxt->pCreateStreamReq->sql = strdup(pCxt->pCreateSmaReq->sql);
 
   // construct tags
-  pCxt->pCreateStreamReq->pTags = taosArrayInit(pCxt->pSrcStb->numOfTags, sizeof(SField));
-  for (int32_t idx = 0; idx < pCxt->pSrcStb->numOfTags; ++idx) {
-    SField   f = {0};
-    SSchema *pSchema = &pCxt->pSrcStb->pTags[idx];
-    f.bytes = pSchema->bytes;
-    f.type = pSchema->type;
-    f.flags = pSchema->flags;
-    tstrncpy(f.name, pSchema->name, TSDB_COL_NAME_LEN);
-    taosArrayPush(pCxt->pCreateStreamReq->pTags, &f);
+  if (pCxt->pSrcStb) {
+    pCxt->pCreateStreamReq->pTags = taosArrayInit(pCxt->pSrcStb->numOfTags, sizeof(SField));
+    for (int32_t idx = 0; idx < pCxt->pSrcStb->numOfTags; ++idx) {
+      SField   f = {0};
+      SSchema *pSchema = &pCxt->pSrcStb->pTags[idx];
+      f.bytes = pSchema->bytes;
+      f.type = pSchema->type;
+      f.flags = pSchema->flags;
+      tstrncpy(f.name, pSchema->name, TSDB_COL_NAME_LEN);
+      taosArrayPush(pCxt->pCreateStreamReq->pTags, &f);
+    }
   }
 }
 
@@ -1605,11 +1607,13 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
     goto _OVER;
 
   // TODO handle normal table
-  pStb = mndAcquireStb(pMnode, createReq.stb);
-  if (!pStb) {
-    mError("tsma:%s, failed to create since stb:%s not exist", createReq.name, createReq.stb);
-    terrno = TSDB_CODE_MND_STB_NOT_EXIST;
-    goto _OVER;
+  if (createReq.normSourceTbUid == 0) {
+    pStb = mndAcquireStb(pMnode, createReq.stb);
+    if (!pStb) {
+      mError("tsma:%s, failed to create since stb:%s not exist", createReq.name, createReq.stb);
+      terrno = TSDB_CODE_MND_STB_NOT_EXIST;
+      goto _OVER;
+    }
   }
 
   char streamName[TSDB_TABLE_FNAME_LEN] = {0};
@@ -1672,7 +1676,7 @@ _OVER:
     mError("tsma:%s, failed to create since %s", createReq.name, terrstr());
   }
 
-  mndReleaseStb(pMnode, pStb);
+  if (pStb) mndReleaseStb(pMnode, pStb);
   mndReleaseSma(pMnode, pSma);
   mndReleaseStream(pMnode, pStream);
   mndReleaseDb(pMnode, pDb);
@@ -2032,12 +2036,15 @@ static int32_t mndGetTableTSMA(SMnode *pMnode, char *tbFName, STableTSMAInfoRsp 
   SSdb *         pSdb = pMnode->pSdb;
   void *         pIter = NULL;
 
+  SStbObj *pStb = NULL;
+  /*
   SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
   if (NULL == pStb) {
     *exist = false;
     return TSDB_CODE_SUCCESS;
   }
   mndReleaseStb(pMnode, pStb);
+  */
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
@@ -2093,7 +2100,7 @@ static int32_t mndProcessGetTbTSMAReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (tsmaReq.fetchingTsma) {
+  if (tsmaReq.fetchingWithTsmaName) {
     code = mndGetTSMA(pMnode, tsmaReq.name, &rsp, &exist);
   } else {
     code = mndGetTableTSMA(pMnode, tsmaReq.name, &rsp, &exist);
