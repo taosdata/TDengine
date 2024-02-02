@@ -15,6 +15,7 @@
 #include "clientInt.h"
 #include "clientMonitor.h"
 #include "clientLog.h"
+#include "tglobal.h"
 
 const char* selectMonitorName = "taos_sql_req:count";
 const char* selectMonitorHelp = "count for select sql";
