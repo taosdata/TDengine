@@ -2187,6 +2187,27 @@ impl TaskActivity {
             context: None,
         }
     }
+
+    pub fn ipc_started(id: i64) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Info,
+            activity: format!("Agent is putting data"),
+            status: "ipc-started".to_string(),
+            context: None,
+        }
+    }
+    pub fn ipc_finished(id: i64) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Info,
+            activity: format!("IPC finished"),
+            status: "ipc-finished".to_string(),
+            context: None,
+        }
+    }
     /// Set state as suspending.
     pub fn suspend(id: i64, jid: Uuid) -> Self {
         Self {
