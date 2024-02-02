@@ -161,14 +161,12 @@ int32_t ctgGetDBCache(SCatalog *pCtg, const char *dbFName, SCtgDBCache **pCache)
 }
 
 int32_t ctgAcquireGrantCache(SCatalog *pCtg, SCtgGrantCache **ppCache) {
-  CTG_RET(ctgAcquireDBCacheImpl(pCtg, dbFName, pCache, true));
+  CTG_LOCK(CTG_READ, &pCtg->grantCache.lock);
+  *ppCache = &pCtg->grantCache;
+  CTG_CACHE_HIT_INC(CTG_CI_GRANT_INFO, 1);
 }
 
-void ctgReleaseGrantCache(SCatalog *pCtg, SCtgGrantCache *pCache) {
-  CTG_UNLOCK(CTG_READ, &dbCache->dbLock);
-  taosHashRelease(pCtg->dbCache, dbCache);
-}
-
+void ctgReleaseGrantCache(SCatalog *pCtg, SCtgGrantCache *pCache) { CTG_UNLOCK(CTG_READ, &pCache->lock); }
 
 void ctgReleaseVgInfoToCache(SCatalog *pCtg, SCtgDBCache *dbCache) {
   ctgRUnlockVgInfo(dbCache);
@@ -1527,36 +1525,7 @@ int32_t ctgGetAddGrantCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId, 
   SCtgDBCache *dbCache = NULL;
   ctgGetDBCache(pCtg, dbFName, &dbCache);
 
-  if (dbCache) {
-    // TODO OPEN IT
-#if 0    
-    if (dbCache->dbId == dbId) {
-      *pCache = dbCache;
-      return TSDB_CODE_SUCCESS;
-    }
-#else
-    if (0 == dbId) {
-      *pCache = dbCache;
-      return TSDB_CODE_SUCCESS;
-    }
 
-    if (dbId && (dbCache->dbId == 0)) {
-      dbCache->dbId = dbId;
-      *pCache = dbCache;
-      return TSDB_CODE_SUCCESS;
-    }
-
-    if (dbCache->dbId == dbId) {
-      *pCache = dbCache;
-      return TSDB_CODE_SUCCESS;
-    }
-#endif
-    CTG_ERR_RET(ctgRemoveDBFromCache(pCtg, dbCache, dbFName));
-  }
-
-  CTG_ERR_RET(ctgAddNewDBCache(pCtg, dbFName, dbId));
-
-  ctgGetDBCache(pCtg, dbFName, &dbCache);
 
   *pCache = dbCache;
 
