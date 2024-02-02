@@ -320,14 +320,19 @@ typedef struct SCtgUserAuth {
   uint64_t        userCacheSize;
 } SCtgUserAuth;
 
+typedef struct SCtgGrantCache {
+  SRWLatch    lock;
+  SGrantHbRsp grantInfo;
+  uint64_t    grantCacheSize;
+} SCtgGrantCache;
+
 typedef struct SCatalog {
   uint64_t        clusterId;
   bool            stopUpdate;
   SDynViewVersion dynViewVer;
   SHashObj*       userCache;  // key:user, value:SCtgUserAuth
   SHashObj*       dbCache;    // key:dbname, value:SCtgDBCache
-  SHashObj*       grantCache;
-  SGrantHbRsp     _grantCache;
+  SCtgGrantCache  grantCache;
   SCtgRentMgmt    dbRent;
   SCtgRentMgmt    stbRent;
   SCtgRentMgmt    viewRent;
@@ -377,6 +382,7 @@ typedef struct SCtgJob {
   int32_t          tbCfgNum;
   int32_t          svrVerNum;
   int32_t          viewNum;
+  int32_t          grantNum;
 } SCtgJob;
 
 typedef struct SCtgMsgCtx {
@@ -559,6 +565,10 @@ typedef struct SCtgUpdateGrantInfoMsg {
   SCatalog*    pCtg;
   SGrantHbRsp* pRsp;
 } SCtgUpdateGrantInfoMsg;
+
+typedef struct SCtgDropGrantInfoMsg {
+  SCatalog* pCtg;
+} SCtgDropGrantInfoMsg;
 
 typedef struct SCtgCacheOperation {
   int32_t opId;
@@ -922,6 +932,7 @@ int32_t ctgOpDropDbVgroup(SCtgCacheOperation* action);
 int32_t ctgOpDropStbMeta(SCtgCacheOperation* action);
 int32_t ctgOpDropTbMeta(SCtgCacheOperation* action);
 int32_t ctgOpDropViewMeta(SCtgCacheOperation* action);
+int32_t ctgOpDropGrantInfo(SCtgCacheOperation* action);
 int32_t ctgOpUpdateUser(SCtgCacheOperation* action);
 int32_t ctgOpUpdateEpset(SCtgCacheOperation* operation);
 int32_t ctgAcquireVgInfoFromCache(SCatalog* pCtg, const char* dbFName, SCtgDBCache** pCache);
@@ -969,6 +980,7 @@ int32_t ctgOpDropTbIndex(SCtgCacheOperation* operation);
 int32_t ctgOpUpdateTbIndex(SCtgCacheOperation* operation);
 int32_t ctgOpClearCache(SCtgCacheOperation* operation);
 int32_t ctgOpUpdateViewMeta(SCtgCacheOperation *operation);
+int32_t ctgOpUpdateGrantInfo(SCtgCacheOperation *operation);
 int32_t ctgReadTbTypeFromCache(SCatalog* pCtg, char* dbFName, char* tableName, int32_t* tbType);
 int32_t ctgGetTbHashVgroupFromCache(SCatalog* pCtg, const SName* pTableName, SVgroupInfo** pVgroup);
 int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsCtx *ctx, int32_t dbIdx,

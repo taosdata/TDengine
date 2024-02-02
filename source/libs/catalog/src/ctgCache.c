@@ -160,6 +160,16 @@ int32_t ctgGetDBCache(SCatalog *pCtg, const char *dbFName, SCtgDBCache **pCache)
   CTG_RET(ctgAcquireDBCacheImpl(pCtg, dbFName, pCache, false));
 }
 
+int32_t ctgAcquireGrantCache(SCatalog *pCtg, SCtgGrantCache **ppCache) {
+  CTG_RET(ctgAcquireDBCacheImpl(pCtg, dbFName, pCache, true));
+}
+
+void ctgReleaseGrantCache(SCatalog *pCtg, SCtgGrantCache *pCache) {
+  CTG_UNLOCK(CTG_READ, &dbCache->dbLock);
+  taosHashRelease(pCtg->dbCache, dbCache);
+}
+
+
 void ctgReleaseVgInfoToCache(SCatalog *pCtg, SCtgDBCache *dbCache) {
   ctgRUnlockVgInfo(dbCache);
   ctgReleaseDBCache(pCtg, dbCache);
@@ -1512,6 +1522,47 @@ int32_t ctgGetAddDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId, SCt
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgGetAddGrantCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId, SCtgDBCache **pCache) {
+  int32_t      code = 0;
+  SCtgDBCache *dbCache = NULL;
+  ctgGetDBCache(pCtg, dbFName, &dbCache);
+
+  if (dbCache) {
+    // TODO OPEN IT
+#if 0    
+    if (dbCache->dbId == dbId) {
+      *pCache = dbCache;
+      return TSDB_CODE_SUCCESS;
+    }
+#else
+    if (0 == dbId) {
+      *pCache = dbCache;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (dbId && (dbCache->dbId == 0)) {
+      dbCache->dbId = dbId;
+      *pCache = dbCache;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (dbCache->dbId == dbId) {
+      *pCache = dbCache;
+      return TSDB_CODE_SUCCESS;
+    }
+#endif
+    CTG_ERR_RET(ctgRemoveDBFromCache(pCtg, dbCache, dbFName));
+  }
+
+  CTG_ERR_RET(ctgAddNewDBCache(pCtg, dbFName, dbId));
+
+  ctgGetDBCache(pCtg, dbFName, &dbCache);
+
+  *pCache = dbCache;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFName, uint64_t dbId, char *tbName,
                               STableMeta *meta, int32_t metaSize) {
   if (NULL == dbCache->tbCache || NULL == dbCache->stbCache) {
@@ -2488,8 +2539,6 @@ int32_t ctgOpUpdateGrantInfo(SCtgCacheOperation *operation) {
   SCtgUpdateGrantInfoMsg *msg = operation->data;
   SCatalog              *pCtg = msg->pCtg;
   SGrantHbRsp           *pRsp = msg->pRsp;
-  SCtgDBCache           *dbCache = NULL;
-  SViewMeta             *pMeta = NULL;
 
   taosMemoryFreeClear(msg);
 
@@ -2523,56 +2572,16 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgOpDropViewMeta(SCtgCacheOperation *operation) {
+int32_t ctgOpDropGrantInfo(SCtgCacheOperation *operation) {
   int32_t              code = 0;
-  SCtgDropViewMetaMsg *msg = operation->data;
+  SCtgDropGrantInfoMsg *msg = operation->data;
   SCatalog            *pCtg = msg->pCtg;
-  int32_t              tblType = 0;
 
   if (pCtg->stopUpdate) {
     goto _return;
   }
 
-  SCtgDBCache *dbCache = NULL;
-  ctgGetDBCache(pCtg, msg->dbFName, &dbCache);
-  if (NULL == dbCache) {
-    goto _return;
-  }
-
-  if ((0 != msg->dbId) && (dbCache->dbId != msg->dbId)) {
-    ctgDebug("dbId 0x%" PRIx64 " not match with curId 0x%" PRIx64 ", dbFName:%s, viewName:%s", msg->dbId, dbCache->dbId,
-             msg->dbFName, msg->viewName);
-    goto _return;
-  }
-
-  SCtgViewCache *pViewCache = taosHashGet(dbCache->viewCache, msg->viewName, strlen(msg->viewName));
-  if (NULL == pViewCache) {
-    ctgDebug("view %s already not in cache", msg->viewName);
-    goto _return;
-  }
-
-  int64_t viewId = pViewCache->pMeta->viewId;
-  if (0 != msg->viewId && viewId != msg->viewId) {
-    ctgDebug("viewId 0x%" PRIx64 " not match with curId 0x%" PRIx64 ", viewName:%s", msg->viewId, viewId, msg->viewName);
-    goto _return;
-  }
-  
-  atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pViewCache->pMeta));
-  ctgFreeViewCacheImpl(pViewCache, true);
-
-  if (taosHashRemove(dbCache->viewCache, msg->viewName, strlen(msg->viewName))) {
-    ctgError("view %s not exist in cache, dbFName:%s", msg->viewName, msg->dbFName);
-    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
-  } else {
-    atomic_sub_fetch_64(&dbCache->dbCacheSize, sizeof(SCtgViewCache) + strlen(msg->viewName));
-    CTG_DB_NUM_DEC(CTG_CI_VIEW);
-  }
-
-  ctgDebug("view %s removed from cache, dbFName:%s", msg->viewName, msg->dbFName);
-
-  CTG_ERR_JRET(ctgMetaRentRemove(&msg->pCtg->viewRent, viewId, ctgViewVersionSortCompare, ctgViewVersionSearchCompare));
-
-  ctgDebug("view %s removed from rent, dbFName:%s, viewId:0x%" PRIx64, msg->viewName, msg->dbFName, viewId);
+  printf("prop:%s:%d grant %s removed from rent\n");
 
 _return:
 
