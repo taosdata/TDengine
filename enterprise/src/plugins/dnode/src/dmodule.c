@@ -520,53 +520,6 @@ static int32_t dmSyncEps(SDnodeData *pData) {
   return code;
 }
 
-#ifdef TD_MODULE_OPTIMIZE
-bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
-  SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
-
-  bool    required = false;
-  int32_t code = (*pWrapper->func.requiredFp)(&input, &required);
-  if (!required) {
-    dDebug("node:%s, does not require startup", pWrapper->name);
-  } else {
-    dDebug("node:%s, required to startup", pWrapper->name);
-  }
-
-  return required;
-}
-
-// invoker
-int32_t dmInitModule(SDnode *pDnode, SMgmtWrapper *wrappers) {
-  int32_t code = -1;
-
-  if (dmInitPrerequisites() != 0) {
-    goto _err;
-  }
-  if (dmInitVersion(pDnode) != 0) {
-    terrno = TSDB_CODE_VERSION_NOT_COMPATIBLE;
-    goto _err;
-  }
-
-  if (dmInitMsgHandle(pDnode, wrappers) != 0) {
-    dError("failed to init msg handles since %s", terrstr());
-    goto _err;
-  }
-
-  if (dmInitServer(pDnode) != 0) {
-    dError("failed to init transport since %s", terrstr());
-    goto _err;
-  }
-
-  if (dmInitClient(pDnode) != 0) {
-    goto _err;
-  }
-_exit:
-  code = 0;
-_err:
-
-  return code;
-}
-#else
 // invoker
 int32_t dmInitModule(SDnode *pDnode) {
   int32_t code = -1;
@@ -602,4 +555,3 @@ _err:
 
   return code;
 }
-#endif

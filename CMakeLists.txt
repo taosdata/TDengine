@@ -66,12 +66,8 @@ set(TD_CONTRIB_DIR "${TD_SOURCE_DIR}/contrib")
 
 include(${TD_SUPPORT_DIR}/cmake.platform)
 
-IF (TD_DARWIN OR TD_DARWIN64)
-  MESSAGE ("Disable grant on Mac")
-  SET(TD_GRANT FALSE)
-ELSE ()
-  SET(TD_GRANT TRUE)
-ENDIF ()
+SET(TD_GRANT TRUE)
+
 IF (TD_LINUX_64 AND NOT TD_NINGSI) 
   SET(TD_USB_DONGLE TRUE)
 ELSE ()
@@ -101,6 +97,7 @@ if(${BUILD_TEST})
 endif(${BUILD_TEST})
 
 ADD_DEFINITIONS(-DTD_ENTERPRISE)
+ADD_DEFINITIONS(-DTD_UNIQ_GRANT)
 
 add_subdirectory(community/source)
 add_subdirectory(community/tools)
