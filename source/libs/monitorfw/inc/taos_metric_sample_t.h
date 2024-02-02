@@ -21,6 +21,8 @@
 
 #if !defined(WINDOWS)
 #define C11_ATOMIC
+#else
+//#define DOUBLE_ATOMIC
 #endif 
 
 #ifdef C11_ATOMIC
@@ -33,7 +35,11 @@ struct taos_metric_sample {
 #ifdef C11_ATOMIC
   _Atomic double r_value;  /**< r_value is the value of the metric sample */
 #else
+#ifdef DOUBLE_ATOMIC
   double r_value; /**< r_value is the value of the metric sample */
+#else
+  int64_t r_value;
+#endif
 #endif  
 };
 

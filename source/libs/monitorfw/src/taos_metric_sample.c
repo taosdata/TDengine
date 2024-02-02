@@ -81,7 +81,11 @@ int taos_metric_sample_add(taos_metric_sample_t *self, double r_value) {
     }
   }
 #else
+#ifdef DOUBLE_ATOMIC
   atomic_fetch_add_double(&self->r_value, r_value);
+#else
+  atomic_fetch_add_64(&self->r_value, r_value);
+#endif
 #endif
 
   return 0;
@@ -103,7 +107,11 @@ int taos_metric_sample_sub(taos_metric_sample_t *self, double r_value) {
     }
   }
 #else
+#ifdef DOUBLE_ATOMIC
   atomic_fetch_sub_double(&self->r_value, r_value);
+#else
+  atomic_fetch_sub_64(&self->r_value, r_value);
+#endif
 #endif
 
   return 0;
@@ -118,7 +126,11 @@ int taos_metric_sample_set(taos_metric_sample_t *self, double r_value) {
 #ifdef C11_ATOMIC
   atomic_store(&self->r_value, r_value);
 #else
+#ifdef DOUBLE_ATOMIC
   atomic_store_double(&self->r_value, r_value);
+#else
+  atomic_store_64(&self->r_value, r_value);
+#endif
 #endif  
   
   return 0;
@@ -140,7 +152,11 @@ int taos_metric_sample_exchange(taos_metric_sample_t *self, double r_value, doub
     }
   }
 #else
+#ifdef DOUBLE_ATOMIC
   *old_value = atomic_exchange_double(&self->r_value, r_value);
+#else
+  *old_value = atomic_exchange_64(&self->r_value, r_value);
+#endif
 #endif   
   
   return 0;
