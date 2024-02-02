@@ -271,15 +271,10 @@ pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Paginat
         .unwrap_or(Err(anyhow!("task not found")))
 }
 
-pub async fn get_point_file_template(
-    params: Query<DownloadAllPointsParams>,
-) -> anyhow::Result<NamedFile> {
-    let params = params.into_inner();
-
-    let from = params.from.into_dsn()?;
-    let template_file_data = match from.driver.as_str() {
-        "opcua" => get_opcua_csv_header(params.lang, true),
-        "opcda" => get_opcda_csv_header(params.lang, true),
+pub async fn get_point_file_template(driver: &String, lang: &String) -> anyhow::Result<NamedFile> {
+    let template_file_data = match driver.as_str() {
+        "opcua" => get_opcua_csv_header(lang, true),
+        "opcda" => get_opcda_csv_header(lang, true),
         _ => String::new(),
     };
 
@@ -319,6 +314,7 @@ async fn get_all_points(
         limit,
         lang: None,
     };
+    let lang = lang.unwrap_or("zh".to_string());
     match if let Some(agent) = data.via {
         controller.list_datasets_via_agent(agent, data).await
     } else {
@@ -329,34 +325,34 @@ async fn get_all_points(
             let data = match from.driver.as_str() {
                 "pi" | "pibackfill" => data.into_iter().map(|set| set.id).join("\n"),
                 "opcda" => {
-                    let mut result = get_opcda_csv_header(lang, false);
+                    let mut result = get_opcda_csv_header(&lang, false);
 
                     let mut i = 1;
                     data.iter().for_each(|item| {
-                        let data = format!(
-                            "{},{},1,opc_{{datatype}},t_{{tag_name}},val,,quality,ts,rts,ts,{}\n",
+                        let point_item = format!(
+                            "{},{},1,opc_{{type}},t_{{tag_name}},val,,,quality,ts,rts,,,{}\n",
                             i,
                             item.id,
                             item.name.clone().unwrap_or("".to_string())
                         );
-                        result.push_str(data.as_str());
+                        result.push_str(point_item.as_str());
                         i += 1;
                     });
 
                     result
                 }
                 "opcua" => {
-                    let mut result = get_opcua_csv_header(lang, false);
+                    let mut result = get_opcua_csv_header(&lang, false);
                     let mut i = 1;
 
                     data.iter().for_each(|item| {
-                        let data = format!(
+                        let point_item = format!(
                             "{},{},1,opc_{{type}},t_{{ns}}_{{id}},val,,,quality,ts,rts,,,{}\n",
                             i,
                             item.id,
                             item.name.clone().unwrap_or("".to_string())
                         );
-                        result.push_str(data.as_str());
+                        result.push_str(point_item.as_str());
                         i += 1;
                     });
 
@@ -370,13 +366,11 @@ async fn get_all_points(
     }
 }
 
-fn get_opcua_csv_header(lang: Option<String>, demo: bool) -> String {
-    let header = match lang.as_deref() {
-        Some("zh") => "\u{FEFF}序号,数据点位id,\"是否启用(可选,配置为0,将停止数据点位的采集)\",超级表名,子表名,采集值列名,采集值转换规则(可选),\"采集值类型(可选,默认根据实际类型自动填充,可选值有int, double, float,string)\",数据质量列名,OPC原始时间列名(默认作为时间戳主键),\"TD 服务端接收时间列名(将本列剪切到 ts_col 之前,将会使用本列作为时间戳主键)\", ts_col 的时间戳转换规则, received_ts_col 的时间戳转换规则,\" 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）\"\n",
-        _ => "\u{FEFF}No,OPC Point Id (Required),\"Enable point?(1-Enable,0-Disable)\",Stable Name,sub table name,value column name,value transform rule(Optional),\"value data type(Optional, candidate values:int, float, double, string)\",\"Quality Column Name(Optional, default is quality)\",OPC original time column name(default to be the primary key),\"TDengine received time column name (Optionally, if you want to use this column as the primary key, move it to the left of ts_col.)\",ts_col transform rule,receive_ts_col transform rule,\"Tag column(Optional, if need more, add new column to the right)\"\n",
+fn get_opcua_csv_header(lang: &String, demo: bool) -> String {
+    let header = match lang.as_str() {
+        "zh" => "\u{FEFF}序号,数据点位id,\"是否启用(可选,1 - 启动, 0 - 停用。配置为0,将删除数据点位对应的子表)\",超级表名,子表名,采集值列名,采集值转换规则(可选),\"采集值类型(可选,默认根据实际类型自动填充,可选值有int, double, float, string)\",数据质量列名,OPC原始时间列名(默认作为时间戳主键),\"TD 服务端接收时间列名(将本列剪切到 ts_col 之前,将会使用本列作为时间戳主键)\", ts_col 的时间戳转换规则, received_ts_col 的时间戳转换规则,\" 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）\"\n",
+        _ => "\u{FEFF}No,OPC Point Id (Required),\"Enable point?(1-Enable,0-Disable.if set to 0, will delete the sub table)\",Stable Name,sub table name,value column name,value transform rule(Optional),\"value data type(Optional, candidate values:int, float, double, string)\",\"Quality Column Name(Optional, default is quality)\",OPC original time column name(default to be the primary key),\"TDengine received time column name (Optionally, if you want to use this column as the primary key, move it to the left of ts_col.)\",ts_col transform rule,receive_ts_col transform rule,\"Tag column(Optional, if need more, add new column to the right)\"\n",
     };
-
-    // ,Value Type(Required),"Value Column Name(Optional, default is val)",(Required), (Optionally, set the first column in the order of ts_col and receive_ts_col. If neither ts_col nor received_ts_col are specified, ts is used as the first column.),"TD server receiving time column name (Optionally, set the first column in the order of ts_col and receive_ts_col.)",Tag Example1 (required),Tag Example2 (Optional)
 
     let mut header = header.to_string();
     header.push_str("0,point_id,enabled,stable,tbname,value_col,value_transform,type,quality_col,ts_col,received_ts_col,ts_transform,received_ts_transform,tag::VARCHAR(200)::name\n");
@@ -390,19 +384,19 @@ fn get_opcua_csv_header(lang: Option<String>, demo: bool) -> String {
     header
 }
 
-fn get_opcda_csv_header(lang: Option<String>, demo: bool) -> String {
-    let header = match lang.as_deref() {
-        Some("zh") => "\u{FEFF}序号,数据点位tag,是否启用(配置为0，将删除对应的子表),超级表名称,子表名称,采集值列名,采集值转换规则,数据质量列名,OPC原始时间列名,TD服务端接收时间列名,时间戳主键字段(从前面两个时间戳字段选择一个作为主键，可以加减数字来矫正）,\" 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）\"\n",
-        _ => "\u{FEFF}序号,数据点位id,是否启用(配置为0，将删除对应的子表),超级表名称,子表名称,采集值列名,采集值转换规则,数据质量列名,OPC原始时间列名,TD服务端接收时间列名,时间戳主键字段(从前面两个时间戳字段选择一个作为主键，可以加减数字来矫正）,\" 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）\"\n",
+fn get_opcda_csv_header(lang: &String, demo: bool) -> String {
+    let header = match lang.as_str() {
+        "zh" => "\u{FEFF}序号,数据点位tag,\"是否启用(可选,配置为0,将删除数据点位对应的子表)\",超级表名,子表名,采集值列名,采集值转换规则(可选),\"采集值类型(可选,默认根据实际类型自动填充,可选值有int, double, float,string)\",数据质量列名,OPC原始时间列名(默认作为时间戳主键),\"TD 服务端接收时间列名(将本列剪切到 ts_col 之前,将会使用本列作为时间戳主键)\", ts_col 的时间戳转换规则, received_ts_col 的时间戳转换规则,\" 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）\"\n",
+        _ => "\u{FEFF}No,OPC Point TagName (Required),\"Enable point?(1-Enable,0-Disable.if set to 0, will delete the sub table)\",Stable Name,sub table name,value column name,value transform rule(Optional),\"value data type(Optional, candidate values:int, float, double, string)\",\"Quality Column Name(Optional, default is quality)\",OPC original time column name(default to be the primary key),\"TDengine received time column name (Optionally, if you want to use this column as the primary key, move it to the left of ts_col.)\",ts_col transform rule,receive_ts_col transform rule,\"Tag column(Optional, if need more, add new column to the right)\"\n",
     };
 
     let mut header = header.to_string();
-    header.push_str("0,tag_name,enabled,stable,tbname,value_col,value_transform,quality_col,ts_col,received_ts_col,ts_pk,tag::VARCHAR(200)::name\n");
+    header.push_str("0,tag_name,enabled,stable,tbname,value_col,value_transform,type,quality_col,ts_col,received_ts_col,ts_transform,received_ts_transform,tag::VARCHAR(200)::name\n");
 
     if demo {
-        header.push_str("1,root.parent.tempeture,1,opc_{datatype},t_{tag_name},val,val *1.8 + 32,quality,ts,rts,ts,temperature\n");
-        header.push_str("2,root.parent.pressure,1,opc_{datatype},t_{tag_name},val,val + 10,quality,ts,rts,ts + 8h,pressure\n");
-        header.push_str("3,root.parent.current,1,opc_{datatype},t_{tag_name},val,,quality,ts,rts,ts - 6s,current\n");
+        header.push_str("1,root.parent.tempeture,1,opc_{type},t_{tag_name},val,val * 1.8 + 32,float,quality,ts,rts,,,temperature\n");
+        header.push_str("2,root.parent.pressure,1,opc_{type},t_{tag_name},val,val + 10,,quality,ts,rts,ts + 8h,rts + 8h,pressure\n");
+        header.push_str("3,root.parent.current,1,opc_{type},t_{tag_name},val,,,quality,ts,rts,ts - 6s,rts - 6s,current\n");
     }
 
     header
