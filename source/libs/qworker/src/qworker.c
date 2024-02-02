@@ -737,6 +737,13 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
     QW_ERR_JRET(code);
   }
 
+#if 0
+  SReadHandle* pReadHandle = qwMsg->node;
+  int64_t delay = 0;
+  bool fhFinish = false;
+  pReadHandle->api.tqReaderFn.tqGetStreamExecProgress(pReadHandle->vnode, 0, &delay, &fhFinish);
+#endif
+
   code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, sql, OPTR_EXEC_MODEL_BATCH);
   sql = NULL;
   if (code) {

@@ -66,7 +66,6 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
 
   pTq->path = taosStrdup(path);
   pTq->pVnode = pVnode;
-  pTq->walLogLastVer = pVnode->pWal->vers.lastVer;
 
   pTq->pHandle = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
   taosHashSetFreeFp(pTq->pHandle, tqDestroyTqHandle);
@@ -1055,7 +1054,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t code = tqStreamTaskProcessRunReq(pTq->pStreamMeta, pMsg, vnodeIsRoleLeader(pTq->pVnode));
 
   // let's continue scan data in the wal files
-  if(code == 0 && pReq->reqType >= 0){
+  if (code == 0 && (pReq->reqType >= 0 || pReq->reqType == STREAM_EXEC_T_RESUME_TASK)) {
     tqScanWalAsync(pTq, false);
   }
 
