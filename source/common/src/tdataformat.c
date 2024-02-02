@@ -23,41 +23,6 @@
 static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData);
 static int32_t (*tColDataUpdateValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward);
 
-// SBuffer ================================
-#ifdef BUILD_NO_CALL
-void tBufferDestroy(SBuffer *pBuffer) {
-  tFree(pBuffer->pBuf);
-  pBuffer->pBuf = NULL;
-}
-
-int32_t tBufferInit(SBuffer *pBuffer, int64_t size) {
-  pBuffer->nBuf = 0;
-  return tRealloc(&pBuffer->pBuf, size);
-}
-
-int32_t tBufferPut(SBuffer *pBuffer, const void *pData, int64_t nData) {
-  int32_t code = 0;
-
-  code = tRealloc(&pBuffer->pBuf, pBuffer->nBuf + nData);
-  if (code) return code;
-
-  memcpy(pBuffer->pBuf + pBuffer->nBuf, pData, nData);
-  pBuffer->nBuf += nData;
-
-  return code;
-}
-
-int32_t tBufferReserve(SBuffer *pBuffer, int64_t nData, void **ppData) {
-  int32_t code = tRealloc(&pBuffer->pBuf, pBuffer->nBuf + nData);
-  if (code) return code;
-
-  *ppData = pBuffer->pBuf + pBuffer->nBuf;
-  pBuffer->nBuf += nData;
-
-  return code;
-}
-#endif
-
 // ================================
 static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson);
 
