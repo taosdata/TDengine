@@ -3,21 +3,26 @@
 #include "tmisce.h"
 #include "ttime.h"
 #include "ttimer.h"
+#include "tglobal.h"
 
 SRWLatch  monitorLock;
 void*     tmrClientMonitor;
 tmr_h     tmrStartHandle;
 SHashObj* clusterMonitorInfoTable;
 
-static const int interval = 1000;  // ms
-static const int sendBathchSize = 10;
+static int interval = 30 * 1000;
+static int sendBathchSize = 1;
 
 int32_t sendReport(ClientMonitor* pMonitor, char* pCont);
 void    generateClusterReport(ClientMonitor* pMonitor, bool send) {
   char ts[50];
   sprintf(ts, "%" PRId64, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
   char* pCont = (char*)taos_collector_registry_bridge_new(pMonitor->registry, ts, "%" PRId64, NULL);
-  if (send && strlen(pCont) != TSDB_CODE_SUCCESS) {
+  if(NULL == pCont) {
+    uError("generateClusterReport failed, get null content.");
+    return;
+  }
+  if (send && strlen(pCont) != 0) {
     if (sendReport(pMonitor, pCont) == 0) {
       taos_collector_registry_clear_batch(pMonitor->registry);
     }
@@ -25,7 +30,7 @@ void    generateClusterReport(ClientMonitor* pMonitor, bool send) {
 }
 
 void reportSendProcess(void* param, void* tmrId) {
-  taosTmrReset(reportSendProcess, interval, NULL, tmrClientMonitor, &tmrStartHandle);
+  taosTmrReset(reportSendProcess, tsMonitorInterval * 1000, NULL, tmrClientMonitor, &tmrStartHandle);
   taosRLockLatch(&monitorLock);
 
   static int index = 0;
@@ -49,7 +54,15 @@ void monitorClientInitOnce() {
         (SHashObj*)taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
 
     tmrClientMonitor = taosTmrInit(0, 0, 0, "MONITOR");
-    tmrStartHandle = taosTmrStart(reportSendProcess, interval, NULL, tmrClientMonitor);
+    tmrStartHandle = taosTmrStart(reportSendProcess, tsMonitorInterval * 1000, NULL, tmrClientMonitor);
+    if(tsMonitorInterval < 1){
+      interval = 30 * 1000;
+    } else {
+      interval = tsMonitorInterval * 1000;
+    }
+     if (tsMonitorInterval < 10) {
+      sendBathchSize = (10 / sendBathchSize) + 1;
+    }
     taosInitRWLatch(&monitorLock);
   }
 }
@@ -184,4 +197,9 @@ void clusterMonitorClose(const char* clusterKey) {
     taosHashRemove(clusterMonitorInfoTable, clusterKey, strlen(clusterKey));
   }
   taosWUnLockLatch(&monitorLock);
+}
+
+const char* resultStr(SQL_RESULT_CODE code) {
+  static const char* result_state[] = {"Success", "Failed", "Cancel"};
+  return result_state[code];
 }

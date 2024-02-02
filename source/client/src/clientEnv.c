@@ -105,6 +105,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
                pRequest->metric.planCostUs, pRequest->metric.execCostUs);
 
       atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
+      selectLog(pTscObj->id, pRequest->killed, pRequest->code);
       reqType = SLOW_LOG_TYPE_QUERY;
     }
   }
@@ -115,7 +116,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
       taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 ", Duration:%" PRId64 "us, SQL:%s",
                        taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration,
                        pRequest->sqlstr);
-      SlowQueryLog(pTscObj->id, duration);
+      SlowQueryLog(pTscObj->id, pRequest->killed, pRequest->code, duration);
     }
   }
 

@@ -24,6 +24,14 @@ extern "C" {
 #include "thash.h"
 #include "query.h"
 
+typedef enum SQL_RESULT_CODE {
+  SQL_RESULT_SUCCESS = 0,
+  SQL_RESULT_FAILED = 1,
+  SQL_RESULT_CANCEL = 2,
+} SQL_RESULT_CODE;
+
+const char* resultStr(SQL_RESULT_CODE code);
+
 typedef struct {
   char                       clusterKey[512];
   SEpSet                     epSet;
@@ -38,8 +46,7 @@ void            clusterMonitorClose(const char* clusterKey);
 taos_counter_t* createClusterCounter(const char* clusterKey, const char* name, const char* help, size_t label_key_count,
                                      const char** label_keys);
 int             taosClusterCounterInc(const char* clusterKey, const char* counterName, const char** label_values);
-
-void cluster_monitor_stop();
+void            cluster_monitor_stop();
 
 #ifdef __cplusplus
 }

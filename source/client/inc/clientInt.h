@@ -432,11 +432,10 @@ int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, boo
 #endif
 
 void clusterSlowQueryMonitorInit(const char* clusterKey);
-void clusterSlowQueryLog(const char* clusterKey, int32_t cost);
-void SlowQueryLog(int64_t rid, int32_t cost);
+void SlowQueryLog(int64_t rid, bool killed, int32_t code, int32_t cost);
 
 void clusterSelectMonitorInit(const char* clusterKey);
-void clusterSelectLog(const char* clusterKey);
+void selectLog(int64_t rid,  bool killed, int32_t code);
 
 #ifdef __cplusplus
 }

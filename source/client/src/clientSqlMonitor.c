@@ -16,10 +16,12 @@
 #include "clientMonitor.h"
 #include "clientLog.h"
 
-const char* selectMonitorName = "slow_query";
-const char* selectMonitorHelp = "slow query log when cost > 3s";
-const int   selectMonitorLabelCount = 1;
-const char* selectMonitorLabels[] = {"default"};
+const char* selectMonitorName = "select sql";
+const char* selectMonitorHelp = "count for select sql";
+const int   selectMonitorLabelCount = 4;
+const char* selectMonitorLabels[] = {"cluster_id", "sql_type", "username", "result"};
+
+static const char* defaultClusterID = "";
 
 void clusterSelectMonitorInit(const char* clusterKey) {
   SAppInstInfo* pAppInstInfo = getAppInstInfo(clusterKey);
@@ -28,18 +30,27 @@ void clusterSelectMonitorInit(const char* clusterKey) {
   createClusterCounter(clusterKey, selectMonitorName, selectMonitorHelp, selectMonitorLabelCount, selectMonitorLabels);
 }
 
-void clusterSelectLog(const char* clusterKey) {
-  const char* selectMonitorLabelValues[] = {"default"};
+void clusterSelectLog(const char* clusterKey, const char* user, SQL_RESULT_CODE result) {
+  const char* selectMonitorLabelValues[] = {defaultClusterID, "select", user, resultStr(result)};
   taosClusterCounterInc(clusterKey, selectMonitorName, selectMonitorLabelValues);
 }
 
-void selectLog(int64_t rid) {
+void selectLog(int64_t rid,  bool killed, int32_t code) {
+  SQL_RESULT_CODE result = SQL_RESULT_SUCCESS;
+  if (TSDB_CODE_SUCCESS != code) {
+    result = SQL_RESULT_FAILED;
+  }
+  // to do Distinguish active Kill events
+  // else if (killed) {
+  //   result = SQL_RESULT_CANCEL;
+  // }
+
   STscObj* pTscObj = acquireTscObj(rid);
   if (pTscObj != NULL) {
-    if(pTscObj->pAppInfo == NULL) {
+    if (pTscObj->pAppInfo == NULL) {
       tscLog("selectLog, not found pAppInfo");
     }
-    return clusterSelectLog(pTscObj->pAppInfo->instKey);
+    return clusterSelectLog(pTscObj->pAppInfo->instKey, pTscObj->user, result);
   } else {
     tscLog("selectLog, not found rid");
   }

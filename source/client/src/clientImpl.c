@@ -160,6 +160,7 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     pInst = &p;
 
     clusterSlowQueryMonitorInit(p->instKey);
+    clusterSelectMonitorInit(p->instKey);
   } else {
     ASSERTS((*pInst) && (*pInst)->pAppHbMgr, "*pInst:%p, pAppHgMgr:%p", *pInst, (*pInst) ? (*pInst)->pAppHbMgr : NULL);
     // reset to 0 in case of conn with duplicated user key but its user has ever been dropped.

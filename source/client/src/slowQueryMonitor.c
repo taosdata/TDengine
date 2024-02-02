@@ -18,28 +18,23 @@
 #include "tglobal.h"
 
 const char* slowQueryName = "slow_query";
-const char* slowQueryHelp = "slow query log when cost > 3s";
-const int   slowQueryLabelCount = 1;
-const char* slowQueryLabels[] = {"cost"};
+const char* slowQueryHelp = "slow query log when cost over than config duration";
+const int   slowQueryLabelCount = 4;
+const char* slowQueryLabels[] = {"cluster_id", "username", "result", "duration"};
+static const char* defaultClusterID = "";
 
 const int64_t msInSeconds = 1000;
 const int64_t msInMinutes = 60 * 1000;
 
 static const char* getSlowQueryLableCostDesc(int64_t cost) {
-  if (cost >= 30 * msInMinutes) {
-    return " > 30 min";
-  } else if (cost >= 10 * msInMinutes) {
-    return " > 10 min";
-  } else if (cost >= 5 * msInMinutes) {
-    return " > 5 min";
-  } else if (cost >= 1 * msInMinutes) {
-    return " > 1 min";
-  } else if (cost >= 30 * msInSeconds) {
-    return " > 30 seconds";
+  if (cost >= 10000 * msInSeconds) {
+    return " > 10000 seconds";
+  } else if (cost >= 1000 * msInSeconds) {
+    return " > 1000 seconds";
+  } else if (cost >= 100 * msInSeconds) {
+    return " > 100 seconds";
   } else if (cost >= 10 * msInSeconds) {
     return " > 10 seconds";
-  } else if (cost >= 5 * msInSeconds) {
-    return " > 5 seconds";
   } else if (cost >= 3 * msInSeconds) {
     return " > 3 seconds";
   }
@@ -54,19 +49,28 @@ void clusterSlowQueryMonitorInit(const char* clusterKey) {
   createClusterCounter(clusterKey, slowQueryName, slowQueryHelp, slowQueryLabelCount, slowQueryLabels);
 }
 
-void clusterSlowQueryLog(const char* clusterKey, int32_t cost) {
-  const char* slowQueryLabelValues[] = {getSlowQueryLableCostDesc(cost)};
+void clusterSlowQueryLog(const char* clusterKey, const char* user, SQL_RESULT_CODE result, int32_t cost) {
+  const char* slowQueryLabelValues[] = {defaultClusterID, user, resultStr(result), getSlowQueryLableCostDesc(cost)};
   taosClusterCounterInc(clusterKey, slowQueryName, slowQueryLabelValues);
 }
 
-void SlowQueryLog(int64_t rid, int32_t cost) {
+void SlowQueryLog(int64_t rid, bool killed, int32_t code, int32_t cost) {
   if (!enableSlowQueryMonitor) return;
+  SQL_RESULT_CODE result = SQL_RESULT_SUCCESS;
+  if (TSDB_CODE_SUCCESS != code) {
+    result = SQL_RESULT_FAILED;
+  }
+  // to do Distinguish active Kill events
+  // else if (killed) {
+  //   result = SQL_RESULT_CANCEL;
+  // }
+
   STscObj* pTscObj = acquireTscObj(rid);
   if (pTscObj != NULL) {
     if(pTscObj->pAppInfo == NULL) {
       tscLog("SlowQueryLog, not found pAppInfo");
     }
-    return clusterSlowQueryLog(pTscObj->pAppInfo->instKey, cost);
+    return clusterSlowQueryLog(pTscObj->pAppInfo->instKey, pTscObj->user, result, cost);
   } else {
     tscLog("SlowQueryLog, not found rid");
   }
