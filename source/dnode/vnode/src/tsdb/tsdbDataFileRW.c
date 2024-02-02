@@ -1051,17 +1051,9 @@ static int32_t tsdbDataFileDoWriteTSRow(SDataFileWriter *writer, TSDBROW *row) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  TSDBKEY key[1];
-  if (row->type == TSDBROW_ROW_FMT) {
-    key->ts = row->pTSRow->ts;
-    key->version = row->version;
-  } else {
-    key->ts = row->pBlockData->aTSKEY[row->iRow];
-    key->version = row->pBlockData->aVersion[row->iRow];
-  }
-  if (key->version <= writer->config->compactVersion                        //
-      && writer->blockData->nRow > 0                                        //
-      && writer->blockData->aTSKEY[writer->blockData->nRow - 1] == key->ts  //
+  if (TSDBROW_VERSION(row) <= writer->config->compactVersion                                             //
+      && writer->blockData->nRow > 0                                                                     //
+      && tsdbRowCmprFn(row, &tsdbRowFromBlockData(writer->blockData, writer->blockData->nRow - 1)) == 0  //
   ) {
     code = tBlockDataUpdateRow(writer->blockData, row, writer->config->skmRow->pTSchema);
     TSDB_CHECK_CODE(code, lino, _exit);
