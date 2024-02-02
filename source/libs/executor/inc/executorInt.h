@@ -299,8 +299,8 @@ typedef struct STmsSubTableInput {
 
   SArray* aBlockPages;
   SSDataBlock* pPageBlock;
-
   int32_t pageIdx;
+
   int32_t rowIdx;
   int64_t* aTs;
 } STmsSubTableInput;
