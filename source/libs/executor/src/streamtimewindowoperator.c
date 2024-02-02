@@ -2287,6 +2287,10 @@ int32_t getAllSessionWindow(SSHashObj* pHashMap, SSHashObj* pStUpdated) {
   int32_t iter = 0;
   while ((pIte = tSimpleHashIterate(pHashMap, pIte, &iter)) != NULL) {
     SResultWindowInfo* pWinInfo = pIte;
+    if (!pWinInfo->pStatePos->beUpdated) {
+      continue;
+    }
+    pWinInfo->pStatePos->beUpdated = false;
     saveResult(*pWinInfo, pStUpdated);
   }
   return TSDB_CODE_SUCCESS;
