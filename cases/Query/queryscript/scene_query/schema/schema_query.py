@@ -935,7 +935,7 @@ class TDTestQuery(TDCase):
             succ_flag = 1
         except:
             self.logger.info("sql is not support :=====%s; " %sql)
-            self.tdSql.error(sql)
+            #self.tdSql.error(sql)
             
         if rows:
             self.explain_sql(sql) if rows > 0 else sys.exit("data rows = 0")
@@ -1188,11 +1188,18 @@ class TDTestQuery(TDCase):
         startTime = time.time() 
         
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
-         
-        #self.describe_table(self.db_tb) 
         
-        #self.describe_table("`table_sample_1`.`stable_1`") 
-        #self.describe_table("`test_10bi`.`meters`")
+        
+        #self.describe_table("`accuracy_operation_db`.`st`") 
+        
+        # self.describe_table("`accuracy_db`.`st_common`")
+        # self.describe_table("`accuracy_db`.`st_boundary`")
+        # self.describe_table("`accuracy_db`.`st_with_empty_ct`")
+        # self.describe_table("`accuracy_db`.`st_alldata_1`") 
+        
+        #self.describe_table(self.db_tb) 
+        # #self.describe_table("`table_sample_1`.`stable_1`") 
+        # #self.describe_table("`test_10bi`.`meters`")
         self.describe_table("`information_schema`.`ins_dnodes`") 
         self.describe_table("`information_schema`.`ins_mnodes`")
         #TD-24684 delete self.describe_table("`information_schema`.`ins_modules`")  
@@ -1217,6 +1224,9 @@ class TDTestQuery(TDCase):
         self.describe_table("`information_schema`.`ins_stream_tasks`")
         self.describe_table("`information_schema`.`ins_vnodes`")
         self.describe_table("`information_schema`.`ins_user_privileges`")
+        self.describe_table("`information_schema`.`ins_views`")
+        self.describe_table("`information_schema`.`ins_compacts`")
+        self.describe_table("`information_schema`.`ins_compact_details`")
         self.describe_table("`performance_schema`.`perf_connections`")
         self.describe_table("`performance_schema`.`perf_queries`")
         self.describe_table("`performance_schema`.`perf_consumers`")

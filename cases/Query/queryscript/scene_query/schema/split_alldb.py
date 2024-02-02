@@ -56,11 +56,21 @@ class TDTestQuery(TDCase):
         rows = self.tdSql.query_row
         
         for i in range(rows):
-            compact_db = " compact database `%s`" %self.tdSql.getData(i,0)
-            #self.tdSql.execute(compact_db)
-            self.execute_sql(compact_db)
-            flush_db = " flush database `%s`" %self.tdSql.getData(i,0)
-            self.execute_sql(flush_db)
+            
+            db_name = self.tdSql.getData(i,0)
+            use_db = "use `%s`" %db_name
+            self.tdSql.query(use_db) 
+            
+            select_vgroup = "select * from information_schema.ins_vgroups where db_name= '%s'" %db_name
+            self.tdSql.query(select_vgroup) 
+            
+            split_vgroup = " split vgroup %s " %self.tdSql.getData(0,0)
+            self.execute_sql(split_vgroup)
+            
+            show_local_sql = "select `name` from information_schema.ins_databases where `vgroups` is not null;"
+            self.tdSql.query(show_local_sql) 
+            
+        time.sleep(60)
                 
     def execute_sql(self,sql) :
         try:

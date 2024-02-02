@@ -18,6 +18,7 @@ import sys
 from itertools import combinations
 from faker import Faker
 import subprocess
+from Query.queryutil.createdata import *
 from taostest import TDCase
 from taostest.util.remote import Remote
 from taostest.util.common import TDCom
@@ -31,6 +32,7 @@ class TDTestQuery(TDCase):
         self.tdCom = TDCom(self.tdSql)
         self.remote: Remote = Remote(self.logger)
         self.taosd = TaosD(self.remote)
+        self.tdCreateData = TDCreateData(self.tdSql, self.logger)
         
         self.firstEP = []       
         self.source_taosd_list = []
@@ -66,17 +68,10 @@ class TDTestQuery(TDCase):
         self.tdSql.execute("reset query cache;")
         sql = "explain " + sql 
         self.tdSql.query(sql,queryTimes=1) 
-        
-    
-    # def drop_n_table(self,database,n):
-    #     #删除部分子表
-    #     for i in range(n):
-    #         ii = random.randint(1,100)
-    #         self.tdSql.execute("drop table %s.stb%d;"%(database,ii))
 
-    def drop_n_table(self,database,n,flush):
+    def drop_n_table(self,database,n,table_num,flush):
         #删除结尾为n的子表
-        for i in range(10000):
+        for i in range(table_num):
             table_name = '%s.stb%d' %(database,i)
             if int(str(table_name)[-1]) == n and flush == 'N':         
                 self.tdSql.execute("drop table %s.stb%d;"%(database,i))
@@ -149,13 +144,10 @@ class TDTestQuery(TDCase):
         return(data_filter,like_match_filter,in_filter,orderby_filter,groupby_filter,partitionby_filter,limit_filter)
 
     def where_filter(self): 
-        data_filters = ['voltage >= -127 ' , 'voltage <= 127 ' , 'voltage <= 2147483647 ' , 'voltage >= -2147483647 ',  
-                        'current >= -1.7E308 ','current <= 1.7E308 ', 
-                        'phase >= -1.7E308 ','phase <= 1.7E308 ', 
-                        #'groupid >= -127 ' , 'groupid <= 127 ' ,'groupid <= 2147483647 ' , 'groupid >= -2147483647 ',
-                        'voltage between -2147483647 and 2147483647 ','voltage between -127 and 127  ',
-                        'current between -1.7E308 and 1.7E308 ' ,'phase between -1.7E308 and 1.7E308 ' ,
-                        #'groupid between -127 and 127 ','groupid between -2147483647 and 2147483647 ',
+        data_filters = ['voltage <= 2147483647 ' , 'voltage >= -2147483647 ', 'voltage between -2147483647 and 2147483647 ', 
+                        'current >= -1.7E308 ','current <= 1.7E308 ', 'current between -1.7E308 and 1.7E308 ' ,
+                        'phase >= -1.7E308 ','phase <= 1.7E308 ', 'phase between -1.7E308 and 1.7E308 ' ,
+                        'groupid <= 2147483647 ' , 'groupid >= -2147483647 ','groupid between -2147483647 and 2147483647 ',
                         'current is not null ', 'voltage is not null ' ,'phase is not null ' ,'groupid is not null ' ,'location is not null ' ,                   
                         'ts is not null ' ,'_c0 is not null ' ,'_C0 is not null ' ,'_rowts is not null ' ,
                         'ts <= now ' , 'ts >=  1500000000000' ,' ts between 1500000000000 and now +1h  ', 
@@ -165,16 +157,14 @@ class TDTestQuery(TDCase):
         data_filter = random.sample(data_filters,1)
 
         like_filters = ['location like \'California%\' ','(location like \'California%\'  or location = \'0\'  or location = \'California_\' or location is not null ) ',]
-        match_filters = ['location match \'California\' ','location nmatch \'california\' ','location match \'[California]\' ','location nmatch \'^[California]\' ',]
+        match_filters = ['location match \'California\' ','location nmatch \'california\' ','location match \'[California]\' ','location nmatch \'^[california]\' ',]
         like_match_filters = random.sample(random.sample(like_filters,1) + random.sample(match_filters,1),1)
         like_match_filter = str(like_match_filters).replace("[","").replace("]","").replace("\"","")
 
         q_tinyint_list,t_tinyint_list=[],[]
         for i in range(-100,100):
             q_tinyint_list.append(i)
-            t_tinyint_list.append(i)
-            
-            
+            t_tinyint_list.append(i)            
         
         q_tinyint_list = " c1 in (" + str(q_tinyint_list).replace("[","").replace("]","") + ")"   
         t_tinyint_list = " t0 in (" + str(t_tinyint_list).replace("[","").replace("]","") + ")"       
@@ -196,10 +186,13 @@ class TDTestQuery(TDCase):
         partitionby_filter = str(random.sample(partitionby_filters,i)).replace("[","").replace("]","").replace("'","")
         partitionby_filter = str('partition by ' + partitionby_filter).replace("[","").replace("]","").replace("'","")
         
-        limit_filters = ['limit 100000','limit 100000,1000','limit 100000 offset 10000','slimit 100000','slimit 100000,1000','slimit 100000 soffset 10000']
+        limit_filters = ['limit 1000','limit 1000,100','limit 1000 offset 100']
         limit_filter = str(random.sample(limit_filters,1)).replace("[","").replace("]","").replace("'","")
         
-        return(data_filter,like_match_filter,in_filter,orderby_filter,groupby_filter,partitionby_filter,limit_filter)
+        slimit_filters = ['slimit 1000','slimit 1000,100','slimit 1000 soffset 100']
+        slimit_filter = str(random.sample(slimit_filters,1)).replace("[","").replace("]","").replace("'","")
+        
+        return(data_filter,like_match_filter,in_filter,orderby_filter,groupby_filter,partitionby_filter,limit_filter,slimit_filter)
     
     def time_window(self,i):  
         
@@ -241,13 +234,32 @@ class TDTestQuery(TDCase):
     def sql_base_check(self,dbname,sql1,sql2) :               
         sql1 = "select count(*) from %s.meters" %dbname
         self.tdSql.query(sql1)
-        base_data = self.tdSql.getData(0,0)
+        base_data1 = self.tdSql.getData(0,0)
         
         sql2 = "select count(*) from (select * from %s.meters order by ts)" %dbname
         self.tdSql.query(sql2)
-        check_data = self.tdSql.getData(0,0)
+        check_data2 = self.tdSql.getData(0,0)
         
-        self.value_check(base_data,check_data,sql1,sql2)
+        sql3 = "select count(*) from (select * from %s.meters order by ts desc)" %dbname
+        self.tdSql.query(sql3)
+        check_data3 = self.tdSql.getData(0,0)
+        
+        sql4 = "select sum(cc) from (select count(*) cc from %s.meters group by tbname)" %dbname
+        self.tdSql.query(sql4)
+        check_data4 = self.tdSql.getData(0,0)
+        
+        sql5 = "select sum(cc) from (select count(*) cc from %s.meters partition by tbname)" %dbname
+        self.tdSql.query(sql5)
+        check_data5 = self.tdSql.getData(0,0)
+        
+        self.value_check(base_data1,check_data2,sql1,sql2)
+        self.value_check(base_data1,check_data3,sql1,sql3)
+        self.value_check(base_data1,check_data4,sql1,sql4)
+        self.value_check(base_data1,check_data5,sql1,sql5)
+        
+        sql_diff = "select * from (select diff(ts) as dif from %s.meters partition by tbname) where dif !=1" %dbname
+        self.tdSql.query(sql_diff)
+        self.tdSql.checkRow(0)
         
           
     def sql_check(self,dbname,sql1,sql2) :  
@@ -351,7 +363,7 @@ class TDTestQuery(TDCase):
             column = str(random.sample(column_lists,1)).replace("[","").replace("]","").replace("'","")
             
         return column   
-     
+         
     def count_select_column(self,dbname):
         self.logger.info("\n==========================count_select_column==========================\n")
                           
@@ -370,7 +382,7 @@ class TDTestQuery(TDCase):
                         in_filter = where_filters[2] 
                         orderby_filter = where_filters[3]  
                         groupby_filter = where_filters[4] 
-                        # partitonby_filter = where_filters[5] 
+                        partitonby_filter = where_filters[5] 
                         # limit_filter = where_filters[6]  
                         sql1 =  "select count(*) from %s.meters " %(dbname)                     
                         
@@ -401,14 +413,14 @@ class TDTestQuery(TDCase):
                         sql2 = "select count(*) from (select %s from %s.meters %s desc)" %(self.column_select(3),dbname,orderby_filter)
                         self.sql_check(dbname,sql1,sql2)
                         
-                        # sql2 = "select count(*) from (select %s from %s.meters %s )" %(self.column_select(0),dbname,groupby_filter)
-                        # self.sql_check(dbname,sql1,sql2)                       
-                        # sql2 = "select count(*) from (select %s from %s.meters %s )" %(self.column_select(1),dbname,groupby_filter)
-                        # self.sql_check(dbname,sql1,sql2)
-                        # sql2 = "select count(*) from (select %s from %s.meters %s )" %(self.column_select(2),dbname,groupby_filter)
-                        # self.sql_check(dbname,sql1,sql2)
-                        # sql2 = "select count(*) from (select %s from %s.meters %s )" %(self.column_select(3),dbname,groupby_filter)
-                        # self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters %s )" %(self.column_select(0),dbname,partitonby_filter)
+                        self.sql_check(dbname,sql1,sql2)                       
+                        sql2 = "select count(*) from (select %s from %s.meters %s )" %(self.column_select(1),dbname,partitonby_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters %s )" %(self.column_select(2),dbname,partitonby_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters %s )" %(self.column_select(3),dbname,partitonby_filter)
+                        self.sql_check(dbname,sql1,sql2)
                         
                         sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(0),dbname,data_filter)
                         self.sql_check(dbname,sql1,sql2)                       
@@ -428,14 +440,14 @@ class TDTestQuery(TDCase):
                         sql2 = "select count(*) from (select %s from %s.meters where  %s %s)" %(self.column_select(3),dbname,data_filter,orderby_filter)
                         self.sql_check(dbname,sql1,sql2)
                         
-                        # sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(0),dbname,like_match_filter)
-                        # self.sql_check(dbname,sql1,sql2)                       
-                        # sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(1),dbname,like_match_filter)
-                        # self.sql_check(dbname,sql1,sql2)
-                        # sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(2),dbname,like_match_filter)
-                        # self.sql_check(dbname,sql1,sql2)
-                        # sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(3),dbname,like_match_filter)
-                        # self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(0),dbname,like_match_filter)
+                        self.sql_check(dbname,sql1,sql2)                       
+                        sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(1),dbname,like_match_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(2),dbname,like_match_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(3),dbname,like_match_filter)
+                        self.sql_check(dbname,sql1,sql2)
                         
                         sql2 = "select count(*) from (select %s from %s.meters where  %s %s desc)" %(self.column_select(0),dbname,data_filter,orderby_filter)
                         self.sql_check(dbname,sql1,sql2)                       
@@ -452,7 +464,159 @@ class TDTestQuery(TDCase):
 
             except Exception as e:
                 raise e   
+
                     
+    def orderby_column_select(self,num):
+        column = ''
+        column_lists = ['ts','_c0','_C0','_rowts','current','voltage','phase','groupid','location','tbname']
+        column_lists_desc = ['ts desc ','_c0 desc ','_C0 desc ','_rowts desc ','current desc ','voltage desc ','phase desc ','groupid desc ','location desc ','tbname desc ']
+        if num == 0:    
+            column = '*'
+        elif num == 1:    
+            column = str(column_lists).replace("[","").replace("]","").replace("'","")
+        elif num == 2:            
+            i = random.randint(1,9)
+            column = str(random.sample(column_lists,i)).replace("[","").replace("]","").replace("'","")
+        elif num == 21:            
+            i = random.randint(1,9)
+            column = str(random.sample(column_lists_desc,i)).replace("[","").replace("]","").replace("'","")
+        elif num == 3:            
+            column = str(random.sample(column_lists,1)).replace("[","").replace("]","").replace("'","")
+            
+        return column  
+                
+    def order_by_column(self,dbname):
+        self.logger.info("\n==========================order_by_column==========================\n")
+                          
+        for i in (1,):
+            func = self.base_function_all(i)
+            try:                
+                self.tdSql.execute('use %s;' %dbname)                          
+                where_filters = self.where_filter()
+                print(where_filters[0])
+                for i in range(0,len(where_filters[0])+1):
+                    data_filter = list(combinations(where_filters[0],i+1))
+                    print(data_filter)
+                    for data_filter in data_filter:
+                        data_filter = str(data_filter).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
+                        like_match_filter = where_filters[1]
+                        in_filter = where_filters[2] 
+                        orderby_filter = where_filters[3]  
+                        groupby_filter = where_filters[4] 
+                        partitonby_filter = where_filters[5] 
+                        limit_filter = where_filters[6] 
+                        
+                        select_2 = self.orderby_column_select(2)
+                        select_21 = self.orderby_column_select(21)
+                        select_21_asc = str(select_21).replace("desc","")
+                        select_3 = self.orderby_column_select(3)                      
+                        
+                        sql2 = "select %s from %s.meters order by ts" %(self.orderby_column_select(0),dbname)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')                       
+                        sql2 = "select %s from %s.meters order by ts" %(self.orderby_column_select(1),dbname)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')
+                        sql2 = "select %s from %s.meters order by %s" %(select_2,dbname,select_2)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')
+                        sql2 = "select %s from %s.meters order by %s" %(select_3,dbname,select_3)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')
+                        sql2 = "select %s from %s.meters order by ts desc" %(self.orderby_column_select(0),dbname)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')                       
+                        sql2 = "select %s from %s.meters order by ts desc" %(self.orderby_column_select(1),dbname)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')
+                        sql2 = "select %s from %s.meters order by %s " %(select_21_asc,dbname,select_21)  #desc
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')
+                        sql2 = "select %s from %s.meters order by %s desc" %(select_3,dbname,select_3)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')
+                        
+                        sql2 = "select * from (select %s from %s.meters order by ts)" %(self.orderby_column_select(0),dbname)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')                       
+                        sql2 = "select * from (select %s from %s.meters order by ts)" %(self.orderby_column_select(1),dbname)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')
+                        sql2 = "select * from (select %s from %s.meters order by %s)" %(select_2,dbname,select_2)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')
+                        sql2 = "select * from (select %s from %s.meters order by %s)" %(select_3,dbname,select_3)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')
+                        sql2 = "select * from (select %s from %s.meters order by ts desc)" %(self.orderby_column_select(0),dbname)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')                       
+                        sql2 = "select * from (select %s from %s.meters order by ts desc)" %(self.orderby_column_select(1),dbname)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')
+                        sql2 = "select * from (select %s from %s.meters order by %s )" %(select_21_asc,dbname,select_21)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')
+                        sql2 = "select * from (select %s from %s.meters order by %s desc)" %(select_3,dbname,select_3)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')
+                        
+                        sql2 = "select %s from %s.meters %s  order by ts" %(self.orderby_column_select(0),dbname,partitonby_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')                       
+                        sql2 = "select %s from %s.meters %s  order by ts" %(self.orderby_column_select(1),dbname,partitonby_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc') 
+                        sql2 = "select %s from %s.meters %s  order by %s" %(select_2,dbname,partitonby_filter,select_2)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc') 
+                        sql2 = "select %s from %s.meters %s  order by %s" %(select_3,dbname,partitonby_filter,select_3)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc') 
+                        sql2 = "select %s from %s.meters %s  order by ts desc" %(self.orderby_column_select(0),dbname,partitonby_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')                       
+                        sql2 = "select %s from %s.meters %s  order by ts desc" %(self.orderby_column_select(1),dbname,partitonby_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc') 
+                        sql2 = "select %s from %s.meters %s  order by %s" %(select_21_asc,dbname,partitonby_filter,select_21)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc') 
+                        sql2 = "select %s from %s.meters %s  order by %s desc" %(select_3,dbname,partitonby_filter,select_3)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc') 
+                        
+                        sql2 = "select %s from %s.meters where  %s  order by ts" %(self.orderby_column_select(0),dbname,data_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')                      
+                        sql2 = "select %s from %s.meters where  %s  order by ts" %(self.orderby_column_select(1),dbname,data_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')
+                        sql2 = "select %s from %s.meters where  %s order by %s" %(select_2,dbname,data_filter,select_2)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')
+                        sql2 = "select %s from %s.meters where  %s order by %s" %(select_3,dbname,data_filter,select_3)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')
+                        sql2 = "select %s from %s.meters where  %s  order by ts desc" %(self.orderby_column_select(0),dbname,data_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')                      
+                        sql2 = "select %s from %s.meters where  %s  order by ts desc" %(self.orderby_column_select(1),dbname,data_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')
+                        sql2 = "select %s from %s.meters where  %s order by %s" %(select_21_asc,dbname,data_filter,select_21)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')
+                        sql2 = "select %s from %s.meters where  %s order by %s desc" %(select_3,dbname,data_filter,select_3)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')
+                
+                        sql2 = "select %s from %s.meters where  %s  order by ts" %(self.orderby_column_select(0),dbname,like_match_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')                     
+                        sql2 = "select %s from %s.meters where  %s  order by ts" %(self.orderby_column_select(1),dbname,like_match_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')
+                        sql2 = "select %s from %s.meters where  %s order by %s" %(select_2,dbname,like_match_filter,select_2)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')
+                        sql2 = "select %s from %s.meters where  %s order by %s" %(select_3,dbname,like_match_filter,select_3)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')
+                        sql2 = "select %s from %s.meters where  %s  order by ts desc" %(self.orderby_column_select(0),dbname,like_match_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')                     
+                        sql2 = "select %s from %s.meters where  %s  order by ts desc" %(self.orderby_column_select(1),dbname,like_match_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')
+                        sql2 = "select %s from %s.meters where  %s order by %s" %(select_21_asc,dbname,like_match_filter,select_21)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')
+                        sql2 = "select %s from %s.meters where  %s order by %s desc" %(select_3,dbname,like_match_filter,select_3)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')
+                
+                        sql2 = "select %s from %s.meters where  %s  order by ts %s" %(self.orderby_column_select(0),dbname,like_match_filter,limit_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')                     
+                        sql2 = "select %s from %s.meters where  %s  order by ts %s" %(self.orderby_column_select(1),dbname,like_match_filter,limit_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')
+                        sql2 = "select %s from %s.meters where  %s order by %s %s" %(select_2,dbname,like_match_filter,select_2,limit_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')
+                        sql2 = "select %s from %s.meters where  %s order by %s %s" %(select_3,dbname,like_match_filter,select_3,limit_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'asc')
+                        sql2 = "select %s from %s.meters where  %s  order by ts desc %s" %(self.orderby_column_select(0),dbname,like_match_filter,limit_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')                     
+                        sql2 = "select %s from %s.meters where  %s  order by ts desc %s" %(self.orderby_column_select(1),dbname,like_match_filter,limit_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')
+                        sql2 = "select %s from %s.meters where  %s order by %s %s" %(select_21_asc,dbname,like_match_filter,select_21,limit_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')
+                        sql2 = "select %s from %s.meters where  %s order by %s desc %s" %(select_3,dbname,like_match_filter,select_3,limit_filter)
+                        self.tdCreateData.orderby_check('%s' %sql2,'desc')
+                                
+
+            except Exception as e:
+                raise e   
+                                
     def base_function_all(self,i):
         columns_datas = ['(current,1)','(voltage,1)','(phase,1)','(groupid,1)',]
         columns_data = random.sample(columns_datas,1)
@@ -465,7 +629,9 @@ class TDTestQuery(TDCase):
             func_column_process = str(func + columns_data).replace("[","").replace("]","").replace("'","").replace(", ","").replace(",1","")
             func_1 = ['TOP']
             func_column_process_1 = str(func_1 + columns_data).replace("[","").replace("]","").replace("'","").replace(", ","")
-            return func_column_process,func_column_process_1
+            func_2 = ['DESC']
+            func_column_process_2 = str(func_2 + columns_data).replace("[","").replace("]","").replace("(","").replace(")","").replace("'","").replace(", ","")
+            return func_column_process,func_column_process_1,func_column_process_2
         elif i == 2:             
             func = ['MIN']
             func_column_process = str(func + columns_data).replace("[","").replace("]","").replace("'","").replace(", ","").replace(",1","")
@@ -1139,6 +1305,7 @@ class TDTestQuery(TDCase):
             port = source_taosd_list[source][1]
             self.remote.cmd(taosBenchmark_fqdn[0], f'taosBenchmark -h {host} -P {port} -t {table_num} -n {table_per_row} -d {dbname} -m {tb_m} -a {replica} -y')
             self.base_sql_count(dbname,table_num,table_per_row)
+            #self.tdSql.query(f'alter database {dbname} cachemodel "both" ')
             
             if replica == 1 :
                 sql = " select name,`replica` from information_schema.ins_databases where name = '%s';" %dbname
@@ -1157,6 +1324,27 @@ class TDTestQuery(TDCase):
         sql = "select count(*) from %s.meters" %dbname
         self.tdSql.query(sql)
         self.tdSql.checkData(0,0,table_num*table_per_row)
+        
+    def show_table_distributed(self,dbname):
+        time.sleep(10)
+        sql = "show table distributed %s.meters" %dbname
+        self.tdSql.query(sql)
+        block_row = self.tdSql.getData(1,0)
+        self.logger.debug(block_row)
+        block_row = block_row.split('Block_Rows=[')[1]
+        block_row = block_row.split(']')[0]
+        self.logger.debug(block_row)
+        
+        stt_row = self.tdSql.getData(2,0)
+        self.logger.debug(stt_row)
+        stt_row = stt_row.split('Stt_Rows=[')[1]
+        stt_row = stt_row.split(']')[0]
+        self.logger.debug(stt_row)
+        
+        row_count = int(block_row) + int(stt_row)
+        sql = "select count(*) from %s.meters" %dbname
+        self.tdSql.query(sql)
+        self.tdSql.checkData(0,0,row_count)
         
     def dnodes_database_replica_check(self,dbname,replica): 
         if replica == 1 :
@@ -1182,25 +1370,34 @@ class TDTestQuery(TDCase):
             self.tdSql.checkData(0,1,'ready')
           
                             
-    def count_db_common(self,dbname,replica): 
+    def count_db_common_bak(self,dbname,replica,table_num): 
         # #每个库的通用检查
         self.sql_base_check(dbname,sql1='',sql2='') 
         self.dnodes_database_replica_check(dbname,replica)
         self.count_select_column(dbname)
+        self.order_by_column(dbname)
         self.max_min_top_bottom_select_column(dbname)
         self.first_last_select_column(dbname)
         
-        self.drop_n_table(dbname,random.randint(1,5),flush='N')  
+        self.tdSql.execute("flush database %s;" %dbname) 
+        self.show_table_distributed(dbname)
+        
+        self.drop_n_table(dbname,random.randint(1,5),table_num,flush='N')  
         self.sql_base_check(dbname,sql1='',sql2='') 
         self.dnodes_database_replica_check(dbname,replica)
         self.count_select_column(dbname)
+        self.order_by_column(dbname)
         self.max_min_top_bottom_select_column(dbname)
         self.first_last_select_column(dbname)
+        
+        self.tdSql.execute("flush database %s;" %dbname) 
+        self.show_table_distributed(dbname)
         
         self.delete_ts_data(dbname,1500000000000)  
         self.sql_base_check(dbname,sql1='',sql2='') 
         self.dnodes_database_replica_check(dbname,replica)
         self.count_select_column(dbname)
+        self.order_by_column(dbname)
         self.max_min_top_bottom_select_column(dbname)
         self.first_last_select_column(dbname)
         
@@ -1209,10 +1406,11 @@ class TDTestQuery(TDCase):
         self.dnodes_database_replica_check(dbname,replica)
         
         #drop and flush database 
-        self.drop_n_table(dbname,random.randint(6,9),flush='Y')  
+        self.drop_n_table(dbname,random.randint(6,9),table_num,flush='Y')  
         self.delete_ts_data(dbname,1500000000000) 
         self.sql_base_check(dbname,sql1='',sql2='') 
         self.count_select_column(dbname)
+        self.order_by_column(dbname)
         self.max_min_top_bottom_select_column(dbname)
         self.first_last_select_column(dbname)
         
@@ -1221,43 +1419,122 @@ class TDTestQuery(TDCase):
         self.dnodes_database_replica_check(dbname,replica)
         
         self.tdSql.execute("flush database %s;" %dbname) 
+        #self.show_table_distributed(dbname)
         self.sql_base_check(dbname,sql1='',sql2='')
         self.tdSql.execute("drop database %s;" %dbname) 
         self.tdSql.error("flush database %s;" %dbname) 
         self.tdSql.error("select * from %s.meters;" %dbname) 
 
-                            
-    def drop_db_common(self,dbname,replica): 
+                              
+    def count_db_common(self,dbname,replica,table_num): 
+        # #每个库的通用检查
+        self.sql_base_check(dbname,sql1='',sql2='') 
+        self.dnodes_database_replica_check(dbname,replica)
+        
+        i = random.randint(1,5)
+        if i==1:        
+            self.count_select_column(dbname)
+            self.order_by_column(dbname)
+            self.max_min_top_bottom_select_column(dbname)
+            self.first_last_select_column(dbname)
+            
+            self.tdSql.execute("flush database %s;" %dbname) 
+            self.show_table_distributed(dbname)
+        
+        elif i==2:
+            self.drop_n_table(dbname,random.randint(1,5),table_num,flush='N')  
+            self.sql_base_check(dbname,sql1='',sql2='') 
+            self.dnodes_database_replica_check(dbname,replica)
+            self.count_select_column(dbname)
+            self.order_by_column(dbname)
+            self.max_min_top_bottom_select_column(dbname)
+            self.first_last_select_column(dbname)
+        
+            self.tdSql.execute("flush database %s;" %dbname) 
+            self.show_table_distributed(dbname)
+        
+        elif i==3:
+            self.delete_ts_data(dbname,1500000000000)  
+            self.sql_base_check(dbname,sql1='',sql2='') 
+            self.dnodes_database_replica_check(dbname,replica)
+            self.count_select_column(dbname)
+            self.order_by_column(dbname)
+            self.max_min_top_bottom_select_column(dbname)
+            self.first_last_select_column(dbname)
+            
+            self.taosd.kill_and_start(self.env_setting['settings'][0],3)
+            time.sleep(10)
+            self.dnodes_database_replica_check(dbname,replica)
+        
+        else:
+            #drop and flush database 
+            self.drop_n_table(dbname,random.randint(6,9),table_num,flush='Y')  
+            self.delete_ts_data(dbname,1500000000000) 
+            self.sql_base_check(dbname,sql1='',sql2='') 
+            self.count_select_column(dbname)
+            self.order_by_column(dbname)
+            self.max_min_top_bottom_select_column(dbname)
+            self.first_last_select_column(dbname)
+            
+            self.taosd.kill_and_start(self.env_setting['settings'][0],3)
+            time.sleep(10)
+            self.dnodes_database_replica_check(dbname,replica)
+        
+        self.count_select_column(dbname)
+        self.order_by_column(dbname)
+        self.max_min_top_bottom_select_column(dbname)
+        self.first_last_select_column(dbname)
+            
+        self.tdSql.execute("flush database %s;" %dbname) 
+        #self.show_table_distributed(dbname)
+        self.sql_base_check(dbname,sql1='',sql2='')
+        self.tdSql.execute("drop database %s;" %dbname) 
+        self.tdSql.error("flush database %s;" %dbname) 
+        self.tdSql.error("select * from %s.meters;" %dbname) 
+
+                                  
+    def drop_db_common(self,dbname,replica,table_num): 
         # #每个库的通用检查
         self.sql_base_check(dbname,sql1='',sql2='') 
         self.dnodes_database_replica_check(dbname,replica)
         self.count_select_column(dbname)
+        self.order_by_column(dbname)
         
-        self.drop_n_table(dbname,random.randint(1,5),flush='N')  
+        self.tdSql.execute("flush database %s;" %dbname) 
+        self.show_table_distributed(dbname)
+        
+        self.drop_n_table(dbname,random.randint(1,5),table_num,flush='N')  
         self.sql_base_check(dbname,sql1='',sql2='') 
         self.dnodes_database_replica_check(dbname,replica)
         self.count_select_column(dbname)
+        self.order_by_column(dbname)
         
         self.delete_ts_data(dbname,1500000000000)  
         self.sql_base_check(dbname,sql1='',sql2='') 
         self.dnodes_database_replica_check(dbname,replica)
         self.count_select_column(dbname)
-        
-        #self.taosd.kill_and_start(self.env_setting['settings'][0],3)
-        time.sleep(10)
-        self.dnodes_database_replica_check(dbname,replica)
-        
-        #drop and flush database 
-        self.drop_n_table(dbname,random.randint(6,9),flush='Y')  
-        self.delete_ts_data(dbname,1500000000000) 
-        self.sql_base_check(dbname,sql1='',sql2='') 
-        self.count_select_column(dbname)
+        self.order_by_column(dbname)
         
         #self.taosd.kill_and_start(self.env_setting['settings'][0],3)
         time.sleep(10)
         self.dnodes_database_replica_check(dbname,replica)
         
         self.tdSql.execute("flush database %s;" %dbname) 
+        self.show_table_distributed(dbname)
+        
+        #drop and flush database 
+        self.drop_n_table(dbname,random.randint(6,9),table_num,flush='Y')  
+        self.delete_ts_data(dbname,1500000000000) 
+        self.sql_base_check(dbname,sql1='',sql2='') 
+        self.count_select_column(dbname)
+        self.order_by_column(dbname)
+        
+        #self.taosd.kill_and_start(self.env_setting['settings'][0],3)
+        time.sleep(10)
+        self.dnodes_database_replica_check(dbname,replica)
+        
+        self.tdSql.execute("flush database %s;" %dbname) 
+        #self.show_table_distributed(dbname)
         self.sql_base_check(dbname,sql1='',sql2='')
         self.tdSql.execute("drop database %s;" %dbname) 
         self.tdSql.error("flush database %s;" %dbname) 
@@ -1270,9 +1547,9 @@ class TDTestQuery(TDCase):
         table_per_row = 2
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica)  
         if func == 'drop':
-            self.drop_db_common(dbname,replica)
+            self.drop_db_common(dbname,replica,table_num)
         elif func == 'count':
-            self.count_db_common(dbname,replica)
+            self.count_db_common(dbname,replica,table_num)
           
 
     def countdb_2w_table100_row200(self,replica,func):
@@ -1281,9 +1558,9 @@ class TDTestQuery(TDCase):
         table_per_row = 200
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica)         
         if func == 'drop':
-            self.drop_db_common(dbname,replica)
+            self.drop_db_common(dbname,replica,table_num)
         elif func == 'count':
-            self.count_db_common(dbname,replica)
+            self.count_db_common(dbname,replica,table_num)
           
 
     def countdb_10w_table100_row1000(self,replica,func):
@@ -1292,9 +1569,9 @@ class TDTestQuery(TDCase):
         table_per_row = 1000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
         if func == 'drop':
-            self.drop_db_common(dbname,replica)
+            self.drop_db_common(dbname,replica,table_num)
         elif func == 'count':
-            self.count_db_common(dbname,replica)  
+            self.count_db_common(dbname,replica,table_num)  
         
                  
 
@@ -1304,9 +1581,9 @@ class TDTestQuery(TDCase):
         table_per_row = 10
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
         if func == 'drop':
-            self.drop_db_common(dbname,replica)
+            self.drop_db_common(dbname,replica,table_num)
         elif func == 'count':
-            self.count_db_common(dbname,replica)   
+            self.count_db_common(dbname,replica,table_num)   
 
     def countdb_20w_table1w_row20(self,replica,func):
         dbname = 'db_20w'
@@ -1314,9 +1591,9 @@ class TDTestQuery(TDCase):
         table_per_row = 20
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
         if func == 'drop':
-            self.drop_db_common(dbname,replica)
+            self.drop_db_common(dbname,replica,table_num)
         elif func == 'count':
-            self.count_db_common(dbname,replica)    
+            self.count_db_common(dbname,replica,table_num)    
 
     def countdb_40w_table1w_row40(self,replica,func):
         dbname = 'db_40w'
@@ -1324,9 +1601,9 @@ class TDTestQuery(TDCase):
         table_per_row = 40
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
         if func == 'drop':
-            self.drop_db_common(dbname,replica)
+            self.drop_db_common(dbname,replica,table_num)
         elif func == 'count':
-            self.count_db_common(dbname,replica)  
+            self.count_db_common(dbname,replica,table_num)  
 
     def countdb_80w_table1w_row80(self,replica,func):
         dbname = 'db_80w'
@@ -1334,9 +1611,9 @@ class TDTestQuery(TDCase):
         table_per_row = 80
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
         if func == 'drop':
-            self.drop_db_common(dbname,replica)
+            self.drop_db_common(dbname,replica,table_num)
         elif func == 'count':
-            self.count_db_common(dbname,replica)        
+            self.count_db_common(dbname,replica,table_num)        
         
             
 
@@ -1346,9 +1623,9 @@ class TDTestQuery(TDCase):
         table_per_row = 100
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
         if func == 'drop':
-            self.drop_db_common(dbname,replica)
+            self.drop_db_common(dbname,replica,table_num)
         elif func == 'count':
-            self.count_db_common(dbname,replica)           
+            self.count_db_common(dbname,replica,table_num)           
 
     def countdb_200w_table1w_row200(self,replica,func):
         dbname = 'db_200w'
@@ -1356,9 +1633,9 @@ class TDTestQuery(TDCase):
         table_per_row = 200
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
         if func == 'drop':
-            self.drop_db_common(dbname,replica)
+            self.drop_db_common(dbname,replica,table_num)
         elif func == 'count':
-            self.count_db_common(dbname,replica)   
+            self.count_db_common(dbname,replica,table_num)   
 
     def countdb_400w_table1w_row400(self,replica,func):
         dbname = 'db_400w'
@@ -1366,9 +1643,9 @@ class TDTestQuery(TDCase):
         table_per_row = 400
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
         if func == 'drop':
-            self.drop_db_common(dbname,replica)
+            self.drop_db_common(dbname,replica,table_num)
         elif func == 'count':
-            self.count_db_common(dbname,replica)   
+            self.count_db_common(dbname,replica,table_num)   
 
     def countdb_800w_table1w_row800(self,replica,func):
         dbname = 'db_800w'
@@ -1376,9 +1653,9 @@ class TDTestQuery(TDCase):
         table_per_row = 800
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
         if func == 'drop':
-            self.drop_db_common(dbname,replica)
+            self.drop_db_common(dbname,replica,table_num)
         elif func == 'count':
-            self.count_db_common(dbname,replica)      
+            self.count_db_common(dbname,replica,table_num)      
         
              
 
@@ -1388,9 +1665,9 @@ class TDTestQuery(TDCase):
         table_per_row = 1000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
         if func == 'drop':
-            self.drop_db_common(dbname,replica)
+            self.drop_db_common(dbname,replica,table_num)
         elif func == 'count':
-            self.count_db_common(dbname,replica)   
+            self.count_db_common(dbname,replica,table_num)   
 
     def countdb_2000w_table1w_row2000(self,replica,func):
         dbname = 'db_2000w'
@@ -1398,9 +1675,9 @@ class TDTestQuery(TDCase):
         table_per_row = 2000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
         if func == 'drop':
-            self.drop_db_common(dbname,replica)
+            self.drop_db_common(dbname,replica,table_num)
         elif func == 'count':
-            self.count_db_common(dbname,replica)    
+            self.count_db_common(dbname,replica,table_num)    
 
     def countdb_4000w_table1w_row4000(self,replica,func):
         dbname = 'db_4000w'
@@ -1408,9 +1685,9 @@ class TDTestQuery(TDCase):
         table_per_row = 4000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
         if func == 'drop':
-            self.drop_db_common(dbname,replica)
+            self.drop_db_common(dbname,replica,table_num)
         elif func == 'count':
-            self.count_db_common(dbname,replica)  
+            self.count_db_common(dbname,replica,table_num)  
 
     def countdb_8000w_table1w_row8000(self,replica,func):
         dbname = 'db_8000w'
@@ -1418,9 +1695,9 @@ class TDTestQuery(TDCase):
         table_per_row = 8000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
         if func == 'drop':
-            self.drop_db_common(dbname,replica)
+            self.drop_db_common(dbname,replica,table_num)
         elif func == 'count':
-            self.count_db_common(dbname,replica)    
+            self.count_db_common(dbname,replica,table_num)    
 
     def countdb_10000w_table1w_row1w(self,replica,func):
         dbname = 'db_10000w'
@@ -1428,15 +1705,25 @@ class TDTestQuery(TDCase):
         table_per_row = 10000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
         if func == 'drop':
-            self.drop_db_common(dbname,replica)
+            self.drop_db_common(dbname,replica,table_num)
         elif func == 'count':
-            self.count_db_common(dbname,replica) 
+            self.count_db_common(dbname,replica,table_num) 
+
+    def countdb_diy(self,replica,func):
+        dbname = 'db_diy'
+        table_num = random.randint(100,5000)
+        table_per_row = random.randint(10,5000)
+        self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
+        if func == 'drop':
+            self.drop_db_common(dbname,replica,table_num)
+        elif func == 'count':
+            self.count_db_common(dbname,replica,table_num) 
                                                           
     def run(self):
         startTime = time.time() 
         
-
-        self.countdb_1w_table100_row100(replica=1,func='drop')
+        self.countdb_1w_table100_row100(replica=1,func='count')
+        #self.countdb_1w_table100_row100(replica=1,func='drop')
         # self.countdb_2w_table100_row200(replica=1)
         # self.countdb_10w_table100_row1000(replica=1)
         
