@@ -10641,6 +10641,9 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
       numOfTags = pTableMeta->tableInfo.numOfTags;
       pCols = pTableMeta->schema;
       pTags = pTableMeta->schema + numOfCols;
+      if (pTableMeta->tableType == TSDB_NORMAL_TABLE) {
+        pReq->normSourceTbUid = pTableMeta->uid;
+      }
     }
   }
 
