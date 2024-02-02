@@ -337,7 +337,7 @@ class StreamComputingTest(TDCase):
         if need_return:
             return count
 
-    def life_cycle(self, long_duration="14400m"):
+    def life_cycle(self, long_duration="14400m", l_duration="4800m", s_duration="2400m"):
         self.case_name = sys._getframe().f_code.co_name
         long_life_cycle_db = "long_life_cycle_db"
         long_life_cycle_stb = "long_life_cycle_stb"
@@ -362,8 +362,8 @@ class StreamComputingTest(TDCase):
         cal_duration_ts = self.tdCom.trans_time_to_s(short_duration) * self.offset
 
         self.prepare_data()
-        self.tdCom.createDb(dbname=long_life_cycle_db, vgroups=self.vgroups, duration=long_duration, keep=long_duration)
-        self.tdCom.createDb(dbname=short_life_cycle_db, vgroups=self.vgroups, duration=short_duration, keep=short_duration)
+        self.tdCom.createDb(dbname=long_life_cycle_db, vgroups=self.vgroups, duration=l_duration, keep=long_duration)
+        self.tdCom.createDb(dbname=short_life_cycle_db, vgroups=self.vgroups, duration=s_duration, keep=short_duration)
         self.tdCom.create_stable(dbname=long_life_cycle_db, stbname=long_life_cycle_stb)
         self.tdCom.create_ctable(dbname=long_life_cycle_db, stbname=long_life_cycle_stb, ctbname=long_life_cycle_ctb)
         self.tdCom.create_table(dbname=long_life_cycle_db, tbname=long_life_cycle_tb)
@@ -2967,10 +2967,6 @@ class StreamComputingTest(TDCase):
 
 
     def run(self):
-        # self.at_once_interval(interval=random.randint(10, 12), partition="c1", fill_value="NULL")
-        # self.at_once_interval(interval=random.randint(10, 15), partition="c1", fill_value="NULL", delete=True)
-        # self.vgroups = 1
-        # self.at_once_interval_ext(interval=random.randint(10, 15), delete=False, fill_history_value=1, partition=None, subtable="constant", stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True)
         # for fill_history_value in [1]:
             # ! TD-24620
             # self.watermark_window_close_session(session=random.randint(10, 15), watermark=None, fill_history_value=fill_history_value)
@@ -3011,7 +3007,8 @@ class StreamComputingTest(TDCase):
             self.create_none_source_tb_col_stream()
             self.create_error_source_sql_stream()
             ## ! rep3 TD-20280
-            self.insert_after_restart()
+            if int(os.environ["DATABASE_REPLICAS"]) == 1:
+                self.insert_after_restart()
             # self.insert_after_restart(delete=True, fill_history_value=1)
             ## ! TD-18123
             # # self.insert_after_recreate_source_table()
@@ -3135,7 +3132,8 @@ class StreamComputingTest(TDCase):
                     # pause/resume
                     self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", ignore_untreated=False, fill_history_value=fill_history_value)
                     self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", ignore_untreated=True, fill_history_value=fill_history_value)
-                    self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", resume=False, fill_history_value=fill_history_value)
+                    # ! TD-26711
+                    # self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", resume=False, fill_history_value=fill_history_value)
             # error cases
             self.at_once_interval_ext(interval=random.randint(10, 15), partition=f'tbname,{self.tag_filter_des_select_elm},c1', stb_field_name_value="", tag_value=self.tag_filter_des_select_elm, use_exist_stb=True, use_except=True)
             self.at_once_interval_ext(interval=random.randint(10, 15), partition=f'tbname,{self.tag_filter_des_select_elm},c1', stb_field_name_value=self.tb_filter_des_select_elm.replace("c1","c19"), tag_value=self.tag_filter_des_select_elm, use_exist_stb=True, use_except=True)

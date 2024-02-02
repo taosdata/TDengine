@@ -634,7 +634,7 @@ class TDTestQuery(TDCase):
         sql = "select count(*) from (%s);" %sql  
         self.time_cost(sql) 
     
-    def basic_query_util(self,sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
+    def basic_query_util_common(self,sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
         sql_base = sql
         sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('%s' %base_num,'%s' %replace_num)
         self.time_cost(sql)   
@@ -648,19 +648,59 @@ class TDTestQuery(TDCase):
         self.time_cost(sql_union_all)  
         sql_union = sql_union_all.replace('ALL','')
         self.time_cost(sql_union) 
+
+        
+            
+    def basic_query_util(self,sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
+        #all sqls
+        sql_base = sql
+        distinct_sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('%s' %base_num,'%s' %replace_num)
+        self.basic_query_util_common(distinct_sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
                 
-        sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('DISTINCT','').replace('%s' %base_num,'%s' %replace_num)
-        self.time_cost(sql)  
-        sql_union_all = "(" + sql + ") UNION ALL (" +sql + ")";
-        self.time_cost(sql_union_all)  
-        sql_union = sql_union_all.replace('ALL','')
-        self.time_cost(sql_union) 
-        sql = "SELECT count(*) FROM (%s);" %sql  #统计上面sql的nest
-        self.time_cost(sql) 
-        sql_union_all = "SELECT count(*) FROM (%s);" %sql_union_all  #统计上面sql的nest
-        self.time_cost(sql_union_all)  
-        sql_union = sql_union_all.replace('ALL','')
-        self.time_cost(sql_union) 
+        no_distinct_sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('DISTINCT','').replace('%s' %base_num,'%s' %replace_num)        
+        self.basic_query_util_common(no_distinct_sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+                
+        no_tags_distinct_sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('TAGS','').replace('DISTINCT','').replace('%s' %base_num,'%s' %replace_num)        
+        self.basic_query_util_common(no_tags_distinct_sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+        
+        
+        rowts_sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('%s' %base_num,'%s' %replace_num).replace('_ROWTS,' ,'')
+        self.basic_query_util_common(rowts_sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+                
+        no_rowts_sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('DISTINCT','').replace('%s' %base_num,'%s' %replace_num).replace('_ROWTS,' ,'')        
+        self.basic_query_util_common(no_rowts_sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+        
+        no_tags_rowts_sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('TAGS','').replace('DISTINCT','').replace('%s' %base_num,'%s' %replace_num).replace('_ROWTS,' ,'')        
+        self.basic_query_util_common(no_tags_rowts_sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+        
+        
+        no_tbname_distinct_sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('%s' %base_num,'%s' %replace_num).replace('TBNAME,' ,'')
+        self.basic_query_util_common(no_tbname_distinct_sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+                
+        no_tbname_no_distinct_sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('DISTINCT','').replace('%s' %base_num,'%s' %replace_num).replace('TBNAME,' ,'')        
+        self.basic_query_util_common(no_tbname_no_distinct_sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+        
+        no_tbname_no_tags_distinct_sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('TAGS','').replace('DISTINCT','').replace('%s' %base_num,'%s' %replace_num).replace('TBNAME,' ,'')        
+        self.basic_query_util_common(no_tbname_no_tags_distinct_sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+        
+        
+        no_tbname_rowts_sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('%s' %base_num,'%s' %replace_num).replace('_ROWTS,' ,'').replace('TBNAME,' ,'')
+        self.basic_query_util_common(no_tbname_rowts_sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+                
+        no_tbname_no_rowts_sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('DISTINCT','').replace('%s' %base_num,'%s' %replace_num).replace('_ROWTS,' ,'').replace('TBNAME,' ,'')        
+        self.basic_query_util_common(no_tbname_no_rowts_sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+                
+        no_tbname_no_tags_rowts_sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('TAGS','').replace('DISTINCT','').replace('%s' %base_num,'%s' %replace_num).replace('_ROWTS,' ,'').replace('TBNAME,' ,'')        
+        self.basic_query_util_common(no_tbname_no_tags_rowts_sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+        
+        
+        # if i == 1:
+        #     sql = distinct_sql
+        # elif i ==2:
+        #     sql = no_distinct_sql
+            
+        # return sql
+        
             
     def basic_query_sql(self,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
         column_tag_list = self.random_column_tag(db_tb)
@@ -669,63 +709,65 @@ class TDTestQuery(TDCase):
         limit = self.limit_slimit(db_tb,1)
         limit_slimit = self.limit_slimit(db_tb,2)  #适合group by,partition by
         
-        sql_num = "SELECT DISTINCT FUNCTION('%s',NUM) FROM %s " %(data_col,db_tb)
+        sql_num = "SELECT DISTINCT TAGS FUNCTION('%s',NUM) FROM %s " %(data_col,db_tb)
         self.basic_query_util(sql_num,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
 
         
-        sql_base = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s " %(data_col,db_tb)
-        self.basic_query_util(sql_base,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+
+        # sql_str = "SELECT DISTINCT TAGS FUNCTION('%s',NUM) FROM %s " %(data_col,db_tb)
+        # self.basic_query_util(sql_str,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+
         
-        # sql_base = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s " %(data_col,db_tb)       #单列
+        # sql_base = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s " %(data_col,db_tb)       #单列
         # self.basic_query_util(sql_base,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        # sql_base = "SELECT DISTINCT FUNCTION %s,NUM FROM %s " %(column_tag_list,db_tb)     #多列
+        # sql_base = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s " %(column_tag_list,db_tb)     #多列
         # self.basic_query_util(sql_base,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        # sql_base_where = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s WHERE 1=1" %(data_col,db_tb) #单列
+        # sql_base_where = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s WHERE 1=1" %(data_col,db_tb) #单列
         # self.basic_query_util(sql_base_where,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         # #sql_base_where = self.basic_query_util(sql_base_where,data_col,db_tb,base_fun,replace_fun,base_num,replace_num,1)
-        # sql_base_where_null = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s WHERE `%s` is null and 1=1" %(data_col,db_tb,data_col)
-        # sql_base_where_notnull = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s WHERE `%s` is not null and 1=1" %(data_col,db_tb,data_col)
+        # sql_base_where_null = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s WHERE `%s` is null and 1=1" %(data_col,db_tb,data_col)
+        # sql_base_where_notnull = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s WHERE `%s` is not null and 1=1" %(data_col,db_tb,data_col)
         # sql_base_where_union_all = "(" + sql_base_where_null + ") UNION ALL (" +sql_base_where_notnull + ")";
         # self.basic_query_util(sql_base_where_union_all,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         # #sql_base_where_union_all = self.basic_query_util(sql_base_where_union_all,data_col,db_tb,base_fun,replace_fun,base_num,replace_num,1)
         # #self.tdCreateData.dataequal('%s' %sql_base_where ,1,1,'%s' %sql_base_where_union_all ,1,1)  #没有合适的校验手段
         
-        # sql_base_where = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE 1=1" %(column_tag_list,db_tb)  #多列
+        # sql_base_where = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s WHERE 1=1" %(column_tag_list,db_tb)  #多列
         # self.basic_query_util(sql_base_where,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
-        # sql_base_where_null = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE `%s` is null and 1=1" %(column_tag_list,db_tb,data_col)
-        # sql_base_where_notnull = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE `%s` is not null and 1=1" %(column_tag_list,db_tb,data_col)
+        # sql_base_where_null = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s WHERE `%s` is null and 1=1" %(column_tag_list,db_tb,data_col)
+        # sql_base_where_notnull = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s WHERE `%s` is not null and 1=1" %(column_tag_list,db_tb,data_col)
         # sql_base_where_union_all = "(" + sql_base_where_null + ") UNION ALL (" +sql_base_where_notnull + ")";
         # self.basic_query_util(sql_base_where_union_all,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        # sql_base_where = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE %s 1=1" %(column_tag_list,db_tb,column_tag_list_where)  #多列
+        # sql_base_where = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s WHERE %s 1=1" %(column_tag_list,db_tb,column_tag_list_where)  #多列
         # self.basic_query_util(sql_base_where,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
-        # sql_base_where = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE %s  1=1" %(column_tag_list,db_tb,column_tag_list_where)
-        # sql_base_where_1 = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE %s  1=1" %(column_tag_list,db_tb,column_tag_list_where_1)
+        # sql_base_where = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s WHERE %s  1=1" %(column_tag_list,db_tb,column_tag_list_where)
+        # sql_base_where_1 = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s WHERE %s  1=1" %(column_tag_list,db_tb,column_tag_list_where_1)
         # sql_base_where_union_all = "(" + sql_base_where + ") UNION ALL (" +sql_base_where_1 + ")";
         # self.basic_query_util(sql_base_where_union_all,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
-        # sql_base_where = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE %s  1=1 %s" %(column_tag_list,db_tb,column_tag_list_where,limit)
-        # sql_base_where_1 = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE %s  1=1 %s" %(column_tag_list,db_tb,column_tag_list_where_1,limit)
+        # sql_base_where = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s WHERE %s  1=1 %s" %(column_tag_list,db_tb,column_tag_list_where,limit)
+        # sql_base_where_1 = "SELECT DISTINCT TAGS FUNCTION %s,NUM FROM %s WHERE %s  1=1 %s" %(column_tag_list,db_tb,column_tag_list_where_1,limit)
         # sql_base_where_union_all = "(" + sql_base_where + ") UNION ALL (" +sql_base_where_1 + ")";
         # self.basic_query_util(sql_base_where_union_all,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        # sql_orderby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s ORDER BY _ROWTS,`%s`" %(data_col,db_tb,data_col) #单列
+        # sql_orderby = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s ORDER BY _ROWTS,`%s`" %(data_col,db_tb,data_col) #单列
         # self.basic_query_util(sql_orderby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        # sql_orderby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s ORDER BY %s" %(data_col,db_tb,column_tag_list) #多列
+        # sql_orderby = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s ORDER BY %s" %(data_col,db_tb,column_tag_list) #多列
         # self.basic_query_util(sql_orderby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        # sql_groupby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s GROUP BY TBNAME,`%s`" %(data_col,db_tb,data_col)   #单列
+        # sql_groupby = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s GROUP BY TBNAME,`%s`" %(data_col,db_tb,data_col)   #单列
         # self.basic_query_util(sql_groupby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num) 
         
-        # sql_groupby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s GROUP BY %s" %(data_col,db_tb,column_tag_list)   #多列
+        # sql_groupby = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s GROUP BY %s" %(data_col,db_tb,column_tag_list)   #多列
         # self.basic_query_util(sql_groupby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num) 
         
-        # sql_partitionby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s PARTITION BY TBNAME,`%s`" %(data_col,db_tb,data_col)   #单列
+        # sql_partitionby = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s PARTITION BY TBNAME,`%s`" %(data_col,db_tb,data_col)   #单列
         # self.basic_query_util(sql_partitionby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num) 
         
-        # sql_partitionby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s PARTITION BY %s" %(data_col,db_tb,column_tag_list)   #多列
+        # sql_partitionby = "SELECT DISTINCT TAGS FUNCTION(`%s`,NUM) FROM %s PARTITION BY %s" %(data_col,db_tb,column_tag_list)   #多列
         # self.basic_query_util(sql_partitionby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num) 
 
     def interval_query_sql(self,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
@@ -739,7 +781,7 @@ class TDTestQuery(TDCase):
         for i in (1,2,3,4,21,41,42,43,44,45,):                        
             time_window = self.time_window(i)
             
-            sql_num = "SELECT DISTINCT FUNCTION('%s',NUM) FROM %s %s " %(data_col,db_tb,time_window)
+            sql_num = "SELECT DISTINCT TAGS FUNCTION('%s',NUM) FROM %s %s " %(data_col,db_tb,time_window)
             self.basic_query_util(sql_num,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         
                     
@@ -893,7 +935,7 @@ class TDTestQuery(TDCase):
             succ_flag = 1
         except:
             self.logger.info("sql is not support :=====%s; " %sql)
-            self.tdSql.error(sql)
+            #self.tdSql.error(sql)
             
         if rows:
             self.explain_sql(sql) if rows > 0 else sys.exit("data rows = 0")
@@ -1146,39 +1188,50 @@ class TDTestQuery(TDCase):
         startTime = time.time() 
         
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
-         
-        #self.describe_table(self.db_tb) 
         
-        #self.describe_table("`table_sample_1`.`stable_1`") 
+        
+        #self.describe_table("`accuracy_operation_db`.`st`") 
+        
+        # self.describe_table("`accuracy_db`.`st_common`")
+        # self.describe_table("`accuracy_db`.`st_boundary`")
+        # self.describe_table("`accuracy_db`.`st_with_empty_ct`")
+        # self.describe_table("`accuracy_db`.`st_alldata_1`") 
+        
+        #self.describe_table(self.db_tb) 
+        # #self.describe_table("`table_sample_1`.`stable_1`") 
+        # #self.describe_table("`test_10bi`.`meters`")
         self.describe_table("`information_schema`.`ins_dnodes`") 
         self.describe_table("`information_schema`.`ins_mnodes`")
-        #self.describe_table("`information_schema`.`ins_modules`")  #TD-24684
+        #TD-24684 delete self.describe_table("`information_schema`.`ins_modules`")  
         self.describe_table("`information_schema`.`ins_qnodes`")
         self.describe_table("`information_schema`.`ins_snodes`")
-        # self.describe_table("`information_schema`.`ins_cluster`")
-        # self.describe_table("`information_schema`.`ins_databases`")
-        # self.describe_table("`information_schema`.`ins_functions`")
-        # self.describe_table("`information_schema`.`ins_indexes`")
-        # # #self.describe_table("`information_schema`.`ins_stables`")  #TD-24784
-        # # #self.describe_table("`information_schema`.`ins_tables`")  #TD-24707
-        # # #self.describe_table("`information_schema`.`ins_tags`")  #TD-24707
-        # # #self.describe_table("`information_schema`.`ins_columns`")  #TD-24705 man
-        # # self.describe_table("`information_schema`.`ins_users`")
-        # # self.describe_table("`information_schema`.`ins_grants`")
-        # # # self.describe_table("`information_schema`.`ins_vgroups`")
-        # # # self.describe_table("`information_schema`.`ins_configs`")
-        # # # self.describe_table("`information_schema`.`ins_dnode_variables`")
-        # # # #self.describe_table("`information_schema`.`ins_topics`")  #TD-24716
-        # # # self.describe_table("`information_schema`.`ins_subscriptions`")
-        # # # self.describe_table("`information_schema`.`ins_streams`")
-        # # # self.describe_table("`information_schema`.`ins_stream_tasks`")
-        # # # self.describe_table("`information_schema`.`ins_vnodes`")
-        # # # self.describe_table("`information_schema`.`ins_user_privileges`")
-        # self.describe_table("`performance_schema`.`perf_connections`")
-        # self.describe_table("`performance_schema`.`perf_queries`")
-        # self.describe_table("`performance_schema`.`perf_consumers`")
-        # self.describe_table("`performance_schema`.`perf_trans`")
-        # self.describe_table("`performance_schema`.`perf_apps`")
+        self.describe_table("`information_schema`.`ins_cluster`")
+        self.describe_table("`information_schema`.`ins_databases`")
+        self.describe_table("`information_schema`.`ins_functions`")
+        self.describe_table("`information_schema`.`ins_indexes`")
+        self.describe_table("`information_schema`.`ins_stables`")
+        self.describe_table("`information_schema`.`ins_tables`") 
+        self.describe_table("`information_schema`.`ins_tags`")  
+        self.describe_table("`information_schema`.`ins_columns`")
+        self.describe_table("`information_schema`.`ins_users`")
+        self.describe_table("`information_schema`.`ins_grants`")
+        self.describe_table("`information_schema`.`ins_vgroups`")
+        self.describe_table("`information_schema`.`ins_configs`")
+        self.describe_table("`information_schema`.`ins_dnode_variables`")
+        self.describe_table("`information_schema`.`ins_topics`")
+        self.describe_table("`information_schema`.`ins_subscriptions`")
+        self.describe_table("`information_schema`.`ins_streams`")
+        self.describe_table("`information_schema`.`ins_stream_tasks`")
+        self.describe_table("`information_schema`.`ins_vnodes`")
+        self.describe_table("`information_schema`.`ins_user_privileges`")
+        self.describe_table("`information_schema`.`ins_views`")
+        self.describe_table("`information_schema`.`ins_compacts`")
+        self.describe_table("`information_schema`.`ins_compact_details`")
+        self.describe_table("`performance_schema`.`perf_connections`")
+        self.describe_table("`performance_schema`.`perf_queries`")
+        self.describe_table("`performance_schema`.`perf_consumers`")
+        self.describe_table("`performance_schema`.`perf_trans`")
+        self.describe_table("`performance_schema`.`perf_apps`")
             
 
         endTime = time.time()

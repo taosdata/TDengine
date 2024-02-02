@@ -56,19 +56,20 @@ class TDCreateData():
         self.tdDnodes.start(1)
         
     def drop_db(self,database):
+        self.drop_DB_index(database)
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #delete:
         table_list = ['stable_1','stable_2','stable_null_data','stable_null_childtable','stable_1','stable_2','regular_table_1','stable_1_1','regular_table_2',\
             'regular_table_3','regular_table_1','regular_table_2','regular_table_null','stable_2_1','stable_2_2','stable_2_2','stable_1_3','stable_1_4',]
         for i in table_list:
             self.tdSql.execute("delete from {}.{};".format(database, i))
-            self.tdSql.execute("flush database {};".format(database)) #TD-24856
+            self.tdSql.execute("flush database {};".format(database))
             self.tdSql.execute("reset query cache;")
             self.tdSql.query("select * from {}.{};".format(database, i))
             self.tdSql.checkRow(0)
         
         #drop:
-        time.sleep(10)
+        time.sleep(3)
         self.tdSql.execute('''drop database if exists %s ;''' %database)
 
     def data_check(self, elm, expect_elm , throw=True) -> bool:
@@ -88,6 +89,9 @@ class TDCreateData():
                 return False
                     
     def alter_local_slowlogthreshold(self):
+        
+        #os.system("nohup taostest --use=common_insert.yaml --case=Query/queryscript/scene_query/schema/compact_alldb.py --keep --disable_collection &")
+        
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #local variables 修改验证
         show_sql = 'show local variables;'
@@ -135,7 +139,24 @@ class TDCreateData():
         self.tdSql.query('''show local variables;''')
         for i in range(self.tdSql.query_row):
             self.logger.info("%s - %s"% (self.tdSql.query_data[i][0], self.tdSql.query_data[i][1]))
-
+    
+    
+    def drop_DB_index(self,database):
+        fake = Faker('zh_CN')
+        self.tdSql.query("use `%s`;" %database)
+        sql = "select index_name,db_name,table_name from information_schema.ins_indexes where db_name ='%s'" %database
+        rows = self.tdSql.query(sql).row_count
+        # print(rows,self.tdSql.query_data[0][0],self.tdSql.query_data[1][0],self.tdSql.query_data[2][0],self.tdSql.query_data[3][0],self.tdSql.query_data[4][0])
+        # print(rows,self.tdSql.getData(0,0),self.tdSql.getData(2,0),self.tdSql.getData(1,0),self.tdSql.getData(3,0),self.tdSql.getData(4,0))
+        for i in range(rows):
+            self.tdSql.query(sql)
+            self.tdSql.query("drop index %s.`%s`" %(database,self.tdSql.getData(0,0)))
+        
+        #create_new_index
+        self.tdSql.query("select distinct db_name,stable_name,tag_name from information_schema.ins_tags where db_name ='%s';" %database)
+        self.tdSql.query("create index %s_%s_%s on %s.%s(%s);" %(self.tdSql.query_data[0][2],fake.random_int(min=0, max=9999999999, step=1),fake.pystr(),self.tdSql.query_data[0][0],self.tdSql.query_data[0][1],self.tdSql.query_data[0][2]))
+        
+        
     def dropandcreateDB_random(self,database,n):
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         self.ts = 1630000000000
@@ -328,6 +349,7 @@ class TDCreateData():
         if i ==0:
             self.logger.info("======this case test use flush database =========")
             self.tdSql.execute("flush database %s;" %database) 
+            self.drop_DB_index(database)
         elif i ==1:  
             self.logger.info("======this case test use flush database =========")
             self.tdSql.execute("flush database %s;" %database)   
@@ -338,6 +360,7 @@ class TDCreateData():
             self.tdSql.execute("flush database %s;" %database)   
             self.logger.info("======this case test keepcolumnname = 0 =========")  
             self.tdSql.execute("alter local 'keepcolumnname' '0';")  
+            self.drop_DB_index(database)
         else:
             self.logger.info("===!!!===this case test not use flush database =====!!!====")
         
@@ -380,6 +403,7 @@ class TDCreateData():
         
     def add_data_random(self,database,n,ts):
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
+        self.drop_DB_index(database)
         #增加数据稀疏
         self.ts = ts
         self.num_random = 100
@@ -2087,4 +2111,44 @@ class TDCreateData():
                 else:
                     self._set_error_msg(f"EQ（小于等于）checkEqual error, {order_3} >= {order_2}")
                     return False
-  
+
+
+    def check_sql_rows_equal(self,db,sql1,sql2,throw=True) -> bool:
+        self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
+                            
+        rows1 = self.tdSql.query(sql1).row_count 
+        rows2 = self.tdSql.query(sql2).row_count   
+        if operator.eq(rows1,rows2) and rows1 == 1:  
+            self.tdSql.query(sql1)
+            sql1_data = self.tdSql.getData(0,0)
+            self.tdSql.query(sql2)
+            sql2_data = self.tdSql.getData(0,0)
+            if operator.ge(sql1_data,sql2_data):
+                self.logger.debug(f"（DATA等于）Check Data Equal Success, sql:{sql1}.rows:{rows1}.data:{sql1_data} = sql:{sql2}.rows:{rows2}.data:{sql2_data}") 
+                self.explain_sql(sql2)              
+                return True 
+            else:
+                if throw:
+                    raise AssertionError(f"（DATA等于）checkEqual error, {sql1_data} != {sql2_data}")
+                else:
+                    self._set_error_msg(f"（DATA等于）checkEqual error, {sql1_data} != {sql2_data}")
+                    return False
+        elif operator.eq(rows1,rows2) and rows1 != 1: 
+            self.logger.debug(f"（ROWS等于）Check Rows Equal Success, sql:{sql1}.rows:{rows1} = sql:{sql2}.rows:{rows2}") 
+            self.explain_sql(sql2)              
+            return True 
+        else:
+            if throw:
+                raise AssertionError(f"（等于）checkEqual error, sql:{sql1}.rows:{rows1} != sql:{sql2}.rows:{rows2}")
+            else:
+                self._set_error_msg(f"（等于）checkEqual error, sql:{sql1}.rows:{rows1} != sql:{sql2}.rows:{rows2}")
+                return False
+            
+    def check_sql_result_include(self, db, sql,include_result):
+        result = os.popen("taos -s '%s'" %sql)
+        res = result.read()
+        self.logger.info(res)
+        if (include_result in res):
+            self.logger.info(f"checkEqual success")
+        else :
+            self.logger.exit(f"checkEqual error")

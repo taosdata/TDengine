@@ -134,7 +134,7 @@ class TestKeep(TDCase):
         self.tdSql.execute(f'drop database {dbname}')
         # keep2 = keep1 = keep0 = days
         dbname = self.tdCom.get_long_name()
-        kv_dict = {"duration": 10, test_param: "10,10,10"}
+        kv_dict = {"duration": 3, test_param: "10,10,10"}
         self.tdCom.createDb(dbname, **kv_dict)
         self.tdSql.query('select * from information_schema.ins_databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
@@ -188,13 +188,13 @@ class TestKeep(TDCase):
         self.tdSql.checkRow(1)
         self.tdSql.execute("insert into ntb values(-1, 1)")
         self.tdSql.checkRow(1)
-        
+
     def keep_expired_check(self):
         self.tdSql.execute("drop database if exists db1 ")
-        kv_dict = {"duration": "1d", "keep": "2d,2d,2d"}
+        kv_dict = {"duration": "1d", "keep": "3d,3d,3d"}
         self.tdCom.createDb("db1", **kv_dict)
         self.tdSql.execute("create table ntb (ts timestamp, c0 int)")
-        self.tdSql.execute(f'insert into ntb values(now-{2*86400-10}s, 1)')
+        self.tdSql.execute(f'insert into ntb values(now-{3*86400-10}s, 1)')
         self.tdSql.query("select * from ntb")
         self.tdSql.checkRow(1)
         time.sleep(15)

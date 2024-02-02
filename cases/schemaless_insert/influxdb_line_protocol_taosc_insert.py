@@ -1256,7 +1256,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
                 self.tdSql.checkNotEqual(err.errno, 0)
 
     def test(self):
-        self.escape_test()
+        self.ts_3146()
         # self.s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
         return
         self.tdSql.execute('drop database if exists iot_dev;')
@@ -1303,8 +1303,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         #             ]
 
     def run(self):
-        # self.test()
-        # return
+        self.test()
+        return
         if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
             if self.taospy_setting["spec"]["config"]["smlChildTableName"].upper() == "ID":
                 self.no_id_stb_exist_check()

@@ -89,6 +89,20 @@ class TDTestQuery(TDCase):
     def table_delete(self,db): 
         sql = " drop table if exists %s.t1 "  % db
         self.query_ignore_error(db,sql) 
+        
+    def stable_create(self,db): 
+        sql = " create table %s.stb (ts timestamp, c1 int, c2 varchar(10)) tags(t1 int) "  % db
+        self.query_ignore_error(db,sql)
+        sql = " create table %s.tb1 using %s.stb tags (1); "  % (db,db)
+        self.query_ignore_error(db,sql)
+        sql = " create table %s.tb2 using %s.stb tags (2); "  % (db,db)
+        self.query_ignore_error(db,sql)
+        
+    def stable_data_insert(self,db): 
+        sql = " insert into %s.tb1(ts,c1,c2) values(now, 1, 'abc');"  % db
+        self.query_ignore_error(db,sql)
+        sql = " insert into %s.tb2(ts,c1,c2) values(now, NULL, NULL);"  % db
+        self.query_ignore_error(db,sql)
                 
     def flush_db(self,db): 
         sql = " flush database %s "  % db
@@ -140,6 +154,26 @@ class TDTestQuery(TDCase):
         sql = " select * from %s.t1; "  % db
         self.query_ignore_error(db,sql)
         sql = " select * from %s.t1 order by ts; "  % db
+        self.query_ignore_error(db,sql)
+        sql = " select * from %s.t1 group by tbname; "  % db
+        self.query_ignore_error(db,sql)
+        
+        
+        sql = " select last_row(*) from %s.stb group by tbname; "  % db
+        self.query_ignore_error(db,sql)
+        sql = " select last(*) from %s.stb group by tbname; "  % db
+        self.query_ignore_error(db,sql)
+        sql = " select * from %s.stb; "  % db
+        self.query_ignore_error(db,sql)
+        sql = " select * from %s.stb order by ts; "  % db
+        self.query_ignore_error(db,sql)
+        sql = " select last(c1) from %s.stb group by tbname; "  % db
+        self.query_ignore_error(db,sql)
+        sql = " select last_row(c1) from %s.stb group by tbname; "  % db
+        self.query_ignore_error(db,sql)
+        sql = " select last(c2) from %s.stb group by tbname; "  % db
+        self.query_ignore_error(db,sql)
+        sql = " select last_row(c2) from %s.stb group by tbname; "  % db
         self.query_ignore_error(db,sql)
         
     def db_compact(self,db): 
@@ -231,7 +265,27 @@ class TDTestQuery(TDCase):
         self.random_test(3)  
         self.random_test(4)  
         self.random_test(5)  
+    
             
+    def bug_3875(self):
+        self.db_create(self.db)
+        self.alter_cachemodel_both(self.db)
+        self.stable_create(self.db)
+        self.stable_data_insert(self.db)  
+        self.db_query(self.db)
+        self.alter_column(self.db)
+        self.alter_cachemodel_none(self.db)
+        self.db_query(self.db)
+               
+    def bug_3875_2(self):
+        self.db_create(self.db)
+        self.alter_cachemodel_both(self.db)
+        self.stable_create(self.db)
+        self.db_query(self.db)
+        self.alter_column(self.db)
+        self.alter_cachemodel_none(self.db)
+        self.db_query(self.db)
+         
     def bug_23024(self):
         self.db_create(self.db)
         self.alter_cachemodel_both(self.db)
@@ -380,6 +434,8 @@ class TDTestQuery(TDCase):
             self.bug_2832()
             self.bug_22909()
             self.bug_3010()
+            self.bug_3875()
+            self.bug_3875_2()
             self.logger.info("\n\n\n=========num:%d====end=============\n\n\n" %i ) 
         self.data_create(self.db)
          

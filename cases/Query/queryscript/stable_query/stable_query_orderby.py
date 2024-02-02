@@ -1128,7 +1128,208 @@ class TDTestQuery(TDCase):
         self.logger.info("sqlnum1 interval %d" % num1) 
         cur1.close()
         conn1.close() 
+
+    def orderby_interval_row_check(self):
+        self.logger.info("\n==========================right case 1==========================\n")
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_4)
+        conn1 = case_common[0]
+        cur1 = case_common[1]
+        sql = 'Count the number of sqls'         
+                           
+        # 1: support all table, support all data type  [hanshu = ['COUNT']]
+        for i in (10,):
+            func = tdFunction.func_stable_tbname_all(i)
+            try:
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                                               
+                cur1.execute('use %s;' %self.db_4)   
+                self.tdSql.execute('use %s;' %self.db_4)            
+
+                self.logger.info("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
                 
+                stable_where = tdWhere.regular_where()
+                #sql1 = 'select %s from %s;'  % (func,self.table)
+                for i in range(2,len(stable_where[2])+1):
+                    qt_where = list(combinations(stable_where[2],i))
+                    for qt_where in qt_where:
+                        qt_where = str(qt_where).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
+                        qt_like_match = stable_where[3]
+                        qt_in_where = stable_where[4]                        
+                        
+                        interval_fill = ' where ts between 1630000001000 and 1630100001000 '
+                        interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
+                        
+                        interval_fill_f = ' where ts between 1600000001000 and 1600100001000 '
+                        interval_fill_f_and = ' ts between 1600000001000 and 1600100001000 and '
+                        
+                        ts = 1600000000000 + random.randint(-100000000000,+100000000000)
+                        interval_fill_ts_equal_and = ' ts >= %d and ts <= %d and ' %(ts,ts)                       
+                        
+                        for i in (1,2,3,4,21,31,32,33,34,35,):                        
+                            time_window_new = tdWhere.time_window_orderby(i) #统一updata成orderby
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                            sql1 = 'select _wstart,_wend,%s from %s %s;'  % (func,self.table,time_window_new)
+                            
+                            sql2 = 'select _wstart,_wend,%s from %s %s order by _wstart desc;'  % (func,self.table,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from %s where %s %s %s %s order by _wstart desc;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select * from (select _wstart,_wend,%s from %s where %s %s %s %s order by _wstart desc);" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+                            
+                            sql2 = "select _wstart,_wend,%s from (select * from %s) where %s %s %s %s order by _wstart desc;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+                            
+                            sql2 = "select _wstart,_wend,%s from (select * from %s order by ts) where %s %s %s %s order by _wstart desc;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+                            
+                            sql2 = 'select _wstart,_wend,%s from %s %s order by _wend desc;'  % (func,self.table,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from %s where %s %s %s %s order by _wend desc;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select * from (select _wstart,_wend,%s from %s where %s %s %s %s order by _wend desc);" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+                            
+                            sql2 = "select _wstart,_wend,%s from (select * from %s) where %s %s %s %s order by _wend desc;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+                            
+                            sql2 = "select _wstart,_wend,%s from (select * from %s order by ts) where %s %s %s %s order by _wend desc;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+                                      
+                        for i in (1,2,3,4,6,7,8,9,21,):                      
+                            time_window_new = tdWhere.time_window_orderby(i)
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                            sql1 = 'select _wstart,_wend,%s from %s %s %s order by _wstart;'  % (func,self.table,interval_fill,time_window_new)
+                            
+                            sql2 = 'select _wstart,_wend,%s from %s %s %s order by _wstart desc;'  % (func,self.table,interval_fill,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from %s where %s %s %s %s %s order by _wstart desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select * from (select _wstart,_wend,%s from %s where %s %s %s %s %s order by _wstart desc);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from (select * from %s) where %s %s %s %s %s order by _wstart desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from (select * from %s order by ts) where %s %s %s %s %s order by _wstart desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+                        
+                            sql2 = 'select _wstart,_wend,%s from %s %s %s order by _wend desc;'  % (func,self.table,interval_fill,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from %s where %s %s %s %s %s order by _wend desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select * from (select _wstart,_wend,%s from %s where %s %s %s %s %s order by _wend desc);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from (select * from %s) where %s %s %s %s %s order by _wend desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from (select * from %s order by ts) where %s %s %s %s %s order by _wend desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+                            
+                        for i in (61,71,81,91,):   
+                            #强制FILL                   
+                            time_window_new = tdWhere.time_window_orderby(i)
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                            sql1 = 'select %s from %s %s %s order by _wstart ;'  % (func,self.table,interval_fill_f,time_window_new)
+                            sql2 = 'select %s from %s %s %s order by _wstart desc;'  % (func,self.table,interval_fill_f,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from %s where %s %s %s %s %s order by _wstart desc;" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select * from (select _wstart,_wend,%s from %s where %s %s %s %s %s order by _wstart desc);" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from (select * from %s) where %s %s %s %s %s order by _wstart desc;" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from (select * from %s order by ts) where %s %s %s %s %s order by _wstart desc;" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from %s where %s %s %s %s %s order by _wend desc;" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select * from (select _wstart,_wend,%s from %s where %s %s %s %s %s order by _wend desc);" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from (select * from %s) where %s %s %s %s %s order by _wend desc;" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from (select * from %s order by ts) where %s %s %s %s %s order by _wend desc;" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+                                                                                                                                                       
+                        for i in (22,):                        
+                            time_window_new = tdWhere.time_window_orderby(i)
+                            self.logger.info("\n\n\n=====right case========case1====time num = %d======interval======\n\n\n" %i)
+                            sql1 = 'select _wstart,_wend,%s from %s %s %s order by _wstart;'  % (func,self.table,interval_fill,time_window_new)
+                            
+                            sql2 = 'select _wstart,_wend,%s from %s %s %s order by _wstart desc;'  % (func,self.table,interval_fill,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from %s where %s %s %s %s %s order by _wstart ;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select * from (select _wstart,_wend,%s from %s where %s %s %s %s %s order by _wstart );" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from (select * from %s order by ts) where %s %s %s %s %s order by _wstart ;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from %s where %s %s %s %s %s order by _wstart desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select * from (select _wstart,_wend,%s from %s where %s %s %s %s %s order by _wstart desc);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from (select * from %s order by ts) where %s %s %s %s %s order by _wstart desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from (select * from %s order by ts desc) where %s %s %s %s %s order by _wstart desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+                            
+                            
+                            sql2 = 'select _wstart,_wend,%s from %s %s %s order by _wend desc;'  % (func,self.table,interval_fill,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from %s where %s %s %s %s %s order by _wend ;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select * from (select _wstart,_wend,%s from %s where %s %s %s %s %s order by _wend );" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from (select * from %s order by ts) where %s %s %s %s %s order by _wend ;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from %s where %s %s %s %s %s order by _wend desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select * from (select _wstart,_wend,%s from %s where %s %s %s %s %s order by _wend desc);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from (select * from %s order by ts) where %s %s %s %s %s order by _wend desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+
+                            sql2 = "select _wstart,_wend,%s from (select * from %s order by ts desc) where %s %s %s %s %s order by _wend desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.check_sql_rows_equal(self.db_4 ,sql1 ,sql2)
+                                                                                
+            except Exception as e:
+                raise e   
+
+        # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
+        
+        num1 = sql.count('where')
+        self.logger.info("sqlnum1 interval %d" % num1) 
+        cur1.close()
+        conn1.close() 
+                        
     def rm_sql(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
         self.tdCreateData.drop_db("%s" % self.db)  
@@ -1176,6 +1377,12 @@ class TDTestQuery(TDCase):
         endTime3 = time.time()
         self.logger.info("total time3 %ds" % (endTime3 - startTime3))
 
+        startTime4 = time.time()
+        self.data_create(self.db_4)
+        self.orderby_interval_row_check()
+        self.rm_sql_4()
+        endTime4 = time.time()
+        self.logger.info("total time4 %ds" % (endTime4 - startTime4))
         
         endTime = time.time()
         self.logger.info("total time %ds" % (endTime - startTime))

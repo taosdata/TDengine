@@ -52,11 +52,16 @@ class StaticFullSync(TDCase):
         # param for taosBenchmark with db,stb and ctb check
         self.stbname = [self.tdCom.get_long_name(3)]
         self.tbname_m = [self.tdCom.get_long_name(1)]
-        self.tb_num = 100
-        self.row_num = 1000
+        self.tb_num = 1000
+        self.row_num = 10000
         self.start_timestamp = "2020-10-01 00:00:00.000"
         self.drop_flag = 'yes'
         self.child_table_exist_flag = 'no'
+        # param for taosBenchmark with ntb check
+        self.ntb_dbname = [self.tdCom.get_long_name(6)]
+        self.ntb_name_m = [self.tdCom.get_long_name(2)]
+        self.ntb_num = 1000
+        self.ntb_row_num = 10000
         # param for taosx
         self.timeout = '10s'
         self.replica = [3]
@@ -135,7 +140,6 @@ class StaticFullSync(TDCase):
                 taosd_master.execute(f'grant subscribe on {self.stbname[source]} to {self.source_user_name}')
             self.sync_db_stb('database')
             self.sync_db_stb('stable')
-            time.sleep(5)
             for source in range(len(self.source_taosd_list)):
                 taosd_master = taos.connect(host=self.source_taosd_list[source][0], port=int(
                             self.source_taosd_list[source][1]))
