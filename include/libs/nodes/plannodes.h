@@ -121,7 +121,7 @@ typedef struct SScanLogicNode {
   bool          filesetDelimited; // returned blocks delimited by fileset
   bool          isCountByTag;  // true if selectstmt hasCountFunc & part by tag/tbname
   SArray*       pFuncTypes; // for last, last_row
-  bool          seqBlocksSort; // for table merge scan
+  bool          paraTablesSort; // for table merge scan
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -440,7 +440,7 @@ typedef struct STableScanPhysiNode {
   int8_t         igCheckUpdate;
   bool           filesetDelimited;
   bool           needCountEmptyTable;
-  bool           seqBlocksSort;
+  bool           paraTablesSort;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;

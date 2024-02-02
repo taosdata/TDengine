@@ -4322,7 +4322,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
   pOperator->fpSet =
       createOperatorFpSet(optrDummyOpenFn,
-                          pTableScanNode->seqBlocksSort ? doTableMergeScanSeqBlocksInMem : doTableMergeScan,
+                          pTableScanNode->paraTablesSort ? doTableMergeScanSeqBlocksInMem : doTableMergeScan,
                           NULL,
                           destroyTableMergeScanOperatorInfo,
                           optrDefaultBufFn,

@@ -455,12 +455,12 @@ bool getOptHint(SNodeList* pList, EHintOption hint) {
   return false;
 }
 
-bool getSeqBlocksSortOptHint(SNodeList* pList) {
+bool getparaTablesSortOptHint(SNodeList* pList) {
   if (!pList) return false;
   SNode* pNode;
   FOREACH(pNode, pList) {
     SHintNode* pHint = (SHintNode*)pNode;
-    if (pHint->option == HINT_SEQ_BLOCKS_SORT) {
+    if (pHint->option == HINT_PARA_TABLES_SORT) {
       return true;
     }
   }
