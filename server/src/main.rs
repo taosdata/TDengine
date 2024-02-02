@@ -59,14 +59,15 @@ async fn main() -> anyhow::Result<()> {
             file_path = value;
         }
     }
+    println!("Use configuration file path: {}", file_path.display());
     let mut args = if let Ok(mut file) = File::open(&file_path) {
-        info!("Use configuration file path: {}", file_path.display());
         let mut content = String::new();
         file.read_to_string(&mut content)?;
         let mut args: Args = toml::from_str(&content).unwrap();
         args.update_from(std::env::args());
         args
     } else {
+        println!("No configuration file found, use default arguments.");
         Args::parse()
     };
     let log_level = args
