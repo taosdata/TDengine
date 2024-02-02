@@ -755,6 +755,7 @@ void MockCatalogService::destoryCatalogReq(SCatalogReq* pReq) {
   taosArrayDestroy(pReq->pUser);
   taosArrayDestroy(pReq->pTableIndex);
   taosArrayDestroy(pReq->pTableCfg);
+  taosArrayDestroyEx(pReq->pView, destoryTablesReq);
   delete pReq;
 }
 
@@ -781,6 +782,7 @@ void MockCatalogService::destoryMetaData(SMetaData* pData) {
   taosArrayDestroyEx(pData->pQnodeList, destoryMetaRes);
   taosArrayDestroyEx(pData->pTableCfg, destoryMetaRes);
   taosArrayDestroyEx(pData->pDnodeList, destoryMetaArrayRes);
+  taosArrayDestroyEx(pData->pView, destoryMetaRes);
   taosMemoryFree(pData->pSvrVer);
   delete pData;
 }
