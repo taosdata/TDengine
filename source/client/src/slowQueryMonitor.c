@@ -41,7 +41,7 @@ static const char* getSlowQueryLableCostDesc(int64_t cost) {
   return "< 3 s";
 }
 
-void clusterSlowQueryMonitorInit(const char* clusterKey) {
+void clientSlowQueryMonitorInit(const char* clusterKey) {
   if (!tsEnableMonitor || !enableSlowQueryMonitor) return;
   SAppInstInfo* pAppInstInfo = getAppInstInfo(clusterKey);
   SEpSet        epSet = getEpSet_s(&pAppInstInfo->mgmtEp);
@@ -49,7 +49,7 @@ void clusterSlowQueryMonitorInit(const char* clusterKey) {
   createClusterCounter(clusterKey, slowQueryName, slowQueryHelp, slowQueryLabelCount, slowQueryLabels);
 }
 
-void clusterSlowQueryLog(const char* clusterKey, const char* user, SQL_RESULT_CODE result, int32_t cost) {
+void clientSlowQueryLog(const char* clusterKey, const char* user, SQL_RESULT_CODE result, int32_t cost) {
   const char* slowQueryLabelValues[] = {defaultClusterID, user, resultStr(result), getSlowQueryLableCostDesc(cost)};
   taosClusterCounterInc(clusterKey, slowQueryName, slowQueryLabelValues);
 }
@@ -70,7 +70,7 @@ void SlowQueryLog(int64_t rid, bool killed, int32_t code, int32_t cost) {
     if(pTscObj->pAppInfo == NULL) {
       tscLog("SlowQueryLog, not found pAppInfo");
     }
-    return clusterSlowQueryLog(pTscObj->pAppInfo->instKey, pTscObj->user, result, cost);
+    return clientSlowQueryLog(pTscObj->pAppInfo->instKey, pTscObj->user, result, cost);
   } else {
     tscLog("SlowQueryLog, not found rid");
   }

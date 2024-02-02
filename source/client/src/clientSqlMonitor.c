@@ -24,7 +24,7 @@ const char* selectMonitorLabels[] = {"cluster_id", "sql_type", "username", "resu
 
 static const char* defaultClusterID = "";
 
-void clusterSelectMonitorInit(const char* clusterKey) {
+void clientSQLReqMonitorInit(const char* clusterKey) {
   if (!tsEnableMonitor) return;
   SAppInstInfo* pAppInstInfo = getAppInstInfo(clusterKey);
   SEpSet epSet = getEpSet_s(&pAppInstInfo->mgmtEp);
@@ -32,12 +32,12 @@ void clusterSelectMonitorInit(const char* clusterKey) {
   createClusterCounter(clusterKey, selectMonitorName, selectMonitorHelp, selectMonitorLabelCount, selectMonitorLabels);
 }
 
-void clusterSelectLog(const char* clusterKey, const char* user, SQL_RESULT_CODE result) {
+void clientSQLReqLog(const char* clusterKey, const char* user, SQL_RESULT_CODE result) {
   const char* selectMonitorLabelValues[] = {defaultClusterID, "select", user, resultStr(result)};
   taosClusterCounterInc(clusterKey, selectMonitorName, selectMonitorLabelValues);
 }
 
-void selectLog(int64_t rid,  bool killed, int32_t code) {
+void sqlReqLog(int64_t rid,  bool killed, int32_t code) {
   if (!tsEnableMonitor) return;
   SQL_RESULT_CODE result = SQL_RESULT_SUCCESS;
   if (TSDB_CODE_SUCCESS != code) {
@@ -51,10 +51,10 @@ void selectLog(int64_t rid,  bool killed, int32_t code) {
   STscObj* pTscObj = acquireTscObj(rid);
   if (pTscObj != NULL) {
     if (pTscObj->pAppInfo == NULL) {
-      tscLog("selectLog, not found pAppInfo");
+      tscLog("sqlReqLog, not found pAppInfo");
     }
-    return clusterSelectLog(pTscObj->pAppInfo->instKey, pTscObj->user, result);
+    return clientSQLReqLog(pTscObj->pAppInfo->instKey, pTscObj->user, result);
   } else {
-    tscLog("selectLog, not found rid");
+    tscLog("sqlReqLog, not found rid");
   }
 }

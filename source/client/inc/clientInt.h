@@ -431,11 +431,11 @@ void    freeQueryParam(SSyncQueryParam* param);
 int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effeciveUser, SParseSqlRes* pRes);
 #endif
 
-void clusterSlowQueryMonitorInit(const char* clusterKey);
+void clientSlowQueryMonitorInit(const char* clusterKey);
 void SlowQueryLog(int64_t rid, bool killed, int32_t code, int32_t cost);
 
-void clusterSelectMonitorInit(const char* clusterKey);
-void selectLog(int64_t rid,  bool killed, int32_t code);
+void clientSQLReqMonitorInit(const char* clusterKey);
+void sqlReqLog(int64_t rid,  bool killed, int32_t code);
 
 #ifdef __cplusplus
 }

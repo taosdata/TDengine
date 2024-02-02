@@ -105,7 +105,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
                pRequest->metric.planCostUs, pRequest->metric.execCostUs);
 
       atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
-      selectLog(pTscObj->id, pRequest->killed, pRequest->code);
+      sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code);
       reqType = SLOW_LOG_TYPE_QUERY;
     }
   }
