@@ -329,7 +329,7 @@ int32_t queryBuildGetTSMAMsg(void *input, char **msg, int32_t msgSize, int32_t *
   }
 
   STableTSMAInfoReq req = {0};
-  req.fetchingTsma = true;
+  req.fetchingWithTsmaName = true;
   strncpy(req.name, input, sizeof(req.name) - 1);
 
   int32_t bufLen = tSerializeTableTSMAInfoReq(NULL, 0, &req);

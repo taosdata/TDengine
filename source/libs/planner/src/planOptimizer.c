@@ -5131,8 +5131,6 @@ static int32_t tsmaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan
           SLogicSubplan* pSubplan = tsmaOptCtx.generatedSubPlans[i];
           if (!pSubplan) continue;
           pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
-          pSubplan->id.groupId = pLogicSubplan->id.groupId + 1;
-          pSubplan->id.queryId = pLogicSubplan->id.queryId;
           nodesListMakeAppend(&pLogicSubplan->pChildren, (SNode*)pSubplan);
         }
       }
