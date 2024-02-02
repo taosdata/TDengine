@@ -122,6 +122,8 @@ static FORCE_INLINE int64_t tsdbLogicToFileSize(int64_t lSize, int32_t szPage) {
 
 void    tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 int32_t tsdbRowCmprFn(const void *p1, const void *p2);
+int32_t tsdbRowKeyCmpr(const STsdbRowKey *key1, const STsdbRowKey *key2);
+void    tsdbRowGetKey(TSDBROW *row, STsdbRowKey *key);
 // STSDBRowIter
 int32_t  tsdbRowIterOpen(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
 void     tsdbRowClose(STSDBRowIter *pIter);
@@ -226,9 +228,9 @@ int32_t  tsdbRefMemTable(SMemTable *pMemTable, SQueryNode *pQNode);
 int32_t  tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode, bool proactive);
 SArray  *tsdbMemTableGetTbDataArray(SMemTable *pMemTable);
 // STbDataIter
-int32_t tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
+int32_t tsdbTbDataIterCreate(STbData *pTbData, STsdbRowKey *pFrom, int8_t backward, STbDataIter **ppIter);
 void   *tsdbTbDataIterDestroy(STbDataIter *pIter);
-void    tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter);
+void    tsdbTbDataIterOpen(STbData *pTbData, STsdbRowKey *pFrom, int8_t backward, STbDataIter *pIter);
 bool    tsdbTbDataIterNext(STbDataIter *pIter);
 void    tsdbMemTableCountRows(SMemTable *pMemTable, SSHashObj *pTableMap, int64_t *rowsNum);
 
@@ -368,15 +370,6 @@ struct TSDBKEY {
 };
 
 typedef struct SMemSkipListNode SMemSkipListNode;
-struct SMemSkipListNode {
-  int8_t            level;
-  int8_t            flag;  // TSDBROW_ROW_FMT for row format, TSDBROW_COL_FMT for col format
-  int32_t           iRow;
-  int64_t           version;
-  void             *pData;
-  SMemSkipListNode *forwards[0];
-};
-
 typedef struct SMemSkipList {
   int64_t           size;
   uint32_t          seed;
@@ -430,8 +423,14 @@ struct TSDBROW {
   };
 };
 
+struct SMemSkipListNode {
+  int8_t            level;
+  TSDBROW           row;
+  SMemSkipListNode *forwards[0];
+};
+
 struct STsdbRowKey {
-  SRowKey rowkey;
+  SRowKey key;
   int64_t version;
 };
 
@@ -941,34 +940,7 @@ static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
 // #define SL_NODE_FORWARD(n, l)  ((n)->forwards[l])
 // #define SL_NODE_BACKWARD(n, l) ((n)->forwards[(n)->level + (l)])
 
-static FORCE_INLINE TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter) {
-  if (pIter == NULL) return NULL;
-
-  if (pIter->pRow) {
-    return pIter->pRow;
-  }
-
-  if (pIter->backward) {
-    if (pIter->pNode == pIter->pTbData->sl.pHead) {
-      return NULL;
-    }
-  } else {
-    if (pIter->pNode == pIter->pTbData->sl.pTail) {
-      return NULL;
-    }
-  }
-
-  pIter->pRow = &pIter->row;
-  if (pIter->pNode->flag == TSDBROW_ROW_FMT) {
-    pIter->row = tsdbRowFromTSRow(pIter->pNode->version, pIter->pNode->pData);
-  } else if (pIter->pNode->flag == TSDBROW_COL_FMT) {
-    pIter->row = tsdbRowFromBlockData(pIter->pNode->pData, pIter->pNode->iRow);
-  } else {
-    ASSERT(0);
-  }
-
-  return pIter->pRow;
-}
+TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter);
 
 int32_t tRowInfoCmprFn(const void *p1, const void *p2);
 

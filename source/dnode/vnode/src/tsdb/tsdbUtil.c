@@ -587,22 +587,22 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   }
 }
 
-static void tsdbRowGetKey(TSDBROW *row, STsdbRowKey *key) {
+void tsdbRowGetKey(TSDBROW *row, STsdbRowKey *key) {
   if (row->type == TSDBROW_ROW_FMT) {
     key->version = row->version;
-    tRowGetKey(row->pTSRow, &key->rowkey);
+    tRowGetKey(row->pTSRow, &key->key);
   } else {
     key->version = row->pBlockData->aVersion[row->iRow];
-    key->rowkey.ts = row->pBlockData->aTSKEY[row->iRow];
-    key->rowkey.numOfKeys = 0;
+    key->key.ts = row->pBlockData->aTSKEY[row->iRow];
+    key->key.numOfKeys = 0;
     for (int32_t i = 0; i < row->pBlockData->nColData; i++) {
       SColData *pColData = &row->pBlockData->aColData[i];
       if (pColData->cflag & COL_IS_KEY) {
         SColVal cv;
         tColDataGetValue(pColData, row->iRow, &cv);
-        key->rowkey.keys[key->rowkey.numOfKeys].type = pColData->type;
-        key->rowkey.keys[key->rowkey.numOfKeys].value = cv.value;
-        key->rowkey.numOfKeys++;
+        key->key.keys[key->key.numOfKeys].type = pColData->type;
+        key->key.keys[key->key.numOfKeys].value = cv.value;
+        key->key.numOfKeys++;
       } else {
         break;
       }
@@ -611,7 +611,7 @@ static void tsdbRowGetKey(TSDBROW *row, STsdbRowKey *key) {
 }
 
 int32_t tsdbRowKeyCmpr(const STsdbRowKey *key1, const STsdbRowKey *key2) {
-  int32_t c = tRowKeyCmpr(&key1->rowkey, &key2->rowkey);
+  int32_t c = tRowKeyCmpr(&key1->key, &key2->key);
 
   if (c) {
     return c;

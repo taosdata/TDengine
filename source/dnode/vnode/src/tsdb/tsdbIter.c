@@ -45,7 +45,7 @@ struct STsdbIter {
     } dataData[1];
     struct {
       SMemTable  *memt;
-      TSDBKEY     from[1];
+      STsdbRowKey from[1];
       SRBTreeIter iter[1];
       STbData    *tbData;
       STbDataIter tbIter[1];

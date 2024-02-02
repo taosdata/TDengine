@@ -887,7 +887,7 @@ static void copyNumericCols(const SColData* pData, SFileBlockDumpInfo* pDumpInfo
   }
 }
 
-static void blockInfoToRecord(SBrinRecord* record, SFileDataBlockInfo* pBlockInfo){
+static void blockInfoToRecord(SBrinRecord* record, SFileDataBlockInfo* pBlockInfo) {
   record->uid = pBlockInfo->uid;
   record->firstKey = pBlockInfo->firstKey;
   record->lastKey = pBlockInfo->lastKey;
@@ -1122,8 +1122,8 @@ static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockI
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%p error occurs in loading file block, global index:%d, table index:%d, brange:%" PRId64 "-%" PRId64
               ", rows:%d, code:%s %s",
-              pReader, pBlockIter->index, pBlockInfo->tbBlockIdx, pBlockInfo->firstKey,
-              pBlockInfo->lastKey, pBlockInfo->numRow, tstrerror(code), pReader->idStr);
+              pReader, pBlockIter->index, pBlockInfo->tbBlockIdx, pBlockInfo->firstKey, pBlockInfo->lastKey,
+              pBlockInfo->numRow, tstrerror(code), pReader->idStr);
     return code;
   }
 
@@ -1265,8 +1265,8 @@ static bool bufferDataInFileBlockGap(TSDBKEY keyInBuf, SFileDataBlockInfo* pBloc
 }
 
 static bool keyOverlapFileBlock(TSDBKEY key, SFileDataBlockInfo* pBlock, SVersionRange* pVerRange) {
-  return (key.ts >= pBlock->firstKey && key.ts <= pBlock->lastKey) &&
-         (pBlock->maxVer >= pVerRange->minVer) && (pBlock->minVer <= pVerRange->maxVer);
+  return (key.ts >= pBlock->firstKey && key.ts <= pBlock->lastKey) && (pBlock->maxVer >= pVerRange->minVer) &&
+         (pBlock->minVer <= pVerRange->maxVer);
 }
 
 static void getBlockToLoadInfo(SDataBlockToLoadInfo* pInfo, SFileDataBlockInfo* pBlockInfo,
@@ -1291,8 +1291,7 @@ static void getBlockToLoadInfo(SDataBlockToLoadInfo* pInfo, SFileDataBlockInfo* 
   ASSERT(pScanInfo->sttKeyInfo.status != STT_FILE_READER_UNINIT);
   if (pScanInfo->sttKeyInfo.status == STT_FILE_HAS_DATA) {
     int64_t nextProcKeyInStt = pScanInfo->sttKeyInfo.nextProcKey;
-    pInfo->overlapWithSttBlock =
-        !(pBlockInfo->lastKey < nextProcKeyInStt || pBlockInfo->firstKey > nextProcKeyInStt);
+    pInfo->overlapWithSttBlock = !(pBlockInfo->lastKey < nextProcKeyInStt || pBlockInfo->firstKey > nextProcKeyInStt);
   }
 
   pInfo->moreThanCapcity = pBlockInfo->numRow > pReader->resBlockInfo.capacity;
@@ -1911,7 +1910,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
   return code;
 }
 
-int32_t doInitMemDataIter(STsdbReader* pReader, STbData** pData, STableBlockScanInfo* pBlockScanInfo, TSDBKEY* pKey,
+int32_t doInitMemDataIter(STsdbReader* pReader, STbData** pData, STableBlockScanInfo* pBlockScanInfo, STsdbRowKey* pKey,
                           SMemTable* pMem, SIterInfo* pIter, const char* type) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t backward = (!ASCENDING_TRAVERSE(pReader->info.order));
@@ -1927,8 +1926,8 @@ int32_t doInitMemDataIter(STsdbReader* pReader, STbData** pData, STableBlockScan
 
         tsdbDebug("%p uid:%" PRIu64 ", check data in %s from skey:%" PRId64 ", order:%d, ts range in buf:%" PRId64
                   "-%" PRId64 " %s",
-                  pReader, pBlockScanInfo->uid, type, pKey->ts, pReader->info.order, (*pData)->minKey, (*pData)->maxKey,
-                  pReader->idStr);
+                  pReader, pBlockScanInfo->uid, type, pKey->key.ts, pReader->info.order, (*pData)->minKey,
+                  (*pData)->maxKey, pReader->idStr);
       } else {
         tsdbError("%p uid:%" PRIu64 ", failed to create iterator for %s, code:%s, %s", pReader, pBlockScanInfo->uid,
                   type, tstrerror(code), pReader->idStr);
@@ -1947,12 +1946,20 @@ static int32_t initMemDataIterator(STableBlockScanInfo* pBlockScanInfo, STsdbRea
     return TSDB_CODE_SUCCESS;
   }
 
-  STbData* d = NULL;
-  TSDBKEY  startKey = {0};
+  STbData*    d = NULL;
+  STsdbRowKey startKey = {0};
   if (ASCENDING_TRAVERSE(pReader->info.order)) {
-    startKey = (TSDBKEY){.ts = pBlockScanInfo->lastProcKey + 1, .version = pReader->info.verRange.minVer};
+    startKey = (STsdbRowKey){.version = pReader->info.verRange.minVer,
+                             .key = {
+                                 .ts = pBlockScanInfo->lastProcKey + 1,
+                                 .numOfKeys = 0,  // TODO: change here if multi-key is supported
+                             }};
   } else {
-    startKey = (TSDBKEY){.ts = pBlockScanInfo->lastProcKey - 1, .version = pReader->info.verRange.maxVer};
+    startKey = (STsdbRowKey){.version = pReader->info.verRange.maxVer,
+                             .key = {
+                                 .ts = pBlockScanInfo->lastProcKey - 1,
+                                 .numOfKeys = 0,  // TODO: change here if multi-key is supported
+                             }};
   }
 
   int32_t code =
@@ -2000,8 +2007,8 @@ static bool isValidFileBlockRow(SBlockData* pBlockData, int32_t rowIndex, STable
   }
 
   if (pBlockScanInfo->delSkyline != NULL && TARRAY_SIZE(pBlockScanInfo->delSkyline) > 0) {
-    bool dropped = hasBeenDropped(pBlockScanInfo->delSkyline, &pBlockScanInfo->fileDelIndex, ts, ver,
-                                  pInfo->order, &pInfo->verRange);
+    bool dropped = hasBeenDropped(pBlockScanInfo->delSkyline, &pBlockScanInfo->fileDelIndex, ts, ver, pInfo->order,
+                                  &pInfo->verRange);
     if (dropped) {
       return false;
     }
@@ -2093,14 +2100,14 @@ static bool initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
       pScanInfo->sttKeyInfo.nextProcKey =
           ASCENDING_TRAVERSE(pReader->info.order) ? pScanInfo->sttWindow.skey : pScanInfo->sttWindow.ekey;
       hasData = true;
-    } else {  // not clean stt blocks
-      INIT_TIMEWINDOW(&pScanInfo->sttWindow);  //reset the time window
+    } else {                                   // not clean stt blocks
+      INIT_TIMEWINDOW(&pScanInfo->sttWindow);  // reset the time window
       pScanInfo->sttBlockReturned = false;
       hasData = nextRowFromSttBlocks(pSttBlockReader, pScanInfo, &pReader->info.verRange);
     }
   } else {
     pScanInfo->cleanSttBlocks = false;
-    INIT_TIMEWINDOW(&pScanInfo->sttWindow);  //reset the time window
+    INIT_TIMEWINDOW(&pScanInfo->sttWindow);  // reset the time window
     pScanInfo->sttBlockReturned = false;
     hasData = nextRowFromSttBlocks(pSttBlockReader, pScanInfo, &pReader->info.verRange);
   }
@@ -2840,8 +2847,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
 
         // data in stt now overlaps with current active file data block, need to composed with file data block.
         int64_t lastKeyInStt = getCurrentKeyInSttBlock(pSttBlockReader);
-        if ((lastKeyInStt >= pBlockInfo->firstKey && asc) ||
-            (lastKeyInStt <= pBlockInfo->lastKey && (!asc))) {
+        if ((lastKeyInStt >= pBlockInfo->firstKey && asc) || (lastKeyInStt <= pBlockInfo->lastKey && (!asc))) {
           tsdbDebug("%p lastKeyInStt:%" PRId64 ", overlap with file block, brange:%" PRId64 "-%" PRId64 " %s", pReader,
                     lastKeyInStt, pBlockInfo->firstKey, pBlockInfo->lastKey, pReader->idStr);
           break;
