@@ -3244,6 +3244,7 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
       continue;
     }
 
+
     uint32_t status = 0;
     code = loadDataBlock(pOperator, &pInfo->base, pBlock, &status);
     //    code = loadDataBlockFromOneTable(pOperator, pTableScanInfo, pBlock, &status);
@@ -3325,19 +3326,14 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   tSimpleHashClear(pInfo->mTableNumRows);
 
   size_t szRow = blockDataGetRowSize(pInfo->pResBlock);   
-//  if (pInfo->mergeLimit != -1) {
-//    pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1,
-//                                              NULL, pTaskInfo->id.str, pInfo->mergeLimit, szRow+8, tsPQSortMemThreshold * 1024* 1024);
-//  } else
-  {
-    pInfo->sortBufSize = 2048 * pInfo->bufPageSize;
-    int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
-    pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
+  pInfo->sortBufSize = 2048 * pInfo->bufPageSize;
+  int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
                                               pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
+  tsortSetMergeLimitReachedFp(pInfo->pSortHandle, tableMergeScanDoSkipTable, pInfo);
 
-    tsortSetMergeLimit(pInfo->pSortHandle, pInfo->mergeLimit);
-    tsortSetAbortCheckFn(pInfo->pSortHandle, isTaskKilled, pOperator->pTaskInfo);
-  }
+  tsortSetMergeLimit(pInfo->pSortHandle, pInfo->mergeLimit);
+  tsortSetAbortCheckFn(pInfo->pSortHandle, isTaskKilled, pOperator->pTaskInfo);
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, getBlockForTableMergeScan, NULL, NULL);
 
