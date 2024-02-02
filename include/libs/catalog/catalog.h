@@ -383,6 +383,7 @@ int32_t catalogRemoveViewMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId
 int32_t catalogUpdateDynViewVer(SCatalog* pCtg, SDynViewVersion* pVer);
 
 int32_t catalogUpdateViewMeta(SCatalog* pCtg, SViewMetaRsp* pMsg);
+int32_t catalogUpdateGrantInfo(SCatalog* pCtg, SGrantHbRsp* pMsg);
 
 int32_t catalogAsyncUpdateViewMeta(SCatalog* pCtg, SViewMetaRsp* pMsg);
 

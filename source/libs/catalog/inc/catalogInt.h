@@ -69,6 +69,7 @@ typedef enum {
   CTG_CI_UDF,
   CTG_CI_SVR_VER,
   CTG_CI_VIEW,
+  CTG_CI_GRANT_INFO,
   CTG_CI_MAX_VALUE,
 } CTG_CACHE_ITEM;
 
@@ -101,6 +102,8 @@ enum {
   CTG_OP_DROP_TB_INDEX,
   CTG_OP_UPDATE_VIEW_META,
   CTG_OP_DROP_VIEW_META,
+  CTG_OP_UPDATE_GRANT_INFO,
+  CTG_OP_DROP_GRANT_INFO,
   CTG_OP_CLEAR_CACHE,
   CTG_OP_MAX
 };
@@ -123,6 +126,7 @@ typedef enum {
   CTG_TASK_GET_TB_HASH_BATCH,
   CTG_TASK_GET_TB_TAG,
   CTG_TASK_GET_VIEW,
+  CTG_TASK_GET_GRANT_INFO,
 } CTG_TASK_TYPE;
 
 typedef enum {
@@ -322,9 +326,12 @@ typedef struct SCatalog {
   SDynViewVersion dynViewVer;
   SHashObj*       userCache;  // key:user, value:SCtgUserAuth
   SHashObj*       dbCache;    // key:dbname, value:SCtgDBCache
+  SHashObj*       grantCache;
+  SGrantHbRsp     _grantCache;
   SCtgRentMgmt    dbRent;
   SCtgRentMgmt    stbRent;
   SCtgRentMgmt    viewRent;
+  SCtgRentMgmt    grantRent;
   SCtgCacheStat   cacheStat;
 } SCatalog;
 
@@ -548,6 +555,10 @@ typedef struct SCtgDropViewMetaMsg {
   uint64_t  viewId;
 } SCtgDropViewMetaMsg;
 
+typedef struct SCtgUpdateGrantInfoMsg {
+  SCatalog*    pCtg;
+  SGrantHbRsp* pRsp;
+} SCtgUpdateGrantInfoMsg;
 
 typedef struct SCtgCacheOperation {
   int32_t opId;
@@ -948,6 +959,7 @@ int32_t ctgUpdateRentViewVersion(SCatalog *pCtg, char *dbFName, char *viewName, 
                                 SCtgViewCache *pCache);                                
 int32_t ctgUpdateTbMetaToCache(SCatalog* pCtg, STableMetaOutput* pOut, bool syncReq);
 int32_t ctgUpdateViewMetaToCache(SCatalog *pCtg, SViewMetaRsp *pRsp, bool syncReq);
+int32_t ctgUpdateGrantInfoToCache(SCatalog *pCtg, SGrantHbRsp *pRsp, bool syncReq);
 int32_t ctgStartUpdateThread();
 int32_t ctgRelaunchGetTbMetaTask(SCtgTask* pTask);
 void    ctgReleaseVgInfoToCache(SCatalog* pCtg, SCtgDBCache* dbCache);

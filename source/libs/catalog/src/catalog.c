@@ -1747,6 +1747,21 @@ _return:
   CTG_API_LEAVE(code);
 }
 
+int32_t catalogUpdateGrantInfo(SCatalog* pCtg, SGrantHbRsp* pMsg) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == pMsg) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t code = 0;
+  CTG_ERR_JRET(ctgUpdateGrantInfoToCache(pCtg, pMsg, true));
+
+_return:
+
+  CTG_API_LEAVE(code);
+}
+
 
 int32_t catalogAsyncUpdateViewMeta(SCatalog* pCtg, SViewMetaRsp* pMsg) {
   CTG_API_ENTER();

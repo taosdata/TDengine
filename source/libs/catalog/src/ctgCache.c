@@ -32,6 +32,8 @@ SCtgOperation gCtgCacheOperation[CTG_OP_MAX] = {{CTG_OP_UPDATE_VGROUP, "update v
                                                 {CTG_OP_DROP_TB_INDEX, "drop tbIndex", ctgOpDropTbIndex},
                                                 {CTG_OP_UPDATE_VIEW_META, "update viewMeta", ctgOpUpdateViewMeta},
                                                 {CTG_OP_DROP_VIEW_META, "drop viewMeta", ctgOpDropViewMeta},
+                                                {CTG_OP_UPDATE_GRANT_INFO, "update grantInfo", ctgOpUpdateGrantInfo},
+                                                {CTG_OP_DROP_GRANT_INFO, "drop grantInfo", ctgOpDropGrantInfo},
                                                 {CTG_OP_CLEAR_CACHE, "clear cache", ctgOpClearCache}};
 
 SCtgCacheItemInfo gCtgStatItem[CTG_CI_MAX_VALUE] = {
@@ -1323,6 +1325,33 @@ _return:
   CTG_RET(code);  
 }
 
+int32_t ctgUpdateGrantInfoEnqueue(SCatalog *pCtg, SGrantHbRsp *pRsp, bool syncOp) {
+  int32_t             code = 0;
+  SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  op->opId = CTG_OP_UPDATE_GRANT_INFO;
+  op->syncOp = syncOp;
+
+  SCtgUpdateGrantInfoMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateGrantInfoMsg));
+  if (NULL == msg) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateGrantInfoMsg));
+    taosMemoryFree(op);
+    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  msg->pCtg = pCtg;
+  msg->pRsp = pRsp;
+
+  op->data = msg;
+
+  CTG_ERR_RET(ctgEnqueue(pCtg, op));
+
+  return TSDB_CODE_SUCCESS;
+_return:
+
+  taosMemoryFree(pRsp);
+  CTG_RET(code);
+}
+
 int32_t ctgDropViewMetaEnqueue(SCatalog *pCtg, const char *dbFName, uint64_t dbId, const char *viewName, uint64_t viewId, bool syncOp) {
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
@@ -1713,6 +1742,10 @@ _return:
 
 int32_t ctgUpdateViewMetaToCache(SCatalog *pCtg, SViewMetaRsp *pRsp, bool syncReq) {
   CTG_RET(ctgUpdateViewMetaEnqueue(pCtg, pRsp, syncReq));
+}
+
+int32_t ctgUpdateGrantInfoToCache(SCatalog *pCtg, SGrantHbRsp *pRsp, bool syncReq) {
+  CTG_RET(ctgUpdateGrantInfoEnqueue(pCtg, pRsp, syncReq));
 }
 
 
@@ -2357,6 +2390,104 @@ int32_t ctgOpUpdateViewMeta(SCtgCacheOperation *operation) {
   SCtgUpdateViewMetaMsg *msg = operation->data;
   SCatalog              *pCtg = msg->pCtg;
   SViewMetaRsp          *pRsp = msg->pRsp;
+  SCtgDBCache           *dbCache = NULL;
+  SViewMeta             *pMeta = NULL;
+
+  taosMemoryFreeClear(msg);
+
+  if (pCtg->stopUpdate) {
+    goto _return;
+  }
+
+  CTG_ERR_JRET(ctgGetAddDBCache(pCtg, pRsp->dbFName, pRsp->dbId, &dbCache));
+  if (NULL == dbCache) {
+    ctgInfo("conflict db update, ignore this update, dbFName:%s, dbId:0x%" PRIx64, pRsp->dbFName, pRsp->dbId);
+    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  pMeta = taosMemoryCalloc(1, sizeof(SViewMeta));
+  if (NULL == pMeta) {
+    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  CTG_ERR_JRET(dupViewMetaFromRsp(pRsp, pMeta));
+
+  code = ctgWriteViewMetaToCache(pCtg, dbCache, pRsp->dbFName, pRsp->name, pMeta);
+  pMeta = NULL;
+  
+_return:
+
+  tFreeSViewMetaRsp(pRsp);
+  taosMemoryFree(pRsp);
+  ctgFreeSViewMeta(pMeta);
+  taosMemoryFree(pMeta);
+
+  CTG_RET(code);
+}
+
+int32_t ctgOpDropViewMeta(SCtgCacheOperation *operation) {
+  int32_t              code = 0;
+  SCtgDropViewMetaMsg *msg = operation->data;
+  SCatalog            *pCtg = msg->pCtg;
+  int32_t              tblType = 0;
+
+  if (pCtg->stopUpdate) {
+    goto _return;
+  }
+
+  SCtgDBCache *dbCache = NULL;
+  ctgGetDBCache(pCtg, msg->dbFName, &dbCache);
+  if (NULL == dbCache) {
+    goto _return;
+  }
+
+  if ((0 != msg->dbId) && (dbCache->dbId != msg->dbId)) {
+    ctgDebug("dbId 0x%" PRIx64 " not match with curId 0x%" PRIx64 ", dbFName:%s, viewName:%s", msg->dbId, dbCache->dbId,
+             msg->dbFName, msg->viewName);
+    goto _return;
+  }
+
+  SCtgViewCache *pViewCache = taosHashGet(dbCache->viewCache, msg->viewName, strlen(msg->viewName));
+  if (NULL == pViewCache) {
+    ctgDebug("view %s already not in cache", msg->viewName);
+    goto _return;
+  }
+
+  int64_t viewId = pViewCache->pMeta->viewId;
+  if (0 != msg->viewId && viewId != msg->viewId) {
+    ctgDebug("viewId 0x%" PRIx64 " not match with curId 0x%" PRIx64 ", viewName:%s", msg->viewId, viewId, msg->viewName);
+    goto _return;
+  }
+  
+  atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pViewCache->pMeta));
+  ctgFreeViewCacheImpl(pViewCache, true);
+
+  if (taosHashRemove(dbCache->viewCache, msg->viewName, strlen(msg->viewName))) {
+    ctgError("view %s not exist in cache, dbFName:%s", msg->viewName, msg->dbFName);
+    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  } else {
+    atomic_sub_fetch_64(&dbCache->dbCacheSize, sizeof(SCtgViewCache) + strlen(msg->viewName));
+    CTG_DB_NUM_DEC(CTG_CI_VIEW);
+  }
+
+  ctgDebug("view %s removed from cache, dbFName:%s", msg->viewName, msg->dbFName);
+
+  CTG_ERR_JRET(ctgMetaRentRemove(&msg->pCtg->viewRent, viewId, ctgViewVersionSortCompare, ctgViewVersionSearchCompare));
+
+  ctgDebug("view %s removed from rent, dbFName:%s, viewId:0x%" PRIx64, msg->viewName, msg->dbFName, viewId);
+
+_return:
+
+  taosMemoryFreeClear(msg);
+
+  CTG_RET(code);
+}
+
+int32_t ctgOpUpdateGrantInfo(SCtgCacheOperation *operation) {
+  int32_t               code = 0;
+  SCtgUpdateGrantInfoMsg *msg = operation->data;
+  SCatalog              *pCtg = msg->pCtg;
+  SGrantHbRsp           *pRsp = msg->pRsp;
   SCtgDBCache           *dbCache = NULL;
   SViewMeta             *pMeta = NULL;
 
