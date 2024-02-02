@@ -13,24 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_SCHEDULER_H_
-#define _TD_MND_SCHEDULER_H_
+#ifndef _TD_UTIL_BASE58_H_
+#define _TD_UTIL_BASE58_H_
 
-#include "mndInt.h"
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-
-int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscribeObj* pSub);
-int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64_t uid, int8_t triggerType,
-                           int64_t watermark, int64_t deleteMark);
-
-int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream, int64_t skey, SArray* pVerList);
+uint8_t *base58_decode(const char *value, size_t inlen, int32_t *outlen);
+char    *base58_encode(const uint8_t *value, int32_t vlen);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MND_SCHEDULER_H_ */
+#endif /*_TD_UTIL_BASE58_H_*/

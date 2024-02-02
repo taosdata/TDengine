@@ -31,7 +31,7 @@ typedef struct SNodeMemChunk {
   struct SNodeMemChunk* pNext;
 } SNodeMemChunk;
 
-typedef struct SNodeAllocator {
+struct SNodeAllocator {
   int64_t        self;
   int64_t        queryId;
   int32_t        chunkSize;
@@ -39,7 +39,7 @@ typedef struct SNodeAllocator {
   SNodeMemChunk* pCurrChunk;
   SNodeMemChunk* pChunks;
   TdThreadMutex  mutex;
-} SNodeAllocator;
+};
 
 static threadlocal SNodeAllocator* g_pNodeAllocator;
 static int32_t                     g_allocatorReqRefPool = -1;
@@ -409,6 +409,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SGrantStmt));
     case QUERY_NODE_REVOKE_STMT:
       return makeNode(type, sizeof(SRevokeStmt));
+    case QUERY_NODE_ALTER_CLUSTER_STMT:
+      return makeNode(type, sizeof(SAlterClusterStmt));
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
@@ -439,6 +441,9 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_TAGS_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
     case QUERY_NODE_SHOW_VIEWS_STMT:
+    case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
+    case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
       return makeNode(type, sizeof(SShowTableTagsStmt));
@@ -1046,6 +1051,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_REVOKE_STMT:
       nodesDestroyNode(((SRevokeStmt*)pNode)->pTagCond);
       break;
+    case QUERY_NODE_ALTER_CLUSTER_STMT:           // no pointer field
+      break;
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
@@ -1075,7 +1082,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
     case QUERY_NODE_SHOW_TAGS_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
-    case QUERY_NODE_SHOW_VIEWS_STMT: {
+    case QUERY_NODE_SHOW_VIEWS_STMT:
+    case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
+    case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
