@@ -1520,18 +1520,6 @@ int32_t ctgGetAddDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId, SCt
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetAddGrantCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId, SCtgDBCache **pCache) {
-  int32_t      code = 0;
-  SCtgDBCache *dbCache = NULL;
-  ctgGetDBCache(pCtg, dbFName, &dbCache);
-
-
-
-  *pCache = dbCache;
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFName, uint64_t dbId, char *tbName,
                               STableMeta *meta, int32_t metaSize) {
   if (NULL == dbCache->tbCache || NULL == dbCache->stbCache) {
@@ -1728,6 +1716,30 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
 
   ctgDebug("view meta updated to cache, view:%s, id:%" PRIu64 ", ver:%d, effectiveUser:%s, querySQL:%s", 
     viewName, pMeta->viewId, pMeta->version, pMeta->user, pMeta->querySql);
+
+  CTG_ERR_RET(ctgUpdateRentViewVersion(pCtg, dbFName, viewName, dbCache->dbId, pMeta->viewId, pCache));
+
+  pMeta = NULL;
+
+_return:
+
+  if (pMeta) {
+    ctgFreeSViewMeta(pMeta);
+    taosMemoryFree(pMeta);
+  }
+
+  CTG_RET(code);
+}
+
+int32_t ctgWriteGrantInfoToCache(SCatalog *pCtg, SGrantHbRsp *pRsp) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SCtgGrantCache *pCache = &pCtg->grantCache;
+
+  CTG_LOCK(CTG_WRITE, &pCache->lock);
+  pCache->grantInfo = *pRsp;
+  CTG_UNLOCK(CTG_WRITE, &pCache->lock);
+
+  ctgDebug("grant info updated to cache, version");
 
   CTG_ERR_RET(ctgUpdateRentViewVersion(pCtg, dbFName, viewName, dbCache->dbId, pMeta->viewId, pCache));
 
@@ -2508,6 +2520,7 @@ int32_t ctgOpUpdateGrantInfo(SCtgCacheOperation *operation) {
   SCtgUpdateGrantInfoMsg *msg = operation->data;
   SCatalog              *pCtg = msg->pCtg;
   SGrantHbRsp           *pRsp = msg->pRsp;
+  SCtgGrantCache         *pGrantCache = NULL;
 
   taosMemoryFreeClear(msg);
 
@@ -2515,29 +2528,14 @@ int32_t ctgOpUpdateGrantInfo(SCtgCacheOperation *operation) {
     goto _return;
   }
 
-  CTG_ERR_JRET(ctgGetAddDBCache(pCtg, pRsp->dbFName, pRsp->dbId, &dbCache));
-  if (NULL == dbCache) {
-    ctgInfo("conflict db update, ignore this update, dbFName:%s, dbId:0x%" PRIx64, pRsp->dbFName, pRsp->dbId);
-    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
-  }
-
-  pMeta = taosMemoryCalloc(1, sizeof(SViewMeta));
-  if (NULL == pMeta) {
-    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
-  }
-
-  CTG_ERR_JRET(dupViewMetaFromRsp(pRsp, pMeta));
+  CTG_ERR_JRET(ctgAcquireGrantCache(pCtg, &pGrantCache));
 
   code = ctgWriteViewMetaToCache(pCtg, dbCache, pRsp->dbFName, pRsp->name, pMeta);
   pMeta = NULL;
   
 _return:
 
-  tFreeSViewMetaRsp(pRsp);
   taosMemoryFree(pRsp);
-  ctgFreeSViewMeta(pMeta);
-  taosMemoryFree(pMeta);
-
   CTG_RET(code);
 }
 

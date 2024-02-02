@@ -1328,6 +1328,16 @@ int32_t ctgViewVersionSearchCompare(const void* key1, const void* key2) {
   }
 }
 
+int32_t ctgGrantVersionSearchCompare(const void* key1, const void* key2) {
+  if (*(int32_t*)key1 == ((SGrantVersion*)key2)->grantId) {
+    return 0;
+  } else if (*(int32_t*)key1 < ((SGrantVersion*)key2)->grantId) {
+    return -1;
+  } else {
+    return 1;
+  }
+}
+
 
 int32_t ctgStbVersionSortCompare(const void* key1, const void* key2) {
   if (((SSTableVersion*)key1)->suid < ((SSTableVersion*)key2)->suid) {
@@ -1359,6 +1369,15 @@ int32_t ctgViewVersionSortCompare(const void* key1, const void* key2) {
   }
 }
 
+int32_t ctgGrantVersionSortCompare(const void* key1, const void* key2) {
+  if (((SGrantVersion*)key1)->grantId == ((SGrantVersion*)key2)->grantId) {
+    return 0;
+  } else if (((SGrantVersion*)key1)->grantId < ((SGrantVersion*)key2)->grantId) {
+    return -1;
+  } else {
+    return 1;
+  }
+}
 
 int32_t ctgMakeVgArray(SDBVgInfo* dbInfo) {
   if (NULL == dbInfo) {

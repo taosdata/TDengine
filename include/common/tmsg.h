@@ -1887,6 +1887,7 @@ int32_t tDeserializeSViewHbRsp(void* buf, int32_t bufLen, SViewHbRsp* pRsp);
 void    tFreeSViewHbRsp(SViewHbRsp* pRsp);
 
 typedef struct {
+  int32_t  version;
   uint32_t flags;
 } SGrantHbRsp;
 
