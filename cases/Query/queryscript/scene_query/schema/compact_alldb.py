@@ -59,6 +59,8 @@ class TDTestQuery(TDCase):
             compact_db = " compact database `%s`" %self.tdSql.getData(i,0)
             #self.tdSql.execute(compact_db)
             self.execute_sql(compact_db)
+            flush_db = " flush database `%s`" %self.tdSql.getData(i,0)
+            self.execute_sql(flush_db)
                 
     def execute_sql(self,sql) :
         try:
