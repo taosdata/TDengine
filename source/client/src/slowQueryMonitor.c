@@ -17,7 +17,7 @@
 #include "clientLog.h"
 #include "tglobal.h"
 
-const char* slowQueryName = "slow_query";
+const char* slowQueryName = "taos_slow_sql:count";
 const char* slowQueryHelp = "slow query log when cost over than config duration";
 const int   slowQueryLabelCount = 4;
 const char* slowQueryLabels[] = {"cluster_id", "username", "result", "duration"};

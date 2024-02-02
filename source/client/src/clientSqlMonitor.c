@@ -16,7 +16,7 @@
 #include "clientMonitor.h"
 #include "clientLog.h"
 
-const char* selectMonitorName = "select sql";
+const char* selectMonitorName = "taos_sql_req:count";
 const char* selectMonitorHelp = "count for select sql";
 const int   selectMonitorLabelCount = 4;
 const char* selectMonitorLabels[] = {"cluster_id", "sql_type", "username", "result"};
