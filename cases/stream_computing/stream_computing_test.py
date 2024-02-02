@@ -20,6 +20,7 @@ import os
 import random
 from taostest.components import TaosD
 import time
+import datetime
 class StreamComputingTest(TDCase):
     def init(self):
         self.stream_case_env_root = os.path.join(os.environ["TEST_ROOT"], "cases/stream_computing")
@@ -908,6 +909,245 @@ class StreamComputingTest(TDCase):
             #         if "value" in fill_value.lower():
             #             fill_value='VALUE,1,2,3,6,7,8,9,10,11'
             #         self.tdCom.check_query_data(f'select wstart, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.fill_tb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by wstart', sorted=True, fill_value=fill_value)
+
+    def at_once_count_window(self, partition="tbname", delete=False, fill_value=None, fill_history_value=None, count_window_value=None, watermark=None, case_when=None, ignore_expired=None, check_stream_task=None, checkpoint_check=False):
+        self.range_count = 100
+        self.delete = delete
+        self.case_name = sys._getframe().f_code.co_name
+        # if interval_value is None:
+        #     interval_value = f'{self.dataDict["interval"]}s'
+        self.prepare_data(fill_history_value=fill_history_value, ignore_expired=ignore_expired, watermark=watermark)
+        watermark_value = f'{self.dataDict["watermark"]}s' if watermark is not None else None
+        if partition == "tbname":
+            if case_when:
+                stream_case_when_partition = case_when
+            else:
+                stream_case_when_partition = self.partition_tbname_alias
+
+            partition_elm_alias = self.partition_tbname_alias
+        elif partition == "c1":
+            if case_when:
+                stream_case_when_partition = case_when
+            else:
+                stream_case_when_partition = self.partition_col_alias
+            partition_elm_alias = self.partition_col_alias
+        elif partition == "abs(c1)":
+            partition_elm_alias = self.partition_expression_alias
+        elif partition is None:
+            partition_elm_alias = '"no_partition"'
+        else:
+            partition_elm_alias = self.partition_tag_alias
+        if partition == "tbname" or partition is None:
+            if case_when:
+                stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", {stream_case_when_partition}), "{self.subtable_suffix}")' if self.subtable else None
+                ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", {stream_case_when_partition}), "{self.subtable_suffix}")' if self.subtable else None
+                tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", {stream_case_when_partition}), "{self.subtable_suffix}")' if self.subtable else None
+            else:
+                stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", {partition_elm_alias}), "{self.subtable_suffix}")' if self.subtable else None
+                ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", {partition_elm_alias}), "{self.subtable_suffix}")' if self.subtable else None
+                tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", {partition_elm_alias}), "{self.subtable_suffix}")' if self.subtable else None
+        else:
+            stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", cast(cast(abs(cast({partition_elm_alias} as int)) as bigint) as varchar(100))), "{self.subtable_suffix}")' if self.subtable else None
+            ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", cast(cast(abs(cast({partition_elm_alias} as int)) as bigint) as varchar(100))), "{self.subtable_suffix}")' if self.subtable else None
+            tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast(cast(abs(cast({partition_elm_alias} as int)) as bigint) as varchar(100))), "{self.subtable_suffix}")' if self.subtable else None
+        if partition:
+            partition_elm = f'partition by {partition} {partition_elm_alias}'
+        else:
+            partition_elm = ""
+        self.tdCom.write_latency(self.case_name)
+        if fill_value:
+            if "value" in fill_value.lower():
+                fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
+        self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', watermark=watermark_value, des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.stb_name} {partition_elm} count_window({count_window_value})', trigger_mode="at_once", subtable_value=stb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value, ignore_expired=ignore_expired)
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', watermark=watermark_value, des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.ctb_name} {partition_elm} count_window({count_window_value})', trigger_mode="at_once", subtable_value=ctb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value, ignore_expired=ignore_expired)
+        if fill_value:
+            if "value" in fill_value.lower():
+                fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11'
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', watermark=watermark_value, des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tb_source_select_str}  from {self.tb_name} {partition_elm} count_window({count_window_value})', trigger_mode="at_once", subtable_value=tb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value, ignore_expired=ignore_expired)
+        self.date_time = int(datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()*self.offset)
+        start_time = self.date_time
+        for i in range(self.range_count):
+            if checkpoint_check:
+                if i == int(self.range_count/2):
+                    time.sleep(int(self.taosd_setting["spec"]["dnodes"][0]["config"]["checkpointInterval"]) + 1)
+                    self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1]}, self.endpoint, True)
+            ts_value = str(self.date_time)+f'+{i}s'
+            if i == 0:
+                o_ts = ts_value
+                o_dt = self.date_time
+            ts_cast_delete_value = self.tdCom.time_cast(ts_value)
+            # ctb_name = self.tdCom.get_long_name()
+            # self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
+            self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
+            # if self.update and i%2 == 0:
+            #     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
+            # if self.delete and i%2 != 0:
+            #     self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=ts_cast_delete_value)
+            self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
+            # if self.update and i%2 == 0:
+            #     self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
+            # if self.delete and i%2 != 0:
+            #     self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
+            
+            # self.tdCom.insert_rows(tbname=ctb_name, ts_value=ts_value)
+            # if self.update and i%2 == 0:
+            #     self.tdCom.insert_rows(tbname=ctb_name, ts_value=ts_value)
+            # if self.delete and i%2 != 0:
+            #     self.tdCom.delete_rows(tbname=ctb_name, start_ts=ts_cast_delete_value)
+            # self.date_time += 1
+            if partition:
+                partition_elm = f'partition by {partition}'
+            else:
+                partition_elm = ""
+            query_interval_value = (i+1) % count_window_value
+            # # ! TD-28557
+            # if i == self.range_count - 1:
+            #     disorder_ts_value = str(self.date_time)+f'+{i-watermark+1}s'
+            #     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=disorder_ts_value)
+            #     self.tdCom.insert_rows(tbname=self.tb_name, ts_value=disorder_ts_value)
+            if not fill_value and query_interval_value == 0:
+                for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+                    if tbname != self.tb_name:
+                        self.tdCom.check_query_data(f'select {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select {self.stb_source_select_str}  from {tbname} {partition_elm} interval({count_window_value}s)', sorted=True)
+                    else:
+                        self.tdCom.check_query_data(f'select {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select {self.tb_source_select_str}  from {tbname} {partition_elm} interval({count_window_value}s)', sorted=True)
+            # self.date_time += 1
+            # if i == self.range_count - 1:
+            #     disorder_ts_value = str(self.date_time)+f'+{i-watermark-1}s'
+            #     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=disorder_ts_value)
+            #     self.tdCom.insert_rows(tbname=self.tb_name, ts_value=disorder_ts_value)
+            #     if not fill_value and query_interval_value == 0:
+            #         for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+            #             if tbname != self.tb_name:
+            #                 self.tdCom.check_query_data(f'select {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select {self.stb_source_select_str}  from {tbname} {partition_elm} interval({count_window_value}s)', sorted=True, reverse_check=True)
+            #             else:
+            #                 self.tdCom.check_query_data(f'select {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select {self.tb_source_select_str}  from {tbname} {partition_elm} interval({count_window_value}s)', sorted=True, reverse_check=True)
+                
+        
+        
+        if self.subtable:
+            # self.tdSql.query(f'select count(*) from {self.stb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
+            # self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+            for tname in [self.stb_name, self.ctb_name]:
+                self.tdSql.query(f'select * from {self.ctb_name}')
+                ptn_counter = 0
+                for c1_value in self.tdSql.query_data:
+                    if partition == "c1":
+                        tbname = self.get_subtable_wait(f'{tname}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}')
+                        self.tdSql.query(f'select count(*) from `{tbname}`')
+                        # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}`;')
+                    elif partition is None:
+                        tbname = self.get_subtable_wait(f'{tname}_{self.subtable_prefix}no_partition{self.subtable_suffix}')
+                        self.tdSql.query(f'select count(*) from `{tbname}`')
+                        # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}no_partition{self.subtable_suffix}`;')
+                    elif partition == "abs(c1)":
+                        abs_c1_value = abs(c1_value[1])
+                        tbname = self.get_subtable_wait(f'{tname}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}')
+                        self.tdSql.query(f'select count(*) from `{tbname}`')
+                        # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}`;')
+                    elif partition == "tbname" and ptn_counter == 0:
+                        tbname = self.get_subtable_wait(f'{tname}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}')
+                        self.tdSql.query(f'select count(*) from `{tbname}`')
+                        # self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}`;')
+                        ptn_counter += 1
+            # self.tdSql.query(f'select count(*) from {self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
+                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+
+            self.tdSql.query(f'select * from {self.tb_name}')
+            ptn_counter = 0
+            for c1_value in self.tdSql.query_data:
+                if partition == "c1":
+                    tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{abs(c1_value[1])}{self.subtable_suffix}')
+                    self.tdSql.query(f'select count(*) from `{tbname}`')
+                elif partition is None:
+                    tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}no_partition{self.subtable_suffix}')
+                    self.tdSql.query(f'select count(*) from `{tbname}`')
+                elif partition == "abs(c1)":
+                    abs_c1_value = abs(c1_value[1])
+                    tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{abs_c1_value}{self.subtable_suffix}')
+                    self.tdSql.query(f'select count(*) from `{tbname}`')
+                elif partition == "tbname" and ptn_counter == 0:
+                    tbname = self.get_subtable_wait(f'{self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix}')
+                    self.tdSql.query(f'select count(*) from `{tbname}`')
+                    ptn_counter += 1
+
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+            # self.tdSql.query(f'select * from {self.tb_name}')
+            # self.tdSql.query(f'select count(*) from {self.tb_name}_{self.subtable_prefix}{self.tb_name}{self.subtable_suffix};')
+            # self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
+        if ignore_expired:
+            # self.tdCom.check_query_data(f'select wstart, {self.stb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.stb_source_select_str}  from {tbname} {partition_elm} interval({self.dataDict["interval"]}s) order by wstart', sorted=True)
+            tmp_stb_output_select_str = deepcopy(self.stb_output_select_str)
+            self.tdSql.query(f'select {tmp_stb_output_select_str.replace("`first(c4)`,`last(c5)`,", "").replace("`first(t4)`,`last(t5)`,", "")} from {self.stb_name}{self.des_table_suffix}')
+            res2 = self.tdSql.query_data
+            for i in range(self.range_count):
+                o_ts = str(o_dt)+f'+{i}s'
+                self.tdCom.insert_rows(tbname=self.expired_ctb_name, ts_value=o_ts)
+                # if self.delete and i%2 != 0:
+                #     self.tdCom.delete_rows(tbname=self.expired_ctb_name, start_ts=o_ts)
+            tmp_stb_source_select_str = deepcopy(self.stb_source_select_str)
+            self.tdSql.query(f'select {tmp_stb_source_select_str.replace("first(c4),last(c5),", "").replace("first(t4),last(t5),", "")}  from {self.stb_name} {partition_elm} interval({count_window_value}s)')
+            res1 = self.tdSql.query_data
+            self.tdSql.checkNotEqual(res1, res2)
+            self.tdCom.check_query_data(f'select {tmp_stb_source_select_str.replace("first(c4),last(c5),", "").replace("first(t4),last(t5),", "")}  from {self.stb_name} {partition_elm} interval({count_window_value}s)', f'select {tmp_stb_output_select_str.replace("`first(c4)`,`last(c5)`,", "").replace("`first(t4)`,`last(t5)`,", "")} from {self.stb_name}{self.des_table_suffix}')
+            
+            disorder_ts_value = str(o_dt)+f'+{i-watermark-1}s'
+            self.tdCom.insert_rows(tbname=self.expired_ctb_name, ts_value=disorder_ts_value)
+            # self.tdCom.insert_rows(tbname=self.tb_name, ts_value=disorder_ts_value)
+            self.tdCom.check_query_data(f'select {tmp_stb_source_select_str.replace("first(c4),last(c5),", "").replace("first(t4),last(t5),", "")}  from {self.stb_name} {partition_elm} interval({count_window_value}s)', f'select {tmp_stb_output_select_str.replace("`first(c4)`,`last(c5)`,", "").replace("`first(t4)`,`last(t5)`,", "")} from {self.stb_name}{self.des_table_suffix}', reverse_check=True)
+              
+        if check_stream_task:
+            time.sleep(self.stage_report_time)
+            self.tdCom.check_stream_tasks()
+        #     # if fill_value:
+        #     #     history_ts = str(start_time)+f'-{self.dataDict["interval"]*(self.range_count+2)}s'
+        #     # print(history_ts)
+        #     # start_ts = self.tdCom.time_cast(history_ts, "-")
+        #     # future_ts = str(self.date_time)+f'+{self.dataDict["interval"]*(self.range_count+2)}s'
+        #     # end_ts = self.tdCom.time_cast(future_ts)
+        #     # self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=history_ts)
+        #     # self.tdCom.insert_rows(tbname=self.tb_name, ts_value=history_ts)
+        #     # self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=future_ts)
+        #     # self.tdCom.insert_rows(tbname=self.tb_name, ts_value=future_ts)
+        #     # self.date_time = start_time
+        #     # for i in range(self.range_count):
+
+        #     #     ts_value = str(self.date_time+self.dataDict["interval"])+f'+{i*10}s'
+        #     #     ts_cast_delete_value = self.tdCom.time_cast(ts_value)
+        #     #     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
+        #     #     # if self.delete and i%2 != 0:
+        #     #     #     self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=ts_cast_delete_value)
+        #     #     self.date_time += 1
+        #     #     self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
+        #     #     # if self.delete and i%2 != 0:
+        #     #     #     self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
+        #     #     self.date_time += 1
+        #     # print(ts_cast_delete_value)
+        #     # print(start_ts)
+        #     # print(self.tdCom.time_cast(self.date_time))
+        #     # self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=self.tdCom.time_cast(start_time), end_ts=ts_cast_delete_value)
+
+        #     # for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+        #     #     if tbname != self.tb_name:
+        #     #         if "value" in fill_value.lower():
+        #     #             fill_value='VALUE,1,2,3,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
+        #     #         self.tdCom.check_query_data(f'select wstart, {self.fill_stb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.fill_stb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by wstart', sorted=True, fill_value=fill_value)
+        #     #     else:
+        #     #         if "value" in fill_value.lower():
+        #     #             fill_value='VALUE,1,2,3,6,7,8,9,10,11'
+        #     #         self.tdCom.check_query_data(f'select wstart, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.fill_tb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by wstart', sorted=True, fill_value=fill_value)
+
+        #     # self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=start_ts, end_ts=ts_cast_delete_value)
+
+        #     # for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
+        #     #     if tbname != self.tb_name:
+        #     #         if "value" in fill_value.lower():
+        #     #             fill_value='VALUE,1,2,3,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11'
+        #     #         self.tdCom.check_query_data(f'select wstart, {self.fill_stb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.fill_stb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by wstart', sorted=True, fill_value=fill_value)
+        #     #     else:
+        #     #         if "value" in fill_value.lower():
+        #     #             fill_value='VALUE,1,2,3,6,7,8,9,10,11'
+        #     #         self.tdCom.check_query_data(f'select wstart, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix} order by wstart', f'select _wstart AS wstart, {self.fill_tb_source_select_str}  from {tbname} where ts >= {start_ts} and ts <= {end_ts} partition by {partition} interval({self.dataDict["interval"]}s) fill ({fill_value}) order by wstart', sorted=True, fill_value=fill_value)
 
 
 
@@ -3816,6 +4056,8 @@ class StreamComputingTest(TDCase):
 
 
     def run(self):
+        self.at_once_count_window(count_window_value=random.choice([5, 10]), partition="tbname", delete=True, watermark=random.randint(15, 20), ignore_expired=1, check_stream_task=True, checkpoint_check=True)
+        return
         # TODO
         # return
         # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20), max_delay=f"{random.randint(5, 6)}s", fill_value="NULL")
