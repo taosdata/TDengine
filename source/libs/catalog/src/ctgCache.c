@@ -1739,7 +1739,7 @@ int32_t ctgWriteGrantInfoToCache(SCatalog *pCtg, SGrantHbRsp *pRsp) {
   pCache->grantInfo = *pRsp;
   CTG_UNLOCK(CTG_WRITE, &pCache->lock);
 
-  ctgDebug("grant info updated to cache, version");
+  ctgDebug("grant info updated to cache, flags:%u, version:%d", pRsp->flags, pRsp->version);
 
   CTG_ERR_RET(ctgUpdateRentViewVersion(pCtg, dbFName, viewName, dbCache->dbId, pMeta->viewId, pCache));
 
@@ -2540,15 +2540,18 @@ _return:
 }
 
 int32_t ctgOpDropGrantInfo(SCtgCacheOperation *operation) {
-  int32_t              code = 0;
+  int32_t               code = 0;
   SCtgDropGrantInfoMsg *msg = operation->data;
-  SCatalog            *pCtg = msg->pCtg;
+  SCatalog             *pCtg = msg->pCtg;
 
   if (pCtg->stopUpdate) {
     goto _return;
   }
 
-  printf("prop:%s:%d grant %s removed from rent\n");
+  CTG_ERR_JRET(
+      ctgMetaRentRemove(&pCtg->grantRent, msg->grantId, ctgGrantVersionSortCompare, ctgGrantVersionSearchCompare));
+
+  printf("prop:grant:0x%" PRIx64 "removed from rent", msg->grantId);
 
 _return:
 
@@ -2556,7 +2559,6 @@ _return:
 
   CTG_RET(code);
 }
-
 
 void ctgClearFreeCache(SCtgCacheOperation *operation) {
   SCtgClearCacheMsg *msg = operation->data;

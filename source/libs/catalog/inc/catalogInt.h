@@ -568,6 +568,7 @@ typedef struct SCtgUpdateGrantInfoMsg {
 
 typedef struct SCtgDropGrantInfoMsg {
   SCatalog* pCtg;
+  int64_t   grantId;
 } SCtgDropGrantInfoMsg;
 
 typedef struct SCtgCacheOperation {
@@ -1040,10 +1041,12 @@ void    ctgResetTbMetaTask(SCtgTask* pTask);
 void    ctgFreeDbCache(SCtgDBCache* dbCache);
 int32_t ctgStbVersionSortCompare(const void* key1, const void* key2);
 int32_t ctgViewVersionSortCompare(const void* key1, const void* key2);
+int32_t ctgGrantVersionSortCompare(const void* key1, const void* key2);
 int32_t ctgDbCacheInfoSortCompare(const void* key1, const void* key2);
 int32_t ctgStbVersionSearchCompare(const void* key1, const void* key2);
 int32_t ctgDbCacheInfoSearchCompare(const void* key1, const void* key2);
 int32_t ctgViewVersionSearchCompare(const void* key1, const void* key2);
+int32_t ctgGrantVersionSearchCompare(const void* key1, const void* key2);
 void    ctgFreeSTableMetaOutput(STableMetaOutput* pOutput);
 int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* target);
 int32_t ctgAddMsgCtx(SArray* pCtxs, int32_t reqType, void* out, char* target);

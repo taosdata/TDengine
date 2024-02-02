@@ -301,10 +301,8 @@ int32_t ctgUpdateRentViewVersion(SCatalog *pCtg, char *dbFName, char *viewName, 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgUpdateRentGrantVersion(SCatalog *pCtg, int32_t grantId,
-                                SCtgGrantCache *pCache) {
+int32_t ctgUpdateRentGrantVersion(SCatalog *pCtg, int32_t grantId, SCtgGrantCache *pCache) {
   SGrantVersion metaRent = {.grantId = grantId, .version = pCache->grantInfo.version};
-
 
   CTG_ERR_RET(ctgMetaRentUpdate(&pCtg->grantRent, &metaRent, metaRent.grantId, sizeof(SGrantVersion),
                                 ctgGrantVersionSortCompare, ctgGrantVersionSearchCompare));
@@ -313,8 +311,3 @@ int32_t ctgUpdateRentGrantVersion(SCatalog *pCtg, int32_t grantId,
 
   return TSDB_CODE_SUCCESS;
 }
-
-
-
-
-

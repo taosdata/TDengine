@@ -146,7 +146,7 @@ typedef struct SSTableVersion {
 } SSTableVersion;
 
 typedef struct SGrantVersion {
-  int32_t grantId;
+  int64_t grantId;
   int32_t version;
 } SGrantVersion;
 
