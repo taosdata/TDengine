@@ -532,6 +532,12 @@ pub(super) async fn page_point_data(params: Query<TaskTicket>) -> impl Responder
     }
 }
 
+#[derive(Serialize, Deserialize)]
+struct DatasourceTemplateQuery {
+    driver: String,
+    lang: Option<String>,
+}
+
 #[utoipa::path(
     tag = "data sources",
     responses(
@@ -541,10 +547,12 @@ pub(super) async fn page_point_data(params: Query<TaskTicket>) -> impl Responder
 )]
 #[get("/ds/in/point/file/template")]
 pub(super) async fn download_point_template_file(
-    params: Query<DownloadAllPointsParams>,
+    params: Query<DatasourceTemplateQuery>,
     req: HttpRequest,
 ) -> impl Responder {
-    match get_point_file_template(params).await {
+    let lang: String = params.lang.clone().unwrap_or("zh".to_string());
+
+    match get_point_file_template(&params.driver, &lang).await {
         Ok(named_file) => {
             let content_disposition = ContentDisposition::attachment("point_template.csv");
             Ok(named_file

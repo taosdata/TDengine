@@ -9,8 +9,6 @@ pub use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
 
-use taosx_ipc::types::OptionSet;
-
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::opc::config::points::PointsConfig;
@@ -269,7 +267,7 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
         categories: vec![String::from("nodes")],
         via: None,
         offset: 0,
-        pattern: Some(String::from(".*")),
+        pattern: None,
         limit: usize::MAX / 2 - 1,
         lang: None,
     };
@@ -412,10 +410,6 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         anyhow::bail!("categories is empty");
     }
 
-    // let points_config = PointsConfig {
-    //     limit: req.limit,
-    //     regex: req.pattern.clone(),
-    // };
     let mut config = OPCConfig::from_dsn_point_mode(&from).await?;
     config.points = PointsConfig::from_dsn(&from);
     let toml =
@@ -467,31 +461,31 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     temp_path.close()?;
     let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
-    tracing::debug!("parse opc dataset successfully, have {} points", res.len());
-    let (option_set_code_display, option_set_code_desc) = if let Some(lang) = req.lang.clone() {
-        match lang.as_str() {
-            "zh" => ("编码".to_string(), "点位编码".to_string()),
-            _ => ("Code".to_string(), "Point Code".to_string()),
-        }
-    } else {
-        ("Code".to_string(), "Point Code".to_string())
-    };
-    let options = vec![OptionSet {
-        name: "code".to_string(),
-        display: option_set_code_display,
-        description: Some(option_set_code_desc),
-        required: true,
-    }];
-    let format = Some("{id}::{code}".to_string());
-    let res = res
-        .into_iter()
-        .map(|mut set| {
-            set.category = Some(req.categories[0].clone());
-            set.options = Some(options.clone());
-            set.format = format.clone();
-            set
-        })
-        .collect_vec();
+    // tracing::debug!("parse opc dataset successfully, have {} points", res.len());
+    // let (option_set_code_display, option_set_code_desc) = if let Some(lang) = req.lang.clone() {
+    //     match lang.as_str() {
+    //         "zh" => ("编码".to_string(), "点位编码".to_string()),
+    //         _ => ("Code".to_string(), "Point Code".to_string()),
+    //     }
+    // } else {
+    //     ("Code".to_string(), "Point Code".to_string())
+    // };
+    // let options = vec![OptionSet {
+    //     name: "code".to_string(),
+    //     display: option_set_code_display,
+    //     description: Some(option_set_code_desc),
+    //     required: true,
+    // }];
+    // let format = Some("{id}::{code}".to_string());
+    // let res = res
+    //     .into_iter()
+    //     .map(|mut set| {
+    //         set.category = Some(req.categories[0].clone());
+    //         set.options = Some(options.clone());
+    //         set.format = format.clone();
+    //         set
+    //     })
+    //     .collect_vec();
     Ok(res)
 }
 
