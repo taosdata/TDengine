@@ -1384,7 +1384,7 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
     int64_t expireSec = gStatus.grantState == GRANT_STATE_REVOKED ? gStatus.revokedExpireSec : gStatus.basicExpireSec;
     gStatus.expired = (expireSec == GRANT_UNIQ_UNLIMITED || expireSec > grantCurTime) ? false : true;
     if (gStatus.expired) {
-      char ts[GRANT_TS_SEC_LEN] = {0}; 
+      char ts[GRANT_TS_SEC_LEN] = {0};
       grantSecondsToString(expireSec, ts);
       uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64, ts, (int64_t)expireSec, grantCurTime);
     }
@@ -1828,6 +1828,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
         code = 0;
       } else {
         code = code != 0 ? code : TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
+        uError("old active parse failed since %s, active:%s", tstrerror(code), oldActive);
         goto _exit;
       }
     }
@@ -1991,17 +1992,19 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   SGrantStatus *pStatus = &gStatus;
 
   if (pShow->numOfRows < 1) {
+    // with expire and limits
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_STREAM], gGrantDisplay[GRANT_OPT_STREAM],
                              pStatus->streamExpireSec, pStatus->curStreams, pStatus->limitStreams, false);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_SUBSCRIPTION],
                              gGrantDisplay[GRANT_OPT_SUBSCRIPTION], pStatus->subscriptionExpireSec,
                              pStatus->curSubscriptions, pStatus->limitSubscriptions, false);
+    mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_VIEW], gGrantDisplay[GRANT_OPT_VIEW],
+                             pStatus->viewExpireSec, pStatus->curViews, pStatus->limitViews, false);
+    // with expire and no limits
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_AUDIT], gGrantDisplay[GRANT_OPT_AUDIT],
                              pStatus->auditExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_CSV], gGrantDisplay[GRANT_OPT_CSV],
                              pStatus->csvExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false);
-    mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_VIEW], gGrantDisplay[GRANT_OPT_VIEW],
-                             pStatus->viewExpireSec, pStatus->curViews, pStatus->limitViews, false);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_STORAGE], gGrantDisplay[GRANT_OPT_STORAGE],
                              pStatus->multiTierExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false);
     mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_DATA_BAK_RST],
@@ -2046,7 +2049,10 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   return numOfRows;
 }
 
-static void    mndCancelGetNextGrantFull(SMnode *pMnode, void *pIter) { uTrace("%s:%d executed", __func__, __LINE__); }
+static void mndCancelGetNextGrantFull(SMnode *pMnode, void *pIter) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetch(pSdb, pIter);
+}
 
 static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->info.node;
@@ -2065,19 +2071,28 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   if (!pGrant) {
     return 0;
   }
+
   nMachines = taosArrayGetSize(pGrant->pMachines);
-  bufLen = nMachines * 45;           // max len of machine
-  if (bufLen < 1320) bufLen = 1320;  // max len of state: 44*30=1320
+  bufLen = nMachines * 50;  // max len of machine(19+1+4+1+24+1 = 50)
+  if (bufLen < 1470) {
+    bufLen = 1470;  // max len of state: (19+1+8+1+9+1+9+1) 49*30=1470
+  } else if (bufLen > TSDB_GRANT_LOG_COL_LEN) {
+    mndReleaseGrant(pMnode, pGrant, pIter);
+    terrno = TSDB_CODE_APP_ERROR;
+    uError("machine col len of grant logs overflow(%d > %d) since %s", bufLen, TSDB_GRANT_LOG_COL_LEN,
+           tstrerror(terrno));
+    return 0;  // TODO: error check
+  }
 
   bufLen += VARSTR_HEADER_SIZE;
 
   if (!(pBuf = taosMemoryCalloc(1, bufLen))) {
+    mndReleaseGrant(pMnode, pGrant, pIter);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return 0;
   }
 
   if (pShow->numOfRows < 1) {
-    cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
     for (int32_t i = 0; i < pGrant->nStates; ++i) {

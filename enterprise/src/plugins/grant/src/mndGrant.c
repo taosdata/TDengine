@@ -567,7 +567,7 @@ int32_t mndGrantActionUpdate(SSdb *pSdb, SGrantLogObj *pOldGrant, SGrantLogObj *
   return 0;
 }
 
-#if 0
+#if 1
 int32_t mndValidateGrant(SMnode *pMnode, SGrantVersion *pGrantVersion, void **ppRsp, int32_t *pRspLen) {
   int32_t     rspLen = 0;
   void       *pRsp = NULL;
