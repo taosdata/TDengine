@@ -502,6 +502,11 @@ int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq
   SViewObj  newObj = {0};
   SDbObj   *pDb = NULL;
   char* dbFName = pCreateView->dbFName;
+
+  if ((code = grantCheck(TSDB_GRANT_VIEW)) != 0) {
+    goto _OVER;
+  }
+
   char* sep = strchr(pCreateView->dbFName, '.');
   if (NULL != sep && IS_SYS_DBNAME(sep + 1)) {
     //DO NOTHING

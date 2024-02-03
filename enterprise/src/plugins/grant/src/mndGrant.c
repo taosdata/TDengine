@@ -571,7 +571,7 @@ int32_t mndValidateGrant(SMnode *pMnode, SGrantVersion *pGrantVersion, void **pp
   int32_t code = 0;
 
   pGrantVersion->version = ntohl(pGrantVersion->version);
-  
+
   mTrace("grant, got lastest meta, current ver:%d, recv ver:%d", (int32_t)gStatus.version, pGrantVersion->version);
 
   if (gStatus.version != pGrantVersion->version) {
@@ -579,9 +579,9 @@ int32_t mndValidateGrant(SMnode *pMnode, SGrantVersion *pGrantVersion, void **pp
     if (gStatus.expired) {
       hbRsp.flags |= 0x0F;  // 0x01 expired, 0x02 auditExpired, 0x04 csvExpired, 0x08 viewExpired
     } else {
-      if (gStatus.auditExpired) hbRsp.flags |= 0x02;
-      if (gStatus.csvExpired) hbRsp.flags |= 0x04;
-      if (gStatus.viewExpired) hbRsp.flags |= 0x08;
+      if (gStatus.auditExpired) hbRsp.flags |= GRANT_AUDIT_FLAG;
+      if (gStatus.csvExpired) hbRsp.flags |= GRANT_CSV_FLAG;
+      if (gStatus.viewExpired) hbRsp.flags |= GRANT_VIEW_FLAG;
     }
 
     rspLen = tSerializeSGrantHbRsp(NULL, 0, &hbRsp);
