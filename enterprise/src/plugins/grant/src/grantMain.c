@@ -158,19 +158,6 @@
     colDataSetVal(pColInfo, numOfRows, tmp, false);                              \
   } while (0)
 
-// #define GRANT_DATA_IN_SHOW(appType)                                                                                    \
-//   do {                                                                                                                 \
-//     ++cols;                                                                                                            \
-//     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);                                                                 \
-//     pDataIn = GRANT_DATA_IN(&gStatus, (appType));                                                                      \
-//     grantSecondsToString((int64_t)pDataIn->expire * 86400, ts);                                                        \
-//     sprintf(tmp1,                                                                                                      \
-//             "{\"type\":\"%s\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\", \"expireTime\":\"%s\"}", \
-//             gConnName[(appType)], pDataIn->number, pDataIn->speed, pDataIn->expire, ts);                               \
-//     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));                                                                  \
-//     colDataSetVal(pColInfo, numOfRows, tmp, false);                                                                    \
-//   } while (0)
-
 #define GRANT_VALUE_CONVERT(from, to, factor, dft) \
   do {                                             \
     if ((from) == GRANT_UNIQ_UNDEFINED) {          \
@@ -187,29 +174,9 @@
 #else
 #define GRANT_VERSION (gStatus.officialVersion ? "official" : "trial")
 #endif
-
 #define GRANT_EXPIRE (gStatus.basicExpireSec)
-#define GRANT_EXPIRED(exp) (exp) ? TSDB_CODE_GRANT_EXPIRED : TSDB_CODE_SUCCESS
-#define GRANT_EXPIRE_VAL (gStatus.expired | (grantHandle.nDiskCfg > 1 ? gStatus.multiTierExpired : 0))
-#define GRANT_CONN_MAJOR_VER 1
-#define GRANT_CONN_MINOR_VER 1
-#define GRANT_FLAG_TDENGINE ((int8_t)0x01)
-#define GRANT_FLAG_CONNECTORS ((int8_t)0x02)
-#define GRANT_CONN_ITEMS(s) ((s)->connectors.items)
-#define GRANT_CONN_ITEM(s, i) ((s)->connectors.items + i)
-#define GRANT_CONN_OFFICIAL(s) ((s)->connectors.officialVersion)
-#define SET_GRANT_LEGACY(s) ((s)->flag |= 0x01)
-#define SET_GRANT_TDENGINE(s) ((s)->flag |= GRANT_FLAG_TDENGINE)
-#define SET_GRANT_CONNECTORS(s) ((s)->flag |= GRANT_FLAG_CONNECTORS)
-#define SET_GRANT_CONNECTORS_OFFICIAL(s) (GRANT_CONN_OFFICIAL(s) = 1)
-#define SET_GRANT_CONNECTORS_TRIAL(s) (GRANT_CONN_OFFICIAL(s) = 0)
-#define IS_GRANT_LEGACY(s) (((s)->flag & 0x01))
-#define IS_GRANT_TDENGINE(s) (((s)->flag & 0x01) == GRANT_FLAG_TDENGINE)
-#define IS_GRANT_CONNECTORS(s) (((s)->flag & 0x02) == GRANT_FLAG_CONNECTORS)
-#define IS_GRANT_CONNECTORS_OFFICIAL(s) GRANT_CONN_OFFICIAL(s)
-// uniq grant
-// #define GRANT_DATA_IN(s, i) ((s)->ins + i)
-#define GRANT_DIST_TOLERENCE 86400  // seconds
+#define GRANT_EXPIRED(exp) ((exp) ? TSDB_CODE_GRANT_EXPIRED : TSDB_CODE_SUCCESS)
+#define GRANT_EXPIRE_VAL (gStatus.expired | (gStatus.multiTierExpired ? grantHandle.nDiskCfg > 1 : 0))
 #define GRANT_TS_SEC_LEN 20
 
 static const char gConnName[CONN_TYPE_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
@@ -305,9 +272,7 @@ typedef struct {
   SSHashObj     *pMachineHash;
   SArray        *pDnodeInfo;
   SMnode        *pMnode;
-  int64_t        lastCheck;
   int32_t        nDiskCfg;
-  uint8_t        info;
   TdThreadRwlock rwLock;
 } SGrantHandle;
 
@@ -315,7 +280,7 @@ static bool         recheckClusterTime = true;
 static int64_t      grantNotifyCnt = 0;
 static int64_t      grantNotifyTimeSeries = INT64_MAX;
 static int64_t      grantClusterEpoch = 0;
-static SGrantHandle grantHandle = {.lastCheck = INT64_MIN};
+static SGrantHandle grantHandle = {0};
 
 int32_t mndInitGrant(SMnode *pMnode) {
   terrno = 0;
@@ -1030,8 +995,6 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
     rpcFreeCont(pCont);
   }
 
-  grantHandle.lastCheck = taosGetTimestampMs();
-
   return 0;
 }
 
@@ -1295,8 +1258,6 @@ static int32_t mndSendGrantNotifyToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
   tstrncpy(epSet.eps[0].fqdn, pDnodeInfo->ep.fqdn, TSDB_FQDN_LEN);
   epSet.eps[0].port = pDnodeInfo->ep.port;
   tmsgSendReq(&epSet, &rpcMsg);
-
-  // rpcSendRequest(pMnode->msgCb.clientRpc, &epSet, &rpcMsg, NULL);
 
   return TSDB_CODE_SUCCESS;
 }

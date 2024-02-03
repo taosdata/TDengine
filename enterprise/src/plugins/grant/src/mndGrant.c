@@ -21,9 +21,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 
-extern int8_t       grantHbLock;
 extern SGrantStatus gStatus;
-extern void         mndProcessGrantStatusCheck();
 
 #define MND_GRANT_VER_NUMBER 1
 
@@ -567,40 +565,43 @@ int32_t mndGrantActionUpdate(SSdb *pSdb, SGrantLogObj *pOldGrant, SGrantLogObj *
   return 0;
 }
 
-#if 1
 int32_t mndValidateGrant(SMnode *pMnode, SGrantVersion *pGrantVersion, void **ppRsp, int32_t *pRspLen) {
-  int32_t     rspLen = 0;
-  void       *pRsp = NULL;
-  int32_t     code = -1;
-  SGrantHbRsp hbRsp = {0};
+  int32_t rspLen = 0;
+  void   *pRsp = NULL;
+  int32_t code = 0;
 
   pGrantVersion->version = ntohl(pGrantVersion->version);
-  if (gStatus.version != pGrantVersion->version) {
-    if (gStatus.auditExpired) hbRsp.flags != 0x01;
-    if (gStatus.csvExpired) hbRsp.flags != 0x02;
-    if (gStatus.viewExpired) hbRsp.flags != 0x04;
+  
+  mTrace("grant, got lastest meta, current ver:%d, recv ver:%d", (int32_t)gStatus.version, pGrantVersion->version);
 
-    mTrace("grant, got lastest meta, current ver:%d, recv ver:%d", (int32_t)gStatus.version, pGrantVersion->version);
+  if (gStatus.version != pGrantVersion->version) {
+    SGrantHbRsp hbRsp = {.version = gStatus.version};
+    if (gStatus.expired) {
+      hbRsp.flags |= 0x0F;  // 0x01 expired, 0x02 auditExpired, 0x04 csvExpired, 0x08 viewExpired
+    } else {
+      if (gStatus.auditExpired) hbRsp.flags |= 0x02;
+      if (gStatus.csvExpired) hbRsp.flags |= 0x04;
+      if (gStatus.viewExpired) hbRsp.flags |= 0x08;
+    }
+
     rspLen = tSerializeSGrantHbRsp(NULL, 0, &hbRsp);
     if (rspLen < 0) {
-      terrno = TSDB_CODE_INVALID_MSG;
+      code = TSDB_CODE_OUT_OF_MEMORY;
       goto _OVER;
     }
 
     pRsp = taosMemoryMalloc(rspLen);
     if (pRsp == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = TSDB_CODE_OUT_OF_MEMORY;
       rspLen = 0;
       goto _OVER;
     }
 
     tSerializeSGrantHbRsp(pRsp, rspLen, &hbRsp);
   }
-  code = 0;
 
 _OVER:
   *ppRsp = pRsp;
   *pRspLen = rspLen;
   return code;
 }
-#endif
