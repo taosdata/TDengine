@@ -1513,6 +1513,23 @@ int32_t catalogGetExpiredViews(SCatalog* pCtg, SViewVersion** views, uint32_t* n
   CTG_API_LEAVE(ctgMetaRentGet(&pCtg->viewRent, (void**)views, num, sizeof(SViewVersion)));
 }
 
+int32_t catalogGetExpiredGrants(SCatalog* pCtg, SGrantVersion** grants, uint32_t* num) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == grants || NULL == num) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  *num = 1;
+  *grants = taosMemoryCalloc(*num, sizeof(SGrantVersion));
+  if (!(*grants)) {
+    ctgError("calloc %d grantVersion failed", *num);
+    CTG_API_LEAVE(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  (*grants)[0].version = pCtg->grantCache.grantInfo.version;
+
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
 
 int32_t catalogGetExpiredDBs(SCatalog* pCtg, SDbCacheInfo** dbs, uint32_t* num) {
   CTG_API_ENTER();

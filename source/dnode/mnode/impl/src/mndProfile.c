@@ -606,12 +606,12 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         }
         break;
       }
-      case HEARTBEAT_KEY_GRANT: {
+      case HEARTBEAT_KEY_GRANTINFO: {
         void   *rspMsg = NULL;
         int32_t rspLen = 0;
         mndValidateGrant(pMnode, kv->value, &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
-          SKv kv1 = {.key = HEARTBEAT_KEY_GRANT, .valueLen = rspLen, .value = rspMsg};
+          SKv kv1 = {.key = HEARTBEAT_KEY_GRANTINFO, .valueLen = rspLen, .value = rspMsg};
           taosArrayPush(hbRsp.info, &kv1);
         }
         break;

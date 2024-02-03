@@ -146,7 +146,6 @@ typedef struct SSTableVersion {
 } SSTableVersion;
 
 typedef struct SGrantVersion {
-  int64_t grantId;
   int32_t version;
 } SGrantVersion;
 
@@ -342,6 +341,8 @@ int32_t catalogGetDnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray*
 int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableVersion** stables, uint32_t* num);
 
 int32_t catalogGetExpiredViews(SCatalog* pCtg, SViewVersion** views, uint32_t* num, SDynViewVersion** dynViewVersion);
+
+int32_t catalogGetExpiredGrants(SCatalog* pCtg, SGrantVersion** grants, uint32_t* num);
 
 int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbCacheInfo** dbs, uint32_t* num);
 

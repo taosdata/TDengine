@@ -337,7 +337,6 @@ typedef struct SCatalog {
   SCtgRentMgmt    dbRent;
   SCtgRentMgmt    stbRent;
   SCtgRentMgmt    viewRent;
-  SCtgRentMgmt    grantRent;
   SCtgCacheStat   cacheStat;
 } SCatalog;
 
@@ -569,7 +568,6 @@ typedef struct SCtgUpdateGrantInfoMsg {
 
 typedef struct SCtgDropGrantInfoMsg {
   SCatalog* pCtg;
-  int64_t   grantId;
 } SCtgDropGrantInfoMsg;
 
 typedef struct SCtgCacheOperation {
@@ -970,7 +968,7 @@ int32_t ctgUpdateRentStbVersion(SCatalog *pCtg, char *dbFName, char *tbName, uin
                                 SCtgTbCache *pCache);
 int32_t ctgUpdateRentViewVersion(SCatalog *pCtg, char *dbFName, char *viewName, uint64_t dbId, uint64_t viewId,
                                 SCtgViewCache *pCache);
-int32_t ctgUpdateRentGrantVersion(SCatalog* pCtg, int32_t grantId, SGrantHbRsp* pGrant);
+// int32_t ctgUpdateRentGrantVersion(SCatalog* pCtg, int32_t grantId, SGrantHbRsp* pGrant);
 int32_t ctgUpdateTbMetaToCache(SCatalog* pCtg, STableMetaOutput* pOut, bool syncReq);
 int32_t ctgUpdateViewMetaToCache(SCatalog *pCtg, SViewMetaRsp *pRsp, bool syncReq);
 int32_t ctgUpdateGrantInfoToCache(SCatalog *pCtg, SGrantHbRsp *pRsp, bool syncReq);
@@ -1043,12 +1041,12 @@ void    ctgResetTbMetaTask(SCtgTask* pTask);
 void    ctgFreeDbCache(SCtgDBCache* dbCache);
 int32_t ctgStbVersionSortCompare(const void* key1, const void* key2);
 int32_t ctgViewVersionSortCompare(const void* key1, const void* key2);
-int32_t ctgGrantVersionSortCompare(const void* key1, const void* key2);
+// int32_t ctgGrantVersionSortCompare(const void* key1, const void* key2);
 int32_t ctgDbCacheInfoSortCompare(const void* key1, const void* key2);
 int32_t ctgStbVersionSearchCompare(const void* key1, const void* key2);
 int32_t ctgDbCacheInfoSearchCompare(const void* key1, const void* key2);
 int32_t ctgViewVersionSearchCompare(const void* key1, const void* key2);
-int32_t ctgGrantVersionSearchCompare(const void* key1, const void* key2);
+// int32_t ctgGrantVersionSearchCompare(const void* key1, const void* key2);
 void    ctgFreeSTableMetaOutput(STableMetaOutput* pOutput);
 int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* target);
 int32_t ctgAddMsgCtx(SArray* pCtxs, int32_t reqType, void* out, char* target);

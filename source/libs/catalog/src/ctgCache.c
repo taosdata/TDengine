@@ -1742,8 +1742,6 @@ int32_t ctgWriteGrantInfoToCache(SCatalog *pCtg, SGrantHbRsp *pRsp) {
 
   ctgDebug("grant info updated to cache, flags:%u, version:%d", pRsp->flags, pRsp->version);
 
-  CTG_ERR_RET(ctgUpdateRentGrantVersion(pCtg, CGT_GRANT_ID, pRsp));
-
 _return:
 
   CTG_RET(code);
@@ -2540,11 +2538,6 @@ int32_t ctgOpDropGrantInfo(SCtgCacheOperation *operation) {
   if (pCtg->stopUpdate) {
     goto _return;
   }
-
-  CTG_ERR_JRET(
-      ctgMetaRentRemove(&pCtg->grantRent, msg->grantId, ctgGrantVersionSortCompare, ctgGrantVersionSearchCompare));
-
-  printf("prop:grant:0x%" PRIx64 "removed from rent", msg->grantId);
 
 _return:
 
