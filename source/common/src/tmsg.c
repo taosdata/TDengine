@@ -9341,6 +9341,7 @@ int32_t tSerializeSGrantHbRsp(void *buf, int32_t bufLen, SGrantHbRsp *pRsp) {
 
   if (tStartEncode(&encoder) < 0) return -1;
 
+  if (tEncodeI32v(&encoder, pRsp->version) < 0) return -1;
   if (tEncodeU32v(&encoder, pRsp->flags) < 0) return -1;
 
   tEndEncode(&encoder);
@@ -9356,6 +9357,7 @@ int32_t tDeserializeSGrantHbRsp(void *buf, int32_t bufLen, SGrantHbRsp *pRsp) {
 
   if (tStartDecode(&decoder) < 0) return -1;
 
+  if (tDecodeI32v(&decoder, &pRsp->version) < 0) return -1;
   if (tDecodeU32v(&decoder, &pRsp->flags) < 0) return -1;
 
   tEndDecode(&decoder);

@@ -39,6 +39,7 @@ extern "C" {
 #define CTG_MAX_COMMAND_LEN              512
 #define CTG_DEFAULT_CACHE_MON_MSEC       5000
 #define CTG_CLEAR_CACHE_ROUND_TB_NUM     3000  
+#define CGT_GRANT_ID                     0
 
 #define CTG_RENT_SLOT_SECOND 1.5
 
@@ -968,7 +969,8 @@ void    ctgRemoveViewRent(SCatalog *pCtg, SCtgDBCache *dbCache);
 int32_t ctgUpdateRentStbVersion(SCatalog *pCtg, char *dbFName, char *tbName, uint64_t dbId, uint64_t suid,
                                 SCtgTbCache *pCache);
 int32_t ctgUpdateRentViewVersion(SCatalog *pCtg, char *dbFName, char *viewName, uint64_t dbId, uint64_t viewId,
-                                SCtgViewCache *pCache);                                
+                                SCtgViewCache *pCache);
+int32_t ctgUpdateRentGrantVersion(SCatalog* pCtg, int32_t grantId, SGrantHbRsp* pGrant);
 int32_t ctgUpdateTbMetaToCache(SCatalog* pCtg, STableMetaOutput* pOut, bool syncReq);
 int32_t ctgUpdateViewMetaToCache(SCatalog *pCtg, SViewMetaRsp *pRsp, bool syncReq);
 int32_t ctgUpdateGrantInfoToCache(SCatalog *pCtg, SGrantHbRsp *pRsp, bool syncReq);

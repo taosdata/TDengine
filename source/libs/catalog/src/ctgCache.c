@@ -164,6 +164,7 @@ int32_t ctgAcquireGrantCache(SCatalog *pCtg, SCtgGrantCache **ppCache) {
   CTG_LOCK(CTG_READ, &pCtg->grantCache.lock);
   *ppCache = &pCtg->grantCache;
   CTG_CACHE_HIT_INC(CTG_CI_GRANT_INFO, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
 void ctgReleaseGrantCache(SCatalog *pCtg, SCtgGrantCache *pCache) { CTG_UNLOCK(CTG_READ, &pCache->lock); }
@@ -1741,16 +1742,9 @@ int32_t ctgWriteGrantInfoToCache(SCatalog *pCtg, SGrantHbRsp *pRsp) {
 
   ctgDebug("grant info updated to cache, flags:%u, version:%d", pRsp->flags, pRsp->version);
 
-  CTG_ERR_RET(ctgUpdateRentViewVersion(pCtg, dbFName, viewName, dbCache->dbId, pMeta->viewId, pCache));
-
-  pMeta = NULL;
+  CTG_ERR_RET(ctgUpdateRentGrantVersion(pCtg, CGT_GRANT_ID, pRsp));
 
 _return:
-
-  if (pMeta) {
-    ctgFreeSViewMeta(pMeta);
-    taosMemoryFree(pMeta);
-  }
 
   CTG_RET(code);
 }
@@ -2528,10 +2522,9 @@ int32_t ctgOpUpdateGrantInfo(SCtgCacheOperation *operation) {
     goto _return;
   }
 
-  CTG_ERR_JRET(ctgAcquireGrantCache(pCtg, &pGrantCache));
+  // CTG_ERR_JRET(ctgAcquireGrantCache(pCtg, &pGrantCache)); // TODO: inc/dec or cacheSize ?
 
-  code = ctgWriteViewMetaToCache(pCtg, dbCache, pRsp->dbFName, pRsp->name, pMeta);
-  pMeta = NULL;
+  code = ctgWriteGrantInfoToCache(pCtg, pRsp);
   
 _return:
 
