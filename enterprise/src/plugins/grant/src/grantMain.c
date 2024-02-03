@@ -864,9 +864,10 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     grantResetMaster(pMnode, 0);
   }
 
+  ++gStatus.version; // for grantHb
+
   if (pLastState->state == GRANT_STATE_REVOKED) {
     mndReleaseGrant(pMnode, pGrant, pIter);
-    grantSetClusterInfo(pMnode);
   } else {
     // check machines
 #ifndef GRANTS_CFG
@@ -883,6 +884,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
       state.reason = GRANT_STATE_REASON_MISMATCH;
       code = mndProcessUpdGrantLog(pMnode, NULL, pGrantMachines, &state);
       TSDB_CHECK_CODE(code, lino, _exit);
+      tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
     } else {
       int8_t oldState = pLastState->state;
       bool   appendState = false;
