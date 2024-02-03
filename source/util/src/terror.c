@@ -462,8 +462,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_MACHINES_MISMATCH,      "Cluster machines mism
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_OPT_EXPIRE_TOO_LARGE,   "Expire time of optional grant item is too large")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DUPLICATED_ACTIVE,      "The active code can't be activated repeatedly")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_VIEW_LIMITED,           "Number of view has reached the licensed upper limit")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CSV_LIMITED,            "Csv has reached the licensed upper limit")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_AUDIT_LIMITED,          "Audit has reached the licensed upper limit")
 
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TIMEOUT,                  "Sync timeout")

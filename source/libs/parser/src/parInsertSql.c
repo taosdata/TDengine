@@ -1333,7 +1333,7 @@ static int32_t preParseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModif
 static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, STableDataCxt** pTableCxt) {
   if (pCxt->pComCxt->async) {
     return insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid),
-                              pStmt->pTableMeta, &pStmt->pCreateTblReq, pTableCxt, false, false);
+                              pStmt->pTableMeta, &pStmt->pCreateTblReq, pTableCxt, false, false, pStmt->insertType);
   }
 
   char tbFName[TSDB_TABLE_FNAME_LEN];
@@ -1342,7 +1342,7 @@ static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
     pStmt->pTableMeta->uid = 0;
   }
   return insGetTableDataCxt(pStmt->pTableBlockHashObj, tbFName, strlen(tbFName), pStmt->pTableMeta,
-                            &pStmt->pCreateTblReq, pTableCxt, NULL != pCxt->pComCxt->pStmtCb, false);
+                            &pStmt->pCreateTblReq, pTableCxt, NULL != pCxt->pComCxt->pStmtCb, false, pStmt->insertType);
 }
 
 static int32_t parseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, STableDataCxt* pTableCxt) {
@@ -1931,7 +1931,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   }
 
   code = insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStbRowsCxt->pCtbMeta->uid, sizeof(pStbRowsCxt->pCtbMeta->uid),
-                            pStbRowsCxt->pCtbMeta, &pStbRowsCxt->pCreateCtbReq, ppTableDataCxt, false, true);
+                            pStbRowsCxt->pCtbMeta, &pStbRowsCxt->pCreateCtbReq, ppTableDataCxt, false, true, pStmt->insertType);
   initTableColSubmitData(*ppTableDataCxt);
   if (code == TSDB_CODE_SUCCESS) {
     SRow** pRow = taosArrayReserve((*ppTableDataCxt)->pData->aRowP, 1);
@@ -2139,14 +2139,20 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
 }
 
 static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SRowsDataContext rowsDataCxt) {
+  int32_t code = 0;
+  int32_t numOfRows = 0;
+
+  if ((code = catalogChkGrant(pCxt->pComCxt->pCatalog, TSDB_GRANT_CSV)) < 0) {
+    return code;
+  }
+
   // init only for file
   if (NULL == pStmt->pTableCxtHashObj) {
     pStmt->pTableCxtHashObj =
         taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   }
 
-  int32_t numOfRows = 0;
-  int32_t code = parseCsvFile(pCxt, pStmt, rowsDataCxt, &numOfRows);
+  code = parseCsvFile(pCxt, pStmt, rowsDataCxt, &numOfRows);
   if (TSDB_CODE_SUCCESS == code) {
     pStmt->totalRowsNum += numOfRows;
     pStmt->totalTbNum += 1;
@@ -2192,10 +2198,6 @@ static int32_t parseFileClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   if (tsUseAdapter) {
     return buildInvalidOperationMsg(&pCxt->msg, "proxy mode does not support csv loading");
   }
-
-  // if ((terrno = grantCheck(TSDB_GRANT_CSV)) < 0) {
-  //   return buildInvalidOperationMsg(&pCxt->msg, terrstr());
-  // }
 
   NEXT_TOKEN(pStmt->pSql, *pToken);
   if (0 == pToken->n || (TK_NK_STRING != pToken->type && TK_NK_ID != pToken->type)) {
@@ -2760,10 +2762,6 @@ static int32_t parseInsertSqlFromStart(SInsertParseContext* pCxt, SVnodeModifyOp
 static int32_t parseInsertSqlFromCsv(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   int32_t          code = TSDB_CODE_SUCCESS;
   SRowsDataContext rowsDataCxt;
-
-  // if ((code = grantCheck(TSDB_GRANT_CSV)) < 0) {
-  //   return code;
-  // }
 
   if (!pStmt->stbSyntax) {
     STableDataCxt* pTableCxt = NULL;

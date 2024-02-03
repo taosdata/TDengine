@@ -208,7 +208,7 @@ void insCheckTableDataOrder(STableDataCxt* pTableCxt, TSKEY tsKey) {
 void insDestroyBoundColInfo(SBoundColInfo* pInfo) { taosMemoryFreeClear(pInfo->pColIndex); }
 
 static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreateTbReq, STableDataCxt** pOutput,
-                                  bool colMode, bool ignoreColVals) {
+                                  bool colMode, bool ignoreColVals, uint32_t insertType) {
   STableDataCxt* pTableCxt = taosMemoryCalloc(1, sizeof(STableDataCxt));
   if (NULL == pTableCxt) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -249,6 +249,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
     } else {
       pTableCxt->pData->flags = (pCreateTbReq != NULL && NULL != *pCreateTbReq) ? SUBMIT_REQ_AUTO_CREATE_TABLE : 0;
       pTableCxt->pData->flags |= colMode ? SUBMIT_REQ_COLUMN_DATA_FORMAT : 0;
+      pTableCxt->pData->flags |= insertType == TSDB_QUERY_TYPE_FILE_INSERT ? SUBMIT_REQ_FROM_FILE : 0;
       pTableCxt->pData->suid = pTableMeta->suid;
       pTableCxt->pData->uid = pTableMeta->uid;
       pTableCxt->pData->sver = pTableMeta->sversion;
@@ -330,7 +331,7 @@ static void resetColValues(SArray* pValues) {
 }
 
 int32_t insGetTableDataCxt(SHashObj* pHash, void* id, int32_t idLen, STableMeta* pTableMeta,
-                           SVCreateTbReq** pCreateTbReq, STableDataCxt** pTableCxt, bool colMode, bool ignoreColVals) {
+                           SVCreateTbReq** pCreateTbReq, STableDataCxt** pTableCxt, bool colMode, bool ignoreColVals, uint32_t insertType) {
   STableDataCxt** tmp = (STableDataCxt**)taosHashGet(pHash, id, idLen);
   if (NULL != tmp) {
     *pTableCxt = *tmp;
@@ -339,7 +340,7 @@ int32_t insGetTableDataCxt(SHashObj* pHash, void* id, int32_t idLen, STableMeta*
     }
     return TSDB_CODE_SUCCESS;
   }
-  int32_t code = createTableDataCxt(pTableMeta, pCreateTbReq, pTableCxt, colMode, ignoreColVals);
+  int32_t code = createTableDataCxt(pTableMeta, pCreateTbReq, pTableCxt, colMode, ignoreColVals, insertType);
   if (TSDB_CODE_SUCCESS == code) {
     void* pData = *pTableCxt;  // deal scan coverity
     code = taosHashPut(pHash, id, idLen, &pData, POINTER_BYTES);
@@ -645,7 +646,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
   void* tmp = taosHashGet(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid, sizeof(pTableMeta->uid));
   STableDataCxt* pTableCxt = NULL;
   int            ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
-                                          sizeof(pTableMeta->uid), pTableMeta, pCreateTb, &pTableCxt, true, false);
+                                          sizeof(pTableMeta->uid), pTableMeta, pCreateTb, &pTableCxt, true, false, ((SVnodeModifyOpStmt*)(query->pRoot))->insertType);
   if (ret != TSDB_CODE_SUCCESS) {
     uError("insGetTableDataCxt error");
     goto end;

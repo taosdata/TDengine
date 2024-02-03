@@ -324,7 +324,6 @@ typedef struct SCtgUserAuth {
 typedef struct SCtgGrantCache {
   SRWLatch    lock;
   SGrantHbRsp grantInfo;
-  uint64_t    grantCacheSize;
 } SCtgGrantCache;
 
 typedef struct SCatalog {

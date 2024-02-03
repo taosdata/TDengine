@@ -25,6 +25,7 @@ extern "C" {
 #include "taosdef.h"
 #include "tarray.h"
 #include "tcommon.h"
+#include "tgrant.h"
 #include "thash.h"
 #include "tmsg.h"
 #include "tname.h"
@@ -364,7 +365,9 @@ int32_t catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* f
 
 int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pAuth, SUserAuthRes* pRes);
 
-int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth,        SUserAuthRes* pRes, bool* exists);
+int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo* pAuth, SUserAuthRes* pRes, bool* exists);
+
+int32_t catalogChkGrant(SCatalog* pCtg, EGrantType grant);
 
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
 

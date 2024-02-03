@@ -48,7 +48,8 @@ int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo *pInfo);
 void    insInitColValues(STableMeta* pTableMeta, SArray* aColValues);
 void    insCheckTableDataOrder(STableDataCxt *pTableCxt, TSKEY tsKey);
 int32_t insGetTableDataCxt(SHashObj *pHash, void *id, int32_t idLen, STableMeta *pTableMeta,
-                           SVCreateTbReq **pCreateTbReq, STableDataCxt **pTableCxt, bool colMode, bool ignoreColVals);
+                           SVCreateTbReq **pCreateTbReq, STableDataCxt **pTableCxt, bool colMode, bool ignoreColVals,
+                           uint32_t insertType);
 int32_t initTableColSubmitData(STableDataCxt *pTableCxt);
 int32_t insMergeTableDataCxt(SHashObj *pTableHash, SArray **pVgDataBlocks, bool isRebuild);
 int32_t insBuildVgDataBlocks(SHashObj *pVgroupsHashObj, SArray *pVgDataBlocks, SArray **pDataBlocks);

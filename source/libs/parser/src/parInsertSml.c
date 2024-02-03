@@ -169,7 +169,8 @@ STableDataCxt* smlInitTableDataCtx(SQuery* query, STableMeta* pTableMeta) {
   STableDataCxt* pTableCxt = NULL;
   SVCreateTbReq* pCreateTbReq = NULL;
   int            ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
-                                          sizeof(pTableMeta->uid), pTableMeta, &pCreateTbReq, &pTableCxt, false, false);
+                                          sizeof(pTableMeta->uid), pTableMeta, &pCreateTbReq, &pTableCxt, false, false,
+                                          ((SVnodeModifyOpStmt*)(query->pRoot))->insertType);
   if (ret != TSDB_CODE_SUCCESS) {
     return NULL;
   }
@@ -313,7 +314,8 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
 
   STableDataCxt* pTableCxt = NULL;
   ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
-                           sizeof(pTableMeta->uid), pTableMeta, &pCreateTblReq, &pTableCxt, false, false);
+                           sizeof(pTableMeta->uid), pTableMeta, &pCreateTblReq, &pTableCxt, false, false, 
+                           ((SVnodeModifyOpStmt*)(query->pRoot))->insertType);
   if (ret != TSDB_CODE_SUCCESS) {
     buildInvalidOperationMsg(&pBuf, "insGetTableDataCxt error");
     goto end;

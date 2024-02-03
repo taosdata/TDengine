@@ -2520,8 +2520,6 @@ int32_t ctgOpUpdateGrantInfo(SCtgCacheOperation *operation) {
     goto _return;
   }
 
-  // CTG_ERR_JRET(ctgAcquireGrantCache(pCtg, &pGrantCache)); // TODO: inc/dec or cacheSize ?
-
   code = ctgWriteGrantInfoToCache(pCtg, pRsp);
   
 _return:

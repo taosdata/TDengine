@@ -353,6 +353,39 @@ _return:
   CTG_RET(code);
 }
 
+int32_t ctgChkGrant(SCatalog* pCtg, EGrantType grant) {
+  int32_t         code = 0;
+  int32_t         flag = 0;
+  SCtgGrantCache* pCache = &pCtg->grantCache;
+
+  CTG_LOCK(CTG_READ, &pCache->lock);
+  switch (grant) {
+    case TSDB_GRANT_ALL: {
+      flag = pCache->grantInfo.flags & GRANT_ALL_FLAG;
+      break;
+    }
+    case TSDB_GRANT_AUDIT: {
+      flag = pCache->grantInfo.flags & GRANT_AUDIT_FLAG;
+      break;
+    }
+    case TSDB_GRANT_CSV: {
+      flag = pCache->grantInfo.flags & GRANT_CSV_FLAG;
+      break;
+    }
+    case TSDB_GRANT_VIEW: {
+      flag = pCache->grantInfo.flags & GRANT_VIEW_FLAG;
+      break;
+    }
+  }
+  CTG_UNLOCK(CTG_READ, &pCache->lock);
+
+  if (flag) code = TSDB_CODE_GRANT_EXPIRED;
+
+_return:
+
+  CTG_RET(code);
+}
+
 int32_t ctgGetTbType(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, int32_t* tbType) {
   char dbFName[TSDB_DB_FNAME_LEN];
   tNameGetFullDbName(pTableName, dbFName);
@@ -1693,6 +1726,20 @@ _return:
   CTG_API_LEAVE(code);
 }
 
+int32_t catalogChkGrant(SCatalog* pCtg, EGrantType grant) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t code = 0;
+  CTG_ERR_JRET(ctgChkGrant(pCtg, grant));
+
+_return:
+
+  CTG_API_LEAVE(code);
+}
 
 int32_t catalogGetServerVersion(SCatalog* pCtg, SRequestConnInfo* pConn, char** pVersion) {
   CTG_API_ENTER();

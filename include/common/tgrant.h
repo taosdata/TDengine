@@ -30,6 +30,10 @@ extern "C" {
 
 #define GRANT_HEART_BEAT_MIN 2
 #define GRANT_ACTIVE_CODE    "activeCode"
+#define GRANT_ALL_FLAG       (0x01)
+#define GRANT_AUDIT_FLAG     (0x02)
+#define GRANT_CSV_FLAG       (0x04)
+#define GRANT_VIEW_FLAG      (0x08)
 
 typedef enum {
   TSDB_GRANT_ALL,
@@ -50,6 +54,7 @@ typedef enum {
   TSDB_GRANT_SUBSCRIPTION,
   TSDB_GRANT_AUDIT,
   TSDB_GRANT_CSV,
+  TSDB_GRANT_VIEW,
   TSDB_GRANT_MULTI_TIER,
   TSDB_GRANT_BACKUP_RESTORE,
 } EGrantType;
