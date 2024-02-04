@@ -70,7 +70,7 @@ class TDTestCase(TBase):
         sql = "select * from stb where ic!=105"
         tdSql.query(sql)
         tdSql.checkRows(0)
-        sql = "select * from stb where b!i=106"
+        sql = "select * from stb where bi!=106"
         tdSql.query(sql)
         tdSql.checkRows(0)
         sql = "select * from stb where uti!=107"
@@ -97,10 +97,16 @@ class TDTestCase(TBase):
         # check all columns correct
         cnt = self.insert_rows * self.childtable_count
         sql = "select * from stb where bc!=1"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+        sql = "select * from stb where bc is null"
+        tdSql.query(sql)
         tdSql.checkRows(6)
         sql = "select * from stb where bc=1"
+        tdSql.query(sql)
         tdSql.checkRows(cnt)
         sql = "select * from stb where usi!=108"
+        tdSql.query(sql)
         tdSql.checkRows(6)
 
     # run
