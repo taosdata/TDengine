@@ -24,7 +24,7 @@
                 "stt_trigger": 1,
                 "wal_level": 2,
                 "WAL_FSYNC_PERIOD": 3300,
-                "cachemode": "last_value",
+                "cachemodel": "'last_value'",
                 "TABLE_PREFIX":1,
                 "comp": 1
             },
@@ -37,7 +37,7 @@
                     "childtable_prefix": "d",
                     "insert_mode": "taosc",
                     "timestamp_step": 1000,
-                    "start_timestamp":"2023-01-01 00:00:00",
+                    "start_timestamp":"now-360d",
                     "columns": [
                         { "type": "bool",        "name": "bc","max": 1,"min": 1},
                         { "type": "float",       "name": "fc" ,"max": 101,"min": 101},

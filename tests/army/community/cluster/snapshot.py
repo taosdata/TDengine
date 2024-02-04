@@ -53,10 +53,12 @@ class TDTestCase(TBase):
         tdSql.execute(sql)
 
     def checkFloatDouble(self):
-        sql = f"select count(*) from {self.db}.{self.stb} where fc!=100"
-        tdSql.checkFirstValue(sql, 0)
+        sql = f"select * from {self.db}.{self.stb} where fc!=100"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
         sql = f"select count(*) from {self.db}.{self.stb} where dc!=200"
-        tdSql.checkFirstValue(sql, 0)
+        tdSql.query(sql)
+        tdSql.checkRows(0)
         sql = f"select avg(fc) from {self.db}.{self.stb}"
         tdSql.checkFirstValue(sql, 100)
         sql = f"select avg(dc) from {self.db}.{self.stb}"

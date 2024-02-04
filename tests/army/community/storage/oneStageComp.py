@@ -53,26 +53,37 @@ class TDTestCase(TBase):
         # check all columns correct
         cnt = self.insert_rows * self.childtable_count
         sql = "select * from stb where bc!=1"
+        tdSql.query(sql)
         tdSql.checkRows(0)
         sql = "select * from stb where fc=101"
+        tdSql.query(sql)
         tdSql.checkRows(cnt)
         sql = "select * from stb where dc!=102"
+        tdSql.query(sql)
         tdSql.checkRows(0)
         sql = "select * from stb where ti!=103"
+        tdSql.query(sql)
         tdSql.checkRows(0)
         sql = "select * from stb where si!=104"
+        tdSql.query(sql)
         tdSql.checkRows(0)
         sql = "select * from stb where ic!=105"
+        tdSql.query(sql)
         tdSql.checkRows(0)
         sql = "select * from stb where b!i=106"
+        tdSql.query(sql)
         tdSql.checkRows(0)
         sql = "select * from stb where uti!=107"
+        tdSql.query(sql)
         tdSql.checkRows(0)
         sql = "select * from stb where usi!=108"
+        tdSql.query(sql)
         tdSql.checkRows(0)
         sql = "select * from stb where ui!=109"
+        tdSql.query(sql)
         tdSql.checkRows(0)
         sql = "select * from stb where ubi!=110"
+        tdSql.query(sql)
         tdSql.checkRows(0)
     
     def insertNull(self):

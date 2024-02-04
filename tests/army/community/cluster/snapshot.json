@@ -35,8 +35,8 @@
                     "start_timestamp":"now-12d",
                     "columns": [
                         { "type": "bool",        "name": "bc"},
-                        { "type": "float",       "name": "fc", "min": 100, "min": 100},
-                        { "type": "double",      "name": "dc", "min": 200, "min": 200},
+                        { "type": "float",       "name": "fc", "min": 100, "max": 100},
+                        { "type": "double",      "name": "dc", "min": 200, "max": 200},
                         { "type": "tinyint",     "name": "ti"},
                         { "type": "smallint",    "name": "si" },
                         { "type": "int",         "name": "ic" },
