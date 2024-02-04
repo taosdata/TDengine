@@ -33,7 +33,7 @@ impl UaConnectConfig {
             .params
             .get("private_key")
             .map(|v| v.trim_start_matches('@').to_string());
-   
+
         let auth_certificate = dsn
             .params
             .get("auth_certificate")

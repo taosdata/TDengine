@@ -1087,12 +1087,12 @@ fn test_opc_ua() {
     match ds_options {
         DataSourceOptions::Endpoint {
             endpoint,
-            username:_,
-            password:_,
+            username: _,
+            password: _,
             security_mode,
             security_policy,
-            certificate:_,
-            private_key:_,
+            certificate: _,
+            private_key: _,
             connect_timeout,
         } => {
             assert_eq!(
