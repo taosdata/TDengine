@@ -62,11 +62,15 @@ pub async fn list_csv_file(path: &str) -> Result<Vec<String>> {
 pub async fn csv_header(
     paths: Vec<impl AsRef<str>>,
     has_header: bool,
+    delimiter: Option<u8>,
+    quote: Option<u8>,
+    comment: Option<u8>,
     sample: usize,
 ) -> Result<CsvHeader> {
     let mut header = Vec::new();
     for path in &paths {
-        let path_header = CsvSource::read_header(path.as_ref(), has_header).await?;
+        let path_header =
+            CsvSource::read_header(path.as_ref(), has_header, delimiter, quote, comment).await?;
         if !CsvSource::is_same_header(&header, &path_header, has_header) {
             bail!(
                 "CSV file \"{}\" format is different from others",
@@ -80,7 +84,9 @@ pub async fn csv_header(
 
     if sample > 0 {
         if let Some(path) = paths.first() {
-            values = CsvSource::sample(path.as_ref(), has_header, sample).await?;
+            values =
+                CsvSource::sample(path.as_ref(), has_header, delimiter, quote, comment, sample)
+                    .await?;
         };
     }
 
@@ -225,7 +231,7 @@ struct CsvSource {
 impl CsvSource {
     fn new(dsn: &mut Dsn, port: u16) -> Result<CsvSource> {
         // dsn: csv:path/to/csv/path_1/or/file_1,path/to/csv/path_2/or/file_2
-        //  ?has_header=&header=&skip=&sep=&batch_size=&concurrent=
+        //  ?has_header=&header=&skip=&delimiter=&batch_size=&concurrent=
         let dsn_paths = match &dsn.path {
             Some(path) => {
                 if path.trim().is_empty() {
@@ -268,13 +274,39 @@ impl CsvSource {
             }
         });
 
-        let sep = dsn.params.remove("sep").and_then(|sep_char| {
-            if sep_char.is_empty() {
+        let delimiter = dsn.params.remove("delimiter").and_then(|delimiter_char| {
+            if delimiter_char.is_empty() {
                 None
             } else {
-                let sep_char = sep_char.as_bytes();
-                if sep_char.len() == 1 && sep_char[0] != b',' {
-                    Some(sep_char[0])
+                let delimiter_char = delimiter_char.as_bytes();
+                if delimiter_char.len() == 1 && delimiter_char[0] != b',' {
+                    Some(delimiter_char[0])
+                } else {
+                    None
+                }
+            }
+        });
+
+        let quote = dsn.params.remove("quote").and_then(|quote_char| {
+            if quote_char.is_empty() {
+                None
+            } else {
+                let quote_char = quote_char.as_bytes();
+                if quote_char.len() == 1 && quote_char[0] != b',' {
+                    Some(quote_char[0])
+                } else {
+                    None
+                }
+            }
+        });
+
+        let comment = dsn.params.remove("comment").and_then(|comment_char| {
+            if comment_char.is_empty() {
+                None
+            } else {
+                let comment_char = comment_char.as_bytes();
+                if comment_char.len() == 1 && comment_char[0] != b',' {
+                    Some(comment_char[0])
                 } else {
                     None
                 }
@@ -301,9 +333,13 @@ impl CsvSource {
             return Err(anyhow!("csv header is null"));
         }
 
-        CsvSource::validate(&paths, has_header, &headers, sep, skip)?;
+        CsvSource::validate(
+            &paths, has_header, &headers, skip, delimiter, quote, comment,
+        )?;
 
-        let readers = CsvSource::csv_readers(&paths, has_header, &headers, sep, skip)?;
+        let readers = CsvSource::csv_readers(
+            &paths, has_header, &headers, skip, delimiter, quote, comment,
+        )?;
 
         Ok(CsvSource {
             readers,
@@ -313,7 +349,13 @@ impl CsvSource {
         })
     }
 
-    async fn read_header(read_path: &str, has_header: bool) -> Result<Vec<String>> {
+    async fn read_header(
+        read_path: &str,
+        has_header: bool,
+        delimiter: Option<u8>,
+        quote: Option<u8>,
+        comment: Option<u8>,
+    ) -> Result<Vec<String>> {
         let paths = CsvSource::csv_path(read_path)?;
         if paths.is_empty() {
             return Err(anyhow!(format!("there are not csv file is {}", read_path)));
@@ -323,6 +365,16 @@ impl CsvSource {
 
         for path in paths {
             let mut reader = ReaderBuilder::new()
+                .delimiter(match delimiter {
+                    Some(delimiter) => delimiter,
+                    _ => b',',
+                })
+                .quote(match quote {
+                    Some(quote) => quote,
+                    _ => b'"',
+                })
+                .comment(comment)
+                // .has_headers(has_header)
                 .from_path(&path)
                 .with_context(|| format!("Reading CSV file {path:?} error"))?;
             let file_headers = reader
@@ -343,7 +395,14 @@ impl CsvSource {
         Ok(headers)
     }
 
-    async fn sample(read_path: &str, has_header: bool, sample: usize) -> Result<Vec<Vec<String>>> {
+    async fn sample(
+        read_path: &str,
+        has_header: bool,
+        delimiter: Option<u8>,
+        quote: Option<u8>,
+        comment: Option<u8>,
+        sample: usize,
+    ) -> Result<Vec<Vec<String>>> {
         let paths = CsvSource::csv_path(read_path)?;
         if paths.is_empty() {
             return Err(anyhow!(format!("there are not csv file is {}", read_path)));
@@ -353,6 +412,15 @@ impl CsvSource {
 
         for path in paths {
             let mut reader = ReaderBuilder::new()
+                .delimiter(match delimiter {
+                    Some(delimiter) => delimiter,
+                    _ => b',',
+                })
+                .quote(match quote {
+                    Some(quote) => quote,
+                    _ => b'"',
+                })
+                .comment(comment)
                 .has_headers(has_header)
                 .from_path(&path)
                 .with_context(|| format!("Reading CSV file {path:?} error"))?;
@@ -578,17 +646,24 @@ impl CsvSource {
         paths: &Vec<String>,
         has_header: bool,
         headers: &Vec<String>,
-        sep: Option<u8>,
         skip: Option<u64>,
+        delimiter: Option<u8>,
+        quote: Option<u8>,
+        comment: Option<u8>,
     ) -> Result<Vec<Reader<File>>> {
         let mut readers = Vec::new();
         for path in paths {
             let mut reader = ReaderBuilder::new()
-                .delimiter(match sep {
-                    Some(sep) => sep,
+                .delimiter(match delimiter {
+                    Some(delimiter) => delimiter,
                     _ => b',',
                 })
-                .has_headers(true)
+                .quote(match quote {
+                    Some(quote) => quote,
+                    _ => b'"',
+                })
+                .comment(comment)
+                .has_headers(has_header)
                 .flexible(false)
                 .from_path(path)
                 .with_context(|| format!("Open file {path:?} error"))?;
@@ -619,18 +694,25 @@ impl CsvSource {
         paths: &[String],
         has_header: bool,
         headers: &Vec<String>,
-        sep: Option<u8>,
         skip: Option<u64>,
+        delimiter: Option<u8>,
+        quote: Option<u8>,
+        comment: Option<u8>,
     ) -> Result<()> {
         const MAX_VALIDATE_LINES: usize = 10;
         let mut cols = 0;
         for path in paths {
             let mut reader = ReaderBuilder::new()
-                .delimiter(match sep {
-                    Some(sep) => sep,
+                .delimiter(match delimiter {
+                    Some(delimiter) => delimiter,
                     _ => b',',
                 })
-                .has_headers(true)
+                .quote(match quote {
+                    Some(quote) => quote,
+                    _ => b'"',
+                })
+                .comment(comment)
+                .has_headers(has_header)
                 .flexible(false)
                 .from_path(path)
                 .with_context(|| format!("Open file {path:?} error"))?;
@@ -739,4 +821,68 @@ pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
     } else {
         DataSourceValidation::valid("csv".to_string(), None)
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_read_header() {
+        let path = "/data/ypzhang/files/test_join.csv".to_string();
+        let header =
+            CsvSource::read_header(path.as_ref(), true, Some(b','), Some(b'"'), Some(b'#'))
+                .await
+                .unwrap();
+        dbg!(header);
+    }
+
+    #[test]
+    fn test_csv_readers() {
+        let paths = vec!["/data/ypzhang/files/test_join.csv".to_string()];
+        let headers = vec![];
+
+        let mut readers = CsvSource::csv_readers(
+            &paths,
+            true,
+            &headers,
+            None,
+            Some(b','),
+            Some(b'"'),
+            Some(b'#'),
+        )
+        .unwrap();
+
+        while let Some(mut reader) = readers.pop() {
+            let headers = reader
+                .headers()
+                .unwrap()
+                .iter()
+                .map(String::from)
+                .collect::<Vec<String>>();
+            dbg!(headers);
+            let mut record = StringRecord::new();
+            for _ in 0..3 {
+                let _ = reader.read_record(&mut record);
+                dbg!(&record);
+            }
+        }
+    }
+
+    #[test]
+    fn test_validate() {
+        let paths = vec!["/data/ypzhang/files/test_join.csv".to_string()];
+        let headers = vec!["ts".to_string(), "payload".to_string()];
+
+        let _ = CsvSource::validate(
+            &paths,
+            false,
+            &headers,
+            None,
+            Some(b','),
+            Some(b'"'),
+            Some(b'#'),
+        )
+        .unwrap();
+    }
 }
