@@ -18,7 +18,8 @@
 
 typedef union {
   volatile int64_t i;
-  double           d;
+  volatile double  d;
+  //double  d;
 } double_number;
 
 #ifdef WINDOWS
@@ -416,7 +417,7 @@ int64_t atomic_exchange_64(int64_t volatile* ptr, int64_t val) {
 double  atomic_exchange_double(double volatile *ptr, int64_t val){
   for (;;) {
     double_number old_num = {0};
-    old_num.i = *ptr;  // current old value
+    old_num.d = *ptr;  // current old value
 
     double_number new_num = {0};
     int64_t iNew = val;
