@@ -46,14 +46,7 @@ int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName) {
    SNode* pQuery = NULL;
    SParseSqlRes res = {.resType = PARSE_SQL_RES_QUERY};
 
-  //  int32_t code = catalogChkGrant(pCxt->pParseCxt->pCatalog, TSDB_GRANT_VIEW);
-  //  if (TSDB_CODE_SUCCESS != code) {
-  //    code = generateSyntaxErrMsg(&pCxt->msgBuf, code, tstrerror(code));
-  //    goto _exit;
-  //  }
-
    pParseCxt->isView = true;
-
    int32_t code = getViewQuerySqlUser(pCxt, pName, &querySql, &user);
    if (TSDB_CODE_SUCCESS != code) {
      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));

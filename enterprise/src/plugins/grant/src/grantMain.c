@@ -861,8 +861,6 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     grantResetMaster(pMnode, 0);
   }
 
-  ++gStatus.version; // for grantHb
-
   if (pLastState->state == GRANT_STATE_REVOKED) {
     mndReleaseGrant(pMnode, pGrant, pIter);
   } else {
