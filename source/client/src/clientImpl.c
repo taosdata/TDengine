@@ -458,6 +458,8 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .mgmtEpSet = getEpSet_s(&pAppInfo->mgmtEp),
                       .pAstRoot = pQuery->pRoot,
                       .showRewrite = pQuery->showRewrite,
+                      .isView =  pQuery->isView;
+                      .isAudit = pQuery->isAudit;
                       .pMsg = pRequest->msgBuf,
                       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                       .pUser = pRequest->pTscObj->user,
@@ -1154,6 +1156,8 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
                         .pAstRoot = pQuery->pRoot,
                         .showRewrite = pQuery->showRewrite,
+                        .isView = pWrapper->pParseCtx->isView,
+                        .isAudit = pWrapper->pParseCtx->isAudit,
                         .pMsg = pRequest->msgBuf,
                         .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                         .pUser = pRequest->pTscObj->user,

@@ -1333,7 +1333,7 @@ static int32_t preParseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModif
 static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, STableDataCxt** pTableCxt) {
   if (pCxt->pComCxt->async) {
     return insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStmt->pTableMeta->uid, sizeof(pStmt->pTableMeta->uid),
-                              pStmt->pTableMeta, &pStmt->pCreateTblReq, pTableCxt, false, false, pStmt->insertType);
+                              pStmt->pTableMeta, &pStmt->pCreateTblReq, pTableCxt, false, false);
   }
 
   char tbFName[TSDB_TABLE_FNAME_LEN];
@@ -1342,7 +1342,7 @@ static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
     pStmt->pTableMeta->uid = 0;
   }
   return insGetTableDataCxt(pStmt->pTableBlockHashObj, tbFName, strlen(tbFName), pStmt->pTableMeta,
-                            &pStmt->pCreateTblReq, pTableCxt, NULL != pCxt->pComCxt->pStmtCb, false, pStmt->insertType);
+                            &pStmt->pCreateTblReq, pTableCxt, NULL != pCxt->pComCxt->pStmtCb, false);
 }
 
 static int32_t parseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, STableDataCxt* pTableCxt) {
@@ -1931,7 +1931,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   }
 
   code = insGetTableDataCxt(pStmt->pTableBlockHashObj, &pStbRowsCxt->pCtbMeta->uid, sizeof(pStbRowsCxt->pCtbMeta->uid),
-                            pStbRowsCxt->pCtbMeta, &pStbRowsCxt->pCreateCtbReq, ppTableDataCxt, false, true, pStmt->insertType);
+                            pStbRowsCxt->pCtbMeta, &pStbRowsCxt->pCreateCtbReq, ppTableDataCxt, false, true);
   initTableColSubmitData(*ppTableDataCxt);
   if (code == TSDB_CODE_SUCCESS) {
     SRow** pRow = taosArrayReserve((*ppTableDataCxt)->pData->aRowP, 1);
@@ -2157,6 +2157,9 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
     pStmt->totalRowsNum += numOfRows;
     pStmt->totalTbNum += 1;
     TSDB_QUERY_SET_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_FILE_INSERT);
+    if (rowsDataCxt.pTableDataCxt && rowsDataCxt.pTableDataCxt->pData) {
+      rowsDataCxt.pTableDataCxt->pData->flags |= SUBMIT_REQ_FROM_FILE;
+    }
     if (!pStmt->fileProcessing) {
       taosCloseFile(&pStmt->fp);
     } else {

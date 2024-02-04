@@ -3333,6 +3333,12 @@ static int32_t subplanToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddBoolToObject(pJson, jkSubplanShowRewrite, pNode->showRewrite);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkSubplanShowRewrite, pNode->isView);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkSubplanShowRewrite, pNode->isAudit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkSubplanRowsThreshold, pNode->rowsThreshold);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -3378,6 +3384,12 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkSubplanShowRewrite, &pNode->showRewrite);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkSubplanShowRewrite, &pNode->isView);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkSubplanShowRewrite, &pNode->isAudit);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkSubplanRowsThreshold, &pNode->rowsThreshold);

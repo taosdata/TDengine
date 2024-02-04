@@ -92,6 +92,8 @@ typedef struct SScanLogicNode {
   STimeWindow   scanRange;
   SName         tableName;
   bool          showRewrite;
+  bool          isView;
+  bool          isAudit;
   double        ratio;
   SNodeList*    pDynamicScanFuncs;
   int32_t       dataRequired;
@@ -713,8 +715,10 @@ typedef struct SSubplan {
   SNode*         pTagCond;
   SNode*         pTagIndexCond;
   bool           showRewrite;
-  int32_t        rowsThreshold;
+  bool           isView;
+  bool           isAudit;
   bool           dynamicRowThreshold;
+  int32_t        rowsThreshold;
 } SSubplan;
 
 typedef enum EExplainMode { EXPLAIN_MODE_DISABLE = 1, EXPLAIN_MODE_STATIC, EXPLAIN_MODE_ANALYZE } EExplainMode;

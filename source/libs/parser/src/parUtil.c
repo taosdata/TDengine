@@ -192,6 +192,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Out of memory";
     case TSDB_CODE_PAR_ORDERBY_AMBIGUOUS:
       return "ORDER BY \"%s\" is ambiguous";
+    case TSDB_CODE_GRANT_EXPIRED:
+      return "License expired";
     default:
       return "Unknown error";
   }

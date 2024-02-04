@@ -43,6 +43,8 @@ typedef struct STranslateContext {
   bool             createStream;
   bool             stableQuery;
   bool             showRewrite;
+  bool             isView;
+  bool             isAudit;
   SNode*           pPrevRoot;
   SNode*           pPostRoot;
 } STranslateContext;

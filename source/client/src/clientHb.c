@@ -404,8 +404,6 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray* pKvs, struct SCatalog *p
           tscError("invalid grant info, len:%d, value:%p", kv->valueLen, kv->value);
           break;
         }
-        assert(0);
-
         hbProcessGrantInfoRsp(kv->value, kv->valueLen, pCatalog);
         break;
       }
@@ -917,7 +915,7 @@ int32_t hbGetExpiredGrantInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, 
     gv->version = htonl(gv->version);
   }
 
-  tscDebug("hb got %d expired grant, valueLen:%u", grantNum, (int32_t)sizeof(SGrantVersion) * grantNum);
+  tscDebug("hb got %d expired grant, valueLen:%d", grantNum, (int32_t)(sizeof(SGrantVersion) * grantNum));
 
   if (!req->info) {
     req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);

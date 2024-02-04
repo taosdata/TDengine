@@ -517,6 +517,8 @@ typedef struct SQuery {
   SArray*         pTableList;
   SArray*         pDbList;
   bool            showRewrite;
+  // bool            isView;
+  // bool            isAudit;
   int32_t         placeholderNum;
   SArray*         pPlaceholderValues;
   SNode*          pPrepareRoot;
