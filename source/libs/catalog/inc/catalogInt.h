@@ -39,7 +39,6 @@ extern "C" {
 #define CTG_MAX_COMMAND_LEN              512
 #define CTG_DEFAULT_CACHE_MON_MSEC       5000
 #define CTG_CLEAR_CACHE_ROUND_TB_NUM     3000  
-#define CGT_GRANT_ID                     0
 
 #define CTG_RENT_SLOT_SECOND 1.5
 
@@ -70,7 +69,6 @@ typedef enum {
   CTG_CI_UDF,
   CTG_CI_SVR_VER,
   CTG_CI_VIEW,
-  CTG_CI_GRANT_INFO,
   CTG_CI_MAX_VALUE,
 } CTG_CACHE_ITEM;
 
@@ -103,8 +101,6 @@ enum {
   CTG_OP_DROP_TB_INDEX,
   CTG_OP_UPDATE_VIEW_META,
   CTG_OP_DROP_VIEW_META,
-  CTG_OP_UPDATE_GRANT_INFO,
-  CTG_OP_DROP_GRANT_INFO,
   CTG_OP_CLEAR_CACHE,
   CTG_OP_MAX
 };
@@ -127,7 +123,6 @@ typedef enum {
   CTG_TASK_GET_TB_HASH_BATCH,
   CTG_TASK_GET_TB_TAG,
   CTG_TASK_GET_VIEW,
-  CTG_TASK_GET_GRANT_INFO,
 } CTG_TASK_TYPE;
 
 typedef enum {
@@ -321,18 +316,12 @@ typedef struct SCtgUserAuth {
   uint64_t        userCacheSize;
 } SCtgUserAuth;
 
-typedef struct SCtgGrantCache {
-  SRWLatch    lock;
-  SGrantHbRsp grantInfo;
-} SCtgGrantCache;
-
 typedef struct SCatalog {
   uint64_t        clusterId;
   bool            stopUpdate;
   SDynViewVersion dynViewVer;
   SHashObj*       userCache;  // key:user, value:SCtgUserAuth
   SHashObj*       dbCache;    // key:dbname, value:SCtgDBCache
-  SCtgGrantCache  grantCache;
   SCtgRentMgmt    dbRent;
   SCtgRentMgmt    stbRent;
   SCtgRentMgmt    viewRent;
@@ -381,7 +370,6 @@ typedef struct SCtgJob {
   int32_t          tbCfgNum;
   int32_t          svrVerNum;
   int32_t          viewNum;
-  int32_t          grantNum;
 } SCtgJob;
 
 typedef struct SCtgMsgCtx {
@@ -559,15 +547,6 @@ typedef struct SCtgDropViewMetaMsg {
   uint64_t  dbId;
   uint64_t  viewId;
 } SCtgDropViewMetaMsg;
-
-typedef struct SCtgUpdateGrantInfoMsg {
-  SCatalog*    pCtg;
-  SGrantHbRsp* pRsp;
-} SCtgUpdateGrantInfoMsg;
-
-typedef struct SCtgDropGrantInfoMsg {
-  SCatalog* pCtg;
-} SCtgDropGrantInfoMsg;
 
 typedef struct SCtgCacheOperation {
   int32_t opId;
@@ -931,7 +910,6 @@ int32_t ctgOpDropDbVgroup(SCtgCacheOperation* action);
 int32_t ctgOpDropStbMeta(SCtgCacheOperation* action);
 int32_t ctgOpDropTbMeta(SCtgCacheOperation* action);
 int32_t ctgOpDropViewMeta(SCtgCacheOperation* action);
-int32_t ctgOpDropGrantInfo(SCtgCacheOperation* action);
 int32_t ctgOpUpdateUser(SCtgCacheOperation* action);
 int32_t ctgOpUpdateEpset(SCtgCacheOperation* operation);
 int32_t ctgAcquireVgInfoFromCache(SCatalog* pCtg, const char* dbFName, SCtgDBCache** pCache);
@@ -967,10 +945,8 @@ int32_t ctgUpdateRentStbVersion(SCatalog *pCtg, char *dbFName, char *tbName, uin
                                 SCtgTbCache *pCache);
 int32_t ctgUpdateRentViewVersion(SCatalog *pCtg, char *dbFName, char *viewName, uint64_t dbId, uint64_t viewId,
                                 SCtgViewCache *pCache);
-// int32_t ctgUpdateRentGrantVersion(SCatalog* pCtg, int32_t grantId, SGrantHbRsp* pGrant);
 int32_t ctgUpdateTbMetaToCache(SCatalog* pCtg, STableMetaOutput* pOut, bool syncReq);
 int32_t ctgUpdateViewMetaToCache(SCatalog *pCtg, SViewMetaRsp *pRsp, bool syncReq);
-int32_t ctgUpdateGrantInfoToCache(SCatalog *pCtg, SGrantHbRsp *pRsp, bool syncReq);
 int32_t ctgStartUpdateThread();
 int32_t ctgRelaunchGetTbMetaTask(SCtgTask* pTask);
 void    ctgReleaseVgInfoToCache(SCatalog* pCtg, SCtgDBCache* dbCache);
@@ -980,7 +956,6 @@ int32_t ctgOpDropTbIndex(SCtgCacheOperation* operation);
 int32_t ctgOpUpdateTbIndex(SCtgCacheOperation* operation);
 int32_t ctgOpClearCache(SCtgCacheOperation* operation);
 int32_t ctgOpUpdateViewMeta(SCtgCacheOperation *operation);
-int32_t ctgOpUpdateGrantInfo(SCtgCacheOperation *operation);
 int32_t ctgReadTbTypeFromCache(SCatalog* pCtg, char* dbFName, char* tableName, int32_t* tbType);
 int32_t ctgGetTbHashVgroupFromCache(SCatalog* pCtg, const SName* pTableName, SVgroupInfo** pVgroup);
 int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsCtx *ctx, int32_t dbIdx,
@@ -1040,12 +1015,10 @@ void    ctgResetTbMetaTask(SCtgTask* pTask);
 void    ctgFreeDbCache(SCtgDBCache* dbCache);
 int32_t ctgStbVersionSortCompare(const void* key1, const void* key2);
 int32_t ctgViewVersionSortCompare(const void* key1, const void* key2);
-// int32_t ctgGrantVersionSortCompare(const void* key1, const void* key2);
 int32_t ctgDbCacheInfoSortCompare(const void* key1, const void* key2);
 int32_t ctgStbVersionSearchCompare(const void* key1, const void* key2);
 int32_t ctgDbCacheInfoSearchCompare(const void* key1, const void* key2);
 int32_t ctgViewVersionSearchCompare(const void* key1, const void* key2);
-// int32_t ctgGrantVersionSearchCompare(const void* key1, const void* key2);
 void    ctgFreeSTableMetaOutput(STableMetaOutput* pOutput);
 int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* target);
 int32_t ctgAddMsgCtx(SArray* pCtxs, int32_t reqType, void* out, char* target);

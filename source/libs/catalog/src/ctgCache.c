@@ -32,8 +32,6 @@ SCtgOperation gCtgCacheOperation[CTG_OP_MAX] = {{CTG_OP_UPDATE_VGROUP, "update v
                                                 {CTG_OP_DROP_TB_INDEX, "drop tbIndex", ctgOpDropTbIndex},
                                                 {CTG_OP_UPDATE_VIEW_META, "update viewMeta", ctgOpUpdateViewMeta},
                                                 {CTG_OP_DROP_VIEW_META, "drop viewMeta", ctgOpDropViewMeta},
-                                                {CTG_OP_UPDATE_GRANT_INFO, "update grantInfo", ctgOpUpdateGrantInfo},
-                                                {CTG_OP_DROP_GRANT_INFO, "drop grantInfo", ctgOpDropGrantInfo},
                                                 {CTG_OP_CLEAR_CACHE, "clear cache", ctgOpClearCache}};
 
 SCtgCacheItemInfo gCtgStatItem[CTG_CI_MAX_VALUE] = {
@@ -159,15 +157,6 @@ int32_t ctgAcquireDBCache(SCatalog *pCtg, const char *dbFName, SCtgDBCache **pCa
 int32_t ctgGetDBCache(SCatalog *pCtg, const char *dbFName, SCtgDBCache **pCache) {
   CTG_RET(ctgAcquireDBCacheImpl(pCtg, dbFName, pCache, false));
 }
-
-int32_t ctgAcquireGrantCache(SCatalog *pCtg, SCtgGrantCache **ppCache) {
-  CTG_LOCK(CTG_READ, &pCtg->grantCache.lock);
-  *ppCache = &pCtg->grantCache;
-  CTG_CACHE_HIT_INC(CTG_CI_GRANT_INFO, 1);
-  return TSDB_CODE_SUCCESS;
-}
-
-void ctgReleaseGrantCache(SCatalog *pCtg, SCtgGrantCache *pCache) { CTG_UNLOCK(CTG_READ, &pCache->lock); }
 
 void ctgReleaseVgInfoToCache(SCatalog *pCtg, SCtgDBCache *dbCache) {
   ctgRUnlockVgInfo(dbCache);
@@ -1334,33 +1323,6 @@ _return:
   CTG_RET(code);  
 }
 
-int32_t ctgUpdateGrantInfoEnqueue(SCatalog *pCtg, SGrantHbRsp *pRsp, bool syncOp) {
-  int32_t             code = 0;
-  SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
-  op->opId = CTG_OP_UPDATE_GRANT_INFO;
-  op->syncOp = syncOp;
-
-  SCtgUpdateGrantInfoMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateGrantInfoMsg));
-  if (NULL == msg) {
-    ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateGrantInfoMsg));
-    taosMemoryFree(op);
-    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
-  }
-
-  msg->pCtg = pCtg;
-  msg->pRsp = pRsp;
-
-  op->data = msg;
-
-  CTG_ERR_RET(ctgEnqueue(pCtg, op));
-
-  return TSDB_CODE_SUCCESS;
-_return:
-
-  taosMemoryFree(pRsp);
-  CTG_RET(code);
-}
-
 int32_t ctgDropViewMetaEnqueue(SCatalog *pCtg, const char *dbFName, uint64_t dbId, const char *viewName, uint64_t viewId, bool syncOp) {
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
@@ -1732,21 +1694,6 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgWriteGrantInfoToCache(SCatalog *pCtg, SGrantHbRsp *pRsp) {
-  int32_t         code = TSDB_CODE_SUCCESS;
-  SCtgGrantCache *pCache = &pCtg->grantCache;
-
-  CTG_LOCK(CTG_WRITE, &pCache->lock);
-  pCache->grantInfo = *pRsp;
-  CTG_UNLOCK(CTG_WRITE, &pCache->lock);
-
-  ctgDebug("grant info updated to cache, flags:%u, version:%d", pRsp->flags, pRsp->version);
-
-_return:
-
-  CTG_RET(code);
-}
-
 int32_t ctgUpdateTbMetaToCache(SCatalog *pCtg, STableMetaOutput *pOut, bool syncReq) {
   STableMetaOutput *pOutput = NULL;
   int32_t           code = 0;
@@ -1766,10 +1713,6 @@ _return:
 
 int32_t ctgUpdateViewMetaToCache(SCatalog *pCtg, SViewMetaRsp *pRsp, bool syncReq) {
   CTG_RET(ctgUpdateViewMetaEnqueue(pCtg, pRsp, syncReq));
-}
-
-int32_t ctgUpdateGrantInfoToCache(SCatalog *pCtg, SGrantHbRsp *pRsp, bool syncReq) {
-  CTG_RET(ctgUpdateGrantInfoEnqueue(pCtg, pRsp, syncReq));
 }
 
 
@@ -2499,43 +2442,6 @@ int32_t ctgOpDropViewMeta(SCtgCacheOperation *operation) {
   CTG_ERR_JRET(ctgMetaRentRemove(&msg->pCtg->viewRent, viewId, ctgViewVersionSortCompare, ctgViewVersionSearchCompare));
 
   ctgDebug("view %s removed from rent, dbFName:%s, viewId:0x%" PRIx64, msg->viewName, msg->dbFName, viewId);
-
-_return:
-
-  taosMemoryFreeClear(msg);
-
-  CTG_RET(code);
-}
-
-int32_t ctgOpUpdateGrantInfo(SCtgCacheOperation *operation) {
-  int32_t               code = 0;
-  SCtgUpdateGrantInfoMsg *msg = operation->data;
-  SCatalog              *pCtg = msg->pCtg;
-  SGrantHbRsp           *pRsp = msg->pRsp;
-  SCtgGrantCache         *pGrantCache = NULL;
-
-  taosMemoryFreeClear(msg);
-
-  if (pCtg->stopUpdate) {
-    goto _return;
-  }
-
-  code = ctgWriteGrantInfoToCache(pCtg, pRsp);
-  
-_return:
-
-  taosMemoryFree(pRsp);
-  CTG_RET(code);
-}
-
-int32_t ctgOpDropGrantInfo(SCtgCacheOperation *operation) {
-  int32_t               code = 0;
-  SCtgDropGrantInfoMsg *msg = operation->data;
-  SCatalog             *pCtg = msg->pCtg;
-
-  if (pCtg->stopUpdate) {
-    goto _return;
-  }
 
 _return:
 

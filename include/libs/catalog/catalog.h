@@ -343,8 +343,6 @@ int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableVersion** stables, u
 
 int32_t catalogGetExpiredViews(SCatalog* pCtg, SViewVersion** views, uint32_t* num, SDynViewVersion** dynViewVersion);
 
-int32_t catalogGetExpiredGrants(SCatalog* pCtg, SGrantVersion** grants, uint32_t* num);
-
 int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbCacheInfo** dbs, uint32_t* num);
 
 int32_t catalogGetExpiredUsers(SCatalog* pCtg, SUserAuthVersion** users, uint32_t* num);
@@ -367,8 +365,6 @@ int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *p
 
 int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo* pAuth, SUserAuthRes* pRes, bool* exists);
 
-int32_t catalogChkGrant(SCatalog* pCtg, EGrantType grant);
-
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
 
 int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, SEpSet* epSet);
@@ -388,7 +384,6 @@ int32_t catalogRemoveViewMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId
 int32_t catalogUpdateDynViewVer(SCatalog* pCtg, SDynViewVersion* pVer);
 
 int32_t catalogUpdateViewMeta(SCatalog* pCtg, SViewMetaRsp* pMsg);
-int32_t catalogUpdateGrantInfo(SCatalog* pCtg, SGrantHbRsp* pMsg);
 
 int32_t catalogAsyncUpdateViewMeta(SCatalog* pCtg, SViewMetaRsp* pMsg);
 

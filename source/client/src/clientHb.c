@@ -327,28 +327,6 @@ static int32_t hbProcessViewInfoRsp(void *value, int32_t valueLen, struct SCatal
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t hbProcessGrantInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
-  int32_t code = 0;
-
-  SGrantHbRsp *hbRsp = taosMemoryCalloc(1, sizeof(SGrantHbRsp));
-  if (!hbRsp) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  if (tDeserializeSGrantHbRsp(value, valueLen, hbRsp) != 0) {
-    taosMemoryFree(hbRsp);
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  tscDebug("hb to update grant info, version:%d, flags:%u", hbRsp->version, hbRsp->flags);
-
-  catalogUpdateGrantInfo(pCatalog, hbRsp);
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static void hbProcessQueryRspKvs(int32_t kvNum, SArray* pKvs, struct SCatalog *pCatalog, SAppHbMgr *pAppHbMgr) {
   for (int32_t i = 0; i < kvNum; ++i) {
     SKv *kv = taosArrayGet(pKvs, i);
@@ -397,14 +375,6 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray* pKvs, struct SCatalog *p
         }
 
         hbProcessViewInfoRsp(kv->value, kv->valueLen, pCatalog);
-        break;
-      }
-      case HEARTBEAT_KEY_GRANTINFO: {
-        if (kv->valueLen <= 0 || NULL == kv->value) {
-          tscError("invalid grant info, len:%d, value:%p", kv->valueLen, kv->value);
-          break;
-        }
-        hbProcessGrantInfoRsp(kv->value, kv->valueLen, pCatalog);
         break;
       }
 #endif
@@ -895,48 +865,6 @@ int32_t hbGetExpiredViewInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t hbGetExpiredGrantInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SClientHbReq *req) {
-  SGrantVersion *grants = NULL;
-  uint32_t       grantNum = 0;
-  int32_t        code = 0;
-
-  code = catalogGetExpiredGrants(pCatalog, &grants, &grantNum);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
-  }
-
-  if (grantNum <= 0) {
-    taosMemoryFree(grants);
-    return code;
-  }
-
-  for (int32_t i = 0; i < grantNum; ++i) {
-    SGrantVersion *gv = &grants[i];
-    gv->version = htonl(gv->version);
-  }
-
-  tscDebug("hb got %d expired grant, valueLen:%d", grantNum, (int32_t)(sizeof(SGrantVersion) * grantNum));
-
-  if (!req->info) {
-    req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
-    if (!req->info) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      taosMemoryFree(grants);
-      return code;
-      taosMemoryFree(grants);
-    }
-  }
-
-  SKv kv = {
-      .key = HEARTBEAT_KEY_GRANTINFO,
-      .valueLen = sizeof(SGrantVersion) * grantNum,
-      .value = grants,
-  };
-  taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t hbGetAppInfo(int64_t clusterId, SClientHbReq *req) {
   SAppHbReq *pApp = taosHashGet(clientHbMgr.appSummary, &clusterId, sizeof(clusterId));
   if (NULL != pApp) {
@@ -996,11 +924,6 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
 
 #ifdef TD_ENTERPRISE
     code = hbGetExpiredViewInfo(connKey, pCatalog, req);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
-    }
-
-    code = hbGetExpiredGrantInfo(connKey, pCatalog, req);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }

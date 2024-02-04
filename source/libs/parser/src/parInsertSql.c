@@ -2142,10 +2142,6 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
   int32_t code = 0;
   int32_t numOfRows = 0;
 
-  // if ((code = catalogChkGrant(pCxt->pComCxt->pCatalog, TSDB_GRANT_CSV)) < 0) {
-  //   return code;
-  // }
-
   // init only for file
   if (NULL == pStmt->pTableCxtHashObj) {
     pStmt->pTableCxtHashObj =

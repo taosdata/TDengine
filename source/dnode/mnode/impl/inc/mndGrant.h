@@ -43,7 +43,6 @@
 
   int32_t       mndProcessConfigGrantReq(SMnode * pMnode, SRpcMsg * pReq, SMCfgClusterReq * pCfg);
   int32_t       mndProcessUpdGrantLog(SMnode * pMnode, SRpcMsg * pReq, SArray * pMachines, SGrantState * pState);
-  int32_t       mndValidateGrant(SMnode * pMnode, SGrantVersion * pGrantVersion, void **ppRsp, int32_t *pRspLen);
   int32_t       mndGrantGetLastState(SMnode * pMnode, SGrantState * pState);
   SGrantLogObj *mndAcquireGrant(SMnode * pMnode, void **ppIter);
   void          mndReleaseGrant(SMnode * pMnode, SGrantLogObj * pGrant, void *pIter);
