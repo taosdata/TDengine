@@ -31,7 +31,7 @@ const historianLiveTable = 'Runtime.dbo.Live'
 const historianSynchronizeMode = 'synchronize'
 const opcuaSecuritymodeValue = 'None'
 const authenticationField = uuid();
-const datasetsField = uuid();
+export const datasetsField = uuid();
 let currentType = '';
 const DefaultParserValue = {
   parse: {
@@ -584,9 +584,28 @@ function handleDatasets(datasets, paramsConfig) {
                     ...categoryParam,
                     label: categoryParam.display,
                     field: categoryParam.name,
-                    defaultValue: categoryParam.value ?? ''
+                    defaultValue: categoryParam?.multiple ? categoryParam?.value?.split(',') : categoryParam.value ?? '' ,
+                    multiple: categoryParam.multiple ?? false
                   };
                   handleHintType(config, categoryParam.hint);
+                  // 特殊处理 opc 的点位过滤
+                  if (currentType.startsWith('opc')) {
+                    if (config.field == 'pattern') {
+                      config.type = 'pattern';
+                    }
+                    if (config.field == 'namespaces') {
+                      config.options = (that) => {
+                        const { namespaces = [] } = that.$store.state.app.connectivityCheckResult
+                        let list = []
+                        namespaces.map((item,index) => {
+                          if (index > 0) {
+                            list.push({ label: item, value: `${index}`}) 
+                          }
+                        })
+                        return list
+                      }
+                    }
+                  }
                   return config;
                 })
               : undefined,
@@ -1079,13 +1098,22 @@ export function getAuthentications(authentication, params) {
 function getOptionData(data, queryArr, definition) {
   if (!data || !definition) return '';
   let result = '';
-  let { subject, host, port, endpoint, system_configuration, PISystemName } = data;
+  let { subject, host, port, endpoint, system_configuration, PISystemName, security_mode, security_policy, connect_timeout } = data;
   let { id } = definition;
   if (PISystemName) {
     queryArr.push('PISystemName=' + PISystemName);
   }
   if (system_configuration) {
     queryArr.push('system_configuration=' + system_configuration)
+  }
+  if (security_mode) {
+    queryArr.push('security_mode=' + security_mode)
+  } 
+  if (security_policy) {
+    queryArr.push('security_policy=' + security_policy)
+  }
+  if (connect_timeout) {
+    queryArr.push('connect_timeout=' + connect_timeout)
   }
   if (endpoint === undefined&&definition.id!=='csv') {
     result += host.replace(/\w*:\/\//, '');

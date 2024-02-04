@@ -42,6 +42,7 @@
         clearable
         :disabled="disabled()"
         :placeholder="config.placeholder"
+        :multiple="config.multiple"
       >
         <el-option
           v-for="item in getOptions()"
@@ -93,6 +94,13 @@
       <Mode
         v-if="config.type == 'mode'"
         ref="mode"
+        :config="config"
+        :data="data"
+        :parentConfigList="parentConfigList"
+      />
+      <PatternComp
+        v-if="config.type == 'pattern'"
+        ref="pattern"
         :config="config"
         :data="data"
         :parentConfigList="parentConfigList"
@@ -174,6 +182,7 @@ export default {
     PibackfillTime: () => import("./pibackfillTime.vue"),
     Bucket: () => import("./bucket.vue"),
     Mode: () => import("./mode.vue"),
+    PatternComp: () => import("./pattern.vue")
   },
   data() {
     this.inputType = ["input", "textarea", "password"];

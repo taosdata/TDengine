@@ -185,3 +185,55 @@ export function getHistorianMsgbody(datatype,data,agentid){
         method: 'get',
     })
 }
+
+// opc：提交数据点位模版文件下载请求，获取 ticket
+export function getTicket(data, agentid, category) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/ds/in/point/file/download/task?from=${encodeURIComponent(data)}` + '&categories='+ category + (agentid ? `&via=${agentid}` : ''),
+        method: 'get'
+    })
+}
+
+// opc：检查数据点位模版文件是否准备好
+export function checkReadyFile(ticket) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/ds/in/point/file/are/you/ready?ticket=${ticket}`,
+        method: 'get'
+    })
+}
+
+// opc：下载数据点位模版csv文件
+export function downlaodOpcPointFile(ticket) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/ds/in/point/file/async?ticket=${ticket}`,
+        method: 'get',
+        responseType: 'blob',
+    })
+}
+
+/**
+ * opc：分页获取数据点位
+ * @param {*} ticket 
+ * @param {*} page 
+ * @param {*} pageSize 
+ */
+export function getDatasets(ticket,page,pageSize) {
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/ds/in/point/data/page?ticket=${ticket}&page=${page}&page_size=${pageSize}`,
+        method: 'get'
+    })
+}
+
+// 下载 csv 空模版
+export function getCsvEmptyTemplate(driver) {
+    let language = i18n.locale.includes('zh') ? 'zh' : 'en'
+    return request({
+        baseURL: process.env.VUE_APP_X_API,
+        url: `/ds/in/point/file/template?driver=${driver}&lang=${language}`,
+        method: 'get'
+    })
+}
