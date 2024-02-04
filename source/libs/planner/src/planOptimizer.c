@@ -4942,7 +4942,7 @@ static int32_t tsmaOptRevisePlan2(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent,
       }
       continue;
     }
-    code = fmGetDistMethod(pAggFunc, &pPartial, &pMerge);
+    code = fmGetDistMethod(pAggFunc, &pPartial, NULL, &pMerge);
     if (code) break;
 
     pColNode = (SColumnNode*)pScanListCell->pNode;
