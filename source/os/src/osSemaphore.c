@@ -56,6 +56,8 @@ int32_t taosGetAppName(char* name, int32_t* len) {
   char* end = strrchr(filepath, TD_DIRSEP[0]);
   if (end == NULL) {
     end = filepath;
+  } else {
+    end += 1;
   }
 
   tstrncpy(name, end, TSDB_APP_NAME_LEN);
