@@ -1127,7 +1127,7 @@ static int32_t saveBlockRowToExtRowsMemFile(SSortHandle* pHandle, SSDataBlock* p
     pMemFile->currPageOffset = 0;
   } else {
     if (pMemFile->currPageOffset + pHandle->extRowBytes >= pMemFile->pageSize) {
-      fseek(pMemFile->pTdFile, pMemFile->currPageId * pMemFile->pageSize, SEEK_SET);
+      fseeko(pMemFile->pTdFile, ((int64_t)pMemFile->currPageId) * pMemFile->pageSize, SEEK_SET);
       fwrite(pMemFile->pageBuf, pMemFile->currPageOffset + 1, 1, pMemFile->pTdFile);
 
       ++pMemFile->currPageId;
@@ -1149,7 +1149,7 @@ static int32_t saveLastPageToExtRowsMemFile(SSortHandle* pHandle) {
   if (!pMemFile->bDirty) {
     return TSDB_CODE_SUCCESS;
   }
-  fseek(pMemFile->pTdFile, pMemFile->currPageId * pMemFile->pageSize, SEEK_SET);
+  fseeko(pMemFile->pTdFile, ((int64_t)pMemFile->currPageId) * pMemFile->pageSize, SEEK_SET);
   fwrite(pMemFile->pageBuf, pMemFile->currPageOffset + 1, 1, pMemFile->pTdFile);
   pMemFile->bDirty = false;
   return TSDB_CODE_SUCCESS;
