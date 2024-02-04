@@ -1112,6 +1112,8 @@ static int32_t destroySortMemFile(SSortHandle* pHandle) {
   tSimpleHashCleanup(pMemFile->mActivePages);
   taosMemoryFree(pMemFile->pageBuf);
   taosCloseFile(&pMemFile->pTdFile);
+  taosMemoryFree(pMemFile);
+  pHandle->pExtRowsMemFile = NULL;
   return TSDB_CODE_SUCCESS;
 }
 
