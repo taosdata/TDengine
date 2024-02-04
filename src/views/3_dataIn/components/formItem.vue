@@ -239,6 +239,11 @@ export default {
                   this.config.label ?? this.config.field,
                 ]),
               },
+              {
+                pattern: this.config.pattern,
+                trigger: 'change',
+                message: this.config.patternMsg
+              }
             ]
           : [];
       }
@@ -250,6 +255,11 @@ export default {
                 this.config.label ?? this.config.field,
               ]),
             },
+            {
+              pattern: this.config.pattern,
+              trigger: 'change',
+              message: this.config.patternMsg
+            }
           ]
         : [];
     },
