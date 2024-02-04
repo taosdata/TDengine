@@ -548,6 +548,7 @@ typedef struct SCtgDropViewMetaMsg {
   uint64_t  viewId;
 } SCtgDropViewMetaMsg;
 
+
 typedef struct SCtgCacheOperation {
   int32_t opId;
   void*   data;
@@ -943,8 +944,8 @@ void    ctgRemoveStbRent(SCatalog *pCtg, SCtgDBCache *dbCache);
 void    ctgRemoveViewRent(SCatalog *pCtg, SCtgDBCache *dbCache);
 int32_t ctgUpdateRentStbVersion(SCatalog *pCtg, char *dbFName, char *tbName, uint64_t dbId, uint64_t suid,
                                 SCtgTbCache *pCache);
-int32_t ctgUpdateRentViewVersion(SCatalog *pCtg, char *dbFName, char *viewName, uint64_t dbId, uint64_t viewId,
-                                SCtgViewCache *pCache);
+int32_t ctgUpdateRentViewVersion(SCatalog* pCtg, char* dbFName, char* viewName, uint64_t dbId, uint64_t viewId,
+                                 SCtgViewCache* pCache);
 int32_t ctgUpdateTbMetaToCache(SCatalog* pCtg, STableMetaOutput* pOut, bool syncReq);
 int32_t ctgUpdateViewMetaToCache(SCatalog *pCtg, SViewMetaRsp *pRsp, bool syncReq);
 int32_t ctgStartUpdateThread();

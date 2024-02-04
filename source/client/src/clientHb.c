@@ -327,6 +327,7 @@ static int32_t hbProcessViewInfoRsp(void *value, int32_t valueLen, struct SCatal
   return TSDB_CODE_SUCCESS;
 }
 
+
 static void hbProcessQueryRspKvs(int32_t kvNum, SArray* pKvs, struct SCatalog *pCatalog, SAppHbMgr *pAppHbMgr) {
   for (int32_t i = 0; i < kvNum; ++i) {
     SKv *kv = taosArrayGet(pKvs, i);
@@ -864,6 +865,7 @@ int32_t hbGetExpiredViewInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
 
   return TSDB_CODE_SUCCESS;
 }
+
 
 int32_t hbGetAppInfo(int64_t clusterId, SClientHbReq *req) {
   SAppHbReq *pApp = taosHashGet(clientHbMgr.appSummary, &clusterId, sizeof(clusterId));

@@ -1513,6 +1513,7 @@ int32_t catalogGetExpiredViews(SCatalog* pCtg, SViewVersion** views, uint32_t* n
   CTG_API_LEAVE(ctgMetaRentGet(&pCtg->viewRent, (void**)views, num, sizeof(SViewVersion)));
 }
 
+
 int32_t catalogGetExpiredDBs(SCatalog* pCtg, SDbCacheInfo** dbs, uint32_t* num) {
   CTG_API_ENTER();
 
@@ -1675,6 +1676,7 @@ _return:
   CTG_API_LEAVE(code);
 }
 
+
 int32_t catalogGetServerVersion(SCatalog* pCtg, SRequestConnInfo* pConn, char** pVersion) {
   CTG_API_ENTER();
 
@@ -1744,6 +1746,7 @@ _return:
 
   CTG_API_LEAVE(code);
 }
+
 
 int32_t catalogAsyncUpdateViewMeta(SCatalog* pCtg, SViewMetaRsp* pMsg) {
   CTG_API_ENTER();

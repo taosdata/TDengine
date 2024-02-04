@@ -18,7 +18,6 @@
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
-#include "mndGrant.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndQnode.h"

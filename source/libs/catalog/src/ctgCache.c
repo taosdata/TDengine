@@ -2450,6 +2450,7 @@ _return:
   CTG_RET(code);
 }
 
+
 void ctgClearFreeCache(SCtgCacheOperation *operation) {
   SCtgClearCacheMsg *msg = operation->data;
   SCatalog          *pCtg = msg->pCtg;

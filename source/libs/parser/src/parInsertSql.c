@@ -2139,16 +2139,13 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
 }
 
 static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SRowsDataContext rowsDataCxt) {
-  int32_t code = 0;
-  int32_t numOfRows = 0;
-
   // init only for file
   if (NULL == pStmt->pTableCxtHashObj) {
     pStmt->pTableCxtHashObj =
         taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   }
-
-  code = parseCsvFile(pCxt, pStmt, rowsDataCxt, &numOfRows);
+  int32_t numOfRows = 0;
+  int32_t code = parseCsvFile(pCxt, pStmt, rowsDataCxt, &numOfRows);
   if (TSDB_CODE_SUCCESS == code) {
     pStmt->totalRowsNum += numOfRows;
     pStmt->totalTbNum += 1;
@@ -2759,11 +2756,11 @@ static int32_t parseInsertSqlFromStart(SInsertParseContext* pCxt, SVnodeModifyOp
 }
 
 static int32_t parseInsertSqlFromCsv(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS;
   SRowsDataContext rowsDataCxt;
 
   if (!pStmt->stbSyntax) {
-    STableDataCxt* pTableCxt = NULL;
+    STableDataCxt*   pTableCxt = NULL;
     code = getTableDataCxt(pCxt, pStmt, &pTableCxt);
     rowsDataCxt.pTableDataCxt = pTableCxt;
   } else {

@@ -25,7 +25,6 @@ extern "C" {
 #include "taosdef.h"
 #include "tarray.h"
 #include "tcommon.h"
-#include "tgrant.h"
 #include "thash.h"
 #include "tmsg.h"
 #include "tname.h"
@@ -145,10 +144,6 @@ typedef struct SSTableVersion {
   int32_t  tversion;
   int32_t  smaVer;
 } SSTableVersion;
-
-typedef struct SGrantVersion {
-  int32_t version;
-} SGrantVersion;
 
 typedef struct SDbCacheInfo {
   char    dbFName[TSDB_DB_FNAME_LEN];
@@ -363,7 +358,7 @@ int32_t catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* f
 
 int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pAuth, SUserAuthRes* pRes);
 
-int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo* pAuth, SUserAuthRes* pRes, bool* exists);
+int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth, SUserAuthRes* pRes, bool* exists);
 
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
 

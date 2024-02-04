@@ -1804,11 +1804,11 @@ void taosSetAllDebugFlag(int32_t flag) {
 int8_t taosGranted(int8_t type) {
   switch (type) {
     case TSDB_GRANT_ALL:
-      return atomic_load_8(&tsGrant) & GRANT_ALL_FLAG;
+      return atomic_load_8(&tsGrant) & GRANT_FLAG_ALL;
     case TSDB_GRANT_AUDIT:
-      return atomic_load_8(&tsGrant) & GRANT_AUDIT_FLAG;
+      return atomic_load_8(&tsGrant) & GRANT_FLAG_AUDIT;
     case TSDB_GRANT_VIEW:
-      return atomic_load_8(&tsGrant) & GRANT_VIEW_FLAG;
+      return atomic_load_8(&tsGrant) & GRANT_FLAG_VIEW;
     default:
       ASSERTS(0, "undefined grant type:%" PRIi8, type);
       break;

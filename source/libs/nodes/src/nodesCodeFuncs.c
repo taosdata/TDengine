@@ -3294,6 +3294,8 @@ static const char* jkSubplanTagIndexCond = "TagIndexCond";
 static const char* jkSubplanShowRewrite = "ShowRewrite";
 static const char* jkSubplanRowsThreshold = "RowThreshold";
 static const char* jkSubplanDynamicRowsThreshold = "DyRowThreshold";
+static const char* jkSubplanIsView = "IsView";
+static const char* jkSubplanIsAudit = "IsAudit";
 
 static int32_t subplanToJson(const void* pObj, SJson* pJson) {
   const SSubplan* pNode = (const SSubplan*)pObj;
@@ -3333,10 +3335,10 @@ static int32_t subplanToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddBoolToObject(pJson, jkSubplanShowRewrite, pNode->showRewrite);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddBoolToObject(pJson, jkSubplanShowRewrite, pNode->isView);
+    code = tjsonAddBoolToObject(pJson, jkSubplanIsView, pNode->isView);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddBoolToObject(pJson, jkSubplanShowRewrite, pNode->isAudit);
+    code = tjsonAddBoolToObject(pJson, jkSubplanIsAudit, pNode->isAudit);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkSubplanRowsThreshold, pNode->rowsThreshold);
@@ -3386,10 +3388,10 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
     code = tjsonGetBoolValue(pJson, jkSubplanShowRewrite, &pNode->showRewrite);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBoolValue(pJson, jkSubplanShowRewrite, &pNode->isView);
+    code = tjsonGetBoolValue(pJson, jkSubplanIsView, &pNode->isView);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBoolValue(pJson, jkSubplanShowRewrite, &pNode->isAudit);
+    code = tjsonGetBoolValue(pJson, jkSubplanIsAudit, &pNode->isAudit);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkSubplanRowsThreshold, &pNode->rowsThreshold);
