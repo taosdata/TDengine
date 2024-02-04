@@ -30,7 +30,7 @@ from frame import *
 class TDTestCase(TBase):
     updatecfgDict = {
         "countAlwaysReturnValue" : "0",
-        "lossyColumns"           : "float|double",
+        "lossyColumns"           : "float,double",
         "fPrecision"             : "0.000000001",
         "dPrecision"             : "0.00000000000000001",
         "ifAdtFse"               : "1"
