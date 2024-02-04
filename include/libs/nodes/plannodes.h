@@ -92,8 +92,6 @@ typedef struct SScanLogicNode {
   STimeWindow   scanRange;
   SName         tableName;
   bool          showRewrite;
-  bool          isView;
-  bool          isAudit;
   double        ratio;
   SNodeList*    pDynamicScanFuncs;
   int32_t       dataRequired;

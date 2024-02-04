@@ -1801,4 +1801,17 @@ void taosSetAllDebugFlag(int32_t flag) {
   if (terrno == TSDB_CODE_CFG_NOT_FOUND) terrno = TSDB_CODE_SUCCESS;  // ignore not exist
 }
 
-int8_t taosGranted() { return atomic_load_8(&tsGrant); }
+int8_t taosGranted(int8_t type) {
+  switch (type) {
+    case TSDB_GRANT_ALL:
+      return atomic_load_8(&tsGrant) & GRANT_ALL_FLAG;
+    case TSDB_GRANT_AUDIT:
+      return atomic_load_8(&tsGrant) & GRANT_AUDIT_FLAG;
+    case TSDB_GRANT_VIEW:
+      return atomic_load_8(&tsGrant) & GRANT_VIEW_FLAG;
+    default:
+      ASSERTS(0, "undefined grant type:%" PRIi8, type);
+      break;
+  }
+  return 0;
+}

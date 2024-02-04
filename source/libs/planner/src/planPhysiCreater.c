@@ -2164,6 +2164,8 @@ static SSubplan* makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubpl
   pSubplan->level = pLogicSubplan->level;
   pSubplan->rowsThreshold = 4096;
   pSubplan->dynamicRowThreshold = false;
+  pSubplan->isView = pCxt->pPlanCxt->isView;
+  pSubplan->isAudit = pCxt->pPlanCxt->isAudit;
   if (NULL != pCxt->pPlanCxt->pUser) {
     snprintf(pSubplan->user, sizeof(pSubplan->user), "%s", pCxt->pPlanCxt->pUser);
   }
