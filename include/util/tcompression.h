@@ -55,6 +55,7 @@ extern "C" {
 #define HEAD_MODE(x) x % 2
 #define HEAD_ALGO(x) x / 2
 
+#ifdef TD_TSZ
 extern bool lossyFloat;
 extern bool lossyDouble;
 int32_t tsCompressInit(char* lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals, uint32_t intervals,
@@ -91,6 +92,7 @@ static FORCE_INLINE int32_t tsDecompressDoubleLossy(const char *const input, int
   return tsDecompressDoubleLossyImp(input, compressedSize, nelements, output);
 }
 
+#endif
 
 /*************************************************************************
  *                  REGULAR COMPRESSION
