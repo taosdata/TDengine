@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define ALLOW_FORBID_FUNC
+
 #include "query.h"
 #include "tcommon.h"
 
@@ -58,7 +60,7 @@ typedef struct SSortMemFile {
   int32_t numMemPages;
   SSHashObj* mActivePages;
 
-  TdFilePtr pTdFile;
+  FILE* pTdFile;
   char memFilePath[PATH_MAX];
 } SSortMemFile;
 
@@ -1031,8 +1033,8 @@ static int32_t getPageFromExtMemFile(SSortHandle* pHandle, int32_t pageId, char*
       ++pMemFile->numMemPages;
     }
     {
-      taosLSeekFile(pMemFile->pTdFile, pageId * pMemFile->pageSize, SEEK_SET);
-      taosReadFile(pMemFile->pTdFile, pEntry->data, pMemFile->pageSize);      
+      fseek(pMemFile->pTdFile, pageId * pMemFile->pageSize, SEEK_SET);
+      fread(pEntry->data, pMemFile->pageSize, 1, pMemFile->pTdFile);      
       SSortMemPageEntry* tail = pMemFile->pagesTail;
       tail->next = pEntry;
       pEntry->next = NULL;
@@ -1076,7 +1078,7 @@ static int32_t createSortMemFile(SSortHandle* pHandle) {
 
   taosGetTmpfilePath(tsTempDir, "sort-ext-mem", pMemFile->memFilePath);
   pMemFile->pTdFile =
-      taosOpenFile(pMemFile->memFilePath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
+      fopen(pMemFile->memFilePath, "wb+");
   pMemFile->currPageId = -1;
   pMemFile->currPageOffset = -1;
 
@@ -1111,7 +1113,8 @@ static int32_t destroySortMemFile(SSortHandle* pHandle) {
   }
   tSimpleHashCleanup(pMemFile->mActivePages);
   taosMemoryFree(pMemFile->pageBuf);
-  taosCloseFile(&pMemFile->pTdFile);
+  fclose(pMemFile->pTdFile);
+  taosRemoveFile(pMemFile->memFilePath);
   taosMemoryFree(pMemFile);
   pHandle->pExtRowsMemFile = NULL;
   return TSDB_CODE_SUCCESS;
@@ -1124,8 +1127,8 @@ static int32_t saveBlockRowToExtRowsMemFile(SSortHandle* pHandle, SSDataBlock* p
     pMemFile->currPageOffset = 0;
   } else {
     if (pMemFile->currPageOffset + pHandle->extRowBytes >= pMemFile->pageSize) {
-      taosLSeekFile(pMemFile->pTdFile, pMemFile->currPageId * pMemFile->pageSize, SEEK_SET);
-      taosWriteFile(pMemFile->pTdFile, pMemFile->pageBuf, pMemFile->currPageOffset + 1);
+      fseek(pMemFile->pTdFile, pMemFile->currPageId * pMemFile->pageSize, SEEK_SET);
+      fwrite(pMemFile->pageBuf, pMemFile->currPageOffset + 1, 1, pMemFile->pTdFile);
 
       ++pMemFile->currPageId;
       pMemFile->currPageOffset = 0;
@@ -1146,8 +1149,8 @@ static int32_t saveLastPageToExtRowsMemFile(SSortHandle* pHandle) {
   if (!pMemFile->bDirty) {
     return TSDB_CODE_SUCCESS;
   }
-  taosLSeekFile(pMemFile->pTdFile, pMemFile->currPageId * pMemFile->pageSize, SEEK_SET);
-  taosWriteFile(pMemFile->pTdFile, pMemFile->pageBuf, pMemFile->currPageOffset + 1);
+  fseek(pMemFile->pTdFile, pMemFile->currPageId * pMemFile->pageSize, SEEK_SET);
+  fwrite(pMemFile->pageBuf, pMemFile->currPageOffset + 1, 1, pMemFile->pTdFile);
   pMemFile->bDirty = false;
   return TSDB_CODE_SUCCESS;
 }
