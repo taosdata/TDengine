@@ -2609,6 +2609,58 @@ static bool moveToNextTableForPreFileSetMem(SReaderStatus* pStatus) {
   return (pStatus->pProcMemTableIter != NULL);
 }
 
+static void buildCleanBlockFromSttFiles(STsdbReader* pReader, STableBlockScanInfo* pScanInfo) {
+  SReaderStatus*   pStatus = &pReader->status;
+  SSttBlockReader* pSttBlockReader = pStatus->fileIter.pSttBlockReader;
+  SSDataBlock*     pResBlock = pReader->resBlockInfo.pResBlock;
+
+  bool asc = ASCENDING_TRAVERSE(pReader->info.order);
+
+  SDataBlockInfo* pInfo = &pResBlock->info;
+  blockDataEnsureCapacity(pResBlock, pScanInfo->numOfRowsInStt);
+
+  pInfo->rows = pScanInfo->numOfRowsInStt;
+  pInfo->id.uid = pScanInfo->uid;
+  pInfo->dataLoad = 1;
+  pInfo->window = pScanInfo->sttWindow;
+
+  setComposedBlockFlag(pReader, true);
+
+  pScanInfo->sttKeyInfo.nextProcKey = asc ? pScanInfo->sttWindow.ekey + 1 : pScanInfo->sttWindow.skey - 1;
+  pScanInfo->sttKeyInfo.status = STT_FILE_NO_DATA;
+  pScanInfo->lastProcKey = asc ? pScanInfo->sttWindow.ekey : pScanInfo->sttWindow.skey;
+  pScanInfo->sttBlockReturned = true;
+
+  pSttBlockReader->mergeTree.pIter = NULL;
+
+  tsdbDebug("%p uid:%" PRId64 " return clean stt block as one, brange:%" PRId64 "-%" PRId64 " rows:%" PRId64 " %s",
+            pReader, pResBlock->info.id.uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
+            pResBlock->info.rows, pReader->idStr);
+}
+
+static void buildCleanBlockFromDataFiles(STsdbReader* pReader, STableBlockScanInfo* pScanInfo,
+                                         SFileDataBlockInfo* pBlockInfo, int32_t blockIndex) {
+  // whole block is required, return it directly
+  SReaderStatus*  pStatus = &pReader->status;
+  SDataBlockInfo* pInfo = &pReader->resBlockInfo.pResBlock->info;
+  bool            asc = ASCENDING_TRAVERSE(pReader->info.order);
+
+  pInfo->rows = pBlockInfo->record.numRow;
+  pInfo->id.uid = pScanInfo->uid;
+  pInfo->dataLoad = 0;
+  pInfo->version = pReader->info.verRange.maxVer;
+  pInfo->window = (STimeWindow){.skey = pBlockInfo->record.firstKey, .ekey = pBlockInfo->record.lastKey};
+  setComposedBlockFlag(pReader, false);
+  setBlockAllDumped(&pStatus->fBlockDumpInfo, pBlockInfo->record.lastKey, pReader->info.order);
+
+  // update the last key for the corresponding table
+  pScanInfo->lastProcKey = asc ? pInfo->window.ekey : pInfo->window.skey;
+  tsdbDebug("%p uid:%" PRIu64 " clean file block retrieved from file, global index:%d, "
+                              "table index:%d, rows:%d, brange:%" PRId64 "-%" PRId64 ", %s",
+            pReader, pScanInfo->uid, blockIndex, pBlockInfo->tbBlockIdx, pBlockInfo->record.numRow, pBlockInfo->record.firstKey,
+            pBlockInfo->record.lastKey, pReader->idStr);
+}
+
 static int32_t doLoadSttBlockSequentially(STsdbReader* pReader) {
   SReaderStatus*   pStatus = &pReader->status;
   SSttBlockReader* pSttBlockReader = pStatus->fileIter.pSttBlockReader;
@@ -2661,28 +2713,7 @@ static int32_t doLoadSttBlockSequentially(STsdbReader* pReader) {
 
     // if only require the total rows, no need to load data from stt file if it is clean stt blocks
     if (pReader->info.execMode == READER_EXEC_ROWS && pScanInfo->cleanSttBlocks) {
-      bool asc = ASCENDING_TRAVERSE(pReader->info.order);
-
-      SDataBlockInfo* pInfo = &pResBlock->info;
-      blockDataEnsureCapacity(pResBlock, pScanInfo->numOfRowsInStt);
-
-      pInfo->rows = pScanInfo->numOfRowsInStt;
-      pInfo->id.uid = pScanInfo->uid;
-      pInfo->dataLoad = 1;
-      pInfo->window = pScanInfo->sttWindow;
-
-      setComposedBlockFlag(pReader, true);
-
-      pScanInfo->sttKeyInfo.nextProcKey = asc ? pScanInfo->sttWindow.ekey + 1 : pScanInfo->sttWindow.skey - 1;
-      pScanInfo->sttKeyInfo.status = STT_FILE_NO_DATA;
-      pScanInfo->lastProcKey = asc ? pScanInfo->sttWindow.ekey : pScanInfo->sttWindow.skey;
-      pScanInfo->sttBlockReturned = true;
-
-      pSttBlockReader->mergeTree.pIter = NULL;
-
-      tsdbDebug("%p uid:%" PRId64 " return clean stt block as one, brange:%" PRId64 "-%" PRId64 " rows:%" PRId64 " %s",
-                pReader, pResBlock->info.id.uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
-                pResBlock->info.rows, pReader->idStr);
+      buildCleanBlockFromSttFiles(pReader, pScanInfo);
       return TSDB_CODE_SUCCESS;
     }
 
@@ -2722,10 +2753,10 @@ static int32_t doLoadSttBlockSequentially(STsdbReader* pReader) {
   }
 }
 
-static bool notOverlapWithSttFiles(SFileDataBlockInfo* pBlockInfo, STableBlockScanInfo* pScanInfo, bool asc) {
+static bool notOverlapWithFiles(SFileDataBlockInfo* pBlockInfo, STableBlockScanInfo* pScanInfo, bool asc) {
   ASSERT(pScanInfo->sttKeyInfo.status != STT_FILE_READER_UNINIT);
 
-  if(pScanInfo->sttKeyInfo.status == STT_FILE_NO_DATA) {
+  if ((!hasDataInSttBlock(pScanInfo)) || (pScanInfo->cleanSttBlocks == true)) {
     return true;
   } else {
     int64_t keyInStt = pScanInfo->sttKeyInfo.nextProcKey;
@@ -2775,23 +2806,32 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
     int64_t endKey = getBoarderKeyInFiles(pBlockInfo, pScanInfo, pReader->info.order);
     code = buildDataBlockFromBuf(pReader, pScanInfo, endKey);
   } else {
-    if (notOverlapWithSttFiles(pBlockInfo, pScanInfo, asc)) {
-      // whole block is required, return it directly
-      SDataBlockInfo* pInfo = &pReader->resBlockInfo.pResBlock->info;
-      pInfo->rows = pBlockInfo->record.numRow;
-      pInfo->id.uid = pScanInfo->uid;
-      pInfo->dataLoad = 0;
-      pInfo->window = (STimeWindow){.skey = pBlockInfo->record.firstKey, .ekey = pBlockInfo->record.lastKey};
-      setComposedBlockFlag(pReader, false);
-      setBlockAllDumped(&pStatus->fBlockDumpInfo, pBlockInfo->record.lastKey, pReader->info.order);
+    if (notOverlapWithFiles(pBlockInfo, pScanInfo, asc)) {
+      int64_t keyInStt = pScanInfo->sttKeyInfo.nextProcKey;
 
-      // update the last key for the corresponding table
-      pScanInfo->lastProcKey = asc ? pInfo->window.ekey : pInfo->window.skey;
-      tsdbDebug("%p uid:%" PRIu64
-                " clean file block retrieved from file, global index:%d, "
-                "table index:%d, rows:%d, brange:%" PRId64 "-%" PRId64 ", %s",
-                pReader, pScanInfo->uid, pBlockIter->index, pBlockInfo->tbBlockIdx, pBlockInfo->record.numRow,
-                pBlockInfo->record.firstKey, pBlockInfo->record.lastKey, pReader->idStr);
+      if ((!hasDataInSttBlock(pScanInfo)) || (asc && pBlockInfo->record.lastKey < keyInStt) ||
+          (!asc && pBlockInfo->record.firstKey > keyInStt)) {
+        if (pScanInfo->cleanSttBlocks && hasDataInSttBlock(pScanInfo)) {
+          if (asc) {  // file block is located before the stt block
+            ASSERT(pScanInfo->sttWindow.skey > pBlockInfo->record.lastKey);
+          } else {  // stt block is before the file block
+            ASSERT(pScanInfo->sttWindow.ekey < pBlockInfo->record.firstKey);
+          }
+        }
+
+        buildCleanBlockFromDataFiles(pReader, pScanInfo, pBlockInfo, pBlockIter->index);
+      } else {  // clean stt block
+        if (asc) {
+          ASSERT(pScanInfo->sttWindow.ekey < pBlockInfo->record.firstKey);
+        } else {
+          ASSERT(pScanInfo->sttWindow.skey > pBlockInfo->record.lastKey);
+        }
+
+        // return the stt file block
+        ASSERT(pReader->info.execMode == READER_EXEC_ROWS && pSttBlockReader->mergeTree.pIter == NULL);
+        buildCleanBlockFromSttFiles(pReader, pScanInfo);
+        return TSDB_CODE_SUCCESS;
+      }
     } else {
       SBlockData* pBData = &pReader->status.fileBlockData;
       tBlockDataReset(pBData);
@@ -2802,7 +2842,6 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
       int64_t st = taosGetTimestampUs();
 
       // let's load data from stt files, make sure clear the cleanStt block flag before load the data from stt files
-      pScanInfo->cleanSttBlocks = false;
       initSttBlockReader(pSttBlockReader, pScanInfo, pReader);
 
       // no data in stt block, no need to proceed.
