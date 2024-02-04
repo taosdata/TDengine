@@ -32,8 +32,7 @@ extern "C" {
 #define GRANT_ACTIVE_CODE    "activeCode"
 #define GRANT_FLAG_ALL       (0x01)
 #define GRANT_FLAG_AUDIT     (0x02)
-#define GRANT_FLAG_CSV       (0x04)
-#define GRANT_FLAG_VIEW      (0x08)
+#define GRANT_FLAG_VIEW      (0x04)
 
 typedef enum {
   TSDB_GRANT_ALL,
