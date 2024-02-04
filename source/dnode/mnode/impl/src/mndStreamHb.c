@@ -65,61 +65,24 @@ static void addIntoCheckpointList(SArray* pList, const SFailedCheckpointInfo* pI
   taosArrayPush(pList, pInfo);
 }
 
-static int32_t createStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
+int32_t createStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
   STrans *pTrans = doCreateTrans(pMnode, pStream, NULL, MND_STREAM_TASK_RESET_NAME, " reset from failed checkpoint");
   if (pTrans == NULL) {
     return terrno;
   }
 
   /*int32_t code = */mndStreamRegisterTrans(pTrans, MND_STREAM_TASK_RESET_NAME, pStream->uid);
-
-  taosWLockLatch(&pStream->lock);
-  int32_t numOfLevels = taosArrayGetSize(pStream->tasks);
-
-  for (int32_t j = 0; j < numOfLevels; ++j) {
-    SArray *pLevel = taosArrayGetP(pStream->tasks, j);
-
-    int32_t numOfTasks = taosArrayGetSize(pLevel);
-    for (int32_t k = 0; k < numOfTasks; ++k) {
-      SStreamTask *pTask = taosArrayGetP(pLevel, k);
-
-      // todo extract method, with pause stream task
-      SVResetStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVResetStreamTaskReq));
-      if (pReq == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        mError("failed to malloc in reset stream, size:%" PRIzu ", code:%s", sizeof(SVResetStreamTaskReq),
-               tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-        taosWUnLockLatch(&pStream->lock);
-        return terrno;
-      }
-
-      pReq->head.vgId = htonl(pTask->info.nodeId);
-      pReq->taskId = pTask->id.taskId;
-      pReq->streamId = pTask->id.streamId;
-
-      SEpSet  epset = {0};
-      bool    hasEpset = false;
-      int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
-      if (code != TSDB_CODE_SUCCESS || !hasEpset) {
-        taosMemoryFree(pReq);
-        continue;
-      }
-
-      code = setTransAction(pTrans, pReq, sizeof(SVResetStreamTaskReq), TDMT_VND_STREAM_TASK_RESET, &epset, 0);
-      if (code != 0) {
-        taosMemoryFree(pReq);
-        taosWUnLockLatch(&pStream->lock);
-        mndTransDrop(pTrans);
-        return terrno;
-      }
-    }
+  int32_t code = mndStreamSetResetTaskAction(pMnode, pTrans, pStream);
+  if (code != 0) {
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return code;
   }
 
-  taosWUnLockLatch(&pStream->lock);
-
-  int32_t code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_READY);
+  code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_READY);
   if (code != TSDB_CODE_SUCCESS) {
     sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
     return -1;
   }
 
@@ -219,7 +182,40 @@ static int32_t mndDropOrphanTasks(SMnode* pMnode, SArray* pList) {
     mndTransDrop(pTrans);
     return -1;
   }
+  mndTransDrop(pTrans);
+  return 0;
+}
 
+int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo* info){
+  SSdb       *pSdb = pMnode->pSdb;
+  SStreamObj *pStream = NULL;
+  void* pIter = NULL;
+  while(1) {
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) break;
+
+    if(pStream->status != STREAM_STATUS__PAUSE){
+      SMPauseStreamReq reqPause = {0};
+      strcpy(reqPause.name, pStream->name);
+      reqPause.igNotExists = 1;
+
+      int32_t contLen = tSerializeSMPauseStreamReq(NULL, 0, &reqPause);
+      void *  pHead = rpcMallocCont(contLen);
+      tSerializeSMPauseStreamReq(pHead, contLen, &reqPause);
+
+      SRpcMsg rpcMsg = {
+          .msgType = TDMT_MND_PAUSE_STREAM,
+          .pCont = pHead,
+          .contLen = contLen,
+          .info = *info,
+      };
+
+      tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+      mInfo("receive pause stream:%s, %s, %p, because grant expired", pStream->name, reqPause.name, reqPause.name);
+    }
+
+    sdbRelease(pSdb, pStream);
+  }
   return 0;
 }
 
@@ -228,6 +224,12 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SStreamHbMsg req = {0};
   SArray      *pFailedTasks = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
   SArray      *pOrphanTasks = taosArrayInit(3, sizeof(SOrphanTask));
+
+  if(grantCheck(TSDB_GRANT_STREAMS) < 0){
+    if(suspendAllStreams(pMnode, &pReq->info) < 0){
+      return -1;
+    }
+  }
 
   SDecoder decoder = {0};
   tDecoderInit(&decoder, pReq->pCont, pReq->contLen);

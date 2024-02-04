@@ -159,6 +159,7 @@ void taosFreeQitem(void *pItem) {
 int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
   int32_t     code = 0;
   STaosQnode *pNode = (STaosQnode *)(((char *)pItem) - sizeof(STaosQnode));
+  pNode->timestamp = taosGetTimestampUs();
   pNode->next = NULL;
 
   taosThreadMutexLock(&queue->mutex);
@@ -464,6 +465,7 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *
       qinfo->ahandle = queue->ahandle;
       qinfo->fp = queue->itemsFp;
       qinfo->queue = queue;
+      qinfo->timestamp = queue->head->timestamp;
 
       queue->head = NULL;
       queue->tail = NULL;
@@ -489,8 +491,8 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *
 int32_t taosQallItemSize(STaosQall *qall) { return qall->numOfItems; }
 int64_t taosQallMemSize(STaosQall *qall) { return qall->memOfItems; }
 
-int64_t taosQallUnAccessedItemSize(STaosQall *qall) {return qall->unAccessedNumOfItems;}
-int64_t taosQallUnAccessedMemSize(STaosQall *qall) {return qall->unAccessMemOfItems;}
+int64_t taosQallUnAccessedItemSize(STaosQall *qall) { return qall->unAccessedNumOfItems; }
+int64_t taosQallUnAccessedMemSize(STaosQall *qall) { return qall->unAccessMemOfItems; }
 
 void    taosResetQitems(STaosQall *qall) { qall->current = qall->start; }
 int32_t taosGetQueueNumber(STaosQset *qset) { return qset->numOfQueues; }

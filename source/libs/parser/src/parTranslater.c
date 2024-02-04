@@ -14,6 +14,7 @@
  */
 
 #include "parTranslater.h"
+#include "tdatablock.h"
 #include "parInt.h"
 
 #include "catalog.h"
@@ -268,7 +269,25 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pTableName = TSDB_INS_TABLE_COMPACT_DETAILS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
-  },    
+  },
+  { .showType = QUERY_NODE_SHOW_GRANTS_FULL_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_GRANTS_FULL,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  { .showType = QUERY_NODE_SHOW_GRANTS_LOGS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_GRANTS_LOGS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  { .showType = QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_MACHINES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -5589,6 +5608,11 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropStreamReq, pReq);
       break;
     }
+
+    case TDMT_MND_CONFIG_CLUSTER: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCfgClusterReq, pReq);
+      break;
+    }
     default: {
       break;
     }
@@ -6808,6 +6832,16 @@ static int32_t translateRestoreDnode(STranslateContext* pCxt, SRestoreComponentN
   return code;
 }
 
+static int32_t translateAlterCluster(STranslateContext* pCxt, SAlterClusterStmt* pStmt) {
+  SMCfgClusterReq cfgReq = {0};
+  strcpy(cfgReq.config, pStmt->config);
+  strcpy(cfgReq.value, pStmt->value);
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CONFIG_CLUSTER, (FSerializeFunc)tSerializeSMCfgClusterReq, &cfgReq);
+  tFreeSMCfgClusterReq(&cfgReq);
+  return code;
+}
+
 static int32_t getSmaIndexDstVgId(STranslateContext* pCxt, const char* pDbName, const char* pTableName,
                                   int32_t* pVgId) {
   SVgroupInfo vg = {0};
@@ -6957,7 +6991,7 @@ int32_t createIntervalFromCreateSmaIndexStmt(SCreateIndexStmt* pStmt, SInterval*
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t translatePostCreateSmaIndex(SParseContext* pParseCxt, SQuery* pQuery, void** pResRow) {
+int32_t translatePostCreateSmaIndex(SParseContext* pParseCxt, SQuery* pQuery, SSDataBlock* pBlock) {
   int32_t           code = TSDB_CODE_SUCCESS;
   SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pQuery->pRoot;
   int64_t           lastTs = 0;
@@ -6967,11 +7001,13 @@ int32_t translatePostCreateSmaIndex(SParseContext* pParseCxt, SQuery* pQuery, vo
   if (TSDB_CODE_SUCCESS == code) {
     code = createIntervalFromCreateSmaIndexStmt(pStmt, &interval);
   }
+
   if (TSDB_CODE_SUCCESS == code) {
-    if (pResRow && pResRow[0]) {
-      lastTs = *(int64_t*)pResRow[0];
+    if (pBlock != NULL && pBlock->info.rows >= 1) {
+      SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, 0);
+      lastTs = *(int64_t*)colDataGetData(pColInfo, 0);
     } else if (interval.interval > 0) {
-      lastTs = convertTimePrecision(taosGetTimestampMs(), TSDB_TIME_PRECISION_MILLI, interval.precision);
+      lastTs = taosGetTimestamp(interval.precision);
     } else {
       lastTs = taosGetTimestampMs();
     }
@@ -8110,7 +8146,34 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
     nodesDestroyList(pParamterList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
   code = nodesListStrictAppend(pProjectionList, pFunc);
+  if (code) {
+    nodesDestroyList(pProjectionList);
+    return code;
+  }
+
+  SFunctionNode* pFunc1 = createFunction("_vgid", NULL);
+  if (NULL == pFunc1) {
+    nodesDestroyList(pParamterList);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  snprintf(pFunc1->node.aliasName, sizeof(pFunc1->node.aliasName), "%s.%p", pFunc1->functionName, pFunc1);
+  code = nodesListStrictAppend(pProjectionList, (SNode*) pFunc1);
+  if (code) {
+    nodesDestroyList(pProjectionList);
+    return code;
+  }
+
+  SFunctionNode* pFunc2 = createFunction("_vgver", NULL);
+  if (NULL == pFunc2) {
+    nodesDestroyList(pParamterList);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  snprintf(pFunc2->node.aliasName, sizeof(pFunc2->node.aliasName), "%s.%p", pFunc2->functionName, pFunc2);
+  code = nodesListStrictAppend(pProjectionList, (SNode*) pFunc2);
   if (code) {
     nodesDestroyList(pProjectionList);
     return code;
@@ -8121,6 +8184,24 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
     nodesDestroyList(pProjectionList);
     return code;
   }
+
+  // todo add the group by statement
+  SSelectStmt** pSelect1 = (SSelectStmt**)pQuery;
+  (*pSelect1)->pGroupByList = nodesMakeList();
+
+  SGroupingSetNode* pNode1 = (SGroupingSetNode*)nodesMakeNode(QUERY_NODE_GROUPING_SET);
+  pNode1->groupingSetType = GP_TYPE_NORMAL;
+  pNode1->pParameterList = nodesMakeList();
+  nodesListAppend(pNode1->pParameterList, (SNode*)pFunc1);
+
+  nodesListAppend((*pSelect1)->pGroupByList, (SNode*)pNode1);
+
+  SGroupingSetNode* pNode2 = (SGroupingSetNode*)nodesMakeNode(QUERY_NODE_GROUPING_SET);
+  pNode2->groupingSetType = GP_TYPE_NORMAL;
+  pNode2->pParameterList = nodesMakeList();
+  nodesListAppend(pNode2->pParameterList, (SNode*)pFunc2);
+
+  nodesListAppend((*pSelect1)->pGroupByList, (SNode*)pNode2);
 
   return code;
 }
@@ -8269,7 +8350,31 @@ static int32_t buildIntervalForCreateStream(SCreateStreamStmt* pStmt, SInterval*
   return code;
 }
 
-int32_t translatePostCreateStream(SParseContext* pParseCxt, SQuery* pQuery, void** pResRow) {
+// ts, vgroup_id, vgroup_version
+static int32_t createStreamReqVersionInfo(SSDataBlock* pBlock, SArray** pArray, int64_t* lastTs, SInterval* pInterval) {
+  *pArray = taosArrayInit(pBlock->info.rows, sizeof(SVgroupVer));
+  if (*pArray == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (pBlock->info.rows > 0) {
+    *lastTs = pBlock->info.window.ekey;
+    SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 1);
+    SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 2);
+
+    for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+      SVgroupVer v = {.vgId = *(int32_t*)colDataGetData(pCol1, i), .ver = *(int64_t*)colDataGetData(pCol2, i)};
+      taosArrayPush(*pArray, &v);
+    }
+  } else {
+    int32_t precision = (pInterval->interval > 0)? pInterval->precision:TSDB_TIME_PRECISION_MILLI;
+    *lastTs = taosGetTimestamp(precision);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t translatePostCreateStream(SParseContext* pParseCxt, SQuery* pQuery, SSDataBlock* pBlock) {
   SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pQuery->pRoot;
   STranslateContext  cxt = {0};
   SInterval          interval = {0};
@@ -8279,15 +8384,11 @@ int32_t translatePostCreateStream(SParseContext* pParseCxt, SQuery* pQuery, void
   if (TSDB_CODE_SUCCESS == code) {
     code = buildIntervalForCreateStream(pStmt, &interval);
   }
+
   if (TSDB_CODE_SUCCESS == code) {
-    if (pResRow && pResRow[0]) {
-      lastTs = *(int64_t*)pResRow[0];
-    } else if (interval.interval > 0) {
-      lastTs = convertTimePrecision(taosGetTimestampMs(), TSDB_TIME_PRECISION_MILLI, interval.precision);
-    } else {
-      lastTs = taosGetTimestampMs();
-    }
+    code = createStreamReqVersionInfo(pBlock, &pStmt->pReq->pVgroupVerList, &lastTs, &interval);
   }
+
   if (TSDB_CODE_SUCCESS == code) {
     if (interval.interval > 0) {
       pStmt->pReq->lastTs = taosTimeAdd(taosTimeTruncate(lastTs, &interval), interval.interval, interval.intervalUnit, interval.precision);
@@ -8296,9 +8397,11 @@ int32_t translatePostCreateStream(SParseContext* pParseCxt, SQuery* pQuery, void
     }
     code = buildCmdMsg(&cxt, TDMT_MND_CREATE_STREAM, (FSerializeFunc)tSerializeSCMCreateStreamReq, pStmt->pReq);
   }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = setQuery(&cxt, pQuery);
   }
+
   setRefreshMeta(&cxt, pQuery);
   destroyTranslateContext(&cxt);
 
@@ -8826,6 +8929,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       code = translateCompact(pCxt, (SCompactDatabaseStmt*)pNode);
+      break;
+    case QUERY_NODE_ALTER_CLUSTER_STMT:
+      code = translateAlterCluster(pCxt, (SAlterClusterStmt*)pNode);
       break;
     case QUERY_NODE_KILL_CONNECTION_STMT:
       code = translateKillConnection(pCxt, (SKillStmt*)pNode);
@@ -10673,6 +10779,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_TAGS_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
     case QUERY_NODE_SHOW_VIEWS_STMT:
+    case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
+    case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_VGROUPS_STMT:
