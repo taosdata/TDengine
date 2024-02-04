@@ -509,9 +509,9 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
 
   int8_t grantExpireVal = GRANT_EXPIRE_VAL;
   int8_t tsGrantVal = 0;
-  if (grantExpireVal == 0) tsGrantVal |= GRANT_ALL_FLAG;
-  if (!gStatus.auditExpired) tsGrantVal |= GRANT_AUDIT_FLAG;
-  if (!gStatus.viewExpired) tsGrantVal |= GRANT_VIEW_FLAG;
+  if (grantExpireVal == 0) tsGrantVal |= GRANT_FLAG_ALL;
+  if (!gStatus.auditExpired) tsGrantVal |= GRANT_FLAG_AUDIT;
+  if (!gStatus.viewExpired) tsGrantVal |= GRANT_FLAG_VIEW;
   if (atomic_load_8(&tsGrant) != tsGrantVal) {
     atomic_store_8(&tsGrant, tsGrantVal);
   }
@@ -569,9 +569,9 @@ void mndProcessGrantStatusCheck() {
 
   int8_t grantExpireVal = GRANT_EXPIRE_VAL;
   int8_t tsGrantVal = 0;
-  if (grantExpireVal == 0) tsGrantVal |= GRANT_ALL_FLAG;
-  if (!gStatus.auditExpired) tsGrantVal |= GRANT_AUDIT_FLAG;
-  if (!gStatus.viewExpired) tsGrantVal |= GRANT_VIEW_FLAG;
+  if (grantExpireVal == 0) tsGrantVal |= GRANT_FLAG_ALL;
+  if (!gStatus.auditExpired) tsGrantVal |= GRANT_FLAG_AUDIT;
+  if (!gStatus.viewExpired) tsGrantVal |= GRANT_FLAG_VIEW;
   if (atomic_load_8(&tsGrant) != tsGrantVal) {
     atomic_store_8(&tsGrant, tsGrantVal);
     tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
@@ -2176,8 +2176,6 @@ static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
-    snprintf(qBuf, TSDB_CLUSTER_ID_LEN + 2, "%s;", grantObj.clusterId);
-    qBuf += strlen(qBuf);
 
     SDnodeObj *pDnode = NULL;
     bool       first = true;
