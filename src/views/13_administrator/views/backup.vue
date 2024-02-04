@@ -15,7 +15,9 @@
       >
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column label="ID" width="150" prop="id"></el-table-column>
+      <el-table-column :label="$t('taosuser.directory')" width="150" prop="id">
+        <span slot-scope="scope">{{ scope.row.to_expand.path }}</span>
+      </el-table-column>
       <el-table-column :label="$t('taosuser.database')" prop="database"></el-table-column>
       <el-table-column :label="$t('taosuser.createtime')" prop="created_at">
         <span slot-scope="scope">{{ parsinginZone(scope.row.created_at) }}</span>
@@ -106,7 +108,7 @@
              :disabled="scope.row.status.toLowerCase() == 'running'"
              plain
              size="small"
-             @click="restorBackup(scope.row, scope.$index)"
+             @click="handleRestorBackup(scope.row, scope.$index)"
              icon="el-icon-refresh-right"
            ></el-button>
           </el-tooltip>
@@ -334,6 +336,7 @@ export default {
       this.dialog = true;
       this.ruleForm.db = data.database;
       this.ruleForm.directory = data.to;
+      this.ruleForm.cycle = `schedule:${data.trigger.schedule}`;
       this.currentRow = data;
     },
     async start(val, data) {
@@ -436,6 +439,8 @@ export default {
             Message.success(this.$t('createSucc'));
             this.getBackData();
             this.dialog = false;
+          } else {
+            Message.error(res?.message)
           }
         });
       } catch (err) {
@@ -503,6 +508,19 @@ export default {
         Message.error(err);
         return Promise.reject(err);
       }
+    },
+    handleRestorBackup(row) {
+      this.$confirm(
+        this.$t('taosuser.isRestore'),
+        this.$t("warning"),
+        {
+          confirmButtonText: this.$t("confirm"),
+          cancelButtonText: this.$t("cancel"),
+          type: "warning",
+        }
+      ).then(()=>{
+        this.restorBackup(row);
+      })
     }
   },
   created() {
