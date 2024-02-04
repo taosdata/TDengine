@@ -52,6 +52,16 @@ class TDTestCase(TBase):
         sql = f"create table {self.db}.ta(ts timestamp, age int) tags(area int)"
         tdSql.execute(sql)
 
+    def checkFloatDouble(self):
+        sql = f"select count(*) from {self.db}.{self.stb} where fc!=100"
+        tdSql.checkFirstValue(sql, 0)
+        sql = f"select count(*) from {self.db}.{self.stb} where dc!=200"
+        tdSql.checkFirstValue(sql, 0)
+        sql = f"select avg(fc) from {self.db}.{self.stb}"
+        tdSql.checkFirstValue(sql, 100)
+        sql = f"select avg(dc) from {self.db}.{self.stb}"
+        tdSql.checkFirstValue(sql, 200)
+
     def doAction(self):
         tdLog.info(f"do action.")
         self.flushDb()
@@ -89,6 +99,9 @@ class TDTestCase(TBase):
         # check insert data correct
         self.checkInsertCorrect()
 
+        # check float double value ok
+        tdSql.checkFloatDouble()
+
         # save
         self.snapshotAgg()
 
@@ -100,6 +113,10 @@ class TDTestCase(TBase):
 
         # check insert correct again
         self.checkInsertCorrect()
+
+        # check float double value ok
+        tdSql.checkFloatDouble()
+
 
         tdLog.success(f"{__file__} successfully executed")
 
