@@ -754,8 +754,8 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
   return TDB_CODE_SUCCESS;
 }
 
-int32_t tqSetDstTableDataPayload(uint64_t suid, const STSchema* pTSchema, int32_t blockIndex, SSDataBlock* pDataBlock,
-                                 SSubmitTbData* pTableData, const char* id) {
+int32_t tqSetDstTableDataPayload(uint64_t suid, const STSchema *pTSchema, int32_t blockIndex, SSDataBlock* pDataBlock,
+                               SSubmitTbData* pTableData, const char* id) {
   int32_t numOfRows = pDataBlock->info.rows;
 
   tqDebug("s-task:%s sink data pipeline, build submit msg from %dth resBlock, including %d rows, dst suid:%" PRId64, id,
