@@ -33,6 +33,17 @@ typedef struct SCountWindowInfo {
   COUNT_TYPE*       pWindowCount;
 } SCountWindowInfo;
 
+typedef enum {
+  NONE_WINDOW = 0,
+  CREATE_NEW_WINDOW,
+  MOVE_NEXT_WINDOW,
+} BuffOp;
+typedef struct SBuffInfo {
+  bool             rebuildWindow;
+  BuffOp           winBuffOp;
+  SStreamStateCur* pCur;
+} SBuffInfo;
+
 void destroyStreamCountAggOperatorInfo(void* param) {
   SStreamCountAggOperatorInfo* pInfo = (SStreamCountAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
@@ -53,28 +64,54 @@ void destroyStreamCountAggOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
+bool isSlidingCountWindow(SStreamAggSupporter* pAggSup) {
+  return pAggSup->windowCount != pAggSup->windowSliding;
+}
+
 void setCountOutputBuf(SStreamAggSupporter* pAggSup, TSKEY ts, uint64_t groupId, SCountWindowInfo* pCurWin,
-                       bool* pRebuild) {
+                       SBuffInfo* pBuffInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t size = pAggSup->resultRowSize;
   pCurWin->winInfo.sessionWin.groupId = groupId;
   pCurWin->winInfo.sessionWin.win.skey = ts;
   pCurWin->winInfo.sessionWin.win.ekey = ts;
 
-  code = pAggSup->stateStore.streamStateCountWinAddIfNotExist(
-      pAggSup->pState, &pCurWin->winInfo.sessionWin, pAggSup->windowCount, (void**)&pCurWin->winInfo.pStatePos, &size);
-  // if (code == TSDB_CODE_SUCCESS && inWinRange(&pAggSup->winRange, &pCurWin->winInfo.sessionWin.win)) {
-  //   pCurWin->pWindowCount=
-  //       (COUNT_TYPE*) ((char*)pCurWin->winInfo.pStatePos->pRowBuff + (pAggSup->resultRowSize - sizeof(COUNT_TYPE)));
-  // }
+  if (isSlidingCountWindow(pAggSup)) {
+    if (pBuffInfo->winBuffOp == CREATE_NEW_WINDOW) {
+      pAggSup->stateStore.streamStateCountWinAdd(pAggSup->pState, &pCurWin->winInfo.sessionWin,
+                                                 (void**)&pCurWin->winInfo.pStatePos, &size);
+      code = TSDB_CODE_FAILED;
+    } else if (pBuffInfo->winBuffOp == MOVE_NEXT_WINDOW) {
+      ASSERT(pBuffInfo->pCur);
+      pAggSup->stateStore.streamStateCurNext(pAggSup->pState, pBuffInfo->pCur);
+      code = pAggSup->stateStore.streamStateSessionGetKVByCur(pBuffInfo->pCur, &pCurWin->winInfo.sessionWin,
+                                                                     (void**)&pCurWin->winInfo.pStatePos, &size);
+      if (code == TSDB_CODE_FAILED) {
+        pAggSup->stateStore.streamStateCountWinAdd(pAggSup->pState, &pCurWin->winInfo.sessionWin,
+                                                   (void**)&pCurWin->winInfo.pStatePos, &size);
+      }
+    } else {
+      pBuffInfo->pCur = pAggSup->stateStore.streamStateCountSeekKeyPrev(pAggSup->pState, &pCurWin->winInfo.sessionWin, pAggSup->windowCount);
+      code = pAggSup->stateStore.streamStateSessionGetKVByCur(pBuffInfo->pCur, &pCurWin->winInfo.sessionWin,
+                                                              (void**)&pCurWin->winInfo.pStatePos, &size);
+      if (code == TSDB_CODE_FAILED) {
+        pAggSup->stateStore.streamStateCountWinAdd(pAggSup->pState, &pCurWin->winInfo.sessionWin,
+                                                   (void**)&pCurWin->winInfo.pStatePos, &size);
+      }
+    }
+  } else {
+    code = pAggSup->stateStore.streamStateCountWinAddIfNotExist(
+        pAggSup->pState, &pCurWin->winInfo.sessionWin, pAggSup->windowCount, (void**)&pCurWin->winInfo.pStatePos, &size);
+  }
+
   if (code == TSDB_CODE_SUCCESS) {
     pCurWin->winInfo.isOutput = true;
   }
   pCurWin->pWindowCount=
     (COUNT_TYPE*) ((char*)pCurWin->winInfo.pStatePos->pRowBuff + (pAggSup->resultRowSize - sizeof(COUNT_TYPE)));
 
-  if (*pCurWin->pWindowCount + 1 > pAggSup->windowCount) {
-    *pRebuild = true;
+  if (*pCurWin->pWindowCount == pAggSup->windowCount) {
+    pBuffInfo->rebuildWindow = true;
   }
 }
 
@@ -120,7 +157,12 @@ int32_t updateCountWindowInfo(SStreamAggSupporter* pAggSup, SCountWindowInfo* pW
 
 void getCountWinRange(SStreamAggSupporter* pAggSup, const SSessionKey* pKey, EStreamType mode, SSessionKey* pDelRange) {
   *pDelRange = *pKey;
-  SStreamStateCur* pCur = pAggSup->stateStore.streamStateSessionSeekKeyCurrentNext(pAggSup->pState, pKey);
+  SStreamStateCur* pCur = NULL;
+  if (isSlidingCountWindow(pAggSup)) {
+    pCur = pAggSup->stateStore.streamStateCountSeekKeyPrev(pAggSup->pState, pKey, pAggSup->windowCount);
+  } else {
+    pCur = pAggSup->stateStore.streamStateSessionSeekKeyCurrentNext(pAggSup->pState, pKey);
+  }
   SSessionKey tmpKey = {0};
   int32_t code = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &tmpKey, NULL, 0);
   if (code != TSDB_CODE_SUCCESS) {
@@ -139,11 +181,22 @@ void getCountWinRange(SStreamAggSupporter* pAggSup, const SSessionKey* pKey, ESt
   pAggSup->stateStore.streamStateFreeCur(pCur);
 }
 
-void getCurSessionWindowByKey(SStreamAggSupporter* pAggSup, const SSessionKey* pRange, SSessionKey* pKey) {
-  int32_t code = pAggSup->stateStore.streamStateSessionGetKeyByRange(pAggSup->pState, pRange, pKey);
-  if (code != TSDB_CODE_SUCCESS) {
-    SET_SESSION_WIN_KEY_INVALID(pKey);
+static void destroySBuffInfo(SStreamAggSupporter* pAggSup, SBuffInfo* pBuffInfo) {
+  pAggSup->stateStore.streamStateFreeCur(pBuffInfo->pCur);
+}
+
+bool inCountCalSlidingWindow(SStreamAggSupporter* pAggSup, STimeWindow* pWin, TSKEY sKey, TSKEY eKey) {
+  if (pAggSup->windowCount == pAggSup->windowSliding) {
+    return true;
   }
+  if (sKey <= pWin->skey && pWin->ekey <= eKey) {
+    return true;
+  }
+  return false;
+}
+
+bool inCountSlidingWindow(SStreamAggSupporter* pAggSup, STimeWindow* pWin, SDataBlockInfo* pBlockInfo) {
+  return inCountCalSlidingWindow(pAggSup, pWin, pBlockInfo->calWin.skey, pBlockInfo->calWin.ekey);
 }
 
 static void doStreamCountAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBlock, SSHashObj* pStUpdated,
@@ -157,6 +210,7 @@ static void doStreamCountAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   int32_t                      rows = pSDataBlock->info.rows;
   int32_t                      winRows = 0;
   SStreamAggSupporter*         pAggSup = &pInfo->streamAggSup;
+  SBuffInfo                    buffInfo = {.rebuildWindow = false, .winBuffOp = NONE_WINDOW, .pCur = NULL};
 
   pInfo->dataVersion = TMAX(pInfo->dataVersion, pSDataBlock->info.version);
   pAggSup->winRange = pTaskInfo->streamInfo.fillHistoryWindow;
@@ -167,6 +221,8 @@ static void doStreamCountAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   SColumnInfoData* pStartTsCol = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
   TSKEY*           startTsCols = (int64_t*)pStartTsCol->pData;
   blockDataEnsureCapacity(pAggSup->pScanBlock, rows);
+  SStreamStateCur* pCur = NULL;
+  COUNT_TYPE slidingRows = 0;
 
   for (int32_t i = 0; i < rows;) {
     if (pInfo->ignoreExpiredData &&
@@ -176,20 +232,28 @@ static void doStreamCountAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
       continue;
     }
     SCountWindowInfo curWin = {0};
-    bool rebuild = false;
-    setCountOutputBuf(pAggSup, startTsCols[i], groupId, &curWin, &rebuild);
-    setSessionWinOutputInfo(pStUpdated, &curWin.winInfo);
-    if (!rebuild) {
-      winRows = updateCountWindowInfo(pAggSup, &curWin, startTsCols, i, rows, pAggSup->windowCount, pStDeleted, &rebuild);
+    buffInfo.rebuildWindow = false;
+    setCountOutputBuf(pAggSup, startTsCols[i], groupId, &curWin, &buffInfo);
+    if (!inCountSlidingWindow(pAggSup, &curWin.winInfo.sessionWin.win, &pSDataBlock->info)) {
+      buffInfo.winBuffOp = MOVE_NEXT_WINDOW;
+      continue;
     }
-    if (rebuild) {
+    setSessionWinOutputInfo(pStUpdated, &curWin.winInfo);
+    slidingRows = *curWin.pWindowCount;
+    if (!buffInfo.rebuildWindow) {
+      winRows = updateCountWindowInfo(pAggSup, &curWin, startTsCols, i, rows, pAggSup->windowCount, pStDeleted, &buffInfo.rebuildWindow);
+    }
+    if (buffInfo.rebuildWindow) {
       SSessionKey range = {0};
+      if (isSlidingCountWindow(pAggSup)) {
+        curWin.winInfo.sessionWin.win.skey = startTsCols[i];
+        curWin.winInfo.sessionWin.win.ekey = startTsCols[i];
+      }
       getCountWinRange(pAggSup, &curWin.winInfo.sessionWin, STREAM_DELETE_DATA, &range);
       range.win.skey = TMIN(startTsCols[i], range.win.skey);
       range.win.ekey = TMAX(startTsCols[rows-1], range.win.ekey);
       uint64_t uid = 0;
-      appendOneRowToStreamSpecialBlock(pAggSup->pScanBlock, &range.win.skey, &range.win.ekey, &uid, &range.groupId,
-                                       NULL);
+      appendOneRowToStreamSpecialBlock(pAggSup->pScanBlock, &range.win.skey, &range.win.ekey, &uid, &range.groupId, NULL);
       break;
     }
     code = doOneWindowAggImpl(&pInfo->twAggSup.timeWindowData, &curWin.winInfo, &pResult, i, winRows, rows, numOfOutput,
@@ -214,8 +278,22 @@ static void doStreamCountAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
       tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &curWin.winInfo, sizeof(SResultWindowInfo));
     }
 
+    if (isSlidingCountWindow(pAggSup)) {
+      if (slidingRows <= pAggSup->windowSliding) {
+        if (slidingRows + winRows > pAggSup->windowSliding) {
+          buffInfo.winBuffOp = CREATE_NEW_WINDOW;
+          winRows = pAggSup->windowSliding - slidingRows;
+          ASSERT(i >= 0);
+        }
+      } else {
+        buffInfo.winBuffOp = MOVE_NEXT_WINDOW;
+        winRows = 0;
+      }
+      slidingRows = (slidingRows + winRows) % pAggSup->windowSliding;
+    }
     i += winRows;
   }
+  destroySBuffInfo(pAggSup, &buffInfo);
 }
 
 static SSDataBlock* buildCountResult(SOperatorInfo* pOperator) {
@@ -328,6 +406,10 @@ void doResetCountWindows(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock) {
   TSKEY*           startDatas = (TSKEY*)pStartTsCol->pData;
   SColumnInfoData* pEndTsCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
   TSKEY*           endDatas = (TSKEY*)pEndTsCol->pData;
+  SColumnInfoData* pCalStartTsCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
+  TSKEY*           calStartDatas = (TSKEY*)pStartTsCol->pData;
+  SColumnInfoData* pCalEndTsCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
+  TSKEY*           calEndDatas = (TSKEY*)pEndTsCol->pData;
   SColumnInfoData* pGroupCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   uint64_t*        gpDatas = (uint64_t*)pGroupCol->pData;
 
@@ -335,7 +417,12 @@ void doResetCountWindows(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock) {
   int32_t size = 0;
   for (int32_t i = 0; i < pBlock->info.rows; i++) {
     SSessionKey key = {.groupId = gpDatas[i], .win.skey = startDatas[i], .win.ekey = endDatas[i]};
-    SStreamStateCur* pCur = pAggSup->stateStore.streamStateSessionSeekKeyCurrentNext(pAggSup->pState, &key);
+    SStreamStateCur* pCur = NULL;
+    if (isSlidingCountWindow(pAggSup)) {
+      pCur = pAggSup->stateStore.streamStateCountSeekKeyPrev(pAggSup->pState, &key, pAggSup->windowCount);
+    } else {
+      pCur = pAggSup->stateStore.streamStateSessionSeekKeyCurrentNext(pAggSup->pState, &key);
+    }
     while (1) {
       SSessionKey tmpKey = {0};
       int32_t code = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &tmpKey, (void **)&pPos, &size);
@@ -343,10 +430,54 @@ void doResetCountWindows(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock) {
         pAggSup->stateStore.streamStateFreeCur(pCur);
         break;
       }
+      if (!inCountCalSlidingWindow(pAggSup, &tmpKey.win, calStartDatas[i], calEndDatas[i])) {
+        pAggSup->stateStore.streamStateCurNext(pAggSup->pState, pCur);
+        continue;
+      }
       pAggSup->stateStore.streamStateSessionReset(pAggSup->pState, pPos->pRowBuff);
       pAggSup->stateStore.streamStateCurNext(pAggSup->pState, pCur);
     }
   }
+}
+
+void doDeleteCountWindows(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SArray* result) {
+  SColumnInfoData* pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
+  TSKEY*           startDatas = (TSKEY*)pStartTsCol->pData;
+  SColumnInfoData* pEndTsCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
+  TSKEY*           endDatas = (TSKEY*)pEndTsCol->pData;
+  SColumnInfoData* pCalStartTsCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
+  TSKEY*           calStartDatas = (TSKEY*)pStartTsCol->pData;
+  SColumnInfoData* pCalEndTsCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
+  TSKEY*           calEndDatas = (TSKEY*)pEndTsCol->pData;
+  SColumnInfoData* pGroupCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+  uint64_t*        gpDatas = (uint64_t*)pGroupCol->pData;
+  for (int32_t i = 0; i < pBlock->info.rows; i++) {
+    SSessionKey key = {.win.skey = startDatas[i], .win.ekey = endDatas[i], .groupId = gpDatas[i]};
+    while (1) {
+      SSessionKey curWin = {0};
+      int32_t code = pAggSup->stateStore.streamStateCountGetKeyByRange(pAggSup->pState, &key, &curWin);
+      if (code == TSDB_CODE_FAILED) {
+        break;
+      }
+      doDeleteSessionWindow(pAggSup, &curWin);
+      if (result) {
+        saveDeleteInfo(result, curWin);
+      }
+    }
+  }
+}
+
+void deleteCountWinState(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SSHashObj* pMapUpdate,
+                           SSHashObj* pMapDelete) {
+  SArray* pWins = taosArrayInit(16, sizeof(SSessionKey));
+  if (isSlidingCountWindow(pAggSup)) {
+    doDeleteCountWindows(pAggSup, pBlock, pWins);
+  } else {
+    doDeleteTimeWindows(pAggSup, pBlock, pWins);
+  }
+  removeSessionResults(pAggSup, pMapUpdate, pWins);
+  copyDeleteWindowInfo(pWins, pMapDelete);
+  taosArrayDestroy(pWins);
 }
 
 static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
@@ -395,7 +526,7 @@ static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
     printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
 
     if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT) {
-      deleteSessionWinState(&pInfo->streamAggSup, pBlock, pInfo->pStUpdated, pInfo->pStDeleted);
+      deleteCountWinState(&pInfo->streamAggSup, pBlock, pInfo->pStUpdated, pInfo->pStDeleted);
       continue;
     } else if (pBlock->info.type == STREAM_CLEAR) {
       doResetCountWindows(&pInfo->streamAggSup, pBlock);

@@ -42,6 +42,14 @@ int sessionRangeKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2) {
   return 0;
 }
 
+int countRangeKeyEqual(const SSessionKey* pWin1, const SSessionKey* pWin2) {
+  if (pWin1->groupId == pWin2->groupId && pWin1->win.skey <= pWin2->win.skey && pWin2->win.skey <= pWin1->win.ekey) {
+    return 0;
+  }
+
+  return 1;
+}
+
 int sessionWinKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2) {
   if (pWin1->groupId > pWin2->groupId) {
     return 1;
@@ -670,7 +678,6 @@ void streamStateFreeCur(SStreamStateCur* pCur) {
   if (!pCur) {
     return;
   }
-  qDebug("streamStateFreeCur");
   streamStateResetCur(pCur);
   taosMemoryFree(pCur);
 }
@@ -853,6 +860,13 @@ SStreamStateCur* streamStateSessionSeekKeyNext(SStreamState* pState, const SSess
 #endif
 }
 
+SStreamStateCur* streamStateCountSeekKeyPrev(SStreamState* pState, const SSessionKey* key, COUNT_TYPE count) {
+#ifdef USE_ROCKSDB
+  return countWinStateSeekKeyPrev(pState->pFileState, key, count);
+#else
+#endif
+}
+
 int32_t streamStateSessionGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
   return sessionWinStateGetKVByCur(pCur, pKey, pVal, pVLen);
@@ -903,7 +917,7 @@ int32_t streamStateSessionClear(SStreamState* pState) {
 
 int32_t streamStateSessionGetKeyByRange(SStreamState* pState, const SSessionKey* key, SSessionKey* curKey) {
 #ifdef USE_ROCKSDB
-  return sessionWinStateGetKeyByRange(pState->pFileState, key, curKey);
+  return sessionWinStateGetKeyByRange(pState->pFileState, key, curKey, sessionRangeKeyCmpr);
 #else
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
   if (pCur == NULL) {
@@ -950,6 +964,13 @@ int32_t streamStateSessionGetKeyByRange(SStreamState* pState, const SSessionKey*
 
   streamStateFreeCur(pCur);
   return -1;
+#endif
+}
+
+int32_t streamStateCountGetKeyByRange(SStreamState* pState, const SSessionKey* key, SSessionKey* curKey) {
+#ifdef USE_ROCKSDB
+  return sessionWinStateGetKeyByRange(pState->pFileState, key, curKey, countRangeKeyEqual);
+#else
 #endif
 }
 
@@ -1145,4 +1166,8 @@ SStreamStateCur* createStreamStateCursor() {
 // count window
 int32_t streamStateCountWinAddIfNotExist(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** ppVal, int32_t* pVLen) {
   return getCountWinResultBuff(pState->pFileState, pKey, winCount, ppVal, pVLen);
+}
+
+int32_t streamStateCountWinAdd(SStreamState* pState, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
+  return createCountWinResultBuff(pState->pFileState, pKey, pVal, pVLen);
 }

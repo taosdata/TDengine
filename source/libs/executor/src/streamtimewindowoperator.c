@@ -2291,7 +2291,7 @@ int32_t getAllSessionWindow(SSHashObj* pHashMap, SSHashObj* pStUpdated) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void copyDeleteWindowInfo(SArray* pResWins, SSHashObj* pStDeleted) {
+void copyDeleteWindowInfo(SArray* pResWins, SSHashObj* pStDeleted) {
   int32_t size = taosArrayGetSize(pResWins);
   for (int32_t i = 0; i < size; i++) {
     SSessionKey* pWinKey = taosArrayGet(pResWins, i);

@@ -59,10 +59,12 @@ int32_t streamStateSessionReset(SStreamState* pState, void* pVal);
 int32_t streamStateSessionClear(SStreamState* pState);
 int32_t streamStateSessionGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen);
 int32_t streamStateSessionGetKeyByRange(SStreamState* pState, const SSessionKey* range, SSessionKey* curKey);
+int32_t streamStateCountGetKeyByRange(SStreamState* pState, const SSessionKey* range, SSessionKey* curKey);
 int32_t streamStateSessionAllocWinBuffByNextPosition(SStreamState* pState, SStreamStateCur* pCur,
                                                      const SSessionKey* pKey, void** pVal, int32_t* pVLen);
 
 SStreamStateCur* streamStateSessionSeekKeyNext(SStreamState* pState, const SSessionKey* key);
+SStreamStateCur* streamStateCountSeekKeyPrev(SStreamState* pState, const SSessionKey* pKey, COUNT_TYPE count);
 SStreamStateCur* streamStateSessionSeekKeyCurrentPrev(SStreamState* pState, const SSessionKey* key);
 SStreamStateCur* streamStateSessionSeekKeyCurrentNext(SStreamState* pState, const SSessionKey* key);
 
@@ -82,6 +84,7 @@ void    streamStateFreeVal(void* val);
 
 // count window
 int32_t streamStateCountWinAddIfNotExist(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount, void** ppVal, int32_t* pVLen);
+int32_t streamStateCountWinAdd(SStreamState* pState, SSessionKey* pKey, void** pVal, int32_t* pVLen);
 
 SStreamStateCur* streamStateGetAndCheckCur(SStreamState* pState, SWinKey* key);
 SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const SWinKey* key);

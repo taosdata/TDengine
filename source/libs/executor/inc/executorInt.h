@@ -279,7 +279,6 @@ typedef struct STableScanInfo {
   int8_t          assignBlockUid;
   uint8_t         countState;     // empty table count state
   bool            hasGroupByTag;
-  bool            countOnly;
   bool            filesetDelimited;
   bool            needCountEmptyTable;
 } STableScanInfo;
@@ -780,10 +779,12 @@ extern void doDestroyExchangeOperatorInfo(void* param);
 
 int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo);
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
-                               int32_t rows, const char* idStr, STableMetaCacheInfo* pCache);
+                               int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache);
 
 void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 void setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, const char* name);
+void setVgIdColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, int32_t vgId);
+void setVgVerColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, int64_t vgVer);
 
 void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowEntryInfoOffset);
 void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);
@@ -816,6 +817,9 @@ bool isDeletedStreamWindow(STimeWindow* pWin, uint64_t groupId, void* pState, ST
                            SStateStore* pStore);
 void appendOneRowToStreamSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid,
                                       uint64_t* pGp, void* pTbName);
+void appendAllColumnToStreamSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, TSKEY* pCalStartTs,
+                                                TSKEY* pCalEndTs, uint64_t* pUid, uint64_t* pGp, void* pTbName);
+
 uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
 
 int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
@@ -900,10 +904,15 @@ SSDataBlock* getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int
 void         getCountWinRange(SStreamAggSupporter* pAggSup, const SSessionKey* pKey, EStreamType mode, SSessionKey* pDelRange);
 bool         doDeleteSessionWindow(SStreamAggSupporter* pAggSup, SSessionKey* pKey);
 
+void         saveDeleteInfo(SArray* pWins, SSessionKey key);
+void         removeSessionResults(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, SArray* pWins);
+void         copyDeleteWindowInfo(SArray* pResWins, SSHashObj* pStDeleted);
+
 bool inSlidingWindow(SInterval* pInterval, STimeWindow* pWin, SDataBlockInfo* pBlockInfo);
 bool inCalSlidingWindow(SInterval* pInterval, STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType);
 bool compareVal(const char* v, const SStateKeys* pKey);
 bool inWinRange(STimeWindow* range, STimeWindow* cur);
+void doDeleteTimeWindows(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SArray* result);
 
 int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
                                TSKEY* primaryKeys, int32_t prevPosition, int32_t order);

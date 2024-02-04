@@ -186,7 +186,7 @@ class TDTestCase:
         tmqCom.getStartCommitNotifyFromTmqsim()
 
         #restart dnode & remove wal
-        # self.restartAndRemoveWal()
+        self.restartAndRemoveWal()
 
         # redistribute vgroup
         self.redistributeVgroups();
@@ -235,7 +235,7 @@ class TDTestCase:
         tdSql.execute(sqlString)
         tdSql.query("flush database %s"%(paraDict['dbName']))
         #restart dnode & remove wal
-        # self.restartAndRemoveWal()
+        self.restartAndRemoveWal()
 
         # redistribute vgroup
         self.redistributeVgroups();
@@ -313,7 +313,7 @@ class TDTestCase:
 
         time.sleep(5)
         #restart dnode & remove wal
-        # self.restartAndRemoveWal()
+        self.restartAndRemoveWal()
 
         # redistribute vgroup
         self.redistributeVgroups()

@@ -172,6 +172,10 @@ force_opt(A) ::= FORCE.                                                         
 %destructor unsafe_opt                                                            { }
 unsafe_opt(A) ::= UNSAFE.                                                         { A = true; }
 
+/************************************************ alter cluster *********************************************************/
+cmd ::= ALTER CLUSTER NK_STRING(A).                                               { pCxt->pRootNode = createAlterClusterStmt(pCxt, &A, NULL); }
+cmd ::= ALTER CLUSTER NK_STRING(A) NK_STRING(B).                                  { pCxt->pRootNode = createAlterClusterStmt(pCxt, &A, &B); }
+
 /************************************************ alter local *********************************************************/
 cmd ::= ALTER LOCAL NK_STRING(A).                                                 { pCxt->pRootNode = createAlterLocalStmt(pCxt, &A, NULL); }
 cmd ::= ALTER LOCAL NK_STRING(A) NK_STRING(B).                                    { pCxt->pRootNode = createAlterLocalStmt(pCxt, &A, &B); }
@@ -483,6 +487,9 @@ cmd ::= SHOW APPS.                                                              
 cmd ::= SHOW CONNECTIONS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CONNECTIONS_STMT); }
 cmd ::= SHOW LICENCES.                                                            { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_LICENCES_STMT); }
 cmd ::= SHOW GRANTS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_LICENCES_STMT); }
+cmd ::= SHOW GRANTS FULL.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_GRANTS_FULL_STMT); }
+cmd ::= SHOW GRANTS LOGS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_GRANTS_LOGS_STMT); }
+cmd ::= SHOW CLUSTER MACHINES.                                                    { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT); }
 cmd ::= SHOW CREATE DATABASE db_name(A).                                          { pCxt->pRootNode = createShowCreateDatabaseStmt(pCxt, &A); }
 cmd ::= SHOW CREATE TABLE full_table_name(A).                                     { pCxt->pRootNode = createShowCreateTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_TABLE_STMT, A); }
 cmd ::= SHOW CREATE STABLE full_table_name(A).                                    { pCxt->pRootNode = createShowCreateTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_STABLE_STMT, A); }

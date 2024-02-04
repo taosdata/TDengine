@@ -72,9 +72,11 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateSessionGetKVByCur = streamStateSessionGetKVByCur;
   pStore->streamStateStateAddIfNotExist = streamStateStateAddIfNotExist;
   pStore->streamStateSessionGetKeyByRange = streamStateSessionGetKeyByRange;
+  pStore->streamStateCountGetKeyByRange = streamStateCountGetKeyByRange;
   pStore->streamStateSessionAllocWinBuffByNextPosition = streamStateSessionAllocWinBuffByNextPosition;
 
   pStore->streamStateCountWinAddIfNotExist = streamStateCountWinAddIfNotExist;
+  pStore->streamStateCountWinAdd = streamStateCountWinAdd;
 
   pStore->updateInfoInit = updateInfoInit;
   pStore->updateInfoFillBlockData = updateInfoFillBlockData;
@@ -92,6 +94,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->updateInfoDeserialize = updateInfoDeserialize;
 
   pStore->streamStateSessionSeekKeyNext = streamStateSessionSeekKeyNext;
+  pStore->streamStateCountSeekKeyPrev = streamStateCountSeekKeyPrev;
   pStore->streamStateSessionSeekKeyCurrentPrev = streamStateSessionSeekKeyCurrentPrev;
   pStore->streamStateSessionSeekKeyCurrentNext = streamStateSessionSeekKeyCurrentNext;
 

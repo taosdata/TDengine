@@ -2883,13 +2883,13 @@ int32_t streamStateSessionDel_rocksdb(SStreamState* pState, const SSessionKey* k
   return code;
 }
 
-SStreamStateCur* streamStateSessionSeekToLast_rocksdb(SStreamState* pState) {
+SStreamStateCur* streamStateSessionSeekToLast_rocksdb(SStreamState* pState, int64_t groupId) {
   stDebug("streamStateSessionSeekToLast_rocksdb");
 
   int32_t code = 0;
 
-  SSessionKey      maxSessionKey = {.groupId = UINT64_MAX, .win = {.skey = INT64_MAX, .ekey = INT64_MAX}};
-  SStateSessionKey maxKey = {.key = maxSessionKey, .opNum = INT64_MAX};
+  SSessionKey      maxSessionKey = {.groupId = groupId, .win = {.skey = INT64_MAX, .ekey = INT64_MAX}};
+  SStateSessionKey maxKey = {.key = maxSessionKey, .opNum = pState->number};
 
   STREAM_STATE_PUT_ROCKSDB(pState, "sess", &maxKey, "", 0);
   if (code != 0) {
@@ -3041,6 +3041,46 @@ SStreamStateCur* streamStateSessionSeekKeyNext_rocksdb(SStreamState* pState, con
   if (stateSessionKeyCmpr(&sKey, sizeof(sKey), &curKey, sizeof(curKey)) < 0) return pCur;
 
   rocksdb_iter_next(pCur->iter);
+  if (!rocksdb_iter_valid(pCur->iter)) {
+    streamStateFreeCur(pCur);
+    return NULL;
+  }
+  return pCur;
+}
+
+SStreamStateCur* streamStateSessionSeekKeyPrev_rocksdb(SStreamState* pState, const SSessionKey* key) {
+  stDebug("streamStateSessionSeekKeyPrev_rocksdb");
+  STaskDbWrapper*  wrapper = pState->pTdbState->pOwner->pBackend;
+  SStreamStateCur* pCur = createStreamStateCursor();
+  if (pCur == NULL) {
+    return NULL;
+  }
+  pCur->db = wrapper->db;
+  pCur->iter = streamStateIterCreate(pState, "sess", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
+  pCur->number = pState->number;
+
+  SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
+
+  char buf[128] = {0};
+  int  len = stateSessionKeyEncode(&sKey, buf);
+  if (!streamStateIterSeekAndValid(pCur->iter, buf, len)) {
+    streamStateFreeCur(pCur);
+    return NULL;
+  }
+  while (rocksdb_iter_valid(pCur->iter) && iterValueIsStale(pCur->iter)) rocksdb_iter_prev(pCur->iter);
+  if (!rocksdb_iter_valid(pCur->iter)) {
+    streamStateFreeCur(pCur);
+    return NULL;
+  }
+
+  size_t           klen;
+  const char*      iKey = rocksdb_iter_key(pCur->iter, &klen);
+  SStateSessionKey curKey = {0};
+  stateSessionKeyDecode(&curKey, (char*)iKey);
+  if (stateSessionKeyCmpr(&sKey, sizeof(sKey), &curKey, sizeof(curKey)) > 0) return pCur;
+
+  rocksdb_iter_prev(pCur->iter);
   if (!rocksdb_iter_valid(pCur->iter)) {
     streamStateFreeCur(pCur);
     return NULL;

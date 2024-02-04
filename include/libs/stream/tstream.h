@@ -324,12 +324,13 @@ typedef struct SStreamStatus {
   int8_t         taskStatus;
   int8_t         downstreamReady;  // downstream tasks are all ready now, if this flag is set
   int8_t         schedStatus;
-  int32_t        schedIdleTime;    // idle time before invoke again
-  int64_t        lastExecTs;       // last exec time stamp
   int8_t         statusBackup;
-  bool           appendTranstateBlock;  // has append the transfer state data block already
-  int32_t        timerActive;           // timer is active
+  int32_t        schedIdleTime;  // idle time before invoke again
+  int32_t        timerActive;    // timer is active
+  int64_t        lastExecTs;     // last exec time stamp
   int32_t        inScanHistorySentinel;
+  bool           appendTranstateBlock;  // has append the transfer state data block already
+  bool           supplementaryWalscan;  // complete the supplementary wal scan or not
 } SStreamStatus;
 
 typedef struct SDataRange {
@@ -530,7 +531,7 @@ typedef struct SStreamMeta {
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
 int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo);
 
-SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, bool fillHistory, int64_t triggerParam,
+SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int64_t triggerParam,
                             SArray* pTaskList, bool hasFillhistory);
 int32_t      tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t      tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask);

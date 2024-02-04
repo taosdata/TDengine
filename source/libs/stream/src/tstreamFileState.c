@@ -665,7 +665,7 @@ int32_t recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
     deleteExpiredCheckPoint(pFileState, mark);
   }
 
-  SStreamStateCur* pCur = streamStateSessionSeekToLast_rocksdb(pFileState->pFileStore);
+  SStreamStateCur* pCur = streamStateSessionSeekToLast_rocksdb(pFileState->pFileStore, INT64_MAX);
   if (pCur == NULL) {
     return -1;
   }
