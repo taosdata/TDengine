@@ -423,8 +423,6 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_OBJECT_FIELD(scanRange, sizeof(STimeWindow));
   COPY_OBJECT_FIELD(tableName, sizeof(SName));
   COPY_SCALAR_FIELD(showRewrite);
-  COPY_SCALAR_FIELD(isView);
-  COPY_SCALAR_FIELD(isAudit);
   COPY_SCALAR_FIELD(ratio);
   CLONE_NODE_LIST_FIELD(pDynamicScanFuncs);
   COPY_SCALAR_FIELD(dataRequired);

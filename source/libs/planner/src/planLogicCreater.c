@@ -340,8 +340,6 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
   strcpy(pScan->tableName.dbname, pRealTable->table.dbName);
   strcpy(pScan->tableName.tname, pRealTable->table.tableName);
   pScan->showRewrite = pCxt->pPlanCxt->showRewrite;
-  pScan->isView = pCxt->pPlanCxt->isView;
-  pScan->isAudit = pCxt->pPlanCxt->isAudit;
   pScan->ratio = pRealTable->ratio;
   pScan->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD;
   pScan->cacheLastMode = pRealTable->cacheLastMode;

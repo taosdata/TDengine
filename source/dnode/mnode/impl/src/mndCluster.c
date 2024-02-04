@@ -409,7 +409,7 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
   }
 
   {  // audit
-    auditRecord(pReq, pMnode->clusterId, "alterCluster", "", "", cfgReq.sql, cfgReq.sqlLen);
+    auditRecord(pReq, pMnode->clusterId, "alterCluster", "", "", cfgReq.sql, MIN(cfgReq.sqlLen, GRANT_ACTIVE_HEAD_LEN << 1));
   }
 _exit:
   tFreeSMCfgClusterReq(&cfgReq);
