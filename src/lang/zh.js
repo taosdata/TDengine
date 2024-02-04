@@ -217,6 +217,7 @@ export default {
     selectPlan: "选择方案",
   },
   dataIn: {
+    orgIdTip: '请输入十六进制字符',
     agentNameExist: "代理名称“{0}”已存在",
     finish: "结束",
     uploadcsv: "上传CSV",

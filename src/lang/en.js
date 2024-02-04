@@ -608,6 +608,7 @@ export default {
     renameColumn: "Change column name",
   },
   dataIn: {
+    orgIdTip: 'Please enter hexadecimal characters',
     agentNameExist: 'Agent name "{0}" already exists',
     finish: "Finish",
     uploadcsv: "Upload CSV",

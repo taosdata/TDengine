@@ -271,8 +271,12 @@ function handleAuthentication(authentication, paramsConfig) {
             } else {
               return false
             }
-          }
+          },
         };
+        if (name == 'orgId') {
+          config.pattern = /^[0-9a-fA-F]+$/
+          config.patternMsg = i18n.t('dataIn.orgIdTip')
+        }
         handleHintType(config, param.hint);
         handleInfoParams(config);
         paramsChildren.push(config);
