@@ -47,6 +47,20 @@ options:
         - Basic256Sha256
         - Aes128Sha256RsaOaep
         - Aes256Sha256RsaPss
+
+  certificate:  
+    name: certificate
+    display: 安全通信证书
+    description: 建立连接时，发送给 opc ua 服务器；如果未经 CA 认证，请在服务器端信任此证书后，再次发起连通性检查。
+    hint:
+      type: file
+  private_key:
+    name: private_key
+    display: 安全通信私钥
+    description: 私钥文件，对服务器发送的消息做签名检查或者解密。
+    hint:
+      type: file
+
   connect_timeout:
     name: connect_timeout
     display: 连接超时
@@ -88,14 +102,12 @@ authentication:
       display: 证书访问
       description: 使用私钥及证书反问 OPC 服务器。
       params:
-        - name: certificate
-          display: 证书文件内容
-          # description: 证书文件。当 security mode or policy isn't "None".
+        - name: auth_certificate
+          display: 认证证书文件
           hint:
             type: file
-        - name: private_key
-          display: 私钥文件内容
-          # description: 私钥文件. Required when security mode or policy isn't "None"
+        - name: auth_private_key
+          display: 认证证书私钥
           hint:
             type: file
 datasets:

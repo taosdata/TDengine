@@ -45,6 +45,20 @@ options:
         - Basic256Sha256
         - Aes128Sha256RsaOaep
         - Aes256Sha256RsaPss
+
+  certificate:  
+    name: certificate
+    display: Secure Channel Certificate
+    description: If the certificate is not authenticated by CA, please trust it on the server side and initiate a connectivity check again.
+    hint:
+      type: file
+  private_key:
+    name: private_key
+    display: Certificate's Private Key
+    description: The private key of the certificate.
+    hint:
+      type: file
+
   connect_timeout:
     name: connect_timeout
     display: Connect Timeout
@@ -88,14 +102,12 @@ authentication:
       display: Certificates
       description: Use certificate file and private key.
       params:
-        - name: certificate
-          display: Certificate file content
-          # description: Path to cert.pem. Required when security mode or policy isn't "None".
+        - name: auth_certificate
+          display: Authentication Certificate
           hint:
             type: file
-        - name: private_key
-          display: Private key file content
-          # description: Path to private key.pem. Required when security mode or policy isn't "None"
+        - name: auth_private_key
+          display: Private key of Certificate
           hint:
             type: file
 

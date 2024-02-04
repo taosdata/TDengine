@@ -82,6 +82,10 @@ pub enum DataSourceOptions {
         #[serde(skip_serializing_if = "Option::is_none")]
         security_policy: Option<Param>,
         #[serde(skip_serializing_if = "Option::is_none")]
+        certificate: Option<Param>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        private_key: Option<Param>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         connect_timeout: Option<Param>,
     },
     Uri {
@@ -570,6 +574,8 @@ impl DataSourceDefinition {
                         password,
                         security_mode,
                         security_policy,
+                        certificate,
+                        private_key,
                         connect_timeout,
                     } => {
                         let mut endpoint_str = String::new();
@@ -609,6 +615,18 @@ impl DataSourceDefinition {
                             }
                             if let Some(value) = dsn.remove("security_policy") {
                                 security_policy
+                                    .get_or_insert(Default::default())
+                                    .value
+                                    .replace(value.to_string());
+                            }
+                            if let Some(value) = dsn.get("certificate") {
+                                certificate
+                                    .get_or_insert(Default::default())
+                                    .value
+                                    .replace(value.to_string());
+                            }
+                            if let Some(value) = dsn.remove("private_key") {
+                                private_key
                                     .get_or_insert(Default::default())
                                     .value
                                     .replace(value.to_string());
@@ -657,6 +675,8 @@ impl DataSourceDefinition {
                                 password: _,
                                 security_mode: _,
                                 security_policy: _,
+                                certificate: _,
+                                private_key: _,
                                 connect_timeout: _,
                             } => {
                                 panic!("mixed path and uri type of DSN")
@@ -1067,10 +1087,12 @@ fn test_opc_ua() {
     match ds_options {
         DataSourceOptions::Endpoint {
             endpoint,
-            username,
-            password,
+            username: _,
+            password: _,
             security_mode,
             security_policy,
+            certificate: _,
+            private_key: _,
             connect_timeout,
         } => {
             assert_eq!(
