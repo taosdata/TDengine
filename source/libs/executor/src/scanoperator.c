@@ -3464,21 +3464,31 @@ static int32_t openSubTablesMergeSort(STmsSubTablesMergeInfo* pSubTblsInfo) {
 }
 
 static int32_t initSubTablesMergeInfo(STableMergeScanInfo* pInfo) {
-  STmsSubTablesMergeInfo* pSubTblsInfo = taosMemoryCalloc(1, sizeof(STmsSubTablesMergeInfo));
-  pInfo->pSubTablesMergeInfo = pSubTblsInfo;
-
   setGroupStartEndIndex(pInfo);
-
+  STmsSubTablesMergeInfo* pSubTblsInfo = taosMemoryCalloc(1, sizeof(STmsSubTablesMergeInfo));
+  if (pSubTblsInfo == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   pSubTblsInfo->pOrderInfo = taosArrayGet(pInfo->pSortInfo, 0);
   pSubTblsInfo->numSubTables = pInfo->tableEndIndex - pInfo->tableStartIndex + 1;
   pSubTblsInfo->aInputs = taosMemoryCalloc(pSubTblsInfo->numSubTables, sizeof(STmsSubTableInput));
-
+  if (pSubTblsInfo->aInputs == NULL) {
+    taosMemoryFree(pSubTblsInfo);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   int32_t bufPageSize = pInfo->bufPageSize;
   int32_t inMemSize = (pSubTblsInfo->numSubTables - pSubTblsInfo->numTableBlocksInMem) * bufPageSize;
-  createDiskbasedBuf(&pSubTblsInfo->pBlocksBuf, pInfo->bufPageSize, inMemSize, "blocksExternalBuf", tsTempDir);
-
+  int32_t code =
+      createDiskbasedBuf(&pSubTblsInfo->pBlocksBuf, pInfo->bufPageSize, inMemSize, "blocksExternalBuf", tsTempDir);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pSubTblsInfo->aInputs);
+    taosMemoryFree(pSubTblsInfo);
+    return code;
+  }
   pSubTblsInfo->numTableBlocksInMem = pSubTblsInfo->numSubTables;
   pSubTblsInfo->numInMemReaders = pSubTblsInfo->numSubTables;
+
+  pInfo->pSubTablesMergeInfo = pSubTblsInfo;
   return TSDB_CODE_SUCCESS;
 } 
 
