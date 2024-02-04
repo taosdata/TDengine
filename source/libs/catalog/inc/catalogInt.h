@@ -275,7 +275,7 @@ typedef STableTSMAInfo STSMACache;
 typedef struct SCtgTbCache {
   SRWLatch           metaLock;
   SRWLatch           indexLock;
-  SRWLatch           tsmaLock;
+  SRWLatch           tsmaLock;// TODO remove?
   STableMeta*        pMeta;
   STableIndex*       pIndex;
 } SCtgTbCache;
