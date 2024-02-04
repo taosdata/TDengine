@@ -100,7 +100,7 @@ class TDTestCase(TBase):
         self.checkInsertCorrect()
 
         # check float double value ok
-        tdSql.checkFloatDouble()
+        self.checkFloatDouble()
 
         # save
         self.snapshotAgg()
@@ -115,7 +115,7 @@ class TDTestCase(TBase):
         self.checkInsertCorrect()
 
         # check float double value ok
-        tdSql.checkFloatDouble()
+        self.checkFloatDouble()
 
 
         tdLog.success(f"{__file__} successfully executed")
