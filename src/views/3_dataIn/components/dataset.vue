@@ -20,9 +20,22 @@
       </uploadCsv>
 
       <el-tooltip
+        v-if="isOpc"
         effect="light"
-        :content="$t('downloadTemplateTip')"
-      >
+        :content="$t('downloadTemplateTip')">
+        <a
+          v-if="config.templateUrl"
+          class="ml20"
+          @click="handleDownEmptyTemplate"
+        >
+          <i class="el-icon-download"></i>
+          {{ $t('downloadTemplate') }}</a
+        >
+      </el-tooltip>
+      <el-tooltip
+        v-else
+        effect="light"
+        :content="$t('downloadTemplateTip')">
         <a
           v-if="config.templateUrl"
           class="ml20"
@@ -34,9 +47,26 @@
         >
       </el-tooltip>
       <el-tooltip
+        class="opc_download_point"
         effect="light"
         :content="downloadPontTipText"
-      >
+        v-if="isOpc">
+        <a
+          class="ml20"
+          @click.prevent="openDialog"
+        >
+          <i class="el-icon-download"></i>
+          {{ downloadPointsText }} 
+          <div class="csv_progress">
+            <el-progress v-if="progressVisble" :percentage="percentage" :format="format"/>
+          </div>
+          </a
+        >
+      </el-tooltip>
+      <el-tooltip
+        effect="light"
+        :content="downloadPontTipText"
+        v-else>
         <a
           class="ml20"
           @click.prevent="downloadAllPointFile"
@@ -47,8 +77,7 @@
       </el-tooltip>
       <section
         v-if="isEdit"
-        class="file-list"
-      >
+        class="file-list">
         <div
           v-for="file in oldFiles"
           :key="file.name"
@@ -67,12 +96,56 @@
         </div>
       </section>
     </section>
+    <el-dialog
+      :title="$t('dataIn.filterPointTitle')"
+      :visible.sync="dialogVisible"
+      :close-on-click-modal="false"
+      width="500px">
+      <div>
+        <el-form 
+        size="small" 
+        :model="info" 
+        ref="conditionForm"
+        label-width="150px"
+        label-position="left">
+          <el-form-item
+            :label="$t('dataIn.rootNode')"
+            prop="root"
+          >
+            <el-input style="width: 300px" v-model="info.root"></el-input>
+          </el-form-item>
+          <el-form-item
+            :label="$t('dataIn.namespace')"
+            prop="namespace"
+            v-if="isOpcUa"
+          >
+            <el-select style="width: 300px" v-model="info.namespace" :multiple="true">
+              <el-option
+                v-for="item in namespaceList"
+                :key="item.label"
+                :value="item.value"
+                :label="item.label"
+              ></el-option>
+            </el-select>
+          </el-form-item><el-form-item
+            :label="$t('dataIn.pointRegexp')"
+            prop="pattern"
+          >
+            <el-input style="width: 300px" v-model="info.pattern"></el-input>
+          </el-form-item>
+        </el-form>
+      </div>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="dialogVisible = false">{{ $t('cancel')}}</el-button>
+        <el-button type="primary" @click="submit" :loading="requestIng">{{ $t('confirm')}}</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
 <script>
 import uploadCsv from './uploadCsv.vue';
-import { downlaodAllNodes as downloadAllPointFile } from '@/api/explorer/datain';
+import { downlaodAllNodes as downloadAllPointFile, downlaodOpcPointFile, getTicket, checkReadyFile, getCsvEmptyTemplate } from '@/api/explorer/datain';
 import { getDsnData } from '../utils';
 import { downloadFileBlob } from '@/utils/file';
 import { handleDownload } from '../utils';
@@ -95,7 +168,15 @@ export default {
     return {
       requestIng: false,
       fileValue: '',
-      oldFiles: []
+      oldFiles: [],
+      dialogVisible: false,
+      progressVisble: false,
+      info: {
+
+      },
+      ticket: '',
+      percentage: 10,
+      complete: false,
     };
   },
   computed: {
@@ -173,9 +254,34 @@ export default {
         template_for_af_element_file: 'TemplateForAFElement',
         csv_config_file: 'nodes'
       }[this.config.field];
+    },
+    isOpc() {
+      return ["opcua","opcda"].includes(this.sourceParent.sourceForm.type)
+    },
+    isOpcUa() {
+      return ["opcua"].includes(this.sourceParent.sourceForm.type)
+    },
+    namespaceList() {
+      const { namespaces = [] } = this.$store.state.app.connectivityCheckResult
+      let list = []
+      namespaces.map((item,index) => {
+        if (index > 0) {
+          list.push({ label: item, value: index}) 
+        }
+      })
+      return list
     }
   },
-  watch: {},
+  watch: {
+    complete(val) {
+      if (val) {
+        this.timer && clearInterval(this.timer)
+        this.percentage = 100
+        // 调用下载接口
+        this.downloadFile()
+      }
+    }
+  },
   created() {},
   mounted() {
     if (this.value != '*' && this.value && this.isEdit) {
@@ -190,12 +296,6 @@ export default {
       if (!/:\/\/\w+?/.test(url)) return this.$message.error(this.$t('dataIn.noDsn'));
       if (this.requestIng) return;
       this.requestIng = true;
-      // const loading = this.$loading({
-      //   lock: true,
-      //   text: 'Loading',
-      //   spinner: 'el-icon-loading',
-      //   background: 'rgba(0, 0, 0, 0.7)'
-      // });
       let from = url + `&categories=${this.category}`;
       downloadAllPointFile(from, via)
         .then(res => {
@@ -206,7 +306,6 @@ export default {
         })
         .finally(() => {
           this.requestIng = false;
-          // loading.close();
         });
     },
     handleDownload,
@@ -219,7 +318,72 @@ export default {
           path
         };
       });
+    },
+    openDialog() {
+      this.dialogVisible = true
+    },
+    async submit() {
+      let type = this.sourceParent.sourceForm.type
+      let via = this.sourceParent.sourceForm.agent
+      const url = type + getDsnData(this.allData.data, this.sourceParent.currentDefinition);
+      if (!/:\/\/\w+?/.test(url)) return this.$message.error(this.$t('dataIn.noDsn'));
+      if (this.requestIng) return;
+      try {
+        this.requestIng = true;
+        let  filterParm = ''
+        Object.keys(this.info).map(key => {
+          if (this.info[key]) {
+            filterParm += '&' + [key] + '=' + this.info[key] 
+          }
+        })
+  
+        let from = filterParm ? url + filterParm : url
+        
+        this.progressVisble = true
+        let result = await getTicket(from, via, this.category)
+        this.ticket = result.ticket
+  
+        this.timer = setInterval(async () => {
+          let { complete } = await checkReadyFile(result.ticket)
+          this.complete = complete
+           
+          if (!complete) {
+            this.percentage = this.percentage <= 90 ? this.percentage + (this.percentage * 0.8) : this.percentage
+          }
+        }, 2000);
+        this.dialogVisible = false  
+      } catch (error) {
+        this.timer && clearInterval(this.timer)
+      }
+    },
+    // 下载 OPC csv
+    async downloadFile() {
+      const res = await downlaodOpcPointFile(this.ticket)
+      if (res && res.code) {
+        return this.$message.error(res.message)
+      }
+      downloadFileBlob(res, this.allCategoryText + '.csv');
+      this.complete = false;
+      this.requestIng = false
+      setTimeout(() => {
+        this.progressVisble = false;
+        this.percentage = 10;
+      },500)
+    },
+    format(percentage) {
+      // return percentage === 100 ? 'CSV 文件准备中' : `${percentage}%`;
+      return `${percentage}%`;
+    },
+    // 下载 CSV 空模版
+    async handleDownEmptyTemplate() {
+      console.log('hshshshhs-empty');
+      let res = await getCsvEmptyTemplate(this.sourceParent.sourceForm.type)
+      downloadFileBlob(res, this.$t('downloadTemplate') + '.csv');
     }
+
+  },
+  beforeDestroy() {
+    this.timer && clearInterval(this.timer)
   }
 };
 </script>
@@ -262,5 +426,13 @@ export default {
       }
     }
   }
+}
+.opc_download_point {
+  position: relative;
+}
+.csv_progress {
+  position: absolute;
+  width: 150px;
+  // left: 18px;
 }
 </style>

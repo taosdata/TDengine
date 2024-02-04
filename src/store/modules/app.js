@@ -98,7 +98,10 @@ const state = {
   resultCurrentPage:1,
   showresulttb:false,
   historiandsn:'',
-  historianechodata:null
+  historianechodata:null,
+  connectivityCheckResult: {}, //连通性检查的结果
+  complete: false,// 判断数据点位数据是否准备完成 
+  ticket: ''
   
 };
 const saveKey = encodeURIComponent("appId");
@@ -126,6 +129,15 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_TICKET:(state,data) => {
+    state.ticket=data
+  },
+  SET_COMPLETE:(state,data) => {
+    state.complete=data
+  },
+  SET_CONNECTIVITY_CHECKRESULT:(state,data) => {
+    state.connectivityCheckResult=data
+  },
   SET_HISTORIAN_ECHODATA:(state,data)=>{
     state.historianechodata=data
   },

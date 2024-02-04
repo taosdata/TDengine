@@ -31,7 +31,7 @@ const historianLiveTable = 'Runtime.dbo.Live'
 const historianSynchronizeMode = 'synchronize'
 const opcuaSecuritymodeValue = 'None'
 const authenticationField = uuid();
-const datasetsField = uuid();
+export const datasetsField = uuid();
 let currentType = '';
 const DefaultParserValue = {
   parse: {
@@ -584,9 +584,28 @@ function handleDatasets(datasets, paramsConfig) {
                     ...categoryParam,
                     label: categoryParam.display,
                     field: categoryParam.name,
-                    defaultValue: categoryParam.value ?? ''
+                    defaultValue: categoryParam?.multiple ? categoryParam?.value?.split(',') : categoryParam.value ?? '' ,
+                    multiple: categoryParam.multiple ?? false
                   };
                   handleHintType(config, categoryParam.hint);
+                  // 特殊处理 opc 的点位过滤
+                  if (currentType.startsWith('opc')) {
+                    if (config.field == 'pattern') {
+                      config.type = 'pattern';
+                    }
+                    if (config.field == 'namespaces') {
+                      config.options = (that) => {
+                        const { namespaces = [] } = that.$store.state.app.connectivityCheckResult
+                        let list = []
+                        namespaces.map((item,index) => {
+                          if (index > 0) {
+                            list.push({ label: item, value: `${index}`}) 
+                          }
+                        })
+                        return list
+                      }
+                    }
+                  }
                   return config;
                 })
               : undefined,

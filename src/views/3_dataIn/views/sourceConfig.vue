@@ -118,6 +118,7 @@
         ></DocsContent>
       </div>
       <ResultTable :isEditable="isEditable"></ResultTable>
+      <DatasetTable :isEditable="isEditable"/>
     </div>
     <DialogCreateDb></DialogCreateDb>
   </div>
@@ -136,6 +137,7 @@ import { debounce, parsinginZone, decrypt } from "@/utils/index";
 import DialogCreateDb from "../components/addDbDialog.vue";
 import Result from "../components/result.vue";
 import ResultTable from "../components/transformResultTable.vue";
+import DatasetTable from "../components/datasetTablePreview.vue"
 import {
   getFormConfigByDataSource,
   generateFormInitData,
@@ -162,6 +164,7 @@ export default {
     DocsContent,
     ConfigForm,
     ResultTable,
+    DatasetTable,
   },
   props: {
     isEditable: {
@@ -276,6 +279,7 @@ export default {
     "sourceForm.targetDB": {
       deep: true,
       handler(val) {
+        console.log('huijingjij',this.defaultSourceConfig)
         this.$store.commit("app/SET_CURRENT_DBNAME", val);
       },
     },

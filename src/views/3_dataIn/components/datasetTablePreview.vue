@@ -1,0 +1,159 @@
+<template>
+  <div class="result-table" v-if="showtable" ref="result" :style="{'max-height':defaultHeight, 'top': defaultTop}">
+    <div class="title-block">
+      <span class="title">{{ $t("datasource.transformer.resulttb") }}</span>
+    </div>
+    <el-table
+      border
+      style="width: 100%"
+      :max-height="defaultHeight-99"
+      ref='table'
+      :data="tableData"
+    >
+      <el-table-column
+        prop="id"
+        show-overflow-tooltip
+        label="id"
+      ></el-table-column>
+      <el-table-column
+        prop="name"
+        show-overflow-tooltip
+        label="name"
+      ></el-table-column>
+    </el-table>
+
+    <el-pagination
+      class="pagination"
+      layout="total, prev, pager, next"
+      :current-page.sync="currentPage"
+      :page-size="pageSize"
+      :hide-on-single-page="true"
+      :total="total"
+      @current-change="handlePageChange"
+    ></el-pagination>
+  </div>
+</template>
+<script>
+import { getDatasets } from '@/api/explorer/datain';
+import { datasetsField } from '../utils';
+
+export default {
+  name: "ResultTable",
+  props: {
+    isEditable: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  data() {
+    return {
+      loading: true,
+      tableData: [],
+      pageSize: 200,
+      total: 10,
+      currentPage: 1,
+      showtable: false,
+      defaultHeight: 495,
+      defaultTop: '50%',
+    };
+  },
+  mounted() {
+    this.getDatasetsData
+  },
+  computed: {
+    ticket() {
+      return this.$store.state.app.ticket
+    }
+  },
+  watch: {
+    "$store.state.app.complete"(val) {
+      if (val) {
+        // 点击预览需要重置 currentPage 
+        this.currentPage = 1
+        this.getDatasetsData()
+        this.showtable = true
+      }
+    }
+  },
+  methods: {
+    handlePageChange(currentPage) {
+      this.getDatasetsData()
+    },
+
+    async getDatasetsData() {
+      let res = await getDatasets(this.ticket,this.currentPage-1,this.pageSize)
+      if (res?.code == 0) {
+        let { page, page_size, list, total} = res?.data
+        this.currentPage = page
+        this.pageSize = page_size
+        this.total = total
+        this.tableData = list || []
+      }
+      this.$store.commit("app/SET_COMPLETE",false)
+      this.getEleTop()
+      this.loading = false
+    },
+  
+    getEleTop() {
+      let dom1 = document.getElementById(`${datasetsField}`)
+      let dom2 = document.querySelector('.right-ui')
+      let rect1 = dom1?.getBoundingClientRect()
+      let rect2 = dom2?.getBoundingClientRect()
+      this.defaultTop = rect1.top - rect2.top + 'px'
+    }
+  },
+};
+</script>
+
+<style lang="scss" scoped>
+.result-table {
+  border: 1px solid #e3e4e6;
+  border-radius: 12px;
+  padding: 20px;
+  width: 100%;
+  position: absolute;
+  .block-page {
+    overflow: auto;
+  }
+  // top: 54%;
+  .title-block {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    .title {
+      color: #4259ce;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .el-icon-close {
+      cursor: pointer;
+    }
+  }
+  ::v-deep {
+    .el-pagination__jump{
+      display:none;
+    }
+    .pagination{
+      margin-top:15px;
+    }
+    .el-table {
+      thead tr th {
+        background-color: #f5f7fa;
+      }
+
+      .el-table--group::after{
+        border-color: transparent !important;
+      }
+      &.el-table__cell {
+        padding: 6px 0px!important;
+      }
+      .active-row {
+        background: #ecf2fe !important;
+      }
+      &::before {
+        background-color: transparent;
+      }
+    }
+  }
+}
+</style>

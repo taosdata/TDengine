@@ -40,6 +40,22 @@ export default {
       const result = [];
       this.getValidFieldList(this.sourceParent.currentDefinition.config, result);
       return result;
+    },
+    type() {
+      return this.sourceParent.sourceForm.type
+    },
+    isEdit() {
+      return this.sourceParent.isEditable;
+    },
+  },
+  watch: {
+    type(){
+      this.checkResult = {}
+    }
+  },
+  mounted() {
+    if (this.isEdit) {
+      this.clickCheckBtn()
     }
   },
   methods: {
@@ -69,6 +85,8 @@ export default {
         this.checkLoading = true;
         let result = await validateTask(dsn, agent);
         this.checkResult = result;
+        // opc 需要获取 namespace
+        this.$store.commit('app/SET_CONNECTIVITY_CHECKRESULT',result)
         this.checkLoading = false; // 检测的 loading 效果
         this.activeCollapse = "one";
       } catch (error) {
