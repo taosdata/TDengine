@@ -1024,8 +1024,6 @@ static int32_t getPageFromExtMemFile(SSortHandle* pHandle, int32_t pageId, char*
       }
       pEntry->prev->next = pEntry->next;
       pEntry->next->prev = pEntry->prev;
-      taosLSeekFile(pMemFile->pTdFile, pageId * pMemFile->pageSize, SEEK_SET);
-      taosReadFile(pMemFile->pTdFile, pEntry->data, pMemFile->pageSize);
       pEntry->active = false;
     } else if (pMemFile->numMemPages < pMemFile->totalMemPages) {
       pEntry = taosMemoryCalloc(1, sizeof(SSortMemPageEntry));
@@ -1033,6 +1031,8 @@ static int32_t getPageFromExtMemFile(SSortHandle* pHandle, int32_t pageId, char*
       ++pMemFile->numMemPages;
     }
     {
+      taosLSeekFile(pMemFile->pTdFile, pageId * pMemFile->pageSize, SEEK_SET);
+      taosReadFile(pMemFile->pTdFile, pEntry->data, pMemFile->pageSize);      
       SSortMemPageEntry* tail = pMemFile->pagesTail;
       tail->next = pEntry;
       pEntry->next = NULL;
