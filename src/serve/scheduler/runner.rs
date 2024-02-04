@@ -1,7 +1,7 @@
 use std::{
     fmt::{Debug, Display},
     sync::{
-        atomic::{AtomicBool, AtomicU8, Ordering},
+        atomic::{AtomicBool, AtomicI32, AtomicU8, Ordering},
         Arc,
     },
     time::Duration,
@@ -923,7 +923,7 @@ impl TaskJob {
                 }
                 tracing::debug!("Reset metrics ok");
                 // start save metrics task
-                let (_senter, stop_save_metrics_signal) = oneshot::channel::<()>();
+                let (_sender, stop_save_metrics_signal) = oneshot::channel::<()>();
                 auto_save_task_metrics(get_metrics(task_id).unwrap(), stop_save_metrics_signal);
                 let waiter = state.agent_waiter.as_ref().unwrap();
 
@@ -939,14 +939,20 @@ impl TaskJob {
                     agent_id: AgentId,
                     jid: Uuid,
                     run_id: u64,
+                    ipc_in_progress: Arc<AtomicI32>,
                     agent_activities: Arc<RwLock<tokio::sync::mpsc::Receiver<TaskActivity>>>,
                 ) -> anyhow::Result<AgentTaskState> {
-                    let mut ipc_in_progress = 0;
+                    let mut ipc_in_progress = ipc_in_progress.load(Ordering::Relaxed);
                     let mut signal: Option<&'static str> = None;
+                    tracing::info!(
+                        ipc_in_progress,
+                        "Listening agent activities to stop the task"
+                    );
                     loop {
                         let mut recv = agent_activities.write().await;
                         match tokio::select! {
                             _ = state.cancellation.cancelled() => {
+                                tracing::info!(%ipc_in_progress, agent.id = agent_id, task.id = task_id, job.id = %jid, "task runner `{task_id}` cancelled");
                                 match operator.operator() {
                                     Operator::Suspend => {
                                         global.send_task_activity(TaskActivity::suspended(task_id, jid));
@@ -962,7 +968,10 @@ impl TaskJob {
                                                     ipc_in_progress
                                                 ),
                                             ));
+                                            tokio::time::sleep(Duration::from_millis(500)).await;
                                             continue;
+                                        } else {
+                                            tracing::info!(signal, "task will be stopped after ingesting data completed");
                                         }
                                         global.send_task_activity(TaskActivity::stopped(task_id));
                                         state.state.write().await.stopped();
@@ -971,6 +980,7 @@ impl TaskJob {
                                         unreachable!("Cancellation should be only trigger by stop or suspend operator")
                                     }
                                 }
+                                tracing::warn!(ipc_in_progress, agent.id = agent_id, task.id = task_id, job.id = %jid, "Task {task_id} cancelled");
                                 break Ok(AgentTaskState::Stopped);
                             },
                             item = recv.recv() => item,
@@ -1031,7 +1041,10 @@ impl TaskJob {
                                         }
                                     },
                                     "ipc-started" => {
-                                        ipc_in_progress += 1;
+                                        tracing::info!(
+                                            "Start ingesting data with worker {}",
+                                            ipc_in_progress
+                                        );
                                         global.send_task_activity(Activity::running(
                                             task_id,
                                             format!(
@@ -1039,24 +1052,14 @@ impl TaskJob {
                                                 ipc_in_progress
                                             ),
                                         ));
+                                        ipc_in_progress = ipc_in_progress + 1;
                                     }
-                                    "ipc-completed" => {
-                                        if ipc_in_progress > 1 {
-                                            tracing::info!(
-                                                "Ingesting worker {} is completed",
-                                                ipc_in_progress
-                                            );
+                                    "ipc-finished" => {
+                                        tracing::info!(
+                                            "Ingesting worker {} is completed",
+                                            ipc_in_progress
+                                        );
 
-                                            global.send_task_activity(Activity::running(
-                                                task_id,
-                                                format!(
-                                                    "Ingesting data with worker {} completed",
-                                                    ipc_in_progress
-                                                ),
-                                            ));
-                                            ipc_in_progress -= 1;
-                                            continue;
-                                        }
                                         global.send_task_activity(Activity::running(
                                             task_id,
                                             format!(
@@ -1064,6 +1067,11 @@ impl TaskJob {
                                                 ipc_in_progress
                                             ),
                                         ));
+                                        if ipc_in_progress > 1 {
+                                            ipc_in_progress = ipc_in_progress - 1;
+                                            continue;
+                                        }
+                                        drop(activity); // drop activity explicitly to not use it anymore
                                         if let Some(status) = signal {
                                             match status {
                                                 "completed" => match operator.operator() {
@@ -1072,29 +1080,37 @@ impl TaskJob {
                                                             TaskActivity::suspended(task_id, jid),
                                                         );
                                                         state.state.write().await.stopped();
+                                                        break Ok(AgentTaskState::Suspended);
                                                     }
                                                     Operator::Stop => {
                                                         tracing::info!("task stopped");
-                                                        global.send_task_activity(activity);
+                                                        global.send_task_activity(
+                                                            Activity::stopped(task_id),
+                                                        );
                                                         state.state.write().await.stopped();
                                                         break Ok(AgentTaskState::Stopped);
                                                     }
                                                     Operator::Run => {
                                                         tracing::info!("task completed");
                                                         if is_cron_job {
-                                                            activity.status = "ticked".to_string();
-                                                            global.send_task_activity(activity);
+                                                            global.send_task_activity(
+                                                                Activity::tick(task_id, jid),
+                                                            );
                                                             state.state.write().await.ticked();
                                                             break Ok(AgentTaskState::Ticked);
                                                         }
-                                                        global.send_task_activity(activity);
+                                                        global.send_task_activity(
+                                                            Activity::completed(task_id, jid),
+                                                        );
                                                         state.state.write().await.completed();
                                                         break Ok(AgentTaskState::Completed);
                                                     }
                                                 },
                                                 "stopped" => {
                                                     tracing::info!("task stopped");
-                                                    global.send_task_activity(activity);
+                                                    global.send_task_activity(Activity::stopped(
+                                                        task_id,
+                                                    ));
                                                     state.state.write().await.stopped();
                                                     break Ok(AgentTaskState::Stopped);
                                                 }
@@ -1103,7 +1119,7 @@ impl TaskJob {
                                         }
                                     }
                                     "completed" => {
-                                        if ipc_in_progress == 0 {
+                                        if ipc_in_progress <= 0 {
                                             tracing::info!("task completed");
                                             if is_cron_job {
                                                 activity.status = "ticked".to_string();
@@ -1134,6 +1150,7 @@ impl TaskJob {
                                                 signal = Some("stopped");
 
                                                 tracing::info!(
+                                                    ipc_in_progress,
                                                     "Task stopped but still have {} workers ingesting data",
                                                     ipc_in_progress
                                                 );
@@ -1179,41 +1196,62 @@ impl TaskJob {
                     }
                 }
 
+                let mut ipc_in_progress = Arc::new(AtomicI32::new(0));
+                let mut listener = agent_activities_listener(
+                    state.operator.clone(),
+                    is_cron_job,
+                    &global,
+                    &state,
+                    task_id,
+                    agent_id,
+                    jid,
+                    run_id,
+                    ipc_in_progress.clone(),
+                    agent_activities.clone(),
+                );
+                tokio::pin!(listener);
+
                 let res = tokio::select! {
                     _ = cancellation.cancelled() => {
-                        tracing::info!("Task {task_id} cancelled");
-                        let operator = state.operator.operator();
-                        // wait for agent receive timeout.
+                        tracing::info!("Task {task_id} cancelled, wait 1h for remain data ingestion");
                         match tokio::time::timeout(
-                            Duration::from_secs(60),
-                            agent_activities_listener(state.operator.clone(), is_cron_job, &global, &state, task_id, agent_id, jid, run_id, agent_activities.clone()),
-                        )
-                        .await
-                        {
-                            Ok(result) => result,
-                            Err(_) => {
-                                match operator {
-                                    Operator::Suspend => {
-                                        global.send_task_activity(TaskActivity::suspending_timeout(task_id, jid));
-                                        state.state.write().await.stopped();
-                                    }
-                                    Operator::Stop => {
-                                        global.send_task_activity(TaskActivity::stopping_timeout(task_id));
-                                        state.state.write().await.stopped();
-                                    }
-                                    Operator::Run => {
-                                        unreachable!("Cancellation should be only trigger by stop or suspend operator")
-                                    }
+                            Duration::from_secs(60 * 60), // 1 hour
+                            listener).await {
+
+                        Ok(res) => res,
+                        Err(_) => {
+                            let operator = state.operator.operator();
+                            match operator {
+                                Operator::Suspend => {
+                                    global.send_task_activity(TaskActivity::suspending_timeout(
+                                        task_id, jid,
+                                    ));
+                                    state.state.write().await.stopped();
                                 }
-                                Err(anyhow::anyhow!("Stopping task {} at agent {} timed out", task_id, agent_id))
+                                Operator::Stop => {
+                                    global.send_task_activity(TaskActivity::stopping_timeout(
+                                        task_id,
+                                    ));
+                                    state.state.write().await.stopped();
+                                }
+                                Operator::Run => {
+                                    unreachable!("Cancellation should be only trigger by stop or suspend operator")
+                                }
                             }
+                            Err(anyhow::anyhow!(
+                                "Stopping task {} at agent {} timed out",
+                                task_id,
+                                agent_id
+                            ))
                         }
+                            }
                     },
-                    res = agent_activities_listener(state.operator.clone(), is_cron_job, &global,&state,task_id,agent_id, jid, run_id, agent_activities.clone())=> {
+                    res = &mut listener => {
                         res
                     },
                 };
-                dbg!(&res);
+
+                tracing::info!("Task {task_id} agent task finished: {:#?}", res);
                 match res {
                     Ok(AgentTaskState::Stopped)
                     | Ok(AgentTaskState::Failed)
@@ -1338,9 +1376,11 @@ impl TaskJob {
     pub async fn wait(&self) -> Option<LastState> {
         // wait for spawned task finished.
         let mut waiter = { self.task.last_waiter.lock().await.take() };
+        let instant = std::time::Instant::now();
 
-        match waiter.take().unwrap().await {
+        match waiter.unwrap().await {
             Ok(should_stop) => {
+                tracing::info!(should_stop, elapsed = ?instant.elapsed(), "Spawned task is finished");
                 if should_stop {
                     if let Err(err) = self.global.scheduler.remove(&self.job_id).await {
                         error!("remove job error: {:#}", err);
