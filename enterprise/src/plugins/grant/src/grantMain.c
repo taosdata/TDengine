@@ -507,14 +507,14 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
   taosArrayDestroy(pItem32);
   taosArrayDestroy(pItem64);
 
-#ifndef GRANTS_CFG
   int8_t grantExpireVal = GRANT_EXPIRE_VAL;
-  if (grantExpireVal == 0) {
-    atomic_val_compare_exchange_8(&tsGrant, 0, 1);
-  } else {
-    atomic_store_8(&tsGrant, 0);
+  int8_t tsGrantVal = 0;
+  if (grantExpireVal == 0) tsGrantVal |= GRANT_ALL_FLAG;
+  if (!gStatus.auditExpired) tsGrantVal |= GRANT_AUDIT_FLAG;
+  if (!gStatus.viewExpired) tsGrantVal |= GRANT_VIEW_FLAG;
+  if (atomic_load_8(&tsGrant) != tsGrantVal) {
+    atomic_store_8(&tsGrant, tsGrantVal);
   }
-#endif
 
   // step 3: respond with grant msg
   grantSetClusterIdEx(*(int64_t *)pInfo);
@@ -552,7 +552,6 @@ _err:
 }
 
 void mndProcessGrantStatusCheck() {
-  bool    minHbInterval = false;
   int64_t curTime = taosGetTimestampMs() / 1000;
   int64_t grantCurTime = TMAX(curTime, GRANT_CUR_TIME);
   int64_t expireSec = gStatus.grantState == GRANT_STATE_REVOKED ? gStatus.revokedExpireSec : gStatus.basicExpireSec;
@@ -568,17 +567,15 @@ void mndProcessGrantStatusCheck() {
           grantCurTime, gGrantState[gStatus.grantState]);
   }
 
-  int8_t grantExpired = GRANT_EXPIRE_VAL;
-  if (grantExpired == 0) {
-    if (0 == atomic_val_compare_exchange_8(&tsGrant, 0, 1)) {
-      minHbInterval = true;
-    }
-  } else if (0 != atomic_load_8(&tsGrant)) {
-    atomic_store_8(&tsGrant, 0);
-    minHbInterval = true;
+  int8_t grantExpireVal = GRANT_EXPIRE_VAL;
+  int8_t tsGrantVal = 0;
+  if (grantExpireVal == 0) tsGrantVal |= GRANT_ALL_FLAG;
+  if (!gStatus.auditExpired) tsGrantVal |= GRANT_AUDIT_FLAG;
+  if (!gStatus.viewExpired) tsGrantVal |= GRANT_VIEW_FLAG;
+  if (atomic_load_8(&tsGrant) != tsGrantVal) {
+    atomic_store_8(&tsGrant, tsGrantVal);
+    tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
   }
-
-  if (minHbInterval) tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
 }
 
 static int32_t grantCheckClusterInfo(SMnode *pMnode) {
