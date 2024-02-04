@@ -259,6 +259,7 @@ async fn write_meta(
             };
             let raw_meta = meta.as_raw_meta().await?;
             if let Err(err) = taos.write_raw_meta(&raw_meta).await {
+                metrics.add_write_raw_fails(1);
                 let code = *err.code().deref();
                 match code {
                     // Table not exist error codes.
@@ -283,7 +284,7 @@ async fn write_meta(
                                     tag_num: _,
                                 } => {
                                     // Create child table error means stable not exist.
-                                    tracing::warn!("Table does not exist: {using} while create child {table_name}");
+                                    tracing::warn!("Table does not exist: {using} while create child {table_name}. Sync super table schema.");
                                     let from = source.get().await?;
                                     sync_super_table_schema(
                                         &from,
@@ -294,11 +295,12 @@ async fn write_meta(
                                         &[],
                                     )
                                     .await?;
-                                    taos.write_raw_meta(&raw_meta).await.map_err(|err| {
-                                        err.context(format!(
+                                    if let Err(err) = taos.write_raw_meta(&raw_meta).await {
+                                        metrics.add_write_raw_fails(1);
+                                        Err(err.context(format!(
                                             "Write raw meta error with table {table_name}"
-                                        ))
-                                    })?;
+                                        )))?;
+                                    }
                                 }
                                 MetaCreate::Normal {
                                     table_name,
@@ -319,11 +321,9 @@ async fn write_meta(
                         }
                     }
                     0x032C | 0x0115 | 0x0603 | 0x03C7 => {
-                        metrics.add_write_raw_fails(1);
                         tracing::warn!(consumer.id = id, "Write raw meta: {err:#}");
                     }
                     _ => {
-                        metrics.add_write_raw_fails(1);
                         Err(err.context("Write raw meta error"))?;
                     }
                 }
