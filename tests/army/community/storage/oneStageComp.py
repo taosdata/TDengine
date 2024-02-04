@@ -105,7 +105,7 @@ class TDTestCase(TBase):
         sql = "select * from stb where bc=1"
         tdSql.query(sql)
         tdSql.checkRows(cnt)
-        sql = "select * from stb where usi!=108"
+        sql = "select * from stb where usi is null"
         tdSql.query(sql)
         tdSql.checkRows(6)
 
