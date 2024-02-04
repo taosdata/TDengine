@@ -970,7 +970,6 @@ int32_t tsDecompressDoubleLossyImp(const char *input, int32_t compressedSize, co
   // decompressed with sz
   return tdszDecompress(SZ_DOUBLE, input + 1, compressedSize - 1, nelements, output);
 }
-#endif
 
 #ifdef BUILD_NO_CALL
 /*************************************************************************
