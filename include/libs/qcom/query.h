@@ -68,10 +68,9 @@ typedef enum {
 #define QUERY_MSG_MASK_SHOW_REWRITE() (1 << 0)
 #define QUERY_MSG_MASK_AUDIT()        (1 << 1)
 #define QUERY_MSG_MASK_VIEW()         (1 << 2)
-#define TEST_SHOW_REWRITE_MASK(m)     (((m)&QUERY_MSG_MASK_SHOW_REWRITE()) != 0)
-#define TEST_VIEW_MASK(m)             (((m)&QUERY_MSG_MASK_VIEW()) != 0)
-#define TEST_AUDIT_MASK(m)            (((m)&QUERY_MSG_MASK_AUDIT()) != 0)
-
+#define TEST_SHOW_REWRITE_MASK(m)     (((m) & QUERY_MSG_MASK_SHOW_REWRITE()) != 0)
+#define TEST_AUDIT_MASK(m)            (((m) & QUERY_MSG_MASK_AUDIT()) != 0)
+#define TEST_VIEW_MASK(m)             (((m) & QUERY_MSG_MASK_VIEW()) != 0)
 
 typedef struct STableComInfo {
   uint8_t  numOfTags;     // the number of tags in schema

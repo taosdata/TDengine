@@ -300,5 +300,3 @@ int32_t ctgUpdateRentViewVersion(SCatalog *pCtg, char *dbFName, char *viewName, 
 
   return TSDB_CODE_SUCCESS;
 }
-
-
