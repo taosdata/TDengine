@@ -498,7 +498,7 @@ int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc
   }
 
   int32_t code = createPartialFunction(pFunc, pPartialFunc);
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && pMidFunc) {
     code = createMidFunction(pFunc, *pPartialFunc, pMidFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -507,7 +507,7 @@ int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc
 
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)*pPartialFunc);
-    nodesDestroyNode((SNode*)*pMidFunc);
+    if (pMidFunc) nodesDestroyNode((SNode*)*pMidFunc);
     nodesDestroyNode((SNode*)*pMergeFunc);
   }
 
