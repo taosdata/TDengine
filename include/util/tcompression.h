@@ -91,7 +91,6 @@ static FORCE_INLINE int32_t tsDecompressDoubleLossy(const char *const input, int
   return tsDecompressDoubleLossyImp(input, compressedSize, nelements, output);
 }
 
-#endif
 
 /*************************************************************************
  *                  REGULAR COMPRESSION
