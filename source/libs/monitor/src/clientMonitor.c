@@ -27,6 +27,7 @@ void    generateClusterReport(ClientMonitor* pMonitor, bool send) {
       taos_collector_registry_clear_batch(pMonitor->registry);
     }
   }
+  taosMemoryFreeClear(pCont);
 }
 
 void reportSendProcess(void* param, void* tmrId) {
