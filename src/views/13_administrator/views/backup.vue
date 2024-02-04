@@ -38,11 +38,11 @@
               <div v-html="scope.row.last_modified_at" slot="content"></div>
               <div slot="content" v-html="scope.row.reason"></div>
               <span style="width: 80px; display: inline-block">{{
-                scope.row.status
+               handleDSStatus(scope.row.status)
               }}</span>
             </el-tooltip>
             <span style="width: 80px; display: inline-block" v-else>{{
-              scope.row.status
+              handleDSStatus(scope.row.status)
             }}</span>
             <!-- <template v-if="scope.row.status.toLowerCase() !== 'running'">
               <el-tooltip
@@ -521,7 +521,10 @@ export default {
       ).then(()=>{
         this.restorBackup(row);
       })
-    }
+    },
+    handleDSStatus(value) {
+      return this.$t('statuses.' + value);
+    },
   },
   created() {
     this.getDatabases();

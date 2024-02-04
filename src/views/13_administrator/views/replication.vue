@@ -9,7 +9,7 @@
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
       <el-table-column label="ID" width="60" prop="id">
         <template slot-scope="scope">
-          <el-tooltip :content="scope.row.id" placement="top-start">
+          <el-tooltip :content="String(scope.row.id)" placement="top-start">
             <span class="nowrap">{{ scope.row.id }}</span>
           </el-tooltip>
         </template>
@@ -34,7 +34,7 @@
       <el-table-column :label="$t('taosuser.status')" prop="status" width="80">
         <template slot-scope="scope">
           <el-tooltip :content="scope.row.status" placement="top-start">
-            <span class="nowrap">{{ scope.row.status }}</span>
+            <span class="nowrap">{{ handleDSStatus(scope.row.status) }}</span>
           </el-tooltip>
         </template>
       </el-table-column>
@@ -53,7 +53,7 @@
       </el-table-column>
       <el-table-column :label="$t('taosuser.operation')" width="110">
         <template slot-scope="scope">
-          <el-switch :value="scope.row.status.toLowerCase() == 'running'" active-color="rgb(66, 89, 206)"
+          <el-switch :value="!['stopping','stopped'].includes(scope.row.status.toLowerCase())" active-color="#13ce66"
             inactive-color="#dcdfe6" @change="switchOperation($event, scope.row)"></el-switch>
           <!-- <el-button
             plain
@@ -192,13 +192,20 @@ export default {
           cancelButtonText: this.$t("cancel"),
           type: "warning",
         }).then(async () => {
-          await excuteDel(data.id).then(() => {
-            Message({
-              type: "success",
-              message: this.$t('delSucc'),
+          await excuteDel(data.id).then((res) => {
+            if (res && Object.hasOwnProperty.call(res, "id")) {
+              Message({
+                type: "success",
+                message: this.$t('delSucc'),
+              });
+              this.getReplication();
+            } else {
+              Message({
+                type: 'error',
+                message: res.message
+              })
+            }
             });
-            this.getReplication();
-          });
         });
     },
     refresh() {
@@ -209,7 +216,6 @@ export default {
       try {
         let id = localStorage.getItem("local_clusterID");
         let params = {
-          name: "",
           labels: [
             "type::replication",
             `cluster-id::${localStorage.getItem("local_clusterID")}`,
@@ -240,8 +246,15 @@ export default {
     async start(val, data) {
       try {
         await excuteStart(data.id).then((res) => {
-          Message.success(this.$t('operateSucc'));
-          this.getReplication();
+          if (res && Object.hasOwnProperty.call(res, "id")) {
+            Message.success(this.$t('operateSucc'));
+            this.getReplication();
+          } else {
+            Message({
+              type: 'error',
+              message: res.message
+            })
+          }   
         });
       } catch (err) {
         return Promise.reject(err);
@@ -249,17 +262,25 @@ export default {
     },
     async stop(val, data) {
       try {
-        await excuteStop(data.id).then(() => {
-          Message.success(this.$t('operateSucc'));
-          this.getReplication();
+        await excuteStop(data.id).then((res) => {
+          if (res && Object.hasOwnProperty.call(res, "id")) {
+            Message.success(this.$t('operateSucc'));
+            this.getReplication();
+          } else {
+            Message({
+              type: 'error',
+              message: res.message
+            })
+          }  
         });
       } catch (err) {
         return Promise.reject(err);
       }
     },
     switchOperation(val, data) {
+      console.log('val',val);
       this.$confirm(
-        `${this.$t(val ? this.$t('replication.start') : this.$t('replication.stop'))} ${this.$t(
+        `${this.$t(val ? this.$t('replication.start') : this.$t('replication.stop'))}${this.$t(
           "replication.theTaskWithId"
         ).replace("{id}", data.id)}?`,
         this.$t("warning"),
@@ -310,6 +331,9 @@ export default {
       } catch (error) {
         console.log(error);
       }
+    },
+    handleDSStatus(value) {
+      return this.$t('statuses.' + value);
     },
   },
   created() {
