@@ -510,8 +510,9 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
   int8_t grantExpireVal = GRANT_EXPIRE_VAL;
   int8_t tsGrantVal = 0;
   if (grantExpireVal == 0) tsGrantVal |= GRANT_FLAG_ALL;
-  if (!gStatus.auditExpired) tsGrantVal |= GRANT_FLAG_AUDIT;
-  if (!gStatus.viewExpired) tsGrantVal |= GRANT_FLAG_VIEW;
+  if (grantCheck(TSDB_GRANT_AUDIT) == 0) tsGrantVal |= GRANT_FLAG_AUDIT;
+  if (grantCheckLE(TSDB_GRANT_VIEW) == 0) tsGrantVal |= GRANT_FLAG_VIEW;
+
   if (atomic_load_8(&tsGrant) != tsGrantVal) {
     atomic_store_8(&tsGrant, tsGrantVal);
   }
@@ -570,8 +571,9 @@ void mndProcessGrantStatusCheck() {
   int8_t grantExpireVal = GRANT_EXPIRE_VAL;
   int8_t tsGrantVal = 0;
   if (grantExpireVal == 0) tsGrantVal |= GRANT_FLAG_ALL;
-  if (!gStatus.auditExpired) tsGrantVal |= GRANT_FLAG_AUDIT;
-  if (!gStatus.viewExpired) tsGrantVal |= GRANT_FLAG_VIEW;
+  if (grantCheck(TSDB_GRANT_AUDIT) == 0) tsGrantVal |= GRANT_FLAG_AUDIT;
+  if (grantCheckLE(TSDB_GRANT_VIEW) == 0) tsGrantVal |= GRANT_FLAG_VIEW;
+
   if (atomic_load_8(&tsGrant) != tsGrantVal) {
     atomic_store_8(&tsGrant, tsGrantVal);
     tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
@@ -1419,7 +1421,8 @@ static int32_t grantCheckTimeSeries() {
     return 0;
   }
 
-  uError("grant failed to create table, exist:%" PRIu64 ", reason:grant timeseries limited", gStatus.curTimeSeries);
+  uError("grant failed to create table/add column, exist:%" PRIi64 ", reason:grant timeseries limited",
+         gStatus.curTimeSeries);
   return TSDB_CODE_GRANT_TIMESERIES_LIMITED;
 }
 
@@ -1433,7 +1436,7 @@ static int32_t grantCheckDnodes() {
   if (gStatus.curDnodes < gStatus.limitDnodes) {
     return 0;
   }
-  uError("grant failed to create dnode, exist:%" PRIu32 ", reason:grant dnode limited", gStatus.curDnodes);
+  uError("grant failed to create dnode, exist:%d, reason:grant dnode limited", (int32_t)gStatus.curDnodes);
   return TSDB_CODE_GRANT_DNODE_LIMITED;
 }
 
@@ -1462,11 +1465,10 @@ static int32_t grantCheckSubscriptions(bool allowEqual) {
   return TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;
 }
 
-static int32_t grantCheckStreamExpired() { return gStatus.streamExpired ? TSDB_CODE_GRANT_EXPIRED : TSDB_CODE_SUCCESS; }
-
-static int32_t grantCheckView() {
+static int32_t grantCheckViews(bool allowEqual) {
   if (!gStatus.expired && !gStatus.viewExpired &&
-      (gStatus.limitViews == GRANT_UNIQ_UNLIMITED || gStatus.curViews < gStatus.limitViews)) {
+      (gStatus.limitViews == GRANT_UNIQ_UNLIMITED ||
+       (allowEqual ? gStatus.curViews <= gStatus.limitViews : gStatus.curViews < gStatus.limitViews))) {
     return 0;
   }
   uError("grant failed to check view, expire:%" PRIi64 ", num:%d, reason:view limited", (int64_t)gStatus.viewExpireSec,
@@ -1492,6 +1494,8 @@ int32_t grantCheckLE(EGrantType grant) {
       return grantCheckStreams(true);
     case TSDB_GRANT_SUBSCRIPTION:
       return grantCheckSubscriptions(true);
+    case TSDB_GRANT_VIEW:
+      return grantCheckViews(true);
     default:
       ASSERTS(0, "undefined grant check le:%d", grant);
       break;
@@ -1528,13 +1532,13 @@ int32_t grantCheck(EGrantType grant) {
     case TSDB_GRANT_SUBSCRIPTION:
       return grantCheckSubscriptions(false);
     case TSDB_GRANT_VIEW:
-      return grantCheckView();
+      return grantCheckViews(false);
     case TSDB_GRANT_AUDIT:
-      return GRANT_EXPIRED(gStatus.auditExpired);
+      return GRANT_EXPIRED(gStatus.expired || gStatus.auditExpired);
     case TSDB_GRANT_CSV:
-      return GRANT_EXPIRED(gStatus.csvExpired);
+      return GRANT_EXPIRED(gStatus.expired || gStatus.csvExpired);
     case TSDB_GRANT_MULTI_TIER:
-      return GRANT_EXPIRED(gStatus.multiTierExpired);
+      return GRANT_EXPIRED(gStatus.expired || gStatus.multiTierExpired);
     default:
       break;
   }
