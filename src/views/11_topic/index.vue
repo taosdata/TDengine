@@ -36,7 +36,11 @@ export default {
       isOEM:
         process.env.VUE_APP_CUS_NAME &&
         process.env.VUE_APP_CUS_NAME !== "TDengine",
-      tabs: [
+    };
+  },
+  computed: {
+    tabs() {
+      const tabs = [
         {
           label: this.$t("topic.topic"),
           name: "/topic",
@@ -53,8 +57,11 @@ export default {
           label: this.$t("topic.sampleCode"),
           name: "/topic/example",
         },
-      ],
-      oemTabs:[
+      ]
+      return tabs
+    },
+    oemTabs() {
+      const oemTabs = [
         {
           label: this.$t("topic.topic"),
           name: "/topic",
@@ -68,8 +75,9 @@ export default {
           name: "/topic/share",
         }
       ]
-    };
-  },
+      return oemTabs
+    }
+  }
   
 };
 </script>
