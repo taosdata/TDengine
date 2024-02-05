@@ -63,6 +63,7 @@ struct tmq_conf_t {
   int8_t         withTbName;
   int8_t         snapEnable;
   int8_t         replayEnable;
+  int8_t         sourceExcluded;   // do not consume, bit
   uint16_t       port;
   int32_t        autoCommitInterval;
   char*          ip;
@@ -82,6 +83,7 @@ struct tmq_t {
   int32_t        autoCommitInterval;
   int8_t         resetOffsetCfg;
   int8_t         replayEnable;
+  int8_t         sourceExcluded;   // do not consume, bit
   uint64_t       consumerId;
   tmq_commit_cb* commitCb;
   void*          commitCbUserParam;
@@ -383,6 +385,10 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     } else {
       return TMQ_CONF_INVALID;
     }
+  }
+  if (strcasecmp(key, "msg.consume.excluded") == 0) {
+    conf->sourceExcluded = taosStr2int64(value);
+    return TMQ_CONF_OK;
   }
 
   if (strcasecmp(key, "td.connect.db") == 0) {
@@ -1081,6 +1087,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->commitCbUserParam = conf->commitCbUserParam;
   pTmq->resetOffsetCfg = conf->resetOffset;
   pTmq->replayEnable = conf->replayEnable;
+  pTmq->sourceExcluded = conf->sourceExcluded;
   if(conf->replayEnable){
     pTmq->autoCommit = false;
   }
@@ -1549,6 +1556,7 @@ void tmqBuildConsumeReqImpl(SMqPollReq* pReq, tmq_t* tmq, int64_t timeout, SMqCl
   pReq->useSnapshot = tmq->useSnapshot;
   pReq->reqId = generateRequestId();
   pReq->enableReplay = tmq->replayEnable;
+  pReq->sourceExcluded = tmq->sourceExcluded;
 }
 
 SMqMetaRspObj* tmqBuildMetaRspFromWrapper(SMqPollRspWrapper* pWrapper) {
