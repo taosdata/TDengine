@@ -3925,6 +3925,7 @@ int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 
 #define SUBMIT_REQ_AUTO_CREATE_TABLE  0x1
 #define SUBMIT_REQ_COLUMN_DATA_FORMAT 0x2
+#define SUBMIT_REQ_FROM_FILE          0x4
 
 typedef struct {
   int32_t        flags;
