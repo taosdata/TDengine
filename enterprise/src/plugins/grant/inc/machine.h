@@ -383,7 +383,7 @@ typedef struct {
     int64_t p9;
     struct {
       int64_t viewExpireSec : 40;
-      int64_t version : 24;
+      int64_t reserve7 : 24;
     };
   };
   int64_t limitTimeSeries;

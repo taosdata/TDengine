@@ -21,9 +21,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 
-extern int8_t       grantHbLock;
 extern SGrantStatus gStatus;
-extern void         mndProcessGrantStatusCheck();
 
 #define MND_GRANT_VER_NUMBER 1
 
@@ -391,15 +389,11 @@ int32_t tDeserializeSGrantObj(void *buf, int32_t bufLen, SGrantLogObj *pObj) {
     RETURN_WITH_CODE(tDecodeI64v(&decoder, &active->u0) < 0, code);
     RETURN_WITH_CODE(tDecodeCStrTo(&decoder, &active->active[0]) < 0, code);
   }
-  if (pObj->nActives > 0) {
-    assert(strlen(pObj->actives[0].active) == 30);
-  }
   int32_t activeLen = 0;
   RETURN_WITH_CODE(tDecodeI32v(&decoder, &activeLen) < 0, code);
   if (activeLen > 0) {
     if (!(pObj->active = taosMemoryMalloc(activeLen + 1))) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _return;
+      RETURN_WITH_CODE(true, TSDB_CODE_OUT_OF_MEMORY);
     }
     RETURN_WITH_CODE(tDecodeCStrTo(&decoder, pObj->active) < 0, code);
   }
@@ -408,21 +402,16 @@ int32_t tDeserializeSGrantObj(void *buf, int32_t bufLen, SGrantLogObj *pObj) {
     goto _return;
   }
   if (nMachines > 0) {
-    if (!(pObj->pMachines = taosArrayInit(nMachines, sizeof(SGrantMachine)))) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _return;
+    if (!pObj->pMachines && !(pObj->pMachines = taosArrayInit(nMachines, sizeof(SGrantMachine)))) {
+      RETURN_WITH_CODE(true, TSDB_CODE_OUT_OF_MEMORY);
     }
-    if (!taosArrayPush(pObj->pMachines, &(SGrantMachine){0})) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _return;
+    for (int32_t i = 0; i < nMachines; ++i) {
+      taosArrayPush(pObj->pMachines, &(SGrantMachine){0});
+      SGrantMachine *pLast = taosArrayGetLast(pObj->pMachines);
+      RETURN_WITH_CODE(tDecodeI64v(&decoder, &pLast->u0) < 0, code);
+      RETURN_WITH_CODE(tDecodeCStrTo(&decoder, &pLast->machine[0]) < 0, code);
     }
-    SGrantMachine *pLast = taosArrayGetLast(pObj->pMachines);
-    if (tDecodeI64v(&decoder, &pLast->u0) < 0) {
-      goto _return;
-    };
-    RETURN_WITH_CODE(tDecodeCStrTo(&decoder, &pLast->machine[0]) < 0, code);
   }
-
   code = 0;
 _return:
   tEndDecode(&decoder);
@@ -566,41 +555,3 @@ int32_t mndGrantActionUpdate(SSdb *pSdb, SGrantLogObj *pOldGrant, SGrantLogObj *
 
   return 0;
 }
-
-#if 0
-int32_t mndValidateGrant(SMnode *pMnode, SGrantVersion *pGrantVersion, void **ppRsp, int32_t *pRspLen) {
-  int32_t     rspLen = 0;
-  void       *pRsp = NULL;
-  int32_t     code = -1;
-  SGrantHbRsp hbRsp = {0};
-
-  pGrantVersion->version = ntohl(pGrantVersion->version);
-  if (gStatus.version != pGrantVersion->version) {
-    if (gStatus.auditExpired) hbRsp.flags != 0x01;
-    if (gStatus.csvExpired) hbRsp.flags != 0x02;
-    if (gStatus.viewExpired) hbRsp.flags != 0x04;
-
-    mTrace("grant, got lastest meta, current ver:%d, recv ver:%d", (int32_t)gStatus.version, pGrantVersion->version);
-    rspLen = tSerializeSGrantHbRsp(NULL, 0, &hbRsp);
-    if (rspLen < 0) {
-      terrno = TSDB_CODE_INVALID_MSG;
-      goto _OVER;
-    }
-
-    pRsp = taosMemoryMalloc(rspLen);
-    if (pRsp == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      rspLen = 0;
-      goto _OVER;
-    }
-
-    tSerializeSGrantHbRsp(pRsp, rspLen, &hbRsp);
-  }
-  code = 0;
-
-_OVER:
-  *ppRsp = pRsp;
-  *pRspLen = rspLen;
-  return code;
-}
-#endif
