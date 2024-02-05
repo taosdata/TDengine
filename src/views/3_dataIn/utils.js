@@ -1098,7 +1098,7 @@ export function getAuthentications(authentication, params) {
 function getOptionData(data, queryArr, definition) {
   if (!data || !definition) return '';
   let result = '';
-  let { subject, host, port, endpoint, system_configuration, PISystemName, security_mode, security_policy, connect_timeout } = data;
+  let { subject, host, port, endpoint, system_configuration, PISystemName, security_mode, security_policy, certificate, private_key, connect_timeout } = data;
   let { id } = definition;
   if (PISystemName) {
     queryArr.push('PISystemName=' + PISystemName);
@@ -1111,6 +1111,12 @@ function getOptionData(data, queryArr, definition) {
   } 
   if (security_policy) {
     queryArr.push('security_policy=' + security_policy)
+  }
+  if (certificate) {
+    queryArr.push('certificate=' + certificate)
+  }
+  if (private_key) {
+    queryArr.push('private_key=' + private_key)
   }
   if (connect_timeout) {
     queryArr.push('connect_timeout=' + connect_timeout)

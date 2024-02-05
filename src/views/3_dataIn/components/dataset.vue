@@ -116,10 +116,10 @@
           </el-form-item>
           <el-form-item
             :label="$t('dataIn.namespace')"
-            prop="namespace"
+            prop="namespaces"
             v-if="isOpcUa"
           >
-            <el-select style="width: 300px" v-model="info.namespace" :multiple="true">
+            <el-select style="width: 300px" v-model="info.namespaces" :multiple="true">
               <el-option
                 v-for="item in namespaceList"
                 :key="item.label"

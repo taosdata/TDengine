@@ -188,9 +188,10 @@ export function getHistorianMsgbody(datatype,data,agentid){
 
 // opc：提交数据点位模版文件下载请求，获取 ticket
 export function getTicket(data, agentid, category) {
+    let language = i18n.locale.includes('zh') ? 'zh' : 'en'
     return request({
         baseURL: process.env.VUE_APP_X_API,
-        url: `/ds/in/point/file/download/task?from=${encodeURIComponent(data)}` + '&categories='+ category + (agentid ? `&via=${agentid}` : ''),
+        url: `/ds/in/point/file/download/task?from=${encodeURIComponent(data)}&lang=${language}&categories=${category}` + (agentid ? `&via=${agentid}` : ''),
         method: 'get'
     })
 }
@@ -234,6 +235,7 @@ export function getCsvEmptyTemplate(driver) {
     return request({
         baseURL: process.env.VUE_APP_X_API,
         url: `/ds/in/point/file/template?driver=${driver}&lang=${language}`,
-        method: 'get'
+        method: 'get',
+        responseType: 'blob',
     })
 }
