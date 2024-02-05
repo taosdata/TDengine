@@ -8223,7 +8223,7 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
     return code;
   }
 
-  code = nodesListAppend((*pSelect1)->pGroupByList, (SNode*)pNode1);
+  code = nodesListAppend((*pSelect1)->pGroupByList, nodesCloneNode((const SNode*)pNode1));
   if (code) {
     return code;
   }
@@ -8236,18 +8236,17 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
   pNode2->groupingSetType = GP_TYPE_NORMAL;
   pNode2->pParameterList = nodesMakeList();
   if (NULL == pNode2->pParameterList) {
-    nodesDestroyNode((SNode*)pNode1);
+    nodesDestroyNode((SNode*)pNode2);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  code = nodesListAppend(pNode2->pParameterList, (SNode*)pFunc2);
+  code = nodesListAppend(pNode2->pParameterList, nodesCloneNode((const SNode*)pFunc2));
   if (code) {
     nodesDestroyNode((SNode*)pNode2);
     return code;
   }
 
-  code = nodesListAppend((*pSelect1)->pGroupByList, (SNode*)pNode2);
-  return code;
+  return nodesListAppend((*pSelect1)->pGroupByList, (SNode*)pNode2);
 }
 
 static int32_t buildCreateStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {

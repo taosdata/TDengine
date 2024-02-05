@@ -13,6 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _STREAM_H_
+#define _STREAM_H_
+
 #include "os.h"
 #include "streamState.h"
 #include "tdatablock.h"
@@ -25,9 +28,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#ifndef _STREAM_H_
-#define _STREAM_H_
 
 #define ONE_MiB_F       (1048576.0)
 #define ONE_KiB_F       (1024.0)
