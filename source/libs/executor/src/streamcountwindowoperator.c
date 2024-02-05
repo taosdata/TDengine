@@ -220,7 +220,7 @@ static void doStreamCountAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
 
   SColumnInfoData* pStartTsCol = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
   TSKEY*           startTsCols = (int64_t*)pStartTsCol->pData;
-  blockDataEnsureCapacity(pAggSup->pScanBlock, rows);
+  blockDataEnsureCapacity(pAggSup->pScanBlock, rows * 2);
   SStreamStateCur* pCur = NULL;
   COUNT_TYPE slidingRows = 0;
 
