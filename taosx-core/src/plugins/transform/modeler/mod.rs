@@ -257,7 +257,7 @@ impl Table {
                 Expr::try_new(template, false)
                     .map_err(|err| super::Error::TemplateError(template.to_string(), err))
             } else {
-                let name = template.replace("{", "${");
+                let name = template.replace("{", "${").replace("$$", "$");
                 Expr::try_new(format!("`{name}`"), false)
                     .map_err(|err| super::Error::TemplateError(template.to_string(), err))
             }

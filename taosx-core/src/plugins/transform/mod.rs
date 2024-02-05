@@ -1083,8 +1083,9 @@ impl Parser {
 
         let mut data = vec![];
         for table in &self.model {
+            let name = table.name.replace("${", "{");
             let mut template = TinyTemplate::new();
-            template.add_template("name", &table.name).unwrap();
+            template.add_template("name", &name).unwrap();
             if let Some(using) = table.using.as_ref() {
                 template.add_template("using", using).unwrap();
             }
