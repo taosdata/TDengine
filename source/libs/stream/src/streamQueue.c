@@ -17,8 +17,7 @@
 
 #define MAX_STREAM_EXEC_BATCH_NUM                 32
 #define MAX_SMOOTH_BURST_RATIO                    5     // 5 sec
-#define WAIT_FOR_DURATION                         40
-#define OUTPUT_QUEUE_FULL_WAIT_DURATION           500   // 500 ms
+#define WAIT_FOR_DURATION                         10
 
 // todo refactor:
 // read data from input queue
@@ -148,8 +147,6 @@ const char* streamQueueItemGetTypeStr(int32_t type) {
 
 int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
                                     int32_t* blockSize) {
-  int32_t     retryTimes = 0;
-  int32_t     MAX_RETRY_TIMES = 5;
   const char* id = pTask->id.idStr;
   int32_t     taskLevel = pTask->info.taskLevel;
 
@@ -160,7 +157,6 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
   // no available token in bucket for sink task, let's wait for a little bit
   if (taskLevel == TASK_LEVEL__SINK && (!streamTaskExtractAvailableToken(pTask->outputInfo.pTokenBucket, pTask->id.idStr))) {
     stDebug("s-task:%s no available token in bucket for sink data, wait for 10ms", id);
-    taosMsleep(10);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -172,10 +168,6 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
 
     SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputq.queue);
     if (qItem == NULL) {
-      if ((taskLevel == TASK_LEVEL__SOURCE  || taskLevel == TASK_LEVEL__SINK) && (++retryTimes) < MAX_RETRY_TIMES) {
-        taosMsleep(WAIT_FOR_DURATION);
-        continue;
-      }
 
       // restore the token to bucket
       if (*numOfBlocks > 0) {
@@ -342,23 +334,6 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
 // the result should be put into the outputQ in any cases, the result may be lost otherwise.
 int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBlock) {
   STaosQueue* pQueue = pTask->outputq.queue->pQueue;
-
-  // wait for the output queue is available for new data to dispatch
-  while (streamQueueIsFull(pTask->outputq.queue)) {
-    if (streamTaskShouldStop(pTask)) {
-      stInfo("s-task:%s discard result block due to task stop", pTask->id.idStr);
-      return TSDB_CODE_STREAM_EXEC_CANCELLED;
-    }
-
-    int32_t total = streamQueueGetNumOfItems(pTask->outputq.queue);
-    double  size = SIZE_IN_MiB(taosQueueMemorySize(pQueue));
-    // let's wait for there are enough space to hold this result pBlock
-    stDebug("s-task:%s outputQ is full, wait for %dms and retry, outputQ items:%d, size:%.2fMiB", pTask->id.idStr,
-            OUTPUT_QUEUE_FULL_WAIT_DURATION, total, size);
-
-    taosMsleep(OUTPUT_QUEUE_FULL_WAIT_DURATION);
-  }
-
   int32_t code = taosWriteQitem(pQueue, pBlock);
 
   int32_t total = streamQueueGetNumOfItems(pTask->outputq.queue);
@@ -367,7 +342,14 @@ int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBloc
     stError("s-task:%s failed to put res into outputQ, outputQ items:%d, size:%.2fMiB code:%s, result lost",
            pTask->id.idStr, total + 1, size, tstrerror(code));
   } else {
-    stDebug("s-task:%s data put into outputQ, outputQ items:%d, size:%.2fMiB", pTask->id.idStr, total, size);
+    if (streamQueueIsFull(pTask->outputq.queue)) {
+      stWarn(
+          "s-task:%s outputQ is full(outputQ items:%d, size:%.2fMiB), set the output status BLOCKING, wait for 500ms "
+          "after handle this batch of blocks",
+          pTask->id.idStr, total, size);
+    } else {
+      stDebug("s-task:%s data put into outputQ, outputQ items:%d, size:%.2fMiB", pTask->id.idStr, total, size);
+    }
   }
 
   return TSDB_CODE_SUCCESS;

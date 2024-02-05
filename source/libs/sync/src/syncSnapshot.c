@@ -22,6 +22,7 @@
 #include "syncRaftStore.h"
 #include "syncReplication.h"
 #include "syncUtil.h"
+#include "tglobal.h"
 
 static SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths);
 
@@ -344,9 +345,9 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
 
   for (int32_t seq = pSndBuf->cursor + 1; seq < pSndBuf->end; ++seq) {
     SyncSnapBlock *pBlk = pSndBuf->entries[seq % pSndBuf->size];
-    ASSERT(pBlk && !pBlk->acked);
+    ASSERT(pBlk);
     int64_t nowMs = taosGetTimestampMs();
-    if (nowMs < pBlk->sendTimeMs + SYNC_SNAP_RESEND_MS) {
+    if (pBlk->acked || nowMs < pBlk->sendTimeMs + SYNC_SNAP_RESEND_MS) {
       continue;
     }
     if (syncSnapSendMsg(pSender, pBlk->seq, pBlk->pBlock, pBlk->blockLen, 0) != 0) {
@@ -1186,7 +1187,7 @@ static int32_t syncSnapBufferSend(SSyncSnapshotSender *pSender, SyncSnapshotRsp 
     pSndBuf->start = ack + 1;
   }
 
-  while (pSender->seq != SYNC_SNAPSHOT_SEQ_END && pSender->seq - pSndBuf->start < (pSndBuf->size >> 2)) {
+  while (pSender->seq != SYNC_SNAPSHOT_SEQ_END && pSender->seq - pSndBuf->start < tsSnapReplMaxWaitN) {
     if (snapshotSend(pSender) != 0) {
       code = terrno;
       goto _out;

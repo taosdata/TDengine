@@ -505,7 +505,7 @@ int32_t schHandleLinkBrokenCallback(void *param, SDataBuf *pMsg, int32_t code) {
     taosMemoryFree(pMsg->pEpSet);
 
     SSchHbCallbackParam *hbParam = (SSchHbCallbackParam *)param;
-    SSchTrans            trans = {.pTrans = hbParam->pTrans, .pHandle = NULL};
+    SSchTrans            trans = {.pTrans = hbParam->pTrans, .pHandle = NULL, .pHandleId = 0};
     SCH_ERR_RET(schUpdateHbConnection(&hbParam->nodeEpId, &trans));
 
     SCH_ERR_RET(schBuildAndSendHbMsg(&hbParam->nodeEpId, NULL));
@@ -537,6 +537,7 @@ int32_t schHandleHbCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchTrans trans = {0};
   trans.pTrans = pParam->pTrans;
   trans.pHandle = pMsg->handle;
+  trans.pHandleId = pMsg->handleRefId;
 
   SCH_ERR_JRET(schUpdateHbConnection(&rsp.epId, &trans));
   SCH_ERR_JRET(schProcessOnTaskStatusRsp(&rsp.epId, rsp.taskStatus));

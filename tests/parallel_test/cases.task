@@ -3,7 +3,13 @@
 #NA,NA,y or n,script,./test.sh -f tsim/user/basic.sim
 
 #unit-test
+
+archOs=$(arch)
+if [[ $archOs =~ "aarch64" ]]; then
+,,n,unit-test,bash test.sh
+else
 ,,y,unit-test,bash test.sh
+fi
 
 #
 # army-test
@@ -11,6 +17,13 @@
 ,,y,army,./pytest.sh python3 ./test.py -f enterprise/multi-level/mlevel_basic.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f enterprise/s3/s3_basic.py -L 3 -D 1
 ,,y,army,./pytest.sh python3 ./test.py -f community/cluster/snapshot.py -N 3 -L 3 -D 2
+,,y,army,./pytest.sh python3 ./test.py -f community/query/function/test_func_elapsed.py
+,,y,army,./pytest.sh python3 ./test.py -f community/query/fill/fill_desc.py -N 3 -L 3 -D 2
+,,y,army,./pytest.sh python3 ./test.py -f community/cluster/incSnapshot.py -N 3 -L 3 -D 2
+,,y,army,./pytest.sh python3 ./test.py -f community/query/query_basic.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f community/cluster/splitVgroupByLearner.py -N 3
+,,n,army,python3 ./test.py -f community/cmdline/fullopt.py
+
 
 
 #
@@ -33,9 +46,12 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/pause_resume_test.py
 #,,n,system-test,python3 ./test.py -f 8-stream/vnode_restart.py -N 4
 #,,n,system-test,python3 ./test.py -f 8-stream/snode_restart.py -N 4
-#,,n,system-test,python3 ./test.py -f 8-stream/snode_restart_with_checkpoint.py -N 4
+,,n,system-test,python3 ./test.py -f 8-stream/snode_restart_with_checkpoint.py -N 4
 
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_expr.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/project_group.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname_vgroup.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_interval.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/compact-col.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 2
@@ -144,6 +160,10 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py -Q 4
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3 -i False
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3 -i False
@@ -210,6 +230,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSubscribeStb-r3.py -N 5
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -i True
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 -i True
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform.py -N 2 -n 1
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 2 -n 1
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 6 -n 3
 #,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-db.py -N 6 -n 3
@@ -217,10 +238,14 @@
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-duplicatedata.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-duplicatedata-false.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select.py -N 3 -n 3
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-false.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb.py -N 3 -n 3
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-false.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-column.py -N 3 -n 3
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-column-false.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-db.py -N 3 -n 3
-e
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-db-false.py -N 3 -n 3
+
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeReplicate.py -M 3 -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-19201.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py
@@ -268,6 +293,7 @@ e
 ,,n,system-test,python3 ./test.py -f 0-others/timeRangeWise.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/delete_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/subscribe_stream_privilege.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_double.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
@@ -420,6 +446,11 @@ e
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py
@@ -1089,6 +1120,7 @@ e
 ,,y,script,./test.sh -f tsim/query/udf_with_const.sim
 ,,y,script,./test.sh -f tsim/query/join_interval.sim
 ,,y,script,./test.sh -f tsim/query/join_pk.sim
+,,y,script,./test.sh -f tsim/query/join_order.sim
 ,,y,script,./test.sh -f tsim/query/count_spread.sim
 ,,y,script,./test.sh -f tsim/query/unionall_as_table.sim
 ,,y,script,./test.sh -f tsim/query/multi_order_by.sim
@@ -1233,7 +1265,9 @@ e
 ,,y,script,./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 ,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQueryDelete.sim
-,,y,script,./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
+
+### refactor stream backend, open case after rsma refactored
+#,,y,script,./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
 ,,y,script,./test.sh -f tsim/sync/vnodesnapshot-rsma-test.sim
 ,,n,script,./test.sh -f tsim/valgrind/checkError1.sim
 ,,n,script,./test.sh -f tsim/valgrind/checkError2.sim
