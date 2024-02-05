@@ -1033,7 +1033,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 #endif
 }
 
-bool lastErrorIsFileNotExist() { return dwError == ENOENT; }
+bool lastErrorIsFileNotExist() { return errno == ENOENT; }
 
 #endif  // WINDOWS
 
