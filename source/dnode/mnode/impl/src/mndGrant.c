@@ -79,11 +79,6 @@ char   *tGetMachineId() { return NULL; };
 int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
 int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
 int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *pCfg) { return 0; }
-#else 
-#ifndef TD_UNIQ_GRANT
-char   *tGetMachineId() { return NULL; };
-int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *pCfg) { return 0; }
-#endif
 #endif
 
 void mndGenerateMachineCode() { grantParseParameter(); }

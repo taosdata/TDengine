@@ -19,5 +19,6 @@
 #ifndef _GRANT
 
 int32_t grantCheck(EGrantType grant) {return TSDB_CODE_SUCCESS;}
+int32_t grantCheckLE(EGrantType grant) {return TSDB_CODE_SUCCESS;}
 
 #endif

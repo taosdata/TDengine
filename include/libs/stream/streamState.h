@@ -13,15 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _STREAM_STATE_H_
+#define _STREAM_STATE_H_
+
 #include "tdatablock.h"
 
 #include "rocksdb/c.h"
 #include "tdbInt.h"
 #include "tsimplehash.h"
 #include "tstreamFileState.h"
-
-#ifndef _STREAM_STATE_H_
-#define _STREAM_STATE_H_
 
 #ifdef __cplusplus
 extern "C" {

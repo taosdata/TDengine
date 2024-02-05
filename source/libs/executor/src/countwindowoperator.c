@@ -66,7 +66,7 @@ int32_t doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   int32_t                   code = TSDB_CODE_SUCCESS;
 
   for (int32_t i = 0; i < pBlock->info.rows; i++) {
-    // 1.如果group id发生变化，获取新group id上一次的window的缓存，并把旧group id的信息存入缓存。
+    // todo(liuyao) 1.如果group id发生变化，获取新group id上一次的window的缓存，并把旧group id的信息存入缓存。
     // 2.计算 当前需要合并的行数
     // 3.做聚集计算。
     // 4.达到行数，将结果存入pInfo->res中。

@@ -32,6 +32,8 @@ typedef struct SPlanContext {
   bool        streamQuery;
   bool        rSmaQuery;
   bool        showRewrite;
+  bool        isView;
+  bool        isAudit;
   int8_t      triggerType;
   int64_t     watermark;
   int64_t     deleteMark;

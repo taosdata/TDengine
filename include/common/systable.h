@@ -65,6 +65,11 @@ extern "C" {
 #define TSDB_PERFS_TABLE_TRANS       "perf_trans"
 #define TSDB_PERFS_TABLE_APPS        "perf_apps"
 
+#define TSDB_AUDIT_DB                "audit"
+#define TSDB_AUDIT_STB_OPERATION     "operations"
+#define TSDB_AUDIT_CTB_OPERATION     "t_operations_"
+#define TSDB_AUDIT_CTB_OPERATION_LEN 13
+
 typedef struct SSysDbTableSchema {
   const char*   name;
   const int32_t type;

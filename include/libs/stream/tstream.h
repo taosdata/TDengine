@@ -13,6 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _STREAM_H_
+#define _STREAM_H_
+
 #include "os.h"
 #include "streamState.h"
 #include "tdatablock.h"
@@ -25,9 +28,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#ifndef _STREAM_H_
-#define _STREAM_H_
 
 #define ONE_MiB_F       (1048576.0)
 #define ONE_KiB_F       (1024.0)
@@ -313,7 +313,7 @@ typedef struct SCheckpointInfo {
   int64_t failedId;        // record the latest failed checkpoint id
   int64_t checkpointingId;
   int32_t downstreamAlignNum;
-  int32_t checkpointNotReadyTasks;
+  int32_t numOfNotReady;
   bool    dispatchCheckpointTrigger;
   int64_t msgVer;
   int32_t transId;
