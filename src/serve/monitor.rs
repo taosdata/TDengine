@@ -4,8 +4,8 @@ use super::scheduler::runner::MultiIndexTaskJobMap;
 use super::TaskControllerRef;
 use clap::Parser;
 use gethostname::gethostname;
+use metrics::gauge;
 use metrics::Label;
-use metrics::{counter, gauge};
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
@@ -180,7 +180,7 @@ async fn add_task_metrics_tables(
                 }
             },
             None => {
-                tracing::error!("no metrics for task: {}", task_id);
+                tracing::debug!("metrics for task {} not is not initialized", task_id);
                 continue;
             }
         }
