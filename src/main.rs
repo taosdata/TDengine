@@ -393,9 +393,9 @@ async fn init_tracing_layers(
             .add_directive("runtime=warn".parse()?)
             .add_directive("actix_server=info".parse()?)
             .add_directive("actix_http=info".parse()?)
-            .add_directive("tokio_tungstenite=info".parse()?)
-            .add_directive("mio=info".parse()?)
-            .add_directive("h2=info".parse()?)
+            .add_directive("tokio_tungstenite=warn".parse()?)
+            .add_directive("mio=warn".parse()?)
+            .add_directive("h2=warn".parse()?)
     } else {
         event_filter
     };

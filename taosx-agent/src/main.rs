@@ -14,7 +14,7 @@ use time::macros::format_description;
 use time::UtcOffset;
 use tracing_subscriber::{
     fmt::time::OffsetTime, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
-    Layer as _,
+    EnvFilter, Layer as _,
 };
 use twelf::{config, Layer};
 
@@ -451,7 +451,19 @@ fn main() -> anyhow::Result<()> {
     );
 
     let log_level = args.log_level.unwrap_or(Level::INFO);
-    let level_filter = tracing_subscriber::filter::LevelFilter::from_level(log_level);
+
+    let log_level_directive = match log_level {
+        Level::ERROR => "error",
+        Level::WARN => "warn",
+        Level::INFO => "info",
+        Level::DEBUG => "debug",
+        Level::TRACE => "trace",
+    };
+    let default_directive = format!("tungstenite=warn,tokio_tungstenite=warn,mio=warn,h2=warn,runtime=warn,actix_server={log_level_directive},actix_http={log_level_directive},{log_level_directive}", log_level_directive = log_level_directive);
+    let level_filter = EnvFilter::builder()
+        .with_default_directive(default_directive.parse()?)
+        .with_regex(true)
+        .from_env_lossy();
     let mut layers = Vec::new();
     // Add layer for rotating logs
     layers.push(
@@ -469,6 +481,10 @@ fn main() -> anyhow::Result<()> {
                let ansi = true;
             }
         };
+        let level_filter = EnvFilter::builder()
+            .with_default_directive(default_directive.parse()?)
+            .with_regex(true)
+            .from_env_lossy();
         layers.push(
             tracing_subscriber::fmt::layer()
                 .with_timer(timer.clone())
