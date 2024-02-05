@@ -225,7 +225,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SArray      *pFailedTasks = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
   SArray      *pOrphanTasks = taosArrayInit(3, sizeof(SOrphanTask));
 
-  if(grantCheck(TSDB_GRANT_STREAMS) < 0){
+  if(grantCheckLE(TSDB_GRANT_STREAMS) < 0){
     if(suspendAllStreams(pMnode, &pReq->info) < 0){
       return -1;
     }
