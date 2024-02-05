@@ -43,6 +43,7 @@ TEST_F(ParserInitialCTest, compact) {
     ASSERT_EQ(std::string(req.db), std::string(expect.db));
     ASSERT_EQ(req.timeRange.skey, expect.timeRange.skey);
     ASSERT_EQ(req.timeRange.ekey, expect.timeRange.ekey);
+    tFreeSCompactDbReq(&req);
   });
 
   setCompactDbReq("test");
@@ -374,6 +375,7 @@ TEST_F(ParserInitialCTest, createDnode) {
 
     ASSERT_EQ(std::string(req.fqdn), std::string(expect.fqdn));
     ASSERT_EQ(req.port, expect.port);
+    tFreeSCreateDnodeReq(&req);
   });
 
   setCreateDnodeReq("abc1", 7030);
@@ -599,6 +601,7 @@ TEST_F(ParserInitialCTest, createMnode) {
                 tDeserializeSCreateDropMQSNodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
 
     ASSERT_EQ(req.dnodeId, expect.dnodeId);
+    tFreeSMCreateQnodeReq(&req);
   });
 
   setCreateMnodeReq(1);
@@ -622,6 +625,7 @@ TEST_F(ParserInitialCTest, createQnode) {
                 tDeserializeSCreateDropMQSNodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
 
     ASSERT_EQ(req.dnodeId, expect.dnodeId);
+    tFreeSMCreateQnodeReq(&req);
   });
 
   setCreateQnodeReq(1);
@@ -1326,6 +1330,7 @@ TEST_F(ParserInitialCTest, createUser) {
     ASSERT_EQ(req.enable, expect.enable);
     ASSERT_EQ(std::string(req.user), std::string(expect.user));
     ASSERT_EQ(std::string(req.pass), std::string(expect.pass));
+    tFreeSCreateUserReq(&req);
   });
 
   setCreateUserReq("wxy", "123456");

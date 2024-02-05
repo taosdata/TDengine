@@ -2977,6 +2977,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     }
     nodesClearList(cxt.pLastCols);
   }
+  nodesClearList(cxt.pOtherCols);
 
   pAgg->hasLastRow = false;
   pAgg->hasLast = false;
