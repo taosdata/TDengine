@@ -519,10 +519,11 @@ fn main() -> anyhow::Result<()> {
         Level::TRACE => "trace",
     };
     let default_directive = format!("tungstenite=warn,tokio_tungstenite=warn,mio=warn,h2=warn,runtime=warn,actix_server={log_level_directive},actix_http={log_level_directive},{log_level_directive}", log_level_directive = log_level_directive);
+
     let level_filter = EnvFilter::builder()
-        .with_default_directive(default_directive.parse()?)
+        .with_default_directive(log_level.into())
         .with_regex(true)
-        .from_env_lossy();
+        .parse_lossy(std::env::var("RUST_LOG").unwrap_or(default_directive.clone()));
     let mut layers = Vec::new();
     // Add layer for rotating logs
     layers.push(
@@ -541,9 +542,9 @@ fn main() -> anyhow::Result<()> {
             }
         };
         let level_filter = EnvFilter::builder()
-            .with_default_directive(default_directive.parse()?)
+            .with_default_directive(log_level.into())
             .with_regex(true)
-            .from_env_lossy();
+            .parse_lossy(std::env::var("RUST_LOG").unwrap_or(default_directive.clone()));
         layers.push(
             tracing_subscriber::fmt::layer()
                 .with_timer(timer.clone())
