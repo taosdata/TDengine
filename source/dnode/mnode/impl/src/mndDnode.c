@@ -509,9 +509,9 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if(tsMonitorLogProtocol){
+  //if(tsMonitorLogProtocol){
     mInfo("process statis req,\n %s", statisReq.pCont);
-  }
+  //}
 
   SJson* pJson = tjsonParse(statisReq.pCont);
 
