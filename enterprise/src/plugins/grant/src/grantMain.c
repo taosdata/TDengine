@@ -1731,6 +1731,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
     }
   }
 
+#ifndef GRANTS_CFG
   if (newObj.token[1] > 0) {  // check machines
     if (!(pMachines = taosArrayInit(tSimpleHashGetSize(pMachineHash), TSDB_MACHINE_ID_LEN))) {
       code = TSDB_CODE_OUT_OF_MEMORY;
@@ -1759,6 +1760,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
     code = TSDB_CODE_GRANT_UNLICENSED_CLUSTER;
     goto _exit;
   }
+#endif
 
   grantRetrieveGrantInfo(pMnode);
   //  check grantItems of basic function
@@ -1899,6 +1901,7 @@ static void mndCancelGetNextGrant(SMnode *pMnode, void *pIter) {
 static int32_t mndRetrieveGrantFullItem(SSDataBlock *pBlock, int32_t *numOfRows, const char *name, const char *display,
                                         int64_t expire, int64_t curVal, int64_t limit, bool isDataIn) {
   int32_t cols = 0;
+  int32_t colLen = GRANTS_COL_MAX_LEN - VARSTR_HEADER_SIZE;
   char    tmp[GRANTS_COL_MAX_LEN];
   char   *pBuf = &tmp[0];
   char   *qBuf = NULL;
@@ -1906,14 +1909,14 @@ static int32_t mndRetrieveGrantFullItem(SSDataBlock *pBlock, int32_t *numOfRows,
 
   SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
   qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
-  snprintf(qBuf, GRANTS_COL_MAX_LEN, "%s", name);
+  snprintf(qBuf, colLen, "%s", name);
   varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
   colDataSetVal(pColInfo, *numOfRows, pBuf, false);
 
   ++cols;
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
   qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
-  snprintf(qBuf, GRANTS_COL_MAX_LEN, "%s", display);
+  snprintf(qBuf, colLen, "%s", display);
   varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
   colDataSetVal(pColInfo, *numOfRows, pBuf, false);
 
@@ -1921,10 +1924,10 @@ static int32_t mndRetrieveGrantFullItem(SSDataBlock *pBlock, int32_t *numOfRows,
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
   qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
   if (expire == GRANT_UNIQ_UNLIMITED) {
-    snprintf(qBuf, GRANTS_COL_MAX_LEN, GRANT_UNIQ_UNLIMITED_S);
+    snprintf(qBuf, colLen, GRANT_UNIQ_UNLIMITED_S);
   } else {
     grantSecondsToString(isDataIn ? expire * 86400 : expire, ts);
-    snprintf(qBuf, GRANTS_COL_MAX_LEN, "%s", ts);
+    snprintf(qBuf, colLen, "%s", ts);
   }
   varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
   colDataSetVal(pColInfo, *numOfRows, pBuf, false);
@@ -1934,19 +1937,17 @@ static int32_t mndRetrieveGrantFullItem(SSDataBlock *pBlock, int32_t *numOfRows,
   qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
   if (isDataIn) {
     if (expire == GRANT_UNIQ_UNLIMITED) {
-      snprintf(qBuf, GRANTS_COL_MAX_LEN,
-               "{\"number\":%" PRIi64 ", speed:%" PRIi64 ", expire:\"%" PRIi64 "\", expireTime:\"%s\"}", curVal, limit,
-               expire, GRANT_UNIQ_UNLIMITED_S);
+      snprintf(qBuf, colLen, "{\"number\":%" PRIi64 ", speed:%" PRIi64 ", expire:\"%" PRIi64 "\", expireTime:\"%s\"}",
+               curVal, limit, expire, GRANT_UNIQ_UNLIMITED_S);
     } else {
       grantSecondsToString(expire * 86400, ts);
-      snprintf(qBuf, GRANTS_COL_MAX_LEN,
-               "{\"number\":%" PRIi64 ", speed:%" PRIi64 ", expire:\"%" PRIi64 "\", expireTime:\"%s\"}", curVal, limit,
-               expire, ts);
+      snprintf(qBuf, colLen, "{\"number\":%" PRIi64 ", speed:%" PRIi64 ", expire:\"%" PRIi64 "\", expireTime:\"%s\"}",
+               curVal, limit, expire, ts);
     }
   } else if (limit == GRANT_UNIQ_UNLIMITED) {
-    snprintf(qBuf, GRANTS_COL_MAX_LEN, GRANT_UNIQ_UNLIMITED_S);
+    snprintf(qBuf, colLen, GRANT_UNIQ_UNLIMITED_S);
   } else if (limit != GRANT_UNIQ_UNUTILIZED) {
-    snprintf(qBuf, GRANTS_COL_MAX_LEN, "%" PRIi64 "/%" PRIi64, curVal, limit);
+    snprintf(qBuf, colLen, "%" PRIi64 "/%" PRIi64, curVal, limit);
   } else {
     qBuf[0] = 0;
   }
