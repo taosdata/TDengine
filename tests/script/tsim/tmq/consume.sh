@@ -1,5 +1,6 @@
 #!/bin/bash
-
+# shellcheck disable=SC2009
+# shellcheck disable=SC2086
 ##################################################
 #
 # Do tmq test
@@ -10,7 +11,7 @@ set +e
 
 # set default value for parameters
 EXEC_OPTON=start
-DB_NAME=db 
+DB_NAME=db
 CDB_NAME=db
 POLL_DELAY=5
 VALGRIND=0
@@ -19,43 +20,42 @@ SHOW_MSG=0
 SHOW_ROW=0
 EXP_USE_SNAPSHOT=0
 
-while getopts "d:s:v:y:x:g:r:w:e:" arg
-do
+while getopts "d:s:v:y:x:g:r:w:e:" arg; do
   case $arg in
-    d)
-      DB_NAME=$OPTARG
-      ;;
-    g)
-      SHOW_MSG=$OPTARG
-      ;;
-    r)
-      SHOW_ROW=$OPTARG
-      ;;
-    s)
-      EXEC_OPTON=$OPTARG
-      ;;
-    v)
-      VALGRIND=1
-      ;;
-    y)
-      POLL_DELAY=$OPTARG
-      ;;
-    x)
-      SIGNAL=$OPTARG
-      ;;
-    w)
-      CDB_NAME=$OPTARG
-      ;;
-    e)
-      EXP_USE_SNAPSHOT=$OPTARG
-      ;;
-    ?)
-      echo "unkown argument"
-      ;;
+  d)
+    DB_NAME=$OPTARG
+    ;;
+  g)
+    SHOW_MSG=$OPTARG
+    ;;
+  r)
+    SHOW_ROW=$OPTARG
+    ;;
+  s)
+    EXEC_OPTON=$OPTARG
+    ;;
+  v)
+    VALGRIND=1
+    ;;
+  y)
+    POLL_DELAY=$OPTARG
+    ;;
+  x)
+    SIGNAL=$OPTARG
+    ;;
+  w)
+    CDB_NAME=$OPTARG
+    ;;
+  e)
+    EXP_USE_SNAPSHOT=$OPTARG
+    ;;
+  ?)
+    echo "unkown argument"
+    ;;
   esac
 done
 
-SCRIPT_DIR=`pwd`
+SCRIPT_DIR=$(pwd)
 
 IN_TDINTERNAL="community"
 if [[ "$SCRIPT_DIR" == *"$IN_TDINTERNAL"* ]]; then
@@ -64,9 +64,9 @@ else
   cd ../../
 fi
 
-TOP_DIR=`pwd`
+TOP_DIR=$(pwd)
 
-BIN_DIR=`find . -name "tmq_sim"|grep bin|head -n1|cut -d '/' -f 2`
+BIN_DIR=$(find . -name "tmq_sim" | grep bin | head -n1 | cut -d '/' -f 2)
 
 declare -x BUILD_DIR=$TOP_DIR/$BIN_DIR
 
@@ -90,18 +90,17 @@ echo "POLL_DELAY: $POLL_DELAY"
 echo "DB_NAME: $DB_NAME"
 
 echo "------------------------------------------------------------------------"
-if [ "$EXEC_OPTON" = "start" ]; then 
+if [ "$EXEC_OPTON" = "start" ]; then
   if [ $VALGRIND -eq 1 ]; then
-    echo nohup valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes --log-file=${LOG_DIR}/valgrind-tmq_sim.log $PROGRAM -c $CFG_DIR -y $POLL_DELAY -d $DB_NAME -g $SHOW_MSG -r $SHOW_ROW > /dev/null 2>&1 &
-    nohup valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes --log-file=${LOG_DIR}/valgrind-tmq_sim.log $PROGRAM -c $CFG_DIR -y $POLL_DELAY -d $DB_NAME -g $SHOW_MSG -r $SHOW_ROW > /dev/null 2>&1 &
+    echo nohup valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes --log-file=${LOG_DIR}/valgrind-tmq_sim.log $PROGRAM -c $CFG_DIR -y $POLL_DELAY -d $DB_NAME -g $SHOW_MSG -r $SHOW_ROW >/dev/null 2>&1 &
+    nohup valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes --log-file=${LOG_DIR}/valgrind-tmq_sim.log $PROGRAM -c $CFG_DIR -y $POLL_DELAY -d $DB_NAME -g $SHOW_MSG -r $SHOW_ROW >/dev/null 2>&1 &
   else
-    echo  "nohup $PROGRAM -c $CFG_DIR -y $POLL_DELAY -d $DB_NAME -g $SHOW_MSG -r $SHOW_ROW -w $CDB_NAME -e $EXP_USE_SNAPSHOT > /dev/null 2>&1 &"
-    nohup $PROGRAM -c $CFG_DIR -y $POLL_DELAY -d $DB_NAME -g $SHOW_MSG -r $SHOW_ROW -w $CDB_NAME -e $EXP_USE_SNAPSHOT > /dev/null 2>&1 &
+    echo "nohup $PROGRAM -c $CFG_DIR -y $POLL_DELAY -d $DB_NAME -g $SHOW_MSG -r $SHOW_ROW -w $CDB_NAME -e $EXP_USE_SNAPSHOT > /dev/null 2>&1 &"
+    nohup $PROGRAM -c $CFG_DIR -y $POLL_DELAY -d $DB_NAME -g $SHOW_MSG -r $SHOW_ROW -w $CDB_NAME -e $EXP_USE_SNAPSHOT >/dev/null 2>&1 &
   fi
 else
-  PID=`ps -ef|grep tmq_sim | grep -v grep | awk '{print $2}'`
-  while [ -n "$PID" ]
-  do
+  PID=$(ps -ef | grep tmq_sim | grep $RCFG_DIR | grep -v grep | grep -v defunct | awk '{print $2}')
+  while [ -n "$PID" ]; do
     if [ "$SIGNAL" = "SIGKILL" ]; then
       echo try to kill by signal SIGKILL
       kill -9 $PID
@@ -110,6 +109,6 @@ else
       kill -SIGINT $PID
     fi
     sleep 1
-    PID=`ps -ef|grep tmq_sim | grep -v grep | awk '{print $2}'`
-  done 
+    PID=$(ps -ef | grep tmq_sim | grep $RCFG_DIR | grep -v grep | grep -v defunct | awk '{print $2}')
+  done
 fi
