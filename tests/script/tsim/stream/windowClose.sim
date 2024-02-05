@@ -304,7 +304,7 @@ sql insert into t1 values(1648791233001,2,2,3,1.1);
 
 $loop_count = 0
 
-loop2:
+loop4:
 
 sleep 1000
 
@@ -317,7 +317,7 @@ sql select * from streamt13;
 
 if $rows != 2 then
   print ======rows=$rows
-  goto loop2
+  goto loop4
 endi
 
 $now02 = $data02
@@ -356,12 +356,14 @@ if $data12 != $now12 then
   return -1
 endi
 
+print session max delay over
+
 print step 3 max delay 2s
 sql create database test16 vgroups 4;
 sql use test16;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 
-sql create stream stream16 trigger max_delay 2s into streamt13 as select  _wstart, sum(a), now from t1 state_window(a, 10s);
+sql create stream stream16 trigger max_delay 2s into streamt13 as select  _wstart, sum(a), now from t1 state_window(a);
 
 sleep 1000
 
@@ -370,7 +372,7 @@ sql insert into t1 values(1648791233001,2,2,3,1.1);
 
 $loop_count = 0
 
-loop2:
+loop5:
 
 sleep 1000
 
@@ -383,7 +385,7 @@ sql select * from streamt13;
 
 if $rows != 2 then
   print ======rows=$rows
-  goto loop2
+  goto loop5
 endi
 
 $now02 = $data02
@@ -422,12 +424,14 @@ if $data12 != $now12 then
   return -1
 endi
 
+print state max delay over
+
 print step 4 max delay 2s
 sql create database test17 vgroups 4;
 sql use test17;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 
-sql create stream stream17 trigger max_delay 2s into streamt13 as select  _wstart, sum(a), now from t1 event_window start with a = 0 end with a = 9;
+sql create stream stream17 trigger max_delay 2s into streamt13 as select  _wstart, sum(a), now from t1 event_window start with a = 1 end with a = 9;
 
 sleep 1000
 
@@ -439,7 +443,7 @@ sql insert into t1 values(1648791233009,9,2,3,1.1);
 
 $loop_count = 0
 
-loop2:
+loop6:
 
 sleep 1000
 
@@ -452,7 +456,7 @@ sql select * from streamt13;
 
 if $rows != 2 then
   print ======rows=$rows
-  goto loop2
+  goto loop6
 endi
 
 $now02 = $data02
@@ -490,6 +494,8 @@ if $data12 != $now12 then
   print ======data12=$data12
   return -1
 endi
+
+print event max delay over
 
 print ======over
 
