@@ -1284,7 +1284,7 @@ static bool isSlidingWindow(SStreamScanInfo* pInfo) {
 }
 
 static bool isCountSlidingWindow(SStreamScanInfo* pInfo) {
-  return pInfo->windowSup.pStreamAggSup->windowCount != pInfo->windowSup.pStreamAggSup->windowSliding;
+  return pInfo->windowSup.pStreamAggSup && (pInfo->windowSup.pStreamAggSup->windowCount != pInfo->windowSup.pStreamAggSup->windowSliding);
 }
 
 static bool isCountWindow(SStreamScanInfo* pInfo) {
