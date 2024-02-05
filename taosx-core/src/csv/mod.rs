@@ -274,44 +274,45 @@ impl CsvSource {
             }
         });
 
-        let delimiter = dsn.params.remove("delimiter").and_then(|delimiter_char| {
-            if delimiter_char.is_empty() {
-                None
-            } else {
-                let delimiter_char = delimiter_char.as_bytes();
-                if delimiter_char.len() == 1 && delimiter_char[0] != b',' {
-                    Some(delimiter_char[0])
-                } else {
-                    None
+        let delimiter = dsn
+            .params
+            .remove("delimiter")
+            .and_then(|value| {
+                let value = value.trim();
+                match value.len() {
+                    0 => None,
+                    1 => Some(Ok(value.as_bytes()[0])),
+                    _ => Some(Err(anyhow!("CSV delimiter should be a single character"))),
                 }
-            }
-        });
+            })
+            .transpose()?
+            .unwrap_or(b',');
 
-        let quote = dsn.params.remove("quote").and_then(|quote_char| {
-            if quote_char.is_empty() {
-                None
-            } else {
-                let quote_char = quote_char.as_bytes();
-                if quote_char.len() == 1 && quote_char[0] != b',' {
-                    Some(quote_char[0])
-                } else {
-                    None
-                }
-            }
-        });
+        let quote = dsn
+            .params
+            .remove("quote")
+            .and_then(|quote_char| match quote_char.trim().as_bytes() {
+                [] => None,
+                [quote] if *quote == delimiter => Some(Err(anyhow!(
+                    "CSV quote should not be the same as delimiter"
+                ))),
+                [quote] => Some(Ok(quote.clone())),
+                _ => Some(Err(anyhow!("CSV quote should be a single character"))),
+            })
+            .transpose()?;
 
-        let comment = dsn.params.remove("comment").and_then(|comment_char| {
-            if comment_char.is_empty() {
-                None
-            } else {
-                let comment_char = comment_char.as_bytes();
-                if comment_char.len() == 1 && comment_char[0] != b',' {
-                    Some(comment_char[0])
-                } else {
-                    None
-                }
-            }
-        });
+        let comment = dsn
+            .params
+            .remove("comment")
+            .and_then(|comment| match comment.trim().as_bytes() {
+                [] => None,
+                [comment] if *comment == delimiter => Some(Err(anyhow!(
+                    "CSV comment should not be the same as delimiter"
+                ))),
+                [comment] => Some(Ok(comment.clone())),
+                _ => Some(Err(anyhow!("CSV comment should be a single character"))),
+            })
+            .transpose()?;
 
         let batch_size: usize = dsn
             .params
@@ -647,17 +648,14 @@ impl CsvSource {
         has_header: bool,
         headers: &Vec<String>,
         skip: Option<u64>,
-        delimiter: Option<u8>,
+        delimiter: u8,
         quote: Option<u8>,
         comment: Option<u8>,
     ) -> Result<Vec<Reader<File>>> {
         let mut readers = Vec::new();
         for path in paths {
             let mut reader = ReaderBuilder::new()
-                .delimiter(match delimiter {
-                    Some(delimiter) => delimiter,
-                    _ => b',',
-                })
+                .delimiter(delimiter)
                 .quote(match quote {
                     Some(quote) => quote,
                     _ => b'"',
@@ -695,7 +693,7 @@ impl CsvSource {
         has_header: bool,
         headers: &Vec<String>,
         skip: Option<u64>,
-        delimiter: Option<u8>,
+        delimiter: u8,
         quote: Option<u8>,
         comment: Option<u8>,
     ) -> Result<()> {
@@ -703,10 +701,7 @@ impl CsvSource {
         let mut cols = 0;
         for path in paths {
             let mut reader = ReaderBuilder::new()
-                .delimiter(match delimiter {
-                    Some(delimiter) => delimiter,
-                    _ => b',',
-                })
+                .delimiter(delimiter)
                 .quote(match quote {
                     Some(quote) => quote,
                     _ => b'"',
@@ -825,6 +820,7 @@ pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
 
 #[cfg(test)]
 mod tests {
+    // TODO(@ypzhang): use mock to test csv source, not user local path.
     use super::*;
 
     #[tokio::test]
@@ -842,16 +838,9 @@ mod tests {
         let paths = vec!["/data/ypzhang/files/test_join.csv".to_string()];
         let headers = vec![];
 
-        let mut readers = CsvSource::csv_readers(
-            &paths,
-            true,
-            &headers,
-            None,
-            Some(b','),
-            Some(b'"'),
-            Some(b'#'),
-        )
-        .unwrap();
+        let mut readers =
+            CsvSource::csv_readers(&paths, true, &headers, None, b',', Some(b'"'), Some(b'#'))
+                .unwrap();
 
         while let Some(mut reader) = readers.pop() {
             let headers = reader
@@ -874,15 +863,7 @@ mod tests {
         let paths = vec!["/data/ypzhang/files/test_join.csv".to_string()];
         let headers = vec!["ts".to_string(), "payload".to_string()];
 
-        let _ = CsvSource::validate(
-            &paths,
-            false,
-            &headers,
-            None,
-            Some(b','),
-            Some(b'"'),
-            Some(b'#'),
-        )
-        .unwrap();
+        let _ = CsvSource::validate(&paths, false, &headers, None, b',', Some(b'"'), Some(b'#'))
+            .unwrap();
     }
 }
