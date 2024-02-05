@@ -52,8 +52,10 @@ void sqlReqLog(int64_t rid,  bool killed, int32_t code) {
   if (pTscObj != NULL) {
     if (pTscObj->pAppInfo == NULL) {
       tscLog("sqlReqLog, not found pAppInfo");
+    } else {
+      clientSQLReqLog(pTscObj->pAppInfo->instKey, pTscObj->user, result);
     }
-    return clientSQLReqLog(pTscObj->pAppInfo->instKey, pTscObj->user, result);
+    releaseTscObj(rid);
   } else {
     tscLog("sqlReqLog, not found rid");
   }

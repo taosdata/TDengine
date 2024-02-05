@@ -69,8 +69,10 @@ void SlowQueryLog(int64_t rid, bool killed, int32_t code, int32_t cost) {
   if (pTscObj != NULL) {
     if(pTscObj->pAppInfo == NULL) {
       tscLog("SlowQueryLog, not found pAppInfo");
+    } else {
+      clientSlowQueryLog(pTscObj->pAppInfo->instKey, pTscObj->user, result, cost);
     }
-    return clientSlowQueryLog(pTscObj->pAppInfo->instKey, pTscObj->user, result, cost);
+    releaseTscObj(rid);
   } else {
     tscLog("SlowQueryLog, not found rid");
   }
