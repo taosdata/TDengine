@@ -385,9 +385,11 @@ unsigned int optimize_intervals_double_1D_opt(double *oriData, size_t dataLength
 		totalSampleSize++;
 		pred_value = data_pos[-1];
 		pred_err = fabs(pred_value - *data_pos);
-		radiusIndex = (unsigned long)((pred_err/realPrecision+1)/2);
-		if(radiusIndex>=confparams_cpr->maxRangeRadius)
-			radiusIndex = confparams_cpr->maxRangeRadius - 1;			
+		double dbri = (unsigned long)((pred_err/realPrecision+1)/2);
+		if(dbri >= (double)confparams_cpr->maxRangeRadius)
+			radiusIndex = confparams_cpr->maxRangeRadius - 1;
+		else
+		    radiusIndex = dbri;
 		intervals[radiusIndex]++;
 
 		data_pos += confparams_cpr->sampleDistance;
