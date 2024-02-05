@@ -3184,17 +3184,10 @@ typedef struct {
 
 typedef struct {
   SMsgHead head;
-  int64_t  leftForVer;
+  int64_t  resetRelHalt;  // reset related stream task halt status
   int64_t  streamId;
   int32_t  taskId;
 } SVDropStreamTaskReq;
-
-typedef struct {
-  SMsgHead head;
-  int64_t  streamId;
-  int32_t  taskId;
-  int64_t  dataVer;
-} SVStreamTaskVerUpdateReq;
 
 typedef struct {
   int8_t reserved;

@@ -30,6 +30,28 @@ extern bool tsDeployOnSnode;
 static int32_t doAddSinkTask(SStreamObj* pStream, SArray* pTaskList, SMnode* pMnode, int32_t vgId, SVgObj* pVgroup,
                              SEpSet* pEpset, bool isFillhistory);
 
+static bool hasCountWindowNode(SPhysiNode* pNode) {
+  if (nodeType(pNode) == QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT) {
+    return true;
+  } else {
+    size_t size = LIST_LENGTH(pNode->pChildren);
+
+    for (int32_t i = 0; i < size; ++i) {
+      SPhysiNode* pChild = (SPhysiNode*)nodesListGetNode(pNode->pChildren, i);
+      if (hasCountWindowNode(pChild)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+}
+
+static bool countWindowStreamTask(SSubplan* pPlan) {
+  SPhysiNode* pNode = pPlan->pNode;
+  return hasCountWindowNode(pNode);
+}
+
 int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64_t uid, int8_t triggerType,
                            int64_t watermark, int64_t deleteMark) {
   SNode*      pAst = NULL;
@@ -310,6 +332,14 @@ static int32_t addSourceTask(SMnode* pMnode, SVgObj* pVgroup, SArray* pTaskList,
 
   if (mndAssignStreamTaskToVgroup(pMnode, pTask, plan, pVgroup) < 0) {
     return terrno;
+  }
+
+  bool hasCountWindowNode = countWindowStreamTask(plan);
+  if (hasCountWindowNode && (!fillHistory) && hasFillHistory) {
+    SStreamStatus* pStatus = &pTask->status;
+    mDebug("s-task:0x%x status is set to %s from %s for count window agg task with fill-history option set",
+           pTask->id.taskId, streamTaskGetStatusStr(pStatus->taskStatus), streamTaskGetStatusStr(TASK_STATUS__HALT));
+    pStatus->taskStatus = TASK_STATUS__HALT;
   }
 
   for(int32_t i = 0; i < taosArrayGetSize(pSinkTaskList); ++i) {

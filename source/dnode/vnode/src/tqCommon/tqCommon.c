@@ -602,6 +602,10 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
     streamMetaReleaseTask(pMeta, pTask);
   }
 
+  streamMetaWLock(pMeta);
+  streamTaskClearHTaskAttr(pTask, pReq->resetRelHalt, false);
+  streamMetaWUnLock(pMeta);
+
   // drop the stream task now
   streamMetaUnregisterTask(pMeta, pReq->streamId, pReq->taskId);
 

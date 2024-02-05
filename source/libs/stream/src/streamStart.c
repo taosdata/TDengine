@@ -391,6 +391,16 @@ void doProcessDownstreamReadyRsp(SStreamTask* pTask) {
   int64_t startTs = pTask->execInfo.start;
   streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, initTs, startTs, true);
 
+  if (pTask->status.taskStatus == TASK_STATUS__HALT) {
+    ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask) && (pTask->info.fillHistory == 0));
+
+    // halt it self for count window stream task until the related
+    // fill history task completd.
+    stDebug("s-task:%s level:%d initial status is %s from mnode, set it to be halt", pTask->id.idStr,
+            pTask->info.taskLevel, streamTaskGetStatusStr(pTask->status.taskStatus));
+    streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_HALT);
+  }
+
   // start the related fill-history task, when current task is ready
   // not invoke in success callback due to the deadlock.
   if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
@@ -804,7 +814,7 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
 
   // check stream task status in the first place.
   SStreamTaskState* pStatus = streamTaskGetStatus(pTask);
-  if (pStatus->state != TASK_STATUS__READY) {
+  if (pStatus->state != TASK_STATUS__READY && pStatus->state != TASK_STATUS__HALT) {
     stDebug("s-task:%s not launch related fill-history task:0x%" PRIx64 "-0x%x, status:%s", idStr, hStreamId, hTaskId,
             pStatus->name);
 
