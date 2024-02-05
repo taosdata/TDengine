@@ -4457,7 +4457,7 @@ static int32_t findVgroupsFromEqualTbname(STranslateContext* pCxt, SEqCondTbName
     SName snameTb;
     char* tbName = taosArrayGetP(pInfo->aTbnames, j);
     toName(pCxt->pParseCxt->acctId, dbName, tbName, &snameTb);
-    SVgroupInfo vgInfo;
+    SVgroupInfo vgInfo = {0};
     bool        bExists;
     int32_t     code = catalogGetCachedTableHashVgroup(pCxt->pParseCxt->pCatalog, &snameTb, &vgInfo, &bExists);
     if (code == TSDB_CODE_SUCCESS && bExists) {
@@ -8275,13 +8275,13 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  code = nodesListAppend(pNode1->pParameterList, (SNode*)pFunc1);
+  code = nodesListStrictAppend(pNode1->pParameterList, nodesCloneNode((SNode*)pFunc1));
   if (code) {
     nodesDestroyNode((SNode*)pNode1);
     return code;
   }
 
-  code = nodesListAppend((*pSelect1)->pGroupByList, nodesCloneNode((const SNode*)pNode1));
+  code = nodesListAppend((*pSelect1)->pGroupByList, (SNode*)pNode1);
   if (code) {
     return code;
   }
@@ -8298,7 +8298,7 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  code = nodesListAppend(pNode2->pParameterList, nodesCloneNode((const SNode*)pFunc2));
+  code = nodesListStrictAppend(pNode2->pParameterList, nodesCloneNode((SNode*)pFunc2));
   if (code) {
     nodesDestroyNode((SNode*)pNode2);
     return code;
