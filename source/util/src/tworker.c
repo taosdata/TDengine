@@ -15,9 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "tworker.h"
-#include "tgeosctx.h"
 #include "taoserror.h"
+#include "tgeosctx.h"
 #include "tlog.h"
+
+#define QUEUE_THRESHOLD 1000 * 1000
 
 typedef void *(*ThreadFp)(void *param);
 
@@ -82,6 +84,13 @@ static void *tQWorkerThreadFp(SQueueWorker *worker) {
       uInfo("worker:%s:%d qset:%p, got no message and exiting, thread:%08" PRId64, pool->name, worker->id, pool->qset,
             worker->pid);
       break;
+    }
+
+    if (qinfo.timestamp != 0) {
+      int64_t cost = taosGetTimestampUs() - qinfo.timestamp;
+      if (cost > QUEUE_THRESHOLD) {
+        uWarn("worker:%s,message has been queued for too long, cost: %" PRId64 "s", pool->name, cost / QUEUE_THRESHOLD);
+      }
     }
 
     if (qinfo.fp != NULL) {
@@ -196,6 +205,13 @@ static void *tAutoQWorkerThreadFp(SQueueWorker *worker) {
       uInfo("worker:%s:%d qset:%p, got no message and exiting, thread:%08" PRId64, pool->name, worker->id, pool->qset,
             worker->pid);
       break;
+    }
+
+    if (qinfo.timestamp != 0) {
+      int64_t cost = taosGetTimestampUs() - qinfo.timestamp;
+      if (cost > QUEUE_THRESHOLD) {
+        uWarn("worker:%s,message has been queued for too long, cost: %" PRId64 "s", pool->name, cost / QUEUE_THRESHOLD);
+      }
     }
 
     if (qinfo.fp != NULL) {
@@ -336,6 +352,13 @@ static void *tWWorkerThreadFp(SWWorker *worker) {
       uInfo("worker:%s:%d qset:%p, got no message and exiting, thread:%08" PRId64, pool->name, worker->id, worker->qset,
             worker->pid);
       break;
+    }
+
+    if (qinfo.timestamp != 0) {
+      int64_t cost = taosGetTimestampUs() - qinfo.timestamp;
+      if (cost > QUEUE_THRESHOLD) {
+        uWarn("worker:%s,message has been queued for too long, cost: %" PRId64 "s", pool->name, cost / QUEUE_THRESHOLD);
+      }
     }
 
     if (qinfo.fp != NULL) {

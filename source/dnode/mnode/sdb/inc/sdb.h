@@ -152,7 +152,8 @@ typedef enum {
   SDB_STREAM_SEQ = 23,
   SDB_COMPACT = 24,
   SDB_COMPACT_DETAIL = 25,
-  SDB_MAX = 26
+  SDB_GRANT = 26,  // grant log
+  SDB_MAX = 27
 } ESdbType;
 
 typedef struct SSdbRaw {

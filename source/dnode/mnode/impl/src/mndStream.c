@@ -632,9 +632,8 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   int32_t     sqlLen = 0;
   terrno = TSDB_CODE_SUCCESS;
 
-  if(grantCheck(TSDB_GRANT_STREAMS) < 0){
-    terrno = TSDB_CODE_GRANT_STREAM_LIMITED;
-    return -1;
+  if ((terrno = grantCheck(TSDB_GRANT_STREAMS)) < 0) {
+    goto _OVER;
   }
 
   SCMCreateStreamReq createReq = {0};

@@ -193,7 +193,7 @@ static void mndPullupGrant(SMnode *pMnode) {
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {
         .msgType = TDMT_MND_GRANT_HB_TIMER, .pCont = pReq, .contLen = contLen, .info.ahandle = (void *)0x9527};
-    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
 }
 

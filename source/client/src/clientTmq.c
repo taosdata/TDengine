@@ -761,6 +761,7 @@ int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
         }
       }
       taosWUnLockLatch(&tmq->lock);
+      taosReleaseRef(tmqMgmt.rsetId, refId);
     }
     tDeatroySMqHbRsp(&rsp);
     taosMemoryFree(pMsg->pData);
