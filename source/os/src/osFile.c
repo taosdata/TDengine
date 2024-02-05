@@ -632,6 +632,11 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   return writeLen;
 }
 
+bool lastErrorIsFileNotExist() {
+  DWORD dwError = GetLastError();
+  return dwError == ERROR_FILE_NOT_FOUND;
+}
+
 #else
 int taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
   int access = O_BINARY;
@@ -1027,6 +1032,8 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   return size;
 #endif
 }
+
+bool lastErrorIsFileNotExist() { return dwError == ENOENT; }
 
 #endif  // WINDOWS
 
