@@ -3,7 +3,7 @@ use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
 use flume::{Receiver, Sender};
-use metrics::counter;
+use metrics::{gauge, Label};
 use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 use taosx_metrics::{MetricEvent, MetricsEvents};
 use thiserror::Error;
@@ -21,7 +21,7 @@ use twelf::{config, Layer};
 use taosx_core::{
     get_data_dir,
     runners::{get_logs_home_dir, get_plugins_home_dir},
-    utils::trace::TaosXLayer,
+    utils::{monitor::update_sub_connector_process_metrics, trace::TaosXLayer},
 };
 use taosx_core::{
     get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
@@ -232,11 +232,11 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     let mut client3 = agent::Client::new(&args.endpoint, &args.token).await?;
 
     let agent = client.agent();
-
+    let agent_id = agent.id;
     let (resp_tx, resp_rx) = flume::unbounded::<RespAction>();
 
     let (runner, tasks, sender, status) =
-        runner::spawn_runner(agent.id, &args.endpoint, &args.token, resp_tx.clone());
+        runner::spawn_runner(agent_id, &args.endpoint, &args.token, resp_tx.clone());
 
     let (metrics_tx, metrics_rx) = flume::bounded(1000);
     taosx_metrics::ChannelRecorder::new(Arc::new(metrics_tx)).install();
@@ -244,10 +244,11 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     let monitor_config = client.get_taosx_monitor_config().await;
     let monitor_enabled: bool = get_monitor_enabled(monitor_config.as_ref());
     let monitor_interval: u64 = get_monitor_interval(monitor_config.as_ref());
+    let taosx_id = get_taosx_id(monitor_config.as_ref());
 
     if monitor_enabled {
-        start_collect_agent_metrics(monitor_interval);
-        export_metrics(metrics_rx.clone(), resp_tx.clone());
+        start_collect_agent_metrics(monitor_interval, taosx_id, agent_id);
+        export_metrics(metrics_rx.clone(), resp_tx.clone(), monitor_interval);
     }
 
     tokio::select! {
@@ -349,15 +350,69 @@ fn get_monitor_enabled(monitor_config: Option<&HashMap<String, String>>) -> bool
     }
 }
 
-fn start_collect_agent_metrics(monitor_interval: u64) {
+fn get_taosx_id(monitor_config: Option<&HashMap<String, String>>) -> &'static str {
+    if monitor_config.is_none() || monitor_config.unwrap().get("taosx_id").is_none() {
+        "unknown"
+    } else {
+        let taosx_id = monitor_config.unwrap().get("taosx_id").unwrap();
+        Box::leak(taosx_id.clone().into_boxed_str())
+    }
+}
+
+fn start_collect_agent_metrics(monitor_interval: u64, taosx_id: &'static str, agent_id: i64) {
+    use sysinfo::*;
     tracing::info!("Start collect agent metrics");
+    let mut sys = System::new_all();
+    let process_id = get_current_pid();
+    if process_id.is_err() {
+        let err = process_id.unwrap_err();
+        tracing::error!("Get process id error: {err}");
+        return;
+    }
+    let process_id = process_id.unwrap();
+    let agent_id = agent_id.to_string();
+    let agent_id = Box::leak(agent_id.into_boxed_str());
     tokio::spawn(async move {
         let mut collect_interval = tokio::time::interval(Duration::from_secs(monitor_interval));
         loop {
-            counter!("hello-taosx", "version" => "0.1").increment(1);
+            let _ = process_metrics(&mut sys, taosx_id, agent_id, process_id);
             collect_interval.tick().await;
         }
     });
+}
+
+pub fn process_metrics(
+    sys: &mut sysinfo::System,
+    taosx_id: &'static str,
+    agent_id: &'static str,
+    process_id: sysinfo::Pid,
+) -> anyhow::Result<()> {
+    sys.refresh_all();
+    let labels = [
+        ("stable", "taosx_agent"),
+        ("taosx_id", taosx_id),
+        ("agent_id", agent_id),
+    ];
+    // system metrics
+    gauge!("sys_cpu_cores", &labels).set(sys.cpus().len() as f64);
+    gauge!("sys_total_memory", &labels).set(sys.total_memory() as f64);
+    gauge!("sys_used_memory", &labels).set(sys.used_memory() as f64);
+    gauge!("sys_available_memory", &labels).set(sys.available_memory() as f64);
+    // process metrics
+    gauge!("process_id", &labels).set(process_id.as_u32() as f64);
+    if let Some(ps) = sys.process(process_id) {
+        let cpu = ps.cpu_usage();
+        gauge!("process_cpu_percent", &labels).set(cpu as f64);
+        let mem = ps.memory() as f64 / sys.total_memory() as f64 * 100.0;
+        gauge!("process_memory_percent", &labels).set(mem);
+        let disk = ps.disk_usage();
+        gauge!("process_disk_read_bytes", &labels).set(disk.read_bytes as f64);
+        gauge!("process_disk_written_bytes", &labels).set(disk.written_bytes as f64);
+        gauge!("process_uptime", &labels).set(ps.run_time() as f64);
+    }
+    // connecotor process metrics
+    update_sub_connector_process_metrics(sys, taosx_id.to_string(), process_id);
+    Ok(())
 }
 
 fn spawn_heartbeat_task(resp_tx: Sender<RespAction>) -> JoinHandle<()> {
@@ -377,10 +432,11 @@ fn spawn_heartbeat_task(resp_tx: Sender<RespAction>) -> JoinHandle<()> {
 fn export_metrics(
     metrics_rx: Receiver<MetricEvent>,
     resp_tx: Sender<RespAction>,
+    monitor_interval: u64,
 ) -> JoinHandle<()> {
-    tracing::debug!("Start export metrics via rpc");
+    tracing::info!("Start export metrics via rpc");
     tokio::spawn(async move {
-        let mut export_interval = tokio::time::interval(Duration::from_secs(1));
+        let mut export_interval = tokio::time::interval(Duration::from_secs(monitor_interval));
         loop {
             let mut metrics_events = MetricsEvents::new();
             loop {
@@ -390,10 +446,13 @@ fn export_metrics(
                 }
             }
             if !metrics_events.is_empty() {
+                tracing::debug!("Export metric events, total: {}", metrics_events.len());
                 if let Err(err) = resp_tx.send(RespAction::Metrics(metrics_events)) {
                     tracing::warn!("Send metrics action error: {err}");
                     break;
                 }
+            } else {
+                tracing::warn!("No metric events to export");
             }
             export_interval.tick().await;
         }

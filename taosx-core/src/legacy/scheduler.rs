@@ -22,7 +22,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
 use crate::{
-    core_metrics::{CoreMetrics, TaosXMetrics},
+    core_metrics::{CoreMetrics, TaskMetrics},
     legacy::{
         split_table_into_time_range_chunks, sync_single_table_partial, sync_super_table_schema,
         transform_sql_with_remap, transform_tbname_with_actions,

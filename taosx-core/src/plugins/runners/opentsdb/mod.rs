@@ -12,6 +12,7 @@ use tracing::{Instrument, Span};
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::opentsdb::config::{ConnectionConfig, OpentsdbConfig};
+use crate::utils::monitor::send_sub_process_info;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
 };
@@ -189,6 +190,7 @@ pub async fn opentsdb_to_taos(
     let port_pool = port_pool.clone();
     {
         let mut child = child.spawn().context("Start OpenTSDB collector error")?;
+        send_sub_process_info(child.id(), task_id);
         const ERROR_BUF_SIZE: usize = 2;
         let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
         let error_buf_producer = error_buf.clone();

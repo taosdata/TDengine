@@ -1,4 +1,4 @@
-use crate::core_metrics::{CommonMetrics, CoreMetrics, TaosXMetrics};
+use crate::core_metrics::{CommonMetrics, CoreMetrics, TaskMetrics};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -35,9 +35,9 @@ pub struct LegacyToTaosMetrics {
 }
 
 impl LegacyToTaosMetrics {
-    pub fn new(task_id: i64) -> Self {
+    pub fn new(stable: String, task_id: i64, task_name: Option<String>) -> Self {
         Self {
-            com: CommonMetrics::new(task_id),
+            com: CommonMetrics::new(stable, task_id, task_name),
             read_concurrency: Default::default(),
             total_stables: Default::default(),
             total_tables: Default::default(),
@@ -127,7 +127,7 @@ impl Display for LegacyToTaosMetrics {
     }
 }
 
-impl TaosXMetrics for LegacyToTaosMetrics {
+impl TaskMetrics for LegacyToTaosMetrics {
     /// Reset run level metrics
     fn reset(&self) {
         self.com.reset();

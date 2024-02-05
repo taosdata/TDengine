@@ -15,6 +15,7 @@ use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::mqtt::config::{MqttConfig, MqttConnectConfig};
+use crate::utils::monitor::send_sub_process_info;
 use crate::{
     build_ipc, get_log_keep_days, plugins::runners::get_plugin_dir, utils::port_pool::PortPool,
     Parser, Transferred,
@@ -141,7 +142,7 @@ pub async fn mqtt_to_taos(
     let mut child = child
         .spawn()
         .map_err(|err| anyhow::format_err!("Cannot spawn mqtt process: {err:?}"))?;
-
+    send_sub_process_info(child.id(), task_id);
     const ERROR_BUF_SIZE: usize = 2;
     let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
     let error_buf_producer = error_buf.clone();

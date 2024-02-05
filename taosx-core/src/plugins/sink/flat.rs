@@ -6,7 +6,7 @@ use thiserror::Error;
 use tracing::{error, instrument};
 
 use crate::{
-    core_metrics::TaosXMetrics, plugins::transform::MessageArrowRecords,
+    core_metrics::TaskMetrics, plugins::transform::MessageArrowRecords,
     sink::DEFAULT_MAX_RETRIES_FOR_CONNECTION, utils::trace::RequestID,
 };
 

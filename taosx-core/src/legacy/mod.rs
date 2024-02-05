@@ -24,7 +24,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument, warn};
 
 use crate::{
-    core_metrics::{get_metrics_arc, CoreMetrics, TaosXMetrics},
+    core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
     legacy::scheduler::Todo,
     utils::breakpoints::{breakpoints_get, breakpoints_set},
     Action,

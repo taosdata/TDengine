@@ -1,4 +1,4 @@
-use crate::core_metrics::{CommonMetrics, CoreMetrics, TaosXMetrics};
+use crate::core_metrics::{CommonMetrics, CoreMetrics, TaskMetrics};
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering::SeqCst;
@@ -91,9 +91,9 @@ impl Default for IpcMetrics {
 }
 
 impl IpcMetrics {
-    pub fn new(task_id: i64) -> Self {
+    pub fn new(stable: String, task_id: i64, task_name: Option<String>) -> Self {
         Self {
-            com: CommonMetrics::new(task_id),
+            com: CommonMetrics::new(stable, task_id, task_name),
             total_received_batches: AtomicU64::new(0),
             total_processed_batches: AtomicU64::new(0),
             total_failed_batches: AtomicU64::new(0),
@@ -199,7 +199,7 @@ impl Into<CoreMetrics> for IpcMetrics {
     }
 }
 
-impl TaosXMetrics for IpcMetrics {
+impl TaskMetrics for IpcMetrics {
     fn reset(&self) {
         self.com.reset();
         self.received_batches.store(0, SeqCst);

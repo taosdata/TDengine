@@ -62,6 +62,7 @@ tracing-appender = "0.2"
 
 file-rotate = "0.7.5"
 bytes = { workspace = true }
+sysinfo = { workspace = true }
 
 [build-dependencies]
 dotenv = "0.15.0"

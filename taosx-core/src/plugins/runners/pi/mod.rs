@@ -13,6 +13,7 @@ use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::pi::config::PiConfig;
+use crate::utils::monitor::send_sub_process_info;
 use crate::{
     build_ipc, get_log_keep_days, plugins::service::spawn_rest_service, utils::port_pool::PortPool,
     Action, DataSet, DataSetsReq, Transferred,
@@ -253,6 +254,7 @@ pub async fn pi_to_taos(
                 .stderr(std::process::Stdio::piped())
                 .spawn()
                 .context("Start PI collector error")?;
+            send_sub_process_info(child_command.id(), task_id);
         }
         "pibackfill" => {
             let mut command = tokio::process::Command::new(pi_backfill_exe_path()?);
@@ -264,6 +266,7 @@ pub async fn pi_to_taos(
                 .stderr(std::process::Stdio::piped())
                 .spawn()
                 .context("Start PI Backfill error")?;
+            send_sub_process_info(child_command.id(), task_id);
         }
         _ => {
             anyhow::bail!("wrong driver configured");
