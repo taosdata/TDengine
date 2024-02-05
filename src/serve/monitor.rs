@@ -149,7 +149,7 @@ impl Monitor {
                     add_task_metrics_tables(tasks.clone(), &mut tables, taosx_id).await;
                     let stables = grouptables2stable(tables);
                     let body = stable2json(stables);
-                    tracing::info!("data send to taoskeeper: {}", &body); // debug
+                    tracing::debug!("data send to taoskeeper: {}", &body);
                     exporter.push_taoskeeper(body).await;
                 }
             });
